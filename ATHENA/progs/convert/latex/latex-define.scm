@@ -326,6 +326,13 @@
 
 (smart-table latex-texmacs-macro
   ;; Nullary macros
+  (ATHENA
+   (textbf
+    (!append "\\kern.07emA\\kern-.07em"
+             (raisebox ".25ex" (scalebox ".7" "T"))
+             "\\kern-.05emH\\kern.05em"
+             (raisebox "-.25ex" (scalebox ".7" "E"))
+             "NA")))
   (tmunsc "\\_")
   (emdash "---")
   (tmat "\\symbol{\"40}")

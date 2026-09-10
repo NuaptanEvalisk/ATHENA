@@ -2941,7 +2941,7 @@
 
 (define (get-ornament-env)
   (let* ((l1  (ahash-set->list tmtex-env))
-         (l21 (map (cut logic-ref tex-ornament-opts% <>) l1))
+         (l21 (map (lambda (key) (logic-ref tex-ornament-opts% key)) l1))
          (l22 (map (cut tmtex-env-get <>) l1))
          (l3  (map (lambda (x y) (if (and x y) (list x y) '())) l21 l22))
          (l4  (filter nnull? l3))

@@ -39,24 +39,33 @@ void TestCommandLineConversion::convertsBeforeContinuing() {
   for (const QString& name: {QString ("FIRSTINPUT"), QString ("SECONDINPUT")}) {
     QFile file (temp.filePath ("inputs/" + name + ".tm"));
     QVERIFY (file.open (QIODevice::WriteOnly));
+    const QByteArray body= name.toUtf8 () +
+      (name == "FIRSTINPUT" ? QByteArray (" <ATHENA>") : QByteArray ());
     const QByteArray source= "<TeXmacs|2.1.4>\n\n<style|generic>\n\n"
-      "<\\body>\n  " + name.toUtf8 () + "\n</body>\n";
+      "<\\body>\n  " + body + "\n</body>\n\n"
+      "<\\initial>\n  <\\collection>\n"
+      "    <associate|page-medium|automatic>\n"
+      "  </collection>\n</initial>\n";
     QCOMPARE (file.write (source), source.size ());
   }
 
   const QString executable= QDir (QCoreApplication::applicationDirPath ())
     .absoluteFilePath ("../src/ATHENA.bin");
+  const QString resources= QDir (QCoreApplication::applicationDirPath ())
+    .absoluteFilePath ("../../ATHENA");
   QProcess process;
   auto env= QProcessEnvironment::systemEnvironment ();
   env.insert ("ATHENA_HOME_PATH", temp.filePath ("home"));
+  env.insert ("ATHENA_PATH", resources);
   env.insert ("QT_QPA_PLATFORM", "offscreen");
   env.insert ("PWD", temp.path ());
   process.setProcessEnvironment (env);
   process.setWorkingDirectory (temp.path ());
   process.setProcessChannelMode (QProcess::MergedChannels);
   process.start (executable, {"-C", "inputs/FIRSTINPUT.tm", "first.pdf",
-                            "-C", "inputs/SECONDINPUT.tm", "second.txt",
-                            "-x", "(export-buffer \"after.txt\")"});
+                             "-C", "inputs/FIRSTINPUT.tm", "first.tex",
+                             "-C", "inputs/SECONDINPUT.tm", "second.txt",
+                             "-x", "(export-buffer \"after.txt\")"});
   QVERIFY2 (process.waitForFinished (45000), qPrintable (process.errorString ()));
   const QByteArray log= process.readAll ();
   QCOMPARE (process.exitStatus (), QProcess::NormalExit);
@@ -64,6 +73,15 @@ void TestCommandLineConversion::convertsBeforeContinuing() {
   QVERIFY2 (contents (temp.filePath ("second.txt")).contains ("SECONDINPUT"),
             (log + "\nsecond.txt: " + contents (temp.filePath ("second.txt"))).constData ());
   QVERIFY2 (contents (temp.filePath ("inputs/after.txt")).contains ("SECONDINPUT"),
+            log.constData ());
+  const QByteArray latex= contents (temp.filePath ("first.tex"));
+  QVERIFY2 (latex.contains ("FIRSTINPUT"),
+            (log + "\nfirst.tex: " + latex).constData ());
+  QVERIFY2 (latex.contains ("\\newcommand{\\ATHENA}"),
+            (log + "\nfirst.tex: " + latex).constData ());
+  QVERIFY2 (latex.contains ("\\usepackage{graphicx}"),
+            (log + "\nfirst.tex: " + latex).constData ());
+  QVERIFY2 (!log.contains ("GUI buffer registry accessed from a BufferActor"),
             log.constData ());
 
   QProcess inspect;

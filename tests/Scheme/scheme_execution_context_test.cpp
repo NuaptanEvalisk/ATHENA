@@ -9,6 +9,7 @@
 
 #include <QtTest/QtTest>
 
+#include "convert.hpp"
 #include "drd_std.hpp"
 #include "scheme_execution_context.hpp"
 #include "System/Misc/crash_report.hpp"
@@ -16,12 +17,18 @@
 #include <atomic>
 #include <thread>
 
+bool headless_mode= true;
+bool is_headless () { return true; }
+
+tree latex_expand (tree doc);
+
 class TestSchemeExecutionContext: public QObject {
   Q_OBJECT
 
 private slots:
   void restoresNestedContexts ();
   void isolatesConcurrentThreads ();
+  void latexExpansionAvoidsGuiRegistry ();
 };
 
 void
@@ -109,6 +116,24 @@ TestSchemeExecutionContext::isolatesConcurrentThreads () {
 
   QVERIFY (valid.load (std::memory_order_relaxed));
   QVERIFY (current_scheme_execution_context () == nullptr);
+}
+
+void
+TestSchemeExecutionContext::latexExpansionAvoidsGuiRegistry () {
+  drd_info local_drd ("execution-context-latex");
+  tree local_document= make_document_tree ();
+  SchemeExecutionContext context (
+    nullptr, nullptr, &local_drd, &local_document,
+    ATHENA_NO_ACTOR, 7, 77, SCHEME_CAPABILITY_BUFFER);
+
+  tree doc (TUPLE);
+  doc << compound ("body", tree ("ACTOR-LATEX"));
+  doc << compound ("view", tree ("tmfs://view/7/actor-latex-test.ath"));
+  SchemeExecutionScope scope (context);
+  tree expanded= latex_expand (doc);
+
+  QCOMPARE (extract (expanded, "body"), tree (DOCUMENT, "ACTOR-LATEX"));
+  QCOMPARE (extract (expanded, "view"), tree (""));
 }
 
 QTEST_MAIN (TestSchemeExecutionContext)

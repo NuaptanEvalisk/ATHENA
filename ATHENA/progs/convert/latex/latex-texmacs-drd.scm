@@ -97,7 +97,7 @@
 
 (logic-group latex-texmacs-0%
   tmunsc emdash tmhrule tmat tmbsl tmdummy
-  TeXmacs madebyTeXmacs withTeXmacstext citewebsite tmmade
+  ATHENA TeXmacs madebyTeXmacs withTeXmacstext citewebsite tmmade
   scheme tmsep tmSep pari qed textdots hrule filldots
   infixand infixor infixiff)
 

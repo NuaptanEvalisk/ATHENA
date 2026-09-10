@@ -889,6 +889,15 @@ latex_expand (tree doc, url name) {
 
 tree
 latex_expand (tree doc) {
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr) {
+    if (context->editor != nullptr && context->has (SCHEME_CAPABILITY_BUFFER)) {
+      tree body= context->editor->exec_latex (extract (doc, "body"));
+      doc= change_doc_attr (doc, "body", body);
+    }
+    return remove_doc_attr (doc, "view");
+  }
+
   url view_url (as_string (extract (doc, "view")));
   tm_view view= concrete_view (view_url);
   if (view == nullptr) return remove_doc_attr (doc, "view");
