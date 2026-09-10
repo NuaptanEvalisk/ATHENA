@@ -44,17 +44,17 @@
   <menu|Insert|Fold|Folded> depending on the desired rendering. In
   particular, some of the renderings display a button which may be pushed in
   order to fold or unfold some content. The input-output fields inside
-  computer algebra sessions are also foldable. Similarly, the tags in
+  in-process Scheme session fields are also foldable. Similarly, the tags in
   <menu|Insert|Fold|Summarize> are switches with two branches, again with
   different kinds of rendering.
 
-  When using <TeXmacs> in combination with an external plug-in, such as a
-  computer algebra system, you will notice that all input-output fields in
+  Input-output fields in in-process Scheme
   <hlink|sessions|../interface/man-session-basic.en.tm> are foldable. In
   addition, you can create so called ``<hlink|executable
   switches|../interface/man-scripting-language.en.tm>'' using the items in
   the <menu|Insert|Fold|Executable> submenu. This allows you to switch back
-  and forth between a given input to the system and the corresponding output.
+  and forth between a given input and the corresponding result without relying
+  on the retired external plug-in Session framework.
 
   All markup for the traversal of presentations may be nested in a natural
   way. In the <menu|Insert|Fold|Traversal> menu, you may specify whether

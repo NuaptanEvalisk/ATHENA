@@ -312,6 +312,16 @@
   images, detects cyclic transclusions, and displays the result as an
   ornamented block.
 
+  Hold <key|Shift> while hovering a wikilink to preview the target in a rendered
+  read-only overlay. The preview does not open or change a document buffer, and
+  links inside it can open nested previews. The same overlay mechanism is used
+  for radioactive Artifact links.
+
+  Use <menu|Document|Flatten transclusions into new document> to create a new
+  standalone document in which transcluded content has been resolved into
+  ordinary document structure. The source document and its UUID-backed
+  transclusions are left unchanged.
+
   Namespace data affects these workflows because the chooser operates on vault
   files and anchors that are organized by namespace membership. A well-defined
   namespace hierarchy gives stable mathematical context to the files chosen for

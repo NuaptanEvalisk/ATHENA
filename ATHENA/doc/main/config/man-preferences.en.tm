@@ -224,8 +224,9 @@
   <subsection|Programming>
 
   <\description>
-    <item*|Scripting language>Chooses the default scripting language used for
-    script sessions and script-related commands.
+    <item*|Scripting language>Chooses the language used by built-in program and
+    script fields where a language choice is applicable. ATHENA no longer uses
+    this preference to discover or launch external TeXmacs plug-in Sessions.
 
     <item*|Highlight matching brackets>Highlights the bracket matching the
     one near the cursor in program text.
@@ -243,7 +244,10 @@
     <item*|Show heading word counts>Shows word counts for headings where this
     feature is supported.
 
-    <item*|Check spelling as you type>Runs live spell checking while editing.
+    <item*|Check spelling as you type>Runs progressive in-process Hunspell
+    checking while editing. Work starts near the visible viewport, proceeds in
+    bounded batches on the owning BufferActor, and stale traversal is cancelled
+    after document changes.
 
     <item*|Disable UNIX primary selection>Disables the X11-style primary
     selection behavior.

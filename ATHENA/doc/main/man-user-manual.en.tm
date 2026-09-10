@@ -8,6 +8,10 @@
   <\traverse>
     <branch|Getting started|start/man-getting-started.en.tm>
 
+    <branch|What is new in <ATHENA> 0.9|start/man-new-in-0.9.en.tm>
+
+    <branch|ATHENA knowledge workflows|start/man-athena-workflows.en.tm>
+
     <branch|Writing simple documents|text/man-text.en.tm>
 
     <branch|Mathematical formulas|math/man-math.en.tm>
@@ -33,8 +37,6 @@
 
     <branch|Customizing <TeXmacs>|scheme/man-scheme.en.tm>
 
-    <branch|The <TeXmacs> plug-in system|../devel/plugin/plugins.en.tm>
-
     <branch|The <TeXmacs> format|../devel/format/basics/basics.en.tm>
 
     <branch|Standard environment variables|../devel/format/environment/environment.en.tm>
@@ -53,8 +55,6 @@
 
     <extra-branch|Interfacing <TeXmacs> with other
     programs|../devel/interface/interface.en.tm>
-
-    <extra-branch|Setting up a <TeXmacs> server|remote/man-server.en.tm>
   </traverse>
 
   <tmdoc-copyright|1998\U2002|Joris van der Hoeven>

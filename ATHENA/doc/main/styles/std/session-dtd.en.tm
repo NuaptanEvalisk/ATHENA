@@ -5,8 +5,8 @@
 <\body>
   <tmdoc-title|Special markup for sessions>
 
-  The <tmdtd|session> <abbr|d.t.d.> provides the following environments for
-  computer algebra sessions:
+  The <tmdtd|session> <abbr|d.t.d.> provides the structured environments used
+  by in-process Scheme sessions and preserved legacy session markup:
 
   <\explain|<explain-macro|session|body>>
     Environment for marking a session. All macros below are only for use

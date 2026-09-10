@@ -23,7 +23,7 @@
 #include "scheme.hpp"
 #include "data_cache.hpp"
 #include "sys_utils.hpp"
-#include "tm_buffer.hpp"
+#include "buffer_state.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }
@@ -32,7 +32,7 @@ static server_rep* testServer= nullptr;
 
 class TestEditorRep: public edit_main_rep {
 public:
-  TestEditorRep (server_rep* server, tm_buffer buffer):
+  TestEditorRep (server_rep* server, buffer_document_state* buffer):
     editor_rep (server, buffer),
     edit_main_rep (server, buffer) {}
 
@@ -66,7 +66,7 @@ private slots:
   void patternRecolorKeepsOperatorBeforeCoexactTerm ();
 
 private:
-  tm_buffer buffer= nullptr;
+  buffer_document_state* buffer= nullptr;
   TestEditorRep* ed= nullptr;
 };
 
@@ -84,11 +84,12 @@ TestHodgeRecolor::hodgeFormula () {
 
 void
 TestHodgeRecolor::init () {
-  buffer     = tm_new<tm_buffer_rep> (url ("hodge-recolor-test.ath"));
+  buffer= tm_new<buffer_document_state> (
+    nullptr, "hodge-recolor-test.ath", "", "hodge-recolor-test", false, 0);
   swap_current_document_tree (&buffer->document);
   buffer->data->init ("no-zoom")= "true";
   buffer->data->init (ZOOM_FACTOR)= "1";
-  set_document (buffer->document, buffer->rp, hodgeFormula ());
+  set_document (buffer->document, buffer->root_path, hodgeFormula ());
   ed= tm_new<TestEditorRep> (testServer, buffer);
 }
 
@@ -106,14 +107,14 @@ TestHodgeRecolor::crossNodeCutRestoresInsertionSplice () {
   const tree initial= tree (
     DOCUMENT,
     tree (CONCAT, "ab", tree (WITH, "color", "#123456", "middle"), "cd"));
-  set_document (buffer->document, buffer->rp, initial);
+  set_document (buffer->document, buffer->root_path, initial);
 
-  const path concatPath= buffer->rp * 0;
+  const path concatPath= buffer->root_path * 0;
   ed->setRawSelection (concatPath * 0 * 1, concatPath * 2 * 1);
   ed->selection_cut ("none");
   ed->insert_tree ("X");
 
-  QVERIFY (subtree (current_document_tree (), buffer->rp) == tree (DOCUMENT, "aXd"));
+  QVERIFY (subtree (current_document_tree (), buffer->root_path) == tree (DOCUMENT, "aXd"));
 }
 
 void
@@ -121,9 +122,9 @@ TestHodgeRecolor::mixedMathTextFormattingKeepsPosition () {
   const tree initial= tree (
     DOCUMENT,
     tree (CONCAT, "Before ", compound ("math", "A"), "-forms after"));
-  set_document (buffer->document, buffer->rp, initial);
+  set_document (buffer->document, buffer->root_path, initial);
 
-  const path concatPath= buffer->rp * 0;
+  const path concatPath= buffer->root_path * 0;
   ed->setRawSelection (concatPath * 1 * 0 * 0,
                        concatPath * 2 * 6);
   path p1, p2;
@@ -145,7 +146,7 @@ TestHodgeRecolor::mixedMathTextFormattingKeepsPosition () {
           tree (WITH, "font-series", "bold",
                 tree (CONCAT, compound ("math", "A"), "-forms")),
           " after"));
-  const tree result= subtree (current_document_tree (), buffer->rp);
+  const tree result= subtree (current_document_tree (), buffer->root_path);
   QVERIFY (result == expected);
 }
 
@@ -156,9 +157,9 @@ TestHodgeRecolor::wikilinkDeletionKeepsInsertionAtSplice () {
   const tree initial= tree (
     DOCUMENT,
     tree (CONCAT, "Before ", link, " after"));
-  set_document (buffer->document, buffer->rp, initial);
+  set_document (buffer->document, buffer->root_path, initial);
 
-  const path concatPath= buffer->rp * 0;
+  const path concatPath= buffer->root_path * 0;
   ed->setRawSelection (concatPath * 1 * 0 * 0,
                        concatPath * 2 * 0);
   path p1, p2;
@@ -169,13 +170,13 @@ TestHodgeRecolor::wikilinkDeletionKeepsInsertionAtSplice () {
 
   ed->selection_cut ("none");
   ed->insert_tree ("X");
-  QVERIFY (subtree (current_document_tree (), buffer->rp) ==
+  QVERIFY (subtree (current_document_tree (), buffer->root_path) ==
            tree (DOCUMENT, "Before X after"));
 }
 
 void
 TestHodgeRecolor::patternRecolorKeepsOperatorBeforeCoexactTerm () {
-  const path concatPath= buffer->rp * 0 * 2;
+  const path concatPath= buffer->root_path * 0 * 2;
   const path coexactPath= concatPath * 7;
   const path followingPath= concatPath * 8;
   const path rawStart= coexactPath * 2 * 0 * 0 * 0;

@@ -35,7 +35,7 @@
   strict superset of <TeX>/<LaTeX>. This not completely the case yet, but it
   is already true that many features in <TeXmacs> admit no direct analogues
   in <TeX>/<LaTeX> or one of its packages. This is for instance the case for
-  computer algebra sessions, folding, actions, graphics and presentations,
+  in-process Scheme sessions, folding, actions, graphics and presentations,
   but also for certain typesetting constructs, like vertical alignment and
   background filling in tables. When using such additional features, you
   should be prepared that they will not be converted correctly to <LaTeX>.

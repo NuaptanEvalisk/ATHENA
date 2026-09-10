@@ -212,11 +212,12 @@
     <TeXmacs> currently uses the Qt6 interface. Older Qt interfaces are no
     longer supported by ATHENA.
 
-    <ATHENA> 0.8 uses a private, source-integrated <name|Guile> 3 runtime.
-    Native compatibility support preserves the module, lazy-definition, and
-    requirement behavior used by the inherited Scheme sources. Scheme modules
-    are compiled to dependency-aware bytecode during the build, and installed
-    <ATHENA> releases do not depend on a system <name|Guile> 1.8 package.
+    <ATHENA> uses a vendored, modified <name|Guile> 3.0.10 runtime and a private
+    BDW-GC. It does not link to system Guile 1.8 or an unmodified system Guile
+    3. Native compatibility support preserves the module, lazy-definition, and
+    requirement behavior used by inherited Scheme sources, while BufferActors
+    execute buffer-bound Scheme in the shared Guile runtime under explicit
+    execution contexts.
   </answer*>
 
   <section*|Troubleshooting>

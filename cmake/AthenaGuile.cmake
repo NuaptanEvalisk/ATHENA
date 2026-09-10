@@ -2,6 +2,17 @@ include(ExternalProject)
 
 find_program(ATHENA_GUILE_MAKE_EXECUTABLE NAMES gmake make REQUIRED)
 
+if(NOT DEFINED ATHENA_PRIVATE_RUNTIME_JOBS)
+  if(DEFINED ENV{ATHENA_BUILD_JOBS} AND
+     "$ENV{ATHENA_BUILD_JOBS}" MATCHES "^[1-9][0-9]*$")
+    set(ATHENA_PRIVATE_RUNTIME_JOBS "$ENV{ATHENA_BUILD_JOBS}" CACHE STRING
+      "Parallel jobs for private ATHENA runtime builds")
+  else()
+    set(ATHENA_PRIVATE_RUNTIME_JOBS "20" CACHE STRING
+      "Parallel jobs for private ATHENA runtime builds")
+  endif()
+endif()
+
 if(WIN32)
   message(FATAL_ERROR
     "The ATHENA Guile 3 runtime is currently supported by the Linux Qt6 "
@@ -132,12 +143,13 @@ ExternalProject_Add(athena_guile_runtime
         --enable-jit=yes
         --disable-nls
         --enable-lto=thin
-  BUILD_COMMAND ${ATHENA_GUILE_BUILD_COMMAND} -j20 ${ATHENA_GUILE_MAKE_OPTIONS}
+  BUILD_COMMAND ${ATHENA_GUILE_BUILD_COMMAND}
+    -j${ATHENA_PRIVATE_RUNTIME_JOBS} ${ATHENA_GUILE_MAKE_OPTIONS}
   # This is a private prefix. Remove old modules before installing the exact
   # source manifest; otherwise deleted .go files silently remain loadable.
   INSTALL_COMMAND "${CMAKE_COMMAND}" -E rm -rf
     <INSTALL_DIR>/share/guile/3.0 <INSTALL_DIR>/lib/guile/3.0
-    COMMAND ${ATHENA_GUILE_BUILD_COMMAND} -j20
+    COMMAND ${ATHENA_GUILE_BUILD_COMMAND} -j${ATHENA_PRIVATE_RUNTIME_JOBS}
     ${ATHENA_GUILE_MAKE_OPTIONS} install
   BUILD_BYPRODUCTS "${ATHENA_GUILE_LIBRARY}"
   DEPENDS athena_bdwgc_runtime

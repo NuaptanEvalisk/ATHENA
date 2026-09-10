@@ -1,6 +1,6 @@
 <TeXmacs|1.99.8>
 
-<style|<tuple|tmdoc|english|pari|old-spacing>>
+<style|<tuple|tmdoc|english|old-spacing>>
 
 <\body>
   <tmdoc-title|Structured variants>
@@ -43,18 +43,18 @@
   items (bullets, dashes, arrows, <abbr|etc.>).
 
   Folding and unfolding provides yet another example of an interesting way to
-  toggle between several environments. Inside a computer algebra session such
+  toggle between several environments. Inside an in-process Scheme session such
   as
 
-  <\session|pari|default>
-    <\unfolded-io|Pari] >
-      factor (x^15 - 1)
+  <\session|scheme|default>
+    <\unfolded-io|scheme] >
+      (map (lambda (x) (* x x)) '(1 2 3 4))
     <|unfolded-io>
-      <with|color|magenta|%1 = <math|<with|color|blue|<matrix|<tformat|<table|<row|<cell|x-1>|<cell|1>>|<row|<cell|x<rsup|2>+x+1>|<cell|1>>|<row|<cell|x<rsup|4>+x<rsup|3>+x<rsup|2>+x+1>|<cell|1>>|<row|<cell|x<rsup|8>-x<rsup|7>+x<rsup|5>-x<rsup|4>+x<rsup|3>-x+1>|<cell|1>>>>>>>>
+      (1 4 9 16)
     </unfolded-io>
   </session>
 
-  you may click on \P<verbatim|<with|color|dark brown|Pari]>>\Q in order to
+  you may click on the Scheme prompt in order to
   fold the output (only the input remains visible) and click once again in
   order to unfold back to the original state. The <shortcut|(alternate-toggle
   (focus-tree))> shortcut achieves the same effect. There various other

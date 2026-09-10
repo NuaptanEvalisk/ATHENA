@@ -25,11 +25,11 @@
   formats is set by the preference <menu|Edit|Preferences|Converters|TeXmacs
   -\<gtr\> image|Bitmap export resolution (dpi)>.
 
-  When \ <acronym|Svg> format is selected, <TeXmacs> annotates the image with
-  the source information for the image's content. When inserted in
-  <name|Inkscape> or <name|Libreoffice> documents, such images can easily be
-  re-edited using the <hlink|<name|Equation editor>
-  plugin|../../../plugins/equation-editor/doc/equation-editor.en.tm>.\ 
+  When <acronym|Svg> format is selected, <ATHENA> may annotate the image with
+  source information for the image's content. The inherited TeXmacs Equation
+  Editor plug-in is no longer shipped or discovered by ATHENA, so this metadata
+  should be treated as interchange information rather than as an executable
+  external plug-in round trip.
 
   <paragraph|Required external converters><label|external converters>
 

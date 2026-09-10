@@ -48,6 +48,23 @@
   of creating another independent copy. Imported or uncertain metadata stays
   reviewable before it becomes the authoritative record.
 
+  Use <menu|Add directory...> to ingest a directory non-recursively or
+  recursively without reviewing every item individually. Recognition runs in a
+  bounded worker pool and still applies the same content-hash and strong
+  identifier deduplication rules. Failures are summarized after the batch
+  instead of interrupting each successful import.
+
+  Recognition distinguishes ordinary text-layer title pages from OCR output,
+  rejects implausible body text and software metadata as authors, and can select
+  a better OCR path when embedded OCR is unusable. CJK creator and title-page
+  recovery does not assume Latin name or title lengths.
+
+  <menu|Re-identify> rebuilds selected bibliographic metadata from the primary
+  attachment while preserving the Material UUID and user tags. Use
+  <menu|Canonicalize filenames> to rename managed files from current creator,
+  date, and title metadata and to detect unreferenced files under the managed
+  Materials directory.
+
   <menu|Import BibTeX> imports a <verbatim|.bib> library into Materials. This
   is an import path, not the former TeXmacs bibliography subsystem: imported
   entries become ordinary UUID-backed Material records.
@@ -67,6 +84,11 @@
   identifiers such as DOI and ISBN also match existing Materials, so importing
   a Zotero library does not create a second record for a source already entered
   by another route.
+
+  Zotero attachment provenance is reconciled independently of bibliographic
+  metadata. Repeated imports can therefore attach the same local file to the
+  existing Material instead of creating another managed copy merely because
+  metadata changed.
 
   <section|Citing a Material>
 
@@ -110,6 +132,15 @@
   are disabled by default. A contact email can be supplied for services whose
   responsible-use policy requests one. Local extractor command names are
   configurable separately.
+
+  <section|Maintenance>
+
+  Vault Maintenance can maintain Materials after the vault health check. It
+  verifies managed attachment paths, applies canonical filename maintenance,
+  and reports missing or unreferenced managed files without changing Material
+  UUID identity. This pass is separate from ordinary document reference and
+  asset maintenance: Materials are external source objects, not document
+  labels or vault assets.
 
   <section|LaTeX interoperability>
 

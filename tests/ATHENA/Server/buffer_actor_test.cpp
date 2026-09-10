@@ -10,11 +10,15 @@
 #include <QtTest/QtTest>
 
 #include "buffer_actor.hpp"
+#include "buffer_state.hpp"
 #include "tm_buffer.hpp"
 
 #include <atomic>
 #include <thread>
 #include <vector>
+
+bool headless_mode= true;
+bool is_headless () { return true; }
 
 class TestBufferActor: public QObject {
   Q_OBJECT
@@ -37,14 +41,20 @@ TestBufferActor::startsLazily () {
 void
 TestBufferActor::preservesSynchronousInvocationContext () {
   tm_buffer buffer= tm_new<tm_buffer_rep> (url ("actor-context-test.ath"));
-  string expected_view= "tmfs://view/7/actor-context-test.ath";
-  bool valid_context= buffer->actor->invoke_native ([&] {
+  const athena_view_id expected_view= 7;
+  bool valid_context= false;
+  athena_continuation_id continuation=
+    actor_continuation_registry::instance ().store ([&] {
     const SchemeExecutionContext* context=
       current_scheme_execution_context ();
-    return context != nullptr && context->actor == buffer->actor &&
-           as_string (context->view_id) == expected_view &&
-           context->has (SCHEME_CAPABILITY_BUFFER);
-  }, nullptr, expected_view);
+    valid_context= context != nullptr && context->actor == buffer->actor &&
+                   context->view_id == expected_view &&
+                   context->has (SCHEME_CAPABILITY_BUFFER);
+  });
+  QVERIFY (buffer->actor->invoke (
+    actor_command_kind::run_native_continuation, expected_view,
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER,
+    continuation));
 
   QVERIFY (valid_context);
   tm_delete (buffer);
@@ -57,14 +67,21 @@ TestBufferActor::ownsCommandsAndDocumentContext () {
   std::thread::id executor;
   bool valid_context= false;
 
-  buffer->actor->invoke_native ([&] {
+  athena_continuation_id continuation=
+    actor_continuation_registry::instance ().store ([&] {
     executor= std::this_thread::get_id ();
     const SchemeExecutionContext* context=
       current_scheme_execution_context ();
     valid_context= context != nullptr && context->actor == buffer->actor &&
                    context->command_id != 0 &&
-                   &current_document_tree () == &buffer->document;
+                   buffer->actor->current_state () != nullptr &&
+                   &current_document_tree () ==
+                     &buffer->actor->current_state ()->document;
   });
+  QVERIFY (buffer->actor->invoke (
+    actor_command_kind::run_native_continuation, ATHENA_NO_VIEW,
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER,
+    continuation));
 
   QVERIFY (executor != caller);
   QCOMPARE (executor, buffer->actor->owner_thread ());
@@ -76,16 +93,27 @@ void
 TestBufferActor::drainsInFifoOrderAndRejectsAfterShutdown () {
   tm_buffer buffer= tm_new<tm_buffer_rep> (url ("actor-order-test.ath"));
   std::vector<int> observed;
-  for (int value= 1; value <= 4; ++value)
-    QVERIFY (buffer->actor->post_native (
-      [&observed, value] { observed.push_back (value); }));
+  for (int value= 1; value <= 4; ++value) {
+    athena_continuation_id continuation=
+      actor_continuation_registry::instance ().store (
+        [&observed, value] { observed.push_back (value); });
+    QVERIFY (buffer->actor->submit (
+      actor_command_kind::run_native_continuation, ATHENA_NO_VIEW,
+      ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+      continuation));
+  }
 
   buffer->actor->wait_until_idle ();
   QCOMPARE (observed, std::vector<int> ({ 1, 2, 3, 4 }));
   QCOMPARE (buffer->actor->completed_commands (), std::uint64_t (4));
 
   buffer->actor->shutdown ();
-  QVERIFY (!buffer->actor->post_native ([] {}));
+  athena_continuation_id rejected=
+    actor_continuation_registry::instance ().store ([] {});
+  QVERIFY (!buffer->actor->try_submit (
+    actor_command_kind::run_native_continuation, ATHENA_NO_VIEW,
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, rejected));
+  QVERIFY (actor_continuation_registry::instance ().discard (rejected));
   tm_delete (buffer);
 }
 

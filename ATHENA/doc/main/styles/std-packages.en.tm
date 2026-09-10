@@ -52,11 +52,11 @@
     interactive use, although less adequate for printing.
   </explain>
 
-  In addition to these packages, and the many packages for internal use,
-  <TeXmacs> also provides a few personal example style packages
-  <tmpackage|allouche>, <tmpackage|bpr> and <tmpackage|vdh> and several style
-  packages for use in combination with external plug-ins (<tmpackage|axiom>,
-  <tmpackage|giac>, <tmpackage|macaulay2>, <abbr|etc.>).
+  In addition to these packages and the many packages for internal use,
+  <ATHENA> retains a number of inherited style packages for displaying older
+  documents. Some historical packages were originally designed for external
+  computer-algebra Sessions; they are presentation compatibility only because
+  ATHENA no longer ships or discovers the corresponding plug-ins.
 
   <tmdoc-copyright|1998--2004|Joris van der Hoeven>
 

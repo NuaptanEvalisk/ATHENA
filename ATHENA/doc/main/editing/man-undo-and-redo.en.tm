@@ -19,7 +19,7 @@
   document properties can not be undone. This includes modifications of the
   document style, the page size, the main font, etc. The same remark applies
   to any modifications outside <TeXmacs> that were triggered by your actions.
-  For instance, in a computer algebra session, you can undo your edits inside
+  For instance, in an in-process Scheme session, you can undo your edits inside
   <TeXmacs>, but not the computations in the external computer algebra
   system.
 

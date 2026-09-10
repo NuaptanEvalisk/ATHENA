@@ -10,6 +10,8 @@
 
     <branch|Getting started|start/man-getting-started.en.tm>
 
+    <branch|What is new in <ATHENA> 0.9|start/man-new-in-0.9.en.tm>
+
     <branch|What is new in <ATHENA> 0.8|start/man-new-in-0.8.en.tm>
 
     <branch|What is new in <ATHENA> 0.7|start/man-new-in-0.7.en.tm>
@@ -40,8 +42,6 @@
     packages|../devel/style/style.en.tm>
 
     <branch|Customizing <TeXmacs>|scheme/man-scheme.en.tm>
-
-    <branch|The <TeXmacs> plug-in system|../devel/plugin/plugins.en.tm>
   </traverse>
 
   <tmdoc-copyright|1998\U2002|Joris van der Hoeven>

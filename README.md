@@ -46,35 +46,36 @@ of work by Joris van der Hoeven and the GNU TeXmacs contributors.
 
 ## Major Features
 
-### ATHENA 0.8 Highlights
+### ATHENA 0.9 Highlights
 
-ATHENA 0.8 strengthens the connection between mathematical documents and the
-knowledge they cite, define, and publish. It also replaces a foundational
-legacy runtime and makes several large-vault operations genuinely incremental.
+ATHENA 0.9 is primarily an architectural and knowledge-work release. It moves
+the live editor onto per-buffer execution actors, deepens semantic linking and
+Materials workflows, and removes large inherited TeXmacs subsystems that no
+longer fit ATHENA.
 
-- Replace the inherited BibTeX workflow with vault-native Materials: a
-  UUID-backed SQLite catalog, managed attachments, reviewed metadata
-  recognition, Hayagriva/CSL citations, BibTeX import, and Zotero Local API
-  bulk import.
-- Preserve Artifact identities across document edits and safe renames, then
-  turn artifact names into fast radioactive links with inflection handling,
-  mathematical eponym normalization, and same-name disambiguation pages.
-- Draw a symbol in the Handwritten Symbol pane and insert a ranked ATHENA math
-  command using the pinned Hand TeX classifier and native ncnn inference.
-- Replace Guile 1.8 with ATHENA's private Guile 3 runtime, including native
-  module/lazy-definition compatibility, parallel incremental Scheme bytecode,
-  and a tuned private parallel garbage collector.
-- Replace document-tree heading fold buttons with right-side Mathematica-style
-  cell brackets, and modernize generated websites around direct, content-first
-  pages with floating navigation tools rather than an iframe desktop shell.
-- Cache namespace ontology and membership incrementally, reuse backing pixels
-  during smooth scrolling, reduce startup work, and make first-use namespace
-  exploration non-blocking and visibly indexed.
-- Improve Wayland scaling and native menu placement, add in-process restart,
-  and replace decorative splash screens with compact native progress windows.
-- Tighten LaTeX, HTML, PDF, transclusion, slideshow, and delimiter export paths
-  while retaining lossless ATHENA-specific structure where external formats
-  cannot represent it directly.
+- Move mutable document, editor, typesetting, and buffer-bound Scheme work behind
+  per-buffer `BufferActor`s, with ID-only UI effects and one shared
+  `RenderService` for completed frames.
+- Make radioactive links structural as well as textual: mathematical definition
+  names, aliases, transcluded occurrences, exact/partial artifact-name queries,
+  and Shift-hover previews all resolve through the vault semantic index.
+- Strengthen Materials with directory import, parallel PDF/OCR recognition,
+  Zotero attachment reconciliation, content deduplication, canonical managed
+  filenames, and maintenance of unreferenced attachments.
+- Add actor-owned in-document search and replacement, KDE-style completion
+  candidates, progressive in-process Hunspell spelling, and more responsive
+  formula shortcuts.
+- Add automatically sized evaluation bars, mouse table resizing, stronger
+  Unicode math/font fallback handling, and many structured-editing fixes.
+- Make Vault Maintenance configurable and more resilient, including missing-image
+  scans, redundant block-wikilink cleanup, Materials maintenance, resumable
+  delegated work, and vault-wide Scheme transformations with rollback.
+- Replace handwritten program lexers with KF6 Syntax Highlighting, generate all
+  Scheme bindings directly from XML, and trim the vendored modified Guile 3
+  runtime to the subset ATHENA actually ships.
+- Retire TMDB, external TeXmacs plug-ins/Sessions, legacy identities/GPG/wallet,
+  literate programming, collaboration-era Projects/References tooling, UI
+  translation infrastructure, and other obsolete inherited surfaces.
 
 ### Vaults
 
@@ -113,6 +114,8 @@ documents.
 - Insert wikilinks through a Qt wizard.
 - Locate targets by choosing a file first or by vault-wide search.
 - Preview target context using an embedded rendered ATHENA preview.
+- Hold Shift while hovering a wikilink to open an actor-owned rendered preview;
+  links inside the preview can open nested previews without changing buffers.
 - Filter link search by namespace and target kind, including headings,
   paragraphs, and enunciations; optionally use case-insensitive and fuzzy
   matching.
@@ -134,6 +137,8 @@ ATHENA can embed content from another document into the current one.
 - Transclude arbitrary ranges between anchors.
 - Use preview-backed Qt insertion workflows.
 - Jump from a transclusion back to its source.
+- Flatten a document's transclusions into a new standalone document when an
+  independent copy of the included content is needed.
 - Detect cycles to avoid recursive rendering failures.
 - Preserve source enunciation colors inside transclusion boxes.
 
@@ -162,6 +167,11 @@ BibTeX bibliography subsystem.
 - Bulk-import personal and group libraries through Zotero's official Local API,
   preserving typed metadata and optionally copying locally available file
   attachments with source-key and identifier deduplication.
+- Import whole directories recursively or non-recursively without per-item
+  review, using parallel local recognition and the same identifier/hash
+  deduplication rules as interactive import.
+- Re-identify attachments from their current files, canonicalize managed
+  filenames after metadata changes, and detect unreferenced managed files.
 - Insert UUID-backed citations with typed locators and open Materials through
   `tmfs://material/UUID` links.
 - Insert referenced Materials lists that combine automatically cited records
@@ -233,12 +243,16 @@ ATHENA has a rendered, occurrence-level global search pane.
 - Pop out the search pane and resize it like other ADS panes.
 - Use a dedicated Recents tab in the Quick Switcher for `.ath` files actually
   opened in the active vault.
+- Use actor-owned `Ctrl+F` document search with live match counts and ordered
+  navigation without exposing editor state to the Qt thread.
 
 ### Editing Workflow
 
 ATHENA adds editing modes and feedback aimed at large mathematical notes.
 
-- Live spell checking.
+- Progressive in-process Hunspell checking starts near the visible viewport,
+  keeps dictionaries and verdict caches thread-local, and cancels stale work
+  after edits.
 - Spell-check correction suggestions in the context menu.
 - Optional live heading word counts beside headings.
 - Configurable live footer statistics with placeholders for document words,
@@ -285,6 +299,10 @@ ATHENA heavily customizes the math typing experience.
 - Additional backslash aliases for theorem-like environments.
 - Optional local llama.cpp formula-cleaner hook for LaTeX formula import when a
   suitable GGUF model is installed.
+- Formula shortcuts can activate as soon as their sequence is unambiguous,
+  without requiring an extra Enter.
+- Insert automatically sized evaluation bars that stretch with the selected
+  mathematical expression, and resize table rows or columns by dragging.
 - Extended textual math operators, including algebra/category/geometry names
   such as `Hom`, `Aut`, `Spec`, `coker`, `rank`, `trdeg`, and `rel`.
 - Correct support for symbols such as `varinjlim`, `varprojlim`, degree,
@@ -419,6 +437,12 @@ ATHENA has modular headless vault maintenance support.
   count and a sequential writer.
 - Optionally refresh tables of contents, Continuous RAG, and semantic artifact
   indexes as maintenance passes.
+- Configure optional operational passes from one canonical Maintenance Setup
+  list shared by planning and execution.
+- Scan structurally referenced images for missing targets and remove redundant
+  block wikilinks when those passes are enabled.
+- Maintain Material attachments as part of vault maintenance and resume
+  delegated artifact-range work from source fingerprints after interruption.
 - Generate optional ATHENA maintenance summary pages and use them as one-time
   vault startup pages.
 
@@ -507,6 +531,13 @@ ATHENA can build a semantic inventory of mathematical objects in a vault.
   classical eponym adjectives are equivalent, such as `Euler`/`Euler's`/
   `Eulerian` and `Noether`/`Noetherian`, without scanning the vault while
   typesetting.
+- Preserve native mathematical name trees and match structured mathematical
+  subexpressions without flattening them to display text. Definition aliases
+  are indexed independently of source-navigation anchors.
+- Resolve a selected artifact name through exact and normalized partial matches,
+  with stable disambiguation pages for both unique and ambiguous results.
+- Shift-hover wikilinks and artifact links to preview the target as a rendered,
+  read-only overlay without opening or changing a GUI buffer.
 - Browse, filter, and open indexed objects in the Artifacts ADS pane.
 - Build the whole vault or the current document from `Workspace -> Artifacts`
   or as a vault-maintenance pass.
@@ -528,100 +559,55 @@ must participate in Artifacts and radioactive links.
 
 ATHENA has moved much of the knowledge-work interface into native Qt.
 
-- Qt 6 is the required GUI toolkit; the obsolete Qt 5 frontend has been
-  removed.
-- Qt Advanced Docking System panes.
-- Native Wayland docking for document panes through Qt's xdg-toplevel-drag path,
-  with independent floating panes, taskbar-visible top-levels, system titlebars,
-  and redocking between main and floating containers.
-- Native Qt Preferences window with category sidebar.
-- Search categories, tabs, sections, and individual settings from Preferences,
-  with direct navigation and `Ctrl+F` focus.
-- Vault Explorer.
-- Namespace Manager.
-- Namespace Explorer.
-- Neighborhoods pane.
-- Reverse, Direct, Global, Local Reference, and Reference Graph panes.
-- Artifacts pane and formula AST inspector.
-- Global Search.
-- Page Properties pane.
-- Paragraph pane.
-- Metadata pane.
-- Error Messages pane.
-- Custom Styles Manager.
-- Backup Viewer.
-- Command Palette.
-- Visual Studio-style buffer switcher.
-- Google Tasks pane.
-- Websites manager and website generation output pane.
-- Native Qt dialogs for file selection, color picking, information messages,
-  font selection, wikilink insertion, transclusion insertion, page properties,
-  paragraph properties, metadata, and namespace workflows.
-- Native Qt toast notifications.
-- Optional per-document rendering performance HUD with completed-paint FPS and
-  latest and five-second p95 editing latency.
-- Desktop icon theme integration for toolbar icons.
-- Startup splash progress reporting from real startup phases.
-- Compact native startup and waiting progress windows instead of decorative
-  image-backed splash screens.
+- Qt 6 and the Advanced Docking System provide document panes plus Vault,
+  Namespace, Neighborhood, Artifact, Search, graph, backup, website, task, and
+  property tools, including independent floating top-level windows on Wayland.
+- Preferences, file/color/font selection, wikilink/transclusion insertion,
+  metadata and namespace workflows use native Qt interfaces with searchable
+  settings, toast notifications, and desktop icon-theme integration.
+- Actor-owned `Ctrl+F` search and `Ctrl+H` replacement bars.
+- KDE-style completion candidate lists for text completion.
+- A command palette, quick buffer switcher, compact startup/waiting progress,
+  and an optional paint-FPS/editing-latency HUD.
 - Right-side Mathematica-style cell brackets for selecting and folding heading
   ranges without inserting controls into the document tree.
 - Handwritten mathematical symbol recognition with mouse, touch, and tablet
   input in a dockable native pane.
-- KDE/Wayland HiDPI scaling, input-method cursor placement, and fractional-DPR
-  repaint fixes for Qt 6.
-- Reliable text toolbar dropdowns for document style, theme, font, and font
-  size.
-- Optional text toolbars and overlay-based auto-hidden toolbars that do not
-  resize the document viewport.
-- Pinch view zoom on native Wayland and Windows, plus keyboard and touchpad
-  neighborhood navigation.
-- Removal of legacy side tools, GUI-through-markup, old page/paragraph/metadata
-  Scheme dialogs, and obsolete non-Qt GUI backends.
+- Native Wayland/Windows pinch zoom, neighborhood gestures, HiDPI/input-method
+  fixes, and optional overlay toolbars that do not resize the document viewport.
 
 ### Performance And Stability Work
 
 Recent ATHENA work includes substantial low-level engineering:
 
-- mimalloc integration and global allocation overrides.
-- Boost-based namespace graph layout, removing the runtime Graphviz dependency
-  from hierarchy graph rendering.
-- spdlog-backed structured console and file logging.
-- Ref-counting and tree/string/list performance improvements.
-- Move semantics for core tree/string structures.
-- Large-document stack and parser fixes.
+- One long-lived execution actor per live buffer owns its document tree, editor,
+  cursor/selection/undo state, typesetter, boxes, save state, and buffer-bound
+  Scheme execution. Qt retains routing and GUI ownership rather than borrowing
+  mutable editor objects.
+- One shared RenderService consumes immutable render commands from BufferActors;
+  Qt presents completed frames and does not traverse actor-owned boxes or trees.
 - Progressive, time-budgeted screen typesetting that preserves estimated
   geometry and continues after first paint; paper layout and exports still
   perform complete deterministic typesetting.
-- Direct native `.ath` parsing plus reusable transclusion source, anchor, font,
-  hyphenation, and TeX lookup caches.
-- Reusable SQLite vault state and quick integrity checks that avoid repeating
-  full database setup during ordinary startup.
-- Fontconfig-backed system font discovery with persistent string-keyed caches
-  and lazy font-menu construction.
-- Compact `sys_state.json` machine state and lazy TeX font probing without
-  persisted expanded TeX directory lists.
-- Headless `--skip-fonts-cache` startup path for non-GUI RAG runs.
-- Cache invalidation when Scheme/package sources change.
-- Shared-memory backed runtime temporary files.
-- PDF/export fallback font safety.
-- Large-enunciation typing responsiveness fixes.
-- Resize, reflow, typewriter-mode, preview-scrollbar, and stylus-scrollbar
-  stability fixes.
-- Wayland fractional-scale scroll and centered-text repaint fixes.
-- Resizable and reopenable ADS panes.
-- Crash reporting through native dialogs.
+- Native `.ath` parsing, incremental namespace/Vault caches, reusable
+  transclusion/font/hyphenation lookups, and backing-pixmap reuse reduce repeated
+  work in large documents and vaults.
+- Core strings/trees and allocation paths have been modernized, with mimalloc,
+  move semantics, stack/parser hardening, and owner-local caches where mutable
+  global state would be unsafe.
 - Strict TeXmacs source parsing with file, line, and column diagnostics for
   malformed documents and style packages instead of silent partial rendering.
 - A private ATHENA Guile 3 runtime with native module and lazy-definition
   compatibility, dependency-aware parallel bytecode compilation, ThinLTO and
   native CPU tuning, and a statically linked parallel BDW-GC policy optimized
   for throughput rather than minimal memory use.
-- Persistent incremental namespace ontology and file-membership snapshots,
-  with background refresh and non-blocking first expansion in Namespace
-  Explorer.
-- Backing-pixmap reuse and exposed-strip repainting during smooth scrolling,
-  including fractional-Wayland origin correction after scrolling settles.
+- XML is now the source of truth for native Scheme bindings; generated wrappers
+  are build products rather than checked-in hand-maintained glue.
+- KF6 Syntax Highlighting replaces the inherited handwritten program lexers,
+  while in-process Hunspell replaces external spell-checker session plumbing.
+- An optional Linux heartbeat watchdog supervises the Qt event loop and can
+  capture bounded stall diagnostics; native crash reports also resolve addresses
+  through `addr2line` when available.
 
 ### Web-Accessible ATHENA
 
@@ -647,6 +633,9 @@ KDE/Wayland is the primary maintained desktop path, and the launcher lets Qt use
 the compositor-provided scale and native Wayland input context. Legacy non-Qt
 GUI backends, Cairo rendering, Xfig support, and obsolete optional
 font-rendering fallbacks have been removed from the maintained code path.
+The inherited TeXmacs plug-in and external Session architecture has also been
+removed; ATHENA keeps in-process Scheme evaluation and purpose-built external
+services such as Codex, Delegation, Materials, and RAG instead.
 
 See [COMPILE](./COMPILE) for dependency installation and build instructions.
 The recommended native Linux compiler is Intel oneAPI `icpx`.
@@ -674,9 +663,14 @@ guaranteed to be readable by upstream TeXmacs. The reverse direction is more
 likely to work: ATHENA can often open TeXmacs documents, but once ATHENA
 features are used, the document may become ATHENA-specific.
 
+ATHENA does not discover or execute TeXmacs plug-ins from application, user, or
+system plug-in directories. Older external Session markup remains document
+structure but no longer launches CAS, Python, shell, Jupyter, or other plug-in
+processes.
+
 ## Status
 
-ATHENA 0.8 is an active experimental system. It is powerful, opinionated, and
+ATHENA 0.9 is an active experimental system. It is powerful, opinionated, and
 still changing quickly. Expect rough edges. Expect features to be deeper than
 their polish. Expect the best experience on the developer's Linux setup.
 

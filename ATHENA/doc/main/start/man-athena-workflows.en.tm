@@ -62,6 +62,17 @@
   Default wikilink display text is configurable separately for files, headings,
   and anchors.
 
+  Hold <key|Shift> while hovering a wikilink or radioactive Artifact link to
+  preview its target without changing buffers. The preview is rendered by the
+  source document's BufferActor, captures its own scrolling and clicks, and can
+  open nested previews for links inside the overlay. Releasing Shift or leaving
+  the preview dismisses it.
+
+  Use <menu|Document|Flatten transclusions into new document> when you need a
+  standalone copy of a document whose included content should no longer depend
+  on its source documents. <ATHENA> resolves the transclusions structurally
+  into a new document rather than rewriting the original.
+
   The Quick Switcher includes Raw, Structured, and Recents views. Recents
   contains only <verbatim|.ath> files actually opened in the active vault.
 
@@ -120,6 +131,16 @@
   them, <key|Tab> and <key|Shift+Tab> cycle among all three notations without
   changing either argument.
 
+  Evaluation bars are native stretchable structures. The evaluation-bar command
+  wraps an explicit selection or the current mathematical row prefix without
+  crossing fraction, bracket, or table-cell boundaries, and grows with the
+  enclosed expression. Table row and column boundaries can also be dragged with
+  the mouse for direct resizing.
+
+  Formula shortcuts now activate as soon as their sequence is unambiguous, so
+  common structural commands no longer require a trailing <key|Enter> merely to
+  confirm the shortcut.
+
   <section|Artifacts, Codex, and RAG>
 
   The Artifacts system incrementally indexes enunciations, associated proofs,
@@ -148,6 +169,12 @@
   name while retaining distinct UUIDs. Following such a radioactive link
   opens a vault-font disambiguation page that lists the matching definitions,
   their types, source files, and exact artifact links.
+
+  Artifact names may also be structured mathematics. <ATHENA> preserves native
+  mathematical name trees and declared aliases through artifact extraction and
+  matches them structurally instead of reducing them to display strings. Use
+  <menu|Resolve as artifact name> on a selection to query exact and normalized
+  partial names; the result page keeps distinct same-named Artifacts separate.
 
   <paragraph*|Known issue.> An enunciation whose content consists only of an
   image is not artifactized. <ATHENA> currently has no textual semantic
@@ -196,6 +223,18 @@
   an independent floating document window. <key|Ctrl+w> closes the focused
   non-document pane as well as ordinary document panes.
 
+  <key|Ctrl+F> opens the native in-document search bar and <key|Ctrl+H> opens
+  replacement. The Qt controls hold only the query and display state; searching,
+  selection, replacement, and cursor movement execute on the owning BufferActor.
+  Text completion is presented in a KDE-style candidate list without moving
+  document ownership to the GUI thread.
+
+  Live spelling uses in-process <name|Hunspell>. Automatic checking proceeds in
+  bounded batches beginning near the visible viewport and abandons stale work
+  after edits. Dictionaries and verdict caches are isolated by execution thread,
+  while additions to the personal dictionary are synchronized and saved
+  atomically in the ATHENA profile.
+
   Document font selection supports a main font plus independent text,
   mathematics, and regular, bold, and italic CJK fallback fonts. The selector
   reports whether the main font already contains CJK glyphs.
@@ -215,6 +254,21 @@
   latest input-to-paint latency, and the five-second 95th-percentile latency.
   Debugging preferences also centralize console visibility, backtraces, memory
   reporting, and diagnostic logging channels.
+
+  <section|Execution and rendering ownership>
+
+  Each live buffer has one long-lived <verbatim|BufferActor>. It is the sole
+  mutating owner of the document tree, editor, cursor and selection, undo state,
+  typesetter, box structures, save transaction, and buffer-bound Scheme
+  execution. Commands for one buffer execute in order; separate buffers may
+  compute concurrently.
+
+  Qt owns windows, Qt objects, and application routing. Cross-thread commands
+  carry actor/view identifiers and transferable payloads instead of editor,
+  tree, box, Scheme, or Qt pointers. One shared <verbatim|RenderService> consumes
+  immutable render commands and returns completed frames for Qt to present.
+  Ownership errors are treated as bugs rather than being hidden behind global
+  editor access.
 
   <section|Web-accessible ATHENA>
 

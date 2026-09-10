@@ -17,8 +17,6 @@
     <branch|Standard <TeXmacs> styles|styles/styles.en.tm>
 
     <branch|Compatibility with other formats|convert/man-convert.en.tm>
-
-    <branch|Setting up a <TeXmacs> server|remote/man-server.en.tm>
   </traverse>
 
   <tmdoc-copyright|2004|Joris van der Hoeven>

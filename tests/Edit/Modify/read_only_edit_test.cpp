@@ -21,7 +21,7 @@
 #include "observer.hpp"
 #include "scheme.hpp"
 #include "sys_utils.hpp"
-#include "tm_buffer.hpp"
+#include "buffer_state.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }
@@ -30,7 +30,7 @@ static server_rep* test_server= nullptr;
 
 class ReadOnlyTestEditorRep: public edit_main_rep {
 public:
-  ReadOnlyTestEditorRep (server_rep* server, tm_buffer buffer):
+  ReadOnlyTestEditorRep (server_rep* server, buffer_document_state* buffer):
     editor_rep (server, buffer),
     edit_main_rep (server, buffer) {}
 
@@ -46,19 +46,19 @@ private slots:
   void contentMutationIsRolledBack ();
 
 private:
-  tm_buffer buffer= nullptr;
+  buffer_document_state* buffer= nullptr;
   ReadOnlyTestEditorRep* editor= nullptr;
 };
 
 void
 TestReadOnlyEdit::init () {
-  buffer     = tm_new<tm_buffer_rep> (url ("tmfs://ns/Test"));
+  buffer= tm_new<buffer_document_state> (
+    nullptr, "tmfs://ns/Test", "", "Test", true, 0);
   swap_current_document_tree (&buffer->document);
   buffer->data->init ("no-zoom")= "true";
   buffer->data->init (ZOOM_FACTOR)= "1";
-  set_document (buffer->document, buffer->rp,
-                tree (DOCUMENT, "original"));
-  buffer->buf->read_only= true;
+  set_document (buffer->document, buffer->root_path,
+                 tree (DOCUMENT, "original"));
   editor= tm_new<ReadOnlyTestEditorRep> (test_server, buffer);
 }
 
@@ -73,14 +73,14 @@ TestReadOnlyEdit::cleanup () {
 
 void
 TestReadOnlyEdit::contentMutationIsRolledBack () {
-  const tree original= copy (subtree (current_document_tree (), buffer->rp));
-  editor->go_to (buffer->rp * 0 * N (as_string (original[0])));
+  const tree original= copy (subtree (current_document_tree (), buffer->root_path));
+  editor->go_to (buffer->root_path * 0 * N (as_string (original[0])));
 
   editor->start_editing ();
   editor->insert_tree (" changed");
   editor->end_editing ();
 
-  QVERIFY (subtree (current_document_tree (), buffer->rp) == original);
+  QVERIFY (subtree (current_document_tree (), buffer->root_path) == original);
   QVERIFY (!editor->need_save ());
 }
 

@@ -8,7 +8,9 @@
   Using the <name|Guile>/<name|Scheme> extension language, it is possible to
   add new data formats and converters to <TeXmacs> in a modular way. Usually,
   the additional formats and converters are declared in your personal
-  <verbatim|~/.ATHENA/progs/my-init-texmacs.scm> or a dedicated plug-in.
+  <verbatim|~/.ATHENA/progs/my-init-texmacs.scm> or in a dedicated Scheme module
+  loaded from your ATHENA configuration. The retired TeXmacs plug-in discovery
+  system is not required.
   Some examples may be found in the directory
   <verbatim|$ATHENA_PATH/progs/convert>, like
   <hlink|<verbatim|init-html.scm>|$ATHENA_PATH/progs/convert/html/init-html.scm>.

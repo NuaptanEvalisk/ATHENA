@@ -106,9 +106,10 @@
 
     <item><scm|texmacs-popup-menu>: the menu which pops up when the user
     right-clicks on a <TeXmacs> document. Extending or replacing this menu is
-    useful for instance for plugin writers: you may want to display some
-    extra actions while removing others when the user in inside a session for
-    your plugin.
+    useful for Scheme extension authors: you may want to display extra actions
+    while removing others when the editor is inside a particular structured
+    context. ATHENA's retired external plug-in system is not required for this
+    menu customization mechanism.
   </itemize-dot>
 
   <tmdoc-copyright|1998--2002|Joris van der Hoeven>

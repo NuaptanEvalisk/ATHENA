@@ -55,7 +55,9 @@ RUN set -e; \
       gzip \
       harfbuzz-devel \
       hostname \
+      hunspell-devel \
       iproute2 \
+      kf6-kcompletion-devel \
       kf6-syntax-highlighting-devel \
       libgnutls-devel \
       libjpeg8-devel \
