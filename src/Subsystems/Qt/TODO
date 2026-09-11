@@ -61,4 +61,3 @@ DONE
 * Header/footer visibility
 * File chooser start location should be directory of current file.
 * Delayed help menu, even several seconds after boot.
-* In any case use QPixmap for the xpm icons (since conversion to QImage and back is costly)

@@ -16,7 +16,6 @@
 #include "qt_utilities.hpp"
 #include "qt_window_widget.hpp"
 #include "qt_ui_element.hpp"    // qt_choice_command_rep
-#include "qt_picture.hpp"       // xpm_image
 #include "qt_tm_widget.hpp"     // tweak_iconbar_size
 #include "QTMMenuHelper.hpp"
 #include "QTMGuiHelper.hpp"
@@ -26,6 +25,7 @@
 #include "QTMMainTabWindow.hpp"
 
 #include <QToolTip>
+#include <QPainter>
 #include <QCompleter>
 #include <QFontMetricsF>
 #include <QKeyEvent>
@@ -236,8 +236,9 @@ minibar_icon_size (QWidget* parent) {
       return toolbar->iconSize ();
   }
 
-  static QImage* pxm= xpm_image ("tm_add.xpm"); // See qt_tm_widget.cpp
-  QSize sz= pxm ? pxm->size () : QSize (16, 16);
+  static QIcon icon= tmapp ()->icon_manager ().getIcon ("tm_add");
+  QList<QSize> sizes= icon.availableSizes ();
+  QSize sz= sizes.isEmpty () ? QSize (16, 16) : sizes.last ();
   qt_tm_widget_rep::tweak_iconbar_size (sz);
   return sz;
 }

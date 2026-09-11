@@ -37,7 +37,6 @@ public:
 
 QImage* get_image (url u, int w, int h, tree eff, SI pixel);
 picture qt_picture (const QImage& im, int ox, int oy);
-QImage* xpm_image (url file_name);
 
 void invert_colors (QImage& im);
 void saturate (QImage& im);

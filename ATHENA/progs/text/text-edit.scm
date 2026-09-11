@@ -947,35 +947,6 @@
         (list "ornament-hpadding" "Horizontal padding")
         (list "ornament-vpadding" "Vertical padding")))
 
-(tm-define (parameter-choice-list var)
-  (:require (in? var (list "frame-hpadding" "frame-vpadding")))
-  (list "0tab" "0.5tab" "1tab" "1.5tab" "2tab" :other))
-
-(tm-define (parameter-choice-list var)
-  (:require (in? var (list "frame-thickness")))
-  (list "0.2" "0.5" "1" "1.5" "2" "3" "4" "5" :other))
-
-(tm-define (customizable-parameters t)
-  (:require (tree-in? t (art-frame-tag-list)))
-  (list (list "frame-thickness" "Thickness")
-        (list "frame-recolor" "Recolor")
-        (list "frame-hpadding" "Horizontal padding")
-        (list "frame-vpadding" "Vertical padding")))
-
-(tm-define (parameter-choice-list var)
-  (:require (in? var (list "shadow-elevation")))
-  (list "0.2" "0.5" "1" "1.5" "2" "3" "4" "5" :other))
-
-(tm-define (parameter-choice-list var)
-  (:require (in? var (list "shadow-plain")))
-  (list "false" "true"))
-
-(tm-define (customizable-parameters t)
-  (:require (tree-in? t (shadow-tag-list)))
-  (list (list "shadow-elevation" "Elevation")
-        (list "shadow-recolor" "Recolor")
-        (list "shadow-plain" "Plain")))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Floating objects and environments
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

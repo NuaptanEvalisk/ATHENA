@@ -98,7 +98,7 @@ static Imlib_Image
 imlib2_load_image (url u) {
   url name= resolve (u);
   if (is_none (name))
-    name= resolve ("$ATHENA_PIXMAP_PATH/ATHENA.xpm");
+    name= resolve ("$ATHENA_PATH/misc/images/ATHENA-512.png");
   Imlib_Image image;
   {
     c_string _name (as_string (name));

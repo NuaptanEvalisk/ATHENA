@@ -9,7 +9,7 @@
   using drag-and-drop. Currently, <TeXmacs> recognizes the <verbatim|ps>,
   <verbatim|eps>, <verbatim|tif>, <verbatim|pdf>, <verbatim|svg>,
   <verbatim|png>, <verbatim|pdm>, <verbatim|gif>, <verbatim|ppm>,
-  <verbatim|xpm> and <verbatim|fig> file formats.
+  and <verbatim|fig> file formats.
 
   By default, images are displayed at their design sizes and aligned at their
   bottom lines. Alternative widths, heights and alignment offsets may be

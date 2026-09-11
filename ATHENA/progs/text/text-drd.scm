@@ -244,16 +244,6 @@
 (define-group ornament-tag
   manila-paper rough-paper ridged-paper pine granite metal)
 
-(define-group art-frame-tag
-  carved-wood-frame decorated-wood-frame
-  black-floral1-frame black-floral2-frame)
-
-(define-group shadow-tag
-  drop-contour bend-in-contour bend-out-contour diagonal-bend-in-contour
-  drop-shadow bend-in-shadow bend-out-shadow
-  half-bend-in-shadow quarter-bend-in-shadow
-  drop-down half-bend-in-down)
-
 ;; balloons
 
 (define-group balloon-tag

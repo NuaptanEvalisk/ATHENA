@@ -15,23 +15,23 @@
   The following kinds of group operations are supported:
 
   <\description>
-    <item*|Changing properties>Selected using <icon|tm_edit_props.xpm> or
+    <item*|Changing properties>Selected using <icon|tm_edit_props> or
     <menu|Insert|Set properties>. The current properties (as indicated in the
     focus bar) are applied to the selected objects.
 
-    <item*|Move objects>Selected using <icon|tm_group_move.xpm> or
+    <item*|Move objects>Selected using <icon|tm_group_move> or
     <menu|Insert|Move objects>. The selected objects are moved until you
     press the left mouse button a second time.
 
-    <item*|Resize objects>Selected using <icon|tm_group_zoom.xpm> or
+    <item*|Resize objects>Selected using <icon|tm_group_zoom> or
     <menu|Insert|Resize objects>. The selected objects are resized until you
     press the left mouse button a second time.
 
-    <item*|Rotate objects>Selected using <icon|tm_group_rotate.xpm> or
+    <item*|Rotate objects>Selected using <icon|tm_group_rotate> or
     <menu|Insert|Rotate objects>. The selected objects are rotated until you
     press the left mouse button a second time.
 
-    <item*|Group or ungroup objects>Selected using <icon|tm_group_group.xpm>
+    <item*|Group or ungroup objects>Selected using <icon|tm_group_group>
     or <menu|Insert|Group/ungroup>. The selected objects are grouped together
     into a single object. If you selected one grouped object, then this
     object will be ungrouped.

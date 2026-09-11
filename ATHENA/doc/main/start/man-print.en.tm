@@ -6,9 +6,9 @@
   <tmdoc-title|Printing documents>
 
   You can print the current file using <menu|File|Print|Print buffer> or
-  <menu|<icon|tm_print_x2.png>|Print buffer>. Before printing, it is possible
+  <menu|<icon|tm_print>|Print buffer>. Before printing, it is possible
   to preview your document first, using <menu|File|Preview> or
-  <menu|<icon|tm_print_x2.png>|Preview>. By default, <TeXmacs> assumes that
+  <menu|<icon|tm_print>|Preview>. By default, <TeXmacs> assumes that
   you have a 600dpi printer for a4 paper. These default settings can be
   changed in <menu|File|Page setup> .
 

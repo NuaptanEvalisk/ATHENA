@@ -498,7 +498,7 @@
          '("ps" "eps" "bmp" "gif" "ico" "tga" "pcx" "wbmp" "wmf" "jpg"
            "jpeg" "png" "tif" "jbig" "ras" "pnm" "jp2" "jpc" "pgx"
            "cut" "iff" "lbm" "jng" "koa" "mng" "pbm" "pcd" "pcx"
-           "pgm" "ppm" "psd" "tga" "tiff" "xbm" "xpm"))
+           "pgm" "ppm" "psd" "tga" "tiff" "xbm"))
         ((== fm "image") (format-image-suffixes))
         (else (format-get-suffixes-sub fm))))
 

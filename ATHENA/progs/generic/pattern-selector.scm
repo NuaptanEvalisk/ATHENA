@@ -16,43 +16,27 @@
 (texmacs-module (generic pattern-selector)
   (:use (generic format-widgets)))
 
+(define-public athena-vertical-gradient-source "athena-gradient-vertical")
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Name conversions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (encode-pattern-name u)
   (let* ((name (if (string? u) u (url->unix u)))
-         (t (url->unix (url-tail u)))
-         (p (url->unix "$ATHENA_PATH/misc/patterns"))
-         (a (url->unix "$ATHENA_PATH/misc"))
-         (p* (url-append (unix->url p) "dummy"))
-         (a* (url-append (unix->url a) "dummy")))
+         (p (url->unix "$ATHENA_PATH/misc/patterns")))
     (cond ((or (string-starts? name p)
                (string-starts? name "$ATHENA_PATH/misc/patterns")
                (string-starts? name "$ATHENA_PATTERN_PATH"))
            name)
-          ((and (string-starts? name a)
-                (string-starts? t "thumbnail-"))
-           (let* ((t* (string-drop t 10))
-                  (d (url-delta a* (unix->url name)))
-                  (d* (url-relative d (unix->url t*))))
-             (url->unix (url-append "tmfs://artwork" d*))))
           (else u))))
 
 (define (decode-pattern-name s)
   (let* ((name (unix->url s))
          (base1 "$ATHENA_PATH/misc/patterns/neutral-pattern.png")
-         (base2 "$ATHENA_PATH/misc/pictures/gradients/vertical-white-black.png")
-         (base (if global-gradient? base2 base1))
-         (artw "$ATHENA_PATH/misc/dummy"))
+         (base base1))
     (cond ((not (url-rooted? name))
            (url-relative base name))
-          ((and (string? s) (string-starts? s "tmfs://artwork/"))
-           (let* ((u (url->unix (string-drop s 15)))
-                  (dir (url-head u))
-                  (tn (string-append "thumbnail-" (url->unix (url-tail u))))
-                  (file (url-append dir (unix->url tn))))
-             (url-relative artw file)))
           (else name))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -208,12 +192,10 @@
             (list (url->system name) "")
             (url->system name) "15em")
       // // //
-      ((icon "tm_find.xpm")
+      ((icon "tm_find")
        (cond ((and (not global-picture?) (not global-gradient?))
-              (choose-file setter "Background pattern" "image" "" curr))
-             (global-gradient?
-              (choose-file setter "Background gradient" "image" "" curr))
-             ((url-rooted? (unix->url (get-name)))
+               (choose-file setter "Background pattern" "image" "" curr))
+              ((url-rooted? (unix->url (get-name)))
               (choose-file setter "Background picture" "image" "" curr))
              (else
               (choose-file setter "Background picture" "image"))))
@@ -232,7 +214,7 @@
       (toggle (set-recolor (and answer "black"))
               (nnot (get-recolor)))
       // // //
-      ((icon "tm_color.xpm")
+      ((icon "tm_color")
        (interactive-color set-recolor (list (or recol ""))))
       >>)))
 
@@ -249,12 +231,12 @@
       (toggle (set-skin (and answer "black"))
               (nnot (get-skin)))
       // // //
-      ((icon "tm_color.xpm")
+      ((icon "tm_color")
        (interactive-color set-skin (list (or skin ""))))
       // //
       (when skin
-	((icon "tm_remove.xpm") (dec-skin))
-	((icon "tm_add.xpm") (inc-skin)))
+	((icon "tm_remove") (dec-skin))
+	((icon "tm_add") (inc-skin)))
       >>)))
 
 (tm-widget (pattern-blur-options)
@@ -278,7 +260,7 @@
                   "yellow" "cyan" "magenta" "orange" "brown" "")
             (or bg "white") "15em")
       // // //
-      ((icon "tm_color.xpm")
+      ((icon "tm_color")
        (interactive-color set-gradient-background (list (or bg "white"))))
       >>)))
 
@@ -291,7 +273,7 @@
                   "yellow" "cyan" "magenta" "orange" "brown" "")
             (or fg "black") "15em")
       // // //
-      ((icon "tm_color.xpm")
+      ((icon "tm_color")
        (interactive-color set-gradient-foreground (list (or fg "black"))))
       >>)))
 
@@ -341,8 +323,6 @@
                 ))
             (assuming global-gradient?
               (aligned
-                (item (text "Name:")
-                  (link pattern-name-selector))
                 (item (text "Width:")
                   (hlist
                     (enum (set-width answer)
@@ -401,8 +381,9 @@
     (set! global-picture? #f)
     (set! global-gradient? #t)
     (set! global-pattern-color
-          `(pattern "$ATHENA_PATH/misc/pictures/gradients/vertical-white-black.png"
-                    "100%" "100%")))
+          `(pattern ,athena-vertical-gradient-source
+                    "100%" "100%"
+                    (eff-gradient "0" "black" "white"))))
   (when (nnull? opt-old)
     (set! global-pattern-color (car opt-old)))
   (dialogue-window (pattern-selector) cmd "Gradient selector"))

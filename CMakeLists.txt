@@ -1044,7 +1044,6 @@ install (FILES ATHENA/misc/images/athena.svg RENAME ATHENA.svg
 install (FILES ATHENA/misc/images/text-x-athena.svg
   DESTINATION share/icons/hicolor/scalable/mimetypes)
 install (FILES ATHENA/misc/mime/athena.xml DESTINATION share/mime/packages)
-install (FILES ATHENA/misc/pixmaps/ATHENA.xpm DESTINATION share/pixmaps)
 install (DIRECTORY "${ATHENA_GUILE_PREFIX}/share/guile/3.0"
   DESTINATION share/ATHENA/lib/athena-guile/share/guile)
 install (DIRECTORY "${ATHENA_GUILE_PREFIX}/lib/guile/3.0"

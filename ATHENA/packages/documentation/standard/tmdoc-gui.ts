@@ -76,7 +76,9 @@
     </src-comment>
   </active*>
 
-  <assign|icon|<macro|name|<image|<find-file|$ATHENA_PATH/misc/pixmaps/modern/32x32/table|$ATHENA_PATH/misc/pixmaps/modern/24x24/main|$ATHENA_PATH/misc/pixmaps/modern/20x20/mode|$ATHENA_PATH/misc/pixmaps/modern/16x16/focus|$ATHENA_DOC_PATH/images/pixmaps|$ATHENA_HOME_PATH/doc/images/pixmaps|$ATHENA_PATH/doc/images/pixmaps|http://www.gnu.org/software/texmacs-doc/images/pixmaps|<arg|name>>||2ex||-0.333ex>>>
+  <assign|tmdoc-icon-file|<macro|name|<find-file|$ATHENA_PATH/misc/pixmaps/modern/32x32/table|$ATHENA_PATH/misc/pixmaps/modern/24x24/main|$ATHENA_PATH/misc/pixmaps/modern/20x20/mode|$ATHENA_PATH/misc/pixmaps/modern/16x16/focus|$ATHENA_DOC_PATH/images/pixmaps|$ATHENA_HOME_PATH/doc/images/pixmaps|$ATHENA_PATH/doc/images/pixmaps|http://www.gnu.org/software/texmacs-doc/images/pixmaps|<merge|<arg|name>|.png>>>>
+
+  <assign|icon|<macro|name|<image|<tmdoc-icon-file|<arg|name>>||2ex||-0.333ex>>>
 
   <assign|screenshot|<macro|name|<image|<find-file|$ATHENA_DOC_PATH/images/screenshots|$ATHENA_HOME_PATH/doc/images/screenshots|$ATHENA_PATH/doc/images/screenshots|http://www.gnu.org/software/texmacs-doc/images/screenshots|<arg|name>>|0.5w|0.5h||>>>
 

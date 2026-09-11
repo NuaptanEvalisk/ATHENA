@@ -999,10 +999,10 @@
   ("Describe" (commutative-diagram-describe)))
 
 (tm-menu (commutative-diagram-focus-icons)
-  ((balloon (icon "tm_show_hidden.xpm")
+  ((balloon (icon "tm_show_hidden")
             "Show commutative diagram structure")
    (commutative-diagram-show-hidden))
-  ((balloon (icon "tm_focus_help.xpm")
+  ((balloon (icon "tm_focus_help")
             "Describe commutative diagram")
    (commutative-diagram-describe))
   //)

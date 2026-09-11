@@ -38,8 +38,6 @@
 
   <assign|wood-pine-bright-scene-strong-color|#0c3000>
 
-  <assign|xwood-pine-bright-scene-bg-color|<pattern|tmfs://artwork/textures/wood/tileable-wood-pattern.jpg|4in|100@>>
-
   <\active*>
     <\src-comment>
       Light pine wood
@@ -51,8 +49,6 @@
   <assign|wood-pine-light-scene-bg-color|<pattern|pine.png|*3/5|*3/5|#e0b050>>
 
   <assign|wood-pine-light-scene-monochrome-bg-color|#e0b050>
-
-  <assign|xwood-pine-light-scene-bg-color|<pattern|tmfs://artwork/textures/wood/purty-wood-pattern.jpg|4in|100@>>
 
   <\active*>
     <\src-comment>

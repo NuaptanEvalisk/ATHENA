@@ -324,7 +324,7 @@ qt_ui_element_rep::get_payload (qt_widget qtw, types check_type) {
     case vertical_list:     case tile_menu:        case aligned_widget:
     case minibar_menu:      case menu_separator:   case menu_group:
     case pulldown_button:   case pullright_button: case menu_button:
-    case text_widget:       case xpm_widget:       case toggle_widget:
+    case text_widget:       case icon_widget:      case toggle_widget:
     case enum_widget:       case choice_widget:    case filtered_choice_widget:
     case scrollable_widget: case hsplit_widget:    case vsplit_widget:
     case tabs_widget:       case icon_tabs_widget: case resize_widget:
@@ -673,8 +673,8 @@ qt_ui_element_rep::as_qaction () {
     }
       break;
       
-    case xpm_widget:
-        // a widget with an X pixmap icon
+    case icon_widget:
+        // a widget with an icon resolved by the active icon theme
     {
       url    image = open_box<url>(load);
       act = new QTMAction (NULL);
@@ -827,7 +827,7 @@ qt_ui_element_rep::as_qlayoutitem (QWidget* parent_widget) {
     case pullright_button:
     case menu_button:
     case text_widget:
-    case xpm_widget:
+    case icon_widget:
     case toggle_widget:
     case enum_widget:
     case choice_widget:
@@ -985,7 +985,7 @@ qt_ui_element_rep::as_qwidget (QWidget* parent_widget) {
       qt_widget      qtw = concrete (x.x1);
       promise<widget> pw = x.x2;
       
-      if (qtw->type == xpm_widget) {
+      if (qtw->type == icon_widget) {
         url image = open_box<url> (get_payload (qtw));
         QToolButton* b = new QToolButton(parent_widget);
         
@@ -1018,13 +1018,13 @@ qt_ui_element_rep::as_qwidget (QWidget* parent_widget) {
     {
       typedef quintuple<widget, command, string, string, int> T;
       T x = open_box<T>(load);
-      qt_widget qtw = concrete(x.x1); // contents: xpm_widget, text_widget, ...?
+      qt_widget qtw = concrete(x.x1); // contents: icon_widget, text_widget, ...?
       command   cmd = x.x2;
       string    pre = x.x3;
       string     ks = x.x4;
       int     style = x.x5;
       
-      if (qtw->type == xpm_widget) {  // Toolbar button
+      if (qtw->type == icon_widget) {  // Toolbar button
         QAction*     a = as_qaction();        // Create key shortcuts and actions
         QToolButton* b = new QToolButton (parent_widget);
         b->setIcon (a->icon());
@@ -1095,8 +1095,8 @@ qt_ui_element_rep::as_qwidget (QWidget* parent_widget) {
     }
       break;
       
-      // a widget with an X pixmap icon
-    case xpm_widget:
+      // a widget with an icon resolved by the active icon theme
+    case icon_widget:
     {
       url image = open_box<url>(load);
       QLabel* l = new QLabel (parent_widget);

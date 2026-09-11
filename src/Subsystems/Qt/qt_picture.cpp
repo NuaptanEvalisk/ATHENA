@@ -81,13 +81,6 @@ as_native_picture (picture pict) {
   return as_qt_picture (pict);
 }
 
-QImage*
-xpm_image (url file_name) {
-  picture p= load_xpm (file_name);
-  qt_picture_rep* rep= (qt_picture_rep*) p->get_handle ();
-  return &(rep->pict);
-}
-
 picture
 native_picture (int w, int h, int ox, int oy) {
   return qt_picture (QImage (w, h, QImage::Format_ARGB32), ox, oy);
@@ -277,7 +270,18 @@ QImage*
 get_image_for_real (url u, int w, int h, tree eff, SI pixel) {
   QImage *pm = NULL;
 
-  if (suffix (u) == "svg") {
+  if (is_procedural_gradient_url (u)) {
+    int rw= max (w, 1);
+    int rh= max (h, 1);
+    pm= new QImage (rw, rh, QImage::Format_ARGB32);
+    for (int y=0; y<rh; ++y) {
+      int grey= rh == 1 ? 255 : 255 - ((255 * y) / (rh - 1));
+      QRgb* row= reinterpret_cast<QRgb*> (pm->scanLine (y));
+      for (int x=0; x<rw; ++x)
+        row[x]= qRgba (grey, grey, grey, 255);
+    }
+  }
+  else if (suffix (u) == "svg") {
 #ifdef USE_RESVGQT
     pm= render_svg_with_resvg (u, w, h);
     if (pm == NULL)
@@ -379,63 +383,6 @@ load_picture (url u, int w, int h, tree eff, int pixel) {
     return qt_picture (rev, 0, 0);
   }
   return qt_picture (*im, 0, 0);
-}
-
-picture
-new_qt_load_xpm (url file_name) {
-  string sss;
-  double f= 1.0;
-  double scale= max (retina_scale, (double) retina_icons);
-  if (suffix (file_name) == "xpm" || suffix (file_name) == "png") {
-    string suf= ".png";
-    if (scale == 1.0) {}
-    else if (scale == 2.0) suf= "_x2.png";
-    else if (scale == 4.0) suf= "_x4.png";
-    else { suf= "_x4.png"; f= scale / 4.0; }
-    url png_equiv= glue (unglue (file_name, 4), suf);
-    load_string ("$ATHENA_PIXMAP_PATH" * png_equiv, sss, false);
-  }
-  if (sss == "") {
-    f= scale;
-    load_string ("$ATHENA_PIXMAP_PATH" * file_name, sss, false);
-  }
-  if (sss == "") {
-    f= scale;
-    load_string ("$ATHENA_PATH/misc/pixmaps/ATHENA.xpm", sss, true);
-  }
-  c_string buf (sss);
-  QImage pm;
-  pm.loadFromData ((uchar*) (char*) buf, N(sss));
-  if (occurs ("dark", tm_style_sheet) && may_transform (file_name, pm)) {
-    invert_colors (pm);
-    saturate (pm);
-  }
-  pm= pm.scaled ((int) floor (f * pm.width () + 0.5),
-                 (int) floor (f * pm.height () + 0.5),
-                 Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-  return qt_picture (pm, 0, 0);
-}
-
-picture
-qt_load_xpm (url file_name) {
-  if (tm_style_sheet != "") return new_qt_load_xpm (file_name);
-  string sss;
-  if (retina_icons > 1 && suffix (file_name) == "xpm") {
-    url png_equiv= glue (unglue (file_name, 4), "_x2.png");
-    load_string ("$ATHENA_PIXMAP_PATH" * png_equiv, sss, false);
-  }
-  if (sss == "" && suffix (file_name) == "xpm") {
-    url png_equiv= glue (unglue (file_name, 3), "png");
-    load_string ("$ATHENA_PIXMAP_PATH" * png_equiv, sss, false);
-  }
-  if (sss == "")
-    load_string ("$ATHENA_PIXMAP_PATH" * file_name, sss, false);
-  if (sss == "")
-    load_string ("$ATHENA_PATH/misc/pixmaps/ATHENA.xpm", sss, true);
-  c_string buf (sss);
-  QImage pm;
-  pm.loadFromData ((uchar*) (char*) buf, N(sss));
-  return qt_picture (pm, 0, 0);
 }
 
 /******************************************************************************

@@ -765,8 +765,8 @@
 (tm-define (current-language-icon)
   (with lan (get-env "language")
     (if (in? lan supported-languages)
-        (string-append "tm_" lan ".xpm")
-        "tm_stateless.xpm")))
+        (string-append "tm_" lan)
+        "tm_stateless")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; The Document -> Supported scripts menu
@@ -971,12 +971,12 @@
         (=> (eval pack)
             ("Edit package" (edit-package-source pack))
             ("Remove package" (remove-style-package pack)))))
-    (=> (balloon (icon "tm_add.xpm") "Add style package")
+    (=> (balloon (icon "tm_add") "Add style package")
         (link add-package-menu)
         ---
         ("Other package" (interactive add-style-package)))
     (assuming (tree-is-buffer? t)
-      ((balloon (icon "tm_focus_help.xpm") "Describe tag")
+      ((balloon (icon "tm_focus_help") "Describe tag")
        (focus-help)))))
 
 (define (is-background-picture? bg*)
@@ -992,7 +992,7 @@
       (dynamic (focus-customizable-icons-item
                 "bg-color" "Background color" :global)))
     (assuming (is-background-picture? (get-init-tree "bg-color"))
-      (=> (balloon (icon "tm_camera.xpm") "Select background picture")
+      (=> (balloon (icon "tm_camera") "Select background picture")
           (when (init-has? "bg-color")
             ("Restore default background" (init-default "bg-color")))
           ("Select background picture"
@@ -1001,13 +1001,13 @@
 
 (tm-define (current-page-icon)
   (cond ((test-init? "page-orientation" "landscape")
-         (cond ((test-init? "par-columns" "1") "tm_landscape_1col.xpm")
-               ((test-init? "par-columns" "2") "tm_landscape_2col.xpm")
-               (else "tm_landscape.xpm")))
+         (cond ((test-init? "par-columns" "1") "tm_landscape_1col")
+               ((test-init? "par-columns" "2") "tm_landscape_2col")
+               (else "tm_landscape")))
         (else
-         (cond ((test-init? "par-columns" "1") "tm_portrait_1col.xpm")
-               ((test-init? "par-columns" "2") "tm_portrait_2col.xpm")
-               (else "tm_portrait.xpm")))))
+         (cond ((test-init? "par-columns" "1") "tm_portrait_1col")
+               ((test-init? "par-columns" "2") "tm_portrait_2col")
+               (else "tm_portrait")))))
 
 (tm-menu (focus-document-icons t)
   (minibar

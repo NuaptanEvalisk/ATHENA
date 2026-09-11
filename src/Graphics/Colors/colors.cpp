@@ -252,41 +252,6 @@ cmyk_color (int c, int m, int y, int k, int a) {
 // get_cmyk_color (color col, int& c, int& m, int& y, int &k, int& a) {
 
 /******************************************************************************
-* XPM interface
-******************************************************************************/
-
-color
-xpm_color (string s) {
-  if (s == "none") return rgb_color (100, 100, 100, 0);
-  if ((N(s) == 4) && (s[0]=='#')) {
-    int r= 17 * from_hexadecimal (s (1, 2));
-    int g= 17 * from_hexadecimal (s (2, 3));
-    int b= 17 * from_hexadecimal (s (3, 4));
-    return rgb_color (r,g,b);
-  }
-  if ((N(s) == 7) && (s[0]=='#')) {
-    int r= from_hexadecimal (s (1, 3));
-    int g= from_hexadecimal (s (3, 5));
-    int b= from_hexadecimal (s (5, 7));
-    return rgb_color (r,g,b);
-  }
-  if ((N(s) == 13) && (s[0]=='#')) {
-    int r= from_hexadecimal (s (1, 5));
-    int g= from_hexadecimal (s (5, 9));
-    int b= from_hexadecimal (s (9, 13));
-    return rgb_color (r,g,b);
-  }
-  s= locase_all (s);
-  if (x11_ch->contains (s))
-    return x11_color (s);
-  return black;
-}
-
-// TODO
-// void
-// get_xpm_color (color col, string s) {
-
-/******************************************************************************
 * Named colors
 ******************************************************************************/
 

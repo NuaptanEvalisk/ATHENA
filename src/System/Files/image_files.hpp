@@ -13,10 +13,6 @@
 #define IMAGE_FILES_H
 #include "url.hpp"
 
-tree          xpm_load (url file_name);
-void          xpm_size (url file_name, int& w, int& h);
-array<string> xpm_colors (tree t);
-array<SI>     xpm_hotspot (tree t);
 bool          ps_bounding_box (url image, int& x1, int& y1, int& x2, int& y2, bool set_default=true);
 bool          ps_read_bbox (string buf, int& x1, int& y1, int& x2, int& y2 );
 void          set_imgbox_cache(tree t, int w,  int h, int xmin=0, int ymin=0);

@@ -42,10 +42,6 @@
 
   <assign|plain-vador-ornament-shadow-color|#402020>
 
-  <assign|plain-vador-deco-shadow-effect|<eff-recolor|0|#c04000>>
-
-  <assign|plain-vador-deco-title-shadow-effect|<eff-recolor|0|#c04000>>
-
   <\active*>
     <\src-comment>
       Title dark vador
@@ -92,8 +88,6 @@
 
   <assign|framed-vador-ornament-shadow-color|#402020>
 
-  <assign|framed-vador-deco-shadow-effect|<eff-recolor|0|#c04000>>
-
   <\active*>
     <\src-comment>
       Alternate dark vador
@@ -115,8 +109,6 @@
   <assign|alternate-vador-ornament-sunny-color|#606030>
 
   <assign|alternate-vador-ornament-shadow-color|#303018>
-
-  <assign|alternate-vador-deco-shadow-effect|<eff-recolor|0|#c04000>>
 
   <\active*>
     <\src-comment>

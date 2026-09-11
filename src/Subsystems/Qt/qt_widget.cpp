@@ -481,9 +481,9 @@ widget text_widget (string s, int style, color col, bool tsp) {
                                              s, style, col, tsp);
   return abstract (wid);
 }
-widget xpm_widget (url file_name) {
+widget icon_widget (url file_name) {
   if (headless_mode) return headless_widget ();
-  qt_widget wid = qt_ui_element_rep::create (qt_widget_rep::xpm_widget,
+  qt_widget wid = qt_ui_element_rep::create (qt_widget_rep::icon_widget,
                                              file_name);
   return abstract (wid);
 }

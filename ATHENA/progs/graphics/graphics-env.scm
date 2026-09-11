@@ -342,12 +342,7 @@
   (if (not (string-symbol=? graphics-texmacs-pointer curs))
   (cond ((== curs 'none)
 	 (set-pointer 'none)
-	 (set-mouse-pointer
-      ;; FIXME: This function is horribly slow, due to the
-      ;;   non-correct (?) caching of the xmp files, or to
-      ;;   the building of too much X11 datastructures.
-	    (tm_xpm "tm_cursor_none.xpm")
-	    (tm_xpm "tm_mask_none.xpm")))
+	 (set-predef-mouse-pointer "XC_top_left_arrow"))
 	((== curs 'text-arrow)
 	 (set-pointer 'none)
 	 (set-predef-mouse-pointer "XC_top_left_arrow"))
@@ -375,8 +370,6 @@
 
 ;; Graphics context [reset]
 (define current-cursor #f)
-(define TM_PATH (getenv "ATHENA_PATH"))
-(define (tm_xpm name) (string-append TM_PATH "/misc/pixmaps/traditional/--x17/" name))
 
 (tm-define (graphics-reset-context cmd)
 ;;FIXME: Should be called only once, when we move out of a <graphics>.

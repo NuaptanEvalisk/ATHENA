@@ -1962,7 +1962,7 @@
     <arg type="tree" />
     <arg type="tree" />
   </binding>
-  <binding name="widget-xpm" native="xpm_widget" returns="widget">
+  <binding name="widget-icon" native="icon_widget" returns="widget">
     <arg type="url" />
   </binding>
   <binding name="widget-box" native="box_widget" returns="widget">

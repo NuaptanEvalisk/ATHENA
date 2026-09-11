@@ -186,8 +186,8 @@ widget balloon_widget (widget w, widget help);
 
 widget text_widget (string s, int style, color col, bool tsp= true);
   // a text widget with a given style, color and transparency
-widget xpm_widget (url file_name);
-  // a widget with an X pixmap icon
+widget icon_widget (url file_name);
+  // a widget with an icon resolved by the active icon theme
 widget input_text_widget (command call_back, string type, array<string> def,
 			  int style= 0, string width= "1w");
   // a textual input widget for input of a given type and a list of suggested

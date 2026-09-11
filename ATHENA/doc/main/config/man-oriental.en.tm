@@ -33,7 +33,7 @@
     texmacs --delete-font-cache
   </shell-code>
 
-  and select <menu|Japanese> from the <icon|tm_language.xpm> icon on the
+  and select <menu|Japanese> from the <icon|tm_language> icon on the
   first icon bar. If everything went allright, the menus should now show up
   in Japanese and the current document is also in Japanese. Notice that you
   may also select Japanese as your default language in

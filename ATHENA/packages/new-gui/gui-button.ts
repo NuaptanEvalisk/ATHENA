@@ -20,8 +20,6 @@
     </src-license>
   </src-title>>
 
-  <use-package|std-shadow>
-
   <use-module|(utils misc gui-utils)>
 
   <\active*>
@@ -76,7 +74,9 @@
     </src-comment>
   </active*>
 
-  <assign|icon|<macro|name|<style-with|src-compact|none|<image|<style-with|src-compact|none|<find-file|$ATHENA_PATH/misc/pixmaps/modern/32x32/table|$ATHENA_PATH/misc/pixmaps/modern/32x32/settings|$ATHENA_PATH/misc/pixmaps/modern/24x24/main|$ATHENA_PATH/misc/pixmaps/modern/20x20/mode|$ATHENA_PATH/misc/pixmaps/modern/16x16/focus|$ATHENA_DOC_PATH/images/pixmaps|$ATHENA_HOME_PATH/doc/images/pixmaps|$ATHENA_PATH/doc/images/pixmaps|<arg|name>>>||50%||-10%>>>>
+  <assign|gui-icon-file|<macro|name|<find-file|$ATHENA_PATH/misc/pixmaps/modern/32x32/table|$ATHENA_PATH/misc/pixmaps/modern/32x32/settings|$ATHENA_PATH/misc/pixmaps/modern/24x24/main|$ATHENA_PATH/misc/pixmaps/modern/20x20/mode|$ATHENA_PATH/misc/pixmaps/modern/16x16/focus|$ATHENA_DOC_PATH/images/pixmaps|$ATHENA_HOME_PATH/doc/images/pixmaps|$ATHENA_PATH/doc/images/pixmaps|<merge|<arg|name>|.png>>>>
+
+  <assign|icon|<macro|name|<style-with|src-compact|none|<image|<style-with|src-compact|none|<gui-icon-file|<arg|name>>>||50%||-10%>>>>
 
   <assign|monochrome|<macro|w|h|col|<resize|<raw-table|<tformat|<twith|table-valign|b>|<cwith|1|-1|1|-1|cell-background|<arg|col>>|<cwith|1|-1|1|-1|cell-width|<arg|w>>|<cwith|1|-1|1|-1|cell-hmode|exact>|<cwith|1|-1|1|-1|cell-height|<arg|h>>|<cwith|1|-1|1|-1|cell-vmode|exact>|<table|<row|<\cell>
     \;
@@ -88,9 +88,9 @@
     </src-comment>
   </active*>
 
-  <assign|gui-contour|<macro|body|<with|shadow-recolor|<value|gui-blur-color>|<drop-contour|<arg|body>>>>>
+  <assign|gui-contour|<macro|body|<arg|body>>>
 
-  <assign|gui-contour*|<macro|body|<with|shadow-recolor|<value|gui-blur-color>|shadow-plain|true|<drop-contour|<arg|body>>>>>
+  <assign|gui-contour*|<macro|body|<arg|body>>>
 
   <assign|action-button-normal*|<macro|x|<with|ornament-corner|30%|ornament-color|<value|gui-bg-color>|ornament-shadow-color|<value|gui-shadow-color>|ornament-sunny-color|<value|gui-sunny-color>|<ornament|<arg|x>>>>>
 

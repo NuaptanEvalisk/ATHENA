@@ -42,12 +42,6 @@ color  rgb_color (int r, int g, int b, int a= 255);
 void   get_rgb_color (color col, int& r, int& g, int& b, int& a);
   // get the RGB components of a color
 
-color  xpm_color (string s);
-  // get a color by its xpm description
-
-void   get_xpm_color (color col, string &s);
-  // get the XPM description of a color
-
 color  cmyk_color (int c, int m, int y, int k, int a= 255);
   // get a color by its CMYK components
 

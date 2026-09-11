@@ -220,8 +220,6 @@
   ("framed-title"         "Framed titles")
   ("title-bar"            "Title bars")
   ("math-ss"              "Sans serif formulas")
-  ("shadowed-frames"      "Frames with shadows")
-  ("shadowed-titles"      "Titles with shadows")
 
   ("framed-session"       "Framed input fields")
   ("ring-session"         "Ring binder notebook style")
@@ -313,7 +311,6 @@
   ("framed-envs"        "Display various environments inside wide frames")
   ("ornaments"          "Tags for various fancy ornaments")
   ("presentation"       "Base package for laptop presentations")
-  ("blackboard"         "Blackboard beamer theme")
   ("bluish"             "Bluish beamer theme")
   ("ice"                "Ice beamer theme")
   ("metal"              "Metallic beamer theme")
@@ -322,8 +319,6 @@
   ("framed-title"       "Put titles of slides in wide frames")
   ("title-bar"          "Put titles of slides in bar at extreme top of screen")
   ("math-ss"            "Use sans serif font for mathematical formulas")
-  ("shadowed-frames"    "Display frames with a shadow")
-  ("shadowed-titles"    "Display titles with a shadow")
   
   ("a0-poster"          "A0 page size for posters")
   ("a1-poster"          "A1 page size for posters")

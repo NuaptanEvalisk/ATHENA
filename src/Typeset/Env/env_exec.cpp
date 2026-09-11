@@ -14,6 +14,7 @@
 #include "file.hpp"
 #include "locale.hpp"
 #include "image_files.hpp"
+#include "brush.hpp"
 #include "scheme.hpp"
 #include "scheme_native_context.hpp"
 #include "page_type.hpp"
@@ -2096,10 +2097,11 @@ edit_env_rep::exec_pattern (tree t) {
   if (N(t)<1) return tree (_ERROR, "bad pattern");
   if (no_patterns && N(t) == 4 && is_atomic (t[3])) return exec (t[3]);
   url im= url_system (exec_string (t[0]));
-  url image= resolve_pattern (relative (base_file_name, im));
+  url image= is_procedural_gradient_url (im)? im:
+             resolve_pattern (relative (base_file_name, im));
   if (is_none (image)) return "white";
   int imw_pt, imh_pt;
-  image_size (image, imw_pt, imh_pt);
+  pattern_image_size (image, imw_pt, imh_pt);
   double pt= ((double) dpi*PIXEL) / 72.0;
   SI imw= (SI) (((double) imw_pt) * pt);
   SI imh= (SI) (((double) imh_pt) * pt);

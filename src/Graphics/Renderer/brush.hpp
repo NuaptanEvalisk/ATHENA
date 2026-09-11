@@ -56,6 +56,8 @@ inline bool same_brush_instance (const brush& a, const brush& b) {
 brush mix (brush b1, double a1, brush b2, double a2);
 
 url   resolve_pattern (url im);
+bool  is_procedural_gradient_url (url u);
+void  pattern_image_size (url u, int& w, int& h);
 void  get_pattern_data (url& u, SI& w, SI& h, tree& eff, brush br, SI pixel);
 
 #endif // defined BRUSH_H

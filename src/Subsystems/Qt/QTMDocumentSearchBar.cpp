@@ -85,19 +85,19 @@ QTMDocumentSearchBar::QTMDocumentSearchBar (QTMWidget* owner):
     get_preference ("case-insensitive-match", "off") != "on");
 
   QToolButton* first= makeButton (
-    tmapp ()->icon_manager ().getIcon ("tm_search_first.xpm"),
+    tmapp ()->icon_manager ().getIcon ("tm_search_first"),
     tr ("First match"));
   QToolButton* previous= makeButton (
-    tmapp ()->icon_manager ().getIcon ("tm_search_previous.xpm"),
+    tmapp ()->icon_manager ().getIcon ("tm_search_previous"),
     tr ("Previous match (Shift+Enter)"));
   QToolButton* next= makeButton (
-    tmapp ()->icon_manager ().getIcon ("tm_search_next.xpm"),
+    tmapp ()->icon_manager ().getIcon ("tm_search_next"),
     tr ("Next match (Enter)"));
   QToolButton* last= makeButton (
-    tmapp ()->icon_manager ().getIcon ("tm_search_last.xpm"),
+    tmapp ()->icon_manager ().getIcon ("tm_search_last"),
     tr ("Last match"));
   QToolButton* close= makeButton (
-    tmapp ()->icon_manager ().getIcon ("tm_close_tool.xpm"),
+    tmapp ()->icon_manager ().getIcon ("tm_close_tool"),
     tr ("Close search (Escape)"));
 
   resultLabel->setMinimumWidth (64);
@@ -124,11 +124,11 @@ QTMDocumentSearchBar::QTMDocumentSearchBar (QTMWidget* owner):
   replacementPrompt->setBuddy (replacementEdit);
   replacementLabel= new QLabel (replaceRow);
   replaceOne= makeButton (
-    tmapp ()->icon_manager ().getIcon ("tm_replace_one.xpm"),
+    tmapp ()->icon_manager ().getIcon ("tm_replace_one"),
     tr ("Replace match (Enter in replacement field)"));
   replaceOne->setObjectName (QStringLiteral ("athenaDocumentReplaceOne"));
   replaceAll= makeButton (
-    tmapp ()->icon_manager ().getIcon ("tm_replace_all.xpm"),
+    tmapp ()->icon_manager ().getIcon ("tm_replace_all"),
     tr ("Replace all matches (Ctrl+Enter)"));
   replaceAll->setObjectName (QStringLiteral ("athenaDocumentReplaceAll"));
   replacementLayout->addWidget (replacementPrompt);

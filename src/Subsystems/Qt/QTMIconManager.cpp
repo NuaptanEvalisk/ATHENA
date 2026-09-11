@@ -159,11 +159,8 @@ load_pixmap (url file_name, QIcon& icon, double dpr) {
     if (possible_dpr == 2 || possible_dpr == 4)
       tag= "_x" * as_string (possible_dpr);
     url name_png= glue (name, tag * ".png");
-    url name_xpm= glue (name, tag * ".xpm");
     res= resolve (url ("$ATHENA_PIXMAP_PATH") * sub * name_png |
-		  url ("$ATHENA_PIXMAP_PATH") * sub * name_xpm |
-		  url ("$ATHENA_PIXMAP_PATH") * name_png |
-		  url ("$ATHENA_PIXMAP_PATH") * name_xpm);
+		  url ("$ATHENA_PIXMAP_PATH") * name_png);
     if (is_none (res)) return false;
   }
   QPixmap pm= QPixmap (to_qstring (concretize (res)));

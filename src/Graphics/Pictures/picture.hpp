@@ -77,7 +77,6 @@ ABSTRACT_NULL_CODE(picture);
 ******************************************************************************/
 
 picture load_picture (url u, int w, int h, tree eff, int pixel);
-picture load_xpm (url file_name);
 void picture_cache_reserve (url u, int w, int h, tree eff, int pixel);
 void picture_cache_release (url u, int w, int h, tree eff, int pixel);
 void picture_cache_clean ();

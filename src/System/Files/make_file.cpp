@@ -83,14 +83,8 @@ make_file (int cmd, tree data, array<url> args) {
     for (int i=0; i<N(args); i++)
       if (is_rooted_web (args[i]))
         bis << make_file (CMD_GET_FROM_WEB, "", range (args, i, i+1));
-      else if (is_rooted_tmfs (args[i])) {
-        string name= as_string (args[i]);
-        if (starts (name, "tmfs://artwork/")) {
-          url local ("$ATHENA_HOME_PATH/misc/" * name (15, N(name)));
-          if (exists (local)) { bis << local; continue; }
-        }
+      else if (is_rooted_tmfs (args[i]))
         bis << make_file (CMD_GET_FROM_SERVER, "", range (args, i, i+1));
-      }
       else bis << args[i];
     args= bis;
   }

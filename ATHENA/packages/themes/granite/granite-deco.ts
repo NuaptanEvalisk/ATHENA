@@ -40,7 +40,6 @@
 
   <assign|stone-granite-ornament-shadow-color|dark grey>
 
-  <assign|stone-granite-deco-shadow-effect|<eff-recolor|0|grey>>
 </body>
 
 <\initial>

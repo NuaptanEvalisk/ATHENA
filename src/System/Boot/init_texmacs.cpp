@@ -391,8 +391,7 @@ init_env_vars () {
                        url ("$ATHENA_PATH/misc/pixmaps/modern/32x32/table") |
                        url ("$ATHENA_PATH/misc/pixmaps/modern/24x24/main") |
                        url ("$ATHENA_PATH/misc/pixmaps/modern/20x20/mode") |
-                       url ("$ATHENA_PATH/misc/pixmaps/modern/16x16/focus") |
-                       url ("$ATHENA_PATH/misc/pixmaps/traditional/--x17"));
+                       url ("$ATHENA_PATH/misc/pixmaps/modern/16x16/focus"));
   (void) get_env_path ("ATHENA_DOCUMENT_LOCALE_PATH",
                        url ("$ATHENA_PATH/langs/document"));
   (void) get_env_path ("ATHENA_THEME_PATH",

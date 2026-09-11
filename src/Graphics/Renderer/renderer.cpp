@@ -394,7 +394,7 @@ renderer_rep::clear_pattern (SI mx1, SI my1, SI mx2, SI my2,
 
     url u= b->get_pattern_url ();
     int imw_pt, imh_pt;
-    image_size (u, imw_pt, imh_pt);
+    pattern_image_size (u, imw_pt, imh_pt);
     double pt= ((double) 600*PIXEL) / 72.0;
     SI imw= (SI) (((double) imw_pt) * pt);
     SI imh= (SI) (((double) imh_pt) * pt);

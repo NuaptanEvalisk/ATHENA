@@ -22,37 +22,19 @@
 
 (define (encode-pattern-name key u)
   (let* ((name (if (string? u) u (url->unix u)))
-         (t (url->unix (url-tail u)))
-         (p (url->unix "$ATHENA_PATH/misc/patterns"))
-         (a (url->unix "$ATHENA_PATH/misc"))
-         (p* (url-append (unix->url p) "dummy"))
-         (a* (url-append (unix->url a) "dummy")))
+         (p (url->unix "$ATHENA_PATH/misc/patterns")))
     (cond ((or (string-starts? name p)
                (string-starts? name "$ATHENA_PATH/misc/patterns")
                (string-starts? name "$ATHENA_PATTERN_PATH"))
            name)
-          ((and (string-starts? name a)
-                (string-starts? t "thumbnail-"))
-           (let* ((t* (string-drop t 10))
-                  (d (url-delta a* (unix->url name)))
-                  (d* (url-relative d (unix->url t*))))
-             (url->unix (url-append "tmfs://artwork" d*))))
           (else u))))
 
 (define (decode-pattern-name key s)
   (let* ((name (unix->url s))
          (base1 "$ATHENA_PATH/misc/patterns/neutral-pattern.png")
-         (base2 "$ATHENA_PATH/misc/pictures/gradients/vertical-white-black.png")
-         (base (if (gradient? key) base2 base1))
-         (artw "$ATHENA_PATH/misc/dummy"))
+         (base base1))
     (cond ((not (url-rooted? name))
            (url-relative base name))
-          ((and (string? s) (string-starts? s "tmfs://artwork/"))
-           (let* ((u (url->unix (string-drop s 15)))
-                  (dir (url-head u))
-                  (tn (string-append "thumbnail-" (url->unix (url-tail u))))
-                  (file (url-append dir (unix->url tn))))
-             (url-relative artw file)))
           (else name))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -76,8 +58,9 @@
       (cond ((pattern? key)
              `(pattern "$ATHENA_PATH/misc/patterns/neutral-pattern.png" "1cm" "100@"))
             ((gradient? key)
-             `(pattern "$ATHENA_PATH/misc/pictures/gradients/vertical-white-black.png"
-                       "100%" "100%"))
+             `(pattern ,athena-vertical-gradient-source
+                       "100%" "100%"
+                       (eff-gradient "0" "black" "white")))
             ((picture? key)
              `(pattern "$ATHENA_PATH/misc/patterns/neutral-pattern.png"
                        "100%" "100%"))
@@ -225,12 +208,10 @@
             (list (url->system name) "")
             (url->system name) "15em")
       // // //
-      ((icon "tm_find.xpm")
+      ((icon "tm_find")
        (cond ((pattern? key)
-              (choose-file setter "Background pattern" "image" "" curr))
-             ((gradient? key)
-              (choose-file setter "Background gradient" "image" "" curr))
-             ((url-rooted? (unix->url (get-name key)))
+               (choose-file setter "Background pattern" "image" "" curr))
+              ((url-rooted? (unix->url (get-name key)))
               (choose-file setter "Background picture" "image" "" curr))
              (else
               (choose-file setter "Background picture" "image"))))
@@ -248,7 +229,7 @@
     (toggle (set-recolor key (and answer "black"))
             (nnot (get-recolor key)))
     // // //
-    ((icon "tm_color.xpm")
+    ((icon "tm_color")
      (interactive-color (cut set-recolor key <>)
                         (list (or (get-recolor key) ""))))
     >>))
@@ -265,13 +246,13 @@
     (toggle (set-skin key (and answer "black"))
             (nnot (get-skin key)))
     // // //
-    ((icon "tm_color.xpm")
+    ((icon "tm_color")
      (interactive-color (cut set-skin key <>)
                         (list (or (get-skin key) ""))))
     // //
     (when (get-skin key)
-      ((icon "tm_remove.xpm") (dec-skin key))
-      ((icon "tm_add.xpm") (inc-skin key)))
+      ((icon "tm_remove") (dec-skin key))
+      ((icon "tm_add") (inc-skin key)))
     >>))
 
 (tm-widget (pattern-blur-options key)
@@ -294,7 +275,7 @@
                 "yellow" "cyan" "magenta" "orange" "brown" "")
           (or (get-gradient-background key) "white") "15em")
     // // //
-    ((icon "tm_color.xpm")
+    ((icon "tm_color")
      (interactive-color (cut set-gradient-background key <>)
                         (list (or (get-gradient-background key) "white"))))
     >>))
@@ -307,7 +288,7 @@
                 "yellow" "cyan" "magenta" "orange" "brown" "")
           (or (get-gradient-foreground key) "black") "15em")
     // // //
-    ((icon "tm_color.xpm")
+    ((icon "tm_color")
      (interactive-color (cut set-gradient-foreground key <>)
                         (list (or (get-gradient-foreground key) "black"))))
     >>))
@@ -354,8 +335,6 @@
         ))
     (assuming (gradient? key)
       (aligned
-        (item (text "Name:")
-          (dynamic (pattern-name-selector key)))
         (item (text "Width:")
           (hlist
             (enum (set-width key answer)

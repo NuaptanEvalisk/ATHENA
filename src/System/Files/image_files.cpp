@@ -85,116 +85,6 @@ static hashmap<tree,imgbox> img_box;
 // (for ps/eps we also store the image offset so that we have the full bbox info)
 
 /******************************************************************************
-* Loading xpm pixmaps
-******************************************************************************/
-
-tree
-xpm_load (url u) {
-  string s;
-  load_string ("$ATHENA_PIXMAP_PATH" * u, s, false);
-  if (s == "") load_string ("$ATHENA_PATH/misc/pixmaps/ATHENA.xpm", s, true);
-
-  int i, j;
-  tree t (TUPLE);
-  for (i=0; i<N(s); i++)
-    if (s[i]=='\x22') {
-      i++;
-      j=i;
-      while ((i<N(s)) && (s[i]!='\x22')) i++;
-      t << s (j, i);
-    }
-  if (N(t)==0) return xpm_load ("$ATHENA_PATH/misc/pixmaps/ATHENA.xpm");
-  return t;
-}
-
-void
-xpm_size (url u, int& w, int& h) {
-  static hashmap<string,string> xpm_size_table ("");
-  string file_name= as_string (u);
-  if (!xpm_size_table->contains (file_name)) {
-    tree t= xpm_load (u);
-    xpm_size_table (file_name)= t[0]->label;
-  }
-
-  int i= 0;
-  bool ok;
-  string s= xpm_size_table[file_name];
-  skip_spaces (s, i);
-  ok= read_int (s, i, w);
-  skip_spaces (s, i);
-  ok= read_int (s, i, h) && ok;
-  if (!ok) {
-    failed_error << "File name= " << file_name << "\n";
-    FAILED ("invalid xpm");
-  }
-}
-
-array<string>
-xpm_colors (tree t) {
-  array<string> res(0);
-  string s= t[0]->label;
-  int ok, i=0, j, k, w, h, c, b;
-  skip_spaces (s, i);
-  ok= read_int (s, i, w);
-  skip_spaces (s, i);
-  ok= read_int (s, i, h) && ok;
-  skip_spaces (s, i);
-  ok= read_int (s, i, c) && ok;
-  skip_spaces (s, i);
-  ok= read_int (s, i, b) && ok;
-  ASSERT (ok && N(t)>c && c>0, "invalid xpm tree");
-
-  for (k=0; k<c; k++) {
-    string s   = as_string (t[k+1]);
-    string def = "none";
-    if (N(s)<b) i=N(s); else i=b;
-
-    skip_spaces (s, i);
-    if ((i<N(s)) && (s[i]=='s')) {
-      i++;
-      skip_spaces (s, i);
-      while ((i<N(s)) && (s[i]!=' ') && (s[i]!='\t')) i++;
-      skip_spaces (s, i);
-    }
-    if ((i<N(s)) && (s[i]=='c')) {
-      i++;
-      skip_spaces (s, i);
-      j=i;
-      while ((i<N(s)) && (s[i]!=' ') && (s[i]!='\t')) i++;
-      def= locase_all (s (j, i));
-    }
-    res<<def;
-  }
-  return res;
-}
-
-array<SI>
-xpm_hotspot (tree t) {
-  array<SI> res(0);
-  string s= t[0]->label;
-  int ok, i=0, w, h, c, b, x, y;
-  skip_spaces (s, i);
-  ok= read_int (s, i, w);
-  skip_spaces (s, i);
-  ok= read_int (s, i, h) && ok;
-  skip_spaces (s, i);
-  ok= read_int (s, i, c) && ok;
-  skip_spaces (s, i);
-  ok= read_int (s, i, b) && ok;
-  ASSERT (ok && N(t)>c && c>0, "invalid xpm tree");
-
-  skip_spaces (s, i);
-  ok= read_int (s, i, x) && ok;
-  skip_spaces (s, i);
-  ok= read_int (s, i, y) && ok;
-  if (ok) {
-    res << ((SI) x);
-    res << ((SI) y);
-  }
-  return res;
-}
-
-/******************************************************************************
 * Loading postscript files (possibly triggering conversion to postscript)
 ******************************************************************************/
 
@@ -293,6 +183,13 @@ clearall_imgbox_cache() {
 ******************************************************************************/
 void image_size_sub (url image, int& w, int& h);
 
+static bool
+reject_xpm_image (url image) {
+  if (suffix (image) != "xpm") return false;
+  convert_error << "XPM images are not supported: " << image << LF;
+  return true;
+}
+
 void
 image_size (url image, int& w, int& h) {
   /* Get original image size (in pt units) using cached result if possible,
@@ -324,6 +221,7 @@ image_size (url image, int& w, int& h) {
 void
 image_size_sub (url image, int& w, int& h) { // returns w,h in units of pt (1/72 inch)
   if (DEBUG_CONVERT) debug_convert<< "image_size not cached for :" << image <<LF;
+  if (reject_xpm_image (image)) return;
   string suf = suffix (image);	
   if (suf=="pdf") {
     pdf_image_size (image, w, h);
@@ -450,6 +348,7 @@ wrap_qt_supports (url image) {
 void
 image_to_eps (url image, url eps, int w_pt, int h_pt, int dpi) {
   if (DEBUG_CONVERT) debug_convert << "image_to_eps ...";
+  if (reject_xpm_image (image)) return;
   /* if ((suffix (eps) != "eps") && (suffix (eps) != "ps")) {
      std_warning << concretize (eps) << " has no .eps or .ps suffix\n";
      }
@@ -507,6 +406,7 @@ image_to_psdoc (url image) {
 void 
 image_to_pdf (url image, url pdf, int w_pt, int h_pt, int dpi) {
   if (DEBUG_CONVERT) debug_convert << "image_to_pdf ... ";
+  if (reject_xpm_image (image)) return;
   string s= suffix (image);
   // First try to preserve "vectorialness"
   if ((s == "svg") && !wrap_qt_supports (image) &&
@@ -538,8 +438,8 @@ image_to_pdf (url image, url pdf, int w_pt, int h_pt, int dpi) {
 
 void
 image_to_png (url image, url png, int w, int h) {// IN PIXEL UNITS!
-  string source_suffix= suffix (image);
   if (DEBUG_CONVERT) debug_convert << "image_to_png ... ";
+  if (reject_xpm_image (image)) return;
   /* if (suffix (png) != "png") {
      std_warning << concretize (png) << " has no .png suffix\n";
      }

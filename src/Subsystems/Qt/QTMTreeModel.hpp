@@ -59,7 +59,7 @@ observer qt_tree_observer (QTMTreeModel* model);
  roles for nodes in a separate argument. If the data is
  
  (root
-   (library "First library" "icon.xpm" 12345
+   (library "First library" "icon.svg" 12345
      (collection "First collection" 001)
      (collection "Second collection" 002)
      (collection "Third collection" 003

@@ -165,17 +165,9 @@ QTMTreeModel::data (const QModelIndex& index, int role) const {
         return to_qstring (t[pos]->label);
     case Qt::DecorationRole:
     {
-        // NOTE: By calling QPixmap's constructor with a file name, I'm bypassing
-        // TeXmacs' caching of pictures in qt_load_xpm(), but since I need a
-        // QPixmap and TeXmacs stores QImages this is preferable because Qt uses
-        // QPixmapCache for all files it loads.
-        // It might actually be better to cache the QIcons first and return them
-      url u = "$ATHENA_PIXMAP_PATH";
       if (pos == -1 || is_atomic (t) || !is_atomic (t[pos]))
-        u = resolve ("$ATHENA_PIXMAP_PATH" *
-                     url ("treelabel-" * as_string (L(t)) * ".xpm"));
-      else
-        u = resolve (url (t[pos]->label));
+        return QVariant ();
+      url u= resolve (url (t[pos]->label));
       if (is_rooted_name (u))
         return QPixmap (to_qstring (concretize (u)));
       else

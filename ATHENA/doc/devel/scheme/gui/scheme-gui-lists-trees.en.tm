@@ -178,7 +178,7 @@
     data role specification. By default the widget will use the tree label's
     string representation for <scm|DisplayRole>, <scm|EditRole>,
     <scm|ToolTipRole> and <scm|StatusTipRole>. For the <scm|DecorationRole>
-    it will try to load pixmaps named <shell|treelabel-\<less\>label\<gtr\>.xpm>
+    it will try to load icons named <shell|treelabel-\<less\>label\<gtr\>.svg>
     in <shell|$ATHENA_PIXMAP_PATH>. This search
     <with|font-series|bold|won't> happen if the <scm|DecorationRole> is
     specified (i.e. a full path with or without environment variables and
@@ -236,7 +236,7 @@
 
       \ \ \ '(root
 
-      \ \ \ \ \ (library "Library" "$ATHENA_PIXMAP_PATH/tm_german.xpm" 01
+      \ \ \ \ \ (library "Library" "$ATHENA_PIXMAP_PATH/tm_german" 01
 
       \ \ \ \ \ \ \ \ \ \ \ \ \ \ (collection "Cool stuff" 001)
 

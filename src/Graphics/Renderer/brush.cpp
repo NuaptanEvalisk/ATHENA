@@ -18,6 +18,8 @@ url get_current_buffer_safe ();
 bool is_percentage (tree t, string s= "%");
 double as_percentage (tree t);
 
+static const string athena_vertical_gradient_source= "athena-gradient-vertical";
+
 /******************************************************************************
 * Equality
 ******************************************************************************/
@@ -103,6 +105,23 @@ resolve_pattern (url im) {
   return image;
 }
 
+bool
+is_procedural_gradient_url (url u) {
+  return as_string (tail (u)) == athena_vertical_gradient_source;
+}
+
+void
+pattern_image_size (url u, int& w, int& h) {
+  if (is_procedural_gradient_url (u)) {
+    // Preserve the aspect ratio of the former vertical gradient template.
+    // The pixels themselves are synthesized at the requested render size.
+    w= 200;
+    h= 900;
+    return;
+  }
+  image_size (u, w, h);
+}
+
 url
 brush_rep::get_pattern_url () {
   tree t= get_pattern ();
@@ -176,7 +195,7 @@ get_pattern_data (url& u, SI& w, SI& h, tree& eff, brush br, SI pixel) {
   tree pattern= br->get_pattern ();
   u= br->get_pattern_url ();
   int imw_pt, imh_pt;
-  image_size (u, imw_pt, imh_pt);
+  pattern_image_size (u, imw_pt, imh_pt);
   double pt= ((double) 600*PIXEL) / 72.0;
   SI imw= (SI) (((double) imw_pt) * pt);
   SI imh= (SI) (((double) imh_pt) * pt);

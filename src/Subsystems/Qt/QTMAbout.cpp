@@ -93,12 +93,10 @@ QTMAbout::QTMAbout (QWidget* parent)
   string tm_path = get_env ("ATHENA_PATH");
   url logo_u1 = url_system (tm_path * "/misc/images/ATHENA-512.png");
   url logo_u2 = url_system (tm_path * "/misc/images/ATHENA.svg");
-  url logo_u3 = url_system (tm_path * "/misc/pixmaps/ATHENA.xpm");
   
   QString logoPath;
   if (exists (logo_u1)) logoPath = to_qstring (as_string (logo_u1));
   else if (exists (logo_u2)) logoPath = to_qstring (as_string (logo_u2));
-  else if (exists (logo_u3)) logoPath = to_qstring (as_string (logo_u3));
 
   if (!logoPath.isEmpty ()) {
     QPixmap pixmap (logoPath);

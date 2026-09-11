@@ -27,7 +27,7 @@
     the items on the focus toolbar or in the <menu|Focus> menu. For instance,
     by clicking on the current style, paper size or font size, a pulldown
     menu will open from which you can modify the current setting. By clicking
-    on the <icon|tm_add.xpm> icon after the document style, you may select
+    on the <icon|tm_add> icon after the document style, you may select
     additional style packages.
 
     Similarly, when clicking on the current section, a pulldown menu with all
