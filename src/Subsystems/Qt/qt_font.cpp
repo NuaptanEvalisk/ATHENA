@@ -158,6 +158,7 @@ qt_font_rep::qt_font_rep (string name, string family2, int size2, int dpi2):
   SI italic_spc= (ex->x4-ex->x3)-(ex->x2-ex->x1);
   slope= ((double) italic_spc) / ((double) display_size);
   if (slope<0.15) slope= 0.0;
+  if (family == "emoji") slope= 0.0;
 }
 
 bool

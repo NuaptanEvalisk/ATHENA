@@ -29,7 +29,7 @@
 namespace {
 
 constexpr std::uint32_t stream_magic= 0x41544852; // ATHR
-constexpr std::uint16_t stream_version= 3;
+constexpr std::uint16_t stream_version= 4;
 constexpr std::uint32_t no_gradient= std::numeric_limits<std::uint32_t>::max ();
 constexpr std::size_t frame_slot_count= 3;
 
@@ -47,6 +47,7 @@ enum class render_opcode: std::uint16_t {
   draw_ellipse,
   draw_path,
   draw_polygon,
+  draw_text,
   draw_image
 };
 
@@ -123,6 +124,13 @@ struct array_record { std::uint32_t count; std::uint32_t mode; };
 struct point_record { double x; double y; };
 struct rect_record { double x; double y; double width; double height; };
 
+struct text_record {
+  double x;
+  double y;
+  std::uint32_t font_size;
+  std::uint32_t text_size;
+};
+
 struct image_record {
   athena_resource_id resource;
   rect_record target;
@@ -136,6 +144,7 @@ struct integer_record { std::uint32_t value; std::uint32_t reserved= 0; };
 
 static_assert (std::is_trivially_copyable<render_command_header>::value);
 static_assert (std::is_trivially_copyable<brush_record>::value);
+static_assert (std::is_trivially_copyable<text_record>::value);
 static_assert (std::is_trivially_copyable<image_record>::value);
 
 std::size_t
@@ -622,6 +631,28 @@ struct QTMRenderConnection::processor_state final: render_processor {
         polygon, static_cast<Qt::FillRule> (fixed.mode));
       return true;
     }
+    case render_opcode::draw_text: {
+      if (size < sizeof (text_record)) return false;
+      text_record fixed;
+      std::memcpy (&fixed, data, sizeof (fixed));
+      std::size_t font_size= static_cast<std::size_t> (fixed.font_size);
+      std::size_t text_size= static_cast<std::size_t> (fixed.text_size);
+      if (font_size > size - sizeof (fixed) ||
+          text_size != size - sizeof (fixed) - font_size)
+        return false;
+      const char* font_data= reinterpret_cast<const char*> (
+        data + sizeof (fixed));
+      const char* text_data= font_data + font_size;
+      QFont font;
+      if (!font.fromString (QString::fromUtf8 (
+            font_data, static_cast<qsizetype> (font_size))))
+        return false;
+      painter->setFont (font);
+      painter->drawText (
+        QPointF (fixed.x, fixed.y),
+        QString::fromUtf8 (text_data, static_cast<qsizetype> (text_size)));
+      return true;
+    }
     case render_opcode::draw_image: {
       if (size != sizeof (image_record)) return false;
       image_record fixed;
@@ -941,7 +972,33 @@ public:
                      const QTextItem& text) override {
     QPainterPath path;
     path.addText (position, text.font (), text.text ());
-    record_path (render_opcode::draw_path, path);
+    if (!path.isEmpty () || text.text ().trimmed ().isEmpty ()) {
+      record_path (render_opcode::draw_path, path);
+      return;
+    }
+
+    // Color/bitmap fonts such as Noto Color Emoji have valid metrics and are
+    // drawable by QPainter, but expose no outline to QPainterPath::addText().
+    // Record these runs as immutable UTF-8 text plus a serialized QFont and let
+    // the RenderService's own QPainter draw them on the render thread. Ordinary
+    // outline text stays on the compact path representation above.
+    QByteArray font= text.font ().toString ().toUtf8 ();
+    QByteArray value= text.text ().toUtf8 ();
+    if (font.size () > std::numeric_limits<std::uint32_t>::max () ||
+        value.size () > std::numeric_limits<std::uint32_t>::max ())
+      return;
+    std::size_t size= sizeof (text_record) +
+      static_cast<std::size_t> (font.size ()) +
+      static_cast<std::size_t> (value.size ());
+    std::byte* payload= writer_.command (render_opcode::draw_text, size);
+    if (payload == nullptr) return;
+    text_record fixed {
+      position.x (), position.y (), static_cast<std::uint32_t> (font.size ()),
+      static_cast<std::uint32_t> (value.size ())};
+    std::memcpy (payload, &fixed, sizeof (fixed));
+    std::memcpy (payload + sizeof (fixed), font.constData (), font.size ());
+    std::memcpy (
+      payload + sizeof (fixed) + font.size (), value.constData (), value.size ());
   }
 
 private:

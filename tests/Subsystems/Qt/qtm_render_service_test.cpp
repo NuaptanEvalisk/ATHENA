@@ -10,9 +10,11 @@
 #include <QtTest/QtTest>
 
 #include "QTMRenderService.hpp"
+#include "qt_font.hpp"
 #include "qt_renderer.hpp"
 #include "qt_simple_widget.hpp"
 
+#include <QFontDatabase>
 #include <QPainter>
 #include <condition_variable>
 #include <mutex>
@@ -25,6 +27,8 @@ class TestQTMRenderService: public QObject {
 
 private slots:
   void rendersDisplayListOffTheProducerThread ();
+  void emojiFontUsesUprightCaretMetrics ();
+  void rendersColorEmojiWithoutOutlinePath ();
   void givesEachProducerThreadItsOwnQtRenderer ();
   void retryDamageStaysInBackingPixels ();
 };
@@ -57,6 +61,57 @@ TestQTMRenderService::rendersDisplayListOffTheProducerThread () {
   QCOMPARE (frame.image ().pixelColor (6, 7), QColor (10, 120, 230));
   QCOMPARE (frame.image ().pixelColor (0, 0), QColor (255, 255, 255));
 
+  connection->retire ();
+}
+
+void
+TestQTMRenderService::emojiFontUsesUprightCaretMetrics () {
+  font emoji= qt_font ("emoji", 24, 600);
+  QVERIFY (!is_nil (emoji));
+  string melting= "<#1FAE0>";
+  QCOMPARE (emoji->get_left_slope (melting), 0.0);
+  QCOMPARE (emoji->get_right_slope (melting), 0.0);
+}
+
+void
+TestQTMRenderService::rendersColorEmojiWithoutOutlinePath () {
+  const QString family= QStringLiteral ("Noto Color Emoji");
+  if (!QFontDatabase::families ().contains (family, Qt::CaseInsensitive))
+    QSKIP ("Noto Color Emoji is not installed");
+
+  QFont font (family);
+  font.setPixelSize (32);
+  const QString emoji= QString::fromUcs4 (U"🫠");
+
+  auto connection= QTMRenderConnection::create (2, 64 * 1024);
+  QVERIFY (connection != nullptr);
+  render_damage damage {0, 0, 96, 64};
+  auto recording= connection->beginRecording (
+    96, 64, 1.0, qRgba (255, 255, 255, 255), 11, 17, damage);
+  QVERIFY (recording != nullptr);
+
+  QPainter painter (recording->device ());
+  painter.setFont (font);
+  painter.setPen (Qt::black);
+  painter.drawText (QPointF (16, 44), emoji);
+  painter.end ();
+  QVERIFY (recording->finish ());
+
+  QTMSharedFrame frame;
+  auto deadline= std::chrono::steady_clock::now () + std::chrono::seconds (1);
+  do {
+    frame= connection->acquireLatestFrame ();
+    if (frame) break;
+    std::this_thread::sleep_for (std::chrono::milliseconds (1));
+  } while (std::chrono::steady_clock::now () < deadline);
+  QVERIFY (static_cast<bool> (frame));
+
+  bool ink= false;
+  const QImage& image= frame.image ();
+  for (int y= 0; y < image.height () && !ink; ++y)
+    for (int x= 0; x < image.width () && !ink; ++x)
+      ink= image.pixelColor (x, y) != QColor (255, 255, 255);
+  QVERIFY (ink);
   connection->retire ();
 }
 
