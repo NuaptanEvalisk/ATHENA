@@ -1378,7 +1378,10 @@ TeXmacs_main (int argc, char** argv) {
       exit (failed ? 1 : 0);
     }
     if (website_generate_dir != "" && website_generate_id != "") {
-      eval ("(lazy-initialize-force)");
+      // Website export loads the converter modules it needs on demand.  Do not
+      // force editor-mode lazy initializers here: their context predicates
+      // inspect BufferActor-owned editor state and this headless entry point is
+      // intentionally running on the global owner.
       load_vault_preferences_if_enabled (
         std::filesystem::path (athena_to_std_string (website_generate_dir)),
         "Website generation");

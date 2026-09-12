@@ -20,6 +20,7 @@ class TestCommandLineConversion: public QObject {
   Q_OBJECT
 private slots:
   void convertsBeforeContinuing();
+  void websiteGenerationSkipsEditorModeLazyInitialization();
 };
 
 static QByteArray contents (const QString& path) {
@@ -97,6 +98,37 @@ void TestCommandLineConversion::convertsBeforeContinuing() {
   QCOMPARE (process.exitStatus (), QProcess::NormalExit);
   QCOMPARE (process.exitCode (), 1);
   QVERIFY (!QFile::exists (temp.filePath ("missing.pdf")));
+}
+
+void TestCommandLineConversion::websiteGenerationSkipsEditorModeLazyInitialization() {
+  QTemporaryDir temp;
+  QVERIFY (temp.isValid ());
+  QVERIFY (QDir ().mkpath (temp.filePath ("home/fonts")));
+  QVERIFY (QDir ().mkpath (temp.filePath ("home/system")));
+
+  const QString executable= QDir (QCoreApplication::applicationDirPath ())
+    .absoluteFilePath ("../src/ATHENA.bin");
+  const QString resources= QDir (QCoreApplication::applicationDirPath ())
+    .absoluteFilePath ("../../ATHENA");
+  QProcess process;
+  auto env= QProcessEnvironment::systemEnvironment ();
+  env.insert ("ATHENA_HOME_PATH", temp.filePath ("home"));
+  env.insert ("ATHENA_PATH", resources);
+  env.insert ("QT_QPA_PLATFORM", "offscreen");
+  env.insert ("PWD", temp.path ());
+  process.setProcessEnvironment (env);
+  process.setWorkingDirectory (temp.path ());
+  process.setProcessChannelMode (QProcess::MergedChannels);
+  process.start (executable,
+                 {"--generate-website", temp.filePath ("missing-vault"),
+                  "missing-site"});
+  QVERIFY2 (process.waitForFinished (20000), qPrintable (process.errorString ()));
+  const QByteArray log= process.readAll ();
+  QCOMPARE (process.exitStatus (), QProcess::NormalExit);
+  QCOMPARE (process.exitCode (), 1);
+  QVERIFY2 (log.contains ("website generation failed"), log.constData ());
+  QVERIFY2 (!log.contains ("editor state is owned by its BufferActor"),
+            log.constData ());
 }
 
 QTEST_MAIN (TestCommandLineConversion)
