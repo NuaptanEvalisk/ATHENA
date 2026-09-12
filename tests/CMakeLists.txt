@@ -197,6 +197,10 @@ if (ATHENA_TEST_GUILE)
     COMMAND ${ATHENA_TEST_GUILE} --no-auto-compile
       ${CMAKE_CURRENT_SOURCE_DIR}/scheme/autosave-ownership-test.scm
       ${ATHENA_SOURCE_DIR})
+  add_test (NAME reload_ownership_scheme_test
+    COMMAND ${ATHENA_TEST_GUILE} --no-auto-compile
+      ${CMAKE_CURRENT_SOURCE_DIR}/scheme/reload-ownership-test.scm
+      ${ATHENA_SOURCE_DIR})
   add_test (NAME window_close_ownership_scheme_test
     COMMAND ${ATHENA_TEST_GUILE} --no-auto-compile
       ${CMAKE_CURRENT_SOURCE_DIR}/scheme/window-close-ownership-test.scm

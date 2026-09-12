@@ -801,26 +801,47 @@
 ;; Reverting buffers
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (revert-buffer-revert . l)
-  (with name (if (null? l) (current-buffer) (car l))
-    (if (not (buffer-exists? name))
-        (load-buffer name)
-        (begin
-          (when (!= name (current-buffer))
-            (switch-to-buffer name))
-          (url-cache-invalidate name)
-          (with t (tree-import name (url-format name))
-            (if (== t (tm->tree "error"))
-                (set-message "Error: file not found" "Revert buffer")
-                (buffer-set name t)))))))
+(define (revert-buffer-revert-global name)
+  (if (not (buffer-exists? name))
+      (load-buffer name)
+      (begin
+        (when (!= name (current-buffer))
+          (switch-to-buffer name))
+        (url-cache-invalidate name)
+        (with t (tree-import name (url-format name))
+          (if (== t (tm->tree "error"))
+              (set-message "Error: file not found" "Revert buffer")
+              (buffer-set name t))))))
 
-(tm-define (revert-buffer . l)
-  (with name (if (null? l) (current-buffer) (car l))
-    (if (and (buffer-exists? name) (buffer-modified? name))
+(tm-define (revert-buffer-revert . l)
+  (let* ((name (if (null? l) (current-buffer) (car l)))
+         ;; A URL owned by BufferActor Scheme must not escape to the GUI owner.
+         ;; Detach it as text and reconstruct it inside the global domain.
+         (text (string-copy (url->system name))))
+    (exec-global
+      (lambda ()
+        (revert-buffer-revert-global (system->url text))))))
+
+(define (revert-buffer-global name)
+  (if (and (buffer-exists? name) (buffer-modified? name))
+      (let ((text (string-copy (url->system name))))
         (user-confirm "Buffer has been modified. Really revert?" #f
           (lambda (answ)
-            (when answ (apply revert-buffer-revert l))))
-        (apply revert-buffer-revert l))))
+            ;; Interactive continuations resume through the active view and
+            ;; may therefore run on its BufferActor. Return to the GUI owner
+            ;; before consulting or mutating the buffer registry.
+            (when answ
+              (exec-global
+                (lambda ()
+                  (revert-buffer-revert-global (system->url text))))))))
+      (revert-buffer-revert-global name)))
+
+(tm-define (revert-buffer . l)
+  (let* ((name (if (null? l) (current-buffer) (car l)))
+         (text (string-copy (url->system name))))
+    (exec-global
+      (lambda ()
+        (revert-buffer-global (system->url text))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Importing buffers
