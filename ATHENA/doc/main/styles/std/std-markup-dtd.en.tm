@@ -248,9 +248,6 @@
   <explain|<explain-macro|TeXmacs-version>|The current version of <TeXmacs>
   (<TeXmacs-version>).>
 
-  <explain|<explain-macro|made-by-TeXmacs>|A macro which may be used to
-  indicate that your document was written using <TeXmacs>.>
-
   <explain|<explain-macro|TeX>|The <TeX> logo.>
 
   <explain|<explain-macro|LaTeX>|The <LaTeX> logo.>

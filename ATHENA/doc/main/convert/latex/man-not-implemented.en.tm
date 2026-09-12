@@ -15,14 +15,7 @@
     <item>Style parameters.
   </itemize>
 
-  Any suggestion about desirable extensions of the conversion algorithm
-  should be reported to\ 
-
-  <\verbatim>
-    \ \ \ \ contact@texmacs.org
-  </verbatim>
-
-  and we will try to incorporate it as quickly as possible. It may take some
+  It may take some
   time to implement the correct conversion of style parameters, since these
   are not the same in <TeXmacs> and <LaTeX>. Furthermore, layout differences
   between <TeXmacs> and <LaTeX> can not entirely be eliminated.

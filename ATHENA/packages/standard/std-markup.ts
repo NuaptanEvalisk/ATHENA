@@ -58,10 +58,6 @@
 
   <assign|TeXmacs-version-release|<macro|type|<extern|texmacs-version-release*|<quote-arg|type>>>>
 
-  <assign|made-by-TeXmacs|<macro|<float|footnote||<with|font-size|0.84|par-mode|justify|par-left|0cm|par-right|0cm|<localize|This
-  document has been produced using> <with|font-series|bold|ATHENA>
-  (<localize|Advanced Typesetting and Hypertext Environment for Notes and Archives>).<right-flush>>>>>
-
   <assign|experimental-build-warning|<\macro>
     <\note>
       This document was typeset with <ATHENA>, the <with|font-shape|italic|Advanced
@@ -86,8 +82,6 @@
   <assign|cd-vertex|<macro|id|x|y|formula|<arg|formula>>>
 
   <assign|cd-arrow|<macro|id|source|target|formula|options|<arg|formula>>>
-
-  <assign|tm-made|<macro|<with|ornament-color||ornament-shadow-color|<value|color>|ornament-sunny-color|<value|color>|ornament-border|1ln|ornament-shape|rounded|ornament-hpadding|0.5spc|ornament-vpadding|0.5spc|<ornament|<math|\<Backsigma\>>>>>>
 
   <assign|TeX|<macro|<active*|T<rsub|<space|-0.4spc><move|<resize|<with|math-level|0|E>||||0.5fn>|0fn|-0.1fn>><space|-0.4spc>X>>>
 

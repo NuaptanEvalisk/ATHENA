@@ -339,17 +339,6 @@
   (tmbsl "\\ensuremath{\\backslash}")
   (tmdummy "$\\mbox{}$")
   (TeXmacs "T\\kern-.1667em\\lower.5ex\\hbox{E}\\kern-.125emX\\kern-.1em\\lower.5ex\\hbox{\\textsc{m\\kern-.05ema\\kern-.125emc\\kern-.05ems}}")
-  (madebyTeXmacs (footnote (!recurse (withTeXmacstext))))
-  (withTeXmacstext
-    (!append (!translate "This document has been produced using the GNU") " "
-             (!group (!recurse (TeXmacs))) " " (!translate "text editor") " ("
-             (!translate "see") " "
-             (url "https://www.texmacs.org") ")"))
-  (citewebsite
-    (!append (!translate "This document has been written using") " GNU "
-             (!group (!recurse (TeXmacs))) "; " (!translate "see") " "
-             (url "https://www.texmacs.org") "."))
-  (tmmade (!recurse (tikzframe (Backsigma))))
   (scheme "{\\sc Scheme}")
   (tmsep  ", ")
   (tmSep  "; ")
@@ -430,8 +419,6 @@
   (udddot (underaccent (dddot (hphantom 1)) 1))
   (uddddot (underaccent (ddddot (hphantom 1)) 1))
   (widespacing 1)
-  (gb  (!append (texttt "[\\!\\![") 1 (texttt "]\\!\\!]")))
-  (gbt (!append (texttt "[\\!\\![\\!\\![") 1 (texttt "]\\!\\!]\\!\\!]")))
 
   ;; With options
   (tmcodeinline ((!option "") (!group (ttfamily) (!group 2))))

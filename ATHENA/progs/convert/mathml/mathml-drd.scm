@@ -2,7 +2,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;; MODULE      : mathml-drd.scm
-;; DESCRIPTION : DRD properties for MathML
+;; DESCRIPTION : symbol mappings for MathML import
 ;; COPYRIGHT   : (C) 2004  Joris van der Hoeven
 ;;
 ;; This software falls under the GNU general public license version 3 or later.
@@ -16,13 +16,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Ordinary symbols
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(logic-table tm->mathml-constant%
-  ("<mathcatalan>" "C")
-  ("<mathe>" "e")
-  ("<matheuler>" "&eulergamma;")
-  ("<mathi>" "&ImaginaryI;")
-  ("<mathpi>" "&pi;"))
 
 (logic-table mathml-constant->tm%
   ("&eulergamma;" "<matheuler>")
@@ -38,13 +31,10 @@
   ("&Zopf;" "<bbb-Z>")
   ("&Ropf;" "<bbb-R>"))
 
-(logic-table tm->mathml-operator%
-  ("&" "&amp;")
-  ("<less>" "&lt;")
-  ("*" "&InvisibleTimes;")
-  (" " "&ApplyFunction;"))
-
 (logic-table mathml-operator->tm%
+  ("&amp;" "&")
+  ("&lt;" "<less>")
+  ("&ApplyFunction;" " ")
   ("⁢" "*") ;U+2062 Invisible Times 
   ("*" "*")
   ("−" "-") ;U+2212 minus 
@@ -550,7 +540,6 @@
 
 
 (logic-rules
-  ((mathml-operator->tm% 'x 'y) (tm->mathml-operator% 'y 'x))
   ((mathml-symbol->tm% 'x 'y) (mathml-constant->tm% 'x 'y))
   ((mathml-symbol->tm% 'x 'y) (mathml-operator->tm% 'x 'y))
   ((mathml-below->tm% 'x 'y) (mathml-above-below->tm% 'x 'y))
@@ -560,14 +549,14 @@
 ;; Special symbols
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(logic-table tm->mathml-left%
+(logic-table mathml-left->tm%
   ("(" "(")
   ("[" "[")
   ("{" "{")
-  ("langle" "&LeftAngleBracket;")
-  ("lfloor" "&LeftFloor;")
-  ("lceil" "&LeftCeiling;")
-  ("llbracket" "&LeftDoubleBracket;")
+  ("&LeftAngleBracket;" "langle")
+  ("&LeftFloor;" "lfloor")
+  ("&LeftCeiling;" "lceil")
+  ("&LeftDoubleBracket;" "llbracket")
   ("/" "/"))
 
 (logic-table tmtm-left%
@@ -576,15 +565,15 @@
   ("<lceil>" "lceil")
   ("<langle>" "langle"))
 
-(logic-table tm->mathml-right%
+(logic-table mathml-right->tm%
   (")" ")")
   ("]" "]")
   ("}" "}")
-  ("rangle" "&RightAngleBracket;")
-  ("rfloor" "&RightFloor;")
-  ("rceil" "&RightCeiling;")
-  ("rrbracket" "&RightDoubleBracket;")
-  ("\\\\" "&Backslash;"))
+  ("&RightAngleBracket;" "rangle")
+  ("&RightFloor;" "rfloor")
+  ("&RightCeiling;" "rceil")
+  ("&RightDoubleBracket;" "rrbracket")
+  ("&Backslash;" "\\\\"))
 
 (logic-table tmtm-right%
   ;; For HTML entities &rfloor;, &rceil, etc.
@@ -592,31 +581,23 @@
   ("<rceil>" "rceil")
   ("<rangle>" "rangle"))
 
-(logic-table tm->mathml-big%
-  ("sum" "&Sum;")
-  ("prod" "&Product;")
-  ("int" "&Integral;")
-  ("fint" "&#x2A0D;")
-  ("oint" "&ContourIntegral;")
-  ("amalg" "&Coproduct;")
-  ("cap" "&Intersection;")
-  ("cup" "&Union;")
-  ("wedge" "&Wedge;")
-  ("vee" "&Vee;")
-  ("odot" "&CircleDot;")
-  ("oplus" "&CirclePlus;")
-  ("otimes" "&CircleTimes;")
-  ("sqcap" "&SquareIntersection;")     ;; FIXME: displayed too small
-  ("sqcup" "&SquareUnion;")            ;; FIXME: displayed too small
-  ;;("curlywedge" "&CurlyWedge;")
-  ;;("curlyvee" "&CurlyVee;")
-  ;;("triangleup" "&TriangleUp;")
-  ;;("triangledown" "&TriangleDown;")
-  ;;("box" "&Box;")
-  ("pluscup" "&UnionPlus;")
-  ;;("parallel" "&Parallel;")
-  ;;("interleave" "&Interleave;")
-)
+(logic-table mathml-big->tm%
+  ("&Sum;" "sum")
+  ("&Product;" "prod")
+  ("&Integral;" "int")
+  ("&#x2A0D;" "fint")
+  ("&ContourIntegral;" "oint")
+  ("&Coproduct;" "amalg")
+  ("&Intersection;" "cap")
+  ("&Union;" "cup")
+  ("&Wedge;" "wedge")
+  ("&Vee;" "vee")
+  ("&CircleDot;" "odot")
+  ("&CirclePlus;" "oplus")
+  ("&CircleTimes;" "otimes")
+  ("&SquareIntersection;" "sqcap")
+  ("&SquareUnion;" "sqcup")
+  ("&UnionPlus;" "pluscup"))
 
 (logic-table tmtm-big%
   ;; For HTML entities &sum;, &prod;, etc.
@@ -625,55 +606,44 @@
   ("<int>" "int")
   ("<fint>" "fint"))
 
-(logic-table tm->mathml-above-below%
-  ("^" "&Hat;")
-  ("~" "&Tilde;")
-  ("<bar>" "&OverBar;")
-  ("<vect>" "&RightVector;")
-  ("<check>" "&Hacek;")
-  ("<breve>" "&Breve;")
-  ("<invbreve>" "&#x311;") ; combining inverted breve
-  ("<acute>" "&DiacriticalAcute;")
-  ("<grave>" "&DiacriticalGrave;")
-  ("<dot>" "&DiacriticalDot;")
-  ("<ddot>" "&DoubleDot;")
-;;  ("<abovering>" "&AboveRing;")
-  ("<wide-varrightarrow>" "&RightArrow;")
-  ("<wide-varleftarrow>" "&LeftArrow;"))
+(logic-table mathml-above->tm%
+  ("&Hat;" "^")
+  ("&Tilde;" "~")
+  ("&OverBar;" "<bar>")
+  ("&RightVector;" "<vect>")
+  ("&Hacek;" "<check>")
+  ("&Breve;" "<breve>")
+  ("&#x311;" "<invbreve>")
+  ("&DiacriticalAcute;" "<acute>")
+  ("&DiacriticalGrave;" "<grave>")
+  ("&DiacriticalDot;" "<dot>")
+  ("&DoubleDot;" "<ddot>")
+  ("&RightArrow;" "<wide-varrightarrow>")
+  ("&LeftArrow;" "<wide-varleftarrow>")
+  ("&OverBrace;" "<wide-overbrace>")
+  ("&UnderBrace;" "<wide-underbrace*>")
+  ("&OverParenthesis;" "<wide-poverbrace>")
+  ("&UnderParenthesis;" "<wide-punderbrace*>")
+  ("&OverBracket;" "<wide-sqoverbrace>")
+  ("&UnderBracket;" "<wide-squnderbrace*>"))
 
-(logic-table tm->mathml-only-above%
-  ("<wide-overbrace>" "&OverBrace;")
-  ("<wide-underbrace*>" "&UnderBrace;")
-  ("<wide-poverbrace>" "&OverParenthesis;")
-  ("<wide-punderbrace*>" "&UnderParenthesis;")
-  ("<wide-sqoverbrace>" "&OverBracket;")
-  ("<wide-squnderbrace*>" "&UnderBracket;"))
-
-(logic-table tm->mathml-only-below%
-  ("<wide-overbrace*>" "&OverBrace;")
-  ("<wide-underbrace>" "&UnderBrace;")
-  ("<wide-poverbrace*>" "&OverParenthesis;")
-  ("<wide-punderbrace>" "&UnderParenthesis;")
-  ("<wide-sqoverbrace*>" "&OverBracket;")
-  ("<wide-squnderbrace>" "&UnderBracket;"))
-
-(logic-rules
-  ((tm->mathml-large% 'x 'y) (tm->mathml-left% 'x 'y))
-  ((tm->mathml-large% 'x 'y) (tm->mathml-right% 'x 'y))
-  ((mathml-left->tm% 'x 'y) (tm->mathml-left% 'y 'x))
-  ((mathml-right->tm% 'x 'y) (tm->mathml-right% 'y 'x))
-  ((mathml-large->tm% 'x 'y) (mathml-left->tm% 'x 'y))
-  ((mathml-large->tm% 'x 'y) (mathml-right->tm% 'x 'y))
-  ((mathml-big->tm% 'x 'y) (tm->mathml-big% 'y 'x))
-  ((tm->mathml-above% 'x 'y) (tm->mathml-only-above% 'x 'y))
-  ((tm->mathml-above% 'x 'y) (tm->mathml-above-below% 'x 'y))
-  ((tm->mathml-below% 'x 'y) (tm->mathml-only-below% 'x 'y))
-  ((tm->mathml-below% 'x 'y) (tm->mathml-above-below% 'x 'y))
-  ((tm->mathml-wide*% 'x 'y) (tm->mathml-only-below% 'x 'y))
-  ((tm->mathml-wide*% 'x 'y) (tm->mathml-only-above% 'x 'y))
-  ((tm->mathml-wide*% 'x 'y) (tm->mathml-above-below% 'x 'y))
-  ((tm->mathml-wide% 'x 'y) (tm->mathml-wide*% 'x 'y))
-  ((tm->mathml-wide% "<wide-bar>" "&OverBar;"))
-  ((mathml-above->tm% 'x 'y) (tm->mathml-above% 'y 'x))
-  ((mathml-below->tm% 'x 'y) (tm->mathml-below% 'y 'x))
-  ((mathml-wide->tm% 'x 'y) (tm->mathml-wide*% 'y 'x)))
+(logic-table mathml-below->tm%
+  ("&Hat;" "^")
+  ("&Tilde;" "~")
+  ("&OverBar;" "<bar>")
+  ("&RightVector;" "<vect>")
+  ("&Hacek;" "<check>")
+  ("&Breve;" "<breve>")
+  ("&#x311;" "<invbreve>")
+  ("&DiacriticalAcute;" "<acute>")
+  ("&DiacriticalGrave;" "<grave>")
+  ("&DiacriticalDot;" "<dot>")
+  ("&DoubleDot;" "<ddot>")
+  ("&RightArrow;" "<wide-varrightarrow>")
+  ("&LeftArrow;" "<wide-varleftarrow>")
+  ("&OverBrace;" "<wide-overbrace*>")
+  ("&UnderBrace;" "<wide-underbrace>")
+  ("&OverParenthesis;" "<wide-poverbrace*>")
+  ("&UnderParenthesis;" "<wide-punderbrace>")
+  ("&OverBracket;" "<wide-sqoverbrace*>")
+  ("&UnderBracket;" "<wide-squnderbrace>"))

@@ -36,7 +36,6 @@
 
     <item*|Maple>Joris van der Hoeven.
 
-    <item*|Mathemagix>Joris van der Hoeven and Grégoire Lecerf.
 
     <item*|Matlab>Michael Graffam.
 

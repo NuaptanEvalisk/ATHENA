@@ -1103,8 +1103,7 @@ extract_title_rec (tree t, QString& title) {
   if (is_atomic (t)) return false;
   if ((is_compound (t, "doc-title", 1) ||
        is_compound (t, "title", 1) ||
-       is_compound (t, "tmdoc-title", 1) ||
-       is_compound (t, "tmweb-title", 1)) && N(t) >= 1) {
+       is_compound (t, "tmdoc-title", 1)) && N(t) >= 1) {
     title= plain_tree_text (t[0]);
     return !title.isEmpty ();
   }

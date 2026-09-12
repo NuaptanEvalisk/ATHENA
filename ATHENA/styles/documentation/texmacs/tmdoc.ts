@@ -48,10 +48,6 @@
 
   <assign|sectional-post-sep|<macro|<space|2spc>>>
 
-  <assign|html-css|https://www.texmacs.org/css/tmdoc.css>
-
-  <assign|html-head-javascript-src|https://www.texmacs.org/javascript/texmacs_functions.js>
-
   <\active*>
     <\src-comment>
       Sections, subsections and subsubsections.
@@ -139,8 +135,6 @@
   <assign|python|<macro|body|<with|mode|prog|prog-language|python|<tt-prog-font|<arg|body>>>>>
 
   <assign|scilab|<macro|body|<with|mode|prog|prog-language|scilab|<tt-prog-font|<arg|body>>>>>
-
-  <assign|mmx|<macro|body|<with|mode|prog|prog-language|mathemagix|<tt-prog-font|<arg|body>>>>>
 
   <active*|<\src-comment>
     Hacks for the typewriter font in plug-in sessions.

@@ -3,47 +3,18 @@
 <style|<tuple|tmdoc|english|old-spacing|old-dots|old-lengths>>
 
 <\body>
-  <tmdoc-title|Contacting us>
+  <tmdoc-title|Contacting ATHENA>
 
-  You can either contact us by email at
+  For bug reports, feature requests, and development discussion, please use
+  the <hlink|ATHENA issue tracker|https://github.com/NuaptanEvalisk/ATHENA/issues>.
 
-  <\quote-env>
-    <verbatim|contact@texmacs.org>
-  </quote-env>
-
-  or by regular mail at
+  For direct contact, write to
 
   <\quote-env>
-    <\compact>
-      <\verbatim>
-        Joris van der Hoeven
-
-        Laboratoire d'informatique de l'École polytechnique
-
-        Campus de l'École polytechnique
-
-        1, rue Honoré d'Estienne d'Orves
-
-        Bâtiment Alan Turing, CS35003
-
-        91120 Palaiseau, France
-      </verbatim>
-    </compact>
+    <verbatim|nuaptan@outlook.com>
   </quote-env>
 
-  There are also several <TeXmacs> mailing lists:
-
-  <\quote-env>
-    <\compact>
-      <\verbatim>
-        texmacs-users@texmacs.org
-
-        texmacs-info@texmacs.org
-
-        texmacs-dev@gnu.org
-      </verbatim>
-    </compact>
-  </quote-env>
+  The project website is <hlink|athena.evalisk.org|https://athena.evalisk.org/>.
 
   <tmdoc-copyright|1998\U2019|Joris van der Hoeven>
 

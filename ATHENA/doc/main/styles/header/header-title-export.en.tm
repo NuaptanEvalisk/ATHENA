@@ -61,9 +61,7 @@
   </explain>
 
   <\explain|<explain-macro|doc-note|note>>
-    A note about your document. In particular, you may take
-    <inactive*|<with-TeXmacs-text>> for the value of <src-arg|note> in order
-    to indicate that your document has been written using <TeXmacs>.
+    A note about your document.
   </explain>
 
   <\explain|<explain-macro|author-data|data-1|<math|\<cdots\>>|data-n>>

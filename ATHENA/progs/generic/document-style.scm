@@ -289,11 +289,8 @@
   ("tmbook"         "TeXmacs alternative book style")
 
   ("manual"         "Style for writing technical manuals")
-  ("mmxdoc"         "Style for writing Mathemagix documentation")
-  ("mmxmanual"      "Style for writing Mathemagix manuals")
   ("tmdoc"          "Style for writing TeXmacs documentation")
   ("tmmanual"       "Style for writing TeXmacs manuals")
-  ("tmweb"          "Style for writing pages for the TeXmacs website")
 
   ("exam"           "Style for exams")
 
@@ -351,8 +348,6 @@
 
   ("allouche"           "Example macro package by David Allouche")
   ("bpr"                "Example macro package for Basu/Pollack/Roy book")
-  ("vdh"                "Example macro package by Joris van der Hoeven")
-
   ("graphical-macros"   "Collection of extra primitives for graphical mode")
   ("structured-list"    "Making item bodies part of item tags")
   ("structured-section" "Making section bodies part of section tags")

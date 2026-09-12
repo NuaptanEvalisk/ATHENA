@@ -165,8 +165,6 @@
 
   <assign|java|<macro|<name|Java>>>
 
-  <assign|mathemagix|<macro|<name|Mathemagix>>>
-
   <assign|scilab|<macro|<name|Scilab>>>
 
   <assign|fortran|<macro|<name|Fortran>>>
@@ -198,8 +196,6 @@
   <assign|scilab|<macro|body|<with|mode|prog|prog-language|scilab|font-family|rm|<arg|body>>>>
 
   <assign|fortran|<macro|body|<with|mode|prog|prog-language|fortran|font-family|rm|<arg|body>>>>
-
-  <assign|mmx|<macro|body|<with|mode|prog|prog-language|mathemagix|font-family|rm|<arg|body>>>>
 
   <assign|dot-lang|<macro|body|<with|mode|prog|prog-language|dot|font-family|rm|<arg|body>>>>
 
@@ -308,12 +304,6 @@
   <assign|r-code|<\macro|body>
     <\pseudo-code>
       <r|<arg|body>>
-    </pseudo-code>
-  </macro>>
-
-  <assign|mmx-code|<\macro|body>
-    <\pseudo-code>
-      <mmx|<arg|body>>
     </pseudo-code>
   </macro>>
 

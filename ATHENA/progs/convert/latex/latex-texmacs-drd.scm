@@ -97,7 +97,7 @@
 
 (logic-group latex-texmacs-0%
   tmunsc emdash tmhrule tmat tmbsl tmdummy
-  ATHENA TeXmacs madebyTeXmacs withTeXmacstext citewebsite tmmade
+  ATHENA TeXmacs
   scheme tmsep tmSep pari qed textdots hrule filldots
   infixand infixor infixiff)
 
@@ -116,9 +116,7 @@
   uvec ubreve uinvbreve ucheck uring uacute ugrave
   underdot uddot udddot uddddot
   widespacing nonconverted
-  groupcommoncounter
-  ;; NOTE: for personal use from vdh style package
-  gb gbt)
+  groupcommoncounter)
 
 (logic-group latex-texmacs-1*%
   tmcodeinline)

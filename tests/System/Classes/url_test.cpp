@@ -17,7 +17,7 @@ class TestURL: public QObject {
 
 public:
   url tmfs_1= url_system ("tmfs://git/help");
-  url http_1= url_system ("http://texmacs.org");
+  url http_1= url_system ("http://athena.evalisk.org");
   url https_1= url_system ("https://ustc.edu.cn");
   url root_tmp= url ("/tmp");
   url root_no_such_tmp= url ("/no_such_tmp");

@@ -16,15 +16,17 @@
 
 (tm-define (regtest-mathtm)
   (define (math->tree x) (htmltm-as-serial (cons 'math x)))
-  (regression-test-group
-   "mathtm" "mathtm"
-   math->tree :none 
-   (test "identifier" '((mi "x")) "x")
-   (test "operator" '((mi "x") (mo "+") (mi "y")) "x+y")
-   (test "numeral" '((mn "2") (mo "+") (mi "x")) "2+x")
-   ;; (test "exponent" '(msup (mi "x") (mn "2")) '(concat "x" (rsup "2")))
-   ;; (test "special ops"
-   ;;   '(mrow (mn "3") (mo "&InvisibleTimes;") (mi "x")
-   ;;      (mo "*") (msup (mi "y") (mn "4")))
-   ;;   '(concat "3*x<ast>y" (rsup "4")))   
-))
+  (+
+   (regression-test-group
+    "mathtm" "mathtm"
+    math->tree :none
+    (test "identifier" '((mi "x")) "x")
+    (test "operator" '((mi "x") (mo "+") (mi "y")) "x+y")
+    (test "numeral" '((mn "2") (mo "+") (mi "x")) "2+x"))
+   (regression-test-group
+    "MathML document import" "mathml-document"
+    mathml->tree :none
+    (test
+     "structured display formula"
+     "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\"><mfrac><msup><mi>x</mi><mn>2</mn></msup><mrow><mi>y</mi><mo>+</mo><mn>1</mn></mrow></mfrac></math>"
+     '(document (equation* (frac (concat "x" (rsup "2")) "y+1")))))))

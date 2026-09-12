@@ -105,7 +105,7 @@
 (define (test-tex-document)
   (list '!file
         tex-expression
-        (list "article" "vdh")
+        (list "article")
         "french"
         "~"))
 

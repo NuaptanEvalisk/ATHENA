@@ -127,8 +127,6 @@
   (in-std% (style-has? "std-dtd"))
   (in-std-text% #t in-text% in-std%)
   (in-tmdoc% (style-has? "tmdoc-style"))
-  (in-tmweb% (style-has? "tmweb-style") in-tmdoc%)
-  (in-mmxdoc% (style-has? "mmxdoc-style") in-tmdoc%)
   (in-manual% (not (url-rooted-tmfs? (current-buffer))) in-tmdoc%)
   (in-preview-ref% (style-has? "preview-ref-package"))
   (in-smart-ref% (style-has? "smart-ref-package"))

@@ -521,7 +521,6 @@ ensure_builtin_user_preferences () {
           "converter-set-option"),
     PREF ("texmacs->html:css", "on", "converter-set-option"),
     PREF ("texmacs->html:mathjax", "off", "converter-set-option"),
-    PREF ("texmacs->html:mathml", "off", "converter-set-option"),
     PREF ("texmacs->html:images", "on", "converter-set-option"),
     PREF ("texmacs->html:css-stylesheet", "---", "converter-set-option"),
     PREF ("mathml->texmacs:latex-annotations", "on", "converter-set-option"),

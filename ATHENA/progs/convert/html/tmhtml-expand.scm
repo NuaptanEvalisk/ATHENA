@@ -47,7 +47,7 @@
              html-tag html-attr
 	     html-div-style html-div-class html-style html-class
              html-javascript html-javascript-src html-video
-	     web-title tmdoc-title tmdoc-flag tmdoc-license
+	     web-title tmdoc-title tmdoc-license
 	     tmdoc-title* tmdoc-title** tmdoc-copyright
 	     hlink action hyper-link
              mouse-over-balloon mouse-over-balloon*

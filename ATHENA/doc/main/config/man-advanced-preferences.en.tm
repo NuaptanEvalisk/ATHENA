@@ -16,7 +16,7 @@
 
   <subsection|Syntax highlighting>
 
-  <TeXmacs> will color <scheme>, <c++> and <mathemagix> source files using
+  <TeXmacs> will color <scheme> and <c++> source files using
   either default colors or the ones you configure with the preferences
   <scm|"syntax:LAN:CLASS"> where LAN is one of <tt|cpp,scheme,magix> (ok?).
   The colors may be either named or hexadecimal as in <tt|#3e45ef>.

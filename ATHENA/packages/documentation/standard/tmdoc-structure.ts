@@ -4,12 +4,11 @@
 
 <\body>
   <active*|<\src-title>
-    <src-package|tmdoc-traversal|1.0>
+    <src-package|tmdoc-structure|1.0>
 
     <\src-purpose>
-      This package contains macros which allow for the automatic generation
-      or extraction of documentation from small files. For instance, there
-      are tags which indicate how to traverse the documentation.
+      Structural markup, titles, metadata, and manual traversal macros for
+      the ATHENA documentation.
     </src-purpose>
 
     <src-copyright|2001--2004|Joris van der Hoeven>
@@ -80,28 +79,6 @@
     <tmdoc-underline|<arg|b>>
 
     <vspace|2fn>
-  </macro>>
-
-  <\active*>
-    <\src-comment>
-      Tags for displaying hyperlinks to all available translations of
-      documentation.
-
-      The flags were found in /usr/share/pixmaps/gkb.
-    </src-comment>
-  </active*>
-
-  <assign|tmdoc-flag|<macro|flag| <with|color|black|<block|<tformat|<cwith|1|1|1|1|cell-lsep|0fn>|<cwith|1|1|1|1|cell-rsep|0fn>|<cwith|1|1|1|1|cell-bsep|0fn>|<cwith|1|1|1|1|cell-tsep|0fn>|<cwith|1|1|1|1|cell-vcorrect|n>|<table|<row|<cell|<arg|flag>>>>>>>
-  >>
-
-  <assign|tmdoc-translation|<macro|name|suffix|<if|<unequal|<find-file|<merge|<arg|name>|<merge|<arg|suffix>|.tm>>>|false>|<hlink|<compound|tmdoc-flag|<image|<merge|https://www.texmacs.org/Images/flag|<merge|<arg|suffix>|.png>>|0.5w|0.5h||>>|<merge|<arg|name>|<merge|<arg|suffix>|.tm>>>>>>
-
-  <assign|tmdoc-translations|<\macro|name>
-    <\surround||<vspace|0.5fn>>
-      <\with|par-mode|center>
-        <tmdoc-translation|<arg|name>|.de><tmdoc-translation|<arg|name>|.en><tmdoc-translation|<arg|name>|.es><tmdoc-translation|<arg|name>|.fr><tmdoc-translation|<arg|name>|.it><tmdoc-translation|<arg|name>|.pt>
-      </with>
-    </surround>
   </macro>>
 
   <\active*>

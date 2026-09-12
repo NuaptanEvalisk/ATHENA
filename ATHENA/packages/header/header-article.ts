@@ -32,8 +32,8 @@
   \;
 
   <assign|cite-website|<macro|<localize|This article has been written using>
-  GNU <TeXmacs><if|<equal|<value|language>|french>| ; |; ><localize|see>
-  <hlink|<with|font-family|tt|www.texmacs.org>|https://www.texmacs.org>.>>
+  <ATHENA><if|<equal|<value|language>|french>| ; |; ><localize|see>
+  <hlink|<with|font-family|tt|athena.evalisk.org>|https://athena.evalisk.org/>.>>
 
 </body>
 

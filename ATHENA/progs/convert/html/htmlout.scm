@@ -22,9 +22,10 @@
 
 (logic-group htmlout-big-all%
   ;; Both the tag and the children are displayed in multi-line format.
-  html head style body table tr ul ol dl
-  ;; and for MathML
-  mtable mtr)
+  html head style body table tr ul ol dl)
+
+(logic-group htmlout-void%
+  area base br col embed hr img input link meta param source track wbr)
 
 (logic-group htmlout-big-tag%
   ;; The tag is displayed in multi-line format.
@@ -37,6 +38,9 @@
 
 (define (htmlout-big-tag? op)
   (logic-in? op htmlout-big-tag%))
+
+(define (htmlout-void? op)
+  (logic-in? op htmlout-void%))
 
 (define (htmlout-big? x)
   (and (pair? x)
@@ -129,8 +133,10 @@
 	 (output-lf))
 	((func? x '*DOCTYPE*)
 	 (htmlout-doctype (cdr x)))
-	((== x '(br))
-         (htmlout-text "<br />"))
+	((htmlout-void? (car x))
+	 (if (and (nnull? (cdr x)) (func? (cadr x) '@))
+	     (htmlout-open-tags (car x) (cdadr x))
+	     (htmlout-open (car x))))
 	((null? (cdr x))
 	 (htmlout-open (car x))
 	 (htmlout-close (car x)))

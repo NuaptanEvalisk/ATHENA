@@ -757,7 +757,7 @@
 (tm-define (tmtex-transform-style x)
   (cond ((in? x '("generic" "exam"
                   "old-generic" "old-article"
-                  "tmarticle" "tmdoc" "mmxdoc"))           "article")
+                  "tmarticle" "tmdoc"))                    "article")
         ((in? x '("book" "old-book" "tmbook" "tmmanual"))  "book")
         ((in? x '("letter"  "old-letter"))                 "letter")
         ((in? x '("beamer"  "old-beamer"))                 "beamer")
@@ -3818,9 +3818,9 @@
   (separating-space (,tmtex-hspace* 1))
   (application-space (,tmtex-hspace* 1))
 
-  ((:or code cpp-code mmx-code scm-code shell-code scilab-code verbatim-code)
+  ((:or code cpp-code scm-code shell-code scilab-code verbatim-code)
    (,tmtex-code-block 1))
-  ((:or mmx cpp scm shell scilab) (,tmtex-code-inline 1))
+  ((:or cpp scm shell scilab) (,tmtex-code-inline 1))
 
   (frame (,tmtex-frame 1))
   (colored-frame (,tmtex-colored-frame 2))
@@ -3871,11 +3871,6 @@
    (,tmtex-modifier 1))
   (render-line-number (,tmtex-render-line-number 2))
   (menu (,tmtex-menu -1))
-  (with-TeXmacs-text (,(tmtex-rename 'withTeXmacstext) 0))
-  (made-by-TeXmacs (,(tmtex-rename 'madebyTeXmacs) 0))
-  (cite-website (,(tmtex-rename 'citewebsite) 0))
-  (tm-made (,(tmtex-rename 'tmmade) 0))
-
   ;; FIXME: we should do something more useful with this information
   (set-header (,tmtex-noop -1))
   (set-footer (,tmtex-noop -1))

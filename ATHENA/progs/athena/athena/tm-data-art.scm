@@ -85,7 +85,7 @@
 (define (data-art-title-block? child)
   (and (pair? child)
        (in? (car child) '(doc-data title doc-title tmdoc-title tmdoc-title*
-                          tmweb-title doc-title-block))))
+                          doc-title-block))))
 
 (define (data-art-insert-cover-stree body cover)
   (if (and (pair? body) (eq? (car body) 'document))

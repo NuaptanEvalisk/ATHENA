@@ -255,8 +255,6 @@
 
   <assign|implied-cpp|<macro|body|<cpp|<arg|body>>>>
 
-  <assign|implied-mmx|<macro|body|<mmx|<arg|body>>>>
-
   <assign|implied-python|<macro|body|<python|<arg|body>>>>
   
   <assign|implied-julia|<macro|body|<julia|<arg|body>>>>
@@ -274,8 +272,6 @@
   <drd-props|implied-scm|border|no>
 
   <drd-props|implied-cpp|border|no>
-
-  <drd-props|implied-mmx|border|no>
 
   <drd-props|implied-python|border|no>
   

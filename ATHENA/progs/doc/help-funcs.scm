@@ -28,7 +28,7 @@
                      (else "texmacs"))
    (with t (tree-import u format)
     (with tt (select t '(:* (:or title doc-title tmdoc-title 
-                                 tmdoc-title* tmweb-title) :%1))
+                                 tmdoc-title*) :%1))
       (if (null? tt) '() (car tt))))))
 
 (tm-define (help-file-title u)
@@ -75,9 +75,3 @@
 (tm-define (load-help-buffer s) (load-help-buffer-sub s "normal"))
 (tm-define (load-help-article s) (load-help-buffer-sub s "article"))
 (tm-define (load-help-book s) (load-help-buffer-sub s "book"))
-
-(tm-define (load-help-online s)
-  (load-help-buffer (url-append "https://www.texmacs.org/tmbrowse" s)))
-
-(tm-define (update-help-online)
-  (system "cd $ATHENA_HOME_PATH; wget ftp://ftp.texmacs.org/pub/TeXmacs/doc/TeXmacs-doc.tar.gz -O TeXmacs-doc.tar.gz; gunzip TeXmacs-doc.tar.gz; tar -xvf TeXmacs-doc.tar; rm -f TeXmacs-doc.tar"))

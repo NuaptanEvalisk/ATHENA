@@ -24,7 +24,7 @@
     </src-title>
   </active*>
 
-  <use-package|book|vdh>
+  <use-package|book>
 
   <\active*>
     <\src-comment>

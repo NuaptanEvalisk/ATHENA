@@ -23,7 +23,6 @@ struct HtmlExportPreferenceScope {
   HtmlExportPreferenceScope () {
     set ("texmacs->html:css", "on");
     set ("texmacs->html:mathjax", "on");
-    set ("texmacs->html:mathml", "off");
     set ("texmacs->html:images", "on");
     set ("texmacs->html:css-stylesheet", "---");
   }
@@ -273,7 +272,7 @@ inject_document_favicon (std::string& html, const std::string& output_rel) {
     return;
   std::string href = relative_href (output_rel, "icons/favicon.png");
   std::string link = "<link rel=\"icon\" href=\"" + html_escape (href) +
-                     "\"></link>\n";
+                     "\">\n";
   size_t head = html.find ("</head>");
   if (head != std::string::npos) html.insert (head, link);
   else html.insert (0, link);
@@ -350,8 +349,7 @@ document_title (tree t, const std::string& fallback) {
   if (is_atomic (t)) return fallback;
   if ((is_compound (t, "doc-title", 1) ||
        is_compound (t, "title", 1) ||
-       is_compound (t, "tmdoc-title", 1) ||
-       is_compound (t, "tmweb-title", 1)) && N(t) >= 1) {
+       is_compound (t, "tmdoc-title", 1)) && N(t) >= 1) {
     std::string title = document_title_text (t[0]);
     if (!title.empty ()) return title;
   }

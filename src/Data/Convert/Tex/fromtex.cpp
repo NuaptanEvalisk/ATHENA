@@ -979,7 +979,6 @@ latex_symbol_to_tree (string s) {
     if (latex_type (s) == "texmacs") {
       if (s == "tmdummy")         return "";
       if (s == "tmbsl")           return "\\";
-      if (s == "withTeXmacstext") return tree (COMPOUND, "with-TeXmacs-text");
     }
 
     if ((latex_type (s) == "modifier") && (latex_arity (s) == 0)) {

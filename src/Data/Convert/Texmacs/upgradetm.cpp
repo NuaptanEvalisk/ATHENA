@@ -504,8 +504,7 @@ static charp apply_expand_value_strings[]= {
   "op", "strong", "em", "tt", "name", "samp", "abbr",
   "dfn", "kbd", "var", "acronym", "person",
   "menu", "submenu", "subsubmenu", "tmdef", "tmref",
-  "key", "skey", "ckey", "akey", "mkey", "hkey",
-  "gb", "cgb", "gbt", "cgbt", "head", "tail", "hm", "tm", "binom",
+  "key", "skey", "ckey", "akey", "mkey", "hkey", "binom",
   //"ma", "mb", "md", "me", "mf", "mg", "mh", "mi", "mj", "mk",
   //"mm", "mn", "mu", "mv", "mw", "my", "mz",
   //"MA", "MB", "MD", "ME", "MF", "MG", "MH", "MI", "MJ", "MK",
@@ -2476,9 +2475,6 @@ upgrade_title2 (tree t, tree& doc_keywords, tree& doc_ams_class) {
     if (N (author_data) != 0) title_data << author_data;
     if (N (meta_data) != 0) title_data << A (meta_data);
 
-    tree notice= search_title_tag (t, "made-by-TeXmacs", true);
-    if (N (notice) != 0)
-      title_data << compound ("doc-note", compound ("with-TeXmacs-text"));    
     search_abstract_tag (t[0], doc_keywords, "title-keywords");
     search_abstract_tag (t[0], doc_ams_class, "title-ams-class");
     if (N (doc_keywords) != 0) title_data << doc_keywords;
@@ -2836,37 +2832,6 @@ upgrade_scheme_doc (tree t) {
 }
 
 /******************************************************************************
-* Upgrade Mathemagix tag
-******************************************************************************/
-
-tree
-upgrade_mmx (tree t) {
-  int i;
-  if (is_atomic (t)) return t;
-  else if (is_compound (t, "mmx", 0) || t == tree (VALUE, "mmx"))
-    return compound ("mathemagix");
-  else if (is_compound (t, "mml", 0) || t == tree (VALUE, "mml"))
-    return compound ("mmxlib");
-  else if (is_compound (t, "scheme", 0) || t == tree (VALUE, "scheme"))
-    return compound ("scheme");
-  else if (is_compound (t, "cpp", 0) || t == tree (VALUE, "cpp"))
-    return compound ("c++");
-  else if (is_compound (t, "scheme-code", 1))
-    return compound ("scm", upgrade_mmx (t[0]));
-  else if (is_compound (t, "scheme-fragment", 1))
-    return compound ("scm-fragment", upgrade_mmx (t[0]));
-  else if (is_compound (t, "cpp-code", 1))
-    return compound ("cpp", upgrade_mmx (t[0]));
-  else {
-    int n= N(t);
-    tree r (t, n);
-    for (i=0; i<n; i++)
-      r[i]= upgrade_mmx (t[i]);
-    return r;
-  }
-}
-
-/******************************************************************************
 * Upgrade sessions
 ******************************************************************************/
 
@@ -3198,8 +3163,6 @@ upgrade_algorithm (tree t, bool flag= true) {
     return compound ("scm-code", upgrade_algorithm (t[0]));
   else if (is_compound (t, "scheme-fragment", 1))
     return compound ("scm-code", upgrade_algorithm (t[0]));
-  else if (is_compound (t, "mmx-fragment", 1))
-    return compound ("mmx-code", upgrade_algorithm (t[0]));
   else if (is_compound (t, "cpp-fragment", 1))
     return compound ("cpp-code", upgrade_algorithm (t[0]));
   else if (is_compound (t, "shell-fragment", 1))
@@ -3727,7 +3690,6 @@ upgrade_style (tree t, bool flag) {
       else if (t[i] == "seminar") r << "old-seminar";
       else if (t[i] == "tmdoc-keyboard") { if (!doc) r << "doc"; doc= true; }
       else if (t[i] == "tmdoc-markup") { if (!doc) r << "doc"; doc= true; }
-      else if (t[i] == "tmdoc-traversal") { if (!doc) r << "doc"; doc= true; }
       else r << upgrade_style (t[i], flag);
     return r;
   }
@@ -4254,8 +4216,6 @@ upgrade (tree t, string version) {
     t= upgrade_label_assignment (t);
   if (version_inf_eq (version, "1.0.6.10"))
     t= upgrade_scheme_doc (t);
-  if (version_inf_eq (version, "1.0.6.14"))
-    t= upgrade_mmx (t);
   if (version_inf_eq (version, "1.0.7.1"))
     t= upgrade_session (t, "scheme", "default");
   if (version_inf_eq (version, "1.0.7.6"))

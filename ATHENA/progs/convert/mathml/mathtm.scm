@@ -34,6 +34,7 @@
 
 (texmacs-module (convert mathml mathtm)
   (:use (convert tools tmtable)
+	(convert tools environment)
 	(convert tools sxml)
 	(convert tools xmltm)
 	(convert mathml mathml-drd)))
@@ -614,6 +615,24 @@
 ;; Interface
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(define (mathml-prefix-elements t)
+  (cond ((string? t) t)
+        ((sxml-top-node? t)
+         `(*TOP* ,@(map mathml-prefix-elements (sxml-content t))))
+        ((sxml-control-node? t) t)
+        (else
+         (let* ((name (sxml-name t))
+                (name-string (symbol->string name))
+                (name* (if (sxml-name->ns-id name) name-string
+                           (string-append "m:" name-string))))
+           (sxml-set-content
+            (sxml-set-name t name*)
+            (map mathml-prefix-elements (sxml-content t)))))))
+
 (tm-define (mathml->tree s)
   (:synopsis "Convert the MathML @s into a document fragment")
-  (mathtm-as-serial (parse-xml s)))
+  (let ((root (mathml-prefix-elements (parse-xml s))))
+    (define (sub env) (mathtm-as-serial env root))
+    (initialize-xpath
+     (environment) root
+     (cut initialize-htmltm <> sub))))

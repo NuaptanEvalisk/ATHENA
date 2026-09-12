@@ -13,7 +13,6 @@
 
 (texmacs-module (convert html tmhtml)
   (:use (convert tools tmconcat)
-	(convert mathml tmmath)
 	(convert tools stm)
 	(convert tools tmlength)
 	(convert tools tmtable)
@@ -30,7 +29,6 @@
 (define tmhtml-env (make-ahash-table))
 (define tmhtml-css? #t)
 (define tmhtml-mathjax? #f)
-(define tmhtml-mathml? #f)
 (define tmhtml-images? #f)
 (define tmhtml-image-serial 0)
 (define tmhtml-image-cache (make-ahash-table))
@@ -45,14 +43,12 @@
 	(== (assoc-ref opts "texmacs->html:css") "on"))
   (set! tmhtml-mathjax?
 	(== (assoc-ref opts "texmacs->html:mathjax") "on"))
-  (set! tmhtml-mathml?
-	(== (assoc-ref opts "texmacs->html:mathml") "on"))
   (set! tmhtml-images?
 	(== (assoc-ref opts "texmacs->html:images") "on"))
   (set! tmhtml-image-cache (make-ahash-table))
   (let* ((suffix (url-suffix current-save-target))
 	 (n (+ (string-length suffix) 1)))
-    (if (in? suffix '("html" "xhtml" "htm"))
+    (if (in? suffix '("html" "htm"))
 	(begin
 	  (set! tmhtml-image-serial 0)
 	  (set! tmhtml-image-root-url (url-unglue current-save-target n))
@@ -216,6 +212,15 @@
 	  ".accent { position: relative; margin-left: -0.4em; top: -0.1em } "
 	  ".title-block { width: 100%; text-align: center } "
 	  ".title-block p { margin: 0px } "
+	  ".tmdoc-body { max-width: 72em; margin: 0 auto; } "
+	  ".tmdoc-title-block { width: 100%; text-align: center; font-weight: bold; } "
+	  ".tmdoc-title-1, .tmdoc-title-2, .tmdoc-title-3 { "
+	  "text-align: center; margin: 1.2em 0 0.8em; } "
+	  ".tmdoc-title-1 { font-size: 180%; } "
+	  ".tmdoc-title-2 { font-size: 155%; } "
+	  ".tmdoc-title-3 { font-size: 135%; } "
+	  ".tmdoc-navbar { text-align: center; margin: 0.7em 0; } "
+	  ".tmdoc-copyright, .tmdoc-license { font-size: 90%; color: #555; } "
 	  ".compact-block p { margin-top: 0px; margin-bottom: 0px } "
 	  ".left-tab { text-align: left } "
 	  ".center-tab { text-align: center } "
@@ -247,9 +252,8 @@
 	  ".overline { text-decoration: overline; } "
 	  ".strike-through { text-decoration: line-through; } "
 	  "del { text-decoration: line-through wavy red; } "
-	  ".fill-out { text-decoration: underline dotted; } "))
-	(mathml "math { font-family: cmr, times, verdana } "))
-    (if tmhtml-mathml? (string-append html mathml) html)))
+	  ".fill-out { text-decoration: underline dotted; } ")))
+    html))
 
 (define (with-extract-sub w var post)
   (cond ((and (pair? w) (== (car w) 'with)
@@ -288,8 +292,7 @@
 		((and (not title) (with-extract doc "html-doc-title"))
                  (with-extract doc "html-doc-title"))
 		((not title) "No title")
-		((or (in? "tmdoc" styles)
-                     (in? "tmweb" styles) (in? "tmweb2" styles))
+		((in? "tmdoc" styles)
 		 `(concat ,(utf8->cork (tmhtml-force-string title))
                           " (FSF GNU project)"))
 		(else (utf8->cork (tmhtml-force-string title)))))
@@ -301,12 +304,11 @@
 		(else css)))
     (if (with-extract doc "html-head-javascript-src")
 	(let* ((src (with-extract doc "html-head-javascript-src"))
-	       (script `(h:script (@ (language "javascript")
-                                     (src ,src)))))
+	       (script `(h:script (@ (src ,src)))))
 	  (set! xhead (append xhead (list script)))))
     (if (with-extract doc "html-head-javascript")
 	(let* ((code (with-extract doc "html-head-javascript"))
-	       (script `(h:script (@ (language "javascript")) ,code)))
+	       (script `(h:script ,code)))
 	  (set! xhead (append xhead (list script)))))
     (if (with-extract doc "html-head-favicon")
 	(let* ((code (with-extract doc "html-head-favicon"))
@@ -328,61 +330,44 @@
             (set! xhead (append xhead (list link-css))))))
     (if (tm-func? (with-extract* doc "html-extra-javascript-src") 'tuple)
         (for (src (cdr (with-extract* doc "html-extra-javascript-src")))
-          (with script `(h:script (@ (language "javascript")
-                                     (src ,src)
+          (with script `(h:script (@ (src ,src)
                                      (defer "<implicit>")))
             (set! xhead (append xhead (list script))))))
     (if (tm-func? (with-extract* doc "html-extra-javascript") 'tuple)
         (for (code (cdr (with-extract* doc "html-extra-javascript")))
-          (with script `(h:script (@ (language "javascript")
-                                     (defer "<implicit>")) ,code)
+          (with script `(h:script (@ (defer "<implicit>")) ,code)
             (set! xhead (append xhead (list script))))))
     (if tmhtml-mathjax?
 	(let* ((site "https://cdn.jsdelivr.net/")
                (loc "npm/mathjax@3/es5/tex-mml-chtml.js")
                (src (string-append site loc))
-	       (script `(h:script (@ (language "javascript") (src ,src)))))
+	       (script `(h:script (@ (src ,src)))))
 	  (set! xhead (append xhead (list script)))))
     (if (or (in? "tmdoc" styles)
-            (in? "tmweb" styles) (in? "tmweb2" styles)
-            (in? "mmxdoc" styles) (in? "magix-web" styles)
             (in? "max-web" styles) (in? "node-web" styles))
 	(set! body (tmhtml-tmdoc-post body)))
     (if tmhtml-css?
         (set! body (tmhtml-css-post body)))
     `(h:html
       (h:head
+       (h:meta (@ (charset "utf-8")))
        (h:title ,@(tmhtml title))
-       (h:meta (@ (charset "utf-8") (name "generator") 
-		  (content ,(string-append "TeXmacs " (texmacs-version)))))
+       (h:meta (@ (name "generator")
+			  (content ,(string-append "ATHENA " (texmacs-version)))))
        ,css
        ,@xhead)
       (h:body ,@body))))
 
 (define (tmhtml-finalize-document top)
   ;; @top must be a node produced by tmhtml-file
-  "Prepare a XML document for serialization"
-  (define xmlns-attrs
-    '((xmlns "http://www.w3.org/1999/xhtml")
-      (xmlns:m "http://www.w3.org/1998/Math/MathML")
-      (xmlns:x "https://www.texmacs.org/2002/extensions")))
-  (define doctype-list
-    (let ((html       "-//W3C//DTD XHTML 1.1//EN")
-          (mathml     "-//W3C//DTD XHTML 1.1 plus MathML 2.0//EN")
-	  (html-drd   "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd")
-	  (mathml-drd (string-append
-                        "http://www.w3.org/2002/04/xhtml-math-svg/"
-                        "xhtml-math-svg.dtd")))
-      (if tmhtml-mathml? (list mathml mathml-drd) (list html html-drd))))
-  `(*TOP* (*PI* xml "version=\"1.0\" encoding=\"UTF-8\"")
-	  (*DOCTYPE* html PUBLIC ,@doctype-list)
-	  ,((cut sxml-set-attrs <> xmlns-attrs)
-	    (sxml-strip-ns-prefix "h" (sxml-strip-ns-prefix "m" top)))))
+  "Prepare an HTML5 document for serialization"
+  `(*TOP* (*DOCTYPE* html)
+	  ,(sxml-strip-ns-prefix "h" top)))
 
 (define (tmhtml-finalize-selection l)
   ;; @l is a nodeset produced by any handler _but_ tmhtml-file
   "Prepare a HTML node-set for serialization."
-  `(*TOP* ,@(map (cut sxml-strip-ns-prefix "h" <>) (map (cut sxml-strip-ns-prefix "m" <>) l))))
+  `(*TOP* ,@(map (cut sxml-strip-ns-prefix "h" <>) l)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Block structures
@@ -1161,9 +1146,7 @@
 ;  (list 'pageref (cork->html (force-string (car l)))))
 
 (define (tmhtml-suffix s)
-  ;; Change .tm suffix to .xhtml suffix for local files for correct
-  ;; conversion of entire web-sites. We might create an option
-  ;; in order to disable this suffix change
+  ;; Change local TeXmacs document suffixes to .html for exported sites.
   (let* ((sdir (string-rindex s #\/))
 	 (sep (string-rindex s #\#)))
     (cond ((or (string-starts? s "http:")
@@ -1173,8 +1156,7 @@
 	   (string-append (tmhtml-suffix (substring s 0 sep))
 			  (string-drop s sep)))
 	  ((string-ends? s ".tm")
-	   (string-append (string-drop-right s 3)
-			  (if tmhtml-mathml? ".xhtml" ".html")))
+	   (string-append (string-drop-right s 3) ".html"))
 	  ((string-ends? s ".texmacs")
 	   (string-append (string-drop-right s 8) ".tm"))
 	  (else s))))
@@ -1906,17 +1888,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (tmhtml-make-block content)
-  (let* ((l '(h:td
-	      (@ (align "left"))
-	      (h:img (@ (src "https://www.texmacs.org/Images/tm_gnu1b.png")))))
-	 (c `(h:td
-	      (@ (align "center") (width "100%"))
-	      ,@(tmhtml content)))
-	 (r '(h:td
-	      (@ (align "right"))
-	      (h:img (@ (src "https://www.texmacs.org/Images/tm_gnu2b.png")))))
-	 (row `(h:tr ,l ,c ,r)))
-    `(h:table (@ (width "100%") (cellspacing "0") (cellpadding "3")) ,row)))
+  `(h:div (@ (class "tmdoc-title-block")) ,@(tmhtml content)))
 
 (define (tmhtml-tmdoc-title l)
   (list `(h:div (@ (class "tmdoc-title-1"))
@@ -1931,10 +1903,6 @@
   (list `(h:div (@ (class "tmdoc-navbar")) ,@(tmhtml (car l)))
 	`(h:div (@ (class "tmdoc-title-3")) ,(tmhtml-make-block (cadr l)))
 	`(h:div (@ (class "tmdoc-navbar")) ,@(tmhtml (caddr l)))))
-
-(define (tmhtml-tmdoc-flag l)
-  ;(tmhtml (car l)))
-  (list `(h:div (@ (class "tmdoc-flag")) ,@(tmhtml (car l)))))
 
 (define (tmhtml-tmdoc-copyright* l)
   (if (null? l) l
@@ -2041,9 +2009,6 @@
   ;; All handler functions have a similar prototype.
   (cond ((and tmhtml-mathjax? (ahash-ref tmhtml-env :math))
          (tmhtml-mathjax-formula x))
-        ((and tmhtml-mathml? (ahash-ref tmhtml-env :math))
-	 `((m:math (@ (xmlns "http://www.w3.org/1998/Math/MathML"))
-		   ,(texmacs->mathml x tmhtml-env))))
 	((and tmhtml-images? (ahash-ref tmhtml-env :math)
               (!= tmhtml-image-root-string "image"))
          (tmhtml-png `(with "mode" "math" ,x)))
@@ -2353,7 +2318,6 @@
   (tmdoc-title ,tmhtml-tmdoc-title)
   (tmdoc-title* ,tmhtml-tmdoc-title*)
   (tmdoc-title** ,tmhtml-tmdoc-title**)
-  (tmdoc-flag ,tmhtml-tmdoc-flag)
   (tmdoc-copyright ,tmhtml-tmdoc-copyright)
   (tmdoc-license ,tmhtml-tmdoc-license))
 

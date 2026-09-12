@@ -35,8 +35,8 @@
   (and (string? s) (html-recognizes-at? s 0)))
 
 (define-format html
-  (:name "Html")
-  (:suffix "html" "xhtml" "htm")
+  (:name "HTML")
+  (:suffix "html" "htm")
   (:recognize html-recognizes?)
   (:option "mathml->texmacs:latex-annotations" "off"))
 
@@ -65,6 +65,5 @@
   (:function-with-options texmacs->html)
   (:option "texmacs->html:css" "on")
   (:option "texmacs->html:mathjax" "off")
-  (:option "texmacs->html:mathml" "off")
   (:option "texmacs->html:images" "on")
   (:option "texmacs->html:css-stylesheet" "---"))

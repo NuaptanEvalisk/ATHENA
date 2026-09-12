@@ -223,7 +223,6 @@
 
   ;; misc
   (date "")
-  (with-TeXmacs-text)
   (the-index "idx" "")
   (table-of-contents "toc" (document ""))))
 

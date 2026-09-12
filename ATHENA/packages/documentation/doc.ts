@@ -20,7 +20,7 @@
     </src-license>
   </src-title>>
 
-  <use-package|tmdoc-markup|tmdoc-gui|tmdoc-traversal|tmdoc-framed>
+  <use-package|tmdoc-markup|tmdoc-gui|tmdoc-structure|tmdoc-framed>
 </body>
 
 <\initial>

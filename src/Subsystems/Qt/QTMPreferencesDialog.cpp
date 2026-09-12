@@ -1536,52 +1536,34 @@ QTMPreferencesDialog::buildRenderingPage () {
 QWidget*
 QTMPreferencesDialog::buildConversionPage () {
   QWidget* html= make_page ();
-  QFormLayout* h1= add_section (html, "ATHENA → Html");
+  QFormLayout* h1= add_section (html, "ATHENA → HTML");
   add_toggle (h1, "Use CSS for more advanced formatting:",
               "texmacs->html:css");
   QCheckBox* mathjax= add_toggle (h1, "Export mathematical formulas as MathJax:",
                                   "texmacs->html:mathjax");
-  QCheckBox* mathml= add_toggle (h1, "Export mathematical formulas as MathML:",
-                                 "texmacs->html:mathml");
   QCheckBox* images= add_toggle (h1, "Export mathematical formulas as images:",
                                  "texmacs->html:images");
-  auto exclusiveHtml= [mathjax, mathml, images] (QCheckBox* active,
-                                                 const char* key, bool on) {
+  auto exclusiveHtml= [mathjax, images] (QCheckBox* active,
+                                         const char* key, bool on) {
     set_bool_pref (key, on);
     if (!on) return;
-    for (QCheckBox* box: {mathjax, mathml, images}) {
+    for (QCheckBox* box: {mathjax, images}) {
       if (box == active) continue;
       QSignalBlocker block (box);
       box->setChecked (false);
     }
     if (active != mathjax) set_bool_pref ("texmacs->html:mathjax", false);
-    if (active != mathml) set_bool_pref ("texmacs->html:mathml", false);
     if (active != images) set_bool_pref ("texmacs->html:images", false);
   };
   QObject::connect (mathjax, &QCheckBox::toggled,
                     [=] (bool on) { exclusiveHtml (mathjax,
                                                    "texmacs->html:mathjax",
                                                    on); });
-  QObject::connect (mathml, &QCheckBox::toggled,
-                    [=] (bool on) { exclusiveHtml (mathml,
-                                                   "texmacs->html:mathml",
-                                                   on); });
   QObject::connect (images, &QCheckBox::toggled,
                     [=] (bool on) { exclusiveHtml (images,
                                                    "texmacs->html:images",
                                                    on); });
-  add_combo (h1, "CSS stylesheet:", "texmacs->html:css-stylesheet",
-             {{"---", "---"},
-              {"https://www.texmacs.org/css/web-article.css",
-               "web-article.css"},
-              {"https://www.texmacs.org/css/web-article-dark.css",
-               "web-article-dark.css"},
-              {"https://www.texmacs.org/css/web-article-colored.css",
-               "web-article-colored.css"},
-              {"https://www.texmacs.org/css/web-article-dark-colored.css",
-               "web-article-dark-colored.css"},
-              {"", ""}}, "---");
-  QFormLayout* h2= add_section (html, "Html → ATHENA");
+  QFormLayout* h2= add_section (html, "HTML → ATHENA");
   add_toggle (h2, "Try to import formulas using LaTeX annotations:",
               "mathml->texmacs:latex-annotations");
   finish_page (html);

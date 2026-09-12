@@ -79,17 +79,6 @@
   <assign|scm-opt-arg|<macro|body|<with|color|dark
   grey|[<style-with|<scm-arg|<arg|body>>>]>>>
 
-  <\active*>
-    <\src-comment>
-      Fragments of mathemagix code.
-    </src-comment>
-  </active*>
-
-  <assign|mmxlib|<macro|<with|font-shape|small-caps|Mmxlib>>>
-
-  <assign|mmx-fragment*|<\macro|body>
-    <framed-fragment|<with|par-par-sep|0fn|<mmx|<arg|body>>>>
-  </macro>>
 </body>
 
 <\initial>

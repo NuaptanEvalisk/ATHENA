@@ -46,8 +46,7 @@
   (with buf (buffer-tree)
     (when (tree-is? buf 'document)
       (with n (- (tree-arity buf)
-                 (if (tree-in? buf :last '(tmdoc-license
-                                           tmweb-license)) 1 0))
+                 (if (tree-is? buf :last 'tmdoc-license) 1 0))
         (tree-insert! buf n '((tmdoc-copyright "" "")))
         (tree-go-to buf n 0 0)))))
 
@@ -69,55 +68,6 @@
 (tm-define (tmdoc-insert-copyright-and-license)
   (tmdoc-insert-gnu-fdl)
   (tmdoc-insert-copyright))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Inserting meta data for TeXmacs web pages
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (tmweb-propose-title?)
-  (with buf (buffer-tree)
-    (and (in-tmweb?)
-	 (tree-is? buf 'document)
-	 (not (previous-section))
-	 (not (tree-is? buf 0 'tmweb-title)))))
-
-(tm-define (tmweb-propose-copyright-and-license?)
-  (with buf (buffer-tree)
-    (and (in-manual?)
-	 (tree-is? buf 'document)
-	 (not (previous-section))
-	 (tree-is? buf 0 'tmweb-title)
-	 (not (tree-is? buf :last 'tmweb-license)))))
-
-(tm-define (tmweb-insert-title)
-  (with buf (buffer-tree)
-    (when (tree-is? buf 'document)
-      (tree-insert! buf 0 '((tmweb-title "" "")))
-      (tree-go-to buf 0 0 0))))
-
-(tm-define (tmweb-insert-license)
-  (with buf (buffer-tree)
-    (when (tree-is? buf 'document)
-      (with n (tree-arity buf)
-        (tree-insert! buf n '((tmweb-license)))))))
-
-(tm-define (tmweb-insert-copyright-and-license)
-  (tmweb-insert-license)
-  (tmdoc-insert-copyright))
-
-(tm-define (tmweb-insert-classifiers main sub)
-  (:interactive #t)
-  (:synopsis "Insert classifiers")
-  (:argument main "Main classification")
-  (:argument sub "Subclassification")
-  (init-env "tmweb-main" main)
-  (init-env "tmweb-sub" sub)
-  (and-with tit (tree-ref (buffer-tree) 0)
-    (when (tree-is? tit 'tmweb-title)
-      (and-with links (tree-ref tit 1)
-        (with s (string-append "tmweb-" (locase-all main) "-links")
-
-          (tree-set links `(,(string->symbol s))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Inserting branches

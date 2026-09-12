@@ -253,7 +253,7 @@
 
 (tm-define (tmdoc-find-title doc)
   (cond ((tm-atomic? doc) #f)
-        ((tm-in? doc '(title doc-title tmdoc-title tmdoc-title* tmweb-title))
+        ((tm-in? doc '(title doc-title tmdoc-title tmdoc-title*))
          (let* ((source (tm-ref doc 0))
                 (expanded (catch #t
                             (lambda () (verbatim-expand source))
@@ -303,19 +303,17 @@
 
 (tm-define (tmdoc-expand-this* type next)
   (system-wait (string-append "Generating " type) "(can be long)")
-  (with mmx? (style-has? "mmxdoc-style")
-    (tmdoc-expand-help (current-buffer) type)
-    (if mmx? (set-main-style "mmxmanual"))
-    (user-delayed
-      (lambda ()
-        (delayed-update "(pass 1/3)"
-          (lambda ()
-            (delayed-update "(pass 2/3)"
-              (lambda ()
-                (delayed-update "(pass 3/3)"
+  (tmdoc-expand-help (current-buffer) type)
+  (user-delayed
+    (lambda ()
+      (delayed-update "(pass 1/3)"
+        (lambda ()
+          (delayed-update "(pass 2/3)"
+            (lambda ()
+              (delayed-update "(pass 3/3)"
                   (lambda ()
                     (buffer-pretend-saved (current-buffer))
-                    (next)))))))))))
+                    (next))))))))))
 
 (tm-define (tmdoc-expand-this type)
   (tmdoc-expand-this*

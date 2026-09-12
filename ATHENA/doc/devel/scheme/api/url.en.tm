@@ -13,14 +13,14 @@
     <item>rootless urls, like a/b/c. These urls are mainly used in
     computations. For example, they can be appended to another url.
 
-    <item>Standard rooted urls, like file:///usr or https://www.texmacs.org.
+    <item>Standard rooted urls, like file:///usr or https://athena.evalisk.org.
     These are the same as those used on the web.
 
     <item>System urls, characterized by a "default" root. These urls are
     similar to standard rooted urls, but they behave in a slightly different
     way with respect to concatenation. For instance
-    https://www.texmacs.org/Web * file:///tmp would yield file:///tmp, where
-    as https://www.texmacs.org/Web /tmp yields https://www.texmacs.org/tmp
+    https://athena.evalisk.org/Web * file:///tmp would yield file:///tmp, where
+    as https://athena.evalisk.org/Web /tmp yields https://athena.evalisk.org/tmp
   </itemize-dot>
 
   There are several formats for parsing (and printing) urls:
@@ -36,7 +36,7 @@
     the url.
 
     <item>Standard format: the format which is used on the web. Notice that
-    ftp://www.texmacs.org/pub and ftp://www.texmacs.org/pub/ represent
+    https://athena.evalisk.org/pub and https://athena.evalisk.org/pub/ represent
     different urls. The second one is represented by concating on the right
     with an empty name.
   </itemize-dot>
@@ -333,7 +333,7 @@
       </unfolded-io>
 
       <\unfolded-io|Scheme] >
-        (url-root "https://www.texmacs.org")
+        (url-root "https://athena.evalisk.org")
       <|unfolded-io>
         "https"
       </unfolded-io>
@@ -352,9 +352,9 @@
       </unfolded-io>
 
       <\unfolded-io|Scheme] >
-        (url-unroot "https://www.texmacs.org")
+        (url-unroot "https://athena.evalisk.org")
       <|unfolded-io>
-        \<less\>url www.texmacs.org\<gtr\>
+        \<less\>url athena.evalisk.org\<gtr\>
       </unfolded-io>
     </session>
   </explain>
