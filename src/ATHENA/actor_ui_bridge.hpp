@@ -69,6 +69,10 @@ public:
   bool wheel_capture () const noexcept;
   void set_zoom_factor (double zoom) noexcept;
   double zoom_factor () const noexcept;
+  void mark_programmatic_scroll_applied (std::uint64_t generation) noexcept;
+  std::uint64_t applied_programmatic_scroll_generation () const noexcept;
+  void mark_user_scroll () noexcept;
+  std::uint64_t user_scroll_generation () const noexcept;
 
   bool publish (actor_command_kind kind,
                 athena_blob_id payload0= ATHENA_NO_BLOB,
@@ -135,6 +139,8 @@ private:
   std::atomic<bool> wheel_capture_ {false};
   std::atomic<bool> overlay_wheel_capture_ {false};
   std::atomic<std::uint64_t> zoom_factor_bits_ {0};
+  std::atomic<std::uint64_t> applied_programmatic_scroll_generation_ {0};
+  std::atomic<std::uint64_t> user_scroll_generation_ {0};
   actor_command_transport effects_;
   std::uint64_t next_effect_id_;
   std::atomic<std::uint32_t> pending_commands_ {0};

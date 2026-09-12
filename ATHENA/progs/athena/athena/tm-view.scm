@@ -293,33 +293,12 @@
   (get-boolean-preference "typewriter mode"))
 
 (define persistent-fit-width-count 0)
-(define resize-editing-position-count 0)
 (define fit-width-editing-position-count 0)
 
 (define (restore-editing-position sx sy cx cy)
   (let ((dx (- cx sx))
         (dy (- cy sy)))
     (set-scroll (- (get-cursor-x) dx) (- (get-cursor-y) dy))))
-
-(define (schedule-editing-position-restore delays)
-  (let ((sx (get-scroll-x))
-        (sy (get-scroll-y))
-        (cx (get-cursor-x))
-        (cy (get-cursor-y))
-        (cp (cursor-path)))
-    (set! resize-editing-position-count (+ resize-editing-position-count 1))
-    (with current resize-editing-position-count
-      (for-each
-       (lambda (delay)
-         (delayed (:idle delay)
-           (when (and (== current resize-editing-position-count)
-                      (== cp (cursor-path)))
-             (restore-editing-position sx sy cx cy))))
-       delays))))
-
-(tm-define (schedule-resize-editing-position)
-  (:synopsis "Restore editing position after reflow resize")
-  (schedule-editing-position-restore '(25 100 250 600)))
 
 (define (fit-to-screen-width-preserve-editing-position)
   (with (sx sy cx cy) (list (get-scroll-x) (get-scroll-y)

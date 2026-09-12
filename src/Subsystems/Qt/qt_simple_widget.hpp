@@ -67,6 +67,16 @@ public:
   virtual bool is_embedded_widget ();
   virtual void handle_get_size_hint (SI& w, SI& h);
   virtual void handle_notify_resize (SI w, SI h);
+  virtual void handle_notify_resize (
+    SI w, SI h, SI old_vy2, bool old_viewport_valid,
+    std::uint64_t old_programmatic_scroll_generation,
+    std::uint64_t old_user_scroll_generation) {
+    (void) old_vy2;
+    (void) old_viewport_valid;
+    (void) old_programmatic_scroll_generation;
+    (void) old_user_scroll_generation;
+    handle_notify_resize (w, h);
+  }
   virtual void handle_keypress (string key, time_t t);
   virtual void handle_text_input (string text, time_t t);
   virtual void handle_keyboard_focus (bool has_focus, time_t t);

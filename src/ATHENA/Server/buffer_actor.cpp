@@ -711,7 +711,10 @@ buffer_actor::dispatch (actor_command_record& command) {
     if (editor != nullptr)
       editor->handle_notify_resize (
         static_cast<SI> (command.argument[0]),
-        static_cast<SI> (command.argument[1]));
+        static_cast<SI> (command.argument[1]),
+        static_cast<SI> (command.argument[2]),
+        command.argument[3] != 0,
+        command.argument[4], command.argument[5]);
     break;
   case actor_command_kind::device_pixel_ratio_changed:
     if (editor != nullptr) {

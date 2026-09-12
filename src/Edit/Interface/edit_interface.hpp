@@ -15,6 +15,7 @@
 #include "heading_word_count.hpp"
 #include "tree_spell.hpp"
 #include "pointer_shake_detector.hpp"
+#include "resize_viewport_restore.hpp"
 #include "tm_timer.hpp"
 #include "widget.hpp"
 #include <vector>
@@ -141,6 +142,8 @@ protected:
   bool          external_center_message_active;
   time_t        typewriter_manual_scroll_time;
   path          typewriter_manual_scroll_path;
+  resize_viewport_restore_state resize_viewport_restore;
+  std::uint64_t programmatic_scroll_generation;
   int           live_statistics_cache_hash;
   athena_document_statistics live_statistics_cache;
   bool          heading_cell_cache_valid;
@@ -186,6 +189,8 @@ public:
   void invalidate_all ();
   void update_visible ();
   void scroll_to (SI x, SI y);
+  void scroll_to_if_user_unchanged (SI x, SI y,
+                                    std::uint64_t user_scroll_generation);
   void set_extents (SI x1, SI y1, SI x2, SI y2);
   SI   interface_scrollbar_width () const;
 
@@ -304,7 +309,10 @@ public:
   bool is_editor_widget ();
   bool is_embedded_widget ();
   void handle_get_size_hint (SI& w, SI& h);
-  void handle_notify_resize (SI w, SI h);
+  void handle_notify_resize (
+    SI w, SI h, SI old_vy2, bool old_viewport_valid,
+    std::uint64_t old_programmatic_scroll_generation,
+    std::uint64_t old_user_scroll_generation);
   void handle_keypress (string key, time_t t);
   void handle_text_input (string text, time_t t);
   void handle_keyboard_focus (bool has_focus, time_t t);

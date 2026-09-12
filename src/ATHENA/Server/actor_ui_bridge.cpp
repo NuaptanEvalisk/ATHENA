@@ -202,6 +202,32 @@ actor_ui_endpoint::zoom_factor () const noexcept {
   return bits_double (zoom_factor_bits_.load (std::memory_order_acquire));
 }
 
+void
+actor_ui_endpoint::mark_programmatic_scroll_applied (
+  std::uint64_t generation) noexcept {
+  std::uint64_t current=
+    applied_programmatic_scroll_generation_.load (std::memory_order_relaxed);
+  while (current < generation &&
+         !applied_programmatic_scroll_generation_.compare_exchange_weak (
+           current, generation, std::memory_order_release,
+           std::memory_order_relaxed)) {}
+}
+
+std::uint64_t
+actor_ui_endpoint::applied_programmatic_scroll_generation () const noexcept {
+  return applied_programmatic_scroll_generation_.load (std::memory_order_acquire);
+}
+
+void
+actor_ui_endpoint::mark_user_scroll () noexcept {
+  user_scroll_generation_.fetch_add (1, std::memory_order_release);
+}
+
+std::uint64_t
+actor_ui_endpoint::user_scroll_generation () const noexcept {
+  return user_scroll_generation_.load (std::memory_order_acquire);
+}
+
 bool
 actor_ui_endpoint::publish (
   actor_command_kind kind, athena_blob_id payload0,

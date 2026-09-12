@@ -111,14 +111,6 @@ QTMWidget::QTMWidget (QWidget* _parent, qt_widget _tmwid)
   grabGesture (Qt::PanGesture);
   grabGesture (Qt::PinchGesture);
   grabGesture (Qt::SwipeGesture);
-  connect (horizontalScrollBar (), &QScrollBar::actionTriggered,
-           this, [this] (int) { notifyUserScroll (); });
-  connect (verticalScrollBar (), &QScrollBar::actionTriggered,
-           this, [this] (int) { notifyUserScroll (); });
-  connect (horizontalScrollBar (), &QScrollBar::sliderMoved,
-           this, [this] (int) { notifyUserScroll (); });
-  connect (verticalScrollBar (), &QScrollBar::sliderMoved,
-           this, [this] (int) { notifyUserScroll (); });
   fractionalScrollSettleTimer.setSingleShot (true);
   fractionalScrollSettleTimer.setInterval (80);
   fractionalScrollSettleTimer.setTimerType (Qt::CoarseTimer);
@@ -246,6 +238,11 @@ QTMWidget::scrollContentsBy (int dx, int dy) {
   scheduleFractionalScrollSettle ();
   if (athena_qt_is_closing ()) return;
   if (internalScrollChange ()) return;
+  // Publish the user-scroll viewport only after Qt has changed the scrollbar
+  // origin.  Pre-scroll notifications leave the BufferActor with a stale
+  // viewport snapshot and can make a subsequent reflow resize preserve the
+  // wrong cursor-to-top distance.
+  notifyUserScroll ();
   the_gui->force_update();
   if (isEmbedded ()) scheduleEmbeddedScrollRefresh ();
   // we force an update of the internal state to be in sync with the moving
@@ -1657,7 +1654,6 @@ QTMWidget::wheelEvent(QWheelEvent *event) {
     }
   }
   else {
-    notifyUserScroll ();
     scrollWheel (event, false);
   }
 }

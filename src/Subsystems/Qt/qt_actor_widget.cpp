@@ -100,12 +100,24 @@ qt_actor_widget_rep::submit_text (
 
 void
 qt_actor_widget_rep::handle_notify_resize (SI width, SI height) {
+  actor_viewport_snapshot old_viewport= endpoint_->viewport ();
+  bool old_viewport_valid=
+    old_viewport.attached &&
+    old_viewport.visible_y2 > old_viewport.visible_y1;
+  std::uint64_t old_programmatic_scroll_generation=
+    endpoint_->applied_programmatic_scroll_generation ();
+  std::uint64_t old_user_scroll_generation=
+    endpoint_->user_scroll_generation ();
   refresh_viewport ();
   (void) buffer_actor::submit_to (
     actor_id_, actor_command_kind::viewport_changed, view_id_,
     ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
     static_cast<std::uint64_t> (width),
-    static_cast<std::uint64_t> (height));
+    static_cast<std::uint64_t> (height),
+    static_cast<std::uint64_t> (old_viewport.visible_y2),
+    old_viewport_valid ? 1 : 0,
+    old_programmatic_scroll_generation,
+    old_user_scroll_generation);
 }
 
 void
@@ -142,6 +154,7 @@ qt_actor_widget_rep::handle_cursor_blink (bool visible) {
 void
 qt_actor_widget_rep::handle_user_scroll (time_t time) {
   if (completion_popup_) completion_popup_->cancel ();
+  endpoint_->mark_user_scroll ();
   refresh_viewport ();
   (void) buffer_actor::submit_to (
     actor_id_, actor_command_kind::user_scroll, view_id_,
@@ -312,12 +325,20 @@ qt_actor_widget_rep::drain_external_effects () {
     case actor_command_kind::ui_invalidate_all:
       invalidate_all ();
       break;
-    case actor_command_kind::ui_scroll_to:
-      ::set_scroll_position (
-        widget (this), static_cast<SI> (record.argument[0]),
-        static_cast<SI> (record.argument[1]));
-      refresh_viewport ();
+    case actor_command_kind::ui_scroll_to: {
+      std::uint64_t user_guard= record.argument[3];
+      bool user_generation_matches=
+        user_guard == 0 ||
+        endpoint_->user_scroll_generation () + 1 == user_guard;
+      if (user_generation_matches) {
+        ::set_scroll_position (
+          widget (this), static_cast<SI> (record.argument[0]),
+          static_cast<SI> (record.argument[1]));
+        refresh_viewport ();
+      }
+      endpoint_->mark_programmatic_scroll_applied (record.argument[2]);
       break;
+    }
     case actor_command_kind::ui_set_extents:
       ::set_extents (
         widget (this), static_cast<SI> (record.argument[0]),

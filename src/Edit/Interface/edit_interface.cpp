@@ -110,6 +110,8 @@ edit_interface_rep::edit_interface_rep ():
   external_center_message_active (false),
   typewriter_manual_scroll_time (0),
   typewriter_manual_scroll_path (),
+  resize_viewport_restore (),
+  programmatic_scroll_generation (0),
   live_statistics_cache_hash (-1),
   live_statistics_cache (),
   heading_cell_cache_valid (false), heading_cell_cache (),
@@ -135,6 +137,7 @@ edit_interface_rep::operator tree () {
 void
 edit_interface_rep::suspend () {
   clear_link_peek ();
+  resize_viewport_restore.cancel ();
   //cout << "Suspend " << buf->name << LF;
   if (got_focus) {
     interrupt_shortcut ();
@@ -210,6 +213,7 @@ edit_interface_rep::get_pixel_size () {
 
 void
 edit_interface_rep::set_zoom_factor (double zoom) {
+  resize_viewport_restore.cancel ();
   zoom= valid_zoom_or (zoom, valid_zoom_or (zoomf, 1.0));
   zoomf = zoom;
   magf  = zoomf / std_shrinkf;
@@ -328,10 +332,27 @@ edit_interface_rep::scroll_to (SI x, SI y) {
   stored_rects= rectangles ();
   copy_always = rectangles ();
   notify_change (THE_FREEZE);
-  (void) publish_ui (
+  std::uint64_t generation= programmatic_scroll_generation + 1;
+  if (publish_ui (
     actor_command_kind::ui_scroll_to,
     static_cast<std::uint64_t> ((SI) (x * magf)),
-    static_cast<std::uint64_t> ((SI) (y * magf)));
+    static_cast<std::uint64_t> ((SI) (y * magf)), generation, 0))
+    programmatic_scroll_generation= generation;
+}
+
+void
+edit_interface_rep::scroll_to_if_user_unchanged (
+  SI x, SI y, std::uint64_t user_generation) {
+  stored_rects= rectangles ();
+  copy_always = rectangles ();
+  notify_change (THE_FREEZE);
+  std::uint64_t generation= programmatic_scroll_generation + 1;
+  std::uint64_t user_guard= user_generation + 1;
+  if (publish_ui (
+    actor_command_kind::ui_scroll_to,
+    static_cast<std::uint64_t> ((SI) (x * magf)),
+    static_cast<std::uint64_t> ((SI) (y * magf)), generation, user_guard))
+    programmatic_scroll_generation= generation;
 }
 
 SI
@@ -1156,6 +1177,47 @@ edit_interface_rep::apply_changes () {
   if (env_change & THE_ENVIRONMENT)
     invalidate_all ();
 
+  // A resize in reflow mode is the one place where viewport motion is part of
+  // the layout transaction itself. Preserve the cursor's vertical distance
+  // from the old viewport top once, after the new box tree and cursor geometry
+  // are available. Never override a user scroll, link navigation, or another
+  // programmatic scroll which superseded the resize snapshot.
+  if (resize_viewport_restore.pending) {
+    bool programmatic_scroll_pending=
+      ui_endpoint != nullptr &&
+      ui_endpoint->applied_programmatic_scroll_generation () <
+        programmatic_scroll_generation;
+    if (get_init_string (PAGE_MEDIUM) != "automatic" ||
+        ui_endpoint == nullptr ||
+        !resize_viewport_restore.matches (
+          tp, programmatic_scroll_generation,
+          ui_endpoint->user_scroll_generation ()) ||
+        programmatic_scroll_pending || is_nil (eb))
+      resize_viewport_restore.cancel ();
+    else {
+      actor_viewport_snapshot resize_viewport= ui_viewport ();
+      SI visible_height=
+        resize_viewport.visible_y2 - resize_viewport.visible_y1;
+      SI visible_width=
+        resize_viewport.visible_x2 - resize_viewport.visible_x1;
+      if (visible_height > 0 && visible_width > 0) {
+        SI height= (SI) (visible_height / magf);
+        SI center_x= (SI) (((resize_viewport.visible_x1 +
+                             resize_viewport.visible_x2) / 2) / magf);
+        SI center_y= resize_viewport_target_center_y (
+          get_cursor_y (), resize_viewport_restore.cursor_distance_from_top,
+          height);
+        std::uint64_t expected_user_generation=
+          resize_viewport_restore.user_scroll_generation;
+        resize_viewport_restore.cancel ();
+        scroll_to_if_user_unchanged (
+          center_x, center_y, expected_user_generation);
+        invalidate_all ();
+      }
+      else resize_viewport_restore.cancel ();
+    }
+  }
+
   // cout << "Handling menus\n";
   if (env_change & THE_MENUS)
     update_menus ();
@@ -1254,6 +1316,7 @@ void
 edit_interface_rep::handle_user_scroll (time_t t) {
   clear_link_peek ();
   if (buf == nullptr || is_nil (eb)) return;
+  resize_viewport_restore.cancel ();
   typewriter_manual_scroll_time= t;
   typewriter_manual_scroll_path= copy (tp);
 }
@@ -1264,22 +1327,40 @@ edit_interface_rep::handle_get_size_hint (SI& w, SI& h) {
 }
 
 void
-edit_interface_rep::handle_notify_resize (SI w, SI h) {
+edit_interface_rep::handle_notify_resize (
+  SI w, SI h, SI old_vy2, bool old_viewport_valid,
+  std::uint64_t old_programmatic_scroll_generation,
+  std::uint64_t old_user_scroll_generation) {
   if (buf == nullptr) return;
   bool width_changed= w != resize_wx;
   bool height_changed= h != resize_wy;
   resize_wx= w;
   resize_wy= h;
   if (!width_changed && !height_changed) return;
+
+  resize_viewport_restore.cancel ();
+  bool cursor_or_layout_pending=
+    (env_change & (THE_TREE + THE_ENVIRONMENT + THE_CURSOR)) != 0;
+  bool viewport_snapshot_current=
+    ui_endpoint != nullptr &&
+    resize_viewport_snapshot_current (
+      programmatic_scroll_generation, old_programmatic_scroll_generation,
+      ui_endpoint->user_scroll_generation (), old_user_scroll_generation);
+  if (!is_embedded_widget () &&
+      get_init_string (PAGE_MEDIUM) == "automatic" &&
+      old_viewport_valid && !is_nil (eb) &&
+      viewport_snapshot_current && !cursor_or_layout_pending) {
+    SI old_top= (SI) (old_vy2 / magf);
+    resize_viewport_restore.arm (
+      tp, get_cursor_y (), old_top, programmatic_scroll_generation,
+      old_user_scroll_generation);
+  }
+
   notify_change ((width_changed ? THE_TREE : THE_EXTENTS) + THE_FREEZE);
   if (width_changed &&
       as_bool (call ("defined?",
                      symbol_object ("schedule-persistent-fit-width"))))
     call ("schedule-persistent-fit-width");
-  if (!is_embedded_widget () &&
-      as_bool (call ("defined?",
-                     symbol_object ("schedule-resize-editing-position"))))
-    call ("schedule-resize-editing-position");
 }
 
 double
