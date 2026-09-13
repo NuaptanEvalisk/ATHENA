@@ -24,6 +24,10 @@ athena_resolve_transclusion_content (tree transclusion);
 tree athena_resolve_transclusion_display (tree transclusion,
                                           string* cache_key= nullptr);
 
+// Structural source range, retaining labels. No shared caches, GUI or Scheme.
+// The caller owns the document and the returned tree on its current thread.
+tree athena_transclusion_source_range (tree body, string begin, string end);
+
 void athena_clear_transclusion_caches ();
 
 #endif // ATHENA_TRANSCLUSION_CACHE_HPP

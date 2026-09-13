@@ -318,6 +318,16 @@ display_tree (tree transclusion, const AthenaTransclusionResolution& resolved) {
 
 } // namespace
 
+tree
+athena_transclusion_source_range (tree body, string begin, string end) {
+  SourceTreeCacheEntry source;
+  source.document= body;
+  source.body= body;
+  TreePath position;
+  index_anchors (body, position, source.anchors);
+  return extract_range (source, to_std (begin), to_std (end));
+}
+
 void
 athena_clear_transclusion_caches () {
   source_cache.clear ();

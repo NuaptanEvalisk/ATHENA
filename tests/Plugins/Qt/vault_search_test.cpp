@@ -12,6 +12,10 @@
 #include <QTemporaryFile>
 #include <QTemporaryDir>
 #include "Qt/QTMVaultAnchorModel.hpp"
+#include "Qt/QTMVaultAvailableEnunciations.hpp"
+#include "Qt/QTMVaultAvailablePage.hpp"
+#include "ATHENA/Data/transclusion_cache.hpp"
+#include "convert.hpp"
 #include "Qt/QTMVaultSearch.hpp"
 #include "Qt/QTMVaultSearchWorker.hpp"
 #include <QSemaphore>
@@ -26,6 +30,8 @@
 #include <set>
 #include <atomic>
 #include <thread>
+
+bool headless_mode= true;
 
 class TestVaultSearch: public QObject {
   Q_OBJECT
@@ -52,7 +58,96 @@ private slots:
   void parallelSearchCancelsOnOwnerDestruction ();
   void rawPrefilterMatchesAcrossReadBoundary ();
   void neighborhoodCandidateScope ();
+  void availableEnunciationsFollowOnlyReferencedRanges ();
+  void availableEnunciationsKeepUnsavedSourceAndCancel ();
+  void availablePreviewHasAnEmbeddingLayout ();
 };
+
+void TestVaultSearch::availablePreviewHasAnEmbeddingLayout () {
+  QTMVaultAvailablePage page;
+  QWidget* host= page.findChild<QWidget*> ("availableEnunciationPreview");
+  QVERIFY (host != nullptr);
+  QVERIFY (host->layout () != nullptr);
+  QVERIFY (!page.isComplete ());
+}
+
+namespace {
+std::shared_ptr<const std::string> availableSnapshot (tree body) {
+  string bytes= tree_to_scheme (body);
+  return std::make_shared<const std::string> (bytes.data (), N (bytes));
+}
+tree enunciationBody (string name, tree content) {
+  return tree (DOCUMENT, tree (LABEL, name * " {"),
+    compound ("theorem", content), tree (LABEL, name * " }"));
+}
+tree transclusionTo (string uuid) {
+  return tree (TRANSCLUDE, uuid, "obsolete path hint", "obsolete begin", "obsolete end");
+}
+}
+
+void TestVaultSearch::availableEnunciationsFollowOnlyReferencedRanges () {
+  tree local= enunciationBody ("theorem:Local", tree (CONCAT,
+    transclusionTo ("b"), transclusionTo ("b"), transclusionTo ("missing")));
+  tree b= enunciationBody ("theorem:Included", transclusionTo ("c"));
+  b << enunciationBody ("theorem:Excluded", "Not part of the selected range");
+  tree c= enunciationBody ("lemma:Nested", tree (CONCAT, "nested", transclusionTo ("b")));
+  std::map<QString, std::shared_ptr<const std::string>> files {
+    {"B.ath", availableSnapshot (b)}, {"C.ath", availableSnapshot (c)}};
+  std::map<QString, int> reads;
+  auto locate= [] (const std::string& uuid, AthenaVaultMapNode& target) {
+    if (uuid == "b") target= {uuid, "B.ath", "theorem:Included {", "theorem:Included }"};
+    else if (uuid == "c") target= {uuid, "C.ath", "", ""};
+    else return false;
+    return true;
+  };
+  auto load= [&] (const QString& file) {
+    ++reads[file];
+    const auto& bytes= files.at (file);
+    return scheme_to_tree (string (bytes->data (), bytes->size ()));
+  };
+  std::atomic<bool> cancelled {false};
+  auto result= collect_available_enunciations (availableSnapshot (local), "A.ath", locate, load, cancelled);
+  QCOMPARE (result.entries.size (), std::size_t (3));
+  QCOMPARE (reads["B.ath"], 1);
+  QCOMPARE (reads["C.ath"], 1);
+  QCOMPARE (result.warnings.size (), 1);
+  const auto& nested= result.entries[2];
+  QCOMPARE (nested.relative_path, QString ("C.ath"));
+  QCOMPARE (nested.upper, QString ("lemma:Nested {"));
+  QVERIFY (nested.title != "theorem:Excluded");
+  tree source= scheme_to_tree (string (nested.source_body->data (), nested.source_body->size ()));
+  tree range= athena_transclusion_source_range (source, from_qstring (nested.upper), from_qstring (nested.lower));
+  QVERIFY (range != UNINIT);
+  std::vector<WikilinkAnchorEntry> anchors;
+  collect_anchors (range, path (), anchors);
+  QCOMPARE (anchors.size (), std::size_t (2));
+  QCOMPARE (anchors[0].anchor, nested.upper);
+}
+
+void TestVaultSearch::availableEnunciationsKeepUnsavedSourceAndCancel () {
+  tree source= enunciationBody ("definition:Unsaved", "not on disk");
+  source << transclusionTo ("self");
+  auto bytes= availableSnapshot (source);
+  auto locate= [] (const std::string& uuid, AthenaVaultMapNode& target) {
+    target= {uuid, "A.ath", "", ""}; return true;
+  };
+  int reads= 0;
+  auto load= [&] (const QString&) { ++reads; return tree (DOCUMENT, "old disk content"); };
+  std::atomic<bool> cancelled {false};
+  auto result= collect_available_enunciations (bytes, "A.ath", locate, load, cancelled);
+  QCOMPARE (result.entries.size (), std::size_t (1));
+  QCOMPARE (result.entries[0].title, QString ("definition:Unsaved"));
+  QCOMPARE (result.entries[0].source_body, bytes);
+  QCOMPARE (reads, 0);
+  cancelled= true;
+  result= collect_available_enunciations (bytes, "A.ath", locate, load, cancelled);
+  QVERIFY (result.entries.empty ());
+  QCOMPARE (reads, 0);
+  cancelled= false;
+  result= collect_available_enunciations (availableSnapshot (
+    enunciationBody ("definition:Unsaved", "no persistent file")), "", locate, load, cancelled);
+  QVERIFY (result.entries.empty ());
+}
 
 void
 TestVaultSearch::initTestCase () {

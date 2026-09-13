@@ -42,7 +42,7 @@ preview_rebase_image_path (const string& path, url sourceDir) {
   return utf8_to_cork (as_system_string (absolute));
 }
 
-static tree
+tree
 rebase_preview_images (tree t, url sourceDir) {
   if (is_atomic (t)) return copy (t);
 

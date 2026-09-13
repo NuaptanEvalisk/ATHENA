@@ -16,6 +16,7 @@
 #include "url.hpp"
 
 tree apply_vault_preferred_font_to_preview (tree body);
+tree rebase_preview_images (tree body, url sourceDir);
 tree import_body (url file);
 tree import_body_for_preview (url file);
 tree build_preview_from_body (tree body, path focus, int* firstOut= nullptr,

@@ -17,6 +17,7 @@
 #endif
 #include "QTMVaultAnchorModel.hpp"
 #include "QTMVaultArtifactPage.hpp"
+#include "QTMVaultAvailablePage.hpp"
 #include "QTMVaultLinkModel.hpp"
 #include "QTMVaultPreviewBuilder.hpp"
 #include "QTMVaultPreviewWidget.hpp"
@@ -282,7 +283,8 @@ enum WikilinkWizardPageId {
   WikilinkFilePageId= 1,
   WikilinkAnchorPageId= 2,
   WikilinkSearchPageId= 3,
-  WikilinkArtifactPageId= 4
+  WikilinkArtifactPageId= 4,
+  WikilinkAvailablePageId= 5
 };
 
 class QTMVaultWikilinkWizard;
@@ -295,6 +297,7 @@ public:
   QRadioButton* fileFirstRadio;
   QRadioButton* searchRadio;
   QRadioButton* artifactRadio;
+  QRadioButton* availableRadio;
 };
 
 class WikilinkFilePage : public QWizardPage {
@@ -429,6 +432,7 @@ public:
   WikilinkAnchorPage* anchorPage;
   WikilinkSearchPage* searchPage;
   QTMVaultArtifactPage* artifactPage;
+  QTMVaultAvailablePage* availablePage;
 
   void loadFiles ();
   void scheduleLoadFiles ();
@@ -442,17 +446,20 @@ WikilinkModePage::WikilinkModePage (QWidget* parent)
   fileFirstRadio= new QRadioButton ("Locate a file first", this);
   searchRadio= new QRadioButton ("Locate by search", this);
   artifactRadio= new QRadioButton ("Select an artifact", this);
+  availableRadio= new QRadioButton ("Available in current document", this);
   fileFirstRadio->setChecked (true);
 
   QVBoxLayout* layout= new QVBoxLayout (this);
   layout->addWidget (fileFirstRadio);
   layout->addWidget (searchRadio);
   layout->addWidget (artifactRadio);
+  layout->addWidget (availableRadio);
   layout->addStretch ();
 }
 
 int
 WikilinkModePage::nextId () const {
+  if (availableRadio->isChecked ()) return WikilinkAvailablePageId;
   if (artifactRadio->isChecked ()) return WikilinkArtifactPageId;
   return searchRadio->isChecked () ? WikilinkSearchPageId :
     WikilinkFilePageId;
@@ -1509,11 +1516,20 @@ QTMVaultWikilinkWizard::QTMVaultWikilinkWizard (QWidget* parent)
                  selection.upper_anchor, display);
     });
 
+  availablePage= new QTMVaultAvailablePage (this);
+  availablePage->setSelectionHandler (
+    [this] (const QTMVaultArtifactSelection& selection) {
+      setResult (selection.relative_path, selection.upper_anchor,
+                 file_display_stem (selection.relative_path),
+                 selection.upper_anchor, selection.display_text);
+    });
+
   setPage (WikilinkModePageId, modePage);
   setPage (WikilinkFilePageId, filePage);
   setPage (WikilinkAnchorPageId, anchorPage);
   setPage (WikilinkSearchPageId, searchPage);
   setPage (WikilinkArtifactPageId, artifactPage);
+  setPage (WikilinkAvailablePageId, availablePage);
   setStartId (WikilinkModePageId);
 }
 
