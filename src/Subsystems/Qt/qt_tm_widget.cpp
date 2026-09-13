@@ -10,6 +10,7 @@
  ******************************************************************************/
 
 #include "QTMToolbar.hpp"
+#include "QTMPluginUi.hpp"
 #include <QToolButton>
 #include <QToolBar>
 #include <QPushButton>
@@ -1113,6 +1114,12 @@ qt_tm_widget_rep::install_main_menu () {
 #endif
       }
     }
+    auto* plugins = qtm_plugins_menu (dest);
+    dest->addAction (plugins->menuAction ());
+    QObject::connect (plugins, &QMenu::aboutToShow, the_gui->gui_helper,
+      &QTMGuiHelper::aboutToShowMainMenu, Qt::UniqueConnection);
+    QObject::connect (plugins, &QMenu::aboutToHide, the_gui->gui_helper,
+      &QTMGuiHelper::aboutToHideMainMenu, Qt::UniqueConnection);
 
 #if !DISABLE_QTMTOOLBAR
   } else {
@@ -1147,6 +1154,12 @@ qt_tm_widget_rep::install_main_menu () {
 #endif
       }
     }
+    auto* plugins = qtm_plugins_menu (dest);
+    dest->addAction (plugins->menuAction ());
+    QObject::connect (plugins, &QMenu::aboutToShow, the_gui->gui_helper,
+      &QTMGuiHelper::aboutToShowMainMenu, Qt::UniqueConnection);
+    QObject::connect (plugins, &QMenu::aboutToHide, the_gui->gui_helper,
+      &QTMGuiHelper::aboutToHideMainMenu, Qt::UniqueConnection);
     dest->addRightSpacer();
     
   }

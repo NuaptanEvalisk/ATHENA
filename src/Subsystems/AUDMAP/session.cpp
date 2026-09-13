@@ -254,10 +254,13 @@ struct protocol_session::impl: std::enable_shared_from_this<impl> {
       auto accessor = h->second->accessor;
       const std::string command = msg[4];
       auto mask = capabilities.find (accessor->type ());
+      if (mask == capabilities.end ()) mask = capabilities.find ("*");
       if (mask != capabilities.end () && mask->second.enforced && !mask->second.commands.count (command)) {
         finish_operation (tid, oid, message (opcode::err, {tid, oid, "Capability denied"})); return;
       }
-      if (trust == trust_mode::full_access) operate (tid, oid, accessor, command, msg[5]);
+      if (trust == trust_mode::full_access ||
+          (mask != capabilities.end () && !mask->second.confirmation_required))
+        operate (tid, oid, accessor, command, msg[5]);
       else {
         std::weak_ptr<impl> weak = shared_from_this ();
         const value parameters = msg[5];

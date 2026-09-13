@@ -1,6 +1,6 @@
 /******************************************************************************
-* MODULE     : QTMAudmap.hpp
-* DESCRIPTION: Desktop AUDMAP service startup and shutdown interface
+* MODULE     : QTMPluginUi.hpp
+* DESCRIPTION: Native plugin preferences page and menu interfaces
 * COPYRIGHT  : (C) 2026 Nuaptan Felix Evalisk
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
@@ -8,22 +8,8 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #pragma once
-#include <memory>
-#include <QString>
+class QWidget;
+class QMenu;
 class QTMPluginManager;
-
-class QTMAudmap {
-  struct impl;
-  std::unique_ptr<impl> implementation;
-public:
-  QTMAudmap ();
-  ~QTMAudmap ();
-  QString discoveryFile () const;
-  QTMPluginManager* plugins () const;
-};
-
-void qt_audmap_start ();
-void qt_audmap_stop ();
-QString qt_audmap_discovery_file ();
-void audmap_repl_show ();
-QTMPluginManager* qtm_plugin_manager ();
+QWidget* qtm_plugin_preferences (QTMPluginManager* manager, QWidget* parent = nullptr);
+QMenu* qtm_plugins_menu (QWidget* parent);

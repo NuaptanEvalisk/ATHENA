@@ -11,6 +11,10 @@ else (APPLE)
 endif (APPLE)
 
 list (REMOVE_ITEM ATHENA_All_SRCS
+  "${ATHENA_SOURCE_DIR}/src/Subsystems/Plugins/subscription.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Subsystems/Plugins/package.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPluginManager.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPluginUi.cpp"
   "${ATHENA_SOURCE_DIR}/src/System/Misc/tsan_mimalloc_shim.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMAudmapTerminal.cpp")
 add_library (athena_audmap_terminal STATIC Subsystems/Qt/QTMAudmapTerminal.cpp)
@@ -18,6 +22,14 @@ target_compile_features (athena_audmap_terminal PRIVATE cxx_std_17)
 target_link_libraries (athena_audmap_terminal PUBLIC Qt6::Widgets PRIVATE qtermwidget6)
 include(AthenaGlue)
 add_subdirectory(ATHENA/Interop)
+add_subdirectory(Subsystems/Plugins)
+add_library(athena_plugin_runtime STATIC Subsystems/Qt/QTMPluginManager.cpp Subsystems/Qt/QTMPluginManager.hpp)
+set_target_properties(athena_plugin_runtime PROPERTIES AUTOMOC ON)
+target_include_directories(athena_plugin_runtime PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/Subsystems/Qt")
+target_link_libraries(athena_plugin_runtime PUBLIC athena_plugins athena_audmap Qt6::Core)
+add_library(athena_plugin_ui STATIC Subsystems/Qt/QTMPluginUi.cpp)
+set_target_properties(athena_plugin_ui PROPERTIES AUTOMOC OFF)
+target_link_libraries(athena_plugin_ui PUBLIC athena_plugin_runtime Qt6::Widgets)
 add_library(athena_body STATIC ${ATHENA_All_SRCS})
 target_sources (athena_body PRIVATE ./ATHENA/Watchdog/watchdog_client.cpp)
 add_dependencies(athena_body athena_build_info athena_guile_runtime athena_glue)
@@ -43,6 +55,7 @@ target_link_libraries (athena_body
 target_link_libraries (athena_body PRIVATE KF6::SyntaxHighlighting)
 target_link_libraries (athena_body PRIVATE KF6::Completion)
 target_link_libraries (athena_body PRIVATE athena_audmap_terminal)
+target_link_libraries (athena_body PRIVATE athena_plugin_ui)
 if (TARGET PkgConfig::KPATHSEA)
   target_compile_definitions (athena_body PRIVATE USE_KPATHSEA_API=1)
   target_link_libraries (athena_body PRIVATE PkgConfig::KPATHSEA)

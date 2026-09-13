@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+"""ATHENA plugin example; requires the independent athena-audmap Python SDK."""
+import os
+import signal
+import sys
+import time
+
+from athena_audmap import Client
+
+stopping = False
+
+
+def stop(signum, frame):
+    global stopping
+    stopping = True
+
+
+signal.signal(signal.SIGTERM, stop)
+signal.signal(signal.SIGINT, stop)
+
+
+def operation(client, ticket, handle, command, parameters=None):
+    pending = client.operate(ticket, handle, command, parameters)
+    response = pending.result(timeout=30)
+    client.release(pending.ticket, pending.operation).result(timeout=30)
+    if response.status != "OK":
+        raise RuntimeError(response.data)
+    return response.data
+
+
+try:
+    while not stopping:
+        with Client(endpoint=os.environ["ATHENA_AUDMAP_ENDPOINT"],
+                    identity=os.environ["ATHENA_AUDMAP_IDENTITY"],
+                    name=os.environ["ATHENA_PLUGIN_ID"]) as client:
+            # Rotate tickets and connections to bound protocol replay history.
+            for _ in range(4096):
+                if stopping:
+                    break
+                selected = client.resolve(
+                    "@/subscription/" + os.environ["ATHENA_SUBSCRIPTION_GUID"], leaves=True)
+                handles, truncated = selected.result(timeout=30).data
+                if len(handles) != 1 or truncated:
+                    raise RuntimeError("Launch subscription is unavailable")
+                handle = handles[0]
+                used = 0
+                while not stopping and used < 1024:
+                    batch = operation(client, selected.ticket, handle, "get")
+                    used += 1
+                    for command in batch["commands"]:
+                        known = command["command"] == "hello"
+                        result = command["parameters"] if known else "Unknown command"
+                        operation(client, selected.ticket, handle, "reply", {
+                            "id": command["id"], "status": "OK" if known else "ERROR",
+                            "result": result})
+                        used += 1
+                        print(f"Command {command['id']}: {result}", flush=True)
+                    time.sleep(0.2)
+                client.finish(selected.ticket).result(timeout=30)
+except Exception as error:
+    if not stopping:
+        print(f"Plugin failed: {error}", file=sys.stderr)
+        sys.exit(1)

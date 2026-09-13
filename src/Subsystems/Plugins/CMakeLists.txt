@@ -1,0 +1,5 @@
+find_package(LibArchive REQUIRED)
+add_library(athena_plugins STATIC subscription.cpp package.cpp)
+set_target_properties(athena_plugins PROPERTIES AUTOMOC OFF)
+target_include_directories(athena_plugins PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(athena_plugins PUBLIC athena_interop PRIVATE LibArchive::LibArchive)

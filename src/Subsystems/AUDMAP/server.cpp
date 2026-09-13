@@ -123,17 +123,17 @@ struct local_server::impl {
     connections.emplace (peer, connection {name, ui_id, clock::now (), {}});
     send (peer, control (transport_opcode::pending));
     std::weak_ptr<inbox> weak = incoming;
-    ui.connect (ui_id, peer, name, [weak, peer, ui_id] (std::optional<trust_mode> trust) {
-      if (auto queue = weak.lock ()) queue->post ([peer, ui_id, trust] (impl& s) {
+    ui.connect (ui_id, peer, name, [weak, peer, ui_id] (std::optional<connection_grant> grant) {
+      if (auto queue = weak.lock ()) queue->post ([peer, ui_id, grant = std::move (grant)] (impl& s) {
         auto it = s.connections.find (peer);
         if (it == s.connections.end () || it->second.ui_id != ui_id || it->second.session) return;
-        if (!trust) { s.send (peer, control (transport_opcode::rejected, "Connection denied")); s.forget (peer); return; }
+        if (!grant) { s.send (peer, control (transport_opcode::rejected, "Connection denied")); s.forget (peer); return; }
         const auto confirmation = s.ui.confirm;
         it->second.session = std::make_unique<protocol_session> (
-          s.resolutions, s.operations, s.registry, *trust,
+          s.resolutions, s.operations, grant->registry ? grant->registry : s.registry, grant->trust,
           [confirmation, ui_id] (value request, std::function<void (bool)> reply) {
             confirmation (ui_id, std::move (request), std::move (reply));
-          }, [&s, peer] (value reply) { s.send (peer, reply); });
+          }, [&s, peer] (value reply) { s.send (peer, reply); }, grant->capabilities);
         s.send (peer, control (transport_opcode::welcome, 1));
       });
     });
@@ -253,4 +253,7 @@ local_server::local_server (std::shared_ptr<const resolver_registry> registry,
 }
 local_server::~local_server () = default;
 const std::filesystem::path& local_server::discovery_file () const { return implementation->discovery; }
+void local_server::disconnect_peer (const std::string& key) {
+  implementation->incoming->post ([key] (impl& s) { s.forget (key); });
+}
 } // namespace athena::interop

@@ -9,6 +9,8 @@
 ******************************************************************************/
 
 #include "QTMPreferencesDialog.hpp"
+#include "QTMPluginUi.hpp"
+#include "QTMAudmap.hpp"
 #include "ATHENA/Features/athena_features.hpp"
 #include "ATHENA/Data/materials_engine.hpp"
 #include "QTMESCSymbolPicker.hpp"
@@ -357,6 +359,8 @@ category_icon (const QString& name) {
     return libreoffice_icon ("navigator");
   if (name == "Materials")
     return libreoffice_icon ("bibliographycomponent");
+  if (name == "Plugins")
+    return QIcon::fromTheme ("preferences-plugin", libreoffice_icon ("configuredialog"));
   if (name == "Other")
     return libreoffice_icon ("optionstreedialog");
   return QIcon ();
@@ -968,6 +972,7 @@ QTMPreferencesDialog::QTMPreferencesDialog (QWidget* parent)
   addCategory ("Convert", buildConversionPage ());
   for (const auto& category: buildVaultCategories ())
     addCategory (category.first, category.second);
+  addCategory ("Plugins", tabbed ({{"Installed", qtm_plugin_preferences (qtm_plugin_manager ())}}));
   addCategory ("Other", buildOtherPage ());
   rebuildSearchIndex ();
 

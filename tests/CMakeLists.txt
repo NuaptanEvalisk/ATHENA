@@ -6,6 +6,32 @@ list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/interop/interop_test\\.cpp$")
 list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/interop/authorization_ui_test\\.cpp$")
 list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/interop/confined_filesystem_test\\.cpp$")
 list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/interop/repl-pane-test\\.cpp$")
+list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/interop/plugin-subscription-test\\.cpp$")
+list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/interop/plugin-package-test\\.cpp$")
+list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/interop/plugin-runtime-test\\.cpp$")
+
+add_executable(plugin_runtime_test interop/plugin-runtime-test.cpp
+  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMAudmap.cpp)
+set_target_properties(plugin_runtime_test PROPERTIES AUTOMOC OFF)
+target_link_libraries(plugin_runtime_test PRIVATE athena_plugin_ui Qt6::Test)
+target_compile_definitions(plugin_runtime_test PRIVATE
+  PLUGIN_FIXTURE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/interop/plugin-runtime-fixture.py"
+  PLUGIN_PYTHON_PATH="${ATHENA_SOURCE_DIR}/clients/python/src")
+add_test(NAME plugin_runtime_test COMMAND plugin_runtime_test)
+set_tests_properties(plugin_runtime_test PROPERTIES TIMEOUT 45 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+find_package(LibArchive REQUIRED)
+add_executable(plugin_package_test interop/plugin-package-test.cpp)
+set_target_properties(plugin_package_test PROPERTIES AUTOMOC OFF)
+target_link_libraries(plugin_package_test PRIVATE athena_plugins LibArchive::LibArchive)
+add_test(NAME plugin_package_test COMMAND plugin_package_test)
+set_tests_properties(plugin_package_test PROPERTIES TIMEOUT 15)
+
+add_executable(plugin_subscription_test interop/plugin-subscription-test.cpp)
+set_target_properties(plugin_subscription_test PROPERTIES AUTOMOC OFF)
+target_link_libraries(plugin_subscription_test PRIVATE athena_plugins athena_audmap athena_audmap_sdk)
+add_test(NAME plugin_subscription_test COMMAND plugin_subscription_test)
+set_tests_properties(plugin_subscription_test PROPERTIES TIMEOUT 25)
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
   add_executable(confined_filesystem_test interop/confined_filesystem_test.cpp
@@ -41,7 +67,7 @@ add_executable(audmap_authorization_ui_test interop/authorization_ui_test.cpp
   ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMAudmap.cpp)
 set_target_properties(audmap_authorization_ui_test PROPERTIES AUTOMOC OFF)
 target_include_directories(audmap_authorization_ui_test PRIVATE ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt)
-target_link_libraries(audmap_authorization_ui_test PRIVATE athena_audmap_client athena_audmap Qt6::Widgets Qt6::Test)
+target_link_libraries(audmap_authorization_ui_test PRIVATE athena_audmap_client athena_audmap athena_plugin_runtime Qt6::Widgets Qt6::Test)
 add_test(NAME audmap_authorization_ui_test COMMAND audmap_authorization_ui_test)
 set_tests_properties(audmap_authorization_ui_test PROPERTIES TIMEOUT 20 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 

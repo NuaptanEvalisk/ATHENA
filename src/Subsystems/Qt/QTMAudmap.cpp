@@ -32,6 +32,7 @@
 #include <algorithm>
 #include <deque>
 #include <thread>
+#include "QTMPluginManager.hpp"
 
 using namespace athena::interop;
 
@@ -72,6 +73,7 @@ struct QTMAudmap::impl: QObject {
   authorization_store permissions {authorization_path ()}; // GUI-thread owned
   std::map<std::string, std::vector<QPointer<QDialog>>> dialogs;
   std::unique_ptr<local_server> server;
+  std::unique_ptr<QTMPluginManager> plugins;
   std::deque<std::pair<std::string, std::function<void ()>>> pending;
   QPointer<QDialog> active;
   bool shutting_down = false;
@@ -90,13 +92,21 @@ struct QTMAudmap::impl: QObject {
   impl () {
     authorization_ui ui;
     ui.connect = [this] (std::string id, std::string key, std::string name,
-                         std::function<void (std::optional<trust_mode>)> reply) {
+                         std::function<void (std::optional<connection_grant>)> reply) {
       queue_dialog (id, [this, id, key, name, reply] {
         clients[id] = {name, key};
+        std::optional<connection_grant> plugin_grant;
+        std::string plugin_name;
+        if (plugins && plugins->authorize (key, plugin_grant, &plugin_name)) {
+          clients[id].name = std::move (plugin_name);
+          reply (std::move (plugin_grant));
+          QTimer::singleShot (0, this, [this] { next (); });
+          return;
+        }
         QString policy_error;
         try {
           if (const auto rule = permissions.lookup (key)) {
-            reply (rule->allow ? std::optional<trust_mode> (rule->trust) : std::nullopt);
+            reply (rule->allow ? std::optional<connection_grant> (rule->trust) : std::nullopt);
             QTimer::singleShot (0, this, [this] { next (); });
             return;
           }
@@ -254,6 +264,8 @@ struct QTMAudmap::impl: QObject {
     };
     ui.disconnect = [this] (std::string id) {
       QMetaObject::invokeMethod (this, [this, id] {
+        auto client = clients.find (id);
+        if (plugins && client != clients.end ()) plugins->disconnected (client->second.key);
         clients.erase (id);
         pending.erase (std::remove_if (pending.begin (), pending.end (),
           [&] (const auto& request) { return request.first == id; }), pending.end ());
@@ -264,7 +276,15 @@ struct QTMAudmap::impl: QObject {
       }, Qt::QueuedConnection);
     };
     const auto count = std::max (1u, std::min (8u, std::thread::hardware_concurrency ()));
-    server = std::make_unique<local_server> (native_resolvers (), std::move (ui), count);
+    auto registry = native_resolvers ();
+    server = std::make_unique<local_server> (registry, std::move (ui), count);
+    try {
+      auto home = qEnvironmentVariable ("ATHENA_HOME_PATH");
+      if (home.isEmpty ()) home = QDir::home ().filePath (".ATHENA");
+      plugins = std::make_unique<QTMPluginManager> (home.toStdString (), server->discovery_file (),
+        registry, [this] (std::string key) { server->disconnect_peer (key); });
+    }
+    catch (const std::exception& e) { qWarning ("ATHENA plugins unavailable: %s", e.what ()); }
     qInfo ("ATHENA AUDMAP endpoint: %s", server->discovery_file ().c_str ());
   }
   QDialog* create (const std::string& id, const char* title) {
@@ -284,6 +304,7 @@ struct QTMAudmap::impl: QObject {
   }
   ~impl () override {
     shutting_down = true;
+    plugins.reset ();
     server.reset ();
     pending.clear ();
     for (auto& entry: dialogs) for (const auto& dialog: entry.second) if (dialog) delete dialog;
@@ -295,6 +316,7 @@ QTMAudmap::~QTMAudmap () = default;
 QString QTMAudmap::discoveryFile () const {
   return QString::fromStdString (implementation->server->discovery_file ().string ());
 }
+QTMPluginManager* QTMAudmap::plugins () const { return implementation->plugins.get (); }
 
 namespace {
 std::unique_ptr<QTMAudmap> desktop_interop;
@@ -314,4 +336,8 @@ void qt_audmap_stop () {
 QString qt_audmap_discovery_file () {
   Q_ASSERT (QThread::currentThread () == qApp->thread ());
   return desktop_interop ? desktop_interop->discoveryFile () : QString ();
+}
+QTMPluginManager* qtm_plugin_manager () {
+  Q_ASSERT (QThread::currentThread () == qApp->thread ());
+  return desktop_interop ? desktop_interop->plugins () : nullptr;
 }
