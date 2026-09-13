@@ -7,11 +7,11 @@ list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/interop/authorization_ui_test\\.cpp$
 
 add_executable(interop_test interop/interop_test.cpp)
 set_target_properties(interop_test PROPERTIES AUTOMOC OFF)
-target_link_libraries(interop_test PRIVATE athena_audmap_client)
+target_link_libraries(interop_test PRIVATE athena_audmap_client athena_audmap athena_audmap_sdk)
 add_dependencies(interop_test athena-audmap-repl)
 target_compile_definitions(interop_test PRIVATE AUDMAP_REPL_PATH="$<TARGET_FILE:athena-audmap-repl>")
 add_test(NAME interop_test COMMAND interop_test)
-set_tests_properties(interop_test PROPERTIES TIMEOUT 20)
+set_tests_properties(interop_test PROPERTIES TIMEOUT 35)
 add_test(NAME audmap_repl_terminal_test
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/interop/repl-terminal-test.py
     $<TARGET_FILE:interop_test> $<TARGET_FILE:athena-audmap-repl>)
@@ -21,7 +21,7 @@ add_executable(audmap_authorization_ui_test interop/authorization_ui_test.cpp
   ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMAudmap.cpp)
 set_target_properties(audmap_authorization_ui_test PROPERTIES AUTOMOC OFF)
 target_include_directories(audmap_authorization_ui_test PRIVATE ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt)
-target_link_libraries(audmap_authorization_ui_test PRIVATE athena_audmap_client Qt6::Widgets Qt6::Test)
+target_link_libraries(audmap_authorization_ui_test PRIVATE athena_audmap_client athena_audmap Qt6::Widgets Qt6::Test)
 add_test(NAME audmap_authorization_ui_test COMMAND audmap_authorization_ui_test)
 set_tests_properties(audmap_authorization_ui_test PROPERTIES TIMEOUT 20 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 

@@ -14,7 +14,6 @@
 
 namespace athena::interop {
 // Transport control frames are distinct from AUDMAP opcodes 1..11.
-enum class transport_opcode: unsigned { hello = 100, welcome, pending, ping, bye, rejected };
 struct authorization_ui {
   // Connection instance ID, authenticated CURVE public key, self-declared name.
   std::function<void (std::string, std::string, std::string,

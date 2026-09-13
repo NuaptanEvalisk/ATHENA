@@ -9,15 +9,13 @@
 ******************************************************************************/
 #pragma once
 
-#include <nlohmann/json.hpp>
+#include "value.hpp"
 #include <memory>
 #include <optional>
 #include <string>
 #include <vector>
 
 namespace athena::interop {
-
-using value = nlohmann::json;
 
 struct predicate {
   enum class kind { constant, exists, comparison, conjunction, disjunction,

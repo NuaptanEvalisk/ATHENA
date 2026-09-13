@@ -12,6 +12,7 @@
 #include "audmap_server.hpp"
 #include "identity.hpp"
 #include "repl_session.hpp"
+#include "athena/audmap/client.hpp"
 #include <zmq.hpp>
 #include <fstream>
 #include <chrono>
@@ -103,7 +104,9 @@ public:
   std::string identity () const override { return id; }
   value properties () const override { return {{"name", id}, {"type", "test"}}; }
   value inspect () const override { return value::array (); }
-  operation_result operate (const std::string&, const value&) const override { return {}; }
+  operation_result operate (const std::string& command, const value& parameters) const override {
+    return command == "echo" ? operation_result {"OK", parameters} : operation_result {"OK", properties ()};
+  }
 };
 
 class fork_resolver final: public resolver {
@@ -331,6 +334,7 @@ static void protocol_test () {
 
 static void transport_test () {
   auto r = std::make_shared<fork_resolver> ();
+  r->start_delay = 250ms;
   auto registry = std::make_shared<const resolver_registry> (resolver_registry {r});
   std::atomic<unsigned> approvals {0};
   std::string approved_key;
@@ -400,6 +404,35 @@ static void transport_test () {
   require (WIFEXITED (status) && WEXITSTATUS (status) == 0 && transcript.find ("Error:") == std::string::npos &&
     transcript.find ("OK") != std::string::npos && transcript.find ("Handle  Parent  Target") != std::string::npos,
     transcript.c_str ());
+
+  athena::audmap::options config;
+  config.endpoint = server.discovery_file ();
+  config.identity = dir.path / "sdk.json";
+  athena::audmap::client sdk (config);
+  auto selected = sdk.resolve ("@/fork/leaf", true);
+  require (selected.result.wait_for (3s) == std::future_status::ready, "SDK resolve hung");
+  const auto handle = selected.result.get ().data.at (0).at (0).get<std::uint64_t> ();
+  std::vector<athena::audmap::pending_request> operations;
+  for (unsigned i = 0; i < 16; ++i)
+    operations.push_back (sdk.operate (selected.ticket, handle, "echo", {{"sequence", i}}));
+  for (unsigned i = 0; i < operations.size (); ++i) {
+    const auto& operation = operations[i];
+    require (sdk.ask (operation.ticket, operation.operation).result.get ().data["sequence"] == i, "SDK reply correlation failed");
+    require (operation.result.get ().data["sequence"] == i, "SDK original result was lost");
+    sdk.release (operation.ticket, operation.operation).result.get ();
+  }
+  std::this_thread::sleep_for (16s);
+  require (sdk.lineage (selected.ticket, handle).result.get ().data.size () == 3, "SDK idle heartbeat did not preserve ticket");
+  sdk.finish (selected.ticket).result.get ();
+  auto cancelled = sdk.resolve ("@/fork/leaf");
+  sdk.cancel (cancelled.ticket).result.get ();
+  bool cancelled_error = false;
+  try { cancelled.result.get (); } catch (const std::exception&) { cancelled_error = true; }
+  require (cancelled_error, "SDK cancellation left resolution future pending");
+  sdk.close ();
+  bool closed_error = false;
+  try { sdk.resolve ("@").result.get (); } catch (const std::exception&) { closed_error = true; }
+  require (closed_error, "Closed SDK accepted a new request");
 }
 
 int main (int argc, char** argv) {

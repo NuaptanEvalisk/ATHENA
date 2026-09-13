@@ -1,6 +1,6 @@
 /******************************************************************************
-* MODULE     : codec.hpp
-* DESCRIPTION: AUDMAP wire opcodes, portable values and codec interfaces
+* MODULE     : protocol.hpp
+* DESCRIPTION: Transport and authorization constants independent of the server
 * COPYRIGHT  : (C) 2026 Nuaptan Felix Evalisk
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
@@ -8,14 +8,8 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #pragma once
-#include "value.hpp"
-#include <string_view>
-
+#include "codec.hpp"
 namespace athena::interop {
-enum class opcode: unsigned {
-  req = 1, ack, ask, acx, opr, rsp, err, rel, lin, cnl, fin
-};
-constexpr std::size_t wire_size_limit = 8 * 1024 * 1024;
-std::string encode_message (const value& message);
-value decode_message (std::string_view bytes);
-} // namespace athena::interop
+enum class transport_opcode: unsigned { hello = 100, welcome, pending, ping, bye, rejected };
+enum class trust_mode { full_access, confirm_operations, confirm_requests };
+}

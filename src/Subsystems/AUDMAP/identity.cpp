@@ -11,6 +11,7 @@
 #include <zmq.h>
 #include <cerrno>
 #include <cstdlib>
+#include <memory>
 #include <fcntl.h>
 #include <sys/file.h>
 #include <sys/stat.h>

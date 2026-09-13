@@ -9,6 +9,8 @@
 ******************************************************************************/
 #include "connection.hpp"
 #include <fstream>
+#include <cerrno>
+#include <fcntl.h>
 #include <iostream>
 #include <signal.h>
 #include <sys/stat.h>
@@ -20,12 +22,25 @@ value read_descriptor (std::filesystem::path path) {
   path = std::filesystem::absolute (path);
   struct stat directory {}, file {};
   if (lstat (path.parent_path ().c_str (), &directory) || !S_ISDIR (directory.st_mode) ||
-      directory.st_uid != getuid () || (directory.st_mode & 077) ||
-      lstat (path.c_str (), &file) || !S_ISREG (file.st_mode) || file.st_uid != getuid () ||
+      directory.st_uid != getuid () || (directory.st_mode & 077))
+    throw std::runtime_error ("AUDMAP endpoint descriptor must be a private file owned by this user");
+  const int fd = ::open (path.c_str (), O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+  if (fd < 0) throw std::runtime_error ("Cannot open AUDMAP endpoint descriptor");
+  struct close_descriptor { int fd; ~close_descriptor () { ::close (fd); } } guard {fd};
+  if (fstat (fd, &file) || !S_ISREG (file.st_mode) || file.st_uid != getuid () ||
       (file.st_mode & 077) || file.st_size > 65536)
     throw std::runtime_error ("AUDMAP endpoint descriptor must be a private file owned by this user");
-  std::ifstream input (path);
-  return value::parse (input);
+  std::string bytes;
+  char block[4096];
+  for (;;) {
+    const auto size = ::read (fd, block, sizeof (block));
+    if (size < 0 && errno == EINTR) continue;
+    if (size < 0) throw std::runtime_error ("Cannot read AUDMAP endpoint descriptor");
+    if (!size) break;
+    bytes.append (block, size);
+    if (bytes.size () > 65536) throw std::length_error ("Endpoint descriptor too large");
+  }
+  return value::parse (bytes);
 }
 std::filesystem::path discover () {
   const char* runtime = std::getenv ("XDG_RUNTIME_DIR");

@@ -8,13 +8,12 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #pragma once
-#include "codec.hpp"
+#include "protocol.hpp"
 #include "resolution.hpp"
 #include <map>
 #include <set>
 
 namespace athena::interop {
-enum class trust_mode { full_access, confirm_operations, confirm_requests };
 struct capability_mask {
   bool enforced = false;
   std::set<std::string> commands;

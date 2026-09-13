@@ -10,22 +10,22 @@ target_include_directories(athena_interop PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
   ${LLAMA_JSON_INCLUDE_DIR})
 target_link_libraries(athena_interop PUBLIC Threads::Threads PRIVATE taocpp::pegtl)
 
+add_subdirectory(${ATHENA_SOURCE_DIR}/clients/cpp ${CMAKE_CURRENT_BINARY_DIR}/client-sdk)
+
 add_library(athena_audmap STATIC
-  ../../Subsystems/AUDMAP/codec.cpp
-  ../../Subsystems/AUDMAP/identity.cpp
   ../../Subsystems/AUDMAP/session.cpp
   ../../Subsystems/AUDMAP/server.cpp)
 set_target_properties(athena_audmap PROPERTIES AUTOMOC OFF)
 target_include_directories(athena_audmap PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/../../Subsystems/AUDMAP)
-target_link_libraries(athena_audmap PUBLIC athena_interop PRIVATE msgpack-cxx cppzmq)
+target_link_libraries(athena_audmap PUBLIC athena_interop athena_audmap_wire PRIVATE cppzmq)
 
 add_library(athena_audmap_client STATIC
   ${ATHENA_SOURCE_DIR}/tools/interop/connection.cpp
   ${ATHENA_SOURCE_DIR}/tools/interop/repl_session.cpp)
 set_target_properties(athena_audmap_client PROPERTIES AUTOMOC OFF)
 target_include_directories(athena_audmap_client PUBLIC ${ATHENA_SOURCE_DIR}/tools/interop)
-target_link_libraries(athena_audmap_client PUBLIC athena_audmap cppzmq)
+target_link_libraries(athena_audmap_client PUBLIC athena_audmap_wire cppzmq PRIVATE athena_interop)
 
 add_executable(athena-audmap ${ATHENA_SOURCE_DIR}/tools/interop/client.cpp)
 set_target_properties(athena-audmap PROPERTIES AUTOMOC OFF)
