@@ -83,10 +83,14 @@ public:
     table->setSelectionMode (QAbstractItemView::ExtendedSelection);
     table->setEditTriggers (QAbstractItemView::NoEditTriggers);
     table->verticalHeader ()->hide ();
-    table->horizontalHeader ()->setSectionResizeMode (0, QHeaderView::ResizeToContents);
-    table->horizontalHeader ()->setSectionResizeMode (1, QHeaderView::ResizeToContents);
+    table->horizontalHeader ()->setSectionResizeMode (0, QHeaderView::Interactive);
+    table->horizontalHeader ()->setSectionResizeMode (1, QHeaderView::Interactive);
     table->horizontalHeader ()->setSectionResizeMode (2, QHeaderView::Stretch);
-    table->horizontalHeader ()->setSectionResizeMode (3, QHeaderView::ResizeToContents);
+    table->horizontalHeader ()->setSectionResizeMode (3, QHeaderView::Interactive);
+    const int em= table->fontMetrics ().horizontalAdvance ("M");
+    table->setColumnWidth (0, 8 * em);
+    table->setColumnWidth (1, 16 * em);
+    table->setColumnWidth (3, 12 * em);
     outer->addWidget (table, 1);
     if (!inherited.empty ()) {
       outer->addWidget (new QLabel ("Inherited from namespaces", this));
@@ -182,6 +186,7 @@ public:
                            qstr (hit.title), qstr (hit.issued)};
       for (int column=0; column<4; ++column) {
         QTableWidgetItem* item= new QTableWidgetItem (values[column]);
+        item->setToolTip (values[column]);
         item->setData (Qt::UserRole, qstr (hit.uuid));
         table->setItem (row, column, item);
       }

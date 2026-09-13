@@ -18,6 +18,11 @@
 #include "ATHENA/Data/namespaces.hpp"
 #include "ATHENA/Data/namespace_ontology.hpp"
 #include "convert.hpp"
+#include "Qt/QTMMaterialCitationDialog.hpp"
+#include <QDialog>
+#include <QTableWidget>
+#include <QScrollBar>
+#include <QTimer>
 
 #include <QFile>
 #include <QElapsedTimer>
@@ -106,6 +111,7 @@ private slots:
   void rendersMaterialInfoWithGenericMacros ();
   void namespaceMaterialsHaveProvenanceAndSurviveRename ();
   void readonlyLibraryUsesAnIndependentSnapshot ();
+  void referenceChooserKeepsTitleWide ();
 };
 
 void
@@ -1236,6 +1242,35 @@ MaterialsTest::rendersMaterialInfoWithGenericMacros () {
   QVERIFY (fs::exists (target));
 
   vault_close ();
+}
+
+void MaterialsTest::referenceChooserKeepsTitleWide () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  const fs::path root (temporary.path ().toStdString ());
+  std::string error;
+  QVERIFY (athena_vaultfile_write (root, AthenaVaultfileInfo {}, error));
+  QVERIFY (vault_load (url_system (string (root.c_str ())), "Chooser test", "map.sqlite") == "");
+  struct Close { ~Close () { vault_close (); } } close;
+  auto book= sample_material ("A long book title that should remain readable", std::string (500, 'A'), "2026");
+  QVERIFY (vault_get_materials_store ()->create (book, error));
+  bool inspected= false, title_wide= false, no_scroll= false, tooltip= false;
+  QTimer::singleShot (0, qApp, [&] {
+    auto* dialog= qobject_cast<QDialog*> (QApplication::activeModalWidget ());
+    if (!dialog) return;
+    auto* table= dialog->findChild<QTableWidget*> ("materialCitationResults");
+    if (table && table->rowCount () == 1) {
+      inspected= true;
+      title_wide= table->columnWidth (2) > table->columnWidth (1);
+      no_scroll= table->horizontalScrollBar ()->maximum () == 0;
+      tooltip= table->item (0, 1)->toolTip () == table->item (0, 1)->text ();
+      const auto screenshot= qEnvironmentVariable ("ATHENA_MATERIAL_CHOOSER_SCREENSHOT");
+      if (!screenshot.isEmpty ()) dialog->grab ().save (screenshot);
+    }
+    dialog->reject ();
+  });
+  qtm_material_choose_references (false);
+  QVERIFY (inspected); QVERIFY (title_wide); QVERIFY (no_scroll); QVERIFY (tooltip);
 }
 
 void
