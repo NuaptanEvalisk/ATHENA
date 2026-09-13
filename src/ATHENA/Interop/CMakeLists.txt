@@ -3,7 +3,7 @@ find_package(Threads REQUIRED)
 find_package(msgpack-cxx REQUIRED CONFIG)
 find_package(cppzmq REQUIRED CONFIG)
 
-add_library(athena_interop STATIC selection.cpp resolution.cpp)
+add_library(athena_interop STATIC selection.cpp resolution.cpp traversal.cpp)
 set_target_properties(athena_interop PROPERTIES AUTOMOC OFF)
 target_compile_features(athena_interop PUBLIC cxx_std_17)
 target_include_directories(athena_interop PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}

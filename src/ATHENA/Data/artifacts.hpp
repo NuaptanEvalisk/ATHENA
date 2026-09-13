@@ -116,12 +116,12 @@ bool athena_artifacts_build_active_vault (
 
 bool athena_artifacts_query (const std::filesystem::path& vault_root,
                              std::vector<AthenaArtifactRecord>& records,
-                             std::string& error);
+                             std::string& error, bool read_only= false);
 
 bool athena_artifact_query_uuid (const std::filesystem::path& vault_root,
                                  const std::string& uuid,
                                  AthenaArtifactRecord& record, bool& found,
-                                 std::string& error);
+                                 std::string& error, bool read_only= false);
 
 bool athena_artifacts_mark_document_stale (
   const std::filesystem::path& vault_root, const std::string& relative_path,

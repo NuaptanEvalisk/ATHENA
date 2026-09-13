@@ -8,6 +8,9 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include "../Interop/resources.hpp"
+#include "../Interop/traversal.hpp"
+#include "interop_vault_resource.hpp"
+#include "interop_artifacts.hpp"
 #include "namespaces_private.hpp"
 #include <chrono>
 #include <set>
@@ -16,7 +19,6 @@ namespace athena::interop {
 namespace {
 using athena_namespaces::tm_to_std;
 using athena_namespaces::std_to_tm;
-using clock = std::chrono::steady_clock;
 
 class domain_error: public std::runtime_error {
 public:
@@ -69,11 +71,12 @@ athena_namespace_definition definition (const value& p) {
   return ns;
 }
 
-class native_resource final: public resource {
+class native_resource final: public vault_resource {
   const std::string resource_type;
   const std::string uuid;
 public:
   const vault_context_handle context;
+  vault_context_handle captured_vault () const override { return context; }
   native_resource (std::string type, vault_context_handle context = {}, std::string uuid = {}):
     resource_type (std::move (type)), uuid (std::move (uuid)), context (std::move (context)) {}
   std::string type () const override { return resource_type; }
@@ -259,29 +262,6 @@ public:
   }
 };
 
-struct traversal_budget {
-  const traversal_limits limits;
-  const clock::time_point started = clock::now ();
-  std::atomic<std::uint64_t> matches {0};
-  explicit traversal_budget (traversal_limits limits): limits (std::move (limits)) {}
-};
-struct traversal final: continuation_state {
-  const std::shared_ptr<traversal_budget> budget;
-  const std::uint64_t depth;
-  const bool default_match;
-  traversal (std::shared_ptr<traversal_budget> budget, std::uint64_t depth, bool default_match):
-    budget (std::move (budget)), depth (depth), default_match (default_match) {}
-};
-
-bool expired (const traversal_budget& budget, resolution_output& out) {
-  if (budget.limits.max_duration_ms && clock::now () - budget.started >=
-      std::chrono::milliseconds (*budget.limits.max_duration_ms)) {
-    out.truncated.push_back ({truncation_kind::max_duration, "Maximum traversal duration reached"});
-    return true;
-  }
-  return false;
-}
-
 std::string default_namespace (const vault_context_handle& context) {
   std::ifstream file (context->root / "Vaultfile.json");
   if (!file) throw std::runtime_error ("Cannot read Vaultfile.json");
@@ -297,11 +277,11 @@ class native_resolver final: public resolver {
       std::size_t offset, const std::shared_ptr<traversal_budget>& budget,
       std::uint64_t depth, resolution_output& out) const {
     if (budget->limits.max_depth && depth > *budget->limits.max_depth) return;
-    if (expired (*budget, out)) return;
+    if (traversal_stopped (req, *budget, out)) return;
     if (parent.type () == "root") {
       auto context = vault_capture_context ();
-      if (context) out.publish (std::make_shared<native_resource> ("vault", context), offset,
-        std::make_shared<traversal> (budget, depth, true));
+      if (context) publish_candidate (out, std::make_shared<native_resource> ("vault", context),
+        offset, budget, depth, "vault", true);
       return;
     }
     require_current (parent.context);
@@ -319,8 +299,8 @@ class native_resolver final: public resolver {
       const auto id = parent.context->incarnation + ":" + tm_to_std (ns.uuid);
       for (auto ancestor = req.basepoint; ancestor; ancestor = ancestor->parent)
         if (ancestor->accessor->identity () == id) throw std::runtime_error ("Namespace graph contains a cycle");
-      out.publish (std::make_shared<native_resource> ("namespace", parent.context, tm_to_std (ns.uuid)),
-        offset, std::make_shared<traversal> (budget, depth, !default_name.empty () && default_name == tm_to_std (ns.name)));
+      publish_candidate (out, std::make_shared<native_resource> ("namespace", parent.context, tm_to_std (ns.uuid)),
+        offset, budget, depth, "namespace", !default_name.empty () && default_name == tm_to_std (ns.name));
     }
   }
 public:
@@ -337,31 +317,17 @@ public:
     if (!base) return resolver_outcome::irrelevant;
     auto state = std::dynamic_pointer_cast<const traversal> (req.state);
     try {
-      if (state) {
-        if (managed_type != base->type ()) return resolver_outcome::irrelevant;
-        if (expired (*state->budget, out)) return resolver_outcome::miss;
-        if (state->budget->limits.max_matches && state->budget->matches.load () >= *state->budget->limits.max_matches) {
-          out.truncated.push_back ({truncation_kind::max_matches, "Maximum traversal matches reached"});
-          return resolver_outcome::miss;
-        }
-        const auto properties = base->properties ();
-        const bool match = s.type == selector::kind::default_resource ? state->default_match :
-          s.type == selector::kind::name ? properties.at ("name") == s.name : s.filter.matches (properties);
-        if (match) {
-          const auto index = state->budget->matches.fetch_add (1);
-          if (state->budget->limits.max_matches && index >= *state->budget->limits.max_matches) {
-            out.truncated.push_back ({truncation_kind::max_matches, "Maximum traversal matches reached"});
-            return resolver_outcome::miss;
-          }
-          out.redispatch.push_back ({req.offset + 1, {}});
-        }
-        const bool recursive = s.type == selector::kind::recursive ||
-          (s.type == selector::kind::scoped && base->type () == "namespace");
-        if (recursive) children (req, *base, req.offset, state->budget, state->depth + 1, out);
-        return resolver_outcome::resolved;
+      if (state && state->step == traversal::phase::candidate) {
+        if (state->domain != managed_type) return resolver_outcome::irrelevant;
+        return visit_candidate (req, *state, out);
       }
       const auto desired = base->type () == "root" ? "vault" : "namespace";
       if (managed_type != desired) return resolver_outcome::irrelevant;
+      if (state) {
+        if (!state->domain.empty () && state->domain != managed_type) return resolver_outcome::irrelevant;
+        children (req, *base, req.offset, state->budget, state->depth + 1, out);
+        return out.branches.empty () ? resolver_outcome::miss : resolver_outcome::resolved;
+      }
       std::size_t offset = req.offset;
       if (s.type == selector::kind::name && s.name == (base->type () == "root" ? "vaults" : "namespaces")) {
         if (++offset == req.selectors.size ()) return resolver_outcome::miss;
@@ -382,7 +348,7 @@ public:
 std::shared_ptr<const resolver_registry> native_resolvers () {
   static const auto registry = std::make_shared<const resolver_registry> (resolver_registry {
     std::make_shared<native_resolver> ("root"), std::make_shared<native_resolver> ("vault"),
-    std::make_shared<native_resolver> ("namespace")});
+    std::make_shared<native_resolver> ("namespace"), artifacts_resolver ()});
   return registry;
 }
 } // namespace athena::interop

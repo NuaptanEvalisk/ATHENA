@@ -2,7 +2,8 @@
 
 AUDM selects live resources; AUDMAP exposes ticket-local occurrence handles.
 This implementation does not restore TeXmacs plugins or expose arbitrary Scheme
-evaluation. The registered domains are root, the active vault, and namespaces.
+evaluation. The registered domains are root, the active vault, namespaces and
+indexed artifacts.
 
 ## Implementation boundaries
 
@@ -11,6 +12,8 @@ evaluation. The registered domains are root, the active vault, and namespaces.
 - `src/ATHENA/Data/interop_resources.cpp`: root/vault/namespace adapters and
   resolver conventions. Namespace operations use explicit captured vault paths
   and persistent UUIDs, not the GUI buffer registry or a name-based re-resolution.
+- `src/ATHENA/Data/interop_artifacts.cpp`: read-only indexed artifact accessors,
+  bound to a captured vault incarnation and artifact UUID.
 - `src/Subsystems/AUDMAP`: MessagePack codec, connection-owned protocol state,
   local ZeroMQ transport. Resource operations have a separate fixed worker pool.
 - `src/Subsystems/Qt/QTMAudmap.cpp`: connection authorization and request dialogs.
@@ -194,6 +197,34 @@ callback is invoked by a resource operation. Stored native sorters execute nativ
 code, so granting OPR access includes that existing namespace capability.
 
 ## CLI
+
+### Artifact queries
+
+Artifacts are children of a vault, optionally selected through the `artifacts`
+marker. For example:
+
+```text
+@/vaults/@/?($type = "provable" AND $name = "*strong nullstellensatz*")
+@/vaults/@/artifacts/??($type = "provable" AND $name contains "null*" | $max_matches = 20)
+@/???($resource_type = "artifact" AND $type = "definition" | $max_depth = 3)
+```
+
+An artifact accessor has resource type `artifact`; its `$type` property is the
+semantic artifact type, such as `provable`, `definition` or `completion`.
+`$name` is its first semantic name (or display text when unnamed), not its anchor.
+The `names` array contains all semantic names; matching `$name` does not implicitly
+match secondary names. Different UUIDs with equal names remain distinct results.
+Artifacts are leaves, and their lineage retains the containing vault.
+
+`get` and `inspect` take empty parameter maps. `get` reads the current record by
+UUID; deletion returns `NOT_FOUND`, and closing or reopening the vault invalidates
+old accessors with `STALE`. Predicates use the record captured during resolution.
+Native Cork-encoded name and keyword trees are MessagePack binary values, not
+mislabelled UTF-8 strings. The resolver opens existing indexes read-only: an
+unbuilt index yields no matches; damaged schemas or missing companion databases
+fail without creating, rebuilding or upgrading the index.
+
+### Command-line client
 
 The startup log prints the instance's descriptor path. For example:
 

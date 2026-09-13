@@ -28,6 +28,8 @@
 #include <QJsonObject>
 #include <QCryptographicHash>
 #include <QRegularExpression>
+#include <QUrl>
+#include <QUrlQuery>
 
 #include <algorithm>
 #include <atomic>
@@ -181,13 +183,43 @@ std::string sql_quote (sqlite3* db, const fs::path& path) {
 }
 
 bool open_databases (const fs::path& root, SqliteDb& holder,
-                     AthenaVaultfileInfo& info, std::string& error) {
+                     AthenaVaultfileInfo& info, std::string& error,
+                     bool read_only= false) {
   if (!athena_vaultfile_read (root, info, error)) return false;
   if (!safe_relative_database (info.artifacts_path) ||
       !safe_relative_database (info.enunciations_path) ||
       !safe_relative_database (info.bold_text_path)) {
     error= "Artifact database paths in Vaultfile.json must be relative paths";
     return false;
+  }
+  if (read_only) {
+    std::error_code ec;
+    bool exists= fs::exists (root / info.artifacts_path, ec);
+    if (ec) { error= ec.message (); return false; }
+    if (!exists) return true; // An unbuilt artifact index is empty, not created.
+    if (sqlite3_open_v2 ((root / info.artifacts_path).string ().c_str (),
+        &holder.db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nullptr) != SQLITE_OK) {
+      error= holder.db ? sqlite3_errmsg (holder.db) : "Could not read artifacts database";
+      return false;
+    }
+    sqlite3_busy_timeout (holder.db, 5000);
+    if (!exec_sql (holder.db, "PRAGMA query_only=ON;", error)) return false;
+    for (const auto& attachment: {
+        std::make_pair (info.enunciations_path, "enunciations"),
+        std::make_pair (info.bold_text_path, "bold_text")}) {
+      QUrl uri= QUrl::fromLocalFile (qstr (fs::absolute (root / attachment.first).string ()));
+      QUrlQuery query; query.addQueryItem ("mode", "ro"); uri.setQuery (query);
+      const auto encoded= uri.toEncoded (QUrl::FullyEncoded).toStdString ();
+      Statement attach;
+      const std::string sql= "ATTACH DATABASE ?1 AS " + std::string (attachment.second);
+      if (!prepare (holder.db, sql.c_str (), attach, error)) return false;
+      bind_text (attach.st, 1, encoded);
+      if (sqlite3_step (attach.st) != SQLITE_DONE) {
+        error= sqlite3_errmsg (holder.db);
+        return false;
+      }
+    }
+    return exec_sql (holder.db, "BEGIN;", error);
   }
   for (const std::string* relative:
        {&info.artifacts_path, &info.enunciations_path, &info.bold_text_path}) {
@@ -2488,11 +2520,12 @@ bool load_semantic_names (sqlite3* db,
 bool
 athena_artifacts_query (const fs::path& vault_root,
                         std::vector<AthenaArtifactRecord>& records,
-                        std::string& error) {
+                        std::string& error, bool read_only) {
   records.clear ();
   SqliteDb holder;
   AthenaVaultfileInfo info;
-  if (!open_databases (vault_root, holder, info, error)) return false;
+  if (!open_databases (vault_root, holder, info, error, read_only)) return false;
+  if (!holder.db) return true;
   Statement st;
   std::string sql= std::string (artifact_select_columns ()) +
                    "ORDER BY a.path,a.document_order;";
@@ -2512,11 +2545,12 @@ bool
 athena_artifact_query_uuid (const fs::path& vault_root,
                             const std::string& uuid,
                             AthenaArtifactRecord& record, bool& found,
-                            std::string& error) {
+                            std::string& error, bool read_only) {
   found= false;
   SqliteDb holder;
   AthenaVaultfileInfo info;
-  if (!open_databases (vault_root, holder, info, error)) return false;
+  if (!open_databases (vault_root, holder, info, error, read_only)) return false;
+  if (!holder.db) return true;
   Statement st;
   std::string sql= std::string (artifact_select_columns ()) +
                    "WHERE a.uuid=?1;";
