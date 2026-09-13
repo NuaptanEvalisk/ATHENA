@@ -130,6 +130,7 @@ style_invalidate_cache () {
   }
   init_style_data ();
   local_style_generation= generation;
+  std::lock_guard<std::mutex> lock (style_disk_cache_mutex);
   remove ("$ATHENA_HOME_PATH/system/cache" * url_wildcard ("__*"));
 }
 

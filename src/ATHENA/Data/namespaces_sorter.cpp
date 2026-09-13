@@ -9,6 +9,7 @@
 *******************************************************************************/
 
 #include "namespaces_private.hpp"
+#include <QUuid>
 
 #include "vault.hpp"
 
@@ -535,7 +536,29 @@ athena_namespace_generate_product_sorter (
   const athena_namespace_definition& first,
   const athena_namespace_definition& second,
   string product_template, string& sorter_path, string& error) {
-  if (!vault_active ()) {
+  return athena_namespace_generate_product_sorter (vault_capture_context (),
+    first, second, product_template, sorter_path, error);
+}
+
+static athena_namespace_definition
+pinned_sorter_definition (const athena_namespace_definition& original,
+                          const vault_context_handle& context) {
+  auto ns= original;
+  if (ns.sorter_path != "") {
+    auto path= std::filesystem::path (tm_to_std (ns.sorter_path));
+    if (path.is_relative ()) path= context->root / path;
+    ns.sorter_path= std_to_tm (path.string ());
+  }
+  return ns;
+}
+
+bool
+athena_namespace_generate_product_sorter (
+  const vault_context_handle& context,
+  const athena_namespace_definition& first,
+  const athena_namespace_definition& second,
+  string product_template, string& sorter_path, string& error) {
+  if (!vault_context_is_current (context)) {
     error= "No active vault.";
     return false;
   }
@@ -559,12 +582,13 @@ athena_namespace_generate_product_sorter (
     return false;
   }
 
-  std::string source= product_sorter_source (first, second, first_map,
+  std::string source= product_sorter_source (pinned_sorter_definition (first, context),
+                                             pinned_sorter_definition (second, context), first_map,
                                              second_map, product_template,
                                              error);
   if (source.empty ()) return false;
 
-  std::filesystem::path root (tm_to_std (concretize (vault_get_root ())));
+  std::filesystem::path root= context->root;
   std::filesystem::path dir= root / ".athena" / "ns-sorters";
   std::error_code ec;
   std::filesystem::create_directories (dir, ec);
@@ -576,7 +600,7 @@ athena_namespace_generate_product_sorter (
 
   std::string stem= "product-" + safe_file_component (tm_to_std (first.name)) +
                     "-" + safe_file_component (tm_to_std (second.name)) +
-                    "-" + std::to_string ((long long) std::time (nullptr));
+                    "-" + QUuid::createUuid ().toString (QUuid::WithoutBraces).toStdString ();
   std::filesystem::path file;
   for (int i=0; i<1000; i++) {
     std::string suffix= i == 0 ? "" : "-" + std::to_string (i);
@@ -596,7 +620,7 @@ athena_namespace_generate_product_sorter (
   sorter_path= std_to_tm (ec ? file.string () : rel.generic_string ());
 
   string compile_error;
-  (void) load_sorter (sorter_path, compile_error);
+  (void) load_sorter (std_to_tm (file.string ()), compile_error);
   if (compile_error != "") {
     std::filesystem::remove (file, ec);
     error= "Generated product sorter did not compile: " * compile_error;
@@ -609,7 +633,16 @@ bool
 athena_namespace_generate_restricted_sorter (
   const athena_namespace_definition& parent,
   string product_template, string& sorter_path, string& error) {
-  if (!vault_active ()) {
+  return athena_namespace_generate_restricted_sorter (vault_capture_context (),
+    parent, product_template, sorter_path, error);
+}
+
+bool
+athena_namespace_generate_restricted_sorter (
+  const vault_context_handle& context,
+  const athena_namespace_definition& parent,
+  string product_template, string& sorter_path, string& error) {
+  if (!vault_context_is_current (context)) {
     error= "No active vault.";
     return false;
   }
@@ -626,11 +659,11 @@ athena_namespace_generate_restricted_sorter (
     return false;
   }
 
-  std::string source= restricted_sorter_source (parent, parent_map,
+  std::string source= restricted_sorter_source (pinned_sorter_definition (parent, context), parent_map,
                                                 product_template, error);
   if (source.empty ()) return false;
 
-  std::filesystem::path root (tm_to_std (concretize (vault_get_root ())));
+  std::filesystem::path root= context->root;
   std::filesystem::path dir= root / ".athena" / "ns-sorters";
   std::error_code ec;
   std::filesystem::create_directories (dir, ec);
@@ -641,7 +674,7 @@ athena_namespace_generate_restricted_sorter (
   }
 
   std::string stem= "restricted-" + safe_file_component (tm_to_std (parent.name)) +
-                    "-" + std::to_string ((long long) std::time (nullptr));
+                    "-" + QUuid::createUuid ().toString (QUuid::WithoutBraces).toStdString ();
   std::filesystem::path file;
   for (int i=0; i<1000; i++) {
     std::string suffix= i == 0 ? "" : "-" + std::to_string (i);
@@ -661,7 +694,7 @@ athena_namespace_generate_restricted_sorter (
   sorter_path= std_to_tm (ec ? file.string () : rel.generic_string ());
 
   string compile_error;
-  (void) load_sorter (sorter_path, compile_error);
+  (void) load_sorter (std_to_tm (file.string ()), compile_error);
   if (compile_error != "") {
     std::filesystem::remove (file, ec);
     error= "Generated restricted sorter did not compile: " * compile_error;

@@ -17,6 +17,8 @@
 
 #include <sqlite3.h>
 #include <future>
+#include "../../../src/ATHENA/Interop/resources.hpp"
+#include <fstream>
 
 bool headless_mode= true;
 bool is_headless () { return true; }
@@ -84,6 +86,7 @@ private slots:
   void ontologyOpenMigrates ();
   void vaultOpenMigratesAndIdentitiesSurviveRename ();
   void distinguishesMissingStaleAndFault ();
+  void nativeInteropResolution ();
 };
 
 void
@@ -327,6 +330,93 @@ NamespaceDatabaseTest::distinguishesMissingStaleAndFault () {
   QVERIFY (invalid.exec ("UPDATE meta SET value='999' WHERE key='schema-version';"));
   QVERIFY (open_vault (root) != "");
   QVERIFY (vault_context_is_current (other));
+}
+
+void
+NamespaceDatabaseTest::nativeInteropResolution () {
+  using namespace athena::interop;
+  QTemporaryDir temporary;
+  CloseVault close;
+  const auto root= std::filesystem::path (temporary.path ().toStdString ());
+  QCOMPARE (open_vault (root), string (""));
+  auto context= vault_capture_context ();
+  string error;
+  athena_namespace_definition parent;
+  parent.name= "Root namespace"; parent.kind= "abstract";
+  QVERIFY (athena_namespace_create (context, parent, error));
+  QVERIFY (!athena_namespace_create (context, parent, error));
+  athena_namespace_definition child;
+  child.name= "Child"; child.kind= "concrete"; child.templ= "Note %s";
+  child.parents.push_back (parent.name);
+  QVERIFY (athena_namespace_create (context, child, error));
+  {
+    std::ofstream configuration (root / "Vaultfile.json");
+    configuration << value ({{"root_namespace", "Root namespace"}}).dump ();
+    std::ofstream document (root / "Note one.ath"); document << "example";
+  }
+  resolution_workers workers (3);
+  auto run= [&] (const std::string& expression) {
+    std::promise<resolution_result> promise;
+    auto future= promise.get_future ();
+    resolution_ticket ticket (workers, native_resolvers (), parse_selection (expression),
+      [&] (resolution_result r) { promise.set_value (std::move (r)); });
+    if (future.wait_for (std::chrono::seconds (5)) != std::future_status::ready)
+      throw std::runtime_error ("Native resolution timed out");
+    return future.get ();
+  };
+  auto result= run ("@/vaults/@/namespaces/@");
+  QVERIFY2 (result.state == resolution_result::status::complete, result.error.c_str ());
+  QCOMPARE (result.leaves.size (), std::size_t (1));
+  QCOMPARE (result.tree.back ()->accessor->properties ().at ("name").get<std::string> (), std::string ("Root namespace"));
+  result= run (R"(@/vaults/@/namespaces/@/??($name = "Child"))");
+  QVERIFY2 (result.state == resolution_result::status::complete, result.error.c_str ());
+  QCOMPARE (result.leaves.size (), std::size_t (1));
+  auto accessor= result.tree.back ()->accessor;
+  QCOMPARE (accessor->operate ("members", value::object ()).data.size (), std::size_t (1));
+  auto created= accessor->operate ("create_file", {{"directory", "."}, {"values", value::array ({"two"})},
+                                                  {"use_initial_content", false}});
+  QVERIFY2 (created.status == "OK", created.data.dump ().c_str ());
+  QVERIFY (std::filesystem::exists (root / "Note two.ath"));
+  QCOMPARE (accessor->operate ("create_file", {{"directory", "."}, {"values", value::array ({"two"})},
+                                             {"use_initial_content", false}}).status, std::string ("ERROR"));
+  QCOMPARE (accessor->operate ("template_fields", value::object ()).data.size (), std::size_t (1));
+  auto replacement= accessor->properties ();
+  replacement["name"]= "Renamed";
+  replacement["sorter_trivial"]= true;
+  QCOMPARE (accessor->operate ("set", {{"definition", replacement}}).status, std::string ("OK"));
+  QCOMPARE (accessor->properties ().at ("name").get<std::string> (), std::string ("Renamed"));
+  std::shared_ptr<const athena_namespace_definition> stored_parent;
+  QVERIFY (athena_namespace_get (context, parent.name, stored_parent, error) == namespace_query_status::ok);
+  const auto parent_uuid= std::string (stored_parent->uuid.data (), N(stored_parent->uuid));
+  QCOMPARE (accessor->operate ("set_relation", {{"parent_uuid", parent_uuid}, {"decision", "deny"}}).status,
+            std::string ("OK"));
+  QVERIFY (!accessor->operate ("relations", value::object ()).data.empty ());
+  QCOMPARE (accessor->operate ("remove_relation", {{"parent_uuid", parent_uuid}}).status, std::string ("OK"));
+  QCOMPARE (accessor->operate ("rename", {{"name", "Renamed again"}}).status, std::string ("OK"));
+  athena_namespace_definition other;
+  other.name= "Other"; other.kind= "semi-concrete"; other.templ= "Note %w"; other.sorter_trivial= true;
+  QVERIFY (athena_namespace_create (context, other, error));
+  std::shared_ptr<const athena_namespace_definition> stored_other;
+  QVERIFY (athena_namespace_get (context, other.name, stored_other, error) == namespace_query_status::ok);
+  const auto other_uuid= std::string (stored_other->uuid.data (), N(stored_other->uuid));
+  auto product= accessor->operate ("subproduct", {{"other_uuid", other_uuid}, {"name", "Product"}, {"template", "Note %w"}});
+  QVERIFY2 (product.status == "OK", product.data.dump ().c_str ());
+  QVERIFY (std::filesystem::exists (root / product.data.at ("sorter_path").get<std::string> ()));
+  result= run (R"(@/???($type = "namespace" | $max_depth = 3))");
+  QVERIFY2 (result.state == resolution_result::status::complete, result.error.c_str ());
+  QVERIFY (result.leaves.size () >= 2);
+  result= run (R"(@/???($type = "namespace" | $max_matches = 1))");
+  QVERIFY2 (result.state == resolution_result::status::complete, result.error.c_str ());
+  QCOMPARE (result.leaves.size (), std::size_t (1));
+  QVERIFY (!result.truncated.empty ());
+  QCOMPARE (accessor->operate ("delete", value::object ()).status, std::string ("OK"));
+  child.name= "Renamed again";
+  QVERIFY (athena_namespace_create (context, child, error));
+  QCOMPARE (accessor->operate ("get", value::object ()).status, std::string ("NOT_FOUND"));
+  result= run ("@/vaults/@/namespaces/does-not-exist");
+  QVERIFY (result.tree.empty ());
+  vault_close ();
+  QCOMPARE (accessor->operate ("get", value::object ()).status, std::string ("STALE"));
 }
 
 QTEST_MAIN (NamespaceDatabaseTest)

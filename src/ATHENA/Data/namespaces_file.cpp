@@ -14,6 +14,11 @@
 #include "file.hpp"
 #include "new_style.hpp"
 #include "vault.hpp"
+#include <QFile>
+#include <QSaveFile>
+#include <QTemporaryFile>
+#include <cerrno>
+#include <unistd.h>
 
 using namespace athena_namespaces;
 
@@ -41,8 +46,7 @@ namespace_resolve_path (string p, string base_root) {
 
   std::string base= tm_to_std (base_root);
   if (!base.empty ()) {
-    std::filesystem::path candidate= std::filesystem::path (base) / path;
-    if (std::filesystem::exists (candidate)) return candidate;
+    return std::filesystem::path (base) / path;
   }
 
   if (vault_active ()) {
@@ -91,11 +95,17 @@ namespace_install_style (string style_path, string base_root,
   std::filesystem::path target= styles_dir / source.filename ();
   if (!std::filesystem::exists (target) ||
       std::filesystem::absolute (source) != std::filesystem::absolute (target)) {
-    std::filesystem::copy_file (
-      source, target, std::filesystem::copy_options::overwrite_existing, ec);
-    if (ec) {
+    QFile input (QString::fromStdString (source.string ()));
+    QSaveFile output (QString::fromStdString (target.string ()));
+    if (!input.open (QIODevice::ReadOnly) || !output.open (QIODevice::WriteOnly)) {
+      error= "Could not open namespace style for installation.";
+      return false;
+    }
+    const auto contents= input.readAll ();
+    if (input.error () != QFileDevice::NoError ||
+        output.write (contents) != contents.size () || !output.commit ()) {
       error= "Could not install namespace style: " *
-             std_to_tm (ec.message ());
+             std_to_tm (output.errorString ().toStdString ());
       return false;
     }
   }
@@ -137,6 +147,33 @@ namespace_load_initial_document (const athena_namespace_definition& ns,
     return false;
   }
   doc= texmacs_document_to_tree (text);
+  if (is_func (doc, _ERROR)) {
+    error= "Namespace initial content is not a valid document.";
+    return false;
+  }
+  return true;
+}
+
+bool
+namespace_save_new_document (url target, tree doc, string& error) {
+  const auto path= std::filesystem::path (tm_to_std (concretize (target)));
+  QTemporaryFile temporary (QString::fromStdString ((path.parent_path () / ".athena-new-XXXXXX").string ()));
+  if (!temporary.open ()) {
+    error= "Cannot create temporary document: " * std_to_tm (temporary.errorString ().toStdString ());
+    return false;
+  }
+  const string contents= tree_to_texmacs (doc);
+  if (temporary.write (contents.data (), N(contents)) != N(contents) || !temporary.flush ()) {
+    error= "Could not write document.";
+    return false;
+  }
+  temporary.close ();
+  // Publish a complete document without replacing an existing target. Two
+  // concurrent create operations cannot silently overwrite one another.
+  if (::link (temporary.fileName ().toLocal8Bit ().constData (), path.c_str ()) != 0) {
+    error= "Cannot publish document: " * std_to_tm (std::strerror (errno));
+    return false;
+  }
   return true;
 }
 
@@ -259,11 +296,7 @@ athena_namespace_create_file (const athena_namespace_definition& ns, url target,
   doc= athena_namespace_apply_style_to_tree (doc, ns, base_root, error);
   if (error != "") return false;
 
-  if (save_string (target, tree_to_texmacs (doc))) {
-    error= "Could not write target file: " * as_string (target);
-    return false;
-  }
-  return true;
+  return namespace_save_new_document (target, doc, error);
 }
 
 bool
@@ -272,9 +305,5 @@ athena_namespace_create_plain_file (url target, string& error) {
     error= "Target file already exists: " * as_string (target);
     return false;
   }
-  if (save_string (target, tree_to_texmacs (namespace_empty_document ()))) {
-    error= "Could not write target file: " * as_string (target);
-    return false;
-  }
-  return true;
+  return namespace_save_new_document (target, namespace_empty_document (), error);
 }

@@ -79,6 +79,9 @@ bool athena_namespace_save (const athena_namespace_definition& ns,
 bool athena_namespace_save (const vault_context_handle& context,
                             const athena_namespace_definition& ns,
                             string& error);
+bool athena_namespace_create (const vault_context_handle& context,
+                              const athena_namespace_definition& ns,
+                              string& error);
 bool athena_namespace_remove (string name, string& error);
 namespace_query_status athena_namespace_remove_by_uuid (
   const vault_context_handle& context, string uuid, string& error);
@@ -106,12 +109,29 @@ bool athena_namespace_generate_product_sorter (
   const athena_namespace_definition& first,
   const athena_namespace_definition& second,
   string product_template, string& sorter_path, string& error);
+bool athena_namespace_generate_product_sorter (
+  const vault_context_handle& context,
+  const athena_namespace_definition& first,
+  const athena_namespace_definition& second,
+  string product_template, string& sorter_path, string& error);
 bool athena_namespace_generate_restricted_sorter (
   const athena_namespace_definition& parent,
   string product_template, string& sorter_path, string& error);
+bool athena_namespace_generate_restricted_sorter (
+  const vault_context_handle& context,
+  const athena_namespace_definition& parent,
+  string product_template, string& sorter_path, string& error);
+namespace_query_status athena_namespace_rename_by_uuid (
+  const vault_context_handle& context, string uuid, string name, string& error);
+namespace_query_status athena_namespace_relation_write_by_uuid (
+  const vault_context_handle& context, string parent_uuid, string child_uuid,
+  string decision, string source, bool remove, string& error);
 
 namespace_records<athena_namespace_match>
 athena_namespace_members (string name, string& error);
+namespace_records<athena_namespace_match>
+athena_namespace_members (const vault_context_handle& context, string uuid,
+                          string& error);
 bool athena_namespace_match_stem (const athena_namespace_definition& ns,
                                   string stem, athena_namespace_match& match,
                                   string& error);

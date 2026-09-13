@@ -13,6 +13,7 @@ endif (APPLE)
 list (REMOVE_ITEM ATHENA_All_SRCS
   "${ATHENA_SOURCE_DIR}/src/System/Misc/tsan_mimalloc_shim.cpp")
 include(AthenaGlue)
+add_subdirectory(ATHENA/Interop)
 add_library(athena_body STATIC ${ATHENA_All_SRCS})
 target_sources (athena_body PRIVATE ./ATHENA/Watchdog/watchdog_client.cpp)
 add_dependencies(athena_body athena_build_info athena_guile_runtime athena_glue)
@@ -25,6 +26,7 @@ target_compile_definitions(athena_body PRIVATE
 )
 target_link_libraries (athena_body
   PUBLIC
+  athena_audmap
   PkgConfig::SPDLOG
   ${ATHENA_LLAMA_LIBRARIES}
   PRIVATE
@@ -174,10 +176,16 @@ if (NOT WIN32)
             $<TARGET_FILE:${ATHENA_binary_name}>
             "${ATHENA_LOCAL_RUNTIME_DIR}/bin/ATHENA.bin"
     ${ATHENA_LOCAL_WATCHDOG_COPY}
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:athena-audmap>
+            "${ATHENA_LOCAL_RUNTIME_DIR}/bin/athena-audmap"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:athena-audmap-repl>
+            "${ATHENA_LOCAL_RUNTIME_DIR}/bin/athena-audmap-repl"
     COMMENT "Deploying the complete ATHENA runtime tree"
     VERBATIM)
   add_dependencies (athena_local_runtime
-                    athena_scheme_bytecode athena_guile_runtime)
+                    athena_scheme_bytecode athena_guile_runtime athena-audmap athena-audmap-repl)
   if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_dependencies (athena_local_runtime ATHENA-Watchdog)
   endif ()

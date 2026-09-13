@@ -31,6 +31,7 @@
 #include <QDir>
 #include <QMdiSubWindow>
 #include <QProcess>
+#include "QTMAudmap.hpp"
 #include <QThread>
 #include "QTMApplication.hpp"
 #include "QTMMainTabWindow.hpp"
@@ -494,6 +495,9 @@ tm_server_rep::restart () {
 
 void
 tm_server_rep::quit () {
+#ifdef QTTEXMACS
+  qt_audmap_stop ();
+#endif
   close_all_pipes ();
   call ("quit-TeXmacs-scheme");
   clear_pending_commands ();

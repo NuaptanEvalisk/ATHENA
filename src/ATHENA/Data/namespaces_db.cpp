@@ -614,9 +614,10 @@ athena_namespace_save (const athena_namespace_definition& ns, string& error) {
   return athena_namespace_save (vault_capture_context (), ns, error);
 }
 
-bool
-athena_namespace_save (const vault_context_handle& context,
-                       const athena_namespace_definition& ns, string& error) {
+static bool
+save_namespace (const vault_context_handle& context,
+                const athena_namespace_definition& ns, string& error,
+                bool create_only) {
   error= "";
   if (ns.name == "") {
     error= "Namespace name cannot be empty.";
@@ -643,6 +644,10 @@ athena_namespace_save (const vault_context_handle& context,
   bool found= get_namespace_from_db (cx.db, ns.uuid == "" ? ns.name : ns.uuid,
                                      previous, error, ns.uuid != "");
   bool ok= error == "";
+  if (ok && create_only && found) {
+    error= "Namespace already exists.";
+    return false;
+  }
   if (ok && ns.uuid != "" && !found) {
     error= "Namespace no longer exists (stale UUID).";
     ok= false;
@@ -705,6 +710,22 @@ athena_namespace_save (const vault_context_handle& context,
   if (ok && vault_context_is_current (context))
     athena_namespace_ontology_invalidate (false);
   return ok;
+}
+
+bool
+athena_namespace_save (const vault_context_handle& context,
+                       const athena_namespace_definition& ns, string& error) {
+  return save_namespace (context, ns, error, false);
+}
+
+bool
+athena_namespace_create (const vault_context_handle& context,
+                         const athena_namespace_definition& ns, string& error) {
+  if (ns.uuid != "") {
+    error= "New namespaces must not supply a UUID.";
+    return false;
+  }
+  return save_namespace (context, ns, error, true);
 }
 
 static namespace_query_status
@@ -780,6 +801,54 @@ athena_namespace_relation_set (string parent, string child, string decision,
   if (ok && vault_context_is_current (cx.context))
     athena_namespace_ontology_invalidate (false);
   return ok;
+}
+
+namespace_query_status
+athena_namespace_rename_by_uuid (const vault_context_handle& context,
+                                 string uuid, string name, string& error) {
+  if (name == "" || tm_to_std (name).find ('!') != std::string::npos) {
+    error= "Invalid namespace name.";
+    return namespace_query_status::error;
+  }
+  ns_sqlite_connection cx (context);
+  auto status= open_query (cx, error);
+  if (status != namespace_query_status::ok) return status;
+  if (!exec_sql (cx.db, "BEGIN IMMEDIATE;", error)) return namespace_query_status::error;
+  athena_namespace_definition ns;
+  if (!get_namespace_from_db (cx.db, uuid, ns, error, true))
+    return error == "" ? namespace_query_status::not_found : namespace_query_status::error;
+  const bool ok= exec_prepared (cx.db, "UPDATE namespaces SET name=? WHERE uuid=?;", {name, uuid}, error) &&
+    exec_prepared (cx.db, "UPDATE namespace_parents SET child=? WHERE child=?;", {name, ns.name}, error) &&
+    exec_prepared (cx.db, "UPDATE namespace_parents SET parent=? WHERE parent=?;", {name, ns.name}, error) &&
+    exec_prepared (cx.db, "UPDATE relation_decisions SET child=? WHERE child=?;", {name, ns.name}, error) &&
+    exec_prepared (cx.db, "UPDATE relation_decisions SET parent=? WHERE parent=?;", {name, ns.name}, error) &&
+    exec_sql (cx.db, "COMMIT;", error);
+  if (ok && vault_context_is_current (context)) athena_namespace_ontology_invalidate (false);
+  return ok ? namespace_query_status::ok : namespace_query_status::error;
+}
+
+namespace_query_status
+athena_namespace_relation_write_by_uuid (const vault_context_handle& context,
+  string parent_uuid, string child_uuid, string decision, string source,
+  bool remove, string& error) {
+  if (!remove && decision != "allow" && decision != "deny") {
+    error= "Relation decision must be allow or deny.";
+    return namespace_query_status::error;
+  }
+  ns_sqlite_connection cx (context);
+  auto status= open_query (cx, error);
+  if (status != namespace_query_status::ok) return status;
+  if (!exec_sql (cx.db, "BEGIN IMMEDIATE;", error)) return namespace_query_status::error;
+  athena_namespace_definition parent, child;
+  if (!get_namespace_from_db (cx.db, parent_uuid, parent, error, true) ||
+      !get_namespace_from_db (cx.db, child_uuid, child, error, true))
+    return error == "" ? namespace_query_status::not_found : namespace_query_status::error;
+  bool ok= remove ? exec_prepared (cx.db,
+    "DELETE FROM relation_decisions WHERE parent=? AND child=?;", {parent.name, child.name}, error) :
+    upsert_relation_decision (cx.db, parent.name, child.name, decision, source, error);
+  ok= ok && exec_sql (cx.db, "COMMIT;", error);
+  if (ok && vault_context_is_current (context)) athena_namespace_ontology_invalidate (false);
+  return ok ? namespace_query_status::ok : namespace_query_status::error;
 }
 
 bool

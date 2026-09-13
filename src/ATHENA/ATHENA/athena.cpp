@@ -69,6 +69,7 @@
 #include "Qt/qt_gui.hpp"
 #include "Qt/qt_font.hpp"
 #include "QTMGoogleTasksPane.hpp"
+#include "QTMAudmap.hpp"
 #include "Qt/qt_utilities.hpp"
 #include <QApplication>
 #include <QDir>
@@ -1426,7 +1427,14 @@ TeXmacs_main (int argc, char** argv) {
     google_tasks_schedule_background_refresh ();
     if (!headless_mode) athena_watchdog_start_qt_heartbeat ();
 #endif
+    if (!headless_mode) {
+      try { qt_audmap_start (); }
+      catch (const std::exception& e) {
+        std_warning << "Could not start ATHENA Interop: " << e.what () << LF;
+      }
+    }
     gui_start_loop ();
+    qt_audmap_stop ();
 
     if (DEBUG_STD) debug_boot << "Stopping server...\n";
   } // ending scope for server sv
