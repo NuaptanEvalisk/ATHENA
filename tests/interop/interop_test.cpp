@@ -146,6 +146,34 @@ public:
 };
 
 static void parser_test () {
+  for (const auto& query: {
+      R"(?($name = "strong *stellensatz"))",
+      R"(??($name = "strong *stellensatz"))",
+      R"(???($name = "strong *stellensatz" | $max_depth = 3))"}) {
+    const auto p = parse_selection (query).front ().filter;
+    require (p.matches ({{"name", "strong nullstellensatz"}}), "Star predicate did not match");
+    require (!p.matches ({{"name", "weak nullstellensatz"}}), "Star predicate lost its prefix");
+  }
+  const auto matches = [] (const std::string& op, const std::string& pattern,
+                           const value& actual) {
+    return parse_selection ("?($name " + op + " " + value (pattern).dump () + ")")
+      .front ().filter.matches ({{"name", actual}});
+  };
+  require (matches ("=", "*", ""), "Star must match empty text");
+  require (matches ("=", "a**b", "a\nb"), "Star must match newlines");
+  require (matches ("=", "a*b", std::string ("a\0b", 3)), "Star must match embedded NUL");
+  require (!matches ("=", "a", std::string ("a\0b", 3)), "NUL truncated a predicate");
+  require (matches ("=", "*\xce\xb1*", "x\xce\xb1y"), "UTF-8 literal was corrupted");
+  require (matches ("=", "x\\*y", "x*y"), "Escaped star is not literal");
+  require (!matches ("=", "a?b", "acb"), "Question mark became a wildcard");
+  require (matches ("=", "[a]*", "[a]bc"), "Brackets are not literal");
+  require (!matches ("=", "[a]*", "abc"), "Bracket expression became active");
+  require (matches ("contains", "strong *satz", "the strong nullstellensatz theorem"), "Contains star failed");
+  require (matches ("starts_with", "strong *", "strong theorem"), "Starts-with star failed");
+  require (matches ("ends_with", "*satz", "nullstellensatz"), "Ends-with star failed");
+  require (!matches ("!=", "strong*", "strong theorem"), "Wildcard inequality failed");
+  require (matches ("<", "b*", "a*"), "Lexical comparison changed");
+  require (!matches ("=", "*", 12), "String wildcard coerced a number");
   auto s = parse_selection ("@/vaults/@/namespaces/\"a/b\"");
   require (s.size () == 5 && s.back ().name == "a/b", "Quoted names are not paths");
   s = parse_selection (R"(@/vaults/@/namespaces/???($type = "namespace", NOT ($name = "other" OR exists($missing)) | $max_depth = "3", $max_matches = 2))");

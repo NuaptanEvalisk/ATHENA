@@ -114,6 +114,17 @@ is accepted. `$name` and `$type` are universal; the dollar prefix denotes a
 property reference rather than part of the returned map key. Missing properties
 do not satisfy comparisons; existence distinguishes missing from explicit null.
 
+String predicates in `?`, `??` and `???` support `*` for zero or more characters,
+including newlines. `=` matches the whole value; `contains`, `starts_with` and
+`ends_with` keep their respective anchoring, and `!=` negates the match. For
+example, `?($name = "*strong*nullstellensatz*")` matches a name containing both
+words in order. Matching is case-sensitive. `?` and brackets are literal within
+strings; `\\*` in a JSON string denotes a literal star and `\\\\` a backslash.
+Numeric comparisons and lexical `<`, `<=`, `>` and `>=` do not use patterns.
+Names outside predicates remain exact names. The implementation uses libc
+`fnmatch` on ASCII byte tokens, preserving UTF-8 and embedded NUL without enabling
+additional shell-pattern syntax or locale-dependent character classes.
+
 Namespace `@` reads `Vaultfile.json.root_namespace`; absent or missing targets
 produce MISS, not a hardcoded Universe fallback. Namespace descent follows both
 declared and derived parent edges, independently of explorer folding. A detected

@@ -13,6 +13,7 @@
 #include <tao/pegtl/contrib/json.hpp>
 #include <tao/pegtl/contrib/parse_tree.hpp>
 #include <charconv>
+#include <fnmatch.h>
 #include <stdexcept>
 
 namespace athena::interop {
@@ -65,6 +66,39 @@ template<typename R> using nodes = p::parse_tree::selector<R,
 
 namespace {
 using node = tao::pegtl::parse_tree::node;
+
+std::string glob_bytes (const std::string& text, bool pattern) {
+  static constexpr char hex[] = "0123456789abcdef";
+  std::string encoded;
+  encoded.reserve (text.size () * 3);
+  for (std::size_t i = 0; i < text.size (); ++i) {
+    unsigned char c = text[i];
+    if (pattern && c == '*') { encoded += '*'; continue; }
+    if (pattern && c == '\\' && i + 1 < text.size () &&
+        (text[i + 1] == '*' || text[i + 1] == '\\')) c = text[++i];
+    encoded += 'x';
+    encoded += hex[c >> 4];
+    encoded += hex[c & 15];
+  }
+  return encoded;
+}
+
+bool string_matches (const std::string& actual, const std::string& pattern,
+                     const std::string& operation) {
+  if (pattern.find_first_of ("*\\") == std::string::npos) {
+    if (operation == "contains") return actual.find (pattern) != std::string::npos;
+    if (operation == "starts_with") return actual.compare (0, pattern.size (), pattern) == 0;
+    if (operation == "ends_with") return actual.size () >= pattern.size () &&
+      actual.compare (actual.size () - pattern.size (), pattern.size (), pattern) == 0;
+    return actual == pattern;
+  }
+  // ASCII byte tokens preserve UTF-8 and embedded NULs while letting fnmatch
+  // implement only our '*' operator, without its '?', bracket or locale rules.
+  std::string glob = glob_bytes (pattern, true);
+  if (operation == "contains" || operation == "ends_with") glob.insert (0, "*");
+  if (operation == "contains" || operation == "starts_with") glob += '*';
+  return ::fnmatch (glob.c_str (), glob_bytes (actual, false).c_str (), 0) == 0;
+}
 
 predicate read_predicate (const node& n) {
   using namespace grammar;
@@ -203,19 +237,19 @@ bool predicate::matches (const value& properties) const {
   const auto& actual = *it;
   if (actual.type () != literal.type () &&
       !(actual.is_number () && literal.is_number ())) return false;
+  if (actual.is_string () && literal.is_string () &&
+      (operation == "=" || operation == "!=" || operation == "contains" ||
+       operation == "starts_with" || operation == "ends_with")) {
+    const bool matched = string_matches (actual.get_ref<const std::string&> (),
+      literal.get_ref<const std::string&> (), operation);
+    return operation == "!=" ? !matched : matched;
+  }
   if (operation == "=") return actual == literal;
   if (operation == "!=") return actual != literal;
   if (operation == "<") return actual < literal;
   if (operation == "<=") return actual <= literal;
   if (operation == ">") return actual > literal;
   if (operation == ">=") return actual >= literal;
-  if (!actual.is_string ()) return false;
-  const auto& a = actual.get_ref<const std::string&> ();
-  const auto& b = literal.get_ref<const std::string&> ();
-  if (operation == "contains") return a.find (b) != std::string::npos;
-  if (operation == "starts_with") return a.compare (0, b.size (), b) == 0;
-  if (operation == "ends_with")
-    return a.size () >= b.size () && a.compare (a.size () - b.size (), b.size (), b) == 0;
   return false;
 }
 } // namespace athena::interop
