@@ -9,6 +9,7 @@
 *******************************************************************************/
 
 #include "namespace_ontology.hpp"
+#include "namespaces_schema.hpp"
 
 #include "namespaces_private.hpp"
 
@@ -50,6 +51,7 @@ struct CachedMatch {
 };
 
 struct NativeNamespace {
+  std::string uuid;
   std::string name;
   std::string kind;
   std::string templ;
@@ -872,6 +874,7 @@ materialize_match (const fs::path& root, const CachedMatch& cached) {
 static athena_namespace_definition
 materialize_namespace (const NativeNamespace& native) {
   athena_namespace_definition ns;
+  ns.uuid= std_to_tm_string (native.uuid);
   ns.name= std_to_tm_string (native.name);
   ns.kind= std_to_tm_string (native.kind);
   ns.templ= std_to_tm_string (native.templ);
@@ -962,7 +965,7 @@ load_native_namespace_rows (sqlite3* db,
   if (!prepare (
         db,
         "SELECT name, kind, template, sorter_trivial, sorter_path, style_path, "
-        "initial_content_path, homepage_path FROM namespaces ORDER BY name;",
+        "initial_content_path, homepage_path, uuid FROM namespaces ORDER BY name;",
         &statement, error))
     return false;
   while (true) {
@@ -982,6 +985,7 @@ load_native_namespace_rows (sqlite3* db,
     ns.style_path= column_text (statement, 5);
     ns.initial_content_path= column_text (statement, 6);
     ns.homepage_path= column_text (statement, 7);
+    ns.uuid= column_text (statement, 8);
     namespaces.push_back (std::move (ns));
   }
   sqlite3_finalize (statement);
@@ -1186,23 +1190,21 @@ read_namespace_database (const std::string& path,
                          std::string& error) {
   namespaces.clear ();
   relations.clear ();
-  if (!fs::exists (path)) return true;
+  std::error_code ec;
+  bool exists= fs::exists (path, ec);
+  if (ec) { error= ec.message (); return false; }
+  if (!exists) return true;
 
   sqlite3* db= nullptr;
-  int status= sqlite3_open_v2 (path.c_str (), &db, SQLITE_OPEN_READWRITE,
-                               nullptr);
-  if (status != SQLITE_OK) {
-    error= db == nullptr ? "Could not open namespace database" :
-      sqlite3_errmsg (db);
-    if (db != nullptr) sqlite3_close (db);
-    return false;
-  }
-  sqlite3_busy_timeout (db, 5000);
+  if (!athena_namespace_database_open (path, false, db, error)) return false;
   bool derived_changed= false;
   bool ok= exec_sql (db, "PRAGMA foreign_keys=ON;", error) &&
            refresh_native_derived_parents (db, derived_changed, error) &&
-           load_native_namespace_snapshot (db, namespaces, relations, error);
+           exec_sql (db, "BEGIN;", error) &&
+           load_native_namespace_snapshot (db, namespaces, relations, error) &&
+           exec_sql (db, "COMMIT;", error);
   sqlite3_close (db);
+  if (!ok) { namespaces.clear (); relations.clear (); }
   return ok;
 }
 

@@ -15,14 +15,17 @@
 #include "namespace_records.hpp"
 #include "tree.hpp"
 #include "url.hpp"
+#include "vault.hpp"
 
 #include <vector>
 
 struct athena_namespace_definition {
+  // Empty only for name-based create/upsert requests; persisted rows have UUIDs.
+  string  uuid;
   string  name;
   string  kind;
   string  templ;
-  bool    sorter_trivial;
+  bool    sorter_trivial= false;
   string  sorter_path;
   string  style_path;
   string  initial_content_path;
@@ -53,11 +56,32 @@ struct athena_namespace_template_field {
 };
 
 namespace_records<athena_namespace_definition> athena_namespaces_list ();
+enum class namespace_query_status { ok, not_found, stale, error };
+
+// Admission rejects a closed/replaced vault. Admitted operations keep the
+// captured database path; they never switch to a newly active vault.
+namespace_query_status athena_namespace_get (
+  const vault_context_handle& context, string name,
+  std::shared_ptr<const athena_namespace_definition>& out, string& error);
+namespace_query_status athena_namespace_get_by_uuid (
+  const vault_context_handle& context, string uuid,
+  std::shared_ptr<const athena_namespace_definition>& out, string& error);
+namespace_query_status athena_namespaces_list (
+  const vault_context_handle& context,
+  namespace_records<athena_namespace_definition>& out, string& error);
+namespace_query_status athena_namespace_relations_list (
+  const vault_context_handle& context,
+  namespace_records<athena_namespace_relation>& out, string& error);
 bool athena_namespace_get (
   string name, std::shared_ptr<const athena_namespace_definition>& out);
 bool athena_namespace_save (const athena_namespace_definition& ns,
                             string& error);
+bool athena_namespace_save (const vault_context_handle& context,
+                            const athena_namespace_definition& ns,
+                            string& error);
 bool athena_namespace_remove (string name, string& error);
+namespace_query_status athena_namespace_remove_by_uuid (
+  const vault_context_handle& context, string uuid, string& error);
 bool athena_namespace_refresh_derived (string& error);
 
 namespace_records<athena_namespace_relation> athena_namespace_relations_list ();

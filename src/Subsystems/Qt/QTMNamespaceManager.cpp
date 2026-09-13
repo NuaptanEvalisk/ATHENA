@@ -1354,6 +1354,8 @@ QTMNamespaceManager::refreshNamespaces () {
   else if (namespaceList->count () > 0) namespaceList->setCurrentRow (0);
   else {
     loadedName.clear ();
+    loadedUuid.clear ();
+    loadedContext.reset ();
     nameEdit->clear ();
     kindCombo->setCurrentText ("concrete");
     templateEdit->clear ();
@@ -1432,13 +1434,21 @@ QTMNamespaceManager::refreshRelations () {
 void
 QTMNamespaceManager::loadNamespace (QListWidgetItem* item) {
   if (item == nullptr) return;
+  auto context= vault_capture_context ();
   std::shared_ptr<const athena_namespace_definition> definition;
-  if (!athena_namespace_get (from_qstring (item->text ()), definition)) return;
+  string error;
+  if (athena_namespace_get (context, from_qstring (item->text ()),
+                            definition, error) != namespace_query_status::ok) {
+    if (error != "") statusLabel->setText (to_qstring (error));
+    return;
+  }
   const auto& ns= *definition;
 
   bool previousLoading= loadingUi;
   loadingUi= true;
   loadedName= item->text ();
+  loadedUuid= to_qstring (ns.uuid);
+  loadedContext= std::move (context);
   nameEdit->setText (to_qstring (ns.name));
   kindCombo->setCurrentText (to_qstring (ns.kind));
   templateEdit->setText (to_qstring (ns.templ));
@@ -1477,6 +1487,7 @@ QTMNamespaceManager::newNamespace () {
     else if (prompt.clickedButton () != discard) return;
   }
 
+  auto context= vault_capture_context ();
   QWizard wizard (this);
   wizard.setWindowTitle ("New Namespace");
   wizard.setWizardStyle (QWizard::ModernStyle);
@@ -1501,10 +1512,11 @@ QTMNamespaceManager::newNamespace () {
             .arg (to_qstring (ns.name)),
           QMessageBox::Yes | QMessageBox::No) != QMessageBox::Yes)
       return;
+    ns.uuid= existing->uuid;
   }
 
   string error;
-  if (!athena_namespace_save (ns, error)) {
+  if (!athena_namespace_save (context, ns, error)) {
     QMessageBox::warning (this, "Namespace Manager", to_qstring (error));
     return;
   }
@@ -1526,7 +1538,9 @@ QTMNamespaceManager::newNamespace () {
 bool
 QTMNamespaceManager::saveNamespace () {
   bool creating= loadedName.isEmpty ();
+  auto context= creating ? vault_capture_context () : loadedContext;
   athena_namespace_definition ns;
+  ns.uuid= from_qstring (loadedUuid);
   ns.name= from_qstring (nameEdit->text ().trimmed ());
   ns.kind= from_qstring (kindCombo->currentText ());
   ns.templ= from_qstring (templateEdit->text ().trimmed ());
@@ -1591,6 +1605,7 @@ QTMNamespaceManager::saveNamespace () {
             .arg (targetName),
           QMessageBox::Yes | QMessageBox::No) != QMessageBox::Yes)
       return false;
+    ns.uuid= existing->uuid;
   }
   else if (!creating && loadedName != targetName) {
     if (targetExists) {
@@ -1610,14 +1625,10 @@ QTMNamespaceManager::saveNamespace () {
   }
 
   string error;
-  if (!athena_namespace_save (ns, error)) {
+  if (!athena_namespace_save (context, ns, error)) {
     editorTabs->setCurrentWidget (definitionTab);
     QMessageBox::warning (this, "Namespace Manager", to_qstring (error));
     return false;
-  }
-  if (!loadedName.isEmpty () && loadedName != to_qstring (ns.name)) {
-    string ignored;
-    athena_namespace_remove (from_qstring (loadedName), ignored);
   }
   loadedName= to_qstring (ns.name);
   dirty= false;
@@ -1626,6 +1637,7 @@ QTMNamespaceManager::saveNamespace () {
   refreshNamespaces ();
   refreshRelations ();
   loadingUi= previousLoading;
+  if (namespaceList->currentItem ()) loadNamespace (namespaceList->currentItem ());
   refreshMembers ();
   updateModeUi ();
   statusLabel->setText (creating ? "Namespace created." : "Namespace updated.");
@@ -1643,11 +1655,16 @@ QTMNamespaceManager::deleteNamespace () {
     return;
 
   string error;
-  if (!athena_namespace_remove (from_qstring (name), error)) {
+  auto status= athena_namespace_remove_by_uuid (
+    loadedContext, from_qstring (loadedUuid), error);
+  if (status != namespace_query_status::ok &&
+      status != namespace_query_status::not_found) {
     QMessageBox::warning (this, "Namespace Manager", to_qstring (error));
     return;
   }
   loadedName.clear ();
+  loadedUuid.clear ();
+  loadedContext.reset ();
   dirty= false;
   refreshAll ();
   statusLabel->setText ("Namespace deleted.");

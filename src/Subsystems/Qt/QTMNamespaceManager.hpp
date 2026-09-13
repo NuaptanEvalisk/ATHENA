@@ -12,6 +12,7 @@
 #define QTMNAMESPACEMANAGER_HPP
 
 #include "string.hpp"
+#include "vault.hpp"
 
 #include <QSize>
 #include <QString>
@@ -102,6 +103,8 @@ private:
   QWidget*     matchedFilesTab;
   QWidget*     relationDecisionsTab;
   QString      loadedName;
+  QString      loadedUuid;
+  vault_context_handle loadedContext;
   bool         loadingUi;
   bool         dirty;
 };

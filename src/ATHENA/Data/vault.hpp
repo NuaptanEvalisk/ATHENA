@@ -16,8 +16,25 @@
 #include "array.hpp"
 
 #include <cstddef>
+#include <filesystem>
+#include <memory>
+#include <string>
 
 class MaterialsStore;
+
+// Native, immutable operation context. Incarnations differ even when the same
+// vault is closed and reopened. No GUI objects or thread-affine strings escape.
+struct vault_context {
+  std::filesystem::path root;
+  std::filesystem::path map_db;
+  std::filesystem::path namespace_db;
+  std::string name;
+  std::string incarnation;
+};
+using vault_context_handle= std::shared_ptr<const vault_context>;
+
+vault_context_handle vault_capture_context ();
+bool vault_context_is_current (const vault_context_handle& context);
 
 /* Vault metadata */
 struct vault_info {

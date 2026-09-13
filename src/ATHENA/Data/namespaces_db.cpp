@@ -11,6 +11,7 @@
 #include "namespaces_private.hpp"
 
 #include "namespace_ontology.hpp"
+#include "namespaces_schema.hpp"
 #include "vault.hpp"
 
 #include <sqlite3.h>
@@ -23,23 +24,6 @@
 #include <unordered_map>
 
 namespace athena_namespaces {
-
-static url
-ns_db () {
-  return vault_get_namespace_db ();
-}
-
-static std::string
-ns_db_path () {
-  return tm_to_std (concretize (ns_db ()));
-}
-
-static bool
-ns_db_exists () {
-  if (!vault_active ()) return false;
-  std::string path= ns_db_path ();
-  return !path.empty () && std::filesystem::exists (path);
-}
 
 static void
 set_sql_error (sqlite3* db, string context, string& error) {
@@ -78,7 +62,9 @@ bind_tm_string (sqlite3_stmt* st, int index, string value, string& error) {
 static string
 column_tm_string (sqlite3_stmt* st, int col) {
   const unsigned char* text= sqlite3_column_text (st, col);
-  return text == nullptr ? "" : std_to_tm ((const char*) text);
+  string value= text == nullptr ? "" : std_to_tm ((const char*) text);
+  value.ensure_transferable ();
+  return value;
 }
 
 static bool
@@ -105,127 +91,37 @@ exec_prepared (sqlite3* db, const char* sql, const std::vector<string>& args,
 class ns_sqlite_connection {
 public:
   sqlite3* db= nullptr;
+  const vault_context_handle context;
+
+  explicit ns_sqlite_connection (
+    vault_context_handle captured= vault_capture_context ()):
+    context (std::move (captured)) {}
 
   ~ns_sqlite_connection () {
     if (db != nullptr) sqlite3_close (db);
   }
 
   bool open (bool create, string& error) {
-    if (!vault_active ()) {
-      error= "No active vault.";
+    error= "";
+    if (!vault_context_is_current (context)) {
+      error= context ? "Vault context is stale." : "No active vault.";
       return false;
     }
-
-    std::string path= ns_db_path ();
-    if (path.empty ()) {
-      error= "Namespace database path is empty.";
+    std::string native_error;
+    if (!athena_namespace_database_open (
+          context->namespace_db, create, db, native_error)) {
+      error= std_to_tm (native_error);
       return false;
     }
-    if (!create && !std::filesystem::exists (path)) return false;
-
-    if (create) {
-      std::filesystem::path fp (path);
-      if (fp.has_parent_path ()) {
-        std::error_code ec;
-        std::filesystem::create_directories (fp.parent_path (), ec);
-        if (ec) {
-          error= "Cannot create namespace database directory: " *
-                 std_to_tm (ec.message ());
-          return false;
-        }
-      }
-    }
-
-    int flags= SQLITE_OPEN_READWRITE;
-    if (create) flags |= SQLITE_OPEN_CREATE;
-    int status= sqlite3_open_v2 (path.c_str (), &db, flags, nullptr);
-    if (status != SQLITE_OK) {
-      error= "Cannot open namespace database: " *
-             std_to_tm (db == nullptr ? path : sqlite3_errmsg (db));
-      if (db != nullptr) {
-        sqlite3_close (db);
-        db= nullptr;
-      }
+    // Opening may wait for a database lock. Validate again after acquiring the
+    // connection; admitted work now pins that database, not just its pathname.
+    if (!vault_context_is_current (context)) {
+      error= "Vault context is stale.";
+      sqlite3_close (db);
+      db= nullptr;
       return false;
     }
-    sqlite3_busy_timeout (db, 5000);
-    if (!exec_sql (db, "PRAGMA foreign_keys=ON;", error)) return false;
-    if (!ensure_schema (error)) return false;
     return true;
-  }
-
-private:
-  bool ensure_schema (string& error) {
-    static const char* schema=
-      "CREATE TABLE IF NOT EXISTS meta ("
-      "  key TEXT PRIMARY KEY,"
-      "  value TEXT NOT NULL"
-      ");"
-      "CREATE TABLE IF NOT EXISTS namespaces ("
-      "  name TEXT PRIMARY KEY,"
-      "  kind TEXT NOT NULL CHECK(kind IN"
-      "    ('abstract','semi-concrete','concrete')),"
-      "  template TEXT NOT NULL DEFAULT '',"
-      "  sorter_trivial INTEGER NOT NULL DEFAULT 0,"
-      "  sorter_path TEXT NOT NULL DEFAULT '',"
-      "  style_path TEXT NOT NULL DEFAULT '',"
-      "  initial_content_path TEXT NOT NULL DEFAULT '',"
-      "  homepage_path TEXT NOT NULL DEFAULT ''"
-      ");"
-      "CREATE TABLE IF NOT EXISTS namespace_parents ("
-      "  child TEXT NOT NULL,"
-      "  parent TEXT NOT NULL,"
-      "  source TEXT NOT NULL CHECK(source IN ('declared','derived')),"
-      "  ord INTEGER NOT NULL DEFAULT 0,"
-      "  PRIMARY KEY(child, parent, source)"
-      ");"
-      "CREATE INDEX IF NOT EXISTS namespace_parents_child_idx "
-      "  ON namespace_parents(child, source, ord);"
-      "CREATE INDEX IF NOT EXISTS namespace_parents_parent_idx "
-      "  ON namespace_parents(parent);"
-      "CREATE TABLE IF NOT EXISTS relation_decisions ("
-      "  parent TEXT NOT NULL,"
-      "  child TEXT NOT NULL,"
-      "  decision TEXT NOT NULL CHECK(decision IN ('allow','deny')),"
-      "  source TEXT NOT NULL DEFAULT 'user',"
-      "  PRIMARY KEY(parent, child)"
-      ");"
-      "INSERT INTO meta(key, value) VALUES('schema-version', '1') "
-      "  ON CONFLICT(key) DO NOTHING;";
-    if (!exec_sql (db, schema, error)) return false;
-    return ensure_column ("namespaces", "sorter_trivial",
-                          "INTEGER NOT NULL DEFAULT 0", error) &&
-           ensure_column ("namespaces", "initial_content_path",
-                          "TEXT NOT NULL DEFAULT ''", error) &&
-           ensure_column ("namespaces", "homepage_path",
-                          "TEXT NOT NULL DEFAULT ''", error);
-  }
-
-  bool ensure_column (const char* table, const char* column,
-                      const char* definition, string& error) {
-    std::string pragma= std::string ("PRAGMA table_info(") + table + ");";
-    sqlite3_stmt* st= nullptr;
-    if (!prepare_sql (db, pragma.c_str (), &st, error)) return false;
-    bool found= false;
-    while (true) {
-      int status= sqlite3_step (st);
-      if (status == SQLITE_ROW) {
-        const unsigned char* name= sqlite3_column_text (st, 1);
-        if (name != nullptr && std::strcmp ((const char*) name, column) == 0)
-          found= true;
-      }
-      else if (status == SQLITE_DONE) break;
-      else {
-        set_sql_error (db, "SQLite schema query failed", error);
-        sqlite3_finalize (st);
-        return false;
-      }
-    }
-    sqlite3_finalize (st);
-    if (found) return true;
-    std::string sql= std::string ("ALTER TABLE ") + table +
-                     " ADD COLUMN " + column + " " + definition + ";";
-    return exec_sql (db, sql.c_str (), error);
   }
 };
 
@@ -257,15 +153,18 @@ query_parent_list (sqlite3* db, string child, string source,
 }
 
 static bool
-get_namespace_from_db (sqlite3* db, string name,
-                       athena_namespace_definition& out, string& error) {
+get_namespace_from_db (sqlite3* db, string key,
+                       athena_namespace_definition& out, string& error,
+                       bool by_uuid= false) {
   sqlite3_stmt* st= nullptr;
   if (!prepare_sql (db,
+        by_uuid ?
         "SELECT name, kind, template, sorter_trivial, sorter_path, style_path, "
-        "initial_content_path, homepage_path "
-        "FROM namespaces WHERE name=?;",
+        "initial_content_path, homepage_path, uuid FROM namespaces WHERE uuid=?;" :
+        "SELECT name, kind, template, sorter_trivial, sorter_path, style_path, "
+        "initial_content_path, homepage_path, uuid FROM namespaces WHERE name=?;",
         &st, error)) return false;
-  if (!bind_tm_string (st, 1, name, error)) {
+  if (!bind_tm_string (st, 1, key, error)) {
     sqlite3_finalize (st);
     return false;
   }
@@ -287,6 +186,7 @@ get_namespace_from_db (sqlite3* db, string name,
   out.style_path= column_tm_string (st, 5);
   out.initial_content_path= column_tm_string (st, 6);
   out.homepage_path= column_tm_string (st, 7);
+  out.uuid= column_tm_string (st, 8);
   sqlite3_finalize (st);
   out.parents.clear ();
   out.derived_parents.clear ();
@@ -321,7 +221,7 @@ namespace_row_list (sqlite3* db, std::vector<athena_namespace_definition>& out,
   sqlite3_stmt* st= nullptr;
   if (!prepare_sql (db,
         "SELECT name, kind, template, sorter_trivial, sorter_path, style_path, "
-        "initial_content_path, homepage_path "
+        "initial_content_path, homepage_path, uuid "
         "FROM namespaces ORDER BY name;",
         &st, error)) return false;
 
@@ -342,6 +242,7 @@ namespace_row_list (sqlite3* db, std::vector<athena_namespace_definition>& out,
     ns.style_path= column_tm_string (st, 5);
     ns.initial_content_path= column_tm_string (st, 6);
     ns.homepage_path= column_tm_string (st, 7);
+    ns.uuid= column_tm_string (st, 8);
     ns.parents.clear ();
     ns.derived_parents.clear ();
     out.push_back (ns);
@@ -476,14 +377,8 @@ bool
 refresh_derived_parents_if_needed (bool force, bool& changed,
                                    string& error) {
   changed= false;
-  if (!vault_active ()) {
-    error= "No active vault.";
-    return false;
-  }
-  if (!ns_db_exists ()) return true;
-
   ns_sqlite_connection cx;
-  if (!cx.open (true, error)) return false;
+  if (!cx.open (false, error)) return false;
   if (!exec_sql (cx.db, "BEGIN IMMEDIATE;", error)) return false;
 
   std::string fingerprint;
@@ -511,16 +406,10 @@ refresh_derived_parents_if_needed (bool force, bool& changed,
   return ok;
 }
 
-bool
-load_namespace_snapshot_from_db (
+static bool
+read_namespace_snapshot (ns_sqlite_connection& cx,
   std::vector<athena_namespace_definition>& namespaces,
   std::vector<athena_namespace_relation>& relations, string& error) {
-  namespaces.clear ();
-  relations.clear ();
-  if (!ns_db_exists ()) return true;
-
-  ns_sqlite_connection cx;
-  if (!cx.open (false, error)) return false;
   if (!namespace_row_list (cx.db, namespaces, error)) return false;
 
   std::unordered_map<std::string,size_t> indices;
@@ -581,9 +470,109 @@ load_namespace_snapshot_from_db (
 
 
 
+static namespace_query_status
+open_query (ns_sqlite_connection& cx, string& error) {
+  error= "";
+  if (!vault_context_is_current (cx.context)) {
+    error= "Vault context is stale or closed.";
+    return namespace_query_status::stale;
+  }
+  if (!cx.open (false, error))
+    return vault_context_is_current (cx.context) ?
+      namespace_query_status::error : namespace_query_status::stale;
+  return namespace_query_status::ok;
+}
+
+static namespace_query_status
+load_namespace_snapshot (const vault_context_handle& context,
+                         std::vector<athena_namespace_definition>& namespaces,
+                         std::vector<athena_namespace_relation>& relations,
+                         string& error) {
+  namespaces.clear ();
+  relations.clear ();
+  ns_sqlite_connection cx (context);
+  auto status= open_query (cx, error);
+  if (status != namespace_query_status::ok) return status;
+  std::vector<athena_namespace_definition> definitions;
+  std::vector<athena_namespace_relation> decisions;
+  if (!exec_sql (cx.db, "BEGIN;", error) ||
+      !read_namespace_snapshot (cx, definitions, decisions, error) ||
+      !exec_sql (cx.db, "COMMIT;", error))
+    return namespace_query_status::error;
+  namespaces= std::move (definitions);
+  relations= std::move (decisions);
+  return namespace_query_status::ok;
+}
+
+bool
+load_namespace_snapshot_from_db (
+  std::vector<athena_namespace_definition>& namespaces,
+  std::vector<athena_namespace_relation>& relations, string& error) {
+  return load_namespace_snapshot (vault_capture_context (), namespaces,
+                                   relations, error) == namespace_query_status::ok;
+}
+
+static namespace_query_status
+query_namespace (const vault_context_handle& context, string key, bool by_uuid,
+                 std::shared_ptr<const athena_namespace_definition>& out,
+                 string& error) {
+  out.reset ();
+  ns_sqlite_connection cx (context);
+  auto status= open_query (cx, error);
+  if (status != namespace_query_status::ok) return status;
+  if (!exec_sql (cx.db, "BEGIN;", error)) return namespace_query_status::error;
+  athena_namespace_definition value;
+  bool found= get_namespace_from_db (cx.db, key, value, error, by_uuid);
+  if (error != "" || !exec_sql (cx.db, "COMMIT;", error))
+    return namespace_query_status::error;
+  if (!found) return namespace_query_status::not_found;
+  out= std::make_shared<const athena_namespace_definition> (std::move (value));
+  return namespace_query_status::ok;
+}
+
 } // namespace athena_namespaces
 
 using namespace athena_namespaces;
+
+namespace_query_status
+athena_namespace_get (const vault_context_handle& context, string name,
+                      std::shared_ptr<const athena_namespace_definition>& out,
+                      string& error) {
+  return query_namespace (context, name, false, out, error);
+}
+
+namespace_query_status
+athena_namespace_get_by_uuid (const vault_context_handle& context, string uuid,
+                              std::shared_ptr<const athena_namespace_definition>& out,
+                              string& error) {
+  return query_namespace (context, uuid, true, out, error);
+}
+
+namespace_query_status
+athena_namespaces_list (const vault_context_handle& context,
+                        namespace_records<athena_namespace_definition>& out,
+                        string& error) {
+  out= {};
+  std::vector<athena_namespace_definition> definitions;
+  std::vector<athena_namespace_relation> relations;
+  auto status= load_namespace_snapshot (context, definitions, relations, error);
+  if (status == namespace_query_status::ok)
+    out= namespace_records<athena_namespace_definition> (std::move (definitions));
+  return status;
+}
+
+namespace_query_status
+athena_namespace_relations_list (const vault_context_handle& context,
+                                 namespace_records<athena_namespace_relation>& out,
+                                 string& error) {
+  out= {};
+  std::vector<athena_namespace_definition> definitions;
+  std::vector<athena_namespace_relation> relations;
+  auto status= load_namespace_snapshot (context, definitions, relations, error);
+  if (status == namespace_query_status::ok)
+    out= namespace_records<athena_namespace_relation> (std::move (relations));
+  return status;
+}
 
 bool
 athena_namespace_refresh_derived (string& error) {
@@ -595,35 +584,40 @@ athena_namespace_refresh_derived (string& error) {
 
 namespace_records<athena_namespace_definition>
 athena_namespaces_list () {
+  auto context= vault_capture_context ();
+  if (!context) return {};
   namespace_records<athena_namespace_definition> cached;
-  if (athena_namespace_ontology_namespaces (cached)) return cached;
-  std::vector<athena_namespace_definition> out;
-  std::vector<athena_namespace_relation> ignored;
+  if (athena_namespace_ontology_namespaces (cached) &&
+      vault_context_is_current (context)) return cached;
   string error;
-  load_namespace_snapshot_from_db (out, ignored, error);
-  return namespace_records<athena_namespace_definition> (std::move (out));
+  athena_namespaces_list (context, cached, error);
+  if (error != "") std_warning << "Cannot list namespaces: " << error << LF;
+  return cached;
 }
 
 bool
 athena_namespace_get (
   string name, std::shared_ptr<const athena_namespace_definition>& out) {
-  if (athena_namespace_ontology_namespace (name, out)) return true;
-  if (!ns_db_exists () || name == "") return false;
+  out.reset ();
+  auto context= vault_capture_context ();
+  if (!context) return false;
+  if (athena_namespace_ontology_namespace (name, out) &&
+      vault_context_is_current (context)) return true;
   string error;
-  ns_sqlite_connection cx;
-  if (!cx.open (false, error)) return false;
-  athena_namespace_definition value;
-  if (!get_namespace_from_db (cx.db, name, value, error)) return false;
-  out= std::make_shared<const athena_namespace_definition> (std::move (value));
-  return true;
+  auto status= athena_namespace_get (context, name, out, error);
+  if (error != "") std_warning << "Cannot read namespace: " << error << LF;
+  return status == namespace_query_status::ok;
 }
 
 bool
 athena_namespace_save (const athena_namespace_definition& ns, string& error) {
-  if (!vault_active ()) {
-    error= "No active vault.";
-    return false;
-  }
+  return athena_namespace_save (vault_capture_context (), ns, error);
+}
+
+bool
+athena_namespace_save (const vault_context_handle& context,
+                       const athena_namespace_definition& ns, string& error) {
+  error= "";
   if (ns.name == "") {
     error= "Namespace name cannot be empty.";
     return false;
@@ -641,17 +635,39 @@ athena_namespace_save (const athena_namespace_definition& ns, string& error) {
   if (ns.templ != "" && !parse_template (ns.templ, toks, error))
     return false;
 
-  ns_sqlite_connection cx;
-  if (!cx.open (true, error)) return false;
+  ns_sqlite_connection cx (context);
+  if (!cx.open (false, error)) return false;
   if (!exec_sql (cx.db, "BEGIN IMMEDIATE;", error)) return false;
 
-  bool ok=
+  athena_namespace_definition previous;
+  bool found= get_namespace_from_db (cx.db, ns.uuid == "" ? ns.name : ns.uuid,
+                                     previous, error, ns.uuid != "");
+  bool ok= error == "";
+  if (ok && ns.uuid != "" && !found) {
+    error= "Namespace no longer exists (stale UUID).";
+    ok= false;
+  }
+  string uuid= found ? previous.uuid : std_to_tm (athena_namespace_new_uuid ());
+  if (ok && found && previous.name != ns.name) {
+    // Rename the identity and every graph reference in the same transaction.
+    ok= exec_prepared (cx.db, "UPDATE namespaces SET name=? WHERE uuid=?;",
+                       {ns.name, uuid}, error) &&
+        exec_prepared (cx.db, "UPDATE namespace_parents SET child=? WHERE child=?;",
+                       {ns.name, previous.name}, error) &&
+        exec_prepared (cx.db, "UPDATE namespace_parents SET parent=? WHERE parent=?;",
+                       {ns.name, previous.name}, error) &&
+        exec_prepared (cx.db, "UPDATE relation_decisions SET child=? WHERE child=?;",
+                       {ns.name, previous.name}, error) &&
+        exec_prepared (cx.db, "UPDATE relation_decisions SET parent=? WHERE parent=?;",
+                       {ns.name, previous.name}, error);
+  }
+  ok= ok &&
     exec_prepared (
       cx.db,
       "INSERT INTO namespaces"
       "(name, kind, template, sorter_trivial, sorter_path, style_path, "
-      "initial_content_path, homepage_path) "
-      "VALUES(?, ?, ?, ?, ?, ?, ?, ?) "
+      "initial_content_path, homepage_path, uuid) "
+      "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?) "
       "ON CONFLICT(name) DO UPDATE SET "
       "  kind=excluded.kind,"
       "  template=excluded.template,"
@@ -662,7 +678,7 @@ athena_namespace_save (const athena_namespace_definition& ns, string& error) {
       "  homepage_path=excluded.homepage_path;",
       { ns.name, kind, ns.templ, ns.sorter_trivial ? "1" : "0",
         ns.sorter_path, ns.style_path, ns.initial_content_path,
-        ns.homepage_path },
+        ns.homepage_path, uuid },
       error) &&
     exec_prepared (cx.db,
       "DELETE FROM namespace_parents WHERE child=? AND source='declared';",
@@ -672,7 +688,8 @@ athena_namespace_save (const athena_namespace_definition& ns, string& error) {
     ok= exec_prepared (cx.db,
       "INSERT OR REPLACE INTO namespace_parents"
       "(child, parent, source, ord) VALUES(?, ?, 'declared', ?);",
-      { ns.name, ns.parents[i], std_to_tm (std::to_string (i)) }, error);
+      { ns.name, found && ns.parents[i] == previous.name ? ns.name : ns.parents[i],
+        std_to_tm (std::to_string (i)) }, error);
 
   if (ok) {
     if (!exec_sql (cx.db, "COMMIT;", error)) {
@@ -685,87 +702,69 @@ athena_namespace_save (const athena_namespace_definition& ns, string& error) {
     string ignored;
     exec_sql (cx.db, "ROLLBACK;", ignored);
   }
-  if (ok) athena_namespace_ontology_invalidate (false);
+  if (ok && vault_context_is_current (context))
+    athena_namespace_ontology_invalidate (false);
   return ok;
 }
 
-bool
-athena_namespace_remove (string name, string& error) {
-  if (!vault_active ()) {
-    error= "No active vault.";
-    return false;
-  }
-  if (!ns_db_exists ()) return true;
-
-  ns_sqlite_connection cx;
-  if (!cx.open (false, error)) return false;
-  if (!exec_sql (cx.db, "BEGIN IMMEDIATE;", error)) return false;
+static namespace_query_status
+remove_namespace (const vault_context_handle& context, string key, bool by_uuid,
+                  string& error) {
+  ns_sqlite_connection cx (context);
+  auto status= open_query (cx, error);
+  if (status != namespace_query_status::ok) return status;
+  if (!exec_sql (cx.db, "BEGIN IMMEDIATE;", error))
+    return namespace_query_status::error;
+  athena_namespace_definition value;
+  if (!get_namespace_from_db (cx.db, key, value, error, by_uuid))
+    return error == "" ? namespace_query_status::not_found :
+                         namespace_query_status::error;
+  string name= value.name;
   bool ok=
-    exec_prepared (cx.db, "DELETE FROM namespaces WHERE name=?;",
-                   { name }, error) &&
+    exec_prepared (cx.db, "DELETE FROM namespaces WHERE uuid=?;",
+                   { value.uuid }, error) &&
     exec_prepared (cx.db,
       "DELETE FROM namespace_parents WHERE child=? OR parent=?;",
       { name, name }, error) &&
     exec_prepared (cx.db,
       "DELETE FROM relation_decisions WHERE child=? OR parent=?;",
-      { name, name }, error);
+      { name, name }, error) &&
+    exec_sql (cx.db, "COMMIT;", error);
+  if (ok && vault_context_is_current (context))
+    athena_namespace_ontology_invalidate (false);
+  return ok ? namespace_query_status::ok : namespace_query_status::error;
+}
 
-  if (ok) {
-    if (!exec_sql (cx.db, "COMMIT;", error)) {
-      string ignored;
-      exec_sql (cx.db, "ROLLBACK;", ignored);
-      ok= false;
-    }
-  }
-  else {
-    string ignored;
-    exec_sql (cx.db, "ROLLBACK;", ignored);
-  }
-  if (ok) athena_namespace_ontology_invalidate (false);
-  return ok;
+bool
+athena_namespace_remove (string name, string& error) {
+  auto status= remove_namespace (vault_capture_context (), name, false, error);
+  return status == namespace_query_status::ok ||
+         status == namespace_query_status::not_found;
+}
+
+namespace_query_status
+athena_namespace_remove_by_uuid (const vault_context_handle& context,
+                                 string uuid, string& error) {
+  return remove_namespace (context, uuid, true, error);
 }
 
 namespace_records<athena_namespace_relation>
 athena_namespace_relations_list () {
+  auto context= vault_capture_context ();
+  if (!context) return {};
   namespace_records<athena_namespace_relation> cached;
-  if (athena_namespace_ontology_relations (cached)) return cached;
-  std::vector<athena_namespace_relation> out;
-  if (!ns_db_exists ()) return {};
-
+  if (athena_namespace_ontology_relations (cached) &&
+      vault_context_is_current (context)) return cached;
   string error;
-  ns_sqlite_connection cx;
-  if (!cx.open (false, error)) return {};
-
-  sqlite3_stmt* st= nullptr;
-  if (!prepare_sql (cx.db,
-        "SELECT parent, child, decision, source "
-        "FROM relation_decisions ORDER BY parent, child;",
-        &st, error)) return {};
-  while (true) {
-    int status= sqlite3_step (st);
-    if (status == SQLITE_DONE) break;
-    if (status != SQLITE_ROW) {
-      sqlite3_finalize (st);
-      return namespace_records<athena_namespace_relation> (std::move (out));
-    }
-    athena_namespace_relation r;
-    r.parent= column_tm_string (st, 0);
-    r.child= column_tm_string (st, 1);
-    r.decision= column_tm_string (st, 2);
-    r.source= column_tm_string (st, 3);
-    if (r.parent != "" && r.child != "") out.push_back (r);
-  }
-  sqlite3_finalize (st);
-  return namespace_records<athena_namespace_relation> (std::move (out));
+  athena_namespace_relations_list (context, cached, error);
+  if (error != "") std_warning << "Cannot list namespace relations: " << error << LF;
+  return cached;
 }
 
 bool
 athena_namespace_relation_set (string parent, string child, string decision,
                                string source, string& error) {
-  if (!vault_active ()) {
-    error= "No active vault.";
-    return false;
-  }
+  ns_sqlite_connection cx;
   if (parent == "" || child == "") {
     error= "Relation parent and child cannot be empty.";
     return false;
@@ -775,76 +774,66 @@ athena_namespace_relation_set (string parent, string child, string decision,
     return false;
   }
 
-  ns_sqlite_connection cx;
-  if (!cx.open (true, error)) return false;
+  if (!cx.open (false, error)) return false;
   bool ok= upsert_relation_decision (cx.db, parent, child, decision, source,
                                      error);
-  if (ok) athena_namespace_ontology_invalidate (false);
+  if (ok && vault_context_is_current (cx.context))
+    athena_namespace_ontology_invalidate (false);
   return ok;
 }
 
 bool
 athena_namespace_relation_remove (string parent, string child, string& error) {
-  if (!vault_active ()) {
-    error= "No active vault.";
-    return false;
-  }
-  if (!ns_db_exists ()) return true;
-
   ns_sqlite_connection cx;
   if (!cx.open (false, error)) return false;
   bool ok= exec_prepared (cx.db,
     "DELETE FROM relation_decisions WHERE parent=? AND child=?;",
     { parent, child }, error);
-  if (ok) athena_namespace_ontology_invalidate (false);
+  if (ok && vault_context_is_current (cx.context))
+    athena_namespace_ontology_invalidate (false);
   return ok;
 }
 
 bool
 athena_namespace_validate_relation (string parent, string child, bool ask_user,
                                     string& error) {
+  error= "";
   if (parent == child) return true;
-  if (!vault_active ()) {
-    error= "No active vault.";
+  ns_sqlite_connection cx;
+  if (!cx.open (false, error)) return false;
+
+  athena_namespace_definition child_ns;
+  if (get_namespace_from_db (cx.db, child, child_ns, error)) {
+    if (has_string (child_ns.parents, parent) ||
+        has_string (child_ns.derived_parents, parent)) {
+      bool ok= upsert_relation_decision (cx.db, parent, child, "allow", "derived", error);
+      if (ok && vault_context_is_current (cx.context))
+        athena_namespace_ontology_invalidate (false);
+      return ok;
+    }
+  }
+  if (error != "") return false;
+
+  sqlite3_stmt* st= nullptr;
+  if (!prepare_sql (cx.db,
+        "SELECT decision FROM relation_decisions WHERE parent=? AND child=?;",
+        &st, error)) return false;
+  if (!bind_tm_string (st, 1, parent, error) ||
+      !bind_tm_string (st, 2, child, error)) {
+    sqlite3_finalize (st);
     return false;
   }
-
-  std::shared_ptr<const athena_namespace_definition> child_ns;
-  if (athena_namespace_get (child, child_ns)) {
-    if (has_string (child_ns->parents, parent) ||
-        has_string (child_ns->derived_parents, parent)) {
-      string ignored;
-      athena_namespace_relation_set (parent, child, "allow", "derived",
-                                     ignored);
-      return true;
-    }
-  }
-
-  if (ns_db_exists ()) {
-    ns_sqlite_connection cx;
-    string err;
-    if (cx.open (false, err)) {
-      sqlite3_stmt* st= nullptr;
-      if (prepare_sql (cx.db,
-            "SELECT decision FROM relation_decisions "
-            "WHERE parent=? AND child=?;",
-            &st, err)) {
-        if (bind_tm_string (st, 1, parent, err) &&
-            bind_tm_string (st, 2, child, err)) {
-          int status= sqlite3_step (st);
-          if (status == SQLITE_ROW) {
-            string decision= column_tm_string (st, 0);
-            sqlite3_finalize (st);
-            if (decision == "allow") return true;
-            if (decision == "deny") {
-              error= "Namespace relation denied by cached decision.";
-              return false;
-            }
-          }
-        }
-        sqlite3_finalize (st);
-      }
-    }
+  int status= sqlite3_step (st);
+  string decision;
+  if (status == SQLITE_ROW) decision= column_tm_string (st, 0);
+  else if (status != SQLITE_DONE)
+    set_sql_error (cx.db, "SQLite relation query failed", error);
+  sqlite3_finalize (st);
+  if (error != "") return false;
+  if (decision == "allow") return true;
+  if (decision == "deny") {
+    error= "Namespace relation denied by cached decision.";
+    return false;
   }
   if (!ask_user) {
     error= "Namespace relation needs user confirmation.";
@@ -857,12 +846,17 @@ athena_namespace_validate_relation (string parent, string child, bool ask_user,
       .arg (QString::fromUtf8 (as_charp (child)))
       .arg (QString::fromUtf8 (as_charp (parent))),
     QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
-  string ignored;
-  if (r == QMessageBox::Yes) {
-    athena_namespace_relation_set (parent, child, "allow", "user", ignored);
-    return true;
+  if (!vault_context_is_current (cx.context)) {
+    error= "Vault context is stale.";
+    return false;
   }
-  athena_namespace_relation_set (parent, child, "deny", "user", ignored);
+  if (!upsert_relation_decision (cx.db, parent, child,
+                                 r == QMessageBox::Yes ? "allow" : "deny",
+                                 "user", error))
+    return false;
+  if (vault_context_is_current (cx.context))
+    athena_namespace_ontology_invalidate (false);
+  if (r == QMessageBox::Yes) return true;
   error= "Namespace relation denied.";
   return false;
 }

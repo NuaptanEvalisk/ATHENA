@@ -19,6 +19,7 @@
 #include "ATHENA/Data/new_window.hpp"
 #include "ATHENA/Data/materials.hpp"
 #include "ATHENA/Data/namespace_ontology.hpp"
+#include "ATHENA/Data/namespaces_schema.hpp"
 #include "ATHENA/Data/artifact_radioactive_links.hpp"
 #include "ATHENA/Data/vault_map_sqlite.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
@@ -32,6 +33,8 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <QUuid>
+#include <sqlite3.h>
 
 bool       is_vault_active = false;
 vault_info current_vault;
@@ -46,11 +49,12 @@ struct vault_public_snapshot {
   std::string name;
   std::string map_db;
   std::string namespace_db;
+  vault_context_handle context;
 };
 
 std::shared_ptr<const vault_public_snapshot> published_vault_snapshot=
   std::make_shared<const vault_public_snapshot> (
-    vault_public_snapshot {false, "", "", "", ""});
+    vault_public_snapshot {false, "", "", "", "", {}});
 std::atomic<const vault_public_snapshot*> published_vault_identity {
   published_vault_snapshot.get ()};
 
@@ -90,15 +94,32 @@ publish_vault_snapshot (bool active, const std::filesystem::path& root,
                         const std::string& name,
                         const std::filesystem::path& map_db,
                         const std::filesystem::path& namespace_db) {
+  vault_context_handle context;
+  if (active)
+    context= std::make_shared<const vault_context> (vault_context {
+      root, map_db, namespace_db, name,
+      QUuid::createUuid ().toString (QUuid::WithoutBraces).toStdString ()});
   auto next= std::make_shared<const vault_public_snapshot> (
     vault_public_snapshot {
-      active, root.string (), name, map_db.string (), namespace_db.string ()});
+      active, root.string (), name, map_db.string (), namespace_db.string (),
+      std::move (context)});
   std::atomic_store_explicit (
     &published_vault_snapshot, next, std::memory_order_release);
   published_vault_identity.store (next.get (), std::memory_order_release);
 }
 
 } // namespace
+
+vault_context_handle
+vault_capture_context () {
+  return std::atomic_load_explicit (
+    &published_vault_snapshot, std::memory_order_acquire)->context;
+}
+
+bool
+vault_context_is_current (const vault_context_handle& context) {
+  return context && context == vault_capture_context ();
+}
 
 bool
 vault_active () {
@@ -190,6 +211,13 @@ vault_load (url root_dir, string name, string db_rel_path,
   if (!materials->open (root, vaultfile, error))
     return vault_tm_string (error);
 
+  // Migrate before publishing the vault or allowing the ontology to read it.
+  sqlite3* namespaces= nullptr;
+  if (!athena_namespace_database_open (
+        root / vault_std_string (ns_db_rel_path), true, namespaces, error))
+    return vault_tm_string (error);
+  sqlite3_close (namespaces);
+
   if (is_vault_active) vault_close ();
   current_vault.root   = root_dir;
   current_vault.name   = name;
@@ -211,6 +239,7 @@ vault_load (url root_dir, string name, string db_rel_path,
 
 void
 vault_close () {
+  publish_vault_snapshot (false, {}, "", {}, {});
   if (is_vault_active) {
     athena_namespace_ontology_stop ();
   }
@@ -222,7 +251,6 @@ vault_close () {
   current_vault.name = "";
   current_vault.db_url = url_none ();
   current_vault.ns_db_url = url_none ();
-  publish_vault_snapshot (false, {}, "", {}, {});
   athena_clear_transclusion_caches ();
   vault_refresh_window_titles ();
 }
