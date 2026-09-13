@@ -14,6 +14,10 @@
 #include "Qt/QTMVaultAnchorModel.hpp"
 #include "Qt/QTMVaultAvailableEnunciations.hpp"
 #include "Qt/QTMVaultAvailablePage.hpp"
+#include "Qt/QTMChoiceNavigation.hpp"
+#include <QLineEdit>
+#include <QRadioButton>
+#include <QVBoxLayout>
 #include "ATHENA/Data/transclusion_cache.hpp"
 #include "convert.hpp"
 #include "Qt/QTMVaultSearch.hpp"
@@ -61,7 +65,52 @@ private slots:
   void availableEnunciationsFollowOnlyReferencedRanges ();
   void availableEnunciationsKeepUnsavedSourceAndCancel ();
   void availablePreviewHasAnEmbeddingLayout ();
+  void modeChoicesCycle ();
+  void availableArrowKeysKeepInputFocus ();
 };
+
+void TestVaultSearch::modeChoicesCycle () {
+  for (int count: {3, 4}) {
+    QWidget page;
+    QVBoxLayout layout (&page);
+    QRadioButton first ("File"), second ("Search"), third ("Artifact"), fourth ("Available");
+    layout.addWidget (&first); layout.addWidget (&second); layout.addWidget (&third);
+    if (count == 4) layout.addWidget (&fourth);
+    if (count == 3) new QTMRadioChoiceNavigation (&page, {&first, &second, &third});
+    else new QTMRadioChoiceNavigation (&page, {&first, &second, &third, &fourth});
+    page.show (); page.activateWindow (); first.setChecked (true); first.setFocus ();
+    QApplication::processEvents ();
+    auto* last= count == 3 ? &third : &fourth;
+    QTest::keyClick (&first, Qt::Key_Up);
+    QVERIFY (last->isChecked ()); QVERIFY (last->hasFocus ());
+    QTest::keyClick (last, Qt::Key_Down);
+    QVERIFY (first.isChecked ());
+    second.setEnabled (false);
+    QTest::keyClick (&first, Qt::Key_Down);
+    QVERIFY (third.isChecked ());
+  }
+}
+
+void TestVaultSearch::availableArrowKeysKeepInputFocus () {
+  QTMVaultAvailablePage page;
+  auto* list= page.findChild<QListWidget*> ();
+  QVERIFY (list);
+  // Only exercise navigation here; these rows do not represent preview trees.
+  QSignalBlocker blocker (list);
+  list->addItems ({"First", "Second", "Third"}); list->setCurrentRow (0);
+  page.show (); page.activateWindow ();
+  for (auto* input: page.findChildren<QLineEdit*> ()) {
+    input->setFocus (); QApplication::processEvents ();
+    list->setCurrentRow (0);
+    QTest::keyClick (input, Qt::Key_Up);
+    QCOMPARE (list->currentRow (), 2); QVERIFY (input->hasFocus ());
+    QTest::keyClick (input, Qt::Key_Down);
+    QCOMPARE (list->currentRow (), 0); QVERIFY (input->hasFocus ());
+  }
+  list->clear ();
+  QTest::keyClick (page.findChild<QLineEdit*> (), Qt::Key_Down);
+  QCOMPARE (list->currentRow (), -1);
+}
 
 void TestVaultSearch::availablePreviewHasAnEmbeddingLayout () {
   QTMVaultAvailablePage page;

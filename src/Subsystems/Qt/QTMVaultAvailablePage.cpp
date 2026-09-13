@@ -8,6 +8,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include "QTMVaultAvailablePage.hpp"
+#include "QTMChoiceNavigation.hpp"
 #include "QTMVaultAnchorModel.hpp"
 #include "QTMVaultLinkModel.hpp"
 #include "QTMVaultPreviewBuilder.hpp"
@@ -58,6 +59,7 @@ QTMVaultAvailablePage::QTMVaultAvailablePage (QWidget* parent):
   status->setWordWrap (true);
   progress= new QProgressBar (this);
   list= new QListWidget (this);
+  new QTMListChoiceNavigation (list, {query, display});
   list->setAlternatingRowColors (true);
   previewTitle= new QLabel (this);
   previewTitle->setWordWrap (true);
@@ -206,7 +208,7 @@ void QTMVaultAvailablePage::filter () {
   std::stable_sort (matches.begin (), matches.end ());
   for (const auto& match: matches) {
     const auto& entry= entries[match.second];
-    auto* item= new QListWidgetItem (entry.title + "\n" + entry.relative_path, list);
+    auto* item= new QListWidgetItem (entry.title, list);
     item->setData (Qt::UserRole, static_cast<qulonglong> (match.second));
     item->setToolTip (entry.relative_path + "\n" + entry.upper);
   }

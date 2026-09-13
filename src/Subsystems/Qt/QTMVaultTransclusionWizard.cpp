@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "QTMVaultTransclusionWizard.hpp"
+#include "QTMChoiceNavigation.hpp"
 #include "ATHENA/Features/athena_features.hpp"
 #include "QTMCompletingComboBox.hpp"
 #if ATHENA_ENABLE_PERSON_SUBSYSTEM
@@ -306,6 +307,7 @@ TransclusionModePage::TransclusionModePage (QWidget* parent)
   fileFirstRadio= new QRadioButton ("Locate a file first", this);
   searchRadio= new QRadioButton ("Locate by search", this);
   artifactRadio= new QRadioButton ("Select an artifact", this);
+  new QTMRadioChoiceNavigation (this, {fileFirstRadio, searchRadio, artifactRadio});
   fileFirstRadio->setChecked (true);
 
   QVBoxLayout* layout= new QVBoxLayout (this);

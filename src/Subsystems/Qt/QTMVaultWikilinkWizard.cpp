@@ -18,6 +18,7 @@
 #include "QTMVaultAnchorModel.hpp"
 #include "QTMVaultArtifactPage.hpp"
 #include "QTMVaultAvailablePage.hpp"
+#include "QTMChoiceNavigation.hpp"
 #include "QTMVaultLinkModel.hpp"
 #include "QTMVaultPreviewBuilder.hpp"
 #include "QTMVaultPreviewWidget.hpp"
@@ -447,6 +448,7 @@ WikilinkModePage::WikilinkModePage (QWidget* parent)
   searchRadio= new QRadioButton ("Locate by search", this);
   artifactRadio= new QRadioButton ("Select an artifact", this);
   availableRadio= new QRadioButton ("Available in current document", this);
+  new QTMRadioChoiceNavigation (this, {fileFirstRadio, searchRadio, artifactRadio, availableRadio});
   fileFirstRadio->setChecked (true);
 
   QVBoxLayout* layout= new QVBoxLayout (this);
