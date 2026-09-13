@@ -9,6 +9,7 @@
 ******************************************************************************/
 #pragma once
 #include <memory>
+#include <QString>
 
 class QTMAudmap {
   struct impl;
@@ -16,7 +17,10 @@ class QTMAudmap {
 public:
   QTMAudmap ();
   ~QTMAudmap ();
+  QString discoveryFile () const;
 };
 
 void qt_audmap_start ();
 void qt_audmap_stop ();
+QString qt_audmap_discovery_file ();
+void audmap_repl_show ();

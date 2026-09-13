@@ -41,6 +41,7 @@
 #include "QTMATHENADiff.hpp"
 #include "QTMOutlinePane.hpp"
 #include "QTMErrorMessagesPane.hpp"
+#include "QTMAudmap.hpp"
 #include "QTMCommandPalette.hpp"
 #include "QTMCustomStylesManager.hpp"
 #include "QTMNamespaceManager.hpp"

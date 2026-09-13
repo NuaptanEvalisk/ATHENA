@@ -25,6 +25,7 @@
   <binding name="neighborhoods-pane-show" native="neighborhoods_pane_show" returns="void" dispatch="ui" />
   <binding name="handwriting-symbol-pane-show" native="handwriting_symbol_pane_show" returns="void" dispatch="ui" />
   <binding name="error-messages-show" native="error_messages_show" returns="void" dispatch="ui" />
+  <binding name="audmap-repl-show" native="audmap_repl_show" returns="void" dispatch="ui" />
   <binding name="command-palette-show" native="command_palette_show" returns="void" dispatch="ui" />
   <binding name="custom-styles-manager-show" native="custom_styles_manager_show" returns="void" dispatch="ui" />
   <binding name="visual-buffer-switcher-show" native="visual_buffer_switcher_show" returns="void" dispatch="ui" />

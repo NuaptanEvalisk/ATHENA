@@ -323,6 +323,22 @@ fail without creating, rebuilding or upgrading the index.
 
 ### Command-line client
 
+Workspace -> AUDMAP REPL opens an ADS pane with a real PTY, using the installed
+QTermWidget 6 library (GPL-2.0-or-later, LGPL-2.0-or-later and BSD-3-Clause
+components, compatible with ATHENA's GPLv3). It runs the same standalone Readline
+client directly, not a shell command or a QTextEdit terminal approximation.
+QTermWidget provides terminal emulation, selection, scrolling and PTY resizing;
+Readline still owns command editing and history. See the
+[upstream implementation](https://github.com/lxqt/qtermwidget/tree/2.4.0).
+
+The pane explicitly connects to this desktop instance. Each launch has a private
+temporary client key and requires normal AUDMAP authorization; it does not grant
+itself full access. Closing the pane terminates its process. Restart starts a
+fresh connection so abruptly closed tickets cannot collide with new ticket IDs.
+The external CLI's persistent identity is not read or overwritten. Terminal
+keystrokes, including Ctrl+W and Ctrl+C, go to the PTY rather than desktop menu
+shortcuts. Use the dock close button to close the pane.
+
 The startup log prints the instance's descriptor path. For example:
 
 ```sh

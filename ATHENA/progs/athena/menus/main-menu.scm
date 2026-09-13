@@ -97,6 +97,7 @@
   ("New floating window" (open-document-window #t))
   ("Configure Font for Vault" (configure-font-for-vault))
   ("Run global transformation" (run-global-transformation))
+  ("AUDMAP REPL" (audmap-repl-show))
   ---
   (link athena-workspace-utilities-menu))
 

@@ -5,6 +5,7 @@ list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/qt/completion_popup_test\\.cpp$")
 list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/interop/interop_test\\.cpp$")
 list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/interop/authorization_ui_test\\.cpp$")
 list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/interop/confined_filesystem_test\\.cpp$")
+list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/interop/repl-pane-test\\.cpp$")
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
   add_executable(confined_filesystem_test interop/confined_filesystem_test.cpp
@@ -26,6 +27,15 @@ add_test(NAME audmap_repl_terminal_test
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/interop/repl-terminal-test.py
     $<TARGET_FILE:interop_test> $<TARGET_FILE:athena-audmap-repl>)
 set_tests_properties(audmap_repl_terminal_test PROPERTIES TIMEOUT 25)
+
+add_executable(audmap_repl_pane_test interop/repl-pane-test.cpp)
+set_target_properties(audmap_repl_pane_test PROPERTIES AUTOMOC OFF)
+target_include_directories(audmap_repl_pane_test PRIVATE ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt)
+target_link_libraries(audmap_repl_pane_test PRIVATE athena_audmap_terminal athena_audmap qtermwidget6 Qt6::Test)
+target_compile_definitions(audmap_repl_pane_test PRIVATE AUDMAP_REPL_PATH="$<TARGET_FILE:athena-audmap-repl>")
+add_dependencies(audmap_repl_pane_test athena-audmap-repl)
+add_test(NAME audmap_repl_pane_test COMMAND audmap_repl_pane_test)
+set_tests_properties(audmap_repl_pane_test PROPERTIES TIMEOUT 25 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 add_executable(audmap_authorization_ui_test interop/authorization_ui_test.cpp
   ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMAudmap.cpp)

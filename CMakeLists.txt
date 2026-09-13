@@ -795,6 +795,7 @@ find_package (KF6Completion REQUIRED)
 
 if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt6")
   find_package (Qt6 COMPONENTS Core Gui Widgets PrintSupport Svg Network Core5Compat REQUIRED)
+  find_package (qtermwidget6 REQUIRED CONFIG)
   set (QT_LIBRARIES Qt6::Core Qt6::Gui Qt6::Widgets Qt6::PrintSupport Qt6::Svg Qt6::Network Qt6::Core5Compat)
 
   set (ATHENA_Include_Dirs

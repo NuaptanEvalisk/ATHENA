@@ -137,6 +137,15 @@ void QTMApplication::set_window_icon (string icon_path) {
 bool QTMApplication::notify (QObject* receiver, QEvent* event)
 {
   try {
+    if (event && (event->type () == QEvent::KeyPress ||
+                  event->type () == QEvent::KeyRelease ||
+                  event->type () == QEvent::ShortcutOverride)) {
+      for (auto* widget= qobject_cast<QWidget*> (receiver); widget; widget= widget->parentWidget ())
+        if (widget->property ("athenaOwnsKeyInput").toBool ()) {
+          if (event->type () == QEvent::ShortcutOverride) { event->accept (); return true; }
+          return QApplication::notify (receiver, event);
+        }
+    }
     qtm_vault_backup_dispatcher_note_activity (event);
     if (receiver != NULL && event != NULL &&
         event->type () == QEvent::ShortcutOverride) {

@@ -292,6 +292,9 @@ struct QTMAudmap::impl: QObject {
 
 QTMAudmap::QTMAudmap (): implementation (std::make_unique<impl> ()) {}
 QTMAudmap::~QTMAudmap () = default;
+QString QTMAudmap::discoveryFile () const {
+  return QString::fromStdString (implementation->server->discovery_file ().string ());
+}
 
 namespace {
 std::unique_ptr<QTMAudmap> desktop_interop;
@@ -306,4 +309,9 @@ void qt_audmap_stop () {
   if (!desktop_interop) return;
   Q_ASSERT (QThread::currentThread () == qApp->thread ());
   desktop_interop.reset ();
+}
+
+QString qt_audmap_discovery_file () {
+  Q_ASSERT (QThread::currentThread () == qApp->thread ());
+  return desktop_interop ? desktop_interop->discoveryFile () : QString ();
 }

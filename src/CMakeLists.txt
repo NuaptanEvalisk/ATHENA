@@ -11,7 +11,11 @@ else (APPLE)
 endif (APPLE)
 
 list (REMOVE_ITEM ATHENA_All_SRCS
-  "${ATHENA_SOURCE_DIR}/src/System/Misc/tsan_mimalloc_shim.cpp")
+  "${ATHENA_SOURCE_DIR}/src/System/Misc/tsan_mimalloc_shim.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMAudmapTerminal.cpp")
+add_library (athena_audmap_terminal STATIC Subsystems/Qt/QTMAudmapTerminal.cpp)
+target_compile_features (athena_audmap_terminal PRIVATE cxx_std_17)
+target_link_libraries (athena_audmap_terminal PUBLIC Qt6::Widgets PRIVATE qtermwidget6)
 include(AthenaGlue)
 add_subdirectory(ATHENA/Interop)
 add_library(athena_body STATIC ${ATHENA_All_SRCS})
@@ -38,6 +42,7 @@ target_link_libraries (athena_body
 )
 target_link_libraries (athena_body PRIVATE KF6::SyntaxHighlighting)
 target_link_libraries (athena_body PRIVATE KF6::Completion)
+target_link_libraries (athena_body PRIVATE athena_audmap_terminal)
 if (TARGET PkgConfig::KPATHSEA)
   target_compile_definitions (athena_body PRIVATE USE_KPATHSEA_API=1)
   target_link_libraries (athena_body PRIVATE PkgConfig::KPATHSEA)
