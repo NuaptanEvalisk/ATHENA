@@ -67,6 +67,16 @@ int main () {
     fs::create_directory (source / "data");
     write (source / "data" / "text", "payload");
     package_store store (dir.p / "plugins");
+    fs::permissions (store.directory (), fs::perms::owner_all | fs::perms::group_read | fs::perms::others_read);
+    package_store reopened (store.directory ());
+    require ((fs::status (reopened.directory ()).permissions () & fs::perms::all) == fs::perms::owner_all,
+             "Existing user-owned store was not made private");
+    fs::create_directory (dir.p / "external");
+    const auto external_mode= fs::status (dir.p / "external").permissions ();
+    fs::create_directory_symlink (dir.p / "external", dir.p / "store-link");
+    rejected ([&] { package_store unsafe (dir.p / "store-link"); }, "Plugin store followed a directory symlink");
+    require (fs::status (dir.p / "external").permissions () == external_mode,
+             "Rejected store changed symlink target permissions");
     const auto cwd = fs::current_path ();
     const auto installed = store.install (source);
     require (fs::current_path () == cwd, "Installer changed process working directory");

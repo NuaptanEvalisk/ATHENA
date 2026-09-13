@@ -287,8 +287,13 @@ package_store::package_store (fs::path directory): directory_ (fs::absolute (std
   if (mkdir (directory_.c_str (), 0700) && errno != EEXIST)
     throw std::system_error (errno, std::generic_category ());
   struct stat st {};
-  if (lstat (directory_.c_str (), &st) || !S_ISDIR (st.st_mode) || st.st_uid != getuid () || (st.st_mode & 0077))
+  fd directory_fd (::open (directory_.c_str (), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC));
+  if (fstat (directory_fd.value, &st) || !S_ISDIR (st.st_mode) || st.st_uid != getuid ())
     throw std::runtime_error ("Plugin store must be a private directory owned by the current user");
+  // Existing profiles may contain the former public plugin directory. Tighten
+  // the verified directory itself, never a symlink or another user's directory.
+  if ((st.st_mode & 0777) != 0700 && fchmod (directory_fd.value, 0700))
+    throw std::system_error (errno, std::generic_category (), "Cannot make plugin store private");
 }
 installed_plugin package_store::install (const fs::path& source_path) const {
   store_lock lock (directory_);
