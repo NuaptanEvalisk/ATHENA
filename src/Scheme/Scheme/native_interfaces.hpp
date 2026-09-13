@@ -98,9 +98,6 @@ athena_codex_run_completion_async (string arg1, string arg2, string arg3, string
 object
 athena_artifact_resolve_uuid (string arg1);
 
-tree
-athena_material_choose_citation (string arg1);
-
 object
 athena_material_resolve_uuid (string arg1);
 

@@ -186,6 +186,20 @@ Namespaces expose `get`, full-definition `set`, `rename`, `delete`, `members`,
 Relation operations identify their other endpoint by UUID. Parent lists in full
 definitions use names, matching the native namespace definition model.
 
+Full namespace definitions include an ordered `materials` array of Material
+UUIDs. Semi-concrete and concrete namespaces may specify it; abstract namespaces
+must leave it empty. Namespace Manager exposes the same list in its Documents
+tab. Opening a namespace database migrates schema v2 to v3 transactionally,
+preserving namespace UUIDs and existing definitions.
+
+Loading an `.ath` document recomputes referenced Materials from every matching
+namespace's filename template. Bibliographies include the union of cited,
+explicitly selected and inherited Materials, deduplicated by canonical UUID.
+Inheritance never modifies the document's explicit UUID tuple; the reference
+chooser shows inherited entries and their originating namespaces separately.
+Changing namespace membership and reloading or refreshing the document therefore
+removes obsolete inherited entries instead of converting them to explicit ones.
+
 `create_file` requires `directory`, `values` and `use_initial_content`. It builds
 the filename through the existing namespace template implementation, applies the
 namespace style/initial content and atomically publishes a new `.ath` file inside

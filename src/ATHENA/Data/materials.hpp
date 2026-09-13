@@ -142,6 +142,11 @@ public:
 
   bool open (const std::filesystem::path& vault_root,
              const AthenaVaultfileInfo& vault_info, std::string& error);
+  // Independent, readonly snapshot for actor/worker consumers. It neither
+  // creates nor migrates a database and exposes only const store operations.
+  static std::unique_ptr<const MaterialsStore> open_reader (
+    const std::filesystem::path& vault_root, const AthenaVaultfileInfo& vault_info,
+    std::string& error);
   void close ();
   bool is_open () const;
 

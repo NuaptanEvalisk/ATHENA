@@ -13,6 +13,8 @@
 #include "QTMMainTabWindow.hpp"
 #include "QTMNamespaceExplorer.hpp"
 #include "QTMReverseHierarchyGraph.hpp"
+#include "QTMMaterialCitationDialog.hpp"
+#include "ATHENA/Data/materials.hpp"
 #include "boot.hpp"
 #include "namespaces.hpp"
 #include "qt_utilities.hpp"
@@ -952,6 +954,8 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
     homepageBrowseButton (new QPushButton ("Browse...", this)),
     homepageCreateButton (new QPushButton ("Create...", this)),
     homepageEditButton (new QPushButton ("Edit homepage", this)),
+    materialsWidget (new QWidget (this)),
+    materialsList (new QListWidget (materialsWidget)),
     explicitParentsList (new QListWidget (this)),
     explicitParentCombo (new QComboBox (this)),
     derivedParentsList (new QListWidget (this)),
@@ -1094,6 +1098,52 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
   homepageLayout->addWidget (homepageCreateButton);
   homepageLayout->addWidget (homepageEditButton);
   documentsForm->addRow ("Homepage", homepageWidget);
+  QVBoxLayout* materialsLayout= new QVBoxLayout (materialsWidget);
+  materialsLayout->setContentsMargins (0, 0, 0, 0);
+  materialsList->setObjectName ("namespaceMaterialsList");
+  materialsList->setSelectionMode (QAbstractItemView::ExtendedSelection);
+  materialsList->setMinimumHeight (100);
+  materialsList->setMaximumHeight (240);
+  materialsLayout->addWidget (materialsList);
+  QToolBar* materialsToolbar= new QToolBar (materialsWidget);
+  materialsToolbar->setIconSize (QSize (16, 16));
+  materialsToolbar->addAction (namespace_icon ("list-add", QStyle::SP_FileDialogNewFolder),
+    "Add Materials", this, [this] {
+      const auto context= loadedContext;
+      const QString uuid= loadedUuid;
+      if (!vault_context_is_current (context)) return;
+      tree chosen= qtm_material_choose_references (false);
+      if (!vault_context_is_current (context) || loadedUuid != uuid || !is_func (chosen, TUPLE)) return;
+      auto ids= materialIds ();
+      for (int i=0; i<N(chosen); ++i) {
+        if (!is_atomic (chosen[i])) continue;
+        const string id= chosen[i]->label;
+        const std::string bytes (id.data (), N(id));
+        if (std::find (ids.begin (), ids.end (), bytes) == ids.end ()) ids.push_back (bytes);
+      }
+      setMaterialIds (ids);
+      markDirty ();
+    });
+  materialsToolbar->addAction (namespace_icon ("list-remove", QStyle::SP_TrashIcon),
+    "Remove selected Materials", this, [this] {
+      const auto selected= materialsList->selectedItems ();
+      for (auto* item: selected) delete item;
+      if (!selected.isEmpty ()) markDirty ();
+    });
+  for (int direction: {-1, 1})
+    materialsToolbar->addAction (namespace_icon (direction < 0 ? "go-up" : "go-down",
+      direction < 0 ? QStyle::SP_ArrowUp : QStyle::SP_ArrowDown),
+      direction < 0 ? "Move Material up" : "Move Material down", this, [this, direction] {
+        int row= materialsList->currentRow ();
+        int target= row + direction;
+        if (row < 0 || target < 0 || target >= materialsList->count ()) return;
+        auto* item= materialsList->takeItem (row);
+        materialsList->insertItem (target, item);
+        materialsList->setCurrentItem (item);
+        markDirty ();
+      });
+  materialsLayout->addWidget (materialsToolbar);
+  documentsForm->addRow ("Inherited Materials", materialsWidget);
   documentsForm->addItem (new QSpacerItem (0, 0, QSizePolicy::Minimum,
                                             QSizePolicy::Expanding));
   documentsTab= scrollableTab (documentsContent);
@@ -1459,6 +1509,7 @@ QTMNamespaceManager::loadNamespace (QListWidgetItem* item) {
   styleEdit->setText (to_qstring (ns.style_path));
   initialContentEdit->setText (to_qstring (ns.initial_content_path));
   homepageEdit->setText (to_qstring (ns.homepage_path));
+  setMaterialIds (ns.materials);
   set_qlist_strings (explicitParentsList, ns.parents);
   set_qlist_strings (derivedParentsList, ns.derived_parents);
   dirty= false;
@@ -1550,9 +1601,11 @@ QTMNamespaceManager::saveNamespace () {
   ns.initial_content_path=
     from_qstring (initialContentEdit->text ().trimmed ());
   ns.homepage_path= from_qstring (homepageEdit->text ().trimmed ());
+  ns.materials= materialIds ();
   ns.parents= qlist_to_strings (explicitParentsList);
   ns.derived_parents.clear ();
   if (ns.kind == "abstract") {
+    ns.materials.clear ();
     ns.templ= "";
     ns.sorter_trivial= false;
     ns.sorter_path= "";
@@ -1928,6 +1981,7 @@ QTMNamespaceManager::updateModeUi () {
 
   bool abstract= kindCombo->currentText () == "abstract";
   bool concrete= kindCombo->currentText () == "concrete";
+  materialsWidget->setEnabled (!creating && !abstract);
   templateEdit->setEnabled (!abstract);
   templateEdit->setPlaceholderText (
     abstract ? "Abstract namespaces aggregate subspaces" : "%w Lecture Notes %R");
@@ -1951,6 +2005,29 @@ QTMNamespaceManager::updateModeUi () {
       ? "Built-in sorter returns 0 for every comparison" : "");
   homepageEdit->setPlaceholderText ("Optional .ath homepage document");
   homepageEditButton->setEnabled (!homepageEdit->text ().trimmed ().isEmpty ());
+}
+
+std::vector<std::string>
+QTMNamespaceManager::materialIds () const {
+  std::vector<std::string> ids;
+  for (int i=0; i<materialsList->count (); ++i)
+    ids.push_back (materialsList->item (i)->data (Qt::UserRole).toString ().toStdString ());
+  return ids;
+}
+
+void
+QTMNamespaceManager::setMaterialIds (const std::vector<std::string>& ids) {
+  materialsList->clear ();
+  MaterialsStore* store= vault_get_materials_store ();
+  for (const auto& id: ids) {
+    std::string error;
+    auto record= store ? store->get (id, error) : std::optional<MaterialRecord> ();
+    QString title= record ? QString::fromStdString (record->field ("title")) : QString ();
+    if (title.isEmpty ()) title= QString::fromStdString (id);
+    auto* item= new QListWidgetItem (title, materialsList);
+    item->setData (Qt::UserRole, QString::fromStdString (id));
+    item->setToolTip (QString::fromStdString (id + (error.empty () ? "" : "\n" + error)));
+  }
 }
 
 void

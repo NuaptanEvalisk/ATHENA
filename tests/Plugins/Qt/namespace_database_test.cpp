@@ -81,6 +81,7 @@ class NamespaceDatabaseTest: public QObject {
 private slots:
   void migratesLegacy_data ();
   void migratesLegacy ();
+  void migratesMaterialsFromVersionTwo ();
   void rollsBackAndRejectsUnknownVersions ();
   void concurrentOpen ();
   void ontologyOpenMigrates ();
@@ -119,7 +120,7 @@ NamespaceDatabaseTest::migratesLegacy () {
   std::string error;
   Database migrated;
   QVERIFY2 (athena_namespace_database_open (path, false, migrated.db, error), error.c_str ());
-  QCOMPARE (migrated.scalar ("SELECT value FROM meta WHERE key='schema-version';"), "2");
+  QCOMPARE (migrated.scalar ("SELECT value FROM meta WHERE key='schema-version';"), "3");
   QCOMPARE (migrated.scalar ("SELECT value FROM meta WHERE key='custom';"), "preserve me");
   QCOMPARE (migrated.scalar ("SELECT count(DISTINCT uuid) FROM namespaces;"), "2");
   QString id= migrated.scalar ("SELECT uuid FROM namespaces WHERE name='Child';");
@@ -151,6 +152,38 @@ NamespaceDatabaseTest::migratesLegacy () {
 }
 
 void
+NamespaceDatabaseTest::migratesMaterialsFromVersionTwo () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  auto path= std::filesystem::path (temporary.path ().toStdString ()) / "ns.sqlite";
+  Database old;
+  std::string error;
+  QVERIFY2 (athena_namespace_database_open (path, true, old.db, error), error.c_str ());
+  QVERIFY (old.exec (
+    "DROP TRIGGER namespace_materials_abstract; DROP TABLE namespace_materials;"
+    "UPDATE meta SET value='2' WHERE key='schema-version';"
+    "INSERT INTO namespaces(name,kind,uuid) VALUES"
+    "('Concrete','concrete','11111111-1111-4111-8111-111111111111'),"
+    "('Abstract','abstract','22222222-2222-4222-8222-222222222222');"));
+  Database migrated;
+  QVERIFY2 (athena_namespace_database_open (path, false, migrated.db, error), error.c_str ());
+  QCOMPARE (migrated.scalar ("SELECT value FROM meta WHERE key='schema-version';"), "3");
+  QCOMPARE (migrated.scalar ("SELECT uuid FROM namespaces WHERE name='Concrete';"),
+            "11111111-1111-4111-8111-111111111111");
+  QVERIFY (migrated.exec (
+    "INSERT INTO namespace_materials SELECT uuid,'book',0 FROM namespaces WHERE name='Concrete';"));
+  QVERIFY (!migrated.exec (
+    "INSERT INTO namespace_materials SELECT uuid,'book',0 FROM namespaces WHERE name='Abstract';"));
+  QVERIFY (!migrated.exec (
+    "INSERT INTO namespace_materials VALUES('missing','book',0);"));
+  QVERIFY (migrated.exec ("UPDATE namespaces SET name='Renamed' WHERE name='Concrete';"));
+  QCOMPARE (migrated.scalar ("SELECT count(*) FROM namespace_materials;"), "1");
+  QVERIFY (migrated.exec ("DELETE FROM namespaces WHERE name='Renamed';"));
+  QCOMPARE (migrated.scalar ("SELECT count(*) FROM namespace_materials;"), "0");
+  QCOMPARE (migrated.scalar ("PRAGMA integrity_check;"), "ok");
+}
+
+void
 NamespaceDatabaseTest::rollsBackAndRejectsUnknownVersions () {
   QTemporaryDir temporary;
   auto path= std::filesystem::path (temporary.path ().toStdString ()) / "ns.sqlite";
@@ -174,7 +207,7 @@ NamespaceDatabaseTest::rollsBackAndRejectsUnknownVersions () {
   QCOMPARE (old.scalar ("SELECT count(*) FROM pragma_table_info('namespaces') WHERE name='uuid';"), "0");
   QVERIFY (old.exec ("UPDATE meta SET value='1' WHERE key='schema-version';"));
   QVERIFY2 (athena_namespace_database_open (path, false, failed.db, error), error.c_str ());
-  QCOMPARE (old.scalar ("SELECT value FROM meta WHERE key='schema-version';"), "2");
+  QCOMPARE (old.scalar ("SELECT value FROM meta WHERE key='schema-version';"), "3");
 }
 
 void
@@ -216,7 +249,7 @@ NamespaceDatabaseTest::ontologyOpenMigrates () {
   std::shared_ptr<const athena_namespace_definition> definition;
   QVERIFY (athena_namespace_ontology_namespace ("Child", definition));
   QVERIFY (definition->uuid != "");
-  QCOMPARE (old.scalar ("SELECT value FROM meta WHERE key='schema-version';"), "2");
+  QCOMPARE (old.scalar ("SELECT value FROM meta WHERE key='schema-version';"), "3");
   QCOMPARE (old.scalar ("SELECT uuid FROM namespaces WHERE name='Child';"),
             QString::fromUtf8 (as_charp (definition->uuid)));
 }
@@ -231,7 +264,7 @@ NamespaceDatabaseTest::vaultOpenMigratesAndIdentitiesSurviveRename () {
   QVERIFY (old.exec (legacy_schema));
   string error= open_vault (root);
   QVERIFY2 (error == "", as_charp (error));
-  QCOMPARE (old.scalar ("SELECT value FROM meta WHERE key='schema-version';"), "2");
+  QCOMPARE (old.scalar ("SELECT value FROM meta WHERE key='schema-version';"), "3");
   auto context= vault_capture_context ();
   std::shared_ptr<const athena_namespace_definition> child;
   QCOMPARE (athena_namespace_get (context, "Child", child, error), namespace_query_status::ok);

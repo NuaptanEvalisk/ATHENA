@@ -11,6 +11,7 @@
 
 #include <filesystem>
 #include <string>
+#include <vector>
 
 struct sqlite3;
 
@@ -20,5 +21,8 @@ bool athena_namespace_database_open (const std::filesystem::path& path,
                                      std::string& error);
 bool athena_namespace_schema_ensure (sqlite3* db, std::string& error);
 std::string athena_namespace_new_uuid ();
+bool athena_namespace_read_materials (sqlite3* db, const std::string& uuid,
+                                      std::vector<std::string>& materials,
+                                      std::string& error);
 
 #endif

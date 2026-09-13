@@ -50,7 +50,7 @@ value describe (const athena_namespace_definition& ns) {
     {"sorter_trivial", ns.sorter_trivial}, {"sorter_path", tm_to_std (ns.sorter_path)},
     {"style_path", tm_to_std (ns.style_path)}, {"initial_content_path", tm_to_std (ns.initial_content_path)},
     {"homepage_path", tm_to_std (ns.homepage_path)}, {"parents", strings (ns.parents)},
-    {"derived_parents", strings (ns.derived_parents)}};
+    {"derived_parents", strings (ns.derived_parents)}, {"materials", ns.materials}};
 }
 athena_namespace_definition definition (const value& p) {
   athena_namespace_definition ns;
@@ -64,6 +64,7 @@ athena_namespace_definition definition (const value& p) {
   ns.style_path = std_to_tm (p.value ("style_path", ""));
   ns.initial_content_path = std_to_tm (p.value ("initial_content_path", ""));
   ns.homepage_path = std_to_tm (p.value ("homepage_path", ""));
+  ns.materials = p.value ("materials", std::vector<std::string> {});
   if (p.contains ("parents")) {
     if (!p["parents"].is_array ()) throw domain_error ("INVALID_ARGUMENT", "parents must be an array");
     for (const auto& parent: p["parents"]) ns.parents.push_back (std_to_tm (parent.get<std::string> ()));

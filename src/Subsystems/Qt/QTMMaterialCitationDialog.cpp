@@ -7,9 +7,17 @@
 #include "QTMMaterialCitationDialog.hpp"
 
 #include "ATHENA/Data/materials_engine.hpp"
+#include "ATHENA/Data/materials_document.hpp"
 #include "ATHENA/Data/vault.hpp"
 #include "QTMVaultLinkFocus.hpp"
 #include "scheme.hpp"
+#include "new_buffer.hpp"
+#include "qt_utilities.hpp"
+#include "actor_transport.hpp"
+#include "buffer_actor.hpp"
+#include "guile_tm.hpp"
+#include "object.hpp"
+#include "scheme_execution_context.hpp"
 
 #include <QApplication>
 #include <QComboBox>
@@ -23,6 +31,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QThread>
 #include <QPushButton>
 #include <QTableWidget>
 #include <QTextDocument>
@@ -51,7 +60,8 @@ std::string plain_html (const std::string& html) {
 
 class CitationDialog: public QDialog {
 public:
-  CitationDialog (QWidget* parent, bool with_locator)
+  CitationDialog (QWidget* parent, bool with_locator,
+                   const std::vector<inherited_material>& inherited)
     : QDialog (parent), allow_empty_selection (!with_locator) {
     setWindowTitle (with_locator ? "Insert Material citation"
                                  : "Select referenced Materials");
@@ -78,6 +88,30 @@ public:
     table->horizontalHeader ()->setSectionResizeMode (2, QHeaderView::Stretch);
     table->horizontalHeader ()->setSectionResizeMode (3, QHeaderView::ResizeToContents);
     outer->addWidget (table, 1);
+    if (!inherited.empty ()) {
+      outer->addWidget (new QLabel ("Inherited from namespaces", this));
+      auto* inherited_table= new QTableWidget (int (inherited.size ()), 2, this);
+      inherited_table->setObjectName ("inheritedMaterialReferences");
+      inherited_table->setHorizontalHeaderLabels ({"Material", "Namespace"});
+      inherited_table->setEditTriggers (QAbstractItemView::NoEditTriggers);
+      inherited_table->setSelectionMode (QAbstractItemView::NoSelection);
+      inherited_table->verticalHeader ()->hide ();
+      inherited_table->horizontalHeader ()->setSectionResizeMode (QHeaderView::Stretch);
+      inherited_table->setMaximumHeight (160);
+      MaterialsStore* store= vault_get_materials_store ();
+      for (size_t i=0; i<inherited.size (); ++i) {
+        const auto& item= inherited[i];
+        std::string error;
+        auto record= store ? store->get (item.uuid, error) : std::optional<MaterialRecord> ();
+        QString title= record ? qstr (record->field ("title")) : qstr (item.uuid);
+        auto* material= new QTableWidgetItem (title);
+        material->setToolTip (qstr (item.uuid));
+        inherited_table->setItem (int (i), 0, material);
+        inherited_table->setItem (int (i), 1, new QTableWidgetItem (
+          to_qstring (string (item.namespace_name.data (), item.namespace_name.size ()))));
+      }
+      outer->addWidget (inherited_table);
+    }
     locator_type= new QComboBox (this);
     locator_value= new QLineEdit (this);
     if (with_locator) {
@@ -258,7 +292,8 @@ private:
 
 tree
 choose_reference_uuids (bool with_locator, std::string* locator_type,
-                        std::string* locator_value) {
+                        std::string* locator_value, bool document_context= false,
+                        url origin= url_none ()) {
   QWidget* parent= QApplication::activeWindow ();
   if (!vault_active ()) {
     QMessageBox::warning (parent, "Materials",
@@ -273,7 +308,11 @@ choose_reference_uuids (bool with_locator, std::string* locator_type,
     return UNINIT;
   }
   TeXmacsFocusSnapshot focus= capture_texmacs_focus_snapshot ();
-  CitationDialog dialog (parent, with_locator);
+  std::string error;
+  auto inherited= document_context ? athena_materials_inherited (
+    vault_capture_context (), is_none (origin) ? get_current_buffer_safe () : origin, error) : std::vector<inherited_material> {};
+  if (!error.empty ()) { QMessageBox::warning (parent, "Materials", qstr (error)); return UNINIT; }
+  CitationDialog dialog (parent, with_locator, inherited);
   if (dialog.exec () != QDialog::Accepted) {
     restore_texmacs_focus_snapshot_later (focus);
     return UNINIT;
@@ -350,6 +389,63 @@ qtm_material_choose_citation (const std::string& csl_style) {
 }
 
 tree
-qtm_material_choose_references () {
-  return choose_reference_uuids (false, nullptr, nullptr);
+qtm_material_choose_references (bool document_context) {
+  return choose_reference_uuids (false, nullptr, nullptr, document_context);
+}
+
+namespace {
+struct MaterialChooserRequest {
+  athena_actor_id actor;
+  athena_view_id view;
+  SchemeCapabilitySet capabilities;
+  athena_scheme_handle_id completion= ATHENA_NO_SCHEME_HANDLE;
+  vault_context_handle vault;
+  std::string style, origin;
+  bool citation;
+  ~MaterialChooserRequest () { scheme_command_handle_release (completion); }
+};
+
+void choose_async (bool citation, string style, object completion) {
+  auto* app= QCoreApplication::instance ();
+  if (!app) return;
+  const auto* context= current_scheme_execution_context ();
+  if (!context || context->actor_id == ATHENA_NO_ACTOR || context->view_id == ATHENA_NO_VIEW) {
+    if (QThread::currentThread () == app->thread ())
+      (void) call (completion, object (citation ?
+        qtm_material_choose_citation (std::string (style.data (), N(style))) : qtm_material_choose_references ()));
+    return;
+  }
+  auto request= std::make_shared<MaterialChooserRequest> ();
+  request->actor= context->actor_id;
+  request->view= context->view_id;
+  request->capabilities= context->capabilities;
+  request->vault= vault_capture_context ();
+  request->citation= citation;
+  request->style.assign (style.data (), N(style));
+  string origin= as_string (get_current_buffer_safe ());
+  request->origin.assign (origin.data (), N(origin));
+  request->completion= scheme_command_handle_acquire (object_to_tmscm (completion));
+  QMetaObject::invokeMethod (app, [request] {
+    tree result= UNINIT;
+    if (vault_context_is_current (request->vault)) {
+      result= request->citation ? qtm_material_choose_citation (request->style) :
+        choose_reference_uuids (false, nullptr, nullptr, true,
+          url (string (request->origin.data (), request->origin.size ())));
+      if (!vault_context_is_current (request->vault)) result= UNINIT;
+    }
+    auto result_id= actor_tree_registry::instance ().store (std::move (result));
+    auto ticket= buffer_actor::submit_to (request->actor,
+      actor_command_kind::invoke_scheme_handle_tree, request->view, result_id,
+      ATHENA_NO_BLOB, request->capabilities, request->completion);
+    if (ticket) request->completion= ATHENA_NO_SCHEME_HANDLE;
+    else actor_tree_registry::instance ().discard (result_id);
+  }, Qt::QueuedConnection);
+}
+}
+
+void qtm_material_choose_citation_async (string style, object completion) {
+  choose_async (true, std::move (style), std::move (completion));
+}
+void qtm_material_choose_references_async (object completion) {
+  choose_async (false, "", std::move (completion));
 }

@@ -52,6 +52,7 @@ schema_version (sqlite3* db, int& version, std::string& error) {
   std::string v= text ? reinterpret_cast<const char*> (text) : "";
   if (v == "1") version= 1;
   else if (v == "2") version= 2;
+  else if (v == "3") version= 3;
   else {
     error= "Unsupported namespace schema version: " + v;
     return false;
@@ -140,6 +141,25 @@ migrate (sqlite3* db, std::string& error) {
     "ON CONFLICT(key) DO UPDATE SET value=excluded.value;", error);
 }
 
+bool
+migrate_materials (sqlite3* db, std::string& error) {
+  return exec (db,
+    "CREATE TABLE namespace_materials("
+    "namespace_uuid TEXT NOT NULL REFERENCES namespaces(uuid) ON DELETE CASCADE,"
+    "material_uuid TEXT NOT NULL CHECK(material_uuid<>''),"
+    "ord INTEGER NOT NULL CHECK(ord>=0),"
+    "PRIMARY KEY(namespace_uuid,material_uuid),UNIQUE(namespace_uuid,ord));"
+    "CREATE TRIGGER namespace_materials_concrete_insert BEFORE INSERT ON namespace_materials "
+    "WHEN (SELECT kind FROM namespaces WHERE uuid=NEW.namespace_uuid)='abstract' "
+    "BEGIN SELECT RAISE(ABORT,'Abstract namespaces cannot specify Materials'); END;"
+    "CREATE TRIGGER namespace_materials_concrete_update BEFORE UPDATE ON namespace_materials "
+    "WHEN (SELECT kind FROM namespaces WHERE uuid=NEW.namespace_uuid)='abstract' "
+    "BEGIN SELECT RAISE(ABORT,'Abstract namespaces cannot specify Materials'); END;"
+    "CREATE TRIGGER namespace_materials_abstract AFTER UPDATE OF kind ON namespaces "
+    "WHEN NEW.kind='abstract' BEGIN DELETE FROM namespace_materials WHERE namespace_uuid=NEW.uuid; END;"
+    "UPDATE meta SET value='3' WHERE key='schema-version';", error);
+}
+
 } // namespace
 
 std::string
@@ -152,14 +172,36 @@ athena_namespace_schema_ensure (sqlite3* db, std::string& error) {
   error.clear ();
   int version;
   if (!schema_version (db, version, error)) return false;
-  if (version == 2) return true;
+  if (version == 3) return true;
   if (!exec (db, "BEGIN IMMEDIATE;", error)) return false;
   // Another opener may have migrated while this connection waited for the lock.
-  bool ok= schema_version (db, version, error) &&
-           (version == 2 || migrate (db, error));
+  bool ok= schema_version (db, version, error);
+  if (ok && version < 2) ok= migrate (db, error);
+  if (ok && version < 3) ok= migrate_materials (db, error);
   if (ok) ok= exec (db, "COMMIT;", error);
   if (!ok) sqlite3_exec (db, "ROLLBACK;", nullptr, nullptr, nullptr);
   return ok;
+}
+
+bool
+athena_namespace_read_materials (sqlite3* db, const std::string& uuid,
+                                 std::vector<std::string>& materials,
+                                 std::string& error) {
+  materials.clear ();
+  auto query= prepare (db,
+    "SELECT material_uuid FROM namespace_materials WHERE namespace_uuid=? ORDER BY ord;", error);
+  if (!query) return false;
+  if (sqlite3_bind_text (query.get (), 1, uuid.data (), int (uuid.size ()), SQLITE_TRANSIENT) != SQLITE_OK) {
+    error= sqlite3_errmsg (db);
+    return false;
+  }
+  int rc;
+  while ((rc= sqlite3_step (query.get ())) == SQLITE_ROW) {
+    const char* text= reinterpret_cast<const char*> (sqlite3_column_text (query.get (), 0));
+    materials.emplace_back (text, sqlite3_column_bytes (query.get (), 0));
+  }
+  if (rc != SQLITE_DONE) { error= sqlite3_errmsg (db); return false; }
+  return true;
 }
 
 bool

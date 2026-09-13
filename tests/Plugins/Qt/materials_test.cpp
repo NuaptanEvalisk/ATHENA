@@ -15,6 +15,8 @@
 #include "ATHENA/Data/materials_schema.hpp"
 #include "ATHENA/Data/materials_zotero.hpp"
 #include "ATHENA/Data/vault.hpp"
+#include "ATHENA/Data/namespaces.hpp"
+#include "ATHENA/Data/namespace_ontology.hpp"
 #include "convert.hpp"
 
 #include <QFile>
@@ -102,6 +104,8 @@ private slots:
   void importsBibtexAndRendersCsl ();
   void parsesZoteroLibraryAndTracksSource ();
   void rendersMaterialInfoWithGenericMacros ();
+  void namespaceMaterialsHaveProvenanceAndSurviveRename ();
+  void readonlyLibraryUsesAnIndependentSnapshot ();
 };
 
 void
@@ -1232,6 +1236,98 @@ MaterialsTest::rendersMaterialInfoWithGenericMacros () {
   QVERIFY (fs::exists (target));
 
   vault_close ();
+}
+
+void
+MaterialsTest::namespaceMaterialsHaveProvenanceAndSurviveRename () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  const fs::path root (temporary.path ().toStdString ());
+  std::string error;
+  QVERIFY (athena_vaultfile_write (root, AthenaVaultfileInfo {}, error));
+  string native_error= vault_load (url_system (string (root.c_str ())), "Inheritance test", "map.sqlite");
+  QVERIFY2 (native_error == "", native_error.c_str ());
+  struct Close { ~Close () { vault_close (); } } close;
+  auto context= vault_capture_context ();
+  auto* store= vault_get_materials_store ();
+  auto first= sample_material ("Explicit book", "A", "2020");
+  auto second= sample_material ("Inherited book", "B", "2021");
+  QVERIFY (store->create (first, error));
+  QVERIFY (store->create (second, error));
+  athena_namespace_definition broad;
+  broad.name= "Broad"; broad.kind= "semi-concrete"; broad.templ= "Note %s";
+  broad.sorter_trivial= true;
+  broad.materials= {first.uuid, second.uuid};
+  QVERIFY2 (athena_namespace_save (context, broad, native_error), native_error.c_str ());
+  athena_namespace_definition narrow;
+  narrow.name= "Narrow"; narrow.kind= "concrete"; narrow.templ= "Note %w";
+  narrow.sorter_trivial= true;
+  narrow.materials= {second.uuid};
+  QVERIFY2 (athena_namespace_save (context, narrow, native_error), native_error.c_str ());
+  athena_namespace_definition unrelated= narrow;
+  unrelated.name= "Other"; unrelated.templ= "Other %w";
+  QVERIFY (athena_namespace_save (context, unrelated, native_error));
+  auto file= url_system (string ((root / "Note Algebra.ath").c_str ()));
+  auto inherited= athena_materials_inherited (context, file, error);
+  QVERIFY2 (error.empty (), error.c_str ());
+  QCOMPARE (inherited.size (), size_t (3));
+  QCOMPARE (inherited[0].uuid, first.uuid);
+  QCOMPARE (inherited[1].uuid, second.uuid);
+  QCOMPARE (inherited[2].uuid, second.uuid);
+  QCOMPARE (inherited[0].namespace_name, std::string ("Broad"));
+  QCOMPARE (inherited[2].namespace_name, std::string ("Narrow"));
+  const std::string identity= inherited[0].namespace_uuid;
+  std::shared_ptr<const athena_namespace_definition> definition;
+  QCOMPARE (athena_namespace_get (context, "Broad", definition, native_error), namespace_query_status::ok);
+  QCOMPARE (definition->materials, broad.materials);
+  broad= *definition;
+  broad.name= "Renamed";
+  QVERIFY (athena_namespace_save (context, broad, native_error));
+  QVERIFY2 (athena_namespace_ontology_refresh (true, native_error), native_error.c_str ());
+  QVERIFY (athena_namespace_ontology_namespace ("Renamed", definition));
+  QCOMPARE (definition->materials, broad.materials);
+  inherited= athena_materials_inherited (context, file, error);
+  QCOMPARE (inherited.back ().namespace_name, std::string ("Renamed"));
+  QCOMPARE (inherited.back ().namespace_uuid, identity);
+  broad.kind= "abstract";
+  QVERIFY (!athena_namespace_save (context, broad, native_error));
+  broad.materials.clear ();
+  broad.templ= "";
+  QVERIFY (athena_namespace_save (context, broad, native_error));
+  inherited= athena_materials_inherited (context, file, error);
+  QCOMPARE (inherited.size (), size_t (1));
+  QCOMPARE (inherited[0].namespace_name, std::string ("Narrow"));
+  QVERIFY (athena_materials_inherited (context, url_system ("/tmp/Note Algebra.ath"), error).empty ());
+  fs::create_symlink ("/tmp/Note Algebra.ath", root / "Note Outside.ath");
+  QVERIFY (athena_materials_inherited (context,
+    url_system (string ((root / "Note Outside.ath").c_str ())), error).empty ());
+  QCOMPARE (athena_namespace_get (context, "Narrow", definition, native_error), namespace_query_status::ok);
+  QCOMPARE (athena_namespace_remove_by_uuid (context, definition->uuid, native_error), namespace_query_status::ok);
+  QVERIFY (athena_materials_inherited (context, file, error).empty ());
+}
+
+void
+MaterialsTest::readonlyLibraryUsesAnIndependentSnapshot () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  const fs::path root (temporary.path ().toStdString ());
+  std::string error;
+  QVERIFY (!MaterialsStore::open_reader (root, AthenaVaultfileInfo {}, error));
+  QVERIFY (!fs::exists (root / "materials.sqlite"));
+  MaterialsStore writer;
+  QVERIFY (writer.open (root, AthenaVaultfileInfo {}, error));
+  auto record= sample_material ("Before", "A", "2020");
+  QVERIFY (writer.create (record, error));
+  auto reader= MaterialsStore::open_reader (root, AthenaVaultfileInfo {}, error);
+  QVERIFY2 (reader != nullptr, error.c_str ());
+  auto old= reader->get (record.uuid, error);
+  QVERIFY (old.has_value ());
+  record.fields[0].value= "After";
+  QVERIFY2 (writer.update (record, record.revision, error), error.c_str ());
+  QCOMPARE (reader->get (record.uuid, error)->field ("title"), std::string ("Before"));
+  reader.reset ();
+  reader= MaterialsStore::open_reader (root, AthenaVaultfileInfo {}, error);
+  QCOMPARE (reader->get (record.uuid, error)->field ("title"), std::string ("After"));
 }
 
 QTEST_MAIN (MaterialsTest)

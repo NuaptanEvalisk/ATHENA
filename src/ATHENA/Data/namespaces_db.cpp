@@ -21,6 +21,7 @@
 
 #include <iomanip>
 #include <sstream>
+#include <set>
 #include <unordered_map>
 
 namespace athena_namespaces {
@@ -188,6 +189,11 @@ get_namespace_from_db (sqlite3* db, string key,
   out.homepage_path= column_tm_string (st, 7);
   out.uuid= column_tm_string (st, 8);
   sqlite3_finalize (st);
+  std::string materials_error;
+  if (!athena_namespace_read_materials (db, tm_to_std (out.uuid), out.materials, materials_error)) {
+    error= std_to_tm (materials_error);
+    return false;
+  }
   out.parents.clear ();
   out.derived_parents.clear ();
   if (!query_parent_list (db, out.name, "declared", out.parents, error))
@@ -243,6 +249,12 @@ namespace_row_list (sqlite3* db, std::vector<athena_namespace_definition>& out,
     ns.initial_content_path= column_tm_string (st, 6);
     ns.homepage_path= column_tm_string (st, 7);
     ns.uuid= column_tm_string (st, 8);
+    std::string materials_error;
+    if (!athena_namespace_read_materials (db, tm_to_std (ns.uuid), ns.materials, materials_error)) {
+      error= std_to_tm (materials_error);
+      sqlite3_finalize (st);
+      return false;
+    }
     ns.parents.clear ();
     ns.derived_parents.clear ();
     out.push_back (ns);
@@ -628,6 +640,17 @@ save_namespace (const vault_context_handle& context,
     return false;
   }
   string kind= canonical_kind (ns.kind);
+  if (kind == "abstract" && !ns.materials.empty ()) {
+    error= "Abstract namespaces cannot specify Materials.";
+    return false;
+  }
+  std::set<std::string> material_ids;
+  for (const auto& material: ns.materials)
+    if (material.empty () || material.find ('\0') != std::string::npos ||
+        !material_ids.insert (material).second) {
+      error= "Namespace Materials must contain unique nonempty UUIDs.";
+      return false;
+    }
   if ((kind == "semi-concrete" || kind == "concrete") && ns.templ == "") {
     error= "Semi-concrete and concrete namespaces need a filename template.";
     return false;
@@ -695,6 +718,13 @@ save_namespace (const vault_context_handle& context,
       "(child, parent, source, ord) VALUES(?, ?, 'declared', ?);",
       { ns.name, found && ns.parents[i] == previous.name ? ns.name : ns.parents[i],
         std_to_tm (std::to_string (i)) }, error);
+
+  ok= ok && exec_prepared (cx.db,
+    "DELETE FROM namespace_materials WHERE namespace_uuid=?;", {uuid}, error);
+  for (size_t i=0; ok && i<ns.materials.size (); ++i)
+    ok= exec_prepared (cx.db,
+      "INSERT INTO namespace_materials(namespace_uuid,material_uuid,ord) VALUES(?,?,?);",
+      {uuid, std_to_tm (ns.materials[i]), std_to_tm (std::to_string (i))}, error);
 
   if (ok) {
     if (!exec_sql (cx.db, "COMMIT;", error)) {

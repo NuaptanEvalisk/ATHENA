@@ -959,18 +959,11 @@ athena_materials_list (int arg1, int arg2) {
 }
 
 tree
-athena_material_choose_citation (string arg1) {
-  string style= arg1;
-  return tree (qtm_material_choose_citation (
-    std::string (as_charp (style), N(style))));
-}
-
-tree
 athena_materials_update_document (tree arg1, string arg2) {
   std::string error;
   string style= arg2;
-  tree updated= athena_materials_update_document (
-    arg1, std::string (as_charp (style), N(style)), error);
+  tree updated= athena_materials_update_for_file (
+    arg1, get_current_buffer_safe (), std::string (as_charp (style), N(style)), error);
   tree result (TUPLE);
   result << tree (error.empty () ? "ok" : "error");
   result << (error.empty () ? updated : tree (error.c_str ()));
@@ -986,7 +979,7 @@ athena_materials_update_document_auto (tree arg1) {
   std::string style=
     athena_materials_document_citation_style (document, fallback);
   std::string error;
-  tree updated= athena_materials_update_document (document, style, error);
+  tree updated= athena_materials_update_for_file (document, get_current_buffer_safe (), style, error);
   tree result (TUPLE);
   result << tree (error.empty () ? "ok" : "error");
   result << (error.empty () ? updated : native_utf8_text (error));

@@ -8,12 +8,14 @@
 
 #include "ATHENA/Data/materials_engine.hpp"
 #include "ATHENA/Data/vault.hpp"
+#include "ATHENA/Data/namespaces.hpp"
 #include "convert.hpp"
 #include "scheme.hpp"
 
 #include <algorithm>
 #include <set>
 #include <vector>
+#include <filesystem>
 
 namespace {
 
@@ -89,6 +91,66 @@ material_document (tree body) {
 
 } // namespace
 
+std::vector<inherited_material>
+athena_materials_inherited (const vault_context_handle& context, url document,
+                            std::string& error) {
+  error.clear ();
+  std::vector<inherited_material> result;
+  if (!context || is_none (document)) return result;
+  if (!vault_context_is_current (context)) { error= "Vault has closed or changed"; return result; }
+  url root= url_system (string (context->root.string ().c_str ()));
+  if (!descends (document, root) || suffix (document) != "ath") return result;
+  namespace fs= std::filesystem;
+  string raw= as_system_string (document);
+  std::error_code ec;
+  fs::path supplied (std::string (raw.data (), N(raw)));
+  auto status= fs::symlink_status (supplied, ec);
+  if (ec && ec != std::errc::no_such_file_or_directory) { error= ec.message (); return result; }
+  ec.clear ();
+  fs::path actual= fs::is_symlink (status) ? fs::canonical (supplied, ec) : fs::weakly_canonical (supplied, ec);
+  if (ec) { error= ec.message (); return result; }
+  fs::path relative= actual.lexically_relative (fs::weakly_canonical (context->root, ec));
+  if (ec) { error= ec.message (); return result; }
+  if (relative.empty () || relative.is_absolute () || *relative.begin () == "..") return result;
+  namespace_records<athena_namespace_definition> definitions;
+  string query_error;
+  if (athena_namespaces_list (context, definitions, query_error) != namespace_query_status::ok) {
+    error= std::string (query_error.data (), N(query_error));
+    return result;
+  }
+  string stem= basename (document);
+  for (const auto& ns: definitions) {
+    if (ns.kind == "abstract" || ns.materials.empty ()) continue;
+    athena_namespace_match match;
+    query_error= "";
+    if (!athena_namespace_match_stem (ns, stem, match, query_error)) {
+      if (query_error != "") {
+        error= std::string (query_error.data (), N(query_error));
+        return {};
+      }
+      continue;
+    }
+    for (const auto& uuid: ns.materials)
+      result.push_back ({uuid, std::string (ns.uuid.data (), N(ns.uuid)),
+        std::string (ns.name.data (), N(ns.name))});
+  }
+  return result;
+}
+
+tree
+athena_materials_update_for_file (tree document, url filename,
+                                 const std::string& default_style,
+                                 std::string& error) {
+  std::vector<tree> citations, bibliographies;
+  collect_nodes (document, citations, bibliographies);
+  error.clear ();
+  if (citations.empty () && bibliographies.empty ()) return document;
+  auto context= vault_capture_context ();
+  auto inherited= athena_materials_inherited (context, filename, error);
+  if (!error.empty ()) return document;
+  return athena_materials_update_document (document, default_style, error, inherited, context);
+}
+
 std::string
 athena_materials_document_citation_style (
     const tree& document, const std::string& fallback_style) {
@@ -112,10 +174,17 @@ athena_materials_document_citation_style (
 tree
 athena_materials_update_document (tree document,
                                   const std::string& default_style,
-                                  std::string& error) {
+                                  std::string& error,
+                                  const std::vector<inherited_material>& inherited,
+                                  vault_context_handle context) {
   error.clear ();
-  MaterialsStore* store= vault_get_materials_store ();
-  if (store == nullptr) { error= "no active Materials database"; return document; }
+  if (!context) context= vault_capture_context ();
+  if (!context) { error= "no active Materials database"; return document; }
+  if (!vault_context_is_current (context)) { error= "Vault has closed or changed"; return document; }
+  AthenaVaultfileInfo info;
+  if (!athena_vaultfile_read (context->root, info, error)) return document;
+  auto store= MaterialsStore::open_reader (context->root, info, error);
+  if (!store) return document;
   tree updated= copy (document);
   std::vector<tree> citation_nodes;
   std::vector<tree> bibliography_nodes;
@@ -157,6 +226,18 @@ athena_materials_update_document (tree document,
     for (const std::string& uuid: canonical_manual)
       normalized << tree (uuid.c_str ());
     bibliography[1]= normalized;
+    // Namespace membership contributes to the rendered list, never to the
+    // document's explicitly chosen UUID tuple. Recompute it on every update.
+    for (const auto& item: inherited) {
+      std::string canonical= store->resolve_uuid (item.uuid, error);
+      if (!error.empty () || canonical.empty ()) {
+        if (error.empty ()) error= "unresolved namespace Material UUID: " + item.uuid;
+        return document;
+      }
+      requested.insert (canonical);
+      if (std::find (canonical_manual.begin (), canonical_manual.end (), canonical) == canonical_manual.end ())
+        canonical_manual.push_back (canonical);
+    }
     bibliography_manual.push_back (std::move (canonical_manual));
   }
 

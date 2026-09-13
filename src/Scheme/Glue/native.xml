@@ -118,10 +118,13 @@
     <arg type="string" />
   </binding>
   <binding name="materials-manager-show" native="materials_manager_show" returns="void" dispatch="ui" />
-  <binding name="material-choose-citation" native="athena_material_choose_citation" returns="tree">
+  <binding name="material-choose-citation" native="qtm_material_choose_citation_async" returns="void">
     <arg type="string" />
+    <arg type="procedure" />
   </binding>
-  <binding name="material-choose-references" native="qtm_material_choose_references" returns="tree" />
+  <binding name="material-choose-references" native="qtm_material_choose_references_async" returns="void">
+    <arg type="procedure" />
+  </binding>
   <binding name="material-resolve-uuid" native="athena_material_resolve_uuid" returns="object">
     <arg type="string" />
   </binding>

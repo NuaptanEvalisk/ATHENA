@@ -69,14 +69,14 @@
   (if (not (vault-active?))
       (set-message "Load a vault before inserting a Material citation"
                    "Materials")
-      (with result
-          (material-choose-citation (materials-document-citation-style))
-        (when (materials-result-tuple? result 3)
-          (let* ((items (tree->stree (tree-ref result 0)))
-                 (text (tree->string (tree-ref result 1)))
-                 (uri (tree->string (tree-ref result 2)))
-                 (rendered (if (string-null? uri) text `(hlink ,text ,uri))))
-            (insert `(material-citation ,items ,rendered)))))))
+      (material-choose-citation (materials-document-citation-style)
+        (lambda (result)
+          (when (materials-result-tuple? result 3)
+            (let* ((items (tree->stree (tree-ref result 0)))
+                   (text (tree->string (tree-ref result 1)))
+                   (uri (tree->string (tree-ref result 2)))
+                   (rendered (if (string-null? uri) text `(hlink ,text ,uri))))
+              (insert `(material-citation ,items ,rendered))))))))
 
 (kbd-commands
   ("?" "Insert Material Citation"
@@ -87,13 +87,13 @@
   (if (not (vault-active?))
       (set-message "Load a vault before inserting referenced Materials"
                    "Materials")
-      (with manual (material-choose-references)
+      (material-choose-references (lambda (manual)
         (when (and (tree? manual) (tree-func? manual 'tuple))
           (insert `(referenced-materials
                     ""
                     ,(tree->stree manual)
                     (document "")))
-          (materials-update-current-document)))))
+          (materials-update-current-document))))))
 
 (tm-define (materials-update-current-document)
   (:interactive #t)
@@ -126,8 +126,8 @@
 (tm-define (materials-append-references)
   (:interactive #t)
   (and-with node (materials-focused-reference-list)
-    (with chosen (material-choose-references)
-      (when (and (tree? chosen) (tree-func? chosen 'tuple))
+    (material-choose-references (lambda (chosen)
+      (when (and (tree->path node) (tree? chosen) (tree-func? chosen 'tuple))
         (let* ((old (materials-reference-uuids node))
                (added (map tree->string (tree-children chosen)))
                (all (list-remove-duplicates (append old added))))
@@ -136,7 +136,7 @@
                ,(tree->stree (tree-ref node 0))
                (tuple ,@all)
                ,(tree->stree (tree-ref node 2))))
-          (materials-update-current-document))))))
+          (materials-update-current-document)))))))
 
 (tm-define (materials-set-reference-style style)
   (and-with node (materials-focused-reference-list)

@@ -30,6 +30,7 @@ struct athena_namespace_definition {
   string  style_path;
   string  initial_content_path;
   string  homepage_path;
+  std::vector<std::string> materials;
   std::vector<string> parents;
   std::vector<string> derived_parents;
 };

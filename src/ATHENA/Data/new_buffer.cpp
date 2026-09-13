@@ -24,6 +24,7 @@
 #include "new_document.hpp"
 #include "new_style.hpp"
 #include "merge_sort.hpp"
+#include "materials_document.hpp"
 
 array<tm_buffer> bufs;
 
@@ -827,6 +828,15 @@ bool
 buffer_import (url name, url src, string fm) {
   tree t= import_tree (src, fm);
   if (t == "error" || is_func (t, _ERROR)) return true;
+  if (vault_active () && suffix (name) == "ath") {
+    string preference= get_preference ("materials csl style", "springer-mathphys");
+    std::string style= athena_materials_document_citation_style (
+      t, std::string (preference.data (), N(preference)));
+    std::string error;
+    tree updated= athena_materials_update_for_file (t, name, style, error);
+    if (error.empty ()) t= std::move (updated);
+    else std_warning << "Could not refresh document Materials: " << string (error.c_str ()) << LF;
+  }
   set_buffer_tree (name, t);
   return false;
 }

@@ -17,6 +17,8 @@
 #include <QSize>
 #include <QString>
 #include <QWidget>
+#include <string>
+#include <vector>
 
 class QComboBox;
 class QCheckBox;
@@ -55,6 +57,8 @@ private:
   void chooseHomepagePath ();
   void createHomepagePath ();
   void editHomepage ();
+  void setMaterialIds (const std::vector<std::string>& ids);
+  std::vector<std::string> materialIds () const;
   void addExplicitParent ();
   void removeSelectedExplicitParents ();
   void saveRelation ();
@@ -84,6 +88,8 @@ private:
   QPushButton* homepageBrowseButton;
   QPushButton* homepageCreateButton;
   QPushButton* homepageEditButton;
+  QWidget*    materialsWidget;
+  QListWidget* materialsList;
   QListWidget* explicitParentsList;
   QComboBox*   explicitParentCombo;
   QListWidget* derivedParentsList;

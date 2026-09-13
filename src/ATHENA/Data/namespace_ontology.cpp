@@ -60,6 +60,7 @@ struct NativeNamespace {
   std::string style_path;
   std::string initial_content_path;
   std::string homepage_path;
+  std::vector<std::string> materials;
   std::vector<std::string> parents;
   std::vector<std::string> derived_parents;
 };
@@ -883,6 +884,7 @@ materialize_namespace (const NativeNamespace& native) {
   ns.style_path= std_to_tm_string (native.style_path);
   ns.initial_content_path= std_to_tm_string (native.initial_content_path);
   ns.homepage_path= std_to_tm_string (native.homepage_path);
+  ns.materials= native.materials;
   for (const std::string& parent: native.parents)
     ns.parents.push_back (std_to_tm_string (parent));
   for (const std::string& parent: native.derived_parents)
@@ -986,6 +988,10 @@ load_native_namespace_rows (sqlite3* db,
     ns.initial_content_path= column_text (statement, 6);
     ns.homepage_path= column_text (statement, 7);
     ns.uuid= column_text (statement, 8);
+    if (!athena_namespace_read_materials (db, ns.uuid, ns.materials, error)) {
+      sqlite3_finalize (statement);
+      return false;
+    }
     namespaces.push_back (std::move (ns));
   }
   sqlite3_finalize (statement);

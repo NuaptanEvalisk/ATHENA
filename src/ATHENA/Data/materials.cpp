@@ -1192,6 +1192,31 @@ MaterialsStore::close () {
   }
 }
 
+std::unique_ptr<const MaterialsStore>
+MaterialsStore::open_reader (const fs::path& root, const AthenaVaultfileInfo& info,
+                             std::string& error) {
+  error.clear ();
+  auto reader= std::make_unique<MaterialsStore> ();
+  if (!safe_vault_path (root, info.materials_db_path, reader->impl->db_path, error) ||
+      !safe_vault_path (root, info.materials_directory, reader->impl->files_path, error)) return {};
+  reader->impl->root= fs::weakly_canonical (root);
+  int rc= sqlite3_open_v2 (reader->impl->db_path.c_str (), &reader->impl->db,
+                          SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX, nullptr);
+  if (rc != SQLITE_OK) {
+    error= reader->impl->db ? sqlite3_errmsg (reader->impl->db) : sqlite3_errstr (rc);
+    return {};
+  }
+  sqlite3_busy_timeout (reader->impl->db, 5000);
+  if (!exec_sql (reader->impl->db, "BEGIN;", error)) return {};
+  Statement version (reader->impl->db, "PRAGMA user_version;");
+  if (!version || sqlite3_step (version.get ()) != SQLITE_ROW ||
+      sqlite3_column_int (version.get (), 0) != 2) {
+    error= "Materials database must be initialized by loading its vault first";
+    return {};
+  }
+  return reader;
+}
+
 bool MaterialsStore::is_open () const { return impl && impl->db != nullptr; }
 const fs::path& MaterialsStore::vault_root () const { return impl->root; }
 const fs::path& MaterialsStore::database_path () const { return impl->db_path; }
