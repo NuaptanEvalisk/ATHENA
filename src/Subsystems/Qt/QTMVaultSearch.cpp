@@ -18,6 +18,10 @@
 #include "drd_mode.hpp"
 #include "fuzzy_rank.hpp"
 #include "qt_utilities.hpp"
+#include "neighborhoods.hpp"
+#include "namespaces.hpp"
+#include "vault.hpp"
+#include <QFileInfo>
 #include <QFile>
 #include <QThread>
 #include <QRegularExpression>
@@ -30,6 +34,62 @@
 #include <deque>
 #include <utility>
 #include <stdexcept>
+#include <map>
+
+bool
+vault_search_candidate_files (url origin, string namespace_name,
+                              bool neighborhoods_only,
+                              std::vector<url>& files, string& error) {
+  files.clear ();
+  error= "";
+  std::map<QString, url> neighborhood_files;
+  if (neighborhoods_only) {
+    const auto neighborhoods= athena_neighborhoods_for_file (origin);
+    if (!neighborhoods.valid) {
+      error= neighborhoods.error;
+      return false;
+    }
+    for (const auto& row: neighborhoods.rows) {
+      if (row.warning != "") {
+        error= row.warning;
+        return false;
+      }
+      for (const auto& entry: row.files)
+        neighborhood_files.emplace (to_qstring (entry.canonical_path), entry.file);
+    }
+  }
+
+  std::vector<url> candidates;
+  if (namespace_name != "") {
+    std::shared_ptr<const athena_namespace_definition> definition;
+    if (!athena_namespace_get (namespace_name, definition)) {
+      error= "Unknown namespace: " * namespace_name;
+      return false;
+    }
+    auto members= athena_namespace_members (namespace_name, error);
+    if (error != "") return false;
+    for (const auto& member: members) candidates.push_back (member.file_url ());
+  }
+  else if (neighborhoods_only) {
+    for (const auto& entry: neighborhood_files) candidates.push_back (entry.second);
+  }
+  else {
+    const auto all= vault_get_all_files ();
+    for (int i= 0; i < N(all); ++i) candidates.push_back (all[i]);
+  }
+
+  std::map<QString, url> unique;
+  for (const auto& file: candidates) {
+    const auto extension= suffix (file);
+    if (extension != "ath" && extension != "tm") continue;
+    const QString key= QFileInfo (to_qstring (concretize (file))).canonicalFilePath ();
+    if (key.isEmpty ()) continue;
+    if (neighborhoods_only && !neighborhood_files.count (key)) continue;
+    unique.emplace (key, file);
+  }
+  for (const auto& entry: unique) files.push_back (entry.second);
+  return true;
+}
 
 static thread_local const std::atomic<bool>* search_cancel_flag= nullptr;
 

@@ -54,6 +54,12 @@ struct VaultContentMatch {
   int    titleMatchScore= -1;
 };
 
+// Called on the GUI owner before publishing paths to SearchWorkers. The origin
+// is the document captured when the inserter opened, not its preview buffer.
+bool vault_search_candidate_files (url origin, string namespace_name,
+                                   bool neighborhoods_only,
+                                   std::vector<url>& files, string& error);
+
 class VaultRawSearchPrefilter {
   QByteArray needle;
   bool       caseInsensitive;

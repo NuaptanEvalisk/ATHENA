@@ -24,6 +24,7 @@
 #include "QTMVaultSearchWorker.hpp"
 #include "drd_mode.hpp"
 #include "namespaces.hpp"
+#include "new_buffer.hpp"
 #include "qt_utilities.hpp"
 #include "scheme.hpp"
 #include "tree_search.hpp"
@@ -227,6 +228,7 @@ public:
     if (searchTask) searchTask->cancelled= true;
     stopButton->setEnabled (false);
     searchButton->setEnabled (true);
+    neighborhoodsCheck->setEnabled (true);
   }
   static int searchFile (tree body, url u, const tree& query,
                          const VaultSearchOptions& options,
@@ -243,6 +245,8 @@ public:
 #endif
   QCheckBox*   caseInsensitiveCheck;
   QCheckBox*   fuzzyCheck;
+  QCheckBox*   neighborhoodsCheck;
+  const url   sourceFile= get_current_buffer_safe ();
   QPushButton* searchButton;
   QPushButton* stopButton;
   QLabel*      statusLabel;
@@ -1143,6 +1147,14 @@ TransclusionSearchPage::TransclusionSearchPage (QWidget* parent)
     get_preference (transclusion_search_fuzzy_pref, "off") == "on");
 
   searchButton= new QPushButton ("Search", this);
+  neighborhoodsCheck= new QCheckBox ("Search in neighborhoods only", this);
+  neighborhoodsCheck->setObjectName ("searchNeighborhoodsOnly");
+  preserveCheckboxLabel (neighborhoodsCheck);
+  neighborhoodsCheck->setChecked (
+    get_preference ("transclusion search neighborhoods only", "off") == "on");
+  connect (neighborhoodsCheck, &QCheckBox::toggled, this, [] (bool enabled) {
+    set_preference ("transclusion search neighborhoods only", enabled ? "on" : "off");
+  });
   stopButton= new QPushButton ("Stop", this);
   stopButton->setEnabled (false);
   statusLabel= new QLabel (this);
@@ -1183,6 +1195,7 @@ TransclusionSearchPage::TransclusionSearchPage (QWidget* parent)
   matching->addWidget (fuzzyCheck);
   matching->addStretch ();
   filters->addLayout (matching, 2, 1, 1, 3);
+  filters->addWidget (neighborhoodsCheck, 3, 1, 1, 3);
 
   QWidget* left= new QWidget (this);
   QVBoxLayout* leftLayout= new QVBoxLayout (left);
@@ -1450,11 +1463,13 @@ TransclusionSearchPage::searchFile (
 void
 TransclusionSearchPage::startSearch () {
   if (!searchButton->isEnabled ()) return;
+  neighborhoodsCheck->setEnabled (false);
   searchButton->setEnabled (false);
   stopButton->setEnabled (true);
   auto finishSearch= [this] () {
     stopButton->setEnabled (false);
     searchButton->setEnabled (true);
+    neighborhoodsCheck->setEnabled (true);
   };
   results.clear ();
   resultList->clear ();
@@ -1473,42 +1488,18 @@ TransclusionSearchPage::startSearch () {
 
   std::vector<url> files;
   refreshNamespaces ();
-  QString ns= selectedNamespace ();
-  if (ns.isEmpty ()) {
-    array<url> all= vault_get_all_files ();
-    for (int i=0; i<N(all); i++) {
-      string suf= suffix (all[i]);
-      if (suf == "ath" || suf == "tm") files.push_back (all[i]);
-    }
+  string error;
+  if (!vault_search_candidate_files (sourceFile, from_qstring (selectedNamespace ()),
+                                     neighborhoodsCheck->isChecked (), files, error)) {
+    statusLabel->setText (to_qstring (error));
+    finishSearch ();
+    return;
   }
-  else {
-    string error;
-    std::shared_ptr<const athena_namespace_definition> def;
-    if (!athena_namespace_get (from_qstring (ns), def)) {
-      QMessageBox::warning (this, "Insert transclusion",
-                            "Unknown namespace: " + ns);
-      finishSearch ();
-      return;
-    }
-    namespace_records<athena_namespace_match> members=
-      athena_namespace_members (from_qstring (ns), error);
-    if (error != "")
-      QMessageBox::warning (this, "Insert transclusion",
-                            "Namespace warning: " + to_qstring (error));
-    std::set<std::string> seen;
-    for (const athena_namespace_match& m: members) {
-      string suf= suffix (m.file_url ());
-      if (suf != "ath" && suf != "tm") continue;
-      std::string key= to_qstring (m.file_path).toStdString ();
-      if (!seen.insert (key).second) continue;
-      files.push_back (m.file_url ());
-    }
+  if (files.empty ()) {
+    statusLabel->setText ("No documents in the selected search scope.");
+    finishSearch ();
+    return;
   }
-
-  std::sort (files.begin (), files.end (),
-             [] (const url& a, const url& b) {
-               return as_unix_string (a) < as_unix_string (b);
-             });
 
   VaultSearchOptions options;
   options.query= queryText;

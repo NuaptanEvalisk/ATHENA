@@ -10,6 +10,7 @@
 
 #include <QtTest/QtTest>
 #include <QTemporaryFile>
+#include <QTemporaryDir>
 #include "Qt/QTMVaultAnchorModel.hpp"
 #include "Qt/QTMVaultSearch.hpp"
 #include "Qt/QTMVaultSearchWorker.hpp"
@@ -17,6 +18,12 @@
 #include "Qt/qt_utilities.hpp"
 #include "drd_std.hpp"
 #include "drd_mode.hpp"
+#include "namespaces.hpp"
+#include "vault.hpp"
+#include "vaultfile_json.hpp"
+#include <filesystem>
+#include <fstream>
+#include <set>
 #include <atomic>
 #include <thread>
 
@@ -44,11 +51,97 @@ private slots:
   void parallelSearchPreservesOrder ();
   void parallelSearchCancelsOnOwnerDestruction ();
   void rawPrefilterMatchesAcrossReadBoundary ();
+  void neighborhoodCandidateScope ();
 };
 
 void
 TestVaultSearch::initTestCase () {
   init_std_drd ();
+}
+
+void
+TestVaultSearch::neighborhoodCandidateScope () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  struct CloseVault { ~CloseVault () { if (vault_active ()) vault_close (); } } close;
+  namespace fs= std::filesystem;
+  const fs::path root (temporary.path ().toStdString ());
+  fs::create_directories (root / "a");
+  fs::create_directories (root / "b");
+  for (const auto* name: {"a/Note alpha.ath", "a/Other.ath", "b/Note beta.ath",
+                          "b/Note two words.ath", "b/Else omega.ath"}) {
+    std::ofstream file (root / name);
+    file << "<TeXmacs|2.1.4>\n\n<\\body>\nhello\n</body>\n";
+  }
+  std::string configuration_error;
+  QVERIFY (athena_vaultfile_write (root, AthenaVaultfileInfo {}, configuration_error));
+  QCOMPARE (vault_load (url_system (from_qstring (temporary.path ())),
+                        "Search test", "map.sqlite", "ns.sqlite"), string (""));
+  const auto context= vault_capture_context ();
+  string error;
+  athena_namespace_definition parent;
+  parent.name= "Broad"; parent.kind= "semi-concrete";
+  parent.templ= "Note %s"; parent.sorter_trivial= true;
+  QVERIFY (athena_namespace_create (context, parent, error));
+  athena_namespace_definition child;
+  child.name= "Specific"; child.kind= "semi-concrete";
+  child.templ= "Note %w"; child.sorter_trivial= true;
+  child.parents.push_back (parent.name);
+  QVERIFY (athena_namespace_create (context, child, error));
+  athena_namespace_definition other;
+  other.name= "Else"; other.kind= "semi-concrete";
+  other.templ= "Else %w"; other.sorter_trivial= true;
+  QVERIFY (athena_namespace_create (context, other, error));
+  const url origin= url_system (from_qstring (temporary.path () + "/a/Note alpha.ath"));
+  std::vector<url> files;
+  auto names= [&] () {
+    std::set<std::string> result;
+    for (const auto& file: files)
+      result.insert (fs::path (to_qstring (concretize (file)).toStdString ()).filename ().string ());
+    return result;
+  };
+  QVERIFY (vault_search_candidate_files (origin, "", false, files, error));
+  QCOMPARE (files.size (), std::size_t (5));
+  QVERIFY2 (vault_search_candidate_files (origin, "", true, files, error), as_charp (error));
+  QVERIFY ((names () == std::set<std::string> {"Note alpha.ath", "Note beta.ath", "Other.ath"}));
+  QCOMPARE (files.size (), std::size_t (3));
+  QVERIFY (vault_search_candidate_files (origin, "Broad", true, files, error));
+  QVERIFY ((names () == std::set<std::string> {"Note alpha.ath", "Note beta.ath"}));
+  QVERIFY (vault_search_candidate_files (origin, "Broad", false, files, error));
+  QCOMPARE (files.size (), std::size_t (3));
+  QVERIFY (vault_search_candidate_files (origin, "Else", true, files, error));
+  QVERIFY (files.empty ());
+  QVERIFY (!vault_search_candidate_files (origin, "Missing", false, files, error));
+  QVERIFY (error != "");
+  QVERIFY (files.empty ());
+  QVERIFY (!vault_search_candidate_files (url_none (), "", true, files, error));
+  QVERIFY (error != "");
+  QVERIFY (files.empty ());
+  QVERIFY (vault_search_candidate_files (url_none (), "", false, files, error));
+  QCOMPARE (files.size (), std::size_t (5));
+
+  QVERIFY (vault_search_candidate_files (origin, "", true, files, error));
+  std::vector<std::string> paths;
+  for (const auto& file: files) paths.push_back (to_qstring (concretize (file)).toStdString ());
+  VaultSearchOptions options;
+  options.query= "hello";
+  bool complete= false;
+  int inspected= -1;
+  std::vector<QString> searched;
+  const auto task= start_vault_search<QString> (this, std::move (paths), options,
+    [] (tree, url file, const tree&, const VaultSearchOptions&, std::vector<QString>& hits) {
+      hits.push_back (to_qstring (as_system_string (tail (file))));
+    }, [] (const VaultSearchProgress&) {},
+    [&] (std::vector<QString> result, const VaultSearchProgress& progress, bool cancelled) {
+      inspected= cancelled ? -1 : progress.completed;
+      searched= std::move (result);
+      complete= true;
+    });
+  QTRY_VERIFY (complete);
+  QCOMPARE (inspected, 3);
+  QCOMPARE (searched.size (), std::size_t (3));
+  QVERIFY (std::find (searched.begin (), searched.end (), "Other.ath") != searched.end ());
+  QVERIFY (std::find (searched.begin (), searched.end (), "Note beta.ath") != searched.end ());
 }
 
 void
