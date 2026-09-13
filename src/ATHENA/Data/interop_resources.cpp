@@ -10,6 +10,8 @@
 #include "../Interop/resources.hpp"
 #include "../Interop/traversal.hpp"
 #include "interop_vault_resource.hpp"
+#include "interop_filesystem.hpp"
+#include "interop_document.hpp"
 #include "interop_artifacts.hpp"
 #include "namespaces_private.hpp"
 #include <chrono>
@@ -310,12 +312,14 @@ public:
     const auto& s = req.selectors.at (req.offset);
     if (!req.basepoint) {
       if (managed_type != "root") return resolver_outcome::irrelevant;
+      if (!s.positions.empty ()) throw std::invalid_argument ("Indices require a document or element basepoint");
       if (s.type != selector::kind::default_resource) return resolver_outcome::miss;
       out.publish (std::make_shared<native_resource> ("root"), req.offset + 1);
       return resolver_outcome::resolved;
     }
     auto base = std::dynamic_pointer_cast<const native_resource> (req.basepoint->accessor);
     if (!base) return resolver_outcome::irrelevant;
+    if (!s.positions.empty ()) throw std::invalid_argument ("Indices require a document or element basepoint");
     auto state = std::dynamic_pointer_cast<const traversal> (req.state);
     try {
       if (state && state->step == traversal::phase::candidate) {
@@ -334,6 +338,7 @@ public:
         if (++offset == req.selectors.size ()) return resolver_outcome::miss;
       }
       const auto& target = req.selectors.at (offset);
+      if (!target.positions.empty ()) throw std::invalid_argument ("Indices require a document or element basepoint");
       auto budget = std::make_shared<traversal_budget> (target.limits);
       children (req, *base, offset, budget, 1, out);
       return out.branches.empty () ? resolver_outcome::miss : resolver_outcome::resolved;
@@ -349,7 +354,7 @@ public:
 std::shared_ptr<const resolver_registry> native_resolvers () {
   static const auto registry = std::make_shared<const resolver_registry> (resolver_registry {
     std::make_shared<native_resolver> ("root"), std::make_shared<native_resolver> ("vault"),
-    std::make_shared<native_resolver> ("namespace"), artifacts_resolver ()});
+    std::make_shared<native_resolver> ("namespace"), filesystem_resolver (), document_resolver (), artifacts_resolver ()});
   return registry;
 }
 } // namespace athena::interop

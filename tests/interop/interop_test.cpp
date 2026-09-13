@@ -179,6 +179,15 @@ static void parser_test () {
   require (!matches ("=", "*", 12), "String wildcard coerced a number");
   auto s = parse_selection ("@/vaults/@/namespaces/\"a/b\"");
   require (s.size () == 5 && s.back ().name == "a/b", "Quoted names are not paths");
+  s = parse_selection (R"(@/vaults/@/filesystem/"[0].ath"/online/[0]/?($tag = "math")[0, 3, 4])");
+  require (s.at (4).name == "[0].ath" && s.at (4).positions.empty (), "Quoted bracket filename was indexed");
+  require (s.at (6).type == selector::kind::index && s.at (6).positions == std::vector<std::uint64_t> {0},
+           "Explicit child index was not parsed");
+  require (s.back ().type == selector::kind::local && s.back ().positions == std::vector<std::uint64_t> {0, 3, 4},
+           "Predicate result indices were not parsed");
+  require (s.back ().filter.matches ({{"tag", "math"}}), "Index suffix changed the predicate");
+  s = parse_selection ("0");
+  require (s.front ().type == selector::kind::name, "Bare numeric names became child indices");
   s = parse_selection (R"(@/vaults/@/namespaces/???($type = "namespace", NOT ($name = "other" OR exists($missing)) | $max_depth = "3", $max_matches = 2))");
   require (s.back ().limits.max_depth == 3 && s.back ().limits.max_matches == 2,
            "Typed and quoted bounds");
@@ -188,7 +197,8 @@ static void parser_test () {
            "Negated group");
   for (const auto& text: {"", "@/", "@//a", R"(@/???($name = 1))",
        "@/?($name =)", R"(@/???($name = 1 | $max_matches = 0))",
-       R"(@/???($name = 1 | $max_depth = 1, $max_depth = 2))"}) {
+       R"(@/???($name = 1 | $max_depth = 1, $max_depth = 2))",
+       "[]", "[-1]", "[1.5]", "[0,]", "[18446744073709551616]", "[0][1]"}) {
     bool rejected = false;
     try { parse_selection (text); }
     catch (const std::invalid_argument&) { rejected = true; }

@@ -402,6 +402,8 @@ get_new_view (url name) {
   }
   else initialize_view (vw);
 
+  publish_buffer_source_view (buf);
+
   //cout << "View created " << abstract_view (vw) << "\n";
   return abstract_view (vw);
 }
@@ -458,6 +460,7 @@ delete_view (url u) {
   (void) buf->actor->invoke (
     actor_command_kind::destroy_view, vw->runtime_id);
   tm_delete (vw);
+  publish_buffer_source_view (buf);
 }
 
 void

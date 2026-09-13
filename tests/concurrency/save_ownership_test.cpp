@@ -88,16 +88,18 @@ static void test_lifetime_pin () {
 
 static void test_menu_metadata () {
   buffer_name_catalog catalog;
-  catalog.publish_metadata ({{"first", {"First", 10}},
-                             {"second", {"Second", 20}}});
+  catalog.publish_metadata ({{"first", {"First", 10, false, 11}},
+                             {"second", {"Second", 20, false, 22}}});
   buffer_name_catalog::metadata value;
   assert (catalog.lookup ("first", value));
   assert (value.title == "First" && value.last_visit == 10);
+  assert (value.actor_id == 11);
   std::thread reader ([&] {
     for (int i= 0; i < 10000; ++i) {
       buffer_name_catalog::metadata entry;
       assert (catalog.lookup ("first", entry));
       assert (entry.title == "First" && entry.last_visit >= 10);
+      assert (entry.actor_id == 11);
     }
   });
   for (int i= 10; i < 10010; ++i) catalog.visit ("first", i);
@@ -108,12 +110,18 @@ static void test_menu_metadata () {
   catalog.set_modified ("first", false);
   assert (catalog.lookup ("first", value) && !value.modified);
   assert (catalog.lookup ("first", value) && value.last_visit == 10009);
+  catalog.set_source_view ("first", 17);
+  assert (catalog.lookup ("first", value) && value.source_view == 17);
+  assert (value.actor_id == 11 && value.last_visit == 10009 && !value.modified);
+  catalog.set_source_view ("first", 0);
+  assert (catalog.lookup ("first", value) && value.source_view == 0);
   assert (catalog.lookup ("second", value) && value.last_visit == 20);
-  catalog.publish_metadata ({{"renamed", {"New title", 10009}}});
+  catalog.publish_metadata ({{"renamed", {"New title", 10009, false, 11}}});
   assert (!catalog.lookup ("first", value));
   assert (!catalog.lookup ("second", value));
   assert (catalog.lookup ("renamed", value));
   assert (value.title == "New title" && value.last_visit == 10009);
+  assert (value.actor_id == 11);
   catalog.publish_metadata ({});
   catalog.visit ("renamed", 20000);
   assert (!catalog.lookup ("renamed", value));

@@ -4,6 +4,16 @@ list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/watchdog/watchdog_fake_child\\.cpp$"
 list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/qt/completion_popup_test\\.cpp$")
 list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/interop/interop_test\\.cpp$")
 list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/interop/authorization_ui_test\\.cpp$")
+list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/interop/confined_filesystem_test\\.cpp$")
+
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  add_executable(confined_filesystem_test interop/confined_filesystem_test.cpp
+    ${ATHENA_SOURCE_DIR}/src/System/Files/confined_filesystem.cpp)
+  set_target_properties(confined_filesystem_test PROPERTIES AUTOMOC OFF)
+  target_link_libraries(confined_filesystem_test PRIVATE Threads::Threads)
+  add_test(NAME confined_filesystem_test COMMAND confined_filesystem_test)
+  set_tests_properties(confined_filesystem_test PROPERTIES TIMEOUT 15)
+endif ()
 
 add_executable(interop_test interop/interop_test.cpp)
 set_target_properties(interop_test PROPERTIES AUTOMOC OFF)

@@ -18,6 +18,9 @@
 #include <sqlite3.h>
 #include <future>
 #include "../../../src/ATHENA/Interop/resources.hpp"
+#include "ATHENA/Interop/traversal.hpp"
+#include "ATHENA/Data/interop_filesystem.hpp"
+#include "ATHENA/Data/interop_document.hpp"
 #include <fstream>
 
 bool headless_mode= true;
@@ -442,6 +445,225 @@ NamespaceDatabaseTest::nativeInteropResolution () {
   QVERIFY2 (result.state == resolution_result::status::complete, result.error.c_str ());
   QCOMPARE (result.leaves.size (), std::size_t (1));
   QVERIFY (!result.truncated.empty ());
+  result= run ("@/vaults/@/filesystem");
+  QVERIFY2 (result.state == resolution_result::status::complete, result.error.c_str ());
+  QCOMPARE (result.leaves.size (), std::size_t (1));
+  QCOMPARE (result.tree.back ()->accessor->type (), std::string ("directory"));
+  {
+    auto filesystem= std::make_shared<athena::filesystem::confined_root> (root);
+    auto selector= parse_selection (R"(??($name = "vanishing"))");
+    std::atomic<bool> stopped {false};
+    for (bool directory: {false, true}) {
+      if (directory) std::filesystem::create_directory (root / "vanishing");
+      else { std::ofstream transient (root / "vanishing"); transient << "temporary"; }
+      auto file= std::make_shared<filesystem_resource> (
+        context, filesystem, "vanishing", filesystem->open ("vanishing"));
+      auto occurrence= std::make_shared<athena::interop::occurrence> (
+        athena::interop::occurrence {1, file, {}});
+      std::filesystem::remove (root / "vanishing");
+      QCOMPARE (file->operate ("get", value::object ()).status, std::string ("NOT_FOUND"));
+      for (auto phase: {traversal::phase::candidate, traversal::phase::descend}) {
+        if (!directory && phase == traversal::phase::descend) continue;
+        auto state= std::make_shared<traversal> (
+          std::make_shared<traversal_budget> (selector.front ().limits), 1, "filesystem", phase);
+        resolution_request request {selector, 0, occurrence, state, stopped};
+        resolution_output output;
+        QCOMPARE (filesystem_resolver ()->resolve (request, output), resolver_outcome::miss);
+        QVERIFY (output.branches.empty () && output.redispatch.empty ());
+      }
+    }
+  }
+  result= run ("@/vaults/@/filesystem/Note one.ath");
+  QVERIFY2 (result.state == resolution_result::status::complete, result.error.c_str ());
+  QCOMPARE (result.leaves.size (), std::size_t (1));
+  auto file_accessor= result.tree.back ()->accessor;
+  const auto info= file_accessor->operate ("get", value::object ());
+  QCOMPARE (info.status, std::string ("OK"));
+  QCOMPARE (info.data.at ("size").get<int> (), 7);
+  QVERIFY (info.data.contains ("created_time"));
+  QVERIFY (info.data.at ("modified_time").contains ("nanoseconds"));
+  auto checked= file_accessor->operate ("check", value::object ());
+  QCOMPARE (checked.status, std::string ("OK"));
+  QVERIFY (!checked.data.at ("valid").get<bool> ());
+  result= run ("@/vaults/@/filesystem/Note two.ath");
+  QVERIFY2 (result.state == resolution_result::status::complete, result.error.c_str ());
+  checked= result.tree.back ()->accessor->operate ("check", value::object ());
+  QCOMPARE (checked.status, std::string ("OK"));
+  QVERIFY2 (checked.data.at ("valid").get<bool> (), checked.data.dump ().c_str ());
+  // Use native markup, including a custom field that save/export filtering must not remove.
+  {
+    std::ofstream document (root / "Source.ath");
+    document << "<TeXmacs|" << TEXMACS_COMPAT_VERSION << ">\n\n<style|generic>\n\n"
+      "<\\body>\nfirst\n\n<transclude|other.ath|anchor>\n</body>\n\n"
+      "<custom-field|retained>\n";
+  }
+  result= run ("@/vaults/@/filesystem/Source.ath/saved");
+  QVERIFY2 (result.state == resolution_result::status::complete, result.error.c_str ());
+  QCOMPARE (result.leaves.size (), std::size_t (1));
+  auto saved= result.tree.back ()->accessor;
+  QCOMPARE (saved->type (), std::string ("document"));
+  auto source= saved->operate ("get", value::object ());
+  QCOMPARE (source.status, std::string ("OK"));
+  QCOMPARE (source.data.at ("tree").at ("tag").get<std::string> (), std::string ("document"));
+  result= run ("@/vaults/@/filesystem/Source.ath/saved/custom-field/[0]");
+  QVERIFY2 (result.state == resolution_result::status::complete, result.error.c_str ());
+  QCOMPARE (result.leaves.size (), std::size_t (1));
+  auto custom= result.tree.back ()->accessor;
+  QCOMPARE (custom->type (), std::string ("node"));
+  QCOMPARE (custom->operate ("get", value::object ()).data.at ("tree").at ("text").get<std::string> (),
+            std::string ("retained"));
+  result= run (R"(@/vaults/@/filesystem/Source.ath/saved/??($tag = "transclude"))");
+  QVERIFY2 (result.state == resolution_result::status::complete, result.error.c_str ());
+  QCOMPARE (result.leaves.size (), std::size_t (1));
+  QCOMPARE (result.tree.back ()->accessor->operate ("get", value::object ()).data.at ("tree").at ("children").size (),
+            std::size_t (2));
+  result= run (R"(@/vaults/@/filesystem/Source.ath/saved/?($tag = "body")[0]/[0]/[0])");
+  QVERIFY2 (result.state == resolution_result::status::complete, result.error.c_str ());
+  QCOMPARE (result.leaves.size (), std::size_t (1));
+  QCOMPARE (result.tree.back ()->accessor->operate ("get", value::object ()).data.at ("tree").at ("text").get<std::string> (),
+            std::string ("first"));
+  {
+    // Resolver requests can be constructed natively as well as parsed. Honor
+    // their budgets even though local-selector bounds are not CLI syntax.
+    auto selectors= parse_selection (R"(?($type = "node")[0])");
+    selectors.front ().limits.max_matches= 1;
+    auto base= std::make_shared<athena::interop::occurrence> (
+      athena::interop::occurrence {1, saved, {}});
+    std::atomic<bool> stopped {false};
+    for (std::uint64_t index: {0, 1}) {
+      selectors.front ().positions= {index};
+      resolution_request request {selectors, 0, base, {}, stopped};
+      resolution_output output;
+      document_resolver ()->resolve (request, output);
+      QCOMPARE (output.branches.size (), index == 0 ? std::size_t (1) : std::size_t (0));
+      QVERIFY (!output.truncated.empty ());
+    }
+  }
+  result= run ("@/vaults/@/filesystem/Source.ath/online/custom-field/[0]");
+  QVERIFY2 (result.state == resolution_result::status::complete, result.error.c_str ());
+  QCOMPARE (result.leaves.size (), std::size_t (1));
+  QCOMPARE (result.tree.back ()->accessor->operate ("get", value::object ()).data.at ("source").get<std::string> (),
+            std::string ("online"));
+  { std::ofstream not_document (root / "not-document.txt"); not_document << "text"; }
+  result= run ("@/vaults/@/filesystem/not-document.txt/saved");
+  QVERIFY2 (result.state == resolution_result::status::complete, result.error.c_str ());
+  QVERIFY (result.leaves.empty ());
+  result= run ("@/vaults/@/filesystem/Note one.ath/saved");
+  QVERIFY (result.state == resolution_result::status::fault);
+  { std::ofstream changed (root / "Source.ath", std::ios::app); changed << "\n"; }
+  QCOMPARE (saved->operate ("get", value::object ()).status, std::string ("OK"));
+  QCOMPARE (custom->operate ("get", value::object ()).status, std::string ("STALE"));
+  {
+    std::filesystem::copy_file (root / "Source.ath", root / "Write.ath");
+    auto editing= run (R"(@/vaults/@/filesystem/Write.ath/saved/body/[0]/?($type = "node"))");
+    QVERIFY2 (editing.state == resolution_result::status::complete, editing.error.c_str ());
+    QCOMPARE (editing.leaves.size (), std::size_t (2));
+    binding first, transclusion, body, envelope, body_field;
+    for (const auto& item: editing.tree) {
+      auto props= item->accessor->properties ();
+      if (item->accessor->type () == "document") envelope= item->accessor;
+      if (props.value ("tag", "") == "body") body_field= item->accessor;
+      if (props.value ("text", "") == "first") {
+        first= item->accessor;
+        body= item->parent->accessor;
+      }
+      if (props.value ("tag", "") == "transclude") transclusion= item->accessor;
+    }
+    QVERIFY (first && transclusion && body && envelope && body_field);
+    auto competing= run ("@/vaults/@/filesystem/Write.ath/saved").tree.back ()->accessor;
+    auto before= envelope->operate ("get", value::object ()).data;
+    auto disk_bytes= [&] {
+      std::ifstream input (root / "Write.ath", std::ios::binary);
+      return std::string (std::istreambuf_iterator<char> (input), std::istreambuf_iterator<char> ());
+    };
+    const auto original_bytes= disk_bytes ();
+    QVERIFY (envelope->inspect ().contains ("set"));
+    QCOMPARE (envelope->operate ("set", {{"tree", {{"tag", "document"}, {"children", value::array ()}}}}).status,
+              std::string ("INVALID_ARGUMENT"));
+    QCOMPARE (envelope->operate ("erase", value::object ()).status, std::string ("INVALID_ARGUMENT"));
+    QCOMPARE (body_field->operate ("insert", {{"index", 1}, {"children", value::array ({value {{"text", "invalid second body"}}})}}).status,
+              std::string ("INVALID_ARGUMENT"));
+    QCOMPARE (envelope->operate ("get", value::object ()).data, before);
+    QCOMPARE (disk_bytes (), original_bytes);
+    QCOMPARE (body->operate ("insert", {{"index", -1}, {"children", value::array ()}}).status,
+              std::string ("INVALID_ARGUMENT"));
+    auto insertion= body->operate ("insert", {{"index", 0}, {"children", value::array ({value {{"text", "prefix"}}})}});
+    QVERIFY2 (insertion.status == "OK", insertion.data.dump ().c_str ());
+    QCOMPARE (first->operate ("get", value::object ()).data.at ("tree").at ("text").get<std::string> (),
+              std::string ("first"));
+    QCOMPARE (first->properties ().at ("path").back ().get<int> (), 1);
+    auto written= first->operate ("set", {{"tree", {{"text", "changed"}}}});
+    QVERIFY2 (written.status == "OK", written.data.dump ().c_str ());
+    QVERIFY (written.data.at ("committed").get<bool> ());
+    QCOMPARE (first->operate ("get", value::object ()).status, std::string ("STALE"));
+    QCOMPARE (transclusion->operate ("set_tag", {{"tag", "custom-link"}}).status, std::string ("OK"));
+    QCOMPARE (transclusion->properties ().at ("tag").get<std::string> (), std::string ("custom-link"));
+    QCOMPARE (transclusion->operate ("erase", value::object ()).status, std::string ("OK"));
+    QCOMPARE (transclusion->operate ("get", value::object ()).status, std::string ("STALE"));
+    QCOMPARE (competing->identity (), envelope->identity ());
+    QCOMPARE (competing->operate ("get", value::object ()).data,
+              envelope->operate ("get", value::object ()).data);
+    auto insert= [body] (const char* text) {
+      return body->operate ("insert", {{"index", 0}, {"children", value::array ({value {{"text", text}}})}});
+    };
+    auto one= std::async (std::launch::async, insert, "one");
+    auto two= std::async (std::launch::async, insert, "two");
+    QCOMPARE (one.get ().status, std::string ("OK"));
+    QCOMPARE (two.get ().status, std::string ("OK"));
+    QCOMPARE (body->properties ().at ("arity").get<int> (), 4);
+    auto persisted= run ("@/vaults/@/filesystem/Write.ath/saved/body/[0]");
+    QVERIFY2 (persisted.state == resolution_result::status::complete, persisted.error.c_str ());
+    QCOMPARE (persisted.leaves.size (), std::size_t (1));
+    QCOMPARE (persisted.tree.back ()->accessor->operate ("get", value::object ()).data.at ("tree"),
+              body->operate ("get", value::object ()).data.at ("tree"));
+    QCOMPARE (persisted.tree.back ()->accessor->identity (), body->identity ());
+    { std::ofstream changed (root / "Write.ath", std::ios::app); changed << "\n"; }
+    QCOMPARE (body->operate ("set", {{"tree", {{"text", "outdated node"}}}}).status, std::string ("STALE"));
+    QCOMPARE (competing->operate ("get", value::object ()).status, std::string ("OK"));
+  }
+  {
+    std::ofstream empty (root / "Empty.ath");
+    empty << "<TeXmacs|" << TEXMACS_COMPAT_VERSION << ">\n\n<style|generic>\n";
+  }
+  auto empty_file= run ("@/vaults/@/filesystem/Empty.ath");
+  QVERIFY2 (empty_file.state == resolution_result::status::complete, empty_file.error.c_str ());
+  QVERIFY (empty_file.tree.back ()->accessor->operate ("check", value::object ()).data.at ("valid").get<bool> ());
+  auto empty_document= run ("@/vaults/@/filesystem/Empty.ath/saved");
+  QVERIFY2 (empty_document.state == resolution_result::status::complete, empty_document.error.c_str ());
+  QCOMPARE (empty_document.leaves.size (), std::size_t (1));
+  auto empty= empty_document.tree.back ()->accessor;
+  const value body_text {{"tag", "document"}, {"children", value::array ({value {{"text", "created body"}}})}};
+  auto populated= empty->operate ("insert", {{"index", empty->properties ().at ("arity")},
+    {"children", value::array ({value {{"tag", "body"}, {"children", value::array ({body_text})}}})}});
+  QVERIFY2 (populated.status == "OK", populated.data.dump ().c_str ());
+  auto populated_body= run ("@/vaults/@/filesystem/Empty.ath/saved/body/[0]/[0]");
+  QVERIFY2 (populated_body.state == resolution_result::status::complete, populated_body.error.c_str ());
+  QCOMPARE (populated_body.leaves.size (), std::size_t (1));
+  QCOMPARE (populated_body.tree.back ()->accessor->operate ("get", value::object ()).data.at ("tree").at ("text").get<std::string> (),
+            std::string ("created body"));
+  std::filesystem::create_directories (root / "subdir");
+  std::filesystem::create_symlink (root / "Note two.ath", root / "subdir" / "alias.ath");
+  std::filesystem::create_directory_symlink (root, root / "subdir" / "cycle");
+  std::filesystem::create_symlink ("/etc/passwd", root / "outside");
+  result= run (R"(@/vaults/@/filesystem/??($name = "alias.ath"))");
+  QVERIFY2 (result.state == resolution_result::status::complete, result.error.c_str ());
+  QCOMPARE (result.leaves.size (), std::size_t (1));
+  QCOMPARE (result.tree.back ()->accessor->properties ().at ("absolute_path").get<std::string> (),
+            (root / "Note two.ath").string ());
+  result= run (R"(@/vaults/@/???($name = "alias.ath" | $max_depth = 16))");
+  QVERIFY2 (result.state == resolution_result::status::complete, result.error.c_str ());
+  QCOMPARE (result.leaves.size (), std::size_t (1));
+  result= run ("@/vaults/@/filesystem/outside");
+  QVERIFY (result.state == resolution_result::status::fault);
+  result= run ("@/vaults/@/filesystem/..");
+  QVERIFY (result.state == resolution_result::status::fault);
+  result= run (R"(@/vaults/@/filesystem/?($type = "file")[0])");
+  QVERIFY (result.state == resolution_result::status::fault);
+  result= run (R"(@/vaults/@/namespaces/?($name = "Child")[0])");
+  QVERIFY (result.state == resolution_result::status::fault);
+  std::filesystem::rename (root / "Note one.ath", root / "old.ath");
+  { std::ofstream replacement (root / "Note one.ath"); replacement << "new"; }
+  QCOMPARE (file_accessor->operate ("get", value::object ()).status, std::string ("STALE"));
   QCOMPARE (accessor->operate ("delete", value::object ()).status, std::string ("OK"));
   child.name= "Renamed again";
   QVERIFY (athena_namespace_create (context, child, error));

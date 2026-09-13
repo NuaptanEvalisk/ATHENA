@@ -11,6 +11,7 @@
 #define BUFFER_NAME_CATALOG_HPP
 
 #include <atomic>
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -28,6 +29,8 @@ public:
     std::string title;
     double last_visit= 0;
     bool modified= false;
+    std::uint64_t actor_id= 0;
+    std::uint64_t source_view= 0;
   };
   using records= std::unordered_map<std::string, metadata>;
 
@@ -64,6 +67,12 @@ public:
     if (found != metadata_.end ()) found->second.modified= modified;
   }
 
+  void set_source_view (const std::string& name, std::uint64_t view) {
+    std::lock_guard<std::mutex> guard (metadata_lock_);
+    auto found= metadata_.find (name);
+    if (found != metadata_.end ()) found->second.source_view= view;
+  }
+
   bool lookup (const std::string& name, metadata& result) const {
     std::lock_guard<std::mutex> guard (metadata_lock_);
     auto found= metadata_.find (name);
@@ -77,5 +86,11 @@ private:
   mutable std::mutex metadata_lock_;
   records metadata_;
 };
+
+// Returns a stable id, never an actor pointer. Callers must still acquire the
+// actor's lifetime lease when submitting: catalog publication can become stale.
+std::uint64_t published_buffer_actor_id (const std::string& native_url_name);
+std::pair<std::uint64_t, std::uint64_t>
+published_buffer_source (const std::string& native_url_name);
 
 #endif // BUFFER_NAME_CATALOG_HPP

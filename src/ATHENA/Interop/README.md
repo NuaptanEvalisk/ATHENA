@@ -2,8 +2,8 @@
 
 AUDM selects live resources; AUDMAP exposes ticket-local occurrence handles.
 This implementation does not restore TeXmacs plugins or expose arbitrary Scheme
-evaluation. The registered domains are root, the active vault, namespaces and
-indexed artifacts.
+evaluation. The registered domains are root, the active vault, namespaces,
+indexed artifacts, the vault filesystem and structured documents.
 
 ## Implementation boundaries
 
@@ -14,6 +14,12 @@ indexed artifacts.
   and persistent UUIDs, not the GUI buffer registry or a name-based re-resolution.
 - `src/ATHENA/Data/interop_artifacts.cpp`: read-only indexed artifact accessors,
   bound to a captured vault incarnation and artifact UUID.
+- `src/System/Files/confined_filesystem.cpp`: descriptor-based vault confinement,
+  regular-file reads and revision-checked atomic replacement.
+- `src/ATHENA/Data/interop_filesystem.cpp`: physical directory/file accessors.
+- `src/ATHENA/Data/interop_document*.cpp`: document source selection, node
+  identity, lossless portable tree encoding and owner-thread editing. One
+  document resolver produces both document and node accessors.
 - `src/Subsystems/AUDMAP`: MessagePack codec, connection-owned protocol state,
   local ZeroMQ transport. Resource operations have a separate fixed worker pool.
 - `src/Subsystems/Qt/QTMAudmap.cpp`: connection authorization and request dialogs.
@@ -209,6 +215,83 @@ the vault. Existing files are never replaced. `subproduct` requires `other_uuid`
 derivation and TCC sorter generation. No wizard, file picker or arbitrary Scheme
 callback is invoked by a resource operation. Stored native sorters execute native
 code, so granting OPR access includes that existing namespace capability.
+
+## Filesystem and documents
+
+```text
+@/vaults/@/filesystem/dir1/dir2/example.ath/online
+@/vaults/@/filesystem/??($type = "file" AND $name = "*.ath")/saved
+@/vaults/@/filesystem/example.ath/online/body/[0]/[0]
+@/vaults/@/filesystem/example.ath/saved/??($tag = "transclude")
+```
+
+`filesystem` exposes the physical vault root. Names select immediate entries;
+`?` selects children, `??` recurses within the filesystem, and bounded `???`
+can continue into document sources. Entries expose `name`, `type` (`directory`
+or `file`), `absolute_path`, `created_time`, `modified_time`, `accessed_time`,
+and file `size` in bytes. Times are `{seconds, nanoseconds}` since the Unix epoch;
+unavailable creation time is null, never replaced with inode change time.
+
+Absolute paths, `..`, embedded separators and NUL are rejected as path components.
+Internal symbolic links may resolve inside the vault; outside links, magic links,
+special files and symlink cycles cannot escape confinement or block on device
+reads. Explicit inaccessible paths fail; enumeration skips inaccessible entries.
+An existing file handle becomes `STALE` if its inode is replaced. `check {}`
+loads an `.ath` file with the native document parser and reports `valid` and
+`reason`; it does not typeset the document, execute its macros, or verify links.
+
+The document resolver accepts only `.ath` file accessors. `online` uses the
+current BufferActor source when open and otherwise reads disk; `saved` always
+reads disk. Both expose the **full unexpanded native source**, including the
+version, style, initial settings, body and custom document attributes. An empty
+native document may legitimately omit its body. Expansion products are not
+substituted for source nodes or transclusion references.
+
+Document handles identify the logical canonical file path and source mode.
+They follow later disk revisions and, for `online`, buffer opening/closing.
+Node handles identify a particular source generation and native node, not a
+path to be looked up again. In-place edits and sibling insertions preserve
+unaffected node identities; replacement/deletion invalidates affected handles.
+Changing the underlying source generation makes old node handles `STALE` while
+the document handle can retrieve the current root. Closing/reopening the vault
+invalidates all its accessors. Different tickets share a live document session,
+not independent copies of the same resource.
+
+Names within a document select immediate children by tag (or atomic text).
+`[0]` addresses the first child; repeated offsets descend further. A name or
+local predicate can carry positions to select within its immediate matches.
+Positions are zero-based and are not supported on recursive query result sets.
+Node properties include `node_kind` (`compound` or `text`), `arity`, `path`,
+`tag` or `text`, plus `source` and `absolute_path`. The universal `type` remains
+`document` or `node`.
+
+`get {}` returns the source mode, path and encoded tree. An atomic node is
+`{"text":"UTF-8 text"}`; a compound is `{"tag":"name","children":[...]}`.
+When native Cork bytes cannot round-trip through UTF-8, `cork` or `tag_cork`
+contains MessagePack binary instead, preserving arbitrary source bytes.
+
+Document and node accessors expose:
+
+- `set {"tree": NODE}`: replace this node (or the full document root).
+- `insert {"index": N, "children": [NODE, ...]}`: insert children at an offset.
+- `erase {}`: remove this node; removing the full document root is forbidden.
+- `set_tag {"tag": "name"}`: change a compound node's tag.
+
+Invalid edits are rejected before changing the source. Online mutations of an
+open document run on its BufferActor, update editor state and mark the document
+modified without saving. Read-only buffers return `READ_ONLY`. GUI registries,
+native trees, observers and editors are never accessed directly by resolution
+workers. Cross-thread messages use standard values and opaque node identities.
+
+Saved edits (and online edits of closed files) validate native serialization,
+check the source revision and atomically replace the file inside the vault.
+They return `committed`, `directory_synced` and `revision_available`; a failed
+directory fsync after rename does not falsely report that the mutation was
+rolled back. Revision mismatches return `CONFLICT`; cooperating writers are
+serialized, but ordinary filesystem replacement is not a compare-and-swap
+against arbitrary external programs. Files are limited to 64 MiB, tree decoding
+to one million nodes and depth 256; the protocol's 8 MiB message limit still
+applies independently.
 
 ## CLI
 

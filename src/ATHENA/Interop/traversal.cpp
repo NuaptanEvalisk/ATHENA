@@ -39,7 +39,8 @@ resolver_outcome visit_candidate (const resolution_request& req, const traversal
   const auto& s = req.selectors.at (req.offset);
   const auto properties = req.basepoint->accessor->properties ();
   const bool matches = s.type == selector::kind::default_resource ? state.default_match :
-    s.type == selector::kind::name ? properties.at ("name") == s.name : s.filter.matches (properties);
+    s.type == selector::kind::name ? properties.contains ("name") && properties.at ("name") == s.name :
+    s.filter.matches (properties);
   if (matches) {
     const auto index = state.budget->matches.fetch_add (1);
     if (state.budget->limits.max_matches && index >= *state.budget->limits.max_matches) {

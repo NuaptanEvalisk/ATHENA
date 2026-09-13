@@ -37,11 +37,14 @@ struct traversal_limits {
 };
 
 struct selector {
-  enum class kind { default_resource, name, local, scoped, recursive };
+  enum class kind { default_resource, name, local, scoped, recursive, index };
   kind type = kind::name;
   std::string name;
   predicate filter;
   traversal_limits limits;
+  // Document-domain positions: child indices for [n], or matching-result
+  // indices when appended to a selector. Never implicit numeric path names.
+  std::vector<std::uint64_t> positions;
 };
 
 using selection = std::vector<selector>;

@@ -54,12 +54,14 @@ struct scoped : p::seq<TAO_PEGTL_STRING("??"), filter> {};
 struct local : p::seq<p::one<'?'>, filter> {};
 struct default_resource : p::one<'@'> {};
 struct quoted_name : p::json::string {};
-struct bare_name : p::plus<p::not_one<'/', '@', '?', '(', ')', '"', '\n', '\r'>> {};
-struct part : p::sor<recursive, scoped, local, default_resource, quoted_name,
-  bare_name> {};
+struct bare_name : p::plus<p::not_one<'/', '@', '?', '(', ')', '[', ']', '"', '\n', '\r'>> {};
+struct index_number : p::plus<p::ascii::digit> {};
+struct indices : p::seq<p::one<'['>, p::list<token<index_number>, p::one<','>>, p::one<']'>> {};
+struct part : p::sor<indices, p::seq<p::sor<recursive, scoped, local,
+  default_resource, quoted_name, bare_name>, p::opt<token<indices>>>> {};
 struct document : p::must<p::list<token<part>, p::one<'/'>>, p::eof> {};
 template<typename R> using nodes = p::parse_tree::selector<R,
-  p::parse_tree::store_content::on<recursive, scoped, local, default_resource,
+  p::parse_tree::store_content::on<part, indices, index_number, recursive, scoped, local, default_resource,
     quoted_name, bare_name, expression, conjunction, negation, comparison,
     exists, property, literal, comparator, limit>>;
 } // namespace grammar
@@ -140,6 +142,17 @@ std::uint64_t read_bound (const node& n) {
   throw std::invalid_argument ("Traversal bounds must be unsigned integers");
 }
 
+void read_indices (const node& n, selector& target) {
+  for (const auto& child: n.children) {
+    const auto text = child->string ();
+    std::uint64_t index = 0;
+    const auto parsed = std::from_chars (text.data (), text.data () + text.size (), index);
+    if (parsed.ec != std::errc () || parsed.ptr != text.data () + text.size ())
+      throw std::invalid_argument ("Document indices must be unsigned 64-bit integers");
+    target.positions.push_back (index);
+  }
+}
+
 // Bound the parser's nesting before entering recursive PEG rules. Quotes are
 // still validated by PEGTL/JSON, not by this resource-limit scan.
 void check_source_size (const std::string& source) {
@@ -177,8 +190,12 @@ selection parse_selection (const std::string& source) {
     selection result;
     for (const auto& child: tree->children) {
       selector s;
-      const auto& n = *child;
-      if (n.is_type<grammar::default_resource> ())
+      const auto& n = *child->children.at (0);
+      if (n.is_type<grammar::indices> ()) {
+        s.type = selector::kind::index;
+        read_indices (n, s);
+      }
+      else if (n.is_type<grammar::default_resource> ())
         s.type = selector::kind::default_resource;
       else if (n.is_type<grammar::quoted_name> ())
         s.name = value::parse (n.string ()).get<std::string> ();
@@ -211,6 +228,7 @@ selection parse_selection (const std::string& source) {
         if (s.type == selector::kind::local && n.children.size () > 1)
           throw std::invalid_argument ("Local selectors do not accept traversal bounds");
       }
+      if (child->children.size () > 1) read_indices (*child->children.at (1), s);
       result.push_back (std::move (s));
       if (result.size () > 256) throw std::invalid_argument ("Too many selectors");
     }

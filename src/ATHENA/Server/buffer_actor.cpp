@@ -24,6 +24,7 @@
 #include "glue.hpp"
 #include "object.hpp"
 #include "outline_snapshot.hpp"
+#include "Data/interop_document_source.hpp"
 #include "tm_buffer.hpp"
 #include "tm_window.hpp"
 
@@ -466,6 +467,44 @@ buffer_actor::current_editor (athena_view_id view_id) const noexcept {
 buffer_document_state*
 buffer_actor::current_state () const noexcept {
   return is_owner_thread () && impl_ != nullptr ? &impl_->state : nullptr;
+}
+
+tree&
+buffer_actor::current_source (athena_view_id view_id) {
+  ASSERT (is_owner_thread (), "document source accessed outside its actor");
+  ASSERT (impl_ != nullptr, "buffer actor state is unavailable");
+  editor_rep* editor= current_editor (view_id);
+  if (view_id != ATHENA_NO_VIEW && editor == nullptr)
+    throw std::runtime_error ("STALE: source view is no longer attached");
+  if (view_id == ATHENA_NO_VIEW && !impl_->views.empty ())
+    throw std::invalid_argument ("A displayed document requires its source view");
+  if (editor != nullptr) editor->get_data (impl_->state.data);
+  refresh_interop_document_source (impl_->state.source_envelope,
+    subtree (impl_->state.document, impl_->state.root_path), impl_->state.data);
+  return impl_->state.source_envelope;
+}
+
+void
+buffer_actor::commit_current_source () {
+  ASSERT (is_owner_thread (), "document source committed outside its actor");
+  auto& state= impl_->state;
+  ASSERT (!state.read_only, "read-only document source cannot be committed");
+  new_data next;
+  tree body= detach_data (state.source_envelope, next);
+  tree& live= subtree (state.document, state.root_path);
+  if (inside (live) != inside (body)) assign (live, body);
+  const bool environment_changed= next->style != state.data->style ||
+    next->init != state.data->init || next->fin != state.data->fin ||
+    next->ref != state.data->ref || next->aux != state.data->aux || next->att != state.data->att;
+  state.data= next;
+  for (auto& entry: impl_->views) {
+    if (environment_changed) entry.second.instance->set_data (state.data);
+    entry.second.instance->notify_change (THE_TREE);
+    entry.second.instance->require_save ();
+  }
+  // Attached editors already track save/undo state in their archives. Keep a
+  // fallback only for buffers edited through interop before any view exists.
+  if (impl_->views.empty ()) state.source_modified= state.source_autosave_modified= true;
 }
 
 void
@@ -914,6 +953,7 @@ buffer_actor::dispatch (actor_command_record& command) {
   }
   case actor_command_kind::replace_document: {
     tree document= actor_tree_registry::instance ().take (command.payload0);
+    impl_->state.source_envelope= document;
     tree body= detach_data (document, impl_->state.data);
     set_document (
       impl_->state.document, impl_->state.root_path, std::move (body));
@@ -962,6 +1002,7 @@ buffer_actor::dispatch (actor_command_record& command) {
     }
     tree body= subtree (impl_->state.document, impl_->state.root_path);
     tree snapshot= copy (attach_data (body, impl_->state.data, no_aux));
+    append_interop_source_attributes (snapshot, impl_->state.source_envelope);
     command.payload0= actor_tree_registry::instance ().store (
       std::move (snapshot));
     break;
@@ -1044,8 +1085,9 @@ buffer_actor::dispatch (actor_command_record& command) {
     break;
   case actor_command_kind::query_modified:
   case actor_command_kind::query_autosaved: {
-    bool modified= false;
     bool autosave= command.kind == actor_command_kind::query_autosaved;
+    bool modified= !impl_->state.read_only && (autosave ? impl_->state.source_autosave_modified :
+                                                        impl_->state.source_modified);
     if (!impl_->state.read_only)
       for (auto& entry: impl_->views)
         if (entry.second.instance->need_save (!autosave)) {
@@ -1062,10 +1104,12 @@ buffer_actor::dispatch (actor_command_record& command) {
     // Commit the timestamp before a save continuation may start another save.
     // Never make the actor wait for its queued UI mirror to catch up.
     impl_->state.last_save= last_modified (impl_->state.name);
+    impl_->state.source_modified= impl_->state.source_autosave_modified= false;
     for (auto& entry: impl_->views) entry.second.instance->notify_save ();
     command.argument[0]= static_cast<std::uint64_t> (impl_->state.last_save);
     break;
   case actor_command_kind::mark_autosaved:
+    impl_->state.source_autosave_modified= false;
     for (auto& entry: impl_->views)
       entry.second.instance->notify_save (false);
     break;

@@ -101,9 +101,13 @@ public:
     if (!state && !marker && (selector.type == selector::kind::name ||
                              selector.type == selector::kind::default_resource))
       return resolver_outcome::irrelevant;
+    if (!selector.positions.empty ())
+      throw std::invalid_argument ("Indices require a document or element basepoint");
     if (marker)
       if (++offset == req.selectors.size ()) return resolver_outcome::miss;
     const auto& target= req.selectors.at (offset);
+    if (!target.positions.empty ())
+      throw std::invalid_argument ("Indices require a document or element basepoint");
     if (target.type == selector::kind::default_resource) return resolver_outcome::miss;
     auto budget= state ? state->budget : std::make_shared<traversal_budget> (target.limits);
     const auto depth= state ? state->depth + 1 : 1;

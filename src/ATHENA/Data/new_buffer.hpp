@@ -99,6 +99,7 @@ void set_last_save_buffer (url name, int t);
 bool is_aux_buffer (url name);
 double last_visited (url name);
 void visit_buffer (tm_buffer buf);
+void publish_buffer_source_view (tm_buffer buf);
 bool buffer_modified (url name);
 bool buffer_menu_modified (url name);
 void publish_buffer_menu_modified (tm_buffer buf, bool modified);

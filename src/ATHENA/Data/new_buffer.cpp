@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "tm_data.hpp"
+#include "tm_server.hpp"
 #include "buffer_actor.hpp"
 #include "buffer_state.hpp"
 #include "buffer_name_catalog.hpp"
@@ -25,6 +26,8 @@
 #include "new_style.hpp"
 #include "merge_sort.hpp"
 #include "materials_document.hpp"
+#include <filesystem>
+#include <stdexcept>
 
 array<tm_buffer> bufs;
 
@@ -37,6 +40,15 @@ catalog_text (string text) {
   return std::string (text.data (), N (text));
 }
 
+static athena_view_id
+source_view (tm_buffer buf) {
+  tm_view view= concrete_view (get_current_view_safe ());
+  if (view != nullptr && view->buf == buf) return view->runtime_id;
+  view= concrete_view (get_recent_view (buf->buf->name, true, false, false, false));
+  if (view != nullptr) return view->runtime_id;
+  return N (buf->vws) == 0 ? ATHENA_NO_VIEW : buf->vws[0]->runtime_id;
+}
+
 void
 publish_buffer_metadata () {
   buffer_name_catalog::records records;
@@ -45,7 +57,9 @@ publish_buffer_metadata () {
       buffer_name_catalog::metadata {
         catalog_text (bufs[i]->buf->title),
         static_cast<double> (bufs[i]->buf->last_visit),
-        bufs[i]->buf->menu_modified});
+        bufs[i]->buf->menu_modified,
+        bufs[i]->actor ? bufs[i]->actor->id () : ATHENA_NO_ACTOR,
+        source_view (bufs[i])});
   published_buffer_names.publish_metadata (std::move (records));
 }
 
@@ -67,6 +81,46 @@ publish_buffer_names () {
 }
 
 } // namespace
+
+std::uint64_t
+published_buffer_actor_id (const std::string& native_url_name) {
+  buffer_name_catalog::metadata metadata;
+  return published_buffer_names.lookup (native_url_name, metadata)
+    ? metadata.actor_id : ATHENA_NO_ACTOR;
+}
+
+std::pair<std::uint64_t, std::uint64_t>
+published_buffer_source (const std::string& native_url_name) {
+  buffer_name_catalog::metadata metadata;
+  if (published_buffer_names.lookup (native_url_name, metadata))
+    return {metadata.actor_id, metadata.source_view};
+  const auto canonical_path= [] (const std::string& name) {
+    url native (string (name.data (), name.size ()));
+    if (!is_rooted (native, "default") && !is_rooted (native, "file")) return std::filesystem::path {};
+    const auto path= std::filesystem::path (catalog_text (as_system_string (native)));
+    std::error_code error;
+    auto canonical= std::filesystem::weakly_canonical (path, error);
+    return error ? std::filesystem::path {} : canonical;
+  };
+  const auto expected= canonical_path (native_url_name);
+  if (expected.empty ()) return {};
+  std::pair<std::uint64_t, std::uint64_t> result;
+  for (const auto& name: *published_buffer_names.read ()) {
+    if (canonical_path (name) != expected || !published_buffer_names.lookup (name, metadata)) continue;
+    if (result.first != ATHENA_NO_ACTOR && result.first != metadata.actor_id)
+      throw std::runtime_error ("Multiple open buffer aliases refer to this document");
+    result= {metadata.actor_id, metadata.source_view};
+  }
+  return result;
+}
+
+void
+publish_buffer_source_view (tm_buffer buf) {
+  ASSERT (current_scheme_execution_context () == nullptr,
+          "source view publication requires the GUI owner");
+  if (!is_nil (buf))
+    published_buffer_names.set_source_view (catalog_text (as_string (buf->buf->name)), source_view (buf));
+}
 
 bool
 exec_buffer (url name, object command) {
@@ -202,7 +256,7 @@ remove_buffer (tm_buffer buf) {
       while (N(buf->vws) != 0)
         delete_view (abstract_view (buf->vws[0]));
       buf->actor->shutdown ();
-      if (n == 1)
+      if (n == 1 && is_server_started ())
         get_server () -> quit ();
       for (int i=nr; i<n-1; i++)
         bufs[i]= bufs[i+1];
@@ -661,6 +715,7 @@ visit_buffer (tm_buffer buf) {
   buf->buf->last_visit= texmacs_time ();
   published_buffer_names.visit (catalog_text (as_string (buf->buf->name)),
                                (double) buf->buf->last_visit);
+  publish_buffer_source_view (buf);
 }
 
 bool
