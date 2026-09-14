@@ -81,6 +81,11 @@ public:
     return true;
   }
 
+  records read_metadata () const {
+    std::lock_guard<std::mutex> guard (metadata_lock_);
+    return metadata_;
+  }
+
 private:
   snapshot names_;
   mutable std::mutex metadata_lock_;
@@ -92,5 +97,9 @@ private:
 std::uint64_t published_buffer_actor_id (const std::string& native_url_name);
 std::pair<std::uint64_t, std::uint64_t>
 published_buffer_source (const std::string& native_url_name);
+buffer_name_catalog::records published_buffer_metadata ();
+std::vector<std::uint64_t> published_file_buffers (const std::string& native_url_name);
+std::uint64_t published_active_buffer ();
+void publish_active_buffer (std::uint64_t id);
 
 #endif // BUFFER_NAME_CATALOG_HPP

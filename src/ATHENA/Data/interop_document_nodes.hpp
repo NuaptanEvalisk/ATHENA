@@ -64,6 +64,8 @@ public:
   document_node replace (tree& root, const document_node& node, const value& source);
   std::vector<document_node> insert_children (tree& root, const document_node& parent,
                                              std::size_t index, const value& children);
+  void insert_siblings (tree& root, const document_node& node,
+                        bool after, const value& siblings);
   void erase (tree& root, const document_node& node);
   void set_tag (tree& root, const document_node& node, const value& tag);
   void collect ();

@@ -11,6 +11,7 @@
 #include "interop_document_source.hpp"
 #include "../Interop/traversal.hpp"
 #include "convert.hpp"
+#include "buffer_name_catalog.hpp"
 #include <cerrno>
 #include <system_error>
 
@@ -64,6 +65,8 @@ value filesystem_resource::inspect () const {
   value commands = {{"get", {{"parameters", value::object ()}}},
                     {"inspect", {{"parameters", value::object ()}}}};
   if (type () == "file") commands["check"] = {{"parameters", value::object ()}};
+  if (type () == "file" && relative.extension () == ".ath")
+    commands["buffers"] = {{"parameters", value::object ()}};
   return commands;
 }
 operation_result filesystem_resource::operate (const std::string& command, const value& p) const {
@@ -71,6 +74,10 @@ operation_result filesystem_resource::operate (const std::string& command, const
     if (!p.is_object () || !p.empty ()) return {"INVALID_ARGUMENT", "This command takes no parameters"};
     if (command == "inspect") return {"OK", inspect ()};
     if (command == "get") return {"OK", properties ()};
+    if (command == "buffers" && type () == "file" && relative.extension () == ".ath") {
+      const auto path= current ().path ().string ();
+      return {"OK", published_file_buffers (text (as_string (url_system (string (path.c_str ())))))};
+    }
     if (command != "check" || type () != "file") return {"UNKNOWN_COMMAND", command};
     auto entry = current ();
     if (entry.path ().extension () != ".ath")

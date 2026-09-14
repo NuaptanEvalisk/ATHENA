@@ -27,6 +27,7 @@
 #include "merge_sort.hpp"
 #include "materials_document.hpp"
 #include <filesystem>
+#include <algorithm>
 #include <stdexcept>
 
 array<tm_buffer> bufs;
@@ -34,6 +35,7 @@ array<tm_buffer> bufs;
 namespace {
 
 buffer_name_catalog published_buffer_names;
+std::atomic<std::uint64_t> active_buffer_id {0};
 
 std::string
 catalog_text (string text) {
@@ -81,6 +83,40 @@ publish_buffer_names () {
 }
 
 } // namespace
+
+buffer_name_catalog::records
+published_buffer_metadata () { return published_buffer_names.read_metadata (); }
+
+std::uint64_t
+published_active_buffer () { return active_buffer_id.load (std::memory_order_acquire); }
+
+void
+publish_active_buffer (std::uint64_t id) {
+  ASSERT (current_scheme_execution_context () == nullptr,
+          "active buffer publication requires the GUI owner");
+  active_buffer_id.store (id, std::memory_order_release);
+}
+
+std::vector<std::uint64_t>
+published_file_buffers (const std::string& native_url_name) {
+  const auto canonical= [] (const std::string& name) {
+    url native (string (name.data (), name.size ()));
+    if (!is_rooted (native, "default") && !is_rooted (native, "file")) return std::filesystem::path {};
+    std::error_code error;
+    auto result= std::filesystem::weakly_canonical (
+      std::filesystem::path (catalog_text (as_system_string (native))), error);
+    return error ? std::filesystem::path {} : result;
+  };
+  const auto expected= canonical (native_url_name);
+  std::vector<std::uint64_t> result;
+  if (expected.empty ()) return result;
+  for (const auto& entry: published_buffer_metadata ())
+    if (entry.second.actor_id && canonical (entry.first) == expected)
+      result.push_back (entry.second.actor_id);
+  std::sort (result.begin (), result.end ());
+  result.erase (std::unique (result.begin (), result.end ()), result.end ());
+  return result;
+}
 
 std::uint64_t
 published_buffer_actor_id (const std::string& native_url_name) {

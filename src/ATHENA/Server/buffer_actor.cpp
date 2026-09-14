@@ -496,7 +496,14 @@ buffer_actor::commit_current_source () {
   const bool environment_changed= next->style != state.data->style ||
     next->init != state.data->init || next->fin != state.data->fin ||
     next->ref != state.data->ref || next->aux != state.data->aux || next->att != state.data->att;
-  state.data= next;
+  // Editors' environments borrow these member objects by reference. Replacing
+  // the new_data owner would leave their ref/aux/att bindings dangling.
+  state.data->style= next->style;
+  state.data->init= next->init;
+  state.data->fin= next->fin;
+  state.data->ref= next->ref;
+  state.data->aux= next->aux;
+  state.data->att= next->att;
   for (auto& entry: impl_->views) {
     if (environment_changed) entry.second.instance->set_data (state.data);
     entry.second.instance->notify_change (THE_TREE);

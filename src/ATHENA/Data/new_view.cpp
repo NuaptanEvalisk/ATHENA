@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "tm_data.hpp"
+#include "buffer_name_catalog.hpp"
 #include "convert.hpp"
 #include "file.hpp"
 #include "web_files.hpp"
@@ -143,6 +144,7 @@ set_current_view (url u) {
   tm_view vw= concrete_view (u);
   //ASSERT (is_none (u) || starts (as_string (tail (u)), "no_name") || vw != NULL, "bad view");
   the_view= vw;
+  publish_active_buffer (vw && vw->buf->actor ? vw->buf->actor->id () : ATHENA_NO_ACTOR);
   if (vw != NULL) {
     visit_buffer (vw->buf);
   }

@@ -330,6 +330,15 @@ std::vector<document_node> document_nodes::insert_children (
   return track_many (root, paths);
 }
 
+void document_nodes::insert_siblings (tree& root, const document_node& node,
+                                      bool after, const value& siblings) {
+  auto location= locate (root, node);
+  if (location.empty ()) throw std::invalid_argument ("The document root has no siblings");
+  const auto index= std::size_t (location.back ()) + (after ? 1 : 0);
+  location.pop_back ();
+  insert_children (root, track (root, location), index, siblings);
+}
+
 void document_nodes::erase (tree& root, const document_node& node) {
   auto location= locate (root, node);
   if (location.empty ()) throw std::invalid_argument ("Cannot erase the document root");

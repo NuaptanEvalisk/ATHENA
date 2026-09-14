@@ -1,6 +1,6 @@
 /******************************************************************************
-* MODULE     : interop_document.hpp
-* DESCRIPTION: AUDM document source and native node resolution
+* MODULE     : interop_buffers.hpp
+* DESCRIPTION: Vault-independent AUDM access to live document buffers
 * COPYRIGHT  : (C) 2026 Nuaptan Felix Evalisk
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
@@ -11,6 +11,5 @@
 #include "../Interop/resolution.hpp"
 
 namespace athena::interop {
-std::shared_ptr<const resolver> document_resolver ();
-binding buffer_document (std::uint64_t buffer_id);
+std::shared_ptr<const resolver> buffers_resolver ();
 }

@@ -270,10 +270,37 @@ Node properties include `node_kind` (`compound` or `text`), `arity`, `path`,
 When native Cork bytes cannot round-trip through UTF-8, `cork` or `tag_cork`
 contains MessagePack binary instead, preserving arbitrary source bytes.
 
-Document and node accessors expose:
+Buffers can also be reached independently of a vault:
+
+- `@/buffers/[ID]` selects a stable, non-reused BufferActor ID within this process,
+  not a position in the buffer list. `@/buffers/?($type = "buffer")` enumerates buffers.
+- `@/buffers/@` selects the active document buffer when resolution reaches this
+  step. The resulting handle stays bound to that buffer when focus changes.
+  No active buffer means no match; dialogs and the REPL are not buffer targets.
+- `@/buffers/@/document` accesses the full live source, including metadata;
+  `/body/[0]` then selects its body document, and `/[0]` its first paragraph.
+- Buffer `get {}` returns `id`, `name`, `url`, `modified`, `active`, and `type`.
+  Renaming preserves buffer and node identities. Closing invalidates these
+  accessors without falling back to disk, even if the same file is reopened.
+- A filesystem `.ath` file's `buffers {}` returns its open buffer IDs (an empty
+  array when closed), including canonical-path aliases, without opening it.
+- Unsaved, external, and virtual buffers are supported. Tree operations use the
+  same BufferActor ownership and read-only checks as file-based online access;
+  they do not require an active vault or save changes implicitly.
+
+For example, resolve `@/buffers/@/document/body/[0]/[0]`, then run
+`insert_after {"siblings": [{"text": "hello world"}]}` to add a paragraph after
+the first paragraph. Inside a `concat`, the same operation inserts inline nodes,
+not paragraphs. These are source-tree edits, not high-level editor commands.
+
+Document and node operations:
 
 - `set {"tree": NODE}`: replace this node (or the full document root).
 - `insert {"index": N, "children": [NODE, ...]}`: insert children at an offset.
+- `insert_before {"siblings": [NODE, ...]}` and `insert_after {"siblings": [NODE, ...]}`:
+  insert siblings relative to this node's current identity. The structural parent
+  and insertion position are located on the source owner during the edit, not
+  supplied by the client. Root nodes have no siblings; stale targets are rejected.
 - `erase {}`: remove this node; removing the full document root is forbidden.
 - `set_tag {"tag": "name"}`: change a compound node's tag.
 

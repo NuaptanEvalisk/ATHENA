@@ -11,6 +11,7 @@
 
 #include "buffer_actor.hpp"
 #include "buffer_state.hpp"
+#include "buffer_name_catalog.hpp"
 #include "tm_buffer.hpp"
 #include "ATHENA/Data/interop_document_codec.hpp"
 #include "ATHENA/Data/new_buffer.hpp"
@@ -41,7 +42,133 @@ private slots:
   void documentNodesRemainActorOwned ();
   void fullSourceRetainsUnknownAttributesAndLiveBody ();
   void onlineResolutionUsesUnsavedBody ();
+  void bufferResolutionWithoutVault ();
+  void sourceCommitPreservesBorrowedMetadata ();
 };
+
+void
+TestBufferActor::sourceCommitPreservesBorrowedMetadata () {
+  tm_buffer buffer= tm_new<tm_buffer_rep> (url ("actor-metadata-lifetime.ath"));
+  auto cleanup= qScopeGuard ([&] { tm_delete (buffer); });
+  auto payload= actor_tree_registry::instance ().store (
+    tree (DOCUMENT, compound ("TeXmacs", TEXMACS_COMPAT_VERSION),
+      compound ("style", tree (TUPLE, "generic")), compound ("body", tree (DOCUMENT, "first"))));
+  QVERIFY (buffer->actor->invoke (actor_command_kind::replace_document, ATHENA_NO_VIEW, payload));
+  bool body_stable= false, metadata_stable= false, references_updated= false;
+  auto id= actor_continuation_registry::instance ().store ([&] {
+    auto* actor= current_scheme_execution_context ()->actor;
+    auto* state= actor->current_state ();
+    // Retain the old owner so a regression reports an assertion, not a UAF.
+    // These are the same member references borrowed by edit_env_rep.
+    new_data held= state->data;
+    auto& refs= held->ref;
+    auto& aux= held->aux;
+    auto& att= held->att;
+    tree& source= actor->current_source ();
+    auto& nodes= state->interop_nodes ();
+    auto paragraph= nodes.track (source, {2, 0, 0});
+    nodes.insert_siblings (source, paragraph, true,
+      athena::interop::value::array ({athena::interop::value {{"text", "Hello, World!"}}}));
+    actor->commit_current_source ();
+    body_stable= &refs == &state->data->ref && &aux == &state->data->aux && &att == &state->data->att;
+    tree& refreshed= actor->current_source ();
+    for (const char* name: {"references", "auxiliary", "attachments"}) {
+      tree field= compound (name, tree (COLLECTION, tree (ASSOCIATE, "key", "updated")));
+      bool replaced= false;
+      for (int i= 0; i < N (refreshed); ++i)
+        if (is_compound (refreshed[i], name)) {
+          assign (refreshed[i], field);
+          replaced= true;
+          break;
+        }
+      if (!replaced) insert (refreshed, N (refreshed), tree (TUPLE, field));
+    }
+    actor->commit_current_source ();
+    metadata_stable= &refs == &state->data->ref && &aux == &state->data->aux && &att == &state->data->att;
+    references_updated= refs["key"] == "updated" && aux["key"] == "updated" && att["key"] == "updated";
+  });
+  QVERIFY (buffer->actor->invoke (actor_command_kind::run_native_continuation,
+    ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER, id));
+  QVERIFY (body_stable);
+  QVERIFY (metadata_stable);
+  QVERIFY (references_updated);
+}
+
+void
+TestBufferActor::bufferResolutionWithoutVault () {
+  using namespace athena::interop;
+  QVERIFY (!vault_capture_context ());
+  QTemporaryDir temporary;
+  url name= url_system (string ((temporary.path ().toStdString () + "/unsaved.ath").c_str ()));
+  const url other= url ("tmfs://interop-test/other");
+  auto cleanup= qScopeGuard ([&] { publish_active_buffer (0); remove_buffer (name); remove_buffer (other); });
+  auto source= [] (const char* text) {
+    return tree (DOCUMENT, compound ("TeXmacs", TEXMACS_COMPAT_VERSION),
+      compound ("style", tree (TUPLE, "generic")), compound ("body", tree (DOCUMENT, text)));
+  };
+  // The minimal Scheme test runtime does not load tmfs handlers.
+  eval ("(define (tmfs-permission? name permission) #t)");
+  set_buffer_tree (name, source ("first"));
+  set_buffer_tree (other, source ("other"));
+  auto* actor= concrete_buffer (name)->actor;
+  const auto id= actor->id ();
+  const auto other_id= concrete_buffer (other)->actor->id ();
+  publish_active_buffer (id);
+  resolution_workers workers (2);
+  auto resolve= [&] (const std::string& selector) {
+    std::promise<resolution_result> promise;
+    auto future= promise.get_future ();
+    resolution_ticket ticket (workers, native_resolvers (), parse_selection (selector),
+      [&] (resolution_result result) { promise.set_value (std::move (result)); });
+    if (future.wait_for (std::chrono::seconds (5)) != std::future_status::ready)
+      throw std::runtime_error ("Buffer resolution timed out");
+    auto result= future.get ();
+    if (result.state != resolution_result::status::complete) throw std::runtime_error (result.error);
+    return result;
+  };
+  auto selected= resolve ("@/buffers/@/document/body/[0]/[0]");
+  QCOMPARE (selected.leaves.size (), std::size_t (1));
+  auto target= selected.tree.back ()->accessor;
+  binding buffer, document;
+  for (const auto& item: selected.tree) {
+    if (item->accessor->type () == "buffer") buffer= item->accessor;
+    if (item->accessor->type () == "document") document= item->accessor;
+  }
+  QVERIFY (buffer && document);
+  QCOMPARE (buffer->properties ().at ("id").get<std::uint64_t> (), id);
+  const auto identity= document->identity ();
+  publish_active_buffer (other_id);
+  QCOMPARE (resolve ("@/buffers/@").tree.back ()->accessor->properties ().at ("id").get<std::uint64_t> (), other_id);
+  QCOMPARE (resolve ("@/buffers/" + std::string ("[") + std::to_string (id) + "]").tree.back ()->accessor->identity (), buffer->identity ());
+  QCOMPARE (resolve ("@/buffers/?($type = \"buffer\")").leaves.size (), std::size_t (2));
+  QCOMPARE (target->operate ("insert_after", {{"siblings", value::array ({value {{"text", "hello world"}}})}}).status,
+            std::string ("OK"));
+  QCOMPARE (target->operate ("insert_before", {{"siblings", value::array ({value {{"text", "before"}}})}}).status,
+            std::string ("OK"));
+  QCOMPARE (target->properties ().at ("path").back ().get<int> (), 1);
+  QVERIFY (actor->invoke (actor_command_kind::set_buffer_read_only, ATHENA_NO_VIEW,
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER, 1));
+  QCOMPARE (target->operate ("insert_after", {{"siblings", value::array ()}}).status, std::string ("READ_ONLY"));
+  QVERIFY (actor->invoke (actor_command_kind::set_buffer_read_only, ATHENA_NO_VIEW,
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER, 0));
+  QCOMPARE (document->operate ("insert_before", {{"siblings", value::array ()}}).status, std::string ("INVALID_ARGUMENT"));
+  auto renamed= url_system (string ((temporary.path ().toStdString () + "/renamed.ath").c_str ()));
+  rename_buffer (name, renamed);
+  name= renamed;
+  QCOMPARE (document->identity (), identity);
+  QCOMPARE (target->operate ("get", value::object ()).data.at ("tree"), value ({{"text", "first"}}));
+  QCOMPARE (published_file_buffers (std::string (as_string (name).data (), N (as_string (name)))),
+            std::vector<std::uint64_t> ({id}));
+  remove_buffer (name);
+  QCOMPARE (buffer->operate ("get", value::object ()).status, std::string ("STALE"));
+  QCOMPARE (document->operate ("get", value::object ()).status, std::string ("STALE"));
+  QCOMPARE (target->operate ("get", value::object ()).status, std::string ("STALE"));
+  set_buffer_tree (name, source ("new lifetime"));
+  QVERIFY (concrete_buffer (name)->actor->id () != id);
+  QVERIFY (resolve ("@/buffers/[" + std::to_string (id) + "]").leaves.empty ());
+  publish_active_buffer (0);
+  QVERIFY (resolve ("@/buffers/@").leaves.empty ());
+}
 
 void
 TestBufferActor::onlineResolutionUsesUnsavedBody () {
@@ -77,15 +204,21 @@ TestBufferActor::onlineResolutionUsesUnsavedBody () {
   QCOMPARE (closed.leaves.size (), std::size_t (1));
   auto closed_node= closed.tree.back ()->accessor;
   binding stable_document;
+  binding file_accessor;
   for (const auto& item: closed.tree)
     if (item->accessor->type () == "document") stable_document= item->accessor;
+    else if (item->accessor->type () == "file") file_accessor= item->accessor;
   QVERIFY (stable_document);
+  QVERIFY (file_accessor);
+  QCOMPARE (file_accessor->operate ("buffers", value::object ()).data, value::array ());
   QCOMPARE (closed_node->operate ("get", value::object ()).data.at ("tree").at ("text").get<std::string> (),
             std::string ("saved"));
   set_buffer_tree (name, tree (DOCUMENT, compound ("TeXmacs", TEXMACS_COMPAT_VERSION),
     compound ("style", tree (TUPLE, "generic")), compound ("body", tree (DOCUMENT, "unsaved"))));
   tm_buffer buffer= concrete_buffer (name);
   QVERIFY (!is_nil (buffer));
+  QCOMPARE (file_accessor->operate ("buffers", value::object ()).data,
+            value::array ({buffer->actor->id ()}));
   auto online= resolve ("online");
   QVERIFY2 (online.state == resolution_result::status::complete, online.error.c_str ());
   QCOMPARE (online.leaves.size (), std::size_t (1));

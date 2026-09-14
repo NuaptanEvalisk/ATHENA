@@ -67,6 +67,10 @@ void edit_node (tree& source, document_nodes& nodes, const document_node& node,
     require_parameters (parameters, {});
     nodes.erase (source, node);
   }
+  else if (command == "insert_before" || command == "insert_after") {
+    require_parameters (parameters, {"siblings"});
+    nodes.insert_siblings (source, node, command == "insert_after", parameters.at ("siblings"));
+  }
   else if (command == "set_tag") {
     require_parameters (parameters, {"tag"});
     nodes.set_tag (source, node, parameters.at ("tag"));
@@ -81,6 +85,8 @@ struct document_source {
   document_source (vault_context_handle vault, std::string mode, std::string filename):
     vault (std::move (vault)), mode (std::move (mode)), filename (std::move (filename)) {}
   virtual ~document_source () = default;
+  virtual std::string identity () const { return vault->incarnation + ":document:" + mode + ":" + filename; }
+  virtual value metadata () const { return {{"source", mode}, {"absolute_path", filename}}; }
   void check_vault () const {
     if (!vault_context_is_current (vault))
       throw std::system_error (ESTALE, std::generic_category (), "Vault has closed or changed");
@@ -96,9 +102,12 @@ struct document_source {
 class actor_document final: public document_source {
   const athena_actor_id actor;
   const athena_view_id view;
+  const bool buffer_bound;
   node_result invoke (query_kind kind, const document_node& node,
                       const std::string& command= {}, const value& parameters= {}) const {
-    check_vault ();
+    if (!buffer_bound) check_vault ();
+    auto source_view= view;
+    if (buffer_bound) source_view= endpoint ().second.source_view;
     struct response {
       node_result result;
       std::string error;
@@ -108,15 +117,17 @@ class actor_document final: public document_source {
     auto answer= std::make_shared<response> ();
     const auto expected= filename;
     const auto captured_vault= vault;
-    const auto source_view= view;
+    const bool require_file= !buffer_bound;
     auto continuation= actor_continuation_registry::instance ().store (
-      [answer, captured_vault, expected, source_view, kind, node, command, parameters] {
+      [answer, captured_vault, expected, source_view, require_file, kind, node, command, parameters] {
         try {
-          if (!vault_context_is_current (captured_vault)) throw std::runtime_error ("STALE: vault changed");
+          if (require_file && !vault_context_is_current (captured_vault)) throw std::runtime_error ("STALE: vault changed");
           auto* owner= current_scheme_execution_context ()->actor;
-          auto actual= std::filesystem::weakly_canonical (
-            std::filesystem::path (native_text (as_system_string (owner->current_buffer_url ()))));
-          if (actual != std::filesystem::path (expected)) throw std::runtime_error ("STALE: buffer was renamed");
+          if (require_file) {
+            auto actual= std::filesystem::weakly_canonical (
+              std::filesystem::path (native_text (as_system_string (owner->current_buffer_url ()))));
+            if (actual != std::filesystem::path (expected)) throw std::runtime_error ("STALE: buffer was renamed");
+          }
           tree& source= owner->current_source (source_view);
           auto& nodes= owner->current_state ()->interop_nodes ();
           const auto target_node= node ? node : nodes.track (source, {});
@@ -156,7 +167,7 @@ class actor_document final: public document_source {
         catch (...) { answer->error= "Native document access failed"; }
       });
     if (!buffer_actor::invoke_on (actor, actor_command_kind::run_native_continuation,
-          view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER, continuation)) {
+          source_view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER, continuation)) {
       actor_continuation_registry::instance ().discard (continuation);
       throw std::runtime_error ("STALE: document actor no longer accepts requests");
     }
@@ -168,7 +179,23 @@ class actor_document final: public document_source {
 public:
   actor_document (vault_context_handle vault, std::string filename,
                   athena_actor_id actor, athena_view_id view):
-    document_source (std::move (vault), "online", std::move (filename)), actor (actor), view (view) {}
+    document_source (std::move (vault), "online", std::move (filename)), actor (actor), view (view), buffer_bound (false) {}
+  explicit actor_document (athena_actor_id actor):
+    document_source ({}, "document", {}), actor (actor), view (ATHENA_NO_VIEW), buffer_bound (true) {}
+  std::pair<std::string, buffer_name_catalog::metadata> endpoint () const {
+    for (const auto& entry: published_buffer_metadata ())
+      if (entry.second.actor_id == actor) return entry;
+    throw std::system_error (ESTALE, std::generic_category (), "Buffer has closed");
+  }
+  std::string identity () const override {
+    return buffer_bound ? "buffer:" + std::to_string (actor) + ":document" : document_source::identity ();
+  }
+  value metadata () const override {
+    if (!buffer_bound) return document_source::metadata ();
+    const auto entry= endpoint ();
+    return {{"source", "buffer"}, {"buffer_id", actor},
+            {"url", native_text (cork_to_utf8 (string (entry.first.c_str ())))}};
+  }
   node_result query (query_kind kind, const document_node& node) const override { return invoke (kind, node); }
   bool writable () const override { return true; }
   value edit (const document_node& node, const std::string& command, const value& parameters) const override {
@@ -349,16 +376,16 @@ public:
     source (std::move (source)), node (std::move (node)), document (document) {}
   std::string type () const override { return document ? "document" : "node"; }
   std::string identity () const override {
-    if (document) return source->vault->incarnation + ":document:" + source->mode + ":" + source->filename;
-    return source->vault->incarnation + ":document-node:" + std::to_string (node->id);
+    if (document) return source->identity ();
+    return (source->vault ? source->vault->incarnation : "buffer") +
+      ":document-node:" + std::to_string (node->id);
   }
   value properties () const override {
     auto result= source->query (query_kind::properties, node).data;
     result["node_kind"]= result.at ("type");
     result["type"]= type ();
     if (document) result["name"]= source->mode;
-    result["source"]= source->mode;
-    result["absolute_path"]= source->filename;
+    result.update (source->metadata ());
     return result;
   }
   value inspect () const override {
@@ -367,6 +394,8 @@ public:
     if (source->writable ()) {
       commands["set"]= {{"parameters", {{"tree", "encoded node"}}}};
       commands["insert"]= {{"parameters", {{"index", "nonnegative child offset"}, {"children", "encoded node array"}}}};
+      commands["insert_before"]= {{"parameters", {{"siblings", "encoded node array"}}}};
+      commands["insert_after"]= {{"parameters", {{"siblings", "encoded node array"}}}};
       commands["erase"]= {{"parameters", value::object ()}};
       commands["set_tag"]= {{"parameters", {{"tag", "UTF-8 node tag"}}}};
     }
@@ -378,14 +407,16 @@ public:
         require_parameters (parameters, {});
         return {"OK", inspect ()};
       }
-      if (command == "set" || command == "insert" || command == "erase" || command == "set_tag") {
+      if (command == "set" || command == "insert" || command == "erase" || command == "set_tag" ||
+          command == "insert_before" || command == "insert_after") {
         if (!source->writable ()) return {"UNSUPPORTED", "Editing this source is not available"};
         return {"OK", source->edit (node, command, parameters)};
       }
       if (command != "get") return {"UNKNOWN_COMMAND", command};
       require_parameters (parameters, {});
-      return {"OK", {{"source", source->mode}, {"absolute_path", source->filename},
-                      {"tree", source->query (query_kind::read, node).data}}};
+      auto result= source->metadata ();
+      result["tree"]= source->query (query_kind::read, node).data;
+      return {"OK", std::move (result)};
     }
     catch (const std::system_error& e) {
       const auto code= e.code ().value ();
@@ -485,4 +516,9 @@ public:
 };
 }
 std::shared_ptr<const resolver> document_resolver () { return std::make_shared<document_resolver_rep> (); }
+binding buffer_document (std::uint64_t buffer_id) {
+  auto source= std::make_shared<actor_document> (buffer_id);
+  source->query (query_kind::properties, {});
+  return std::make_shared<document_resource> (std::move (source), document_node {}, true);
+}
 }

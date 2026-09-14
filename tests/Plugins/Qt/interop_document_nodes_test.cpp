@@ -82,6 +82,27 @@ private slots:
     QVERIFY_THROWS_EXCEPTION (std::length_error, document_node_from_value (encoded, limits));
   }
 
+  void relativeInsertionFollowsIdentity () {
+    tree root (DOCUMENT, "first", "last");
+    document_nodes nodes;
+    auto target= nodes.track (root, {1});
+    insert (root, 0, tree (TUPLE, "prefix"));
+    nodes.insert_siblings (root, target, false, value::array ({value {{"text", "before"}}}));
+    nodes.insert_siblings (root, target, true, value::array ({value {{"text", "hello world"}}}));
+    QCOMPARE (root, tree (DOCUMENT, "prefix", "first", "before", "last", "hello world"));
+    QCOMPARE (nodes.read (root, target), value ({{"text", "last"}}));
+    auto original= copy (root);
+    QVERIFY_THROWS_EXCEPTION (std::invalid_argument,
+      nodes.insert_siblings (root, nodes.track (root, {}), false, value::array ()));
+    QVERIFY_THROWS_EXCEPTION (std::invalid_argument,
+      nodes.insert_siblings (root, target, true,
+        value::array ({value {{"text", "valid"}}, value {{"bad", "invalid"}}})));
+    QCOMPARE (root, original);
+    nodes.erase (root, target);
+    QVERIFY_THROWS_EXCEPTION (std::runtime_error,
+      nodes.insert_siblings (root, target, true, value::array ()));
+  }
+
   void mutationsPreserveOnlySurvivingNodes () {
     tree root (DOCUMENT, tree (CONCAT, "first", "second"), "last");
     document_nodes registry;

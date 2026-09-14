@@ -592,6 +592,13 @@ NamespaceDatabaseTest::nativeInteropResolution () {
     QCOMPARE (first->operate ("get", value::object ()).data.at ("tree").at ("text").get<std::string> (),
               std::string ("first"));
     QCOMPARE (first->properties ().at ("path").back ().get<int> (), 1);
+    QCOMPARE (first->operate ("insert_after", {{"siblings", value::array ({value {{"text", "after"}}})}}).status,
+              std::string ("OK"));
+    QCOMPARE (first->operate ("insert_before", {{"siblings", value::array ({value {{"text", "before"}}})}}).status,
+              std::string ("OK"));
+    QCOMPARE (first->properties ().at ("path").back ().get<int> (), 2);
+    QCOMPARE (body->operate ("get", value::object ()).data.at ("tree").at ("children")[3],
+              value ({{"text", "after"}}));
     auto written= first->operate ("set", {{"tree", {{"text", "changed"}}}});
     QVERIFY2 (written.status == "OK", written.data.dump ().c_str ());
     QVERIFY (written.data.at ("committed").get<bool> ());
@@ -610,7 +617,7 @@ NamespaceDatabaseTest::nativeInteropResolution () {
     auto two= std::async (std::launch::async, insert, "two");
     QCOMPARE (one.get ().status, std::string ("OK"));
     QCOMPARE (two.get ().status, std::string ("OK"));
-    QCOMPARE (body->properties ().at ("arity").get<int> (), 4);
+    QCOMPARE (body->properties ().at ("arity").get<int> (), 6);
     auto persisted= run ("@/vaults/@/filesystem/Write.ath/saved/body/[0]");
     QVERIFY2 (persisted.state == resolution_result::status::complete, persisted.error.c_str ());
     QCOMPARE (persisted.leaves.size (), std::size_t (1));
