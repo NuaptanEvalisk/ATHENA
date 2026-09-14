@@ -18,6 +18,7 @@
 #include "server.hpp"
 #include "typesetter.hpp"
 #include "qt_renderer.hpp"
+#include "Freetype/tt_file.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }
@@ -58,6 +59,34 @@ left_parenthesis_height (box b) {
 class PreviewMathFontTest: public QObject {
   Q_OBJECT
 private slots:
+  void romanUsesLatinModernWhenAvailable () {
+    if (!tt_font_exists ("Latin Modern Roman") ||
+        !tt_font_exists ("Latin Modern Math"))
+      QSKIP ("Latin Modern OpenType fonts are not available");
+
+    font text= smart_font ("roman", "rm", "medium", "right", 12, 600);
+    font_metric text_metric;
+    font_glyphs text_glyphs;
+    int text_index= text->index_glyph ("x", text_metric, text_glyphs);
+    QVERIFY (text_index >= 0);
+    QVERIFY (!is_nil (text_metric));
+    QVERIFY2 (occurs ("lmroman", text_metric->res_name) ||
+              occurs ("Latin Modern Roman", text_metric->res_name),
+              as_charp (text_metric->res_name));
+    QVERIFY (!occurs ("pagella", locase_all (text_metric->res_name)));
+
+    font math= smart_font ("roman", "rm", "medium", "mathitalic", 12, 600);
+    font_metric math_metric;
+    font_glyphs math_glyphs;
+    int math_index= math->index_glyph ("<sum>", math_metric, math_glyphs);
+    QVERIFY (math_index >= 0);
+    QVERIFY (!is_nil (math_metric));
+    QVERIFY2 (occurs ("latinmodern-math", locase_all (math_metric->res_name)) ||
+              occurs ("latin modern math", locase_all (math_metric->res_name)),
+              as_charp (math_metric->res_name));
+    QVERIFY (!occurs ("pagella", locase_all (math_metric->res_name)));
+  }
+
   void pagellaUsesNativeMathDelimiterVariants () {
     for (auto family: {std::pair<string,string> ("TeX Gyre Pagella",
                                                   "texgyrepagella-math"),
@@ -211,7 +240,7 @@ private slots:
 
 static void
 run_tests (int argc, char** argv) {
-  init_tex_resources ();
+  init_system_state ();
   gui_open (argc, argv);
   int result;
   {

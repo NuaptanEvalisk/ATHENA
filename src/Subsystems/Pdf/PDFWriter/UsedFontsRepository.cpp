@@ -69,7 +69,7 @@ void UsedFontsRepository::SetEmbedFonts(bool inEmbedFonts) {
 	mEmbedFonts = inEmbedFonts;
 }
 
-PDFUsedFont* UsedFontsRepository::GetFontForFile(const std::string& inFontFilePath,const std::string& inOptionalMetricsFile,long inFontIndex)
+PDFUsedFont* UsedFontsRepository::GetFontForFile(const std::string& inFontFilePath,long inFontIndex)
 {
 	if(!mObjectsContext)
 	{
@@ -84,14 +84,7 @@ PDFUsedFont* UsedFontsRepository::GetFontForFile(const std::string& inFontFilePa
 			mInputFontsInformation = new FreeTypeWrapper();
 
 
-		FT_Face face;
-		if(inOptionalMetricsFile.size() > 0)
-		{
-			face = mInputFontsInformation->NewFace(inFontFilePath,inOptionalMetricsFile,inFontIndex);
-			mOptionaMetricsFiles.insert(StringToStringMap::value_type(inFontFilePath,inOptionalMetricsFile));
-		}
-		else
-			face = mInputFontsInformation->NewFace(inFontFilePath,inFontIndex);
+		FT_Face face = mInputFontsInformation->NewFace(inFontFilePath,inFontIndex);
 		if(!face)
 		{
 			TRACE_LOG1("UsedFontsRepository::GetFontForFile, Failed to load font from %s",inFontFilePath.c_str());
@@ -101,7 +94,7 @@ PDFUsedFont* UsedFontsRepository::GetFontForFile(const std::string& inFontFilePa
 		else
 		{
 
-			PDFUsedFont* usedFont = new PDFUsedFont(face,inFontFilePath,inOptionalMetricsFile,inFontIndex,mObjectsContext,mEmbedFonts);
+			PDFUsedFont* usedFont = new PDFUsedFont(face,inFontFilePath,inFontIndex,mObjectsContext,mEmbedFonts);
 			if(!usedFont->IsValid())
 			{
 				TRACE_LOG1("UsedFontsRepository::GetFontForFile, Unreckognized font format for font in %s",inFontFilePath.c_str());
@@ -131,11 +124,6 @@ EStatusCode UsedFontsRepository::WriteUsedFontsDefinitions()
                     eFailure;
 
 	return status;
-}
-
-PDFUsedFont* UsedFontsRepository::GetFontForFile(const std::string& inFontFilePath,long inFontIndex)
-{
-	return GetFontForFile(inFontFilePath,"",inFontIndex);
 }
 
 typedef std::list<ObjectIDType> ObjectIDTypeList;
@@ -173,21 +161,6 @@ EStatusCode UsedFontsRepository::WriteState(ObjectsContext* inStateWriter,Object
 
 	inStateWriter->EndArray(eTokenSeparatorEndLine);
 
-	usedFontsRepositoryObject->WriteKey("mOptionaMetricsFiles");
-	inStateWriter->StartArray();
-
-	StringToStringMap::iterator itOptionals = mOptionaMetricsFiles.begin();
-	for(; itOptionals != mOptionaMetricsFiles.end();++itOptionals)
-	{
-		PDFTextString aTextString(itOptionals->first);
-		inStateWriter->WriteLiteralString(aTextString.ToString());
-
-		aTextString = itOptionals->second;
-		inStateWriter->WriteLiteralString(aTextString.ToString());
-	}
-
-	inStateWriter->EndArray(eTokenSeparatorEndLine);
-
 	inStateWriter->EndDictionary(usedFontsRepositoryObject);
 	inStateWriter->EndIndirectObject();
 
@@ -219,30 +192,9 @@ EStatusCode UsedFontsRepository::ReadState(PDFParser* inStateReader,ObjectIDType
 	PDFObjectCastPtr<PDFBoolean> embedFontsObject(usedFontsRepositoryState->QueryDirectObject("mEmbedFonts"));
 	mEmbedFonts = embedFontsObject->GetValue();
 
-	mOptionaMetricsFiles.clear();
-	PDFObjectCastPtr<PDFArray> optionalMetricsState(usedFontsRepositoryState->QueryDirectObject("mOptionaMetricsFiles"));
-	SingleValueContainerIterator<PDFObjectVector> it = optionalMetricsState->GetIterator();
-	PDFObjectCastPtr<PDFLiteralString> aStringValue;
-
-	while(it.MoveNext())
-	{
-		PDFTextString aKey;
-
-		aStringValue = it.GetItem();
-		aKey = aStringValue->GetValue();
-
-		PDFTextString aValue;
-
-		it.MoveNext();
-		aStringValue = it.GetItem();
-		aValue = aStringValue->GetValue();
-
-		mOptionaMetricsFiles.insert(StringToStringMap::value_type(aKey.ToUTF8String(),aValue.ToUTF8String()));
-	}
-
 	PDFObjectCastPtr<PDFArray> usedFontsState(usedFontsRepositoryState->QueryDirectObject("mUsedFonts"));
 
-	it = usedFontsState->GetIterator();
+	SingleValueContainerIterator<PDFObjectVector> it = usedFontsState->GetIterator();
 	PDFObjectCastPtr<PDFLiteralString> keyStringItem;
     PDFObjectCastPtr<PDFInteger> keyIndexItem;
 	PDFObjectCastPtr<PDFIndirectObjectReference> valueItem;
@@ -273,13 +225,7 @@ EStatusCode UsedFontsRepository::ReadState(PDFParser* inStateReader,ObjectIDType
 		}
 
 
-		PDFUsedFont* usedFont;
-		
-		StringToStringMap::iterator itOptionlMetricsFile = mOptionaMetricsFiles.find(filePath);
-		if(itOptionlMetricsFile != mOptionaMetricsFiles.end())
-			usedFont = new PDFUsedFont(face,filePath,itOptionlMetricsFile->second,fontIndex,mObjectsContext,mEmbedFonts);
-		else
-			usedFont = new PDFUsedFont(face,filePath,"",fontIndex,mObjectsContext, mEmbedFonts);
+		PDFUsedFont* usedFont = new PDFUsedFont(face,filePath,fontIndex,mObjectsContext,mEmbedFonts);
 		if(!usedFont->IsValid())
 		{
 			TRACE_LOG2("UsedFontsRepository::ReadState, Unreckognized font format for font in %s at index %ld",filePath.c_str(),fontIndex);
@@ -305,6 +251,5 @@ void UsedFontsRepository::Reset()
 	mUsedFonts.clear(); 
 	delete mInputFontsInformation;
 	mInputFontsInformation = NULL;
-	mOptionaMetricsFiles.clear();
 	mEmbedFonts = true;
 }

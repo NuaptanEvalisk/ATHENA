@@ -219,7 +219,6 @@ pkg_check_modules (SPDLOG REQUIRED IMPORTED_TARGET spdlog)
 pkg_check_modules (HARFBUZZ REQUIRED IMPORTED_TARGET harfbuzz)
 pkg_check_modules (HUNSPELL REQUIRED IMPORTED_TARGET hunspell>=1.7)
 pkg_check_modules (LLAMA QUIET IMPORTED_TARGET llama)
-pkg_check_modules (KPATHSEA QUIET IMPORTED_TARGET kpathsea)
 if (UNIX AND NOT APPLE)
   pkg_check_modules (FONTCONFIG REQUIRED IMPORTED_TARGET fontconfig)
   add_definitions (-DUSE_FONTCONFIG)
@@ -699,7 +698,6 @@ file (GLOB_RECURSE ATHENA_Subsystems_SRCS CONFIGURE_DEPENDS
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Ghostscript/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Imlib2/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Ispell/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/Metafont/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/LaTeX_Preview/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/MCP/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Openssl/*.cpp"

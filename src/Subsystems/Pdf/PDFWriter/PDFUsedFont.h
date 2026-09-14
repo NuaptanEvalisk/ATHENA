@@ -84,7 +84,6 @@ public:
 
 	PDFUsedFont(FT_Face inInputFace,
 				const std::string& inFontFilePath,
-				const std::string& inAdditionalMetricsFontFilePath,
                 long inFontIndex,
 				ObjectsContext* inObjectsContext,
 				bool inEmbedFont);

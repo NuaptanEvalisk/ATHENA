@@ -36,7 +36,7 @@ public:
 	virtual IFontDescriptorHelper* GetCharsetWriter() = 0;
 
 	// Flag for possibility of having differences from win ansi.
-	// basically true type can't, and others - type 1 and CFF can. true type has the pacularty
+	// TrueType cannot use a custom encoding here; CFF can. TrueType has the peculiarity
 	// of not having dependable glyph names, but using index always...so can't have ansi if there are differences anyways
 	virtual bool CanWriteDifferencesFromWinAnsi() = 0;
 };

@@ -25,13 +25,11 @@ def main():
         home = Path(temporary)
         system = home / "profile/system"
         system.mkdir(parents=True)
-        # Match the bytecode builder's isolated TeX setup. Interface tests do
-        # not need first-install welcome documents or external font builders.
+        # Match the bytecode builder's isolated persisted system state. Interface
+        # tests do not need first-install welcome documents.
         (system / "sys_state.json").write_text(json.dumps({
-            "format": "athena-system-state", "version": 1,
+            "format": "athena-system-state", "version": 2,
             "compatibility_version": "2.1.4",
-            "tex": {"design_dpi": 600, "kpsepath": False,
-                    "kpsewhich": False, "make_pk": False, "make_tfm": False},
         }))
         script = home / "check.scm"
         script.write_text(

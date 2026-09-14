@@ -35,10 +35,9 @@ using namespace PDFHummus;
 
 PDFUsedFont::PDFUsedFont(FT_Face inInputFace,
 						 const std::string& inFontFilePath,
-						 const std::string& inAdditionalMetricsFontFilePath,
                          long inFontIndex,
 						 ObjectsContext* inObjectsContext,
-						 bool inEmbedFont):mFaceWrapper(inInputFace,inFontFilePath,inAdditionalMetricsFontFilePath,inFontIndex)
+						 bool inEmbedFont):mFaceWrapper(inInputFace,inFontFilePath,inFontIndex)
 {
 	mObjectsContext = inObjectsContext;
 	mWrittenFont = NULL;

@@ -31,6 +31,18 @@
 (check-family '("Schola" "schola" "TeX Gyre Schola") "TeX Gyre Schola")
 (check-family '("Termes" "termes" "TeX Gyre Termes") "TeX Gyre Termes")
 
+(for-each
+  (lambda (alias)
+    (reset-font-init)
+    (init-font alias)
+    (check (== (get-init "font") "roman")
+           "Computer Modern alias should retain the roman profile"
+           alias (get-init "font"))
+    (check (== (get-init "math-font") "roman")
+           "Computer Modern alias should retain roman mathematics"
+           alias (get-init "math-font")))
+  '("roman" "TeXmacs Computer Modern"))
+
 (check (== (document-font-display-name "TeX Gyre Pagella") "Pagella")
        "TeX Gyre Pagella should use the short menu label")
 (check (== (document-font-display-name "pagella") "Pagella")

@@ -68,9 +68,6 @@
   (-> "Text font"
       ("Default" (init-default "font" "math-font" "prg-font"))
       ---
-      ("Concrete" (init-env "font" "concrete"))
-      (if (url-exists-in-tex? "pnr10.mf")
-          ("Pandora" (init-env "font" "pandora")))
       ("Roman" (init-env "font" "roman"))
       (if (font-exists-in-tt? "STIX-Regular")
           ("Stix" (init-env "font" "stix")))
@@ -168,17 +165,14 @@
   (-> "Mathematical font"
       ("Default" (init-default "math-font"))
       ---
-      ("Adobe" (init-env "math-font" "adobe"))
       (if (font-exists-in-tt? "Apple Symbols")
           ("Apple symbols" (init-env "math-font" "math-apple")))
       (if (font-exists-in-tt? "Asana-Math")
           ("Asana" (init-env "math-font" "math-asana")))
       (if (font-exists-in-tt? "texgyrebonum-math")
           ("Bonum" (init-env "math-font" "math-bonum")))
-      ("Concrete" (init-env "math-font" "concrete"))
       (if (font-exists-in-tt? "DejaVuSerif")
           ("Dejavu" (init-env "math-font" "math-dejavu")))
-      ("Euler new roman" (init-env "math-font" "ENR"))
       (if (font-exists-in-tt? "LucidaGrande")
           ("Lucida" (init-env "math-font" "math-lucida")))
       (if (font-exists-in-tt? "texgyrepagella-math")
@@ -193,9 +187,6 @@
   (-> "Program font"
       ("Default" (init-default "prog-font"))
       ---
-      ("Concrete" (init-env "prog-font" "concrete"))
-      (if (url-exists-in-tex? "pnr10.mf")
-          ("Pandora" (init-env "prog-font" "pandora")))
       ("Roman" (init-env "prog-font" "roman"))
       ("Times" (init-env "prog-font" "times"))))
 

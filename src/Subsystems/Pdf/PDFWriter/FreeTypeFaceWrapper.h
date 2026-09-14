@@ -49,16 +49,7 @@ class FreeTypeFaceWrapper
 public:
 	class IOutlineEnumerator;
 
-	// first overload - all but type ones. the file path is just given for storage (later queries may want it)
 	FreeTypeFaceWrapper(FT_Face inFace,const std::string& inFontFilePath,long inFontIndex,bool inDoOwn = true);
-
-	// second overload - type 1, to allow passing pfm file path. do not bother
-	// if you don't have a PFM file. no i don't care about the godamn AFM file. just the PFM.
-	// if you don't have a PFM i'll manage. again - i don't need the @#$@#$ AFM file. 
-	// you see. i need to know if the font is serif, script 'n such. AFM - even if there
-	// does not have that kind of info. so @#$@#$ off.
-	// for any case, i'll check the file extension, and only do something about it if it has a pfm extension
-	FreeTypeFaceWrapper(FT_Face inFace,const std::string& inFontFilePath,const std::string& inPFMFilePath,long inFontIndex,bool inDoOwn = true);
 	~FreeTypeFaceWrapper(void);
 
 	FT_Error DoneFace();
@@ -138,7 +129,7 @@ private:
 
 
 	std::string GetExtension(const std::string& inFilePath);
-	void SetupFormatSpecificExtender(const std::string& inFilePath, const std::string& inPFMFilePath);
+	void SetupFormatSpecificExtender();
 	BoolAndFTShort CapHeightFromHHeight();
 	BoolAndFTShort XHeightFromLowerXHeight();
 	BoolAndFTShort GetYBearingForUnicodeChar(unsigned short unicodeCharCode);

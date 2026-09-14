@@ -20,7 +20,6 @@
 */
 #include "FreeTypeFaceWrapper.h"
 #include "IFreeTypeFaceExtender.h"
-#include "FreeTypeType1Wrapper.h"
 #include "FreeTypeOpenTypeWrapper.h"
 #include "Trace.h"
 #include "BetweenIncluding.h"
@@ -43,22 +42,7 @@ FreeTypeFaceWrapper::FreeTypeFaceWrapper(FT_Face inFace,const std::string& inFon
 	mFontIndex = inFontIndex;
 	mDoesOwn = inDoOwn;
 	mGlyphIsLoaded = false;
-	SetupFormatSpecificExtender(inFontFilePath, "");
-	SelectDefaultEncoding();
-}
-
-FreeTypeFaceWrapper::FreeTypeFaceWrapper(FT_Face inFace,const std::string& inFontFilePath,const std::string& inPFMFilePath,long inFontIndex, bool inDoOwn)
-{
-    mFace = inFace;
-	mFontFilePath = inFontFilePath;
-    mFontIndex = inFontIndex;
-	mDoesOwn = inDoOwn;
-	mGlyphIsLoaded = false;
-	std::string fileExtension = GetExtension(inPFMFilePath);
-	if (fileExtension == "PFM" || fileExtension == "pfm") // just don't bother if it's not PFM
-		SetupFormatSpecificExtender(inFontFilePath, inPFMFilePath);
-	else
-		SetupFormatSpecificExtender(inFontFilePath, "");
+	SetupFormatSpecificExtender();
 	SelectDefaultEncoding();
 }
 
@@ -79,7 +63,7 @@ void FreeTypeFaceWrapper::SelectDefaultEncoding() {
 
 std::string FreeTypeFaceWrapper::NotDefGlyphName()
 {
-    // for special case of fonts that have glyph names, but don't define .notdef, use one of the existing chars (found a custom type 1 with that)
+    // For fonts that have glyph names but do not define .notdef, use an existing glyph.
     
     if (mNotDefGlyphName.length() == 0) {
 		if(FT_HAS_GLYPH_NAMES(mFace))
@@ -114,19 +98,16 @@ FreeTypeFaceWrapper::~FreeTypeFaceWrapper(void)
 	delete mFormatParticularWrapper;
 }
 
-static const char* scType1 = "Type 1";
 static const char* scTrueType = "TrueType";
 static const char* scCFF = "CFF";
 
-void FreeTypeFaceWrapper::SetupFormatSpecificExtender(const std::string& inFontFilePath,const std::string& inPFMFilePath /*pass empty if non existant or irrelevant*/)
+void FreeTypeFaceWrapper::SetupFormatSpecificExtender()
 {
 	if(mFace)
 	{
 		const char* fontFormat = FT_Get_X11_Font_Format(mFace);
 
-		if(strcmp(fontFormat,scType1) == 0)
-			mFormatParticularWrapper = new FreeTypeType1Wrapper(mFace,inFontFilePath,inPFMFilePath);
-		else if(strcmp(fontFormat,scCFF) == 0 || strcmp(fontFormat,scTrueType) == 0)
+		if(strcmp(fontFormat,scCFF) == 0 || strcmp(fontFormat,scTrueType) == 0)
 			mFormatParticularWrapper = new FreeTypeOpenTypeWrapper(mFace);
 		else
 		{
@@ -429,7 +410,7 @@ bool FreeTypeFaceWrapper::IsSerif()
 bool FreeTypeFaceWrapper::IsSymbolic()
 {
 	// right now, i have just one method, and it is to query the chars.
-	// when i have AFM parser, least i have some info for type 1s
+	// Fall back to name-based classification when format-specific metadata is unavailable.
 
 	return IsDefiningCharsNotInAdobeStandardLatin();
 }
@@ -593,7 +574,7 @@ EStatusCode FreeTypeFaceWrapper::GetGlyphsForUnicodeText(const ULongList& inUnic
 		{
 			if ( mFormatParticularWrapper && mFormatParticularWrapper->HasPrivateEncoding() ) {
 					glyphIndex = mFormatParticularWrapper->GetGlyphForUnicodeChar(*it);
-				// glyphIndex == 0 is allowed in some Type1 fonts with custom encoding
+				// Preserve the existing zero-glyph handling for custom encodings.
 			}
 			else
 			{
@@ -639,7 +620,7 @@ IWrittenFont* FreeTypeFaceWrapper::CreateWrittenFontObject(ObjectsContext* inObj
 		IWrittenFont* result;
 		const char* fontFormat = FT_Get_X11_Font_Format(mFace);
 
-		if(strcmp(fontFormat,scType1) == 0 || strcmp(fontFormat,scCFF) == 0)
+		if(strcmp(fontFormat,scCFF) == 0)
 		{
 			FT_Bool isCID = false;
 			

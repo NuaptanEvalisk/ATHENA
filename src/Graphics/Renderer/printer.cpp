@@ -10,8 +10,6 @@
 ******************************************************************************/
 
 #include "printer.hpp"
-#include "Metafont/tex_files.hpp"
-#include "Freetype/tt_file.hpp"
 #include "file.hpp"
 #include "image_files.hpp"
 #include "analyze.hpp"
@@ -388,173 +386,36 @@ printer_rep::make_tex_char (string name, unsigned char c, glyph gl) {
   tex_width (char_name)= as_string (d5);
 }
 
-static string
-find_ps_font_name (string name, string s) {
-  int i, n= N(s);
-  for (i=0; i<n; i++) {
-    if (test (s, i, "/FontName /")) {
-      i += 11;
-      int start= i;
-      while (i<n && s[i] != ' ') i++;
-      return s (start, i);
-    }
-    while (i<n && s[i] != '\12' && s[i] != '\15') i++;
-  }
-  return name;
-}
-
-
-#define HEX_PER_LINE 30
-
-static Z32 parse_length (string pfb, int& pos) {
-  N8 c4= (N8) pfb[pos++];
-  N8 c3= (N8) pfb[pos++];
-  N8 c2= (N8) pfb[pos++];
-  Z8 c1= (Z8) pfb[pos++];
-  return (((((((Z32) c1)<<8)+ ((Z32) c2))<<8)+ ((Z32) c3))<<8)+ c4;
-}
-
-static string pfb_to_pfa (url file) {
-  //cout << "pfb_to_pfa :" << file << LF;
-  string pfb, pfa;
-  N8 magic, type = 0;
-  Z32 length;
-
-  (void) load_string (file, pfb, true);
-  int pos = 0, size = N(pfb);
-  while ((pos < size) && (type != 3)) {
-    parse (pfb, pos, magic);
-    //cout << "magic:" << as_hexadecimal(magic,2) << LF ;
-    if (magic != 128) {
-      FAILED ("Not a pfb file");
-    }
-    parse (pfb, pos, type);
-    //cout << "type:" << as_hexadecimal(type,2) << LF;
-    switch (type) {
-        
-      case 1 :
-        // plain text
-        length = parse_length (pfb, pos);
-        // parse (pfb, pos, length);
-        //cout << "plain text of size " << length << LF;
-        for (int i=0; i < ((int) length); i++) {
-          Z8 ch;
-          parse(pfb, pos, ch);
-          if (ch == '\r') pfa << "\n";
-          else pfa << ch;
-        }
-        break;
-        
-      case 2 :
-        // binary data
-        length = parse_length (pfb, pos);
-        //        parse (pfb, pos, length);
-        //cout << "binary data of size " << length << LF;
-        for (int i=0; i < ((int) length); i++) {
-          Z8 ch;
-          parse(pfb, pos, ch);
-          pfa << as_hexadecimal (ch, 2);
-          if ((i+1) % HEX_PER_LINE == 0) pfa << "\n"; 
-        }
-        break;
-        
-      case 3 :
-        //cout << "end of file"  << LF;
-        // end of file
-        break;
-        
-      default : 
-        FAILED ("Unknown field type while reading PFB file");
-        break;
-        
-    }
-  }
-  return pfa;
-}
-
-#undef HEX_PER_LINE
-
 void
 printer_rep::generate_tex_fonts () {
-  hashset<string> done;
   iterator<string> it= iterate (tex_fonts);
   while (it->busy ()) {
     string fn_name= it->next ();
     array<int> a= tex_font_chars [fn_name];
     merge_sort (a);
 
-    int i, d, l;
-    string name = tex_fonts [fn_name], ttf;
-    int    pos  = search_forwards (".", fn_name);
-    string root = (pos==-1? fn_name: fn_name (0, pos));
-#ifndef OS_WIN32 // we need pfbtopfa
-    if ((pos!=-1) && ends (fn_name, "tt")) {
-      int pos2= search_backwards (":", fn_name);
-      root= fn_name (0, pos2);
-      url u= tt_font_find (root);
-      if (suffix (u) == "pfb")
-        ttf = pfb_to_pfa (u);
-    }
-#endif
+    prologue << "/" << tex_fonts [fn_name]
+             << " " << as_string (N(a))
+             << " " << as_string (a[N(a)-1]+1) << " df\n";
+    for (int i=0; i<N(a); i++) {
+      int end;
+      string hex_code= tex_chars [fn_name * "-" * as_string (a[i])];
+      for (end=1; end < N(hex_code); end++)
+        if (hex_code[end-1]=='>') break;
+      string after= hex_code (end, N(hex_code));
+      if ((i>0) && (a[i]==(a[i-1]+1))) after << "I";
+      else after << as_string (a[i]) << " D";
+      if (i==(N(a)-1)) after << " E";
+      hex_code= hex_code (0, end);
 
-    if (ttf != "") {
-      string ttf_name= find_ps_font_name (root, ttf);
-      if (!done->contains (root)) {
-        prologue << "%%BeginFont: " << root << "\n";
-        prologue << ttf;
-        prologue << "\n%%EndFont\n";
-        done->insert (root);
+      int j, l, n= N(hex_code);
+      for (j=0; j<n; j+=79) {
+        if (n < (j+79)) prologue << hex_code (j, n);
+        else prologue << hex_code (j, j+79) << "\n";
       }
-
-      array<string> cum;
-      cum << "{}" * as_string (N(a));
-      for (i=0; i<N(a); i++) {
-        string w= tex_width [fn_name * "-" * as_string (a[i])];
-        d= (i==0? a[0]: (a[i]-a[i-1]-1));
-        if (d>0) cum << as_string (d) * "[";
-        cum << w * " ";
-      }
-      d= 255-a[i-1];
-      if (d>0) cum << as_string (d) * "[";
-
-      int szpos = pos-1;
-      while ((szpos>0) && is_numeric (fn_name[szpos-1])) szpos--;
-      double sz = as_double (fn_name (szpos, pos));
-      double dpi= as_double (fn_name (pos+1, N(fn_name)-2));
-      string mag= as_string (83.022 * (sz/10.0) * (dpi/600.0));
-
-      string fdef;
-      for (i=N(cum)-1; i>=0; i--) fdef << cum[i];
-      fdef= "/" * name * " " * fdef * " " * mag * " /" * ttf_name * " rf";
-      for (i=0, l=0; i<N(fdef); i++, l++)
-        if ((l<70) || (fdef[i]!=' ')) prologue << fdef[i];
-        else { prologue << '\n'; l=-1; }
-      prologue << "\n";
-    }
-    else {
-      prologue << "/" << tex_fonts [fn_name]
-               << " " << as_string (N(a))
-               << " " << as_string (a[N(a)-1]+1) << " df\n";
-      for (i=0; i<N(a); i++) {
-        int end;
-        string hex_code= tex_chars [fn_name * "-" * as_string (a[i])];
-        for (end=1; end < N(hex_code); end++)
-          if (hex_code[end-1]=='>') break;
-        string after= hex_code (end, N(hex_code));
-        if ((i>0) && (a[i]==(a[i-1]+1))) after << "I";
-        else after << as_string (a[i]) << " D";
-        if (i==(N(a)-1)) after << " E";
-        hex_code= hex_code (0, end);
-      
-        int j, l, n= N(hex_code);
-        for (j=0; j<n; j+=79) {
-          if (n < (j+79)) prologue << hex_code (j, n);
-          else prologue << hex_code (j, j+79) << "\n";
-        }
-        l= 79-(n%79);
-        if (l<N(after)) prologue << "\n";
-        prologue << after << "\n";
-      }
+      l= 79-(n%79);
+      if (l<N(after)) prologue << "\n";
+      prologue << after << "\n";
     }
   }
 }

@@ -188,15 +188,6 @@ font recolored_font (font base, tree kind);
 font superposed_font (array<font> fns, int ref);
 font x_font (string family, int size, int dpi);
 font qt_font (string family, int size, int dpi);
-font tex_font (string fam, int size, int dpi, int dsize=10);
-font tex_cm_font (string fam, int size, int dpi, int dsize=10);
-font tex_ec_font (string fam, int size, int dpi, int dsize=10);
-font tex_la_font (string fam, int size, int dpi, int dsize=10);
-font tex_gr_font (string fam, int size, int dpi, int dsize=10);
-font tex_adobe_font (string fam, int size, int dpi, int dsize=10);
-font tex_rubber_font (string trl_name,
-		      string fam, int size, int dpi, int dsize=10);
-font tex_dummy_rubber_font (font base_fn);
 
 void font_rule (tree which, tree by);
 font find_font (scheme_tree t);

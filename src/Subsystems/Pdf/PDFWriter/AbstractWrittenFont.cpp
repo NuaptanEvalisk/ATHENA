@@ -164,7 +164,7 @@ void AbstractWrittenFont::AddToCIDRepresentation(const GlyphUnicodeMappingList& 
 }
 
 /*
-CFF/Type 1:
+CFF:
 1. Can encode as long as there is enough room in the encoding array [256 max, not including the required 0 place for notdef.]
 2. While encoding try using the WinAnsiEncoding encoding if possible for the relevant char-code value.
 Meaning, translate the Unicode value to the matching WinAnsiEncoding value. 

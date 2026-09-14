@@ -308,11 +308,6 @@ PDFUsedFont* PDFWriter::GetFontForFile(const std::string& inFontFilePath,long in
 	return mDocumentContext.GetFontForFile(inFontFilePath,inFontIndex);
 }
 
-PDFUsedFont* PDFWriter::GetFontForFile(const std::string& inFontFilePath,const std::string& inAdditionalMeticsFilePath,long inFontIndex)
-{
-	return mDocumentContext.GetFontForFile(inFontFilePath,inAdditionalMeticsFilePath,inFontIndex);
-}
-
 EStatusCodeAndObjectIDTypeList PDFWriter::CreateFormXObjectsFromPDF(const std::string& inPDFFilePath,
 																	  const PDFPageRange& inPageRange,
 																	  EPDFPageBox inPageBoxToUseAsFormBox,

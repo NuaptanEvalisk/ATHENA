@@ -10,7 +10,6 @@
 ******************************************************************************/
 
 #include "pdf_hummus_renderer.hpp"
-#include "Metafont/tex_files.hpp"
 #include "Freetype/tt_file.hpp"
 #include "file.hpp"
 #include "image_files.hpp"
@@ -1420,75 +1419,6 @@ font_size (string name) {
   return mag;
 }
 
-static bool
-match_font_base_name (string fontname, string basename) {
-  if (!starts (fontname, basename))
-    return false;
-  int i= N(basename);
-  while (i < N(fontname)) {
-    if (fontname[i] == ':') break;
-    if (fontname[i] < '0' || fontname[i] > '9')
-      return false;
-    i++;
-  }
-  return true;
-}
-
-static bool
-requires_hack_notdef_for_tex_font (string fontname) {
-  // This fix is necessary for avoiding bugs in certain Pdf viewers,
-  // such as old versions of Preview under MacOS (<= 10.6.*).
-  // It is expected to be removed in near future.
-  static hashmap<string,bool> remember;
-  if (remember->contains(fontname))
-    return remember[fontname];
-  bool r=
-    match_font_base_name (fontname, "cmbsy") ||
-    match_font_base_name (fontname, "cmmib") ||
-    match_font_base_name (fontname, "cmb") ||
-    match_font_base_name (fontname, "cmbx") ||
-    match_font_base_name (fontname, "cmbxsl") ||
-    match_font_base_name (fontname, "cmbxti") ||
-    match_font_base_name (fontname, "cmbcsc") ||
-    match_font_base_name (fontname, "cmdunh") ||
-    match_font_base_name (fontname, "cmex") ||
-    match_font_base_name (fontname, "cmexb") ||
-    match_font_base_name (fontname, "cmff") ||
-    match_font_base_name (fontname, "cmfi") ||
-    match_font_base_name (fontname, "cmfib") ||
-    match_font_base_name (fontname, "cminch") ||
-    match_font_base_name (fontname, "cmitt") ||
-    match_font_base_name (fontname, "cmmi") ||
-    match_font_base_name (fontname, "cmmib") ||
-    match_font_base_name (fontname, "cmr") ||
-    match_font_base_name (fontname, "cmsl") ||
-    match_font_base_name (fontname, "cmsltt") ||
-    match_font_base_name (fontname, "cmss") ||
-    match_font_base_name (fontname, "cmssbx") ||
-    match_font_base_name (fontname, "cmssdc") ||
-    match_font_base_name (fontname, "cmssi") ||
-    match_font_base_name (fontname, "cmssq") ||
-    match_font_base_name (fontname, "cmssqi") ||
-    match_font_base_name (fontname, "cmsy") ||
-    match_font_base_name (fontname, "cmtcsc") ||
-    match_font_base_name (fontname, "cmtex") ||
-    match_font_base_name (fontname, "cmti") ||
-    match_font_base_name (fontname, "cmtt") ||
-    match_font_base_name (fontname, "cmu") ||
-    match_font_base_name (fontname, "cmvtt") ||
-    match_font_base_name (fontname, "euex") ||
-    match_font_base_name (fontname, "eufb") ||
-    match_font_base_name (fontname, "eufm") ||
-    match_font_base_name (fontname, "eurb") ||
-    match_font_base_name (fontname, "eurm") ||
-    match_font_base_name (fontname, "eusb") ||
-    match_font_base_name (fontname, "eusm") ||
-    match_font_base_name (fontname, "msam") ||
-    match_font_base_name (fontname, "msbm");
-  remember(fontname)= r;
-  return r;
-}
-     
 void
 pdf_hummus_renderer_rep::draw (int ch, font_glyphs fn, SI x, SI y) {
   //debug_convert << "draw \"" << (char)ch << "\" " << ch << " "
@@ -1499,10 +1429,6 @@ pdf_hummus_renderer_rep::draw (int ch, font_glyphs fn, SI x, SI y) {
   int fontchunk= t3font_font_chunk (ch);
   string fontchunkname= fontname * string ("-chunk") * as_string (fontchunk);
 
-  if (ch == 0 && requires_hack_notdef_for_tex_font (fontname)) {
-    draw (161, fn, x, y);
-    return;
-  }
   string char_name (fontname * "-" * as_string (ch));
   pdf_raw_image glyph;
   
@@ -1529,8 +1455,8 @@ pdf_hummus_renderer_rep::draw (int ch, font_glyphs fn, SI x, SI y) {
       cfid = NULL;
       std::string name = page->GetResourcesDictionary()
 	.AddFontMapping (t3font_list (fontname)->fontId);
-      // pk fonts are encoded in t3 fonts as bitmaps.
-      // they cannot be scaled and are encoded in such a way that
+      // Bitmap glyph fonts are encoded in Type 3 fonts.
+      // They cannot be scaled and are encoded in such a way that
       // they should be rendered at size 100 (conventional value)
       // to give the correct result (see the Font Matrix defined
       // in t3font_rep::write_definition).

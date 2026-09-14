@@ -36,7 +36,6 @@ class PDFParser;
 
 typedef std::pair<std::string,long> StringAndLong;
 typedef std::map<StringAndLong,PDFUsedFont*> StringAndLongToPDFUsedFontMap;
-typedef std::map<std::string,std::string> StringToStringMap;
 
 class UsedFontsRepository
 {
@@ -49,8 +48,6 @@ public:
 
 
 	PDFUsedFont* GetFontForFile(const std::string& inFontFilePath,long inFontIndex);
-	// second overload is for type 1, when an additional metrics file is available
-	PDFUsedFont* GetFontForFile(const std::string& inFontFilePath,const std::string& inOptionalMetricsFile,long inFontIndex);
 
 	PDFHummus::EStatusCode WriteUsedFontsDefinitions();
 
@@ -64,6 +61,5 @@ private:
 	ObjectsContext* mObjectsContext;
 	FreeTypeWrapper* mInputFontsInformation;
 	StringAndLongToPDFUsedFontMap mUsedFonts;
-	StringToStringMap mOptionaMetricsFiles;
 	bool mEmbedFonts;
 };

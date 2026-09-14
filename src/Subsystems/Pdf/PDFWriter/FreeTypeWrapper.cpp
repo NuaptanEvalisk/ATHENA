@@ -145,43 +145,6 @@ void FreeTypeWrapper::RegisterStreamForFace(FT_Face inFace,FT_Stream inStream)
 }
 
 
-FT_Face FreeTypeWrapper::NewFace(const std::string& inFilePath,const std::string& inSecondaryFilePath,FT_Long inFontIndex)
-{
-	FT_Open_Args attachStreamArguments;
-
-	FT_Face face = NewFace(inFilePath,inFontIndex);
-	if(face)
-	{
-		do
-		{
-			if(FillOpenFaceArgumentsForUTF8String(inSecondaryFilePath,attachStreamArguments) != PDFHummus::eSuccess)
-			{
-				DoneFace(face);
-				face = NULL;
-				break;
-			}
-
-			FT_Error ftStatus = FT_Attach_Stream(face,&attachStreamArguments);
-			if(ftStatus != 0)
-			{
-				TRACE_LOG1("FreeTypeWrapper::NewFace, unable to load secondary file %s",inSecondaryFilePath.c_str());
-				TRACE_LOG2("FreeTypeWrapper::NewFace, Free Type Error, Code = %d, Message = %s",ft_errors[ftStatus].err_code,ft_errors[ftStatus].err_msg);
-				DoneFace(face);
-				face = NULL;
-			}
-		}while(false);
-
-		if(!face)
-			CloseOpenFaceArgumentsStream(attachStreamArguments);
-		else
-			RegisterStreamForFace(face,attachStreamArguments.stream);
-
-	}
-
-	return face;	
-}
-
-
 FT_Error FreeTypeWrapper::DoneFace(FT_Face ioFace)
 {
 	FT_Error status = FT_Done_Face(ioFace);

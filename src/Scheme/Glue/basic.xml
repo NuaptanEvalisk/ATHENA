@@ -1700,9 +1700,6 @@
   <binding name="url-exists-in-path?" native="exists_in_path" returns="bool">
     <arg type="url" />
   </binding>
-  <binding name="url-exists-in-tex?" native="exists_in_tex" returns="bool">
-    <arg type="url" />
-  </binding>
   <binding name="url-concretize*" native="concretize_url" returns="url">
     <arg type="url" />
   </binding>

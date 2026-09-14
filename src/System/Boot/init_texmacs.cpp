@@ -35,9 +35,6 @@ int  install_status   = 0;
 bool use_which        = false;
 bool use_locate       = false;
 
-extern void setup_tex (); // from Subsystems/Metafont/tex_init.cpp
-extern void init_tex  (); // from Subsystems/Metafont/tex_init.cpp
-
 /******************************************************************************
 * Subroutines for paths
 ******************************************************************************/
@@ -209,10 +206,7 @@ init_user_dirs () {
   make_dir ("$ATHENA_HOME_PATH/fonts");
   make_dir ("$ATHENA_HOME_PATH/fonts/enc");
   make_dir ("$ATHENA_HOME_PATH/fonts/error");
-  make_dir ("$ATHENA_HOME_PATH/fonts/pk");
-  make_dir ("$ATHENA_HOME_PATH/fonts/tfm");
   make_dir ("$ATHENA_HOME_PATH/fonts/truetype");
-  make_dir ("$ATHENA_HOME_PATH/fonts/type1");
   make_dir ("$ATHENA_HOME_PATH/fonts/unpacked");
   make_dir ("$ATHENA_HOME_PATH/fonts/virtual");
   make_dir ("$ATHENA_HOME_PATH/langs");
@@ -482,11 +476,6 @@ system_state_from_qstring (const QString& s) {
   return string (bytes.constData ());
 }
 
-static void
-set_bool_setting (string var, const QJsonValue& val) {
-  set_setting (var, val.toBool (false)? "true": "false");
-}
-
 static bool
 load_system_state_json () {
   string s;
@@ -502,9 +491,9 @@ load_system_state_json () {
   }
 
   QJsonObject root= doc.object ();
+  int version= root.value ("version").toInt ();
   if (root.value ("format").toString () != "athena-system-state" ||
-      root.value ("version").toInt () != 1 ||
-      !root.value ("tex").isObject ()) {
+      (version != 1 && version != 2)) {
     std_error << "Unsupported system state JSON in " << state_file << LF;
     return false;
   }
@@ -512,35 +501,17 @@ load_system_state_json () {
   athena_settings= tuple ();
   set_setting ("VERSION",
                system_state_from_qstring (
-                 root.value ("compatibility_version").toString ()));
-  QJsonObject tex= root.value ("tex").toObject ();
-  set_bool_setting ("KPSEPATH", tex.value ("kpsepath"));
-  set_bool_setting ("KPSEWHICH", tex.value ("kpsewhich"));
-  set_setting ("MAKETFM", system_state_from_qstring (
-                 tex.value ("make_tfm").toString ("false")));
-  set_setting ("MAKEPK", system_state_from_qstring (
-                 tex.value ("make_pk").toString ("false")));
-  set_setting ("DPI", as_string (tex.value ("design_dpi").toInt (600)));
+                  root.value ("compatibility_version").toString ()));
   return true;
 }
 
 static bool
 save_system_state_json () {
-  QJsonObject tex;
-  tex.insert ("kpsepath", get_setting ("KPSEPATH") == "true");
-  tex.insert ("kpsewhich", get_setting ("KPSEWHICH") == "true");
-  tex.insert ("make_tfm", system_state_to_qstring (
-                get_setting ("MAKETFM", "false")));
-  tex.insert ("make_pk", system_state_to_qstring (
-                get_setting ("MAKEPK", "false")));
-  tex.insert ("design_dpi", as_int (get_setting ("DPI", "600")));
-
   QJsonObject root;
   root.insert ("format", "athena-system-state");
-  root.insert ("version", 1);
+  root.insert ("version", 2);
   root.insert ("compatibility_version", system_state_to_qstring (
                  get_setting ("VERSION")));
-  root.insert ("tex", tex);
 
   QByteArray bytes= QJsonDocument (root).toJson (QJsonDocument::Indented);
   return !save_string (system_state_file (), string (bytes.constData ()));
@@ -568,21 +539,11 @@ migrate_legacy_system_state () {
   tree legacy= block_to_scheme_tree (s);
   athena_settings= legacy;
   string version= get_setting ("VERSION");
-  string kpsepath= get_setting ("KPSEPATH", "false");
-  string kpsewhich= get_setting ("KPSEWHICH", "false");
-  string make_tfm= get_setting ("MAKETFM", "false");
-  string make_pk= get_setting ("MAKEPK", "false");
-  string dpi= get_setting ("DPI", "600");
   athena_settings= tuple ();
   set_setting ("VERSION", version);
-  set_setting ("KPSEPATH", kpsepath);
-  set_setting ("KPSEWHICH", kpsewhich);
-  set_setting ("MAKETFM", make_tfm);
-  set_setting ("MAKEPK", make_pk);
-  set_setting ("DPI", dpi);
   if (!save_system_state_json ()) return false;
   backup_legacy_system_state ();
-  cout << "Migrated legacy TeX setup state to " << system_state_file () << LF;
+  cout << "Migrated legacy system state to " << system_state_file () << LF;
   return true;
 }
 
@@ -596,7 +557,6 @@ setup_athena () {
   debug_boot << HRULE;
 
   set_setting ("VERSION", TEXMACS_COMPAT_VERSION);
-  setup_tex ();
 
   if (!save_system_state_json ()) {
     failed_error << HRULE;
@@ -641,27 +601,16 @@ init_athena () {
 }
 
 /******************************************************************************
-* Initialization of TeX resources
+* Initialization of persistent system state
 ******************************************************************************/
 
 void
-init_tex_resources () {
-  url old_settings= "$ATHENA_HOME_PATH/system/TEX_PATHS";
-
+init_system_state () {
   install_status= 0;
-  string s;
   if (!load_system_state_json ()) {
     if (!migrate_legacy_system_state ()) {
-      if (load_string (old_settings, s, false)) {
-        setup_athena ();
-        install_status= 1;
-      }
-      else {
-        get_old_settings (s);
-        set_setting ("VERSION", TEXMACS_COMPAT_VERSION);
-        setup_tex ();
-        save_system_state_json ();
-      }
+      setup_athena ();
+      install_status= 1;
     }
   }
 
@@ -670,7 +619,6 @@ init_tex_resources () {
     url ch ("$ATHENA_HOME_PATH/doc/about/changes/changes-recent.en.tm");
     install_status= exists (ch)? 2: 0;
   }
-  init_tex ();
 }
 
 bool

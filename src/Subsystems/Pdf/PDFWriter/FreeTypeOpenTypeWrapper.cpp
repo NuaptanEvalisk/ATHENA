@@ -115,7 +115,7 @@ BoolAndFTShort FreeTypeOpenTypeWrapper::GetxHeight()
 
 FT_UShort FreeTypeOpenTypeWrapper::GetStemV()
 {
-	// For TTF that's a good calculation. For CFFs i should be able to ge this from the private dict information, like the case for type 1 (just use StdVW). for this i'll have to parse the CFF...differ for now
+	// For TTF this is a good calculation. CFF could provide a better value from its private dictionary; defer that parsing for now.
 	// instead use the method for true type which would be to try and measure lower case l, and if unsuccesful use some heuristic
 
 	BoolAndFTUShort lowerLWidthResult = StemVFromLowerLWidth();

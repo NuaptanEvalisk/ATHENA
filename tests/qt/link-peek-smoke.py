@@ -25,9 +25,8 @@ home = Path(tempfile.mkdtemp(prefix='athena-link-peek-smoke-'))
 system = home / 'profile/system'
 system.mkdir(parents=True)
 (system / 'sys_state.json').write_text(json.dumps({
-    'format': 'athena-system-state', 'version': 1, 'compatibility_version': '2.1.4',
-    'tex': {'design_dpi': 600, 'kpsepath': False, 'kpsewhich': False,
-            'make_pk': False, 'make_tfm': False}}))
+    'format': 'athena-system-state', 'version': 2, 'compatibility_version': '2.1.4',
+}))
 vault = home / 'vault'
 rd, wr = os.pipe()
 xvfb = subprocess.Popen(['Xvfb', '-displayfd', str(wr), '-screen', '0',

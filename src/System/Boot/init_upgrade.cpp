@@ -17,35 +17,6 @@
 #include "data_cache.hpp"
 
 /******************************************************************************
-* Old style settings files
-******************************************************************************/
-
-static string
-line_read (string s, int& i) {
-  int start= i, n= N(s);
-  for (start=i; i<n; i++)
-    if (s[i]=='\n') break;
-  string r= s (start, i);
-  if (i<n) i++;
-  return r;
-}
-
-void
-get_old_settings (string s) {
-  int i= 0, j;
-  while (i<N(s)) {
-    string l= line_read (s, i);
-    for (j=0; j<N(l); j++)
-      if (l[j] == '=') {
-	string left = l (0, j);
-	while ((j<N(l)) && ((l[j]=='=') || (l[j]==' '))) j++;
-	string right= l (j, N(l));
-	set_setting (left, right);
-      }
-  }
-}
-
-/******************************************************************************
 * Check for old Init.scm and Init-buffer.scm files
 ******************************************************************************/
 
@@ -140,9 +111,7 @@ init_upgrade () {
   debug_boot << TEXMACS_COMPAT_VERSION <<"\n";
   debug_boot << HRULE;
 
-  url old_settings= "$ATHENA_HOME_PATH/system" * url_wildcard ("TEX_PATHS*");
   url new_settings= "$ATHENA_HOME_PATH/system/sys_state.json";
-  remove (old_settings);
   remove (new_settings);
 
   setup_athena ();

@@ -56,10 +56,6 @@ target_link_libraries (athena_body PRIVATE KF6::SyntaxHighlighting)
 target_link_libraries (athena_body PRIVATE KF6::Completion)
 target_link_libraries (athena_body PRIVATE athena_audmap_terminal)
 target_link_libraries (athena_body PRIVATE athena_plugin_ui)
-if (TARGET PkgConfig::KPATHSEA)
-  target_compile_definitions (athena_body PRIVATE USE_KPATHSEA_API=1)
-  target_link_libraries (athena_body PRIVATE PkgConfig::KPATHSEA)
-endif ()
 
 if (WIN32)
   add_executable (${ATHENA_binary_name} WIN32

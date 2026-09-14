@@ -69,7 +69,7 @@ private:
 	
 	// Aha! This method remains virtual for sub implementations to 
 	// override. Adding to an ANSI representation is dependent on the output format,
-	// where True Type has some different ruling from OpenType(CFF)/Type1
+	// where TrueType has some different ruling from OpenType CFF
 	virtual bool AddToANSIRepresentation(
 									const GlyphUnicodeMappingList& inGlyphsList,
 									UShortList& outEncodedCharacters) = 0;

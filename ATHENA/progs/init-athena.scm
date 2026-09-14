@@ -474,9 +474,7 @@
 ;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting fonts\n")
-(import-from (fonts fonts-ec) (fonts fonts-adobe) (fonts fonts-x)
-             (fonts fonts-math) (fonts fonts-foreign) (fonts fonts-misc)
-             (fonts fonts-composite))
+(import-from (fonts fonts-truetype) (fonts fonts-math) (fonts fonts-x))
 (lazy-define (fonts font-old-menu)
 	     text-font-menu math-font-menu prog-font-menu)
 (lazy-define (fonts font-new-widgets)

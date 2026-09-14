@@ -201,7 +201,7 @@ void ANSIFontWriter::CalculateDifferences()
 
 	for(; it != mCharactersVector.end(); ++it)
 	{
-		// hmm. there should always be a glyph name for a CFF or Type1 glyph. so it shouldn't be a problem
+		// CFF glyphs should always have names, so this should not be a problem.
 		// to ask them here. should be sufficient length as well.
         std::string glyphName = mFontInfo->GetGlyphName(it->first);
 		if(strcmp(glyphName.c_str(),winAnsiEncoding.GetEncodedGlyphName((IOBasicTypes::Byte)it->second.mEncodedCharacter)) != 0)

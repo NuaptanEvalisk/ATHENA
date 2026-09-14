@@ -1147,7 +1147,7 @@ TeXmacs_main (int argc, char** argv) {
   set_global_options (argc, argv);
 
   if (scheme_bytecode_output_dir != "") {
-    init_tex_resources ();
+    init_system_state ();
     gui_open (argc, argv);
     server sv;
     // Bootstrap against source so legacy shared-root bindings are installed
@@ -1167,11 +1167,11 @@ TeXmacs_main (int argc, char** argv) {
     exit (ok ? 0 : 1);
   }
 
-  if (DEBUG_STD) debug_boot << "Initializing TeX resources...\n";
-  startup_progress (84, "Initializing TeX resources");
-  bench_start ("initialize TeX resources");
-  init_tex_resources ();
-  bench_cumul ("initialize TeX resources");
+  if (DEBUG_STD) debug_boot << "Initializing system state...\n";
+  startup_progress (84, "Initializing system state");
+  bench_start ("initialize system state");
+  init_system_state ();
+  bench_cumul ("initialize system state");
   if (DEBUG_STD) debug_boot << "Opening display...\n";
 
   startup_progress (86, "Opening display");

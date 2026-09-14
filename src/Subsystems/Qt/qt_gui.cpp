@@ -1261,7 +1261,7 @@ font
 get_default_font (bool tt, bool mini, bool bold) {
   (void) tt; (void) mini; (void) bold;
   if (DEBUG_QT) debug_qt << "get_default_font(): SHOULD NOT BE CALLED\n";
-  return NULL;  //return tex_font (this, "ecrm", 10, 300, 0);
+  return NULL;
 }
 
 /*! Loads the metric and glyphs of a system font.

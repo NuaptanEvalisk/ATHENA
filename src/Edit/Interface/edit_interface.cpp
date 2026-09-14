@@ -15,7 +15,6 @@
 #include "convert.hpp"
 #include "server.hpp"
 #include "tm_window.hpp"
-#include "Metafont/tex_files.hpp"
 #include "data_cache.hpp"
 #include "drd_std.hpp"
 #include "drd_mode.hpp"

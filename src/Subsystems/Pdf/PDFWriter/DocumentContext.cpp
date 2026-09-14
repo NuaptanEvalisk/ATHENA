@@ -1353,11 +1353,6 @@ EStatusCode DocumentContext::WriteUsedFontsDefinitions()
 	return mUsedFontsRepository.WriteUsedFontsDefinitions();
 }
 
-PDFUsedFont* DocumentContext::GetFontForFile(const std::string& inFontFilePath,const std::string& inAdditionalMeticsFilePath,long inFontIndex)
-{
-	return mUsedFontsRepository.GetFontForFile(inFontFilePath,inAdditionalMeticsFilePath,inFontIndex);
-}
-
 EStatusCodeAndObjectIDTypeList DocumentContext::CreateFormXObjectsFromPDF(const std::string& inPDFFilePath,
 																			const PDFParsingOptions& inParsingOptions,
 																			const PDFPageRange& inPageRange,

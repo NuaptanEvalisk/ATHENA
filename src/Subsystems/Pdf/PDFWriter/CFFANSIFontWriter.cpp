@@ -28,7 +28,6 @@
 #include "ObjectsContext.h"
 #include "FreeTypeFaceWrapper.h"
 #include "CFFEmbeddedFontWriter.h"
-#include "Type1ToCFFEmbeddedFontWriter.h"
 #include "Trace.h"
 
 #include <ft2build.h>
@@ -46,7 +45,6 @@ CFFANSIFontWriter::~CFFANSIFontWriter(void)
 }
 
 static const std::string scType1C = "Type1C";
-static const char* scType1Type = "Type 1";
 static const char* scCFF = "CFF";
 static const std::string scPlus = "+";
 EStatusCode CFFANSIFontWriter::WriteFont(	FreeTypeFaceWrapper& inFontInfo,
@@ -72,18 +70,7 @@ EStatusCode CFFANSIFontWriter::WriteFont(	FreeTypeFaceWrapper& inFontInfo,
 		const char* fontType = inFontInfo.GetTypeString();
 
 		EStatusCode status;
-		if (strcmp(scType1Type, fontType) == 0)
-		{
-			Type1ToCFFEmbeddedFontWriter embeddedFontWriter;
-
-			status = embeddedFontWriter.WriteEmbeddedFont(inFontInfo,
-				inFontOccurrence->GetGlyphIDsAsOrderedVector(),
-				scType1C,
-				fontName,
-				inObjectsContext,
-				mEmbeddedFontFileObjectID);
-		}
-		else if (strcmp(scCFF, fontType) == 0)
+		if (strcmp(scCFF, fontType) == 0)
 		{
 			CFFEmbeddedFontWriter embeddedFontWriter;
 

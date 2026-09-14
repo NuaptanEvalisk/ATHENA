@@ -390,7 +390,7 @@ private slots:
 };
 
 static void run_tests (int argc, char** argv) {
-  init_tex_resources ();
+  init_system_state ();
   gui_open (argc, argv);
   int result;
   {

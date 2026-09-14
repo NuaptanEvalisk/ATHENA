@@ -14,14 +14,14 @@
 #include <mutex>
 #include "tt_tools.hpp"
 #include "file.hpp"
-#include "boot.hpp"
 #include "analyze.hpp"
 #include "hashmap.hpp"
-#include "Metafont/tex_files.hpp"
 #include "tm_timer.hpp"
 #include "data_cache.hpp"
 #include "scheme.hpp"
 #include "sys_utils.hpp"
+
+extern bool use_locate;
 
 #ifdef USE_FONTCONFIG
 #include <fontconfig/fontconfig.h>
@@ -72,7 +72,7 @@ static bool
 tt_font_file_extension (string name) {
   string l= locase_all (name);
   return ends (l, ".ttf") || ends (l, ".ttc") || ends (l, ".otf") ||
-         ends (l, ".dfont") || ends (l, ".pfb");
+         ends (l, ".dfont");
 }
 
 url
@@ -150,20 +150,7 @@ tt_private_font_roots (string xtt, string ximp) {
     url ("/Library/Application Support/Apple/Fonts/iLife") |
     url ("/Library/Application Support/Apple/Fonts/iWork") |
     url ("/System/Library/Fonts") |
-    url ("/System/Library/PrivateFrameworks/FontServices.framework/Versions/A/Resources/Fonts/ApplicationSupport") |
-    url ("/opt/local/share/texmf-texlive/fonts/opentype") |
-    url ("/opt/local/share/texmf-texlive/fonts/truetype") |
-    url ("/opt/local/share/texmf-texlive-dist/fonts/opentype") |
-    url ("/opt/local/share/texmf-texlive-dist/fonts/truetype");
-#else
-  roots=
-    roots |
-    url ("/usr/local/texlive/2020/texmf-dist/opentype") |
-    url ("/usr/local/texlive/2020/texmf-dist/truetype") |
-    url ("/usr/local/texlive/2021/texmf-dist/opentype") |
-    url ("/usr/local/texlive/2021/texmf-dist/truetype") |
-    url ("/usr/local/texlive/2022/texmf-dist/opentype") |
-    url ("/usr/local/texlive/2022/texmf-dist/truetype");
+    url ("/System/Library/PrivateFrameworks/FontServices.framework/Versions/A/Resources/Fonts/ApplicationSupport");
 #endif
   return roots;
 }
@@ -189,7 +176,7 @@ tt_font_strip_extension (string name) {
   string lower= locase_all (name);
   if (ends (lower, ".dfont")) return name (0, N(name) - 6);
   if (ends (lower, ".ttf") || ends (lower, ".ttc") ||
-      ends (lower, ".otf") || ends (lower, ".pfb"))
+      ends (lower, ".otf"))
     return name (0, N(name) - 4);
   return name;
 }
@@ -457,17 +444,7 @@ tt_font_path () {
     search_sub_dirs ("/Library/Application Support/Apple/Fonts/iLife") |
     search_sub_dirs ("/Library/Application Support/Apple/Fonts/iWork") |
     search_sub_dirs ("/System/Library/Fonts") |
-    search_sub_dirs ("/System/Library/PrivateFrameworks/FontServices.framework/Versions/A/Resources/Fonts/ApplicationSupport") |
-    search_sub_dirs ("/opt/local/share/texmf-texlive/fonts/opentype") |
-    search_sub_dirs ("/opt/local/share/texmf-texlive/fonts/truetype") |
-    search_sub_dirs ("/opt/local/share/texmf-texlive-dist/fonts/opentype") |
-    search_sub_dirs ("/opt/local/share/texmf-texlive-dist/fonts/truetype") |
-    search_sub_dirs ("/usr/local/texlive/2020/texmf-dist/fonts/opentype") |
-    search_sub_dirs ("/usr/local/texlive/2020/texmf-dist/fonts/truetype") |
-    search_sub_dirs ("/usr/local/texlive/2021/texmf-dist/fonts/opentype") |
-    search_sub_dirs ("/usr/local/texlive/2021/texmf-dist/fonts/truetype") |
-    search_sub_dirs ("/usr/local/texlive/2022/texmf-dist/fonts/opentype") |
-    search_sub_dirs ("/usr/local/texlive/2022/texmf-dist/fonts/truetype");
+    search_sub_dirs ("/System/Library/PrivateFrameworks/FontServices.framework/Versions/A/Resources/Fonts/ApplicationSupport");
 #else
     tt_fontconfig_path () |
     search_sub_dirs ("$HOME/.fonts") |
@@ -477,13 +454,7 @@ tt_font_path () {
     search_sub_dirs ("/usr/share/fonts/truetype") |
     search_sub_dirs ("/usr/local/share/fonts") |
     search_sub_dirs ("/usr/local/share/fonts/opentype") |
-    search_sub_dirs ("/usr/local/share/fonts/truetype") |
-    search_sub_dirs ("/usr/local/texlive/2020/texmf-dist/fonts/opentype") |
-    search_sub_dirs ("/usr/local/texlive/2020/texmf-dist/fonts/truetype") |
-    search_sub_dirs ("/usr/local/texlive/2021/texmf-dist/fonts/opentype") |
-    search_sub_dirs ("/usr/local/texlive/2021/texmf-dist/fonts/truetype") |
-    search_sub_dirs ("/usr/local/texlive/2022/texmf-dist/fonts/opentype") |
-    search_sub_dirs ("/usr/local/texlive/2022/texmf-dist/fonts/truetype");
+    search_sub_dirs ("/usr/local/share/fonts/truetype");
 #endif
 #endif
   bench_cumul ("tt font path");
@@ -563,40 +534,10 @@ tt_font_index_find (string name) {
 
 static url
 tt_locate (string name) {
-  if (ends (name, ".pfb")) {
-    /*
-    if (starts (name, "rpag")) name= "uag" * name (4, N (name) - 4) * "8a.pfb";
-    if (starts (name, "rpbk")) name= "ubk" * name (4, N (name) - 4) * "8a.pfb";
-    if (starts (name, "rpcr")) name= "ucr" * name (4, N (name) - 4) * "8a.pfb";
-    if (starts (name, "rphv")) name= "uhv" * name (4, N (name) - 4) * "8a.pfb";
-    if (starts (name, "rpnc")) name= "unc" * name (4, N (name) - 4) * "8a.pfb";
-    if (starts (name, "rppl")) name= "upl" * name (4, N (name) - 4) * "8a.pfb";
-    if (starts (name, "rpsy")) name= "usy" * name (4, N (name));
-    if (starts (name, "rptm")) name= "utm" * name (4, N (name) - 4) * "8a.pfb";
-    if (starts (name, "rpzc")) name= "uzc" * name (4, N (name) - 4) * "8a.pfb";
-    if (starts (name, "rpzd")) name= "uzd" * name (4, N (name));
-    */
-    url u= resolve_tex (name);
-    //cout << "tt_locate: " << name << " -> " << u << "\n";
-    if (!is_none (u)) return u;
-  }
   url platform= tt_platform_font_find (name);
   if (!is_none (platform)) return platform;
 
-  if (use_locate &&
-	   // NOTE: avoiding unnecessary locates can greatly improve timings
-	   !starts (name, "ec") &&
-	   !starts (name, "la") &&
-	   !starts (name, "cm") &&
-	   !starts (name, "msam") &&
-	   !starts (name, "msbm") &&
-	   !starts (name, "bbm") &&
-	   !starts (name, "stmary") &&
-	   !starts (name, "rsfs") &&
-	   !starts (name, "grmn") &&
-	   !starts (name, "mac-")
-	   // FIXME: better caching of missed tt_locates would be better
-	   )
+  if (use_locate && !starts (name, "mac-"))
     {
       string s= eval_system ("locate", "/" * name);
       //cout << "locate " << name << " -> " << s << "\n";
@@ -624,9 +565,6 @@ url
 tt_font_find_sub (string name) {
   //cout << "tt_font_find " << name << "\n";
   url u= tt_unpack (name);
-  if (!is_none (u)) return u;
-  u= tt_locate (name * ".pfb");
-  //if (!is_none (u)) cout << name << " -> " << u << "\n";
   if (!is_none (u)) return u;
   u= tt_locate (name * ".ttf");
   //if (!is_none (u)) cout << name << " -> " << u << "\n";

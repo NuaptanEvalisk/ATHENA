@@ -13,6 +13,7 @@
 #include "font_domain.hpp"
 #include "convert.hpp"
 #include "converter.hpp"
+#include "Freetype/tt_file.hpp"
 #include "Freetype/tt_tools.hpp"
 #include "translator.hpp"
 #include "iterator.hpp"
@@ -640,6 +641,42 @@ in_collection (string c, string name) {
 /******************************************************************************
 * Font substitutions
 ******************************************************************************/
+
+static string
+modern_roman_profile () {
+  string rm= tt_font_exists ("Latin Modern Roman")
+               ? string ("Latin Modern Roman") : string ("Stix");
+  string ss= tt_font_exists ("Latin Modern Sans")
+               ? string ("Latin Modern Sans") : string ("Fira Sans");
+  string tt= tt_font_exists ("Latin Modern Mono")
+               ? string ("Latin Modern Mono") : string ("Fira Mono");
+  string math= tt_font_exists ("Latin Modern Math")
+                 ? string ("Latin Modern Math") : string ("Stix Math");
+  return "math=" * math * ",typewriter=" * tt * ",sansserif=" * ss * "," * rm;
+}
+
+static string
+modern_roman_fix (string family) {
+  for (int i=N(family)-1; i>=0; i--)
+    if (family[i] == ',')
+      return modern_roman_fix (family (0, i)) * "," *
+             modern_roman_fix (family (i+1, N(family)));
+
+  int eq= search_forwards ("=", family);
+  if (eq >= 0)
+    return family (0, eq+1) * modern_roman_fix (family (eq+1, N(family)));
+
+  if (family == "roman" || family == "modern" ||
+      family == "TeXmacs Computer Modern")
+    return modern_roman_profile ();
+  if (family == "TeXmacs Computer Modern Sans")
+    return tt_font_exists ("Latin Modern Sans")
+             ? string ("Latin Modern Sans") : string ("Fira Sans");
+  if (family == "TeXmacs Computer Modern Mono")
+    return tt_font_exists ("Latin Modern Mono")
+             ? string ("Latin Modern Mono") : string ("Fira Mono");
+  return family;
+}
 
 string
 tex_gyre_fix (string family, string series, string shape) {
@@ -1875,6 +1912,7 @@ smart_font_bis (string family, string variant, string series, string shape,
       family= "cjk=" * name * ",roman";
     }
   }
+  family= modern_roman_fix (family);
   family= tex_gyre_fix (family, series, shape);
   family= kepler_fix (family, series, shape);
   //family= stix_fix (family, series, shape);

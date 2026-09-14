@@ -79,14 +79,7 @@ printf '%s\n' \
   '{' \
   '  "compatibility_version": "2.1.4",' \
   '  "format": "athena-system-state",' \
-  '  "tex": {' \
-  '    "design_dpi": 600,' \
-  '    "kpsepath": false,' \
-  '    "kpsewhich": false,' \
-  '    "make_pk": false,' \
-  '    "make_tfm": false' \
-  '  },' \
-  '  "version": 1' \
+  '  "version": 2' \
   '}' > "$system_state"
 
 source_list="$manifest_dir/sources.list"

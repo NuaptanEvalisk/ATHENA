@@ -18,10 +18,9 @@ def run_case(args, mode):
         system = home / "profile/system"
         system.mkdir(parents=True)
         (system / "sys_state.json").write_text(json.dumps({
-            "format": "athena-system-state", "version": 1,
+            "format": "athena-system-state", "version": 2,
             "compatibility_version": "2.1.4",
-            "tex": {"design_dpi": 600, "kpsepath": False, "kpsewhich": False,
-                    "make_pk": False, "make_tfm": False}}))
+        }))
         env = dict(os.environ)
         env.update({
             "HOME": str(home), "ATHENA_HOME_PATH": str(home / "profile"),

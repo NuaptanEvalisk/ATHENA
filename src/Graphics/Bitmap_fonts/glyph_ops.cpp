@@ -414,7 +414,7 @@ hor_extend (glyph gl, int pos, int by) {
   int i, j;
   int ww= gl->width, hh= gl->height;
   bool ok= false;
-  while (!ok) { // hack for corrupted pfb translations
+  while (!ok) { // tolerate corrupted bitmap translations
     for (j=0; j<hh; j++)
       ok= ok || (gl->get_x (pos, j) != 0);
     if (!ok) pos += (pos < (ww>>1)? 1: -1);
@@ -432,7 +432,7 @@ hor_take (glyph gl, int pos, int nr) {
   int i, j;
   int ww= gl->width, hh= gl->height;
   bool ok= false;
-  while (!ok) { // hack for corrupted pfb translations
+  while (!ok) { // tolerate corrupted bitmap translations
     for (j=0; j<hh; j++)
       ok= ok || (gl->get_x (pos, j) != 0);
     if (!ok) pos += (pos < (ww>>1)? 1: -1);

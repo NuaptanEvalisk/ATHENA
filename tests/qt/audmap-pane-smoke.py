@@ -18,9 +18,8 @@ home = Path(tempfile.mkdtemp(prefix="athena-audmap-pane-smoke-"))
 system = home / "profile/system"
 system.mkdir(parents=True)
 (system / "sys_state.json").write_text(json.dumps({
-    "format": "athena-system-state", "version": 1, "compatibility_version": "2.1.4",
-    "tex": {"design_dpi": 600, "kpsepath": False, "kpsewhich": False,
-            "make_pk": False, "make_tfm": False}}))
+    "format": "athena-system-state", "version": 2, "compatibility_version": "2.1.4",
+}))
 read_fd, write_fd = os.pipe()
 xvfb = subprocess.Popen(["Xvfb", "-displayfd", str(write_fd), "-screen", "0",
                          "1200x850x24", "-nolisten", "tcp"], pass_fds=[write_fd],
