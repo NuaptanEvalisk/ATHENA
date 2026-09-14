@@ -747,7 +747,7 @@
        (let ((body (path->tree cd-session-body)))
          (and (tree? body) (cd-find-arrow body cd-selected-id)))))
 
-(define (cd-selected-option key fallback)
+(tm-define (cd-selected-option key fallback)
   (and-with a (cd-selected-arrow-tree) (cd-option a key fallback)))
 
 (define (cd-negate-string s)
@@ -776,18 +776,12 @@
 (define (cd-set-option! a key value)
   (tree-set a 4 (cd-current-options-with a key value)))
 
-(define (cd-set-selected-option key value)
+(tm-define (cd-set-selected-option key value)
   (and-with a (cd-selected-arrow-tree)
     (cd-set-option! a key value)
     (cd-refresh)))
 
-(define (cd-live-input-value answer)
-  (if (and (pair? answer) (pair? (cdr answer))) (car answer) answer))
-
-(define (cd-live-input-type name)
-  (string-append name "#form-cd-arrow:string"))
-
-(define (cd-reverse-selected-arrow)
+(tm-define (cd-reverse-selected-arrow)
   (and-with a (cd-selected-arrow-tree)
     (let ((source (cd-arrow-source a)) (target (cd-arrow-target a)))
       (tree-set a 1 target)
@@ -812,7 +806,7 @@
                       "top-harpoon" "bottom-harpoon"))
       (cd-refresh))))
 
-(define (cd-flip-selected-arrow)
+(tm-define (cd-flip-selected-arrow)
   (and-with a (cd-selected-arrow-tree)
     (cd-set-option! a "offset"
                     (cd-negate-string (cd-option a "offset" "0")))
@@ -831,111 +825,16 @@
                     "top-harpoon" "bottom-harpoon"))
     (cd-refresh)))
 
-(define (cd-flip-selected-label)
+(tm-define (cd-flip-selected-label)
   (and-with a (cd-selected-arrow-tree)
     (cd-set-option! a "label-alignment"
       (cd-swap-side (cd-option a "label-alignment" "left")
                     "left" "right"))
     (cd-refresh)))
 
-(tm-widget (cd-arrow-properties-widget cmd)
-  (resize "48em" "38em"
-    (padded
-      (vertical
-        (bold (text "Arrow style"))
-        (horizontal
-          (aligned
-            (item (text "Edge type")
-              (enum (cd-set-selected-option "edge-type" answer)
-                '("arrow" "adjunction" "corner" "corner-inverse")
-                (cd-selected-option "edge-type" "arrow") "15em"))
-            (item (text "Tail")
-              (enum (cd-set-selected-option "tail" answer)
-                '("mono" "none" "maps-to" "top-hook" "bottom-hook"
-                  "arrowhead")
-                (cd-selected-option "tail" "none") "15em"))
-            (item (text "Body")
-              (enum (cd-set-selected-option "body" answer)
-                '("solid" "none" "dashed" "dotted" "squiggly" "barred"
-                  "double-barred" "bullet-solid" "bullet-hollow")
-                (cd-selected-option "body" "solid") "15em"))
-            (item (text "Head")
-              (enum (cd-set-selected-option "head" answer)
-                '("arrowhead" "none" "epi" "top-harpoon" "bottom-harpoon")
-                (cd-selected-option "head" "arrowhead") "15em"))
-            (item (text "Level (1-4)")
-              (enum (cd-set-selected-option "level" answer)
-                    '("1" "2" "3" "4")
-                    (cd-selected-option "level" "1") "15em")))
-          // //
-          (aligned
-            (item (text "Curve (-5..5)")
-              (input (cd-set-selected-option
-                       "curve" (cd-live-input-value answer))
-                     (cd-live-input-type "curve")
-                     (list (cd-selected-option "curve" "0")) "12em"))
-            (item (text "Transverse edge offset")
-              (input (cd-set-selected-option
-                       "offset" (cd-live-input-value answer))
-                     (cd-live-input-type "offset")
-                     (list (cd-selected-option "offset" "0")) "12em"))
-            (item (text "Shorten source (%)")
-              (input (cd-set-selected-option
-                       "shorten-source" (cd-live-input-value answer))
-                     (cd-live-input-type "shorten-source")
-                     (list (cd-selected-option "shorten-source" "0")) "12em"))
-            (item (text "Shorten target (%)")
-              (input (cd-set-selected-option
-                       "shorten-target" (cd-live-input-value answer))
-                     (cd-live-input-type "shorten-target")
-                     (list (cd-selected-option "shorten-target" "0")) "12em"))
-            (item (text "Loop radius (-5..5)")
-              (input (cd-set-selected-option
-                       "loop-radius" (cd-live-input-value answer))
-                     (cd-live-input-type "loop-radius")
-                     (list (cd-selected-option "loop-radius" "3")) "12em"))
-            (item (text "Loop angle (-180..180)")
-              (input (cd-set-selected-option
-                       "loop-angle" (cd-live-input-value answer))
-                     (cd-live-input-type "loop-angle")
-                     (list (cd-selected-option "loop-angle" "0")) "12em"))))
-        ===
-        (bold (text "Label and colours"))
-        (aligned
-          (item (text "Label alignment")
-            (enum (cd-set-selected-option "label-alignment" answer)
-              '("left" "centre" "over" "right")
-              (cd-selected-option "label-alignment" "left") "14em"))
-          (item (text "Label position (0..100)")
-            (input (cd-set-selected-option
-                     "label-position" (cd-live-input-value answer))
-                   (cd-live-input-type "label-position")
-                   (list (cd-selected-option "label-position" "50")) "14em"))
-          (item (text "Arrow colour")
-            (input (cd-set-selected-option
-                     "color" (cd-live-input-value answer))
-                   (cd-live-input-type "color")
-                   (list (cd-selected-option "color" "black")) "14em"))
-          (item (text "Label colour")
-            (input (cd-set-selected-option
-                     "label-color" (cd-live-input-value answer))
-                   (cd-live-input-type "label-color")
-                   (list (cd-selected-option "label-color" "black")) "14em")))
-        ===
-        (horizontal
-          ("Reverse" (cd-reverse-selected-arrow))
-          // //
-          ("Flip arrow" (cd-flip-selected-arrow))
-          // //
-          ("Flip label" (cd-flip-selected-label)))
-        ===
-        (bottom-buttons
-          ("Close" (cmd)))))))
-
 (define (cd-open-arrow-properties)
   (delayed (:idle 1)
-    (ads-floating-tool-pane cd-arrow-properties-widget noop
-                            "Commutative Diagram Arrow")))
+    (commutative-diagram-arrow-pane-show)))
 
 (define (cd-current-diagram)
   (and cd-session-body

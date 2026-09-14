@@ -156,7 +156,6 @@
              go-to-system-welcome-page go-to-welcome-page
              go-to-vault-initial-page)
 (lazy-define (utils automate auto-tmfs) auto-load-help)
-(lazy-define (utils misc gui-keyboard) get-keyboard)
 (lazy-keyboard (utils automate auto-kbd) in-auto?)
 (define supports-email? (url-exists-in-path? "mmail"))
 (if supports-email? (use-modules (utils email email-tmfs)))
@@ -178,7 +177,7 @@
            new-file-menu load-menu save-menu
            print-menu print-menu-inline close-menu)
 (lazy-menu (athena menus edit-menu) edit-menu)
-(lazy-menu (athena menus view-menu) view-menu texmacs-bottom-toolbars)
+(lazy-menu (athena menus view-menu) view-menu)
 (lazy-menu (athena menus interface-menu) interface-menu)
 (lazy-menu (athena menus utility-menus)
            athena-go-utilities-menu
@@ -200,7 +199,6 @@
            texmacs-alternative-popup-menu texmacs-main-icons
            texmacs-mode-icons)
 (lazy-define (athena menus file-menu) recent-file-list recent-directory-list)
-(lazy-define (athena menus view-menu) set-bottom-bar test-bottom-bar?)
 (tm-define (notify-set-attachment name key val) (noop))
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 ;(display* "memory: " (texmacs-memory) " bytes\n")
@@ -233,8 +231,6 @@
 (lazy-define (generic generic-doc) focus-help)
 (lazy-define (generic global-search) open-global-search
              global-search-open-result global-search-open-occurrence)
-(lazy-define (generic spell-widgets) spell-toolbar
-             open-spell toolbar-spell-start interactive-spell)
 (lazy-define (generic format-widgets) open-paragraph-format open-page-format)
 (lazy-define (generic pattern-selector) open-pattern-selector
              open-gradient-selector open-background-picture-selector)
@@ -294,16 +290,8 @@
 (lazy-define (source macro-edit)
              has-macro-source? edit-macro-source edit-focus-macro-source)
 (lazy-menu (source macro-menu) insert-macro-menu)
-(lazy-define (source macro-widgets)
-             editable-macro? open-macros-editor
-	     open-macro-editor create-table-macro
-             edit-focus-macro edit-previous-macro)
 (lazy-define (source shortcut-edit) init-user-shortcuts has-user-shortcut?)
 (lazy-define (source shortcut-widgets) open-shortcuts-editor)
-(tm-property (open-macro-editor l mode) (:interactive #t))
-(tm-property (create-table-macro l mode) (:interactive #t))
-(tm-property (open-macros-editor mode) (:interactive #t))
-(tm-property (edit-focus-macro) (:interactive #t))
 (tm-property (open-shortcuts-editor . opt) (:interactive #t))
 (when (url-exists? "$ATHENA_HOME_PATH/system/shortcuts.scm")
   (delayed (:idle 100) (init-user-shortcuts)))
@@ -387,7 +375,6 @@
 
 ;(display "Booting documentation\n")
 (lazy-keyboard (doc tmdoc-kbd) in-manual?)
-(lazy-keyboard (doc apidoc-kbd) developer-mode?)
 (lazy-menu (doc tmdoc-menu) tmdoc-menu tmdoc-icons)
 (lazy-menu (doc help-menu) help-menu)
 (lazy-define (doc tmdoc) tmdoc-expand-help tmdoc-expand-help-manual
@@ -397,7 +384,6 @@
 (lazy-define (doc tmdoc-search) tmdoc-search-style tmdoc-search-tag
              tmdoc-search-parameter tmdoc-search-scheme)
 (lazy-define (doc apidoc) apidoc-all-modules apidoc-all-symbols)
-(lazy-menu (doc apidoc-menu) apidoc-menu)
 (lazy-tmfs-handler (doc docgrep) grep)
 (lazy-tmfs-handler (doc tmdoc) help)
 (lazy-tmfs-handler (doc apidoc) apidoc)
@@ -441,11 +427,9 @@
 
 ;(display "Booting debugging and developer facilities\n")
 (lazy-menu (debug debug-menu) debug-menu)
-(lazy-menu (athena menus developer-menu)
-           developer-menu custom-keyboard-toolbar)
-(lazy-define (debug debug-widgets) notify-debug-message
-             acknowledge-debug-messages
-             open-debug-console)
+(lazy-menu (athena menus developer-menu) developer-menu)
+(lazy-define (debug debug-notifications) notify-debug-message
+             acknowledge-debug-messages)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 ;(display* "memory: " (texmacs-memory) " bytes\n")
 

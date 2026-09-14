@@ -259,7 +259,6 @@
   (with-developer-tool% (== (get-preference "developer tool") "on"))
   (with-presentation-tool% (== (get-preference "presentation tool") "on"))
   (with-source-tool% (== (get-preference "source tool") "on"))
-  (with-keyboard-tool% (== (get-preference "keyboard tool") "on"))
   (in-presentation% (or (style-has? "beamer-style")
                         (== (get-preference "presentation tool") "on")
                         (inside? 'screens)) in-beamer%)

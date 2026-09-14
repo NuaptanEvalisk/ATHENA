@@ -11,8 +11,7 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(texmacs-module (source shortcut-edit)
-  (:use (source macro-edit)))
+(texmacs-module (source shortcut-edit))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Management of the list of user keyboard shortcuts
@@ -74,26 +73,3 @@
 
 (tm-define (has-user-shortcut? cmd)
   (in? cmd (map cadr current-user-shortcuts)))
-
-(tm-define (encode-shortcut sh)
-  (kbd-system-rewrite sh))
-
-(tm-define (decode-shortcut sh)
-  (with all (map (lambda (x) (cons (encode-shortcut x) x))
-                 (map car current-user-shortcuts))
-    (or (assoc-ref all sh) sh)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Editing keyboard shortcuts
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (keyboard-press key time)
-  (if (not (tree-func? (cursor-tree) 'preview-shortcut 1))
-      (former key time)
-      (and-let* ((t (cursor-tree))
-                 (sh (tm-ref t 0))
-                 (old (tm->string sh)))
-        (if (or (== (cAr (cursor-path)) 0) (== old ""))
-            (tree-set! sh key)
-            (tree-set! sh (string-append old " " key)))
-        (tree-go-to t :end))))

@@ -11,16 +11,12 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;; The contents of this file are preliminary and simple. Things TO-DO are:
-;;  - Use gui:help-window-visible in init-athena.scm (or elsewhere)
-;;  - this list 
+;; The contents of this file are preliminary and simple.
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (texmacs-module (prog scheme-tools)
-  (:use (convert rewrite init-rewrite) 
-        (doc apidoc-collect)
-        (doc apidoc-widgets)
+  (:use (convert rewrite init-rewrite)
         (kernel athena tm-preferences)
         (kernel gui kbd-handlers)))
 
@@ -111,15 +107,6 @@
   (with ct (cursor-tree)
     (word-at (tree->string ct) (car (tree-cursor-path ct)))))
 
-(tm-define (scheme-popup-help word)
-  (:synopsis "Pops up the help window for the scheme symbol @word")
-  (help-window "scheme" word))
-
-(tm-define (scheme-inbuffer-help word)
-  (:synopsis "Opens a help buffer for the scheme symbol @word")
-  (load-document (string-append "tmfs://apidoc/type=symbol&what="
-                                (string-replace word ":" "%3A")))); HACK
-
 (define (url-for-symbol s props)
   (with (file line column) props
     (if (and file line column)
@@ -143,25 +130,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Miscelaneous
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define (get-current-doc-module)
-  (let ((tt (select (buffer-tree) '(doc-module-header 0))))
-    (if (null? tt)
-      '()
-      (string->module (tree->string (car tt))))))
-
-(define (exp-modules)
-  (map symbol->string (or (module-exported (get-current-doc-module)) '())))
-
-(tm-define (ask-insert-symbol-doc ssym)
-  (:argument ssym "Symbol")
-  (:proposals ssym (exp-modules))
-  ;(:check-mark "*" (symbol-documented?)) ; right?
-  (insert ($doc-symbol-template (string->symbol ssym) #t "")))
-
-(kbd-map
-  (:require (and developer-mode? (in-tmdoc?)))
-  ("M-A-x" (interactive ask-insert-symbol-doc)))
 
 (tm-define (run-scheme-file u)
   (:synopsis "Load the file @u into the scheme interpreter")
@@ -188,9 +156,6 @@
 (define (cmd-click? mods) 
   (== (logand mods Mod2Mask) Mod2Mask))
 
-(define (opt-click? mods) 
-  (== (logand mods Mod1Mask) Mod1Mask))
-
 ;Original definition for reference
 ;(tm-define (mouse-event key x y mods time data)
 ;  (mouse-any key x y mods (+ time 0.0) data))
@@ -200,19 +165,6 @@
 ; we have these modifiers, the buttons sent are middle and right, so we must
 ; check for events of type "press-" and "release-" in order to be compatible
 ; across platforms. (We could use :require for this too)
-(tm-define (mouse-event key x y mods time data)
-  (:require (and developer-mode? (opt-click? mods) (in-prog-scheme?)))
-  (with short (string-take key 4)
-    (cond ((== short "pres")
-           ; emulate a click to move the cursor
-           (mouse-any "release-left" x y 1 (+ time 0.0) data)
-           (set! cw (cursor-word))
-           (select-word cw (cursor-tree) (cAr (cursor-path))))
-          ((== short "rele")
-           (with cw2 (cursor-word)
-             (if (== cw cw2) (help-window "scheme" cw))))
-          (else (mouse-any key x y mods (+ time 0.0) data)))))
-
 (tm-define (mouse-event key x y mods time data)
   (:require (and developer-mode? (cmd-click? mods) (in-prog-scheme?)))
   (with short (string-take key 4)

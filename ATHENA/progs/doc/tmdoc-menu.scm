@@ -13,8 +13,7 @@
 
 (texmacs-module (doc tmdoc-menu)
   (:use (text text-menu)
-        (doc tmdoc-edit)
-        (doc apidoc-menu)))
+        (doc tmdoc-edit)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Menus for TeXmacs documentation
@@ -77,9 +76,7 @@
     (-> "Explain" (link tmdoc-explain-menu))
     (-> "User interface" (link tmdoc-gui-menu))
     (-> "Annotate" (link tmdoc-annotate-menu)))
-  (-> "Indication" (link tmdoc-indication-menu))
-  (if developer-mode?
-      (-> "Scheme" (link apidoc-manual-menu))))
+  (-> "Indication" (link tmdoc-indication-menu)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Icons for TeXmacs documentation

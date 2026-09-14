@@ -2505,17 +2505,11 @@ QTMPreferencesDialog::buildOtherPage () {
   add_toggle (debugGeneral, "Show live memory usage in the status bar:",
               "debug show memory in status bar");
 
-  QFormLayout* console= add_section (debugging, "Debug Console");
-  add_toggle (console, "Open the error console automatically on errors:",
+  QFormLayout* console= add_section (debugging, "Error Messages");
+  add_toggle (console, "Open Error messages automatically on errors:",
               "open console on errors");
-  add_toggle (console, "Open the error console automatically on warnings:",
+  add_toggle (console, "Open Error messages automatically on warnings:",
               "open console on warnings");
-  add_combo (console, "Message details:", "console details",
-             {{"normal", "Normal"}, {"detailed", "Detailed"}}, "normal");
-  add_combo (console, "Messages retained:", "console size",
-             {{"25", "Last 25"}, {"100", "Last 100"},
-              {"250", "Last 250"}, {"1000", "Last 1000"},
-              {"1000000", "All"}}, "100");
 
   QFormLayout* logging= add_section (debugging, "Diagnostic Logging");
   std::vector<QCheckBox*> debugChannels;

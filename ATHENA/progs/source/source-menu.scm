@@ -13,8 +13,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (texmacs-module (source source-menu)
-  (:use (source source-edit)
-	(source macro-widgets)))
+  (:use (source source-edit)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Transformational markup for the macro language
@@ -142,13 +141,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (menu-bind source-macros-menu
-  ("New macro" (open-macro-editor "" :global))
-  (when (can-create-context-macro?)
-    ("Create context macro" (create-context-macro "" :global)))
-  (when (can-create-table-macro?)
-    ("Create table macro" (create-table-macro "" :global)))
-  ---
-  ("Edit macros" (open-macros-editor :global))
   ("Edit preamble" (toggle-preamble-mode))
   ---
   ("Extract style file" (extract-style-file #t))

@@ -24,10 +24,7 @@
 
 (tm-menu (scheme-contextual-menu)
   (let* ((word (cursor-word))
-         (str1 (replace "Help with \"%1\"" word))
          (str2 (replace "Definition of \"%1\"" word)))
-    (if (!= word "")
-        ((eval str1) (scheme-popup-help word)))
     (if (!= word "")
         ((eval str2) (scheme-go-to-definition word)))))
 

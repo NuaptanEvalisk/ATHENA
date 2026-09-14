@@ -74,6 +74,10 @@
 #include "QTMESCSymbolPicker.hpp"
 #include "QTMHandwritingSymbolPane.hpp"
 #include "QTMFontSelector.hpp"
+#include "QTMNativeDialogs.hpp"
+#include "QTMTablePropertiesPane.hpp"
+#include "QTMSlidePropertiesPane.hpp"
+#include "QTMCommutativeDiagramArrowPane.hpp"
 #include "QTMVaultFontConfigurator.hpp"
 #include "QTMCodexCompletion.hpp"
 #include "QTMPreferencesDialog.hpp"
@@ -655,6 +659,61 @@ athena_native_info_dialog (string arg1, string arg2) {
   msg_box.exec ();
 
   return;
+}
+
+string
+athena_native_linked_file_choice (string arg1, array<string> arg2) {
+  if (headless_mode) return string ("");
+  return qtm_linked_file_choice_dialog (arg1, arg2);
+}
+
+array<string>
+athena_native_unsaved_buffers (array<string> arg1, bool arg2) {
+  if (headless_mode) return array<string> ();
+  return qtm_unsaved_buffers_dialog (arg1, arg2);
+}
+
+void
+athena_native_text_report (string arg1, string arg2) {
+  if (!headless_mode) qtm_text_report_dialog (arg1, arg2);
+}
+
+array<string>
+athena_native_latex_formula_dialog () {
+  if (headless_mode) return array<string> ();
+  return qtm_latex_formula_dialog ();
+}
+
+array<string>
+athena_native_background_selector (string arg1, array<string> arg2) {
+  if (headless_mode) return array<string> ();
+  return qtm_background_selector_dialog (arg1, arg2);
+}
+
+array<string>
+athena_native_shortcut_editor (string arg1, string arg2, array<string> arg3) {
+  if (headless_mode) return array<string> ();
+  return qtm_shortcut_editor_dialog (arg1, arg2, arg3);
+}
+
+void
+athena_cell_properties_pane_show () {
+  if (!headless_mode) cell_properties_pane_show ();
+}
+
+void
+athena_table_properties_pane_show () {
+  if (!headless_mode) table_properties_pane_show ();
+}
+
+void
+athena_slide_properties_pane_show () {
+  if (!headless_mode) slide_properties_pane_show ();
+}
+
+void
+athena_commutative_diagram_arrow_pane_show () {
+  if (!headless_mode) commutative_diagram_arrow_pane_show ();
 }
 
 void

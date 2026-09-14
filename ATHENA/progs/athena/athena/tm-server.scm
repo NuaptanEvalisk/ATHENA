@@ -143,15 +143,6 @@
                  (buffer-needs-save-confirmation? buf)))
           (buffer-list)))
 
-(define (unsaved-buffer-display-name buf)
-  (let ((s (url->system (url->url buf))))
-    (if (== s "") buf s)))
-
-(define (unsaved-buffer-set-selected selected buf flag)
-  (cond (flag (if (in? buf selected) selected (cons buf selected)))
-        ((in? buf selected) (list-remove selected buf))
-        (else selected)))
-
 (define (finish-ATHENA restart?)
   (exec-global
     (lambda ()
@@ -181,50 +172,6 @@
                           (save-buffer-manual (url->url name)
                                               (cons 'on-saved next))))
                 (notify-now "Could not schedule buffer save")))))))
-
-(tm-widget ((unsaved-buffers-dialog buffers restart?) quit)
-  (let ((selected buffers))
-    (padded
-      (resize '("560px" "760px" "1000px") '("280px" "420px" "700px")
-        (vertical
-          (text "The following buffers have unsaved changes:")
-          ===
-          (scrollable
-            (for (buf buffers)
-              (hlist
-                (toggle (exec-global
-                          (lambda ()
-                            (set! selected
-                                  (unsaved-buffer-set-selected
-                                   selected buf answer))))
-                        (in? buf selected))
-                // //
-                (text (unsaved-buffer-display-name buf))
-                >>)))))
-      ===
-      (cond
-        (restart?
-         (bottom-buttons
-           ("Save and restart"
-            (exec-global
-              (lambda ()
-                (quit)
-                (save-selected-unsaved-buffers-and-finish selected #t))))
-           // //
-           ("Restart" (exec-global (lambda () (quit) (finish-ATHENA #t))))
-           // //
-           ("Cancel" (exec-global (lambda () (quit))))))
-        (else
-         (bottom-buttons
-           ("Save and exit"
-            (exec-global
-              (lambda ()
-                (quit)
-                (save-selected-unsaved-buffers-and-finish selected #f))))
-           // //
-           ("Exit" (exec-global (lambda () (quit) (finish-ATHENA #f))))
-           // //
-           ("Cancel" (exec-global (lambda () (quit))))))))))
 
 (tm-define (safely-kill-buffer)
   (cond ((buffer-embedded? (current-buffer))
@@ -295,10 +242,13 @@
           (when (nin? (current-buffer) l)
             ;; FIXME: focus on window with buffer, if any
             (switch-to-buffer (car l)))
-          (dialogue-window
-           (unsaved-buffers-dialog (map url->string l) restart?)
-           noop
-           "Unsaved buffers")))))
+          (with result (native-unsaved-buffers (map url->string l) restart?)
+            (when (pair? result)
+              (cond ((== (car result) "save")
+                     (save-selected-unsaved-buffers-and-finish
+                       (cdr result) restart?))
+                    ((== (car result) "discard")
+                     (finish-ATHENA restart?)))))))))
 
 (tm-define (safely-quit-ATHENA)
   (exec-global (lambda () (confirm-finish-ATHENA #f))))

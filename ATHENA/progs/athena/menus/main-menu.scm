@@ -201,9 +201,6 @@
    (document-search-open))
   ((balloon (icon "tm_replace") "Replace text")
    (document-replace-open))
-  (if (not (in-math?))
-      ((balloon (icon "tm_spell") "Check text for spelling errors")
-       (interactive-spell)))
   (if (in-math?)
       (=> (balloon (icon "tm_spell") "Correct mathematical formulas")
           (link math-correct-menu)))
@@ -223,10 +220,6 @@
 
 (tm-widget (texmacs-bottom-tools win)
   (if (not (qt-gui?)) (glue #f #f 0 2))
-  (link texmacs-bottom-toolbars)
-  (if (with-keyboard-tool?)
-      (if (extra-bottom-tools?) ---)
-      (dynamic (custom-keyboard-toolbar)))
   (if (not (qt-gui?)) (glue #f #f 0 1) ---))
 
 (tm-widget (texmacs-extra-tools win)

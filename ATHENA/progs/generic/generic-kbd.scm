@@ -364,7 +364,6 @@
   ("emacs:meta X" (interactive footer-eval))
   ("emacs:meta <" (go-start))
   ("emacs:meta >" (go-end))
-  ("emacs:meta $" (interactive-spell))
 
   ("emacs:prefix b" (interactive go-to-buffer))
   ("emacs:prefix h" (select-all))
@@ -596,7 +595,6 @@
   ("altcmd q" (make 'symbol))
   ("altcmd x" (interactive footer-eval))
   ("altcmd X" (interactive exec-interactive-command))
-  ("altcmd $" (interactive-spell))
 
   ("M-A-C-home" (traverse-first))
   ("M-A-C-end" (traverse-last))
@@ -659,7 +657,6 @@
   ("altcmd q" (make 'symbol))
   ("altcmd x" (interactive footer-eval))
   ("altcmd X" (interactive exec-interactive-command))
-  ("altcmd $" (interactive-spell))
 
   ("M-A-C-home" (traverse-first))
   ("M-A-C-end" (traverse-last))
@@ -682,7 +679,6 @@
   (:profile macos)
 
   ;; standard Mac OS keyboard shortcuts
-  ("macos ;" (interactive-spell))
   ("macos ?" (interactive docgrep-in-doc))
   ("macos ," (open-preferences))
   ("macos [" (cursor-history-backward))
@@ -880,7 +876,6 @@
   ("altcmd q" (make 'symbol))
   ("altcmd x" (interactive footer-eval))
   ("altcmd X" (interactive exec-interactive-command))
-  ("altcmd $" (interactive-spell))
 
   ("M-A-C-home" (traverse-first))
   ("M-A-C-end" (traverse-last))

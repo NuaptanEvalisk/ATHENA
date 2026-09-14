@@ -12,8 +12,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (texmacs-module (source macro-menu)
-  (:use (source macro-edit)
-	(source macro-widgets)))
+  (:use (source macro-edit)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Exposed menu for editing user-defined macros
@@ -30,9 +29,4 @@
         (-> (eval pack)
             (for (m (get-macro-list pack :sort 30))
               ((eval `(verbatim ,m)) (make (string->symbol m)))))))
-    ---)
-  ("New macro" (open-macro-editor "" :global))
-  (when (can-create-context-macro?)
-    ("New context macro" (create-context-macro "" :global)))
-  (when (can-create-table-macro?)
-    ("New table macro" (create-table-macro "" :global))))
+    ---))

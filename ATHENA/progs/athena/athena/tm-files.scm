@@ -569,34 +569,6 @@
 ;; Choosing how links to non-native local files are opened
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-widget (linked-file-convertible-open-widget name cmd)
-  (padded
-    (vertical
-      (text `(concat "How should ATHENA open "
-                     (verbatim ,(url->system name)) "?"))
-      ===
-      (bottom-buttons
-        ("Convert to ATHENA document" (cmd "convert"))
-        // //
-        ("Edit as plain text" (cmd "plain"))
-        // //
-        ("Open with system application" (cmd "system"))
-        // //
-        ("Cancel" (cmd "cancel"))))))
-
-(tm-widget (linked-file-unknown-open-widget name cmd)
-  (padded
-    (vertical
-      (text `(concat "How should ATHENA open "
-                     (verbatim ,(url->system name)) "?"))
-      ===
-      (bottom-buttons
-        ("Edit as plain text" (cmd "plain"))
-        // //
-        ("Open with system application" (cmd "system"))
-        // //
-        ("Cancel" (cmd "cancel"))))))
-
 (define (linked-file-format name)
   (format-from-suffix (locase-all (url-suffix name))))
 
@@ -638,20 +610,15 @@
 
 (define (linked-file-open-choice name after-open)
   (let ((convertible? (linked-file-convertible? name)))
-    (dialogue-window
-      (lambda (cmd)
-        (if convertible?
-            (linked-file-convertible-open-widget name cmd)
-            (linked-file-unknown-open-widget name cmd)))
-      (lambda (answer)
-        (exec-global
-          (lambda ()
-            (cond ((== answer "convert")
-                   (linked-file-convert name after-open))
-                  ((== answer "plain")
-                   (linked-file-edit-plain name after-open))
-                  ((== answer "system") (load-external name))))))
-      "Open linked file")))
+    (with choices
+      (append (if convertible?
+                  '("Convert to ATHENA document" "convert") '())
+              '("Edit as plain text" "plain"
+                "Open with system application" "system"))
+      (with answer (native-linked-file-choice (url->system name) choices)
+        (cond ((== answer "convert") (linked-file-convert name after-open))
+              ((== answer "plain") (linked-file-edit-plain name after-open))
+              ((== answer "system") (load-external name)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Loading buffers

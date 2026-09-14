@@ -172,13 +172,9 @@
     ($block
       ($para
         "The rendering of the " ($markup lab)
-        " tag can be customized by editing the macro which defines it. "
-        "This can be done by clicking on " ($menu "Edit macro")
-        " button in the " ($menu "Focus" "Preferences") " menu "
-        "(or in the equivalent " ($tmdoc-icon "tm_focus_prefs")
-        " icon menu on the focus toolbar). "
-        "You may also directly edit the macro in the style file or package "
-        "where it was defined, using " ($menu "Edit source") ".")
+        " tag is defined by its style file or package. "
+        "Use " ($menu "Edit source") " when source navigation is available "
+        "to inspect or change that definition.")
     
       ($when (nnull? (append opts pars ths))
         ($para

@@ -17,9 +17,6 @@
   (-> "Execute"
       ("Execute system command" (interactive system))
       ("Evaluate scheme expression" (interactive footer-eval)))
-  (-> "Consoles"
-      ("Debugging console" (open-debug-console))
-      ("Error messages" (error-messages-show)))
   (-> "Status"
       ("Tree" (show-tree))
       ("Box" (show-box))

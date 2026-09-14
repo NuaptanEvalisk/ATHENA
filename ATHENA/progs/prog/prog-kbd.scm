@@ -67,8 +67,6 @@
 
 (kbd-map
   (:require (and developer-mode? (in-prog-scheme?)))
-  ("A-F1" (scheme-popup-help (cursor-word)))
-  ("cmd A-F1" (scheme-inbuffer-help (cursor-word)))
   ("std F1" (scheme-go-to-definition (cursor-word))))
 
 (kbd-map

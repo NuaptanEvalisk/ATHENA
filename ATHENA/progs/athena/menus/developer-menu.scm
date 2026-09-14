@@ -16,8 +16,7 @@
 (import-from (kernel athena tm-preferences))
 
 
-(import-from (prog scheme-tools) (prog scheme-menu)
-             (doc apidoc) (doc apidoc-widgets))
+(import-from (prog scheme-tools) (prog scheme-menu))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Miscellaneous extra routines
@@ -30,55 +29,6 @@
       (begin (buffer-save u) (revert-buffer-revert))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Customized keyboards
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (notify-keyboard-tool var val)
-  (update-bottom-tools))
-
-
-(tm-define (set-custom-keyboard kbd)
-  (with s (serialize-texmacs-snippet kbd)
-    (set-preference "custom keyboard" s)))
-
-(tm-define (get-custom-keyboard)
-  (with s (get-preference "custom keyboard")
-    (parse-texmacs-snippet s)))
-
-(tm-define (get-the-keyboard)
-  (with s (get-custom-keyboard)
-    (if (not (tm-equal? s "")) s
-        (get-keyboard))))
-
-(tm-menu (custom-keyboard-toolbar)
-  (hlist (glue #f #f 0 200)
-    >>
-    (texmacs-output
-     `(with "bg-color" "#404040" ,(get-the-keyboard))
-     '(style "new-gui"))
-    >>))
-
-(tm-define (has-custom-keyboard?)
-  (== (get-preference "keyboard tool") "on"))
-
-(tm-define (toggle-custom-keyboard)
-  (:check-mark "*" has-custom-keyboard?)
-  (with on? (not (has-custom-keyboard?))
-    (set-boolean-preference "keyboard tool" on?)
-    (refresh-now "custom-keyboard")))
-
-(tm-widget (custom-keyboard-widget cmd)
-  (refreshable "custom-keyboard"
-    (invisible (get-the-keyboard))
-    (texmacs-output
-     `(with "bg-color" "#404040" ,(get-the-keyboard))
-     '(style "new-gui"))))
-
-(tm-define (open-custom-keyboard)
-  (:interactive #t)
-  (dialogue-window custom-keyboard-widget noop "Custom keyboard"))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; The developer menu
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -88,9 +38,6 @@
 (menu-bind developer-menu
   (group "Scheme")
   (link scheme-menu)
-  ---
-  (group "Documentation")
-  (link apidoc-menu)
   ---
   (group "Crash Test")
   ("Trigger segfault" (cpp-error))
@@ -107,16 +54,4 @@
     (url-concretize "$ATHENA_HOME_PATH/progs/my-init-buffer.scm")))
   ((replace "Open %1" (verbatim "preferences.json"))
    (scm-load-buffer
-    (url-concretize "$ATHENA_HOME_PATH/system/preferences.json")))
-  ---
-  (group "Custom keyboard")
-  ("Show keyboard" (toggle-custom-keyboard))
-  ("Open keyboard" (open-custom-keyboard))
-  (when (selection-active-any?)
-    ("Set keyboard" (set-custom-keyboard (tm->tree (selection-tree)))))
-  (when (not (tm-equal? (get-custom-keyboard) ""))
-    ("Reset keyboard" (set-custom-keyboard (tm->tree ""))))
-  )
-
-(register-preference-callback-procedures
-  (list notify-keyboard-tool))
+    (url-concretize "$ATHENA_HOME_PATH/system/preferences.json"))))

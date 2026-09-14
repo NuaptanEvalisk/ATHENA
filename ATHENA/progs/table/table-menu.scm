@@ -114,9 +114,7 @@
   ("Top" (table-interactive-set "table-tsep")))
 
 (menu-bind table-special-menu
-  ("Table breaking" (toggle-table-hyphen))
-  ;;("Deactivate" (table-deactivate))
-  ("Create table macro" (create-table-macro "" :global)))
+  ("Table breaking" (toggle-table-hyphen)))
 
 (menu-bind cell-mode-menu
   ("Cells" (set-cell-mode "cell"))

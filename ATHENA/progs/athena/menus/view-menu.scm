@@ -19,31 +19,6 @@
     (athena athena tm-reverse-hierarchy-graph)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Extra toolbars at the bottom
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define toolbar-spell-active? #f)
-
-(tm-define (extra-bottom-tools?)
-  toolbar-spell-active?)
-
-(tm-widget (texmacs-bottom-toolbars)
-  (if toolbar-spell-active?
-      (link spell-toolbar)))
-
-(tm-define (test-bottom-bar? which)
-  (and (== which "spell") toolbar-spell-active?))
-
-(tm-define (set-bottom-bar which val)
-  (when (== which "spell")
-    (set! toolbar-spell-active? val)
-    (update-bottom-tools)))
-
-(tm-define (toggle-bottom-bar which)
-  (:check-mark "*" test-bottom-bar?)
-  (set-bottom-bar which (not (test-bottom-bar? which))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; The View menu
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

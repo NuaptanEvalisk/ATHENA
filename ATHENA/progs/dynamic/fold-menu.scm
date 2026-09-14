@@ -370,48 +370,9 @@
      "gr-frame" `(tuple "scale" "1cm" (tuple "0gw" "1gh"))
      "gr-geometry" `(tuple "geometry" "1gpar" "1gpag" "axis"))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Slide background color
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-widget (slide-page-formatter quit)
-  (let* ((col (tm->stree (slide-get-bg-color)))
-         (setter (lambda (c)
-                   (set! col c)
-                   (slide-set-bg-color col)
-                   (refresh-now "slide-color-sample"))))
-    (padded
-      (bold (text "Background color"))
-      ===
-      (hlist
-        (refreshable "slide-color-sample"
-          (resize "150px" "100px"
-            (texmacs-output `(document
-                               (block
-                                (tformat
-                                 (cwith "1" "1" "1" "1" "cell-width" "140px")
-                                 (cwith "1" "1" "1" "1" "cell-height" "90px")
-                                 (cwith "1" "1" "1" "1" "cell-vmode" "exact")
-                                 (cwith "1" "1" "1" "1" "cell-background" ,col)
-                                 (table (row (cell ""))))))
-                            `(style (tuple "generic")))))
-        // // //
-        (explicit-buttons
-          (vlist
-            ("Color" (interactive-color setter (list)))
-            ("Pattern" (open-pattern-selector setter "1cm"))
-            ("Gradient" (open-gradient-selector setter))
-            ("Picture" (open-background-picture-selector setter))
-            (glue #f #t 0 0))))
-      ======
-      (explicit-buttons
-        (hlist
-          >>>
-          ("Ok" (quit)))))))
-
 (tm-define (open-page-format)
   (:require (or (inside? 'screens) (inside? 'slideshow)))
-  (dialogue-window slide-page-formatter noop "Page format"))
+  (slide-properties-pane-show))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Menus when focus is on 'screens' tag

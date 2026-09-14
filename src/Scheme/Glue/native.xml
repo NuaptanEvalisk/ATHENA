@@ -36,6 +36,32 @@
     <arg type="string" />
     <arg type="string" />
   </binding>
+  <binding name="native-linked-file-choice" native="athena_native_linked_file_choice" returns="string">
+    <arg type="string" />
+    <arg type="array_string" />
+  </binding>
+  <binding name="native-unsaved-buffers" native="athena_native_unsaved_buffers" returns="array_string">
+    <arg type="array_string" />
+    <arg type="bool" />
+  </binding>
+  <binding name="native-text-report" native="athena_native_text_report" returns="void">
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="native-latex-formula-dialog" native="athena_native_latex_formula_dialog" returns="array_string" />
+  <binding name="native-background-selector" native="athena_native_background_selector" returns="array_string">
+    <arg type="string" />
+    <arg type="array_string" />
+  </binding>
+  <binding name="native-shortcut-editor" native="athena_native_shortcut_editor" returns="array_string">
+    <arg type="string" />
+    <arg type="string" />
+    <arg type="array_string" />
+  </binding>
+  <binding name="cell-properties-pane-show" native="athena_cell_properties_pane_show" returns="void" dispatch="ui" />
+  <binding name="table-properties-pane-show" native="athena_table_properties_pane_show" returns="void" dispatch="ui" />
+  <binding name="slide-properties-pane-show" native="athena_slide_properties_pane_show" returns="void" dispatch="ui" />
+  <binding name="commutative-diagram-arrow-pane-show" native="athena_commutative_diagram_arrow_pane_show" returns="void" dispatch="ui" />
   <binding name="native-anchor-enunciations-confirm" native="athena_native_anchor_enunciations_confirm" returns="void">
     <arg type="string" />
     <arg type="string" />

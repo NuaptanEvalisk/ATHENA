@@ -10,23 +10,6 @@
 (define (vault-bugcheck-root-base)
   (url-append (vault-get-root) ""))
 
-(define (vault-bugcheck-wrap-line line width)
-  (let loop ((s line) (wrapped '()))
-    (if (<= (string-length s) width)
-        (reverse (cons s wrapped))
-        (loop (substring s width (string-length s))
-              (cons (substring s 0 width) wrapped)))))
-
-(define (vault-bugcheck-wrap-text text)
-  (let loop ((lines (string-decompose text "\n")) (wrapped '()))
-    (if (null? lines)
-        (if (null? wrapped)
-            ""
-            (apply string-append (list-intersperse (reverse wrapped) "\n")))
-        (loop (cdr lines)
-              (append (reverse (vault-bugcheck-wrap-line (car lines) 96))
-                      wrapped)))))
-
 (define (vault-bugcheck-add-error rel kind detail)
   (let ((entry (string-append rel "\n  " kind ": " detail)))
     (set! vault-bugcheck-errors
@@ -69,23 +52,11 @@
       (display* "Vault bugcheck could not write log: "
                 key ", " args "\n"))))
 
-(tm-widget ((vault-bugcheck-report-widget msg) done)
-  (padded
-    (resize '("480px" "760px" "1100px") '("260px" "520px" "760px")
-      (scrollable
-        (for (line (string-decompose msg "\n"))
-          (hlist // (text line) >>)))
-      ===
-      (bottom-buttons >> ("Ok" (done))))))
-
 (define (vault-bugcheck-show-summary total)
   (let ((summary (vault-bugcheck-summary total)))
     (display* summary "\n")
     (vault-bugcheck-log-summary summary)
-    (dialogue-window
-     (vault-bugcheck-report-widget (vault-bugcheck-wrap-text summary))
-     noop
-     "Vault Bugcheck")))
+    (native-text-report "Vault Bugcheck" summary)))
 
 (define (vault-ath-files-recursive dir)
   (let* ((files (url-read-directory dir "*.ath"))

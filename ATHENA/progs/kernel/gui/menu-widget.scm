@@ -1237,8 +1237,7 @@
 (tm-define (extra-bottom-tools?) #f)
 
 (tm-define (has-bottom-tools? . opt-win)
-  (or (== (get-preference "keyboard tool") "on")
-      (extra-bottom-tools?)))
+  (extra-bottom-tools?))
 
 (tm-define (update-bottom-tools . opt-win)
   (show-bottom-tools 0 (apply has-bottom-tools? opt-win))
