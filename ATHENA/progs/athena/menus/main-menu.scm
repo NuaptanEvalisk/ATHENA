@@ -218,13 +218,6 @@
     (link dynamic-icons))
 )
 
-(tm-widget (texmacs-bottom-tools win)
-  (if (not (qt-gui?)) (glue #f #f 0 2))
-  (if (not (qt-gui?)) (glue #f #f 0 1) ---))
-
-(tm-widget (texmacs-extra-tools win)
-  (text "Deprecated"))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; The mode dependent icon bar
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

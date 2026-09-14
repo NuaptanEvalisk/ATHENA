@@ -1086,17 +1086,6 @@
 
 (define window-deleters (make-ahash-table))
 
-(define (make-window-deleter win bufs)
-  (for-each (lambda (buf)
-              (and-with old-del (ahash-ref window-deleters buf) (old-del)))
-            bufs)
-  (with del
-      (lambda ()
-        (for-each (lambda (buf) (ahash-remove! window-deleters buf)) bufs)
-        (alt-window-delete win))
-    (for-each (lambda (buf) (ahash-set! window-deleters buf del)) bufs)
-    del))
-
 (define (unregister-window-deleters bufs)
   (for-each (lambda (buf) (ahash-remove! window-deleters buf)) bufs))
 
@@ -1110,18 +1099,6 @@
         (ads-close-tool-pane id))
     (for-each (lambda (buf) (ahash-set! window-deleters buf del)) bufs)
     del))
-
-(tm-define (top-window menu-promise name . opts)
-  (:interactive #t)
-  (with (bufs qqq) (decode-options opts)
-    (let* ((win (alt-window-handle))
-           (del (make-window-deleter win bufs))
-           (qui (object->command (lambda () (qqq) (del))))
-           (men (menu-promise))
-           (scm (list 'vertical men))
-           (wid (make-menu-widget* scm 0)))
-      (alt-window-create-quit win wid (ui-text name) qui)
-      (alt-window-show win))))
 
 (define (ads-tool-pane* menu-promise cmd name floating? opts)
   (with (bufs qqq) (decode-options opts)
@@ -1143,19 +1120,6 @@
 (tm-define (ads-floating-tool-pane menu-promise cmd name . opts)
   (:interactive #t)
   (ads-tool-pane* menu-promise cmd name #t opts))
-
-(tm-define (dialogue-window menu-promise cmd name . opts)
-  (:interactive #t)
-  (with (bufs qqq) (decode-options opts)
-    (let* ((win (alt-window-handle))
-           (del (make-window-deleter win bufs))
-           (qui (object->command (lambda () (qqq) (del))))
-           (lbd (lambda x (apply cmd x) (del)))
-           (men (menu-promise lbd))
-           (scm (list 'vertical men))
-           (wid (make-menu-widget* scm 0)))
-      (alt-window-create-quit win wid (ui-text name) qui)
-      (alt-window-show win))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Other top-level windows

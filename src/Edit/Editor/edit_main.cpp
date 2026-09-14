@@ -113,15 +113,6 @@ editor_rep::rebuild_ui_chrome () {
   sv->menu_icons (1, "(horizontal (link texmacs-mode-icons))");
   sv->menu_icons (2, "(horizontal (link texmacs-focus-icons))");
   sv->menu_icons (3, "(horizontal (link texmacs-extra-icons))");
-
-  actor_viewport_snapshot viewport= ui_viewport ();
-  if (viewport.window_id == 0) return;
-  string win= "(string->url \"tmfs://window/" *
-              as_string ((long long) viewport.window_id) * "\")";
-  string bottom= "(dynamic (texmacs-bottom-tools " * win * "))";
-  string extra= "(dynamic (texmacs-extra-tools " * win * "))";
-  sv->bottom_tools (0, "(vertical " * bottom * ")");
-  sv->bottom_tools (1, "(vertical " * extra * ")");
 }
 
 edit_main_rep::edit_main_rep (server_rep* sv, buffer_document_state* buf):
