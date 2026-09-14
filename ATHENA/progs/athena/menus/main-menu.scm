@@ -222,41 +222,15 @@
 )
 
 (tm-widget (texmacs-bottom-tools win)
-  (with tools (window->tools win :transient-bottom :bottom)
-    (if (not (qt-gui?)) (glue #f #f 0 2))
-    (link texmacs-bottom-toolbars)
-    (for (tool tools)
-      (dynamic (texmacs-side-tool win tool :title)))
-    (if (with-keyboard-tool?)
-        (if (or (extra-bottom-tools?) (nnull? tools)) ---)
-        (dynamic (custom-keyboard-toolbar)))
-    (if (not (qt-gui?)) (glue #f #f 0 1) ---)))
+  (if (not (qt-gui?)) (glue #f #f 0 2))
+  (link texmacs-bottom-toolbars)
+  (if (with-keyboard-tool?)
+      (if (extra-bottom-tools?) ---)
+      (dynamic (custom-keyboard-toolbar)))
+  (if (not (qt-gui?)) (glue #f #f 0 1) ---))
 
 (tm-widget (texmacs-extra-tools win)
   (text "Deprecated"))
-
-(tm-tool* (buffer-tool win)
-  (:name "Open documents")
-  (hlist
-    ===
-    (vertical
-      (division "plain"
-        (link buffer-go-menu)))
-    === ===
-    >>))
-
-(tm-define (upward-context-trees t)
-  (cond ((tree-is-buffer? t) (list t))
-        ((tree-atomic? t) (upward-context-trees (tree-up t)))
-        (else (cons t (upward-context-trees (tree-up t))))))
-
-(tm-tool (context-tool win)
-  (:name "Context tool")
-  (for (t (reverse (upward-context-trees (cursor-tree))))
-    ===
-    (horizontal
-      ((eval (symbol->string (tree-label t)))
-       (tree-select t)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; The mode dependent icon bar

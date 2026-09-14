@@ -51,8 +51,6 @@ class qt_tm_widget_rep: public qt_window_widget_rep {
    focus_toolbar_visibility =  8,
    user_toolbar_visibility  = 16,
    footer_visibility        = 32,
-   side_tools_0_visibility  = 64,
-   side_tools_1_visibility  = 128,
    bottom_tools_visibility  = 256,
    extra_tools_visibility   = 512
    } visibility_t;
@@ -89,7 +87,7 @@ class qt_tm_widget_rep: public qt_window_widget_rep {
   qt_widget int_prompt;
   qt_widget int_input;
   
-  bool visibility[10];
+  bool visibility[8];
   bool full_screen;
   
   qt_widget main_widget;

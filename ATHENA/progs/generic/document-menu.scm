@@ -844,7 +844,6 @@
   ("Paragraph" (open-document-paragraph-format))
   ("Page" (open-document-page-format))
   ("Metadata" (open-document-metadata))
-  ;;("Colors" (open-document-colors))
   ---
   (-> "Magnification" (link document-magnification-menu))
   (-> "Colors" (link document-colors-menu))
@@ -879,8 +878,6 @@
   (group "Style")
   (let* ((st* (get-style-list))
          (st (if (null? st*) (list "no style") st*)))
-    ;;((eval (upcase-first (car st)))
-    ;;(open-style-selector))
     (-> (eval (upcase-first (car st)))
         (link style-menu)
         ---
@@ -949,8 +946,6 @@
   (minibar
     (let* ((st* (get-style-list))
            (st (if (null? st*) (list "no style") st*)))
-      ;;((balloon (eval (upcase-first (car st))) "Document style")
-      ;; (open-style-selector))
       (=> (balloon (eval (upcase-first (car st))) "Document style")
           (link style-menu)
           ---

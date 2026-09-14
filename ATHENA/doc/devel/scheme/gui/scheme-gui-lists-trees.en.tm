@@ -328,25 +328,6 @@
     </input>
   </session>
 
-  <subparagraph|An example with the side tools>
-
-  If your <TeXmacs> has the side tools enabled, you can try this:
-
-  <\session|scheme|default>
-    <\input|Scheme] >
-      (tm-widget (texmacs-side-tools)
-
-      \ \ (vertical
-
-      \ \ \ \ (hlist (glue #t #f 15 0) (text "Document tree:") (glue #t #f 15
-      0))
-
-      \ \ \ \ ---
-
-      \ \ \ \ (tree-view noop (buffer-tree) (stree-\<gtr\>tree '(unused)))))
-    </input>
-  </session>
-
   <tmdoc-copyright|2013|the <TeXmacs> team.>
 
   <tmdoc-license|Permission is granted to copy, distribute and/or modify

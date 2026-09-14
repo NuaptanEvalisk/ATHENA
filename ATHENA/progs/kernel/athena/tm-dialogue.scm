@@ -252,7 +252,7 @@
          (syn* (property fun :synopsis*)))
     (cond ((not args)
            (compute-interactive-args-try-hard fun))
-          ((and (not (side-tools?)) (list-1? syn*) (string? (car syn*)))
+          ((and (list-1? syn*) (string? (car syn*)))
            (let* ((type (compute-interactive-arg-type fun (car args)))
                   (prop (compute-interactive-arg-proposals fun (car args)))
                   (tail (compute-interactive-arg-list fun (cdr args))))

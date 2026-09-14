@@ -291,9 +291,7 @@
 
 (tm-define (open-cell-properties)
   (:interactive #t)
-  (if (side-tools?)
-      (tool-select :right 'cell-properties-tool)
-      (dialogue-window cell-properties-widget noop "Cell properties")))
+  (dialogue-window cell-properties-widget noop "Cell properties"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Table properties
@@ -459,6 +457,4 @@
 
 (tm-define (open-table-properties)
   (:interactive #t)
-  (if (side-tools?)
-      (tool-select :right 'table-properties-tool)
-      (dialogue-window table-properties-widget noop "Table properties")))
+  (dialogue-window table-properties-widget noop "Table properties"))

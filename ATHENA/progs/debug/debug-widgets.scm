@@ -205,8 +205,5 @@
 (tm-define (open-debug-console)
   (open-console "Debugging console"))
 
-(tm-define (open-error-messages)
-  (error-messages-show))
-
 (register-preference-callback-procedures
   (list refresh-console))

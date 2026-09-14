@@ -467,16 +467,6 @@ tm_window_rep::menu_icons (int which, string menu) {
 }
 
 void
-tm_window_rep::side_tools (int which, string tools) {
-  eval ("(lazy-initialize-force)");
-  widget w;
-  if (get_menu_widget (10 + which, tools, w)) {
-    if      (which == 0) set_side_tools (wid, w);
-    else if (which == 1) set_left_tools (wid, w);
-  }
-}
-
-void
 tm_window_rep::bottom_tools (int which, string tools) {
   eval ("(lazy-initialize-force)");
   widget w;
@@ -500,12 +490,6 @@ tm_window_rep::set_icon_bar_flag (int which, bool flag) {
 }
 
 void
-tm_window_rep::set_side_tools_flag (int which, bool flag) {
-  if      (which == 0) set_side_tools_visibility (wid, flag);
-  else if (which == 1) set_left_tools_visibility (wid, flag);
-}
-
-void
 tm_window_rep::set_bottom_tools_flag (int which, bool flag) {
   if      (which == 0) set_bottom_tools_visibility (wid, flag);
   else if (which == 1) set_extra_tools_visibility (wid, flag);
@@ -522,13 +506,6 @@ tm_window_rep::get_icon_bar_flag (int which) {
   else if (which == 1) return get_mode_icons_visibility (wid);
   else if (which == 2) return get_focus_icons_visibility (wid);
   else if (which == 3) return get_user_icons_visibility (wid);
-  else return false;
-}
-
-bool
-tm_window_rep::get_side_tools_flag (int which) {
-  if      (which == 0) return get_side_tools_visibility (wid);
-  else if (which == 1) return get_left_tools_visibility (wid);
   else return false;
 }
 

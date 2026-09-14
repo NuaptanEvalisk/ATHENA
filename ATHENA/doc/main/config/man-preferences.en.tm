@@ -108,9 +108,6 @@
   <\description>
     <item*|New style fonts>Uses the newer font selection and rendering path.
 
-    <item*|Advanced font customization>Enables advanced font customization
-    behavior for users who need finer font control.
-
     <item*|Show warning for font substitution>Warns when a requested font is
     unavailable and <ATHENA> substitutes another font.
   </description>

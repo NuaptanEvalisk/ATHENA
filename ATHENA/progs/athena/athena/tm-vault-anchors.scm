@@ -1044,18 +1044,3 @@
   (if (vault-auto-anchor-before-save? buf)
       (vault-anchor-enunciations-before-save buf cont)
       (cont)))
-
-(tm-widget (vault-anchor-preferences-widget)
-  (aligned
-    (item (text "Auto anchor structures on manual save:")
-      (toggle (set-preference "vault auto anchor enunciations on save"
-                              (if answer "on" "off"))
-              (equal? (get-preference
-                       "vault auto anchor enunciations on save")
-                      "on")))
-    (item (text "Automatically approve anchor changes on manual save:")
-      (toggle (set-preference "vault auto approve anchor changes"
-                              (if answer "on" "off"))
-              (equal? (get-preference
-                       "vault auto approve anchor changes")
-                      "on")))))

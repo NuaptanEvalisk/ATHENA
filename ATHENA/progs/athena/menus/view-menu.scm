@@ -16,8 +16,7 @@
     (athena athena tm-view)
     (athena athena tm-server)
     (athena athena tm-files)
-    (athena athena tm-reverse-hierarchy-graph)
-    (athena menus view-widgets)))
+    (athena athena tm-reverse-hierarchy-graph)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Extra toolbars at the bottom

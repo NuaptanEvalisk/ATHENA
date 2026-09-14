@@ -56,8 +56,6 @@
           (else (texmacs-error "get-style-list ""invalid style ~S" t)))))
 
 (tm-define (embedded-style-list . xpacks)
-  (when (side-tools?)
-    (set! xpacks (rcons xpacks "side-tools")))
   (with l (get-style-list)
     (list-remove-duplicates (append l xpacks))))
 

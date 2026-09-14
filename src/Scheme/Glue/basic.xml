@@ -242,13 +242,6 @@
   <binding name="cout-buffer" native="cout_buffer" returns="void" />
   <binding name="cout-unbuffer" native="cout_unbuffer" returns="string" />
   <binding name="mark-new" native="new_marker" returns="double" />
-  <binding name="glyph-register" native="register_glyph" returns="void">
-    <arg type="string" />
-    <arg type="array_array_array_double" />
-  </binding>
-  <binding name="glyph-recognize" native="recognize_glyph" returns="string">
-    <arg type="array_array_array_double" />
-  </binding>
   <binding name="set-new-fonts" native="set_new_fonts" returns="void">
     <arg type="bool" />
   </binding>

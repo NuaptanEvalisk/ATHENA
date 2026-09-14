@@ -171,22 +171,6 @@ tm_frame_rep::menu_icons (int which, string menu) {
 }
 
 void
-tm_frame_rep::side_tools (int which, string tools) {
-  if ((which<0) || (which>1)) return;
-  if (editor_rep* editor= actor_frame_editor ()) {
-    eval ("(lazy-initialize-force)");
-    object expanded= eval ("'" * tools);
-    publish_actor_widget (
-      editor, actor_command_kind::ui_side_tools,
-      make_menu_widget (expanded, 400, 1000),
-      static_cast<std::uint64_t> (which));
-    return;
-  }
-  if (!has_current_view ()) return;
-  concrete_window () -> side_tools (which, tools);
-}
-
-void
 tm_frame_rep::bottom_tools (int which, string tools) {
   if ((which<0) || (which>1)) return;
   if (editor_rep* editor= actor_frame_editor ()) {
@@ -226,19 +210,6 @@ tm_frame_rep::show_icon_bar (int which, bool flag) {
 }
 
 void
-tm_frame_rep::show_side_tools (int which, bool flag) {
-  if ((which<0) || (which>1)) return;
-  if (editor_rep* editor= actor_frame_editor ()) {
-    (void) editor->publish_ui (
-      actor_command_kind::ui_show_side_tools,
-      static_cast<std::uint64_t> (which), flag ? 1 : 0);
-    return;
-  }
-  if (!has_current_view ()) return;
-  concrete_window () -> set_side_tools_flag (which, flag);
-}
-
-void
 tm_frame_rep::show_bottom_tools (int which, bool flag) {
   if ((which<0) || (which>1)) return;
   if (editor_rep* editor= actor_frame_editor ()) {
@@ -275,14 +246,6 @@ tm_frame_rep::visible_icon_bar (int which) {
   if (editor_rep* editor= actor_frame_editor ())
     return (editor->ui_viewport ().icon_bar_mask & (1U << which)) != 0;
   return concrete_window () -> get_icon_bar_flag (which);
-}
-
-bool
-tm_frame_rep::visible_side_tools (int which) {
-  if ((which<0) || (which>1)) return false;
-  if (editor_rep* editor= actor_frame_editor ())
-    return (editor->ui_viewport ().side_tools_mask & (1U << which)) != 0;
-  return concrete_window () -> get_side_tools_flag (which);
 }
 
 bool

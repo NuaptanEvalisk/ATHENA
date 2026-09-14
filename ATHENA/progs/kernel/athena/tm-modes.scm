@@ -92,15 +92,6 @@
 (define-public (supports-korean?)
   (!= (default-korean-font) "roman"))
 
-(define-public (side-tools?)
-  #f)
-
-(define-public (left-tools?)
-  #f)
-
-(define-public (has-side-tools? n)
-  #f)
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Mode related
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -299,12 +299,9 @@ qt_actor_widget_rep::refresh_viewport () {
     for (int i= 0; i < 4; ++i)
       if (view->win->get_icon_bar_flag (i))
         snapshot.icon_bar_mask |= static_cast<std::uint32_t> (1U << i);
-    for (int i= 0; i < 2; ++i) {
-      if (view->win->get_side_tools_flag (i))
-        snapshot.side_tools_mask |= static_cast<std::uint32_t> (1U << i);
+    for (int i= 0; i < 2; ++i)
       if (view->win->get_bottom_tools_flag (i))
         snapshot.bottom_tools_mask |= static_cast<std::uint32_t> (1U << i);
-    }
   }
   endpoint_->update_viewport (snapshot);
 }
@@ -465,15 +462,6 @@ qt_actor_widget_rep::drain_external_effects () {
       else if (which == 3) ::set_user_icons (view->win->wid, icons);
       break;
     }
-    case actor_command_kind::ui_side_tools: {
-      widget tools= actor_ui_take_widget (record.argument[0]);
-      tm_view view= concrete_runtime_view (view_id_);
-      int which= static_cast<int> (record.argument[1]);
-      if (is_nil (tools) || view == nullptr || view->win == nullptr) break;
-      if (which == 0) ::set_side_tools (view->win->wid, tools);
-      else if (which == 1) ::set_left_tools (view->win->wid, tools);
-      break;
-    }
     case actor_command_kind::ui_bottom_tools: {
       widget tools= actor_ui_take_widget (record.argument[0]);
       tm_view view= concrete_runtime_view (view_id_);
@@ -606,13 +594,6 @@ qt_actor_widget_rep::drain_external_effects () {
       int which= static_cast<int> (record.argument[0]);
       if (view != nullptr && view->win != nullptr && which >= 0 && which < 4)
         view->win->set_icon_bar_flag (which, record.argument[1] != 0);
-      break;
-    }
-    case actor_command_kind::ui_show_side_tools: {
-      tm_view view= concrete_runtime_view (view_id_);
-      int which= static_cast<int> (record.argument[0]);
-      if (view != nullptr && view->win != nullptr && which >= 0 && which < 2)
-        view->win->set_side_tools_flag (which, record.argument[1] != 0);
       break;
     }
     case actor_command_kind::ui_show_bottom_tools: {

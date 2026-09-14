@@ -144,10 +144,6 @@
       (set! spell-correct-string ss)
       (set! spell-suggestions l)
       (refresh-now "spell-suggestions")
-      (when (side-tools?)
-        (with-buffer (spell-master-buffer)
-          (update-menus))
-        (buffer-focus* (spell-buffer)))
       (when toolbar-spell-active?
         ;; FIXME: the following is quite a dirty hack to get the focus right
         (when (qt-gui?)
@@ -411,43 +407,6 @@
                   (prefix-suggestions 1 spell-suggestions)
                   ""))))))
 
-(tm-tool* (spell-tool win u style init aux)
-  (:name "Spelling error")
-  (:quit (spell-cancel))
-  (centered
-    (with dummy (set! spell-quit quit)
-      (resize "350px" "75px"
-        (texmacs-input `(with ,@init ,(spell-document))
-                       `(style (tuple ,@style)) aux)))
-    ======
-    (explicit-buttons
-      (aligned
-        (meti (hlist // (text "Accept during this pass"))
-          ("Tab" (spell-accept-word)))
-        (meti (hlist // (text "Permanently insert into dictionary"))
-          (" + " (spell-insert-word)))))
-    ======
-    (hlist
-      >>>
-      ((balloon (icon "tm_search_first") "First error")
-       (spell-extreme-match #f))
-      ((balloon (icon "tm_search_previous") "Previous error")
-       (spell-next-match #f))
-      ((balloon (icon "tm_search_next") "Next error")
-       (spell-next-match #t))
-      ((balloon (icon "tm_search_last") "Last error")
-       (spell-extreme-match #t))))
-  (refreshable "spell-suggestions"
-    (assuming (nnull? spell-suggestions)
-      ======
-      (division "title"
-        (text "Suggestions"))
-      (centered
-        (resize "350px" "225px"
-          (choice (spell-follow-suggestion answer)
-                  (prefix-suggestions 1 spell-suggestions)
-                  ""))))))
-
 (define (get-main-attrs getter)
   (list "mode" (getter "mode")
         "language" (getter "language")
@@ -470,8 +429,7 @@
     (let* ((u (current-buffer))
            (st (embedded-style-list))
            (init (get-main-attrs get-env))
-           (aux (spell-buffer))
-           (tool (list 'spell-tool u st init aux)))
+           (aux (spell-buffer)))
       (buffer-set-master aux u)
       (set! spell-window (current-window))
       (set-spell-reference (cursor-path))
@@ -485,11 +443,9 @@
       (delayed
         (:idle 100)
         (perform-spell))
-      (if (side-tools?)
-          (tool-focus :right tool aux)
-          (dialogue-window (spell-widget u st init aux)
-                           spell-cancel
-                           "Spell" aux)))))
+      (dialogue-window (spell-widget u st init aux)
+                       spell-cancel
+                       "Spell" aux))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Spell toolbar

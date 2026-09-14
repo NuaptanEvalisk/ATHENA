@@ -495,8 +495,6 @@ typedef array<patch> array_patch;
 typedef array<path> array_path;
 typedef array<widget> array_widget;
 typedef array<double> array_double;
-typedef array<array<double> > array_array_double;
-typedef array<array<array<double> > > array_array_array_double;
 
 static bool
 tmscm_is_array_int (tmscm p) {
@@ -600,69 +598,6 @@ tmscm_to_array_double (tmscm p) {
   }
   return a;
 }
-
-static bool
-tmscm_is_array_array_double (tmscm p) {
-  if (tmscm_is_null (p)) return true;
-  else return tmscm_is_pair (p) &&
-    tmscm_is_array_double (tmscm_car (p)) &&
-    tmscm_is_array_array_double (tmscm_cdr (p));
-}
-
-#define TMSCM_ASSERT_ARRAY_ARRAY_DOUBLE(p,arg,rout) \
-TMSCM_ASSERT (tmscm_is_array_array_double (p), p, arg, rout)
-
-/* static */ tmscm 
-array_array_double_to_tmscm (array<array_double> a) {
-  int i, n= N(a);
-  tmscm p= tmscm_null ();
-  for (i=n-1; i>=0; i--) p= tmscm_cons (array_double_to_tmscm (a[i]), p);
-  return p;
-}
-
-/* static */ array<array_double>
-tmscm_to_array_array_double (tmscm p) {
-  array<array_double> a;
-  while (!tmscm_is_null (p)) {
-    a << ((array_double) tmscm_to_array_double (tmscm_car (p)));
-    p= tmscm_cdr (p);
-  }
-  return a;
-}
-
-static bool
-tmscm_is_array_array_array_double (tmscm p) {
-  if (tmscm_is_null (p)) return true;
-  else return tmscm_is_pair (p) &&
-    tmscm_is_array_array_double (tmscm_car (p)) &&
-    tmscm_is_array_array_array_double (tmscm_cdr (p));
-}
-
-#define TMSCM_ASSERT_ARRAY_ARRAY_ARRAY_DOUBLE(p,arg,rout) \
-TMSCM_ASSERT (tmscm_is_array_array_array_double (p), p, arg, rout)
-
-/* static */ tmscm 
-array_array_array_double_to_tmscm (array<array_array_double> a) {
-  int i, n= N(a);
-  tmscm p= tmscm_null ();
-  for (i=n-1; i>=0; i--) p= tmscm_cons (array_array_double_to_tmscm (a[i]), p);
-  return p;
-}
-
-/* static */ array<array_array_double>
-tmscm_to_array_array_array_double (tmscm p) {
-  array<array_array_double> a;
-  while (!tmscm_is_null (p)) {
-    a << ((array_array_double) tmscm_to_array_array_double (tmscm_car (p)));
-    p= tmscm_cdr (p);
-  }
-  return a;
-}
-
-void register_glyph (string s, array_array_array_double gl);
-string recognize_glyph (array_array_array_double gl);
-
-
 
 #define TMSCM_ASSERT_ARRAY_STRING(p,arg,rout) \
 TMSCM_ASSERT (tmscm_is_array_string (p), p, arg, rout)

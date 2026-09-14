@@ -41,7 +41,6 @@ struct actor_viewport_snapshot {
   std::uint64_t window_id= 0;
   int window_serial= 0;
   std::uint32_t icon_bar_mask= 0;
-  std::uint32_t side_tools_mask= 0;
   std::uint32_t bottom_tools_mask= 0;
   bool attached= false;
   bool focused= false;
@@ -123,7 +122,6 @@ private:
     std::atomic<std::uint64_t> window_id {0};
     std::atomic<int> window_serial {0};
     std::atomic<std::uint32_t> icon_bar_mask {0};
-    std::atomic<std::uint32_t> side_tools_mask {0};
     std::atomic<std::uint32_t> bottom_tools_mask {0};
     std::atomic<bool> attached {false};
     std::atomic<bool> focused {false};

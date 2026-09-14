@@ -40,12 +40,13 @@
 (check "bold" (get-env "font-series")
        "Ctrl+B was deferred behind the current actor command")
 
-;; Reproduce the physical-key sequence at a fresh empty paragraph.  A block
-;; formula entered while Ctrl+B is active must remain a block inside the
-;; formatting wrapper; it must not acquire an extra DOCUMENT between WITH and
-;; equation*.
+;; Reproduce the physical-key sequence at a fresh empty paragraph.  The opening
+;; square bracket now activates a display formula immediately, without a
+;; trailing Return.  A block formula entered while Ctrl+B is active must remain
+;; a block inside the formatting wrapper; it must not acquire an extra DOCUMENT
+;; between WITH and equation*.
 (reset "" '(0))
-(for-each key-press '("C-b" "\\" "[" "return"))
+(for-each key-press '("C-b" "\\" "["))
 (check '(document
           (with "font-series" "bold"
             (equation* (document ""))))
@@ -56,7 +57,7 @@
 ;; entirely by make_return_after().  It must split the paragraph and keep the
 ;; block formula.
 (reset "abc" '(0))
-(for-each key-press '("C-b" "\\" "[" "return"))
+(for-each key-press '("C-b" "\\" "["))
 (check '(document
           "abc"
           (with "font-series" "bold"
@@ -68,7 +69,7 @@
 ;; must stay in the formula body and never become the child of rsub.
 (reset "" '(0))
 (for-each key-press
-          '("C-b" "\\" "[" "return" "(" "\\"
+          '("C-b" "\\" "[" "(" "\\"
             "b" "i" "g" "c" "u" "p" "return"))
 (let ((tree (tree->stree (buffer-tree))))
   (unless (contains-stree? tree '(big "cup"))

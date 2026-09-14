@@ -150,7 +150,6 @@
 (import-from (utils library smart-table))
 
 (import-from (utils misc markup-funcs))
-(lazy-define (utils handwriting handwriting) learn-glyphs)
 (lazy-tmfs-handler (utils automate auto-tmfs) automate)
 (lazy-tmfs-handler (athena athena tm-vault-welcome) welcome)
 (lazy-define (athena athena tm-vault-welcome)
@@ -202,7 +201,6 @@
            texmacs-mode-icons)
 (lazy-define (athena menus file-menu) recent-file-list recent-directory-list)
 (lazy-define (athena menus view-menu) set-bottom-bar test-bottom-bar?)
-(lazy-tool (athena menus view-tools) retina-settings-tool)
 (tm-define (notify-set-attachment name key val) (noop))
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 ;(display* "memory: " (texmacs-memory) " bytes\n")
@@ -242,15 +240,7 @@
              open-gradient-selector open-background-picture-selector)
 (lazy-define (generic document-widgets)
              open-document-paragraph-format open-document-page-format
-             open-document-metadata open-document-colors)
-(lazy-tool (generic format-tools)
-           format-paragraph-tool format-page-tool
-           document-page-tool
-           sections-tool subsections-tool)
-(lazy-tool (generic document-tools)
-           document-colors-tool)
-(lazy-tool (generic pattern-tools)
-           color-tool pattern-tool gradient-tool picture-tool)
+             open-document-metadata)
 (tm-property (open-replace) (:interactive #t))
 (tm-property (open-paragraph-format) (:interactive #t))
 (tm-property (open-page-format) (:interactive #t)
@@ -258,7 +248,6 @@
 (tm-property (open-document-paragraph-format) (:interactive #t))
 (tm-property (open-document-page-format) (:interactive #t))
 (tm-property (open-document-metadata) (:interactive #t))
-(tm-property (open-document-colors) (:interactive #t))
 (tm-property (open-pattern-selector cmd w) (:interactive #t))
 (tm-property (open-gradient-selector cmd) (:interactive #t))
 (tm-property (open-background-picture-selector cmd) (:interactive #t))
@@ -326,7 +315,6 @@
 (lazy-menu (table table-menu) insert-table-menu)
 (lazy-define (table table-edit) table-resize-notify)
 (lazy-define (table table-widgets) open-cell-properties open-table-properties)
-(lazy-tool (table table-tools) cell-properties-tool table-properties-tool)
 (tm-property (open-cell-properties) (:interactive #t))
 (tm-property (open-table-properties) (:interactive #t))
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
@@ -457,7 +445,7 @@
            developer-menu custom-keyboard-toolbar)
 (lazy-define (debug debug-widgets) notify-debug-message
              acknowledge-debug-messages
-             open-debug-console open-error-messages)
+             open-debug-console)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 ;(display* "memory: " (texmacs-memory) " bytes\n")
 
@@ -477,7 +465,7 @@
 (import-from (fonts fonts-truetype) (fonts fonts-math) (fonts fonts-x))
 (lazy-define (fonts font-old-menu)
 	     text-font-menu math-font-menu prog-font-menu)
-(lazy-define (fonts font-new-widgets)
+(lazy-define (fonts font-selector)
              open-font-selector open-document-font-selector
              open-document-other-font-selector)
 (tm-property (open-font-selector) (:interactive #t))

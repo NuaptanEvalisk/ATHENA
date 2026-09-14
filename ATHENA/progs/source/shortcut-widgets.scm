@@ -79,62 +79,15 @@
                       (set-user-shortcut sh (global-ref u :cmd)))
                     (quit)))))))))
 
-(tm-tool* (shortcuts-tool win u)
-  (:name "Edit keyboard shortcut")
-  (padded
-    (vertical
-      (aligned
-        (item (text "Shortcut")
-          (resize "250px" "30px"
-            (texmacs-input `(document (preview-shortcut ,(global-ref u :sh)))
-                           `(style (tuple "generic" "shortcut-editor")) u)))
-        (item (text "Command")
-          (refreshable "current-shortcut"
-            (input (global-set u :cmd answer) "string"
-                   (list (global-ref u :cmd) "") "250px"))))
-      ======
-      (division "plain"
-        (hlist >>
-          ("Remove" (and-with sh (get-shortcut u)
-                      (global-set u :sh "")
-                      (remove-user-shortcut sh)
-                      (refresh-now* win "shortcuts-list")))
-          // //
-          ("Clear" (set-shortcut u ""))
-          // //
-          ("Apply" (and-with sh (get-shortcut u)
-                     (global-set u :sh sh)
-                     (set-user-shortcut sh (global-ref u :cmd))
-                     (refresh-now* win "shortcuts-list")))))))
-  ===
-  (division "plain"
-    (division "title"
-      (text "List of keyboard shortcuts")))
-  (centered
-    (resize "200px" "200px"
-      (refreshable "shortcuts-list"
-        (scrollable
-          (choice (and-let* ((sh (decode-shortcut answer))
-                             (cmd (get-user-shortcut sh)))
-                    (global-set u :sh sh)
-                    (global-set u :cmd cmd)
-                    (set-shortcut u sh)
-                    (refresh-now* win "current-shortcut"))
-                  (map encode-shortcut (user-shortcuts-list))
-                  (encode-shortcut (global-ref u :sh))))))))
-
 (tm-define (open-shortcuts-editor . opt)
   (:interactive #t)
   (let* ((b (current-buffer))
          (u (string-append "tmfs://aux/edit-shortcuts"))
          (sh (if (null? opt) "" (car opt)))
-         (cmd (if (or (null? opt) (null? (cdr opt))) "" (cadr opt)))
-         (tool (list 'shortcuts-tool u)))
+         (cmd (if (or (null? opt) (null? (cdr opt))) "" (cadr opt))))
     (buffer-set-master u b)
     (global-set u :sh sh)
     (global-set u :cmd cmd)
-    (if (side-tools?)
-        (tool-focus :right tool u)
-        (dialogue-window (shortcuts-editor u)
-                         (lambda x (noop))
-                         "Shortcuts editor" u))))
+    (dialogue-window (shortcuts-editor u)
+                     (lambda x (noop))
+                     "Shortcuts editor" u)))

@@ -304,10 +304,8 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   visibility[3] = (mask & 8)   == 8;   // focus
   visibility[4] = (mask & 16)  == 16;  // user
   visibility[5] = (mask & 32)  == 32;  // footer
-  visibility[6] = false;               // legacy right side tools removed
-  visibility[7] = false;               // legacy left side tools removed
-  visibility[8] = (mask & 256) == 256; // bottom tools
-  visibility[9] = (mask & 512) == 512; // extra bottom tools
+  visibility[6] = (mask & 256) == 256; // bottom tools
+  visibility[7] = (mask & 512) == 512; // extra bottom tools
 
   // general setup for main window
 
@@ -673,8 +671,8 @@ qt_tm_widget_rep::update_visibility () {
   bool new_focusVisibility = visibility[3] && visibility[0];
   bool new_userVisibility = visibility[4] && visibility[0];
   bool new_statusVisibility = visibility[5];
-  bool new_bottomVisibility = visibility[8];
-  bool new_extraVisibility = visibility[9];
+  bool new_bottomVisibility = visibility[6];
+  bool new_extraVisibility = visibility[7];
   
   if (toolbarController != nullptr)
     toolbarController->setRequestedVisibility (
@@ -860,27 +858,17 @@ qt_tm_widget_rep::send (slot s, blackbox val) {
       update_visibility();
     }
       break;
-    case SLOT_SIDE_TOOLS_VISIBILITY:
-    {
-      check_type<bool>(val, s);
-    }
-      break;
-    case SLOT_LEFT_TOOLS_VISIBILITY:
-    {
-      check_type<bool>(val, s);
-    }
-      break;
     case SLOT_BOTTOM_TOOLS_VISIBILITY:
     {
       check_type<bool>(val, s);
-      visibility[8] = open_box<bool> (val);
+      visibility[6] = open_box<bool> (val);
       update_visibility();
     }
       break;
     case SLOT_EXTRA_TOOLS_VISIBILITY:
     {
       check_type<bool>(val, s);
-      visibility[9] = open_box<bool> (val);
+      visibility[7] = open_box<bool> (val);
       update_visibility();
     }
       break;
@@ -1028,21 +1016,13 @@ qt_tm_widget_rep::query (slot s, int type_id) {
       check_type_id<bool> (type_id, s);
       return close_box<bool> (visibility[5]);
 
-    case SLOT_SIDE_TOOLS_VISIBILITY:
-      check_type_id<bool> (type_id, s);
-      return close_box<bool> (false);
-
-    case SLOT_LEFT_TOOLS_VISIBILITY:
-      check_type_id<bool> (type_id, s);
-      return close_box<bool> (false);
-
     case SLOT_BOTTOM_TOOLS_VISIBILITY:
       check_type_id<bool> (type_id, s);
-      return close_box<bool> (visibility[8]);
+      return close_box<bool> (visibility[6]);
       
     case SLOT_EXTRA_TOOLS_VISIBILITY:
       check_type_id<bool> (type_id, s);
-      return close_box<bool> (visibility[9]);
+      return close_box<bool> (visibility[7]);
       
     case SLOT_INTERACTIVE_INPUT:
     {
@@ -1297,14 +1277,6 @@ qt_tm_widget_rep::write (slot s, blackbox index, widget w) {
     }
       break;
       
-    case SLOT_SIDE_TOOLS:
-      check_type_void (index, s);
-      break;
-
-    case SLOT_LEFT_TOOLS:
-      check_type_void (index, s);
-      break;
-
     case SLOT_BOTTOM_TOOLS:
       check_type_void (index, s);
     {
@@ -1436,8 +1408,6 @@ qt_tm_embedded_widget_rep::send (slot s, blackbox val) {
     case SLOT_FOCUS_ICONS_VISIBILITY:
     case SLOT_USER_ICONS_VISIBILITY:
     case SLOT_FOOTER_VISIBILITY:
-    case SLOT_SIDE_TOOLS_VISIBILITY:
-    case SLOT_LEFT_TOOLS_VISIBILITY:
     case SLOT_BOTTOM_TOOLS_VISIBILITY:
     case SLOT_EXTRA_TOOLS_VISIBILITY:
     case SLOT_LEFT_FOOTER:
@@ -1497,8 +1467,6 @@ qt_tm_embedded_widget_rep::query (slot s, int type_id) {
     case SLOT_FOCUS_ICONS_VISIBILITY:
     case SLOT_USER_ICONS_VISIBILITY:
     case SLOT_FOOTER_VISIBILITY:
-    case SLOT_SIDE_TOOLS_VISIBILITY:
-    case SLOT_LEFT_TOOLS_VISIBILITY:
     case SLOT_BOTTOM_TOOLS_VISIBILITY:
     case SLOT_EXTRA_TOOLS_VISIBILITY:
       check_type_id<bool> (type_id, s);
@@ -1550,8 +1518,6 @@ qt_tm_embedded_widget_rep::write (slot s, blackbox index, widget w) {
     case SLOT_MODE_ICONS:
     case SLOT_FOCUS_ICONS:
     case SLOT_USER_ICONS:
-    case SLOT_SIDE_TOOLS:
-    case SLOT_LEFT_TOOLS:
     case SLOT_BOTTOM_TOOLS:
     case SLOT_EXTRA_TOOLS:
     case SLOT_INTERACTIVE_INPUT:
