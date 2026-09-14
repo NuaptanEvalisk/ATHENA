@@ -3833,6 +3833,8 @@
   (key  (,tmtex-key 1))
   (key* (,tmtex-key* 1))
   (minipage (,tmtex-minipage 3))
+  (latex-picture-fallback (,tmtex-mixed 2))
+  ;; Compatibility with documents imported using the legacy mixed-source tag.
   (latex_preview (,tmtex-mixed 2))
   (picture-mixed (,tmtex-mixed 2))
   (source-mixed (,tmtex-mixed 2))

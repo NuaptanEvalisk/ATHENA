@@ -14,7 +14,7 @@
 #include <chrono>
 #include <iostream>
 
-#include "LaTeX_Preview/latex_preview.hpp"
+#include "Tex/latex_picture_fallback.hpp"
 #include "Obsidian/aofm_telemetry.hpp"
 #include "Tex/convert_tex.hpp"
 #include "metadata.hpp"
@@ -32,7 +32,6 @@ extern bool textm_unicode;
 tree kill_space_invaders (tree t);
 tree set_special_fonts (tree t, string lan);
 tree filter_preamble (tree t);
-tree latex_fallback_on_pictures (string s, tree t);
 tree parsed_latex_to_tree (tree t);
 tree latex_command_to_tree (tree t);
 bool is_var_compound (tree t, string s);
@@ -1897,7 +1896,9 @@ is_verbatim (tree t) {
          is_compound (t, "scm-code") || is_compound (t, "shell-code") ||
          is_compound (t, "code")     || is_compound (t, "verbatim")   ||
          is_compound (t, "scilab-code") || is_compound (t, "scala-code") ||
-         is_compound (t, "java-code") || is_compound (t, "latex_preview") ||
+         is_compound (t, "java-code") ||
+         is_compound (t, "latex-picture-fallback") ||
+         is_compound (t, "latex_preview") ||
          is_compound (t, "picture-mixed");
 }
 

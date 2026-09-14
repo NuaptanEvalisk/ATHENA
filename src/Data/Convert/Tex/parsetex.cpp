@@ -895,7 +895,7 @@ read_throught_env (string s, int &i, string cmd, bool end) {
 
 bool
 latex_parser::is_substituable (tree t) {
-  if (is_tuple (t, "\\latex_preview", 2)) return true;
+  if (is_tuple (t, "\\latex_picture_fallback", 2)) return true;
   if (is_tuple (t) && N(t) > 0 &&
       latex_type (string_arg (t[0])) == "as-picture")
     return true;
@@ -1436,9 +1436,10 @@ latex_parser::parse_command (string s, int& i, string cmd, int change) {
     string code= orig_cmd * s(begin_parse, i);
     code= verbatim_escape (code);
     if (command_type ("!mode") == "math")
-      t= tuple ("\\latex_preview", cmd(1, N(cmd)), compound ("text", code));
+      t= tuple ("\\latex_picture_fallback", cmd(1, N(cmd)),
+                compound ("text", code));
     else
-      t= tuple ("\\latex_preview", cmd(1, N(cmd)), code);
+      t= tuple ("\\latex_picture_fallback", cmd(1, N(cmd)), code);
   }
 
   if (mbox_flag) command_type ("!mode") = "math";

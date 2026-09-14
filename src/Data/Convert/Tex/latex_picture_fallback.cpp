@@ -1,7 +1,7 @@
 
 /******************************************************************************
-* MODULE     : latex_preview.cpp
-* DESCRIPTION: generating pictures using LaTeX with preview package
+* MODULE     : latex_picture_fallback.cpp
+* DESCRIPTION: picture fallback for unsupported LaTeX imports
 * COPYRIGHT  : (C) 2013  François Poulain, Joris van der Hoeven
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
@@ -9,7 +9,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
-#include "LaTeX_Preview/latex_preview.hpp"
+#include "Tex/latex_picture_fallback.hpp"
 #include "Ghostscript/gs_utilities.hpp"
 #include "Tex/convert_tex.hpp"
 #include "analyze.hpp"
@@ -22,36 +22,110 @@ dbg (string s) {
 }
 
 static string latex_command= "pdflatex";
+static const string fallback_marker= "\\latex_picture_fallback";
 
 void
 set_latex_command (string cmd) {
   latex_command= cmd;
 }
 
-bool
+static bool
 latex_present () {
   return exists_in_path (latex_command);
 }
 
-array<string>
-search_latex_previews (tree t) {
+static array<string>
+search_picture_fallbacks (tree t) {
   array<string> r;
   if (is_atomic (t));
   else if (is_tuple (t, "\\def") || is_tuple (t, "\\def*")
       || is_tuple (t, "\\def**") || is_tuple (t, "\\newenvironment**") ||
       is_tuple (t, "\\newenvironment") || is_tuple (t, "\\newenvironment*"));
-  else if (is_tuple (t, "\\latex_preview", 2))
+  else if (is_tuple (t, fallback_marker, 2))
     r << as_string (t[1]);
   else {
     int i, n= N(t);
     for (i=0; i<n; i++)
-      r << search_latex_previews (t[i]);
+      r << search_picture_fallbacks (t[i]);
   }
   return r;
 }
 
-void
-latex_clean_tmp_directory (url u) {
+static tree
+substitute_picture_fallbacks (tree t, array<tree> pictures, int& i) {
+  if (N(pictures) <= i);
+  else if (is_atomic (t));
+  else if (is_tuple (t, fallback_marker, 2)) {
+    t[0]= "\\picture-mixed";
+    t[1]= pictures[i++];
+  }
+  else if (is_tuple (t, "\\def") || is_tuple (t, "\\def*")
+      || is_tuple (t, "\\def**") || is_tuple (t, "\\newenvironment**") ||
+      is_tuple (t, "\\newenvironment") || is_tuple (t, "\\newenvironment*"));
+  else
+    for (int j=0; j<N(t); j++)
+      t[j]= substitute_picture_fallbacks (t[j], pictures, i);
+  return t;
+}
+
+static int
+count_unbalanced_picture_fallbacks (tree t) {
+  if (!is_concat (t)) return 0;
+  int count= 0;
+  for (int i=0; i<N(t); i++) {
+    tree v= t[i];
+    if (is_tuple (v, fallback_marker, 2)
+        && starts (as_string (v[1]), "begin-")) count++;
+    if (is_tuple (v, fallback_marker, 2)
+        && starts (as_string (v[1]), "end-")) count--;
+    if (is_concat (v)) count += count_unbalanced_picture_fallbacks (v);
+  }
+  return count;
+}
+
+static tree
+merge_environment_picture_fallbacks (tree t) {
+  if (is_atomic (t)) return t;
+  if (is_tuple (t, "\\def") || is_tuple (t, "\\def*")
+      || is_tuple (t, "\\def**") || is_tuple (t, "\\newenvironment**") ||
+      is_tuple (t, "\\newenvironment") || is_tuple (t, "\\newenvironment*"))
+    return t;
+  int n= N(t);
+  tree r (L(t));
+  string name;
+  tree code;
+  bool in_env= false;
+  for (int i=0; i<n; i++) {
+    tree v= t[i];
+    if (!in_env && is_concat (t) && is_tuple (v, fallback_marker, 2)
+        && starts (as_string (v[1]), "begin-")) {
+      in_env= true;
+      name= as_string (v[1]);
+      code= v[2];
+    }
+    if (in_env && is_concat (t) && is_tuple (v, fallback_marker, 2)
+        && starts (as_string (v[1]), "end-")) {
+      in_env= false;
+      code= concat (code, v[2]);
+      r << tuple (fallback_marker, name, code);
+      name= "";
+    }
+    else if (is_concat (t) && count_unbalanced_picture_fallbacks (v) != 0) {
+      tree tmp (CONCAT);
+      for (int j=0; j<N(v); j++) tmp << v[j];
+      for (int j=i+1; j<n; j++) tmp << t[j];
+      t= tmp;
+      n= N(t);
+      i= -1;
+    }
+    else if (!in_env)
+      r << merge_environment_picture_fallbacks (v);
+  }
+  return r;
+}
+
+static void
+clean_picture_fallback_directory (url u) {
   bool flag= false;
   array<string> content= read_directory (u, flag);
   for (int i=0; i<N(content); i++)
@@ -60,8 +134,8 @@ latex_clean_tmp_directory (url u) {
   rmdir (u);
 }
 
-string
-latex_remove_fmt (string s) {
+static string
+remove_latex_format_directive (string s) {
   int i= 0, start= 0, n= N(s);
   while (i<n) {
     if (test (s, 0, "%&") || (i > 0 && test (s, i, "\n%&"))) {
@@ -83,11 +157,11 @@ latex_remove_fmt (string s) {
   return s;
 }
 
-void
-latex_install_preview (string s, tree t, url wdir, bool dvips) {
-  s= latex_remove_fmt (s);
+static void
+install_picture_fallback_preamble (string s, tree t, url wdir, bool dvips) {
+  s= remove_latex_format_directive (s);
   int i= 0;
-  array<string> macros= search_latex_previews (t);
+  array<string> macros= search_picture_fallbacks (t);
   hashmap<string,bool> done (false);
   string preview= "%%%%%%%%%%%%%% ADDED BY TEXMACS %%%%%%%%%%%%%%%%%%\n";
   if (!dvips)
@@ -127,8 +201,8 @@ latex_install_preview (string s, tree t, url wdir, bool dvips) {
   save_string (wdir * "temp.tex", s);
 }
 
-tree
-latex_load_image (url image) {
+static tree
+load_picture_fallback_image (url image) {
 #if defined(USE_GS)
   string s;
   tree t (IMAGE, 5);
@@ -144,13 +218,13 @@ latex_load_image (url image) {
   t[2]= as_string (height) * "pt";
   return (t);
 #else
-  dbg ("latex_load_image failed because ghostscript is not available");
+    dbg ("LaTeX picture fallback: Ghostscript is not available");
   return array<tree> ();
 #endif
 }
 
-array<tree>
-latex_load_preview (url wdir, bool dvips= false) {
+static array<tree>
+load_picture_fallbacks (url wdir, bool dvips= false) {
 #if defined(USE_GS)
   string cmdln= "cd \"" * as_string (wdir) * "\"; ";
   if (dvips) {
@@ -174,7 +248,7 @@ latex_load_preview (url wdir, bool dvips= false) {
     url u= wdir * ("temp" * as_string (cnt) * ".eps");
     if (exists (u)) {
       // gs can produce empty pictures, to be ignored
-      tree tmp= latex_load_image (u);
+      tree tmp= load_picture_fallback_image (u);
       if (N(tmp) == 5 && (tmp[1] != "0pt" || tmp[2] != "0pt"))
         r << tmp;
       cnt++;
@@ -184,27 +258,27 @@ latex_load_preview (url wdir, bool dvips= false) {
   }
   return r;
 #else
-  dbg ("latex_load_preview failed because ghostscript is not available");
+  dbg ("LaTeX picture fallback: Ghostscript is not available");
   return array<tree> ();
 #endif
 }
 
-array<tree>
-latex_preview (string s, tree t) {
+static array<tree>
+render_picture_fallbacks (string s, tree t) {
   if (!latex_present () && !exists_in_path ("latex")) {
-    dbg ("LaTeX preview: " * latex_command * " not found");
+    dbg ("LaTeX picture fallback: " * latex_command * " not found");
     return array<tree>();
   }
   if (!exists_in_path ("gs")) {
-    dbg ("LaTeX preview: ghostscript not found");
+    dbg ("LaTeX picture fallback: Ghostscript not found");
     return array<tree>();
   }
-  // FIXME: otherwise ./Texmacs/Window/tm_frame.cpp:191 seems to crash here if we launch
+  // Keep the progress message before launching the external compiler.
   system_wait ("LaTeX: compiling document, ", "please wait");
-  url wdir= url_temp ("_latex_preview");
+  url wdir= url_temp ("_latex_picture_fallback");
   mkdir (wdir);
   bool dvips= false;
-  latex_install_preview (s, t, wdir, dvips);
+  install_picture_fallback_preamble (s, t, wdir, dvips);
   string document_root= as_string (head (get_file_focus ()));
   string cmdln= "cd " * document_root;
   cmdln << "; " << latex_command
@@ -216,7 +290,7 @@ latex_preview (string s, tree t) {
     dbg ("Could not compile LaTeX document using " * latex_command);
     dbg ("Try to fallback on LaTeX");
     dvips= true;
-    latex_install_preview (s, t, wdir, dvips);
+    install_picture_fallback_preamble (s, t, wdir, dvips);
     cmdln= "cd " * document_root;
     cmdln << "; latex"
           << " -interaction nonstopmode -halt-on-error -file-line-error "
@@ -225,12 +299,12 @@ latex_preview (string s, tree t) {
     dbg ("LaTeX command: " * cmdln);
     if (system (cmdln)) {
       dbg ("Could not compile LaTeX document");
-      latex_clean_tmp_directory (wdir);
+      clean_picture_fallback_directory (wdir);
       return array<tree> ();
     }
   }
-  array<tree> r= latex_load_preview (wdir, dvips);
-  int exp= N(search_latex_previews (t));
+  array<tree> r= load_picture_fallbacks (wdir, dvips);
+  int exp= N(search_picture_fallbacks (t));
   if (N(r) != exp) {
     string msg;
     msg << "Warning: did not found the expected number of pictures:\n"
@@ -239,6 +313,15 @@ latex_preview (string s, tree t) {
       << " importation might have failed";
     dbg (msg);
   }
-  latex_clean_tmp_directory (wdir);
+  clean_picture_fallback_directory (wdir);
   return r;
-} 
+}
+
+tree
+latex_fallback_on_pictures (string source, tree parsed) {
+  if (N(search_picture_fallbacks (parsed)) == 0) return parsed;
+  parsed= merge_environment_picture_fallbacks (parsed);
+  array<tree> pictures= render_picture_fallbacks (source, parsed);
+  int i= 0;
+  return substitute_picture_fallbacks (parsed, pictures, i);
+}

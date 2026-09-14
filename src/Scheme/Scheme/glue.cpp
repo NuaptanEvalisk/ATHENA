@@ -915,7 +915,7 @@ tmscm_to_list_tree (tmscm p) {
 #include "converter.hpp"
 #include "tm_timer.hpp"
 #include "Freetype/tt_file.hpp"
-#include "LaTeX_Preview/latex_preview.hpp"
+#include "Tex/latex_picture_fallback.hpp"
 #include "link.hpp"
 #include "dictionary.hpp"
 #include "patch.hpp"

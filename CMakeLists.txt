@@ -698,7 +698,6 @@ file (GLOB_RECURSE ATHENA_Subsystems_SRCS CONFIGURE_DEPENDS
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Ghostscript/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Imlib2/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Ispell/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/LaTeX_Preview/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/MCP/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Openssl/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/RAG/*.cpp"
