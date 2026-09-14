@@ -105,6 +105,7 @@
 ("<triangle>"	        "#25B3") ; variant of <bigtriangleup>
 ("<nshortmid>"		"#2224") ; variant of <nmid>
 ("<of>"		        ":")     ; variant of : for "of type"
+("<over>"		        ":")     ; variant of : used for ratios and mappings
 ("<suchthat>"		":")     ; variant of : for { a in ZZ : a > 5 }
 ("<varsuchthat>"	"|")     ; variant of | for { a in ZZ | a > 5 }
 

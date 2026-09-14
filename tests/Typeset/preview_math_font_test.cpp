@@ -11,6 +11,7 @@
 #include <QTemporaryDir>
 #include <QtTest/QtTest>
 #include "boot.hpp"
+#include "converter.hpp"
 #include "data_cache.hpp"
 #include "drd_std.hpp"
 #include "gui.hpp"
@@ -59,6 +60,25 @@ left_parenthesis_height (box b) {
 class PreviewMathFontTest: public QObject {
   Q_OBJECT
 private slots:
+  void legacyColonVariantsUseModernUnicodeMapping () {
+    QCOMPARE (strict_cork_to_utf8 ("<of>"), string (":"));
+    QCOMPARE (strict_cork_to_utf8 ("<over>"), string (":"));
+    QCOMPARE (strict_cork_to_utf8 ("<suchthat>"), string (":"));
+
+    font math= smart_font ("roman", "rm", "medium", "mathitalic", 10, 600);
+    QVERIFY (!is_nil (math));
+    for (string token: {string ("<of>"), string ("<over>"),
+                        string ("<suchthat>")}) {
+      metric ex;
+      math->get_extents (token, ex);
+      QVERIFY2 (ex->x2 > ex->x1, as_charp (token));
+    }
+
+    metric unknown;
+    math->get_extents ("<athena-unmapped-math-symbol>", unknown);
+    QVERIFY (unknown->x2 >= unknown->x1);
+  }
+
   void romanUsesLatinModernWhenAvailable () {
     if (!tt_font_exists ("Latin Modern Roman") ||
         !tt_font_exists ("Latin Modern Math"))

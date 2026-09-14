@@ -864,7 +864,6 @@ smart_font_rep::smart_font_rep (
       }
       (void) sm->add_font (tuple ("special"), REWRITE_SPECIAL);
       (void) sm->add_font (tuple ("emu-bracket"), REWRITE_EMULATE);
-      (void) sm->add_font (tuple ("other"), REWRITE_NONE);
       (void) sm->add_font (tuple ("regular"), REWRITE_LETTERS);
       (void) sm->add_font (tuple ("bold-math"), REWRITE_LETTERS);
       (void) sm->add_font (tuple ("italic-math"), REWRITE_LETTERS);
@@ -1434,14 +1433,6 @@ smart_font_rep::resolve (string c) {
   }
 
   string virt= find_in_virtual (c);
-  if (math_kind != 0 && !unicode_provides (c) && virt == "")
-    if (!starts (c, "<left-") &&
-        !starts (c, "<right-") &&
-        !starts (c, "<mid-")) {
-      //cout << "Found " << c << " in other\n";
-      return sm->add_char (tuple ("other"), c);
-    }
-
   if (virt != "") {
     //cout << "Found " << c << " in " << virt << "\n";
     return sm->add_char (tuple ("virtual", virt), c);
@@ -1475,12 +1466,6 @@ smart_font_rep::initialize_font (int nr) {
     fn[nr]= smart_font_bis (family, variant, series, "right", sz, hdpi, dpi);
   else if (a[0] == "emu-bracket")
     fn[nr]= virtual_font (this, "emu-bracket", sz, hdpi, dpi, false);
-  else if (a[0] == "other") {
-    int nvdpi= adjusted_dpi ("roman", variant, series, "mathitalic", 1);
-    int nhdpi= (hdpi * nvdpi + (dpi>>1)) / dpi;
-    fn[nr]= smart_font_bis ("roman", variant, series, "mathitalic", sz,
-                            nhdpi, nvdpi);
-  }
   else if (a[0] == "bold-math")
     fn[nr]= smart_font_bis (family, variant, "bold", "right", sz, hdpi, dpi);
   else if (a[0] == "fast-italic")
