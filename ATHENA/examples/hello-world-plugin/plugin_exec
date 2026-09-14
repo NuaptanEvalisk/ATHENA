@@ -1,0 +1,108 @@
+#!/usr/bin/python3
+"""Insert a paragraph through AUDMAP, without direct editor or file access.
+
+Copyright (C) 2026 Nuaptan Felix Evalisk.
+SPDX-License-Identifier: GPL-3.0-or-later
+"""
+import os
+from pathlib import Path
+import signal
+import sys
+import threading
+from contextlib import contextmanager
+
+# The installable ZIP bundles the repository's independent SDK, unchanged.
+sys.path.insert(0, str(Path(__file__).resolve().parent / "sdk"))
+from athena_audmap import Client
+
+TIMEOUT = 300  # Allow time for the user to answer operation confirmation dialogs.
+stopping = threading.Event()
+
+
+class CommandError(RuntimeError):
+    """A terminal, reported failure rather than an uncertain transport outcome."""
+
+
+def operation(client, ticket, handle, command, parameters=None):
+    pending = client.operate(ticket, handle, command, parameters)
+    response = pending.result(timeout=TIMEOUT)
+    client.release(pending.ticket, pending.operation).result(timeout=TIMEOUT)
+    if response.status != "OK":
+        raise CommandError(f"{response.status}: {response.data}")
+    return response.data
+
+
+@contextmanager
+def select_one(client, selector):
+    selected = client.resolve(selector, leaves=True)
+    response = selected.result(timeout=TIMEOUT)
+    try:
+        if response.status != "OK":
+            raise CommandError(f"{response.status}: {response.data}")
+        handles, truncated = response.data
+        if len(handles) != 1 or truncated:
+            raise CommandError(f"Expected one target for {selector}; found {len(handles)}")
+        yield selected.ticket, handles[0]
+    finally:
+        client.finish(selected.ticket).result(timeout=TIMEOUT)
+
+
+def insert_hello_world(client):
+    # Resolve afresh for each menu invocation, then keep that buffer pinned.
+    with select_one(client, "@/buffers/@/document/body/[0]") as (ticket, handle):
+        body = operation(client, ticket, handle, "get")["tree"]
+        if body.get("tag") != "document":
+            raise CommandError("The active document has no paragraph body")
+        return operation(client, ticket, handle, "insert", {
+            "index": len(body["children"]),
+            "children": [{"text": "Hello, World!"}],
+        })
+
+
+def serve(client):
+    mailbox = "@/subscription/" + os.environ["ATHENA_SUBSCRIPTION_GUID"]
+    # Bound retained protocol history by rotating tickets and connections.
+    for _ in range(4096):
+        if stopping.is_set():
+            return
+        with select_one(client, mailbox) as (ticket, handle):
+            used = 0
+            while not stopping.is_set() and used < 1024:
+                batch = operation(client, ticket, handle, "get", {"limit": 1})
+                used += 1
+                for message in batch["commands"]:
+                    try:
+                        if message["command"] != "insert-hello-world":
+                            raise CommandError("Unknown command: " + message["command"])
+                        result = insert_hello_world(client)
+                        status = "OK"
+                    except CommandError as error:
+                        status, result = "ERROR", str(error)
+                    # Never replay an insertion after a timeout or transport error:
+                    # it may already have committed. Such errors terminate the process.
+                    operation(client, ticket, handle, "reply", {
+                        "id": message["id"], "status": status, "result": result,
+                    })
+                    used += 1
+                    print(f"Insert Hello World: {status}: {result}", flush=True)
+                stopping.wait(0.2)
+
+
+def main():
+    signal.signal(signal.SIGTERM, lambda *_: stopping.set())
+    signal.signal(signal.SIGINT, lambda *_: stopping.set())
+    try:
+        while not stopping.is_set():
+            with Client(endpoint=os.environ["ATHENA_AUDMAP_ENDPOINT"],
+                        identity=os.environ["ATHENA_AUDMAP_IDENTITY"],
+                        name="Hello World") as client:
+                serve(client)
+    except Exception as error:
+        if not stopping.is_set():
+            print(f"Hello World plugin stopped: {error}", file=sys.stderr)
+            return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
