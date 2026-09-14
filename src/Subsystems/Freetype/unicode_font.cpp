@@ -448,6 +448,38 @@ bracket (hashmap<string,int>& h, string c, int n1, int n2, int im, int d) {
 }
 
 static void
+math_bracket (hashmap<string,int>& h, string family, string c,
+              unsigned int codepoint) {
+  // TeX Gyre Math faces carry the authoritative delimiter ladder in their
+  // OpenType MATH table.  Keep the legacy table as a fallback, but overwrite
+  // every available numbered variant with the glyph actually advertised by
+  // this face.  Variant zero is the ordinary character and is represented by
+  // the unsized delimiter path.
+  array<int> variants= tt_math_vertical_variants (family, codepoint);
+  if (N(variants) == 0) return;
+  // The legacy TeX Gyre table below contains at most six numbered slots.
+  // Once the face supplies MATH data, do not leave any of those guessed glyph
+  // indices behind beyond the face's actual variant count.
+  for (int variant=1; variant<=6; ++variant) {
+    string s= c * "-" * as_string (variant) * ">";
+    h->reset ("<large-" * s);
+    h->reset ("<left-" * s);
+    h->reset ("<mid-" * s);
+    h->reset ("<right-" * s);
+  }
+  for (int i=0; i<N(variants); ++i) {
+    int glyph= variants[i];
+    if (glyph == 0) continue;
+    int variant= i + 1;
+    string s= c * "-" * as_string (variant) * ">";
+    h ("<large-" * s)= glyph;
+    h ("<left-" * s)= glyph;
+    h ("<mid-" * s)= glyph;
+    h ("<right-" * s)= glyph;
+  }
+}
+
+static void
 wide (hashmap<string,int>& h, string c, int n1, int n2, int im, int d) {
   for (int n= n1; n <= n2; n++, im += d) {
     string s= c * "-" * as_string (n) * ">";
@@ -551,6 +583,26 @@ tex_gyre_native () {
 void
 unicode_font_rep::tex_gyre_operators () {
   native= copy (tex_gyre_native ());
+  math_bracket (native, family, "(", 0x0028);
+  math_bracket (native, family, ")", 0x0029);
+  math_bracket (native, family, "[", 0x005b);
+  math_bracket (native, family, "]", 0x005d);
+  math_bracket (native, family, "{", 0x007b);
+  math_bracket (native, family, "}", 0x007d);
+  math_bracket (native, family, "/", 0x002f);
+  math_bracket (native, family, "\\", 0x005c);
+  math_bracket (native, family, "|", 0x007c);
+  math_bracket (native, family, "||", 0x2016);
+  math_bracket (native, family, "lceil", 0x2308);
+  math_bracket (native, family, "rceil", 0x2309);
+  math_bracket (native, family, "lfloor", 0x230a);
+  math_bracket (native, family, "rfloor", 0x230b);
+  math_bracket (native, family, "llbracket", 0x27e6);
+  math_bracket (native, family, "rrbracket", 0x27e7);
+  math_bracket (native, family, "langle", 0x27e8);
+  math_bracket (native, family, "rangle", 0x27e9);
+  math_bracket (native, family, "llangle", 0x27ea);
+  math_bracket (native, family, "rrangle", 0x27eb);
 }
 
 static void

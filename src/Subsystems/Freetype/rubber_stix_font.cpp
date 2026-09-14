@@ -213,6 +213,15 @@ rubber_stix_font_rep::search_font_sub (string s, string& rew, string& ltype) {
     int pos= search_backwards ("-", N(s), s);
     if (pos > 6) ltype= s (6, pos);
   }
+  // TeX Gyre Math fonts already expose correctly ordered delimiter variants
+  // through their OpenType MATH tables.  unicode_font_rep registers those as
+  // native numbered tokens; prefer them over the historical STIX size-font
+  // compatibility route.  Larger requests still fall through to assembly.
+  if (base->math_type == MATH_TYPE_TEX_GYRE && starts (s, "<left-") &&
+      base->supports (s)) {
+    rew= s;
+    return 0;
+  }
   if (starts (s, "<left-.")) {
     rew= "";
     return 0;

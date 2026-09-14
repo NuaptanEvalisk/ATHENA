@@ -44,9 +44,81 @@ delimiter_center (box b, string symbol, SI y=0) {
   return MAX_SI;
 }
 
+static SI
+left_parenthesis_height (box b) {
+  if (b->get_type () == TEXT_BOX && starts (b->get_leaf_string (), "<left-(-"))
+    return b->y2 - b->y1;
+  for (int i=0; i<N(b); ++i) {
+    SI height= left_parenthesis_height (b[i]);
+    if (height != 0) return height;
+  }
+  return 0;
+}
+
 class PreviewMathFontTest: public QObject {
   Q_OBJECT
 private slots:
+  void pagellaUsesNativeMathDelimiterVariants () {
+    for (auto family: {std::pair<string,string> ("TeX Gyre Pagella",
+                                                  "texgyrepagella-math"),
+                       std::pair<string,string> ("TeX Gyre Bonum",
+                                                  "texgyrebonum-math")}) {
+      drd_info drd ("native-delimiters", std_drd);
+      hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+      hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+      edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+      env->write_default_env ();
+      env->write (FONT, family.first);
+      env->write (FONT_BASE_SIZE, "12");
+      env->write (MODE, "math");
+      env->update ();
+
+      SI previous= 0;
+      for (int n=1; n<=6; ++n) {
+        string token= "<left-(-" * as_string (n) * ">";
+        metric ex;
+        env->fn->get_extents (token, ex);
+        SI height= ex->y2 - ex->y1;
+        QVERIFY2 (height > previous, as_charp (token));
+        previous= height;
+
+        font_metric metric;
+        font_glyphs glyphs;
+        int index= env->fn->index_glyph (token, metric, glyphs);
+        QVERIFY2 (index >= 0 && !is_nil (metric) && !is_nil (glyphs),
+                  as_charp (token));
+        QVERIFY2 (occurs (family.second, metric->res_name),
+                  as_charp (metric->res_name));
+      }
+    }
+  }
+
+  void pagellaMatrixDelimiterGrowsWithRows () {
+    drd_info drd ("matrix-delimiters", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write (FONT_BASE_SIZE, "12");
+    env->write (MODE, "math");
+    env->update ();
+
+    tree row_a (ROW, tree (CELL, "a"));
+    tree row_b (ROW, tree (CELL, "b"));
+    tree row_c (ROW, tree (CELL, "c"));
+    tree two_rows (TFORMAT, tree (TABLE, row_a, row_b));
+    tree three_rows (TFORMAT, tree (TABLE, row_a, row_b, row_c));
+    box two= typeset_as_concat (
+      env, tree (VAR_AROUND, "(", two_rows, ")"), path ());
+    box three= typeset_as_concat (
+      env, tree (VAR_AROUND, "(", three_rows, ")"), path ());
+    SI two_height= left_parenthesis_height (two);
+    SI three_height= left_parenthesis_height (three);
+    QVERIFY (two_height > 0);
+    QVERIFY (three_height > two_height);
+  }
+
   void pagellaDelimitersFollowMathAxis () {
     drd_info drd ("braces", std_drd);
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);

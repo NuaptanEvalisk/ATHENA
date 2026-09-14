@@ -118,6 +118,32 @@ tt_math_vertical_variant (string family, unsigned int codepoint,
   return (int) variants[variant].glyph;
 }
 
+array<int>
+tt_math_vertical_variants (string family, unsigned int codepoint) {
+  array<int> out;
+  tt_face face= load_tt_face (family);
+  if (face->bad_face) return out;
+  FT_UInt glyph= ft_get_char_index (face->ft_face, codepoint);
+  if (glyph == 0) return out;
+
+  hb_font_t* hb_font= hb_ft_font_create_referenced (face->ft_face);
+  unsigned int count= 0;
+  unsigned int total= hb_ot_math_get_glyph_variants (
+    hb_font, glyph, HB_DIRECTION_TTB, 0, &count, nullptr);
+  if (total <= 1) {
+    hb_font_destroy (hb_font);
+    return out;
+  }
+  std::vector<hb_ot_math_glyph_variant_t> variants (total);
+  count= total;
+  hb_ot_math_get_glyph_variants (
+    hb_font, glyph, HB_DIRECTION_TTB, 0, &count, variants.data ());
+  hb_font_destroy (hb_font);
+  for (unsigned int i=1; i<count; ++i)
+    out << (variants[i].glyph == glyph ? 0 : (int) variants[i].glyph);
+  return out;
+}
+
 /******************************************************************************
 * Font metrics
 ******************************************************************************/
