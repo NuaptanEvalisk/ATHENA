@@ -1350,7 +1350,9 @@ TeXmacs_main (int argc, char** argv) {
       exit (ok ? 0 : 1);
     }
     if (vault_maintenance_dir != "") {
-      eval ("(lazy-initialize-force)");
+      // Maintenance has no current editor. Load its document transforms
+      // explicitly instead of evaluating editor-mode lazy menu predicates.
+      eval ("(module-provide '(athena athena tm-vault-anchors))");
       release_boot_lock ();
       bool ok= vault_maintenance_run (vault_maintenance_dir,
                                       vault_maintenance_check_only);
@@ -1358,15 +1360,16 @@ TeXmacs_main (int argc, char** argv) {
     }
     if (vault_maintenance_toc_worker_file != "" &&
         vault_maintenance_toc_worker_marker != "") {
-      eval ("(lazy-initialize-force)");
       string cmd= "(load-buffer (system->url " *
                   scm_quote (vault_maintenance_toc_worker_file) * ") :strict)";
       eval (cmd);
       bool failed= true;
       try {
-        get_current_editor ()->generate_aux ("table-of-contents");
         url document= url_system (vault_maintenance_toc_worker_file);
-        failed= buffer_save (document);
+        object generated= qt_call_in_buffer (
+          document, "generate-aux", object (string ("table-of-contents")));
+        failed= (is_bool (generated) && !as_bool (generated)) ||
+                buffer_save (document);
       }
       catch (...) {
         failed= true;

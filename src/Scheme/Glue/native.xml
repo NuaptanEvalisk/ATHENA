@@ -220,6 +220,7 @@
     <arg type="string" />
     <arg type="string" />
   </binding>
+  <binding name="vault-maintenance-start" native="qtm_vault_maintenance_start" returns="void" dispatch="ui" />
   <binding name="vault-maintenance-setup" native="athena_vault_maintenance_setup" returns="tree">
     <arg type="url" />
   </binding>

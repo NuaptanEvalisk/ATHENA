@@ -38,6 +38,9 @@
 
 (tm-define (vault-maintenance)
   (:interactive #t)
+  (vault-maintenance-start))
+
+(tm-define (vault-maintenance-interactive)
   (cond ((not (vault-active?))
          (set-message "No active vault to maintain" "Vault maintenance"))
         ((not (url-exists? (vault-maintenance-binary)))

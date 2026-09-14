@@ -9,6 +9,8 @@
 #include "QTMVaultMaintenanceDialog.hpp"
 
 #include "ATHENA/Data/vault_maintenance.hpp"
+#include "qt_utilities.hpp"
+#include "scheme.hpp"
 
 #include <QAbstractItemView>
 #include <QApplication>
@@ -21,6 +23,7 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QTableWidget>
+#include <QThread>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -128,8 +131,20 @@ private:
 
 } // namespace
 
+void
+qtm_vault_maintenance_start () {
+  if (qt_defer_to_main_thread (qtm_vault_maintenance_start)) return;
+  // UI effects are drained during repaint. Leave that update before opening
+  // a modal dialog or saving buffers, both of which can process GUI events.
+  qt_post_to_main_thread ([] {
+    (void) call ("vault-maintenance-interactive");
+  });
+}
+
 tree
 qtm_vault_maintenance_setup (string vault_root) {
+  ASSERT (qApp != nullptr && QThread::currentThread () == qApp->thread (),
+          "Vault maintenance setup requires the GUI thread");
   std::vector<VaultMaintenancePlanEntry> plan;
   std::string error;
   if (!vault_maintenance_plan (vault_root, plan, error)) {

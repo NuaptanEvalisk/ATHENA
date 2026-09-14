@@ -165,6 +165,7 @@ athena_namespace_create_file_with_optional_initializer (string arg1);
 int
 athena_vault_rewrite_anchor_references (string arg1, string arg2);
 
+void qtm_vault_maintenance_start ();
 tree
 athena_vault_maintenance_setup (url arg1);
 

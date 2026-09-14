@@ -12,6 +12,7 @@
 #include "string.hpp"
 #include "tree.hpp"
 
+void qtm_vault_maintenance_start ();
 tree qtm_vault_maintenance_setup (string vault_root);
 
 #endif // QTM_VAULT_MAINTENANCE_DIALOG_HPP

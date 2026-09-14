@@ -21,6 +21,7 @@ class TestCommandLineConversion: public QObject {
 private slots:
   void convertsBeforeContinuing();
   void websiteGenerationSkipsEditorModeLazyInitialization();
+  void vaultMaintenanceUsesHeadlessDocumentContext();
 };
 
 static QByteArray contents (const QString& path) {
@@ -129,6 +130,70 @@ void TestCommandLineConversion::websiteGenerationSkipsEditorModeLazyInitializati
   QVERIFY2 (log.contains ("website generation failed"), log.constData ());
   QVERIFY2 (!log.contains ("editor state is owned by its BufferActor"),
             log.constData ());
+}
+
+void TestCommandLineConversion::vaultMaintenanceUsesHeadlessDocumentContext() {
+  QTemporaryDir temp;
+  QVERIFY (temp.isValid ());
+  QVERIFY (QDir ().mkpath (temp.filePath ("home/fonts")));
+  QVERIFY (QDir ().mkpath (temp.filePath ("home/system")));
+  QVERIFY (QDir ().mkpath (temp.filePath ("vault")));
+  auto write= [&] (const QString& path, const QByteArray& bytes) {
+    QFile file (temp.filePath (path));
+    return file.open (QIODevice::WriteOnly) && file.write (bytes) == bytes.size ();
+  };
+  QVERIFY (write ("vault/Vaultfile.json", "{\"name\":\"Maintenance test\"}"));
+  QVERIFY (write ("vault/test.ath",
+    "<TeXmacs|2.1.4>\n\n<style|generic>\n\n<\\body>\n"
+    "<section|Maintenance test>\n\n<\\proof>\nTest proof.\n</proof>\n"
+    "<\\table-of-contents|toc>\n  \n</table-of-contents>\n</body>\n"));
+  const QDir binaries (QCoreApplication::applicationDirPath ());
+  QProcess process;
+  auto env= QProcessEnvironment::systemEnvironment ();
+  env.insert ("ATHENA_HOME_PATH", temp.filePath ("home"));
+  env.insert ("ATHENA_PATH", binaries.absoluteFilePath ("../../ATHENA"));
+  env.insert ("QT_QPA_PLATFORM", "offscreen");
+  env.insert ("PWD", temp.path ());
+  env.insert ("ATHENA_VAULT_MAINTENANCE_TAKE_PREFS", "off");
+  // Cover the real startup and anchor transforms without models or services.
+  env.insert ("ATHENA_VAULT_MAINTENANCE_SKIP_PASSES",
+    "full-backup,maintain-materials,normalize-assets,scan-missing-images,"
+    "normalize-person-names,build-artifacts,update-tocs,continuous-rag,"
+    "collect-orphans,purge-retained-data,generate-websites,dispatch-backups");
+  env.remove ("ATHENA_VAULT_MAINTENANCE_ENABLE_PASSES");
+  process.setProcessEnvironment (env);
+  process.setWorkingDirectory (temp.path ());
+  process.setProcessChannelMode (QProcess::MergedChannels);
+  const QString executable= binaries.absoluteFilePath ("../src/ATHENA.bin");
+  for (bool check_only: {true, false}) {
+    QStringList args {"--vault-maintenance", temp.filePath ("vault")};
+    if (check_only) args << "--check-only";
+    process.start (executable, args);
+    QVERIFY2 (process.waitForFinished (20000), qPrintable (process.errorString ()));
+    const QByteArray log= process.readAll ();
+    QVERIFY2 (process.exitStatus () == QProcess::NormalExit &&
+              process.exitCode () == 0, log.constData ());
+    QVERIFY2 (log.contains ("health check: all 1 .ath file(s) are legible"),
+              log.constData ());
+    if (!check_only)
+      QVERIFY2 (log.contains ("pass success: anchor-structures"), log.constData ());
+    QVERIFY2 (!log.contains ("editor state is owned by its BufferActor"), log.constData ());
+    QVERIFY2 (!log.contains ("Unbound variable"), log.constData ());
+  }
+  process.start (executable, {"--vault-maintenance-toc-worker",
+    temp.filePath ("vault/test.ath"), temp.filePath ("toc-result")});
+  QVERIFY2 (process.waitForFinished (20000), qPrintable (process.errorString ()));
+  const QByteArray log= process.readAll ();
+  QVERIFY2 (process.exitStatus () == QProcess::NormalExit &&
+            process.exitCode () == 0, log.constData ());
+  QVERIFY2 (contents (temp.filePath ("toc-result")) == "ok", log.constData ());
+  const QByteArray saved= contents (temp.filePath ("vault/test.ath"));
+  const auto start= saved.indexOf ("<\\table-of-contents|toc>");
+  const auto end= saved.indexOf ("</table-of-contents>", start);
+  QVERIFY2 (start >= 0 && end > start, saved.constData ());
+  const QByteArray toc= saved.mid (start, end - start).simplified ();
+  QVERIFY2 (toc.contains ("Maintenance test") && toc.contains ("<pageref|"),
+            toc.constData ());
 }
 
 QTEST_MAIN (TestCommandLineConversion)
