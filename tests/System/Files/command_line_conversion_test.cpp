@@ -143,6 +143,16 @@ void TestCommandLineConversion::vaultMaintenanceUsesHeadlessDocumentContext() {
     return file.open (QIODevice::WriteOnly) && file.write (bytes) == bytes.size ();
   };
   QVERIFY (write ("vault/Vaultfile.json", "{\"name\":\"Maintenance test\"}"));
+  QVERIFY (write ("vault/websites.json",
+    "{\"version\":1,\"websites\":[{"
+    "\"id\":\"maintenance-site\","
+    "\"name\":\"Maintenance site\","
+    "\"selector\":{\"kind\":\"path\",\"path\":\"test.ath\"},"
+    "\"destination\":\"generated-site\","
+    "\"generatePdfs\":true,"
+    "\"regenerate\":\"maintenance\","
+    "\"entrypoint\":{\"kind\":\"file\",\"path\":\"test.ath\"},"
+    "\"postCommand\":{\"enabled\":false}}]}"));
   QVERIFY (write ("vault/test.ath",
     "<TeXmacs|2.1.4>\n\n<style|generic>\n\n<\\body>\n"
     "<section|Maintenance test>\n\n<\\proof>\nTest proof.\n</proof>\n"
@@ -159,7 +169,7 @@ void TestCommandLineConversion::vaultMaintenanceUsesHeadlessDocumentContext() {
   env.insert ("ATHENA_VAULT_MAINTENANCE_SKIP_PASSES",
     "full-backup,maintain-materials,normalize-assets,scan-missing-images,"
     "normalize-person-names,build-artifacts,update-tocs,continuous-rag,"
-    "collect-orphans,purge-retained-data,generate-websites,dispatch-backups");
+    "collect-orphans,purge-retained-data,dispatch-backups");
   env.remove ("ATHENA_VAULT_MAINTENANCE_ENABLE_PASSES");
   process.setProcessEnvironment (env);
   process.setWorkingDirectory (temp.path ());
@@ -169,7 +179,7 @@ void TestCommandLineConversion::vaultMaintenanceUsesHeadlessDocumentContext() {
     QStringList args {"--vault-maintenance", temp.filePath ("vault")};
     if (check_only) args << "--check-only";
     process.start (executable, args);
-    QVERIFY2 (process.waitForFinished (20000), qPrintable (process.errorString ()));
+    QVERIFY2 (process.waitForFinished (45000), qPrintable (process.errorString ()));
     const QByteArray log= process.readAll ();
     QVERIFY2 (process.exitStatus () == QProcess::NormalExit &&
               process.exitCode () == 0, log.constData ());
@@ -177,6 +187,12 @@ void TestCommandLineConversion::vaultMaintenanceUsesHeadlessDocumentContext() {
               log.constData ());
     if (!check_only)
       QVERIFY2 (log.contains ("pass success: anchor-structures"), log.constData ());
+    if (!check_only) {
+      QVERIFY2 (log.contains ("pass success: generate-websites"), log.constData ());
+      const QByteArray pdf= contents (
+        temp.filePath ("vault/generated-site/pdf/test.pdf"));
+      QVERIFY2 (pdf.startsWith ("%PDF-"), log.constData ());
+    }
     QVERIFY2 (!log.contains ("editor state is owned by its BufferActor"), log.constData ());
     QVERIFY2 (!log.contains ("Unbound variable"), log.constData ());
   }

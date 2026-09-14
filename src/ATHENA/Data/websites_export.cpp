@@ -10,6 +10,8 @@
 
 #include "ATHENA/Data/websites_internal.hpp"
 #include "ATHENA/Data/transclusion_cache.hpp"
+#include "ATHENA/Data/new_window.hpp"
+#include "Qt/qt_utilities.hpp"
 
 #include <QTemporaryDir>
 
@@ -854,14 +856,30 @@ export_document_pdf (const fs::path& source, const fs::path& target,
     return false;
   }
   fs::remove (target, ec);
+  url source_buffer= url_system (std_to_tm (source.string ()));
+  bool transient_buffer= concrete_buffer (source_buffer) == nullptr;
   std::string command=
-    "(begin "
-    "(load-buffer (string->url " + scheme_quote (source.string ()) +
-    ") :strict) "
-    "(wrapped-print-to-file (string->url " +
-      scheme_quote (target.string ()) + ")) "
-    "(buffer-close (current-buffer)))";
+    "(load-buffer (system->url " + scheme_quote (source.string ()) +
+    ") :strict)";
   eval (std_to_tm (command));
+
+  bool dispatched= false;
+  try {
+    object printed= qt_call_in_buffer (
+      source_buffer, "wrapped-print-to-file",
+      object (url_system (std_to_tm (target.string ()))));
+    dispatched= !(is_bool (printed) && !as_bool (printed));
+  }
+  catch (...) {
+    dispatched= false;
+  }
+  if (transient_buffer && concrete_buffer (source_buffer) != nullptr)
+    kill_buffer (source_buffer);
+  if (!dispatched) {
+    error= "PDF export could not run in the source BufferActor for " +
+           source.string ();
+    return false;
+  }
 
   QFile file (qs (target.string ()));
   if (!file.open (QIODevice::ReadOnly) || file.size () < 5 ||
