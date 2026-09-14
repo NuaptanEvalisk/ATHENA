@@ -23,7 +23,6 @@
         ("User provided icons" (toggle-visible-icon-bar 3)))
   ("Status bar" (toggle-visible-footer))
   ---
-  ("Developer tool" (toggle-preference "developer tool"))
   ("Presentation tool" (toggle-preference "presentation tool"))
   ("Source macros tool" (toggle-preference "source tool"))
   ---

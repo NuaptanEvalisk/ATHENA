@@ -111,43 +111,6 @@
 	    ---
 	    ("Original welcome message"
 	     (load-help-article "about/welcome/first"))))
-  (if (detailed-menus?)
-      ---
-;;       (when (url-exists-in-help? "devel/format/format.en.tm")
-;; 	(-> "Document format"
-;; 	    ("Browse" (load-help-buffer "devel/format/format"))
-;; 	    ---
-;; 	    ("Documents are trees"
-;; 	     (load-help-article "devel/format/trees"))
-;; 	    ("The leaves of TeXmacs trees"
-;; 	     (load-help-article "devel/format/leaves"))
-;; 	    ("The primitive TeXmacs constructs"
-;; 	     (load-help-article "devel/format/primitives"))
-;; 	    ("System environment variables"
-;; 	     (load-help-article "devel/format/env-vars"))
-;; 	    ("Planned changes"
-;; 	     (load-help-article "devel/format/planned-changes"))))
-
-      (when (url-exists-in-help? "devel/scheme/scheme.en.tm")
-	(-> "Scheme extensions"
-	    ("Browse" (load-help-buffer "devel/scheme/scheme"))
-	    ---
-	    ("Overview of the scheme extension language"
-	     (load-help-article "devel/scheme/overview/scheme-overview"))
-	    ("ATHENA extensions to scheme and utilities"
-	     (load-help-article "devel/scheme/utils/scheme-utils"))
-	    ("Programming routines for editing documents"
-	     (load-help-article "devel/scheme/edit/scheme-edit"))
-	    ("Program interface for buffer management"
-	     (load-help-article "devel/scheme/buffer/scheme-buffer"))
-	    ("Scheme interface for the graphical mode"
-	     (load-help-article "devel/scheme/graphics/scheme-graphics"))
-
-            ("Customizing and extending the user interface"
-             (load-help-article "devel/scheme/gui/scheme-gui"))
-            ---
-            ("Browse modules documentation" (apidoc-all-modules))
-            ("Browse symbols documentation" (apidoc-all-symbols)))))
   ---
   (-> "Search"
       ("Documentation" (interactive docgrep-in-doc))
@@ -161,8 +124,6 @@
             ("User manual" (load-help-book "main/man-user-manual")))
           ;; (when (url-exists-in-help? "tutorial/tut-tutorial.en.tm")
           ;;   ("Tutorial" (load-help-book "tutorial/tut-tutorial")))
-          (when (url-exists-in-help? "devel/scheme/scheme.en.tm")
-            ("Scheme developers guide" (load-help-book "devel/scheme/scheme")))
           ---
           (when (style-has? "tmdoc-style")
             ("Compile article" (tmdoc-expand-this "article"))

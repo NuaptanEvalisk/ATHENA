@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate ATHENA's C++ bindings and Scheme metadata directly from XML.
+"""Generate ATHENA's C++ bindings and API documentation directly from XML.
 
 Copyright (C) 2026 ATHENA contributors
 SPDX-License-Identifier: GPL-3.0-or-later
@@ -7,7 +7,6 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 import argparse
 import dataclasses
-import json
 import os
 from pathlib import Path
 import re
@@ -134,15 +133,6 @@ def read_interfaces(paths):
     return interfaces
 
 
-def scheme_symbols(interfaces):
-    names = [binding.name for interface in interfaces for binding in interface.bindings]
-    return (";; Generated from src/Scheme/Glue/*.xml. Do not edit.\n"
-            ";; SPDX-License-Identifier: GPL-3.0-or-later\n"
-            "(texmacs-module (prog glue-symbols))\n\n"
-            "(tm-define (all-glued-symbols)\n  '(\n" +
-            "".join(f"    {json.dumps(name)}\n" for name in names) + "  ))\n")
-
-
 def cpp_bindings(interface):
     lines = [f"// Generated from {interface.source}. Do not edit.",
              "// SPDX-License-Identifier: GPL-3.0-or-later", ""]
@@ -216,7 +206,6 @@ def generate(paths, output_dir):
     # Validate and finish every group before publishing any build output.
     for interface in interfaces:
         outputs[f"glue_{interface.name}.cpp"] = cpp_bindings(interface)
-    outputs["glue-symbols.scm"] = scheme_symbols(interfaces)
     outputs["glue-auto-doc.en.tm"] = api_document(interfaces)
     for name, content in outputs.items():
         replace_if_changed(output_dir / name, content)

@@ -439,11 +439,6 @@ edit_modify_rep::need_save (bool real_save) {
   return !arch->conform_autosave ();
 }
 
-void
-edit_modify_rep::show_history () {
-  arch->show_all ();
-}
-
 /******************************************************************************
 * handling multiple cursor positions
 ******************************************************************************/

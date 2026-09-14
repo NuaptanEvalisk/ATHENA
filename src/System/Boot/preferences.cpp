@@ -114,8 +114,6 @@ ensure_builtin_user_preferences () {
     PREF ("security", "prompt on scripts", "notify-security"),
     PREF ("latex command", "pdflatex", "notify-latex-command"),
     PREF ("scripting language", "none", "notify-scripting-language"),
-    PREF ("debugging tool", "off", "notify-tool"),
-    PREF ("developer tool", "off", "notify-tool"),
     PREF ("presentation tool", "off", "notify-tool"),
     PREF ("inertial scrolling", "off", ""),
     PREF ("inertial scrolling friction", "0.95", ""),
@@ -144,7 +142,6 @@ ensure_builtin_user_preferences () {
     PREF ("debug channel packrat", "off", ""),
     PREF ("debug channel flatten", "off", ""),
     PREF ("debug channel parser", "off", ""),
-    PREF ("debug channel correct", "off", ""),
     PREF ("debug channel convert", "off", ""),
     PREF ("debug channel live", "off", ""),
     PREF ("debug anchor structure dry runs", "off", ""),
@@ -556,7 +553,6 @@ static const debug_preference debug_preferences[]= {
   {"debug channel packrat", "packrat"},
   {"debug channel flatten", "flatten"},
   {"debug channel parser", "parser"},
-  {"debug channel correct", "correct"},
   {"debug channel convert", "convert"},
   {"debug channel live", "live"}
 };

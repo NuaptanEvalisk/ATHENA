@@ -350,12 +350,6 @@ tm_errput (string s) {
   cerr << s;
 }
 
-void
-cpp_error () {
-  // FAILED ("an error occurred");
-  *((volatile int*)nullptr) = 0xDEADBEEF;
-}
-
 array<int>
 get_bounding_rectangle (tree t) {
   editor ed= get_current_editor ();

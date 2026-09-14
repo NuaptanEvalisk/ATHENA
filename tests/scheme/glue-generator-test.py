@@ -190,13 +190,13 @@ int main() {
         self.assertEqual(contents, {p.name: p.read_bytes() for p in out.iterdir()})
         self.assertEqual(mtimes, {p.name: p.stat().st_mtime_ns for p in out.iterdir()})
 
-    def test_xml_change_updates_both_languages(self):
+    def test_xml_change_updates_generated_outputs(self):
         path = self.interface('<binding name="before" native="native" returns="void"/>')
         out = self.root / "output"
         glue.generate([path], out)
         self.interface('<binding name="after" native="native" returns="void"/>')
         glue.generate([path], out)
-        for name in ["glue_fixture.cpp", "glue-symbols.scm", "glue-auto-doc.en.tm"]:
+        for name in ["glue_fixture.cpp", "glue-auto-doc.en.tm"]:
             content = (out / name).read_text()
             self.assertIn("after", content)
             self.assertNotIn("before", content)
@@ -238,8 +238,6 @@ int main() {
 
         rebuild()
         outputs = build / "generated/athena-glue"
-        resource = source / "ATHENA/progs/prog/glue-symbols.scm"
-        self.assertEqual(resource.read_bytes(), (outputs / "glue-symbols.scm").read_bytes())
         mtimes = {p.name: p.stat().st_mtime_ns for p in outputs.iterdir()}
         rebuild()
         self.assertEqual(mtimes, {p.name: p.stat().st_mtime_ns for p in outputs.iterdir()})
@@ -249,18 +247,13 @@ int main() {
         rebuild()
         self.assertTrue(basic.is_file())
 
-        resource.unlink()
-        rebuild()
-        self.assertEqual(resource.read_bytes(), (outputs / "glue-symbols.scm").read_bytes())
-
         xml = target_glue / "basic.xml"
         tree = glue.ET.parse(xml)
         tree.getroot()[0].set("name", "changed-by-cmake-test")
         tree.write(xml)
         rebuild()
         self.assertIn("changed-by-cmake-test", basic.read_text())
-        self.assertIn("changed-by-cmake-test", (outputs / "glue-symbols.scm").read_text())
-        self.assertIn("changed-by-cmake-test", resource.read_text())
+        self.assertIn("changed-by-cmake-test", (outputs / "glue-auto-doc.en.tm").read_text())
         rebuild()
         self.assertNotIn("Generating C++", rebuild().stdout)
 

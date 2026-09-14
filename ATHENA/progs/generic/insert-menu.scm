@@ -165,9 +165,7 @@
   ("Build warning" (make-experimental-build-warning))
   (if (detailed-menus?)
       (if (style-has? "std-fold-dtd")
-          (-> "Fold" (link insert-fold-menu))))
-  (if (and (style-has? "session-dtd") (detailed-menus?) (not (in-math?)))
-      (-> "Session" (link insert-session-menu))))
+          (-> "Fold" (link insert-fold-menu)))))
 
 (menu-bind insert-menu
   (if (in-text?) (link text-menu))
@@ -197,8 +195,4 @@
   (if (detailed-menus?)
       (if (style-has? "std-fold-dtd")
 	  (=> (balloon (icon "tm_switch") "Switching and folding")
-	      (link insert-fold-menu))))
-  (if (and (style-has? "session-dtd") (detailed-menus?) (in-text?))
-      (=> (balloon (icon "tm_shell")
-		   "Start an interactive session")
-	  (link insert-session-menu))))
+	      (link insert-fold-menu)))))

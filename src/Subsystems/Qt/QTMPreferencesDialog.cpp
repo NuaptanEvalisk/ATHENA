@@ -2499,7 +2499,6 @@ QTMPreferencesDialog::buildOtherPage () {
 
   QWidget* debugging= make_page ();
   QFormLayout* debugGeneral= add_section (debugging, "General");
-  add_toggle (debugGeneral, "Show the Debug menu:", "debugging tool");
   add_toggle (debugGeneral, "Include Guile backtraces in Scheme errors:",
               "debug scheme backtraces");
   add_toggle (debugGeneral, "Show live memory usage in the status bar:",
@@ -2535,7 +2534,6 @@ QTMPreferencesDialog::buildOtherPage () {
   addDebugChannel ("Packrat parsing:", "debug channel packrat");
   addDebugChannel ("Parser flattening:", "debug channel flatten");
   addDebugChannel ("Language parsers:", "debug channel parser");
-  addDebugChannel ("Document correction:", "debug channel correct");
   addDebugChannel ("Document and image conversion:",
                    "debug channel convert");
   addDebugChannel ("Live relations:", "debug channel live");

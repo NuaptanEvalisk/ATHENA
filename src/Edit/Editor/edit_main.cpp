@@ -510,18 +510,6 @@ edit_main_rep::graphics_file_to_clipboard (url name) {
 #endif
 }
 
-/******************************************************************************
-* Evaluation of expressions
-******************************************************************************/
-
-void
-edit_main_rep::footer_eval (string s) {
-  // s= unslash (s); // FIXME: dirty fix; should not be necessary
-  s= tm_decode (s);
-  string r= object_to_string (eval (s));
-  set_message (verbatim (r), "evaluate expression");
-}
-
 tree
 edit_main_rep::the_line () {
   path p= search_parent_upwards (DOCUMENT);
@@ -563,54 +551,6 @@ edit_main_rep::the_shifted_path () {
   return shift (et, tp, 1);
 }
 
-/******************************************************************************
-* Miscellaneous
-******************************************************************************/
-
-void
-stretched_print (box b) {
-  if (N(b) == 0) cout << b << " " << reverse (b->ip) << LF;
-  else {
-    tree t= (tree) b;
-    if (is_tuple (t) && N(t) > 0) t= t[0];
-    cout << t << " " << reverse (b->ip) << LF << INDENT;
-    for (int i=0; i<N(b); i++)
-      stretched_print (b[i]);
-    cout << UNINDENT;
-  }
-}
-
-void
-edit_main_rep::show_tree () {
-  stretched_print (et, true);
-  // cout << et << "\n";
-}
-
-void
-edit_main_rep::show_box () {
-  stretched_print (eb);
-}
-
-void
-edit_main_rep::show_env () {
-  cout << env << "\n";
-}
-
-void
-edit_main_rep::show_path () {
-  cout << tp << "\n";
-}
-
-void
-edit_main_rep::show_cursor () {
-  cout << "Principal cursor: "
-       << cu->ox << ", " << cu->oy << " [" << cu->delta << "], "
-       << cu->y1 << " : " << cu->y2 << ", " << cu->slope << "\n";
-  cout << "Ghost cursor    : "
-       << mv->ox << ", " << mv->oy << " [" << mv->delta << "], "
-       << mv->y1 << " : " << mv->y2 << ", " << mv->slope << "\n";
-}
-
 void
 edit_main_rep::show_selection () {
   selection sel; selection_get (sel);
@@ -619,24 +559,5 @@ edit_main_rep::show_selection () {
 }
 
 void
-edit_main_rep::show_meminfo () {
-  mem_info ();
-}
-
-void
 edit_main_rep::edit_special () {
-}
-
-#ifdef UNCOMMENTED
-void test_commute ();
-void test_invert ();
-#endif
-
-void
-edit_main_rep::edit_test () {
-  cout << "Test !\n";
-#ifdef UNCOMMENTED
-  test_commute();
-  test_invert();
-#endif
 }

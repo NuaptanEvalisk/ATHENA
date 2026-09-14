@@ -20,51 +20,13 @@
 
 (define boot-start (texmacs-time))
 
-(define developer-mode?
-  (equal? (cpp-get-preference "developer tool" "off") "on"))
-
-(if developer-mode?
-    (if (equal? (scheme-dialect) "guile-d")
-        (debug-enable 'backtrace)
-        (debug-enable 'backtrace 'debug)))
-
-(define (%new-read-hook sym) (noop)) ; for autocompletion
-
-(define-public macro-keywords '(define-macro define-public-macro 
-                                tm-define-macro))
-(define-public def-keywords
-  `(define-public provide-public
-    tm-define tm-menu menu-bind tm-widget ,@macro-keywords))
-
 (define tm-interactive-hook tm-interactive)
-
-(define old-read read)
-(define (new-read port)
-  "A redefined reader which stores line number and file name in symbols."
-  ;; FIXME: handle overloaded definitions
-  (let ((form (old-read port)))
-    (if (and (pair? form) (member (car form) def-keywords))
-        (let* ((l (source-property form 'line))
-               (c (source-property form 'column))
-               (f (source-property form 'filename))
-               (sym  (if (pair? (cadr form)) (caadr form) (cadr form))))
-          (if (symbol? sym) ; Just in case
-              (let ((old (or (symbol-property sym 'defs) '()))
-                    (new `(,f ,l ,c)))
-                (%new-read-hook sym)
-                (if (and (member (car form) macro-keywords)
-                         (not (member sym def-keywords)))
-                    (set! def-keywords (cons sym def-keywords)))
-                (if (not (member new old))
-                    (set-symbol-property! sym 'defs (cons new old)))))))
-    form))
-
-(define old-primitive-load primitive-load)
+(define base-primitive-load primitive-load)
 (define startup-load-profile? (equal? (getenv "ATHENA_STARTUP_PROFILE") "1"))
 
 (define (startup-profiled-primitive-load filename)
   (let* ((start (texmacs-time))
-         (result (old-primitive-load filename))
+         (result (base-primitive-load filename))
          (elapsed (- (texmacs-time) start)))
     (display "ATHENA-STARTUP-LOAD\t")
     (display elapsed)
@@ -75,39 +37,6 @@
 
 (if startup-load-profile?
     (set! primitive-load startup-profiled-primitive-load))
-
-(define (new-primitive-load filename)
-  (if (member (scheme-dialect) (list "guile-a" "guile-b"))
-      (old-primitive-load filename)
-      ;; We explicitly circumvent guile's decision to set the current-reader
-      ;; to #f inside ice-9/boot-9.scm, try-module-autoload
-      (with-fluids ((current-reader read))
-                   (old-primitive-load filename))))
-
-(if developer-mode?
-    (begin
-      (module-export! (current-module)
-                      '(%new-read-hook old-read new-read def-keywords))
-      (set! read new-read)
-      (module-export! (current-module)
-                      '(old-primitive-load new-primitive-load))
-      (set! primitive-load new-primitive-load)))
-
-;; TODO: scheme file caching using (set! primitive-load ...) and
-;; (set! %search-load-path)
-
-;;(debug-enable 'backtrace 'debug)
-;; (define load-indent 0)
-;; (define old-primitive-load primitive-load)
-;; (define (new-primitive-load . x)
-;;   (for-each display (make-list load-indent "  "))
-;;   (display "Load ") (apply display x) (display "\n")
-;;   (set! load-indent (+ load-indent 1))
-;;   (apply old-primitive-load x)
-;;   (set! load-indent (- load-indent 1))
-;;   (for-each display (make-list load-indent "  "))
-;;   (display "Done\n"))
-;; (set! primitive-load new-primitive-load)
 
 ;(display "Booting TeXmacs kernel functionality\n")
 (primitive-load (url-concretize "$ATHENA_PATH/progs/kernel/boot/boot.scm"))
@@ -269,7 +198,6 @@
 ;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting programming modes\n")
-(lazy-format (prog prog-format) scheme)
 (lazy-format (prog code-format) cpp julia scala java json csv)
 (lazy-format (prog python-format) python)
 (lazy-keyboard (prog prog-kbd) in-prog?)
@@ -355,16 +283,12 @@
 (lazy-menu (dynamic fold-menu) insert-fold-menu dynamic-menu dynamic-icons
            graphics-overlays-menu graphics-screens-menu
            graphics-focus-overlays-menu graphics-focus-overlays-icons)
-(lazy-menu (dynamic session-menu) insert-session-menu)
 (lazy-menu (dynamic scripts-menu) scripts-eval-menu scripts-eval-toggle-menu)
 (lazy-menu (dynamic calc-menu) calc-table-menu calc-insert-menu
            calc-icourse-menu)
 (lazy-define (dynamic fold-edit)
              screens-switch-to dynamic-make-slides overlays-context?)
-(lazy-define (dynamic session-edit) scheme-eval)
 (lazy-define (dynamic calc-edit) calc-ready? calc-table-renumber)
-
-(lazy-initialize (dynamic session-menu) (in-session?))
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 ;(display* "memory: " (texmacs-memory) " bytes\n")
 
@@ -420,9 +344,7 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 ;(display* "memory: " (texmacs-memory) " bytes\n")
 
-;(display "Booting debugging and developer facilities\n")
-(lazy-menu (debug debug-menu) debug-menu)
-(lazy-menu (athena menus developer-menu) developer-menu)
+;(display "Booting debugging facilities\n")
 (lazy-define (debug debug-notifications) notify-debug-message
              acknowledge-debug-messages)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")

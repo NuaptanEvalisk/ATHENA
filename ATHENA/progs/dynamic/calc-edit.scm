@@ -16,7 +16,7 @@
         (text text-structure)
         (link locus-edit)
         (utils library cursor)
-        (dynamic session-edit)
+        (dynamic scheme-runtime)
         (dynamic scripts-edit)
         (dynamic calc-drd)))
 

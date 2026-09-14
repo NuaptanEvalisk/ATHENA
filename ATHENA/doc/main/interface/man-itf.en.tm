@@ -3,18 +3,13 @@
 <style|<tuple|tmdoc|english>>
 
 <\body>
-  <tmdoc-title|Scheme sessions and computation>
+  <tmdoc-title|In-document computation>
 
-  ATHENA provides in-process Scheme sessions, executable fields, and
-  spreadsheet calculations. External TeXmacs plug-ins are not supported.
+  ATHENA provides in-document executable fields and spreadsheet calculations
+  using its internal Scheme runtime. Interactive Scheme sessions and external
+  TeXmacs plug-ins are not supported.
 
   <\traverse>
-    <branch|Creating sessions|man-session-basic.en.tm>
-
-    <branch|Editing sessions|man-session-edit.en.tm>
-
-    <branch|Selecting the input method|man-session-input.en.tm>
-
     <branch|Scripting languages|man-scripting-language.en.tm>
 
     <branch|Spreadsheets|man-spreadsheet.en.tm>

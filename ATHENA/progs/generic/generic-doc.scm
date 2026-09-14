@@ -394,7 +394,6 @@
 
 (lazy-initialize (table table-doc) (table-markup-context? (focus-tree)))
 (lazy-initialize (generic document-doc) (tree-is-buffer? (focus-tree)))
-(lazy-initialize (dynamic session-doc) (in-session?))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Public interface

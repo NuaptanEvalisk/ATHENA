@@ -361,7 +361,6 @@
   ("emacs:meta v" (kbd-page-up))
   ("emacs:meta w" (kbd-copy))
   ("emacs:meta x" (interactive exec-interactive-command))
-  ("emacs:meta X" (interactive footer-eval))
   ("emacs:meta <" (go-start))
   ("emacs:meta >" (go-end))
 
@@ -395,7 +394,6 @@
   ;;("emacs:meta ." (find-tag))
   ;;("emacs:meta /" (dabbrev-expand))                ;; conflict altcmd /
   ;;("emacs:meta \\" (delete-horizontal-space))      ;; conflict altcmd \
-  ;;("emacs:meta :" (interactive footer-eval))       ;; conflict altcmd :
   ;;("emacs:meta ;" (comment-dwim))                  ;; conflict altcmd ;
   ;;("emacs:meta =" (count-lines-region))
   ;;("emacs:meta {" (backward-paragraph))
@@ -593,7 +591,6 @@
 
   ("altcmd g" (kbd-cancel))
   ("altcmd q" (make 'symbol))
-  ("altcmd x" (interactive footer-eval))
   ("altcmd X" (interactive exec-interactive-command))
 
   ("M-A-C-home" (traverse-first))
@@ -655,7 +652,6 @@
 
   ("altcmd g" (kbd-cancel))
   ("altcmd q" (make 'symbol))
-  ("altcmd x" (interactive footer-eval))
   ("altcmd X" (interactive exec-interactive-command))
 
   ("M-A-C-home" (traverse-first))
@@ -730,7 +726,6 @@
   ("macos F" (toggle-full-screen-mode))
   ("macos C-f" (toggle-full-screen-edit-mode))
 
-  ("altcmd x" (interactive footer-eval))
   ("altcmd X" (interactive exec-interactive-command))
 
   ("A-space var" (make 'nbsp))
@@ -874,7 +869,6 @@
 
   ("altcmd g" (kbd-cancel))
   ("altcmd q" (make 'symbol))
-  ("altcmd x" (interactive footer-eval))
   ("altcmd X" (interactive exec-interactive-command))
 
   ("M-A-C-home" (traverse-first))

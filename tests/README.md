@@ -4,7 +4,6 @@
 ```
 TeXmacs -x "(run-all-tests)" -q
 ```
-or launch a Scheme session and then run `(run-all-tests)`.
 
 ## Guide to Run Unit Tests for cpp
 

@@ -8,9 +8,9 @@ second source of truth. Native implementations remain ordinary C++ functions.
 
 `generate-glue.py` parses XML with Python's standard ElementTree parser and
 directly emits C++ type checks, argument conversion, native calls, result
-conversion and registration. The same XML produces the Scheme
-`all-glued-symbols` inventory and an API reference document. There is no
-intermediate Scheme generator; the old `build-glue.scm` has been removed.
+conversion and registration. The same XML produces an API reference document.
+There is no intermediate Scheme generator; the old `build-glue.scm` has been
+removed.
 
 CMake's `athena_glue` target runs this preprocessor before `athena_body` can
 compile. Outputs live in `build*/generated/athena-glue/`. XML and the generator
@@ -19,12 +19,7 @@ the interface. Generation errors stop the build, rather than falling back to
 stale checked-in wrappers.
 
 The preprocessor requires only Python 3. It does not launch Guile or ATHENA and
-does not need an editor, display, user profile, or vault. CMake deploys the
-generated symbol inventory into the local runtime at
-`ATHENA/progs/prog/glue-symbols.scm` before compiling Scheme bytecode. This
-ignored resource copy is an output, never an authoritative source file.
-Configuration seeds it before CMake enumerates Scheme modules; the build rule
-then regenerates on input changes and restores missing outputs.
+does not need an editor, display, user profile, or vault.
 
 ## Interface Format
 

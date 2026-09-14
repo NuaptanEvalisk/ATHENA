@@ -103,12 +103,16 @@
 
 (define module-exported-cache (make-ahash-table))
 
+(define apidoc-def-keywords
+  '(define-public provide-public tm-define tm-menu menu-bind
+    define-macro define-public-macro tm-define-macro))
+
 ; HACK: we use read (copying what's done in init-athena.scm) until the
 ; code indexer is implemented
 (define (parse-form form f)
   "Set symbol properties and return the symbol."
   (and (pair? form) 
-       (member (car form) def-keywords) ;def-keywords defined in init-athena.scm
+       (member (car form) apidoc-def-keywords)
        (let* ((l (source-property form 'line))
               (c (source-property form 'column))
               (sym  (if (pair? (cadr form)) (caadr form) (cadr form))))

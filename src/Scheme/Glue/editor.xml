@@ -545,7 +545,6 @@
   <binding name="redo" native="redo" returns="void">
     <arg type="int" />
   </binding>
-  <binding name="show-history" native="show_history" returns="void" />
   <binding name="archive-state" native="archive_state" returns="void" />
   <binding name="start-editing" native="start_editing" returns="void" />
   <binding name="end-editing" native="end_editing" returns="void" />
@@ -670,9 +669,6 @@
     <arg type="string" />
     <arg type="string" />
   </binding>
-  <binding name="footer-eval" native="footer_eval" returns="void">
-    <arg type="string" />
-  </binding>
   <binding name="texmacs-exec" native="texmacs_exec" returns="tree">
     <arg type="content" />
   </binding>
@@ -696,15 +692,8 @@
   <binding name="menu-before-action" native="before_menu_action" returns="void" />
   <binding name="menu-after-action" native="after_menu_action" returns="void" />
   <binding name="update-menus" native="update_menus" returns="void" />
-  <binding name="show-tree" native="show_tree" returns="void" />
-  <binding name="show-box" native="show_box" returns="void" />
-  <binding name="show-env" native="show_env" returns="void" />
-  <binding name="show-path" native="show_path" returns="void" />
-  <binding name="show-cursor" native="show_cursor" returns="void" />
   <binding name="show-selection" native="show_selection" returns="void" />
-  <binding name="show-meminfo" native="show_meminfo" returns="void" />
   <binding name="edit-special" native="edit_special" returns="void" />
-  <binding name="edit-test" native="edit_test" returns="void" />
   <binding name="heading-fold-toggle" native="heading_fold_toggle" returns="bool" />
   <binding name="heading-fold-current" native="heading_fold_current" returns="bool" />
   <binding name="heading-unfold-current" native="heading_unfold_current" returns="bool" />

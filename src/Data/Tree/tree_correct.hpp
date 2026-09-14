@@ -26,9 +26,6 @@ tree downgrade_big (tree t);
 tree move_brackets (tree t);
 
 int  count_math_errors (tree t, int mode= 0);
-void math_status_cumul (tree t);
-void math_status_print ();
-void math_status_reset ();
 
 tree latex_correct (tree t);
 tree automatic_correct (tree t, string version);

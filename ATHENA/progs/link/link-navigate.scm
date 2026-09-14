@@ -508,7 +508,6 @@
       (cond ((== qry "") (noop))
             ((== fm "texmacs-file") (texmacs-file-post qry))
             ((== fm "generic-file") (generic-file-post qry))
-            ((== fm "scheme-file") (source-file-post qry))
             ((== fm "cpp-file") (source-file-post qry))
             ((== fm "java-file") (source-file-post qry))
             ((== fm "scala-file") (source-file-post qry))

@@ -27,8 +27,6 @@
 ("abscissa User preferences" "1264")
 ("abscissa Vault Bugcheck" "355")
 ("buffer management" "ads")
-("debugging tool" "off")
-("developer tool" "off")
 ("enunciation color preset" "Nord Light")
 ("equation-editor" "on")
 ("gui cursor color" "#0000ff")

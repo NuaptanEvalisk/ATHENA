@@ -22,7 +22,6 @@ void ads_show_tool_pane (object wid, string id, string title, object close, bool
 void win32_display (string s);
 void tm_output (string s);
 void tm_errput (string s);
-void cpp_error ();
 array<int> get_bounding_rectangle (tree t);
 bool supports_native_pdf ();
 bool supports_ghostscript ();

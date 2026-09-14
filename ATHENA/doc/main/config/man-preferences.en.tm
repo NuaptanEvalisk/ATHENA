@@ -994,11 +994,6 @@
   <subsubsection|General>
 
   <\description>
-    <item*|Show the Debug menu>Shows the command-oriented Debug menu. The
-    menu contains consoles, editor-state inspection commands, timing and
-    memory reports, garbage collection, and other immediate debugging
-    operations. Diagnostic logging is configured separately below.
-
     <item*|Include Guile backtraces in Scheme errors>Includes a Guile stack
     backtrace when Scheme code reports an error.
 
@@ -1007,7 +1002,7 @@
     restores the normal status bar.
   </description>
 
-  <subsubsection|Debug Console>
+  <subsubsection|Error Messages>
 
   <\description>
     <item*|Open the error console automatically on errors>Opens the error
@@ -1016,11 +1011,6 @@
     <item*|Open the error console automatically on warnings>Opens the error
     messages pane when ATHENA records a warning.
 
-    <item*|Message details>Selects normal messages or detailed messages with
-    their associated diagnostic context.
-
-    <item*|Messages retained>Limits how many recent messages the debugging
-    consoles display. <em|All> uses a large practical upper bound.
   </description>
 
   <subsubsection|Diagnostic Logging>

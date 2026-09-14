@@ -62,11 +62,6 @@ archiver_rep::clear () {
 }
 
 void
-archiver_rep::show_all () {
-  cout << HRULE << archive << LF << HRULE << LF;
-}
-
-void
 archive_announce (archiver_rep* arch, modification mod) {
   //cout << "Archive " << mod << "\n";
   ////stretched_print (current_document_tree (), true);

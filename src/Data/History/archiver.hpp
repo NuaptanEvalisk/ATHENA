@@ -42,7 +42,6 @@ public:
   archiver_rep (double author, path rp);
   ~archiver_rep ();
   void clear ();
-  void show_all ();
 
   void add (modification m);
   void start_slave (double a);

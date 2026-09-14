@@ -91,12 +91,6 @@
 ;; Properties of some built-in routines
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-property (system cmd)
-  (:argument cmd "System command"))
-
-(tm-property (footer-eval cmd)
-  (:argument cmd "Scheme command"))
-
 (define (symbol<=? s1 s2)
   (string<=? (symbol->string s1) (symbol->string s2)))
 

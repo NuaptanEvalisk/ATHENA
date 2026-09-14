@@ -417,7 +417,6 @@ public:
   virtual void require_save () = 0;
   virtual void notify_save (bool real_save= true) = 0;
   virtual bool need_save (bool real_save= true) = 0;
-  virtual void show_history () = 0;
   virtual observer position_new (path p) = 0;
   virtual void position_delete (observer o) = 0;
   virtual void position_set (observer o, path p) = 0;
@@ -644,7 +643,6 @@ public:
 			  string first="1", string last="1000000") = 0;
   virtual array<SI> print_snippet (url u, tree t, bool conserve_preamble) = 0;
   virtual bool graphics_file_to_clipboard (url output) = 0;
-  virtual void footer_eval (string s) = 0;
   virtual tree the_line () = 0;
   virtual tree the_root () = 0;
   virtual tree the_buffer () = 0;
@@ -653,15 +651,8 @@ public:
   virtual path the_path () = 0;
   virtual path the_shifted_path () = 0;
   virtual path the_buffer_path () = 0;
-  virtual void show_tree () = 0;
-  virtual void show_box () = 0;
-  virtual void show_env () = 0;
-  virtual void show_path () = 0;
-  virtual void show_cursor () = 0;
   virtual void show_selection () = 0;
-  virtual void show_meminfo () = 0;
   virtual void edit_special () = 0;
-  virtual void edit_test () = 0;
 
   friend class tm_window_rep;
   friend class tm_server_rep;

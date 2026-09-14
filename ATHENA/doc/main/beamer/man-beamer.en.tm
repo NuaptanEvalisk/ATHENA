@@ -17,9 +17,7 @@
   controller to certain keys on your keyboard, and you will need to toggle
   <menu|View|Remote control> in order to remap these keys to the right
   actions during presentations. If necessary, the appropriate mappings may be
-  specified in <menu|Edit|Preferences|Keyboard|Remote control>. By activating
-  the debugging tool <menu|Tools|Debugging tool> and <menu|Debug|keyboard>,
-  you may find out the particular mappings used by your remote control.
+  specified in <menu|Edit|Preferences|Keyboard|Remote control>.
 
   <\traverse>
     <branch|Beamer styles|man-beamer-style.en.tm>

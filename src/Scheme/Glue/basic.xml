@@ -49,7 +49,6 @@
   <binding name="win32-display" native="win32_display" returns="void">
     <arg type="string" />
   </binding>
-  <binding name="cpp-error" native="cpp_error" returns="void" />
   <binding name="supports-native-pdf?" native="supports_native_pdf" returns="bool" />
   <binding name="supports-ghostscript?" native="supports_ghostscript" returns="bool" />
   <binding name="rescue-mode?" native="in_rescue_mode" returns="bool" />
@@ -91,7 +90,6 @@
   <binding name="bench-print" native="bench_print" returns="void">
     <arg type="string" />
   </binding>
-  <binding name="bench-print-all" native="bench_print" returns="void" />
   <binding name="system-wait" native="system_wait" returns="void">
     <arg type="string" />
     <arg type="string" />
@@ -758,8 +756,6 @@
   <binding name="tree-downgrade-big" native="downgrade_big" returns="tree">
     <arg type="content" />
   </binding>
-  <binding name="math-status-print" native="math_status_print" returns="void" />
-  <binding name="math-status-reset" native="math_status_reset" returns="void" />
   <binding name="math-stats-compile" native="compile_stats" returns="void">
     <arg type="string" />
     <arg type="content" />

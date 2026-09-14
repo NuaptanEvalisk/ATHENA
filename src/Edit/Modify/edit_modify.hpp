@@ -59,7 +59,6 @@ public:
   void require_save ();
   void notify_save (bool real_save= true);
   bool need_save (bool real_save= true);
-  void show_history ();
 
   observer position_new (path p);
   void position_delete (observer o);

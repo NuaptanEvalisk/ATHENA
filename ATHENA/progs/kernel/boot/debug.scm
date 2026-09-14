@@ -2,7 +2,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;; MODULE      : debug.scm
-;; DESCRIPTION : debugging tools
+;; DESCRIPTION : debugging infrastructure
 ;; COPYRIGHT   : (C) 2002  Joris van der Hoeven, David Allouche
 ;;
 ;; This software falls under the GNU general public license version 3 or later.
