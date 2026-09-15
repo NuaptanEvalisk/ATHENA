@@ -330,16 +330,11 @@
          (l4 (if tm? l3 (list-filter l3 (lambda (s) (!= s "texmacs"))))))
     (list-sort l4 format<=?)))
 
-(define (source-code? s)
-  (with name (locase-all (format-get-name s))
-    (or (string-ends? name " source code")
-        (in? name (list "csv" "json")))))
-
 (define-public (converters-from-special fm suf tm?)
-  (list-filter (converters-from-special* fm suf tm?) (non source-code?)))
+  (converters-from-special* fm suf tm?))
 
 (define-public (converters-to-special fm suf tm?)
-  (list-filter (converters-to-special* fm suf tm?) (non source-code?)))
+  (converters-to-special* fm suf tm?))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Other useful subroutines

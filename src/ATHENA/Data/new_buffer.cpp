@@ -865,25 +865,6 @@ attach_buffer_notifier (url name) {
 ******************************************************************************/
 
 tree
-attach_subformat (tree t, url u, string fm) {
-  if ((fm == "texmacs") || (fm == "tmml") || (fm == "stm")) return t;
-  if (!format_exists (fm)) return t;
-
-  string s= suffix (u);
-  string inferred_fm= suffix_to_format (s);
-  if (!is_empty (inferred_fm) && inferred_fm != "generic") fm= inferred_fm;
-  if (fm == "verbatim") return t;
-  if (!prog_lang_exists (fm) &&
-      fm != "scheme") return t;
-
-  hashmap<string,tree> h (UNINIT, extract (t, "initial"));
-  h (MODE)= "prog";
-  h (PROG_LANGUAGE)= fm;
-  tree t2= change_doc_attr (t, "initial", make_collection (h));
-  return change_doc_attr (t2, "style", tree ("code"));
-}
-
-tree
 import_loaded_tree (string s, url u, string fm) {
   set_file_focus (u);
   if (s == "" && suffix (u) == "ath") {
@@ -912,7 +893,7 @@ import_loaded_tree (string s, url u, string fm) {
   tree links= extract (t, "links");
   if (N (links) != 0)
     (void) call ("register-link-locations", object (u), object (links));
-  return attach_subformat (t, u, fm);
+  return t;
 }
 
 tree

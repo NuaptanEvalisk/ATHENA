@@ -2,7 +2,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;; MODULE      : python-format.scm
-;; DESCRIPTION : Python file format
+;; DESCRIPTION : Python code snippet format
 ;; COPYRIGHT   : (C) 2022  Darcy Shen, Joris van der Hoeven
 ;;
 ;; This software falls under the GNU general public license version 3 or later.
@@ -15,27 +15,17 @@
   (:use (convert rewrite init-rewrite)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Python source files
+;; Python code snippets
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define-format python
-  (:name "Python source code")
-  (:suffix "py"))
+  (:name "Python source code"))
 
 (define (texmacs->python x . opts)
   (texmacs->verbatim x (acons "texmacs->verbatim:encoding" "SourceCode" '())))
 
-(define (python->texmacs x . opts)
-  (code->texmacs x))
-
 (define (python-snippet->texmacs x . opts)
   (code-snippet->texmacs x))
-
-(converter texmacs-tree python-document
-  (:function texmacs->python))
-
-(converter python-document texmacs-tree
-  (:function python->texmacs))
 
 (converter texmacs-tree python-snippet
   (:function texmacs->python))
