@@ -1058,7 +1058,8 @@ smart_font_rep::advance (string s, int& pos, string& r, int& nr) {
   if (sm->fn_rewr[nr] != REWRITE_NONE)
     r= rewrite (r, sm->fn_rewr[nr]);
   if (std::getenv ("ATHENA_FONT_RESOLUTION_DEBUG") != nullptr &&
-      starts (s (start, pos), "<big-"))
+      (starts (s (start, pos), "<big-") ||
+       starts (s (start, pos), "<bbb-")))
     cout << "FONT-RESOLUTION source=" << s (start, pos)
          << " family=" << family
          << " series=" << series
@@ -1332,6 +1333,13 @@ smart_font_rep::resolve (string c) {
     if (series == "bold" && starts (c, "<big-") &&
         !fn[SUBFONT_MAIN]->supports (c)) {
       tree key= tuple ("synthetic-bold-rubber");
+      int nr= sm->add_font (key, REWRITE_NONE);
+      initialize_font (nr);
+      if (fn[nr]->supports (c))
+        return sm->add_char (key, c);
+    }
+    if (series == "bold" && !fn[SUBFONT_MAIN]->supports (c)) {
+      tree key= tuple ("poor-bold");
       int nr= sm->add_font (key, REWRITE_NONE);
       initialize_font (nr);
       if (fn[nr]->supports (c))
