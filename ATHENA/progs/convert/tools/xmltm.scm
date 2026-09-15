@@ -357,11 +357,10 @@
   ;;   kind: either :block or :inline, how is the element rendered
   ;; method: <procedure> to convert the element content to a node-list.
   ;;             @method will be passed the contents of html element.
-  ;;         <string> name of a unary macro to contain the converted contents
   ;;         (<symbol> ...) use contents converted to a serial as the last
   ;;             element of this structure.
   ;;          <node list> convert to this literal, ignoring element contents.
-  ;; args->serial: used iff @method matches <string> or (<symbol> ...).
+  ;; args->serial: used iff @method matches (<symbol> ...).
   ;;             Function to convert a list of sxml nodes to a stm serial.
   ;;
   ;; The handler takes care of whitespace cleaning and (except when an
@@ -379,7 +378,7 @@
   ;; containing a single document node.
   ;; *Invariants*
   ;; If @kind is :block, the handler will always return a single 'document'.
-  ;; If @kind is :inline and @method is <string> or (with ...), the handler
+  ;; If @kind is :inline and @method is (with ...), the handler
   ;; will return a 'document' iff the serial built from the converted contents
   ;; of the html element is a 'document'.
   ;;
@@ -415,15 +414,9 @@
 
     (cond ((procedure? method)
 	   (make-handler (proc :procedure) method))
-	  ((or (string? method) (symbol? (first method)))
-	   (make-handler (proc :environment)
-			 (if (string? method) ; this is ugly, should be removed
-			     (if (stm-primitive? (string->symbol method))
-				 `(expand ,method)
-				 `(,(string->symbol method)))
-			     method)
-			 args->serial))
-	   (else (cut (proc :literal) <> <> <> (stm-serial method))))))
+	  ((symbol? (first method))
+	   (make-handler (proc :environment) method args->serial))
+	  (else (cut (proc :literal) <> <> <> (stm-serial method))))))
 
 (define (htmltm-handler/procedure/inline env a c proc)
   (proc env a c))

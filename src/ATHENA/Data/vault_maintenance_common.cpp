@@ -164,7 +164,6 @@ collect_vault_infrastructure_paths (const fs::path& root,
   auto add= [&] (const std::string& value) {
     if (!value.empty ()) paths.insert (path_key (root / value));
   };
-  add ("Vaultfile");
   add ("Vaultfile.json");
   add ("map.sqlite");
   add ("maps.sqlite");

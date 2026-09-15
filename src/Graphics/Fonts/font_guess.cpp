@@ -43,12 +43,19 @@ guessed_features (string family, string style) {
   string lasprat= find_attribute_value (a, "lasprat");
   string pasprat= find_attribute_value (a, "pasprat");
   string lvw    = find_attribute_value (a, "lvw");
+  string weight = find_attribute_value (a, "weight");
+  string width  = find_attribute_value (a, "width");
   
   bool oblique  = (slant != "" && slant != "0");
   bool italic   = oblique && contains (string ("italic=yes"), a);
-  bool smallcaps= contains (string ("case=smallcaps"), a);
+  array<string> family_f= family_features (family);
+  array<string> style_f = style_features (style);
+  bool smallcaps= contains (string ("case=smallcaps"), a) ||
+                  contains (string ("smallcaps"), family_f) ||
+                  contains (string ("smallcaps"), style_f);
   bool mono     = contains (string ("mono=yes"), a);
-  bool sans     = contains (string ("sans=yes"), a);
+  bool sans     = contains (string ("sans=yes"), a) ||
+                  contains (string ("sansserif"), family_f);
   bool irregular= contains (string ("regular=no"), a);
 
   if (vcnt != "" && fillp != "") {
@@ -76,6 +83,13 @@ guessed_features (string family, string style) {
     else if (vf < 10) r << string ("thin");
     else if (vf < 20 && fp < 30) r << string ("light");
   }
+  else if (weight != "") {
+    int w= as_int (weight);
+    if (w >= 210) r << string ("black");
+    else if (w >= 180) r << string ("bold");
+    else if (w <= 40) r << string ("thin");
+    else if (w <= 55) r << string ("light");
+  }
 
   if (lasprat != "" && pasprat != "" && lvw != "") {
     int lrat= as_int (lasprat);
@@ -92,6 +106,11 @@ guessed_features (string family, string style) {
 
     if (rat < 75) r << string ("condensed");
     else if (rat > 120) r << string ("wide");
+  }
+  else if (width != "") {
+    int w= as_int (width);
+    if (w <= 87) r << string ("condensed");
+    else if (w >= 113) r << string ("wide");
   }
 
   if (italic) r << string ("italic");

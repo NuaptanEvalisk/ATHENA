@@ -585,26 +585,7 @@
                   (if record-history?
                       (cursor-history-add (cursor-path))))))))
 
-(define (execute-at cmd opt-location)
-  (if (null? opt-location) (exec-delayed cmd)
-      (exec-delayed-at cmd (car opt-location))))
-
-(tm-define (old-execute-script s secure-origin? opt-location)
-  ;; NOTE: this code is deprecated; we should remove the old support
-  ;; when we will be sure that nobody uses it anymore.
-  (let* ((secure-s (string-append "(secure? '" s ")"))
-         (ok? (or secure-origin? (eval (string->object secure-s))))
-         (cmd-s (string-append "(lambda () " s ")"))
-         (cmd (eval (string->object cmd-s))))
-    (cond ((or ok? (== (get-preference "security") "accept all scripts"))
-           (execute-at cmd opt-location))
-          ((== (get-preference "security") "prompt on scripts")
-           (user-confirm `(concat "Execute " ,s "?") #f
-             (lambda (answ)
-               (when answ (execute-at cmd opt-location)))))
-          (else (set-message "Unsecure script refused" "Evaluate script")))))
-
-(tm-define (new-execute-script s secure-origin? args)
+(define (execute-script-command s secure-origin? args)
   (let* ((sym-fun (eval (string->object (string-append "'" s))))
 	 (sym-cmd (cons sym-fun (map (lambda (x) (list 'quote x)) args)))
          (ok? (or secure-origin? (secure? sym-cmd)))
@@ -620,8 +601,8 @@
 (tm-define (execute-script s secure-origin? . opt-location)
   (if (and (string-starts? s "(") (string-ends? s ")")
 	   (not (string-starts? s "(lambda ")))
-      (old-execute-script s secure-origin? opt-location)
-      (new-execute-script s secure-origin? opt-location)))
+      (set-message "Legacy script links are no longer supported" "Evaluate script")
+      (execute-script-command s secure-origin? opt-location)))
 
 (define (go-to-vertex v attrs)
   (cond ((func? v 'id 1)

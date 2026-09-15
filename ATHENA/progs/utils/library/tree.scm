@@ -333,11 +333,6 @@
   `(with-focus-after (focus-tree)
      ,@body))
 
-(tm-define (tree-correct-old t . l)
-  (:synopsis "Deprecated old tree correction routine")
-  (with p (apply tree->path (cons t l))
-    (if p (path-correct-old p))))
-
 (tm-define (tree-correct-node t . l)
   (:synopsis "Make the node @(tree-ref t . l) correct")
   (cpp-tree-correct-node (apply tree-ref (cons t l))))

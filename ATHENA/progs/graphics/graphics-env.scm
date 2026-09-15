@@ -355,19 +355,6 @@
 	(else
 	   #t))))
 
-;; Graphics context
-;;NOTE: This subsection is not yet OK. We still need to :
-;;  (1) remove (tmdefine) ;
-;;  (2) review & simplify (graphics-reset-context) ;
-(define-public-macro (with-graphics-state x y path obj no edge . body)
- `(with-state-by-name graphics-state
-    (let* ((,path current-path)
-	   (,obj current-obj)
-	   (,no current-point-no)
-	   (,edge current-edge-sel?)
-       )
-       . ,body))) ;; Deprecated
-
 ;; Graphics context [reset]
 (define current-cursor #f)
 

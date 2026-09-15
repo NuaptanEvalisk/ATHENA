@@ -1,8 +1,7 @@
 
 /******************************************************************************
 * MODULE     : fromtm.cpp
-* DESCRIPTION: conversion from the TeXmacs file format to TeXmacs trees
-*              older versions are automatically converted into the present one
+* DESCRIPTION: conversion from the current TeXmacs file format to trees
 * COPYRIGHT  : (C) 1999  Joris van der Hoeven
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
@@ -20,11 +19,10 @@
 ******************************************************************************/
 
 struct tm_reader {
-  string  version;            // document was composed using this version
-  hashmap<string,int> codes;  // codes for to present version
-  tree_label EXPAND_APPLY;    // APPLY (version < 0.3.3.22) or EXPAND (otherw)
-  bool    backslash_ok;       // true for versions >= 1.0.1.23
-  bool    with_extensions;    // true for versions >= 1.0.2.4
+  hashmap<string,int> codes;
+  tree_label EXPAND_APPLY;
+  bool    backslash_ok;
+  bool    with_extensions;
   string  buf;                // the string being read from
   int     pos;                // the current position of the reader
   string  last;               // last read string
@@ -33,19 +31,10 @@ struct tm_reader {
   string  error_message;      // description of the first parse error
 
   tm_reader (string buf2):
-    version (TEXMACS_COMPAT_VERSION),
     codes (standard_codes_for_thread ()),
     EXPAND_APPLY (EXPAND),
     backslash_ok (true),
     with_extensions (true),
-    buf (buf2), pos (0), last (""),
-    malformed (false), error_pos (-1), error_message ("") {}
-  tm_reader (string buf2, string version2):
-    version (version2),
-    codes (get_codes (version)),
-    EXPAND_APPLY (version_inf (version, "0.3.3.22")? APPLY: EXPAND),
-    backslash_ok (version_inf (version, "1.0.1.23")? false: true),
-    with_extensions (version_inf (version, "1.0.2.4")? false: true),
     buf (buf2), pos (0), last (""),
     malformed (false), error_pos (-1), error_message ("") {}
 
@@ -354,7 +343,6 @@ tm_reader::read (bool skip_flag) {
   if (N(D)==0) return "";
   if (N(D)==1) {
     if (!skip_flag) return D[0];
-    if (version_inf_eq (version, "0.3.4.10")) return D[0];
     if (is_func (D[0], COLLECTION)) return D[0];
   }
   return D;
@@ -394,12 +382,6 @@ texmacs_to_tree (string s) {
   return finish_read (tmr);
 }
 
-tree
-texmacs_to_tree (string s, string version) {
-  tm_reader tmr (s, version);
-  return finish_read (tmr);
-}
-
 /******************************************************************************
 * Conversion of TeXmacs strings to TeXmacs trees
 ******************************************************************************/
@@ -415,43 +397,12 @@ is_expand (tree t, string s, int n) {
 tree
 texmacs_document_to_tree (string s) {
   tree error (_ERROR, "bad format or data");
-  if (starts (s, "edit") ||
-      starts (s, "TeXmacs") ||
-      starts (s, "\\(\\)(TeXmacs"))
-  {
-    string version= "0.0.0.0";
-    tree t= string_to_tree (s, version);
-    if (is_tuple (t) && (N(t)>0)) t= t (1, N(t));
-    int n= arity (t);
-
-    tree doc (DOCUMENT);
-    doc << compound ("TeXmacs", version);
-    if (n<3) return error;
-    else if (n<4)
-      doc << compound ("body", t[2])
-          << compound ("style", t[0])
-          << compound ("initial", t[1]);
-    else if (n<7)
-      doc << compound ("body", t[0])
-          << compound ("style", t[1])
-          << compound ("initial", t[2])
-          << compound ("references", t[3]);
-    else
-      doc << compound ("body", t[0])
-          << compound ("style", t[2])
-          << compound ("initial", t[3])
-          << compound ("final", t[4])
-          << compound ("references", t[5])
-          << compound ("auxiliary", t[6]);
-    return upgrade (doc, version);
-  }
-
   if (starts (s, "<TeXmacs|")) {
     int i;
     for (i=9; i<N(s); i++)
       if (s[i] == '>') break;
     string version= s (9, i);
-    tree doc= texmacs_to_tree (s, version);
+    tree doc= texmacs_to_tree (s);
     if (is_func (doc, _ERROR)) {
       convert_error << doc[0] << LF;
       return doc;
@@ -467,7 +418,7 @@ texmacs_document_to_tree (string s) {
       d << A(doc);
       doc= d;
     }
-    return upgrade (doc, version);
+    return doc;
   }
   return error;
 }

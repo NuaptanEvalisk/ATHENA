@@ -52,7 +52,7 @@ public:
 
   bool make_return_before ();
   bool make_return_after ();
-  void temp_proof_fix ();
+  void ensure_trailing_proof_paragraph ();
 };
 
 #endif // defined EDIT_DYNAMIC_H

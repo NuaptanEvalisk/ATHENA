@@ -423,14 +423,6 @@ init_misc () {
 }
 
 /******************************************************************************
-* Deprecated initializations
-******************************************************************************/
-
-static void
-init_deprecated () {
-}
-
-/******************************************************************************
 * Persistent machine capability state
 ******************************************************************************/
 
@@ -458,11 +450,6 @@ set_setting (string var, string val) {
 static url
 system_state_file () {
   return "$ATHENA_HOME_PATH/system/sys_state.json";
-}
-
-static url
-legacy_system_state_file () {
-  return "$ATHENA_HOME_PATH/system/settings.scm";
 }
 
 static QString
@@ -517,36 +504,6 @@ save_system_state_json () {
   return !save_string (system_state_file (), string (bytes.constData ()));
 }
 
-static void
-backup_legacy_system_state () {
-  url legacy= legacy_system_state_file ();
-  if (!exists (legacy)) return;
-  url backup= "$ATHENA_HOME_PATH/system/settings.scm.old.bak";
-  if (exists (backup)) {
-    int suffix= 1;
-    do {
-      backup= url ("$ATHENA_HOME_PATH/system/settings.scm.old.bak." *
-                   as_string (suffix++));
-    } while (exists (backup));
-  }
-  move (legacy, backup);
-}
-
-static bool
-migrate_legacy_system_state () {
-  string s;
-  if (load_string (legacy_system_state_file (), s, false)) return false;
-  tree legacy= block_to_scheme_tree (s);
-  athena_settings= legacy;
-  string version= get_setting ("VERSION");
-  athena_settings= tuple ();
-  set_setting ("VERSION", version);
-  if (!save_system_state_json ()) return false;
-  backup_legacy_system_state ();
-  cout << "Migrated legacy system state to " << system_state_file () << LF;
-  return true;
-}
-
 /******************************************************************************
 * First installation
 ******************************************************************************/
@@ -596,8 +553,6 @@ init_athena () {
   init_env_vars ();
   //cout << "Initialize -- Miscellaneous\n";
   init_misc ();
-  //cout << "Initialize -- Deprecated\n";
-  init_deprecated ();
 }
 
 /******************************************************************************
@@ -608,10 +563,8 @@ void
 init_system_state () {
   install_status= 0;
   if (!load_system_state_json ()) {
-    if (!migrate_legacy_system_state ()) {
-      setup_athena ();
-      install_status= 1;
-    }
+    setup_athena ();
+    install_status= 1;
   }
 
   if (get_setting ("VERSION") != TEXMACS_COMPAT_VERSION) {

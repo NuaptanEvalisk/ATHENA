@@ -64,7 +64,6 @@ typedef quartet<string,int,SI,SI> dest_data;
 typedef quintuple<string,int,SI,SI,int> outline_data;
 
 class pdf_image;
-class pdf_raw_image;
 class t3font;
 class pdf_pattern;
 
@@ -103,7 +102,6 @@ class pdf_hummus_renderer_rep : public renderer_rep {
   hashmap<string,PDFUsedFont*> native_fonts;
   hashset<string> not_native_fonts;
   hashset<string> EuropeanComputerModern_fonts;
-  hashmap<string,pdf_raw_image> pdf_glyphs;
   hashmap<tree,pdf_image> image_pool;
   hashmap<tree,pdf_image> pattern_image_pool;
   hashmap<tree,pdf_pattern> pattern_pool;
@@ -175,13 +173,10 @@ class pdf_hummus_renderer_rep : public renderer_rep {
   // various internal routines
   void flush_images();
   void flush_patterns();
-  void flush_glyphs();
   void flush_dests();
   void flush_outlines();
   void flush_fonts();
-  PDFImageXObject *create_pdf_image_raw (string raw_data, SI width, SI height, ObjectIDType imageXObjectID);
   void make_pdf_font (string fontname);
-  void draw_bitmap_glyph (int ch, font_glyphs fn, SI x, SI y);
   void  image (url u, double w, double h, SI x, SI y, int alpha);
   
   void bezier_arc (SI x1, SI y1, SI x2, SI y2, int alpha, int delta, bool filled);
@@ -374,7 +369,6 @@ pdf_hummus_renderer_rep::~pdf_hummus_renderer_rep () {
   
   flush_images();
   flush_patterns();
-  flush_glyphs();
   flush_dests();
   resolve_internal_annotations();
   flush_outlines();
@@ -889,24 +883,6 @@ pdf_hummus_renderer_rep::set_background (brush b) {
   bg= b->get_color ();
 }
 
-/******************************************************************************
- * Raw images
- ******************************************************************************/
-
-// obsolete support for direct placement of virtual glyphs without Type3 fonts.
-
-static string
-load_virtual_glyph (glyph gl) {
-  string buf;
-  int i, j;
-  for (j= 0; j < gl->height; j++)
-    for (i= 0; i < gl->width; i++) {
-      if (gl->get_x (i, j) > 0) buf << (char)0;
-      else buf << (char)255;
-    }
- return buf;
-}
-
 static const std::string scType = "Type";
 static const std::string scXObject = "XObject";
 static const std::string scSubType = "Subtype";
@@ -917,124 +893,7 @@ static const std::string scHeight = "Height";
 static const std::string scColorSpace = "ColorSpace";
 static const std::string scDeviceGray = "DeviceGray";
 static const std::string scDeviceRGB = "DeviceRGB";
-static const std::string scDeviceCMYK = "DeviceCMYK";
-static const std::string scDecode = "Decode";
 static const std::string scBitsPerComponent = "BitsPerComponent";
-static const std::string scFilter = "Filter";
-static const std::string scDCTDecode = "DCTDecode";
-static const std::string scLength = "Length";
-
-
-static void
-create_pdf_image_raw (PDFWriter& pdfw, string raw_data, SI width, SI height, ObjectIDType imageXObjectID)
-{
-  
-	PDFImageXObject* imageXObject = NULL;
-	//EStatusCode status = PDFHummus::eSuccess;
-
-  ObjectsContext& objectsContext = pdfw.GetObjectsContext();
-  objectsContext.StartNewIndirectObject(imageXObjectID);
-  do {
-    {
-      // write stream dictionary
-      DictionaryContext* imageContext = objectsContext.StartDictionary();
-      // type
-      imageContext->WriteKey(scType);
-      imageContext->WriteNameValue(scXObject);
-      // subtype
-      imageContext->WriteKey(scSubType);
-      imageContext->WriteNameValue(scImage);
-      // Width
-      imageContext->WriteKey(scWidth);
-      imageContext->WriteIntegerValue(width);
-      // Height
-      imageContext->WriteKey(scHeight);
-      imageContext->WriteIntegerValue(height);
-      // Bits Per Component
-      imageContext->WriteKey(scBitsPerComponent);
-      imageContext->WriteIntegerValue(8);
-      // Color Space and Decode Array if necessary
-      imageContext->WriteKey(scColorSpace);
-      imageContext->WriteNameValue(scDeviceGray);
-      // Length
-      imageContext->WriteKey("Length");
-      imageContext->WriteIntegerValue(N(raw_data));
-      objectsContext.EndDictionary(imageContext);
-    }
-    {
-      // write stream
-      objectsContext.WriteKeyword("stream");
-      {
-        c_string buf (raw_data);
-        objectsContext.StartFreeContext()->Write((unsigned char*)(char *)buf, N(raw_data));
-        objectsContext.EndFreeContext();
-      }
-      objectsContext.EndLine();
-      objectsContext.WriteKeyword("endstream");
-    }
-    objectsContext.EndIndirectObject();
-    imageXObject = new PDFImageXObject(imageXObjectID, KProcsetImageB);
-  } while(false);
- 
-  if (imageXObject == NULL)
-    convert_error <<  "pdf_hummus, failed to include glyph" << LF;
-  else delete imageXObject;
-}
-
-class pdf_raw_image_rep : public concrete_struct
-{
-public:
-  string data;
-  int w,h;
-  ObjectIDType id;
-  
-  pdf_raw_image_rep (string _data, int _w, int _h, ObjectIDType _id)
-   : data(_data), w(_w), h(_h), id(_id) {}
-  pdf_raw_image_rep () {}
-  
-  void flush(PDFWriter& pdfw) {
-    // debug_convert << "flushing :" << id << LF;
-    create_pdf_image_raw (pdfw, data, w, h, id);
-  }
-}; // pdf_raw_image_rep
-
-class pdf_raw_image {
-  CONCRETE_NULL(pdf_raw_image);
-  pdf_raw_image (string _data, int _w, int _h, ObjectIDType _id):
-  rep (tm_new<pdf_raw_image_rep> (_data,_w,_h,_id)) {};
-};
-
-CONCRETE_NULL_CODE(pdf_raw_image);
-
-void
-pdf_hummus_renderer_rep::flush_glyphs ()
-{
-  // flush all images
-  iterator<string> it = iterate (pdf_glyphs);
-  while (it->busy()) {
-    pdf_raw_image im = pdf_glyphs [it->next()];
-    im->flush (pdfWriter);
-  }
-}
-
-void
-pdf_hummus_renderer_rep::draw_bitmap_glyph (int ch, font_glyphs fn, SI x, SI y)
-{
-  (void) x; (void) y;
-  // use bitmap (to be improved)
-  string fontname = fn->res_name;
-  string char_name (fontname * "-" * as_string ((int) ch));
-  if (!pdf_glyphs->contains(char_name)) {
-    glyph gl= fn->get(ch);
-    // debug_convert << "draw bitmap glyph " << (double)gl->width / 8 << " " << (double)gl->height / 8 << "\n";
-    if (is_nil (gl)) return;
-    string buf= load_virtual_glyph (gl);
-    ObjectIDType imageXObjectID  = pdfWriter.GetObjectsContext().GetInDirectObjectsRegistry().AllocateNewObjectID();
-    pdf_glyphs (char_name) = pdf_raw_image (buf, gl->width, gl->height, imageXObjectID);
-  }
-}
-
-
 /******************************************************************************
  * Type 3 fonts
  ******************************************************************************/
@@ -1429,9 +1288,6 @@ pdf_hummus_renderer_rep::draw (int ch, font_glyphs fn, SI x, SI y) {
   int fontchunk= t3font_font_chunk (ch);
   string fontchunkname= fontname * string ("-chunk") * as_string (fontchunk);
 
-  string char_name (fontname * "-" * as_string (ch));
-  pdf_raw_image glyph;
-  
   if (cfn != fontname && cfn != fontchunkname) {
     if (!native_fonts->contains (fontname) &&
 	!not_native_fonts->contains (fontname))

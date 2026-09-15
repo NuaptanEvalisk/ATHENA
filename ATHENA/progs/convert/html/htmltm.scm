@@ -465,12 +465,12 @@
   (span (handler :collapse :inline htmltm-wikipedia-span))
 
   ;; Headings
-  (h1 (handler :mixed :block "chapter*"))
-  (h2 (handler :mixed :block "section*"))
-  (h3 (handler :mixed :block "subsection*"))
-  (h4 (handler :mixed :block "subsubsection*"))
-  (h5 (handler :mixed :block "paragraph*"))
-  (h6 (handler :mixed :block "subparagraph*"))
+  (h1 (handler :mixed :block '(chapter*)))
+  (h2 (handler :mixed :block '(section*)))
+  (h3 (handler :mixed :block '(subsection*)))
+  (h4 (handler :mixed :block '(subsubsection*)))
+  (h5 (handler :mixed :block '(paragraph*)))
+  (h6 (handler :mixed :block '(subparagraph*)))
 
   ;; Address and text direction
   (address (handler :mixed :block htmltm-pass))
@@ -478,21 +478,21 @@
 
   ;;; Structured text
   ;; Phrase elements
-  (em      (handler :collapse :inline "em"))
-  (strong  (handler :collapse :inline "strong"))
-  (cite    (handler :collapse :inline "cite*"))
-  (dfn     (handler :collapse :inline "dfn"))
-  (code    (handler :collapse :inline "code*"))
-  (samp    (handler :collapse :inline "samp"))
-  (kbd     (handler :collapse :inline "kbd"))
-  (var     (handler :collapse :inline "var"))
-  (abbr    (handler :collapse :inline "abbr"))
-  (acronym (handler :collapse :inline "acronym"))
+  (em      (handler :collapse :inline '(em)))
+  (strong  (handler :collapse :inline '(strong)))
+  (cite    (handler :collapse :inline '(cite*)))
+  (dfn     (handler :collapse :inline '(dfn)))
+  (code    (handler :collapse :inline '(code*)))
+  (samp    (handler :collapse :inline '(samp)))
+  (kbd     (handler :collapse :inline '(kbd)))
+  (var     (handler :collapse :inline '(var)))
+  (abbr    (handler :collapse :inline '(abbr)))
+  (acronym (handler :collapse :inline '(acronym)))
 
   ;; Quotations
   ;; NOTE: there should be a texmacs macro for Q
   (q (handler :collapse :inline htmltm-quote))
-  (blockquote (handler :mixed :block "quotation"))
+  (blockquote (handler :mixed :block '(quotation)))
 
   ;; Subscripts and superscripts
   (sub (handler :mixed :inline '(rsub)))
@@ -507,14 +507,14 @@
   ((:or ins del) (handler :collapse :inline htmltm-pass))
 
   ;;; Lists
-  (dl (handler :element :block "description"))
-  (dt (handler :mixed :block "item*"))
+  (dl (handler :element :block '(description)))
+  (dt (handler :mixed :block '(item*)))
   (dd (handler :mixed :block htmltm-pass))
-  (ol (handler :element :block "enumerate"))
-  (ul (handler :element :block "itemize"))
+  (ol (handler :element :block '(enumerate)))
+  (ul (handler :element :block '(itemize)))
   (li (handler :mixed :block htmltm-list-item))
-  (menu (handler :element :block "itemize")) ; deprecated
-  (dir  (handler :element :block "itemize")) ; deprecated
+  (menu (handler :element :block '(itemize))) ; deprecated
+  (dir  (handler :element :block '(itemize))) ; deprecated
 
   ;;; Tables
   (table (handler :element :block htmltm-table))
@@ -548,7 +548,7 @@
   (big (handler :collapse :inline '(with "font-size" "1.2")))
   (small (handler :collapse :inline '(with "font-size" "0.83")))
   ((:or s strike) (handler :collapse :inline htmltm-pass))
-  (u (handler :collapse :inline "underline"))
+  (u (handler :collapse :inline '(underline)))
   (style htmltm-drop) ; <style> contains css data
 
   ;; Font modifiers (deprecated)

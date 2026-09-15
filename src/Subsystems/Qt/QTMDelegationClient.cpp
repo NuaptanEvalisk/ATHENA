@@ -62,25 +62,7 @@ config_dir () {
     QStandardPaths::GenericConfigLocation);
   if (generic.isEmpty ()) generic= QDir::homePath () + "/.config";
   QString athena= QDir (generic).filePath ("ATHENA");
-  QString current= QDir (athena).filePath ("delegation");
-  static bool migrated= false;
-  if (!migrated) {
-    migrated= true;
-    QString app= QStandardPaths::writableLocation (
-      QStandardPaths::AppConfigLocation);
-    QStringList legacy;
-    legacy << QDir (athena).filePath ("rag-delegation");
-    if (!app.isEmpty ()) {
-      legacy << QDir (app).filePath ("delegation");
-      legacy << QDir (app).filePath ("rag-delegation");
-    }
-    for (const QString& path: legacy)
-      if (!QFileInfo::exists (current) && QFileInfo::exists (path)) {
-        QDir ().mkpath (athena);
-        QDir ().rename (path, current);
-      }
-  }
-  return current;
+  return QDir (athena).filePath ("delegation");
 }
 
 QString

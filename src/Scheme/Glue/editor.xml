@@ -13,9 +13,6 @@
   <binding name="cpp-path-&gt;tree" native="the_subtree" returns="tree">
     <arg type="path" />
   </binding>
-  <binding name="path-correct-old" native="correct" returns="void">
-    <arg type="path" />
-  </binding>
   <binding name="path-insert-with" native="insert_with" returns="void">
     <arg type="path" />
     <arg type="string" />
@@ -101,7 +98,7 @@
   <binding name="activate-symbol" native="activate_symbol" returns="void" />
   <binding name="make-return-before" native="make_return_before" returns="void" />
   <binding name="make-return-after" native="make_return_after" returns="bool" />
-  <binding name="temp-proof-fix" native="temp_proof_fix" returns="void" />
+  <binding name="ensure-trailing-proof-paragraph" native="ensure_trailing_proof_paragraph" returns="void" />
   <binding name="get-full-env" native="get_full_env" returns="tree" />
   <binding name="get-all-inits" native="get_init_all" returns="tree" />
   <binding name="init-env" native="init_env" returns="void">

@@ -272,10 +272,6 @@ family_to_master (string f) {
   if (occurs (",", f) && occurs ("=", f)) f= main_family (f);
   f= upgrade_family_name (f);
   array<string> entry= font_database_feature_entry (f);
-  if (N(entry) == 0 && f != "tcx" && f != "tc") {
-    font_database_global_load (f);
-    entry= font_database_feature_entry (f);
-  }
   if (N(entry) >= 1) return entry[0];
   f= replace (f, " Mono", "");
   f= Replace (f, "Mono", "");
@@ -321,10 +317,6 @@ master_to_families (string m) {
   if (occurs (",", m) && occurs ("=", m)) m= main_family (m);
   m= upgrade_family_name (m);
   array<string> r= font_database_master_variants (m);
-  if (N(r) == 0 && m != "tcx" && m != "tc") {
-    font_database_global_load (m);
-    r= font_database_master_variants (m);
-  }
   if (N(r) == 0) r << m;
   return r;
 }

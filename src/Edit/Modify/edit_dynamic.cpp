@@ -669,8 +669,9 @@ edit_dynamic_rep::make_return_after () {
 }
 
 void
-edit_dynamic_rep::temp_proof_fix () {
-  /* this routine should be removed as soon as possible */
+edit_dynamic_rep::ensure_trailing_proof_paragraph () {
+  // A display equation at the end of a proof needs a following paragraph so
+  // editing can continue inside the proof after the display.
   path p = search_upwards ("proof");
   if (is_nil (p) || (N(tp) < N(p)+2)) return;
   path q = head (tp, N(p)+2);

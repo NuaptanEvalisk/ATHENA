@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "convert.hpp"
+#include "message.hpp"
 #include "analyze.hpp"
 #include "drd_std.hpp"
 #include "path.hpp"
@@ -156,11 +157,13 @@ tree
 scheme_tree_to_tree (scheme_tree t, string version) {
   version= scm_unquote (version);
   tree doc, error (_ERROR, "bad format or data");
-  if (version_inf (version, "1.0.2.4"))
-    doc= scheme_tree_to_tree (t, get_codes (version), false);
-  else doc= scheme_tree_to_tree (t);
+  if (version_inf (version, "2.1.3"))
+    std_warning << "ATHENA: Scheme TeXmacs tree version " << version
+                << " predates the supported 2.1.3 baseline; interpreting it "
+                << "with current tree codes" << LF;
+  doc= scheme_tree_to_tree (t);
   if (!is_document (doc)) return error;
-  return upgrade (doc, version);
+  return doc;
 }
 
 tree

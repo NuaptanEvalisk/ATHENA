@@ -12,7 +12,7 @@
   accessible through the <scheme> procedures <scm|set-preference> and
   <scm|get-preference> as explained in <hlink|<scheme> procedures for user
   preferences|../../devel/scheme/utils/utils-preferences.en.tm>. These are
-  stored, along the rest, in your <tt|preferences.scm> file.
+  stored, along the rest, in your <tt|preferences.json> file.
 
   <subsection|Syntax highlighting>
 

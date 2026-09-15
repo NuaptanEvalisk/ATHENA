@@ -304,10 +304,6 @@ void
 cache_initialize () {
   if (!cache_initialize_paths ()) return;
 
-  // Version 1 used structural keys before tree labels were initialized.
-  remove (texmacs_home_path * "system/cache/font_path_cache.scm");
-  remove (texmacs_home_path * "system/cache/font_file_index.scm");
-
   bench_start ("load persistent data caches");
   cache_refresh ();
   bench_cumul ("load persistent data caches");

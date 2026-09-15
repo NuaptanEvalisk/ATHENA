@@ -16,9 +16,7 @@
   A vault is a directory of <verbatim|.ath> documents together with
   <verbatim|Vaultfile.json> and vault-local databases. The JSON file records
   paths for the UUID map, namespace registry, preferences, RAG index,
-  websites, startup pages, and related vault metadata. Opening a legacy
-  <verbatim|Vaultfile> migrates it once and preserves the old file as a
-  non-overwriting backup.
+  websites, startup pages, and related vault metadata.
 
   Document and anchor identities are stored in <verbatim|map.sqlite>. A
   legacy TMDB map is no longer supported. UUIDs remain the

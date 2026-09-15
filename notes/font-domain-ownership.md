@@ -61,8 +61,6 @@ order. These are single-process guarantees, not a multi-process profile lock.
 
 ## Focused Regression Coverage
 
-- `doc_info_upgrade_test`: overlapping complete legacy-document upgrades with
-  independent keyword and classification accumulators.
 - `font_domain_test`: same-name isolation, nested domain/address reuse,
   failed construction, revision invalidation with live old handles, overlapping
   real Pagella loads at two sizes, glyphs, correction maps, charmaps and virtual

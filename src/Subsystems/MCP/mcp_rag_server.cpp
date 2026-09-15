@@ -448,13 +448,7 @@ default_delegation_key_dir () {
     xdg != nullptr && xdg[0] != '\0' ? std::filesystem::path (xdg):
     (home == nullptr || home[0] == '\0' ? std::filesystem::path ("."):
       std::filesystem::path (home) / ".config");
-  std::filesystem::path current= base / "ATHENA" / "delegation";
-  std::filesystem::path legacy= base / "ATHENA" / "rag-delegation";
-  std::error_code ec;
-  if (!std::filesystem::exists (current) &&
-      std::filesystem::exists (legacy))
-    std::filesystem::rename (legacy, current, ec);
-  return current;
+  return base / "ATHENA" / "delegation";
 }
 
 struct AcceptedClient {

@@ -759,7 +759,7 @@
     from becoming an artifact, and cause an enunciation to fall back to its
     complete content instead of using that text as its title. Double-click an
     entry to edit it. The list is stored in the <verbatim|.lst> file selected
-    by the Vaultfile, one entry per line.
+    by <verbatim|Vaultfile.json>, one entry per line.
   </description>
 
   <subsection|Materials>
@@ -914,8 +914,6 @@
 
   If no vault is active, this tab reports <em|No active vault>. When a vault
   is active, it edits fields stored in the vault's <verbatim|Vaultfile.json>.
-  Legacy <verbatim|Vaultfile> files are migrated to this JSON file when the
-  vault is opened.
 
   <\description>
     <item*|Vault name>Name stored for the active vault.
@@ -942,8 +940,7 @@
     database.
 
     <item*|Website registry path>Vault-relative path to the website registry
-    used by <menu|Tools|Websites manager>. Legacy <verbatim|Vaultfile>
-    files are accepted only for startup migration; the JSON field defaults to
+    used by <menu|Tools|Websites manager>. The field defaults to
     <verbatim|websites.json>.
 
     <item*|Materials database path>Vault-relative path to the Materials SQLite
@@ -1136,7 +1133,8 @@
     definition. ATHENA still performs incremental detection, AST extraction,
     candidate generation, and all Artifact SQLite writes locally. Remote
     requests contain only the keyword and candidate paragraphs as LaTeX; they
-    contain no file path, <verbatim|.ath> source, Vaultfile, asset, or database.
+    contain no file path, <verbatim|.ath> source, <verbatim|Vaultfile.json>,
+    asset, or database.
     A remote error aborts the entire Artifact build before its database
     transaction begins; it never silently falls back to paragraph zero or the
     local model.

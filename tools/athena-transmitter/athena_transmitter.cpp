@@ -205,12 +205,7 @@ default_key_dir () {
   fs::path base= xdg != nullptr && xdg[0] != '\0' ? fs::path (xdg):
     (home == nullptr || home[0] == '\0' ? fs::path ("."):
                                            fs::path (home) / ".config");
-  fs::path current= base / "ATHENA" / "delegation" / "transmitter";
-  fs::path legacy= base / "ATHENA" / "rag-transmitter";
-  std::error_code ec;
-  if (!fs::exists (current) && fs::exists (legacy))
-    fs::rename (legacy, current, ec);
-  return current;
+  return base / "ATHENA" / "delegation" / "transmitter";
 }
 
 bool

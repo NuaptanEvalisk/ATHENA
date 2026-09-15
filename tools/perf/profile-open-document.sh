@@ -193,8 +193,8 @@ else
 fi
 
 [[ -d "$vault" ]] || { printf 'Vault does not exist: %s\n' "$vault" >&2; exit 2; }
-if [[ ! -f "$vault/Vaultfile.json" && ! -f "$vault/Vaultfile" ]]; then
-  printf 'Not an ATHENA vault (no Vaultfile.json or Vaultfile): %s\n' "$vault" >&2
+if [[ ! -f "$vault/Vaultfile.json" ]]; then
+  printf 'Not an ATHENA vault (no Vaultfile.json): %s\n' "$vault" >&2
   exit 2
 fi
 [[ -f "$document" ]] || {

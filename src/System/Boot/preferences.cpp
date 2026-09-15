@@ -14,7 +14,6 @@
 #include "file.hpp"
 #include "sys_utils.hpp"
 #include "analyze.hpp"
-#include "convert.hpp"
 #include "merge_sort.hpp"
 #include "iterator.hpp"
 
@@ -717,25 +716,6 @@ get_user_preference (string var, string val) {
 ******************************************************************************/
 
 static hashmap<string,string>
-read_scheme_user_preferences (url prefs_file) {
-  hashmap<string,string> prefs ("");
-  string s;
-  tree p (TUPLE);
-  if (!load_string (prefs_file, s, false))
-    p= block_to_scheme_tree (s);
-  while (is_func (p, TUPLE, 1)) p= p[0];
-  for (int i=0; i<N(p); i++)
-    if (is_func (p[i], TUPLE, 2) &&
-        is_atomic (p[i][0]) && is_atomic (p[i][1]) &&
-        is_quoted (p[i][0]->label) && is_quoted (p[i][1]->label)) {
-      string var= scm_unquote (p[i][0]->label);
-      string val= scm_unquote (p[i][1]->label);
-      prefs (var)= val;
-    }
-  return prefs;
-}
-
-static hashmap<string,string>
 read_json_user_preferences (url prefs_file, bool& ok) {
   ok= false;
   hashmap<string,string> prefs ("");
@@ -770,22 +750,6 @@ read_json_user_preferences (url prefs_file, bool& ok) {
 }
 
 static void
-write_scheme_user_preferences (
-  url prefs_file, const hashmap<string,string>& preferences) {
-  iterator<string> it= iterate (preferences);
-  array<string> a;
-  while (it->busy ())
-    a << it->next ();
-  merge_sort (a);
-  string s;
-  for (int i=0; i<N(a); i++)
-    s << "(" << scm_quote (a[i])
-      << " " << scm_quote (preferences[a[i]]) << ")\n";
-  if (save_string (prefs_file, s))
-    std_warning << "The user preferences could not be saved\n";
-}
-
-static void
 write_json_user_preferences (
   url prefs_file, const hashmap<string,string>& preferences) {
   iterator<string> it= iterate (preferences);
@@ -809,51 +773,14 @@ write_json_user_preferences (
 static hashmap<string,string>
 read_user_preferences (url prefs_file, url& canonical_file) {
   bool json_ok= false;
-  if (has_suffix (as_string (prefs_file), ".json")) {
-    bool json_exists= exists (prefs_file);
-    hashmap<string,string> prefs= read_json_user_preferences (prefs_file,
-                                                              json_ok);
-    canonical_file= prefs_file;
-    if (json_ok) return prefs;
-
-    url legacy_file= url (as_string (prefs_file) (0,
-                         N(as_string (prefs_file)) - 5) * ".scm");
-    if (exists (legacy_file)) {
-      if (json_exists)
-        std_warning << "preferences: falling back to legacy preferences file "
-                    << legacy_file << LF;
-      else
-        cout << "preferences: importing legacy preferences file "
-             << legacy_file << LF;
-      prefs= read_scheme_user_preferences (legacy_file);
-      if (!json_exists) write_json_user_preferences (prefs_file, prefs);
-      return prefs;
-    }
-    return prefs;
-  }
-
   canonical_file= with_json_suffix (prefs_file);
-  if (exists (canonical_file)) {
-    hashmap<string,string> prefs= read_json_user_preferences (canonical_file,
-                                                             json_ok);
-    if (json_ok) return prefs;
-    if (exists (prefs_file))
-      return read_scheme_user_preferences (prefs_file);
-    return prefs;
-  }
-
-  hashmap<string,string> prefs= read_scheme_user_preferences (prefs_file);
-  write_json_user_preferences (canonical_file, prefs);
-  return prefs;
+  return read_json_user_preferences (canonical_file, json_ok);
 }
 
 static void
 write_user_preferences (
   url prefs_file, const hashmap<string,string>& preferences) {
-  if (has_suffix (as_string (prefs_file), ".scm"))
-    write_scheme_user_preferences (prefs_file, preferences);
-  else
-    write_json_user_preferences (prefs_file, preferences);
+  write_json_user_preferences (with_json_suffix (prefs_file), preferences);
 }
 
 void

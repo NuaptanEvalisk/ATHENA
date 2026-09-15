@@ -219,6 +219,12 @@ tt_platform_characteristics (FcPattern* pattern) {
   if (FcPatternGetInteger (pattern, FC_SPACING, 0, &spacing) == FcResultMatch)
     result << (spacing == FC_MONO || spacing == FC_DUAL?
                "mono=yes": "mono=no");
+  int weight= FC_WEIGHT_REGULAR;
+  if (FcPatternGetInteger (pattern, FC_WEIGHT, 0, &weight) == FcResultMatch)
+    result << (string ("weight=") * as_string (weight));
+  int width= FC_WIDTH_NORMAL;
+  if (FcPatternGetInteger (pattern, FC_WIDTH, 0, &width) == FcResultMatch)
+    result << (string ("width=") * as_string (width));
   int slant= FC_SLANT_ROMAN;
   if (FcPatternGetInteger (pattern, FC_SLANT, 0, &slant) == FcResultMatch) {
     result << (string ("slant=") * as_string (slant));

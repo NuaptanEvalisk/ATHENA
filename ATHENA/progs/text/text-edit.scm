@@ -550,22 +550,22 @@
 (tm-define (make-equation)
   (:applicable (not (selection-active-non-small?)))
   (make 'equation)
-  (temp-proof-fix))
+  (ensure-trailing-proof-paragraph))
 
 (tm-define (make-equation*)
   (:applicable (not (selection-active-non-small?)))
   (make 'equation*)
-  (temp-proof-fix))
+  (ensure-trailing-proof-paragraph))
 
 (tm-define (make-eqnarray)
   (:applicable (not (selection-active-non-small?)))
   (make 'eqnarray)
-  (temp-proof-fix))
+  (ensure-trailing-proof-paragraph))
 
 (tm-define (make-eqnarray*)
   (:applicable (not (selection-active-non-small?)))
   (make 'eqnarray*)
-  (temp-proof-fix))
+  (ensure-trailing-proof-paragraph))
 
 (tm-define (focus-label t)
   (:require (tree-is? t 'equation))

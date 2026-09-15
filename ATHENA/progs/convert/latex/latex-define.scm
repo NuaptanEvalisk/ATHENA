@@ -538,21 +538,6 @@
   (subsubsubindex (index (!append 1 "!" 2 "!" 3 "!" 4))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Deprecated extra macros
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(smart-table latex-texmacs-macro
-  (labeleqnum "\\addtocounter{equation}{-1}\\refstepcounter{equation}\\addtocounter{equation}{1})")
-  (eqnumber (!append "\\hfill(\\theequation" (!recurse (labeleqnum)) ")"))
-  (leqnumber (!append "(\\theequation" (!recurse (labeleqnum)) ")\\hfill"))
-  (reqnumber (!append "\\hfill(\\theequation" (!recurse (labeleqnum)) ")"))
-  (skey (!recurse (key (!append "shift-" 1))))
-  (ckey (!recurse (key (!append "ctrl-" 1))))
-  (akey (!recurse (key (!append "alt-" 1))))
-  (mkey (!recurse (key (!append "meta-" 1))))
-  (hkey (!recurse (key (!append "hyper-" 1)))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Extra TeXmacs environments
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

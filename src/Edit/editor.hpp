@@ -518,7 +518,7 @@ public:
   virtual void activate_symbol () = 0;
   virtual bool make_return_before () = 0;
   virtual bool make_return_after () = 0;
-  virtual void temp_proof_fix () = 0;
+  virtual void ensure_trailing_proof_paragraph () = 0;
 
   /* public routines from edit_process */
   virtual void generate_table_of_contents (string toc) = 0;

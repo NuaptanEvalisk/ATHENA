@@ -81,18 +81,6 @@ json_string (const QJsonObject& obj, const char* key,
   return ss (v.toString ());
 }
 
-std::filesystem::path
-legacy_backup_path (const std::filesystem::path& root) {
-  std::filesystem::path base= root / "Vaultfile.old.bak";
-  if (!std::filesystem::exists (base)) return base;
-  for (int i=1; i<10000; i++) {
-    std::filesystem::path candidate= root /
-      ("Vaultfile.old.bak." + std::to_string (i));
-    if (!std::filesystem::exists (candidate)) return candidate;
-  }
-  return root / "Vaultfile.old.bak.overflow";
-}
-
 bool
 read_json_file (const std::filesystem::path& path, AthenaVaultfileInfo& info,
                 std::string& error) {
@@ -166,48 +154,9 @@ athena_vaultfile_json_path (const std::filesystem::path& root) {
   return root / "Vaultfile.json";
 }
 
-std::filesystem::path
-athena_vaultfile_legacy_path (const std::filesystem::path& root) {
-  return root / "Vaultfile";
-}
-
 bool
 athena_vaultfile_present (const std::filesystem::path& root) {
-  return std::filesystem::exists (athena_vaultfile_json_path (root)) ||
-         std::filesystem::exists (athena_vaultfile_legacy_path (root));
-}
-
-std::vector<std::string>
-athena_vaultfile_legacy_strings (const std::string& text) {
-  std::vector<std::string> values;
-  bool in= false;
-  bool esc= false;
-  std::string cur;
-  for (char c: text) {
-    if (!in) {
-      if (c == '"') {
-        in= true;
-        cur.clear ();
-      }
-      continue;
-    }
-    if (esc) {
-      cur.push_back (c);
-      esc= false;
-      continue;
-    }
-    if (c == '\\') {
-      esc= true;
-      continue;
-    }
-    if (c == '"') {
-      values.push_back (cur);
-      in= false;
-      continue;
-    }
-    cur.push_back (c);
-  }
-  return values;
+  return std::filesystem::exists (athena_vaultfile_json_path (root));
 }
 
 AthenaVaultfileInfo
@@ -330,36 +279,8 @@ athena_vaultfile_ensure_json (const std::filesystem::path& root,
                               std::string& error) {
   std::filesystem::path json_path= athena_vaultfile_json_path (root);
   if (std::filesystem::exists (json_path)) return true;
-
-  std::filesystem::path legacy_path= athena_vaultfile_legacy_path (root);
-  if (!std::filesystem::exists (legacy_path)) {
-    error= "Missing Vaultfile.json in " + root.string ();
-    return false;
-  }
-
-  bool ok= false;
-  std::string text= read_file (legacy_path, ok);
-  if (!ok) {
-    error= "Could not read legacy Vaultfile in " + root.string ();
-    return false;
-  }
-  std::vector<std::string> fields= athena_vaultfile_legacy_strings (text);
-  if (fields.size () < 2) {
-    error= "Invalid legacy Vaultfile in " + root.string ();
-    return false;
-  }
-  AthenaVaultfileInfo info= athena_vaultfile_from_fields (fields);
-  if (!athena_vaultfile_write (root, info, error)) return false;
-
-  std::filesystem::path backup= legacy_backup_path (root);
-  std::error_code ec;
-  std::filesystem::rename (legacy_path, backup, ec);
-  if (ec) {
-    error= "Could not move legacy Vaultfile to " + backup.string () +
-           ": " + ec.message ();
-    return false;
-  }
-  return true;
+  error= "Missing Vaultfile.json in " + root.string ();
+  return false;
 }
 
 bool

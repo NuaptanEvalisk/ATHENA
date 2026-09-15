@@ -979,24 +979,6 @@ init_std_drd () {
 
   init (FORMAT, "format",
         repeat (1, 1));
-  init (LINE_SEP, "line-sep",
-        fixed (0) -> name ("line separator"));
-  init (SPLIT, "split",
-        repeat (1, 1));
-  init (DELAY, "delay",
-        fixed (1) -> regular (0));
-  init (HOLD, "hold",
-        fixed (1) -> regular (0));
-  init (RELEASE, "release",
-        fixed (1) -> regular (0));
-  init (OLD_MATRIX, "old-matrix",
-        var_repeat (1, 2, BIFORM) -> accessible (0));
-  init (OLD_TABLE, "old-table",
-        var_repeat (1, 2, BIFORM) -> accessible (0));
-  init (OLD_MOSAIC, "old-mosaic",
-        var_repeat (1, 2, BIFORM) -> accessible (0));
-  init (OLD_MOSAIC_ITEM, "old-mosaic-item",
-        repeat (1, 1) -> accessible (0));
   init (SET, "set",
         fixed (1, 1, BIFORM) -> variable (0) -> regular (0));
   init (RESET, "reset",
@@ -1022,10 +1004,6 @@ init_std_drd () {
   init (ENV, "env",
         var_repeat (1, 2, BIFORM) ->
         argument (0));
-  init (AUTHORIZE, "authorize",
-        fixed (2));
-  init (POSTSCRIPT, "postscript",
-        fixed (1, 6, BIFORM) -> url_type (0));
 
   init (make_tree_label ("shown"), "shown",
         fixed (1) -> accessible (0) -> inner_border ());

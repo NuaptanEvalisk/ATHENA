@@ -16,7 +16,6 @@
 	(convert tools stm)
 	(convert tools tmlength)
 	(convert tools tmtable)
-	(convert tools old-tmtable)
 	(convert tools sxml)
 	(convert tools sxhtml)
 	(convert tools css)
@@ -2036,7 +2035,6 @@
   (vspace tmhtml-vspace)
   (space tmhtml-hspace)
   (htab tmhtml-hspace)
-  (split tmhtml-noop)
   (move tmhtml-move)
   (shift tmhtml-move)
   (resize tmhtml-resize)
@@ -2058,7 +2056,6 @@
   (with-limits tmhtml-noop)
   (line-break tmhtml-noop)
   (new-line tmhtml-new-line)
-  (line-sep tmhtml-noop)
   (next-line tmhtml-next-line)
   (no_break tmhtml-noop)
   (no-indent tmhtml-noop)
@@ -2098,8 +2095,6 @@
   (neg tmhtml-neg)
   (tree tmhtml-tree)
   (syntax tmhtml-syntax)
-  ((:or old-matrix old-table old-mosaic old-mosaic-item)
-   tmhtml-noop)
   (table tmhtml-table)
   (tformat tmhtml-tformat)
   ((:or twith cwith tmarker row cell sub-table) tmhtml-noop)
@@ -2120,8 +2115,8 @@
 
   ((:or or xor and not plus minus times over div mod merge length range
 	number date translate is-tuple look-up equal unequal less lesseq
-	greater greatereq if case while extern authorize)
-   tmhtml-noop)
+	greater greatereq if case while extern)
+    tmhtml-noop)
 
   ((:or style-with style-with* style-only style-only*
 	active active* inactive inactive* rewrite-inactive) tmhtml-noop)

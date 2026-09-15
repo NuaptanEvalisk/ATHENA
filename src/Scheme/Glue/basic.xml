@@ -282,7 +282,6 @@
   <binding name="font-database-insert-global" native="font_database_build_global" returns="void">
     <arg type="url" />
   </binding>
-  <binding name="font-database-save-local-delta" native="font_database_save_local_delta" returns="void" />
   <binding name="font-database-load" native="font_database_load" returns="void" />
   <binding name="font-database-save" native="font_database_save" returns="void" />
   <binding name="font-database-filter" native="font_database_filter" returns="void" />

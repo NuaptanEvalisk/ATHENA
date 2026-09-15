@@ -24,6 +24,7 @@ class TestCommandLineConversion: public QObject {
   Q_OBJECT
 private slots:
   void convertsBeforeContinuing();
+  void warnsForUnsupportedOldTexmacsWithoutUpgrading();
   void ignoresPersonalInitFiles();
   void websiteGenerationSkipsEditorModeLazyInitialization();
   void vaultMaintenanceUsesHeadlessDocumentContext();
@@ -110,6 +111,46 @@ void TestCommandLineConversion::convertsBeforeContinuing() {
   QCOMPARE (process.exitStatus (), QProcess::NormalExit);
   QCOMPARE (process.exitCode (), 1);
   QVERIFY (!QFile::exists (temp.filePath ("missing.pdf")));
+}
+
+void TestCommandLineConversion::warnsForUnsupportedOldTexmacsWithoutUpgrading() {
+  QTemporaryDir temp;
+  QVERIFY (temp.isValid ());
+  QVERIFY (QDir ().mkpath (temp.filePath ("home/fonts")));
+  QVERIFY (QDir ().mkpath (temp.filePath ("home/system")));
+
+  QFile input (temp.filePath ("old.tm"));
+  QVERIFY (input.open (QIODevice::WriteOnly));
+  const QByteArray source=
+    "<TeXmacs|2.1.2>\n\n<style|generic>\n\n<\\body>\n"
+    "Old-format sentinel. <mouse-over-balloon|tip|body>\n"
+    "</body>\n";
+  QCOMPARE (input.write (source), source.size ());
+  input.close ();
+
+  const QString executable= QDir (QCoreApplication::applicationDirPath ())
+    .absoluteFilePath ("../src/ATHENA.bin");
+  const QString resources= QDir (QCoreApplication::applicationDirPath ())
+    .absoluteFilePath ("../../ATHENA");
+  QProcess process;
+  auto env= QProcessEnvironment::systemEnvironment ();
+  env.insert ("ATHENA_HOME_PATH", temp.filePath ("home"));
+  env.insert ("ATHENA_PATH", resources);
+  env.insert ("QT_QPA_PLATFORM", "offscreen");
+  env.insert ("PWD", temp.path ());
+  process.setProcessEnvironment (env);
+  process.setWorkingDirectory (temp.path ());
+  process.setProcessChannelMode (QProcess::MergedChannels);
+  process.start (executable, {"-C", "old.tm", "out.ath"});
+  QVERIFY2 (process.waitForFinished (20000), qPrintable (process.errorString ()));
+  const QByteArray log= process.readAll ();
+  QCOMPARE (process.exitStatus (), QProcess::NormalExit);
+  QVERIFY2 (process.exitCode () == 0, log.constData ());
+  QCOMPARE (log.count ("predates the supported 2.1.3 baseline"), 1);
+  const QByteArray output= contents (temp.filePath ("out.ath"));
+  QVERIFY2 (output.contains ("Old-format sentinel"), output.constData ());
+  QVERIFY2 (output.contains ("mouse-over-balloon"), output.constData ());
+  QVERIFY (!output.contains ("hover-balloon"));
 }
 
 void TestCommandLineConversion::ignoresPersonalInitFiles() {

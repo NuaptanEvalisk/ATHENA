@@ -18,6 +18,7 @@
 #include "guile_tm.hpp"
 #include "object.hpp"
 #include "convert.hpp"
+#include "path.hpp"
 #include "file.hpp"
 #include "web_files.hpp"
 #include "tm_link.hpp"
@@ -896,6 +897,16 @@ import_loaded_tree (string s, url u, string fm) {
   if (fm == "generic") fm= get_format (s, suffix (u));
   if (fm == "texmacs" && starts (s, "(document (TeXmacs")) fm= "stm";
   if (fm == "verbatim" && starts (s, "(document (TeXmacs")) fm= "stm";
+  if (fm == "texmacs" && starts (s, "<TeXmacs|") &&
+      !descends (u, url ("$ATHENA_PATH"))) {
+    int end= 9;
+    while (end < N(s) && s[end] != '>') end++;
+    string version= s (9, end);
+    if (version_inf (version, "2.1.3"))
+      std_warning << "ATHENA: TeXmacs document version " << version
+                  << " predates the supported 2.1.3 baseline; parsing it as "
+                  << "current-format input without historical upgrades" << LF;
+  }
   tree t= fm == "texmacs" ? texmacs_document_to_tree (s)
                            : generic_to_tree (s, fm * "-document");
   tree links= extract (t, "links");

@@ -123,16 +123,6 @@
     considered as a primitive, but it is not part of any style file either.
   </explain>
 
-  In addition to these primitives for internal use only, there are also quite
-  a few obsolete primitives, which are no longer being used by <TeXmacs>, but
-  whose names should be avoided when creating your own macros. The full list
-  of obsolete primitives is: <markup|format>, <markup|line-sep>,
-  <markup|with-limits>, <markup|split>, <markup|old-matrix>,
-  <markup|old-table>, <markup|old-mosaic>, <markup|old-mosaic-item>,
-  <markup|set>, <markup|reset>, <markup|expand>, <markup|expand*>,
-  <markup|hide-expand>, <markup|apply>, <markup|begin>, <markup|end>,
-  <markup|func>, <markup|env>, <markup|authorize>.
-
   <tmdoc-copyright|2004|Joris van der Hoeven>
 
   <tmdoc-license|Permission is granted to copy, distribute and/or modify this

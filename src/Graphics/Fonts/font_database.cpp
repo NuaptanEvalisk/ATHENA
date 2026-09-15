@@ -20,10 +20,13 @@
 #include "Freetype/tt_file.hpp"
 #include "Freetype/tt_tools.hpp"
 #include "data_cache.hpp"
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonParseError>
 #include <mutex>
 
 void font_database_filter_features ();
-void font_database_filter_characteristics ();
 static void font_database_guess_features ();
 
 static bool
@@ -39,14 +42,10 @@ font_database_is_tt_file (string name) {
 }
 
 #define GLOBAL_FEATURES "$ATHENA_PATH/fonts/font-features.scm"
-#define GLOBAL_CHARACTERISTICS "$ATHENA_PATH/fonts/font-characteristics.scm"
 #define GLOBAL_SUBSTITUTIONS "$ATHENA_PATH/fonts/font-substitutions.scm"
-#define LOCAL_FEATURES "$ATHENA_HOME_PATH/fonts/font-features.scm"
-#define LOCAL_CHARACTERISTICS \
-  "$ATHENA_HOME_PATH/fonts/font-characteristics.scm"
-#define DELTA_FEATURES "$ATHENA_HOME_PATH/fonts/delta-features.scm"
-#define DELTA_CHARACTERISTICS \
-  "$ATHENA_HOME_PATH/fonts/delta-characteristics.scm"
+#define CHARACTERISTICS_CACHE \
+  "$ATHENA_HOME_PATH/system/cache/font-characteristics.json"
+#define CHARACTERISTICS_CACHE_VERSION 1
 
 static string
 font_database_cache_stamp (url u) {
@@ -59,13 +58,8 @@ string
 font_database_cache_signature () {
   array<url> files;
   files << url (GLOBAL_FEATURES)
-        << url (GLOBAL_CHARACTERISTICS)
-        << url (GLOBAL_SUBSTITUTIONS)
-        << url (LOCAL_FEATURES)
-        << url (LOCAL_CHARACTERISTICS)
-        << url (DELTA_FEATURES)
-        << url (DELTA_CHARACTERISTICS);
-  string r= "2;catalog=" * tt_font_catalog_signature ();
+        << url (GLOBAL_SUBSTITUTIONS);
+  string r= "3;catalog=" * tt_font_catalog_signature ();
   for (int i=0; i<N(files); i++)
     r << ";" << font_database_cache_stamp (files[i]);
   return r;
@@ -88,22 +82,6 @@ struct locase_less_eq_operator {
   }
 };
 
-struct font_less_eq_operator {
-  static bool leq (scheme_tree t1, scheme_tree t2) {
-    if (is_atomic (t1) && is_atomic (t2))
-      return locase_less_eq (t1->label, t2->label);
-    if (is_atomic (t1)) return true;
-    if (is_atomic (t2)) return false;
-    for (int i=0; i<min(N(t1),N(t2)); i++) {
-      if (leq (t1[i], t2[i]) && t1[i] != t2[i]) return true;
-      if (leq (t2[i], t1[i]) && t2[i] != t1[i]) return false;
-    }
-    if (N(t1) < N(t2)) return true;
-    if (N(t2) > N(t1)) return false;
-    return true;
-  }
-};
-
 /******************************************************************************
 * Global management of the font database
 ******************************************************************************/
@@ -111,7 +89,6 @@ struct font_less_eq_operator {
 bool new_fonts= false;
 static bool fonts_loaded= false;
 static bool fonts_loading= false;
-static bool fonts_global_loaded= false;
 static std::recursive_mutex font_database_mutex;
 hashmap<tree,tree> font_table (UNINIT);
 hashmap<tree,tree> font_features (UNINIT);
@@ -123,6 +100,17 @@ static bool font_database_families_cached= false;
 static array<string> font_database_families_cache;
 static hashmap<string,tree> font_database_styles_cache (UNINIT);
 static hashmap<tree,tree> font_database_characteristics_cache (UNINIT);
+
+static QString
+font_qstring (string s) {
+  return QString::fromUtf8 (as_charp (s), N(s));
+}
+
+static string
+font_string (const QString& s) {
+  QByteArray bytes= s.toUtf8 ();
+  return string (bytes.constData (), bytes.size ());
+}
 
 void set_new_fonts (bool new_val) {
   std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
@@ -193,52 +181,85 @@ font_database_load_features (url u) {
   }
 }
 
-void
-font_database_load_characteristics (url u) {
-  if (!exists (u)) return;
-  string s;
-  if (!load_string (u, s, false)) {
-    tree t= block_to_scheme_tree (s);
-    for (int i=0; i<N(t); i++)
-      if (is_func (t[i], TUPLE, 2))
-        font_characteristics (t[i][0])= t[i][1];
+static bool
+font_database_load_characteristics_cache () {
+  url u= CHARACTERISTICS_CACHE;
+  if (!exists (u)) return false;
+  string source;
+  if (load_string (u, source, false)) return false;
+
+  QJsonParseError parse_error;
+  QJsonDocument document= QJsonDocument::fromJson (
+    QByteArray (as_charp (source), N(source)), &parse_error);
+  if (parse_error.error != QJsonParseError::NoError || !document.isObject ())
+    return false;
+
+  QJsonObject root= document.object ();
+  if (root.value ("format").toString () != "athena-font-characteristics" ||
+      root.value ("version").toInt () != CHARACTERISTICS_CACHE_VERSION ||
+      root.value ("catalogSignature").toString () !=
+        font_qstring (tt_font_catalog_signature ()))
+    return false;
+
+  QJsonArray entries= root.value ("entries").toArray ();
+  hashmap<tree,tree> loaded (UNINIT);
+  for (const QJsonValue& value: entries) {
+    if (!value.isObject ()) continue;
+    QJsonObject entry= value.toObject ();
+    QString family= entry.value ("family").toString ();
+    QString style= entry.value ("style").toString ();
+    if (family.isEmpty () || style.isEmpty ()) continue;
+    tree characteristics (TUPLE);
+    for (const QJsonValue& item: entry.value ("values").toArray ())
+      if (item.isString ()) characteristics << tree (font_string (item.toString ()));
+    loaded (tuple (font_string (family), font_string (style)))= characteristics;
   }
+  font_characteristics= loaded;
+  return true;
 }
 
-void
-font_database_save_features (url u) {
-  array<scheme_tree> r;
-  iterator<tree> it= iterate (font_features);
+static void
+font_database_seed_catalog_characteristics () {
+  font_characteristics= hashmap<tree,tree> (UNINIT);
+  iterator<tree> it= iterate (font_catalog_characteristics);
   while (it->busy ()) {
-    tree key  = it->next ();
-    tree entry= tuple (key);
-    entry << A (font_features [key]);
-    r << entry;
+    tree key= it->next ();
+    if (font_table->contains (key))
+      font_characteristics (key)= copy (font_catalog_characteristics[key]);
   }
-  merge_sort_leq<scheme_tree,font_less_eq_operator> (r);
-  string s= scheme_tree_to_block (tree (TUPLE, r));
-  mkdir (head (u));
-  save_string (u, s);
-  // FIXME: this should not be necessary
-  remove ("$ATHENA_PATH/system/cache/file_cache");
-  cache_refresh ();
 }
 
-void
-font_database_save_characteristics (url u) {
-  array<scheme_tree> r;
+static void
+font_database_save_characteristics_cache () {
+  QJsonObject root;
+  root.insert ("format", "athena-font-characteristics");
+  root.insert ("version", CHARACTERISTICS_CACHE_VERSION);
+  root.insert ("catalogSignature", font_qstring (tt_font_catalog_signature ()));
+
+  QJsonArray entries;
   iterator<tree> it= iterate (font_characteristics);
   while (it->busy ()) {
     tree key= it->next ();
-    r << tuple (key, font_characteristics [key]);
+    if (!is_func (key, TUPLE, 2) || !is_atomic (key[0]) || !is_atomic (key[1]))
+      continue;
+    QJsonObject entry;
+    entry.insert ("family", font_qstring (key[0]->label));
+    entry.insert ("style", font_qstring (key[1]->label));
+    QJsonArray values;
+    tree characteristics= font_characteristics[key];
+    if (is_func (characteristics, TUPLE))
+      for (int i=0; i<N(characteristics); i++)
+        if (is_atomic (characteristics[i]))
+          values.append (font_qstring (characteristics[i]->label));
+    entry.insert ("values", values);
+    entries.append (entry);
   }
-  merge_sort_leq<scheme_tree,font_less_eq_operator> (r);
-  string s= scheme_tree_to_block (tree (TUPLE, r));
+  root.insert ("entries", entries);
+
+  QByteArray bytes= QJsonDocument (root).toJson (QJsonDocument::Indented);
+  url u= CHARACTERISTICS_CACHE;
   mkdir (head (u));
-  save_string (u, s);
-  // FIXME: this should not be necessary
-  remove ("$ATHENA_PATH/system/cache/file_cache");
-  cache_refresh ();
+  save_string (u, string (bytes.constData (), bytes.size ()), false);
 }
 
 void
@@ -277,37 +298,26 @@ font_database_load () {
   // These files are derived metadata only.  The platform catalog above is the
   // sole authority for which font families, styles, and files are installed.
   font_database_load_features (GLOBAL_FEATURES);
-  font_database_load_features (LOCAL_FEATURES);
   font_database_filter_features ();
-  // Make catalog queries re-entrant while deriving cheap name metadata below.
-  // Detailed glyph characteristics remain lazy because eagerly analyzing every
-  // system font makes a fresh profile take tens of seconds to start.
+  // Make catalog queries re-entrant while deriving metadata below.
   fonts_loaded= true;
   font_database_guess_features ();
-  font_database_load_characteristics (GLOBAL_CHARACTERISTICS);
-  font_database_load_characteristics (LOCAL_CHARACTERISTICS);
-  font_database_filter_characteristics ();
+  if (!font_database_load_characteristics_cache ()) {
+    // Fontconfig is the normal source of characteristics.  Persist its compact
+    // per-face metadata so a fresh profile gets a complete cache without the
+    // expensive FreeType geometry analysis formerly shipped as a static table.
+    font_database_seed_catalog_characteristics ();
+    font_database_save_characteristics_cache ();
+  }
   font_database_load_substitutions (GLOBAL_SUBSTITUTIONS);
   fonts_loading= false;
   system_wait ("");
 }
 
 void
-font_database_global_load (string name) {
-  std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
-  if (fonts_global_loaded) return;
-  (void) name;
-  font_database_load ();
-  // Global derived metadata is loaded once by font_database_load.  This entry
-  // point remains for callers that resolve historical document family names.
-  fonts_global_loaded= true;
-}
-
-void
 font_database_save () {
   std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
-  font_database_save_features (LOCAL_FEATURES);
-  font_database_save_characteristics (LOCAL_CHARACTERISTICS);
+  font_database_save_characteristics_cache ();
   font_closest_cache_invalidate ();
 }
 
@@ -390,8 +400,8 @@ font_database_build_local () {
   font_database_load ();
   font_database_load_catalog (true);
   font_database_filter_features ();
-  font_database_filter_characteristics ();
   font_database_guess_features ();
+  font_database_seed_catalog_characteristics ();
   font_database_save ();
 }
 
@@ -402,8 +412,8 @@ font_database_extend_local (url u) {
   font_database_load ();
   font_database_load_catalog (true);
   font_database_filter_features ();
-  font_database_filter_characteristics ();
   font_database_guess_features ();
+  font_database_seed_catalog_characteristics ();
   font_database_save ();
 }
 
@@ -420,20 +430,13 @@ font_database_build_global () {
 }
 
 void
-font_database_save_local_delta () {
-  std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
-  font_database_load ();
-  font_database_save_features (DELTA_FEATURES);
-  font_database_save_characteristics (DELTA_CHARACTERISTICS);
-}
-
-void
 font_database_filter () {
   std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
   font_database_load_catalog (true);
   font_database_filter_features ();
-  font_database_filter_characteristics ();
   font_database_guess_features ();
+  font_database_seed_catalog_characteristics ();
+  font_database_save ();
 }
 
 void
@@ -467,19 +470,6 @@ font_database_filter_features () {
     tuple_insert (variants, family);
     font_variants (features[0])= variants;
   }
-}
-
-void
-font_database_filter_characteristics () {
-  std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
-  hashmap<tree,tree> new_font_characteristics (UNINIT);
-  iterator<tree> it= iterate (font_table);
-  while (it->busy ()) {
-    tree key= it->next ();
-    if (font_characteristics->contains (key))
-      new_font_characteristics (key)= font_characteristics [key];
-  }
-  font_characteristics= new_font_characteristics;
 }
 
 /******************************************************************************
@@ -519,6 +509,8 @@ font_database_build_characteristics (bool force) {
   iterator<tree> it= iterate (font_table);
   while (it->busy ())
     (void) font_database_build_characteristics_for (it->next (), force);
+  font_database_save_characteristics_cache ();
+  font_database_characteristics_cache= hashmap<tree,tree> (UNINIT);
 }
 
 /******************************************************************************

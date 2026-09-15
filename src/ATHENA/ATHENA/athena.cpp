@@ -335,9 +335,7 @@ static std::string
 vault_preferences_json_path_for_boot (const std::string& rel) {
   if (rel.empty ()) return "vprefs.json";
   if (std_ends_with (rel, ".json")) return rel;
-  if (std_ends_with (rel, ".scm"))
-    return rel.substr (0, rel.size () - 4) + ".json";
-  return rel + ".json";
+  return {};
 }
 
 static void
@@ -358,13 +356,18 @@ load_vault_preferences_if_enabled (const std::filesystem::path& vault_root,
 
   std::string prefs_rel= info.preferences_path;
   std::string json_rel= vault_preferences_json_path_for_boot (prefs_rel);
+  if (json_rel.empty ()) {
+    std_warning << context << ": Vaultfile.json preferences path must end in .json; "
+                << "using system preferences" << LF;
+    return;
+  }
   if (!valid_vault_relative_path_for_boot (json_rel)) {
     std_warning << context << ": Vaultfile.json preferences path is not "
                 << "vault-relative; using system preferences" << LF;
     return;
   }
 
-  if (prefs_rel != json_rel) {
+  if (prefs_rel.empty ()) {
     info.preferences_path= json_rel;
     if (!athena_vaultfile_write (vault_root, info, vaultfile_error))
       std_warning << context << ": failed to normalize Vaultfile.json "
@@ -372,14 +375,6 @@ load_vault_preferences_if_enabled (const std::filesystem::path& vault_root,
   }
 
   std::filesystem::path prefs_path= vault_root / json_rel;
-  std::filesystem::path legacy_path= vault_root /
-    (prefs_rel.empty () ? std::string ("vprefs.scm") : prefs_rel);
-
-  if (!std::filesystem::exists (prefs_path) &&
-      std::filesystem::exists (legacy_path)) {
-    load_user_preferences (url (legacy_path.string ().c_str ()));
-    return;
-  }
   if (!std::filesystem::exists (prefs_path)) {
     std_warning << context << ": vault preferences enabled, but "
                 << prefs_path.string ().c_str ()
@@ -1191,13 +1186,13 @@ TeXmacs_main (int argc, char** argv) {
       eval ("(module-provide '(athena athena tm-files))");
 
     // append commands to open standard welcome messages if needed
-    if (install_status == 1) {
+    if (!headless_mode && install_status == 1) {
       if (DEBUG_STD) debug_boot << "Loading welcome message...\n";
       string cmd= "(load-help-article \"about/welcome/new-welcome\")";
       // FIXME: force to load welcome message into new window
       extra_init_cmd << cmd;
     }
-    else if (install_status == 2) {
+    else if (!headless_mode && install_status == 2) {
       if (DEBUG_STD) debug_boot << "Loading upgrade message...\n";
       url u= "tmfs://help/plain/tm/doc/about/changes/changes-recent.en.tm";
       string b= scm_quote (as_string (u));
@@ -1496,12 +1491,8 @@ immediate_options (int argc, char** argv) {
     if ((N(s)>=2) && (s(0,2)=="--")) s= s (1, N(s));
     if ((s == "-S") || (s == "-setup")) {
       remove (url ("$ATHENA_HOME_PATH/system/sys_state.json"));
-      remove (url ("$ATHENA_HOME_PATH/system/settings.scm"));
       remove (url ("$ATHENA_HOME_PATH/system/setup.scm"));
       remove (url ("$ATHENA_HOME_PATH/system/cache") * url_wildcard ("*"));
-      remove (url ("$ATHENA_HOME_PATH/fonts/font-database.scm"));
-      remove (url ("$ATHENA_HOME_PATH/fonts/font-features.scm"));
-      remove (url ("$ATHENA_HOME_PATH/fonts/font-characteristics.scm"));
       remove (url ("$ATHENA_HOME_PATH/fonts/error") * url_wildcard ("*"));
     }
     else if (s == "-delete-cache")
@@ -1510,13 +1501,9 @@ immediate_options (int argc, char** argv) {
       remove (url ("$ATHENA_HOME_PATH/system/cache") * url_wildcard ("__*"));
     else if (s == "-delete-font-cache") {
       remove (url ("$ATHENA_HOME_PATH/system/cache/font_cache.scm"));
-      remove (url ("$ATHENA_HOME_PATH/system/cache/font_path_cache.scm"));
-      remove (url ("$ATHENA_HOME_PATH/system/cache/font_file_index.scm"));
       remove (url ("$ATHENA_HOME_PATH/system/cache/font_path_cache_v2.scm"));
       remove (url ("$ATHENA_HOME_PATH/system/cache/font_file_index_v2.scm"));
-      remove (url ("$ATHENA_HOME_PATH/fonts/font-database.scm"));
-      remove (url ("$ATHENA_HOME_PATH/fonts/font-features.scm"));
-      remove (url ("$ATHENA_HOME_PATH/fonts/font-characteristics.scm"));
+      remove (url ("$ATHENA_HOME_PATH/system/cache/font-characteristics.json"));
       remove (url ("$ATHENA_HOME_PATH/fonts/error") * url_wildcard ("*"));
     }
     else if (s == "-delete-doc-cache") {
@@ -1569,13 +1556,7 @@ athena_default_delegation_key_dir () {
     xdg != nullptr && xdg[0] != '\0' ? std::filesystem::path (xdg):
     (home == nullptr || home[0] == '\0' ? std::filesystem::path ("."):
       std::filesystem::path (home) / ".config");
-  std::filesystem::path current= base / "ATHENA" / "delegation";
-  std::filesystem::path legacy= base / "ATHENA" / "rag-delegation";
-  std::error_code ec;
-  if (!std::filesystem::exists (current) &&
-      std::filesystem::exists (legacy))
-    std::filesystem::rename (legacy, current, ec);
-  return current;
+  return base / "ATHENA" / "delegation";
 }
 
 static void
@@ -2334,7 +2315,6 @@ texmacs_entrypoint (int argc, char** argv) {
   if (mac_alternate_startup()) {
     cout << "ATHENA] Performing setup (Alt on startup)" << LF; 
     remove (url ("$ATHENA_HOME_PATH/system/sys_state.json"));
-    remove (url ("$ATHENA_HOME_PATH/system/settings.scm"));
     remove (url ("$ATHENA_HOME_PATH/system/setup.scm"));
     remove (url ("$ATHENA_HOME_PATH/system/cache") * url_wildcard ("*"));
     remove (url ("$ATHENA_HOME_PATH/fonts/error") * url_wildcard ("*"));    

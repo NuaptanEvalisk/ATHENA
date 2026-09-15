@@ -42,11 +42,7 @@ struct AthenaVaultfileInfo {
 
 std::filesystem::path athena_vaultfile_json_path (
   const std::filesystem::path& root);
-std::filesystem::path athena_vaultfile_legacy_path (
-  const std::filesystem::path& root);
 bool athena_vaultfile_present (const std::filesystem::path& root);
-std::vector<std::string> athena_vaultfile_legacy_strings (
-  const std::string& text);
 AthenaVaultfileInfo athena_vaultfile_normalize (
   const AthenaVaultfileInfo& info);
 AthenaVaultfileInfo athena_vaultfile_from_fields (

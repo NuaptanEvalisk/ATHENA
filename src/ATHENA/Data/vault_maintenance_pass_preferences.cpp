@@ -118,8 +118,7 @@ static std::string
 preferences_json_rel (const std::string& rel) {
   if (rel.empty ()) return "vprefs.json";
   if (ends_with (rel, ".json")) return rel;
-  if (ends_with (rel, ".scm")) return rel.substr (0, rel.size () - 4) + ".json";
-  return rel + ".json";
+  return {};
 }
 
 static bool
@@ -179,11 +178,13 @@ load_vault_preferences_if_enabled (const fs::path& root) {
 
   std::string prefs_rel = info.preferences_path;
   std::string json_rel = preferences_json_rel (prefs_rel);
-  std::string legacy_rel = prefs_rel.empty () ? "vprefs.scm" : prefs_rel;
+  if (json_rel.empty ()) {
+    log_error ("Vaultfile.json preferences path must end in .json");
+    return false;
+  }
   fs::path prefs_path = root / json_rel;
-  fs::path legacy_path = root / legacy_rel;
 
-  if (prefs_rel != json_rel) {
+  if (prefs_rel.empty ()) {
     info.preferences_path = json_rel;
     if (athena_vaultfile_write (root, info, vaultfile_error))
       log_info ("preferences: updated Vaultfile.json preferences path to " +
@@ -191,10 +192,6 @@ load_vault_preferences_if_enabled (const fs::path& root) {
     else
       log_error ("failed to update Vaultfile.json preferences path: " +
                  vaultfile_error);
-  }
-
-  if (!fs::exists (prefs_path) && fs::exists (legacy_path)) {
-    load_user_preferences (url (legacy_path.string ().c_str ()));
   }
 
   if (!fs::exists (prefs_path)) {

@@ -721,12 +721,3 @@
 
 (tm-define (allow-pattern-colors?)
   (qt-gui?))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Deprecated functionality
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define-macro (menu-extend name . l)
-  (deprecated-function "menu-extend" "tm-menu" "former")
-  (receive (opts body) (list-break l not-define-option?)
-    `(tm-define (,name) ,@opts (menu-dynamic (former) ,@body))))

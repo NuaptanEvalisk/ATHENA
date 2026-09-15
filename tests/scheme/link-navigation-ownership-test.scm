@@ -13,6 +13,9 @@
 (define (!= a b) (not (equal? a b)))
 (define == equal?)
 (define (nnull? x) (pair? x))
+(define (string-starts? s prefix) (string-prefix? prefix s))
+(define (string-ends? s suffix) (string-suffix? suffix s))
+(define (string->object s) (call-with-input-string s read))
 (define-syntax with
   (syntax-rules ()
     ((_ (a b) value body ...) (apply (lambda (a b) body ...) value))))
@@ -139,6 +142,24 @@
 (drain)
 (check (equal? (map car history) '(source "/target.ath")) "target history missing")
 
+;; Current script links name a callable and carry quoted arguments.  The old
+;; parenthesized expression form is intentionally unsupported.
+(load-definition "link/link-navigate.scm" 'execute-script-command)
+(load-definition "link/link-navigate.scm" 'execute-script)
+(define guile-eval eval)
+(define (athena-test-eval form) (guile-eval form (current-module)))
+(set! eval athena-test-eval)
+(define script-link-result #f)
+(define (script-link-test value) (set! script-link-result value))
+(define (exec-delayed thunk) (thunk))
+(set! failed-message #f)
+(execute-script "script-link-test" #t "current")
+(check (equal? script-link-result "current") "current script link did not execute")
+(execute-script "(script-link-test 'legacy)" #t)
+(check (equal? script-link-result "current") "legacy script link unexpectedly executed")
+(check (string? failed-message) "legacy script link refusal was not reported")
+(set! eval guile-eval)
+
 ;; The TMFS wikilink loader must defer its redirect until import has returned,
 ;; then leave whichever actor the delayed-command queue selected.
 (load-definition vault 'wikilink-handler-sub)
@@ -156,7 +177,7 @@
   (system->url (string-append (url->system base) (url->system leaf))))
 (define (url-exists? u) #t)
 (define (texmacs-compat-version) "2.1.4")
-(define (exec-delayed thunk) (enqueue 'source thunk))
+(set! exec-delayed (lambda (thunk) (enqueue 'source thunk)))
 (set! owner 'global)
 (set! labels '())
 (let ((document (wikilink-handler-sub "uuid")))

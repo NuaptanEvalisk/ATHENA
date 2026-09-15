@@ -1,0 +1,6 @@
+{
+  "name": "Model_Vault",
+  "map_path": "map.sqlite",
+  "preferences_path": "vprefs.json",
+  "namespace_db_path": "ns.sqlite"
+}

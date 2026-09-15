@@ -17,9 +17,10 @@
 #include "iterator.hpp"
 #include "fast_search.hpp"
 #include "merge_sort.hpp"
+#include "message.hpp"
 
 /******************************************************************************
-* Get correspondence between subtrees when upgrading texmacs documents
+* Get correspondence between embedded source subtrees
 ******************************************************************************/
 
 static void
@@ -31,34 +32,16 @@ trivial_correspondence (tree ot, tree nt, path op, path np,
       trivial_correspondence (ot[i], nt[i], op * i, np * i, updic);
 }
 
-static void
-get_correspondence (tree ot, tree nt, path op, path np, string v,
-                    hashmap<path,path>& updic) {
-  // NOTE: this is a very naive implementation
-  // In the future we might want to do something more sophisticated
-  if (ot == nt)
-    trivial_correspondence (ot, nt, op, np, updic);
-  else {
-    if (is_nil (op) || upgrade (ot, v) == nt) updic (op)= np;
-    if (is_compound (ot) && L(ot) == L(nt) && N(ot) == N(nt)) {
-      for (int i=0; i<N(ot); i++)
-        get_correspondence (ot[i], nt[i], op * i, np * i, v, updic);
-    }
-  }
-}
-
 static tree
-upgrade_texmacs_attachments (tree oldt, hashmap<path,path>& updic) {
+prepare_texmacs_attachments (tree oldt, hashmap<path,path>& updic) {
   string v= as_string (extract (oldt, "TeXmacs"));
-  //cout << "Old version: " << v << LF;
-  //cout << "New version: " << TEXMACS_COMPAT_VERSION << LF;
-  if (v == "") return oldt;
-  if (v == TEXMACS_COMPAT_VERSION) return oldt;
-  tree newt= upgrade (oldt, v);
+  if (v != "" && version_inf (v, "2.1.3"))
+    std_warning << "ATHENA: embedded TeXmacs source version " << v
+                << " predates the supported 2.1.3 baseline; preserving its "
+                << "current-format tree without historical upgrades" << LF;
   tree oldb= extract (oldt, "body");
-  tree newb= extract (newt, "body");
-  get_correspondence (oldb, newb, path (), path (), v, updic);
-  return newt;
+  trivial_correspondence (oldb, oldb, path (), path (), updic);
+  return oldt;
 }
 
 /******************************************************************************
@@ -87,7 +70,7 @@ get_texmacs_attachments (string s, string& mod, tree& src, string& mtar,
   mod = s (0, bpos);
   src= scheme_to_tree (atts (0, spos));
   mtar= atts (spos + N(sep), N(atts));
-  src= upgrade_texmacs_attachments (src, updic);
+  src= prepare_texmacs_attachments (src, updic);
   return true;
 }
 

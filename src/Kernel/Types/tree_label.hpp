@@ -136,12 +136,10 @@ enum tree_label {
   // graphical interface markup
   CANVAS, ORNAMENT, ART_BOX,
 
-  // obsolete tags
-  FORMAT, LINE_SEP, SPLIT, DELAY, HOLD, RELEASE,
-  OLD_MATRIX, OLD_TABLE, OLD_MOSAIC, OLD_MOSAIC_ITEM,
+  // converter/intermediate tags
+  FORMAT,
   SET, RESET, EXPAND, VAR_EXPAND, HIDE_EXPAND,
   APPLY, BEGIN, END, FUNC, ENV,
-  AUTHORIZE, POSTSCRIPT,
 
   // user extensions
   START_EXTENSIONS

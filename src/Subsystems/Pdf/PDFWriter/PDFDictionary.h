@@ -28,11 +28,6 @@
 
 struct PDFNameLess
 {
-	// typedefs for legacy support (std::binary_function)
-	using first_argument_type  = const PDFName*;
-    using second_argument_type = const PDFName*;
-    using result_type          = bool;
-
 	bool operator( ) (const PDFName* left, 
 						const PDFName* right ) const
 	{

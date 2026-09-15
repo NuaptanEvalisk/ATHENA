@@ -157,9 +157,6 @@ extern tm_ostream& operator << (tm_ostream& out, QSize size);
 tm_ostream& operator << (tm_ostream& out, coord4 c);
 tm_ostream& operator << (tm_ostream& out, coord2 c);
 
-// deprecated, use check_type<T>(bb, slot) instead
-//#define TYPE_CHECK(b) ASSERT (b, "type mismatch")   
-
 #define NOT_IMPLEMENTED(x) \
 { if (DEBUG_QT) debug_qt << x << " not implemented yet.\n"; }
 

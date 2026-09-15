@@ -12,7 +12,6 @@
 ;; in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
 (texmacs-module (convert latex latex-texmacs-drd)
   (:use (convert latex latex-symbol-drd)))
 
@@ -312,13 +311,3 @@
 
 (logic-group latex-texmacs-1%
   chapter section subsection paragraph subparagraph)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Deprecated extra macros
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(logic-group latex-texmacs-0%
-  labeleqnum eqnumber leqnumber reqnumber)
-
-(logic-group latex-texmacs-1%
-  skey ckey akey mkey hkey)
