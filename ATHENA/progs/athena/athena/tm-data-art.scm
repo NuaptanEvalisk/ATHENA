@@ -18,18 +18,6 @@
 (define-public (data-art-pdf-target? fname)
   (and (url? fname) (== (url-suffix fname) "pdf")))
 
-(define (data-art-tool-dir)
-  "$ATHENA_PATH/tools/data-art")
-
-(define (data-art-script)
-  (url-append (data-art-tool-dir) "athena_data_art.py"))
-
-(define (data-art-venv-dir)
-  (url-append (data-art-tool-dir) ".venv"))
-
-(define (data-art-uv-cache-dir)
-  "$ATHENA_HOME_PATH/system/cache/uv")
-
 (define (data-art-temp-url suffix)
   (url-glue (url-temp) suffix))
 
@@ -131,44 +119,45 @@
    (object->string (tree->stree (buffer-get-body buf)))))
 
 (define-public (data-art-generate-cover buf)
-  (let* ((seed (data-art-temp-url ".txt"))
-         (cover (data-art-temp-url ".png"))
-         (tool-dir (data-art-tool-dir))
-         (venv-dir (data-art-venv-dir))
-         (uv-cache-dir (data-art-uv-cache-dir))
-         (script (data-art-script))
-         (cmd (string-append
-               "UV_CACHE_DIR="
-               (escape-shell (url->system uv-cache-dir))
-               " UV_PROJECT_ENVIRONMENT="
-               (escape-shell (url->system venv-dir))
-               " uv run --quiet --locked --project "
-               (escape-shell (url->system tool-dir))
-               " python "
-               (escape-shell (url->system script))
-               " --input "
-               (escape-shell (url->system seed))
-               " --output "
-               (escape-shell (url->system cover)))))
-    (when (not (url-exists? uv-cache-dir))
-      (system-mkdir uv-cache-dir))
-    (string-save (data-art-seed-string buf) seed)
-    (system cmd)
-    (system-remove seed)
-    (if (url-exists? cover)
+  (let* ((cover (data-art-temp-url ".png"))
+         (error (data-art-generate (data-art-seed-string buf) cover)))
+    (if (and (== error "") (url-exists? cover))
         cover
         (begin
-          (display* "ATHENA] data-art warning: cover generation failed\n")
+          (when (url-exists? cover) (system-remove cover))
+          (display* "ATHENA] data-art warning: cover generation failed"
+                    (if (== error "") "" (string-append ": " error)) "\n")
           #f))))
 
+(define-public (data-art-body-with-cover body cover)
+  (stree->tree
+   (let ((stree-body (tree->stree body)))
+     (if (data-art-cover-present-stree? stree-body)
+         stree-body
+         (data-art-insert-cover-stree stree-body cover)))))
+
+(define-public (data-art-prepare-export buf fname)
+  (if (not (and (data-art-enabled?)
+                (data-art-pdf-target? fname)
+                (not (data-art-cover-present-in-buffer? buf))))
+      #f
+      (let ((cover (data-art-generate-cover buf)))
+        (and cover
+             (let ((document (buffer-get buf))
+                   (body (data-art-body-with-cover
+                          (buffer-get-body buf) cover)))
+               ;; Return one detached tree so callers outside the BufferActor
+               ;; never retain actor-owned tree references.  The first child
+               ;; is the complete document envelope (style/init/references/
+               ;; auxiliaries/attachments), not merely the visible body.
+               (stree->tree
+                `(tuple ,(tree->stree document)
+                        ,(tree->stree body)
+                        ,(url->system cover))))))))
+
 (define-public (data-art-insert-cover-in-buffer buf cover)
-  (let* ((body (buffer-get-body buf))
-         (new-body (stree->tree
-                    (let ((stree-body (tree->stree body)))
-                      (if (data-art-cover-present-stree? stree-body)
-                          stree-body
-                          (data-art-insert-cover-stree stree-body cover))))))
-    (buffer-set-body buf new-body)))
+  (buffer-set-body
+   buf (data-art-body-with-cover (buffer-get-body buf) cover)))
 
 (define-public (data-art-insert-cover-in-doc-data-buffer buf cover)
   (let* ((body (buffer-get-body buf))

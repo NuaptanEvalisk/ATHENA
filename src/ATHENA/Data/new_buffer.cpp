@@ -581,8 +581,9 @@ set_buffer_tree (url name, tree doc) {
   string proposed_title= propose_title (old_title, name);
   athena_blob_id document_payload=
     actor_tree_registry::instance ().store (std::move (doc));
+  athena_view_id view_id= source_view (buf);
   if (!invoke_buffer_actor (
-        buf, actor_command_kind::replace_document, ATHENA_NO_VIEW,
+        buf, actor_command_kind::replace_document, view_id,
         document_payload)) {
     discard_tree_payload (document_payload);
     return;
@@ -644,8 +645,9 @@ set_buffer_body (url name, tree body) {
   else {
     athena_blob_id body_payload=
       actor_tree_registry::instance ().store (std::move (body));
+    athena_view_id view_id= source_view (buf);
     if (!invoke_buffer_actor (
-          buf, actor_command_kind::replace_body, ATHENA_NO_VIEW,
+          buf, actor_command_kind::replace_body, view_id,
           body_payload)) {
       discard_tree_payload (body_payload);
       return;

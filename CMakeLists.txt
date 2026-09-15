@@ -142,34 +142,21 @@ set (USE_SQLITE3 ON CACHE BOOL "Use SQLite3" FORCE)
 set (LINKED_SQLITE3 ON CACHE BOOL "Use Linked SQLite3" FORCE)
 
 find_package (Python3 REQUIRED COMPONENTS Interpreter)
-find_program (UV_EXECUTABLE uv REQUIRED)
+find_package (VTK 9.4 REQUIRED COMPONENTS
+  CommonCore
+  CommonDataModel
+  IOImage
+  RenderingCore
+  RenderingOpenGL2)
+set (ATHENA_VTK_LIBRARIES
+  VTK::CommonCore
+  VTK::CommonDataModel
+  VTK::IOImage
+  VTK::RenderingCore
+  VTK::RenderingOpenGL2)
 if (NOT APPLE AND NOT WIN32)
   find_program (PATCHELF_EXECUTABLE patchelf REQUIRED)
 endif ()
-
-set (ATHENA_DATA_ART_TOOL_DIR
-  "${CMAKE_SOURCE_DIR}/ATHENA/tools/data-art")
-set (ATHENA_DATA_ART_VENV_STAMP
-  "${ATHENA_DATA_ART_TOOL_DIR}/.venv/.athena-uv-sync-stamp")
-set (ATHENA_UV_CACHE_DIR
-  "${CMAKE_BINARY_DIR}/athena-uv-cache")
-add_custom_command (
-  OUTPUT ${ATHENA_DATA_ART_VENV_STAMP}
-  COMMAND ${CMAKE_COMMAND} -E make_directory ${ATHENA_UV_CACHE_DIR}
-  COMMAND ${CMAKE_COMMAND} -E env
-          "UV_CACHE_DIR=${ATHENA_UV_CACHE_DIR}"
-          "UV_PROJECT_ENVIRONMENT=${ATHENA_DATA_ART_TOOL_DIR}/.venv"
-          ${UV_EXECUTABLE} sync --locked --no-dev
-          --project ${ATHENA_DATA_ART_TOOL_DIR}
-  COMMAND ${CMAKE_COMMAND} -E touch ${ATHENA_DATA_ART_VENV_STAMP}
-  DEPENDS
-          ${ATHENA_DATA_ART_TOOL_DIR}/pyproject.toml
-          ${ATHENA_DATA_ART_TOOL_DIR}/uv.lock
-  WORKING_DIRECTORY ${ATHENA_DATA_ART_TOOL_DIR}
-  COMMENT "Synchronizing ATHENA DataArt Python environment"
-  VERBATIM)
-add_custom_target (athena-data-art-python ALL
-  DEPENDS ${ATHENA_DATA_ART_VENV_STAMP})
 
 find_package (Freetype REQUIRED)
 
@@ -564,12 +551,15 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM" AND
   message(STATUS "Detected IntelLLVM compiler, adding aggressive optimization flags")
   # Release builders select a portable ISA baseline explicitly. Local builds
   # retain native tuning by default.
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 ${ATHENA_CPU_COMPILE_FLAGS} -funroll-loops -flto=thin -fp-model fast")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 ${ATHENA_CPU_COMPILE_FLAGS} -funroll-loops -flto=thin -fp-model fast")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 ${ATHENA_CPU_COMPILE_FLAGS} -funroll-loops -fp-model fast")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 ${ATHENA_CPU_COMPILE_FLAGS} -funroll-loops -fp-model fast")
 
-  # Linker flags: Use lld, ThinLTO, and enable caching in the build directory
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -flto=thin -fuse-ld=lld -Wl,--thinlto-cache-dir=${CMAKE_BINARY_DIR}/lto_cache -static-intel")
-  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -flto=thin -fuse-ld=lld -Wl,--thinlto-cache-dir=${CMAKE_BINARY_DIR}/lto_cache -static-intel")
+  # Keep the linker/toolchain choice global, but do not make ThinLTO global.
+  # ATHENA.bin opts into ThinLTO in src/CMakeLists.txt. Unit/integration tests
+  # intentionally compile and link without ThinLTO so building many small test
+  # executables does not repeatedly run the whole-program optimizer.
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=lld -static-intel")
+  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fuse-ld=lld -static-intel")
 endif()
 
 if (ATHENA_ENABLE_TSAN)
@@ -702,6 +692,7 @@ file (GLOB_RECURSE ATHENA_Subsystems_SRCS CONFIGURE_DEPENDS
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Openssl/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/RAG/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Sqlite3/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Subsystems/VTK/*.cpp"
 )
 
 file (GLOB_RECURSE ATHENA_Style_SRCS

@@ -10,6 +10,7 @@
 
 #include "ATHENA/Data/websites_internal.hpp"
 #include "ATHENA/Data/transclusion_cache.hpp"
+#include "ATHENA/Data/data_art.hpp"
 #include "ATHENA/Data/new_window.hpp"
 #include "Qt/qt_utilities.hpp"
 
@@ -865,10 +866,35 @@ export_document_pdf (const fs::path& source, const fs::path& target,
 
   bool dispatched= false;
   try {
-    object printed= qt_call_in_buffer (
-      source_buffer, "wrapped-print-to-file",
-      object (url_system (std_to_tm (target.string ()))));
-    dispatched= !(is_bool (printed) && !as_bool (printed));
+    url target_url= url_system (std_to_tm (target.string ()));
+    object prepared= qt_call_in_buffer (
+      source_buffer, "data-art-prepare-export",
+      object (source_buffer), object (target_url));
+    bool used_data_art_payload= false;
+    if (is_tree (prepared)) {
+      tree payload= as_tree (prepared);
+      if (is_func (payload, TUPLE, 3) && is_atomic (payload[2])) {
+        used_data_art_payload= true;
+        url cover= url_system (as_string (payload[2]));
+        string export_error= athena_data_art_export_snapshot (
+          source_buffer, target_url, copy (payload[0]), copy (payload[1]));
+        remove (cover);
+        if (export_error == "") dispatched= true;
+        else {
+          // A DataArt failure must not poison website output.  The source
+          // BufferActor still owns the authoritative document, so fall back to
+          // its ordinary print path without attempting DataArt a second time.
+          object printed= qt_call_in_buffer (
+            source_buffer, "print-to-file", object (target_url));
+          dispatched= !(is_bool (printed) && !as_bool (printed));
+        }
+      }
+    }
+    if (!dispatched && !used_data_art_payload) {
+      object printed= qt_call_in_buffer (
+        source_buffer, "wrapped-print-to-file", object (target_url));
+      dispatched= !(is_bool (printed) && !as_bool (printed));
+    }
   }
   catch (...) {
     dispatched= false;

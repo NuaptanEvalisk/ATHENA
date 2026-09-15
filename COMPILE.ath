@@ -74,9 +74,9 @@
 
     \ \ libffi-devel libunistring-devel readline-devel ncurses-devel \\
 
-    \ \ libcurl-devel ghostscript resvg-devel \\
+    \ \ libcurl-devel ghostscript resvg-devel vtk-devel \\
 
-    \ \ python3 python313-uv cargo rust
+    \ \ python3 cargo rust
   </code>
 
   <label|remark:A system Guile installation is neither needed nor used CMake

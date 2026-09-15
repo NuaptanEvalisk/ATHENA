@@ -16,6 +16,10 @@
 #include <QStandardPaths>
 #include <QTemporaryDir>
 
+#include <filesystem>
+
+#include "ATHENA/Data/vault_map_sqlite.hpp"
+
 class TestCommandLineConversion: public QObject {
   Q_OBJECT
 private slots:
@@ -142,6 +146,9 @@ void TestCommandLineConversion::vaultMaintenanceUsesHeadlessDocumentContext() {
     QFile file (temp.filePath (path));
     return file.open (QIODevice::WriteOnly) && file.write (bytes) == bytes.size ();
   };
+  QVERIFY (write ("home/system/preferences.json",
+    "{\"format\":\"athena-preferences\",\"version\":1,\"preferences\":{"
+    "\"texmacs->pdf:data-art cover\":\"on\"}}"));
   QVERIFY (write ("vault/Vaultfile.json", "{\"name\":\"Maintenance test\"}"));
   QVERIFY (write ("vault/websites.json",
     "{\"version\":1,\"websites\":[{"
@@ -155,8 +162,27 @@ void TestCommandLineConversion::vaultMaintenanceUsesHeadlessDocumentContext() {
     "\"postCommand\":{\"enabled\":false}}]}"));
   QVERIFY (write ("vault/test.ath",
     "<TeXmacs|2.1.4>\n\n<style|generic>\n\n<\\body>\n"
-    "<section|Maintenance test>\n\n<\\proof>\nTest proof.\n</proof>\n"
+    "<section|Maintenance test>\n\n"
+    "<\\theorem>\nDataArt theorem sentinel<label|data-art-label>\n</theorem>\n\n"
+    "DataArt reference sentinel: <reference|data-art-label>.\n\n"
+    "<\\proof>\nDataArt proof sentinel.\n</proof>\n"
+    "<transclude|data-art-transclusion|child.ath|trans-b|trans-e>\n"
     "<\\table-of-contents|toc>\n  \n</table-of-contents>\n</body>\n"));
+  QVERIFY (write ("vault/child.ath",
+    "<TeXmacs|2.1.4>\n\n<style|generic>\n\n<\\body>\n"
+    "<label|trans-b>\nDataArt transclusion sentinel.\n<label|trans-e>\n"
+    "</body>\n"));
+  {
+    AthenaVaultMapSqlite map;
+    std::string error;
+    QVERIFY2 (map.open (
+      std::filesystem::path (temp.filePath ("vault/map.sqlite").toStdString ()),
+      true, error), error.c_str ());
+    QVERIFY2 (map.set_node (
+      AthenaVaultMapNode {"data-art-transclusion", "child.ath",
+                          "trans-b", "trans-e"}, error), error.c_str ());
+    map.close ();
+  }
   const QDir binaries (QCoreApplication::applicationDirPath ());
   QProcess process;
   auto env= QProcessEnvironment::systemEnvironment ();
@@ -183,7 +209,7 @@ void TestCommandLineConversion::vaultMaintenanceUsesHeadlessDocumentContext() {
     const QByteArray log= process.readAll ();
     QVERIFY2 (process.exitStatus () == QProcess::NormalExit &&
               process.exitCode () == 0, log.constData ());
-    QVERIFY2 (log.contains ("health check: all 1 .ath file(s) are legible"),
+    QVERIFY2 (log.contains ("health check: all 2 .ath file(s) are legible"),
               log.constData ());
     if (!check_only)
       QVERIFY2 (log.contains ("pass success: anchor-structures"), log.constData ());
@@ -192,8 +218,33 @@ void TestCommandLineConversion::vaultMaintenanceUsesHeadlessDocumentContext() {
       const QByteArray pdf= contents (
         temp.filePath ("vault/generated-site/pdf/test.pdf"));
       QVERIFY2 (pdf.startsWith ("%PDF-"), log.constData ());
+      const QString pdf_path= temp.filePath ("vault/generated-site/pdf/test.pdf");
+      const QString pdftotext= QStandardPaths::findExecutable ("pdftotext");
+      if (!pdftotext.isEmpty ()) {
+        QProcess inspect;
+        inspect.start (pdftotext, {pdf_path, "-"});
+        QVERIFY2 (inspect.waitForFinished (15000),
+                  qPrintable (inspect.errorString ()));
+        const QByteArray text= inspect.readAllStandardOutput ();
+        QVERIFY2 (text.contains ("DataArt theorem sentinel"), text.constData ());
+        QVERIFY2 (text.contains ("DataArt reference sentinel: 1."), text.constData ());
+        QVERIFY2 (text.contains ("DataArt proof sentinel."), text.constData ());
+        QVERIFY2 (text.contains ("DataArt transclusion sentinel."), text.constData ());
+      }
+      const QString pdfimages= QStandardPaths::findExecutable ("pdfimages");
+      if (!pdfimages.isEmpty ()) {
+        QProcess inspect;
+        inspect.start (pdfimages, {"-list", pdf_path});
+        QVERIFY2 (inspect.waitForFinished (15000),
+                  qPrintable (inspect.errorString ()));
+        const QByteArray images= inspect.readAllStandardOutput ();
+        QVERIFY2 (images.contains ("image") && images.contains ("rgb"),
+                  images.constData ());
+      }
     }
     QVERIFY2 (!log.contains ("editor state is owned by its BufferActor"), log.constData ());
+    QVERIFY2 (!log.contains ("GUI buffer registry accessed from a BufferActor"),
+              log.constData ());
     QVERIFY2 (!log.contains ("Unbound variable"), log.constData ());
   }
   process.start (executable, {"--vault-maintenance-toc-worker",

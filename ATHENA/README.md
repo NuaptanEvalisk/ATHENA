@@ -259,7 +259,7 @@ ATHENA can generate richer PDF output than plain converted notes.
 - DataArt cover image generation for PDF export/preview.
 - Namespace export with cover page, table of contents, hierarchy diagram,
   imported source documents, generated labels, and internal PDF jumps.
-- A uv-managed Python/matplotlib generator in `ATHENA/tools/data-art`.
+- Native deterministic surface generation rendered offscreen through VTK.
 - Generated cover images live in temporary storage and are not saved to the
   vault.
 - Correct PDF destination emission for labels, wikilinks, tables of contents,

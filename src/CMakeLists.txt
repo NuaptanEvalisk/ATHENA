@@ -30,32 +30,56 @@ target_link_libraries(athena_plugin_runtime PUBLIC athena_plugins athena_audmap 
 add_library(athena_plugin_ui STATIC Subsystems/Qt/QTMPluginUi.cpp)
 set_target_properties(athena_plugin_ui PROPERTIES AUTOMOC OFF)
 target_link_libraries(athena_plugin_ui PUBLIC athena_plugin_runtime Qt6::Widgets)
-add_library(athena_body STATIC ${ATHENA_All_SRCS})
-target_sources (athena_body PRIVATE ./ATHENA/Watchdog/watchdog_client.cpp)
-add_dependencies(athena_body athena_build_info athena_guile_runtime athena_glue)
 set_source_files_properties(Scheme/Scheme/glue.cpp PROPERTIES
   INCLUDE_DIRECTORIES "${ATHENA_BINARY_DIR}/generated")
-target_compile_definitions(athena_body PRIVATE
-  ATHENA_GUILE_BUILD_RUNTIME_ROOT="${ATHENA_GUILE_PREFIX}"
-  ATHENA_GUILE_RUNTIME_ID="${ATHENA_GUILE_RUNTIME_ID}"
-  $<$<CONFIG:Debug>:ATHENA_DEBUG_BUILD=1>
-)
-target_link_libraries (athena_body
-  PUBLIC
-  athena_audmap
-  PkgConfig::SPDLOG
-  ${ATHENA_LLAMA_LIBRARIES}
-  PRIVATE
-  PkgConfig::HUNSPELL
-  ${ADS_LIBRARIES}
-  rapidfuzz::rapidfuzz
-  athena_snowball_english
-  ncnn
-)
-target_link_libraries (athena_body PRIVATE KF6::SyntaxHighlighting)
-target_link_libraries (athena_body PRIVATE KF6::Completion)
-target_link_libraries (athena_body PRIVATE athena_audmap_terminal)
-target_link_libraries (athena_body PRIVATE athena_plugin_ui)
+
+function (athena_configure_body_target target_name)
+  add_library (${target_name} STATIC ${ATHENA_All_SRCS})
+  target_sources (${target_name} PRIVATE ./ATHENA/Watchdog/watchdog_client.cpp)
+  add_dependencies (${target_name} athena_build_info athena_guile_runtime athena_glue)
+  target_compile_definitions (${target_name} PRIVATE
+    ATHENA_GUILE_BUILD_RUNTIME_ROOT="${ATHENA_GUILE_PREFIX}"
+    ATHENA_GUILE_RUNTIME_ID="${ATHENA_GUILE_RUNTIME_ID}"
+    $<$<CONFIG:Debug>:ATHENA_DEBUG_BUILD=1>
+  )
+  target_link_libraries (${target_name}
+    PUBLIC
+    athena_audmap
+    PkgConfig::SPDLOG
+    ${ATHENA_LLAMA_LIBRARIES}
+    PRIVATE
+    PkgConfig::HUNSPELL
+    ${ADS_LIBRARIES}
+    rapidfuzz::rapidfuzz
+    athena_snowball_english
+    ncnn
+    KF6::SyntaxHighlighting
+    KF6::Completion
+    athena_audmap_terminal
+    athena_plugin_ui
+    ${ATHENA_VTK_LIBRARIES}
+  )
+  vtk_module_autoinit (
+    TARGETS ${target_name}
+    MODULES ${ATHENA_VTK_LIBRARIES})
+endfunction ()
+
+# Production body: compiled as ThinLTO bitcode when using the optimized local
+# IntelLLVM configuration. ATHENA.bin is the only consumer which should pay the
+# whole-program optimization/link cost.
+athena_configure_body_target (athena_body)
+if (CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM" AND
+    ATHENA_INTEL_NATIVE_OPTIMIZATION AND NOT ATHENA_ENABLE_TSAN)
+  target_compile_options (athena_body PRIVATE -flto=thin)
+endif ()
+
+# Test body: normal object code, compiled once and shared by all ordinary test
+# executables. This deliberately avoids feeding the production ThinLTO archive
+# into every small xxx_test link.
+if (BUILD_TESTS)
+  athena_configure_body_target (athena_test_body)
+  target_compile_definitions (athena_test_body PRIVATE ATHENA_TEST_BODY=1)
+endif ()
 
 if (WIN32)
   add_executable (${ATHENA_binary_name} WIN32
@@ -91,6 +115,13 @@ target_link_libraries (${ATHENA_binary_name}
   ${ADS_LIBRARIES}
   ${ATHENA_Libraries}
 )
+if (CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM" AND
+    ATHENA_INTEL_NATIVE_OPTIMIZATION AND NOT ATHENA_ENABLE_TSAN)
+  target_compile_options (${ATHENA_binary_name} PRIVATE -flto=thin)
+  target_link_options (${ATHENA_binary_name} PRIVATE
+    -flto=thin
+    "-Wl,--thinlto-cache-dir=${CMAKE_BINARY_DIR}/lto_cache")
+endif ()
 
 if (NOT APPLE AND NOT WIN32)
   add_custom_command (TARGET ${ATHENA_binary_name} POST_BUILD
@@ -189,6 +220,14 @@ if (NOT WIN32)
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
             $<TARGET_FILE:${ATHENA_binary_name}>
             "${ATHENA_LOCAL_RUNTIME_DIR}/bin/ATHENA.bin"
+    COMMAND ${CMAKE_COMMAND}
+            "-DATHENA_EXECUTABLE=$<TARGET_FILE:${ATHENA_binary_name}>"
+            "-DATHENA_RUNTIME_LIB_DIR=${ATHENA_LOCAL_RUNTIME_DIR}/lib"
+            "-DATHENA_SEARCH_DIR_0=${ATHENA_LOCAL_RUNTIME_DIR}/lib"
+            "-DATHENA_SEARCH_DIR_1=${ATHENA_GUILE_PREFIX}/lib"
+            "-DATHENA_SEARCH_DIR_2=${ATHENA_LLAMA_RUNTIME_DIR}"
+            "-DATHENA_SEARCH_DIR_3=${ATHENA_BINARY_DIR}/x64/lib"
+            -P "${ATHENA_SOURCE_DIR}/tools/release/copy-vtk-runtime.cmake"
     ${ATHENA_LOCAL_WATCHDOG_COPY}
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
             $<TARGET_FILE:athena-audmap>

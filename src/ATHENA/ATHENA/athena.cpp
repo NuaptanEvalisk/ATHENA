@@ -99,7 +99,6 @@ extern bool aofm_import_vault(string source_dir, string destination_dir,
 
 bool disable_error_recovery= false;
 bool start_server_flag= false;
-bool headless_mode= false;
 bool no_splash_screen= false;
 bool skip_fonts_cache= false;
 std::string aofm_convert_file;
@@ -625,10 +624,6 @@ startup_scheme_compile (bool compiling, string source) {
 #  include <mimalloc-new-delete.h>
 #endif
 
-bool
-is_headless () {
-  return headless_mode;
-}
 
 /******************************************************************************
 * For testing

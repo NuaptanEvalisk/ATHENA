@@ -210,6 +210,16 @@
   </binding>
   <binding name="namespace-export-show" native="namespace_export_show" returns="void" dispatch="ui" />
   <binding name="websites-manager-show" native="websites_manager_show" returns="void" dispatch="ui" />
+  <binding name="data-art-generate" native="athena_data_art_generate" returns="string">
+    <arg type="string" />
+    <arg type="url" />
+  </binding>
+  <binding name="data-art-export-snapshot" native="athena_data_art_export_snapshot" returns="string">
+    <arg type="url" />
+    <arg type="url" />
+    <arg type="tree" passing="move" />
+    <arg type="tree" passing="move" />
+  </binding>
   <binding name="vault-load-with-ns" native="vault_load" returns="string">
     <arg type="url" />
     <arg type="string" />

@@ -301,7 +301,7 @@ foreach (_test_file ${TEST_SRC_FILES})
     target_link_libraries (${_test_name} mimalloc)
   endif ()
   target_link_libraries (${_test_name}
-    athena_body
+    athena_test_body
     PkgConfig::SPDLOG
     ${ATHENA_LLAMA_LIBRARIES}
     ${ADS_LIBRARIES}

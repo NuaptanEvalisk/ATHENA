@@ -32,6 +32,7 @@ def main():
             "compatibility_version": "2.1.4",
         }))
         script = home / "check.scm"
+        data_art_output = home / "data-art.png"
         script.write_text(
             '(use-modules (ice-9 format))\n'
             '(for-each\n'
@@ -63,6 +64,10 @@ def main():
             '(check (equal? (image-remove-background #f)\n'
             '               "Remove background expects an image path.")\n'
             '       "image adapter error contract")\n'
+            f'(let ((output (string->url {json.dumps(str(data_art_output))})))\n'
+            '  (check (equal? (data-art-generate "ATHENA native DataArt glue" output) "")\n'
+            '         "native DataArt generation")\n'
+            '  (check (url-exists? output) "native DataArt output"))\n'
             '(check (catch (quote wrong-type-arg)\n'
             '         (lambda () (global-transformation-run #f "") #f)\n'
             '         (lambda ignored #t)) "procedure argument validation")\n'
