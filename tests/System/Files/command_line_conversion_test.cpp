@@ -24,6 +24,7 @@ class TestCommandLineConversion: public QObject {
   Q_OBJECT
 private slots:
   void convertsBeforeContinuing();
+  void ignoresPersonalInitFiles();
   void websiteGenerationSkipsEditorModeLazyInitialization();
   void vaultMaintenanceUsesHeadlessDocumentContext();
 };
@@ -32,6 +33,12 @@ static QByteArray contents (const QString& path) {
   QFile file (path);
   if (!file.open (QIODevice::ReadOnly)) return {};
   return file.readAll ();
+}
+
+static QString scheme_quote (QString value) {
+  value.replace ('\\', "\\\\");
+  value.replace ('"', "\\\"");
+  return '"' + value + '"';
 }
 
 void TestCommandLineConversion::convertsBeforeContinuing() {
@@ -103,6 +110,65 @@ void TestCommandLineConversion::convertsBeforeContinuing() {
   QCOMPARE (process.exitStatus (), QProcess::NormalExit);
   QCOMPARE (process.exitCode (), 1);
   QVERIFY (!QFile::exists (temp.filePath ("missing.pdf")));
+}
+
+void TestCommandLineConversion::ignoresPersonalInitFiles() {
+  QTemporaryDir temp;
+  QVERIFY (temp.isValid ());
+  QVERIFY (QDir ().mkpath (temp.filePath ("home/progs")));
+  QVERIFY (QDir ().mkpath (temp.filePath ("home/fonts")));
+  QVERIFY (QDir ().mkpath (temp.filePath ("home/system")));
+
+  const QString startup_poison= temp.filePath ("startup-poison");
+  const QString buffer_poison= temp.filePath ("buffer-poison");
+  const QString result= temp.filePath ("result.txt");
+  const QString document= temp.filePath ("document.ath");
+  auto write= [] (const QString& path, const QByteArray& bytes) {
+    QFile file (path);
+    return file.open (QIODevice::WriteOnly) && file.write (bytes) == bytes.size ();
+  };
+
+  QVERIFY (write (temp.filePath ("home/progs/my-init-texmacs.scm"),
+    QString ("(string-save \"executed\" (system->url %1))\n")
+      .arg (scheme_quote (startup_poison)).toUtf8 ()));
+  QVERIFY (write (temp.filePath ("home/progs/my-init-buffer.scm"),
+    QString ("(string-save \"executed\" (system->url %1))\n")
+      .arg (scheme_quote (buffer_poison)).toUtf8 ()));
+  QVERIFY (write (document,
+    "<TeXmacs|2.1.4>\n\n<style|generic>\n\n<\\body>\n"
+    "Personal init files must be ignored.\n</body>\n"));
+
+  const QString probe= QString (R"SCM(
+(delayed (:pause 1500)
+  (exec-global
+    (lambda ()
+      (string-save
+        (if (buffer-exists? (system->url %1)) "loaded" "missing")
+        (system->url %2))
+      (quit-TeXmacs))))
+)SCM")
+    .arg (scheme_quote (document), scheme_quote (result));
+
+  const QDir binaries (QCoreApplication::applicationDirPath ());
+  const QString executable= binaries.absoluteFilePath ("../src/ATHENA.bin");
+  QProcess process;
+  auto env= QProcessEnvironment::systemEnvironment ();
+  env.insert ("ATHENA_HOME_PATH", temp.filePath ("home"));
+  env.insert ("ATHENA_PATH", binaries.absoluteFilePath ("../../ATHENA"));
+  env.insert ("QT_QPA_PLATFORM", "offscreen");
+  env.insert ("PWD", temp.path ());
+  process.setProcessEnvironment (env);
+  process.setWorkingDirectory (temp.path ());
+  process.setProcessChannelMode (QProcess::MergedChannels);
+  process.start (executable,
+    {"--no-splash-screen", "-X", "-x", probe, document});
+  QVERIFY2 (process.waitForFinished (20000), qPrintable (process.errorString ()));
+  const QByteArray log= process.readAll ();
+  QCOMPARE (process.exitStatus (), QProcess::NormalExit);
+  QVERIFY2 (process.exitCode () == 0, log.constData ());
+  QCOMPARE (contents (result), QByteArray ("loaded"));
+  QVERIFY2 (!QFile::exists (startup_poison), log.constData ());
+  QVERIFY2 (!QFile::exists (buffer_poison), log.constData ());
 }
 
 void TestCommandLineConversion::websiteGenerationSkipsEditorModeLazyInitialization() {

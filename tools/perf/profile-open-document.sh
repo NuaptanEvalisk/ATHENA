@@ -311,14 +311,15 @@ scheme_command="(delayed (:pause $startup_delay_ms) (begin
     (system $helper_buffer_scheme)
     (delayed (:pause $settle_ms) (begin
       (system $helper_finish_scheme)
-      (quit-TeXmacs)))))))"
-
-mkdir -p -- "$athena_home/progs"
-printf '\n%s\n%s\n%s\n' \
-  '(set-preference "check for updates" "off")' \
-  '(set-preference "google oauth client id" "")' \
-  "$scheme_command" \
-  >> "$athena_home/progs/my-init-texmacs.scm"
+      (exec-global (lambda () (quit-TeXmacs))))))))"
+startup_scheme="(begin
+  (set-preference \"check for updates\" \"off\")
+  (set-preference \"google oauth client id\" \"\")
+  $scheme_command)"
+init_athena_scheme="$(scheme_quote "$repo_root/ATHENA/progs/init-athena.scm")"
+profile_init="$output/athena-profile-init.scm"
+printf '(primitive-load %s)\n%s\n' \
+  "$init_athena_scheme" "$startup_scheme" > "$profile_init"
 
 # Match the normal ATHENA launcher when the local build uses the SYCL llama.cpp
 # backend.  Without the oneAPI runtime path, profiling would fail before main.
@@ -498,6 +499,7 @@ run_perf() {
         --output "$run_dir/perf.data" -- \
       "$binary" --no-splash-screen -debug-bench \
         -log-file "$run_dir/athena.log" \
+        -i "$profile_init" \
         --platform "$platform"
   ) > "$run_dir/stdout-stderr.log" 2>&1
   local status=$?
@@ -542,6 +544,7 @@ run_timing() {
         LD_LIBRARY_PATH="$library_path" \
       "$binary" --no-splash-screen -debug-bench \
         -log-file "$run_dir/athena.log" \
+        -i "$profile_init" \
         --platform "$platform"
   ) > "$run_dir/stdout-stderr.log" 2>&1
   local status=$?
@@ -587,6 +590,7 @@ run_vtune() {
         -result-dir "$result_dir" -app-working-dir "$repo_root/ATHENA" -- \
       "$binary" --no-splash-screen -debug-bench \
         -log-file "$run_dir/athena.log" \
+        -i "$profile_init" \
         --platform "$platform"
   ) > "$run_dir/stdout-stderr.log" 2>&1
   local status=$?

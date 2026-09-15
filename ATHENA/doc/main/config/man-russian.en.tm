@@ -111,8 +111,7 @@
   and not \P<with|language|russian|font|cyrillic|\<#448\>>\Q, you have to
   type <key|s / h>. Of course, the choice of \Poptimal\Q mapping of Latin
   letters to Russian ones in not unique. You can investigate the mapping
-  supplied with <TeXmacs> and, if you don't like something, override it in
-  your <verbatim|~/.ATHENA/progs/my-init-texmacs.scm>.
+  supplied with <TeXmacs> in the shipped Cyrillic keyboard modules.
 
   If you select <verbatim|jcuken> instead of <verbatim|translit>, you get the
   \Pofficial\Q Russian typewriter layout. It is so called because the keys

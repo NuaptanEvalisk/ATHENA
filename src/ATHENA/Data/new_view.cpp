@@ -340,7 +340,6 @@ get_all_views () {
 ******************************************************************************/
 
 url tm_init_buffer_file= url_none ();
-url my_init_buffer_file= url_none ();
 static bool defer_view_initialization= false;
 static url deferred_view= url_none ();
 
@@ -351,11 +350,10 @@ defer_next_view_initialization () {
 
 void
 initialize_current_view_scheme () {
-  ASSERT (!is_none (tm_init_buffer_file) && !is_none (my_init_buffer_file),
-          "view initialization paths were not prepared by the Server");
+  ASSERT (!is_none (tm_init_buffer_file),
+          "view initialization path was not prepared by the Server");
   bench_start ("load init buffer");
   if (exists (tm_init_buffer_file)) exec_file (tm_init_buffer_file);
-  if (exists (my_init_buffer_file)) exec_file (my_init_buffer_file);
   bench_cumul ("load init buffer");
 }
 
@@ -363,8 +361,6 @@ static void
 initialize_view (tm_view vw) {
   if (is_none (tm_init_buffer_file))
     tm_init_buffer_file= "$ATHENA_PATH/progs/init-buffer.scm";
-  if (is_none (my_init_buffer_file))
-    my_init_buffer_file= "$ATHENA_HOME_PATH/progs/my-init-buffer.scm";
   if (!vw->buf->actor->submit (
         actor_command_kind::initialize_view, vw->runtime_id))
     FAILED ("BufferActor rejected view initialization");

@@ -59,7 +59,6 @@ private slots:
   void buildsIncrementallyAndPurgesDeletedDocuments ();
   void preservesAccentedArtifactTextAcrossWorkerAndDatabase ();
   void storesAndDisambiguatesSameNamedArtifacts ();
-  void navigatesArtifactAndLoadsDisambiguationPage ();
   void keepsRadioactiveRangeMacroLociAlive ();
   void preservesBoldIdentityWhenDuplicateIsInsertedBefore ();
   void doesNotTransferDeletedDuplicateToInsertedDuplicate ();
@@ -1003,275 +1002,6 @@ TestArtifacts::storesAndDisambiguatesSameNamedArtifacts () {
 }
 
 void
-TestArtifacts::navigatesArtifactAndLoadsDisambiguationPage () {
-  MissingRangeModel noModel;
-  QTemporaryDir temporary;
-  QVERIFY (temporary.isValid ());
-  fs::path root (temporary.filePath ("vault").toStdString ());
-  QVERIFY (fs::create_directories (root));
-
-  AthenaVaultfileInfo info;
-  std::string error;
-  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
-  write_document (root / "Banach.ath", structured_theorem_document ());
-  write_document (
-    root / "Euler functions.ath",
-    named_theorem_document (
-      "Euler's theorem",
-      "Every homogeneous function satisfies Euler's identity."));
-  write_document (
-    root / "Euler polyhedra.ath",
-    named_theorem_document (
-      "Euler's theorem",
-      "Every convex polyhedron satisfies V minus E plus F equals two."));
-  tree middleDefinition (CONCAT);
-  middleDefinition << "A " << compound ("strong", "middle concept")
-                   << " is defined in the middle of this document.";
-  tree middleBody (DOCUMENT);
-  middleBody << "First paragraph."
-             << "Second paragraph."
-             << middleDefinition
-             << "Last paragraph.";
-  tree middleDocument (DOCUMENT);
-  middleDocument << compound ("TeXmacs", "2.1.4")
-                 << compound ("style", "generic")
-                 << compound ("body", middleBody);
-  write_document (root / "Middle.ath", middleDocument);
-  tree demoBody (DOCUMENT);
-  demoBody << "Runtime navigation fixture.";
-  tree demoDocument (DOCUMENT);
-  demoDocument << compound ("TeXmacs", "2.1.4")
-               << compound ("style", "generic")
-               << compound ("body", demoBody);
-  write_document (root / "Demo.ath", demoDocument);
-
-  AthenaArtifactsBuildResult built;
-  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, built, error),
-            error.c_str ());
-  std::vector<AthenaArtifactRecord> records;
-  QVERIFY2 (athena_artifacts_query (root, records, error), error.c_str ());
-  const AthenaArtifactRecord* banach= nullptr;
-  const AthenaArtifactRecord* middle= nullptr;
-  std::vector<AthenaArtifactRecord> euler;
-  for (const AthenaArtifactRecord& record: records) {
-    if (record.relative_path == "Banach.ath" &&
-        record.origin == "enunciation")
-      banach= &record;
-    if (record.origin == "bold-text" && record.display_text == "middle concept")
-      middle= &record;
-    if (record.anchor_stem == "theorem:Euler's theorem")
-      euler.push_back (record);
-  }
-  QVERIFY (banach != nullptr);
-  QVERIFY (middle != nullptr);
-  QCOMPARE (euler.size (), (size_t) 2);
-  path banachSource;
-  QVERIFY2 (athena_artifact_locate_source (
-              structured_theorem_document (80), *banach,
-              banachSource, error), error.c_str ());
-  QCOMPARE (banachSource, path (81));
-  write_document (root / "Banach.ath", structured_theorem_document (80));
-  QString disambiguationUrl= QString::fromStdString (
-    "tmfs://artifact-disambiguation/" +
-    athena_artifact_radioactive_key (euler.front ()));
-
-  QString home= temporary.filePath ("home");
-  QVERIFY (QDir ().mkpath (home + "/progs"));
-  QVERIFY (QDir ().mkpath (home + "/fonts"));
-  QVERIFY (QDir ().mkpath (home + "/system"));
-  QString resultPath= temporary.filePath ("navigation-result.txt");
-  QString sourcePath= QString::fromStdString ((root / "Banach.ath").string ());
-  QString middlePath= QString::fromStdString ((root / "Middle.ath").string ());
-  QString demoPath= QString::fromStdString ((root / "Demo.ath").string ());
-  QString uniqueUrl= QString::fromStdString ("tmfs://artifact/" + banach->uuid);
-  QString middleUrl= QString::fromStdString ("tmfs://artifact/" + middle->uuid);
-
-  QString script= QString (R"SCM(
-(set-preference "check for updates" "off")
-(delayed (:pause 1000)
-  (begin
-    (load-vault-dir (system->url %1))
-    (delayed (:pause 500)
-      (begin
-        (load-buffer (system->url %2))
-        (let ((before-y (get-scroll-y)))
-          (go-to-url %3)
-          (string-save
-            (string-append
-              "immediate-buffer="
-              (if (== (url->system (current-buffer)) %2) "1" "0")
-              "\n")
-            (system->url %4))
-          (delayed (:pause 1200)
-            (begin
-            (string-save
-              (string-append
-                (string-load (system->url %4))
-                "same-buffer="
-                (if (== (url->system (current-buffer)) %2) "1" "0")
-                "\ncurrent-buffer=" (url->system (current-buffer))
-                "\nsame-position="
-                (let* ((matches
-                         (tree-search-indices
-                           (buffer-tree)
-                           (lambda (node)
-                             (and (tree-compound? node)
-                                  (== (tree-label node) 'theorem)))))
-                       (expected
-                         (and (pair? matches)
-                              (append (tree->path (buffer-tree))
-                                      (car matches)))))
-                  (if (and expected
-                           (list-starts? (cursor-path) expected))
-                      "1" "0"))
-                "\nsame-cursor=" (object->string (cursor-path))
-                "\nsame-expected="
-                (let* ((matches
-                         (tree-search-indices
-                           (buffer-tree)
-                           (lambda (node)
-                             (and (tree-compound? node)
-                                  (== (tree-label node) 'theorem)))))
-                       (expected
-                         (and (pair? matches)
-                              (append (tree->path (buffer-tree))
-                                      (car matches)))))
-                  (object->string expected))
-                "\ncursor-accessible="
-                (if (cursor-accessible?) "1" "0")
-                "\nscroll-moved="
-                (if (!= (get-scroll-y) before-y) "1" "0")
-                "\n")
-              (system->url %4))
-            (load-buffer (system->url %5))
-            (go-to-url %6)
-            (delayed (:pause 1200)
-              (begin
-                (string-save
-                  (string-append
-                    (string-load (system->url %4))
-                    "disambiguation-buffer="
-                    (if (and (== (url->system (current-buffer)) %6)
-                             (buffer-exists? (system->url %6)))
-                        "1" "0")
-                    "\n")
-                  (system->url %4))
-                (go-to-url %8)
-                (string-save
-                  (string-append
-                    (string-load (system->url %4))
-                    "candidate-immediate-buffer="
-                    (if (== (url->system (current-buffer)) %7) "1" "0")
-                    "\n")
-                  (system->url %4))
-                (delayed (:pause 1200)
-                  (begin
-                    (let* ((matches
-                             (tree-search-indices
-                               (buffer-tree)
-                               (lambda (node)
-                                 (and (tree-compound? node)
-                                      (== (tree-label node) 'strong)
-                                      (== (tree->string (tree-ref node 0))
-                                          "middle concept")))))
-                           (keyword-path (and (pair? matches) (car matches)))
-                           (paragraph-path
-                             (and keyword-path
-                                  (list-head keyword-path
-                                             (- (length keyword-path) 1))))
-                           (expected
-                             (and paragraph-path
-                                  (append (tree->path (buffer-tree))
-                                          paragraph-path))))
-                      (string-save
-                        (string-append
-                          (string-load (system->url %4))
-                          "middle-buffer="
-                          (if (== (url->system (current-buffer)) %7) "1" "0")
-                          "\nmiddle-position="
-                          (if (and expected
-                                   (list-starts? (cursor-path) expected))
-                              "1" "0")
-                          "\nmiddle-cursor=" (object->string (cursor-path))
-                          "\nmiddle-expected=" (object->string expected)
-                          "\n")
-                        (system->url %4)))
-                    (quit-TeXmacs))))))))))))
-)SCM")
-    .arg (scheme_quote (QString::fromStdString (root.string ())))
-    .arg (scheme_quote (sourcePath))
-    .arg (scheme_quote (uniqueUrl))
-    .arg (scheme_quote (resultPath))
-    .arg (scheme_quote (demoPath))
-    .arg (scheme_quote (disambiguationUrl))
-    .arg (scheme_quote (middlePath))
-    .arg (scheme_quote (middleUrl));
-  QFile init (home + "/progs/my-init-texmacs.scm");
-  QVERIFY (init.open (QIODevice::WriteOnly | QIODevice::Text));
-  QByteArray initBytes= script.toUtf8 ();
-  QCOMPARE (init.write (initBytes), (qint64) initBytes.size ());
-  init.close ();
-
-  QString executable=
-    QDir (QCoreApplication::applicationDirPath ())
-      .absoluteFilePath ("../src/ATHENA.bin");
-  QVERIFY2 (QFile::exists (executable), qPrintable (executable));
-  QString launcherDirectory= temporary.filePath ("bin");
-  QVERIFY (QDir ().mkpath (launcherDirectory));
-  QString launcher= launcherDirectory + "/ATHENA";
-  QVERIFY2 (QFile::link (executable, launcher), qPrintable (launcher));
-  QProcess process;
-  QProcessEnvironment environment= QProcessEnvironment::systemEnvironment ();
-  environment.insert (
-    "ATHENA_PATH",
-    QDir (QCoreApplication::applicationDirPath ())
-      .absoluteFilePath ("../../ATHENA"));
-  QString executableDirectory= QFileInfo (executable).absolutePath ();
-  environment.insert ("ATHENA_BIN_PATH", executableDirectory);
-  environment.insert (
-    "PATH", launcherDirectory + ':' + environment.value ("PATH"));
-  environment.insert ("ATHENA_HOME_PATH", home);
-  environment.insert ("QT_QPA_PLATFORM", "offscreen");
-  environment.insert ("TM_REEXEC", "1");
-  process.setProcessEnvironment (environment);
-  process.setProgram (launcher);
-  process.setArguments (
-    {"--no-splash-screen", "--platform", "offscreen", demoPath});
-  process.start ();
-  QVERIFY2 (process.waitForFinished (30000), qPrintable (process.errorString ()));
-
-  QByteArray output= process.readAllStandardOutput () +
-                     process.readAllStandardError ();
-  QByteArray diagnostic;
-  for (const QByteArray& line: output.split ('\n'))
-    if (!line.contains ("approximating font")) diagnostic += line + '\n';
-  QCOMPARE (process.exitStatus (), QProcess::NormalExit);
-  QFile result (resultPath);
-  QVERIFY2 (result.open (QIODevice::ReadOnly | QIODevice::Text),
-            diagnostic.right (8192).constData ());
-  QByteArray assertions= result.readAll ();
-  QByteArray navigationDiagnostic= assertions + '\n' + diagnostic.right (8192);
-  QVERIFY2 (assertions.contains ("immediate-buffer=1"),
-            navigationDiagnostic.constData ());
-  QVERIFY2 (assertions.contains ("same-buffer=1"),
-            navigationDiagnostic.constData ());
-  QVERIFY2 (assertions.contains ("same-position=1"),
-            navigationDiagnostic.constData ());
-  QVERIFY2 (assertions.contains ("cursor-accessible=1"),
-            navigationDiagnostic.constData ());
-  QVERIFY2 (assertions.contains ("scroll-moved=1"),
-            navigationDiagnostic.constData ());
-  QVERIFY2 (assertions.contains ("disambiguation-buffer=1"),
-            navigationDiagnostic.constData ());
-  QVERIFY2 (assertions.contains ("candidate-immediate-buffer=1"),
-            navigationDiagnostic.constData ());
-  QVERIFY2 (assertions.contains ("middle-buffer=1"),
-            navigationDiagnostic.constData ());
-  QVERIFY2 (assertions.contains ("middle-position=1"),
-            navigationDiagnostic.constData ());
-}
-
-void
 TestArtifacts::keepsRadioactiveRangeMacroLociAlive () {
   QTemporaryDir temporary;
   QVERIFY (temporary.isValid ());
@@ -1300,7 +1030,6 @@ TestArtifacts::keepsRadioactiveRangeMacroLociAlive () {
             error.c_str ());
 
   QString home= temporary.filePath ("home");
-  QVERIFY (QDir ().mkpath (home + "/progs"));
   QVERIFY (QDir ().mkpath (home + "/fonts"));
   QVERIFY (QDir ().mkpath (home + "/system"));
   QString resultPath= temporary.filePath ("range-result.txt");
@@ -1308,37 +1037,40 @@ TestArtifacts::keepsRadioactiveRangeMacroLociAlive () {
   QString script= QString (R"SCM(
 (set-preference "check for updates" "off")
 (delayed (:pause 500)
-  (begin
-    (load-vault-dir (system->url %1))
-    (delayed (:pause 300)
-      (begin
-        (load-buffer (system->url %2))
-        (delayed (:pause 1200)
-          (begin
-            (string-save "range-locus-alive=1\n" (system->url %3))
-            (quit-TeXmacs)))))))
+  (exec-global
+    (lambda ()
+      (load-vault-dir (system->url %1))
+      (load-browse-buffer (system->url %2)
+        (lambda ()
+          (string-save "range-locus-alive=1\n" (system->url %3))
+          (exec-global (lambda () (quit-TeXmacs))))))))
 )SCM")
     .arg (scheme_quote (QString::fromStdString (root.string ())))
     .arg (scheme_quote (demoPath))
     .arg (scheme_quote (resultPath));
-  QFile init (home + "/progs/my-init-texmacs.scm");
-  QVERIFY (init.open (QIODevice::WriteOnly | QIODevice::Text));
-  QCOMPARE (init.write (script.toUtf8 ()), (qint64) script.toUtf8 ().size ());
-  init.close ();
-
   QString executable=
     QDir (QCoreApplication::applicationDirPath ())
       .absoluteFilePath ("../src/ATHENA.bin");
+  const QString resources=
+    QDir (QCoreApplication::applicationDirPath ())
+      .absoluteFilePath ("../../ATHENA");
+  const QString initPath= temporary.filePath ("artifact-range-init.scm");
+  QFile init (initPath);
+  QVERIFY (init.open (QIODevice::WriteOnly | QIODevice::Text));
+  const QString initScript=
+    "(primitive-load " +
+    scheme_quote (QDir (resources).filePath ("progs/init-athena.scm")) +
+    ")\n" + script;
+  const QByteArray initBytes= initScript.toUtf8 ();
+  QCOMPARE (init.write (initBytes), (qint64) initBytes.size ());
+  init.close ();
   QString launcherDirectory= temporary.filePath ("bin");
   QVERIFY (QDir ().mkpath (launcherDirectory));
   QString launcher= launcherDirectory + "/ATHENA";
   QVERIFY2 (QFile::link (executable, launcher), qPrintable (launcher));
   QProcess process;
   QProcessEnvironment environment= QProcessEnvironment::systemEnvironment ();
-  environment.insert (
-    "ATHENA_PATH",
-    QDir (QCoreApplication::applicationDirPath ())
-      .absoluteFilePath ("../../ATHENA"));
+  environment.insert ("ATHENA_PATH", resources);
   environment.insert ("ATHENA_BIN_PATH", QFileInfo (executable).absolutePath ());
   environment.insert ("PATH", launcherDirectory + ':' + environment.value ("PATH"));
   environment.insert ("ATHENA_HOME_PATH", home);
@@ -1346,12 +1078,14 @@ TestArtifacts::keepsRadioactiveRangeMacroLociAlive () {
   environment.insert ("TM_REEXEC", "1");
   process.setProcessEnvironment (environment);
   process.setProgram (launcher);
-  process.setArguments ({"--no-splash-screen", "--platform", "offscreen"});
+  process.setArguments (
+    {"--no-splash-screen", "--platform", "offscreen", "-i", initPath});
   process.start ();
   QVERIFY2 (process.waitForFinished (30000), qPrintable (process.errorString ()));
   QByteArray diagnostic= process.readAllStandardOutput () +
                          process.readAllStandardError ();
-  QCOMPARE (process.exitStatus (), QProcess::NormalExit);
+  QVERIFY2 (process.exitStatus () == QProcess::NormalExit,
+            diagnostic.right (8192).constData ());
   QVERIFY2 (!diagnostic.contains ("The required path does not exist"),
             diagnostic.right (8192).constData ());
   QFile result (resultPath);

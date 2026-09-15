@@ -17,9 +17,6 @@
     <branch|Introduction to the <name|Guile> extension
     language|guile|man-guile-intro.en.tm>
 
-    <branch|Writing your own initialization
-    files|initialization|man-initialization.en.tm>
-
     <branch|Creating your own dynamic menus|menus|man-menus.en.tm>
 
     <branch|Creating your own keyboard shortcuts|keyboard|man-custom-keyboard.en.tm>

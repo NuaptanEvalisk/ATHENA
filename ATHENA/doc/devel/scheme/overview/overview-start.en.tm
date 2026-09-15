@@ -11,85 +11,12 @@
   and so on. In this section, we list the major ways to invoke <scheme>
   routines.
 
-  <paragraph*|User provided initialization files>
+  <paragraph*|Loaded Scheme modules>
 
-  In order to customize the basic aspects of <TeXmacs>, you may provide one
-  or both of the initialization files
-
-  <\verbatim>
-    \ \ \ \ ~/.ATHENA/progs/my-init-texmacs.scm<new-line>
-    \ \ \ ~/.ATHENA/progs/my-init-buffer.scm
-  </verbatim>
-
-  The file <verbatim|my-init-texmacs.scm> is loaded when booting <TeXmacs>
-  and <verbatim|my-init-buffer.scm> is booted each time you open a file.
-
-  Usually, the file <verbatim|my-init-texmacs.scm> contains personal keyboard
-  bindings and menus. For instance, when putting the following piece of code
-  in this file, the keyboard shortcuts <key|T h .> and <key|P r o p .> for
-  starting a new theorem <abbr|resp.> proposition:
-
-  <\scm-code>
-    (kbd-map
-
-    \ \ ("D e f ." (make 'definition))
-
-    \ \ ("L e m ." (make 'lemma))
-
-    \ \ ("P r o p ." (make 'proposition))
-
-    \ \ ("T h ." (make 'theorem)))
-  </scm-code>
-
-  Similarly, the following command extends the standard <menu|Insert> menu
-  with a special section for the insertion of greetings:
-
-  <\scm-code>
-    (menu-bind insert-menu
-
-    \ \ (former)
-
-    \ \ ---
-
-    \ \ (-\<gtr\> "Opening"
-
-    \ \ \ \ \ \ ("Dear Sir" (insert "Dear Sir,"))
-
-    \ \ \ \ \ \ ("Dear Madam" (insert "Dear Madam,")))
-
-    \ \ (-\<gtr\> "Closing"
-
-    \ \ \ \ \ \ ("Yours sincerely" (insert "Yours sincerely,"))
-
-    \ \ \ \ \ \ ("Greetings" (insert "Greetings,"))))
-  </scm-code>
-
-  The customization of the <hlink|keyboard|../utils/utils-keyboard.en.tm> and
-  <hlink|menus|../utils/utils-menus.en.tm> is described in more detail in the
-  chapter about the <TeXmacs> extensions of <scheme>. Notice also that,
-  because of the <hlink|lazy loading mechanism|overview-lazyness.en.tm>, you
-  can not always assume that the standard key-bindings and menus are loaded
-  before <verbatim|my-init-texmacs.scm>. This implies that some care is
-  needed in the case of <hlink|redefinitions|overview-lazyness.en.tm#redefinitions>.
-
-  The file <verbatim|my-init-buffer.scm> can for instance be used in order to
-  automatically select a certain style when starting a new document:
-
-  <\scm-code>
-    (if (not (buffer-has-name? (current-buffer)))
-
-    \ \ \ \ (begin
-
-    \ \ \ \ \ \ (init-style "article")
-
-    \ \ \ \ \ \ (buffer-pretend-saved (current-buffer))))
-  </scm-code>
-
-  Notice that the ``no name'' check is important: when omitted, the styles of
-  existing documents would also be changed to <tmstyle|article>. The function
-  <scm|buffer-pretend-saved> is used in order to avoid <TeXmacs> to complain
-  about unsaved documents when leaving <TeXmacs> without changing the
-  document.
+  ATHENA loads its application and buffer initialization code from shipped
+  Scheme modules. Personal startup Scheme files are not discovered or executed
+  automatically. Additional Scheme code must therefore be loaded explicitly by
+  the feature, test, or command that needs it.
 
   <paragraph*|Interactive invocation of <scheme> commands>
 

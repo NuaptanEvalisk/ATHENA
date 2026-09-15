@@ -192,10 +192,9 @@
   <subsection|Installing the handler>
 
   In order to make your handler available from any menu item or document upon
-  startup, you must add it to the initialization process, that is to
-  <verbatim|init-athena.scm> or <verbatim|my-init-texmacs.scm>, using the
-  macro <scm|lazy-tmfs-handler>. This will delay loading of your code either
-  until it is required or <TeXmacs> is idle waiting for user input.
+  startup, register it from an ATHENA Scheme module loaded by the application,
+  using the macro <scm|lazy-tmfs-handler>. This will delay loading of your code
+  either until it is required or <TeXmacs> is idle waiting for user input.
 
   <\remark>
     \ The keywords <tt|buffer>, <tt|view> and <tt|window> may not be used as

@@ -13,30 +13,7 @@
 #include "boot.hpp"
 #include "file.hpp"
 #include "path.hpp"
-#include "sys_utils.hpp"
 #include "data_cache.hpp"
-
-/******************************************************************************
-* Check for old Init.scm and Init-buffer.scm files
-******************************************************************************/
-
-static void
-init_upgrade_scheme () {
-#ifndef OS_WIN32
-  url u= "$ATHENA_HOME_PATH/progs";
-  string prgs= as_string (u);
-  if (exists (u * "Init.scm") && (!exists (u * "my-init-texmacs.scm"))) {
-    system ("sed 's/Init.scm/init-texmacs.scm/'", u * "Init.scm",
-	    ">", u * "my-init-texmacs.scm");
-    remove (u * "Init.scm");
-  }
-  if (exists (u * "Init-buffer.scm") && (!exists (u * "my-init-buffer.scm"))) {
-    system ("sed 's/Init-buffer.scm/init-buffer.scm/'", u * "Init-buffer.scm",
-	    ">", u * "my-init-buffer.scm");
-    remove (u * "Init-buffer.scm");
-  }
-#endif
-}
 
 /******************************************************************************
 * Generate documentation about changes
@@ -115,7 +92,6 @@ init_upgrade () {
   remove (new_settings);
 
   setup_athena ();
-  init_upgrade_scheme ();
   init_upgrade_doc (install_version);
 
   remove (url ("$ATHENA_HOME_PATH/system/setup.scm"));
