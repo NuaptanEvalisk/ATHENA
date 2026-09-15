@@ -16,8 +16,8 @@
     makes a choice. The <scm-arg|width> may be given in any <TeXmacs> length
     unit.
 
-    <\session|scheme|default>
-      <\unfolded-io|Scheme] >
+    <\with|mode|prog|prog-language|scheme>
+      <\unfolded-std|Scheme] >
         (tm-widget (test-enum)
 
         \ \ (enum (display* "First " answer "\\n")
@@ -25,14 +25,14 @@
         \ \ \ \ \ \ \ \ '("gnu" "gnat" "zebra")
 
         \ \ \ \ \ \ \ \ "zebra" "10em")))
-      <|unfolded-io>
+      <|unfolded-std>
         \;
-      </unfolded-io>
+      </unfolded-std>
 
       <\input|Scheme] >
         (show test-enum)
       </input>
-    </session>
+    </with>
   </explain>
 
   <\explain>
@@ -47,7 +47,7 @@
     container. The width of the widget may be set using a <scm|resize>
     widget.
 
-    <\session|scheme|default>
+    <\with|mode|prog|prog-language|scheme>
       <\input|Scheme] >
         (tm-widget (test-choice)
 
@@ -66,7 +66,7 @@
       <\input|Scheme] >
         (show test-choice)
       </input>
-    </session>
+    </with>
   </explain>
 
   <\explain>
@@ -81,7 +81,7 @@
     scrollbars, the widget must be enclosed in a <scm|scrollable> container.
     The width of the widget may be set using a <scm|resize> widget.
 
-    <\session|scheme|default>
+    <\with|mode|prog|prog-language|scheme>
       <\input|Scheme] >
         (tm-widget (test-choices)
 
@@ -100,7 +100,7 @@
       <\input|Scheme] >
         (show test-choices)
       </input>
-    </session>
+    </with>
   </explain>
 
   <paragraph|Displaying trees with <scm|tree-widget>>
@@ -228,7 +228,7 @@
   changed in <scm|$tree-view>, but it seems easier to manage empty arguments
   this way.
 
-  <\session|scheme|default>
+  <\with|mode|prog|prog-language|scheme>
     <\input|Scheme] >
       (define t
 
@@ -286,7 +286,7 @@
     <\input|Scheme] >
       (top-window widget-library "Tree View")
     </input>
-  </session>
+  </with>
 
   Notice how we must add <shell|$ATHENA_PIXMAP_PATH> to the name of the
   pixmap because we are not using the default <scm|DecorationRole>.\ 
@@ -307,7 +307,7 @@
     intermediate copy of the data).
   </warning>
 
-  <\session|scheme|default>
+  <\with|mode|prog|prog-language|scheme>
     <\input|Scheme] >
       (tm-widget (widget-buffer)
 
@@ -326,7 +326,7 @@
     <\input|Scheme] >
       (top-window widget-buffer "Tree View")
     </input>
-  </session>
+  </with>
 
   <tmdoc-copyright|2013|the <TeXmacs> team.>
 

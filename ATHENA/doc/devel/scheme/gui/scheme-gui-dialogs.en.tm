@@ -20,8 +20,8 @@
   Let's see how you create a dialog. To get started here is one little
   example taken from <hlink|<verbatim|menu-test.scm>|$ATHENA_PATH/progs/kernel/gui/menu-test.scm>:
 
-  <\session|scheme|default>
-    <\unfolded-io|Scheme] >
+  <\with|mode|prog|prog-language|scheme>
+    <\unfolded-std|Scheme] >
       (tm-widget (widget1)
 
       \ \ (centered
@@ -35,10 +35,10 @@
       \ \ \ \ \ \ (item (text "Second:")
 
       \ \ \ \ \ \ \ \ (toggle (display* "Second " answer "\\n") #f)))))
-    <|unfolded-io>
+    <|unfolded-std>
       \;
-    </unfolded-io>
-  </session>
+    </unfolded-std>
+  </with>
 
   The keyword <scm|centered> is clear, just center whatever it contains, but
   <scm|aligned> not so much: it builds two column tables, with each row of
@@ -52,18 +52,18 @@
   Again, in order to display this you create a <scm|top-window> and give it a
   title.
 
-  <\session|scheme|default>
+  <\with|mode|prog|prog-language|scheme>
     <\input|Scheme] >
       (top-window widget1 "Two toggle widgets")
     </input>
-  </session>
+  </with>
 
   You'll notice that the created window is too small and the title is not
   wholly displayed. You can force it to be of a certain size using
   <scm|resize>:
 
-  <\session|scheme|default>
-    <\unfolded-io|Scheme] >
+  <\with|mode|prog|prog-language|scheme>
+    <\unfolded-std|Scheme] >
       (tm-widget (widget1)
 
       \ \ (centered
@@ -79,14 +79,14 @@
       \ \ \ \ \ \ \ \ (item (text "Second:")
 
       \ \ \ \ \ \ \ \ \ \ (toggle (display* "Second " answer "\\n") #f))))))
-    <|unfolded-io>
+    <|unfolded-std>
       \;
-    </unfolded-io>
+    </unfolded-std>
 
     <\input|Scheme] >
       (top-window widget1 "A bigger window")
     </input>
-  </session>
+  </with>
 
   <scm|resize> is another of the several available container or
   <hlink|content management widgets|scheme-gui-advanced.en.tm>. It accepts
@@ -105,8 +105,8 @@
   the following example. Notice that the widget now accepts one parameter
   <scm|cmd> which will be called when the user clicks the \POk\Q button.
 
-  <\session|scheme|default>
-    <\unfolded-io|Scheme] >
+  <\with|mode|prog|prog-language|scheme>
+    <\unfolded-std|Scheme] >
       (tm-widget (widget1-buttons cmd)
 
       \ \ (centered
@@ -122,21 +122,21 @@
       \ \ \ \ \ \ \ \ (toggle (display* "Second " answer "\\n") #f))))
 
       \ \ (bottom-buttons \<gtr\>\<gtr\> ("Ok" (cmd "Ok"))))
-    <|unfolded-io>
+    <|unfolded-std>
       \;
-    </unfolded-io>
-  </session>
+    </unfolded-std>
+  </with>
 
   Since the widget now needs an argument, we must use another function to
   display it, namely <scm|dialogue-window>, which will also close the window
   after the button has been clicked.
 
-  <\session|scheme|default>
+  <\with|mode|prog|prog-language|scheme>
     <\input|Scheme] >
       (dialogue-window widget1-buttons (lambda (arg) (display* arg "\\n"))
       "Two toggles")
     </input>
-  </session>
+  </with>
 
   That special <scm|\<gtr\>\<gtr\>> at the end of the widget inserts as
   before whitespace, but it stretches and aligns the <scm|bottom-buttons> to
@@ -149,16 +149,16 @@
   <scm|widget1> with an extra line at the end. We could have spared us the
   keystrokes in this way:
 
-  <\session|scheme|default>
-    <\unfolded-io|Scheme] >
+  <\with|mode|prog|prog-language|scheme>
+    <\unfolded-std|Scheme] >
       (tm-widget (widget1-buttons-smarter cmd)
 
       \ \ (dynamic (widget1))
 
       \ \ (bottom-buttons \<gtr\>\<gtr\> ("Ok" (cmd "Ok"))))
-    <|unfolded-io>
+    <|unfolded-std>
       \;
-    </unfolded-io>
+    </unfolded-std>
 
     <\input|Scheme] >
       (dialogue-window widget1-buttons-smarter (lambda (arg) (display* arg
@@ -166,7 +166,7 @@
     </input>
 
     \;
-  </session>
+  </with>
 
   As you can see, the approach we've shown has a shortcoming: there's no way
   to access all the values of the different widgets in your dialog at the

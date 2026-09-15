@@ -106,7 +106,7 @@
   tmtextup tmtextsl tmtextit tmtextsc tmmathbf tmmathmd
   tmverbatim tmop tmstrong tmem tmtt tmname tmsamp tmabbr
   tmdfn tmkbd tmvar tmacronym tmperson tmscript tmdef
-  dueto op todo tmdate tmoutput tmerrput tmtiming
+  dueto op todo tmdate
   tmsubtitle tmrunningtitle tmrunningauthor
   tmaffiliation tmemail tmhomepage
   tmfnaffiliation tmfnemail tmfnhomepage
@@ -129,21 +129,18 @@
   tmdetailedplain tmdetailedtiny tmdetailedraw tmdetailedenv
   tmdetailedstd tmdetailed
   tmfoldeddocumentation tmunfoldeddocumentation
-  tmfoldedsubsession tmunfoldedsubsession
   tmfoldedgrouped tmunfoldedgrouped tmfoldedexplain tmunfoldedexplain
   tmfoldedplain tmunfoldedplain tmfoldedenv tmunfoldedenv
   tmfoldedstd tmunfoldedstd tmfolded tmunfolded
-  tminput tminputmath tmhlink tmaction ontop subindex
+  tmhlink tmaction ontop subindex
   renderfootnote tmlinenumber
   addtocountergroup)
 
 (logic-group latex-texmacs-3%
-  tmsession tmfoldedio tmunfoldedio tmfoldediomath tmunfoldediomath
   tmlinenote subsubindex tmref glossaryentry natbib-triple
   renderfootnotestar)
 
 (logic-group latex-texmacs-4%
-  tmscriptinput tmscriptoutput tmconverterinput tmconverteroutput
   subsubsubindex)
 
 (logic-rules

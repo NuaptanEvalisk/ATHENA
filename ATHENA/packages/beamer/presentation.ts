@@ -20,7 +20,7 @@
     </src-license>
   </src-title>>
 
-  <use-package|alt-colors|ornaments|framed-session>
+  <use-package|alt-colors|ornaments>
 
   <use-module|(dynamic fold-markup)>
 
@@ -157,20 +157,6 @@
   </macro>>
 
   <drd-props|with-screen-color|arity|2|hidden|0|accessible|1|border|no>
-
-  <\active*>
-    <\src-comment>
-      Customized session elements
-    </src-comment>
-  </active*>
-
-  <assign|session|<\macro|language|session|body>
-    <\with|prog-language|<arg|language>|prog-session|<arg|session>>
-      <\small>
-        <render-session|<arg|body>>
-      </small>
-    </with>
-  </macro>>
 
   <assign|folded-body|<macro|body|<tabular|<tformat|<twith|table-width|1par>|<cwith|1|1|1|1|cell-hyphen|t>|<table|<row|<\cell>
     <arg|body>

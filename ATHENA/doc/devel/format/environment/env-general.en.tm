@@ -67,10 +67,8 @@
       translation. Similarly, a mathematical document might be converted from
       infix to postfix notation.
 
-      <item>The programming language determines the current scripting
-      language in use. Other scripting languages than <scheme> are currently
-      only used for interactive sessions, but primitives like <markup|extern>
-      might become language-sensitive in the future.
+      <item>The programming language identifies the syntax and semantics used
+      for program-mode editing and conversion.
     </itemize>
 
     At the moment, the current language is mainly used as a hint for
@@ -83,20 +81,6 @@
     The language may be specified globally for the whole document in
     <menu|Document|Language> and locally for a piece of text in
     <menu|Format|Language>.
-  </explain>
-
-  <\explain>
-    <var-val|prog-session|default><explain-synopsis|name of programming
-    session>
-  <|explain>
-    This environment variables is used in addition to the
-    <src-var|prog-language> variable in order to determine a concrete
-    implementation as well as a particular instance of the current
-    programming language. For instance, in case of the
-    <hlink|<name|Maxima>|../../../../plugins/maxima/doc/maxima-abstract.en.tm>
-    language, different implementation may be used fooor the underlying
-    <name|Lisp>. Similarly, one may wish to run two different instances of
-    <name|Maxima> in parallel.
   </explain>
 
   <\explain>

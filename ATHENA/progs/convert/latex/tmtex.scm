@@ -2733,22 +2733,6 @@
 (define (tmtex-jump-in s l)
   (list (list '!begin "tmjumpin") (tmtex (car l))))
 
-(define (tmtex-script-inout s l)
-  (let ((name  (string->symbol (string-append "tm" (string-replace s "-" ""))))
-        (lang  (car l))
-        (lang* (upcase-first (car l)))
-        (in    (tmtex (caddr l)))
-        (out   (tmtex (cadddr l))))
-    `(,name ,lang ,lang* ,in ,out)))
-
-(define (tmtex-converter s l)
-  (let ((name  (string->symbol (string-append "tm" (string-replace s "-" ""))))
-        (lang  (car l))
-        (lang* (format-get-name (car l)))
-        (in    (tmtex (cadr l)))
-        (out   (tmtex (caddr l))))
-    `(,name ,lang ,lang* ,in ,out)))
-
 (define (tmtex-list-env s l)
   (let* ((r (string-replace s "-" ""))
          (t (cond ((== r "enumerateRoman") "enumerateromancap")
@@ -2975,53 +2959,6 @@
 (define (tmtex-tm s l)
   (with tag (string->symbol (string-append "tm" (string-replace s "-" "")))
   `(,tag ,@(map tmtex l))))
-
-(define (tmtex-input-text s l)
-  (let ((tag (string->symbol (string-append "tm" (string-replace s "-" ""))))
-        (a1  (tmtex (car l)))
-        (a2  (with r (begin
-                       (tmtex-env-set "mode" "text")
-                       (tmtex (cadr l)))
-               (tmtex-env-reset "mode") r)))
-  (list tag a1 a2)))
-
-(define (tmtex-input-math s l)
-  (let ((tag (string->symbol (string-append "tm" (string-replace s "-" ""))))
-        (a1  (tmtex (car l)))
-        (a2  (with r (begin
-                       (tmtex-env-set "mode" "math")
-                       (tmtex (cadr l)))
-               (tmtex-env-reset "mode") r)))
-  (list tag a1 a2)))
-
-(define (tmtex-fold-io-text s l)
-  (let ((tag (string->symbol (string-append "tm" (string-replace s "-" ""))))
-        (a1  (tmtex (car l)))
-        (a2  (with r (begin
-                       (tmtex-env-set "mode" "text")
-                       (tmtex (cadr l)))
-               (tmtex-env-reset "mode") r))
-        (a3  (tmtex (caddr l))))
-  (list tag a1 a2 a3)))
-
-(define (tmtex-fold-io-math s l)
-  (let ((tag (string->symbol (string-append "tm" (string-replace s "-" ""))))
-        (a1  (tmtex (car l)))
-        (a2  (with r (begin
-                       (tmtex-env-set "mode" "math")
-                       (tmtex (cadr l)))
-               (tmtex-env-reset "mode") r))
-        (a3  (tmtex (caddr l))))
-  (list tag a1 a2 a3)))
-
-(define (tmtex-session s l)
-  (let* ((tag (string->symbol (string-append "tm" (string-replace s "-" ""))))
-         (arg (tmtex (car l)))
-         (lan (tmtex (cadr l)))
-         (lst (tmtex (caddr l))))
-    (if (func? lst '!document)
-      (set! lst `(!indent (!paragraph ,@(cdr lst)))))
-    `(!document (,tag ,arg ,lan ,lst))))
 
 (define (tmtex-athena-data-record cmd vals)
   (string-append
@@ -3743,21 +3680,12 @@
         unfolded-grouped summarized detailed summarized-plain summarized-std
         summarized-env summarized-documentation summarized-grouped
         summarized-raw summarized-tiny detailed-plain detailed-std detailed-env
-        detailed-documentation detailed-grouped detailed-raw detailed-tiny
-        unfolded-subsession folded-subsession folded-io unfolded-io
-        input output errput timing)
+        detailed-documentation detailed-grouped detailed-raw detailed-tiny)
    (,tmtex-tm -1))
   ((:or padded underlined overlined bothlined
 	leftlined rightlined verticallined
 	framed ornamented)
    (,tmtex-ornamented 1))
-  ((:or folded-io-text unfolded-io-text) (,tmtex-fold-io-text 3))
-  ((:or folded-io-math unfolded-io-math) (,tmtex-fold-io-math 3))
-  (input-text (,tmtex-input-text 2))
-  (input-math (,tmtex-input-math 2))
-  (session (,tmtex-session 3))
-  ((:or converter-input converter-output) (,tmtex-converter 3))
-  ((:or script-input script-output) (,tmtex-script-inout 4))
   (really-tiny (,tmtex-tiny 1))
   (very-tiny (,tmtex-tiny 1))
   (tiny (,tmtex-tiny 1))
@@ -4045,11 +3973,6 @@
         "with-button-roman" "with-button-Roman"
         "mc-field" "mc-wide-field" "show-reply" "hide-reply"
         "mc" "mc-monospaced" "mc-horizontal" "mc-vertical"
-
-        "textual-table" "numeric-dot-table"
-        "calc-table" "calc-inert" "calc-input" "calc-output" "calc-ref"
-        "cell-inert" "cell-input" "cell-output" "cell-ref"
-        "cell-range" "cell-sum" "cell-plusses" "cell-commas"
 
         "tmdoc-title" "icon" "shortcut" "key" "prefix"
         "menu" "render-menu" "submenu" "subsubmenu" "subsubsubmenu"

@@ -44,8 +44,8 @@
   accept two sorts of arguments: <scm|type> and <scm|what>. We shall use two
   procedures, one to handle the requests, another to create the document.
 
-  <\session|scheme|default>
-    <\folded-io|Scheme] >
+  <\with|mode|prog|prog-language|scheme>
+    <\folded-std|Scheme] >
       (tm-define (simple-load header body)
 
       \ \ `(document
@@ -55,18 +55,18 @@
       \ \ \ \ \ (style (tuple "generic"))
 
       \ \ \ \ \ (body (document (section ,header) ,body))))
-    <|folded-io>
+    <|folded-std>
       \;
-    </folded-io>
-  </session>
+    </folded-std>
+  </with>
 
   As you can see, we don't do much other than creating a <TeXmacs> document.
   The load handler won't be complicated either. We only parse the query
   string with the help of <scm|query-ref> and then display one of three
   possible buffers.
 
-  <\session|scheme|default>
-    <\folded-io|Scheme] >
+  <\with|mode|prog|prog-language|scheme>
+    <\folded-std|Scheme] >
       (tmfs-load-handler (simple qry)
 
       \ \ (let ((type (query-ref qry "type"))
@@ -84,20 +84,20 @@
 
       \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ (string-append "Query
       unknown: " what)))))))
-    <|folded-io>
+    <|folded-std>
       \;
-    </folded-io>
-  </session>
+    </folded-std>
+  </with>
 
   We can test this right away with:
 
-  <\session|scheme|default>
+  <\with|mode|prog|prog-language|scheme>
     <\input>
       Scheme]\ 
     <|input>
       (load-buffer "tmfs://simple/type=very&what=example")
     </input>
-  </session>
+  </with>
 
   Or embedded in a document using tags like <markup|hlink> and
   <markup|branch>: <hlink|click here to test
@@ -106,24 +106,24 @@
   You can set read/write permissions implementing a <em|permission handler>,
   and the window's title using a <em|title handler>:
 
-  <\session|scheme|default>
-    <\folded-io|Scheme] >
+  <\with|mode|prog|prog-language|scheme>
+    <\folded-std|Scheme] >
       (tmfs-permission-handler (simple name type)\ 
 
       \ \ (display* "Name= " name "\\nType= " type "\\n")
 
       \ \ #t)
-    <|folded-io>
+    <|folded-std>
       \;
-    </folded-io>
+    </folded-std>
 
-    <\folded-io|Scheme] >
+    <\folded-std|Scheme] >
       (tmfs-title-handler (simple qry doc) "Simple handler - Some title
       here")
-    <|folded-io>
+    <|folded-std>
       \;
-    </folded-io>
-  </session>
+    </folded-std>
+  </with>
 
   <\explain>
     <scm|(tmfs-load-handler (<scm-arg|name> <scm-arg|qry>)

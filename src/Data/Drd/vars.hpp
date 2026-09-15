@@ -91,12 +91,10 @@ extern string MATH_BOT_SWELL_START;
 extern string MATH_BOT_SWELL_END;
 
 extern string PROG_LANGUAGE;
-extern string PROG_SCRIPTS;
 extern string PROG_FONT;
 extern string PROG_FONT_FAMILY;
 extern string PROG_FONT_SERIES;
 extern string PROG_FONT_SHAPE;
-extern string PROG_SESSION;
 
 extern string KEYWORD_COLOR;
 extern string CONSTANT_COLOR;

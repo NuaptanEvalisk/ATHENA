@@ -29,8 +29,7 @@
   Style packages, which are selected from the <menu|Document|Style> menu, are
   used for further customization of the major style. For instance, the
   <tmpackage|number-europe> package enables European-style theorem numbering
-  and the <tmpackage|maxima> package contains macros for customizing the
-  layout of sessions of the <name|Maxima> computer algebra system. Several
+  and the <tmpackage|compact-list> package changes list spacing. Several
   packages may be used together.
 
   When you want to add your own markup to <TeXmacs> or personalize the

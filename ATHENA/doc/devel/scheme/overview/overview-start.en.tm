@@ -21,40 +21,11 @@
   <paragraph*|Interactive invocation of <scheme> commands>
 
   In order to rapidly test the effect of <scheme> commands, it is convenient
-  to execute them directly from within the editor. <TeXmacs> provides two
-  mechanisms for doing this: directly type the command on the footer using
-  the <shortcut|(interactive footer-eval)> shortcut, or start a <scheme>
-  session using <menu|Insert|Session|Scheme>.
-
-  The first mechanism is useful when you do not want to alter the document or
-  when the current cursor position is important for the command you wish to
-  execute. For instance, the command <verbatim|(inside? 'theorem)> to test
-  whether the cursor is inside a theorem usually makes no sense when you are
-  inside a session.
-
-  <scheme> sessions are useful when the results of the <scheme> commands do
-  not fit on the footer, or when you want to keep your session inside a
-  document for later use. Some typical commands you might want to use inside
-  a <scheme> session are as follows (try positioning your cursor inside the
-  session and execute them):
-
-  <\session|scheme|default>
-    <\folded-io|scheme] >
-      (define (square x) (* x x))
-    </folded-io|>
-
-    <\folded-io|scheme] >
-      (square 1111111)
-    </folded-io|>
-
-    <\folded-io|scheme] >
-      (kbd-map ("h i ." (insert "Hi there!")))
-    </folded-io|>
-
-    <\folded-io|scheme] >
-      ;; try typing ``hi.''
-    </folded-io|>
-  </session>
+  to execute them directly from within the editor using the
+  <shortcut|(interactive footer-eval)> shortcut. This is useful when the
+  current cursor position or buffer context is important for the command. For
+  instance, <verbatim|(inside? 'theorem)> tests whether the cursor is inside a
+  theorem. ATHENA does not embed executable Scheme sessions in documents.
 
   <paragraph*|Command-line options for executing <scheme> commands>
 

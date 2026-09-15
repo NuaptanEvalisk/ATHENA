@@ -46,17 +46,9 @@
     provided.
   </explain>
 
-  <\explain|<tmpackage|framed-session>>
-    This package may be used in order to obtain an alternative rendering of
-    interactive sessions. The rendering is designed to be nice for
-    interactive use, although less adequate for printing.
-  </explain>
-
   In addition to these packages and the many packages for internal use,
   <ATHENA> retains a number of inherited style packages for displaying older
-  documents. Some historical packages were originally designed for external
-  computer-algebra Sessions; they are presentation compatibility only because
-  ATHENA no longer ships or discovers the corresponding plug-ins.
+  documents.
 
   <tmdoc-copyright|1998--2004|Joris van der Hoeven>
 

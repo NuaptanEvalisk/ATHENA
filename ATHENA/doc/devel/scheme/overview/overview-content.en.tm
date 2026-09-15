@@ -40,10 +40,10 @@
   then make changes in the document simply by assigning new values to the
   tree.
 
-  For instance, consider the following experiment: open two windows and start
-  a <scheme> session in each window. In the second window, enter the lines
+  For instance, Scheme code running in a buffer context may obtain the active
+  document tree with
 
-  <\session|scheme|default>
+  <\with|mode|prog|prog-language|scheme>
     <\input|scheme] >
       (use-modules (utils library tree))
     </input>
@@ -51,12 +51,11 @@
     <\input|scheme] >
       (define t (buffer-tree))
     </input>
-  </session>
+  </with>
 
-  In the first window, you may now modify the document in the second window
-  using commands like
+  The tree may then be modified using commands like
 
-  <\session|scheme|default>
+  <\with|mode|prog|prog-language|scheme>
     <\input|scheme] >
       (tree-set! t (tree 'document (string-\<gtr\>tree "First line.")
 
@@ -71,18 +70,18 @@
     <\input|scheme] >
       (tree-set t 0 (tree 'strong (tree-ref t 0)))
     </input>
-  </session>
+  </with>
 
   <paragraph*|A common framework><label|tree-hybrid>
 
-  From the last three lines in above experiment, it becomes apparent that it
+  From the last three lines above, it becomes apparent that it
   is quite cumbersome to manipulate trees using the standard tree
   constructors. For this reason, <TeXmacs> provides a hybrid type
   <verbatim|content> for manipulating scheme trees and C++ trees in a common
   framework. For instance, the last three lines in the above experiment may
   be replaced by
 
-  <\session|scheme|default>
+  <\with|mode|prog|prog-language|scheme>
     <\input|scheme] >
       (tree-set! t '(document "First line." "Second line."))
     </input>
@@ -94,7 +93,7 @@
     <\input|scheme] >
       (tree-set t 0 `(strong ,(tree-ref t 0)))
     </input>
-  </session>
+  </with>
 
   More precisely, a scheme expression of the type <verbatim|content> is
   either a string, a tree or a list whose first element is a symbol and whose

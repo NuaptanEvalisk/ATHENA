@@ -382,9 +382,6 @@
   (dueto (textup (textbf (!append "(" 1 ") "))))
   (op 1)
   (todo (!group (!append (color "red!75!black") "[To do: " 1 "]")))
-  (tmoutput 1)
-  (tmerrput (!append (color "red!50!black") 1))
-  (tmtiming (!append (hfill) (footnotesize) (color "black!50") 1 (par)))
   (tmsubtitle (thanks (!append (textit (!translate "Subtitle:")) " " 1)))
   (tmrunningtitle (!append (!translate "Running title:") " " 1))
   (tmrunningauthor (!append (!translate "Running author:") " " 1))
@@ -458,11 +455,6 @@
    (trivlist (!append (item (!option "")) (mbox "")
                       (!group "\\large\\bf" 1) "\\\\"
                       (item (!option "")) (mbox "") 2)))
-  (tmfoldedsubsession
-   (trivlist (!append (item (!option "$\\bullet$")) (mbox "") 1)))
-  (tmunfoldedsubsession
-   (trivlist (!append (item (!option "$\\circ$"))   (mbox "") 1 "\\\\"
-                      (item (!option "")) (mbox "") 2 )))
   (tmfoldedgrouped
    (trivlist (!append (item (!option "["))  (mbox "") 1)))
   (tmunfoldedgrouped
@@ -488,11 +480,6 @@
   (tmfolded (trivlist (!append (item (!option "$\\bullet$")) (mbox "") 1)))
   (tmunfolded (trivlist (!append (item (!option "$\\circ$")) (mbox "") 1 "\\\\"
                                  (item (!option "")) (mbox "") 2 )))
-  (tminput
-   (trivlist (!append (item (!option (!append (color "rgb:black,10;red,9;green,4;yellow,2") 1)))
-                      (!group (!append (color "blue!50!black") (mbox "") 2)))))
-  (tminputmath
-   (trivlist (!append (item (!option 1)) (ensuremath 2))))
   (tmhlink  (!group (!append (color "blue") 1)))
   (tmaction (!group (!append (color "blue") 1)))
   (ontop (genfrac "" "" "0pt" "" 1 2))
@@ -503,21 +490,6 @@
                          (tmlinenote (footnotesize 1) 2 "0cm")))
 
   ;; Ternary macros
-  (tmsession (!group (!append (tt) 3)))
-  (tmfoldediomath
-   (trivlist (!append (item (!option (!append (color "rgb:black,10;red,9;green,4;yellow,2") 1)))
-                      (!group (!append (color "blue!50!black") (ensuremath 2))))))
-  (tmunfoldediomath
-   (trivlist (!append (item (!option (!append (color "rgb:black,10;red,9;green,4;yellow,2") 1)))
-                      (!group (!append (color "blue!50!black") (ensuremath 2)))
-                      (item (!option "")) (mbox "") 3)))
-  (tmfoldedio
-   (trivlist (!append (item (!option (!append (color "rgb:black,10;red,9;green,4;yellow,2") 1)))
-                      (mbox "") (!group (!append (color "blue!50!black") 2)))))
-  (tmunfoldedio
-   (trivlist (!append (item (!option (!append (color "rgb:black,10;red,9;green,4;yellow,2") 1)))
-                      (mbox "") (!group (!append (color "blue!50!black") 2))
-                      (item (!option "")) (mbox "") 3)))
   (tmlinenote
    (!append (tmdummy)
             (marginpar (adjustbox
@@ -529,12 +501,6 @@
   (glossaryentry (!append (item (!option (!append 1 (hfill)))) 2 (dotfill) 3))
 
   ;; Tetrary macros
-  (tmscriptinput (fbox (!append (fbox (!append (sf) 2)) " "
-                                (!append (tt) 3))))
-  (tmscriptoutput (!append 4))
-  (tmconverterinput (fbox (!append (fbox (!append (sf) 2)) " "
-                                   (!append (tt) 3))))
-  (tmconverteroutput (!append 4))
   (subsubsubindex (index (!append 1 "!" 2 "!" 3 "!" 4))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

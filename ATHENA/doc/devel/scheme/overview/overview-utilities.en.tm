@@ -27,12 +27,12 @@
   <math|<with|color|brown|b>> are general expressions, one may use the
   following <scheme> command:
 
-  <\session|scheme|default>
+  <\with|mode|prog|prog-language|scheme>
     <\input|scheme] >
       (select (buffer-tree) '(:* (:match (frac :%1 (concat "1+" (sqrt
       :%1))))))
     </input>
-  </session>
+  </with>
 
   <paragraph*|Dialogues>
 
@@ -40,7 +40,7 @@
   user. For instance, when executing the following scheme command, you will
   be prompted for two numbers, whose product will be displayed in the footer:
 
-  <\session|scheme|default>
+  <\with|mode|prog|prog-language|scheme>
     <\input|Scheme] >
       (user-ask "First number:"
 
@@ -62,7 +62,7 @@
     <\input|Scheme] >
       \;
     </input>
-  </session>
+  </with>
 
   <paragraph*|User preferences>
 

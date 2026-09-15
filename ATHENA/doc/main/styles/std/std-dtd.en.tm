@@ -24,8 +24,6 @@
     <branch|std-counter|std-counter-dtd.en.tm>
 
     <branch|program|program-dtd.en.tm>
-
-    <branch|session|session-dtd.en.tm>
   </traverse>
 
   <tmdoc-copyright|1998--2002|Joris van der Hoeven>

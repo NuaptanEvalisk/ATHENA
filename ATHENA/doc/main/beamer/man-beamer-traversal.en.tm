@@ -47,11 +47,6 @@
   <menu|Insert|Fold|Summarize> are switches with two branches, again with
   different kinds of rendering.
 
-  You can also create so called ``<hlink|executable
-  switches|../interface/man-scripting-language.en.tm>'' using the items in
-  the <menu|Insert|Fold|Executable> submenu. This allows you to switch back
-  and forth between a given input and the corresponding result.
-
   All markup for the traversal of presentations may be nested in a natural
   way. In the <menu|Insert|Fold|Traversal> menu, you may specify whether
   unrolled and folded structures should be folded back after traversal.

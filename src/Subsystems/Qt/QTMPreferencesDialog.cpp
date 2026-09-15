@@ -565,11 +565,6 @@ document_language_choices () {
           {"japanese", "Japanese"}, {"korean", "Korean"}};
 }
 
-static std::vector<QStringChoice>
-script_choices () {
-  return {{"none", "None"}, {"scheme", "Scheme"}};
-}
-
 using PrefValue = Choice;
 using Preset = std::pair<const char*, std::vector<PrefValue> >;
 
@@ -1338,8 +1333,6 @@ QTMPreferencesDialog::buildEditingPage () {
 
   QWidget* programming= make_page ();
   QFormLayout* p= add_section (programming, "Programming");
-  add_qstring_combo (p, "Scripting language:", "scripting language",
-                     script_choices ());
   add_toggle (p, "Highlight matching brackets:", "prog:highlight brackets");
   add_toggle (p, "Automatic program brackets:", "prog:automatic brackets");
   add_toggle (p, "Use smart bracket selections:", "prog:select brackets");

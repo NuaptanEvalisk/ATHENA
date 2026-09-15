@@ -79,42 +79,42 @@
     <scm|(url-concat? <scm-arg|u>)><explain-synopsis|Returns #t if @u
     contains multiple subdirs>
   <|explain>
-    <\session|scheme|default>
-      <\unfolded-io|Scheme] >
+    <\with|mode|prog|prog-language|scheme>
+      <\unfolded-std|Scheme] >
         (url-concat? "a/b")
-      <|unfolded-io>
+      <|unfolded-std>
         #t
-      </unfolded-io>
+      </unfolded-std>
 
-      <\unfolded-io|Scheme] >
+      <\unfolded-std|Scheme] >
         (url-concat? "file.ext")
-      <|unfolded-io>
+      <|unfolded-std>
         #f
-      </unfolded-io>
-    </session>
+      </unfolded-std>
+    </with>
   </explain>
 
   <\explain>
     <scm|(url-or? <scm-arg|u>)><explain-synopsis|#t if the url contains an
     alternative>
   <|explain>
-    <\session|scheme|default>
-      <\unfolded-io|Scheme] >
+    <\with|mode|prog|prog-language|scheme>
+      <\unfolded-std|Scheme] >
         (url-or? "a/b:c")
-      <|unfolded-io>
+      <|unfolded-std>
         #t
-      </unfolded-io>
+      </unfolded-std>
 
-      <\unfolded-io|Scheme] >
+      <\unfolded-std|Scheme] >
         (url-expand )
-      <|unfolded-io>
+      <|unfolded-std>
         \<less\>url a/b:c\<gtr\>
-      </unfolded-io>
+      </unfolded-std>
 
       <\input|Scheme] >
         \;
       </input>
-    </session>
+    </with>
   </explain>
 
   <\explain>
@@ -144,17 +144,17 @@
     file, <scm|#f> otherwise. See also <scm|url-directory?> and
     <scm|url-link?>.
 
-    <\session|scheme|default>
-      <\unfolded-io|Scheme] >
+    <\with|mode|prog|prog-language|scheme>
+      <\unfolded-std|Scheme] >
         (url-regular? "$ATHENA_PATH/LICENSE")
-      <|unfolded-io>
+      <|unfolded-std>
         #t
-      </unfolded-io>
+      </unfolded-std>
 
       <\input|Scheme] >
         \;
       </input>
-    </session>
+    </with>
   </explain>
 
   <\explain>
@@ -164,29 +164,29 @@
     Applies only to filesystem urls. Returns <scm|#t> if the url is a
     directory and it exists, <scm|#f> otherwise.
 
-    <\session|scheme|default>
-      <\unfolded-io|Scheme] >
+    <\with|mode|prog|prog-language|scheme>
+      <\unfolded-std|Scheme] >
         (url-directory? "/tmp")
-      <|unfolded-io>
+      <|unfolded-std>
         #t
-      </unfolded-io>
+      </unfolded-std>
 
-      <\unfolded-io|Scheme] >
+      <\unfolded-std|Scheme] >
         (url-directory? "/tmp_not_exist")
-      <|unfolded-io>
+      <|unfolded-std>
         #f
-      </unfolded-io>
+      </unfolded-std>
 
-      <\unfolded-io|Scheme] >
+      <\unfolded-std|Scheme] >
         (url-directory? "$ATHENA_PATH/LICENSE")
-      <|unfolded-io>
+      <|unfolded-std>
         #f
-      </unfolded-io>
+      </unfolded-std>
 
       <\input|Scheme] >
         \;
       </input>
-    </session>
+    </with>
   </explain>
 
   <\explain>
@@ -203,160 +203,160 @@
     <scm|(url-head <scm-arg|u>)><explain-synopsis|Return the directory part
     of @u>
   <|explain>
-    <\session|scheme|default>
-      <\unfolded-io|Scheme] >
+    <\with|mode|prog|prog-language|scheme>
+      <\unfolded-std|Scheme] >
         (url-head "/tmp")
-      <|unfolded-io>
+      <|unfolded-std>
         \<less\>url /\<gtr\>
-      </unfolded-io>
+      </unfolded-std>
 
-      <\unfolded-io|Scheme] >
+      <\unfolded-std|Scheme] >
         (url-head "/tmp/a.out")
-      <|unfolded-io>
+      <|unfolded-std>
         \<less\>url /tmp\<gtr\>
-      </unfolded-io>
-    </session>
+      </unfolded-std>
+    </with>
   </explain>
 
   <\explain>
     <scm|(url-tail <scm-arg|u>)><explain-synopsis|Return the file name
     without path of @u>
   <|explain>
-    <\session|scheme|default>
-      <\unfolded-io|Scheme] >
+    <\with|mode|prog|prog-language|scheme>
+      <\unfolded-std|Scheme] >
         (url-tail "/tmp")
-      <|unfolded-io>
+      <|unfolded-std>
         \<less\>url tmp\<gtr\>
-      </unfolded-io>
+      </unfolded-std>
 
-      <\unfolded-io|Scheme] >
+      <\unfolded-std|Scheme] >
         (url-tail "/tmp/hello.tm")
-      <|unfolded-io>
+      <|unfolded-std>
         \<less\>url hello.tm\<gtr\>
-      </unfolded-io>
-    </session>
+      </unfolded-std>
+    </with>
   </explain>
 
   <\explain>
     <scm|(url-suffix <scm-arg|u>)><explain-synopsis|Returns the suffix
     (extension) of @u>
   <|explain>
-    <\session|scheme|default>
-      <\unfolded-io|Scheme] >
+    <\with|mode|prog|prog-language|scheme>
+      <\unfolded-std|Scheme] >
         (url-suffix "/tmp/hello.tm")
-      <|unfolded-io>
+      <|unfolded-std>
         "tm"
-      </unfolded-io>
-    </session>
+      </unfolded-std>
+    </with>
   </explain>
 
   <\explain>
     <scm|(url-basename <scm-arg|u>)><explain-synopsis|Return the basename as
     string for @u>
   <|explain>
-    <\session|scheme|default>
-      <\unfolded-io|Scheme] >
+    <\with|mode|prog|prog-language|scheme>
+      <\unfolded-std|Scheme] >
         (url-basename "/tmp")
-      <|unfolded-io>
+      <|unfolded-std>
         "tmp"
-      </unfolded-io>
+      </unfolded-std>
 
-      <\unfolded-io|Scheme] >
+      <\unfolded-std|Scheme] >
         (url-basename "/tmp/hello.tm")
-      <|unfolded-io>
+      <|unfolded-std>
         "hello"
-      </unfolded-io>
-    </session>
+      </unfolded-std>
+    </with>
   </explain>
 
   <\explain>
     <scm|(url-glue <scm-arg|u> <scm-arg|s>)><explain-synopsis|Returns \ @u
     with suffix @s appended>
   <|explain>
-    <\session|scheme|default>
-      <\unfolded-io|Scheme] >
+    <\with|mode|prog|prog-language|scheme>
+      <\unfolded-std|Scheme] >
         (url-glue (url-basename (current-buffer)) ".new")
-      <|unfolded-io>
+      <|unfolded-std>
         \<less\>url url.en.new\<gtr\>
-      </unfolded-io>
-    </session>
+      </unfolded-std>
+    </with>
   </explain>
 
   <\explain>
     <scm|(url-unglue <scm-arg|u> <scm-arg|n>)><explain-synopsis|Removes @n
     characters from the suffix of @u>
   <|explain>
-    <\session|scheme|default>
-      <\unfolded-io|Scheme] >
+    <\with|mode|prog|prog-language|scheme>
+      <\unfolded-std|Scheme] >
         (url-unglue (current-buffer) 3) ;output edited
-      <|unfolded-io>
+      <|unfolded-std>
         \<less\>url (...)/src/TeXmacs/doc/devel/scheme/api/url.en\<gtr\>
-      </unfolded-io>
-    </session>
+      </unfolded-std>
+    </with>
   </explain>
 
   <\explain>
     <scm|(url-relative <scm-arg|base> <scm-arg|u>)><explain-synopsis|Prepends
     the head of \ @base to @u>
   <|explain>
-    <\session|scheme|default>
-      <\unfolded-io|Scheme] >
+    <\with|mode|prog|prog-language|scheme>
+      <\unfolded-std|Scheme] >
         (url-relative "/a/b/c.tm" "d.tm")
-      <|unfolded-io>
+      <|unfolded-std>
         \<less\>url /a/b/d.tm\<gtr\>
-      </unfolded-io>
-    </session>
+      </unfolded-std>
+    </with>
   </explain>
 
   <\explain>
     <scm|(url-delta <scm-arg|base> <scm-arg|u>)><explain-synopsis|Computes
     the change in url from @base to @u>
   <|explain>
-    <\session|scheme|default>
-      <\unfolded-io|Scheme] >
+    <\with|mode|prog|prog-language|scheme>
+      <\unfolded-std|Scheme] >
         (url-delta "/a/b/c/file.tm" "/a/b")
-      <|unfolded-io>
+      <|unfolded-std>
         \<less\>url ../../b\<gtr\>
-      </unfolded-io>
-    </session>
+      </unfolded-std>
+    </with>
   </explain>
 
   <\explain>
     <scm|(url-root <scm-arg|u>)><explain-synopsis|Returns the root (protocol)
     of @u>
   <|explain>
-    <\session|scheme|default>
-      <\unfolded-io|Scheme] >
+    <\with|mode|prog|prog-language|scheme>
+      <\unfolded-std|Scheme] >
         (url-root (current-buffer))
-      <|unfolded-io>
+      <|unfolded-std>
         "default"
-      </unfolded-io>
+      </unfolded-std>
 
-      <\unfolded-io|Scheme] >
+      <\unfolded-std|Scheme] >
         (url-root "https://athena.evalisk.org")
-      <|unfolded-io>
+      <|unfolded-std>
         "https"
-      </unfolded-io>
-    </session>
+      </unfolded-std>
+    </with>
   </explain>
 
   <\explain>
     <scm|(url-unroot <scm-arg|u>)><explain-synopsis|Removes the root
     (protocol) of @u>
   <|explain>
-    <\session|scheme|default>
-      <\unfolded-io|Scheme] >
+    <\with|mode|prog|prog-language|scheme>
+      <\unfolded-std|Scheme] >
         (url-unroot "/a/b/c")
-      <|unfolded-io>
+      <|unfolded-std>
         \<less\>url a/b/c\<gtr\>
-      </unfolded-io>
+      </unfolded-std>
 
-      <\unfolded-io|Scheme] >
+      <\unfolded-std|Scheme] >
         (url-unroot "https://athena.evalisk.org")
-      <|unfolded-io>
+      <|unfolded-std>
         \<less\>url athena.evalisk.org\<gtr\>
-      </unfolded-io>
-    </session>
+      </unfolded-std>
+    </with>
   </explain>
 
   <todo|Yet to be documented:>

@@ -18,8 +18,8 @@
   same as for regular widgets, but you must prefix the keywords with
   <scm|form-> :
 
-  <\session|scheme|default>
-    <\folded-io|Scheme] >
+  <\with|mode|prog|prog-language|scheme>
+    <\folded-std|Scheme] >
       (tm-widget (form3 cmd)
 
       \ \ (resize "500px" "500px"
@@ -70,14 +70,14 @@
       (form-values) "\\n")
 
       \ \ \ \ \ \ \ \ \ \ \ (cmd "ok")))))))
-    <|folded-io>
+    <|folded-std>
       \;
-    </folded-io>
+    </folded-std>
 
     <\input|Scheme] >
       (dialogue-window form3 (lambda (x) (display* x "\\n")) "Test of form3")
     </input>
-  </session>
+  </with>
 
   A complete list of the widgets you can embed in a form is in the table
   <scm|gui-make-table> inside <hlink|<verbatim|menu-define.scm>|$ATHENA_PATH/progs/kernel/gui/menu-define.scm>.

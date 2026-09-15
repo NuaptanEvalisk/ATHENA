@@ -59,8 +59,6 @@
           (=> "Source" (link source-menu)))
       (if (in-presentation?)
           (=> "Dynamic" (link dynamic-menu)))
-      (if (style-has? "icourse-dtd")
-          (=> "Icourse" (link calc-icourse-menu)))
 
       (link texmacs-extra-menu)
       (if (in-commutative-diagram?)
@@ -143,8 +141,6 @@
           (-> "Source" (link source-menu)))
       (if (in-presentation?)
           (-> "Dynamic" (link dynamic-menu)))
-      (if (style-has? "icourse-dtd")
-          (-> "Icourse" (link calc-icourse-menu)))
       (if (in-commutative-diagram?)
           (-> "Focus" (link commutative-diagram-focus-menu)))
       (if (not (in-commutative-diagram?))

@@ -760,14 +760,6 @@
         "tm_stateless")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; The Document -> Supported scripts menu
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-menu (supported-scripts-menu)
-  ((check "Scheme" "v" (test-env? "prog-scripts" "scheme"))
-   (init-env "prog-scripts" "scheme")))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Document -> Informative flags menu
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -816,10 +808,6 @@
   (-> "Colors" (link document-colors-menu))
   (if (detailed-menus?)
       (-> "Language" (link document-language-menu)))
-  (-> "Scripts"
-      ("Default" (init-default "prog-scripts"))
-      ---
-      (link supported-scripts-menu))
   (-> "Informative flags" (link document-informative-flags-menu)))
 
 (menu-bind compressed-document-menu
@@ -849,10 +837,6 @@
   (-> "Colors" (link document-colors-menu))
   (if (detailed-menus?)
       (-> "Language" (link document-language-menu)))
-  (-> "Scripts"
-      ("Default" (init-default "prog-scripts"))
-      ---
-      (link supported-scripts-menu))
   (-> "Informative flags" (link document-informative-flags-menu)))
 
 (menu-bind document-menu

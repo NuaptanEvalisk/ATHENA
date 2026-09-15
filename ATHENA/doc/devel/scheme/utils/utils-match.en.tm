@@ -145,17 +145,17 @@
     return <scm|(((x . (bar "x")) (y . (bar "y"))))>. Notice that <scm|(x .
     (bar "x"))> will be displayed as <scm|(x bar "x")>:
 
-    <\session|scheme|default>
+    <\with|mode|prog|prog-language|scheme>
       <\input|Scheme] >
         (define t '(foo (bar "x") (bar "y") (option "z")))
       </input>
 
-      <\unfolded-io|Scheme] >
+      <\unfolded-std|Scheme] >
         (match? t '(foo 'x 'y :*))
-      <|unfolded-io>
+      <|unfolded-std>
         (((y bar "y") (x bar "x")))
-      </unfolded-io>
-    </session>
+      </unfolded-std>
+    </with>
   </example>
 
   <\example>

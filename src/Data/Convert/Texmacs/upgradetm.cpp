@@ -1128,7 +1128,6 @@ static charp var_rename []= {
   "prog font family", "prog-font-family",
   "prog font series", "prog-font-series",
   "prog font shape", "prog-font-shape",
-  "this session", "prog-session",
 
   "paragraph mode", "par-mode",
   "paragraph hyphenation", "par-hyphen",

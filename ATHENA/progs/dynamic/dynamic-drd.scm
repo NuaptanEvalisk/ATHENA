@@ -35,7 +35,6 @@
      (define-alternate ,folded ,unfolded)))
 
 (define-toggle picture-mixed source-mixed)
-(define-toggle folded-subsession unfolded-subsession)
 (define-toggle folded-reverse unfolded-reverse)
 
 (define-fold folded unfolded)

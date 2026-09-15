@@ -282,46 +282,10 @@
         <icon|tm_delete_down>>Remove the current row and move to the one
         below.
       </description-long>
-    </unfolded-documentation>
+  </unfolded-documentation>
   <|block-if-else>
-    <\block-if-else|<implied-scm|(and (defined? 'field-tags) (tm-in? t
-    field-tags))>>
-      <\unfolded-documentation|Structured insert and delete>
-        The <markup|<output-string|<implied-scm|tag>>> tag is used inside
-        interactive sessions. New input fields can be inserted using the the
-        following keyboard shortcuts, menu entries, or icons on the focus
-        toolbar:
-
-        <\description-long>
-          <item*|<shortcut|(structured-insert-up)>, <menu|Focus|Insert field
-          above>, <icon|tm_insert_up>>Insert a new input field above the
-          cursor.
-
-          <item*|<shortcut|(structured-insert-down)>, <menu|Focus|Insert
-          field below>, <icon|tm_insert_down>>Insert a new input field
-          below the cursor.
-        </description-long>
-
-        Existing input or input/output fields can be removed as follows:
-
-        <\description-long>
-          <item*|<menu|Focus|Remove field above>,
-          <icon|tm_delete_up>>Remove the field above the cursor.
-
-          <item*|<menu|Focus|Remove field below>,
-          <icon|tm_delete_down>>Remove the current field and move to the
-          one below.
-
-          <item*|<menu|Focus|Remove banner>>Remove the start-up banner of the
-          session.
-
-          <item*|<menu|Focus|Remove last field>>Remove the last field of the
-          session.
-        </description-long>
-      </unfolded-documentation>
-    <|block-if-else>
-      <\block-if|<implied-scm|(or (structured-horizontal? t)
-      (structured-vertical? t))>>
+    <\block-if|<implied-scm|(or (structured-horizontal? t)
+    (structured-vertical? t))>>
         <\unfolded-documentation|Structured insert and delete>
           The <markup|<output-string|<implied-scm|tag>>> tag has a variable
           number of arguments. New arguments can be inserted using the
@@ -374,8 +338,7 @@
             </block-if>
           </block-texmacs-tag>
         </unfolded-documentation>
-      </block-if>
-    </block-if-else>
+    </block-if>
   </block-if-else>
 
   <\block-if|<implied-scm|(\<less\> (length (tree-accessible-children t))

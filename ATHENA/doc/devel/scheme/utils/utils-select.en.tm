@@ -48,13 +48,13 @@
   <|explain>
     Select all compound subtrees with the specified <scm-arg|label>. Example:
 
-    <\session|scheme|default>
-      <\unfolded-io|Scheme] >
+    <\with|mode|prog|prog-language|scheme>
+      <\unfolded-std|Scheme] >
         (select '(document (strong "x") (math "a+b") (strong "y")) '(strong))
-      <|unfolded-io>
+      <|unfolded-std>
         ((strong "x") (strong "y"))
-      </unfolded-io>
-    </session>
+      </unfolded-std>
+    </with>
   </explain>
 
   <\explain>
@@ -64,13 +64,13 @@
     The pattern <scm|:%n>, where <scm|n> is a number, selects all descendants
     of the <scm|n>-th generation. Example:
 
-    <\session|scheme|default>
-      <\unfolded-io|Scheme] >
+    <\with|mode|prog|prog-language|scheme>
+      <\unfolded-std|Scheme] >
         (select '(foo (bar "x" "y") (slash (dot))) '(:%2))
-      <|unfolded-io>
+      <|unfolded-std>
         ("x" "y" (dot))
-      </unfolded-io>
-    </session>
+      </unfolded-std>
+    </with>
   </explain>
 
   <\explain>
@@ -87,27 +87,27 @@
     This pattern matches the input tree if and only the input tree matches
     the specified <scm-arg|pattern> according to <scm|match?>. Example:
 
-    <\session|scheme|default>
-      <\unfolded-io|Scheme] >
+    <\with|mode|prog|prog-language|scheme>
+      <\unfolded-std|Scheme] >
         (select '(foo "x" (bar)) '(:%1 (:match :string?)))
-      <|unfolded-io>
+      <|unfolded-std>
         ("x")
-      </unfolded-io>
-    </session>
+      </unfolded-std>
+    </with>
 
     Example with creation of a custom predicate:
 
-    <\session|scheme|default>
-      <\unfolded-io|Scheme] >
+    <\with|mode|prog|prog-language|scheme>
+      <\unfolded-std|Scheme] >
         (select '(foo "x" (bar)) '(:* (:match :tree-atomic?)))
-      <|unfolded-io>
+      <|unfolded-std>
         ()
-      </unfolded-io>
+      </unfolded-std>
 
       <\input|Scheme] >
         \;
       </input>
-    </session>
+    </with>
 
     List of useful predicates:
   </explain>

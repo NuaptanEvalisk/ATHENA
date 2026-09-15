@@ -39,7 +39,7 @@
   Execute the following two lines to get the unavoidable example and leave
   your mouse over the \PHello\Q button.
 
-  <\session|scheme|default>
+  <\with|mode|prog|prog-language|scheme>
     <\input|Scheme] >
       (tm-widget (example1) ("Hello" "world!"))
     </input>
@@ -47,7 +47,7 @@
     <\input|Scheme] >
       (top-window example1 "A first try")
     </input>
-  </session>
+  </with>
 
   As you can see, buttons are implicitly created by simply writing a list
   with the button's title and a tooltip to be displayed when the user hovers
@@ -55,7 +55,7 @@
   for <with|font-shape|italic|toolbar> buttons. What you probably want is
   this:
 
-  <\session|scheme|default>
+  <\with|mode|prog|prog-language|scheme>
     <\input|Scheme] >
       (tm-widget (example2) (explicit-buttons ("Hello" (noop))))
     </input>
@@ -63,7 +63,7 @@
     <\input|Scheme] >
       (top-window example2 "A nicer button")
     </input>
-  </session>
+  </with>
 
   The second argument is now a <scheme> command to be executed when the user
   clicks the button, in this case a no-operation, or <scm|(noop)>. Try
@@ -75,8 +75,8 @@
   described in "<hlink|Containers, glue, refresh and
   co.|scheme-gui-advanced.en.tm>", such as <scm|hlist>:
 
-  <\session|scheme|default>
-    <\unfolded-io|Scheme] >
+  <\with|mode|prog|prog-language|scheme>
+    <\unfolded-std|Scheme] >
       (tm-widget (example3)
 
       \ \ (hlist\ 
@@ -84,21 +84,21 @@
       \ \ \ \ (text "Hello")\ 
 
       \ \ \ \ (explicit-buttons ("world" (display "!\\n")))))
-    <|unfolded-io>
+    <|unfolded-std>
       \;
-    </unfolded-io>
+    </unfolded-std>
 
     <\input|Scheme] >
       (top-window example3 "Some text")
     </input>
-  </session>
+  </with>
 
   That was nice, but as you see, the two widgets are packed together until
   you resize the window. We need to explicitly tell <TeXmacs> to insert some
   space between them:
 
-  <\session|scheme|default>
-    <\unfolded-io|Scheme] >
+  <\with|mode|prog|prog-language|scheme>
+    <\unfolded-std|Scheme] >
       (tm-widget (example3)
 
       \ \ (hlist\ 
@@ -108,14 +108,14 @@
       \ \ \ \ \<gtr\>\<gtr\>\<gtr\>
 
       \ \ \ \ (explicit-buttons ("world" (display "!\\n")))))
-    <|unfolded-io>
+    <|unfolded-std>
       \;
-    </unfolded-io>
+    </unfolded-std>
 
     <\input|Scheme] >
       (top-window example3 "Some text")
     </input>
-  </session>
+  </with>
 
   The special symbol <scm|\<gtr\>\<gtr\>\<gtr\>> is just one of the
   predefined glue widgets described in "<hlink|Containers, glue, refresh and
@@ -130,8 +130,8 @@
   greyed out and inactive), center it and choose a bold face. Here is an
   example:
 
-  <\session|scheme|default>
-    <\unfolded-io|Scheme] >
+  <\with|mode|prog|prog-language|scheme>
+    <\unfolded-std|Scheme] >
       (tm-widget (example3)
 
       \ \ (hlist\ 
@@ -141,14 +141,14 @@
       \ \ \ \ \<gtr\>\<gtr\>\<gtr\>
 
       \ \ \ \ (inert (explicit-buttons ("world" (display "!\\n"))))))
-    <|unfolded-io>
+    <|unfolded-std>
       \;
-    </unfolded-io>
+    </unfolded-std>
 
     <\input|Scheme] >
       (top-window example3 "Some text")
     </input>
-  </session>
+  </with>
 
   From here you can go on reading \P<hlink|Extending the graphical user
   interface|scheme-gui.en.tm>\Q or see the sample widgets in

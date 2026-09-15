@@ -398,9 +398,6 @@
       ((check (eval (upcase-first lan)) "v" (test-env? "language" lan))
        (make (string->symbol lan))))))
 
-(tm-menu (local-supported-scripts-menu)
-  ("Scheme" (make-with "prog-scripts" "scheme")))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Enumerations
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -521,8 +518,7 @@
       (-> "Size tag" (link size-tag-menu)))
   (-> "Presentation tag" (link presentation-tag-menu))
   (if (style-has? "std-markup-dtd")
-      (-> "Language" (link text-language-menu)))
-  (-> "Scripts" (link local-supported-scripts-menu)))
+      (-> "Language" (link text-language-menu))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Style dependent menus

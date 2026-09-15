@@ -20,16 +20,16 @@
     four <scm|glue> widgets. This means that in the following example, the
     first widget is actually expanded to something like the second one.
 
-    <\session|scheme|default>
-      <\unfolded-io|Scheme] >
+    <\with|mode|prog|prog-language|scheme>
+      <\unfolded-std|Scheme] >
         (tm-widget (wid1)
 
         \ \ (centered (text "I'm centered.")))
-      <|unfolded-io>
+      <|unfolded-std>
         ((guile-user) (guile-user))
-      </unfolded-io>
+      </unfolded-std>
 
-      <\folded-io|Scheme] >
+      <\folded-std|Scheme] >
         (tm-widget (wid2)
 
         \ \ (vlist
@@ -45,9 +45,9 @@
         \ \ \ \ \ \ (glue #t #f 25 0))
 
         \ \ \ \ (glue #f #f 0 10)))
-      <|folded-io>
+      <|folded-std>
         ((guile-user) (guile-user))
-      </folded-io>
+      </folded-std>
 
       <\input|Scheme] >
         (show wid1)
@@ -56,7 +56,7 @@
       <\input|Scheme] >
         (show wid2)
       </input>
-    </session>
+    </with>
   </explain>
 
   <\explain>
@@ -75,19 +75,19 @@
 
     Sizes are specified as strings with a unit suffix, like in <scm|"150px">.
 
-    <\session|scheme|default>
-      <\unfolded-io|Scheme] >
+    <\with|mode|prog|prog-language|scheme>
+      <\unfolded-std|Scheme] >
         (tm-widget (wid)
 
         \ \ (resize "200px" "70px" (text "I'm stuck!")))
-      <|unfolded-io>
+      <|unfolded-std>
         \;
-      </unfolded-io>
+      </unfolded-std>
 
       <\input|Scheme] >
         (show wid)
       </input>
-    </session>
+    </with>
   </explain>
 
   <\explain>
@@ -174,16 +174,16 @@
     parameters, <scm-arg|width> <scm-arg|height>, either fix the size for
     non-expanding <scm|glue> or set a minimum one.
 
-    <\session|scheme|default>
-      <\unfolded-io|Scheme] >
+    <\with|mode|prog|prog-language|scheme>
+      <\unfolded-std|Scheme] >
         (tm-widget (wid1)
 
         \ \ (centered (text "I'm centered.")))
-      <|unfolded-io>
+      <|unfolded-std>
         \;
-      </unfolded-io>
+      </unfolded-std>
 
-      <\unfolded-io|Scheme] >
+      <\unfolded-std|Scheme] >
         (tm-widget (wid2)
 
         \ \ (vlist
@@ -199,9 +199,9 @@
         \ \ \ \ \ \ (glue #t #f 25 0))
 
         \ \ \ \ (glue #f #f 0 10)))
-      <|unfolded-io>
+      <|unfolded-std>
         \;
-      </unfolded-io>
+      </unfolded-std>
 
       <\input|Scheme] >
         (show wid1)
@@ -210,7 +210,7 @@
       <\input|Scheme] >
         (show wid2)
       </input>
-    </session>
+    </with>
   </explain>
 
   In addition to the basic <scm|glue> widget, there are several convenience

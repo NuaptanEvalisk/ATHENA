@@ -32,8 +32,8 @@
   In order to copy a document fragment to an email in <scheme> format, you
   may use <menu|Edit|Copy to|Scheme>. Similarly, you may paste external
   <scheme> fragments into <TeXmacs> using <menu|Edit|Paste from|Scheme>. The
-  <scheme> format may also used interactively inside <scheme> sessions or
-  interactive commands. For instance, typing <shortcut|(interactive
+  <scheme> format may also be used by interactive commands. For instance,
+  typing <shortcut|(interactive
   exec-interactive-command)> followed by the interactive command
 
   <\scm-code>

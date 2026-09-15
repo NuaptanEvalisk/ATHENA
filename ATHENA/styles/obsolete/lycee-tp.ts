@@ -32,8 +32,6 @@
 
   <assign|language|french>
 
-  <assign|prog-scripts|maxima>
-
   <\active*>
     <\src-comment>
       Titles.

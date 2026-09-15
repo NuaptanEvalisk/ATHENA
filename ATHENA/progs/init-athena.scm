@@ -278,17 +278,11 @@
 
 ;(display "Booting dynamic features\n")
 (lazy-keyboard (dynamic fold-kbd) always?)
-(lazy-keyboard (dynamic scripts-kbd) always?)
-(lazy-keyboard (dynamic calc-kbd) always?)
 (lazy-menu (dynamic fold-menu) insert-fold-menu dynamic-menu dynamic-icons
            graphics-overlays-menu graphics-screens-menu
            graphics-focus-overlays-menu graphics-focus-overlays-icons)
-(lazy-menu (dynamic scripts-menu) scripts-eval-menu scripts-eval-toggle-menu)
-(lazy-menu (dynamic calc-menu) calc-table-menu calc-insert-menu
-           calc-icourse-menu)
 (lazy-define (dynamic fold-edit)
              screens-switch-to dynamic-make-slides overlays-context?)
-(lazy-define (dynamic calc-edit) calc-ready? calc-table-renumber)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 ;(display* "memory: " (texmacs-memory) " bytes\n")
 

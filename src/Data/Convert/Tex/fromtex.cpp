@@ -2698,42 +2698,6 @@ latex_command_to_tree (tree t) {
     return tree (HLINK, l2e (t[1]), l2e (t[2]));
   if (is_tuple (t, "\\tmaction", 1))
     return tree (ACTION, l2e (t[1]), l2e (t[2]));
-  if (is_tuple (t, "\\tmconverterinput", 4))
-    return compound ("converter-input",
-        l2e (t[1]), l2e (t[3]), l2e (t[4]));
-  if (is_tuple (t, "\\tmconverteroutput", 4))
-    return compound ("converter-output",
-        l2e (t[1]), l2e (t[3]), l2e (t[4]));
-  if (is_tuple (t, "\\tmscriptinput", 4))
-    return compound ("script-input",
-        l2e (t[1]), "default", l2e (t[3]), l2e (t[4]));
-  if (is_tuple (t, "\\tmscriptoutput", 4))
-    return compound ("script-output",
-        l2e (t[1]), "default", l2e (t[3]), l2e (t[4]));
-  if (is_tuple (t, "\\tmsession", 3))
-    return compound ("session", l2e (t[1]), l2e (t[2]), l2e (t[3]));
-  if (is_tuple (t, "\\tminputtext", 2)) {
-    string old= command_type ["!mode"];
-    command_type ("!mode") = "text";
-    tree arg= l2e (t[2]);
-    command_type ("!mode") = old;
-    return document (compound ("input-text", l2e (t[1]), old));
-  }
-  if (is_tuple (t, "\\tminputmath", 2)) {
-    string old= command_type ["!mode"];
-    command_type ("!mode") = "math";
-    tree arg= l2e (t[2]);
-    command_type ("!mode") = old;
-    return document (compound ("input-math", l2e (t[1]), old));
-  }
-  if (is_tuple (t, "\\tminput", 2))
-    return document (compound ("input", l2e (t[1]), l2e (t[2])));
-  if (is_tuple (t, "\\tmtiming", 1))
-    return document (compound ("timing", l2e (t[1])));
-  if (is_tuple (t, "\\tmerrput", 1))
-    return document (compound ("errput", l2e (t[1])));
-  if (is_tuple (t, "\\tmoutput", 1))
-    return document (compound ("output", l2e (t[1])));
   if (is_tuple (t) && N(t) == 3 &&
       (starts (as_string (t[0]), "\\tmfolded")    ||
        starts (as_string (t[0]), "\\tmunfolded")  ||
@@ -2750,25 +2714,6 @@ latex_command_to_tree (tree t) {
     else if (starts (tag, "summarized") && tag != "summarized" && N(tag) > 10)
       tag= "summarized-"* tag (10, N(tag));
     return compound (tag, l2e (t[1]), l2e (t[2]));
-  }
-  if (is_tuple (t) && N(t) == 4 &&
-      (as_string (t[0]) == "\\tmfoldedio"       ||
-       as_string (t[0]) == "\\tmfoldediomath"   ||
-       as_string (t[0]) == "\\tmunfoldediomath" ||
-       as_string (t[0]) == "\\tmunfoldedio")) {
-    string tag= as_string (t[0]);
-    tag= tag (3, N(tag));
-    if (tag == "foldedio")       tag= "folded-io";
-    if (tag == "unfoldedio")     tag= "unfolded-io";
-    if (tag == "foldediotext")   tag= "folded-io-text";
-    if (tag == "unfoldediotext") tag= "unfolded-io-text";
-    if (tag == "foldediomath")   tag= "folded-io-math";
-    if (tag == "unfoldediomath") tag= "unfolded-io-math";
-    string old= command_type ["!mode"];
-    if (ends (tag, "math")) command_type ("!mode") = "math";
-    tree arg= l2e (t[2]);
-    command_type ("!mode") = old;
-    return document (compound (tag, l2e (t[1]), arg, l2e (t[3])));
   }
   // End TeXmacs specific markup
 

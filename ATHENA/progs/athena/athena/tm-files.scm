@@ -82,9 +82,6 @@
     (if (!= psz "a4") (init-page-type psz)))
   (with type (get-preference "page medium")
     (if (!= type "papyrus") (init-env "page-medium" type)))
-  (when (!= (get-preference "scripting language") "none")
-
-    (init-env "prog-scripts" (get-preference "scripting language")))
   (buffer-pretend-saved (current-buffer)))
 
 (tm-define (propose-name-buffer)

@@ -29,11 +29,7 @@ empty_cell () {
 
 bool
 is_empty_cell (tree t) {
-  return
-    is_empty (t) ||
-    (is_compound (t, "cell-inert", 2) && is_empty_cell (t[1])) ||
-    (is_compound (t, "cell-input", 3) && is_empty_cell (t[1])) ||
-    (is_compound (t, "cell-output", 3) && is_empty_cell (t[2]));
+  return is_empty (t);
 }
 
 static tree
@@ -817,14 +813,6 @@ edit_table_rep::table_write_subtable (
   if ((nr_rows < row + sub_rows) || (nr_cols < col + sub_cols))
     table_set_extents (fp, max (nr_rows, row + sub_rows),
                            max (nr_cols, col + sub_cols));
-
-  path old_tp= tp;
-  tp= fp * 0;
-  bool calc_flag= inside ("calc-table");
-  tp= old_tp;
-  if (calc_flag)
-    subt= as_tree (call ("calc-table-renumber", object (subt),
-                         object (row + 1), object (col + 1)));
 
   if (is_func (subtree (et, fp), TFORMAT) &&
       is_func (subt, TFORMAT))

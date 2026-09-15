@@ -54,12 +54,12 @@
 
 (tm-define (style-includes? x y)
   (:require (and (== x "beamer")
-                 (in? y (list "title-bar" "bluish" "framed-session"))))
+                 (in? y (list "title-bar" "bluish"))))
   #t)
 
 (tm-define (style-includes? x y)
   (:require (and (== x "old-beamer")
-                 (in? y (list "framed-title" "ridged-paper" "framed-session"))))
+                 (in? y (list "framed-title" "ridged-paper"))))
   #t)
 
 (tm-define (screens-buffer?)

@@ -124,15 +124,11 @@
 (define (in-math-mode?)
   (path-in-math? (cDr (cursor-path))))
 
-(define (session-math? t)
-  (tree-in? t '(input-math folded-io-math unfolded-io-math)))
-
 (define (displayed-math? t)
   (tree-in? t '(equation equation*)))
 
 (define (get-math-type t)
-  (cond ((tree-search-upwards t session-math?) "Strict")
-        ((tree-search-upwards t 'cell) "Cell")
+  (cond ((tree-search-upwards t 'cell) "Cell")
         ((tree-search-upwards t displayed-math?) "Main")
         (else "Strict")))
 

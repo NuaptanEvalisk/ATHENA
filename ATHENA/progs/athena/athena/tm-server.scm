@@ -27,12 +27,6 @@
   (set-message "Restart in order to let the new look and feel take effect"
                "configure look and feel"))
 
-(define (notify-scripting-language var val)
-  (if (current-view)
-      (if (== val "none")
-          (init-default "prog-scripts")
-          (init-env "prog-scripts" val))))
-
 (define (notify-security var val)
   (cond ((== val "accept no scripts") (set-script-status 0))
         ((== val "prompt on scripts") (set-script-status 1))
@@ -267,4 +261,4 @@
   (safely-kill-window))
 
 (register-preference-callback-procedures
-  (list notify-enunciation-rendering notify-latex-command notify-look-and-feel notify-new-fonts notify-new-page-breaking notify-restart notify-scripting-language notify-security notify-tool))
+  (list notify-enunciation-rendering notify-latex-command notify-look-and-feel notify-new-fonts notify-new-page-breaking notify-restart notify-security notify-tool))

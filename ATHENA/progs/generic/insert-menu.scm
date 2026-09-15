@@ -111,11 +111,7 @@
           ("Wide" (make-note-wide))
           (when (in-main-flow?)
             ("Footnote" (make-note-footnote)))))
-  (if (and (style-has? "calc-dtd")
-           (not (style-has? "icourse-dtd"))
-           (calc-ready?))
-      ---
-      (link calc-insert-menu)))
+  )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Insert images

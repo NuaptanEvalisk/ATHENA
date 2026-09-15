@@ -36,8 +36,6 @@
 
     <branch|Laptop presentations|beamer/man-beamer.en.tm>
 
-    <branch|Using <TeXmacs> as an interface|interface/man-itf.en.tm>
-
     <branch|Writing your own style files and
     packages|../devel/style/style.en.tm>
 

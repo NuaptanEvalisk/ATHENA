@@ -42,7 +42,7 @@
     <\unfolded-documentation>
       Example
     <|unfolded-documentation>
-      <\session|scheme|default>
+      <\with|mode|prog|prog-language|scheme>
         <\input|Scheme] >
           (define (notify-test pref value)
 
@@ -55,26 +55,26 @@
           (register-preference-callback "test:pref" 'notify-test)
         </input>
 
-        <\unfolded-io|Scheme] >
+        <\unfolded-std|Scheme] >
           (get-preference "test:pref")
-        <|unfolded-io>
+        <|unfolded-std>
           "off"
-        </unfolded-io>
+        </unfolded-std>
 
         <\input|Scheme] >
           (set-preference "test:pref" "on")
         </input>
 
-        <\unfolded-io|Scheme] >
+        <\unfolded-std|Scheme] >
           (preference-on? "test:pref")
-        <|unfolded-io>
+        <|unfolded-std>
           #t
-        </unfolded-io>
+        </unfolded-std>
 
         <\input|Scheme] >
           \;
         </input>
-      </session>
+      </with>
     </unfolded-documentation>
   </explain>
 

@@ -219,10 +219,6 @@
   ("title-bar"            "Title bars")
   ("math-ss"              "Sans serif formulas")
 
-  ("framed-session"       "Framed input fields")
-  ("ring-session"         "Ring binder notebook style")
-  ("large-formulas"       "Do not break up large formulas")
-
   ("centered-program"     "Centered programs")
   ("framed-program"       "Framed programs")
   ("compact-list"         "Compact lists")
@@ -323,10 +319,6 @@
   ("landscape-poster"   "Landscape orientation for posters")
   ("portrait-poster"    "Portrait orientation for posters")
   
-  ("framed-session"     "Render session inputs in frames")
-  ("ring-session"       "Ring binder notebook style")
-  ("large-formulas"     "Do not break up large fractions and matrices")
-
   ("centered-program"   "Use a centered rendering style for algorithms")
   ("framed-program"     "Display algorithms inside frames and center")
   ("two-columns"        "Markup and adjustments for two column documents")

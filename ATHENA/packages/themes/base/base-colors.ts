@@ -32,9 +32,7 @@
 
   <new-theme|highlight-colors|keyword-color|constant-color|number-color|string-color|operator-color|comment-color|preprocessor-color|modifier-color|declaration-color|macro-color|function-color|type-color|defined-color|misc-lexeme-color|alt-keyword-color|alt-constant-color>
 
-  <new-theme|session-colors|generic-prompt-color|generic-input-color|generic-error-color|scheme-prompt-color|scheme-input-color>
-
-  <copy-theme|all-colors|colors|gui-colors|highlight-colors|session-colors>
+  <copy-theme|all-colors|colors|gui-colors|highlight-colors>
 
   <\active*>
     <\src-comment>

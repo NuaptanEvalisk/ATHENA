@@ -106,23 +106,6 @@
 
   <assign|dark-scene-alt-constant-color|#f0c0e0>
 
-  <\active*>
-    <\src-comment>
-      Colors for sessions
-    </src-comment>
-  </active*>
-
-  <assign|dark-scene-generic-prompt-color|brown>
-
-  <assign|dark-scene-generic-input-color|#c0c0ff>
-
-  <assign|dark-scene-generic-error-color|#ff4040>
-
-  <assign|scheme-prompt-color|#60e060>
-
-  <assign|scheme-input-color|white>
-
-  \;
 </body>
 
 <\initial>

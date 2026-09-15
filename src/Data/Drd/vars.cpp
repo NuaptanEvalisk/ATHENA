@@ -93,12 +93,10 @@ string MATH_BOT_SWELL_START ("math-bot-swell-start");
 string MATH_BOT_SWELL_END ("math-bot-swell-end");
 
 string PROG_LANGUAGE ("prog-language");
-string PROG_SCRIPTS ("prog-scripts");
 string PROG_FONT ("prog-font");
 string PROG_FONT_FAMILY ("prog-font-family");
 string PROG_FONT_SERIES ("prog-font-series");
 string PROG_FONT_SHAPE ("prog-font-shape");
-string PROG_SESSION ("prog-session");
 
 string KEYWORD_COLOR ("keyword-color");
 string CONSTANT_COLOR ("constant-color");

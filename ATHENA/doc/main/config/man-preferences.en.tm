@@ -221,10 +221,6 @@
   <subsection|Programming>
 
   <\description>
-    <item*|Scripting language>Chooses the language used by built-in program and
-    script fields where a language choice is applicable. ATHENA no longer uses
-    this preference to discover or launch external TeXmacs plug-in Sessions.
-
     <item*|Highlight matching brackets>Highlights the bracket matching the
     one near the cursor in program text.
 

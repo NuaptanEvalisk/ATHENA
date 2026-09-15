@@ -43,20 +43,20 @@
   items (bullets, dashes, arrows, <abbr|etc.>).
 
   Folding and unfolding provides yet another example of an interesting way to
-  toggle between several environments. Inside an in-process Scheme session such
-  as
+  toggle between several environments. A static Scheme input/output example
+  may for instance be presented as
 
-  <\session|scheme|default>
-    <\unfolded-io|scheme] >
+  <\with|mode|prog|prog-language|scheme>
+    <\unfolded-std|scheme] >
       (map (lambda (x) (* x x)) '(1 2 3 4))
-    <|unfolded-io>
+    <|unfolded-std>
       (1 4 9 16)
-    </unfolded-io>
-  </session>
+    </unfolded-std>
+  </with>
 
-  you may click on the Scheme prompt in order to
-  fold the output (only the input remains visible) and click once again in
-  order to unfold back to the original state. The <shortcut|(alternate-toggle
+  You may click on the prompt in order to fold the output (only the input
+  remains visible) and click once again in order to unfold back to the
+  original state. The <shortcut|(alternate-toggle
   (focus-tree))> shortcut achieves the same effect. There various other
   foldable environments, most of which are available through
   <menu|Insert|Fold>.

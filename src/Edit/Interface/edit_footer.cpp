@@ -87,8 +87,6 @@ edit_interface_rep::set_left_footer () {
     append_left_footer (s, MATH_FONT_SHAPE);
   }
   else if (mode == "prog") {
-    string session_name= get_env_string (PROG_SESSION);
-    if (session_name != "default") s << "-" << session_name;
     s << " " << verbatim (get_env_string (PROG_FONT));
     append_left_footer (s, PROG_FONT_FAMILY);
     s << " " << as_string ((int) ((base_sz+0.5)*sz));
@@ -169,8 +167,7 @@ get_with_text (tree t) {
           (var==MATH_FONT_SERIES) ||
           (var==PROG_LANGUAGE) ||
           (var==PROG_FONT_FAMILY) || (var==PROG_FONT_SHAPE) ||
-          (var==PROG_FONT_SERIES) ||
-          (var==PROG_SESSION))
+          (var==PROG_FONT_SERIES))
         s << t[2*i+1]->label;
       else if ((var==FONT) || (var==MATH_FONT) || (var==PROG_FONT))
         s << verbatim (t[2*i+1]->label);

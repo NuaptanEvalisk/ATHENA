@@ -336,8 +336,6 @@ is_multi_paragraph (tree t) {
 	inline_set->insert (make_tree_label ("note-footnote"));
 	inline_set->insert (make_tree_label ("note-footnote*"));
 	inline_set->insert (make_tree_label ("folded-comment"));
-	inline_set->insert (make_tree_label ("script-input"));
-	inline_set->insert (make_tree_label ("converter-input"));
       }
       if (L(t) < START_EXTENSIONS) return false;
       else if (inline_set->contains (L(t))) return false;

@@ -132,9 +132,10 @@
   ATHENA no longer ships the inherited TeXmacs plug-in architecture or external
   Session transports. CAS, Python, shell, Jupyter, proof-assistant, plotting,
   legacy ChatGPT Session adapters, and the interactive Scheme session/program
-  editor are gone. In-document Scheme scripting and executable fields remain,
-  while Codex, Delegation, RAG, Materials, and other external work use
-  purpose-built protocols.
+  editor are gone. The inherited in-document Scheme evaluator, executable
+  fields, spreadsheets, and calculation/session markup are also gone. Codex,
+  Delegation, RAG, Materials, and other external work use purpose-built
+  protocols.
 
   The native TMDB engine and Data tool have been removed. Modern vault maps and
   namespaces use SQLite; legacy TMDB vault maps are not imported. Legacy local

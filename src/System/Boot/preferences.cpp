@@ -112,7 +112,6 @@ ensure_builtin_user_preferences () {
     PREF ("manual homoglyph correct", "on", ""),
     PREF ("security", "prompt on scripts", "notify-security"),
     PREF ("latex command", "pdflatex", "notify-latex-command"),
-    PREF ("scripting language", "none", "notify-scripting-language"),
     PREF ("presentation tool", "off", "notify-tool"),
     PREF ("inertial scrolling", "off", ""),
     PREF ("inertial scrolling friction", "0.95", ""),
