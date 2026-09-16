@@ -96,7 +96,6 @@ edit_interface_rep::set_left_footer () {
   string r= get_env_string (COLOR);
   if (r != "black") s << " " << r;
   if (N(s) > 0 && s[0] == " ") s= s (1, N(s));
-  s= as_footer_tree (call ("footer-hook", object (s)));
   set_left_footer (s);
 }
 
@@ -392,7 +391,6 @@ edit_interface_rep::set_right_footer () {
   if (is_atomic (st)) lf= compute_text_footer (st);
   else lf= compute_operation_footer (st);
   if (N(focus_get (false))+1 >= N(tp)) cf= concat (cf, lf);
-  cf= as_footer_tree (call ("right-footer-hook", object (cf)));
   set_right_footer (cf);
 }
 

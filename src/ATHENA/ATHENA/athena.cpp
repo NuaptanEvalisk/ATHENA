@@ -885,9 +885,7 @@ set_global_options  (int argc, char** argv)  {
       else if (s == "-debug-keyboard") debug (DEBUG_FLAG_KEYBOARD, true);
       else if (s == "-debug-packrat") debug (DEBUG_FLAG_PACKRAT, true);
       else if (s == "-debug-flatten") debug (DEBUG_FLAG_FLATTEN, true);
-      else if (s == "-debug-parser") debug (DEBUG_FLAG_PARSER, true);
       else if (s == "-debug-convert") debug (DEBUG_FLAG_CONVERT, true);
-      else if (s == "-debug-live") debug (DEBUG_FLAG_LIVE, true);
       else if (s == "-debug-all") {
         debug (DEBUG_FLAG_EVENTS, true);
         debug (DEBUG_FLAG_STD, true);

@@ -31,9 +31,6 @@
 extern void* fast_new (size_t s);
 extern void  fast_delete (void* ptr);
 
-extern int   mem_used ();
-extern void  mem_info ();
-
 /******************************************************************************
 * Fast new and delete
 ******************************************************************************/

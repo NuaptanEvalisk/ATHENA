@@ -919,7 +919,7 @@
                                    (string-join notes "\n- ")
                                    (if (vault-anchor-diagnostic-logging?)
                                        "\n\nFull dry-run summary was printed to the console."
-                                       "\n\nEnable Anchor structure dry-run details in Preferences > Debugging > Diagnostic Logging for the full console summary.")))))
+                                       "\n\nEnable Anchor structure dry-run details in Preferences > Other > Debugging > Vault Diagnostics for the full console summary.")))))
     (string-append head tail "\n\n" action)))
 
 (define (vault-anchor-summary-notes-string summary)

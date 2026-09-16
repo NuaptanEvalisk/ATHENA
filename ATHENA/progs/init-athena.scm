@@ -61,7 +61,6 @@
                  (kernel gui kbd-define)
                  (kernel gui kbd-handlers))
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
-;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting utilities\n")
 (import-from (utils library cpp-wrap))
@@ -82,7 +81,6 @@
 (lazy-define (utils automate auto-tmfs) auto-load-help)
 (lazy-keyboard (utils automate auto-kbd) in-auto?)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
-;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting main TeXmacs functionality\n")
 (import-from (athena athena tm-server) (athena athena tm-vault-startup))
@@ -123,7 +121,6 @@
 (lazy-define (athena menus file-menu) recent-file-list recent-directory-list)
 (tm-define (notify-set-attachment name key val) (noop))
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
-;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting generic mode\n")
 (lazy-keyboard (generic generic-kbd) always?)
@@ -170,7 +167,6 @@
 (tm-property (open-gradient-selector cmd) (:interactive #t))
 (tm-property (open-background-picture-selector cmd) (:interactive #t))
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
-;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting text mode\n")
 (lazy-keyboard (text text-kbd) in-text?)
@@ -179,7 +175,6 @@
 	   text-menu text-block-menu text-inline-menu
            text-icons text-block-icons text-inline-icons)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
-;(display* "memory: " (texmacs-memory) " bytes\n")
 (lazy-define (text text-drd) tm-register-new-list-tag)
 
 ;(display "Booting math mode\n")
@@ -193,7 +188,6 @@
 (lazy-initialize (math math-menu) (in-math?))
 (lazy-define (math math-edit) brackets-refresh)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
-;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting programming modes\n")
 (lazy-format (prog code-format) cpp julia scala java json csv)
@@ -202,7 +196,6 @@
 (lazy-menu (prog prog-menu) prog-format-menu prog-format-icons
 	   prog-menu prog-icons)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
-;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting source mode\n")
 (lazy-keyboard (source source-kbd) always?)
@@ -217,7 +210,6 @@
 (when (url-exists? "$ATHENA_HOME_PATH/system/shortcuts.scm")
   (delayed (:idle 100) (init-user-shortcuts)))
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
-;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting table mode\n")
 (lazy-keyboard (table table-kbd) in-table?)
@@ -227,7 +219,6 @@
 (tm-property (open-cell-properties) (:interactive #t))
 (tm-property (open-table-properties) (:interactive #t))
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
-;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting graphics mode\n")
 (lazy-keyboard (graphics graphics-kbd) in-active-graphics? graphics-wheel)
@@ -259,14 +250,12 @@
   commutative-diagram-handle)
 (define-secure-symbols ext-fold-toc-in-reflow? toc-fold-tree toc-unfold-tree)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
-;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting formal and natural languages\n")
 (lazy-language (language minimal) minimal)
 (lazy-language (language std-math) std-math)
 (lazy-define (kernel gui ui-text) replace)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
-;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting dynamic features\n")
 (lazy-keyboard (dynamic fold-kbd) always?)
@@ -276,7 +265,6 @@
 (lazy-define (dynamic fold-edit)
              screens-switch-to dynamic-make-slides overlays-context?)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
-;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting documentation\n")
 (lazy-keyboard (doc tmdoc-kbd) in-manual?)
@@ -294,7 +282,6 @@
 (lazy-tmfs-handler (doc apidoc) apidoc)
 (define-secure-symbols tmdoc-include)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
-;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting converters\n")
 (lazy-format (convert rewrite init-rewrite) texmacs verbatim)
@@ -316,7 +303,6 @@
              latex-has-style? latex-has-package?
              latex-has-texmacs-style? latex-has-texmacs-package?)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
-;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting linking facilities\n")
 (lazy-define (link locus-edit) create-unique-id)
@@ -328,13 +314,11 @@
 (lazy-define (link ref-edit) preview-reference)
 (define-secure-symbols preview-reference)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
-;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting debugging facilities\n")
 (lazy-define (debug debug-notifications) notify-debug-message
              acknowledge-debug-messages)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
-;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting editing modes for various special styles\n")
 (lazy-menu (various poster-menu) poster-block-menu)
@@ -342,11 +326,9 @@
 (lazy-define (various theme-edit) current-basic-theme)
 (lazy-define (various theme-menu) basic-theme-name)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
-;(display* "memory: " (texmacs-memory) " bytes\n")
 
 
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
-;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting fonts\n")
 (import-from (fonts fonts-truetype) (fonts fonts-math) (fonts fonts-x))
@@ -358,12 +340,10 @@
 (tm-property (open-font-selector) (:interactive #t))
 (tm-property (open-document-font-selector) (:interactive #t))
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
-;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting regression testing\n")
 (lazy-define (check check-master) check-all run-checks run-all-tests)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
-;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "------------------------------------------------------\n")
 (delayed (:idle 10000) (autosave-delayed))

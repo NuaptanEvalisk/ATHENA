@@ -70,9 +70,7 @@ debug_set (string s, bool on) {
   else if (s == "keyboard") debug_set (DEBUG_FLAG_KEYBOARD, on);
   else if (s == "packrat") debug_set (DEBUG_FLAG_PACKRAT, on);
   else if (s == "flatten") debug_set (DEBUG_FLAG_FLATTEN, on);
-  else if (s == "parser") debug_set (DEBUG_FLAG_PARSER, on);
   else if (s == "convert") debug_set (DEBUG_FLAG_CONVERT, on);
-  else if (s == "live") debug_set (DEBUG_FLAG_LIVE, on);
 }
 
 static bool
@@ -96,9 +94,7 @@ debug_get (string s) {
   else if (s == "keyboard") return debug_get (DEBUG_FLAG_KEYBOARD);
   else if (s == "packrat") return debug_get (DEBUG_FLAG_PACKRAT);
   else if (s == "flatten") return debug_get (DEBUG_FLAG_FLATTEN);
-  else if (s == "parser") return debug_get (DEBUG_FLAG_PARSER);
   else if (s == "convert") return debug_get (DEBUG_FLAG_CONVERT);
-  else if (s == "live") return debug_get (DEBUG_FLAG_LIVE);
   else return false;
 }
 

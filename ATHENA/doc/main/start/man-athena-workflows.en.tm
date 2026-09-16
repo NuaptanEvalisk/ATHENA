@@ -250,8 +250,8 @@
   <menu|Edit|Preferences|Other|Debugging> to show a semi-transparent HUD in
   every document editor. It reports completed-paint frames per second, the
   latest input-to-paint latency, and the five-second 95th-percentile latency.
-  Debugging preferences also centralize console visibility, backtraces, memory
-  reporting, and diagnostic logging channels.
+  Debugging preferences also centralize Error Messages auto-open behavior,
+  Guile backtraces, and detailed vault anchor dry-run reporting.
 
   <section|Execution and rendering ownership>
 

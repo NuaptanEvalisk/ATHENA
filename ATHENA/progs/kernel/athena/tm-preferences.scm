@@ -306,17 +306,8 @@
             (debug-disable 'backtrace)
             (debug-disable 'backtrace 'debug)))))
 
-(define (debug-memory-footer t)
-  (let* ((s (tree->stree t))
-         (a `(concat ,s " [" ,(number->string (texmacs-memory)) " bytes]")))
-    (stree->tree a)))
-
-(define (notify-debug-memory-footer name val)
-  (set! footer-hook
-        (if (== val "on") debug-memory-footer (lambda (s) s))))
-
 (register-preference-callback-procedures
-  (list notify-debug-backtrace notify-debug-memory-footer))
+  (list notify-debug-backtrace))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Look and feel

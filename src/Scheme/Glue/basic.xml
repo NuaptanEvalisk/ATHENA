@@ -86,7 +86,6 @@
     <arg type="int" />
     <arg type="string" />
   </binding>
-  <binding name="texmacs-memory" native="mem_used" returns="int" />
   <binding name="bench-print" native="bench_print" returns="void">
     <arg type="string" />
   </binding>

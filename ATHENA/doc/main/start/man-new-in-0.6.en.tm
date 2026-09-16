@@ -85,9 +85,8 @@
   breaking relative references or misclassifying them as orphans.
 
   A per-document HUD reports completed-paint FPS, latest editing latency, and
-  five-second p95 latency. Persistent debugging controls have moved into
-  <menu|Edit|Preferences|Other|Debugging>, while immediate inspection commands
-  remain in the Debug menu.
+  five-second p95 latency. Persistent user-facing diagnostics are available in
+  <menu|Edit|Preferences|Other|Debugging> and the native Error messages pane.
 
   The Qt 5 frontend has been removed; <ATHENA> 0.6 requires Qt 6. A unified
   model-free release driver produces native Linux archives, AppImages, DEB and

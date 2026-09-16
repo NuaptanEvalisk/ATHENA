@@ -2494,8 +2494,6 @@ QTMPreferencesDialog::buildOtherPage () {
   QFormLayout* debugGeneral= add_section (debugging, "General");
   add_toggle (debugGeneral, "Include Guile backtraces in Scheme errors:",
               "debug scheme backtraces");
-  add_toggle (debugGeneral, "Show live memory usage in the status bar:",
-              "debug show memory in status bar");
 
   QFormLayout* console= add_section (debugging, "Error Messages");
   add_toggle (console, "Open Error messages automatically on errors:",
@@ -2503,48 +2501,9 @@ QTMPreferencesDialog::buildOtherPage () {
   add_toggle (console, "Open Error messages automatically on warnings:",
               "open console on warnings");
 
-  QFormLayout* logging= add_section (debugging, "Diagnostic Logging");
-  std::vector<QCheckBox*> debugChannels;
-  auto addDebugChannel= [&] (const QString& title, const char* key) {
-    debugChannels.push_back (add_toggle (logging, title, key));
-  };
-  addDebugChannel ("Startup and automatic configuration:",
-                   "debug channel auto");
-  addDebugChannel ("Verbose subsystem diagnostics:",
-                   "debug channel verbose");
-  addDebugChannel ("GUI event dispatch:", "debug channel events");
-  addDebugChannel ("Core and Scheme operations:", "debug channel std");
-  addDebugChannel ("Files, processes, and input/output:",
-                   "debug channel io");
-  addDebugChannel ("TLS transport:", "debug channel gnutls");
-  addDebugChannel ("Performance benchmarks:", "debug channel bench");
-  addDebugChannel ("Document history:", "debug channel history");
-  addDebugChannel ("Qt integration:", "debug channel qt");
-  addDebugChannel ("Qt widget construction and layout:",
-                   "debug channel qt-widgets");
-  addDebugChannel ("Keyboard and input translation:",
-                   "debug channel keyboard");
-  addDebugChannel ("Packrat parsing:", "debug channel packrat");
-  addDebugChannel ("Parser flattening:", "debug channel flatten");
-  addDebugChannel ("Language parsers:", "debug channel parser");
-  addDebugChannel ("Document and image conversion:",
-                   "debug channel convert");
-  addDebugChannel ("Live relations:", "debug channel live");
-  addDebugChannel ("Anchor structure dry-run details:",
-                   "debug anchor structure dry runs");
-  QPushButton* resetDebugChannels= new QPushButton (
-    "Disable all diagnostic logging", debugging);
-  QObject::connect (resetDebugChannels, &QPushButton::clicked,
-                    [debugChannels] () {
-    for (QCheckBox* channel: debugChannels) channel->setChecked (false);
-  });
-  logging->addRow (new QLabel, resetDebugChannels);
-  QLabel* loggingNote= new QLabel (
-    "Diagnostic channels are saved and restored at startup. Some channels "
-    "produce substantial output or reduce performance; enable only those "
-    "needed for the current investigation.", debugging);
-  loggingNote->setWordWrap (true);
-  debugging->layout ()->addWidget (loggingNote);
+  QFormLayout* vaultDiagnostics= add_section (debugging, "Vault Diagnostics");
+  add_toggle (vaultDiagnostics, "Anchor structure dry-run details:",
+              "debug anchor structure dry runs");
 
   QFormLayout* performance= add_section (debugging, "Rendering Performance");
   QCheckBox* performanceMonitor= add_toggle (
