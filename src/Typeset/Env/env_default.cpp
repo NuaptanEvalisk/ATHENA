@@ -398,9 +398,10 @@ initialize_default_env () {
   tree act_id (ID, tree (HARD_ID, tree (ARG, "args", "0")));
   tree act_script (MAP_ARGS, "find-accessible", "script", "args", "1");
   tree act_ln (LINK, "action", copy (act_id), copy (act_script));
+  tree hlink_cursor (ATTR, "athena-cursor-transparent", "true");
   env ("hlink")= tree (MACRO, "body", "destination",
-		       tree (LOCUS, copy (src_id), ln1,
-                             tree (ARG, "body")));
+		       tree (LOCUS, copy (src_id), ln1, hlink_cursor,
+                              tree (ARG, "body")));
   env ("cardlink")= tree (MACRO, "body", "destination",
 		       tree (LOCUS, copy (card_id), copy (card_ln),
                              tree (EXTERN, "ext-cardlink-render",

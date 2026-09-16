@@ -101,7 +101,8 @@ concater_rep::typeset_case (tree t, path ip) {
 ******************************************************************************/
 
 bool
-build_locus (edit_env env, tree t, list<string>& ids, string& col, string &ref, string &anchor) {
+build_locus (edit_env env, tree t, list<string>& ids, string& col, string &ref,
+             string &anchor, bool& cursor_transparent) {
   //cout << "Typeset " << t << "\n";
   int last= N(t)-1;
   tree body= env->expand (t[last], true);
@@ -110,6 +111,7 @@ build_locus (edit_env env, tree t, list<string>& ids, string& col, string &ref, 
   bool visited= false;
   ref= "";
   anchor= "";
+  cursor_transparent= false;
 
   // Semantic destinations also belong to detached/read-only renderings.
   // Only registration and visited-state lookup need an editor repository.
@@ -161,6 +163,11 @@ build_locus (edit_env env, tree t, list<string>& ids, string& col, string &ref, 
         ids= list<string> (id, ids);
         visited= visited || has_been_visited ("id:" * id);
       }
+      else if (is_func (arg, ATTR, 2) && is_atomic (arg[0]) &&
+               is_atomic (arg[1]) &&
+               arg[0]->label == "athena-cursor-transparent" &&
+               arg[1]->label == "true")
+        cursor_transparent= true;
     }
   }
 
@@ -176,6 +183,14 @@ build_locus (edit_env env, tree t, list<string>& ids, string& col, string &ref, 
   else col= locus_col;
 
   return accessible;
+}
+
+bool
+build_locus (edit_env env, tree t, list<string>& ids, string& col, string &ref,
+             string &anchor) {
+  bool cursor_transparent;
+  return build_locus (
+    env, t, ids, col, ref, anchor, cursor_transparent);
 }
 
 bool
@@ -209,7 +224,9 @@ concater_rep::typeset_locus (tree t, path ip) {
   int last= N(t)-1;
   list<string> ids;
   string col, ref, anchor;
-  bool ok= build_locus (env, t, ids, col, ref, anchor);
+  bool cursor_transparent;
+  bool ok= build_locus (
+    env, t, ids, col, ref, anchor, cursor_transparent);
   bool printed= env->get_string (PAGE_PRINTED) == "true";
   marker (descend (ip, 0));
   tree old= env->local_begin (COLOR, col);
@@ -259,7 +276,8 @@ concater_rep::typeset_locus (tree t, path ip) {
             spc << ((SI) 0) << ((SI) 0);
             cc= concat_box (dip, bs, spc);
           }
-          box lb= locus_box (sip, cc, ids, env->pixel, ref, anchor);
+          box lb= locus_box (
+            sip, cc, ids, env->pixel, ref, anchor, cursor_transparent);
           line_item item (STD_ITEM, a[i]->op_type, lb, a[i]->penalty);
           item->spc= a[i]->spc;
           new_a << item;
@@ -267,7 +285,8 @@ concater_rep::typeset_locus (tree t, path ip) {
         }
       }
       else if (N(ids) != 0) {
-        box lb= locus_box (a[i]->b->ip, a[i]->b, ids, env->pixel, ref, anchor);
+        box lb= locus_box (a[i]->b->ip, a[i]->b, ids, env->pixel, ref,
+                           anchor, cursor_transparent);
         line_item item (a[i]->type, a[i]->op_type, lb, a[i]->penalty);
         item->spc= a[i]->spc;
         item->limits= a[i]->limits;

@@ -138,10 +138,13 @@ bridge_locus_rep::my_typeset_will_be_complete () {
 void
 bridge_locus_rep::my_typeset (int desired_status) {
   extern bool build_locus (edit_env env, tree t, list<string>& ids, string& c,
-                           string& ref, string& anchor);
+                            string& ref, string& anchor,
+                            bool& cursor_transparent);
   list<string> ids;
   string col, ref, anchor;
-  bool ok= build_locus (env, st, ids, col, ref, anchor);
+  bool cursor_transparent;
+  bool ok= build_locus (
+    env, st, ids, col, ref, anchor, cursor_transparent);
   bool force_pdf_printed_locus=
     env->get_string (PAGE_PRINTED) == "true" &&
     (anchor != "" || ref != "");
@@ -161,7 +164,7 @@ bridge_locus_rep::my_typeset (int desired_status) {
     for (int i=0; i<N(l2); i++)
       if (l2[i]->type == PAGE_LINE_ITEM || l2[i]->type == PAGE_HIDDEN_ITEM)
         l2[i]->b= locus_box (l2[i]->b->ip, l2[i]->b, ids, env->pixel,
-                             ref, anchor);
+                             ref, anchor, cursor_transparent);
     ttt->insert_stack (l2, sb2);
   }
   else body->typeset (desired_status);

@@ -658,11 +658,14 @@ struct lazy_locus_rep: public lazy_surround_rep {
   list<string> ids;
   string ref, anchor;
   SI pixel;
+  bool cursor_transparent;
 
   lazy_locus_rep (array<line_item> a, array<line_item> b, lazy par, path ip,
-                  list<string> ids2, string ref2, string anchor2, SI pixel2):
+                   list<string> ids2, string ref2, string anchor2, SI pixel2,
+                   bool cursor_transparent2):
     lazy_surround_rep (a, b, par, ip), ids (ids2), ref (ref2),
-    anchor (anchor2), pixel (pixel2) {}
+    anchor (anchor2), pixel (pixel2),
+    cursor_transparent (cursor_transparent2) {}
 
   lazy produce (lazy_type request, format fm) override {
     lazy result= lazy_surround_rep::produce (request, fm);
@@ -673,7 +676,7 @@ struct lazy_locus_rep: public lazy_surround_rep {
       lines[i]= copy (stream->l[i]);
       if (lines[i]->type == PAGE_LINE_ITEM || lines[i]->type == PAGE_HIDDEN_ITEM)
         lines[i]->b= locus_box (lines[i]->b->ip, lines[i]->b, ids,
-                               pixel, ref, anchor);
+                               pixel, ref, anchor, cursor_transparent);
     }
     return lazy_vstream (ip, stream->channel, lines, stream->sb);
   }
@@ -682,10 +685,12 @@ struct lazy_locus_rep: public lazy_surround_rep {
 lazy
 make_lazy_locus (edit_env env, tree t, path ip) {
   extern bool build_locus (edit_env env, tree t, list<string>& ids, string& c,
-                          string& ref, string& anchor);
+                           string& ref, string& anchor,
+                           bool& cursor_transparent);
   list<string> ids;
   string col, ref, anchor;
-  if (!build_locus (env, t, ids, col, ref, anchor) &&
+  bool cursor_transparent;
+  if (!build_locus (env, t, ids, col, ref, anchor, cursor_transparent) &&
       N(ids) == 0 && ref == "" && anchor == "")
     typeset_warning << "Ignored unaccessible loci\n";
   int last= N(t)-1;
@@ -698,7 +703,8 @@ make_lazy_locus (edit_env env, tree t, path ip) {
   env->local_end ("athena-inside-locus", old_scope);
   env->write_update (COLOR, old_col);
   if (!is_nil (ids) || ref != "" || anchor != "")
-    return tm_new<lazy_locus_rep> (a, b, par, ip, ids, ref, anchor, env->pixel);
+    return tm_new<lazy_locus_rep> (
+      a, b, par, ip, ids, ref, anchor, env->pixel, cursor_transparent);
   return lazy_surround (a, b, par, ip);
 }
 

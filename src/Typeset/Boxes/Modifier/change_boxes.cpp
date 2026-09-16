@@ -744,8 +744,10 @@ struct locus_box_rep: public change_box_rep {
   SI pixel;
   string ref;
   string anchor;
+  bool cursor_transparent;
   locus_box_rep (path ip, box b, list<string> ids, SI pixel);
-  locus_box_rep (path ip, box b, list<string> ids, SI pixel, string _rep, string _anchor);
+  locus_box_rep (path ip, box b, list<string> ids, SI pixel, string _rep,
+                 string _anchor, bool cursor_transparent);
   operator tree () { return tree (TUPLE, "locus"); }
   box adjust_kerning (int mode, double factor);
   box expand_glyphs (int mode, double factor);
@@ -756,7 +758,8 @@ struct locus_box_rep: public change_box_rep {
 };
 
 locus_box_rep::locus_box_rep (path ip, box b, list<string> ids2, SI pixel2):
-  change_box_rep (ip, true), ids (ids2), pixel (pixel2)
+  change_box_rep (ip, true), ids (ids2), pixel (pixel2),
+  cursor_transparent (false)
 {
   ref = "";
   anchor = "";
@@ -766,8 +769,11 @@ locus_box_rep::locus_box_rep (path ip, box b, list<string> ids2, SI pixel2):
   finalize ();
 }
 
-locus_box_rep::locus_box_rep (path ip, box b, list<string> ids2, SI pixel2, string _ref, string _anchor):
-  change_box_rep (ip, true), ids (ids2), pixel (pixel2)
+locus_box_rep::locus_box_rep (path ip, box b, list<string> ids2, SI pixel2,
+                              string _ref, string _anchor,
+                              bool cursor_transparent2):
+  change_box_rep (ip, !cursor_transparent2), ids (ids2), pixel (pixel2),
+  cursor_transparent (cursor_transparent2)
 {
   ref = _ref;
   anchor = _anchor;
@@ -780,13 +786,13 @@ locus_box_rep::locus_box_rep (path ip, box b, list<string> ids2, SI pixel2, stri
 box
 locus_box_rep::adjust_kerning (int mode, double factor) {
   box body= bs[0]->adjust_kerning (mode, factor);
-  return locus_box (ip, body, ids, pixel, ref, anchor);
+  return locus_box (ip, body, ids, pixel, ref, anchor, cursor_transparent);
 }
 
 box
 locus_box_rep::expand_glyphs (int mode, double factor) {
   box body= bs[0]->expand_glyphs (mode, factor);
-  return locus_box (ip, body, ids, pixel, ref, anchor);
+  return locus_box (ip, body, ids, pixel, ref, anchor, cursor_transparent);
 }
 
 tree
@@ -1143,8 +1149,10 @@ locus_box (path ip, box b, list<string> ids, SI pixel) {
 }
 
 box
-locus_box (path ip, box b, list<string> ids, SI pixel, string ref, string anchor) {
-  return tm_new<locus_box_rep> (ip, b, ids, pixel, ref, anchor);
+locus_box (path ip, box b, list<string> ids, SI pixel, string ref,
+           string anchor, bool cursor_transparent) {
+  return tm_new<locus_box_rep> (
+    ip, b, ids, pixel, ref, anchor, cursor_transparent);
 }
 
 box

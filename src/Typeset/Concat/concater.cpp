@@ -964,6 +964,8 @@ typeset_as_box (edit_env env, tree t, path ip) {
 }
 
 bool build_locus (edit_env env, tree t, list<string>& ids, string& col, string &ref, string &anchor);
+bool build_locus (edit_env env, tree t, list<string>& ids, string& col,
+                  string &ref, string &anchor, bool& cursor_transparent);
 bool build_locus (edit_env env, tree t, list<string>& ids, string& col);
 
 box
@@ -1006,11 +1008,15 @@ typeset_as_atomic (edit_env env, tree t, path ip) {
     int last= N(t)-1;
     list<string> ids;
     string col;
-    (void) build_locus (env, t, ids, col, ref, anchor);
+    bool cursor_transparent;
+    (void) build_locus (
+      env, t, ids, col, ref, anchor, cursor_transparent);
     tree old= env->local_begin (COLOR, col);
     box b= typeset_as_atomic (env, t[last], descend (ip, last));
     env->local_end (COLOR, old);
-    if (ref != "") b= locus_box (ip, b, ids, env->pixel, ref, anchor);
+    if (ref != "")
+      b= locus_box (
+        ip, b, ids, env->pixel, ref, anchor, cursor_transparent);
     return b;
   }
   else {
