@@ -27,14 +27,22 @@
 class dialogue_command_rep: public command_rep {
   server_rep* sv;
   object      fun;
+  command     actor_fun;
   scheme_tree p;
   int         nr_args;
+  bool        actor_bound;
 
 public:
   dialogue_command_rep (server_rep* sv2, object fun2, int nr_args2):
-    sv (sv2), fun (fun2), nr_args (nr_args2) {}
+    sv (sv2), fun (fun2), actor_fun (as_actor_command (fun2)),
+    nr_args (nr_args2), actor_bound (
+      current_scheme_execution_context () != nullptr &&
+      current_scheme_execution_context ()->actor_id != ATHENA_NO_ACTOR) {}
   dialogue_command_rep (server_rep* sv2, object fun2, scheme_tree p2):
-    sv (sv2), fun (fun2), p (p2), nr_args (N(p2)) {}
+    sv (sv2), fun (fun2), actor_fun (as_actor_command (fun2)), p (p2),
+    nr_args (N(p2)), actor_bound (
+      current_scheme_execution_context () != nullptr &&
+      current_scheme_execution_context ()->actor_id != ATHENA_NO_ACTOR) {}
   void apply ();
   tm_ostream& print (tm_ostream& out) {
     return out << "<command dialogue>"; }
@@ -65,9 +73,12 @@ dialogue_command_rep::apply () {
     //call ("learn-interactive-arg", fun, object (i), arg);
   }
   call ("learn-interactive", fun, learn);
-  cmd= cons (fun, cmd);
   exec_delayed (scheme_cmd ("(dialogue-end)"));
-  exec_delayed (scheme_cmd (cmd));
+  if (actor_bound) actor_fun (cmd);
+  else {
+    cmd= cons (fun, cmd);
+    exec_delayed (scheme_cmd (cmd));
+  }
 }
 
 command
@@ -226,6 +237,17 @@ tm_frame_rep::interactive (object fun, scheme_tree p) {
     }
     string title= "Enter data";
     if (ends (prompts[0], "?")) title= "Question";
+    const SchemeExecutionContext* context= current_scheme_execution_context ();
+    if (context != nullptr && context->editor != nullptr &&
+        context->view_id != ATHENA_NO_VIEW) {
+      athena_resource_id dialogue_id=
+        actor_ui_store_widget (std::move (wid));
+      if (!context->editor->publish_ui_text (
+            actor_command_kind::ui_start_interactive, std::move (title),
+            dialogue_id))
+        (void) actor_ui_discard_widget (dialogue_id);
+      return;
+    }
     dialogue_start (title, wid);
     send_keyboard_focus (get_form_field (dialogue_wid, 0));
   }
