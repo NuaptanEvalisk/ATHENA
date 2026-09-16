@@ -28,6 +28,7 @@
 #include "ATHENA/tm_window.hpp"
 
 #include <filesystem>
+#include <algorithm>
 #include <atomic>
 #include <memory>
 #include <string>
@@ -361,6 +362,57 @@ vault_get_mtime (url u) {
   if (stat (as_charp (concretize (u)), &st) == 0) return (int) st.st_mtime;
   return 0;
 #endif
+}
+
+namespace {
+
+url
+recent_vaults_file () {
+  return url ("$ATHENA_HOME_PATH/system/recent_vaults.scm");
+}
+
+void
+save_recent_vaults (const array<string>& recent) {
+  scheme_tree list (TUPLE);
+  for (int i=0; i<N(recent); ++i)
+    list << scheme_tree (scm_quote (recent[i]));
+  url file= recent_vaults_file ();
+  mkdir (head (file));
+  (void) save_string (file, scheme_tree_to_string (list) * "\n", false);
+}
+
+} // namespace
+
+array<string>
+vault_get_recent () {
+  array<string> out;
+  string data;
+  if (load_string (recent_vaults_file (), data, false)) return out;
+  scheme_tree list= string_to_scheme_tree (data);
+  if (!is_tuple (list)) return out;
+  for (int i=0; i<N(list); ++i) {
+    if (!is_atomic (list[i]) || !is_quoted (list[i]->label)) continue;
+    string value= scm_unquote (list[i]->label);
+    if (value != "") out << value;
+  }
+  return out;
+}
+
+void
+vault_add_recent (url root) {
+  string value= as_string (root);
+  if (value == "") return;
+  array<string> old= vault_get_recent ();
+  array<string> next;
+  next << value;
+  for (int i=0; i<N(old) && N(next)<20; ++i)
+    if (old[i] != value) next << old[i];
+  save_recent_vaults (next);
+}
+
+void
+vault_clear_recent () {
+  save_recent_vaults (array<string> ());
 }
 
 string

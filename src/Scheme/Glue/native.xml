@@ -81,11 +81,13 @@
   <binding name="table-properties-pane-show" native="athena_table_properties_pane_show" returns="void" dispatch="ui" />
   <binding name="slide-properties-pane-show" native="athena_slide_properties_pane_show" returns="void" dispatch="ui" />
   <binding name="commutative-diagram-arrow-pane-show" native="athena_commutative_diagram_arrow_pane_show" returns="void" dispatch="ui" />
-  <binding name="native-anchor-enunciations-confirm" native="athena_native_anchor_enunciations_confirm" returns="void">
-    <arg type="string" />
-    <arg type="string" />
-    <arg type="string" />
-    <arg type="string" />
+  <binding name="vault-anchor-heading?" native="athena_vault_anchor_headingP" returns="bool">
+    <arg type="tree" />
+  </binding>
+  <binding name="vault-anchor-title-filter-invalidate" native="athena_vault_anchor_title_filter_invalidate" returns="void" />
+  <binding name="anchor-enunciations-current-document" native="athena_anchor_enunciations_current_document" returns="void" />
+  <binding name="vault-anchor-before-manual-save" native="athena_vault_anchor_before_manual_save" returns="void">
+    <arg type="url" />
     <arg type="procedure" />
   </binding>
   <binding name="native-font-selector" native="athena_native_font_selector" returns="array_string">
@@ -206,6 +208,21 @@
   </binding>
   <binding name="namespace-manager-show" native="namespace_manager_show" returns="void" dispatch="ui" />
   <binding name="namespace-explorer-show" native="namespace_explorer_show" returns="void" dispatch="ui" />
+  <binding name="open-namespace-manager" native="namespace_manager_show" returns="void" dispatch="ui" />
+  <binding name="open-namespace-explorer" native="namespace_explorer_show" returns="void" dispatch="ui" />
+  <binding name="open-persons-explorer" native="persons_explorer_show" returns="void" dispatch="ui" />
+  <binding name="open-quick-switcher" native="open_vault_quick_switcher" returns="void" />
+  <binding name="vault-track-current-buffer-if-enabled" native="vault_track_current_buffer_if_enabled" returns="void" />
+  <binding name="vault-show-explorer-and-track" native="vault_show_explorer_and_track_native" returns="void" />
+  <binding name="vault-startup-open-initial-buffer" native="vault_startup_open_initial_buffer_native" returns="void" />
+  <binding name="vault-bugcheck" native="vault_bugcheck_native" returns="void" />
+  <binding name="vault-load-latest-action" native="vault_load_latest_action_native" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="go-to-system-welcome-page" native="go_to_system_welcome_page_native" returns="void" />
+  <binding name="go-to-welcome-page" native="go_to_welcome_page_native" returns="void" />
+  <binding name="go-to-vault-initial-page" native="go_to_vault_initial_page_native" returns="void" />
+  <binding name="vault-welcome-page" native="vault_welcome_page_native" returns="tree" />
   <binding name="reverse-hierarchy-graph-show" native="reverse_hierarchy_graph_show" returns="void" dispatch="ui" />
   <binding name="reverse-hierarchy-graph-insert" native="reverse_hierarchy_graph_insert" returns="void" dispatch="ui" />
   <binding name="reverse-hierarchy-graph-render" native="athena_reverse_hierarchy_graph_render" returns="tree">
@@ -227,6 +244,7 @@
   <binding name="namespace-create-file-with-optional-initializer" native="athena_namespace_create_file_with_optional_initializer" returns="string">
     <arg type="string" />
   </binding>
+  <binding name="namespace-new-file-within-wizard" native="athena_namespace_new_file_within_wizard" returns="void" />
   <binding name="namespace-export-show" native="namespace_export_show" returns="void" dispatch="ui" />
   <binding name="websites-manager-show" native="websites_manager_show" returns="void" dispatch="ui" />
   <binding name="data-art-generate" native="athena_data_art_generate" returns="string">
@@ -249,10 +267,7 @@
     <arg type="string" />
     <arg type="string" />
   </binding>
-  <binding name="vault-maintenance-start" native="qtm_vault_maintenance_start" returns="void" dispatch="ui" />
-  <binding name="vault-maintenance-setup" native="athena_vault_maintenance_setup" returns="tree">
-    <arg type="url" />
-  </binding>
+  <binding name="vault-maintenance" native="qtm_vault_maintenance_start" returns="void" dispatch="ui" />
   <binding name="vaultfile-present?" native="athena_vaultfile_presentP" returns="bool">
     <arg type="url" />
   </binding>

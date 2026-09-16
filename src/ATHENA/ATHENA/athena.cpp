@@ -1338,9 +1338,6 @@ TeXmacs_main (int argc, char** argv) {
       exit (ok ? 0 : 1);
     }
     if (vault_maintenance_dir != "") {
-      // Maintenance has no current editor. Load its document transforms
-      // explicitly instead of evaluating editor-mode lazy menu predicates.
-      eval ("(module-provide '(athena athena tm-vault-anchors))");
       release_boot_lock ();
       bool ok= vault_maintenance_run (vault_maintenance_dir,
                                       vault_maintenance_check_only);

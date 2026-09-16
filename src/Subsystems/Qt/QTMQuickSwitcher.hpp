@@ -92,5 +92,6 @@ private:
 };
 
 void vault_quick_switcher (array<string>& recentFiles);
+void open_vault_quick_switcher ();
 
 #endif // QTMQUICKSWITCHER_HPP

@@ -9,8 +9,12 @@
 #include "QTMVaultMaintenanceDialog.hpp"
 
 #include "ATHENA/Data/vault_maintenance.hpp"
+#include "ATHENA/Data/new_buffer.hpp"
+#include "ATHENA/Data/vault.hpp"
 #include "qt_utilities.hpp"
 #include "scheme.hpp"
+#include "sys_utils.hpp"
+#include "tm_data.hpp"
 
 #include <QAbstractItemView>
 #include <QApplication>
@@ -22,6 +26,8 @@
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QProcess>
+#include <QProcessEnvironment>
 #include <QTableWidget>
 #include <QThread>
 #include <QVBoxLayout>
@@ -31,6 +37,76 @@
 #include <vector>
 
 namespace {
+
+QStringList
+maintenancePassIds (tree value) {
+  QStringList out;
+  if (!is_tuple (value)) return out;
+  for (int i=0; i<N(value); ++i)
+    if (is_atomic (value[i])) out << to_qstring (value[i]->label);
+  return out;
+}
+
+bool
+saveModifiedMaintenanceBuffers () {
+  array<url> buffers= get_all_buffers ();
+  for (int i=0; i<N(buffers); ++i) {
+    if (is_aux_buffer (buffers[i]) || !buffer_modified (buffers[i])) continue;
+    try { (void) call ("save-buffer", object (buffers[i])); }
+    catch (...) { return false; }
+  }
+  for (int i=0; i<N(buffers); ++i)
+    if (!is_aux_buffer (buffers[i]) && buffer_modified (buffers[i])) return false;
+  return true;
+}
+
+void
+runVaultMaintenanceInteractive () {
+  if (!vault_active ()) {
+    set_message ("No active vault to maintain", "Vault maintenance");
+    return;
+  }
+  url binary= get_texmacs_path () * "bin/ATHENA.bin";
+  if (!exists (binary)) {
+    set_message ("Cannot find ATHENA binary for vault maintenance",
+                 "Vault maintenance");
+    return;
+  }
+
+  url root= vault_get_root ();
+  tree setup= qtm_vault_maintenance_setup (as_string (root, URL_SYSTEM));
+  if (!is_tuple (setup) || N(setup) != 3 || !is_atomic (setup[0]) ||
+      setup[0]->label != "accepted") return;
+  if (!saveModifiedMaintenanceBuffers ()) {
+    set_message (
+      "Some documents could not be saved; vault maintenance was not started",
+      "Vault maintenance");
+    return;
+  }
+
+  QStringList skipped= maintenancePassIds (setup[1]);
+  QStringList enabled= maintenancePassIds (setup[2]);
+  QProcess process;
+  QProcessEnvironment environment= QProcessEnvironment::systemEnvironment ();
+  environment.insert (
+    "ATHENA_VAULT_MAINTENANCE_TAKE_PREFS",
+    get_preference ("vault take preferences with vault", "off") == "on"
+      ? "on" : "off");
+  environment.insert ("ATHENA_VAULT_MAINTENANCE_SKIP_PASSES",
+                      skipped.join (','));
+  environment.insert ("ATHENA_VAULT_MAINTENANCE_ENABLE_PASSES",
+                      enabled.join (','));
+  process.setProcessEnvironment (environment);
+  process.setProgram (to_qstring (as_string (binary, URL_SYSTEM)));
+  QString rootPath= to_qstring (as_string (root, URL_SYSTEM));
+  process.setArguments ({"--vault-maintenance", rootPath});
+  process.setWorkingDirectory (rootPath);
+  if (!process.startDetached ()) {
+    set_message ("Could not start vault maintenance", "Vault maintenance");
+    return;
+  }
+  get_server ()->quit ();
+}
 
 class VaultMaintenanceSetupDialog: public QDialog {
 public:
@@ -137,7 +213,7 @@ qtm_vault_maintenance_start () {
   // UI effects are drained during repaint. Leave that update before opening
   // a modal dialog or saving buffers, both of which can process GUI events.
   qt_post_to_main_thread ([] {
-    (void) call ("vault-maintenance-interactive");
+    runVaultMaintenanceInteractive ();
   });
 }
 

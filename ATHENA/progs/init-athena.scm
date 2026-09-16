@@ -74,16 +74,12 @@
 
 (import-from (utils misc markup-funcs))
 (lazy-tmfs-handler (utils automate auto-tmfs) automate)
-(lazy-tmfs-handler (athena athena tm-vault-welcome) welcome)
-(lazy-define (athena athena tm-vault-welcome)
-             go-to-system-welcome-page go-to-welcome-page
-             go-to-vault-initial-page)
 (lazy-define (utils automate auto-tmfs) auto-load-help)
 (lazy-keyboard (utils automate auto-kbd) in-auto?)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting main TeXmacs functionality\n")
-(import-from (athena athena tm-server) (athena athena tm-vault-startup))
+(import-from (athena athena tm-server))
 (lazy-define (athena athena tm-vault) load-vault-dir)
 (lazy-define (athena athena tm-global-transformation)
              run-global-transformation)

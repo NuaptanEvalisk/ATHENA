@@ -93,9 +93,10 @@ void athena_table_properties_pane_show ();
 void athena_slide_properties_pane_show ();
 void athena_commutative_diagram_arrow_pane_show ();
 
-void
-athena_native_anchor_enunciations_confirm (
-  string wraps, string dead, string headings, string notes, object callback);
+bool athena_vault_anchor_headingP (tree value);
+void athena_vault_anchor_title_filter_invalidate ();
+void athena_anchor_enunciations_current_document ();
+void athena_vault_anchor_before_manual_save (url buffer, object continuation);
 
 array<string>
 athena_native_font_selector (string arg1, string arg2, string arg3, string arg4, string arg5);
@@ -172,12 +173,27 @@ athena_namespace_new_file_wizard ();
 string
 athena_namespace_create_file_with_optional_initializer (string arg1);
 
+void
+athena_namespace_new_file_within_wizard ();
+
+void open_vault_quick_switcher ();
+void persons_explorer_show ();
+void namespace_manager_show ();
+void namespace_explorer_show ();
+void vault_track_current_buffer_if_enabled ();
+void vault_show_explorer_and_track_native ();
+void vault_startup_open_initial_buffer_native ();
+void vault_bugcheck_native ();
+void vault_load_latest_action_native (string path);
+void go_to_system_welcome_page_native ();
+void go_to_welcome_page_native ();
+void go_to_vault_initial_page_native ();
+tree vault_welcome_page_native ();
+
 int
 athena_vault_rewrite_anchor_references (string arg1, string arg2);
 
 void qtm_vault_maintenance_start ();
-tree
-athena_vault_maintenance_setup (url arg1);
 
 bool
 athena_vaultfile_presentP (url arg1);

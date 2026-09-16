@@ -249,10 +249,6 @@ if (ATHENA_TEST_GUILE)
     COMMAND ${ATHENA_TEST_GUILE} --no-auto-compile
       ${CMAKE_CURRENT_SOURCE_DIR}/scheme/unsaved-buffers-test.scm
       ${ATHENA_SOURCE_DIR})
-  add_test (NAME anchor_confirmation_scheme_test
-    COMMAND ${ATHENA_TEST_GUILE} --no-auto-compile
-      ${CMAKE_CURRENT_SOURCE_DIR}/scheme/anchor-confirmation-test.scm
-      ${ATHENA_SOURCE_DIR})
   add_test (NAME autosave_ownership_scheme_test
     COMMAND ${ATHENA_TEST_GUILE} --no-auto-compile
       ${CMAKE_CURRENT_SOURCE_DIR}/scheme/autosave-ownership-test.scm

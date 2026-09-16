@@ -9,11 +9,14 @@
 ******************************************************************************/
 
 #include "QTMQuickSwitcher.hpp"
+#include "analyze.hpp"
 #include "actor_transport.hpp"
 #include "buffer_actor.hpp"
 #include "scheme.hpp"
 #include "scheme_execution_context.hpp"
 #include "vault.hpp"
+#include "new_buffer.hpp"
+#include "QTMNamespaceNewFile.hpp"
 #include "qt_utilities.hpp"
 #include <QApplication>
 #include <QCoreApplication>
@@ -27,6 +30,7 @@
 #include <QThread>
 #include <QVariant>
 #include <algorithm>
+#include <filesystem>
 #include <memory>
 #include <mutex>
 #include <unordered_map>
@@ -80,6 +84,82 @@ registerQuickRequest (array<string>& recentFiles,
 tree runQuickSwitcher (const array<string>& recentFiles);
 
 void
+showQuickSwitcherMessage (string message) {
+  try { (void) call ("show-message", object (message), object ("Quick switcher")); }
+  catch (...) {}
+}
+
+void
+loadQuickSwitcherTarget (url target) {
+  try { (void) call ("load-buffer", object (target)); }
+  catch (...) { showQuickSwitcherMessage ("Could not open the selected file."); }
+}
+
+bool
+quickSwitcherUnsafePath (const std::filesystem::path& path,
+                         const std::string& raw) {
+  if (raw.empty () || path.is_absolute () || raw[0] == '~') return true;
+  for (const auto& part: path)
+    if (part == "..") return true;
+  return false;
+}
+
+std::filesystem::path
+quickSwitcherNativePath (url value) {
+  string path= as_string (concretize (value), URL_SYSTEM);
+  return std::filesystem::path (
+    std::string (path.data (), static_cast<size_t> (N(path))));
+}
+
+void
+completeQuickSwitcherResult (tree result) {
+  if (!is_tuple (result) || N(result) < 2 ||
+      !is_atomic (result[0]) || !is_atomic (result[1])) return;
+  string action= result[0]->label;
+  string payload= result[1]->label;
+  if (action == "open") {
+    loadQuickSwitcherTarget (vault_get_root () * url_unix (payload));
+    return;
+  }
+  if (action == "open-url") {
+    loadQuickSwitcherTarget (url (payload));
+    return;
+  }
+  if (action != "create") return;
+
+  std::string raw (payload.data (), N(payload));
+  std::filesystem::path relative (raw);
+  if (relative.extension () != ".ath") relative += ".ath";
+  if (quickSwitcherUnsafePath (relative, relative.generic_string ())) {
+    showQuickSwitcherMessage ("Invalid file name for quick switcher creation.");
+    return;
+  }
+
+  url root= vault_get_root ();
+  url current= get_current_buffer_safe ();
+  url base= (suffix (current) == "ath" && descends (current, root * url ("")))
+              ? head (current) : root;
+  url target= base * url_unix (string (relative.generic_string ().c_str ()));
+  std::error_code ec;
+  std::filesystem::create_directories (quickSwitcherNativePath (head (target)), ec);
+  if (ec) {
+    showQuickSwitcherMessage ("Could not create the destination directory.");
+    return;
+  }
+  if (exists (target)) {
+    loadQuickSwitcherTarget (target);
+    return;
+  }
+  string error;
+  if (namespace_create_file_with_optional_initializer (
+        as_string (target, URL_SYSTEM), error)) {
+    loadQuickSwitcherTarget (target);
+    return;
+  }
+  if (error != "" && error != "cancelled") showQuickSwitcherMessage (error);
+}
+
+void
 executeQuickRequest (athena_resource_id id) {
   std::unique_ptr<QuickSwitcherRequest> request;
   {
@@ -95,7 +175,7 @@ executeQuickRequest (athena_resource_id id) {
   athena_continuation_id continuationId=
     actor_continuation_registry::instance ().store (
       [result= std::move (result)] () mutable {
-        (void) call ("quick-switcher-complete", object (std::move (result)));
+        completeQuickSwitcherResult (std::move (result));
       });
   actor_command_ticket ticket= buffer_actor::submit_to (
     request->actorId, actor_command_kind::run_native_continuation,
@@ -725,4 +805,23 @@ vault_quick_switcher (array<string>& recentFiles) {
     std::lock_guard<std::mutex> guard (quickRequestMutex);
     quickRequests.erase (requestId);
   }
+}
+
+void
+open_vault_quick_switcher () {
+  if (!vault_active ()) {
+    showQuickSwitcherMessage ("No active vault. Please load a vault first.");
+    return;
+  }
+  array<string> recent;
+  try {
+    scheme_tree values= as_scheme_tree (eval (
+      "(map url->unix (recent-file-list 200))"));
+    if (is_tuple (values))
+      for (int i=0; i<N(values); ++i)
+        if (is_atomic (values[i]) && is_quoted (values[i]->label))
+          recent << scm_unquote (values[i]->label);
+  }
+  catch (...) {}
+  vault_quick_switcher (recent);
 }

@@ -17,7 +17,6 @@
     (athena athena tm-server)
     (athena athena tm-files)
     (athena athena tm-vault)
-    (athena athena tm-vault-namespaces)
     (athena menus print-widgets)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -129,6 +128,15 @@
 
 (tm-define (recent-file-menu)
   (file-list-menu (recent-file-list 25) #t))
+
+(tm-menu (recent-vault-menu)
+  (for (dir-s (get-recent-vaults))
+    (let* ((u (string->url dir-s))
+           (name (url->system (url-tail u)))
+           (v-name `(verbatim ,name))
+           (v-dir `(verbatim ,dir-s)))
+      ((balloon (eval v-name) (eval v-dir))
+       (load-vault-dir u)))))
 
 (tm-define (recent-unloaded-file-menu)
   (with l (list-difference (recent-unloaded-file-list 15) (linked-file-list))
@@ -305,7 +313,7 @@
       (link recent-vault-menu)
       (if (nnull? (get-recent-vaults)) ---)
       (when (nnull? (get-recent-vaults))
-        ("Clear menu" (save-object (recent-vaults-file) '()))))
+        ("Clear menu" (clear-recent-vaults))))
   ---
   ("Save" (save-buffer-manual))
   ("Autosave" (toggle-autosave-current-buffer))

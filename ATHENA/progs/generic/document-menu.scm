@@ -15,7 +15,6 @@
   (:use (generic document-edit)
         (generic generic-menu)
         (athena athena tm-materials)
-        (athena athena tm-vault-anchors)
         (athena menus file-menu)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

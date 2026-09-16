@@ -75,4 +75,9 @@ array<url> vault_get_all_files ();
 array<string>    vault_get_anchors (url u);
 int        vault_get_mtime (url u);
 
+/* Recent vault persistence */
+array<string> vault_get_recent ();
+void vault_add_recent (url root);
+void vault_clear_recent ();
+
 #endif // VAULT_HPP

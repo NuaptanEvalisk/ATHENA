@@ -14,7 +14,6 @@
 (texmacs-module (athena menus utility-menus)
   (:use (athena athena tm-tools)
         (athena athena tm-vault)
-        (athena athena tm-vault-namespaces)
         (athena athena tm-websites)
         (athena tools shortcut-listing)))
 

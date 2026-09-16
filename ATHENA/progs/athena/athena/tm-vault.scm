@@ -8,14 +8,6 @@
         (utils library cursor)
         (generic document-edit)
         (link link-navigate)
-        (athena athena tm-vault-bugcheck)
-        (athena athena tm-vault-anchors)
-        (athena athena tm-vault-maintenance)
-        (athena athena tm-vault-namespaces)
-        (athena athena tm-vault-quick-switcher)
-        (athena athena tm-vault-recents)
-        (athena athena tm-vault-startup)
-        (athena athena tm-vault-welcome)
         (athena menus file-menu)))
 (import-from (kernel athena tm-preferences))
 
@@ -66,6 +58,11 @@
                        vault-show-explorer
                        vault-show-explorer-and-track
                        vault-explorer-track-file
+                       open-namespace-manager
+                       open-namespace-explorer
+                       namespace-new-file-within-wizard
+                       namespace-info-page
+                       open-quick-switcher
                        ext-get-preference
                        new-document)
 
@@ -1003,6 +1000,12 @@
 
 (tmfs-load-handler (wikilink name)
   (wikilink-handler-sub name))
+
+(tmfs-load-handler (ns name)
+  (tree->stree (namespace-info-page name)))
+
+(tmfs-load-handler (welcome name)
+  (tree->stree (vault-welcome-page)))
 
 (tmfs-load-handler (artifact name)
   (if (artifact-open-uuid name)

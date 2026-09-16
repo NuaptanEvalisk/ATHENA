@@ -20,6 +20,7 @@
 #include "patch.hpp"
 #include "new_document.hpp"
 #include "actor_ui_bridge.hpp"
+#include "buffer_actor.hpp"
 #include "scheme_execution_context.hpp"
 
 #include "boxes.hpp"
@@ -31,6 +32,7 @@
 #include "gui_text.hpp"
 #include "vault.hpp"
 #include "namespaces.hpp"
+#include "ATHENA/Data/vault_anchors.hpp"
 #include "ATHENA/Data/vault_backup.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "ATHENA/Data/artifact_title_filter.hpp"
@@ -58,6 +60,7 @@
 #include "QTMNamespaceExplorer.hpp"
 #include "QTMNeighborhoodsPane.hpp"
 #include "QTMNamespaceNewFile.hpp"
+#include "QTMPersonsExplorer.hpp"
 #include "QTMNamespaceExport.hpp"
 #include "QTMWebsitesManager.hpp"
 #include "QTMReverseHierarchyGraph.hpp"
@@ -717,21 +720,235 @@ athena_commutative_diagram_arrow_pane_show () {
   if (!headless_mode) commutative_diagram_arrow_pane_show ();
 }
 
+namespace {
+
+bool
+native_anchor_buffer_exists (url buffer) {
+  array<url> buffers= get_all_buffers ();
+  for (int i=0; i<N(buffers); ++i)
+    if (buffers[i] == buffer) return true;
+  return false;
+}
+
+bool
+native_anchor_buffer_supported (url buffer) {
+  if (is_none (buffer) || is_scratch (buffer) ||
+      !native_anchor_buffer_exists (buffer))
+    return false;
+  string ext= suffix (buffer);
+  return ext == "ath" || ext == "tm" || ext == "ts" || ext == "tp" ||
+         ext == "stm" || ext == "scm" || ext == "";
+}
+
 void
-athena_native_anchor_enunciations_confirm (
-    string wraps, string dead, string headings, string notes, object callback) {
-  if (headless_mode) {
-    (void) call (callback, object (false));
+native_anchor_message (string message) {
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr && context->editor != nullptr) {
+    context->editor->set_message (tree (message), tree ("Anchor structures"));
     return;
   }
-  // Bind before crossing to Qt. Share the command holder, not its non-atomic
-  // reference counter; completion resumes on the requesting BufferActor.
-  auto completion= std::make_shared<command> (as_actor_command (callback));
-  qt_anchor_enunciations_confirm (
-    to_qstring (wraps), to_qstring (dead), to_qstring (headings),
-    to_qstring (notes), [completion] (bool accepted) {
-      (*completion) (list_object (object (accepted)));
+  try {
+    (void) call ("set-message", object (message), object ("Anchor structures"));
+  }
+  catch (...) {}
+}
+
+string
+native_anchor_notes (const VaultAnchorSummary& summary) {
+  string result;
+  for (size_t i=0; i<summary.notes.size (); ++i) {
+    if (i != 0) result << "<<<ATHENA-ANCHOR-ACTION>>>";
+    string note= summary.notes[i];
+    if (N(note) > 180) note= note (0, 177) * "...";
+    result << note;
+  }
+  return result;
+}
+
+void
+native_anchor_log_plan (const VaultAnchorSummary& summary) {
+  if (get_preference ("debug anchor structure dry runs", "off") != "on")
+    return;
+  std_warning << "ATHENA] anchor structures dry-run: wrap "
+              << (int) summary.wrapped << " enunciation(s), remove "
+              << (int) summary.dead_pairs << " dead anchor pair(s), add "
+              << (int) summary.headings << " heading anchor(s), update "
+              << (int) summary.updated << " stale anchor structure(s)" << LF;
+  for (const string& note: summary.notes)
+    std_warning << "ATHENA]   " << cork_to_utf8 (note) << LF;
+}
+
+void
+native_anchor_update_map (url buffer, const VaultAnchorSummary& summary) {
+  if (!vault_active () || summary.renames.empty ()) return;
+  url root= vault_get_root () * url ("");
+  if (!descends (buffer, root)) return;
+  url relative= delta (root, buffer);
+  (void) vault_rewrite_anchor_references (
+    as_unix_string (relative), vault_anchor_renames_string (summary));
+}
+
+VaultAnchorSummary
+native_anchor_apply (url buffer, bool interactive_edit) {
+  VaultAnchorSummary empty;
+  if (!native_anchor_buffer_exists (buffer)) {
+    native_anchor_message ("Buffer no longer exists");
+    return empty;
+  }
+
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  editor_rep* editor= nullptr;
+  if (context != nullptr && context->editor != nullptr &&
+      context->actor != nullptr && context->actor->current_buffer_url () == buffer)
+    editor= context->editor;
+
+  observer position;
+  bool restore= false;
+  SI scroll_x= 0, scroll_y= 0;
+  if (editor != nullptr) {
+    position= editor->position_new (editor->the_path ());
+    restore= true;
+    scroll_x= editor->get_scroll_x ();
+    scroll_y= editor->get_scroll_y ();
+    if (interactive_edit) {
+      if (editor->selection_active_any ()) editor->selection_cancel ();
+      editor->go_start ();
+      editor->scroll_to (scroll_x, scroll_y);
+    }
+  }
+
+  VaultAnchorTransform transformed= vault_anchor_transform (
+    get_buffer_body (buffer));
+  if (!transformed.summary.empty ()) {
+    set_buffer_body (buffer, std::move (transformed.body));
+    native_anchor_update_map (buffer, transformed.summary);
+  }
+
+  if (restore && editor != nullptr) {
+    editor->go_to (editor->position_get (position));
+    editor->scroll_to (scroll_x, scroll_y);
+    editor->position_delete (position);
+  }
+  return transformed.summary;
+}
+
+void
+native_anchor_report_applied (const VaultAnchorSummary& summary) {
+  if (summary.empty ()) {
+    native_anchor_message ("No structural anchors needed");
+    return;
+  }
+  native_anchor_message (
+    "Wrapped " * as_string ((int) summary.wrapped) *
+    " enunciation(s); added " * as_string ((int) summary.headings) *
+    " heading anchor(s); removed " * as_string ((int) summary.dead_pairs) *
+    " dead anchor pair(s); updated " * as_string ((int) summary.updated) *
+    " stale anchor structure(s)");
+}
+
+void
+native_anchor_submit_apply (
+    athena_actor_id actor_id, athena_view_id view_id,
+    SchemeCapabilitySet capabilities, std::string buffer_name,
+    bool interactive_edit, std::shared_ptr<command> continuation) {
+  athena_continuation_id id= actor_continuation_registry::instance ().store (
+    [buffer_name= std::move (buffer_name), interactive_edit,
+     continuation] () mutable {
+      url buffer (string (buffer_name.data (), (int) buffer_name.size ()));
+      VaultAnchorSummary applied= native_anchor_apply (buffer, interactive_edit);
+      native_anchor_report_applied (applied);
+      if (continuation != nullptr) (*continuation) ();
     });
+  actor_command_ticket ticket= buffer_actor::submit_to (
+    actor_id, actor_command_kind::run_native_continuation, view_id,
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, capabilities, id);
+  if (!ticket) {
+    (void) actor_continuation_registry::instance ().discard (id);
+    if (continuation != nullptr) (*continuation) ();
+  }
+}
+
+void
+native_anchor_request (
+    url buffer, bool before_save, object continuation= object ()) {
+  std::shared_ptr<command> resume;
+  if (before_save) resume= std::make_shared<command> (
+    as_actor_command (continuation));
+
+  if (!native_anchor_buffer_supported (buffer)) {
+    native_anchor_message ("Current buffer cannot be anchored");
+    if (resume != nullptr) (*resume) ();
+    return;
+  }
+
+  VaultAnchorSummary plan= vault_anchor_plan (get_buffer_body (buffer));
+  native_anchor_log_plan (plan);
+  if (plan.empty ()) {
+    native_anchor_message ("No structural anchors needed");
+    if (resume != nullptr) (*resume) ();
+    return;
+  }
+
+  if (before_save &&
+      get_preference ("vault auto approve anchor changes", "off") == "on") {
+    native_anchor_report_applied (native_anchor_apply (buffer, false));
+    if (resume != nullptr) (*resume) ();
+    return;
+  }
+
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context == nullptr || context->actor_id == ATHENA_NO_ACTOR ||
+      context->view_id == ATHENA_NO_VIEW) {
+    if (resume != nullptr) (*resume) ();
+    return;
+  }
+
+  string encoded= as_string (buffer);
+  std::string buffer_name (encoded.data (), N(encoded));
+  athena_actor_id actor_id= context->actor_id;
+  athena_view_id view_id= context->view_id;
+  SchemeCapabilitySet capabilities= context->capabilities;
+  qt_anchor_enunciations_confirm (
+    QString::number ((qulonglong) plan.wrapped),
+    QString::number ((qulonglong) plan.dead_pairs),
+    QString::number ((qulonglong) plan.headings),
+    to_qstring (cork_to_utf8 (native_anchor_notes (plan))),
+    [actor_id, view_id, capabilities, buffer_name= std::move (buffer_name),
+     before_save, resume= std::move (resume)] (bool accepted) mutable {
+      if (!accepted) {
+        if (resume != nullptr) (*resume) ();
+        return;
+      }
+      native_anchor_submit_apply (
+        actor_id, view_id, capabilities, std::move (buffer_name),
+        !before_save, std::move (resume));
+    });
+}
+
+} // namespace
+
+bool
+athena_vault_anchor_headingP (tree value) {
+  return vault_anchor_heading (value);
+}
+
+void
+athena_vault_anchor_title_filter_invalidate () {
+  vault_anchor_title_filter_invalidate ();
+}
+
+void
+athena_anchor_enunciations_current_document () {
+  native_anchor_request (get_current_buffer_safe (), false);
+}
+
+void
+athena_vault_anchor_before_manual_save (url buffer, object continuation) {
+  if (get_preference ("vault auto anchor enunciations on save", "off") != "on") {
+    (void) call (continuation);
+    return;
+  }
+  native_anchor_request (buffer, true, continuation);
 }
 
 array<string>
@@ -857,12 +1074,6 @@ athena_vault_rewrite_anchor_references (string arg1, string arg2) {
   size_t changed= vault_rewrite_anchor_references (arg1,
                                                     arg2);
   return int ((int) changed);
-}
-
-tree
-athena_vault_maintenance_setup (url arg1) {
-  string root= concretize (arg1);
-  return tree (qtm_vault_maintenance_setup (root));
 }
 
 static std::filesystem::path
@@ -1405,6 +1616,15 @@ athena_namespace_create_file_with_optional_initializer (string arg1) {
                                                       error))
     return string ("");
   return string (error);
+}
+
+void
+athena_namespace_new_file_within_wizard () {
+  if (headless_mode) return;
+  string path= athena_namespace_new_file_wizard ();
+  if (path == "") return;
+  try { (void) call ("load-buffer", object (url_system (path))); }
+  catch (...) {}
 }
 
 object

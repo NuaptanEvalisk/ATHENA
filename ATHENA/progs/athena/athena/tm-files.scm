@@ -15,7 +15,6 @@
   (:use (athena athena tm-server)
         (athena athena tm-view)
         (athena athena tm-print)
-        (athena athena tm-vault-anchors)
         (kernel athena tm-convert)
         (kernel athena tm-dialogue)
         (utils library cursor)))

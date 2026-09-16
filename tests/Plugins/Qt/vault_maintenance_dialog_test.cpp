@@ -14,7 +14,6 @@
 #include <QTableWidget>
 #include <QTimer>
 #include <QtTest/QtTest>
-#include <thread>
 #include "QTMVaultMaintenanceDialog.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "boot.hpp"
@@ -29,21 +28,6 @@ bool is_headless () { return true; }
 class VaultMaintenanceDialogTest: public QObject {
   Q_OBJECT
 private slots:
-  void dispatchLeavesCallerBeforeInvokingScheme () {
-    eval ("(begin (define maintenance-calls 0)"
-          "(define (vault-maintenance-interactive)"
-          "  (set! maintenance-calls (+ maintenance-calls 1))))");
-    // Exercise the generated binding as well as the native worker entry.
-    call ("vault-maintenance-start");
-    QCOMPARE (as_int (eval ("maintenance-calls")), 0);
-    QTRY_COMPARE (as_int (eval ("maintenance-calls")), 1);
-
-    std::thread worker ([] { qtm_vault_maintenance_start (); });
-    worker.join ();
-    QCOMPARE (as_int (eval ("maintenance-calls")), 1);
-    QTRY_COMPARE (as_int (eval ("maintenance-calls")), 2);
-  }
-
   void cancelSetupInTemporaryVault () {
     QTemporaryDir vault;
     QVERIFY (vault.isValid ());
@@ -62,8 +46,8 @@ private slots:
         dialog->reject ();
       }
     });
-    tree result= as_tree (call ("vault-maintenance-setup",
-      url_system (string (vault.path ().toUtf8 ().constData ()))));
+    tree result= qtm_vault_maintenance_setup (
+      string (vault.path ().toUtf8 ().constData ()));
     QVERIFY (shown);
     QVERIFY (gui_owned);
     QCOMPARE (result, tree (UNINIT));

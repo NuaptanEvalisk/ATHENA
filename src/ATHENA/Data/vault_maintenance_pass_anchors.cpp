@@ -6,8 +6,8 @@
 
 #include "ATHENA/Data/vault_maintenance_internal.hpp"
 #include "ATHENA/Data/vault_map_sqlite.hpp"
+#include "ATHENA/Data/vault_anchors.hpp"
 
-#include "scheme.hpp"
 #include "url.hpp"
 
 #include <algorithm>
@@ -117,17 +117,8 @@ rewrite_map_anchor_references (const fs::path& root, const fs::path& doc,
 static bool
 apply_anchor_candidate (const fs::path& root, const fs::path& doc,
                         VaultMaintenanceSummary& summary) {
-    std::string result;
-    try {
-      result = tm_to_std (as_string (
-        call ("vault-anchor-maintenance-file", object (
-          url_system (std_to_tm (doc.string ()))))));
-    }
-    catch (...) {
-      log_error ("anchor structures: Scheme failure for " + compact_log_path (doc));
-      summary.anchor_failures++;
-      return false;
-    }
+    std::string result= tm_to_std (vault_anchor_maintenance_file_native (
+      url_system (std_to_tm (doc.string ())), false));
 
     AnchorMaintenanceFileResult parsed =
       parse_anchor_maintenance_result (result);
@@ -223,9 +214,8 @@ anchor_reader_worker (const std::vector<fs::path>& docs, int jobs, int index,
     const fs::path& doc = docs[i];
     std::string path = doc.string ();
     try {
-      std::string raw = tm_to_std (as_string (
-        call ("vault-anchor-maintenance-check-file", object (
-          url_system (std_to_tm (path))))));
+      std::string raw= tm_to_std (vault_anchor_maintenance_file_native (
+        url_system (std_to_tm (path)), true));
       AnchorMaintenanceFileResult parsed =
         parse_anchor_maintenance_result (raw);
       if (!parsed.ok) {
@@ -238,7 +228,7 @@ anchor_reader_worker (const std::vector<fs::path>& docs, int jobs, int index,
         write_worker_line (fd, "C\t" + path + "\n");
     }
     catch (...) {
-      write_worker_line (fd, "E\t" + path + "\tScheme failure\n");
+      write_worker_line (fd, "E\t" + path + "\tNative anchor failure\n");
       return 1;
     }
   }

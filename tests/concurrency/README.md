@@ -72,7 +72,7 @@ source /opt/intel/oneapi/setvars.sh
 cmake --build build_qt6 -j20
 # Perform the repository's normal deployment/install step for this build.
 ctest --test-dir build_qt6 --output-on-failure \
-  -R '^(glue_generator_test|glue_runtime_test|anchor_confirmation_scheme_test|anchor_confirmation_test|file_chooser_test)$'
+  -R '^(glue_generator_test|glue_runtime_test|vault_anchors_test|anchor_confirmation_test|file_chooser_test)$'
 
 python3 tests/scheme/two-buffer-save-test.py \
   --binary ATHENA/bin/ATHENA.bin \

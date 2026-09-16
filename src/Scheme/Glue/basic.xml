@@ -2284,6 +2284,11 @@
   <binding name="vault-close" native="vault_close" returns="void" />
   <binding name="vault-active?" native="vault_active" returns="bool" />
   <binding name="vault-get-root" native="vault_get_root" returns="url" />
+  <binding name="get-recent-vaults" native="vault_get_recent" returns="array_string" />
+  <binding name="add-recent-vault" native="vault_add_recent" returns="void">
+    <arg type="url" />
+  </binding>
+  <binding name="clear-recent-vaults" native="vault_clear_recent" returns="void" />
   <binding name="vault-backup-pre-save" native="vault_backup_pre_save" returns="bool">
     <arg type="url" />
   </binding>
