@@ -54,7 +54,7 @@
   The <tmstyle|article> style admits several variants, so as to make the
   layout correspond to the policy of specific journals. Currently, we have
   implemented <TeXmacs> analogues of the common <LaTeX> styles
-  <tmstyle|amsart>, <tmstyle|acmconf>, <tmstyle|elsart>, <tmstyle|ieeeconf>,
+  <tmstyle|amsart>, <tmstyle|acmart>, <tmstyle|elsarticle>, <tmstyle|ieeeconf>,
   <tmstyle|aip>, <tmstyle|aps>, <tmstyle|svjour>, etc. Similarly, we are
   developing styles <tmstyle|tmarticle> and <tmstyle|tmbook> which provide an
   alternative layout for articles and books.

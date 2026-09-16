@@ -1,6 +1,6 @@
 <TeXmacs|1.99.11>
 
-<style|<tuple|tmdoc|old-spacing>>
+<style|<tuple|tmdoc>>
 
 <\body>
   <tmdoc-title|Mathematical primitives>

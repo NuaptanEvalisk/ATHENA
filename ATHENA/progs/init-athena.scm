@@ -81,8 +81,6 @@
              go-to-vault-initial-page)
 (lazy-define (utils automate auto-tmfs) auto-load-help)
 (lazy-keyboard (utils automate auto-kbd) in-auto?)
-(define supports-email? (url-exists-in-path? "mmail"))
-(if supports-email? (use-modules (utils email email-tmfs)))
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 ;(display* "memory: " (texmacs-memory) " bytes\n")
 

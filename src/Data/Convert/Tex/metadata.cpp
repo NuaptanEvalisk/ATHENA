@@ -371,14 +371,10 @@ collect_metadata (tree t, tree latex_class) {
            is_tuple (latex_class, "\\documentstyle*", 2))
     s = latex_verbarg_to_string (latex_class[2]);
 
-  if (starts (s, "acm_proc_article-sp") ||
-      starts (s, "sig-alternate") ||
-      starts (s, "sig-alt-full"))
-    r= collect_metadata_acm_old (t);
-  else if (s == "acmart" || s == "acmsmall" || s == "acmlarge" ||
+  if (s == "acmart" || s == "acmsmall" || s == "acmlarge" ||
            s == "acmtog" || s == "sigconf" || s == "sigchi" || s == "sigplan")
     r= collect_metadata_acm (t);
-  else if (s == "elsarticle" || s == "elsart" || s == "ifacconf")
+  else if (s == "elsarticle" || s == "ifacconf")
     r= collect_metadata_elsevier (t);
   else if (s == "amsart" || s == "amsbook" || s == "amsproc")
     r= collect_metadata_ams (t);
@@ -427,9 +423,5 @@ get_latex_style (tree t) {
     return "ieeeconf";
   if (occurs ("IEEEtran", s))
     return "ieeetran";
-  if (occurs ("acm_proc", s))
-    return "acmconf";
-  if (occurs ("sig-alt", s))
-    return "sig-alternate";
   return s;
 }

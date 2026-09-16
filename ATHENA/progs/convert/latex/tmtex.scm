@@ -56,25 +56,17 @@
 
 (texmacs-modes
   ;;; Elsevier styles
-  (elsevier-style%      (in? tmtex-style '("elsart" "jsc" "elsarticle"
-                                           "ifac")))
-  (jsc-style%           (in? tmtex-style '("jsc"))        elsevier-style%)
+  (elsevier-style%      (in? tmtex-style '("elsarticle" "ifac")))
   (elsarticle-style%    (in? tmtex-style '("elsarticle")) elsevier-style%)
-  (elsart-style%        (in? tmtex-style '("elsart"))     elsevier-style%)
   (ifac-style%          (in? tmtex-style '("ifac"))       elsevier-style%)
 
   ;;; ACM styles
-  (acm-style%           (in? tmtex-style '("acmconf" "sig-alternate"
-                                           "acm_proc_article-sp"
-                                           "acmsmall" "acmlarge" "acmtog"
+  (acm-style%           (in? tmtex-style '("acmsmall" "acmlarge" "acmtog"
                                            "sigconf" "sigchi" "sigplan"
                                            "acmart")))
   (acm-art-style%       (in? tmtex-style '("acmsmall" "acmlarge" "acmtog"
                                            "sigconf" "sigchi" "sigplan"
                                            "acmart")) acm-style%)
-  (sig-alternate-style% (in? tmtex-style '("sig-alternate")) acm-style%)
-  (acm-conf-style%      (in? tmtex-style '("acmconf" "sig-alternate"
-                                           "acm_proc_article-sp")) acm-style%)
   (acm-small-style%     (in? tmtex-style '("acmsmall")) acm-art-style%)
   (acm-large-style%     (in? tmtex-style '("acmlarge")) acm-art-style%)
   (acm-tog-style%       (in? tmtex-style '("acmtog")) acm-art-style%)
@@ -106,7 +98,7 @@
   (ieee-tran-style%     (in? tmtex-style '("ieeetran")) ieee-style%)
 
   ;; Other styles
-  (beamer-style%        (in? tmtex-style '("beamer" "old-beamer"))))
+  (beamer-style%        (in? tmtex-style '("beamer"))))
 
 (tm-define (tmtex-style-init body)
   (noop))
@@ -756,12 +748,11 @@
 
 (tm-define (tmtex-transform-style x)
   (cond ((in? x '("generic"
-                  "old-generic" "old-article"
                   "tmarticle" "tmdoc"))                    "article")
-        ((in? x '("book" "old-book" "tmbook" "tmmanual"))  "book")
-        ((in? x '("letter"  "old-letter"))                 "letter")
-        ((in? x '("beamer"  "old-beamer"))                 "beamer")
-        ((in? x '("seminar" "old-seminar"))                "slides")
+        ((in? x '("book" "tmbook" "tmmanual"))             "book")
+        ((== x "letter")                                     "letter")
+        ((== x "beamer")                                     "beamer")
+        ((== x "seminar")                                    "slides")
         ((not tmtex-replace-style?) x)
         (else #f)))
 

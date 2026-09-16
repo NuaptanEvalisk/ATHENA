@@ -1,6 +1,6 @@
 <TeXmacs|2.1.4>
 
-<style|<tuple|tmdoc|old-spacing|old-dots|old-lengths|libertine-font>>
+<style|<tuple|tmdoc|libertine-font>>
 
 <\body>
   <tmdoc-title|Specifying the current font>

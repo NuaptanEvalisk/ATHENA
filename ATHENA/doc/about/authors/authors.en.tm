@@ -1,6 +1,6 @@
 <TeXmacs|1.99.9>
 
-<style|<tuple|tmdoc|english|old-spacing>>
+<style|<tuple|tmdoc|english>>
 
 <\body>
   <tmdoc-title|The authors of <ATHENA>>

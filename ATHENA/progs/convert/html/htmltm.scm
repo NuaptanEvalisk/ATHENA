@@ -659,7 +659,7 @@
 	(let* ((aux (stm-unary-document tm))
 	       (doc (tree->stree (tree-simplify (stree->tree aux))))
 	       (body `(body ,doc))
-	       (style `(style "browser")))
+	       (style `(style "generic")))
 	  `(document ,body ,style)))))
 
 (tm-define (html->texmacs html)

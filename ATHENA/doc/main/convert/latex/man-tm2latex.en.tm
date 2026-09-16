@@ -1,13 +1,13 @@
 <TeXmacs|1.99.8>
 
-<style|<tuple|tmdoc|english|old-spacing>>
+<style|<tuple|tmdoc|english>>
 
 <\body>
   <tmdoc-title|Conversion from <TeXmacs> to <LaTeX>>
 
   A <TeXmacs> document can be exported to <LaTeX> using
   <menu|File|Export|LaTeX>. \ In the case of certain journal styles like
-  <verbatim|svjour> or <verbatim|elsart>, the user should also make sure that
+  <verbatim|svjour> or <verbatim|elsarticle>, the user should also make sure that
   the appropriate style files can be found by <LaTeX>, when compiling the
   result of the conversion. Please consult your <LaTeX> documentation for how
   to do this; one solution which usually works is to put the style file in

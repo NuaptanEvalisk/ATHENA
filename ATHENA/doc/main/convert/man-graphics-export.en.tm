@@ -1,6 +1,6 @@
 <TeXmacs|2.1.2>
 
-<style|<tuple|tmdoc|doc|british|old-spacing|old-dots|old-lengths>>
+<style|<tuple|tmdoc|doc|british>>
 
 <\body>
   <tmdoc-title|Export or Copy selection to graphics>

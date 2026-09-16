@@ -1,6 +1,6 @@
 <TeXmacs|1.99.11>
 
-<style|<tuple|tmdoc|english|old-spacing>>
+<style|<tuple|tmdoc|english>>
 
 <\body>
   <tmdoc-title|Adding new data formats and converters>

@@ -1,6 +1,6 @@
 <TeXmacs|2.1>
 
-<style|<tuple|tmdoc|old-spacing|old-dots|old-lengths>>
+<style|<tuple|tmdoc>>
 
 <\body>
   <tmdoc-title|The URL system>

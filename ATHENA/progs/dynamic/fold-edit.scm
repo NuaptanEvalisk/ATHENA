@@ -32,7 +32,7 @@
 (tm-define (current-beamer-theme)
   (with l (get-style-list)
     (or (list-find l (cut in? <> (beamer-themes)))
-        (if (!= (car l) "old-beamer") "bluish" "ridged-paper"))))
+        "bluish")))
 
 (tm-define (style-category p)
   (:require (and (in-beamer?) (in? p (beamer-themes))))
@@ -55,11 +55,6 @@
 (tm-define (style-includes? x y)
   (:require (and (== x "beamer")
                  (in? y (list "title-bar" "bluish"))))
-  #t)
-
-(tm-define (style-includes? x y)
-  (:require (and (== x "old-beamer")
-                 (in? y (list "framed-title" "ridged-paper"))))
   #t)
 
 (tm-define (screens-buffer?)

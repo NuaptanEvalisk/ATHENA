@@ -50,13 +50,7 @@
   (-> "Refresh caches"
 
       ("Styles" (style-clear-cache)))
-  ("Clean cache" (clean-athena-cache))
-  (if supports-email?
-      (-> "Email"
-          ("Open mailbox" (email-open-mailbox))
-          ("Retrieve email" (begin (email-pop) (email-open-inbox)))
-          ---
-          ("Pop server settings" (interactive email-settings)))))
+  ("Clean cache" (clean-athena-cache)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; File and document operations

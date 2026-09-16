@@ -1,6 +1,6 @@
 <TeXmacs|1.99.20>
 
-<style|<tuple|tmdoc|english|old-spacing|old-dots|old-lengths>>
+<style|<tuple|tmdoc|english>>
 
 <\body>
   <tmdoc-title|Developers of <TeXmacs>>

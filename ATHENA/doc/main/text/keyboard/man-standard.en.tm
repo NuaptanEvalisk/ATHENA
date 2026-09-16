@@ -1,6 +1,6 @@
 <TeXmacs|1.99.10>
 
-<style|<tuple|tmdoc|english|old-spacing>>
+<style|<tuple|tmdoc|english>>
 
 <\body>
   <tmdoc-title|Various useful keyboard shortcuts>

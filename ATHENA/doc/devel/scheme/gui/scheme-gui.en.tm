@@ -1,6 +1,6 @@
 <TeXmacs|1.99.8>
 
-<style|<tuple|tmdoc|old-spacing>>
+<style|<tuple|tmdoc>>
 
 <\body>
   <tmdoc-title|Extending the graphical user interface>

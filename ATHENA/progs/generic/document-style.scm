@@ -234,7 +234,6 @@
   ("captions-above"       "Captions above")
 
   ("normal-spacing"       "Default spacing")
-  ("old-spacing"          "Old style spacing")
   ("wide-spacing"         "Wide spacing")
   ("invisible-multiply"   "Invisible multiplications")
   ("narrow-multiply"      "Narrow multiplications")
@@ -251,26 +250,22 @@
   ("article"        "Default style for writing articles")
   ("beamer"         "Style for laptop presentations")
   ("book"           "Default style for writing books")
-  ("browser"        "Style for using TeXmacs as a web browser")
   ("generic"        "Default document style")
   ("letter"         "Default style for writing letters")
   ("poster"         "Style for posters")
   ("seminar"        "Style for presentations using an overhead projector")
   ("source"         "Style for editing style files and packages")
 
-  ("acmconf"        "ACM conference style")
+  ("acmart"         "ACM article style")
   ("acmsmall"       "Small ACM journal style")
   ("acmlarge"       "Large ACM journal style")
   ("acmtog"         "Two column ACM journal style")
-  ("sig-alternate"  "Alternate ACM conference style")
   ("sigconf"        "ACM SIGSAM conference style")
   ("sigchi"         "ACM SIGSAM abstract style")
   ("sigplan"        "ACM SIGSAM proceedings style")
   ("amsart"         "AMS article style")
-  ("elsart"         "Elsevier article style")
   ("elsarticle"     "Elsevier article style")
   ("ifac"           "IFAC article style")
-  ("jsc"            "Style for Journal of Symbolic Computation")
   ("ieeeconf"       "IEEE conference style")
   ("ieeetran"       "Style for transactions by the IEEE")
   ("aip"            "REVTeX meta-style (American Institute of Physics)")
@@ -284,16 +279,7 @@
 
   ("manual"         "Style for writing technical manuals")
   ("tmdoc"          "Style for writing TeXmacs documentation")
-  ("tmmanual"       "Style for writing TeXmacs manuals")
-
-  ("old-beamer"     "Former default style for laptop presentations")
-  ("old-book"       "Former default style for writing books")
-  ("old-generic"    "Former default document style")
-  ("old-letter"     "Former default style for writing letters")
-  ("old-seminar"    "Former style for overhead projector presentations")
-
-  ("email"          "Style for writing and reading emails")
-  ("mailbox"        "Style for displaying mailboxes"))
+  ("tmmanual"       "Style for writing TeXmacs manuals"))
 
 (define-table style-synopsis
   ("alt-colors"         "Color formulas and several other basic tags")
@@ -334,14 +320,11 @@
 
   ("doc"                "Rich collection of markup for writing documentation")
 
-  ("allouche"           "Example macro package by David Allouche")
   ("bpr"                "Example macro package for Basu/Pollack/Roy book")
-  ("graphical-macros"   "Collection of extra primitives for graphical mode")
   ("structured-list"    "Making item bodies part of item tags")
   ("structured-section" "Making section bodies part of section tags")
 
   ("normal-spacing"     "Default spacing")
-  ("old-spacing"        "Old style spacing")
   ("wide-spacing"       "Wide spacing")
   ("invisible-multiply" "Use invisible space for multiplications")
   ("narrow-multiply"    "Use narrow space for multiplications")

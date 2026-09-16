@@ -1,6 +1,6 @@
 <TeXmacs|1.99.13>
 
-<style|<tuple|tmdoc|english|old-spacing|old-dots>>
+<style|<tuple|tmdoc|english>>
 
 <\body>
   <tmdoc-title|Editing tools>

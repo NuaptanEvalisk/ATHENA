@@ -1,6 +1,6 @@
 <TeXmacs|2.1.4>
 
-<style|<tuple|tmdoc|english|old-spacing|old-dots|old-lengths>>
+<style|<tuple|tmdoc|english>>
 
 <\body>
   <tmdoc-title|<ATHENA> user manual>

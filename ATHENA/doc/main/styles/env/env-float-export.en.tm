@@ -1,6 +1,6 @@
 <TeXmacs|1.99.12>
 
-<style|<tuple|tmdoc|english|old-spacing|old-dots>>
+<style|<tuple|tmdoc|english>>
 
 <\body>
   <tmdoc-title|Using the environments for floating objects>

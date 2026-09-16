@@ -1,6 +1,6 @@
 <TeXmacs|2.1.4>
 
-<style|<tuple|tmdoc|english|old-dots|old-lengths>>
+<style|<tuple|tmdoc|english>>
 
 <\body>
   <tmdoc-title|Getting started with <ATHENA>>
