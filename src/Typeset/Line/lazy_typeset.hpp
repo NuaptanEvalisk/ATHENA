@@ -84,26 +84,5 @@ struct lazy_hidden {
 };
 EXTEND_NULL_CODE(lazy,lazy_hidden);
 
-/******************************************************************************
-* lazy_relay
-******************************************************************************/
-
-struct lazy_relay_rep: public lazy_rep {
-  array<tree> args;  // the arguments
-  lazy par;          // the relayed paragraph
-
-  lazy_relay_rep (edit_env env, tree t, path ip);
-  inline operator tree () { return "Relay"; }
-  lazy produce (lazy_type request, format fm);
-  format query (lazy_type request, format fm);
-  void propagate ();
-};
-
-struct lazy_relay {
-  EXTEND_NULL(lazy,lazy_relay);
-  inline lazy_relay (edit_env env, tree t, path ip):
-    rep (tm_new<lazy_relay_rep> (env, t, ip)) { rep->ref_count= 1; }
-};
-EXTEND_NULL_CODE(lazy,lazy_relay);
 
 #endif // defined LAZY_TYPESET_H

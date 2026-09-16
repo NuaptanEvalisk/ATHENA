@@ -602,11 +602,6 @@
         "cmd/32/insertsymbol.svg"
       ]
     },
-    "tm_answer": {
-      "libreoffice": [
-        "cmd/32/checkbox.svg"
-      ]
-    },
     "tm_arc_mode": {
       "libreoffice": [
         "cmd/32/arc.svg",
@@ -1213,12 +1208,6 @@
         "cmd/32/insertsymbol.svg"
       ]
     },
-    "tm_gap": {
-      "libreoffice": [
-        "cmd/32/insertmath.svg",
-        "cmd/32/insertsymbol.svg"
-      ]
-    },
     "tm_gnu1b": {
       "libreoffice": [
         "cmd/32/insertmath.svg"
@@ -1426,11 +1415,6 @@
         "cmd/32/insertmath.svg"
       ]
     },
-    "tm_mc": {
-      "libreoffice": [
-        "cmd/32/insertmath.svg"
-      ]
-    },
     "tm_minus": {
       "libreoffice": [
         "cmd/32/remove.svg",
@@ -1575,11 +1559,6 @@
     "tm_prominent": {
       "libreoffice": [
         "cmd/32/strongemphasischarstyle.svg"
-      ]
-    },
-    "tm_question": {
-      "libreoffice": [
-        "cmd/32/helpindex.svg"
       ]
     },
     "tm_rarrow": {

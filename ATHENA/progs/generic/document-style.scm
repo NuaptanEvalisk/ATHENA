@@ -286,8 +286,6 @@
   ("tmdoc"          "Style for writing TeXmacs documentation")
   ("tmmanual"       "Style for writing TeXmacs manuals")
 
-  ("exam"           "Style for exams")
-
   ("old-beamer"     "Former default style for laptop presentations")
   ("old-book"       "Former default style for writing books")
   ("old-generic"    "Former default document style")

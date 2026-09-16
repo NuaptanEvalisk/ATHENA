@@ -703,50 +703,6 @@ make_lazy_locus (edit_env env, tree t, path ip) {
 }
 
 /******************************************************************************
-* Relay
-******************************************************************************/
-
-lazy_relay_rep::lazy_relay_rep (edit_env env, tree t, path ip):
-  lazy_rep (LAZY_RELAY, ip)
-{
-  par= make_lazy (env, t[0], descend (ip, 0));
-  for (int i=1; i<N(t); i++) args << env->exec (t[i]);
-}
-
-format
-lazy_relay_rep::query (lazy_type request, format fm) {
-  if ((request == LAZY_BOX) && (fm->type == QUERY_VSTREAM_WIDTH))
-    return par->query (request, fm);
-  return lazy_rep::query (request, fm);
-}
-
-lazy
-lazy_relay_rep::produce (lazy_type request, format fm) {
-  if (request == type) return this;
-  if (request == LAZY_VSTREAM || request == LAZY_BOX) {
-    format bfm= fm;
-    if (request == LAZY_VSTREAM) {
-      format_vstream fvs= (format_vstream) fm;
-      bfm= make_format_width (fvs->width);
-    }
-    box b = (box) par->produce (LAZY_BOX, bfm);
-    box rb= relay_box (ip, b, args);
-    if (request == LAZY_BOX) return make_lazy_box (rb);
-    else {
-      array<page_item> l;
-      l << page_item (rb);
-      return lazy_vstream (ip, "", l, stack_border ());
-    }
-  }
-  return lazy_rep::produce (request, fm);
-}
-
-void
-lazy_relay_rep::propagate () {
-  par->propagate ();
-}
-
-/******************************************************************************
 * Main routine
 ******************************************************************************/
 
@@ -831,8 +787,6 @@ make_lazy (edit_env env, tree t, path ip) {
   case HLINK:
   case ACTION:
     return make_lazy_compound (env, t, ip);
-  case RELAY:
-    return add_markers (env, lazy_relay (env, t, ip), ip);
   case CANVAS:
     return make_lazy_canvas (env, t, ip);
   case ORNAMENT:

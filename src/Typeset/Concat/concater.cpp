@@ -686,9 +686,6 @@ concater_rep::typeset (tree t, path ip) {
   case ACTION:
     typeset_compound (t, ip);
     break;
-  case RELAY:
-    typeset_relay (t, ip);
-    break;
   case SET_BINDING:
     typeset_set_binding (t, ip);
     break;

@@ -225,8 +225,8 @@ be updated even if every visible Data menu is removed.
 
 - `database/title-markup.scm` and `title-transform.scm` perform document-title,
   author, affiliation and footnote transformations. They do not import db-base
-  or invoke the engine. `packages/header/title-base.ts:23` and
-  `progs/education/edu-markup.scm:15` depend on them. Preserve these modules.
+  or invoke the engine. `packages/header/title-base.ts:23` depends on them.
+  Preserve these modules.
 - `src/ATHENA/Data/namespaces_db.cpp` uses SQLite. Its `namespaces.hpp` includes
   the legacy header for the `strings` alias (`array<string>`); this is a header
   dependency, not TMDB operations. `vault.hpp` also exposes `strings`.

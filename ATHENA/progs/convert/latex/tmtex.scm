@@ -755,7 +755,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (tm-define (tmtex-transform-style x)
-  (cond ((in? x '("generic" "exam"
+  (cond ((in? x '("generic"
                   "old-generic" "old-article"
                   "tmarticle" "tmdoc"))                    "article")
         ((in? x '("book" "old-book" "tmbook" "tmmanual"))  "book")
@@ -3957,22 +3957,6 @@
         "specified-algorithm" "specified-algorithm*"
         "named-specified-algorithm" "algorithm-body" "numbered"
 
-        "short-item" "short-question"
-        "question-arabic" "question-alpha" "question-Alpha"
-        "question-roman" "question-Roman" "question-item"
-        "answer-arabic" "answer-alpha" "answer-Alpha"
-        "answer-roman" "answer-Roman" "answer-item"
-
-        "gap" "gap-dots" "gap-underlined" "gap-box"
-        "gap-wide" "gap-dots-wide" "gap-underlined-wide" "gap-box-wide"
-        "gap-long" "gap-dots-long" "gap-underlined-long" "gap-box-long"
-
-        "with-button-box" "with-button-box*"
-        "with-button-circle" "with-button-circle*"
-        "with-button-arabic" "with-button-alpha" "with-button-Alpha"
-        "with-button-roman" "with-button-Roman"
-        "mc-field" "mc-wide-field" "show-reply" "hide-reply"
-        "mc" "mc-monospaced" "mc-horizontal" "mc-vertical"
 
         "tmdoc-title" "icon" "shortcut" "key" "prefix"
         "menu" "render-menu" "submenu" "subsubmenu" "subsubsubmenu"

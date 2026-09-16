@@ -270,12 +270,6 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 ;(display* "memory: " (texmacs-memory) " bytes\n")
 
-;(display "Booting educational features\n")
-(lazy-keyboard (education edu-kbd) in-edu-text?)
-(lazy-menu (education edu-menu) edu-insert-menu)
-;(display* "time: " (- (texmacs-time) boot-start) "\n")
-;(display* "memory: " (texmacs-memory) " bytes\n")
-
 ;(display "Booting dynamic features\n")
 (lazy-keyboard (dynamic fold-kbd) always?)
 (lazy-menu (dynamic fold-menu) insert-fold-menu dynamic-menu dynamic-icons
