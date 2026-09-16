@@ -17,6 +17,10 @@
     (load-browse-buffer path
       (lambda () (if (!= label "") (go-to-label label))))))
 
+(define (vault-transclusion-source-url uuid)
+  (string-append "tmfs://transclusion-source/"
+                 (vault-url-component-encode uuid)))
+
 (tm-define (artifact-jump-to-position path position . opt-history)
   (load-browse-buffer path
     (lambda ()
@@ -800,10 +804,7 @@
                                        (content (vault-extract-range t a-begin a-end)))
                                   (if (null? content)
                                       (vault-transclude-error uuid-str f-hint-str b-hint-str e-hint-str "Anchors not found in target.")
-                                      (let* ((btn-cmd (string-append "(vault-jump-to-source " 
-                                                                     (object->string (url->string abs-url)) " "
-                                                                     (object->string a-begin) ")"))
-                                             (bg-color (get-preference "vault transclusion color")))
+                                      (let* ((bg-color (get-preference "vault transclusion color")))
                                         `(with "ornament-color" ,bg-color
                                                "ornament-shape" "rectangular"
                                                "ornament-border" "1ln"
@@ -817,7 +818,9 @@
                                                      "par-sep" "0fn"
                                                  (document
                                                    (with "font-size" "0.8" "color" "blue"
-                                                     (concat (action ,(string-append "[Source: " filename "]") ,btn-cmd)))
+                                                     (concat
+                                                       (hlink ,(string-append "[Source: " filename "]")
+                                                              ,(vault-transclusion-source-url uuid-str))))
                                                  ,@(map (lambda (st)
                                                           (vault-transclude-rebase-images
                                                            (vault-strip-labels st)
@@ -995,11 +998,42 @@
           (display* "  UUID not found in database, triggering repair...\n")
           (wikilink-trigger-repair uuid file-hint anchor-hint)))))
 
+(define (transclusion-source-handler-sub name)
+  (let* ((uuid (vault-url-component-decode name))
+         (node (vault-get-node uuid)))
+    (if (and (tree? node) (== (tree-label node) 'tuple))
+        (let* ((rel-path (tree->string (tree-ref node 0)))
+               (a-begin (tree->string (tree-ref node 1)))
+               (abs-url (url-append (vault-get-root) (unix->url rel-path))))
+          (if (url-exists? abs-url)
+              (begin
+                (let ((target (string-copy (url->system abs-url)))
+                      (label (string-copy a-begin)))
+                  (exec-delayed
+                    (lambda ()
+                      (exec-global
+                        (lambda ()
+                          (vault-jump-to-source (system->url target) label))))))
+                `(document (TeXmacs ,(texmacs-compat-version))
+                           (style (tuple "generic"))
+                           (body (document "Opening transclusion source..."))))
+              `(document (TeXmacs ,(texmacs-compat-version))
+                         (style (tuple "generic"))
+                         (body (document (bold "Broken Transclusion: ")
+                                         "Target file missing.")))))
+        `(document (TeXmacs ,(texmacs-compat-version))
+                   (style (tuple "generic"))
+                   (body (document (bold "Broken Transclusion: ")
+                                   "UUID not in database."))))))
+
 (tmfs-load-handler (Wikilink name)
   (wikilink-handler-sub name))
 
 (tmfs-load-handler (wikilink name)
   (wikilink-handler-sub name))
+
+(tmfs-load-handler (transclusion-source name)
+  (transclusion-source-handler-sub name))
 
 (tmfs-load-handler (ns name)
   (tree->stree (namespace-info-page name)))

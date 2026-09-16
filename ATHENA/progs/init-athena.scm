@@ -74,6 +74,7 @@
 
 (import-from (utils misc markup-funcs))
 (lazy-tmfs-handler (utils automate auto-tmfs) automate)
+(lazy-tmfs-handler (athena athena tm-vault) transclusion-source)
 (lazy-define (utils automate auto-tmfs) auto-load-help)
 (lazy-keyboard (utils automate auto-kbd) in-auto?)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")

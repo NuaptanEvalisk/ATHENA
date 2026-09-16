@@ -74,6 +74,18 @@ first_image_path (tree value) {
   return "";
 }
 
+string
+first_hlink_target (tree value) {
+  if (is_compound (value, "hlink", 2) && is_atomic (value[1]))
+    return value[1]->label;
+  if (!is_atomic (value))
+    for (int i=0; i<N(value); ++i) {
+      string found= first_hlink_target (value[i]);
+      if (found != "") return found;
+    }
+  return "";
+}
+
 } // namespace
 
 void
@@ -478,6 +490,10 @@ TestVaultMapSqlite::cachesAndInvalidatesStructuralTransclusions () {
     athena_resolve_transclusion_content (transclusion);
   QCOMPARE (repeated.cache_key, first.cache_key);
   QVERIFY (repeated.content == first.content);
+
+  tree displayed= athena_resolve_transclusion_display (transclusion);
+  QCOMPARE (first_hlink_target (displayed),
+            string ("tmfs://transclusion-source/range"));
 
   QVERIFY (write_source ("changed payload with a different size"));
   AthenaTransclusionResolution changed=

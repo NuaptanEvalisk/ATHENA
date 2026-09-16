@@ -287,13 +287,11 @@ display_tree (tree transclusion, const AthenaTransclusionResolution& resolved) {
   url absolute_source=
     vault_get_root () * url_unix (resolved.source_relative_path);
   string filename= as_string (tail (absolute_source));
-  string begin= tree_text (transclusion[2]);
-  string source_url= as_string (absolute_source);
-  string command= "(vault-jump-to-source " * scm_quote (source_url) * " " *
-                  scm_quote (begin) * ")";
+  string uuid= tree_text (transclusion[0]);
+  string source_url= "tmfs://transclusion-source/" * uuid;
 
   tree source_line (CONCAT);
-  source_line << tree (ACTION, "[Source: " * filename * "]", command);
+  source_line << compound ("hlink", "[Source: " * filename * "]", source_url);
   tree document (DOCUMENT);
   document << tree (WITH, "font-size", "0.8", "color", "blue", source_line);
   if (is_func (resolved.content, DOCUMENT)) document << A(resolved.content);
