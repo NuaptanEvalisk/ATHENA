@@ -13,3 +13,4 @@ class QMenu;
 class QTMPluginManager;
 QWidget* qtm_plugin_preferences (QTMPluginManager* manager, QWidget* parent = nullptr);
 QMenu* qtm_plugins_menu (QWidget* parent);
+QMenu* qtm_install_plugins_menu (QWidget* parent);

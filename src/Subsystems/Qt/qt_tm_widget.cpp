@@ -72,6 +72,16 @@ athena_toolbar_button_text (QToolButton* button, QAction* action) {
   return text;
 }
 
+static void
+athena_install_plugins_menu (QWidget* dest) {
+  if (dest == nullptr) return;
+  QMenu* plugins= qtm_install_plugins_menu (dest);
+  QObject::connect (plugins, &QMenu::aboutToShow, the_gui->gui_helper,
+    &QTMGuiHelper::aboutToShowMainMenu, Qt::UniqueConnection);
+  QObject::connect (plugins, &QMenu::aboutToHide, the_gui->gui_helper,
+    &QTMGuiHelper::aboutToHideMainMenu, Qt::UniqueConnection);
+}
+
 #if DISABLE_QTMTOOLBAR
 static void
 athena_configure_toolbar (QToolBar* toolbar, const QSize& iconSize) {
@@ -1034,12 +1044,7 @@ qt_tm_widget_rep::install_main_menu () {
 #endif
       }
     }
-    auto* plugins = qtm_plugins_menu (dest);
-    dest->addAction (plugins->menuAction ());
-    QObject::connect (plugins, &QMenu::aboutToShow, the_gui->gui_helper,
-      &QTMGuiHelper::aboutToShowMainMenu, Qt::UniqueConnection);
-    QObject::connect (plugins, &QMenu::aboutToHide, the_gui->gui_helper,
-      &QTMGuiHelper::aboutToHideMainMenu, Qt::UniqueConnection);
+    athena_install_plugins_menu (dest);
 
 #if !DISABLE_QTMTOOLBAR
   } else {
@@ -1074,12 +1079,7 @@ qt_tm_widget_rep::install_main_menu () {
 #endif
       }
     }
-    auto* plugins = qtm_plugins_menu (dest);
-    dest->addAction (plugins->menuAction ());
-    QObject::connect (plugins, &QMenu::aboutToShow, the_gui->gui_helper,
-      &QTMGuiHelper::aboutToShowMainMenu, Qt::UniqueConnection);
-    QObject::connect (plugins, &QMenu::aboutToHide, the_gui->gui_helper,
-      &QTMGuiHelper::aboutToHideMainMenu, Qt::UniqueConnection);
+    athena_install_plugins_menu (dest);
     dest->addRightSpacer();
     
   }

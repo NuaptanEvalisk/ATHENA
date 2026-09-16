@@ -288,3 +288,19 @@ QMenu* qtm_plugins_menu (QWidget* parent) {
   });
   return menu;
 }
+
+QMenu* qtm_install_plugins_menu (QWidget* parent) {
+  auto* menu = qtm_plugins_menu (parent);
+  QAction* help = nullptr;
+  for (QAction* action: parent->actions ()) {
+    QString text = action->text ();
+    text.remove ('&');
+    if (text.trimmed () == QStringLiteral ("Help")) {
+      help = action;
+      break;
+    }
+  }
+  if (help) parent->insertAction (help, menu->menuAction ());
+  else parent->addAction (menu->menuAction ());
+  return menu;
+}
