@@ -122,6 +122,44 @@
                  (vault-url-component-encode file-hint) "/"
                  (vault-url-component-encode anchor-hint)))
 
+(define (vault-tmfs-navigation-name u protocol)
+  (when (string? u) (set! u (system->url u)))
+  (let* ((text (url->unix (url-unroot u)))
+         (prefix (string-append protocol "/")))
+    (and (string-starts? text prefix)
+         (string-drop text (string-length prefix)))))
+
+(define (vault-wikilink-navigation-url? u)
+  (when (string? u) (set! u (system->url u)))
+  (or (url-rooted-tmfs-protocol? u "wikilink")
+      (url-rooted-tmfs-protocol? u "Wikilink")))
+
+(define (vault-wikilink-navigation-name u)
+  (or (vault-tmfs-navigation-name u "wikilink")
+      (vault-tmfs-navigation-name u "Wikilink")
+      ""))
+
+(define (vault-transclusion-source-navigation-url? u)
+  (when (string? u) (set! u (system->url u)))
+  (url-rooted-tmfs-protocol? u "transclusion-source"))
+
+(define (vault-transclusion-source-navigation-name u)
+  (or (vault-tmfs-navigation-name u "transclusion-source") ""))
+
+(define (vault-wikilink-repair-apply-url? u)
+  (when (string? u) (set! u (system->url u)))
+  (url-rooted-tmfs-protocol? u "wikilink-repair-apply"))
+
+(define (vault-wikilink-repair-apply-name u)
+  (or (vault-tmfs-navigation-name u "wikilink-repair-apply") ""))
+
+(define (vault-wikilink-repair-choice-url bad-uuid new-uuid path anchor)
+  (string-append "tmfs://wikilink-repair-apply/"
+                 (vault-url-component-encode bad-uuid) "/"
+                 (vault-url-component-encode new-uuid) "/"
+                 (vault-url-component-encode path) "/"
+                 (vault-url-component-encode anchor)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Settings
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -961,79 +999,33 @@
     (if (not (string-null? anchor-end))
         (delayed (:idle 100) (go-to-label anchor-end)))))
 
-(define (wikilink-handler-sub name)
-  (display* "Wikilink load: " name "\n")
+(define (wikilink-name-parts name)
   (let* ((parts (string-tokenize-by-char name #\/))
          (uuid (if (pair? parts) (vault-url-component-decode (car parts)) ""))
          (file-hint (if (and (pair? parts) (pair? (cdr parts)))
                         (vault-url-component-decode (cadr parts)) ""))
          (anchor-hint (if (and (pair? parts) (pair? (cdr parts)) (pair? (cddr parts)))
-                          (vault-url-component-decode (list->tmfs (cddr parts))) ""))
-         (node (vault-get-node uuid)))
-    (display* "  UUID: " uuid ", hints: " file-hint ", " anchor-hint "\n")
-    (display* "  Node: " node "\n")
-    
-    (if (and (tree? node) (== (tree-label node) 'tuple))
-        (let* ((rel-path (tree->string (tree-ref node 0)))
-               (a-begin (tree->string (tree-ref node 1)))
-               (a-end (tree->string (tree-ref node 2)))
-               (abs-url (url-append (vault-get-root) (unix->url rel-path))))
-          (if (url-exists? abs-url)
-              (begin
-                (display* "  Opening target via delayed execution...\n")
-                (let ((target (string-copy (url->system abs-url)))
-                      (label (string-copy a-end)))
-                  (exec-delayed
-                    (lambda ()
-                      (exec-global
-                        (lambda ()
-                          (vault-jump-to-source (system->url target) label))))))
-                `(document (TeXmacs ,(texmacs-compat-version)) 
-                           (style (tuple "generic")) 
-                           (body (document "Redirecting..."))))
-              (begin
-                (display* "  Target file missing on disk, triggering repair...\n")
-                (wikilink-trigger-repair uuid file-hint anchor-hint))))
-        (begin
-          (display* "  UUID not found in database, triggering repair...\n")
-          (wikilink-trigger-repair uuid file-hint anchor-hint)))))
+                          (vault-url-component-decode (list->tmfs (cddr parts))) "")))
+    (list uuid file-hint anchor-hint)))
 
-(define (transclusion-source-handler-sub name)
-  (let* ((uuid (vault-url-component-decode name))
-         (node (vault-get-node uuid)))
-    (if (and (tree? node) (== (tree-label node) 'tuple))
-        (let* ((rel-path (tree->string (tree-ref node 0)))
-               (a-begin (tree->string (tree-ref node 1)))
-               (abs-url (url-append (vault-get-root) (unix->url rel-path))))
-          (if (url-exists? abs-url)
-              (begin
-                (let ((target (string-copy (url->system abs-url)))
-                      (label (string-copy a-begin)))
-                  (exec-delayed
-                    (lambda ()
-                      (exec-global
-                        (lambda ()
-                          (vault-jump-to-source (system->url target) label))))))
-                `(document (TeXmacs ,(texmacs-compat-version))
-                           (style (tuple "generic"))
-                           (body (document "Opening transclusion source..."))))
-              `(document (TeXmacs ,(texmacs-compat-version))
-                         (style (tuple "generic"))
-                         (body (document (bold "Broken Transclusion: ")
-                                         "Target file missing.")))))
-        `(document (TeXmacs ,(texmacs-compat-version))
-                   (style (tuple "generic"))
-                   (body (document (bold "Broken Transclusion: ")
-                                   "UUID not in database."))))))
+(define (wikilink-navigation-target name)
+  (with (uuid file-hint anchor-hint) (wikilink-name-parts name)
+    (let ((node (vault-get-node uuid)))
+      (and (tree? node) (== (tree-label node) 'tuple)
+           (let* ((rel-path (tree->string (tree-ref node 0)))
+                  (a-end (tree->string (tree-ref node 2)))
+                  (abs-url (url-append (vault-get-root) (unix->url rel-path))))
+             (and (url-exists? abs-url) (list abs-url a-end)))))))
 
-(tmfs-load-handler (Wikilink name)
-  (wikilink-handler-sub name))
+(define (wikilink-repair-handler-sub name)
+  (with (uuid file-hint anchor-hint) (wikilink-name-parts name)
+    (wikilink-trigger-repair uuid file-hint anchor-hint)))
 
-(tmfs-load-handler (wikilink name)
-  (wikilink-handler-sub name))
+(define (wikilink-repair-url name)
+  (string-append "tmfs://wikilink-repair/" name))
 
-(tmfs-load-handler (transclusion-source name)
-  (transclusion-source-handler-sub name))
+(tmfs-load-handler (wikilink-repair name)
+  (wikilink-repair-handler-sub name))
 
 (tmfs-load-handler (ns name)
   (tree->stree (namespace-info-page name)))
@@ -1065,6 +1057,55 @@
 (define (artifact-url-uuid u)
   (when (string? u) (set! u (system->url u)))
   (url->system (url-tail u)))
+
+;; Vault navigation URLs are commands, not documents. Resolve valid targets
+;; before the generic TMFS loader so following a link never creates an
+;; intermediary redirect buffer. Broken wikilinks explicitly open a repair
+;; document; transclusion-source failures are reported in place.
+(tm-define (go-to-url u . opt-from)
+  (:require (vault-wikilink-navigation-url? u))
+  (when (pair? opt-from) (cursor-history-add (car opt-from)))
+  (let ((name (string-copy (vault-wikilink-navigation-name u))))
+    (exec-global
+      (lambda ()
+        (let ((target (wikilink-navigation-target name)))
+          (if target
+              (apply vault-jump-to-source target)
+              (load-browse-buffer
+                (system->url (wikilink-repair-url name)))))))))
+
+(tm-define (go-to-url u . opt-from)
+  (:require (vault-transclusion-source-navigation-url? u))
+  (when (pair? opt-from) (cursor-history-add (car opt-from)))
+  (let ((uuid (string-copy
+                (vault-url-component-decode
+                  (vault-transclusion-source-navigation-name u)))))
+    (exec-global
+      (lambda ()
+        (let ((node (vault-get-node uuid)))
+          (if (and (tree? node) (== (tree-label node) 'tuple))
+              (let* ((rel-path (tree->string (tree-ref node 0)))
+                     (a-begin (tree->string (tree-ref node 1)))
+                     (abs-url
+                       (url-append (vault-get-root) (unix->url rel-path))))
+                (if (url-exists? abs-url)
+                    (vault-jump-to-source abs-url a-begin)
+                    (set-message "Transclusion source file is missing"
+                                 "Transclusion")))
+              (set-message "Transclusion source is not in the Vault map"
+                           "Transclusion")))))))
+
+(tm-define (go-to-url u . opt-from)
+  (:require (vault-wikilink-repair-apply-url? u))
+  (when (pair? opt-from) (cursor-history-add (car opt-from)))
+  (let* ((name (vault-wikilink-repair-apply-name u))
+         (parts (string-tokenize-by-char name #\/)))
+    (if (= (length parts) 4)
+        (let ((decoded (map vault-url-component-decode parts)))
+          (wikilink-repair-apply
+            (list-ref decoded 0) (list-ref decoded 1)
+            (list-ref decoded 2) "" (list-ref decoded 3)))
+        (set-message "Invalid wikilink repair target" "Vault"))))
 
 ;; tmfs://artifact/... is a navigation command, not a document.  Dispatch it
 ;; before the generic TMFS loader so following an artifact never leaves an
@@ -1155,13 +1196,10 @@
                                          existing
                                          (vault-generate-uuid)))
                            (label (string-append path " #" anchor))
-                           (cmd (string-append "(wikilink-repair-apply " 
-                                               (object->string uuid) " "
-                                               (object->string new-uuid) " "
-                                               (object->string path) " \"\" "
-                                               (object->string anchor) ")")))
+                           (target (vault-wikilink-repair-choice-url
+                                     uuid new-uuid path anchor)))
                       `(concat (item)
-                               (action ,label ,cmd)
+                               (hlink ,label ,target)
                                " (UUID: " ,new-uuid ")")))
                   candidates)))))))
 
