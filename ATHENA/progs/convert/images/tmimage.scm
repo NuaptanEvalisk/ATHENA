@@ -17,8 +17,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (texmacs-module (convert images tmimage)
-  (:use (convert tmml tmmlout)
-        (convert tmml tmtmml) (utils library cursor)))
+  (:use (utils library cursor)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Handling of image convertion preferences
@@ -181,8 +180,7 @@
             (append '(*TOP* (*PI* xml "version=\"1.0\" encoding=\"UTF-8\""))
                     ;; actually we use only ascii
                     (cddr (tree->stree buftree))))
-           (xml-svg-out (begin (output-flush) ;; necessary??
-                               (serialize-tmml s-svg-out))))
+           (xml-svg-out (serialize-xml s-svg-out)))
       ;; close temporary buffer
       (buffer-pretend-saved mybuf)
       (buffer-close mybuf)

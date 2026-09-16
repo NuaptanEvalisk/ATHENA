@@ -25,8 +25,7 @@
   Documents can be saved in <TeXmacs>, <name|Xml> or <name|Scheme> format and
   printed as <name|Postscript> or <name|Pdf> files. Although <TeXmacs> is
   <em|not> based on <TeX>/<LaTeX>, high quality converters exist for <LaTeX>.
-  Documents can also be exported to <name|Html>/<name|Mathml> for publication
-  on the web.
+  Documents can also be exported to <name|Html> for publication on the web.
 
   <tmdoc-copyright|1998\U2021|Joris van der Hoeven>
 

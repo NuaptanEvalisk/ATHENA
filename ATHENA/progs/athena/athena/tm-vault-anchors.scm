@@ -940,7 +940,7 @@
   (and buf
        (buffer-exists? buf)
        (not (url-scratch? buf))
-       (in? (url-suffix buf) '("ath" "tm" "ts" "tp" "stm" "tmml" "scm" ""))))
+       (in? (url-suffix buf) '("ath" "tm" "ts" "tp" "stm" "scm" ""))))
 
 (tm-define (vault-anchor-enunciations-confirmed buf cont)
   (if (not (buffer-exists? buf))

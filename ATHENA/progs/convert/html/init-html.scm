@@ -37,8 +37,7 @@
 (define-format html
   (:name "HTML")
   (:suffix "html" "htm")
-  (:recognize html-recognizes?)
-  (:option "mathml->texmacs:latex-annotations" "off"))
+  (:recognize html-recognizes?))
 
 (lazy-define (convert html htmltm) parse-html-snippet)
 (lazy-define (convert html htmltm) parse-html-document)

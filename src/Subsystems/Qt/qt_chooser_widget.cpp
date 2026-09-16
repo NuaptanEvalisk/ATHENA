@@ -42,7 +42,7 @@
 /*!
   \param _cmd  Scheme closure to execute after the dialog is closed.
   \param _type What kind of dialog to show. Can be one of "image", "directory",
-               or any of the supported file formats: "texmacs", "tmml",
+               or any of the supported file formats: "texmacs",
                "postscript", etc. See perform_dialog()
  */
 qt_chooser_widget_rep::qt_chooser_widget_rep (command _cmd, string _type, string _prompt)

@@ -202,7 +202,7 @@
        (let* ((file (or (tmfs-cdr name) ""))
               (root (tmfs-string->url file)))
          (if (or (== file "") (not (url-exists? root)))
-             (in? (url-suffix root) (list "html" "tm" "tmml"))
+             (in? (url-suffix root) (list "html" "tm"))
              #t))))
 
 (tmfs-load-handler (help name)
@@ -221,8 +221,6 @@
              `(document
                 (TeXmacs ,(texmacs-compat-version))
                 ,@(cdr doc))))
-          ((== (url-suffix root) "tmml")
-           (tm->stree (tree-import root "tmml")))
           ((!= (url-suffix root) "tm")
            (string-load root))
           ((== type "normal")

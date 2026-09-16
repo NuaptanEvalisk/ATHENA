@@ -1,6 +1,42 @@
 (define (check condition message)
   (unless condition (error message)))
 
+(define (contains-symbol? x symbol)
+  (or (eq? x symbol)
+      (and (pair? x) (or (contains-symbol? (car x) symbol)
+                         (contains-symbol? (cdr x) symbol)))))
+
+(define mathml-inline
+  (convert
+   "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mfrac><msup><mi>x</mi><mn>2</mn></msup><mrow><mi>y</mi><mo>+</mo><mn>1</mn></mrow></mfrac></math>"
+   "html-snippet" "texmacs-stree"))
+(check (contains-symbol? mathml-inline 'frac)
+       "HTML import lost the native MathML fraction")
+(check (contains-symbol? mathml-inline 'rsup)
+       "HTML import lost the native MathML superscript")
+
+(define mathml-table
+  (convert
+   "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mtable columnalign=\"left right\"><mtr><mtd><mi>a</mi></mtd><mtd><mi>b</mi></mtd></mtr></mtable></math>"
+   "html-snippet" "texmacs-stree"))
+(check (contains-symbol? mathml-table 'tabular)
+       "HTML import lost the native MathML table")
+
+(define mathml-display
+  (convert
+   "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\"><mi>x</mi></math>"
+   "html-snippet" "texmacs-stree"))
+(check (contains-symbol? mathml-display 'equation*)
+       "HTML import lost MathML display mode")
+
+(set-preference "mathml->texmacs:latex-annotations" "on")
+(define mathml-annotation
+  (convert
+   "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mi>x</mi><annotation encoding=\"application/x-tex\">x^2</annotation></semantics></math>"
+   "html-snippet" "texmacs-stree"))
+(check (contains-symbol? mathml-annotation 'rsup)
+       "HTML import ignored the MathML TeX annotation")
+
 (init-style "generic")
 (buffer-set-body
  (current-buffer)

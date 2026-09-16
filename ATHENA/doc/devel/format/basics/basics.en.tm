@@ -12,8 +12,6 @@
 
     <branch|Default serialization|tm-tm.en.tm>
 
-    <branch|XML serialization|tm-tmml.en.tm>
-
     <branch|<scheme> serialization|tm-scm.en.tm>
 
     <branch|The typesetting process|typesetting.en.tm>

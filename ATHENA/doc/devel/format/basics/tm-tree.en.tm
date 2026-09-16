@@ -62,10 +62,9 @@
   document fragment to the clipboard, <TeXmacs> trees have to be represented
   as strings. The conversion without loss of information of abstract
   <TeXmacs> trees into strings is called <em|serialization> and the inverse
-  process <em|parsing>. <TeXmacs> provides three ways to serialize trees,
-  which correspond to the standard <hlink|<TeXmacs> format|tm-tm.en.tm>, the
-  <hlink|XML format|tm-tmml.en.tm> and the <hlink|<scheme>
-  format|tm-scm.en.tm>.
+  process <em|parsing>. The standard on-disk representation is the native
+  <hlink|<TeXmacs> format|tm-tm.en.tm>; a <hlink|<scheme>
+  format|tm-scm.en.tm> is also used by developer tooling.
 
   However, it should be emphasized that the preferred syntax for modifying
   <TeXmacs> documents is the screen display inside the editor. If that seems

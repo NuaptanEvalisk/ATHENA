@@ -163,7 +163,7 @@
     (save-learned)))
 
 (define (has-faithful-format? name)
-  (in? (url-suffix name) '("ath" "tm" "ts" "tp" "stm" "tmml" "scm" "")))
+  (in? (url-suffix name) '("ath" "tm" "ts" "tp" "stm" "scm" "")))
 
 (define (save-buffer-preserve-current-viewport name)
   (when (and (current-view)

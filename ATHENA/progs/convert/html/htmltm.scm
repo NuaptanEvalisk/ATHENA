@@ -17,7 +17,7 @@
     (convert tools old-tmtable) (convert tools stm)
     (convert tools sxml)  (convert tools sxhtml)
     (convert tools environment)
-    (convert tools xmltm) (convert mathml mathtm)))
+    (convert tools xmltm)))
 
 (define (assoc-string-ci key alist)
   (list-find alist (lambda (pair) (string-ci=? key (car pair)))))
@@ -356,13 +356,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Unlike previously, Mathml nodes in HTML5 have no namespace prefix 
 ;; => xmltm.scm prefixes them with h:
-;; Yet, the import code in mathtm.scm expects m: prefix : replace prefix (hacky)
+;; Normalize the HTML namespace prefix before native MathML import.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (htmltm-math env a c)
-(with cm `(m:math (@ ,@a) ,(replace-nsprefix-in-stree c "h:" "m:"))
-  `(,(mathtm-as-serial env cm))
-))
+  (with cm `(m:math (@ ,@a) ,(replace-nsprefix-in-stree c "h:" "m:"))
+    (list (tree->stree (native-mathml->tree cm)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; MathJax extension

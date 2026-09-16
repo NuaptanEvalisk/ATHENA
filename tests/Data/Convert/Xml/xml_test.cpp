@@ -1,7 +1,7 @@
 
 /******************************************************************************
 * MODULE     : xml_test.cpp
-* DESCRIPTION: Tests on TMML
+* DESCRIPTION: Tests for XML name conversion utilities
 * COPYRIGHT  : (C) 2019-2021  Darcy Shen
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.

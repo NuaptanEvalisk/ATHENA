@@ -5,11 +5,9 @@
 <\body>
   <tmdoc-title|Compatibility with other formats>
 
-  <TeXmacs> documents can be saved without loss of information in three
-  formats: the native <TeXmacs> format (file extension <verbatim|.tm>),
-  <name|Xml> (<verbatim|.tmml>) and as a <name|Scheme> expression
-  (<verbatim|.stm>). <TeXmacs> also provides bi-directional converters for
-  <LaTeX>, <name|Html> and <name|MathML>.
+  <ATHENA> documents are stored in the native <ATHENA> format. Conversion
+  facilities are also provided for formats such as <LaTeX> and <name|Html>.
+  HTML import understands Presentation <name|MathML> embedded in web pages.
 
   In addition to the above textual formats,<TeXmacs> documents can be
   exported in a <em|wysiwyg> (what-you-see-is-what-you-get) way to either
@@ -29,7 +27,7 @@
   <\traverse>
     <branch|<LaTeX>|latex/man-latex.en.tm>
 
-    <branch|<name|Html> and <name|MathML>|html/man-html.en.tm>
+    <branch|<name|Html>|html/man-html.en.tm>
 
     <branch|Exporting to image formats|man-graphics-export.en.tm>
 

@@ -3,22 +3,17 @@
 <style|<tuple|tmdoc|english>>
 
 <\body>
-  <tmdoc-title|Converters for <name|Html> and <name|MathML>>
+  <tmdoc-title|The <name|Html> converter>
 
   <paragraph|<name|Html generation>>
 
-  <TeXmacs> supports reasonably good converters to <name|Html> and
-  <name|MathML>. A document can be exported to <name|Html> using
-  <menu|File|Export|Html>. <TeXmacs> makes moderate use of <name|Css> in
+  <ATHENA> supports importing and exporting <name|Html>. A document can be
+  exported using <menu|File|Export|Html>. <ATHENA> makes moderate use of <name|Css> in
   order to improve the presentation of the generated <name|Html>.
 
-  By default, <TeXmacs> does its best in order to render formulas using
-  existing <name|Html>/<name|Css> primitives. When selecting
-  <menu|Edit|Preferences|Converters|TeXmacs-\<gtr\>Html|Use MathML>, all
-  formulas will be exported as <name|MathML>. Notice that this requires you
-  to save the generated documents using the <verbatim|.xhtml> extension.
-
-  Similarly, the user may force <TeXmacs> to export all mathematical formulas
+  Mathematical formulas may be rendered with <name|MathJax> or exported as
+  images according to the HTML converter preferences. The user may force
+  <ATHENA> to export mathematical formulas
   as images using <menu|Edit|Preferences|Converters|TeXmacs-\<gtr\>Html|Export
   formulas as images>. If your destination file is called
   <verbatim|name.html>, then the images are stored in the same directory in
@@ -93,10 +88,10 @@
 
   <paragraph|Html importation>
 
-  <TeXmacs> also contains an input converter for <name|Html>/<name|Mathml>.
-  Most of HTML 2.0 and parts of HTML 3.0 are currently supported, and
-  standalone or embedded <name|MathML> are reasonably well supported. Entire
-  <name|Html> and/or <name|Mathml> documents can be imported with
+  <ATHENA> also contains an input converter for <name|Html>. Presentation
+  <name|MathML> embedded in HTML <verbatim|math> elements is imported
+  structurally as ATHENA mathematics. MathML is not exposed as a standalone
+  document format. HTML documents can be imported with
   <menu|File|Import|Html>.\ 
 
   When importing HTML documents, files whose names start with

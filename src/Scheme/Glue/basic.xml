@@ -1480,20 +1480,14 @@
   <binding name="clean-html" native="clean_html" returns="tree">
     <arg type="content" />
   </binding>
-  <binding name="upgrade-tmml" native="tmml_upgrade" returns="tree">
+  <binding name="serialize-xml" native="serialize_xml" returns="string">
     <arg type="scheme_tree" />
   </binding>
-  <binding name="upgrade-mathml" native="upgrade_mathml" returns="tree">
-    <arg type="content" />
+  <binding name="native-mathml-&gt;tree" native="mathml_to_tree" returns="tree">
+    <arg type="scheme_tree" />
   </binding>
   <binding name="retrieve-mathjax" native="retrieve_mathjax" returns="tree">
     <arg type="int" />
-  </binding>
-  <binding name="vernac-&gt;texmacs" native="vernac_to_tree" returns="tree">
-    <arg type="string" />
-  </binding>
-  <binding name="vernac-document-&gt;texmacs" native="vernac_document_to_tree" returns="tree">
-    <arg type="string" />
   </binding>
   <binding name="aofm-markdown-&gt;texmacs" native="aofm_markdown_to_tree" returns="tree">
     <arg type="string" />

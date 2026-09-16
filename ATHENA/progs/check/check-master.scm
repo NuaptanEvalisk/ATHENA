@@ -17,9 +17,7 @@
         (convert html tmhtml-test)
         (convert tools xmltm-test)
         (convert tools tmlength-test)
-        (convert tools environment-test)
-        (convert mathml mathtm-test)
-        (convert tmml tmmltm-test)))
+        (convert tools environment-test)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Test LaTeX export
@@ -83,7 +81,5 @@
   (regtest-xmltm)
   (regtest-tmlength)
   (regtest-environment)
-  (regtest-mathtm)
   (regtest-tmhtml)
-  (regtest-tmmltm)
 )

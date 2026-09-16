@@ -489,7 +489,7 @@ ensure_builtin_user_preferences () {
     PREF ("texmacs->html:mathjax", "off", "converter-set-option"),
     PREF ("texmacs->html:images", "on", "converter-set-option"),
     PREF ("texmacs->html:css-stylesheet", "---", "converter-set-option"),
-    PREF ("mathml->texmacs:latex-annotations", "on", "converter-set-option"),
+    PREF ("mathml->texmacs:latex-annotations", "on", ""),
     PREF ("latex->texmacs:fallback-on-pictures", "off",
           "converter-set-option"),
 #undef PREF_KIND

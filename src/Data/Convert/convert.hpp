@@ -99,8 +99,9 @@ tree   parse_xml (string s);
 tree   parse_plain_html (string s);
 tree   parse_html (string s);
 tree   clean_html (tree t);
-tree   tmml_upgrade (scheme_tree t);
 tree   upgrade_mathml (tree t);
+string serialize_xml (scheme_tree t);
+tree   mathml_to_tree (scheme_tree t);
 tree   retrieve_mathjax (int id);
 
 tree   find_first_element_by_name (tree t, string name);
@@ -113,10 +114,6 @@ string correct_buggy_html_paste (string s);
 bool   seems_buggy_paste (string s);
 string correct_buggy_paste (string s);
 tree   default_with_simplify (tree t);
-
-/*** Coq ***/
-tree vernac_to_tree (string s);
-tree vernac_document_to_tree (string s);
 
 /*** Obsidian ***/
 extern bool aofm_insert_build_warning;

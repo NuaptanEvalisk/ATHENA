@@ -488,15 +488,11 @@
     through CSS.
 
     <item*|Export mathematical formulas as MathJax>Exports formulas for
-    rendering by <name|MathJax>. This is mutually exclusive with the MathML
-    and image formula export choices.
-
-    <item*|Export mathematical formulas as MathML>Exports formulas as
-    <name|MathML>. This is mutually exclusive with MathJax and image formula
+    rendering by <name|MathJax>. This is mutually exclusive with image formula
     export.
 
     <item*|Export mathematical formulas as images>Exports formulas as image
-    files. This is mutually exclusive with MathJax and MathML formula export.
+    files. This is mutually exclusive with MathJax formula export.
 
     <item*|CSS stylesheet>Chooses the CSS stylesheet URL used by HTML export,
     or leaves it unset.
@@ -505,8 +501,9 @@
   <subsubsection|Html → ATHENA>
 
   <\description>
-    <item*|Try to import formulas using LaTeX annotations>When HTML or MathML
-    contains LaTeX annotations for formulas, uses them to improve import.
+    <item*|Try to import formulas using LaTeX annotations>When embedded
+    <name|MathML> in HTML contains LaTeX annotations for formulas, uses them
+    to improve import.
   </description>
 
   <subsection|LaTeX>
