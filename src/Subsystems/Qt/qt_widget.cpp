@@ -19,7 +19,6 @@
 #include "qt_window_widget.hpp"
 #include "qt_chooser_widget.hpp"
 #include "qt_color_picker_widget.hpp"
-#include "qt_printer_widget.hpp"
 
 #include "boot.hpp"
 #include "window.hpp"
@@ -576,10 +575,6 @@ widget glue_widget (bool hx, bool vx, SI w, SI h) {
 widget glue_widget (tree col, bool hx, bool vx, SI w, SI h) {
   return tm_new<qt_glue_widget_rep> (col, hx, vx, w, h);
 }
-widget inputs_list_widget (command call_back, array<string> prompts) {
-  if (headless_mode) return headless_widget ();
-  return tm_new<qt_inputs_list_widget_rep> (call_back, prompts);
-}
 widget input_text_widget (command call_back, string type, array<string> def,
                           int style, string width) {
   if (headless_mode) return headless_widget ();
@@ -592,10 +587,6 @@ widget color_picker_widget (command call_back, bool bg, array<tree> proposals) {
 widget file_chooser_widget (command cmd, string type, string prompt) {
   if (headless_mode) return headless_widget ();
   return tm_new<qt_chooser_widget_rep> (cmd, type, prompt);
-}
-widget printer_widget (command cmd, url ps_pdf_file) {
-  if (headless_mode) return headless_widget ();
-  return tm_new<qt_printer_widget_rep> (cmd, ps_pdf_file);
 }
 widget texmacs_widget (int mask, command quit) {
   if (headless_mode) return headless_widget ();

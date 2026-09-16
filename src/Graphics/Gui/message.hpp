@@ -72,11 +72,6 @@ enum slot_id {
   SLOT_LEFT_FOOTER,
   SLOT_CENTER_FOOTER,
   SLOT_RIGHT_FOOTER,
-  SLOT_INTERACTIVE_MODE,
-  SLOT_INTERACTIVE_PROMPT,
-  SLOT_INTERACTIVE_INPUT,
-
-  SLOT_FORM_FIELD,
   SLOT_STRING_INPUT,
   SLOT_INPUT_TYPE,
   SLOT_INPUT_PROPOSAL,
@@ -656,46 +651,6 @@ inline void
 set_right_footer (widget w, string s) {
   // set right footer
   send<string> (w, SLOT_RIGHT_FOOTER, s);
-}
-
-inline void
-set_interactive_mode (widget w, bool on) {
-  // set interactive mode, allowing users to input text on footer
-  send<bool> (w, SLOT_INTERACTIVE_MODE, on);
-}
-
-inline bool
-get_interactive_mode (widget w) {
-  // check whether footer is in interactive mode
-  return query<bool> (w, SLOT_INTERACTIVE_MODE);
-}
-
-inline void
-set_interactive_prompt (widget w, widget prompt) {
-  // set prompt for interactive input
-  write (w, SLOT_INTERACTIVE_PROMPT, prompt);
-}
-
-inline void
-set_interactive_input (widget w, widget input) {
-  // set interactive input widget
-  write (w, SLOT_INTERACTIVE_INPUT, input);
-}
-
-inline string
-get_interactive_input (widget w) {
-  // set interactive input widget
-  return query<string> (w, SLOT_INTERACTIVE_INPUT);
-}
-
-/******************************************************************************
-* Dialogue windows
-******************************************************************************/
-
-inline widget
-get_form_field (widget w, int i) {
-  // get the i-th input widget from a dialogue widget
-  return read<int> (w, SLOT_FORM_FIELD, i);
 }
 
 inline string

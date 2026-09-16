@@ -283,30 +283,6 @@ public slots:
 };
 
 
-/*! A class to keep a QComboBox and a qt_field_widget_rep in sync.
- 
- After certain events we store state information about the QComboBox into the 
- qt_input_text_widget_rep: when the user has finished editing (i.e. has pressed
- enter), or has left the QComboBox for instance.
- 
- @note On memory management: the QTMFieldWidgetHelper is owned by the
-       QComboBox it is helping with.
-*/
-class QTMFieldWidgetHelper : public QObject {
-  Q_OBJECT
-  
-  qt_widget wid;
-  bool     done;
-  
-public:
-  QTMFieldWidgetHelper (qt_widget _wid, QComboBox* parent);
-  QTMFieldWidgetHelper (qt_widget _wid, QLineEdit* parent);
-
-public slots:
-  void commit (const QString& qst);
-};
-
-
 /*! A QTabWidget which resizes itself to the currently displayed page. */
 class QTMTabWidget : public QTabWidget {
   Q_OBJECT

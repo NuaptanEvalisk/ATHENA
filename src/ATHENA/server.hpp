@@ -84,9 +84,6 @@ public:
   virtual void set_center_message (tree m) = 0;
   virtual tree get_center_message () = 0;
   virtual void recall_message () = 0;
-  virtual void dialogue_start (string name, widget wid) = 0;
-  virtual void dialogue_inquire (int i, string& arg) = 0;
-  virtual void dialogue_end () = 0;
   virtual void choose_file (object fun, string title, string type,
 			    string prompt, url name) = 0;
   virtual void interactive (object fun, scheme_tree p) = 0;

@@ -29,27 +29,21 @@
 
 (define (tooltip-unmap)
   ;;(display* "Unmap " tooltip-win "\n")
-  (alt-window-hide tooltip-win)
-  (alt-window-delete tooltip-win)
+  (native-tooltip-close)
   (set! tooltip-id #f)
   (set! tooltip-win #f)
   (set! tooltip-unmap? #f)
   (set! tooltip-settings #f))
 
-(define (tooltip-map wid x y id settings)
+(define (tooltip-map doc style x y id settings)
   (set! x (quotient x 256))
   (set! y (quotient y 256))
   (if tooltip-win (tooltip-unmap))
-  (with win (alt-window-handle)
-    (alt-window-create-tooltip win wid "Tooltip")
-    (alt-window-set-position win x y)
-    (alt-window-show win)
-    (set! tooltip-id id)
-    (set! tooltip-win win)
-    (set! tooltip-unmap? #f)
-    (set! tooltip-settings settings)
-    ;;(display* "Map " tooltip-win "\n")
-    ))
+  (native-tooltip-show doc style x y)
+  (set! tooltip-id id)
+  (set! tooltip-win #t)
+  (set! tooltip-unmap? #f)
+  (set! tooltip-settings settings))
 
 (define (tooltip-delayed-unmap)
   (set! tooltip-unmap? tooltip-win)
@@ -205,14 +199,16 @@
                        (env (append env* (list "magnification" mag)))
                        (doc `(surround (hide-preamble ,pre) "" ,tip))
                        (master (url->system (current-buffer)))
-                       (w (widget-texmacs-output
-                           `(with ,@env "project" ,master ,doc)
-                           `(style (tuple ,@packs))))
-                       (bsz (texmacs-widget-size w))
+                       (tooltip-doc
+                         (stree->tree `(with ,@env "project" ,master ,doc)))
+                       (tooltip-style
+                         (stree->tree `(style (tuple ,@packs))))
+                       (bsz (native-tooltip-size tooltip-doc tooltip-style))
                        (ssz (get-screen-size))
                        (pos (tooltip-position x1 y1 x2 y2 wx wy
-                                              bsz ssz mpos ha va type)))
-              (tooltip-map w
+                                               bsz ssz mpos ha va type)))
+              (tooltip-map tooltip-doc
+                           tooltip-style
                            (car pos)
                            (cadr pos)
                            id

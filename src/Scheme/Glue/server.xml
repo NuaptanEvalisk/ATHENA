@@ -67,7 +67,6 @@
   <binding name="shell" native="shell" returns="void">
     <arg type="string" />
   </binding>
-  <binding name="dialogue-end" native="dialogue_end" returns="void" />
   <binding name="cpp-choose-file" native="choose_file" returns="void">
     <arg type="object" />
     <arg type="string" />

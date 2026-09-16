@@ -16,6 +16,7 @@
 #include "Data/new_view.hpp"
 #include "message.hpp"
 #include "scheme.hpp"
+#include "gui_text.hpp"
 #include "tm_server.hpp"
 #include "tm_window.hpp"
 #include "QTMToast.hpp"
@@ -398,16 +399,6 @@ qt_actor_widget_rep::drain_external_effects () {
       });
       break;
     }
-    case actor_command_kind::ui_start_interactive: {
-      string title= actor_text_registry::instance ().take (record.payload0);
-      widget dialogue= actor_ui_take_widget (record.argument[0]);
-      tm_view view= concrete_runtime_view (view_id_);
-      if (is_nil (dialogue) || view == nullptr) break;
-      set_current_view (abstract_view (view));
-      get_server ()->dialogue_start (title, dialogue);
-      send_keyboard_focus (get_form_field (dialogue, 0));
-      break;
-    }
     case actor_command_kind::ui_choose_file: {
       string title= actor_text_registry::instance ().take (record.payload0);
       string type= actor_text_registry::instance ().take (record.payload1);
@@ -415,7 +406,7 @@ qt_actor_widget_rep::drain_external_effects () {
       tm_view view= concrete_runtime_view (view_id_);
       if (is_nil (chooser) || view == nullptr) break;
       set_current_view (abstract_view (view));
-      get_server ()->dialogue_start (title, chooser);
+      (void) ::plain_window_widget (chooser, ui_text (title));
       if (type == "directory")
         ::send_keyboard_focus (::get_directory (chooser));
       else

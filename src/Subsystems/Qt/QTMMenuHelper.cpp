@@ -512,31 +512,6 @@ END_SLOT
 }
 
 /******************************************************************************
- * QTMFieldWidgetHelper
- ******************************************************************************/
-
-QTMFieldWidgetHelper::QTMFieldWidgetHelper (qt_widget _wid, QComboBox* cb)
-: QObject (cb), wid (_wid), done (false) {
-  ASSERT (cb != NULL, "QTMFieldWidgetHelper: expecting valid QComboBox");
-  QObject::connect (cb, &QComboBox::editTextChanged,
-                    this, &QTMFieldWidgetHelper::commit);
-}
-QTMFieldWidgetHelper::QTMFieldWidgetHelper (qt_widget _wid, QLineEdit* cb)
-: QObject (cb), wid (_wid), done (false) {
-  ASSERT (cb != NULL, "QTMFieldWidgetHelper: expecting valid QLineEdit");
-  QObject::connect (cb, &QLineEdit::textChanged,
-                    this, &QTMFieldWidgetHelper::commit);
-}
-
-void
-QTMFieldWidgetHelper::commit (const QString& qst) {
-BEGIN_SLOT
-  static_cast<qt_field_widget_rep*> (wid.rep)->input =
-      scm_quote (from_qstring (qst));
-END_SLOT
-}
-
-/******************************************************************************
  * QTMLineEdit
  ******************************************************************************/
 

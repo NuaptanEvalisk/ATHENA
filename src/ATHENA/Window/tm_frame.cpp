@@ -41,7 +41,7 @@ publish_actor_widget (editor_rep* editor, actor_command_kind kind,
 ******************************************************************************/
 
 tm_frame_rep::tm_frame_rep ():
-  full_screen (false), full_screen_edit (false), dialogue_win () {}
+  full_screen (false), full_screen_edit (false) {}
 tm_frame_rep::~tm_frame_rep () {}
 
 /******************************************************************************

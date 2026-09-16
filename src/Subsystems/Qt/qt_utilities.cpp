@@ -1039,7 +1039,7 @@ qt_pretty_date (int t, string fm) {
   return from_qstring (s);
 }
 
-#ifndef _MBD_EXPERIMENTAL_PRINTER_WIDGET  // this is in qt_printer_widget
+#ifndef _MBD_EXPERIMENTAL_PRINTER_WIDGET
 
 #define PAPER(fmt)  case QPageSize::fmt : return "fmt"
 static string 

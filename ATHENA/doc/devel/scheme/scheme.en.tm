@@ -20,8 +20,7 @@
     <branch|Scheme interface for the graphical
     mode|graphics/scheme-graphics.en.tm>
 
-    <branch|Customizing and extending the graphical user
-    interface|gui/scheme-gui.en.tm>
+    <branch|Customizing menus and toolbars|gui/scheme-gui-menus.en.tm>
 
     <branch|Writing <TeXmacs> bibliography
     styles|bibliography/bibliography.en.tm>

@@ -19,116 +19,47 @@
 #include "actor_ui_bridge.hpp"
 #include "editor.hpp"
 #include "scheme_execution_context.hpp"
+#include "QTMNativeDialogs.hpp"
+
+#include <memory>
+#include <vector>
 
 /******************************************************************************
-* Dialogues
+* File chooser completion
 ******************************************************************************/
 
-class dialogue_command_rep: public command_rep {
-  server_rep* sv;
-  object      fun;
-  command     actor_fun;
-  scheme_tree p;
-  int         nr_args;
-  bool        actor_bound;
+struct chooser_completion_state {
+  object fun;
+  command actor_fun;
+  widget chooser;
+  bool actor_bound;
 
-public:
-  dialogue_command_rep (server_rep* sv2, object fun2, int nr_args2):
-    sv (sv2), fun (fun2), actor_fun (as_actor_command (fun2)),
-    nr_args (nr_args2), actor_bound (
+  chooser_completion_state (object fun2):
+    fun (fun2), actor_fun (as_actor_command (fun2)), actor_bound (
       current_scheme_execution_context () != nullptr &&
       current_scheme_execution_context ()->actor_id != ATHENA_NO_ACTOR) {}
-  dialogue_command_rep (server_rep* sv2, object fun2, scheme_tree p2):
-    sv (sv2), fun (fun2), actor_fun (as_actor_command (fun2)), p (p2),
-    nr_args (N(p2)), actor_bound (
-      current_scheme_execution_context () != nullptr &&
-      current_scheme_execution_context ()->actor_id != ATHENA_NO_ACTOR) {}
-  void apply ();
-  tm_ostream& print (tm_ostream& out) {
-    return out << "<command dialogue>"; }
 };
 
-static string
-get_type (scheme_tree p, int i);
+class chooser_command_rep: public command_rep {
+  std::shared_ptr<chooser_completion_state> state;
+public:
+  chooser_command_rep (std::shared_ptr<chooser_completion_state> state2):
+    state (std::move (state2)) {}
+  void apply ();
+  tm_ostream& print (tm_ostream& out) {
+    return out << "<command chooser>"; }
+};
 
 void
-dialogue_command_rep::apply () {
-  int i;
-  object cmd  = null_object ();
-  object learn= null_object ();
-  for (i=nr_args-1; i>=0; i--) {
-    string s_arg;
-    sv->dialogue_inquire (i, s_arg);
-    if (s_arg == "#f") {
-      exec_delayed (scheme_cmd ("(dialogue-end)"));
-      return;
-    }
-    if (N(s_arg) == 0) s_arg = "\"\"";
-    object arg= string_to_object (s_arg);
-    cmd= cons (arg, cmd);
-    if (!is_empty (p) && get_type (p, i) == "password")
-      learn= cons (cons (object (as_string (i)), object ("")), learn);
-    else
-      learn= cons (cons (object (as_string (i)), arg), learn);
-    //call ("learn-interactive-arg", fun, object (i), arg);
-  }
-  call ("learn-interactive", fun, learn);
-  exec_delayed (scheme_cmd ("(dialogue-end)"));
-  if (actor_bound) actor_fun (cmd);
-  else {
-    cmd= cons (fun, cmd);
-    exec_delayed (scheme_cmd (cmd));
-  }
-}
-
-command
-dialogue_command (server_rep* sv, object fun, scheme_tree p) {
-  return tm_new<dialogue_command_rep> (sv, fun, p);
-}
-
-command
-dialogue_command (server_rep* sv, object fun, int n) {
-  return tm_new<dialogue_command_rep> (sv, fun, n);
-}
-
-void
-tm_frame_rep::dialogue_start (string name, widget wid) {
-  if (is_nil (dialogue_win)) {
-    dialogue_wid= wid;
-    dialogue_win= plain_window_widget (dialogue_wid, ui_text (name));
-
-    if (has_current_window ()) {
-      widget win= concrete_window () -> win;
-      SI ox, oy, dx, dy, ex= 0, ey= 0;
-      get_position (win, ox, oy);
-      get_size (win, dx, dy);
-      get_size (dialogue_win, ex, ey);
-      ox += (dx - ex) >> 1;
-      oy -= (dy - ey) >> 1;
-      set_position (dialogue_win, ox, oy);
-    }
-    set_visibility (dialogue_win, true);
-  }
-}
-
-
-void
-tm_frame_rep::dialogue_inquire (int i, string& arg) {
-  if (i == 0) arg= get_string_input (dialogue_wid);
-  else {
-    widget field_i= get_form_field (dialogue_wid, i);
-    arg= get_string_input (field_i);
-  }
-}
-
-void
-tm_frame_rep::dialogue_end () {
-  if (!is_nil (dialogue_win)) {
-    set_visibility (dialogue_win, false);
-    destroy_window_widget (dialogue_win);
-    dialogue_win= widget ();
-    dialogue_wid= widget ();
-  }
+chooser_command_rep::apply () {
+  if (is_nil (state->chooser)) return;
+  string s_arg= get_string_input (state->chooser);
+  if (s_arg == "#f") return;
+  if (N(s_arg) == 0) s_arg= "\"\"";
+  object arg= string_to_object (s_arg);
+  object args= list_object (arg);
+  if (state->actor_bound) state->actor_fun (args);
+  else exec_delayed (scheme_cmd (cons (state->fun, args)));
 }
 
 /*
@@ -143,8 +74,10 @@ gcd (int i, int j) {
 void
 tm_frame_rep::choose_file (object fun, string title, string type,
 			   string prompt, url name) {
-  command  cb  = dialogue_command (get_server(), fun, 1);
+  auto state= std::make_shared<chooser_completion_state> (fun);
+  command  cb  = tm_new<chooser_command_rep> (state);
   widget   wid = file_chooser_widget (cb, type, prompt);
+  state->chooser= wid;
   if (!is_scratch (name)) {
     set_directory (wid, as_string (head (name)));
     if ((type != "image") && (type != "")) {
@@ -171,9 +104,9 @@ tm_frame_rep::choose_file (object fun, string title, string type,
       (void) actor_ui_discard_widget (chooser_id);
     return;
   }
-  dialogue_start (title, wid);
-  if (type == "directory") send_keyboard_focus (get_directory (dialogue_wid));
-  else send_keyboard_focus (get_file (dialogue_wid));
+  (void) plain_window_widget (wid, ui_text (title));
+  if (type == "directory") send_keyboard_focus (get_directory (wid));
+  else send_keyboard_focus (get_file (wid));
 }
 
 /******************************************************************************
@@ -222,33 +155,33 @@ tm_frame_rep::interactive (object fun, scheme_tree p) {
   }
   else {
     int i, n= N(p);
-    array<string> prompts (n);
-    for (i=0; i<n; i++)
-      prompts[i]= get_prompt (p, i);
-    command cb= dialogue_command (get_server(), fun, p);
-    widget wid= inputs_list_widget (cb, prompts);
+    std::vector<QTMInteractiveField> fields;
+    fields.reserve (n);
     for (i=0; i<n; i++) {
-      widget input_wid= get_form_field (wid, i);
-      set_input_type (input_wid, get_type (p, i));
-      array<string> proposals= get_proposals (p, i);
-      int j, k= N(proposals);
-      if (k > 0) set_string_input (input_wid, proposals[0]);
-      for (j=0; j<k; j++) add_input_proposal (input_wid, proposals[j]);
+      QTMInteractiveField field;
+      field.prompt= get_prompt (p, i);
+      field.type= get_type (p, i);
+      field.proposals= get_proposals (p, i);
+      fields.push_back (std::move (field));
     }
     string title= "Enter data";
-    if (ends (prompts[0], "?")) title= "Question";
-    const SchemeExecutionContext* context= current_scheme_execution_context ();
-    if (context != nullptr && context->editor != nullptr &&
-        context->view_id != ATHENA_NO_VIEW) {
-      athena_resource_id dialogue_id=
-        actor_ui_store_widget (std::move (wid));
-      if (!context->editor->publish_ui_text (
-            actor_command_kind::ui_start_interactive, std::move (title),
-            dialogue_id))
-        (void) actor_ui_discard_widget (dialogue_id);
-      return;
+    if (ends (fields[0].prompt, "?")) title= "Question";
+    array<string> answers= qtm_interactive_dialog (title, fields);
+    if (N(answers) != n) return;
+
+    array<object> args (n);
+    object learn= null_object ();
+    for (i=n-1; i>=0; --i) {
+      args[i]= object (answers[i]);
+      object learned= fields[i].type == "password" ? object ("") : args[i];
+      learn= cons (cons (object (as_string (i)), learned), learn);
     }
-    dialogue_start (title, wid);
-    send_keyboard_focus (get_form_field (dialogue_wid, 0));
+    call ("learn-interactive", fun, learn);
+    object cmd_args= as_list_object (args);
+    const SchemeExecutionContext* context= current_scheme_execution_context ();
+    if (context != nullptr && context->actor_id != ATHENA_NO_ACTOR)
+      as_actor_command (fun) (cmd_args);
+    else
+      exec_delayed (scheme_cmd (cons (fun, cmd_args)));
   }
 }

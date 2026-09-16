@@ -20,8 +20,6 @@ class tm_frame_rep: virtual public server_rep {
 protected:
   bool full_screen;        // full screen mode
   bool full_screen_edit;   // full screen edit mode
-  widget dialogue_win;     // dialogue window
-  widget dialogue_wid;     // dialogue widget
 
 public:
   tm_frame_rep ();
@@ -71,11 +69,8 @@ public:
   void set_right_footer (string s);
   void set_message (tree left, tree right, bool temp= false);
   void recall_message ();
-  void dialogue_start (string name, widget wid);
-  void dialogue_inquire (int i, string& arg);
-  void dialogue_end ();
   void choose_file (object fun, string title, string type,
-		    string prompt, url name);
+                    string prompt, url name);
   void interactive (object fun, scheme_tree p);
 };
 

@@ -62,7 +62,7 @@ qt_chooser_widget_rep::send (slot s, blackbox val) {
     case SLOT_VISIBILITY:
     {   
       check_type<bool> (val, s);
-      // dialogue_start sets visibility before keyboard focus opens the chooser.
+      // Keyboard focus opens the chooser; false visibility cancels it.
       if (!open_box<bool> (val) && dialog) dialog->reject ();
     }
       break;
@@ -142,9 +142,6 @@ qt_chooser_widget_rep::read (slot s, blackbox index) {
   switch (s) {
     case SLOT_WINDOW:
       check_type_void (index, s);
-      return this;
-    case SLOT_FORM_FIELD:
-      check_type<int> (index, s);
       return this;
     case SLOT_FILE:
       check_type_void (index, s);

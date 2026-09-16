@@ -74,10 +74,19 @@ array<string>
 athena_native_latex_formula_dialog ();
 
 array<string>
+athena_native_color_dialog (string title, array<string> recent,
+                            array<string> saved);
+
+array<string>
 athena_native_background_selector (string arg1, array<string> arg2);
 
 array<string>
 athena_native_shortcut_editor (string arg1, string arg2, array<string> arg3);
+
+void athena_native_print_file_dialog (url file);
+array<SI> athena_native_tooltip_size (tree doc, tree style);
+void athena_native_tooltip_show (tree doc, tree style, int x, int y);
+void athena_native_tooltip_close ();
 
 void athena_cell_properties_pane_show ();
 void athena_table_properties_pane_show ();

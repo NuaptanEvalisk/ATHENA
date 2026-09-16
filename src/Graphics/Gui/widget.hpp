@@ -138,18 +138,11 @@ widget file_chooser_widget (command cmd, string type, string prompt);
   // for files of type "image", the widget includes a previsualizer for images
   // 'prompt' contains a prompt if we intend to save the file
   // and the empty string otherwise
-widget printer_widget (command cmd, url ps_pdf_file);
-  // widget for printing a file, offering a way for selecting a page range,
-  // changing the paper type and orientation, previewing, etc.;
-  // the command cmd is called on exit
 widget color_picker_widget (command cmd, bool bg, array<tree> proposals);
   // widgets for selecting a color, a pattern or a background image,
   // encoded by a tree. On input, we give a list of recently used proposals
   // on termination the command is called with the selected color as argument
   // the bg flag specifies whether we are picking a background color or fill
-widget inputs_list_widget (command call_back, array<string> prompts);
-  // a dialogue widget with Ok and Cancel buttons and a series of textual
-  // input widgets with specified prompts
 widget popup_widget (widget w);
   // a widget container which results w to be unmapped as soon as
   // the pointer quits the widget

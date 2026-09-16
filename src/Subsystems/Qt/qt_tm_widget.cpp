@@ -38,7 +38,6 @@
 #include "qt_gui.hpp"
 #include "qt_picture.hpp"
 
-#include "qt_dialogues.hpp"
 #include "qt_simple_widget.hpp"
 #include "qt_ui_element.hpp"
 #include "qt_window_widget.hpp"
@@ -46,8 +45,6 @@
 #include "QTMWindow.hpp"
 #include "QTMStyle.hpp"      // qtstyle()
 #include "QTMGuiHelper.hpp"  // needed to connect()
-#include "QTMInteractivePrompt.hpp"
-#include "QTMInteractiveInputHelper.hpp"
 #include "QTMVaultExplorer.hpp"
 #include "QTMToolbarController.hpp"
 
@@ -270,27 +267,13 @@ replaceButtons (QToolBar* dest, QList<QAction*>* src,
 }
 #endif
 
-void
-QTMInteractiveInputHelper::commit (int result) {
-  if (wid && result == QDialog::Accepted) {
-    QString  item = "#f";
-    QComboBox* cb = sender()->findChild<QComboBox*> ("input");
-    if (cb)  item = cb->currentText();
-    static_cast<qt_input_text_widget_rep*>(wid->int_input.rep)->input =
-      from_qstring (item);
-    static_cast<qt_input_text_widget_rep*>(wid->int_input.rep)->cmd ();
-  }
-  sender()->deleteLater();
-}
-
-
 /******************************************************************************
 * qt_tm_widget_rep
 ******************************************************************************/
 
 qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
  : qt_window_widget_rep (new QTMWindow (0), "popup", _quit),
-   toolbarController (nullptr), helper (this), prompt (NULL),
+   toolbarController (nullptr),
    full_screen (false)
 {
   type = texmacs_widget;
@@ -901,34 +884,6 @@ qt_tm_widget_rep::send (slot s, blackbox val) {
         // ignore this: qt handles scrollbars independently
         //                send_int (THIS, "scrollbars", val);
       break;
-    case SLOT_INTERACTIVE_MODE:
-    {
-      check_type<bool>(val, s);
-
-      if (open_box<bool> (val) == true) {
-        prompt = new QTMInteractivePrompt (int_prompt, int_input, mainwindow());
-        mainwindow()->statusBar()->removeWidget (leftLabel);
-        mainwindow()->statusBar()->removeWidget (centerLabel);
-        mainwindow()->statusBar()->removeWidget (rightSpacer);
-        mainwindow()->statusBar()->removeWidget (rightLabel);
-        mainwindow()->statusBar()->addWidget (prompt, 1);
-        prompt->start();
-      } else {
-        if (prompt) prompt->end();
-        mainwindow()->statusBar()->removeWidget (prompt);
-        mainwindow()->statusBar()->addWidget (leftLabel, 1);
-        mainwindow()->statusBar()->addWidget (centerLabel, 1);
-        mainwindow()->statusBar()->addWidget (rightSpacer, 1);
-        mainwindow()->statusBar()->addPermanentWidget (rightLabel);
-        leftLabel->show();
-        centerLabel->show();
-        rightSpacer->show();
-        rightLabel->show();
-        prompt->deleteLater();
-        prompt = NULL;
-      }
-    }
-      break;
     case SLOT_FILE:
     {
       check_type<string>(val, s);
@@ -1024,17 +979,6 @@ qt_tm_widget_rep::query (slot s, int type_id) {
       check_type_id<bool> (type_id, s);
       return close_box<bool> (visibility[7]);
       
-    case SLOT_INTERACTIVE_INPUT:
-    {
-      check_type_id<string> (type_id, s);
-      qt_input_text_widget_rep* w = 
-        static_cast<qt_input_text_widget_rep*> (int_input.rep);
-      if (w->ok)
-        return close_box<string> (scm_quote (w->input));
-      else
-        return close_box<string> ("#f");
-    }
-
     case SLOT_POSITION:
     {
       check_type_id<coord2> (type_id, s);
@@ -1046,10 +990,6 @@ qt_tm_widget_rep::query (slot s, int type_id) {
       check_type_id<coord2> (type_id, s);
       return close_box<coord2> (from_qsize (mainwindow()->size()));
     }
-
-    case SLOT_INTERACTIVE_MODE:
-      check_type_id<bool> (type_id, s);
-      return close_box<bool> (prompt && prompt->isActive());
 
     default:
       return qt_window_widget_rep::query (s, type_id);
@@ -1313,16 +1253,6 @@ qt_tm_widget_rep::write (slot s, blackbox index, widget w) {
     }
       break;
       
-    case SLOT_INTERACTIVE_PROMPT:
-      check_type_void (index, s);
-      int_prompt= concrete (w);
-      break;
-      
-    case SLOT_INTERACTIVE_INPUT:
-      check_type_void (index, s);
-      int_input= concrete (w);
-      break;
-
     default:
       qt_window_widget_rep::write (s, index, w);
   }
@@ -1413,7 +1343,6 @@ qt_tm_embedded_widget_rep::send (slot s, blackbox val) {
     case SLOT_LEFT_FOOTER:
     case SLOT_RIGHT_FOOTER:
     case SLOT_SCROLLBARS_VISIBILITY:
-    case SLOT_INTERACTIVE_MODE:
     case SLOT_FILE:
       break;
  
@@ -1520,8 +1449,6 @@ qt_tm_embedded_widget_rep::write (slot s, blackbox index, widget w) {
     case SLOT_USER_ICONS:
     case SLOT_BOTTOM_TOOLS:
     case SLOT_EXTRA_TOOLS:
-    case SLOT_INTERACTIVE_INPUT:
-    case SLOT_INTERACTIVE_PROMPT:
     default:
       qt_widget_rep::write (s, index, w);
   }

@@ -631,28 +631,7 @@ athena_dispatch_ui (void (*function) ()) {
 void
 athena_native_info_dialog (string arg1, string arg2) {
   if (headless_mode) return;
-
-  string message= arg1;
-  string title  = arg2;
-
-  QMessageBox msg_box (QApplication::activeWindow ());
-  msg_box.setWindowTitle (to_qstring (title));
-  msg_box.setText (to_qstring (message));
-  msg_box.setTextFormat (Qt::PlainText);
-  msg_box.setIcon (QMessageBox::Information);
-  msg_box.setStandardButtons (QMessageBox::Ok);
-  msg_box.setMinimumWidth (560);
-  for (QLabel* label: msg_box.findChildren<QLabel*> ())
-    label->setWordWrap (true);
-  if (QGridLayout* layout = qobject_cast<QGridLayout*> (msg_box.layout ())) {
-    QSpacerItem* spacer =
-      new QSpacerItem (520, 0, QSizePolicy::Minimum, QSizePolicy::Expanding);
-    layout->addItem (spacer, layout->rowCount (), 0, 1,
-                     layout->columnCount ());
-  }
-  msg_box.exec ();
-
-  return;
+  qtm_info_dialog (arg1, arg2);
 }
 
 string
@@ -679,6 +658,13 @@ athena_native_latex_formula_dialog () {
 }
 
 array<string>
+athena_native_color_dialog (string title, array<string> recent,
+                            array<string> saved) {
+  if (headless_mode) return array<string> ();
+  return qtm_color_dialog (title, recent, saved);
+}
+
+array<string>
 athena_native_background_selector (string arg1, array<string> arg2) {
   if (headless_mode) return array<string> ();
   return qtm_background_selector_dialog (arg1, arg2);
@@ -688,6 +674,27 @@ array<string>
 athena_native_shortcut_editor (string arg1, string arg2, array<string> arg3) {
   if (headless_mode) return array<string> ();
   return qtm_shortcut_editor_dialog (arg1, arg2, arg3);
+}
+
+void
+athena_native_print_file_dialog (url file) {
+  if (!headless_mode) qtm_print_file_dialog (file);
+}
+
+array<SI>
+athena_native_tooltip_size (tree doc, tree style) {
+  if (headless_mode) return array<SI> ();
+  return qtm_tooltip_size (doc, style);
+}
+
+void
+athena_native_tooltip_show (tree doc, tree style, int x, int y) {
+  if (!headless_mode) qtm_tooltip_show (doc, style, x, y);
+}
+
+void
+athena_native_tooltip_close () {
+  if (!headless_mode) qtm_tooltip_close ();
 }
 
 void

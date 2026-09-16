@@ -49,6 +49,11 @@
     <arg type="string" />
   </binding>
   <binding name="native-latex-formula-dialog" native="athena_native_latex_formula_dialog" returns="array_string" />
+  <binding name="native-color-dialog" native="athena_native_color_dialog" returns="array_string">
+    <arg type="string" />
+    <arg type="array_string" />
+    <arg type="array_string" />
+  </binding>
   <binding name="native-background-selector" native="athena_native_background_selector" returns="array_string">
     <arg type="string" />
     <arg type="array_string" />
@@ -58,6 +63,20 @@
     <arg type="string" />
     <arg type="array_string" />
   </binding>
+  <binding name="native-print-file-dialog" native="athena_native_print_file_dialog" returns="void">
+    <arg type="url" />
+  </binding>
+  <binding name="native-tooltip-size" native="athena_native_tooltip_size" returns="array_SI">
+    <arg type="tree" />
+    <arg type="tree" />
+  </binding>
+  <binding name="native-tooltip-show" native="athena_native_tooltip_show" returns="void">
+    <arg type="tree" />
+    <arg type="tree" />
+    <arg type="int" />
+    <arg type="int" />
+  </binding>
+  <binding name="native-tooltip-close" native="athena_native_tooltip_close" returns="void" />
   <binding name="cell-properties-pane-show" native="athena_cell_properties_pane_show" returns="void" dispatch="ui" />
   <binding name="table-properties-pane-show" native="athena_table_properties_pane_show" returns="void" dispatch="ui" />
   <binding name="slide-properties-pane-show" native="athena_slide_properties_pane_show" returns="void" dispatch="ui" />

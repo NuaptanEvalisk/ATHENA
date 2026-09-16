@@ -8,6 +8,11 @@
 
 #include "QTMNativeDialogs.hpp"
 
+#include "QTMMenuHelper.hpp"
+#include "QTMPrintDialog.hpp"
+#include "QTMPrinterSettings.hpp"
+#include "tm_window.hpp"
+#include "qt_sys_utils.hpp"
 #include "qt_utilities.hpp"
 #include "scheme.hpp"
 
@@ -19,7 +24,9 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
+#include <QCompleter>
 #include <QFileDialog>
+#include <QFileSystemModel>
 #include <QFormLayout>
 #include <QGridLayout>
 #include <QHBoxLayout>
@@ -28,20 +35,44 @@
 #include <QListWidget>
 #include <QKeySequenceEdit>
 #include <QMetaObject>
+#include <QMessageBox>
 #include <QPainter>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSpinBox>
 #include <QThread>
+#include <QToolButton>
 #include <QVBoxLayout>
 #include <QtMath>
 
 #include <cmath>
 #include <functional>
 #include <memory>
+#include <QSet>
 
 namespace {
+
+int tooltip_window_handle= 0;
+
+struct TooltipRequest {
+  tree doc;
+  tree style;
+  int x= 0;
+  int y= 0;
+};
+
+QTMPrinterSettings*&
+printer_settings () {
+  static QTMPrinterSettings* settings= nullptr;
+#if defined(Q_OS_MAC) || defined(Q_OS_LINUX)
+  if (settings == nullptr) settings= new CupsQTMPrinterSettings ();
+#endif
+#ifdef Q_OS_WIN
+  if (settings == nullptr) settings= new WinQTMPrinterSettings ();
+#endif
+  return settings;
+}
 
 QString
 qs (string s) {
@@ -77,6 +108,74 @@ invoke_gui_blocking (const std::function<void ()>& fn) {
     return;
   }
   QMetaObject::invokeMethod (app, fn, Qt::BlockingQueuedConnection);
+}
+
+struct QtInteractiveField {
+  QString prompt;
+  QString type;
+  QStringList proposals;
+};
+
+QWidget*
+interactive_field_widget (const QtInteractiveField& field,
+                          QWidget* parent) {
+  if (field.type == QStringLiteral ("password")) {
+    QLineEdit* edit= new QLineEdit (parent);
+    edit->setEchoMode (QLineEdit::Password);
+    return edit;
+  }
+
+  if (field.type.endsWith (QStringLiteral ("file")) ||
+      field.type == QStringLiteral ("directory")) {
+    QLineEdit* edit= new QLineEdit (parent);
+    if (!field.proposals.isEmpty ()) edit->setText (field.proposals[0]);
+    QCompleter* completer= new QCompleter (edit);
+    QFileSystemModel* model= new QFileSystemModel (edit);
+    model->setRootPath (QDir::homePath ());
+    completer->setModel (model);
+    edit->setCompleter (completer);
+    return edit;
+  }
+
+  QTMComboBox* combo= new QTMComboBox (parent);
+  combo->setEditable (true);
+  combo->addItems (field.proposals);
+  QTMLineEdit* line= new QTMLineEdit (
+    combo, tm_string (field.type), "1w", WIDGET_STYLE_MINI, command ());
+  combo->setLineEdit (line);
+  combo->setSizeAdjustPolicy (QComboBox::AdjustToContents);
+  combo->setSizePolicy (QSizePolicy::Expanding, QSizePolicy::Fixed);
+  combo->setMinimumWidth (160);
+  combo->setDuplicatesEnabled (true);
+  if (!field.proposals.isEmpty ()) combo->setEditText (field.proposals[0]);
+  return combo;
+}
+
+string
+interactive_field_value (QWidget* widget) {
+  if (QComboBox* combo= qobject_cast<QComboBox*> (widget))
+    return tm_string (combo->currentText ());
+  if (QLineEdit* edit= qobject_cast<QLineEdit*> (widget))
+    return tm_string (edit->text ());
+  return "";
+}
+
+int
+question_dialog (const QtInteractiveField& field) {
+  QMessageBox box (QApplication::activeWindow ());
+  box.setWindowTitle (QStringLiteral ("Question"));
+  box.setIcon (QMessageBox::Question);
+  box.setText (field.prompt);
+  box.setTextFormat (Qt::PlainText);
+  box.setStandardButtons (QMessageBox::Cancel);
+  QVector<QPushButton*> buttons;
+  for (const QString& proposal: field.proposals)
+    buttons << box.addButton (proposal, QMessageBox::ActionRole);
+  if (!buttons.isEmpty ()) box.setDefaultButton (buttons[0]);
+  box.exec ();
+  for (int i=0; i<buttons.size (); ++i)
+    if (box.clickedButton () == buttons[i]) return i;
+  return -1;
 }
 
 class LinkedFileChoiceDialog: public QDialog {
@@ -660,6 +759,207 @@ struct ShortcutRequest {
 };
 
 } // namespace
+
+void
+qtm_info_dialog (string message, string title) {
+  QString qMessage= qs (message), qTitle= qs (title);
+  invoke_gui_blocking ([qMessage, qTitle] () {
+    QMessageBox box (QApplication::activeWindow ());
+    box.setWindowTitle (qTitle);
+    box.setText (qMessage);
+    box.setTextFormat (Qt::PlainText);
+    box.setIcon (QMessageBox::Information);
+    box.setStandardButtons (QMessageBox::Ok);
+    box.setMinimumWidth (560);
+    for (QLabel* label: box.findChildren<QLabel*> ()) label->setWordWrap (true);
+    if (QGridLayout* layout= qobject_cast<QGridLayout*> (box.layout ())) {
+      QSpacerItem* spacer=
+        new QSpacerItem (520, 0, QSizePolicy::Minimum, QSizePolicy::Expanding);
+      layout->addItem (spacer, layout->rowCount (), 0, 1,
+                       layout->columnCount ());
+    }
+    box.exec ();
+  });
+}
+
+array<string>
+qtm_interactive_dialog (
+    string title, const std::vector<QTMInteractiveField>& fields) {
+  QString qTitle= qs (title);
+  std::vector<QtInteractiveField> qtFields;
+  qtFields.reserve (fields.size ());
+  for (const QTMInteractiveField& field: fields) {
+    QtInteractiveField qtField;
+    qtField.prompt= qs (field.prompt);
+    qtField.type= qs (field.type);
+    for (int i=0; i<N(field.proposals); ++i)
+      qtField.proposals << qs (field.proposals[i]);
+    qtFields.push_back (std::move (qtField));
+  }
+  auto result= std::make_shared<QStringList> ();
+  invoke_gui_blocking ([qTitle, qtFields, result] () {
+    if (qtFields.size () == 1 &&
+        qtFields[0].type == QStringLiteral ("question")) {
+      int selected= question_dialog (qtFields[0]);
+      if (selected >= 0 && selected < qtFields[0].proposals.size ())
+        *result << qtFields[0].proposals[selected];
+      return;
+    }
+
+    QDialog dialog (QApplication::activeWindow ());
+    dialog.setWindowTitle (qTitle);
+    QVBoxLayout* outer= new QVBoxLayout (&dialog);
+    QFormLayout* form= new QFormLayout ();
+    QVector<QWidget*> editors;
+    for (const QtInteractiveField& field: qtFields) {
+      QWidget* editor= interactive_field_widget (field, &dialog);
+      editors << editor;
+      QLabel* label= new QLabel (field.prompt, &dialog);
+      label->setBuddy (editor);
+      form->addRow (label, editor);
+    }
+    outer->addLayout (form);
+    QDialogButtonBox* buttons= new QDialogButtonBox (
+      QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
+      Qt::Horizontal, &dialog);
+    QObject::connect (buttons, &QDialogButtonBox::accepted,
+                      &dialog, &QDialog::accept);
+    QObject::connect (buttons, &QDialogButtonBox::rejected,
+                      &dialog, &QDialog::reject);
+    outer->addWidget (buttons);
+    if (!editors.isEmpty ()) editors[0]->setFocus (Qt::OtherFocusReason);
+    if (dialog.exec () != QDialog::Accepted) return;
+    for (QWidget* editor: editors) *result << qs (interactive_field_value (editor));
+  });
+  array<string> out;
+  for (const QString& value: *result) out << tm_string (value);
+  return out;
+}
+
+array<string>
+qtm_color_dialog (string title, array<string> recent_values,
+                  array<string> saved_values) {
+  QString qTitle= qs (title);
+  QStringList recentNames;
+  QStringList savedNames;
+  for (int i=0; i<N(recent_values); ++i) recentNames << qs (recent_values[i]);
+  for (int i=0; i<N(saved_values); ++i) savedNames << qs (saved_values[i]);
+  auto result= std::make_shared<QStringList> ();
+  invoke_gui_blocking ([qTitle, recentNames, savedNames, result] () {
+    QList<QColor> recent;
+    QSet<QString> seen;
+    for (const QString& name: recentNames) {
+      QColor color (name);
+      QString canonical= color.name ();
+      if (color.isValid () && !seen.contains (canonical)) {
+        recent << color;
+        seen.insert (canonical);
+      }
+    }
+
+    for (int i=0; i<QColorDialog::customCount (); ++i)
+      QColorDialog::setCustomColor (i, Qt::transparent);
+    int custom= 0;
+    for (const QString& name: savedNames) {
+      if (custom >= QColorDialog::customCount ()) break;
+      QColor color (name);
+      if (color.isValid ()) QColorDialog::setCustomColor (custom++, color);
+    }
+
+    QColorDialog dialog (recent.isEmpty () ? Qt::white : recent.first (),
+                         QApplication::activeWindow ());
+    dialog.setWindowTitle (qTitle);
+    dialog.setOption (QColorDialog::DontUseNativeDialog);
+    if (!recent.isEmpty ()) {
+      QWidget* recentWidget= new QWidget (&dialog);
+      QHBoxLayout* layout= new QHBoxLayout (recentWidget);
+      layout->setContentsMargins (6, 4, 6, 2);
+      layout->setSpacing (4);
+      layout->addWidget (new QLabel (QObject::tr ("Recent colors:"), recentWidget));
+      for (const QColor& color: recent) {
+        QToolButton* button= new QToolButton (recentWidget);
+        button->setFixedSize (28, 28);
+        button->setToolTip (color.name ());
+        button->setStyleSheet (
+          QString ("QToolButton { background-color: %1; border: 1px solid "
+                   "#777; } QToolButton:hover { border: 2px solid #222; }")
+            .arg (color.name ()));
+        QObject::connect (button, &QToolButton::clicked, &dialog,
+                          [&dialog, color] { dialog.setCurrentColor (color); });
+        layout->addWidget (button);
+      }
+      layout->addStretch ();
+      if (QVBoxLayout* dialogLayout=
+            qobject_cast<QVBoxLayout*> (dialog.layout ()))
+        dialogLayout->insertWidget (0, recentWidget);
+      else
+        dialog.layout ()->addWidget (recentWidget);
+    }
+
+    if (dialog.exec () != QDialog::Accepted || !dialog.selectedColor ().isValid ())
+      return;
+    *result << dialog.selectedColor ().name ();
+    QSet<QString> savedSeen;
+    for (int i=0; i<QColorDialog::customCount () && result->size () <= 8; ++i) {
+      QColor color= QColorDialog::customColor (i);
+      QString canonical= color.name ();
+      if (color.isValid () && color.alpha () != 0 &&
+          !savedSeen.contains (canonical)) {
+        *result << canonical;
+        savedSeen.insert (canonical);
+      }
+    }
+  });
+  array<string> out;
+  for (const QString& value: *result) out << tm_string (value);
+  return out;
+}
+
+void
+qtm_print_file_dialog (url file) {
+  QString fileName= qs (as_string (file));
+  invoke_gui_blocking ([fileName] () {
+    QTMPrinterSettings*& settings= printer_settings ();
+    if (settings == nullptr) return;
+    settings->fileName= fileName;
+    QTMPrintDialog dialog (settings);
+    if (dialog.exec () != QDialog::Accepted) return;
+    qt_system (tm_string (settings->toSystemCommand ()));
+  });
+}
+
+array<SI>
+qtm_tooltip_size (tree doc, tree style) {
+  widget wid= texmacs_output_widget (doc, style);
+  return get_texmacs_widget_size (wid);
+}
+
+void
+qtm_tooltip_show (tree doc, tree style, int x, int y) {
+  auto request= std::make_shared<TooltipRequest> ();
+  request->doc= copy (doc);
+  request->style= copy (style);
+  request->x= x;
+  request->y= y;
+  invoke_gui_blocking ([request] () {
+    if (tooltip_window_handle != 0) window_delete (tooltip_window_handle);
+    widget wid= texmacs_output_widget (request->doc, request->style);
+    tooltip_window_handle= window_handle ();
+    window_create_tooltip (tooltip_window_handle, wid, "Tooltip");
+    window_set_position (tooltip_window_handle, request->x, request->y);
+    window_show (tooltip_window_handle);
+  });
+}
+
+void
+qtm_tooltip_close () {
+  invoke_gui_blocking ([] () {
+    if (tooltip_window_handle == 0) return;
+    window_hide (tooltip_window_handle);
+    window_delete (tooltip_window_handle);
+    tooltip_window_handle= 0;
+  });
+}
 
 string
 qtm_linked_file_choice_dialog (string name, array<string> items) {

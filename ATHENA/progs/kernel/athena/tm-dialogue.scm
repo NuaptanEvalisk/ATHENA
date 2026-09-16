@@ -289,14 +289,6 @@
   (with fun-args (build-interactive-args fun args 0 #t)
     (tm-interactive-hook fun fun-args)))
 
-(tm-define (interactive-title fun)
-  (let* ((val (property fun :synopsis))
-         (name (procedure-name fun))
-         (name* (and name (symbol->string name))))
-    (or (and (list-1? val) (string? (car val)) (car val))
-        (and name (string-append "Interactive command '" name* "'"))
-        "Interactive command")))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Store learned arguments from one session to another
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

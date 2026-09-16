@@ -29,8 +29,6 @@ public:
 protected:
   hashmap<int,object>    menu_current;
   hashmap<object,widget> menu_cache;
-  string*  text_ptr;  // where the interactive string is returned
-  command  call_back; // called when typing finished
   string   cur_title; // current window title
   string   cur_doc_title; // current document title before window decoration
   url      cur_url;   // current document url
@@ -76,11 +74,6 @@ public:
   void set_left_footer (string s);
   void set_center_footer (string s);
   void set_right_footer (string s);
-  bool get_interactive_mode ();
-  void set_interactive_mode (bool on);
-  void interactive (string name, string type, array<string> def,
-		    string& s, command cmd);
-  void interactive_return ();
 };
 
 class tm_view_rep {

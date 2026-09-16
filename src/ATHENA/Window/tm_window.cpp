@@ -149,7 +149,7 @@ tm_window_rep::tm_window_rep (widget wid2, tree geom):
   wid (wid2), id (create_window_id ()),
   serial (tm_window_serial++),
   menu_current (object ()), menu_cache (widget ()),
-  text_ptr (NULL), cur_url (url_none ())
+  cur_url (url_none ())
 {
   zoomf= window_zoom_scale () * get_server () -> get_default_zoom_factor ();
 }
@@ -173,7 +173,7 @@ tm_window_rep::tm_window_rep (tree doc, command quit):
   wid (win), id (url_none ()),
   serial (tm_window_serial++),
   menu_current (object ()), menu_cache (widget ()),
-  text_ptr (NULL), cur_url (url_none ())
+  cur_url (url_none ())
 {
   zoomf= window_zoom_scale () * get_doc_zoom_factor (doc);
   if (zoomf < 0.0)
@@ -588,52 +588,6 @@ tm_window_rep::set_center_footer (string s) {
 void
 tm_window_rep::set_right_footer (string s) {
   ::set_right_footer (wid, s);
-}
-
-/******************************************************************************
-* Interactive commands on the footer
-******************************************************************************/
-
-class ia_command_rep: public command_rep {
-  tm_window_rep* win;
-public:
-  ia_command_rep (tm_window_rep* win2): win (win2) {}
-  void apply () { win->interactive_return (); }
-  tm_ostream& print (tm_ostream& out) { return out << "<command ia>"; }
-};
-
-bool
-tm_window_rep::get_interactive_mode () {
-  return ::get_interactive_mode (wid);
-}
-
-void
-tm_window_rep::set_interactive_mode (bool flag) {
-  ::set_interactive_mode (wid, flag);
-}
-
-void
-tm_window_rep::interactive (string name, string type, array<string> def,
-			    string& s, command cmd)
-{
-  if (get_interactive_mode ()) { s= "cancel"; return; }
-  text_ptr = &s;
-  call_back= cmd;
-  widget tw = text_widget (ui_text (name), 0, black, false);
-  widget inp= input_text_widget (tm_new<ia_command_rep> (this), type, def,
-                                 WIDGET_STYLE_MINI);
-  set_interactive_prompt (wid, tw);
-  set_interactive_input (wid, inp);
-  set_interactive_mode (true);
-}
-
-void
-tm_window_rep::interactive_return () {
-  if (text_ptr == NULL) return;
-  *text_ptr= get_interactive_input (wid);
-  text_ptr= NULL;
-  set_interactive_mode (false);
-  call_back ();
 }
 
 /******************************************************************************

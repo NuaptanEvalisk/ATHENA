@@ -712,8 +712,6 @@ set (ATHENA_Qt_Moc_HDRS
   ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMApplication.hpp
   ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMFileDialog.hpp
   ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMGuiHelper.hpp
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMInteractiveInputHelper.hpp
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMInteractivePrompt.hpp
   ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMMenuHelper.hpp
   ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPipeLink.hpp
   ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPrintDialog.hpp

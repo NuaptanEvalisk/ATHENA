@@ -18,7 +18,6 @@
 #include "qt_simple_widget.hpp"
 #include "qt_window_widget.hpp"
 
-#include "QTMInteractiveInputHelper.hpp"
 #include "QTMWidget.hpp"
 #include "QTMScrollView.hpp"
 #include "QTMToolbar.hpp"
@@ -32,7 +31,6 @@
 
 class QLabel; 
 class QAction;
-class QTMInteractivePrompt;
 class QTMToolbarController;
 
 /*! Models one main window with toolbars, an associated view, etc.
@@ -82,11 +80,6 @@ class qt_tm_widget_rep: public qt_window_widget_rep {
   QWidget*       rulerWidget;
 #endif
 
-  QTMInteractiveInputHelper helper;
-  QTMInteractivePrompt*     prompt;
-  qt_widget int_prompt;
-  qt_widget int_input;
-  
   bool visibility[8];
   bool full_screen;
   
@@ -125,7 +118,6 @@ public:
   void clear_main_menu_actions ();
   static void tweak_iconbar_size (QSize& sz);
 
-  friend class QTMInteractiveInputHelper;
   
 protected:
   

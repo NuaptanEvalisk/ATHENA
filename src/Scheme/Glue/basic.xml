@@ -1846,10 +1846,6 @@
     <arg type="string" />
   </binding>
   <binding name="disable-certificate-time-checks" native="disable_certificate_time_checks" returns="void" />
-  <binding name="widget-printer" native="printer_widget" returns="widget">
-    <arg type="command" />
-    <arg type="url" />
-  </binding>
   <binding name="widget-color-picker" native="color_picker_widget" returns="widget">
     <arg type="command" />
     <arg type="bool" />
@@ -2328,51 +2324,7 @@
   </binding>
   <binding name="global-search-show" native="global_search_show" returns="void" />
   <binding name="athena-diff-show" native="athena_diff_show" returns="void" />
-  <binding name="alt-window-handle" native="window_handle" returns="int" />
-  <binding name="alt-window-create-quit" native="window_create" returns="void">
-    <arg type="int" />
-    <arg type="widget" />
-    <arg type="string" />
-    <arg type="command" />
-  </binding>
-  <binding name="alt-window-create-plain" native="window_create_plain" returns="void">
-    <arg type="int" />
-    <arg type="widget" />
-    <arg type="string" />
-  </binding>
-  <binding name="alt-window-create-popup" native="window_create_popup" returns="void">
-    <arg type="int" />
-    <arg type="widget" />
-    <arg type="string" />
-  </binding>
-  <binding name="alt-window-create-tooltip" native="window_create_tooltip" returns="void">
-    <arg type="int" />
-    <arg type="widget" />
-    <arg type="string" />
-  </binding>
   <binding name="alt-window-delete" native="window_delete" returns="void">
-    <arg type="int" />
-  </binding>
-  <binding name="alt-window-show" native="window_show" returns="void">
-    <arg type="int" />
-  </binding>
-  <binding name="alt-window-hide" native="window_hide" returns="void">
-    <arg type="int" />
-  </binding>
-  <binding name="alt-window-get-size" native="window_get_size" returns="scheme_tree">
-    <arg type="int" />
-  </binding>
-  <binding name="alt-window-set-size" native="window_set_size" returns="void">
-    <arg type="int" />
-    <arg type="int" />
-    <arg type="int" />
-  </binding>
-  <binding name="alt-window-get-position" native="window_get_position" returns="scheme_tree">
-    <arg type="int" />
-  </binding>
-  <binding name="alt-window-set-position" native="window_set_position" returns="void">
-    <arg type="int" />
-    <arg type="int" />
     <arg type="int" />
   </binding>
   <binding name="alt-window-search" native="window_search" returns="path">
