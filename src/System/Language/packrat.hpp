@@ -17,6 +17,8 @@
 void   packrat_define (string lan, string s, tree t);
 void   packrat_property (string lan, string s, string var, string val);
 void   packrat_inherit (string lan, string from);
+void   register_builtin_packrat_languages ();
+scheme_tree builtin_packrat_definition (string lan, string s);
 int    packrat_abbreviation (string lan, string s);
 
 path   packrat_parse (string lan, string s, tree in);

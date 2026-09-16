@@ -252,8 +252,6 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting formal and natural languages\n")
-(lazy-language (language minimal) minimal)
-(lazy-language (language std-math) std-math)
 (lazy-define (kernel gui ui-text) replace)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 

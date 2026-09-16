@@ -124,7 +124,8 @@
   (for-each (lambda (x) (define-rule-impl lan x)) gr))
 
 (tm-define (get-packrat-definition lan sym)
-  (ahash-ref packrat-definition-table (list lan sym)))
+  (or (ahash-ref packrat-definition-table (list lan sym))
+      (builtin-packrat-definition lan sym)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Lazy language definition

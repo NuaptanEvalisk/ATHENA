@@ -26,6 +26,18 @@ thread_local hashmap<tree,C>      packrat_symbols;
 thread_local hashmap<C,tree>      packrat_decode (packrat_uninit);
 
 namespace {
+thread_local bool registering_builtin_languages= false;
+std::once_flag builtin_languages_once;
+
+void ensure_builtin_languages () {
+  if (registering_builtin_languages) return;
+  std::call_once (builtin_languages_once, [] {
+    registering_builtin_languages= true;
+    register_builtin_packrat_languages ();
+    registering_builtin_languages= false;
+  });
+}
+
 enum class grammar_edit_kind { define, property, inherit };
 struct grammar_edit {
   grammar_edit_kind kind;
@@ -268,11 +280,13 @@ packrat_grammar
 find_packrat_grammar (string s) {
   auto& local= grammars ();
   auto& shared= definitions ();
+  ensure_builtin_languages ();
   if (local.revision == shared.revision.load (std::memory_order_acquire) &&
       local.values->contains (s)) return local.values[s];
   std::lock_guard<std::recursive_mutex> guard (shared.mutex);
   synchronize_grammars ();
   if (!local.values->contains (s)) {
+    if (registering_builtin_languages) return local_grammar (s);
     eval ("(lazy-language-force " * s * ")");
     synchronize_grammars ();
   }
@@ -405,6 +419,22 @@ packrat_grammar_rep::set_property (string s, string var, string val) {
   C prop= encode_symbol (compound ("property", var));
   D key = (((D) prop) << 32) + ((D) (sym ^ prop));
   properties (key)= val;
+}
+
+bool
+packrat_grammar_rep::has_property (string s, string var) {
+  C sym = encode_symbol (compound ("symbol", s));
+  C prop= encode_symbol (compound ("property", var));
+  D key = (((D) prop) << 32) + ((D) (sym ^ prop));
+  return properties->contains (key);
+}
+
+string
+packrat_grammar_rep::get_property (string s, string var) {
+  C sym = encode_symbol (compound ("symbol", s));
+  C prop= encode_symbol (compound ("property", var));
+  D key = (((D) prop) << 32) + ((D) (sym ^ prop));
+  return properties->contains (key) ? properties[key] : string ();
 }
 
 /******************************************************************************

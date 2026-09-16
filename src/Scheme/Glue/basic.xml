@@ -1384,6 +1384,10 @@
     <arg type="string" />
     <arg type="string" />
   </binding>
+  <binding name="builtin-packrat-definition" native="builtin_packrat_definition" returns="scheme_tree">
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
   <binding name="packrat-parse" native="packrat_parse" returns="path">
     <arg type="string" />
     <arg type="string" />
