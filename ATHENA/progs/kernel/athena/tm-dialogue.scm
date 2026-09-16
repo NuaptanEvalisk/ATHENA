@@ -62,9 +62,15 @@
                       (set! time (+ (texmacs-time) ,(cadar body)))
                       (proc)))))))
         ((== (caar body) :idle)
-         `(with proc ,(delayed-sub (cdr body))
+         `(let* ((start (texmacs-time))
+                 (proc ,(delayed-sub (cdr body))))
             (lambda ()
-              (with left (- ,(cadar body) (idle-time))
+              ;; Headless processes have no editor-owned idle clock.  They are
+              ;; continuously non-interactive, so preserve the requested delay
+              ;; using wall time instead of crossing into editor state.
+              (with left (if (headless?)
+                             (- (+ start ,(cadar body)) (texmacs-time))
+                             (- ,(cadar body) (idle-time)))
                 (if (> left 0) left
                     (proc))))))
         ((== (caar body) :refresh)

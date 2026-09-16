@@ -146,6 +146,7 @@ object eval_file (string name);
 bool   exec_file (url u);
 void   exec_delayed (object cmd);
 void   exec_delayed_pause (object cmd);
+void   exec_delayed_global (object cmd);
 void   exec_global (object cmd);
 void   schedule_delayed_scheme_handle (
          std::uint64_t handle, std::uint64_t actor_id,

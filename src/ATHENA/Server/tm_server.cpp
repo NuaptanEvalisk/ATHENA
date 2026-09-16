@@ -121,7 +121,10 @@ tm_server_rep::tm_server_rep (): def_zoomf (1.0), center_message ("") {
   bench_cumul ("load scheme boot");
   if (my_init_cmds != "") {
     my_init_cmds= "(begin" * my_init_cmds * ")";
-    exec_delayed (scheme_cmd (my_init_cmds));
+    // The top-level command-line initialization owns process-global state.
+    // Nested ordinary delayed commands select their own execution domain;
+    // editor-idle work must remain free to attach to a BufferActor.
+    exec_delayed_global (scheme_cmd (my_init_cmds));
   }
 #ifdef OS_GNU_LINUX
   return; // in order to avoid segmentation faults

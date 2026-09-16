@@ -381,14 +381,16 @@
         (when (buffer-load name)
           (display* "ATHENA: could not load " from "\n")
           (primitive-exit 1))
-        (switch-to-buffer name)
         (set! current-save-source name)
         (set! current-save-target dest)
         (when (buffer-export name dest (if (== fm "generic") "verbatim" fm))
           (display* "ATHENA: could not export " from " to " to "\n")
           (primitive-exit 1))
-        ;; Resume on the selected buffer's actor, as ordinary -x commands do.
-        (exec-delayed next)))))
+        ;; Resume on this buffer's actor so ordinary -x commands which follow
+        ;; a conversion observe the converted buffer as their current buffer.
+        ;; No GUI window switch is needed for this actor-local continuation.
+        (if (not (exec-buffer name next))
+            (exec-global next))))))
 
 (tm-define (buffer-exporter fm)
   (with opts (if (x-gui?) (list) (list :overwrite))
@@ -630,7 +632,12 @@
   (schedule-persistent-fit-width)
   (buffer-notify-recent name)
   (when (defined? 'google-cloud-todo-sync-buffer)
-    (delayed (:idle 1000) (google-cloud-todo-sync-buffer name)))
+    ;; Loading is coordinated from the global/UI owner.  The idle predicate,
+    ;; however, is editor state and must remain on the loaded buffer's actor.
+    (exec-buffer name
+      (lambda ()
+        (delayed (:idle 1000)
+          (google-cloud-todo-sync-buffer (current-buffer))))))
   (and-with master (and (url-rooted-tmfs? name) (tmfs-master name))
     (when (!= master name)
       (buffer-set-master name master)))

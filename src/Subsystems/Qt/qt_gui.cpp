@@ -1505,12 +1505,27 @@ command_queue::exec_pending () {
       athena_actor_id actor_id= actors[i];
       athena_view_id view_id= views[i];
       bool force_global= domains[i] != 0;
-      if (!force_global && actor_id == ATHENA_NO_ACTOR &&
-          has_current_view ()) {
-        tm_view view= concrete_view (get_current_view_safe ());
-        if (view != nullptr) {
-          actor_id= view->buf->actor->id ();
-          view_id= view->runtime_id;
+      if (!force_global && actor_id == ATHENA_NO_ACTOR) {
+        bool adopted_view= false;
+        if (has_current_view ()) {
+          tm_view view= concrete_view (get_current_view_safe ());
+          if (view != nullptr) {
+            actor_id= view->buf->actor->id ();
+            view_id= view->runtime_id;
+            adopted_view= true;
+          }
+        }
+        if (!adopted_view && !headless_mode) {
+          // Ownerless GUI work is editor-bound by default. During startup the
+          // current view can be absent or only partially constructed, so never
+          // run such Scheme on the GUI thread until a concrete BufferActor view
+          // is available. Truly process-global work uses exec_delayed_global.
+          handles << h[i];
+          actor_ids << ATHENA_NO_ACTOR;
+          view_ids << ATHENA_NO_VIEW;
+          execution_domains << 0;
+          start_times << now + 1;
+          continue;
         }
       }
       bool allow_repeat= now - times[i] < 1000000000;
@@ -1606,6 +1621,12 @@ void exec_delayed (object cmd) {
 }
 void exec_delayed_pause (object cmd) {
   the_gui->delayed_commands.exec_pause(cmd);
+}
+void exec_delayed_global (object cmd) {
+  athena_scheme_handle_id handle=
+    scheme_command_handle_acquire (object_to_tmscm (cmd));
+  the_gui->delayed_commands.exec_handle (
+    handle, ATHENA_NO_ACTOR, ATHENA_NO_VIEW, false, true);
 }
 void exec_global (object cmd) {
   the_gui->delayed_commands.exec_global(cmd);

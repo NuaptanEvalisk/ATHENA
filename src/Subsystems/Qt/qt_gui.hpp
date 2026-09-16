@@ -211,6 +211,7 @@ public:
   friend class QTMGuiHelper;
   friend void exec_delayed (object cmd);
   friend void exec_delayed_pause (object cmd);
+  friend void exec_delayed_global (object cmd);
   friend void exec_global (object cmd);
   friend void schedule_delayed_scheme_handle (
     std::uint64_t handle, std::uint64_t actor_id,
