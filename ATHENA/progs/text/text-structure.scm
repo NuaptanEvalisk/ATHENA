@@ -54,6 +54,9 @@
         ((in? sec '(subparagraph subparagraph*)) "         ")
         (else "")))
 
+(define (short-style?)
+  (!= (get-init-tree "sectional-short-style") (tree 'macro "false")))
+
 (define (indent-prefix sec)
   (with prefix (indent-prefix* sec)
     (if (and (short-style?) (string-starts? prefix "   "))

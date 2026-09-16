@@ -38,6 +38,21 @@
 ;; helper modules. This catches hidden menu -> edit dependencies.
 (focus-tag-menu image)
 
+;; The command palette forces the live lazy menu tree.  Text menu labels use
+;; section-title indentation, which must remain valid after document-part UI
+;; cleanup removed the other users of sectional-short-style.
+(define old-sectional-short-style (get-init-tree "sectional-short-style"))
+(define section-probe (stree->tree '(section "Palette section")))
+(init-env-tree "sectional-short-style" (stree->tree '(macro "true")))
+(check (string=? (tm/section-get-title-string section-probe #t)
+                 "Palette section")
+       "short sectional style lost section title indentation")
+(init-env-tree "sectional-short-style" (stree->tree '(macro "false")))
+(check (string=? (tm/section-get-title-string section-probe #t)
+                 "   Palette section")
+       "long sectional style lost section title indentation")
+(init-env-tree "sectional-short-style" old-sectional-short-style)
+
 (init-env "page-medium" "paper")
 (update-current-buffer)
 (update-forced)
