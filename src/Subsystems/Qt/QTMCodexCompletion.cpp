@@ -21,6 +21,8 @@
 #include <QTimer>
 #include <QVBoxLayout>
 
+#include <memory>
+
 namespace {
 
 enum class CatalogState { Empty, Loading, Ready, Failed };
@@ -325,6 +327,56 @@ private:
   }
 };
 
+array<string>
+runCompletionOptionsDialog (const QString& bridge, const QString& home) {
+  loadModels (bridge, home, false);
+  QTMCodexCompletionDialog dialog (bridge, home, QApplication::activeWindow ());
+  if (dialog.exec () != QDialog::Accepted) return array<string> ();
+  dialog.saveChoices ();
+  return dialog.options ();
+}
+
+void
+startCompletionProcess (
+    const QString& bridge, const QString& home, const QString& input,
+    const QString& output, const QString& model, const QString& effort,
+    const QString& serviceTier, const QString& webSearch,
+    const QStringList& imagePaths, std::shared_ptr<command> callback) {
+  QProcess* process= new QProcess (QApplication::instance ());
+  process->setProcessChannelMode (QProcess::MergedChannels);
+  auto completed= std::make_shared<bool> (false);
+  auto complete= [process, callback= std::move (callback), completed] () {
+    if (*completed) return;
+    *completed= true;
+    QByteArray diagnostics= process->readAll ();
+    if (!diagnostics.isEmpty () &&
+        (process->exitStatus () != QProcess::NormalExit ||
+         process->exitCode () != 0))
+      std_warning << "Codex completion bridge: "
+                  << from_qstring (QString::fromUtf8 (diagnostics)) << LF;
+    if (callback != nullptr) (*callback) ();
+    process->deleteLater ();
+  };
+  QObject::connect (
+    process, qOverload<int,QProcess::ExitStatus> (&QProcess::finished),
+    process, [complete] (int, QProcess::ExitStatus) { complete (); });
+  QObject::connect (
+    process, &QProcess::errorOccurred, process,
+    [complete] (QProcess::ProcessError error) {
+      if (error == QProcess::FailedToStart) complete ();
+    });
+  QStringList arguments {"--one-shot", "--codex-home", home,
+                         "--input", input, "--output", output};
+  if (!model.isEmpty ()) arguments << "--model" << model;
+  if (!effort.isEmpty ()) arguments << "--effort" << effort;
+  if (!serviceTier.isEmpty ()) arguments << "--service-tier" << serviceTier;
+  if (webSearch == "live") arguments << "--web-search";
+  else if (webSearch == "disabled") arguments << "--no-web-search";
+  for (const QString& imagePath: imagePaths)
+    arguments << "--image" << imagePath;
+  process->start (bridge, arguments);
+}
+
 } // namespace
 
 void
@@ -356,10 +408,65 @@ qtm_codex_initialize_models (string bridge, string home) {
 
 array<string>
 qtm_codex_completion_options (const string& bridge, const string& home) {
-  qtm_codex_initialize_models (bridge, home);
-  QTMCodexCompletionDialog dialog (to_qstring (bridge), to_qstring (home),
-                                   QApplication::activeWindow ());
-  if (dialog.exec () != QDialog::Accepted) return array<string> ();
-  dialog.saveChoices ();
-  return dialog.options ();
+  QCoreApplication* app= QCoreApplication::instance ();
+  if (app == nullptr) return array<string> ();
+  QString qBridge= to_qstring (bridge);
+  QString qHome= to_qstring (home);
+  if (QThread::currentThread () == app->thread ())
+    return runCompletionOptionsDialog (qBridge, qHome);
+
+  struct Request {
+    QString bridge;
+    QString home;
+    array<string> result;
+  };
+  auto request= std::make_shared<Request> (Request {qBridge, qHome, {}});
+  bool invoked= QMetaObject::invokeMethod (
+    app,
+    [request] {
+      request->result=
+        runCompletionOptionsDialog (request->bridge, request->home);
+    },
+    Qt::BlockingQueuedConnection);
+  if (!invoked) return array<string> ();
+  return request->result;
+}
+
+void
+qtm_codex_run_completion_async (
+    string bridge, string home, string input, string output, string model,
+    string effort, string service_tier, string web_search,
+    array<string> image_paths, command callback) {
+  QCoreApplication* app= QCoreApplication::instance ();
+  auto completion= std::make_shared<command> (std::move (callback));
+  if (app == nullptr) {
+    (*completion) ();
+    return;
+  }
+
+  QString qBridge= to_qstring (bridge);
+  QString qHome= to_qstring (home);
+  QString qInput= to_qstring (input);
+  QString qOutput= to_qstring (output);
+  QString qModel= to_qstring (model);
+  QString qEffort= to_qstring (effort);
+  QString qServiceTier= to_qstring (service_tier);
+  QString qWebSearch= to_qstring (web_search);
+  QStringList qImagePaths;
+  for (int i=0; i<N(image_paths); ++i)
+    qImagePaths << to_qstring (image_paths[i]);
+
+  auto launch= [qBridge, qHome, qInput, qOutput, qModel, qEffort,
+                qServiceTier, qWebSearch, qImagePaths,
+                completion] () mutable {
+    startCompletionProcess (
+      qBridge, qHome, qInput, qOutput, qModel, qEffort,
+      qServiceTier, qWebSearch, qImagePaths, completion);
+  };
+  if (QThread::currentThread () == app->thread ()) {
+    launch ();
+    return;
+  }
+  if (!QMetaObject::invokeMethod (app, std::move (launch), Qt::QueuedConnection))
+    (*completion) ();
 }

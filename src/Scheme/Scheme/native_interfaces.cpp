@@ -109,7 +109,6 @@
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPointer>
-#include <QProcess>
 #include <QProgressDialog>
 #include <QPushButton>
 #include <QSizePolicy>
@@ -1021,51 +1020,10 @@ athena_codex_completion_options (string arg1, string arg2) {
 
 void
 athena_codex_run_completion_async (string arg1, string arg2, string arg3, string arg4, string arg5, string arg6, string arg7, string arg8, array<string> arg9, command arg10) {
-  QString bridge= to_qstring (arg1);
-  QString home= to_qstring (arg2);
-  QString input= to_qstring (arg3);
-  QString output= to_qstring (arg4);
-  QString model= to_qstring (arg5);
-  QString effort= to_qstring (arg6);
-  QString serviceTier= to_qstring (arg7);
-  QString webSearch= to_qstring (arg8);
-  array<string> imagePaths= arg9;
-  command callback= arg10;
-
-  QProcess* process= new QProcess (QApplication::instance ());
-  process->setProcessChannelMode (QProcess::MergedChannels);
-  auto completed= std::make_shared<bool> (false);
-  auto complete= [process, callback, completed] () {
-    if (*completed) return;
-    *completed= true;
-    QByteArray diagnostics= process->readAll ();
-    if (!diagnostics.isEmpty () &&
-        (process->exitStatus () != QProcess::NormalExit ||
-         process->exitCode () != 0))
-      std_warning << "Codex completion bridge: "
-                  << from_qstring (QString::fromUtf8 (diagnostics)) << LF;
-    eval (callback);
-    process->deleteLater ();
-  };
-  QObject::connect (
-    process, qOverload<int,QProcess::ExitStatus> (&QProcess::finished),
-    process, [complete] (int, QProcess::ExitStatus) { complete (); });
-  QObject::connect (
-    process, &QProcess::errorOccurred, process,
-    [complete] (QProcess::ProcessError error) {
-      if (error == QProcess::FailedToStart) complete ();
-    });
-  QStringList arguments {"--one-shot", "--codex-home", home,
-                         "--input", input, "--output", output};
-  if (!model.isEmpty ()) arguments << "--model" << model;
-  if (!effort.isEmpty ()) arguments << "--effort" << effort;
-  if (!serviceTier.isEmpty ())
-    arguments << "--service-tier" << serviceTier;
-  if (webSearch == "live") arguments << "--web-search";
-  else if (webSearch == "disabled") arguments << "--no-web-search";
-  for (int i= 0; i < N(imagePaths); ++i)
-    arguments << "--image" << to_qstring (imagePaths[i]);
-  process->start (bridge, arguments);
+  qtm_codex_run_completion_async (
+    std::move (arg1), std::move (arg2), std::move (arg3), std::move (arg4),
+    std::move (arg5), std::move (arg6), std::move (arg7), std::move (arg8),
+    std::move (arg9), std::move (arg10));
   return;
 }
 
