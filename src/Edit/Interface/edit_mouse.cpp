@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "edit_interface.hpp"
+#include "format_geometry.hpp"
 #include "Interface/selection_autoscroll.hpp"
 #include "Interface/table_resize.hpp"
 #include "actor_ui_bridge.hpp"
@@ -941,10 +942,10 @@ edit_interface_rep::mouse_any (string type, SI x, SI y, int mods, time_t t,
   }
 
   if (starts (type, "swipe-")) eval ("(" * type * ")");
-  if (type == "pinch-start") eval ("(pinch-start)");
-  if (type == "pinch-end") eval ("(pinch-end)");
-  if (type == "scale") eval ("(pinch-scale " * as_string (data[0]) * ")");
-  if (type == "rotate") eval ("(pinch-rotate " * as_string (-data[0]) * ")");
+  if (type == "pinch-start") geometry_pinch_start ();
+  if (type == "pinch-end") geometry_pinch_end ();
+  if (type == "scale" && N (data) > 0) ::geometry_pinch_scale (data[0]);
+  if (type == "rotate" && N (data) > 0) geometry_pinch_rotate (-data[0]);
 
   if (type == "double-left" && over_heading_bracket) {
     select_heading_cell (heading_bracket);

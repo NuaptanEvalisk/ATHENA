@@ -19,7 +19,6 @@
         (generic document-edit)
         (generic generic-edit)
         (generic format-edit)
-        (generic format-geometry-edit)
         (source source-edit)
         (athena athena tm-files)
         (athena athena tm-print)

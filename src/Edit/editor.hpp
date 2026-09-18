@@ -66,6 +66,11 @@ public:
   athena_view_id runtime_view_id;
   actor_ui_endpoint* ui_endpoint;
 
+  // Gesture transactions belong to the editor, never to the Scheme runtime.
+  bool geometry_pinch_modified= false;
+  double geometry_pinch_scale= 1.0;
+  double geometry_pinch_angle= 0.0;
+
   actor_viewport_snapshot ui_viewport () const;
   bool publish_ui (actor_command_kind kind,
                    std::uint64_t argument0= 0,

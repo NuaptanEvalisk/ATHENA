@@ -16,8 +16,7 @@
 	(athena athena tm-materials)
 	(athena athena tm-reverse-hierarchy-graph)
 	(generic generic-edit)
-	(generic format-edit)
-	(generic format-geometry-edit)))
+	(generic format-edit)))
 
 (define (handwriting-symbol-command-key command)
   (if (and (string? command) (string-starts? command "\\"))

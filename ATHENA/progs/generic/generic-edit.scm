@@ -238,15 +238,6 @@
 (tm-define (swipe-down)
   (swipe-vertical (focus-tree) #t))
 
-(tm-define pinch-modified? #f)
-(tm-define pinch-current-scale 1.0)
-(tm-define pinch-current-angle 0.0)
-
-(tm-define (pinch-clear)
-  (set! pinch-modified? #f)
-  (set! pinch-current-scale 1.0)
-  (set! pinch-current-angle 0.0))
-
 (tm-define (structured-maximize t)
   (and-with p (tree-outer t)
     (structured-maximize p)))
@@ -254,22 +245,6 @@
 (tm-define (structured-minimize t)
   (and-with p (tree-outer t)
     (structured-minimize p)))
-
-(tm-define (pinch-start)
-  (pinch-clear))
-
-(tm-define (pinch-end)
-  (cond ((> pinch-current-scale 1.05)
-         (structured-maximize (focus-tree)))
-        ((< pinch-current-scale 0.95)
-         (structured-minimize (focus-tree))))
-  (pinch-clear))
-
-(tm-define (pinch-scale scale)
-  (geometry-scale (focus-tree) scale))
-
-(tm-define (pinch-rotate angle)
-  (geometry-rotate (focus-tree) angle))
 
 (tm-define (wheel-capture?) #f)
 (tm-define (wheel-event x y) (noop))
@@ -626,73 +601,6 @@
   (structured-exit (focus-tree) #f))
 (tm-define (structured-exit-right)
   (structured-exit (focus-tree) #t))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Multi-purpose alignment
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (geometry-speed t down?)
-  (and-with p (tree-outer t)
-    (geometry-speed p down?)))
-
-(tm-define (geometry-variant t forwards?)
-  (and-with p (tree-outer t)
-    (geometry-variant p forwards?)))
-
-(tm-define (geometry-default t)
-  (and-with p (tree-outer t)
-    (geometry-default p)))
-
-(tm-define (geometry-horizontal t forwards?)
-  (and-with p (tree-outer t)
-    (geometry-horizontal p forwards?)))
-
-(tm-define (geometry-vertical t down?)
-  (and-with p (tree-outer t)
-    (geometry-vertical p down?)))
-
-(tm-define (geometry-extremal t forwards?)
-  (and-with p (tree-outer t)
-    (geometry-extremal p forwards?)))
-
-(tm-define (geometry-incremental t down?)
-  (and-with p (tree-outer t)
-    (geometry-incremental p down?)))
-
-(tm-define (geometry-scale t scale)
-  (with p (tree-outer t)
-    (if p (geometry-scale p scale)
-        (set! pinch-current-scale scale))))
-
-(tm-define (geometry-rotate t angle)
-  (with p (tree-outer t)
-    (if p (geometry-rotate p angle)
-        (set! pinch-current-angle angle))))
-
-(tm-define (geometry-slower)
-  (geometry-speed (focus-tree) #f))
-(tm-define (geometry-faster)
-  (geometry-speed (focus-tree) #t))
-(tm-define (geometry-circulate forwards?)
-  (geometry-variant (focus-tree) forwards?))
-(tm-define (geometry-reset)
-  (geometry-default (focus-tree)))
-(tm-define (geometry-left)
-  (geometry-horizontal (focus-tree) #f))
-(tm-define (geometry-right)
-  (geometry-horizontal (focus-tree) #t))
-(tm-define (geometry-up)
-  (geometry-vertical (focus-tree) #f))
-(tm-define (geometry-down)
-  (geometry-vertical (focus-tree) #t))
-(tm-define (geometry-start)
-  (geometry-extremal (focus-tree) #f))
-(tm-define (geometry-end)
-  (geometry-extremal (focus-tree) #t))
-(tm-define (geometry-top)
-  (geometry-incremental (focus-tree) #f))
-(tm-define (geometry-bottom)
-  (geometry-incremental (focus-tree) #t))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Special structured editing

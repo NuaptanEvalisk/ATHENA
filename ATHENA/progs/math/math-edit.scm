@@ -17,7 +17,6 @@
 	(utils edit auto-close)
 	(math math-drd)
         (math math-stats)
-        (generic format-geometry-edit)
         (convert tools tmconcat)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

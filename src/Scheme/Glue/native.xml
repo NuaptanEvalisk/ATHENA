@@ -1,5 +1,113 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="space-context?" native="geometry_space_context" returns="bool">
+    <arg type="tree" />
+  </binding>
+  <binding name="var-space-context?" native="geometry_var_space_context" returns="bool">
+    <arg type="tree" />
+  </binding>
+  <binding name="hspace-context?" native="geometry_hspace_context" returns="bool">
+    <arg type="tree" />
+  </binding>
+  <binding name="vspace-context?" native="geometry_vspace_context" returns="bool">
+    <arg type="tree" />
+  </binding>
+  <binding name="vadjust-context?" native="geometry_vadjust_context" returns="bool">
+    <arg type="tree" />
+  </binding>
+  <binding name="move-context?" native="geometry_move_context" returns="bool">
+    <arg type="tree" />
+  </binding>
+  <binding name="resize-context?" native="geometry_resize_context" returns="bool">
+    <arg type="tree" />
+  </binding>
+  <binding name="geometry-speed" native="geometry_speed" returns="void">
+    <arg type="tree" />
+    <arg type="bool" />
+  </binding>
+  <binding name="geometry-variant" native="geometry_variant" returns="void">
+    <arg type="tree" />
+    <arg type="bool" />
+  </binding>
+  <binding name="geometry-horizontal" native="geometry_horizontal" returns="void">
+    <arg type="tree" />
+    <arg type="bool" />
+  </binding>
+  <binding name="geometry-vertical" native="geometry_vertical" returns="void">
+    <arg type="tree" />
+    <arg type="bool" />
+  </binding>
+  <binding name="geometry-extremal" native="geometry_extremal" returns="void">
+    <arg type="tree" />
+    <arg type="bool" />
+  </binding>
+  <binding name="geometry-incremental" native="geometry_incremental" returns="void">
+    <arg type="tree" />
+    <arg type="bool" />
+  </binding>
+  <binding name="geometry-default" native="geometry_default" returns="void">
+    <arg type="tree" />
+  </binding>
+  <binding name="geometry-scale" native="geometry_scale" returns="void">
+    <arg type="tree" />
+    <arg type="double" />
+  </binding>
+  <binding name="geometry-rotate" native="geometry_rotate" returns="void">
+    <arg type="tree" />
+    <arg type="double" />
+  </binding>
+  <binding name="geometry-slower" native="geometry_slower" returns="void" />
+  <binding name="geometry-faster" native="geometry_faster" returns="void" />
+  <binding name="geometry-reset" native="geometry_reset" returns="void" />
+  <binding name="geometry-left" native="geometry_left" returns="void" />
+  <binding name="geometry-right" native="geometry_right" returns="void" />
+  <binding name="geometry-up" native="geometry_up" returns="void" />
+  <binding name="geometry-down" native="geometry_down" returns="void" />
+  <binding name="geometry-start" native="geometry_start" returns="void" />
+  <binding name="geometry-end" native="geometry_end" returns="void" />
+  <binding name="geometry-top" native="geometry_top" returns="void" />
+  <binding name="geometry-bottom" native="geometry_bottom" returns="void" />
+  <binding name="geometry-circulate" native="geometry_circulate" returns="void">
+    <arg type="bool" />
+  </binding>
+  <binding name="pinch-clear" native="geometry_pinch_clear" returns="void" />
+  <binding name="pinch-start" native="geometry_pinch_start" returns="void" />
+  <binding name="pinch-end" native="geometry_pinch_end" returns="void" />
+  <binding name="pinch-scale" native="geometry_pinch_scale" returns="void">
+    <arg type="double" />
+  </binding>
+  <binding name="pinch-rotate" native="geometry_pinch_rotate" returns="void">
+    <arg type="double" />
+  </binding>
+  <binding name="make-move" native="geometry_make_move" returns="void">
+    <arg type="content" />
+    <arg type="content" />
+  </binding>
+  <binding name="make-shift" native="geometry_make_shift" returns="void">
+    <arg type="content" />
+    <arg type="content" />
+  </binding>
+  <binding name="make-resize" native="geometry_make_resize" returns="void">
+    <arg type="content" />
+    <arg type="content" />
+    <arg type="content" />
+    <arg type="content" />
+  </binding>
+  <binding name="make-extend" native="geometry_make_extend" returns="void">
+    <arg type="content" />
+    <arg type="content" />
+    <arg type="content" />
+    <arg type="content" />
+  </binding>
+  <binding name="make-clipped" native="geometry_make_clipped" returns="void">
+    <arg type="content" />
+    <arg type="content" />
+    <arg type="content" />
+    <arg type="content" />
+  </binding>
+  <binding name="make-reduce-by" native="geometry_make_reduce_by" returns="void">
+    <arg type="content" />
+  </binding>
   <binding name="tm-rich-length?" native="geometry_rich_length" returns="bool">
     <arg type="content" />
   </binding>

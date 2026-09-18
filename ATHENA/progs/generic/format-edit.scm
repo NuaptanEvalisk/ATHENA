@@ -15,6 +15,7 @@
   (:use (utils base environment)
 	(utils edit selections)
 	(utils library cursor)
+	(generic format-drd)
 	(generic generic-edit)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
