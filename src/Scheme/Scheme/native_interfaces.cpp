@@ -1579,6 +1579,32 @@ athena_namespace_create_file_with_optional_initializer (string arg1) {
 void
 athena_namespace_new_file_within_wizard () {
   if (headless_mode) return;
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr && context->actor_id != ATHENA_NO_ACTOR &&
+      context->view_id != ATHENA_NO_VIEW) {
+    const athena_actor_id actor= context->actor_id;
+    const athena_view_id view= context->view_id;
+    const SchemeCapabilitySet capabilities= context->capabilities;
+    namespace_new_file_wizard_async (
+      [actor, view, capabilities] (string path) mutable {
+        if (path == "") return;
+        path.ensure_transferable ();
+        athena_continuation_id id=
+          actor_continuation_registry::instance ().store (
+            [path= std::move (path)] () mutable {
+              try {
+                (void) call ("load-buffer", object (url_system (path)));
+              }
+              catch (...) {}
+            });
+        if (!buffer_actor::submit_to (
+              actor, actor_command_kind::run_native_continuation, view,
+              ATHENA_NO_BLOB, ATHENA_NO_BLOB, capabilities, id))
+          (void) actor_continuation_registry::instance ().discard (id);
+      });
+    return;
+  }
+
   string path= athena_namespace_new_file_wizard ();
   if (path == "") return;
   try { (void) call ("load-buffer", object (url_system (path))); }

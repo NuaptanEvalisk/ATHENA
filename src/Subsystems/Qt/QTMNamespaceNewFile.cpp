@@ -474,9 +474,28 @@ namespace_new_file_wizard () {
   return std::move (request->result);
 }
 
+void
+namespace_new_file_wizard_async (std::function<void(string)> completion) {
+  QCoreApplication* app= QCoreApplication::instance ();
+  if (app == nullptr) {
+    if (completion) completion ("");
+    return;
+  }
+
+  auto run= [completion= std::move (completion)] () mutable {
+    string result= runNamespaceNewFileWizard ();
+    if (completion) completion (std::move (result));
+  };
+  if (QThread::currentThread () == app->thread ()) {
+    run ();
+    return;
+  }
+  qt_post_to_main_thread (std::move (run));
+}
+
 bool
 namespace_create_file_with_optional_initializer (string system_path,
-                                                 string& error) {
+                                                  string& error) {
   QCoreApplication* app= QCoreApplication::instance ();
   if (app == nullptr || QThread::currentThread () == app->thread ())
     return runNamespaceCreateFileWithOptionalInitializer (
@@ -496,4 +515,29 @@ namespace_create_file_with_optional_initializer (string system_path,
   }
   error= std::move (request->error);
   return request->success;
+}
+
+void
+namespace_create_file_with_optional_initializer_async (
+    string system_path, std::function<void(bool, string)> completion) {
+  QCoreApplication* app= QCoreApplication::instance ();
+  if (app == nullptr) {
+    if (completion)
+      completion (false, "Could not invoke the namespace initializer on the Qt thread.");
+    return;
+  }
+
+  system_path.ensure_transferable ();
+  auto run= [system_path= std::move (system_path),
+             completion= std::move (completion)] () mutable {
+    string error;
+    bool success= runNamespaceCreateFileWithOptionalInitializer (
+      std::move (system_path), error);
+    if (completion) completion (success, std::move (error));
+  };
+  if (QThread::currentThread () == app->thread ()) {
+    run ();
+    return;
+  }
+  qt_post_to_main_thread (std::move (run));
 }

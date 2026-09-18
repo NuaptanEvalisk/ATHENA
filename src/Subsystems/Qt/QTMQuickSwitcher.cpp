@@ -150,6 +150,39 @@ completeQuickSwitcherResult (tree result) {
     loadQuickSwitcherTarget (target);
     return;
   }
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr && context->actor_id != ATHENA_NO_ACTOR &&
+      context->view_id != ATHENA_NO_VIEW) {
+    const athena_actor_id actor= context->actor_id;
+    const athena_view_id view= context->view_id;
+    const SchemeCapabilitySet capabilities= context->capabilities;
+    string targetPath= as_string (target, URL_SYSTEM);
+    targetPath.ensure_transferable ();
+    string requestPath= targetPath;
+    namespace_create_file_with_optional_initializer_async (
+      std::move (requestPath),
+      [actor, view, capabilities,
+       targetPath= std::move (targetPath)] (bool success, string error) mutable {
+        error.ensure_transferable ();
+        athena_continuation_id id=
+          actor_continuation_registry::instance ().store (
+            [success, targetPath= std::move (targetPath),
+             error= std::move (error)] () mutable {
+              if (success) {
+                loadQuickSwitcherTarget (url_system (targetPath));
+                return;
+              }
+              if (error != "" && error != "cancelled")
+                showQuickSwitcherMessage (std::move (error));
+            });
+        if (!buffer_actor::submit_to (
+              actor, actor_command_kind::run_native_continuation, view,
+              ATHENA_NO_BLOB, ATHENA_NO_BLOB, capabilities, id))
+          (void) actor_continuation_registry::instance ().discard (id);
+      });
+    return;
+  }
+
   string error;
   if (namespace_create_file_with_optional_initializer (
         as_string (target, URL_SYSTEM), error)) {

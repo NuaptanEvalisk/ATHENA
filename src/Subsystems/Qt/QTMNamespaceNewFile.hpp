@@ -13,8 +13,13 @@
 
 #include "string.hpp"
 
+#include <functional>
+
 string namespace_new_file_wizard ();
+void namespace_new_file_wizard_async (std::function<void(string)> completion);
 bool namespace_create_file_with_optional_initializer (string system_path,
-                                                      string& error);
+                                                       string& error);
+void namespace_create_file_with_optional_initializer_async (
+  string system_path, std::function<void(bool, string)> completion);
 
 #endif // QTM_NAMESPACE_NEW_FILE_HPP
