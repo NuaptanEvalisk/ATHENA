@@ -227,12 +227,14 @@ edit_interface_rep::key_press (string gkey) {
       if (!inside_active_graphics ()) {
         archive_state ();
         call ("kbd-insert", rew);
+        (void) complete_try_realtime ();
       }
     interrupt_shortcut ();
   }
   else if (contains_unicode_char (rew)) {
     archive_state ();
     call ("kbd-insert", key);
+    (void) complete_try_realtime ();
     interrupt_shortcut ();    
   }
 #if defined(Q_OS_MAC)
@@ -247,6 +249,7 @@ edit_interface_rep::key_press (string gkey) {
            !inside_active_graphics ()) {
     archive_state ();
     call ("kbd-insert", "<" * key * ">");
+    (void) complete_try_realtime ();
     interrupt_shortcut ();    
   }
   else if (DEBUG_KEYBOARD)
@@ -383,6 +386,7 @@ edit_interface_rep::handle_text_input (string text, time_t t) {
     interrupt_shortcut ();
     archive_state ();
     call ("kbd-insert", text);
+    (void) complete_try_realtime ();
     update_focus_loci ();
     if (!is_nil (focus_ids) && got_focus)
       call ("link-follow-ids", object (focus_ids), object ("focus"));

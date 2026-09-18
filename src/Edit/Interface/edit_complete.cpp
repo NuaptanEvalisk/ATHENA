@@ -12,6 +12,8 @@
 #include "edit_interface.hpp"
 #include "hashset.hpp"
 #include "analyze.hpp"
+#include "scheme.hpp"
+#include "vars.hpp"
 #include "wencoding.hpp"
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -86,6 +88,23 @@ edit_interface_rep::complete_try () {
   if (N(a) == 0) return false;
   complete_start (ss, a);
   return true;
+}
+
+bool
+edit_interface_rep::complete_try_realtime () {
+  if (get_preference ("realtime text autocompletion", "on") != "on" ||
+      get_init_string (MODE) != "text")
+    return false;
+
+  tree st= subtree (et, path_up (tp));
+  if (is_compound (st)) return false;
+  string s= st->label;
+  int end= last_item (tp);
+  if (end < 2 || end > N(s) || !is_iso_alpha (s[end - 1])) return false;
+  int start= end - 1;
+  while (start > 0 && is_iso_alpha (s[start - 1])) start--;
+  if (end - start < 2) return false;
+  return complete_try ();
 }
 
 void

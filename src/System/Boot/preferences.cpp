@@ -260,6 +260,7 @@ ensure_builtin_user_preferences () {
     PREF ("link pages", "on", "notify-link-pages"),
     PREF ("document update times", "1", "notify-doc-update-times"),
     PREF ("live spell checking", "off", ""),
+    PREF ("realtime text autocompletion", "on", ""),
     PREF ("custom dictionary import language", "english", ""),
     PREF ("allow-blank-match", "on", ""),
     PREF ("allow-initial-match", "on", ""),

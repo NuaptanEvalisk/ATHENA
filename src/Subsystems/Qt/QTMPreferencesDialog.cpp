@@ -1342,6 +1342,8 @@ QTMPreferencesDialog::buildEditingPage () {
   QFormLayout* t= add_section (text, "Text");
   add_toggle (t, "Show heading word counts:", "heading word counts");
   add_toggle (t, "Check spelling as you type:", "live spell checking");
+  add_toggle (t, "Show autocompletion while typing:",
+              "realtime text autocompletion");
   add_toggle (t, "Disable UNIX primary selection:",
               "disable unix primary selection");
   add_combo (t, "Document updates run:", "document update times",

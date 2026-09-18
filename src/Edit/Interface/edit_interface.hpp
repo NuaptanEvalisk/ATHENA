@@ -247,6 +247,7 @@ public:
   void key_press (string key);
   void emulate_keyboard (string keys, string action= "");
   bool complete_try ();
+  bool complete_try_realtime ();
   void complete_start (string prefix, array<string> compls);
   void complete_choose (std::uint64_t session, int index);
   bool complete_keypress (string key);
