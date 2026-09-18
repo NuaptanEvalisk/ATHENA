@@ -1471,6 +1471,478 @@
     <arg type="content" />
     <arg type="object" />
   </binding>
+  <binding name="serialize-latex" native="serialize_latex" returns="string">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-native-type" native="latex_native_type" returns="string">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-native-arity" native="latex_native_arity" returns="int">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-native-paper-opts" native="latex_native_paper_opts" returns="string">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-native-paper-type" native="latex_native_paper_type" returns="string">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-paper-opts" native="latex_native_paper_opts" returns="string">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-paper-type" native="latex_native_paper_type" returns="string">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-arity" native="latex_native_arity" returns="int">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-type" native="latex_native_type" returns="string">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-set-language" native="latex_export_set_latex_language" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-set-style" native="latex_compat_set_style" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-set-packages" native="latex_compat_set_packages" returns="void">
+    <arg type="object" />
+  </binding>
+  <binding name="latex-set-extra" native="latex_compat_set_extra" returns="void">
+    <arg type="object" />
+  </binding>
+  <binding name="latex-add-extra" native="latex_compat_add_extra" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-set-virtual-packages" native="latex_compat_set_virtual_packages" returns="void">
+    <arg type="object" />
+  </binding>
+  <binding name="latex-set-texmacs-style" native="latex_export_set_latex_texmacs_style" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-set-texmacs-packages" native="latex_export_set_latex_texmacs_packages" returns="void">
+    <arg type="object" />
+  </binding>
+  <binding name="latex-has-style?" native="latex_compat_has_style" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-has-package?" native="latex_compat_has_package" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-has-texmacs-style?" native="latex_compat_has_texmacs_style" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-has-texmacs-package?" native="latex_compat_has_texmacs_package" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-depends?" native="latex_compat_depends" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="tmtex" native="latex_export_convert_node" returns="scheme_tree">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="tmtex-env-patch" native="latex_compat_tmtex_env_patch" returns="scheme_tree">
+    <arg type="tree" />
+    <arg type="object" />
+  </binding>
+  <binding name="latex-native-document-&gt;texmacs" native="latex_native_document_to_texmacs" returns="tree">
+    <arg type="string" />
+    <arg type="bool" />
+  </binding>
+  <binding name="texout-multiline?" native="latex_stree_multiline" returns="bool">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-export-context-reset" native="latex_export_context_reset" returns="void" />
+  <binding name="latex-export-document-reset" native="latex_export_document_reset" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-export-cjk-document?" native="latex_export_cjk_document" returns="bool" />
+  <binding name="latex-export-set-encoding" native="latex_export_set_encoding" returns="void">
+    <arg type="bool" />
+    <arg type="bool" />
+    <arg type="bool" />
+  </binding>
+  <binding name="latex-export-use-catcodes?" native="latex_export_use_catcodes" returns="bool" />
+  <binding name="latex-export-use-ascii?" native="latex_export_use_ascii" returns="bool" />
+  <binding name="latex-export-use-unicode?" native="latex_export_use_unicode" returns="bool" />
+  <binding name="latex-export-set-use-macros" native="latex_export_set_use_macros" returns="void">
+    <arg type="bool" />
+  </binding>
+  <binding name="latex-export-use-macros?" native="latex_export_use_macros" returns="bool" />
+  <binding name="latex-export-collect-user-defs" native="latex_export_collect_user_defs" returns="object">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-export-set-latex-language" native="latex_export_set_latex_language" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-export-latex-language" native="latex_export_latex_language" returns="string" />
+  <binding name="latex-export-set-latex-style" native="latex_export_set_latex_style" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-export-latex-style" native="latex_export_latex_style" returns="string" />
+  <binding name="latex-export-set-latex-packages" native="latex_export_set_latex_packages" returns="void">
+    <arg type="object" />
+  </binding>
+  <binding name="latex-export-latex-packages" native="latex_export_latex_packages" returns="object" />
+  <binding name="latex-export-set-latex-extra-packages" native="latex_export_set_latex_extra_packages" returns="void">
+    <arg type="object" />
+  </binding>
+  <binding name="latex-export-latex-extra-packages" native="latex_export_latex_extra_packages" returns="object" />
+  <binding name="latex-export-add-latex-extra-package" native="latex_export_add_latex_extra_package" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-export-set-latex-virtual-packages" native="latex_export_set_latex_virtual_packages" returns="void">
+    <arg type="object" />
+  </binding>
+  <binding name="latex-export-latex-virtual-packages" native="latex_export_latex_virtual_packages" returns="object" />
+  <binding name="latex-export-set-latex-all-packages" native="latex_export_set_latex_all_packages" returns="void">
+    <arg type="object" />
+  </binding>
+  <binding name="latex-export-latex-all-packages" native="latex_export_latex_all_packages" returns="object" />
+  <binding name="latex-export-set-latex-texmacs-style" native="latex_export_set_latex_texmacs_style" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-export-latex-texmacs-style" native="latex_export_latex_texmacs_style" returns="string" />
+  <binding name="latex-export-set-latex-texmacs-packages" native="latex_export_set_latex_texmacs_packages" returns="void">
+    <arg type="object" />
+  </binding>
+  <binding name="latex-export-latex-texmacs-packages" native="latex_export_latex_texmacs_packages" returns="object" />
+  <binding name="latex-export-set-latex-dependencies" native="latex_export_set_latex_dependencies" returns="void">
+    <arg type="object" />
+  </binding>
+  <binding name="latex-export-latex-dependencies" native="latex_export_latex_dependencies" returns="object" />
+  <binding name="latex-export-enter" native="latex_export_enter" returns="void" />
+  <binding name="latex-export-leave" native="latex_export_leave" returns="void" />
+  <binding name="tmtex-reset-athena-object-placeholders" native="latex_export_reset_placeholders" returns="void" />
+  <binding name="tmtex-athena-object-placeholder" native="latex_export_placeholder" returns="scheme_tree">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="tmtex-athena-object-placeholder-ref" native="latex_export_placeholder_ref" returns="scheme_tree">
+    <arg type="string" />
+  </binding>
+  <binding name="tmtex-experimental-build-warning-name?" native="latex_export_experimental_warning_name" returns="bool">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="tmtex-experimental-build-warning?" native="latex_export_experimental_warning" returns="bool">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="tmtex-discard-experimental-build-warning" native="latex_export_discard_experimental_warning" returns="scheme_tree">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="tmtex-athena-data-record" native="latex_export_athena_data_record" returns="string">
+    <arg type="string" />
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="tmtex-athena-data-inline" native="latex_export_athena_data_inline" returns="scheme_tree">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="tmtex-athena-data-object" native="latex_export_athena_data_object" returns="string">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="tmtex-latex-empty?" native="latex_export_latex_empty" returns="bool">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="tmtex-athena-data-wrap-with-records" native="latex_export_athena_data_wrap_records" returns="scheme_tree">
+    <arg type="scheme_tree" />
+    <arg type="scheme_tree" />
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="tmtex-athena-data-wrap" native="latex_export_athena_data_wrap" returns="scheme_tree">
+    <arg type="scheme_tree" />
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-export-languages" native="latex_export_languages" returns="object" />
+  <binding name="latex-export-add-language" native="latex_export_add_language" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-export-colors" native="latex_export_colors" returns="object" />
+  <binding name="latex-export-add-color" native="latex_export_add_color" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-export-colormaps" native="latex_export_colormaps" returns="object" />
+  <binding name="latex-export-add-colormap" native="latex_export_add_colormap" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-export-mathjax?" native="latex_export_mathjax" returns="bool" />
+  <binding name="latex-export-set-mathjax" native="latex_export_set_mathjax" returns="void">
+    <arg type="bool" />
+  </binding>
+  <binding name="latex-export-replace-style?" native="latex_export_replace_style" returns="bool" />
+  <binding name="latex-export-set-replace-style" native="latex_export_set_replace_style" returns="void">
+    <arg type="bool" />
+  </binding>
+  <binding name="latex-export-dynamic-set" native="latex_export_dynamic_set" returns="void">
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="latex-export-dynamic-get" native="latex_export_dynamic_get" returns="object">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-export-set-portable" native="latex_export_set_portable" returns="void">
+    <arg type="bool" />
+  </binding>
+  <binding name="latex-export-portable?" native="latex_export_portable" returns="bool" />
+  <binding name="latex-export-portable-image-used?" native="latex_export_portable_image_used" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-export-portable-image-copy-get" native="latex_export_portable_image_copy_get" returns="object">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-export-portable-image-record" native="latex_export_portable_image_record" returns="void">
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="latex-export-set-image-root" native="latex_export_set_image_root" returns="void">
+    <arg type="url" />
+    <arg type="string" />
+  </binding>
+  <binding name="latex-export-set-save-urls" native="latex_export_set_save_urls" returns="void">
+    <arg type="url" />
+    <arg type="url" />
+  </binding>
+  <binding name="latex-export-image-root-url" native="latex_export_image_root_url" returns="url" />
+  <binding name="latex-export-image-root-string" native="latex_export_image_root_string" returns="string" />
+  <binding name="latex-export-render-image" native="latex_export_render_image" returns="scheme_tree">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-export-preamble-page-type" native="latex_export_preamble_page_type" returns="scheme_tree">
+    <arg type="object" />
+  </binding>
+  <binding name="latex-export-html-xcolor" native="latex_export_html_xcolor" returns="string">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-export-colors-defs" native="latex_export_colors_defs" returns="string">
+    <arg type="object" />
+  </binding>
+  <binding name="latex-export-packages-dependencies" native="latex_export_packages_dependencies" returns="object">
+    <arg type="object" />
+  </binding>
+  <binding name="latex-export-packages-simplify" native="latex_export_packages_simplify" returns="object">
+    <arg type="object" />
+  </binding>
+  <binding name="latex-export-recompute-dependencies" native="latex_export_recompute_dependencies" returns="void" />
+  <binding name="latex-export-use-package-command" native="latex_export_use_package_command" returns="string">
+    <arg type="scheme_tree" />
+    <arg type="object" />
+    <arg type="object" />
+  </binding>
+  <binding name="latex-export-as-use-package" native="latex_export_as_use_package" returns="string">
+    <arg type="object" />
+  </binding>
+  <binding name="latex-export-catcode-defs" native="latex_export_catcode_defs" returns="string">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-export-expand-macros" native="latex_export_expand_macros" returns="scheme_tree">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-export-macro-defs" native="latex_export_macro_defs" returns="scheme_tree">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-export-serialize-preamble" native="latex_export_serialize_preamble" returns="string">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-export-env-patch" native="latex_export_env_patch" returns="scheme_tree">
+    <arg type="scheme_tree" />
+    <arg type="bool" />
+  </binding>
+  <binding name="latex-export-metadata-make-inline" native="latex_export_metadata_make_inline" returns="scheme_tree">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-export-metadata-inline" native="latex_export_metadata_inline" returns="scheme_tree">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-export-metadata-field" native="latex_export_metadata_field" returns="scheme_tree">
+    <arg type="string" />
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-export-metadata-select" native="latex_export_metadata_select" returns="scheme_tree">
+    <arg type="string" />
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-export-metadata-transform" native="latex_export_metadata_transform" returns="scheme_tree">
+    <arg type="string" />
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-export-metadata-remove-line-feeds" native="latex_export_metadata_remove_line_feeds" returns="scheme_tree">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-export-metadata-replace-documents" native="latex_export_metadata_replace_documents" returns="scheme_tree">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-export-metadata-contains-tags?" native="latex_export_metadata_contains_tags" returns="bool">
+    <arg type="scheme_tree" />
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-export-metadata-contains-stree?" native="latex_export_metadata_contains_stree" returns="bool">
+    <arg type="scheme_tree" />
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-export-metadata-make-references" native="latex_export_metadata_make_references" returns="scheme_tree">
+    <arg type="scheme_tree" />
+    <arg type="string" />
+    <arg type="bool" />
+    <arg type="bool" />
+  </binding>
+  <binding name="latex-export-metadata-default" native="latex_export_metadata_default" returns="scheme_tree">
+    <arg type="string" />
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-export-env-list" native="latex_export_env_list" returns="object">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-export-env-get" native="latex_export_env_get" returns="object">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-export-env-get-previous" native="latex_export_env_get_previous" returns="object">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-export-env-set" native="latex_export_env_set" returns="void">
+    <arg type="string" />
+    <arg type="object" />
+  </binding>
+  <binding name="latex-export-env-reset" native="latex_export_env_reset" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-export-env-assign" native="latex_export_env_assign" returns="void">
+    <arg type="string" />
+    <arg type="object" />
+  </binding>
+  <binding name="latex-export-env-keys" native="latex_export_env_keys" returns="object" />
+  <binding name="latex-export-next-serial" native="latex_export_next_serial" returns="int" />
+  <binding name="latex-export-ref-count-get" native="latex_export_ref_count_get" returns="int" />
+  <binding name="latex-export-ref-count-set" native="latex_export_ref_count_set" returns="void">
+    <arg type="int" />
+  </binding>
+  <binding name="latex-export-next-auto-produce" native="latex_export_next_auto_produce" returns="int" />
+  <binding name="latex-export-next-auto-consume" native="latex_export_next_auto_consume" returns="int" />
+  <binding name="latex-export-next-athena-data-serial" native="latex_export_next_athena_data_serial" returns="int" />
+  <binding name="latex-export-first-appendix?" native="latex_export_first_appendix" returns="bool" />
+  <binding name="tmtex-filter-preamble" native="latex_export_filter_preamble" returns="scheme_tree">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="tmtex-filter-body" native="latex_export_filter_body" returns="scheme_tree">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="tmtex-filter-duplicates" native="latex_export_filter_duplicates" returns="scheme_tree">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="tmtex-clean-body" native="latex_export_clean_body" returns="scheme_tree">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-export-filter-style-macros" native="latex_export_filter_style_macros" returns="scheme_tree">
+    <arg type="scheme_tree" />
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-export-apply-init" native="latex_export_apply_init" returns="scheme_tree">
+    <arg type="scheme_tree" />
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="tmtex-math-concat-spaces" native="latex_tmtex_math_concat_spaces" returns="scheme_tree">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="tmtex-rewrite-no-break" native="latex_tmtex_rewrite_no_break" returns="scheme_tree">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="pre-scripts" native="latex_tmtex_pre_scripts" returns="scheme_tree">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="pre-brackets-recurse" native="latex_tmtex_pre_brackets_recurse" returns="scheme_tree">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="tmtex-large-decode" native="latex_tmtex_large_decode" returns="string">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="tmtex-large-decode-text" native="latex_tmtex_large_decode_text" returns="string">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="tmtex-big-decode" native="latex_tmtex_big_decode" returns="string">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="tmtex-decode-long-arrow" native="latex_tmtex_decode_long_arrow" returns="scheme_tree">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-export-core-dispatch" native="latex_export_core_dispatch" returns="scheme_tree">
+    <arg type="string" />
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-export-convert-node" native="latex_export_convert_node" returns="scheme_tree">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-export-generic-function" native="latex_export_generic_function" returns="scheme_tree">
+    <arg type="string" />
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-export-string" native="latex_export_string" returns="scheme_tree">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-export-verb-string" native="latex_export_verb_string" returns="scheme_tree">
+    <arg type="string" />
+  </binding>
+  <binding name="latex-export-tt" native="latex_export_tt" returns="string">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="tmtex-transform-style" native="latex_export_transform_style" returns="scheme_tree">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-export-filter-styles" native="latex_export_filter_styles" returns="scheme_tree">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-export-convert-charset" native="latex_export_convert_charset" returns="scheme_tree">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-export-convert-tree" native="latex_export_convert_tree" returns="scheme_tree">
+    <arg type="scheme_tree" />
+    <arg type="object" />
+  </binding>
+  <binding name="latex-export-convert-top" native="latex_export_convert_top" returns="scheme_tree">
+    <arg type="scheme_tree" />
+    <arg type="object" />
+    <arg type="url" />
+    <arg type="url" />
+  </binding>
+  <binding name="latex-export-init-mode-stats" native="latex_export_init_mode_stats" returns="void">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-export-preprocess-preamble-list" native="latex_export_preprocess_preamble_list" returns="scheme_tree">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="tmtex-var-name" native="latex_export_var_name" returns="string">
+    <arg type="string" />
+  </binding>
+  <binding name="tmtex-decode-length" native="latex_tmtex_decode_length" returns="string">
+    <arg type="object" />
+  </binding>
+  <binding name="tmtex-px-length?" native="latex_tmtex_px_length" returns="bool">
+    <arg type="object" />
+  </binding>
+  <binding name="latex-export-float-sub" native="latex_export_float_sub" returns="scheme_tree">
+    <arg type="bool" />
+    <arg type="string" />
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-export-table-apply" native="latex_export_table_apply" returns="scheme_tree">
+    <arg type="string" />
+    <arg type="scheme_tree" />
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-export-with" native="latex_export_with" returns="scheme_tree">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-export-decode-color" native="latex_export_decode_color" returns="scheme_tree">
+    <arg type="string" />
+    <arg type="bool" />
+  </binding>
+  <binding name="tex-concat" native="latex_tex_concat" returns="scheme_tree">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="tex-concat*" native="latex_tex_concat_strings" returns="scheme_tree">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="tmtex-concat-sep" native="latex_tmtex_concat_sep" returns="scheme_tree">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="tmtex-concat-Sep" native="latex_tmtex_concat_Sep" returns="scheme_tree">
+    <arg type="scheme_tree" />
+  </binding>
   <binding name="conservative-latex-&gt;texmacs" native="conservative_latex_to_texmacs" returns="tree">
     <arg type="string" />
     <arg type="bool" />

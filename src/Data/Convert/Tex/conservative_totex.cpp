@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "Tex/convert_tex.hpp"
+#include "convert.hpp"
 #include "analyze.hpp"
 #include "hashset.hpp"
 #include "scheme.hpp"
@@ -562,9 +563,11 @@ conservative_texmacs_to_latex (tree doc, object opts) {
   tree target= texmacs_unmark (ltarget);
   if (doc == target) return lsource;
   tree idoc= texmacs_invarianted (doc, ltarget, lsource);
-  call ("latex-set-virtual-packages", get_used_packages (lsource));
+  latex_export_set_latex_virtual_packages (get_used_packages (lsource));
+  latex_export_recompute_dependencies ();
   string conv= tracked_texmacs_to_latex (idoc, opts);
-  call ("latex-set-virtual-packages", null_object ());
+  latex_export_set_latex_virtual_packages (null_object ());
+  latex_export_recompute_dependencies ();
   if (latex_unchanged_metadata (target, doc))
     conv= latex_merge_metadata (lsource, conv);
   if (latex_unchanged_abstract (target, doc))

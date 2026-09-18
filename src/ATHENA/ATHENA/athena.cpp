@@ -1100,8 +1100,12 @@ set_global_options  (int argc, char** argv)  {
   if (flag) debug (DEBUG_FLAG_AUTO, true);
   // End parse command line options
 
-  // in headless mode quit after processing of the command line
-  if (headless_mode && exec_exit) my_init_cmds= my_init_cmds * " (quit-TeXmacs)";
+  // In headless mode the automatic quit can be reached from a conversion
+  // continuation running on that buffer's actor.  Server shutdown owns
+  // process-global pipe/Qt state, so never execute it on the BufferActor.
+  if (headless_mode && exec_exit)
+    my_init_cmds= my_init_cmds *
+      " (exec-global (lambda () (quit-TeXmacs)))";
   my_init_cmds= my_init_cmds * conversion_continuations;
 
   // Further options via environment variables

@@ -11,7 +11,6 @@
 
 #include "Tex/convert_tex.hpp"
 #include "rel_hashmap.hpp"
-#include "scheme.hpp"
 
 #include <iostream>
 #include <unordered_map>
@@ -21,12 +20,12 @@
 
 static string
 paper_opts_func (string s) {
-  return as_string (call ("latex-paper-opts", s));
+  return latex_native_paper_opts (s);
 }
 
 static string
 paper_type_func (string s) {
-  return as_string (call ("latex-paper-type", s));
+  return latex_native_paper_type (s);
 }
 
 extern bool aofm_converter_mode;
@@ -53,57 +52,18 @@ print_latex_cache_progress (int current, int total) {
 }
 
 void aofm_cache_latex_commands() {
-  // 1. Fetch all LaTeX command names from the database
-  // This query is usually very fast compared to property lookups.
-  string get_tags_code = 
-    "(begin "
-    "  (use-modules (convert latex latex-drd)) "
-    "  (map (lambda (row) "
-    "         (let ((tag (cdar row))) "
-    "           (if (symbol? tag) (symbol->string tag) tag))) "
-    "       (query '(latex-tag% 'x))))";
-  
-  object tags_result = eval(get_tags_code);
-  if (!is_list(tags_result)) {
-    std_warning << "AOFM] Failed to fetch LaTeX command tags." << LF;
-    return;
-  }
-  
-  array<object> tags = as_array_object(tags_result);
+  array<string> tags= latex_native_tags ();
   int total = N(tags);
   int chunk_size = 50;
-
-  // Ensure modules are loaded at the top level
-  eval("(use-modules (convert latex latex-drd))");
-
-  // Resolve the resolver once
-  object resolver = eval("(lambda (l) (map (lambda (s) (list s (latex-type s) (latex-arity s))) l))");
-  
+  aofm_type_cache.clear ();
+  aofm_arity_cache.clear ();
   for (int i = 0; i < total; i += chunk_size) {
     int end = (i + chunk_size > total) ? total : (i + chunk_size);
     print_latex_cache_progress (end, total);
-
-    // Build the chunk list in C++ to avoid string escaping issues
-    object chunk_list = null_object();
-    for (int j = end - 1; j >= i; --j) {
-      chunk_list = cons(tags[j], chunk_list);
-    }
-
-    object batch_result = call(resolver, chunk_list);
-    if (is_list(batch_result)) {
-      array<object> rows = as_array_object(batch_result);
-      for (int k = 0; k < N(rows); ++k) {
-        if (is_list(rows[k])) {
-          array<object> row = as_array_object(rows[k]);
-          if (N(row) >= 3) {
-            std::string cmd = as_charp(as_string(row[0]));
-            std::string type = as_charp(as_string(row[1]));
-            int arity = as_int(row[2]);
-            aofm_type_cache[cmd] = type;
-            aofm_arity_cache[cmd] = arity;
-          }
-        }
-      }
+    for (int j=i; j<end; ++j) {
+      std::string cmd= as_charp (tags[j]);
+      aofm_type_cache[cmd]= as_charp (latex_native_type (tags[j]));
+      aofm_arity_cache[cmd]= latex_native_arity (tags[j]);
     }
   }
   std::cout << std::endl;
@@ -129,10 +89,10 @@ latex_type_func (string s) {
       return string(it->second.c_str());
     }
 
-    // Cache miss means the command is definitely not in the Scheme database
+    // Cache miss means the command is not in the immutable native database.
     return "undefined";
   }
-  return as_string (call ("latex-type", s));
+  return latex_native_type (s);
 }
 
 static int
@@ -160,10 +120,10 @@ latex_arity_func (string s) {
       return it->second;
     }
 
-    // Cache miss means the command is definitely not in the Scheme database
+    // Cache miss means the command is not in the immutable native database.
     return 0;
   }
-  return as_int (call ("latex-arity", s));
+  return latex_native_arity (s);
 }
 
 hashfunc<string,string>    paper_std_opts (paper_opts_func, "undefined");

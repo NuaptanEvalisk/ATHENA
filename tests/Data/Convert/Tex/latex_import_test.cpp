@@ -21,6 +21,7 @@ class TestLatexImport: public QObject {
 
 private slots:
   void importsDeclarationsAndTheoremAliases();
+  void restoresEmbeddedObjectAndSkipsFallback();
 };
 
 void TestLatexImport::importsDeclarationsAndTheoremAliases() {
@@ -123,6 +124,74 @@ void TestLatexImport::importsDeclarationsAndTheoremAliases() {
   QVERIFY (!athena.contains ("<assign|remarkname|"));
   QVERIFY (athena.contains ("<new-theorem|observation|Observation>"));
   QVERIFY (athena.contains ("<\\observation>"));
+}
+
+void TestLatexImport::restoresEmbeddedObjectAndSkipsFallback() {
+  QTemporaryDir temp;
+  QVERIFY (temp.isValid ());
+  QVERIFY (QDir ().mkpath (temp.filePath ("home/fonts")));
+  QVERIFY (QDir ().mkpath (temp.filePath ("home/system")));
+
+  const QByteArray preserved= "<strong|Preserved ATHENA object>";
+  const QByteArray encoded= preserved.toBase64 ();
+  QByteArray source=
+    "\\documentclass{article}\n"
+    "\\long\\def\\INLINE_COMMENT#1{}\n"
+    "\\begin{document}\n"
+    "Before.\n"
+    "\\INLINE_COMMENT{ATHENA-DATA cmd=\"object\" val=(\"";
+  source += QByteArray::number (encoded.size ());
+  source += "\", \"" + encoded + "\")}\n";
+  source +=
+    "\\INLINE_COMMENT{ATHENA-DATA cmd=\"skip_begin\" val=(\"1\")}\n"
+    "VISIBLE FALLBACK MUST DISAPPEAR.\n"
+    "\\INLINE_COMMENT{ATHENA-DATA cmd=\"skip_end\" val=(\"1\")}\n"
+    "After.\n"
+    "\\end{document}\n";
+
+  QFile input (temp.filePath ("preserved.tex"));
+  QVERIFY (input.open (QIODevice::WriteOnly | QIODevice::Text));
+  QCOMPARE (input.write (source), source.size ());
+  input.close ();
+
+  const QString executable=
+    QDir (QCoreApplication::applicationDirPath ())
+      .absoluteFilePath ("../src/ATHENA.bin");
+  QVERIFY2 (QFile::exists (executable), qPrintable (executable));
+
+  QProcessEnvironment env= QProcessEnvironment::systemEnvironment ();
+  env.insert ("ATHENA_HOME_PATH", temp.filePath ("home"));
+  env.insert ("QT_QPA_PLATFORM", "offscreen");
+  env.insert ("TM_REEXEC", "1");
+  QString libraryPath=
+    QDir (QCoreApplication::applicationDirPath ()).absoluteFilePath ("../x64/lib");
+  const QString athenaPath= env.value ("ATHENA_PATH");
+  if (!athenaPath.isEmpty ())
+    libraryPath += ":" + QDir (athenaPath).absoluteFilePath ("lib");
+  const QString inheritedLibraryPath= env.value ("LD_LIBRARY_PATH");
+  if (!inheritedLibraryPath.isEmpty ())
+    libraryPath += ":" + inheritedLibraryPath;
+  env.insert ("LD_LIBRARY_PATH", libraryPath);
+
+  const QString outputPath= temp.filePath ("preserved.ath");
+  QProcess process;
+  process.setProcessEnvironment (env);
+  process.setProgram (executable);
+  process.setArguments ({"-C", input.fileName (), outputPath});
+  process.setProcessChannelMode (QProcess::MergedChannels);
+  process.start ();
+  QVERIFY2 (process.waitForFinished (40000), qPrintable (process.errorString ()));
+  const QByteArray diagnostics= process.readAll ();
+  QCOMPARE (process.exitStatus (), QProcess::NormalExit);
+  QVERIFY2 (process.exitCode () == 0, diagnostics.constData ());
+
+  QFile output (outputPath);
+  QVERIFY2 (output.open (QIODevice::ReadOnly), diagnostics.constData ());
+  const QByteArray athena= output.readAll ();
+  QVERIFY2 (athena.contains ("Preserved ATHENA object"), athena.constData ());
+  QVERIFY2 (!athena.contains ("VISIBLE FALLBACK MUST DISAPPEAR"), athena.constData ());
+  QVERIFY2 (athena.contains ("Before."), athena.constData ());
+  QVERIFY2 (athena.contains ("After."), athena.constData ());
 }
 
 QTEST_MAIN (TestLatexImport)
