@@ -29,7 +29,6 @@ def run_case(args, mode):
             "XDG_DATA_HOME": str(home / "data"),
             "ATHENA_PATH": str(args.resources.resolve()),
             "QT_QPA_PLATFORM": "offscreen", "GUILE_AUTO_COMPILE": "0",
-            "ATHENA_GUILE_CACHE_PATH": str(home / "scheme-cache"),
             "ATHENA_SAVE_TEST_ROOT": str(home), "ATHENA_SAVE_TEST_MODE": mode,
             "GUILE_LOAD_PATH": str(args.runtime / "share/guile/3.0"),
             "GUILE_LOAD_COMPILED_PATH": str(args.runtime / "lib/guile/3.0/ccache"),
@@ -108,11 +107,14 @@ def main():
                         default=Path(__file__).with_suffix(".scm"))
     parser.add_argument("--gdb", action="store_true")
     parser.add_argument("--capture-stacks", action="store_true")
-    parser.add_argument("--mode", choices=("plain", "manual-decline", "manual-approve"))
+    parser.add_argument("--mode", choices=("plain", "manual-approve"))
     args = parser.parse_args()
     args.runtime = args.runtime.resolve()
     args.resources = args.resources.resolve()
-    for mode in ([args.mode] if args.mode else ("plain", "manual-decline", "manual-approve")):
+    # Interactive decline/cancel belongs to anchor_confirmation_test, which can
+    # drive the native Qt dialog.  This headless concurrency test keeps the
+    # ordinary save path and the non-interactive manual auto-approve path.
+    for mode in ([args.mode] if args.mode else ("plain", "manual-approve")):
         run_case(args, mode)
 
 

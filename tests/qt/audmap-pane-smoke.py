@@ -31,10 +31,9 @@ try:
     assert select.select([read_fd], [], [], 10)[0], "Xvfb startup timed out"
     display = ":" + os.read(read_fd, 80).decode().strip()
     env = dict(os.environ, DISPLAY=display, QT_QPA_PLATFORM="xcb", HOME=str(home),
-               ATHENA_HOME_PATH=str(home / "profile"), ATHENA_PATH=str(ROOT / "ATHENA"),
-               XDG_CONFIG_HOME=str(home / "config"), XDG_DATA_HOME=str(home / "data"),
-               XDG_CACHE_HOME=str(home / "cache"), GUILE_AUTO_COMPILE="0",
-               ATHENA_GUILE_CACHE_PATH=str(home / "scheme-cache"))
+                ATHENA_HOME_PATH=str(home / "profile"), ATHENA_PATH=str(ROOT / "ATHENA"),
+                XDG_CONFIG_HOME=str(home / "config"), XDG_DATA_HOME=str(home / "data"),
+                XDG_CACHE_HOME=str(home / "cache"), GUILE_AUTO_COMPILE="0")
     env["LD_LIBRARY_PATH"] = ":".join([
         str(ROOT / "ATHENA/lib"), str(ROOT / "ATHENA/lib/athena-guile/lib"),
         os.environ.get("LD_LIBRARY_PATH", "")])

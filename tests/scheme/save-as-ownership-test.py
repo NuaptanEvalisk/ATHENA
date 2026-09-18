@@ -31,7 +31,6 @@ def main():
             "XDG_CONFIG_HOME": str(root / "config"),
             "XDG_CACHE_HOME": str(root / "cache"),
             "XDG_DATA_HOME": str(root / "data"),
-            "ATHENA_GUILE_CACHE_PATH": str(root / "scheme-cache"),
             "ATHENA_SAVE_AS_TEST_ROOT": str(root),
             "GUILE_AUTO_COMPILE": "0",
             "QT_QPA_PLATFORM": "offscreen",

@@ -130,6 +130,7 @@ set_tests_properties(glue_runtime_test PROPERTIES TIMEOUT 100)
 add_test(NAME evaluation_bar_editor_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
+    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/editor-owner-setup.scm
     --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
     --runtime ${ATHENA_GUILE_PREFIX}
     --resources ${ATHENA_SOURCE_DIR}/ATHENA)
@@ -137,6 +138,7 @@ set_tests_properties(evaluation_bar_editor_test PROPERTIES TIMEOUT 90)
 add_test(NAME html5_export_editor_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
+    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/editor-owner-setup.scm
     --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/html5-export-test.scm
     --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
     --runtime ${ATHENA_GUILE_PREFIX}
@@ -153,6 +155,7 @@ set_tests_properties(commutative_diagram_editor_test PROPERTIES
 add_test(NAME eqnarray_clipboard_editor_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
+    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/editor-owner-setup.scm
     --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/eqnarray-clipboard-test.scm
     --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
     --runtime ${ATHENA_GUILE_PREFIX}
@@ -161,6 +164,7 @@ set_tests_properties(eqnarray_clipboard_editor_test PROPERTIES TIMEOUT 90)
 add_test(NAME proof_eqnarray_navigation_editor_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
+    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/editor-owner-setup.scm
     --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/proof-eqnarray-navigation-test.scm
     --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
     --runtime ${ATHENA_GUILE_PREFIX}
@@ -169,6 +173,7 @@ set_tests_properties(proof_eqnarray_navigation_editor_test PROPERTIES TIMEOUT 90
 add_test(NAME scheme_command_order_editor_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
+    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/editor-owner-setup.scm
     --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/scheme-command-order-test.scm
     --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
     --runtime ${ATHENA_GUILE_PREFIX}
@@ -177,6 +182,7 @@ set_tests_properties(scheme_command_order_editor_test PROPERTIES TIMEOUT 90)
 add_test(NAME font_init_alias_editor_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
+    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/editor-owner-setup.scm
     --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/font-init-alias-test.scm
     --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
     --runtime ${ATHENA_GUILE_PREFIX}
@@ -185,6 +191,7 @@ set_tests_properties(font_init_alias_editor_test PROPERTIES TIMEOUT 90)
 add_test(NAME lazy_menu_startup_editor_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
+    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/editor-owner-setup.scm
     --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/lazy-menu-startup-test.scm
     --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
     --runtime ${ATHENA_GUILE_PREFIX}
@@ -202,6 +209,7 @@ set_tests_properties(window_menu_editor_test PROPERTIES TIMEOUT 90)
 add_test(NAME link_invalidation_editor_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
+    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/editor-owner-setup.scm
     --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/link-invalidation-editor-test.scm
     --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
     --runtime ${ATHENA_GUILE_PREFIX}
@@ -210,6 +218,7 @@ set_tests_properties(link_invalidation_editor_test PROPERTIES TIMEOUT 90)
 add_test(NAME completion_editor_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
+    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/editor-owner-setup.scm
     --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/completion-editor-test.scm
     --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
     --runtime ${ATHENA_GUILE_PREFIX}

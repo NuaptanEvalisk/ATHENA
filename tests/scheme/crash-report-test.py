@@ -77,7 +77,6 @@ with tempfile.TemporaryDirectory(prefix="athena-crash-report-") as temporary:
             "XDG_DATA_HOME": str(home / "data"),
             "ATHENA_PATH": str(args.resources.resolve()),
             "QT_QPA_PLATFORM": "offscreen", "GUILE_AUTO_COMPILE": "0",
-            "ATHENA_GUILE_CACHE_PATH": str(home / "scheme-cache"),
             "GUILE_LOAD_PATH": str(args.runtime / "share/guile/3.0"),
             "GUILE_LOAD_COMPILED_PATH": str(args.runtime / "lib/guile/3.0/ccache"),
             "LD_LIBRARY_PATH": ":".join([str(args.runtime / "lib"),
