@@ -21,10 +21,14 @@ struct commutative_diagram_box_rep: public composite_box_rep {
                                frame fr, SI width, SI height):
     composite_box_rep (ip, bs, x, y), fr (fr)
   {
-    x1= x3= 0;
-    x2= x4= width;
-    y1= y3= -(height >> 1);
-    y2= y4= y1 + height;
+    SI child_x1= min (x1, x3), child_x2= max (x2, x4);
+    SI child_y1= min (y1, y3), child_y2= max (y2, y4);
+    SI nominal_y1= -(height >> 1);
+    SI nominal_y2= nominal_y1 + height;
+    x1= x3= min ((SI) 0, child_x1);
+    x2= x4= max (width, child_x2);
+    y1= y3= min (nominal_y1, child_y1);
+    y2= y4= max (nominal_y2, child_y2);
     finalize ();
   }
 

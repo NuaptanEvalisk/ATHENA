@@ -27,6 +27,17 @@
                   "curve" ,curve "level" ,level
                   "label-position" "25" "label-color" "red"))))))
 
+(define long-vertex-sample
+  `(math
+     (commutative-diagram "4" "2"
+       (cd-body ""
+         (cd-vertex "long-left" "-1.7" "0"
+           (concat "(" "F" "<circ>" "G" ")" "A"))
+         (cd-vertex "long-right" "1.7" "0"
+           (concat "id" "A" "(" "A" ")"))
+         (cd-arrow "long-arrow" "long-left" "long-right" "id"
+           (tuple "label-alignment" "left" "label-position" "50"))))))
+
 ;; Real mutable editor tree and the same property command used by the dialog.
 (buffer-set-body (current-buffer)
   (stree->tree `(document ,(sample "left" "0" "2" "1"))))
@@ -79,7 +90,8 @@
        "Centre: horizontal with a gap" ,(sample "centre" "0" "0" "1")
        "Over: rotated with the arrow" ,(sample "over" "0" "0" "1")
        "Curved double edge" ,(sample "left" "0" "3" "2")
-       "Reversed curve, four shafts" ,(sample "right" "0" "-3" "4"))))
+       "Reversed curve, four shafts" ,(sample "right" "0" "-3" "4")
+       "Long vertex labels expand bounds and shorten arrows" ,long-vertex-sample)))
 (init-env "font" "TeX Gyre Pagella")
 (init-env "page-medium" "paper")
 (update-current-buffer)

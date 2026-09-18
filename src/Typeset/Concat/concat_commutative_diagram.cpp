@@ -59,12 +59,16 @@ struct cd_vertex_record {
   path formula_ip;
   string id;
   cd_point position;
+  box formula;
+  QRectF ink_bounds;
 };
 
 struct cd_arrow_record {
   tree node;
   path formula_ip;
   string id;
+  string source_id;
+  string target_id;
 };
 
 static string
@@ -123,6 +127,46 @@ cd_shift_geometry (const cd_geometry& g, double amount) {
   cd_geometry shifted;
   for (int i=0; i<4; i++) shifted.p[i]= g.p[i] + normal * amount;
   return shifted;
+}
+
+static cd_point
+cd_lerp (cd_point a, cd_point b, double t) {
+  return a * (1.0 - t) + b * t;
+}
+
+static void
+cd_split_geometry (const cd_geometry& g, double t,
+                   cd_geometry& left, cd_geometry& right) {
+  cd_point p01= cd_lerp (g.p[0], g.p[1], t);
+  cd_point p12= cd_lerp (g.p[1], g.p[2], t);
+  cd_point p23= cd_lerp (g.p[2], g.p[3], t);
+  cd_point p012= cd_lerp (p01, p12, t);
+  cd_point p123= cd_lerp (p12, p23, t);
+  cd_point middle= cd_lerp (p012, p123, t);
+  left.p[0]= g.p[0]; left.p[1]= p01; left.p[2]= p012; left.p[3]= middle;
+  right.p[0]= middle; right.p[1]= p123; right.p[2]= p23; right.p[3]= g.p[3];
+}
+
+static bool
+cd_trim_geometry (cd_geometry& geometry, QRectF source, QRectF target) {
+  QPainterPath curve (QPointF (geometry.p[0].x, geometry.p[0].y));
+  curve.cubicTo (QPointF (geometry.p[1].x, geometry.p[1].y),
+                 QPointF (geometry.p[2].x, geometry.p[2].y),
+                 QPointF (geometry.p[3].x, geometry.p[3].y));
+  auto interval= cd_visible_curve_interval (curve, source, target);
+  double start= interval.first, end= interval.second;
+  if (start >= end - 1.0e-6) return false;
+  if (end < 1.0) {
+    cd_geometry left, right;
+    cd_split_geometry (geometry, end, left, right);
+    geometry= left;
+  }
+  if (start > 0.0) {
+    cd_geometry left, right;
+    cd_split_geometry (geometry, start / end, left, right);
+    geometry= right;
+  }
+  return true;
 }
 
 static bool
@@ -346,7 +390,47 @@ public:
     }
     add (b, x, y);
   }
+
+  QRectF formula_ink_bounds (box b, cd_point position) {
+    point p= physical (position);
+    SI x= (SI) p[0] - ((b->x1 + b->x2) >> 1);
+    SI y= (SI) p[1] - ((b->y1 + b->y2) >> 1);
+    SI px1= x + min (b->x1, b->x3);
+    SI py1= y + min (b->y1, b->y3);
+    SI px2= x + max (b->x2, b->x4);
+    SI py2= y + max (b->y2, b->y4);
+    point a= fr[point (px1, py1)];
+    point c= fr[point (px2, py2)];
+    double x1= min (a[0], c[0]), x2= max (a[0], c[0]);
+    double y1= min (a[1], c[1]), y2= max (a[1], c[1]);
+    return QRectF (QPointF (x1, y1), QPointF (x2, y2));
+  }
 };
+
+static const cd_vertex_record*
+cd_find_vertex_record (const array<cd_vertex_record>& vertices, string id) {
+  for (int i=0; i<N(vertices); ++i)
+    if (vertices[i].id == id) return &vertices[i];
+  return nullptr;
+}
+
+static bool
+cd_render_geometry (const array<cd_named_geometry>& geometries,
+                    const array<cd_vertex_record>& vertices,
+                    const cd_arrow_record& arrow, double padding,
+                    cd_geometry& geometry) {
+  if (!cd_find_geometry (geometries, arrow.id, geometry)) return false;
+  const cd_vertex_record* source=
+    cd_find_vertex_record (vertices, arrow.source_id);
+  const cd_vertex_record* target=
+    cd_find_vertex_record (vertices, arrow.target_id);
+  if (source == nullptr || target == nullptr) return true;
+  QRectF source_bounds= source->ink_bounds.adjusted (-padding, -padding,
+                                                      padding, padding);
+  QRectF target_bounds= target->ink_bounds.adjusted (-padding, -padding,
+                                                      padding, padding);
+  return cd_trim_geometry (geometry, source_bounds, target_bounds);
+}
 
 static void
 cd_add_open_head (cd_box_builder& b, cd_point tip, cd_point direction,
@@ -531,11 +615,21 @@ concater_rep::typeset_commutative_diagram (tree t, path ip) {
         a.node= body[i];
         a.formula_ip= descend (descend (descend (ip, 2), i), 3);
         a.id= cd_string (body[i][0]);
+        a.source_id= cd_string (body[i][1]);
+        a.target_id= cd_string (body[i][2]);
         arrows << a;
       }
     }
 
   cd_box_builder builder (env, ip, fr);
+  for (int i=0; i<N(vertices); ++i) {
+    vertices[i].formula= builder.typeset_formula (
+      vertices[i].node[3], vertices[i].formula_ip, "black", false);
+    vertices[i].ink_bounds=
+      builder.formula_ink_bounds (vertices[i].formula, vertices[i].position);
+  }
+  double vertex_padding=
+    ((double) max (builder.line_unit, env->as_length ("0.05cm"))) / unit;
   double xmin= -width / 2.0, xmax= width / 2.0;
   double ymin= -height / 2.0, ymax= height / 2.0;
   string grid_color= "#d8ddff";
@@ -552,7 +646,8 @@ concater_rep::typeset_commutative_diagram (tree t, path ip) {
   // Keep every selection halo behind every arrow, including at crossings.
   for (int i=0; i<N(arrows); i++) {
     cd_geometry geometry;
-    if (!cd_find_geometry (geometries, arrows[i].id, geometry)) continue;
+    if (!cd_render_geometry (geometries, vertices, arrows[i],
+                             vertex_padding, geometry)) continue;
     bool selected= state.selected_kind == "arrow" &&
                    state.selected_id == arrows[i].id;
     bool hovered= state.hover_kind == "arrow" &&
@@ -565,7 +660,8 @@ concater_rep::typeset_commutative_diagram (tree t, path ip) {
 
   for (int i=0; i<N(arrows); i++) {
     cd_geometry geometry;
-    if (!cd_find_geometry (geometries, arrows[i].id, geometry)) continue;
+    if (!cd_render_geometry (geometries, vertices, arrows[i],
+                             vertex_padding, geometry)) continue;
     bool selected= state.selected_kind == "arrow" &&
                    state.selected_id == arrows[i].id;
     bool hovered= state.hover_kind == "arrow" &&
@@ -644,8 +740,8 @@ concater_rep::typeset_commutative_diagram (tree t, path ip) {
     bool hovered= state.hover_kind == "vertex" &&
                   state.hover_id == vertices[i].id;
     bool target= state.target_id == vertices[i].id;
-    builder.formula (vertices[i].node[3], vertices[i].formula_ip,
-                     vertices[i].position, "black", false,
+    builder.formula (vertices[i].formula, vertices[i].formula_ip,
+                     vertices[i].position,
                      target? "#4c9f70":
                      selected? "#3976c5": hovered? "#82aee5": "",
                      selected || target);

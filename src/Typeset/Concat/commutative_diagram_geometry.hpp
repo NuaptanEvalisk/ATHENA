@@ -14,6 +14,7 @@
 #include <QRectF>
 #include <algorithm>
 #include <cmath>
+#include <utility>
 
 // All coordinates are physical pixels, independent of the screen's zoom.
 // Qt owns curve intersection; no sampled-line approximation of the arrow is
@@ -48,6 +49,46 @@ cd_clear_label_position (const QPainterPath& ink, QPointF centre,
     else high= middle;
   }
   return centre + direction*high;
+}
+
+inline std::pair<qreal,qreal>
+cd_visible_curve_interval (const QPainterPath& curve,
+                           const QRectF& source,
+                           const QRectF& target) {
+  auto boundary= [&] (const QRectF& rect, bool fromStart) {
+    qreal endpoint= fromStart ? 0.0 : 1.0;
+    if (!rect.contains (curve.pointAtPercent (endpoint))) return endpoint;
+
+    const int samples= 128;
+    qreal inside= endpoint;
+    for (int i=1; i<=samples; ++i) {
+      qreal outside= fromStart ? ((qreal) i) / samples
+                               : 1.0 - ((qreal) i) / samples;
+      if (!rect.contains (curve.pointAtPercent (outside))) {
+        qreal low= std::min (inside, outside);
+        qreal high= std::max (inside, outside);
+        for (int j=0; j<48; ++j) {
+          qreal middle= (low + high) / 2.0;
+          bool contained= rect.contains (curve.pointAtPercent (middle));
+          if (fromStart) {
+            if (contained) low= middle;
+            else high= middle;
+          }
+          else {
+            if (contained) high= middle;
+            else low= middle;
+          }
+        }
+        return fromStart ? high : low;
+      }
+      inside= outside;
+    }
+    return fromStart ? 1.0 : 0.0;
+  };
+
+  qreal start= boundary (source, true);
+  qreal end= boundary (target, false);
+  return {start, end};
 }
 
 #endif
