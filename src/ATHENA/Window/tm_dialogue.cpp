@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "tm_frame.hpp"
+#include "tm_dialogue.hpp"
 #include "tm_window.hpp"
 #include "convert.hpp"
 #include "file.hpp"
@@ -17,6 +18,7 @@
 #include "message.hpp"
 #include "gui_text.hpp"
 #include "actor_ui_bridge.hpp"
+#include "buffer_actor.hpp"
 #include "editor.hpp"
 #include "scheme_execution_context.hpp"
 #include "QTMNativeDialogs.hpp"
@@ -33,11 +35,22 @@ struct chooser_completion_state {
   command actor_fun;
   widget chooser;
   bool actor_bound;
+  athena_actor_id actor_id;
+  athena_view_id view_id;
+  SchemeCapabilitySet capabilities;
 
   chooser_completion_state (object fun2):
-    fun (fun2), actor_fun (as_actor_command (fun2)), actor_bound (
-      current_scheme_execution_context () != nullptr &&
-      current_scheme_execution_context ()->actor_id != ATHENA_NO_ACTOR) {}
+    fun (fun2), actor_fun (as_actor_command (fun2)), actor_bound (false),
+    actor_id (ATHENA_NO_ACTOR), view_id (ATHENA_NO_VIEW),
+    capabilities (SCHEME_CAPABILITY_NONE) {
+    const SchemeExecutionContext* context= current_scheme_execution_context ();
+    if (context != nullptr && context->actor_id != ATHENA_NO_ACTOR) {
+      actor_bound= true;
+      actor_id= context->actor_id;
+      view_id= context->view_id;
+      capabilities= context->capabilities;
+    }
+  }
 };
 
 class chooser_command_rep: public command_rep {
@@ -51,15 +64,40 @@ public:
 };
 
 void
+dispatch_actor_chooser_result (
+    command actor_fun, string expression,
+    athena_actor_id actor_id, athena_view_id view_id,
+    SchemeCapabilitySet capabilities) {
+  expression.ensure_transferable ();
+  athena_continuation_id id=
+    actor_continuation_registry::instance ().store (
+      [expression= std::move (expression),
+       actor_fun= std::move (actor_fun)] () mutable {
+        object arg= eval (expression);
+        actor_fun (list_object (arg));
+      });
+  if (!buffer_actor::submit_to (
+        actor_id, actor_command_kind::run_native_continuation,
+        view_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB,
+        capabilities, id))
+    (void) actor_continuation_registry::instance ().discard (id);
+}
+
+void
 chooser_command_rep::apply () {
   if (is_nil (state->chooser)) return;
   string s_arg= get_string_input (state->chooser);
   if (s_arg == "#f") return;
   if (N(s_arg) == 0) s_arg= "\"\"";
+  if (state->actor_bound) {
+    dispatch_actor_chooser_result (
+      state->actor_fun, std::move (s_arg), state->actor_id,
+      state->view_id, state->capabilities);
+    return;
+  }
   object arg= string_to_object (s_arg);
   object args= list_object (arg);
-  if (state->actor_bound) state->actor_fun (args);
-  else exec_delayed (scheme_cmd (cons (state->fun, args)));
+  exec_delayed (scheme_cmd (cons (state->fun, args)));
 }
 
 /*
