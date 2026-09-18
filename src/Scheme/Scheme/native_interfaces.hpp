@@ -7,6 +7,7 @@
 #include "modification.hpp"
 #include "patch.hpp"
 #include "ATHENA/Data/data_art.hpp"
+#include "Edit/Interface/format_geometry.hpp"
 
 void athena_dispatch_ui (void (*function) ());
 void gui_set_cursor_color (string value);

@@ -1,5 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="tm-rich-length?" native="geometry_rich_length" returns="bool">
+    <arg type="content" />
+  </binding>
+  <binding name="tm-&gt;rich-length" native="geometry_rich_length_string" returns="string">
+    <arg type="content" />
+  </binding>
+  <binding name="rich-length-&gt;tm" native="geometry_parse_rich_length" returns="scheme_tree">
+    <arg type="string" />
+  </binding>
+  <binding name="length-increase" native="geometry_length_increase" returns="void">
+    <arg type="tree" /><arg type="double" />
+  </binding>
+  <binding name="length-scale" native="geometry_length_scale" returns="void">
+    <arg type="tree" /><arg type="double" /><arg type="double" />
+  </binding>
+  <binding name="length-rightmost" native="geometry_length_rightmost" returns="tree">
+    <arg type="tree" />
+  </binding>
+  <binding name="lengths-consistent?" native="geometry_lengths_consistent" returns="bool">
+    <arg type="tree" /><arg type="tree" />
+  </binding>
+  <binding name="replace-empty" native="geometry_replace_empty" returns="void">
+    <arg type="tree" /><arg type="int" /><arg type="content" />
+  </binding>
+  <binding name="length-increase-step" native="geometry_length_increase_step" returns="void">
+    <arg type="tree" /><arg type="int" />
+  </binding>
+  <binding name="get-zero-unit" native="geometry_zero_unit" returns="string" />
+  <binding name="circulate-unit" native="geometry_circulate_unit" returns="void">
+    <arg type="int" />
+  </binding>
   <binding name="tree?" native="tmscm_is_tree" returns="bool">
     <arg type="tmscm" />
   </binding>

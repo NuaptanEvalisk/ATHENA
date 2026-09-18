@@ -24,6 +24,7 @@
 #include <future>
 #include "drd_std.hpp"
 #include "scheme.hpp"
+#include "Edit/Interface/format_geometry.hpp"
 
 #include <atomic>
 #include <thread>
@@ -36,6 +37,8 @@ class TestBufferActor: public QObject {
   Q_OBJECT
 
 private slots:
+  void nativeGeometryLengths ();
+  void nativeGeometryPreservesActorDocument ();
   void startsLazily ();
   void ownsCommandsAndDocumentContext ();
   void preservesSynchronousInvocationContext ();
@@ -47,6 +50,62 @@ private slots:
   void bufferResolutionWithoutVault ();
   void sourceCommitPreservesBorrowedMetadata ();
 };
+
+void
+TestBufferActor::nativeGeometryLengths () {
+  QVERIFY (as_bool (call ("tm-rich-length?", object (tree (PLUS, "1cm", "-2pt")))));
+  QVERIFY (!as_bool (call ("tm-rich-length?", object (tree (MINUS, "1cm", tree (PLUS, "2pt", "3pt"))))));
+  QCOMPARE (as_string (call ("tm->rich-length", object (tree (MINUS, "1cm", "2pt", "3pt")))),
+            string ("1cm+2pt-3pt"));
+  QVERIFY (as_bool (eval ("(equal? (rich-length->tm \"-1cm+2pt-3ex\")"
+                          " '(plus \"-1cm\" \"2pt\" \"-3ex\"))")));
+  QVERIFY (as_bool (eval ("(equal? (rich-length->tm \"-1cm\") \"-1cm\")")));
+
+  tree length (MINUS, "4cm", tree (PLUS, "2cm", "1cm"));
+  QVERIFY (geometry_lengths_consistent (length, tree ("3cm")));
+  QVERIFY (!geometry_lengths_consistent (length, tree ("3pt")));
+}
+
+void
+TestBufferActor::nativeGeometryPreservesActorDocument () {
+  tm_buffer buffer= tm_new<tm_buffer_rep> (url ("actor-geometry.ath"));
+  auto cleanup= qScopeGuard ([&] { tm_delete (buffer); });
+  auto payload= actor_tree_registry::instance ().store (
+    tree (DOCUMENT, compound ("TeXmacs", TEXMACS_COMPAT_VERSION),
+      compound ("style", tree (TUPLE, "generic")),
+      compound ("body", tree (DOCUMENT, tree (SPACE, "1cm"),
+        tree (MINUS, "4cm", tree (PLUS, "2cm", "1cm")), "50%", "auto",
+        tree (RESIZE, "body", "", "", "", "")))));
+  QVERIFY (buffer->actor->invoke (actor_command_kind::replace_document, ATHENA_NO_VIEW, payload));
+  bool changed= false;
+  auto id= actor_continuation_registry::instance ().store ([&] {
+    auto* actor= current_scheme_execution_context ()->actor;
+    tree& source= actor->current_source ();
+    geometry_length_increase (source[2][0][0][0], 1);
+    changed= source[2][0][0][0] == "1.1cm";
+    tree body= source[2][0];
+    call ("length-increase", object (body[1]), object (2.0));
+    changed= changed && body[1] == tree (MINUS, "4cm", tree (PLUS, "2cm", "0.8cm"));
+    call ("length-scale", object (body[1]), object (2.0), object (1.0));
+    changed= changed && body[1] == tree (MINUS, "8cm", tree (PLUS, "4cm", "1.6cm"));
+    geometry_length_scale (body[2], 1.5, 1.0);
+    changed= changed && body[2] == "75%";
+    geometry_length_scale (body[2], -1.0, 1.0);
+    geometry_length_scale (body[2], 0.0, 1.0);
+    geometry_length_scale (body[2], 2.0, 0.0);
+    changed= changed && body[2] == "75%";
+    geometry_length_increase (body[3], 1);
+    changed= changed && body[3] == "auto";
+    geometry_replace_empty (body[4], 1, tree (PLUS, "1l", "0cm"));
+    geometry_replace_empty (body[4], 1, tree ("overwritten"));
+    changed= changed && body[4][1] == tree (PLUS, "1l", "0cm");
+    actor->commit_current_source ();
+    changed= changed && actor->current_source ()[2][0][0][0] == "1.1cm";
+  });
+  QVERIFY (buffer->actor->invoke (actor_command_kind::run_native_continuation,
+    ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER, id));
+  QVERIFY (changed);
+}
 
 class capture_chooser_argument_rep: public command_rep {
   bool& called;
