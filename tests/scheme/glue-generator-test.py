@@ -98,6 +98,22 @@ class GlueGeneratorTest(unittest.TestCase):
             glue.read_interfaces([self.interface(body, "first"),
                                   self.interface(body, "second")])
 
+    def test_rest_arguments_are_generic_and_last(self):
+        body = ('<binding name="collect-values" native="collect" returns="void">'
+                '<arg type="tree"/><arg type="object" rest="true"/></binding>')
+        interface = glue.read_interfaces([self.interface(body)])[0]
+        code = glue.cpp_bindings(interface)
+        self.assertIn('object in2= tmscm_to_object (arg2);', code)
+        self.assertIn('collect (in1, in2);', code)
+        self.assertIn('tmg_collect_values, 1, 0, 1);', code)
+        for args in ('<arg type="object" rest="true"/><arg type="int"/>',
+                     '<arg type="string" rest="true"/>',
+                     '<arg type="object" rest="yes"/>'):
+            with self.subTest(args=args), self.assertRaises(ValueError):
+                glue.read_interfaces([self.interface(
+                    '<binding name="collect" native="collect" returns="void">'
+                    + args + '</binding>')])
+
     def test_reject_wrong_version_and_receiver(self):
         body = '<binding name="test" native="native" returns="void"/>'
         for attrs in [{"version": "2"}, {"prefix": "bad();receiver()->"}, {"initializer": "x();bad"}]:

@@ -30,6 +30,7 @@ RECEIVER = re.compile(r"[a-zA-Z_][a-zA-Z_0-9]*\(\)->")
 class Argument:
     type: str
     passing: str = "value"
+    rest: bool = False
 
 
 @dataclasses.dataclass(frozen=True)
@@ -112,14 +113,19 @@ def read_interfaces(paths):
             for arg in node:
                 if arg.tag != "arg" or len(arg):
                     raise ValueError(f"{name}: expected empty <arg>")
-                checked_attributes(arg, ("type",), ("passing",))
+                checked_attributes(arg, ("type",), ("passing", "rest"))
                 kind = arg.attrib["type"]
                 passing = arg.get("passing", "value")
+                rest = arg.get("rest", "false")
                 if kind not in TYPES:
                     raise ValueError(f"{name}: unknown argument type {kind!r}")
                 if passing not in ("value", "move"):
                     raise ValueError(f"{name}: unknown passing policy {passing!r}")
-                arguments.append(Argument(kind, passing))
+                if rest not in ("true", "false") or (rest == "true" and kind != "object"):
+                    raise ValueError(f"{name}: rest must be true/false and use the object type")
+                if arguments and arguments[-1].rest:
+                    raise ValueError(f"{name}: rest argument must be last")
+                arguments.append(Argument(kind, passing, rest == "true"))
             dispatch = node.get("dispatch", "direct")
             if dispatch not in ("direct", "ui"):
                 raise ValueError(f"{name}: unknown dispatch policy {dispatch!r}")
@@ -156,8 +162,9 @@ def cpp_bindings(interface):
         lines.extend([f"  return {result};", "}", ""])
     lines.extend(["void", f"{interface.initializer} () {{"])
     for binding in interface.bindings:
+        rest = int(bool(binding.arguments) and binding.arguments[-1].rest)
         lines.append(f'  tmscm_install_procedure ("{binding.name}",  '
-                     f'{wrapper_name(binding.name)}, {len(binding.arguments)}, 0, 0);')
+                     f'{wrapper_name(binding.name)}, {len(binding.arguments) - rest}, 0, {rest});')
     return "\n".join([*lines, "}", ""])
 
 
@@ -170,7 +177,8 @@ def api_document(interfaces):
              "Generated from the XML interfaces in <verbatim|src/Scheme/Glue>.", ""]
     for interface in interfaces:
         for binding in interface.bindings:
-            arguments = "".join(f" <scm-arg|{arg.type}>" for arg in binding.arguments)
+            arguments = "".join(f"{' . ' if arg.rest else ' '}<scm-arg|{arg.type}>"
+                                for arg in binding.arguments)
             lines.extend(["  <\\explain>", f"    <scm|({escape(binding.name)}{arguments})>",
                           "    <explain-synopsis|no synopsis>", "  <|explain>",
                           f"    Calls the <c++> function <cpp|{escape(binding.native)}> "

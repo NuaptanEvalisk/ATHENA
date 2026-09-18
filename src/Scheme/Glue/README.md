@@ -48,6 +48,10 @@ does not need an editor, display, user profile, or vault.
   ownership and lifetime contract in the native API.
 - `procedure` validates a Scheme procedure and passes a rooted `object`.
   `tmscm` passes a raw value without validation, for generic type predicates.
+- A final `<arg type="object" rest="true" />` receives the remaining Scheme
+  arguments as a rooted list. Registration declares only the preceding fixed
+  arguments as required; the native implementation validates list contents.
+  Rest arguments cannot precede another argument or use another type.
 - Names, translated C++ wrapper names and initializers must be unique.
   Unknown tags, attributes, types and calling policies are errors.
 
