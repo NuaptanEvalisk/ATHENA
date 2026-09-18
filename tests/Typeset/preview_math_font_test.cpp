@@ -15,6 +15,8 @@
 #include "data_cache.hpp"
 #include "drd_std.hpp"
 #include "gui.hpp"
+#include "ATHENA/tm_frame.hpp"
+#include "Qt/qt_widget.hpp"
 #include "scheme.hpp"
 #include "server.hpp"
 #include "typesetter.hpp"
@@ -77,6 +79,27 @@ private slots:
     metric unknown;
     math->get_extents ("<athena-unmapped-math-symbol>", unknown);
     QVERIFY (unknown->x2 >= unknown->x1);
+  }
+
+  void legacyMenuMathClassesMaterializePaletteGlyphs () {
+    scheme_tree descriptor (TUPLE);
+    for (string token: {
+           string ("<big-int-2>"), string ("<oplus>"), string ("<leq>"),
+           string ("<rightarrow>"), string ("<alpha>"), string ("<b-A>"),
+           string ("<cal-A>"), string ("<frak-A>"), string ("<bbb-A>")}) {
+      widget preview= box_widget (descriptor, token, black, true, false);
+      QVERIFY2 (!is_nil (preview), as_charp (token));
+      QAction* action= concrete (preview)->as_qaction ();
+      QVERIFY2 (action != nullptr, as_charp (token));
+      QVERIFY2 (!action->icon ().isNull (), as_charp (token));
+      QImage image= action->icon ().pixmap (QSize (48, 48)).toImage ();
+      bool ink= false;
+      for (int y=0; y<image.height () && !ink; ++y)
+        for (int x=0; x<image.width () && !ink; ++x)
+          ink= qAlpha (image.pixel (x, y)) != 0;
+      QVERIFY2 (ink, as_charp (token));
+      delete action;
+    }
   }
 
   void romanUsesLatinModernWhenAvailable () {

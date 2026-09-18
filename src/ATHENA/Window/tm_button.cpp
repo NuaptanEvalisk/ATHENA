@@ -252,6 +252,16 @@ typeset_text_widget (scheme_tree p, string s, color col, bool ink) {
   if ((n >= 4) && is_atomic (p[3])) shape   = as_string (p[3]);
   if ((n >= 5) && is_atomic (p[4])) sz      = as_int (p[4]);
   if ((n >= 6) && is_atomic (p[5])) dpi     = as_int (p[5]);
+  // Menu symbol descriptors still use the legacy math classes mr/ms/mt.
+  // The six-argument smart_font API expects modern text variants plus an
+  // explicit math shape; passing mr + normal makes every missing palette glyph
+  // fall through the exhaustive cross-family search.  Translate the legacy
+  // descriptor at this compatibility boundary before materializing the box.
+  if (fn_class == "mr" || fn_class == "ms" || fn_class == "mt") {
+    fn_class= fn_class == "mr" ? string ("rm")
+             : fn_class == "ms" ? string ("ss") : string ("tt");
+    if (shape == "normal") shape= "mathupright";
+  }
   font fn= smart_font (family, fn_class, series, shape, sz, dpi);
   box  b = text_box (decorate (), 0, s, fn, col);
   if (ink) b= resize_box (decorate (), b, b->x3, b->y3, b->x4, b->y4, true);
