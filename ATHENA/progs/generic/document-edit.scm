@@ -105,13 +105,6 @@
 (tm-property (set-document-language lan)
   (:check-mark "*" test-document-language?))
 
-(define (search-env-var t which)
-  (cond ((nlist? t) #f)
-        ((null? t) #f)
-        ((match? t '(associate "language" :%1)) (caddr t))
-        (else (let ((val (search-env-var (car t) which)))
-                (if val val (search-env-var (cdr t) which))))))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Main page layout
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
