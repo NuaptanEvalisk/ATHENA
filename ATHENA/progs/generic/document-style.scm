@@ -37,36 +37,6 @@
 ;; Getting and setting the list of style packages
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (normalize-style-list* l)
-  (cond ((null? l) l)
-        ((list-find (cdr l) (cut style-overrides? <> (car l)))
-         (normalize-style-list* (cdr l)))
-        ((list-find (cdr l) (cut style-precedes? <> (car l)))
-         (let* ((el (cut style-precedes? <> (car l)))
-                (rem (list-delete (cdr l) el))
-                (norm (normalize-style-list* rem)))
-           (cons (car norm) (normalize-style-list* (cons (car l) (cdr norm))))))
-        (else (cons (car l) (normalize-style-list* (cdr l))))))
-
-(define (normalize-style-list** l before)
-  (cond ((null? l) l)
-        ((list-find before (cut style-includes? <> (car l)))
-         (normalize-style-list** (cdr l) (cons (car l) before)))
-        (else (cons (car l) (normalize-style-list** (cdr l)
-                                                    (cons (car l) before))))))
-
-(define (normalize-style-list l2)
-  (with l (list-remove-duplicates l2)
-    (if (null? l) l
-        (cons (car l)
-              (normalize-style-list** (normalize-style-list* (cdr l))
-                                      (list (car l)))))))
-
-(tm-define (set-style-list l)
-  (set! l (normalize-style-list l))
-  (when (!= l (get-style-list))
-    (set-style-tree (tm->tree `(tuple ,@l)))))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; High level routines for style and style package management
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -202,6 +202,9 @@
     <arg type="string" /><arg type="string" />
   </binding>
   <binding name="get-style-list" native="document_get_style_list" returns="object" />
+  <binding name="set-style-list" native="document_set_style_list" returns="void">
+    <arg type="object" />
+  </binding>
   <binding name="embedded-style-list" native="document_embedded_style_list" returns="object">
     <arg type="object" rest="true" />
   </binding>

@@ -21,6 +21,7 @@ bool document_style_overrides (string left, string right);
 bool document_style_precedes (string left, string right);
 
 object document_get_style_list ();
+void document_set_style_list (object styles);
 object document_embedded_style_list (object extra_packages);
 bool document_has_no_style ();
 void document_set_no_style ();

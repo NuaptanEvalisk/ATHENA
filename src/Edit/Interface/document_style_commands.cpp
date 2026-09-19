@@ -32,8 +32,105 @@ object style_list_object (array<string> styles) {
   return as_list_object (objects);
 }
 
+bool contains_style (array<string> styles, string value);
+
+bool style_arrays_equal (array<string> left, array<string> right) {
+  if (N (left) != N (right)) return false;
+  for (int i= 0; i < N (left); ++i)
+    if (left[i] != right[i]) return false;
+  return true;
+}
+
+array<string> style_tail (array<string> styles) {
+  array<string> result;
+  for (int i= 1; i < N (styles); ++i) result << styles[i];
+  return result;
+}
+
+bool style_relation_any (array<string> styles, string relation, string value) {
+  for (int i= 0; i < N (styles); ++i)
+    if (as_bool (call (relation, object (styles[i]), object (value)))) return true;
+  return false;
+}
+
+array<string> normalize_style_list_star (array<string> styles) {
+  if (N (styles) == 0) return styles;
+  string first= styles[0];
+  array<string> tail= style_tail (styles);
+
+  if (style_relation_any (tail, "style-overrides?", first))
+    return normalize_style_list_star (tail);
+
+  if (style_relation_any (tail, "style-precedes?", first)) {
+    // Legacy Scheme computes (list-delete tail predicate). Style entries are
+    // strings and the deleted value is a procedure, so the tail is unchanged.
+    array<string> normalized= normalize_style_list_star (tail);
+    array<string> result;
+    result << normalized[0];
+    array<string> reordered;
+    reordered << first;
+    for (int i= 1; i < N (normalized); ++i) reordered << normalized[i];
+    array<string> remainder= normalize_style_list_star (reordered);
+    for (int i= 0; i < N (remainder); ++i) result << remainder[i];
+    return result;
+  }
+
+  array<string> result;
+  result << first;
+  array<string> remainder= normalize_style_list_star (tail);
+  for (int i= 0; i < N (remainder); ++i) result << remainder[i];
+  return result;
+}
+
+array<string> normalize_style_list_starstar (array<string> styles,
+                                             array<string> before) {
+  if (N (styles) == 0) return styles;
+  string first= styles[0];
+  array<string> next_before= before;
+  next_before << first;
+  array<string> remainder=
+    normalize_style_list_starstar (style_tail (styles), next_before);
+  if (style_relation_any (before, "style-includes?", first)) return remainder;
+
+  array<string> result;
+  result << first;
+  for (int i= 0; i < N (remainder); ++i) result << remainder[i];
+  return result;
+}
+
+array<string> normalize_style_list (array<string> styles) {
+  array<string> unique;
+  for (int i= 0; i < N (styles); ++i)
+    if (!contains_style (unique, styles[i])) unique << styles[i];
+  if (N (unique) == 0) return unique;
+
+  array<string> before;
+  before << unique[0];
+  array<string> normalized=
+    normalize_style_list_starstar (normalize_style_list_star (style_tail (unique)),
+                                   before);
+  array<string> result;
+  result << unique[0];
+  for (int i= 0; i < N (normalized); ++i) result << normalized[i];
+  return result;
+}
+
+bool object_to_style_strings (object value, array<string>& styles) {
+  if (!is_list (value)) return false;
+  array<object> items= as_array_object (value);
+  for (int i= 0; i < N (items); ++i) {
+    if (!is_string (items[i])) return false;
+    styles << as_string (items[i]);
+  }
+  return true;
+}
+
 void set_style_strings (array<string> styles) {
-  (void) call ("set-style-list", style_list_object (styles));
+  array<string> normalized= normalize_style_list (styles);
+  if (style_arrays_equal (normalized, current_style_strings ())) return;
+  array<tree> children;
+  for (int i= 0; i < N (normalized); ++i) children << tree (normalized[i]);
+  get_current_editor ()->change_style (tree (TUPLE, children));
 }
 
 bool contains_style (array<string> styles, string value) {
@@ -81,6 +178,13 @@ document_style_precedes (string left, string right) {
 object
 document_get_style_list () {
   return style_list_object (current_style_strings ());
+}
+
+void
+document_set_style_list (object value) {
+  array<string> styles;
+  if (!object_to_style_strings (value, styles)) return;
+  set_style_strings (styles);
 }
 
 object

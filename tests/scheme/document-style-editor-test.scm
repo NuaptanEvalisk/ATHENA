@@ -22,7 +22,7 @@
        "native add-style-package updates actor style state")
 (add-style-package "pack-a")
 (check (equal? (get-style-list) '("generic" "pack-a"))
-       "Scheme normalization still removes duplicate packages")
+       "native normalization removes duplicate packages")
 (toggle-style-package "pack-a")
 (check (not (has-style-package? "pack-a"))
        "native package toggle removes an active package")
@@ -56,11 +56,21 @@
 (check (style-precedes? "native-cat-a" "native-later")
        "native style-precedes dispatches through Scheme category policy")
 
+(set-style-list '("generic" "native-cat-a" "native-cat-b"))
+(check (equal? (get-style-list) '("generic" "native-cat-b"))
+       "native normalization drops package overridden by a later category peer")
+(set-style-list '("generic" "native-later" "native-cat-a"))
+(check (equal? (get-style-list) '("generic" "native-cat-a" "native-later"))
+       "native normalization preserves legacy precedence reordering")
+
 ;; Included-package detection remains extensible and is evaluated by the
 ;; native has-style-package? command against the current normalized list.
 (tm-define (style-includes? p q)
   (:require (and (== p "native-bundle") (== q "native-included")))
   #t)
+(set-style-list '("generic" "native-bundle" "native-included"))
+(check (equal? (get-style-list) '("generic" "native-bundle"))
+       "native normalization removes package included by an earlier package")
 (set-style-list '("generic" "native-bundle"))
 (check (has-style-package? "native-included")
        "native package predicate reaches Scheme style-includes specialization")
