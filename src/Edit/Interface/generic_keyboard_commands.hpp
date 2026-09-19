@@ -70,5 +70,7 @@ void generic_hybrid_kbd_curly_right ();
 void generic_hybrid_kbd_backslash ();
 void generic_hybrid_kbd_sub ();
 void generic_hybrid_kbd_sup ();
+void generic_escape_symbol_insert (string action);
+object generic_key_press_command (string key);
 
 #endif

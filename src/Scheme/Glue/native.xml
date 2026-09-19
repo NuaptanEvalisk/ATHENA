@@ -497,6 +497,12 @@
   <binding name="hybrid-kbd-backslash" native="generic_hybrid_kbd_backslash" returns="void" />
   <binding name="hybrid-kbd-sub" native="generic_hybrid_kbd_sub" returns="void" />
   <binding name="hybrid-kbd-sup" native="generic_hybrid_kbd_sup" returns="void" />
+  <binding name="escape-symbol-insert" native="generic_escape_symbol_insert" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="key-press-command" native="generic_key_press_command" returns="object">
+    <arg type="string" />
+  </binding>
   <binding name="go-to-line" native="generic_go_to_line" returns="void">
     <arg type="int" /><arg type="object" rest="true" />
   </binding>

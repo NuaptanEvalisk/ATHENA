@@ -369,3 +369,72 @@ void generic_hybrid_kbd_sup () {
   ed->activate_hybrid (false);
   ed->make_script (true, true);
 }
+
+void
+generic_escape_symbol_insert (string action) {
+  editor ed= get_current_editor ();
+  if (action == "tree:dx")
+    ed->insert_tree (compound ("frac", "<mathd>",
+                               compound ("concat", "<mathd>", "x")));
+  else if (action == "tree:dt")
+    ed->insert_tree (compound ("frac", "<mathd>",
+                               compound ("concat", "<mathd>", "t")));
+  else if (action == "tree:inv")
+    ed->insert_tree (compound ("rsup", "-1"));
+  else if (action == "tree:op")
+    ed->insert_tree (compound ("rsup", compound ("math-up", "op")));
+  else if (action == "tree:id")
+    ed->insert_tree (compound ("math-up", "id"));
+  else if (action == "tree:const")
+    ed->insert_tree (compound ("math-up", "const"));
+  else if (action == "tree:varinjlim")
+    ed->insert_tree (compound ("wide*", "lim", "<wide-varrightarrow>"));
+  else if (action == "tree:varprojlim")
+    ed->insert_tree (compound ("wide*", "lim", "<wide-varleftarrow>"));
+  else if (action == "tree:bij")
+    ed->insert_tree (compound ("above", "<longrightarrow>", "1:1"));
+  else if (action == "tree:simto")
+    ed->insert_tree (compound ("above", "<longrightarrow>", "<sim>"));
+  else if (action == "tree:lim-n-infty")
+    ed->insert_tree (
+      compound ("concat", "lim",
+                compound ("rsub",
+                          compound ("concat", "n", "<rightarrow>", "<infty>"))));
+  else if (action == "tree:varphi")
+    ed->insert_tree (compound ("concat", "<varphi>"));
+  else if (action == "tree:rel")
+    ed->insert_tree (compound ("concat", compound ("space", "0.27em"), "rel"));
+  else if (action == "tree:angle-brackets")
+    (void) call ("math-bracket-open", object ("<langle>"), object ("<rangle>"),
+                 symbol_object ("default"));
+  else if (action == "tree:norm-brackets")
+    (void) call ("math-bracket-open", object ("<||>"), object ("<||>"),
+                 symbol_object ("default"));
+  else if (action == "tree:math-ss")
+    (void) call ("make", symbol_object ("math-ss"));
+  else if (action == "tree:math-bf")
+    (void) call ("make", symbol_object ("math-bf"));
+  else if (action == "tree:math-boldsymbol")
+    (void) call ("make-with", object ("math-font-series"), object ("bold"));
+  else if (action == "tree:math-frak")
+    (void) call ("make-with", object ("math-font"), object ("Euler"));
+  else if (action == "tree:math-scr")
+    (void) call ("make-with", object ("math-font"), object ("cal*"));
+  else if (action == "tree:q3")
+    ed->insert_tree (compound ("concat", compound ("space", "1em"),
+                               compound ("space", "1em"),
+                               compound ("space", "1em")));
+  else if (starts (action, "tree:math-up:"))
+    ed->insert_tree (compound ("math-up", action (13, N (action))));
+  else if (starts (action, "tree:operator:"))
+    ed->insert_tree (tree (action (14, N (action))));
+  else
+    (void) call ("key-press", object (action));
+}
+
+object
+generic_key_press_command (string key) {
+  object binding= call ("kbd-find-key-binding", object (key));
+  if (is_bool (binding) && !as_bool (binding)) return object (false);
+  return call ("car", binding);
+}

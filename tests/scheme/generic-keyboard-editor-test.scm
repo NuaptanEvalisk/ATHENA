@@ -177,6 +177,28 @@
 (check (equal? (body) '(document (frac "" ""))) "empty hybrid formula command")
 (check (equal? (cursor-path) '(0 0 0 0)) "formula activation cursor")
 
+(reset "" 0)
+(escape-symbol-insert "tree:dx")
+(check (equal? (body)
+               '(document (frac "<mathd>" "<mathd>x")))
+       "native escape symbol inserts derivative tree")
+
+(reset "" 0)
+(escape-symbol-insert "tree:math-up:sin")
+(check (equal? (body) '(document (math-up "sin")))
+       "native escape symbol inserts dynamic math-up tree")
+
+(reset "" 0)
+(escape-symbol-insert "tree:operator:lim")
+(check (equal? (body) '(document "lim"))
+       "native escape symbol inserts dynamic operator text")
+
+(let ((binding (kbd-find-key-binding "C-S-p")))
+  (check (equal? (key-press-command "C-S-p") (and binding (car binding)))
+         "native key-press-command mirrors public keyboard binding lookup"))
+(check (not (key-press-command "definitely-not-a-real-athena-key-binding"))
+       "native key-press-command returns false for missing binding")
+
 (init-env "page-medium" "paper")
 (update-current-buffer)
 (update-forced)

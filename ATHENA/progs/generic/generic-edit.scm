@@ -195,14 +195,6 @@
 ;; Search, replace, spell and tab-completion
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (key-press-command key)
-  ;; FIXME: this routine should do exactly the same as key-press,
-  ;; without modification of the internal state and without executing
-  ;; the actual shortcut. It should rather return a command which
-  ;; does all this, or #f
-  (and-with p (kbd-find-key-binding key)
-    (car p)))
-
 (tm-define (keyboard-press key time)
   (:mode search-mode?)
   (with cmd (key-press-command (string-append "search " key))
