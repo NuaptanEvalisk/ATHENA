@@ -99,30 +99,11 @@
 ;; Text and paragraph properties
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (test-default-document-language?)
-  (null? (list-intersection (get-style-list) supported-languages)))
+(tm-property (set-default-document-language)
+  (:check-mark "*" test-default-document-language?))
 
-(tm-define (set-default-document-language)
-  (:check-mark "*" test-default-document-language?)
-  (let* ((old (get-style-list))
-         (new (list-difference old supported-languages)))
-    (when (!= new old)
-      (set-style-list new))))
-
-(tm-define (get-document-language)
-  (with l (list-intersection (get-style-list) supported-languages)
-    (if (null? l) (get-init "language") (car l))))
-
-(tm-define (test-document-language? s)
-  (== s (get-document-language)))
-
-(tm-define (set-document-language lan)
-  (:check-mark "*" test-document-language?)
-  (let* ((old (get-style-list))
-         (rem (list-difference old supported-languages))
-         (new (append rem (if (== lan "english") (list) (list lan)))))
-    (when (!= new old)
-      (set-style-list new))))
+(tm-property (set-document-language lan)
+  (:check-mark "*" test-document-language?))
 
 (define (search-env-var t which)
   (cond ((nlist? t) #f)

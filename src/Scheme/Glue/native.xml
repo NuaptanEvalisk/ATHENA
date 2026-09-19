@@ -112,6 +112,15 @@
   <binding name="init-font" native="document_init_font" returns="void">
     <arg type="string" /><arg type="object" rest="true" />
   </binding>
+  <binding name="test-default-document-language?" native="document_test_default_language" returns="bool" />
+  <binding name="set-default-document-language" native="document_set_default_language" returns="void" />
+  <binding name="get-document-language" native="document_get_language" returns="string" />
+  <binding name="test-document-language?" native="document_test_language" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="set-document-language" native="document_set_language" returns="void">
+    <arg type="string" />
+  </binding>
   <binding name="test-default-page-medium?" native="document_test_default_page_medium" returns="bool" />
   <binding name="init-default-page-medium" native="document_init_default_page_medium" returns="void" />
   <binding name="test-page-medium?" native="document_test_page_medium" returns="bool">

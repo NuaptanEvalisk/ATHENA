@@ -210,6 +210,69 @@ document_init_font (string value, object options) {
 
 namespace {
 
+bool document_style_language (string value) {
+  static const char* const languages[]= {
+    "british", "bulgarian", "chinese", "croatian", "czech", "danish",
+    "dutch", "english", "esperanto", "finnish", "french", "german",
+    "greek", "hungarian", "italian", "japanese", "korean", "polish",
+    "portuguese", "romanian", "russian", "slovak", "slovene", "spanish",
+    "swedish", "taiwanese", "ukrainian"
+  };
+  for (const char* language: languages)
+    if (value == language) return true;
+  return false;
+}
+
+list<string> current_style_list () {
+  object styles= call ("get-style-list");
+  return is_list (styles) ? as_list_string (styles) : list<string> ();
+}
+
+list<string> remove_document_languages (list<string> styles) {
+  list<string> filtered;
+  for (list<string> it= styles; !is_nil (it); it= it->next)
+    if (!document_style_language (it->item)) filtered << it->item;
+  return filtered;
+}
+
+} // namespace
+
+bool
+document_test_default_language () {
+  for (list<string> it= current_style_list (); !is_nil (it); it= it->next)
+    if (document_style_language (it->item)) return false;
+  return true;
+}
+
+void
+document_set_default_language () {
+  list<string> old= current_style_list ();
+  list<string> next= remove_document_languages (old);
+  if (next != old) call ("set-style-list", object (next));
+}
+
+string
+document_get_language () {
+  for (list<string> it= current_style_list (); !is_nil (it); it= it->next)
+    if (document_style_language (it->item)) return it->item;
+  return get_current_editor ()->get_init_string ("language");
+}
+
+bool
+document_test_language (string value) {
+  return value == document_get_language ();
+}
+
+void
+document_set_language (string value) {
+  list<string> old= current_style_list ();
+  list<string> next= remove_document_languages (old);
+  if (value != "english") next << value;
+  if (next != old) call ("set-style-list", object (next));
+}
+
+namespace {
+
 void notify_page_change () { (void) call ("notify-page-change"); }
 
 bool defaults_absent (std::initializer_list<const char*> variables) {
