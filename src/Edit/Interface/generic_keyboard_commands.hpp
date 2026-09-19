@@ -14,6 +14,10 @@
 #include "scheme.hpp"
 #include "tree.hpp"
 
+void generic_kbd_horizontal (tree t, bool forwards);
+void generic_kbd_vertical (tree t, bool downwards);
+void generic_kbd_extremal (tree t, bool forwards);
+void generic_kbd_incremental (tree t, bool downwards);
 void generic_kbd_left_raw ();
 void generic_kbd_right_raw ();
 void generic_kbd_up_raw ();

@@ -10,6 +10,7 @@
 
 #include "generic_keyboard_commands.hpp"
 #include "editor.hpp"
+#include "hashset.hpp"
 #include "new_view.hpp"
 #include "scheme.hpp"
 
@@ -17,8 +18,8 @@ namespace {
 
 tree focus_tree () {
   editor ed= get_current_editor ();
-  tree root= ed->the_root ();
-  return subtree (root, ed->focus_get ());
+  path p= ed->focus_get ();
+  return ed->test_subtree (p) ? ed->the_subtree (p) : tree ();
 }
 
 bool parent_tree (tree t, tree& parent) {
@@ -59,7 +60,92 @@ void dispatch_focus (const char* command, bool flag) {
   call (command, object (focus_tree ()), object (flag));
 }
 
+bool generic_context_at_cursor () {
+  editor ed= get_current_editor ();
+  path p= ed->the_path ();
+  if (is_nil (p)) return false;
+  p= path_up (p);
+  if (!ed->test_subtree (p)) return false;
+  return as_bool (call ("generic-context?", object (ed->the_subtree (p))));
+}
+
+enum generic_move_kind {
+  MOVE_HORIZONTAL,
+  MOVE_VERTICAL,
+  MOVE_EXTREMAL,
+  MOVE_INCREMENTAL
+};
+
+void move_once (generic_move_kind kind, bool forwards) {
+  editor ed= get_current_editor ();
+  switch (kind) {
+  case MOVE_HORIZONTAL:
+    if (forwards) ed->go_right ();
+    else ed->go_left ();
+    break;
+  case MOVE_VERTICAL:
+    if (forwards) ed->go_down ();
+    else ed->go_up ();
+    break;
+  case MOVE_EXTREMAL:
+    if (forwards) ed->go_end_line ();
+    else ed->go_start_line ();
+    break;
+  case MOVE_INCREMENTAL:
+    if (forwards) ed->go_page_down ();
+    else ed->go_page_up ();
+    break;
+  }
+}
+
+void generic_move_until_context (generic_move_kind kind, bool forwards) {
+  editor ed= get_current_editor ();
+  path original= copy (ed->the_path ());
+  hashset<path> visited;
+  while (true) {
+    path before= copy (ed->the_path ());
+    move_once (kind, forwards);
+    path after= copy (ed->the_path ());
+    if (after == before || visited->contains (after) || generic_context_at_cursor ())
+      break;
+    visited->insert (after);
+  }
+  if (!generic_context_at_cursor ()) ed->go_to (original);
+}
+
 } // namespace
+
+void generic_kbd_horizontal (tree t, bool forwards) {
+  if (!admits_edit_observer (t)) {
+    outward (t, "kbd-horizontal", forwards);
+    return;
+  }
+  generic_move_until_context (MOVE_HORIZONTAL, forwards);
+}
+
+void generic_kbd_vertical (tree t, bool downwards) {
+  if (!admits_edit_observer (t)) {
+    outward (t, "kbd-vertical", downwards);
+    return;
+  }
+  generic_move_until_context (MOVE_VERTICAL, downwards);
+}
+
+void generic_kbd_extremal (tree t, bool forwards) {
+  if (!admits_edit_observer (t)) {
+    outward (t, "kbd-extremal", forwards);
+    return;
+  }
+  generic_move_until_context (MOVE_EXTREMAL, forwards);
+}
+
+void generic_kbd_incremental (tree t, bool downwards) {
+  if (!admits_edit_observer (t)) {
+    outward (t, "kbd-incremental", downwards);
+    return;
+  }
+  generic_move_until_context (MOVE_INCREMENTAL, downwards);
+}
 
 void generic_kbd_left_raw () { dispatch_focus ("kbd-horizontal", false); }
 void generic_kbd_right_raw () { dispatch_focus ("kbd-horizontal", true); }

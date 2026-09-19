@@ -110,6 +110,20 @@ bool scheme_predicate (const char* name, tree t) {
   return as_bool (call (name, object (t)));
 }
 
+tree focus_tree () {
+  editor ed= get_current_editor ();
+  path p= ed->focus_get ();
+  return ed->test_subtree (p) ? ed->the_subtree (p) : tree ();
+}
+
+void dispatch_focus (const char* command, bool flag) {
+  call (command, object (focus_tree ()), object (flag));
+}
+
+void dispatch_focus (const char* command, object direction) {
+  call (command, object (focus_tree ()), direction);
+}
+
 bool simple_tag (tree t) {
   return is_func (t, CONCAT) || is_func (t, DOCUMENT) ||
     is_func (t, TFORMAT) || is_func (t, TABLE) || is_func (t, ROW) ||
@@ -237,6 +251,41 @@ void generic_vertical_once (tree t, bool downwards) {
 }
 
 } // namespace
+
+void generic_structured_insert_left () { dispatch_focus ("structured-insert-horizontal", false); }
+void generic_structured_insert_right () { dispatch_focus ("structured-insert-horizontal", true); }
+void generic_structured_remove_left () { dispatch_focus ("structured-remove-horizontal", false); }
+void generic_structured_remove_right () { dispatch_focus ("structured-remove-horizontal", true); }
+void generic_structured_insert_up () { dispatch_focus ("structured-insert-vertical", false); }
+void generic_structured_insert_down () { dispatch_focus ("structured-insert-vertical", true); }
+void generic_structured_remove_up () { dispatch_focus ("structured-remove-vertical", false); }
+void generic_structured_remove_down () { dispatch_focus ("structured-remove-vertical", true); }
+void generic_structured_insert_start () { dispatch_focus ("structured-insert-extremal", false); }
+void generic_structured_insert_end () { dispatch_focus ("structured-insert-extremal", true); }
+void generic_structured_insert_top () { dispatch_focus ("structured-insert-incremental", false); }
+void generic_structured_insert_bottom () { dispatch_focus ("structured-insert-incremental", true); }
+void generic_structured_left () { dispatch_focus ("structured-horizontal", false); }
+void generic_structured_right () { dispatch_focus ("structured-horizontal", true); }
+void generic_structured_up () { dispatch_focus ("structured-vertical", false); }
+void generic_structured_down () { dispatch_focus ("structured-vertical", true); }
+void generic_structured_start () { dispatch_focus ("structured-extremal", false); }
+void generic_structured_end () { dispatch_focus ("structured-extremal", true); }
+void generic_structured_top () { dispatch_focus ("structured-incremental", false); }
+void generic_structured_bottom () { dispatch_focus ("structured-incremental", true); }
+void generic_structured_exit_left () { dispatch_focus ("structured-exit", false); }
+void generic_structured_exit_right () { dispatch_focus ("structured-exit", true); }
+void generic_special_back () { dispatch_focus ("special-navigate", keyword_object ("previous")); }
+void generic_special_forward () { dispatch_focus ("special-navigate", keyword_object ("next")); }
+void generic_special_return () { dispatch_focus ("special-navigate", keyword_object ("first")); }
+void generic_special_shift_return () { dispatch_focus ("special-navigate", keyword_object ("last")); }
+void generic_special_left () { dispatch_focus ("special-horizontal", false); }
+void generic_special_right () { dispatch_focus ("special-horizontal", true); }
+void generic_special_up () { dispatch_focus ("special-vertical", false); }
+void generic_special_down () { dispatch_focus ("special-vertical", true); }
+void generic_special_first () { dispatch_focus ("special-extremal", false); }
+void generic_special_last () { dispatch_focus ("special-extremal", true); }
+void generic_special_previous () { dispatch_focus ("special-incremental", false); }
+void generic_special_next () { dispatch_focus ("special-incremental", true); }
 
 bool generic_context (tree) { return true; }
 

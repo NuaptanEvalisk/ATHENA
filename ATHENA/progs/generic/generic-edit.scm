@@ -22,42 +22,6 @@
 ;; Basic cursor movements via the keyboard
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (kbd-horizontal t forwards?)
-  (and-with p (tree-outer t)
-    (kbd-horizontal p forwards?)))
-
-(tm-define (kbd-vertical t downwards?)
-  (and-with p (tree-outer t)
-    (kbd-vertical p downwards?)))
-
-(tm-define (kbd-extremal t forwards?)
-  (and-with p (tree-outer t)
-    (kbd-extremal p forwards?)))
-
-(tm-define (kbd-incremental t downwards?)
-  (and-with p (tree-outer t)
-    (kbd-incremental p downwards?)))
-
-(tm-define (kbd-horizontal t forwards?)
-  (:require (tree-is-buffer? t))
-  (with move (lambda () (if forwards? (go-right) (go-left)))
-    (go-to-next-such-that move generic-context?)))
-
-(tm-define (kbd-vertical t downwards?)
-  (:require (tree-is-buffer? t))
-  (with move (lambda () (if downwards? (go-down) (go-up)))
-    (go-to-next-such-that move generic-context?)))
-
-(tm-define (kbd-extremal t forwards?)
-  (:require (tree-is-buffer? t))
-  (with move (lambda () (if forwards? (go-end-line) (go-start-line)))
-    (go-to-next-such-that move generic-context?)))
-
-(tm-define (kbd-incremental t downwards?)
-  (:require (tree-is-buffer? t))
-  (with move (lambda () (if downwards? (go-page-down) (go-page-up)))
-    (go-to-next-such-that move generic-context?)))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Basic editing via the keyboard
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -294,84 +258,13 @@
 ;; Structured insert and remove
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (structured-insert-left)
-  (structured-insert-horizontal (focus-tree) #f))
-(tm-define (structured-insert-right)
-  (structured-insert-horizontal (focus-tree) #t))
-(tm-define (structured-remove-left)
-  (structured-remove-horizontal (focus-tree) #f))
-(tm-define (structured-remove-right)
-  (structured-remove-horizontal (focus-tree) #t))
-(tm-define (structured-insert-up)
-  (structured-insert-vertical (focus-tree) #f))
-(tm-define (structured-insert-down)
-  (structured-insert-vertical (focus-tree) #t))
-(tm-define (structured-remove-up)
-  (structured-remove-vertical (focus-tree) #f))
-(tm-define (structured-remove-down)
-  (structured-remove-vertical (focus-tree) #t))
-(tm-define (structured-insert-start)
-  (structured-insert-extremal (focus-tree) #f))
-(tm-define (structured-insert-end)
-  (structured-insert-extremal (focus-tree) #t))
-(tm-define (structured-insert-top)
-  (structured-insert-incremental (focus-tree) #f))
-(tm-define (structured-insert-bottom)
-  (structured-insert-incremental (focus-tree) #t))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Structured movements
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (structured-left)
-  (structured-horizontal (focus-tree) #f))
-(tm-define (structured-right)
-  (structured-horizontal (focus-tree) #t))
-(tm-define (structured-up)
-  (structured-vertical (focus-tree) #f))
-(tm-define (structured-down)
-  (structured-vertical (focus-tree) #t))
-(tm-define (structured-start)
-  (structured-extremal (focus-tree) #f))
-(tm-define (structured-end)
-  (structured-extremal (focus-tree) #t))
-(tm-define (structured-top)
-  (structured-incremental (focus-tree) #f))
-(tm-define (structured-bottom)
-  (structured-incremental (focus-tree) #t))
-(tm-define (structured-exit-left)
-  (structured-exit (focus-tree) #f))
-(tm-define (structured-exit-right)
-  (structured-exit (focus-tree) #t))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Special structured editing
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (special-back)
-  (special-navigate (focus-tree) :previous))
-(tm-define (special-forward)
-  (special-navigate (focus-tree) :next))
-(tm-define (special-return)
-  (special-navigate (focus-tree) :first))
-(tm-define (special-shift-return)
-  (special-navigate (focus-tree) :last))
-(tm-define (special-left)
-  (special-horizontal (focus-tree) #f))
-(tm-define (special-right)
-  (special-horizontal (focus-tree) #t))
-(tm-define (special-up)
-  (special-vertical (focus-tree) #f))
-(tm-define (special-down)
-  (special-vertical (focus-tree) #t))
-(tm-define (special-first)
-  (special-extremal (focus-tree) #f))
-(tm-define (special-last)
-  (special-extremal (focus-tree) #t))
-(tm-define (special-previous)
-  (special-incremental (focus-tree) #f))
-(tm-define (special-next)
-  (special-incremental (focus-tree) #t))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Tree editing
