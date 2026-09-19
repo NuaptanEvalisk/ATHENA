@@ -98,6 +98,55 @@
 (check (linked-image-context? (tree-ref (buffer-tree) 0))
        "native embedded-linker callback links image at cursor")
 
+(define (numbered-temp u number)
+  (let* ((s (url-suffix u))
+         (base (url-unglue u (+ (string-length s) 1))))
+    (url-glue base (string-append "-" (number->string number) "." s))))
+(define (fresh-bulk-temp)
+  (let* ((u (url-glue (url-temp) ".bin"))
+         (u2 (numbered-temp u 2)))
+    (if (url-exists? u2) (fresh-bulk-temp) u)))
+
+(define bulk-save-base (fresh-bulk-temp))
+(define bulk-save-second (numbered-temp bulk-save-base 2))
+(define bulk-save-name (url->string bulk-save-base))
+(buffer-set-body
+  (current-buffer)
+  (stree->tree
+    `(document
+       (image (tuple (raw-data "bulk-one") ,bulk-save-name) "1cm" "" "" "")
+       (image (tuple (raw-data "bulk-two") ,bulk-save-name) "2cm" "" "" ""))))
+(update-current-buffer)
+(save-all-embedded-images)
+(check (equal? (string-load bulk-save-base) "bulk-one")
+       "native save-all uses first free proposed filename")
+(check (equal? (string-load bulk-save-second) "bulk-two")
+       "native save-all numbers colliding filename from two")
+
+(define bulk-link-base (fresh-bulk-temp))
+(define bulk-link-second (numbered-temp bulk-link-base 2))
+(define bulk-link-name (url->string bulk-link-base))
+(define bulk-link-first-rel
+  (url->string (url-delta (current-buffer) bulk-link-base)))
+(define bulk-link-second-rel
+  (url->string (url-delta (current-buffer) bulk-link-second)))
+(buffer-set-body
+  (current-buffer)
+  (stree->tree
+    `(document
+       (image (tuple (raw-data "link-one") ,bulk-link-name) "1cm" "" "" "")
+       (image (tuple (raw-data "link-two") ,bulk-link-name) "2cm" "" "" ""))))
+(update-current-buffer)
+(link-all-embedded-images)
+(check (equal? (string-load bulk-link-base) "link-one")
+       "native link-all saves first embedded payload")
+(check (equal? (string-load bulk-link-second) "link-two")
+       "native link-all saves second payload under numbered filename")
+(check (equal? (tree->string (tree-ref (buffer-tree) 0 0)) bulk-link-first-rel)
+       "native link-all links first image to proposed filename")
+(check (equal? (tree->string (tree-ref (buffer-tree) 1 0)) bulk-link-second-rel)
+       "native link-all links second image to numbered filename")
+
 (define fixture "$ATHENA_PATH/misc/images/windows/SmallTile.png")
 (buffer-set-body
   (current-buffer)

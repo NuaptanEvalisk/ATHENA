@@ -570,6 +570,8 @@
   <binding name="embedded-linker-copies" native="generic_embedded_linker_copies" returns="void">
     <arg type="url" />
   </binding>
+  <binding name="save-all-embedded-images" native="generic_save_all_embedded_images" returns="void" />
+  <binding name="link-all-embedded-images" native="generic_link_all_embedded_images" returns="void" />
   <binding name="embed-image" native="generic_embed_image" returns="void">
     <arg type="tree" />
   </binding>

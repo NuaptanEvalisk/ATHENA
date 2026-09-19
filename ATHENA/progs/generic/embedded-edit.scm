@@ -45,39 +45,6 @@
     (choose-file embedded-linker-copies "Link embedded image and copies"
                  s "Save" p)))
 
-(define (strip-suffix u)
-  (with suffix (url-suffix u)
-    (if (== suffix "") u
-        (with r (url-unglue u (+ (string-length suffix) 1))
-          (if (string? u) (url->string r) r)))))
-
-(define (url-number u nr)
-  (with num (string-append "-" (number->string nr))
-    (if (== (url-suffix u) "")
-        (url-glue u num)
-        (url-glue (strip-suffix u) (string-append num "." (url-suffix u))))))
-
-(define (url-free u nr)
-  (cond ((not (url-exists? u)) u)
-        ((not (url-exists? (url-number u nr))) (url-number u nr))
-        (else (url-free u (+ nr 1)))))
-
-(define (embedded-list t)
-  (let* ((tl (tree-search t embedded-image-context?))
-         (il (... 1 (length tl)))
-         (fl (map embedded-propose tl il)))
-    (map list tl fl)))
-
-(tm-define (save-all-embedded-images)
-  (for (p (embedded-list (buffer-tree)))
-    (with (t u) p
-      (save-embedded-image t (url-free u 2)))))
-
-(tm-define (link-all-embedded-images)
-  (for (p (embedded-list (buffer-tree)))
-    (with (t u) p
-      (link-embedded-image t (url-free u 2)))))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Manage linked images
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -232,6 +232,38 @@ bool embedded_image_data (tree t, string& data) {
   return true;
 }
 
+bool embedded_proposal_string (tree t, int number, string& proposal) {
+  string file;
+  if (!embedded_image_name (t, file)) return false;
+  string ext= suffix (url (file));
+  url current= get_current_buffer_safe ();
+  string root= basename (tail (current));
+  string fallback= root * "-image-" * as_string (number) * "." * file;
+  string name= ext == "" ? fallback : file;
+  proposal= as_standard_string (relative (current, url (name)));
+  return true;
+}
+
+url numbered_embedded_url (url u, int number) {
+  string ext= suffix (u);
+  string num= "-" * as_string (number);
+  if (ext == "") return glue (u, num);
+  return glue (unglue (u, N (ext) + 1), num * "." * ext);
+}
+
+url free_embedded_url (url u, int number) {
+  if (!exists (u)) return u;
+  url numbered= numbered_embedded_url (u, number);
+  if (!exists (numbered)) return numbered;
+  return free_embedded_url (u, number + 1);
+}
+
+void collect_embedded_images (tree t, array<tree>& images) {
+  if (embedded_image_context_impl (t)) images << t;
+  if (is_atomic (t)) return;
+  for (int i= 0; i < N (t); ++i) collect_embedded_images (t[i], images);
+}
+
 bool innermost_linked_image (tree& result) {
   editor ed= get_current_editor ();
   path p= path_up (ed->the_path ());
@@ -578,14 +610,9 @@ generic_embedded_suffix (tree t) {
 
 object
 generic_embedded_propose (tree t, int number) {
-  string file;
-  if (!embedded_image_name (t, file)) return object (false);
-  string ext= suffix (url (file));
-  url current= get_current_buffer_safe ();
-  string root= basename (tail (current));
-  string fallback= root * "-image-" * as_string (number) * "." * file;
-  string name= ext == "" ? fallback : file;
-  return object (as_standard_string (relative (current, url (name))));
+  string proposal;
+  if (!embedded_proposal_string (t, number, proposal)) return object (false);
+  return object (proposal);
 }
 
 void
@@ -628,6 +655,36 @@ void
 generic_embedded_linker_copies (url name) {
   tree image;
   if (innermost_embedded_image (image)) generic_link_embedded_image_copies (image, name);
+}
+
+void
+generic_save_all_embedded_images () {
+  array<tree> images;
+  collect_embedded_images (current_document_tree (), images);
+  array<string> proposals;
+  for (int i= 0; i < N (images); ++i) {
+    string proposal;
+    if (embedded_proposal_string (images[i], i + 1, proposal)) proposals << proposal;
+    else proposals << string ("");
+  }
+  for (int i= 0; i < N (images); ++i)
+    if (proposals[i] != "")
+      generic_save_embedded_image (images[i], free_embedded_url (url (proposals[i]), 2));
+}
+
+void
+generic_link_all_embedded_images () {
+  array<tree> images;
+  collect_embedded_images (current_document_tree (), images);
+  array<string> proposals;
+  for (int i= 0; i < N (images); ++i) {
+    string proposal;
+    if (embedded_proposal_string (images[i], i + 1, proposal)) proposals << proposal;
+    else proposals << string ("");
+  }
+  for (int i= 0; i < N (images); ++i)
+    if (proposals[i] != "")
+      generic_link_embedded_image (images[i], free_embedded_url (url (proposals[i]), 2));
 }
 
 void

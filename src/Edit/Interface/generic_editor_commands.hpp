@@ -47,6 +47,8 @@ void generic_link_embedded_image_copies (tree t, url name);
 void generic_embedded_saver (url name);
 void generic_embedded_linker (url name);
 void generic_embedded_linker_copies (url name);
+void generic_save_all_embedded_images ();
+void generic_link_all_embedded_images ();
 void generic_embed_image (tree t);
 void generic_embed_images (tree t);
 void generic_embed_this_image ();
