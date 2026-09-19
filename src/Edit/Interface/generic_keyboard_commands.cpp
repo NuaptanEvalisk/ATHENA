@@ -10,11 +10,159 @@
 
 #include "generic_keyboard_commands.hpp"
 #include "editor.hpp"
+#include "file.hpp"
 #include "hashset.hpp"
 #include "new_view.hpp"
 #include "scheme.hpp"
 
+#include <QByteArray>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonParseError>
+#include <QJsonValue>
+
 namespace {
+
+QString keyboard_json_key (string value) {
+  c_string bytes (value);
+  return QString::fromUtf8 (bytes, N (value));
+}
+
+string keyboard_native_string (const QString& value) {
+  QByteArray bytes= value.toUtf8 ();
+  return string (bytes.constData (), bytes.size ());
+}
+
+struct generic_keyboard_action_data {
+  QJsonObject escape_actions;
+  QJsonArray escape_rules;
+  QJsonObject handwriting;
+
+  generic_keyboard_action_data () {
+    string source;
+    bool failed= load_string (
+      url ("$ATHENA_PATH/misc/input/generic-keyboard-actions.json"), source, false);
+    ASSERT (!failed, "cannot read generic-keyboard-actions.json");
+    c_string bytes (source);
+    QJsonParseError error;
+    QJsonDocument document=
+      QJsonDocument::fromJson (QByteArray (bytes, N (source)), &error);
+    ASSERT (error.error == QJsonParseError::NoError && document.isObject (),
+            "invalid generic-keyboard-actions.json");
+    QJsonObject root= document.object ();
+    ASSERT (root.value ("version").toInt () == 1,
+            "unsupported generic keyboard action schema");
+    ASSERT (root.value ("escape_actions").isObject () &&
+            root.value ("escape_rules").isArray () &&
+            root.value ("handwriting").isObject (),
+            "missing generic keyboard action definitions");
+    escape_actions= root.value ("escape_actions").toObject ();
+    escape_rules= root.value ("escape_rules").toArray ();
+    handwriting= root.value ("handwriting").toObject ();
+    ASSERT (handwriting.value ("command_prefix").isString () &&
+            handwriting.value ("description_suffix").isString () &&
+            handwriting.value ("direct_unprefixed").isBool () &&
+            handwriting.value ("direct_text").isObject (),
+            "invalid handwriting keyboard action definitions");
+  }
+};
+
+generic_keyboard_action_data& keyboard_action_data () {
+  static generic_keyboard_action_data data;
+  return data;
+}
+
+bool json_keyboard_string (QJsonValue value, string capture, string& result) {
+  if (value.isString ()) {
+    result= keyboard_native_string (value.toString ());
+    return true;
+  }
+  if (!value.isObject ()) return false;
+  QJsonObject object= value.toObject ();
+  if (object.value ("capture").toString () != "suffix") return false;
+  result= capture;
+  return true;
+}
+
+bool json_keyboard_tree (QJsonValue value, string capture, tree& result) {
+  string atomic;
+  if (json_keyboard_string (value, capture, atomic)) {
+    result= tree (atomic);
+    return true;
+  }
+  if (!value.isArray ()) return false;
+  QJsonArray items= value.toArray ();
+  if (items.isEmpty () || !items[0].isString ()) return false;
+  array<tree> children;
+  for (int i= 1; i < items.size (); ++i) {
+    tree child;
+    if (!json_keyboard_tree (items[i], capture, child)) return false;
+    children << child;
+  }
+  result= tree (as_tree_label (keyboard_native_string (items[0].toString ())),
+                children);
+  return true;
+}
+
+bool json_keyboard_argument (QJsonValue value, string capture, object& result) {
+  string text;
+  if (json_keyboard_string (value, capture, text)) {
+    result= object (text);
+    return true;
+  }
+  if (value.isBool ()) {
+    result= object (value.toBool ());
+    return true;
+  }
+  if (!value.isObject ()) return false;
+  QJsonObject obj= value.toObject ();
+  QJsonValue symbol= obj.value ("symbol");
+  if (!symbol.isString ()) return false;
+  result= symbol_object (keyboard_native_string (symbol.toString ()));
+  return true;
+}
+
+bool execute_json_keyboard_action (QJsonObject descriptor, string capture= "") {
+  string kind= keyboard_native_string (descriptor.value ("kind").toString ());
+  if (kind == "tree") {
+    tree inserted;
+    ASSERT (json_keyboard_tree (descriptor.value ("value"), capture, inserted),
+            "invalid tree keyboard action descriptor");
+    get_current_editor ()->insert_tree (inserted);
+    return true;
+  }
+  if (kind == "text") {
+    QJsonValue value= descriptor.value ("value");
+    string text;
+    ASSERT (json_keyboard_string (value, capture, text),
+            "invalid text keyboard action descriptor");
+    get_current_editor ()->insert_tree (tree (text));
+    return true;
+  }
+  return false;
+}
+
+object json_keyboard_dispatch_result (QJsonObject descriptor,
+                                      string capture= "") {
+  if (execute_json_keyboard_action (descriptor, capture)) return object (true);
+  string kind= keyboard_native_string (descriptor.value ("kind").toString ());
+  if (kind != "scheme-call") return object (false);
+
+  QJsonValue function_value= descriptor.value ("function");
+  QJsonValue args_value= descriptor.value ("args");
+  ASSERT (function_value.isString () && args_value.isArray (),
+          "invalid Scheme keyboard action descriptor");
+  array<object> command;
+  command << symbol_object (keyboard_native_string (function_value.toString ()));
+  for (QJsonValue value: args_value.toArray ()) {
+    object arg;
+    ASSERT (json_keyboard_argument (value, capture, arg),
+            "invalid keyboard action call argument");
+    command << arg;
+  }
+  return as_list_object (command);
+}
 
 tree focus_tree () {
   editor ed= get_current_editor ();
@@ -370,66 +518,25 @@ void generic_hybrid_kbd_sup () {
   ed->make_script (true, true);
 }
 
-void
-generic_escape_symbol_insert (string action) {
-  editor ed= get_current_editor ();
-  if (action == "tree:dx")
-    ed->insert_tree (compound ("frac", "<mathd>",
-                               compound ("concat", "<mathd>", "x")));
-  else if (action == "tree:dt")
-    ed->insert_tree (compound ("frac", "<mathd>",
-                               compound ("concat", "<mathd>", "t")));
-  else if (action == "tree:inv")
-    ed->insert_tree (compound ("rsup", "-1"));
-  else if (action == "tree:op")
-    ed->insert_tree (compound ("rsup", compound ("math-up", "op")));
-  else if (action == "tree:id")
-    ed->insert_tree (compound ("math-up", "id"));
-  else if (action == "tree:const")
-    ed->insert_tree (compound ("math-up", "const"));
-  else if (action == "tree:varinjlim")
-    ed->insert_tree (compound ("wide*", "lim", "<wide-varrightarrow>"));
-  else if (action == "tree:varprojlim")
-    ed->insert_tree (compound ("wide*", "lim", "<wide-varleftarrow>"));
-  else if (action == "tree:bij")
-    ed->insert_tree (compound ("above", "<longrightarrow>", "1:1"));
-  else if (action == "tree:simto")
-    ed->insert_tree (compound ("above", "<longrightarrow>", "<sim>"));
-  else if (action == "tree:lim-n-infty")
-    ed->insert_tree (
-      compound ("concat", "lim",
-                compound ("rsub",
-                          compound ("concat", "n", "<rightarrow>", "<infty>"))));
-  else if (action == "tree:varphi")
-    ed->insert_tree (compound ("concat", "<varphi>"));
-  else if (action == "tree:rel")
-    ed->insert_tree (compound ("concat", compound ("space", "0.27em"), "rel"));
-  else if (action == "tree:angle-brackets")
-    (void) call ("math-bracket-open", object ("<langle>"), object ("<rangle>"),
-                 symbol_object ("default"));
-  else if (action == "tree:norm-brackets")
-    (void) call ("math-bracket-open", object ("<||>"), object ("<||>"),
-                 symbol_object ("default"));
-  else if (action == "tree:math-ss")
-    (void) call ("make", symbol_object ("math-ss"));
-  else if (action == "tree:math-bf")
-    (void) call ("make", symbol_object ("math-bf"));
-  else if (action == "tree:math-boldsymbol")
-    (void) call ("make-with", object ("math-font-series"), object ("bold"));
-  else if (action == "tree:math-frak")
-    (void) call ("make-with", object ("math-font"), object ("Euler"));
-  else if (action == "tree:math-scr")
-    (void) call ("make-with", object ("math-font"), object ("cal*"));
-  else if (action == "tree:q3")
-    ed->insert_tree (compound ("concat", compound ("space", "1em"),
-                               compound ("space", "1em"),
-                               compound ("space", "1em")));
-  else if (starts (action, "tree:math-up:"))
-    ed->insert_tree (compound ("math-up", action (13, N (action))));
-  else if (starts (action, "tree:operator:"))
-    ed->insert_tree (tree (action (14, N (action))));
-  else
-    (void) call ("key-press", object (action));
+object
+generic_escape_symbol_dispatch (string action) {
+  generic_keyboard_action_data& data= keyboard_action_data ();
+  QJsonValue descriptor= data.escape_actions.value (keyboard_json_key (action));
+  if (descriptor.isObject ())
+    return json_keyboard_dispatch_result (descriptor.toObject ());
+
+  for (QJsonValue value: data.escape_rules) {
+    if (!value.isObject ()) continue;
+    QJsonObject rule= value.toObject ();
+    QJsonValue prefix_value= rule.value ("prefix");
+    QJsonValue action_value= rule.value ("action");
+    if (!prefix_value.isString () || !action_value.isObject ()) continue;
+    string prefix= keyboard_native_string (prefix_value.toString ());
+    if (!starts (action, prefix)) continue;
+    string capture= action (N (prefix), N (action));
+    return json_keyboard_dispatch_result (action_value.toObject (), capture);
+  }
+  return object (false);
 }
 
 object
@@ -437,4 +544,70 @@ generic_key_press_command (string key) {
   object binding= call ("kbd-find-key-binding", object (key));
   if (is_bool (binding) && !as_bool (binding)) return object (false);
   return call ("car", binding);
+}
+
+namespace {
+
+string handwriting_symbol_command_key (string command) {
+  QJsonObject config= keyboard_action_data ().handwriting;
+  string prefix= keyboard_native_string (config.value ("command_prefix").toString ());
+  if (prefix != "" && starts (command, prefix))
+    return command (N (prefix), N (command));
+  return command;
+}
+
+bool handwriting_symbol_direct_text (string command, string& direct) {
+  QJsonObject config= keyboard_action_data ().handwriting;
+  QJsonObject direct_text= config.value ("direct_text").toObject ();
+  QJsonValue mapped= direct_text.value (keyboard_json_key (command));
+  if (mapped.isString ()) {
+    direct= keyboard_native_string (mapped.toString ());
+    return true;
+  }
+  string prefix= keyboard_native_string (config.value ("command_prefix").toString ());
+  if (config.value ("direct_unprefixed").toBool () &&
+      (prefix == "" || !starts (command, prefix))) {
+    direct= command;
+    return true;
+  }
+  return false;
+}
+
+bool handwriting_symbol_command (string command, object& procedure) {
+  object entry= call ("kbd-get-command", object (handwriting_symbol_command_key (command)));
+  if (!as_bool (call ("pair?", entry))) return false;
+  procedure= call ("cdr", entry);
+  return as_bool (call ("procedure?", procedure));
+}
+
+} // namespace
+
+string
+generic_handwriting_symbol_input_description (string command) {
+  string direct;
+  if (handwriting_symbol_direct_text (command, direct)) return direct;
+  object procedure;
+  if (!handwriting_symbol_command (command, procedure)) return "";
+  QJsonObject config= keyboard_action_data ().handwriting;
+  return keyboard_native_string (config.value ("command_prefix").toString ()) *
+         handwriting_symbol_command_key (command) *
+         keyboard_native_string (config.value ("description_suffix").toString ());
+}
+
+void
+generic_handwriting_symbol_insert (string command) {
+  string direct;
+  if (handwriting_symbol_direct_text (command, direct)) {
+    get_current_editor ()->insert_tree (tree (direct));
+    return;
+  }
+
+  object procedure;
+  if (handwriting_symbol_command (command, procedure)) {
+    (void) call (procedure);
+    return;
+  }
+  (void) call ("set-message",
+               object ("Unsupported symbol command: " * command),
+               object ("Handwritten Symbol"));
 }

@@ -1,5 +1,6 @@
 ;; Generic keyboard fallbacks execute on the owning BufferActor.
 (import-from (generic generic-edit))
+(import-from (generic insert-menu))
 (init-style "generic")
 
 (define (body) (tree->stree (buffer-tree)))
@@ -193,11 +194,33 @@
 (check (equal? (body) '(document "lim"))
        "native escape symbol inserts dynamic operator text")
 
+(reset "" 0)
+(make 'math-ss)
+(define legacy-math-ss (body))
+(reset "" 0)
+(escape-symbol-insert "tree:math-ss")
+(check (equal? (body) legacy-math-ss)
+       "JSON call descriptor matches public make command")
+
 (let ((binding (kbd-find-key-binding "C-S-p")))
   (check (equal? (key-press-command "C-S-p") (and binding (car binding)))
          "native key-press-command mirrors public keyboard binding lookup"))
 (check (not (key-press-command "definitely-not-a-real-athena-key-binding"))
        "native key-press-command returns false for missing binding")
+
+(check (equal? (handwriting-symbol-input-description "\\---") "--")
+       "native handwriting description preserves direct-text mapping")
+(reset "" 0)
+(handwriting-symbol-insert "\\---")
+(check (equal? (body) '(document "--"))
+       "native handwriting insertion handles direct text")
+
+(check (equal? (handwriting-symbol-input-description "\\lhd") "\\lhd  Enter")
+       "native handwriting description reaches keyboard command table")
+(reset "" 0)
+(handwriting-symbol-insert "\\lhd")
+(check (equal? (body) '(document "<vartriangleleft>"))
+       "native handwriting insertion executes keyboard command procedure")
 
 (init-env "page-medium" "paper")
 (update-current-buffer)

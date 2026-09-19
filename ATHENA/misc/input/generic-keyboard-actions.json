@@ -1,0 +1,241 @@
+{
+  "version": 1,
+  "escape_actions": {
+    "tree:dx": {
+      "kind": "tree",
+      "value": [
+        "frac",
+        "<mathd>",
+        [
+          "concat",
+          "<mathd>",
+          "x"
+        ]
+      ]
+    },
+    "tree:dt": {
+      "kind": "tree",
+      "value": [
+        "frac",
+        "<mathd>",
+        [
+          "concat",
+          "<mathd>",
+          "t"
+        ]
+      ]
+    },
+    "tree:inv": {
+      "kind": "tree",
+      "value": [
+        "rsup",
+        "-1"
+      ]
+    },
+    "tree:op": {
+      "kind": "tree",
+      "value": [
+        "rsup",
+        [
+          "math-up",
+          "op"
+        ]
+      ]
+    },
+    "tree:id": {
+      "kind": "tree",
+      "value": [
+        "math-up",
+        "id"
+      ]
+    },
+    "tree:const": {
+      "kind": "tree",
+      "value": [
+        "math-up",
+        "const"
+      ]
+    },
+    "tree:varinjlim": {
+      "kind": "tree",
+      "value": [
+        "wide*",
+        "lim",
+        "<wide-varrightarrow>"
+      ]
+    },
+    "tree:varprojlim": {
+      "kind": "tree",
+      "value": [
+        "wide*",
+        "lim",
+        "<wide-varleftarrow>"
+      ]
+    },
+    "tree:bij": {
+      "kind": "tree",
+      "value": [
+        "above",
+        "<longrightarrow>",
+        "1:1"
+      ]
+    },
+    "tree:simto": {
+      "kind": "tree",
+      "value": [
+        "above",
+        "<longrightarrow>",
+        "<sim>"
+      ]
+    },
+    "tree:lim-n-infty": {
+      "kind": "tree",
+      "value": [
+        "concat",
+        "lim",
+        [
+          "rsub",
+          [
+            "concat",
+            "n",
+            "<rightarrow>",
+            "<infty>"
+          ]
+        ]
+      ]
+    },
+    "tree:varphi": {
+      "kind": "tree",
+      "value": [
+        "concat",
+        "<varphi>"
+      ]
+    },
+    "tree:rel": {
+      "kind": "tree",
+      "value": [
+        "concat",
+        [
+          "space",
+          "0.27em"
+        ],
+        "rel"
+      ]
+    },
+    "tree:angle-brackets": {
+      "kind": "scheme-call",
+      "function": "math-bracket-open",
+      "args": [
+        "<langle>",
+        "<rangle>",
+        {
+          "symbol": "default"
+        }
+      ]
+    },
+    "tree:norm-brackets": {
+      "kind": "scheme-call",
+      "function": "math-bracket-open",
+      "args": [
+        "<||>",
+        "<||>",
+        {
+          "symbol": "default"
+        }
+      ]
+    },
+    "tree:math-ss": {
+      "kind": "scheme-call",
+      "function": "make",
+      "args": [
+        {
+          "symbol": "math-ss"
+        }
+      ]
+    },
+    "tree:math-bf": {
+      "kind": "scheme-call",
+      "function": "make",
+      "args": [
+        {
+          "symbol": "math-bf"
+        }
+      ]
+    },
+    "tree:math-boldsymbol": {
+      "kind": "scheme-call",
+      "function": "make-with",
+      "args": [
+        "math-font-series",
+        "bold"
+      ]
+    },
+    "tree:math-frak": {
+      "kind": "scheme-call",
+      "function": "make-with",
+      "args": [
+        "math-font",
+        "Euler"
+      ]
+    },
+    "tree:math-scr": {
+      "kind": "scheme-call",
+      "function": "make-with",
+      "args": [
+        "math-font",
+        "cal*"
+      ]
+    },
+    "tree:q3": {
+      "kind": "tree",
+      "value": [
+        "concat",
+        [
+          "space",
+          "1em"
+        ],
+        [
+          "space",
+          "1em"
+        ],
+        [
+          "space",
+          "1em"
+        ]
+      ]
+    }
+  },
+  "handwriting": {
+    "command_prefix": "\\",
+    "description_suffix": "  Enter",
+    "direct_unprefixed": true,
+    "direct_text": {
+      "\\--": "-",
+      "\\---": "--",
+      "\\----": "---"
+    }
+  },
+  "escape_rules": [
+    {
+      "prefix": "tree:math-up:",
+      "action": {
+        "kind": "tree",
+        "value": [
+          "math-up",
+          {
+            "capture": "suffix"
+          }
+        ]
+      }
+    },
+    {
+      "prefix": "tree:operator:",
+      "action": {
+        "kind": "text",
+        "value": {
+          "capture": "suffix"
+        }
+      }
+    }
+  ]
+}

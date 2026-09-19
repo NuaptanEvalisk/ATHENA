@@ -30,6 +30,12 @@
 ;; General shortcuts for all modes
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(tm-define (escape-symbol-insert action)
+  (with dispatch (escape-symbol-native-dispatch action)
+    (cond ((== dispatch #t) (noop))
+          ((pair? dispatch) (apply (eval (car dispatch)) (cdr dispatch)))
+          (else (key-press action)))))
+
 (tm-define (open-escape-symbol-picker)
   (:interactive #t)
   (with action (escape-symbol-picker)
