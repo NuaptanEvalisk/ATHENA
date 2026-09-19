@@ -290,6 +290,58 @@ void document_init_page_orientation (string value) {
   notify_page_change ();
 }
 
+bool document_test_default_page_rendering () {
+  return defaults_absent ({"page-medium"});
+}
+
+void document_init_default_page_rendering () {
+  reset_defaults ({"page-medium", "page-border", "page-packet", "page-offset"});
+  notify_page_change ();
+}
+
+string document_get_init_page_rendering () {
+  editor ed= get_current_editor ();
+  if (ed->get_init_string ("page-border") == "attached") return "book";
+  if (ed->get_init_string ("page-packet") != "1") return "panorama";
+  object slideshow= call ("tree-innermost", symbol_object ("slideshow"));
+  bool inside_slideshow= !(is_bool (slideshow) && !as_bool (slideshow));
+  if (ed->get_init_string ("page-medium") == "paper" && !inside_slideshow)
+    return "slideshow";
+  return ed->get_init_string ("page-medium");
+}
+
+bool document_test_page_rendering (string value) {
+  return document_get_init_page_rendering () == value;
+}
+
+void document_apply_page_rendering_state (string value) {
+  editor ed= get_current_editor ();
+  if (value == "paper" || value == "papyrus")
+    call ("set-preference", object ("page medium"), object (value));
+  call ("save-zoom", object (document_get_init_page_rendering ()));
+
+  if (value == "book") {
+    ed->init_env ("page-medium", tree ("paper"));
+    ed->init_env ("page-border", tree ("attached"));
+    ed->init_env ("page-packet", tree ("2"));
+    ed->init_env ("page-offset", tree ("1"));
+  }
+  else if (value == "panorama") {
+    ed->init_env ("page-medium", tree ("paper"));
+    ed->init_env ("page-packet", tree (as_string (call ("number->string", call ("panorama-packets")))));
+    reset_defaults ({"page-border", "page-offset"});
+  }
+  else if (value == "slideshow") {
+    ed->init_env ("page-medium", tree ("paper"));
+    reset_defaults ({"page-packet", "page-border", "page-offset"});
+  }
+  else {
+    ed->init_env ("page-medium", tree (value));
+    reset_defaults ({"page-border", "page-packet", "page-offset"});
+  }
+  notify_page_change ();
+}
+
 bool document_visible_header_and_footer () {
   return get_current_editor ()->get_env_string ("page-show-hf") == "true";
 }

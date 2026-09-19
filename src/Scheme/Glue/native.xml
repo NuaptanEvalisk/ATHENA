@@ -139,6 +139,15 @@
   <binding name="init-page-orientation" native="document_init_page_orientation" returns="void">
     <arg type="string" />
   </binding>
+  <binding name="test-default-page-rendering?" native="document_test_default_page_rendering" returns="bool" />
+  <binding name="init-default-page-rendering" native="document_init_default_page_rendering" returns="void" />
+  <binding name="get-init-page-rendering" native="document_get_init_page_rendering" returns="string" />
+  <binding name="test-page-rendering?" native="document_test_page_rendering" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="document-apply-page-rendering-state" native="document_apply_page_rendering_state" returns="void">
+    <arg type="string" />
+  </binding>
   <binding name="visible-header-and-footer?" native="document_visible_header_and_footer" returns="bool" />
   <binding name="toggle-visible-header-and-footer" native="document_toggle_visible_header_and_footer" returns="void" />
   <binding name="page-width-margin?" native="document_page_width_margin" returns="bool" />
