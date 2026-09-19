@@ -168,3 +168,33 @@ void document_init_page_orientation (string value) {
   get_current_editor ()->init_env ("page-orientation", tree (value));
   notify_page_change ();
 }
+
+bool document_visible_header_and_footer () {
+  return get_current_editor ()->get_env_string ("page-show-hf") == "true";
+}
+
+void document_toggle_visible_header_and_footer () {
+  editor ed= get_current_editor ();
+  string next= ed->get_env_string ("page-show-hf") == "true" ? "false" : "true";
+  ed->init_env ("page-show-hf", tree (next));
+}
+
+bool document_page_width_margin () {
+  return get_current_editor ()->get_env_string ("page-width-margin") == "true";
+}
+
+void document_toggle_page_width_margin () {
+  editor ed= get_current_editor ();
+  string next= ed->get_env_string ("page-width-margin") == "true" ? "false" : "true";
+  ed->init_env ("page-width-margin", tree (next));
+}
+
+bool document_not_page_screen_margin () {
+  return get_current_editor ()->get_env_string ("page-screen-margin") == "false";
+}
+
+void document_toggle_page_screen_margin () {
+  editor ed= get_current_editor ();
+  string next= ed->get_env_string ("page-screen-margin") == "false" ? "true" : "false";
+  ed->init_env ("page-screen-margin", tree (next));
+}

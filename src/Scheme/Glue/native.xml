@@ -127,6 +127,12 @@
   <binding name="init-page-orientation" native="document_init_page_orientation" returns="void">
     <arg type="string" />
   </binding>
+  <binding name="visible-header-and-footer?" native="document_visible_header_and_footer" returns="bool" />
+  <binding name="toggle-visible-header-and-footer" native="document_toggle_visible_header_and_footer" returns="void" />
+  <binding name="page-width-margin?" native="document_page_width_margin" returns="bool" />
+  <binding name="toggle-page-width-margin" native="document_toggle_page_width_margin" returns="void" />
+  <binding name="not-page-screen-margin?" native="document_not_page_screen_margin" returns="bool" />
+  <binding name="toggle-page-screen-margin" native="document_toggle_page_screen_margin" returns="void" />
   <binding name="generic-context?" native="generic_context" returns="bool">
     <arg type="tree" />
   </binding>

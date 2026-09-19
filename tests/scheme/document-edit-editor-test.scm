@@ -77,6 +77,33 @@
 (init-default-page-orientation)
 (check (test-default-page-orientation?) "native default page orientation")
 
+(define expected-show-hf
+  (if (string=? (get-env "page-show-hf") "true") "false" "true"))
+(check (equal? (visible-header-and-footer?)
+               (string=? (get-env "page-show-hf") "true"))
+       "header/footer predicate matches current environment")
+(toggle-visible-header-and-footer)
+(check (equal? (get-init "page-show-hf") expected-show-hf)
+       "header/footer toggle derives next value from current environment")
+
+(define expected-width-margin
+  (if (string=? (get-env "page-width-margin") "true") "false" "true"))
+(check (equal? (page-width-margin?)
+               (string=? (get-env "page-width-margin") "true"))
+       "page width margin predicate matches current environment")
+(toggle-page-width-margin)
+(check (equal? (get-init "page-width-margin") expected-width-margin)
+       "page width margin toggle derives next value from current environment")
+
+(define expected-screen-margin
+  (if (string=? (get-env "page-screen-margin") "false") "true" "false"))
+(check (equal? (not-page-screen-margin?)
+               (string=? (get-env "page-screen-margin") "false"))
+       "screen margin predicate matches current environment")
+(toggle-page-screen-margin)
+(check (equal? (get-init "page-screen-margin") expected-screen-margin)
+       "screen margin toggle derives next value from current environment")
+
 (init-env "page-medium" "paper")
 (init-env "page-orientation" "landscape")
 (update-current-buffer)

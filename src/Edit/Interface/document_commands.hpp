@@ -34,5 +34,11 @@ bool document_test_default_page_orientation ();
 void document_init_default_page_orientation ();
 bool document_test_page_orientation (string value);
 void document_init_page_orientation (string value);
+bool document_visible_header_and_footer ();
+void document_toggle_visible_header_and_footer ();
+bool document_page_width_margin ();
+void document_toggle_page_width_margin ();
+bool document_not_page_screen_margin ();
+void document_toggle_page_screen_margin ();
 
 #endif
