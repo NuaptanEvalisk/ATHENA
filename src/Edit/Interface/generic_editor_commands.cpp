@@ -10,7 +10,9 @@
 
 #include "generic_editor_commands.hpp"
 #include "analyze.hpp"
+#include "new_document.hpp"
 #include "editor.hpp"
+#include "file.hpp"
 #include "new_buffer.hpp"
 #include "new_view.hpp"
 
@@ -202,6 +204,32 @@ bool tree_label_in_scheme_list (tree t, object labels) {
   for (int i= 0; i < N (items); ++i) {
     if (is_symbol (items[i]) && as_symbol (items[i]) == label) return true;
     if (is_string (items[i]) && as_string (items[i]) == label) return true;
+  }
+  return false;
+}
+
+bool embedded_image_context_impl (tree t) {
+  return is_compound (t, "image", 5) &&
+         is_compound (t[0], "tuple") && N (t[0]) > 0 &&
+         is_compound (t[0][0], "raw-data");
+}
+
+bool linked_image_context_impl (tree t) {
+  return is_compound (t, "image", 5) && !embedded_image_context_impl (t);
+}
+
+bool innermost_linked_image (tree& result) {
+  editor ed= get_current_editor ();
+  path p= path_up (ed->the_path ());
+  while (!is_nil (p)) {
+    if (ed->test_subtree (p)) {
+      tree t= ed->the_subtree (p);
+      if (linked_image_context_impl (t)) {
+        result= t;
+        return true;
+      }
+    }
+    p= path_up (p);
   }
   return false;
 }
@@ -483,6 +511,57 @@ generic_in_main_flow () {
 bool
 generic_balloon_context (tree t) {
   return tree_label_in_scheme_list (t, call ("balloon-tag-list"));
+}
+
+bool
+generic_image_context (tree t) {
+  return is_compound (t, "image", 5);
+}
+
+bool
+generic_embedded_image_context (tree t) {
+  return embedded_image_context_impl (t);
+}
+
+bool
+generic_linked_image_context (tree t) {
+  return linked_image_context_impl (t);
+}
+
+void
+generic_embed_image (tree t) {
+  if (!linked_image_context_impl (t) || !is_atomic (t[0])) return;
+  string file= as_string (t[0]);
+  url source= relative (get_current_buffer_safe (), url (file));
+  if (!exists (source)) return;
+
+  string data;
+  if (load_string (source, data, false)) return;
+  tree raw= compound ("tuple",
+                      compound ("raw-data", data),
+                      as_standard_string (tail (url (file))));
+  (void) call ("tree-set", object (t), object (0), object (raw));
+}
+
+void
+generic_embed_images (tree t) {
+  if (is_atomic (t)) return;
+  if (linked_image_context_impl (t)) {
+    generic_embed_image (t);
+    return;
+  }
+  for (int i= 0; i < N (t); ++i) generic_embed_images (t[i]);
+}
+
+void
+generic_embed_this_image () {
+  tree image;
+  if (innermost_linked_image (image)) generic_embed_image (image);
+}
+
+void
+generic_embed_all_images () {
+  generic_embed_images (current_document_tree ());
 }
 
 bool

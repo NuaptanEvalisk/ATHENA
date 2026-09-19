@@ -19,18 +19,6 @@
 ;; Image contexts
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (image-context? t)
-  (and t (tm-func? t 'image 5)))
-
-(tm-define (embedded-image-context? t)
-  (and (image-context? t)
-       (tm-is? (tm-ref t 0) 'tuple)
-       (tm-is? (tm-ref t 0 0) 'raw-data)))
-
-(tm-define (linked-image-context? t)
-  (and (image-context? t)
-       (not (embedded-image-context? t))))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Manage embedded images
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -137,25 +125,6 @@
 ;; Manage linked images
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (embed-image t)
-  (when (and (linked-image-context? t) (tree-atomic? (tree-ref t 0)))
-    (let* ((f (tm->string (tm-ref t 0)))
-           (u (url-relative (current-buffer) f))
-           (s (url-suffix f)))
-      (when (url-exists? u)
-        (let* ((data (string-load u))
-               (raw `(tuple (raw-data ,data) ,(url->string (url-tail f)))))
-          (tree-set t 0 raw))))))
-
-(tm-define (embed-images t)
-  (cond ((tree-atomic? t) (noop))
-        ((linked-image-context? t) (embed-image t))
-        (else (for-each embed-images (tree-children t)))))
-
-(tm-define (embed-this-image)
-  (with t (tree-innermost linked-image-context? #t)
-    (embed-image t)))
-
 (tm-define (remove-image-background)
   (:interactive #t)
   (with t (tree-innermost image-context? #t)
@@ -171,6 +140,3 @@
                 (when (defined? 'picture-gc) (picture-gc))
                 (set-message "Removed image background" "Remove background"))
               (show-message err "Remove background")))))))
-
-(tm-define (embed-all-images)
-  (embed-images (buffer-tree)))

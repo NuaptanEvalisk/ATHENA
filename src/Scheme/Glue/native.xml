@@ -537,6 +537,23 @@
   <binding name="balloon-context?" native="generic_balloon_context" returns="bool">
     <arg type="tree" />
   </binding>
+  <binding name="image-context?" native="generic_image_context" returns="bool">
+    <arg type="tree" />
+  </binding>
+  <binding name="embedded-image-context?" native="generic_embedded_image_context" returns="bool">
+    <arg type="tree" />
+  </binding>
+  <binding name="linked-image-context?" native="generic_linked_image_context" returns="bool">
+    <arg type="tree" />
+  </binding>
+  <binding name="embed-image" native="generic_embed_image" returns="void">
+    <arg type="tree" />
+  </binding>
+  <binding name="embed-images" native="generic_embed_images" returns="void">
+    <arg type="tree" />
+  </binding>
+  <binding name="embed-this-image" native="generic_embed_this_image" returns="void" />
+  <binding name="embed-all-images" native="generic_embed_all_images" returns="void" />
   <binding name="test-balloon-halign?" native="generic_test_balloon_halign" returns="bool">
     <arg type="string" />
   </binding>
