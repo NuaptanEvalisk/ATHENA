@@ -13,7 +13,9 @@
 #include "new_document.hpp"
 #include "editor.hpp"
 #include "file.hpp"
+#include "format_commands.hpp"
 #include "format_geometry.hpp"
+#include "document_commands.hpp"
 #include "language.hpp"
 #include "new_buffer.hpp"
 #include "new_view.hpp"
@@ -139,6 +141,43 @@ tree current_focus_tree () {
   editor ed= get_current_editor ();
   path p= ed->focus_get ();
   return ed->test_subtree (p) ? ed->the_subtree (p) : tree ();
+}
+
+enum generic_parameter_mode_kind {
+  GENERIC_PARAMETER_INVALID,
+  GENERIC_PARAMETER_GLOBAL,
+  GENERIC_PARAMETER_LOCAL
+};
+
+struct generic_parameter_mode {
+  generic_parameter_mode_kind kind= GENERIC_PARAMETER_INVALID;
+  string focus_label;
+};
+
+generic_parameter_mode parse_parameter_mode (object mode) {
+  generic_parameter_mode result;
+  if (mode == keyword_object ("global")) {
+    result.kind= GENERIC_PARAMETER_GLOBAL;
+    return result;
+  }
+  if (!is_list (mode)) return result;
+  array<object> items= as_array_object (mode);
+  if (N (items) != 2 || items[0] != keyword_object ("local") ||
+      !is_symbol (items[1]))
+    return result;
+  result.kind= GENERIC_PARAMETER_LOCAL;
+  result.focus_label= as_symbol (items[1]);
+  return result;
+}
+
+bool parameter_focus_matches (const generic_parameter_mode& mode, tree& focus) {
+  if (mode.kind != GENERIC_PARAMETER_LOCAL) return false;
+  focus= current_focus_tree ();
+  return is_compound (focus) && as_string (L (focus)) == mode.focus_label;
+}
+
+bool generic_parameter_content (object value) {
+  return is_string (value) || is_tree (value);
 }
 
 bool image_payload (object values, url& target,
@@ -1083,4 +1122,84 @@ scheme_tree
 generic_inputter_encode (string value, string type) {
   if (type == "length") return geometry_parse_rich_length (value);
   return tree (scm_quote (value));
+}
+
+bool
+generic_parameter_test (string name, object value, object mode_object) {
+  if (!generic_parameter_content (value)) return false;
+  generic_parameter_mode mode= parse_parameter_mode (mode_object);
+  tree expected= content_to_tree (value);
+  if (mode.kind == GENERIC_PARAMETER_GLOBAL)
+    return get_current_editor ()->get_init_value (name) == expected;
+
+  tree focus;
+  if (!parameter_focus_matches (mode, focus)) return false;
+  object current= format_tree_with_get (object (focus), tree (name));
+  return is_tree (current) && as_tree (current) == expected;
+}
+
+void
+generic_parameter_set (string name, object value, object mode_object) {
+  if (!generic_parameter_content (value)) return;
+  generic_parameter_mode mode= parse_parameter_mode (mode_object);
+  if (mode.kind == GENERIC_PARAMETER_GLOBAL) {
+    document_set_init_env (name, content_to_tree (value));
+    return;
+  }
+
+  tree focus;
+  if (!parameter_focus_matches (mode, focus)) return;
+  format_tree_with_set (focus, list_object (object (name), value));
+}
+
+object
+generic_parameter_get (string name, object mode_object) {
+  generic_parameter_mode mode= parse_parameter_mode (mode_object);
+  tree value;
+  if (mode.kind == GENERIC_PARAMETER_GLOBAL)
+    value= get_current_editor ()->get_init_value (name);
+  else if (mode.kind == GENERIC_PARAMETER_LOCAL)
+    value= get_current_editor ()->get_env_value (name);
+  else
+    return object ("");
+
+  if (is_compound (value, "macro", 1) && is_atomic (value[0]))
+    return object (as_string (value[0]));
+  return tree_to_stree (value);
+}
+
+string
+generic_parameter_get_string (string name, object mode) {
+  object value= generic_parameter_get (name, mode);
+  return is_string (value) ? as_string (value) : string ("");
+}
+
+bool
+generic_parameter_default (string name, object mode_object) {
+  generic_parameter_mode mode= parse_parameter_mode (mode_object);
+  if (mode.kind == GENERIC_PARAMETER_GLOBAL)
+    return !get_current_editor ()->defined_in_init (name);
+
+  tree focus;
+  if (!parameter_focus_matches (mode, focus)) return false;
+  object current= format_tree_with_get (object (focus), tree (name));
+  return is_bool (current) && !as_bool (current);
+}
+
+void
+generic_parameter_reset (string name, object mode_object) {
+  generic_parameter_mode mode= parse_parameter_mode (mode_object);
+  if (mode.kind == GENERIC_PARAMETER_GLOBAL) {
+    init_default_current_view (name);
+    return;
+  }
+
+  tree focus;
+  if (!parameter_focus_matches (mode, focus)) return;
+  format_tree_with_reset (object (focus), tree (name));
+}
+
+bool
+generic_parameter_enabled (string name, object mode) {
+  return generic_parameter_test (name, object ("true"), mode);
 }

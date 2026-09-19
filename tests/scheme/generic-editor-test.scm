@@ -159,8 +159,24 @@
        "native inputter encode matches rich-length parser")
 (check (equal? (inputter-encode "plain" "string") "plain")
        "native inputter encode preserves ordinary strings")
+
+(parameter-set "page-screen-margin" "true" :global)
+(check (parameter-test? "page-screen-margin" "true" :global)
+       "native global parameter test sees explicit value")
+(check (equal? (parameter-get "page-screen-margin" :global) "true")
+       "native global parameter getter preserves string value")
+(check (equal? (parameter-get-string "page-screen-margin" :global) "true")
+       "native global parameter string getter preserves string value")
+(check (not (parameter-default? "page-screen-margin" :global))
+       "native global parameter default predicate sees explicit override")
+(check (parameter-enabled? "page-screen-margin" :global)
+       "native parameter-enabled delegates to true-value policy")
+(parameter-reset "page-screen-margin" :global)
+(check (parameter-default? "page-screen-margin" :global)
+       "native global parameter reset clears explicit override")
+
 (check (equal? (tree->stree
-                 (focus-search-label
+                  (focus-search-label
                    (stree->tree
                      '(document "x" (concat "a" (label "target"))))))
                '(label "target"))

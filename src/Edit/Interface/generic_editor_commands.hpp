@@ -93,5 +93,12 @@ string generic_type_to_width (string type);
 bool generic_inputter_active (tree t, string type);
 string generic_inputter_decode (tree t, string type);
 scheme_tree generic_inputter_encode (string value, string type);
+bool generic_parameter_test (string name, object value, object mode);
+void generic_parameter_set (string name, object value, object mode);
+object generic_parameter_get (string name, object mode);
+string generic_parameter_get_string (string name, object mode);
+bool generic_parameter_default (string name, object mode);
+void generic_parameter_reset (string name, object mode);
+bool generic_parameter_enabled (string name, object mode);
 
 #endif

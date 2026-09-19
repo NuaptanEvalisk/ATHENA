@@ -160,58 +160,11 @@
 ;; Unified accessors for local and global parameters
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (parameter-test? l val mode)
-  (cond ((not (tm? val)) #f)
-        ((== mode :global)
-         (== (get-init-tree l) (tm->tree val)))
-        ((and (func? mode :local) (tree-is? (focus-tree) (cadr mode)))
-         (== (tree-with-get (focus-tree) l) (tm->tree val)))
-        (else #f)))
-
-(tm-define (parameter-set l val mode)
-  (cond ((not (tm? val)) (noop))
-        ((== mode :global)
-         (set-init-env l val))
-        ((and (func? mode :local) (tree-is? (focus-tree) (cadr mode)))
-         (tree-with-set (focus-tree) l val))))
-
 (tm-define (parameter-interactive-set l mode)
   (:interactive #t)
   (interactive (lambda (s) (parameter-set l s mode))
     (list (or (logic-ref env-var-description% l) l) "string"
           (parameter-get l mode))))
-
-(define (parameter-get* l mode)
-  (cond ((== mode :global)
-         (tm->stree (get-init-tree l)))
-        ((func? mode :local)
-         (tm->stree (get-env-tree l)))
-        (else "")))
-
-(tm-define (parameter-get l mode)
-  (with t (parameter-get* l mode)
-    (if (and (tm-func? t 'macro 1) (tm-atomic? (tm-ref t 0)))
-        (tm-ref t 0)
-        t)))
-
-(tm-define (parameter-get-string l mode)
-  (force-string (parameter-get l mode)))
-
-(tm-define (parameter-default? l mode)
-  (cond ((== mode :global)
-         (not (init-has? l)))
-        ((and (func? mode :local) (tree-is? (focus-tree) (cadr mode)))
-         (not (tree-with-get (focus-tree) l)))
-        (else #f)))
-
-(tm-define (parameter-reset l mode)
-  (cond ((== mode :global)
-         (init-default-one l))
-        ((and (func? mode :local) (tree-is? (focus-tree) (cadr mode)))
-         (tree-with-reset (focus-tree) l))))
-
-(tm-define (parameter-enabled? l mode)
-  (parameter-test? l "true" mode))
 
 (tm-define (parameter-toggle l mode)
   (:check-mark "*" parameter-enabled?)

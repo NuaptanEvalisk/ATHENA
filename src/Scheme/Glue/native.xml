@@ -711,6 +711,27 @@
   <binding name="inputter-encode" native="generic_inputter_encode" returns="scheme_tree">
     <arg type="string" /><arg type="string" />
   </binding>
+  <binding name="parameter-test?" native="generic_parameter_test" returns="bool">
+    <arg type="string" /><arg type="object" /><arg type="object" />
+  </binding>
+  <binding name="parameter-set" native="generic_parameter_set" returns="void">
+    <arg type="string" /><arg type="object" /><arg type="object" />
+  </binding>
+  <binding name="parameter-get" native="generic_parameter_get" returns="object">
+    <arg type="string" /><arg type="object" />
+  </binding>
+  <binding name="parameter-get-string" native="generic_parameter_get_string" returns="string">
+    <arg type="string" /><arg type="object" />
+  </binding>
+  <binding name="parameter-default?" native="generic_parameter_default" returns="bool">
+    <arg type="string" /><arg type="object" />
+  </binding>
+  <binding name="parameter-reset" native="generic_parameter_reset" returns="void">
+    <arg type="string" /><arg type="object" />
+  </binding>
+  <binding name="parameter-enabled?" native="generic_parameter_enabled" returns="bool">
+    <arg type="string" /><arg type="object" />
+  </binding>
   <binding name="space-context?" native="geometry_space_context" returns="bool">
     <arg type="tree" />
   </binding>
