@@ -13,8 +13,10 @@
 #include "new_document.hpp"
 #include "editor.hpp"
 #include "file.hpp"
+#include "language.hpp"
 #include "new_buffer.hpp"
 #include "new_view.hpp"
+#include "tree_select.hpp"
 
 namespace {
 
@@ -294,6 +296,33 @@ bool innermost_embedded_image (tree& result) {
     p= path_up (p);
   }
   return false;
+}
+
+bool spell_live_current_range (path& start_path, path& end_path) {
+  editor ed= get_current_editor ();
+  range_set sels= ed->get_alt_selection ("spell-live");
+  path cursor= ed->the_path ();
+  for (int i= 0; i + 1 < N (sels); i += 2)
+    if (path_less_eq (sels[i], cursor) && path_less (cursor, sels[i + 1])) {
+      start_path= sels[i];
+      end_path= sels[i + 1];
+      return true;
+    }
+  return false;
+}
+
+bool spell_live_current_word_impl (path start_path, path end_path, string& word) {
+  tree selected= selection_compute (get_current_editor ()->the_root (),
+                                    start_path, end_path);
+  if (!is_atomic (selected) || N (selected->label) == 0) return false;
+  word= selected->label;
+  return true;
+}
+
+string spell_live_language_at (path start_path) {
+  editor ed= get_current_editor ();
+  tree language= ed->get_env_value ("language", start_path);
+  return is_atomic (language) ? as_string (language): ed->get_init_string ("language");
 }
 
 void replace_matching_embedded_source (tree t, tree source, string replacement) {
@@ -721,6 +750,46 @@ generic_embed_this_image () {
 void
 generic_embed_all_images () {
   generic_embed_images (current_document_tree ());
+}
+
+object
+generic_spell_live_current_selection () {
+  path start_path, end_path;
+  if (!spell_live_current_range (start_path, end_path)) return object (false);
+  return list_object (object (start_path), object (end_path));
+}
+
+object
+generic_spell_live_current_word () {
+  path start_path, end_path;
+  string word;
+  if (!spell_live_current_range (start_path, end_path) ||
+      !spell_live_current_word_impl (start_path, end_path, word))
+    return object (false);
+  return object (word);
+}
+
+object
+generic_spell_live_current_language () {
+  path start_path, end_path;
+  if (!spell_live_current_range (start_path, end_path)) return object (false);
+  return object (spell_live_language_at (start_path));
+}
+
+object
+generic_spell_live_current_suggestions () {
+  path start_path, end_path;
+  string word;
+  if (!spell_live_current_range (start_path, end_path) ||
+      !spell_live_current_word_impl (start_path, end_path, word))
+    return object (list<string> ());
+
+  tree checked= spell_check (spell_live_language_at (start_path), word);
+  list<string> suggestions;
+  if (is_tuple (checked))
+    for (int i= 1; i < N (checked) && i <= 9; ++i)
+      if (is_atomic (checked[i])) suggestions << as_string (checked[i]);
+  return object (suggestions);
 }
 
 bool
