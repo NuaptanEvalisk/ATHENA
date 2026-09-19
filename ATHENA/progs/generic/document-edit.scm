@@ -50,85 +50,8 @@
       (when (!= new (get-init-env var))
         (set-init-env var new)))))
 
-(tm-define (document-font-display-name val)
-  (with fam (font-family-main val)
-    (cond ((or (== fam "bonum")
-               (string-starts? fam "TeX Gyre Bonum")) "Bonum")
-          ((or (== fam "pagella")
-               (string-starts? fam "TeX Gyre Pagella")) "Pagella")
-          ((or (== fam "schola")
-               (string-starts? fam "TeX Gyre Schola")) "Schola")
-          ((or (== fam "termes")
-               (string-starts? fam "TeX Gyre Termes")) "Termes")
-          (else (upcase-first fam)))))
-
-(tm-define (test-init-font? val . opts)
-  (== (document-font-display-name (get-init "font"))
-      (document-font-display-name val)))
-
-(tm-define (remove-font-packages)
-  (with l (get-style-list)
-    (with f (list-filter l (lambda (p) (not (string-ends? p "-font"))))
-      (set-style-list f))))
-
-(define (font-package-name val)
-  (cond ((== val "Fira") "fira-font")
-        ((== val "Linux Biolinum") "biolinum-font")
-        ((== val "Linux Libertine") "libertine-font")
-        (else (string-append val "-font"))))
-
-(define (tex-gyre-document-font? val)
-  (or (in? val '("Bonum" "bonum" "Pagella" "pagella"
-                  "Schola" "schola" "Termes" "termes"))
-      (string-starts? val "TeX Gyre Bonum")
-      (string-starts? val "TeX Gyre Pagella")
-      (string-starts? val "TeX Gyre Schola")
-      (string-starts? val "TeX Gyre Termes")))
-
-(define (tex-gyre-document-profile val)
-  (cond ((or (in? val '("Bonum" "bonum"))
-             (string-starts? val "TeX Gyre Bonum"))
-         "TeX Gyre Bonum")
-        ((or (in? val '("Pagella" "pagella"))
-             (string-starts? val "TeX Gyre Pagella"))
-         "TeX Gyre Pagella")
-        ((or (in? val '("Schola" "schola"))
-             (string-starts? val "TeX Gyre Schola"))
-         "TeX Gyre Schola")
-        ((or (in? val '("Termes" "termes"))
-             (string-starts? val "TeX Gyre Termes"))
-         "TeX Gyre Termes")
-        (else val)))
-
-(tm-define (init-font val . opts)
-  (:check-mark "*" test-init-font?)
-  (cond ((== val "TeXmacs Computer Modern")
-         (init-font "roman" "roman"))
-        ((and (== val "roman") (!= opts (list "roman")))
-         (init-font "roman" "roman"))
-        ((tex-gyre-document-font? val)
-         ;; Document-level TeX Gyre choices use the same smart-font profile
-         ;; representation as the native font selector.  The legacy
-         ;; *-font packages route through the old logical math-font stack and
-         ;; can disagree with the profile renderer for large operators.
-         (init-env "font" (tex-gyre-document-profile val))
-         (init-default "math-font")
-         (init-env "font-family" "rm")
-         (remove-font-packages))
-        ((string-starts? val "Stix")
-         (init-font "stix" "math-stix"))
-        (else
-          (init-env "font" val)
-          (when (nnull? opts)
-            (init-env "math-font" (car opts)))
-          (init-env "font-family" "rm")
-          (remove-font-packages)
-          (with pack (font-package-name val)
-            (with dir "$ATHENA_PATH/packages/customize/fonts"
-              (when (url-exists? (url-append dir (string-append pack ".ts")))
-                (init-default "font")
-                (init-default "font-family")
-                (add-style-package pack)))))))
+(tm-property (init-font val . opts)
+  (:check-mark "*" test-init-font?))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Initial environment management in specific buffers

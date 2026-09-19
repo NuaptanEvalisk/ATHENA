@@ -60,6 +60,19 @@
 (check (test-init-font? "pagella" "math-pagella")
        "built-in Pagella menu should be checked for the smart profile")
 
+(reset-font-init)
+(init-font "Stix")
+(check (== (get-init "font") "stix")
+       "Stix alias should redirect to the stix document font")
+(check (== (get-init "math-font") "math-stix")
+       "Stix alias should redirect to math-stix")
+
+(set-style-list '("generic" "alpha-font" "compact" "beta-font"))
+(remove-font-packages)
+(check (equal? (get-style-list) '("generic" "compact"))
+       "font package cleanup should preserve non-font package order")
+(set-style-list '("generic"))
+
 (init-env "page-medium" "paper")
 (update-current-buffer)
 (update-forced)

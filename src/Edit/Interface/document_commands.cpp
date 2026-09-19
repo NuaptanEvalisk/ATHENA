@@ -11,6 +11,8 @@
 #include "document_commands.hpp"
 #include "editor.hpp"
 #include "new_view.hpp"
+#include "font.hpp"
+#include "analyze.hpp"
 
 #include <initializer_list>
 
@@ -99,6 +101,109 @@ document_init_multi (object values) {
       init_default_current_view (variable);
     else if (is_string (value))
       get_current_editor ()->init_env (variable, tree (as_string (value)));
+  }
+}
+
+namespace {
+
+bool tex_gyre_document_font (string value) {
+  return value == "Bonum" || value == "bonum" ||
+         value == "Pagella" || value == "pagella" ||
+         value == "Schola" || value == "schola" ||
+         value == "Termes" || value == "termes" ||
+         starts (value, "TeX Gyre Bonum") ||
+         starts (value, "TeX Gyre Pagella") ||
+         starts (value, "TeX Gyre Schola") ||
+         starts (value, "TeX Gyre Termes");
+}
+
+string tex_gyre_document_profile (string value) {
+  if (value == "Bonum" || value == "bonum" || starts (value, "TeX Gyre Bonum"))
+    return "TeX Gyre Bonum";
+  if (value == "Pagella" || value == "pagella" || starts (value, "TeX Gyre Pagella"))
+    return "TeX Gyre Pagella";
+  if (value == "Schola" || value == "schola" || starts (value, "TeX Gyre Schola"))
+    return "TeX Gyre Schola";
+  if (value == "Termes" || value == "termes" || starts (value, "TeX Gyre Termes"))
+    return "TeX Gyre Termes";
+  return value;
+}
+
+string font_package_name (string value) {
+  if (value == "Fira") return "fira-font";
+  if (value == "Linux Biolinum") return "biolinum-font";
+  if (value == "Linux Libertine") return "libertine-font";
+  return value * "-font";
+}
+
+} // namespace
+
+string
+document_font_display_name (string value) {
+  string family= main_family (value);
+  if (family == "bonum" || starts (family, "TeX Gyre Bonum")) return "Bonum";
+  if (family == "pagella" || starts (family, "TeX Gyre Pagella")) return "Pagella";
+  if (family == "schola" || starts (family, "TeX Gyre Schola")) return "Schola";
+  if (family == "termes" || starts (family, "TeX Gyre Termes")) return "Termes";
+  return upcase_first (family);
+}
+
+bool
+document_test_init_font (string value, object) {
+  string current= get_current_editor ()->get_init_string ("font");
+  return document_font_display_name (current) == document_font_display_name (value);
+}
+
+void
+document_remove_font_packages () {
+  object styles= call ("get-style-list");
+  if (!is_list (styles)) return;
+  list<string> current= as_list_string (styles);
+  list<string> filtered;
+  for (list<string> it= current; !is_nil (it); it= it->next)
+    if (!ends (it->item, "-font")) filtered << it->item;
+  call ("set-style-list", object (filtered));
+}
+
+void
+document_init_font (string value, object options) {
+  editor ed= get_current_editor ();
+  array<object> opts= is_list (options) ? as_array_object (options) : array<object> ();
+
+  if (value == "TeXmacs Computer Modern") {
+    call ("init-font", object ("roman"), object ("roman"));
+    return;
+  }
+  if (value == "roman" &&
+      !(N (opts) == 1 && is_string (opts[0]) && as_string (opts[0]) == "roman")) {
+    call ("init-font", object ("roman"), object ("roman"));
+    return;
+  }
+  if (tex_gyre_document_font (value)) {
+    ed->init_env ("font", tree (tex_gyre_document_profile (value)));
+    init_default_current_view ("math-font");
+    ed->init_env ("font-family", tree ("rm"));
+    call ("remove-font-packages");
+    return;
+  }
+  if (starts (value, "Stix")) {
+    call ("init-font", object ("stix"), object ("math-stix"));
+    return;
+  }
+
+  ed->init_env ("font", tree (value));
+  if (N (opts) > 0 && is_string (opts[0]))
+    ed->init_env ("math-font", tree (as_string (opts[0])));
+  ed->init_env ("font-family", tree ("rm"));
+  call ("remove-font-packages");
+
+  string package= font_package_name (value);
+  object file= call ("url-append", object ("$ATHENA_PATH/packages/customize/fonts"),
+                     object (package * ".ts"));
+  if (as_bool (call ("url-exists?", file))) {
+    init_default_current_view ("font");
+    init_default_current_view ("font-family");
+    call ("add-style-package", object (package));
   }
 }
 

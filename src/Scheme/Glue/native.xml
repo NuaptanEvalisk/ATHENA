@@ -102,6 +102,16 @@
   <binding name="init-multi" native="document_init_multi" returns="void">
     <arg type="object" />
   </binding>
+  <binding name="document-font-display-name" native="document_font_display_name" returns="string">
+    <arg type="string" />
+  </binding>
+  <binding name="test-init-font?" native="document_test_init_font" returns="bool">
+    <arg type="string" /><arg type="object" rest="true" />
+  </binding>
+  <binding name="remove-font-packages" native="document_remove_font_packages" returns="void" />
+  <binding name="init-font" native="document_init_font" returns="void">
+    <arg type="string" /><arg type="object" rest="true" />
+  </binding>
   <binding name="test-default-page-medium?" native="document_test_default_page_medium" returns="bool" />
   <binding name="init-default-page-medium" native="document_init_default_page_medium" returns="void" />
   <binding name="test-page-medium?" native="document_test_page_medium" returns="bool">
