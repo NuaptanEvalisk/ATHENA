@@ -79,6 +79,8 @@
   <binding name="toggle-italic" native="format_toggle_italic" returns="void" />
   <binding name="toggle-small-caps" native="format_toggle_small_caps" returns="void" />
   <binding name="toggle-underlined" native="format_toggle_underlined" returns="void" />
+  <binding name="in-source-mode?" native="document_in_source_mode" returns="bool" />
+  <binding name="toggle-source-mode" native="document_toggle_source_mode" returns="void" />
   <binding name="test-default?" native="document_test_default" returns="bool">
     <arg type="object" rest="true" />
   </binding>

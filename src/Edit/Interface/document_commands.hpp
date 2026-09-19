@@ -15,6 +15,8 @@
 #include "tree.hpp"
 
 bool document_test_default (object variables);
+bool document_in_source_mode ();
+void document_toggle_source_mode ();
 void document_init_default (object variables);
 object document_get_init_env (string variable);
 bool document_test_init (string variable, string value);

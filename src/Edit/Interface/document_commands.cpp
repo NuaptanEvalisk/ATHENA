@@ -14,6 +14,22 @@
 
 #include <initializer_list>
 
+bool document_in_source_mode () {
+  return get_current_editor ()->get_env_string ("preamble") == "true";
+}
+
+void document_toggle_source_mode () {
+  editor ed= get_current_editor ();
+  string next= ed->get_env_string ("preamble") == "true" ? "false" : "true";
+  if (next == "true") {
+    ed->init_env ("src-style", tree (as_string (call ("get-preference", object ("source tree style")))));
+    ed->init_env ("src-special", tree (as_string (call ("get-preference", object ("source tree special rendering")))));
+    ed->init_env ("src-compact", tree (as_string (call ("get-preference", object ("source tree compactification")))));
+    ed->init_env ("src-close", tree (as_string (call ("get-preference", object ("source tree closing style")))));
+  }
+  ed->init_env ("preamble", tree (next));
+}
+
 bool
 document_test_default (object variables) {
   if (!is_list (variables)) return false;
