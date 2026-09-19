@@ -23,32 +23,6 @@
 ;; Manage embedded images
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (embedded-suffix t)
-  (and (embedded-image-context? t)
-       (let* ((f (cork->utf8 (tm->string (tm-ref t 0 1))))
-              (s (url-suffix f)))
-         (if (== s "") f s))))
-
-(tm-define (embedded-propose t nr)
-  (and (embedded-image-context? t)
-       (let* ((f (cork->utf8 (tm->string (tm-ref t 0 1))))
-              (s (url-suffix f))
-              (c (current-buffer))
-              (r (url->string (url-basename (url-tail c))))
-              (d (string-append r "-image-" (number->string nr) "." f))
-              (n (if (== s "") d f)))
-         (url->string (url-relative c n)))))
-
-(tm-define (save-embedded-image t name)
-  (when (embedded-image-context? t)
-    (string-save (tm->string (tm-ref t 0 0 0)) name)))
-
-(tm-define (link-embedded-image t name)
-  (when (embedded-image-context? t)
-    (save-embedded-image t name)
-    (with rel (url->string (url-delta (current-buffer) name))
-      (tree-set! t 0 rel))))
-
 (tm-define (link-embedded-image-copies t name)
   (when (embedded-image-context? t)
     (save-embedded-image t name)

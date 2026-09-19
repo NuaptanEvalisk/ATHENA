@@ -546,6 +546,18 @@
   <binding name="linked-image-context?" native="generic_linked_image_context" returns="bool">
     <arg type="tree" />
   </binding>
+  <binding name="embedded-suffix" native="generic_embedded_suffix" returns="object">
+    <arg type="tree" />
+  </binding>
+  <binding name="embedded-propose" native="generic_embedded_propose" returns="object">
+    <arg type="tree" /><arg type="int" />
+  </binding>
+  <binding name="save-embedded-image" native="generic_save_embedded_image" returns="void">
+    <arg type="tree" /><arg type="url" />
+  </binding>
+  <binding name="link-embedded-image" native="generic_link_embedded_image" returns="void">
+    <arg type="tree" /><arg type="url" />
+  </binding>
   <binding name="embed-image" native="generic_embed_image" returns="void">
     <arg type="tree" />
   </binding>

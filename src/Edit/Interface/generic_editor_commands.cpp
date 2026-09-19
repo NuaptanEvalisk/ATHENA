@@ -218,6 +218,20 @@ bool linked_image_context_impl (tree t) {
   return is_compound (t, "image", 5) && !embedded_image_context_impl (t);
 }
 
+bool embedded_image_name (tree t, string& name) {
+  if (!embedded_image_context_impl (t) || N (t[0]) < 2 || !is_atomic (t[0][1]))
+    return false;
+  name= cork_to_utf8 (as_string (t[0][1]));
+  return true;
+}
+
+bool embedded_image_data (tree t, string& data) {
+  if (!embedded_image_context_impl (t) || N (t[0][0]) < 1 || !is_atomic (t[0][0][0]))
+    return false;
+  data= as_string (t[0][0][0]);
+  return true;
+}
+
 bool innermost_linked_image (tree& result) {
   editor ed= get_current_editor ();
   path p= path_up (ed->the_path ());
@@ -526,6 +540,41 @@ generic_embedded_image_context (tree t) {
 bool
 generic_linked_image_context (tree t) {
   return linked_image_context_impl (t);
+}
+
+object
+generic_embedded_suffix (tree t) {
+  string file;
+  if (!embedded_image_name (t, file)) return object (false);
+  string ext= suffix (url (file));
+  return object (ext == "" ? file : ext);
+}
+
+object
+generic_embedded_propose (tree t, int number) {
+  string file;
+  if (!embedded_image_name (t, file)) return object (false);
+  string ext= suffix (url (file));
+  url current= get_current_buffer_safe ();
+  string root= basename (tail (current));
+  string fallback= root * "-image-" * as_string (number) * "." * file;
+  string name= ext == "" ? fallback : file;
+  return object (as_standard_string (relative (current, url (name))));
+}
+
+void
+generic_save_embedded_image (tree t, url name) {
+  string data;
+  if (!embedded_image_data (t, data)) return;
+  (void) save_string (name, data, false);
+}
+
+void
+generic_link_embedded_image (tree t, url name) {
+  if (!embedded_image_context_impl (t)) return;
+  generic_save_embedded_image (t, name);
+  string rel= as_standard_string (delta (get_current_buffer_safe (), name));
+  (void) call ("tree-set", object (t), object (0), object (rel));
 }
 
 void

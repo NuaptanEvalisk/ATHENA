@@ -22,6 +22,41 @@
        "native embedded-image predicate recognizes raw-data tuple")
 (check (not (linked-image-context? embedded))
        "embedded image is not linked")
+(check (equal? (embedded-suffix embedded) "png")
+       "native embedded suffix returns filename extension")
+(define extensionless
+  (stree->tree '(image (tuple (raw-data "abc") "png") "1cm" "" "" "")))
+(check (equal? (embedded-suffix extensionless) "png")
+       "native embedded suffix falls back to extensionless filename")
+(check (not (embedded-suffix linked))
+       "native embedded suffix rejects linked image")
+
+(define proposal-source
+  (stree->tree '(image (tuple (raw-data "abc") "named.png") "1cm" "" "" "")))
+(check (equal? (embedded-propose proposal-source 3)
+               (url->string (url-relative (current-buffer) "named.png")))
+       "native embedded proposal preserves named file with suffix")
+
+(define save-target (string->url "/tmp/athena-embedded-save-test.bin"))
+(save-embedded-image embedded save-target)
+(check (equal? (string-load save-target) "abc")
+       "native save-embedded-image writes raw payload")
+
+(buffer-set-body
+  (current-buffer)
+  (stree->tree '(document
+                  (image (tuple (raw-data "linked-payload") "linked.bin")
+                         "1cm" "" "" ""))))
+(update-current-buffer)
+(define link-target (string->url "/tmp/athena-embedded-link-test.bin"))
+(define expected-link (url->string (url-delta (current-buffer) link-target)))
+(link-embedded-image (tree-ref (buffer-tree) 0) link-target)
+(check (equal? (string-load link-target) "linked-payload")
+       "native link-embedded-image saves raw payload")
+(check (equal? (tree->string (tree-ref (buffer-tree) 0 0)) expected-link)
+       "native link-embedded-image replaces embedded tuple with relative link")
+(check (linked-image-context? (tree-ref (buffer-tree) 0))
+       "native linked image mutation updates context classification")
 
 (define fixture "$ATHENA_PATH/misc/images/windows/SmallTile.png")
 (buffer-set-body
