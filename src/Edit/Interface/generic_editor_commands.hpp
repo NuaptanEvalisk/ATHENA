@@ -104,5 +104,8 @@ object generic_focus_doc_arg_names (tree t, int start, object previous_names);
 string generic_parameter_name (string name);
 bool generic_parameter_show_in_menu (string name);
 bool generic_parameter_value (object value);
+object generic_focus_variants_of (tree t);
+string generic_focus_tag_name (object label);
+object generic_child_proposals (tree t, int i);
 
 #endif

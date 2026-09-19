@@ -1269,3 +1269,42 @@ generic_parameter_value (object value) {
   array<object> items= as_array_object (value);
   return N (items) == 2 && is_string (items[0]);
 }
+
+object
+generic_focus_variants_of (tree t) {
+  return call ("variants-of", symbol_object (as_string (L (t))));
+}
+
+string
+generic_focus_tag_name (object label) {
+  object raw= call ("symbol->string", label);
+  if (!is_string (raw)) return "";
+  string name= as_string (raw);
+
+  object theme= call ("member->theme", object (name));
+  if (!(is_bool (theme) && !as_bool (theme)) && is_string (theme)) {
+    string prefix= as_string (theme);
+    int start= min (N (name), N (prefix) + 1);
+    object nested= call ("focus-tag-name",
+                         symbol_object (name (start, N (name))));
+    return is_string (nested) ? as_string (nested) : string ("");
+  }
+
+  if (as_bool (call ("symbol-unnumbered?", label))) {
+    object nested= call ("focus-tag-name",
+                         call ("symbol-drop-right", label, object (1)));
+    return is_string (nested) ? as_string (nested) : string ("");
+  }
+
+  object tree_name= call ("tree-name", object (tree (as_tree_label (name))));
+  if (!is_string (tree_name)) return "";
+  object upper= call ("upcase-first", tree_name);
+  if (!is_string (upper)) return "";
+  object display= call ("string-replace", upper, object ("-"), object (" "));
+  return is_string (display) ? as_string (display) : string ("");
+}
+
+object
+generic_child_proposals (tree, int) {
+  return object (false);
+}

@@ -23,20 +23,6 @@
 ;; Variants
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (focus-variants-of t)
-  (variants-of (tree-label t)))
-
-(tm-define (focus-tag-name l)
-  (let* ((s (symbol->string l))
-         (th (member->theme s)))
-    (if th
-        (with ns (string-drop s (+ (string-length th) 1))
-          (focus-tag-name (string->symbol ns)))
-        (if (symbol-unnumbered? l)
-            (focus-tag-name (symbol-drop-right l 1))
-            (with r (upcase-first (tree-name (tree l)))
-              (string-replace r "-" " "))))))
-
 (tm-menu (focus-variant-menu t)
   (push-focus t
     (for (v (focus-variants-of t))
@@ -47,9 +33,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Subroutines for hidden fields
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (child-proposals t i)
-  #f)
 
 (tm-menu (string-input-name t i)
   (let* ((name (tree-child-name* t i))

@@ -744,6 +744,15 @@
   <binding name="parameter-value?" native="generic_parameter_value" returns="bool">
     <arg type="object" />
   </binding>
+  <binding name="focus-variants-of" native="generic_focus_variants_of" returns="object">
+    <arg type="tree" />
+  </binding>
+  <binding name="focus-tag-name" native="generic_focus_tag_name" returns="string">
+    <arg type="object" />
+  </binding>
+  <binding name="child-proposals" native="generic_child_proposals" returns="object">
+    <arg type="tree" /><arg type="int" />
+  </binding>
   <binding name="space-context?" native="geometry_space_context" returns="bool">
     <arg type="tree" />
   </binding>
