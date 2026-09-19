@@ -243,9 +243,6 @@
 ;; Balloons
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (balloon-context? t)
-  (tree-in? t (balloon-tag-list)))
-
 (tm-define (display-balloon body balloon halign valign type)
   (:secure #t)
   (let* ((kind (or (tm->string type) "default"))

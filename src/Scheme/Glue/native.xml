@@ -486,6 +486,9 @@
     <arg type="tree" />
   </binding>
   <binding name="in-main-flow?" native="generic_in_main_flow" returns="bool" />
+  <binding name="balloon-context?" native="generic_balloon_context" returns="bool">
+    <arg type="tree" />
+  </binding>
   <binding name="test-balloon-halign?" native="generic_test_balloon_halign" returns="bool">
     <arg type="string" />
   </binding>

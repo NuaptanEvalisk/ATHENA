@@ -173,6 +173,10 @@
        "native mini-flow predicate recognizes base table tag")
 (check (not (mini-flow-context? (stree->tree '(document "x"))))
        "native mini-flow predicate rejects main document tag")
+(check (balloon-context? (stree->tree '(hover-balloon "x" "y" "left" "Bottom")))
+       "native balloon context recognizes live balloon group")
+(check (not (balloon-context? (stree->tree '(document "x"))))
+       "native balloon context rejects non-balloon tags")
 (reset '(document "plain") '(0 0 1))
 (check (in-main-flow?) "cursor in ordinary document text is in main flow")
 (buffer-set-body

@@ -411,6 +411,11 @@ generic_in_main_flow () {
 }
 
 bool
+generic_balloon_context (tree t) {
+  return tree_label_in_scheme_list (t, call ("balloon-tag-list"));
+}
+
+bool
 generic_test_balloon_halign (string value) {
   tree balloon;
   return innermost_balloon (balloon) && N (balloon) > 2 &&
