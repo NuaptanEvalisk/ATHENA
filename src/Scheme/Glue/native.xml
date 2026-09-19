@@ -753,6 +753,13 @@
   <binding name="child-proposals" native="generic_child_proposals" returns="object">
     <arg type="tree" /><arg type="int" />
   </binding>
+  <binding name="focus-parameters-list" native="generic_focus_parameters_list" returns="object">
+    <arg type="tree" /><arg type="object" />
+  </binding>
+  <binding name="focus-parameters-list-memo" native="generic_focus_parameters_list_memo" returns="object">
+    <arg type="tree" /><arg type="object" />
+  </binding>
+  <binding name="focus-parameters-cache-clear" native="generic_focus_parameters_cache_clear" returns="void" />
   <binding name="space-context?" native="geometry_space_context" returns="bool">
     <arg type="tree" />
   </binding>

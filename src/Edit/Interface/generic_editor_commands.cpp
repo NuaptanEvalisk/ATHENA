@@ -22,6 +22,7 @@
 #include "tree_select.hpp"
 #include "tree_traverse.hpp"
 #include "basic.hpp"
+#include "hashmap.hpp"
 
 namespace {
 
@@ -1307,4 +1308,91 @@ generic_focus_tag_name (object label) {
 object
 generic_child_proposals (tree, int) {
   return object (false);
+}
+
+namespace {
+
+hashmap<string,array<string>> focus_parameters_cache=
+  hashmap<string,array<string>> (array<string> ());
+
+bool scheme_truthy (object value) {
+  return !(is_bool (value) && !as_bool (value));
+}
+
+array<string> string_list (object value) {
+  array<string> result;
+  if (!is_list (value)) return result;
+  array<object> items= as_array_object (value);
+  for (int i= 0; i < N (items); ++i)
+    if (is_string (items[i])) result << as_string (items[i]);
+  return result;
+}
+
+object strings_object (array<string> values) {
+  array<object> result;
+  for (int i= 0; i < N (values); ++i) result << object (values[i]);
+  return as_list_object (result);
+}
+
+bool string_array_contains (array<string> values, string value) {
+  for (int i= 0; i < N (values); ++i)
+    if (values[i] == value) return true;
+  return false;
+}
+
+string focus_parameters_cache_key (tree t, object mode) {
+  string label= as_string (L (t));
+  string mode_key= object_to_string (mode);
+  string style_key= object_to_string (tree_to_stree (get_current_editor ()->get_style ()));
+  return label * "\n" * mode_key * "\n" * style_key;
+}
+
+} // namespace
+
+object
+generic_focus_parameters_list (tree t, object mode) {
+  object found= call ("search-parameters", symbol_object (as_string (L (t))));
+  array<string> parameters= string_list (found);
+  array<string> visible;
+  for (int i= 0; i < N (parameters); ++i)
+    if (as_bool (call ("parameter-show-in-menu?", object (parameters[i]))))
+      visible << parameters[i];
+
+  bool global= mode == keyword_object ("global");
+  array<string> customizable;
+  if (!global) {
+    object definitions= format_customizable_parameters_memo (t);
+    if (is_list (definitions)) {
+      array<object> items= as_array_object (definitions);
+      for (int i= 0; i < N (items); ++i) {
+        if (!is_list (items[i])) continue;
+        array<object> pair= as_array_object (items[i]);
+        if (N (pair) > 0 && is_string (pair[0]))
+          customizable << as_string (pair[0]);
+      }
+    }
+  }
+
+  object inhibited= eval (global ? "inhibit-global-table" : "inhibit-local-table");
+  array<string> result;
+  for (int i= 0; i < N (visible); ++i) {
+    string parameter= visible[i];
+    if (string_array_contains (customizable, parameter)) continue;
+    if (scheme_truthy (call ("ahash-ref", inhibited, object (parameter)))) continue;
+    result << parameter;
+  }
+  return strings_object (result);
+}
+
+object
+generic_focus_parameters_list_memo (tree t, object mode) {
+  string key= focus_parameters_cache_key (t, mode);
+  if (!focus_parameters_cache->contains (key))
+    focus_parameters_cache (key)= string_list (generic_focus_parameters_list (t, mode));
+  return strings_object (focus_parameters_cache[key]);
+}
+
+void
+generic_focus_parameters_cache_clear () {
+  focus_parameters_cache= hashmap<string,array<string>> (array<string> ());
 }

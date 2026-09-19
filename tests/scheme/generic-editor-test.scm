@@ -251,6 +251,31 @@
 (check (equal? (child-proposals proposal-tree 0) '("fast" "slow" :other))
        "native child proposal baseline remains a Scheme extension point")
 
+(define (legacy-focus-parameters-list t mode)
+  (let* ((ls (list-filter (search-parameters (tree-label t))
+                          parameter-show-in-menu?))
+         (xs (if (== mode :global) (list)
+                 (map car (customizable-parameters-memo t))))
+         (no (if (== mode :global) inhibit-global-table
+                 inhibit-local-table)))
+    (list-filter (list-difference ls xs)
+                 (lambda (x) (not (ahash-ref no x))))))
+(define parameter-tree (stree->tree '(section "Title")))
+(check (equal? (focus-parameters-list parameter-tree :global)
+               (legacy-focus-parameters-list parameter-tree :global))
+       "native global focus parameter list matches legacy filtering")
+(define local-mode (list :local (tree-label parameter-tree)))
+(check (equal? (focus-parameters-list parameter-tree local-mode)
+               (legacy-focus-parameters-list parameter-tree local-mode))
+       "native local focus parameter list matches legacy filtering")
+(check (equal? (focus-parameters-list-memo parameter-tree :global)
+               (focus-parameters-list parameter-tree :global))
+       "native focus parameter memoization returns computed value")
+(focus-parameters-cache-clear)
+(check (equal? (focus-parameters-list-memo parameter-tree :global)
+               (focus-parameters-list parameter-tree :global))
+       "native cache clearing invalidates focus parameter memoization")
+
 (check (equal? (tree->stree
                   (focus-search-label
                    (stree->tree

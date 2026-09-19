@@ -107,5 +107,8 @@ bool generic_parameter_value (object value);
 object generic_focus_variants_of (tree t);
 string generic_focus_tag_name (object label);
 object generic_child_proposals (tree t, int i);
+object generic_focus_parameters_list (tree t, object mode);
+object generic_focus_parameters_list_memo (tree t, object mode);
+void generic_focus_parameters_cache_clear ();
 
 #endif

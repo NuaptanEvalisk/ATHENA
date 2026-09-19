@@ -286,27 +286,9 @@
                          "caption-summarized" "figure-width")))
   #f)
 
-(define (focus-parameters-list t mode)
-  (let* ((ls (list-filter (search-parameters (tree-label t))
-                          parameter-show-in-menu?))
-         (xs (if (== mode :global) (list)
-                 (map car (customizable-parameters-memo t))))
-         (no (if (== mode :global) inhibit-global-table
-                 inhibit-local-table)))
-    (list-filter (list-difference ls xs)
-                 (lambda (x) (not (ahash-ref no x))))))
-
-(define parameters-list-cache (make-ahash-table))
-
-(define (focus-parameters-list-memo t mode)
-  (with key (list (tree-label t) mode (tree->stree (get-style-tree)))
-    (when (not (ahash-ref parameters-list-cache key))
-      (ahash-set! parameters-list-cache key (focus-parameters-list t mode)))
-    (ahash-ref parameters-list-cache key)))
-
 (tm-define (style-clear-cache)
   (former)
-  (set! parameters-list-cache (make-ahash-table)))
+  (focus-parameters-cache-clear))
 
 (tm-menu (focus-parameters-menu t mode)
   (with ps (focus-parameters-list-memo t mode)
