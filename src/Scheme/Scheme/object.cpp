@@ -96,6 +96,8 @@ object as_list_object (array<object> objs) {
   return r; }
 object symbol_object (string s) {
   return tmscm_to_object ( symbol_to_tmscm (s) ); }
+object keyword_object (string s) {
+  return tmscm_to_object (keyword_to_tmscm (s)); }
 object car (object obj) {
   return tmscm_to_object (tmscm_car (object_to_tmscm (obj))); }
 object cdr (object obj) {

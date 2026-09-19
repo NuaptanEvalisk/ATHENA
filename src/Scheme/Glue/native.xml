@@ -1,5 +1,177 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="make-multi-with" native="format_make_multi_with" returns="void">
+    <arg type="object" />
+  </binding>
+  <binding name="make-line-with" native="format_make_line_with" returns="void">
+    <arg type="string" /><arg type="content" />
+  </binding>
+  <binding name="make-multi-line-with" native="format_make_multi_line_with" returns="void">
+    <arg type="object" />
+  </binding>
+  <binding name="make-page-break" native="format_make_page_break" returns="void" />
+  <binding name="make-new-page" native="format_make_new_page" returns="void" />
+  <binding name="make-new-dpage" native="format_make_new_dpage" returns="void" />
+  <binding name="focus-has-preferences?" native="format_focus_has_preferences" returns="bool">
+    <arg type="tree" />
+  </binding>
+  <binding name="standard-parameters" native="format_standard_parameters" returns="object">
+    <arg type="string" />
+  </binding>
+  <binding name="parameter-choice-list" native="format_parameter_choices" returns="object">
+    <arg type="string" />
+  </binding>
+  <binding name="customizable-parameters" native="format_customizable_parameters" returns="object">
+    <arg type="tree" />
+  </binding>
+  <binding name="customizable-parameters-memo" native="format_customizable_parameters_memo" returns="object">
+    <arg type="tree" />
+  </binding>
+  <binding name="customizable-context?" native="format_customizable_context" returns="bool">
+    <arg type="tree" />
+  </binding>
+  <binding name="pen-effect-context?" native="format_pen_effect_context" returns="bool">
+    <arg type="tree" />
+  </binding>
+  <binding name="get-effect-pen" native="format_get_effect_pen" returns="object">
+    <arg type="object" />
+  </binding>
+  <binding name="set-effect-pen" native="format_set_effect_pen" returns="void">
+    <arg type="object" /><arg type="string" />
+  </binding>
+  <binding name="test-effect-pen?" native="format_test_effect_pen" returns="bool">
+    <arg type="object" /><arg type="string" />
+  </binding>
+  <binding name="with-ref" native="format_with_ref" returns="object">
+    <arg type="content" /><arg type="content" />
+  </binding>
+  <binding name="with-set" native="format_with_set" returns="tree">
+    <arg type="tree" /><arg type="content" /><arg type="content" />
+  </binding>
+  <binding name="with-simplify" native="format_with_simplify" returns="void">
+    <arg type="tree" />
+  </binding>
+  <binding name="with-merge" native="format_with_merge" returns="void">
+    <arg type="tree" />
+  </binding>
+  <binding name="test-env?" native="format_test_env" returns="bool">
+    <arg type="string" /><arg type="string" />
+  </binding>
+  <binding name="tree-with-set" native="format_tree_with_set" returns="void">
+    <arg type="tree" /><arg type="object" rest="true" />
+  </binding>
+  <binding name="tree-with-get" native="format_tree_with_get" returns="object">
+    <arg type="object" /><arg type="content" />
+  </binding>
+  <binding name="tree-with-reset" native="format_tree_with_reset" returns="void">
+    <arg type="object" /><arg type="content" />
+  </binding>
+  <binding name="with-like-check-insert" native="format_with_like_check_insert" returns="bool">
+    <arg type="content" />
+  </binding>
+  <binding name="make-with-like" native="format_make_with_like" returns="void">
+    <arg type="content" />
+  </binding>
+  <binding name="toggle-with-like" native="format_toggle_with_like" returns="void">
+    <arg type="content" /><arg type="object" />
+  </binding>
+  <binding name="toggle-bold" native="format_toggle_bold" returns="void" />
+  <binding name="toggle-italic" native="format_toggle_italic" returns="void" />
+  <binding name="toggle-small-caps" native="format_toggle_small_caps" returns="void" />
+  <binding name="toggle-underlined" native="format_toggle_underlined" returns="void" />
+  <binding name="generic-context?" native="generic_context" returns="bool">
+    <arg type="tree" />
+  </binding>
+  <binding name="complex-context?" native="generic_complex_context" returns="bool">
+    <arg type="tree" />
+  </binding>
+  <binding name="simple-context?" native="generic_simple_context" returns="bool">
+    <arg type="tree" />
+  </binding>
+  <binding name="document-context?" native="generic_document_context" returns="bool">
+    <arg type="tree" />
+  </binding>
+  <binding name="table-markup-context?" native="generic_table_markup_context" returns="bool">
+    <arg type="tree" />
+  </binding>
+  <binding name="structured-horizontal?" native="generic_structured_horizontal_context" returns="bool">
+    <arg type="tree" />
+  </binding>
+  <binding name="structured-vertical?" native="generic_structured_vertical_context" returns="bool">
+    <arg type="tree" />
+  </binding>
+  <binding name="structured-insert-horizontal" native="generic_structured_insert_horizontal" returns="void">
+    <arg type="tree" /><arg type="bool" />
+  </binding>
+  <binding name="structured-insert-vertical" native="generic_structured_insert_vertical" returns="void">
+    <arg type="tree" /><arg type="bool" />
+  </binding>
+  <binding name="structured-remove-horizontal" native="generic_structured_remove_horizontal" returns="void">
+    <arg type="tree" /><arg type="bool" />
+  </binding>
+  <binding name="structured-remove-vertical" native="generic_structured_remove_vertical" returns="void">
+    <arg type="tree" /><arg type="bool" />
+  </binding>
+  <binding name="structured-insert-extremal" native="generic_structured_insert_extremal" returns="void">
+    <arg type="tree" /><arg type="bool" />
+  </binding>
+  <binding name="structured-insert-incremental" native="generic_structured_insert_incremental" returns="void">
+    <arg type="tree" /><arg type="bool" />
+  </binding>
+  <binding name="structured-horizontal" native="generic_structured_horizontal" returns="void">
+    <arg type="tree" /><arg type="bool" />
+  </binding>
+  <binding name="structured-vertical" native="generic_structured_vertical" returns="void">
+    <arg type="tree" /><arg type="bool" />
+  </binding>
+  <binding name="structured-inner-extremal" native="generic_structured_inner_extremal" returns="void">
+    <arg type="tree" /><arg type="bool" />
+  </binding>
+  <binding name="structured-extremal" native="generic_structured_extremal" returns="void">
+    <arg type="tree" /><arg type="bool" />
+  </binding>
+  <binding name="structured-incremental" native="generic_structured_incremental" returns="void">
+    <arg type="tree" /><arg type="bool" />
+  </binding>
+  <binding name="structured-exit" native="generic_structured_exit" returns="void">
+    <arg type="tree" /><arg type="bool" />
+  </binding>
+  <binding name="special-navigate" native="generic_special_navigate" returns="void">
+    <arg type="tree" /><arg type="object" />
+  </binding>
+  <binding name="special-horizontal" native="generic_special_horizontal" returns="void">
+    <arg type="tree" /><arg type="bool" />
+  </binding>
+  <binding name="special-vertical" native="generic_special_vertical" returns="void">
+    <arg type="tree" /><arg type="bool" />
+  </binding>
+  <binding name="special-extremal" native="generic_special_extremal" returns="void">
+    <arg type="tree" /><arg type="bool" />
+  </binding>
+  <binding name="special-incremental" native="generic_special_incremental" returns="void">
+    <arg type="tree" /><arg type="bool" />
+  </binding>
+  <binding name="kbd-space-bar" native="generic_kbd_space_bar" returns="void">
+    <arg type="tree" /><arg type="bool" />
+  </binding>
+  <binding name="kbd-enter" native="generic_kbd_enter" returns="void">
+    <arg type="tree" /><arg type="bool" />
+  </binding>
+  <binding name="kbd-control-enter" native="generic_kbd_control_enter" returns="void">
+    <arg type="tree" /><arg type="bool" />
+  </binding>
+  <binding name="kbd-alternate-enter" native="generic_kbd_alternate_enter" returns="void">
+    <arg type="tree" /><arg type="bool" />
+  </binding>
+  <binding name="kbd-remove" native="generic_kbd_remove" returns="void">
+    <arg type="tree" /><arg type="bool" />
+  </binding>
+  <binding name="kbd-variant" native="generic_kbd_variant" returns="void">
+    <arg type="tree" /><arg type="bool" />
+  </binding>
+  <binding name="kbd-alternate-variant" native="generic_kbd_alternate_variant" returns="void">
+    <arg type="tree" /><arg type="bool" />
+  </binding>
   <binding name="space-context?" native="geometry_space_context" returns="bool">
     <arg type="tree" />
   </binding>

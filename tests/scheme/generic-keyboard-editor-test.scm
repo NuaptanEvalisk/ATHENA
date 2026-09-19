@@ -1,0 +1,65 @@
+;; Generic keyboard fallbacks execute on the owning BufferActor.
+(import-from (generic generic-edit))
+(init-style "generic")
+
+(define (body) (tree->stree (buffer-tree)))
+(define (check condition message)
+  (unless condition (error message (body) (cursor-path))))
+(define (reset content position)
+  (selection-cancel)
+  (buffer-set-body (current-buffer) (stree->tree `(document ,content)))
+  (update-current-buffer)
+  (tree-go-to (tree-ref (buffer-tree) 0) position)
+  (commit-changes)
+  (clear-undo-history))
+
+(reset "ab" 1)
+(kbd-space-bar (buffer-tree) #f)
+(check (equal? (body) '(document "a b")) "space insertion")
+(check (equal? (cursor-path) '(0 0 2)) "space cursor")
+
+(reset "ab" 1)
+(kbd-enter (buffer-tree) #f)
+(check (equal? (body) '(document "a" "b")) "return splits paragraph")
+(check (equal? (cursor-path) '(0 1 0)) "return cursor")
+
+(reset "ab" 1)
+(kbd-remove (buffer-tree) #f)
+(check (equal? (body) '(document "b")) "backspace")
+(check (equal? (cursor-path) '(0 0 0)) "backspace cursor")
+
+(reset "ab" 1)
+(kbd-remove (buffer-tree) #t)
+(check (equal? (body) '(document "a")) "delete")
+(check (equal? (cursor-path) '(0 0 1)) "delete cursor")
+
+(reset "abcd" 2)
+(selection-set (tree->path (tree-ref (buffer-tree) 0) 1)
+               (tree->path (tree-ref (buffer-tree) 0) 3))
+(kbd-remove (buffer-tree) #f)
+(check (equal? (body) '(document "ad")) "selection delete")
+(check (equal? (cursor-path) '(0 0 1)) "selection delete cursor")
+
+(reset "ab" 1)
+(kbd-alternate-variant (buffer-tree) #t)
+(check (equal? (body) '(document (concat "a" (htab "5mm") "b")))
+       "alternate tab insertion")
+(check (equal? (cursor-path) '(0 0 1 1)) "alternate tab cursor")
+
+;; Native outward fallback must continue to compose with later mode handlers.
+(tm-define (kbd-enter t shift?)
+  (:require (tree-is? t 'keyboard-test-extension))
+  (tree-set! t 0 (if shift? "shift" "enter")))
+(buffer-set-body (current-buffer)
+                 (stree->tree '(document (keyboard-test-extension "x"))))
+(update-current-buffer)
+(tree-go-to (tree-ref (buffer-tree) 0 0) :end)
+(kbd-enter (tree-ref (buffer-tree) 0 0) #f)
+(check (equal? (body) '(document (keyboard-test-extension "enter")))
+       "keyboard outward dispatch reaches Scheme extension")
+
+(init-env "page-medium" "paper")
+(update-current-buffer)
+(update-forced)
+(print-to-file (string->url (string-append (getenv "HOME") "/evaluation.pdf")))
+#t

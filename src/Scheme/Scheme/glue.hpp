@@ -38,6 +38,7 @@ tmscm  int_to_tmscm (int i);
 tmscm  double_to_tmscm (double i);
 tmscm  string_to_tmscm (string s);
 tmscm  symbol_to_tmscm (string s);
+tmscm  keyword_to_tmscm (string s);
 tmscm  tree_to_tmscm (tree t);
 tmscm  list_string_to_tmscm (list<string> l);
 tmscm  list_tree_to_tmscm (list<tree> l);

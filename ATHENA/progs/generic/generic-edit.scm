@@ -18,8 +18,6 @@
         (utils misc tooltip)
 	(source macro-search)))
 
-(tm-define (generic-context? t) #t) ;; overridden in, e.g., graphics mode
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Basic cursor movements via the keyboard
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -105,75 +103,6 @@
 
 (tm-define (insert-return) (insert-raw-return))
 
-(tm-define (kbd-space-bar t shift?)
-  (and-with p (tree-outer t)
-    (kbd-space-bar p shift?)))
-
-(tm-define (kbd-enter t shift?)
-  (and-with p (tree-outer t)
-    (kbd-enter p shift?)))
-
-(tm-define (kbd-control-enter t shift?)
-  (and-with p (tree-outer t)
-    (kbd-control-enter p shift?)))
-
-(tm-define (kbd-alternate-enter t shift?)
-  (and-with p (tree-outer t)
-    (kbd-alternate-enter p shift?)))
-
-(tm-define (kbd-remove t forwards?)
-  (and-with p (tree-outer t)
-    (kbd-remove p forwards?)))
-
-(tm-define (kbd-variant t forwards?)
-  (and-with p (tree-outer t)
-    (kbd-variant p forwards?)))
-
-(tm-define (kbd-space-bar t shift?)
-  (:require (tree-is-buffer? t))
-  (insert " "))
-
-(tm-define (kbd-enter t shift?)
-  (:require (tree-is-buffer? t))
-  (insert-return))
-
-(tm-define (kbd-control-enter t shift?)
-  (:require (tree-is-buffer? t))
-  (noop))
-
-(tm-define (kbd-alternate-enter t shift?)
-  (:require (tree-is-buffer? t))
-  (noop))
-
-(tm-define (kbd-remove t forwards?)
-  (:require (tree-is-buffer? t))
-  (remove-text forwards?))
-
-(tm-define (kbd-remove t forwards?)
-  (:require (and (tree-is-buffer? t) (with-any-selection?)))
-  (clipboard-cut "nowhere")
-  (clipboard-clear "nowhere"))
-
-(tm-define (kbd-variant t forwards?)
-  (:require (tree-is-buffer? t))
-  (if (and (not (complete-try?)) forwards?)
-      (with sh (kbd-system-rewrite (kbd-find-inv-binding '(kbd-alternate-tab)))
-        (set-message `(concat "Use " ,sh " in order to insert a tab")
-                     "tab"))))
-
-(tm-define (kbd-variant t forwards?)
-  (:require (and (tree-in? t '(label reference pageref eqref smart-ref))
-                 (cursor-inside? t)))
-  (if (complete-try?) (noop)))
-
-(tm-define (kbd-alternate-variant t forwards?)
-  (and-with p (tree-outer t)
-    (kbd-alternate-variant p forwards?)))
-
-(tm-define (kbd-alternate-variant t forwards?)
-  (:require (tree-is-buffer? t))
-  (make-htab "5mm"))
-
 (tm-define (kbd-space)
   (kbd-space-bar (focus-tree) #f))
 (tm-define (kbd-shift-space)
@@ -253,36 +182,6 @@
 ;; Basic predicates
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (simple-tags)
-  '(concat document tformat table row cell shown hidden))
-
-(tm-define (complex-context? t)
-  (and (nleaf? t)
-       (nin? (tree-label t) (simple-tags))))
-
-(tm-define (simple-context? t)
-  (or (leaf? t)
-      (and (tree-in? t (simple-tags))
-           (simple-context? (tree-down t)))))
-
-(tm-define (document-context? t)
-  (tree-is? t 'document))
-
-(tm-define (table-markup-context? t)
-  (or (tree-in? t '(table tformat))
-      (and (== (tree-arity t) 1)
-           (or (tree-in? (tree-ref t 0) '(table tformat))
-               (and (tm-func? (tree-ref t 0) 'document 1)
-                    (tree-in? (tree-ref t 0 0) '(table tformat)))))))
-
-(tm-define (structured-horizontal? t)
-  (or (tree-is-dynamic? t)
-      (table-markup-context? t)))
-
-(tm-define (structured-vertical? t)
-  (or (tree-in? t '(tree))
-      (table-markup-context? t)))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Focus predicates
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -309,14 +208,6 @@
 
 (tm-define (focus-has-geometry? t)
   #f)
-
-(tm-define (focus-has-preferences? t)
-  (and (tree-compound? t) (tree-label-extension? (tree-label t))))
-
-(tm-define (focus-has-preferences? t)
-  (:require (tree-in? t '(reference pageref eqref smart-ref
-                          hlink locus ornament)))
-  #t)
 
 (tm-define (focus-has-parameters? t)
   (focus-has-preferences? t))
@@ -481,40 +372,6 @@
 ;; Structured insert and remove
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (structured-insert-horizontal t forwards?)
-  (and-with p (tree-outer t)
-    (structured-insert-horizontal p forwards?)))
-
-(tm-define (structured-insert-vertical t downwards?)
-  (and-with p (tree-outer t)
-    (structured-insert-vertical p downwards?)))
-
-(tm-define (structured-remove-horizontal t forwards?)
-  (and-with p (tree-outer t)
-    (structured-remove-horizontal p forwards?)))
-
-(tm-define (structured-remove-vertical t downwards?)
-  (and-with p (tree-outer t)
-    (structured-remove-vertical p downwards?)))
-
-(tm-define (structured-insert-horizontal t forwards?)
-  (:require (structured-horizontal? t))
-  (when (tree->path t :down)
-    (insert-argument-at (tree->path t :down) forwards?)))
-
-(tm-define (structured-remove-horizontal t forwards?)
-  (:require (structured-horizontal? t))
-  (when (tree->path t :down)
-    (remove-argument-at (tree->path t :down) forwards?)))
-
-(tm-define (structured-insert-extremal t forwards?)
-  (structured-extremal t forwards?)
-  (structured-insert-horizontal t forwards?))
-
-(tm-define (structured-insert-incremental t downwards?)
-  (structured-incremental t downwards?)
-  (structured-insert-vertical t downwards?))
-
 (tm-define (structured-insert-left)
   (structured-insert-horizontal (focus-tree) #f))
 (tm-define (structured-insert-right)
@@ -544,43 +401,6 @@
 ;; Structured movements
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (structured-horizontal t forwards?)
-  (and-with p (tree-outer t)
-    (structured-horizontal p forwards?)))
-
-(tm-define (structured-horizontal t forwards?)
-  (:require (structured-horizontal? t))
-  (with-focus-after t
-    (when (tree-down t)
-      (with move (if forwards? path-next-argument path-previous-argument)
-        (with p (move (root-tree) (tree->path (tree-down t)))
-          (if (nnull? p) (go-to p)))))))
-
-(tm-define (structured-vertical t downwards?)
-  (and-with p (tree-outer t)
-    (structured-vertical p downwards?)))
-
-(tm-define (structured-inner-extremal t forwards?)
-  (and-with p (tree-outer t)
-    (structured-inner-extremal p forwards?)))
-
-(tm-define (structured-inner-extremal t forwards?)
-  (:require (structured-horizontal? t))
-  (with-focus-after t
-    (tree-go-to t :down (if forwards? :end :start))))
-
-(tm-define (structured-extremal t forwards?)
-  (go-to-repeat (lambda () (structured-horizontal t forwards?)))
-  (structured-inner-extremal t forwards?))
-
-(tm-define (structured-incremental t downwards?)
-  (go-to-repeat (lambda () (structured-vertical t downwards?)))
-  (structured-inner-extremal t downwards?))
-
-(tm-define (structured-exit t forwards?)
-  (when (complex-context? t)
-    (tree-go-to t (if forwards? :end :start))))
-
 (tm-define (structured-left)
   (structured-horizontal (focus-tree) #f))
 (tm-define (structured-right)
@@ -605,26 +425,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Special structured editing
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (special-navigate t direction)
-  (and-with p (tree-outer t)
-    (special-navigate p direction)))
-
-(tm-define (special-horizontal t forwards?)
-  (and-with p (tree-outer t)
-    (special-horizontal p forwards?)))
-
-(tm-define (special-vertical t down?)
-  (and-with p (tree-outer t)
-    (special-vertical p down?)))
-
-(tm-define (special-extremal t forwards?)
-  (and-with p (tree-outer t)
-    (special-extremal p forwards?)))
-
-(tm-define (special-incremental t down?)
-  (and-with p (tree-outer t)
-    (special-incremental p down?)))
 
 (tm-define (special-back)
   (special-navigate (focus-tree) :previous))
@@ -654,88 +454,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Tree editing
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (structured-insert-horizontal t forwards?)
-  (:require (tree-is? t 'tree))
-  (if (== (tree-down-index t) 0) (set! t (tree-up t)))
-  (if (== (tm-car t) 'tree)
-      (with pos (tree-down-index t)
-        (if forwards? (set! pos (1+ pos)))
-        (tree-insert! t pos '(""))
-        (tree-go-to t pos 0))))
-
-(tm-define (structured-remove-horizontal t forwards?)
-  (:require (tree-is? t 'tree))
-  (if (== (tree-down-index t) 0) (set! t (tree-up t)))
-  (if (== (tm-car t) 'tree)
-      (with pos (tree-down-index t)
-        (cond (forwards?
-               (tree-remove! t pos 1)
-               (if (== pos (tree-arity t))
-                   (tree-go-to t :end)
-                   (tree-go-to t pos :start)))
-              ((== pos 1) (tree-go-to t 0 :end))
-              (else (tree-remove! t (- pos 1) 1))))))
-
-(tm-define (structured-insert-vertical t downwards?)
-  (:require (tree-is? t 'tree))
-  (if downwards?
-      (if (== (tree-down-index t) 0)
-          (with pos (tree-arity t)
-            (tree-insert! t pos '(""))
-            (tree-go-to t pos 0))
-          (begin
-            (set! t (tree-down t))
-            (tree-set! t `(tree ,t ""))
-            (tree-go-to t 1 0)))
-      (begin
-        (if (!= (tree-down-index t) 0) (set! t (tree-down t)))
-        (tree-set! t `(tree "" ,t))
-        (tree-go-to t 0 0))))
-
-(define (branch-active t)
-  (with i (tree-down-index t)
-    (if (and (= i 0) (tree-is? t :up 'tree))
-        (tree-up t)
-        t)))
-
-(define (branch-go-to . l)
-  (apply tree-go-to l)
-  (if (tree-is? (cursor-tree) 'tree)
-      (with last (cAr l)
-        (if (nin? last '(:start :end)) (set! last :start))
-        (tree-go-to (cursor-tree) 0 last))))
-
-(tm-define (structured-horizontal t* forwards?)
-  (:require (tree-is? t* 'tree))
-  (let* ((t (branch-active t*))
-         (i (tree-down-index t)))
-    (cond ((and (not forwards?) (> i 1))
-           (branch-go-to t (- i 1) :end))
-          ((and forwards? (!= i 0) (< i (- (tree-arity t) 1)))
-           (branch-go-to t (+ i 1) :start)))))
-
-(tm-define (structured-vertical t* downwards?)
-  (:require (tree-is? t* 'tree))
-  (let* ((t (branch-active t*))
-         (i (tree-down-index t)))
-    (cond ((and (not downwards?) (!= i 0))
-           (tree-go-to t 0 :end))
-          ((and downwards? (== (tree-down-index t*) 0))
-           (branch-go-to t* (quotient (tree-arity t*) 2) :start)))))
-
-(tm-define (structured-extremal t* forwards?)
-  (:require (tree-is? t* 'tree))
-  (let* ((t (branch-active t*))
-         (i (tree-down-index t)))
-    (cond ((not forwards?)
-           (branch-go-to t 1 :start))
-          (forwards?
-           (branch-go-to t :last :end)))))
-  
-(tm-define (structured-incremental t downwards?)
-  (:require (tree-is? t 'tree))
-  (go-to-repeat (if downwards? structured-down structured-up)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Extra editing functions
@@ -788,42 +506,10 @@
 ;; Standard environment parameters for primitives
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (standard-parameters l)
-  (:require (== l "action"))
-  (list "locus-color"))
-
-(tm-define (standard-parameters l)
-  (:require (== l "locus"))
-  (list "locus-color" "visited-color"))
-
-(tm-define (standard-parameters l)
-  (:require (== l "ornament"))
-  (list "ornament-shape" "ornament-title-style"
-        "ornament-border" "ornament-corner"
-	"ornament-hpadding" "ornament-vpadding"
-	"ornament-color" "ornament-extra-color"
-	"ornament-sunny-color" "ornament-shadow-color"))
-
-(tm-define (standard-parameters l)
-  (:require (in? l '("reference" "pageref" "eqref" "smart-ref" "label" "tag")))
-  (list))
-
 (tm-define (search-parameters l)
   (:require (in? (if (string? l) l (symbol->string l))
                  '("reference" "pageref" "eqref" "smart-ref" "hlink")))
   (standard-parameters "locus"))
-
-(tm-define (parameter-choice-list l)
-  (:require (== l "ornament-shape"))
-  (list "classic" "rounded" "angular" "cartoon"
-        ;;"ring"
-        ))
-
-(tm-define (parameter-choice-list l)
-  (:require (== l "ornament-title-style"))
-  (list "classic"
-        "top left" "top center" "top right"
-        "bottom left" "bottom center" "bottom right"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Inserting various kinds of content

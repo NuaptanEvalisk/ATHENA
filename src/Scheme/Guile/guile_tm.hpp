@@ -150,6 +150,7 @@ inline tmscm long_to_tmscm (long l) { return long_to_scm (l); }
 inline tmscm double_to_tmscm (double i) { return double_to_scm (i); }
 tmscm string_to_tmscm (string s);
 tmscm symbol_to_tmscm (string s);
+tmscm keyword_to_tmscm (string s);
 
 inline bool tmscm_to_bool (tmscm obj) { return scm_to_bool (obj); }
 inline int tmscm_to_int (tmscm obj) { return scm_to_int (obj); }

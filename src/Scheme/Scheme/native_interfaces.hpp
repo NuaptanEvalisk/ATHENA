@@ -8,6 +8,9 @@
 #include "patch.hpp"
 #include "ATHENA/Data/data_art.hpp"
 #include "Edit/Interface/format_geometry.hpp"
+#include "Edit/Interface/format_commands.hpp"
+#include "Edit/Interface/structured_commands.hpp"
+#include "Edit/Interface/generic_keyboard_commands.hpp"
 
 void athena_dispatch_ui (void (*function) ());
 void gui_set_cursor_color (string value);

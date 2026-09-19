@@ -679,6 +679,13 @@ symbol_to_tmscm (string s) {
   return r;
 }
 
+tmscm
+keyword_to_tmscm (string s) {
+  c_string _s (s);
+  SCM symbol= scm_from_latin1_symboln (_s, N(s));
+  return scm_symbol_to_keyword (symbol);
+}
+
 string
 tmscm_to_symbol (tmscm s) {
   guile_str_size_t len_r;

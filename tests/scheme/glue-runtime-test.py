@@ -18,9 +18,16 @@ def main():
     parser.add_argument("--resources", type=Path, required=True)
     parser.add_argument("interfaces", nargs="+", type=Path)
     args = parser.parse_args()
-    signatures = [(node.attrib["name"], len(node))
-                  for path in args.interfaces for node in ET.parse(path).getroot()]
-    expected = "\n".join(f"({json.dumps(name)} {arity})" for name, arity in signatures)
+    signatures = []
+    for path in args.interfaces:
+        for node in ET.parse(path).getroot():
+            arguments = list(node)
+            rest = bool(arguments and arguments[-1].attrib.get("rest") == "true")
+            required = len(arguments) - int(rest)
+            signatures.append((node.attrib["name"], required, rest))
+    expected = "\n".join(
+        f"({json.dumps(name)} {required} {'#t' if rest else '#f'})"
+        for name, required, rest in signatures)
     with tempfile.TemporaryDirectory(prefix="athena-glue-runtime-") as temporary:
         home = Path(temporary)
         system = home / "profile/system"
@@ -44,7 +51,7 @@ def main():
             '      (let ((proc (eval symbol (current-module))))\n'
             '        (unless (and (procedure? proc)\n'
             '                     (equal? (procedure-minimum-arity proc)\n'
-            '                             (list (cadr entry) 0 #f)))\n'
+            '                             (list (cadr entry) 0 (caddr entry))))\n'
             '          (error "Wrong generated arity" name proc)))))\n'
             f"  '({expected}))\n"
             '(define (check condition label)\n'
