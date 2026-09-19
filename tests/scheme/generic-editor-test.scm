@@ -169,6 +169,20 @@
 (check (not (test-balloon-halign? "left"))
        "balloon alignment predicate is false outside balloon context")
 
+(check (mini-flow-context? (stree->tree '(table "x")))
+       "native mini-flow predicate recognizes base table tag")
+(check (not (mini-flow-context? (stree->tree '(document "x"))))
+       "native mini-flow predicate rejects main document tag")
+(reset '(document "plain") '(0 0 1))
+(check (in-main-flow?) "cursor in ordinary document text is in main flow")
+(buffer-set-body
+  (current-buffer)
+  (stree->tree '(document (table (row (cell "x"))))))
+(update-current-buffer)
+(tree-go-to (tree-ref (buffer-tree) 0 0 0 0) :end)
+(check (not (in-main-flow?))
+       "cursor inside table cell is outside main flow")
+
 (define activated-hit? #f)
 (define disactivated-hit? #f)
 (tm-define (notify-activated t)

@@ -195,6 +195,17 @@ bool innermost_balloon (tree& result) {
   return false;
 }
 
+bool tree_label_in_scheme_list (tree t, object labels) {
+  if (!is_list (labels)) return false;
+  string label= as_string (L (t));
+  array<object> items= as_array_object (labels);
+  for (int i= 0; i < N (items); ++i) {
+    if (is_symbol (items[i]) && as_symbol (items[i]) == label) return true;
+    if (is_string (items[i]) && as_string (items[i]) == label) return true;
+  }
+  return false;
+}
+
 } // namespace
 
 void
@@ -380,6 +391,23 @@ generic_search_previous () {
 
 void
 generic_focus_open_search_tool (tree) {
+}
+
+bool
+generic_mini_flow_context (tree t) {
+  return tree_label_in_scheme_list (t, call ("mini-flow-tag-list"));
+}
+
+bool
+generic_in_main_flow () {
+  editor ed= get_current_editor ();
+  path p= path_up (ed->the_path (), 2);
+  while (!is_nil (p)) {
+    if (ed->test_subtree (p) && generic_mini_flow_context (ed->the_subtree (p)))
+      return false;
+    p= path_up (p);
+  }
+  return true;
 }
 
 bool

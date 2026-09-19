@@ -212,14 +212,8 @@
 ;; Routines for floats
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (mini-flow-context? t)
-  (tree-in? t (mini-flow-tag-list)))
-
-(tm-define (in-main-flow?)
-  (:synopsis "Are we inside the main document flow?")
-  ;; FIXME: this routine can be improved quite a lot
-  ;; we might make this property part of the DRD
-  (not (tree-innermost mini-flow-context?)))
+(tm-property (in-main-flow?)
+  (:synopsis "Are we inside the main document flow?"))
 
 (tm-property (make-marginal-note)
   (:synopsis "Insert a marginal note"))

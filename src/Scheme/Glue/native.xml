@@ -482,6 +482,10 @@
   <binding name="focus-open-search-tool" native="generic_focus_open_search_tool" returns="void">
     <arg type="tree" />
   </binding>
+  <binding name="mini-flow-context?" native="generic_mini_flow_context" returns="bool">
+    <arg type="tree" />
+  </binding>
+  <binding name="in-main-flow?" native="generic_in_main_flow" returns="bool" />
   <binding name="test-balloon-halign?" native="generic_test_balloon_halign" returns="bool">
     <arg type="string" />
   </binding>
