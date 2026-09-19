@@ -141,10 +141,6 @@
 ;; Extra editing functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (recenter-window)
-  (set-scroll (get-cursor-x) (get-cursor-y))
-  (refresh-window))
-
 (tm-define (kill-paragraph)
   (selection-set-start)
   (go-end-paragraph)
@@ -164,9 +160,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Inserting various kinds of content
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (make-label)
-  (label-insert (focus-tree)))
 
 (tm-property (make-experimental-build-warning)
   (:synopsis "Insert the ATHENA experimental build warning"))

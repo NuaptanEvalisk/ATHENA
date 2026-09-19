@@ -128,6 +128,12 @@ bool innermost_float (path& p, tree& t) {
   return true;
 }
 
+tree current_focus_tree () {
+  editor ed= get_current_editor ();
+  path p= ed->focus_get ();
+  return ed->test_subtree (p) ? ed->the_subtree (p) : tree ();
+}
+
 } // namespace
 
 void
@@ -197,6 +203,18 @@ generic_label_insert (tree t) {
   }
   tree parent;
   if (parent_tree (t, parent)) call ("label-insert", object (parent));
+}
+
+void
+generic_recenter_window () {
+  editor ed= get_current_editor ();
+  ed->scroll_to (ed->get_cursor_x (), ed->get_cursor_y ());
+  ed->invalidate_all ();
+}
+
+void
+generic_make_label () {
+  call ("label-insert", object (current_focus_tree ()));
 }
 
 void

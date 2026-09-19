@@ -18,6 +18,8 @@ void generic_go_to_column (int column, object optional_from);
 object generic_select_word (string word, tree t, int column);
 object generic_search_parameters (object label);
 void generic_label_insert (tree t);
+void generic_recenter_window ();
+void generic_make_label ();
 void generic_make_specific (string format);
 void generic_make_include (url target);
 void generic_make_experimental_build_warning ();

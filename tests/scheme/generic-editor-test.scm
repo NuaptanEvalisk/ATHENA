@@ -15,7 +15,6 @@
   (go-to cursor)
   (commit-changes)
   (clear-undo-history))
-
 (reset '(document "abc" "def") '(0 0 1))
 (select-all)
 (check (selection-active-any?) "select-all activates selection")
@@ -64,6 +63,14 @@
 (label-insert (tree-ref (buffer-tree) 0 0))
 (check (equal? (body) '(document (label-test-extension "handled")))
        "label outward dispatch reaches Scheme extension")
+(tree-set! (tree-ref (buffer-tree) 0) 0 "x")
+(tree-go-to (tree-ref (buffer-tree) 0 0) :end)
+(make-label)
+(check (equal? (body) '(document (label-test-extension "handled")))
+       "no-argument make-label reaches Scheme label specialization")
+
+(reset '(document "abc") '(0 0 1))
+(recenter-window)
 
 (reset '(document "ab") '(0 0 1))
 (make-specific "html")
