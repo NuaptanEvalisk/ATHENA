@@ -79,6 +79,27 @@
   <binding name="toggle-italic" native="format_toggle_italic" returns="void" />
   <binding name="toggle-small-caps" native="format_toggle_small_caps" returns="void" />
   <binding name="toggle-underlined" native="format_toggle_underlined" returns="void" />
+  <binding name="test-default?" native="document_test_default" returns="bool">
+    <arg type="object" rest="true" />
+  </binding>
+  <binding name="init-default" native="document_init_default" returns="void">
+    <arg type="object" rest="true" />
+  </binding>
+  <binding name="get-init-env" native="document_get_init_env" returns="object">
+    <arg type="string" />
+  </binding>
+  <binding name="test-init?" native="document_test_init" returns="bool">
+    <arg type="string" /><arg type="string" />
+  </binding>
+  <binding name="set-init-env" native="document_set_init_env" returns="void">
+    <arg type="string" /><arg type="content" />
+  </binding>
+  <binding name="test-init-true?" native="document_test_init_true" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="init-multi" native="document_init_multi" returns="void">
+    <arg type="object" />
+  </binding>
   <binding name="generic-context?" native="generic_context" returns="bool">
     <arg type="tree" />
   </binding>

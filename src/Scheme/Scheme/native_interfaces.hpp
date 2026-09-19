@@ -12,6 +12,7 @@
 #include "Edit/Interface/structured_commands.hpp"
 #include "Edit/Interface/generic_keyboard_commands.hpp"
 #include "Edit/Interface/generic_editor_commands.hpp"
+#include "Edit/Interface/document_commands.hpp"
 
 void athena_dispatch_ui (void (*function) ());
 void gui_set_cursor_color (string value);

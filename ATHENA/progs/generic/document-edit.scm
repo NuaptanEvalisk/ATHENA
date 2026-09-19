@@ -45,43 +45,14 @@
 ;; Global environment variables
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (test-default? . vals)
-  (if (null? vals)
-      #t
-      (and (not (init-has? (car vals)))
-           (apply test-default? (cdr vals)))))
-
-(tm-define (init-default . args)
-  (:check-mark "*" test-default?)
-  (for-each init-default-one args))
-
-(tm-define (get-init-env s)
-  (with t (get-init-tree s)
-    (cond ((tree-atomic? t) (tree->string t))
-          ((and (tree-func? t 'macro 1) (tree-atomic? (tree-ref t 0)))
-           (tree->string (tree-ref t 0)))
-          (else #f))))
-
-(tm-define (test-init? var val)
-  (== (get-init-tree var) (string->tree val)))
-
 (tm-property (init-env var val)
   (:check-mark "*" test-init?))
-
-(tm-define (set-init-env s val)
-  (with old (get-init-tree s)
-    (if (and (tree-func? old 'macro 1) (not (tm-is? val 'macro)))
-        (init-env-tree s `(macro ,val))
-        (init-env-tree s val))))
 
 (tm-define (init-interactive-env var)
   (:interactive #t)
   (interactive (lambda (s) (set-init-env var s))
     (list (or (logic-ref env-var-description% var) var) "string"
           (get-init-env var))))
-
-(tm-define (test-init-true? var)
-  (test-init? var "true"))
 
 (tm-define (toggle-init-env var)
   (:check-mark "*" test-init-true?)
@@ -90,19 +61,6 @@
     (delayed
       (when (!= new (get-init-env var))
         (set-init-env var new)))))
-
-(tm-define (init-multi l)
-  (when (and (nnull? l) (nnull? (cdr l)))
-    (cond ((and (== (car l) "font") (== (cadr l) :default))
-           (remove-font-packages)
-           (init-default "font"))
-          ((== (car l) "font")
-           (init-font (cadr l)))
-          ((== (cadr l) :default)
-           (init-default (car l)))
-          (else
-           (init-env (car l) (cadr l))))
-    (init-multi (cddr l))))
 
 (tm-define (document-font-display-name val)
   (with fam (font-family-main val)

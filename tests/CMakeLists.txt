@@ -269,6 +269,15 @@ add_test(NAME generic_editor_test
     --runtime ${ATHENA_GUILE_PREFIX}
     --resources ${ATHENA_SOURCE_DIR}/ATHENA)
 set_tests_properties(generic_editor_test PROPERTIES TIMEOUT 90)
+add_test(NAME document_edit_editor_test
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
+    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/editor-owner-setup.scm
+    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/document-edit-editor-test.scm
+    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
+    --runtime ${ATHENA_GUILE_PREFIX}
+    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
+set_tests_properties(document_edit_editor_test PROPERTIES TIMEOUT 90)
 add_test(NAME two_buffer_save_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/two-buffer-save-test.py
