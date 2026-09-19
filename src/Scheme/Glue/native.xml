@@ -558,6 +558,18 @@
   <binding name="link-embedded-image" native="generic_link_embedded_image" returns="void">
     <arg type="tree" /><arg type="url" />
   </binding>
+  <binding name="link-embedded-image-copies" native="generic_link_embedded_image_copies" returns="void">
+    <arg type="tree" /><arg type="url" />
+  </binding>
+  <binding name="embedded-saver" native="generic_embedded_saver" returns="void">
+    <arg type="url" />
+  </binding>
+  <binding name="embedded-linker" native="generic_embedded_linker" returns="void">
+    <arg type="url" />
+  </binding>
+  <binding name="embedded-linker-copies" native="generic_embedded_linker_copies" returns="void">
+    <arg type="url" />
+  </binding>
   <binding name="embed-image" native="generic_embed_image" returns="void">
     <arg type="tree" />
   </binding>

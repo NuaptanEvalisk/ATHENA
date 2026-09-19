@@ -248,6 +248,32 @@ bool innermost_linked_image (tree& result) {
   return false;
 }
 
+bool innermost_embedded_image (tree& result) {
+  editor ed= get_current_editor ();
+  path p= path_up (ed->the_path ());
+  while (!is_nil (p)) {
+    if (ed->test_subtree (p)) {
+      tree t= ed->the_subtree (p);
+      if (embedded_image_context_impl (t)) {
+        result= t;
+        return true;
+      }
+    }
+    p= path_up (p);
+  }
+  return false;
+}
+
+void replace_matching_embedded_source (tree t, tree source, string replacement) {
+  if (t == source) {
+    (void) call ("tree-set-diff", object (t), object (tree (replacement)));
+    return;
+  }
+  if (is_atomic (t)) return;
+  for (int i= 0; i < N (t); ++i)
+    replace_matching_embedded_source (t[i], source, replacement);
+}
+
 string cardlink_destination_string (tree destination) {
   if (is_atomic (destination)) return as_string (destination);
   object converted= call ("tree->string", object (destination));
@@ -575,6 +601,33 @@ generic_link_embedded_image (tree t, url name) {
   generic_save_embedded_image (t, name);
   string rel= as_standard_string (delta (get_current_buffer_safe (), name));
   (void) call ("tree-set", object (t), object (0), object (rel));
+}
+
+void
+generic_link_embedded_image_copies (tree t, url name) {
+  if (!embedded_image_context_impl (t)) return;
+  generic_save_embedded_image (t, name);
+  string rel= as_standard_string (delta (get_current_buffer_safe (), name));
+  tree source= copy (t[0]);
+  replace_matching_embedded_source (current_document_tree (), source, rel);
+}
+
+void
+generic_embedded_saver (url name) {
+  tree image;
+  if (innermost_embedded_image (image)) generic_save_embedded_image (image, name);
+}
+
+void
+generic_embedded_linker (url name) {
+  tree image;
+  if (innermost_embedded_image (image)) generic_link_embedded_image (image, name);
+}
+
+void
+generic_embedded_linker_copies (url name) {
+  tree image;
+  if (innermost_embedded_image (image)) generic_link_embedded_image_copies (image, name);
 }
 
 void

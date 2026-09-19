@@ -58,6 +58,46 @@
 (check (linked-image-context? (tree-ref (buffer-tree) 0))
        "native linked image mutation updates context classification")
 
+(buffer-set-body
+  (current-buffer)
+  (stree->tree
+    '(document
+       (concat
+         (image (tuple (raw-data "same") "copy.bin") "1cm" "" "" "")
+         (image (tuple (raw-data "same") "copy.bin") "2cm" "" "" "")
+         (image (tuple (raw-data "other") "other.bin") "3cm" "" "" "")))))
+(update-current-buffer)
+(define copies-target (string->url "/tmp/athena-embedded-copies-test.bin"))
+(define expected-copies-link
+  (url->string (url-delta (current-buffer) copies-target)))
+(link-embedded-image-copies (tree-ref (buffer-tree) 0 0) copies-target)
+(check (equal? (string-load copies-target) "same")
+       "native link copies saves selected embedded payload")
+(check (equal? (tree->string (tree-ref (buffer-tree) 0 0 0))
+               expected-copies-link)
+       "native link copies replaces selected embedded source")
+(check (equal? (tree->string (tree-ref (buffer-tree) 0 1 0))
+               expected-copies-link)
+       "native link copies replaces structurally equal embedded source")
+(check (embedded-image-context? (tree-ref (buffer-tree) 0 2))
+       "native link copies preserves different embedded source")
+
+;; The chooser callbacks re-find the embedded image from the cursor.
+(buffer-set-body
+  (current-buffer)
+  (stree->tree '(document
+                  (image (tuple (raw-data "callback") "callback.bin")
+                         "1cm" "" "" ""))))
+(update-current-buffer)
+(tree-go-to (tree-ref (buffer-tree) 0) 0 0 0 :end)
+(define callback-target (string->url "/tmp/athena-embedded-callback-test.bin"))
+(embedded-saver callback-target)
+(check (equal? (string-load callback-target) "callback")
+       "native embedded-saver callback finds image at cursor")
+(embedded-linker callback-target)
+(check (linked-image-context? (tree-ref (buffer-tree) 0))
+       "native embedded-linker callback links image at cursor")
+
 (define fixture "$ATHENA_PATH/misc/images/windows/SmallTile.png")
 (buffer-set-body
   (current-buffer)

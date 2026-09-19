@@ -23,17 +23,6 @@
 ;; Manage embedded images
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (link-embedded-image-copies t name)
-  (when (embedded-image-context? t)
-    (save-embedded-image t name)
-    (let* ((rel (url->string (url-delta (current-buffer) name)))
-           (orig (tree-copy (tree-ref t 0))))
-      (tree-replace (buffer-tree) (cut == <> orig)
-                    (lambda (c) (tree-set! c rel))))))
-
-(tm-define (embedded-saver name)
-  (with t (tree-innermost embedded-image-context? #t)
-    (save-embedded-image t name)))
 (tm-define (save-embedded-image-as)
   (:interactive #t)
   (let* ((t (tree-innermost embedded-image-context? #t))
@@ -41,9 +30,6 @@
          (p (embedded-propose t 1)))
     (choose-file embedded-saver "Save embedded image" s "Save" p)))
 
-(tm-define (embedded-linker name)
-  (with t (tree-innermost embedded-image-context? #t)
-    (link-embedded-image t name)))
 (tm-define (link-embedded-image-as)
   (:interactive #t)
   (let* ((t (tree-innermost embedded-image-context? #t))
@@ -51,9 +37,6 @@
          (p (embedded-propose t 1)))
     (choose-file embedded-linker "Link embedded image" s "Save" p)))
 
-(tm-define (embedded-linker-copies name)
-  (with t (tree-innermost embedded-image-context? #t)
-    (link-embedded-image-copies t name)))
 (tm-define (link-embedded-image-copies-as)
   (:interactive #t)
   (let* ((t (tree-innermost embedded-image-context? #t))
