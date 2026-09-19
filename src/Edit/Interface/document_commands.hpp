@@ -21,5 +21,18 @@ bool document_test_init (string variable, string value);
 void document_set_init_env (string variable, tree value);
 bool document_test_init_true (string variable);
 void document_init_multi (object values);
+bool document_test_default_page_medium ();
+void document_init_default_page_medium ();
+bool document_test_page_medium (string value);
+void document_init_page_medium (string value);
+bool document_test_default_page_type ();
+void document_default_page_type ();
+bool document_test_page_type (string value);
+void document_init_page_type (string value);
+void document_init_page_size (string width, string height);
+bool document_test_default_page_orientation ();
+void document_init_default_page_orientation ();
+bool document_test_page_orientation (string value);
+void document_init_page_orientation (string value);
 
 #endif

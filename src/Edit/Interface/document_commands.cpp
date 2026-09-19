@@ -12,6 +12,8 @@
 #include "editor.hpp"
 #include "new_view.hpp"
 
+#include <initializer_list>
+
 bool
 document_test_default (object variables) {
   if (!is_list (variables)) return false;
@@ -82,4 +84,87 @@ document_init_multi (object values) {
     else if (is_string (value))
       get_current_editor ()->init_env (variable, tree (as_string (value)));
   }
+}
+
+namespace {
+
+void notify_page_change () { (void) call ("notify-page-change"); }
+
+bool defaults_absent (std::initializer_list<const char*> variables) {
+  editor ed= get_current_editor ();
+  for (const char* variable: variables)
+    if (ed->defined_in_init (string (variable))) return false;
+  return true;
+}
+
+void reset_defaults (std::initializer_list<const char*> variables) {
+  for (const char* variable: variables)
+    init_default_current_view (string (variable));
+}
+
+} // namespace
+
+bool document_test_default_page_medium () {
+  return defaults_absent ({"page-medium"});
+}
+
+void document_init_default_page_medium () {
+  reset_defaults ({"page-medium"});
+  notify_page_change ();
+}
+
+bool document_test_page_medium (string value) {
+  return get_current_editor ()->get_init_string ("page-medium") == value;
+}
+
+void document_init_page_medium (string value) {
+  get_current_editor ()->init_env ("page-medium", tree (value));
+  notify_page_change ();
+}
+
+bool document_test_default_page_type () {
+  return defaults_absent ({"page-type", "page-width", "page-height"});
+}
+
+void document_default_page_type () {
+  reset_defaults ({"page-type", "page-width", "page-height"});
+  notify_page_change ();
+}
+
+bool document_test_page_type (string value) {
+  return get_current_editor ()->get_init_string ("page-type") == value;
+}
+
+void document_init_page_type (string value) {
+  editor ed= get_current_editor ();
+  ed->init_env ("page-type", tree (value));
+  ed->init_env ("page-width", tree ("auto"));
+  ed->init_env ("page-height", tree ("auto"));
+  notify_page_change ();
+}
+
+void document_init_page_size (string width, string height) {
+  editor ed= get_current_editor ();
+  ed->init_env ("page-type", tree ("user"));
+  ed->init_env ("page-width", tree (width));
+  ed->init_env ("page-height", tree (height));
+  notify_page_change ();
+}
+
+bool document_test_default_page_orientation () {
+  return defaults_absent ({"page-orientation"});
+}
+
+void document_init_default_page_orientation () {
+  reset_defaults ({"page-orientation"});
+  notify_page_change ();
+}
+
+bool document_test_page_orientation (string value) {
+  return get_current_editor ()->get_env_string ("page-orientation") == value;
+}
+
+void document_init_page_orientation (string value) {
+  get_current_editor ()->init_env ("page-orientation", tree (value));
+  notify_page_change ();
 }

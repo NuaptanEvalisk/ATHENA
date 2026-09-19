@@ -224,52 +224,27 @@
 ;; Main page layout
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (test-default-page-medium?) (test-default? "page-medium"))
-(tm-define (init-default-page-medium)
-  (:check-mark "*" test-default-page-medium?)
-  (init-default "page-medium")
-  (notify-page-change))
+(tm-property (init-default-page-medium)
+  (:check-mark "*" test-default-page-medium?))
 
-(define (test-page-medium? s) (== (get-init "page-medium") s))
-(tm-define (init-page-medium s)
-  (:check-mark "*" test-page-medium?)
-  (init-env "page-medium" s)
-  (notify-page-change))
+(tm-property (init-page-medium s)
+  (:check-mark "*" test-page-medium?))
 
-(define (test-default-page-type?)
-  (test-default? "page-type" "page-width" "page-height"))
-(tm-define (default-page-type)
-  (:check-mark "*" test-default-page-type?)
-  (init-default "page-type" "page-width" "page-height")
-  (notify-page-change))
+(tm-property (default-page-type)
+  (:check-mark "*" test-default-page-type?))
 
-(define (test-page-type? s) (== (get-init "page-type") s))
-(tm-define (init-page-type s)
-  (:check-mark "*" test-page-type?)
-  (init-env "page-type" s)
-  (init-env "page-width" "auto")
-  (init-env "page-height" "auto")
-  (notify-page-change))
+(tm-property (init-page-type s)
+  (:check-mark "*" test-page-type?))
 
-(tm-define (init-page-size w h)
+(tm-property (init-page-size w h)
   (:argument w "Page width")
-  (:argument h "Page height")
-  (init-env "page-type" "user")
-  (init-env "page-width" w)
-  (init-env "page-height" h)
-  (notify-page-change))
+  (:argument h "Page height"))
 
-(define (test-default-page-orientation?) (test-default? "page-orientation"))
-(tm-define (init-default-page-orientation)
-  (:check-mark "*" test-default-page-orientation?)
-  (init-default "page-orientation")
-  (notify-page-change))
+(tm-property (init-default-page-orientation)
+  (:check-mark "*" test-default-page-orientation?))
 
-(define (test-page-orientation? s) (string=? (get-env "page-orientation") s))
-(tm-define (init-page-orientation s)
-  (:check-mark "*" test-page-orientation?)
-  (init-env "page-orientation" s)
-  (notify-page-change))
+(tm-property (init-page-orientation s)
+  (:check-mark "*" test-page-orientation?))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Wrapper for global page rendering

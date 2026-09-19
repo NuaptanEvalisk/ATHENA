@@ -100,6 +100,33 @@
   <binding name="init-multi" native="document_init_multi" returns="void">
     <arg type="object" />
   </binding>
+  <binding name="test-default-page-medium?" native="document_test_default_page_medium" returns="bool" />
+  <binding name="init-default-page-medium" native="document_init_default_page_medium" returns="void" />
+  <binding name="test-page-medium?" native="document_test_page_medium" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="init-page-medium" native="document_init_page_medium" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="test-default-page-type?" native="document_test_default_page_type" returns="bool" />
+  <binding name="default-page-type" native="document_default_page_type" returns="void" />
+  <binding name="test-page-type?" native="document_test_page_type" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="init-page-type" native="document_init_page_type" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="init-page-size" native="document_init_page_size" returns="void">
+    <arg type="string" /><arg type="string" />
+  </binding>
+  <binding name="test-default-page-orientation?" native="document_test_default_page_orientation" returns="bool" />
+  <binding name="init-default-page-orientation" native="document_init_default_page_orientation" returns="void" />
+  <binding name="test-page-orientation?" native="document_test_page_orientation" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="init-page-orientation" native="document_init_page_orientation" returns="void">
+    <arg type="string" />
+  </binding>
   <binding name="generic-context?" native="generic_context" returns="bool">
     <arg type="tree" />
   </binding>
