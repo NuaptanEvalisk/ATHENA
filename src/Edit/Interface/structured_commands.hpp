@@ -22,6 +22,27 @@ bool generic_table_markup_context (tree t);
 bool generic_structured_horizontal_context (tree t);
 bool generic_structured_vertical_context (tree t);
 
+void generic_swipe_horizontal (tree t, bool forwards);
+void generic_swipe_vertical (tree t, bool downwards);
+void generic_swipe_left ();
+void generic_swipe_right ();
+void generic_swipe_up ();
+void generic_swipe_down ();
+void generic_structured_maximize (tree t);
+void generic_structured_minimize (tree t);
+bool generic_wheel_capture ();
+void generic_wheel_event (object x, object y);
+bool generic_focus_has_variants (tree t);
+bool generic_focus_has_toggles (tree t);
+bool generic_focus_can_move (tree t);
+bool generic_focus_can_insert_remove (tree t);
+bool generic_focus_can_insert (tree t);
+bool generic_focus_can_remove (tree t);
+bool generic_focus_has_geometry (tree t);
+bool generic_focus_has_parameters (tree t);
+bool generic_focus_can_search (tree t);
+bool generic_focus_has_search_menu (tree t);
+
 void generic_structured_insert_left ();
 void generic_structured_insert_right ();
 void generic_structured_remove_left ();

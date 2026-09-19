@@ -142,6 +142,11 @@ void outward (tree t, const char* command, object argument) {
   if (parent_tree (t, parent)) call (command, object (parent), argument);
 }
 
+void outward (tree t, const char* command) {
+  tree parent;
+  if (parent_tree (t, parent)) call (command, object (parent));
+}
+
 void tree_insert_horizontal (tree t, bool forwards) {
   int index;
   if (!down_index (t, index)) return;
@@ -251,6 +256,55 @@ void generic_vertical_once (tree t, bool downwards) {
 }
 
 } // namespace
+
+void generic_swipe_horizontal (tree t, bool forwards) {
+  outward (t, "swipe-horizontal", forwards);
+}
+
+void generic_swipe_vertical (tree t, bool downwards) {
+  outward (t, "swipe-vertical", downwards);
+}
+
+void generic_swipe_left () { dispatch_focus ("swipe-horizontal", false); }
+void generic_swipe_right () { dispatch_focus ("swipe-horizontal", true); }
+void generic_swipe_up () { dispatch_focus ("swipe-vertical", false); }
+void generic_swipe_down () { dispatch_focus ("swipe-vertical", true); }
+
+void generic_structured_maximize (tree t) { outward (t, "structured-maximize"); }
+void generic_structured_minimize (tree t) { outward (t, "structured-minimize"); }
+
+bool generic_wheel_capture () { return false; }
+void generic_wheel_event (object, object) {}
+
+bool generic_focus_has_variants (tree t) {
+  object variants= call ("focus-variants-of", object (t));
+  return is_list (variants) && N (as_array_object (variants)) > 1;
+}
+
+bool generic_focus_has_toggles (tree t) {
+  return as_bool (call ("numbered-context?", object (t))) ||
+         as_bool (call ("alternate-context?", object (t)));
+}
+
+bool generic_focus_can_move (tree) { return true; }
+
+bool generic_focus_can_insert_remove (tree t) {
+  bool structured=
+    as_bool (call ("structured-horizontal?", object (t))) ||
+    as_bool (call ("structured-vertical?", object (t)));
+  return structured && as_bool (call ("cursor-inside?", object (t)));
+}
+
+bool generic_focus_can_insert (tree t) { return N (t) < maximal_arity (t); }
+bool generic_focus_can_remove (tree t) { return N (t) > minimal_arity (t); }
+bool generic_focus_has_geometry (tree) { return false; }
+
+bool generic_focus_has_parameters (tree t) {
+  return as_bool (call ("focus-has-preferences?", object (t)));
+}
+
+bool generic_focus_can_search (tree) { return false; }
+bool generic_focus_has_search_menu (tree) { return false; }
 
 void generic_structured_insert_left () { dispatch_focus ("structured-insert-horizontal", false); }
 void generic_structured_insert_right () { dispatch_focus ("structured-insert-horizontal", true); }

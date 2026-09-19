@@ -100,6 +100,56 @@
   <binding name="structured-vertical?" native="generic_structured_vertical_context" returns="bool">
     <arg type="tree" />
   </binding>
+  <binding name="swipe-horizontal" native="generic_swipe_horizontal" returns="void">
+    <arg type="tree" /><arg type="bool" />
+  </binding>
+  <binding name="swipe-vertical" native="generic_swipe_vertical" returns="void">
+    <arg type="tree" /><arg type="bool" />
+  </binding>
+  <binding name="swipe-left" native="generic_swipe_left" returns="void" />
+  <binding name="swipe-right" native="generic_swipe_right" returns="void" />
+  <binding name="swipe-up" native="generic_swipe_up" returns="void" />
+  <binding name="swipe-down" native="generic_swipe_down" returns="void" />
+  <binding name="structured-maximize" native="generic_structured_maximize" returns="void">
+    <arg type="tree" />
+  </binding>
+  <binding name="structured-minimize" native="generic_structured_minimize" returns="void">
+    <arg type="tree" />
+  </binding>
+  <binding name="wheel-capture?" native="generic_wheel_capture" returns="bool" />
+  <binding name="wheel-event" native="generic_wheel_event" returns="void">
+    <arg type="object" /><arg type="object" />
+  </binding>
+  <binding name="focus-has-variants?" native="generic_focus_has_variants" returns="bool">
+    <arg type="tree" />
+  </binding>
+  <binding name="focus-has-toggles?" native="generic_focus_has_toggles" returns="bool">
+    <arg type="tree" />
+  </binding>
+  <binding name="focus-can-move?" native="generic_focus_can_move" returns="bool">
+    <arg type="tree" />
+  </binding>
+  <binding name="focus-can-insert-remove?" native="generic_focus_can_insert_remove" returns="bool">
+    <arg type="tree" />
+  </binding>
+  <binding name="focus-can-insert?" native="generic_focus_can_insert" returns="bool">
+    <arg type="tree" />
+  </binding>
+  <binding name="focus-can-remove?" native="generic_focus_can_remove" returns="bool">
+    <arg type="tree" />
+  </binding>
+  <binding name="focus-has-geometry?" native="generic_focus_has_geometry" returns="bool">
+    <arg type="tree" />
+  </binding>
+  <binding name="focus-has-parameters?" native="generic_focus_has_parameters" returns="bool">
+    <arg type="tree" />
+  </binding>
+  <binding name="focus-can-search?" native="generic_focus_can_search" returns="bool">
+    <arg type="tree" />
+  </binding>
+  <binding name="focus-has-search-menu?" native="generic_focus_has_search_menu" returns="bool">
+    <arg type="tree" />
+  </binding>
   <binding name="structured-insert-left" native="generic_structured_insert_left" returns="void" />
   <binding name="structured-insert-right" native="generic_structured_insert_right" returns="void" />
   <binding name="structured-remove-left" native="generic_structured_remove_left" returns="void" />
