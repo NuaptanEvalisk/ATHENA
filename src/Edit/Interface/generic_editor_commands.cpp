@@ -179,6 +179,22 @@ object focus_search_label_impl (tree t) {
   return object (false);
 }
 
+bool innermost_balloon (tree& result) {
+  editor ed= get_current_editor ();
+  path p= path_up (ed->the_path ());
+  while (!is_nil (p)) {
+    if (ed->test_subtree (p)) {
+      tree t= ed->the_subtree (p);
+      if (as_bool (call ("balloon-context?", object (t)))) {
+        result= t;
+        return true;
+      }
+    }
+    p= path_up (p);
+  }
+  return false;
+}
+
 } // namespace
 
 void
@@ -364,6 +380,34 @@ generic_search_previous () {
 
 void
 generic_focus_open_search_tool (tree) {
+}
+
+bool
+generic_test_balloon_halign (string value) {
+  tree balloon;
+  return innermost_balloon (balloon) && N (balloon) > 2 &&
+         is_atomic (balloon[2]) && as_string (balloon[2]) == value;
+}
+
+void
+generic_set_balloon_halign (string value) {
+  tree balloon;
+  if (innermost_balloon (balloon))
+    (void) call ("tree-set", object (balloon), object (2), object (value));
+}
+
+bool
+generic_test_balloon_valign (string value) {
+  tree balloon;
+  return innermost_balloon (balloon) && N (balloon) > 3 &&
+         is_atomic (balloon[3]) && as_string (balloon[3]) == value;
+}
+
+void
+generic_set_balloon_valign (string value) {
+  tree balloon;
+  if (innermost_balloon (balloon))
+    (void) call ("tree-set", object (balloon), object (3), object (value));
 }
 
 void

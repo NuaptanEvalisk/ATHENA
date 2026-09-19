@@ -252,9 +252,6 @@
 (tm-define (balloon-context? t)
   (tree-in? t (balloon-tag-list)))
 
-(define (integer-floor x)
-  (inexact->exact (floor x)))
-
 (tm-define (display-balloon body balloon halign valign type)
   (:secure #t)
   (let* ((kind (or (tm->string type) "default"))
@@ -271,23 +268,13 @@
     (insert-go-to `(inactive (hover-balloon "" "" "left" "Bottom"))
                   '(0 0 0))))
 
-(tm-define (test-balloon-halign? ha)
-  (and-with t (tree-innermost balloon-context? #t)
-    (tm-equal? (tree-ref t 2) ha)))
-(tm-define (set-balloon-halign ha)
+(tm-property (set-balloon-halign ha)
   (:synopsis "Set the horizontal alignment of the marginal note to @ha")
-  (:check-mark "v" test-balloon-halign?)
-  (and-with t (tree-innermost balloon-context? #t)
-    (tree-set t 2 ha)))
+  (:check-mark "v" test-balloon-halign?))
 
-(tm-define (test-balloon-valign? va)
-  (and-with t (tree-innermost balloon-context? #t)
-    (tm-equal? (tree-ref t 3) va)))
-(tm-define (set-balloon-valign va)
+(tm-property (set-balloon-valign va)
   (:synopsis "Set the vertical alignment of the marginal note to @va")
-  (:check-mark "v" test-balloon-valign?)
-  (and-with t (tree-innermost balloon-context? #t)
-    (tree-set t 3 va)))
+  (:check-mark "v" test-balloon-valign?))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Labels attached to markup

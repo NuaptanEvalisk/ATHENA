@@ -482,6 +482,18 @@
   <binding name="focus-open-search-tool" native="generic_focus_open_search_tool" returns="void">
     <arg type="tree" />
   </binding>
+  <binding name="test-balloon-halign?" native="generic_test_balloon_halign" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="set-balloon-halign" native="generic_set_balloon_halign" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="test-balloon-valign?" native="generic_test_balloon_valign" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="set-balloon-valign" native="generic_set_balloon_valign" returns="void">
+    <arg type="string" />
+  </binding>
   <binding name="label-insert" native="generic_label_insert" returns="void">
     <arg type="tree" />
   </binding>
