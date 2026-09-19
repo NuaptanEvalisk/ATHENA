@@ -122,67 +122,6 @@
                          ,destination))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Tree traversal
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (traverse-horizontal t forwards?)
-  (if forwards? (go-to-next-word) (go-to-previous-word)))
-
-(tm-define (traverse-vertical t downwards?)
-  (and-with p (tree-outer t)
-    (traverse-vertical p downwards?)))
-
-(tm-define (traverse-vertical t downwards?)
-  (:require (document-context? t))
-  (with move (if downwards? go-to-next-tag go-to-previous-tag)
-    (move 'document)))
-
-(define (find-similar-upwards t l)
-  (cond ((in? (tree-label t) l) t)
-        ((and (not (tree-is-buffer? t)) (tree-up t))
-         (find-similar-upwards (tree-up t) l))
-        (else #f)))
-
-(define-macro (with-focus-in l . body)
-  `(begin
-     ,@body
-     (selection-cancel)
-     (and-with t (find-similar-upwards (focus-tree) ,l)
-       (tree-focus t))))
-
-(tm-define (traverse-incremental t forwards?)
-  (let* ((l (similar-to (tree-label t)))
-         (fun (if forwards? go-to-next-tag go-to-previous-tag)))
-    (with-focus-in l (fun l))))
-
-(tm-define (traverse-extremal t forwards?)
-  (let* ((l (similar-to (tree-label t)))
-         (fun (if forwards? go-to-next-tag go-to-previous-tag))
-         (inc (lambda () (fun l))))
-    (with-focus-in l
-      (go-to-repeat inc)
-      (structured-inner-extremal t forwards?))))
-
-(tm-define (traverse-previous)
-  (traverse-incremental (focus-tree) #f))
-(tm-define (traverse-next)
-  (traverse-incremental (focus-tree) #t))
-(tm-define (traverse-first)
-  (traverse-extremal (focus-tree) #f))
-(tm-define (traverse-last)
-  (traverse-extremal (focus-tree) #t))
-(tm-define (traverse-left)
-  (traverse-horizontal (focus-tree) #f))
-(tm-define (traverse-right)
-  (traverse-horizontal (focus-tree) #t))
-(tm-define (traverse-up)
-  (traverse-vertical (focus-tree) #f))
-(tm-define (traverse-down)
-  (traverse-vertical (focus-tree) #t))
-(tm-define (traverse-previous-section-title)
-  (go-to-previous-tag (similar-to 'section)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Structured insert and remove
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

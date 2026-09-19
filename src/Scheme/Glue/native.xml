@@ -100,6 +100,27 @@
   <binding name="structured-vertical?" native="generic_structured_vertical_context" returns="bool">
     <arg type="tree" />
   </binding>
+  <binding name="traverse-horizontal" native="generic_traverse_horizontal" returns="void">
+    <arg type="tree" /><arg type="bool" />
+  </binding>
+  <binding name="traverse-vertical" native="generic_traverse_vertical" returns="void">
+    <arg type="tree" /><arg type="bool" />
+  </binding>
+  <binding name="traverse-incremental" native="generic_traverse_incremental" returns="void">
+    <arg type="tree" /><arg type="bool" />
+  </binding>
+  <binding name="traverse-extremal" native="generic_traverse_extremal" returns="void">
+    <arg type="tree" /><arg type="bool" />
+  </binding>
+  <binding name="traverse-previous" native="generic_traverse_previous" returns="void" />
+  <binding name="traverse-next" native="generic_traverse_next" returns="void" />
+  <binding name="traverse-first" native="generic_traverse_first" returns="void" />
+  <binding name="traverse-last" native="generic_traverse_last" returns="void" />
+  <binding name="traverse-left" native="generic_traverse_left" returns="void" />
+  <binding name="traverse-right" native="generic_traverse_right" returns="void" />
+  <binding name="traverse-up" native="generic_traverse_up" returns="void" />
+  <binding name="traverse-down" native="generic_traverse_down" returns="void" />
+  <binding name="traverse-previous-section-title" native="generic_traverse_previous_section_title" returns="void" />
   <binding name="swipe-horizontal" native="generic_swipe_horizontal" returns="void">
     <arg type="tree" /><arg type="bool" />
   </binding>

@@ -255,7 +255,88 @@ void generic_vertical_once (tree t, bool downwards) {
   outward (t, "structured-vertical", downwards);
 }
 
+object similar_labels (tree t) {
+  return call ("similar-to", symbol_object (as_string (L (t))));
+}
+
+bool label_in_list (tree t, object labels) {
+  if (!is_list (labels)) return false;
+  string label= as_string (L (t));
+  array<object> items= as_array_object (labels);
+  for (int i= 0; i < N (items); ++i)
+    if (is_symbol (items[i]) && as_symbol (items[i]) == label) return true;
+  return false;
+}
+
+tree find_similar_upwards (tree t, object labels) {
+  tree current= t;
+  while (!is_nil (current)) {
+    if (label_in_list (current, labels)) return current;
+    tree parent;
+    if (!parent_tree (current, parent)) break;
+    current= parent;
+  }
+  return tree ();
+}
+
+void refocus_similar (object labels) {
+  editor ed= get_current_editor ();
+  ed->selection_cancel ();
+  tree target= find_similar_upwards (focus_tree (), labels);
+  path p;
+  if (!is_nil (target) && attached_path (target, p)) ed->manual_focus_set (p);
+}
+
+void move_to_similar_tag (object labels, bool forwards) {
+  call (forwards ? "go-to-next-tag" : "go-to-previous-tag", labels);
+}
+
 } // namespace
+
+void generic_traverse_horizontal (tree, bool forwards) {
+  call (forwards ? "go-to-next-word" : "go-to-previous-word");
+}
+
+void generic_traverse_vertical (tree t, bool downwards) {
+  if (is_func (t, DOCUMENT)) {
+    call (downwards ? "go-to-next-tag" : "go-to-previous-tag",
+          symbol_object ("document"));
+    return;
+  }
+  outward (t, "traverse-vertical", downwards);
+}
+
+void generic_traverse_incremental (tree t, bool forwards) {
+  object labels= similar_labels (t);
+  move_to_similar_tag (labels, forwards);
+  refocus_similar (labels);
+}
+
+void generic_traverse_extremal (tree t, bool forwards) {
+  object labels= similar_labels (t);
+  editor ed= get_current_editor ();
+  while (true) {
+    path before= copy (ed->the_path ());
+    move_to_similar_tag (labels, forwards);
+    if (ed->the_path () == before) break;
+  }
+  call ("structured-inner-extremal", object (t), object (forwards));
+  refocus_similar (labels);
+}
+
+void generic_traverse_previous () { dispatch_focus ("traverse-incremental", false); }
+void generic_traverse_next () { dispatch_focus ("traverse-incremental", true); }
+void generic_traverse_first () { dispatch_focus ("traverse-extremal", false); }
+void generic_traverse_last () { dispatch_focus ("traverse-extremal", true); }
+void generic_traverse_left () { dispatch_focus ("traverse-horizontal", false); }
+void generic_traverse_right () { dispatch_focus ("traverse-horizontal", true); }
+void generic_traverse_up () { dispatch_focus ("traverse-vertical", false); }
+void generic_traverse_down () { dispatch_focus ("traverse-vertical", true); }
+
+void generic_traverse_previous_section_title () {
+  object labels= call ("similar-to", symbol_object ("section"));
+  call ("go-to-previous-tag", labels);
+}
 
 void generic_swipe_horizontal (tree t, bool forwards) {
   outward (t, "swipe-horizontal", forwards);

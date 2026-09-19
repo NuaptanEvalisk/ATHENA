@@ -22,6 +22,20 @@ bool generic_table_markup_context (tree t);
 bool generic_structured_horizontal_context (tree t);
 bool generic_structured_vertical_context (tree t);
 
+void generic_traverse_horizontal (tree t, bool forwards);
+void generic_traverse_vertical (tree t, bool downwards);
+void generic_traverse_incremental (tree t, bool forwards);
+void generic_traverse_extremal (tree t, bool forwards);
+void generic_traverse_previous ();
+void generic_traverse_next ();
+void generic_traverse_first ();
+void generic_traverse_last ();
+void generic_traverse_left ();
+void generic_traverse_right ();
+void generic_traverse_up ();
+void generic_traverse_down ();
+void generic_traverse_previous_section_title ();
+
 void generic_swipe_horizontal (tree t, bool forwards);
 void generic_swipe_vertical (tree t, bool downwards);
 void generic_swipe_left ();
