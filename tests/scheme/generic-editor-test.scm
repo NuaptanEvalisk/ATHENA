@@ -1,6 +1,7 @@
 ;; Generic editor commands execute on the owning BufferActor.
 (import-from (generic generic-edit))
 (import-from (generic generic-menu))
+(import-from (generic generic-doc))
 (init-style "generic")
 
 (define (body) (tree->stree (buffer-tree)))
@@ -174,6 +175,46 @@
 (parameter-reset "page-screen-margin" :global)
 (check (parameter-default? "page-screen-margin" :global)
        "native global parameter reset clears explicit override")
+
+(define (legacy-focus-doc-arg-name t i previous)
+  (let* ((raw (tree-child-name t i))
+         (base (cond ((not (equal? raw "")) raw)
+                     ((equal? (tree-child-type t i) "regular") "body")
+                     (else (tree-child-type t i)))))
+    (let loop ((n 1))
+      (let ((candidate (if (= n 1) base
+                           (string-append base (number->string n)))))
+        (if (member candidate previous) (loop (+ n 1)) candidate)))))
+(define (legacy-focus-doc-arg-names t i previous)
+  (if (>= i (tree-arity t)) '()
+      (let ((name (legacy-focus-doc-arg-name t i previous)))
+        (cons name
+              (legacy-focus-doc-arg-names t (+ i 1) (cons name previous))))))
+(define doc-name-tree
+  (stree->tree '(with "foo" "one" "foo" "two" "body")))
+(check (equal? (focus-doc-arg-names doc-name-tree 0 '())
+               (legacy-focus-doc-arg-names doc-name-tree 0 '()))
+       "native documentation argument naming preserves DRD conflict policy")
+(check (equal? (focus-doc-arg-names doc-name-tree 1 '("body" "value"))
+               (legacy-focus-doc-arg-names doc-name-tree 1 '("body" "value")))
+       "native documentation argument naming honors existing names")
+
+(check (parameter-value? "plain")
+       "native parameter value predicate accepts strings")
+(check (parameter-value? '("Label" "value"))
+       "native parameter value predicate accepts labelled pairs")
+(check (not (parameter-value? '(1 "value")))
+       "native parameter value predicate rejects nonstring labels")
+(check (equal? (parameter-name "page-screen-margin")
+               (focus-tag-name
+                 (string->symbol
+                   (tree-name (list (string->symbol "page-screen-margin"))))))
+       "native parameter naming preserves focus tag naming policy")
+(check (equal? (parameter-show-in-menu? "page-screen-margin")
+               (not (member->theme "page-screen-margin")))
+       "native parameter visibility baseline preserves theme membership policy")
+(check (not (parameter-show-in-menu? "language"))
+       "Scheme parameter visibility specialization remains authoritative")
 
 (check (equal? (tree->stree
                   (focus-search-label

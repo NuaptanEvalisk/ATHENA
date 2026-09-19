@@ -1203,3 +1203,69 @@ bool
 generic_parameter_enabled (string name, object mode) {
   return generic_parameter_test (name, object ("true"), mode);
 }
+
+namespace {
+
+string focus_doc_avoid_conflict (string name, array<string> previous) {
+  for (int suffix= 1; ; ++suffix) {
+    string candidate= suffix == 1 ? name : name * as_string (suffix);
+    bool found= false;
+    for (int i= 0; i < N (previous); ++i)
+      if (previous[i] == candidate) {
+        found= true;
+        break;
+      }
+    if (!found) return candidate;
+  }
+}
+
+string focus_doc_arg_name (tree t, int i, array<string> previous) {
+  string name= get_child_name (t, i);
+  if (name == "") {
+    string type= get_child_type (t, i);
+    name= type == "regular" ? string ("body") : type;
+  }
+  return focus_doc_avoid_conflict (name, previous);
+}
+
+} // namespace
+
+object
+generic_focus_doc_arg_names (tree t, int start, object previous_names) {
+  array<string> previous;
+  if (is_list (previous_names)) {
+    array<object> items= as_array_object (previous_names);
+    for (int i= 0; i < N (items); ++i)
+      if (is_string (items[i])) previous << as_string (items[i]);
+  }
+
+  array<object> result;
+  for (int i= start; i < N (t); ++i) {
+    string name= focus_doc_arg_name (t, i, previous);
+    result << object (name);
+    previous << name;
+  }
+  return as_list_object (result);
+}
+
+string
+generic_parameter_name (string name) {
+  object tree_name= call ("tree-name", list_object (symbol_object (name)));
+  if (!is_string (tree_name)) return "";
+  object display= call ("focus-tag-name", symbol_object (as_string (tree_name)));
+  return is_string (display) ? as_string (display) : string ("");
+}
+
+bool
+generic_parameter_show_in_menu (string name) {
+  object theme= call ("member->theme", object (name));
+  return is_bool (theme) && !as_bool (theme);
+}
+
+bool
+generic_parameter_value (object value) {
+  if (is_string (value)) return true;
+  if (!is_list (value)) return false;
+  array<object> items= as_array_object (value);
+  return N (items) == 2 && is_string (items[0]);
+}

@@ -100,5 +100,9 @@ string generic_parameter_get_string (string name, object mode);
 bool generic_parameter_default (string name, object mode);
 void generic_parameter_reset (string name, object mode);
 bool generic_parameter_enabled (string name, object mode);
+object generic_focus_doc_arg_names (tree t, int start, object previous_names);
+string generic_parameter_name (string name);
+bool generic_parameter_show_in_menu (string name);
+bool generic_parameter_value (object value);
 
 #endif

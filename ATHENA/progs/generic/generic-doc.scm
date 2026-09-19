@@ -18,24 +18,6 @@
 ;; Brief description of the tag
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (avoid-conflict name prev-names i)
-  (with s (if (== i 1) name (string-append name (number->string i)))
-    (if (nin? s prev-names) s
-	(avoid-conflict name prev-names (+ i 1)))))
-
-(define (focus-doc-arg-name t i prev-names)
-  (with s (tree-child-name t i)
-    (avoid-conflict
-      (cond ((!= s "") s)
-	    ((== (tree-child-type t i) "regular") "body")
-	    (else (tree-child-type t i)))
-      prev-names 1)))
-
-(tm-define (focus-doc-arg-names t i prev-names)
-  (if (>= i (tree-arity t)) '()
-      (with s (focus-doc-arg-name t i prev-names)
-	(cons s (focus-doc-arg-names t (+ i 1) (cons s prev-names))))))
-
 (tm-generate (focus-doc-usage-args t)
   ($with l (focus-doc-arg-names t 0 '())
     ($description-aligned

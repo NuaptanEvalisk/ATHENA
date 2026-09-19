@@ -178,9 +178,6 @@
 ;; Submenus for editing various types of style parameters
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (parameter-value? c)
-  (or (string? c) (and (list-2? c) (string? (car c)))))
-  
 (tm-menu (parameter-choice-menu l cs mode)
   (with ss (list-filter cs parameter-value?)
     ((check "Default" "*" (parameter-default? l mode))
@@ -270,9 +267,6 @@
 ;; Editing style parameters
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (parameter-name l)
-  (focus-tag-name (string->symbol (tree-name (list (string->symbol l))))))
-
 (tm-menu (focus-parameter-menu-item l mode)
   (:require (and (tree-label-parameter? (string->symbol l))
                  (string? (parameter-get l mode))
@@ -302,9 +296,6 @@
   (:require (parameter-choice-list l))
   (-> (eval (focus-tag-name (string->symbol l)))
       (dynamic (parameter-submenu l mode))))
-
-(tm-define (parameter-show-in-menu? l)
-  (not (member->theme l)))
 
 (tm-define (parameter-show-in-menu? l)
   (:require (in? l (list "the-label" "auto-nr" "current-part" "language"

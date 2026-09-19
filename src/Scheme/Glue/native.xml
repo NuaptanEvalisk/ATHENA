@@ -732,6 +732,18 @@
   <binding name="parameter-enabled?" native="generic_parameter_enabled" returns="bool">
     <arg type="string" /><arg type="object" />
   </binding>
+  <binding name="focus-doc-arg-names" native="generic_focus_doc_arg_names" returns="object">
+    <arg type="tree" /><arg type="int" /><arg type="object" />
+  </binding>
+  <binding name="parameter-name" native="generic_parameter_name" returns="string">
+    <arg type="string" />
+  </binding>
+  <binding name="parameter-show-in-menu?" native="generic_parameter_show_in_menu" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="parameter-value?" native="generic_parameter_value" returns="bool">
+    <arg type="object" />
+  </binding>
   <binding name="space-context?" native="geometry_space_context" returns="bool">
     <arg type="tree" />
   </binding>
