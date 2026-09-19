@@ -20,5 +20,12 @@ void generic_kbd_alternate_enter (tree t, bool shift);
 void generic_kbd_remove (tree t, bool forwards);
 void generic_kbd_variant (tree t, bool forwards);
 void generic_kbd_alternate_variant (tree t, bool forwards);
+void generic_hybrid_kbd_space ();
+void generic_hybrid_kbd_formula_open (string bracket);
+void generic_hybrid_kbd_curly_left ();
+void generic_hybrid_kbd_curly_right ();
+void generic_hybrid_kbd_backslash ();
+void generic_hybrid_kbd_sub ();
+void generic_hybrid_kbd_sup ();
 
 #endif

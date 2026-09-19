@@ -172,6 +172,15 @@
   <binding name="kbd-alternate-variant" native="generic_kbd_alternate_variant" returns="void">
     <arg type="tree" /><arg type="bool" />
   </binding>
+  <binding name="hybrid-kbd-space" native="generic_hybrid_kbd_space" returns="void" />
+  <binding name="hybrid-kbd-formula-open" native="generic_hybrid_kbd_formula_open" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="hybrid-kbd-curly-left" native="generic_hybrid_kbd_curly_left" returns="void" />
+  <binding name="hybrid-kbd-curly-right" native="generic_hybrid_kbd_curly_right" returns="void" />
+  <binding name="hybrid-kbd-backslash" native="generic_hybrid_kbd_backslash" returns="void" />
+  <binding name="hybrid-kbd-sub" native="generic_hybrid_kbd_sub" returns="void" />
+  <binding name="hybrid-kbd-sup" native="generic_hybrid_kbd_sup" returns="void" />
   <binding name="go-to-line" native="generic_go_to_line" returns="void">
     <arg type="int" /><arg type="object" rest="true" />
   </binding>
@@ -198,6 +207,37 @@
   <binding name="make-note-inline" native="generic_make_note_inline" returns="void" />
   <binding name="make-note-wide" native="generic_make_note_wide" returns="void" />
   <binding name="make-note-footnote" native="generic_make_note_footnote" returns="void" />
+  <binding name="make-marginal-note" native="generic_make_marginal_note" returns="void" />
+  <binding name="test-marginal-note-hpos?" native="generic_test_marginal_note_hpos" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="set-marginal-note-hpos" native="generic_set_marginal_note_hpos" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="test-marginal-note-valign?" native="generic_test_marginal_note_valign" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="set-marginal-note-valign" native="generic_set_marginal_note_valign" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="make-insertion" native="generic_make_insertion" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="insertion-positioning" native="generic_insertion_positioning" returns="void">
+    <arg type="string" /><arg type="bool" />
+  </binding>
+  <binding name="test-insertion-positioning?" native="generic_test_insertion_positioning" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="not-test-insertion-positioning?" native="generic_not_test_insertion_positioning" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="toggle-insertion-positioning" native="generic_toggle_insertion_positioning" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="toggle-insertion-positioning-not" native="generic_toggle_insertion_positioning_not" returns="void">
+    <arg type="string" />
+  </binding>
   <binding name="space-context?" native="geometry_space_context" returns="bool">
     <arg type="tree" />
   </binding>

@@ -58,6 +58,51 @@
 (check (equal? (body) '(document (keyboard-test-extension "enter")))
        "keyboard outward dispatch reaches Scheme extension")
 
+(define (reset-hybrid command)
+  (selection-cancel)
+  (buffer-set-body (current-buffer)
+                   (stree->tree `(document (inactive (hybrid ,command)))))
+  (update-current-buffer)
+  (tree-go-to (tree-ref (buffer-tree) 0 0 0) :end)
+  (commit-changes)
+  (clear-undo-history))
+
+(reset-hybrid "")
+(hybrid-kbd-curly-left)
+(check (equal? (body) '(document (eqnarray ""))) "empty hybrid curly-left")
+(check (equal? (cursor-path) '(0 0 0 0)) "eqnarray activation cursor")
+
+(reset-hybrid "begin{strong")
+(hybrid-kbd-curly-right)
+(check (equal? (body) '(document (strong ""))) "begin command curly-right")
+(check (equal? (cursor-path) '(0 0 0 0)) "begin activation cursor")
+
+(reset-hybrid "left")
+(hybrid-kbd-backslash)
+(check (equal? (body) '(document (inactive (hybrid "left\\"))))
+       "left command accepts backslash continuation")
+(check (equal? (cursor-path) '(0 0 0 0 5)) "backslash continuation cursor")
+
+(reset-hybrid "strong")
+(hybrid-kbd-space)
+(check (equal? (body) '(document (strong " "))) "space activates hybrid first")
+(check (equal? (cursor-path) '(0 0 0 1)) "hybrid space cursor")
+
+(reset-hybrid "strong")
+(hybrid-kbd-sub)
+(check (equal? (body) '(document (strong (rsub "")))) "hybrid subscript")
+(check (equal? (cursor-path) '(0 0 0 0 0)) "hybrid subscript cursor")
+
+(reset-hybrid "strong")
+(hybrid-kbd-sup)
+(check (equal? (body) '(document (strong (rsup "")))) "hybrid superscript")
+(check (equal? (cursor-path) '(0 0 0 0 0)) "hybrid superscript cursor")
+
+(reset-hybrid "")
+(hybrid-kbd-formula-open "frac")
+(check (equal? (body) '(document (frac "" ""))) "empty hybrid formula command")
+(check (equal? (cursor-path) '(0 0 0 0)) "formula activation cursor")
+
 (init-env "page-medium" "paper")
 (update-current-buffer)
 (update-forced)

@@ -103,6 +103,31 @@ tree propose_note_id (bool for_reference) {
   return tree (as_string (call ("create-unique-id")));
 }
 
+bool innermost_named (string name, path& p, tree& t) {
+  editor ed= get_current_editor ();
+  p= ed->search_upwards (name);
+  if (is_nil (p)) return false;
+  tree root= ed->the_root ();
+  t= subtree (root, p);
+  return true;
+}
+
+bool innermost_float (path& p, tree& t) {
+  editor ed= get_current_editor ();
+  array<string> names;
+  names << string ("float") << string ("wide-float") << string ("phantom-float");
+  path best;
+  for (int i= 0; i < N (names); ++i) {
+    path q= ed->search_upwards (names[i]);
+    if (!is_nil (q) && (is_nil (best) || N (q) > N (best))) best= q;
+  }
+  if (is_nil (best)) return false;
+  p= best;
+  tree root= ed->the_root ();
+  t= subtree (root, p);
+  return true;
+}
+
 } // namespace
 
 void
@@ -219,4 +244,92 @@ generic_make_note_footnote () {
   get_current_editor ()->var_insert_tree (
     compound ("note-footnote", tree (DOCUMENT, ""), propose_note_id (false)),
     path (0, 0, 0));
+}
+
+void
+generic_make_marginal_note () {
+  editor ed= get_current_editor ();
+  bool wrap= ed->selection_active_small ();
+  if (wrap) ed->selection_cut ("wrapbuf");
+  else ed->selection_cancel ();
+  ed->var_insert_tree (
+    compound ("inactive", compound ("marginal-note", "normal", "c", "")),
+    path (0, 2, 0));
+  if (wrap) ed->selection_paste ("wrapbuf");
+}
+
+bool
+generic_test_marginal_note_hpos (string position) {
+  path p;
+  tree t;
+  return innermost_named ("marginal-note", p, t) && N (t) >= 1 &&
+         t[0] == tree (position);
+}
+
+void
+generic_set_marginal_note_hpos (string position) {
+  path p;
+  tree t;
+  if (innermost_named ("marginal-note", p, t) && N (t) >= 1)
+    assign (p * 0, tree (position));
+}
+
+bool
+generic_test_marginal_note_valign (string alignment) {
+  path p;
+  tree t;
+  return innermost_named ("marginal-note", p, t) && N (t) >= 2 &&
+         t[1] == tree (alignment);
+}
+
+void
+generic_set_marginal_note_valign (string alignment) {
+  path p;
+  tree t;
+  if (innermost_named ("marginal-note", p, t) && N (t) >= 2)
+    assign (p * 1, tree (alignment));
+}
+
+void
+generic_make_insertion (string type) {
+  string position= type == "float" ? "tbh" : "";
+  get_current_editor ()->var_insert_tree (
+    compound ("float", type, position, tree (DOCUMENT, "")), path (2, 0, 0));
+}
+
+void
+generic_insertion_positioning (string position, bool allowed) {
+  path p;
+  tree t;
+  if (!innermost_float (p, t) || N (t) < 2 || !is_atomic (t[1])) return;
+  string current= as_string (t[1]);
+  string next= allowed ? string_union (current, position)
+                       : string_minus (current, position);
+  assign (p * 1, tree (next));
+}
+
+bool
+generic_test_insertion_positioning (string position) {
+  if (N (position) == 0) return false;
+  path p;
+  tree t;
+  if (!innermost_float (p, t) || N (t) < 2 || !is_atomic (t[1])) return false;
+  string current= as_string (t[1]);
+  return search_forwards (position (0, 1), 0, current) >= 0;
+}
+
+bool
+generic_not_test_insertion_positioning (string position) {
+  return !generic_test_insertion_positioning (position);
+}
+
+void
+generic_toggle_insertion_positioning (string position) {
+  generic_insertion_positioning (
+    position, !generic_test_insertion_positioning (position));
+}
+
+void
+generic_toggle_insertion_positioning_not (string position) {
+  generic_toggle_insertion_positioning (position);
 }

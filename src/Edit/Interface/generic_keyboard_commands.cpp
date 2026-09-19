@@ -37,6 +37,18 @@ bool completion_context (tree t) {
   return as_bool (call ("cursor-inside?", object (t)));
 }
 
+bool hybrid_command (path& hybrid_path, string& command, bool& atomic) {
+  editor ed= get_current_editor ();
+  hybrid_path= ed->search_upwards (HYBRID);
+  if (is_nil (hybrid_path)) return false;
+  tree root= ed->the_root ();
+  tree hybrid= subtree (root, hybrid_path);
+  if (N (hybrid) < 1) return false;
+  atomic= is_atomic (hybrid[0]);
+  command= atomic ? as_string (hybrid[0]) : string ("");
+  return true;
+}
+
 } // namespace
 
 void generic_kbd_space_bar (tree t, bool shift) {
@@ -92,4 +104,85 @@ void generic_kbd_alternate_variant (tree t, bool forwards) {
     return;
   }
   get_current_editor ()->make_htab ("5mm");
+}
+
+void generic_hybrid_kbd_space () {
+  editor ed= get_current_editor ();
+  ed->activate_hybrid (false);
+  ed->insert_tree (tree (" "));
+}
+
+void generic_hybrid_kbd_formula_open (string bracket) {
+  path p;
+  string command;
+  bool atomic;
+  if (!hybrid_command (p, command, atomic)) return;
+  editor ed= get_current_editor ();
+  if (atomic && command == "") {
+    assign (p * 0, tree (bracket));
+    ed->activate_hybrid (false);
+  }
+  else ed->insert_tree (tree (bracket));
+}
+
+void generic_hybrid_kbd_curly_left () {
+  path p;
+  string command;
+  bool atomic;
+  if (!hybrid_command (p, command, atomic)) return;
+  editor ed= get_current_editor ();
+  if (atomic && command == "") {
+    assign (p * 0, tree ("eqnarray"));
+    ed->activate_hybrid (false);
+  }
+  else if (!atomic || command == "begin") ed->insert_tree (tree ("{"));
+  else if (command == "left\\" || command == "right\\") {
+    ed->insert_tree (tree ("{"));
+    ed->activate_hybrid (false);
+  }
+  else ed->activate_hybrid (false);
+}
+
+void generic_hybrid_kbd_curly_right () {
+  path p;
+  string command;
+  bool atomic;
+  if (!hybrid_command (p, command, atomic)) return;
+  editor ed= get_current_editor ();
+  if (!atomic) ed->activate_hybrid (false);
+  else if (starts (command, "begin{")) {
+    remove (p * 0 * 0, 6);
+    ed->activate_hybrid (false);
+  }
+  else if (command == "left\\" || command == "right\\") {
+    ed->insert_tree (tree ("}"));
+    ed->activate_hybrid (false);
+  }
+  else ed->activate_hybrid (false);
+}
+
+void generic_hybrid_kbd_backslash () {
+  path p;
+  string command;
+  bool atomic;
+  if (!hybrid_command (p, command, atomic)) return;
+  editor ed= get_current_editor ();
+  if (atomic && (command == "left" || command == "right"))
+    ed->insert_tree (tree ("\\"));
+  else {
+    ed->activate_hybrid (false);
+    ed->make_hybrid ();
+  }
+}
+
+void generic_hybrid_kbd_sub () {
+  editor ed= get_current_editor ();
+  ed->activate_hybrid (false);
+  ed->make_script (false, true);
+}
+
+void generic_hybrid_kbd_sup () {
+  editor ed= get_current_editor ();
+  ed->activate_hybrid (false);
+  ed->make_script (true, true);
 }

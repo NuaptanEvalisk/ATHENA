@@ -25,5 +25,16 @@ void generic_make_note_ref ();
 void generic_make_note_inline ();
 void generic_make_note_wide ();
 void generic_make_note_footnote ();
+void generic_make_marginal_note ();
+bool generic_test_marginal_note_hpos (string position);
+void generic_set_marginal_note_hpos (string position);
+bool generic_test_marginal_note_valign (string alignment);
+void generic_set_marginal_note_valign (string alignment);
+void generic_make_insertion (string type);
+void generic_insertion_positioning (string position, bool allowed);
+bool generic_test_insertion_positioning (string position);
+bool generic_not_test_insertion_positioning (string position);
+void generic_toggle_insertion_positioning (string position);
+void generic_toggle_insertion_positioning_not (string position);
 
 #endif

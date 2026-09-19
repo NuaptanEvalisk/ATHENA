@@ -575,61 +575,29 @@
   ;; we might make this property part of the DRD
   (not (tree-innermost mini-flow-context?)))
 
-(tm-define (make-marginal-note)
-  (:synopsis "Insert a marginal note")
-  (wrap-selection-small
-    (insert-go-to `(inactive (marginal-note "normal" "c" "")) '(0 2 0))))
+(tm-property (make-marginal-note)
+  (:synopsis "Insert a marginal note"))
 
-(tm-define (test-marginal-note-hpos? hp)
-  (and-with t (tree-innermost 'marginal-note #t)
-    (tm-equal? (tree-ref t 0) hp)))
-(tm-define (set-marginal-note-hpos hp)
+(tm-property (set-marginal-note-hpos hp)
   (:synopsis "Set the horizontal position of the marginal note to @hp")
-  (:check-mark "v" test-marginal-note-hpos?)
-  (and-with t (tree-innermost 'marginal-note #t)
-    (tree-set t 0 hp)))
+  (:check-mark "v" test-marginal-note-hpos?))
 
-(tm-define (test-marginal-note-valign? va)
-  (and-with t (tree-innermost 'marginal-note #t)
-    (tm-equal? (tree-ref t 1) va)))
-(tm-define (set-marginal-note-valign va)
+(tm-property (set-marginal-note-valign va)
   (:synopsis "Set the vertical alignment of the marginal note to @va")
-  (:check-mark "v" test-marginal-note-valign?)
-  (and-with t (tree-innermost 'marginal-note #t)
-    (tree-set t 1 va)))
+  (:check-mark "v" test-marginal-note-valign?))
 
-(tm-define (make-insertion s)
+(tm-property (make-insertion s)
   (:synopsis "Make an insertion of type @s")
-  (:applicable (in-main-flow?))
-  (with pos (if (== s "float") "tbh" "")
-    (insert-go-to (list 'float s pos (list 'document ""))
-                  (list 2 0 0))))
+  (:applicable (in-main-flow?)))
 
-(define (any-float? t)
-  (tree-in? t '(float wide-float phantom-float)))
+(tm-property (insertion-positioning what flag)
+  (:synopsis "Allow/disallow the position @what for innermost float"))
 
-(tm-define (insertion-positioning what flag)
-  (:synopsis "Allow/disallow the position @what for innermost float")
-  (and-with t (tree-innermost any-float? #t)
-    (let ((op (if flag string-union string-minus))
-          (st (tree-ref t 1)))
-      (tree-set! st (op (tree->string st) what)))))
+(tm-property (toggle-insertion-positioning what)
+  (:check-mark "v" test-insertion-positioning?))
 
-(define (test-insertion-positioning? what)
-  (and-with t (tree-innermost any-float? #t)
-    (with c (string-ref what 0)
-      (char-in-string? c (tree->string (tree-ref t 1))))))
-
-(define (not-test-insertion-positioning? s)
-  (not (test-insertion-positioning? s)))
-
-(tm-define (toggle-insertion-positioning what)
-  (:check-mark "v" test-insertion-positioning?)
-  (insertion-positioning what (not-test-insertion-positioning? what)))
-
-(tm-define (toggle-insertion-positioning-not s)
-  (:check-mark "v" not-test-insertion-positioning?)
-  (toggle-insertion-positioning s))
+(tm-property (toggle-insertion-positioning-not s)
+  (:check-mark "v" not-test-insertion-positioning?))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Balloons
@@ -701,68 +669,6 @@
         ((tm-in? t '(tformat with surround))
          (focus-search-label (cAr (tm-children t))))
         (else #f)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Special keyboard behaviour when entering hybrid commands
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (hybrid-kbd-space)
-  (activate-hybrid #f)
-  (insert " "))
-
-(tm-define (hybrid-kbd-formula-open bracket)
-  (with-innermost t 'hybrid
-    (with cmd (tm->string (tm-ref t 0))
-      (if (== cmd "")
-          (begin
-            (tree-set t 0 bracket)
-            (activate-hybrid #f))
-          (insert bracket)))))
-
-(tm-define (hybrid-kbd-curly-left)
-  (with-innermost t 'hybrid
-    (with cmd (tm->string (tm-ref t 0))
-      (cond ((== cmd "")
-             (tree-set t 0 "eqnarray")
-             (activate-hybrid #f))
-            ((or (not cmd) (== cmd "begin"))
-             (insert "{"))
-            ((in? cmd '("left\\" "right\\"))
-             (insert "{")
-             (activate-hybrid #f))
-            (else
-             (activate-hybrid #f))))))
-
-(tm-define (hybrid-kbd-curly-right)
-  (with-innermost t 'hybrid
-    (with cmd (tm->string (tm-ref t 0))
-      (cond ((not cmd)
-             (activate-hybrid #f))
-            ((string-starts? (tm->string cmd) "begin{")
-             (tree-remove (tm-ref t 0) 0 6)
-             (activate-hybrid #f))
-            ((in? cmd '("left\\" "right\\"))
-             (insert "}")
-             (activate-hybrid #f))
-            (else
-             (activate-hybrid #f))))))
-
-(tm-define (hybrid-kbd-backslash)
-  (with-innermost t 'hybrid
-    (with cmd (tm->string (tm-ref t 0))
-      (cond ((in? cmd '("left" "right"))
-             (insert "\\"))
-            (else
-             (activate-hybrid #f)
-             (make-hybrid))))))
-
-(tm-define (hybrid-kbd-sub)
-  (activate-hybrid #f)
-  (make-script #f #t))
-
-(tm-define (hybrid-kbd-sup)
-  (activate-hybrid #f)
-  (make-script #t #t))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Search, replace, spell and tab-completion
