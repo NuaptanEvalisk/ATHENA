@@ -90,6 +90,27 @@
 (check (equal? (tree->stree (tree-ref (buffer-tree) 0 1 1)) "1cm")
        "inline image wrapper preserves requested width")
 
+(reset '(document "") '(0 0 0))
+(make-thumbnails-sub
+  (list (string->url "one.png")
+        (string->url "two.png")
+        (string->url "three.png"))
+  2)
+(check (equal? (body)
+               '(document
+                  (tabular*
+                    (tformat
+                      (twith "table-width" "1par")
+                      (twith "table-hyphen" "yes")
+                      (table
+                        (row
+                          (cell (image "one.png" "0.48par" "" "" ""))
+                          (cell (image "two.png" "0.48par" "" "" "")))
+                        (row
+                          (cell (image "three.png" "0.48par" "" "" ""))
+                          (cell "")))))))
+       "native thumbnail builder preserves rows, width, and padding")
+
 (check (not (focus-label (stree->tree '(focus-unknown "x"))))
        "generic focus-label baseline is false")
 (check (equal? (tree->stree

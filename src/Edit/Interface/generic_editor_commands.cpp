@@ -278,6 +278,41 @@ generic_make_link_image (object values) {
   get_current_editor ()->make_image (delta_unix (target), true, w, h, x, y);
 }
 
+void
+generic_make_thumbnails_sub (object files, int columns) {
+  if (!is_list (files) || columns <= 0) return;
+  array<object> items= as_array_object (files);
+  double ratio= (1.0 / ((double) columns)) - 0.02;
+  object width_obj= call ("number->string", object (ratio));
+  if (!is_string (width_obj)) return;
+  string width= as_string (width_obj) * "par";
+
+  array<tree> rows;
+  int row_count= (N (items) + columns - 1) / columns;
+  if (row_count == 0) row_count= 1;
+  for (int r= 0; r < row_count; ++r) {
+    array<tree> cells;
+    for (int c= 0; c < columns; ++c) {
+      int i= r * columns + c;
+      tree content= tree ("");
+      if (i < N (items) && is_url (items[i])) {
+        string file= delta_unix (as_url (items[i]));
+        content= compound ("image", file, width, "", "", "");
+      }
+      cells << compound ("cell", content);
+    }
+    rows << compound ("row", cells);
+  }
+
+  tree table= compound ("table", rows);
+  array<tree> format;
+  format << compound ("twith", "table-width", "1par")
+         << compound ("twith", "table-hyphen", "yes")
+         << table;
+  tree tabular= compound ("tabular*", compound ("tformat", format));
+  get_current_editor ()->insert_tree (tabular);
+}
+
 object
 generic_focus_label (tree) {
   return object (false);

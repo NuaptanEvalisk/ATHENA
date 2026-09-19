@@ -200,26 +200,6 @@
     (map url-wildcard
          '("*.gif" "*.jpg" "*.jpeg" "*.JPG" "*.JPEG" "*.png" "*.PNG"))))
 
-(define (fill-row l nr)
-  (cond ((= nr 0) '())
-        ((nnull? l) (cons (car l) (fill-row (cdr l) (- nr 1))))
-        (else (cons "" (fill-row l (- nr 1))))))
-
-(define (make-rows l nr)
-  (if (> (length l) nr)
-      (cons (list-head l nr) (make-rows (list-tail l nr) nr))
-      (list (fill-row l nr))))
-
-(define (make-thumbnails-sub l nr)
-  (let* ((w (string-append (number->string (- (/ 1.0 nr) 0.02)) "par"))
-         (mapper (lambda (x) `(image ,(url->delta-unix x) ,w "" "" "")))       
-         (l1 (map mapper l))
-         (l2 (make-rows l1 nr))
-         (l3 (map (lambda (r) `(row ,@(map (lambda (c) `(cell ,c)) r))) l2)))
-    (insert `(tabular* (tformat (twith "table-width" "1par")
-                                (twith "table-hyphen" "yes")
-                                (table ,@l3))))))
-
 (tm-define (make-thumbnails nr)
   (:argument nr "Number of pictures per row")
   (if (string? nr) (set! nr (min (string->number nr) 32)))

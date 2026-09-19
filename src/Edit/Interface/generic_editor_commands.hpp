@@ -22,6 +22,7 @@ void generic_recenter_window ();
 void generic_make_label ();
 void generic_make_inline_image (object values);
 void generic_make_link_image (object values);
+void generic_make_thumbnails_sub (object files, int columns);
 object generic_focus_label (tree t);
 object generic_focus_get_label (tree t);
 object generic_focus_set_label (tree t, string value);
