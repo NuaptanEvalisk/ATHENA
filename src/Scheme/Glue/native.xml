@@ -170,6 +170,19 @@
   <binding name="toggle-indent-paragraphs" native="document_toggle_indent_paragraphs" returns="void" />
   <binding name="no-page-numbers?" native="document_no_page_numbers" returns="bool" />
   <binding name="toggle-no-page-numbers" native="document_toggle_no_page_numbers" returns="void" />
+  <binding name="document-has-preamble?" native="document_has_preamble" returns="bool">
+    <arg type="tree" />
+  </binding>
+  <binding name="document-get-preamble" native="document_get_preamble" returns="tree">
+    <arg type="tree" />
+  </binding>
+  <binding name="buffer-has-preamble?" native="document_buffer_has_preamble" returns="bool" />
+  <binding name="buffer-get-preamble" native="document_buffer_get_preamble" returns="tree" />
+  <binding name="in-preamble-mode?" native="document_in_preamble_mode" returns="bool" />
+  <binding name="buffer-show-preamble" native="document_buffer_show_preamble" returns="void" />
+  <binding name="buffer-hide-preamble" native="document_buffer_hide_preamble" returns="void" />
+  <binding name="toggle-preamble-mode" native="document_toggle_preamble_mode" returns="void" />
+  <binding name="buffer-make-preamble" native="document_buffer_make_preamble" returns="void" />
   <binding name="style-category" native="document_style_category" returns="object">
     <arg type="string" />
   </binding>

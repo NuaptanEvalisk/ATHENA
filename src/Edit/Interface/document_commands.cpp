@@ -11,6 +11,7 @@
 #include "document_commands.hpp"
 #include "editor.hpp"
 #include "new_view.hpp"
+#include "native_interfaces.hpp"
 #include "font.hpp"
 #include "analyze.hpp"
 
@@ -527,4 +528,119 @@ void document_toggle_no_page_numbers () {
     add_style_package ("page-numbers");
   else
     add_style_package ("no-page-numbers");
+}
+
+bool
+document_has_preamble (tree t) {
+  return is_compound (t, "document") && N (t) > 0 &&
+         (is_compound (t[0], "show-preamble") ||
+          is_compound (t[0], "hide-preamble"));
+}
+
+tree
+document_get_preamble (tree t) {
+  if (document_has_preamble (t) && N (t[0]) > 0) return t[0][0];
+  return compound ("document", "");
+}
+
+bool
+document_buffer_has_preamble () {
+  return document_has_preamble (get_current_editor ()->the_buffer ());
+}
+
+tree
+document_buffer_get_preamble () {
+  return document_get_preamble (get_current_editor ()->the_buffer ());
+}
+
+bool
+document_in_preamble_mode () {
+  tree root= get_current_editor ()->the_buffer ();
+  return document_has_preamble (root) && is_compound (root[0], "show-preamble");
+}
+
+namespace {
+
+void buffer_show_preamble_impl () {
+  tree root= get_current_editor ()->the_buffer ();
+  if (!is_compound (root, "document") || N (root) == 0 ||
+      !is_compound (root[0], "hide-preamble") || N (root[0]) == 0)
+    return;
+
+  tree shown= compound ("show-preamble", root[0][0]);
+  array<tree> body_children;
+  for (int i= 1; i < N (root); ++i) body_children << root[i];
+  tree body= compound ("ignore", compound ("document", body_children));
+  (void) tree_assign (root, compound ("document", shown, body));
+}
+
+void buffer_hide_preamble_impl () {
+  tree root= get_current_editor ()->the_buffer ();
+  if (!is_compound (root, "document", 2) ||
+      !is_compound (root[0], "show-preamble", 1) ||
+      !is_compound (root[1], "ignore", 1) ||
+      !is_compound (root[1][0], "document"))
+    return;
+
+  array<tree> children;
+  children << compound ("hide-preamble", root[0][0]);
+  for (int i= 0; i < N (root[1][0]); ++i) children << root[1][0][i];
+  (void) tree_assign (root, compound ("document", children));
+}
+
+void document_refresh () {
+  get_current_editor ()->typeset_invalidate_all ();
+}
+
+} // namespace
+
+void
+document_buffer_show_preamble () {
+  buffer_show_preamble_impl ();
+}
+
+void
+document_buffer_hide_preamble () {
+  buffer_hide_preamble_impl ();
+}
+
+void
+document_toggle_preamble_mode () {
+  editor ed= get_current_editor ();
+  if (document_in_preamble_mode ()) {
+    buffer_hide_preamble_impl ();
+    tree root= ed->the_buffer ();
+    if (is_compound (root, "document") && N (root) > 1)
+      ed->go_to_start (reverse (obtain_ip (root)) * 1);
+    document_refresh ();
+    return;
+  }
+
+  if (document_buffer_has_preamble ()) {
+    buffer_show_preamble_impl ();
+    tree root= ed->the_buffer ();
+    ed->go_to_start (reverse (obtain_ip (root)) * 0 * 0);
+    document_refresh ();
+    return;
+  }
+
+  document_buffer_make_preamble ();
+}
+
+void
+document_buffer_make_preamble () {
+  if (document_buffer_has_preamble ()) return;
+  editor ed= get_current_editor ();
+  tree root= ed->the_buffer ();
+  if (!is_compound (root, "document")) return;
+
+  tree hidden= compound ("hide-preamble", compound ("document", ""));
+  array<tree> children;
+  children << hidden;
+  for (int i= 0; i < N (root); ++i) children << root[i];
+  (void) tree_assign (root, compound ("document", children));
+  buffer_show_preamble_impl ();
+  root= ed->the_buffer ();
+  ed->go_to_start (reverse (obtain_ip (root)) * 0 * 0);
+  document_refresh ();
 }

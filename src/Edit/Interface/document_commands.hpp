@@ -63,5 +63,14 @@ bool document_indent_paragraphs ();
 void document_toggle_indent_paragraphs ();
 bool document_no_page_numbers ();
 void document_toggle_no_page_numbers ();
+bool document_has_preamble (tree t);
+tree document_get_preamble (tree t);
+bool document_buffer_has_preamble ();
+tree document_buffer_get_preamble ();
+bool document_in_preamble_mode ();
+void document_buffer_show_preamble ();
+void document_buffer_hide_preamble ();
+void document_toggle_preamble_mode ();
+void document_buffer_make_preamble ();
 
 #endif
