@@ -456,6 +456,12 @@
   <binding name="make-thumbnails-sub" native="generic_make_thumbnails_sub" returns="void">
     <arg type="object" /><arg type="int" />
   </binding>
+  <binding name="notify-activated" native="generic_notify_activated" returns="void">
+    <arg type="tree" />
+  </binding>
+  <binding name="notify-disactivated" native="generic_notify_disactivated" returns="void">
+    <arg type="tree" />
+  </binding>
   <binding name="focus-label" native="generic_focus_label" returns="object">
     <arg type="tree" />
   </binding>
@@ -469,6 +475,11 @@
     <arg type="object" />
   </binding>
   <binding name="focus-search-label" native="generic_focus_search_label" returns="object">
+    <arg type="tree" />
+  </binding>
+  <binding name="search-next" native="generic_search_next" returns="void" />
+  <binding name="search-previous" native="generic_search_previous" returns="void" />
+  <binding name="focus-open-search-tool" native="generic_focus_open_search_tool" returns="void">
     <arg type="tree" />
   </binding>
   <binding name="label-insert" native="generic_label_insert" returns="void">

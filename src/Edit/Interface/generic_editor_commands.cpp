@@ -313,6 +313,14 @@ generic_make_thumbnails_sub (object files, int columns) {
   get_current_editor ()->insert_tree (tabular);
 }
 
+void
+generic_notify_activated (tree) {
+}
+
+void
+generic_notify_disactivated (tree) {
+}
+
 object
 generic_focus_label (tree) {
   return object (false);
@@ -342,6 +350,20 @@ generic_focus_list_search_label (object children) {
 object
 generic_focus_search_label (tree t) {
   return focus_search_label_impl (t);
+}
+
+void
+generic_search_next () {
+  (void) get_current_editor ()->search_keypress ("next");
+}
+
+void
+generic_search_previous () {
+  (void) get_current_editor ()->search_keypress ("previous");
+}
+
+void
+generic_focus_open_search_tool (tree) {
 }
 
 void

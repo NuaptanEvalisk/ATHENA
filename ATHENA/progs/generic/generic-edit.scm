@@ -26,9 +26,6 @@
 ;; Basic editing via the keyboard
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (notify-activated t) (noop))
-(tm-define (notify-disactivated t) (noop))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Card links
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -315,12 +312,6 @@
           ((key-press-search key) (noop))
           (else (key-press key)))))
 
-(tm-define (search-next)
-  (key-press-search "next"))
-
-(tm-define (search-previous)
-  (key-press-search "previous"))
-
 (tm-define (keyboard-press key time)
   (:mode spell-mode?)
   (with cmd (key-press-command (string-append "spell " key))
@@ -344,6 +335,5 @@
         (key-press (ahash-ref remote-control-remap key)))
       (key-press key)))
 
-(tm-define (focus-open-search-tool t)
-  (:interactive #t)
-  (noop))
+(tm-property (focus-open-search-tool t)
+  (:interactive #t))
