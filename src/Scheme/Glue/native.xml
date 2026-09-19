@@ -447,6 +447,12 @@
   </binding>
   <binding name="recenter-window" native="generic_recenter_window" returns="void" />
   <binding name="make-label" native="generic_make_label" returns="void" />
+  <binding name="make-inline-image" native="generic_make_inline_image" returns="void">
+    <arg type="object" />
+  </binding>
+  <binding name="make-link-image" native="generic_make_link_image" returns="void">
+    <arg type="object" />
+  </binding>
   <binding name="label-insert" native="generic_label_insert" returns="void">
     <arg type="tree" />
   </binding>

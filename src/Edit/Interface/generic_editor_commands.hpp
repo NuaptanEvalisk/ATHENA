@@ -20,6 +20,8 @@ object generic_search_parameters (object label);
 void generic_label_insert (tree t);
 void generic_recenter_window ();
 void generic_make_label ();
+void generic_make_inline_image (object values);
+void generic_make_link_image (object values);
 void generic_make_specific (string format);
 void generic_make_include (url target);
 void generic_make_experimental_build_warning ();

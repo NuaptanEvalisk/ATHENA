@@ -134,6 +134,21 @@ tree current_focus_tree () {
   return ed->test_subtree (p) ? ed->the_subtree (p) : tree ();
 }
 
+bool image_payload (object values, url& target,
+                    string& w, string& h, string& x, string& y) {
+  if (!is_list (values)) return false;
+  array<object> items= as_array_object (values);
+  if (N (items) != 5 || !is_url (items[0])) return false;
+  for (int i= 1; i < 5; ++i)
+    if (!is_string (items[i])) return false;
+  target= as_url (items[0]);
+  w= as_string (items[1]);
+  h= as_string (items[2]);
+  x= as_string (items[3]);
+  y= as_string (items[4]);
+  return true;
+}
+
 } // namespace
 
 void
@@ -215,6 +230,22 @@ generic_recenter_window () {
 void
 generic_make_label () {
   call ("label-insert", object (current_focus_tree ()));
+}
+
+void
+generic_make_inline_image (object values) {
+  url target;
+  string w, h, x, y;
+  if (!image_payload (values, target, w, h, x, y)) return;
+  get_current_editor ()->make_image (delta_unix (target), false, w, h, x, y);
+}
+
+void
+generic_make_link_image (object values) {
+  url target;
+  string w, h, x, y;
+  if (!image_payload (values, target, w, h, x, y)) return;
+  get_current_editor ()->make_image (delta_unix (target), true, w, h, x, y);
 }
 
 void

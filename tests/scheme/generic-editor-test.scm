@@ -73,6 +73,24 @@
 (recenter-window)
 
 (reset '(document "ab") '(0 0 1))
+(make-link-image '("linked.png" "2cm" "3cm" "4cm" "5cm"))
+(check (equal? (body)
+               '(document (concat "a"
+                                  (image "linked.png" "2cm" "3cm" "4cm" "5cm")
+                                  "b")))
+       "linked image wrapper preserves path and dimensions")
+
+(reset '(document "ab") '(0 0 1))
+(make-inline-image
+  '("$ATHENA_PATH/misc/images/windows/SmallTile.png" "1cm" "" "" ""))
+(check (tree-is? (tree-ref (buffer-tree) 0 1) 'image)
+       "inline image wrapper inserts an image node")
+(check (= (tree-arity (tree-ref (buffer-tree) 0 1)) 5)
+       "inline image wrapper preserves image arity")
+(check (equal? (tree->stree (tree-ref (buffer-tree) 0 1 1)) "1cm")
+       "inline image wrapper preserves requested width")
+
+(reset '(document "ab") '(0 0 1))
 (make-specific "html")
 (check (equal? (body)
                '(document (concat "a" (inactive (specific "html" "")) "b")))

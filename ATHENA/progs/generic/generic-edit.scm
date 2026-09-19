@@ -164,12 +164,6 @@
 (tm-property (make-experimental-build-warning)
   (:synopsis "Insert the ATHENA experimental build warning"))
 
-(tm-define (make-inline-image l)
-  (apply make-image (cons* (url->delta-unix (car l)) #f (cdr l))))
-
-(tm-define (make-link-image l)
-  (apply make-image (cons* (url->delta-unix (car l)) #t (cdr l))))
-
 (tm-define (make-graphics-over-selection)
   (when (selection-active-any?)
     (with selection (selection-tree)
