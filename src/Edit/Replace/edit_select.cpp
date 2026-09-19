@@ -203,7 +203,8 @@ edit_select_rep::select (path p) {
 
 void
 edit_select_rep::select_all () {
-  select (rp);
+  tree buffer= the_buffer ();
+  selection_set_paths (rp * 0, rp * right_index (buffer));
 }
 
 void

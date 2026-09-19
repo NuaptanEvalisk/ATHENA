@@ -181,11 +181,14 @@
 		  (else (ahash-set! v l #t))))))))
 
 (tm-define (search-parameters l)
-  (if (symbol? l) (set! l (symbol->string l)))
-  (let* ((v (make-ahash-table))
-	 (t (make-ahash-table)))
-    (collect-parameters l v t)
-    (sort (ahash-set->list v) string<=?)))
+  (with base (former l)
+    (if base base
+        (begin
+          (if (symbol? l) (set! l (symbol->string l)))
+          (let* ((v (make-ahash-table))
+	         (t (make-ahash-table)))
+            (collect-parameters l v t)
+            (sort (ahash-set->list v) string<=?))))))
 
 (tm-define (search-tag-parameters t)
   (search-parameters (tree-label t)))

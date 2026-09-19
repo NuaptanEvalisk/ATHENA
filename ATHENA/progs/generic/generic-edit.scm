@@ -475,68 +475,19 @@
   (selection-set-end)
   (clipboard-copy "primary"))
 
-(tm-define (select-all)
-  (tree-select (buffer-tree)))
-
-(tm-define (go-to-line n . opt-from)
-  (if (nnull? opt-from) (cursor-history-add (car opt-from)))
-  (with-innermost t 'document
-    (tree-go-to t n 0)))
-
-(tm-define (go-to-column c . opt-from)
-  (if (nnull? opt-from) (cursor-history-add (car opt-from)))
-  (with-innermost t 'document
-    (with p (tree-cursor-path t)
-      (tree-go-to t (cADr p) c))))
-
-(tm-define (select-word w t col)
-  (:synopsis "Selects word @w in tree @t, more or less around column @col")
-  (let* ((st (tree->string t))
-         (pos (- col (string-length w)))
-         (beg (string-contains st w (max 0 pos)))) ; returns index of w in st
-    (if beg
-        (with p (tree->path t)
-          (go-to (rcons p beg))
-          (selection-set-start)
-          (go-to (rcons p (+ beg (string-length w))))
-          (selection-set-end)))
-    beg))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Standard environment parameters for primitives
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (search-parameters l)
-  (:require (in? (if (string? l) l (symbol->string l))
-                 '("reference" "pageref" "eqref" "smart-ref" "hlink")))
-  (standard-parameters "locus"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Inserting various kinds of content
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (label-insert t)
-  (and-with p (tree-outer t)
-    (label-insert p)))
-
-(tm-define (label-insert t)
-  (:require (tree-is-buffer? t))
-  (make 'label))
-
 (tm-define (make-label)
   (label-insert (focus-tree)))
 
-(tm-define (make-specific s)
-  (if (or (== s "texmacs") (in-source?))
-      (insert-go-to `(specific ,s "") '(1 0))
-      (insert-go-to `(inactive (specific ,s "")) '(0 1 0))))
-
-(tm-define (make-include u)
-  (insert `(include ,(url->delta-unix u))))
-
-(tm-define (make-experimental-build-warning)
-  (:synopsis "Insert the ATHENA experimental build warning")
-  (insert '(experimental-build-warning)))
+(tm-property (make-experimental-build-warning)
+  (:synopsis "Insert the ATHENA experimental build warning"))
 
 (tm-define (make-inline-image l)
   (apply make-image (cons* (url->delta-unix (car l)) #f (cdr l))))
@@ -571,41 +522,6 @@
           (insert-go-to `(,l ,selection ,duration) (cons 0 p)))
         (insert-go-to `(,l "" ,duration) (list 0 0)))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Detached notes
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define (propose-note-id ref?)
-  (let* ((buf (buffer-tree))
-         (is-ref? (cut tree-in? <> '(note-ref note-ref*)))
-         (is-text? (cut tree-in? <> '(note-inline note-inline*
-                                      note-wide note-wide*
-                                      note-footnote note-footnote*)))
-         (ref-l (tree-search buf is-ref?))
-         (text-l (tree-search buf is-text?))
-         (ref-id (lambda (t) (tree->stree (tm-ref t 0))))
-         (text-id (lambda (t) (tree->stree (tm-ref t 1))))
-         (refs (map ref-id ref-l))
-         (texts (map text-id text-l))
-         (diff (if ref?
-                   (list-difference texts refs)
-                   (list-difference refs texts))))
-    (if (null? diff)
-        (create-unique-id)
-        (cAr diff))))
-
-(tm-define (make-note-ref)
-  (insert `(note-ref ,(propose-note-id #t))))
-
-(tm-define (make-note-inline)
-  (insert-go-to `(note-inline "" ,(propose-note-id #f)) '(0 0)))
-
-(tm-define (make-note-wide)
-  (insert-go-to `(note-wide (document "") ,(propose-note-id #f)) '(0 0 0)))
-
-(tm-define (make-note-footnote)
-  (insert-go-to `(note-footnote (document "") ,(propose-note-id #f)) '(0 0 0)))
-                                      
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Thumbnails facility
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

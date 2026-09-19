@@ -172,6 +172,32 @@
   <binding name="kbd-alternate-variant" native="generic_kbd_alternate_variant" returns="void">
     <arg type="tree" /><arg type="bool" />
   </binding>
+  <binding name="go-to-line" native="generic_go_to_line" returns="void">
+    <arg type="int" /><arg type="object" rest="true" />
+  </binding>
+  <binding name="go-to-column" native="generic_go_to_column" returns="void">
+    <arg type="int" /><arg type="object" rest="true" />
+  </binding>
+  <binding name="select-word" native="generic_select_word" returns="object">
+    <arg type="string" /><arg type="tree" /><arg type="int" />
+  </binding>
+  <binding name="search-parameters" native="generic_search_parameters" returns="object">
+    <arg type="object" />
+  </binding>
+  <binding name="label-insert" native="generic_label_insert" returns="void">
+    <arg type="tree" />
+  </binding>
+  <binding name="make-specific" native="generic_make_specific" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="make-include" native="generic_make_include" returns="void">
+    <arg type="url" />
+  </binding>
+  <binding name="make-experimental-build-warning" native="generic_make_experimental_build_warning" returns="void" />
+  <binding name="make-note-ref" native="generic_make_note_ref" returns="void" />
+  <binding name="make-note-inline" native="generic_make_note_inline" returns="void" />
+  <binding name="make-note-wide" native="generic_make_note_wide" returns="void" />
+  <binding name="make-note-footnote" native="generic_make_note_footnote" returns="void" />
   <binding name="space-context?" native="geometry_space_context" returns="bool">
     <arg type="tree" />
   </binding>
