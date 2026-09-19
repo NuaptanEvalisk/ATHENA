@@ -46,6 +46,51 @@
        "alternate tab insertion")
 (check (equal? (cursor-path) '(0 0 1 1)) "alternate tab cursor")
 
+(reset "abcd" 1)
+(kbd-select (lambda () (tree-go-to (tree-ref (buffer-tree) 0) 2)))
+(check (selection-active-any?) "native kbd-select activates selection")
+(check (equal? (selection-get-start) '(0 0 1)) "native kbd-select start")
+(check (equal? (selection-get-end) '(0 0 2)) "native kbd-select end")
+(check (equal? (cursor-path) '(0 0 2)) "native kbd-select cursor")
+
+(reset "abcd" 1)
+(kbd-plain-move (lambda () (tree-go-to (tree-ref (buffer-tree) 0) 3)))
+(check (equal? (cursor-path) '(0 0 3)) "native kbd-plain-move procedure bridge")
+
+(reset "ab" 1)
+(kbd-space)
+(check (equal? (body) '(document "a b")) "native no-argument space dispatch")
+(check (equal? (cursor-path) '(0 0 2)) "native no-argument space cursor")
+
+;; Public no-argument commands must remain tm-define extension points after
+;; their generic baseline moves into native glue.
+(tm-define (kbd-return)
+  (:require (tree-is? (focus-tree) 'keyboard-return-extension))
+  (tree-set! (focus-tree) 0 "extended"))
+(buffer-set-body (current-buffer)
+                 (stree->tree '(document (keyboard-return-extension "x"))))
+(update-current-buffer)
+(tree-go-to (tree-ref (buffer-tree) 0 0) :end)
+(kbd-return)
+(check (equal? (body) '(document (keyboard-return-extension "extended")))
+       "native no-argument command remains a Scheme extension point")
+
+;; Raw native movement must continue to dispatch through later Scheme
+;; specializations instead of bypassing mode-specific behavior.
+(tm-define (kbd-horizontal t forwards?)
+  (:require (tree-is? t 'keyboard-move-extension))
+  (tree-set! t 0 (if forwards? "right" "left")))
+(buffer-set-body (current-buffer)
+                 (stree->tree '(document (keyboard-move-extension "x"))))
+(update-current-buffer)
+(tree-go-to (tree-ref (buffer-tree) 0 0) :end)
+(kbd-right)
+(check (equal? (body) '(document (keyboard-move-extension "right")))
+       "native no-argument movement reaches Scheme extension")
+(kbd-left)
+(check (equal? (body) '(document (keyboard-move-extension "left")))
+       "native left movement reaches Scheme extension")
+
 ;; Native outward fallback must continue to compose with later mode handlers.
 (tm-define (kbd-enter t shift?)
   (:require (tree-is? t 'keyboard-test-extension))

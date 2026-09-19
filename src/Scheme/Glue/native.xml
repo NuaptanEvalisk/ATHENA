@@ -151,6 +151,50 @@
   <binding name="special-incremental" native="generic_special_incremental" returns="void">
     <arg type="tree" /><arg type="bool" />
   </binding>
+  <binding name="kbd-left-raw" native="generic_kbd_left_raw" returns="void" />
+  <binding name="kbd-right-raw" native="generic_kbd_right_raw" returns="void" />
+  <binding name="kbd-up-raw" native="generic_kbd_up_raw" returns="void" />
+  <binding name="kbd-down-raw" native="generic_kbd_down_raw" returns="void" />
+  <binding name="kbd-start-line-raw" native="generic_kbd_start_line_raw" returns="void" />
+  <binding name="kbd-end-line-raw" native="generic_kbd_end_line_raw" returns="void" />
+  <binding name="kbd-page-up-raw" native="generic_kbd_page_up_raw" returns="void" />
+  <binding name="kbd-page-down-raw" native="generic_kbd_page_down_raw" returns="void" />
+  <binding name="kbd-plain-move" native="generic_kbd_plain_move" returns="void">
+    <arg type="procedure" />
+  </binding>
+  <binding name="kbd-left" native="generic_kbd_left" returns="void" />
+  <binding name="kbd-right" native="generic_kbd_right" returns="void" />
+  <binding name="kbd-up" native="generic_kbd_up" returns="void" />
+  <binding name="kbd-down" native="generic_kbd_down" returns="void" />
+  <binding name="kbd-start-line" native="generic_kbd_start_line" returns="void" />
+  <binding name="kbd-end-line" native="generic_kbd_end_line" returns="void" />
+  <binding name="kbd-page-up" native="generic_kbd_page_up" returns="void" />
+  <binding name="kbd-page-down" native="generic_kbd_page_down" returns="void" />
+  <binding name="kbd-select" native="generic_kbd_select" returns="void">
+    <arg type="procedure" />
+  </binding>
+  <binding name="kbd-select-if-active" native="generic_kbd_select_if_active" returns="void">
+    <arg type="procedure" />
+  </binding>
+  <binding name="insert-return" native="generic_insert_return" returns="void" />
+  <binding name="kbd-space" native="generic_kbd_space" returns="void" />
+  <binding name="kbd-shift-space" native="generic_kbd_shift_space" returns="void" />
+  <binding name="kbd-return" native="generic_kbd_return" returns="void" />
+  <binding name="kbd-shift-return" native="generic_kbd_shift_return" returns="void" />
+  <binding name="kbd-control-return" native="generic_kbd_control_return" returns="void" />
+  <binding name="kbd-shift-control-return" native="generic_kbd_shift_control_return" returns="void" />
+  <binding name="kbd-alternate-return" native="generic_kbd_alternate_return" returns="void" />
+  <binding name="kbd-shift-alternate-return" native="generic_kbd_shift_alternate_return" returns="void" />
+  <binding name="kbd-backspace" native="generic_kbd_backspace" returns="void" />
+  <binding name="kbd-delete" native="generic_kbd_delete" returns="void" />
+  <binding name="kbd-tab" native="generic_kbd_tab" returns="void" />
+  <binding name="kbd-shift-tab" native="generic_kbd_shift_tab" returns="void" />
+  <binding name="kbd-alternate-tab" native="generic_kbd_alternate_tab" returns="void" />
+  <binding name="kbd-shift-alternate-tab" native="generic_kbd_shift_alternate_tab" returns="void" />
+  <binding name="kbd-copy" native="generic_kbd_copy" returns="void" />
+  <binding name="kbd-cut" native="generic_kbd_cut" returns="void" />
+  <binding name="kbd-paste" native="generic_kbd_paste" returns="void" />
+  <binding name="kbd-cancel" native="generic_kbd_cancel" returns="void" />
   <binding name="kbd-space-bar" native="generic_kbd_space_bar" returns="void">
     <arg type="tree" /><arg type="bool" />
   </binding>

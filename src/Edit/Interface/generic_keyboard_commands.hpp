@@ -11,8 +11,47 @@
 #ifndef ATHENA_GENERIC_KEYBOARD_COMMANDS_HPP
 #define ATHENA_GENERIC_KEYBOARD_COMMANDS_HPP
 
+#include "scheme.hpp"
 #include "tree.hpp"
 
+void generic_kbd_left_raw ();
+void generic_kbd_right_raw ();
+void generic_kbd_up_raw ();
+void generic_kbd_down_raw ();
+void generic_kbd_start_line_raw ();
+void generic_kbd_end_line_raw ();
+void generic_kbd_page_up_raw ();
+void generic_kbd_page_down_raw ();
+void generic_kbd_plain_move (object move);
+void generic_kbd_left ();
+void generic_kbd_right ();
+void generic_kbd_up ();
+void generic_kbd_down ();
+void generic_kbd_start_line ();
+void generic_kbd_end_line ();
+void generic_kbd_page_up ();
+void generic_kbd_page_down ();
+void generic_kbd_select (object move);
+void generic_kbd_select_if_active (object move);
+void generic_insert_return ();
+void generic_kbd_space ();
+void generic_kbd_shift_space ();
+void generic_kbd_return ();
+void generic_kbd_shift_return ();
+void generic_kbd_control_return ();
+void generic_kbd_shift_control_return ();
+void generic_kbd_alternate_return ();
+void generic_kbd_shift_alternate_return ();
+void generic_kbd_backspace ();
+void generic_kbd_delete ();
+void generic_kbd_tab ();
+void generic_kbd_shift_tab ();
+void generic_kbd_alternate_tab ();
+void generic_kbd_shift_alternate_tab ();
+void generic_kbd_copy ();
+void generic_kbd_cut ();
+void generic_kbd_paste ();
+void generic_kbd_cancel ();
 void generic_kbd_space_bar (tree t, bool shift);
 void generic_kbd_enter (tree t, bool shift);
 void generic_kbd_control_enter (tree t, bool shift);

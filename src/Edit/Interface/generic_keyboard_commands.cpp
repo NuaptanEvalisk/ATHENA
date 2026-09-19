@@ -15,6 +15,12 @@
 
 namespace {
 
+tree focus_tree () {
+  editor ed= get_current_editor ();
+  tree root= ed->the_root ();
+  return subtree (root, ed->focus_get ());
+}
+
 bool parent_tree (tree t, tree& parent) {
   if (admits_edit_observer (t)) return false;
   path ip= obtain_ip (t);
@@ -49,7 +55,98 @@ bool hybrid_command (path& hybrid_path, string& command, bool& atomic) {
   return true;
 }
 
+void dispatch_focus (const char* command, bool flag) {
+  call (command, object (focus_tree ()), object (flag));
+}
+
 } // namespace
+
+void generic_kbd_left_raw () { dispatch_focus ("kbd-horizontal", false); }
+void generic_kbd_right_raw () { dispatch_focus ("kbd-horizontal", true); }
+void generic_kbd_up_raw () { dispatch_focus ("kbd-vertical", false); }
+void generic_kbd_down_raw () { dispatch_focus ("kbd-vertical", true); }
+void generic_kbd_start_line_raw () { dispatch_focus ("kbd-extremal", false); }
+void generic_kbd_end_line_raw () { dispatch_focus ("kbd-extremal", true); }
+void generic_kbd_page_up_raw () { dispatch_focus ("kbd-incremental", false); }
+void generic_kbd_page_down_raw () { dispatch_focus ("kbd-incremental", true); }
+
+void generic_kbd_plain_move (object move) {
+  get_current_editor ()->select_from_keyboard (false);
+  (void) call (move);
+}
+
+void generic_kbd_left () {
+  get_current_editor ()->select_from_keyboard (false);
+  generic_kbd_left_raw ();
+}
+
+void generic_kbd_right () {
+  get_current_editor ()->select_from_keyboard (false);
+  generic_kbd_right_raw ();
+}
+
+void generic_kbd_up () {
+  get_current_editor ()->select_from_keyboard (false);
+  generic_kbd_up_raw ();
+}
+
+void generic_kbd_down () {
+  get_current_editor ()->select_from_keyboard (false);
+  generic_kbd_down_raw ();
+}
+
+void generic_kbd_start_line () {
+  get_current_editor ()->select_from_keyboard (false);
+  generic_kbd_start_line_raw ();
+}
+
+void generic_kbd_end_line () {
+  get_current_editor ()->select_from_keyboard (false);
+  generic_kbd_end_line_raw ();
+}
+
+void generic_kbd_page_up () {
+  get_current_editor ()->select_from_keyboard (false);
+  generic_kbd_page_up_raw ();
+}
+
+void generic_kbd_page_down () {
+  get_current_editor ()->select_from_keyboard (false);
+  generic_kbd_page_down_raw ();
+}
+
+void generic_kbd_select (object move) {
+  editor ed= get_current_editor ();
+  ed->select_from_shift_keyboard ();
+  (void) call (move);
+  ed->select_from_cursor ();
+}
+
+void generic_kbd_select_if_active (object move) {
+  editor ed= get_current_editor ();
+  (void) call (move);
+  ed->select_from_cursor_if_active ();
+}
+
+void generic_insert_return () { (void) get_current_editor ()->insert_return (); }
+void generic_kbd_space () { dispatch_focus ("kbd-space-bar", false); }
+void generic_kbd_shift_space () { dispatch_focus ("kbd-space-bar", true); }
+void generic_kbd_return () { dispatch_focus ("kbd-enter", false); }
+void generic_kbd_shift_return () { dispatch_focus ("kbd-enter", true); }
+void generic_kbd_control_return () { dispatch_focus ("kbd-control-enter", false); }
+void generic_kbd_shift_control_return () { dispatch_focus ("kbd-control-enter", true); }
+void generic_kbd_alternate_return () { dispatch_focus ("kbd-alternate-enter", false); }
+void generic_kbd_shift_alternate_return () { dispatch_focus ("kbd-alternate-enter", true); }
+void generic_kbd_backspace () { dispatch_focus ("kbd-remove", false); }
+void generic_kbd_delete () { dispatch_focus ("kbd-remove", true); }
+void generic_kbd_tab () { dispatch_focus ("kbd-variant", true); }
+void generic_kbd_shift_tab () { dispatch_focus ("kbd-variant", false); }
+void generic_kbd_alternate_tab () { dispatch_focus ("kbd-alternate-variant", true); }
+void generic_kbd_shift_alternate_tab () { dispatch_focus ("kbd-alternate-variant", false); }
+void generic_kbd_copy () { get_current_editor ()->selection_copy ("primary"); }
+void generic_kbd_cut () { get_current_editor ()->selection_cut ("primary"); }
+void generic_kbd_paste () { get_current_editor ()->selection_paste ("primary"); }
+void generic_kbd_cancel () { get_current_editor ()->selection_clear ("primary"); }
 
 void generic_kbd_space_bar (tree t, bool shift) {
   (void) shift;
