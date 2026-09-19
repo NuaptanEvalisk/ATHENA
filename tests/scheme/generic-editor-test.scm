@@ -90,6 +90,46 @@
 (check (equal? (tree->stree (tree-ref (buffer-tree) 0 1 1)) "1cm")
        "inline image wrapper preserves requested width")
 
+(check (not (focus-label (stree->tree '(focus-unknown "x"))))
+       "generic focus-label baseline is false")
+(check (equal? (tree->stree
+                 (focus-search-label
+                   (stree->tree
+                     '(document "x" (concat "a" (label "target"))))))
+               '(label "target"))
+       "native focus label search walks structural children")
+(check (equal? (tree->stree
+                 (focus-search-label
+                   (stree->tree
+                     '(with "mode" "ignored"
+                            (document (label "last"))))))
+               '(label "last"))
+       "native focus label search follows the final with child")
+(check (equal? (tree->stree
+                 (focus-list-search-label
+                   (list (stree->tree '(foo "x"))
+                         (stree->tree '(label "listed")))))
+               '(label "listed"))
+       "native focus label list search returns the first matching label")
+
+;; Later focus-label specializations remain authoritative.  The specialization
+;; deliberately uses the native structural search, while get/set dispatch back
+;; through the public focus-label command.
+(tm-define (focus-label t)
+  (:require (tree-is? t 'focus-label-extension))
+  (focus-search-label (tree-ref t 0)))
+(buffer-set-body
+  (current-buffer)
+  (stree->tree '(document (focus-label-extension (document (label "old"))))))
+(update-current-buffer)
+(define focus-extension (tree-ref (buffer-tree) 0))
+(check (equal? (focus-get-label focus-extension) "old")
+       "native focus-get-label reaches Scheme focus-label specialization")
+(focus-set-label focus-extension "new")
+(check (equal? (body)
+               '(document (focus-label-extension (document (label "new")))))
+       "native focus-set-label mutates the specialized active label")
+
 (reset '(document "ab") '(0 0 1))
 (make-specific "html")
 (check (equal? (body)

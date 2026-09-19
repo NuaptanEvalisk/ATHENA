@@ -453,6 +453,21 @@
   <binding name="make-link-image" native="generic_make_link_image" returns="void">
     <arg type="object" />
   </binding>
+  <binding name="focus-label" native="generic_focus_label" returns="object">
+    <arg type="tree" />
+  </binding>
+  <binding name="focus-get-label" native="generic_focus_get_label" returns="object">
+    <arg type="tree" />
+  </binding>
+  <binding name="focus-set-label" native="generic_focus_set_label" returns="object">
+    <arg type="tree" /><arg type="string" />
+  </binding>
+  <binding name="focus-list-search-label" native="generic_focus_list_search_label" returns="object">
+    <arg type="object" />
+  </binding>
+  <binding name="focus-search-label" native="generic_focus_search_label" returns="object">
+    <arg type="tree" />
+  </binding>
   <binding name="label-insert" native="generic_label_insert" returns="void">
     <arg type="tree" />
   </binding>

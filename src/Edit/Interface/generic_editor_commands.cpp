@@ -149,6 +149,36 @@ bool image_payload (object values, url& target,
   return true;
 }
 
+object focus_search_label_impl (tree t);
+
+object focus_list_search_label_impl (object children) {
+  if (!is_list (children)) return object (false);
+  array<object> items= as_array_object (children);
+  for (int i= 0; i < N (items); ++i) {
+    if (!is_tree (items[i])) continue;
+    object found= focus_search_label_impl (as_tree (items[i]));
+    if (is_tree (found)) return found;
+  }
+  return object (false);
+}
+
+object focus_search_label_impl (tree t) {
+  if (is_compound (t, "label") && N (t) == 1) return object (t);
+  if (!is_compound (t)) return object (false);
+  string label= as_string (L (t));
+  if (label == "document" || label == "concat" || label == "table" ||
+      label == "row" || label == "cell") {
+    array<object> children;
+    for (int i= 0; i < N (t); ++i) children << object (t[i]);
+    return focus_list_search_label_impl (as_list_object (children));
+  }
+  if (label == "tformat" || label == "with" || label == "surround") {
+    if (N (t) == 0) return object (false);
+    return focus_search_label_impl (t[N (t) - 1]);
+  }
+  return object (false);
+}
+
 } // namespace
 
 void
@@ -246,6 +276,37 @@ generic_make_link_image (object values) {
   string w, h, x, y;
   if (!image_payload (values, target, w, h, x, y)) return;
   get_current_editor ()->make_image (delta_unix (target), true, w, h, x, y);
+}
+
+object
+generic_focus_label (tree) {
+  return object (false);
+}
+
+object
+generic_focus_get_label (tree t) {
+  object label= call ("focus-label", object (t));
+  if (!is_tree (label)) return object (false);
+  tree l= as_tree (label);
+  if (N (l) != 1 || !is_atomic (l[0])) return object (false);
+  return object (as_string (l[0]));
+}
+
+object
+generic_focus_set_label (tree t, string value) {
+  object label= call ("focus-label", object (t));
+  if (!is_tree (label)) return object (false);
+  return call ("tree-set", label, object (0), object (value));
+}
+
+object
+generic_focus_list_search_label (object children) {
+  return focus_list_search_label_impl (children);
+}
+
+object
+generic_focus_search_label (tree t) {
+  return focus_search_label_impl (t);
 }
 
 void
