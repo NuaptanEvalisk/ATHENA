@@ -133,6 +133,12 @@
   <binding name="toggle-page-width-margin" native="document_toggle_page_width_margin" returns="void" />
   <binding name="not-page-screen-margin?" native="document_not_page_screen_margin" returns="bool" />
   <binding name="toggle-page-screen-margin" native="document_toggle_page_screen_margin" returns="void" />
+  <binding name="reduced-margins?" native="document_reduced_margins" returns="bool" />
+  <binding name="toggle-reduced-margins" native="document_toggle_reduced_margins" returns="void" />
+  <binding name="indent-paragraphs?" native="document_indent_paragraphs" returns="bool" />
+  <binding name="toggle-indent-paragraphs" native="document_toggle_indent_paragraphs" returns="void" />
+  <binding name="no-page-numbers?" native="document_no_page_numbers" returns="bool" />
+  <binding name="toggle-no-page-numbers" native="document_toggle_no_page_numbers" returns="void" />
   <binding name="generic-context?" native="generic_context" returns="bool">
     <arg type="tree" />
   </binding>

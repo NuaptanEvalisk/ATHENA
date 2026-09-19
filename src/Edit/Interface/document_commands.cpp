@@ -198,3 +198,68 @@ void document_toggle_page_screen_margin () {
   string next= ed->get_env_string ("page-screen-margin") == "false" ? "true" : "false";
   ed->init_env ("page-screen-margin", tree (next));
 }
+
+namespace {
+
+bool has_style_package (string name) {
+  return as_bool (call ("has-style-package?", object (name)));
+}
+
+void add_style_package (string name) {
+  (void) call ("add-style-package", object (name));
+}
+
+void remove_style_package (string name) {
+  (void) call ("remove-style-package", object (name));
+}
+
+} // namespace
+
+bool document_reduced_margins () {
+  return document_test_init ("page-odd", "1cm");
+}
+
+void document_toggle_reduced_margins () {
+  if (has_style_package ("reduced-margins"))
+    remove_style_package ("reduced-margins");
+  else if (has_style_package ("normal-margins"))
+    remove_style_package ("normal-margins");
+  else if (document_reduced_margins ())
+    add_style_package ("normal-margins");
+  else
+    add_style_package ("reduced-margins");
+}
+
+bool document_indent_paragraphs () {
+  object value= document_get_init_env ("par-first");
+  if (!is_string (value)) return true;
+  string s= as_string (value);
+  return !(s == "0fn" || s == "0em" || s == "0tab" ||
+           s == "0cm" || s == "0mm" || s == "0in");
+}
+
+void document_toggle_indent_paragraphs () {
+  if (has_style_package ("indent-paragraphs"))
+    remove_style_package ("indent-paragraphs");
+  else if (has_style_package ("padded-paragraphs"))
+    remove_style_package ("padded-paragraphs");
+  else if (document_indent_paragraphs ())
+    add_style_package ("padded-paragraphs");
+  else
+    add_style_package ("indent-paragraphs");
+}
+
+bool document_no_page_numbers () {
+  return document_test_init ("no-page-numbers", "true");
+}
+
+void document_toggle_no_page_numbers () {
+  if (has_style_package ("page-numbers"))
+    remove_style_package ("page-numbers");
+  else if (has_style_package ("no-page-numbers"))
+    remove_style_package ("no-page-numbers");
+  else if (document_no_page_numbers ())
+    add_style_package ("page-numbers");
+  else
+    add_style_package ("no-page-numbers");
+}

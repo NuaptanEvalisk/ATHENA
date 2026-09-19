@@ -40,5 +40,11 @@ bool document_page_width_margin ();
 void document_toggle_page_width_margin ();
 bool document_not_page_screen_margin ();
 void document_toggle_page_screen_margin ();
+bool document_reduced_margins ();
+void document_toggle_reduced_margins ();
+bool document_indent_paragraphs ();
+void document_toggle_indent_paragraphs ();
+bool document_no_page_numbers ();
+void document_toggle_no_page_numbers ();
 
 #endif
