@@ -170,6 +170,54 @@
   <binding name="toggle-indent-paragraphs" native="document_toggle_indent_paragraphs" returns="void" />
   <binding name="no-page-numbers?" native="document_no_page_numbers" returns="bool" />
   <binding name="toggle-no-page-numbers" native="document_toggle_no_page_numbers" returns="void" />
+  <binding name="style-category" native="document_style_category" returns="object">
+    <arg type="string" />
+  </binding>
+  <binding name="style-category-overrides?" native="document_style_category_overrides" returns="bool">
+    <arg type="object" /><arg type="object" />
+  </binding>
+  <binding name="style-category-precedes?" native="document_style_category_precedes" returns="bool">
+    <arg type="object" /><arg type="object" />
+  </binding>
+  <binding name="style-includes?" native="document_style_includes" returns="bool">
+    <arg type="string" /><arg type="string" />
+  </binding>
+  <binding name="style-overrides?" native="document_style_overrides" returns="bool">
+    <arg type="string" /><arg type="string" />
+  </binding>
+  <binding name="style-precedes?" native="document_style_precedes" returns="bool">
+    <arg type="string" /><arg type="string" />
+  </binding>
+  <binding name="get-style-list" native="document_get_style_list" returns="object" />
+  <binding name="embedded-style-list" native="document_embedded_style_list" returns="object">
+    <arg type="object" rest="true" />
+  </binding>
+  <binding name="has-no-style?" native="document_has_no_style" returns="bool" />
+  <binding name="set-no-style" native="document_set_no_style" returns="void" />
+  <binding name="has-main-style?" native="document_has_main_style" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="notify-new-style" native="document_notify_new_style" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="has-style-package?" native="document_has_style_package" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="not-has-style-package?" native="document_not_has_style_package" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="add-style-package" native="document_add_style_package" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="remove-style-package" native="document_remove_style_package" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="remove-style-package*" native="document_remove_style_package_star" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="toggle-style-package" native="document_toggle_style_package" returns="void">
+    <arg type="string" />
+  </binding>
   <binding name="generic-context?" native="generic_context" returns="bool">
     <arg type="tree" />
   </binding>

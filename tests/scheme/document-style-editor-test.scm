@@ -1,0 +1,75 @@
+;; Native generic document style commands execute on the owning BufferActor
+;; while preserving the public Scheme style extension points.
+(import-from (generic document-style))
+(init-style "generic")
+
+(define (check condition message . details)
+  (unless condition
+    (apply error (cons message details))))
+
+(check (equal? (get-style-list) '("generic"))
+       "native style-list lookup sees initial generic style")
+(check (has-main-style? "generic")
+       "native main-style predicate sees initial style")
+(check (not (has-no-style?))
+       "initial generic style is not empty")
+(check (equal? (embedded-style-list "pack-a" "pack-a" "pack-b")
+               '("generic" "pack-a" "pack-b"))
+       "embedded style list appends unique extra packages")
+
+(add-style-package "pack-a")
+(check (has-style-package? "pack-a")
+       "native add-style-package updates actor style state")
+(add-style-package "pack-a")
+(check (equal? (get-style-list) '("generic" "pack-a"))
+       "Scheme normalization still removes duplicate packages")
+(toggle-style-package "pack-a")
+(check (not (has-style-package? "pack-a"))
+       "native package toggle removes an active package")
+(toggle-style-package "pack-a")
+(check (has-style-package? "pack-a")
+       "native package toggle adds a missing package")
+(remove-style-package* "pack-a")
+(check (not (has-style-package? "pack-a"))
+       "native starred package removal uses the same mutation path")
+
+(set-no-style)
+(check (has-no-style?) "native set-no-style clears the style list")
+(check (null? (get-style-list)) "empty style list round-trips natively")
+(set-style-list '("generic"))
+
+;; Later category specializations remain authoritative for the native
+;; style-overrides? and style-precedes? wrappers.
+(tm-define (style-category p)
+  (:require (in? p '("native-cat-a" "native-cat-b")))
+  :native-test-category)
+(check (style-overrides? "native-cat-a" "native-cat-b")
+       "native style-overrides dispatches through Scheme style-category")
+
+(tm-define (style-category-precedes? p q)
+  (:require (and (== p :native-test-category)
+                 (== q :native-later-category)))
+  #t)
+(tm-define (style-category p)
+  (:require (== p "native-later"))
+  :native-later-category)
+(check (style-precedes? "native-cat-a" "native-later")
+       "native style-precedes dispatches through Scheme category policy")
+
+;; Included-package detection remains extensible and is evaluated by the
+;; native has-style-package? command against the current normalized list.
+(tm-define (style-includes? p q)
+  (:require (and (== p "native-bundle") (== q "native-included")))
+  #t)
+(set-style-list '("generic" "native-bundle"))
+(check (has-style-package? "native-included")
+       "native package predicate reaches Scheme style-includes specialization")
+(check (not (not-has-style-package? "native-included"))
+       "native negated package predicate matches included package")
+
+(set-style-list '("generic"))
+(init-env "page-medium" "paper")
+(update-current-buffer)
+(update-forced)
+(print-to-file (string->url (string-append (getenv "HOME") "/evaluation.pdf")))
+#t

@@ -17,18 +17,6 @@
 ;; Relations between style files and packages
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (style-category p) p)
-(tm-define (style-category-overrides? p q) (== p q))
-(tm-define (style-category-precedes? p q) #f)
-
-(tm-define (style-includes? p q) #f)
-
-(tm-define (style-overrides? p q)
-  (style-category-overrides? (style-category p) (style-category q)))
-
-(tm-define (style-precedes? p q)
-  (style-category-precedes? (style-category p) (style-category q)))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Menu names of style files and packages, and balloon help
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -48,16 +36,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Getting and setting the list of style packages
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (get-style-list)
-  (with t (tree->stree (get-style-tree))
-    (cond ((string? t) (list t))
-          ((and (pair? t) (== (car t) 'tuple)) (cdr t))
-          (else (texmacs-error "get-style-list ""invalid style ~S" t)))))
-
-(tm-define (embedded-style-list . xpacks)
-  (with l (get-style-list)
-    (list-remove-duplicates (append l xpacks))))
 
 (define (normalize-style-list* l)
   (cond ((null? l) l)
@@ -93,19 +71,8 @@
 ;; High level routines for style and style package management
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (has-no-style?)
-  (null? (get-style-list)))
-
-(tm-define (set-no-style)
-  (:check-mark "v" has-no-style?)
-  (set-style-list '()))
-
-(tm-define (has-main-style? style)
-  (with l (get-style-list)
-    (and (nnull? l) (== (car l) style))))
-
-(tm-define (notify-new-style style)
-  (noop))
+(tm-property (set-no-style)
+  (:check-mark "v" has-no-style?))
 
 (tm-define (set-main-style style)
   (:synopsis* "Set main document style")
@@ -148,39 +115,25 @@
   (:synopsis* "Choose and install custom document style")
   (choose-file install-custom-style "Install custom style" ""))
 
-(tm-define (has-style-package? pack)
-  (or (in? pack (get-style-list))
-      (and (list-find (get-style-list) (cut style-includes? <> pack))
-           (not (list-find (get-style-list) (cut style-overrides? <> pack))))))
-
-(tm-define (not-has-style-package? pack)
-  (not (has-style-package? pack)))
-
-(tm-define (add-style-package pack)
+(tm-property (add-style-package pack)
   (:synopsis* "Add style package")
   (:argument pack "Package")
   (:check-mark "v" has-style-package?)
-  (:balloon style-get-documentation)
-  (set-style-list (append (get-style-list) (list pack))))
+  (:balloon style-get-documentation))
 
-(tm-define (remove-style-package pack)
+(tm-property (remove-style-package pack)
   (:argument pack "Remove package")
   (:proposals pack (with l (get-style-list) (if (null? l) l (cdr l))))
-  (:balloon style-get-documentation)
-  (set-style-list (list-difference (get-style-list) (list pack))))
+  (:balloon style-get-documentation))
 
-(tm-define (remove-style-package* pack)
+(tm-property (remove-style-package* pack)
   (:argument pack "Remove package")
-  (:check-mark "v" not-has-style-package?)
-  (remove-style-package pack))
+  (:check-mark "v" not-has-style-package?))
 
-(tm-define (toggle-style-package pack)
+(tm-property (toggle-style-package pack)
   (:argument pack "Toggle package")
   (:check-mark "v" has-style-package?)
-  (:balloon style-get-documentation)
-  (if (has-style-package? pack)
-      (remove-style-package pack)
-      (add-style-package pack)))
+  (:balloon style-get-documentation))
 
 (define (url-resolve-package name)
   (let* ((style-name  (string-append name ".ts"))
