@@ -14,6 +14,7 @@
 #include "font.hpp"
 #include "analyze.hpp"
 
+#include <cmath>
 #include <initializer_list>
 
 bool document_in_source_mode () {
@@ -299,6 +300,34 @@ void document_init_default_page_rendering () {
   notify_page_change ();
 }
 
+int document_panorama_packets () {
+  editor ed= get_current_editor ();
+  int nr= ed->nr_pages ();
+  SI ww= ed->get_window_width ();
+  SI wh= ed->get_window_height ();
+  SI pw= ed->get_page_width (false);
+  SI ph= ed->get_page_height (false);
+  int best_n= 0;
+  double best_f= 0.0;
+  for (int n= 1; n <= nr; ++n) {
+    int rows= (nr + n - 1) / n;
+    double tw= ((double) n) * ((double) pw);
+    double th= ((double) rows) * ((double) ph);
+    double aw= ((double) ww) - ((double) n) * 5120.0;
+    double ah= ((double) wh) - ((double) rows) * 5120.0;
+    double fw= aw / tw;
+    double fh= ah / th;
+    double factor= std::min (fw, fh);
+    if (n == 1 || factor > best_f) {
+      best_n= n;
+      best_f= factor;
+    }
+  }
+  if (best_n > 0) return best_n;
+  if (nr > 10) return 10;
+  return (int) std::ceil (std::sqrt ((double) nr));
+}
+
 string document_get_init_page_rendering () {
   editor ed= get_current_editor ();
   if (ed->get_init_string ("page-border") == "attached") return "book";
@@ -328,7 +357,7 @@ void document_apply_page_rendering_state (string value) {
   }
   else if (value == "panorama") {
     ed->init_env ("page-medium", tree ("paper"));
-    ed->init_env ("page-packet", tree (as_string (call ("number->string", call ("panorama-packets")))));
+    ed->init_env ("page-packet", tree (as_string (document_panorama_packets ())));
     reset_defaults ({"page-border", "page-offset"});
   }
   else if (value == "slideshow") {

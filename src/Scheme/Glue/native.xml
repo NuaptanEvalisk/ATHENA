@@ -141,6 +141,7 @@
   </binding>
   <binding name="test-default-page-rendering?" native="document_test_default_page_rendering" returns="bool" />
   <binding name="init-default-page-rendering" native="document_init_default_page_rendering" returns="void" />
+  <binding name="panorama-packets" native="document_panorama_packets" returns="int" />
   <binding name="get-init-page-rendering" native="document_get_init_page_rendering" returns="string" />
   <binding name="test-page-rendering?" native="document_test_page_rendering" returns="bool">
     <arg type="string" />

@@ -42,6 +42,7 @@ bool document_test_page_orientation (string value);
 void document_init_page_orientation (string value);
 bool document_test_default_page_rendering ();
 void document_init_default_page_rendering ();
+int document_panorama_packets ();
 string document_get_init_page_rendering ();
 bool document_test_page_rendering (string value);
 void document_apply_page_rendering_state (string value);
