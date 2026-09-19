@@ -13,10 +13,13 @@
 #include "new_document.hpp"
 #include "editor.hpp"
 #include "file.hpp"
+#include "format_geometry.hpp"
 #include "language.hpp"
 #include "new_buffer.hpp"
 #include "new_view.hpp"
 #include "tree_select.hpp"
+#include "tree_traverse.hpp"
+#include "basic.hpp"
 
 namespace {
 
@@ -993,4 +996,91 @@ generic_toggle_insertion_positioning (string position) {
 void
 generic_toggle_insertion_positioning_not (string position) {
   generic_toggle_insertion_positioning (position);
+}
+
+bool
+generic_string_variable_name (tree t, int i) {
+  if (i < 0 || i >= N (t)) return false;
+  if (get_child_type (t, i) != "variable") return false;
+  bool variable_container=
+    is_compound (t, "with") || is_compound (t, "attr") ||
+    is_compound (t, "style-with") || is_compound (t, "style-with*");
+  return variable_container && is_atomic (t[i]) && as_string (t[i]) != "";
+}
+
+string
+generic_type_to_format (string type) {
+  if (type == "adhoc" || type == "raw" || type == "graphical" ||
+      type == "point" || type == "obsolete" || type == "unknown" ||
+      type == "error")
+    return "n.a.";
+  if (type == "url") return gui_is_qt () ? "string" : "smart-file";
+  return "string";
+}
+
+bool
+generic_hidden_child (tree t, int i) {
+  if (i < 0 || i >= N (t)) return false;
+  return !is_accessible_child (t, i) && !generic_string_variable_name (t, i) &&
+         generic_type_to_format (get_child_type (t, i)) != "n.a.";
+}
+
+namespace {
+
+int generic_hidden_child_count (tree t) {
+  int count= 0;
+  for (int i= 0; i < N (t); ++i)
+    if (generic_hidden_child (t, i)) ++count;
+  return count;
+}
+
+string generic_tree_child_name_impl (tree t, int i, bool long_name) {
+  if (i < 0 || i >= N (t)) return "";
+  string name= long_name ? get_child_long_name (t, i) : get_child_name (t, i);
+  if (name != "") return name;
+  if (i > 0 && generic_string_variable_name (t, i - 1)) {
+    string variable= as_string (t[i - 1]);
+    return replace (variable, "-", " ");
+  }
+  if (generic_hidden_child_count (t) > 1) return "";
+  string type= get_child_type (t, i);
+  return type == "regular" ? string ("") : type;
+}
+
+} // namespace
+
+string
+generic_tree_child_name_star (tree t, int i) {
+  return generic_tree_child_name_impl (t, i, false);
+}
+
+string
+generic_tree_child_long_name_star (tree t, int i) {
+  return generic_tree_child_name_impl (t, i, true);
+}
+
+string
+generic_type_to_width (string type) {
+  if (type == "boolean" || type == "integer" || type == "length" ||
+      type == "numeric" || type == "duration")
+    return "5em";
+  if (type == "identifier") return "8em";
+  return "1w";
+}
+
+bool
+generic_inputter_active (tree t, string type) {
+  return type == "length" ? geometry_rich_length (t) : is_atomic (t);
+}
+
+string
+generic_inputter_decode (tree t, string type) {
+  if (type == "length") return geometry_rich_length_string (t);
+  return is_atomic (t) ? as_string (t) : string ("");
+}
+
+scheme_tree
+generic_inputter_encode (string value, string type) {
+  if (type == "length") return geometry_parse_rich_length (value);
+  return tree (scm_quote (value));
 }

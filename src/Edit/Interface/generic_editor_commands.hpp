@@ -84,5 +84,14 @@ bool generic_test_insertion_positioning (string position);
 bool generic_not_test_insertion_positioning (string position);
 void generic_toggle_insertion_positioning (string position);
 void generic_toggle_insertion_positioning_not (string position);
+bool generic_string_variable_name (tree t, int i);
+bool generic_hidden_child (tree t, int i);
+string generic_tree_child_name_star (tree t, int i);
+string generic_tree_child_long_name_star (tree t, int i);
+string generic_type_to_format (string type);
+string generic_type_to_width (string type);
+bool generic_inputter_active (tree t, string type);
+string generic_inputter_decode (tree t, string type);
+scheme_tree generic_inputter_encode (string value, string type);
 
 #endif

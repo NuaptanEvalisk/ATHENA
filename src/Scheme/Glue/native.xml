@@ -684,6 +684,33 @@
   <binding name="toggle-insertion-positioning-not" native="generic_toggle_insertion_positioning_not" returns="void">
     <arg type="string" />
   </binding>
+  <binding name="string-variable-name?" native="generic_string_variable_name" returns="bool">
+    <arg type="tree" /><arg type="int" />
+  </binding>
+  <binding name="hidden-child?" native="generic_hidden_child" returns="bool">
+    <arg type="tree" /><arg type="int" />
+  </binding>
+  <binding name="tree-child-name*" native="generic_tree_child_name_star" returns="string">
+    <arg type="tree" /><arg type="int" />
+  </binding>
+  <binding name="tree-child-long-name*" native="generic_tree_child_long_name_star" returns="string">
+    <arg type="tree" /><arg type="int" />
+  </binding>
+  <binding name="type->format" native="generic_type_to_format" returns="string">
+    <arg type="string" />
+  </binding>
+  <binding name="type->width" native="generic_type_to_width" returns="string">
+    <arg type="string" />
+  </binding>
+  <binding name="inputter-active?" native="generic_inputter_active" returns="bool">
+    <arg type="tree" /><arg type="string" />
+  </binding>
+  <binding name="inputter-decode" native="generic_inputter_decode" returns="string">
+    <arg type="tree" /><arg type="string" />
+  </binding>
+  <binding name="inputter-encode" native="generic_inputter_encode" returns="scheme_tree">
+    <arg type="string" /><arg type="string" />
+  </binding>
   <binding name="space-context?" native="geometry_space_context" returns="bool">
     <arg type="tree" />
   </binding>

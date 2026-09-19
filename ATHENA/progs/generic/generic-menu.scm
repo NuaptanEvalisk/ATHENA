@@ -48,78 +48,8 @@
 ;; Subroutines for hidden fields
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (string-variable-name? t i)
-  (and (== (tree-child-type t i) "variable")
-       (tree-in? t '(with attr style-with style-with*))
-       (tree-atomic? (tree-ref t i))
-       (!= (tree->stree (tree-ref t i)) "")))
-
-(tm-define (hidden-child? t i)
-  (and (not (tree-accessible-child? t i))
-       (not (string-variable-name? t i))
-       (!= (type->format (tree-child-type t i)) "n.a.")))
-
 (tm-define (child-proposals t i)
   #f)
-
-(define (hidden-children t)
-  (with fun (lambda (i) (if (hidden-child? t i) (list (tree-ref t i)) (list)))
-    (append-map fun (.. 0 (tree-arity t)))))
-
-(define (tree-child-name* t i)
-  (with s (tree-child-name t i)
-    (cond ((!= s "") s)
-          ((and (> i 0) (string-variable-name? t (- i 1)))
-           (with r (tree->string (tree-ref t (- i 1)))
-             (string-replace r "-" " ")))
-          ((> (length (hidden-children t)) 1) "")
-          ((== (tree-child-type t i) "regular") "")
-          (else (tree-child-type t i)))))
-
-(define (tree-child-long-name* t i)
-  (with s (tree-child-long-name t i)
-    (cond ((!= s "") s)
-          ((and (> i 0) (string-variable-name? t (- i 1)))
-           (with r (tree->string (tree-ref t (- i 1)))
-             (string-replace r "-" " ")))
-          ((> (length (hidden-children t)) 1) "")
-          ((== (tree-child-type t i) "regular") "")
-          (else (tree-child-type t i)))))
-
-(define (type->format type)
-  (cond ((== type "adhoc") "n.a.")
-        ((== type "raw") "n.a.")
-        ((== type "url")
-         ;; FIXME: filename editing is way too slow in Qt and
-         ;; tab completion does not seem to work anyway
-         (if (qt-gui?) "string" "smart-file"))
-        ((== type "graphical") "n.a.")
-        ((== type "point") "n.a.")
-        ((== type "obsolete") "n.a.")
-        ((== type "unknown") "n.a.")
-        ((== type "error") "n.a.")
-        (else "string")))
-
-(define (type->width type)
-  (cond ((== type "boolean") "5em")
-        ((== type "integer") "5em")
-        ((== type "length") "5em")
-        ((== type "numeric") "5em")
-        ((== type "identifier") "8em")
-        ((== type "duration") "5em")
-        (else "1w")))
-
-(tm-define (inputter-active? t type)
-  (cond ((== type "length") (tm-rich-length? t))
-	(else (tree-atomic? t))))
-
-(tm-define (inputter-decode t type)
-  (cond ((== type "length") (tm->rich-length t))
-	(else (tree->string t))))
-
-(tm-define (inputter-encode s type)
-  (cond ((== type "length") (rich-length->tm s))
-	(else s)))
 
 (tm-menu (string-input-name t i)
   (let* ((name (tree-child-name* t i))

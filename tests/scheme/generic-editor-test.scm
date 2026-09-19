@@ -1,5 +1,6 @@
 ;; Generic editor commands execute on the owning BufferActor.
 (import-from (generic generic-edit))
+(import-from (generic generic-menu))
 (init-style "generic")
 
 (define (body) (tree->stree (buffer-tree)))
@@ -113,6 +114,51 @@
 
 (check (not (focus-label (stree->tree '(focus-unknown "x"))))
        "generic focus-label baseline is false")
+
+;; Generic focus-menu field policy is native but must continue to agree with
+;; the DRD and rich-length primitives that define its semantics.
+(define menu-with (stree->tree '(with "foo-bar" "value" "body")))
+(check (equal? (string-variable-name? menu-with 0)
+               (and (equal? (tree-child-type menu-with 0) "variable")
+                    (tree-in? menu-with '(with attr style-with style-with*))
+                    (tree-atomic? (tree-ref menu-with 0))
+                    (not (equal? (tree->stree (tree-ref menu-with 0)) ""))))
+       "native string-variable predicate matches DRD primitives")
+(check (equal? (hidden-child? menu-with 1)
+               (and (not (tree-accessible-child? menu-with 1))
+                    (not (string-variable-name? menu-with 1))
+                    (not (equal? (type->format (tree-child-type menu-with 1))
+                                 "n.a."))))
+       "native hidden-child policy matches accessibility and format rules")
+(check (equal? (tree-child-name* menu-with 1)
+               (let ((name (tree-child-name menu-with 1)))
+                 (if (not (equal? name "")) name
+                     (if (string-variable-name? menu-with 0)
+                         (string-replace (tree->string (tree-ref menu-with 0))
+                                         "-" " ")
+                         (let ((type (tree-child-type menu-with 1)))
+                           (if (equal? type "regular") "" type))))))
+       "native child name fallback matches variable-name policy")
+(check (equal? (type->format "raw") "n.a.")
+       "native type format rejects raw fields")
+(check (equal? (type->format "url") (if (qt-gui?) "string" "smart-file"))
+       "native URL input format preserves GUI policy")
+(check (equal? (type->width "length") "5em")
+       "native type width preserves compact length field")
+(check (equal? (type->width "identifier") "8em")
+       "native type width preserves identifier field width")
+(define rich-length (stree->tree '(plus "1cm" "2pt")))
+(check (equal? (inputter-active? rich-length "length")
+               (tm-rich-length? rich-length))
+       "native inputter activity matches rich-length predicate")
+(check (equal? (inputter-decode rich-length "length")
+               (tm->rich-length rich-length))
+       "native inputter decode matches rich-length formatter")
+(check (equal? (tm->stree (inputter-encode "1cm+2pt" "length"))
+               (tm->stree (rich-length->tm "1cm+2pt")))
+       "native inputter encode matches rich-length parser")
+(check (equal? (inputter-encode "plain" "string") "plain")
+       "native inputter encode preserves ordinary strings")
 (check (equal? (tree->stree
                  (focus-search-label
                    (stree->tree
