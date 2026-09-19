@@ -206,6 +206,76 @@ bool tree_label_in_scheme_list (tree t, object labels) {
   return false;
 }
 
+string cardlink_destination_string (tree destination) {
+  if (is_atomic (destination)) return as_string (destination);
+  object converted= call ("tree->string", object (destination));
+  return is_string (converted) ? as_string (converted) : string ("");
+}
+
+bool cardlink_extension_in (string value, const char* const* extensions, int count) {
+  string ext= locase_all (suffix (url (value)));
+  for (int i= 0; i < count; ++i)
+    if (ext == extensions[i]) return true;
+  return false;
+}
+
+string cardlink_type (tree destination) {
+  string value= locase_all (cardlink_destination_string (destination));
+  if (starts (value, "http://") || starts (value, "https://")) return "Web";
+  if (starts (value, "tmfs://")) return "TMFS";
+  if (ends (value, "/")) return "Folder";
+  if (ends (value, ".pdf")) return "PDF";
+
+  static const char* const image_exts[]= {"png", "jpg", "jpeg", "gif", "svg", "webp"};
+  static const char* const audio_exts[]= {"mp3", "ogg", "wav", "flac", "m4a"};
+  static const char* const video_exts[]= {"mp4", "mkv", "mov", "webm", "avi"};
+  static const char* const archive_exts[]= {"zip", "tar", "gz", "bz2", "xz", "7z"};
+  static const char* const text_exts[]= {"txt", "md", "tm", "ath", "tex", "html", "htm"};
+  static const char* const office_exts[]= {
+    "doc", "docx", "odt", "rtf", "ppt", "pptx", "odp", "xls", "xlsx", "ods"
+  };
+  if (cardlink_extension_in (value, image_exts, 6)) return "Image";
+  if (cardlink_extension_in (value, audio_exts, 5)) return "Audio";
+  if (cardlink_extension_in (value, video_exts, 5)) return "Video";
+  if (cardlink_extension_in (value, archive_exts, 6)) return "Archive";
+  if (cardlink_extension_in (value, text_exts, 7)) return "Text";
+  if (cardlink_extension_in (value, office_exts, 10)) return "Office";
+  return "File";
+}
+
+string cardlink_type_display_name (string type) {
+  return type == "TMFS" ? string ("TMFS Link") : type * " Document";
+}
+
+string cardlink_type_default_link_name (string type) {
+  return type == "TMFS" ? string ("TMFS link") : type * " document";
+}
+
+tree cardlink_icon_from_string (string icon, string type) {
+  if (icon != "") return compound ("image", icon, "1.35em", "", "", "");
+
+  array<tree> args;
+  args << tree ("font-family") << tree ("ss")
+       << tree ("font-series") << tree ("bold")
+       << tree ("color") << tree ("#404040")
+       << tree ("[" * upcase_all (type) * "]");
+  return compound ("with", args);
+}
+
+bool cardlink_empty_body (tree body) {
+  if (as_bool (call ("tm-equal?", object (body), object ("")))) return true;
+  return is_atomic (body) && as_string (body) == "";
+}
+
+tree cardlink_replace_whole (tree target, tree replacement) {
+  path ip= obtain_ip (target);
+  bool active= is_nil (ip) || last_item (ip) != DETACHED;
+  object result= active
+    ? call ("tree-set-diff", object (target), object (replacement))
+    : call ("tree-assign", object (target), object (replacement));
+  return is_tree (result) ? as_tree (result) : replacement;
+}
+
 } // namespace
 
 void
@@ -441,6 +511,46 @@ generic_set_balloon_valign (string value) {
   tree balloon;
   if (innermost_balloon (balloon))
     (void) call ("tree-set", object (balloon), object (3), object (value));
+}
+
+string
+generic_cardlink_native_type (tree destination) {
+  return cardlink_type (destination);
+}
+
+tree
+generic_cardlink_native_render (tree body, string icon_path, string type) {
+  tree icon= cardlink_icon_from_string (icon_path, type);
+  tree display= cardlink_empty_body (body) ? tree (cardlink_type_display_name (type)) : body;
+  tree content= compound ("concat", icon, "  ", display);
+  tree ornament= compound ("ornament", content);
+  tree resized= compound ("resize", ornament, "", "", "", "");
+  array<tree> args;
+  args << tree ("ornament-shape") << tree ("rectangular")
+       << tree ("ornament-border") << tree ("1ln")
+       << tree ("ornament-color") << tree ("#f8f8f8")
+       << tree ("ornament-hpadding") << tree ("1spc")
+       << tree ("ornament-vpadding") << tree ("0.75spc")
+       << resized;
+  return compound ("with", args);
+}
+
+string
+generic_cardlink_default_link_body (tree destination) {
+  return cardlink_type_default_link_name (cardlink_type (destination));
+}
+
+tree
+generic_display_link_as_card (tree t) {
+  if (N (t) < 2) return t;
+  return cardlink_replace_whole (t, compound ("cardlink", t[0], t[1]));
+}
+
+tree
+generic_display_card_as_link (tree t) {
+  if (N (t) < 2) return t;
+  tree body= cardlink_empty_body (t[0]) ? tree (generic_cardlink_default_link_body (t[1])) : t[0];
+  return cardlink_replace_whole (t, compound ("hlink", body, t[1]));
 }
 
 void

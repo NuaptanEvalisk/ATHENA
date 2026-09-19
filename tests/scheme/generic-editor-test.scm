@@ -177,6 +177,46 @@
        "native balloon context recognizes live balloon group")
 (check (not (balloon-context? (stree->tree '(document "x"))))
        "native balloon context rejects non-balloon tags")
+
+(check (equal? (cardlink-default-link-body (stree->tree "report.PDF"))
+               "PDF document")
+       "native cardlink classification is case-insensitive for PDF")
+(check (equal? (cardlink-default-link-body
+                 (stree->tree "tmfs://wikilink/example/"))
+               "TMFS link")
+       "native cardlink classification preserves TMFS link naming")
+(check (equal? (cardlink-default-link-body (stree->tree "picture.PNG"))
+               "Image document")
+       "native cardlink classification recognizes image suffixes")
+
+(define detached-link (stree->tree '(hlink "Body" "notes.txt")))
+(define detached-card (display-link-as-card detached-link))
+(check (equal? (tree->stree detached-link) '(hlink "Body" "notes.txt"))
+       "native detached link conversion leaves caller handle unchanged")
+(check (equal? (tree->stree detached-card) '(cardlink "Body" "notes.txt"))
+       "native detached link conversion returns converted card")
+(define detached-link-again (display-card-as-link detached-card))
+(check (equal? (tree->stree detached-link-again) '(hlink "Body" "notes.txt"))
+       "native detached card conversion returns link with nonempty body")
+
+(buffer-set-body (current-buffer)
+                 (stree->tree '(document (hlink "" "report.pdf"))))
+(update-current-buffer)
+(display-link-as-card (tree-ref (buffer-tree) 0))
+(check (equal? (body) '(document (cardlink "" "report.pdf")))
+       "native link-to-card conversion preserves active tree mutation")
+(display-card-as-link (tree-ref (buffer-tree) 0))
+(check (equal? (body) '(document (hlink "PDF document" "report.pdf")))
+       "native card-to-link conversion fills default body for empty card")
+
+(define rendered-card
+  (cardlink-native-render (stree->tree "") "" "PDF"))
+(check (tree-is? rendered-card 'with)
+       "native cardlink render-tree builder returns ornament wrapper")
+(check (equal? (tree->stree (tree-ref rendered-card 10 0 0 2))
+               "PDF Document")
+       "native cardlink render-tree builder supplies default display body")
+
 (reset '(document "plain") '(0 0 1))
 (check (in-main-flow?) "cursor in ordinary document text is in main flow")
 (buffer-set-body

@@ -501,6 +501,21 @@
   <binding name="set-balloon-valign" native="generic_set_balloon_valign" returns="void">
     <arg type="string" />
   </binding>
+  <binding name="cardlink-native-type" native="generic_cardlink_native_type" returns="string">
+    <arg type="content" />
+  </binding>
+  <binding name="cardlink-native-render" native="generic_cardlink_native_render" returns="tree">
+    <arg type="content" /><arg type="string" /><arg type="string" />
+  </binding>
+  <binding name="cardlink-default-link-body" native="generic_cardlink_default_link_body" returns="string">
+    <arg type="content" />
+  </binding>
+  <binding name="display-link-as-card" native="generic_display_link_as_card" returns="tree">
+    <arg type="tree" />
+  </binding>
+  <binding name="display-card-as-link" native="generic_display_card_as_link" returns="tree">
+    <arg type="tree" />
+  </binding>
   <binding name="label-insert" native="generic_label_insert" returns="void">
     <arg type="tree" />
   </binding>
