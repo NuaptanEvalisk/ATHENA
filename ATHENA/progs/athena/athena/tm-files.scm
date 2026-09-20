@@ -656,7 +656,10 @@
             (with uname (if (string? name) (string->url name) name)
               (buffer-set-body name '(document ""))
               (load-buffer-open name opts)
-              (buffer-set-default-style)
+              ;; Registry creation/opening is global/UI-owned, but style
+              ;; initialization mutates the editor and therefore belongs to
+              ;; the newly created buffer's BufferActor.
+              (exec-buffer name (lambda () (buffer-set-default-style)))
               (set-message `(concat "Could not load " ,vname
                                     ". Created new document")
                            "Load file"))))))
