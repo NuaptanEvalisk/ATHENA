@@ -15,6 +15,7 @@
 #include "qt_widget.hpp"
 #include "QTMScrollView.hpp"
 #include "QTMPerformanceMonitor.hpp"
+#include "ATHENA/native_ink.hpp"
 #include <QLabel>
 #include <QGesture>
 #include <QGestureEvent>
@@ -24,6 +25,7 @@
 #include <QElapsedTimer>
 #include <QImage>
 #include <QTimer>
+#include <vector>
 
 class qt_simple_widget_rep;
 #include "QTMRenderService.hpp"
@@ -141,6 +143,14 @@ private:
   QPointF neighborhoodTapStartCenter;
   double neighborhoodWheelSwipeAccum = 0.0;
   QElapsedTimer neighborhoodWheelSwipeCooldown;
+  bool nativeInkActive= false;
+  bool nativeInkTablet= false;
+  bool nativeInkAwaitingCommit= false;
+  native_ink_preview_style nativeInkStyle;
+  std::vector<native_ink_sample> nativeInkSamples;
+  std::vector<QPointF> nativeInkPreviewPoints;
+  std::uint64_t nativeInkCommitBufferGeneration= 0;
+  std::uint64_t nativeInkCommitFrameGeneration= 0;
 
   void updateInputMethodCursorRectangle () const;
   void scheduleEmbeddedScrollRefresh ();
@@ -166,6 +176,15 @@ private:
   bool handleNeighborhoodKeyShortcut (QKeyEvent* event);
   bool handleNeighborhoodWheelSwipe (QWheelEvent* event);
   void drawViewPinchPreview (QPainter& p) const;
+  bool beginNativeInk (const QPointF& previewPoint, SI x, SI y, double time,
+                       double pressure, double rotation, double xTilt,
+                       double yTilt, double tangentialPressure, bool tablet);
+  void appendNativeInk (const QPointF& previewPoint, SI x, SI y, double time,
+                        double pressure, double rotation, double xTilt,
+                        double yTilt, double tangentialPressure);
+  void finishNativeInk ();
+  void clearNativeInkPreview ();
+  void drawNativeInkPreview (QPainter& p) const;
 
 };
 

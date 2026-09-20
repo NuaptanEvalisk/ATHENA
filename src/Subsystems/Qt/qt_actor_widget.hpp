@@ -37,6 +37,10 @@ public:
   void handle_user_scroll (time_t time) override;
   void handle_mouse (string kind, SI x, SI y, int modifiers, time_t time,
                      array<double> data) override;
+  bool handle_native_ink_hit (SI x, SI y,
+                              native_ink_preview_style& style) override;
+  bool handle_native_ink_stroke (const native_ink_sample* samples,
+                                 std::size_t count) override;
   bool handle_wheel_capture () override;
   bool handle_overlay_wheel_capture () override;
   double handle_get_zoom_factor () override;

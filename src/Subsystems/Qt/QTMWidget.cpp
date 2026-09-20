@@ -40,6 +40,8 @@
 #include <QMouseEvent>
 #include <QFocusEvent>
 #include <QPainter>
+#include <QPen>
+#include <QColor>
 #include <QApplication>
 #include <QInputMethod>
 #include <QNativeGestureEvent>
@@ -271,6 +273,118 @@ QTMWidget::scheduleEmbeddedScrollRefresh () {
   });
 }
 
+bool
+QTMWidget::beginNativeInk (
+  const QPointF& previewPoint, SI x, SI y, double time, double pressure,
+  double rotation, double xTilt, double yTilt, double tangentialPressure,
+  bool tablet) {
+  if (is_nil (tmwid)) return false;
+  native_ink_preview_style style;
+  if (!tm_widget ()->handle_native_ink_hit (x, y, style)) return false;
+  if (nativeInkAwaitingCommit || !nativeInkPreviewPoints.empty ())
+    clearNativeInkPreview ();
+  nativeInkStyle= style;
+  nativeInkActive= true;
+  nativeInkTablet= tablet;
+  appendNativeInk (previewPoint, x, y, time, pressure, rotation, xTilt, yTilt,
+                   tangentialPressure);
+  return true;
+}
+
+void
+QTMWidget::appendNativeInk (
+  const QPointF& previewPoint, SI x, SI y, double time, double pressure,
+  double rotation, double xTilt, double yTilt, double tangentialPressure) {
+  if (!nativeInkActive) return;
+  double p= std::isfinite (pressure) ? std::clamp (pressure, 0.0, 1.0) : 1.0;
+  if (!nativeInkStyle.pressure_enabled) p= 1.0;
+  if (!nativeInkPreviewPoints.empty ()) {
+    QPointF delta= previewPoint - nativeInkPreviewPoints.back ();
+    double dp= std::fabs (p - nativeInkSamples.back ().pressure);
+    if (delta.x () * delta.x () + delta.y () * delta.y () < 0.0625 &&
+        dp < 0.01)
+      return;
+  }
+  native_ink_sample sample;
+  sample.x= x;
+  sample.y= y;
+  sample.time= time;
+  sample.pressure= p;
+  sample.rotation= rotation;
+  sample.x_tilt= xTilt;
+  sample.y_tilt= yTilt;
+  sample.tangential_pressure= tangentialPressure;
+  QPointF previous= nativeInkPreviewPoints.empty () ? previewPoint :
+                    nativeInkPreviewPoints.back ();
+  nativeInkSamples.push_back (sample);
+  nativeInkPreviewPoints.push_back (previewPoint);
+  double width= std::max (1.0, nativeInkStyle.line_width_pixels);
+  QRectF damage (previous, previewPoint);
+  damage= damage.normalized ().adjusted (-width - 3.0, -width - 3.0,
+                                         width + 3.0, width + 3.0);
+  surface ()->update (damage.toAlignedRect ());
+}
+
+void
+QTMWidget::finishNativeInk () {
+  if (!nativeInkActive) return;
+  nativeInkActive= false;
+  nativeInkTablet= false;
+  bool submitted= !nativeInkSamples.empty () &&
+    tm_widget ()->handle_native_ink_stroke (
+      nativeInkSamples.data (), nativeInkSamples.size ());
+  if (!submitted) {
+    clearNativeInkPreview ();
+    return;
+  }
+  nativeInkAwaitingCommit= true;
+  nativeInkCommitBufferGeneration= renderedBufferGeneration;
+  nativeInkCommitFrameGeneration= renderedFrameGeneration;
+}
+
+void
+QTMWidget::clearNativeInkPreview () {
+  nativeInkActive= false;
+  nativeInkTablet= false;
+  nativeInkAwaitingCommit= false;
+  nativeInkSamples.clear ();
+  nativeInkPreviewPoints.clear ();
+  if (surface () != nullptr) surface ()->update ();
+}
+
+void
+QTMWidget::drawNativeInkPreview (QPainter& p) const {
+  if (nativeInkPreviewPoints.empty ()) return;
+  p.save ();
+  p.setRenderHint (QPainter::Antialiasing, true);
+  QColor color= QColor::fromRgba (nativeInkStyle.rgba);
+  double baseWidth= std::max (1.0, nativeInkStyle.line_width_pixels);
+  auto width_for= [&] (double pressure) {
+    if (!nativeInkStyle.pressure_enabled) return baseWidth;
+    return baseWidth * (0.25 + 0.75 * std::clamp (pressure, 0.0, 1.0));
+  };
+  if (nativeInkPreviewPoints.size () == 1) {
+    QPen pen (color);
+    pen.setWidthF (width_for (nativeInkSamples[0].pressure));
+    pen.setCapStyle (Qt::RoundCap);
+    p.setPen (pen);
+    p.drawPoint (nativeInkPreviewPoints[0]);
+  }
+  else {
+    for (std::size_t i= 1; i < nativeInkPreviewPoints.size (); ++i) {
+      QPen pen (color);
+      double pressure= 0.5 * (nativeInkSamples[i-1].pressure +
+                              nativeInkSamples[i].pressure);
+      pen.setWidthF (width_for (pressure));
+      pen.setCapStyle (Qt::RoundCap);
+      pen.setJoinStyle (Qt::RoundJoin);
+      p.setPen (pen);
+      p.drawLine (nativeInkPreviewPoints[i-1], nativeInkPreviewPoints[i]);
+    }
+  }
+  p.restore ();
+}
+
 void 
 QTMWidget::resizeEvent (QResizeEvent* event) {
   (void) event;
@@ -332,6 +446,7 @@ QTMWidget::surfacePaintEvent (QPaintEvent *event, QWidget *surfaceWidget) {
 			    pixel_ratio * qr.height()));
     }
   }
+  drawNativeInkPreview (p);
   performanceMonitor.finishPaint (event, p);
 }
 
@@ -356,6 +471,11 @@ QTMWidget::presentLatestRenderedFrame (bool requestPaint) {
   renderedBufferGeneration= bufferGeneration;
   renderedFrameGeneration= frameGeneration;
   renderedFrame= std::move (next);
+  if (nativeInkAwaitingCommit &&
+      (bufferGeneration > nativeInkCommitBufferGeneration ||
+       (bufferGeneration == nativeInkCommitBufferGeneration &&
+        frameGeneration > nativeInkCommitFrameGeneration)))
+    clearNativeInkPreview ();
   if (!requestPaint) return;
 
   double ratio= surface ()->devicePixelRatio ();
@@ -1053,6 +1173,17 @@ QTMWidget::mousePressEvent (QMouseEvent* event) {
   QPoint point = event->pos() + origin();
   coord2 pt = from_qpoint(point);
   unsigned int mstate= mouse_state (event, false);
+  if (nativeInkActive && nativeInkTablet) {
+    event->accept ();
+    return;
+  }
+  if (event->button () == Qt::LeftButton &&
+      beginNativeInk (event->position (), pt.x1, pt.x2,
+                      static_cast<double> (texmacs_time ()), 1.0,
+                      0.0, 0.0, 0.0, 0.0, false)) {
+    event->accept ();
+    return;
+  }
   string s= "press-" * mouse_decode (mstate);
   the_gui -> process_mouse (tm_widget(), s, pt.x1, pt.x2,  
                             mstate, texmacs_time ());
@@ -1064,6 +1195,18 @@ QTMWidget::mouseReleaseEvent (QMouseEvent* event) {
   if (is_nil (tmwid)) return;
   QPoint point = event->pos() + origin();
   coord2 pt = from_qpoint(point);
+  if (nativeInkActive && nativeInkTablet) {
+    event->accept ();
+    return;
+  }
+  if (nativeInkActive && event->button () == Qt::LeftButton) {
+    appendNativeInk (event->position (), pt.x1, pt.x2,
+                     static_cast<double> (texmacs_time ()), 1.0,
+                     0.0, 0.0, 0.0, 0.0);
+    finishNativeInk ();
+    event->accept ();
+    return;
+  }
   unsigned int mstate = mouse_state (event, true);
   string s = "release-" * mouse_decode (mstate);
   the_gui->process_mouse (tm_widget(), s, pt.x1, pt.x2,
@@ -1077,6 +1220,21 @@ QTMWidget::mouseMoveEvent (QMouseEvent* event) {
   QPointF localPoint= event->position ();
   QPoint point = event->pos() + origin();
   coord2 pt = from_qpoint(point);
+  if (nativeInkActive) {
+    if (!nativeInkTablet)
+      appendNativeInk (localPoint, pt.x1, pt.x2,
+                       static_cast<double> (texmacs_time ()), 1.0,
+                       0.0, 0.0, 0.0, 0.0);
+    event->accept ();
+    return;
+  }
+  if (event->buttons () == Qt::NoButton) {
+    native_ink_preview_style hoverStyle;
+    if (tm_widget ()->handle_native_ink_hit (pt.x1, pt.x2, hoverStyle)) {
+      event->accept ();
+      return;
+    }
+  }
   unsigned int mstate = mouse_state (event, false);
   string s = "move";
   array<double> data;
@@ -1159,16 +1317,45 @@ QTMWidget::tabletEvent (QTabletEvent* event) {
   if (forwardTabletEventToScrollBar (event)) return;
   if (is_nil (tmwid)) return;
   unsigned int mstate = tablet_state (event, true);
+  QPointF localPreview= event->position () - QPointF (surface ()->pos ());
+  QPoint point = event->position().toPoint() + origin() - surface()->pos();
+  double x= point.x();
+  double y= point.y();
+  coord2 pt= coord2 ((SI) (x * PIXEL), (SI) (-y * PIXEL));
+  bool release= event->type () == QEvent::TabletRelease ||
+                event->pressure () <= 0.0;
+  if (!nativeInkActive && release && event->buttons () == Qt::NoButton) {
+    native_ink_preview_style hoverStyle;
+    if (tm_widget ()->handle_native_ink_hit (pt.x1, pt.x2, hoverStyle)) {
+      event->accept ();
+      return;
+    }
+  }
+  if (!nativeInkActive && !release &&
+      beginNativeInk (localPreview, pt.x1, pt.x2,
+                      static_cast<double> (texmacs_time ()),
+                      event->pressure (), event->rotation (), event->xTilt (),
+                      event->yTilt (), event->tangentialPressure (), true)) {
+    event->accept ();
+    return;
+  }
+  if (nativeInkActive && nativeInkTablet) {
+    appendNativeInk (localPreview, pt.x1, pt.x2,
+                     static_cast<double> (texmacs_time ()),
+                     release && !nativeInkSamples.empty () ?
+                       nativeInkSamples.back ().pressure : event->pressure (),
+                     event->rotation (), event->xTilt (), event->yTilt (),
+                     event->tangentialPressure ());
+    if (release) finishNativeInk ();
+    event->accept ();
+    return;
+  }
   string s= "move";
   if (event->button() != 0) {
     if (event->pressure () == 0) s= "release-" * mouse_decode (mstate);
     else s= "press-" * mouse_decode (mstate);
   }
   if ((mstate & 4) == 0 || s == "press-right") {
-    QPoint point = event->position().toPoint() + origin() - surface()->pos();
-    double x= point.x();
-    double y= point.y();
-    coord2 pt= coord2 ((SI) (x * PIXEL), (SI) (-y * PIXEL));
     array<double> data;
     data << ((double) event->pressure())
          << ((double) event->rotation())

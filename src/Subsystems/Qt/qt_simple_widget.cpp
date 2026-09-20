@@ -135,6 +135,20 @@ qt_simple_widget_rep::handle_mouse (string kind, SI x, SI y, int mods, time_t t,
 }
 
 bool
+qt_simple_widget_rep::handle_native_ink_hit (
+  SI x, SI y, native_ink_preview_style& style) {
+  (void) x; (void) y; (void) style;
+  return false;
+}
+
+bool
+qt_simple_widget_rep::handle_native_ink_stroke (
+  const native_ink_sample* samples, std::size_t count) {
+  (void) samples; (void) count;
+  return false;
+}
+
+bool
 qt_simple_widget_rep::handle_wheel_capture () {
   return false;
 }

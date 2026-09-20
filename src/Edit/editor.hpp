@@ -12,6 +12,7 @@
 #ifndef EDITOR_H
 #define EDITOR_H
 #include "actor_ui_bridge.hpp"
+#include "native_ink.hpp"
 #include "buffer_state.hpp"
 #include "typesetter.hpp"
 #include "tree_select.hpp"
@@ -308,6 +309,11 @@ public:
   virtual void   draw_graphical_object (renderer ren) = 0;
   virtual bool   mouse_graphics (string s, SI x, SI y, int mods, time_t t,
                                  array<double> d) = 0;
+  virtual void   refresh_native_ink_interaction () = 0;
+  virtual void   mark_native_ink_interaction_dirty () = 0;
+  virtual void   commit_native_ink_stroke (const native_ink_sample* samples,
+                                           std::size_t count) = 0;
+  virtual bool   native_ink_cursor_mode () = 0;
 
   /* public routines from edit_typeset */
   virtual void     clear_local_info () = 0;

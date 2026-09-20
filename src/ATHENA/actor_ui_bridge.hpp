@@ -12,10 +12,13 @@
 #define ACTOR_UI_BRIDGE_H
 
 #include "actor_transport.hpp"
+#include "native_ink.hpp"
 #include "renderer.hpp"
 
 #include <atomic>
 #include <cstdint>
+#include <mutex>
+#include <vector>
 
 class widget;
 
@@ -61,6 +64,9 @@ public:
   void update_viewport (const actor_viewport_snapshot& snapshot) noexcept;
   actor_viewport_snapshot viewport () const noexcept;
   void set_wheel_capture (bool capture) noexcept;
+  void update_native_ink_regions (
+    std::vector<native_ink_interaction_snapshot> regions) noexcept;
+  std::vector<native_ink_interaction_snapshot> native_ink_regions () const;
   void set_overlay_wheel_capture (bool capture) noexcept;
   bool overlay_wheel_capture () const noexcept {
     return overlay_wheel_capture_.load (std::memory_order_acquire);
@@ -134,6 +140,8 @@ private:
   const athena_view_id view_id_;
   mutable std::atomic<std::uint64_t> viewport_sequence_ {0};
   atomic_viewport viewport_;
+  mutable std::mutex native_ink_lock_;
+  std::vector<native_ink_interaction_snapshot> native_ink_regions_;
   std::atomic<bool> wheel_capture_ {false};
   std::atomic<bool> overlay_wheel_capture_ {false};
   std::atomic<std::uint64_t> zoom_factor_bits_ {0};

@@ -16,6 +16,7 @@
 #include "basic_renderer.hpp"
 
 #include "qt_widget.hpp"
+#include "ATHENA/native_ink.hpp"
 #include "QTMScrollView.hpp"
 #include "QTMWidget.hpp"
 #include "QTMRenderService.hpp"
@@ -84,6 +85,10 @@ public:
   virtual void handle_user_scroll (time_t t);
   virtual void handle_mouse (string kind, SI x, SI y, int mods, time_t t,
                              array<double> data= array<double> ());
+  virtual bool handle_native_ink_hit (SI x, SI y,
+                                      native_ink_preview_style& style);
+  virtual bool handle_native_ink_stroke (const native_ink_sample* samples,
+                                         std::size_t count);
   virtual bool handle_wheel_capture ();
   virtual bool handle_overlay_wheel_capture () { return false; }
   virtual double handle_get_zoom_factor ();

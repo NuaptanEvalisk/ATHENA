@@ -177,6 +177,19 @@ actor_ui_endpoint::set_wheel_capture (bool capture) noexcept {
   wheel_capture_.store (capture, std::memory_order_release);
 }
 
+void
+actor_ui_endpoint::update_native_ink_regions (
+  std::vector<native_ink_interaction_snapshot> regions) noexcept {
+  std::lock_guard<std::mutex> guard (native_ink_lock_);
+  native_ink_regions_= std::move (regions);
+}
+
+std::vector<native_ink_interaction_snapshot>
+actor_ui_endpoint::native_ink_regions () const {
+  std::lock_guard<std::mutex> guard (native_ink_lock_);
+  return native_ink_regions_;
+}
+
 bool
 actor_ui_endpoint::wheel_capture () const noexcept {
   return wheel_capture_.load (std::memory_order_acquire) ||

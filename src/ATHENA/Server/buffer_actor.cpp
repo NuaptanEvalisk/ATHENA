@@ -739,6 +739,19 @@ buffer_actor::dispatch (actor_command_record& command) {
       (void) actor_blob_registry::instance ().discard (command.payload1);
     }
     break;
+  case actor_command_kind::native_ink_stroke:
+    if (editor != nullptr) {
+      owned_actor_blob payload=
+        actor_blob_registry::instance ().take (command.payload0);
+      std::size_t count= static_cast<std::size_t> (command.argument[0]);
+      std::size_t expected= count * sizeof (native_ink_sample);
+      if (count > 0 && payload && payload.size () == expected)
+        editor->commit_native_ink_stroke (
+          reinterpret_cast<const native_ink_sample*> (payload.data ()), count);
+    }
+    else
+      (void) actor_blob_registry::instance ().discard (command.payload0);
+    break;
   case actor_command_kind::set_zoom:
     if (editor != nullptr)
       editor->handle_set_zoom_factor (argument_double (command.argument[0]));
@@ -1190,8 +1203,25 @@ buffer_actor::dispatch (actor_command_record& command) {
     break;
   }
 
+  if (editor != nullptr &&
+      (command.kind == actor_command_kind::key_press ||
+       command.kind == actor_command_kind::text_input ||
+       command.kind == actor_command_kind::mouse ||
+       command.kind == actor_command_kind::native_ink_stroke ||
+       command.kind == actor_command_kind::replace_document ||
+       command.kind == actor_command_kind::replace_body ||
+       command.kind == actor_command_kind::invoke_scheme_handle ||
+       command.kind == actor_command_kind::invoke_scheme_handle_tree ||
+       command.kind == actor_command_kind::evaluate_widget_handle ||
+       command.kind == actor_command_kind::run_scheme_handle))
+    editor->mark_native_ink_interaction_dirty ();
+
   if (editor != nullptr && editor->ui_endpoint != nullptr &&
       (command.kind == actor_command_kind::initialize_view ||
+       command.kind == actor_command_kind::apply_changes ||
+       command.kind == actor_command_kind::typeset_document ||
+       command.kind == actor_command_kind::progressive_typeset ||
+       command.kind == actor_command_kind::render_view ||
        command.kind == actor_command_kind::key_press ||
        command.kind == actor_command_kind::text_input ||
        command.kind == actor_command_kind::mouse ||
@@ -1200,4 +1230,9 @@ buffer_actor::dispatch (actor_command_record& command) {
        command.kind == actor_command_kind::activate_outline_entry))
     editor->ui_endpoint->set_wheel_capture (
       editor->inside_active_graphics ());
+
+  if (editor != nullptr && editor->ui_endpoint != nullptr &&
+      (command.kind == actor_command_kind::initialize_view ||
+       command.kind == actor_command_kind::render_view))
+    editor->refresh_native_ink_interaction ();
 }

@@ -15,8 +15,14 @@
 #include "curve.hpp"
 #include "Boxes/graphics.hpp"
 #include "Bridge/impl_typesetter.hpp"
+#include "colors.hpp"
 #include "drd_std.hpp"
 #include "new_document.hpp"
+
+#include <algorithm>
+#include <atomic>
+#include <cmath>
+#include <cstdlib>
 
 /******************************************************************************
 * Constructors and destructors
@@ -29,6 +35,69 @@ edit_graphics_rep::edit_graphics_rep () {
 }
 
 edit_graphics_rep::~edit_graphics_rep () {}
+
+namespace {
+
+std::atomic<std::uint64_t> native_ink_serial {1};
+
+bool
+native_pen_mode (tree mode) {
+  return is_func (mode, TUPLE, 2) &&
+         mode[0] == "hand-edit" && mode[1] == "penscript";
+}
+
+std::uint32_t
+native_ink_rgba (color value) {
+  int r= 0, g= 0, b= 0, a= 255;
+  get_rgb_color (value, r, g, b, a);
+  return (static_cast<std::uint32_t> (a & 0xff) << 24) |
+         (static_cast<std::uint32_t> (r & 0xff) << 16) |
+         (static_cast<std::uint32_t> (g & 0xff) << 8) |
+         static_cast<std::uint32_t> (b & 0xff);
+}
+
+string
+native_ink_id () {
+  std::uint64_t serial=
+    native_ink_serial.fetch_add (1, std::memory_order_relaxed);
+  return "athena-ink-" * as_string ((long int) texmacs_time ()) * "-" *
+         as_string ((long int) serial);
+}
+
+double
+clamp_pressure (double pressure) {
+  if (!std::isfinite (pressure)) return 1.0;
+  return std::max (0.0, std::min (1.0, pressure));
+}
+
+double
+native_line_width_pixels (tree width) {
+  if (!is_atomic (width)) return 1.0;
+  string raw= width->label;
+  if (raw == "default" || N(raw) == 0) return 1.0;
+  const char* text= as_charp (raw);
+  char* end= nullptr;
+  double value= std::strtod (text, &end);
+  if (!std::isfinite (value) || value <= 0.0 || end == text) return 1.0;
+  string unit (end);
+  if (unit == "pt") value *= 96.0 / 72.0;
+  else if (unit == "cm") value *= 96.0 / 2.54;
+  else if (unit == "mm") value *= 96.0 / 25.4;
+  else if (unit == "in") value *= 96.0;
+  return std::max (1.0, value);
+}
+
+bool
+path_has_prefix (path value, path prefix) {
+  while (!is_nil (prefix)) {
+    if (is_nil (value) || value->item != prefix->item) return false;
+    value= value->next;
+    prefix= prefix->next;
+  }
+  return true;
+}
+
+} // namespace
 
 /******************************************************************************
 * Extra subroutines for graphical selections
@@ -423,10 +492,10 @@ edit_graphics_rep::set_graphical_object (tree t) {
 
 void
 edit_graphics_rep::invalidate_graphical_object () {
+  if (native_ink_cursor_mode ()) return;
   SI gx1, gy1, gx2, gy2;
-  if (!is_nil (eb) &&
-      find_graphical_region (gx1, gy1, gx2, gy2) &&
-      !is_nil (go_box)) {
+  if (!is_nil (eb) && !is_nil (go_box) &&
+      find_graphical_region (gx1, gy1, gx2, gy2)) {
     int i;
     rectangles rs;
     rectangle gr (gx1, gy1, gx2, gy2);
@@ -459,6 +528,199 @@ edit_graphics_rep::draw_graphical_object (renderer ren) {
     }
   }
   ren->set_clipping (ox1, oy1, ox2, oy2);
+}
+
+void
+edit_graphics_rep::collect_native_ink_graphics (
+  tree t, path p, bool in_diagram, std::vector<path>& result) {
+  bool diagram= in_diagram || is_compound (t, "commutative-diagram");
+  if (!diagram && is_func (t, GRAPHICS)) result.push_back (copy (p));
+  if (is_atomic (t)) return;
+  for (int i=0; i<N(t); ++i)
+    collect_native_ink_graphics (t[i], p * i, diagram, result);
+}
+
+tree
+edit_graphics_rep::native_ink_property (
+  path graphics, string name, tree fallback) {
+  path p= path_up (graphics);
+  while (!is_nil (p)) {
+    tree t= subtree (et, p);
+    if (is_func (t, WITH) && N(t) >= 3) {
+      for (int i=0; i+1<N(t)-1; i+=2)
+        if (is_atomic (t[i]) && t[i]->label == name)
+          return copy (t[i+1]);
+    }
+    if (p == rp) break;
+    p= path_up (p);
+  }
+  return fallback;
+}
+
+bool
+edit_graphics_rep::native_ink_region (
+  path graphics, native_ink_interaction_snapshot& region,
+  frame* coordinate_frame) {
+  if (is_nil (eb) || is_nil (graphics)) return false;
+  tree node= subtree (et, graphics);
+  if (!is_func (node, GRAPHICS)) return false;
+  tree mode= native_ink_property (graphics, GR_MODE, tree ("line"));
+  if (!native_pen_mode (mode)) return false;
+
+  bool box_found= false;
+  path bp= eb->find_box_path (graphics * 0, box_found);
+  if (!box_found) return false;
+  path box_path= path_up (bp);
+  frame f= eb->find_frame (box_path);
+  if (is_nil (f)) return false;
+  point lim1, lim2;
+  eb->find_limits (box_path, lim1, lim2);
+  if (N(lim1) < 2 || N(lim2) < 2) return false;
+  point p1= f (lim1);
+  point p2= f (lim2);
+  if (N(p1) < 2 || N(p2) < 2) return false;
+
+  region.x1= min ((SI) p1[0], (SI) p2[0]);
+  region.y1= min ((SI) p1[1], (SI) p2[1]);
+  region.x2= max ((SI) p1[0], (SI) p2[0]);
+  region.y2= max ((SI) p1[1], (SI) p2[1]);
+  tree color_value=
+    native_ink_property (graphics, GR_COLOR, tree ("default"));
+  string color_name= is_atomic (color_value) ? color_value->label : "default";
+  if (color_name == "default" || N(color_name) == 0) color_name= "black";
+  region.rgba= native_ink_rgba (named_color (color_name));
+  region.line_width_pixels= native_line_width_pixels (
+    native_ink_property (graphics, GR_LINE_WIDTH, tree ("1ln")));
+  region.pen_enabled= true;
+  region.pressure_enabled= true;
+  if (coordinate_frame != nullptr) *coordinate_frame= f;
+  return true;
+}
+
+bool
+edit_graphics_rep::native_ink_target (
+  SI x, SI y, path& graphics, frame& coordinate_frame) {
+  std::vector<path> candidates;
+  collect_native_ink_graphics (subtree (et, rp), rp, false, candidates);
+  bool found= false;
+  long double best_area= 0.0;
+  for (const path& candidate: candidates) {
+    native_ink_interaction_snapshot region;
+    frame f;
+    if (!native_ink_region (candidate, region, &f)) continue;
+    if (x < region.x1 || x > region.x2 || y < region.y1 || y > region.y2)
+      continue;
+    long double width= static_cast<long double> (region.x2) - region.x1;
+    long double height= static_cast<long double> (region.y2) - region.y1;
+    long double area= std::max ((long double) 0.0, width) *
+                      std::max ((long double) 0.0, height);
+    if (!found || area < best_area) {
+      found= true;
+      best_area= area;
+      graphics= copy (candidate);
+      coordinate_frame= f;
+    }
+  }
+  return found;
+}
+
+bool
+edit_graphics_rep::native_ink_cursor_mode () {
+  for (const path& gp: native_ink_paths_)
+    if (path_has_prefix (tp, gp)) return true;
+  return false;
+}
+
+void
+edit_graphics_rep::mark_native_ink_interaction_dirty () {
+  native_ink_interaction_dirty_= true;
+}
+
+void
+edit_graphics_rep::refresh_native_ink_interaction () {
+  if (ui_endpoint == nullptr) return;
+  if (native_ink_interaction_dirty_) {
+    std::vector<path> graphics;
+    collect_native_ink_graphics (subtree (et, rp), rp, false, graphics);
+    std::vector<path> pen_graphics;
+    pen_graphics.reserve (graphics.size ());
+    for (const path& gp: graphics) {
+      tree mode= native_ink_property (gp, GR_MODE, tree ("line"));
+      if (native_pen_mode (mode)) pen_graphics.push_back (copy (gp));
+    }
+    native_ink_paths_= std::move (pen_graphics);
+    native_ink_interaction_dirty_= false;
+    if (native_ink_paths_.empty ()) {
+      ui_endpoint->update_native_ink_regions ({});
+      return;
+    }
+  }
+  if (is_nil (eb)) return;
+
+  std::vector<native_ink_interaction_snapshot> regions;
+  regions.reserve (native_ink_paths_.size ());
+  for (const path& gp: native_ink_paths_) {
+    if (!has_subtree (et, gp) || !is_func (subtree (et, gp), GRAPHICS)) {
+      native_ink_interaction_dirty_= true;
+      return;
+    }
+    native_ink_interaction_snapshot region;
+    bool ready= native_ink_region (gp, region);
+    if (!ready) return;
+    regions.push_back (region);
+  }
+  ui_endpoint->update_native_ink_regions (std::move (regions));
+}
+
+void
+edit_graphics_rep::commit_native_ink_stroke (
+  const native_ink_sample* samples, std::size_t count) {
+  if (samples == nullptr || count == 0) return;
+  path gp;
+  frame f;
+  bool target_found= native_ink_target (samples[0].x, samples[0].y, gp, f);
+  if (!target_found) return;
+  tree graphics= subtree (et, gp);
+  if (!is_func (graphics, GRAPHICS)) return;
+
+  tree ink (TUPLE);
+  point first;
+  point last;
+  for (std::size_t i= 0; i < count; ++i) {
+    point p= f [point (static_cast<double> (samples[i].x),
+                      static_cast<double> (samples[i].y))];
+    if (N(p) < 2) continue;
+    if (N(ink) == 0) first= p;
+    last= p;
+    tree sample (TUPLE);
+    sample << as_string (p[0]) << as_string (p[1])
+           << as_string (samples[i].time)
+           << as_string (clamp_pressure (samples[i].pressure));
+    ink << sample;
+  }
+  if (N(ink) == 0) return;
+
+  double pixel= get_typesetter ()->env->pixel;
+  double virtual_pixel= f->inverse_scalar (pixel);
+  tree metadata= compound (
+    "ink-meta", native_ink_id (), as_string (virtual_pixel));
+  tree stroke (PENSCRIPT);
+  stroke << find_point (first) << find_point (last) << metadata << ink;
+
+  tree color_value= native_ink_property (gp, GR_COLOR, tree ("default"));
+  tree width_value= native_ink_property (gp, GR_LINE_WIDTH, tree ("default"));
+  tree enhance_value= native_ink_property (gp, GR_PEN_ENHANCE, tree ("default"));
+  tree wrapped (WITH);
+  if (color_value != "default") wrapped << "color" << color_value;
+  if (width_value != "default") wrapped << "line-width" << width_value;
+  if (enhance_value != "default") wrapped << "pen-enhance" << enhance_value;
+  if (N(wrapped) == 0) wrapped= stroke;
+  else wrapped << stroke;
+
+  start_editing ();
+  insert (gp * N(graphics), wrapped);
+  end_editing ();
+  refresh_native_ink_interaction ();
 }
 
 void

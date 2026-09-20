@@ -13,6 +13,7 @@
 #define EDIT_GRAPHICS_H
 #include "editor.hpp"
 #include "tm_timer.hpp"
+#include <vector>
 
 class edit_graphics_rep: virtual public editor_rep {
 private:
@@ -21,6 +22,8 @@ private:
   double gr_x, gr_y;    // Last (x, y) position of the mouse
   gr_selections gs;     // Last graphical_select (x, y)
   grid gr0;             // Last grid
+  std::vector<path> native_ink_paths_;
+  bool native_ink_interaction_dirty_= true;
 
 protected:
   point cur_pos;
@@ -51,6 +54,19 @@ public:
   void   invalidate_graphical_object ();
   void   draw_graphical_object (renderer ren);
   bool   mouse_graphics (string s, SI x, SI y, int m, time_t t, array<double> d);
+  void   refresh_native_ink_interaction ();
+  void   mark_native_ink_interaction_dirty ();
+  void   commit_native_ink_stroke (const native_ink_sample* samples,
+                                   std::size_t count);
+  void   collect_native_ink_graphics (tree t, path p, bool in_diagram,
+                                      std::vector<path>& result);
+  tree   native_ink_property (path graphics, string name, tree fallback);
+  bool   native_ink_region (path graphics,
+                            native_ink_interaction_snapshot& region,
+                            frame* coordinate_frame= nullptr);
+  bool   native_ink_target (SI x, SI y, path& graphics,
+                            frame& coordinate_frame);
+  bool   native_ink_cursor_mode ();
   void   back_in_text_at (tree t, path p, bool forward);
 };
 

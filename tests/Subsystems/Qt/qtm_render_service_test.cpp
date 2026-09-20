@@ -13,6 +13,7 @@
 #include "qt_font.hpp"
 #include "qt_renderer.hpp"
 #include "qt_simple_widget.hpp"
+#include "QTMWidget.hpp"
 
 #include <QFontDatabase>
 #include <QPainter>
@@ -31,6 +32,7 @@ private slots:
   void rendersColorEmojiWithoutOutlinePath ();
   void givesEachProducerThreadItsOwnQtRenderer ();
   void retryDamageStaysInBackingPixels ();
+  void nativeInkCommitsOneDetachedStroke ();
 };
 
 void
@@ -156,6 +158,29 @@ public:
   rectangle damage () { return least_upper_bound (invalid_regions); }
 };
 
+class native_ink_test_widget: public qt_simple_widget_rep {
+public:
+  std::vector<native_ink_sample> committed;
+  int commits= 0;
+
+  void attachCanvas () { qwid= new QTMWidget (nullptr, this); }
+
+  bool handle_native_ink_hit (
+    SI, SI, native_ink_preview_style& style) override {
+    style.rgba= 0xff2040a0U;
+    style.line_width_pixels= 3.0;
+    style.pressure_enabled= true;
+    return true;
+  }
+
+  bool handle_native_ink_stroke (
+    const native_ink_sample* samples, std::size_t count) override {
+    ++commits;
+    committed.assign (samples, samples + count);
+    return true;
+  }
+};
+
 void
 TestQTMRenderService::retryDamageStaysInBackingPixels () {
   auto* rep= tm_new<damage_test_widget> ();
@@ -180,6 +205,42 @@ TestQTMRenderService::retryDamageStaysInBackingPixels () {
     QCOMPARE (pixels->y2, 180 + (i + 1) * padding);
   }
   delete rep->canvas ();
+}
+
+void
+TestQTMRenderService::nativeInkCommitsOneDetachedStroke () {
+  auto* rep= tm_new<native_ink_test_widget> ();
+  widget owner (rep);
+  rep->attachCanvas ();
+  QTMWidget* canvas= rep->canvas ();
+  QVERIFY (canvas != nullptr);
+  canvas->resize (480, 320);
+  QWidget* surface= canvas->surface ();
+  QVERIFY (surface != nullptr);
+
+  auto send= [&] (QEvent::Type type, QPointF pos, Qt::MouseButton button,
+                  Qt::MouseButtons buttons) {
+    QMouseEvent event (type, pos, pos, button, buttons, Qt::NoModifier);
+    QCoreApplication::sendEvent (surface, &event);
+  };
+  send (QEvent::MouseButtonPress, QPointF (80, 100),
+        Qt::LeftButton, Qt::LeftButton);
+  send (QEvent::MouseMove, QPointF (120, 110),
+        Qt::NoButton, Qt::LeftButton);
+  send (QEvent::MouseMove, QPointF (180, 125),
+        Qt::NoButton, Qt::LeftButton);
+  send (QEvent::MouseMove, QPointF (240, 145),
+        Qt::NoButton, Qt::LeftButton);
+  send (QEvent::MouseButtonRelease, QPointF (280, 160),
+        Qt::LeftButton, Qt::NoButton);
+
+  QCOMPARE (rep->commits, 1);
+  QVERIFY (rep->committed.size () >= 4);
+  QCOMPARE (rep->committed.front ().pressure, 1.0);
+  QCOMPARE (rep->committed.back ().pressure, 1.0);
+  QVERIFY (rep->committed.back ().x > rep->committed.front ().x);
+
+  delete canvas;
 }
 
 QTEST_MAIN (TestQTMRenderService)

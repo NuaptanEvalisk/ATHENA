@@ -270,9 +270,10 @@ edit_interface_rep::draw_selection (renderer ren, rectangle r) {
 
 void
 edit_interface_rep::draw_graphics (renderer ren) {
+  if (native_ink_cursor_mode ()) return;
   if (got_focus || full_screen) {
     cursor cu= get_cursor ();
-    if (over_graphics (cu->ox, cu->oy) && inside_active_graphics ()) {
+    if (inside_active_graphics () && over_graphics (cu->ox, cu->oy)) {
       eval ("(graphics-reset-context 'graphics-cursor)");
       draw_graphical_object (ren);
       string tm_curs= as_string (eval ("graphics-texmacs-pointer"));

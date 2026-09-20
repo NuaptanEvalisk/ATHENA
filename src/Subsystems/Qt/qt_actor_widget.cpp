@@ -26,12 +26,15 @@
 #include "QTMVaultBackupDispatcher.hpp"
 #include "QTMVaultExplorer.hpp"
 #include "qt_utilities.hpp"
+#include "renderer.hpp"
 
 #include <QApplication>
 #include <QStyle>
 #include <QTimer>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <algorithm>
+#include <cmath>
 #include <cstring>
 
 namespace {
@@ -183,6 +186,71 @@ qt_actor_widget_rep::handle_mouse (
     static_cast<std::uint64_t> (time),
     static_cast<std::uint64_t> (N (data)));
   discard_unsubmitted (kind_payload, data_payload, ticket);
+}
+
+bool
+qt_actor_widget_rep::handle_native_ink_hit (
+  SI x, SI y, native_ink_preview_style& style) {
+  if (endpoint_ == nullptr) return false;
+  double zoom= endpoint_->zoom_factor ();
+  if (!(zoom > 0.0) || !std::isfinite (zoom)) zoom= 1.0;
+  double input_scale= static_cast<double> (std_shrinkf) / zoom;
+  SI ux= static_cast<SI> (
+    std::llround (static_cast<double> (x) * input_scale));
+  SI uy= static_cast<SI> (
+    std::llround (static_cast<double> (y) * input_scale));
+  std::vector<native_ink_interaction_snapshot> regions=
+    endpoint_->native_ink_regions ();
+  const native_ink_interaction_snapshot* best= nullptr;
+  long double best_area= 0.0;
+  for (const native_ink_interaction_snapshot& region: regions) {
+    if (!region.pen_enabled || ux < region.x1 || ux > region.x2 ||
+        uy < region.y1 || uy > region.y2)
+      continue;
+    long double width= static_cast<long double> (region.x2) - region.x1;
+    long double height= static_cast<long double> (region.y2) - region.y1;
+    long double area= std::max ((long double) 0.0, width) *
+                      std::max ((long double) 0.0, height);
+    if (best == nullptr || area < best_area) {
+      best= &region;
+      best_area= area;
+    }
+  }
+  if (best == nullptr) return false;
+  style.rgba= best->rgba;
+  style.line_width_pixels=
+    std::max (1.0, best->line_width_pixels * zoom);
+  style.pressure_enabled= best->pressure_enabled;
+  return true;
+}
+
+bool
+qt_actor_widget_rep::handle_native_ink_stroke (
+  const native_ink_sample* samples, std::size_t count) {
+  if (samples == nullptr || count == 0 || endpoint_ == nullptr) return false;
+  if (count > (16U * 1024U * 1024U) / sizeof (native_ink_sample)) return false;
+  std::size_t bytes= count * sizeof (native_ink_sample);
+  actor_blob_reservation reservation=
+    actor_blob_registry::instance ().allocate (bytes);
+  native_ink_sample* output=
+    reinterpret_cast<native_ink_sample*> (reservation.data ());
+  double zoom= endpoint_->zoom_factor ();
+  if (!(zoom > 0.0) || !std::isfinite (zoom)) zoom= 1.0;
+  double input_scale= static_cast<double> (std_shrinkf) / zoom;
+  for (std::size_t i= 0; i < count; ++i) {
+    output[i]= samples[i];
+    output[i].x= static_cast<SI> (
+      std::llround (static_cast<double> (samples[i].x) * input_scale));
+    output[i].y= static_cast<SI> (
+      std::llround (static_cast<double> (samples[i].y) * input_scale));
+  }
+  athena_blob_id payload= reservation.publish ();
+  actor_command_ticket ticket= buffer_actor::submit_to (
+    actor_id_, actor_command_kind::native_ink_stroke, view_id_, payload,
+    ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+    static_cast<std::uint64_t> (count));
+  if (!ticket) (void) actor_blob_registry::instance ().discard (payload);
+  return static_cast<bool> (ticket);
 }
 
 bool
