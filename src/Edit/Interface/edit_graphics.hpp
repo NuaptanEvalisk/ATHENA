@@ -25,6 +25,12 @@ private:
   std::vector<path> native_ink_paths_;
   std::vector<path> native_drawing_selection_paths_;
   native_drawing_tool native_drawing_tool_= native_drawing_tool::pen;
+  bool native_drawing_color_override_= false;
+  std::uint32_t native_drawing_rgba_= 0xff000000U;
+  bool native_drawing_width_override_= false;
+  double native_drawing_width_pixels_= 1.0;
+  bool native_drawing_pressure_enabled_= true;
+  bool native_drawing_snap_enabled_= true;
   bool native_ink_interaction_dirty_= true;
 
 protected:
@@ -60,6 +66,8 @@ public:
   void   mark_native_ink_interaction_dirty ();
   native_drawing_tool get_native_drawing_tool () const;
   void   set_native_drawing_tool (native_drawing_tool tool);
+  void   set_native_drawing_property (
+    native_drawing_property property, std::uint64_t value);
   void   commit_native_drawing_gesture (
     native_drawing_tool tool, const native_ink_sample* samples,
     std::size_t count);
@@ -71,6 +79,14 @@ public:
   void   collect_native_ink_graphics (tree t, path p, bool in_diagram,
                                       std::vector<path>& result);
   tree   native_ink_property (path graphics, string name, tree fallback);
+  tree   native_drawing_object_property (tree object, string name, tree fallback);
+  tree   native_drawing_set_object_property (tree object, string name, tree value);
+  bool   native_drawing_set_graphics_property (path graphics, string name,
+                                               tree value);
+  path   native_drawing_active_graphics ();
+  bool   native_drawing_grid_enabled (path graphics);
+  void   refresh_native_drawing_properties_snapshot ();
+  void   publish_native_drawing_focus_refresh ();
   bool   native_ink_region (path graphics,
                             native_ink_interaction_snapshot& region,
                             frame* coordinate_frame= nullptr);

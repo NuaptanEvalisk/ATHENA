@@ -44,6 +44,27 @@ count_label (tree t, tree_label label) {
 }
 
 static tree
+first_with_label (tree t, tree_label label) {
+  if (!is_atomic (t) && L(t) == label) return t;
+  if (!is_atomic (t))
+    for (int i=0; i<N(t); ++i) {
+      tree found= first_with_label (t[i], label);
+      if (found != tree (UNINIT)) return found;
+    }
+  return tree (UNINIT);
+}
+
+static std::uint32_t
+rgba_from_color_name (string name) {
+  int r= 0, g= 0, b= 0, a= 255;
+  get_rgb_color (named_color (name), r, g, b, a);
+  return (static_cast<std::uint32_t> (a & 0xff) << 24) |
+         (static_cast<std::uint32_t> (r & 0xff) << 16) |
+         (static_cast<std::uint32_t> (g & 0xff) << 8) |
+         static_cast<std::uint32_t> (b & 0xff);
+}
+
+static tree
 with_property (tree object, string name) {
   if (!is_func (object, WITH) || N(object) < 3) return tree (UNINIT);
   for (int i=0; i+1<N(object)-1; i+=2)
@@ -90,6 +111,9 @@ private slots:
   void lassoScaleCommitsOneTransform ();
   void lassoRotateCommitsOneTransform ();
   void transformedStrokeRemainsSegmentErasable ();
+  void toolPropertiesAffectNextStroke ();
+  void selectionPropertiesEditSelectedObject ();
+  void snapAndGridPropertiesStayActorOwned ();
 
 private:
   buffer_document_state* buffer= nullptr;
@@ -141,6 +165,7 @@ prepare_graphics_region (NativeInkTestEditorRep* editor,
   top= max (gy1, gy2);
   QVERIFY (right > left);
   QVERIFY (top > bottom);
+  editor->refresh_native_ink_interaction ();
 }
 
 static std::vector<native_ink_sample>
@@ -515,6 +540,129 @@ TestNativeInkEditor::transformedStrokeRemainsSegmentErasable () {
     subtree (current_document_tree (), buffer->root_path), PENSCRIPT), 2);
   QCOMPARE (count_label (
     subtree (current_document_tree (), buffer->root_path), GR_TRANSFORM), 2);
+}
+
+void
+TestNativeInkEditor::toolPropertiesAffectNextStroke () {
+  path graphics_path;
+  SI left= 0, bottom= 0, right= 0, top= 0;
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+
+  std::uint32_t rgba= 0xffc83c50U;
+  editor->set_native_drawing_property (
+    native_drawing_property::color, rgba);
+  editor->set_native_drawing_property (
+    native_drawing_property::line_width,
+    native_drawing_double_bits (4.0));
+  editor->set_native_drawing_property (
+    native_drawing_property::pressure, 0);
+
+  native_drawing_properties_snapshot props=
+    endpoint->native_drawing_properties ();
+  QCOMPARE (props.rgba, rgba);
+  QCOMPARE (props.line_width_pixels, 4.0);
+  QVERIFY (!props.pressure_enabled);
+
+  auto samples= horizontal_samples (left, right, (bottom + top) / 2, 5);
+  samples[0].pressure= 0.1;
+  samples[1].pressure= 0.8;
+  editor->commit_native_ink_stroke (samples.data (), samples.size ());
+
+  tree graphics= subtree (current_document_tree (), graphics_path);
+  QCOMPARE (N(graphics), 2);
+  tree object= graphics[1];
+  tree color_value= editor->native_drawing_object_property (
+    object, "color", tree (UNINIT));
+  tree width_value= editor->native_drawing_object_property (
+    object, "line-width", tree (UNINIT));
+  QVERIFY (is_atomic (color_value));
+  QVERIFY (is_atomic (width_value));
+  QCOMPARE (rgba_from_color_name (color_value->label), rgba);
+  QCOMPARE (width_value->label, string ("4ln"));
+  tree stroke= first_with_label (object, PENSCRIPT);
+  QVERIFY (is_func (stroke, PENSCRIPT));
+  QVERIFY (is_func (stroke[3], TUPLE));
+  for (int i=0; i<N(stroke[3]); ++i) {
+    QVERIFY (is_func (stroke[3][i], TUPLE));
+    QCOMPARE (as_double (stroke[3][i][3]->label), 1.0);
+  }
+}
+
+void
+TestNativeInkEditor::selectionPropertiesEditSelectedObject () {
+  path graphics_path;
+  SI left= 0, bottom= 0, right= 0, top= 0;
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  native_drawing_selection_box selected=
+    select_one_native_stroke (editor, endpoint, left, bottom, right, top);
+  QVERIFY (selected.x2 > selected.x1);
+
+  std::uint32_t rgba= 0xff2a7bd6U;
+  editor->set_native_drawing_property (
+    native_drawing_property::color, rgba);
+  editor->set_native_drawing_property (
+    native_drawing_property::line_width,
+    native_drawing_double_bits (6.0));
+
+  native_drawing_properties_snapshot props=
+    endpoint->native_drawing_properties ();
+  QVERIFY (props.selection_active);
+  QCOMPARE (props.rgba, rgba);
+  QCOMPARE (props.line_width_pixels, 6.0);
+
+  tree object= subtree (current_document_tree (), graphics_path * 1);
+  tree color_value= editor->native_drawing_object_property (
+    object, "color", tree (UNINIT));
+  tree width_value= editor->native_drawing_object_property (
+    object, "line-width", tree (UNINIT));
+  QVERIFY (is_atomic (color_value));
+  QVERIFY (is_atomic (width_value));
+  QCOMPARE (rgba_from_color_name (color_value->label), rgba);
+  QCOMPARE (width_value->label, string ("6ln"));
+
+  editor->go_to (buffer->root_path * 1 * 0);
+  editor->undo (0);
+  tree after_undo= subtree (current_document_tree (), graphics_path * 1);
+  tree undo_width= editor->native_drawing_object_property (
+    after_undo, "line-width", tree (UNINIT));
+  QVERIFY (is_atomic (undo_width));
+  QVERIFY (undo_width->label != "6ln");
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), buffer->root_path), PENSCRIPT), 1);
+}
+
+void
+TestNativeInkEditor::snapAndGridPropertiesStayActorOwned () {
+  path graphics_path;
+  SI left= 0, bottom= 0, right= 0, top= 0;
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+
+  editor->set_native_drawing_property (
+    native_drawing_property::snap, 0);
+  QVERIFY (!endpoint->native_drawing_properties ().snap_enabled);
+  editor->set_native_drawing_property (
+    native_drawing_property::snap, 1);
+  QVERIFY (endpoint->native_drawing_properties ().snap_enabled);
+
+  editor->set_native_drawing_property (
+    native_drawing_property::grid, 1);
+  QVERIFY (endpoint->native_drawing_properties ().grid_enabled);
+  string with_grid= tree_to_texmacs (
+    subtree (current_document_tree (), buffer->root_path));
+  QVERIFY (occurs ("gr-grid", with_grid));
+  QVERIFY (occurs ("gr-edit-grid", with_grid));
+  QVERIFY (occurs ("cartesian", with_grid));
+
+  editor->set_native_drawing_property (
+    native_drawing_property::grid, 0);
+  QVERIFY (!endpoint->native_drawing_properties ().grid_enabled);
+  string without_grid= tree_to_texmacs (
+    subtree (current_document_tree (), buffer->root_path));
+  QVERIFY (occurs ("gr-grid", without_grid));
+  QVERIFY (occurs ("empty", without_grid));
 }
 
 static int test_status= 1;

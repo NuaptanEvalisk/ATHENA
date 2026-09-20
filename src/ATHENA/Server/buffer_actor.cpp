@@ -744,6 +744,12 @@ buffer_actor::dispatch (actor_command_record& command) {
       editor->set_native_drawing_tool (
         static_cast<native_drawing_tool> (command.argument[0]));
     break;
+  case actor_command_kind::set_native_drawing_property:
+    if (editor != nullptr)
+      editor->set_native_drawing_property (
+        static_cast<native_drawing_property> (command.argument[0]),
+        command.argument[1]);
+    break;
   case actor_command_kind::native_ink_stroke:
     if (editor != nullptr) {
       owned_actor_blob payload=

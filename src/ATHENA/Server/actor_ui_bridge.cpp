@@ -203,6 +203,19 @@ actor_ui_endpoint::native_drawing_selection () const {
   return native_drawing_selection_;
 }
 
+void
+actor_ui_endpoint::update_native_drawing_properties (
+  native_drawing_properties_snapshot snapshot) noexcept {
+  std::lock_guard<std::mutex> guard (native_drawing_properties_lock_);
+  native_drawing_properties_= snapshot;
+}
+
+native_drawing_properties_snapshot
+actor_ui_endpoint::native_drawing_properties () const {
+  std::lock_guard<std::mutex> guard (native_drawing_properties_lock_);
+  return native_drawing_properties_;
+}
+
 bool
 actor_ui_endpoint::wheel_capture () const noexcept {
   return wheel_capture_.load (std::memory_order_acquire) ||

@@ -17,6 +17,7 @@
 #include <QLabel>
 #include <QApplication>
 #include <QActionGroup>
+#include <QColorDialog>
 #include <QDialog>
 #include <QComboBox>
 #include <QStatusBar>
@@ -27,6 +28,9 @@
 #include <QMainWindow>
 #include <QMenuBar>
 #include <QIcon>
+#include <QMenu>
+#include <QPainter>
+#include <QPixmap>
 #include <QLayoutItem>
 #include "QTMApplication.hpp"
 
@@ -55,6 +59,14 @@
 int menu_count = 0;  // zero if no menu is currently being displayed
 list<qt_tm_widget_rep*> waiting_widgets;
 static QSet<qt_tm_widget_rep*> all_tm_widgets;
+
+void
+refresh_native_drawing_focus_actions (widget w) {
+  if (is_nil (w)) return;
+  qt_widget qtw= concrete (w);
+  auto* rep= dynamic_cast<qt_tm_widget_rep*> (qtw.rep);
+  if (rep != nullptr) rep->append_native_drawing_focus_actions ();
+}
 
 static QSize
 athena_toolbar_icon_size () {
@@ -654,6 +666,147 @@ qt_tm_widget_rep::append_native_drawing_mode_actions () {
   }
 }
 
+namespace {
+
+QIcon
+native_drawing_color_icon (std::uint32_t rgba) {
+  QPixmap pixmap (18, 18);
+  pixmap.fill (Qt::transparent);
+  QPainter painter (&pixmap);
+  painter.setRenderHint (QPainter::Antialiasing, true);
+  painter.setPen (QPen (QColor (90, 90, 90), 1.0));
+  painter.setBrush (QColor::fromRgba (rgba));
+  painter.drawRoundedRect (QRectF (1.5, 1.5, 15.0, 15.0), 3.0, 3.0);
+  return QIcon (pixmap);
+}
+
+} // namespace
+
+void
+qt_tm_widget_rep::append_native_drawing_focus_actions () {
+  const char* marker= "athenaNativeDrawingFocus";
+  for (QAction* action: focusToolBar->actions ())
+    if (action != nullptr && action->property (marker).toBool ()) {
+      focusToolBar->removeAction (action);
+      action->deleteLater ();
+    }
+
+  QTMWidget* c= canvas ();
+  if (c == nullptr || c->tm_widget () == nullptr ||
+      !c->tm_widget ()->handle_native_drawing_available ())
+    return;
+  QPointer<QTMWidget> canvasRef (c);
+  native_drawing_properties_snapshot props=
+    c->tm_widget ()->handle_native_drawing_properties ();
+
+  auto mark= [marker] (QAction* action) {
+    if (action != nullptr) action->setProperty (marker, true);
+    return action;
+  };
+
+  focusToolBar->addSeparator ()->setProperty (marker, true);
+
+  bool styleEditable= props.selection_active ||
+    props.tool == native_drawing_tool::pen ||
+    props.tool == native_drawing_tool::highlighter;
+
+  QAction* colorAction= mark (new QAction (
+    native_drawing_color_icon (props.rgba), QObject::tr ("Color"),
+    focusToolBar));
+  colorAction->setToolTip (props.selection_active ?
+    QObject::tr ("Selected object color") : QObject::tr ("Drawing color"));
+  colorAction->setEnabled (styleEditable);
+  focusToolBar->addAction (colorAction);
+  QObject::connect (colorAction, &QAction::triggered, focusToolBar,
+    [canvasRef, colorAction] {
+      QTMWidget* canvas= canvasRef.data ();
+      if (canvas == nullptr || canvas->tm_widget () == nullptr) return;
+      native_drawing_properties_snapshot current=
+        canvas->tm_widget ()->handle_native_drawing_properties ();
+      QColor color= QColorDialog::getColor (
+        QColor::fromRgba (current.rgba), canvas,
+        QObject::tr ("Drawing color"), QColorDialog::ShowAlphaChannel);
+      if (!color.isValid ()) return;
+      if (canvas->tm_widget ()->handle_set_native_drawing_property (
+            native_drawing_property::color,
+            static_cast<std::uint64_t> (color.rgba ())))
+        colorAction->setIcon (native_drawing_color_icon (color.rgba ()));
+    });
+
+  QAction* widthAction= mark (new QAction (
+    QIcon::fromTheme (QStringLiteral ("draw-line")),
+    QObject::tr ("Width"), focusToolBar));
+  widthAction->setToolTip (props.selection_active ?
+    QObject::tr ("Selected object line width") : QObject::tr ("Drawing width"));
+  widthAction->setEnabled (styleEditable);
+  QMenu* widthMenu= new QMenu (focusToolBar);
+  widthMenu->setProperty (marker, true);
+  const double widths[]= {1.0, 2.0, 4.0, 6.0, 10.0, 16.0, 24.0};
+  for (double width: widths) {
+    QAction* item= widthMenu->addAction (
+      QString::number (width, 'g', 3) + QStringLiteral (" px"));
+    item->setCheckable (true);
+    item->setChecked (std::fabs (props.line_width_pixels - width) < 0.25);
+    QObject::connect (item, &QAction::triggered, widthMenu,
+      [canvasRef, width] {
+        QTMWidget* canvas= canvasRef.data ();
+        if (canvas == nullptr || canvas->tm_widget () == nullptr) return;
+        canvas->tm_widget ()->handle_set_native_drawing_property (
+          native_drawing_property::line_width,
+          native_drawing_double_bits (width));
+      });
+  }
+  widthAction->setMenu (widthMenu);
+  focusToolBar->addAction (widthAction);
+
+  QAction* pressureAction= mark (new QAction (
+    QIcon::fromTheme (QStringLiteral ("input-tablet")),
+    QObject::tr ("Pressure"), focusToolBar));
+  pressureAction->setCheckable (true);
+  pressureAction->setChecked (props.pressure_enabled);
+  pressureAction->setEnabled (!props.selection_active &&
+                              props.tool == native_drawing_tool::pen);
+  pressureAction->setToolTip (QObject::tr ("Pressure-sensitive width"));
+  focusToolBar->addAction (pressureAction);
+  QObject::connect (pressureAction, &QAction::toggled, focusToolBar,
+    [canvasRef] (bool enabled) {
+      QTMWidget* canvas= canvasRef.data ();
+      if (canvas == nullptr || canvas->tm_widget () == nullptr) return;
+      canvas->tm_widget ()->handle_set_native_drawing_property (
+        native_drawing_property::pressure, enabled ? 1U : 0U);
+    });
+
+  QAction* snapAction= mark (new QAction (
+    QIcon::fromTheme (QStringLiteral ("snap-guides")),
+    QObject::tr ("Snap"), focusToolBar));
+  snapAction->setCheckable (true);
+  snapAction->setChecked (props.snap_enabled);
+  snapAction->setToolTip (QObject::tr ("Snap new drawing geometry"));
+  focusToolBar->addAction (snapAction);
+  QObject::connect (snapAction, &QAction::toggled, focusToolBar,
+    [canvasRef] (bool enabled) {
+      QTMWidget* canvas= canvasRef.data ();
+      if (canvas == nullptr || canvas->tm_widget () == nullptr) return;
+      canvas->tm_widget ()->handle_set_native_drawing_property (
+        native_drawing_property::snap, enabled ? 1U : 0U);
+    });
+
+  QAction* gridAction= mark (new QAction (
+    QIcon::fromTheme (QStringLiteral ("view-grid")),
+    QObject::tr ("Grid"), focusToolBar));
+  gridAction->setCheckable (true);
+  gridAction->setChecked (props.grid_enabled);
+  gridAction->setToolTip (QObject::tr ("Show drawing grid"));
+  focusToolBar->addAction (gridAction);
+  QObject::connect (gridAction, &QAction::toggled, focusToolBar,
+    [canvasRef] (bool enabled) {
+      QTMWidget* canvas= canvasRef.data ();
+      if (canvas == nullptr || canvas->tm_widget () == nullptr) return;
+      canvas->tm_widget ()->handle_set_native_drawing_property (
+        native_drawing_property::grid, enabled ? 1U : 0U);
+    });
+}
+
 void
 qt_tm_widget_rep::tweak_iconbar_size (QSize& sz) {
 #ifdef Q_OS_LINUX
@@ -1236,12 +1389,18 @@ qt_tm_widget_rep::write (slot s, blackbox index, widget w) {
         focus_icons_widget = concrete (w);
         QList<QAction*>* list = focus_icons_widget->get_qactionlist();
         if (list) {
+          QList<QAction*> nativeEmpty;
+          bool nativeDrawing= canvas () != nullptr &&
+            canvas ()->tm_widget () != nullptr &&
+            canvas ()->tm_widget ()->handle_native_drawing_available ();
+          QList<QAction*>* installed= nativeDrawing ? &nativeEmpty : list;
 #if !DISABLE_QTMTOOLBAR
-          focusToolBar->replaceButtons (list);
+          focusToolBar->replaceButtons (installed);
 #else
-          replaceButtons (focusToolBar, list, focus_toolbar_actions);
+          replaceButtons (focusToolBar, installed, focus_toolbar_actions);
 #endif
           delete list;
+          append_native_drawing_focus_actions ();
           update_visibility();
         }
       }

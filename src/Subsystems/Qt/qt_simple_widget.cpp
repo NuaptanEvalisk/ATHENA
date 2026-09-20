@@ -151,9 +151,21 @@ qt_simple_widget_rep::handle_native_drawing_tool () {
   return native_drawing_tool::pen;
 }
 
+native_drawing_properties_snapshot
+qt_simple_widget_rep::handle_native_drawing_properties () {
+  return native_drawing_properties_snapshot ();
+}
+
 bool
 qt_simple_widget_rep::handle_set_native_drawing_tool (native_drawing_tool tool) {
   (void) tool;
+  return false;
+}
+
+bool
+qt_simple_widget_rep::handle_set_native_drawing_property (
+  native_drawing_property property, std::uint64_t value) {
+  (void) property; (void) value;
   return false;
 }
 

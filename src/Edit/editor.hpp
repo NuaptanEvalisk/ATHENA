@@ -313,6 +313,8 @@ public:
   virtual void   mark_native_ink_interaction_dirty () = 0;
   virtual native_drawing_tool get_native_drawing_tool () const = 0;
   virtual void   set_native_drawing_tool (native_drawing_tool tool) = 0;
+  virtual void   set_native_drawing_property (
+    native_drawing_property property, std::uint64_t value) = 0;
   virtual void   commit_native_drawing_gesture (
     native_drawing_tool tool, const native_ink_sample* samples,
     std::size_t count) = 0;

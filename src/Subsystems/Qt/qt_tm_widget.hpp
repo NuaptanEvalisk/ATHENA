@@ -117,6 +117,7 @@ public:
   void install_main_menu ();
   void clear_main_menu_actions ();
   void append_native_drawing_mode_actions ();
+  void append_native_drawing_focus_actions ();
   static void tweak_iconbar_size (QSize& sz);
 
   
@@ -141,6 +142,7 @@ protected:
 
 //! List of widgets wanting to install their menu bar
 extern list<qt_tm_widget_rep*> waiting_widgets;
+void refresh_native_drawing_focus_actions (widget w);
 
 //! Positive means the menu is busy.
 extern int menu_count;

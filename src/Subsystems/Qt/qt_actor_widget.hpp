@@ -41,7 +41,10 @@ public:
                               native_ink_preview_style& style) override;
   bool handle_native_drawing_available () override;
   native_drawing_tool handle_native_drawing_tool () override;
+  native_drawing_properties_snapshot handle_native_drawing_properties () override;
   bool handle_set_native_drawing_tool (native_drawing_tool tool) override;
+  bool handle_set_native_drawing_property (
+    native_drawing_property property, std::uint64_t value) override;
   std::vector<native_drawing_selection_box>
     handle_native_drawing_selection () override;
   bool handle_native_drawing_gesture (

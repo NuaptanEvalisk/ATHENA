@@ -89,7 +89,10 @@ public:
                                       native_ink_preview_style& style);
   virtual bool handle_native_drawing_available ();
   virtual native_drawing_tool handle_native_drawing_tool ();
+  virtual native_drawing_properties_snapshot handle_native_drawing_properties ();
   virtual bool handle_set_native_drawing_tool (native_drawing_tool tool);
+  virtual bool handle_set_native_drawing_property (
+    native_drawing_property property, std::uint64_t value);
   virtual std::vector<native_drawing_selection_box>
     handle_native_drawing_selection ();
   virtual bool handle_native_drawing_gesture (

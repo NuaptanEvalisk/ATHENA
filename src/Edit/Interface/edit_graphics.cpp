@@ -59,6 +59,15 @@ native_ink_rgba (color value) {
          static_cast<std::uint32_t> (b & 0xff);
 }
 
+tree
+native_color_tree_from_rgba (std::uint32_t rgba) {
+  int a= (rgba >> 24) & 0xff;
+  int r= (rgba >> 16) & 0xff;
+  int g= (rgba >> 8) & 0xff;
+  int b= rgba & 0xff;
+  return tree (get_hex_color (rgb_color (r, g, b, a)));
+}
+
 string
 native_ink_id () {
   std::uint64_t serial=
@@ -800,6 +809,146 @@ edit_graphics_rep::native_ink_property (
   return fallback;
 }
 
+tree
+edit_graphics_rep::native_drawing_object_property (
+  tree object, string name, tree fallback) {
+  if (is_func (object, GR_TRANSFORM, 2))
+    return native_drawing_object_property (object[0], name, fallback);
+  if (is_func (object, WITH) && N(object) >= 3) {
+    tree nested= native_drawing_object_property (
+      object[N(object)-1], name, tree (UNINIT));
+    if (nested != tree (UNINIT)) return nested;
+    for (int i=0; i+1<N(object)-1; i+=2)
+      if (is_atomic (object[i]) && object[i]->label == name)
+        return copy (object[i+1]);
+  }
+  return fallback;
+}
+
+namespace {
+
+tree
+native_update_object_property_impl (
+  tree object, string name, tree value, bool& updated) {
+  if (is_func (object, GR_TRANSFORM, 2)) {
+    tree result= copy (object);
+    result[0]= native_update_object_property_impl (
+      result[0], name, value, updated);
+    return result;
+  }
+  if (is_func (object, WITH) && N(object) >= 3) {
+    tree result= copy (object);
+    int last= N(result) - 1;
+    result[last]= native_update_object_property_impl (
+      result[last], name, value, updated);
+    if (updated) return result;
+    for (int i=0; i+1<last; i+=2)
+      if (is_atomic (result[i]) && result[i]->label == name) {
+        result[i+1]= copy (value);
+        updated= true;
+        return result;
+      }
+    return result;
+  }
+  return copy (object);
+}
+
+tree
+native_insert_object_property_impl (tree object, string name, tree value) {
+  if (is_func (object, GR_TRANSFORM, 2)) {
+    tree result= copy (object);
+    result[0]= native_insert_object_property_impl (result[0], name, value);
+    return result;
+  }
+  if (is_func (object, WITH) && N(object) >= 3) {
+    tree result= copy (object);
+    int last= N(result) - 1;
+    result[last]= native_insert_object_property_impl (
+      result[last], name, value);
+    return result;
+  }
+  tree wrapped (WITH);
+  wrapped << name << copy (value) << copy (object);
+  return wrapped;
+}
+
+tree
+native_set_with_property (tree wrapper, string name, tree value) {
+  if (!is_func (wrapper, WITH) || N(wrapper) < 1) return wrapper;
+  tree result (WITH);
+  bool replaced= false;
+  int last= N(wrapper) - 1;
+  for (int i=0; i+1<last; i+=2) {
+    if (is_atomic (wrapper[i]) && wrapper[i]->label == name) {
+      result << copy (wrapper[i]) << copy (value);
+      replaced= true;
+    }
+    else result << copy (wrapper[i]) << copy (wrapper[i+1]);
+  }
+  if (!replaced) result << name << copy (value);
+  result << copy (wrapper[last]);
+  return result;
+}
+
+} // namespace
+
+tree
+edit_graphics_rep::native_drawing_set_object_property (
+  tree object, string name, tree value) {
+  bool updated= false;
+  tree result= native_update_object_property_impl (
+    object, name, value, updated);
+  if (updated) return result;
+  return native_insert_object_property_impl (object, name, value);
+}
+
+bool
+edit_graphics_rep::native_drawing_set_graphics_property (
+  path graphics, string name, tree value) {
+  if (is_nil (graphics) || !has_subtree (et, graphics)) return false;
+  path p= path_up (graphics);
+  while (!is_nil (p)) {
+    tree t= subtree (et, p);
+    if (is_func (t, WITH) && N(t) >= 1) {
+      assign (p, native_set_with_property (t, name, value));
+      return true;
+    }
+    if (p == rp) break;
+    p= path_up (p);
+  }
+  tree wrapped (WITH);
+  wrapped << name << copy (value) << copy (subtree (et, graphics));
+  assign (graphics, wrapped);
+  return true;
+}
+
+path
+edit_graphics_rep::native_drawing_active_graphics () {
+  if (!native_drawing_selection_paths_.empty ()) {
+    path gp= path_up (native_drawing_selection_paths_.front ());
+    if (!is_nil (gp) && has_subtree (et, gp) &&
+        is_func (subtree (et, gp), GRAPHICS))
+      return gp;
+  }
+  if (!native_ink_paths_.empty ()) return copy (native_ink_paths_.front ());
+  return path ();
+}
+
+bool
+edit_graphics_rep::native_drawing_grid_enabled (path graphics) {
+  if (is_nil (graphics)) return false;
+  tree value= native_ink_property (graphics, GR_GRID, tree (""));
+  if (is_atomic (value)) return value->label != "";
+  if (!is_func (value, TUPLE) || N(value) == 0) return false;
+  return !(is_atomic (value[0]) && value[0]->label == "empty");
+}
+
+void
+edit_graphics_rep::publish_native_drawing_focus_refresh () {
+  if (ui_endpoint != nullptr)
+    ui_endpoint->publish (actor_command_kind::ui_native_drawing_focus_refresh);
+}
+
 bool
 edit_graphics_rep::native_ink_region (
   path graphics, native_ink_interaction_snapshot& region,
@@ -831,9 +980,11 @@ edit_graphics_rep::native_ink_region (
     native_ink_property (graphics, GR_COLOR, tree ("default"));
   string color_name= is_atomic (color_value) ? color_value->label : "default";
   if (color_name == "default" || N(color_name) == 0) color_name= "black";
-  region.rgba= native_ink_rgba (named_color (color_name));
-  region.line_width_pixels= native_line_width_pixels (
-    native_ink_property (graphics, GR_LINE_WIDTH, tree ("1ln")));
+  region.rgba= native_drawing_color_override_ ? native_drawing_rgba_ :
+               native_ink_rgba (named_color (color_name));
+  region.line_width_pixels= native_drawing_width_override_ ?
+    native_drawing_width_pixels_ : native_line_width_pixels (
+      native_ink_property (graphics, GR_LINE_WIDTH, tree ("1ln")));
   region.tool= native_drawing_tool_;
   switch (native_drawing_tool_) {
   case native_drawing_tool::highlighter: {
@@ -868,7 +1019,7 @@ edit_graphics_rep::native_ink_region (
   }
   region.pen_enabled= true;
   if (native_drawing_tool_ == native_drawing_tool::pen)
-    region.pressure_enabled= true;
+    region.pressure_enabled= native_drawing_pressure_enabled_;
   if (coordinate_frame != nullptr) *coordinate_frame= f;
   return true;
 }
@@ -924,7 +1075,142 @@ edit_graphics_rep::set_native_drawing_tool (native_drawing_tool tool) {
     tool= native_drawing_tool::pen;
   native_drawing_tool_= tool;
   refresh_native_ink_interaction ();
+  refresh_native_drawing_properties_snapshot ();
+  publish_native_drawing_focus_refresh ();
   invalidate_all ();
+}
+
+void
+edit_graphics_rep::set_native_drawing_property (
+  native_drawing_property property, std::uint64_t value) {
+  if (property == native_drawing_property::color ||
+      property == native_drawing_property::line_width) {
+    if (!native_drawing_selection_paths_.empty ()) {
+      tree property_value;
+      string property_name;
+      if (property == native_drawing_property::color) {
+        property_name= "color";
+        property_value= native_color_tree_from_rgba (
+          static_cast<std::uint32_t> (value));
+      }
+      else {
+        property_name= "line-width";
+        double width= native_drawing_bits_double (value);
+        if (!std::isfinite (width)) return;
+        width= std::max (1.0, std::min (64.0, width));
+        property_value= tree (as_string (width) * "ln");
+      }
+      start_editing ();
+      for (const path& p: native_drawing_selection_paths_)
+        if (has_subtree (et, p))
+          assign (p, native_drawing_set_object_property (
+            subtree (et, p), property_name, property_value));
+      end_editing ();
+    }
+    else if (property == native_drawing_property::color) {
+      native_drawing_color_override_= true;
+      native_drawing_rgba_= static_cast<std::uint32_t> (value);
+    }
+    else {
+      double width= native_drawing_bits_double (value);
+      if (!std::isfinite (width)) return;
+      native_drawing_width_override_= true;
+      width= std::max (1.0, std::min (64.0, width));
+      if (native_drawing_tool_ == native_drawing_tool::highlighter)
+        width= std::max (1.0, width / 5.0);
+      native_drawing_width_pixels_= width;
+    }
+  }
+  else if (property == native_drawing_property::pressure)
+    native_drawing_pressure_enabled_= value != 0;
+  else if (property == native_drawing_property::snap)
+    native_drawing_snap_enabled_= value != 0;
+  else if (property == native_drawing_property::grid) {
+    path gp= native_drawing_active_graphics ();
+    if (is_nil (gp)) return;
+    tree grid_value;
+    if (value != 0)
+      grid_value= tree (TUPLE, "cartesian", tree (_POINT, "0", "0"),
+                        tree (_POINT, "1", "1"));
+    else grid_value= tree (TUPLE, "empty");
+    start_editing ();
+    bool changed= native_drawing_set_graphics_property (
+      gp, GR_GRID, grid_value);
+    if (changed) {
+      std::vector<path> refreshed;
+      collect_native_ink_graphics (subtree (et, rp), rp, false, refreshed);
+      for (const path& candidate: refreshed) {
+        tree mode= native_ink_property (candidate, GR_MODE, tree ("line"));
+        if (native_pen_mode (mode)) {
+          native_drawing_set_graphics_property (
+            candidate, GR_EDIT_GRID, grid_value);
+          break;
+        }
+      }
+    }
+    end_editing ();
+    native_drawing_selection_paths_.clear ();
+    mark_native_ink_interaction_dirty ();
+  }
+  refresh_native_ink_interaction ();
+  refresh_native_drawing_selection_snapshot ();
+  refresh_native_drawing_properties_snapshot ();
+  publish_native_drawing_focus_refresh ();
+  invalidate_all ();
+}
+
+void
+edit_graphics_rep::refresh_native_drawing_properties_snapshot () {
+  if (ui_endpoint == nullptr) return;
+  native_drawing_properties_snapshot snapshot;
+  snapshot.tool= native_drawing_tool_;
+  snapshot.pressure_enabled= native_drawing_tool_ == native_drawing_tool::pen ?
+    native_drawing_pressure_enabled_ : false;
+  snapshot.snap_enabled= native_drawing_snap_enabled_;
+  snapshot.selection_active= !native_drawing_selection_paths_.empty ();
+
+  path gp= native_drawing_active_graphics ();
+  if (!is_nil (gp)) snapshot.grid_enabled= native_drawing_grid_enabled (gp);
+
+  if (snapshot.selection_active) {
+    const path& p= native_drawing_selection_paths_.front ();
+    if (has_subtree (et, p)) {
+      tree object= subtree (et, p);
+      tree color_value= native_drawing_object_property (
+        object, "color", tree ("black"));
+      string color_name= is_atomic (color_value) ? color_value->label : "black";
+      if (color_name == "default" || N(color_name) == 0) color_name= "black";
+      snapshot.rgba= native_ink_rgba (named_color (color_name));
+      snapshot.line_width_pixels= native_line_width_pixels (
+        native_drawing_object_property (
+          object, "line-width", tree ("1ln")));
+    }
+  }
+  else {
+    string color_name= "black";
+    double width= 1.0;
+    if (!is_nil (gp)) {
+      tree color_value= native_ink_property (gp, GR_COLOR, tree ("default"));
+      if (is_atomic (color_value) && color_value->label != "default" &&
+          N(color_value->label) != 0)
+        color_name= color_value->label;
+      width= native_line_width_pixels (
+        native_ink_property (gp, GR_LINE_WIDTH, tree ("1ln")));
+    }
+    snapshot.rgba= native_drawing_color_override_ ? native_drawing_rgba_ :
+      native_ink_rgba (named_color (color_name));
+    snapshot.line_width_pixels= native_drawing_width_override_ ?
+      native_drawing_width_pixels_ : width;
+    if (native_drawing_tool_ == native_drawing_tool::highlighter) {
+      int r= (snapshot.rgba >> 16) & 0xff;
+      int g= (snapshot.rgba >> 8) & 0xff;
+      int b= snapshot.rgba & 0xff;
+      snapshot.rgba= native_ink_rgba (rgb_color (r, g, b, 96));
+      snapshot.line_width_pixels=
+        std::max (6.0, snapshot.line_width_pixels * 5.0);
+    }
+  }
+  ui_endpoint->update_native_drawing_properties (snapshot);
 }
 
 void
@@ -945,6 +1231,7 @@ edit_graphics_rep::refresh_native_ink_interaction () {
       ui_endpoint->update_native_ink_regions ({});
       native_drawing_selection_paths_.clear ();
       ui_endpoint->update_native_drawing_selection ({});
+      refresh_native_drawing_properties_snapshot ();
       return;
     }
   }
@@ -964,6 +1251,7 @@ edit_graphics_rep::refresh_native_ink_interaction () {
   }
   ui_endpoint->update_native_ink_regions (std::move (regions));
   refresh_native_drawing_selection_snapshot ();
+  refresh_native_drawing_properties_snapshot ();
 }
 
 bool
@@ -1077,6 +1365,7 @@ edit_graphics_rep::refresh_native_drawing_selection_snapshot () {
   if (ui_endpoint == nullptr) return;
   if (native_drawing_selection_paths_.empty ()) {
     ui_endpoint->update_native_drawing_selection ({});
+    refresh_native_drawing_properties_snapshot ();
     return;
   }
   std::vector<native_drawing_selection_box> boxes;
@@ -1090,6 +1379,7 @@ edit_graphics_rep::refresh_native_drawing_selection_snapshot () {
   }
   native_drawing_selection_paths_= std::move (valid);
   ui_endpoint->update_native_drawing_selection (std::move (boxes));
+  refresh_native_drawing_properties_snapshot ();
 }
 
 void
@@ -1221,6 +1511,7 @@ edit_graphics_rep::erase_native_drawing_objects (
   end_editing ();
   native_drawing_selection_paths_.clear ();
   refresh_native_drawing_selection_snapshot ();
+  publish_native_drawing_focus_refresh ();
   refresh_native_ink_interaction ();
 }
 
@@ -1309,6 +1600,7 @@ edit_graphics_rep::erase_native_drawing_segments (
   end_editing ();
   native_drawing_selection_paths_.clear ();
   refresh_native_drawing_selection_snapshot ();
+  publish_native_drawing_focus_refresh ();
   refresh_native_ink_interaction ();
 }
 
@@ -1318,6 +1610,7 @@ edit_graphics_rep::select_native_drawing_lasso (
   native_drawing_selection_paths_.clear ();
   if (samples == nullptr || count < 3) {
     refresh_native_drawing_selection_snapshot ();
+    publish_native_drawing_focus_refresh ();
     invalidate_all ();
     return;
   }
@@ -1325,6 +1618,7 @@ edit_graphics_rep::select_native_drawing_lasso (
   frame f;
   if (!native_ink_target (samples[0].x, samples[0].y, gp, f)) {
     refresh_native_drawing_selection_snapshot ();
+    publish_native_drawing_focus_refresh ();
     invalidate_all ();
     return;
   }
@@ -1342,6 +1636,7 @@ edit_graphics_rep::select_native_drawing_lasso (
       native_drawing_selection_paths_.push_back (gp * i);
   }
   refresh_native_drawing_selection_snapshot ();
+  publish_native_drawing_focus_refresh ();
   invalidate_all ();
 }
 
@@ -1379,9 +1674,12 @@ edit_graphics_rep::commit_native_drawing_gesture (
     if (N(ink) == 0) first= p;
     last= p;
     tree sample (TUPLE);
+    double pressure= (tool == native_drawing_tool::pen &&
+                      native_drawing_pressure_enabled_) ?
+      clamp_pressure (samples[i].pressure) : 1.0;
     sample << as_string (p[0]) << as_string (p[1])
            << as_string (samples[i].time)
-           << as_string (clamp_pressure (samples[i].pressure));
+           << as_string (pressure);
     ink << sample;
   }
   if (N(ink) == 0) return;
@@ -1398,6 +1696,10 @@ edit_graphics_rep::commit_native_drawing_gesture (
   tree color_value= native_ink_property (gp, GR_COLOR, tree ("default"));
   tree width_value= native_ink_property (gp, GR_LINE_WIDTH, tree ("default"));
   tree enhance_value= native_ink_property (gp, GR_PEN_ENHANCE, tree ("default"));
+  if (native_drawing_color_override_)
+    color_value= native_color_tree_from_rgba (native_drawing_rgba_);
+  if (native_drawing_width_override_)
+    width_value= tree (as_string (native_drawing_width_pixels_) * "ln");
   if (tool == native_drawing_tool::highlighter) {
     string color_name= is_atomic (color_value) ? color_value->label : "black";
     if (color_name == "default" || N(color_name) == 0) color_name= "black";

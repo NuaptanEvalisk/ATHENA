@@ -13,6 +13,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 
 enum class native_drawing_tool: std::uint8_t {
   pen= 0,
@@ -27,6 +28,38 @@ enum class native_drawing_transform: std::uint8_t {
   scale,
   rotate
 };
+
+enum class native_drawing_property: std::uint8_t {
+  color= 0,
+  line_width,
+  pressure,
+  snap,
+  grid
+};
+
+struct native_drawing_properties_snapshot {
+  std::uint32_t rgba= 0xff000000U;
+  double line_width_pixels= 1.0;
+  bool pressure_enabled= true;
+  bool snap_enabled= true;
+  bool grid_enabled= false;
+  bool selection_active= false;
+  native_drawing_tool tool= native_drawing_tool::pen;
+};
+
+inline std::uint64_t
+native_drawing_double_bits (double value) noexcept {
+  std::uint64_t bits= 0;
+  std::memcpy (&bits, &value, sizeof (bits));
+  return bits;
+}
+
+inline double
+native_drawing_bits_double (std::uint64_t bits) noexcept {
+  double value= 0.0;
+  std::memcpy (&value, &bits, sizeof (value));
+  return value;
+}
 
 struct native_drawing_selection_box {
   SI x1= 0;

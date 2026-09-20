@@ -26,6 +26,7 @@
 #include "QTMVaultBackupDispatcher.hpp"
 #include "QTMVaultExplorer.hpp"
 #include "qt_utilities.hpp"
+#include "qt_tm_widget.hpp"
 #include "renderer.hpp"
 
 #include <QApplication>
@@ -240,12 +241,28 @@ qt_actor_widget_rep::handle_native_drawing_tool () {
   return regions.empty () ? native_drawing_tool::pen : regions.front ().tool;
 }
 
+native_drawing_properties_snapshot
+qt_actor_widget_rep::handle_native_drawing_properties () {
+  if (endpoint_ == nullptr) return native_drawing_properties_snapshot ();
+  return endpoint_->native_drawing_properties ();
+}
+
 bool
 qt_actor_widget_rep::handle_set_native_drawing_tool (native_drawing_tool tool) {
   actor_command_ticket ticket= buffer_actor::submit_to (
     actor_id_, actor_command_kind::set_native_drawing_tool, view_id_,
     ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
     static_cast<std::uint64_t> (tool));
+  return static_cast<bool> (ticket);
+}
+
+bool
+qt_actor_widget_rep::handle_set_native_drawing_property (
+  native_drawing_property property, std::uint64_t value) {
+  actor_command_ticket ticket= buffer_actor::submit_to (
+    actor_id_, actor_command_kind::set_native_drawing_property, view_id_,
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+    static_cast<std::uint64_t> (property), value);
   return static_cast<bool> (ticket);
 }
 
@@ -595,6 +612,12 @@ qt_actor_widget_rep::drain_external_effects () {
     case actor_command_kind::ui_mouse_grab:
       ::send_mouse_grab (widget (this), record.argument[0] != 0);
       break;
+    case actor_command_kind::ui_native_drawing_focus_refresh: {
+      tm_view view= concrete_runtime_view (view_id_);
+      if (view != nullptr && view->win != nullptr)
+        refresh_native_drawing_focus_actions (view->win->wid);
+      break;
+    }
     case actor_command_kind::ui_menu_main: {
       widget menu= actor_ui_take_widget (record.argument[0]);
       tm_view view= concrete_runtime_view (view_id_);
