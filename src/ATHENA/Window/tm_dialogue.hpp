@@ -14,6 +14,8 @@
 #include "command.hpp"
 #include "scheme_execution_context.hpp"
 
+object evaluate_chooser_result (string expression);
+
 void dispatch_actor_chooser_result (
   command actor_fun, string expression,
   athena_actor_id actor_id, athena_view_id view_id,

@@ -42,6 +42,7 @@ private slots:
   void startsLazily ();
   void ownsCommandsAndDocumentContext ();
   void preservesSynchronousInvocationContext ();
+  void chooserResultEvaluatesGlobally ();
   void chooserResultEvaluatesOnOwningActor ();
   void drainsInFifoOrderAndRejectsAfterShutdown ();
   void documentNodesRemainActorOwned ();
@@ -550,6 +551,26 @@ TestBufferActor::preservesSynchronousInvocationContext () {
 
   QVERIFY (valid_context);
   tm_delete (buffer);
+}
+
+void
+TestBufferActor::chooserResultEvaluatesGlobally () {
+  object direct= evaluate_chooser_result (
+    "(system->url \"/tmp/Algebraic Theories (Adamek)/ATVR 01 Abstract Algebraic Categories.ath\")");
+  QVERIFY (is_url (direct));
+  QCOMPARE (concretize (as_url (direct)),
+            string ("/tmp/Algebraic Theories (Adamek)/ATVR 01 Abstract Algebraic Categories.ath"));
+
+  object listed= evaluate_chooser_result (
+    "(list (system->url \"/tmp/athena chooser portable.tex\") \"on\")");
+  QVERIFY (is_list (listed));
+  array<object> values= as_array_object (listed);
+  QCOMPARE (N(values), 2);
+  QVERIFY (is_url (values[0]));
+  QVERIFY (is_string (values[1]));
+  QCOMPARE (concretize (as_url (values[0])),
+            string ("/tmp/athena chooser portable.tex"));
+  QCOMPARE (as_string (values[1]), string ("on"));
 }
 
 void

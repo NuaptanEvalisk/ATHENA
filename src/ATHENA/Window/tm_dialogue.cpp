@@ -63,6 +63,12 @@ public:
     return out << "<command chooser>"; }
 };
 
+object
+evaluate_chooser_result (string expression) {
+  expression.ensure_transferable ();
+  return eval (expression);
+}
+
 void
 dispatch_actor_chooser_result (
     command actor_fun, string expression,
@@ -73,7 +79,7 @@ dispatch_actor_chooser_result (
     actor_continuation_registry::instance ().store (
       [expression= std::move (expression),
        actor_fun= std::move (actor_fun)] () mutable {
-        object arg= eval (expression);
+        object arg= evaluate_chooser_result (std::move (expression));
         actor_fun (list_object (arg));
       });
   if (!buffer_actor::submit_to (
@@ -95,7 +101,7 @@ chooser_command_rep::apply () {
       state->view_id, state->capabilities);
     return;
   }
-  object arg= string_to_object (s_arg);
+  object arg= evaluate_chooser_result (std::move (s_arg));
   object args= list_object (arg);
   exec_delayed (scheme_cmd (cons (state->fun, args)));
 }
