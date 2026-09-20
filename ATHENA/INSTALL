@@ -50,12 +50,9 @@ From the repository root, configure a Qt 6 build.  A typical debug build uses
       -DCMAKE_BUILD_TYPE=Debug
 
 No system Guile installation is needed. CMake builds ATHENA's vendored private
-Guile 3 runtime and links the executable to it.
-
-ATHENA patches Qt Advanced Docking System through `patch_ads.py`.  Reapply the
-ADS patch after configuring or refreshing the dependency tree:
-
-    python3 patch_ads.py build_qt6/_deps/ads-src
+Guile 3 runtime and links the executable to it. Qt Advanced Docking System is
+also vendored under `3rdparty/athena-ads/`; ATHENA-specific docking changes are
+maintained directly in that source tree and require no post-configure patching.
 
 Build and install the local development binary into this runtime tree:
 
@@ -83,9 +80,8 @@ oneAPI when available:
       -DCMAKE_CXX_COMPILER=/opt/intel/oneapi/compiler/latest/bin/icpx
 
 Pass any local dependency paths required by your machine, such as llama.cpp,
-resvg, or KIO options.  Reapply the ADS patch and build:
+resvg, or KIO options, then build:
 
-    python3 patch_ads.py build_rel/_deps/ads-src
     cmake --build build_rel -j"$(nproc)"
 
 Use the idempotent all-platform release driver:

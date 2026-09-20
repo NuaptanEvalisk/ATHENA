@@ -23,7 +23,6 @@ boost_version_underscore="${boost_version//./_}"
 athena_version="$(sed -n 's/.*set *(ATHENA_APP_VERSION *"\([^"]*\)".*/\1/p' "$repo_root/CMakeLists.txt" | head -n1)"
 qt_root="$deps_dir/qt"
 qt_prefix="$qt_root/$qt_version/gcc_64"
-ads_patched_src="$deps_dir/ads-patched/qt6"
 rapidfuzz_src="$src_dir/rapidfuzz-cpp"
 boost_src="$src_dir/boost_$boost_version_underscore"
 
@@ -231,46 +230,6 @@ ensure_llama () {
   fi
 }
 
-ads_source_complete () {
-  local dir="$1"
-  [ -f "$dir/CMakeLists.txt" ] &&
-    [ -f "$dir/src/CMakeLists.txt" ] &&
-    [ -f "$dir/src/DockManager.cpp" ]
-}
-
-ensure_ads () {
-  local ads_src="$src_dir/Qt-Advanced-Docking-System"
-
-  if ! ads_source_complete "$ads_src"; then
-    rm -rf "$ads_src"
-
-    local cached_ads
-    for cached_ads in \
-      "$container_build_dir/build-dev/_deps/ads-src" \
-      "$container_build_dir/build-rel/_deps/ads-src" \
-      "$repo_root/build_qt6/_deps/ads-src"; do
-      if ads_source_complete "$cached_ads"; then
-        echo "Using cached ADS source: $cached_ads"
-        rm -rf "$ads_patched_src"
-        mkdir -p "$(dirname "$ads_patched_src")"
-        rsync -a --delete --exclude '.git' "$cached_ads/" "$ads_patched_src/"
-        python3 "$repo_root/patch_ads.py" "$ads_patched_src"
-        return
-      fi
-    done
-
-    if ! git_clone_retry "$ads_src" --depth 1 --branch 4.3.1 \
-      "${ADS_REPO:-https://github.com/githubuser0xFFFF/Qt-Advanced-Docking-System.git}"; then
-      return 1
-    fi
-  fi
-
-  rm -rf "$ads_patched_src"
-  mkdir -p "$(dirname "$ads_patched_src")"
-  rsync -a --delete --exclude '.git' "$ads_src/" "$ads_patched_src/"
-  python3 "$repo_root/patch_ads.py" "$ads_patched_src"
-}
-
 rapidfuzz_source_complete () {
   local dir="$1"
   [ -f "$dir/CMakeLists.txt" ] &&
@@ -402,8 +361,6 @@ build_athena_flavor () {
     -DATHENA_GUI=Qt6 \
     -DATHENA_CPU_TARGET=x86-64-v3 \
     -DATHENA_INTEL_NATIVE_OPTIMIZATION=OFF \
-    -DADS_VERSION=4.3.1 \
-    -DFETCHCONTENT_SOURCE_DIR_ADS="$ads_patched_src" \
     -DFETCHCONTENT_SOURCE_DIR_RAPIDFUZZ="$rapidfuzz_src" \
     -DBOOST_ROOT="$boost_src" \
     -DBoost_INCLUDE_DIR="$boost_src" \
@@ -484,7 +441,6 @@ ensure_qt
 ensure_tcc
 ensure_resvg
 ensure_llama
-ensure_ads
 ensure_rapidfuzz
 ensure_boost_headers
 download_appimagetool

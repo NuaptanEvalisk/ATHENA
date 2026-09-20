@@ -921,14 +921,8 @@ if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt6")
   ### --------------------------------------------------------------------
   ### Qt Advanced Docking System
   ### --------------------------------------------------------------------
-  FetchContent_Declare(
-    ads
-    GIT_REPOSITORY https://github.com/githubuser0xFFFF/Qt-Advanced-Docking-System.git
-    GIT_TAG        4.3.1
-    PATCH_COMMAND  ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/patch_ads.py <SOURCE_DIR>
-  )
   set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-  FetchContent_MakeAvailable(ads)
+  add_subdirectory(3rdparty/athena-ads)
   set(ADS_LIBRARIES qt6advanceddocking)
   if (NOT APPLE AND NOT WIN32)
     set_target_properties (${ADS_LIBRARIES} PROPERTIES

@@ -165,7 +165,6 @@ configure_local_build () {
   args+=("${cmake_extra_args[@]}")
 
   run "${args[@]}"
-  run python3 "$repo_root/patch_ads.py" "$local_build_dir/_deps/ads-src"
   run cmake --build "$local_build_dir" -j"$jobs"
 }
 
