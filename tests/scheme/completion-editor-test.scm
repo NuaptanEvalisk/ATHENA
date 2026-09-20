@@ -49,6 +49,54 @@
 (unless (= (get-input-mode) initial-mode)
   (error "Realtime completion opened while disabled"))
 
+;; Candidate order can stay alphabetical or favor words used more often in
+;; the current buffer. Equal-frequency candidates remain alphabetical.
+(set-preference "text autocompletion sorting" "alphabetical")
+(reset '("alpine" "alpha" "al"))
+(start)
+(key-press-complete "return")
+(unless (equal? (body) '(document "alpine" "alpha" "alpha"))
+  (error "Alphabetical completion order selected the wrong candidate"))
+
+(set-preference "text autocompletion sorting" "frequency")
+(reset '("alpha" "alpine" "alpine" "alpine" "al"))
+(start)
+(key-press-complete "return")
+(unless (equal? (body)
+                '(document "alpha" "alpine" "alpine" "alpine" "alpine"))
+  (error "Frequency completion order selected the wrong candidate"))
+
+;; Acceptance can be restricted to Enter or Tab. A disabled acceptance key
+;; returns false after closing completion so normal keyboard handling may run.
+(set-preference "text autocompletion accept key" "enter")
+(reset '("alpha" "al"))
+(start)
+(when (key-press-complete "tab")
+  (error "Tab accepted completion in Enter-only mode"))
+(unless (equal? (body) '(document "alpha" "al"))
+  (error "Rejected Tab changed the completion text"))
+(start)
+(unless (key-press-complete "return")
+  (error "Enter did not accept completion in Enter-only mode"))
+(unless (equal? (body) '(document "alpha" "alpha"))
+  (error "Enter-only completion accepted the wrong text"))
+
+(set-preference "text autocompletion accept key" "tab")
+(reset '("alpha" "al"))
+(start)
+(when (key-press-complete "return")
+  (error "Enter accepted completion in Tab-only mode"))
+(unless (equal? (body) '(document "alpha" "al"))
+  (error "Rejected Enter changed the completion text"))
+(start)
+(unless (key-press-complete "tab")
+  (error "Tab did not accept completion in Tab-only mode"))
+(unless (equal? (body) '(document "alpha" "alpha"))
+  (error "Tab-only completion accepted the wrong text"))
+
+(set-preference "text autocompletion sorting" "alphabetical")
+(set-preference "text autocompletion accept key" "both")
+
 (reset '("alpha" "alpine" "al"))
 (start)
 (unless (equal? (body) '(document "alpha" "alpine" "al"))

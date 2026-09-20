@@ -1344,6 +1344,14 @@ QTMPreferencesDialog::buildEditingPage () {
   add_toggle (t, "Check spelling as you type:", "live spell checking");
   add_toggle (t, "Show autocompletion while typing:",
               "realtime text autocompletion");
+  add_combo (t, "Autocompletion order:", "text autocompletion sorting",
+             {{"frequency", "Frequency in buffer"},
+              {"alphabetical", "Alphabetical"}},
+             "alphabetical");
+  add_combo (t, "Accept autocompletion with:",
+             "text autocompletion accept key",
+             {{"enter", "Enter"}, {"tab", "Tab"}, {"both", "Both"}},
+             "both");
   add_toggle (t, "Disable UNIX primary selection:",
               "disable unix primary selection");
   add_combo (t, "Document updates run:", "document update times",

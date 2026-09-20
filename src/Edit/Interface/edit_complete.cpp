@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "edit_interface.hpp"
+#include "hashmap.hpp"
 #include "hashset.hpp"
 #include "analyze.hpp"
 #include "scheme.hpp"
@@ -24,7 +25,8 @@
 
 static void
 find_completions (
-  drd_info drd, tree t, hashset<string>& h, string prefix= "")
+  drd_info drd, tree t, hashset<string>& h, hashmap<string,int>& frequencies,
+  string prefix= "")
 {
   if (is_atomic (t)) {
     string s= t->label;
@@ -34,8 +36,10 @@ find_completions (
         int start= i;
         while ((i<n) && (is_iso_alpha (s[i]))) i++;
         string r= s (start, i);
-        if (starts (r, prefix) && (r != prefix))
-          h->insert (r (N(prefix), N(r)));
+        if (starts (r, prefix) && (r != prefix)) {
+          h->insert (r);
+          frequencies (r)= frequencies[r] + 1;
+        }
       }
       else skip_symbol (s, i);
     }
@@ -44,15 +48,34 @@ find_completions (
     int i, n= N(t);
     for (i=0; i<n; i++)
       if (drd->is_accessible_child (t, i))
-        find_completions (drd, t[i], h, prefix);
+        find_completions (drd, t[i], h, frequencies, prefix);
   }
 }
 
 static array<string>
 find_completions (drd_info drd, tree t, string prefix= "") {
   hashset<string> h;
-  find_completions (drd, t, h, prefix);
-  return as_completions (h);
+  hashmap<string,int> frequencies (0);
+  find_completions (drd, t, h, frequencies, prefix);
+  array<string> words= as_completions (h);
+  if (get_preference ("text autocompletion sorting", "alphabetical") ==
+      "frequency") {
+    // words is initially alphabetical. Stable insertion by descending count
+    // therefore keeps alphabetical order for equal-frequency candidates.
+    for (int i= 1; i < N(words); ++i) {
+      string word= words[i];
+      int count= frequencies[word];
+      int j= i;
+      while (j > 0 && frequencies[words[j - 1]] < count) {
+        words[j]= words[j - 1];
+        --j;
+      }
+      words[j]= word;
+    }
+  }
+  for (int i= 0; i < N(words); ++i)
+    words[i]= words[i] (N(prefix), N(words[i]));
+  return words;
 }
 
 /******************************************************************************
@@ -166,7 +189,12 @@ edit_interface_rep::complete_choose (std::uint64_t session, int index) {
 bool
 edit_interface_rep::complete_keypress (string key) {
   if (input_mode != INPUT_COMPLETE || N(completions) == 0) return false;
-  if (key == "tab" || key == "return" || key == "enter") {
+  string accept= get_preference ("text autocompletion accept key", "both");
+  if (accept != "enter" && accept != "tab" && accept != "both") accept= "both";
+  bool accept_tab= key == "tab" && (accept == "tab" || accept == "both");
+  bool accept_enter= (key == "return" || key == "enter") &&
+                     (accept == "enter" || accept == "both");
+  if (accept_tab || accept_enter) {
     complete_choose (completion_session, completion_pos);
     return true;
   }

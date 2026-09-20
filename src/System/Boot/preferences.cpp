@@ -261,6 +261,8 @@ ensure_builtin_user_preferences () {
     PREF ("document update times", "1", "notify-doc-update-times"),
     PREF ("live spell checking", "off", ""),
     PREF ("realtime text autocompletion", "on", ""),
+    PREF ("text autocompletion sorting", "alphabetical", ""),
+    PREF ("text autocompletion accept key", "both", ""),
     PREF ("custom dictionary import language", "english", ""),
     PREF ("allow-blank-match", "on", ""),
     PREF ("allow-initial-match", "on", ""),
