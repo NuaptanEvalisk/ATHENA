@@ -316,6 +316,9 @@ public:
   virtual void   commit_native_drawing_gesture (
     native_drawing_tool tool, const native_ink_sample* samples,
     std::size_t count) = 0;
+  virtual void   commit_native_drawing_transform (
+    native_drawing_transform transform,
+    const native_ink_sample* samples, std::size_t count) = 0;
   virtual void   commit_native_ink_stroke (const native_ink_sample* samples,
                                            std::size_t count) = 0;
   virtual bool   native_ink_cursor_mode () = 0;

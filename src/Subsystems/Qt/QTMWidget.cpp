@@ -45,6 +45,8 @@
 #include <QActionGroup>
 #include <QIcon>
 #include <QMenu>
+#include <QPolygonF>
+#include <QTransform>
 #include <QApplication>
 #include <QInputMethod>
 #include <QNativeGestureEvent>
@@ -434,14 +436,213 @@ QTMWidget::drawNativeDrawingSelection (QPainter& p) {
   pen.setWidthF (1.5);
   pen.setStyle (Qt::DashLine);
   p.setPen (pen);
+  QTransform preview;
+  bool transformed= nativeSelectionTransformActive ||
+                    nativeSelectionTransformAwaitingCommit;
+  if (transformed) preview= nativeDrawingSelectionPreviewTransform ();
+  QRectF unionRect;
+  bool haveUnion= false;
   for (const auto& box: boxes) {
     QPoint first= to_qpoint (coord2 (box.x1, box.y1)) - origin ();
     QPoint second= to_qpoint (coord2 (box.x2, box.y2)) - origin ();
-    QRect rect (first, second);
-    rect= rect.normalized ().adjusted (-3, -3, 3, 3);
-    p.drawRoundedRect (rect, 3, 3);
+    QRectF rawRect {QPointF (first), QPointF (second)};
+    rawRect= rawRect.normalized ();
+    QRectF rect= rawRect.adjusted (-3.0, -3.0, 3.0, 3.0);
+    unionRect= haveUnion ? unionRect.united (rawRect) : rawRect;
+    haveUnion= true;
+    if (transformed) {
+      QPolygonF poly;
+      poly << rect.topLeft () << rect.topRight () << rect.bottomRight ()
+           << rect.bottomLeft () << rect.topLeft ();
+      p.drawPolyline (preview.map (poly));
+    }
+    else p.drawRoundedRect (rect, 3, 3);
+  }
+  if (!haveUnion) {
+    p.restore ();
+    return;
+  }
+  if (!transformed) {
+    if (boxes.size () > 1) p.drawRoundedRect (unionRect, 4, 4);
+    p.setBrush (QColor (255, 255, 255, 235));
+    const qreal half= 4.0;
+    const QPointF corners[]= {
+      unionRect.topLeft (), unionRect.topRight (),
+      unionRect.bottomRight (), unionRect.bottomLeft ()
+    };
+    for (const QPointF& c: corners)
+      p.drawRect (QRectF (c.x () - half, c.y () - half,
+                          2.0 * half, 2.0 * half));
+    QPointF top= QPointF (unionRect.center ().x (), unionRect.top ());
+    QPointF rotate= top + QPointF (0.0, -24.0);
+    p.drawLine (top, rotate);
+    p.drawEllipse (rotate, 5.0, 5.0);
   }
   p.restore ();
+}
+
+QRectF
+QTMWidget::nativeDrawingSelectionRect () {
+  if (is_nil (tmwid)) return QRectF ();
+  std::vector<native_drawing_selection_box> boxes=
+    tm_widget ()->handle_native_drawing_selection ();
+  QRectF result;
+  bool found= false;
+  for (const auto& box: boxes) {
+    QPoint first= to_qpoint (coord2 (box.x1, box.y1)) - origin ();
+    QPoint second= to_qpoint (coord2 (box.x2, box.y2)) - origin ();
+    QRectF rect {QPointF (first), QPointF (second)};
+    rect= rect.normalized ();
+    result= found ? result.united (rect) : rect;
+    found= true;
+  }
+  return found ? result : QRectF ();
+}
+
+bool
+QTMWidget::nativeDrawingSelectionHitTest (
+  const QPointF& pos, native_drawing_transform& transform,
+  int& scaleCorner) {
+  scaleCorner= -1;
+  if (is_nil (tmwid) ||
+      tm_widget ()->handle_native_drawing_tool () != native_drawing_tool::lasso)
+    return false;
+  QRectF rect= nativeDrawingSelectionRect ();
+  if (!rect.isValid () || rect.isEmpty ()) return false;
+
+  QPointF rotate (rect.center ().x (), rect.top () - 24.0);
+  if (QLineF (pos, rotate).length () <= 9.0) {
+    transform= native_drawing_transform::rotate;
+    return true;
+  }
+
+  const QPointF corners[]= {
+    rect.topLeft (), rect.topRight (), rect.bottomRight (), rect.bottomLeft ()
+  };
+  for (int i=0; i<4; ++i) {
+    QRectF hit (corners[i].x () - 8.0, corners[i].y () - 8.0, 16.0, 16.0);
+    if (hit.contains (pos)) {
+      transform= native_drawing_transform::scale;
+      scaleCorner= i;
+      return true;
+    }
+  }
+  if (rect.adjusted (-2.0, -2.0, 2.0, 2.0).contains (pos)) {
+    transform= native_drawing_transform::move;
+    return true;
+  }
+  return false;
+}
+
+bool
+QTMWidget::beginNativeDrawingSelectionTransform (
+  const QPointF& pos, SI x, SI y, bool tablet) {
+  native_drawing_transform transform;
+  int corner= -1;
+  if (!nativeDrawingSelectionHitTest (pos, transform, corner)) return false;
+  nativeSelectionTransformActive= true;
+  nativeSelectionTransformTablet= tablet;
+  nativeSelectionTransformAwaitingCommit= false;
+  nativeSelectionTransformKind= transform;
+  nativeSelectionScaleCorner= corner;
+  nativeSelectionBaseRect= nativeDrawingSelectionRect ();
+  nativeSelectionTransformStart= pos;
+  nativeSelectionTransformCurrent= pos;
+  nativeSelectionTransformStartSample= native_ink_sample ();
+  nativeSelectionTransformStartSample.x= x;
+  nativeSelectionTransformStartSample.y= y;
+  nativeSelectionTransformCurrentSample= nativeSelectionTransformStartSample;
+  if (surface () != nullptr) surface ()->update ();
+  return true;
+}
+
+void
+QTMWidget::updateNativeDrawingSelectionTransform (
+  const QPointF& pos, SI x, SI y) {
+  if (!nativeSelectionTransformActive) return;
+  nativeSelectionTransformCurrent= pos;
+  nativeSelectionTransformCurrentSample.x= x;
+  nativeSelectionTransformCurrentSample.y= y;
+  if (surface () != nullptr) surface ()->update ();
+}
+
+void
+QTMWidget::finishNativeDrawingSelectionTransform (
+  const QPointF& pos, SI x, SI y) {
+  if (!nativeSelectionTransformActive) return;
+  updateNativeDrawingSelectionTransform (pos, x, y);
+  QPointF delta= nativeSelectionTransformCurrent - nativeSelectionTransformStart;
+  if (delta.x () * delta.x () + delta.y () * delta.y () < 0.25) {
+    clearNativeDrawingSelectionTransform ();
+    return;
+  }
+  native_ink_sample samples[2]= {
+    nativeSelectionTransformStartSample,
+    nativeSelectionTransformCurrentSample
+  };
+  bool submitted= tm_widget ()->handle_native_drawing_transform (
+    nativeSelectionTransformKind, samples, 2);
+  nativeSelectionTransformActive= false;
+  nativeSelectionTransformTablet= false;
+  if (!submitted) {
+    clearNativeDrawingSelectionTransform ();
+    return;
+  }
+  nativeSelectionTransformAwaitingCommit= true;
+  nativeSelectionCommitBufferGeneration= renderedBufferGeneration;
+  nativeSelectionCommitFrameGeneration= renderedFrameGeneration;
+  if (surface () != nullptr) surface ()->update ();
+}
+
+void
+QTMWidget::clearNativeDrawingSelectionTransform () {
+  nativeSelectionTransformActive= false;
+  nativeSelectionTransformTablet= false;
+  nativeSelectionTransformAwaitingCommit= false;
+  nativeSelectionScaleCorner= -1;
+  nativeSelectionBaseRect= QRectF ();
+  if (surface () != nullptr) surface ()->update ();
+}
+
+QTransform
+QTMWidget::nativeDrawingSelectionPreviewTransform () const {
+  QTransform result;
+  if (!nativeSelectionBaseRect.isValid () || nativeSelectionBaseRect.isEmpty ())
+    return result;
+  switch (nativeSelectionTransformKind) {
+  case native_drawing_transform::move: {
+    QPointF d= nativeSelectionTransformCurrent - nativeSelectionTransformStart;
+    result.translate (d.x (), d.y ());
+    break;
+  }
+  case native_drawing_transform::scale: {
+    const QPointF corners[]= {
+      nativeSelectionBaseRect.topLeft (), nativeSelectionBaseRect.topRight (),
+      nativeSelectionBaseRect.bottomRight (), nativeSelectionBaseRect.bottomLeft ()
+    };
+    int corner= std::clamp (nativeSelectionScaleCorner, 0, 3);
+    QPointF anchor= corners[(corner + 2) % 4];
+    double oldDistance= QLineF (anchor, nativeSelectionTransformStart).length ();
+    double newDistance= QLineF (anchor, nativeSelectionTransformCurrent).length ();
+    double factor= oldDistance > 1.0e-6 ? newDistance / oldDistance : 1.0;
+    factor= std::clamp (factor, 0.05, 20.0);
+    result.translate (anchor.x (), anchor.y ());
+    result.scale (factor, factor);
+    result.translate (-anchor.x (), -anchor.y ());
+    break;
+  }
+  case native_drawing_transform::rotate: {
+    QPointF center= nativeSelectionBaseRect.center ();
+    QPointF a= nativeSelectionTransformStart - center;
+    QPointF b= nativeSelectionTransformCurrent - center;
+    double angle= std::atan2 (b.y (), b.x ()) - std::atan2 (a.y (), a.x ());
+    result.translate (center.x (), center.y ());
+    result.rotateRadians (angle);
+    result.translate (-center.x (), -center.y ());
+    break;
+  }
+  }
+  return result;
 }
 
 void
@@ -565,6 +766,11 @@ QTMWidget::presentLatestRenderedFrame (bool requestPaint) {
        (bufferGeneration == nativeInkCommitBufferGeneration &&
         frameGeneration > nativeInkCommitFrameGeneration)))
     clearNativeInkPreview ();
+  if (nativeSelectionTransformAwaitingCommit &&
+      (bufferGeneration > nativeSelectionCommitBufferGeneration ||
+       (bufferGeneration == nativeSelectionCommitBufferGeneration &&
+        frameGeneration > nativeSelectionCommitFrameGeneration)))
+    clearNativeDrawingSelectionTransform ();
   if (!requestPaint) return;
 
   double ratio= surface ()->devicePixelRatio ();
@@ -1275,6 +1481,16 @@ QTMWidget::mousePressEvent (QMouseEvent* event) {
     event->accept ();
     return;
   }
+  if (nativeSelectionTransformActive && nativeSelectionTransformTablet) {
+    event->accept ();
+    return;
+  }
+  if (event->button () == Qt::LeftButton &&
+      beginNativeDrawingSelectionTransform (
+        event->position (), pt.x1, pt.x2, false)) {
+    event->accept ();
+    return;
+  }
   if (event->button () == Qt::LeftButton &&
       beginNativeInk (event->position (), pt.x1, pt.x2,
                       static_cast<double> (texmacs_time ()), 1.0,
@@ -1302,6 +1518,16 @@ QTMWidget::mouseReleaseEvent (QMouseEvent* event) {
     event->accept ();
     return;
   }
+  if (nativeSelectionTransformActive && nativeSelectionTransformTablet) {
+    event->accept ();
+    return;
+  }
+  if (nativeSelectionTransformActive && event->button () == Qt::LeftButton) {
+    finishNativeDrawingSelectionTransform (
+      event->position (), pt.x1, pt.x2);
+    event->accept ();
+    return;
+  }
   if (nativeInkActive && event->button () == Qt::LeftButton) {
     appendNativeInk (event->position (), pt.x1, pt.x2,
                      static_cast<double> (texmacs_time ()), 1.0,
@@ -1323,6 +1549,12 @@ QTMWidget::mouseMoveEvent (QMouseEvent* event) {
   QPointF localPoint= event->position ();
   QPoint point = event->pos() + origin();
   coord2 pt = from_qpoint(point);
+  if (nativeSelectionTransformActive) {
+    if (!nativeSelectionTransformTablet)
+      updateNativeDrawingSelectionTransform (localPoint, pt.x1, pt.x2);
+    event->accept ();
+    return;
+  }
   if (nativeInkActive) {
     if (!nativeInkTablet)
       appendNativeInk (localPoint, pt.x1, pt.x2,
@@ -1332,11 +1564,27 @@ QTMWidget::mouseMoveEvent (QMouseEvent* event) {
     return;
   }
   if (event->buttons () == Qt::NoButton) {
-    native_ink_preview_style hoverStyle;
-    if (tm_widget ()->handle_native_ink_hit (pt.x1, pt.x2, hoverStyle)) {
+    native_drawing_transform transform;
+    int scaleCorner= -1;
+    if (nativeDrawingSelectionHitTest (localPoint, transform, scaleCorner)) {
+      if (transform == native_drawing_transform::move)
+        surface ()->setCursor (Qt::SizeAllCursor);
+      else if (transform == native_drawing_transform::rotate)
+        surface ()->setCursor (Qt::CrossCursor);
+      else if (scaleCorner == 0 || scaleCorner == 2)
+        surface ()->setCursor (Qt::SizeFDiagCursor);
+      else
+        surface ()->setCursor (Qt::SizeBDiagCursor);
       event->accept ();
       return;
     }
+    native_ink_preview_style hoverStyle;
+    if (tm_widget ()->handle_native_ink_hit (pt.x1, pt.x2, hoverStyle)) {
+      surface ()->setCursor (Qt::CrossCursor);
+      event->accept ();
+      return;
+    }
+    surface ()->unsetCursor ();
   }
   unsigned int mstate = mouse_state (event, false);
   string s = "move";
@@ -1427,6 +1675,19 @@ QTMWidget::tabletEvent (QTabletEvent* event) {
   coord2 pt= coord2 ((SI) (x * PIXEL), (SI) (-y * PIXEL));
   bool release= event->type () == QEvent::TabletRelease ||
                 event->pressure () <= 0.0;
+  if (!nativeSelectionTransformActive && !release &&
+      beginNativeDrawingSelectionTransform (
+        localPreview, pt.x1, pt.x2, true)) {
+    event->accept ();
+    return;
+  }
+  if (nativeSelectionTransformActive && nativeSelectionTransformTablet) {
+    updateNativeDrawingSelectionTransform (localPreview, pt.x1, pt.x2);
+    if (release)
+      finishNativeDrawingSelectionTransform (localPreview, pt.x1, pt.x2);
+    event->accept ();
+    return;
+  }
   if (!nativeInkActive && release && event->buttons () == Qt::NoButton) {
     native_ink_preview_style hoverStyle;
     if (tm_widget ()->handle_native_ink_hit (pt.x1, pt.x2, hoverStyle)) {

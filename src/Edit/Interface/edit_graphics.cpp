@@ -15,6 +15,7 @@
 #include "curve.hpp"
 #include "Boxes/graphics.hpp"
 #include "Bridge/impl_typesetter.hpp"
+#include "Concat/graphics_transform.hpp"
 #include "colors.hpp"
 #include "drd_std.hpp"
 #include "new_document.hpp"
@@ -212,27 +213,59 @@ native_point_in_polygon (native_xy p, const std::vector<native_xy>& polygon) {
 }
 
 tree
-native_penscript_radical (tree object) {
+native_graphics_radical (tree object, std::vector<frame>* transforms= nullptr) {
   tree radical= object;
-  while (is_func (radical, WITH) && N(radical) >= 1)
-    radical= radical[N(radical) - 1];
+  while (true) {
+    if (is_func (radical, WITH) && N(radical) >= 1) {
+      radical= radical[N(radical) - 1];
+      continue;
+    }
+    if (is_func (radical, GR_TRANSFORM, 2) &&
+        is_transformation (radical[1])) {
+      if (transforms != nullptr)
+        transforms->push_back (get_transformation (radical[1]));
+      radical= radical[0];
+      continue;
+    }
+    break;
+  }
   return radical;
 }
 
 tree
+native_penscript_radical (tree object) {
+  return native_graphics_radical (object, nullptr);
+}
+
+tree
 native_replace_radical (tree object, tree radical) {
-  if (!is_func (object, WITH) || N(object) < 1) return radical;
-  tree result= copy (object);
-  int last= N(result) - 1;
-  result[last]= native_replace_radical (result[last], radical);
-  return result;
+  if (is_func (object, WITH) && N(object) >= 1) {
+    tree result= copy (object);
+    int last= N(result) - 1;
+    result[last]= native_replace_radical (result[last], radical);
+    return result;
+  }
+  if (is_func (object, GR_TRANSFORM, 2)) {
+    tree result= copy (object);
+    result[0]= native_replace_radical (result[0], radical);
+    return result;
+  }
+  return radical;
+}
+
+point
+native_apply_post_transforms (point p, std::vector<frame>& transforms) {
+  for (auto it= transforms.rbegin (); it != transforms.rend (); ++it)
+    p= (*it) (p);
+  return p;
 }
 
 bool
 native_penscript_screen_points (tree object, frame f,
                                 std::vector<native_xy>& points,
                                 tree* radical_out= nullptr) {
-  tree stroke= native_penscript_radical (object);
+  std::vector<frame> transforms;
+  tree stroke= native_graphics_radical (object, &transforms);
   if (!is_func (stroke, PENSCRIPT) || N(stroke) < 4 ||
       !is_func (stroke[3], TUPLE))
     return false;
@@ -245,6 +278,7 @@ native_penscript_screen_points (tree object, frame f,
       continue;
     point p= f (point (as_double (sample[0]->label),
                        as_double (sample[1]->label)));
+    p= native_apply_post_transforms (p, transforms);
     if (N(p) >= 2) points.push_back ({p[0], p[1]});
   }
   if (radical_out != nullptr) *radical_out= stroke;
@@ -252,17 +286,37 @@ native_penscript_screen_points (tree object, frame f,
 }
 
 void
-native_collect_graphics_points (tree t, frame f,
-                                std::vector<native_xy>& points) {
+native_collect_graphics_points_impl (
+  tree t, frame f, std::vector<frame>& transforms,
+  std::vector<native_xy>& points) {
+  if (is_func (t, WITH) && N(t) >= 1) {
+    native_collect_graphics_points_impl (
+      t[N(t)-1], f, transforms, points);
+    return;
+  }
+  if (is_func (t, GR_TRANSFORM, 2) && is_transformation (t[1])) {
+    transforms.push_back (get_transformation (t[1]));
+    native_collect_graphics_points_impl (t[0], f, transforms, points);
+    transforms.pop_back ();
+    return;
+  }
   if (is_func (t, _POINT) && N(t) >= 2 &&
       is_atomic (t[0]) && is_atomic (t[1])) {
     point p= f (point (as_double (t[0]->label), as_double (t[1]->label)));
+    p= native_apply_post_transforms (p, transforms);
     if (N(p) >= 2) points.push_back ({p[0], p[1]});
     return;
   }
   if (is_atomic (t)) return;
   for (int i=0; i<N(t); ++i)
-    native_collect_graphics_points (t[i], f, points);
+    native_collect_graphics_points_impl (t[i], f, transforms, points);
+}
+
+void
+native_collect_graphics_points (tree t, frame f,
+                                std::vector<native_xy>& points) {
+  std::vector<frame> transforms;
+  native_collect_graphics_points_impl (t, f, transforms, points);
 }
 
 bool
@@ -889,6 +943,8 @@ edit_graphics_rep::refresh_native_ink_interaction () {
     native_ink_interaction_dirty_= false;
     if (native_ink_paths_.empty ()) {
       ui_endpoint->update_native_ink_regions ({});
+      native_drawing_selection_paths_.clear ();
+      ui_endpoint->update_native_drawing_selection ({});
       return;
     }
   }
@@ -907,6 +963,7 @@ edit_graphics_rep::refresh_native_ink_interaction () {
     regions.push_back (region);
   }
   ui_endpoint->update_native_ink_regions (std::move (regions));
+  refresh_native_drawing_selection_snapshot ();
 }
 
 bool
@@ -935,8 +992,13 @@ edit_graphics_rep::native_drawing_object_bounds (
       bounds.y2= (SI) std::ceil (y2 + pad);
       return true;
     }
+    tree radical= native_graphics_radical (node, nullptr);
+    bool use_typeset_bounds=
+      is_func (radical, TEXT_AT) || is_func (radical, MATH_AT) ||
+      is_func (radical, DOCUMENT_AT);
     std::vector<native_xy> object_points;
-    native_collect_graphics_points (node, object_frame, object_points);
+    if (!use_typeset_bounds)
+      native_collect_graphics_points (node, object_frame, object_points);
     if (!object_points.empty ()) {
       double x1= object_points[0].x, x2= object_points[0].x;
       double y1= object_points[0].y, y2= object_points[0].y;
@@ -954,10 +1016,19 @@ edit_graphics_rep::native_drawing_object_bounds (
     }
   }
   path anchor= copy (object);
-  while (is_func (node, WITH) && N(node) > 0) {
-    int last= N(node) - 1;
-    anchor= anchor * last;
-    node= node[last];
+  while (true) {
+    if (is_func (node, WITH) && N(node) > 0) {
+      int last= N(node) - 1;
+      anchor= anchor * last;
+      node= node[last];
+      continue;
+    }
+    if (is_func (node, GR_TRANSFORM, 2)) {
+      anchor= anchor * 0;
+      node= node[0];
+      continue;
+    }
+    break;
   }
   if (!is_atomic (node) && N(node) > 0) anchor= anchor * 0;
   bool found= false;
@@ -979,20 +1050,138 @@ edit_graphics_rep::native_drawing_object_bounds (
   return true;
 }
 
+bool
+edit_graphics_rep::native_drawing_selection_bounds (
+  native_drawing_selection_box& bounds) {
+  bool found= false;
+  for (const path& p: native_drawing_selection_paths_) {
+    if (!has_subtree (et, p)) continue;
+    native_drawing_selection_box box;
+    if (!native_drawing_object_bounds (p, box)) return false;
+    if (!found) {
+      bounds= box;
+      found= true;
+    }
+    else {
+      bounds.x1= min (bounds.x1, box.x1);
+      bounds.y1= min (bounds.y1, box.y1);
+      bounds.x2= max (bounds.x2, box.x2);
+      bounds.y2= max (bounds.y2, box.y2);
+    }
+  }
+  return found;
+}
+
 void
 edit_graphics_rep::refresh_native_drawing_selection_snapshot () {
   if (ui_endpoint == nullptr) return;
+  if (native_drawing_selection_paths_.empty ()) {
+    ui_endpoint->update_native_drawing_selection ({});
+    return;
+  }
   std::vector<native_drawing_selection_box> boxes;
   std::vector<path> valid;
   for (const path& p: native_drawing_selection_paths_) {
     native_drawing_selection_box box;
-    if (has_subtree (et, p) && native_drawing_object_bounds (p, box)) {
-      valid.push_back (copy (p));
-      boxes.push_back (box);
-    }
+    if (!has_subtree (et, p)) continue;
+    valid.push_back (copy (p));
+    if (!native_drawing_object_bounds (p, box)) return;
+    boxes.push_back (box);
   }
   native_drawing_selection_paths_= std::move (valid);
   ui_endpoint->update_native_drawing_selection (std::move (boxes));
+}
+
+void
+edit_graphics_rep::commit_native_drawing_transform (
+  native_drawing_transform transform,
+  const native_ink_sample* samples, std::size_t count) {
+  if (samples == nullptr || count < 2 ||
+      native_drawing_selection_paths_.empty ())
+    return;
+
+  path gp= path_up (native_drawing_selection_paths_.front ());
+  if (is_nil (gp) || !has_subtree (et, gp) ||
+      !is_func (subtree (et, gp), GRAPHICS))
+    return;
+  for (const path& p: native_drawing_selection_paths_)
+    if (path_up (p) != gp || !has_subtree (et, p)) return;
+
+  native_drawing_selection_box bounds;
+  if (!native_drawing_selection_bounds (bounds)) return;
+
+  tree transform_spec (TUPLE);
+  switch (transform) {
+  case native_drawing_transform::move: {
+    double dx= (double) samples[count-1].x - (double) samples[0].x;
+    double dy= (double) samples[count-1].y - (double) samples[0].y;
+    if (std::hypot (dx, dy) <= 1.0e-12) return;
+    transform_spec << "translation" << as_string (dx) << as_string (dy);
+    break;
+  }
+  case native_drawing_transform::scale: {
+    native_xy corners[4]= {
+      {(double) bounds.x1, (double) bounds.y1},
+      {(double) bounds.x2, (double) bounds.y1},
+      {(double) bounds.x2, (double) bounds.y2},
+      {(double) bounds.x1, (double) bounds.y2}
+    };
+    int nearest= 0;
+    double best= std::numeric_limits<double>::infinity ();
+    for (int i=0; i<4; ++i) {
+      double dx= corners[i].x - samples[0].x;
+      double dy= corners[i].y - samples[0].y;
+      double d2= dx * dx + dy * dy;
+      if (d2 < best) { best= d2; nearest= i; }
+    }
+    native_xy anchor_screen_xy= corners[(nearest + 2) % 4];
+    double old_distance= std::hypot (
+      (double) samples[0].x - anchor_screen_xy.x,
+      (double) samples[0].y - anchor_screen_xy.y);
+    double new_distance= std::hypot (
+      (double) samples[count-1].x - anchor_screen_xy.x,
+      (double) samples[count-1].y - anchor_screen_xy.y);
+    if (!(old_distance > 1.0e-12) || !std::isfinite (new_distance)) return;
+    double factor= new_distance / old_distance;
+    factor= std::max (0.05, std::min (20.0, factor));
+    if (std::fabs (factor - 1.0) <= 1.0e-9) return;
+    transform_spec << "scaling"
+                   << tree (_POINT, as_string (anchor_screen_xy.x),
+                            as_string (anchor_screen_xy.y))
+                   << as_string (factor) << as_string (factor);
+    break;
+  }
+  case native_drawing_transform::rotate: {
+    double cx= 0.5 * ((double) bounds.x1 + (double) bounds.x2);
+    double cy= 0.5 * ((double) bounds.y1 + (double) bounds.y2);
+    double sx= (double) samples[0].x - cx;
+    double sy= (double) samples[0].y - cy;
+    double ex= (double) samples[count-1].x - cx;
+    double ey= (double) samples[count-1].y - cy;
+    if (std::hypot (sx, sy) <= 1.0e-12 ||
+        std::hypot (ex, ey) <= 1.0e-12)
+      return;
+    double angle= std::atan2 (ey, ex) - std::atan2 (sy, sx);
+    while (angle > M_PI) angle -= 2.0 * M_PI;
+    while (angle < -M_PI) angle += 2.0 * M_PI;
+    if (std::fabs (angle) <= 1.0e-9) return;
+    double degrees= angle * 57.2957795130823208768;
+    transform_spec << "rotation"
+                   << tree (_POINT, as_string (cx), as_string (cy))
+                   << as_string (degrees);
+    break;
+  }
+  }
+
+  start_editing ();
+  for (const path& p: native_drawing_selection_paths_) {
+    tree wrapped (GR_TRANSFORM);
+    wrapped << copy (subtree (et, p)) << copy (transform_spec);
+    assign (p, wrapped);
+  }
+  end_editing ();
+  mark_native_ink_interaction_dirty ();
+  invalidate_all ();
 }
 
 void

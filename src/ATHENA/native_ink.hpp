@@ -22,6 +22,12 @@ enum class native_drawing_tool: std::uint8_t {
   lasso
 };
 
+enum class native_drawing_transform: std::uint8_t {
+  move= 0,
+  scale,
+  rotate
+};
+
 struct native_drawing_selection_box {
   SI x1= 0;
   SI y1= 0;

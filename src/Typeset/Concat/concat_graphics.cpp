@@ -16,6 +16,7 @@
 #include "analyze.hpp"
 #include "scheme.hpp"
 #include "matrix.hpp"
+#include "graphics_transform.hpp"
 
 #define BEGIN_MAGNIFY                                           \
   tree new_mag= as_string (env->magn * env->mgfy);              \
@@ -127,6 +128,14 @@ is_transformation (tree t) {
       is_double (t[1]) &&
       is_double (t[2]))
     return true;
+  if (is_tuple (t, "scaling", 3) &&
+      is_func (t[1], _POINT, 2) &&
+      is_double (t[1][0]) && is_double (t[1][1]) &&
+      is_double (t[2]) && is_double (t[3]))
+    return true;
+  if (is_tuple (t, "translation", 2) &&
+      is_double (t[1]) && is_double (t[2]))
+    return true;
   if (is_tuple (t, "slanting", 1) &&
       is_double (t[1]))
     return true;
@@ -148,6 +157,16 @@ get_transformation (tree t) {
   if (is_tuple (t, "scaling", 2))
     return scaling (point (as_double (t[1]), as_double (t[2])),
                     point (0.0, 0.0));
+  if (is_tuple (t, "scaling", 3)) {
+    point center= as_point (t[1]);
+    point magnify (as_double (t[2]), as_double (t[3]));
+    point shift (center[0] - magnify[0] * center[0],
+                 center[1] - magnify[1] * center[1]);
+    return scaling (magnify, shift);
+  }
+  if (is_tuple (t, "translation", 2))
+    return scaling (point (1.0, 1.0),
+                    point (as_double (t[1]), as_double (t[2])));
   if (is_tuple (t, "slanting", 1))
     return slanting (point (0.0, 0.0), as_double (t[1]));
   if (is_tuple (t, "linear", 4)) {

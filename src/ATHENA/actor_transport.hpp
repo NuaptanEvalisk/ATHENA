@@ -64,6 +64,7 @@ enum class actor_command_kind: std::uint32_t {
   mouse,
   set_native_drawing_tool,
   native_ink_stroke,
+  native_drawing_transform,
   set_zoom,
   change_zoom,
   zoom_by,

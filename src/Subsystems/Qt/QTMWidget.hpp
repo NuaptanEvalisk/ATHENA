@@ -147,6 +147,19 @@ private:
   bool nativeInkTablet= false;
   bool nativeInkAwaitingCommit= false;
   bool nativeDrawingRightClickConsumed= false;
+  bool nativeSelectionTransformActive= false;
+  bool nativeSelectionTransformTablet= false;
+  bool nativeSelectionTransformAwaitingCommit= false;
+  native_drawing_transform nativeSelectionTransformKind=
+    native_drawing_transform::move;
+  int nativeSelectionScaleCorner= -1;
+  QRectF nativeSelectionBaseRect;
+  QPointF nativeSelectionTransformStart;
+  QPointF nativeSelectionTransformCurrent;
+  native_ink_sample nativeSelectionTransformStartSample;
+  native_ink_sample nativeSelectionTransformCurrentSample;
+  std::uint64_t nativeSelectionCommitBufferGeneration= 0;
+  std::uint64_t nativeSelectionCommitFrameGeneration= 0;
   native_ink_preview_style nativeInkStyle;
   std::vector<native_ink_sample> nativeInkSamples;
   std::vector<QPointF> nativeInkPreviewPoints;
@@ -187,6 +200,16 @@ private:
   void clearNativeInkPreview ();
   void drawNativeInkPreview (QPainter& p) const;
   void drawNativeDrawingSelection (QPainter& p);
+  QRectF nativeDrawingSelectionRect ();
+  bool nativeDrawingSelectionHitTest (
+    const QPointF& pos, native_drawing_transform& transform,
+    int& scaleCorner);
+  bool beginNativeDrawingSelectionTransform (
+    const QPointF& pos, SI x, SI y, bool tablet);
+  void updateNativeDrawingSelectionTransform (const QPointF& pos, SI x, SI y);
+  void finishNativeDrawingSelectionTransform (const QPointF& pos, SI x, SI y);
+  void clearNativeDrawingSelectionTransform ();
+  QTransform nativeDrawingSelectionPreviewTransform () const;
   void showNativeDrawingContextMenu (const QPoint& globalPos);
 
 };

@@ -86,6 +86,10 @@ private slots:
   void objectEraserRemovesVectorShape ();
   void segmentEraserSplitsStrokeInOneTransaction ();
   void lassoSelectsWithoutChangingDocument ();
+  void lassoMoveCommitsOneTransform ();
+  void lassoScaleCommitsOneTransform ();
+  void lassoRotateCommitsOneTransform ();
+  void transformedStrokeRemainsSegmentErasable ();
 
 private:
   buffer_document_state* buffer= nullptr;
@@ -336,6 +340,181 @@ TestNativeInkEditor::lassoSelectsWithoutChangingDocument () {
   std::vector<native_drawing_selection_box> selected=
     endpoint->native_drawing_selection ();
   QCOMPARE ((int) selected.size (), 1);
+}
+
+static native_drawing_selection_box
+select_one_native_stroke (NativeInkTestEditorRep* editor,
+                          actor_ui_endpoint* endpoint,
+                          SI left, SI bottom, SI right, SI top) {
+  SI y= (bottom + top) / 2;
+  auto stroke= horizontal_samples (left, right, y, 7);
+  editor->commit_native_ink_stroke (stroke.data (), stroke.size ());
+  SI mx= (right-left)/20;
+  SI my= (top-bottom)/10;
+  native_ink_sample lasso[5];
+  lasso[0].x= stroke.front ().x - mx; lasso[0].y= y - my;
+  lasso[1].x= stroke.back ().x + mx; lasso[1].y= y - my;
+  lasso[2].x= stroke.back ().x + mx; lasso[2].y= y + my;
+  lasso[3].x= stroke.front ().x - mx; lasso[3].y= y + my;
+  lasso[4]= lasso[0];
+  editor->commit_native_drawing_gesture (
+    native_drawing_tool::lasso, lasso, 5);
+  std::vector<native_drawing_selection_box> selected=
+    endpoint->native_drawing_selection ();
+  if (selected.size () != 1) return native_drawing_selection_box ();
+  return selected[0];
+}
+
+void
+TestNativeInkEditor::lassoMoveCommitsOneTransform () {
+  path graphics_path;
+  SI left= 0, bottom= 0, right= 0, top= 0;
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  native_drawing_selection_box before=
+    select_one_native_stroke (editor, endpoint, left, bottom, right, top);
+  QVERIFY (before.x2 > before.x1);
+
+  SI dx= (right-left)/10;
+  SI dy= (top-bottom)/12;
+  native_ink_sample drag[2];
+  drag[0].x= (before.x1 + before.x2) / 2;
+  drag[0].y= (before.y1 + before.y2) / 2;
+  drag[1].x= drag[0].x + dx;
+  drag[1].y= drag[0].y + dy;
+  editor->commit_native_drawing_transform (
+    native_drawing_transform::move, drag, 2);
+  QVERIFY (editor->undo_possibilities () >= 1);
+
+  tree object= subtree (current_document_tree (), graphics_path * 1);
+  QVERIFY (is_func (object, GR_TRANSFORM, 2));
+  QVERIFY (is_tuple (object[1], "translation", 2));
+
+  SI tx1= 0, ty1= 0, tx2= 0, ty2= 0;
+  editor->typeset (tx1, ty1, tx2, ty2);
+  editor->refresh_native_ink_interaction ();
+  auto moved= endpoint->native_drawing_selection ();
+  QCOMPARE ((int) moved.size (), 1);
+  QVERIFY (std::abs ((moved[0].x1 - before.x1) - dx) <= 2 * PIXEL);
+  QVERIFY (std::abs ((moved[0].y1 - before.y1) - dy) <= 2 * PIXEL);
+
+  editor->go_to (buffer->root_path * 1 * 0);
+  editor->undo (0);
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), buffer->root_path), GR_TRANSFORM), 0);
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), buffer->root_path), PENSCRIPT), 1);
+}
+
+void
+TestNativeInkEditor::lassoScaleCommitsOneTransform () {
+  path graphics_path;
+  SI left= 0, bottom= 0, right= 0, top= 0;
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  native_drawing_selection_box before=
+    select_one_native_stroke (editor, endpoint, left, bottom, right, top);
+  QVERIFY (before.x2 > before.x1);
+
+  native_ink_sample drag[2];
+  drag[0].x= before.x2; drag[0].y= before.y2;
+  drag[1].x= before.x1 + (SI) std::llround (1.5 * (before.x2-before.x1));
+  drag[1].y= before.y1 + (SI) std::llround (1.5 * (before.y2-before.y1));
+  editor->commit_native_drawing_transform (
+    native_drawing_transform::scale, drag, 2);
+  tree object= subtree (current_document_tree (), graphics_path * 1);
+  QVERIFY (is_func (object, GR_TRANSFORM, 2));
+  QVERIFY (is_tuple (object[1], "scaling", 3));
+
+  SI tx1= 0, ty1= 0, tx2= 0, ty2= 0;
+  editor->typeset (tx1, ty1, tx2, ty2);
+  editor->refresh_native_ink_interaction ();
+  auto scaled= endpoint->native_drawing_selection ();
+  QCOMPARE ((int) scaled.size (), 1);
+  QVERIFY ((scaled[0].x2 - scaled[0].x1) >
+           (SI) (1.35 * (before.x2 - before.x1)));
+
+  editor->go_to (buffer->root_path * 1 * 0);
+  editor->undo (0);
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), buffer->root_path), GR_TRANSFORM), 0);
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), buffer->root_path), PENSCRIPT), 1);
+}
+
+void
+TestNativeInkEditor::lassoRotateCommitsOneTransform () {
+  path graphics_path;
+  SI left= 0, bottom= 0, right= 0, top= 0;
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  native_drawing_selection_box before=
+    select_one_native_stroke (editor, endpoint, left, bottom, right, top);
+  SI width= before.x2 - before.x1;
+  SI height= before.y2 - before.y1;
+  QVERIFY (width > height);
+  SI cx= (before.x1 + before.x2) / 2;
+  SI cy= (before.y1 + before.y2) / 2;
+  SI radius= max (width, height) / 2;
+  native_ink_sample drag[2];
+  drag[0].x= cx; drag[0].y= cy + radius;
+  drag[1].x= cx + radius; drag[1].y= cy;
+  editor->commit_native_drawing_transform (
+    native_drawing_transform::rotate, drag, 2);
+  tree object= subtree (current_document_tree (), graphics_path * 1);
+  QVERIFY (is_func (object, GR_TRANSFORM, 2));
+  QVERIFY (is_tuple (object[1], "rotation", 2));
+
+  SI tx1= 0, ty1= 0, tx2= 0, ty2= 0;
+  editor->typeset (tx1, ty1, tx2, ty2);
+  editor->refresh_native_ink_interaction ();
+  auto rotated= endpoint->native_drawing_selection ();
+  QCOMPARE ((int) rotated.size (), 1);
+  QVERIFY ((rotated[0].y2 - rotated[0].y1) >
+           (rotated[0].x2 - rotated[0].x1));
+
+  editor->go_to (buffer->root_path * 1 * 0);
+  editor->undo (0);
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), buffer->root_path), GR_TRANSFORM), 0);
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), buffer->root_path), PENSCRIPT), 1);
+}
+
+void
+TestNativeInkEditor::transformedStrokeRemainsSegmentErasable () {
+  path graphics_path;
+  SI left= 0, bottom= 0, right= 0, top= 0;
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  native_drawing_selection_box before=
+    select_one_native_stroke (editor, endpoint, left, bottom, right, top);
+  SI dx= (right-left)/12;
+  native_ink_sample move[2];
+  move[0].x= (before.x1 + before.x2) / 2;
+  move[0].y= (before.y1 + before.y2) / 2;
+  move[1].x= move[0].x + dx;
+  move[1].y= move[0].y;
+  editor->commit_native_drawing_transform (
+    native_drawing_transform::move, move, 2);
+
+  SI tx1= 0, ty1= 0, tx2= 0, ty2= 0;
+  editor->typeset (tx1, ty1, tx2, ty2);
+  editor->refresh_native_ink_interaction ();
+  auto moved= endpoint->native_drawing_selection ();
+  QCOMPARE ((int) moved.size (), 1);
+  SI cx= (moved[0].x1 + moved[0].x2) / 2;
+  SI cy= (moved[0].y1 + moved[0].y2) / 2;
+  SI half= max ((SI) (2 * PIXEL), (moved[0].y2 - moved[0].y1) * 2);
+  native_ink_sample erase[2];
+  erase[0].x= cx; erase[0].y= cy - half;
+  erase[1].x= cx; erase[1].y= cy + half;
+  editor->commit_native_drawing_gesture (
+    native_drawing_tool::segment_eraser, erase, 2);
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), buffer->root_path), PENSCRIPT), 2);
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), buffer->root_path), GR_TRANSFORM), 2);
 }
 
 static int test_status= 1;

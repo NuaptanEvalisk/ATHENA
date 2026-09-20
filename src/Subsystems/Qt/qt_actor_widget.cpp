@@ -298,6 +298,37 @@ qt_actor_widget_rep::handle_native_drawing_gesture (
 }
 
 bool
+qt_actor_widget_rep::handle_native_drawing_transform (
+  native_drawing_transform transform,
+  const native_ink_sample* samples, std::size_t count) {
+  if (samples == nullptr || count < 2 || endpoint_ == nullptr) return false;
+  if (count > (16U * 1024U * 1024U) / sizeof (native_ink_sample)) return false;
+  std::size_t bytes= count * sizeof (native_ink_sample);
+  actor_blob_reservation reservation=
+    actor_blob_registry::instance ().allocate (bytes);
+  native_ink_sample* output=
+    reinterpret_cast<native_ink_sample*> (reservation.data ());
+  double zoom= endpoint_->zoom_factor ();
+  if (!(zoom > 0.0) || !std::isfinite (zoom)) zoom= 1.0;
+  double input_scale= static_cast<double> (std_shrinkf) / zoom;
+  for (std::size_t i= 0; i < count; ++i) {
+    output[i]= samples[i];
+    output[i].x= static_cast<SI> (
+      std::llround (static_cast<double> (samples[i].x) * input_scale));
+    output[i].y= static_cast<SI> (
+      std::llround (static_cast<double> (samples[i].y) * input_scale));
+  }
+  athena_blob_id payload= reservation.publish ();
+  actor_command_ticket ticket= buffer_actor::submit_to (
+    actor_id_, actor_command_kind::native_drawing_transform, view_id_, payload,
+    ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+    static_cast<std::uint64_t> (transform),
+    static_cast<std::uint64_t> (count));
+  if (!ticket) (void) actor_blob_registry::instance ().discard (payload);
+  return static_cast<bool> (ticket);
+}
+
+bool
 qt_actor_widget_rep::handle_native_ink_stroke (
   const native_ink_sample* samples, std::size_t count) {
   return handle_native_drawing_gesture (

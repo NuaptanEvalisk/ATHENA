@@ -63,6 +63,9 @@ public:
   void   commit_native_drawing_gesture (
     native_drawing_tool tool, const native_ink_sample* samples,
     std::size_t count);
+  void   commit_native_drawing_transform (
+    native_drawing_transform transform,
+    const native_ink_sample* samples, std::size_t count);
   void   commit_native_ink_stroke (const native_ink_sample* samples,
                                    std::size_t count);
   void   collect_native_ink_graphics (tree t, path p, bool in_diagram,
@@ -75,6 +78,7 @@ public:
                             frame& coordinate_frame);
   bool   native_drawing_object_bounds (path object,
                                        native_drawing_selection_box& bounds);
+  bool   native_drawing_selection_bounds (native_drawing_selection_box& bounds);
   void   refresh_native_drawing_selection_snapshot ();
   void   erase_native_drawing_objects (const native_ink_sample* samples,
                                        std::size_t count);

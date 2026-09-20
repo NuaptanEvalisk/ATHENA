@@ -34,6 +34,7 @@ private slots:
   void retryDamageStaysInBackingPixels ();
   void nativeInkCommitsOneDetachedStroke ();
   void nativeDrawingGestureKeepsSelectedTool ();
+  void nativeLassoDragCommitsOneMoveTransform ();
 };
 
 void
@@ -165,6 +166,10 @@ public:
   int commits= 0;
   native_drawing_tool activeTool= native_drawing_tool::pen;
   native_drawing_tool committedTool= native_drawing_tool::pen;
+  int transformCommits= 0;
+  native_drawing_transform committedTransform= native_drawing_transform::move;
+  std::vector<native_ink_sample> transformed;
+  std::vector<native_drawing_selection_box> selection;
 
   void attachCanvas () { qwid= new QTMWidget (nullptr, this); }
 
@@ -183,6 +188,24 @@ public:
     ++commits;
     committedTool= tool;
     committed.assign (samples, samples + count);
+    return true;
+  }
+
+  native_drawing_tool handle_native_drawing_tool () override {
+    return activeTool;
+  }
+
+  std::vector<native_drawing_selection_box>
+  handle_native_drawing_selection () override {
+    return selection;
+  }
+
+  bool handle_native_drawing_transform (
+    native_drawing_transform transform,
+    const native_ink_sample* samples, std::size_t count) override {
+    ++transformCommits;
+    committedTransform= transform;
+    transformed.assign (samples, samples + count);
     return true;
   }
 };
@@ -276,6 +299,44 @@ TestQTMRenderService::nativeDrawingGestureKeepsSelectedTool () {
   QCOMPARE (rep->commits, 1);
   QCOMPARE (rep->committedTool, native_drawing_tool::highlighter);
   QVERIFY (rep->committed.size () >= 3);
+  delete canvas;
+}
+
+void
+TestQTMRenderService::nativeLassoDragCommitsOneMoveTransform () {
+  auto* rep= tm_new<native_ink_test_widget> ();
+  widget owner (rep);
+  rep->activeTool= native_drawing_tool::lasso;
+  native_drawing_selection_box box;
+  box.x1= 50 * PIXEL;
+  box.y1= -150 * PIXEL;
+  box.x2= 200 * PIXEL;
+  box.y2= -50 * PIXEL;
+  rep->selection.push_back (box);
+  rep->attachCanvas ();
+  QTMWidget* canvas= rep->canvas ();
+  QVERIFY (canvas != nullptr);
+  QWidget* surface= canvas->surface ();
+  QVERIFY (surface != nullptr);
+
+  auto send= [&] (QEvent::Type type, QPointF pos, Qt::MouseButton button,
+                  Qt::MouseButtons buttons) {
+    QMouseEvent event (type, pos, pos, button, buttons, Qt::NoModifier);
+    QCoreApplication::sendEvent (surface, &event);
+  };
+  send (QEvent::MouseButtonPress, QPointF (100, 100),
+        Qt::LeftButton, Qt::LeftButton);
+  send (QEvent::MouseMove, QPointF (135, 120),
+        Qt::NoButton, Qt::LeftButton);
+  send (QEvent::MouseButtonRelease, QPointF (150, 125),
+        Qt::LeftButton, Qt::NoButton);
+
+  QCOMPARE (rep->transformCommits, 1);
+  QCOMPARE (rep->committedTransform, native_drawing_transform::move);
+  QCOMPARE ((int) rep->transformed.size (), 2);
+  QVERIFY (rep->transformed[1].x > rep->transformed[0].x);
+  QVERIFY (rep->transformed[1].y < rep->transformed[0].y);
+  QCOMPARE (rep->commits, 0);
   delete canvas;
 }
 

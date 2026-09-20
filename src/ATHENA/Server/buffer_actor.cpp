@@ -758,6 +758,20 @@ buffer_actor::dispatch (actor_command_record& command) {
     else
       (void) actor_blob_registry::instance ().discard (command.payload0);
     break;
+  case actor_command_kind::native_drawing_transform:
+    if (editor != nullptr) {
+      owned_actor_blob payload=
+        actor_blob_registry::instance ().take (command.payload0);
+      std::size_t count= static_cast<std::size_t> (command.argument[1]);
+      std::size_t expected= count * sizeof (native_ink_sample);
+      if (count >= 2 && payload && payload.size () == expected)
+        editor->commit_native_drawing_transform (
+          static_cast<native_drawing_transform> (command.argument[0]),
+          reinterpret_cast<const native_ink_sample*> (payload.data ()), count);
+    }
+    else
+      (void) actor_blob_registry::instance ().discard (command.payload0);
+    break;
   case actor_command_kind::set_zoom:
     if (editor != nullptr)
       editor->handle_set_zoom_factor (argument_double (command.argument[0]));
@@ -1214,6 +1228,7 @@ buffer_actor::dispatch (actor_command_record& command) {
        command.kind == actor_command_kind::text_input ||
        command.kind == actor_command_kind::mouse ||
        command.kind == actor_command_kind::native_ink_stroke ||
+       command.kind == actor_command_kind::native_drawing_transform ||
        command.kind == actor_command_kind::replace_document ||
        command.kind == actor_command_kind::replace_body ||
        command.kind == actor_command_kind::invoke_scheme_handle ||

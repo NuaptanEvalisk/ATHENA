@@ -95,6 +95,9 @@ public:
   virtual bool handle_native_drawing_gesture (
     native_drawing_tool tool, const native_ink_sample* samples,
     std::size_t count);
+  virtual bool handle_native_drawing_transform (
+    native_drawing_transform transform,
+    const native_ink_sample* samples, std::size_t count);
   virtual bool handle_native_ink_stroke (const native_ink_sample* samples,
                                          std::size_t count);
   virtual bool handle_wheel_capture ();
