@@ -29,6 +29,7 @@
 #include "QTMApplication.hpp"
 #include "QTMKeyboardEvent.hpp"
 #include "QTMNeighborhoodsPane.hpp"
+#include "native_drawing_ui.hpp"
 
 #include "config.h"
 
@@ -40,6 +41,7 @@
 #include <QMouseEvent>
 #include <QFocusEvent>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPen>
 #include <QColor>
 #include <QActionGroup>
@@ -95,6 +97,109 @@ gestureEventTypeName (QEvent::Type type) {
   if (type == QEvent::Gesture) return "Gesture";
   if (type == QEvent::GestureOverride) return "GestureOverride";
   return "type_" * as_string ((int) type);
+}
+
+static QRectF
+native_shape_rect (QPointF first, QPointF last, bool constrained) {
+  if (!constrained) return QRectF (first, last).normalized ();
+  double dx= last.x () - first.x ();
+  double dy= last.y () - first.y ();
+  double side= std::max (std::fabs (dx), std::fabs (dy));
+  if (side <= 0.0) return QRectF (first, first);
+  QPointF end (first.x () + (dx < 0.0 ? -side : side),
+               first.y () + (dy < 0.0 ? -side : side));
+  return QRectF (first, end).normalized ();
+}
+
+static QPolygonF
+native_regular_polygon (const QRectF& rect, int sides) {
+  QPolygonF polygon;
+  if (sides < 3 || !rect.isValid ()) return polygon;
+  QPointF center= rect.center ();
+  double radius= 0.5 * std::min (rect.width (), rect.height ());
+  constexpr double pi= 3.1415926535897932384626433832795;
+  for (int i=0; i<sides; ++i) {
+    double angle= -0.5 * pi + 2.0 * pi * (double) i / (double) sides;
+    polygon << QPointF (center.x () + radius * std::cos (angle),
+                        center.y () + radius * std::sin (angle));
+  }
+  return polygon;
+}
+
+static void
+native_draw_arrow_head (QPainter& painter, QPointF tail, QPointF tip,
+                        double lineWidth) {
+  QPointF v= tip - tail;
+  double length= std::hypot (v.x (), v.y ());
+  if (length <= 1.0e-6) return;
+  v /= length;
+  QPointF normal (-v.y (), v.x ());
+  double size= std::max (8.0, 4.0 * lineWidth);
+  QPointF base= tip - v * size;
+  painter.drawLine (tip, base + normal * (0.45 * size));
+  painter.drawLine (tip, base - normal * (0.45 * size));
+}
+
+static void
+native_draw_shape_preview (QPainter& painter, native_drawing_shape shape,
+                           QPointF first, QPointF last, double lineWidth) {
+  switch (shape) {
+  case native_drawing_shape::line:
+    painter.drawLine (first, last);
+    break;
+  case native_drawing_shape::square:
+    painter.drawRect (native_shape_rect (first, last, true));
+    break;
+  case native_drawing_shape::rectangle:
+    painter.drawRect (native_shape_rect (first, last, false));
+    break;
+  case native_drawing_shape::circle:
+    painter.drawEllipse (native_shape_rect (first, last, true));
+    break;
+  case native_drawing_shape::ellipse:
+    painter.drawEllipse (native_shape_rect (first, last, false));
+    break;
+  case native_drawing_shape::triangle: {
+    QRectF r= native_shape_rect (first, last, false);
+    QPolygonF polygon;
+    polygon << QPointF (r.center ().x (), r.top ())
+            << r.bottomRight () << r.bottomLeft ();
+    painter.drawPolygon (polygon);
+    break;
+  }
+  case native_drawing_shape::right_triangle: {
+    QPolygonF polygon;
+    polygon << first << QPointF (last.x (), first.y ())
+            << QPointF (first.x (), last.y ());
+    painter.drawPolygon (polygon);
+    break;
+  }
+  case native_drawing_shape::pentagon:
+    painter.drawPolygon (native_regular_polygon (
+      native_shape_rect (first, last, true), 5));
+    break;
+  case native_drawing_shape::hexagon:
+    painter.drawPolygon (native_regular_polygon (
+      native_shape_rect (first, last, true), 6));
+    break;
+  case native_drawing_shape::arrow:
+    painter.drawLine (first, last);
+    native_draw_arrow_head (painter, first, last, lineWidth);
+    break;
+  case native_drawing_shape::double_arrow:
+    painter.drawLine (first, last);
+    native_draw_arrow_head (painter, first, last, lineWidth);
+    native_draw_arrow_head (painter, last, first, lineWidth);
+    break;
+  case native_drawing_shape::orthogonal_polyline: {
+    QPointF delta= last - first;
+    QPointF elbow= std::fabs (delta.x ()) >= std::fabs (delta.y ()) ?
+      QPointF (last.x (), first.y ()) : QPointF (first.x (), last.y ());
+    painter.drawLine (first, elbow);
+    painter.drawLine (elbow, last);
+    break;
+  }
+  }
 }
 
 /*! Constructor.
@@ -338,7 +443,8 @@ QTMWidget::finishNativeInk () {
   native_drawing_tool tool= nativeInkStyle.tool;
   bool submitted= !nativeInkSamples.empty () &&
     tm_widget ()->handle_native_drawing_gesture (
-      tool, nativeInkSamples.data (), nativeInkSamples.size ());
+      tool, nativeInkStyle.shape,
+      nativeInkSamples.data (), nativeInkSamples.size ());
   if (!submitted) {
     clearNativeInkPreview ();
     return;
@@ -395,6 +501,22 @@ QTMWidget::drawNativeInkPreview (QPainter& p) const {
       p.drawLine (nativeInkPreviewPoints[i-1], nativeInkPreviewPoints[i]);
     if (nativeInkPreviewPoints.size () > 2)
       p.drawLine (nativeInkPreviewPoints.back (), nativeInkPreviewPoints.front ());
+    p.restore ();
+    return;
+  }
+  if (nativeInkStyle.tool == native_drawing_tool::shape) {
+    QPen pen (color);
+    pen.setWidthF (baseWidth);
+    pen.setCapStyle (Qt::RoundCap);
+    pen.setJoinStyle (Qt::RoundJoin);
+    p.setPen (pen);
+    p.setBrush (Qt::NoBrush);
+    if (nativeInkPreviewPoints.size () == 1)
+      p.drawPoint (nativeInkPreviewPoints.front ());
+    else
+      native_draw_shape_preview (
+        p, nativeInkStyle.shape, nativeInkPreviewPoints.front (),
+        nativeInkPreviewPoints.back (), baseWidth);
     p.restore ();
     return;
   }
@@ -652,15 +774,8 @@ QTMWidget::showNativeDrawingContextMenu (const QPoint& globalPos) {
   QActionGroup* tools= new QActionGroup (&menu);
   tools->setExclusive (true);
   native_drawing_tool current= tm_widget ()->handle_native_drawing_tool ();
-  struct item { native_drawing_tool tool; const char* text; const char* icon; };
-  const item items[]= {
-    {native_drawing_tool::pen, "Pen", "draw-freehand"},
-    {native_drawing_tool::highlighter, "Highlighter", "draw-highlight"},
-    {native_drawing_tool::object_eraser, "Object eraser", "edit-delete"},
-    {native_drawing_tool::segment_eraser, "Segment eraser", "draw-eraser"},
-    {native_drawing_tool::lasso, "Lasso", "edit-select"}
-  };
-  for (const item& entry: items) {
+  for (const native_drawing_tool_descriptor& entry: native_drawing_tools) {
+    if (entry.tool == native_drawing_tool::shape) continue;
     QAction* action= menu.addAction (QIcon::fromTheme (entry.icon),
                                      tr (entry.text));
     action->setCheckable (true);
@@ -669,6 +784,28 @@ QTMWidget::showNativeDrawingContextMenu (const QPoint& globalPos) {
     connect (action, &QAction::triggered, this, [this, entry] {
       if (!is_nil (tmwid))
         tm_widget ()->handle_set_native_drawing_tool (entry.tool);
+    });
+  }
+
+  native_drawing_properties_snapshot props=
+    tm_widget ()->handle_native_drawing_properties ();
+  QMenu* shapeMenu= menu.addMenu (
+    QIcon::fromTheme (QStringLiteral ("draw-rectangle")), tr ("Shape"));
+  shapeMenu->menuAction ()->setCheckable (true);
+  shapeMenu->menuAction ()->setChecked (current == native_drawing_tool::shape);
+  tools->addAction (shapeMenu->menuAction ());
+  for (const native_drawing_shape_descriptor& entry: native_drawing_shapes) {
+    QAction* action= shapeMenu->addAction (
+      QIcon::fromTheme (entry.icon), tr (entry.text));
+    action->setCheckable (true);
+    action->setChecked (current == native_drawing_tool::shape &&
+                        props.shape == entry.shape);
+    connect (action, &QAction::triggered, this, [this, entry] {
+      if (is_nil (tmwid)) return;
+      tm_widget ()->handle_set_native_drawing_property (
+        native_drawing_property::shape,
+        static_cast<std::uint64_t> (entry.shape));
+      tm_widget ()->handle_set_native_drawing_tool (native_drawing_tool::shape);
     });
   }
   menu.exec (globalPos);

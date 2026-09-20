@@ -225,6 +225,7 @@ qt_actor_widget_rep::handle_native_ink_hit (
     std::max (1.0, best->eraser_radius_pixels * zoom);
   style.pressure_enabled= best->pressure_enabled;
   style.tool= best->tool;
+  style.shape= best->shape;
   return true;
 }
 
@@ -285,7 +286,8 @@ qt_actor_widget_rep::handle_native_drawing_selection () {
 
 bool
 qt_actor_widget_rep::handle_native_drawing_gesture (
-  native_drawing_tool tool, const native_ink_sample* samples,
+  native_drawing_tool tool, native_drawing_shape shape,
+  const native_ink_sample* samples,
   std::size_t count) {
   if (samples == nullptr || count == 0 || endpoint_ == nullptr) return false;
   if (count > (16U * 1024U * 1024U) / sizeof (native_ink_sample)) return false;
@@ -309,7 +311,8 @@ qt_actor_widget_rep::handle_native_drawing_gesture (
     actor_id_, actor_command_kind::native_ink_stroke, view_id_, payload,
     ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
     static_cast<std::uint64_t> (count),
-    static_cast<std::uint64_t> (tool));
+    static_cast<std::uint64_t> (tool),
+    static_cast<std::uint64_t> (shape));
   if (!ticket) (void) actor_blob_registry::instance ().discard (payload);
   return static_cast<bool> (ticket);
 }
@@ -349,7 +352,7 @@ bool
 qt_actor_widget_rep::handle_native_ink_stroke (
   const native_ink_sample* samples, std::size_t count) {
   return handle_native_drawing_gesture (
-    native_drawing_tool::pen, samples, count);
+    native_drawing_tool::pen, native_drawing_shape::line, samples, count);
 }
 
 bool

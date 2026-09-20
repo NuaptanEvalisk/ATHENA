@@ -53,6 +53,7 @@
 #include "QTMGuiHelper.hpp"  // needed to connect()
 #include "QTMVaultExplorer.hpp"
 #include "QTMToolbarController.hpp"
+#include "native_drawing_ui.hpp"
 
 #include <QSet>
 
@@ -65,7 +66,10 @@ refresh_native_drawing_focus_actions (widget w) {
   if (is_nil (w)) return;
   qt_widget qtw= concrete (w);
   auto* rep= dynamic_cast<qt_tm_widget_rep*> (qtw.rep);
-  if (rep != nullptr) rep->append_native_drawing_focus_actions ();
+  if (rep != nullptr) {
+    rep->append_native_drawing_mode_actions ();
+    rep->append_native_drawing_focus_actions ();
+  }
 }
 
 static QSize
@@ -623,6 +627,12 @@ qt_tm_widget_rep::clear_main_menu_actions () {
 
 void
 qt_tm_widget_rep::append_native_drawing_mode_actions () {
+  const char* marker= "athenaNativeDrawingMode";
+  for (QAction* action: modeToolBar->actions ())
+    if (action != nullptr && action->property (marker).toBool ()) {
+      modeToolBar->removeAction (action);
+      action->deleteLater ();
+    }
   QTMWidget* c= canvas ();
   if (c == nullptr || c->tm_widget () == nullptr ||
       !c->tm_widget ()->handle_native_drawing_available ())
@@ -637,19 +647,13 @@ qt_tm_widget_rep::append_native_drawing_mode_actions () {
   group->setObjectName (QStringLiteral ("athenaNativeDrawingTools"));
   group->setExclusive (true);
   QPointer<QTMWidget> canvasRef (c);
-  struct item { native_drawing_tool tool; const char* text; const char* icon; };
-  const item items[]= {
-    {native_drawing_tool::pen, "Pen", "draw-freehand"},
-    {native_drawing_tool::highlighter, "Highlighter", "draw-highlight"},
-    {native_drawing_tool::object_eraser, "Object eraser", "edit-delete"},
-    {native_drawing_tool::segment_eraser, "Segment eraser", "draw-eraser"},
-    {native_drawing_tool::lasso, "Lasso", "edit-select"}
-  };
-  modeToolBar->addSeparator ();
-  for (const item& entry: items) {
+  QAction* separator= modeToolBar->addSeparator ();
+  separator->setProperty (marker, true);
+  for (const native_drawing_tool_descriptor& entry: native_drawing_tools) {
     QAction* action= new QAction (QIcon::fromTheme (entry.icon),
                                   QObject::tr (entry.text), modeToolBar);
     action->setToolTip (QObject::tr (entry.text));
+    action->setProperty (marker, true);
     action->setCheckable (true);
     action->setChecked (entry.tool == current);
     group->addAction (action);
@@ -708,7 +712,33 @@ qt_tm_widget_rep::append_native_drawing_focus_actions () {
 
   bool styleEditable= props.selection_active ||
     props.tool == native_drawing_tool::pen ||
-    props.tool == native_drawing_tool::highlighter;
+    props.tool == native_drawing_tool::highlighter ||
+    props.tool == native_drawing_tool::shape;
+
+  if (!props.selection_active && props.tool == native_drawing_tool::shape) {
+    QAction* shapeAction= mark (new QAction (
+      QIcon::fromTheme (QStringLiteral ("draw-polygon")),
+      QObject::tr ("Shape"), focusToolBar));
+    shapeAction->setToolTip (QObject::tr ("Shape type"));
+    QMenu* shapeMenu= new QMenu (focusToolBar);
+    shapeMenu->setProperty (marker, true);
+    for (const native_drawing_shape_descriptor& entry: native_drawing_shapes) {
+      QAction* item= shapeMenu->addAction (
+        QIcon::fromTheme (entry.icon), QObject::tr (entry.text));
+      item->setCheckable (true);
+      item->setChecked (entry.shape == props.shape);
+      QObject::connect (item, &QAction::triggered, shapeMenu,
+        [canvasRef, entry] {
+          QTMWidget* canvas= canvasRef.data ();
+          if (canvas == nullptr || canvas->tm_widget () == nullptr) return;
+          canvas->tm_widget ()->handle_set_native_drawing_property (
+            native_drawing_property::shape,
+            static_cast<std::uint64_t> (entry.shape));
+        });
+    }
+    shapeAction->setMenu (shapeMenu);
+    focusToolBar->addAction (shapeAction);
+  }
 
   QAction* colorAction= mark (new QAction (
     native_drawing_color_icon (props.rgba), QObject::tr ("Color"),

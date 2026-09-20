@@ -176,8 +176,10 @@ qt_simple_widget_rep::handle_native_drawing_selection () {
 
 bool
 qt_simple_widget_rep::handle_native_drawing_gesture (
-  native_drawing_tool tool, const native_ink_sample* samples,
+  native_drawing_tool tool, native_drawing_shape shape,
+  const native_ink_sample* samples,
   std::size_t count) {
+  (void) shape;
   if (tool != native_drawing_tool::pen) return false;
   return handle_native_ink_stroke (samples, count);
 }

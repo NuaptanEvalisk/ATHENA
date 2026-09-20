@@ -25,6 +25,7 @@ private:
   std::vector<path> native_ink_paths_;
   std::vector<path> native_drawing_selection_paths_;
   native_drawing_tool native_drawing_tool_= native_drawing_tool::pen;
+  native_drawing_shape native_drawing_shape_= native_drawing_shape::line;
   bool native_drawing_color_override_= false;
   std::uint32_t native_drawing_rgba_= 0xff000000U;
   bool native_drawing_width_override_= false;
@@ -71,6 +72,9 @@ public:
   void   commit_native_drawing_gesture (
     native_drawing_tool tool, const native_ink_sample* samples,
     std::size_t count);
+  void   commit_native_drawing_shape (
+    native_drawing_shape shape,
+    const native_ink_sample* samples, std::size_t count);
   void   commit_native_drawing_transform (
     native_drawing_transform transform,
     const native_ink_sample* samples, std::size_t count);
@@ -85,6 +89,7 @@ public:
                                                tree value);
   path   native_drawing_active_graphics ();
   bool   native_drawing_grid_enabled (path graphics);
+  point  native_drawing_snap_point (path graphics, frame f, point p);
   void   refresh_native_drawing_properties_snapshot ();
   void   publish_native_drawing_focus_refresh ();
   bool   native_ink_region (path graphics,

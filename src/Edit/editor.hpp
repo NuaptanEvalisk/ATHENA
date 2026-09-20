@@ -318,6 +318,9 @@ public:
   virtual void   commit_native_drawing_gesture (
     native_drawing_tool tool, const native_ink_sample* samples,
     std::size_t count) = 0;
+  virtual void   commit_native_drawing_shape (
+    native_drawing_shape shape,
+    const native_ink_sample* samples, std::size_t count) = 0;
   virtual void   commit_native_drawing_transform (
     native_drawing_transform transform,
     const native_ink_sample* samples, std::size_t count) = 0;

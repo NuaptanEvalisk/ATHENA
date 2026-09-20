@@ -48,7 +48,8 @@ public:
   std::vector<native_drawing_selection_box>
     handle_native_drawing_selection () override;
   bool handle_native_drawing_gesture (
-    native_drawing_tool tool, const native_ink_sample* samples,
+    native_drawing_tool tool, native_drawing_shape shape,
+    const native_ink_sample* samples,
     std::size_t count) override;
   bool handle_native_drawing_transform (
     native_drawing_transform transform,

@@ -326,6 +326,12 @@ native_collect_graphics_points (tree t, frame f,
                                 std::vector<native_xy>& points) {
   std::vector<frame> transforms;
   native_collect_graphics_points_impl (t, f, transforms, points);
+  tree radical= native_graphics_radical (t, nullptr);
+  bool closed= is_func (radical, CLINE) || is_func (radical, CSPLINE) ||
+               is_func (radical, CBEZIER) || is_func (radical, CSMOOTH) ||
+               is_func (radical, CARC);
+  if (closed && points.size () > 2)
+    points.push_back (points.front ());
 }
 
 bool
@@ -347,6 +353,70 @@ native_polyline_hits_box (const std::vector<native_xy>& points,
             points[i-1], points[i], corners[e], corners[(e+1)%4]))
         return true;
   return false;
+}
+
+tree
+native_point_tree (double x, double y) {
+  return tree (_POINT, as_string (x), as_string (y));
+}
+
+point
+native_constrained_end (point first, point last) {
+  if (N(first) < 2 || N(last) < 2) return last;
+  double dx= last[0] - first[0];
+  double dy= last[1] - first[1];
+  double side= std::max (std::fabs (dx), std::fabs (dy));
+  if (!(side > 0.0)) return copy (first);
+  return point (first[0] + (dx < 0.0 ? -side : side),
+                first[1] + (dy < 0.0 ? -side : side));
+}
+
+tree
+native_shape_polygon (tree_label label, const std::vector<point>& points) {
+  tree result (label);
+  for (const point& p: points)
+    if (N(p) >= 2) result << native_point_tree (p[0], p[1]);
+  return result;
+}
+
+std::vector<point>
+native_regular_polygon_points (point first, point last, int sides) {
+  std::vector<point> result;
+  if (sides < 3 || N(first) < 2 || N(last) < 2) return result;
+  point end= native_constrained_end (first, last);
+  double cx= 0.5 * (first[0] + end[0]);
+  double cy= 0.5 * (first[1] + end[1]);
+  double radius= 0.5 * std::fabs (end[0] - first[0]);
+  if (!(radius > 0.0)) return result;
+  constexpr double pi= 3.1415926535897932384626433832795;
+  result.reserve ((std::size_t) sides);
+  for (int i=0; i<sides; ++i) {
+    double angle= 0.5 * pi + 2.0 * pi * (double) i / (double) sides;
+    result.push_back (point (cx + radius * std::cos (angle),
+                             cy + radius * std::sin (angle)));
+  }
+  return result;
+}
+
+std::vector<point>
+native_ellipse_points (point first, point last, bool circle) {
+  std::vector<point> result;
+  if (N(first) < 2 || N(last) < 2) return result;
+  point end= circle ? native_constrained_end (first, last) : last;
+  double cx= 0.5 * (first[0] + end[0]);
+  double cy= 0.5 * (first[1] + end[1]);
+  double rx= 0.5 * std::fabs (end[0] - first[0]);
+  double ry= 0.5 * std::fabs (end[1] - first[1]);
+  if (!(rx > 0.0) || !(ry > 0.0)) return result;
+  constexpr double pi= 3.1415926535897932384626433832795;
+  constexpr int samples= 16;
+  result.reserve (samples);
+  for (int i=0; i<samples; ++i) {
+    double angle= 2.0 * pi * (double) i / (double) samples;
+    result.push_back (point (cx + rx * std::cos (angle),
+                             cy + ry * std::sin (angle)));
+  }
+  return result;
 }
 
 } // namespace
@@ -943,6 +1013,25 @@ edit_graphics_rep::native_drawing_grid_enabled (path graphics) {
   return !(is_atomic (value[0]) && value[0]->label == "empty");
 }
 
+point
+edit_graphics_rep::native_drawing_snap_point (path graphics, frame f, point p) {
+  if (!native_drawing_snap_enabled_ || is_nil (eb) || is_nil (f) ||
+      is_nil (graphics) || !native_drawing_grid_enabled (graphics))
+    return p;
+  bool box_found= false;
+  path bp= eb->find_box_path (graphics * 0, box_found);
+  if (!box_found) return p;
+  grid g= eb->find_grid (path_up (bp));
+  if (is_nil (g) || (tree) g == "empty_grid") return p;
+  SI tolerance= 10 * get_pixel_size ();
+  point snapped= g->find_point_around (p, tolerance, f);
+  point fp= f (p);
+  point fs= f (snapped);
+  if (N(fp) >= 2 && N(fs) >= 2 && norm (fs - fp) <= tolerance)
+    return snapped;
+  return p;
+}
+
 void
 edit_graphics_rep::publish_native_drawing_focus_refresh () {
   if (ui_endpoint != nullptr)
@@ -1014,9 +1103,13 @@ edit_graphics_rep::native_ink_region (
     region.line_width_pixels= 1.5;
     region.pressure_enabled= false;
     break;
+  case native_drawing_tool::shape:
+    region.pressure_enabled= false;
+    break;
   case native_drawing_tool::pen:
     break;
   }
+  region.shape= native_drawing_shape_;
   region.pen_enabled= true;
   if (native_drawing_tool_ == native_drawing_tool::pen)
     region.pressure_enabled= native_drawing_pressure_enabled_;
@@ -1071,7 +1164,7 @@ edit_graphics_rep::get_native_drawing_tool () const {
 void
 edit_graphics_rep::set_native_drawing_tool (native_drawing_tool tool) {
   if (static_cast<unsigned int> (tool) >
-      static_cast<unsigned int> (native_drawing_tool::lasso))
+      static_cast<unsigned int> (native_drawing_tool::shape))
     tool= native_drawing_tool::pen;
   native_drawing_tool_= tool;
   refresh_native_ink_interaction ();
@@ -1130,8 +1223,7 @@ edit_graphics_rep::set_native_drawing_property (
     if (is_nil (gp)) return;
     tree grid_value;
     if (value != 0)
-      grid_value= tree (TUPLE, "cartesian", tree (_POINT, "0", "0"),
-                        tree (_POINT, "1", "1"));
+      grid_value= tree (TUPLE, "cartesian", tree (_POINT, "0", "0"), "1");
     else grid_value= tree (TUPLE, "empty");
     start_editing ();
     bool changed= native_drawing_set_graphics_property (
@@ -1152,6 +1244,13 @@ edit_graphics_rep::set_native_drawing_property (
     native_drawing_selection_paths_.clear ();
     mark_native_ink_interaction_dirty ();
   }
+  else if (property == native_drawing_property::shape) {
+    native_drawing_shape shape= static_cast<native_drawing_shape> (value);
+    if (static_cast<unsigned int> (shape) >
+        static_cast<unsigned int> (native_drawing_shape::orthogonal_polyline))
+      shape= native_drawing_shape::line;
+    native_drawing_shape_= shape;
+  }
   refresh_native_ink_interaction ();
   refresh_native_drawing_selection_snapshot ();
   refresh_native_drawing_properties_snapshot ();
@@ -1164,6 +1263,7 @@ edit_graphics_rep::refresh_native_drawing_properties_snapshot () {
   if (ui_endpoint == nullptr) return;
   native_drawing_properties_snapshot snapshot;
   snapshot.tool= native_drawing_tool_;
+  snapshot.shape= native_drawing_shape_;
   snapshot.pressure_enabled= native_drawing_tool_ == native_drawing_tool::pen ?
     native_drawing_pressure_enabled_ : false;
   snapshot.snap_enabled= native_drawing_snap_enabled_;
@@ -1641,6 +1741,138 @@ edit_graphics_rep::select_native_drawing_lasso (
 }
 
 void
+edit_graphics_rep::commit_native_drawing_shape (
+  native_drawing_shape requested_shape,
+  const native_ink_sample* samples, std::size_t count) {
+  if (samples == nullptr || count == 0) return;
+  path gp;
+  frame f;
+  if (!native_ink_target (samples[0].x, samples[0].y, gp, f)) return;
+  tree graphics= subtree (et, gp);
+  if (!is_func (graphics, GRAPHICS) || is_nil (f)) return;
+
+  point first= f[point ((double) samples[0].x, (double) samples[0].y)];
+  point last= f[point ((double) samples[count-1].x,
+                      (double) samples[count-1].y)];
+  if (N(first) < 2 || N(last) < 2) return;
+  first= native_drawing_snap_point (gp, f, first);
+  last= native_drawing_snap_point (gp, f, last);
+  point sf= f (first);
+  point sl= f (last);
+  if (N(sf) < 2 || N(sl) < 2 ||
+      norm (sl - sf) < 2.0 * get_pixel_size ())
+    return;
+
+  tree shape;
+  switch (requested_shape) {
+  case native_drawing_shape::line:
+  case native_drawing_shape::arrow:
+  case native_drawing_shape::double_arrow: {
+    shape= tree (LINE);
+    shape << native_point_tree (first[0], first[1])
+          << native_point_tree (last[0], last[1]);
+    break;
+  }
+  case native_drawing_shape::square:
+  case native_drawing_shape::rectangle: {
+    point end= requested_shape == native_drawing_shape::square ?
+      native_constrained_end (first, last) : last;
+    std::vector<point> points {
+      first,
+      point (end[0], first[1]),
+      end,
+      point (first[0], end[1])
+    };
+    shape= native_shape_polygon (CLINE, points);
+    break;
+  }
+  case native_drawing_shape::circle: {
+    point end= native_constrained_end (first, last);
+    double cx= 0.5 * (first[0] + end[0]);
+    double cy= 0.5 * (first[1] + end[1]);
+    double rx= 0.5 * (end[0] - first[0]);
+    double ry= 0.5 * (end[1] - first[1]);
+    point p (cx + rx, cy);
+    point q1 (cx - rx, cy);
+    point q2 (cx, cy + ry);
+    shape= tree (CARC);
+    shape << native_point_tree (p[0], p[1])
+          << native_point_tree (q1[0], q1[1])
+          << native_point_tree (q2[0], q2[1]);
+    break;
+  }
+  case native_drawing_shape::ellipse:
+    shape= native_shape_polygon (
+      CSPLINE, native_ellipse_points (first, last, false));
+    break;
+  case native_drawing_shape::triangle: {
+    double x1= std::min (first[0], last[0]);
+    double x2= std::max (first[0], last[0]);
+    double y1= std::min (first[1], last[1]);
+    double y2= std::max (first[1], last[1]);
+    std::vector<point> points {
+      point (0.5 * (x1 + x2), y2), point (x2, y1), point (x1, y1)
+    };
+    shape= native_shape_polygon (CLINE, points);
+    break;
+  }
+  case native_drawing_shape::right_triangle: {
+    std::vector<point> points {
+      first, point (last[0], first[1]), point (first[0], last[1])
+    };
+    shape= native_shape_polygon (CLINE, points);
+    break;
+  }
+  case native_drawing_shape::pentagon:
+    shape= native_shape_polygon (
+      CLINE, native_regular_polygon_points (first, last, 5));
+    break;
+  case native_drawing_shape::hexagon:
+    shape= native_shape_polygon (
+      CLINE, native_regular_polygon_points (first, last, 6));
+    break;
+  case native_drawing_shape::orthogonal_polyline: {
+    double dx= last[0] - first[0];
+    double dy= last[1] - first[1];
+    point elbow= std::fabs (dx) >= std::fabs (dy) ?
+      point (last[0], first[1]) : point (first[0], last[1]);
+    shape= tree (LINE);
+    shape << native_point_tree (first[0], first[1])
+          << native_point_tree (elbow[0], elbow[1])
+          << native_point_tree (last[0], last[1]);
+    break;
+  }
+  }
+  if (is_nil (shape) || (is_compound (shape) && N(shape) == 0)) return;
+
+  tree color_value= native_ink_property (gp, GR_COLOR, tree ("default"));
+  tree width_value= native_ink_property (gp, GR_LINE_WIDTH, tree ("default"));
+  if (native_drawing_color_override_)
+    color_value= native_color_tree_from_rgba (native_drawing_rgba_);
+  if (native_drawing_width_override_)
+    width_value= tree (as_string (native_drawing_width_pixels_) * "ln");
+
+  tree wrapped (WITH);
+  if (color_value != "default") wrapped << "color" << color_value;
+  if (width_value != "default") wrapped << "line-width" << width_value;
+  if (requested_shape == native_drawing_shape::arrow)
+    wrapped << ARROW_END << "<gtr>";
+  else if (requested_shape == native_drawing_shape::double_arrow)
+    wrapped << ARROW_BEGIN << "<less>" << ARROW_END << "<gtr>";
+  if (N(wrapped) == 0) wrapped= shape;
+  else wrapped << shape;
+
+  start_editing ();
+  insert (gp * N(graphics), tree (TUPLE, wrapped));
+  end_editing ();
+  native_drawing_selection_paths_.clear ();
+  refresh_native_ink_interaction ();
+  refresh_native_drawing_selection_snapshot ();
+  refresh_native_drawing_properties_snapshot ();
+  publish_native_drawing_focus_refresh ();
+}
+
+void
 edit_graphics_rep::commit_native_drawing_gesture (
   native_drawing_tool tool, const native_ink_sample* samples,
   std::size_t count) {
@@ -1655,6 +1887,10 @@ edit_graphics_rep::commit_native_drawing_gesture (
   }
   if (tool == native_drawing_tool::lasso) {
     select_native_drawing_lasso (samples, count);
+    return;
+  }
+  if (tool == native_drawing_tool::shape) {
+    commit_native_drawing_shape (native_drawing_shape_, samples, count);
     return;
   }
   path gp;

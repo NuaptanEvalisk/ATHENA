@@ -34,6 +34,7 @@ private slots:
   void retryDamageStaysInBackingPixels ();
   void nativeInkCommitsOneDetachedStroke ();
   void nativeDrawingGestureKeepsSelectedTool ();
+  void nativeShapeGestureCommitsAsShapeTool ();
   void nativeLassoDragCommitsOneMoveTransform ();
 };
 
@@ -166,6 +167,8 @@ public:
   int commits= 0;
   native_drawing_tool activeTool= native_drawing_tool::pen;
   native_drawing_tool committedTool= native_drawing_tool::pen;
+  native_drawing_shape activeShape= native_drawing_shape::line;
+  native_drawing_shape committedShape= native_drawing_shape::line;
   int transformCommits= 0;
   native_drawing_transform committedTransform= native_drawing_transform::move;
   std::vector<native_ink_sample> transformed;
@@ -179,14 +182,17 @@ public:
     style.line_width_pixels= 3.0;
     style.pressure_enabled= true;
     style.tool= activeTool;
+    style.shape= activeShape;
     return true;
   }
 
   bool handle_native_drawing_gesture (
-    native_drawing_tool tool, const native_ink_sample* samples,
+    native_drawing_tool tool, native_drawing_shape shape,
+    const native_ink_sample* samples,
     std::size_t count) override {
     ++commits;
     committedTool= tool;
+    committedShape= shape;
     committed.assign (samples, samples + count);
     return true;
   }
@@ -298,6 +304,37 @@ TestQTMRenderService::nativeDrawingGestureKeepsSelectedTool () {
 
   QCOMPARE (rep->commits, 1);
   QCOMPARE (rep->committedTool, native_drawing_tool::highlighter);
+  QVERIFY (rep->committed.size () >= 3);
+  delete canvas;
+}
+
+void
+TestQTMRenderService::nativeShapeGestureCommitsAsShapeTool () {
+  auto* rep= tm_new<native_ink_test_widget> ();
+  widget owner (rep);
+  rep->activeTool= native_drawing_tool::shape;
+  rep->activeShape= native_drawing_shape::hexagon;
+  rep->attachCanvas ();
+  QTMWidget* canvas= rep->canvas ();
+  QVERIFY (canvas != nullptr);
+  QWidget* surface= canvas->surface ();
+  QVERIFY (surface != nullptr);
+
+  auto send= [&] (QEvent::Type type, QPointF pos, Qt::MouseButton button,
+                  Qt::MouseButtons buttons) {
+    QMouseEvent event (type, pos, pos, button, buttons, Qt::NoModifier);
+    QCoreApplication::sendEvent (surface, &event);
+  };
+  send (QEvent::MouseButtonPress, QPointF (70, 80),
+        Qt::LeftButton, Qt::LeftButton);
+  send (QEvent::MouseMove, QPointF (150, 140),
+        Qt::NoButton, Qt::LeftButton);
+  send (QEvent::MouseButtonRelease, QPointF (210, 170),
+        Qt::LeftButton, Qt::NoButton);
+
+  QCOMPARE (rep->commits, 1);
+  QCOMPARE (rep->committedTool, native_drawing_tool::shape);
+  QCOMPARE (rep->committedShape, native_drawing_shape::hexagon);
   QVERIFY (rep->committed.size () >= 3);
   delete canvas;
 }

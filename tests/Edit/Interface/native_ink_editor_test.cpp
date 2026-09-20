@@ -114,6 +114,9 @@ private slots:
   void toolPropertiesAffectNextStroke ();
   void selectionPropertiesEditSelectedObject ();
   void snapAndGridPropertiesStayActorOwned ();
+  void shapeToolCreatesRequestedPrimitives ();
+  void shapeSnapUsesNativeGrid ();
+  void shapeCreationUndoesAsOneTransaction ();
 
 private:
   buffer_document_state* buffer= nullptr;
@@ -149,11 +152,27 @@ TestNativeInkEditor::cleanup () {
 }
 
 static void
+find_first_graphics_path (tree t, path p, path& result) {
+  if (!is_nil (result)) return;
+  if (is_func (t, GRAPHICS)) {
+    result= copy (p);
+    return;
+  }
+  if (is_atomic (t)) return;
+  for (int i=0; i<N(t) && is_nil (result); ++i)
+    find_first_graphics_path (t[i], p * i, result);
+}
+
+static void
 prepare_graphics_region (NativeInkTestEditorRep* editor,
                          buffer_document_state* buffer,
                          path& graphics_path,
                          SI& left, SI& bottom, SI& right, SI& top) {
-  graphics_path= buffer->root_path * 0 * 10;
+  graphics_path= path ();
+  find_first_graphics_path (
+    subtree (current_document_tree (), buffer->root_path),
+    buffer->root_path, graphics_path);
+  QVERIFY (!is_nil (graphics_path));
   editor->go_to (graphics_path * 0 * 0);
   SI tx1= 0, ty1= 0, tx2= 0, ty2= 0;
   editor->typeset (tx1, ty1, tx2, ty2);
@@ -663,6 +682,136 @@ TestNativeInkEditor::snapAndGridPropertiesStayActorOwned () {
     subtree (current_document_tree (), buffer->root_path));
   QVERIFY (occurs ("gr-grid", without_grid));
   QVERIFY (occurs ("empty", without_grid));
+}
+
+void
+TestNativeInkEditor::shapeToolCreatesRequestedPrimitives () {
+  path graphics_path;
+  SI left= 0, bottom= 0, right= 0, top= 0;
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  editor->set_native_drawing_tool (native_drawing_tool::shape);
+
+  struct expectation {
+    native_drawing_shape shape;
+    tree_label label;
+    int arity;
+  };
+  const expectation cases[]= {
+    {native_drawing_shape::line, LINE, 2},
+    {native_drawing_shape::square, CLINE, 4},
+    {native_drawing_shape::rectangle, CLINE, 4},
+    {native_drawing_shape::circle, CARC, 3},
+    {native_drawing_shape::ellipse, CSPLINE, 16},
+    {native_drawing_shape::triangle, CLINE, 3},
+    {native_drawing_shape::right_triangle, CLINE, 3},
+    {native_drawing_shape::pentagon, CLINE, 5},
+    {native_drawing_shape::hexagon, CLINE, 6},
+    {native_drawing_shape::arrow, LINE, 2},
+    {native_drawing_shape::double_arrow, LINE, 2},
+    {native_drawing_shape::orthogonal_polyline, LINE, 3}
+  };
+
+  for (int i=0; i<(int) (sizeof (cases) / sizeof (cases[0])); ++i) {
+    editor->set_native_drawing_property (
+      native_drawing_property::shape,
+      static_cast<std::uint64_t> (cases[i].shape));
+    QCOMPARE (endpoint->native_drawing_properties ().shape, cases[i].shape);
+
+    native_ink_sample gesture[2];
+    SI inset= (i % 3) * (right-left) / 30;
+    gesture[0].x= left + (right-left)/4 + inset;
+    gesture[0].y= bottom + (top-bottom)/4;
+    gesture[1].x= left + 3*(right-left)/4 - inset;
+    gesture[1].y= bottom + 3*(top-bottom)/4;
+    editor->commit_native_drawing_gesture (
+      native_drawing_tool::shape, gesture, 2);
+
+    tree graphics= subtree (current_document_tree (), graphics_path);
+    QCOMPARE (N(graphics), i + 2);
+    tree object= graphics[i + 1];
+    tree radical= first_with_label (object, cases[i].label);
+    QVERIFY (radical != tree (UNINIT));
+    QCOMPARE (N(radical), cases[i].arity);
+    if (cases[i].shape == native_drawing_shape::arrow) {
+      tree end= with_property (object, "arrow-end");
+      QVERIFY (is_atomic (end));
+      QCOMPARE (end->label, string ("<gtr>"));
+    }
+    if (cases[i].shape == native_drawing_shape::double_arrow) {
+      tree begin= with_property (object, "arrow-begin");
+      tree end= with_property (object, "arrow-end");
+      QVERIFY (is_atomic (begin));
+      QVERIFY (is_atomic (end));
+      QCOMPARE (begin->label, string ("<less>"));
+      QCOMPARE (end->label, string ("<gtr>"));
+    }
+  }
+}
+
+void
+TestNativeInkEditor::shapeSnapUsesNativeGrid () {
+  path graphics_path;
+  SI left= 0, bottom= 0, right= 0, top= 0;
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  editor->set_native_drawing_property (native_drawing_property::grid, 1);
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  editor->set_native_drawing_property (native_drawing_property::snap, 1);
+  editor->set_native_drawing_property (
+    native_drawing_property::shape,
+    static_cast<std::uint64_t> (native_drawing_shape::line));
+  editor->set_native_drawing_tool (native_drawing_tool::shape);
+
+  frame f= editor->find_frame ();
+  QVERIFY (!is_nil (f));
+  point screen0= f (point (0.08, 0.06));
+  point screen1= f (point (1.92, 1.94));
+  QVERIFY (N(screen0) >= 2 && N(screen1) >= 2);
+  native_ink_sample gesture[2];
+  gesture[0].x= (SI) std::llround (screen0[0]);
+  gesture[0].y= (SI) std::llround (screen0[1]);
+  gesture[1].x= (SI) std::llround (screen1[0]);
+  gesture[1].y= (SI) std::llround (screen1[1]);
+  editor->commit_native_drawing_gesture (
+    native_drawing_tool::shape, gesture, 2);
+
+  tree graphics= subtree (current_document_tree (), graphics_path);
+  QCOMPARE (N(graphics), 2);
+  tree line= first_with_label (graphics[1], LINE);
+  QVERIFY (is_func (line, LINE, 2));
+  QCOMPARE (as_double (line[0][0]->label), 0.0);
+  QCOMPARE (as_double (line[0][1]->label), 0.0);
+  QCOMPARE (as_double (line[1][0]->label), 2.0);
+  QCOMPARE (as_double (line[1][1]->label), 2.0);
+}
+
+void
+TestNativeInkEditor::shapeCreationUndoesAsOneTransaction () {
+  path graphics_path;
+  SI left= 0, bottom= 0, right= 0, top= 0;
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  editor->set_native_drawing_property (
+    native_drawing_property::shape,
+    static_cast<std::uint64_t> (native_drawing_shape::rectangle));
+  editor->set_native_drawing_tool (native_drawing_tool::shape);
+  native_ink_sample gesture[2];
+  gesture[0].x= left + (right-left)/3;
+  gesture[0].y= bottom + (top-bottom)/3;
+  gesture[1].x= left + 2*(right-left)/3;
+  gesture[1].y= bottom + 2*(top-bottom)/3;
+  editor->commit_native_drawing_gesture (
+    native_drawing_tool::shape, gesture, 2);
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), buffer->root_path), CLINE), 1);
+
+  editor->go_to (buffer->root_path * 1 * 0);
+  QVERIFY (editor->undo_possibilities () >= 1);
+  editor->undo (0);
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), buffer->root_path), CLINE), 0);
 }
 
 static int test_status= 1;

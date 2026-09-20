@@ -20,7 +20,23 @@ enum class native_drawing_tool: std::uint8_t {
   highlighter,
   object_eraser,
   segment_eraser,
-  lasso
+  lasso,
+  shape
+};
+
+enum class native_drawing_shape: std::uint8_t {
+  line= 0,
+  square,
+  rectangle,
+  circle,
+  ellipse,
+  triangle,
+  right_triangle,
+  pentagon,
+  hexagon,
+  arrow,
+  double_arrow,
+  orthogonal_polyline
 };
 
 enum class native_drawing_transform: std::uint8_t {
@@ -34,7 +50,8 @@ enum class native_drawing_property: std::uint8_t {
   line_width,
   pressure,
   snap,
-  grid
+  grid,
+  shape
 };
 
 struct native_drawing_properties_snapshot {
@@ -45,6 +62,7 @@ struct native_drawing_properties_snapshot {
   bool grid_enabled= false;
   bool selection_active= false;
   native_drawing_tool tool= native_drawing_tool::pen;
+  native_drawing_shape shape= native_drawing_shape::line;
 };
 
 inline std::uint64_t
@@ -90,6 +108,7 @@ struct native_ink_interaction_snapshot {
   bool pen_enabled= false;
   bool pressure_enabled= true;
   native_drawing_tool tool= native_drawing_tool::pen;
+  native_drawing_shape shape= native_drawing_shape::line;
 };
 
 struct native_ink_preview_style {
@@ -98,6 +117,7 @@ struct native_ink_preview_style {
   double eraser_radius_pixels= 8.0;
   bool pressure_enabled= true;
   native_drawing_tool tool= native_drawing_tool::pen;
+  native_drawing_shape shape= native_drawing_shape::line;
 };
 
 #endif // defined ATHENA_NATIVE_INK_HPP
