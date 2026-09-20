@@ -93,7 +93,7 @@ edit_interface_rep::complete_try () {
 bool
 edit_interface_rep::complete_try_realtime () {
   if (get_preference ("realtime text autocompletion", "on") != "on" ||
-      get_init_string (MODE) != "text")
+      get_init_string (MODE) != "text" || inside (HYBRID))
     return false;
 
   tree st= subtree (et, path_up (tp));

@@ -26,6 +26,21 @@
   (error "Realtime completion did not refresh while typing"))
 (key-press-complete "escape")
 
+;; Backslash macro entry uses an inactive HYBRID node.  Its command spelling
+;; must not trigger ordinary document-word autocompletion.
+(buffer-set-body (current-buffer)
+                 (stree->tree
+                   '(document "alpha" "alpine" (inactive (hybrid "a")))))
+(update-current-buffer)
+(update-forced)
+(tree-go-to (tree-ref (buffer-tree) 2 0 0) :end)
+(keyboard-press "l" 0)
+(unless (equal? (body)
+                '(document "alpha" "alpine" (inactive (hybrid "al"))))
+  (error "Typing in backslash macro input changed the document unexpectedly"))
+(unless (= (get-input-mode) initial-mode)
+  (error "Realtime completion opened inside backslash macro input"))
+
 (set-boolean-preference "realtime text autocompletion" #f)
 (reset '("alpha" "alpine" "a"))
 (keyboard-press "l" 0)
