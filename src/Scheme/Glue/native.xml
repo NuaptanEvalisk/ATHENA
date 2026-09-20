@@ -219,7 +219,7 @@
     <arg type="string" /><arg type="string" />
   </binding>
   <binding name="style-get-documentation" native="document_style_get_documentation" returns="object">
-    <arg type="string" />
+    <arg type="object" />
   </binding>
   <binding name="style-get-menu-name" native="document_style_get_menu_name" returns="string">
     <arg type="string" />

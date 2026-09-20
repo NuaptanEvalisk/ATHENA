@@ -177,9 +177,10 @@ document_style_precedes (string left, string right) {
 }
 
 object
-document_style_get_documentation (string style) {
+document_style_get_documentation (object style) {
   object table= eval ("style-synopsis");
-  object value= call ("ahash-ref", table, object (style));
+  // Menu help receives unevaluated command arguments, not just style strings.
+  object value= call ("ahash-ref", table, style);
   if (!is_list (value)) return object (false);
   array<object> items= as_array_object (value);
   return N (items) > 0 ? items[0] : object (false);
