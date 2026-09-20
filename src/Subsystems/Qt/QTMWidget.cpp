@@ -42,6 +42,9 @@
 #include <QPainter>
 #include <QPen>
 #include <QColor>
+#include <QActionGroup>
+#include <QIcon>
+#include <QMenu>
 #include <QApplication>
 #include <QInputMethod>
 #include <QNativeGestureEvent>
@@ -330,10 +333,17 @@ QTMWidget::finishNativeInk () {
   if (!nativeInkActive) return;
   nativeInkActive= false;
   nativeInkTablet= false;
+  native_drawing_tool tool= nativeInkStyle.tool;
   bool submitted= !nativeInkSamples.empty () &&
-    tm_widget ()->handle_native_ink_stroke (
-      nativeInkSamples.data (), nativeInkSamples.size ());
+    tm_widget ()->handle_native_drawing_gesture (
+      tool, nativeInkSamples.data (), nativeInkSamples.size ());
   if (!submitted) {
+    clearNativeInkPreview ();
+    return;
+  }
+  if (tool == native_drawing_tool::object_eraser ||
+      tool == native_drawing_tool::segment_eraser ||
+      tool == native_drawing_tool::lasso) {
     clearNativeInkPreview ();
     return;
   }
@@ -359,6 +369,33 @@ QTMWidget::drawNativeInkPreview (QPainter& p) const {
   p.setRenderHint (QPainter::Antialiasing, true);
   QColor color= QColor::fromRgba (nativeInkStyle.rgba);
   double baseWidth= std::max (1.0, nativeInkStyle.line_width_pixels);
+  if (nativeInkStyle.tool == native_drawing_tool::object_eraser ||
+      nativeInkStyle.tool == native_drawing_tool::segment_eraser) {
+    QPen pen (color);
+    pen.setWidthF (std::max (2.0, 2.0 * nativeInkStyle.eraser_radius_pixels));
+    pen.setCapStyle (Qt::RoundCap);
+    pen.setJoinStyle (Qt::RoundJoin);
+    p.setPen (pen);
+    for (std::size_t i=1; i<nativeInkPreviewPoints.size (); ++i)
+      p.drawLine (nativeInkPreviewPoints[i-1], nativeInkPreviewPoints[i]);
+    if (nativeInkPreviewPoints.size () == 1)
+      p.drawPoint (nativeInkPreviewPoints[0]);
+    p.restore ();
+    return;
+  }
+  if (nativeInkStyle.tool == native_drawing_tool::lasso) {
+    QPen pen (color);
+    pen.setWidthF (baseWidth);
+    pen.setStyle (Qt::DashLine);
+    pen.setCapStyle (Qt::RoundCap);
+    p.setPen (pen);
+    for (std::size_t i=1; i<nativeInkPreviewPoints.size (); ++i)
+      p.drawLine (nativeInkPreviewPoints[i-1], nativeInkPreviewPoints[i]);
+    if (nativeInkPreviewPoints.size () > 2)
+      p.drawLine (nativeInkPreviewPoints.back (), nativeInkPreviewPoints.front ());
+    p.restore ();
+    return;
+  }
   auto width_for= [&] (double pressure) {
     if (!nativeInkStyle.pressure_enabled) return baseWidth;
     return baseWidth * (0.25 + 0.75 * std::clamp (pressure, 0.0, 1.0));
@@ -383,6 +420,57 @@ QTMWidget::drawNativeInkPreview (QPainter& p) const {
     }
   }
   p.restore ();
+}
+
+void
+QTMWidget::drawNativeDrawingSelection (QPainter& p) {
+  if (is_nil (tmwid)) return;
+  std::vector<native_drawing_selection_box> boxes=
+    tm_widget ()->handle_native_drawing_selection ();
+  if (boxes.empty ()) return;
+  p.save ();
+  p.setRenderHint (QPainter::Antialiasing, true);
+  QPen pen (QColor (74, 144, 226, 220));
+  pen.setWidthF (1.5);
+  pen.setStyle (Qt::DashLine);
+  p.setPen (pen);
+  for (const auto& box: boxes) {
+    QPoint first= to_qpoint (coord2 (box.x1, box.y1)) - origin ();
+    QPoint second= to_qpoint (coord2 (box.x2, box.y2)) - origin ();
+    QRect rect (first, second);
+    rect= rect.normalized ().adjusted (-3, -3, 3, 3);
+    p.drawRoundedRect (rect, 3, 3);
+  }
+  p.restore ();
+}
+
+void
+QTMWidget::showNativeDrawingContextMenu (const QPoint& globalPos) {
+  if (is_nil (tmwid)) return;
+  QMenu menu (this);
+  QActionGroup* tools= new QActionGroup (&menu);
+  tools->setExclusive (true);
+  native_drawing_tool current= tm_widget ()->handle_native_drawing_tool ();
+  struct item { native_drawing_tool tool; const char* text; const char* icon; };
+  const item items[]= {
+    {native_drawing_tool::pen, "Pen", "draw-freehand"},
+    {native_drawing_tool::highlighter, "Highlighter", "draw-highlight"},
+    {native_drawing_tool::object_eraser, "Object eraser", "edit-delete"},
+    {native_drawing_tool::segment_eraser, "Segment eraser", "draw-eraser"},
+    {native_drawing_tool::lasso, "Lasso", "edit-select"}
+  };
+  for (const item& entry: items) {
+    QAction* action= menu.addAction (QIcon::fromTheme (entry.icon),
+                                     tr (entry.text));
+    action->setCheckable (true);
+    action->setChecked (entry.tool == current);
+    tools->addAction (action);
+    connect (action, &QAction::triggered, this, [this, entry] {
+      if (!is_nil (tmwid))
+        tm_widget ()->handle_set_native_drawing_tool (entry.tool);
+    });
+  }
+  menu.exec (globalPos);
 }
 
 void 
@@ -447,6 +535,7 @@ QTMWidget::surfacePaintEvent (QPaintEvent *event, QWidget *surfaceWidget) {
     }
   }
   drawNativeInkPreview (p);
+  drawNativeDrawingSelection (p);
   performanceMonitor.finishPaint (event, p);
 }
 
@@ -1173,6 +1262,15 @@ QTMWidget::mousePressEvent (QMouseEvent* event) {
   QPoint point = event->pos() + origin();
   coord2 pt = from_qpoint(point);
   unsigned int mstate= mouse_state (event, false);
+  if (event->button () == Qt::RightButton) {
+    native_ink_preview_style style;
+    if (tm_widget ()->handle_native_ink_hit (pt.x1, pt.x2, style)) {
+      nativeDrawingRightClickConsumed= true;
+      showNativeDrawingContextMenu (event->globalPosition ().toPoint ());
+      event->accept ();
+      return;
+    }
+  }
   if (nativeInkActive && nativeInkTablet) {
     event->accept ();
     return;
@@ -1195,6 +1293,11 @@ QTMWidget::mouseReleaseEvent (QMouseEvent* event) {
   if (is_nil (tmwid)) return;
   QPoint point = event->pos() + origin();
   coord2 pt = from_qpoint(point);
+  if (nativeDrawingRightClickConsumed && event->button () == Qt::RightButton) {
+    nativeDrawingRightClickConsumed= false;
+    event->accept ();
+    return;
+  }
   if (nativeInkActive && nativeInkTablet) {
     event->accept ();
     return;

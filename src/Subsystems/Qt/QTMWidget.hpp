@@ -146,6 +146,7 @@ private:
   bool nativeInkActive= false;
   bool nativeInkTablet= false;
   bool nativeInkAwaitingCommit= false;
+  bool nativeDrawingRightClickConsumed= false;
   native_ink_preview_style nativeInkStyle;
   std::vector<native_ink_sample> nativeInkSamples;
   std::vector<QPointF> nativeInkPreviewPoints;
@@ -185,6 +186,8 @@ private:
   void finishNativeInk ();
   void clearNativeInkPreview ();
   void drawNativeInkPreview (QPainter& p) const;
+  void drawNativeDrawingSelection (QPainter& p);
+  void showNativeDrawingContextMenu (const QPoint& globalPos);
 
 };
 

@@ -33,6 +33,7 @@ private slots:
   void givesEachProducerThreadItsOwnQtRenderer ();
   void retryDamageStaysInBackingPixels ();
   void nativeInkCommitsOneDetachedStroke ();
+  void nativeDrawingGestureKeepsSelectedTool ();
 };
 
 void
@@ -162,6 +163,8 @@ class native_ink_test_widget: public qt_simple_widget_rep {
 public:
   std::vector<native_ink_sample> committed;
   int commits= 0;
+  native_drawing_tool activeTool= native_drawing_tool::pen;
+  native_drawing_tool committedTool= native_drawing_tool::pen;
 
   void attachCanvas () { qwid= new QTMWidget (nullptr, this); }
 
@@ -170,12 +173,15 @@ public:
     style.rgba= 0xff2040a0U;
     style.line_width_pixels= 3.0;
     style.pressure_enabled= true;
+    style.tool= activeTool;
     return true;
   }
 
-  bool handle_native_ink_stroke (
-    const native_ink_sample* samples, std::size_t count) override {
+  bool handle_native_drawing_gesture (
+    native_drawing_tool tool, const native_ink_sample* samples,
+    std::size_t count) override {
     ++commits;
+    committedTool= tool;
     committed.assign (samples, samples + count);
     return true;
   }
@@ -235,11 +241,41 @@ TestQTMRenderService::nativeInkCommitsOneDetachedStroke () {
         Qt::LeftButton, Qt::NoButton);
 
   QCOMPARE (rep->commits, 1);
+  QCOMPARE (rep->committedTool, native_drawing_tool::pen);
   QVERIFY (rep->committed.size () >= 4);
   QCOMPARE (rep->committed.front ().pressure, 1.0);
   QCOMPARE (rep->committed.back ().pressure, 1.0);
   QVERIFY (rep->committed.back ().x > rep->committed.front ().x);
 
+  delete canvas;
+}
+
+void
+TestQTMRenderService::nativeDrawingGestureKeepsSelectedTool () {
+  auto* rep= tm_new<native_ink_test_widget> ();
+  widget owner (rep);
+  rep->activeTool= native_drawing_tool::highlighter;
+  rep->attachCanvas ();
+  QTMWidget* canvas= rep->canvas ();
+  QVERIFY (canvas != nullptr);
+  QWidget* surface= canvas->surface ();
+  QVERIFY (surface != nullptr);
+
+  auto send= [&] (QEvent::Type type, QPointF pos, Qt::MouseButton button,
+                  Qt::MouseButtons buttons) {
+    QMouseEvent event (type, pos, pos, button, buttons, Qt::NoModifier);
+    QCoreApplication::sendEvent (surface, &event);
+  };
+  send (QEvent::MouseButtonPress, QPointF (60, 80),
+        Qt::LeftButton, Qt::LeftButton);
+  send (QEvent::MouseMove, QPointF (120, 90),
+        Qt::NoButton, Qt::LeftButton);
+  send (QEvent::MouseButtonRelease, QPointF (180, 100),
+        Qt::LeftButton, Qt::NoButton);
+
+  QCOMPARE (rep->commits, 1);
+  QCOMPARE (rep->committedTool, native_drawing_tool::highlighter);
+  QVERIFY (rep->committed.size () >= 3);
   delete canvas;
 }
 

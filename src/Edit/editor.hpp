@@ -311,6 +311,11 @@ public:
                                  array<double> d) = 0;
   virtual void   refresh_native_ink_interaction () = 0;
   virtual void   mark_native_ink_interaction_dirty () = 0;
+  virtual native_drawing_tool get_native_drawing_tool () const = 0;
+  virtual void   set_native_drawing_tool (native_drawing_tool tool) = 0;
+  virtual void   commit_native_drawing_gesture (
+    native_drawing_tool tool, const native_ink_sample* samples,
+    std::size_t count) = 0;
   virtual void   commit_native_ink_stroke (const native_ink_sample* samples,
                                            std::size_t count) = 0;
   virtual bool   native_ink_cursor_mode () = 0;

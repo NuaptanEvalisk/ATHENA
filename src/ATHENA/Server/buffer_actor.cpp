@@ -739,6 +739,11 @@ buffer_actor::dispatch (actor_command_record& command) {
       (void) actor_blob_registry::instance ().discard (command.payload1);
     }
     break;
+  case actor_command_kind::set_native_drawing_tool:
+    if (editor != nullptr)
+      editor->set_native_drawing_tool (
+        static_cast<native_drawing_tool> (command.argument[0]));
+    break;
   case actor_command_kind::native_ink_stroke:
     if (editor != nullptr) {
       owned_actor_blob payload=
@@ -746,7 +751,8 @@ buffer_actor::dispatch (actor_command_record& command) {
       std::size_t count= static_cast<std::size_t> (command.argument[0]);
       std::size_t expected= count * sizeof (native_ink_sample);
       if (count > 0 && payload && payload.size () == expected)
-        editor->commit_native_ink_stroke (
+        editor->commit_native_drawing_gesture (
+          static_cast<native_drawing_tool> (command.argument[1]),
           reinterpret_cast<const native_ink_sample*> (payload.data ()), count);
     }
     else

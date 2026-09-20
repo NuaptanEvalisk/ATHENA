@@ -87,6 +87,14 @@ public:
                              array<double> data= array<double> ());
   virtual bool handle_native_ink_hit (SI x, SI y,
                                       native_ink_preview_style& style);
+  virtual bool handle_native_drawing_available ();
+  virtual native_drawing_tool handle_native_drawing_tool ();
+  virtual bool handle_set_native_drawing_tool (native_drawing_tool tool);
+  virtual std::vector<native_drawing_selection_box>
+    handle_native_drawing_selection ();
+  virtual bool handle_native_drawing_gesture (
+    native_drawing_tool tool, const native_ink_sample* samples,
+    std::size_t count);
   virtual bool handle_native_ink_stroke (const native_ink_sample* samples,
                                          std::size_t count);
   virtual bool handle_wheel_capture ();

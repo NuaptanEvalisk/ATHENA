@@ -190,6 +190,19 @@ actor_ui_endpoint::native_ink_regions () const {
   return native_ink_regions_;
 }
 
+void
+actor_ui_endpoint::update_native_drawing_selection (
+  std::vector<native_drawing_selection_box> boxes) noexcept {
+  std::lock_guard<std::mutex> guard (native_drawing_selection_lock_);
+  native_drawing_selection_= std::move (boxes);
+}
+
+std::vector<native_drawing_selection_box>
+actor_ui_endpoint::native_drawing_selection () const {
+  std::lock_guard<std::mutex> guard (native_drawing_selection_lock_);
+  return native_drawing_selection_;
+}
+
 bool
 actor_ui_endpoint::wheel_capture () const noexcept {
   return wheel_capture_.load (std::memory_order_acquire) ||

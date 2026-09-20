@@ -16,6 +16,7 @@
 #include <QPushButton>
 #include <QLabel>
 #include <QApplication>
+#include <QActionGroup>
 #include <QDialog>
 #include <QComboBox>
 #include <QStatusBar>
@@ -25,6 +26,7 @@
 #include <QTextStream>
 #include <QMainWindow>
 #include <QMenuBar>
+#include <QIcon>
 #include <QLayoutItem>
 #include "QTMApplication.hpp"
 
@@ -608,6 +610,51 @@ qt_tm_widget_rep::clear_main_menu_actions () {
 }
 
 void
+qt_tm_widget_rep::append_native_drawing_mode_actions () {
+  QTMWidget* c= canvas ();
+  if (c == nullptr || c->tm_widget () == nullptr ||
+      !c->tm_widget ()->handle_native_drawing_available ())
+    return;
+  const auto oldGroups= modeToolBar->findChildren<QActionGroup*> (
+    QStringLiteral ("athenaNativeDrawingTools"), Qt::FindDirectChildrenOnly);
+  for (QActionGroup* oldGroup: oldGroups)
+    if (oldGroup != nullptr) oldGroup->deleteLater ();
+  native_drawing_tool current=
+    c->tm_widget ()->handle_native_drawing_tool ();
+  QActionGroup* group= new QActionGroup (modeToolBar);
+  group->setObjectName (QStringLiteral ("athenaNativeDrawingTools"));
+  group->setExclusive (true);
+  QPointer<QTMWidget> canvasRef (c);
+  struct item { native_drawing_tool tool; const char* text; const char* icon; };
+  const item items[]= {
+    {native_drawing_tool::pen, "Pen", "draw-freehand"},
+    {native_drawing_tool::highlighter, "Highlighter", "draw-highlight"},
+    {native_drawing_tool::object_eraser, "Object eraser", "edit-delete"},
+    {native_drawing_tool::segment_eraser, "Segment eraser", "draw-eraser"},
+    {native_drawing_tool::lasso, "Lasso", "edit-select"}
+  };
+  modeToolBar->addSeparator ();
+  for (const item& entry: items) {
+    QAction* action= new QAction (QIcon::fromTheme (entry.icon),
+                                  QObject::tr (entry.text), modeToolBar);
+    action->setToolTip (QObject::tr (entry.text));
+    action->setCheckable (true);
+    action->setChecked (entry.tool == current);
+    group->addAction (action);
+    modeToolBar->addAction (action);
+    QObject::connect (action, &QAction::triggered, modeToolBar,
+      [canvasRef, entry, group, action] (bool checked) {
+        (void) group;
+        QTMWidget* canvas= canvasRef.data ();
+        if (!checked || canvas == nullptr || canvas->tm_widget () == nullptr)
+          return;
+        canvas->tm_widget ()->handle_set_native_drawing_tool (entry.tool);
+        action->setChecked (true);
+      });
+  }
+}
+
+void
 qt_tm_widget_rep::tweak_iconbar_size (QSize& sz) {
 #ifdef Q_OS_LINUX
   if (sz.height () >= 24) {
@@ -1163,6 +1210,7 @@ qt_tm_widget_rep::write (slot s, blackbox index, widget w) {
         replaceButtons (modeToolBar, list, mode_toolbar_actions);
 #endif
         delete list;
+        append_native_drawing_mode_actions ();
         update_visibility();
       }
     }

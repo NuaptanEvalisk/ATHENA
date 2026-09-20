@@ -39,6 +39,14 @@ public:
                      array<double> data) override;
   bool handle_native_ink_hit (SI x, SI y,
                               native_ink_preview_style& style) override;
+  bool handle_native_drawing_available () override;
+  native_drawing_tool handle_native_drawing_tool () override;
+  bool handle_set_native_drawing_tool (native_drawing_tool tool) override;
+  std::vector<native_drawing_selection_box>
+    handle_native_drawing_selection () override;
+  bool handle_native_drawing_gesture (
+    native_drawing_tool tool, const native_ink_sample* samples,
+    std::size_t count) override;
   bool handle_native_ink_stroke (const native_ink_sample* samples,
                                  std::size_t count) override;
   bool handle_wheel_capture () override;

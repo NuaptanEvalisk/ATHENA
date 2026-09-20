@@ -44,6 +44,15 @@ count_label (tree t, tree_label label) {
 }
 
 static tree
+with_property (tree object, string name) {
+  if (!is_func (object, WITH) || N(object) < 3) return tree (UNINIT);
+  for (int i=0; i+1<N(object)-1; i+=2)
+    if (is_atomic (object[i]) && object[i]->label == name)
+      return object[i+1];
+  return tree (UNINIT);
+}
+
+static tree
 ink_document () {
   tree mode (TUPLE);
   mode << "hand-edit" << "penscript";
@@ -72,10 +81,16 @@ private slots:
   void init ();
   void cleanup ();
   void strokePersistsAndUndoesAsOneTransaction ();
+  void highlighterPersistsTransparentWideStroke ();
+  void objectEraserRemovesWholeStroke ();
+  void objectEraserRemovesVectorShape ();
+  void segmentEraserSplitsStrokeInOneTransaction ();
+  void lassoSelectsWithoutChangingDocument ();
 
 private:
   buffer_document_state* buffer= nullptr;
   NativeInkTestEditorRep* editor= nullptr;
+  actor_ui_endpoint* endpoint= nullptr;
 };
 
 void
@@ -88,6 +103,9 @@ TestNativeInkEditor::init () {
   buffer->data->init (ZOOM_FACTOR)= "1";
   set_document (buffer->document, buffer->root_path, ink_document ());
   editor= tm_new<NativeInkTestEditorRep> (test_server, buffer);
+  endpoint= register_actor_ui_endpoint (991001);
+  editor->runtime_view_id= 991001;
+  editor->ui_endpoint= endpoint;
   editor->init_style ("generic");
 }
 
@@ -95,24 +113,51 @@ void
 TestNativeInkEditor::cleanup () {
   tm_delete<editor_rep> (editor);
   editor= nullptr;
+  unregister_actor_ui_endpoint (991001);
+  endpoint= nullptr;
   swap_current_document_tree (nullptr);
   tm_delete (buffer);
   buffer= nullptr;
 }
 
-void
-TestNativeInkEditor::strokePersistsAndUndoesAsOneTransaction () {
-  const path graphics_path= buffer->root_path * 0 * 10;
+static void
+prepare_graphics_region (NativeInkTestEditorRep* editor,
+                         buffer_document_state* buffer,
+                         path& graphics_path,
+                         SI& left, SI& bottom, SI& right, SI& top) {
+  graphics_path= buffer->root_path * 0 * 10;
   editor->go_to (graphics_path * 0 * 0);
-
   SI tx1= 0, ty1= 0, tx2= 0, ty2= 0;
   editor->typeset (tx1, ty1, tx2, ty2);
   SI gx1= 0, gy1= 0, gx2= 0, gy2= 0;
   QVERIFY (editor->find_graphical_region (gx1, gy1, gx2, gy2));
-  SI left= min (gx1, gx2), right= max (gx1, gx2);
-  SI bottom= min (gy1, gy2), top= max (gy1, gy2);
+  left= min (gx1, gx2);
+  right= max (gx1, gx2);
+  bottom= min (gy1, gy2);
+  top= max (gy1, gy2);
   QVERIFY (right > left);
   QVERIFY (top > bottom);
+}
+
+static std::vector<native_ink_sample>
+horizontal_samples (SI left, SI right, SI y, int count= 7) {
+  std::vector<native_ink_sample> result ((std::size_t) count);
+  for (int i=0; i<count; ++i) {
+    result[(std::size_t) i].x=
+      left + ((i + 1) * (right - left)) / (count + 1);
+    result[(std::size_t) i].y= y;
+    result[(std::size_t) i].time= 100.0 + i;
+    result[(std::size_t) i].pressure= 0.5 + 0.05 * i;
+  }
+  return result;
+}
+
+void
+TestNativeInkEditor::strokePersistsAndUndoesAsOneTransaction () {
+  path graphics_path;
+  SI left= 0, bottom= 0, right= 0, top= 0;
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
 
   native_ink_sample samples[4];
   for (int i=0; i<4; ++i) {
@@ -125,6 +170,10 @@ TestNativeInkEditor::strokePersistsAndUndoesAsOneTransaction () {
 
   tree after= copy (subtree (current_document_tree (), buffer->root_path));
   QCOMPARE (count_label (after, PENSCRIPT), 1);
+  tree graphics= subtree (current_document_tree (), graphics_path);
+  QCOMPARE (N(graphics), 2);
+  QVERIFY (is_func (graphics[1], WITH));
+  QVERIFY (is_func (graphics[1][N(graphics[1])-1], PENSCRIPT));
   string serialized= tree_to_texmacs (after);
   QVERIFY (occurs ("athena-ink-", serialized));
   tree reparsed= texmacs_to_tree (serialized);
@@ -140,6 +189,153 @@ TestNativeInkEditor::strokePersistsAndUndoesAsOneTransaction () {
   editor->redo (0);
   tree redone= subtree (current_document_tree (), buffer->root_path);
   QCOMPARE (count_label (redone, PENSCRIPT), 1);
+}
+
+void
+TestNativeInkEditor::highlighterPersistsTransparentWideStroke () {
+  path graphics_path;
+  SI left= 0, bottom= 0, right= 0, top= 0;
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  auto samples= horizontal_samples (left, right, (bottom + top) / 2, 5);
+  editor->set_native_drawing_tool (native_drawing_tool::highlighter);
+  editor->commit_native_drawing_gesture (
+    native_drawing_tool::highlighter, samples.data (), samples.size ());
+
+  tree after= copy (subtree (current_document_tree (), buffer->root_path));
+  QCOMPARE (count_label (after, PENSCRIPT), 1);
+  string serialized= tree_to_texmacs (after);
+  QVERIFY (occurs ("highlighter", serialized));
+  tree graphics= subtree (current_document_tree (), graphics_path);
+  QCOMPARE (N(graphics), 2);
+  tree object= graphics[1];
+  QVERIFY (is_func (object, WITH));
+  tree color_value= with_property (object, "color");
+  tree width_value= with_property (object, "line-width");
+  QVERIFY (is_atomic (color_value));
+  QVERIFY (is_atomic (width_value));
+  int r= 0, g= 0, b= 0, a= 0;
+  get_rgb_color (named_color (color_value->label), r, g, b, a);
+  QCOMPARE (a, 96);
+  QCOMPARE (width_value->label, string ("10ln"));
+}
+
+void
+TestNativeInkEditor::objectEraserRemovesWholeStroke () {
+  path graphics_path;
+  SI left= 0, bottom= 0, right= 0, top= 0;
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  auto first= horizontal_samples (left, right, bottom + (top-bottom)/3, 7);
+  auto second= horizontal_samples (left, right, bottom + 2*(top-bottom)/3, 7);
+  editor->commit_native_ink_stroke (first.data (), first.size ());
+  editor->commit_native_ink_stroke (second.data (), second.size ());
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), buffer->root_path), PENSCRIPT), 2);
+
+  native_ink_sample erase[2];
+  erase[0]= first[1];
+  erase[1]= first[first.size () - 2];
+  editor->commit_native_drawing_gesture (
+    native_drawing_tool::object_eraser, erase, 2);
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), buffer->root_path), PENSCRIPT), 1);
+}
+
+void
+TestNativeInkEditor::objectEraserRemovesVectorShape () {
+  path graphics_path;
+  SI left= 0, bottom= 0, right= 0, top= 0;
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  tree shape= compound (
+    "line", tree (_POINT, "-2", "0"), tree (_POINT, "2", "0"));
+  tree graphics= subtree (current_document_tree (), graphics_path);
+  editor->start_editing ();
+  insert (graphics_path * N(graphics), tree (TUPLE, shape));
+  editor->end_editing ();
+  SI tx1= 0, ty1= 0, tx2= 0, ty2= 0;
+  editor->typeset (tx1, ty1, tx2, ty2);
+  frame f= editor->find_frame ();
+  QVERIFY (!is_nil (f));
+  point a= f (point (-1.0, 0.0));
+  point b= f (point (1.0, 0.0));
+  QVERIFY (N(a) >= 2 && N(b) >= 2);
+  native_ink_sample erase[2];
+  erase[0].x= (SI) a[0]; erase[0].y= (SI) a[1];
+  erase[1].x= (SI) b[0]; erase[1].y= (SI) b[1];
+  editor->commit_native_drawing_gesture (
+    native_drawing_tool::object_eraser, erase, 2);
+  tree after= subtree (current_document_tree (), graphics_path);
+  QCOMPARE (N(after), 1);
+  QVERIFY (is_empty (after[0]));
+}
+
+void
+TestNativeInkEditor::segmentEraserSplitsStrokeInOneTransaction () {
+  path graphics_path;
+  SI left= 0, bottom= 0, right= 0, top= 0;
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  SI y= (bottom + top) / 2;
+  auto stroke= horizontal_samples (left, right, y, 9);
+  editor->commit_native_ink_stroke (stroke.data (), stroke.size ());
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), buffer->root_path), PENSCRIPT), 1);
+
+  native_ink_sample erase[2];
+  erase[0].x= stroke[4].x;
+  erase[0].y= y - (top-bottom)/8;
+  erase[1].x= stroke[4].x;
+  erase[1].y= y + (top-bottom)/8;
+  editor->commit_native_drawing_gesture (
+    native_drawing_tool::segment_eraser, erase, 2);
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), buffer->root_path), PENSCRIPT), 2);
+
+  editor->go_to (buffer->root_path * 1 * 0);
+  QVERIFY (editor->undo_possibilities () >= 1);
+  editor->undo (0);
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), buffer->root_path), PENSCRIPT), 1);
+}
+
+void
+TestNativeInkEditor::lassoSelectsWithoutChangingDocument () {
+  path graphics_path;
+  SI left= 0, bottom= 0, right= 0, top= 0;
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  SI y1= bottom + (top-bottom)/3;
+  SI y2= bottom + 2*(top-bottom)/3;
+  auto first= horizontal_samples (left, (left+right)/2, y1, 5);
+  auto second= horizontal_samples ((left+right)/2, right, y2, 5);
+  editor->commit_native_ink_stroke (first.data (), first.size ());
+  editor->commit_native_ink_stroke (second.data (), second.size ());
+  tree before= copy (subtree (current_document_tree (), buffer->root_path));
+  int undo_before= editor->undo_possibilities ();
+
+  SI margin_x= (right-left)/20;
+  SI margin_y= (top-bottom)/12;
+  native_ink_sample lasso[5];
+  SI lx1= first.front ().x - margin_x;
+  SI lx2= first.back ().x + margin_x;
+  SI ly1= y1 - margin_y;
+  SI ly2= y1 + margin_y;
+  lasso[0].x= lx1; lasso[0].y= ly1;
+  lasso[1].x= lx2; lasso[1].y= ly1;
+  lasso[2].x= lx2; lasso[2].y= ly2;
+  lasso[3].x= lx1; lasso[3].y= ly2;
+  lasso[4]= lasso[0];
+  editor->commit_native_drawing_gesture (
+    native_drawing_tool::lasso, lasso, 5);
+
+
+  QCOMPARE (subtree (current_document_tree (), buffer->root_path), before);
+  QCOMPARE (editor->undo_possibilities (), undo_before);
+  std::vector<native_drawing_selection_box> selected=
+    endpoint->native_drawing_selection ();
+  QCOMPARE ((int) selected.size (), 1);
 }
 
 static int test_status= 1;

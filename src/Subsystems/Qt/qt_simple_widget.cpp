@@ -142,6 +142,35 @@ qt_simple_widget_rep::handle_native_ink_hit (
 }
 
 bool
+qt_simple_widget_rep::handle_native_drawing_available () {
+  return false;
+}
+
+native_drawing_tool
+qt_simple_widget_rep::handle_native_drawing_tool () {
+  return native_drawing_tool::pen;
+}
+
+bool
+qt_simple_widget_rep::handle_set_native_drawing_tool (native_drawing_tool tool) {
+  (void) tool;
+  return false;
+}
+
+std::vector<native_drawing_selection_box>
+qt_simple_widget_rep::handle_native_drawing_selection () {
+  return {};
+}
+
+bool
+qt_simple_widget_rep::handle_native_drawing_gesture (
+  native_drawing_tool tool, const native_ink_sample* samples,
+  std::size_t count) {
+  if (tool != native_drawing_tool::pen) return false;
+  return handle_native_ink_stroke (samples, count);
+}
+
+bool
 qt_simple_widget_rep::handle_native_ink_stroke (
   const native_ink_sample* samples, std::size_t count) {
   (void) samples; (void) count;

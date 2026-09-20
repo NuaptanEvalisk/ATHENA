@@ -220,13 +220,56 @@ qt_actor_widget_rep::handle_native_ink_hit (
   style.rgba= best->rgba;
   style.line_width_pixels=
     std::max (1.0, best->line_width_pixels * zoom);
+  style.eraser_radius_pixels=
+    std::max (1.0, best->eraser_radius_pixels * zoom);
   style.pressure_enabled= best->pressure_enabled;
+  style.tool= best->tool;
   return true;
 }
 
 bool
-qt_actor_widget_rep::handle_native_ink_stroke (
-  const native_ink_sample* samples, std::size_t count) {
+qt_actor_widget_rep::handle_native_drawing_available () {
+  return endpoint_ != nullptr && !endpoint_->native_ink_regions ().empty ();
+}
+
+native_drawing_tool
+qt_actor_widget_rep::handle_native_drawing_tool () {
+  if (endpoint_ == nullptr) return native_drawing_tool::pen;
+  std::vector<native_ink_interaction_snapshot> regions=
+    endpoint_->native_ink_regions ();
+  return regions.empty () ? native_drawing_tool::pen : regions.front ().tool;
+}
+
+bool
+qt_actor_widget_rep::handle_set_native_drawing_tool (native_drawing_tool tool) {
+  actor_command_ticket ticket= buffer_actor::submit_to (
+    actor_id_, actor_command_kind::set_native_drawing_tool, view_id_,
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+    static_cast<std::uint64_t> (tool));
+  return static_cast<bool> (ticket);
+}
+
+std::vector<native_drawing_selection_box>
+qt_actor_widget_rep::handle_native_drawing_selection () {
+  if (endpoint_ == nullptr) return {};
+  double zoom= endpoint_->zoom_factor ();
+  if (!(zoom > 0.0) || !std::isfinite (zoom)) zoom= 1.0;
+  double output_scale= zoom / static_cast<double> (std_shrinkf);
+  std::vector<native_drawing_selection_box> result=
+    endpoint_->native_drawing_selection ();
+  for (auto& box: result) {
+    box.x1= static_cast<SI> (std::llround (box.x1 * output_scale));
+    box.y1= static_cast<SI> (std::llround (box.y1 * output_scale));
+    box.x2= static_cast<SI> (std::llround (box.x2 * output_scale));
+    box.y2= static_cast<SI> (std::llround (box.y2 * output_scale));
+  }
+  return result;
+}
+
+bool
+qt_actor_widget_rep::handle_native_drawing_gesture (
+  native_drawing_tool tool, const native_ink_sample* samples,
+  std::size_t count) {
   if (samples == nullptr || count == 0 || endpoint_ == nullptr) return false;
   if (count > (16U * 1024U * 1024U) / sizeof (native_ink_sample)) return false;
   std::size_t bytes= count * sizeof (native_ink_sample);
@@ -248,9 +291,17 @@ qt_actor_widget_rep::handle_native_ink_stroke (
   actor_command_ticket ticket= buffer_actor::submit_to (
     actor_id_, actor_command_kind::native_ink_stroke, view_id_, payload,
     ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
-    static_cast<std::uint64_t> (count));
+    static_cast<std::uint64_t> (count),
+    static_cast<std::uint64_t> (tool));
   if (!ticket) (void) actor_blob_registry::instance ().discard (payload);
   return static_cast<bool> (ticket);
+}
+
+bool
+qt_actor_widget_rep::handle_native_ink_stroke (
+  const native_ink_sample* samples, std::size_t count) {
+  return handle_native_drawing_gesture (
+    native_drawing_tool::pen, samples, count);
 }
 
 bool

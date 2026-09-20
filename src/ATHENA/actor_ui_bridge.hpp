@@ -67,6 +67,9 @@ public:
   void update_native_ink_regions (
     std::vector<native_ink_interaction_snapshot> regions) noexcept;
   std::vector<native_ink_interaction_snapshot> native_ink_regions () const;
+  void update_native_drawing_selection (
+    std::vector<native_drawing_selection_box> boxes) noexcept;
+  std::vector<native_drawing_selection_box> native_drawing_selection () const;
   void set_overlay_wheel_capture (bool capture) noexcept;
   bool overlay_wheel_capture () const noexcept {
     return overlay_wheel_capture_.load (std::memory_order_acquire);
@@ -142,6 +145,8 @@ private:
   atomic_viewport viewport_;
   mutable std::mutex native_ink_lock_;
   std::vector<native_ink_interaction_snapshot> native_ink_regions_;
+  mutable std::mutex native_drawing_selection_lock_;
+  std::vector<native_drawing_selection_box> native_drawing_selection_;
   std::atomic<bool> wheel_capture_ {false};
   std::atomic<bool> overlay_wheel_capture_ {false};
   std::atomic<std::uint64_t> zoom_factor_bits_ {0};

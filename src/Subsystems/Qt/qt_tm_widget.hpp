@@ -116,6 +116,7 @@ public:
   static void refreshAllToolbarPreferences ();
   void install_main_menu ();
   void clear_main_menu_actions ();
+  void append_native_drawing_mode_actions ();
   static void tweak_iconbar_size (QSize& sz);
 
   

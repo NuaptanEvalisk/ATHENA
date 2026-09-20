@@ -14,6 +14,21 @@
 #include <cstddef>
 #include <cstdint>
 
+enum class native_drawing_tool: std::uint8_t {
+  pen= 0,
+  highlighter,
+  object_eraser,
+  segment_eraser,
+  lasso
+};
+
+struct native_drawing_selection_box {
+  SI x1= 0;
+  SI y1= 0;
+  SI x2= 0;
+  SI y2= 0;
+};
+
 struct native_ink_sample {
   SI x= 0;
   SI y= 0;
@@ -32,14 +47,18 @@ struct native_ink_interaction_snapshot {
   SI y2= 0;
   std::uint32_t rgba= 0xff000000U;
   double line_width_pixels= 1.0;
+  double eraser_radius_pixels= 8.0;
   bool pen_enabled= false;
   bool pressure_enabled= true;
+  native_drawing_tool tool= native_drawing_tool::pen;
 };
 
 struct native_ink_preview_style {
   std::uint32_t rgba= 0xff000000U;
   double line_width_pixels= 1.0;
+  double eraser_radius_pixels= 8.0;
   bool pressure_enabled= true;
+  native_drawing_tool tool= native_drawing_tool::pen;
 };
 
 #endif // defined ATHENA_NATIVE_INK_HPP

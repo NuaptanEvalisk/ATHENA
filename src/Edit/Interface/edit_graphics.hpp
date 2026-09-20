@@ -23,6 +23,8 @@ private:
   gr_selections gs;     // Last graphical_select (x, y)
   grid gr0;             // Last grid
   std::vector<path> native_ink_paths_;
+  std::vector<path> native_drawing_selection_paths_;
+  native_drawing_tool native_drawing_tool_= native_drawing_tool::pen;
   bool native_ink_interaction_dirty_= true;
 
 protected:
@@ -56,6 +58,11 @@ public:
   bool   mouse_graphics (string s, SI x, SI y, int m, time_t t, array<double> d);
   void   refresh_native_ink_interaction ();
   void   mark_native_ink_interaction_dirty ();
+  native_drawing_tool get_native_drawing_tool () const;
+  void   set_native_drawing_tool (native_drawing_tool tool);
+  void   commit_native_drawing_gesture (
+    native_drawing_tool tool, const native_ink_sample* samples,
+    std::size_t count);
   void   commit_native_ink_stroke (const native_ink_sample* samples,
                                    std::size_t count);
   void   collect_native_ink_graphics (tree t, path p, bool in_diagram,
@@ -66,6 +73,15 @@ public:
                             frame* coordinate_frame= nullptr);
   bool   native_ink_target (SI x, SI y, path& graphics,
                             frame& coordinate_frame);
+  bool   native_drawing_object_bounds (path object,
+                                       native_drawing_selection_box& bounds);
+  void   refresh_native_drawing_selection_snapshot ();
+  void   erase_native_drawing_objects (const native_ink_sample* samples,
+                                       std::size_t count);
+  void   erase_native_drawing_segments (const native_ink_sample* samples,
+                                        std::size_t count);
+  void   select_native_drawing_lasso (const native_ink_sample* samples,
+                                      std::size_t count);
   bool   native_ink_cursor_mode ();
   void   back_in_text_at (tree t, path p, bool forward);
 };

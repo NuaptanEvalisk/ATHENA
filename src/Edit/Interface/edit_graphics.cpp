@@ -23,6 +23,8 @@
 #include <atomic>
 #include <cmath>
 #include <cstdlib>
+#include <limits>
+#include <utility>
 
 /******************************************************************************
 * Constructors and destructors
@@ -95,6 +97,193 @@ path_has_prefix (path value, path prefix) {
     prefix= prefix->next;
   }
   return true;
+}
+
+struct native_xy {
+  double x= 0.0;
+  double y= 0.0;
+};
+
+double
+native_cross (native_xy a, native_xy b, native_xy c) {
+  return (b.x - a.x) * (c.y - a.y) -
+         (b.y - a.y) * (c.x - a.x);
+}
+
+double
+native_point_segment_distance2 (native_xy p, native_xy a, native_xy b) {
+  double dx= b.x - a.x;
+  double dy= b.y - a.y;
+  double n= dx * dx + dy * dy;
+  if (n <= 1.0e-18) {
+    dx= p.x - a.x;
+    dy= p.y - a.y;
+    return dx * dx + dy * dy;
+  }
+  double t= ((p.x - a.x) * dx + (p.y - a.y) * dy) / n;
+  t= std::max (0.0, std::min (1.0, t));
+  double qx= a.x + t * dx;
+  double qy= a.y + t * dy;
+  dx= p.x - qx;
+  dy= p.y - qy;
+  return dx * dx + dy * dy;
+}
+
+bool
+native_segments_intersect (native_xy a, native_xy b,
+                           native_xy c, native_xy d) {
+  double ab_c= native_cross (a, b, c);
+  double ab_d= native_cross (a, b, d);
+  double cd_a= native_cross (c, d, a);
+  double cd_b= native_cross (c, d, b);
+  return ((ab_c <= 0.0 && ab_d >= 0.0) ||
+          (ab_c >= 0.0 && ab_d <= 0.0)) &&
+         ((cd_a <= 0.0 && cd_b >= 0.0) ||
+          (cd_a >= 0.0 && cd_b <= 0.0));
+}
+
+double
+native_segment_distance2 (native_xy a, native_xy b,
+                          native_xy c, native_xy d) {
+  if (native_segments_intersect (a, b, c, d)) return 0.0;
+  return std::min (
+    std::min (native_point_segment_distance2 (a, c, d),
+              native_point_segment_distance2 (b, c, d)),
+    std::min (native_point_segment_distance2 (c, a, b),
+              native_point_segment_distance2 (d, a, b)));
+}
+
+std::vector<native_xy>
+native_gesture_points (const native_ink_sample* samples, std::size_t count) {
+  std::vector<native_xy> result;
+  result.reserve (count);
+  for (std::size_t i= 0; i < count; ++i)
+    result.push_back ({static_cast<double> (samples[i].x),
+                       static_cast<double> (samples[i].y)});
+  return result;
+}
+
+bool
+native_polyline_hits (const std::vector<native_xy>& first,
+                      const std::vector<native_xy>& second,
+                      double radius) {
+  if (first.empty () || second.empty ()) return false;
+  double r2= radius * radius;
+  if (first.size () == 1 && second.size () == 1) {
+    double dx= first[0].x - second[0].x;
+    double dy= first[0].y - second[0].y;
+    return dx * dx + dy * dy <= r2;
+  }
+  if (first.size () == 1) {
+    for (std::size_t j= 1; j < second.size (); ++j)
+      if (native_point_segment_distance2 (
+            first[0], second[j-1], second[j]) <= r2)
+        return true;
+    return false;
+  }
+  if (second.size () == 1) {
+    for (std::size_t i= 1; i < first.size (); ++i)
+      if (native_point_segment_distance2 (
+            second[0], first[i-1], first[i]) <= r2)
+        return true;
+    return false;
+  }
+  for (std::size_t i= 1; i < first.size (); ++i)
+    for (std::size_t j= 1; j < second.size (); ++j)
+      if (native_segment_distance2 (
+            first[i-1], first[i], second[j-1], second[j]) <= r2)
+        return true;
+  return false;
+}
+
+bool
+native_point_in_polygon (native_xy p, const std::vector<native_xy>& polygon) {
+  if (polygon.size () < 3) return false;
+  bool inside= false;
+  for (std::size_t i=0, j=polygon.size () - 1; i<polygon.size (); j=i++) {
+    const native_xy& a= polygon[i];
+    const native_xy& b= polygon[j];
+    bool crosses= ((a.y > p.y) != (b.y > p.y)) &&
+      (p.x < (b.x - a.x) * (p.y - a.y) /
+               ((b.y - a.y) == 0.0 ? 1.0e-18 : (b.y - a.y)) + a.x);
+    if (crosses) inside= !inside;
+  }
+  return inside;
+}
+
+tree
+native_penscript_radical (tree object) {
+  tree radical= object;
+  while (is_func (radical, WITH) && N(radical) >= 1)
+    radical= radical[N(radical) - 1];
+  return radical;
+}
+
+tree
+native_replace_radical (tree object, tree radical) {
+  if (!is_func (object, WITH) || N(object) < 1) return radical;
+  tree result= copy (object);
+  int last= N(result) - 1;
+  result[last]= native_replace_radical (result[last], radical);
+  return result;
+}
+
+bool
+native_penscript_screen_points (tree object, frame f,
+                                std::vector<native_xy>& points,
+                                tree* radical_out= nullptr) {
+  tree stroke= native_penscript_radical (object);
+  if (!is_func (stroke, PENSCRIPT) || N(stroke) < 4 ||
+      !is_func (stroke[3], TUPLE))
+    return false;
+  points.clear ();
+  points.reserve (N(stroke[3]));
+  for (int i=0; i<N(stroke[3]); ++i) {
+    tree sample= stroke[3][i];
+    if (!is_func (sample, TUPLE) || N(sample) < 2 ||
+        !is_atomic (sample[0]) || !is_atomic (sample[1]))
+      continue;
+    point p= f (point (as_double (sample[0]->label),
+                       as_double (sample[1]->label)));
+    if (N(p) >= 2) points.push_back ({p[0], p[1]});
+  }
+  if (radical_out != nullptr) *radical_out= stroke;
+  return !points.empty ();
+}
+
+void
+native_collect_graphics_points (tree t, frame f,
+                                std::vector<native_xy>& points) {
+  if (is_func (t, _POINT) && N(t) >= 2 &&
+      is_atomic (t[0]) && is_atomic (t[1])) {
+    point p= f (point (as_double (t[0]->label), as_double (t[1]->label)));
+    if (N(p) >= 2) points.push_back ({p[0], p[1]});
+    return;
+  }
+  if (is_atomic (t)) return;
+  for (int i=0; i<N(t); ++i)
+    native_collect_graphics_points (t[i], f, points);
+}
+
+bool
+native_polyline_hits_box (const std::vector<native_xy>& points,
+                          native_drawing_selection_box box,
+                          double radius) {
+  double x1= std::min ((double) box.x1, (double) box.x2) - radius;
+  double x2= std::max ((double) box.x1, (double) box.x2) + radius;
+  double y1= std::min ((double) box.y1, (double) box.y2) - radius;
+  double y2= std::max ((double) box.y1, (double) box.y2) + radius;
+  auto inside= [=] (native_xy p) {
+    return p.x >= x1 && p.x <= x2 && p.y >= y1 && p.y <= y2;
+  };
+  for (const auto& p: points) if (inside (p)) return true;
+  native_xy corners[4]= {{x1,y1},{x2,y1},{x2,y2},{x1,y2}};
+  for (std::size_t i=1; i<points.size (); ++i)
+    for (int e=0; e<4; ++e)
+      if (native_segments_intersect (
+            points[i-1], points[i], corners[e], corners[(e+1)%4]))
+        return true;
+  return false;
 }
 
 } // namespace
@@ -591,8 +780,41 @@ edit_graphics_rep::native_ink_region (
   region.rgba= native_ink_rgba (named_color (color_name));
   region.line_width_pixels= native_line_width_pixels (
     native_ink_property (graphics, GR_LINE_WIDTH, tree ("1ln")));
+  region.tool= native_drawing_tool_;
+  switch (native_drawing_tool_) {
+  case native_drawing_tool::highlighter: {
+    int r= 255, g= 235, b= 59, a= 96;
+    color base= named_color (color_name);
+    get_rgb_color (base, r, g, b, a);
+    a= 96;
+    region.rgba= native_ink_rgba (rgb_color (r, g, b, a));
+    region.line_width_pixels= std::max (6.0, region.line_width_pixels * 5.0);
+    region.pressure_enabled= false;
+    break;
+  }
+  case native_drawing_tool::object_eraser:
+    region.rgba= 0x80ffffffU;
+    region.line_width_pixels= 16.0;
+    region.eraser_radius_pixels= 8.0;
+    region.pressure_enabled= false;
+    break;
+  case native_drawing_tool::segment_eraser:
+    region.rgba= 0x80ffffffU;
+    region.line_width_pixels= 12.0;
+    region.eraser_radius_pixels= 6.0;
+    region.pressure_enabled= false;
+    break;
+  case native_drawing_tool::lasso:
+    region.rgba= 0xff4a90e2U;
+    region.line_width_pixels= 1.5;
+    region.pressure_enabled= false;
+    break;
+  case native_drawing_tool::pen:
+    break;
+  }
   region.pen_enabled= true;
-  region.pressure_enabled= true;
+  if (native_drawing_tool_ == native_drawing_tool::pen)
+    region.pressure_enabled= true;
   if (coordinate_frame != nullptr) *coordinate_frame= f;
   return true;
 }
@@ -636,6 +858,21 @@ edit_graphics_rep::mark_native_ink_interaction_dirty () {
   native_ink_interaction_dirty_= true;
 }
 
+native_drawing_tool
+edit_graphics_rep::get_native_drawing_tool () const {
+  return native_drawing_tool_;
+}
+
+void
+edit_graphics_rep::set_native_drawing_tool (native_drawing_tool tool) {
+  if (static_cast<unsigned int> (tool) >
+      static_cast<unsigned int> (native_drawing_tool::lasso))
+    tool= native_drawing_tool::pen;
+  native_drawing_tool_= tool;
+  refresh_native_ink_interaction ();
+  invalidate_all ();
+}
+
 void
 edit_graphics_rep::refresh_native_ink_interaction () {
   if (ui_endpoint == nullptr) return;
@@ -672,10 +909,270 @@ edit_graphics_rep::refresh_native_ink_interaction () {
   ui_endpoint->update_native_ink_regions (std::move (regions));
 }
 
+bool
+edit_graphics_rep::native_drawing_object_bounds (
+  path object, native_drawing_selection_box& bounds) {
+  if (is_nil (eb) || is_nil (object) || !has_subtree (et, object)) return false;
+  tree node= subtree (et, object);
+  path graphics= path_up (object);
+  frame object_frame;
+  native_ink_interaction_snapshot region;
+  if (!is_nil (graphics) && native_ink_region (graphics, region, &object_frame)) {
+    std::vector<native_xy> stroke_points;
+    if (native_penscript_screen_points (node, object_frame, stroke_points) &&
+        !stroke_points.empty ()) {
+      double x1= stroke_points[0].x, x2= stroke_points[0].x;
+      double y1= stroke_points[0].y, y2= stroke_points[0].y;
+      for (const auto& p: stroke_points) {
+        x1= std::min (x1, p.x); x2= std::max (x2, p.x);
+        y1= std::min (y1, p.y); y2= std::max (y2, p.y);
+      }
+      double pad= std::max (2.0, region.line_width_pixels) *
+                  get_typesetter ()->env->pixel;
+      bounds.x1= (SI) std::floor (x1 - pad);
+      bounds.y1= (SI) std::floor (y1 - pad);
+      bounds.x2= (SI) std::ceil (x2 + pad);
+      bounds.y2= (SI) std::ceil (y2 + pad);
+      return true;
+    }
+    std::vector<native_xy> object_points;
+    native_collect_graphics_points (node, object_frame, object_points);
+    if (!object_points.empty ()) {
+      double x1= object_points[0].x, x2= object_points[0].x;
+      double y1= object_points[0].y, y2= object_points[0].y;
+      for (const auto& p: object_points) {
+        x1= std::min (x1, p.x); x2= std::max (x2, p.x);
+        y1= std::min (y1, p.y); y2= std::max (y2, p.y);
+      }
+      double pad= std::max (2.0, region.line_width_pixels) *
+                  get_typesetter ()->env->pixel;
+      bounds.x1= (SI) std::floor (x1 - pad);
+      bounds.y1= (SI) std::floor (y1 - pad);
+      bounds.x2= (SI) std::ceil (x2 + pad);
+      bounds.y2= (SI) std::ceil (y2 + pad);
+      return true;
+    }
+  }
+  path anchor= copy (object);
+  while (is_func (node, WITH) && N(node) > 0) {
+    int last= N(node) - 1;
+    anchor= anchor * last;
+    node= node[last];
+  }
+  if (!is_atomic (node) && N(node) > 0) anchor= anchor * 0;
+  bool found= false;
+  path bp= eb->find_box_path (anchor, found);
+  if (!found) return false;
+  path box_path= path_up (bp);
+  frame f= eb->find_frame (box_path);
+  if (is_nil (f)) return false;
+  point lim1, lim2;
+  eb->find_limits (box_path, lim1, lim2);
+  if (N(lim1) < 2 || N(lim2) < 2) return false;
+  point p1= f (lim1);
+  point p2= f (lim2);
+  if (N(p1) < 2 || N(p2) < 2) return false;
+  bounds.x1= min ((SI) p1[0], (SI) p2[0]);
+  bounds.y1= min ((SI) p1[1], (SI) p2[1]);
+  bounds.x2= max ((SI) p1[0], (SI) p2[0]);
+  bounds.y2= max ((SI) p1[1], (SI) p2[1]);
+  return true;
+}
+
 void
-edit_graphics_rep::commit_native_ink_stroke (
+edit_graphics_rep::refresh_native_drawing_selection_snapshot () {
+  if (ui_endpoint == nullptr) return;
+  std::vector<native_drawing_selection_box> boxes;
+  std::vector<path> valid;
+  for (const path& p: native_drawing_selection_paths_) {
+    native_drawing_selection_box box;
+    if (has_subtree (et, p) && native_drawing_object_bounds (p, box)) {
+      valid.push_back (copy (p));
+      boxes.push_back (box);
+    }
+  }
+  native_drawing_selection_paths_= std::move (valid);
+  ui_endpoint->update_native_drawing_selection (std::move (boxes));
+}
+
+void
+edit_graphics_rep::erase_native_drawing_objects (
   const native_ink_sample* samples, std::size_t count) {
   if (samples == nullptr || count == 0) return;
+  path gp;
+  frame f;
+  if (!native_ink_target (samples[0].x, samples[0].y, gp, f)) return;
+  tree graphics= subtree (et, gp);
+  std::vector<native_xy> eraser= native_gesture_points (samples, count);
+  double radius= 8.0 * get_typesetter ()->env->pixel;
+  std::vector<int> remove_indices;
+  for (int i=0; i<N(graphics); ++i) {
+    tree object= graphics[i];
+    if (is_empty (object)) continue;
+    std::vector<native_xy> stroke_points;
+    bool hit= native_penscript_screen_points (object, f, stroke_points) ?
+      native_polyline_hits (stroke_points, eraser, radius) : false;
+    if (!hit) {
+      std::vector<native_xy> object_points;
+      native_collect_graphics_points (object, f, object_points);
+      if (!object_points.empty ())
+        hit= native_polyline_hits (object_points, eraser, radius);
+    }
+    if (!hit) {
+      native_drawing_selection_box box;
+      if (native_drawing_object_bounds (gp * i, box))
+        hit= native_polyline_hits_box (eraser, box, radius);
+    }
+    if (hit) remove_indices.push_back (i);
+  }
+  if (remove_indices.empty ()) return;
+  start_editing ();
+  for (auto it= remove_indices.rbegin (); it != remove_indices.rend (); ++it)
+    remove (gp * (*it), 1);
+  end_editing ();
+  native_drawing_selection_paths_.clear ();
+  refresh_native_drawing_selection_snapshot ();
+  refresh_native_ink_interaction ();
+}
+
+void
+edit_graphics_rep::erase_native_drawing_segments (
+  const native_ink_sample* samples, std::size_t count) {
+  if (samples == nullptr || count == 0) return;
+  path gp;
+  frame f;
+  if (!native_ink_target (samples[0].x, samples[0].y, gp, f)) return;
+  tree graphics= subtree (et, gp);
+  std::vector<native_xy> eraser= native_gesture_points (samples, count);
+  double radius= 6.0 * get_typesetter ()->env->pixel;
+  struct split_operation {
+    int index;
+    std::vector<tree> replacements;
+  };
+  std::vector<split_operation> operations;
+  for (int i=0; i<N(graphics); ++i) {
+    tree object= graphics[i];
+    tree stroke;
+    std::vector<native_xy> points;
+    if (!native_penscript_screen_points (object, f, points, &stroke) ||
+        points.empty () || N(stroke) < 4 || !is_func (stroke[3], TUPLE))
+      continue;
+    int n= std::min ((int) points.size (), N(stroke[3]));
+    std::vector<bool> erased ((std::size_t) n, false);
+    if (n == 1) {
+      erased[0]= native_polyline_hits ({points[0]}, eraser, radius);
+    }
+    else {
+      double r2= radius * radius;
+      for (int j=1; j<n; ++j) {
+        bool hit= false;
+        if (eraser.size () == 1)
+          hit= native_point_segment_distance2 (
+                 eraser[0], points[j-1], points[j]) <= r2;
+        else
+          for (std::size_t k=1; k<eraser.size () && !hit; ++k)
+            hit= native_segment_distance2 (
+                   points[j-1], points[j], eraser[k-1], eraser[k]) <= r2;
+        if (hit) erased[(std::size_t) j-1]= erased[(std::size_t) j]= true;
+      }
+    }
+    bool any= std::any_of (erased.begin (), erased.end (), [] (bool v) {
+      return v;
+    });
+    if (!any) continue;
+
+    std::vector<tree> replacements;
+    int start= -1;
+    for (int j=0; j<=n; ++j) {
+      bool keep= j < n && !erased[(std::size_t) j];
+      if (keep && start < 0) start= j;
+      if ((!keep || j == n) && start >= 0) {
+        int end= j;
+        tree ink (TUPLE);
+        for (int k=start; k<end; ++k) ink << copy (stroke[3][k]);
+        tree first_sample= stroke[3][start];
+        tree last_sample= stroke[3][end-1];
+        tree meta= copy (stroke[2]);
+        if (is_compound (meta, "ink-meta") && N(meta) >= 1)
+          meta[0]= native_ink_id ();
+        tree part (PENSCRIPT);
+        part << tree (_POINT, copy (first_sample[0]), copy (first_sample[1]))
+             << tree (_POINT, copy (last_sample[0]), copy (last_sample[1]))
+             << meta << ink;
+        replacements.push_back (native_replace_radical (object, part));
+        start= -1;
+      }
+    }
+    operations.push_back ({i, std::move (replacements)});
+  }
+  if (operations.empty ()) return;
+  start_editing ();
+  for (auto it= operations.rbegin (); it != operations.rend (); ++it) {
+    int i= it->index;
+    if (it->replacements.empty ()) {
+      remove (gp * i, 1);
+      continue;
+    }
+    assign (gp * i, it->replacements[0]);
+    for (std::size_t j=1; j<it->replacements.size (); ++j)
+      insert (gp * (i + (int) j), tree (TUPLE, it->replacements[j]));
+  }
+  end_editing ();
+  native_drawing_selection_paths_.clear ();
+  refresh_native_drawing_selection_snapshot ();
+  refresh_native_ink_interaction ();
+}
+
+void
+edit_graphics_rep::select_native_drawing_lasso (
+  const native_ink_sample* samples, std::size_t count) {
+  native_drawing_selection_paths_.clear ();
+  if (samples == nullptr || count < 3) {
+    refresh_native_drawing_selection_snapshot ();
+    invalidate_all ();
+    return;
+  }
+  path gp;
+  frame f;
+  if (!native_ink_target (samples[0].x, samples[0].y, gp, f)) {
+    refresh_native_drawing_selection_snapshot ();
+    invalidate_all ();
+    return;
+  }
+  std::vector<native_xy> polygon= native_gesture_points (samples, count);
+  tree graphics= subtree (et, gp);
+  for (int i=0; i<N(graphics); ++i) {
+    if (is_empty (graphics[i])) continue;
+    native_drawing_selection_box box;
+    if (!native_drawing_object_bounds (gp * i, box)) continue;
+    native_xy center {
+      0.5 * ((double) box.x1 + (double) box.x2),
+      0.5 * ((double) box.y1 + (double) box.y2)
+    };
+    if (native_point_in_polygon (center, polygon))
+      native_drawing_selection_paths_.push_back (gp * i);
+  }
+  refresh_native_drawing_selection_snapshot ();
+  invalidate_all ();
+}
+
+void
+edit_graphics_rep::commit_native_drawing_gesture (
+  native_drawing_tool tool, const native_ink_sample* samples,
+  std::size_t count) {
+  if (samples == nullptr || count == 0) return;
+  if (tool == native_drawing_tool::object_eraser) {
+    erase_native_drawing_objects (samples, count);
+    return;
+  }
+  if (tool == native_drawing_tool::segment_eraser) {
+    erase_native_drawing_segments (samples, count);
+    return;
+  }
+  if (tool == native_drawing_tool::lasso) {
+    select_native_drawing_lasso (samples, count);
+    return;
+  }
   path gp;
   frame f;
   bool target_found= native_ink_target (samples[0].x, samples[0].y, gp, f);
@@ -702,14 +1199,25 @@ edit_graphics_rep::commit_native_ink_stroke (
 
   double pixel= get_typesetter ()->env->pixel;
   double virtual_pixel= f->inverse_scalar (pixel);
-  tree metadata= compound (
-    "ink-meta", native_ink_id (), as_string (virtual_pixel));
+  tree metadata= tool == native_drawing_tool::highlighter ?
+    compound ("ink-meta", native_ink_id (), as_string (virtual_pixel),
+              "highlighter") :
+    compound ("ink-meta", native_ink_id (), as_string (virtual_pixel));
   tree stroke (PENSCRIPT);
   stroke << find_point (first) << find_point (last) << metadata << ink;
 
   tree color_value= native_ink_property (gp, GR_COLOR, tree ("default"));
   tree width_value= native_ink_property (gp, GR_LINE_WIDTH, tree ("default"));
   tree enhance_value= native_ink_property (gp, GR_PEN_ENHANCE, tree ("default"));
+  if (tool == native_drawing_tool::highlighter) {
+    string color_name= is_atomic (color_value) ? color_value->label : "black";
+    if (color_name == "default" || N(color_name) == 0) color_name= "black";
+    int r= 0, g= 0, b= 0, a= 255;
+    get_rgb_color (named_color (color_name), r, g, b, a);
+    color_value= tree (get_hex_color (rgb_color (r, g, b, 96)));
+    double width= std::max (6.0, native_line_width_pixels (width_value) * 5.0);
+    width_value= tree (as_string (width) * "ln");
+  }
   tree wrapped (WITH);
   if (color_value != "default") wrapped << "color" << color_value;
   if (width_value != "default") wrapped << "line-width" << width_value;
@@ -718,9 +1226,15 @@ edit_graphics_rep::commit_native_ink_stroke (
   else wrapped << stroke;
 
   start_editing ();
-  insert (gp * N(graphics), wrapped);
+  insert (gp * N(graphics), tree (TUPLE, wrapped));
   end_editing ();
   refresh_native_ink_interaction ();
+}
+
+void
+edit_graphics_rep::commit_native_ink_stroke (
+  const native_ink_sample* samples, std::size_t count) {
+  commit_native_drawing_gesture (native_drawing_tool::pen, samples, count);
 }
 
 void
