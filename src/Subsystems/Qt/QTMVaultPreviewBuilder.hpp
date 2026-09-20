@@ -22,8 +22,10 @@ tree import_body_for_preview (url file);
 tree build_preview_from_body (tree body, path focus, int* firstOut= nullptr,
                               int* lastOut= nullptr);
 tree build_preview_from_anchor_range (tree body, path upper, path lower,
-                                      int* firstOut= nullptr,
-                                      int* lastOut= nullptr,
-                                      bool detached= true);
+                                       int* firstOut= nullptr,
+                                       int* lastOut= nullptr,
+                                       bool detached= true);
+tree build_context_preview_from_anchor_range (tree body, path upper, path lower,
+                                              int surrounding= 2);
 
 #endif // QTMVAULTPREVIEWBUILDER_HPP

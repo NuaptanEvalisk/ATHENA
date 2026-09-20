@@ -15,6 +15,7 @@
 #include "vaultfile_json.hpp"
 #include "vault.hpp"
 #include "transclusion_cache.hpp"
+#include "link_peek.hpp"
 #include "convert.hpp"
 #include "drd_std.hpp"
 #include "file.hpp"
@@ -443,11 +444,12 @@ TestVaultMapSqlite::cachesAndInvalidatesStructuralTransclusions () {
 
   auto write_source= [&] (const char* payload) {
     tree body (DOCUMENT);
-    body << compound ("label", "begin")
+    body << tree ("context before range")
+         << compound ("label", "begin")
          << tree (payload)
          << compound ("image", "assets/example.png")
          << compound ("label", "end")
-         << tree ("outside range");
+         << tree ("context after range");
     tree document (DOCUMENT);
     document << compound ("TeXmacs", "2.1.4")
              << compound ("style", tuple ("generic"))
@@ -481,7 +483,8 @@ TestVaultMapSqlite::cachesAndInvalidatesStructuralTransclusions () {
   QVERIFY (is_func (first.content, DOCUMENT));
   QVERIFY (!tree_contains_label (first.content));
   QVERIFY (tree_contains_text (first.content, "first payload"));
-  QVERIFY (!tree_contains_text (first.content, "outside range"));
+  QVERIFY (!tree_contains_text (first.content, "context before range"));
+  QVERIFY (!tree_contains_text (first.content, "context after range"));
   string image_path= first_image_path (first.content);
   QVERIFY (starts (image_path, "/"));
   QVERIFY (ends (image_path, "/assets/example.png"));
@@ -494,6 +497,16 @@ TestVaultMapSqlite::cachesAndInvalidatesStructuralTransclusions () {
   tree displayed= athena_resolve_transclusion_display (transclusion);
   QCOMPARE (first_hlink_target (displayed),
             string ("tmfs://transclusion-source/range"));
+  QVERIFY (athena_link_peek_target ("tmfs://transclusion-source/range"));
+  url peek_source;
+  tree peek= athena_link_peek_document (
+    "tmfs://transclusion-source/range", peek_source);
+  QVERIFY (tree_contains_text (peek, "first payload"));
+  QVERIFY (tree_contains_text (peek, "context before range"));
+  QVERIFY (tree_contains_text (peek, "context after range"));
+  url expected_source=
+    url_system (string ((root / "Source.ath").string ().c_str ()));
+  QVERIFY (peek_source == expected_source);
 
   QVERIFY (write_source ("changed payload with a different size"));
   AthenaTransclusionResolution changed=

@@ -129,3 +129,27 @@ build_preview_from_anchor_range (tree body, path upper, path lower,
   }
   return preview;
 }
+
+tree
+build_context_preview_from_anchor_range (tree body, path upper, path lower,
+                                         int surrounding) {
+  if (is_empty (body)) return tree (DOCUMENT, "");
+  if (!is_func (body, DOCUMENT))
+    return tree (DOCUMENT, compound ("marked", copy (body)));
+  if (N(body) == 0) return tree (DOCUMENT, "");
+
+  int first= path_top_index (upper);
+  int last= path_top_index (lower);
+  if (first < 0 || first >= N(body)) first= 0;
+  if (last < first || last >= N(body)) last= first;
+  int context_first= std::max (0, first - std::max (0, surrounding));
+  int context_last= std::min (N(body), last + std::max (0, surrounding) + 1);
+
+  tree preview (DOCUMENT);
+  for (int i=context_first; i<context_last; ++i) {
+    tree block= copy (body[i]);
+    if (i >= first && i <= last) block= compound ("marked", block);
+    preview << block;
+  }
+  return preview;
+}

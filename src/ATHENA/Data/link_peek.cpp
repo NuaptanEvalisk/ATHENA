@@ -50,7 +50,7 @@ bool athena_link_peek_target (string target) {
   QUrl parsed= parsed_target (target);
   return parsed.scheme () == "tmfs" &&
     (parsed.host () == "wikilink" || parsed.host () == "artifact-disambiguation" ||
-     parsed.host () == "artifact");
+     parsed.host () == "artifact" || parsed.host () == "transclusion-source");
 }
 
 tree athena_link_peek_range (tree document, string begin, string end) {
@@ -83,6 +83,41 @@ tree athena_link_peek_range (tree document, string begin, string end) {
         first->item > last->item)
       return unavailable ("Preview unavailable: source anchors were not found.");
     preview= build_preview_from_anchor_range (body, first, last);
+  }
+  return with_preview_body (document, preview, first);
+}
+
+static tree
+athena_transclusion_source_context (tree document, string begin, string end) {
+  tree body= extract (document, "body");
+  std::vector<WikilinkAnchorEntry> anchors;
+  collect_anchors (body, path (), anchors);
+  path first, last;
+  bool have_first= false, have_last= false;
+  for (const auto& anchor: anchors) {
+    if (!have_first && native (anchor.anchor) == begin) {
+      first= anchor.where; have_first= true;
+    }
+    if (!have_last && native (anchor.anchor) == end) {
+      last= anchor.where; have_last= true;
+    }
+  }
+  tree preview;
+  if (begin == "" && end == "") {
+    first= path (0);
+    preview= build_preview_from_body (body, first);
+  }
+  else if (begin == "" && have_last) {
+    first= last;
+    preview= build_preview_from_body (body, last);
+  }
+  else if (end == "" && have_first)
+    preview= build_preview_from_body (body, first);
+  else {
+    if (!have_first || !have_last || is_nil (first) || is_nil (last) ||
+        first->item > last->item)
+      return unavailable ("Preview unavailable: source anchors were not found.");
+    preview= build_context_preview_from_anchor_range (body, first, last);
   }
   return with_preview_body (document, preview, first);
 }
@@ -134,6 +169,10 @@ tree athena_link_peek_document (string target, url& source) {
     return with_preview_body (document,
       build_preview_from_body (extract (document, "body"), focus), focus);
   }
+  if (parsed.host () == "transclusion-source")
+    return athena_transclusion_source_context (
+      document, string (node.anchor_begin.c_str ()),
+      string (node.anchor_end.c_str ()));
   return athena_link_peek_range (document, string (node.anchor_begin.c_str ()),
-                               string (node.anchor_end.c_str ()));
+                                string (node.anchor_end.c_str ()));
 }
