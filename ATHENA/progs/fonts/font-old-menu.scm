@@ -12,7 +12,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (texmacs-module (fonts font-old-menu)
-  (:use (generic format-edit)))
+  (:use (generic format-drd) (generic generic-edit)))
 
 (menu-bind text-font-menu
   (-> "Name"

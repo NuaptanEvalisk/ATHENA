@@ -1,5 +1,5 @@
 ;; Native formatting commands execute on an actual BufferActor-owned document.
-(import-from (generic format-edit) (table table-edit) (source macro-search))
+(import-from (generic format-drd) (generic generic-edit) (table table-edit) (source macro-search))
 (init-style "generic")
 (define (body) (tree->stree (buffer-tree)))
 (define (node) (tree-ref (buffer-tree) 0))
@@ -14,6 +14,13 @@
   (clear-undo-history))
 
 ;; JSON metadata is native, while non-generic domain extensions still compose.
+(check (and (procedure? make-interactive-with)
+            (procedure? make-interactive-line-with)
+            (procedure? make-interactive-with-opacity)
+            (procedure? make-alternate))
+       "native interactive formatting bindings available without format-edit")
+(check (equal? (logic-ref env-var-description% "par-left") "Left margin")
+       "interactive formatting prompt descriptions available at startup")
 (check (equal? (standard-parameters "float") '("page-float-sep")) "float parameters")
 (check (equal? (standard-parameters "reference") '()) "known parameterless primitive")
 (check (not (standard-parameters "format-test-unknown")) "unknown primitive stays false")

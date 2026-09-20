@@ -10,6 +10,7 @@
 
 #include "document_style_commands.hpp"
 #include "editor.hpp"
+#include "new_buffer.hpp"
 
 namespace {
 
@@ -173,6 +174,42 @@ document_style_precedes (string left, string right) {
   object left_category= call ("style-category", object (left));
   object right_category= call ("style-category", object (right));
   return as_bool (call ("style-category-precedes?", left_category, right_category));
+}
+
+object
+document_style_get_documentation (string style) {
+  object table= eval ("style-synopsis");
+  object value= call ("ahash-ref", table, object (style));
+  if (!is_list (value)) return object (false);
+  array<object> items= as_array_object (value);
+  return N (items) > 0 ? items[0] : object (false);
+}
+
+string
+document_style_get_menu_name (string style) {
+  object table= eval ("style-menu-name");
+  object value= call ("ahash-ref", table, object (style));
+  if (is_list (value)) {
+    array<object> items= as_array_object (value);
+    if (N (items) > 0 && is_string (items[0])) return as_string (items[0]);
+  }
+  object fallback= call ("upcase-first", object (style));
+  return is_string (fallback) ? as_string (fallback) : style;
+}
+
+string
+document_custom_style_file_name (url name) {
+  string file= as_system_string (tail (name));
+  if (ends (file, ".ts")) return file (0, N (file) - 3);
+  return file;
+}
+
+url
+document_url_resolve_package (string name) {
+  string style_name= name * ".ts";
+  url style_url= url ("$ATHENA_STYLE_PATH") * url (style_name);
+  url style_local= relative (get_current_buffer_safe (), url (style_name));
+  return resolve (style_local | style_url, "r");
 }
 
 object

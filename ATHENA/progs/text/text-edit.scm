@@ -16,7 +16,7 @@
 	(utils edit variants)
 	(utils edit selections)
 	(text text-drd)
-	(generic format-edit)))
+	(generic format-drd) (generic generic-edit)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Style package rules

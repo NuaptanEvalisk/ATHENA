@@ -14,6 +14,7 @@
 (texmacs-module (generic generic-edit)
   (:use (utils library tree)
 	(utils library cursor)
+	(utils edit selections)
 	(utils edit variants)
         (utils misc tooltip)
 	(source macro-search)))
@@ -58,18 +59,6 @@
 ;; Extra editing functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (kill-paragraph)
-  (selection-set-start)
-  (go-end-paragraph)
-  (selection-set-end)
-  (clipboard-cut "primary"))
-
-(tm-define (yank-paragraph)
-  (selection-set-start)
-  (go-end-paragraph)
-  (selection-set-end)
-  (clipboard-copy "primary"))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Standard environment parameters for primitives
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -80,21 +69,6 @@
 
 (tm-property (make-experimental-build-warning)
   (:synopsis "Insert the ATHENA experimental build warning"))
-
-(tm-define (make-graphics-over-selection)
-  (when (selection-active-any?)
-    (with selection (selection-tree)
-      (clipboard-cut "graphics background")
-      (insert-go-to `(draw-over ,selection (graphics) "0cm") '(1 1)))))
-
-(tm-define (make-graphics-over)
-  (if (selection-active-any?)
-      (with g `(with "gr-mode" (tuple "hand-edit" "penscript") (graphics))
-        (with selection (selection-tree)
-          (clipboard-cut "graphics background")
-          (insert-go-to `(draw-over ,selection ,g "2cm") '(1 2 1))))
-      (with g `(with "gr-mode" (tuple "hand-edit" "penscript") (graphics))
-        (insert-go-to `(draw-over "" ,g "2cm") '(1 2 1)))))
 
 (tm-define (make-anim l)
   (with duration "1s"
@@ -173,11 +147,8 @@
          (id (or (list p st) st)))
     (show-tooltip id body balloon ha va kind 0.833333)))
 
-(tm-define (make-balloon)
-  (:synopsis "Insert a balloon")
-  (wrap-selection-small
-    (insert-go-to `(inactive (hover-balloon "" "" "left" "Bottom"))
-                  '(0 0 0))))
+(tm-property (make-balloon)
+  (:synopsis "Insert a balloon"))
 
 (tm-property (set-balloon-halign ha)
   (:synopsis "Set the horizontal alignment of the marginal note to @ha")

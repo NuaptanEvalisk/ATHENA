@@ -19,6 +19,10 @@ bool document_style_category_precedes (object left, object right);
 bool document_style_includes (string style, string included);
 bool document_style_overrides (string left, string right);
 bool document_style_precedes (string left, string right);
+object document_style_get_documentation (string style);
+string document_style_get_menu_name (string style);
+string document_custom_style_file_name (url name);
+url document_url_resolve_package (string name);
 
 object document_get_style_list ();
 void document_set_style_list (object styles);

@@ -1,4 +1,4 @@
-(import-from (generic generic-edit) (generic format-edit) (math math-edit))
+(import-from (generic generic-edit) (generic format-drd) (math math-edit))
 (module-provide '(athena keyboard prefix-kbd))
 (module-provide '(generic generic-kbd))
 (module-provide '(athena keyboard latex-kbd))
@@ -131,4 +131,3 @@
 (update-current-buffer)
 (update-forced)
 (print-to-file (string->url (string-append (getenv "HOME") "/evaluation.pdf")))
-

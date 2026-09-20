@@ -14,7 +14,7 @@
 (texmacs-module (athena keyboard latex-kbd)
   (:use (utils edit auto-close)
 	(athena athena tm-reverse-hierarchy-graph)
-	(generic format-edit)
+	(generic format-drd)
 	(generic generic-edit)
 	(text text-edit)))
 

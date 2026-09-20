@@ -1,5 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="generic-keyboard-load" native="generic_keyboard_load" returns="void" />
+  <binding name="generic-keyboard-run" native="generic_keyboard_run" returns="object">
+    <arg type="int" /><arg type="int" />
+  </binding>
+  <binding name="generic-keyboard-condition?" native="generic_keyboard_condition" returns="bool">
+    <arg type="int" />
+  </binding>
+  <binding name="make-interactive-with" native="format_make_interactive_with" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="make-interactive-line-with" native="format_make_interactive_line_with" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="make-interactive-with-opacity" native="format_make_interactive_with_opacity" returns="void" />
+  <binding name="make-alternate" native="format_make_alternate" returns="void">
+    <arg type="string" /><arg type="object" /><arg type="tree_label" />
+  </binding>
   <binding name="make-multi-with" native="format_make_multi_with" returns="void">
     <arg type="object" />
   </binding>
@@ -200,6 +217,18 @@
   </binding>
   <binding name="style-precedes?" native="document_style_precedes" returns="bool">
     <arg type="string" /><arg type="string" />
+  </binding>
+  <binding name="style-get-documentation" native="document_style_get_documentation" returns="object">
+    <arg type="string" />
+  </binding>
+  <binding name="style-get-menu-name" native="document_style_get_menu_name" returns="string">
+    <arg type="string" />
+  </binding>
+  <binding name="custom-style-file-name" native="document_custom_style_file_name" returns="string">
+    <arg type="url" />
+  </binding>
+  <binding name="url-resolve-package" native="document_url_resolve_package" returns="url">
+    <arg type="string" />
   </binding>
   <binding name="get-style-list" native="document_get_style_list" returns="object" />
   <binding name="set-style-list" native="document_set_style_list" returns="void">
@@ -608,6 +637,30 @@
   </binding>
   <binding name="embed-this-image" native="generic_embed_this_image" returns="void" />
   <binding name="embed-all-images" native="generic_embed_all_images" returns="void" />
+  <binding name="kill-paragraph" native="generic_kill_paragraph" returns="void" />
+  <binding name="yank-paragraph" native="generic_yank_paragraph" returns="void" />
+  <binding name="make-graphics-over-selection" native="generic_make_graphics_over_selection" returns="void" />
+  <binding name="make-graphics-over" native="generic_make_graphics_over" returns="void" />
+  <binding name="make-balloon" native="generic_make_balloon" returns="void" />
+  <binding name="spell-live-replace-current-word" native="generic_spell_live_replace_current_word" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="spell-live-insert-current-word" native="generic_spell_live_insert_current_word" returns="void" />
+  <binding name="background-selector-initial" native="generic_background_initial" returns="array_string">
+    <arg type="string" /><arg type="object" /><arg type="string" />
+  </binding>
+  <binding name="background-selector-result" native="generic_background_result" returns="object">
+    <arg type="string" /><arg type="array_string" />
+  </binding>
+  <binding name="open-pattern-selector" native="generic_open_pattern_selector" returns="void">
+    <arg type="procedure" /><arg type="string" />
+  </binding>
+  <binding name="open-gradient-selector" native="generic_open_gradient_selector" returns="void">
+    <arg type="procedure" /><arg type="object" rest="true" />
+  </binding>
+  <binding name="open-background-picture-selector" native="generic_open_background_picture_selector" returns="void">
+    <arg type="procedure" /><arg type="object" rest="true" />
+  </binding>
   <binding name="spell-live-current-selection" native="generic_spell_live_current_selection" returns="object" />
   <binding name="spell-live-current-word" native="generic_spell_live_current_word" returns="object" />
   <binding name="spell-live-current-language" native="generic_spell_live_current_language" returns="object" />

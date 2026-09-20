@@ -15,6 +15,8 @@
 #include "url.hpp"
 
 #include <vector>
+#include <functional>
+#include <string>
 
 struct QTMInteractiveField {
   string prompt;
@@ -29,6 +31,10 @@ void qtm_text_report_dialog (string title, string message);
 array<string> qtm_latex_formula_dialog ();
 array<string> qtm_interactive_dialog (
   string title, const std::vector<QTMInteractiveField>& fields);
+// Completion runs on the GUI thread; an empty result means cancellation.
+void qtm_interactive_form_async (
+  string title, const std::vector<QTMInteractiveField>& fields,
+  std::function<void(std::vector<std::string>)> completion);
 array<string> qtm_color_dialog (string title, array<string> recent,
                                 array<string> saved);
 array<string> qtm_background_selector_dialog (string mode,

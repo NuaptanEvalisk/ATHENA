@@ -924,6 +924,87 @@ generic_make_experimental_build_warning () {
   get_current_editor ()->insert_tree (compound ("experimental-build-warning"));
 }
 
+void generic_kill_paragraph () {
+  editor ed= get_current_editor ();
+  ed->selection_set_start ();
+  ed->go_end_paragraph ();
+  ed->selection_set_end ();
+  call ("clipboard-cut", object ("primary"));
+}
+
+void generic_yank_paragraph () {
+  editor ed= get_current_editor ();
+  ed->selection_set_start ();
+  ed->go_end_paragraph ();
+  ed->selection_set_end ();
+  call ("clipboard-copy", object ("primary"));
+}
+
+void generic_make_graphics_over_selection () {
+  editor ed= get_current_editor ();
+  if (!ed->selection_active_any ()) return;
+  tree selected= ed->selection_get ();
+  call ("clipboard-cut", object ("graphics background"));
+  ed->var_insert_tree (compound ("draw-over", selected, compound ("graphics"), "0cm"),
+                       path (1, 1));
+}
+
+void generic_make_graphics_over () {
+  editor ed= get_current_editor ();
+  tree selected ("");
+  if (ed->selection_active_any ()) {
+    selected= ed->selection_get ();
+    call ("clipboard-cut", object ("graphics background"));
+  }
+  tree graphics= tree (WITH, "gr-mode", tree (TUPLE, "hand-edit", "penscript"),
+                       compound ("graphics"));
+  ed->var_insert_tree (compound ("draw-over", selected, graphics, "2cm"),
+                       path (1, 2, 1));
+}
+
+void generic_make_balloon () {
+  editor ed= get_current_editor ();
+  bool wrap= ed->selection_active_small ();
+  if (wrap) call ("clipboard-cut", object ("wrapbuf"));
+  else ed->selection_cancel ();
+  ed->var_insert_tree (
+    compound ("inactive", compound ("hover-balloon", "", "", "left", "Bottom")),
+    path (0, 0, 0));
+  if (wrap) call ("clipboard-paste", object ("wrapbuf"));
+}
+
+void generic_spell_live_replace_current_word (string replacement) {
+  editor ed= get_current_editor ();
+  path first, last;
+  if (!spell_live_current_range (first, last)) {
+    ed->set_message ("No live spelling error at cursor", "spell check");
+    return;
+  }
+  ed->start_editing ();
+  range_set selected;
+  selected << first << last;
+  ed->selection_set_range_set (selected);
+  call ("clipboard-cut", object ("dummy"));
+  ed->var_insert_tree (tree (replacement), path (N (replacement)));
+  ed->end_editing ();
+  ed->set_message ("Corrected spelling to '" * replacement * "'", "spell check");
+}
+
+void generic_spell_live_insert_current_word () {
+  editor ed= get_current_editor ();
+  path first, last;
+  string word;
+  if (!spell_live_current_range (first, last) ||
+      !spell_live_current_word_impl (first, last, word)) {
+    ed->set_message ("No live spelling error at cursor", "spell check");
+    return;
+  }
+  string language= spell_live_language_at (first);
+  spell_insert (language, word);
+  spell_done (language);
+  ed->set_message ("Added '" * word * "' to dictionary", "spell check");
+}
+
 void
 generic_make_note_ref () {
   get_current_editor ()->insert_tree (

@@ -11,7 +11,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (texmacs-module (fonts font-selector)
-  (:use (generic format-edit)
+  (:use (generic format-drd) (generic generic-edit)
         (generic document-edit)))
 
 (define (initial-font-data getter)

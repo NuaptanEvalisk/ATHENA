@@ -782,10 +782,8 @@ qtm_info_dialog (string message, string title) {
   });
 }
 
-array<string>
-qtm_interactive_dialog (
-    string title, const std::vector<QTMInteractiveField>& fields) {
-  QString qTitle= qs (title);
+static std::vector<QtInteractiveField>
+interactive_fields (const std::vector<QTMInteractiveField>& fields) {
   std::vector<QtInteractiveField> qtFields;
   qtFields.reserve (fields.size ());
   for (const QTMInteractiveField& field: fields) {
@@ -796,6 +794,69 @@ qtm_interactive_dialog (
       qtField.proposals << qs (field.proposals[i]);
     qtFields.push_back (std::move (qtField));
   }
+  return qtFields;
+}
+
+static QVector<QWidget*>
+populate_interactive_form (QDialog& dialog,
+                           const std::vector<QtInteractiveField>& fields) {
+  QVBoxLayout* outer= new QVBoxLayout (&dialog);
+  QFormLayout* form= new QFormLayout ();
+  QVector<QWidget*> editors;
+  for (const QtInteractiveField& field: fields) {
+    QWidget* editor= interactive_field_widget (field, &dialog);
+    editors << editor;
+    QLabel* label= new QLabel (field.prompt, &dialog);
+    label->setBuddy (editor);
+    form->addRow (label, editor);
+  }
+  outer->addLayout (form);
+  QDialogButtonBox* buttons= new QDialogButtonBox (
+    QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
+    Qt::Horizontal, &dialog);
+  QObject::connect (buttons, &QDialogButtonBox::accepted,
+                    &dialog, &QDialog::accept);
+  QObject::connect (buttons, &QDialogButtonBox::rejected,
+                    &dialog, &QDialog::reject);
+  outer->addWidget (buttons);
+  if (!editors.isEmpty ()) editors[0]->setFocus (Qt::OtherFocusReason);
+  return editors;
+}
+
+void
+qtm_interactive_form_async (
+    string title, const std::vector<QTMInteractiveField>& fields,
+    std::function<void(std::vector<std::string>)> completion) {
+  auto* app= QCoreApplication::instance ();
+  if (app == nullptr) return;
+  QString qTitle= qs (title);
+  auto qtFields= interactive_fields (fields);
+  QMetaObject::invokeMethod (app,
+    [qTitle, qtFields= std::move (qtFields),
+     completion= std::move (completion)] () {
+      auto* dialog= new QDialog (QApplication::activeWindow ());
+      dialog->setWindowTitle (qTitle);
+      dialog->setWindowModality (Qt::ApplicationModal);
+      auto editors= populate_interactive_form (*dialog, qtFields);
+      QObject::connect (dialog, &QDialog::finished, dialog,
+        [dialog, editors, completion] (int status) {
+          std::vector<std::string> result;
+          if (status == QDialog::Accepted)
+            for (QWidget* editor: editors)
+              result.push_back (
+                qs (interactive_field_value (editor)).toUtf8 ().toStdString ());
+          dialog->deleteLater ();
+          completion (std::move (result));
+        });
+      dialog->show ();
+    }, Qt::QueuedConnection);
+}
+
+array<string>
+qtm_interactive_dialog (
+    string title, const std::vector<QTMInteractiveField>& fields) {
+  QString qTitle= qs (title);
+  auto qtFields= interactive_fields (fields);
   auto result= std::make_shared<QStringList> ();
   invoke_gui_blocking ([qTitle, qtFields, result] () {
     if (qtFields.size () == 1 &&
@@ -808,26 +869,7 @@ qtm_interactive_dialog (
 
     QDialog dialog (QApplication::activeWindow ());
     dialog.setWindowTitle (qTitle);
-    QVBoxLayout* outer= new QVBoxLayout (&dialog);
-    QFormLayout* form= new QFormLayout ();
-    QVector<QWidget*> editors;
-    for (const QtInteractiveField& field: qtFields) {
-      QWidget* editor= interactive_field_widget (field, &dialog);
-      editors << editor;
-      QLabel* label= new QLabel (field.prompt, &dialog);
-      label->setBuddy (editor);
-      form->addRow (label, editor);
-    }
-    outer->addLayout (form);
-    QDialogButtonBox* buttons= new QDialogButtonBox (
-      QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
-      Qt::Horizontal, &dialog);
-    QObject::connect (buttons, &QDialogButtonBox::accepted,
-                      &dialog, &QDialog::accept);
-    QObject::connect (buttons, &QDialogButtonBox::rejected,
-                      &dialog, &QDialog::reject);
-    outer->addWidget (buttons);
-    if (!editors.isEmpty ()) editors[0]->setFocus (Qt::OtherFocusReason);
+    auto editors= populate_interactive_form (dialog, qtFields);
     if (dialog.exec () != QDialog::Accepted) return;
     for (QWidget* editor: editors) *result << qs (interactive_field_value (editor));
   });

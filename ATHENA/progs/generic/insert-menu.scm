@@ -16,7 +16,7 @@
 	(athena athena tm-materials)
 	(athena athena tm-reverse-hierarchy-graph)
 	(generic generic-edit)
-	(generic format-edit)))
+	(generic format-drd)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Insert links

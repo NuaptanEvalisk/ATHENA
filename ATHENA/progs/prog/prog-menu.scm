@@ -12,7 +12,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (texmacs-module (prog prog-menu)
-  (:use (generic format-edit)
+  (:use (generic format-drd) (generic generic-edit)
 	(generic insert-menu)))
 
 (tm-menu (focus-code-icons t)

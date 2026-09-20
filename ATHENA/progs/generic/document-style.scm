@@ -24,15 +24,6 @@
 (define-table style-synopsis)
 (define-table style-menu-name)
 
-(tm-define (style-get-documentation style)
-  (with doc (ahash-ref style-synopsis style)
-    (and doc (nnull? doc) (car doc))))
-
-(tm-define (style-get-menu-name style)
-  (with doc (ahash-ref style-menu-name style)
-    (if (and doc (nnull? doc)) (car doc)
-        (upcase-first style))))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Getting and setting the list of style packages
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -56,12 +47,6 @@
   (delayed
     (:idle 1)
     (notify-new-style style)))
-
-(define (custom-style-file-name name)
-  (let* ((tail (url->system (url-tail name))))
-    (if (string-ends? tail ".ts")
-        (string-drop-right tail 3)
-        tail)))
 
 (tm-define (install-custom-style name)
   (:synopsis* "Install custom document style")
@@ -104,13 +89,6 @@
   (:argument pack "Toggle package")
   (:check-mark "v" has-style-package?)
   (:balloon style-get-documentation))
-
-(define (url-resolve-package name)
-  (let* ((style-name  (string-append name ".ts"))
-         (style-url   (url-append "$ATHENA_STYLE_PATH" style-name))
-         (style-local (url-relative (current-buffer) style-name)))
-    ;; we give precedence to the local style file to a global style with same name     
-    (url-resolve (url-or style-local style-url) "r")))
 
 (tm-define (edit-package-source name)
   (with file-name (url-resolve-package name)

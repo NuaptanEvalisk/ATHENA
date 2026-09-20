@@ -17,6 +17,8 @@
 #include "tree_modify.hpp"
 #include "file.hpp"
 #include "buffer_actor.hpp"
+#include "QTMNativeDialogs.hpp"
+#include "gui_text.hpp"
 
 #include <QCoreApplication>
 #include <QJsonArray>
@@ -267,7 +269,79 @@ void restore_cells_after_command (array<int> cells) {
   });
 }
 
+enum class format_prompt_action { inline_with, line_with, wrapper };
+
+void format_prompt (string prompt, object proposal,
+                    format_prompt_action action, string variable,
+                    tree_label tag= WITH) {
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  ASSERT (context != nullptr && context->actor_id != ATHENA_NO_ACTOR,
+          "interactive formatting requires a BufferActor");
+  get_current_editor ();
+  auto actor= context->actor_id;
+  auto view= context->view_id;
+  auto capabilities= context->capabilities;
+  std::string target= json_key (variable).toUtf8 ().toStdString ();
+  QTMInteractiveField field;
+  field.prompt= ui_text (prompt);
+  field.type= "string";
+  if (is_string (proposal)) field.proposals << as_string (proposal);
+  qtm_interactive_form_async (ends (field.prompt, "?") ? "Question" : "Enter data", {field},
+    [actor, view, capabilities, action, target, tag]
+    (std::vector<std::string> answers) {
+      if (answers.size () != 1) return;
+      // Only detached values cross the GUI queue. Reacquire the editor in the
+      // original actor/view rather than applying to whichever buffer has focus.
+      auto id= actor_continuation_registry::instance ().store (
+        [action, target, tag, answer= std::move (answers[0])] {
+          const auto* context= current_scheme_execution_context ();
+          if (context == nullptr || context->editor == nullptr) return;
+          string variable (target.data (), target.size ());
+          string value (answer.data (), answer.size ());
+          switch (action) {
+          case format_prompt_action::inline_with:
+            get_current_editor ()->make_with (variable, value);
+            break;
+          case format_prompt_action::line_with:
+            format_make_line_with (variable, tree (value));
+            break;
+          case format_prompt_action::wrapper:
+            format_make_with_like (tree (tag, value, ""));
+            break;
+          }
+        });
+      if (!buffer_actor::submit_to (actor, actor_command_kind::run_native_continuation,
+            view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, capabilities, id))
+        actor_continuation_registry::instance ().discard (id);
+    });
+}
+
+void format_environment_prompt (string variable, format_prompt_action action) {
+  object description= call ("logic-ref", eval ("env-var-description%"),
+                            object (variable));
+  string prompt= is_string (description) ? as_string (description) : string ("Input:");
+  format_prompt (prompt, object (get_current_editor ()->get_env_string (variable)),
+                 action, variable);
+}
+
 } // namespace
+
+void format_make_interactive_with (string variable) {
+  format_environment_prompt (variable, format_prompt_action::inline_with);
+}
+
+void format_make_interactive_line_with (string variable) {
+  format_environment_prompt (variable, format_prompt_action::line_with);
+}
+
+void format_make_interactive_with_opacity () {
+  format_prompt ("opacity", null_object (), format_prompt_action::wrapper,
+                 "", as_tree_label ("with-opacity"));
+}
+
+void format_make_alternate (string prompt, object proposal, tree_label tag) {
+  format_prompt (prompt, proposal, format_prompt_action::wrapper, "", tag);
+}
 
 object format_with_ref (tree t, tree variable) {
   int i= property_index (t, variable);

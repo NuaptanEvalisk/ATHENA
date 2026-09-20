@@ -64,6 +64,8 @@ private slots:
   void initTestCase ();
   void cleanupTestCase ();
   void nativeFormRunsOnGuiThreadAndReturnsValues ();
+  void asynchronousForm_data ();
+  void asynchronousForm ();
 };
 
 void
@@ -118,6 +120,58 @@ NativeInteractiveDialogTest::nativeFormRunsOnGuiThreadAndReturnsValues () {
   QCOMPARE (N(worker.result), 2);
   QCOMPARE (worker.result[0], string ("Grace Hopper"));
   QCOMPARE (worker.result[1], string ("compiler"));
+  QVERIFY (!affinityWarning.load ());
+}
+
+void
+NativeInteractiveDialogTest::asynchronousForm_data () {
+  QTest::addColumn<bool> ("accept");
+  QTest::newRow ("accept") << true;
+  QTest::newRow ("cancel") << false;
+}
+
+void
+NativeInteractiveDialogTest::asynchronousForm () {
+  QFETCH (bool, accept);
+  affinityWarning.store (false);
+  int completions= 0;
+  std::vector<std::string> result;
+  auto* worker= QThread::create ([&] {
+    QTMInteractiveField field;
+    field.prompt= "Value:";
+    field.type= "string";
+    field.proposals << string ("initial");
+    qtm_interactive_form_async ("Async formatting", {field},
+      [&] (std::vector<std::string> answers) {
+        QCOMPARE (QThread::currentThread (), qApp->thread ());
+        ++completions;
+        result= std::move (answers);
+      });
+  });
+  worker->start ();
+  // No GUI event processing: the caller must return before the form is shown.
+  bool returned= worker->wait (1000);
+  if (!returned) {
+    QTRY_VERIFY_WITH_TIMEOUT (worker->isFinished (), 4000);
+    worker->wait ();
+  }
+  delete worker;
+  QVERIFY (returned);
+  QTRY_VERIFY (QApplication::activeModalWidget () != nullptr);
+  auto* dialog= qobject_cast<QDialog*> (QApplication::activeModalWidget ());
+  QVERIFY (dialog != nullptr);
+  QCOMPARE (dialog->windowTitle (), QString ("Async formatting"));
+  QCOMPARE (dialog->thread (), qApp->thread ());
+  auto* combo= dialog->findChild<QComboBox*> ();
+  QVERIFY (combo != nullptr);
+  QCOMPARE (combo->currentText (), QString ("initial"));
+  combo->setEditText (QString::fromUtf8 ("caf\xc3\xa9"));
+  auto* buttons= dialog->findChild<QDialogButtonBox*> ();
+  QVERIFY (buttons != nullptr);
+  buttons->button (accept ? QDialogButtonBox::Ok : QDialogButtonBox::Cancel)->click ();
+  QCOMPARE (completions, 1);
+  QCOMPARE (result.size (), accept ? size_t (1) : size_t (0));
+  if (accept) QCOMPARE (result[0], std::string ("caf\xc3\xa9"));
   QVERIFY (!affinityWarning.load ());
 }
 

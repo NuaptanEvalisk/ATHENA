@@ -13,7 +13,7 @@
 
 (texmacs-module (generic format-menu)
   (:use (generic embedded-menu)
-	(generic format-edit)))
+	(generic format-drd) (generic generic-edit)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Menus for fonts

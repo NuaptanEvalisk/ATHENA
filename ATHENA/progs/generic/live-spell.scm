@@ -19,31 +19,8 @@
 ;; Traversal and debounce belong to the editor's BufferActor, not a delayed
 ;; Scheme callback which rescans the entire document after each keystroke.
 
-(tm-define (spell-live-replace-current-word by)
-  (:interactive #t)
-  (let ((sel (spell-live-current-selection))
-        (buf (current-buffer)))
-    (if (not sel)
-        (set-message "No live spelling error at cursor" "spell check")
-        (begin
-          (start-editing)
-          (selection-set-range-set sel)
-          (clipboard-cut "dummy")
-          (insert-go-to by (list (string-length by)))
-          (end-editing)
-          (set-message (string-append "Corrected spelling to '" by "'")
-                       "spell check")))))
-
-(tm-define (spell-live-insert-current-word)
-  (:interactive #t)
-  (let ((word (spell-live-current-word)))
-    (if (not word)
-        (set-message "No live spelling error at cursor" "spell check")
-        (let ((lan (spell-live-current-language)))
-          (spell-insert lan word)
-          (single-spell-done lan)
-          (set-message (string-append "Added '" word "' to dictionary")
-                       "spell check")))))
+(tm-property (spell-live-replace-current-word by) (:interactive #t))
+(tm-property (spell-live-insert-current-word) (:interactive #t))
 
 (tm-menu (spell-live-popup-menu)
   (let* ((word (spell-live-current-word))

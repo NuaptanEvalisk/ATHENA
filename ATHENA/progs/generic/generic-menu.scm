@@ -15,7 +15,7 @@
   (:use (utils edit variants)
         (utils edit selections)
         (generic generic-edit)
-        (generic format-edit)
+        (generic format-drd)
         (generic document-edit)
         (source source-edit)))
 

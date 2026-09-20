@@ -14,7 +14,7 @@
 (texmacs-module (math math-kbd)
   (:use (generic generic-kbd)
         (utils edit auto-close)
-        (generic format-edit)
+        (generic format-drd) (generic generic-edit)
         (math math-edit)
         (table table-edit)))
 

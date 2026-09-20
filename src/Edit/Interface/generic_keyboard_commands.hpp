@@ -14,6 +14,10 @@
 #include "scheme.hpp"
 #include "tree.hpp"
 
+void generic_keyboard_load ();
+object generic_keyboard_run (int group, int binding);
+bool generic_keyboard_condition (int group);
+
 void generic_kbd_horizontal (tree t, bool forwards);
 void generic_kbd_vertical (tree t, bool downwards);
 void generic_kbd_extremal (tree t, bool forwards);
