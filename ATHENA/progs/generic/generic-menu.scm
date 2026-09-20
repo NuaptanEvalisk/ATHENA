@@ -434,13 +434,15 @@
 (tm-menu (focus-extra-menu t))
 
 (tm-define (hidden-inputter-children t)
-  (append-map (lambda (c)
-		(if (and-with i (tree-index c)
-		      (with type (tree-child-type t i)
-			(inputter-active? c type)))
-		    (list c)
-		    (list)))
-              (hidden-children t)))
+  (append-map
+    (lambda (i)
+      (with c (tree-ref t i)
+        (if (and (hidden-child? t i)
+                 (with type (tree-child-type t i)
+                   (inputter-active? c type)))
+            (list c)
+            (list))))
+    (.. 0 (tree-arity t))))
 
 (tm-menu (focus-hidden-menu t)
   (assuming (nnull? (hidden-inputter-children t))

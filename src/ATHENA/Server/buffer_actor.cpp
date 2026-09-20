@@ -957,8 +957,12 @@ buffer_actor::dispatch (actor_command_record& command) {
       if (scm_is_eq (procedure, SCM_UNDEFINED))
         FAILED ("Scheme widget promise handle is no longer live");
       tmscm result= call_scheme (procedure);
-      if (!tmscm_is_widget (result)) FAILED ("widget expected");
-      widget value= tmscm_to_widget (result);
+      // Menu/widget promises are extension points.  Scheme reports its own
+      // evaluation error; do not turn a failed promise into a second fatal
+      // BufferActor exception ("widget expected") which can stall lazy menus
+      // and the command palette.  Degrade this one promise to an empty widget.
+      widget value= tmscm_is_widget (result) ? tmscm_to_widget (result) :
+                    glue_widget ();
       command.argument[0]= actor_ui_store_widget (std::move (value));
     }
     catch (...) {

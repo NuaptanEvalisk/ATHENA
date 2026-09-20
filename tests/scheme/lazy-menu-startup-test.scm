@@ -27,6 +27,8 @@
        "embedded image menu was not loaded by the startup menu barrier")
 
 (define image (stree->tree '(image "probe.png" "" "" "" "")))
+(hidden-inputter-children image)
+(focus-hidden-menu image)
 (define image-menu (focus-misc-menu image))
 (check (menu-label-present? image-menu "Remove background")
        "linked image menu lost Remove background")

@@ -505,10 +505,10 @@ public:
     }
     tmscm result= call_scheme (object_to_tmscm (obj));
     if (tmscm_is_widget (result)) return tmscm_to_widget (result);
-    else {
-      FAILED ("widget expected");
-      return glue_widget ();
-    }
+    // Match actor-owned widget promises: Scheme already reports evaluation
+    // failures, so a bad extension must not escalate into a second fatal UI
+    // exception.  Keep the lazy menu tree usable with an empty placeholder.
+    return glue_widget ();
   }
 };
 
