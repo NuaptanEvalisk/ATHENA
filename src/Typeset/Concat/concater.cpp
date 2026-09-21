@@ -794,8 +794,7 @@ concater_rep::typeset (tree t, path ip) {
     typeset_bezier (t, ip);
     break;
   case PENSCRIPT:
-  case CALLIGRAPHY:
-    typeset_calligraphy (t, ip);
+    typeset_penscript (t, ip);
     break;
   case FILL:
     typeset_fill (t, ip);

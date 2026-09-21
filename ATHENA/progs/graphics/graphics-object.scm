@@ -455,8 +455,6 @@
         ;;(display* "-------\n")
         ;;(display* "o= " o ", mode= " mode ", pts= " pts ", op= " op "\n")
         ;;(display* "no= " no ", props= " props "\n")
-        (when (== (car (graphics-mode)) 'hand-edit)
-          (set! op (list `(concat))))
         (graphical-object!
          (if (or (== no 'group)
                  (and (!= no 'no-group)

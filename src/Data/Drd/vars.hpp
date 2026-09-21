@@ -289,7 +289,6 @@ extern string GR_DOC_AT_PPSEP;
 extern string GR_DOC_AT_BORDER;
 extern string GR_DOC_AT_PADDING;
 extern string GR_PEN_ENHANCE;
-extern string GR_PEN_STYLE;
 
 extern string GID;
 extern string PROVISO;
@@ -321,7 +320,6 @@ extern string DOC_AT_PPSEP;
 extern string DOC_AT_BORDER;
 extern string DOC_AT_PADDING;
 extern string PEN_ENHANCE;
-extern string PEN_STYLE;
 
 extern string SRC_STYLE;
 extern string SRC_SPECIAL;

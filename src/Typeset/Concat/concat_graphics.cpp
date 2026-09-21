@@ -555,7 +555,7 @@ project2 (array<point> a) {
 }
 
 void
-concater_rep::typeset_calligraphy (tree t, path ip) {
+concater_rep::typeset_penscript (tree t, path ip) {
 BEGIN_MAGNIFY
   if (N(t) < 4 || N(t[N(t)-1]) < 1) typeset_error (t, ip);
   else {
@@ -642,32 +642,9 @@ BEGIN_MAGNIFY
     }
     else c= env->fr (recontrol (poly_segment (project2 (b), ipb), a, ipa));
 
-    // Application of a calligraphic pen
-    box cb;
-    if (is_func (t, CALLIGRAPHY)) {
-      tree style= env->read (PEN_STYLE);
-      double w = 0.5 * env->fr->inverse_scalar (env->pen->get_width ());
-      double mx= 1.0;
-      double my= 1.0;
-      double an= 1.0;
-      if (is_tuple (style, "oval", 2)) {
-        my= as_double (style[1]);
-        an= 0.0174532925199432957691 * as_double (style[2]);
-      }
-      array<point> oval= oval_profile (mx * w, my * w, an, 37);
-      array<point> cal = calligraphy (b, oval);
-      cal << cal[0];
-      double tol= env->fr->inverse_scalar (0.5 * env->pixel);
-      cal= simplify_polyline (cal, tol);
-      c= env->fr (recontrol (poly_segment (cal, ipb), a, ipa));
-      color col= env->pen->get_color ();
-      cb= curve_box (ip, c, 1.0, pencil (col, 0),
-                     array<bool> (), array<point> (), PIXEL,
-                     brush (col), array<box> ());
-    }
-    else cb= curve_box (ip, c, env->line_portion, env->pen,
-                        env->dash_style, env->dash_motif, env->dash_style_unit,
-                        env->fill_brush, typeset_line_arrows (ip));
+    box cb= curve_box (ip, c, env->line_portion, env->pen,
+                       env->dash_style, env->dash_motif, env->dash_style_unit,
+                       env->fill_brush, typeset_line_arrows (ip));
     print (cb);
 
     /*

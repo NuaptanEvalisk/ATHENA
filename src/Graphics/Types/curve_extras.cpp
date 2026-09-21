@@ -26,7 +26,6 @@ project2 (array<point> a) {
     r[i]= point (a[i][0], a[i][1]);
   return r;
 }
-
 static array<double>
 projectt (array<point> a) {
   int i, n= N(a);
@@ -35,7 +34,6 @@ projectt (array<point> a) {
     r[i]= a[i][2];
   return r;
 }
-
 static double
 length (array<point> a) {
   double sum= 0.0;
@@ -489,79 +487,6 @@ angle_profile (curve c, int nr) {
       phi1= get_phi (c, t + dt);
     }
     r << c->evaluate (t);
-  }
-  return r;
-}
-
-array<point>
-oval_profile (double rx, double ry, double a, int nr) {
-  array<point> oval;
-  int n= 5*nr;
-  double cos_a = cos (a);
-  double sin_a = sin (a);
-  for (int i=0; i<n; i++) {
-    double phi= (TWO_PI * i) / n;
-    double x  = rx * cos (phi);
-    double y  = ry * sin (phi);
-    double tx =  cos_a * x + sin_a * y;
-    double ty = -sin_a * x + cos_a * y;
-    oval << point (tx, ty);
-  }
-  curve oval_c= poly_segment (oval, array<path> ());
-  return angle_profile (oval_c, nr);
-}
-
-array<point>
-calligraphy (array<point> a, array<point> pen) {
-  int p= N(pen);
-  array<point> c;
-  c << a;
-  for (int i=N(a)-2; i>=0; i--) c << a[i];
-  c << a[1];
-  int prev_k= -1;
-  double prev_phi;
-  array<point> r;
-  for (int i=0; i<N(c)-1; i++) {
-    point  c0= c[i];
-    point  c1= c[i+1];
-    double p0= 1.0;
-    if (N(c0) > 2) {
-      if (N(c0) >= 4) p0= c0[3];
-      c0= point (c0[0], c0[1]);
-    }
-    if (N(c1) > 2)
-      c1= point (c1[0], c1[1]);
-    if (c1 != c0) {
-      point dc= c1 - c0;
-      double phi= atan2 (dc[1], dc[0]) / TWO_PI;
-      phi= phi - floor (phi);
-      int k= round (phi * p);
-      if (k == p) k= 0;
-      if (k != prev_k && prev_k != -1) {
-        double dphi= phi - prev_phi;
-        dphi= phi - round (phi);
-        if (dphi >= 0.0 || dphi < 0.4999999) {
-          int nr= k - prev_k;
-          if (nr < 0) nr += p;
-          for (int j=prev_k; j<(prev_k+nr); j++)
-            r << c0 + p0 * pen[j<p? j: j-p];
-        }
-        else {
-          int nr= prev_k - k;
-          if (nr < 0) nr += p;
-          for (int j=prev_k; j>(prev_k-nr); j--)
-            r << c0 + p0 * pen[j>=0? j: j+p];
-        }
-      }
-      r << c0 + p0 * pen[k];
-      prev_k  = k;
-      prev_phi= phi;
-    }
-  }
-  if (N(r) == 0) {
-    for (int i=0; i<N(pen); i++)
-      r << a[0] + pen[i];
-    r << a[0] + pen[0];
   }
   return r;
 }

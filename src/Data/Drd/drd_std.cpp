@@ -751,12 +751,6 @@ init_std_drd () {
         point_type (1) -> name (1, "end") ->
         adhoc (2) -> name (2, "metadata") ->
         adhoc (3) -> name (3, "ink"));
-  init (CALLIGRAPHY, "calligraphy",
-        fixed (4, 0, DETAILED) -> returns_graphical () ->
-        point_type (0) -> name (0, "start") ->
-        point_type (1) -> name (1, "end") ->
-        adhoc (2) -> name (2, "metadata") ->
-        adhoc (3) -> name (3, "ink"));
   init (FILL, "fill",
         repeat (1, 1));                       // Not yet implemented
   init (IMAGE, "image",
@@ -1272,7 +1266,6 @@ init_std_drd () {
   init_var (GR_DOC_AT_BORDER, TYPE_LENGTH);
   init_var (GR_DOC_AT_PADDING, TYPE_LENGTH);
   init_var (GR_PEN_ENHANCE, TYPE_ADHOC);
-  init_var (GR_PEN_STYLE, TYPE_ADHOC);
 
   init_var (GID, TYPE_INTEGER);
   init_var (PROVISO, TYPE_BOOLEAN);
@@ -1303,7 +1296,6 @@ init_std_drd () {
   init_var (DOC_AT_BORDER, TYPE_LENGTH);
   init_var (DOC_AT_PADDING, TYPE_LENGTH);
   init_var (PEN_ENHANCE, TYPE_ADHOC);
-  init_var (PEN_STYLE, TYPE_ADHOC);
 
   init_var (SRC_STYLE, TYPE_STRING);
   init_var (SRC_SPECIAL, TYPE_STRING);

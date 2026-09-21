@@ -47,12 +47,6 @@
 (define-group graphical-penscript-tag
   penscript)
 
-(define-group graphical-calligraphy-tag
-  calligraphy)
-
-(define-group graphical-pen-tag
-  (graphical-penscript-tag) (graphical-calligraphy-tag))
-
 (define-group graphical-contains-curve-tag
   (graphical-curve-tag))
 
@@ -156,8 +150,7 @@
   ("doc-at-ppsep" . "0fn")
   ("doc-at-border" . "0ln")
   ("doc-at-padding" . "0spc")
-  ("pen-enhance" . "gaussian")
-  ("pen-style" . "default"))
+  ("pen-enhance" . "gaussian"))
 
 (tm-define (graphics-attribute-default attr)
   (if (gr-prefixed? attr)
@@ -232,11 +225,6 @@
             "line-width" "line-join" "line-caps" "line-effects" "line-portion"
             "dash-style" "dash-style-unit"
             "arrow-begin" "arrow-end" "arrow-length" "arrow-height")))
-
-(tm-define (graphics-attributes tag)
-  (:require (graphical-calligraphy-tag? tag))
-  (append (graphics-common-attributes)
-          '("pen-enhance" "pen-style" "line-width")))
 
 (tm-define (graphics-attributes tag)
   (:require (graphical-group-tag? tag))

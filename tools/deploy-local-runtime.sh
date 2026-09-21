@@ -17,8 +17,10 @@ runtime_dir=$repo_root/ATHENA
 mkdir -p "$runtime_dir/bin" "$runtime_dir/lib"
 
 tmp=
+list_tmp=
 cleanup () {
   if [ -n "${tmp:-}" ]; then rm -f -- "$tmp"; fi
+  if [ -n "${list_tmp:-}" ]; then rm -f -- "$list_tmp"; fi
 }
 trap cleanup EXIT HUP INT TERM
 
@@ -67,6 +69,36 @@ deploy_library () {
   fi
 }
 
+deploy_scheme_tree () {
+  src_root=$1
+  dst_root=$2
+  [ -d "$src_root" ] || return
+
+  mkdir -p "$dst_root"
+  list_tmp=$(mktemp)
+  find "$src_root" -type f -print > "$list_tmp"
+  while IFS= read -r src; do
+    rel=${src#"$src_root"/}
+    dst=$dst_root/$rel
+    mkdir -p "$(dirname -- "$dst")"
+    atomic_install "$src" "$dst" 644
+  done < "$list_tmp"
+  rm -f -- "$list_tmp"
+  list_tmp=
+
+  list_tmp=$(mktemp)
+  find "$dst_root" -type f -print > "$list_tmp"
+  while IFS= read -r dst; do
+    rel=${dst#"$dst_root"/}
+    if [ ! -f "$src_root/$rel" ]; then
+      rm -f -- "$dst"
+      printf 'removed   %s\n' "$dst"
+    fi
+  done < "$list_tmp"
+  rm -f -- "$list_tmp"
+  list_tmp=
+}
+
 atomic_install "$build_dir/src/ATHENA.bin" "$runtime_dir/bin/ATHENA.bin" 755
 
 if [ -f "$build_dir/src/ATHENA-Watchdog" ]; then
@@ -85,6 +117,12 @@ done
 
 for src in "$build_dir"/x64/lib/libqt6advanceddocking*.so; do
   deploy_library "$src"
+done
+
+for src_root in "$build_dir"/athena-scheme/*; do
+  [ -d "$src_root" ] || continue
+  deploy_scheme_tree "$src_root" \
+    "$runtime_dir/lib/athena-scheme/$(basename -- "$src_root")"
 done
 
 for src in "$@"; do

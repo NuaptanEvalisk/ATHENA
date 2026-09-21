@@ -449,69 +449,6 @@
       (invalidate-graphical-object)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Hand drawn objects
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (edit_move mode x y)
-  (:require (== mode 'hand-edit))
-  (:state graphics-state)
-  (noop))
-
-(tm-define (edit_left-button mode x y)
-  (:require (== mode 'hand-edit))
-  (:state graphics-state)
-  (set-texmacs-pointer 'graphics-cross)
-  (edit-clean-up)
-  (object-set! `(with "point style" "disk"
-		      "point-size" ,(graphics-get-property "line-width")
-		  (point ,x ,y)) 'new))
-
-(tm-define (edit_start-drag mode x y t* p*)
-  (:require (== mode 'hand-edit))
-  (:state graphics-state)
-  (set-texmacs-pointer 'graphics-cross)
-  (edit-clean-up)
-  (let* ((t (number->string t*))
-         (p (number->string p*))
-         (pen (cadr (graphics-mode)))
-         (cal `(,pen (point ,x ,y) (point ,x ,y)
-                     (ink-meta ,(create-unique-id)
-                               ,(number->string (get-graphical-pixel)))
-                     (tuple (tuple ,x ,y ,t ,p))))
-         (o (graphics-enrich cal)))
-    (graphics-store-state 'start-create)
-    (object-set! o 'checkout)
-    (graphics-store-state #f)))
-
-(tm-define (edit_drag mode x y t* p*)
-  (:require (== mode 'hand-edit))
-  (:state graphics-state)
-  (when (and (valid-sketch?)
-	     (pair? (stree-radical (car (sketch-get)))))
-    (let* ((t (number->string t*))
-	   (p (number->string p*))
-	   (obj (car (sketch-get1)))
-	   (cal (stree-radical obj))
-	   (rad (cAr cal)))
-      (set-cdr! (cdr cal) (cons `(point ,x ,y) (cdddr cal)))
-      (set-cdr! rad (append (cdr rad) (list `(tuple ,x ,y ,t ,p))))
-      (object-set! obj))
-    (graphics-decorations-update)))
-
-(tm-define (edit_end-drag mode x y t p)
-  (:require (== mode 'hand-edit))
-  (:state graphics-state)
-  (when (and (valid-sketch?) (not (tree? (car (sketch-get)))))
-    (object_commit)
-    (graphics-decorations-reset)))
-
-(tm-define (graphics-complete? obj)
-  (:require (tm-func? obj 'calligraphy))
-  ;; Temporarily redefine; we should decide on
-  ;; the arity of the 'calligraphy' tag
-  (>= (tm-arity obj) 4))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Don't dispatch certain actions on textual arguments of graphical macros
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

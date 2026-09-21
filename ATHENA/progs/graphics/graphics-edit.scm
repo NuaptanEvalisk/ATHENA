@@ -176,7 +176,6 @@
 		   ((graphical-text-tag? submode) (noop))
 		   (else (display* "Uncaptured finish (edit)\n")))))
 	 ((== (car mode) 'group-edit) (noop))
-	 ((== (car mode) 'hand-edit) (noop))
 	 (else (display* "Uncaptured finish\n")))))
 
 (tm-define (graphics-busy?)
@@ -217,12 +216,7 @@
               (go-to p)
               (tree-go-to t :start))))
       (with gr-mode (graphics-mode)
-	(if (== gr-mode `(hand-edit calligraphy))
-	    (begin
-	      (graphics-start-drag-left x y t* p*)
-	      (graphics-dragging-left x y t* p*)
-	      (graphics-end-drag-left x y t* p*))
-	    (edit_left-button (car gr-mode) x y)))))
+	(edit_left-button (car gr-mode) x y))))
 
 (tm-define (graphics-release-middle x y)
   ;;(display* "Graphics] Release-middle " x ", " y "\n")

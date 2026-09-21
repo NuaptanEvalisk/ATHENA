@@ -96,7 +96,5 @@ array<point> bezier_fit (array<point> a, double eps, double advance= 1.0);
 array<point> rectify_bezier (array<point> bez, double eps);
 array<point> refine (array<point> a, int factor);
 array<point> smoothen (array<point> a, int width);
-array<point> oval_profile (double rx, double ry, double a, int nr);
-array<point> calligraphy (array<point> a, array<point> pen);
 
 #endif // defined CURVE_H
