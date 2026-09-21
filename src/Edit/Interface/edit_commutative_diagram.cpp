@@ -379,10 +379,10 @@ edit_interface_rep::commutative_diagram_keypress (string key) {
 
 bool
 edit_interface_rep::commutative_diagram_pointer_event (
-  string message, double x, double y, SI screen_x, SI screen_y) {
-  path pointer_path= tree_path (path (), screen_x, screen_y, 0);
-  path diagram_path= cd_ancestor_path (et, pointer_path, "commutative-diagram");
-  if (is_nil (diagram_path)) return false;
+  string message, double x, double y, path diagram_path) {
+  if (is_nil (diagram_path) || !has_subtree (et, diagram_path) ||
+      !is_compound (subtree (et, diagram_path), "commutative-diagram"))
+    return false;
   path body_path= diagram_path * 2;
   if (!has_subtree (et, body_path)) return false;
   tree body= subtree (et, body_path);
@@ -455,7 +455,7 @@ edit_interface_rep::commutative_diagram_pointer_event (
       vertex[3]= compound ("math", tree ("X"));
       int index= N(body);
       start_editing ();
-      insert (body_path * index, vertex);
+      insert (body_path * index, tree (TUPLE, vertex));
       end_editing ();
       cd_select (session, "vertex", cd_vertex_id (vertex));
       session->interaction= "created";
@@ -539,7 +539,7 @@ edit_interface_rep::commutative_diagram_pointer_event (
           arrow, "loop-angle", as_string (session->drag_loop_angle));
       int index= N(body);
       start_editing ();
-      insert (body_path * index, arrow);
+      insert (body_path * index, tree (TUPLE, arrow));
       end_editing ();
       cd_select (session, "arrow", cd_arrow_id (arrow));
       go_to_end (body_path * index * 3);

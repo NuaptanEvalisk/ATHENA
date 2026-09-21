@@ -259,7 +259,7 @@ public:
   void mouse_any (string s, SI x, SI y, int m, time_t t, array<double> d);
   bool mouse_message (string message, SI x, SI y);
   bool commutative_diagram_pointer_event (
-    string message, double x, double y, SI screen_x, SI screen_y);
+    string message, double x, double y, path diagram_path);
   void commutative_diagram_action (
     native_cd_action action, string first= "", string second= "") override;
   color mouse_clickable_color ();

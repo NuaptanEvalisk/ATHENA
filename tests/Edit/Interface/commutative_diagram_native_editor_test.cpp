@@ -31,6 +31,12 @@ public:
   DiagramTestEditorRep (server_rep* server, buffer_document_state* buffer):
     editor_rep (server, buffer), edit_main_rep (server, buffer) {}
   inline void* derived_this () override { return (DiagramTestEditorRep*) this; }
+  bool treeBounds (path p, rectangle& bounds) {
+    selection sel= eb->find_check_selection (start (et, p), end (et, p));
+    if (!sel->valid || is_nil (sel->rs)) return false;
+    bounds= least_upper_bound (sel->rs);
+    return bounds != rectangle (0, 0, 0, 0);
+  }
 };
 
 static tree
@@ -75,6 +81,7 @@ private slots:
   void keyboardDeleteIsNativeAndUndoable ();
   void trimRecentersAndUndoes ();
   void insertCommandCreatesNativeDiagram ();
+  void insertedEmptyDiagramAcceptsClickAndCreatesVertex ();
 
 private:
   buffer_document_state* buffer= nullptr;
@@ -198,6 +205,66 @@ TestNativeCommutativeDiagramEditor::insertCommandCreatesNativeDiagram () {
   visit (document);
   QVERIFY (found);
   QCOMPARE (editor->undo_possibilities (), 1);
+}
+
+void
+TestNativeCommutativeDiagramEditor::insertedEmptyDiagramAcceptsClickAndCreatesVertex () {
+  set_document (buffer->document, buffer->root_path,
+                tree (DOCUMENT, compound ("math", tree (""))));
+  editor->go_to (buffer->root_path * 0 * 0 * 0);
+  editor->commutative_diagram_action (native_cd_action::insert_diagram);
+
+  path inserted;
+  std::function<void(tree,path)> visit= [&] (tree t, path p) {
+    if (!is_nil (inserted)) return;
+    if (is_func (t, COMMUTATIVE_DIAGRAM, 3)) {
+      inserted= copy (p);
+      return;
+    }
+    if (!is_atomic (t))
+      for (int i=0; i<N(t) && is_nil (inserted); ++i) visit (t[i], p * i);
+  };
+  visit (subtree (current_document_tree (), buffer->root_path),
+         buffer->root_path);
+  QVERIFY (!is_nil (inserted));
+  path inserted_body= inserted * 2;
+  QCOMPARE (N(subtree (current_document_tree (), inserted_body)), 1);
+
+  SI x1= 0, y1= 0, x2= 0, y2= 0;
+  editor->typeset (x1, y1, x2, y2);
+  rectangle bounds;
+  QVERIFY (editor->treeBounds (inserted, bounds));
+  SI cx= (bounds->x1 + bounds->x2) / 2;
+  SI cy= (bounds->y1 + bounds->y2) / 2;
+  QVERIFY (editor->mouse_message ("click", cx, cy));
+
+  tree body= subtree (current_document_tree (), inserted_body);
+  QCOMPARE (N(body), 2);
+  QVERIFY (is_compound (body[1], "cd-vertex", 4));
+
+  QVERIFY (editor->commutative_diagram_pointer_event (
+    "click", 2.0, 1.0, inserted));
+  body= subtree (current_document_tree (), inserted_body);
+  QCOMPARE (N(body), 3);
+  QVERIFY (is_compound (body[2], "cd-vertex", 4));
+
+  double ax= cd_vertex_x (body[1]);
+  double ay= cd_vertex_y (body[1]);
+  double bx= cd_vertex_x (body[2]);
+  double by= cd_vertex_y (body[2]);
+  string source_id= cd_vertex_id (body[1]);
+  string target_id= cd_vertex_id (body[2]);
+  QVERIFY (editor->commutative_diagram_pointer_event (
+    "click", ax, ay, inserted));
+  QVERIFY (editor->commutative_diagram_pointer_event (
+    "drag", bx, by, inserted));
+  QVERIFY (editor->commutative_diagram_pointer_event (
+    "select", bx, by, inserted));
+  body= subtree (current_document_tree (), inserted_body);
+  QCOMPARE (N(body), 4);
+  QVERIFY (is_compound (body[3], "cd-arrow", 5));
+  QCOMPARE (cd_arrow_source (body[3]), source_id);
+  QCOMPARE (cd_arrow_target (body[3]), target_id);
 }
 
 static int test_status= 1;

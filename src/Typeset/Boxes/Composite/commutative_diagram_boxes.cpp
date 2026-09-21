@@ -42,7 +42,8 @@ struct commutative_diagram_box_rep: public composite_box_rep {
     event << "commutative-diagram-event"
           << copy (type)
           << as_string (p[0])
-          << as_string (p[1]);
+          << as_string (p[1])
+          << as_string (reverse (ip));
     rs << rectangle (x3, y3, x4, y4);
     return event;
   }

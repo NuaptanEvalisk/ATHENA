@@ -385,11 +385,13 @@ edit_interface_rep::mouse_message (string message, SI x, SI y) {
   rectangles rs;
   tree r= eb->message (message, x, y, rs);
   if (N(rs) != 0) invalidate (rs);
-  if (is_func (r, TUPLE, 4) && r[0] == "commutative-diagram-event" &&
+  if (is_func (r, TUPLE, 5) && r[0] == "commutative-diagram-event" &&
       is_atomic (r[1]) && is_atomic (r[2]) && is_atomic (r[3]) &&
+      is_atomic (r[4]) &&
       is_double (r[2]->label) && is_double (r[3]->label))
     return commutative_diagram_pointer_event (
-      r[1]->label, as_double (r[2]->label), as_double (r[3]->label), x, y);
+      r[1]->label, as_double (r[2]->label), as_double (r[3]->label),
+      as_path (r[4]->label));
   if (is_tuple (r, "direct-link", 1) && is_atomic (r[1])) {
     call ("go-to-url", object (r[1]->label));
     return true;
