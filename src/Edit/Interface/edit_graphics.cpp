@@ -1420,6 +1420,40 @@ edit_graphics_rep::native_graphics_canvas_keypress (string key) {
     }
     p= path_up (p);
   }
+  path group_graphics;
+  string group_submode;
+  if (native_graphics_group_mode (group_graphics, group_submode) &&
+      group_submode != "edit-props" &&
+      (group_submode == "move" || group_submode == "zoom" ||
+       group_submode == "rotate" || group_submode == "group-ungroup")) {
+    if (key == "escape") {
+      native_graphics_group_clear_selection ();
+      return true;
+    }
+    if (key == "delete" || key == "backspace") {
+      (void) native_graphics_cut_selection ();
+      return true;
+    }
+    if (key == "tab" || key == "S-tab") {
+      tree objects= subtree (et, group_graphics);
+      if (N(objects) == 0) return true;
+      int current= -1;
+      if (!native_drawing_selection_paths_.empty () &&
+          path_up (native_drawing_selection_paths_.front ()) == group_graphics)
+        current= last_item (native_drawing_selection_paths_.front ());
+      int direction= key == "S-tab" ? -1 : 1;
+      for (int step=1; step<=N(objects); ++step) {
+        int index= current < 0 ?
+          (direction > 0 ? step-1 : N(objects)-step) :
+          (current + direction * step + N(objects) * 2) % N(objects);
+        if (!is_atomic (objects[index]) && !is_empty (objects[index])) {
+          native_graphics_group_select_one (group_graphics * index, false);
+          break;
+        }
+      }
+      return true;
+    }
+  }
   if (key == "+")
     apply_native_graphics_canvas_action (
       native_graphics_canvas_action::zoom, "", "", 1.189207115);
@@ -1536,6 +1570,378 @@ edit_graphics_rep::native_graphics_canvas_wheel (double dx, double dy) {
   apply_native_graphics_canvas_action (
     native_graphics_canvas_action::move_origin,
     as_string (dx) * "gw", as_string (dy) * "gh");
+}
+
+bool
+edit_graphics_rep::native_graphics_group_mode (
+  path& graphics, string& submode) {
+  graphics= native_graphics_canvas_path ();
+  submode= "";
+  if (is_nil (graphics) || !has_subtree (et, graphics) ||
+      !is_func (subtree (et, graphics), GRAPHICS))
+    return false;
+  tree mode= native_ink_property (graphics, GR_MODE, tree (UNINIT));
+  if (!is_func (mode, TUPLE, 2) || !is_atomic (mode[0]) ||
+      !is_atomic (mode[1]) || mode[0]->label != "group-edit")
+    return false;
+  submode= mode[1]->label;
+  return true;
+}
+
+path
+edit_graphics_rep::native_graphics_group_hit (path graphics, SI x, SI y) {
+  if (is_nil (graphics) || !has_subtree (et, graphics)) return path ();
+  tree objects= subtree (et, graphics);
+  SI pad= 4 * get_pixel_size ();
+  for (int i=N(objects)-1; i>=0; --i) {
+    if (is_atomic (objects[i]) || is_empty (objects[i])) continue;
+    native_drawing_selection_box bounds;
+    if (!native_drawing_object_bounds (graphics * i, bounds)) continue;
+    if (x >= bounds.x1-pad && x <= bounds.x2+pad &&
+        y >= bounds.y1-pad && y <= bounds.y2+pad)
+      return graphics * i;
+  }
+  return path ();
+}
+
+void
+edit_graphics_rep::native_graphics_group_clear_selection () {
+  native_drawing_selection_paths_.clear ();
+  native_group_selection_active_= false;
+  refresh_native_drawing_selection_snapshot ();
+  refresh_native_drawing_properties_snapshot ();
+  publish_native_drawing_focus_refresh ();
+  invalidate_all ();
+}
+
+void
+edit_graphics_rep::native_graphics_group_select_one (path object, bool toggle) {
+  if (is_nil (object) || !has_subtree (et, object)) {
+    if (!toggle) native_graphics_group_clear_selection ();
+    return;
+  }
+  auto found= std::find (
+    native_drawing_selection_paths_.begin (),
+    native_drawing_selection_paths_.end (), object);
+  if (!toggle) {
+    native_drawing_selection_paths_.clear ();
+    native_drawing_selection_paths_.push_back (copy (object));
+  }
+  else if (found != native_drawing_selection_paths_.end ())
+    native_drawing_selection_paths_.erase (found);
+  else native_drawing_selection_paths_.push_back (copy (object));
+  native_group_selection_active_= !native_drawing_selection_paths_.empty ();
+  refresh_native_drawing_selection_snapshot ();
+  refresh_native_drawing_properties_snapshot ();
+  publish_native_drawing_focus_refresh ();
+  invalidate_all ();
+}
+
+void
+edit_graphics_rep::native_graphics_group_select_area (
+  path graphics, SI x1, SI y1, SI x2, SI y2) {
+  native_drawing_selection_paths_.clear ();
+  if (is_nil (graphics) || !has_subtree (et, graphics)) {
+    native_graphics_group_clear_selection ();
+    return;
+  }
+  if (x1 > x2) std::swap (x1, x2);
+  if (y1 > y2) std::swap (y1, y2);
+  tree objects= subtree (et, graphics);
+  for (int i=0; i<N(objects); ++i) {
+    if (is_atomic (objects[i]) || is_empty (objects[i])) continue;
+    native_drawing_selection_box bounds;
+    if (!native_drawing_object_bounds (graphics * i, bounds)) continue;
+    bool intersects= bounds.x2 >= x1 && bounds.x1 <= x2 &&
+                     bounds.y2 >= y1 && bounds.y1 <= y2;
+    if (intersects)
+      native_drawing_selection_paths_.push_back (graphics * i);
+  }
+  native_group_selection_active_= !native_drawing_selection_paths_.empty ();
+  refresh_native_drawing_selection_snapshot ();
+  refresh_native_drawing_properties_snapshot ();
+  publish_native_drawing_focus_refresh ();
+  invalidate_all ();
+}
+
+bool
+edit_graphics_rep::native_graphics_group_or_ungroup (path graphics) {
+  if (is_nil (graphics) || !has_subtree (et, graphics) ||
+      native_drawing_selection_paths_.empty ())
+    return false;
+  for (const path& p: native_drawing_selection_paths_)
+    if (path_up (p) != graphics || !has_subtree (et, p)) return false;
+
+  if (native_drawing_selection_paths_.size () == 1) {
+    path selected= native_drawing_selection_paths_.front ();
+    tree object= subtree (et, selected);
+    if (is_func (object, GR_GROUP)) {
+      int index= last_item (selected);
+      std::vector<tree> children;
+      children.reserve ((std::size_t) N(object));
+      for (int i=0; i<N(object); ++i) children.push_back (copy (object[i]));
+      start_editing ();
+      remove (selected, 1);
+      for (std::size_t i=0; i<children.size (); ++i)
+        insert (graphics * (index + (int) i), tree (TUPLE, children[i]));
+      end_editing ();
+      native_drawing_selection_paths_.clear ();
+      for (std::size_t i=0; i<children.size (); ++i)
+        native_drawing_selection_paths_.push_back (
+          graphics * (index + (int) i));
+      native_group_selection_active_= !children.empty ();
+      mark_native_ink_interaction_dirty ();
+      refresh_native_drawing_selection_snapshot ();
+      refresh_native_drawing_properties_snapshot ();
+      publish_native_drawing_focus_refresh ();
+      invalidate_all ();
+      return true;
+    }
+  }
+
+  if (native_drawing_selection_paths_.size () < 2) return false;
+  std::vector<int> indices;
+  indices.reserve (native_drawing_selection_paths_.size ());
+  for (const path& p: native_drawing_selection_paths_)
+    indices.push_back (last_item (p));
+  std::sort (indices.begin (), indices.end ());
+  indices.erase (std::unique (indices.begin (), indices.end ()), indices.end ());
+  tree objects= subtree (et, graphics);
+  tree group (GR_GROUP);
+  for (int index: indices)
+    if (index >= 0 && index < N(objects)) group << copy (objects[index]);
+  if (N(group) < 2) return false;
+  int insertion= indices.front ();
+  start_editing ();
+  for (auto it= indices.rbegin (); it != indices.rend (); ++it)
+    remove (graphics * *it, 1);
+  insert (graphics * insertion, tree (TUPLE, group));
+  end_editing ();
+  native_drawing_selection_paths_.clear ();
+  native_drawing_selection_paths_.push_back (graphics * insertion);
+  native_group_selection_active_= true;
+  mark_native_ink_interaction_dirty ();
+  refresh_native_drawing_selection_snapshot ();
+  refresh_native_drawing_properties_snapshot ();
+  publish_native_drawing_focus_refresh ();
+  invalidate_all ();
+  return true;
+}
+
+bool
+edit_graphics_rep::native_graphics_selection_active () {
+  refresh_native_drawing_selection_snapshot ();
+  return !native_drawing_selection_paths_.empty ();
+}
+
+bool
+edit_graphics_rep::native_graphics_owns_history () {
+  path graphics;
+  string submode;
+  if (native_graphics_group_mode (graphics, submode) &&
+      submode != "edit-props")
+    return true;
+  graphics= native_graphics_canvas_path ();
+  if (is_nil (graphics) || !has_subtree (et, graphics)) return false;
+  tree mode= native_ink_property (graphics, GR_MODE, tree (UNINIT));
+  return native_pen_mode (mode);
+}
+
+void
+edit_graphics_rep::native_graphics_history_reset () {
+  native_drawing_selection_paths_.clear ();
+  native_group_selection_active_= false;
+  native_group_area_selecting_= false;
+  native_group_transform_active_= false;
+  mark_native_ink_interaction_dirty ();
+  refresh_native_ink_interaction ();
+  refresh_native_drawing_selection_snapshot ();
+  refresh_native_drawing_properties_snapshot ();
+  publish_native_drawing_focus_refresh ();
+  invalidate_all ();
+}
+
+tree
+edit_graphics_rep::native_graphics_copy_selection () {
+  if (native_drawing_selection_paths_.empty ()) return tree ("");
+  path graphics= path_up (native_drawing_selection_paths_.front ());
+  if (is_nil (graphics) || !has_subtree (et, graphics)) return tree ("");
+  std::vector<int> indices;
+  for (const path& p: native_drawing_selection_paths_) {
+    if (path_up (p) != graphics || !has_subtree (et, p)) continue;
+    indices.push_back (last_item (p));
+  }
+  std::sort (indices.begin (), indices.end ());
+  indices.erase (std::unique (indices.begin (), indices.end ()), indices.end ());
+  tree objects= subtree (et, graphics);
+  tree result (GRAPHICS);
+  for (int index: indices)
+    if (index >= 0 && index < N(objects)) result << copy (objects[index]);
+  return N(result) == 0 ? tree ("") : result;
+}
+
+tree
+edit_graphics_rep::native_graphics_cut_selection () {
+  tree result= native_graphics_copy_selection ();
+  if (!is_func (result, GRAPHICS) || native_drawing_selection_paths_.empty ())
+    return result;
+  path graphics= path_up (native_drawing_selection_paths_.front ());
+  std::vector<int> indices;
+  for (const path& p: native_drawing_selection_paths_)
+    if (path_up (p) == graphics && has_subtree (et, p))
+      indices.push_back (last_item (p));
+  std::sort (indices.begin (), indices.end ());
+  indices.erase (std::unique (indices.begin (), indices.end ()), indices.end ());
+  start_editing ();
+  for (auto it= indices.rbegin (); it != indices.rend (); ++it)
+    remove (graphics * *it, 1);
+  end_editing ();
+  native_drawing_selection_paths_.clear ();
+  native_group_selection_active_= false;
+  mark_native_ink_interaction_dirty ();
+  refresh_native_drawing_selection_snapshot ();
+  refresh_native_drawing_properties_snapshot ();
+  publish_native_drawing_focus_refresh ();
+  invalidate_all ();
+  return result;
+}
+
+bool
+edit_graphics_rep::native_graphics_paste_selection (tree selection) {
+  if (!is_func (selection, GRAPHICS) || N(selection) == 0) return false;
+  path mode_graphics;
+  string submode;
+  if (native_graphics_group_mode (mode_graphics, submode) &&
+      submode == "edit-props")
+    return false;
+  path graphics= native_graphics_canvas_path ();
+  if (is_nil (graphics) || !has_subtree (et, graphics) ||
+      !is_func (subtree (et, graphics), GRAPHICS))
+    return false;
+  int first= N(subtree (et, graphics));
+  start_editing ();
+  int inserted= 0;
+  for (int i=0; i<N(selection); ++i) {
+    if (is_empty (selection[i])) continue;
+    insert (graphics * (first + inserted), tree (TUPLE, copy (selection[i])));
+    ++inserted;
+  }
+  end_editing ();
+  if (inserted == 0) return false;
+  native_drawing_selection_paths_.clear ();
+  for (int i=0; i<inserted; ++i)
+    native_drawing_selection_paths_.push_back (graphics * (first + i));
+  path group_graphics;
+  string group_submode;
+  native_group_selection_active_=
+    native_graphics_group_mode (group_graphics, group_submode) &&
+    group_submode != "edit-props";
+  mark_native_ink_interaction_dirty ();
+  refresh_native_drawing_selection_snapshot ();
+  refresh_native_drawing_properties_snapshot ();
+  publish_native_drawing_focus_refresh ();
+  invalidate_all ();
+  return true;
+}
+
+bool
+edit_graphics_rep::native_graphics_group_event (
+  string type, SI x, SI y, int modifiers) {
+  path graphics;
+  string submode;
+  if (!native_graphics_group_mode (graphics, submode) || submode == "edit-props")
+    return false;
+  if (submode != "move" && submode != "zoom" &&
+      submode != "rotate" && submode != "group-ungroup")
+    return false;
+
+  constexpr int native_shift_mask= 256;
+  bool shift= (modifiers & native_shift_mask) != 0;
+  path hit= native_graphics_group_hit (graphics, x, y);
+  auto selected= [&] (path p) {
+    return std::find (native_drawing_selection_paths_.begin (),
+                      native_drawing_selection_paths_.end (), p) !=
+           native_drawing_selection_paths_.end ();
+  };
+
+  if (type == "move" || type == "dragging-left" || type == "dragging-right")
+    return true;
+
+  if (type == "release-right" || type == "double-right") {
+    if (is_nil (hit)) native_graphics_group_clear_selection ();
+    else native_graphics_group_select_one (hit, true);
+    return true;
+  }
+  if (type == "start-drag-right") {
+    native_group_area_selecting_= true;
+    native_group_area_start_x_= x;
+    native_group_area_start_y_= y;
+    return true;
+  }
+  if (type == "end-drag-right") {
+    if (native_group_area_selecting_)
+      native_graphics_group_select_area (
+        graphics, native_group_area_start_x_, native_group_area_start_y_, x, y);
+    native_group_area_selecting_= false;
+    return true;
+  }
+
+  if (type == "release-middle") {
+    if (shift) {
+      if (native_drawing_selection_paths_.empty () && !is_nil (hit))
+        native_graphics_group_select_one (hit, false);
+      (void) native_graphics_cut_selection ();
+    }
+    else native_graphics_group_clear_selection ();
+    return true;
+  }
+
+  if (type == "release-left" || type == "double-left") {
+    if (submode == "group-ungroup") {
+      if (!is_nil (hit) && !selected (hit))
+        native_graphics_group_select_one (hit, false);
+      (void) native_graphics_group_or_ungroup (graphics);
+    }
+    else if (is_nil (hit)) native_graphics_group_clear_selection ();
+    else if (shift) native_graphics_group_select_one (hit, true);
+    else if (!selected (hit)) native_graphics_group_select_one (hit, false);
+    return true;
+  }
+
+  if (type == "start-drag-left") {
+    if (submode == "group-ungroup") return true;
+    if (is_nil (hit)) {
+      native_graphics_group_clear_selection ();
+      return true;
+    }
+    if (!selected (hit)) native_graphics_group_select_one (hit, shift);
+    if (native_drawing_selection_paths_.empty ()) return true;
+    native_group_transform_active_= true;
+    native_group_transform_start_x_= x;
+    native_group_transform_start_y_= y;
+    native_group_transform_kind_= submode == "zoom" ?
+      native_drawing_transform::scale : submode == "rotate" ?
+      native_drawing_transform::rotate : native_drawing_transform::move;
+    return true;
+  }
+  if (type == "end-drag-left") {
+    if (native_group_transform_active_) {
+      native_ink_sample samples[2];
+      samples[0].x= native_group_transform_start_x_;
+      samples[0].y= native_group_transform_start_y_;
+      samples[1].x= x;
+      samples[1].y= y;
+      native_group_transform_active_= false;
+      commit_native_drawing_transform (native_group_transform_kind_, samples, 2);
+      refresh_native_drawing_selection_snapshot ();
+      refresh_native_drawing_properties_snapshot ();
+      publish_native_drawing_focus_refresh ();
+    }
+    return true;
+  }
+
+  return type == "press-left" || type == "press-right" ||
+         type == "press-middle";
 }
 
 void
@@ -1786,6 +2192,27 @@ edit_graphics_rep::refresh_native_drawing_properties_snapshot () {
   snapshot.snap_enabled= native_drawing_snap_enabled_;
   snapshot.selection_active= !native_drawing_selection_paths_.empty ();
 
+  path group_graphics;
+  string group_submode;
+  if (native_graphics_group_mode (group_graphics, group_submode) &&
+      group_submode != "edit-props") {
+    snapshot.group_edit_active= true;
+    if (group_submode == "move") {
+      snapshot.selection_transform_enabled= snapshot.selection_active;
+      snapshot.selection_transform= native_drawing_transform::move;
+    }
+    else if (group_submode == "zoom") {
+      snapshot.selection_transform_enabled= snapshot.selection_active;
+      snapshot.selection_transform= native_drawing_transform::scale;
+    }
+    else if (group_submode == "rotate") {
+      snapshot.selection_transform_enabled= snapshot.selection_active;
+      snapshot.selection_transform= native_drawing_transform::rotate;
+    }
+  }
+  else if (native_drawing_tool_ == native_drawing_tool::lasso)
+    snapshot.selection_transform_enabled= snapshot.selection_active;
+
   path gp= native_drawing_active_graphics ();
   if (!is_nil (gp)) snapshot.grid_enabled= native_drawing_grid_enabled (gp);
 
@@ -1833,6 +2260,15 @@ edit_graphics_rep::refresh_native_drawing_properties_snapshot () {
 void
 edit_graphics_rep::refresh_native_ink_interaction () {
   if (ui_endpoint == nullptr) return;
+  if (native_group_selection_active_) {
+    path group_graphics;
+    string group_submode;
+    if (!native_graphics_group_mode (group_graphics, group_submode) ||
+        group_submode == "edit-props") {
+      native_drawing_selection_paths_.clear ();
+      native_group_selection_active_= false;
+    }
+  }
   if (native_ink_interaction_dirty_) {
     std::vector<path> graphics;
     collect_native_ink_graphics (subtree (et, rp), rp, false, graphics);
@@ -1846,8 +2282,7 @@ edit_graphics_rep::refresh_native_ink_interaction () {
     native_ink_interaction_dirty_= false;
     if (native_ink_paths_.empty ()) {
       ui_endpoint->update_native_ink_regions ({});
-      native_drawing_selection_paths_.clear ();
-      ui_endpoint->update_native_drawing_selection ({});
+      refresh_native_drawing_selection_snapshot ();
       refresh_native_drawing_properties_snapshot ();
       return;
     }
@@ -2355,6 +2790,7 @@ void
 edit_graphics_rep::select_native_drawing_lasso (
   const native_ink_sample* samples, std::size_t count) {
   native_drawing_selection_paths_.clear ();
+  native_group_selection_active_= false;
   if (samples == nullptr || count < 3) {
     refresh_native_drawing_selection_snapshot ();
     publish_native_drawing_focus_refresh ();
@@ -2763,6 +3199,7 @@ edit_graphics_rep::mouse_graphics (string type, SI x, SI y, int m, time_t t,
   //cout << "gp= " << graphics_path () << "\n";
   (void) t;
   // apply_changes (); // FIXME: remove after review of synchronization
+  if (native_graphics_group_event (type, x, y, m)) return true;
   if (type == "move" || type == "release-left" || type == "double-left" ||
       type == "release-middle" || type == "release-right" ||
       type == "double-right" || type == "start-drag-left" ||

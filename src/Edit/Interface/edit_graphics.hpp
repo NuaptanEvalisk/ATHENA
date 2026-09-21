@@ -36,6 +36,15 @@ private:
   bool native_ink_interaction_dirty_= true;
   double native_graphics_pinch_zoom_= 1.0;
   bool native_graphics_pinch_active_= false;
+  bool native_group_area_selecting_= false;
+  SI native_group_area_start_x_= 0;
+  SI native_group_area_start_y_= 0;
+  bool native_group_transform_active_= false;
+  SI native_group_transform_start_x_= 0;
+  SI native_group_transform_start_y_= 0;
+  native_drawing_transform native_group_transform_kind_=
+    native_drawing_transform::move;
+  bool native_group_selection_active_= false;
 
 protected:
   point cur_pos;
@@ -139,6 +148,20 @@ public:
   void   native_graphics_canvas_pinch_end () override;
   void   native_graphics_canvas_pinch_scale (double scale) override;
   void   native_graphics_canvas_wheel (double dx, double dy) override;
+  bool   native_graphics_selection_active () override;
+  tree   native_graphics_copy_selection () override;
+  tree   native_graphics_cut_selection () override;
+  bool   native_graphics_paste_selection (tree selection) override;
+  bool   native_graphics_owns_history () override;
+  void   native_graphics_history_reset () override;
+  bool   native_graphics_group_mode (path& graphics, string& submode);
+  path   native_graphics_group_hit (path graphics, SI x, SI y);
+  void   native_graphics_group_clear_selection ();
+  void   native_graphics_group_select_one (path object, bool toggle);
+  void   native_graphics_group_select_area (
+    path graphics, SI x1, SI y1, SI x2, SI y2);
+  bool   native_graphics_group_or_ungroup (path graphics);
+  bool   native_graphics_group_event (string type, SI x, SI y, int modifiers);
   void   back_in_text_at (tree t, path p, bool forward);
 };
 

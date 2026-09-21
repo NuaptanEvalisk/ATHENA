@@ -58,6 +58,8 @@
 #include <QScrollBar>
 #include <QTouchEvent>
 
+#include <limits>
+
 #include <QBuffer>
 #include <QMimeData>
 #include <QByteArray>
@@ -719,6 +721,8 @@ QTMWidget::drawNativeDrawingSelection (QPainter& p) {
     return;
   }
   if (!transformed) {
+    native_drawing_properties_snapshot props=
+      tm_widget ()->handle_native_drawing_properties ();
     if (boxes.size () > 1) p.drawRoundedRect (unionRect, 4, 4);
     p.setBrush (QColor (255, 255, 255, 235));
     const qreal half= 4.0;
@@ -726,13 +730,22 @@ QTMWidget::drawNativeDrawingSelection (QPainter& p) {
       unionRect.topLeft (), unionRect.topRight (),
       unionRect.bottomRight (), unionRect.bottomLeft ()
     };
-    for (const QPointF& c: corners)
-      p.drawRect (QRectF (c.x () - half, c.y () - half,
-                          2.0 * half, 2.0 * half));
-    QPointF top= QPointF (unionRect.center ().x (), unionRect.top ());
-    QPointF rotate= top + QPointF (0.0, -24.0);
-    p.drawLine (top, rotate);
-    p.drawEllipse (rotate, 5.0, 5.0);
+    bool showScale= !props.group_edit_active ||
+      (props.selection_transform_enabled &&
+       props.selection_transform == native_drawing_transform::scale);
+    bool showRotate= !props.group_edit_active ||
+      (props.selection_transform_enabled &&
+       props.selection_transform == native_drawing_transform::rotate);
+    if (showScale)
+      for (const QPointF& c: corners)
+        p.drawRect (QRectF (c.x () - half, c.y () - half,
+                            2.0 * half, 2.0 * half));
+    if (showRotate) {
+      QPointF top= QPointF (unionRect.center ().x (), unionRect.top ());
+      QPointF rotate= top + QPointF (0.0, -24.0);
+      p.drawLine (top, rotate);
+      p.drawEllipse (rotate, 5.0, 5.0);
+    }
   }
   p.restore ();
 }
@@ -760,11 +773,31 @@ QTMWidget::nativeDrawingSelectionHitTest (
   const QPointF& pos, native_drawing_transform& transform,
   int& scaleCorner) {
   scaleCorner= -1;
-  if (is_nil (tmwid) ||
-      tm_widget ()->handle_native_drawing_tool () != native_drawing_tool::lasso)
-    return false;
+  if (is_nil (tmwid)) return false;
+  native_drawing_properties_snapshot props=
+    tm_widget ()->handle_native_drawing_properties ();
+  bool lasso=
+    tm_widget ()->handle_native_drawing_tool () == native_drawing_tool::lasso;
+  if (!lasso && !props.selection_transform_enabled) return false;
   QRectF rect= nativeDrawingSelectionRect ();
   if (!rect.isValid () || rect.isEmpty ()) return false;
+
+  if (props.group_edit_active) {
+    transform= props.selection_transform;
+    if (transform == native_drawing_transform::move)
+      return rect.adjusted (-2.0, -2.0, 2.0, 2.0).contains (pos);
+    if (transform == native_drawing_transform::rotate)
+      return rect.adjusted (-8.0, -8.0, 8.0, 8.0).contains (pos);
+    const QPointF corners[]= {
+      rect.topLeft (), rect.topRight (), rect.bottomRight (), rect.bottomLeft ()
+    };
+    double best= std::numeric_limits<double>::infinity ();
+    for (int i=0; i<4; ++i) {
+      double d= QLineF (pos, corners[i]).length ();
+      if (d < best) { best= d; scaleCorner= i; }
+    }
+    return rect.adjusted (-8.0, -8.0, 8.0, 8.0).contains (pos);
+  }
 
   QPointF rotate (rect.center ().x (), rect.top () - 24.0);
   if (QLineF (pos, rotate).length () <= 9.0) {

@@ -370,7 +370,11 @@ edit_modify_rep::undo (bool redoable) {
     return;
   }
   arch->forget_cursor ();
-  if (inside_graphics () && !as_bool (eval ("graphics-undo-enabled"))) {
+  bool in_graphics= inside_graphics ();
+  bool native_graphics_history=
+    in_graphics && native_graphics_owns_history ();
+  if (in_graphics && !native_graphics_history &&
+      !as_bool (eval ("graphics-undo-enabled"))) {
     eval ("(graphics-reset-context 'undo)"); return; }
   if (arch->undo_possibilities () == 0) {
     set_message ("No more undo information available", "undo"); return; }
@@ -382,8 +386,8 @@ edit_modify_rep::undo (bool redoable) {
   if (arch->conform_save ()) {
     set_message ("Your document is back in its original state", "undo");
     beep (); }
-  if (inside_graphics ())
-    eval ("(graphics-reset-context 'undo)");
+  if (native_graphics_history) native_graphics_history_reset ();
+  else if (in_graphics) eval ("(graphics-reset-context 'undo)");
 }
 
 void
@@ -410,6 +414,9 @@ edit_modify_rep::redo (int i) {
     return;
   }
   arch->forget_cursor ();
+  bool in_graphics= inside_graphics ();
+  bool native_graphics_history=
+    in_graphics && native_graphics_owns_history ();
   if (arch->redo_possibilities () == 0) {
     set_message ("No more redo information available", "redo"); return; }
   path p= arch->redo (i);
@@ -417,6 +424,7 @@ edit_modify_rep::redo (int i) {
   if (arch->conform_save ()) {
     set_message ("Your document is back in its original state", "undo");
     beep (); }
+  if (native_graphics_history) native_graphics_history_reset ();
 }
 
 void

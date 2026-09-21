@@ -65,6 +65,9 @@ struct native_drawing_properties_snapshot {
   bool grid_enabled= false;
   bool recognition_enabled= false;
   bool selection_active= false;
+  bool group_edit_active= false;
+  bool selection_transform_enabled= false;
+  native_drawing_transform selection_transform= native_drawing_transform::move;
   native_drawing_tool tool= native_drawing_tool::pen;
   native_drawing_shape shape= native_drawing_shape::line;
 };

@@ -402,10 +402,10 @@
 		(go-to p)))))
     (graphics-reset-state)
     (graphics-forget-states))
-   ((== cmd 'undo)
+    ((== cmd 'undo)
     (if (and sticky-point (not graphics-undo-enabled)
 	     (in? (state-ref graphics-first-state 'graphics-action)
-		 '(start-move start-operation)))
+		 '(start-move)))
 	(begin
 	; FIXME : In this begin, the state variables should be raz-ed as well !
 	  (set! graphics-undo-enabled #t)

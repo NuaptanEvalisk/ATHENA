@@ -735,6 +735,12 @@ athena_in_commutative_diagramP () {
   return false;
 }
 
+bool
+athena_native_graphics_selection_activeP () {
+  editor ed= get_current_editor ();
+  return !is_nil (ed) && ed->native_graphics_selection_active ();
+}
+
 namespace {
 
 editor

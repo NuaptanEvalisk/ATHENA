@@ -253,6 +253,12 @@ public:
   virtual void native_graphics_canvas_pinch_end () = 0;
   virtual void native_graphics_canvas_pinch_scale (double scale) = 0;
   virtual void native_graphics_canvas_wheel (double dx, double dy) = 0;
+  virtual bool native_graphics_selection_active () = 0;
+  virtual tree native_graphics_copy_selection () = 0;
+  virtual tree native_graphics_cut_selection () = 0;
+  virtual bool native_graphics_paste_selection (tree selection) = 0;
+  virtual bool native_graphics_owns_history () = 0;
+  virtual void native_graphics_history_reset () = 0;
   virtual color mouse_clickable_color () = 0;
   virtual void mouse_click (SI x, SI y) = 0;
   virtual bool mouse_extra_click (SI x, SI y) = 0;

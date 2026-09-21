@@ -703,7 +703,8 @@ void
 edit_select_rep::selection_copy (string key) {
   bool emacs= (get_preference ("look and feel", "default") == "emacs");
   if (inside_active_graphics ()) {
-    tree t= as_tree (eval ("(graphics-copy)"));
+    tree t= native_graphics_selection_active () ?
+      native_graphics_copy_selection () : as_tree (eval ("(graphics-copy)"));
     selection_set (key, t, !emacs);
     return;
   }
@@ -738,7 +739,8 @@ edit_select_rep::selection_paste (string key) {
   tree t; string s;
   (void) ::get_selection (key, t, s, selection_import);
   if (inside_active_graphics ()) {
-    if (is_tuple (t, "texmacs", 3))
+    if (is_tuple (t, "texmacs", 3) &&
+        !native_graphics_paste_selection (t[1]))
       call ("graphics-paste", t[1]);
     return;
   }
@@ -956,9 +958,12 @@ void
 edit_select_rep::selection_cut (string key) {
   if (inside_active_graphics ()) {
     if (key != "none") {
-      tree t= as_tree (eval ("(graphics-cut)"));
+      tree t= native_graphics_selection_active () ?
+        native_graphics_cut_selection () : as_tree (eval ("(graphics-cut)"));
       selection_set (key, t);
     }
+    else if (native_graphics_selection_active ())
+      (void) native_graphics_cut_selection ();
   }
   else if (selection_active_any ()) {
     path p1, p2;

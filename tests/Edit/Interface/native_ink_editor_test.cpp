@@ -132,6 +132,9 @@ private slots:
   void trimMaterializesRenderedContentBounds ();
   void canvasGeometryActionsStayNativeAndUndoable ();
   void canvasKeyboardWheelAndPinchStayNative ();
+  void nativeGroupMoveSelectsAndTransforms ();
+  void nativeGroupAreaGroupClipboardAndUngroup ();
+  void editPropsGroupModeRemainsLegacyFallback ();
 
 private:
   buffer_document_state* buffer= nullptr;
@@ -213,6 +216,42 @@ horizontal_samples (SI left, SI right, SI y, int count= 7) {
     result[(std::size_t) i].pressure= 0.5 + 0.05 * i;
   }
   return result;
+}
+
+static void
+set_native_group_mode (NativeInkTestEditorRep* editor, path graphics,
+                       string submode) {
+  tree mode (TUPLE);
+  mode << "group-edit" << submode;
+  editor->start_editing ();
+  QVERIFY (editor->native_drawing_set_graphics_property (graphics, GR_MODE, mode));
+  editor->end_editing ();
+  editor->go_to (graphics * 0 * 0);
+  SI x1= 0, y1= 0, x2= 0, y2= 0;
+  editor->typeset (x1, y1, x2, y2);
+  editor->mark_native_ink_interaction_dirty ();
+  editor->refresh_native_ink_interaction ();
+}
+
+static void
+insert_two_group_test_lines (NativeInkTestEditorRep* editor,
+                             SI left, SI bottom, SI right, SI top) {
+  editor->set_native_drawing_property (
+    native_drawing_property::shape,
+    static_cast<std::uint64_t> (native_drawing_shape::line));
+  editor->set_native_drawing_tool (native_drawing_tool::shape);
+  SI width= right-left;
+  SI height= top-bottom;
+  native_ink_sample first[2];
+  first[0].x= left + width/8; first[0].y= bottom + height/3;
+  first[1].x= left + 3*width/8; first[1].y= bottom + height/3;
+  native_ink_sample second[2];
+  second[0].x= left + 5*width/8; second[0].y= bottom + 2*height/3;
+  second[1].x= left + 7*width/8; second[1].y= bottom + 2*height/3;
+  editor->commit_native_drawing_gesture (
+    native_drawing_tool::shape, first, 2);
+  editor->commit_native_drawing_gesture (
+    native_drawing_tool::shape, second, 2);
 }
 
 static native_ink_sample
@@ -1416,6 +1455,118 @@ TestNativeInkEditor::canvasKeyboardWheelAndPinchStayNative () {
   QCOMPARE (editor->undo_possibilities (), 1);
   editor->undo (0);
   QVERIFY (std::abs (editor->native_graphics_canvas_zoom () - 1.0) < 1.0e-8);
+}
+
+void
+TestNativeInkEditor::nativeGroupMoveSelectsAndTransforms () {
+  path graphics_path;
+  SI left= 0, bottom= 0, right= 0, top= 0;
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  insert_two_group_test_lines (editor, left, bottom, right, top);
+  set_native_group_mode (editor, graphics_path, "move");
+
+  native_drawing_selection_box first;
+  QVERIFY (editor->native_drawing_object_bounds (graphics_path * 1, first));
+  SI cx= (first.x1 + first.x2) / 2;
+  SI cy= (first.y1 + first.y2) / 2;
+  editor->clear_undo_history ();
+  QVERIFY (editor->native_graphics_group_event ("release-left", cx, cy, 0));
+  QVERIFY (editor->native_graphics_selection_active ());
+  QCOMPARE (editor->undo_possibilities (), 0);
+
+  editor->refresh_native_drawing_properties_snapshot ();
+  native_drawing_properties_snapshot props= endpoint->native_drawing_properties ();
+  QVERIFY (props.group_edit_active);
+  QVERIFY (props.selection_transform_enabled);
+  QCOMPARE (props.selection_transform, native_drawing_transform::move);
+
+  QVERIFY (editor->native_graphics_group_event ("start-drag-left", cx, cy, 0));
+  QVERIFY (editor->native_graphics_group_event (
+    "end-drag-left", cx + 24 * PIXEL, cy, 0));
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), buffer->root_path), GR_TRANSFORM), 1);
+  QCOMPARE (editor->undo_possibilities (), 1);
+  editor->undo (0);
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), buffer->root_path), GR_TRANSFORM), 0);
+}
+
+void
+TestNativeInkEditor::nativeGroupAreaGroupClipboardAndUngroup () {
+  path graphics_path;
+  SI left= 0, bottom= 0, right= 0, top= 0;
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  insert_two_group_test_lines (editor, left, bottom, right, top);
+  set_native_group_mode (editor, graphics_path, "group-ungroup");
+
+  native_drawing_selection_box first, second;
+  QVERIFY (editor->native_drawing_object_bounds (graphics_path * 1, first));
+  QVERIFY (editor->native_drawing_object_bounds (graphics_path * 2, second));
+  SI x1= min (first.x1, second.x1) - 4 * PIXEL;
+  SI y1= min (first.y1, second.y1) - 4 * PIXEL;
+  SI x2= max (first.x2, second.x2) + 4 * PIXEL;
+  SI y2= max (first.y2, second.y2) + 4 * PIXEL;
+  QVERIFY (editor->native_graphics_group_event ("start-drag-right", x1, y1, 0));
+  QVERIFY (editor->native_graphics_group_event ("end-drag-right", x2, y2, 0));
+  tree copied= editor->native_graphics_copy_selection ();
+  QVERIFY (is_func (copied, GRAPHICS, 2));
+
+  editor->clear_undo_history ();
+  QVERIFY (editor->native_graphics_group_or_ungroup (graphics_path));
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), buffer->root_path), GR_GROUP), 1);
+  QCOMPARE (editor->undo_possibilities (), 1);
+  editor->undo (0);
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), buffer->root_path), GR_GROUP), 0);
+
+  editor->native_graphics_group_select_area (graphics_path, x1, y1, x2, y2);
+  editor->clear_undo_history ();
+  tree cut= editor->native_graphics_cut_selection ();
+  QVERIFY (is_func (cut, GRAPHICS, 2));
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), buffer->root_path), LINE), 0);
+  QCOMPARE (editor->undo_possibilities (), 1);
+
+  editor->clear_undo_history ();
+  QVERIFY (editor->native_graphics_paste_selection (cut));
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), buffer->root_path), LINE), 2);
+  QCOMPARE (editor->undo_possibilities (), 1);
+
+  editor->clear_undo_history ();
+  QVERIFY (editor->native_graphics_group_or_ungroup (graphics_path));
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), buffer->root_path), GR_GROUP), 1);
+  QCOMPARE (editor->undo_possibilities (), 1);
+
+  editor->clear_undo_history ();
+  QVERIFY (editor->native_graphics_group_or_ungroup (graphics_path));
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), buffer->root_path), GR_GROUP), 0);
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), buffer->root_path), LINE), 2);
+  QCOMPARE (editor->undo_possibilities (), 1);
+}
+
+void
+TestNativeInkEditor::editPropsGroupModeRemainsLegacyFallback () {
+  path graphics_path;
+  SI left= 0, bottom= 0, right= 0, top= 0;
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  insert_two_group_test_lines (editor, left, bottom, right, top);
+  set_native_group_mode (editor, graphics_path, "edit-props");
+  native_drawing_selection_box first;
+  QVERIFY (editor->native_drawing_object_bounds (graphics_path * 1, first));
+  SI cx= (first.x1 + first.x2) / 2;
+  SI cy= (first.y1 + first.y2) / 2;
+  QVERIFY (!editor->native_graphics_group_event ("release-left", cx, cy, 0));
+  QVERIFY (!editor->native_graphics_selection_active ());
+  editor->refresh_native_drawing_properties_snapshot ();
+  QVERIFY (!endpoint->native_drawing_properties ().group_edit_active);
 }
 
 static int test_status= 1;

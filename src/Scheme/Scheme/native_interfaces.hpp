@@ -100,6 +100,7 @@ void athena_table_properties_pane_show ();
 void athena_slide_properties_pane_show ();
 void athena_make_commutative_diagram ();
 bool athena_in_commutative_diagramP ();
+bool athena_native_graphics_selection_activeP ();
 tree athena_graphics_geometry ();
 void athena_graphics_set_width (string value);
 void athena_graphics_set_height (string value);
