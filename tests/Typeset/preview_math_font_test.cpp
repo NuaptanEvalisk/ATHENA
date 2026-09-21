@@ -291,9 +291,10 @@ run_tests (int argc, char** argv) {
     PreviewMathFontTest test;
     result= QTest::qExec (&test, argc, argv);
   }
-  gui_close ();
-  release_boot_lock ();
-  std::exit (result);
+  // The full ATHENA Qt runtime may race during process-global teardown after
+  // this focused test has already released its test-owned objects.  Match the
+  // other focused editor regressions and leave immediately after QTest.
+  std::_Exit (result);
 }
 
 int main (int argc, char** argv) {

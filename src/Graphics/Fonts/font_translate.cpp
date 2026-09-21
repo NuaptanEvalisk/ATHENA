@@ -11,6 +11,7 @@
 
 #include "font.hpp"
 #include <mutex>
+#include "Freetype/tt_file.hpp"
 #include "Freetype/tt_tools.hpp"
 #include "analyze.hpp"
 #include "convert.hpp"
@@ -403,7 +404,44 @@ closest_font (string family, string variant, string series, string shape,
     as_string (sz) * "-" * as_string (dpi) * "-" * as_string (attempt);
   if (font::instances->contains (s)) return font (s);
   find_closest (family, variant, series, shape, attempt);
-  font fn= find_font (family, variant, series, shape, sz, dpi);
+  auto strip_file_extension= [] (string name) {
+    if (occurs (".", name)) {
+      int pos= search_backwards (".", name);
+      name= name (0, pos);
+    }
+    return name;
+  };
+  auto materialize= [&] (auto&& self, string fam, string var, string ser,
+                           string sh) -> font {
+    if (ends (sh, "-poorit")) {
+      font base= self (self, fam, var, ser, sh (0, N(sh) - 7));
+      return is_nil (base) ? base
+                           : poor_italic_font (base->magnify (5.0/6.0, 1.0),
+                                               0.25001);
+    }
+    if (ends (sh, "-poorsc")) {
+      font base= self (self, fam, var, ser, sh (0, N(sh) - 7));
+      return is_nil (base) ? base : poor_smallcaps_font (base);
+    }
+    if (ends (ser, "-poorbf")) {
+      font base= self (self, fam, var, ser (0, N(ser) - 7), sh);
+      return is_nil (base) ? base : poor_bold_font (base);
+    }
+    if (ends (var, "-poorbbb")) {
+      font base= self (self, fam, var (0, N(var) - 8), ser, sh);
+      return is_nil (base) ? base : poor_bbb_font (base);
+    }
+
+    array<string> names= font_database_search (fam, var, ser, sh);
+    for (int i=0; i<N(names); i++) {
+      string name= strip_file_extension (names[i]);
+      if (tt_font_exists (name)) return unicode_font (name, sz, dpi);
+    }
+    string fallback= tt_font_exists ("Latin Modern Roman")
+                       ? string ("Latin Modern Roman") : string ("STIX-Regular");
+    return unicode_font (fallback, sz, dpi);
+  };
+  font fn= materialize (materialize, family, variant, series, shape);
   //cout << "Found " << fn->res_name << "\n";
   font::instances (s)= (pointer) fn.rep;
   return fn;

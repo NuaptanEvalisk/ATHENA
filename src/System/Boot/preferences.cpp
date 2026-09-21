@@ -118,7 +118,6 @@ ensure_builtin_user_preferences () {
     PREF ("inertial scrolling sensitivity", "2.0", ""),
     PREF ("source tool", "off", "notify-tool"),
     PREF ("experimental alpha", "on", "notify-tool"),
-    PREF ("new style fonts", "on", "notify-new-fonts"),
     PREF ("bitmap effects", "on", "notify-tool"),
     PREF ("new style page breaking", "on", "notify-new-page-breaking"),
     PREF ("open console on errors", "on", ""),

@@ -27,21 +27,6 @@ tm_config_rep::tm_config_rep ():
 tm_config_rep::~tm_config_rep () {}
 
 /******************************************************************************
-* Setup TeXmacs fonts
-******************************************************************************/
-
-void
-tm_config_rep::set_font_rules (scheme_tree rules) {
-  int i, n= arity (rules);
-  for (i=0; i<n; i++)
-    if (arity (rules [i]) == 2) {
-      tree l= (tree) rules[i][0];
-      tree r= (tree) rules[i][1];
-      font_rule (l, r);
-    }  
-}
-
-/******************************************************************************
 * Latex and user commands
 ******************************************************************************/
 

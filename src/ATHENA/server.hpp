@@ -29,7 +29,6 @@ public:
   virtual server_rep* get_server () = 0;
 
   /* Control global server parameters */
-  virtual void   set_font_rules (scheme_tree rules) = 0;
   virtual bool   kbd_get_command (string s, string& help, command& cmd) = 0;
   virtual void   insert_kbd_wildcard (string key, string im,
 				      bool post, bool l, bool r) = 0;

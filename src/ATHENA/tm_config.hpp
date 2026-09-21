@@ -26,9 +26,6 @@ public:
   tm_config_rep ();
   ~tm_config_rep ();
 
-  /* Font setup */
-  void set_font_rules (scheme_tree rules);
-
   /* Keyboard behaviour */
   bool kbd_get_command (string which, string& help, command& cmd);
 

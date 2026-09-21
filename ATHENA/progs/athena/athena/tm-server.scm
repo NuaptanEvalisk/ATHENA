@@ -41,9 +41,6 @@
   (when (current-view)
     (delayed (:idle 0) (notify-change 1))))
 
-(define (notify-new-fonts var val)
-  (set-new-fonts (== val "on")))
-
 (define (notify-new-page-breaking var val)
   (noop))
 
@@ -261,4 +258,4 @@
   (safely-kill-window))
 
 (register-preference-callback-procedures
-  (list notify-enunciation-rendering notify-latex-command notify-look-and-feel notify-new-fonts notify-new-page-breaking notify-restart notify-security notify-tool))
+  (list notify-enunciation-rendering notify-latex-command notify-look-and-feel notify-new-page-breaking notify-restart notify-security notify-tool))

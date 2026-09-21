@@ -21,39 +21,39 @@
     </src-license>
   </src-title>>
 
-  <assign|cent|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|font|tc|¢>|<with|mode|text|font|tc|¢>>>>>
+  <assign|cent|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|\<#00A2\>>|<with|mode|text|\<#00A2\>>>>>>
 
-  <assign|currency|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|font|tc|¤>|<with|mode|text|font|tc|¤>>>>>
+  <assign|currency|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|\<#00A4\>>|<with|mode|text|\<#00A4\>>>>>>
 
-  <assign|yen|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|font|tc|¥>|<with|mode|text|font|tc|¥>>>>>
+  <assign|yen|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|\<#00A5\>>|<with|mode|text|\<#00A5\>>>>>>
 
-  <assign|copyright|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|font|tcx|©>|<with|mode|text|font|tcx|©>>>>>
+  <assign|copyright|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|\<#00A9\>>|<with|mode|text|\<#00A9\>>>>>>
 
-  <assign|copyleft|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|font|tcx|«>|<with|mode|text|font|tcx|«>>>>>
+  <assign|copyleft|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|\<#1F12F\>>|<with|mode|text|\<#1F12F\>>>>>>
 
-  <assign|registered|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|font|tcx|®>|<with|mode|text|font|tcx|®>>>>>
+  <assign|registered|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|\<#00AE\>>|<with|mode|text|\<#00AE\>>>>>>
 
-  <assign|degreesign|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|font|tc|°>|<with|mode|text|font|tc|°>>>>>
+  <assign|degreesign|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|\<#00B0\>>|<with|mode|text|\<#00B0\>>>>>>
 
-  <assign|twosuperior|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|font|tc|²>|<with|mode|text|font|tc|²>>>>>
+  <assign|twosuperior|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|\<#00B2\>>|<with|mode|text|\<#00B2\>>>>>>
 
-  <assign|threesuperior|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|font|tc|³>|<with|mode|text|font|tc|³>>>>>
+  <assign|threesuperior|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|\<#00B3\>>|<with|mode|text|\<#00B3\>>>>>>
 
-  <assign|onesuperior|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|font|tc|¹>|<with|mode|text|font|tc|¹>>>>>
+  <assign|onesuperior|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|\<#00B9\>>|<with|mode|text|\<#00B9\>>>>>>
 
-  <assign|mu|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|font|tcx|µ>|<with|mode|text|font|tcx|µ>>>>>
+  <assign|mu|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|\<#00B5\>>|<with|mode|text|\<#00B5\>>>>>>
 
-  <assign|paragraphsign|<active*|<macro|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|font|tc|¶>|<with|mode|text|font|tc|¶>>>>>
+  <assign|paragraphsign|<active*|<macro|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|\<#00B6\>>|<with|mode|text|\<#00B6\>>>>>>
 
-  <assign|onequarter|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|font|tc|¼>|<with|mode|text|font|tc|¼>>>>>
+  <assign|onequarter|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|\<#00BC\>>|<with|mode|text|\<#00BC\>>>>>>
 
-  <assign|onehalf|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|font|tc|½>|<with|mode|text|font|tc|½>>>>>
+  <assign|onehalf|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|\<#00BD\>>|<with|mode|text|\<#00BD\>>>>>>
 
-  <assign|threequarters|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|font|tc|¾>|<with|mode|text|font|tc|¾>>>>>
+  <assign|threequarters|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|\<#00BE\>>|<with|mode|text|\<#00BE\>>>>>>
 
-  <assign|euro|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|font|tcx|¿>|<with|mode|text|font|tcx|¿>>>>>
+  <assign|euro|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|\<#20AC\>>|<with|mode|text|\<#20AC\>>>>>>
 
-  <assign|trademark|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|font|tcx|—>|<with|mode|text|font|tcx|—>>>>>
+  <assign|trademark|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|mode|text|\<#2122\>>|<with|mode|text|\<#2122\>>>>>>
 
   <assign|emdash|<macro|<active*|<if|<equal|<value|mode>|math>|<with|mode|text|font|roman|\V>|<with|font|roman|\V>>>>>
 

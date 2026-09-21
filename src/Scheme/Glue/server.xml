@@ -21,9 +21,6 @@
   <binding name="kbd-system-rewrite" native="kbd_system_rewrite" returns="tree">
     <arg type="string" />
   </binding>
-  <binding name="set-font-rules" native="set_font_rules" returns="void">
-    <arg type="scheme_tree" />
-  </binding>
   <binding name="window-get-serial" native="get_window_serial" returns="int" />
   <binding name="window-set-property" native="set_window_property" returns="void">
     <arg type="scheme_tree" />

@@ -1291,8 +1291,6 @@ TeXmacs_main (int argc, char** argv) {
       extra_init_cmd << "(delayed (:idle 1) "
                         "(begin "
                         "(update-menus)))";
-      extra_init_cmd << "(delayed (:idle 100) "
-                        "(import-from (fonts fonts-truetype)))";
       extra_init_cmd << "(delayed (:idle 0) "
                         "(exec-global "
                         "(lambda () (vault-startup-open-initial-buffer))))";

@@ -28,7 +28,12 @@
 #define U64 unsigned long long int
 #endif
 
-string strip_suffix (string name);
+static string
+strip_suffix (string name) {
+  if (!occurs (".", name)) return name;
+  int pos= search_backwards (".", name);
+  return name (0, pos);
+}
 
 /******************************************************************************
 * Data access

@@ -898,23 +898,21 @@ smart_font_rep::adjust_subfont (font fn) {
 
 font
 smart_font_rep::get_math_font (string fam, string var, string ser, string sh) {
-  find_closest (fam, var, ser, sh);
-  string mvar= "mr";
-  if (var == "ss") mvar= "ms";
-  if (var == "tt") mvar= "mt";
-  return find_font (fam, mvar, ser, "", sz, dpi);
+  return closest_font (fam, var, ser, sh, sz, dpi);
 }
 
 font
 smart_font_rep::get_cyrillic_font (string fam, string var, string ser, string sh) {
-  find_closest (fam, var, ser, sh);
-  return find_font ("cyrillic", var, ser, sh, sz, dpi);
+  string cvar= (var == "rm" || var == "") ? string ("cyrillic")
+                                             : var * "-cyrillic";
+  return closest_font (fam, cvar, ser, sh, sz, dpi);
 }
 
 font
 smart_font_rep::get_greek_font (string fam, string var, string ser, string sh) {
-  find_closest (fam, var, ser, sh);
-  return find_font ("greek", var, ser, sh, sz, dpi);
+  string gvar= (var == "rm" || var == "") ? string ("greek")
+                                             : var * "-greek";
+  return closest_font (fam, gvar, ser, sh, sz, dpi);
 }
 
 static string
@@ -1868,12 +1866,7 @@ smart_font_rep::get_wide_correction (string s, int mode) {
 
 font
 smart_font_bis (string family, string variant, string series, string shape,
-                int sz, int hdpi, int vdpi) {
-  if (!new_fonts) {
-    font fn= find_font (family, variant, series, shape, sz, vdpi);
-    if (hdpi == vdpi) return fn;
-    return fn->magnify (((double) hdpi) / ((double) vdpi), 1.0);
-  }
+                 int sz, int hdpi, int vdpi) {
   string name=
     family * "-" * variant * "-" *
     series * "-" * shape * "-" * default_cjk_language_name () * "-" *
@@ -1885,12 +1878,6 @@ smart_font_bis (string family, string variant, string series, string shape,
       as_string (sz) * "-" *
       as_string (hdpi) * "-" * as_string (vdpi) * "-smart";
   if (font::instances->contains (name)) return font (name);
-  if (starts (family, "tc")) {
-    // FIXME: temporary hack for symbols from std-symbol.ts
-    font fn= find_font (family, variant, series, shape, sz, vdpi);
-    if (hdpi == vdpi) return fn;
-    return fn->magnify (((double) hdpi) / ((double) vdpi), 1.0);
-  }
   if (starts (family, "sys-")) {
     if (family == "sys-chinese") {
       string name= default_chinese_font_name ();
@@ -1947,7 +1934,6 @@ font
 smart_font (string family, string variant, string series, string shape,
             string tfam, string tvar, string tser, string tsh,
             int sz, int dpi) {
-  if (!new_fonts) return find_font (family, variant, series, shape, sz, dpi);
   if (family == "cal" || variant == "cal")
     return smart_font (tfam, tvar, tser, "mathcal", sz, dpi);
   if (tfam == "roman") tfam= family;

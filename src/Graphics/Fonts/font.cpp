@@ -503,16 +503,6 @@ error_font (font fn) {
 }
 
 /******************************************************************************
-* System dependent fonts
-******************************************************************************/
-
-font
-x_font (string family, int size, int dpi) {
-  (void) family; (void) size; (void) dpi;
-  return font ();
-}
-
-/******************************************************************************
 * Miscellaneous
 ******************************************************************************/
 
@@ -636,7 +626,7 @@ default_japanese_font_name () {
   if (tt_font_exists ("msmincho")) return "MS PMincho";
 #endif
 
-  if (tt_font_exists ("ipam")) return (new_fonts? "IPAMincho": "modern");
+  if (tt_font_exists ("ipam")) return "IPAMincho";
   if (tt_font_exists ("sazanami")) return "sazanami";
   if (tt_font_exists ("ttf-japanese-gothic")) return "ttf-japanese";
   if (tt_font_exists ("ヒラギノ明朝 ProN W6")) return "kaku";
@@ -693,8 +683,8 @@ default_korean_font_name () {
   if (tt_font_exists ("batang")) return "Batang";
 #endif
 
-  if (tt_font_exists ("unbatang")) return (new_fonts? "UnBatang": "modern");
-  if (tt_font_exists ("UnBatang")) return (new_fonts? "UnBatang": "modern");
+  if (tt_font_exists ("unbatang")) return "UnBatang";
+  if (tt_font_exists ("UnBatang")) return "UnBatang";
   if (tt_font_exists ("AppleGothic")) return "apple-gothic";
   if (tt_font_exists ("Gulim")) return "gulim";
 

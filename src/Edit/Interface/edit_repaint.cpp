@@ -296,17 +296,9 @@ edit_interface_rep::draw_keys (renderer ren) {
     ren->set_background (rgb_color (240, 224, 208));
     rectangle r= keys_rects->item;
     ren->clear (r->x1, r->y1, r->x2, r->y2);
-    font fn;
-    if (use_macos_fonts ()) {
-      tree t= tuple ("apple-lucida", "ss", "medium", "right");
-      t << tree ("14") << tree ("600");
-      fn= find_font (t);
-    }
-    else {
-      tree t= tuple ("pagella", "rm", "medium", "right");
-      t << tree ("14") << tree ("600");
-      fn= find_font (t);
-    }
+    string family= use_macos_fonts () ? string ("Lucida Grande")
+                                       : string ("TeX Gyre Pagella");
+    font fn= smart_font (family, "rm", "medium", "right", 14, 600);
     metric ex;
     fn->get_extents (ns, ex);
     SI dx= (r->x2 - r->x1 + ex->x1 - ex->x2) >> 1;

@@ -59,136 +59,6 @@
   ("Index" (update-document "index"))
   ("Glossary" (update-document "glossary")))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; The Document -> Font menus
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(menu-bind document-font-menu
-  (-> "Text font"
-      ("Default" (init-default "font" "math-font" "prg-font"))
-      ---
-      ("Roman" (init-env "font" "roman"))
-      (if (font-exists-in-tt? "STIX-Regular")
-          ("Stix" (init-env "font" "stix")))
-      ---
-      ("Avant Garde" (init-env "font" "avant-garde"))
-      ("Bookman" (init-env "font" "bookman"))
-      ("Courier" (init-env "font" "courier"))
-      ("Helvetica" (init-env "font" "helvetica"))
-      ("N.C. Schoolbook" (init-env "font" "new-century-schoolbook"))
-      ("Palatino" (init-env "font" "palatino"))
-      ("Times" (init-env "font" "times"))
-      ---
-      (if (font-exists-in-tt? "texgyrebonum-regular")
-          ("Bonum" (init-env "font" "bonum")))
-      (if (font-exists-in-tt? "DejaVuSerif")
-          ("Dejavu" (init-env "font" "dejavu")))
-      ("Lucida" (init-env "font" "x-lucida"))
-      (if (font-exists-in-tt? "luxirr")
-          ("Luxi" (init-env "font" "luxi")))
-      (if (font-exists-in-tt? "texgyrepagella-regular")
-          ("Pagella" (init-env "font" "pagella")))
-      (if (font-exists-in-tt? "texgyreschola-regular")
-          ("Schola" (init-env "font" "schola")))
-      (if (font-exists-in-tt? "texgyretermes-regular")
-          ("Termes" (init-env "font" "termes")))
-      ("Utopia" (init-env "font" "x-utopia"))
-      (if (or (supports-chinese?)
-              (supports-japanese?)
-              (supports-korean?))
-          ---
-          (if (font-exists-in-tt? "Batang")
-              ("Batang" (init-env "font" "batang")))
-          (if (font-exists-in-tt? "FandolFang-Regular")
-              ("FandolFang" (init-env "font" "FandolFang")))
-          (if (font-exists-in-tt? "FandolHei-Regular")
-              ("FandolHei" (init-env "font" "FandolHei")))
-          (if (font-exists-in-tt? "FandolKai-Regular")
-              ("FandolKai" (init-env "font" "FandolKai")))
-          (if (font-exists-in-tt? "FandolSong-Regular")
-              ("FandolSong" (init-env "font" "FandolSong")))
-          (if (font-exists-in-tt? "fireflysung")
-              ("Fireflysung" (init-env "font" "fireflysung")))
-          (if (font-exists-in-tt? "AppleGothic")
-              ("Gothic" (init-env "font" "apple-gothic")))
-          (if (font-exists-in-tt? "Gulim")
-              ("Gulim" (init-env "font" "gulim")))
-          (if (font-exists-in-tt? "华文细黑")
-              ("HeiTi" (init-env "font" "heiti")))
-          (if (font-exists-in-tt? "ヒラギノ明朝 ProN W6")
-              ("Hiragino Kaku" (init-env "font" "kaku")))
-          (if (font-exists-in-tt? "ipam")
-              ("Ipa" (init-env "font" "ipa")))
-          (if (font-exists-in-tt? "ttf-japanese-gothic")
-              ("Japanese" (init-env "font" "ttf-japanese")))
-          (if (font-exists-in-tt? "kochi-mincho")
-              ("Kochi" (init-env "font" "kochi")))
-          (if (font-exists-in-tt? "儷黑 Pro")
-              ("LiHei" (init-env "font" "lihei")))
-          (if (font-exists-in-tt? "wqy-microhei")
-              ("MicroHei" (init-env "font" "wqy-microhei")))
-          (if (font-exists-in-tt? "mingliu")
-              ("MingLiU" (init-env "font" "mingliu")))
-          (if (and (font-exists-in-tt? "PMingLiU")
-                   (not (font-exists-in-tt? "mingliu")))
-              ("MingLiU" (init-env "font" "pmingliu")))       
-          (if (font-exists-in-tt? "MS Gothic")
-              ("MS Gothic" (init-env "font" "ms-gothic")))
-          (if (font-exists-in-tt? "MS Mincho")
-              ("MS Mincho" (init-env "font" "ms-mincho")))
-          (if (font-exists-in-tt? "sazanami-gothic")
-              ("Sazanami" (init-env "font" "sazanami")))
-          (if (font-exists-in-tt? "simfang")
-              ("SimFang" (init-env "font" "simfang")))
-          (if (font-exists-in-tt? "simhei")
-              ("SimHei" (init-env "font" "simhei")))
-          (if (font-exists-in-tt? "simkai")
-              ("SimKai" (init-env "font" "simkai")))
-          (if (font-exists-in-tt? "simli")
-              ("SimLi" (init-env "font" "simli")))
-          (if (font-exists-in-tt? "simsun")
-              ("SimSun" (init-env "font" "simsun")))
-          (if (and (font-exists-in-tt? "SimSun")
-                   (not (font-exists-in-tt? "simsun")))
-              ("SimSun" (init-env "font" "apple-simsun")))
-          (if (font-exists-in-tt? "simyou")
-              ("SimYou" (init-env "font" "simyou")))
-          (if (font-exists-in-tt? "ukai")
-              ("UKai" (init-env "font" "ukai")))
-          (if (font-exists-in-tt? "unbatang")
-              ("Unbatang" (init-env "font" "unbatang")))
-          (if (font-exists-in-tt? "uming")
-              ("UMing" (init-env "font" "uming")))
-          (if (font-exists-in-tt? "wqy-zenhei")
-              ("ZenHei" (init-env "font" "wqy-zenhei")))))
-  (-> "Mathematical font"
-      ("Default" (init-default "math-font"))
-      ---
-      (if (font-exists-in-tt? "Apple Symbols")
-          ("Apple symbols" (init-env "math-font" "math-apple")))
-      (if (font-exists-in-tt? "Asana-Math")
-          ("Asana" (init-env "math-font" "math-asana")))
-      (if (font-exists-in-tt? "texgyrebonum-math")
-          ("Bonum" (init-env "math-font" "math-bonum")))
-      (if (font-exists-in-tt? "DejaVuSerif")
-          ("Dejavu" (init-env "math-font" "math-dejavu")))
-      (if (font-exists-in-tt? "LucidaGrande")
-          ("Lucida" (init-env "math-font" "math-lucida")))
-      (if (font-exists-in-tt? "texgyrepagella-math")
-          ("Pagella" (init-env "math-font" "math-pagella")))
-      ("Roman" (init-env "math-font" "roman"))
-      (if (font-exists-in-tt? "texgyreschola-math")
-          ("Schola" (init-env "math-font" "math-schola")))
-      (if (font-exists-in-tt? "STIX-Regular")
-          ("Stix" (init-env "math-font" "math-stix")))
-      (if (font-exists-in-tt? "texgyretermes-math")
-          ("Termes" (init-env "math-font" "math-termes"))))
-  (-> "Program font"
-      ("Default" (init-default "prog-font"))
-      ---
-      ("Roman" (init-env "prog-font" "roman"))
-      ("Times" (init-env "prog-font" "times"))))
-
 (menu-bind document-font-base-size-menu
   ("Default" (init-default "font-base-size"))
   ---
@@ -200,25 +70,6 @@
   ("14" (init-env "font-base-size" "14"))
   ---
   ("Other" (init-interactive-env "font-base-size")))
-
-(menu-bind document-font-dpi-menu
-  ("Default" (init-default "dpi"))
-  ---
-  ("150" (init-env "dpi" "150"))
-  ("200" (init-env "dpi" "200"))
-  ("300" (init-env "dpi" "300"))
-  ("400" (init-env "dpi" "400"))
-  ("600" (init-env "dpi" "600"))
-  ("800" (init-env "dpi" "800"))
-  ("1200" (init-env "dpi" "1200"))
-  ---
-  ("Other" (init-interactive-env "dpi")))
-
-(menu-bind document-full-font-menu
-  (link document-font-menu)
-  ---
-  (-> "Size" (link document-font-base-size-menu))
-  (-> "Dpi" (link document-font-dpi-menu)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Short document font menu for focus bar
@@ -362,10 +213,7 @@
       ---
       (link document-short-chinese-font-menu))
   ---
-  (if (and (new-fonts?) (use-popups?))
-      ("Other" (open-document-font-selector)))
-  (if (not (and (new-fonts?) (use-popups?)))
-      (-> "Other" (link document-font-menu))))
+  ("Other" (open-document-font-selector)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; The Document -> Paragraph menu
@@ -798,7 +646,7 @@
   (link athena-document-utilities-menu)
   ("Anchor enunciations" (anchor-enunciations-current-document))
   ---
-  (-> "Font" (link document-full-font-menu))
+  ("Font" (open-document-font-selector))
   (-> "Paragraph" (link document-paragraph-menu))
   (-> "Page" (link document-page-menu))
   (-> "Metadata" (link document-metadata-menu))
@@ -824,10 +672,7 @@
   (link athena-document-utilities-menu)
   ("Anchor enunciations" (anchor-enunciations-current-document))
   ---
-  (if (new-fonts?)
-      ("Font" (open-document-font-selector)))
-  (if (not (new-fonts?))
-      (-> "Font" (link document-full-font-menu)))
+  ("Font" (open-document-font-selector))
   ("Paragraph" (open-document-paragraph-format))
   ("Page" (open-document-page-format))
   ("Metadata" (open-document-metadata))

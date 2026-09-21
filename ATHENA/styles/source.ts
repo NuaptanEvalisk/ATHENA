@@ -101,7 +101,7 @@
   </macro>>
 
   <assign|src-copyright|<\macro|x|y>
-    <src-title-line|Copyright|<\surround|<active*|<with|font|tcx|©>> <arg|x>
+    <src-title-line|Copyright|<\surround|<active*|\<#00A9\>> <arg|x>
     by |>
       <arg|y>
     </surround>>

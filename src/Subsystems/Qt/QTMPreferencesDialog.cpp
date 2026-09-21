@@ -1199,7 +1199,6 @@ QTMPreferencesDialog::buildGeneralPage () {
 
   QWidget* fonts= make_page ();
   QFormLayout* styling= add_section (fonts, "Styling");
-  add_toggle (styling, "New style fonts:", "new style fonts");
   add_toggle (styling, "Show warning for font substitution:",
               "show font substitution warning");
 

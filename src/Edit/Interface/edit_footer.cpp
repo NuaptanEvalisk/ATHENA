@@ -72,27 +72,11 @@ edit_interface_rep::set_left_footer () {
   else if (as_string (get_init_value (MODE_LANGUAGE (mode))) != lan)
     s << " " << lan;
   else s << " " << mode;
-  if ((mode == "text") || (mode == "src") || new_fonts) {
-    s << " " << verbatim (main_family (get_env_string (FONT)));
-    append_left_footer (s, FONT_FAMILY);
-    s << " " << as_string ((int) ((base_sz+0.5)*sz));
-    append_left_footer (s, FONT_SERIES);
-    append_left_footer (s, FONT_SHAPE);
-  }
-  else if (mode == "math") {
-    s << " " << verbatim (get_env_string (MATH_FONT));
-    append_left_footer (s, MATH_FONT_FAMILY);
-    s << " " << as_string ((int) ((base_sz+0.5)*sz));
-    append_left_footer (s, MATH_FONT_SERIES);
-    append_left_footer (s, MATH_FONT_SHAPE);
-  }
-  else if (mode == "prog") {
-    s << " " << verbatim (get_env_string (PROG_FONT));
-    append_left_footer (s, PROG_FONT_FAMILY);
-    s << " " << as_string ((int) ((base_sz+0.5)*sz));
-    append_left_footer (s, PROG_FONT_SERIES);
-    append_left_footer (s, PROG_FONT_SHAPE);
-  }
+  s << " " << verbatim (main_family (get_env_string (FONT)));
+  append_left_footer (s, FONT_FAMILY);
+  s << " " << as_string ((int) ((base_sz+0.5)*sz));
+  append_left_footer (s, FONT_SERIES);
+  append_left_footer (s, FONT_SHAPE);
   string r= get_env_string (COLOR);
   if (r != "black") s << " " << r;
   if (N(s) > 0 && s[0] == " ") s= s (1, N(s));

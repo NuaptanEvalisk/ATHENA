@@ -165,7 +165,6 @@ font virtual_font (font base, string fam, int sz, int hdpi, int vdpi, bool ext);
 font virtual_enhance_font (font base, string virt);
 font tt_font (string family, int size, int dpi);
 font unicode_font (string family, int size, int dpi);
-font unicode_math_font (font up, font it, font bup, font bit, font fb);
 font rubber_unicode_font (font base);
 font rubber_stix_font (font base);
 font rubber_assemble_font (font base);
@@ -186,22 +185,13 @@ font poor_distorted_font (font base, tree kind);
 font poor_effected_font (font base, tree kind);
 font recolored_font (font base, tree kind);
 font superposed_font (array<font> fns, int ref);
-font x_font (string family, int size, int dpi);
 font qt_font (string family, int size, int dpi);
 
-void font_rule (tree which, tree by);
-font find_font (scheme_tree t);
-font find_magnified_font (scheme_tree t, double zoomx, double zoomy);
-font find_font (string family, string fn_class,
-		string series, string shape, int sz, int dpi);
 bool find_closest (string& family, string& variant,
                    string& series, string& shape, int attempt= 1);
 font closest_font (string family, string variant, string series, string shape,
 		   int sz, int dpi, int attempt= 1);
 
-font math_font (scheme_tree t, font base_fn, font error_fn,
-                double zoomx, double zoomy);
-font compound_font (scheme_tree def, double zoomx, double zoomy);
 font smart_font (string family, string variant, string series, string shape,
                  int sz, int dpi);
 font smart_font (string family, string variant, string series, string shape,
@@ -228,9 +218,6 @@ int  get_spacing_id (tree spacing_desc);
 tree get_spacing_desc (int spacing_id);
 
 // Font database
-extern bool new_fonts;
-void set_new_fonts (bool new_val);
-bool get_new_fonts ();
 void font_database_build (url u);
 void font_database_build_local ();
 void font_database_extend_local (url u);

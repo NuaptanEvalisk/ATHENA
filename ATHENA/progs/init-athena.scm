@@ -340,9 +340,6 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting fonts\n")
-(import-from (fonts fonts-truetype) (fonts fonts-math) (fonts fonts-x))
-(lazy-define (fonts font-old-menu)
-	     text-font-menu math-font-menu prog-font-menu)
 (lazy-define (fonts font-selector)
              open-font-selector open-document-font-selector
              open-document-other-font-selector)

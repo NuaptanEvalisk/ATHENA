@@ -239,10 +239,6 @@
   <binding name="cout-buffer" native="cout_buffer" returns="void" />
   <binding name="cout-unbuffer" native="cout_unbuffer" returns="string" />
   <binding name="mark-new" native="new_marker" returns="double" />
-  <binding name="set-new-fonts" native="set_new_fonts" returns="void">
-    <arg type="bool" />
-  </binding>
-  <binding name="new-fonts?" native="get_new_fonts" returns="bool" />
   <binding name="tmtm-eqnumber-&gt;nonumber" native="eqnumber_to_nonumber" returns="tree">
     <arg type="tree" />
   </binding>

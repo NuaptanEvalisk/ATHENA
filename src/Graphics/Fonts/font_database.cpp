@@ -86,7 +86,6 @@ struct locase_less_eq_operator {
 * Global management of the font database
 ******************************************************************************/
 
-bool new_fonts= false;
 static bool fonts_loaded= false;
 static bool fonts_loading= false;
 static std::recursive_mutex font_database_mutex;
@@ -110,16 +109,6 @@ static string
 font_string (const QString& s) {
   QByteArray bytes= s.toUtf8 ();
   return string (bytes.constData (), bytes.size ());
-}
-
-void set_new_fonts (bool new_val) {
-  std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
-  new_fonts= new_val;
-}
-
-bool get_new_fonts () {
-  std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
-  return new_fonts;
 }
 
 static void
