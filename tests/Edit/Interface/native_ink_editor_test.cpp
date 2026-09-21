@@ -1007,6 +1007,16 @@ TestNativeInkEditor::legacyPenscriptMouseFallbackStaysNative () {
     "dragging-left", x2, y2, 0, 101, data));
   QVERIFY (editor->mouse_graphics (
     "end-drag-left", x3, y3, 0, 102, data));
+  QVERIFY (editor->mouse_graphics (
+    "release-middle", x2, y2, 0, 103, data));
+  QVERIFY (editor->mouse_graphics (
+    "release-right", x2, y2, 0, 104, data));
+  QVERIFY (editor->mouse_graphics (
+    "start-drag-right", x1, y1, 0, 105, data));
+  QVERIFY (editor->mouse_graphics (
+    "dragging-right", x2, y2, 0, 106, data));
+  QVERIFY (editor->mouse_graphics (
+    "end-drag-right", x3, y3, 0, 107, data));
 
   tree after= subtree (current_document_tree (), buffer->root_path);
   QCOMPARE (after, before);

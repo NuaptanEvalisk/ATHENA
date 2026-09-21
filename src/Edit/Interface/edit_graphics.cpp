@@ -2368,8 +2368,11 @@ edit_graphics_rep::mouse_graphics (string type, SI x, SI y, int m, time_t t,
   (void) t;
   // apply_changes (); // FIXME: remove after review of synchronization
   if (type == "move" || type == "release-left" || type == "double-left" ||
-      type == "start-drag-left" || type == "dragging-left" ||
-      type == "end-drag-left") {
+      type == "release-middle" || type == "release-right" ||
+      type == "double-right" || type == "start-drag-left" ||
+      type == "dragging-left" || type == "end-drag-left" ||
+      type == "start-drag-right" || type == "dragging-right" ||
+      type == "end-drag-right") {
     path native_graphics;
     frame native_frame;
     if (native_ink_target (x, y, native_graphics, native_frame))
