@@ -53,7 +53,8 @@ enum class native_drawing_property: std::uint8_t {
   pressure,
   snap,
   grid,
-  shape
+  shape,
+  recognition
 };
 
 struct native_drawing_properties_snapshot {
@@ -62,6 +63,7 @@ struct native_drawing_properties_snapshot {
   bool pressure_enabled= true;
   bool snap_enabled= true;
   bool grid_enabled= false;
+  bool recognition_enabled= false;
   bool selection_active= false;
   native_drawing_tool tool= native_drawing_tool::pen;
   native_drawing_shape shape= native_drawing_shape::line;
@@ -99,6 +101,22 @@ struct native_ink_sample {
   double tangential_pressure= 0.0;
 };
 
+enum class native_shape_recognition_kind: std::uint8_t {
+  none= 0,
+  line,
+  circle,
+  rectangle
+};
+
+struct native_shape_recognition_result {
+  native_shape_recognition_kind kind= native_shape_recognition_kind::none;
+  double confidence= 0.0;
+  SI target_x= 0;
+  SI target_y= 0;
+  std::uint8_t point_count= 0;
+  native_ink_sample points[4];
+};
+
 struct native_ink_interaction_snapshot {
   SI x1= 0;
   SI y1= 0;
@@ -109,6 +127,7 @@ struct native_ink_interaction_snapshot {
   double eraser_radius_pixels= 8.0;
   bool pen_enabled= false;
   bool pressure_enabled= true;
+  bool recognition_enabled= false;
   native_drawing_tool tool= native_drawing_tool::pen;
   native_drawing_shape shape= native_drawing_shape::line;
 };
@@ -118,6 +137,7 @@ struct native_ink_preview_style {
   double line_width_pixels= 1.0;
   double eraser_radius_pixels= 8.0;
   bool pressure_enabled= true;
+  bool recognition_enabled= false;
   native_drawing_tool tool= native_drawing_tool::pen;
   native_drawing_shape shape= native_drawing_shape::line;
 };

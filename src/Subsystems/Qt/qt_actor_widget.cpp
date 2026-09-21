@@ -25,11 +25,13 @@
 #include "QTMCompletionPopup.hpp"
 #include "QTMVaultBackupDispatcher.hpp"
 #include "QTMVaultExplorer.hpp"
+#include "ATHENA/Math/native_shape_recognizer.hpp"
 #include "qt_utilities.hpp"
 #include "qt_tm_widget.hpp"
 #include "renderer.hpp"
 
 #include <QApplication>
+#include <QThreadPool>
 #include <QStyle>
 #include <QTimer>
 #include <QJsonArray>
@@ -37,6 +39,55 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+
+namespace {
+
+QThreadPool&
+native_shape_recognition_pool () {
+  static QThreadPool* pool= [] {
+    QThreadPool* result= new QThreadPool;
+    result->setMaxThreadCount (1);
+    result->setExpiryTimeout (-1);
+    return result;
+  } ();
+  return *pool;
+}
+
+void
+submit_native_recognition_result (
+  athena_actor_id actor, athena_view_id view,
+  const std::vector<native_ink_sample>& samples) {
+  native_shape_recognition_result result=
+    recognize_native_shape (samples.data (), samples.size ());
+  if (result.kind != native_shape_recognition_kind::none) {
+    actor_blob_reservation reservation=
+      actor_blob_registry::instance ().allocate (sizeof (result));
+    *reinterpret_cast<native_shape_recognition_result*> (reservation.data ())=
+      result;
+    athena_blob_id payload= reservation.publish ();
+    actor_command_ticket ticket= buffer_actor::submit_to (
+      actor, actor_command_kind::native_drawing_recognition, view, payload,
+      ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER);
+    if (!ticket) (void) actor_blob_registry::instance ().discard (payload);
+    return;
+  }
+
+  std::size_t bytes= samples.size () * sizeof (native_ink_sample);
+  actor_blob_reservation reservation=
+    actor_blob_registry::instance ().allocate (bytes);
+  if (bytes != 0)
+    std::memcpy (reservation.data (), samples.data (), bytes);
+  athena_blob_id payload= reservation.publish ();
+  actor_command_ticket ticket= buffer_actor::submit_to (
+    actor, actor_command_kind::native_ink_stroke, view, payload,
+    ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+    static_cast<std::uint64_t> (samples.size ()),
+    static_cast<std::uint64_t> (native_drawing_tool::pen),
+    static_cast<std::uint64_t> (native_drawing_shape::line));
+  if (!ticket) (void) actor_blob_registry::instance ().discard (payload);
+}
+
+} // namespace
 
 namespace {
 
@@ -223,6 +274,7 @@ qt_actor_widget_rep::handle_native_ink_hit (
   style.eraser_radius_pixels=
     std::max (1.0, best->eraser_radius_pixels * zoom);
   style.pressure_enabled= best->pressure_enabled;
+  style.recognition_enabled= best->recognition_enabled;
   style.tool= best->tool;
   style.shape= best->shape;
   return true;
@@ -254,6 +306,30 @@ qt_actor_widget_rep::handle_set_native_drawing_tool (native_drawing_tool tool) {
     ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
     static_cast<std::uint64_t> (tool));
   return static_cast<bool> (ticket);
+}
+
+bool
+qt_actor_widget_rep::handle_native_drawing_recognition_request (
+  const native_ink_sample* samples, std::size_t count) {
+  if (samples == nullptr || count < 2 || endpoint_ == nullptr) return false;
+  if (count > (16U * 1024U * 1024U) / sizeof (native_ink_sample)) return false;
+  double zoom= endpoint_->zoom_factor ();
+  if (!(zoom > 0.0) || !std::isfinite (zoom)) zoom= 1.0;
+  double input_scale= static_cast<double> (std_shrinkf) / zoom;
+  std::vector<native_ink_sample> detached (samples, samples + count);
+  for (auto& sample: detached) {
+    sample.x= static_cast<SI> (
+      std::llround ((double) sample.x * input_scale));
+    sample.y= static_cast<SI> (
+      std::llround ((double) sample.y * input_scale));
+  }
+  athena_actor_id actor= actor_id_;
+  athena_view_id view= view_id_;
+  native_shape_recognition_pool ().start (
+    [actor, view, detached= std::move (detached)] () mutable {
+      submit_native_recognition_result (actor, view, detached);
+    });
+  return true;
 }
 
 bool

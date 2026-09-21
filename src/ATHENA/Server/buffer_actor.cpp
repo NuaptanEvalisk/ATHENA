@@ -773,6 +773,18 @@ buffer_actor::dispatch (actor_command_record& command) {
     else
       (void) actor_blob_registry::instance ().discard (command.payload0);
     break;
+  case actor_command_kind::native_drawing_recognition:
+    if (editor != nullptr) {
+      owned_actor_blob payload=
+        actor_blob_registry::instance ().take (command.payload0);
+      if (payload && payload.size () == sizeof (native_shape_recognition_result))
+        editor->commit_native_drawing_recognition (
+          *reinterpret_cast<const native_shape_recognition_result*> (
+            payload.data ()));
+    }
+    else
+      (void) actor_blob_registry::instance ().discard (command.payload0);
+    break;
   case actor_command_kind::native_drawing_transform:
     if (editor != nullptr) {
       owned_actor_blob payload=
@@ -1264,6 +1276,7 @@ buffer_actor::dispatch (actor_command_record& command) {
        command.kind == actor_command_kind::text_input ||
        command.kind == actor_command_kind::mouse ||
        command.kind == actor_command_kind::native_ink_stroke ||
+       command.kind == actor_command_kind::native_drawing_recognition ||
        command.kind == actor_command_kind::native_drawing_transform ||
        command.kind == actor_command_kind::native_drawing_insert_space ||
        command.kind == actor_command_kind::native_drawing_trim ||

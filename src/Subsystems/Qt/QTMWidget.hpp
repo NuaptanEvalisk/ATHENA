@@ -205,8 +205,8 @@ private:
                        double pressure, double rotation, double xTilt,
                        double yTilt, double tangentialPressure, bool tablet);
   void appendNativeInk (const QPointF& previewPoint, SI x, SI y, double time,
-                        double pressure, double rotation, double xTilt,
-                        double yTilt, double tangentialPressure);
+                         double pressure, double rotation, double xTilt,
+                         double yTilt, double tangentialPressure);
   void finishNativeInk ();
   void clearNativeInkPreview ();
   void drawNativeInkPreview (QPainter& p) const;

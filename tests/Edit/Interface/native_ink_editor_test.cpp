@@ -8,9 +8,11 @@
 
 #include <QApplication>
 #include <QtTest/QtTest>
+#include <array>
 #include <cstdlib>
 #include <unistd.h>
 
+#include "ATHENA/Math/native_shape_recognizer.hpp"
 #include "ATHENA/server.hpp"
 #include "Editor/edit_main.hpp"
 #include "Graphics/Gui/gui.hpp"
@@ -118,6 +120,9 @@ private slots:
   void shapeToolCreatesRequestedPrimitives ();
   void shapeSnapUsesNativeGrid ();
   void shapeCreationUndoesAsOneTransaction ();
+  void shapeRecognizerAcceptsOnlyDeliberateGeometry ();
+  void recognizedShapeCommitsAsOneTransaction ();
+  void recognitionToggleStaysActorOwned ();
   void textToolCreatesAndReentersEditableText ();
   void mathToolCreatesAndReentersEditableMath ();
   void insideGraphicsDoesNotCallSchemePredicate ();
@@ -204,6 +209,77 @@ horizontal_samples (SI left, SI right, SI y, int count= 7) {
     result[(std::size_t) i].time= 100.0 + i;
     result[(std::size_t) i].pressure= 0.5 + 0.05 * i;
   }
+  return result;
+}
+
+static native_ink_sample
+recognition_sample (double x, double y, double time) {
+  native_ink_sample sample;
+  sample.x= (SI) std::llround (x);
+  sample.y= (SI) std::llround (y);
+  sample.time= time;
+  sample.pressure= 0.7;
+  return sample;
+}
+
+static std::vector<native_ink_sample>
+recognition_line_samples (double x1, double y1, double x2, double y2) {
+  std::vector<native_ink_sample> result;
+  double nx= -(y2-y1), ny= x2-x1;
+  double n= std::hypot (nx, ny);
+  if (n > 0.0) { nx /= n; ny /= n; }
+  for (int i=0; i<=24; ++i) {
+    double t= (double) i / 24.0;
+    double wobble= std::sin (t * 4.0 * M_PI) * 0.002 *
+                   std::hypot (x2-x1, y2-y1);
+    result.push_back (recognition_sample (
+      x1 + t*(x2-x1) + wobble*nx,
+      y1 + t*(y2-y1) + wobble*ny, 100.0+i));
+  }
+  return result;
+}
+
+static std::vector<native_ink_sample>
+recognition_circle_samples (double cx, double cy, double radius) {
+  std::vector<native_ink_sample> result;
+  for (int i=0; i<=64; ++i) {
+    double a= 2.0 * M_PI * (double) i / 64.0;
+    double rr= radius * (1.0 + 0.008 * std::sin (5.0*a));
+    result.push_back (recognition_sample (
+      cx + rr*std::cos (a), cy + rr*std::sin (a), 200.0+i));
+  }
+  return result;
+}
+
+static std::vector<native_ink_sample>
+recognition_rectangle_samples (
+  double cx, double cy, double half_width, double half_height,
+  double angle) {
+  auto rotate= [=] (double x, double y) {
+    double ca= std::cos (angle), sa= std::sin (angle);
+    return std::pair<double,double> (
+      cx + ca*x - sa*y, cy + sa*x + ca*y);
+  };
+  std::array<std::pair<double,double>,4> corners= {
+    rotate (-half_width, -half_height),
+    rotate ( half_width, -half_height),
+    rotate ( half_width,  half_height),
+    rotate (-half_width,  half_height)
+  };
+  std::vector<native_ink_sample> result;
+  double time= 300.0;
+  for (int edge=0; edge<4; ++edge) {
+    auto a= corners[(std::size_t) edge];
+    auto b= corners[(std::size_t) ((edge+1)%4)];
+    for (int i=0; i<12; ++i) {
+      double t= (double) i / 12.0;
+      result.push_back (recognition_sample (
+        a.first + t*(b.first-a.first),
+        a.second + t*(b.second-a.second), time++));
+    }
+  }
+  result.push_back (recognition_sample (
+    corners[0].first, corners[0].second, time));
   return result;
 }
 
@@ -819,6 +895,92 @@ TestNativeInkEditor::shapeCreationUndoesAsOneTransaction () {
   editor->undo (0);
   QCOMPARE (count_label (
     subtree (current_document_tree (), buffer->root_path), CLINE), 0);
+}
+
+void
+TestNativeInkEditor::shapeRecognizerAcceptsOnlyDeliberateGeometry () {
+  std::vector<native_ink_sample> line=
+    recognition_line_samples (1000.0, 1400.0, 18000.0, 5200.0);
+  native_shape_recognition_result line_result=
+    recognize_native_shape (line.data (), line.size ());
+  QCOMPARE ((int) line_result.kind, (int) native_shape_recognition_kind::line);
+  QVERIFY (line_result.confidence >= 0.72);
+  QCOMPARE ((int) line_result.point_count, 2);
+
+  std::vector<native_ink_sample> circle=
+    recognition_circle_samples (9000.0, 7000.0, 4200.0);
+  native_shape_recognition_result circle_result=
+    recognize_native_shape (circle.data (), circle.size ());
+  QCOMPARE ((int) circle_result.kind, (int) native_shape_recognition_kind::circle);
+  QVERIFY (circle_result.confidence >= 0.72);
+  QCOMPARE ((int) circle_result.point_count, 3);
+
+  std::vector<native_ink_sample> rectangle=
+    recognition_rectangle_samples (12000.0, 9000.0, 5200.0, 2700.0, 0.37);
+  native_shape_recognition_result rectangle_result=
+    recognize_native_shape (rectangle.data (), rectangle.size ());
+  QCOMPARE ((int) rectangle_result.kind,
+            (int) native_shape_recognition_kind::rectangle);
+  QVERIFY (rectangle_result.confidence >= 0.72);
+  QCOMPARE ((int) rectangle_result.point_count, 4);
+
+  std::vector<native_ink_sample> scribble;
+  for (int i=0; i<48; ++i) {
+    double t= (double) i / 47.0;
+    scribble.push_back (recognition_sample (
+      2000.0 + 14000.0*t,
+      7000.0 + 2600.0*std::sin (t*5.0*M_PI) +
+      900.0*std::sin (t*13.0*M_PI), 400.0+i));
+  }
+  native_shape_recognition_result scribble_result=
+    recognize_native_shape (scribble.data (), scribble.size ());
+  QCOMPARE ((int) scribble_result.kind,
+            (int) native_shape_recognition_kind::none);
+}
+
+void
+TestNativeInkEditor::recognizedShapeCommitsAsOneTransaction () {
+  path graphics_path;
+  SI left= 0, bottom= 0, right= 0, top= 0;
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  std::vector<native_ink_sample> samples= recognition_line_samples (
+    left + (right-left)*0.2, bottom + (top-bottom)*0.3,
+    left + (right-left)*0.8, bottom + (top-bottom)*0.7);
+  native_shape_recognition_result result=
+    recognize_native_shape (samples.data (), samples.size ());
+  QCOMPARE ((int) result.kind, (int) native_shape_recognition_kind::line);
+
+  editor->commit_native_drawing_recognition (result);
+  tree document= subtree (current_document_tree (), buffer->root_path);
+  QCOMPARE (count_label (document, LINE), 1);
+  QCOMPARE (count_label (document, PENSCRIPT), 0);
+
+  editor->go_to (buffer->root_path * 1 * 0);
+  QVERIFY (editor->undo_possibilities () >= 1);
+  editor->undo (0);
+  document= subtree (current_document_tree (), buffer->root_path);
+  QCOMPARE (count_label (document, LINE), 0);
+  QCOMPARE (count_label (document, PENSCRIPT), 0);
+}
+
+void
+TestNativeInkEditor::recognitionToggleStaysActorOwned () {
+  path graphics_path;
+  SI left= 0, bottom= 0, right= 0, top= 0;
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  QVERIFY (!endpoint->native_drawing_properties ().recognition_enabled);
+  editor->set_native_drawing_property (
+    native_drawing_property::recognition, 1);
+  QVERIFY (endpoint->native_drawing_properties ().recognition_enabled);
+  editor->set_native_drawing_tool (native_drawing_tool::highlighter);
+  QVERIFY (endpoint->native_drawing_properties ().recognition_enabled);
+  editor->set_native_drawing_tool (native_drawing_tool::pen);
+  QVERIFY (endpoint->native_drawing_properties ().recognition_enabled);
+  editor->set_native_drawing_property (
+    native_drawing_property::recognition, 0);
+  QVERIFY (!endpoint->native_drawing_properties ().recognition_enabled);
 }
 
 void

@@ -10,6 +10,7 @@
 #include <QtTest/QtTest>
 
 #include "QTMRenderService.hpp"
+#include "ATHENA/Math/native_shape_recognizer.hpp"
 #include "qt_font.hpp"
 #include "qt_renderer.hpp"
 #include "qt_simple_widget.hpp"
@@ -36,6 +37,7 @@ private slots:
   void nativeDrawingGestureKeepsSelectedTool ();
   void nativeShapeGestureCommitsAsShapeTool ();
   void nativeTextAndMathClicksCommitSelectedTool ();
+  void nativeRecognitionRoutesOneFinalCommit ();
   void nativeLassoDragCommitsOneMoveTransform ();
   void nativeInsertSpaceCommandsAreOneShotGestures ();
   void nativeTrimCommandCommitsOnce ();
@@ -180,6 +182,9 @@ public:
   bool insertSpaceHorizontal= true;
   std::vector<native_ink_sample> insertedSpace;
   int trimCommits= 0;
+  bool recognitionEnabled= false;
+  int recognitionCommits= 0;
+  native_shape_recognition_result recognized;
 
   void attachCanvas () { qwid= new QTMWidget (nullptr, this); }
 
@@ -188,8 +193,26 @@ public:
     style.rgba= 0xff2040a0U;
     style.line_width_pixels= 3.0;
     style.pressure_enabled= true;
+    style.recognition_enabled= recognitionEnabled;
     style.tool= activeTool;
     style.shape= activeShape;
+    return true;
+  }
+
+  bool handle_native_drawing_recognition_request (
+    const native_ink_sample* samples, std::size_t count) override {
+    native_shape_recognition_result result=
+      recognize_native_shape (samples, count);
+    if (result.kind != native_shape_recognition_kind::none) {
+      ++recognitionCommits;
+      recognized= result;
+    }
+    else {
+      ++commits;
+      committedTool= native_drawing_tool::pen;
+      committedShape= native_drawing_shape::line;
+      committed.assign (samples, samples + count);
+    }
     return true;
   }
 
@@ -395,6 +418,61 @@ TestQTMRenderService::nativeTextAndMathClicksCommitSelectedTool () {
                      Qt::NoButton, Qt::NoButton, Qt::NoModifier);
   QCoreApplication::sendEvent (surface, &hover);
   QCOMPARE (surface->cursor ().shape (), Qt::IBeamCursor);
+
+  delete canvas;
+}
+
+void
+TestQTMRenderService::nativeRecognitionRoutesOneFinalCommit () {
+  auto* rep= tm_new<native_ink_test_widget> ();
+  widget owner (rep);
+  rep->recognitionEnabled= true;
+  rep->attachCanvas ();
+  QTMWidget* canvas= rep->canvas ();
+  QVERIFY (canvas != nullptr);
+  QWidget* surface= canvas->surface ();
+  QVERIFY (surface != nullptr);
+
+  auto send= [&] (QEvent::Type type, QPointF pos, Qt::MouseButton button,
+                   Qt::MouseButtons buttons) {
+    QMouseEvent event (type, pos, pos, button, buttons, Qt::NoModifier);
+    QCoreApplication::sendEvent (surface, &event);
+  };
+  send (QEvent::MouseButtonPress, QPointF (60, 80),
+        Qt::LeftButton, Qt::LeftButton);
+  send (QEvent::MouseMove, QPointF (100, 100),
+        Qt::NoButton, Qt::LeftButton);
+  send (QEvent::MouseMove, QPointF (150, 125),
+        Qt::NoButton, Qt::LeftButton);
+  send (QEvent::MouseMove, QPointF (205, 152),
+        Qt::NoButton, Qt::LeftButton);
+  send (QEvent::MouseButtonRelease, QPointF (260, 180),
+        Qt::LeftButton, Qt::NoButton);
+
+  QCOMPARE (rep->commits, 0);
+  QCOMPARE (rep->recognitionCommits, 1);
+  QCOMPARE (rep->commits, 0);
+  QCOMPARE ((int) rep->recognized.kind,
+            (int) native_shape_recognition_kind::line);
+  QVERIFY (rep->recognized.confidence >= 0.72);
+
+  // A clearly non-geometric open scribble must fall back to the original Pen
+  // gesture, again as one final command rather than a provisional document edit.
+  send (QEvent::MouseButtonPress, QPointF (70, 210),
+        Qt::LeftButton, Qt::LeftButton);
+  send (QEvent::MouseMove, QPointF (110, 245),
+        Qt::NoButton, Qt::LeftButton);
+  send (QEvent::MouseMove, QPointF (150, 205),
+        Qt::NoButton, Qt::LeftButton);
+  send (QEvent::MouseMove, QPointF (190, 250),
+        Qt::NoButton, Qt::LeftButton);
+  send (QEvent::MouseMove, QPointF (230, 200),
+        Qt::NoButton, Qt::LeftButton);
+  send (QEvent::MouseButtonRelease, QPointF (270, 240),
+        Qt::LeftButton, Qt::NoButton);
+  QCOMPARE (rep->commits, 1);
+  QCOMPARE (rep->recognitionCommits, 1);
+  QCOMPARE (rep->committedTool, native_drawing_tool::pen);
 
   delete canvas;
 }

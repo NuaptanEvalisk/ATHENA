@@ -321,6 +321,8 @@ public:
   virtual void   commit_native_drawing_shape (
     native_drawing_shape shape,
     const native_ink_sample* samples, std::size_t count) = 0;
+  virtual void   commit_native_drawing_recognition (
+    const native_shape_recognition_result& result) = 0;
   virtual void   commit_native_drawing_transform (
     native_drawing_transform transform,
     const native_ink_sample* samples, std::size_t count) = 0;

@@ -32,6 +32,7 @@ private:
   double native_drawing_width_pixels_= 1.0;
   bool native_drawing_pressure_enabled_= true;
   bool native_drawing_snap_enabled_= true;
+  bool native_drawing_recognition_enabled_= false;
   bool native_ink_interaction_dirty_= true;
 
 protected:
@@ -75,6 +76,8 @@ public:
   void   commit_native_drawing_shape (
     native_drawing_shape shape,
     const native_ink_sample* samples, std::size_t count);
+  void   commit_native_drawing_recognition (
+    const native_shape_recognition_result& result);
   void   commit_native_drawing_text (
     bool math, const native_ink_sample* samples, std::size_t count);
   void   commit_native_drawing_transform (

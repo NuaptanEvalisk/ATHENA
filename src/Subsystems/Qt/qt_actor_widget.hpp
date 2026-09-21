@@ -51,6 +51,8 @@ public:
     native_drawing_tool tool, native_drawing_shape shape,
     const native_ink_sample* samples,
     std::size_t count) override;
+  bool handle_native_drawing_recognition_request (
+    const native_ink_sample* samples, std::size_t count) override;
   bool handle_native_drawing_transform (
     native_drawing_transform transform,
     const native_ink_sample* samples, std::size_t count) override;

@@ -185,6 +185,13 @@ qt_simple_widget_rep::handle_native_drawing_gesture (
 }
 
 bool
+qt_simple_widget_rep::handle_native_drawing_recognition_request (
+  const native_ink_sample* samples, std::size_t count) {
+  (void) samples; (void) count;
+  return false;
+}
+
+bool
 qt_simple_widget_rep::handle_native_drawing_transform (
   native_drawing_transform transform,
   const native_ink_sample* samples, std::size_t count) {

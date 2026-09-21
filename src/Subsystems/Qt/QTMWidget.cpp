@@ -462,6 +462,19 @@ QTMWidget::finishNativeInk () {
   nativeInkActive= false;
   nativeInkTablet= false;
   native_drawing_tool tool= nativeInkStyle.tool;
+  if (tool == native_drawing_tool::pen && nativeInkStyle.recognition_enabled &&
+      nativeInkSamples.size () >= 2) {
+    bool submitted= tm_widget ()->handle_native_drawing_recognition_request (
+      nativeInkSamples.data (), nativeInkSamples.size ());
+    if (!submitted) {
+      clearNativeInkPreview ();
+      return;
+    }
+    nativeInkAwaitingCommit= true;
+    nativeInkCommitBufferGeneration= renderedBufferGeneration;
+    nativeInkCommitFrameGeneration= renderedFrameGeneration;
+    return;
+  }
   bool submitted= !nativeInkSamples.empty () &&
     tm_widget ()->handle_native_drawing_gesture (
       tool, nativeInkStyle.shape,

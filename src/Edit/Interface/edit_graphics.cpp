@@ -1185,6 +1185,9 @@ edit_graphics_rep::native_ink_region (
     native_drawing_width_pixels_ : native_line_width_pixels (
       native_ink_property (graphics, GR_LINE_WIDTH, tree ("1ln")));
   region.tool= native_drawing_tool_;
+  region.recognition_enabled=
+    native_drawing_tool_ == native_drawing_tool::pen &&
+    native_drawing_recognition_enabled_;
   switch (native_drawing_tool_) {
   case native_drawing_tool::highlighter: {
     int r= 255, g= 235, b= 59, a= 96;
@@ -1331,6 +1334,8 @@ edit_graphics_rep::set_native_drawing_property (
   }
   else if (property == native_drawing_property::pressure)
     native_drawing_pressure_enabled_= value != 0;
+  else if (property == native_drawing_property::recognition)
+    native_drawing_recognition_enabled_= value != 0;
   else if (property == native_drawing_property::snap)
     native_drawing_snap_enabled_= value != 0;
   else if (property == native_drawing_property::grid) {
@@ -1381,6 +1386,7 @@ edit_graphics_rep::refresh_native_drawing_properties_snapshot () {
   snapshot.shape= native_drawing_shape_;
   snapshot.pressure_enabled= native_drawing_tool_ == native_drawing_tool::pen ?
     native_drawing_pressure_enabled_ : false;
+  snapshot.recognition_enabled= native_drawing_recognition_enabled_;
   snapshot.snap_enabled= native_drawing_snap_enabled_;
   snapshot.selection_active= !native_drawing_selection_paths_.empty ();
 
@@ -2104,6 +2110,73 @@ edit_graphics_rep::commit_native_drawing_shape (
     wrapped << ARROW_END << "<gtr>";
   else if (requested_shape == native_drawing_shape::double_arrow)
     wrapped << ARROW_BEGIN << "<less>" << ARROW_END << "<gtr>";
+  if (N(wrapped) == 0) wrapped= shape;
+  else wrapped << shape;
+
+  start_editing ();
+  insert (gp * N(graphics), tree (TUPLE, wrapped));
+  end_editing ();
+  native_drawing_selection_paths_.clear ();
+  refresh_native_ink_interaction ();
+  refresh_native_drawing_selection_snapshot ();
+  refresh_native_drawing_properties_snapshot ();
+  publish_native_drawing_focus_refresh ();
+}
+
+void
+edit_graphics_rep::commit_native_drawing_recognition (
+  const native_shape_recognition_result& result) {
+  if (result.confidence < 0.72 || result.point_count == 0 ||
+      result.point_count > 4 ||
+      result.kind == native_shape_recognition_kind::none)
+    return;
+  path gp;
+  frame f;
+  if (!native_ink_target (result.target_x, result.target_y, gp, f) || is_nil (f))
+    return;
+  tree graphics= subtree (et, gp);
+  if (!is_func (graphics, GRAPHICS)) return;
+
+  std::vector<point> points;
+  points.reserve (result.point_count);
+  for (std::uint8_t i=0; i<result.point_count; ++i) {
+    point p= f[point ((double) result.points[i].x,
+                     (double) result.points[i].y)];
+    if (N(p) < 2) return;
+    points.push_back (p);
+  }
+
+  tree shape;
+  switch (result.kind) {
+  case native_shape_recognition_kind::line:
+    if (points.size () != 2) return;
+    shape= tree (LINE);
+    shape << native_point_tree (points[0][0], points[0][1])
+          << native_point_tree (points[1][0], points[1][1]);
+    break;
+  case native_shape_recognition_kind::circle:
+    if (points.size () != 3) return;
+    shape= tree (CARC);
+    for (const point& p: points)
+      shape << native_point_tree (p[0], p[1]);
+    break;
+  case native_shape_recognition_kind::rectangle:
+    if (points.size () != 4) return;
+    shape= native_shape_polygon (CLINE, points);
+    break;
+  case native_shape_recognition_kind::none:
+    return;
+  }
+
+  tree color_value= native_ink_property (gp, GR_COLOR, tree ("default"));
+  tree width_value= native_ink_property (gp, GR_LINE_WIDTH, tree ("default"));
+  if (native_drawing_color_override_)
+    color_value= native_color_tree_from_rgba (native_drawing_rgba_);
+  if (native_drawing_width_override_)
+    width_value= tree (as_string (native_drawing_width_pixels_) * "ln");
+  tree wrapped (WITH);
+  if (color_value != "default") wrapped << "color" << color_value;
+  if (width_value != "default") wrapped << "line-width" << width_value;
   if (N(wrapped) == 0) wrapped= shape;
   else wrapped << shape;
 

@@ -822,6 +822,24 @@ qt_tm_widget_rep::append_native_drawing_focus_actions () {
         native_drawing_property::pressure, enabled ? 1U : 0U);
     });
 
+  QAction* recognitionAction= mark (new QAction (
+    QIcon::fromTheme (QStringLiteral ("draw-freehand")),
+    QObject::tr ("Recognize"), focusToolBar));
+  recognitionAction->setCheckable (true);
+  recognitionAction->setChecked (props.recognition_enabled);
+  recognitionAction->setEnabled (!props.selection_active &&
+                                  props.tool == native_drawing_tool::pen);
+  recognitionAction->setToolTip (
+    QObject::tr ("Recognize deliberate lines, circles, and rectangles"));
+  focusToolBar->addAction (recognitionAction);
+  QObject::connect (recognitionAction, &QAction::toggled, focusToolBar,
+    [canvasRef] (bool enabled) {
+      QTMWidget* canvas= canvasRef.data ();
+      if (canvas == nullptr || canvas->tm_widget () == nullptr) return;
+      canvas->tm_widget ()->handle_set_native_drawing_property (
+        native_drawing_property::recognition, enabled ? 1U : 0U);
+    });
+
   QAction* snapAction= mark (new QAction (
     QIcon::fromTheme (QStringLiteral ("snap-guides")),
     QObject::tr ("Snap"), focusToolBar));
