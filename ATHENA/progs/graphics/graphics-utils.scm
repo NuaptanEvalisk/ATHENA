@@ -321,11 +321,10 @@
 
 (tm-define (make-graphics . init)
   (when (null? init)
-    (set! init `("gr-mode" "point"
+    (set! init `("gr-mode" (tuple "hand-edit" "penscript")
                  "gr-frame" (tuple "scale" ,(graphics-default-unit)
-                                   (tuple "0.5gw" "0.5gh"))
+                                    (tuple "0.5gw" "0.5gh"))
                  "gr-geometry" (tuple "geometry" "1par" "0.6par"))))
-  (graphics-reset-context 'begin)
   (insert-raw-go-to `(with ,@init (graphics "")) `(,(length init) 1)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

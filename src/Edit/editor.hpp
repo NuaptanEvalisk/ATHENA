@@ -320,23 +320,10 @@ public:
   virtual bool   inside_graphics (bool b=true) = 0;
   virtual bool   inside_active_graphics (bool b=true) = 0;
   virtual bool   over_graphics (SI x, SI y) = 0;
-  virtual tree   get_graphics () = 0;
-  virtual double get_x () = 0;
-  virtual double get_y () = 0;
-  virtual double get_pixel () = 0;
   virtual frame  find_frame (bool last= false) = 0;
-  virtual grid   find_grid () = 0;
   virtual void   find_limits (point& lim1, point& lim2) = 0;
   virtual bool   find_graphical_region (SI& x1, SI& y1, SI& x2, SI& y2) = 0;
-  virtual point  adjust (point p) = 0;
   virtual tree   find_point (point p) = 0;
-  virtual tree   graphical_select (double x, double y) = 0;
-  virtual tree   graphical_select (double x1, double y1,
-				   double x2, double y2) = 0;
-  virtual tree   get_graphical_object () = 0;
-  virtual void   set_graphical_object (tree t) = 0;
-  virtual void   invalidate_graphical_object () = 0;
-  virtual void   draw_graphical_object (renderer ren) = 0;
   virtual bool   mouse_graphics (string s, SI x, SI y, int mods, time_t t,
                                  array<double> d) = 0;
   virtual void   refresh_native_ink_interaction () = 0;

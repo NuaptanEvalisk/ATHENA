@@ -14,9 +14,8 @@
 (texmacs-module (graphics graphics-kbd)
   (:use (generic generic-kbd)
         (utils library cursor)
-        (graphics graphics-env)
         (graphics graphics-main)
-        (graphics graphics-edit)))
+        (graphics graphics-utils)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Various contexts
@@ -54,10 +53,6 @@
 (kbd-map
   (:mode in-active-graphics?)
   ("#" (graphics-toggle-grid))
-  ("home" (graphics-zmove 'foreground))
-  ("end" (graphics-zmove 'background))
-  ("pageup" (graphics-zmove 'closer))
-  ("pagedown" (graphics-zmove 'farther))
   ("return" (graphics-apply-props-at-mouse))
   ("S-return" (graphics-get-props-at-mouse))
   ("backspace" (graphics-kbd-remove #f))
@@ -76,11 +71,7 @@
   ("C-left" (graphics-rotate-xz -0.1))
   ("C-right" (graphics-rotate-xz 0.1))
   ("C-up" (graphics-rotate-yz 0.1))
-  ("C-down" (graphics-rotate-yz -0.1))
-  ("C-home" (graphics-zmove 'foreground))
-  ("C-end" (graphics-zmove 'background))
-  ("C-pageup" (graphics-zmove 'closer))
-  ("C-pagedown" (graphics-zmove 'farther)))
+  ("C-down" (graphics-rotate-yz -0.1)))
 
 (kbd-map
   (:mode in-beamer-graphics?)
@@ -98,17 +89,9 @@
   (cond ((string-occurs? "-" key) (key-press key))
         ((in? key graphics-keys) (key-press key))))
 
-(tm-define (mouse-drop-event x y obj)
-  (:mode in-active-graphics?)
-  (set! the-graphics-drop-object (tm->stree obj)))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Overriding standard structured editing commands
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (kbd-variant t forwards?)
-  (:require (in-active-graphics?))
-  (graphics-choose-point (if forwards? 1 -1)))
 
 (tm-define (graphics-kbd-remove forward?)
   (cond ((and (with-active-selection?)
@@ -118,8 +101,7 @@
          (clipboard-cut "primary"))
         ((inside-graphical-text?)
          (if forward? (kbd-delete) (kbd-backspace)))
-        (else
-         (edit_delete))))
+        (else (noop))))
 
 (tm-define (geometry-vertical t down?)
   (:require (in-active-graphics?))

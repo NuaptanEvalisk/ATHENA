@@ -515,21 +515,11 @@ edit_interface_rep::mouse_select (SI x, SI y, int mods, bool drag) {
       return;
     }
   }
-  tree g;
   bool b0= inside_graphics (false);
-  bool b= inside_graphics ();
-  if (b) g= get_graphics ();
   SI hit_x= selection_hit_x (eb, x);
   go_to (hit_x, y);
   if ((!b0 && inside_graphics (false)) || (b0 && !inside_graphics (false)))
     drag= false;
-  if (!b && inside_graphics ())
-    eval ("(graphics-reset-context 'begin)");
-  tree g2= get_graphics ();
-  if (b && (!inside_graphics () || obtain_ip (g) != obtain_ip (g2))) {
-    invalidate_graphical_object ();
-    eval ("(graphics-reset-context 'exit)");
-  }
   if (!drag) {
     path sp= find_innermost_scroll (eb, tp);
     path p0= tree_path (sp, hit_x, y, 0);
@@ -620,7 +610,7 @@ edit_interface_rep::get_cursor () {
     frame f= find_frame ();
     if (!is_nil (f)) {
       point p= f [point (last_x, last_y)];
-      p= f (adjust (p));
+      p= f (p);
       SI x= (SI) p[0];
       SI y= (SI) p[1];
       return cursor (x, y, 0, -5*pixel, 5*pixel, 1.0);
@@ -1028,8 +1018,7 @@ edit_interface_rep::mouse_any (string type, SI x, SI y, int mods, time_t t,
     }
     if (b) {
       if (mouse_graphics (type, x, y, mods, t, data)) return;
-      if (!over_graphics (x, y))
-	eval ("(graphics-reset-context 'text-cursor)");
+      if (!over_graphics (x, y)) previous_gp= path ();
     }
   }
   

@@ -1639,10 +1639,8 @@ run_tests (int argc, char** argv) {
     server sv;
     test_server= sv->get_server ();
     eval ("(begin "
-          "  (tm-define (notify-cursor-moved status) #f) "
-          "  (tm-define (like-emacs?) #f) "
-          "  (tm-define (graphics-undo-enabled) #t) "
-          "  (tm-define (graphics-reset-context . args) #f))");
+           "  (tm-define (notify-cursor-moved status) #f) "
+           "  (tm-define (like-emacs?) #f))");
     TestNativeInkEditor test;
     test_status= QTest::qExec (&test, argc, argv);
     // Several legacy full-editor Qt tests currently crash during global

@@ -270,37 +270,7 @@ edit_interface_rep::draw_selection (renderer ren, rectangle r) {
 
 void
 edit_interface_rep::draw_graphics (renderer ren) {
-  if (native_ink_cursor_mode ()) return;
-  if (got_focus || full_screen) {
-    cursor cu= get_cursor ();
-    if (inside_active_graphics () && over_graphics (cu->ox, cu->oy)) {
-      eval ("(graphics-reset-context 'graphics-cursor)");
-      draw_graphical_object (ren);
-      string tm_curs= as_string (eval ("graphics-texmacs-pointer"));
-      if (tm_curs != "none") {
-        if (tm_curs == "graphics-cross") {
-          ren->set_pencil (pencil (red, pixel));
-          ren->line (cu->ox, cu->oy-5*pixel, cu->ox, cu->oy+5*pixel);
-          ren->line (cu->ox-5*pixel, cu->oy, cu->ox+5*pixel, cu->oy);
-        }
-        else if (tm_curs == "graphics-cross-arrows") {
-          static int s= 6*pixel, a= 2*pixel;
-          ren->set_pencil (pencil (red, pixel));
-          ren->line (cu->ox, cu->oy-s, cu->ox, cu->oy+s);
-          ren->line (cu->ox-s, cu->oy, cu->ox+s, cu->oy);
-          ren->line (cu->ox, cu->oy-s,cu->ox-a, cu->oy-s+a);
-          ren->line (cu->ox, cu->oy-s, cu->ox+a, cu->oy-s+a);
-          ren->line (cu->ox, cu->oy+s, cu->ox-a, cu->oy+s-a);
-          ren->line (cu->ox, cu->oy+s, cu->ox+a, cu->oy+s-a);
-          ren->line (cu->ox-s, cu->oy, cu->ox-s+a, cu->oy+a);
-          ren->line (cu->ox-s, cu->oy, cu->ox-s+a, cu->oy-a);
-          ren->line (cu->ox+s, cu->oy, cu->ox+s-a, cu->oy+a);
-          ren->line (cu->ox+s, cu->oy, cu->ox+s-a, cu->oy-a);
-        }
-      }
-    }
-    else eval ("(graphics-reset-context 'text-cursor)");
-  }
+  (void) ren;
 }
 
 void

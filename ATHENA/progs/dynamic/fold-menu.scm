@@ -345,7 +345,7 @@
     (tree-set u :last `(gr-screen (document "")))
     (tree-go-to u :last 0 0 0)
     (make-graphics
-     "gr-mode" "point"
+     "gr-mode" '(tuple "hand-edit" "penscript")
      "gr-frame" `(tuple "scale" "1cm" (tuple "0gw" "1gh"))
      "gr-geometry" `(tuple "geometry" "1gpar" "1gpag" "axis"))))
 

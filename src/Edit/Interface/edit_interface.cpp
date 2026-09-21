@@ -31,8 +31,6 @@
 #include <cmath>
 
 extern void (*env_next_prog)(void);
-extern void set_snap_mode (tree t);
-extern void set_snap_distance (SI d);
 
 static bool defer_editor_chrome_build= false;
 
@@ -1073,7 +1071,6 @@ edit_interface_rep::apply_changes () {
     }
     else if (env_change & THE_FOCUS) invalidate (sem_rects);
     
-    invalidate_graphical_object ();
   }
   
   // cout << "Handling selection\n";
@@ -1164,14 +1161,6 @@ edit_interface_rep::apply_changes () {
     }
   }
 
-  // cout << "Graphics snapping\n";
-  if (inside_active_graphics () && is_current_editor ()) {
-    tree t= as_tree (call ("graphics-get-snap-mode"));
-    set_snap_mode (t);
-    string val= as_string (call ("graphics-get-snap-distance"));
-    set_snap_distance (as_length (val));
-  }
-  
   // cout << "Handling environment changes\n";
   if (env_change & THE_ENVIRONMENT)
     invalidate_all ();

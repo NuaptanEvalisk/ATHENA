@@ -373,9 +373,6 @@ edit_modify_rep::undo (bool redoable) {
   bool in_graphics= inside_graphics ();
   bool native_graphics_history=
     in_graphics && native_graphics_owns_history ();
-  if (in_graphics && !native_graphics_history &&
-      !as_bool (eval ("graphics-undo-enabled"))) {
-    eval ("(graphics-reset-context 'undo)"); return; }
   if (arch->undo_possibilities () == 0) {
     set_message ("No more undo information available", "undo"); return; }
   if (redoable) {
@@ -387,7 +384,6 @@ edit_modify_rep::undo (bool redoable) {
     set_message ("Your document is back in its original state", "undo");
     beep (); }
   if (native_graphics_history) native_graphics_history_reset ();
-  else if (in_graphics) eval ("(graphics-reset-context 'undo)");
 }
 
 void

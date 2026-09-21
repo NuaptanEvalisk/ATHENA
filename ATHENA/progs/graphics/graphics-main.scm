@@ -650,8 +650,6 @@
 
 (tm-define (graphics-set-mode val)
   (:check-mark "v" graphics-mode-has-value?)
-  (graphics-group-start)
-  (graphics-enter-mode (graphics-mode) val)
   (graphics-set-property "gr-mode" `(tuple ,@(map symbol->string val))))
 
 (tm-define (graphics-group-mode? mode)
@@ -875,13 +873,6 @@
         "grid point" "grid curve point" "curve-grid intersection"
         "curve point" "curve-curve intersection"
          "text border point" "text border"))
-
-(tm-define (graphics-get-snap-mode)
-  (tm->tree `(tuple ,@(get-snap))))
-
-(tm-define (graphics-get-snap-distance)
-  (with val (graphics-get-property "gr-snap-distance")
-    (if (string? val) val "10px")))
 
 (tm-define (graphics-get-snap type)
   (or (in? type (get-snap))

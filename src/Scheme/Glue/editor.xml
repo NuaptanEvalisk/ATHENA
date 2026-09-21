@@ -547,24 +547,6 @@
   <binding name="end-editing" native="end_editing" returns="void" />
   <binding name="cancel-editing" native="cancel_editing" returns="void" />
   <binding name="in-graphics?" native="inside_graphics" returns="bool" />
-  <binding name="get-graphical-x" native="get_x" returns="double" />
-  <binding name="get-graphical-y" native="get_y" returns="double" />
-  <binding name="get-graphical-pixel" native="get_pixel" returns="double" />
-  <binding name="get-graphical-object" native="get_graphical_object" returns="tree" />
-  <binding name="set-graphical-object" native="set_graphical_object" returns="void">
-    <arg type="tree" />
-  </binding>
-  <binding name="invalidate-graphical-object" native="invalidate_graphical_object" returns="void" />
-  <binding name="graphical-select" native="graphical_select" returns="tree">
-    <arg type="double" />
-    <arg type="double" />
-  </binding>
-  <binding name="graphical-select-area" native="graphical_select" returns="tree">
-    <arg type="double" />
-    <arg type="double" />
-    <arg type="double" />
-    <arg type="double" />
-  </binding>
   <binding name="in-normal-mode?" native="in_normal_mode" returns="bool" />
   <binding name="in-search-mode?" native="in_search_mode" returns="bool" />
   <binding name="document-search" native="document_search" returns="int">

@@ -1,6 +1,6 @@
 ;; Run with evaluation-bar-test.py to exercise the real owning BufferActor.
 (import-from (generic generic-menu) (generic insert-menu)
-             (dynamic fold-edit) (graphics graphics-edit) (graphics graphics-menu))
+             (dynamic fold-edit) (graphics graphics-menu))
 (init-style "generic")
 
 (define (check condition message)

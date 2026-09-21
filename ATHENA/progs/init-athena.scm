@@ -262,19 +262,9 @@
 (lazy-keyboard (graphics graphics-kbd) in-active-graphics? graphics-wheel)
 (lazy-menu (graphics graphics-menu) graphics-menu graphics-icons
            graphics-focus-icons)
-(lazy-define (graphics graphics-object)
-             graphics-reset-state graphics-decorations-update)
 (lazy-define (graphics graphics-utils) make-graphics)
-(lazy-define (graphics graphics-edit)
-             graphics-busy?
-             graphics-reset-context graphics-undo-enabled
-             graphics-release-left graphics-release-middle
-             graphics-release-right graphics-start-drag-left
-             graphics-dragging-left graphics-end-drag-left)
 (lazy-define (graphics graphics-main) graphics-update-proviso
              graphics-get-proviso graphics-set-proviso)
-(lazy-define (graphics graphics-markup) arrow-with-text arrow-with-text*)
-(define-secure-symbols arrow-with-text arrow-with-text*)
 (define-secure-symbols ext-fold-toc-in-reflow? toc-fold-tree toc-unfold-tree)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
