@@ -736,9 +736,55 @@ athena_in_commutative_diagramP () {
 }
 
 bool
-athena_native_graphics_selection_activeP () {
+athena_graphics_selection_activeP () {
   editor ed= get_current_editor ();
   return !is_nil (ed) && ed->native_graphics_selection_active ();
+}
+
+bool
+athena_graphics_edit_props_activeP () {
+  editor ed= get_current_editor ();
+  return !is_nil (ed) && ed->native_graphics_edit_props_active ();
+}
+
+bool
+athena_graphics_selection_supports_propertyP (string name) {
+  editor ed= get_current_editor ();
+  return !is_nil (ed) &&
+         ed->native_graphics_selection_supports_property (name);
+}
+
+scheme_tree
+athena_graphics_get_property (string name) {
+  editor ed= get_current_editor ();
+  tree value= is_nil (ed) ? tree ("default") :
+    ed->native_graphics_get_property (name);
+  return tree_to_scheme_tree (value);
+}
+
+void
+athena_graphics_set_property (string name, scheme_tree value) {
+  editor ed= get_current_editor ();
+  if (!is_nil (ed))
+    ed->native_graphics_set_property (name, scheme_tree_to_tree (value));
+}
+
+void
+athena_graphics_remove_property (string name) {
+  editor ed= get_current_editor ();
+  if (!is_nil (ed)) ed->native_graphics_remove_property (name);
+}
+
+void
+athena_graphics_get_props_at_mouse () {
+  editor ed= get_current_editor ();
+  if (!is_nil (ed)) ed->native_graphics_get_props_at_mouse ();
+}
+
+void
+athena_graphics_apply_props_at_mouse () {
+  editor ed= get_current_editor ();
+  if (!is_nil (ed)) ed->native_graphics_apply_props_at_mouse ();
 }
 
 namespace {

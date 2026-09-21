@@ -332,37 +332,12 @@
 ;; Subroutines for accessing the properties of the graphics
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;;NOTE: This section is OK.
-(define (graphics-get-raw-property var)
-  (with val (get-upwards-tree-property (graphics-graphics-path) var)
-    (if (eq? val nothing)
-	(get-default-tree-val var)
-	(if (eq? (tm-car val) 'quote)
-	    (tree-ref val 0)
-	    val))))
-
-(tm-define (graphics-get-property var)
-  (with val (graphics-get-raw-property var)
-    (tm->stree val)))
-
 (tm-define ((graphics-get-property-at p) var)
   (with r (if (and (pair? p) (== var "gr-gid"))
               (graphics-path-property p (string-drop var 3))
               (graphics-get-property var))
     ;;(display* p ", " var " ~~> " r "\n")
     r))
-
-(tm-define (graphics-set-property var val)
-  (with p (graphics-graphics-path)
-    (cond ((tree? val) (graphics-set-property var (tm->stree val)))
-          ((== val "default") (graphics-remove-property var))
-          ((== val (graphics-attribute-default var))
-           (graphics-remove-property var))
-          (p (path-insert-with p var val)))))
-
-(tm-define (graphics-remove-property var)
-  (with p (graphics-graphics-path)
-    (if p (path-remove-with p var))))
 
 ;; Magnification
 (tm-define (graphics-eval-magnify)

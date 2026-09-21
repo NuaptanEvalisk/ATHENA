@@ -252,7 +252,10 @@
         (else '())))
 
 (tm-define (graphics-mode-attribute? mode attr)
-  (in? attr (graphics-mode-attributes mode)))
+  (if (== mode '(group-edit edit-props))
+      (and (native-graphics-edit-props-active?)
+           (native-graphics-selection-supports-property? attr))
+      (in? attr (graphics-mode-attributes mode))))
 
 
 

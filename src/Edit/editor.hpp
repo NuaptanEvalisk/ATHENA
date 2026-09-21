@@ -257,6 +257,13 @@ public:
   virtual tree native_graphics_copy_selection () = 0;
   virtual tree native_graphics_cut_selection () = 0;
   virtual bool native_graphics_paste_selection (tree selection) = 0;
+  virtual bool native_graphics_edit_props_active () = 0;
+  virtual bool native_graphics_selection_supports_property (string name) = 0;
+  virtual tree native_graphics_get_property (string name) = 0;
+  virtual void native_graphics_set_property (string name, tree value) = 0;
+  virtual void native_graphics_remove_property (string name) = 0;
+  virtual void native_graphics_get_props_at_mouse () = 0;
+  virtual void native_graphics_apply_props_at_mouse () = 0;
   virtual bool native_graphics_owns_history () = 0;
   virtual void native_graphics_history_reset () = 0;
   virtual color mouse_clickable_color () = 0;

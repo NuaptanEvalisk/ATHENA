@@ -66,8 +66,7 @@
   ---
   (when (or (selection-active-any?)
 	    (and (in-graphics?)
-		 (or (native-graphics-selection-active?)
-		     (graphics-selection-active?))))
+		 (graphics-selection-active?)))
 	("Copy" (kbd-copy))
 	("Cut" (kbd-cut)))
   ("Paste" (kbd-paste))

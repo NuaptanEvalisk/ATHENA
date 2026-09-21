@@ -1034,7 +1034,14 @@
   <binding name="slide-properties-pane-show" native="athena_slide_properties_pane_show" returns="void" dispatch="ui" />
   <binding name="make-cd" native="athena_make_commutative_diagram" returns="void" />
   <binding name="in-commutative-diagram?" native="athena_in_commutative_diagramP" returns="bool" />
-  <binding name="native-graphics-selection-active?" native="athena_native_graphics_selection_activeP" returns="bool" />
+  <binding name="graphics-selection-active?" native="athena_graphics_selection_activeP" returns="bool" />
+  <binding name="native-graphics-edit-props-active?" native="athena_graphics_edit_props_activeP" returns="bool" />
+  <binding name="native-graphics-selection-supports-property?" native="athena_graphics_selection_supports_propertyP" returns="bool"><arg type="string" /></binding>
+  <binding name="graphics-get-property" native="athena_graphics_get_property" returns="scheme_tree"><arg type="string" /></binding>
+  <binding name="graphics-set-property" native="athena_graphics_set_property" returns="void"><arg type="string" /><arg type="scheme_tree" /></binding>
+  <binding name="graphics-remove-property" native="athena_graphics_remove_property" returns="void"><arg type="string" /></binding>
+  <binding name="graphics-get-props-at-mouse" native="athena_graphics_get_props_at_mouse" returns="void" />
+  <binding name="graphics-apply-props-at-mouse" native="athena_graphics_apply_props_at_mouse" returns="void" />
   <binding name="graphics-geometry" native="athena_graphics_geometry" returns="tree" />
   <binding name="graphics-set-width" native="athena_graphics_set_width" returns="void"><arg type="string" /></binding>
   <binding name="graphics-set-height" native="athena_graphics_set_height" returns="void"><arg type="string" /></binding>

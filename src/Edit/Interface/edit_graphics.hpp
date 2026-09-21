@@ -45,6 +45,9 @@ private:
   native_drawing_transform native_group_transform_kind_=
     native_drawing_transform::move;
   bool native_group_selection_active_= false;
+  bool native_graphics_coordinate_region (
+    path graphics, native_ink_interaction_snapshot& region,
+    frame* coordinate_frame= nullptr);
 
 protected:
   point cur_pos;
@@ -152,10 +155,18 @@ public:
   tree   native_graphics_copy_selection () override;
   tree   native_graphics_cut_selection () override;
   bool   native_graphics_paste_selection (tree selection) override;
+  bool   native_graphics_edit_props_active () override;
+  bool   native_graphics_selection_supports_property (string name) override;
+  tree   native_graphics_get_property (string name) override;
+  void   native_graphics_set_property (string name, tree value) override;
+  void   native_graphics_remove_property (string name) override;
+  void   native_graphics_get_props_at_mouse () override;
+  void   native_graphics_apply_props_at_mouse () override;
   bool   native_graphics_owns_history () override;
   void   native_graphics_history_reset () override;
   bool   native_graphics_group_mode (path& graphics, string& submode);
   path   native_graphics_group_hit (path graphics, SI x, SI y);
+  path   native_graphics_group_hover_path_;
   void   native_graphics_group_clear_selection ();
   void   native_graphics_group_select_one (path object, bool toggle);
   void   native_graphics_group_select_area (

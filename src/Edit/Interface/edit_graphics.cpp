@@ -957,6 +957,163 @@ native_insert_object_property_impl (tree object, string name, tree value) {
   return wrapped;
 }
 
+string
+native_graphics_object_property_name (string name) {
+  return starts (name, "gr-") ? name (3, N(name)) : name;
+}
+
+bool
+native_graphics_common_property (string name) {
+  return name == "gid" || name == "proviso" || name == "magnify" ||
+         name == "color" || name == "opacity";
+}
+
+bool
+native_graphics_curve (tree radical) {
+  return is_func (radical, LINE) || is_func (radical, CLINE) ||
+         is_func (radical, ARC) || is_func (radical, CARC) ||
+         is_func (radical, SPLINE) || is_func (radical, CSPLINE) ||
+         is_func (radical, BEZIER) || is_func (radical, CBEZIER) ||
+         is_func (radical, SMOOTH) || is_func (radical, CSMOOTH);
+}
+
+bool
+native_graphics_property_supported (tree object, string property) {
+  string name= native_graphics_object_property_name (property);
+  tree radical= native_graphics_radical (object, nullptr);
+  if (is_func (radical, GR_GROUP)) return true;
+  if (native_graphics_common_property (name)) return true;
+  if (is_func (radical, _POINT))
+    return name == "fill-color" || name == "point-style" ||
+           name == "point-size" || name == "point-border";
+  if (native_graphics_curve (radical))
+    return name == "fill-color" || name == "line-width" ||
+           name == "line-join" || name == "line-caps" ||
+           name == "line-effects" || name == "line-portion" ||
+           name == "dash-style" || name == "dash-style-unit" ||
+           name == "arrow-begin" || name == "arrow-end" ||
+           name == "arrow-length" || name == "arrow-height";
+  if (is_func (radical, TEXT_AT) || is_func (radical, MATH_AT))
+    return name == "text-at-halign" || name == "text-at-valign" ||
+           name == "text-at-repulse" || name == "text-at-snapping";
+  if (is_func (radical, DOCUMENT_AT))
+    return name == "text-at-halign" || name == "doc-at-valign" ||
+           name == "text-at-repulse" || name == "text-at-snapping" ||
+           name == "fill-color" || name == "doc-at-width" ||
+           name == "doc-at-hmode" || name == "doc-at-ppsep" ||
+           name == "doc-at-border" || name == "doc-at-padding";
+  if (is_func (radical, PENSCRIPT))
+    return name == "pen-enhance" || name == "line-width" ||
+           name == "line-join" || name == "line-caps" ||
+           name == "line-effects" || name == "line-portion" ||
+           name == "dash-style" || name == "dash-style-unit" ||
+           name == "arrow-begin" || name == "arrow-end" ||
+           name == "arrow-length" || name == "arrow-height";
+  return false;
+}
+
+const std::vector<string>&
+native_graphics_all_properties () {
+  static const std::vector<string> names {
+    "gid", "proviso", "magnify", "color", "opacity",
+    "point-style", "point-size", "point-border", "line-width",
+    "line-join", "line-caps", "line-effects", "line-portion",
+    "dash-style", "dash-style-unit", "arrow-begin", "arrow-end",
+    "arrow-length", "arrow-height", "fill-color", "fill-style",
+    "text-at-halign", "text-at-valign", "text-at-repulse",
+    "text-at-snapping", "doc-at-valign", "doc-at-width",
+    "doc-at-hmode", "doc-at-ppsep", "doc-at-border", "doc-at-padding",
+    "pen-enhance"
+  };
+  return names;
+}
+
+tree
+native_graphics_property_default (string property) {
+  string name= native_graphics_object_property_name (property);
+  if (name == "gid") return tree ("default");
+  if (name == "proviso") return tree ("true");
+  if (name == "magnify") return tree ("1");
+  if (name == "color") return tree ("black");
+  if (name == "opacity") return tree ("100%");
+  if (name == "point-style") return tree ("disk");
+  if (name == "point-size") return tree ("2.5ln");
+  if (name == "point-border") return tree ("1ln");
+  if (name == "line-width") return tree ("1ln");
+  if (name == "line-join" || name == "line-caps" || name == "line-effects")
+    return tree ("normal");
+  if (name == "line-portion") return tree ("1");
+  if (name == "dash-style") return tree ("none");
+  if (name == "dash-style-unit") return tree ("5ln");
+  if (name == "arrow-begin" || name == "arrow-end") return tree ("none");
+  if (name == "arrow-length" || name == "arrow-height") return tree ("5ln");
+  if (name == "fill-color") return tree ("none");
+  if (name == "fill-style") return tree ("plain");
+  if (name == "text-at-halign") return tree ("left");
+  if (name == "text-at-valign") return tree ("base");
+  if (name == "text-at-repulse") return tree ("off");
+  if (name == "text-at-snapping") return tree ("1spc");
+  if (name == "doc-at-valign") return tree ("top");
+  if (name == "doc-at-width") return tree ("1par");
+  if (name == "doc-at-hmode") return tree ("min");
+  if (name == "doc-at-ppsep") return tree ("0fn");
+  if (name == "doc-at-border") return tree ("0ln");
+  if (name == "doc-at-padding") return tree ("0spc");
+  if (name == "pen-enhance") return tree ("gaussian");
+  return tree ("default");
+}
+
+string
+native_graphics_canvas_property_name (string object_property) {
+  string name= native_graphics_object_property_name (object_property);
+  return "gr-" * name;
+}
+
+tree
+native_remove_object_property_impl (tree object, string name, bool& removed) {
+  if (is_func (object, GR_TRANSFORM, 2)) {
+    tree result= copy (object);
+    result[0]= native_remove_object_property_impl (
+      result[0], name, removed);
+    return result;
+  }
+  if (!is_func (object, WITH) || N(object) < 1) return copy (object);
+  tree result (WITH);
+  int last= N(object)-1;
+  for (int i=0; i+1<last; i+=2) {
+    if (!removed && is_atomic (object[i]) && object[i]->label == name) {
+      removed= true;
+      continue;
+    }
+    result << copy (object[i]) << copy (object[i+1]);
+  }
+  if (!removed) {
+    tree nested= native_remove_object_property_impl (
+      object[last], name, removed);
+    result << nested;
+  }
+  else result << copy (object[last]);
+  if (N(result) == 1) return copy (result[0]);
+  return result;
+}
+
+tree
+native_remove_with_property_direct (tree wrapper, string name, bool& removed) {
+  if (!is_func (wrapper, WITH) || N(wrapper) < 1) return copy (wrapper);
+  tree result (WITH);
+  int last= N(wrapper)-1;
+  for (int i=0; i+1<last; i+=2) {
+    if (is_atomic (wrapper[i]) && wrapper[i]->label == name) {
+      removed= true;
+      continue;
+    }
+    result << copy (wrapper[i]) << copy (wrapper[i+1]);
+  }
+  result << copy (wrapper[last]);
+  if (N(result) == 1) return copy (result[0]);
+  return result;
+}
+
 tree
 native_set_with_property (tree wrapper, string name, tree value) {
   if (!is_func (wrapper, WITH) || N(wrapper) < 1) return wrapper;
@@ -1164,7 +1321,29 @@ edit_graphics_rep::native_graphics_canvas_path () {
   if (!is_nil (graphics) && has_subtree (et, graphics) &&
       is_func (subtree (et, graphics), GRAPHICS))
     return graphics;
-  return native_drawing_active_graphics ();
+  graphics= native_drawing_active_graphics ();
+  if (!is_nil (graphics) && has_subtree (et, graphics) &&
+      is_func (subtree (et, graphics), GRAPHICS))
+    return graphics;
+
+  std::vector<path> candidates;
+  collect_native_ink_graphics (subtree (et, rp), rp, false, candidates);
+  path group_graphics;
+  int group_count= 0;
+  for (const path& candidate: candidates) {
+    if (!has_subtree (et, candidate) ||
+        !is_func (subtree (et, candidate), GRAPHICS))
+      continue;
+    tree mode= native_ink_property (candidate, GR_MODE, tree (UNINIT));
+    if (is_func (mode, TUPLE, 2) && is_atomic (mode[0]) &&
+        mode[0]->label == "group-edit") {
+      group_graphics= copy (candidate);
+      ++group_count;
+    }
+  }
+  if (group_count == 1) return group_graphics;
+  if (candidates.size () == 1) return copy (candidates.front ());
+  return path ();
 }
 
 bool
@@ -1423,9 +1602,17 @@ edit_graphics_rep::native_graphics_canvas_keypress (string key) {
   path group_graphics;
   string group_submode;
   if (native_graphics_group_mode (group_graphics, group_submode) &&
-      group_submode != "edit-props" &&
       (group_submode == "move" || group_submode == "zoom" ||
-       group_submode == "rotate" || group_submode == "group-ungroup")) {
+       group_submode == "rotate" || group_submode == "group-ungroup" ||
+       group_submode == "edit-props")) {
+    if (key == "return") {
+      native_graphics_apply_props_at_mouse ();
+      return true;
+    }
+    if (key == "S-return") {
+      native_graphics_get_props_at_mouse ();
+      return true;
+    }
     if (key == "escape") {
       native_graphics_group_clear_selection ();
       return true;
@@ -1735,11 +1922,230 @@ edit_graphics_rep::native_graphics_selection_active () {
 }
 
 bool
+edit_graphics_rep::native_graphics_edit_props_active () {
+  path graphics;
+  string submode;
+  return native_graphics_group_mode (graphics, submode) &&
+         submode == "edit-props" &&
+         !native_drawing_selection_paths_.empty ();
+}
+
+bool
+edit_graphics_rep::native_graphics_selection_supports_property (string name) {
+  if (!native_graphics_edit_props_active ()) return false;
+  for (const path& p: native_drawing_selection_paths_)
+    if (has_subtree (et, p) &&
+        native_graphics_property_supported (subtree (et, p), name))
+      return true;
+  return false;
+}
+
+tree
+edit_graphics_rep::native_graphics_get_property (string name) {
+  if (native_graphics_edit_props_active () &&
+      native_graphics_selection_supports_property (name)) {
+    string property= native_graphics_object_property_name (name);
+    tree common (UNINIT);
+    bool found= false;
+    for (const path& p: native_drawing_selection_paths_) {
+      if (!has_subtree (et, p)) continue;
+      tree object= subtree (et, p);
+      if (!native_graphics_property_supported (object, property)) continue;
+      tree value= native_drawing_object_property (
+        object, property, tree ("default"));
+      if (!found) {
+        common= value;
+        found= true;
+      }
+      else if (value != common) return tree ("mixed");
+    }
+    return found ? common : tree ("default");
+  }
+
+  path graphics= native_graphics_canvas_path ();
+  if (is_nil (graphics)) return get_env_value (name);
+  tree fallback= get_env_value (name);
+  return native_ink_property (graphics, name, fallback);
+}
+
+void
+edit_graphics_rep::native_graphics_set_property (string name, tree value) {
+  if (native_graphics_edit_props_active () &&
+      native_graphics_selection_supports_property (name)) {
+    string property= native_graphics_object_property_name (name);
+    bool remove_value= is_atomic (value) && value->label == "default";
+    start_editing ();
+    for (const path& p: native_drawing_selection_paths_) {
+      if (!has_subtree (et, p)) continue;
+      tree object= subtree (et, p);
+      if (!native_graphics_property_supported (object, property)) continue;
+      if (remove_value) {
+        bool removed= false;
+        tree updated= native_remove_object_property_impl (
+          object, property, removed);
+        if (removed) assign (p, updated);
+      }
+      else assign (p, native_drawing_set_object_property (
+        object, property, value));
+    }
+    end_editing ();
+    mark_native_ink_interaction_dirty ();
+    refresh_native_drawing_selection_snapshot ();
+    refresh_native_drawing_properties_snapshot ();
+    publish_native_drawing_focus_refresh ();
+    invalidate_all ();
+    return;
+  }
+
+  path graphics= native_graphics_canvas_path ();
+  if (is_nil (graphics)) return;
+  string object_property= native_graphics_object_property_name (name);
+  tree attr_default= native_graphics_property_default (object_property);
+  if ((is_atomic (value) && value->label == "default") || value == attr_default) {
+    native_graphics_remove_property (name);
+    return;
+  }
+  start_editing ();
+  bool changed= native_drawing_set_graphics_property (graphics, name, value);
+  end_editing ();
+  if (changed) {
+    mark_native_ink_interaction_dirty ();
+    refresh_native_ink_interaction ();
+    refresh_native_drawing_properties_snapshot ();
+    publish_native_drawing_focus_refresh ();
+    invalidate_all ();
+  }
+}
+
+void
+edit_graphics_rep::native_graphics_remove_property (string name) {
+  if (native_graphics_edit_props_active () &&
+      native_graphics_selection_supports_property (name)) {
+    native_graphics_set_property (name, tree ("default"));
+    return;
+  }
+  path graphics= native_graphics_canvas_path ();
+  if (is_nil (graphics)) return;
+  path p= path_up (graphics);
+  while (!is_nil (p)) {
+    if (has_subtree (et, p)) {
+      tree wrapper= subtree (et, p);
+      if (is_func (wrapper, WITH)) {
+        bool removed= false;
+        tree updated= native_remove_with_property_direct (
+          wrapper, name, removed);
+        if (removed) {
+          start_editing ();
+          assign (p, updated);
+          end_editing ();
+          mark_native_ink_interaction_dirty ();
+          refresh_native_ink_interaction ();
+          refresh_native_drawing_properties_snapshot ();
+          publish_native_drawing_focus_refresh ();
+          invalidate_all ();
+          return;
+        }
+      }
+    }
+    if (p == rp) break;
+    p= path_up (p);
+  }
+}
+
+namespace {
+
+path
+native_graphics_style_target (
+  edit_graphics_rep* editor, path graphics, path hover) {
+  if (!is_nil (hover) && path_up (hover) == graphics)
+    return hover;
+  array<SI> mouse= editor->get_mouse_position ();
+  if (N(mouse) >= 2)
+    return editor->native_graphics_group_hit (graphics, mouse[0], mouse[1]);
+  return path ();
+}
+
+} // namespace
+
+void
+edit_graphics_rep::native_graphics_get_props_at_mouse () {
+  path graphics= native_graphics_canvas_path ();
+  if (is_nil (graphics)) return;
+  path target= native_graphics_style_target (
+    this, graphics, native_graphics_group_hover_path_);
+  if (is_nil (target) || !has_subtree (et, target)) return;
+  tree object= subtree (et, target);
+  start_editing ();
+  bool changed= false;
+  for (const string& property: native_graphics_all_properties ()) {
+    if (property == "gid" ||
+        !native_graphics_property_supported (object, property))
+      continue;
+    string canvas= native_graphics_canvas_property_name (property);
+    tree value= native_drawing_object_property (
+      object, property, tree (UNINIT));
+    if (value == tree (UNINIT))
+      value= native_ink_property (
+        graphics, canvas, get_env_value (canvas));
+    changed= native_drawing_set_graphics_property (
+      graphics, canvas, value) || changed;
+  }
+  end_editing ();
+  if (changed) {
+    mark_native_ink_interaction_dirty ();
+    refresh_native_ink_interaction ();
+    refresh_native_drawing_properties_snapshot ();
+    publish_native_drawing_focus_refresh ();
+    invalidate_all ();
+  }
+}
+
+void
+edit_graphics_rep::native_graphics_apply_props_at_mouse () {
+  path graphics= native_graphics_canvas_path ();
+  if (is_nil (graphics)) return;
+  path target= native_graphics_style_target (
+    this, graphics, native_graphics_group_hover_path_);
+  if (is_nil (target) || !has_subtree (et, target)) return;
+  tree object= subtree (et, target);
+  tree updated= copy (object);
+  bool any= false;
+  for (const string& property: native_graphics_all_properties ()) {
+    if (property == "gid" ||
+        !native_graphics_property_supported (object, property))
+      continue;
+    string canvas= native_graphics_canvas_property_name (property);
+    tree value= native_ink_property (
+      graphics, canvas, get_env_value (canvas));
+    if (is_atomic (value) && value->label == "default") {
+      bool removed= false;
+      updated= native_remove_object_property_impl (
+        updated, property, removed);
+      any= any || removed;
+    }
+    else {
+      updated= native_drawing_set_object_property (
+        updated, property, value);
+      any= true;
+    }
+  }
+  if (!any || updated == object) return;
+  start_editing ();
+  assign (target, updated);
+  end_editing ();
+  mark_native_ink_interaction_dirty ();
+  refresh_native_ink_interaction ();
+  refresh_native_drawing_selection_snapshot ();
+  refresh_native_drawing_properties_snapshot ();
+  publish_native_drawing_focus_refresh ();
+  invalidate_all ();
+}
+
+bool
 edit_graphics_rep::native_graphics_owns_history () {
   path graphics;
   string submode;
-  if (native_graphics_group_mode (graphics, submode) &&
-      submode != "edit-props")
+  if (native_graphics_group_mode (graphics, submode))
     return true;
   graphics= native_graphics_canvas_path ();
   if (is_nil (graphics) || !has_subtree (et, graphics)) return false;
@@ -1809,11 +2215,6 @@ edit_graphics_rep::native_graphics_cut_selection () {
 bool
 edit_graphics_rep::native_graphics_paste_selection (tree selection) {
   if (!is_func (selection, GRAPHICS) || N(selection) == 0) return false;
-  path mode_graphics;
-  string submode;
-  if (native_graphics_group_mode (mode_graphics, submode) &&
-      submode == "edit-props")
-    return false;
   path graphics= native_graphics_canvas_path ();
   if (is_nil (graphics) || !has_subtree (et, graphics) ||
       !is_func (subtree (et, graphics), GRAPHICS))
@@ -1834,8 +2235,7 @@ edit_graphics_rep::native_graphics_paste_selection (tree selection) {
   path group_graphics;
   string group_submode;
   native_group_selection_active_=
-    native_graphics_group_mode (group_graphics, group_submode) &&
-    group_submode != "edit-props";
+    native_graphics_group_mode (group_graphics, group_submode);
   mark_native_ink_interaction_dirty ();
   refresh_native_drawing_selection_snapshot ();
   refresh_native_drawing_properties_snapshot ();
@@ -1849,15 +2249,16 @@ edit_graphics_rep::native_graphics_group_event (
   string type, SI x, SI y, int modifiers) {
   path graphics;
   string submode;
-  if (!native_graphics_group_mode (graphics, submode) || submode == "edit-props")
-    return false;
+  if (!native_graphics_group_mode (graphics, submode)) return false;
   if (submode != "move" && submode != "zoom" &&
-      submode != "rotate" && submode != "group-ungroup")
+      submode != "rotate" && submode != "group-ungroup" &&
+      submode != "edit-props")
     return false;
 
   constexpr int native_shift_mask= 256;
   bool shift= (modifiers & native_shift_mask) != 0;
   path hit= native_graphics_group_hit (graphics, x, y);
+  native_graphics_group_hover_path_= copy (hit);
   auto selected= [&] (path p) {
     return std::find (native_drawing_selection_paths_.begin (),
                       native_drawing_selection_paths_.end (), p) !=
@@ -1909,7 +2310,7 @@ edit_graphics_rep::native_graphics_group_event (
   }
 
   if (type == "start-drag-left") {
-    if (submode == "group-ungroup") return true;
+    if (submode == "group-ungroup" || submode == "edit-props") return true;
     if (is_nil (hit)) {
       native_graphics_group_clear_selection ();
       return true;
@@ -1951,14 +2352,12 @@ edit_graphics_rep::publish_native_drawing_focus_refresh () {
 }
 
 bool
-edit_graphics_rep::native_ink_region (
+edit_graphics_rep::native_graphics_coordinate_region (
   path graphics, native_ink_interaction_snapshot& region,
   frame* coordinate_frame) {
   if (is_nil (eb) || is_nil (graphics)) return false;
   tree node= subtree (et, graphics);
   if (!is_func (node, GRAPHICS)) return false;
-  tree mode= native_ink_property (graphics, GR_MODE, tree ("line"));
-  if (!native_pen_mode (mode)) return false;
 
   bool box_found= false;
   path bp= eb->find_box_path (graphics * 0, box_found);
@@ -1977,6 +2376,19 @@ edit_graphics_rep::native_ink_region (
   region.y1= min ((SI) p1[1], (SI) p2[1]);
   region.x2= max ((SI) p1[0], (SI) p2[0]);
   region.y2= max ((SI) p1[1], (SI) p2[1]);
+  if (coordinate_frame != nullptr) *coordinate_frame= f;
+  return true;
+}
+
+bool
+edit_graphics_rep::native_ink_region (
+  path graphics, native_ink_interaction_snapshot& region,
+  frame* coordinate_frame) {
+  if (is_nil (graphics) || !has_subtree (et, graphics)) return false;
+  tree mode= native_ink_property (graphics, GR_MODE, tree ("line"));
+  if (!native_pen_mode (mode)) return false;
+  if (!native_graphics_coordinate_region (graphics, region, coordinate_frame))
+    return false;
   tree color_value=
     native_ink_property (graphics, GR_COLOR, tree ("default"));
   string color_name= is_atomic (color_value) ? color_value->label : "default";
@@ -2033,7 +2445,6 @@ edit_graphics_rep::native_ink_region (
   region.pen_enabled= true;
   if (native_drawing_tool_ == native_drawing_tool::pen)
     region.pressure_enabled= native_drawing_pressure_enabled_;
-  if (coordinate_frame != nullptr) *coordinate_frame= f;
   return true;
 }
 
@@ -2194,8 +2605,7 @@ edit_graphics_rep::refresh_native_drawing_properties_snapshot () {
 
   path group_graphics;
   string group_submode;
-  if (native_graphics_group_mode (group_graphics, group_submode) &&
-      group_submode != "edit-props") {
+  if (native_graphics_group_mode (group_graphics, group_submode)) {
     snapshot.group_edit_active= true;
     if (group_submode == "move") {
       snapshot.selection_transform_enabled= snapshot.selection_active;
@@ -2263,8 +2673,7 @@ edit_graphics_rep::refresh_native_ink_interaction () {
   if (native_group_selection_active_) {
     path group_graphics;
     string group_submode;
-    if (!native_graphics_group_mode (group_graphics, group_submode) ||
-        group_submode == "edit-props") {
+    if (!native_graphics_group_mode (group_graphics, group_submode)) {
       native_drawing_selection_paths_.clear ();
       native_group_selection_active_= false;
     }
@@ -2314,7 +2723,13 @@ edit_graphics_rep::native_drawing_object_bounds (
   path graphics= path_up (object);
   frame object_frame;
   native_ink_interaction_snapshot region;
-  if (!is_nil (graphics) && native_ink_region (graphics, region, &object_frame)) {
+  if (!is_nil (graphics) &&
+      native_graphics_coordinate_region (graphics, region, &object_frame)) {
+    tree width_value= native_drawing_object_property (
+      node, "line-width", tree (UNINIT));
+    if (width_value == tree (UNINIT))
+      width_value= native_ink_property (graphics, GR_LINE_WIDTH, tree ("1ln"));
+    double line_width_pixels= native_line_width_pixels (width_value);
     std::vector<native_xy> stroke_points;
     if (native_penscript_screen_points (node, object_frame, stroke_points) &&
         !stroke_points.empty ()) {
@@ -2324,8 +2739,8 @@ edit_graphics_rep::native_drawing_object_bounds (
         x1= std::min (x1, p.x); x2= std::max (x2, p.x);
         y1= std::min (y1, p.y); y2= std::max (y2, p.y);
       }
-      double pad= std::max (2.0, region.line_width_pixels) *
-                  get_typesetter ()->env->pixel;
+      double pad= std::max (2.0, line_width_pixels) *
+                   get_typesetter ()->env->pixel;
       bounds.x1= (SI) std::floor (x1 - pad);
       bounds.y1= (SI) std::floor (y1 - pad);
       bounds.x2= (SI) std::ceil (x2 + pad);
@@ -2346,8 +2761,8 @@ edit_graphics_rep::native_drawing_object_bounds (
         x1= std::min (x1, p.x); x2= std::max (x2, p.x);
         y1= std::min (y1, p.y); y2= std::max (y2, p.y);
       }
-      double pad= std::max (2.0, region.line_width_pixels) *
-                  get_typesetter ()->env->pixel;
+      double pad= std::max (2.0, line_width_pixels) *
+                   get_typesetter ()->env->pixel;
       bounds.x1= (SI) std::floor (x1 - pad);
       bounds.y1= (SI) std::floor (y1 - pad);
       bounds.x2= (SI) std::ceil (x2 + pad);

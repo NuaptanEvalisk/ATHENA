@@ -134,7 +134,7 @@ private slots:
   void canvasKeyboardWheelAndPinchStayNative ();
   void nativeGroupMoveSelectsAndTransforms ();
   void nativeGroupAreaGroupClipboardAndUngroup ();
-  void editPropsGroupModeRemainsLegacyFallback ();
+  void nativeEditPropsSelectionAndProperties ();
 
 private:
   buffer_document_state* buffer= nullptr;
@@ -1552,7 +1552,7 @@ TestNativeInkEditor::nativeGroupAreaGroupClipboardAndUngroup () {
 }
 
 void
-TestNativeInkEditor::editPropsGroupModeRemainsLegacyFallback () {
+TestNativeInkEditor::nativeEditPropsSelectionAndProperties () {
   path graphics_path;
   SI left= 0, bottom= 0, right= 0, top= 0;
   prepare_graphics_region (
@@ -1563,10 +1563,70 @@ TestNativeInkEditor::editPropsGroupModeRemainsLegacyFallback () {
   QVERIFY (editor->native_drawing_object_bounds (graphics_path * 1, first));
   SI cx= (first.x1 + first.x2) / 2;
   SI cy= (first.y1 + first.y2) / 2;
-  QVERIFY (!editor->native_graphics_group_event ("release-left", cx, cy, 0));
-  QVERIFY (!editor->native_graphics_selection_active ());
+  QCOMPARE (editor->native_graphics_group_hit (graphics_path, cx, cy),
+            graphics_path * 1);
+  QVERIFY (editor->native_graphics_group_event ("move", cx, cy, 0));
+  QVERIFY (editor->native_graphics_group_event ("release-left", cx, cy, 0));
+  QVERIFY (editor->native_graphics_selection_active ());
+  QVERIFY (editor->native_graphics_edit_props_active ());
+  QVERIFY (editor->native_graphics_selection_supports_property ("gr-line-width"));
+  QVERIFY (!editor->native_graphics_selection_supports_property ("gr-point-style"));
+  tree selected_before= editor->native_graphics_copy_selection ();
+  tree graphics_before= subtree (current_document_tree (), graphics_path);
+  QVERIFY (is_func (selected_before, GRAPHICS, 1));
+  QCOMPARE (selected_before[0], graphics_before[1]);
+
+  editor->clear_undo_history ();
+  editor->native_graphics_set_property ("gr-line-width", tree ("3ln"));
+  QCOMPARE (editor->native_graphics_get_property ("gr-line-width"), tree ("3ln"));
+  tree graphics= subtree (current_document_tree (), graphics_path);
+  QCOMPARE (editor->native_drawing_object_property (
+    graphics[1], "line-width", tree ("default")), tree ("3ln"));
+  QCOMPARE (editor->undo_possibilities (), 1);
+  native_drawing_selection_box second;
+  QVERIFY (editor->native_drawing_object_bounds (graphics_path * 2, second));
+  SI scx= (second.x1 + second.x2) / 2;
+  SI scy= (second.y1 + second.y2) / 2;
+  QVERIFY (editor->native_graphics_group_event (
+    "release-right", scx, scy, 0));
+  QCOMPARE (editor->native_graphics_get_property ("gr-line-width"),
+            tree ("mixed"));
+  editor->undo (0);
+
+  SI width= right-left;
+  SI height= top-bottom;
+  SI sx= left + 6*width/8;
+  SI sy= bottom + 2*height/3;
+  QVERIFY (editor->native_graphics_group_event (
+    "release-right", sx, sy, 0));
+  QVERIFY (editor->native_graphics_selection_active ());
+  editor->native_graphics_set_property ("gr-line-width", tree ("5ln"));
+  QCOMPARE (editor->native_graphics_get_property ("gr-line-width"), tree ("5ln"));
+  editor->native_graphics_set_property ("gr-line-width", tree ("default"));
+  QCOMPARE (editor->native_graphics_get_property ("gr-line-width"), tree ("default"));
+
+  editor->native_graphics_group_clear_selection ();
+  QVERIFY (editor->native_graphics_group_event ("move", cx, cy, 0));
+  QCOMPARE (editor->native_graphics_group_hit (graphics_path, cx, cy),
+            graphics_path * 1);
+  editor->native_graphics_set_property ("gr-color", tree ("red"));
+  QCOMPARE (editor->native_ink_property (
+              graphics_path, GR_COLOR, tree ("missing")), tree ("red"));
+  QCOMPARE (editor->native_graphics_get_property ("gr-color"), tree ("red"));
+  editor->clear_undo_history ();
+  editor->native_graphics_apply_props_at_mouse ();
+  graphics= subtree (current_document_tree (), graphics_path);
+  QCOMPARE (editor->native_drawing_object_property (
+    graphics[1], "color", tree ("default")), tree ("red"));
+  QCOMPARE (editor->undo_possibilities (), 1);
+
+  editor->native_graphics_set_property ("gr-color", tree ("blue"));
+  editor->native_graphics_get_props_at_mouse ();
+  QCOMPARE (editor->native_graphics_get_property ("gr-color"), tree ("red"));
+
   editor->refresh_native_drawing_properties_snapshot ();
-  QVERIFY (!endpoint->native_drawing_properties ().group_edit_active);
+  QVERIFY (endpoint->native_drawing_properties ().group_edit_active);
+  QVERIFY (!endpoint->native_drawing_properties ().selection_transform_enabled);
 }
 
 static int test_status= 1;
