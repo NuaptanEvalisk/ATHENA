@@ -10,6 +10,7 @@
 #include <QtTest/QtTest>
 
 #include "buffer_actor.hpp"
+#include "actor_ui_bridge.hpp"
 #include "buffer_state.hpp"
 #include "buffer_name_catalog.hpp"
 #include "ATHENA/Window/tm_dialogue.hpp"
@@ -42,6 +43,7 @@ private slots:
   void nativeGeometryLengths ();
   void nativeGeometryPreservesActorDocument ();
   void startsLazily ();
+  void cursorBlinkCoalescesWithoutQueueingDuplicates ();
   void ownsCommandsAndDocumentContext ();
   void preservesSynchronousInvocationContext ();
   void widgetPromiseFailureStaysNonFatal ();
@@ -109,6 +111,16 @@ TestBufferActor::nativeGeometryPreservesActorDocument () {
   QVERIFY (buffer->actor->invoke (actor_command_kind::run_native_continuation,
     ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER, id));
   QVERIFY (changed);
+}
+
+void
+TestBufferActor::cursorBlinkCoalescesWithoutQueueingDuplicates () {
+  actor_ui_endpoint endpoint (991002);
+  QVERIFY (endpoint.begin_coalesced_command (actor_command_kind::cursor_blink));
+  QVERIFY (!endpoint.begin_coalesced_command (actor_command_kind::cursor_blink));
+  endpoint.finish_coalesced_command (actor_command_kind::cursor_blink);
+  QVERIFY (endpoint.begin_coalesced_command (actor_command_kind::cursor_blink));
+  endpoint.finish_coalesced_command (actor_command_kind::cursor_blink);
 }
 
 class capture_chooser_argument_rep: public command_rep {

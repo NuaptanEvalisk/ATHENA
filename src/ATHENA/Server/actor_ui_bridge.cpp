@@ -39,6 +39,7 @@ coalesced_command_mask (actor_command_kind kind) noexcept {
   case actor_command_kind::progressive_typeset: return 1U << 2;
   case actor_command_kind::render_view: return 1U << 3;
   case actor_command_kind::request_outline: return 1U << 4;
+  case actor_command_kind::cursor_blink: return 1U << 5;
   default: return 0;
   }
 }

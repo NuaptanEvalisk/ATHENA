@@ -150,9 +150,8 @@ qt_actor_widget_rep::handle_keyboard_focus (bool focused, time_t time) {
 
 void
 qt_actor_widget_rep::handle_cursor_blink (bool visible) {
-  (void) buffer_actor::submit_to (
+  (void) buffer_actor::try_submit_coalesced_to (
     actor_id_, actor_command_kind::cursor_blink, view_id_,
-    ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
     visible ? 1 : 0);
 }
 

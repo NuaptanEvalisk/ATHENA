@@ -627,7 +627,8 @@ buffer_actor::execute (actor_command_record& command) {
       (command.kind == actor_command_kind::apply_changes ||
        command.kind == actor_command_kind::progressive_typeset ||
        command.kind == actor_command_kind::render_view ||
-       command.kind == actor_command_kind::request_outline))
+       command.kind == actor_command_kind::request_outline ||
+       command.kind == actor_command_kind::cursor_blink))
     editor->ui_endpoint->finish_coalesced_command (command.kind);
   report_unhandled_actor_exception (request.failure);
 }
