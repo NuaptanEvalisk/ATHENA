@@ -472,7 +472,9 @@ QTMWidget::finishNativeInk () {
   }
   if (tool == native_drawing_tool::object_eraser ||
       tool == native_drawing_tool::segment_eraser ||
-      tool == native_drawing_tool::lasso) {
+      tool == native_drawing_tool::lasso ||
+      tool == native_drawing_tool::text ||
+      tool == native_drawing_tool::math) {
     clearNativeInkPreview ();
     return;
   }
@@ -538,6 +540,11 @@ QTMWidget::drawNativeInkPreview (QPainter& p) const {
       native_draw_shape_preview (
         p, nativeInkStyle.shape, nativeInkPreviewPoints.front (),
         nativeInkPreviewPoints.back (), baseWidth);
+    p.restore ();
+    return;
+  }
+  if (nativeInkStyle.tool == native_drawing_tool::text ||
+      nativeInkStyle.tool == native_drawing_tool::math) {
     p.restore ();
     return;
   }
@@ -1876,7 +1883,10 @@ QTMWidget::mouseMoveEvent (QMouseEvent* event) {
     }
     native_ink_preview_style hoverStyle;
     if (tm_widget ()->handle_native_ink_hit (pt.x1, pt.x2, hoverStyle)) {
-      surface ()->setCursor (Qt::CrossCursor);
+      surface ()->setCursor (
+        hoverStyle.tool == native_drawing_tool::text ||
+        hoverStyle.tool == native_drawing_tool::math ?
+          Qt::IBeamCursor : Qt::CrossCursor);
       event->accept ();
       return;
     }

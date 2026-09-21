@@ -33,6 +33,7 @@ public:
     editor_rep (server, buffer), edit_main_rep (server, buffer) {}
 
   inline void* derived_this () override { return (NativeInkTestEditorRep*) this; }
+  path cursor_path_for_test () const { return copy (tp); }
 };
 
 static int
@@ -117,6 +118,8 @@ private slots:
   void shapeToolCreatesRequestedPrimitives ();
   void shapeSnapUsesNativeGrid ();
   void shapeCreationUndoesAsOneTransaction ();
+  void textToolCreatesAndReentersEditableText ();
+  void mathToolCreatesAndReentersEditableMath ();
   void insideGraphicsDoesNotCallSchemePredicate ();
   void insertHorizontalSpaceMovesRightObjectsWhole ();
   void insertVerticalSpaceMovesLowerObjectsWhole ();
@@ -816,6 +819,92 @@ TestNativeInkEditor::shapeCreationUndoesAsOneTransaction () {
   editor->undo (0);
   QCOMPARE (count_label (
     subtree (current_document_tree (), buffer->root_path), CLINE), 0);
+}
+
+void
+TestNativeInkEditor::textToolCreatesAndReentersEditableText () {
+  path graphics_path;
+  SI left= 0, bottom= 0, right= 0, top= 0;
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  native_ink_sample click;
+  click.x= left + (right-left) / 2;
+  click.y= bottom + (top-bottom) / 2;
+
+  editor->set_native_drawing_tool (native_drawing_tool::text);
+  editor->commit_native_drawing_gesture (
+    native_drawing_tool::text, &click, 1);
+  tree graphics= subtree (current_document_tree (), graphics_path);
+  QCOMPARE (count_label (graphics, TEXT_AT), 1);
+  QCOMPARE (N(graphics), 2);
+  QVERIFY (is_func (graphics[1], TEXT_AT, 2));
+  QVERIFY (is_empty (graphics[1][0]));
+  QCOMPARE (path_up (editor->cursor_path_for_test ()), graphics_path * 1 * 0);
+  int undo_count= editor->undo_possibilities ();
+  QVERIFY (undo_count >= 1);
+
+  SI tx1= 0, ty1= 0, tx2= 0, ty2= 0;
+  editor->typeset (tx1, ty1, tx2, ty2);
+  native_drawing_selection_box bounds;
+  QVERIFY (editor->native_drawing_object_bounds (graphics_path * 1, bounds));
+  editor->go_to (buffer->root_path * 1 * 0);
+  native_ink_sample existing;
+  existing.x= (bounds.x1 + bounds.x2) / 2;
+  existing.y= (bounds.y1 + bounds.y2) / 2;
+  editor->commit_native_drawing_gesture (
+    native_drawing_tool::text, &existing, 1);
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), graphics_path), TEXT_AT), 1);
+  QCOMPARE (editor->undo_possibilities (), undo_count);
+  QCOMPARE (path_up (editor->cursor_path_for_test ()), graphics_path * 1 * 0);
+
+  editor->go_to (buffer->root_path * 1 * 0);
+  editor->undo (0);
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), graphics_path), TEXT_AT), 0);
+}
+
+void
+TestNativeInkEditor::mathToolCreatesAndReentersEditableMath () {
+  path graphics_path;
+  SI left= 0, bottom= 0, right= 0, top= 0;
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  native_ink_sample click;
+  click.x= left + (right-left) / 3;
+  click.y= bottom + (top-bottom) / 3;
+
+  editor->set_native_drawing_tool (native_drawing_tool::math);
+  editor->commit_native_drawing_gesture (
+    native_drawing_tool::math, &click, 1);
+  tree graphics= subtree (current_document_tree (), graphics_path);
+  QCOMPARE (count_label (graphics, MATH_AT), 1);
+  QCOMPARE (N(graphics), 2);
+  QVERIFY (is_func (graphics[1], MATH_AT, 2));
+  QVERIFY (is_empty (graphics[1][0]));
+  QCOMPARE (path_up (editor->cursor_path_for_test ()), graphics_path * 1 * 0);
+  int undo_count= editor->undo_possibilities ();
+  QVERIFY (undo_count >= 1);
+
+  SI tx1= 0, ty1= 0, tx2= 0, ty2= 0;
+  editor->typeset (tx1, ty1, tx2, ty2);
+  native_drawing_selection_box bounds;
+  QVERIFY (editor->native_drawing_object_bounds (graphics_path * 1, bounds));
+  editor->go_to (buffer->root_path * 1 * 0);
+  native_ink_sample existing;
+  existing.x= (bounds.x1 + bounds.x2) / 2;
+  existing.y= (bounds.y1 + bounds.y2) / 2;
+  editor->commit_native_drawing_gesture (
+    native_drawing_tool::math, &existing, 1);
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), graphics_path), MATH_AT), 1);
+  QCOMPARE (editor->undo_possibilities (), undo_count);
+  QCOMPARE (path_up (editor->cursor_path_for_test ()), graphics_path * 1 * 0);
+
+  editor->go_to (buffer->root_path * 1 * 0);
+  editor->undo (0);
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), graphics_path), MATH_AT), 0);
 }
 
 void

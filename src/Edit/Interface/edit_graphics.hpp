@@ -75,6 +75,8 @@ public:
   void   commit_native_drawing_shape (
     native_drawing_shape shape,
     const native_ink_sample* samples, std::size_t count);
+  void   commit_native_drawing_text (
+    bool math, const native_ink_sample* samples, std::size_t count);
   void   commit_native_drawing_transform (
     native_drawing_transform transform,
     const native_ink_sample* samples, std::size_t count);

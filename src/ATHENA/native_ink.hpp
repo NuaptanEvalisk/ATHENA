@@ -21,7 +21,9 @@ enum class native_drawing_tool: std::uint8_t {
   object_eraser,
   segment_eraser,
   lasso,
-  shape
+  shape,
+  text,
+  math
 };
 
 enum class native_drawing_shape: std::uint8_t {

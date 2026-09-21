@@ -40,7 +40,9 @@ inline constexpr native_drawing_tool_descriptor native_drawing_tools[]= {
   {native_drawing_tool::object_eraser, "Object eraser", "edit-delete"},
   {native_drawing_tool::segment_eraser, "Segment eraser", "draw-eraser"},
   {native_drawing_tool::lasso, "Lasso", "edit-select"},
-  {native_drawing_tool::shape, "Shape", "draw-rectangle"}
+  {native_drawing_tool::shape, "Shape", "draw-rectangle"},
+  {native_drawing_tool::text, "Text", "draw-text"},
+  {native_drawing_tool::math, "Mathematics", "math"}
 };
 
 inline constexpr native_drawing_shape_descriptor native_drawing_shapes[]= {

@@ -35,6 +35,7 @@ private slots:
   void nativeInkCommitsOneDetachedStroke ();
   void nativeDrawingGestureKeepsSelectedTool ();
   void nativeShapeGestureCommitsAsShapeTool ();
+  void nativeTextAndMathClicksCommitSelectedTool ();
   void nativeLassoDragCommitsOneMoveTransform ();
   void nativeInsertSpaceCommandsAreOneShotGestures ();
   void nativeTrimCommandCommitsOnce ();
@@ -356,6 +357,45 @@ TestQTMRenderService::nativeShapeGestureCommitsAsShapeTool () {
   QCOMPARE (rep->committedTool, native_drawing_tool::shape);
   QCOMPARE (rep->committedShape, native_drawing_shape::hexagon);
   QVERIFY (rep->committed.size () >= 3);
+  delete canvas;
+}
+
+void
+TestQTMRenderService::nativeTextAndMathClicksCommitSelectedTool () {
+  auto* rep= tm_new<native_ink_test_widget> ();
+  widget owner (rep);
+  rep->activeTool= native_drawing_tool::text;
+  rep->attachCanvas ();
+  QTMWidget* canvas= rep->canvas ();
+  QVERIFY (canvas != nullptr);
+  QWidget* surface= canvas->surface ();
+  QVERIFY (surface != nullptr);
+
+  auto click= [&] (QPointF pos) {
+    QMouseEvent press (QEvent::MouseButtonPress, pos, pos,
+                       Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QCoreApplication::sendEvent (surface, &press);
+    QMouseEvent release (QEvent::MouseButtonRelease, pos, pos,
+                         Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QCoreApplication::sendEvent (surface, &release);
+  };
+
+  click (QPointF (90, 95));
+  QCOMPARE (rep->commits, 1);
+  QCOMPARE (rep->committedTool, native_drawing_tool::text);
+  QVERIFY (!rep->committed.empty ());
+
+  rep->activeTool= native_drawing_tool::math;
+  click (QPointF (145, 130));
+  QCOMPARE (rep->commits, 2);
+  QCOMPARE (rep->committedTool, native_drawing_tool::math);
+  QVERIFY (!rep->committed.empty ());
+
+  QMouseEvent hover (QEvent::MouseMove, QPointF (160, 140), QPointF (160, 140),
+                     Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+  QCoreApplication::sendEvent (surface, &hover);
+  QCOMPARE (surface->cursor ().shape (), Qt::IBeamCursor);
+
   delete canvas;
 }
 

@@ -241,6 +241,28 @@ native_graphics_radical (tree object, std::vector<frame>* transforms= nullptr) {
   return radical;
 }
 
+path
+native_graphics_radical_path (path object_path, tree object) {
+  path result= copy (object_path);
+  tree radical= object;
+  while (true) {
+    if (is_func (radical, WITH) && N(radical) >= 1) {
+      int last= N(radical) - 1;
+      result= result * last;
+      radical= radical[last];
+      continue;
+    }
+    if (is_func (radical, GR_TRANSFORM, 2) &&
+        is_transformation (radical[1])) {
+      result= result * 0;
+      radical= radical[0];
+      continue;
+    }
+    break;
+  }
+  return result;
+}
+
 tree
 native_penscript_radical (tree object) {
   return native_graphics_radical (object, nullptr);
@@ -1194,6 +1216,11 @@ edit_graphics_rep::native_ink_region (
   case native_drawing_tool::shape:
     region.pressure_enabled= false;
     break;
+  case native_drawing_tool::text:
+  case native_drawing_tool::math:
+    region.pressure_enabled= false;
+    region.line_width_pixels= 1.0;
+    break;
   case native_drawing_tool::pen:
     break;
   }
@@ -1252,7 +1279,7 @@ edit_graphics_rep::get_native_drawing_tool () const {
 void
 edit_graphics_rep::set_native_drawing_tool (native_drawing_tool tool) {
   if (static_cast<unsigned int> (tool) >
-      static_cast<unsigned int> (native_drawing_tool::shape))
+      static_cast<unsigned int> (native_drawing_tool::math))
     tool= native_drawing_tool::pen;
   native_drawing_tool_= tool;
   refresh_native_ink_interaction ();
@@ -2091,6 +2118,60 @@ edit_graphics_rep::commit_native_drawing_shape (
 }
 
 void
+edit_graphics_rep::commit_native_drawing_text (
+  bool math, const native_ink_sample* samples, std::size_t count) {
+  if (samples == nullptr || count == 0) return;
+  path gp;
+  frame f;
+  if (!native_ink_target (samples[0].x, samples[0].y, gp, f) || is_nil (f))
+    return;
+  tree graphics= subtree (et, gp);
+  if (!is_func (graphics, GRAPHICS)) return;
+
+  tree_label wanted= math ? MATH_AT : TEXT_AT;
+  for (int i=N(graphics)-1; i>=0; --i) {
+    if (is_atomic (graphics[i]) || is_empty (graphics[i])) continue;
+    tree radical= native_graphics_radical (graphics[i], nullptr);
+    if (!is_func (radical, wanted)) continue;
+    native_drawing_selection_box bounds;
+    if (!native_drawing_object_bounds (gp * i, bounds)) continue;
+    if (samples[0].x < bounds.x1 || samples[0].x > bounds.x2 ||
+        samples[0].y < bounds.y1 || samples[0].y > bounds.y2)
+      continue;
+    path radical_path= native_graphics_radical_path (gp * i, graphics[i]);
+    path content= radical_path * 0;
+    if (!has_subtree (et, content)) return;
+    native_drawing_selection_paths_.clear ();
+    go_to (start (et, content));
+    refresh_native_drawing_selection_snapshot ();
+    refresh_native_drawing_properties_snapshot ();
+    publish_native_drawing_focus_refresh ();
+    invalidate_all ();
+    return;
+  }
+
+  point p= f[point ((double) samples[0].x, (double) samples[0].y)];
+  if (N(p) < 2) return;
+  p= native_drawing_snap_point (gp, f, p);
+  tree object (wanted);
+  object << "" << native_point_tree (p[0], p[1]);
+  int index= N(graphics);
+  start_editing ();
+  insert (gp * index, tree (TUPLE, object));
+  end_editing ();
+
+  path content= gp * index * 0;
+  native_drawing_selection_paths_.clear ();
+  if (has_subtree (et, content)) go_to (start (et, content));
+  mark_native_ink_interaction_dirty ();
+  invalidate_all ();
+  refresh_native_ink_interaction ();
+  refresh_native_drawing_selection_snapshot ();
+  refresh_native_drawing_properties_snapshot ();
+  publish_native_drawing_focus_refresh ();
+}
+
+void
 edit_graphics_rep::commit_native_drawing_gesture (
   native_drawing_tool tool, const native_ink_sample* samples,
   std::size_t count) {
@@ -2109,6 +2190,10 @@ edit_graphics_rep::commit_native_drawing_gesture (
   }
   if (tool == native_drawing_tool::shape) {
     commit_native_drawing_shape (native_drawing_shape_, samples, count);
+    return;
+  }
+  if (tool == native_drawing_tool::text || tool == native_drawing_tool::math) {
+    commit_native_drawing_text (tool == native_drawing_tool::math, samples, count);
     return;
   }
   path gp;
