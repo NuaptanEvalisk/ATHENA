@@ -123,6 +123,7 @@ private slots:
   void shapeRecognizerAcceptsOnlyDeliberateGeometry ();
   void recognizedShapeCommitsAsOneTransaction ();
   void recognitionToggleStaysActorOwned ();
+  void legacyPenscriptMouseFallbackStaysNative ();
   void textToolCreatesAndReentersEditableText ();
   void mathToolCreatesAndReentersEditableMath ();
   void insideGraphicsDoesNotCallSchemePredicate ();
@@ -981,6 +982,35 @@ TestNativeInkEditor::recognitionToggleStaysActorOwned () {
   editor->set_native_drawing_property (
     native_drawing_property::recognition, 0);
   QVERIFY (!endpoint->native_drawing_properties ().recognition_enabled);
+}
+
+void
+TestNativeInkEditor::legacyPenscriptMouseFallbackStaysNative () {
+  path graphics_path;
+  SI left= 0, bottom= 0, right= 0, top= 0;
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  tree before= copy (subtree (current_document_tree (), buffer->root_path));
+
+  array<double> data;
+  data << 0.7;
+  SI x1= left + (right-left) / 4;
+  SI y1= bottom + (top-bottom) / 3;
+  SI x2= left + (right-left) / 2;
+  SI y2= bottom + (top-bottom) / 2;
+  SI x3= left + 3*(right-left) / 4;
+  SI y3= bottom + 2*(top-bottom) / 3;
+
+  QVERIFY (editor->mouse_graphics (
+    "start-drag-left", x1, y1, 0, 100, data));
+  QVERIFY (editor->mouse_graphics (
+    "dragging-left", x2, y2, 0, 101, data));
+  QVERIFY (editor->mouse_graphics (
+    "end-drag-left", x3, y3, 0, 102, data));
+
+  tree after= subtree (current_document_tree (), buffer->root_path);
+  QCOMPARE (after, before);
+  QCOMPARE (count_label (after, PENSCRIPT), 0);
 }
 
 void

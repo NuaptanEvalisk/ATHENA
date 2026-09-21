@@ -2367,6 +2367,14 @@ edit_graphics_rep::mouse_graphics (string type, SI x, SI y, int m, time_t t,
   //cout << "gp= " << graphics_path () << "\n";
   (void) t;
   // apply_changes (); // FIXME: remove after review of synchronization
+  if (type == "move" || type == "release-left" || type == "double-left" ||
+      type == "start-drag-left" || type == "dragging-left" ||
+      type == "end-drag-left") {
+    path native_graphics;
+    frame native_frame;
+    if (native_ink_target (x, y, native_graphics, native_frame))
+      return true;
+  }
   frame f= find_frame ();
   if (!is_nil (f)) {
     if (type == "wheel") {
