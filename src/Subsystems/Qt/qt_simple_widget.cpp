@@ -193,6 +193,18 @@ qt_simple_widget_rep::handle_native_drawing_transform (
 }
 
 bool
+qt_simple_widget_rep::handle_native_drawing_insert_space (
+  bool horizontal, const native_ink_sample* samples, std::size_t count) {
+  (void) horizontal; (void) samples; (void) count;
+  return false;
+}
+
+bool
+qt_simple_widget_rep::handle_native_drawing_trim () {
+  return false;
+}
+
+bool
 qt_simple_widget_rep::handle_native_ink_stroke (
   const native_ink_sample* samples, std::size_t count) {
   (void) samples; (void) count;

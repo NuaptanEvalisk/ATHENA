@@ -36,6 +36,8 @@ private slots:
   void nativeDrawingGestureKeepsSelectedTool ();
   void nativeShapeGestureCommitsAsShapeTool ();
   void nativeLassoDragCommitsOneMoveTransform ();
+  void nativeInsertSpaceCommandsAreOneShotGestures ();
+  void nativeTrimCommandCommitsOnce ();
 };
 
 void
@@ -173,6 +175,10 @@ public:
   native_drawing_transform committedTransform= native_drawing_transform::move;
   std::vector<native_ink_sample> transformed;
   std::vector<native_drawing_selection_box> selection;
+  int insertSpaceCommits= 0;
+  bool insertSpaceHorizontal= true;
+  std::vector<native_ink_sample> insertedSpace;
+  int trimCommits= 0;
 
   void attachCanvas () { qwid= new QTMWidget (nullptr, this); }
 
@@ -212,6 +218,20 @@ public:
     ++transformCommits;
     committedTransform= transform;
     transformed.assign (samples, samples + count);
+    return true;
+  }
+
+  bool handle_native_drawing_insert_space (
+    bool horizontal, const native_ink_sample* samples,
+    std::size_t count) override {
+    ++insertSpaceCommits;
+    insertSpaceHorizontal= horizontal;
+    insertedSpace.assign (samples, samples + count);
+    return true;
+  }
+
+  bool handle_native_drawing_trim () override {
+    ++trimCommits;
     return true;
   }
 };
@@ -374,6 +394,79 @@ TestQTMRenderService::nativeLassoDragCommitsOneMoveTransform () {
   QVERIFY (rep->transformed[1].x > rep->transformed[0].x);
   QVERIFY (rep->transformed[1].y < rep->transformed[0].y);
   QCOMPARE (rep->commits, 0);
+  delete canvas;
+}
+
+void
+TestQTMRenderService::nativeInsertSpaceCommandsAreOneShotGestures () {
+  auto* rep= tm_new<native_ink_test_widget> ();
+  widget owner (rep);
+  rep->attachCanvas ();
+  QTMWidget* canvas= rep->canvas ();
+  QVERIFY (canvas != nullptr);
+  QWidget* surface= canvas->surface ();
+  QVERIFY (surface != nullptr);
+
+  auto send= [&] (QEvent::Type type, QPointF pos, Qt::MouseButton button,
+                  Qt::MouseButtons buttons) {
+    QMouseEvent event (type, pos, pos, button, buttons, Qt::NoModifier);
+    QCoreApplication::sendEvent (surface, &event);
+  };
+
+  canvas->triggerNativeDrawingCanvasCommand (
+    native_drawing_canvas_command::insert_horizontal_space);
+  send (QEvent::MouseButtonPress, QPointF (80, 100),
+        Qt::LeftButton, Qt::LeftButton);
+  send (QEvent::MouseMove, QPointF (130, 100),
+        Qt::NoButton, Qt::LeftButton);
+  send (QEvent::MouseButtonRelease, QPointF (170, 100),
+        Qt::LeftButton, Qt::NoButton);
+  QCOMPARE (rep->insertSpaceCommits, 1);
+  QVERIFY (rep->insertSpaceHorizontal);
+  QCOMPARE ((int) rep->insertedSpace.size (), 2);
+  QVERIFY (rep->insertedSpace[1].x > rep->insertedSpace[0].x);
+
+  // The canvas command is one-shot: the next drag goes back to the current
+  // drawing tool instead of inserting another gap.
+  send (QEvent::MouseButtonPress, QPointF (90, 120),
+        Qt::LeftButton, Qt::LeftButton);
+  send (QEvent::MouseMove, QPointF (120, 130),
+        Qt::NoButton, Qt::LeftButton);
+  send (QEvent::MouseButtonRelease, QPointF (150, 140),
+        Qt::LeftButton, Qt::NoButton);
+  QCOMPARE (rep->insertSpaceCommits, 1);
+  QCOMPARE (rep->commits, 1);
+
+  canvas->triggerNativeDrawingCanvasCommand (
+    native_drawing_canvas_command::insert_vertical_space);
+  send (QEvent::MouseButtonPress, QPointF (110, 80),
+        Qt::LeftButton, Qt::LeftButton);
+  send (QEvent::MouseMove, QPointF (110, 125),
+        Qt::NoButton, Qt::LeftButton);
+  send (QEvent::MouseButtonRelease, QPointF (110, 165),
+        Qt::LeftButton, Qt::NoButton);
+  QCOMPARE (rep->insertSpaceCommits, 2);
+  QVERIFY (!rep->insertSpaceHorizontal);
+  QCOMPARE ((int) rep->insertedSpace.size (), 2);
+  QVERIFY (rep->insertedSpace[1].y < rep->insertedSpace[0].y);
+
+  delete canvas;
+}
+
+void
+TestQTMRenderService::nativeTrimCommandCommitsOnce () {
+  auto* rep= tm_new<native_ink_test_widget> ();
+  widget owner (rep);
+  rep->attachCanvas ();
+  QTMWidget* canvas= rep->canvas ();
+  QVERIFY (canvas != nullptr);
+
+  canvas->triggerNativeDrawingCanvasCommand (
+    native_drawing_canvas_command::trim);
+  QCOMPARE (rep->trimCommits, 1);
+  QCOMPARE (rep->insertSpaceCommits, 0);
+  QCOMPARE (rep->commits, 0);
+
   delete canvas;
 }
 

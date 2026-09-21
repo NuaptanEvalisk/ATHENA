@@ -22,6 +22,18 @@ struct native_drawing_shape_descriptor {
   const char* icon;
 };
 
+enum class native_drawing_canvas_command: std::uint8_t {
+  insert_horizontal_space= 0,
+  insert_vertical_space,
+  trim
+};
+
+struct native_drawing_canvas_command_descriptor {
+  native_drawing_canvas_command command;
+  const char* text;
+  const char* icon;
+};
+
 inline constexpr native_drawing_tool_descriptor native_drawing_tools[]= {
   {native_drawing_tool::pen, "Pen", "draw-freehand"},
   {native_drawing_tool::highlighter, "Highlighter", "draw-highlight"},
@@ -44,6 +56,15 @@ inline constexpr native_drawing_shape_descriptor native_drawing_shapes[]= {
   {native_drawing_shape::arrow, "Arrow", "draw-arrow"},
   {native_drawing_shape::double_arrow, "Double arrow", "draw-arrow"},
   {native_drawing_shape::orthogonal_polyline, "Orthogonal polyline", "draw-polyline"}
+};
+
+inline constexpr native_drawing_canvas_command_descriptor
+native_drawing_canvas_commands[]= {
+  {native_drawing_canvas_command::insert_horizontal_space,
+   "Insert horizontal space", "view-split-left-right"},
+  {native_drawing_canvas_command::insert_vertical_space,
+   "Insert vertical space", "view-split-top-bottom"},
+  {native_drawing_canvas_command::trim, "Trim", "transform-crop-and-resize"}
 };
 
 #endif // defined NATIVE_DRAWING_UI_HPP

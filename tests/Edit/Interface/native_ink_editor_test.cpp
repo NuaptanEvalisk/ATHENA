@@ -117,6 +117,9 @@ private slots:
   void shapeToolCreatesRequestedPrimitives ();
   void shapeSnapUsesNativeGrid ();
   void shapeCreationUndoesAsOneTransaction ();
+  void insertHorizontalSpaceMovesRightObjectsWhole ();
+  void insertVerticalSpaceMovesLowerObjectsWhole ();
+  void trimMaterializesRenderedContentBounds ();
 
 private:
   buffer_document_state* buffer= nullptr;
@@ -812,6 +815,197 @@ TestNativeInkEditor::shapeCreationUndoesAsOneTransaction () {
   editor->undo (0);
   QCOMPARE (count_label (
     subtree (current_document_tree (), buffer->root_path), CLINE), 0);
+}
+
+void
+TestNativeInkEditor::insertHorizontalSpaceMovesRightObjectsWhole () {
+  path graphics_path;
+  SI left= 0, bottom= 0, right= 0, top= 0;
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  SI y= (bottom + top) / 2;
+  auto first= horizontal_samples (
+    left, left + (right-left)/3, y, 7);
+  auto second= horizontal_samples (
+    left + 2*(right-left)/3, right, y, 7);
+  editor->commit_native_ink_stroke (first.data (), first.size ());
+  editor->commit_native_ink_stroke (second.data (), second.size ());
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), buffer->root_path), PENSCRIPT), 2);
+
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  native_drawing_selection_box first_before, second_before;
+  QVERIFY (editor->native_drawing_object_bounds (
+    graphics_path * 1, first_before));
+  QVERIFY (editor->native_drawing_object_bounds (
+    graphics_path * 2, second_before));
+  SI old_width= right - left;
+  SI divider= left + old_width/2;
+  SI delta= old_width/5;
+  native_ink_sample gesture[2];
+  gesture[0].x= divider; gesture[0].y= y;
+  gesture[1].x= divider + delta; gesture[1].y= y;
+  editor->commit_native_drawing_insert_space (true, gesture, 2);
+
+  tree after= subtree (current_document_tree (), buffer->root_path);
+  QCOMPARE (count_label (after, PENSCRIPT), 2);
+  QCOMPARE (count_label (after, GR_TRANSFORM), 1);
+
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  QVERIFY (std::abs ((right-left) - (old_width + delta)) <= 2 * PIXEL);
+  native_drawing_selection_box first_after, second_after;
+  QVERIFY (editor->native_drawing_object_bounds (
+    graphics_path * 1, first_after));
+  QVERIFY (editor->native_drawing_object_bounds (
+    graphics_path * 2, second_after));
+  QVERIFY (std::abs (first_after.x1 - first_before.x1) <= 2 * PIXEL);
+  QVERIFY (std::abs (first_after.x2 - first_before.x2) <= 2 * PIXEL);
+  QVERIFY (std::abs ((second_after.x1 - second_before.x1) - delta) <= 2 * PIXEL);
+  QVERIFY (std::abs ((second_after.x2 - second_before.x2) - delta) <= 2 * PIXEL);
+
+  editor->go_to (buffer->root_path * 1 * 0);
+  QVERIFY (editor->undo_possibilities () >= 1);
+  editor->undo (0);
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), buffer->root_path), PENSCRIPT), 2);
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), buffer->root_path), GR_TRANSFORM), 0);
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  QVERIFY (std::abs ((right-left) - old_width) <= 2 * PIXEL);
+}
+
+void
+TestNativeInkEditor::insertVerticalSpaceMovesLowerObjectsWhole () {
+  path graphics_path;
+  SI left= 0, bottom= 0, right= 0, top= 0;
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  SI y_low= bottom + (top-bottom)/4;
+  SI y_high= bottom + 3*(top-bottom)/4;
+  auto lower= horizontal_samples (left, right, y_low, 7);
+  auto upper= horizontal_samples (left, right, y_high, 7);
+  editor->commit_native_ink_stroke (lower.data (), lower.size ());
+  editor->commit_native_ink_stroke (upper.data (), upper.size ());
+
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  native_drawing_selection_box lower_before, upper_before;
+  QVERIFY (editor->native_drawing_object_bounds (
+    graphics_path * 1, lower_before));
+  QVERIFY (editor->native_drawing_object_bounds (
+    graphics_path * 2, upper_before));
+  SI old_height= top - bottom;
+  SI divider= bottom + old_height/2;
+  SI gap= old_height/5;
+  native_ink_sample gesture[2];
+  gesture[0].x= (left+right)/2; gesture[0].y= divider;
+  gesture[1].x= gesture[0].x; gesture[1].y= divider - gap;
+  editor->commit_native_drawing_insert_space (false, gesture, 2);
+
+  tree after= subtree (current_document_tree (), buffer->root_path);
+  QCOMPARE (count_label (after, PENSCRIPT), 2);
+  QCOMPARE (count_label (after, GR_TRANSFORM), 1);
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  QVERIFY (std::abs ((top-bottom) - (old_height + gap)) <= 2 * PIXEL);
+  native_drawing_selection_box lower_after, upper_after;
+  QVERIFY (editor->native_drawing_object_bounds (
+    graphics_path * 1, lower_after));
+  QVERIFY (editor->native_drawing_object_bounds (
+    graphics_path * 2, upper_after));
+  QVERIFY (std::abs (
+    ((lower_after.y1 - upper_after.y1) -
+     (lower_before.y1 - upper_before.y1)) + gap) <= 2 * PIXEL);
+  QVERIFY (std::abs (
+    ((lower_after.y2 - upper_after.y2) -
+     (lower_before.y2 - upper_before.y2)) + gap) <= 2 * PIXEL);
+
+  editor->go_to (buffer->root_path * 1 * 0);
+  editor->undo (0);
+  QCOMPARE (count_label (
+    subtree (current_document_tree (), buffer->root_path), GR_TRANSFORM), 0);
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  QVERIFY (std::abs ((top-bottom) - old_height) <= 2 * PIXEL);
+}
+
+void
+TestNativeInkEditor::trimMaterializesRenderedContentBounds () {
+  path graphics_path;
+  SI left= 0, bottom= 0, right= 0, top= 0;
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  SI old_width= right-left;
+  SI old_height= top-bottom;
+
+  editor->set_native_drawing_property (
+    native_drawing_property::line_width,
+    native_drawing_double_bits (10.0));
+  editor->set_native_drawing_property (
+    native_drawing_property::shape,
+    static_cast<std::uint64_t> (native_drawing_shape::arrow));
+  editor->set_native_drawing_tool (native_drawing_tool::shape);
+  native_ink_sample arrow[2];
+  arrow[0].x= left + 2*(right-left)/5;
+  arrow[0].y= (bottom+top)/2;
+  arrow[1].x= left + 3*(right-left)/5;
+  arrow[1].y= (bottom+top)/2;
+  editor->commit_native_drawing_gesture (
+    native_drawing_tool::shape, arrow, 2);
+
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  frame f= editor->find_frame ();
+  QVERIFY (!is_nil (f));
+  point text_point= f[point ((double) (left+right)/2,
+                             (double) (bottom+top)/2 + 8*PIXEL)];
+  QVERIFY (N(text_point) >= 2);
+  tree text (TEXT_AT);
+  text << "Trim text"
+       << tree (_POINT, as_string (text_point[0]), as_string (text_point[1]));
+  tree graphics= subtree (current_document_tree (), graphics_path);
+  editor->start_editing ();
+  insert (graphics_path * N(graphics), tree (TUPLE, text));
+  editor->end_editing ();
+
+  SI tx1= 0, ty1= 0, tx2= 0, ty2= 0;
+  editor->typeset (tx1, ty1, tx2, ty2);
+  editor->refresh_native_ink_interaction ();
+  editor->commit_native_drawing_trim ();
+
+  tree after= subtree (current_document_tree (), buffer->root_path);
+  QCOMPARE (count_label (after, LINE), 1);
+  QCOMPARE (count_label (after, TEXT_AT), 1);
+  QCOMPARE (count_label (after, GR_TRANSFORM), 0);
+  string serialized= tree_to_texmacs (after);
+  QVERIFY (occurs ("gr-auto-crop|false", serialized));
+
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  QVERIFY ((right-left) < old_width);
+  QVERIFY ((top-bottom) < old_height);
+
+  box gb;
+  QVERIFY (editor->native_drawing_graphics_box (graphics_path, gb));
+  QVERIFY (!is_nil (gb));
+  for (int i=1; i<N(gb); ++i) {
+    box child= gb[i];
+    QVERIFY (!is_nil (child));
+    QVERIFY (min (gb->sx1 (i), gb->sx3 (i)) >= gb->x1 - 2*PIXEL);
+    QVERIFY (max (gb->sx2 (i), gb->sx4 (i)) <= gb->x2 + 2*PIXEL);
+    QVERIFY (min (gb->sy1 (i), gb->sy3 (i)) >= gb->y1 - 2*PIXEL);
+    QVERIFY (max (gb->sy2 (i), gb->sy4 (i)) <= gb->y2 + 2*PIXEL);
+  }
+
+  editor->go_to (buffer->root_path * 1 * 0);
+  editor->undo (0);
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  QVERIFY (std::abs ((right-left) - old_width) <= 2 * PIXEL);
+  QVERIFY (std::abs ((top-bottom) - old_height) <= 2 * PIXEL);
 }
 
 static int test_status= 1;

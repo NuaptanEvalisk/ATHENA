@@ -992,6 +992,33 @@ edit_graphics_rep::native_drawing_set_graphics_property (
   return true;
 }
 
+bool
+edit_graphics_rep::native_drawing_set_graphics_properties (
+  path graphics, const std::vector<std::pair<string, tree>>& properties) {
+  if (is_nil (graphics) || !has_subtree (et, graphics) || properties.empty ())
+    return false;
+  path p= path_up (graphics);
+  while (!is_nil (p)) {
+    tree t= subtree (et, p);
+    if (is_func (t, WITH) && N(t) >= 1) {
+      tree result= copy (t);
+      for (const auto& property: properties)
+        result= native_set_with_property (
+          result, property.first, property.second);
+      assign (p, result);
+      return true;
+    }
+    if (p == rp) break;
+    p= path_up (p);
+  }
+  tree wrapped (WITH);
+  for (const auto& property: properties)
+    wrapped << property.first << copy (property.second);
+  wrapped << copy (subtree (et, graphics));
+  assign (graphics, wrapped);
+  return true;
+}
+
 path
 edit_graphics_rep::native_drawing_active_graphics () {
   if (!native_drawing_selection_paths_.empty ()) {
@@ -1030,6 +1057,74 @@ edit_graphics_rep::native_drawing_snap_point (path graphics, frame f, point p) {
   if (N(fp) >= 2 && N(fs) >= 2 && norm (fs - fp) <= tolerance)
     return snapped;
   return p;
+}
+
+bool
+edit_graphics_rep::native_drawing_graphics_box (path graphics, box& result) {
+  result= box ();
+  if (is_nil (eb) || is_nil (graphics) || !has_subtree (et, graphics))
+    return false;
+  bool found= false;
+  path bp= eb->find_box_path (graphics * 0, found);
+  if (!found) return false;
+  path p= path_up (bp);
+  while (!is_nil (p)) {
+    box candidate= eb[p];
+    if (!is_nil (candidate) && (tree) candidate == "graphics") {
+      result= candidate;
+      return true;
+    }
+    p= path_up (p);
+  }
+  return false;
+}
+
+bool
+edit_graphics_rep::native_drawing_set_canvas_geometry (
+  path graphics, SI width, SI height, point actual_shift) {
+  if (is_nil (graphics) || N(actual_shift) < 2) return false;
+  SI minimum= 16 * get_pixel_size ();
+  width= max (minimum, width);
+  height= max (minimum, height);
+
+  tree frame_value= native_ink_property (
+    graphics, GR_FRAME, tree (UNINIT));
+  if (!is_tuple (frame_value, "scale", 2) ||
+      !is_func (frame_value[2], TUPLE, 2))
+    return false;
+
+  tree geometry_value= native_ink_property (
+    graphics, GR_GEOMETRY,
+    tree (TUPLE, "geometry", "1par", "0.6par", "center"));
+  string align= "center";
+  if (is_tuple (geometry_value, "geometry", 3) &&
+      is_atomic (geometry_value[3]))
+    align= geometry_value[3]->label;
+
+  edit_env env= get_typesetter ()->env;
+  SI yinc= align == "top" ? -height :
+           align == "bottom" ? 0 :
+           align == "axis" ? -(height / 2) + env->as_length ("1yfrac") :
+           -(height / 2);
+  SI origin_x= (SI) std::llround (actual_shift[0]);
+  SI origin_y= (SI) std::llround (actual_shift[1] - (double) yinc);
+
+  tree origin (TUPLE);
+  origin << (as_string (origin_x) * "tmpt")
+         << (as_string (origin_y) * "tmpt");
+  tree new_frame (TUPLE);
+  new_frame << "scale" << copy (frame_value[1]) << origin;
+  tree new_geometry (TUPLE);
+  new_geometry << "geometry"
+               << (as_string (width) * "tmpt")
+               << (as_string (height) * "tmpt")
+               << align;
+
+  std::vector<std::pair<string, tree>> properties;
+  properties.push_back ({GR_GEOMETRY, new_geometry});
+  properties.push_back ({GR_FRAME, new_frame});
+  properties.push_back ({GR_AUTO_CROP, tree ("false")});
+  return native_drawing_set_graphics_properties (graphics, properties);
 }
 
 void
@@ -1572,6 +1667,136 @@ edit_graphics_rep::commit_native_drawing_transform (
   end_editing ();
   mark_native_ink_interaction_dirty ();
   invalidate_all ();
+}
+
+void
+edit_graphics_rep::commit_native_drawing_insert_space (
+  bool horizontal, const native_ink_sample* samples, std::size_t count) {
+  if (samples == nullptr || count < 2) return;
+  path gp;
+  frame f;
+  if (!native_ink_target (samples[0].x, samples[0].y, gp, f) || is_nil (f))
+    return;
+  tree graphics= subtree (et, gp);
+  if (!is_func (graphics, GRAPHICS)) return;
+
+  tree frame_value= native_ink_property (gp, GR_FRAME, tree (UNINIT));
+  if (!is_tuple (frame_value, "scale", 2) ||
+      !is_func (frame_value[2], TUPLE, 2))
+    return;
+
+  native_ink_interaction_snapshot region;
+  if (!native_ink_region (gp, region)) return;
+  box gb;
+  if (!native_drawing_graphics_box (gp, gb) || is_nil (gb)) return;
+  frame local_frame= gb->get_frame ();
+  if (is_nil (local_frame)) return;
+  SI width= region.x2 - region.x1;
+  SI height= region.y2 - region.y1;
+  if (width <= 0 || height <= 0) return;
+
+  SI divider= horizontal ? samples[0].x : samples[0].y;
+  SI delta= horizontal ?
+    samples[count-1].x - samples[0].x :
+    samples[count-1].y - samples[0].y;
+  SI threshold= 2 * get_pixel_size ();
+  if (horizontal) {
+    if (delta <= threshold) return;
+  }
+  else {
+    if (delta >= -threshold) return;
+  }
+
+  struct move_operation { path p; };
+  std::vector<move_operation> moves;
+  for (int i=0; i<N(graphics); ++i) {
+    if (is_atomic (graphics[i])) continue;
+    native_drawing_selection_box bounds;
+    if (!native_drawing_object_bounds (gp * i, bounds)) continue;
+    SI center= horizontal ?
+      (bounds.x1 + bounds.x2) / 2 : (bounds.y1 + bounds.y2) / 2;
+    bool move= horizontal ? center > divider : center < divider;
+    if (move) moves.push_back ({gp * i});
+  }
+
+  point actual_shift= local_frame (point (0.0, 0.0));
+  if (N(actual_shift) < 2) return;
+  SI new_width= horizontal ? width + delta : width;
+  SI new_height= horizontal ? height : height - delta;
+
+  tree transform_spec (TUPLE);
+  transform_spec << "translation"
+                 << as_string (horizontal ? delta : 0)
+                 << as_string (horizontal ? 0 : delta);
+
+  start_editing ();
+  for (const move_operation& operation: moves) {
+    if (!has_subtree (et, operation.p)) continue;
+    tree wrapped (GR_TRANSFORM);
+    wrapped << copy (subtree (et, operation.p)) << copy (transform_spec);
+    assign (operation.p, wrapped);
+  }
+  native_drawing_set_canvas_geometry (
+    gp, new_width, new_height, actual_shift);
+  end_editing ();
+
+  mark_native_ink_interaction_dirty ();
+  invalidate_all ();
+  publish_native_drawing_focus_refresh ();
+}
+
+void
+edit_graphics_rep::commit_native_drawing_trim () {
+  path gp= native_drawing_active_graphics ();
+  if (is_nil (gp) || !has_subtree (et, gp) ||
+      !is_func (subtree (et, gp), GRAPHICS))
+    return;
+  tree frame_value= native_ink_property (gp, GR_FRAME, tree (UNINIT));
+  if (!is_tuple (frame_value, "scale", 2) ||
+      !is_func (frame_value[2], TUPLE, 2))
+    return;
+
+  box gb;
+  if (!native_drawing_graphics_box (gp, gb) || is_nil (gb) || N(gb) <= 1)
+    return;
+  frame local_frame= gb->get_frame ();
+  if (is_nil (local_frame)) return;
+
+  SI x1= MAX_SI, y1= MAX_SI, x2= -MAX_SI, y2= -MAX_SI;
+  bool found= false;
+  for (int i=1; i<N(gb); ++i) {
+    box b= gb[i];
+    if (is_nil (b)) continue;
+    x1= min (x1, min (gb->sx1 (i), gb->sx3 (i)));
+    y1= min (y1, min (gb->sy1 (i), gb->sy3 (i)));
+    x2= max (x2, max (gb->sx2 (i), gb->sx4 (i)));
+    y2= max (y2, max (gb->sy2 (i), gb->sy4 (i)));
+    found= true;
+  }
+  if (!found || x2 <= x1 || y2 <= y1) return;
+
+  edit_env env= get_typesetter ()->env;
+  SI padding= max (env->get_length (GR_CROP_PADDING), 8 * get_pixel_size ());
+  SI left= x1 - padding;
+  SI bottom= y1 - padding;
+  SI right= x2 + padding;
+  SI top= y2 + padding;
+  SI width= right - left;
+  SI height= top - bottom;
+
+  point actual_shift= local_frame (point (0.0, 0.0));
+  if (N(actual_shift) < 2) return;
+  point new_shift (
+    actual_shift[0] - (double) left,
+    actual_shift[1] - 0.5 * ((double) bottom + (double) top));
+
+  start_editing ();
+  native_drawing_set_canvas_geometry (gp, width, height, new_shift);
+  end_editing ();
+
+  mark_native_ink_interaction_dirty ();
+  invalidate_all ();
+  publish_native_drawing_focus_refresh ();
 }
 
 void

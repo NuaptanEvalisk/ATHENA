@@ -78,6 +78,10 @@ public:
   void   commit_native_drawing_transform (
     native_drawing_transform transform,
     const native_ink_sample* samples, std::size_t count);
+  void   commit_native_drawing_insert_space (
+    bool horizontal, const native_ink_sample* samples,
+    std::size_t count);
+  void   commit_native_drawing_trim ();
   void   commit_native_ink_stroke (const native_ink_sample* samples,
                                    std::size_t count);
   void   collect_native_ink_graphics (tree t, path p, bool in_diagram,
@@ -87,9 +91,14 @@ public:
   tree   native_drawing_set_object_property (tree object, string name, tree value);
   bool   native_drawing_set_graphics_property (path graphics, string name,
                                                tree value);
+  bool   native_drawing_set_graphics_properties (
+    path graphics, const std::vector<std::pair<string, tree>>& properties);
   path   native_drawing_active_graphics ();
   bool   native_drawing_grid_enabled (path graphics);
   point  native_drawing_snap_point (path graphics, frame f, point p);
+  bool   native_drawing_graphics_box (path graphics, box& result);
+  bool   native_drawing_set_canvas_geometry (
+    path graphics, SI width, SI height, point actual_shift);
   void   refresh_native_drawing_properties_snapshot ();
   void   publish_native_drawing_focus_refresh ();
   bool   native_ink_region (path graphics,

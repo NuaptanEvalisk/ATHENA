@@ -322,6 +322,27 @@ QTMWidget::tm_widget () const {
 }
 
 void
+QTMWidget::triggerNativeDrawingCanvasCommand (
+  native_drawing_canvas_command command) {
+  if (is_nil (tmwid)) return;
+  if (command == native_drawing_canvas_command::trim) {
+    clearNativeDrawingInsertSpace ();
+    tm_widget ()->handle_native_drawing_trim ();
+    return;
+  }
+  if (nativeInkActive) clearNativeInkPreview ();
+  if (nativeSelectionTransformActive) clearNativeDrawingSelectionTransform ();
+  nativeInsertSpaceArmed= true;
+  nativeInsertSpaceHorizontal=
+    command == native_drawing_canvas_command::insert_horizontal_space;
+  nativeInsertSpaceActive= false;
+  nativeInsertSpaceTablet= false;
+  if (surface () != nullptr)
+    surface ()->setCursor (
+      nativeInsertSpaceHorizontal ? Qt::SplitHCursor : Qt::SplitVCursor);
+}
+
+void
 QTMWidget::refreshEmbeddedBackingStore () {
   if (athena_qt_is_closing () || is_nil (tmwid) || !isVisible ()) return;
   if (!isEmbedded ()) return;
@@ -542,6 +563,97 @@ QTMWidget::drawNativeInkPreview (QPainter& p) const {
       p.setPen (pen);
       p.drawLine (nativeInkPreviewPoints[i-1], nativeInkPreviewPoints[i]);
     }
+  }
+  p.restore ();
+}
+
+bool
+QTMWidget::beginNativeDrawingInsertSpace (
+  const QPointF& pos, SI x, SI y, bool tablet) {
+  if (!nativeInsertSpaceArmed || is_nil (tmwid)) return false;
+  native_ink_preview_style style;
+  if (!tm_widget ()->handle_native_ink_hit (x, y, style)) return false;
+  nativeInsertSpaceActive= true;
+  nativeInsertSpaceTablet= tablet;
+  nativeInsertSpaceStart= pos;
+  nativeInsertSpaceCurrent= pos;
+  nativeInsertSpaceStartSample= native_ink_sample ();
+  nativeInsertSpaceStartSample.x= x;
+  nativeInsertSpaceStartSample.y= y;
+  nativeInsertSpaceCurrentSample= nativeInsertSpaceStartSample;
+  if (surface () != nullptr) surface ()->update ();
+  return true;
+}
+
+void
+QTMWidget::updateNativeDrawingInsertSpace (const QPointF& pos, SI x, SI y) {
+  if (!nativeInsertSpaceActive) return;
+  nativeInsertSpaceCurrent= pos;
+  nativeInsertSpaceCurrentSample.x= x;
+  nativeInsertSpaceCurrentSample.y= y;
+  if (surface () != nullptr) surface ()->update ();
+}
+
+void
+QTMWidget::finishNativeDrawingInsertSpace (const QPointF& pos, SI x, SI y) {
+  if (!nativeInsertSpaceActive || is_nil (tmwid)) return;
+  updateNativeDrawingInsertSpace (pos, x, y);
+  native_ink_sample samples[2]= {
+    nativeInsertSpaceStartSample, nativeInsertSpaceCurrentSample
+  };
+  tm_widget ()->handle_native_drawing_insert_space (
+    nativeInsertSpaceHorizontal, samples, 2);
+  clearNativeDrawingInsertSpace ();
+}
+
+void
+QTMWidget::clearNativeDrawingInsertSpace () {
+  nativeInsertSpaceArmed= false;
+  nativeInsertSpaceActive= false;
+  nativeInsertSpaceTablet= false;
+  nativeInsertSpaceStart= QPointF ();
+  nativeInsertSpaceCurrent= QPointF ();
+  nativeInsertSpaceStartSample= native_ink_sample ();
+  nativeInsertSpaceCurrentSample= native_ink_sample ();
+  if (surface () != nullptr) {
+    surface ()->unsetCursor ();
+    surface ()->update ();
+  }
+}
+
+void
+QTMWidget::drawNativeDrawingInsertSpace (QPainter& p) const {
+  if (!nativeInsertSpaceActive) return;
+  p.save ();
+  p.setRenderHint (QPainter::Antialiasing, true);
+  QRectF viewport= p.viewport ();
+  QColor fill (74, 144, 226, 45);
+  QPen startPen (QColor (74, 144, 226, 150));
+  startPen.setWidthF (1.25);
+  startPen.setStyle (Qt::DashLine);
+  QPen currentPen (QColor (74, 144, 226, 230));
+  currentPen.setWidthF (1.75);
+  if (nativeInsertSpaceHorizontal) {
+    double x1= nativeInsertSpaceStart.x ();
+    double x2= nativeInsertSpaceCurrent.x ();
+    QRectF band (std::min (x1, x2), viewport.top (), std::fabs (x2-x1),
+                 viewport.height ());
+    p.fillRect (band, fill);
+    p.setPen (startPen);
+    p.drawLine (QPointF (x1, viewport.top ()), QPointF (x1, viewport.bottom ()));
+    p.setPen (currentPen);
+    p.drawLine (QPointF (x2, viewport.top ()), QPointF (x2, viewport.bottom ()));
+  }
+  else {
+    double y1= nativeInsertSpaceStart.y ();
+    double y2= nativeInsertSpaceCurrent.y ();
+    QRectF band (viewport.left (), std::min (y1, y2), viewport.width (),
+                 std::fabs (y2-y1));
+    p.fillRect (band, fill);
+    p.setPen (startPen);
+    p.drawLine (QPointF (viewport.left (), y1), QPointF (viewport.right (), y1));
+    p.setPen (currentPen);
+    p.drawLine (QPointF (viewport.left (), y2), QPointF (viewport.right (), y2));
   }
   p.restore ();
 }
@@ -808,6 +920,15 @@ QTMWidget::showNativeDrawingContextMenu (const QPoint& globalPos) {
       tm_widget ()->handle_set_native_drawing_tool (native_drawing_tool::shape);
     });
   }
+  menu.addSeparator ();
+  for (const native_drawing_canvas_command_descriptor& entry:
+       native_drawing_canvas_commands) {
+    QAction* action= menu.addAction (
+      QIcon::fromTheme (entry.icon), tr (entry.text));
+    connect (action, &QAction::triggered, this, [this, entry] {
+      triggerNativeDrawingCanvasCommand (entry.command);
+    });
+  }
   menu.exec (globalPos);
 }
 
@@ -873,6 +994,7 @@ QTMWidget::surfacePaintEvent (QPaintEvent *event, QWidget *surfaceWidget) {
     }
   }
   drawNativeInkPreview (p);
+  drawNativeDrawingInsertSpace (p);
   drawNativeDrawingSelection (p);
   performanceMonitor.finishPaint (event, p);
 }
@@ -1431,6 +1553,12 @@ getShiftPreference (char key_code) {
 void
 QTMWidget::keyPressEvent (QKeyEvent* event) {
   refreshCursorBlinking (true);
+  if (event->key () == Qt::Key_Escape &&
+      (nativeInsertSpaceArmed || nativeInsertSpaceActive)) {
+    clearNativeDrawingInsertSpace ();
+    event->accept ();
+    return;
+  }
   Qt::KeyboardModifiers commandModifiers=
     event->modifiers () & (Qt::ControlModifier | Qt::ShiftModifier |
                            Qt::AltModifier | Qt::MetaModifier);
@@ -1618,7 +1746,17 @@ QTMWidget::mousePressEvent (QMouseEvent* event) {
     event->accept ();
     return;
   }
+  if (nativeInsertSpaceActive && nativeInsertSpaceTablet) {
+    event->accept ();
+    return;
+  }
   if (nativeSelectionTransformActive && nativeSelectionTransformTablet) {
+    event->accept ();
+    return;
+  }
+  if (event->button () == Qt::LeftButton &&
+      beginNativeDrawingInsertSpace (
+        event->position (), pt.x1, pt.x2, false)) {
     event->accept ();
     return;
   }
@@ -1655,7 +1793,16 @@ QTMWidget::mouseReleaseEvent (QMouseEvent* event) {
     event->accept ();
     return;
   }
+  if (nativeInsertSpaceActive && nativeInsertSpaceTablet) {
+    event->accept ();
+    return;
+  }
   if (nativeSelectionTransformActive && nativeSelectionTransformTablet) {
+    event->accept ();
+    return;
+  }
+  if (nativeInsertSpaceActive && event->button () == Qt::LeftButton) {
+    finishNativeDrawingInsertSpace (event->position (), pt.x1, pt.x2);
     event->accept ();
     return;
   }
@@ -1686,6 +1833,12 @@ QTMWidget::mouseMoveEvent (QMouseEvent* event) {
   QPointF localPoint= event->position ();
   QPoint point = event->pos() + origin();
   coord2 pt = from_qpoint(point);
+  if (nativeInsertSpaceActive) {
+    if (!nativeInsertSpaceTablet)
+      updateNativeDrawingInsertSpace (localPoint, pt.x1, pt.x2);
+    event->accept ();
+    return;
+  }
   if (nativeSelectionTransformActive) {
     if (!nativeSelectionTransformTablet)
       updateNativeDrawingSelectionTransform (localPoint, pt.x1, pt.x2);
@@ -1701,6 +1854,12 @@ QTMWidget::mouseMoveEvent (QMouseEvent* event) {
     return;
   }
   if (event->buttons () == Qt::NoButton) {
+    if (nativeInsertSpaceArmed) {
+      surface ()->setCursor (
+        nativeInsertSpaceHorizontal ? Qt::SplitHCursor : Qt::SplitVCursor);
+      event->accept ();
+      return;
+    }
     native_drawing_transform transform;
     int scaleCorner= -1;
     if (nativeDrawingSelectionHitTest (localPoint, transform, scaleCorner)) {
@@ -1811,7 +1970,24 @@ QTMWidget::tabletEvent (QTabletEvent* event) {
   double y= point.y();
   coord2 pt= coord2 ((SI) (x * PIXEL), (SI) (-y * PIXEL));
   bool release= event->type () == QEvent::TabletRelease ||
-                event->pressure () <= 0.0;
+                 event->pressure () <= 0.0;
+  if (!nativeInsertSpaceActive && !release &&
+      beginNativeDrawingInsertSpace (
+        localPreview, pt.x1, pt.x2, true)) {
+    event->accept ();
+    return;
+  }
+  if (nativeInsertSpaceActive && nativeInsertSpaceTablet) {
+    updateNativeDrawingInsertSpace (localPreview, pt.x1, pt.x2);
+    if (release)
+      finishNativeDrawingInsertSpace (localPreview, pt.x1, pt.x2);
+    event->accept ();
+    return;
+  }
+  if (nativeInsertSpaceArmed && release && event->buttons () == Qt::NoButton) {
+    event->accept ();
+    return;
+  }
   if (!nativeSelectionTransformActive && !release &&
       beginNativeDrawingSelectionTransform (
         localPreview, pt.x1, pt.x2, true)) {

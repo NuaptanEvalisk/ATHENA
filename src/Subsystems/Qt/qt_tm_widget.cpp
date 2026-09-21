@@ -668,6 +668,22 @@ qt_tm_widget_rep::append_native_drawing_mode_actions () {
         action->setChecked (true);
       });
   }
+  QAction* canvasSeparator= modeToolBar->addSeparator ();
+  canvasSeparator->setProperty (marker, true);
+  for (const native_drawing_canvas_command_descriptor& entry:
+       native_drawing_canvas_commands) {
+    QAction* action= new QAction (QIcon::fromTheme (entry.icon),
+                                  QObject::tr (entry.text), modeToolBar);
+    action->setToolTip (QObject::tr (entry.text));
+    action->setProperty (marker, true);
+    modeToolBar->addAction (action);
+    QObject::connect (action, &QAction::triggered, modeToolBar,
+      [canvasRef, entry] {
+        QTMWidget* canvas= canvasRef.data ();
+        if (canvas == nullptr) return;
+        canvas->triggerNativeDrawingCanvasCommand (entry.command);
+      });
+  }
 }
 
 namespace {

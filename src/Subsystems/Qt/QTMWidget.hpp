@@ -16,6 +16,7 @@
 #include "QTMScrollView.hpp"
 #include "QTMPerformanceMonitor.hpp"
 #include "ATHENA/native_ink.hpp"
+#include "native_drawing_ui.hpp"
 #include <QLabel>
 #include <QGesture>
 #include <QGestureEvent>
@@ -72,6 +73,8 @@ public:
   qt_simple_widget_rep* tm_widget () const;
   void refreshEmbeddedBackingStore ();
   void finishGestureZoomCommitPreview ();
+  void triggerNativeDrawingCanvasCommand (
+    native_drawing_canvas_command command);
 
 signals:
   void closed ();
@@ -147,6 +150,14 @@ private:
   bool nativeInkTablet= false;
   bool nativeInkAwaitingCommit= false;
   bool nativeDrawingRightClickConsumed= false;
+  bool nativeInsertSpaceArmed= false;
+  bool nativeInsertSpaceHorizontal= true;
+  bool nativeInsertSpaceActive= false;
+  bool nativeInsertSpaceTablet= false;
+  QPointF nativeInsertSpaceStart;
+  QPointF nativeInsertSpaceCurrent;
+  native_ink_sample nativeInsertSpaceStartSample;
+  native_ink_sample nativeInsertSpaceCurrentSample;
   bool nativeSelectionTransformActive= false;
   bool nativeSelectionTransformTablet= false;
   bool nativeSelectionTransformAwaitingCommit= false;
@@ -199,6 +210,12 @@ private:
   void finishNativeInk ();
   void clearNativeInkPreview ();
   void drawNativeInkPreview (QPainter& p) const;
+  bool beginNativeDrawingInsertSpace (
+    const QPointF& pos, SI x, SI y, bool tablet);
+  void updateNativeDrawingInsertSpace (const QPointF& pos, SI x, SI y);
+  void finishNativeDrawingInsertSpace (const QPointF& pos, SI x, SI y);
+  void clearNativeDrawingInsertSpace ();
+  void drawNativeDrawingInsertSpace (QPainter& p) const;
   void drawNativeDrawingSelection (QPainter& p);
   QRectF nativeDrawingSelectionRect ();
   bool nativeDrawingSelectionHitTest (
