@@ -23,6 +23,7 @@
 #include "QTMOutlinePane.hpp"
 #include "QTMDocumentSearchBar.hpp"
 #include "QTMCompletionPopup.hpp"
+#include "QTMCommutativeDiagramArrowPane.hpp"
 #include "QTMVaultBackupDispatcher.hpp"
 #include "QTMVaultExplorer.hpp"
 #include "ATHENA/Math/native_shape_recognizer.hpp"
@@ -460,6 +461,26 @@ qt_actor_widget_rep::handle_native_drawing_trim () {
 }
 
 bool
+qt_actor_widget_rep::handle_commutative_diagram_action (
+  native_cd_action action, string first, string second) {
+  athena_blob_id first_id= ATHENA_NO_BLOB;
+  athena_blob_id second_id= ATHENA_NO_BLOB;
+  if (first != "") first_id= actor_text_registry::instance ().store (first);
+  if (second != "") second_id= actor_text_registry::instance ().store (second);
+  actor_command_ticket ticket= buffer_actor::submit_to (
+    actor_id_, actor_command_kind::commutative_diagram_action, view_id_,
+    first_id, second_id, SCHEME_CAPABILITY_BUFFER,
+    static_cast<std::uint64_t> (action));
+  if (!ticket) {
+    if (first_id != ATHENA_NO_BLOB)
+      (void) actor_text_registry::instance ().discard (first_id);
+    if (second_id != ATHENA_NO_BLOB)
+      (void) actor_text_registry::instance ().discard (second_id);
+  }
+  return static_cast<bool> (ticket);
+}
+
+bool
 qt_actor_widget_rep::handle_native_ink_stroke (
   const native_ink_sample* samples, std::size_t count) {
   return handle_native_drawing_gesture (
@@ -849,6 +870,16 @@ qt_actor_widget_rep::drain_external_effects () {
       }
       completion_popup_->present (record.argument[0], items,
         to_qpoint (coord2 (gx, gy)), static_cast<int> (record.argument[3]));
+      break;
+    }
+    case actor_command_kind::ui_commutative_diagram_popup:
+      if (canvas () != nullptr)
+        canvas ()->showCommutativeDiagramContextMenu (record.argument[0] != 0);
+      break;
+    case actor_command_kind::ui_commutative_diagram_arrow_state: {
+      string encoded= actor_text_registry::instance ().take (record.payload0);
+      if (canvas () != nullptr)
+        commutative_diagram_arrow_pane_accept_state (canvas (), std::move (encoded));
       break;
     }
     case actor_command_kind::ui_select_completion:

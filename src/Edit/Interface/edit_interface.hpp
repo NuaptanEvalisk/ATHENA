@@ -12,6 +12,7 @@
 #ifndef EDIT_INTERFACE_H
 #define EDIT_INTERFACE_H
 #include "editor.hpp"
+#include "ATHENA/Math/commutative_diagram_native.hpp"
 #include "heading_word_count.hpp"
 #include "tree_spell.hpp"
 #include "pointer_shake_detector.hpp"
@@ -85,6 +86,7 @@ protected:
   int           tremble_count;
   pointer_shake_detector shake_detector;
   bool          table_selection;
+  commutative_diagram_session_ptr commutative_diagram_session_;
   int           mouse_adjusting;  // mask with active key modifiers upon click
   bool          image_resize_active;
   int           image_resize_handle;
@@ -245,6 +247,7 @@ public:
   tree kbd (string s);
   tree kbd_shortcut (string s);
   void key_press (string key);
+  bool commutative_diagram_keypress (string key);
   void emulate_keyboard (string keys, string action= "");
   bool complete_try ();
   bool complete_try_realtime ();
@@ -255,6 +258,10 @@ public:
   /* mouse handling */
   void mouse_any (string s, SI x, SI y, int m, time_t t, array<double> d);
   bool mouse_message (string message, SI x, SI y);
+  bool commutative_diagram_pointer_event (
+    string message, double x, double y, SI screen_x, SI screen_y);
+  void commutative_diagram_action (
+    native_cd_action action, string first= "", string second= "") override;
   color mouse_clickable_color ();
   void mouse_click (SI x, SI y);
   bool mouse_extra_click (SI x, SI y);

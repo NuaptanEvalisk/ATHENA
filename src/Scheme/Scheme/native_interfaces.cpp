@@ -80,7 +80,6 @@
 #include "QTMNativeDialogs.hpp"
 #include "QTMTablePropertiesPane.hpp"
 #include "QTMSlidePropertiesPane.hpp"
-#include "QTMCommutativeDiagramArrowPane.hpp"
 #include "QTMVaultFontConfigurator.hpp"
 #include "QTMCodexCompletion.hpp"
 #include "QTMPreferencesDialog.hpp"
@@ -715,8 +714,25 @@ athena_slide_properties_pane_show () {
 }
 
 void
-athena_commutative_diagram_arrow_pane_show () {
-  if (!headless_mode) commutative_diagram_arrow_pane_show ();
+athena_make_commutative_diagram () {
+  editor ed= get_current_editor ();
+  if (!is_nil (ed))
+    ed->commutative_diagram_action (native_cd_action::insert_diagram);
+}
+
+bool
+athena_in_commutative_diagramP () {
+  editor ed= get_current_editor ();
+  if (is_nil (ed)) return false;
+  tree root= ed->the_root ();
+  path p= ed->the_path ();
+  while (!is_nil (p)) {
+    if (has_subtree (root, p) &&
+        is_compound (subtree (root, p), "commutative-diagram"))
+      return true;
+    p= path_up (p);
+  }
+  return false;
 }
 
 namespace {

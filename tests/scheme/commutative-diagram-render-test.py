@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise native diagram editing and verify exported diagram geometry."""
+"""Verify exported geometry from the fully native commutative-diagram renderer."""
 
 import argparse
 from pathlib import Path

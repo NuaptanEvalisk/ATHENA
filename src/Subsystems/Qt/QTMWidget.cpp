@@ -29,6 +29,7 @@
 #include "QTMApplication.hpp"
 #include "QTMKeyboardEvent.hpp"
 #include "QTMNeighborhoodsPane.hpp"
+#include "QTMCommutativeDiagramArrowPane.hpp"
 #include "native_drawing_ui.hpp"
 
 #include "config.h"
@@ -47,6 +48,7 @@
 #include <QActionGroup>
 #include <QIcon>
 #include <QMenu>
+#include <QCursor>
 #include <QPolygonF>
 #include <QTransform>
 #include <QApplication>
@@ -950,6 +952,37 @@ QTMWidget::showNativeDrawingContextMenu (const QPoint& globalPos) {
     });
   }
   menu.exec (globalPos);
+}
+
+void
+QTMWidget::showCommutativeDiagramContextMenu (bool arrow) {
+  if (is_nil (tmwid) || tm_widget () == nullptr) return;
+  QMenu menu (this);
+  if (arrow) {
+    QAction* properties= menu.addAction (tr ("Arrow style"));
+    connect (properties, &QAction::triggered, this, [this] {
+      commutative_diagram_arrow_pane_show (this);
+    });
+    menu.addSeparator ();
+  }
+  QAction* trim= menu.addAction (tr ("Trim"));
+  QAction* enlargeHorizontal= menu.addAction (tr ("Enlarge horizontally"));
+  QAction* enlargeVertical= menu.addAction (tr ("Enlarge vertically"));
+  connect (trim, &QAction::triggered, this, [this] {
+    if (!is_nil (tmwid))
+      tm_widget ()->handle_commutative_diagram_action (native_cd_action::trim);
+  });
+  connect (enlargeHorizontal, &QAction::triggered, this, [this] {
+    if (!is_nil (tmwid))
+      tm_widget ()->handle_commutative_diagram_action (
+        native_cd_action::enlarge_horizontal);
+  });
+  connect (enlargeVertical, &QAction::triggered, this, [this] {
+    if (!is_nil (tmwid))
+      tm_widget ()->handle_commutative_diagram_action (
+        native_cd_action::enlarge_vertical);
+  });
+  menu.exec (QCursor::pos ());
 }
 
 void 

@@ -60,6 +60,8 @@ public:
     bool horizontal, const native_ink_sample* samples,
     std::size_t count) override;
   bool handle_native_drawing_trim () override;
+  bool handle_commutative_diagram_action (
+    native_cd_action action, string first= "", string second= "") override;
   bool handle_native_ink_stroke (const native_ink_sample* samples,
                                  std::size_t count) override;
   bool handle_wheel_capture () override;

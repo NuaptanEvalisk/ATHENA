@@ -98,7 +98,8 @@ void athena_native_tooltip_close ();
 void athena_cell_properties_pane_show ();
 void athena_table_properties_pane_show ();
 void athena_slide_properties_pane_show ();
-void athena_commutative_diagram_arrow_pane_show ();
+void athena_make_commutative_diagram ();
+bool athena_in_commutative_diagramP ();
 
 bool athena_vault_anchor_headingP (tree value);
 void athena_vault_anchor_title_filter_invalidate ();

@@ -95,7 +95,6 @@ run_tests (int argc, char** argv) {
     test_server= sv->get_server ();
     eval ("(begin "
           "  (tm-define (notify-cursor-moved status) #f) "
-          "  (tm-define (in-commutative-diagram?) #f) "
           "  (tm-define (like-emacs?) #f))");
     TestReadOnlyEdit test;
     test_status= QTest::qExec (&test, argc, argv);

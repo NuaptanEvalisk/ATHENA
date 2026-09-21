@@ -17,6 +17,7 @@
 
 #include "qt_widget.hpp"
 #include "ATHENA/native_ink.hpp"
+#include "ATHENA/native_commutative_diagram.hpp"
 #include "QTMScrollView.hpp"
 #include "QTMWidget.hpp"
 #include "QTMRenderService.hpp"
@@ -107,6 +108,8 @@ public:
   virtual bool handle_native_drawing_insert_space (
     bool horizontal, const native_ink_sample* samples, std::size_t count);
   virtual bool handle_native_drawing_trim ();
+  virtual bool handle_commutative_diagram_action (
+    native_cd_action action, string first= "", string second= "");
   virtual bool handle_native_ink_stroke (const native_ink_sample* samples,
                                          std::size_t count);
   virtual bool handle_wheel_capture ();

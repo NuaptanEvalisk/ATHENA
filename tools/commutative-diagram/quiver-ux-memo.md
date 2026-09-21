@@ -192,40 +192,22 @@ commutative-diagram
   cd-arrow
 ```
 
-It no longer needs to use an upstream TeXmacs `graphics` object as the stored
-document representation. The current implementation still uses generated
-graphics only as a rendering surface, wrapped in a relay for pointer events.
+The implementation is now fully native C++. Persistent state remains the
+`commutative-diagram` / `cd-body` / `cd-vertex` / `cd-arrow` AST. Geometry,
+hit-testing, selection/hover/drag session state, pointer interaction, keyboard
+navigation, option mutation, and typesetting no longer depend on a Scheme
+diagram editor or a relay callback.
 
-The interaction implementation, however, remains vertex-only:
-
-- `cd-nearest-vertex` searches only vertices, with a fixed diagram-coordinate
-  threshold of 0.42.
-- `commutative-diagram-handle` computes only a nearest `vertex`.
-- Clicking near a vertex records it as a possible connection source.
-- Clicking elsewhere immediately creates a vertex.
-- Drag/select completion can create an arrow only when another vertex is found.
-- Double-clicking a vertex moves the editor cursor into its formula.
-
-The following capabilities do not yet exist:
-
-- nearest-arrow or point-to-segment hit testing;
-- selected-arrow state;
-- arrow hover state;
-- a broad arrow hit corridor;
-- visual arrow hover or selection feedback;
-- arrow endpoint handles;
-- vertex movement;
-- separate pending, connecting, moving, and selecting interaction modes.
-
-Consequently, the current problem is stronger than arrows merely being hard to
-select. Pointer-based arrow selection is not meaningfully implemented. Clicking
-near an arrow but outside the vertex threshold is interpreted as clicking empty
-grid space and creates another vertex.
+Selection and drag state are ephemeral and do not enter the document AST.
+Nearest-arrow hit testing samples the native cubic route, selected arrows expose
+endpoint handles, vertices can be moved, and connection/reconnection use
+separate pending and active drag modes.
 
 Relevant ATHENA source:
 
-- [`cd-nearest-vertex`](../../ATHENA/progs/athena/athena/commutative-diagram.scm#L58)
-- [`commutative-diagram-handle`](../../ATHENA/progs/athena/athena/commutative-diagram.scm#L160)
+- [`commutative_diagram_native.cpp`](../../src/ATHENA/Math/commutative_diagram_native.cpp)
+- [`edit_commutative_diagram.cpp`](../../src/Edit/Interface/edit_commutative_diagram.cpp)
+- [`concat_commutative_diagram.cpp`](../../src/Typeset/Concat/concat_commutative_diagram.cpp)
 
 ## 8. Recommended ATHENA Interaction Model
 

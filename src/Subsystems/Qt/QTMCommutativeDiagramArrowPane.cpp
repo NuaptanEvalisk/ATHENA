@@ -8,9 +8,9 @@
 #include "QTMCommutativeDiagramArrowPane.hpp"
 
 #include "QTMMainTabWindow.hpp"
-#include "new_buffer.hpp"
+#include "QTMWidget.hpp"
+#include "qt_simple_widget.hpp"
 #include "qt_utilities.hpp"
-#include "scheme.hpp"
 
 #include <DockWidget.h>
 #include <QApplication>
@@ -22,8 +22,8 @@
 #include <QMap>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QPointer>
 #include <QScrollArea>
-#include <QTimer>
 #include <QVBoxLayout>
 
 namespace {
@@ -80,40 +80,39 @@ public:
     outer->addWidget (scroll);
 
     connect (reverse, &QPushButton::clicked, this,
-             [this] () { invoke ("cd-reverse-selected-arrow"); });
+             [this] () { invoke (native_cd_action::reverse_selected_arrow); });
     connect (flipArrow, &QPushButton::clicked, this,
-             [this] () { invoke ("cd-flip-selected-arrow"); });
+             [this] () { invoke (native_cd_action::flip_selected_arrow); });
     connect (flipLabel, &QPushButton::clicked, this,
-             [this] () { invoke ("cd-flip-selected-label"); });
-    QTimer* timer= new QTimer (this);
-    timer->setInterval (350);
-    connect (timer, &QTimer::timeout, this, [this] () { refresh (); });
-    timer->start ();
+             [this] () { invoke (native_cd_action::flip_selected_label); });
   }
 
-  void retarget (url buffer) { targetBuffer= buffer; refresh (); }
+  void retarget (QTMWidget* canvas) { targetCanvas= canvas; refresh (); }
+  void acceptState (const QString& encoded) {
+    state.clear ();
+    const QStringList lines= encoded.split ('\n', Qt::SkipEmptyParts);
+    for (const QString& line: lines) {
+      qsizetype split= line.indexOf ('=');
+      if (split > 0) state[line.left (split)]= line.mid (split+1);
+    }
+    refresh ();
+  }
 
 private:
   QString get (const QString& key, const QString& fallback) const {
-    if (is_none (targetBuffer)) return fallback;
-    try {
-      return qs (as_string (qt_call_in_buffer (
-        targetBuffer, "cd-selected-option", object (ts (key)),
-        object (ts (fallback)))));
-    }
-    catch (...) { return fallback; }
+    if (state.value ("selected") != "1") return fallback;
+    return state.value (key, fallback);
   }
   void set (const QString& key, const QString& value) {
-    if (loading || is_none (targetBuffer)) return;
-    try { qt_call_in_buffer (targetBuffer, "cd-set-selected-option",
-                             object (ts (key)), object (ts (value))); }
-    catch (...) {}
+    if (loading || targetCanvas == nullptr || targetCanvas->tm_widget () == nullptr)
+      return;
+    state[key]= value;
+    (void) targetCanvas->tm_widget ()->handle_commutative_diagram_action (
+      native_cd_action::set_selected_option, ts (key), ts (value));
   }
-  void invoke (const char* function) {
-    if (is_none (targetBuffer)) return;
-    try { qt_call_in_buffer (targetBuffer, function); }
-    catch (...) {}
-    refresh ();
+  void invoke (native_cd_action action) {
+    if (targetCanvas == nullptr || targetCanvas->tm_widget () == nullptr) return;
+    (void) targetCanvas->tm_widget ()->handle_commutative_diagram_action (action);
   }
   void addCombo (QFormLayout* form, const QString& label, const QString& key,
                  const QStringList& values, const QString& fallback) {
@@ -133,12 +132,7 @@ private:
              [this, key, edit] () { set (key, edit->text ()); });
   }
   void refresh () {
-    url currentBuffer= get_current_buffer_safe ();
-    if (!is_none (currentBuffer) &&
-        (is_none (targetBuffer) ||
-         as_string (currentBuffer) != as_string (targetBuffer)))
-      targetBuffer= currentBuffer;
-    if (is_none (targetBuffer)) return;
+    if (targetCanvas == nullptr) return;
     loading= true;
     for (auto it= combos.begin (); it != combos.end (); ++it) {
       QString value= get (it.key (), defaults.value (it.key ()));
@@ -152,7 +146,8 @@ private:
   }
 
   bool loading= false;
-  url targetBuffer;
+  QPointer<QTMWidget> targetCanvas;
+  QMap<QString,QString> state;
   QMap<QString,QComboBox*> combos;
   QMap<QString,QLineEdit*> lines;
   QMap<QString,QString> defaults;
@@ -160,11 +155,13 @@ private:
 
 QTMCommutativeDiagramArrowPane* arrowWidget= nullptr;
 ads::CDockWidget* arrowDock= nullptr;
+QPointer<QTMWidget> stateCanvas;
+QString stateText;
 
 } // namespace
 
-void commutative_diagram_arrow_pane_show () {
-  if (qt_defer_to_main_thread (commutative_diagram_arrow_pane_show)) return;
+void commutative_diagram_arrow_pane_show (QTMWidget* canvas) {
+  if (canvas == nullptr) return;
   QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
   if (win == nullptr || win->dockManager () == nullptr) {
     QMessageBox::warning (QApplication::activeWindow (),
@@ -172,7 +169,8 @@ void commutative_diagram_arrow_pane_show () {
     return;
   }
   if (arrowWidget == nullptr) arrowWidget= new QTMCommutativeDiagramArrowPane;
-  arrowWidget->retarget (get_current_buffer_safe ());
+  arrowWidget->retarget (canvas);
+  if (stateCanvas == canvas) arrowWidget->acceptState (stateText);
   if (arrowDock == nullptr) {
     arrowDock= new ads::CDockWidget ("Commutative Diagram Arrow");
     arrowDock->setObjectName ("athena-commutative-diagram-arrow");
@@ -191,4 +189,15 @@ void commutative_diagram_arrow_pane_show () {
   arrowDock->toggleView (true);
   arrowDock->show ();
   arrowDock->raise ();
+}
+
+void
+commutative_diagram_arrow_pane_accept_state (QTMWidget* canvas, string encoded) {
+  if (canvas == nullptr) return;
+  stateCanvas= canvas;
+  stateText= qs (encoded);
+  if (arrowWidget != nullptr) {
+    arrowWidget->retarget (canvas);
+    arrowWidget->acceptState (stateText);
+  }
 }

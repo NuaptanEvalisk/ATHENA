@@ -1032,7 +1032,8 @@
   <binding name="cell-properties-pane-show" native="athena_cell_properties_pane_show" returns="void" dispatch="ui" />
   <binding name="table-properties-pane-show" native="athena_table_properties_pane_show" returns="void" dispatch="ui" />
   <binding name="slide-properties-pane-show" native="athena_slide_properties_pane_show" returns="void" dispatch="ui" />
-  <binding name="commutative-diagram-arrow-pane-show" native="athena_commutative_diagram_arrow_pane_show" returns="void" dispatch="ui" />
+  <binding name="make-cd" native="athena_make_commutative_diagram" returns="void" />
+  <binding name="in-commutative-diagram?" native="athena_in_commutative_diagramP" returns="bool" />
   <binding name="vault-anchor-heading?" native="athena_vault_anchor_headingP" returns="bool">
     <arg type="tree" />
   </binding>

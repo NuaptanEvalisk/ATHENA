@@ -212,6 +212,11 @@ edit_interface_rep::key_press (string gkey) {
     if (r == "") return;
     else key= r;
   }
+
+  if (commutative_diagram_keypress (key)) {
+    interrupt_shortcut ();
+    return;
+  }
   
   string new_sh= N(sh_s)==0? key: sh_s * " " * key;
   if (try_shortcut (new_sh)) return;

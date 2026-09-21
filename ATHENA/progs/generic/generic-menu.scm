@@ -616,11 +616,9 @@
   //)
 
 (tm-menu (texmacs-focus-icons)
-  (assuming (in-commutative-diagram?)
-    (dynamic (commutative-diagram-focus-icons)))
-  (assuming (and (not (in-commutative-diagram?)) (in-graphics?))
+  (assuming (in-graphics?)
     (dynamic (graphics-focus-icons)))
-  (assuming (and (not (in-commutative-diagram?)) (not (in-graphics?)))
+  (assuming (not (in-graphics?))
     (dynamic (standard-focus-icons (focus-tree)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

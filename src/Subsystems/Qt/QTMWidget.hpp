@@ -75,6 +75,7 @@ public:
   void finishGestureZoomCommitPreview ();
   void triggerNativeDrawingCanvasCommand (
     native_drawing_canvas_command command);
+  void showCommutativeDiagramContextMenu (bool arrow);
 
 signals:
   void closed ();

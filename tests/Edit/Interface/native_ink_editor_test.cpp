@@ -126,7 +126,7 @@ private slots:
   void legacyPenscriptMouseFallbackStaysNative ();
   void textToolCreatesAndReentersEditableText ();
   void mathToolCreatesAndReentersEditableMath ();
-  void insideGraphicsDoesNotCallSchemePredicate ();
+  void insideGraphicsStaysNative ();
   void insertHorizontalSpaceMovesRightObjectsWhole ();
   void insertVerticalSpaceMovesLowerObjectsWhole ();
   void trimMaterializesRenderedContentBounds ();
@@ -1110,16 +1110,13 @@ TestNativeInkEditor::mathToolCreatesAndReentersEditableMath () {
 }
 
 void
-TestNativeInkEditor::insideGraphicsDoesNotCallSchemePredicate () {
+TestNativeInkEditor::insideGraphicsStaysNative () {
   path graphics_path;
   SI left= 0, bottom= 0, right= 0, top= 0;
   prepare_graphics_region (
     editor, buffer, graphics_path, left, bottom, right, top);
   editor->go_to (graphics_path * 0 * 0);
-  eval ("(set! *native-ink-commutative-predicate-calls* 0)");
   QVERIFY (editor->inside_graphics (true));
-  QCOMPARE (
-    as_int (eval ("*native-ink-commutative-predicate-calls*")), 0);
 }
 
 void
@@ -1324,11 +1321,6 @@ run_tests (int argc, char** argv) {
     test_server= sv->get_server ();
     eval ("(begin "
           "  (tm-define (notify-cursor-moved status) #f) "
-          "  (define *native-ink-commutative-predicate-calls* 0) "
-          "  (tm-define (in-commutative-diagram?) "
-          "    (set! *native-ink-commutative-predicate-calls* "
-          "          (+ *native-ink-commutative-predicate-calls* 1)) "
-          "    #f) "
           "  (tm-define (like-emacs?) #f) "
           "  (tm-define (graphics-undo-enabled) #t) "
           "  (tm-define (graphics-reset-context . args) #f))");

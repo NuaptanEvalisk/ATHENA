@@ -35,6 +35,18 @@ struct commutative_diagram_box_rep: public composite_box_rep {
   operator tree () { return "commutative-diagram"; }
   frame get_frame () { return fr; }
 
+  tree message (tree type, SI x, SI y, rectangles& rs) override {
+    point p= fr [point (x, y)];
+    if (N(p) < 2) return "";
+    tree event (TUPLE);
+    event << "commutative-diagram-event"
+          << copy (type)
+          << as_string (p[0])
+          << as_string (p[1]);
+    rs << rectangle (x3, y3, x4, y4);
+    return event;
+  }
+
   void pre_display (renderer& ren) {
     ren->get_clipping (old_clip_x1, old_clip_y1,
                        old_clip_x2, old_clip_y2);

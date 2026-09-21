@@ -816,6 +816,18 @@ buffer_actor::dispatch (actor_command_record& command) {
   case actor_command_kind::native_drawing_trim:
     if (editor != nullptr) editor->commit_native_drawing_trim ();
     break;
+  case actor_command_kind::commutative_diagram_action: {
+    string first, second;
+    if (command.payload0 != ATHENA_NO_BLOB)
+      first= actor_text_registry::instance ().take (command.payload0);
+    if (command.payload1 != ATHENA_NO_BLOB)
+      second= actor_text_registry::instance ().take (command.payload1);
+    if (editor != nullptr)
+      editor->commutative_diagram_action (
+        static_cast<native_cd_action> (command.argument[0]),
+        std::move (first), std::move (second));
+    break;
+  }
   case actor_command_kind::set_zoom:
     if (editor != nullptr)
       editor->handle_set_zoom_factor (argument_double (command.argument[0]));

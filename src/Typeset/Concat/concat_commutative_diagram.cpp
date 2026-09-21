@@ -14,35 +14,10 @@
 #include "curve.hpp"
 #include "drd_std.hpp"
 #include "commutative_diagram_geometry.hpp"
+#include "ATHENA/Math/commutative_diagram_native.hpp"
 
 #include <cmath>
 #include <QPainterPathStroker>
-
-struct cd_point {
-  double x, y;
-  cd_point (double x2= 0.0, double y2= 0.0): x (x2), y (y2) {}
-};
-
-static cd_point operator + (cd_point a, cd_point b) {
-  return cd_point (a.x + b.x, a.y + b.y);
-}
-
-static cd_point operator - (cd_point a, cd_point b) {
-  return cd_point (a.x - b.x, a.y - b.y);
-}
-
-static cd_point operator * (cd_point a, double k) {
-  return cd_point (a.x * k, a.y * k);
-}
-
-struct cd_geometry {
-  cd_point p[4];
-};
-
-struct cd_named_geometry {
-  string id;
-  cd_geometry geometry;
-};
 
 struct cd_render_state {
   string selected_kind, selected_id;
@@ -70,64 +45,6 @@ struct cd_arrow_record {
   string source_id;
   string target_id;
 };
-
-static string
-cd_string (tree t, string fallback= "") {
-  return is_atomic (t)? t->label: fallback;
-}
-
-static double
-cd_number (tree t, double fallback= 0.0) {
-  if (!is_atomic (t) || !is_double (t->label)) return fallback;
-  return as_double (t->label);
-}
-
-static string
-cd_option (tree arrow, string key, string fallback) {
-  if (!is_compound (arrow, "cd-arrow", 5) ||
-      !is_func (arrow[4], TUPLE))
-    return fallback;
-  tree options= arrow[4];
-  for (int i=0; i+1<N(options); i+=2)
-    if (cd_string (options[i]) == key)
-      return cd_string (options[i+1], fallback);
-  return fallback;
-}
-
-static double
-cd_option_number (tree arrow, string key, double fallback) {
-  string value= cd_option (arrow, key, "");
-  return is_double (value)? as_double (value): fallback;
-}
-
-static cd_point
-cd_bezier_point (const cd_geometry& g, double t) {
-  double u= 1.0 - t;
-  return g.p[0] * (u*u*u) +
-         g.p[1] * (3.0*u*u*t) +
-         g.p[2] * (3.0*u*t*t) +
-         g.p[3] * (t*t*t);
-}
-
-static cd_point
-cd_bezier_tangent (const cd_geometry& g, double t) {
-  double u= 1.0 - t;
-  cd_point v= (g.p[1] - g.p[0]) * (3.0*u*u) +
-              (g.p[2] - g.p[1]) * (6.0*u*t) +
-              (g.p[3] - g.p[2]) * (3.0*t*t);
-  double len= std::sqrt (v.x*v.x + v.y*v.y);
-  if (len < 1.0e-9) return cd_point (1.0, 0.0);
-  return v * (1.0 / len);
-}
-
-static cd_geometry
-cd_shift_geometry (const cd_geometry& g, double amount) {
-  cd_point tangent= cd_bezier_tangent (g, 0.5);
-  cd_point normal (-tangent.y, tangent.x);
-  cd_geometry shifted;
-  for (int i=0; i<4; i++) shifted.p[i]= g.p[i] + normal * amount;
-  return shifted;
-}
 
 static cd_point
 cd_lerp (cd_point a, cd_point b, double t) {
@@ -167,72 +84,6 @@ cd_trim_geometry (cd_geometry& geometry, QRectF source, QRectF target) {
     geometry= right;
   }
   return true;
-}
-
-static bool
-cd_tree_point (tree t, cd_point& p) {
-  if (!is_func (t, TUPLE, 2)) return false;
-  p= cd_point (cd_number (t[0]), cd_number (t[1]));
-  return true;
-}
-
-static void
-cd_parse_layout (tree layout, array<cd_named_geometry>& geometries,
-                 cd_render_state& state) {
-  if (!is_func (layout, TUPLE)) return;
-  for (int i=0; i<N(layout); i++) {
-    tree entry= layout[i];
-    if (!is_func (entry, TUPLE) || N(entry) == 0) continue;
-    string kind= cd_string (entry[0]);
-    if (kind == "selected" && N(entry) == 3) {
-      state.selected_kind= cd_string (entry[1]);
-      state.selected_id= cd_string (entry[2]);
-    }
-    else if (kind == "hover" && N(entry) == 3) {
-      state.hover_kind= cd_string (entry[1]);
-      state.hover_id= cd_string (entry[2]);
-    }
-    else if (kind == "target" && N(entry) == 2)
-      state.target_id= cd_string (entry[1]);
-    else if (kind == "arrow" && N(entry) == 6) {
-      cd_named_geometry named;
-      named.id= cd_string (entry[1]);
-      bool valid= named.id != "";
-      for (int j=0; j<4; j++)
-        valid= cd_tree_point (entry[j+2], named.geometry.p[j]) && valid;
-      if (valid) geometries << named;
-    }
-    else if (kind == "drag" && N(entry) == 3) {
-      cd_point start, end;
-      state.has_drag= cd_tree_point (entry[1], start) &&
-                      cd_tree_point (entry[2], end);
-      if (state.has_drag) {
-        cd_point delta= end - start;
-        state.drag_geometry.p[0]= start;
-        state.drag_geometry.p[1]= start + delta * (1.0 / 3.0);
-        state.drag_geometry.p[2]= start + delta * (2.0 / 3.0);
-        state.drag_geometry.p[3]= end;
-      }
-    }
-    else if (kind == "drag-curve" && N(entry) == 5) {
-      state.has_drag= true;
-      for (int j=0; j<4; j++)
-        state.has_drag=
-          cd_tree_point (entry[j+1], state.drag_geometry.p[j]) &&
-          state.has_drag;
-    }
-  }
-}
-
-static bool
-cd_find_geometry (array<cd_named_geometry> geometries, string id,
-                  cd_geometry& geometry) {
-  for (int i=0; i<N(geometries); i++)
-    if (geometries[i].id == id) {
-      geometry= geometries[i].geometry;
-      return true;
-    }
-  return false;
 }
 
 class cd_box_builder {
@@ -415,11 +266,10 @@ cd_find_vertex_record (const array<cd_vertex_record>& vertices, string id) {
 }
 
 static bool
-cd_render_geometry (const array<cd_named_geometry>& geometries,
-                    const array<cd_vertex_record>& vertices,
+cd_render_geometry (tree body, const array<cd_vertex_record>& vertices,
                     const cd_arrow_record& arrow, double padding,
                     cd_geometry& geometry) {
-  if (!cd_find_geometry (geometries, arrow.id, geometry)) return false;
+  if (!cd_arrow_geometry (body, arrow.node, geometry)) return false;
   const cd_vertex_record* source=
     cd_find_vertex_record (vertices, arrow.source_id);
   const cd_vertex_record* target=
@@ -590,15 +440,37 @@ concater_rep::typeset_commutative_diagram (tree t, path ip) {
   SI box_height= (SI) std::round (height * unit);
   frame fr= scaling ((double) unit, point (box_width / 2.0, 0.0));
 
-  tree request (EXTERN, "commutative-diagram-layout", tree (QUOTE, t[2]));
-  tree layout= env->rewrite (request);
-  array<cd_named_geometry> geometries;
   cd_render_state state;
-  cd_parse_layout (layout, geometries, state);
 
   array<cd_vertex_record> vertices;
   array<cd_arrow_record> arrows;
   tree body= t[2];
+  if (auto session= cd_lookup_session (body)) {
+    if (session->halos_visible) {
+      if (session->selected_kind == "vertex" &&
+          is_compound (cd_find_vertex (body, session->selected_id), "cd-vertex", 4)) {
+        state.selected_kind= session->selected_kind;
+        state.selected_id= session->selected_id;
+      }
+      else if (session->selected_kind == "arrow" &&
+               is_compound (cd_find_arrow (body, session->selected_id), "cd-arrow", 5)) {
+        state.selected_kind= session->selected_kind;
+        state.selected_id= session->selected_id;
+      }
+      if (session->hover_kind == "vertex" &&
+          is_compound (cd_find_vertex (body, session->hover_id), "cd-vertex", 4)) {
+        state.hover_kind= session->hover_kind;
+        state.hover_id= session->hover_id;
+      }
+      else if (session->hover_kind == "arrow" &&
+               is_compound (cd_find_arrow (body, session->hover_id), "cd-arrow", 5)) {
+        state.hover_kind= session->hover_kind;
+        state.hover_id= session->hover_id;
+      }
+    }
+    state.target_id= session->drag_target;
+    state.has_drag= cd_session_drag_geometry (body, session, state.drag_geometry);
+  }
   if (is_compound (body, "cd-body") || is_func (body, DOCUMENT))
     for (int i=0; i<N(body); i++) {
       if (is_compound (body[i], "cd-vertex", 4)) {
@@ -646,7 +518,7 @@ concater_rep::typeset_commutative_diagram (tree t, path ip) {
   // Keep every selection halo behind every arrow, including at crossings.
   for (int i=0; i<N(arrows); i++) {
     cd_geometry geometry;
-    if (!cd_render_geometry (geometries, vertices, arrows[i],
+    if (!cd_render_geometry (body, vertices, arrows[i],
                              vertex_padding, geometry)) continue;
     bool selected= state.selected_kind == "arrow" &&
                    state.selected_id == arrows[i].id;
@@ -660,7 +532,7 @@ concater_rep::typeset_commutative_diagram (tree t, path ip) {
 
   for (int i=0; i<N(arrows); i++) {
     cd_geometry geometry;
-    if (!cd_render_geometry (geometries, vertices, arrows[i],
+    if (!cd_render_geometry (body, vertices, arrows[i],
                              vertex_padding, geometry)) continue;
     bool selected= state.selected_kind == "arrow" &&
                    state.selected_id == arrows[i].id;
@@ -750,17 +622,12 @@ concater_rep::typeset_commutative_diagram (tree t, path ip) {
   box diagram= commutative_diagram_box (
     ip, builder.boxes, builder.xs, builder.ys,
     fr, box_width, box_height);
-  array<tree> relay_args;
-  relay_args << tree ("relay-with-frame")
-             << tree ("commutative-diagram-handle")
-             << t[0] << t[1] << t[2];
-  box relayed= relay_box (ip, diagram, relay_args);
   tree spring (HTAB, "0fn");
   if (N(a) == 0)
     print (empty_box (decorate_left (ip), 0, 0, 0, env->fn->yx));
   print (space (0));
   control (spring, decorate_left (ip));
-  print (relayed);
+  print (diagram);
   print (space (0));
   control (spring, decorate_right (ip));
 }

@@ -13,6 +13,7 @@
 #define EDITOR_H
 #include "actor_ui_bridge.hpp"
 #include "native_ink.hpp"
+#include "native_commutative_diagram.hpp"
 #include "buffer_state.hpp"
 #include "typesetter.hpp"
 #include "tree_select.hpp"
@@ -236,6 +237,8 @@ public:
   virtual void mouse_any (string s, SI x, SI y, int m, time_t t,
                           array<double> d) = 0;
   virtual bool mouse_message (string message, SI x, SI y) = 0;
+  virtual void commutative_diagram_action (
+    native_cd_action action, string first= "", string second= "") = 0;
   virtual color mouse_clickable_color () = 0;
   virtual void mouse_click (SI x, SI y) = 0;
   virtual bool mouse_extra_click (SI x, SI y) = 0;

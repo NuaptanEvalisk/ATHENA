@@ -212,6 +212,13 @@ qt_simple_widget_rep::handle_native_drawing_trim () {
 }
 
 bool
+qt_simple_widget_rep::handle_commutative_diagram_action (
+  native_cd_action action, string first, string second) {
+  (void) action; (void) first; (void) second;
+  return false;
+}
+
+bool
 qt_simple_widget_rep::handle_native_ink_stroke (
   const native_ink_sample* samples, std::size_t count) {
   (void) samples; (void) count;

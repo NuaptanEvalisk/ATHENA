@@ -224,7 +224,6 @@ runTests (int argc, char** argv) {
     testServer= sv->get_server ();
     eval ("(begin "
           "  (tm-define (notify-cursor-moved status) #f) "
-          "  (tm-define (in-commutative-diagram?) #f) "
           "  (tm-define (like-emacs?) #f))");
     TestHodgeRecolor test;
     testStatus= QTest::qExec (&test, argc, argv);
