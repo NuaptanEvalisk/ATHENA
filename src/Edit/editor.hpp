@@ -14,6 +14,7 @@
 #include "actor_ui_bridge.hpp"
 #include "native_ink.hpp"
 #include "native_commutative_diagram.hpp"
+#include "native_graphics_canvas.hpp"
 #include "buffer_state.hpp"
 #include "typesetter.hpp"
 #include "tree_select.hpp"
@@ -239,6 +240,19 @@ public:
   virtual bool mouse_message (string message, SI x, SI y) = 0;
   virtual void commutative_diagram_action (
     native_cd_action action, string first= "", string second= "") = 0;
+  virtual tree native_graphics_canvas_geometry () = 0;
+  virtual tree native_graphics_canvas_frame () = 0;
+  virtual double native_graphics_canvas_zoom () = 0;
+  virtual bool native_graphics_canvas_auto_crop () = 0;
+  virtual string native_graphics_canvas_crop_padding () = 0;
+  virtual void apply_native_graphics_canvas_action (
+    native_graphics_canvas_action action,
+    string first= "", string second= "", double value= 0.0) = 0;
+  virtual bool native_graphics_canvas_keypress (string key) = 0;
+  virtual void native_graphics_canvas_pinch_start () = 0;
+  virtual void native_graphics_canvas_pinch_end () = 0;
+  virtual void native_graphics_canvas_pinch_scale (double scale) = 0;
+  virtual void native_graphics_canvas_wheel (double dx, double dy) = 0;
   virtual color mouse_clickable_color () = 0;
   virtual void mouse_click (SI x, SI y) = 0;
   virtual bool mouse_extra_click (SI x, SI y) = 0;

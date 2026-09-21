@@ -947,6 +947,20 @@ edit_interface_rep::mouse_any (string type, SI x, SI y, int mods, time_t t,
   }
 
   if (starts (type, "swipe-")) eval ("(" * type * ")");
+  if (inside_active_graphics (true)) {
+    if (type == "pinch-start") {
+      native_graphics_canvas_pinch_start ();
+      return;
+    }
+    if (type == "pinch-end") {
+      native_graphics_canvas_pinch_end ();
+      return;
+    }
+    if (type == "scale" && N (data) > 0) {
+      native_graphics_canvas_pinch_scale (data[0]);
+      return;
+    }
+  }
   if (type == "pinch-start") geometry_pinch_start ();
   if (type == "pinch-end") geometry_pinch_end ();
   if (type == "scale" && N (data) > 0) ::geometry_pinch_scale (data[0]);

@@ -332,11 +332,15 @@ edit_interface_rep::handle_keypress (string key, time_t t) {
     if (is_nil (eb) ||
         (env_change & (THE_TREE + THE_ENVIRONMENT)) != 0)
       apply_changes ();
-    start_editing ();
-    started= true;
-  string zero= "a"; zero.set (0, '\0');
+    string zero= "a"; zero.set (0, '\0');
     string gkey= replace (key, zero, "<#0>");
     if (gkey == "<#3000>") gkey= "space";
+    if (!starts (gkey, "pre-edit:") && native_graphics_canvas_keypress (gkey)) {
+      notify_change (THE_DECORATIONS);
+      return;
+    }
+    start_editing ();
+    started= true;
     if (starts (gkey, "pre-edit:"))
       call ("delayed-keyboard-press", object (gkey), object ((double) t));
     else

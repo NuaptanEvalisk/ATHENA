@@ -34,6 +34,8 @@ private:
   bool native_drawing_snap_enabled_= true;
   bool native_drawing_recognition_enabled_= false;
   bool native_ink_interaction_dirty_= true;
+  double native_graphics_pinch_zoom_= 1.0;
+  bool native_graphics_pinch_active_= false;
 
 protected:
   point cur_pos;
@@ -122,6 +124,21 @@ public:
   void   select_native_drawing_lasso (const native_ink_sample* samples,
                                       std::size_t count);
   bool   native_ink_cursor_mode ();
+  path   native_graphics_canvas_path ();
+  bool   native_graphics_canvas_focused ();
+  tree   native_graphics_canvas_geometry () override;
+  tree   native_graphics_canvas_frame () override;
+  double native_graphics_canvas_zoom () override;
+  bool   native_graphics_canvas_auto_crop () override;
+  string native_graphics_canvas_crop_padding () override;
+  void   apply_native_graphics_canvas_action (
+    native_graphics_canvas_action action,
+    string first= "", string second= "", double value= 0.0) override;
+  bool   native_graphics_canvas_keypress (string key) override;
+  void   native_graphics_canvas_pinch_start () override;
+  void   native_graphics_canvas_pinch_end () override;
+  void   native_graphics_canvas_pinch_scale (double scale) override;
+  void   native_graphics_canvas_wheel (double dx, double dy) override;
   void   back_in_text_at (tree t, path p, bool forward);
 };
 

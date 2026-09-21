@@ -130,6 +130,8 @@ private slots:
   void insertHorizontalSpaceMovesRightObjectsWhole ();
   void insertVerticalSpaceMovesLowerObjectsWhole ();
   void trimMaterializesRenderedContentBounds ();
+  void canvasGeometryActionsStayNativeAndUndoable ();
+  void canvasKeyboardWheelAndPinchStayNative ();
 
 private:
   buffer_document_state* buffer= nullptr;
@@ -1042,6 +1044,8 @@ TestNativeInkEditor::textToolCreatesAndReentersEditableText () {
   QVERIFY (is_func (graphics[1], TEXT_AT, 2));
   QVERIFY (is_empty (graphics[1][0]));
   QCOMPARE (path_up (editor->cursor_path_for_test ()), graphics_path * 1 * 0);
+  QVERIFY (!editor->native_graphics_canvas_keypress ("1"));
+  QVERIFY (!editor->native_graphics_canvas_keypress ("+"));
   int undo_count= editor->undo_possibilities ();
   QVERIFY (undo_count >= 1);
 
@@ -1085,6 +1089,8 @@ TestNativeInkEditor::mathToolCreatesAndReentersEditableMath () {
   QVERIFY (is_func (graphics[1], MATH_AT, 2));
   QVERIFY (is_empty (graphics[1][0]));
   QCOMPARE (path_up (editor->cursor_path_for_test ()), graphics_path * 1 * 0);
+  QVERIFY (!editor->native_graphics_canvas_keypress ("1"));
+  QVERIFY (!editor->native_graphics_canvas_keypress ("+"));
   int undo_count= editor->undo_possibilities ();
   QVERIFY (undo_count >= 1);
 
@@ -1308,6 +1314,108 @@ TestNativeInkEditor::trimMaterializesRenderedContentBounds () {
     editor, buffer, graphics_path, left, bottom, right, top);
   QVERIFY (std::abs ((right-left) - old_width) <= 2 * PIXEL);
   QVERIFY (std::abs ((top-bottom) - old_height) <= 2 * PIXEL);
+}
+
+void
+TestNativeInkEditor::canvasGeometryActionsStayNativeAndUndoable () {
+  path graphics_path;
+  SI left= 0, bottom= 0, right= 0, top= 0;
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  tree original= copy (subtree (current_document_tree (), buffer->root_path));
+
+  editor->clear_undo_history ();
+  editor->apply_native_graphics_canvas_action (
+    native_graphics_canvas_action::set_origin, "0gw", "0gh");
+  tree root= subtree (current_document_tree (), buffer->root_path);
+  tree frame_value= with_property (root[0], "gr-frame");
+  QVERIFY (is_tuple (frame_value, "scale", 2));
+  QVERIFY (is_func (frame_value[2], TUPLE, 2));
+  QCOMPARE (as_string (frame_value[2][0]), string ("0gw"));
+  QCOMPARE (as_string (frame_value[2][1]), string ("0gh"));
+  QCOMPARE (editor->undo_possibilities (), 1);
+  editor->undo (0);
+  QVERIFY (subtree (current_document_tree (), buffer->root_path) == original);
+
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  editor->clear_undo_history ();
+  editor->apply_native_graphics_canvas_action (
+    native_graphics_canvas_action::set_extents, "10cm", "5cm");
+  root= subtree (current_document_tree (), buffer->root_path);
+  tree geometry= with_property (root[0], "gr-geometry");
+  QVERIFY (is_tuple (geometry, "geometry", 3));
+  QCOMPARE (as_string (geometry[1]), string ("10cm"));
+  QCOMPARE (as_string (geometry[2]), string ("5cm"));
+  QCOMPARE (editor->undo_possibilities (), 1);
+  editor->undo (0);
+
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  editor->clear_undo_history ();
+  QVERIFY (!editor->native_graphics_canvas_auto_crop ());
+  editor->apply_native_graphics_canvas_action (
+    native_graphics_canvas_action::toggle_auto_crop);
+  QVERIFY (editor->native_graphics_canvas_auto_crop ());
+  root= subtree (current_document_tree (), buffer->root_path);
+  QCOMPARE (as_string (with_property (root[0], "gr-auto-crop")),
+            string ("true"));
+  QCOMPARE (editor->undo_possibilities (), 1);
+  editor->undo (0);
+
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  editor->clear_undo_history ();
+  QCOMPARE (editor->native_graphics_canvas_zoom (), 1.0);
+  editor->apply_native_graphics_canvas_action (
+    native_graphics_canvas_action::set_zoom, "", "", 2.0);
+  QVERIFY (std::abs (editor->native_graphics_canvas_zoom () - 2.0) < 1.0e-8);
+  root= subtree (current_document_tree (), buffer->root_path);
+  QCOMPARE (as_string (with_property (root[0], "magnify")), string ("2"));
+  QCOMPARE (editor->undo_possibilities (), 1);
+  editor->undo (0);
+  QVERIFY (std::abs (editor->native_graphics_canvas_zoom () - 1.0) < 1.0e-8);
+}
+
+void
+TestNativeInkEditor::canvasKeyboardWheelAndPinchStayNative () {
+  path graphics_path;
+  SI left= 0, bottom= 0, right= 0, top= 0;
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+
+  editor->clear_undo_history ();
+  QVERIFY (editor->native_graphics_canvas_keypress ("+"));
+  QVERIFY (editor->native_graphics_canvas_zoom () > 1.18);
+  QCOMPARE (editor->undo_possibilities (), 1);
+  editor->undo (0);
+
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  editor->clear_undo_history ();
+  tree before_frame= editor->native_graphics_canvas_frame ();
+  SI before_x= editor->as_length (as_string (before_frame[2][0]));
+  SI before_y= editor->as_length (as_string (before_frame[2][1]));
+  editor->native_graphics_canvas_wheel (0.10, -0.05);
+  tree after_frame= editor->native_graphics_canvas_frame ();
+  SI after_x= editor->as_length (as_string (after_frame[2][0]));
+  SI after_y= editor->as_length (as_string (after_frame[2][1]));
+  QVERIFY (after_x != before_x);
+  QVERIFY (after_y != before_y);
+  QCOMPARE (editor->undo_possibilities (), 1);
+  editor->undo (0);
+
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  editor->clear_undo_history ();
+  editor->native_graphics_canvas_pinch_start ();
+  editor->native_graphics_canvas_pinch_scale (1.25);
+  editor->native_graphics_canvas_pinch_scale (2.0);
+  editor->native_graphics_canvas_pinch_end ();
+  QVERIFY (editor->native_graphics_canvas_zoom () > 1.9);
+  QCOMPARE (editor->undo_possibilities (), 1);
+  editor->undo (0);
+  QVERIFY (std::abs (editor->native_graphics_canvas_zoom () - 1.0) < 1.0e-8);
 }
 
 static int test_status= 1;

@@ -1142,6 +1142,402 @@ edit_graphics_rep::native_drawing_set_canvas_geometry (
   return native_drawing_set_graphics_properties (graphics, properties);
 }
 
+namespace {
+
+string
+native_graphics_tmpt (SI value) {
+  return as_string (value) * "tmpt";
+}
+
+double
+native_graphics_numeric (tree value, double fallback= 1.0) {
+  if (!is_atomic (value) || !is_double (value->label)) return fallback;
+  double result= as_double (value->label);
+  return std::isfinite (result) ? result : fallback;
+}
+
+} // namespace
+
+path
+edit_graphics_rep::native_graphics_canvas_path () {
+  path graphics= search_upwards (GRAPHICS);
+  if (!is_nil (graphics) && has_subtree (et, graphics) &&
+      is_func (subtree (et, graphics), GRAPHICS))
+    return graphics;
+  return native_drawing_active_graphics ();
+}
+
+bool
+edit_graphics_rep::native_graphics_canvas_focused () {
+  if (inside_active_graphics (true)) return true;
+  path graphics= native_drawing_active_graphics ();
+  if (is_nil (graphics)) return false;
+  path wrapper= path_up (graphics);
+  return !is_nil (wrapper) && path_has_prefix (tp, wrapper);
+}
+
+tree
+edit_graphics_rep::native_graphics_canvas_geometry () {
+  path graphics= native_graphics_canvas_path ();
+  tree geometry= is_nil (graphics) ? tree (UNINIT) :
+    native_ink_property (graphics, GR_GEOMETRY, tree (UNINIT));
+  if (is_tuple (geometry, "geometry", 2))
+    return tree (TUPLE, "geometry", copy (geometry[1]), copy (geometry[2]),
+                 "center");
+  if (is_tuple (geometry, "geometry", 3)) return copy (geometry);
+  return tree (TUPLE, "geometry", "1par", "0.6par", "center");
+}
+
+tree
+edit_graphics_rep::native_graphics_canvas_frame () {
+  path graphics= native_graphics_canvas_path ();
+  tree frame_value= is_nil (graphics) ? tree (UNINIT) :
+    native_ink_property (graphics, GR_FRAME, tree (UNINIT));
+  if (is_tuple (frame_value, "scale", 2) &&
+      is_func (frame_value[2], TUPLE, 2))
+    return copy (frame_value);
+  return tree (TUPLE, "scale", "1cm",
+               tree (TUPLE, "0.5gw", "0.5gh"));
+}
+
+double
+edit_graphics_rep::native_graphics_canvas_zoom () {
+  path graphics= native_graphics_canvas_path ();
+  if (is_nil (graphics)) return 1.0;
+  return native_graphics_numeric (
+    native_ink_property (graphics, "magnify", tree ("1")), 1.0);
+}
+
+bool
+edit_graphics_rep::native_graphics_canvas_auto_crop () {
+  path graphics= native_graphics_canvas_path ();
+  if (is_nil (graphics)) return false;
+  tree value= native_ink_property (graphics, GR_AUTO_CROP, tree ("false"));
+  return is_atomic (value) && value->label == "true";
+}
+
+string
+edit_graphics_rep::native_graphics_canvas_crop_padding () {
+  path graphics= native_graphics_canvas_path ();
+  if (is_nil (graphics)) return "0spc";
+  tree value= native_ink_property (
+    graphics, GR_CROP_PADDING, tree ("0spc"));
+  return is_atomic (value) ? value->label : "0spc";
+}
+
+void
+edit_graphics_rep::apply_native_graphics_canvas_action (
+  native_graphics_canvas_action action,
+  string first, string second, double value) {
+  path graphics= native_graphics_canvas_path ();
+  if (is_nil (graphics) || !has_subtree (et, graphics)) return;
+
+  edit_env env= get_typesetter ()->env;
+  if (is_nil (env)) return;
+
+  auto finish= [&] {
+    invalidate_graphical_object ();
+    set_graphical_object (tree ());
+    mark_native_ink_interaction_dirty ();
+    refresh_native_ink_interaction ();
+    refresh_native_drawing_properties_snapshot ();
+    publish_native_drawing_focus_refresh ();
+    invalidate_all ();
+  };
+
+  auto set_properties=
+    [&] (const std::vector<std::pair<string, tree>>& properties) {
+      if (properties.empty ()) return;
+      start_editing ();
+      bool changed= native_drawing_set_graphics_properties (graphics, properties);
+      end_editing ();
+      if (changed) finish ();
+    };
+
+  tree geometry= native_graphics_canvas_geometry ();
+  tree frame_value= native_graphics_canvas_frame ();
+
+  if (action == native_graphics_canvas_action::set_width ||
+      action == native_graphics_canvas_action::set_height ||
+      action == native_graphics_canvas_action::set_geo_valign ||
+      action == native_graphics_canvas_action::set_extents) {
+    string width= is_atomic (geometry[1]) ? geometry[1]->label : "1par";
+    string height= is_atomic (geometry[2]) ? geometry[2]->label : "0.6par";
+    string align= is_atomic (geometry[3]) ? geometry[3]->label : "center";
+    if (action == native_graphics_canvas_action::set_width) width= first;
+    else if (action == native_graphics_canvas_action::set_height) height= first;
+    else if (action == native_graphics_canvas_action::set_geo_valign) align= first;
+    else {
+      width= first;
+      height= second;
+    }
+    set_properties ({{GR_GEOMETRY,
+      tree (TUPLE, "geometry", width, height, align)}});
+    return;
+  }
+
+  if (action == native_graphics_canvas_action::set_unit) {
+    tree origin= copy (frame_value[2]);
+    set_properties ({{GR_FRAME, tree (TUPLE, "scale", first, origin)}});
+    return;
+  }
+
+  if (action == native_graphics_canvas_action::set_origin) {
+    tree origin (TUPLE);
+    origin << first << second;
+    set_properties ({{GR_FRAME,
+      tree (TUPLE, "scale", copy (frame_value[1]), origin)}});
+    return;
+  }
+
+  if (action == native_graphics_canvas_action::toggle_auto_crop) {
+    set_properties ({{GR_AUTO_CROP,
+      tree (native_graphics_canvas_auto_crop () ? "false" : "true")}});
+    return;
+  }
+
+  if (action == native_graphics_canvas_action::set_crop_padding) {
+    set_properties ({{GR_CROP_PADDING, tree (first)}});
+    return;
+  }
+
+  if (action == native_graphics_canvas_action::zoom ||
+      action == native_graphics_canvas_action::set_zoom) {
+    double factor= value;
+    if (action == native_graphics_canvas_action::set_zoom) {
+      double current= native_graphics_canvas_zoom ();
+      if (!std::isfinite (current) || current <= 0.0) current= 1.0;
+      factor= value / current;
+    }
+    if (!std::isfinite (factor) || factor <= 0.0) return;
+
+    SI unit= env->as_length (frame_value[1]);
+    SI new_unit= (SI) std::llround ((double) unit * factor);
+    if (new_unit <= 100 || new_unit >= 10000000) return;
+
+    SI gw= env->as_length ("1gw");
+    SI gh= env->as_length ("1gh");
+    SI ox= env->as_length (frame_value[2][0]);
+    SI oy= env->as_length (frame_value[2][1]);
+    SI nox= (SI) std::llround (0.5 * (double) gw +
+      factor * ((double) ox - 0.5 * (double) gw));
+    SI noy= (SI) std::llround (0.5 * (double) gh +
+      factor * ((double) oy - 0.5 * (double) gh));
+    tree origin (TUPLE);
+    origin << native_graphics_tmpt (nox) << native_graphics_tmpt (noy);
+    tree new_frame (TUPLE);
+    new_frame << "scale" << native_graphics_tmpt (new_unit) << origin;
+    double magnify= native_graphics_canvas_zoom () * factor;
+    set_properties ({{GR_FRAME, new_frame},
+                     {"magnify", tree (as_string (magnify))}});
+    return;
+  }
+
+  if (action == native_graphics_canvas_action::move_origin) {
+    if (native_graphics_canvas_auto_crop ()) return;
+    SI ox= env->as_length (frame_value[2][0]);
+    SI oy= env->as_length (frame_value[2][1]);
+    SI dx= env->as_length (first);
+    SI dy= env->as_length (second);
+    tree origin (TUPLE);
+    origin << native_graphics_tmpt (ox + dx)
+           << native_graphics_tmpt (oy + dy);
+    set_properties ({{GR_FRAME,
+      tree (TUPLE, "scale", copy (frame_value[1]), origin)}});
+    return;
+  }
+
+  if (action == native_graphics_canvas_action::change_extents) {
+    path p= path_up (tp);
+    while (!is_nil (p)) {
+      if (has_subtree (et, p)) {
+        tree current= subtree (et, p);
+        if (is_compound (current, "draw-over") && N(current) >= 3) {
+          SI dw= env->as_length (first);
+          SI dh= env->as_length (second);
+          SI delta= dw != 0 ? dw : dh;
+          SI padding= env->as_length (current[2]);
+          SI next= max ((SI) 0, padding + delta);
+          start_editing ();
+          assign (p * 2, tree (native_graphics_tmpt (next)));
+          end_editing ();
+          finish ();
+          return;
+        }
+      }
+      if (p == rp) break;
+      p= path_up (p);
+    }
+
+    if (native_graphics_canvas_auto_crop ()) return;
+    SI width= env->as_length (geometry[1]);
+    SI height= env->as_length (geometry[2]);
+    SI dw= env->as_length (first);
+    SI dh= env->as_length (second);
+    SI next_width= max ((SI) 1, width + dw);
+    SI next_height= max ((SI) 1, height + dh);
+    string align= is_atomic (geometry[3]) ? geometry[3]->label : "center";
+    set_properties ({{GR_GEOMETRY,
+      tree (TUPLE, "geometry",
+            native_graphics_tmpt (next_width),
+            native_graphics_tmpt (next_height), align)}});
+    return;
+  }
+
+  if (action == native_graphics_canvas_action::change_geo_valign) {
+    string align= is_atomic (geometry[3]) ? geometry[3]->label : "center";
+    bool down= value != 0.0;
+    string next;
+    if (down) {
+      if (align == "top") next= "center";
+      else if (align == "center") next= "bottom";
+      else if (align == "bottom") next= "top";
+      else next= "default";
+    }
+    else {
+      if (align == "top") next= "bottom";
+      else if (align == "center") next= "top";
+      else if (align == "bottom") next= "center";
+      else next= "default";
+    }
+    set_properties ({{GR_GEOMETRY,
+      tree (TUPLE, "geometry", copy (geometry[1]), copy (geometry[2]), next)}});
+  }
+}
+
+bool
+edit_graphics_rep::native_graphics_canvas_keypress (string key) {
+  if (!native_graphics_canvas_focused ()) return false;
+  path p= tp;
+  while (!is_nil (p)) {
+    if (has_subtree (et, p)) {
+      tree current= subtree (et, p);
+      if (is_func (current, TEXT_AT) ||
+          is_func (current, MATH_AT) ||
+          is_func (current, DOCUMENT_AT))
+        return false;
+      if (is_func (current, GRAPHICS)) break;
+    }
+    p= path_up (p);
+  }
+  if (key == "+")
+    apply_native_graphics_canvas_action (
+      native_graphics_canvas_action::zoom, "", "", 1.189207115);
+  else if (key == "-")
+    apply_native_graphics_canvas_action (
+      native_graphics_canvas_action::zoom, "", "", 0.840896415);
+  else if (N(key) == 3 && starts (key, "A-") &&
+           key[2] >= '1' && key[2] <= '9')
+    apply_native_graphics_canvas_action (
+      native_graphics_canvas_action::set_zoom, "", "",
+      1.0 / (double) (key[2]-'0'));
+  else if (N(key) == 1 && key[0] >= '1' && key[0] <= '9')
+    apply_native_graphics_canvas_action (
+      native_graphics_canvas_action::set_zoom, "", "",
+      (double) (key[0]-'0'));
+  else if (key == "c")
+    apply_native_graphics_canvas_action (
+      native_graphics_canvas_action::set_origin, "0.5gw", "0.5gh");
+  else if (key == "t")
+    apply_native_graphics_canvas_action (
+      native_graphics_canvas_action::set_origin, "0gw", "1gh");
+  else if (key == "l")
+    apply_native_graphics_canvas_action (
+      native_graphics_canvas_action::set_origin, "0gw", "0.5gh");
+  else if (key == "b")
+    apply_native_graphics_canvas_action (
+      native_graphics_canvas_action::set_origin, "0gw", "0gh");
+  else if (key == "left")
+    apply_native_graphics_canvas_action (
+      native_graphics_canvas_action::move_origin, "+0.01gw", "0gh");
+  else if (key == "right")
+    apply_native_graphics_canvas_action (
+      native_graphics_canvas_action::move_origin, "-0.01gw", "0gh");
+  else if (key == "down")
+    apply_native_graphics_canvas_action (
+      native_graphics_canvas_action::move_origin, "0gw", "+0.01gh");
+  else if (key == "up")
+    apply_native_graphics_canvas_action (
+      native_graphics_canvas_action::move_origin, "0gw", "-0.01gh");
+  else if (key == "S-left")
+    apply_native_graphics_canvas_action (
+      native_graphics_canvas_action::move_origin, "+0.1gw", "0gh");
+  else if (key == "S-right")
+    apply_native_graphics_canvas_action (
+      native_graphics_canvas_action::move_origin, "-0.1gw", "0gh");
+  else if (key == "S-down")
+    apply_native_graphics_canvas_action (
+      native_graphics_canvas_action::move_origin, "0gw", "+0.1gh");
+  else if (key == "S-up")
+    apply_native_graphics_canvas_action (
+      native_graphics_canvas_action::move_origin, "0gw", "-0.1gh");
+  else if (key == "A-left")
+    apply_native_graphics_canvas_action (
+      native_graphics_canvas_action::change_extents, "-0.1cm", "0cm");
+  else if (key == "A-right")
+    apply_native_graphics_canvas_action (
+      native_graphics_canvas_action::change_extents, "+0.1cm", "0cm");
+  else if (key == "A-down")
+    apply_native_graphics_canvas_action (
+      native_graphics_canvas_action::change_extents, "0cm", "+0.1cm");
+  else if (key == "A-up")
+    apply_native_graphics_canvas_action (
+      native_graphics_canvas_action::change_extents, "0cm", "-0.1cm");
+  else if (key == "A-S-left")
+    apply_native_graphics_canvas_action (
+      native_graphics_canvas_action::change_extents, "-1cm", "0cm");
+  else if (key == "A-S-right")
+    apply_native_graphics_canvas_action (
+      native_graphics_canvas_action::change_extents, "+1cm", "0cm");
+  else if (key == "A-S-down")
+    apply_native_graphics_canvas_action (
+      native_graphics_canvas_action::change_extents, "0cm", "+1cm");
+  else if (key == "A-S-up")
+    apply_native_graphics_canvas_action (
+      native_graphics_canvas_action::change_extents, "0cm", "-1cm");
+  else return false;
+  return true;
+}
+
+void
+edit_graphics_rep::native_graphics_canvas_pinch_start () {
+  if (!native_graphics_canvas_focused ()) return;
+  if (native_graphics_pinch_active_) return;
+  native_graphics_pinch_zoom_= native_graphics_canvas_zoom ();
+  native_graphics_pinch_active_= true;
+  start_editing ();
+}
+
+void
+edit_graphics_rep::native_graphics_canvas_pinch_end () {
+  if (!native_graphics_pinch_active_) return;
+  native_graphics_pinch_active_= false;
+  end_editing ();
+}
+
+void
+edit_graphics_rep::native_graphics_canvas_pinch_scale (double scale) {
+  if (!native_graphics_pinch_active_) {
+    if (!native_graphics_canvas_focused ()) return;
+    native_graphics_canvas_pinch_start ();
+  }
+  if (!std::isfinite (scale) || scale <= 0.0) return;
+  double lg= std::log (scale) / std::log (2.0);
+  double rounded= std::round (24.0 * lg) / 24.0;
+  double snapped= std::exp (std::log (2.0) * rounded);
+  apply_native_graphics_canvas_action (
+    native_graphics_canvas_action::set_zoom, "", "",
+    native_graphics_pinch_zoom_ * snapped);
+}
+
+void
+edit_graphics_rep::native_graphics_canvas_wheel (double dx, double dy) {
+  if (!native_graphics_canvas_focused ()) return;
+  apply_native_graphics_canvas_action (
+    native_graphics_canvas_action::move_origin,
+    as_string (dx) * "gw", as_string (dy) * "gh");
+}
+
 void
 edit_graphics_rep::publish_native_drawing_focus_refresh () {
   if (ui_endpoint != nullptr)
@@ -2384,14 +2780,11 @@ edit_graphics_rep::mouse_graphics (string type, SI x, SI y, int m, time_t t,
       point  p0= f [point (0.0, 0.0)];
       point  p1= f [point (data[0], data[1])];
       point  dp= p1 - p0;
-      //string sx= as_string (dp[0]);
-      //string sy= as_string (dp[1]);
-      //call ("graphics-wheel", sx, sy);
       point lim1, lim2;
       find_limits (lim1, lim2);
       double dx= dp[0] / max (lim2[0] - lim1[0], 0.000001);
       double dy= dp[1] / max (lim2[1] - lim1[1], 0.000001);
-      call ("graphics-wheel", as_string (dx), as_string (dy));
+      native_graphics_canvas_wheel (dx, dy);
       return true;
     }
 

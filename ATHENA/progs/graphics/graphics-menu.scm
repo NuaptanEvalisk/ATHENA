@@ -23,8 +23,12 @@
 ;; FIXME: provide automatic checkmarks for these actions
 
 (menu-bind graphics-extents-menu
-  ("Width" (interactive graphics-set-width))
-  ("Height" (interactive graphics-set-height)))
+  ("Width"
+   (interactive graphics-set-width
+                (list "Width of the graphics" "string" "1par")))
+  ("Height"
+   (interactive graphics-set-height
+                (list "Height of the graphics" "string" "0.6par"))))
 
 (menu-bind graphics-auto-crop-menu
   ("Crop" (graphics-toggle-auto-crop))
@@ -35,7 +39,9 @@
     ("1 spc" (graphics-set-crop-padding "1spc"))
     ("1 em" (graphics-set-crop-padding "1em"))
     ---
-    ("Other" (interactive graphics-set-crop-padding))))
+    ("Other"
+     (interactive graphics-set-crop-padding
+                  (list "Padding around cropped graphics" "string" "1spc")))))
 
 (menu-bind graphics-alignment-menu
   ("Top" (graphics-set-geo-valign "top"))
@@ -69,7 +75,9 @@
   ("0.1 par" (graphics-set-unit "0.1par"))
   ;;("5 em" (graphics-set-unit "5em"))
   ---
-  ("Other" (interactive graphics-set-unit)))
+  ("Other"
+   (interactive graphics-set-unit
+                (list "Graphical unit" "string" "1cm"))))
 
 (menu-bind graphics-frame-origin-menu
   ("Center" (graphics-set-origin "0.5gw" "0.5gh"))
@@ -78,7 +86,10 @@
   ("Left center" (graphics-set-origin "0gw" "0.5gh"))
   ("Left bottom" (graphics-set-origin "0gw" "0gh"))
   ---
-  ("Other" (interactive graphics-set-origin)))
+  ("Other"
+   (interactive graphics-set-origin
+                (list "Origin x-coordinate" "string" "0.5gw")
+                (list "Origin y-coordinate" "string" "0.5gh"))))
 
 (menu-bind graphics-move-menu
   (group "Slow")

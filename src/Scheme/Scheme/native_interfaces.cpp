@@ -737,6 +737,161 @@ athena_in_commutative_diagramP () {
 
 namespace {
 
+editor
+native_graphics_editor () {
+  return get_current_editor ();
+}
+
+void
+native_graphics_action (
+  native_graphics_canvas_action action,
+  string first= "", string second= "", double value= 0.0) {
+  editor ed= native_graphics_editor ();
+  if (!is_nil (ed))
+    ed->apply_native_graphics_canvas_action (
+      action, std::move (first), std::move (second), value);
+}
+
+} // namespace
+
+tree
+athena_graphics_geometry () {
+  editor ed= native_graphics_editor ();
+  return is_nil (ed) ? tree (TUPLE, "geometry", "1par", "0.6par", "center") :
+    ed->native_graphics_canvas_geometry ();
+}
+
+void athena_graphics_set_width (string value) {
+  native_graphics_action (native_graphics_canvas_action::set_width, value);
+}
+void athena_graphics_set_height (string value) {
+  native_graphics_action (native_graphics_canvas_action::set_height, value);
+}
+bool athena_graphics_geo_valign_has_valueP (string value) {
+  tree geometry= athena_graphics_geometry ();
+  return is_tuple (geometry, "geometry", 3) &&
+         is_atomic (geometry[3]) && geometry[3]->label == value;
+}
+void athena_graphics_set_geo_valign (string value) {
+  native_graphics_action (native_graphics_canvas_action::set_geo_valign, value);
+}
+void athena_graphics_set_extents (string width, string height) {
+  native_graphics_action (
+    native_graphics_canvas_action::set_extents, width, height);
+}
+tree athena_graphics_cartesian_frame () {
+  editor ed= native_graphics_editor ();
+  return is_nil (ed) ?
+    tree (TUPLE, "scale", "1cm", tree (TUPLE, "0.5gw", "0.5gh")) :
+    ed->native_graphics_canvas_frame ();
+}
+bool athena_graphics_unit_has_valueP (string value) {
+  tree frame= athena_graphics_cartesian_frame ();
+  return is_tuple (frame, "scale", 2) && is_atomic (frame[1]) &&
+         frame[1]->label == value;
+}
+void athena_graphics_set_unit (string value) {
+  native_graphics_action (native_graphics_canvas_action::set_unit, value);
+}
+bool athena_graphics_origin_has_valueP (string x, string y) {
+  editor ed= native_graphics_editor ();
+  if (is_nil (ed)) return false;
+  tree frame= ed->native_graphics_canvas_frame ();
+  if (!is_tuple (frame, "scale", 2) || !is_func (frame[2], TUPLE, 2))
+    return false;
+  return ed->as_length (as_string (frame[2][0])) == ed->as_length (x) &&
+         ed->as_length (as_string (frame[2][1])) == ed->as_length (y);
+}
+void athena_graphics_set_origin (string x, string y) {
+  native_graphics_action (native_graphics_canvas_action::set_origin, x, y);
+}
+bool athena_graphics_auto_cropP () {
+  editor ed= native_graphics_editor ();
+  return !is_nil (ed) && ed->native_graphics_canvas_auto_crop ();
+}
+void athena_graphics_toggle_auto_crop () {
+  native_graphics_action (native_graphics_canvas_action::toggle_auto_crop);
+}
+bool athena_graphics_has_crop_paddingP (string value) {
+  editor ed= native_graphics_editor ();
+  return !is_nil (ed) && ed->native_graphics_canvas_crop_padding () == value;
+}
+void athena_graphics_set_crop_padding (string value) {
+  native_graphics_action (native_graphics_canvas_action::set_crop_padding, value);
+}
+void athena_graphics_zoom (double factor) {
+  native_graphics_action (native_graphics_canvas_action::zoom, "", "", factor);
+}
+double athena_graphics_get_zoom () {
+  editor ed= native_graphics_editor ();
+  return is_nil (ed) ? 1.0 : ed->native_graphics_canvas_zoom ();
+}
+void athena_graphics_set_zoom (double zoom) {
+  native_graphics_action (native_graphics_canvas_action::set_zoom, "", "", zoom);
+}
+void athena_graphics_move_origin (string dx, string dy) {
+  native_graphics_action (native_graphics_canvas_action::move_origin, dx, dy);
+}
+void athena_graphics_change_extents (string dw, string dh) {
+  native_graphics_action (native_graphics_canvas_action::change_extents, dw, dh);
+}
+void athena_graphics_change_geo_valign (bool down) {
+  native_graphics_action (
+    native_graphics_canvas_action::change_geo_valign, "", "", down ? 1.0 : 0.0);
+}
+void athena_graphics_zoom_in () { athena_graphics_zoom (1.189207115); }
+void athena_graphics_zoom_out () { athena_graphics_zoom (0.840896415); }
+void athena_graphics_move_origin_left () {
+  athena_graphics_move_origin ("+0.01gw", "0gh");
+}
+void athena_graphics_move_origin_right () {
+  athena_graphics_move_origin ("-0.01gw", "0gh");
+}
+void athena_graphics_move_origin_down () {
+  athena_graphics_move_origin ("0gw", "+0.01gh");
+}
+void athena_graphics_move_origin_up () {
+  athena_graphics_move_origin ("0gw", "-0.01gh");
+}
+void athena_graphics_move_origin_left_fast () {
+  athena_graphics_move_origin ("+0.1gw", "0gh");
+}
+void athena_graphics_move_origin_right_fast () {
+  athena_graphics_move_origin ("-0.1gw", "0gh");
+}
+void athena_graphics_move_origin_down_fast () {
+  athena_graphics_move_origin ("0gw", "+0.1gh");
+}
+void athena_graphics_move_origin_up_fast () {
+  athena_graphics_move_origin ("0gw", "-0.1gh");
+}
+void athena_graphics_decrease_hsize () {
+  athena_graphics_change_extents ("-0.1cm", "0cm");
+}
+void athena_graphics_increase_hsize () {
+  athena_graphics_change_extents ("+0.1cm", "0cm");
+}
+void athena_graphics_decrease_vsize () {
+  athena_graphics_change_extents ("0cm", "-0.1cm");
+}
+void athena_graphics_increase_vsize () {
+  athena_graphics_change_extents ("0cm", "+0.1cm");
+}
+void athena_graphics_decrease_hsize_fast () {
+  athena_graphics_change_extents ("-1cm", "0cm");
+}
+void athena_graphics_increase_hsize_fast () {
+  athena_graphics_change_extents ("+1cm", "0cm");
+}
+void athena_graphics_decrease_vsize_fast () {
+  athena_graphics_change_extents ("0cm", "-1cm");
+}
+void athena_graphics_increase_vsize_fast () {
+  athena_graphics_change_extents ("0cm", "+1cm");
+}
+
+namespace {
+
 bool
 native_anchor_buffer_exists (url buffer) {
   array<url> buffers= get_all_buffers ();
