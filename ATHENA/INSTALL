@@ -57,10 +57,12 @@ maintained directly in that source tree and require no post-configure patching.
 Build and install the local development binary into this runtime tree:
 
     cmake --build build_qt6 -j"$(nproc)"
-    cp -f build_qt6/src/ATHENA.bin ATHENA/bin/ATHENA.bin
-    cp -f build_qt6/src/athena-codex-bridge ATHENA/bin/athena-codex-bridge
-    mkdir -p ATHENA/lib
-    cp -a build_qt6/x64/lib/libqt6advanceddocking*.so* ATHENA/lib/
+    tools/deploy-local-runtime.sh build_qt6
+
+The deploy helper skips byte-identical runtime files and replaces changed ELF
+files through a new inode followed by an atomic rename. Do not copy a rebuilt
+shared library over an existing file in place while ATHENA is running: truncating
+a live mmap-backed library can raise SIGBUS in the running process.
 
 For debug ADS builds the library name may contain a `d` suffix, such as
 `libqt6advanceddockingd.so`.

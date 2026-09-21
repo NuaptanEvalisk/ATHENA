@@ -287,11 +287,9 @@
   <\code>
     BUILD=build_qt6
 
-    install -m755 "$BUILD/src/ATHENA.bin" ATHENA/bin/
-
-    install -m755 "$BUILD/src/ATHENA-Watchdog" ATHENA/bin/
-
-    install -m755 "$BUILD/src/athena-codex-bridge" ATHENA/bin/
+    tools/deploy-local-runtime.sh "$BUILD" \\
+      /path/to/llama.cpp/build/bin/libllama.so* \\
+      /path/to/llama.cpp/build/bin/libggml*.so*
 
     install -m755 "$BUILD/materials-engine-cargo/release/athena-materials-engine"
     ATHENA/bin/
@@ -302,13 +300,7 @@
     install -m755 "$BUILD/tools/athena-web-server/athena-web-server"
     ATHENA/bin/
 
-    mkdir -p ATHENA/lib ATHENA/share/ATHENA/web
-
-    cp -a "$BUILD"/x64/lib/libqt6advanceddocking*.so* ATHENA/lib/
-
-    cp -a /path/to/llama.cpp/build/bin/libllama.so* ATHENA/lib/
-
-    cp -a /path/to/llama.cpp/build/bin/libggml*.so* ATHENA/lib/
+    mkdir -p ATHENA/share/ATHENA/web
 
     cp -a tools/athena-web-server/web/. ATHENA/share/ATHENA/web/
   </code>
