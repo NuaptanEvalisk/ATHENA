@@ -15,6 +15,7 @@
 #include "Boxes/construct.hpp"
 #include "unicode_text.hpp"
 #include "shaped_line.hpp"
+#include "font_selection.hpp"
 #include "pdf_text_string.hpp"
 #include "printer.hpp"
 #include "scheme.hpp"
@@ -144,6 +145,17 @@ static void check_collection_export (const QString& pdf) {
     const auto compressed= athena::text::shape_freetype_utf8 (
       athena::text::font_file_source {file, 1}, 12, 600, 300, text, 0, text.size ());
     compressed.draw_fixed (ren, text, 400 * PIXEL, -1500 * PIXEL);
+    const auto medium= athena::text::shape_freetype_utf8 (
+      athena::text::font_file_source {variable, 0, {650 * 65536}}, 12, 600, 600, text, 0, text.size ());
+    medium.draw_fixed (ren, text, 400 * PIXEL, -1800 * PIXEL);
+    athena::text::font_catalog catalog (false, {file});
+    athena::text::font_request request {"ATHENA Collection Fixture One,ATHENA Collection Fixture Two"};
+    request.horizontal_dpi= request.vertical_dpi= 600;
+    const std::string mixed= "A \xce\xb1\xce\xb2 A";
+    athena::text::font_paragraph paragraph (mixed, request, catalog);
+    const auto line= paragraph.line (0, mixed.size ());
+    require (!line.missing_glyphs, "PDF fallback retained a missing glyph");
+    line.draw_fixed (ren, paragraph.analysis ().source (), 400 * PIXEL, -2100 * PIXEL);
   }
   catch (...) { tm_delete (ren); throw; }
   tm_delete (ren);
@@ -157,11 +169,12 @@ static void check_collection_export (const QString& pdf) {
   const auto text= execute ("pdftotext", {"-raw", "-nopgbrk", "-enc", "UTF-8", pdf, "-"});
   auto lines= text.split ('\n');
   if (!lines.isEmpty () && lines.back ().isEmpty ()) lines.removeLast ();
-  if (lines != QList<QByteArray> {"A \xce\xb1", "A \xce\xb1", "A \xce\xb1", "A \xce\xb1"}) {
+  if (lines != QList<QByteArray> {"A \xce\xb1", "A \xce\xb1", "A \xce\xb1", "A \xce\xb1",
+                                 "A \xce\xb1", "A \xce\xb1\xce\xb2 A"}) {
     std::cerr << "Collection PDF text: " << text.constData () << '\n';
     throw std::runtime_error ("Collection PDF lost Unicode mappings");
   }
-  check_text_geometry (pdf, 4);
+  check_text_geometry (pdf, 6);
 }
 
 static void render_document (const QString &path, bool postscript) {

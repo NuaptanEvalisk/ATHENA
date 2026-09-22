@@ -21,7 +21,12 @@ def face(second, rectangle_width=None):
     builder = FontBuilder(1000, isTTF=True)
     order = [".notdef", "alpha", "space", "A"] if second else [".notdef", "space", "A", "alpha"]
     builder.setupGlyphOrder(order)
-    builder.setupCharacterMap({32: "space", 65: "A", 0x3B1: "alpha"})
+    cmap = {32: "space", 65: "A", 0x3B1: "alpha"}
+    # Disjoint coverage forces real fallback inside Greek and Hebrew items.
+    cmap[0x5D1 if second else 0x5D0] = "alpha"
+    if second:
+        cmap[0x3B2] = "alpha"
+    builder.setupCharacterMap(cmap)
     roman = CmapSubtable.newSubtable(0)
     roman.platformID, roman.platEncID, roman.language = 1, 0, 0
     roman.cmap = {32: "space", 65: "A"}

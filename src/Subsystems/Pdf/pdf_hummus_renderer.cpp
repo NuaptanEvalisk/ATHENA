@@ -1244,6 +1244,7 @@ pdf_hummus_renderer_rep::make_pdf_font (string fontname, font_glyphs glyphs)
   // This embedder does not instantiate variable outlines or anisotropic sizes.
   // Preserve their exact rasterized glyphs instead of embedding a different face.
   if (physical && (source.file.face_index >= 0x10000 ||
+                   !source.file.design_coords.empty () ||
                    source.horizontal_dpi != source.vertical_dpi)) {
     not_native_fonts->insert (fontname);
     return;

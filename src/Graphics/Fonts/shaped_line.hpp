@@ -47,8 +47,11 @@ struct shaped_line {
 // glyph/caret budgets apply to the whole line, not independently to each run.
 using item_shaper= std::function<shaped_text (
   std::string_view, const shaping_item&, const shaping_options&)>;
+// Internal, strictly increasing scalar offsets separating selected fonts.
+// ICU retains control of bidi order and published grapheme caret positions.
+using item_splitter= std::function<std::vector<std::size_t> (const shaping_item&)>;
 shaped_line shape_line (unicode_paragraph& paragraph,
   std::size_t begin, std::size_t end, const item_shaper& shape,
-  const shaping_options& options= {});
+  const shaping_options& options= {}, const item_splitter& split= {});
 
 } // namespace athena::text

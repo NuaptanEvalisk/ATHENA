@@ -155,6 +155,11 @@ tt_private_font_roots (string xtt, string ximp) {
   return roots;
 }
 
+url tt_private_font_path () {
+  return tt_private_font_roots (get_env ("ATHENA_FONT_PATH"),
+                                get_preference ("imported fonts", ""));
+}
+
 #ifdef USE_FONTCONFIG
 static hashmap<string,string> tt_platform_fonts ("");
 static url tt_platform_dirs= url_none ();

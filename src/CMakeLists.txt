@@ -55,6 +55,7 @@ function (athena_configure_body_target target_name)
     ${ATHENA_LLAMA_LIBRARIES}
     PRIVATE
     PkgConfig::HUNSPELL
+    PkgConfig::PANGOFT2
     ${ADS_LIBRARIES}
     rapidfuzz::rapidfuzz
     athena_snowball_english

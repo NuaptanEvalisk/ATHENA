@@ -70,6 +70,12 @@ struct shaping_font final: font_resource {
     hb_ot_font_set_funcs (font.get ());
     const auto instance= (source->ft_face->face_index >> 16) & 0x7fff;
     if (instance) hb_font_set_var_named_instance (font.get (), instance - 1);
+    if (!source->source.design_coords.empty ()) {
+      std::vector<float> coords;
+      for (auto coordinate: source->source.design_coords)
+        coords.push_back (static_cast<float> (coordinate) / 65536.0f);
+      hb_font_set_var_coords_design (font.get (), coords.data (), coords.size ());
+    }
     hb_font_set_scale (font.get (), xscale, yscale);
     hb_font_make_immutable (font.get ());
   }
@@ -399,9 +405,33 @@ void shaped_text::draw_fixed (renderer ren, std::string_view source,
 
 shaped_line shape_line (unicode_paragraph& paragraph,
   std::size_t begin, std::size_t end, const item_shaper& shape,
-  const shaping_options& options) {
+  const shaping_options& options, const item_splitter& split) {
   if (!shape) throw std::invalid_argument ("Missing line item shaper");
-  const auto items= paragraph.items (begin, end);
+  auto items= paragraph.items (begin, end);
+  if (split) {
+    std::vector<shaping_item> divided;
+    for (const auto& item: items) {
+      const auto cuts= split (item);
+      auto start= item.run.begin;
+      const auto first= divided.size ();
+      for (auto cut: cuts) {
+        if (cut <= start || cut >= item.run.end ||
+            !scalar_boundary (paragraph.source (), cut))
+          throw std::invalid_argument ("Invalid font item boundary");
+        auto part= item;
+        part.run.begin= start;
+        part.run.end= cut;
+        divided.push_back (part);
+        start= cut;
+      }
+      auto part= item;
+      part.run.begin= start;
+      divided.push_back (part);
+      if (item.run.right_to_left ())
+        std::reverse (divided.begin () + first, divided.end ());
+    }
+    items= std::move (divided);
+  }
   shaped_line result;
   result.byte_begin= begin;
   result.byte_end= end;

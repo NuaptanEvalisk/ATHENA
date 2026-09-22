@@ -10,12 +10,17 @@
 #pragma once
 
 #include <string>
+#include <vector>
+#include <cstdint>
 
 namespace athena::text {
 
 struct font_file_source {
   std::string file_utf8; // Absolute system path, not a family-name lookup key.
   long face_index= 0;    // FreeType collection/named-instance index.
+  // OpenType design coordinates in axis order, signed 16.16. Empty retains
+  // the face's default/named instance. Part of raster and shaping identity.
+  std::vector<std::int32_t> design_coords;
 };
 
 struct physical_font_source {

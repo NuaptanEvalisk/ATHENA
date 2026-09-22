@@ -17,6 +17,7 @@
 #include "tree.hpp"
 
 url    tt_font_path ();
+url    tt_private_font_path ();
 tree   tt_font_catalog (bool refresh= false);
 string tt_font_catalog_signature ();
 string tt_font_match_family (string family);

@@ -12,6 +12,7 @@
 #include "drd_std.hpp"
 #include "unicode_text.hpp"
 #include "shaped_line.hpp"
+#include "font_selection.hpp"
 #include "Boxes/construct.hpp"
 #include "Freetype/tt_face.hpp"
 #include "Qt/QTMRenderService.hpp"
@@ -230,6 +231,18 @@ static void check_lines (font fn) {
         return invalid;
       });
   });
+  for (const auto& cuts: std::vector<std::vector<std::size_t>> {{0}, {1, 1}, {2, 1}, {4}}) {
+    unicode_paragraph ascii ("abc");
+    rejects<std::invalid_argument> ([&] {
+      shape_line (ascii, 0, 3, shaper, {},
+        [&] (const shaping_item&) { return cuts; });
+    });
+  }
+  unicode_paragraph scalar ("\xce\xb1\xce\xb2");
+  rejects<std::invalid_argument> ([&] {
+    shape_line (scalar, 0, 4, shaper, {},
+      [] (const shaping_item&) { return std::vector<std::size_t> {1}; });
+  });
   shaping_options fragment;
   fragment.grapheme_fragments= true;
   rejects<std::invalid_argument> ([&] {
@@ -289,6 +302,19 @@ static void check_physical_faces () {
            "Rasterization lost the named-instance variation");
   require (shape_freetype_utf8 (regular, 12, 600, 600, "A", 0, 1).advance_x == plain.advance_x,
            "Named instance contaminated the default-instance cache");
+  const font_file_source intermediate {variable_file, 0, {650 * 65536}};
+  const auto medium= shape_freetype_utf8 (intermediate, 12, 600, 600, "A", 0, 1);
+  require (medium.advance_x * 5 == plain.advance_x * 7 &&
+           medium.ink_x2 > plain.ink_x2 && medium.ink_x2 < bold.ink_x2,
+           "Shaping lost explicit variation coordinates");
+  require (medium.glyph_source->physical_source (metadata) &&
+           metadata.file.design_coords == intermediate.design_coords,
+           "Export lost explicit variation coordinates");
+  require (medium.glyph_source->get (0x0c000000 + medium.glyphs[0].index)->width < bold_raster->width,
+           "Rasterizer ignored explicit variation coordinates");
+  rejects<std::runtime_error> ([&] {
+    shape_freetype_utf8 (font_file_source {variable_file, 0, {1, 2}}, 12, 96, 96, "A", 0, 1);
+  });
   rejects<std::runtime_error> ([&] {
     shape_freetype_utf8 (font_file_source {file, 2}, 12, 96, 96, "A", 0, 1);
   });
@@ -302,6 +328,69 @@ static void check_physical_faces () {
   });
 }
 
+static void check_font_selection () {
+  const auto file= (std::filesystem::path (__FILE__).parent_path () /
+                    "fixtures/two-faces.ttc").string ();
+  font_catalog catalog (false, {file});
+  font_request request {"ATHENA Collection Fixture One,ATHENA Collection Fixture Two"};
+  const std::string source= "A \xce\xb1\xce\xb2 \xd7\x90\xd7\x91 A";
+  font_paragraph paragraph (source, request, catalog);
+  bool fallback= false;
+  std::size_t covered= 0;
+  for (const auto& run: paragraph.fonts ()) {
+    require (run.begin == covered && run.end > covered && run.font.file_utf8 == file,
+             "Font itemization lost coverage or used fonts outside its private catalog");
+    covered= run.end;
+    fallback= fallback || run.font.face_index == 1;
+  }
+  require (fallback && covered == source.size (), "Fallback did not cover the paragraph");
+  const auto line= paragraph.line (0, source.size ());
+  require (!line.missing_glyphs, "Font-selected line still has missing glyphs");
+  bool rtl_first= false, rtl_second= false;
+  for (const auto& run: line.runs) {
+    if (run.text.byte_begin == 9) rtl_first= true;
+    if (run.text.byte_begin == 7) {
+      require (rtl_first, "Font fallback reversed the visual order of RTL subitems");
+      rtl_second= true;
+    }
+  }
+  require (rtl_first && rtl_second, "Fixture did not split its RTL font item");
+  const auto wrapped= paragraph.line (2, source.size ());
+  require (wrapped.byte_begin == 2 && !wrapped.missing_glyphs,
+           "Wrapped line failed to reuse selected fonts");
+  const std::string with_nul ("A\0A", 3);
+  font_paragraph controls (with_nul, request, catalog);
+  const auto control_line= controls.line (0, 3);
+  require (controls.analysis ().source () == with_nul && control_line.byte_end == 3 &&
+           control_line.carets.back ().byte == 3, "NUL truncated or rewrote source text");
+  {
+    font_domain other;
+    font_domain_binding binding (other);
+    rejects<std::logic_error> ([&] { paragraph.line (0, source.size ()); });
+    rejects<std::logic_error> ([&] { catalog.select (source, request); });
+  }
+  rejects<std::invalid_argument> ([&] {
+    auto invalid= request;
+    invalid.description_utf8.push_back ('\0');
+    catalog.select (source, invalid);
+  });
+  const auto variable= (std::filesystem::path (__FILE__).parent_path () /
+                        "fixtures/named-instance.ttf").string ();
+  font_catalog variable_catalog (false, {variable});
+  request.description_utf8= "ATHENA Collection Fixture One @wght=650";
+  font_paragraph varied ("A", request, variable_catalog);
+  require (varied.fonts ().size () == 1 &&
+           varied.fonts ()[0].font.design_coords == std::vector<std::int32_t> {650 * 65536},
+           "Pango-selected variation was not transferred to the native font source");
+  const auto expected= shape_freetype_utf8 (font_file_source {variable, 0, {650 * 65536}},
+                                          12, 96, 96, "A", 0, 1);
+  require (varied.line (0, 1).advance == expected.advance_x,
+           "Pango-selected variation changed during shaping");
+  font_paragraph installed ("A", font_request {"TeX Gyre Pagella"});
+  require (!installed.line (0, 1).missing_glyphs,
+           "Application/system catalog did not select an installed font");
+}
+
 static void check_text () {
   font_domain owner;
   font_domain_binding binding (owner);
@@ -310,6 +399,7 @@ static void check_text () {
   check_boxes (fn);
   check_lines (fn);
   check_physical_faces ();
+  check_font_selection ();
   auto literal= shape (fn, "a<alpha>b");
   require (literal.glyphs.size () == 9 && !literal.missing_glyphs,
            "Literal angle-bracket text was interpreted as Cork");

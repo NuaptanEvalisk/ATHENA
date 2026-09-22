@@ -23,6 +23,7 @@
 #include <limits>
 #include <map>
 #include <stdexcept>
+#include FT_MULTIPLE_MASTERS_H
 
 FONT_RESOURCE_CODE(tt_face);
 
@@ -90,6 +91,15 @@ void tt_face_rep::open_file (bool unicode_only) {
   if (unicode_only) {
     if (ft_face->face_index != source.face_index) return;
     if (ft_select_charmap (ft_face, FT_ENCODING_UNICODE)) return;
+    if (!source.design_coords.empty ()) {
+      FT_MM_Var* axes= nullptr;
+      if (FT_Get_MM_Var (ft_face, &axes)) return;
+      const auto count= axes->num_axis;
+      FT_Done_MM_Var (current_ft_library (), axes);
+      if (count != source.design_coords.size ()) return;
+      std::vector<FT_Fixed> coords (source.design_coords.begin (), source.design_coords.end ());
+      if (FT_Set_Var_Design_Coordinates (ft_face, count, coords.data ())) return;
+    }
   }
   else ft_select_charmap (ft_face, ft_encoding_adobe_custom);
   bad_face= false;
@@ -112,9 +122,14 @@ tt_face load_tt_face (const athena::text::font_file_source& source) {
   if (source.file_utf8.empty () || source.file_utf8.find ('\0') != std::string::npos ||
       source.file_utf8.size () > static_cast<std::size_t> (MAX_INT - 64) ||
       !std::filesystem::u8path (source.file_utf8).is_absolute () ||
-      source.face_index < 0 || source.face_index > 0x7fffffffL)
+      source.face_index < 0 || source.face_index > 0x7fffffffL ||
+      source.design_coords.size () > 0xffff)
     throw std::invalid_argument ("Invalid physical font source");
-  const string name= "file-face:" * as_string (source.face_index) * ":" *
+  string axis_key;
+  for (auto coordinate: source.design_coords) axis_key << as_string (coordinate) << ",";
+  if (source.file_utf8.size () > static_cast<std::size_t> (MAX_INT - N(axis_key) - 64))
+    throw std::length_error ("Physical font identity is too large");
+  const string name= "file-face:" * as_string (source.face_index) * ":" * axis_key * ":" *
     string (source.file_utf8.data (), source.file_utf8.size ());
   return make (tt_face, name, tm_new<tt_face_rep> (name, source));
 }

@@ -51,7 +51,11 @@ unchanged. Legacy readers still recognize existing file headers.
   chosen boundaries. Glyph/caret budgets apply across the entire line. Font
   selection is supplied explicitly by the caller; missing glyphs remain visible
   in the result rather than being silently treated as successful fallback.
-  Font fallback and the existing paragraph formatter still need integration.
+  `font_paragraph` supplies Pango/Fontconfig fallback and subdivides these items
+  at physical font changes, reversing font subitems within RTL runs. Font
+  itemization is done once per immutable paragraph, not once per wrapped line.
+  ICU remains the authority for bidi levels and editing stops. The existing
+  paragraph formatter still needs integration.
 - Physical Unicode fonts expose `shape_utf8` separately from their legacy
   encoded-string methods. HarfBuzz (the existing MIT-licensed dependency) is
   the shaping engine, not a second handwritten ligature/mark parser. It returns
@@ -67,7 +71,10 @@ unchanged. Legacy readers still recognize existing file headers.
   Physical shaping also accepts an explicit absolute UTF-8 filename and
   FreeType face index. Collection faces share owner-local immutable file bytes,
   but retain independent mutable FreeType faces, glyph caches and HarfBuzz
-  named-instance settings. Export receives the same file/index/size descriptor,
+  named-instance settings. Explicit variable-font design coordinates are kept
+  in axis order as OpenType 16.16 values and applied to both FreeType and
+  HarfBuzz; they participate in cache identity and export metadata. Export
+  receives the same file/index/size descriptor,
   not a filename or font size guessed by parsing a resource name. Native PDF
   embeds the selected collection member; unsupported named-instance or
   anisotropic embedding uses its actual rasterized glyphs instead of silently
@@ -75,6 +82,20 @@ unchanged. Legacy readers still recognize existing file headers.
   indices, instance isolation, Unicode filenames and native embedding. Their
   checked-in bytes are regenerated with fontTools only for fixture maintenance;
   the font tests do not invoke Python or fontTools.
+  PangoFT2 (LGPL-2.0-or-later) selects physical font spans through a private
+  Fontconfig configuration and font map in each font domain. It includes the
+  existing application/imported font roots without changing the process-global
+  Fontconfig configuration or sharing Qt font objects. Tests use an isolated
+  catalog whose collection faces have disjoint coverage, including font changes
+  within Greek and RTL Hebrew runs. Pango's selected variation coordinates are
+  copied from its immutable HarfBuzz font, not parsed with a second variation
+  syntax implementation. Embedded NUL bytes are retained as separate control
+  runs across Pango's C-string boundary. Synthetic font transforms currently
+  report an explicit unsupported error rather than silently discarding the
+  requested style; synthesis and color-font rendering remain activation work.
+  Integration contracts: [Pango itemization](https://docs.gtk.org/Pango/func.itemize_with_base_dir.html),
+  [private Fontconfig configuration](https://docs.gtk.org/PangoFc/method.FontMap.set_config.html),
+  [immutable HarfBuzz font access](https://docs.gtk.org/Pango/method.Font.get_hb_font.html).
   Shaping context can be restricted to a chosen line without copying or
   renumbering the source atom; HarfBuzz receives only that line's surrounding
   text and beginning/end flags. Returned clusters and carets remain absolute
