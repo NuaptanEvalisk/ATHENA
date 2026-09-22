@@ -43,6 +43,7 @@ struct composite_box_rep: public box_rep {
   virtual path            find_lip ();
   virtual path            find_rip ();
   virtual path            find_box_path (path p, bool& found);
+  path with_cursor_affinity (path bp, athena::text::caret_affinity affinity) override;
   virtual path            find_tree_path (path bp);
   virtual cursor          find_cursor (path bp);
   virtual selection       find_selection (path lbp, path rbp);

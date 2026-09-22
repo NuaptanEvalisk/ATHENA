@@ -471,6 +471,39 @@ static void check_line_boxes (font nominal) {
   require (wrapped->get_leaf_left_pos () == 2 &&
            last_item (wrapped->find_tree_path (path (0))) == 2,
            "Wrapped line lost absolute source offsets");
+  array<box> fragments;
+  fragments << utf8_line_box (path (0), paragraph, 0, 7, nominal, pencil (black));
+  fragments << utf8_line_box (path (0), paragraph, 7, source.size (), nominal, pencil (black));
+  array<SI> spacing (2);
+  spacing[0]= spacing[1]= 100;
+  auto stack= stack_box (path (0), fragments, spacing);
+  for (const auto side: {caret_affinity::upstream, caret_affinity::downstream}) {
+    const int row= side == caret_affinity::upstream ? 0 : 1;
+    auto at_break= stack->find_check_cursor (junction, side);
+    require (at_break->valid && at_break->affinity == side &&
+             at_break->oy == stack->sy (row),
+             "Wrapped endpoint did not choose its requested line");
+    const int first= row == 0 ? 0 : 7;
+    const int last= row == 0 ? 7 : source.size ();
+    require (at_break->ox == paragraph->line (first, last).caret_x (7, side),
+             "Wrapped endpoint chose the wrong visual caret in its line");
+    auto enclosing= move_box (path (0), stack, 250, 450);
+    auto moved= enclosing->find_check_cursor (junction, side);
+    require (moved->ox == at_break->ox + 250 && moved->oy == at_break->oy + 450,
+             "Wrapped affinity did not propagate through a containing box");
+  }
+  array<box> reversed_fragments;
+  reversed_fragments << fragments[1] << fragments[0];
+  auto reversed_row= concat_box (path (0), reversed_fragments);
+  auto before= reversed_row->find_check_cursor (junction, caret_affinity::upstream);
+  auto after= reversed_row->find_check_cursor (junction, caret_affinity::downstream);
+  require (before->valid && after->valid &&
+           before->ox == reversed_row->sx (1) + paragraph->line (0, 7).caret_x (7, caret_affinity::upstream) &&
+           after->ox == reversed_row->sx (0) + paragraph->line (7, source.size ()).caret_x (7, caret_affinity::downstream),
+           "Fragment selection confused visual order with logical source order");
+  auto only_first= move_box (path (0), fragments[0], 0, 0);
+  require (only_first->find_check_cursor (junction, caret_affinity::downstream)->valid,
+           "An absent neighboring fragment invalidated the source endpoint");
   auto nested= move_box (path (0), b, 100, 200);
   bool found= false;
   const auto hit= nested->find_box_path (100 + line.caret_x (7, caret_affinity::upstream),
@@ -494,11 +527,22 @@ static void check_line_boxes (font nominal) {
   const auto clipped= shorter->find_box_path (b->x2 + 100, 0, 0, true, found);
   require (last_item (shorter->find_tree_path (clipped)) == 9,
            "Shorter box hit testing lost the terminal position suffix");
+  require (shorter->cursor_affinities (shorter->find_right_box_path ()) == caret_affinity::upstream,
+           "Hyphenation wrapper exposed text beyond its logical endpoint");
+  array<box> clipped_fragments;
+  clipped_fragments << shorter << utf8_line_box (path (0), paragraph, 9,
+                                                source.size (), nominal, pencil (black));
+  auto clipped_stack= stack_box (path (0), clipped_fragments, spacing);
+  require (clipped_stack->find_check_cursor (b->find_tree_path (path (9)),
+             caret_affinity::downstream)->oy == clipped_stack->sy (1),
+           "Clipped source endpoint did not advance to its continuation line");
   auto symbolic= symbol_box (path (0), b, source.size ());
   require (last_item (symbolic->find_tree_path (
              symbolic->find_box_path (b->x2 + 100, 0, 0, true, found))) == static_cast<int> (source.size ()),
            "Symbol modifier clamped affinity instead of the text byte");
   auto legacy= text_box (path (0), 0, "abcdef", nominal, pencil (black));
+  require (!legacy->cursor_affinities (path (3)),
+           "Legacy cursor positions claimed Unicode fragment-side support");
   require (legacy->find_check_cursor (path (0, 3), caret_affinity::upstream) ==
            legacy->find_check_cursor (path (0, 3), caret_affinity::downstream),
            "Affinity changed legacy text cursor behavior");

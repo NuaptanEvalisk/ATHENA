@@ -331,6 +331,35 @@ composite_box_rep::find_box_path (path p, bool& found) {
 }
 
 path
+composite_box_rep::with_cursor_affinity (path bp, athena::text::caret_affinity affinity) {
+  using athena::text::caret_affinity;
+  const path adjusted= box_rep::with_cursor_affinity (bp, affinity);
+  const auto sides= cursor_affinities (adjusted);
+  if (!sides || *sides == caret_affinity::both || *sides == affinity ||
+      affinity == caret_affinity::both) return adjusted;
+
+  // Source lookup may choose either fragment at a shared endpoint. Prefer the
+  // fragment containing the requested logical side, independently of geometry
+  // (RTL fragments need not appear in logical order on screen).
+  const path p= find_tree_path (adjusted);
+  for (int i= 0; i < N(bs); ++i) {
+    if (i == adjusted->item) continue;
+    const path left= bs[i]->find_lip (), right= bs[i]->find_rip ();
+    if (!is_accessible (left) || !is_accessible (right) ||
+        !path_less_eq (reverse (left), p) || !path_less_eq (p, reverse (right))) continue;
+    bool found= false;
+    path candidate= bs[i]->find_box_path (p, found);
+    if (!found) continue;
+    candidate= bs[i]->with_cursor_affinity (candidate, affinity);
+    const auto available= bs[i]->cursor_affinities (candidate);
+    if (available && (*available == affinity || *available == caret_affinity::both) &&
+        bs[i]->find_tree_path (candidate) == p)
+      return path (i, candidate);
+  }
+  return adjusted;
+}
+
+path
 composite_box_rep::find_tree_path (path bp) {
   if (is_atom (bp)) return box_rep::find_tree_path (bp);
   return bs[bp->item]->find_tree_path (bp->next);

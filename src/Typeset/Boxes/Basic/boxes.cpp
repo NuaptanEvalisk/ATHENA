@@ -197,6 +197,12 @@ box_rep::with_cursor_affinity (path bp, athena::text::caret_affinity affinity) {
   return path (bp->item, subbox (bp->item)->with_cursor_affinity (bp->next, affinity));
 }
 
+std::optional<athena::text::caret_affinity>
+box_rep::cursor_affinities (path bp) {
+  if (is_nil (bp) || is_atom (bp) || subnr () == 0) return std::nullopt;
+  return subbox (bp->item)->cursor_affinities (bp->next);
+}
+
 cursor
 box_rep::find_check_cursor (path p, athena::text::caret_affinity affinity) {
   bool found;

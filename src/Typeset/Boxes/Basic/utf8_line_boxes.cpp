@@ -129,6 +129,12 @@ struct utf8_line_box_rep final: box_rep {
   path with_cursor_affinity (path bp, caret_affinity side) override {
     return path (relative (bp), static_cast<int> (side));
   }
+  std::optional<caret_affinity> cursor_affinities (path bp) override {
+    if (begin == end) return caret_affinity::both;
+    const int at= begin + relative (bp);
+    return at == begin ? caret_affinity::downstream :
+      at == end ? caret_affinity::upstream : caret_affinity::both;
+  }
   cursor find_cursor (path bp) override {
     cursor result (line.caret_x (begin + relative (bp), affinity (bp)), 0);
     result->affinity= affinity (bp) == caret_affinity::both ?

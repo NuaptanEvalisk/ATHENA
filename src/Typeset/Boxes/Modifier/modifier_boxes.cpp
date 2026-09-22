@@ -272,6 +272,7 @@ public:
   path   find_box_path (SI x, SI y, SI delta, bool force, bool& found);
   path   find_rip ();
   path   find_right_box_path ();
+  std::optional<athena::text::caret_affinity> cursor_affinities (path bp) override;
   int    get_type ();
   int    get_leaf_left_pos ();
   int    get_leaf_right_pos ();
@@ -322,6 +323,16 @@ shorter_box_rep::find_right_box_path () {
   const path prefix= leaf_prefix (leaf, bp);
   if (is_nil (bp)) return path (0, prefix);
   return path (0, prefix * path (min (bp->item, len), bp->next));
+}
+
+std::optional<athena::text::caret_affinity>
+shorter_box_rep::cursor_affinities (path bp) {
+  using athena::text::caret_affinity;
+  const auto sides= modifier_box_rep::cursor_affinities (bp);
+  const path right= find_rip ();
+  if (sides && is_accessible (right) && find_tree_path (bp) == reverse (right))
+    return len == 0 ? caret_affinity::both : caret_affinity::upstream;
+  return sides;
 }
 
 int

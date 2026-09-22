@@ -23,6 +23,7 @@
 #include "frame.hpp"
 #include "grid.hpp"
 #include "unicode_text.hpp"
+#include <optional>
 
 #define STD_BOX       0
 #define STACK_BOX     1
@@ -200,6 +201,9 @@ public:
   virtual path      find_tree_path (path bp);
   virtual path      find_box_path (path p, bool& found);
   virtual path      with_cursor_affinity (path bp, athena::text::caret_affinity affinity);
+  // Logical sides present in this source fragment; absent for opaque/legacy
+  // cursor positions. A wrapped-line endpoint has only one of the two sides.
+  virtual std::optional<athena::text::caret_affinity> cursor_affinities (path bp);
        
   path      find_tree_path (SI x, SI y, SI delta);
   cursor    find_check_cursor (path p, athena::text::caret_affinity affinity=
