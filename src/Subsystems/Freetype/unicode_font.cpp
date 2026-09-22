@@ -150,6 +150,9 @@ struct unicode_font_rep: font_rep {
   void   advance_glyph (string s, int& pos, bool ligf);
   glyph  get_glyph (string s);
   int    index_glyph (string s, font_metric& fnm, font_glyphs& fng);
+  athena::text::shaped_text shape_utf8 (
+    std::string_view text, std::size_t begin, std::size_t end,
+    const athena::text::shaping_options& options) override;
   double get_left_slope  (string s);
   double get_right_slope (string s);
   SI     get_left_correction  (string s);
@@ -662,6 +665,14 @@ unicode_font_rep::read_unicode_char (string s, int& i) {
     int j= 0;
     return decode_from_utf8 (uu, j);
   }
+}
+
+athena::text::shaped_text
+unicode_font_rep::shape_utf8 (
+  std::string_view text, std::size_t begin, std::size_t end,
+  const athena::text::shaping_options& options) {
+  return athena::text::shape_freetype_utf8 (
+    family, size, hdpi, vdpi, text, begin, end, options);
 }
 
 unsigned int

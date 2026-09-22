@@ -14,6 +14,7 @@
 #include "space.hpp"
 #include "renderer.hpp"
 #include "font_domain.hpp"
+#include "shaped_text.hpp"
 
 FONT_RESOURCE(font, 0);
 
@@ -136,6 +137,11 @@ struct font_rep: rep<font> {
   virtual void  advance_glyph (string s, int& pos, bool ligf);
   virtual glyph get_glyph (string s);
   virtual int   index_glyph (string s, font_metric& fnm, font_glyphs& fng);
+
+  // Explicit UTF-8 input, never the legacy encoded-string entry points above.
+  virtual athena::text::shaped_text shape_utf8 (
+    std::string_view text, std::size_t begin, std::size_t end,
+    const athena::text::shaping_options& options= {});
 
   array<space> get_spacing_table (int mode, int id, array<array<space> >& t);
   space        get_spacing_entry (int mode, tree t, int i);

@@ -17,8 +17,15 @@
 #include "iterator.hpp"
 #include "file.hpp"
 #include "convert.hpp"
+#include <stdexcept>
 
 FONT_RESOURCE_CODE(font);
+
+athena::text::shaped_text
+font_rep::shape_utf8 (std::string_view, std::size_t, std::size_t,
+                      const athena::text::shaping_options&) {
+  throw std::logic_error ("This font has no native UTF-8 shaping implementation");
+}
 
 hashmap<string,double> lsub_guessed_table ();
 hashmap<string,double> lsup_guessed_table ();

@@ -29,6 +29,19 @@ unchanged. Legacy readers still recognize existing file headers.
   codepoints. `grapheme_cursor` borrows immutable bytes, owns its ICU iterator,
   and must be rebound after the text revision changes. No normalization is
   implicit in validation, conversion, segmentation or serialization.
+- Physical Unicode fonts expose `shape_utf8` separately from their legacy
+  encoded-string methods. HarfBuzz (the existing MIT-licensed dependency) is
+  the shaping engine, not a second handwritten ligature/mark parser. It returns
+  positioned glyph ids and absolute UTF-8 byte clusters; `<alpha>` is literal
+  text. OpenType design metrics avoid dependence on another font's mutable
+  FreeType size/charmap. Immutable shaping fonts are cached in the owning font
+  domain and released before their FreeType faces; mutable shaping buffers are
+  private to each call. Glyph clusters are not editing boundaries: ICU remains
+  the caret/deletion authority. Runs belong to their font domain, and renderer
+  recording must consume them there. This is a single-font, homogeneous-script
+  shaping primitive; paragraph bidi, smart-font fallback, text boxes and math
+  symbol dispatch and PDF text semantics still require integration before
+  runtime activation.
 - The codec does not interpret `<...>` inside text. Structural symbols are a
   separate tree-model concern; the old incomplete-input `SYMBOL` is not a
   substitute for the planned `named-symbol` representation.
