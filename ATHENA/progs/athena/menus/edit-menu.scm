@@ -70,8 +70,7 @@
 	("Copy" (kbd-copy))
 	("Cut" (kbd-cut)))
   ("Paste" (kbd-paste))
-  (if (detailed-menus?)
-      ("Clear" (kbd-cancel)))
+  ("Clear" (kbd-cancel))
   ---
   ("Search" (document-search-open))
   ("Global search" (open-global-search))
@@ -84,34 +83,33 @@
         ("AI completion (new buffer)"
           (codex-ai-completion-new-buffer))
         ("AI completion (custom)" (codex-ai-completion-custom))))
-  (if (detailed-menus?)
+  ---
+  (when (selection-active-any?)
+    (-> "Copy to"
+        (link clipboard-copy-export-menu)
+        (if (qt-gui?) ("Image" (clipboard-copy-image "")))
+        ---
+        ("Primary" (clipboard-copy "primary"))
+        ("Secondary" (clipboard-copy "secondary"))
+        ("Ternary" (clipboard-copy "ternary"))
+        ---
+        ("Other" (interactive clipboard-copy)))
+    (-> "Cut to"
+        (link clipboard-cut-export-menu)
+        ---
+        ("Primary" (clipboard-cut "primary"))
+        ("Secondary" (clipboard-cut "secondary"))
+        ("Ternary" (clipboard-cut "ternary"))
+        ---
+        ("Other" (interactive clipboard-cut))))
+  (-> "Paste from"
+      (link clipboard-paste-import-menu)
       ---
-      (when (selection-active-any?)
-        (-> "Copy to"
-            (link clipboard-copy-export-menu)
-            (if (qt-gui?) ("Image" (clipboard-copy-image "")))
-            ---
-            ("Primary" (clipboard-copy "primary"))
-            ("Secondary" (clipboard-copy "secondary"))
-            ("Ternary" (clipboard-copy "ternary"))
-            ---
-            ("Other" (interactive clipboard-copy)))
-        (-> "Cut to"
-            (link clipboard-cut-export-menu)
-            ---
-            ("Primary" (clipboard-cut "primary"))
-            ("Secondary" (clipboard-cut "secondary"))
-            ("Ternary" (clipboard-cut "ternary"))
-            ---
-            ("Other" (interactive clipboard-cut))))
-      (-> "Paste from"
-          (link clipboard-paste-import-menu)
-          ---
-          ("Primary" (clipboard-paste "primary"))
-          ("Secondary" (clipboard-paste "secondary"))
-          ("Ternary" (clipboard-paste "ternary"))
-          ---
-          ("Other" (interactive clipboard-paste))))
+      ("Primary" (clipboard-paste "primary"))
+      ("Secondary" (clipboard-paste "secondary"))
+      ("Ternary" (clipboard-paste "ternary"))
+      ---
+      ("Other" (interactive clipboard-paste)))
   ---
   (-> "Import selections as"
       (link clipboard-import-preference-menu))

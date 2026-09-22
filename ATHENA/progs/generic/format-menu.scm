@@ -144,11 +144,6 @@
     ;;("Decorate pages" (make 'dpages 2))
     ))
 
-(menu-bind transform-menu
-  (link adjust-menu)
-  ---
-  (link format-special-menu))
-
 (menu-bind text-font-effects-menu
   ("Embold" (make 'embold))
   ("Blackboard embold" (make 'embbb))
@@ -198,28 +193,6 @@
     ("Image" (make-specific "image"))
     ("Even pages" (make-specific "even"))
     ("Odd pages" (make-specific "odd"))))
-
-(menu-bind text-properties-menu
-  (-> "Color" (link color-menu))
-  (if (== (get-preference "experimental alpha") "on")
-      (-> "Opacity" (link opacity-menu)))
-  (-> "Space" (link horizontal-space-menu))
-  (-> "Transform" (link transform-menu))
-  (-> "Specific" (link specific-menu))
-  (-> "Font effects" (link text-font-effects-menu))
-  (assuming (== (get-preference "bitmap effects") "on")
-    (-> "Graphical effects" (link text-effects-menu))))
-
-(menu-bind textual-properties-menu
-  (-> "Color" (link color-menu))
-  (if (== (get-preference "experimental alpha") "on")
-      (-> "Opacity" (link opacity-menu)))
-  (-> "Space" (link horizontal-space-menu))
-  (-> "Transform" (link transform-menu))
-  (-> "Specific" (link specific-menu))
-  (-> "Font effects" (link text-font-effects-menu))
-  (assuming (== (get-preference "bitmap effects") "on")
-    (-> "Graphical effects" (link text-effects-menu))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Pen selection for graphical effects
@@ -278,37 +251,6 @@
     ("No line break" (make 'no-break))
     ("New paragraph" (make 'new-line))))
 
-(menu-bind paragraph-menu
-  (-> "Alignment"
-      ("Left aligned" (make-line-with "par-mode" "left"))
-      ("Centered" (make-line-with "par-mode" "center"))
-      ("Right aligned" (make-line-with "par-mode" "right"))
-      ---
-      ("Justified" (make-line-with "par-mode" "justify"))
-      ("Flexibility" (make-interactive-line-with "par-flexibility")))
-  (-> "Margins"
-      ("Left margin" (make-interactive-line-with "par-left"))
-      ("Right margin" (make-interactive-line-with "par-right"))
-      ("First indentation" (make-interactive-line-with "par-first"))
-      ---
-      (link indentation-menu))
-  (-> "Spacing"
-      ("Interline separation" (make-interactive-line-with "par-sep"))
-      ("Interline space" (make-interactive-line-with "par-line-sep"))
-      ("Interparagraph space" (make-interactive-line-with "par-par-sep"))
-      ---
-      (link vertical-space-menu))
-  (-> "Line breaking"
-      ("Normal" (make-line-with "par-hyphen" "normal"))
-      ("Professional"
-       (make-line-with "par-hyphen" "professional"))
-      ---
-      (link line-break-menu))
-  (-> "Number of columns"
-      ("1" (make-line-with "par-columns" "1"))
-      ("2" (make-line-with "par-columns" "2"))
-      ("3" (make-line-with "par-columns" "3"))))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; The Page menu and submenus
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -328,25 +270,6 @@
   (:require (page-numbering-context? t))
   (refresh-window))
 
-(menu-bind page-header-menu
-  (when (not (selection-active?))
-    ("This page header" (make 'set-this-page-header))
-    ("Permanent header" (make 'set-header))
-    ("Odd page header" (make 'set-odd-page-header))
-    ("Even page header" (make 'set-even-page-header))))
-
-(menu-bind page-footer-menu
-  (when (not (selection-active?))
-    ("This page footer" (make 'set-this-page-footer))
-    ("Permanent footer" (make 'set-footer))
-    ("Odd page footer" (make 'set-odd-page-footer))
-    ("Even page footer" (make 'set-even-page-footer))))
-
-(menu-bind page-numbering-menu
-  (when (not (selection-active?))
-    ("Renumber this page" (make 'set-page-number))
-    ("Page number text" (make 'set-page-number-macro))))
-
 (menu-bind page-break-menu
   (when (and (not (selection-active?)) (in-main-flow?))
     (group "Page break before")
@@ -360,12 +283,6 @@
     ("New double page" (make-new-dpage))
     ("Page break" (make-page-break))
     ("No page break" (make 'no-break-here))))
-
-(menu-bind page-menu
-  (-> "Header" (link page-header-menu))
-  (-> "Footer" (link page-footer-menu))
-  (-> "Numbering" (link page-numbering-menu))
-  (-> "Break" (link page-break-menu)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Horizontal/vertical space and line/page break submenus

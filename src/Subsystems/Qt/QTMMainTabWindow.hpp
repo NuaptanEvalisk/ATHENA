@@ -14,9 +14,6 @@
 #include "config.h"
 
 #include <QMainWindow>
-#include <QTabWidget>
-#include <QMdiArea>
-#include <QStackedWidget>
 #include <QList>
 #include <QPair>
 #include <QPointer>
@@ -33,7 +30,7 @@ bool qtm_close_focused_ads_tool_pane (QWidget* eventReceiver= nullptr);
 void qtm_apply_ads_tab_close_preferences ();
 
 /**
- * @brief A multi-document window that supports both Tabs and MDI.
+ * @brief The ADS-backed multi-document window used by ATHENA.
  */
 class QTMMainTabWindow : public QMainWindow {
   Q_OBJECT
@@ -47,12 +44,10 @@ public:
   void tabTitleChanged(QWidget *widget, QString title);
   void closeAndSetTopTabWindow();
 
-  static QTMMainTabWindow *topTabWindow() { 
-    return gTopTabWindow; 
+  static QTMMainTabWindow *topTabWindow() {
+    return gTopTabWindow;
   }
 
-  QTabWidget* tabWidget() { return mTabWidget; }
-  QMdiArea* mdiArea() { return mMdiArea; }
   ads::CDockManager* dockManager() { return mDockManager; }
   void showAdsDockWidget(ads::CDockWidget* dock, ads::DockWidgetArea area);
   void saveAdsLayoutState();
@@ -69,24 +64,16 @@ public:
   void activateDocumentWidget(QWidget* widget);
   bool placeDocumentWidgetsSideBySide(QWidget* left, QWidget* right);
 
-  void tileSubWindows();
-  void cascadeSubWindows();
-  void mdi_maximize_active();
-  void mdi_minimize_active();
   void detachWidget(QWidget* widget);
-  void attachWidget(QWidget* widget);
   void setNextWidgetFloating();
 
 protected:
   void closeEvent (QCloseEvent* event) override;
   bool eventFilter(QObject * obj, QEvent * event) override;
   bool eventFilterWindow(QObject * obj, QEvent * event);
-  bool eventFilterTabBar(QObject * obj, QEvent * event);
 
   void setDefaultStyle();
-  void setHoverStyle();
   void onWindowActivated();
-  void onDoubleClickOnEmptyTabBarSpace();
   void setMainTitle(QString title);
   void setMainTitleFromWidget(QWidget* widget);
   void showAfterContentReady(QWidget* focusWidget);
@@ -97,16 +84,9 @@ protected:
   ads::CDockAreaWidget* activeAdsDockArea(
     ads::CDockContainerWidget* container) const;
 
-public slots:
-  void closeTab(int index);
-  void onSubWindowActivated(QMdiSubWindow* sub);
-
 private:
   static QTMMainTabWindow *gTopTabWindow;
 
-  QStackedWidget* mStackedWidget;
-  QTabWidget* mTabWidget;
-  QMdiArea* mMdiArea;
   ads::CDockManager* mDockManager;
   QPointer<QWidget> mLastFocusedDocumentWidget;
   QList<QPair<QPointer<ads::CDockWidget>, ads::DockWidgetArea>>

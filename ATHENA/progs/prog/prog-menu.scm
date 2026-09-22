@@ -27,24 +27,7 @@
 ;; The main Format menu
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(menu-bind full-prog-format-menu
-  (group "Font")
-  ("Font" (open-font-selector))
-  (if (simple-menus?)
-      (-> "Color" (link color-menu)))
-  (if (detailed-menus?)
-      ---
-      (group "Text")
-      (link textual-properties-menu))
-  ---
-  (group "Paragraph")
-  (link paragraph-menu)
-  ---
-  (when (in-main-flow?)
-    (group "Page")
-    (link page-menu)))
-
-(menu-bind compressed-prog-format-menu
+(menu-bind prog-format-menu
   ("Font" (open-font-selector))
   ("Paragraph" (open-paragraph-format))
   (when (in-main-flow?)
@@ -69,12 +52,6 @@
   (-> "Font effects" (link text-font-effects-menu))
   (assuming (== (get-preference "bitmap effects") "on")
     (-> "Graphical effects" (link text-effects-menu))))
-
-(menu-bind prog-format-menu
-  (if (use-menus?)
-      (link full-prog-format-menu))
-  (if (use-popups?)
-      (link compressed-prog-format-menu)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Icons for modifying text properties

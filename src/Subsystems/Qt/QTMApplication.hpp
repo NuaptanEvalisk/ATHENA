@@ -54,18 +54,6 @@ public:
     return mKeyboard;
   }
 
-  inline bool useTabWindow() {
-    return mUseTabWindow;
-  }
-
-  inline bool useMdi() {
-    return mUseMdi;
-  }
-
-  inline bool useAds() {
-    return mUseAds;
-  }
-
   inline bool useNewToolbar() {
     return mUseNewToolbar;
   }
@@ -88,9 +76,6 @@ private:
   bool mPixmapManagerInitialized;
   QTMIconManager mIconManager;
   QTMKeyboard mKeyboard;
-  bool mUseTabWindow;
-  bool mUseMdi;
-  bool mUseAds;
   bool mUseNewToolbar;
 };
 

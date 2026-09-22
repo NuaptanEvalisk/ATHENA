@@ -28,7 +28,6 @@
 #include <QWidget>
 #include <QVariant>
 #include <QDockWidget>
-#include <QMdiSubWindow>
 
 /* Windows are created at their previous position, which is saved in
    user preferences.
@@ -103,9 +102,7 @@ qt_window_widget_rep::~qt_window_widget_rep ()
   if (DEBUG_QT)
     debug_qt << "Deleting qt_window_widget " << id << "\n";
   if (qwid) {
-    if (qwid->parentWidget () && qobject_cast<QMdiSubWindow*> (qwid->parentWidget ()))
-      qwid->parentWidget ()->deleteLater ();
-    else if (qwid->parentWidget () && qobject_cast<ads::CDockWidget*> (qwid->parentWidget ()))
+    if (qwid->parentWidget () && qobject_cast<ads::CDockWidget*> (qwid->parentWidget ()))
       qwid->parentWidget ()->deleteLater ();
     else
       qwid->deleteLater();
@@ -204,36 +201,18 @@ qt_window_widget_rep::send (slot s, blackbox val) {
       check_type<bool> (val, s);
       bool flag = open_box<bool> (val);
       if (qwid) {
-        if (!tmapp()->useTabWindow()) {
-          if (flag) {
-            //QWidget* master = QApplication::activeWindow ();
+        if (flag) {
+          if (is_document_window()) {
+            tmapp()->mainTabWindow().showWidget(qwid, true);
+          } else {
             qwid->show();
-            //qwid->activateWindow();
-            //WEIRD: in Ubuntu uncommenting the above line causes the main window 
-            //to be opened in the background.
             if (QApplication::platformName() != "wayland") {
               qwid->raise();
             }
-            //QApplication::setActiveWindow (master);
           }
-          else qwid->hide();
         } else {
-          if (flag) {
-            if (is_document_window()) {
-              tmapp()->mainTabWindow().showWidget(qwid, true);
-            } else {
-              qwid->show();
-              if (QApplication::platformName() != "wayland") {
-                qwid->raise();
-              }
-            }
-          } else {
-            if (is_document_window()) {
-              tmapp()->mainTabWindow().removeWidget(qwid);
-            } else {
-              qwid->hide();
-            }
-          }
+          if (is_document_window()) tmapp()->mainTabWindow().removeWidget(qwid);
+          else qwid->hide();
         }
       }
     }
@@ -250,14 +229,14 @@ qt_window_widget_rep::send (slot s, blackbox val) {
     }   
       break;
     case SLOT_NAME:   // sets window *title* not the name
-    {   
+    {
       check_type<string> (val, s);
       string name = open_box<string> (val);
-        // The [*] is for QWidget::setWindowModified()
-      if (!tmapp()->useTabWindow()) {
-        if (qwid) qwid->setWindowTitle (to_qstring (name * "[*]"));
-      } else {
-        if (qwid) tmapp()->mainTabWindow().tabTitleChanged (qwid, to_qstring (name));
+      if (qwid) {
+        if (is_document_window())
+          tmapp()->mainTabWindow().tabTitleChanged (qwid, to_qstring (name));
+        else
+          qwid->setWindowTitle (to_qstring (name * "[*]"));
       }
     }
       break;

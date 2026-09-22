@@ -1140,17 +1140,3 @@
 
 (tm-define (global-set . key-val)
   (ahash-set! global-key-table (cDr key-val) (cAr key-val)))
-
-(define (notify-bottom-tools n show?)
-  (when (!= show? (visible-bottom-tools? n))
-    (show-bottom-tools n show?)))
-
-(tm-define (extra-bottom-tools?) #f)
-
-(tm-define (has-bottom-tools? . opt-win)
-  (extra-bottom-tools?))
-
-(tm-define (update-bottom-tools . opt-win)
-  (show-bottom-tools 0 (apply has-bottom-tools? opt-win))
-  (when (not (extra-bottom-tools?))
-    (keyboard-focus-on "canvas")))

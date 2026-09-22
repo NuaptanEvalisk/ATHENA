@@ -28,19 +28,18 @@
 	---)
   (link athena-help-utilities-menu)
   ---
-  (if (detailed-menus?)
-      (when (url-exists-in-help? "main/config/man-configuration.en.tm")
-	(-> "Configuration"
-	    ("Browse" (load-help-buffer "main/config/man-configuration"))
-	    ---
-	    ("Preferences"
-	     (load-help-article "main/config/man-preferences"))
-	    ("Keyboard configuration"
-	     (load-help-article "main/config/man-config-keyboard"))
-	    ("Users of Cyrillic languages"
-	     (load-help-article "main/config/man-russian"))
-	    ("Users of oriental languages"
-	     (load-help-article "main/config/man-oriental")))))
+  (when (url-exists-in-help? "main/config/man-configuration.en.tm")
+    (-> "Configuration"
+        ("Browse" (load-help-buffer "main/config/man-configuration"))
+        ---
+        ("Preferences"
+         (load-help-article "main/config/man-preferences"))
+        ("Keyboard configuration"
+         (load-help-article "main/config/man-config-keyboard"))
+        ("Users of Cyrillic languages"
+         (load-help-article "main/config/man-russian"))
+        ("Users of oriental languages"
+         (load-help-article "main/config/man-oriental"))))
   (when (url-exists-in-help? "main/man-manual.en.tm")
 	(-> "Manual"
 	    ("Browse" (load-help-buffer "main/man-manual"))
@@ -114,17 +113,15 @@
   ---
   (-> "Search"
       ("Documentation" (interactive docgrep-in-doc))
-      (if (detailed-menus?)
-          ("Source code" (interactive docgrep-in-src)))
+      ("Source code" (interactive docgrep-in-src))
       ;;("My documents" (interactive docgrep-in-texts))
       ("Recent documents" (interactive docgrep-in-recent)))
-  (if (detailed-menus?)
-      (-> "Full manuals"
-          (when (url-exists-in-help? "main/man-user-manual.en.tm")
-            ("User manual" (load-help-book "main/man-user-manual")))
-          ;; (when (url-exists-in-help? "tutorial/tut-tutorial.en.tm")
-          ;;   ("Tutorial" (load-help-book "tutorial/tut-tutorial")))
-          ---
-          (when (style-has? "tmdoc-style")
-            ("Compile article" (tmdoc-expand-this "article"))
-            ("Compile book" (tmdoc-expand-this "book"))))))
+  (-> "Full manuals"
+      (when (url-exists-in-help? "main/man-user-manual.en.tm")
+        ("User manual" (load-help-book "main/man-user-manual")))
+      ;; (when (url-exists-in-help? "tutorial/tut-tutorial.en.tm")
+      ;;   ("Tutorial" (load-help-book "tutorial/tut-tutorial")))
+      ---
+      (when (style-has? "tmdoc-style")
+        ("Compile article" (tmdoc-expand-this "article"))
+        ("Compile book" (tmdoc-expand-this "book")))))

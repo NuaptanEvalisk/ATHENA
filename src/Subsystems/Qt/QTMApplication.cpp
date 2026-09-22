@@ -91,10 +91,6 @@ void QTMApplication::hide_splash () {
 }
 
 void QTMApplication::load() {
-  mUseMdi = false;
-  mUseAds = true;
-  mUseTabWindow = true;
-
   mUseNewToolbar = get_user_preference ("new toolbar") != "off";
 
   mPixmapManagerInitialized = false;
@@ -104,7 +100,7 @@ void QTMApplication::load() {
   bench_cumul ("initialize qt theme");
 
   bench_start ("construct qt tab shell");
-  if (mUseTabWindow) new QTMMainTabWindow();
+  new QTMMainTabWindow();
   bench_cumul ("construct qt tab shell");
   bench_start ("initialize background services");
   qtm_vault_backup_dispatcher_initialize ();

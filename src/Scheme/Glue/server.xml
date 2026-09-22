@@ -113,15 +113,9 @@
   <binding name="window-floating?" native="is_window_floating" returns="bool">
     <arg type="url" />
   </binding>
-  <binding name="mdi-tile" native="mdi_tile" returns="void" />
-  <binding name="mdi-cascade" native="mdi_cascade" returns="void" />
-  <binding name="mdi-maximize-active" native="mdi_maximize_active" returns="void" />
-  <binding name="mdi-minimize-active" native="mdi_minimize_active" returns="void" />
-  <binding name="mdi-detach" native="mdi_detach" returns="void" />
   <binding name="ads-detach" native="ads_detach" returns="void" />
   <binding name="ads-prepare-floating" native="ads_prepare_floating" returns="void" />
   <binding name="ads-open-panes?" native="ads_open_panes" returns="bool" />
-  <binding name="mdi-attach" native="mdi_attach" returns="void" />
   <binding name="recall-message" native="recall_message" returns="void" />
   <binding name="yes?" native="is_yes" returns="bool">
     <arg type="string" />

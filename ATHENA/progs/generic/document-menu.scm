@@ -216,69 +216,6 @@
   ("Other" (open-document-font-selector)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; The Document -> Paragraph menu
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(menu-bind document-paragraph-menu
-  (-> "Style"
-      ("Default" (init-default "par-mode"))
-      ---
-      ("Justified" (init-env "par-mode" "justify"))
-      ("Left aligned" (init-env "par-mode" "left"))
-      ("Centered" (init-env "par-mode" "center"))
-      ("Right aligned" (init-env "par-mode" "right")))
-  (-> "Line breaking"
-      ("Default" (init-default "par-hyphen"))
-      ---
-      ("Normal" (init-env "par-hyphen" "normal"))
-      ("Professional" (init-env "par-hyphen" "professional")))
-  (-> "Margins"
-      ("Default" (init-default "par-first"))
-      ---
-      ("First indentation" (init-interactive-env "par-first")))
-  (-> "Spacing"
-      ("Default" (init-default "par-sep" "par-line-sep"
-                               "interpargraph space"))
-      ---
-      ("Interline separation" (init-interactive-env "par-sep"))
-      ("Interline space" (init-interactive-env "par-line-sep"))
-      ("Interparagraph space" (init-interactive-env "par-par-sep")))
-  (-> "Number of columns"
-      ("Default" (init-default "par-columns"))
-      ---
-      (link document-columns-menu))
-  (-> "Advanced"
-      (-> "Space stretchability"
-          ("Default" (init-default "par-flexibility"))
-          ---
-          ("Minimal (1)" (init-env "par-flexibility" "1"))
-          ("Small (2)" (init-env "par-flexibility" "2"))
-          ("Modest (4)" (init-env "par-flexibility" "4"))
-          ("Large (1000)" (init-env "par-flexibility" "1000"))
-          ---
-          ("Other" (init-interactive-env "par-flexibility")))
-      (-> "Intercharacter stretching"
-          ("Default" (init-default "par-kerning-stretch"))
-          ("Automatic" (init-env "par-kerning-stretch" "auto"))
-          ("Tolerant" (init-env "par-kerning-stretch" "tolerant"))
-          ---
-          ("Off" (init-env "par-kerning-stretch" "0"))
-          ("Tiny (0.02)" (init-env "par-kerning-stretch" "0.02"))
-          ("Modest (0.05)" (init-env "par-kerning-stretch" "0.05"))
-          ("Flexible (1.0)" (init-env "par-kerning-stretch" "1.0"))
-          ---
-          ("Other" (init-interactive-env "par-kerning-stretch")))
-      (-> "CJK spacing"
-          ("Default" (init-default "par-spacing"))
-          ---
-          ("Plain" (init-env "par-spacing" "plain"))
-          ("Quanjiao" (init-env "par-spacing" "quanjiao"))
-          ("Banjiao" (init-env "par-spacing" "banjiao"))
-          ("Hangmobanjiao" (init-env "par-spacing" "hangmobanjiao"))
-          ("Kaiming" (init-env "par-spacing" "kaiming")))
-      ("Use protrusion" (toggle-init-env "par-kerning-margin"))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Page sizes
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -414,95 +351,6 @@
   ("Indent paragraphs" (toggle-indent-paragraphs))
   ("No page numbers" (toggle-no-page-numbers)))
 
-(menu-bind document-page-menu
-  (-> "Type"
-      ("Default" (init-default-page-rendering))
-      ---
-      (link page-rendering-menu))
-  (-> "Size"
-      (link document-page-size-menu))
-  (-> "Orientation"
-      ("Default" (init-default-page-orientation))
-      ---
-      ("Portrait" (init-page-orientation "portrait"))
-      ("Landscape" (init-page-orientation "landscape")))
-  (-> "Crop marks"
-      ("Default" (init-default "page-crop-marks"))
-      ---
-      ("None" (init-env "page-crop-marks" ""))
-      ("A3" (init-env "page-crop-marks" "a3"))
-      ("A4" (init-env "page-crop-marks" "a4"))
-      ("Letter" (init-env "page-crop-marks" "letter")))
-  (-> "Margins"
-      ("Default" (init-default "page-width-margin" "page-height-margin"
-                               "page-odd" "page-even" "page-right"
-                               "par-width" "page-odd-shift"
-                               "page-even-shift" "page-top" "page-bot"
-                               "page-height-margin"))
-      ---
-      ("Explicit margins" (init-env "page-width-margin" "false"))
-      (when (test-env? "page-width-margin" "false")
-        ("Odd page left margin" (init-interactive-env "page-odd"))
-        ("Odd page right margin" (init-interactive-env "page-right"))
-        ("Even page left margin" (init-interactive-env "page-even"))
-        (when (test-env? "page-height-margin" "false")
-          ("Top margin" (init-interactive-env "page-top"))
-          ("Bottom margin" (init-interactive-env "page-bot"))))
-      ---
-      ("Margins from width" (init-env "page-width-margin" "true"))
-      (when (test-env? "page-width-margin" "true")
-        ("Paragraph width" (init-interactive-env "par-width"))
-        ("Odd page shift" (init-interactive-env "page-odd-shift"))
-        ("Even page shift" (init-interactive-env "page-even-shift"))
-        (when (test-env? "page-height-margin" "false")
-          ("Top margin" (init-interactive-env "page-top"))
-          ("Bottom margin" (init-interactive-env "page-bot")))))
-  (-> "Screen margins"
-      ("Default" (init-default "page-screen-margin"
-                               "page-screen-left" "page-screen-right"
-                               "page-screen-top" "page-screen-bot"))
-      ("Margins as on paper" (toggle-page-screen-margin))
-      ---
-      (when (test-env? "page-screen-margin" "true")
-        ("Left margin" (init-interactive-env "page-screen-left"))
-        ("Right margin" (init-interactive-env "page-screen-right"))
-        ("Top margin" (init-interactive-env "page-screen-top"))
-        ("Bottom margin" (init-interactive-env "page-screen-bot"))))
-  (if (detailed-menus?)
-      ---
-      (group "Page Breaking")
-      (-> "Algorithm"
-          ("Default" (init-default "page-breaking"))
-          ---
-          ("LibreOffice flavor" (init-env "page-breaking" "sloppy"))
-          ("Medium" (init-env "page-breaking" "medium"))
-          ("TeX flavor" (init-env "page-breaking" "professional")))
-      (-> "Limits"
-          ("Allowed reduction" (init-interactive-env "page-shrink"))
-          ("Allowed extension" (init-interactive-env "page-extend")))
-      (-> "Flexibility"
-          ("Default" (init-default "page-flexibility"))
-          ---
-          ("0" (init-env "page-flexibility" "0.0"))
-          ("1/4" (init-env "page-flexibility" "0.25"))
-          ("1/2" (init-env "page-flexibility" "0.5"))
-          ("3/4" (init-env "page-flexibility" "0.75"))
-          ("1" (init-env "page-flexibility" "1.0"))
-          ---
-          ("Other" (init-interactive-env "page-flexibility")))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; The Document -> Metadata menu
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(menu-bind document-metadata-menu
-  ("Title" (init-interactive-env "global-title"))
-  ("Author" (init-interactive-env "global-author"))
-  ("Subject" (init-interactive-env "global-subject"))
-  ("Created Time" (init-interactive-env "global-created-time"))
-  ("Modified Time" (init-interactive-env "global-modified-time"))
-  ("Content Hash" (init-interactive-env "global-content-hash")))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; The Document -> Magnification menu
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -623,41 +471,7 @@
 ;; The main Document menu
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(menu-bind full-document-menu
-  (-> "Style" (link document-style-menu))
-  (-> "Citation Style" (link materials-citation-style-menu))
-  (link document-style-extra-menu)
-  ;;(-> "Add package"
-  ;;(link add-package-menu)
-  ;;---
-  ;;("Other" (interactive add-style-package)))
-  ;;(-> "Remove package"
-  ;;(link remove-package-menu)
-  ;;---
-  ;;("Other" (interactive remove-style-package)))
-  ("Edit source tree" (toggle-source-mode))
-  (if (not (buffer-has-preamble?))
-      ("Create preamble" (toggle-preamble-mode)))
-  (if (and (buffer-has-preamble?) (not (in-preamble-mode?)))
-      ("Show preamble" (toggle-preamble-mode)))
-  (if (in-preamble-mode?)
-      ("Show main document" (toggle-preamble-mode)))
-  (-> "Update" (link document-update-menu))
-  (link athena-document-utilities-menu)
-  ("Anchor enunciations" (anchor-enunciations-current-document))
-  ---
-  ("Font" (open-document-font-selector))
-  (-> "Paragraph" (link document-paragraph-menu))
-  (-> "Page" (link document-page-menu))
-  (-> "Metadata" (link document-metadata-menu))
-  ---
-  (-> "Magnification" (link document-magnification-menu))
-  (-> "Colors" (link document-colors-menu))
-  (if (detailed-menus?)
-      (-> "Language" (link document-language-menu)))
-  (-> "Informative flags" (link document-informative-flags-menu)))
-
-(menu-bind compressed-document-menu
+(menu-bind document-menu
   (-> "Style" (link document-style-menu))
   (-> "Citation Style" (link materials-citation-style-menu))
   (link document-style-extra-menu)
@@ -679,15 +493,8 @@
   ---
   (-> "Magnification" (link document-magnification-menu))
   (-> "Colors" (link document-colors-menu))
-  (if (detailed-menus?)
-      (-> "Language" (link document-language-menu)))
+  (-> "Language" (link document-language-menu))
   (-> "Informative flags" (link document-informative-flags-menu)))
-
-(menu-bind document-menu
-  (if (use-menus?)
-      (link full-document-menu))
-  (if (use-popups?)
-      (link compressed-document-menu)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Document focus menus

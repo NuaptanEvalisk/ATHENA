@@ -327,12 +327,6 @@
           (with s (look-and-feel)
             (or (== t s) (and (== t "std") (!= s "emacs")))))))
 
-(define-public (use-popups?)
-  #t)
-
-(define-public (use-menus?)
-  #f)
-
 (define-public (use-print-dialog?)
   (and (qt-gui?) (== (get-preference "gui:print dialogue") "on")))
 

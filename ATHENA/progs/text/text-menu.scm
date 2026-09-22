@@ -21,24 +21,7 @@
 ;; The Format menu in text mode
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(menu-bind full-text-format-menu
-  (group "Font")
-  ("Font" (open-font-selector))
-  (if (simple-menus?)
-      (-> "Color" (link color-menu)))
-  (if (detailed-menus?)
-      ---
-      (group "Text")
-      (link text-properties-menu))
-  ---
-  (group "Paragraph")
-  (link paragraph-menu)
-  ---
-  (when (in-main-flow?)
-    (group "Page")
-    (link page-menu)))
-
-(menu-bind compressed-text-format-menu
+(menu-bind text-format-menu
   ("Font" (open-font-selector))
   ("Paragraph" (open-paragraph-format))
   (when (in-main-flow?)
@@ -65,12 +48,6 @@
   (-> "Font effects" (link text-font-effects-menu))
   (assuming (== (get-preference "bitmap effects") "on")
     (-> "Graphical effects" (link text-effects-menu))))
-
-(menu-bind text-format-menu
-  (if (use-menus?)
-      (link full-text-format-menu))
-  (if (use-popups?)
-      (link compressed-text-format-menu)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Document headers
@@ -481,7 +458,7 @@
       (-> "Prominent" (link prominent-menu)))
   (if (style-has? "std-markup-dtd")
       (-> "Program" (link code-menu)))
-  (if (and (style-has? "env-float-dtd") (detailed-menus?))
+  (if (style-has? "env-float-dtd")
       (-> "Note" (link note-menu)))
   (if (style-has? "section-base-dtd")
       (-> "Automatic" (link automatic-menu)))
@@ -549,7 +526,7 @@
   (if (style-has? "std-list-dtd")
       (=> (balloon (icon "tm_list") "Insert a list")
           (link list-menu)))
-  (if (and (style-has? "env-float-dtd") (detailed-menus?))
+  (if (style-has? "env-float-dtd")
       ;;((balloon (icon "tm_footnote") "Insert a footnote") ())
       ;;((balloon (icon "tm_margin") "Insert a marginal note") ())
       ;;((balloon (icon "tm_floating") "Insert a floating object") ())

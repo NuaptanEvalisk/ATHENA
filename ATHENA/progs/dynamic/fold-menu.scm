@@ -110,10 +110,7 @@
   ;;    ("Greyed" (make 'hidden-greyed)))
   (-> "Traversal"
       ("Fold back" (make 'fold-back))
-      ("Keep unfolded" (make 'keep-unfolded))
-      (if #f
-          ("Animate folding" (noop))
-          ("Animate unfolding" (noop)))))
+      ("Keep unfolded" (make 'keep-unfolded))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Operate on buffers with dynamic markup

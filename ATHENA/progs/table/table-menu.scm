@@ -294,18 +294,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (menu-bind table-menu
-  (assuming #f
-    (-> "Insert"
-        ("Row above" (table-insert-row #f))
-        ("Row below" (table-insert-row #t))
-        ("Column to the left" (table-insert-column #f))
-        ("Column to the right" (table-insert-column #t))
-        ("Blank row" (interactive table-insert-blank-row))
-        ("Blank column" (interactive table-insert-blank-column)))
-    (-> "Remove"
-        ("This row" (table-remove-row #f))
-        ("This column" (table-remove-column #f)))
-    ---)
   (-> "Size" (link table-size-menu))
   (-> "Width" (link table-width-menu))
   (-> "Height" (link table-height-menu))

@@ -422,13 +422,6 @@
   ("|---" (graphics-set-arrow-begin "|"))
   ("o---" (graphics-set-arrow-begin "o")))
 
-(menu-bind graphics-line-portion-menu
-  ("0" (graphics-set-line-portion "0"))
-  ("0.25" (graphics-set-line-portion "0.25"))
-  ("0.5" (graphics-set-line-portion "0.5"))
-  ("0.75" (graphics-set-line-portion "0.75"))
-  ("1" (graphics-set-line-portion "1")))
-
 (menu-bind graphics-fill-color-menu
   ;;("Default" (graphics-set-fill-color "default"))
   ;;("None" (graphics-set-fill-color "none"))
@@ -579,9 +572,6 @@
         (or (graphics-mode-attribute? (graphics-mode) "arrow-begin")
             (graphics-mode-attribute? (graphics-mode) "arrow-end"))
       (-> "Line arrows" (link graphics-line-arrows-menu)))
-    (assuming #f
-      ;;(graphics-mode-attribute? (graphics-mode) "line-portion")
-      (-> "Line portion" (link graphics-line-portion-menu)))
     (assuming (graphics-mode-attribute? (graphics-mode) "text-at-halign")
       (-> "Horizontal alignment" (link graphics-text-halign-menu)))
     (assuming (graphics-mode-attribute? (graphics-mode) "text-at-valign")

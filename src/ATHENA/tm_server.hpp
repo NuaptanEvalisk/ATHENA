@@ -37,13 +37,7 @@ public:
   tree   get_center_message ();
   bool   is_window_floating (url win);
 
-  /* mdi */
-  void   mdi_tile ();
-  void   mdi_cascade ();
-  void   mdi_maximize_active ();
-  void   mdi_minimize_active ();
-  void   mdi_detach ();
-  void   mdi_attach ();
+  /* ADS */
   void   ads_detach ();
   void   ads_prepare_floating ();
   bool   ads_open_panes ();

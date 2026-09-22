@@ -23,10 +23,7 @@
 #include "tm_timer.hpp"
 #include "vault.hpp"
 
-#include <QMouseEvent>
-#include <QTabBar>
 #include <QApplication>
-#include <QMdiSubWindow>
 #include <QByteArray>
 #include <QCloseEvent>
 #include <QToolButton>
@@ -53,7 +50,7 @@ athena_qt_is_closing () {
 
 bool
 athena_has_open_ads_panes () {
-  if (qApp == nullptr || !tmapp()->useAds ()) return false;
+  if (qApp == nullptr) return false;
 
   for (QWidget* widget: QApplication::topLevelWidgets ()) {
     QTMMainTabWindow* window= qobject_cast<QTMMainTabWindow*> (widget);
@@ -107,13 +104,6 @@ adsStateMentionsDocumentDocks (const QByteArray& state) {
   return adsStateForInspection (state).contains ("athena-document-");
 }
 
-bool isMovingTab = false;
-bool isMovingWindow = false;
-int movingTabIndex = -1;
-QPoint movingTabStartPos;
-QTMMainTabWindow *newTabWindow = nullptr;
-QTMMainTabWindow *targetTabWindow = nullptr;
-
 static bool widgetOrChildHasFocus(QWidget* widget) {
   QWidget* focus = QApplication::focusWidget();
   return widget && (focus == widget || widget->isAncestorOf(focus));
@@ -137,7 +127,7 @@ adsDockWidgetFor(QWidget* widget) {
 
 bool
 qtm_close_focused_ads_tool_pane (QWidget* eventReceiver) {
-  if (qApp == nullptr || !tmapp()->useAds ()) return false;
+  if (qApp == nullptr) return false;
 
   ads::CDockWidget* dock= adsDockWidgetFor (QApplication::focusWidget ());
   if (dock == nullptr) dock= adsDockWidgetFor (eventReceiver);
@@ -195,24 +185,9 @@ athenaMainWindowBaseTitle() {
 }
 
 QTMMainTabWindow::QTMMainTabWindow()
-  : mMdiArea (nullptr), mLastFocusedDocumentWidget (nullptr),
-    mAdsLayoutRestoreScheduled (false) {
+  : mLastFocusedDocumentWidget (nullptr), mAdsLayoutRestoreScheduled (false) {
   bench_start ("construct main window base widgets");
-  mStackedWidget = new QStackedWidget(this);
-  setCentralWidget (mStackedWidget);
   setWindowTitle (athenaMainWindowBaseTitle());
-
-  mTabWidget = new QTabWidget(mStackedWidget);
-  mTabWidget->setTabsClosable(true);
-  mTabWidget->setMovable(true);
-
-  // ATHENA uses ADS.  QMdiArea has a surprisingly expensive constructor on
-  // Qt 6/Wayland, so retain the legacy path without paying for it unless MDI
-  // is explicitly selected before this window is created.
-  if (tmapp()->useMdi ()) {
-    mMdiArea = new QMdiArea(mStackedWidget);
-    mMdiArea->setViewMode (QMdiArea::SubWindowView);
-  }
   bench_cumul ("construct main window base widgets");
 
   qtm_apply_ads_tab_close_preferences ();
@@ -231,7 +206,8 @@ QTMMainTabWindow::QTMMainTabWindow()
       ads::CDockManager::FloatingContainerForceQWidgetTitleBar, true);
   }
   bench_start ("construct ads dock manager");
-  mDockManager = new ads::CDockManager(mStackedWidget);
+  mDockManager = new ads::CDockManager(this);
+  setCentralWidget (mDockManager);
   bench_cumul ("construct ads dock manager");
   bench_start ("connect main window shell");
   connect(mDockManager, &ads::CDockManager::focusedDockWidgetChanged,
@@ -244,15 +220,7 @@ QTMMainTabWindow::QTMMainTabWindow()
             else setMainTitle("");
           });
   connect(qApp, &QCoreApplication::aboutToQuit,
-          this, &QTMMainTabWindow::saveAdsLayoutState);
-
-  mStackedWidget->addWidget (mTabWidget);
-  if (mMdiArea != nullptr) mStackedWidget->addWidget (mMdiArea);
-  mStackedWidget->addWidget (mDockManager);
-
-  if (tmapp()->useMdi()) mStackedWidget->setCurrentWidget (mMdiArea);
-  else if (tmapp()->useAds()) mStackedWidget->setCurrentWidget (mDockManager);
-  else mStackedWidget->setCurrentWidget (mTabWidget);
+           this, &QTMMainTabWindow::saveAdsLayoutState);
 
   // todo : keep the tab window size and position in the user preferences
   setMinimumSize(800, 600);
@@ -262,13 +230,7 @@ QTMMainTabWindow::QTMMainTabWindow()
   // remove the border and padding
   setDefaultStyle();
 
-  connect(mTabWidget, SIGNAL(tabCloseRequested(int)), this, SLOT(closeTab(int)));
-  if (mMdiArea != nullptr)
-    connect(mMdiArea, SIGNAL(subWindowActivated(QMdiSubWindow*)),
-            this, SLOT(onSubWindowActivated(QMdiSubWindow*)));
-
   installEventFilter(this);
-  mTabWidget->tabBar()->installEventFilter(this);
 
   gTopTabWindow = this;
   bench_cumul ("connect main window shell");
@@ -293,19 +255,8 @@ void QTMMainTabWindow::closeEvent(QCloseEvent *event) {
 
 void QTMMainTabWindow::onWindowActivated() {
   gTopTabWindow = this;
-  if (tmapp()->useAds()) {
-    if (ads::CDockWidget* dockWidget = mDockManager->focusedDockWidget())
-      setMainTitle(dockWidget->windowTitle());
-  } else if (tmapp()->useMdi()) {
-    if (QMdiSubWindow* sub = mMdiArea->activeSubWindow())
-      setMainTitle(sub->windowTitle());
-  } else {
-    setMainTitle(mTabWidget->tabText(mTabWidget->currentIndex()));
-  }
-}
-
-void QTMMainTabWindow::onDoubleClickOnEmptyTabBarSpace() {
-  eval ("new-document*");
+  if (ads::CDockWidget* dockWidget = mDockManager->focusedDockWidget())
+    setMainTitle(dockWidget->windowTitle());
 }
 
 void QTMMainTabWindow::setMainTitle(QString title) {
@@ -319,32 +270,15 @@ void QTMMainTabWindow::setMainTitleFromWidget(QWidget* widget) {
     setMainTitle("");
     return;
   }
-  if (tmapp()->useAds()) {
-    QWidget* p = widget->parentWidget();
-    while (p) {
-      if (ads::CDockWidget* dockWidget = qobject_cast<ads::CDockWidget*>(p)) {
-        if (isDocumentWidget (dockWidget->widget ()))
-          buffer_switcher_note_widget (dockWidget->widget ());
-        setMainTitle(dockWidget->windowTitle());
-        return;
-      }
-      p = p->parentWidget();
-    }
-  } else if (tmapp()->useMdi()) {
-    if (QMdiSubWindow* sub = qobject_cast<QMdiSubWindow*>(widget->parentWidget())) {
-      if (isDocumentWidget (sub->widget ()))
-        buffer_switcher_note_widget (sub->widget ());
-      setMainTitle(sub->windowTitle());
+  QWidget* p = widget->parentWidget();
+  while (p) {
+    if (ads::CDockWidget* dockWidget = qobject_cast<ads::CDockWidget*>(p)) {
+      if (isDocumentWidget (dockWidget->widget ()))
+        buffer_switcher_note_widget (dockWidget->widget ());
+      setMainTitle(dockWidget->windowTitle());
       return;
     }
-  } else {
-    int index = mTabWidget->indexOf(widget);
-    if (index != -1) {
-      if (isDocumentWidget (widget))
-        buffer_switcher_note_widget (widget);
-      setMainTitle(mTabWidget->tabText(index));
-      return;
-    }
+    p = p->parentWidget();
   }
   setMainTitle(widget->windowTitle());
 }
@@ -361,8 +295,7 @@ void QTMMainTabWindow::showAfterContentReady(QWidget* focusWidget) {
 }
 
 bool QTMMainTabWindow::adsLayoutPersistenceEnabled() const {
-  return tmapp()->useAds() &&
-         get_preference ("remember ads panes layout", "on") == "on";
+  return get_preference ("remember ads panes layout", "on") == "on";
 }
 
 QString QTMMainTabWindow::adsLayoutStatePath() const {
@@ -631,121 +564,10 @@ void QTMMainTabWindow::setNextWidgetFloating() {
 }
 
 bool QTMMainTabWindow::eventFilterWindow(QObject *obj, QEvent *event) {
-  // if the window is a top level window
+  (void) obj;
   if (event->type() == QEvent::WindowActivate) {
     if (DEBUG_QT_WIDGETS) cout << "TabWindow: WindowActivated" << LF;
     onWindowActivated();
-  }
-
-  if (event->type() == QEvent::MouseButtonPress &&
-      !tmapp()->useAds() && !tmapp()->useMdi()) {
-    if (DEBUG_QT_WIDGETS) cout << "TabWindow: MouseButtonPress" << LF;
-    QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
-    int x = mouseEvent->position().toPoint().x();
-    int y = mouseEvent->position().toPoint().y();
-    int tabBarWidth = mTabWidget->tabBar()->width();
-    int tabBarHeight = mTabWidget->tabBar()->height();
-    if(x > tabBarWidth && y < tabBarHeight)
-    {
-      if (DEBUG_QT_WIDGETS) cout << "Mouse on an empty tab bar space" << LF;
-      onDoubleClickOnEmptyTabBarSpace();
-    }
-  }
-
-  return QMainWindow::eventFilter(obj, event);
-}
-
-bool QTMMainTabWindow::eventFilterTabBar(QObject *obj, QEvent *event) {
-  if (tmapp()->useMdi()) return QMainWindow::eventFilter(obj, event);
-
-  if (event->type() == QEvent::MouseButtonPress) {
-    if (mTabWidget->count() == 1) {
-      isMovingWindow = true;
-      newTabWindow = this;
-      movingTabIndex = 0;
-      QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
-      movingTabStartPos = mouseEvent->position().toPoint();
-    } 
-    else 
-    {
-      QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
-      int x = mouseEvent->position().toPoint().x();
-      int y = mouseEvent->position().toPoint().y();
-      int tabBarWidth = mTabWidget->tabBar()->width();
-      int tabBarHeight = mTabWidget->tabBar()->height();
-      if (mouseEvent->button() == Qt::LeftButton && 
-          x >= 0 && y >= 0 && x < tabBarWidth && y < tabBarHeight) {
-        isMovingTab = true;
-        movingTabIndex = mTabWidget->tabBar()->tabAt(QPoint(x, y));
-        movingTabStartPos = mouseEvent->position().toPoint();
-      }
-    }
-  }
-
-  if (event->type() == QEvent::MouseMove && isMovingTab) {
-    QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
-    int x = mouseEvent->position().toPoint().x();
-    int y = mouseEvent->position().toPoint().y();
-    int tabBarWidth = mTabWidget->tabBar()->width();
-    int tabBarHeight = mTabWidget->tabBar()->height();
-    const int dist = 10;
-    if (x >= tabBarWidth + dist || y >= tabBarHeight + dist ||
-        x < -dist || y < -dist) {
-      newTabWindow = new QTMMainTabWindow();
-      QWidget *widgetToMove = mTabWidget->widget(movingTabIndex);
-      bool wasDocument = isDocumentWidget(widgetToMove);
-      mTabWidget->removeTab(movingTabIndex);
-      newTabWindow->showWidget(widgetToMove, wasDocument);
-      isMovingTab = false;
-      isMovingWindow = true;
-      movingTabIndex = 0;
-    }
-  }
-
-  if (event->type() == QEvent::MouseMove && isMovingWindow) {
-    QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
-    int globalX = mouseEvent->globalPosition().toPoint().x();
-    int globalY = mouseEvent->globalPosition().toPoint().y();
-    globalX -= newTabWindow->width() / 2;
-    globalY -= 10;
-    newTabWindow->move(globalX, globalY);
-    
-    QTMMainTabWindow *tabWindow = nullptr;
-    targetTabWindow = nullptr;
-    for (QWidget *topWidget : QApplication::topLevelWidgets()) {
-      tabWindow = qobject_cast<QTMMainTabWindow *>(topWidget);
-      if (tabWindow == nullptr || tmapp()->useMdi()) continue;
-
-      QPoint globalPos = mouseEvent->globalPosition().toPoint();
-      QPoint localPos = tabWindow->mapFromGlobal(globalPos);
-      QRect tabBarRect = tabWindow->mTabWidget->tabBar()->rect();
-      tabBarRect.setWidth(tabWindow->width());
-
-      if (tabWindow && tabWindow != newTabWindow && 
-          tabBarRect.contains(localPos)) {
-        targetTabWindow = tabWindow;
-        tabWindow->setHoverStyle();
-        break;
-      }
-      tabWindow->setDefaultStyle();
-    }
-  }
-
-  if (event->type() == QEvent::MouseButtonRelease) {
-    isMovingWindow = false;
-    isMovingTab = false;
-    if (targetTabWindow != nullptr) {
-      QWidget *widgetToMove = mTabWidget->widget(movingTabIndex);
-      bool wasDocument = isDocumentWidget(widgetToMove);
-      mTabWidget->removeTab(movingTabIndex);
-      targetTabWindow->showWidget(widgetToMove, wasDocument);
-      targetTabWindow->setDefaultStyle();
-      targetTabWindow->activateWindow();
-      targetTabWindow = nullptr;
-      if (mTabWidget->count() == 0) {
-        closeAndSetTopTabWindow();
-      }
-    }
   }
   return QMainWindow::eventFilter(obj, event);
 }
@@ -761,30 +583,8 @@ bool QTMMainTabWindow::eventFilter(QObject *obj, QEvent *event) {
       setMainTitleFromWidget(widget);
   }
 
-  if (obj == this) {
-    return eventFilterWindow(obj, event);
-  }
-
-  if (QMdiSubWindow* sub = qobject_cast<QMdiSubWindow*>(obj)) {
-    if (event->type() == QEvent::MouseButtonPress) {
-      QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
-      if (mouseEvent->button() == Qt::MiddleButton) {
-        // Detect if click is in the title bar area
-        int titleBarHeight = sub->style()->pixelMetric(QStyle::PM_TitleBarHeight);
-        int y = mouseEvent->position().toPoint().y();
-        if (y >= 0 && y < titleBarHeight) {
-          if (QWidget* inner = sub->widget()) {
-            if (inner->metaObject()->indexOfSignal("closed()") != -1) {
-              QMetaObject::invokeMethod(inner, "closed");
-              return true;
-            }
-          }
-        }
-      }
-    }
-  }
-
-  return eventFilterTabBar(obj, event);
+  if (obj == this) return eventFilterWindow(obj, event);
+  return QMainWindow::eventFilter(obj, event);
 }
 
 void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
@@ -793,86 +593,43 @@ void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
   if (isDocument) mLastFocusedDocumentWidget= widget;
   if (isDocument) widget->installEventFilter(this);
   if (isDocument) buffer_switcher_note_widget (widget);
-  if (tmapp()->useAds()) {
-    ads::CDockWidget* dockWidget = adsDockWidgetFor(widget);
-    if (dockWidget) {
-      mStackedWidget->setCurrentWidget (mDockManager);
-      dockWidget->toggleView(true);
-      dockWidget->raise();
-      mDockManager->setDockWidgetFocused(dockWidget);
-      if (QWidget* focusTarget= documentFocusTarget(widget))
-        focusTarget->setFocus(Qt::OtherFocusReason);
-      setMainTitleFromWidget(widget);
-    } else if (isDocument) {
-      dockWidget = new ads::CDockWidget(widget->windowTitle());
-      dockWidget->setObjectName (
-        QString ("athena-document-%1").arg (++gAdsDocumentDockCounter));
-      dockWidget->setWidget(widget);
-      
-      // Use CustomCloseHandling to let TeXmacs handle the safe-exit sequence.
-      dockWidget->setFeature(ads::CDockWidget::DockWidgetDeleteOnClose, false);
-      dockWidget->setFeature(ads::CDockWidget::CustomCloseHandling, true);
-      
-      connect(dockWidget, &ads::CDockWidget::closeRequested, [widget]() {
-        if (widget->metaObject()->indexOfSignal("closed()") != -1) {
-          QMetaObject::invokeMethod(widget, "closed");
-        }
-      });
-      
-      if (gNextWidgetFloating) {
-        mDockManager->addDockWidgetFloating(dockWidget);
-        gNextWidgetFloating = false;
-      } else {
-        mDockManager->addDockWidget(ads::CenterDockWidgetArea, dockWidget);
-      }
-
-      scheduleAdsLayoutRestore();
-      mStackedWidget->setCurrentWidget (mDockManager);
-      if (QWidget* focusTarget= documentFocusTarget(widget))
-        focusTarget->setFocus(Qt::OtherFocusReason);
-      setMainTitleFromWidget(widget);
-    } else {
-
-      widget->show();
-      widget->raise();
-      widget->activateWindow();
-      widget->setFocus();
-    }
-  } else if (tmapp()->useMdi()) {
-    QMdiSubWindow* sub = qobject_cast<QMdiSubWindow*>(widget->parentWidget());
-    if (sub) {
-      mStackedWidget->setCurrentWidget (mMdiArea);
-      sub->show();
-      mMdiArea->setActiveSubWindow(sub);
-      widget->setFocus();
-      setMainTitleFromWidget(widget);
-    } else if (isDocument) {
-      bool first = mMdiArea->subWindowList().isEmpty();
-      sub = mMdiArea->addSubWindow (widget);
-      sub->setAttribute(Qt::WA_DeleteOnClose);
-      sub->installEventFilter(this); // Listen for middle clicks on title bar
-      mStackedWidget->setCurrentWidget (mMdiArea);
-      if (first) sub->showMaximized();
-      else sub->show();
-      mMdiArea->setActiveSubWindow(sub);
-      widget->setFocus();
-      setMainTitleFromWidget(widget);
-    } else {
-      widget->show();
-      widget->raise();
-      widget->activateWindow();
-      widget->setFocus();
-    }
-  } else {
-    int index = mTabWidget->indexOf(widget);
-    if (index == -1) {
-      mTabWidget->addTab(widget, widget->windowTitle());
-      index = mTabWidget->indexOf(widget);
-    }
-    mTabWidget->setCurrentIndex(index);
-    mStackedWidget->setCurrentWidget (mTabWidget);
-    widget->setFocus();
+  ads::CDockWidget* dockWidget = adsDockWidgetFor(widget);
+  if (dockWidget) {
+    dockWidget->toggleView(true);
+    dockWidget->raise();
+    mDockManager->setDockWidgetFocused(dockWidget);
+    if (QWidget* focusTarget= documentFocusTarget(widget))
+      focusTarget->setFocus(Qt::OtherFocusReason);
     setMainTitleFromWidget(widget);
+  } else if (isDocument) {
+    dockWidget = new ads::CDockWidget(widget->windowTitle());
+    dockWidget->setObjectName (
+      QString ("athena-document-%1").arg (++gAdsDocumentDockCounter));
+    dockWidget->setWidget(widget);
+
+    // Let the TeXmacs close sequence decide whether a document may close.
+    dockWidget->setFeature(ads::CDockWidget::DockWidgetDeleteOnClose, false);
+    dockWidget->setFeature(ads::CDockWidget::CustomCloseHandling, true);
+    connect(dockWidget, &ads::CDockWidget::closeRequested, [widget]() {
+      if (widget->metaObject()->indexOfSignal("closed()") != -1)
+        QMetaObject::invokeMethod(widget, "closed");
+    });
+
+    if (gNextWidgetFloating) {
+      mDockManager->addDockWidgetFloating(dockWidget);
+      gNextWidgetFloating = false;
+    } else
+      mDockManager->addDockWidget(ads::CenterDockWidgetArea, dockWidget);
+
+    scheduleAdsLayoutRestore();
+    if (QWidget* focusTarget= documentFocusTarget(widget))
+      focusTarget->setFocus(Qt::OtherFocusReason);
+    setMainTitleFromWidget(widget);
+  } else {
+    widget->show();
+    widget->raise();
+    widget->activateWindow();
+    widget->setFocus();
   }
   showAfterContentReady(widget);
 }
@@ -880,38 +637,20 @@ void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
 QList<QWidget*>
 QTMMainTabWindow::documentWidgets() const {
   QList<QWidget*> out;
-  if (tmapp()->useAds()) {
-    auto map= mDockManager->dockWidgetsMap();
-    for (auto it= map.begin (); it != map.end (); ++it) {
-      ads::CDockWidget* dockWidget= it.value ();
-      if (dockWidget == nullptr) continue;
-      QWidget* widget= dockWidget->widget ();
-      if (isDocumentWidget (widget) && !out.contains (widget))
-        out.append (widget);
-    }
-  }
-  else if (tmapp()->useMdi()) {
-    QList<QMdiSubWindow*> windows= mMdiArea->subWindowList ();
-    for (QMdiSubWindow* sub : windows) {
-      if (sub == nullptr) continue;
-      QWidget* widget= sub->widget ();
-      if (isDocumentWidget (widget) && !out.contains (widget))
-        out.append (widget);
-    }
-  }
-  else {
-    for (int i=0; i<mTabWidget->count (); ++i) {
-      QWidget* widget= mTabWidget->widget (i);
-      if (isDocumentWidget (widget) && !out.contains (widget))
-        out.append (widget);
-    }
+  auto map= mDockManager->dockWidgetsMap();
+  for (auto it= map.begin (); it != map.end (); ++it) {
+    ads::CDockWidget* dockWidget= it.value ();
+    if (dockWidget == nullptr) continue;
+    QWidget* widget= dockWidget->widget ();
+    if (isDocumentWidget (widget) && !out.contains (widget))
+      out.append (widget);
   }
   return out;
 }
 
 bool
 QTMMainTabWindow::hasOpenAdsPanes() const {
-  if (!tmapp()->useAds () || mDockManager == nullptr) return false;
+  if (mDockManager == nullptr) return false;
 
   QMap<QString, ads::CDockWidget*> docks= mDockManager->dockWidgetsMap ();
   for (auto it= docks.constBegin (); it != docks.constEnd (); ++it) {
@@ -926,28 +665,21 @@ QTMMainTabWindow::hasOpenAdsPanes() const {
 QWidget*
 QTMMainTabWindow::currentDocumentWidget() const {
   QWidget* current= nullptr;
-  if (tmapp()->useAds()) {
-    if (ads::CDockWidget* dockWidget= mDockManager->focusedDockWidget ())
-      current= dockWidget->widget ();
-    if (!isDocumentWidget (current)) {
-      if (mLastFocusedDocumentWidget != nullptr &&
-          documentWidgets ().contains (mLastFocusedDocumentWidget))
-        current= mLastFocusedDocumentWidget;
-    }
-    if (!isDocumentWidget (current)) {
-      QTMWidget* last= QTMWidget::getLastFocusedWidget ();
-      for (QWidget* widget : documentWidgets ())
-        if (widget == last || widget->isAncestorOf (last)) {
-          current= widget;
-          break;
-        }
-    }
+  if (ads::CDockWidget* dockWidget= mDockManager->focusedDockWidget ())
+    current= dockWidget->widget ();
+  if (!isDocumentWidget (current)) {
+    if (mLastFocusedDocumentWidget != nullptr &&
+        documentWidgets ().contains (mLastFocusedDocumentWidget))
+      current= mLastFocusedDocumentWidget;
   }
-  else if (tmapp()->useMdi()) {
-    if (QMdiSubWindow* sub= mMdiArea->activeSubWindow ())
-      current= sub->widget ();
+  if (!isDocumentWidget (current)) {
+    QTMWidget* last= QTMWidget::getLastFocusedWidget ();
+    for (QWidget* widget : documentWidgets ())
+      if (widget == last || widget->isAncestorOf (last)) {
+        current= widget;
+        break;
+      }
   }
-  else current= mTabWidget->currentWidget ();
 
   if (isDocumentWidget (current) && documentWidgets ().contains (current))
     return current;
@@ -958,18 +690,8 @@ QString
 QTMMainTabWindow::documentWidgetTitle(QWidget* widget) const {
   if (widget == nullptr) return QString ();
 
-  if (tmapp()->useAds()) {
-    if (ads::CDockWidget* dockWidget= adsDockWidgetFor(widget))
-      return dockWidget->windowTitle ();
-  }
-  else if (tmapp()->useMdi()) {
-    if (QMdiSubWindow* sub= qobject_cast<QMdiSubWindow*> (widget->parentWidget ()))
-      return sub->windowTitle ();
-  }
-  else {
-    int index= mTabWidget->indexOf (widget);
-    if (index >= 0) return mTabWidget->tabText (index);
-  }
+  if (ads::CDockWidget* dockWidget= adsDockWidgetFor(widget))
+    return dockWidget->windowTitle ();
 
   return widget->windowTitle ();
 }
@@ -989,48 +711,30 @@ QTMMainTabWindow::placeDocumentWidgetsSideBySide(QWidget* left,
                                                  QWidget* right) {
   if (left == nullptr || right == nullptr || left == right) return false;
 
-  if (tmapp()->useAds()) {
-    ads::CDockWidget* leftDock= adsDockWidgetFor (left);
-    ads::CDockWidget* rightDock= adsDockWidgetFor (right);
-    if (leftDock == nullptr || rightDock == nullptr ||
-        leftDock->dockAreaWidget () == nullptr)
-      return false;
-    leftDock->toggleView (true);
-    rightDock->toggleView (true);
-    mDockManager->addDockWidget (ads::RightDockWidgetArea, rightDock,
-                                 leftDock->dockAreaWidget ());
-    mDockManager->setDockWidgetFocused (leftDock);
-    return true;
-  }
-
-  if (tmapp()->useMdi()) {
-    tileSubWindows ();
-    return true;
-  }
-  return false;
+  ads::CDockWidget* leftDock= adsDockWidgetFor (left);
+  ads::CDockWidget* rightDock= adsDockWidgetFor (right);
+  if (leftDock == nullptr || rightDock == nullptr ||
+      leftDock->dockAreaWidget () == nullptr)
+    return false;
+  leftDock->toggleView (true);
+  rightDock->toggleView (true);
+  mDockManager->addDockWidget (ads::RightDockWidgetArea, rightDock,
+                               leftDock->dockAreaWidget ());
+  mDockManager->setDockWidgetFocused (leftDock);
+  return true;
 }
 
 void QTMMainTabWindow::removeWidget(QWidget *widget) {
-  if (tmapp()->useAds()) {
-    QWidget* p = widget->parentWidget();
-    while (p) {
-      if (ads::CDockWidget* dockWidget = qobject_cast<ads::CDockWidget*>(p)) {
-        mDockManager->removeDockWidget(dockWidget);
-        dockWidget->deleteLater();
-        break;
-      }
-      p = p->parentWidget();
+  QWidget* p = widget->parentWidget();
+  while (p) {
+    if (ads::CDockWidget* dockWidget = qobject_cast<ads::CDockWidget*>(p)) {
+      mDockManager->removeDockWidget(dockWidget);
+      dockWidget->deleteLater();
+      break;
     }
-  } else if (tmapp()->useMdi()) {
-    if (QMdiSubWindow* sub = qobject_cast<QMdiSubWindow*>(widget->parentWidget())) {
-      sub->close();
-    } else {
-      mMdiArea->removeSubWindow (widget);
-    }
-  } else {
-    mTabWidget->removeTab(mTabWidget->indexOf(widget));
+    p = p->parentWidget();
   }
-  
+
   if (nr_windows <= 1 && !hasOpenAdsPanes ()) {
     if (is_server_started()) {
       AthenaQtClosingGuard guard;
@@ -1041,115 +745,26 @@ void QTMMainTabWindow::removeWidget(QWidget *widget) {
   }
 }
 
-void QTMMainTabWindow::closeTab(int index) {
-  QWidget *w = mTabWidget->widget(index);
-  if (w) w->close();
-  if (mTabWidget->count() == 0) closeAndSetTopTabWindow();
-}
-
-void QTMMainTabWindow::onSubWindowActivated(QMdiSubWindow* sub) {
-  if (sub && sub->widget()) {
-    sub->widget()->setFocus();
-  }
-}
-
-void QTMMainTabWindow::tileSubWindows() {
-  mMdiArea->tileSubWindows();
-}
-
-void QTMMainTabWindow::cascadeSubWindows() {
-  QList<QMdiSubWindow *> windows = mMdiArea->subWindowList();
-  int x = 0;
-  int y = 0;
-  int offset = 30;
-  
-  // Calculate a reasonable default size for cascaded windows (e.g., 80% of area)
-  int w = mMdiArea->width() * 0.8;
-  int h = mMdiArea->height() * 0.8;
-
-  for (QMdiSubWindow *window : windows) {
-    if (window->isMinimized()) continue;
-    window->showNormal();
-    window->setGeometry(x, y, w, h);
-    x += offset;
-    y += offset;
-    
-    // Wrap around if we go too far
-    if (x > mMdiArea->width() / 2 || y > mMdiArea->height() / 2) {
-      x = 0;
-      y = 0;
-    }
-  }
-}
-
-void QTMMainTabWindow::mdi_maximize_active() {
-  if (QMdiSubWindow* active = mMdiArea->activeSubWindow()) {
-    active->showMaximized();
-  }
-}
-
-void QTMMainTabWindow::mdi_minimize_active() {
-  if (QMdiSubWindow* active = mMdiArea->activeSubWindow()) {
-    active->showMinimized();
-  }
-}
-
 void QTMMainTabWindow::detachWidget(QWidget* widget) {
-  if (tmapp()->useAds()) {
-    QWidget* p = widget->parentWidget();
-    while (p) {
-      if (ads::CDockWidget* dockWidget = qobject_cast<ads::CDockWidget*>(p)) {
-        mDockManager->addDockWidgetFloating(dockWidget);
-        break;
-      }
-      p = p->parentWidget();
+  QWidget* p = widget->parentWidget();
+  while (p) {
+    if (ads::CDockWidget* dockWidget = qobject_cast<ads::CDockWidget*>(p)) {
+      mDockManager->addDockWidgetFloating(dockWidget);
+      break;
     }
-  } else if (tmapp()->useMdi()) {
-    if (QMdiSubWindow* sub = qobject_cast<QMdiSubWindow*>(widget->parentWidget())) {
-      sub->setWidget(nullptr);
-      sub->deleteLater();
-      widget->setWindowFlags(Qt::Window);
-      widget->show();
-    }
-  } else {
-    int index = mTabWidget->indexOf(widget);
-    if (index != -1) {
-      mTabWidget->removeTab(index);
-      widget->setParent(nullptr);
-      widget->setWindowFlags(Qt::Window);
-      widget->show();
-    }
-  }
-}
-
-void QTMMainTabWindow::attachWidget(QWidget* widget) {
-  if (widget->parentWidget() == nullptr) {
-    showWidget(widget, true);
+    p = p->parentWidget();
   }
 }
 
 void QTMMainTabWindow::tabTitleChanged(QWidget *widget, QString title) {
-  if (tmapp()->useAds()) {
-    QWidget* p = widget->parentWidget();
-    while (p) {
-      if (ads::CDockWidget* dockWidget = qobject_cast<ads::CDockWidget*>(p)) {
-        dockWidget->setWindowTitle(title);
-        setMainTitle(title);
-        break;
-      }
-      p = p->parentWidget();
+  QWidget* p = widget->parentWidget();
+  while (p) {
+    if (ads::CDockWidget* dockWidget = qobject_cast<ads::CDockWidget*>(p)) {
+      dockWidget->setWindowTitle(title);
+      if (widgetOrChildHasFocus(widget)) setMainTitle(title);
+      break;
     }
-  } else if (tmapp()->useMdi()) {
-    widget->setWindowTitle (title);
-    if (QMdiSubWindow* sub = qobject_cast<QMdiSubWindow*>(widget->parentWidget()))
-      sub->setWindowTitle (title);
-    if (widgetOrChildHasFocus(widget)) setMainTitle(title);
-  } else {
-    int index = mTabWidget->indexOf(widget);
-    if (index != -1) {
-      mTabWidget->setTabText(index, title);
-      if (index == mTabWidget->currentIndex()) setMainTitle(title);
-    }
+    p = p->parentWidget();
   }
 }
 
@@ -1192,33 +807,4 @@ void QTMMainTabWindow::setDefaultStyle() {
     "} ";
 
   this->setStyleSheet(adsStyle);
-
-  mTabWidget->setStyleSheet(
-    "QTabBar::tab { "
-    "   height: 30px; "
-    "   width: 150px; "
-    "   border-radius: 0px; "
-    "   padding: 0px; "
-    "} "
-    "QTabWidget::pane { "
-    "   border: 0px; "
-    "   padding: 0px; "
-    "}"
-  );
-}
-
-void QTMMainTabWindow::setHoverStyle() {
-  mTabWidget->setStyleSheet(
-    "QTabBar::tab { "
-    "   height: 30px; "
-    "   width: 150px; "
-    "   border-radius: 0px; "
-    "   padding: 0px; "
-    "   background-color: rgba(255, 0, 0, 0.5); "
-    "} "
-    "QTabWidget::pane { "
-    "   border: 0px; "
-    "   padding: 0px; "
-    "}"
-  );
 }

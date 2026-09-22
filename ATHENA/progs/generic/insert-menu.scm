@@ -32,16 +32,12 @@
     ("Page reference" (make 'pageref)))
   ---
   (when (not (selection-active?))
-    (if (detailed-menus?)
-        ("Include" (choose-file make-include "Include file" ""))))
+    ("Include" (choose-file make-include "Include file" "")))
   (when (not (selection-active-non-small?))
     ("Link to URL" (make 'slink))
     ("Hyperlink" (make 'hlink))
     ("Card Link" (make 'cardlink))
-    (if (detailed-menus?)
-        ("Action" (make 'action))))
-  (if (simple-menus?)
-      ("Footnote" (make 'footnote)))
+    ("Action" (make 'action)))
   (if (and (style-has? "std-dtd") (in-text?))
       ---
       (when (not (selection-active-non-small?))
@@ -94,8 +90,7 @@
         ---))
   ("Link image" (choose-file make-link-image "Load image" "image"))
   ("Insert image" (choose-file make-inline-image "Load image" "image"))
-  (if (detailed-menus?)
-      ("Thumbnails" (interactive make-thumbnails)))
+  ("Thumbnails" (interactive make-thumbnails))
 
   ---
   ("Draw image" (make-graphics))
@@ -121,9 +116,8 @@
       ("Reverse Hierarchy" (insert-reverse-hierarchy-graph)))
   (-> "Link" (link insert-link-menu))
   ("Build warning" (make-experimental-build-warning))
-  (if (detailed-menus?)
-      (if (style-has? "std-fold-dtd")
-          (-> "Fold" (link insert-fold-menu)))))
+  (if (style-has? "std-fold-dtd")
+      (-> "Fold" (link insert-fold-menu))))
 
 (menu-bind insert-menu
   (if (in-text?) (link text-menu))
@@ -150,7 +144,6 @@
       (link insert-image-menu))
   (=> (balloon (icon "tm_link") "Insert a link")
       (link insert-link-menu))
-  (if (detailed-menus?)
-      (if (style-has? "std-fold-dtd")
-	  (=> (balloon (icon "tm_switch") "Switching and folding")
-	      (link insert-fold-menu)))))
+  (if (style-has? "std-fold-dtd")
+      (=> (balloon (icon "tm_switch") "Switching and folding")
+          (link insert-fold-menu))))

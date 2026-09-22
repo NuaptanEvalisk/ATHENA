@@ -95,20 +95,7 @@
 ;; The main Format menu
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(menu-bind full-math-format-menu
-  (group "Font")
-  ("Font" (open-font-selector))
-  (if (simple-menus?)
-      (-> "Color" (link color-menu)))
-  (if (detailed-menus?)
-      ---
-      (group "Text")
-      (link textual-properties-menu))
-  ---
-  (group "Mathematics")
-  (link math-special-format-menu))
-
-(menu-bind compressed-math-format-menu
+(menu-bind math-format-menu
   ("Font" (open-font-selector))
   (when (inside? 'table)
       ("Cell" (open-cell-properties))
@@ -131,12 +118,6 @@
   (-> "Font effects" (link text-font-effects-menu))
   (assuming (== (get-preference "bitmap effects") "on")
     (-> "Graphical effects" (link text-effects-menu))))
-
-(menu-bind math-format-menu
-  (if (use-menus?)
-      (link full-math-format-menu))
-  (if (use-popups?)
-      (link compressed-math-format-menu)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; The mathematical symbol menus
@@ -1059,7 +1040,7 @@
   ("Semantic editing" (toggle-preference "semantic editing"))
   (when (== (get-preference "semantic editing") "on")
     ("Semantic selections" (toggle-preference "semantic selections")))
-  (if #t ("Semantic correctness" (toggle-preference "semantic correctness"))))
+  ("Semantic correctness" (toggle-preference "semantic correctness")))
 
 (menu-bind semantic-annotation-menu
   ("Ordinary symbol" (make 'math-ordinary))

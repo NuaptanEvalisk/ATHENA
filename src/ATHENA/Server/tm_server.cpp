@@ -29,7 +29,6 @@
 #include <QCoreApplication>
 #include <QApplication>
 #include <QDir>
-#include <QMdiSubWindow>
 #include <QProcess>
 #include "QTMAudmap.hpp"
 #include <QThread>
@@ -173,75 +172,27 @@ tm_server_rep::is_window_floating (url win) {
 }
 
 void
-tm_server_rep::mdi_tile () {
-#ifdef QTTEXMACS
-  QTMMainTabWindow::topTabWindow () -> tileSubWindows ();
-#endif
-}
-
-void
-tm_server_rep::mdi_cascade () {
-#ifdef QTTEXMACS
-  QTMMainTabWindow::topTabWindow () -> cascadeSubWindows ();
-#endif
-}
-
-void
-tm_server_rep::mdi_maximize_active () {
-#ifdef QTTEXMACS
-  QTMMainTabWindow::topTabWindow () -> mdi_maximize_active ();
-#endif
-}
-
-void
-tm_server_rep::mdi_minimize_active () {
-#ifdef QTTEXMACS
-  QTMMainTabWindow::topTabWindow () -> mdi_minimize_active ();
-#endif
-}
-
-void
-tm_server_rep::mdi_detach () {
+tm_server_rep::ads_detach () {
 #ifdef QTTEXMACS
   QWidget* active = nullptr;
-  if (tmapp()->useMdi()) {
-    if (QMdiSubWindow* sub = QTMMainTabWindow::topTabWindow()->mdiArea()->activeSubWindow()) {
-      active = sub->widget();
-    }
+  ads::CDockManager* dm = QTMMainTabWindow::topTabWindow()->dockManager();
+  if (ads::CDockWidget* dw = dm->focusedDockWidget()) {
+    active = dw->widget();
   } else {
-    active = QTMMainTabWindow::topTabWindow()->tabWidget()->currentWidget();
+    // Fallback: If timing causes focus to be null, grab the last added widget.
+    auto map = dm->dockWidgetsMap();
+    if (!map.isEmpty()) {
+      active = map.last()->widget();
+    }
   }
   if (active) QTMMainTabWindow::topTabWindow()->detachWidget(active);
 #endif
 }
 
 void
-tm_server_rep::ads_detach () {
-#ifdef QTTEXMACS
-  QWidget* active = nullptr;
-  if (tmapp()->useAds()) {
-    ads::CDockManager* dm = QTMMainTabWindow::topTabWindow()->dockManager();
-    if (ads::CDockWidget* dw = dm->focusedDockWidget()) {
-      active = dw->widget();
-    } else {
-      // Fallback: If timing causes focus to be null, grab the last added widget.
-      // (This is common when a command like 'New floating window' uses a delayed trigger)
-      auto map = dm->dockWidgetsMap();
-      if (!map.isEmpty()) {
-        active = map.last()->widget();
-      }
-    }
-    if (active) QTMMainTabWindow::topTabWindow()->detachWidget(active);
-  }
-#endif
-}
-
-void
 tm_server_rep::ads_prepare_floating () {
 #ifdef QTTEXMACS
-  if (tmapp()->useAds()) {
-    QTMMainTabWindow::topTabWindow()->setNextWidgetFloating();
-  }
+  QTMMainTabWindow::topTabWindow()->setNextWidgetFloating();
 #endif
 }
 
@@ -251,20 +202,6 @@ tm_server_rep::ads_open_panes () {
   return athena_has_open_ads_panes ();
 #else
   return false;
-#endif
-}
-
-void
-tm_server_rep::mdi_attach () {
-#ifdef QTTEXMACS
-  for (QWidget *topWidget : QApplication::topLevelWidgets()) {
-    if (topWidget->property("texmacs_window_widget").isValid()) {
-      if (!qobject_cast<QTMMainTabWindow*>(topWidget)) {
-        QTMMainTabWindow::topTabWindow()->attachWidget(topWidget);
-        return;
-      }
-    }
-  }
 #endif
 }
 
