@@ -730,7 +730,7 @@
   (exec-global
     (lambda ()
       (if (buffer->window name)
-          (noop) ;;(window-focus (buffer->window name))
+          (switch-to-buffer name)
           (apply load-buffer-main (cons name (cons :new-window opts)))))))
 
 (tm-define (load-browse-buffer name . opt-after-open)

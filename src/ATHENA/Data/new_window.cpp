@@ -30,6 +30,7 @@
 
 static int last_window= 1;
 static array<url> all_windows;
+static url initial_view= url_none ();
 extern int nr_windows;
 
 namespace {
@@ -286,7 +287,7 @@ void
 window_set_buffer (url win, url name) {
   url old= window_to_view (win);
   if (is_none (old) || view_to_buffer (old) == name) return;
-  window_set_view (win, get_passive_view (name), false);
+  switch_to_buffer (name);
 }
 
 void
@@ -318,6 +319,9 @@ switch_to_window (url new_w) {
     tm_window win= concrete_window (new_w);
     if (win != NULL) win->map ();
     if (new_vw != NULL) {
+      // Callers may immediately dispatch a continuation to the current
+      // buffer; do not rely on a later Qt focus event to select its owner.
+      set_current_view (new_u);
       //new_vw->ed->start_editing ();
       (void) new_vw->buf->actor->submit (
         actor_command_kind::resume_view, new_vw->runtime_id);
@@ -345,15 +349,31 @@ new_buffer_in_this_window (url name, tree doc) {
 
 url
 new_buffer_in_new_window (url name, tree doc, tree geom) {
+  url existing= get_recent_view (name, true, false, true, false);
+  if (!is_none (existing)) {
+    url win= view_to_window (existing);
+    switch_to_window (win);
+    return win;
+  }
   if (is_nil (concrete_buffer (name))) {
     bench_start ("create initial buffer");
     create_buffer (name, doc);
     bench_cumul ("create initial buffer");
   }
-  url win= new_window (true, geom);
+  // Only the bootstrap scratch view is disposable. Explicit New tab buffers
+  // and edited/renamed startup documents must retain their own tabs.
+  url placeholder= initial_view;
+  initial_view= url_none ();
+  url old_name= view_to_buffer (placeholder);
+  url win= view_to_window (placeholder);
+  bool replace_initial= !is_none (win) && is_scratch (old_name) &&
+    placeholder == get_current_view_safe () && old_name != name &&
+    !buffer_modified (old_name) && is_empty (get_buffer_body (old_name));
+  if (!replace_initial) win= new_window (true, geom);
   bench_start ("create initial view");
   window_set_view (win, get_passive_view (name), true);
   bench_cumul ("create initial view");
+  if (replace_initial) remove_buffer (old_name);
   return win;
 }
 
@@ -363,6 +383,7 @@ new_buffer_in_new_window (url name, tree doc, tree geom) {
 
 url
 create_buffer () {
+  initial_view= url_none ();
   url name= make_new_buffer ();
   switch_to_buffer (name);
   return name;
@@ -380,8 +401,15 @@ new_document_buffer () {
 
 url
 open_window (tree geom) {
+  initial_view= url_none ();
   url name= make_new_buffer ();
   return new_buffer_in_new_window (name, tree (DOCUMENT), geom);
+}
+
+void
+open_initial_window () {
+  (void) open_window ();
+  initial_view= get_current_view_safe ();
 }
 
 void
@@ -416,17 +444,10 @@ kill_buffer (url name) {
       actor_command_kind::ui_close_buffer, actor_id);
     return;
   }
-  array<url> vs= buffer_to_views (name);
-  for (int i=0; i<N(vs); i++)
-    if (!is_none (vs[i])) {
-      url prev= get_recent_view (name, false, true, false, true);
-      if (is_none (prev)) {
-        prev= get_recent_view (name, false, true, false, false);
-        if (is_none (prev)) continue;
-        prev= get_new_view (view_to_buffer (prev));
-      }
-      window_set_view (view_to_window (vs[i]), prev, false);
-    }
+  // Closing a document closes its tabs, never fills them with another buffer.
+  // Passive buffers (conversion/preview work) have no windows to tear down.
+  array<url> windows= buffer_to_windows (name);
+  for (int i=0; i<N(windows); i++) kill_window (windows[i]);
   remove_buffer (name);
 }
 
@@ -451,8 +472,7 @@ kill_window (url wname) {
   for (int i=0; i<N(vs); i++) {
     url win= view_to_window (vs[i]);
     if (!is_none (win) && win != wname) {
-      set_current_view (vs[i]);
-      // FIXME: make sure that win obtains the focus of the GUI too
+      if (get_current_window () == wname) switch_to_window (win);
       delete_window (wname);
       return;
     }

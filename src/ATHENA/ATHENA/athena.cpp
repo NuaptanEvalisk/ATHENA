@@ -1310,7 +1310,7 @@ TeXmacs_main (int argc, char** argv) {
       qt_wait_for_font_fallback_warmup ();
       defer_next_editor_chrome_build ();
       defer_next_view_initialization ();
-      open_window ();
+      open_initial_window ();
       bench_cumul ("build editor window");
       bench_cumul ("startup to editor shell");
       startup_progress (96, "Editor window ready");

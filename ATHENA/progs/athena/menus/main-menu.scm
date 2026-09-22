@@ -84,7 +84,7 @@
        (switch-to-window win)))))
 
 (menu-bind workspace-menu
-  ("New window" (new-document*))
+  ("New tab" (new-document))
   ("New floating window" (open-document-window #t))
   ("Configure Font for Vault" (configure-font-for-vault))
   ("Run global transformation" (run-global-transformation))

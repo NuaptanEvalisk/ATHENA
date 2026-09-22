@@ -588,6 +588,17 @@ bool QTMMainTabWindow::eventFilter(QObject *obj, QEvent *event) {
 }
 
 void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
+  QPointer<ads::CDockAreaWidget> documentArea;
+  if (isDocument) {
+    if (ads::CDockWidget* current= adsDockWidgetFor (currentDocumentWidget ()))
+      documentArea= current->dockAreaWidget ();
+    if (documentArea == nullptr)
+      for (QWidget* document: documentWidgets ())
+        if (ads::CDockWidget* dock= adsDockWidgetFor (document)) {
+          documentArea= dock->dockAreaWidget ();
+          if (documentArea != nullptr) break;
+        }
+  }
   if (widget != nullptr)
     widget->setProperty (kAthenaDocumentWidgetProperty, isDocument);
   if (isDocument) mLastFocusedDocumentWidget= widget;
@@ -618,7 +629,9 @@ void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
     if (gNextWidgetFloating) {
       mDockManager->addDockWidgetFloating(dockWidget);
       gNextWidgetFloating = false;
-    } else
+    } else if (documentArea != nullptr)
+      mDockManager->addDockWidgetTabToArea (dockWidget, documentArea);
+    else
       mDockManager->addDockWidget(ads::CenterDockWidgetArea, dockWidget);
 
     scheduleAdsLayoutRestore();

@@ -6,6 +6,7 @@
 (define pending-delayed #f)
 (define killed-window #f)
 (define closed-buffer #f)
+(define reopened? #f)
 
 (define (check condition message)
   (unless condition (error "Window close ownership regression" message)))
@@ -24,6 +25,9 @@
   (if (equal? win "window-b") "buffer-b" "buffer-a"))
 (define (windows-number) (require-global "windows-number") 2)
 (define (ads-open-panes?) (require-global "ads-open-panes?") #f)
+(define (buffer->windows buf)
+  (require-global "buffer->windows")
+  (if reopened? '("reopened-window") '()))
 (define (buffer-needs-save-confirmation? buf)
   (require-global "buffer-needs-save-confirmation?")
   #f)
@@ -115,5 +119,12 @@
 (safely-kill-window "window-b")
 (run-global-pending)
 (check (equal? killed-window "window-b") "explicit window string was not honored")
+
+;; A newly reopened tab must survive the previous tab's delayed cleanup.
+(set! closed-buffer #f)
+(set! reopened? #t)
+(pending-delayed)
+(run-global-pending)
+(check (not closed-buffer) "stale cleanup closed a reopened document")
 
 (display "PASS: window close lookup, ADS state and teardown stay global\n")

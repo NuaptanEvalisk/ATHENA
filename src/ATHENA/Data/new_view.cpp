@@ -550,13 +550,16 @@ switch_to_buffer (url name) {
     return;
   }
   //cout << "Switching to buffer " << name << "\n";
-  url u= get_passive_view (name);
-  tm_view vw= concrete_view (u);
-  if (vw == NULL) return;
-  window_set_view (get_current_window (), u, true);
-  tm_window nwin= vw->win;
-  if (nwin != NULL)
-    nwin->set_window_zoom_factor (nwin->get_window_zoom_factor ());
+  // A document keeps its tab and view. Reattaching a passive view here used
+  // to hide the previous document and discard the target's visible state.
+  if (is_none (name)) return;
+  url u= get_current_view_safe ();
+  if (!is_none (u) && view_to_buffer (u) == name &&
+      !is_none (view_to_window (u))) return;
+  u= get_recent_view (name, true, false, true, false);
+  if (!is_none (u)) switch_to_window (view_to_window (u));
+  else if (!is_nil (concrete_buffer_insist (name)))
+    new_buffer_in_new_window (name, tree (DOCUMENT));
   //cout << "Switched to buffer " << vw->buf->buf->name << "\n";
 }
 

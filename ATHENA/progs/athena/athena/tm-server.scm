@@ -170,7 +170,9 @@
 (define (close-buffer-after-window buf)
   ;; Keep one passive buffer while ADS panes are the only remaining UI.
   ;; Several core paths assume that TeXmacs never has zero buffers.
-  (when (or (> (windows-number) 0) (not (ads-open-panes?)))
+  ;; A link may have reopened the document before delayed cleanup runs.
+  (when (and (null? (buffer->windows buf))
+             (or (> (windows-number) 0) (not (ads-open-panes?))))
     (buffer-close buf)))
 
 (define (close-buffer-after-window-later buf)

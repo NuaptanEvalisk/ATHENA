@@ -19,13 +19,14 @@
 (define-syntax with
   (syntax-rules ()
     ((_ (a b) value body ...) (apply (lambda (a b) body ...) value))))
-(define (load-definition file name)
+(define (load-definition file name . requirement)
   (call-with-input-file (string-append root "/ATHENA/progs/" file)
     (lambda (port)
       (let loop ((form (read port)))
         (check (not (eof-object? form)) (string-append "Missing " (symbol->string name)))
         (if (and (pair? form) (memq (car form) '(define tm-define))
-                 (pair? (cadr form)) (eq? (caadr form) name))
+                 (pair? (cadr form)) (eq? (caadr form) name)
+                 (or (null? requirement) (member (car requirement) (cddr form))))
             (eval (cons 'define
                         (cons (cadr form)
                               (filter (lambda (x)
@@ -95,7 +96,7 @@
 (define (set-message text title) (set! failed-message text))
 
 ;; Radioactive artifact: resolve globally, then jump and record on target actor.
-(load-definition vault 'go-to-url)
+(load-definition vault 'go-to-url '(:require (artifact-url? u)))
 (go-to-url (system->url "uuid") '(0 1))
 (check (null? opened) "global command executed synchronously on source")
 (drain)
@@ -160,31 +161,21 @@
 (check (string? failed-message) "legacy script link refusal was not reported")
 (set! eval guile-eval)
 
-;; The TMFS wikilink loader must defer its redirect until import has returned,
-;; then leave whichever actor the delayed-command queue selected.
-(load-definition vault 'wikilink-handler-sub)
-(define (display* . args) #t)
-(define (string-tokenize-by-char text separator) (string-split text separator))
-(define (vault-url-component-decode text) text)
-(define (vault-get-node uuid) '(tuple "target.ath" "begin" "end"))
-(define tree? pair?)
-(define tree-label car)
-(define (tree-ref t i) (list-ref (cdr t) i))
-(define (tree->string t) t)
-(define unix->url system->url)
-(define (vault-get-root) (system->url "/"))
-(define (url-append base leaf)
-  (system->url (string-append (url->system base) (url->system leaf))))
-(define (url-exists? u) #t)
-(define (texmacs-compat-version) "2.1.4")
-(set! exec-delayed (lambda (thunk) (enqueue 'source thunk)))
-(set! owner 'global)
+;; Wikilinks resolve before loading: there must be no intermediate redirect
+;; buffer/tab. Use the current navigation overload, not the retired TMFS loader.
+(load-definition vault 'go-to-url '(:require (vault-wikilink-navigation-url? u)))
+(define (vault-wikilink-navigation-name u) (url->system u))
+(define (wikilink-navigation-target name)
+  (check (eq? owner 'global) "wikilink resolver used the source actor")
+  (list (system->url "/target.ath") "end"))
+(set! owner 'source)
+(set! opened '())
 (set! labels '())
-(let ((document (wikilink-handler-sub "uuid")))
-  (check (eq? (car document) 'document) "TMFS loader did not return document")
-  (check (null? labels) "redirect ran inside TMFS import"))
+(go-to-url (system->url "uuid"))
+(check (null? labels) "wikilink navigated synchronously on source")
 (drain)
-(check (equal? labels '("end")) "deferred wikilink redirect lost destination")
+(check (equal? labels '("end")) "wikilink lost destination")
+(check (equal? opened '("/target.ath")) "wikilink created a redirect buffer")
 
 ;; Selection is read and serialized on its actor; only the URL crosses to GUI.
 (load-definition vault 'resolve-selection-as-artifact-name)

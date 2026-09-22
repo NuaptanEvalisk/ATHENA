@@ -195,7 +195,7 @@
 
 (menu-bind new-file-menu
   ("New document" (new-document))
-  ("New window" (new-document*))
+  ("New tab" (new-document*))
   ;;("Clone window" (clone-window))
   )
 

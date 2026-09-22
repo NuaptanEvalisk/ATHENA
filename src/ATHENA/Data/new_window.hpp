@@ -29,6 +29,7 @@ void switch_to_window (url win);
 url  create_buffer ();
 void new_document_buffer ();
 url  open_window (tree geom= "");
+void open_initial_window ();
 void open_document_window (bool floating);
 void clone_window ();
 void kill_buffer (url name);
