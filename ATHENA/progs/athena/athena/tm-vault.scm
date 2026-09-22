@@ -1036,11 +1036,9 @@
 (tmfs-load-handler (artifact name)
   (if (artifact-open-uuid name)
       `(document
-         (TeXmacs ,(texmacs-compat-version))
          (style (tuple "generic"))
          (body (document "Opening artifact...")))
       `(document
-         (TeXmacs ,(texmacs-compat-version))
          (style (tuple "generic"))
          (body (document (bold "Artifact not found: ") ,name)))))
 
@@ -1157,7 +1155,7 @@
 (define (wikilink-trigger-repair uuid file-hint anchor-hint)
   (display* "Trigger repair for " uuid ", hint: " file-hint "\n")
   (if (string-null? file-hint)
-      `(document (TeXmacs ,(texmacs-compat-version)) (style (tuple "generic")) (body (document (bold "Error: ") "Broken Wikilink and no file hint provided.")))
+      `(document (style (tuple "generic")) (body (document (bold "Error: ") "Broken Wikilink and no file hint provided.")))
       (begin
         (system-wait "Searching vault" (string-append "for " file-hint))
         (let* ((limit (get-fuzzy-limit))
@@ -1174,14 +1172,13 @@
           (if (null? candidates)
               (begin
                 (display* "  No candidates, returning error page\n")
-                `(document (TeXmacs ,(texmacs-compat-version)) (style (tuple "generic")) (body (document (bold "Error: ") "Could not find any matches for: " ,file-hint))))
+                `(document (style (tuple "generic")) (body (document (bold "Error: ") "Could not find any matches for: " ,file-hint))))
               (begin
                 (display* "  Returning repair page with " (length candidates) " items\n")
                 (wikilink-repair-page uuid file-hint anchor-hint (reverse candidates))))))))
 
 (define (wikilink-repair-page uuid f-hint a-hint candidates)
   `(document
-     (TeXmacs ,(texmacs-compat-version))
      (style (tuple "generic"))
      (body (document
        (section "Repair Wikilink")

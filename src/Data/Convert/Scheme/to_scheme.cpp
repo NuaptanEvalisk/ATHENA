@@ -137,3 +137,8 @@ string
 tree_to_scheme (tree t) {
   return scheme_tree_to_string (tree_to_scheme_tree (t));
 }
+
+string
+tree_to_scheme_document (tree t) {
+  return scheme_tree_to_string (tree_to_scheme_tree (legacy_serialization_document (t)));
+}

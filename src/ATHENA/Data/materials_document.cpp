@@ -75,8 +75,7 @@ material_field_row (const char* label, const std::string& value) {
 tree
 material_document (tree body) {
   tree document (DOCUMENT);
-  document << compound ("TeXmacs", TEXMACS_COMPAT_VERSION)
-           << compound ("style", tuple ("generic"))
+  document << compound ("style", tuple ("generic"))
            << compound ("body", body);
 
   string font= get_preference ("vault preferred font", "");

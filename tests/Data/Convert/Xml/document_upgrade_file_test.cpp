@@ -51,7 +51,10 @@ private slots:
     QCOMPARE (source.original_bytes (), legacy);
     QVERIFY (!fs::exists (source.backup_path ()));
     QCOMPARE (get (file), legacy);
-    auto result= source.commit (migrated ());
+    tree old_envelope (DOCUMENT, compound ("TeXmacs", "2.1.4"), migrated ()[0]);
+    auto result= source.commit (old_envelope);
+    QVERIFY (result.root_child_map == std::vector<int> ({-1, 0}));
+    QCOMPARE (N (old_envelope), 2);
     QVERIFY (result.durability == upgrade_durability::durable);
     QCOMPARE (get (result.backup), legacy);
     QCOMPARE (result.original_sha256, source.original_sha256 ());

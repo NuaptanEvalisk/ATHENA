@@ -22,7 +22,6 @@ extern bool headless_mode;
 bool   is_headless ();
 string get_setting (string var, string def= "");
 void   set_setting (string var, string val);
-void   init_upgrade ();
 void   init_athena ();
 void   init_system_state ();
 void   setup_athena ();

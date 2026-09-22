@@ -22,8 +22,7 @@ void
 TestNewBuffer::importsEmptyAthenaFileAsNewDocument () {
   tree document= import_loaded_tree ("", url ("empty.ath"), "texmacs");
   tree expected (DOCUMENT);
-  expected << compound ("TeXmacs", TEXMACS_COMPAT_VERSION)
-           << compound ("style", "generic")
+  expected << compound ("style", "generic")
            << compound ("body", tree (DOCUMENT, ""));
 
   QVERIFY (document == expected);

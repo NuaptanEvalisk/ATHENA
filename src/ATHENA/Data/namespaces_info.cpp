@@ -95,7 +95,6 @@ join_path (const std::vector<string>& path, bool technical) {
 static tree
 document_for_body (tree body, bool use_vault_font= false) {
   tree doc (DOCUMENT);
-  doc << compound ("TeXmacs", TEXMACS_COMPAT_VERSION);
   doc << compound ("style", tuple ("generic"));
   doc << compound ("body", body);
   if (use_vault_font) {

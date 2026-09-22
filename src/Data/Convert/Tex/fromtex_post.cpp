@@ -2679,14 +2679,13 @@ latex_to_tree (tree t0, bool not_document) {
   // cout << "\n\nt15= " << t15 << "\n\n";
   
   if (is_document) {
-    tree the_version= compound ("TeXmacs", TEXMACS_COMPAT_VERSION);
     tree the_style  = compound ("style", tuple (style));
     tree the_body   = compound ("body", t15);
     if (style != "acmart" && style != "acmsmall" && style != "acmlarge" &&
         style != "acmtog" && style != "sigconf" && style != "sigchi" &&
         style != "sigplan" && style != "amsart")
       the_style[0] << "std-latex";
-    tree r= tree (DOCUMENT, the_version, the_style, the_body);
+    tree r= tree (DOCUMENT, the_style, the_body);
     if (N (initial) > 0) r << compound ("initial", initial);
     // cout << "\n\nr= " << r << "\n\n";
     return r;

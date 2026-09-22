@@ -452,15 +452,13 @@ system_state_file () {
   return "$ATHENA_HOME_PATH/system/sys_state.json";
 }
 
-static QString
-system_state_to_qstring (string s) {
-  return QString::fromUtf8 (as_charp (s), N(s));
-}
-
-static string
-system_state_from_qstring (const QString& s) {
-  QByteArray bytes= s.toUtf8 ();
-  return string (bytes.constData ());
+static bool
+save_system_state_json () {
+  QJsonObject root;
+  root.insert ("format", "athena-system-state");
+  root.insert ("version", 3);
+  QByteArray bytes= QJsonDocument (root).toJson (QJsonDocument::Indented);
+  return !save_string (system_state_file (), string (bytes.constData ()));
 }
 
 static bool
@@ -480,28 +478,17 @@ load_system_state_json () {
   QJsonObject root= doc.object ();
   int version= root.value ("version").toInt ();
   if (root.value ("format").toString () != "athena-system-state" ||
-      (version != 1 && version != 2)) {
+      (version != 1 && version != 2 && version != 3)) {
     std_error << "Unsupported system state JSON in " << state_file << LF;
     return false;
   }
 
   athena_settings= tuple ();
-  set_setting ("VERSION",
-               system_state_from_qstring (
-                  root.value ("compatibility_version").toString ()));
+  // Older state files recorded a TeXmacs compatibility promise, not an ATHENA
+  // data version. Discard it without running historical TeXmacs upgrade hooks.
+  if (version < 3 && !save_system_state_json ())
+    std_warning << "Could not update system state JSON in " << state_file << LF;
   return true;
-}
-
-static bool
-save_system_state_json () {
-  QJsonObject root;
-  root.insert ("format", "athena-system-state");
-  root.insert ("version", 2);
-  root.insert ("compatibility_version", system_state_to_qstring (
-                 get_setting ("VERSION")));
-
-  QByteArray bytes= QJsonDocument (root).toJson (QJsonDocument::Indented);
-  return !save_string (system_state_file (), string (bytes.constData ()));
 }
 
 /******************************************************************************
@@ -512,8 +499,6 @@ void
 setup_athena () {
   debug_boot << "Welcome to ATHENA " ATHENA_APP_VERSION "\n";
   debug_boot << HRULE;
-
-  set_setting ("VERSION", TEXMACS_COMPAT_VERSION);
 
   if (!save_system_state_json ()) {
     failed_error << HRULE;
@@ -567,11 +552,6 @@ init_system_state () {
     install_status= 1;
   }
 
-  if (get_setting ("VERSION") != TEXMACS_COMPAT_VERSION) {
-    init_upgrade ();
-    url ch ("$ATHENA_HOME_PATH/doc/about/changes/changes-recent.en.tm");
-    install_status= exists (ch)? 2: 0;
-  }
 }
 
 bool

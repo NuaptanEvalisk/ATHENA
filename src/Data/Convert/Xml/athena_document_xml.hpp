@@ -14,6 +14,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace athena::document {
 enum class xml_kind { document, fragment };
@@ -40,4 +41,9 @@ public:
 // The caller owns the tree and all codec state remains local to this call.
 tree read_xml (std::string_view, xml_kind = xml_kind::document, codec_limits = {});
 std::string write_xml (const tree&, xml_kind = xml_kind::document, codec_limits = {});
+
+// Explicit envelope migration, not a recursive rewrite. Nested TeXmacs macros
+// remain content. The optional old-root-child -> new-root-child map records
+// removed metadata as -1 so persisted paths can be relocated without guessing.
+tree strip_legacy_document_version (const tree&, std::vector<int>* child_map= nullptr);
 } // namespace athena::document

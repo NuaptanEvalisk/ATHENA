@@ -56,6 +56,15 @@ def main():
             f"  '({expected}))\n"
             '(define (check condition label)\n'
             '  (unless condition (error "Native glue regression" label)))\n'
+            '(check (not (defined? (quote texmacs-compat-version)))\n'
+            '       "removed compatibility version binding")\n'
+            '(let* ((source (stree->tree (quote (document (body (document "versionless"))))))\n'
+            '       (encoded (texmacs->stm source))\n'
+            '       (decoded (tree->stree (stm->texmacs encoded))))\n'
+            '  (check (equal? (assoc (quote body) (cdr decoded))\n'
+            '                 (quote (body (document "versionless"))))\n'
+            '         "versionless document Scheme serialization")\n'
+            '  (check (= (tree-arity source) 1) "serialization leaves source unchanged"))\n'
             '(check (and (tree? (string->tree "x")) (not (tree? "x"))\n'
             '            (tm? "x") (url? "file.ath")\n'
             '            (modification? "legacy") (patch? "legacy")\n'
@@ -115,6 +124,9 @@ def main():
             raise RuntimeError(f"ATHENA glue test timed out:\n{output}")
         if process.returncode != 0 or "ATHENA-GLUE-PASS:" not in output:
             raise RuntimeError(f"ATHENA glue test failed ({process.returncode}):\n{output}")
+        state = json.loads((system / "sys_state.json").read_text())
+        if state.get("version") != 3 or "compatibility_version" in state:
+            raise RuntimeError(f"Legacy compatibility state was retained: {state}")
         print(output[output.index("ATHENA-GLUE-PASS:"):].splitlines()[0])
 
 

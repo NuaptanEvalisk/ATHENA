@@ -1392,7 +1392,7 @@
   <binding name="serialize-texmacs-snippet" native="tree_to_texmacs" returns="string">
     <arg type="tree" />
   </binding>
-  <binding name="texmacs-&gt;stm" native="tree_to_scheme" returns="string">
+  <binding name="texmacs-&gt;stm" native="tree_to_scheme_document" returns="string">
     <arg type="tree" />
   </binding>
   <binding name="stm-&gt;texmacs" native="scheme_document_to_tree" returns="tree">

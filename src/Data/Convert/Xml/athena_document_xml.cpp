@@ -24,6 +24,17 @@ codec_exception::codec_exception (codec_error c, const std::string& message,
   character_offset (offset) {}
 
 namespace {
+bool legacy_version (const tree& value) {
+  return is_compound (value, "TeXmacs", 1) && is_atomic (value[0]);
+}
+void check_document_envelope (const tree& value) {
+  if (!is_func (value, DOCUMENT))
+    throw codec_exception (codec_error::invalid_structure, "Expected a document tree");
+  for (int i= 0; i < N (value); ++i)
+    if (legacy_version (value[i]))
+      throw codec_exception (codec_error::invalid_structure,
+        "Legacy TeXmacs version metadata must be removed before XML storage");
+}
 const char* envelope (xml_kind kind) {
   return kind == xml_kind::document ? "athena-document" : "athena-tree";
 }
@@ -137,8 +148,7 @@ class writer {
 public:
   explicit writer (codec_limits limits): count {limits}, sink (limits.output_bytes), xml (&sink) {}
   std::string write (const tree& value, xml_kind kind) {
-    if (kind == xml_kind::document && !is_func (value, DOCUMENT))
-      throw codec_exception (codec_error::invalid_structure, "Expected a document tree");
+    if (kind == xml_kind::document) check_document_envelope (value);
     xml.writeStartDocument ("1.0");
     xml.writeStartElement (envelope (kind));
     xml.writeAttribute ("version", "1");
@@ -276,8 +286,10 @@ public:
     whitespace ();
     if (!xml.isStartElement ()) fail (codec_error::invalid_structure, "Missing document tree");
     tree result= node (0);
-    if (kind == xml_kind::document && !is_func (result, DOCUMENT))
-      fail (codec_error::invalid_structure, "Expected a document tree");
+    if (kind == xml_kind::document) {
+      try { check_document_envelope (result); }
+      catch (const codec_exception& error) { fail (error.code, error.what ()); }
+    }
     whitespace ();
     if (!xml.isEndElement ()) fail (codec_error::invalid_structure, "Multiple document trees");
     whitespace ();
@@ -292,5 +304,20 @@ tree read_xml (std::string_view input, xml_kind kind, codec_limits limits) {
 }
 std::string write_xml (const tree& input, xml_kind kind, codec_limits limits) {
   return writer (limits).write (input, kind);
+}
+
+tree strip_legacy_document_version (const tree& input, std::vector<int>* child_map) {
+  if (!is_func (input, DOCUMENT))
+    throw codec_exception (codec_error::invalid_structure, "Expected a document tree");
+  tree result (DOCUMENT);
+  std::vector<int> mapping;
+  if (child_map) mapping.reserve (N (input));
+  for (int i= 0; i < N (input); ++i) {
+    const bool removed= legacy_version (input[i]);
+    if (child_map) mapping.push_back (removed ? -1 : N (result));
+    if (!removed) result << input[i];
+  }
+  if (child_map) *child_map= std::move (mapping);
+  return result;
 }
 } // namespace athena::document

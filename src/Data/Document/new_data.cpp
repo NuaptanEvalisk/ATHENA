@@ -18,11 +18,9 @@
 tree
 attach_data (tree body, new_data data, bool no_aux) {
   tree doc (DOCUMENT);
-  doc << compound ("TeXmacs", TEXMACS_COMPAT_VERSION);
   if (data->style != tree (TUPLE))
     doc << compound ("style", copy (data->style));
-  if (body != tree (DOCUMENT, ""))
-    doc << compound ("body", body);
+  doc << compound ("body", body);
   if (N (data->init) != 0) {
     hashmap<string,tree> init= copy (data->init);
     init->reset (PAGE_SCREEN_WIDTH);

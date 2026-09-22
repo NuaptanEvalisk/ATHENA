@@ -36,8 +36,7 @@ string internal_text (const std::string& value) {
 
 tree artifact_document (tree body, string preferred_font) {
   tree document (DOCUMENT);
-  document << compound ("TeXmacs", TEXMACS_COMPAT_VERSION)
-           << compound ("style", tuple ("generic"))
+  document << compound ("style", tuple ("generic"))
            << compound ("body", body);
   tree initial (COLLECTION);
   initial << compound ("associate", "page-medium", "automatic")

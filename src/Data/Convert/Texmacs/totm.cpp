@@ -318,6 +318,7 @@ tm_writer::write (tree t) {
 
 string
 tree_to_texmacs (tree t) {
+  t= legacy_serialization_document (t);
   if (!is_snippet (t)) {
     int i, n= N(t);
     tree r (t, n);
@@ -336,4 +337,16 @@ tree_to_texmacs (tree t) {
   tmw.write (t);
   tmw.flush ();
   return tmw.buf;
+}
+
+tree
+legacy_serialization_document (tree doc) {
+  if (is_snippet (doc)) return doc;
+  for (int i= 0; i < N (doc); ++i)
+    if (is_compound (doc[i], "TeXmacs", 1)) return doc;
+  // The old readers require a format signature. This is not an application
+  // compatibility claim and must never become part of a newly created tree.
+  tree result (DOCUMENT, compound ("TeXmacs", "2.1.4"));
+  result << A (doc);
+  return result;
 }

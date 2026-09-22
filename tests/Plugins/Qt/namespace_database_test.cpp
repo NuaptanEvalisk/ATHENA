@@ -493,7 +493,7 @@ NamespaceDatabaseTest::nativeInteropResolution () {
   // Use native markup, including a custom field that save/export filtering must not remove.
   {
     std::ofstream document (root / "Source.ath");
-    document << "<TeXmacs|" << TEXMACS_COMPAT_VERSION << ">\n\n<style|generic>\n\n"
+    document << "<TeXmacs|" << "2.1.4" << ">\n\n<style|generic>\n\n"
       "<\\body>\nfirst\n\n<transclude|other.ath|anchor>\n</body>\n\n"
       "<custom-field|retained>\n";
   }
@@ -630,7 +630,7 @@ NamespaceDatabaseTest::nativeInteropResolution () {
   }
   {
     std::ofstream empty (root / "Empty.ath");
-    empty << "<TeXmacs|" << TEXMACS_COMPAT_VERSION << ">\n\n<style|generic>\n";
+    empty << "<TeXmacs|" << "2.1.4" << ">\n\n<style|generic>\n";
   }
   auto empty_file= run ("@/vaults/@/filesystem/Empty.ath");
   QVERIFY2 (empty_file.state == resolution_result::status::complete, empty_file.error.c_str ());

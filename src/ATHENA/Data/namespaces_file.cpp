@@ -118,7 +118,6 @@ namespace_install_style (string style_path, string base_root,
 tree
 namespace_empty_document () {
   tree doc (DOCUMENT);
-  doc << compound ("TeXmacs", TEXMACS_COMPAT_VERSION);
   doc << compound ("style", tuple ("generic"));
   doc << compound ("body", tree (DOCUMENT, ""));
   return doc;

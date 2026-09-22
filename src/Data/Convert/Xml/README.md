@@ -10,6 +10,12 @@ No setting enables a mixed runtime. Normal saves must remain on the existing
 path until the text, symbol, position, persistence and protocol migrations are
 complete and accepted together.
 
+Native document constructors no longer add a TeXmacs compatibility version.
+Until XML activation, only the legacy document serializers add their required
+`TeXmacs 2.1.4` format signature to a temporary serialization tree. This is not
+a configurable compatibility promise, and generic tree serialization remains
+unchanged. Legacy readers still recognize existing file headers.
+
 ## Text Contract
 
 - The existing native `tree` and `string` containers remain in use. Ordinary
@@ -32,7 +38,13 @@ complete and accepted together.
 The root is `athena-document` for a full `DOCUMENT`, or `athena-tree` for a
 fragment, with required attributes `version="1"` and `text-model="utf-8"`.
 The envelope contains exactly one tree. The format version is independent of
-the ATHENA program version; original source metadata remains in the tree.
+the ATHENA program version. Legacy top-level `(TeXmacs "...")` version
+metadata is discarded during upgrade; other source metadata remains in the tree.
+`strip_legacy_document_version` performs this explicit shallow transformation
+and can return the root-child index mapping (`-1` for removed metadata).
+It never removes a nested TeXmacs macro or logo from document content. Full XML
+document reads/writes reject the obsolete version field instead of retaining a
+TeXmacs compatibility claim. Tree fragments remain generic and lossless.
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -77,7 +89,8 @@ revision and SHA-256 without writing anything. Its format check uses the
 existing legacy reader signatures, not UTF-8 plausibility; it does not replace
 the importer's syntax or semantic checks.
 
-`commit` accepts an already migrated, caller-owned UTF-8 document. It verifies
+`commit` accepts an already migrated, caller-owned UTF-8 document. It strips
+the obsolete top-level version metadata without changing the input, verifies
 an XML round trip, preserves and verifies the original, then calls the existing
 descriptor-backed atomic replacement with the captured revision. Vault backups
 use `.backup/format-migration/v1/<sha256>/<relative-source-path>`. Files outside
@@ -98,6 +111,8 @@ its parent directory cannot be synced, the result is `replaced_not_durable`,
 not a false claim of either success or rollback. Result preparation happens
 before rename; the result contains a pinned replacement entry, which callers
 can inspect without confusing a later pathname replacement with their write.
+It also returns the root-child mapping caused by metadata removal. This is not
+a replacement for the importer's complete text-offset and tree-path mapping.
 
 This transaction is **not wired into normal saves or maintenance**. It cannot
 be enabled independently of the database/position migrations below. Tests cover

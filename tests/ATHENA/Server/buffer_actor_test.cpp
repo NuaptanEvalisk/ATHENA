@@ -77,7 +77,7 @@ TestBufferActor::nativeGeometryPreservesActorDocument () {
   tm_buffer buffer= tm_new<tm_buffer_rep> (url ("actor-geometry.ath"));
   auto cleanup= qScopeGuard ([&] { tm_delete (buffer); });
   auto payload= actor_tree_registry::instance ().store (
-    tree (DOCUMENT, compound ("TeXmacs", TEXMACS_COMPAT_VERSION),
+    tree (DOCUMENT, compound ("TeXmacs", "2.1.4"),
       compound ("style", tree (TUPLE, "generic")),
       compound ("body", tree (DOCUMENT, tree (SPACE, "1cm"),
         tree (MINUS, "4cm", tree (PLUS, "2cm", "1cm")), "50%", "auto",
@@ -160,7 +160,7 @@ TestBufferActor::sourceCommitPreservesBorrowedMetadata () {
   tm_buffer buffer= tm_new<tm_buffer_rep> (url ("actor-metadata-lifetime.ath"));
   auto cleanup= qScopeGuard ([&] { tm_delete (buffer); });
   auto payload= actor_tree_registry::instance ().store (
-    tree (DOCUMENT, compound ("TeXmacs", TEXMACS_COMPAT_VERSION),
+    tree (DOCUMENT, compound ("TeXmacs", "2.1.4"),
       compound ("style", tree (TUPLE, "generic")), compound ("body", tree (DOCUMENT, "first"))));
   QVERIFY (buffer->actor->invoke (actor_command_kind::replace_document, ATHENA_NO_VIEW, payload));
   bool body_stable= false, metadata_stable= false, references_updated= false;
@@ -212,7 +212,7 @@ TestBufferActor::bufferResolutionWithoutVault () {
   const url other= url ("tmfs://interop-test/other");
   auto cleanup= qScopeGuard ([&] { publish_active_buffer (0); remove_buffer (name); remove_buffer (other); });
   auto source= [] (const char* text) {
-    return tree (DOCUMENT, compound ("TeXmacs", TEXMACS_COMPAT_VERSION),
+    return tree (DOCUMENT, compound ("TeXmacs", "2.1.4"),
       compound ("style", tree (TUPLE, "generic")), compound ("body", tree (DOCUMENT, text)));
   };
   // The minimal Scheme test runtime does not load tmfs handlers.
@@ -291,7 +291,7 @@ TestBufferActor::onlineResolutionUsesUnsavedBody () {
   const auto file= directory / "live.ath";
   {
     std::ofstream disk (file);
-    disk << "<TeXmacs|" << TEXMACS_COMPAT_VERSION << ">\n\n<style|generic>\n\n<\\body>\nsaved\n</body>\n";
+    disk << "<TeXmacs|" << "2.1.4" << ">\n\n<style|generic>\n\n<\\body>\nsaved\n</body>\n";
   }
   const auto alias= directory / "alias.ath";
   std::filesystem::create_symlink (file, alias);
@@ -322,7 +322,7 @@ TestBufferActor::onlineResolutionUsesUnsavedBody () {
   QCOMPARE (file_accessor->operate ("buffers", value::object ()).data, value::array ());
   QCOMPARE (closed_node->operate ("get", value::object ()).data.at ("tree").at ("text").get<std::string> (),
             std::string ("saved"));
-  set_buffer_tree (name, tree (DOCUMENT, compound ("TeXmacs", TEXMACS_COMPAT_VERSION),
+  set_buffer_tree (name, tree (DOCUMENT, compound ("TeXmacs", "2.1.4"),
     compound ("style", tree (TUPLE, "generic")), compound ("body", tree (DOCUMENT, "unsaved"))));
   tm_buffer buffer= concrete_buffer (name);
   QVERIFY (!is_nil (buffer));
@@ -416,7 +416,7 @@ TestBufferActor::onlineResolutionUsesUnsavedBody () {
     ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB, &result));
   QCOMPARE (result.argument[0], std::uint64_t (0));
   const value replacement {{"tag", "document"}, {"children", value::array ({
-    value {{"tag", "TeXmacs"}, {"children", value::array ({value {{"text", TEXMACS_COMPAT_VERSION}}})}},
+    value {{"tag", "TeXmacs"}, {"children", value::array ({value {{"text", "2.1.4"}}})}},
     value {{"tag", "style"}, {"children", value::array ({value {
       {"tag", "tuple"}, {"children", value::array ({value {{"text", "generic"}}})}}})}},
     value {{"tag", "body"}, {"children", value::array ({value {
@@ -440,7 +440,7 @@ TestBufferActor::onlineResolutionUsesUnsavedBody () {
   QVERIFY2 (disk_again.state == resolution_result::status::complete, disk_again.error.c_str ());
   QCOMPARE (disk_again.tree.back ()->accessor->operate ("get", value::object ()).data.at ("tree").at ("text").get<std::string> (),
             std::string ("saved"));
-  set_buffer_tree (name, tree (DOCUMENT, compound ("TeXmacs", TEXMACS_COMPAT_VERSION),
+  set_buffer_tree (name, tree (DOCUMENT, compound ("TeXmacs", "2.1.4"),
     compound ("style", tree (TUPLE, "generic")), compound ("body", tree (DOCUMENT, "reopened"))));
   auto reopened= resolve ("online");
   QVERIFY2 (reopened.state == resolution_result::status::complete, reopened.error.c_str ());

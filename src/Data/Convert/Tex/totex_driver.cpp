@@ -92,8 +92,7 @@ tmfile_extract_native (scheme_tree doc, string key) {
 
 bool
 tmfile_native (scheme_tree doc) {
-  return !false_value (tmfile_extract_native (doc, "TeXmacs")) &&
-         !false_value (tmfile_extract_native (doc, "body"));
+  return !false_value (tmfile_extract_native (doc, "body"));
 }
 
 scheme_tree

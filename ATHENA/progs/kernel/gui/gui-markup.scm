@@ -560,14 +560,12 @@
 (tm-define-macro ($generic . l)
   ($quote
    `(document
-      (TeXmacs ,(texmacs-compat-version))
       (style (tuple "generic"))
       (body ($unquote ($block ,@l))))))
 
 (tm-define-macro ($tmdoc . l)
   ($quote
     `(document
-       (TeXmacs ,(texmacs-compat-version))
        (style (tuple "tmdoc" "english"))
        (body ($unquote ($block ,@l))))))
 

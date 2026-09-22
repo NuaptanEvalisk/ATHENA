@@ -22,6 +22,7 @@ struct upgrade_result {
   // A failed directory fsync follows an already completed atomic rename. Do
   // not report success, retry with the old revision, or claim nothing changed.
   upgrade_durability durability;
+  std::vector<int> root_child_map;
 };
 
 // This is a storage transaction, not a text converter. Capture at load time;

@@ -20,7 +20,8 @@ is_snippet (tree doc) {
   if (!is_document (doc)) return true;
   int i, n= N(doc);
   for (i=0; i<n; i++)
-    if (is_compound (doc[i], "TeXmacs", 1))
+    if (is_compound (doc[i], "body", 1) ||
+        is_compound (doc[i], "TeXmacs", 1))
       return false;
   return true;
 }

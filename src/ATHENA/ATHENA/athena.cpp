@@ -1194,14 +1194,6 @@ TeXmacs_main (int argc, char** argv) {
       // FIXME: force to load welcome message into new window
       extra_init_cmd << cmd;
     }
-    else if (!headless_mode && install_status == 2) {
-      if (DEBUG_STD) debug_boot << "Loading upgrade message...\n";
-      url u= "tmfs://help/plain/tm/doc/about/changes/changes-recent.en.tm";
-      string b= scm_quote (as_string (u));
-      string cmd= "(load-buffer " * b * " " * where * ")";
-      where= " :new-window";
-      extra_init_cmd << cmd;
-    }
 
     if (rag_server_dir != "") {
       athena::mcp::RagServerOptions options;

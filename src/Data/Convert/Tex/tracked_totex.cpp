@@ -160,13 +160,11 @@ tree_to_latex_document (tree d, object opts) {
 
 static tree
 purify (tree d) {
-  tree v= extract (d, "TeXmacs");
   tree s= extract (d, "style");
   tree b= extract (d, "body");
   tree i= extract (d, "initial");
   tree r (DOCUMENT);
-  r << compound ("TeXmacs", v)
-    << compound ("style", s);
+  r << compound ("style", s);
   r << compound ("body", b);
   if (N(i) > 0) r << compound ("initial", i);
   return r;

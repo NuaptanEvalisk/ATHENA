@@ -19,6 +19,8 @@ class object;
 
 /*** Miscellaneous ***/
 bool   is_snippet (tree doc);
+// Transitional old-format writer boundary; removed when XML saves are enabled.
+tree   legacy_serialization_document (tree doc);
 void   set_file_focus (url u);
 url    get_file_focus ();
 
@@ -54,6 +56,7 @@ string scheme_tree_to_string (scheme_tree t);
 string scheme_tree_to_block (scheme_tree t);
 scheme_tree tree_to_scheme_tree (tree t);
 string tree_to_scheme (tree t);
+string tree_to_scheme_document (tree t);
 scheme_tree string_to_scheme_tree (string s);
 scheme_tree block_to_scheme_tree  (string s);
 tree   scheme_tree_to_tree (scheme_tree t);

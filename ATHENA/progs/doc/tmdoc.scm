@@ -211,7 +211,6 @@
          (root (tmfs-string->url file)))
     (cond ((or (== file "") (not (url-exists? root)))
            `(document
-              (TeXmacs ,(texmacs-compat-version))
               (style "tmdoc")
               (body (document
                       "Broken link."
@@ -219,7 +218,6 @@
           ((== (url-suffix root) "html")
            (with doc (tm->stree (tree-import root "html"))
              `(document
-                (TeXmacs ,(texmacs-compat-version))
                 ,@(cdr doc))))
           ((!= (url-suffix root) "tm")
            (string-load root))
@@ -231,7 +229,6 @@
                   (lan (tmdoc-language root)))
              (tm->stree
               `(document
-                 (TeXmacs ,(texmacs-compat-version))
                  (style (tuple ,(get-preference "manual style") ,lan))
                  (body ,(tmdoc-add-aux body))
                  (initial (collection (associate "page-medium" "paper")))))))
@@ -240,7 +237,6 @@
                   (lan (tmdoc-language root)))
              (tm->stree
               `(document
-                 (TeXmacs ,(texmacs-compat-version))
                  (style (tuple "tmdoc" ,lan))
                  (body ,body))))))))
 

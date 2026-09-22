@@ -36,7 +36,7 @@
   caaaar caaadr caadar caaddr cadaar cadadr caddar cadddr
   cdaaar cdaadr cdadar cdaddr cddaar cddadr cdddar cddddr
   cons list append length reverse
-  texmacs-version texmacs-compat-version texmacs-version-release*
+  texmacs-version texmacs-version-release*
   texmacs-build-user texmacs-build-date texmacs-host-os
   texmacs-host-vendor texmacs-host-cpu texmacs-build-info
   heading-fold-toggle-tree heading-fold-toggle

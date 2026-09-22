@@ -25,6 +25,15 @@ int
 main () {
   init_std_drd ();
 
+  tree native (DOCUMENT, compound ("body", tree (DOCUMENT, "")));
+  if (is_snippet (native) || !is_snippet (tree (DOCUMENT, "paragraph")) ||
+      extract (texmacs_document_to_tree (tree_to_texmacs (native)), "body") != native[0][0] ||
+      extract (scheme_document_to_tree (tree_to_scheme_document (native)), "body") != native[0][0] ||
+      scheme_to_tree (tree_to_scheme (native)) != native || N (native) != 1) {
+    std::cerr << "Versionless native document or transitional serialization failed\n";
+    return 1;
+  }
+
   tree current= texmacs_document_to_tree (
     "<TeXmacs|2.1.4>\n\n<style|generic>\n\n<\\body>\n"
     "current-format sentinel\n</body>\n");

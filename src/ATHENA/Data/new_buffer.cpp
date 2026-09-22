@@ -869,8 +869,7 @@ import_loaded_tree (string s, url u, string fm) {
   set_file_focus (u);
   if (s == "" && suffix (u) == "ath") {
     tree doc (DOCUMENT);
-    doc << compound ("TeXmacs", TEXMACS_COMPAT_VERSION)
-        << compound ("style", "generic")
+    doc << compound ("style", "generic")
         << compound ("body", tree (DOCUMENT, ""));
     return doc;
   }

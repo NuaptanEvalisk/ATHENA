@@ -65,7 +65,6 @@
 (tm-define-macro ($tmapidoc . l)
   ($quote
     `(document
-       (TeXmacs ,(texmacs-compat-version))
        (style (tuple "tmdoc" "scheme-api" "english"))
        (body ($unquote ($block ,@l))))))
 

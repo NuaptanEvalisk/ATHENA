@@ -71,9 +71,11 @@ upgrade_result legacy_file::commit (const tree& utf8_document, codec_limits limi
   const auto current= root_.open (relative_);
   if (!current.same_object (file_) || !filesystem::same_revision (revision_, current.stat ()))
     throw std::system_error (ESTALE, std::generic_category (), "Legacy document changed since it was opened");
-  const auto xml= write_xml (utf8_document, xml_kind::document, limits);
+  std::vector<int> root_child_map;
+  const auto document= strip_legacy_document_version (utf8_document, &root_child_map);
+  const auto xml= write_xml (document, xml_kind::document, limits);
   // Never produce a document which the configured reader cannot load.
-  if (read_xml (xml, xml_kind::document, limits) != utf8_document)
+  if (read_xml (xml, xml_kind::document, limits) != document)
     throw codec_exception (codec_error::invalid_structure, "XML upgrade round-trip verification failed");
   const auto backup= root_.preserve (backup_, original_);
   if (sha256 (backup.read (limits.input_bytes)) != digest_)
@@ -84,6 +86,7 @@ upgrade_result legacy_file::commit (const tree& utf8_document, codec_limits limi
   // Finish fallible result preparation before the irreversible rename.
   const auto replaced= root_.replace (relative_, file_, revision_, xml);
   return {std::move (backup_path), std::move (original_digest), std::move (xml_digest), replaced.file,
-    replaced.directory_synced ? upgrade_durability::durable : upgrade_durability::replaced_not_durable};
+    replaced.directory_synced ? upgrade_durability::durable : upgrade_durability::replaced_not_durable,
+    std::move (root_child_map)};
 }
 } // namespace athena::document

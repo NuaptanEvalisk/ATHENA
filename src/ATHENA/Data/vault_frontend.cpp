@@ -266,8 +266,7 @@ vault_startup_open_initial_buffer_native () {
 tree
 vault_welcome_page_native () {
   tree doc (DOCUMENT);
-  doc << compound ("TeXmacs", TEXMACS_COMPAT_VERSION)
-      << compound ("style", tuple ("generic"))
+  doc << compound ("style", tuple ("generic"))
       << compound ("body", compound ("document", welcome_body ()))
       << compound ("initial",
            compound ("collection",

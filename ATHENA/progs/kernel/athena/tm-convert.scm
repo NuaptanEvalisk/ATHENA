@@ -359,7 +359,7 @@
          (cons 'document (reverse l)))))
 
 (define-public (tmfile? doc)
-  (and (tmfile-get doc 'TeXmacs) (tmfile-get doc 'body)))
+  (and (tmfile-get doc 'body) #t))
 
 (define-public (tmfile-extract doc what)
   ;; FIXME: use tmfile-get instead whenever possible

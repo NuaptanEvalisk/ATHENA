@@ -58,6 +58,26 @@ private slots:
     QVERIFY_EXCEPTION_THROWN (write_xml (tree (DOCUMENT, tree ("\xff"))), codec_exception);
     QVERIFY_EXCEPTION_THROWN (write_xml (tree (RAW_DATA), xml_kind::fragment), codec_exception);
   }
+  void legacyVersionMetadata () {
+    tree version= compound ("TeXmacs", "2.1.4");
+    tree body= compound ("body", tree (DOCUMENT, version, "text"));
+    tree original (DOCUMENT, version, compound ("style", "generic"), body,
+                   compound ("custom-metadata", "keep"), version);
+    std::vector<int> mapping;
+    tree upgraded= strip_legacy_document_version (original, &mapping);
+    QVERIFY (mapping == std::vector<int> ({-1, 0, 1, 2, -1}));
+    QCOMPARE (N (original), 5);
+    QCOMPARE (N (upgraded), 3);
+    QVERIFY (upgraded[1] == body);
+    QVERIFY (read_xml (write_xml (upgraded)) == upgraded);
+    QVERIFY_THROWS_EXCEPTION (codec_exception, write_xml (original));
+    QVERIFY_THROWS_EXCEPTION (codec_exception, strip_legacy_document_version (tree ("text")));
+    // Generic fragments must not erase same-named macros or data nodes.
+    QVERIFY (read_xml (write_xml (original, xml_kind::fragment), xml_kind::fragment) == original);
+    QVERIFY_THROWS_EXCEPTION (codec_exception, read_xml (
+      "<athena-document version='1' text-model='utf-8'><node tag='document'>"
+      "<node tag='TeXmacs'><text>2.1.4</text></node></node></athena-document>"));
+  }
   void limitsAndLocations () {
     tree source (DOCUMENT, tree ("abc"));
     auto xml= write_xml (source);

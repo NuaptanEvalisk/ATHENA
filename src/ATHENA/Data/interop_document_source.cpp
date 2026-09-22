@@ -14,17 +14,15 @@
 
 std::string interop_document_source_error (const tree& source) {
   if (!is_document (source)) return "Missing native document root";
-  int versions= 0, bodies= 0;
+  int bodies= 0;
   for (int i= 0; i < N (source); ++i) {
-    if (is_compound (source[i], "TeXmacs", 1) && is_atomic (source[i][0])) ++versions;
     if (is_compound (source[i], "body")) {
       if (N (source[i]) != 1) return "The document body field requires one child";
       ++bodies;
     }
   }
-  if (versions == 0) return "Missing native document version";
   if (bodies > 1) return "Duplicate document body fields";
-  // attach_data intentionally omits the body of an empty saved document.
+  // Legacy empty documents may omit the body; newly created ones include it.
   return {};
 }
 
@@ -76,8 +74,6 @@ void collection_field (tree& source, const char* name, hashmap<string,tree> valu
 
 void refresh_interop_document_source (tree& source, const tree& body, new_data data) {
   if (!is_document (source)) source= tree (DOCUMENT);
-  if (field (source, "TeXmacs") < 0)
-    source << compound ("TeXmacs", TEXMACS_COMPAT_VERSION);
   int body_index= field (source, "body");
   if (body_index < 0) source << compound ("body", body);
   else source[body_index][0]= body;

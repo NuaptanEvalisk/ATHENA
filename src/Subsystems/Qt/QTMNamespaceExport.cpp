@@ -1338,7 +1338,6 @@ build_export_document (const ExportContext& cx,
   body= rewrite_export_wikilinks (body, labels);
 
   tree doc (DOCUMENT);
-  doc << compound ("TeXmacs", TEXMACS_COMPAT_VERSION);
   doc << compound ("style", tuple ("namespace-export-book"));
   doc << compound ("body", copy (body));
   string font= get_preference ("vault preferred font", "");
