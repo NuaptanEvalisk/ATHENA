@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "mappings": [
+    [
+      "<longtwoheadleftarrow>",
+      "#219E"
+    ],
+    [
+      "<longtwoheadrightarrow>",
+      "#21A0"
+    ],
+    [
+      "<longuparrow>",
+      "#2191"
+    ],
+    [
+      "<longdownarrow>",
+      "#2193"
+    ],
+    [
+      "<longupdownarrow>",
+      "#2195"
+    ],
+    [
+      "<Longuparrow>",
+      "#21D1"
+    ],
+    [
+      "<Longdownarrow>",
+      "#21D3"
+    ],
+    [
+      "<Longupdownarrow>",
+      "#21D5"
+    ]
+  ]
+}

@@ -23,6 +23,9 @@ class TestConverter: public QObject {
 
 private slots:
   void test_utf8_to_cork();
+  void test_json_encoding_dictionaries();
+  void test_universal_symbol_mappings();
+  void test_json_latex_and_html_mappings();
   void test_finite_part_integral();
   void test_unicode_17_cjk_ranges();
   void test_thread_local_converters();
@@ -32,6 +35,42 @@ void TestConverter::test_utf8_to_cork() {
   QCOMPARE (as_charp (utf8_to_cork ("中")), "<#4E2D>");
   QCOMPARE (as_charp (utf8_to_cork ("“")), "\x10");
   QCOMPARE (as_charp (utf8_to_cork("”")), "\x11");
+}
+
+void TestConverter::test_json_encoding_dictionaries() {
+  const std::pair<const char*, int> dictionaries[]= {
+    {"HTMLlat1", 96}, {"HTMLspecial", 32}, {"HTMLsymbol", 124}, {"XML", 5},
+    {"cork-escaped-to-ascii", 256}, {"cork-to-real-ascii", 2},
+    {"cork-unicode-oneway", 4}, {"corktounicode", 253},
+    {"symbol-unicode-fallback", 8}, {"symbol-unicode-math", 31},
+    {"symbol-unicode-oneway", 222}, {"t2atounicode", 121},
+    {"tmuniversaltounicode", 972}, {"unicode-cork-oneway", 4},
+    {"unicode-symbol-oneway", 3}, {"utf8tolatex-back", 8},
+    {"utf8tolatex-onedir", 5}, {"utf8tolatex", 480}
+  };
+  for (const auto& [name, expected_size]: dictionaries) {
+    std::vector<std::pair<string,string>> mappings;
+    QVERIFY2 (load_encoding_dictionary (name, mappings), name);
+    QCOMPARE ((int) mappings.size (), expected_size);
+  }
+}
+
+void TestConverter::test_universal_symbol_mappings() {
+  QCOMPARE (as_charp (strict_cork_to_utf8 ("<warning-sign>")),
+            "\xE2\x9A\xA0");
+  QCOMPARE (as_charp (strict_cork_to_utf8 ("<mu>")), "\xCE\xBC");
+  QCOMPARE (as_charp (utf8_to_cork ("\xC2\xB5")), "<mu>");
+  QCOMPARE (as_charp (utf8_to_cork ("\xCE\xBC")), "<mu>");
+  QCOMPARE (as_charp (utf8_to_cork ("\xE2\x80\xA6")), "<ldots>");
+}
+
+void TestConverter::test_json_latex_and_html_mappings() {
+  QCOMPARE (as_charp (convert_utf8_to_LaTeX ("\xC2\xA3")),
+            "{\\textsterling}");
+  QCOMPARE (as_charp (convert_LaTeX_to_utf8 ("{\\textsterling}")),
+            "\xC2\xA3");
+  QCOMPARE (as_charp (utf8_to_html ("\xC2\xA9")), "&copy;");
+  QCOMPARE (as_charp (html_to_utf8 ("&copy;")), "\xC2\xA9");
 }
 
 void TestConverter::test_finite_part_integral() {

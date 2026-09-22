@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "mappings": [
+    [
+      "<langle>",
+      "#2329"
+    ],
+    [
+      "<rangle>",
+      "#232A"
+    ],
+    [
+      "<barwedge>",
+      "#22BC"
+    ]
+  ]
+}

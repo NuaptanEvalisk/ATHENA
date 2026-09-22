@@ -104,21 +104,10 @@ static hashmap<string,string> html_entity ("");
 static hashmap<string,string> xml_entity ("");
 
 void load_entities (hashmap<string, string> table, string fname) {
-  string s;
   if (DEBUG_CONVERT) debug_convert << "Loading " << fname << "\n";
-  if (load_string (url ("$ATHENA_PATH/langs/encoding", fname), s, false)) return;
-  tree t= block_to_scheme_tree (s);
-  if (!is_tuple (t)) return;
-
-  int i, n= N(t);
-  for (i=0; i<n; i++)
-    if (is_func (t[i], TUPLE, 2) &&
-        is_atomic (t[i][0]) && is_atomic (t[i][1]))
-      {
-        string l= t[i][0]->label; if (is_quoted (l)) l= scm_unquote (l);
-        string r= t[i][1]->label; if (is_quoted (r)) r= scm_unquote (r);
-        table (l)= r;
-      }
+  std::vector<std::pair<string,string>> mappings;
+  if (!load_encoding_dictionary (fname, mappings)) return;
+  for (const auto& mapping: mappings) table (mapping.first)= mapping.second;
 }
 
 xml_html_parser::xml_html_parser (): entities ("") {
@@ -182,13 +171,13 @@ xml_html_parser::xml_html_parser (): entities ("") {
   }
 
   if (N (html_entity) == 0) {
-    load_entities (html_entity, "HTMLlat1.scm");
-    load_entities (html_entity, "HTMLspecial.scm");
-    load_entities (html_entity, "HTMLsymbol.scm");
+    load_entities (html_entity, "HTMLlat1");
+    load_entities (html_entity, "HTMLspecial");
+    load_entities (html_entity, "HTMLsymbol");
   }
 
   if (xml_entity->empty()) {
-    load_entities (xml_entity, "XML.scm");
+    load_entities (xml_entity, "XML");
   }
 }
 

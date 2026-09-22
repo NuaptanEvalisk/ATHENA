@@ -14,6 +14,10 @@
 #ifdef USE_ICONV
 #include <iconv.h>
 #endif
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonParseError>
 #include <errno.h>
 #include <vector>
 
@@ -640,12 +644,56 @@ find_node (string key, hashtree<char,string> ht) {
   return ht;
 }
 
-static string
-str_unquote (string s) {
-  int start, end;
-  for (start=0; start<N(s) && s[start] != '"'; start++) ;
-  for (end=N(s)-1; end > start && s[end] != '"'; end--) ;
-  return s (start+1, end);
+bool
+load_encoding_dictionary (
+  string file_name, std::vector<std::pair<string,string>>& mappings)
+{
+  if (DEBUG_CONVERT) debug_convert << "Loading dictionary " << file_name << LF;
+  mappings.clear ();
+  string source;
+  string json_name= file_name * ".json";
+  if (load_string (url ("$ATHENA_PATH/langs/encoding", json_name),
+                   source, false)) {
+    convert_error << "Couldn't open encoding dictionary " << json_name << LF;
+    return false;
+  }
+
+  QJsonParseError parse_error;
+  QJsonDocument document= QJsonDocument::fromJson (
+    QByteArray (as_charp (source), N(source)), &parse_error);
+  if (parse_error.error != QJsonParseError::NoError || !document.isObject ()) {
+    convert_error << "Malformed encoding dictionary " << json_name << LF;
+    return false;
+  }
+
+  QJsonObject root= document.object ();
+  if (root.value ("version").toInt () != 1 ||
+      !root.value ("mappings").isArray ()) {
+    convert_error << "Unsupported encoding dictionary schema " << json_name << LF;
+    return false;
+  }
+
+  QJsonArray entries= root.value ("mappings").toArray ();
+  mappings.reserve ((size_t) entries.size ());
+  for (const QJsonValue& value: entries) {
+    if (!value.isArray ()) {
+      convert_error << "Malformed encoding dictionary entry in " << json_name << LF;
+      mappings.clear ();
+      return false;
+    }
+    QJsonArray entry= value.toArray ();
+    if (entry.size () != 2 || !entry[0].isString () || !entry[1].isString ()) {
+      convert_error << "Malformed encoding dictionary entry in " << json_name << LF;
+      mappings.clear ();
+      return false;
+    }
+    QByteArray key= entry[0].toString ().toUtf8 ();
+    QByteArray val= entry[1].toString ().toUtf8 ();
+    mappings.emplace_back (
+      string (key.constData (), key.size ()),
+      string (val.constData (), val.size ()));
+  }
+  return true;
 }
 
 void
@@ -653,47 +701,29 @@ hashtree_from_dictionary (
   hashtree<char,string> dic, string file_name, escape_type key_escape,
   escape_type val_escape, bool reverse)
 {
-  if (DEBUG_CONVERT) debug_convert << "Loading dictionary " << file_name << LF;
-  string key_string, val_string, file;
-  file_name = file_name * ".scm";
-  if (load_string (url ("$ATHENA_PATH/langs/encoding", file_name),
-                   file, false)) {
-    convert_error << "Couldn't open encoding dictionary " << file_name << LF;
-    return;
-  }
-  tree t = block_to_scheme_tree (file);
-  if (!is_tuple (t)) {
-    convert_error << "Malformed encoding dictionary " << file_name << LF;
-    return;
-  }
-  for (int i=0; i<N(t); i++) {
-    if (is_func (t[i], TUPLE, 2) &&
-        is_atomic (t[i][0]) && is_atomic (t[i][1]))
-      {
-        //cout << N(pairs[i]) << "\n" << as_string(pairs[i]) << "\n";
-        reverse ? key_string = t[i][1]->label : key_string = t[i][0]->label;
-        reverse ? val_string = t[i][0]->label : val_string = t[i][1]->label;
-        if (is_quoted (key_string)) key_string = str_unquote (key_string);
-        if (is_quoted (val_string)) val_string = str_unquote (val_string);
-        if (key_escape == BIT2BIT)
-          key_string = convert_escapes (key_string, false);
-        else if (key_escape == UTF8)
-          key_string = convert_escapes (key_string, true);
-        else if (key_escape == CHAR_ENTITY)
-          key_string = convert_char_entities (key_string);
-        else if (key_escape == ENTITY_NAME)
-          key_string = "&" * key_string * ";";
-        if (val_escape == BIT2BIT)
-          val_string = convert_escapes (val_string, false);
-        else if (val_escape == UTF8)
-          val_string = convert_escapes (val_string, true);
-        else if (val_escape == CHAR_ENTITY)
-          val_string = convert_char_entities (val_string);
-        else if (val_escape == ENTITY_NAME)
-          val_string = "&" * val_string * ";";
-        //cout << "key: " << key_string << " val: " << val_string << "\n";
-        put_prefix_code(key_string,val_string,dic);        
-      }
+  std::vector<std::pair<string,string>> mappings;
+  if (!load_encoding_dictionary (file_name, mappings)) return;
+  for (const auto& mapping: mappings) {
+    string key_string= reverse ? mapping.second : mapping.first;
+    string val_string= reverse ? mapping.first : mapping.second;
+    if (key_escape == BIT2BIT)
+      key_string = convert_escapes (key_string, false);
+    else if (key_escape == UTF8)
+      key_string = convert_escapes (key_string, true);
+    else if (key_escape == CHAR_ENTITY)
+      key_string = convert_char_entities (key_string);
+    else if (key_escape == ENTITY_NAME)
+      key_string = "&" * key_string * ";";
+    if (val_escape == BIT2BIT)
+      val_string = convert_escapes (val_string, false);
+    else if (val_escape == UTF8)
+      val_string = convert_escapes (val_string, true);
+    else if (val_escape == CHAR_ENTITY)
+      val_string = convert_char_entities (val_string);
+    else if (val_escape == ENTITY_NAME)
+      val_string = "&" * val_string * ";";
+    //cout << "key: " << key_string << " val: " << val_string << "\n";
+    put_prefix_code (key_string, val_string, dic);
   }
 }
 

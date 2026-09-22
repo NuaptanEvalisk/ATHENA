@@ -14,6 +14,8 @@
 #include "resource.hpp"
 #include "hashtree.hpp"
 #include "file.hpp"
+#include <utility>
+#include <vector>
 
 enum escape_type { NOESCAPES, BIT2BIT, UTF8, ENTITY_NAME, CHAR_ENTITY };
 
@@ -109,6 +111,9 @@ hashtree<char,string> find_node (string key, hashtree<char,string> ht);
 void put_prefix_code (string key, string value, hashtree<char,string> ht);
 
 // reads a dictionary from a file
+
+bool load_encoding_dictionary (
+  string file_name, std::vector<std::pair<string,string>>& mappings);
 
 void hashtree_from_dictionary (
   hashtree<char,string> dic, string file_name, escape_type key_escape=BIT2BIT,
