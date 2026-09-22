@@ -1,4 +1,8 @@
 ;; Tab ownership is visible to actors through the published window catalog.
+(unless (< (abs (- (get-window-zoom-factor) tab-expected-zoom)) 0.001)
+  (error "Document tab regression" "actor zoom differs from its window"
+         (get-window-zoom-factor) tab-expected-zoom (current-buffer)
+         (current-view-url)))
 (define windows (window-list))
 (define buffers (map window-to-buffer windows))
 (unless (= (length windows) (length (list-remove-duplicates buffers)))

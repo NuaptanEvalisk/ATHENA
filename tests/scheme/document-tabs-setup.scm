@@ -93,3 +93,13 @@
 ;; Leave another live tab for the actor-owned publication checks.
 (new-document)
 (buffer-set-body (current-buffer) (stree->tree '(document "Tab regression")))
+
+;; New views must expose their actual zoom through the widget virtual method,
+;; not the base widget's default (also used to initialize preview snapshots).
+(set-default-zoom-factor 1.5)
+(define zoom-target (system->url (string-append (getenv "HOME") "/zoom.ath")))
+(buffer-set zoom-target
+  (stree->tree '(document (TeXmacs "2.1.4") (style (tuple "generic"))
+    (body (document "Preview zoom regression")))))
+(switch-to-buffer zoom-target)
+(define tab-expected-zoom (get-window-zoom-factor))

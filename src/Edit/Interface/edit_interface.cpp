@@ -1355,7 +1355,7 @@ edit_interface_rep::handle_notify_resize (
 }
 
 double
-edit_interface_rep::handle_get_zoom_factor () const {
+edit_interface_rep::handle_get_zoom_factor () {
   return zoomf;
 }
 
