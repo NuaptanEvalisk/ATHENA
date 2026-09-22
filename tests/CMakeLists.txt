@@ -1,4 +1,10 @@
 file (GLOB_RECURSE TEST_SRC_FILES CONFIGURE_DEPENDS "*.cpp")
+list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/Data/String/unicode_text_test\\.cpp$")
+add_executable (unicode_text_test Data/String/unicode_text_test.cpp)
+set_target_properties (unicode_text_test PROPERTIES AUTOMOC OFF)
+target_link_libraries (unicode_text_test PRIVATE athena_unicode Threads::Threads)
+add_test (NAME unicode_text_test COMMAND unicode_text_test)
+set_tests_properties (unicode_text_test PROPERTIES TIMEOUT 15)
 
 list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/watchdog/watchdog_fake_child\\.cpp$")
 list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/qt/completion_popup_test\\.cpp$")

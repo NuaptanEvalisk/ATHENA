@@ -11,12 +11,17 @@ else (APPLE)
 endif (APPLE)
 
 list (REMOVE_ITEM ATHENA_All_SRCS
+  "${ATHENA_SOURCE_DIR}/src/Data/String/unicode_text.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Plugins/subscription.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Plugins/package.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPluginManager.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPluginUi.cpp"
   "${ATHENA_SOURCE_DIR}/src/System/Misc/tsan_mimalloc_shim.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMAudmapTerminal.cpp")
+add_library (athena_unicode STATIC Data/String/unicode_text.cpp)
+set_target_properties (athena_unicode PROPERTIES AUTOMOC OFF)
+target_include_directories (athena_unicode PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/Data/String")
+target_link_libraries (athena_unicode PUBLIC ICU::uc ICU::i18n)
 add_library (athena_audmap_terminal STATIC Subsystems/Qt/QTMAudmapTerminal.cpp)
 target_compile_features (athena_audmap_terminal PRIVATE cxx_std_17)
 target_link_libraries (athena_audmap_terminal PUBLIC Qt6::Widgets PRIVATE qtermwidget6)
@@ -44,6 +49,7 @@ function (athena_configure_body_target target_name)
   )
   target_link_libraries (${target_name}
     PUBLIC
+    athena_unicode
     athena_audmap
     PkgConfig::SPDLOG
     ${ATHENA_LLAMA_LIBRARIES}
