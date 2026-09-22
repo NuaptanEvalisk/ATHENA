@@ -118,6 +118,25 @@ int main () {
     for (const auto& name: filesystem.open (".").names ())
       require (name.rfind (".athena-audm-", 0) != 0);
 
+    const std::string original ("old\0\xff", 5);
+    auto backup= filesystem.preserve ("backups/format/original", original);
+    require (backup.read (5) == original);
+    require (filesystem.preserve ("backups/format/original", original).same_object (backup));
+    require (::stat ((root / "backups/format/original").c_str (), &permissions) == 0);
+    require ((permissions.st_mode & 0777) == 0400);
+    rejects ([&] { filesystem.preserve ("backups/format/original", "different"); });
+    require (backup.read (5) == original);
+    fs::create_directory_symlink (directory, root / "backup-escape");
+    rejects ([&] { filesystem.preserve ("backup-escape/new", "escape"); });
+    require (!fs::exists (directory / "new"));
+    fs::create_symlink ("original", root / "backups/format/alias");
+    rejects ([&] { filesystem.preserve ("backups/format/alias", original); });
+    rejects ([&] { filesystem.preserve ("../outside-backup", original); });
+    rejects ([&] { filesystem.preserve ("backups/format", original); });
+    auto backup_a= std::async (std::launch::async, [&] { return filesystem.preserve ("backups/concurrent", original); });
+    auto backup_b= std::async (std::launch::async, [&] { return filesystem.preserve ("backups/concurrent", original); });
+    require (backup_a.get ().same_object (backup_b.get ()));
+
     fs::rename (root / "inside.ath", root / "old.ath");
     { std::ofstream f (root / "inside.ath"); f << "replacement"; }
     require (file.read (6) == "inside");

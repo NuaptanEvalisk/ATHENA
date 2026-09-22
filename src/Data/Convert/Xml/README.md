@@ -70,6 +70,42 @@ QXmlStreamReader/Writer was selected over pugixml (MIT) because Qt Core is
 already required and a second DOM is unnecessary. Unicode segmentation uses
 ICU UText and BreakIterator, not locally approximated Unicode rules.
 
+## Upgrade Storage Transaction
+
+`legacy_file::capture` pins a legacy file and retains its original bytes,
+revision and SHA-256 without writing anything. Its format check uses the
+existing legacy reader signatures, not UTF-8 plausibility; it does not replace
+the importer's syntax or semantic checks.
+
+`commit` accepts an already migrated, caller-owned UTF-8 document. It verifies
+an XML round trip, preserves and verifies the original, then calls the existing
+descriptor-backed atomic replacement with the captured revision. Vault backups
+use `.backup/format-migration/v1/<sha256>/<relative-source-path>`. Files outside
+the supplied vault use `<filename>.pre-utf8-<sha256>` alongside the original.
+No backup is created merely by opening or reading the source.
+
+The filesystem `preserve` primitive creates missing backup directories privately,
+refuses symlinks, writes/fsyncs an unnamed temporary file, and links it without
+overwriting an existing backup. An interrupted attempt can reuse an existing
+backup only after exact byte verification. The file and directory chain are
+fsynced before the source may be replaced. File write permissions and source
+revision changes are checked during replacement. These optimistic revision
+checks detect external changes, but are not a kernel compare-and-swap against
+uncooperative writers racing the final rename.
+
+Pre-commit exceptions leave the original in place. If replacement succeeds but
+its parent directory cannot be synced, the result is `replaced_not_durable`,
+not a false claim of either success or rollback. Result preparation happens
+before rename; the result contains a pinned replacement entry, which callers
+can inspect without confusing a later pathname replacement with their write.
+
+This transaction is **not wired into normal saves or maintenance**. It cannot
+be enabled independently of the database/position migrations below. Tests cover
+legacy markup/Scheme captures, vault and sidecar backup placement, repeat
+attempts, corrupt/blocked backups, bounded serialization, read-only originals
+and stale source revisions. Disk-full and post-rename fsync fault injection,
+batch cancellation/resume and database recovery are still integration work.
+
 ## Remaining Integration Gates
 
 1. Legacy import must classify body text, identifiers, macro parameters, code

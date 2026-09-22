@@ -173,7 +173,10 @@ replacement confined_root::replace (const std::filesystem::path& relative,
     throw std::system_error (ESTALE, std::generic_category (), "Document file was replaced");
   if (revision.directory || original.stat ().directory)
     throw std::invalid_argument ("Cannot replace a directory with document data");
-  auto locked= readable (original.implementation->descriptor_.fd, false);
+  // Replacing a directory entry must not bypass the original file's write
+  // permissions. Open our pinned regular file for writing, without truncation.
+  const auto lock_path= "/proc/self/fd/" + std::to_string (original.implementation->descriptor_.fd);
+  descriptor locked (::open (lock_path.c_str (), O_RDWR | O_CLOEXEC | O_NONBLOCK));
   int locked_result;
   do { locked_result= ::flock (locked.fd, LOCK_EX | LOCK_NB); } while (locked_result < 0 && errno == EINTR);
   if (locked_result < 0) fail ("Lock confined document for replacement");
@@ -232,6 +235,60 @@ replacement confined_root::replace (const std::filesystem::path& relative,
   int synced;
   do { synced= ::fsync (parent.fd); } while (synced < 0 && errno == EINTR);
   return {entry (std::move (new_entry)), synced == 0};
+#else
+  throw std::runtime_error ("Confined filesystem access is unavailable");
+#endif
+}
+
+entry confined_root::preserve (const std::filesystem::path& relative,
+                              std::string_view bytes) const {
+#ifdef __linux__
+  if (relative.empty () || relative.is_absolute ())
+    throw std::invalid_argument ("Expected a relative backup file path");
+  for (const auto& part: relative) validate_component (part.string ());
+  // Verify the captured root before using its descriptor, including retries.
+  (void) open (".");
+  std::vector<std::unique_ptr<descriptor>> parents;
+  parents.push_back (std::make_unique<descriptor> (
+    beneath (implementation->descriptor_.fd, ".", O_RDONLY | O_DIRECTORY)));
+  for (const auto& part: relative.parent_path ()) {
+    const int parent= parents.back ()->fd;
+    if (::mkdirat (parent, part.c_str (), 0700) < 0 && errno != EEXIST)
+      fail ("Create backup directory");
+    parents.push_back (std::make_unique<descriptor> (
+      beneath (parent, part, O_RDONLY | O_DIRECTORY)));
+  }
+  const int parent= parents.back ()->fd;
+  descriptor temporary (::openat (parent, ".", O_TMPFILE | O_RDWR | O_CLOEXEC, 0600));
+  std::size_t offset= 0;
+  while (offset < bytes.size ()) {
+    const auto n= ::write (temporary.fd, bytes.data () + offset,
+      std::min<std::size_t> (bytes.size () - offset, 1024 * 1024));
+    if (n < 0) { if (errno == EINTR) continue; fail ("Write original document backup"); }
+    if (!n) throw std::runtime_error ("Short write to original document backup");
+    offset+= n;
+  }
+  if (::fchmod (temporary.fd, 0400) < 0) fail ("Protect original document backup");
+  sync_file (temporary.fd);
+  (void) open (".");
+  const auto parent_path= relative.has_parent_path () ? relative.parent_path () : std::filesystem::path (".");
+  descriptor current_parent (beneath (implementation->descriptor_.fd, parent_path, O_PATH | O_DIRECTORY));
+  const auto previous= information (parent), current= information (current_parent.fd);
+  if (previous.device != current.device || previous.inode != current.inode)
+    throw std::system_error (ESTALE, std::generic_category (), "Backup parent directory moved");
+  const auto temporary_fd= "/proc/self/fd/" + std::to_string (temporary.fd);
+  if (::linkat (AT_FDCWD, temporary_fd.c_str (), parent, relative.filename ().c_str (), AT_SYMLINK_FOLLOW) < 0 &&
+      errno != EEXIST)
+    fail ("Commit original document backup");
+  entry result (std::make_shared<entry::impl> (
+    beneath (implementation->descriptor_.fd, relative, O_PATH), path () / relative));
+  if (result.read (bytes.size ()) != bytes)
+    throw std::runtime_error ("Existing backup does not match the original document");
+  // A previous attempt may have linked the file but failed during fsync.
+  auto file= readable (result.implementation->descriptor_.fd, false);
+  sync_file (file.fd);
+  for (auto i= parents.rbegin (); i != parents.rend (); ++i) sync_file ((*i)->fd);
+  return result;
 #else
   throw std::runtime_error ("Confined filesystem access is unavailable");
 #endif
