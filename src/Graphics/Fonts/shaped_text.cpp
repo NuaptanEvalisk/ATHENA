@@ -68,20 +68,21 @@ struct shaping_font final: font_resource {
     // OpenType funcs use Unicode cmap and design metrics, independent of mutable
     // FreeType charmap/size settings used by neighboring fonts in this domain.
     hb_ot_font_set_funcs (font.get ());
+    const auto instance= (source->ft_face->face_index >> 16) & 0x7fff;
+    if (instance) hb_font_set_var_named_instance (font.get (), instance - 1);
     hb_font_set_scale (font.get (), xscale, yscale);
     hb_font_make_immutable (font.get ());
   }
 };
 
-shaping_font& cached_font (string family, int xscale, int yscale) {
+shaping_font& cached_font (tt_face source, int xscale, int yscale) {
   using key_type= std::tuple<std::string, int, int>;
   // Slots only index resources. Phase zero destroys HarfBuzz references before
   // phase three frees the FreeType face and its backing font-file bytes.
   auto& cache= font_domain_local<std::map<key_type, shaping_font*>> ();
-  key_type key {std::string (family.data (), N(family)), xscale, yscale};
+  key_type key {std::string (source->res_name.data (), N(source->res_name)), xscale, yscale};
   auto found= cache.find (key);
   if (found != cache.end ()) return *found->second;
-  tt_face source= load_tt_face (family);
   if (source->bad_face)
     throw std::runtime_error ("Cannot shape with an unavailable font");
   shaping_font* fresh= tm_new<shaping_font> (source, xscale, yscale);
@@ -208,8 +209,8 @@ void build_carets (shaped_text& run, hb_font_t* font, std::string_view text,
 
 } // namespace
 
-shaped_text shape_freetype_utf8 (
-  string family, int size, int hdpi, int vdpi, std::string_view text,
+static shaped_text shape_freetype_run (
+  string family, const font_file_source* file, int size, int hdpi, int vdpi, std::string_view text,
   std::size_t begin, std::size_t end, const shaping_options& options) {
   if (text.size () > static_cast<std::size_t> (
                        std::numeric_limits<int>::max ()))
@@ -248,7 +249,8 @@ shaped_text shape_freetype_utf8 (
                     options.grapheme_fragments);
     return result;
   }
-  shaping_font& cached= cached_font (family, xscale, yscale);
+  const tt_face face= file ? load_tt_face (*file) : load_tt_face (family);
+  shaping_font& cached= cached_font (face, xscale, yscale);
   hb_font_t* hbfont= cached.font.get ();
   std::unique_ptr<hb_buffer_t, decltype (&hb_buffer_destroy)> buffer (
     hb_buffer_create (), hb_buffer_destroy);
@@ -289,8 +291,8 @@ shaped_text shape_freetype_utf8 (
   if (count > options.max_glyphs)
     throw std::length_error ("Shaped glyph budget exceeded");
 
-  result.glyph_source= tt_font_glyphs (family, size, hdpi, vdpi);
-  font_metric metrics= tt_font_metric (family, size, hdpi, vdpi);
+  result.glyph_source= tt_font_glyphs (face, size, hdpi, vdpi);
+  font_metric metrics= tt_font_metric (face, size, hdpi, vdpi);
   if (metrics->bad_font_metric || result.glyph_source->bad_font_glyphs)
     throw std::runtime_error ("Cannot load shaped font metrics or glyphs");
   result.glyphs.reserve (count);
@@ -336,6 +338,16 @@ shaped_text shape_freetype_utf8 (
     build_carets (result, hbfont, text, options.max_carets,
                   options.grapheme_fragments);
   return result;
+}
+
+shaped_text shape_freetype_utf8 (string family, int size, int hdpi, int vdpi,
+  std::string_view text, std::size_t begin, std::size_t end, const shaping_options& options) {
+  return shape_freetype_run (family, nullptr, size, hdpi, vdpi, text, begin, end, options);
+}
+
+shaped_text shape_freetype_utf8 (const font_file_source& file, int size, int hdpi, int vdpi,
+  std::string_view text, std::size_t begin, std::size_t end, const shaping_options& options) {
+  return shape_freetype_run ("", &file, size, hdpi, vdpi, text, begin, end, options);
 }
 
 SI shaped_text::caret_x (std::size_t byte) const {

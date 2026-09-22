@@ -20,6 +20,7 @@
 #include <cstdlib>
 #include <cmath>
 #include <future>
+#include <filesystem>
 #include <iostream>
 #include <limits>
 #include <stdexcept>
@@ -236,6 +237,71 @@ static void check_lines (font fn) {
   });
 }
 
+static void check_physical_faces () {
+  const auto file= (std::filesystem::path (__FILE__).parent_path () /
+                    "fixtures/two-faces.ttc").string ();
+  const font_file_source first {file, 0}, second {file, 1};
+  const auto f0= load_tt_face (first), f1= load_tt_face (second);
+  require (!f0->bad_face && !f1->bad_face && f0.rep != f1.rep &&
+           f0->ft_face->face_index == 0 && f1->ft_face->face_index == 1,
+           "Collection face identity was lost");
+  require (f0->font_data.get () == f1->font_data.get (),
+           "Collection faces copied the same immutable font file");
+  require (load_tt_face (first).rep == f0.rep && load_tt_face (second).rep == f1.rep,
+           "Physical font cache did not retain face indices");
+  shaping_options options;
+  options.editing_carets= true;
+  const auto a= shape_freetype_utf8 (first, 12, 600, 600, "A", 0, 1, options);
+  const auto b= shape_freetype_utf8 (second, 12, 600, 600, "A", 0, 1, options);
+  require (a.glyphs.size () == 1 && b.glyphs.size () == 1 &&
+           a.glyphs[0].index == 2 && b.glyphs[0].index == 3 &&
+           a.advance_x * 9 == b.advance_x * 5,
+           "Shaping used the wrong collection cmap or metrics");
+  require (a.ink_y2 > b.ink_y2 && a.ink_x2 < b.ink_x2,
+           "Collection outlines do not agree with shaping metrics");
+  const auto g0= a.glyph_source->get (0x0c000000 + a.glyphs[0].index);
+  const auto g1= b.glyph_source->get (0x0c000000 + b.glyphs[0].index);
+  require (!is_nil (g0) && !is_nil (g1) && g0->height > g1->height &&
+           g0->width < g1->width, "Rasterizer disagrees with selected shaping face");
+  physical_font_source metadata;
+  require (b.glyph_source->physical_source (metadata) && metadata.file.file_utf8 == file &&
+           metadata.file.face_index == 1 && metadata.point_size == 12 &&
+           metadata.horizontal_dpi == 600 && metadata.vertical_dpi == 600,
+           "Exporter lost explicit physical font metadata");
+  require (FT_Select_Charmap (f1->ft_face, FT_ENCODING_APPLE_ROMAN) == 0,
+           "Fixture lacks its non-Unicode charmap");
+  const auto encoded= tt_font_glyphs (f1, 13, 96, 96)->get (0x0c000001);
+  require (!is_nil (encoded) && encoded->index == 1,
+           "Explicit glyph index was mistaken for a legacy character code");
+  require (FT_Select_Charmap (f1->ft_face, FT_ENCODING_UNICODE) == 0,
+           "Could not restore fixture Unicode charmap");
+  const auto variable_file= (std::filesystem::path (__FILE__).parent_path () /
+                             "fixtures/named-instance.ttf").string ();
+  const font_file_source regular {variable_file, 0}, heavy {variable_file, 0x10000};
+  const auto plain= shape_freetype_utf8 (regular, 12, 600, 600, "A", 0, 1);
+  const auto bold= shape_freetype_utf8 (heavy, 12, 600, 600, "A", 0, 1);
+  require (plain.advance_x * 9 == bold.advance_x * 5 &&
+           plain.ink_x2 < bold.ink_x2 &&
+           load_tt_face (heavy)->ft_face->face_index == 0x10000,
+           "HarfBuzz lost the FreeType named instance");
+  const auto bold_raster= bold.glyph_source->get (0x0c000000 + bold.glyphs[0].index);
+  require (bold_raster->width > g0->width,
+           "Rasterization lost the named-instance variation");
+  require (shape_freetype_utf8 (regular, 12, 600, 600, "A", 0, 1).advance_x == plain.advance_x,
+           "Named instance contaminated the default-instance cache");
+  rejects<std::runtime_error> ([&] {
+    shape_freetype_utf8 (font_file_source {file, 2}, 12, 96, 96, "A", 0, 1);
+  });
+  rejects<std::runtime_error> ([&] {
+    shape_freetype_utf8 (font_file_source {file, 0x10000}, 12, 96, 96, "A", 0, 1);
+  });
+  rejects<std::invalid_argument> ([&] { load_tt_face (font_file_source {"relative.ttf", 0}); });
+  rejects<std::invalid_argument> ([&] { load_tt_face (font_file_source {file, -1}); });
+  rejects<std::invalid_argument> ([&] {
+    load_tt_face (font_file_source {file + std::string (1, '\0'), 0});
+  });
+}
+
 static void check_text () {
   font_domain owner;
   font_domain_binding binding (owner);
@@ -243,6 +309,7 @@ static void check_text () {
   check_carets (fn);
   check_boxes (fn);
   check_lines (fn);
+  check_physical_faces ();
   auto literal= shape (fn, "a<alpha>b");
   require (literal.glyphs.size () == 9 && !literal.missing_glyphs,
            "Literal angle-bracket text was interpreted as Cork");

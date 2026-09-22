@@ -30,6 +30,7 @@
 #include <algorithm>
 #include <map>
 #include <stdexcept>
+#include <filesystem>
 
 #ifdef QT_CORE_LIB
 #include <QtCore>
@@ -184,7 +185,7 @@ class pdf_hummus_renderer_rep : public renderer_rep {
   void flush_dests();
   void flush_outlines();
   void flush_fonts();
-  void make_pdf_font (string fontname);
+  void make_pdf_font (string fontname, font_glyphs glyphs);
   void  image (url u, double w, double h, SI x, SI y, int alpha);
   
   void bezier_arc (SI x1, SI y1, SI x2, SI y2, int alpha, int delta, bool filled);
@@ -1221,45 +1222,52 @@ pdf_font_issues () {
 }
 
 static bool
-no_font_issues (url u) {
-  string h= as_standard_string (tail (u));
-  return !pdf_font_issues ()->contains (h);
+no_font_issues (const std::string& file) {
+  const auto leaf= std::filesystem::u8path (file).filename ().u8string ();
+  return !pdf_font_issues ()->contains (string (leaf.data (), leaf.size ()));
 }
 
 static bool
-pdf_font_fallback_warning_seen (string kind, string fname, url u) {
+pdf_font_fallback_warning_seen (string kind, string fname, string file) {
   static hashset<string> seen;
-  string key= kind * "\n" * fname * "\n" * as_string (u);
+  string key= kind * "\n" * fname * "\n" * file;
   if (seen->contains (key)) return true;
   seen->insert (key);
   return false;
 }
 
 void
-pdf_hummus_renderer_rep::make_pdf_font (string fontname)
+pdf_hummus_renderer_rep::make_pdf_font (string fontname, font_glyphs glyphs)
 {
-  int pos= search_forwards (":", fontname);
-  string fname= (pos==-1? fontname: fontname (0, pos));
-  url u = url_none ();
-  {
-    //debug_convert << " try freetype " << LF;
-    u = tt_font_find (fname);
-    //debug_convert << fname << " " << u << LF;
+  athena::text::physical_font_source source;
+  const bool physical= glyphs->physical_source (source);
+  // This embedder does not instantiate variable outlines or anisotropic sizes.
+  // Preserve their exact rasterized glyphs instead of embedding a different face.
+  if (physical && (source.file.face_index >= 0x10000 ||
+                   source.horizontal_dpi != source.vertical_dpi)) {
+    not_native_fonts->insert (fontname);
+    return;
   }
-  if (!is_none (u)) {
-    int pos= search_forwards (".", fontname);
-    string rname= (pos==-1? fontname: fontname (0, pos));
-    //double fsize= font_size (fn->res_name);
-    
-    //char *_rname = as_charp(fname);
-    PDFUsedFont* font;
-    {
-      //debug_convert << "GetFontForFile "  << u  << LF;
-      c_string _u (concretize (u));
-      font = pdfWriter.GetFontForFile((char*)_u);
+  std::string filename;
+  string fname;
+  if (physical) {
+    filename= source.file.file_utf8;
+    const auto leaf= std::filesystem::u8path (filename).filename ().u8string ();
+    fname= string (leaf.data (), leaf.size ());
+  }
+  else {
+    const int pos= search_forwards (":", fontname);
+    fname= pos == -1 ? fontname : fontname (0, pos);
+    const url legacy= tt_font_find (fname);
+    if (!is_none (legacy)) {
+      const string path= concretize (legacy);
+      filename.assign (path.data (), N(path));
     }
-    
-    if (font != NULL && no_font_issues (u)) {
+  }
+  if (!filename.empty ()) {
+    const string path (filename.data (), filename.size ());
+    PDFUsedFont* font= pdfWriter.GetFontForFile (filename, physical ? source.file.face_index : 0);
+    if (font != NULL && no_font_issues (filename)) {
       native_fonts (fontname)= font;
       std::string _ps_name= font->GetFreeTypeFont()->GetPostscriptName();
       string ps_name (_ps_name.c_str ());
@@ -1268,16 +1276,16 @@ pdf_hummus_renderer_rep::make_pdf_font (string fontname)
       return;
     }
     else if (font != NULL) {
-      if (!pdf_font_fallback_warning_seen ("known-issue", fname, u))
+      if (!pdf_font_fallback_warning_seen ("known-issue", fname, path))
 	debug_convert << "pdf_hummus_renderer, font: " << fname
-			<< " in file " << u << " has a known native PDF "
+			<< " in file " << path << " has a known native PDF "
 			<< "embedding issue. It is converted to bitmap type 3 "
 			<< "font." << LF;
     }
     else {
-      if (!pdf_font_fallback_warning_seen ("load-failed", fname, u))
+      if (!pdf_font_fallback_warning_seen ("load-failed", fname, path))
 	convert_warning << "pdf_hummus_renderer, font: " << fname
-			<< " in file " << u << " cannot be loaded. "
+			<< " in file " << path << " cannot be loaded. "
 			<< "It is converted to bitmap type 3 font." << LF;
     }
   }
@@ -1317,7 +1325,7 @@ pdf_hummus_renderer_rep::draw_mapped (
   if (cfn != fontname && cfn != fontchunkname) {
     if (!native_fonts->contains (fontname) &&
 	!not_native_fonts->contains (fontname))
-      make_pdf_font (fontname);
+      make_pdf_font (fontname, fn);
     if (not_native_fonts->contains (fontname)) {
       fontname= fontchunkname;
       if (!t3font_list->contains (fontname)) {
@@ -1329,8 +1337,11 @@ pdf_hummus_renderer_rep::draw_mapped (
     }
     //debug_convert << "CHANGE FONT" << LF;
     begin_text ();
-    fsize = font_size (fontname);
     if (native_fonts->contains (fontname)) {
+      athena::text::physical_font_source source;
+      fsize= fn->physical_source (source) ?
+        static_cast<double> (source.point_size) * source.horizontal_dpi / 72.0 :
+        font_size (fontname);
       cfid = native_fonts (fontname);
       contentContext->Tf (cfid, fsize);
     } else {

@@ -14,15 +14,21 @@
 #include "bitmap_font.hpp"
 #include "Freetype/free_type.hpp"
 #include "hashmap.hpp"
+#include <memory>
+#include <vector>
 
 FONT_RESOURCE(tt_face, 3);
 
 struct tt_face_rep: rep<tt_face> {
   bool bad_face = true;
   FT_Face ft_face = nullptr;
-  FT_Byte *buffer = nullptr;
+  std::shared_ptr<const std::vector<FT_Byte>> font_data;
+  athena::text::font_file_source source;
   tt_face_rep (string name);
+  tt_face_rep (string name, const athena::text::font_file_source& file);
   ~tt_face_rep () override;
+private:
+  void open_file (bool unicode_only);
 };
 
 struct tt_font_metric_rep: font_metric_rep {
@@ -33,6 +39,7 @@ struct tt_font_metric_rep: font_metric_rep {
   //metric* fnm;
   //bool* done;
   tt_font_metric_rep (string name, string family, int size, int hdpi, int vdpi);
+  tt_font_metric_rep (string name, tt_face face, int size, int hdpi, int vdpi);
   bool exists (int char_code) override;
   metric& get (int char_code) override;
   SI kerning (int left_code, int right_code) override;
@@ -46,10 +53,15 @@ struct tt_font_glyphs_rep: font_glyphs_rep {
   //glyph* fng;
   //bool* done;
   tt_font_glyphs_rep (string name, string family, int size, int hdpi, int vdpi);
+  tt_font_glyphs_rep (string name, tt_face face, int size, int hdpi, int vdpi);
   glyph& get (int char_code) override;
+  bool physical_source (athena::text::physical_font_source& out) const override;
 };
 
 tt_face load_tt_face (string name);
+tt_face load_tt_face (const athena::text::font_file_source& source);
+font_metric tt_font_metric (tt_face face, int size, int hdpi, int vdpi);
+font_glyphs tt_font_glyphs (tt_face face, int size, int hdpi, int vdpi);
 int tt_math_vertical_variant (string family, unsigned int codepoint,
                               unsigned int variant);
 array<int> tt_math_vertical_variants (string family, unsigned int codepoint);

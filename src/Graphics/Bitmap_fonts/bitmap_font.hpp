@@ -14,6 +14,7 @@
 
 #include "config.h"
 #include "font_domain.hpp"
+#include "font_source.hpp"
 
 class frame;
 
@@ -172,6 +173,9 @@ struct font_glyphs_rep: rep<font_glyphs> {
   font_glyphs_rep (string name);
   virtual ~font_glyphs_rep ();
   virtual glyph& get (int char_code) = 0;
+  // Transformed/synthetic glyph providers must not advertise the original font
+  // unless its outlines still match their emitted glyphs.
+  virtual bool physical_source (athena::text::physical_font_source&) const { return false; }
 };
 
 font_metric std_font_metric (string s, metric* fnm, int bc, int ec);

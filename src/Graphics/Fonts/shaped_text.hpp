@@ -10,6 +10,7 @@
 #pragma once
 
 #include "renderer.hpp"
+#include "font_source.hpp"
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -78,6 +79,9 @@ struct shaped_text {
 // Font size is in points; all output coordinates use renderer SI units.
 shaped_text shape_freetype_utf8 (
   string family, int size, int hdpi, int vdpi, std::string_view text,
+  std::size_t begin, std::size_t end, const shaping_options& options= {});
+shaped_text shape_freetype_utf8 (
+  const font_file_source& source, int size, int hdpi, int vdpi, std::string_view text,
   std::size_t begin, std::size_t end, const shaping_options& options= {});
 
 } // namespace athena::text

@@ -64,6 +64,17 @@ unchanged. Legacy readers still recognize existing file headers.
   recording must consume them there. This is a single-font, homogeneous-script
   shaping primitive; paragraph bidi, smart-font fallback and math symbol
   dispatch still require integration before runtime activation.
+  Physical shaping also accepts an explicit absolute UTF-8 filename and
+  FreeType face index. Collection faces share owner-local immutable file bytes,
+  but retain independent mutable FreeType faces, glyph caches and HarfBuzz
+  named-instance settings. Export receives the same file/index/size descriptor,
+  not a filename or font size guessed by parsing a resource name. Native PDF
+  embeds the selected collection member; unsupported named-instance or
+  anisotropic embedding uses its actual rasterized glyphs instead of silently
+  embedding a different outline. Tiny original TTC/variable-font fixtures cover
+  indices, instance isolation, Unicode filenames and native embedding. Their
+  checked-in bytes are regenerated with fontTools only for fixture maintenance;
+  the font tests do not invoke Python or fontTools.
   Shaping context can be restricted to a chosen line without copying or
   renumbering the source atom; HarfBuzz receives only that line's surrounding
   text and beginning/end flags. Returned clusters and carets remain absolute

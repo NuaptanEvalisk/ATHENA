@@ -31,6 +31,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
+#include <filesystem>
 #include <memory>
 #include <stdexcept>
 
@@ -89,7 +90,7 @@ struct bitmap_only_glyphs final : font_glyphs_rep {
   glyph &get (int code) override { return original->get (code); }
 };
 
-static void check_text_geometry (const QString& pdf) {
+static void check_text_geometry (const QString& pdf, int minimum_words= 10) {
   QXmlStreamReader xml (execute ("pdftotext", {"-bbox", "-enc", "UTF-8", pdf, "-"}));
   int words= 0;
   while (!xml.atEnd ()) {
@@ -110,7 +111,57 @@ static void check_text_geometry (const QString& pdf) {
              "Extracted text geometry disagrees with rendered text placement");
     ++words;
   }
-  require (!xml.hasError () && words >= 10, "Missing PDF text geometry");
+  require (!xml.hasError () && words >= minimum_words, "Missing PDF text geometry");
+}
+
+static void check_collection_export (const QString& pdf) {
+  font_domain owner;
+  font_domain_binding binding (owner);
+  const auto fixture= (std::filesystem::path (__FILE__).parent_path () /
+                       "fixtures/two-faces.ttc").string ();
+  QTemporaryDir copies;
+  require (copies.isValid (), "No isolated collection directory");
+  const auto filename= copies.filePath (QString::fromUtf8 ("font-\xe5\xad\x97:collection.ttc"));
+  require (QFile::copy (QString::fromUtf8 (fixture.c_str ()), filename),
+           "Could not copy Unicode-path font fixture");
+  const auto file= filename.toUtf8 ().toStdString ();
+  const url output= url_system (string (pdf.toUtf8 ().constData ()));
+  renderer ren= pdf_hummus_renderer (output, 600);
+  require (ren->is_started (), "Could not create collection PDF");
+  try {
+    ren->set_pencil (pencil (black));
+    const std::string text= "A \xce\xb1";
+    for (long index: {0L, 1L}) {
+      const auto run= athena::text::shape_freetype_utf8 (
+        athena::text::font_file_source {file, index}, 12, 600, 600, text, 0, text.size ());
+      run.draw_fixed (ren, text, 400 * PIXEL, -(600 + index * 300) * PIXEL);
+    }
+    const auto variable= (std::filesystem::path (__FILE__).parent_path () /
+                           "fixtures/named-instance.ttf").string ();
+    const auto heavy= athena::text::shape_freetype_utf8 (
+      athena::text::font_file_source {variable, 0x10000}, 12, 600, 600, text, 0, text.size ());
+    heavy.draw_fixed (ren, text, 400 * PIXEL, -1200 * PIXEL);
+    const auto compressed= athena::text::shape_freetype_utf8 (
+      athena::text::font_file_source {file, 1}, 12, 600, 300, text, 0, text.size ());
+    compressed.draw_fixed (ren, text, 400 * PIXEL, -1500 * PIXEL);
+  }
+  catch (...) { tm_delete (ren); throw; }
+  tm_delete (ren);
+  if (const char *directory= std::getenv ("ATHENA_SHAPED_PDF_TEST_OUTPUT"))
+    require (QFile::copy (pdf, QString::fromUtf8 (directory) + "/collection.pdf"),
+             "Could not retain collection PDF");
+  execute ("qpdf", {"--check", pdf});
+  const auto fonts= execute ("pdffonts", {pdf});
+  require (fonts.contains ("ATHENAFixtureOne") && fonts.contains ("ATHENAFixtureTwo") &&
+           fonts.contains ("Type 3"), "PDF lost native collection or variant bitmap fonts");
+  const auto text= execute ("pdftotext", {"-raw", "-nopgbrk", "-enc", "UTF-8", pdf, "-"});
+  auto lines= text.split ('\n');
+  if (!lines.isEmpty () && lines.back ().isEmpty ()) lines.removeLast ();
+  if (lines != QList<QByteArray> {"A \xce\xb1", "A \xce\xb1", "A \xce\xb1", "A \xce\xb1"}) {
+    std::cerr << "Collection PDF text: " << text.constData () << '\n';
+    throw std::runtime_error ("Collection PDF lost Unicode mappings");
+  }
+  check_text_geometry (pdf, 4);
 }
 
 static void render_document (const QString &path, bool postscript) {
@@ -200,6 +251,7 @@ static void run_tests (int, char **) {
     require (rejected, "PDF text strings must reject invalid UTF-8");
     QTemporaryDir output;
     require (output.isValid (), "No temporary PDF directory");
+    check_collection_export (output.filePath ("collection.pdf"));
     for (const bool postscript : {false, true}) {
       const QString stem = postscript ? "shaped-ps" : "shaped";
       const QString pdf = output.filePath (stem + ".pdf");
