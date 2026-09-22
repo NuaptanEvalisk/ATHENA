@@ -530,6 +530,37 @@ line_caret shaped_line::hit_test (SI x, bool prefer_right) const {
   return *best;
 }
 
+std::vector<line_selection_span> shaped_line::selection_spans (
+    std::size_t begin, std::size_t end) const {
+  (void) caret_x (begin, caret_affinity::downstream);
+  (void) caret_x (end, caret_affinity::upstream);
+  if (begin > end) std::swap (begin, end);
+  std::vector<line_selection_span> spans;
+  for (const auto& placed: runs) {
+    const auto& run= placed.text;
+    const auto first= std::max (begin, run.byte_begin);
+    const auto last= std::min (end, run.byte_end);
+    if (first >= last) continue;
+    // Font/script item edges can lie inside a grapheme. The selected global
+    // grapheme includes that whole fragment, even though it has no edge caret.
+    const bool rtl= run.direction == run_direction::right_to_left;
+    const SI a= first == run.byte_begin ? (rtl ? run.advance_x : 0) : run.caret_x (first);
+    const SI b= last == run.byte_end ? (rtl ? 0 : run.advance_x) : run.caret_x (last);
+    if (a != b) spans.push_back ({translated (placed.x, std::min (a, b)),
+                                  translated (placed.x, std::max (a, b))});
+  }
+  std::sort (spans.begin (), spans.end (),
+    [] (const auto& a, const auto& b) { return a.left < b.left; });
+  std::size_t count= 0;
+  for (auto span: spans) {
+    if (count && spans[count - 1].right >= span.left)
+      spans[count - 1].right= std::max (spans[count - 1].right, span.right);
+    else spans[count++]= span;
+  }
+  spans.resize (count);
+  return spans;
+}
+
 void shaped_line::draw_fixed (renderer ren, std::string_view source, SI x, SI y) const {
   if (ren == nullptr || byte_begin > byte_end || byte_end > source.size ())
     throw std::invalid_argument ("Invalid shaped line drawing request");

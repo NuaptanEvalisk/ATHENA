@@ -14,6 +14,7 @@
 #include "shaped_line.hpp"
 #include "font_selection.hpp"
 #include "Boxes/construct.hpp"
+#include "Boxes/utf8_line.hpp"
 #include "Freetype/tt_face.hpp"
 #include "Qt/QTMRenderService.hpp"
 #include "Qt/qt_renderer.hpp"
@@ -170,6 +171,10 @@ static void check_lines (font fn) {
     }
     require (line.advance == x && line.missing_glyphs == missing,
              "Line lost run metrics or missing-glyph status");
+    for (std::size_t byte= 0; byte < source.size (); byte= boundaries.next (byte))
+      for (const auto span: line.selection_spans (byte, boundaries.next (byte)))
+        require (span.left <= span.right && span.left >= 0 && span.right <= line.advance,
+                 "Grapheme selection escaped its visual line");
     for (const auto& caret: line.carets) {
       require (boundaries.boundary (caret.byte), "Line exposed a partial grapheme");
       require (line.caret_x (caret.byte, caret.affinity) == caret.x,
@@ -391,6 +396,93 @@ static void check_font_selection () {
            "Application/system catalog did not select an installed font");
 }
 
+static void check_line_boxes (font nominal) {
+  const auto file= (std::filesystem::path (__FILE__).parent_path () /
+                    "fixtures/two-faces.ttc").string ();
+  font_catalog catalog (false, {file});
+  font_request request {"ATHENA Collection Fixture One,ATHENA Collection Fixture Two"};
+  const std::string source= "A \xce\xb1\xce\xb2 \xd7\x90\xd7\x91 A";
+  auto paragraph= std::make_shared<font_paragraph> (source, request, catalog);
+  auto line= paragraph->line (0, source.size ());
+  box b= utf8_line_box (path (0), paragraph, 0, source.size (), nominal, pencil (black));
+  require (b->w () == line.advance, "Multi-font box lost line advance");
+  for (const auto& caret: line.carets) {
+    const path bp (caret.byte, static_cast<int> (caret.affinity));
+    require (b->find_cursor (bp)->ox == caret.x, "Multi-font box lost caret affinity");
+    bool found= false;
+    const auto hit= b->find_box_path (caret.x, 0, 0, false, found);
+    require (found && b->find_cursor (hit)->ox == caret.x,
+             "Multi-font box hit testing changed the displayed cursor");
+    require (last_item (b->find_tree_path (bp)) == static_cast<int> (caret.byte),
+             "Box affinity leaked into source tree byte positions");
+    const auto from_tree= b->find_box_path (b->find_tree_path (bp), found);
+    require (found && from_tree->item == static_cast<int> (caret.byte),
+             "Source tree position did not return to its logical line position");
+  }
+  require (b->find_cursor (path (7, static_cast<int> (caret_affinity::upstream)))->ox !=
+           b->find_cursor (path (7, static_cast<int> (caret_affinity::downstream)))->ox,
+           "Bidi junction collapsed its two cursor positions");
+  require (b->find_cursor (path (8))->ox == b->find_cursor (path (7))->ox,
+           "Stale byte position entered a UTF-8 scalar");
+  const auto spans= line.selection_spans (0, 9);
+  require (spans.size () == 2 && spans[0].right < spans[1].left,
+           "Logical bidi selection included an unselected visual run");
+  const auto reversed= line.selection_spans (9, 0);
+  require (reversed.size () == spans.size () && reversed[0].left == spans[0].left &&
+           reversed[1].right == spans[1].right, "Backward selection changed the visual region");
+  auto selected= b->find_selection (path (0), path (9));
+  auto regions= selected->rs;
+  for (const auto span: spans) {
+    require (!is_nil (regions) && regions->item->x1 == span.left &&
+             regions->item->x2 == span.right, "Box selection disagrees with line geometry");
+    regions= regions->next;
+  }
+  require (is_nil (regions), "Box selection added a spurious region");
+  require (line.selection_spans (0, source.size ()).size () == 1 &&
+           line.selection_spans (7, 7).empty (), "Whole/empty line selection is invalid");
+  rejects<std::invalid_argument> ([&] { line.selection_spans (0, 8); });
+  auto expanded= b->expand_glyphs (0, 0.25);
+  require (expanded->w () == paragraph->line (0, source.size (), {}, 1.25).advance,
+           "Line expansion did not reshape every selected font");
+  rejects<std::invalid_argument> ([&] { b->expand_glyphs (0, -1); });
+  rejects<std::invalid_argument> ([&] {
+    paragraph->line (0, source.size (), {}, std::numeric_limits<double>::quiet_NaN ());
+  });
+  auto wrapped= utf8_line_box (path (0), paragraph, 2, source.size (), nominal, pencil (black));
+  require (wrapped->get_leaf_left_pos () == 2 &&
+           last_item (wrapped->find_tree_path (path (0))) == 2,
+           "Wrapped line lost absolute source offsets");
+  auto nested= move_box (path (0), b, 100, 200);
+  bool found= false;
+  const auto hit= nested->find_box_path (100 + line.caret_x (7, caret_affinity::upstream),
+                                        200, 0, false, found);
+  require (found && nested->find_cursor (hit)->ox ==
+           100 + line.caret_x (7, caret_affinity::upstream),
+           "Nested line box lost visual cursor affinity");
+  require (is_nil (find_innermost_scroll (nested, b->find_tree_path (path (7)))),
+           "Scroll traversal interpreted a leaf affinity as a child index");
+  auto shorter= shorter_box (path (0), b, 9);
+  require (last_item (shorter->find_tree_path (shorter->find_right_box_path ())) == 9,
+           "Shorter box clamped affinity instead of the text byte");
+  const auto clipped= shorter->find_box_path (b->x2 + 100, 0, 0, true, found);
+  require (last_item (shorter->find_tree_path (clipped)) == 9,
+           "Shorter box hit testing lost the terminal position suffix");
+  auto symbolic= symbol_box (path (0), b, source.size ());
+  require (last_item (symbolic->find_tree_path (
+             symbolic->find_box_path (b->x2 + 100, 0, 0, true, found))) == static_cast<int> (source.size ()),
+           "Symbol modifier clamped affinity instead of the text byte");
+  auto legacy= text_box (path (0), 0, "abcdef", nominal, pencil (black));
+  auto legacy_shorter= shorter_box (path (0), legacy, 3);
+  auto legacy_symbol= symbol_box (path (0), legacy, 6);
+  require (last_item (legacy_shorter->find_tree_path (legacy_shorter->find_right_box_path ())) == 3 &&
+           last_item (legacy_symbol->find_tree_path (
+             legacy_symbol->find_box_path (legacy->x2 + 100, 0, 0, true, found))) == 6,
+           "Position suffix support regressed legacy leaf modifiers");
+  paragraph.reset ();
+  require (b->get_leaf_string () == string (source.data (), source.size ()),
+           "Line box did not retain its shared immutable paragraph");
+}
+
 static void check_text () {
   font_domain owner;
   font_domain_binding binding (owner);
@@ -400,6 +492,7 @@ static void check_text () {
   check_lines (fn);
   check_physical_faces ();
   check_font_selection ();
+  check_line_boxes (fn);
   auto literal= shape (fn, "a<alpha>b");
   require (literal.glyphs.size () == 9 && !literal.missing_glyphs,
            "Literal angle-bracket text was interpreted as Cork");
@@ -507,7 +600,7 @@ static void check_text () {
   });
 }
 
-static void check_recording () {
+static void check_recording (bool multi_font= false) {
   auto connection= QTMRenderConnection::create (2, 64 * 1024);
   require (bool (connection), "No render connection");
   auto recording= connection->beginRecording (
@@ -517,26 +610,36 @@ static void check_recording () {
   {
     font_domain owner;
     font_domain_binding binding (owner);
-    const std::string source= "<alpha> \xce\xb1 e\xcc\x81";
+    const std::string source= multi_font ? "A \xce\xb1\xce\xb2 A" : "<alpha> \xce\xb1 e\xcc\x81";
     auto run= shape (pagella (12, 600), source);
     string atom (source.data (), source.size ());
     box leaf= utf8_text_box (path (0), atom, 0, N(atom),
                              pagella (12, 600), pencil ((color) qRgb (0, 0, 0)));
     atom.set (0, 'X');
-    require (leaf->get_leaf_string ()[0] == '<',
+    require (leaf->get_leaf_string ()[0] == source[0],
              "Editing an atom changed a retained box's source snapshot");
+    if (multi_font) {
+      const auto file= (std::filesystem::path (__FILE__).parent_path () /
+                        "fixtures/two-faces.ttc").string ();
+      font_catalog catalog (false, {file});
+      font_request request {"ATHENA Collection Fixture One,ATHENA Collection Fixture Two"};
+      request.horizontal_dpi= request.vertical_dpi= 600;
+      auto paragraph= std::make_shared<font_paragraph> (source, request, catalog);
+      leaf= utf8_line_box (path (0), paragraph, 0, source.size (), pagella (12, 600),
+                           pencil ((color) qRgb (0, 0, 0)));
+    }
     require (!run.missing_glyphs && run.has_ink, "Run cannot be rendered");
     invalidate_font_configuration ();
     owner.synchronize_configuration ();
-    auto refreshed= shape (pagella (12, 600), "<alpha> \xce\xb1 e\xcc\x81");
+    auto refreshed= shape (pagella (12, 600), source);
     require (refreshed.glyph_source.rep != run.glyph_source.rep &&
              refreshed.advance_x == run.advance_x,
              "Shaping cache was not invalidated with its font domain");
     const double pixel= std_shrinkf * PIXEL;
-    expected_left= static_cast<int> (std::floor (10 + run.ink_x1 / pixel));
-    expected_right= static_cast<int> (std::ceil (10 + run.ink_x2 / pixel));
-    expected_top= static_cast<int> (std::floor (45 - run.ink_y2 / pixel));
-    expected_bottom= static_cast<int> (std::ceil (45 - run.ink_y1 / pixel));
+    expected_left= static_cast<int> (std::floor (10 + leaf->x3 / pixel));
+    expected_right= static_cast<int> (std::ceil (10 + leaf->x4 / pixel));
+    expected_top= static_cast<int> (std::floor (45 - leaf->y4 / pixel));
+    expected_bottom= static_cast<int> (std::ceil (45 - leaf->y3 / pixel));
     QPainter painter (recording->device ());
     qt_renderer_rep renderer (&painter, 1.0, 200, 80, true);
     renderer.set_zoom_factor (1.0);
@@ -576,7 +679,7 @@ static void check_recording () {
                std::abs (bottom + 1 - expected_bottom) <= 2,
                "Shaped metrics and recorded ink bounds disagree");
       if (const char* output= std::getenv ("ATHENA_SHAPED_TEXT_TEST_IMAGE"))
-        require (frame.image ().save (QString::fromUtf8 (output)),
+        require (frame.image ().save (QString::fromUtf8 (output) + (multi_font ? "-line.png" : "")),
                  "Could not save shaped text image");
       return;
     }
@@ -598,6 +701,7 @@ int main () {
     first.get ();
     second.get ();
     check_recording ();
+    check_recording (true);
   }
   catch (const std::exception& error) {
     std::cerr << error.what () << '\n';

@@ -239,9 +239,10 @@ find_innermost_scroll (box b, path p) {
     p= path_up (p);
     if (is_nil (p)) return path ();
   }
-  bp= path_up (bp);
   path cp, sp;
-  while (!is_nil (bp)) {
+  // The terminal box owns its position suffix (e.g. byte plus bidi affinity).
+  // Only real child indices belong to the structural traversal.
+  while (!is_nil (bp) && !is_atom (bp) && b->subnr () > 0) {
     if (b->get_type () == SCROLL_BOX) sp= reverse (cp);
     b = b[bp->item];
     cp= path (bp->item, cp);

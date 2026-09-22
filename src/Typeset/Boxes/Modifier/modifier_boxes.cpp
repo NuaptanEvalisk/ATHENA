@@ -233,19 +233,27 @@ symbol_box_rep::expand_glyphs (int mode, double factor) {
   return symbol_box (ip, b->expand_glyphs (mode, factor), n);
 }
 
-static box
-subbox (box b, path p) {
-  if (is_nil (p)) return b;
-  return subbox (b[p->item], p->next);
+static path
+leaf_prefix (box& b, path& position) {
+  path reversed;
+  while (!is_nil (position) && !is_atom (position) && b->subnr () > 0) {
+    const int child= position->item;
+    b= b[child];
+    reversed= path (child, reversed);
+    position= position->next;
+  }
+  return reverse (reversed);
 }
 
 path
 symbol_box_rep::find_box_path (SI x, SI y, SI delta, bool force, bool& found) {
   path p= modifier_box_rep::find_box_path (x, y, delta, force, found);
-  box leaf= ::subbox (box (this), path_up (p));
+  box leaf (this);
+  path position= p;
+  const path prefix= leaf_prefix (leaf, position);
+  if (is_nil (position)) return p;
   if (is_accessible (leaf->ip) || force) {
-    if (last_item (p) <= (n>>1)) return path_up (p) * 0;
-    else return path_up (p) * n;
+    return prefix * path (position->item <= (n>>1) ? 0 : n, position->next);
   }
   else return p;
 }
@@ -290,9 +298,12 @@ shorter_box_rep::expand_glyphs (int mode, double factor) {
 path
 shorter_box_rep::find_box_path (SI x, SI y, SI delta, bool force, bool& found) {
   path p= modifier_box_rep::find_box_path (x, y, delta, force, found);
-  box leaf= ::subbox (box (this), path_up (p));
-  if ((is_accessible (leaf->ip) || force) && (last_item (p) > len))
-    return path_up (p) * len;
+  box leaf (this);
+  path position= p;
+  const path prefix= leaf_prefix (leaf, position);
+  if (is_nil (position)) return p;
+  if ((is_accessible (leaf->ip) || force) && (position->item > len))
+    return prefix * path (len, position->next);
   else return p;
 }
 
@@ -307,7 +318,10 @@ shorter_box_rep::find_rip () {
 path
 shorter_box_rep::find_right_box_path () {
   path bp= b->find_right_box_path ();
-  return path (0, path_up (bp) * min (last_item (bp), len));
+  box leaf= b;
+  const path prefix= leaf_prefix (leaf, bp);
+  if (is_nil (bp)) return path (0, prefix);
+  return path (0, prefix * path (min (bp->item, len), bp->next));
 }
 
 int

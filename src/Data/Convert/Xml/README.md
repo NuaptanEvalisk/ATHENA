@@ -112,6 +112,16 @@ unchanged. Legacy readers still recognize existing file headers.
   paragraph itemization, microtypography and mathematical glyph corrections
   must migrate before that cutover. Font-domain rendering and PDF tests exercise
   the box directly, including destruction after recording and source COW edits.
+  `utf8_line_box` connects the multi-font paragraph result to those box APIs.
+  Wrapped lines share immutable paragraph source and selected fonts. Local box
+  paths retain both byte and caret affinity, whereas document tree paths retain
+  only the absolute byte. Visual selections are unions of selected run intervals,
+  not a single rectangle spanning unselected bidi text. Scroll traversal and
+  symbol/shorter modifiers distinguish structural child indices from the leaf's
+  position suffix. Tests cover nested boxes, clipping positions, expansion and
+  font-domain-independent recorded pixels. The editor still needs to retain
+  visual affinity separately when converting a click to its logical tree path;
+  the old concater does not yet instantiate this box.
 - Shaped drawing borrows the original UTF-8 input, passing the selected range
   separately from glyph ids to the renderer. The native PDF renderer emits
   Unicode cluster mappings and per-run ActualText (PDF 1.5), preserving original

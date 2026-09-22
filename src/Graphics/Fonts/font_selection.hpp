@@ -62,7 +62,7 @@ public:
   unicode_paragraph& analysis ();
   const std::vector<selected_font_run>& fonts () const { return fonts_; }
   shaped_line line (std::size_t begin, std::size_t end,
-                    const shaping_options& options= {});
+                    const shaping_options& options= {}, double horizontal_scale= 1.0);
 };
 
 } // namespace athena::text

@@ -13,6 +13,7 @@
 #include "drd_std.hpp"
 #include "font.hpp"
 #include "Boxes/construct.hpp"
+#include "Boxes/utf8_line.hpp"
 #include "unicode_text.hpp"
 #include "shaped_line.hpp"
 #include "font_selection.hpp"
@@ -152,10 +153,14 @@ static void check_collection_export (const QString& pdf) {
     athena::text::font_request request {"ATHENA Collection Fixture One,ATHENA Collection Fixture Two"};
     request.horizontal_dpi= request.vertical_dpi= 600;
     const std::string mixed= "A \xce\xb1\xce\xb2 A";
-    athena::text::font_paragraph paragraph (mixed, request, catalog);
-    const auto line= paragraph.line (0, mixed.size ());
+    auto paragraph= std::make_shared<athena::text::font_paragraph> (mixed, request, catalog);
+    const auto line= paragraph->line (0, mixed.size ());
     require (!line.missing_glyphs, "PDF fallback retained a missing glyph");
-    line.draw_fixed (ren, paragraph.analysis ().source (), 400 * PIXEL, -2100 * PIXEL);
+    box leaf= utf8_line_box (path (0), paragraph, 0, mixed.size (),
+                             unicode_font ("texgyrepagella-regular", 12, 600), pencil (black));
+    ren->move_origin (400 * PIXEL, -2100 * PIXEL);
+    leaf->display (ren);
+    ren->move_origin (-400 * PIXEL, 2100 * PIXEL);
   }
   catch (...) { tm_delete (ren); throw; }
   tm_delete (ren);

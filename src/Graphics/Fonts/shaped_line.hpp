@@ -28,6 +28,8 @@ struct placed_text {
   SI x;
 };
 
+struct line_selection_span { SI left, right; };
+
 // Retains font-domain-owned runs, not a copy of the source. A byte position at
 // a bidi boundary may have distinct upstream/downstream visual coordinates.
 struct shaped_line {
@@ -39,6 +41,8 @@ struct shaped_line {
 
   SI caret_x (std::size_t byte, caret_affinity affinity) const;
   line_caret hit_test (SI x, bool prefer_right= true) const;
+  std::vector<line_selection_span> selection_spans (std::size_t begin,
+                                                  std::size_t end) const;
   void draw_fixed (renderer ren, std::string_view source, SI x, SI y) const;
 };
 

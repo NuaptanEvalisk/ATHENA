@@ -197,7 +197,12 @@ unicode_paragraph& font_paragraph::analysis () {
 }
 
 shaped_line font_paragraph::line (std::size_t begin, std::size_t end,
-                                 const shaping_options& options) {
+                                 const shaping_options& options, double horizontal_scale) {
+  const double scaled= std::round (request_.horizontal_dpi * horizontal_scale);
+  if (!std::isfinite (horizontal_scale) || horizontal_scale <= 0 ||
+      !std::isfinite (scaled) || scaled < 1 || scaled > std::numeric_limits<int>::max ())
+    throw std::invalid_argument ("Invalid horizontal font scale");
+  const int hdpi= static_cast<int> (scaled);
   auto locate= [&] (std::size_t byte) {
     return std::lower_bound (fonts_.begin (), fonts_.end (), byte,
       [] (const selected_font_run& run, std::size_t at) { return run.end <= at; });
@@ -210,7 +215,7 @@ shaped_line font_paragraph::line (std::size_t begin, std::size_t end,
       if (font == fonts_.end () || font->begin > item.run.begin || font->end < item.run.end)
         throw std::logic_error ("Shaping item crosses selected font boundary");
       return shape_freetype_utf8 (font->font, request_.point_size,
-        request_.horizontal_dpi, request_.vertical_dpi, source, item.run.begin, item.run.end, o);
+        hdpi, request_.vertical_dpi, source, item.run.begin, item.run.end, o);
     }, selected, [&] (const shaping_item& item) {
       std::vector<std::size_t> cuts;
       for (auto font= locate (item.run.begin); font != fonts_.end () && font->end < item.run.end; ++font)
