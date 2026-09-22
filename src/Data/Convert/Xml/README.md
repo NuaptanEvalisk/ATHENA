@@ -54,6 +54,15 @@ unchanged. Legacy readers still recognize existing file headers.
   `font_paragraph` supplies Pango/Fontconfig fallback and subdivides these items
   at physical font changes, reversing font subitems within RTL runs. Font
   itemization is done once per immutable paragraph, not once per wrapped line.
+  Sorted, nonoverlapping `font_style_span` byte ranges provide font family,
+  size and language overrides through Pango attributes on the same source.
+  Gaps retain the base request; resolution and paragraph direction cannot
+  change inside a span. Spans may meet inside a grapheme without introducing
+  editing stops. Selected physical runs retain their own point size and language
+  through shaping, wrapping, expansion, raster recording and native PDF export.
+  Identical neighboring requests are coalesced so redundant style markup does
+  not split ligatures. Span validation rejects overlaps, scalar interiors and
+  excessive declarations; configuration is consumed once, not borrowed by lines.
   ICU remains the authority for bidi levels and editing stops. The existing
   paragraph formatter still needs integration.
 - Physical Unicode fonts expose `shape_utf8` separately from their legacy

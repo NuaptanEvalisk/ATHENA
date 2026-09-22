@@ -153,7 +153,12 @@ static void check_collection_export (const QString& pdf) {
     athena::text::font_request request {"ATHENA Collection Fixture One,ATHENA Collection Fixture Two"};
     request.horizontal_dpi= request.vertical_dpi= 600;
     const std::string mixed= "A \xce\xb1\xce\xb2 A";
-    auto paragraph= std::make_shared<athena::text::font_paragraph> (mixed, request, catalog);
+    auto alternate= request;
+    alternate.description_utf8= "ATHENA Collection Fixture Two";
+    alternate.point_size= 24;
+    alternate.language= "el";
+    const std::vector<athena::text::font_style_span> styles {{2, 6, alternate}};
+    auto paragraph= std::make_shared<athena::text::font_paragraph> (mixed, request, styles, catalog);
     const auto line= paragraph->line (0, mixed.size ());
     require (!line.missing_glyphs, "PDF fallback retained a missing glyph");
     box leaf= utf8_line_box (path (0), paragraph, 0, mixed.size (),

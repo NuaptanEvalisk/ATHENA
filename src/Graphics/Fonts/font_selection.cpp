@@ -28,6 +28,25 @@ void require_c_string (std::string_view s) {
     throw std::invalid_argument ("NUL in font configuration");
 }
 
+void validate_request (const font_request& request) {
+  require_c_string (request.description_utf8);
+  require_c_string (request.language);
+  if (request.description_utf8.empty () || request.point_size <= 0 ||
+      request.point_size > G_MAXINT / PANGO_SCALE ||
+      request.horizontal_dpi <= 0 || request.vertical_dpi <= 0)
+    throw std::invalid_argument ("Invalid font selection request");
+}
+
+using description_ptr= std::unique_ptr<PangoFontDescription, decltype (&pango_font_description_free)>;
+
+description_ptr describe (const font_request& request) {
+  description_ptr desc (pango_font_description_from_string (request.description_utf8.c_str ()),
+                         pango_font_description_free);
+  if (!desc) throw std::bad_alloc ();
+  pango_font_description_set_size (desc.get (), request.point_size * PANGO_SCALE);
+  return desc;
+}
+
 font_file_source physical_font (PangoFont* font) {
   if (!font || !PANGO_IS_FC_FONT (font))
     throw std::runtime_error ("Pango did not select a physical font");
@@ -110,31 +129,69 @@ font_catalog::font_catalog (bool system, const std::vector<std::string>& files,
 font_catalog::~font_catalog () { state_->owner.check_owner (); }
 
 std::vector<selected_font_run> font_catalog::select (
-    const std::string& source, const font_request& request, std::uint8_t base_level) {
+    const std::string& source, const font_request& request, std::uint8_t base_level,
+    const std::vector<font_style_span>& styles) {
   state_->check ();
   require_utf8 (source);
-  require_c_string (request.description_utf8);
-  require_c_string (request.language);
-  if (source.size () > 16 * 1024 * 1024 || request.description_utf8.empty () ||
-      request.point_size <= 0 || request.point_size > G_MAXINT / PANGO_SCALE ||
-      request.horizontal_dpi <= 0 || request.vertical_dpi <= 0 || base_level > 1)
+  validate_request (request);
+  if (source.size () > 16 * 1024 * 1024 || base_level > 1)
     throw std::invalid_argument ("Invalid font selection request");
+  if (styles.size () > 100000) throw std::length_error ("Too many font style spans");
+  std::size_t previous= 0;
+  for (const auto& span: styles) {
+    validate_request (span.request);
+    if (span.begin < previous || span.begin >= span.end || span.end > source.size () ||
+        !scalar_boundary (source, span.begin) || !scalar_boundary (source, span.end) ||
+        span.request.horizontal_dpi != request.horizontal_dpi ||
+        span.request.vertical_dpi != request.vertical_dpi || span.request.direction != request.direction)
+      throw std::invalid_argument ("Invalid paragraph font style range");
+    previous= span.end;
+  }
   std::vector<selected_font_run> result;
   if (source.empty ()) return result;
-  std::unique_ptr<PangoFontDescription, decltype (&pango_font_description_free)> desc (
-    pango_font_description_from_string (request.description_utf8.c_str ()),
-    pango_font_description_free);
-  if (!desc) throw std::bad_alloc ();
-  pango_font_description_set_size (desc.get (), request.point_size * PANGO_SCALE);
+  std::vector<description_ptr> descriptions;
+  descriptions.push_back (describe (request));
   pango_ft2_font_map_set_resolution (PANGO_FT2_FONT_MAP (state_->map.get ()),
                                     request.horizontal_dpi, request.vertical_dpi);
   object_ptr<PangoContext> context (
     pango_font_map_create_context (state_->map.get ()), g_object_unref);
   if (!context) throw std::bad_alloc ();
-  pango_context_set_font_description (context.get (), desc.get ());
+  pango_context_set_font_description (context.get (), descriptions[0].get ());
   pango_context_set_language (context.get (), pango_language_from_string (request.language.c_str ()));
   std::unique_ptr<PangoAttrList, decltype (&pango_attr_list_unref)> attrs (
     pango_attr_list_new (), pango_attr_list_unref);
+  for (const auto& span: styles) {
+    descriptions.push_back (describe (span.request));
+    for (auto attr: {pango_attr_font_desc_new (descriptions.back ().get ()),
+                     pango_attr_language_new (pango_language_from_string (span.request.language.c_str ()))}) {
+      if (!attr) throw std::bad_alloc ();
+      attr->start_index= span.begin;
+      attr->end_index= span.end;
+      pango_attr_list_insert (attrs.get (), attr);
+    }
+  }
+  const auto locate_style= [&] (std::size_t byte) {
+    return std::lower_bound (styles.begin (), styles.end (), byte,
+      [] (const font_style_span& span, std::size_t at) { return span.end <= at; });
+  };
+  const auto append= [&] (std::size_t begin, std::size_t end, const font_file_source& font) {
+    while (begin < end) {
+      const auto span= locate_style (begin);
+      const bool inside= span != styles.end () && span->begin <= begin;
+      const auto& active= inside ? span->request : request;
+      const auto next= span == styles.end () ? end : std::min (end, inside ? span->end : span->begin);
+      // Identical adjacent declarations must not break joining or ligatures.
+      // Keep explicit NUL control runs separate from neighboring text.
+      if (!result.empty () && begin > 0 && source[begin - 1] != '\0' && source[begin] != '\0' &&
+          result.back ().end == begin && result.back ().font.file_utf8 == font.file_utf8 &&
+          result.back ().font.face_index == font.face_index &&
+          result.back ().font.design_coords == font.design_coords &&
+          result.back ().point_size == active.point_size && result.back ().language == active.language)
+        result.back ().end= next;
+      else result.push_back ({begin, next, font, active.point_size, active.language});
+      begin= next;
+    }
+  };
   const auto free_items= [] (GList* list) {
     g_list_free_full (list, [] (gpointer item) { pango_item_free (static_cast<PangoItem*> (item)); });
   };
@@ -142,8 +199,12 @@ std::vector<selected_font_run> font_catalog::select (
   // own control runs; never truncate the rest of the paragraph or rewrite it.
   for (std::size_t start= 0; start < source.size ();) {
     if (source[start] == '\0') {
-      object_ptr<PangoFont> font (pango_context_load_font (context.get (), desc.get ()), g_object_unref);
-      result.push_back ({start, start + 1, physical_font (font.get ())});
+      const auto span= locate_style (start);
+      const auto index= span != styles.end () && span->begin <= start ?
+        static_cast<std::size_t> (span - styles.begin ()) + 1 : 0;
+      object_ptr<PangoFont> font (pango_context_load_font (context.get (), descriptions[index].get ()),
+                                 g_object_unref);
+      append (start, start + 1, physical_font (font.get ()));
       ++start;
       continue;
     }
@@ -161,7 +222,7 @@ std::vector<selected_font_run> font_catalog::select (
       const auto next= covered + item->length;
       if (!scalar_boundary (source, covered) || !scalar_boundary (source, next))
         throw std::runtime_error ("Font item splits a UTF-8 scalar");
-      result.push_back ({covered, next, physical_font (item->analysis.font)});
+      append (covered, next, physical_font (item->analysis.font));
       covered= next;
     }
     if (covered != end) throw std::runtime_error ("Font selection omitted source bytes");
@@ -184,9 +245,13 @@ font_catalog& current_font_catalog () {
 }
 
 font_paragraph::font_paragraph (std::string source, font_request request, font_catalog& catalog):
+  font_paragraph (std::move (source), std::move (request), {}, catalog) {}
+
+font_paragraph::font_paragraph (std::string source, font_request request,
+                                const std::vector<font_style_span>& styles, font_catalog& catalog):
   source_ (std::move (source)), analysis_ (source_, request.direction, request.language),
   request_ (std::move (request)),
-  fonts_ (catalog.select (source_, request_, analysis_.base_level ())),
+  fonts_ (catalog.select (source_, request_, analysis_.base_level (), styles)),
   owner_ (&current_font_domain ()) {}
 
 unicode_paragraph& font_paragraph::analysis () {
@@ -207,16 +272,16 @@ shaped_line font_paragraph::line (std::size_t begin, std::size_t end,
     return std::lower_bound (fonts_.begin (), fonts_.end (), byte,
       [] (const selected_font_run& run, std::size_t at) { return run.end <= at; });
   };
-  auto selected= options;
-  if (selected.language.empty () || selected.language == "und") selected.language= request_.language;
   return shape_line (analysis (), begin, end,
     [&] (std::string_view source, const shaping_item& item, const shaping_options& o) {
       const auto font= locate (item.run.begin);
       if (font == fonts_.end () || font->begin > item.run.begin || font->end < item.run.end)
         throw std::logic_error ("Shaping item crosses selected font boundary");
-      return shape_freetype_utf8 (font->font, request_.point_size,
-        hdpi, request_.vertical_dpi, source, item.run.begin, item.run.end, o);
-    }, selected, [&] (const shaping_item& item) {
+      auto selected= o;
+      if (selected.language.empty () || selected.language == "und") selected.language= font->language;
+      return shape_freetype_utf8 (font->font, font->point_size,
+        hdpi, request_.vertical_dpi, source, item.run.begin, item.run.end, selected);
+    }, options, [&] (const shaping_item& item) {
       std::vector<std::size_t> cuts;
       for (auto font= locate (item.run.begin); font != fonts_.end () && font->end < item.run.end; ++font)
         cuts.push_back (font->end);

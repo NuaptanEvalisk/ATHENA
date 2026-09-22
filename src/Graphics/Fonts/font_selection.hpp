@@ -25,6 +25,16 @@ struct font_request {
 struct selected_font_run {
   std::size_t begin, end;
   font_file_source font;
+  int point_size;
+  std::string language;
+};
+
+// Sorted, nonoverlapping scalar ranges. Gaps use the paragraph's base request.
+// Device resolution and paragraph direction must match that base request;
+// changing language/family/size does not create another Unicode paragraph.
+struct font_style_span {
+  std::size_t begin, end;
+  font_request request;
 };
 
 // A private Fontconfig configuration and PangoFT2 map. No Qt/GTK font objects
@@ -41,7 +51,8 @@ public:
   font_catalog& operator= (const font_catalog&)= delete;
   std::vector<selected_font_run> select (const std::string& source,
                                        const font_request& request,
-                                       std::uint8_t base_level= 0);
+                                       std::uint8_t base_level= 0,
+                                       const std::vector<font_style_span>& styles= {});
 };
 
 font_catalog& current_font_catalog ();
@@ -56,6 +67,9 @@ class font_paragraph {
   font_domain* owner_;
 public:
   font_paragraph (std::string source, font_request request,
+                  font_catalog& catalog= current_font_catalog ());
+  font_paragraph (std::string source, font_request request,
+                  const std::vector<font_style_span>& styles,
                   font_catalog& catalog= current_font_catalog ());
   font_paragraph (const font_paragraph&)= delete;
   font_paragraph& operator= (const font_paragraph&)= delete;

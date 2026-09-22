@@ -396,6 +396,103 @@ static void check_font_selection () {
            "Application/system catalog did not select an installed font");
 }
 
+static void check_font_styles (font nominal) {
+  const auto file= (std::filesystem::path (__FILE__).parent_path () /
+                    "fixtures/two-faces.ttc").string ();
+  font_catalog catalog (false, {file});
+  font_request base {"ATHENA Collection Fixture One"};
+  font_request alternate {"ATHENA Collection Fixture Two", "he", 24};
+  std::vector<font_style_span> styles {{1, 3, alternate}};
+  auto paragraph= std::make_shared<font_paragraph> ("AAAA", base, styles, catalog);
+  styles.clear ();
+  require (paragraph->fonts ().size () == 3, "Styled paragraph lost its default font gaps");
+  for (std::size_t i= 0; i < paragraph->fonts ().size (); ++i) {
+    const auto& selected= paragraph->fonts ()[i];
+    require (selected.font.face_index == (i == 1 ? 1 : 0) &&
+             selected.point_size == (i == 1 ? 24 : 12) &&
+             selected.language == (i == 1 ? "he" : "und"),
+             "Font style identity, size or language was lost");
+  }
+  const auto line= paragraph->line (0, 4);
+  const auto plain= shape_freetype_utf8 (font_file_source {file, 0}, 12, 96, 96, "AAAA", 0, 1);
+  const auto large= shape_freetype_utf8 (font_file_source {file, 1}, 24, 96, 96, "AAAA", 1, 3);
+  require (line.advance == 2 * plain.advance_x + large.advance_x,
+           "Styled paragraph used the base font size for every run");
+  require (line.runs.size () == 3, "Style boundaries disappeared from shaped output");
+  physical_font_source physical;
+  require (line.runs[1].text.glyph_source->physical_source (physical) &&
+           physical.point_size == 24 && physical.file.face_index == 1,
+           "Styled raster/export metadata uses a different physical size");
+  auto box= utf8_line_box (path (0), paragraph, 0, 4, nominal, pencil (black));
+  require (box->w () == line.advance && box->y4 >= line.runs[1].text.ink_y2,
+           "Styled line box clipped or remeasured the larger font");
+  auto wrapped= paragraph->line (2, 4);
+  require (wrapped.runs.size () == 2 && wrapped.runs.front ().text.byte_begin == 2,
+           "Wrapped styled line lost absolute font ranges");
+  require (paragraph->line (1, 3, {}, 1.5).advance ==
+           shape_freetype_utf8 (font_file_source {file, 1}, 24, 144, 96, "AAAA", 1, 3).advance_x,
+           "Horizontal expansion lost a span's font size");
+
+  const std::string rtl= "A \xd7\x90\xd7\x91 A";
+  font_request hebrew= base;
+  hebrew.language= "he";
+  hebrew.point_size= 18;
+  font_paragraph bidi (rtl, base, {{2, 4, hebrew}, {4, 6, alternate}}, catalog);
+  const auto bidi_line= bidi.line (0, rtl.size ());
+  bool saw_bet= false, saw_alef= false;
+  for (const auto& run: bidi_line.runs) {
+    if (run.text.byte_begin == 4) {
+      require (run.text.direction == run_direction::right_to_left &&
+               run.text.glyph_source->physical_source (physical) && physical.point_size == 24,
+               "RTL style lost its direction or size");
+      saw_bet= true;
+    }
+    if (run.text.byte_begin == 2) {
+      require (saw_bet && run.text.glyph_source->physical_source (physical) && physical.point_size == 18,
+               "Font styling restarted bidi at the style boundary");
+      saw_alef= true;
+    }
+  }
+  require (saw_alef && saw_bet, "Styled RTL fixture was not exercised");
+
+  font_paragraph combining ("A\xcc\x81", base, {{1, 3, alternate}}, catalog);
+  for (const auto& caret: combining.line (0, 3).carets)
+    require (caret.byte == 0 || caret.byte == 3, "Style boundary split an editing grapheme");
+  const std::string nul ("A\0A", 3);
+  font_paragraph control (nul, base, {{1, 3, alternate}}, catalog);
+  require (control.fonts ().size () == 3 && control.fonts ()[1].point_size == 24 &&
+           control.fonts ()[1].font.face_index == 1 && control.fonts ()[2].font.face_index == 1 &&
+           control.line (0, 3).byte_end == 3, "NUL handling ignored its font style or following text");
+
+  font_request roman {"TeX Gyre Pagella"};
+  font_request bold {"TeX Gyre Pagella Bold"};
+  font_request italic {"TeX Gyre Pagella Italic"};
+  font_paragraph emphasis ("AAA", roman, {{1, 2, bold}, {2, 3, italic}});
+  require (emphasis.fonts ().size () == 3, "Emphasis did not select distinct physical styles");
+  require ((load_tt_face (emphasis.fonts ()[1].font)->ft_face->style_flags & FT_STYLE_FLAG_BOLD) &&
+           (load_tt_face (emphasis.fonts ()[2].font)->ft_face->style_flags & FT_STYLE_FLAG_ITALIC) &&
+           !emphasis.line (0, 3).missing_glyphs,
+           "Pagella emphasis did not use its real bold/italic faces");
+  font_paragraph ligature ("ffi", roman, {{0, 1, roman}, {1, 3, roman}});
+  font_paragraph unstyled ("ffi", roman);
+  require (ligature.fonts ().size () == 1 &&
+           ligature.line (0, 3).runs[0].text.glyphs.size () == unstyled.line (0, 3).runs[0].text.glyphs.size () &&
+           ligature.line (0, 3).advance == unstyled.line (0, 3).advance,
+           "Identical adjacent styles broke a ligature");
+
+  for (const auto& invalid: std::vector<std::vector<font_style_span>> {
+      {{2, 2, alternate}}, {{0, 5, alternate}}, {{2, 4, alternate}, {1, 2, alternate}},
+      {{0, 3, alternate}, {2, 4, alternate}}})
+    rejects<std::invalid_argument> ([&] { font_paragraph p ("AAAA", base, invalid, catalog); });
+  rejects<std::invalid_argument> ([&] { font_paragraph p ("\xce\xb1", base, {{1, 2, alternate}}, catalog); });
+  auto wrong_device= alternate;
+  wrong_device.horizontal_dpi= 144;
+  rejects<std::invalid_argument> ([&] { font_paragraph p ("A", base, {{0, 1, wrong_device}}, catalog); });
+  auto wrong_direction= alternate;
+  wrong_direction.direction= paragraph_direction::rtl;
+  rejects<std::invalid_argument> ([&] { font_paragraph p ("A", base, {{0, 1, wrong_direction}}, catalog); });
+}
+
 static void check_line_boxes (font nominal) {
   const auto file= (std::filesystem::path (__FILE__).parent_path () /
                     "fixtures/two-faces.ttc").string ();
@@ -566,6 +663,7 @@ static void check_text () {
   check_lines (fn);
   check_physical_faces ();
   check_font_selection ();
+  check_font_styles (fn);
   check_line_boxes (fn);
   auto literal= shape (fn, "a<alpha>b");
   require (literal.glyphs.size () == 9 && !literal.missing_glyphs,
@@ -698,7 +796,12 @@ static void check_recording (bool multi_font= false) {
       font_catalog catalog (false, {file});
       font_request request {"ATHENA Collection Fixture One,ATHENA Collection Fixture Two"};
       request.horizontal_dpi= request.vertical_dpi= 600;
-      auto paragraph= std::make_shared<font_paragraph> (source, request, catalog);
+      auto alternate= request;
+      alternate.description_utf8= "ATHENA Collection Fixture Two";
+      alternate.point_size= 24;
+      alternate.language= "el";
+      const std::vector<font_style_span> styles {{2, 6, alternate}};
+      auto paragraph= std::make_shared<font_paragraph> (source, request, styles, catalog);
       leaf= utf8_line_box (path (0), paragraph, 0, source.size (), pagella (12, 600),
                            pencil ((color) qRgb (0, 0, 0)));
     }
