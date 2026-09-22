@@ -209,6 +209,4 @@
   (if (in-text?) (link text-icons))
   (if (in-math?) (link math-icons))
   (if (in-prog?) (link prog-icons))
-  (if (and (in-graphics?) (not (in-commutative-diagram?)))
-      (link graphics-icons))
   (link help-icons))

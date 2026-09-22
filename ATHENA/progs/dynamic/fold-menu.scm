@@ -528,17 +528,6 @@
       (-> (eval (get-overlays-menu-name "Overlay " t))
           (dynamic (focus-overlays-menu t))))))
 
-(tm-menu (graphics-focus-overlays-icons)
-  (with t (tree-innermost overlays-context?)
-    (assuming (nnot t)
-      /
-      (mini #t
-        (group "Overlay:")
-        (=> (eval (proviso-name (graphics-get-proviso)))
-            (link graphics-overlays-mode-menu))
-        (=> (eval (get-overlays-menu-name "" t))
-            (dynamic (focus-overlays-menu t)))))))
-
 (tm-menu (graphics-screens-menu)
   (with t (tree-innermost screens-context?)
     (assuming (nnot t)

@@ -260,8 +260,7 @@
 
 ;(display "Booting graphics mode\n")
 (lazy-keyboard (graphics graphics-kbd) in-active-graphics? graphics-wheel)
-(lazy-menu (graphics graphics-menu) graphics-menu graphics-icons
-           graphics-focus-icons)
+(lazy-menu (graphics graphics-menu) graphics-menu)
 (lazy-define (graphics graphics-utils) make-graphics)
 (lazy-define (graphics graphics-main) graphics-update-proviso
              graphics-get-proviso graphics-set-proviso)
@@ -276,7 +275,7 @@
 (lazy-keyboard (dynamic fold-kbd) always?)
 (lazy-menu (dynamic fold-menu) insert-fold-menu dynamic-menu dynamic-icons
            graphics-overlays-menu graphics-screens-menu
-           graphics-focus-overlays-menu graphics-focus-overlays-icons)
+           graphics-focus-overlays-menu)
 (lazy-define (dynamic fold-edit)
              screens-switch-to dynamic-make-slides overlays-context?)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")

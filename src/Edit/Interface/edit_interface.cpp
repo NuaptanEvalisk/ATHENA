@@ -916,6 +916,9 @@ edit_interface_rep::apply_changes () {
       invalidate (eb->x2 - heading_strip_width, vy1,
                   eb->x2 + 2 * pixel, vy2);
     invalidate (x1- 2*pixel, y1- 2*pixel, x2+ 2*pixel, y2+ 2*pixel);
+    mark_native_ink_interaction_dirty ();
+    refresh_native_ink_interaction ();
+    (void) publish_ui (actor_command_kind::ui_native_drawing_focus_refresh);
     // check_data_integrety ();
   }
   

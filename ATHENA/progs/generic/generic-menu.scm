@@ -616,8 +616,6 @@
   //)
 
 (tm-menu (texmacs-focus-icons)
-  (assuming (in-graphics?)
-    (dynamic (graphics-focus-icons)))
   (assuming (not (in-graphics?))
     (dynamic (standard-focus-icons (focus-tree)))))
 

@@ -124,6 +124,7 @@ private slots:
   void recognizedShapeCommitsAsOneTransaction ();
   void recognitionToggleStaysActorOwned ();
   void legacyPenscriptMouseFallbackStaysNative ();
+  void applyChangesPublishesNativeDrawingRegion ();
   void textToolCreatesAndReentersEditableText ();
   void mathToolCreatesAndReentersEditableMath ();
   void insideGraphicsStaysNative ();
@@ -216,6 +217,24 @@ horizontal_samples (SI left, SI right, SI y, int count= 7) {
     result[(std::size_t) i].pressure= 0.5 + 0.05 * i;
   }
   return result;
+}
+
+void
+TestNativeInkEditor::applyChangesPublishesNativeDrawingRegion () {
+  path graphics_path;
+  find_first_graphics_path (
+    subtree (current_document_tree (), buffer->root_path),
+    buffer->root_path, graphics_path);
+  QVERIFY (!is_nil (graphics_path));
+  editor->go_to (graphics_path * 0 * 0);
+  editor->notify_change (THE_TREE);
+  editor->apply_changes ();
+
+  std::vector<native_ink_interaction_snapshot> regions=
+    endpoint->native_ink_regions ();
+  QVERIFY (!regions.empty ());
+  QCOMPARE (regions.front ().tool, native_drawing_tool::pen);
+  QVERIFY (regions.front ().pen_enabled);
 }
 
 static void
