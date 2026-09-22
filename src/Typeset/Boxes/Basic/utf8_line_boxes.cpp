@@ -126,8 +126,13 @@ struct utf8_line_box_rep final: box_rep {
     return is_accessible (ip) ? reverse (descend (ip, begin + at)) :
       reverse (descend_decode (ip, at == end - begin ? 1 : 0));
   }
+  path with_cursor_affinity (path bp, caret_affinity side) override {
+    return path (relative (bp), static_cast<int> (side));
+  }
   cursor find_cursor (path bp) override {
     cursor result (line.caret_x (begin + relative (bp), affinity (bp)), 0);
+    result->affinity= affinity (bp) == caret_affinity::both ?
+      caret_affinity::downstream : affinity (bp);
     result->y1= min (y1, 0); result->y2= max (y2, nominal->yx);
     result->slope= nominal->slope * horizontal_scale;
     return result;

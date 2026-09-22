@@ -15,8 +15,6 @@
 
 namespace athena::text {
 
-enum class caret_affinity { upstream, downstream, both };
-
 struct line_caret {
   std::size_t byte;
   SI x;

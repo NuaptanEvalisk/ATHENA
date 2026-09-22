@@ -32,8 +32,6 @@ cursor& edit_cursor_rep::the_ghost_cursor () { return mv; }
 
 #define DELTA (1<<23)
 
-static bool searching_forwards;
-
 //#define old_cursor_accessible
 
 #ifdef old_cursor_accessible
@@ -113,9 +111,20 @@ edit_cursor_rep::make_cursor_accessible (path p, bool forwards) {
 
 path
 edit_cursor_rep::tree_path (path sp, SI x, SI y, SI delta) {
-  path stp= find_scrolled_tree_path (eb, sp, x, y, delta);
+  return tree_path (sp, x, y, delta, nullptr);
+}
+
+path
+edit_cursor_rep::tree_path (path sp, SI x, SI y, SI delta,
+                            athena::text::caret_affinity* affinity) {
+  path bp= find_scrolled_box_path (eb, sp, x, y, delta);
+  path stp= eb->find_tree_path (bp);
   path p= correct_cursor (et, stp /*, searching_forwards */);
-  return make_cursor_accessible (p, searching_forwards);
+  p= make_cursor_accessible (p, searching_forwards);
+  if (affinity)
+    *affinity= p == stp ? eb->find_cursor (bp)->affinity :
+      athena::text::caret_affinity::downstream;
+  return p;
 }
 
 bool
@@ -124,29 +133,37 @@ edit_cursor_rep::cursor_move_sub (SI& x0, SI& y0, SI& d0, SI dx, SI dy) {
   searching_forwards= dx == 1 || dy == -1;
 
   int i,d;
-  path ref_p= tree_path (sp, x0, y0, d0);
+  athena::text::caret_affinity ref_affinity;
+  path ref_p= tree_path (sp, x0, y0, d0, &ref_affinity);
+  const auto same_position= [&] (SI x, SI y, SI delta) {
+    athena::text::caret_affinity side;
+    const path p= tree_path (sp, x, y, delta, &side);
+    return p == ref_p && side == ref_affinity;
+  };
   if (ref_p != tp) {
 #ifdef old_cursor_accessible
     tp= ref_p;
+    cu->affinity= ref_affinity;
     return true;
 #else
     if (!searching_forwards && path_less (tp, ref_p));
     else if (searching_forwards && path_less (ref_p, tp));
     else {
       tp= ref_p;
+      cu->affinity= ref_affinity;
       return true;
     }
 #endif
   }
   
   // cout << "ref_p = " << ref_p << "\n";
-  if (ref_p == tree_path (sp, x0, y0, d0+ dx*DELTA)) {
+  if (same_position (x0, y0, d0+ dx*DELTA)) {
     for (i=1; i<DELTA; i=i<<1)
-      if (ref_p != tree_path (sp, x0+ dx*i, y0+ dy*i, d0+ dx*DELTA))
+      if (!same_position (x0+ dx*i, y0+ dy*i, d0+ dx*DELTA))
         break;
     if (i>=DELTA) return false;
     for (d=i>>2; d>=1; d=d>>1)
-      if (ref_p != tree_path (sp, x0+ dx*(i-d), y0+ dy*(i-d), d0+ dx*DELTA))
+      if (!same_position (x0+ dx*(i-d), y0+ dy*(i-d), d0+ dx*DELTA))
         i-=d;
 
     x0 += dx*i;
@@ -155,36 +172,36 @@ edit_cursor_rep::cursor_move_sub (SI& x0, SI& y0, SI& d0, SI dx, SI dy) {
   
   // cout << "path  = " << tree_path (sp, x0, y0, d0) << "\n";
   if (dx!=0) {
-    if (ref_p == tree_path (sp, x0, y0, d0)) {
+    if (same_position (x0, y0, d0)) {
       for (i=1; i<DELTA; i=i<<1)
-        if (ref_p != tree_path (sp, x0, y0, d0+ dx*i)) break;
+        if (!same_position (x0, y0, d0+ dx*i)) break;
       if (i>=DELTA)
         FAILED ("inconsistent cursor handling");
       for (d=i>>2; d>=1; d=d>>1)
-        if (ref_p != tree_path (sp, x0, y0, d0+ dx*(i-d))) i-=d;
+        if (!same_position (x0, y0, d0+ dx*(i-d))) i-=d;
       d0 += dx*i;
     }
     else {
       for (i=1; i<DELTA; i=i<<1)
-        if (ref_p == tree_path (sp, x0, y0, d0- dx*i)) break;
+        if (same_position (x0, y0, d0- dx*i)) break;
       if (i<DELTA) {
         for (d=i>>2; d>=1; d=d>>1)
-          if (ref_p == tree_path (sp, x0, y0, d0- dx*(i-d))) i-=d;
+          if (same_position (x0, y0, d0- dx*(i-d))) i-=d;
         i--;
         d0 -= dx*i;
       }
       else {  // exceptional case
-        ref_p= tree_path (sp, x0, y0, d0- dx*DELTA);
+        ref_p= tree_path (sp, x0, y0, d0- dx*DELTA, &ref_affinity);
         for (i=1; i<DELTA; i=i<<1)
-          if (ref_p == tree_path (sp, x0, y0, d0- dx*i)) break;
+          if (same_position (x0, y0, d0- dx*i)) break;
         for (d=i>>2; d>=1; d=d>>1)
-          if (ref_p == tree_path (sp, x0, y0, d0- dx*(i-d))) i-=d;
+          if (same_position (x0, y0, d0- dx*(i-d))) i-=d;
         d0 -= dx*i;
       }
     }
   }
 
-  tp= tree_path (sp, x0, y0, d0);
+  tp= tree_path (sp, x0, y0, d0, &cu->affinity);
   return true;
 }
 
@@ -218,7 +235,7 @@ edit_cursor_rep::adjust_ghost_cursor (int status) {
 void
 edit_cursor_rep::notify_cursor_moved (int status) {
   mv_status= status;
-  cu= eb->find_check_cursor (tp);
+  cu= eb->find_check_cursor (tp, cu->affinity);
   notify_change (THE_CURSOR);
   if (cu->valid) call ("notify-cursor-moved", object (status));
 }
@@ -226,7 +243,8 @@ edit_cursor_rep::notify_cursor_moved (int status) {
 void
 edit_cursor_rep::go_to (SI x, SI y, bool absolute) {
   if (has_changed (THE_TREE+THE_ENVIRONMENT)) return;
-  tp= tree_path (absolute? path (): find_innermost_scroll (eb, tp), x, y, 0);
+  tp= tree_path (absolute? path (): find_innermost_scroll (eb, tp),
+                 x, y, 0, &cu->affinity);
   notify_cursor_moved (CENTER);
   mv->ox   = x;
   mv->oy   = y;
@@ -317,7 +335,9 @@ void
 edit_cursor_rep::go_left () {
   if (has_changed (THE_TREE+THE_ENVIRONMENT)) return;
   path old_tp= copy (tp);
+  const auto old_affinity= cu->affinity;
   go_left_physical ();
+  if (tp == old_tp && cu->affinity != old_affinity) return;
   if (tp != old_tp && is_accessible_cursor (et, tp) &&
       inside_contiguous_document (et, old_tp, tp)) return;
   path parent= path_up (old_tp);
@@ -343,7 +363,9 @@ void
 edit_cursor_rep::go_right () {
   if (has_changed (THE_TREE+THE_ENVIRONMENT)) return;
   path old_tp= copy (tp);
+  const auto old_affinity= cu->affinity;
   go_right_physical ();
+  if (tp == old_tp && cu->affinity != old_affinity) return;
   if (tp != old_tp && is_accessible_cursor (et, tp) &&
       inside_contiguous_document (et, old_tp, tp)) return;
   path parent= path_up (old_tp);
@@ -377,7 +399,8 @@ edit_cursor_rep::go_start_line () {
     adjust_ghost_cursor (VERTICAL);
     cursor_move (-1, 0);
     if (first_pass) notify_cursor_moved (HORIZONTAL);
-    if (tp == old_tp || !inside_same_or_more (et, tp, orig_tp, DOCUMENT)) {
+    if ((tp == old_tp && cu->affinity == old_cu->affinity) ||
+        !inside_same_or_more (et, tp, orig_tp, DOCUMENT)) {
       notify_cursor_moved (HORIZONTAL);
       cu= old_cu;
       mv= old_mv;
@@ -401,7 +424,8 @@ edit_cursor_rep::go_end_line () {
     adjust_ghost_cursor (VERTICAL);
     cursor_move (1, 0);
     if (first_pass) notify_cursor_moved (HORIZONTAL);
-    if (tp == old_tp || !inside_same_or_more (et, tp, orig_tp, DOCUMENT)) {
+    if ((tp == old_tp && cu->affinity == old_cu->affinity) ||
+        !inside_same_or_more (et, tp, orig_tp, DOCUMENT)) {
       notify_cursor_moved (HORIZONTAL);
       cu= old_cu;
       mv= old_mv;
@@ -451,7 +475,7 @@ edit_cursor_rep::adjust_cursor () {
 
 void
 edit_cursor_rep::go_to_here () {
-  cu= eb->find_check_cursor (tp);
+  cu= eb->find_check_cursor (tp, cu->affinity);
   if (!cu->valid || !valid_cursor (et, tp)) {
     tp= super_correct (et, tp);
     cu= eb->find_check_cursor (tp);
@@ -478,10 +502,11 @@ edit_cursor_rep::go_to (path p) {
   bool must_move= tp != p;
   if (rp <= p) {
     //if (tp != p) cout << "Go to " << p << "\n";
+    if (must_move) cu->affinity= athena::text::caret_affinity::downstream;
     tp= p;
     mv_status= DIRECT;
     if (!has_changed (THE_TREE+THE_ENVIRONMENT)) {
-      cu= eb->find_check_cursor (tp);
+      cu= eb->find_check_cursor (tp, cu->affinity);
       if (cu->valid) adjust_cursor ();
       mv= copy (cu);
       if (mv->slope > 0 &&

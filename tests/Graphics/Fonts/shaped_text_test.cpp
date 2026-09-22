@@ -422,6 +422,25 @@ static void check_line_boxes (font nominal) {
   require (b->find_cursor (path (7, static_cast<int> (caret_affinity::upstream)))->ox !=
            b->find_cursor (path (7, static_cast<int> (caret_affinity::downstream)))->ox,
            "Bidi junction collapsed its two cursor positions");
+  const path junction= b->find_tree_path (path (7));
+  for (const auto side: {caret_affinity::upstream, caret_affinity::downstream}) {
+    auto retained= copy (b->find_check_cursor (junction, side));
+    require (retained->valid && retained->affinity == side &&
+             retained->ox == line.caret_x (7, side),
+             "Logical cursor lookup or copy discarded its visual side");
+    auto other_side= copy (retained);
+    other_side->affinity= side == caret_affinity::upstream ?
+      caret_affinity::downstream : caret_affinity::upstream;
+    require (other_side != retained, "Cursor comparison ignored affinity-only movement");
+    auto rebuilt= move_box (path (0), utf8_line_box (path (0), paragraph, 0,
+      source.size (), nominal, pencil (black), {}, brush (false), 1.25), 300, 400);
+    auto restored= rebuilt->find_check_cursor (junction, retained->affinity);
+    require (restored->valid && restored->affinity == side &&
+             restored->ox == 300 + paragraph->line (0, source.size (), {}, 1.25).caret_x (7, side),
+             "Retypesetting failed to restore the retained cursor side");
+    require (!b->find_check_cursor (path (0, 8), side)->valid,
+             "Affinity lookup accepted an invalid scalar position");
+  }
   require (b->find_cursor (path (8))->ox == b->find_cursor (path (7))->ox,
            "Stale byte position entered a UTF-8 scalar");
   const auto spans= line.selection_spans (0, 9);
@@ -459,6 +478,14 @@ static void check_line_boxes (font nominal) {
   require (found && nested->find_cursor (hit)->ox ==
            100 + line.caret_x (7, caret_affinity::upstream),
            "Nested line box lost visual cursor affinity");
+  auto retained_hit= nested->find_cursor (hit);
+  auto restored_hit= nested->find_check_cursor (nested->find_tree_path (hit),
+                                                retained_hit->affinity);
+  require (restored_hit == retained_hit && restored_hit->valid,
+           "Click-to-tree-to-cursor conversion changed the visual position");
+  require (find_scrolled_box_path (nested, path (), retained_hit->ox,
+                                   retained_hit->oy, 0) == hit,
+           "Scrolled hit testing dropped the leaf affinity suffix");
   require (is_nil (find_innermost_scroll (nested, b->find_tree_path (path (7)))),
            "Scroll traversal interpreted a leaf affinity as a child index");
   auto shorter= shorter_box (path (0), b, 9);
@@ -472,6 +499,9 @@ static void check_line_boxes (font nominal) {
              symbolic->find_box_path (b->x2 + 100, 0, 0, true, found))) == static_cast<int> (source.size ()),
            "Symbol modifier clamped affinity instead of the text byte");
   auto legacy= text_box (path (0), 0, "abcdef", nominal, pencil (black));
+  require (legacy->find_check_cursor (path (0, 3), caret_affinity::upstream) ==
+           legacy->find_check_cursor (path (0, 3), caret_affinity::downstream),
+           "Affinity changed legacy text cursor behavior");
   auto legacy_shorter= shorter_box (path (0), legacy, 3);
   auto legacy_symbol= symbol_box (path (0), legacy, 6);
   require (last_item (legacy_shorter->find_tree_path (legacy_shorter->find_right_box_path ())) == 3 &&

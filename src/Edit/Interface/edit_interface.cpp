@@ -908,7 +908,7 @@ edit_interface_rep::apply_changes () {
     SI x1, y1, x2, y2;
     typeset (x1, y1, x2, y2);
     heading_cell_cache_valid= false;
-    the_ghost_cursor ()= eb->find_check_cursor (tp);
+    the_ghost_cursor ()= eb->find_check_cursor (tp, the_cursor ()->affinity);
     SI heading_strip_width= 80 * pixel;
     invalidate (old_heading_right - heading_strip_width, vy1,
                 old_heading_right + 2 * pixel, vy2);
@@ -1275,7 +1275,8 @@ edit_interface_rep::get_window_extents () {
 
 cursor
 edit_interface_rep::search_cursor (path p) {
-  return eb->find_check_cursor (p);
+  return eb->find_check_cursor (p, p == tp ? the_cursor ()->affinity :
+                                athena::text::caret_affinity::downstream);
 }
 
 selection

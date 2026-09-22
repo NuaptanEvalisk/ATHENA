@@ -119,9 +119,14 @@ unchanged. Legacy readers still recognize existing file headers.
   not a single rectangle spanning unselected bidi text. Scroll traversal and
   symbol/shorter modifiers distinguish structural child indices from the leaf's
   position suffix. Tests cover nested boxes, clipping positions, expansion and
-  font-domain-independent recorded pixels. The editor still needs to retain
-  visual affinity separately when converting a click to its logical tree path;
-  the old concater does not yet instantiate this box.
+  font-domain-independent recorded pixels. Native editor cursors retain visual
+  affinity separately from the source tree path. Clicks, cursor copies,
+  retypesetting and physical-movement comparisons preserve this state, and
+  composite box queries route it to the terminal position without treating it
+  as a child index. Logical moves to a different source position start with
+  downstream affinity. This is not yet whole-document bidi navigation: the old
+  concater does not instantiate the line box, and wrapped-line source lookup,
+  inline objects and undo/position persistence still need integration.
 - Shaped drawing borrows the original UTF-8 input, passing the selected range
   separately from glyph ids to the renderer. The native PDF renderer emits
   Unicode cluster mappings and per-run ActualText (PDF 1.5), preserving original

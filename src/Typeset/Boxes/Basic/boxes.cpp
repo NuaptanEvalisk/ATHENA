@@ -189,10 +189,19 @@ box_rep::find_tree_path (SI x, SI y, SI delta) {
   return find_tree_path (bp);
 }
 
+path
+box_rep::with_cursor_affinity (path bp, athena::text::caret_affinity affinity) {
+  // Composite prefixes address children; only the terminal box interprets
+  // its own position suffix. Legacy leaves have no distinct visual affinities.
+  if (is_nil (bp) || is_atom (bp) || subnr () == 0) return bp;
+  return path (bp->item, subbox (bp->item)->with_cursor_affinity (bp->next, affinity));
+}
+
 cursor
-box_rep::find_check_cursor (path p) {
+box_rep::find_check_cursor (path p, athena::text::caret_affinity affinity) {
   bool found;
   path bp= find_box_path (p, found);
+  bp= with_cursor_affinity (bp, affinity);
   cursor cu= find_cursor (bp);
   cu->valid= found;
   return cu;
@@ -654,8 +663,10 @@ cursor::cursor (SI x, SI y, SI delta, SI y1, SI y2, double slope, bool valid):
 
 cursor
 copy (cursor cu) {
-  return cursor (cu->ox, cu->oy, cu->delta, cu->y1, cu->y2,
-		 cu->slope, cu->valid);
+  cursor result (cu->ox, cu->oy, cu->delta, cu->y1, cu->y2,
+                 cu->slope, cu->valid);
+  result->affinity= cu->affinity;
+  return result;
 }
 
 bool
@@ -664,7 +675,7 @@ operator == (cursor cu1, cursor cu2) {
     (cu1->ox == cu2->ox) && (cu1->oy == cu2->oy) &&
     // (cu1->delta == cu2->delta) &&
     (cu1->y1 == cu2->y1) && (cu1->y2 == cu2->y2) &&
-    (cu1->slope == cu2->slope);
+    (cu1->slope == cu2->slope) && (cu1->affinity == cu2->affinity);
 }
 
 bool

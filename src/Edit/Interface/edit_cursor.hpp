@@ -23,6 +23,7 @@ protected:
   cursor cu;         // the cursor
   cursor mv;         // "ghost cursor" position when moving cursor
   int    mv_status;  // cursor status during movements
+  bool searching_forwards= false;
 
 protected:
   cursor& the_cursor ();
@@ -30,7 +31,9 @@ protected:
 
   bool cursor_is_accessible ();
   path make_cursor_accessible (path p, bool forwards);
-  path tree_path (path sp, SI x, SI y, SI delta);
+  path tree_path (path sp, SI x, SI y, SI delta) override;
+  path tree_path (path sp, SI x, SI y, SI delta,
+                  athena::text::caret_affinity* affinity);
   bool cursor_move_sub (SI& x0, SI& y0, SI& delta, SI dx, SI dy);
   void cursor_move (SI dx, SI dy);
   void adjust_ghost_cursor (int status);

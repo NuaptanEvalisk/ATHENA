@@ -22,6 +22,7 @@
 #include "hashmap.hpp"
 #include "frame.hpp"
 #include "grid.hpp"
+#include "unicode_text.hpp"
 
 #define STD_BOX       0
 #define STACK_BOX     1
@@ -44,6 +45,7 @@ struct cursor_rep: concrete_struct {
   SI y2;        // upper base line
   double slope; // slope of cursor
   bool valid;   // the cursor is valid
+  athena::text::caret_affinity affinity= athena::text::caret_affinity::downstream;
 };
 
 struct cursor {
@@ -197,9 +199,11 @@ public:
   virtual selection find_selection (path lbp, path rbp);
   virtual path      find_tree_path (path bp);
   virtual path      find_box_path (path p, bool& found);
+  virtual path      with_cursor_affinity (path bp, athena::text::caret_affinity affinity);
        
   path      find_tree_path (SI x, SI y, SI delta);
-  cursor    find_check_cursor (path p);
+  cursor    find_check_cursor (path p, athena::text::caret_affinity affinity=
+                              athena::text::caret_affinity::downstream);
   selection find_check_selection (path lp, path rp);
 
   /************************ fine typesetting routines ************************/
@@ -291,6 +295,7 @@ void make_eps (url dest, box b, int dpi= 600);
 void make_raster_image (url dest, box b, double zoom);
 path find_innermost_scroll (box b, path p);
 path find_scrolled_tree_path (box b, path sp, SI x, SI y, SI delta);
+path find_scrolled_box_path (box b, path sp, SI x, SI y, SI delta);
 void find_canvas_info (box b, path sp, SI& x, SI& y, SI& sx, SI& sy,
 		       rectangle& outer, rectangle& inner);
 

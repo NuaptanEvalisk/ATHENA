@@ -18,6 +18,10 @@
 
 namespace athena::text {
 
+// Which logical side of a text boundary supplies its visual caret. `both`
+// denotes coincident positions in layout, not a third editing position.
+enum class caret_affinity { upstream, downstream, both };
+
 bool valid_utf8 (std::string_view text) noexcept;
 void require_utf8 (std::string_view text);
 // Scalar navigation assumes text was validated at its ingestion boundary.
