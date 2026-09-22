@@ -29,6 +29,7 @@ class TestQTMRenderService: public QObject {
 
 private slots:
   void rendersDisplayListOffTheProducerThread ();
+  void preservesOpenPolylineMode ();
   void emojiFontUsesUprightCaretMetrics ();
   void rendersColorEmojiWithoutOutlinePath ();
   void givesEachProducerThreadItsOwnQtRenderer ();
@@ -71,6 +72,44 @@ TestQTMRenderService::rendersDisplayListOffTheProducerThread () {
   QCOMPARE (frame.image ().pixelColor (6, 7), QColor (10, 120, 230));
   QCOMPARE (frame.image ().pixelColor (0, 0), QColor (255, 255, 255));
 
+  connection->retire ();
+}
+
+void
+TestQTMRenderService::preservesOpenPolylineMode () {
+  auto connection= QTMRenderConnection::create (2, 4096);
+  QVERIFY (connection != nullptr);
+
+  render_damage damage {0, 0, 64, 64};
+  auto recording= connection->beginRecording (
+    64, 64, 1.0, qRgba (255, 255, 255, 255), 5, 11, damage);
+  QVERIFY (recording != nullptr);
+  QPainter painter (recording->device ());
+  QPen pen (Qt::black);
+  pen.setWidthF (3.0);
+  pen.setCapStyle (Qt::RoundCap);
+  pen.setJoinStyle (Qt::RoundJoin);
+  painter.setPen (pen);
+  painter.setBrush (Qt::NoBrush);
+  QPolygonF stroke;
+  stroke << QPointF (8.0, 48.0) << QPointF (32.0, 8.0)
+         << QPointF (56.0, 48.0);
+  painter.drawPolyline (stroke);
+  painter.end ();
+  QVERIFY (recording->finish ());
+
+  QTMSharedFrame frame;
+  auto deadline= std::chrono::steady_clock::now () + std::chrono::seconds (1);
+  do {
+    frame= connection->acquireLatestFrame ();
+    if (frame) break;
+    std::this_thread::sleep_for (std::chrono::milliseconds (1));
+  } while (std::chrono::steady_clock::now () < deadline);
+  QVERIFY (static_cast<bool> (frame));
+
+  const QImage& image= frame.image ();
+  QVERIFY (image.pixelColor (32, 8) != QColor (255, 255, 255));
+  QCOMPARE (image.pixelColor (32, 48), QColor (255, 255, 255));
   connection->retire ();
 }
 

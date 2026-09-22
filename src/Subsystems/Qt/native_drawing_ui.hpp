@@ -35,38 +35,38 @@ struct native_drawing_canvas_command_descriptor {
 };
 
 inline constexpr native_drawing_tool_descriptor native_drawing_tools[]= {
-  {native_drawing_tool::pen, "Pen", "draw-freehand"},
-  {native_drawing_tool::highlighter, "Highlighter", "draw-highlight"},
-  {native_drawing_tool::object_eraser, "Object eraser", "edit-delete"},
-  {native_drawing_tool::segment_eraser, "Segment eraser", "draw-eraser"},
-  {native_drawing_tool::lasso, "Lasso", "edit-select"},
-  {native_drawing_tool::shape, "Shape", "draw-rectangle"},
-  {native_drawing_tool::text, "Text", "draw-text"},
-  {native_drawing_tool::math, "Mathematics", "math"}
+  {native_drawing_tool::pen, "Pen", "tm_native_pen"},
+  {native_drawing_tool::highlighter, "Highlighter", "tm_native_highlighter"},
+  {native_drawing_tool::object_eraser, "Object eraser", "tm_native_object_eraser"},
+  {native_drawing_tool::segment_eraser, "Segment eraser", "tm_native_segment_eraser"},
+  {native_drawing_tool::lasso, "Lasso", "tm_native_lasso"},
+  {native_drawing_tool::shape, "Shape", "tm_native_shape"},
+  {native_drawing_tool::text, "Text", "tm_native_text"},
+  {native_drawing_tool::math, "Mathematics", "tm_native_math"}
 };
 
 inline constexpr native_drawing_shape_descriptor native_drawing_shapes[]= {
-  {native_drawing_shape::line, "Line", "draw-line"},
-  {native_drawing_shape::square, "Square", "draw-rectangle"},
-  {native_drawing_shape::rectangle, "Rectangle", "draw-rectangle"},
-  {native_drawing_shape::circle, "Circle", "draw-ellipse"},
-  {native_drawing_shape::ellipse, "Ellipse", "draw-ellipse"},
-  {native_drawing_shape::triangle, "Triangle", "draw-polygon"},
-  {native_drawing_shape::right_triangle, "Right triangle", "draw-polygon"},
-  {native_drawing_shape::pentagon, "Pentagon", "draw-polygon"},
-  {native_drawing_shape::hexagon, "Hexagon", "draw-polygon"},
-  {native_drawing_shape::arrow, "Arrow", "draw-arrow"},
-  {native_drawing_shape::double_arrow, "Double arrow", "draw-arrow"},
-  {native_drawing_shape::orthogonal_polyline, "Orthogonal polyline", "draw-polyline"}
+  {native_drawing_shape::line, "Line", "tm_native_shape_line"},
+  {native_drawing_shape::square, "Square", "tm_native_shape_rectangle"},
+  {native_drawing_shape::rectangle, "Rectangle", "tm_native_shape_rectangle"},
+  {native_drawing_shape::circle, "Circle", "tm_native_shape_circle"},
+  {native_drawing_shape::ellipse, "Ellipse", "tm_native_shape_ellipse"},
+  {native_drawing_shape::triangle, "Triangle", "tm_native_shape_triangle"},
+  {native_drawing_shape::right_triangle, "Right triangle", "tm_native_shape_right_triangle"},
+  {native_drawing_shape::pentagon, "Pentagon", "tm_native_shape_pentagon"},
+  {native_drawing_shape::hexagon, "Hexagon", "tm_native_shape_hexagon"},
+  {native_drawing_shape::arrow, "Arrow", "tm_native_shape_arrow"},
+  {native_drawing_shape::double_arrow, "Double arrow", "tm_native_shape_double_arrow"},
+  {native_drawing_shape::orthogonal_polyline, "Orthogonal polyline", "tm_native_shape_polyline"}
 };
 
 inline constexpr native_drawing_canvas_command_descriptor
 native_drawing_canvas_commands[]= {
   {native_drawing_canvas_command::insert_horizontal_space,
-   "Insert horizontal space", "view-split-left-right"},
+   "Insert horizontal space", "tm_native_hspace"},
   {native_drawing_canvas_command::insert_vertical_space,
-   "Insert vertical space", "view-split-top-bottom"},
-  {native_drawing_canvas_command::trim, "Trim", "transform-crop-and-resize"}
+   "Insert vertical space", "tm_native_vspace"},
+  {native_drawing_canvas_command::trim, "Trim", "tm_native_trim"}
 };
 
 #endif // defined NATIVE_DRAWING_UI_HPP

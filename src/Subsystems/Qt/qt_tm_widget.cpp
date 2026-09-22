@@ -650,8 +650,8 @@ qt_tm_widget_rep::append_native_drawing_mode_actions () {
   QAction* separator= modeToolBar->addSeparator ();
   separator->setProperty (marker, true);
   for (const native_drawing_tool_descriptor& entry: native_drawing_tools) {
-    QAction* action= new QAction (QIcon::fromTheme (entry.icon),
-                                  QObject::tr (entry.text), modeToolBar);
+    QAction* action= new QAction (tmapp ()->icon_manager ().getIcon (entry.icon),
+                                   QObject::tr (entry.text), modeToolBar);
     action->setToolTip (QObject::tr (entry.text));
     action->setProperty (marker, true);
     action->setCheckable (true);
@@ -672,8 +672,8 @@ qt_tm_widget_rep::append_native_drawing_mode_actions () {
   canvasSeparator->setProperty (marker, true);
   for (const native_drawing_canvas_command_descriptor& entry:
        native_drawing_canvas_commands) {
-    QAction* action= new QAction (QIcon::fromTheme (entry.icon),
-                                  QObject::tr (entry.text), modeToolBar);
+    QAction* action= new QAction (tmapp ()->icon_manager ().getIcon (entry.icon),
+                                   QObject::tr (entry.text), modeToolBar);
     action->setToolTip (QObject::tr (entry.text));
     action->setProperty (marker, true);
     modeToolBar->addAction (action);
@@ -697,6 +697,31 @@ native_drawing_color_icon (std::uint32_t rgba) {
   painter.setPen (QPen (QColor (90, 90, 90), 1.0));
   painter.setBrush (QColor::fromRgba (rgba));
   painter.drawRoundedRect (QRectF (1.5, 1.5, 15.0, 15.0), 3.0, 3.0);
+  return QIcon (pixmap);
+}
+
+QIcon
+native_drawing_toggle_icon (const char* key, bool enabled) {
+  QIcon base= tmapp ()->icon_manager ().getIcon (key);
+  QPixmap pixmap= base.pixmap (24, 24);
+  if (pixmap.isNull ()) {
+    pixmap= QPixmap (24, 24);
+    pixmap.fill (Qt::transparent);
+  }
+  QPainter painter (&pixmap);
+  painter.setRenderHint (QPainter::Antialiasing, true);
+  const QColor badge= enabled ? QColor (31, 157, 85) : QColor (105, 105, 105);
+  painter.setPen (QPen (QColor (255, 255, 255, 230), 1.0));
+  painter.setBrush (badge);
+  painter.drawEllipse (QRectF (13.0, 13.0, 10.0, 10.0));
+  painter.setPen (QPen (Qt::white, 1.8, Qt::SolidLine, Qt::RoundCap,
+                        Qt::RoundJoin));
+  if (enabled) {
+    painter.drawLine (QPointF (15.5, 18.0), QPointF (17.4, 20.0));
+    painter.drawLine (QPointF (17.4, 20.0), QPointF (21.1, 15.8));
+  }
+  else
+    painter.drawLine (QPointF (15.7, 18.0), QPointF (20.4, 18.0));
   return QIcon (pixmap);
 }
 
@@ -733,14 +758,14 @@ qt_tm_widget_rep::append_native_drawing_focus_actions () {
 
   if (!props.selection_active && props.tool == native_drawing_tool::shape) {
     QAction* shapeAction= mark (new QAction (
-      QIcon::fromTheme (QStringLiteral ("draw-polygon")),
+      tmapp ()->icon_manager ().getIcon ("tm_native_shape"),
       QObject::tr ("Shape"), focusToolBar));
     shapeAction->setToolTip (QObject::tr ("Shape type"));
     QMenu* shapeMenu= new QMenu (focusToolBar);
     shapeMenu->setProperty (marker, true);
     for (const native_drawing_shape_descriptor& entry: native_drawing_shapes) {
       QAction* item= shapeMenu->addAction (
-        QIcon::fromTheme (entry.icon), QObject::tr (entry.text));
+        tmapp ()->icon_manager ().getIcon (entry.icon), QObject::tr (entry.text));
       item->setCheckable (true);
       item->setChecked (entry.shape == props.shape);
       QObject::connect (item, &QAction::triggered, shapeMenu,
@@ -780,7 +805,7 @@ qt_tm_widget_rep::append_native_drawing_focus_actions () {
     });
 
   QAction* widthAction= mark (new QAction (
-    QIcon::fromTheme (QStringLiteral ("draw-line")),
+    tmapp ()->icon_manager ().getIcon ("tm_native_width"),
     QObject::tr ("Width"), focusToolBar));
   widthAction->setToolTip (props.selection_active ?
     QObject::tr ("Selected object line width") : QObject::tr ("Drawing width"));
@@ -806,16 +831,23 @@ qt_tm_widget_rep::append_native_drawing_focus_actions () {
   focusToolBar->addAction (widthAction);
 
   QAction* pressureAction= mark (new QAction (
-    QIcon::fromTheme (QStringLiteral ("input-tablet")),
+    native_drawing_toggle_icon ("tm_native_pressure", props.pressure_enabled),
     QObject::tr ("Pressure"), focusToolBar));
   pressureAction->setCheckable (true);
   pressureAction->setChecked (props.pressure_enabled);
   pressureAction->setEnabled (!props.selection_active &&
                               props.tool == native_drawing_tool::pen);
-  pressureAction->setToolTip (QObject::tr ("Pressure-sensitive width"));
+  pressureAction->setToolTip (props.pressure_enabled ?
+    QObject::tr ("Pressure-sensitive width — On") :
+    QObject::tr ("Pressure-sensitive width — Off"));
   focusToolBar->addAction (pressureAction);
   QObject::connect (pressureAction, &QAction::toggled, focusToolBar,
-    [canvasRef] (bool enabled) {
+    [canvasRef, pressureAction] (bool enabled) {
+      pressureAction->setIcon (
+        native_drawing_toggle_icon ("tm_native_pressure", enabled));
+      pressureAction->setToolTip (enabled ?
+        QObject::tr ("Pressure-sensitive width — On") :
+        QObject::tr ("Pressure-sensitive width — Off"));
       QTMWidget* canvas= canvasRef.data ();
       if (canvas == nullptr || canvas->tm_widget () == nullptr) return;
       canvas->tm_widget ()->handle_set_native_drawing_property (
@@ -823,17 +855,24 @@ qt_tm_widget_rep::append_native_drawing_focus_actions () {
     });
 
   QAction* recognitionAction= mark (new QAction (
-    QIcon::fromTheme (QStringLiteral ("draw-freehand")),
+    native_drawing_toggle_icon ("tm_native_recognize",
+                                props.recognition_enabled),
     QObject::tr ("Recognize"), focusToolBar));
   recognitionAction->setCheckable (true);
   recognitionAction->setChecked (props.recognition_enabled);
   recognitionAction->setEnabled (!props.selection_active &&
                                   props.tool == native_drawing_tool::pen);
-  recognitionAction->setToolTip (
-    QObject::tr ("Recognize deliberate lines, circles, and rectangles"));
+  recognitionAction->setToolTip (props.recognition_enabled ?
+    QObject::tr ("Recognize deliberate lines, circles, and rectangles — On") :
+    QObject::tr ("Recognize deliberate lines, circles, and rectangles — Off"));
   focusToolBar->addAction (recognitionAction);
   QObject::connect (recognitionAction, &QAction::toggled, focusToolBar,
-    [canvasRef] (bool enabled) {
+    [canvasRef, recognitionAction] (bool enabled) {
+      recognitionAction->setIcon (
+        native_drawing_toggle_icon ("tm_native_recognize", enabled));
+      recognitionAction->setToolTip (enabled ?
+        QObject::tr ("Recognize deliberate lines, circles, and rectangles — On") :
+        QObject::tr ("Recognize deliberate lines, circles, and rectangles — Off"));
       QTMWidget* canvas= canvasRef.data ();
       if (canvas == nullptr || canvas->tm_widget () == nullptr) return;
       canvas->tm_widget ()->handle_set_native_drawing_property (
@@ -841,14 +880,21 @@ qt_tm_widget_rep::append_native_drawing_focus_actions () {
     });
 
   QAction* snapAction= mark (new QAction (
-    QIcon::fromTheme (QStringLiteral ("snap-guides")),
+    native_drawing_toggle_icon ("tm_native_snap", props.snap_enabled),
     QObject::tr ("Snap"), focusToolBar));
   snapAction->setCheckable (true);
   snapAction->setChecked (props.snap_enabled);
-  snapAction->setToolTip (QObject::tr ("Snap new drawing geometry"));
+  snapAction->setToolTip (props.snap_enabled ?
+    QObject::tr ("Snap new drawing geometry — On") :
+    QObject::tr ("Snap new drawing geometry — Off"));
   focusToolBar->addAction (snapAction);
   QObject::connect (snapAction, &QAction::toggled, focusToolBar,
-    [canvasRef] (bool enabled) {
+    [canvasRef, snapAction] (bool enabled) {
+      snapAction->setIcon (
+        native_drawing_toggle_icon ("tm_native_snap", enabled));
+      snapAction->setToolTip (enabled ?
+        QObject::tr ("Snap new drawing geometry — On") :
+        QObject::tr ("Snap new drawing geometry — Off"));
       QTMWidget* canvas= canvasRef.data ();
       if (canvas == nullptr || canvas->tm_widget () == nullptr) return;
       canvas->tm_widget ()->handle_set_native_drawing_property (
@@ -856,14 +902,21 @@ qt_tm_widget_rep::append_native_drawing_focus_actions () {
     });
 
   QAction* gridAction= mark (new QAction (
-    QIcon::fromTheme (QStringLiteral ("view-grid")),
+    native_drawing_toggle_icon ("tm_native_grid", props.grid_enabled),
     QObject::tr ("Grid"), focusToolBar));
   gridAction->setCheckable (true);
   gridAction->setChecked (props.grid_enabled);
-  gridAction->setToolTip (QObject::tr ("Show drawing grid"));
+  gridAction->setToolTip (props.grid_enabled ?
+    QObject::tr ("Show drawing grid — On") :
+    QObject::tr ("Show drawing grid — Off"));
   focusToolBar->addAction (gridAction);
   QObject::connect (gridAction, &QAction::toggled, focusToolBar,
-    [canvasRef] (bool enabled) {
+    [canvasRef, gridAction] (bool enabled) {
+      gridAction->setIcon (
+        native_drawing_toggle_icon ("tm_native_grid", enabled));
+      gridAction->setToolTip (enabled ?
+        QObject::tr ("Show drawing grid — On") :
+        QObject::tr ("Show drawing grid — Off"));
       QTMWidget* canvas= canvasRef.data ();
       if (canvas == nullptr || canvas->tm_widget () == nullptr) return;
       canvas->tm_widget ()->handle_set_native_drawing_property (

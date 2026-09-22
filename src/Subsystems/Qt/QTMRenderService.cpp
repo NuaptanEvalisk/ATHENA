@@ -29,7 +29,7 @@
 namespace {
 
 constexpr std::uint32_t stream_magic= 0x41544852; // ATHR
-constexpr std::uint16_t stream_version= 4;
+constexpr std::uint16_t stream_version= 5;
 constexpr std::uint32_t no_gradient= std::numeric_limits<std::uint32_t>::max ();
 constexpr std::size_t frame_slot_count= 3;
 
@@ -627,8 +627,23 @@ struct QTMRenderConnection::processor_state final: render_processor {
       polygon.reserve (static_cast<int> (fixed.count));
       for (std::uint32_t i= 0; i < fixed.count; ++i)
         polygon.append (QPointF (points[i].x, points[i].y));
-      painter->drawPolygon (
-        polygon, static_cast<Qt::FillRule> (fixed.mode));
+      QPaintEngine::PolygonDrawMode mode=
+        static_cast<QPaintEngine::PolygonDrawMode> (fixed.mode);
+      switch (mode) {
+      case QPaintEngine::PolylineMode:
+        painter->drawPolyline (polygon);
+        break;
+      case QPaintEngine::ConvexMode:
+        painter->drawConvexPolygon (polygon);
+        break;
+      case QPaintEngine::WindingMode:
+        painter->drawPolygon (polygon, Qt::WindingFill);
+        break;
+      case QPaintEngine::OddEvenMode:
+      default:
+        painter->drawPolygon (polygon, Qt::OddEvenFill);
+        break;
+      }
       return true;
     }
     case render_opcode::draw_text: {
@@ -944,9 +959,8 @@ public:
                       static_cast<std::size_t> (count) * sizeof (point_record);
     std::byte* payload= writer_.command (render_opcode::draw_polygon, size);
     if (payload == nullptr) return;
-    Qt::FillRule fill= mode == WindingMode ? Qt::WindingFill : Qt::OddEvenFill;
     array_record fixed {
-      static_cast<std::uint32_t> (count), static_cast<std::uint32_t> (fill)};
+      static_cast<std::uint32_t> (count), static_cast<std::uint32_t> (mode)};
     std::memcpy (payload, &fixed, sizeof (fixed));
     auto* encoded= reinterpret_cast<point_record*> (payload + sizeof (fixed));
     for (int i= 0; i < count; ++i)

@@ -943,7 +943,7 @@ QTMWidget::showNativeDrawingContextMenu (const QPoint& globalPos) {
   native_drawing_tool current= tm_widget ()->handle_native_drawing_tool ();
   for (const native_drawing_tool_descriptor& entry: native_drawing_tools) {
     if (entry.tool == native_drawing_tool::shape) continue;
-    QAction* action= menu.addAction (QIcon::fromTheme (entry.icon),
+    QAction* action= menu.addAction (tmapp ()->icon_manager ().getIcon (entry.icon),
                                      tr (entry.text));
     action->setCheckable (true);
     action->setChecked (entry.tool == current);
@@ -957,13 +957,13 @@ QTMWidget::showNativeDrawingContextMenu (const QPoint& globalPos) {
   native_drawing_properties_snapshot props=
     tm_widget ()->handle_native_drawing_properties ();
   QMenu* shapeMenu= menu.addMenu (
-    QIcon::fromTheme (QStringLiteral ("draw-rectangle")), tr ("Shape"));
+    tmapp ()->icon_manager ().getIcon ("tm_native_shape"), tr ("Shape"));
   shapeMenu->menuAction ()->setCheckable (true);
   shapeMenu->menuAction ()->setChecked (current == native_drawing_tool::shape);
   tools->addAction (shapeMenu->menuAction ());
   for (const native_drawing_shape_descriptor& entry: native_drawing_shapes) {
     QAction* action= shapeMenu->addAction (
-      QIcon::fromTheme (entry.icon), tr (entry.text));
+      tmapp ()->icon_manager ().getIcon (entry.icon), tr (entry.text));
     action->setCheckable (true);
     action->setChecked (current == native_drawing_tool::shape &&
                         props.shape == entry.shape);
@@ -979,7 +979,7 @@ QTMWidget::showNativeDrawingContextMenu (const QPoint& globalPos) {
   for (const native_drawing_canvas_command_descriptor& entry:
        native_drawing_canvas_commands) {
     QAction* action= menu.addAction (
-      QIcon::fromTheme (entry.icon), tr (entry.text));
+      tmapp ()->icon_manager ().getIcon (entry.icon), tr (entry.text));
     connect (action, &QAction::triggered, this, [this, entry] {
       triggerNativeDrawingCanvasCommand (entry.command);
     });

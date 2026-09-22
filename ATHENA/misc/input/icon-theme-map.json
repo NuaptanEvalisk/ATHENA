@@ -408,6 +408,114 @@
         "cmd/32/insertmath.svg"
       ]
     },
+    "tm_native_pen": {
+      "theme": ["draw-freehand"],
+      "libreoffice": ["cmd/32/freeline.svg"]
+    },
+    "tm_native_highlighter": {
+      "theme": ["draw-highlight"],
+      "libreoffice": ["cmd/32/viewvaluehighlighting.svg"]
+    },
+    "tm_native_object_eraser": {
+      "theme": ["edit-delete"],
+      "libreoffice": ["cmd/32/delete.svg"]
+    },
+    "tm_native_segment_eraser": {
+      "theme": ["draw-eraser"],
+      "libreoffice": ["cmd/32/beziercutline.svg"]
+    },
+    "tm_native_lasso": {
+      "theme": ["edit-select"],
+      "libreoffice": ["cmd/32/selectobject.svg"]
+    },
+    "tm_native_shape": {
+      "theme": ["draw-rectangle"],
+      "libreoffice": ["cmd/32/rect_unfilled.svg"]
+    },
+    "tm_native_shape_line": {
+      "theme": ["draw-line"],
+      "libreoffice": ["cmd/32/line.svg"]
+    },
+    "tm_native_shape_rectangle": {
+      "theme": ["draw-rectangle"],
+      "libreoffice": ["cmd/32/rect_unfilled.svg"]
+    },
+    "tm_native_shape_circle": {
+      "theme": ["draw-ellipse"],
+      "libreoffice": ["cmd/32/circle_unfilled.svg"]
+    },
+    "tm_native_shape_ellipse": {
+      "theme": ["draw-ellipse"],
+      "libreoffice": ["cmd/32/ellipse_unfilled.svg"]
+    },
+    "tm_native_shape_triangle": {
+      "theme": ["draw-polygon"],
+      "libreoffice": ["cmd/32/basicshapes.isosceles-triangle.svg"]
+    },
+    "tm_native_shape_right_triangle": {
+      "theme": ["draw-polygon"],
+      "libreoffice": ["cmd/32/basicshapes.right-triangle.svg"]
+    },
+    "tm_native_shape_pentagon": {
+      "theme": ["draw-polygon"],
+      "libreoffice": ["cmd/32/basicshapes.pentagon.svg"]
+    },
+    "tm_native_shape_hexagon": {
+      "theme": ["draw-polygon"],
+      "libreoffice": ["cmd/32/basicshapes.hexagon.svg"]
+    },
+    "tm_native_shape_arrow": {
+      "theme": ["draw-arrow"],
+      "libreoffice": ["cmd/32/arrowshapes.right-arrow.svg"]
+    },
+    "tm_native_shape_double_arrow": {
+      "theme": ["draw-arrow"],
+      "libreoffice": ["cmd/32/connectorlinearrows.svg"]
+    },
+    "tm_native_shape_polyline": {
+      "theme": ["draw-polyline"],
+      "libreoffice": ["cmd/32/connectorlines.svg"]
+    },
+    "tm_native_text": {
+      "theme": ["draw-text"],
+      "libreoffice": ["cmd/32/text.svg"]
+    },
+    "tm_native_math": {
+      "theme": ["insert-math-expression", "formula"],
+      "libreoffice": ["cmd/32/insertmath.svg"]
+    },
+    "tm_native_width": {
+      "theme": ["draw-line"],
+      "libreoffice": ["cmd/32/linewidth.svg"]
+    },
+    "tm_native_pressure": {
+      "theme": ["input-tablet"],
+      "libreoffice": ["cmd/32/freeline.svg"]
+    },
+    "tm_native_recognize": {
+      "theme": ["draw-freehand"],
+      "libreoffice": ["cmd/32/autocorrectdlg.svg"]
+    },
+    "tm_native_snap": {
+      "theme": ["snap-guides"],
+      "libreoffice": ["cmd/32/snappoints.svg"]
+    },
+    "tm_native_grid": {
+      "theme": ["view-grid"],
+      "libreoffice": ["cmd/32/gridvisible.svg"]
+    },
+    "tm_native_hspace": {
+      "theme": ["view-split-left-right"],
+      "libreoffice": ["cmd/32/splitwindow.svg"]
+    },
+    "tm_native_vspace": {
+      "theme": ["view-split-top-bottom"],
+      "libreoffice": ["cmd/32/splitwindow.svg"]
+    },
+    "tm_native_trim": {
+      "theme": ["transform-crop-and-resize"],
+      "libreoffice": ["cmd/32/crop.svg"]
+    },
     "tm_fraction": {
       "theme": [
         "insert-math-expression"
