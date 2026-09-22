@@ -80,12 +80,13 @@ void tt_face_rep::open_file (bool unicode_only) {
   if (ft_initialize ()) return;
   font_data= font_file_bytes (source.file_utf8);
   if (!font_data) {
-    debug_fonts << "Can't read font " << res_name << LF;
+    athena_spdlog_info ("debug-fonts, Can't read font " + source.file_utf8);
     return;
   }
   if (ft_new_memory_face (current_ft_library (), font_data->data (),
       font_data->size (), source.face_index, &ft_face)) {
-    debug_fonts << "Can't load font " << res_name << LF;
+    athena_spdlog_info ("debug-fonts, Can't load font " + source.file_utf8 +
+                        " (face " + std::to_string (source.face_index) + ")");
     return;
   }
   if (unicode_only) {

@@ -769,11 +769,14 @@ int main () {
   qputenv ("ATHENA_HOME_PATH", profile.path ().toLocal8Bit ());
   init_std_drd ();
   try {
+    const tree diagnostics_before= get_debug_messages ("Debugging console", 1000);
     check_text ();
     auto first= std::async (std::launch::async, check_text);
     auto second= std::async (std::launch::async, check_text);
     first.get ();
     second.get ();
+    require (get_debug_messages ("Debugging console", 1000) == diagnostics_before,
+             "Font workers mutated the GUI debug-message tree");
     check_recording ();
     check_recording (true);
   }
