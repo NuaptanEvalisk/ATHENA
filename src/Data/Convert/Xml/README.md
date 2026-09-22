@@ -39,8 +39,20 @@ unchanged. Legacy readers still recognize existing file headers.
   private to each call. Glyph clusters are not editing boundaries: ICU remains
   the caret/deletion authority. Runs belong to their font domain, and renderer
   recording must consume them there. This is a single-font, homogeneous-script
-  shaping primitive; paragraph bidi, smart-font fallback, text boxes and math
-  symbol dispatch still require integration before runtime activation.
+  shaping primitive; paragraph bidi, smart-font fallback and math symbol
+  dispatch still require integration before runtime activation.
+- Editable shaping runs retain ICU grapheme stops with absolute byte offsets
+  and physical caret coordinates. HarfBuzz GDEF supplies ligature carets when
+  present; otherwise cluster advance is divided among its graphemes, not bytes
+  or combining codepoints. RTL keeps logical byte order and reversed physical
+  positions. Hit testing and caret lookup use the same shaped geometry.
+  `utf8_text_box` connects these runs to native box display, cursor, selection
+  and source-path interfaces. It retains a COW source atom with joining context,
+  rather than copying substrings for every caret or shaping a prefix on each
+  mouse move. Its explicit UTF-8 factory is not selected by the legacy concater:
+  paragraph itemization, microtypography and mathematical glyph corrections
+  must migrate before that cutover. Font-domain rendering and PDF tests exercise
+  the box directly, including destruction after recording and source COW edits.
 - Shaped drawing borrows the original UTF-8 input, passing the selected range
   separately from glyph ids to the renderer. The native PDF renderer emits
   Unicode cluster mappings and per-run ActualText (PDF 1.5), preserving original

@@ -12,6 +12,7 @@
 #include "data_cache.hpp"
 #include "drd_std.hpp"
 #include "font.hpp"
+#include "Boxes/construct.hpp"
 #include "pdf_text_string.hpp"
 #include "printer.hpp"
 #include "scheme.hpp"
@@ -124,8 +125,12 @@ static void render_document (const QString &path, bool postscript) {
     line (text, "bitmap \xce\xb1 e\xcc\x81", 6, true);
     // The source argument includes joining context; only the item is exported.
     const std::string context = "prefix excerpt suffix";
-    auto excerpt = text->shape_utf8 (context, 7, 14);
-    excerpt.draw_fixed (pdf, context, 400 * PIXEL, -2700 * PIXEL);
+    box excerpt = utf8_text_box (::path (0), string (context.data (), context.size ()),
+                                 7, 14, text, pencil (black));
+    const SI old_x= pdf->ox, old_y= pdf->oy;
+    pdf->move_origin (400 * PIXEL, -2700 * PIXEL);
+    excerpt->display (pdf);
+    pdf->set_origin (old_x, old_y);
     // Preserve the independent legacy drawing entry point during migration.
     text->draw_fixed (pdf, "legacy", 400 * PIXEL, -3000 * PIXEL);
     line (math, "\xf0\x9d\x90\x80", 9, true);

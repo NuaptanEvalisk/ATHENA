@@ -13,6 +13,142 @@
 #include "font.hpp"
 #include "Boxes/construct.hpp"
 #include "analyze.hpp"
+#include <algorithm>
+#include <stdexcept>
+
+/******************************************************************************
+* Native UTF-8 text leaf: one itemized font/script/direction run
+******************************************************************************/
+
+struct utf8_text_box_rep final: box_rep {
+  string source;
+  int begin, end;
+  font fn;
+  pencil pen;
+  brush bg;
+  athena::text::shaping_options options;
+  athena::text::shaped_text run;
+
+  utf8_text_box_rep (path ip, string text, int first, int last, font f, pencil p,
+                     athena::text::shaping_options opts, brush background):
+    box_rep (ip), source (text), begin (first), end (last), fn (f), pen (p),
+    bg (background), options (opts) {
+    if (begin < 0 || end < begin || end > N(source))
+      throw std::invalid_argument ("Invalid UTF-8 text box range");
+    options.editing_carets= true;
+    run= fn->shape_utf8 (bytes (), begin, end, options);
+    x1= min (0, run.advance_x); x2= max (0, run.advance_x);
+    y1= min (fn->y1, run.ink_y1); y2= max (fn->y2, run.ink_y2);
+    x3= run.ink_x1; x4= run.ink_x2;
+    y3= run.ink_y1; y4= run.ink_y2;
+  }
+
+  std::string_view bytes () const {
+    return {source.data (), static_cast<std::size_t> (N(source))};
+  }
+
+  // Stale positions can land inside a grapheme after an edit. Snap backwards
+  // in logical order, never return a continuation byte or a detached mark.
+  int snap (int relative) const {
+    const auto byte= static_cast<std::size_t> (begin +
+      std::clamp (relative, 0, end - begin));
+    const auto at= std::upper_bound (run.carets.begin (), run.carets.end (), byte,
+      [] (std::size_t b, const athena::text::text_caret& c) { return b < c.byte; });
+    return static_cast<int> ((at - 1)->byte) - begin;
+  }
+
+  operator tree () override { return get_leaf_string (); }
+  void display (renderer ren) override {
+    if (begin == end) return;
+    if (bg->get_type () != brush_none) {
+      const brush previous= ren->get_background ();
+      ren->set_background (bg);
+      ren->clear_pattern (x1, y1, x2, y2);
+      ren->set_background (previous);
+    }
+    ren->set_pencil (pen);
+    run.draw_fixed (ren, bytes (), 0, 0);
+  }
+  box expand_glyphs (int mode, double factor) override {
+    (void) mode;
+    return utf8_text_box (ip, source, begin, end,
+                          fn->magnify (1.0 + factor, 1.0), pen, options, bg);
+  }
+  double left_slope () override { return fn->slope; }
+  double right_slope () override { return fn->slope; }
+  SI sub_lo_base (int level) override {
+    return fn->ysub_lo_base + (level > 0 ? fn->yshift : 0);
+  }
+  SI sub_hi_lim (int) override { return fn->ysub_hi_lim; }
+  SI sup_lo_lim (int) override { return fn->ysup_lo_lim; }
+  SI sup_lo_base (int level) override {
+    return fn->ysup_lo_base - (level < 0 ? fn->yshift : 0);
+  }
+  SI sup_hi_lim (int) override { return fn->ysup_hi_lim; }
+
+  path find_box_path (SI x, SI y, SI delta, bool force, bool& found) override {
+    (void) y; (void) force;
+    found= true;
+    return path (static_cast<int> (run.hit_test (x, delta >= 0)) - begin);
+  }
+  path find_lip () override {
+    return is_accessible (ip) ? descend (ip, begin) : ip;
+  }
+  path find_rip () override {
+    return is_accessible (ip) ? descend (ip, end) : ip;
+  }
+  path find_right_box_path () override { return path (end - begin); }
+  path find_box_path (path p, bool& found) override {
+    found= !is_nil (p) && is_accessible (ip);
+    if (!found) return path (0);
+    const int absolute= std::clamp (last_item (p), begin, end);
+    const int relative= snap (absolute - begin);
+    found= relative + begin == last_item (p);
+    return path (relative);
+  }
+  path find_tree_path (path bp) override {
+    const int relative= snap (is_nil (bp) ? 0 : bp->item);
+    return is_accessible (ip) ? reverse (descend (ip, begin + relative)) :
+      reverse (descend_decode (ip, relative == end - begin ? 1 : 0));
+  }
+  cursor find_cursor (path bp) override {
+    const int relative= snap (is_nil (bp) ? 0 : bp->item);
+    cursor cu (run.caret_x (begin + relative), 0);
+    cu->y1= min (y1, 0); cu->y2= max (y2, fn->yx);
+    cu->slope= fn->slope;
+    return cu;
+  }
+  selection find_selection (path lbp, path rbp) override {
+    const SI left= find_cursor (lbp)->ox, right= find_cursor (rbp)->ox;
+    if (left == right)
+      return selection (rectangles (), find_tree_path (lbp), find_tree_path (rbp));
+    return selection (rectangle (min (left, right), y1, max (left, right), y2),
+                      find_tree_path (lbp), find_tree_path (rbp));
+  }
+
+  int get_type () override { return TEXT_BOX; }
+  int get_leaf_left_pos () override { return begin; }
+  int get_leaf_right_pos () override { return end; }
+  string get_leaf_string () override { return source (begin, end); }
+  font get_leaf_font () override { return fn; }
+  pencil get_leaf_pencil () override { return pen; }
+  brush get_leaf_background () override { return bg; }
+  SI get_leaf_offset (string search) override {
+    const std::string_view needle (search.data (), N(search));
+    const auto text= bytes ();
+    for (const auto& caret: run.carets)
+      if (needle.size () <= static_cast<std::size_t> (end) - caret.byte &&
+          text.substr (caret.byte, needle.size ()) == needle)
+        return caret.x;
+    return w ();
+  }
+};
+
+box
+utf8_text_box (path ip, string source, int begin, int end, font fn, pencil pen,
+               const athena::text::shaping_options& options, brush bg) {
+  return tm_new<utf8_text_box_rep> (ip, source, begin, end, fn, pen, options, bg);
+}
 
 /******************************************************************************
 * Text boxes

@@ -11,6 +11,7 @@
 #include "data_cache.hpp"
 #include "drd_std.hpp"
 #include "unicode_text.hpp"
+#include "Boxes/construct.hpp"
 #include "Freetype/tt_face.hpp"
 #include "Qt/QTMRenderService.hpp"
 #include "Qt/qt_renderer.hpp"
@@ -50,10 +51,103 @@ static shaped_text shape (font fn, std::string_view text,
   return fn->shape_utf8 (text, 0, text.size (), options);
 }
 
+static void check_carets (font fn) {
+  shaping_options options;
+  options.editing_carets= true;
+  const std::string samples[]= {
+    "", "literal <alpha>", "ffi", "a\xce\xb1" "b", "e\xcc\x81x\xcc\x81",
+    "\xe4\xb8\xad\xe6\x96\x87", "\xf0\x9f\x98\x80",
+    "\xf0\x9f\x91\xa9\xe2\x80\x8d\xf0\x9f\x92\xbb",
+    "\xf0\x9f\x87\xa8\xf0\x9f\x87\xb3",
+    "\xf0\x9f\x91\x8d\xf0\x9f\x8f\xbd",
+    "\xd7\x90\xd6\xb0\xd7\x91", "\xe2\x80\x8d"};
+  for (const auto& source: samples) {
+    for (const auto direction: {run_direction::left_to_right,
+                                run_direction::right_to_left}) {
+      options.direction= direction;
+      const auto run= shape (fn, source, options);
+      grapheme_cursor boundaries (source);
+      std::size_t expected= 0;
+      for (const auto& caret: run.carets) {
+        require (caret.byte == expected, "Caret omitted or split an ICU grapheme");
+        require (run.caret_x (caret.byte) == caret.x, "Caret lookup disagrees");
+        const auto hit= run.hit_test (caret.x);
+        require (run.caret_x (hit) == caret.x && boundaries.boundary (hit),
+                 "Hit testing does not agree with displayed caret geometry");
+        expected= boundaries.next (expected);
+      }
+      require (!run.carets.empty () && run.carets.back ().byte == source.size (),
+               "Missing end caret");
+      for (std::size_t byte= 0; byte < source.size (); ++byte)
+        if (!scalar_boundary (source, byte) || !boundaries.boundary (byte))
+          rejects<std::invalid_argument> ([&] { run.caret_x (byte); });
+      (void) run.hit_test (std::numeric_limits<SI>::min ());
+      (void) run.hit_test (std::numeric_limits<SI>::max ());
+    }
+  }
+  options.direction= run_direction::left_to_right;
+  auto lig= shape (fn, "ffi", options);
+  require (lig.carets.size () == 4 && lig.caret_x (1) > 0 &&
+           lig.caret_x (1) < lig.caret_x (2) && lig.caret_x (2) < lig.advance_x,
+           "Ligature has no internal grapheme carets");
+  const std::string context= "xxe\xcc\x81yy";
+  auto middle= fn->shape_utf8 (context, 2, 5, options);
+  require (middle.carets.size () == 2 && middle.carets[0].byte == 2 &&
+           middle.carets[1].byte == 5, "Caret range lost source byte positions");
+  rejects<std::invalid_argument> ([&] { fn->shape_utf8 (context, 2, 3, options); });
+  rejects<std::invalid_argument> ([&] { fn->shape_utf8 (context, 3, 3, options); });
+  options.max_carets= 1;
+  rejects<std::length_error> ([&] { shape (fn, "a", options); });
+  options.max_carets= 0;
+  rejects<std::length_error> ([&] { shape (fn, "", options); });
+  rejects<std::logic_error> ([&] { shape (fn, "a").hit_test (0); });
+}
+
+static void check_boxes (font fn) {
+  const string source= "xxa\xce\xb1" "e\xcc\x81 ffi<z>yy";
+  const int begin= 2, end= N(source) - 2;
+  shaping_options options;
+  options.editing_carets= true;
+  for (const auto direction: {run_direction::left_to_right,
+                              run_direction::right_to_left}) {
+    options.direction= direction;
+    auto run= fn->shape_utf8 ({source.data (), static_cast<std::size_t> (N(source))},
+                             begin, end, options);
+    box b= utf8_text_box (path (0), source, begin, end, fn, pencil (black), options);
+    require (b->get_leaf_left_pos () == begin && b->get_leaf_right_pos () == end &&
+             b->get_leaf_string () == source (begin, end), "Box lost source range");
+    require (b->w () == run.advance_x, "Text box did not use shaped advance");
+    for (const auto& caret: run.carets) {
+      const path bp (static_cast<int> (caret.byte) - begin);
+      require (b->find_cursor (bp)->ox == caret.x, "Box cursor remeasured a prefix");
+      bool found= false;
+      path hit= b->find_box_path (caret.x, 0, 0, false, found);
+      require (found && b->find_cursor (hit)->ox == caret.x, "Box hit missed caret");
+      path tree_position= b->find_tree_path (bp);
+      require (last_item (tree_position) == static_cast<int> (caret.byte),
+               "Tree position is not an absolute byte offset");
+      require (b->find_box_path (tree_position, found) == bp && found,
+               "Tree and box positions do not round-trip");
+    }
+    require (b->find_cursor (path (4))->ox == b->find_cursor (path (3))->ox,
+             "Cursor entered a combining sequence");
+    auto sel= b->find_selection (path (0), path (end - begin));
+    require (!is_nil (sel->rs) && sel->rs->item->x1 <= sel->rs->item->x2,
+             "RTL selection rectangle is inverted");
+    require (b->get_leaf_offset ("<z>") == run.caret_x (end - 3),
+             "Literal angle-bracket search used Cork token positions");
+  }
+  rejects<std::invalid_argument> ([&] {
+    utf8_text_box (path (0), source, 4, end, fn, pencil (black));
+  });
+}
+
 static void check_text () {
   font_domain owner;
   font_domain_binding binding (owner);
   font fn= pagella ();
+  check_carets (fn);
+  check_boxes (fn);
   auto literal= shape (fn, "a<alpha>b");
   require (literal.glyphs.size () == 9 && !literal.missing_glyphs,
            "Literal angle-bracket text was interpreted as Cork");
@@ -157,6 +251,12 @@ static void check_recording () {
     font_domain_binding binding (owner);
     const std::string source= "<alpha> \xce\xb1 e\xcc\x81";
     auto run= shape (pagella (12, 600), source);
+    string atom (source.data (), source.size ());
+    box leaf= utf8_text_box (path (0), atom, 0, N(atom),
+                             pagella (12, 600), pencil ((color) qRgb (0, 0, 0)));
+    atom.set (0, 'X');
+    require (leaf->get_leaf_string ()[0] == '<',
+             "Editing an atom changed a retained box's source snapshot");
     require (!run.missing_glyphs && run.has_ink, "Run cannot be rendered");
     invalidate_font_configuration ();
     owner.synchronize_configuration ();
@@ -182,7 +282,8 @@ static void check_recording () {
       run.draw_fixed (&renderer, "short", 0, 0);
     });
     // A retained run still uses its original resources after a font refresh.
-    run.draw_fixed (&renderer, source, 10*std_shrinkf*PIXEL, -45*std_shrinkf*PIXEL);
+    renderer.move_origin (10*std_shrinkf*PIXEL, -45*std_shrinkf*PIXEL);
+    leaf->display (&renderer);
     painter.end ();
   }
   require (recording->finish (), "Could not publish recording");

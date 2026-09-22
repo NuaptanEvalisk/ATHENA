@@ -116,6 +116,10 @@ box image_box (path ip, url u, SI w, SI h, int alpha, int px);
 
 box text_box (path ip, int pos, string s, font fn, pencil pen);
 box text_box (path ip, int pos, string s, font fn, pencil pen, brush bg);
+// The immutable source atom supplies shaping context; positions are UTF-8 bytes.
+box utf8_text_box (path ip, string source, int begin, int end, font fn,
+                   pencil pen, const athena::text::shaping_options& options= {},
+                   brush bg= brush (false));
 box delimiter_box (path ip, string s, font fn, pencil pen, SI y1, SI y2);
 box delimiter_box (path ip, string s, font fn, pencil pen,
                    SI bot, SI top, SI mid, SI real_bot, SI real_top);

@@ -26,6 +26,8 @@ struct shaping_options {
   std::string language= "und";
   bool ligatures= true;
   std::size_t max_glyphs= 1000000;
+  bool editing_carets= false;
+  std::size_t max_carets= 1000000;
 };
 
 struct positioned_glyph {
@@ -36,10 +38,18 @@ struct positioned_glyph {
   bool unsafe_to_break;
 };
 
+struct text_caret {
+  std::size_t byte;
+  SI x;
+};
+
 // Like other font/box resources, a run is confined to its font domain and must
 // be consumed before that domain dies. Renderer recording owns emitted pixels.
 struct shaped_text {
   std::vector<positioned_glyph> glyphs;
+  // Logical byte order. Present only when editing_carets was requested;
+  // constructing it requires the item endpoints to be grapheme boundaries.
+  std::vector<text_caret> carets;
   font_glyphs glyph_source;
   std::size_t byte_begin= 0, byte_end= 0;
   run_direction direction= run_direction::left_to_right;
@@ -51,6 +61,8 @@ struct shaped_text {
   // Supply the same immutable input used for shaping (including context).
   // Borrow it during drawing instead of copying each leaf into every run.
   void draw_fixed (renderer ren, std::string_view source, SI x, SI y) const;
+  SI caret_x (std::size_t byte) const;
+  std::size_t hit_test (SI x, bool prefer_right= true) const;
 };
 
 // Shape an already itemized, single-font/script/direction run. Surrounding text

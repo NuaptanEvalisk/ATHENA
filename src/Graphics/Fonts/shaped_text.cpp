@@ -14,6 +14,7 @@
 #include <harfbuzz/hb-ft.h>
 #include <harfbuzz/hb-ot.h>
 #include <algorithm>
+#include <cstdlib>
 #include <limits>
 #include <map>
 #include <memory>
@@ -88,6 +89,114 @@ shaping_font& cached_font (string family, int xscale, int yscale) {
   return *fresh;
 }
 
+void build_carets (shaped_text& run, hb_font_t* font, std::string_view text,
+                   std::size_t budget) {
+  grapheme_cursor boundaries (text);
+  if (!boundaries.boundary (run.byte_begin) ||
+      !boundaries.boundary (run.byte_end))
+    throw std::invalid_argument ("Editable run splits a grapheme cluster");
+  for (std::size_t byte= run.byte_begin;; byte= boundaries.next (byte)) {
+    if (run.carets.size () == budget)
+      throw std::length_error ("Shaped caret budget exceeded");
+    run.carets.push_back ({byte, 0});
+    if (byte == run.byte_end) break;
+  }
+  if (run.glyphs.empty ()) return;
+
+  struct cluster {
+    std::size_t byte, first, last;
+    SI left, right;
+  };
+  std::vector<cluster> clusters;
+  SI pen= 0;
+  for (std::size_t first= 0; first < run.glyphs.size ();) {
+    const std::size_t byte= run.glyphs[first].byte;
+    const SI left= pen;
+    std::size_t last= first;
+    do {
+      pen= translated (pen, run.glyphs[last].advance_x);
+      ++last;
+    } while (last < run.glyphs.size () && run.glyphs[last].byte == byte);
+    clusters.push_back ({byte, first, last, left, pen});
+    first= last;
+  }
+  const bool rtl= run.direction == run_direction::right_to_left;
+  if (rtl) std::reverse (clusters.begin (), clusters.end ());
+  // HarfBuzz may keep a mark in its own cluster. ICU, not that shaping
+  // distinction, decides whether the cluster introduces an editing stop.
+  std::size_t merged= 0;
+  for (const auto c: clusters) {
+    if (merged > 0 && !boundaries.boundary (c.byte)) {
+      auto& previous= clusters[merged - 1];
+      previous.first= std::min (previous.first, c.first);
+      previous.last= std::max (previous.last, c.last);
+      if (rtl) previous.left= c.left;
+      else previous.right= c.right;
+    }
+    else clusters[merged++]= c;
+  }
+  clusters.resize (merged);
+  const auto by_byte= [] (const text_caret& caret, std::size_t byte) {
+    return caret.byte < byte;
+  };
+  for (std::size_t i= 0; i < clusters.size (); ++i) {
+    const auto& c= clusters[i];
+    const auto end= i + 1 < clusters.size () ? clusters[i + 1].byte : run.byte_end;
+    const auto first= std::lower_bound (run.carets.begin (), run.carets.end (),
+                                       c.byte, by_byte);
+    const auto last= std::lower_bound (first, run.carets.end (), end, by_byte);
+    const std::size_t count= last - first;
+    if (count == 0) continue; // A mark-only cluster has no editing stop.
+    const SI start_x= rtl ? c.right : c.left;
+    const SI end_x= rtl ? c.left : c.right;
+    std::vector<SI> ligature;
+    if (count > 1) {
+      // GDEF carets describe one spacing glyph, possibly accompanied by marks.
+      std::size_t base= c.last;
+      for (std::size_t g= c.first; g < c.last; ++g) {
+        if (hb_ot_layout_get_glyph_class (hb_font_get_face (font),
+              run.glyphs[g].index) == HB_OT_LAYOUT_GLYPH_CLASS_MARK) continue;
+        if (base != c.last) { base= c.last; break; }
+        base= g;
+      }
+      if (base != c.last) {
+        const auto direction= rtl ? HB_DIRECTION_RTL : HB_DIRECTION_LTR;
+        const auto total= hb_ot_layout_get_ligature_carets (font, direction,
+          run.glyphs[base].index, 0, nullptr, nullptr);
+        if (total == count - 1) {
+          std::vector<hb_position_t> positions (total);
+          unsigned int received= total;
+          hb_ot_layout_get_ligature_carets (font, direction,
+            run.glyphs[base].index, 0, &received, positions.data ());
+          if (received == total) {
+            for (auto position: positions) {
+              const auto x= static_cast<std::int64_t> (run.glyphs[base].x) + position;
+              if (x < std::min (c.left, c.right) || x > std::max (c.left, c.right)) {
+                ligature.clear ();
+                break;
+              }
+              ligature.push_back (checked_si (x));
+            }
+            std::sort (ligature.begin (), ligature.end ());
+            if (rtl) std::reverse (ligature.begin (), ligature.end ());
+          }
+        }
+      }
+    }
+    for (std::size_t j= 0; j < count; ++j) {
+      // The established fallback divides a cluster across its graphemes,
+      // never across UTF-8 bytes or individual combining codepoints.
+      const auto x= static_cast<std::int64_t> (start_x) +
+        (static_cast<std::int64_t> (end_x) - start_x) *
+          static_cast<std::int64_t> (j) / static_cast<std::int64_t> (count);
+      first[j].x= j > 0 && ligature.size () == count - 1 ?
+        ligature[j - 1] : checked_si (x);
+    }
+  }
+  run.carets.front ().x= rtl ? run.advance_x : 0;
+  run.carets.back ().x= rtl ? 0 : run.advance_x;
+}
+
 } // namespace
 
 shaped_text shape_freetype_utf8 (
@@ -118,7 +227,10 @@ shaped_text shape_freetype_utf8 (
   result.byte_begin= begin;
   result.byte_end= end;
   result.direction= options.direction;
-  if (begin == end) return result;
+  if (begin == end) {
+    if (options.editing_carets) build_carets (result, nullptr, text, options.max_carets);
+    return result;
+  }
   shaping_font& cached= cached_font (family, xscale, yscale);
   hb_font_t* hbfont= cached.font.get ();
   std::unique_ptr<hb_buffer_t, decltype (&hb_buffer_destroy)> buffer (
@@ -202,7 +314,34 @@ shaped_text shape_freetype_utf8 (
   }
   result.advance_x= checked_si (x);
   result.advance_y= checked_si (y);
+  if (options.editing_carets)
+    build_carets (result, hbfont, text, options.max_carets);
   return result;
+}
+
+SI shaped_text::caret_x (std::size_t byte) const {
+  const auto at= std::lower_bound (carets.begin (), carets.end (), byte,
+    [] (const text_caret& caret, std::size_t b) { return caret.byte < b; });
+  if (at == carets.end () || at->byte != byte)
+    throw std::invalid_argument ("Position is not a shaped grapheme boundary");
+  return at->x;
+}
+
+std::size_t shaped_text::hit_test (SI x, bool prefer_right) const {
+  if (carets.empty ()) throw std::logic_error ("Run has no editing carets");
+  const text_caret* best= &carets.front ();
+  auto distance= [x] (SI at) {
+    return std::abs (static_cast<std::int64_t> (at) - x);
+  };
+  for (const auto& caret: carets) {
+    const auto d= distance (caret.x), old= distance (best->x);
+    const bool later= caret.x == best->x ?
+      (direction == run_direction::left_to_right ? caret.byte > best->byte :
+                                                  caret.byte < best->byte) :
+      caret.x > best->x;
+    if (d < old || (d == old && later == prefer_right)) best= &caret;
+  }
+  return best->byte;
 }
 
 void shaped_text::draw_fixed (renderer ren, std::string_view source,
