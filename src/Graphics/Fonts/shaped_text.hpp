@@ -27,7 +27,15 @@ struct shaping_options {
   bool ligatures= true;
   std::size_t max_glyphs= 1000000;
   bool editing_carets= false;
+  // Paragraph itemization can split a grapheme across scripts/directions.
+  // In that case expose only genuine global boundaries, never item endpoints.
+  // A standalone editable text box must leave this disabled.
+  bool grapheme_fragments= false;
   std::size_t max_carets= 1000000;
+  // Shaping context is the containing line, which may be smaller than the
+  // original source atom. Output positions remain absolute source byte offsets.
+  std::size_t context_begin= 0;
+  std::size_t context_end= std::string_view::npos;
 };
 
 struct positioned_glyph {

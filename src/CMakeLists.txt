@@ -21,7 +21,7 @@ list (REMOVE_ITEM ATHENA_All_SRCS
 add_library (athena_unicode STATIC Data/String/unicode_text.cpp)
 set_target_properties (athena_unicode PROPERTIES AUTOMOC OFF)
 target_include_directories (athena_unicode PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/Data/String")
-target_link_libraries (athena_unicode PUBLIC ICU::uc ICU::i18n)
+target_link_libraries (athena_unicode PUBLIC ICU::uc ICU::i18n PRIVATE PkgConfig::PANGO)
 add_library (athena_audmap_terminal STATIC Subsystems/Qt/QTMAudmapTerminal.cpp)
 target_compile_features (athena_audmap_terminal PRIVATE cxx_std_17)
 target_link_libraries (athena_audmap_terminal PUBLIC Qt6::Widgets PRIVATE qtermwidget6)

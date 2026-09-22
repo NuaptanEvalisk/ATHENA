@@ -13,6 +13,8 @@
 #include "drd_std.hpp"
 #include "font.hpp"
 #include "Boxes/construct.hpp"
+#include "unicode_text.hpp"
+#include "shaped_line.hpp"
 #include "pdf_text_string.hpp"
 #include "printer.hpp"
 #include "scheme.hpp"
@@ -25,6 +27,8 @@
 #include <QProcess>
 #include <QStandardPaths>
 #include <QTemporaryDir>
+#include <QXmlStreamReader>
+#include <cmath>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
@@ -85,6 +89,30 @@ struct bitmap_only_glyphs final : font_glyphs_rep {
   glyph &get (int code) override { return original->get (code); }
 };
 
+static void check_text_geometry (const QString& pdf) {
+  QXmlStreamReader xml (execute ("pdftotext", {"-bbox", "-enc", "UTF-8", pdf, "-"}));
+  int words= 0;
+  while (!xml.atEnd ()) {
+    if (xml.readNext () != QXmlStreamReader::StartElement || xml.name () != "word")
+      continue;
+    const auto a= xml.attributes ();
+    bool valid= true;
+    auto coordinate= [&] (const char* name) {
+      bool ok= false;
+      const double result= a.value (QLatin1String (name)).toDouble (&ok);
+      valid= valid && ok && std::isfinite (result);
+      return result;
+    };
+    const double x1= coordinate ("xMin"), x2= coordinate ("xMax");
+    const double y1= coordinate ("yMin"), y2= coordinate ("yMax");
+    require (valid && x1 >= 40 && x2 > x1 && x2 < 550 && y2 > y1 &&
+             y1 >= 45 && y2 < 420,
+             "Extracted text geometry disagrees with rendered text placement");
+    ++words;
+  }
+  require (!xml.hasError () && words >= 10, "Missing PDF text geometry");
+}
+
 static void render_document (const QString &path, bool postscript) {
   font_domain owner;
   font_domain_binding binding (owner);
@@ -108,11 +136,17 @@ static void render_document (const QString &path, bool postscript) {
   pdf->set_pencil (pencil (black));
   auto line = [&] (font fn, const std::string &source, int row,
                    bool bitmap = false) {
-    auto run = fn->shape_utf8 (source, 0, source.size ());
-    require (!run.missing_glyphs, "PDF fixture font lacks a required glyph");
-    if (bitmap)
-      run.glyph_source = tm_new<bitmap_only_glyphs> (run.glyph_source);
-    run.draw_fixed (pdf, source, 400 * PIXEL, -(600 + row * 300) * PIXEL);
+    athena::text::unicode_paragraph paragraph (source);
+    const auto shaped= athena::text::shape_line (paragraph, 0, source.size (),
+      [&] (std::string_view source, const athena::text::shaping_item& item,
+            const athena::text::shaping_options& options) {
+      auto run= fn->shape_utf8 (source, item.run.begin, item.run.end, options);
+      require (!run.missing_glyphs, "PDF fixture font lacks a required glyph");
+      if (bitmap)
+        run.glyph_source = tm_new<bitmap_only_glyphs> (run.glyph_source);
+      return run;
+    });
+    shaped.draw_fixed (pdf, source, 400 * PIXEL, -(600 + row * 300) * PIXEL);
   };
   try {
     line (text, "literal <alpha> | Unicode \xce\xb1", 0);
@@ -172,6 +206,9 @@ static void run_tests (int, char **) {
       if (postscript) {
         const QString ps = output.filePath (stem + ".ps");
         render_document (ps, true);
+        if (const char *directory = std::getenv ("ATHENA_SHAPED_PDF_TEST_OUTPUT"))
+          require (QFile::copy (ps, QString::fromUtf8 (directory) + "/" + stem + ".ps"),
+                   "Could not retain PostScript source");
         execute ("gs",
                  {"-q", "-dSAFER", "-dBATCH", "-dNOPAUSE", "-sDEVICE=pdfwrite",
                   "-dCompatibilityLevel=1.5", "-sOutputFile=" + pdf, ps});
@@ -227,6 +264,7 @@ static void run_tests (int, char **) {
       }
       require (!extracted.contains ("prefix") && !extracted.contains ("suffix"),
                "PDF exported context outside the shaped range");
+      check_text_geometry (pdf);
       execute ("pdftoppm", {"-png", "-singlefile", "-r", "96", pdf,
                             output.filePath (stem)});
       QImage image (output.filePath (stem + ".png"));

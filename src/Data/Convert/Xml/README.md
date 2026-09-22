@@ -29,6 +29,29 @@ unchanged. Legacy readers still recognize existing file headers.
   codepoints. `grapheme_cursor` borrows immutable bytes, owns its ICU iterator,
   and must be rebound after the text revision changes. No normalization is
   implicit in validation, conversion, segmentation or serialization.
+- `unicode_paragraph` owns ICU bidi state and its required UTF-16 copy while
+  borrowing immutable UTF-8 source. A scalar-boundary index maps both directions
+  without rescanning prefixes; surrogate interiors are rejected. ICU resolves
+  a paragraph once and each selected line separately, including UBA trailing
+  whitespace reset. UText line breaking returns UTF-8 opportunities and hard
+  breaks, filtered through ICU grapheme boundaries. One analysis accepts one
+  Unicode paragraph, enforces an input budget and rejects lines crossing a hard
+  break. Source bytes, isolates and directional controls are never rewritten.
+  Script itemization uses Pango ScriptIter (LGPL-2.0-or-later, dynamically linked),
+  not a handwritten Common/Inherited/paired-punctuation table. ICU does not expose
+  an equivalent public script-run iterator. Pango is a required development
+  dependency; this integration uses no GTK widgets, font map or GUI ownership.
+  Visual bidi runs intersect logical script ranges to produce ISO 15924 shaping
+  items. These are scalar ranges, not promises of editing caret boundaries;
+  paragraph caret placement retains ICU graphemes across item boundaries via
+  `shape_line`: it places shaped items in visual order while keeping absolute
+  byte positions and upstream/downstream caret affinity at bidi boundaries.
+  Shaping-only fragment edges are discarded, never published as editing stops.
+  Each line borrows the analyzed source and restricts joining context to its
+  chosen boundaries. Glyph/caret budgets apply across the entire line. Font
+  selection is supplied explicitly by the caller; missing glyphs remain visible
+  in the result rather than being silently treated as successful fallback.
+  Font fallback and the existing paragraph formatter still need integration.
 - Physical Unicode fonts expose `shape_utf8` separately from their legacy
   encoded-string methods. HarfBuzz (the existing MIT-licensed dependency) is
   the shaping engine, not a second handwritten ligature/mark parser. It returns
@@ -41,6 +64,10 @@ unchanged. Legacy readers still recognize existing file headers.
   recording must consume them there. This is a single-font, homogeneous-script
   shaping primitive; paragraph bidi, smart-font fallback and math symbol
   dispatch still require integration before runtime activation.
+  Shaping context can be restricted to a chosen line without copying or
+  renumbering the source atom; HarfBuzz receives only that line's surrounding
+  text and beginning/end flags. Returned clusters and carets remain absolute
+  source byte offsets, even when a wrapped line starts inside an atom.
 - Editable shaping runs retain ICU grapheme stops with absolute byte offsets
   and physical caret coordinates. HarfBuzz GDEF supplies ligature carets when
   present; otherwise cluster advance is divided among its graphemes, not bytes
@@ -188,6 +215,13 @@ and stale source revisions. Disk-full and post-rename fsync fault injection,
 batch cancellation/resume and database recovery are still integration work.
 
 ## Remaining Integration Gates
+
+The paragraph-level PDF regression currently exposes a PostScript conversion
+defect: Ghostscript places a graphics-state restore before the closing
+ActualText mark; Poppler consequently extracts wrong text bounds and separates
+adjacent script items into different lines. Native PDF extraction and geometry
+remain covered independently. The failing PostScript assertion is retained;
+single-span text extraction alone is not sufficient verification of that path.
 
 1. Integrate the role-aware legacy importer with application metadata and
    style-defined macro contracts, and register/render `named-symbol` identities.

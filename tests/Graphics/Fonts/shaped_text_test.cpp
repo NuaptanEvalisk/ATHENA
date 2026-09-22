@@ -11,6 +11,7 @@
 #include "data_cache.hpp"
 #include "drd_std.hpp"
 #include "unicode_text.hpp"
+#include "shaped_line.hpp"
 #include "Boxes/construct.hpp"
 #include "Freetype/tt_face.hpp"
 #include "Qt/QTMRenderService.hpp"
@@ -142,12 +143,106 @@ static void check_boxes (font fn) {
   });
 }
 
+static void check_lines (font fn) {
+  item_shaper shaper= [fn] (std::string_view source, const shaping_item& item,
+                            const shaping_options& options) {
+    return fn->shape_utf8 (source, item.run.begin, item.run.end, options);
+  };
+  const std::string samples[]= {"", "a \xd7\x90\xd7\x91 b", "a(\xce\xb1)b",
+    "a e\xcc\x81 ffi", "\xd8\x80" "a", "\xd7\x90\xd6\xb0 a",
+    "a \xe2\x81\xa7\xd7\x90\xd7\x91\xe2\x81\xa9 b"};
+  bool saw_fragment= false;
+  for (const auto& source: samples) {
+    unicode_paragraph paragraph (source);
+    grapheme_cursor boundaries (source);
+    for (const auto& item: paragraph.items (0, source.size ()))
+      saw_fragment= saw_fragment || !boundaries.boundary (item.run.begin) ||
+                                     !boundaries.boundary (item.run.end);
+    const auto line= shape_line (paragraph, 0, source.size (), shaper);
+    SI x= 0;
+    bool missing= false;
+    for (const auto& run: line.runs) {
+      require (run.x == x, "Visual line run origins are not contiguous");
+      x+= run.text.advance_x;
+      missing= missing || run.text.missing_glyphs;
+    }
+    require (line.advance == x && line.missing_glyphs == missing,
+             "Line lost run metrics or missing-glyph status");
+    for (const auto& caret: line.carets) {
+      require (boundaries.boundary (caret.byte), "Line exposed a partial grapheme");
+      require (line.caret_x (caret.byte, caret.affinity) == caret.x,
+               "Line caret affinity lost its visual coordinate");
+      const auto hit= line.hit_test (caret.x);
+      require (hit.x == caret.x && boundaries.boundary (hit.byte),
+               "Line hit test disagrees with displayed carets");
+    }
+    for (std::size_t byte= 0;; byte= boundaries.next (byte)) {
+      (void) line.caret_x (byte, caret_affinity::upstream);
+      (void) line.caret_x (byte, caret_affinity::downstream);
+      if (byte == source.size ()) break;
+    }
+    for (std::size_t byte= 0; byte < source.size (); ++byte)
+      if (!scalar_boundary (source, byte) || !boundaries.boundary (byte))
+        rejects<std::invalid_argument> ([&] {
+          line.caret_x (byte, caret_affinity::downstream);
+        });
+  }
+  require (saw_fragment, "Fixture did not cover item boundaries inside a grapheme");
+  const std::string mixed= "a \xd7\x90\xd7\x91 b";
+  unicode_paragraph paragraph (mixed);
+  const auto line= shape_line (paragraph, 0, mixed.size (), shaper);
+  require (line.caret_x (2, caret_affinity::upstream) !=
+           line.caret_x (2, caret_affinity::downstream),
+           "Bidi boundary collapsed two distinct logical affinities");
+  const auto second= shape_line (paragraph, 2, mixed.size (),
+    [&] (std::string_view source, const shaping_item& item, const shaping_options& o) {
+      require (source.data () == mixed.data () && o.context_begin == 2 &&
+               o.context_end == mixed.size (), "Line lost borrowed source or joining limits");
+      return shaper (source, item, o);
+    });
+  require (second.byte_begin == 2, "Wrapped line lost absolute byte positions");
+  shaping_options limit;
+  limit.max_glyphs= 1;
+  rejects<std::length_error> ([&] { shape_line (paragraph, 0, mixed.size (), shaper, limit); });
+  limit.max_glyphs= 1000;
+  limit.max_carets= 1;
+  rejects<std::length_error> ([&] { shape_line (paragraph, 0, mixed.size (), shaper, limit); });
+  limit.max_carets= 0;
+  rejects<std::length_error> ([&] { shape_line (paragraph, 0, 0, shaper, limit); });
+  const std::string three_scripts= "a\xce\xb1" "b";
+  unicode_paragraph three (three_scripts);
+  limit.max_glyphs= 2;
+  limit.max_carets= 100;
+  rejects<std::length_error> ([&] {
+    shape_line (three, 0, three_scripts.size (), shaper, limit);
+  });
+  limit.max_glyphs= 100;
+  limit.max_carets= 4;
+  rejects<std::length_error> ([&] {
+    shape_line (three, 0, three_scripts.size (), shaper, limit);
+  });
+  rejects<std::invalid_argument> ([&] {
+    shape_line (paragraph, 0, mixed.size (),
+      [&] (std::string_view s, const shaping_item& i, const shaping_options& o) {
+        auto invalid= shaper (s, i, o);
+        ++invalid.byte_end;
+        return invalid;
+      });
+  });
+  shaping_options fragment;
+  fragment.grapheme_fragments= true;
+  rejects<std::invalid_argument> ([&] {
+    utf8_text_box (path (0), "e\xcc\x81", 0, 1, fn, pencil (black), fragment);
+  });
+}
+
 static void check_text () {
   font_domain owner;
   font_domain_binding binding (owner);
   font fn= pagella ();
   check_carets (fn);
   check_boxes (fn);
+  check_lines (fn);
   auto literal= shape (fn, "a<alpha>b");
   require (literal.glyphs.size () == 9 && !literal.missing_glyphs,
            "Literal angle-bracket text was interpreted as Cork");
@@ -188,6 +283,22 @@ static void check_text () {
   require (middle.glyphs.size () == 1 && middle.glyphs[0].byte == 1 &&
            middle.byte_begin == 1 && middle.byte_end == 3,
            "Item offset is not an absolute byte offset");
+  shaping_options line_context;
+  line_context.context_begin= 1;
+  line_context.context_end= 3;
+  line_context.editing_carets= true;
+  auto bounded= fn->shape_utf8 (context, 1, 3, line_context);
+  auto isolated= shape (fn, std::string_view (context).substr (1, 2));
+  require (bounded.glyphs.size () == isolated.glyphs.size () &&
+           bounded.glyphs[0].index == isolated.glyphs[0].index &&
+           bounded.glyphs[0].byte == 1 && bounded.carets[0].byte == 1 &&
+           bounded.advance_x == isolated.advance_x,
+           "Line context changed absolute source positions");
+  rejects<std::invalid_argument> ([&] { fn->shape_utf8 (context, 0, 3, line_context); });
+  line_context.context_end= 2;
+  rejects<std::invalid_argument> ([&] { fn->shape_utf8 (context, 1, 1, line_context); });
+  line_context.context_end= context.size () + 1;
+  rejects<std::invalid_argument> ([&] { fn->shape_utf8 (context, 1, 3, line_context); });
   auto empty= fn->shape_utf8 (context, 3, 3);
   require (empty.glyphs.empty () && empty.advance_x == 0 && !empty.has_ink,
            "Empty run acquired ink or advance");

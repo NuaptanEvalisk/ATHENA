@@ -200,6 +200,7 @@ include (CheckCSourceCompiles)
 
 pkg_check_modules (SPDLOG REQUIRED IMPORTED_TARGET spdlog)
 pkg_check_modules (HARFBUZZ REQUIRED IMPORTED_TARGET harfbuzz)
+pkg_check_modules (PANGO REQUIRED IMPORTED_TARGET pango>=1.44)
 pkg_check_modules (HUNSPELL REQUIRED IMPORTED_TARGET hunspell>=1.7)
 find_package (ICU REQUIRED COMPONENTS uc i18n)
 pkg_check_modules (LLAMA QUIET IMPORTED_TARGET llama)

@@ -8,6 +8,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include "shaped_text.hpp"
+#include "shaped_line.hpp"
 #include "unicode_text.hpp"
 #include "Freetype/tt_face.hpp"
 #include "Freetype/tt_file.hpp"
@@ -90,18 +91,25 @@ shaping_font& cached_font (string family, int xscale, int yscale) {
 }
 
 void build_carets (shaped_text& run, hb_font_t* font, std::string_view text,
-                   std::size_t budget) {
+                   std::size_t budget, bool fragments) {
   grapheme_cursor boundaries (text);
-  if (!boundaries.boundary (run.byte_begin) ||
-      !boundaries.boundary (run.byte_end))
+  const bool start_boundary= boundaries.boundary (run.byte_begin);
+  const bool end_boundary= boundaries.boundary (run.byte_end);
+  if (!fragments && (!start_boundary || !end_boundary))
     throw std::invalid_argument ("Editable run splits a grapheme cluster");
-  for (std::size_t byte= run.byte_begin;; byte= boundaries.next (byte)) {
+  for (std::size_t byte= run.byte_begin;;
+       byte= std::min (run.byte_end, boundaries.next (byte))) {
     if (run.carets.size () == budget)
       throw std::length_error ("Shaped caret budget exceeded");
     run.carets.push_back ({byte, 0});
     if (byte == run.byte_end) break;
   }
-  if (run.glyphs.empty ()) return;
+  auto discard_fragment_edges= [&] {
+    if (!end_boundary) run.carets.pop_back ();
+    if (!start_boundary && !run.carets.empty ())
+      run.carets.erase (run.carets.begin ());
+  };
+  if (run.glyphs.empty ()) { discard_fragment_edges (); return; }
 
   struct cluster {
     std::size_t byte, first, last;
@@ -195,6 +203,7 @@ void build_carets (shaped_text& run, hb_font_t* font, std::string_view text,
   }
   run.carets.front ().x= rtl ? run.advance_x : 0;
   run.carets.back ().x= rtl ? 0 : run.advance_x;
+  discard_fragment_edges ();
 }
 
 } // namespace
@@ -209,6 +218,12 @@ shaped_text shape_freetype_utf8 (
   if (begin > end || end > text.size () ||
       !scalar_boundary (text, begin) || !scalar_boundary (text, end))
     throw std::invalid_argument ("Shaping range must end at UTF-8 boundaries");
+  const auto context_begin= options.context_begin;
+  const auto context_end= options.context_end == std::string_view::npos ?
+    text.size () : options.context_end;
+  if (context_begin > begin || context_end < end || context_end > text.size () ||
+      !scalar_boundary (text, context_begin) || !scalar_boundary (text, context_end))
+    throw std::invalid_argument ("Shaping context does not contain its UTF-8 item");
   const int xscale= font_scale (size, hdpi);
   const int yscale= font_scale (size, vdpi);
   hb_script_t script= HB_SCRIPT_INVALID;
@@ -228,7 +243,9 @@ shaped_text shape_freetype_utf8 (
   result.byte_end= end;
   result.direction= options.direction;
   if (begin == end) {
-    if (options.editing_carets) build_carets (result, nullptr, text, options.max_carets);
+    if (options.editing_carets)
+      build_carets (result, nullptr, text, options.max_carets,
+                    options.grapheme_fragments);
     return result;
   }
   shaping_font& cached= cached_font (family, xscale, yscale);
@@ -247,12 +264,13 @@ shaped_text shape_freetype_utf8 (
   hb_buffer_set_language (buffer.get (), hb_language_from_string (
     options.language.data (), static_cast<int> (options.language.size ())));
   hb_buffer_flags_t flags= HB_BUFFER_FLAG_DEFAULT;
-  if (begin == 0) flags= static_cast<hb_buffer_flags_t> (flags | HB_BUFFER_FLAG_BOT);
-  if (end == text.size ())
+  if (begin == context_begin) flags= static_cast<hb_buffer_flags_t> (flags | HB_BUFFER_FLAG_BOT);
+  if (end == context_end)
     flags= static_cast<hb_buffer_flags_t> (flags | HB_BUFFER_FLAG_EOT);
   hb_buffer_set_flags (buffer.get (), flags);
-  hb_buffer_add_utf8 (buffer.get (), text.data (), static_cast<int> (text.size ()),
-                     static_cast<unsigned int> (begin),
+  hb_buffer_add_utf8 (buffer.get (), text.data () + context_begin,
+                     static_cast<int> (context_end - context_begin),
+                     static_cast<unsigned int> (begin - context_begin),
                      static_cast<int> (end - begin));
   hb_buffer_guess_segment_properties (buffer.get ());
   const hb_feature_t features[]= {
@@ -278,13 +296,13 @@ shaped_text shape_freetype_utf8 (
   result.glyphs.reserve (count);
   std::int64_t x= 0, y= 0;
   for (unsigned int i= 0; i < count; ++i) {
+    const std::size_t cluster= context_begin + info[i].cluster;
     if (info[i].codepoint > static_cast<unsigned int> (
           std::numeric_limits<int>::max () - glyph_index_base) ||
-        info[i].cluster < begin || info[i].cluster >= end ||
-        !scalar_boundary (text, info[i].cluster))
+        cluster < begin || cluster >= end || !scalar_boundary (text, cluster))
       throw std::runtime_error ("Invalid glyph or cluster returned by HarfBuzz");
     positioned_glyph glyph {
-      info[i].codepoint, info[i].cluster,
+      info[i].codepoint, cluster,
       checked_si (x + positions[i].x_offset),
       checked_si (y + positions[i].y_offset),
       positions[i].x_advance, positions[i].y_advance,
@@ -315,7 +333,8 @@ shaped_text shape_freetype_utf8 (
   result.advance_x= checked_si (x);
   result.advance_y= checked_si (y);
   if (options.editing_carets)
-    build_carets (result, hbfont, text, options.max_carets);
+    build_carets (result, hbfont, text, options.max_carets,
+                  options.grapheme_fragments);
   return result;
 }
 
@@ -364,6 +383,116 @@ void shaped_text::draw_fixed (renderer ren, std::string_view source,
     translated (y, glyph.y);
   }
   ren->draw_utf8 (*this, text, x, y);
+}
+
+shaped_line shape_line (unicode_paragraph& paragraph,
+  std::size_t begin, std::size_t end, const item_shaper& shape,
+  const shaping_options& options) {
+  if (!shape) throw std::invalid_argument ("Missing line item shaper");
+  const auto items= paragraph.items (begin, end);
+  shaped_line result;
+  result.byte_begin= begin;
+  result.byte_end= end;
+  if (begin == end) {
+    if (options.max_carets == 0)
+      throw std::length_error ("Line caret budget exceeded");
+    result.carets.push_back ({begin, 0, caret_affinity::both});
+    return result;
+  }
+  const auto source= paragraph.source ();
+  grapheme_cursor boundaries (source);
+  std::size_t glyph_count= 0;
+  for (const auto& item: items) {
+    auto selected= options;
+    selected.script= item.script;
+    selected.direction= item.run.right_to_left () ?
+      run_direction::right_to_left : run_direction::left_to_right;
+    selected.context_begin= begin;
+    selected.context_end= end;
+    selected.editing_carets= true;
+    selected.grapheme_fragments= true;
+    selected.max_glyphs= options.max_glyphs - glyph_count;
+    selected.max_carets= options.max_carets - result.carets.size ();
+    // Two temporary fragment edges may be needed for shaping interpolation;
+    // they are discarded before publication and never become editing stops.
+    if (selected.max_carets <= std::numeric_limits<std::size_t>::max () - 2)
+      selected.max_carets+= 2;
+    auto run= shape (source, item, selected);
+    if (run.byte_begin != item.run.begin || run.byte_end != item.run.end ||
+        run.direction != selected.direction || run.advance_y != 0)
+      throw std::invalid_argument ("Item shaper changed the line contract");
+    if (run.glyphs.size () > options.max_glyphs - glyph_count ||
+        run.carets.size () > options.max_carets - result.carets.size ())
+      throw std::length_error ("Shaped line budget exceeded");
+    glyph_count+= run.glyphs.size ();
+    for (const auto& caret: run.carets) {
+      if (caret.byte < run.byte_begin || caret.byte > run.byte_end ||
+          !boundaries.boundary (caret.byte))
+        throw std::invalid_argument ("Item shaper exposed an invalid caret");
+      const auto affinity= caret.byte == run.byte_begin ? caret_affinity::downstream :
+        caret.byte == run.byte_end ? caret_affinity::upstream : caret_affinity::both;
+      result.carets.push_back ({caret.byte, translated (result.advance, caret.x), affinity});
+    }
+    const SI next= translated (result.advance, run.advance_x);
+    result.missing_glyphs= result.missing_glyphs || run.missing_glyphs;
+    result.runs.push_back ({std::move (run), result.advance});
+    result.advance= next;
+  }
+  std::sort (result.carets.begin (), result.carets.end (),
+    [] (const line_caret& a, const line_caret& b) {
+      return std::tie (a.byte, a.x, a.affinity) < std::tie (b.byte, b.x, b.affinity);
+    });
+  std::size_t count= 0;
+  for (const auto caret: result.carets) {
+    if (count && result.carets[count - 1].byte == caret.byte &&
+        result.carets[count - 1].x == caret.x) {
+      if (result.carets[count - 1].affinity != caret.affinity)
+        result.carets[count - 1].affinity= caret_affinity::both;
+    }
+    else result.carets[count++]= caret;
+  }
+  result.carets.resize (count);
+  auto at= result.carets.begin ();
+  for (std::size_t byte= begin;; byte= boundaries.next (byte)) {
+    if (at == result.carets.end () || at->byte != byte)
+      throw std::invalid_argument ("Item shaper omitted a line grapheme caret");
+    while (at != result.carets.end () && at->byte == byte) ++at;
+    if (byte == end) break;
+  }
+  return result;
+}
+
+SI shaped_line::caret_x (std::size_t byte, caret_affinity affinity) const {
+  const auto at= std::lower_bound (carets.begin (), carets.end (), byte,
+    [] (const line_caret& c, std::size_t b) { return c.byte < b; });
+  if (at == carets.end () || at->byte != byte)
+    throw std::invalid_argument ("Position is not a line grapheme boundary");
+  for (auto c= at; c != carets.end () && c->byte == byte; ++c)
+    if (c->affinity == affinity || c->affinity == caret_affinity::both) return c->x;
+  // At a line endpoint the other affinity belongs to the neighboring line.
+  if (byte == byte_begin || byte == byte_end) return at->x;
+  throw std::invalid_argument ("Caret affinity is unavailable in this line");
+}
+
+line_caret shaped_line::hit_test (SI x, bool prefer_right) const {
+  if (carets.empty ()) throw std::logic_error ("Line has no editing carets");
+  const auto distance= [x] (SI position) {
+    return std::llabs (static_cast<long long> (position) - x);
+  };
+  const line_caret* best= &carets.front ();
+  for (const auto& caret: carets) {
+    const auto d= distance (caret.x), old= distance (best->x);
+    if (d < old || (d == old &&
+        (prefer_right ? caret.x > best->x : caret.x < best->x))) best= &caret;
+  }
+  return *best;
+}
+
+void shaped_line::draw_fixed (renderer ren, std::string_view source, SI x, SI y) const {
+  if (ren == nullptr || byte_begin > byte_end || byte_end > source.size ())
+    throw std::invalid_argument ("Invalid shaped line drawing request");
+  for (const auto& run: runs) translated (x, run.x);
+  for (const auto& run: runs) run.text.draw_fixed (ren, source, translated (x, run.x), y);
 }
 
 } // namespace athena::text

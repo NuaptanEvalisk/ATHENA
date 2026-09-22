@@ -36,6 +36,7 @@ struct utf8_text_box_rep final: box_rep {
     if (begin < 0 || end < begin || end > N(source))
       throw std::invalid_argument ("Invalid UTF-8 text box range");
     options.editing_carets= true;
+    options.grapheme_fragments= false;
     run= fn->shape_utf8 (bytes (), begin, end, options);
     x1= min (0, run.advance_x); x2= max (0, run.advance_x);
     y1= min (fn->y1, run.ink_y1); y2= max (fn->y2, run.ink_y2);
