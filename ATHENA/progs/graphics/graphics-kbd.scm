@@ -55,8 +55,6 @@
   ("#" (graphics-toggle-grid))
   ("return" (graphics-apply-props-at-mouse))
   ("S-return" (graphics-get-props-at-mouse))
-  ("backspace" (graphics-kbd-remove #f))
-  ("delete" (graphics-kbd-remove #t))
   ("C-g" (graphics-toggle-logical-grid))
   ("C-G" (graphics-toggle-visual-grid))
   ("C-2" (graphics-set-grid-aspect 'detailed 2 #t))
@@ -88,20 +86,6 @@
   (:mode in-active-graphics?)
   (cond ((string-occurs? "-" key) (key-press key))
         ((in? key graphics-keys) (key-press key))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Overriding standard structured editing commands
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (graphics-kbd-remove forward?)
-  (cond ((and (with-active-selection?)
-              (with-cursor (rcons (selection-path) 0)
-                (not (in-graphics?))))
-         (go-to (rcons (selection-path) 0))
-         (clipboard-cut "primary"))
-        ((inside-graphical-text?)
-         (if forward? (kbd-delete) (kbd-backspace)))
-        (else (noop))))
 
 (tm-define (geometry-vertical t down?)
   (:require (in-active-graphics?))

@@ -133,6 +133,7 @@ private slots:
   void trimMaterializesRenderedContentBounds ();
   void canvasGeometryActionsStayNativeAndUndoable ();
   void canvasKeyboardWheelAndPinchStayNative ();
+  void documentSelectionWinsOverNativeCanvasDelete ();
   void nativeGroupMoveSelectsAndTransforms ();
   void nativeGroupAreaGroupClipboardAndUngroup ();
   void nativeEditPropsSelectionAndProperties ();
@@ -1474,6 +1475,21 @@ TestNativeInkEditor::canvasKeyboardWheelAndPinchStayNative () {
   QCOMPARE (editor->undo_possibilities (), 1);
   editor->undo (0);
   QVERIFY (std::abs (editor->native_graphics_canvas_zoom () - 1.0) < 1.0e-8);
+}
+
+void
+TestNativeInkEditor::documentSelectionWinsOverNativeCanvasDelete () {
+  path graphics_path;
+  SI left= 0, bottom= 0, right= 0, top= 0;
+  prepare_graphics_region (
+    editor, buffer, graphics_path, left, bottom, right, top);
+  set_native_group_mode (editor, graphics_path, "move");
+  editor->select (graphics_path);
+  QVERIFY (editor->selection_active_any ());
+  editor->native_graphics_group_clear_selection ();
+  QVERIFY (!editor->native_graphics_selection_active ());
+  QVERIFY (!editor->native_graphics_canvas_keypress ("delete"));
+  QVERIFY (!editor->native_graphics_canvas_keypress ("backspace"));
 }
 
 void

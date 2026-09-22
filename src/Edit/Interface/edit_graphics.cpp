@@ -1247,6 +1247,8 @@ edit_graphics_rep::apply_native_graphics_canvas_action (
 bool
 edit_graphics_rep::native_graphics_canvas_keypress (string key) {
   if (!native_graphics_canvas_focused ()) return false;
+  if ((key == "delete" || key == "backspace") && selection_active_any ())
+    return false;
   path p= tp;
   while (!is_nil (p)) {
     if (has_subtree (et, p)) {
@@ -1278,6 +1280,7 @@ edit_graphics_rep::native_graphics_canvas_keypress (string key) {
       return true;
     }
     if (key == "delete" || key == "backspace") {
+      if (!native_graphics_selection_active ()) return true;
       (void) native_graphics_cut_selection ();
       return true;
     }

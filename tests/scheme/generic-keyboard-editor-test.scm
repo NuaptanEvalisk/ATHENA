@@ -1,6 +1,7 @@
 ;; Generic keyboard fallbacks execute on the owning BufferActor.
 (import-from (generic generic-edit))
 (import-from (generic insert-menu))
+(import-from (graphics graphics-kbd))
 (init-style "generic")
 
 (define (body) (tree->stree (buffer-tree)))
@@ -40,6 +41,32 @@
 (kbd-remove (buffer-tree) #f)
 (check (equal? (body) '(document "ad")) "selection delete")
 (check (equal? (cursor-path) '(0 0 1)) "selection delete cursor")
+
+(define (reset-graphics-selection)
+  (selection-cancel)
+  (buffer-set-body
+    (current-buffer)
+    (stree->tree
+      '(document
+         (with "gr-mode" (tuple "hand-edit" "penscript")
+               (graphics ""))
+         "tail")))
+  (update-current-buffer)
+  (with g (tree-ref (tree-ref (buffer-tree) 0) 1)
+    (tree-go-to g :start)
+    (selection-set (tree->path g :start) (tree->path g :end)))
+  (commit-changes)
+  (clear-undo-history))
+
+(reset-graphics-selection)
+(key-press "delete")
+(check (null? (select (buffer-tree) '(graphics)))
+       "delete removes selected whole graphics")
+
+(reset-graphics-selection)
+(key-press "backspace")
+(check (null? (select (buffer-tree) '(graphics)))
+       "backspace removes selected whole graphics")
 
 (reset "ab" 1)
 (kbd-alternate-variant (buffer-tree) #t)
