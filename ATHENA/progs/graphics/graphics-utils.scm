@@ -189,13 +189,16 @@
 
 ;;FIXME: Should use (tm-adjust-path), otherwise, crashes in some cases
 (tm-define (tm-upwards-path p tags nottags)
-  (if (in? (tree-label (path->tree p)) tags)
-      p
-      (if (in? (tree-label (path->tree p)) nottags)
-	  #f
-	  (if (> (length p) 2)
-	      (tm-upwards-path (cDr p) tags nottags)
-	      #f))))
+  (if (not (pair? p)) #f
+      (with t (path->tree p)
+        (if (not t) #f
+            (if (in? (tree-label t) tags)
+                p
+                (if (in? (tree-label t) nottags)
+                    #f
+                    (if (> (length p) 2)
+                        (tm-upwards-path (cDr p) tags nottags)
+                        #f)))))))
 ;; TODO: Put this one in kernel/library/tree.scm
 
 ;;NOTE: This section is OK.
@@ -229,20 +232,18 @@
 (tm-define (tm-find-prop p var)
 ;;(tm-find-prop '<tree <with|a|1|...>> "a")              -> <tree 1>
 ;;(tm-find-prop (tree->path '<tree <with|a|1|...>>) "a") -> <tree 1>
-  (if (null? p)
+  (if (or (not p) (null? p))
       nothing
-      (let* ((t (if (tree? p) p (path->tree p)))
-	     (n (tree-arity t))
-	 )
-	 (if (> n 2)
-	     (with res nothing
-		(foreach-number (i 0 < (- (/ n 2) 1))
-		   (if (== (tm->stree (tree-ref t (* 2 i))) var)
-		       (set! res (tree-ref t (+ (* 2 i) 1))))
-		)
-		res
-	     )
-	     nothing))))
+      (with t (if (tree? p) p (and (pair? p) (path->tree p)))
+        (if (not (tree? t)) nothing
+            (with n (tree-arity t)
+              (if (> n 2)
+                  (with res nothing
+                    (foreach-number (i 0 < (- (/ n 2) 1))
+                      (if (== (tm->stree (tree-ref t (* 2 i))) var)
+                          (set! res (tree-ref t (+ (* 2 i) 1)))))
+                    res)
+                  nothing))))))
 
 (tm-define (find-prop l var . default)
 ;;(find-prop '(with "a" 1) "a")             -> 1
@@ -256,7 +257,7 @@
 ;; TODO : Put this in utils/library/tree.scm
 
 (tm-define (get-upwards-tree-property p var)
-  (if (null? p)
+  (if (or (not (pair? p)) (null? p))
       nothing
       (with q (tm-upwards-path p '(with) '())
 	 (if (not q)
@@ -270,7 +271,7 @@
   (t2o (get-upwards-tree-property p var)))
 
 (tm-define (get-upwards-property-1 p var)
-  (if (null? p)
+  (if (or (not (pair? p)) (null? p))
       nothing
       (with q (tm-upwards-path p '(with) '())
 	 (if (equal? q (cDr p))
@@ -283,7 +284,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (tm-define (stree-at p)
-  (tm->stree (path->tree p)))
+  (with t (path->tree p)
+    (and t (tm->stree t))))
 ;; TODO: Put this in kernel/library/tree.scm
 
 (tm-define (graphics-graphics-path)
@@ -340,10 +342,16 @@
 
 ;; Magnification
 (tm-define (graphics-eval-magnify)
-  (graphical-get-attribute (path->tree (graphics-graphics-path)) "magnify"))
+  (with p (graphics-graphics-path)
+    (if p
+        (graphical-get-attribute (path->tree p) "magnify")
+        "default")))
 
 (tm-define (graphics-eval-magnify-at path)
-  (graphical-get-attribute (path->tree (cDr path)) "magnify"))
+  (if (pair? path)
+      (with t (path->tree (cDr path))
+        (if t (graphical-get-attribute t "magnify") "default"))
+      "default"))
 
 (tm-define (magnify->number m)
   (cond ((number? m) m)
@@ -463,15 +471,17 @@
   (tm->stree (get-init-tree var)))
 
 (tm-define (graphics-path-property-bis p var default-val)
-  (with c (get-upwards-property p var)
-    (if (== c nothing) default-val c)))
+  (if (not (pair? p)) default-val
+      (with c (get-upwards-property p var)
+        (if (== c nothing) default-val c))))
 
 (tm-define (graphics-path-property p var)
   (graphics-path-property-bis p var "default"))
 
 (tm-define (graphics-path-property-bis-1 p var default-val)
-  (with c (get-upwards-property-1 p var)
-    (if (== c nothing) default-val c)))
+  (if (not (pair? p)) default-val
+      (with c (get-upwards-property-1 p var)
+        (if (== c nothing) default-val c))))
 
 (tm-define (graphics-path-property-1 p var)
   (graphics-path-property-bis-1 p var "default"))

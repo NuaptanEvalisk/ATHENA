@@ -188,7 +188,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define-public (path->tree p)
-  (and (path-exists? p) (cpp-path->tree p)))
+  (and (or (null? p) (pair? p))
+       (path-exists? p)
+       (cpp-path->tree p)))
 
 (define-public selection-active? selection-active-any?)
 
