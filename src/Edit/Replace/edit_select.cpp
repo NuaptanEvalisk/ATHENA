@@ -16,6 +16,7 @@
 #include "tree_select.hpp"
 #include "drd_mode.hpp"
 #include "tm_buffer.hpp"
+#include "utf8_edit.hpp"
 
 /******************************************************************************
 * Internationalization
@@ -164,8 +165,21 @@ equation_array_clipboard (tree document, path p1, path p2, tree selection) {
 void
 edit_select_rep::select (path p1, path p2) {
   //cout << "Select " << p1 << " -- " << p2 << "\n";
-  if (cur_sel == simple_range (p1, p2)) return;
   if (!(rp <= p1 && rp <= p2)) return;
+  auto text_boundary= [&] (path p, bool forwards) {
+    const path parent= path_up (p);
+    if (!has_subtree (et, parent)) return p;
+    const tree leaf= subtree (et, parent);
+    if (!is_atomic (leaf) || (!is_nil (parent) &&
+        is_func (subtree (et, path_up (parent)), RAW_DATA))) return p;
+    return parent * utf8_grapheme_snap (leaf->label, last_item (p), forwards);
+  };
+  // Expand a nonempty selection to whole graphemes, retaining drag direction.
+  // A collapsed selection must stay collapsed, even at a stale byte offset.
+  const bool reverse= path_less (p2, p1), empty= p1 == p2;
+  p1= text_boundary (p1, reverse);
+  p2= empty ? p1 : text_boundary (p2, !reverse);
+  if (cur_sel == simple_range (p1, p2)) return;
   if (is_empty (cur_sel) && p1 == p2) {
     cur_sel= simple_range (p1, p2);
     return;
@@ -280,20 +294,20 @@ edit_select_rep::select_enlarge_text () {
   if (mode == "text" || mode == "src") {
     int i, f= 4;
     if (i1 > 0) {
-      i= i1; tm_char_backwards (s, i);
+      i= utf8_grapheme_previous (s, i1);
       f= min (f, breaking_force (s[i]));
     }
     if (i2 < N(s))
       f= min (f, breaking_force (s[i2]));
 
     while (i1 > 0) {
-      i= i1; tm_char_backwards (s, i);
+      i= utf8_grapheme_previous (s, i1);
       if (breaking_force (s[i]) > f) break;
       i1= i;
     }
     while (i2 < N(s)) {
       if (breaking_force (s[i2]) > f) break;
-      tm_char_forwards (s, i2);
+      i2= utf8_grapheme_next (s, i2);
     }
 
     if (i1 < i2 && (i1 != j1 || i2 != j2)) {

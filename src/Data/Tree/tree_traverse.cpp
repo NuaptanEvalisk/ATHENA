@@ -13,6 +13,7 @@
 #include "drd_std.hpp"
 #include "drd_mode.hpp"
 #include "analyze.hpp"
+#include "utf8_edit.hpp"
 #include "hashset.hpp"
 #include "scheme.hpp"
 
@@ -184,13 +185,13 @@ move_any (tree t, path p, bool forward) {
 #endif
     if (forward) {
       if (l<N(s)) {
-        tm_char_forwards (s, l);
+        l= utf8_grapheme_next (s, l);
         return q * l;
       }
     }
     else {
       if (l>0) {
-        tm_char_backwards (s, l);
+        l= utf8_grapheme_previous (s, l);
         return q * l;
       }
     }
@@ -242,8 +243,9 @@ path
 closest_up (tree t, path p) {
   if (is_atomic (t)) {
     if (is_nil (p)) return path (0);
-    else return path (max (0, min (p->item, N(t->label))));
+    else return path (utf8_grapheme_snap (t->label, p->item, false));
   }
+  else if (is_func (t, RAW_DATA, 1) && !is_atom (p)) return path (0, 0);
   else if (is_concat (t) || is_document (t)) {
     if (N(t) == 0) return path (0);
     else if (is_nil (p) || is_atom (p) || p->item < 0)

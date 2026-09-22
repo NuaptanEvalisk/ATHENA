@@ -10,6 +10,13 @@ No setting enables a mixed runtime. Normal saves must remain on the existing
 path until the text, symbol, position, persistence and protocol migrations are
 complete and accepted together.
 
+The migration branch now routes native tree cursor validation/traversal, editor
+Delete/Backspace and selection endpoints through UTF-8 ICU grapheme boundaries.
+Those entry points require UTF-8, not Cork; the remaining input, resource and
+typesetting paths must be converted before deploying this intermediate build.
+`utf8_editor_test` exercises native editor transactions and undo/redo with UTF-8
+atoms. It does not establish completion of keyboard input or document rendering.
+
 Native document constructors no longer add a TeXmacs compatibility version.
 Until XML activation, only the legacy document serializers add their required
 `TeXmacs 2.1.4` format signature to a temporary serialization tree. This is not
@@ -154,6 +161,12 @@ unchanged. Legacy readers still recognize existing file headers.
   effective PDF version, qpdf structure and rendered pixels for both native
   PDF and Ghostscript-converted PostScript. The bitmap PostScript prologue
   accumulates real glyph bounds instead of declaring a zero FontBBox.
+  Known external failure: Ghostscript 10.07.1 conversion followed by Poppler
+  extraction loses ActualText geometry even for a standalone Helvetica sample
+  without ATHENA fonts or code. See `tests/Graphics/Fonts/fixtures/actualtext-ghostscript.ps`.
+  The resulting text is present but its bounds have zero height; native PDF
+  output is unaffected. Do not weaken the PostScript assertions or merge whole
+  lines into replacement text to conceal this converter/extractor failure.
 - The codec does not interpret `<...>` inside text. Structural symbols are a
   separate tree-model concern; the old incomplete-input `SYMBOL` is not a
   substitute for the planned `named-symbol` representation.

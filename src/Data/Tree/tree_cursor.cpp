@@ -13,6 +13,7 @@
 #include "drd_std.hpp"
 #include "drd_mode.hpp"
 #include "analyze.hpp"
+#include "utf8_edit.hpp"
 #include "vars.hpp"
 
 /******************************************************************************
@@ -23,11 +24,7 @@ bool
 is_inside (tree t, path p) {
   if (is_nil (p)) return false;
   else if (is_atomic (t)) {
-    string s= t->label;
-    int i, n= N(s), k= p->item;
-    if (!is_atom (p) || k<0 || k>n) return false;
-    for (i=0; i<k; tm_char_forwards (s, i)) {}
-    return i == k;
+    return is_atom (p) && utf8_grapheme_boundary (t->label, p->item);
   }
   else if (is_atom (p))
     return p->item == 0 || p->item == 1;
@@ -43,10 +40,7 @@ closest_inside (tree t, path p) {
   // This routine returns a closest path to p inside the tree t
   if (is_nil (p)) return path (0);
   else if (is_atomic (t)) {
-    string s= t->label;
-    int i, n= N(s), k= max (0, min (n, p->item));
-    for (i=0; i<k; tm_char_forwards (s, i)) {}
-    return i;
+    return path (utf8_grapheme_snap (t->label, p->item, true));
   }
   else if (is_atom (p) || p->item < 0 || p->item >= N(t))
     return path (max (0, min (1, p->item)));
@@ -120,7 +114,7 @@ is_accessible_cursor (tree t, path p) {
         get_access_mode () != DRD_ACCESS_SOURCE)
       return false;
     else if (is_atomic (t))
-      return is_atom (p) && p->item >= 0 && p->item <= N(t->label);
+      return is_inside (t, p);
     else return !the_drd->is_child_enforcing (t);
   }
   else if (0 > p->item || p->item >= N(t)) return false;
@@ -150,7 +144,8 @@ is_accessible_cursor (tree t, path p) {
         return false;
       else if (the_drd->get_env_child (t, p->item, MODE, "") == "src") {
         int old_mode= set_access_mode (DRD_ACCESS_SOURCE);
-        bool r= is_accessible_cursor (t[p->item], p->next);
+        bool r= is_func (t, RAW_DATA, 1) ? p == path (0, 0) :
+          is_accessible_cursor (t[p->item], p->next);
         set_access_mode (old_mode);
         return r;
       }
@@ -163,7 +158,11 @@ is_accessible_cursor (tree t, path p) {
           else if (w == WRITABILITY_ENABLE)
             set_writable_mode (DRD_WRITABLE_NORMAL);
         }
-        bool r= is_accessible_cursor (t[p->item], p->next);
+        bool r= is_func (t, RAW_DATA, 1) ?
+          p == path (0, 0) &&
+            (get_writable_mode () != DRD_WRITABLE_INPUT ||
+             get_access_mode () == DRD_ACCESS_SOURCE) :
+          is_accessible_cursor (t[p->item], p->next);
         set_writable_mode (old_mode);
         return r;
       }
@@ -297,6 +296,7 @@ valid_cursor (tree t, path p, bool start_flag) {
   }
 
   if (is_nil (p)) return false;
+  if (is_atomic (t) && !is_inside (t, p)) return false;
   if (is_atom (p)) {
     if (the_drd->is_child_enforcing (t)) return false;
     if (start_flag) return (p->item!=0);
@@ -325,6 +325,7 @@ valid_cursor (tree t, path p, bool start_flag) {
     if (p == path (1, 0, 0) && is_concat (t[1]) &&
         N(t[1]) > 0 && is_right_script_prime (t[1][0])) return false;
   }
+  if (is_func (t, RAW_DATA, 1)) return p == path (0, 0);
   return valid_cursor (t[p->item], p->next, false);
 }
 
@@ -516,6 +517,12 @@ correct_cursor (tree t, path p, bool forwards) {
   //cout << "Correct cursor " << p << " in " << t << ", " << forwards << "\n";
   p= keep_positive (p);
   path pp= pre_correct (t, p);
+  const path parent= path_up (pp);
+  const tree leaf= subtree (t, parent);
+  const bool raw= !is_nil (parent) &&
+    is_func (subtree (t, path_up (parent)), RAW_DATA);
+  if (is_atomic (leaf) && !raw)
+    pp= parent * utf8_grapheme_snap (leaf->label, last_item (pp), forwards);
   if (forwards) return right_correct (t, pp);
   else return left_correct (t, pp);
 }
