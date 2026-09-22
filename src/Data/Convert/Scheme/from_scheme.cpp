@@ -14,6 +14,9 @@
 #include "analyze.hpp"
 #include "drd_std.hpp"
 #include "path.hpp"
+#include "Xml/legacy_document_reader.hpp"
+#include <limits>
+#include <functional>
 
 /******************************************************************************
 * Handling escape characters
@@ -45,8 +48,36 @@ is_spc (char c) {
   return (c==' ') || (c=='\t') || (c=='\n') || (c=='\r');
 }
 
+static void
+skip_scheme_trivia (const string& s, int& i) {
+  while (i < N (s)) {
+    if (is_spc (s[i])) ++i;
+    else if (s[i] == ';') while (i < N (s) && s[i] != '\n') ++i;
+    else break;
+  }
+}
+
+namespace {
+struct scheme_read_budget {
+  athena::document::codec_limits limits;
+  std::size_t nodes= 0;
+  [[noreturn]] void fail (int position, const char* message) {
+    throw athena::document::codec_exception (
+      athena::document::codec_error::invalid_structure, message, -1, -1, position);
+  }
+  void enter (std::size_t depth) {
+    if (depth > limits.depth || ++nodes > limits.nodes)
+      throw athena::document::codec_exception (
+        athena::document::codec_error::resource_limit, "Legacy Scheme tree exceeds parse budget");
+  }
+};
+}
+
 static scheme_tree
-string_to_scheme_tree (string s, int& i) {
+string_to_scheme_tree (string s, int& i, scheme_read_budget* budget= nullptr,
+                       std::size_t depth= 0) {
+  skip_scheme_trivia (s, i);
+  if (budget) budget->enter (depth);
   for (; i<N(s); i++)
     switch (s[i]) {
 
@@ -60,16 +91,18 @@ string_to_scheme_tree (string s, int& i) {
         scheme_tree p (TUPLE);
         i++;
         while (true) {
-          while ((i<N(s)) && is_spc(s[i])) i++;
+          skip_scheme_trivia (s, i);
           if ((i==N(s)) || (s[i]==')')) break;
-          p << string_to_scheme_tree (s, i);
+          p << string_to_scheme_tree (s, i, budget, depth + 1);
         }
+        if (i == N(s) && budget) budget->fail (i, "Unterminated Scheme list");
         if (i<N(s)) i++;
         return p;
       }
         
       case '\'':
         i++;
+        if (budget) budget->fail (i - 1, "Reader abbreviations are not native tree data");
         return scheme_tree (TUPLE, "\'", string_to_scheme_tree (s, i));
         
       case '\"':
@@ -79,6 +112,7 @@ string_to_scheme_tree (string s, int& i) {
           if ((i<N(s)-1) && (s[i]=='\\')) i++;
           i++;
         }
+        if (i == N(s) && budget) budget->fail (i, "Unterminated Scheme string");
         if (i<N(s)) i++;
         return scheme_tree (unslash (s (start, i)));
       }
@@ -89,8 +123,10 @@ string_to_scheme_tree (string s, int& i) {
         
       default:
       {
+        if (budget && s[i] == ')') budget->fail (i, "Unexpected closing parenthesis");
         int start= i;
         while ((i<N(s)) && (!is_spc(s[i])) && (s[i]!='(') && (s[i]!=')')) {
+          if (budget && s[i]=='\\' && i+1 == N(s)) budget->fail (i, "Incomplete Scheme escape");
           if ((i<N(s)-1) && (s[i]=='\\')) i++;
           i++;
         }
@@ -98,8 +134,52 @@ string_to_scheme_tree (string s, int& i) {
       }
     }
   
+  if (budget) budget->fail (i, "Expected Scheme tree data");
   return "";
 }
+
+namespace athena::document {
+tree read_legacy_scheme (std::string_view input, codec_limits limits) {
+  init_std_drd ();
+  if (input.size () > limits.input_bytes || input.size () > std::numeric_limits<int>::max ())
+    throw codec_exception (codec_error::resource_limit, "Legacy Scheme input exceeds size budget");
+  string source (input.data (), static_cast<int> (input.size ()));
+  if (!starts (source, "(document (TeXmacs ") &&
+      !starts (source, "(document (apply \"TeXmacs\" ") &&
+      !starts (source, "(document (expand \"TeXmacs\" "))
+    throw codec_exception (codec_error::invalid_structure, "Missing legacy Scheme document signature");
+  scheme_read_budget budget {limits};
+  int pos= 0;
+  auto parsed= string_to_scheme_tree (source, pos, &budget);
+  while (pos < N (source)) {
+    if (is_spc (source[pos])) ++pos;
+    else if (source[pos] == ';') while (pos < N (source) && source[pos] != '\n') ++pos;
+    else budget.fail (pos, "Trailing Scheme document data");
+  }
+  // Validate the tree grammar before the historical converter, which otherwise
+  // turns malformed lists into printable errput nodes.
+  std::function<void (const tree&, bool)> validate= [&] (const tree& node, bool tag) {
+    if (is_atomic (node)) {
+      if (!tag && !is_quoted (node->label)) budget.fail (0, "Unquoted native tree text");
+      if (tag && (is_quoted (node->label) || node->label == "")) budget.fail (0, "Invalid native tree tag");
+      return;
+    }
+    if (N (node) == 0 || !is_atomic (node[0])) budget.fail (0, "Missing native tree tag");
+    validate (node[0], true);
+    for (int i= 1; i < N (node); ++i) validate (node[i], false);
+  };
+  validate (parsed, false);
+  auto result= scheme_tree_to_tree (parsed);
+  if (!is_func (result, DOCUMENT) || N (result) == 0)
+    budget.fail (0, "Invalid legacy Scheme document envelope");
+  const auto& header= result[0];
+  if (!(is_compound (header, "TeXmacs", 1) && is_atomic (header[0])) &&
+      !((is_func (header, APPLY, 2) || is_func (header, EXPAND, 2)) &&
+        header[0] == "TeXmacs" && is_atomic (header[1])))
+    budget.fail (0, "Invalid legacy Scheme version header");
+  return result;
+}
+} // namespace athena::document
 
 scheme_tree
 string_to_scheme_tree (string s) {

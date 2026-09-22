@@ -13,6 +13,8 @@
 #include "path.hpp"
 #include "vars.hpp"
 #include "drd_std.hpp"
+#include "Xml/legacy_document_reader.hpp"
+#include <limits>
 
 /******************************************************************************
 * Conversion of TeXmacs strings of the present format to TeXmacs trees
@@ -29,6 +31,9 @@ struct tm_reader {
   bool    malformed;          // malformed input was encountered
   int     error_pos;          // byte position of the first parse error
   string  error_message;      // description of the first parse error
+  const athena::document::codec_limits* limits= nullptr;
+  std::size_t depth= 0, steps= 0;
+  string closing_name;
 
   tm_reader (string buf2):
     codes (standard_codes_for_thread ()),
@@ -50,6 +55,13 @@ struct tm_reader {
 
 void
 tm_reader::fail (int at, string message) {
+  if (limits) {
+    int line= 1, column= 1;
+    for (int i= 0; i < at && i < N (buf); ++i)
+      if (buf[i] == '\n') { ++line; column= 1; } else ++column;
+    throw athena::document::codec_exception (athena::document::codec_error::invalid_structure,
+      std::string (as_charp (message), N (message)), line, column, at);
+  }
   if (malformed) return;
   malformed= true;
   error_pos= at;
@@ -102,6 +114,9 @@ tm_reader::read_char () {
 
 string
 tm_reader::read_next () {
+  if (limits && steps++ / 8 >= limits->nodes)
+    throw athena::document::codec_exception (athena::document::codec_error::resource_limit,
+                                           "Legacy markup exceeds parse budget");
   int old_pos= pos;
   string c= read_char ();
   if (c == "") return c;
@@ -207,6 +222,9 @@ tm_reader::read_apply (string name, bool skip_flag) {
     bool sub_flag= (skip_flag) && ((last == "") || (last[N(last)-1] != '|'));
     if (sub_flag) (void) skip_blank ();
     t << read (sub_flag);
+    if (limits && ((last == "/>") || (last == "/|") || (last == "|>") || (last == "||")) &&
+        closing_name != name)
+      fail (pos, "Mismatched legacy block delimiter");
     if ((last == "/>") || (last == "/|")) closed= true;
     if (skip_flag && !closed && last == ">") {
       if (!block_header_ended)
@@ -255,6 +273,14 @@ flush (tree& D, tree& C, string& S, bool& spc_flag, bool& ret_flag) {
 
 tree
 tm_reader::read (bool skip_flag) {
+  if (limits && depth > limits->depth)
+    throw athena::document::codec_exception (athena::document::codec_error::resource_limit,
+                                           "Legacy markup exceeds nesting budget");
+  struct nesting_guard {
+    std::size_t& value;
+    explicit nesting_guard (std::size_t& v): value (v) { ++value; }
+    ~nesting_guard () { --value; }
+  } guard (depth);
   tree   D (DOCUMENT);
   tree   C (CONCAT);
   string S ("");
@@ -277,28 +303,34 @@ tm_reader::read (bool skip_flag) {
         C << read_apply (name, true);
       }
       else if (last[N(last)-1] == '|') {
-        (void) read_function_name ();
+        closing_name= read_function_name ();
         if (last == ">") last= "|>";
         else last= "||";
         break;
       }
       else if (last[N(last)-1] == '/') {
-        (void) read_function_name ();
+        closing_name= read_function_name ();
         if (last == ">") last= "/>";
         else last= "/|";
         break;
       }
       else if (last[N(last)-1] == '#') {
         string r;
-        while ((buf[pos] != '>') && (pos+2<N(buf))) {
+        while (pos < N(buf) && buf[pos] != '>') {
+          if (pos + 1 >= N(buf) || !is_hex_digit (buf[pos]) || !is_hex_digit (buf[pos+1])) {
+            fail (pos, "Invalid binary payload hex pair");
+            return tree (_ERROR, error_message);
+          }
           r << ((char) from_hexadecimal (buf (pos, pos+2)));
           pos += 2;
+        }
+        if (pos == N(buf)) {
+          fail (pos, "Unterminated binary payload");
+          return tree (_ERROR, error_message);
         }
         if (buf[pos] == '>') pos++;
         flush (D, C, S, spc_flag, ret_flag);
         C << tree (RAW_DATA, r);
-        last= read_next ();
-        break;
       }
       else {
         flush (D, C, S, spc_flag, ret_flag);
@@ -306,6 +338,7 @@ tm_reader::read (bool skip_flag) {
         string sep = ">";
         if (name == ">") name= "";
         else sep = read_next ();
+        if (limits && sep != "|" && sep != ">") fail (pos, "Invalid legacy tag delimiter");
         // cout << "==> " << name << "\n";
         // cout << "~~> " << sep << "\n";
         if (sep == '|') {
@@ -351,6 +384,7 @@ tm_reader::read (bool skip_flag) {
 static tree
 finish_read (tm_reader& tmr) {
   tree result= tmr.read (true);
+  if (tmr.limits && tmr.last != "") tmr.fail (tmr.pos, "Unexpected closing delimiter at document root");
   if (!tmr.malformed) {
     int parsed_end= tmr.pos;
     tmr.skip_blank ();
@@ -381,6 +415,25 @@ texmacs_to_tree (string s) {
   tm_reader tmr (s);
   return finish_read (tmr);
 }
+
+namespace athena::document {
+tree read_legacy_markup (std::string_view input, codec_limits limits) {
+  init_std_drd ();
+  if (input.size () > limits.input_bytes || input.size () > std::numeric_limits<int>::max ())
+    throw codec_exception (codec_error::resource_limit, "Legacy markup input exceeds size budget");
+  string source (input.data (), static_cast<int> (input.size ()));
+  if (!starts (source, "<TeXmacs|"))
+    throw codec_exception (codec_error::invalid_structure, "Missing legacy markup document signature");
+  tm_reader reader (source);
+  reader.limits= &limits;
+  auto result= finish_read (reader);
+  if (is_compound (result, "TeXmacs", 1)) result= tree (DOCUMENT, result);
+  if (!is_func (result, DOCUMENT) || N (result) == 0 ||
+      !is_compound (result[0], "TeXmacs", 1) || !is_atomic (result[0][0]))
+    throw codec_exception (codec_error::invalid_structure, "Invalid legacy document envelope");
+  return result;
+}
+} // namespace athena::document
 
 /******************************************************************************
 * Conversion of TeXmacs strings to TeXmacs trees

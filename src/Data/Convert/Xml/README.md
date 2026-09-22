@@ -82,6 +82,33 @@ QXmlStreamReader/Writer was selected over pugixml (MIT) because Qt Core is
 already required and a second DOM is unnecessary. Unicode segmentation uses
 ICU UText and BreakIterator, not locally approximated Unicode rules.
 
+## Legacy Import
+
+`import_legacy_document_bytes` recognizes the legacy markup/S-expression
+signatures and uses bounded, read-only entry points into the existing readers.
+It rejects malformed delimiters, incomplete strings/lists, invalid hex payloads,
+trailing data and depth/parse-budget violations. No Guile evaluation is involved.
+
+`legacy_cork_table` loads only the canonical byte and named-character tables,
+not the lossy `*-oneway`, fallback or math-export substitutions. It does not
+guess whether old bytes happen to be valid UTF-8. Unicode character escapes
+become scalars; unrepresentable glyphs become `named-symbol` nodes with
+`texmacs:` or `cork:` identities. There is no normalization or macro expansion.
+
+Import distinguishes presentation content, identity strings, scalar fields,
+code and raw bytes. Standard DRD child types provide the built-in slot policy;
+callers can supply explicit policies for application/custom macro fields.
+Unknown glyphs in a scalar/code field cause a diagnostic rather than a lossy
+substitution. RAW_DATA remains byte-for-byte binary. These policies still need
+integration with all application metadata and style-defined macro contracts
+before opening arbitrary migrated trees in the live editor.
+
+The result includes exact node relocation and text spans with preceding/following
+affinity at structural splits. ASCII runs map interior positions linearly;
+interior bytes of old character tokens are rejected. Removed metadata has no
+destination. Maps are bounded separately from text and node counts. This
+mapping is not yet connected to database migrations or live editing.
+
 ## Upgrade Storage Transaction
 
 `legacy_file::capture` pins a legacy file and retains its original bytes,
@@ -123,10 +150,9 @@ batch cancellation/resume and database recovery are still integration work.
 
 ## Remaining Integration Gates
 
-1. Legacy import must classify body text, identifiers, macro parameters, code
-   and bytes, preserve symbol identity, and emit exact position mappings. The
-   existing `Strict-Cork` converter includes one-way symbol substitutions and
-   is **not** a lossless migration implementation.
+1. Integrate the role-aware legacy importer with application metadata and
+   style-defined macro contracts, and register/render `named-symbol` identities.
+   The old `Strict-Cork` converter is **not** a substitute for this importer.
 2. All editor/parser/font/IME/Guile/Qt boundaries, bundled resources and undo
    paths must agree on the UTF-8 model before these trees become live.
 3. AUDMAP, SDK, delegates and caches need explicit model/protocol versions.
