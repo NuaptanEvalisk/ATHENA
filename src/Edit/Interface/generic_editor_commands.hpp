@@ -71,8 +71,6 @@ void generic_make_include (url target);
 void generic_make_experimental_build_warning ();
 void generic_kill_paragraph ();
 void generic_yank_paragraph ();
-void generic_make_graphics_over_selection ();
-void generic_make_graphics_over ();
 void generic_make_balloon ();
 void generic_spell_live_replace_current_word (string replacement);
 void generic_spell_live_insert_current_word ();

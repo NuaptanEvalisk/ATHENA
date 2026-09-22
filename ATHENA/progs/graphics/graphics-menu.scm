@@ -28,45 +28,6 @@
    (interactive graphics-set-height
                 (list "Height of the graphics" "string" "0.6par"))))
 
-(menu-bind graphics-auto-crop-menu
-  ("Crop" (graphics-toggle-auto-crop))
-  ---
-  (when (graphics-auto-crop?)
-    (group "Padding")
-    ("none" (graphics-set-crop-padding "0spc"))
-    ("1 spc" (graphics-set-crop-padding "1spc"))
-    ("1 em" (graphics-set-crop-padding "1em"))
-    ---
-    ("Other"
-     (interactive graphics-set-crop-padding
-                  (list "Padding around cropped graphics" "string" "1spc")))))
-
-(menu-bind graphics-alignment-menu
-  ("Top" (graphics-set-geo-valign "top"))
-  ("Center" (graphics-set-geo-valign "center"))
-  ("Bottom" (graphics-set-geo-valign "bottom")))
-
-(menu-bind graphics-overlap-menu
-  ("None" (graphics-set-overlap "0cm"))
-  ("1 cm" (graphics-set-overlap "1cm"))
-  ("2 cm" (graphics-set-overlap "2cm"))
-  ("Full" (graphics-set-overlap "1pag"))
-  ---
-  ("Other" (interactive graphics-set-overlap)))
-
-(menu-bind graphics-resize-menu
-  (group "Width")
-  ("Fast decrease" (graphics-decrease-hsize-fast))
-  ("Slow decrease" (graphics-decrease-hsize))
-  ("Slow increase" (graphics-increase-hsize))
-  ("Fast increase" (graphics-increase-hsize-fast))
-  ---
-  (group "Height")
-  ("Fast decrease" (graphics-decrease-vsize-fast))
-  ("Slow decrease" (graphics-decrease-vsize))
-  ("Slow increase" (graphics-increase-vsize))
-  ("Fast increase" (graphics-increase-vsize-fast)))
-
 (menu-bind graphics-frame-unit-menu
   ("1 cm" (graphics-set-unit "1cm"))
   ("1 inch" (graphics-set-unit "1in"))
@@ -120,14 +81,7 @@
 
 (menu-bind graphics-global-menu
   (group "Graphics")
-  (if (not (inside-graphical-over-under?))
-      (-> "Size" (link graphics-extents-menu))
-      (-> "Resize" (link graphics-resize-menu))
-      (-> "Crop" (link graphics-auto-crop-menu))
-      (-> "Alignment" (link graphics-alignment-menu)))
-  (if (inside-graphical-over-under?)
-      ("Draw over" (graphics-toggle-over-under))
-      (-> "Overlap" (link graphics-overlap-menu)))
+  (-> "Size" (link graphics-extents-menu))
   ---
   (-> "Unit" (link graphics-frame-unit-menu))
   (-> "Origin" (link graphics-frame-origin-menu))
@@ -597,9 +551,7 @@
 
 (menu-bind graphics-focus-menu
   (-> (eval (upcase-first (gr-mode->string (graphics-mode))))
-      (link graphics-mode-menu))
-  (if (inside-graphical-over-under?)
-      ("Exit graphics" (graphics-exit-right)))
+       (link graphics-mode-menu))
   (assuming (nnot (tree-innermost overlays-context?))
     (link graphics-focus-overlays-menu))
   (assuming (nnull? (graphics-mode-attributes (graphics-mode)))
@@ -643,25 +595,6 @@
       (-> "Repulsive padding" (link graphics-text-repulse-menu))))
   ---
   (-> "Snap" (link graphics-snap-menu)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Special menus for draw-over / draw-under
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-menu (focus-hidden-menu t)
-  (:require (tree-in? t '(draw-over draw-under)))
-  ---
-  ("Enter graphics" (graphics-enter))
-  (assuming (hidden-child? t 2)
-    (dynamic (string-input-menu t 2))))
-
-(tm-menu (focus-hidden-icons t)
-  (:require (tree-in? t '(draw-over draw-under)))
-  (glue #f #f 10 0)
-  ((balloon (icon "tm_enter_image") "Enter graphics mode")
-   (graphics-enter))
-  (assuming (hidden-child? t 2)
-    (dynamic (string-input-icon t 2))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Special menus for text-at and its variants

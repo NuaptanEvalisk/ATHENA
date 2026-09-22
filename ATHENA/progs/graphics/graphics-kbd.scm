@@ -144,11 +144,3 @@
   (:require (graphical-text-context? t))
   (graphical-set-attribute t (graphics-valign-var t)
                            (if down? "top" "bottom")))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Draw over / draw under
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(kbd-map
-  (:mode inside-graphical-over-under?)
-  ("C-*" (graphics-toggle-over-under)))

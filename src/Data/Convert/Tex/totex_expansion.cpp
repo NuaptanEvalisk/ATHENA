@@ -108,7 +108,7 @@ static const char* style_names[]= {
   "shell-code", "scilab-code", "verbatim-code", "cpp", "scm", "shell", "scilab", "frame",
   "colored-frame", "fcolorbox", "rotate", "condensed", "translate", "localize", "render-key",
   "key", "key*", "minipage", "latex-picture-fallback", "latex_preview", "picture-mixed",
-  "source-mixed", "listing", "draw-over", "draw-under", "the-index", "glossary",
+  "source-mixed", "listing", "the-index", "glossary",
   "glossary-explain", "glossary-2", "the-glossary", "table-of-contents", "small-figure",
   "big-figure", "small-table", "big-table", "item", "item*", "render-proof",
   "render-proof-alternative", "render-proof-standard", "nbsp", "nbhyph", "hrule", "frac*", "hlink",

@@ -6,10 +6,6 @@
   <tmdoc-title|Starting a new picture>
 
   You may start drawing a new picture using <menu|Insert|Image|Draw image>.
-  In some cases, you may also want to draw something on top of an existing
-  image (or other kinds of content). This can be done by selecting the image
-  or content on top of which you want to draw, and then click on
-  <menu|Insert|Image|Draw over selection>.
 
   By default, the inserted image spans over the whole paragraph. You may
   adjust its size using the keyboard shortcuts

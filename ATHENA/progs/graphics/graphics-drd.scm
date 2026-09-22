@@ -20,9 +20,6 @@
 ;; Properties of the graphical tags
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define-group variant-tag
-  (graphical-over-under-tag))
-
 (define-group graphical-atomic-tag
   point)
 
@@ -62,9 +59,6 @@
 (define-group graphical-tag
   (graphical-non-group-tag) (graphical-group-tag))
 
-(define-group graphical-over-under-tag
-  draw-over draw-under)
-
 (tm-define (graphical-context? t)
   (tm-in? t (graphical-tag-list)))
 
@@ -83,17 +77,11 @@
 (tm-define (graphical-text-arg-context? t)
   (and (graphical-text-context? t) (< (tm-arity t) 2)))
 
-(tm-define (graphical-over-under-context? t)
-  (tm-in? t (graphical-over-under-tag-list)))
-
 (tm-define (inside-graphical-text?)
   (and-with t (tree-innermost graphical-text-context?)
     (and-with u (tree-ref t :down)
       (and-with i (tree-index u)
         (tree-accessible-child? t i)))))
-
-(tm-define (inside-graphical-over-under?)
-  (tree-innermost graphical-over-under-context?))
 
 (tm-define gr-tags-user      (list))
 (tm-define gr-tags-all       (graphical-tag-list))

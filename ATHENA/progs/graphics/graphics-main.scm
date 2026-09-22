@@ -23,65 +23,6 @@
 ;;   below, this code is clean.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Global properties of graphics
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define (inside-draw-over?)
-  (inside? 'draw-over))
-
-(tm-define (graphics-toggle-over-under)
-  (:check-mark "*" inside-draw-over?)
-  (with-innermost t graphical-over-under-context?
-    (cond ((tree-is? t 'draw-over)
-           (tree-assign-node! t 'draw-under)
-           (tree-go-to t 0 :end))
-          ((tree-is? t 'draw-under)
-           (tree-assign-node! t 'draw-over)
-           (if (tree-is? (tree-ref t 1) 'with)
-               (tree-go-to t 1 (- (tree-arity (tree-ref t 1)) 1) :end)
-               (tree-go-to t 1 :end))))))
-
-(tm-define (graphics-enter-into t)
-  (set! t (tree-ref t 1))
-  (while (tree-is? t 'with)
-    (set! t (tm-ref t :last)))
-  (cond ((tm-equal? t '(graphics))
-         (tree-go-to t :end))
-        ((tree-is? t 'graphics)
-         (tree-go-to t :last :end))))
-
-(tm-define (graphics-enter)
-  (with t (cursor-tree)
-    (when (tree-is? t 'draw-under)
-      (tree-assign-node! t 'draw-over))
-    (if (tree-is? t 'draw-over)
-        (graphics-enter-into t)
-        (with-innermost u 'draw-under
-          (tree-assign-node! u 'draw-over)
-          (graphics-enter-into u)))))
-
-(tm-define (graphics-exit-right)
-  (cond ((inside-graphical-over-under?)
-         (with-innermost t graphical-over-under-context?
-           (tree-go-to t :end)))
-        ((inside? 'graphics)
-         (with-innermost t 'graphics
-           (while (and (tree-up t) (tree-func? (tree-up t) 'with))
-             (set! t (tree-up t)))
-           (tree-go-to t :end)))
-        ((tree-is? (cursor-tree) 'graphics)
-         (with t (cursor-tree)
-           (while (and (tree-up t) (tree-func? (tree-up t) 'with))
-             (set! t (tree-up t)))
-           (tree-go-to t :end)))))
-
-(tm-define (graphics-set-overlap w)
-  (:argument w "Width of overlapping border")
-  (when (inside-graphical-over-under?)
-    (with-innermost t graphical-over-under-context?
-      (tree-set t 2 w))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Commutative diagrams
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

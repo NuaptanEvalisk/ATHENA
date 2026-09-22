@@ -639,8 +639,6 @@
   <binding name="embed-all-images" native="generic_embed_all_images" returns="void" />
   <binding name="kill-paragraph" native="generic_kill_paragraph" returns="void" />
   <binding name="yank-paragraph" native="generic_yank_paragraph" returns="void" />
-  <binding name="make-graphics-over-selection" native="generic_make_graphics_over_selection" returns="void" />
-  <binding name="make-graphics-over" native="generic_make_graphics_over" returns="void" />
   <binding name="make-balloon" native="generic_make_balloon" returns="void" />
   <binding name="spell-live-replace-current-word" native="generic_spell_live_replace_current_word" returns="void">
     <arg type="string" />

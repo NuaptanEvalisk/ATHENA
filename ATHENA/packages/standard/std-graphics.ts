@@ -22,26 +22,6 @@
 
   <\active*>
     <\src-comment>
-      Drawing over background.
-    </src-comment>
-  </active*>
-
-  <assign|gr-geom|<macro|dims|cm-1|<style-with|src-compact|none|<tuple|geometry|<merge|<times|<look-up|<arg|dims>|0>|<arg|cm-1>>|cm>|<merge|<times|<look-up|<arg|dims>|1>|<arg|cm-1>>|cm>>>>>
-
-  <assign|gr-tbl|<macro|x|<block|<tformat|<cwith|1|1|1|1|cell-lsep|0pt>|<cwith|1|1|1|1|cell-rsep|0pt>|<cwith|1|1|1|1|cell-bsep|0pt>|<cwith|1|1|1|1|cell-tsep|0pt>|<cwith|1|1|1|1|cell-lborder|0pt>|<cwith|1|1|1|1|cell-rborder|0pt>|<cwith|1|1|1|1|cell-bborder|0pt>|<cwith|1|1|1|1|cell-tborder|0pt>|<table|<row|<cell|<arg|x>>>>>>>>
-
-  <assign|draw-over|<macro|bg|fg|pad|<with|dims|<box-info|<gr-tbl|<arg|bg>>|wh>|cm-1|<over|<look-up|<cm-length>|0>>|<with|ww|<look-up|<value|dims>|0>|hh|<look-up|<value|dims>|1>|pd|<over|<arg|pad>|0.5tmpt>|<with|gr-geometry|<gr-geom|<tuple|<plus|<value|ww>|<value|pd>>|<plus|<value|hh>|<value|pd>>>|<value|cm-1>>|gr-frame|<tuple|scale|<merge|<value|magnification>|cm>|<tuple|0.5gw|0.5gh>>|<style-with|src-compact|none|<superpose|<freeze|<gr-tbl|<if|<equal|<quote-arg|bg>|>|<flag|draw
-  over|blue>><arg|bg>>>|<resize|<move|<gr-tbl|<arg|fg>>|<minus|<arg|pad>>|>|0|<plus|0.5ex|<times|<value|hh>|-0.5tmpt>>|<times|<value|ww>|1tmpt>|<plus|0.5ex|<times|<value|hh>|0.5tmpt>>>>>>>>>>
-
-  <assign|draw-under|<macro|bg|fg|pad|<with|dims|<box-info|<gr-tbl|<arg|bg>>|wh>|cm-1|<over|<look-up|<cm-length>|0>>|<with|ww|<look-up|<value|dims>|0>|hh|<look-up|<value|dims>|1>|pd|<over|<arg|pad>|0.5tmpt>|<with|gr-geometry|<gr-geom|<tuple|<plus|<value|ww>|<value|pd>>|<plus|<value|hh>|<value|pd>>>|<value|cm-1>>|gr-frame|<tuple|scale|<merge|<value|magnification>|cm>|<tuple|0.5gw|0.5gh>>|<style-with|src-compact|none|<superpose|<gr-tbl|<if|<equal|<quote-arg|bg>|>|<flag|draw
-  over|blue>><arg|bg>>|<freeze|<resize|<move|<gr-tbl|<arg|fg>>|<minus|<arg|pad>>|>|0|<plus|0.5ex|<times|<value|hh>|-0.5tmpt>>|<times|<value|ww>|1tmpt>|<plus|0.5ex|<times|<value|hh>|0.5tmpt>>>>>>>>>>>
-
-  <drd-props|draw-over|arity|3|length|2>
-
-  <drd-props|draw-under|arity|3|length|2>
-
-  <\active*>
-    <\src-comment>
       Paragraph boxes for inside text-at boxes
     </src-comment>
   </active*>

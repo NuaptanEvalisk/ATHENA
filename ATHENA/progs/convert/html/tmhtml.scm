@@ -1403,12 +1403,6 @@
 (define (tmhtml-graphics l)
   (tmhtml-png (cons 'graphics l)))
 
-(define (tmhtml-draw-over l)
-  (tmhtml-png (cons 'draw-over l)))
-
-(define (tmhtml-draw-under l)
-  (tmhtml-png (cons 'draw-under l)))
-
 (define (tmhtml-image-suffix name)
   (cond ((string? name) (url-suffix name))
         ((and (func? name 'tuple 2) (string? (caddr name)))
@@ -2292,8 +2286,6 @@
   ((:or render-big-table render-small-table)
    ,(lambda (l) (tmhtml-render-figure "table" l)))
   (wide-float ,tmhtml-float)
-  (draw-over ,tmhtml-draw-over)
-  (draw-under ,tmhtml-draw-under)
   ;; tags for customized html generation
   (html-tag ,tmhtml-html-tag)
   (html-attr ,tmhtml-html-attr)

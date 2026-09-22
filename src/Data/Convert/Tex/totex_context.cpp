@@ -2523,8 +2523,7 @@ core_dispatch (string key, scheme_tree args) {
       return latex_export_render_image (original);
     return with_convert_native (args);
   }
-  if (key == "tree" || key == "graphics" ||
-      key == "draw-over" || key == "draw-under")
+  if (key == "tree" || key == "graphics")
     return latex_export_render_image (original);
   if (key == "image") return latex_export_image (args);
   if (key == "commutative-diagram") return latex_export_commutative_diagram (args);

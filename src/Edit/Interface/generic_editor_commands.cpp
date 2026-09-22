@@ -940,28 +940,6 @@ void generic_yank_paragraph () {
   call ("clipboard-copy", object ("primary"));
 }
 
-void generic_make_graphics_over_selection () {
-  editor ed= get_current_editor ();
-  if (!ed->selection_active_any ()) return;
-  tree selected= ed->selection_get ();
-  call ("clipboard-cut", object ("graphics background"));
-  ed->var_insert_tree (compound ("draw-over", selected, compound ("graphics"), "0cm"),
-                       path (1, 1));
-}
-
-void generic_make_graphics_over () {
-  editor ed= get_current_editor ();
-  tree selected ("");
-  if (ed->selection_active_any ()) {
-    selected= ed->selection_get ();
-    call ("clipboard-cut", object ("graphics background"));
-  }
-  tree graphics= tree (WITH, "gr-mode", tree (TUPLE, "hand-edit", "penscript"),
-                       compound ("graphics"));
-  ed->var_insert_tree (compound ("draw-over", selected, graphics, "2cm"),
-                       path (1, 2, 1));
-}
-
 void generic_make_balloon () {
   editor ed= get_current_editor ();
   bool wrap= ed->selection_active_small ();

@@ -99,9 +99,6 @@
 
   ---
   ("Draw image" (make-graphics))
-  (when (selection-active-small?)
-    ("Draw over selection" (make-graphics-over-selection)))
-  ("Ink here" (make-graphics-over))
   )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -43,7 +43,7 @@
 	     hidden-title doc-title-block
              ornament ornamented
 	     equation* equation-lab equations-base
-             wide-float draw-over draw-under
+             wide-float
              html-tag html-attr
 	     html-div-style html-div-class html-style html-class
              html-javascript html-javascript-src html-video

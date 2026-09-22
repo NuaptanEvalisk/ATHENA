@@ -1189,21 +1189,6 @@ edit_graphics_rep::apply_native_graphics_canvas_action (
   if (action == native_graphics_canvas_action::change_extents) {
     path p= path_up (tp);
     while (!is_nil (p)) {
-      if (has_subtree (et, p)) {
-        tree current= subtree (et, p);
-        if (is_compound (current, "draw-over") && N(current) >= 3) {
-          SI dw= env->as_length (first);
-          SI dh= env->as_length (second);
-          SI delta= dw != 0 ? dw : dh;
-          SI padding= env->as_length (current[2]);
-          SI next= max ((SI) 0, padding + delta);
-          start_editing ();
-          assign (p * 2, tree (native_graphics_tmpt (next)));
-          end_editing ();
-          finish ();
-          return;
-        }
-      }
       if (p == rp) break;
       p= path_up (p);
     }

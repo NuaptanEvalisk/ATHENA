@@ -37,16 +37,6 @@
 (undo 0)
 (check (equal? (body) '(document "abcdef" "next")) "kill is undoable")
 
-(define (legacy-graphics-selection)
-  (when (selection-active-any?)
-    (let ((selected (selection-tree)))
-      (clipboard-cut "graphics background")
-      (insert-go-to `(draw-over ,selected (graphics) "0cm") '(1 1)))))
-(define (legacy-graphics)
-  (let ((graphics '(with "gr-mode" (tuple "hand-edit" "penscript") (graphics)))
-        (selected (if (selection-active-any?) (selection-tree) "")))
-    (when (selection-active-any?) (clipboard-cut "graphics background"))
-    (insert-go-to `(draw-over ,selected ,graphics "2cm") '(1 2 1))))
 (define (legacy-balloon)
   (wrap-selection-small
     (insert-go-to '(inactive (hover-balloon "" "" "left" "Bottom")) '(0 0 0))))
@@ -64,8 +54,6 @@
     (check (equal? (cursor-path) expected-cursor) "native edit leaves the same cursor")))
 (for-each
   (lambda (selected?)
-    (compare-edit legacy-graphics-selection make-graphics-over-selection selected?)
-    (compare-edit legacy-graphics make-graphics-over selected?)
     (compare-edit legacy-balloon make-balloon selected?))
   '(#f #t))
 

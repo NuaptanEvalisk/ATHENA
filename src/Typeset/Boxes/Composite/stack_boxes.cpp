@@ -350,7 +350,6 @@ gr_selections
 stack_box_rep::graphical_select (SI x, SI y, SI dist) {
   gr_selections res;
   if (graphical_distance (x, y) <= 5000 * PIXEL) {
-    // NOTE : increased threshold needed for draw-over
     // FIXME: we might want to use a dynamic threshold instead
     int i, n= subnr();
     for (i=n-1; i>=0; i--)
