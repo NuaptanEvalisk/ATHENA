@@ -9,7 +9,8 @@ TR[matrix currentmatrix{dup dup round sub abs 0.00001 lt{round}if}
 forall round exch round exch]setmatrix}N /@landscape{/isls true N}B
 /@manualfeed{statusdict /manualfeed true put}B /@copies{/#copies X}B
 /FMat[1 0 0 -1 0 0]N /FBB[0 0 0 0]N /nn 0 N /IE 0 N /ctr 0 N /df-tail{
-/nn 8 dict N nn begin /FontType 3 N /FontMatrix fntrx N /FontBBox FBB N
+/nn 8 dict N nn begin /FontType 3 N /FontMatrix fntrx N
+/FontBBox FBB dup length array copy N
 string /base X array /BitMaps X /BuildChar{CharBuilder}N /Encoding IE N
 end dup{/foo setfont}2 array copy cvx N load 0 nn put /ctr 0 N[}B /df{
 /sf 1 N /fntrx FMat N df-tail}B /dfs{div /sf X /fntrx[sf 0 0 sf neg 0 0]
@@ -22,9 +23,19 @@ dup type /stringtype ne{ctr get /ctr ctr 1 add N}if}B /id 0 N /rw 0 N
 /base get 2 index get S /BitMaps get S get /ch-data X pop /ctr 0 N ch-dx
 0 ch-xoff ch-yoff ch-height sub ch-xoff ch-width add ch-yoff
 setcachedevice ch-width ch-height true[1 0 0 -1 -.1 ch-xoff sub ch-yoff
-.1 sub]{ch-image}imagemask restore}B /D{/cc X dup type /stringtype ne{]}
+.1 sub]{ch-image}imagemask restore}B
+% Each bitmap font must contain its glyph bounds, including negative bearings.
+/bbox-min{2 copy gt{exch}if pop}B /bbox-max{2 copy lt{exch}if pop}B
+/update-bbox{
+/ch-data nn /BitMaps get ctr get N /fb nn /FontBBox get N
+nn /FontBBox [fb 0 get ch-xoff bbox-min
+fb 1 get ch-yoff ch-height sub bbox-min
+fb 2 get ch-xoff ch-width add bbox-max
+fb 3 get ch-yoff bbox-max] put}B
+/D{/cc X dup type /stringtype ne{]}
 if nn /base get cc ctr put nn /BitMaps get S ctr S sf 1 ne{dup dup
-length 1 sub dup 2 index S get sf div put}if put /ctr ctr 1 add N}B /I{
+length 1 sub dup 2 index S get sf div put}if put update-bbox
+/ctr ctr 1 add N}B /I{
 cc 1 add D}B /bop{userdict /bop-hook known{bop-hook}if /SI save N @rigin
 0 0 moveto /V matrix currentmatrix dup 1 get dup mul exch 0 get dup mul
 add .99 lt{/QV}{/RV}ifelse load def pop pop}N /eop{SI restore userdict

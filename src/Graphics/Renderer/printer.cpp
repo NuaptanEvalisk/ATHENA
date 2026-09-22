@@ -20,6 +20,10 @@
 #include "link.hpp"
 #include "frame.hpp"
 #include "converter.hpp"
+#include "pdf_text_string.hpp"
+#include "shaped_text.hpp"
+#include <limits>
+#include <stdexcept>
 
 #ifdef PDF_RENDERER
 #include "Pdf/pdf_hummus_renderer.hpp"
@@ -550,6 +554,23 @@ printer_rep::draw (int ch, font_glyphs fn, SI x, SI y) {
   print ("(" * prepare_text (string ((char) c)) * ")p");
   tex_flag= true;
   xpos += gl->lwidth;
+}
+
+void
+printer_rep::draw_utf8 (const athena::text::shaped_text& run,
+                        std::string_view source, SI x, SI y) {
+  if (opacity == 0 || run.glyphs.empty ()) return;
+  const std::string text= athena::text::pdf_text_string (source);
+  if (text.size () > static_cast<std::size_t> (
+        std::numeric_limits<int>::max () - 64))
+    throw std::length_error ("PostScript text string is too large");
+  print ("[ /Span << /ActualText " * string (text.data (), text.size ()) *
+         " >> /BDC pdfmark");
+  try {
+    renderer_rep::draw_utf8 (run, source, x, y);
+    print ("[ /EMC pdfmark");
+  }
+  catch (...) { print ("[ /EMC pdfmark"); throw; }
 }
 
 void

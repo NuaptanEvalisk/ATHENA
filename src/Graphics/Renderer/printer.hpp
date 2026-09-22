@@ -99,6 +99,8 @@ public:
   void   set_background (brush b);
   void   clear_device (SI, SI, SI, SI) {}
   void   draw (int char_code, font_glyphs fn, SI x, SI y);
+  void   draw_utf8 (const athena::text::shaped_text& run,
+                   std::string_view source, SI x, SI y) override;
   void   line (SI x1, SI y1, SI x2, SI y2);
   void   lines (array<SI> x, array<SI> y);
   void   clear (SI x1, SI y1, SI x2, SI y2);

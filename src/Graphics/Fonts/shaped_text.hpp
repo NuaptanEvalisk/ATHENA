@@ -48,7 +48,9 @@ struct shaped_text {
   bool has_ink= false;
   bool missing_glyphs= false;
 
-  void draw_fixed (renderer ren, SI x, SI y) const;
+  // Supply the same immutable input used for shaping (including context).
+  // Borrow it during drawing instead of copying each leaf into every run.
+  void draw_fixed (renderer ren, std::string_view source, SI x, SI y) const;
 };
 
 // Shape an already itemized, single-font/script/direction run. Surrounding text

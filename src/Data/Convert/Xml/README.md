@@ -40,8 +40,22 @@ unchanged. Legacy readers still recognize existing file headers.
   the caret/deletion authority. Runs belong to their font domain, and renderer
   recording must consume them there. This is a single-font, homogeneous-script
   shaping primitive; paragraph bidi, smart-font fallback, text boxes and math
-  symbol dispatch and PDF text semantics still require integration before
-  runtime activation.
+  symbol dispatch still require integration before runtime activation.
+- Shaped drawing borrows the original UTF-8 input, passing the selected range
+  separately from glyph ids to the renderer. The native PDF renderer emits
+  Unicode cluster mappings and per-run ActualText (PDF 1.5), preserving original
+  ligature spelling and combining sequences even when they share a font glyph.
+  This also covers bitmap Type 3 fallback; no glyph id is cast to Unicode. The
+  PDF 1.4 output is promoted through the catalog version when it uses this
+  feature; version state belongs to each renderer. The legacy drawing entry
+  remains separate until the runtime switch. PostScript carries the same
+  source through ActualText pdfmark spans for PDF conversion. Both paths use
+  Qt's UTF-16BE encoder for PDF text strings, never the Cork converter.
+  Editor/PDF end-to-end integration remains migration work.
+  `shaped_pdf_test` checks native and Type 3 CMaps, exact Poppler extraction,
+  effective PDF version, qpdf structure and rendered pixels for both native
+  PDF and Ghostscript-converted PostScript. The bitmap PostScript prologue
+  accumulates real glyph bounds instead of declaring a zero FontBBox.
 - The codec does not interpret `<...>` inside text. Structural symbols are a
   separate tree-model concern; the old incomplete-input `SYMBOL` is not a
   substitute for the planned `named-symbol` representation.

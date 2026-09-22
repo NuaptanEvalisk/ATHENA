@@ -25,6 +25,11 @@
 #include "frame.hpp"
 #include "Ghostscript/gs_utilities.hpp" // for gs_prefix
 #include "wencoding.hpp"
+#include "shaped_text.hpp"
+#include "pdf_text_string.hpp"
+#include <algorithm>
+#include <map>
+#include <stdexcept>
 
 #ifdef QT_CORE_LIB
 #include <QtCore>
@@ -52,12 +57,11 @@
 #include "PDFWriter/PDFTiledPattern.h"
 #include "PDFWriter/TiledPatternContentContext.h"
 #include "PDFWriter/PDFUsedFont.h"
+#include "PDFWriter/UnicodeString.h"
  
 /******************************************************************************
  * pdf_hummus_renderer
  ******************************************************************************/
-
-static EPDFVersion ePDFVersion= ePDFVersion14;
 
 typedef triple<int,int,int> rgb;
 typedef quartet<string,int,SI,SI> dest_data;
@@ -68,6 +72,8 @@ class t3font;
 class pdf_pattern;
 
 class pdf_hummus_renderer_rep : public renderer_rep {
+  EPDFVersion ePDFVersion= ePDFVersion14;
+  bool shaped_actual_text= false;
   
   static const int default_dpi= 72; // PDF initial coordinate system corresponds to 72 dpi
   bool		started;  // initialisation is OK
@@ -162,6 +168,8 @@ class pdf_hummus_renderer_rep : public renderer_rep {
   void compile_glyph (scheme_tree t);
   void begin_text ();
   void end_text ();
+  void draw_mapped (int ch, font_glyphs fn, SI x, SI y,
+                    const ULongVector* unicode);
   
   void begin_page();
   void end_page();
@@ -235,6 +243,8 @@ public:
     (void) x1; (void) y1; (void) x2; (void) y2; };
 
   void  draw (int char_code, font_glyphs fn, SI x, SI y);
+  void draw_utf8 (const athena::text::shaped_text& run,
+                  std::string_view source, SI x, SI y) override;
   void  line (SI x1, SI y1, SI x2, SI y2);
   void  lines (array<SI> x, array<SI> y);
   void  clear (SI x1, SI y1, SI x2, SI y2);
@@ -599,7 +609,7 @@ public:
 #ifndef PDFHUMMUS_NO_PNG
   bool flush_png (PDFWriter& pdfw, url image);
 #endif
-  void flush (PDFWriter& pdfw);
+  void flush (PDFWriter& pdfw, EPDFVersion output_version);
 
   bool flush_for_pattern (PDFWriter& pdfw);
 }; // class pdf_image_ref
@@ -936,6 +946,7 @@ public:
   ObjectIDType fontId;
   ObjectsContext &objectsContext;
   hashmap<int, int> used_chars;
+  std::map<int, ULongVector> source_characters;
   int firstchar;
   int lastchar;
   int b0,b1,b2,b3; // glyph bounding box
@@ -948,7 +959,10 @@ public:
     fontId = objectsContext.GetInDirectObjectsRegistry()
                .AllocateNewObjectID(); }  
   void update_bbox (int llx, int lly, int urx, int ury);
-  void add_glyph (int ch) {  used_chars (ch) = 1; }
+  void add_glyph (int ch, const ULongVector* unicode) {
+    used_chars (ch)= 1;
+    if (unicode != nullptr) source_characters.try_emplace (ch, *unicode);
+  }
   void write_char (glyph gl, ObjectIDType inCharID);
   void write_definition (int& registry_id);
 };
@@ -1127,25 +1141,31 @@ t3font_rep::write_definition (int& registry_id) {
   cmap << "1 begincodespacerange <" << as_hexadecimal (firstchar, 2)
        << "> <" << as_hexadecimal (lastchar, 2)
        << "> endcodespacerange\r\n";
-#if 1
-  cmap << "1 beginbfrange\r\n";
-  int ch= t3font_get_global_glyph (firstchar, font_chunk, fn->res_name);
-  cmap << "\t<" << as_hexadecimal (firstchar, 2) << "> "
-       << "<" << as_hexadecimal (lastchar, 2) << "> "
-       << "<" << as_hexadecimal (ch, 4) << ">\r\n";
-  cmap << "endbfrange\r\n";
-#else
-  // Left for testing purpose
-  cmap << as_string (N(glyph_list))
-       << " beginbfchar\r\n";
+  std::vector<string> entries;
   for (int i= 0; i < N(glyph_list); i++) {
     int lch= glyph_list[i];
     int ch= t3font_get_global_glyph (lch, font_chunk, fn->res_name);
-    cmap << "\t<" << as_hexadecimal (lch, 2)
-	 << "> <" << as_hexadecimal (ch, 4) << ">\r\n";
+    ULongList characters;
+    const auto source= source_characters.find (ch);
+    if (source != source_characters.end ())
+      characters.assign (source->second.begin (), source->second.end ());
+    else if (ch >= 0 && ch <= 0x10ffff && !(ch >= 0xd800 && ch <= 0xdfff))
+      characters.push_back (ch); // Independent legacy scalar drawing path.
+    else continue; // A physical glyph id is not a Unicode character.
+    const auto utf16= UnicodeString (characters).ToUTF16BE (false);
+    if (utf16.first != PDFHummus::eSuccess)
+      throw std::runtime_error ("Invalid Unicode in Type 3 font mapping");
+    const QByteArray hex= QByteArray::fromStdString (utf16.second).toHex ();
+    entries.push_back ("\t<" * as_hexadecimal (lch, 2) * "> <" *
+      string (hex.constData (), hex.size ()) * ">\r\n");
   }
-  cmap << "endbfchar\r\n";
-#endif
+  // PDF CMaps permit at most 100 entries in each bfchar block.
+  for (std::size_t begin= 0; begin < entries.size (); begin+= 100) {
+    const std::size_t end= std::min (entries.size (), begin + 100);
+    cmap << as_string (static_cast<int> (end - begin)) << " beginbfchar\r\n";
+    for (std::size_t i= begin; i < end; ++i) cmap << entries[i];
+    cmap << "endbfchar\r\n";
+  }
   cmap << "endcmap CMapName currentdict /CMap defineresource\r\n"
        << "pop end end\r\n";
   objectsContext.StartNewIndirectObject(tounicodeId);
@@ -1280,6 +1300,12 @@ font_size (string name) {
 
 void
 pdf_hummus_renderer_rep::draw (int ch, font_glyphs fn, SI x, SI y) {
+  draw_mapped (ch, fn, x, y, nullptr);
+}
+
+void
+pdf_hummus_renderer_rep::draw_mapped (
+  int ch, font_glyphs fn, SI x, SI y, const ULongVector* unicode) {
   //debug_convert << "draw \"" << (char)ch << "\" " << ch << " "
   //		<< fn->res_name << "\n";
   glyph gl= fn->get(ch);
@@ -1329,7 +1355,7 @@ pdf_hummus_renderer_rep::draw (int ch, font_glyphs fn, SI x, SI y) {
   //debug_convert << "char " << ch << "index " << gl->index
   //              << " " << x << " " << y << " font " << cfn  << LF;
   if (cfid == NULL)
-    t3font_list(cfn)->add_glyph (ch);
+    t3font_list(cfn)->add_glyph (ch, unicode);
   GlyphUnicodeMappingList glyphs;
   if (cfid != NULL &&
       EuropeanComputerModern_fonts->contains (cfn) &&
@@ -1343,6 +1369,17 @@ pdf_hummus_renderer_rep::draw (int ch, font_glyphs fn, SI x, SI y) {
     gl_index= t3font_get_local_glyph
       (ch, t3font_list(cfn)->font_chunk,
        t3font_list(cfn)->fn->res_name);
+  if (unicode != nullptr) {
+    if (cfid != nullptr) {
+      glyphs.emplace_back (gl_index, *unicode);
+      contentContext->Tj (glyphs);
+    }
+    else {
+      std::string encoded (1, static_cast<char> (gl_index));
+      contentContext->TjLow (encoded);
+    }
+    return;
+  }
   static const std::string ligature_ff= "/Span << /ActualText (ff) >> BDC ";
   static const std::string ligature_fi= "/Span << /ActualText (fi) >> BDC ";
   static const std::string ligature_fl= "/Span << /ActualText (fl) >> BDC ";
@@ -1374,6 +1411,61 @@ pdf_hummus_renderer_rep::draw (int ch, font_glyphs fn, SI x, SI y) {
       contentContext->TjLow (buf);
     }
   }    
+}
+
+/******************************************************************************
+* UTF-8 shaped text: physical glyphs and logical source are distinct channels
+******************************************************************************/
+
+void
+pdf_hummus_renderer_rep::draw_utf8 (
+  const athena::text::shaped_text& run, std::string_view source, SI x, SI y) {
+  if (run.glyphs.empty ()) return;
+
+  // Prepare mappings before writing content. Clusters can be RTL, many-to-one
+  // or one-to-many; never derive Unicode by interpreting a physical glyph id.
+  std::vector<std::size_t> starts;
+  starts.reserve (run.glyphs.size () + 1);
+  for (const auto& glyph: run.glyphs)
+    starts.push_back (glyph.byte - run.byte_begin);
+  starts.push_back (source.size ());
+  std::sort (starts.begin (), starts.end ());
+  starts.erase (std::unique (starts.begin (), starts.end ()), starts.end ());
+  std::vector<ULongVector> mappings;
+  mappings.reserve (starts.size () - 1);
+  for (std::size_t i= 0; i + 1 < starts.size (); ++i) {
+    UnicodeString unicode;
+    if (unicode.FromUTF8 (std::string (source.substr (
+          starts[i], starts[i + 1] - starts[i]))) != PDFHummus::eSuccess)
+      throw std::invalid_argument ("Invalid UTF-8 in PDF glyph cluster");
+    mappings.emplace_back (unicode.GetUnicodeList ().begin (),
+                           unicode.GetUnicodeList ().end ());
+  }
+
+  // A font's ToUnicode map is keyed by glyph identity: e-acute and decomposed
+  // e + acute may share that identity. ActualText retains this occurrence's
+  // original text, including ligatures and visual/logical reordering (PDF 1.5).
+  const std::string begin= "/Span << /ActualText " +
+    athena::text::pdf_text_string (source) + " >> BDC\n";
+  end_text ();
+  shaped_actual_text= true;
+  contentContext->WriteFreeCode (begin);
+  try {
+    for (const auto& glyph: run.glyphs) {
+      const auto at= std::lower_bound (starts.begin (), starts.end (),
+                                       glyph.byte - run.byte_begin);
+      const ULongVector& mapping= mappings[at - starts.begin ()];
+      draw_mapped (0x0c000000 + glyph.index, run.glyph_source,
+                    x + glyph.x, y + glyph.y, &mapping);
+    }
+    end_text ();
+    contentContext->WriteFreeCode ("EMC\n");
+  }
+  catch (...) {
+    end_text ();
+    contentContext->WriteFreeCode ("EMC\n");
+    throw;
+  }
 }
 
 /******************************************************************************
@@ -1526,7 +1618,7 @@ pdf_hummus_renderer_rep::polygon (array<SI> x, array<SI> y, bool convex) {
 }
 
 void
-pdf_image_rep::flush (PDFWriter& pdfw)
+pdf_image_rep::flush (PDFWriter& pdfw, EPDFVersion output_version)
 {
   url name= resolve (u);
   if (is_none (name))
@@ -1593,9 +1685,9 @@ pdf_image_rep::flush (PDFWriter& pdfw)
     PDFPageInput pageInput(copyingContext->GetSourceDocumentParser(),
 			   copyingContext->GetSourceDocumentParser()->ParsePage(0));
     EPDFVersion version= (EPDFVersion)(int)(copyingContext->GetSourceDocumentParser()->GetPDFLevel() * 10);
-    if (version > ePDFVersion)
+    if (version > output_version)
       convert_warning << "\"" << _temp << "\" has version " << ((double) version)/10 << "." << LF
-		      << "But current PDF version has been set to " << ((double) ePDFVersion)/10
+		      << "But current PDF version has been set to " << ((double) output_version)/10
 		      << " (see the preference menu)." << LF;
     double tMat[6] ={ 1,0, 0, 1, 0, 0} ;
     PDFRectangle cropBox (0,0,0,0);
@@ -1869,7 +1961,7 @@ pdf_hummus_renderer_rep::flush_images ()
   iterator<tree> it = iterate (image_pool);
   while (it->busy()) {
     pdf_image im = image_pool[it->next()];
-    im->flush(pdfWriter);
+    im->flush(pdfWriter, ePDFVersion);
   }
 }
 
@@ -2072,6 +2164,12 @@ pdf_hummus_renderer_rep::on_catalog_write (CatalogInformation* inCatalogInformat
   (void) inCatalogInformation;
   (void) inPDFWriterObjectContext;
   (void) inDocumentContext;
+  // The file header is already written. PDF 1.4+ permits the catalog to raise
+  // its effective version when a later content feature requires it.
+  if (shaped_actual_text && ePDFVersion < ePDFVersion15) {
+    inCatalogDictionaryContext->WriteKey ("Version");
+    inCatalogDictionaryContext->WriteNameValue ("1.5");
+  }
   if (destId) {
     inCatalogDictionaryContext->WriteKey("Dests");
     inCatalogDictionaryContext->WriteNewObjectReferenceValue(destId);

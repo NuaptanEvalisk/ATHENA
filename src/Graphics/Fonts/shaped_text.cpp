@@ -205,16 +205,26 @@ shaped_text shape_freetype_utf8 (
   return result;
 }
 
-void shaped_text::draw_fixed (renderer ren, SI x, SI y) const {
+void shaped_text::draw_fixed (renderer ren, std::string_view source,
+                              SI x, SI y) const {
   if (ren == nullptr) throw std::invalid_argument ("Missing text renderer");
+  if (byte_begin > byte_end || byte_end > source.size ())
+    throw std::invalid_argument ("Shaped text source range is invalid");
+  const auto text= source.substr (byte_begin, byte_end - byte_begin);
+  require_utf8 (text);
+  if (!glyphs.empty () && is_nil (glyph_source))
+    throw std::invalid_argument ("Missing shaped glyph source");
   // Preflight coordinates so a failure cannot leave a partially drawn run.
   for (const auto& glyph: glyphs) {
+    if (glyph.index > static_cast<unsigned int> (
+          std::numeric_limits<int>::max () - glyph_index_base) ||
+        glyph.byte < byte_begin || glyph.byte >= byte_end ||
+        !scalar_boundary (text, glyph.byte - byte_begin))
+      throw std::invalid_argument ("Invalid shaped glyph or UTF-8 cluster");
     translated (x, glyph.x);
     translated (y, glyph.y);
   }
-  for (const auto& glyph: glyphs)
-    ren->draw (glyph_index_base + glyph.index, glyph_source,
-      translated (x, glyph.x), translated (y, glyph.y));
+  ren->draw_utf8 (*this, text, x, y);
 }
 
 } // namespace athena::text

@@ -155,7 +155,8 @@ static void check_recording () {
   {
     font_domain owner;
     font_domain_binding binding (owner);
-    auto run= shape (pagella (12, 600), "<alpha> \xce\xb1 e\xcc\x81");
+    const std::string source= "<alpha> \xce\xb1 e\xcc\x81";
+    auto run= shape (pagella (12, 600), source);
     require (!run.missing_glyphs && run.has_ink, "Run cannot be rendered");
     invalidate_font_configuration ();
     owner.synchronize_configuration ();
@@ -175,10 +176,13 @@ static void check_recording () {
                            200*std_shrinkf*PIXEL, 0);
     renderer.set_pencil (pencil ((color) qRgb (0, 0, 0)));
     rejects<std::overflow_error> ([&] {
-      run.draw_fixed (&renderer, std::numeric_limits<SI>::max (), 0);
+      run.draw_fixed (&renderer, source, std::numeric_limits<SI>::max (), 0);
+    });
+    rejects<std::invalid_argument> ([&] {
+      run.draw_fixed (&renderer, "short", 0, 0);
     });
     // A retained run still uses its original resources after a font refresh.
-    run.draw_fixed (&renderer, 10*std_shrinkf*PIXEL, -45*std_shrinkf*PIXEL);
+    run.draw_fixed (&renderer, source, 10*std_shrinkf*PIXEL, -45*std_shrinkf*PIXEL);
     painter.end ();
   }
   require (recording->finish (), "Could not publish recording");

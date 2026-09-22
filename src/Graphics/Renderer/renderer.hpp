@@ -18,6 +18,9 @@
 #include "picture.hpp"
 #include "scalable.hpp"
 #include "spacial.hpp"
+#include <string_view>
+
+namespace athena::text { struct shaped_text; }
 
 #define PIXEL          256
 #define PICTURE_ZOOM   1.0
@@ -100,6 +103,10 @@ public:
   /* drawing */
   virtual void clear_device (SI x1, SI y1, SI x2, SI y2) = 0; // device background
   virtual void draw (int char_code, font_glyphs fn, SI x, SI y) = 0;
+  // Dispatch from shaped_text::draw_fixed after byte/coordinate validation.
+  // Source is the exact UTF-8 run, separate from its physical glyph numbers.
+  virtual void draw_utf8 (const athena::text::shaped_text& run,
+                          std::string_view source, SI x, SI y);
   virtual void line (SI x1, SI y1, SI x2, SI y2) = 0;
   virtual void lines (array<SI> x, array<SI> y) = 0;
   virtual void clear (SI x1, SI y1, SI x2, SI y2) = 0;

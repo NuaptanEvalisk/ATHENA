@@ -14,6 +14,7 @@
 #include "rectangles.hpp"
 #include "image_files.hpp"
 #include "frame.hpp"
+#include "shaped_text.hpp"
 
 #include <cmath>
 #include <limits>
@@ -77,6 +78,14 @@ renderer_rep::supports_backing_store () const {
 bool
 renderer_rep::is_printer () {
   return false;
+}
+
+void
+renderer_rep::draw_utf8 (const athena::text::shaped_text& run,
+                         std::string_view, SI x, SI y) {
+  for (const auto& glyph: run.glyphs)
+    draw (0x0c000000 + glyph.index, run.glyph_source,
+          x + glyph.x, y + glyph.y);
 }
 
 void
