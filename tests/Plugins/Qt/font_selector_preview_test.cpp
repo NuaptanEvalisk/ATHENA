@@ -55,6 +55,7 @@ private slots:
   void cleanupTestCase ();
   void init ();
   void usesPhysicalFamiliesForPagellaPreviews ();
+  void profileKeepsConcreteSelectedFamily ();
   void nativeDialogRunsOnGuiThreadFromWorker ();
 };
 
@@ -120,6 +121,16 @@ FontSelectorPreviewTest::usesPhysicalFamiliesForPagellaPreviews () {
   for (int i=0; i<bold->count (); ++i)
     QVERIFY2 (!bold->itemText (i).trimmed ().isEmpty (),
               "Subfont selector contains a blank family entry");
+}
+
+void
+FontSelectorPreviewTest::profileKeepsConcreteSelectedFamily () {
+  if (!QFontDatabase::families ().contains ("DejaVu Sans"))
+    QSKIP ("DejaVu Sans is not installed");
+  QTMFontSelector selector ("DejaVu Sans", "Book", "10", "DejaVu Sans",
+                            "Concrete family profile test", false);
+  QCOMPARE (selector.selectedFamily (), QString ("DejaVu Sans"));
+  QCOMPARE (selector.selectedFontProfile (), QString ("DejaVu Sans"));
 }
 
 void

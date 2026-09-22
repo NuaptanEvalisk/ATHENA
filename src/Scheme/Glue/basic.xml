@@ -296,21 +296,6 @@
   <binding name="font-database-substitutions" native="font_database_substitutions" returns="scheme_tree">
     <arg type="string" />
   </binding>
-  <binding name="font-family-&gt;master" native="family_to_master" returns="string">
-    <arg type="string" />
-  </binding>
-  <binding name="font-master-&gt;families" native="master_to_families" returns="array_string">
-    <arg type="string" />
-  </binding>
-  <binding name="font-master-features" native="master_features" returns="array_string">
-    <arg type="string" />
-  </binding>
-  <binding name="font-family-features" native="family_features" returns="array_string">
-    <arg type="string" />
-  </binding>
-  <binding name="font-family-strict-features" native="family_strict_features" returns="array_string">
-    <arg type="string" />
-  </binding>
   <binding name="font-style-features" native="style_features" returns="array_string">
     <arg type="string" />
   </binding>
@@ -323,14 +308,6 @@
     <arg type="string" />
     <arg type="string" />
     <arg type="string" />
-  </binding>
-  <binding name="font-master-guessed-distance" native="guessed_distance" returns="double">
-    <arg type="string" />
-    <arg type="string" />
-  </binding>
-  <binding name="font-family-guessed-features" native="guessed_features" returns="array_string">
-    <arg type="string" />
-    <arg type="bool" />
   </binding>
   <binding name="characteristic-distance" native="characteristic_distance" returns="double">
     <arg type="array_string" />

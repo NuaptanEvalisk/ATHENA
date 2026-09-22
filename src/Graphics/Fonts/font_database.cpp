@@ -26,9 +26,6 @@
 #include <QJsonParseError>
 #include <mutex>
 
-void font_database_filter_features ();
-static void font_database_guess_features ();
-
 static bool
 font_database_has_extension (string name, string ext) {
   return ends (locase_all (name), ext);
@@ -41,7 +38,6 @@ font_database_is_tt_file (string name) {
          font_database_has_extension (name, ".otf");
 }
 
-#define GLOBAL_FEATURES "$ATHENA_PATH/fonts/font-features.scm"
 #define GLOBAL_SUBSTITUTIONS "$ATHENA_PATH/fonts/font-substitutions.scm"
 #define CHARACTERISTICS_CACHE \
   "$ATHENA_HOME_PATH/system/cache/font-characteristics.json"
@@ -57,9 +53,8 @@ font_database_cache_stamp (url u) {
 string
 font_database_cache_signature () {
   array<url> files;
-  files << url (GLOBAL_FEATURES)
-        << url (GLOBAL_SUBSTITUTIONS);
-  string r= "3;catalog=" * tt_font_catalog_signature ();
+  files << url (GLOBAL_SUBSTITUTIONS);
+  string r= "4;catalog=" * tt_font_catalog_signature ();
   for (int i=0; i<N(files); i++)
     r << ";" << font_database_cache_stamp (files[i]);
   return r;
@@ -90,8 +85,6 @@ static bool fonts_loaded= false;
 static bool fonts_loading= false;
 static std::recursive_mutex font_database_mutex;
 hashmap<tree,tree> font_table (UNINIT);
-hashmap<tree,tree> font_features (UNINIT);
-hashmap<tree,tree> font_variants (UNINIT);
 hashmap<tree,tree> font_characteristics (UNINIT);
 static hashmap<tree,tree> font_catalog_characteristics (UNINIT);
 hashmap<string,tree> font_substitutions (UNINIT);
@@ -148,26 +141,6 @@ font_database_load_catalog (bool refresh) {
 
   // Platforms without a native catalog still discover their actual font files.
   if (N(font_table) == 0) font_database_build (tt_font_path ());
-}
-
-void
-font_database_load_features (url u) {
-  if (!exists (u)) return;
-  string s;
-  if (!load_string (u, s, false)) {
-    tree t= block_to_scheme_tree (s);
-    for (int i=0; i<N(t); i++)
-      if (is_func (t[i], TUPLE) && (N(t[i]) >= 2)) {
-        tree key= t[i][0];
-        tree im = t[i] (1, N(t[i]));
-        font_features (key)= im;
-        tree vars (TUPLE);
-        if (font_variants->contains (t[i][1]))
-          vars= font_variants [t[i][1]];
-        tuple_insert (vars, t[i][0]);
-        font_variants (t[i][1])= vars;
-      }
-  }
 }
 
 static bool
@@ -284,13 +257,8 @@ font_database_load () {
   system_wait ("Loading platform font catalog", "please wait...");
   font_database_load_catalog (false);
 
-  // These files are derived metadata only.  The platform catalog above is the
-  // sole authority for which font families, styles, and files are installed.
-  font_database_load_features (GLOBAL_FEATURES);
-  font_database_filter_features ();
   // Make catalog queries re-entrant while deriving metadata below.
   fonts_loaded= true;
-  font_database_guess_features ();
   if (!font_database_load_characteristics_cache ()) {
     // Fontconfig is the normal source of characteristics.  Persist its compact
     // per-face metadata so a fresh profile gets a complete cache without the
@@ -364,32 +332,11 @@ font_database_build (url u) {
   }
 }
 
-static void
-font_database_guess_features () {
-  array<string> families= font_database_families ();
-  for (int i=0; i<N(families); i++)
-    if (!font_features->contains (families[i])) {
-      string master= family_to_master (families[i]);
-      array<string> features= family_features (families[i]);
-      tree entry (TUPLE);
-      entry << tree (master);
-      for (int j=0; j<N(features); j++)
-        entry << tree (encode_feature (features[j]));
-      font_features (families[i])= entry;
-      tree variants (TUPLE);
-      if (font_variants->contains (master)) variants= font_variants[master];
-      tuple_insert (variants, families[i]);
-      font_variants (master)= variants;
-    }
-}
-
 void
 font_database_build_local () {
   std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
   font_database_load ();
   font_database_load_catalog (true);
-  font_database_filter_features ();
-  font_database_guess_features ();
   font_database_seed_catalog_characteristics ();
   font_database_save ();
 }
@@ -400,8 +347,6 @@ font_database_extend_local (url u) {
   tt_extend_font_path (u);
   font_database_load ();
   font_database_load_catalog (true);
-  font_database_filter_features ();
-  font_database_guess_features ();
   font_database_seed_catalog_characteristics ();
   font_database_save ();
 }
@@ -422,43 +367,8 @@ void
 font_database_filter () {
   std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
   font_database_load_catalog (true);
-  font_database_filter_features ();
-  font_database_guess_features ();
   font_database_seed_catalog_characteristics ();
   font_database_save ();
-}
-
-void
-font_database_filter_features () {
-  std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
-  hashmap<string,bool> families;
-  iterator<tree> it= iterate (font_table);
-  while (it->busy ()) {
-    tree key= it->next ();
-    if (is_func (key, TUPLE, 2) && is_atomic (key[0]))
-      families (key[0]->label)= true;
-  }
-  hashmap<tree,tree> new_font_features (UNINIT);
-  it= iterate (font_features);
-  while (it->busy ()) {
-    tree key= it->next ();
-    if (is_atomic (key) && families->contains (key->label))
-      new_font_features (key)= font_features [key];
-  }
-  font_features= new_font_features;
-  font_variants= hashmap<tree,tree> (UNINIT);
-  it= iterate (font_features);
-  while (it->busy ()) {
-    tree family= it->next ();
-    tree features= font_features[family];
-    if (!is_atomic (family) || !is_func (features, TUPLE) || N(features) == 0)
-      continue;
-    tree variants (TUPLE);
-    if (font_variants->contains (features[0]))
-      variants= font_variants[features[0]];
-    tuple_insert (variants, family);
-    font_variants (features[0])= variants;
-  }
 }
 
 /******************************************************************************
@@ -623,28 +533,6 @@ font_database_characteristics (string family, string style) {
   }
   font_database_characteristics_cache (key)= array_as_tuple (r);
   return r;
-}
-
-array<string>
-font_database_feature_entry (string family) {
-  std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
-  font_database_load ();
-  tree key (family);
-  if (!font_features->contains (key)) return array<string> ();
-  tree entry= copy (font_features[key]);
-  if (!is_func (entry, TUPLE)) return array<string> ();
-  return tuple_as_array (entry);
-}
-
-array<string>
-font_database_master_variants (string master) {
-  std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
-  font_database_load ();
-  tree key (master);
-  if (!font_variants->contains (key)) return array<string> ();
-  tree entry= copy (font_variants[key]);
-  if (!is_func (entry, TUPLE)) return array<string> ();
-  return tuple_as_array (entry);
 }
 
 tree

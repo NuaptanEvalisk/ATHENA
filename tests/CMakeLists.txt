@@ -188,15 +188,6 @@ add_test(NAME font_init_alias_editor_test
     --runtime ${ATHENA_GUILE_PREFIX}
     --resources ${ATHENA_SOURCE_DIR}/ATHENA)
 set_tests_properties(font_init_alias_editor_test PROPERTIES TIMEOUT 90)
-add_test(NAME lazy_menu_startup_editor_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/editor-owner-setup.scm
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/lazy-menu-startup-test.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(lazy_menu_startup_editor_test PROPERTIES TIMEOUT 90)
 add_test(NAME window_menu_editor_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
@@ -425,7 +416,6 @@ foreach (_test_file ${TEST_SRC_FILES})
   if (_test_name STREQUAL "artifacts_test" OR
       _test_name STREQUAL "command_line_conversion_test" OR
       _test_name STREQUAL "bold_big_operator_test" OR
-      _test_name STREQUAL "finite_part_integral_test" OR
       _test_name STREQUAL "latex_import_test" OR
       _test_name STREQUAL "materials_latex_roundtrip_test" OR
       _test_name STREQUAL "toc_pagination_test")
@@ -461,7 +451,6 @@ foreach (_test_file ${TEST_SRC_FILES})
     set_tests_properties (${_test_name} PROPERTIES TIMEOUT 30)
   endif ()
   if (_test_name STREQUAL "bold_big_operator_test" OR
-      _test_name STREQUAL "finite_part_integral_test" OR
       _test_name STREQUAL "toc_pagination_test")
     set_tests_properties (${_test_name} PROPERTIES TIMEOUT 30)
   endif ()

@@ -501,6 +501,118 @@ main_family (string f) {
   return a[1];
 }
 
+static string
+dedicated_math_family (string family) {
+  family= upgrade_family_name (trim_spaces (family));
+  if (family == "") return "";
+  if (ends (family, " Math") && N(font_database_styles (family)) != 0)
+    return family;
+  string companion= family * " Math";
+  if (N(font_database_styles (companion)) != 0) return companion;
+  return "";
+}
+
+static bool
+profile_condition_matches (string condition, array<string> requested) {
+  condition= locase_all (trim_spaces (condition));
+  if (condition == "") return true;
+  if (contains (condition, requested)) return true;
+  array<string> parts= tokenize (condition, "-");
+  if (N(parts) <= 1) return false;
+  for (int i=0; i<N(parts); i++)
+    if (!contains (parts[i], requested)) return false;
+  return true;
+}
+
+static string
+profile_face_family (string profile, string variant, string series,
+                     string shape) {
+  string primary= main_family (profile);
+  array<string> requested= logical_font (primary, variant, series, shape);
+  array<string> variant_parts= tokenize (variant, "-");
+  string math_role;
+  for (int i=0; i<N(variant_parts); i++) {
+    if (variant_parts[i] == "cal" || variant_parts[i] == "frak" ||
+        variant_parts[i] == "bbb") {
+      requested << variant_parts[i];
+      if (math_role == "") math_role= variant_parts[i];
+    }
+  }
+  array<string> entries= trimmed_tokenize (profile, ",");
+  if (math_role != "") {
+    string preferred_role= math_role;
+    if (contains (string ("bold"), requested)) preferred_role= "bold-" * math_role;
+    for (int i=0; i<N(entries); i++) {
+      array<string> assignment= trimmed_tokenize (entries[i], "=");
+      if (N(assignment) != 2 || assignment[1] == "") continue;
+      if (locase_all (trim_spaces (assignment[0])) == preferred_role) {
+        string dedicated= dedicated_math_family (assignment[1]);
+        if (dedicated != "") return dedicated;
+      }
+    }
+  }
+  for (int i=0; i<N(entries); i++) {
+    array<string> assignment= trimmed_tokenize (entries[i], "=");
+    if (N(assignment) != 2) continue;
+    array<string> conditions= trimmed_tokenize (assignment[0], " ");
+    if (N(conditions) == 0) continue;
+    bool matches= true;
+    for (int j=0; j<N(conditions); j++)
+      if (!profile_condition_matches (conditions[j], requested)) {
+        matches= false;
+        break;
+      }
+    if (matches && assignment[1] != "") {
+      if (math_role == "") return assignment[1];
+      string dedicated= dedicated_math_family (assignment[1]);
+      if (dedicated != "") return dedicated;
+    }
+  }
+
+  if (math_role != "") {
+    for (int i=0; i<N(entries); i++) {
+      array<string> assignment= trimmed_tokenize (entries[i], "=");
+      if (N(assignment) != 2 || assignment[1] == "") continue;
+      if (trim_spaces (assignment[0]) == "math") {
+        string dedicated= dedicated_math_family (assignment[1]);
+        if (dedicated != "") return dedicated;
+      }
+    }
+
+    string dedicated= dedicated_math_family (primary);
+    if (dedicated != "") return dedicated;
+
+    static const char* math_fallbacks[]= {
+      "STIX Two Math", "Latin Modern Math", "STIX Math", "Asana Math"
+    };
+    for (const char* fallback: math_fallbacks)
+      if (N(font_database_styles (string (fallback))) != 0)
+        return string (fallback);
+  }
+
+  if (contains (string ("typewriter"), requested)) {
+    string matched= tt_font_match_family ("monospace");
+    if (matched != "") return matched;
+  }
+  if (contains (string ("sansserif"), requested)) {
+    string matched= tt_font_match_family ("sans-serif");
+    if (matched != "") return matched;
+  }
+  return primary;
+}
+
+static string
+physical_variant (string variant) {
+  array<string> parts= tokenize (variant, "-");
+  array<string> kept;
+  for (int i=0; i<N(parts); i++)
+    if (parts[i] != "ss" && parts[i] != "tt" && parts[i] != "rm" &&
+        parts[i] != "cal" && parts[i] != "frak" && parts[i] != "bbb")
+      kept << parts[i];
+  if (N(kept) == 0) return "rm";
+  return recompose (kept, "-");
+}
+
 string
 get_unicode_range (int code) {
   if (code <= 0x7f) return "ascii";
@@ -825,7 +937,8 @@ struct smart_font_rep: font_rep {
 smart_font_rep::smart_font_rep (
   string name, font base_fn, font err_fn, string family2, string variant2,
   string series2, string shape2, int sz2, int hdpi2, int vdpi2):
-    font_rep (name, base_fn), mfam (main_family (family2)),
+    font_rep (name, base_fn),
+    mfam (profile_face_family (family2, variant2, series2, shape2)),
     family (family2), variant (variant2),
     series (series2), shape (shape2), rshape (shape2),
     sz (sz2), hdpi (hdpi2), dpi (vdpi2),
@@ -870,11 +983,11 @@ smart_font_rep::smart_font_rep (
       (void) sm->add_font (tuple ("bold-italic-math"), REWRITE_LETTERS);
       (void) sm->add_font (tuple ("cal"),
                            math_kind == 4 ? REWRITE_CALLIGRAPHIC
-                                          : REWRITE_LETTERS);
-      (void) sm->add_font (tuple ("bold-cal"), REWRITE_LETTERS);
-      (void) sm->add_font (tuple ("frak"), REWRITE_LETTERS);
-      (void) sm->add_font (tuple ("bold-frak"), REWRITE_LETTERS);
-      (void) sm->add_font (tuple ("bbb"), REWRITE_LETTERS);
+                                          : REWRITE_NONE);
+      (void) sm->add_font (tuple ("bold-cal"), REWRITE_NONE);
+      (void) sm->add_font (tuple ("frak"), REWRITE_NONE);
+      (void) sm->add_font (tuple ("bold-frak"), REWRITE_NONE);
+      (void) sm->add_font (tuple ("bbb"), REWRITE_NONE);
       (void) sm->add_font (tuple ("tt"), REWRITE_LETTERS);
       (void) sm->add_font (tuple ("ss"), REWRITE_LETTERS);
       (void) sm->add_font (tuple ("bold-ss"), REWRITE_LETTERS);
@@ -1067,8 +1180,19 @@ smart_font_rep::advance (string s, int& pos, string& r, int& nr) {
 }
 
 bool
-is_italic_font (string master) {
-  return contains (string ("italic"), master_features (master));
+is_italic_family (string family) {
+  array<string> styles= font_database_styles (family);
+  if (N(styles) == 0) return false;
+  bool found= false;
+  for (int i=0; i<N(styles); i++) {
+    array<string> features= style_features (styles[i]);
+    features << guessed_features (family, styles[i]);
+    bool italic= contains (string ("italic"), features) ||
+                 contains (string ("oblique"), features);
+    if (!italic) return false;
+    found= true;
+  }
+  return found;
 }
 
 int
@@ -1202,7 +1326,7 @@ smart_font_rep::resolve (string c, string fam, int attempt) {
       initialize_font (nr);
       return sm->add_char (key, c);
     }
-    if (fam == mfam && !is_italic_font (mfam)) {
+    if (fam == mfam && !is_italic_family (mfam)) {
       array<string> emu_names= emu_font_names ();
       for (int i=0; i<N(emu_names); i++)
         if (virtually_defined (c, emu_names[i])) {
@@ -1262,7 +1386,7 @@ extern bool has_poor_rubber;
 int
 smart_font_rep::resolve_rubber (string c, string fam, int attempt) {
   //cout << "Rubber " << c << ", " << fam << ", " << attempt << LF;
-  if (is_italic_font (mfam)) return -1;
+  if (is_italic_family (mfam)) return -1;
   int l= search_forwards ("-", 0, c) + 1;
   int r= search_forwards ("-", l, c);
   if (r == -1) r= N(c) - 1;
@@ -1387,12 +1511,12 @@ smart_font_rep::resolve (string c) {
       //cout << "Found " << c << " in special\n";
       return sm->add_char (tuple ("special"), c);
     }
-    if (find_in_emu_bracket (c) && !is_italic_font (mfam)) {
+    if (find_in_emu_bracket (c) && !is_italic_family (mfam)) {
       //cout << "Found " << c << " in virtual emu-bracket\n";
       return sm->add_char (tuple ("virtual", "emu-bracket"), c);
     }
     if (c == "<langle>" || c == "<rangle>")
-      if (!is_italic_font (mfam) && fn[SUBFONT_MAIN]->supports ("/")) {
+      if (!is_italic_family (mfam) && fn[SUBFONT_MAIN]->supports ("/")) {
         //cout << "Found " << c << " in emu-bracket\n";
         return sm->add_char (tuple ("emu-bracket"), c);
       }
@@ -1402,6 +1526,17 @@ smart_font_rep::resolve (string c) {
       (variant == "rm" || variant == "ss" || variant == "tt") &&
       N(c) == 1 && (c[0] < 'A' || c[0] > 'Z') && (c[0] < 'a' || c[0] > 'z'))
     return sm->add_char (tuple ("italic-roman"), c);
+
+  // Script, Fraktur and blackboard tokens denote explicit mathematical
+  // alphabets.  Route them through their configured math roles before a text
+  // face which happens to contain the corresponding Unicode code point can
+  // claim them as an ordinary glyph.
+  if (math_kind != 0) {
+    string role= substitute_math_letter (c, 2);
+    if (role == "cal" || role == "bold-cal" || role == "frak" ||
+        role == "bold-frak" || role == "bbb")
+      return sm->add_char (tuple (role), c);
+  }
 
   for (int attempt= 1; attempt <= FONT_ATTEMPTS; attempt++) {
     if (attempt > 1 && substitute_math_letter (c, math_kind) != "") break;
@@ -1502,22 +1637,30 @@ smart_font_rep::initialize_font (int nr) {
   else if (a[0] == "bold-italic-ss")
     fn[nr]= smart_font_bis (family, "ss", "bold", "italic", sz, hdpi, dpi);
   else if (a[0] == "cal" && N(a) == 1) {
-    if (math_kind == 4)
-      fn[nr]= smart_font_bis (family, variant, series, "mathupright", sz,
-                              hdpi, dpi);
-    else
-      fn[nr]= smart_font_bis (family, "calligraphic", series, "italic", sz,
-                              hdpi, dpi);
+    string role_family= profile_face_family (family, "cal", series, "right");
+    fn[nr]= adjust_subfont (
+      closest_font (role_family, "rm", "medium", "right", sz, dpi));
   }
-  else if (a[0] == "bold-cal")
-    fn[nr]= smart_font_bis (family, "calligraphic", "bold", "italic", sz,
-                            hdpi, dpi);
-  else if (a[0] == "frak")
-    fn[nr]= smart_font_bis (family, "gothic", series, "right", sz, hdpi, dpi);
-  else if (a[0] == "bold-frak")
-    fn[nr]= smart_font_bis (family, "gothic", "bold", "right", sz, hdpi, dpi);
-  else if (a[0] == "bbb" && N(a) == 1)
-    fn[nr]= smart_font_bis (family, "outline", series, "right", sz, hdpi, dpi);
+  else if (a[0] == "bold-cal") {
+    string role_family= profile_face_family (family, "cal", "bold", "right");
+    fn[nr]= adjust_subfont (
+      closest_font (role_family, "rm", "medium", "right", sz, dpi));
+  }
+  else if (a[0] == "frak") {
+    string role_family= profile_face_family (family, "frak", series, "right");
+    fn[nr]= adjust_subfont (
+      closest_font (role_family, "rm", "medium", "right", sz, dpi));
+  }
+  else if (a[0] == "bold-frak") {
+    string role_family= profile_face_family (family, "frak", "bold", "right");
+    fn[nr]= adjust_subfont (
+      closest_font (role_family, "rm", "medium", "right", sz, dpi));
+  }
+  else if (a[0] == "bbb" && N(a) == 1) {
+    string role_family= profile_face_family (family, "bbb", series, "right");
+    fn[nr]= adjust_subfont (
+      closest_font (role_family, "rm", "medium", "right", sz, dpi));
+  }
   else if (a[0] == "virtual")
     fn[nr]= virtual_font (this, a[1], sz, hdpi, dpi, false);
   else if (a[0] == "emulate") {
@@ -1900,10 +2043,13 @@ smart_font_bis (string family, string variant, string series, string shape,
   string sh= shape;
   if (shape == "mathitalic" || shape == "mathshape" || shape == "mathcal")
     sh= "right";
-  string mfam= main_family (family);
-  font base_fn= closest_font (mfam, variant, series, sh, sz, vdpi);
+  string face_family= profile_face_family (family, variant, series, shape);
+  string face_variant= physical_variant (variant);
+  font base_fn= closest_font (face_family, face_variant, series, sh, sz, vdpi);
   if (is_nil (base_fn)) return font ();
-  font sec_fn= closest_font ("roman", "ss", "medium", "right", sz, vdpi);
+  string sec_family= tt_font_match_family ("sans-serif");
+  if (sec_family == "") sec_family= "roman";
+  font sec_fn= closest_font (sec_family, "rm", "medium", "right", sz, vdpi);
   font err_fn= error_font (sec_fn);
   return make (font, name,
                tm_new<smart_font_rep> (name, base_fn, err_fn, family, variant,
@@ -1915,15 +2061,9 @@ smart_font (string family, string variant, string series, string shape,
             int sz, int dpi) {
   if (variant == "rm")
     return smart_font_bis (family, variant, series, shape, sz, dpi, dpi);
-  string primary= main_family (family);
-  array<string> lfn1= logical_font (primary, "rm", series, shape);
-  array<string> lfn2= logical_font (primary, variant, series, shape);
-  array<string> pfn1= search_font (lfn1, 1);
-  array<string> pfn2= search_font (lfn2, 1);
-  if (N(pfn1) > 0 && N(pfn2) > 0 && pfn1[0] == pfn2[0])
-    return smart_font_bis (family, variant, series, shape, sz, dpi, dpi);
   font fn1= smart_font_bis (family, "rm", series, shape, sz, dpi, dpi);
   font fn2= smart_font_bis (family, variant, series, shape, sz, dpi, dpi);
+  if (is_nil (fn1) || is_nil (fn2)) return fn2;
   double zoom= ((double) fn1->yx) / max (((double) fn2->yx), 1.0);
   if (fn1->yx < PIXEL || fn2->yx < PIXEL) zoom= 1.0;
   if (zoom > 0.975 && zoom < 1.025) return fn2;

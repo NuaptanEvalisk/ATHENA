@@ -20,8 +20,9 @@
     </src-license>
   </src-title>>
 
-  <assign|font|mathlarge=TeX Gyre Pagella,cal=TeX Gyre Termes,bold-cal=TeX
-  Gyre Termes,frak=TeX Gyre Pagella,Fira>
+  <assign|font|mathlarge=TeX Gyre Pagella Math,cal=TeX Gyre Termes
+  Math,bold-cal=TeX Gyre Termes Math,frak=TeX Gyre Pagella
+  Math,typewriter=Fira Mono,sansserif=Fira Sans,Fira Sans>
 
   \;
 </body>

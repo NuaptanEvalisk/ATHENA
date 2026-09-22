@@ -21,9 +21,7 @@
 #include <unordered_map>
 
 bool is_weight (string s);
-bool is_category (string s);
 bool is_glyphs (string s);
-bool is_other (string s);
 
 /******************************************************************************
 * Translation into internal naming scheme
@@ -44,15 +42,7 @@ get_variant (array<string> v) {
       r << string ("tt");
     else if (v[i] == "sansserif")
       r << string ("ss");
-    else if (v[i] == "digital" ||
-	     v[i] == "pen" || v[i] == "artpen" ||
-	     v[i] == "chalk" || v[i] == "marker")
-      r << v[i];
-    else if (is_category (v[i]))
-      r << v[i];
     else if (is_glyphs (v[i]))
-      r << v[i];
-    else if (is_other (v[i]))
       r << v[i];
   }
   if (N(r) == 0) return "rm";
@@ -119,13 +109,13 @@ upgrade_family_name (string f) {
     {"ttf-japanese", "TakaoPMincho"}, {"ukai", "AR PL ZenKai Uni"},
     {"uming", "AR PL UMing CN"}, {"unbatang", "UnBatang"},
     {"wqy-microhei", "WenQuanYi Micro Hei"},
-    {"wqy-zenhei", "WenQuanYi Zen Hei"}, {"dejavu", "DejaVu"},
+    {"wqy-zenhei", "WenQuanYi Zen Hei"}, {"dejavu", "DejaVu Serif"},
     {"stix", "Stix"}, {"bonum", "TeX Gyre Bonum"},
     {"chancery", "TeX Gyre Chorus"}, {"pagella", "TeX Gyre Pagella"},
     {"schola", "TeX Gyre Schola"}, {"termes", "TeX Gyre Termes"},
     {"adobe", "Stix"}, {"Duerer", "duerer"},
     {"math-asana", "Asana Math"}, {"math-apple", "Apple Symbols"},
-    {"math-bonum", "TeX Gyre Bonum"}, {"math-dejavu", "DejaVu"},
+    {"math-bonum", "TeX Gyre Bonum"}, {"math-dejavu", "DejaVu Serif"},
     {"math-lucida", "Lucida Grande"},
     {"math-pagella", "TeX Gyre Pagella"},
     {"math-schola", "TeX Gyre Schola"}, {"math-stix", "Stix"},
@@ -145,22 +135,6 @@ upgrade_family_name (string f) {
   return string (found->second.data (), static_cast<int> (found->second.size ()));
 }
 
-/******************************************************************************
-* Translation from internal naming scheme
-******************************************************************************/
-
-bool
-is_other_internal (string s) {
-  return
-    is_other (s) &&
-    s != "rm" &&
-    s != "ss" &&
-    s != "tt" &&
-    s != "small-caps" &&
-    s != "right" &&
-    s != "slanted";
-}
-
 array<string>
 variant_features (string s) {
   array<string> v= tokenize (s, "-");
@@ -168,15 +142,7 @@ variant_features (string s) {
   for (int i=0; i<N(v); i++)
     if (v[i] == "ss") r << string ("sansserif");
     else if (v[i] == "tt") r << string ("typewriter");
-    else if (v[i] == "digital" ||
-	     v[i] == "pen" || v[i] == "artpen" ||
-	     v[i] == "chalk" || v[i] == "marker")
-      r << v[i];
-    else if (is_category (v[i]))
-      r << v[i];
     else if (is_glyphs (v[i]))
-      r << v[i];
-    else if (is_other_internal (v[i]))
       r << v[i];
   return r;
 }
@@ -372,9 +338,6 @@ find_closest (string& family, string& variant, string& series, string& shape,
     variant= get_variant (nfn);
     series= get_series (nfn);
     shape= get_shape (nfn);
-    if ( contains (string ("outline"), lfn) &&
-	!contains (string ("outline"), gfn))
-      variant= variant * "-poorbbb";
     if ( contains (string ("bold"), lfn) &&
 	!contains (string ("bold"), gfn))
       series= series * "-poorbf";
@@ -427,11 +390,6 @@ closest_font (string family, string variant, string series, string shape,
       font base= self (self, fam, var, ser (0, N(ser) - 7), sh);
       return is_nil (base) ? base : poor_bold_font (base);
     }
-    if (ends (var, "-poorbbb")) {
-      font base= self (self, fam, var (0, N(var) - 8), ser, sh);
-      return is_nil (base) ? base : poor_bbb_font (base);
-    }
-
     array<string> names= font_database_search (fam, var, ser, sh);
     for (int i=0; i<N(names); i++) {
       string name= strip_file_extension (names[i]);

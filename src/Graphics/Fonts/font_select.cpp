@@ -11,6 +11,7 @@
 
 #include "font.hpp"
 #include "font_domain.hpp"
+#include "Freetype/tt_file.hpp"
 #include "Freetype/tt_tools.hpp"
 #include "analyze.hpp"
 #include "boot.hpp"
@@ -24,7 +25,6 @@
 array<string> remove_other (array<string> a, bool keep_glyphs= true);
 bool same_kind (string s1, string s2);
 bool is_glyphs (string s);
-bool is_category (string s);
 string upgrade_family_name (string f);
 
 /******************************************************************************
@@ -124,38 +124,6 @@ normalize_feature (string s) {
 }
 
 array<string>
-family_features (string f) { 
-  array<string> r;
-  array<string> entry= font_database_feature_entry (f);
-  if (N(entry) >= 1) {
-    for (int i=1; i<N(entry); i++) r << entry[i];
-    for (int i=0; i<N(r); i++) r[i]= normalize_feature (r[i]);
-    return r;
-  }
-  if (occurs ("Mono", f) ||
-      occurs ("Console", f) ||
-      occurs ("Typewriter", f))
-    r << string ("Mono");
-  if (occurs ("ArtPen", f) || occurs ("Art Pen", f))
-    r << string ("ArtPen");
-  else if (occurs ("Pen ", f) || ends (f, "Pen"))
-    r << string ("Pen");
-  if (occurs ("Sans", f))
-    r << string ("SansSerif");
-  if (occurs ("DemiCondensed", f) ||
-      occurs ("Demi Condensed", f))
-    r << string ("DemiCondensed");
-  else if (occurs ("Condensed", f) ||
-           occurs ("Narrow", f))
-    r << string ("Condensed");
-  else if (occurs ("Caption", f))
-    r << string ("Wide");
-  for (int i=0; i<N(r); i++)
-    r[i]= normalize_feature (r[i]);
-  return remove_duplicates (r);
-}
-
-array<string>
 style_features (string s) {
   s= replace (s, "-", " ");
   string r;
@@ -209,15 +177,8 @@ style_features (string s) {
 array<string>
 logical_font (string family, string style) {
   array<string> r;
-  //cout << family << ", " << style
-  //     << " -> " << family_to_master (family)
-  //     << ", " << family_features (family)
-  //     << ", " << family_strict_features (family)
-  //     << ", " << style_features (style) << "\n";
-  r << family_to_master (family);
-  r << family_strict_features (family);
+  r << upgrade_family_name (family);
   r << style_features (style);
-  //cout << family << ", " << style << " -> " << r << "\n";
   return remove_duplicates (r);
 }
 
@@ -234,16 +195,11 @@ glyph_features (string family, string style) {
 array<string>
 logical_font_exact (string family, string style) {
   array<string> r;
-  r << family_to_master (family);
-  r << family_features (family);
+  family= upgrade_family_name (family);
+  r << family;
   r << style_features (style);
+  r << guessed_features (family, style);
   r << glyph_features (family, style);
-  if (contains (string ("gothic"), r))
-    if (contains (string ("cjk"), r) || contains (string ("hangul"), r)) {
-      r << string ("sansserif");
-      r= exclude (r, "gothic");
-    }
-  //cout << family << ", " << style << " -> " << r << "\n";
   return remove_duplicates (r);
 }
 
@@ -251,92 +207,9 @@ logical_font_exact (string family, string style) {
 array<string>
 logical_font_enrich (array<string> v) {
   if (N(v) == 0) return v;
-  string master= v[0];
-  array<string> r;
-  r << master << master_features (master);
-  return patch_font (r, range (v, 1, N(v)), false);
-}
-
-/******************************************************************************
-* Master font families
-******************************************************************************/
-
-string
-Replace (string s, string w, string b) {
-  if (N(s) == 0) return s;
-  return s (0, 1) * replace (s (1, N(s)), w, b);
-}
-
-string
-family_to_master (string f) {
-  if (occurs (",", f) && occurs ("=", f)) f= main_family (f);
-  f= upgrade_family_name (f);
-  array<string> entry= font_database_feature_entry (f);
-  if (N(entry) >= 1) return entry[0];
-  f= replace (f, " Mono", "");
-  f= Replace (f, "Mono", "");
-  f= replace (f, " Console", "");
-  f= Replace (f, "Console", "");
-  f= replace (f, " Typewriter", "");
-  f= Replace (f, "Typewriter", "");
-  f= replace (f, " ArtPen", "");
-  f= Replace (f, "ArtPen", "");
-  f= replace (f, " Art", "");
-  f= Replace (f, "Art", "");
-  f= replace (f, " Pen", "");
-  f= Replace (f, "Pen", "");
-  f= replace (f, " Sans", "");
-  f= Replace (f, "Sans", "");
-  f= replace (f, " Serif", "");
-  f= Replace (f, "Serif", "");
-  f= replace (f, " Demi", "");
-  f= Replace (f, "Demi", "");
-  f= replace (f, " Condensed", "");
-  f= Replace (f, "Condensed", "");
-  f= replace (f, " Narrow", "");
-  f= Replace (f, "Narrow", "");
-  f= replace (f, " Caption", "");
-  f= Replace (f, "Caption", "");
-  f= replace (f, " Thin", "");
-  f= Replace (f, "Thin", "");
-  f= replace (f, " Light", "");
-  f= Replace (f, "Light", "");
-  f= replace (f, " Medium", "");
-  f= Replace (f, "Medium", "");
-  f= replace (f, " Bold", "");
-  f= Replace (f, "Bold", "");
-  f= replace (f, " Heavy", "");
-  f= Replace (f, "Heavy", "");
-  f= replace (f, " Black", "");
-  f= Replace (f, "Black", "");
-  return f;
-}
-
-array<string>
-master_to_families (string m) {
-  if (occurs (",", m) && occurs ("=", m)) m= main_family (m);
-  m= upgrade_family_name (m);
-  array<string> r= font_database_master_variants (m);
-  if (N(r) == 0) r << m;
-  return r;
-}
-
-array<string>
-master_features (string m) {
-  array<string> fams= master_to_families (m);
-  if (N(fams) == 0) return array<string> ();
-  array<string> r= family_features (fams[0]);
-  for (int i=1; i<N(fams); i++)
-    r= common (r, family_features (fams[i]));
-  return r;
-}
-
-array<string>
-family_strict_features (string f) {
-  string m= family_to_master (f);
-  array<string> ff= family_features (f);
-  array<string> mf= master_features (m);
-  return exclude (ff, mf);
+  array<string> common= guessed_features (v[0]);
+  if (N(common) <= 1) return v;
+  return patch_font (v, range (common, 1, N(common)), false);
 }
 
 /******************************************************************************
@@ -398,39 +271,6 @@ is_spacing (string s) {
 }
 
 bool
-is_device (string s) {
-  return 
-    s == "print" ||
-    s == "typewriter" ||
-    s == "digital" ||
-    s == "pen" ||
-    s == "artpen" ||
-    s == "chalk" ||
-    s == "marker";
-}
-
-bool
-is_category (string s) {
-  return 
-    s == "ancient" ||
-    s == "attached" ||
-    s == "calligraphic" ||
-    s == "comic" ||
-    s == "decorative" ||
-    s == "distorted" ||
-    s == "gothic" ||
-    s == "handwritten" ||
-    s == "initials" ||
-    s == "medieval" ||
-    s == "miscellaneous" ||
-    s == "gothic" ||
-    s == "outline" ||
-    s == "retro" ||
-    s == "scifi" ||
-    s == "title";
-}
-
-bool
 is_glyphs (string s) {
   return 
     s == "ascii" ||
@@ -453,8 +293,6 @@ is_other (string s) {
     !is_capitalization (s) &&
     !is_serif (s) &&
     !is_spacing (s) &&
-    !is_device (s) &&
-    !is_category (s) &&
     !is_glyphs (s) &&
     s != "long" &&
     s != "flat";
@@ -469,8 +307,6 @@ same_kind (string s1, string s2) {
     (is_capitalization (s1) && is_capitalization (s2)) ||
     (is_serif (s1) && is_serif (s2)) ||
     (is_spacing (s1) && is_spacing (s2)) ||
-    (is_device (s1) && is_device (s2)) ||
-    (is_category (s1) && is_category (s2)) ||
     (is_glyphs (s1) && is_glyphs (s2));
 }
 
@@ -487,13 +323,9 @@ same_kind (string s1, string s2) {
 #define D_WEIGHT          1000
 #define D_SLANT           1000
 #define D_CAPITALIZATION  3000
-#define D_MASTER          10000
+#define D_FAMILY          10000
 #define D_SERIF           100000
 #define D_SPACING         100000
-#define Q_DEVICE          300000
-#define D_DEVICE          1000000
-#define Q_CATEGORY        300000
-#define D_CATEGORY        1000000
 #define D_GLYPHS          3000000
 #define D_HUGE            30000000
 #define D_INFINITY        1000000000
@@ -548,22 +380,6 @@ distance (string s1, string s2, bool asym) {
     if (s1 == "typewriter" && s2 == "mono") return 0;
     return D_SPACING;
   }
-  if (is_device (s1) || is_device (s2)) {
-    if (!is_device (s1) || !is_device (s2)) return D_HUGE;
-    if (s1 == "pen" && s2 == "artpen") return Q_DEVICE;
-    if (s1 == "pen" && s2 == "marker") return Q_DEVICE;
-    if (s1 == "pen" && s2 == "chalk") return Q_DEVICE;
-    if (s1 == "artpen" && s2 == "pen" && !asym) return Q_DEVICE;
-    if (s1 == "marker" && s2 == "pen" && !asym) return Q_DEVICE;
-    if (s1 == "chalk" && s2 == "pen" && !asym) return Q_DEVICE;
-    return D_DEVICE;
-  }
-  if (is_category (s1) || is_category (s2)) {
-    if (!is_category (s1) || !is_category (s2)) return D_HUGE;
-    if (s1 == "retro" && s2 == "medieval") return Q_CATEGORY;
-    if (s1 == "medieval" && s2 == "retro") return Q_CATEGORY;
-    return D_CATEGORY;
-  }
   if (is_glyphs (s1) || is_glyphs (s2)) {
     if (!is_glyphs (s1) || !is_glyphs (s2)) return D_HUGE;
     return D_GLYPHS;
@@ -586,7 +402,6 @@ distance (string s, array<string> v, bool asym) {
   if (s == "mixed" && !contains (v, is_capitalization)) return 0;
   if (s == "serif" && !contains (v, is_serif)) return 0;
   if (s == "proportional" && !contains (v, is_spacing)) return 0;
-  if (s == "print" && !contains (v, is_device)) return 0;
 
   if (s == "mono" && contains (string ("proportional"), v)) return D_SPACING;
   if (s == "proportional" && contains (string ("mono"), v)) return D_SPACING;
@@ -598,8 +413,6 @@ distance (string s, array<string> v, bool asym) {
   else if (is_capitalization (s)) m= D_CAPITALIZATION;
   else if (is_serif (s)) m= D_SERIF;
   else if (is_spacing (s)) m= D_SPACING;
-  else if (is_device (s)) m= D_DEVICE;
-  else if (is_category (s)) m= D_CATEGORY;
   else if (is_glyphs (s)) m= D_GLYPHS;
 
   for (int i=1; i<N(v); i++)
@@ -617,7 +430,7 @@ distance (array<string> v, array<string> vx,
   // between all styles in the same family.
   int d= 0;
   if (N(v) == 0 || N(w) == 0) return D_INFINITY;
-  if (v[0] != w[0]) d= D_MASTER;
+  if (v[0] != w[0]) d= D_FAMILY;
   for (int i=1; i<N(v); i++)
     d += distance (v[i], wx, false);
   for (int i=1; i<N(w); i++)
@@ -671,7 +484,7 @@ search_font_among (array<string> v, array<string> fams, array<string> avoid,
   double best_d3= 1000000.0;
   best_result= array<string> (v[0], string ("Unknown"));
   for (int i=0; i<N(fams); i++)
-    if (N (avoid) == 0 || !contains (family_to_master (fams[i]), avoid)) {
+    if (N (avoid) == 0 || !contains (fams[i], avoid)) {
       array<string> stys= font_database_styles (fams[i]);
       for (int j=0; j<N(stys); j++) {
 	array<string> w = logical_font (fams[i], stys[j]);
@@ -710,7 +523,8 @@ search_font (array<string> v, bool require_exact, array<string> avoid) {
   //     << (require_exact? string (" (exact)"): string ("")) << "\n";
   int best_distance;
   array<string> best_result;
-  array<string> fams= master_to_families (v[0]);
+  array<string> fams;
+  fams << v[0];
   bool found= false;
   if (require_exact || N(remove_other(v)) <= 1) {
     search_font_among (v, fams, avoid, best_distance, best_result, true);
@@ -730,17 +544,38 @@ search_font (array<string> v, bool require_exact, array<string> avoid) {
     if (best_distance != D_INFINITY)
       required= required_distance (
         v, logical_font_exact (best_result[0], best_result[1]));
-    // Native family traits rank variants inside one master, but an omitted
-    // trait must not eject an explicitly selected master.  Only unmet
-    // requested traits justify a cross-family fallback.
-    if (required < D_MASTER)
+    // Prefer the explicitly selected concrete family. Only unmet requested
+    // traits justify a cross-family fallback.
+    if (required < D_FAMILY)
       search_font_among (v, fams, avoid, best_distance, best_result, true);
     else {
-      fams= font_database_families ();
-      search_font_among (v, fams, avoid, best_distance, best_result, false);
-      string master= family_to_master (best_result[0]);
-      fams= master_to_families (master);
-      search_font_among (v, fams, avoid, best_distance, best_result, true);
+      string role_feature;
+      string generic_family;
+      if (contains (string ("typewriter"), v)) {
+        role_feature= "typewriter";
+        generic_family= tt_font_match_family ("monospace");
+      }
+      else if (contains (string ("sansserif"), v)) {
+        role_feature= "sansserif";
+        generic_family= tt_font_match_family ("sans-serif");
+      }
+      if (generic_family != "" && generic_family != v[0] &&
+          N(font_database_styles (generic_family)) != 0) {
+        array<string> role_request= exclude (v, role_feature);
+        role_request[0]= generic_family;
+        fams= array<string> ();
+        fams << generic_family;
+        search_font_among (role_request, fams, avoid,
+                           best_distance, best_result, true);
+        if (best_distance != D_INFINITY) found= true;
+      }
+      if (!found) {
+        fams= font_database_families ();
+        search_font_among (v, fams, avoid, best_distance, best_result, false);
+        fams= array<string> ();
+        fams << best_result[0];
+        search_font_among (v, fams, avoid, best_distance, best_result, true);
+      }
     }
   }
   //cout << "Found " << best_result << ", " << best_distance << "\n";
@@ -758,7 +593,7 @@ search_font (array<string> v, int attempt) {
   array<string> black_list;
   for (int i=1; i<attempt; i++) {
     array<string> a= search_font (v, i);
-    black_list << family_to_master (a[0]);
+    black_list << a[0];
   }
   array<string> r= search_font (v, false, black_list);
   cache (key)= array_as_tuple (r);
@@ -823,7 +658,7 @@ patch_font (array<string> v, array<string> w, bool decode) {
     if (decode) s= decode_feature (s);
     int j;
     for (j=1; j<N(r); j++)
-      if (!same_kind (r[j], s) || (is_category (s) && r[j] != s));
+      if (!same_kind (r[j], s));
       else if (r[j] == "proportional" && s == "typewriter");
       else if (r[j] == "mono" && s == "typewriter");
       else if (r[j] == "typewriter" && s == "proportional" && j >= N(v));

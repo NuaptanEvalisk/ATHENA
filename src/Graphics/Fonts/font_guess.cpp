@@ -14,13 +14,8 @@
 #include "Freetype/tt_tools.hpp"
 #include "analyze.hpp"
 
-array<string> remove_other (array<string> a, bool keep_glyphs= true);
 array<string> common (array<string> v1, array<string> v2);
-array<string> exclude (array<string> a, array<string> b);
-array<string> remove_duplicates (array<string> a);
-bool same_kind (string s1, string s2);
 bool is_glyphs (string s);
-bool is_category (string s);
 
 /******************************************************************************
 * Guessing features
@@ -48,15 +43,11 @@ guessed_features (string family, string style) {
   
   bool oblique  = (slant != "" && slant != "0");
   bool italic   = oblique && contains (string ("italic=yes"), a);
-  array<string> family_f= family_features (family);
   array<string> style_f = style_features (style);
   bool smallcaps= contains (string ("case=smallcaps"), a) ||
-                  contains (string ("smallcaps"), family_f) ||
-                  contains (string ("smallcaps"), style_f);
+                   contains (string ("smallcaps"), style_f);
   bool mono     = contains (string ("mono=yes"), a);
-  bool sans     = contains (string ("sans=yes"), a) ||
-                  contains (string ("sansserif"), family_f);
-  bool irregular= contains (string ("regular=no"), a);
+  bool sans     = contains (string ("sans=yes"), a);
 
   if (vcnt != "" && fillp != "") {
     int vf= as_int (vcnt);
@@ -119,90 +110,21 @@ guessed_features (string family, string style) {
   if (mono) r << string ("mono");
   if (sans) r << string ("sansserif");
 
-  (void) irregular;
-  //if (irregular) r << string ("pen");
-
   return r;
 }
 
 array<string>
-cautious_patch (array<string> v, array<string> w) {
-  array<string> r= copy (v);
-  for (int i=0; i<N(w); i++) {
-    int j;
-    for (j=1; j<N(r); j++)
-      if (same_kind (r[j], w[i]))
-        break;
-    if (j == N(r)) r << w[i];
-  }
-  return r;
-}
-
-array<string>
-guessed_features (string family, bool pure_guess) {
+guessed_features (string family) {
   array<string> r;
-  array<string> allf;
-  array<string> commonf;
   array<string> styles= font_database_styles (family);
   for (int i=0; i<N(styles); i++) {
     array<string> a= guessed_features (family, styles[i]);
-    if (!pure_guess) {
-      array<string> fn= logical_font_exact (family, styles[i]);
-      fn= remove_other (fn, false);
-      array<string> tail= range (fn, 1, N(fn));
-      allf= remove_duplicates (append (allf, tail));
-      if (i == 0) commonf= tail;
-      else commonf= common (commonf, tail);
-      //cout << "  Guess " << family << ", " << styles[i] << " -> "
-      //     << fn << " + " << a << " -> ";
-      a= cautious_patch (fn, a);
-      a= range (a, 1, N(a));
-      //cout << a << "\n";
-    }
     if (i == 0) r= a;
     else r= common (r, a);
   }
-  string master= family_to_master (family);
-  //cout << "  Blacklist " << allf << " - " << commonf << " -> ";
-  allf= exclude (allf, commonf);
-  //cout << allf << "\n";
-  //cout << "Retain " << r << " - " << allf << " -> ";
-  r= exclude (r, allf);
-  //cout << r << "\n";
   array<string> v;
-  v << master << r;
+  v << upgrade_family_name (family) << r;
   return v;
-}
-
-/******************************************************************************
-* Guessed distances
-******************************************************************************/
-
-double
-category_asym_distance (array<string> f1, array<string> f2) {
-  int d=0, n=0;
-  for (int i=1; i<N(f1); i++)
-    if (is_category (f1[i])) {
-      int j;
-      for (j=1; j<N(f2); j++)
-        if (f2[j] == f1[i]) break;
-        else if (f2[j] == "retro" && f1[i] == "medieval") break;
-        else if (f2[j] == "medieval" && f1[i] == "retro") break;
-      if (j == N(f2)) d++;
-      n++;
-    }
-  if (n == 0) return -1.0;
-  return ((double) d) / ((double) n);
-}
-
-double
-category_distance (array<string> f1, array<string> f2) {
-  double d1= category_asym_distance (f1, f2);
-  double d2= category_asym_distance (f2, f1);
-  if (d1 < 0 && d2 < 0) return 0.0;
-  if (d1 < 0) d1= 1.0;
-  if (d2 < 0) d2= 1.0;
-  return d1 + d2;
 }
 
 double
@@ -211,13 +133,9 @@ guessed_distance (string fam1, string sty1, string fam2, string sty2) {
   auto& memo= font_domain_local<hashmap<tree,double>, memo_cache> (1000000.0);
   tree key= tuple (fam1, sty1, fam2, sty2);
   if (memo->contains (key)) return memo[key];
-  array<string> f1= logical_font_exact (fam1, sty1);
-  array<string> f2= logical_font_exact (fam2, sty2);
   array<string> v1= font_database_characteristics (fam1, sty1);
   array<string> v2= font_database_characteristics (fam2, sty2);
-  double d1= category_distance (f1, f2);
-  double d2= characteristic_distance (v1, v2);
-  double d = d1 + d2;
+  double d= characteristic_distance (v1, v2);
   memo (key)= d;
   return d;
 }
@@ -241,19 +159,13 @@ guessed_distance_families (string fam1, string fam2) {
 }
 
 double
-guessed_distance (string master1, string master2) {
+guessed_distance (string family1, string family2) {
   struct memo_cache;
   auto& memo= font_domain_local<hashmap<tree,double>, memo_cache> (1000000.0);
-  if (master1 == master2) return 0.0;
-  tree key= tuple (master1, master2);
+  if (family1 == family2) return 0.0;
+  tree key= tuple (family1, family2);
   if (memo->contains (key)) return memo[key];
-  array<string> fams1= master_to_families (master1);
-  array<string> fams2= master_to_families (master2);
-  double d= 1000000.0;
-  for (int i1=0; i1<N(fams1); i1++)
-    for (int i2=0; i2<N(fams2); i2++)
-      d= min (d, guessed_distance_families (fams1[i1], fams2[i2]));
+  double d= guessed_distance_families (family1, family2);
   memo (key)= d;
-  //cout << "    " << master1 << ", " << master2 << " -> " << 100.0*d << "\n";
   return d;
 }

@@ -143,13 +143,6 @@ trimmedMainFamily (const QString& profile) {
 }
 
 QString
-logicalMainFamily (const QString& family, const QString& style) {
-  array<string> logical=
-    logical_font_exact (qtm_font_string (family), qtm_font_string (style));
-  return qtm_font_text (get_family (logical));
-}
-
-QString
 qtFamilyMatch (const QString& wanted) {
   const QString needle= wanted.trimmed ();
   if (needle.isEmpty ()) return QString ();
@@ -165,6 +158,12 @@ automaticMathPreviewFamily (const QString& family) {
   if (base.endsWith (" Math", Qt::CaseInsensitive)) return base;
   const QString companion= qtFamilyMatch (base + " Math");
   if (!companion.isEmpty ()) return companion;
+  for (const QString& fallback:
+       {QString ("STIX Two Math"), QString ("Latin Modern Math"),
+        QString ("STIX Math"), QString ("Asana Math")}) {
+    const QString match= qtFamilyMatch (fallback);
+    if (!match.isEmpty ()) return match;
+  }
   return base;
 }
 
@@ -559,6 +558,8 @@ QTMFontSelector::updateSubfontPreview (const QString& key) {
   if (automatic)
     family= mathPreviewRole (key) ? automaticMathPreviewFamily (selectedFamily ())
                                   : selectedFamily ();
+  else if (mathPreviewRole (key))
+    family= automaticMathPreviewFamily (family);
   QString style= automatic && !mathPreviewRole (key) ? selectedStyle ()
                                                       : QString ("Regular");
 
@@ -622,7 +623,7 @@ QTMFontSelector::selectedFontProfile () const {
     if (!value.isEmpty () && value != "Automatic")
       parts << key + "=" + value;
   }
-  parts << logicalMainFamily (selectedFamily (), selectedStyle ());
+  parts << selectedFamily ();
   return parts.join (',');
 }
 

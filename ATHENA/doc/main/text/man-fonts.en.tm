@@ -8,7 +8,7 @@
   In <TeXmacs>, the global document font can be specified using
   <menu|Document|Font>. It is also possible to locally use another font using
   <menu|Format|Font>. Both <menu|Document|Font> and <menu|Format|Font> open
-  the <TeXmacs> font browser. Fonts have three main characteristics:
+  the native font selector. Fonts have three main characteristics:
 
   <\description>
     <item*|Family>Fonts are grouped together into <em|families> with a
@@ -20,14 +20,10 @@
     <item*|Size>The font <em|size> in points.
   </description>
 
-  The user may directly specify these three characteristics in the font
-  browser, which also displays some sample text for the selected font.
-
-  The font browser also provides a way to quickly select fonts based on
-  desirable font properties. For instance, by filtering on a \Pbold weight\Q
-  and \Psans serif\Q, one may find a bold sans serif font which mixes as well
-  as possible with the main font. <TeXmacs> allows you to filter on the
-  following criteria:
+  The selector stores the concrete system font family and style selected by
+  the user and displays sample text for that face. Additional text, math and
+  CJK fallback roles may be configured explicitly. The following physical
+  properties are used when matching a concrete face:
 
   <\description>
     <item*|Weight>The font <em|weight> corresponds to the \Pthickness\Q of
@@ -61,25 +57,12 @@
 
     <center|<block|<tformat|<table|<row|<cell|<with|font-family|rm|Proportional>>|<cell|<with|font-family|tt|Monospaced>>>>>>>
 
-    <item*|Device>This property can be used to imitate specific \Pwriting
-    devices\Q:
-
-    <center|<block|<tformat|<table|<row|<cell|<with|font-family|rm|Print>>|<cell|<with|font-family|tt|Typewriter>>|<cell|<with|font-family|digital|Digital>>|<cell|<with|font-family|pen|Pen>>|<cell|<with|font-family|artpen|Art
-    pen>>|<cell|<with|font-family|chalk|Chalk>>|<cell|<with|font-family|marker|Marker>>>>>>>
-
-    <item*|Category>Various other font features:
-
-    <htab|5mm><block|<tformat|<table|<row|<cell|<with|font-family|ancient|Ancient>>|<cell|<with|font-family|attached|Attached>>|<cell|<with|font-family|calligraphic|Calligraphic>>|<cell|<with|font-family|comic|Comic>>|<cell|<with|font-family|decorative|Decorative>>>|<row|<cell|<with|font-family|distorted|Distorted>>|<cell|<with|font-family|gothic|Gothic>>|<cell|<with|font-family|handwritten|Handwritten>>|<cell|<with|font-family|initials|Initials>>|<cell|<with|font-family|medieval|Medieval>>>|<row|<cell|<with|font-family|miscellaneous|Miscellaneous>>|<cell|<with|font-family|outline|Outline>>|<cell|<with|font-family|retro|Retro>>|<cell|<with|font-family|scifi|Scifi>>|<cell|<with|font-family|title|Title>>>>>><htab|5mm>
   </description>
 
-  Each of the above properties really constitutes a <em|hint> on how the kind
-  of font which <em|should> be used. If no suitable font can be found on your
-  particular system, then setting these properties may have no effect.
-  Whenever you apply one or more filters, the font browser indicates which
-  fonts match the selected properties. It also indicates the closest match
-  for the current font in use. When pressing the <menu|Ok> button without
-  selecting any particular matching font, then the selected font properties
-  will be inserted as <TeXmacs> markup and used as rendering hints. In that
+  Weight, slant, width, capitalization and spacing describe concrete font
+  faces. The native font selector stores the selected system family directly;
+  optional sans-serif, typewriter, mathematics and CJK fonts are configured as
+  explicit roles rather than inferred from a synthetic superfamily. In that
   case, the rendering may change when selecting another global document font
   (for instance).
 

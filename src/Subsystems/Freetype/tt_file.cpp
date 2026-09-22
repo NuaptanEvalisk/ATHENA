@@ -161,6 +161,8 @@ static url tt_platform_dirs= url_none ();
 static tree tt_platform_catalog (TUPLE);
 static string tt_platform_request_signature;
 static string tt_platform_catalog_digest;
+static string tt_platform_match_signature;
+static hashmap<string,string> tt_platform_match_cache ("");
 static bool tt_platform_initialized= false;
 static std::mutex platform_catalog_mutex;
 
@@ -284,6 +286,45 @@ tt_fontconfig_add_dir (FcConfig* config, url u) {
   FcConfigAppFontAddDir (config, (const FcChar8*) path.c_str ());
 }
 
+static string
+tt_platform_match_family (string family) {
+  std::lock_guard<std::mutex> guard (platform_catalog_mutex);
+  string signature= tt_font_cache_signature ();
+  if (signature != tt_platform_match_signature) {
+    tt_platform_match_cache= hashmap<string,string> ("");
+    tt_platform_match_signature= signature;
+  }
+  if (tt_platform_match_cache->contains (family))
+    return tt_platform_match_cache[family];
+
+  FcConfig* config= FcInitLoadConfigAndFonts ();
+  if (config == nullptr) return "";
+  string xtt= get_env ("ATHENA_FONT_PATH");
+  string ximp= get_preference ("imported fonts", "");
+  tt_fontconfig_add_dir (config, tt_private_font_roots (xtt, ximp));
+
+  FcPattern* pattern= FcPatternCreate ();
+  string result;
+  if (pattern != nullptr) {
+    FcPatternAddString (pattern, FC_FAMILY,
+                        (const FcChar8*) family.c_str ());
+    FcConfigSubstitute (config, pattern, FcMatchPattern);
+    FcDefaultSubstitute (pattern);
+    FcResult match_result= FcResultNoMatch;
+    FcPattern* match= FcFontMatch (config, pattern, &match_result);
+    if (match != nullptr) {
+      FcChar8* value= nullptr;
+      if (FcPatternGetString (match, FC_FAMILY, 0, &value) == FcResultMatch)
+        result= string ((const char*) value);
+      FcPatternDestroy (match);
+    }
+    FcPatternDestroy (pattern);
+  }
+  FcConfigDestroy (config);
+  tt_platform_match_cache (family)= result;
+  return result;
+}
+
 static void
 tt_platform_font_catalog (bool refresh= false) {
   string signature= tt_font_cache_signature ();
@@ -383,6 +424,12 @@ static string
 tt_platform_font_signature () {
   return "directory-catalog";
 }
+
+static string
+tt_platform_match_family (string family) {
+  (void) family;
+  return "";
+}
 #endif
 
 static url
@@ -398,6 +445,11 @@ tt_font_catalog (bool refresh) {
 string
 tt_font_catalog_signature () {
   return tt_platform_font_signature ();
+}
+
+string
+tt_font_match_family (string family) {
+  return tt_platform_match_family (family);
 }
 
 url

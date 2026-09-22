@@ -20,7 +20,7 @@
     </src-license>
   </src-title>>
 
-  <assign|font|mathlarge=TeX Gyre Pagella,Linux Libertine>
+  <assign|font|mathlarge=TeX Gyre Pagella Math,Linux Libertine>
 
   \;
 </body>

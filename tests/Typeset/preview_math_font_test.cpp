@@ -130,6 +130,76 @@ private slots:
     QVERIFY (!occurs ("pagella", locase_all (math_metric->res_name)));
   }
 
+  void logicalFontKeepsConcreteFamilyIdentity () {
+    array<string> styles= font_database_styles ("DejaVu Sans");
+    if (N(styles) == 0) QSKIP ("DejaVu Sans is not installed");
+    array<string> logical= logical_font_exact ("DejaVu Sans", styles[0]);
+    QVERIFY (N(logical) > 0);
+    QCOMPARE (logical[0], string ("DejaVu Sans"));
+  }
+
+  void artificialFamilyTaxonomyIsIgnored () {
+    array<string> logical=
+      logical_font ("DejaVu Serif", "gothic-artpen", "medium", "right");
+    QVERIFY (N(logical) > 0);
+    QCOMPARE (logical[0], string ("DejaVu Serif"));
+    QVERIFY (!contains (string ("gothic"), logical));
+    QVERIFY (!contains (string ("artpen"), logical));
+  }
+
+  void explicitCalFrakAndBbbRolesUseConfiguredMathFaces () {
+    if (!tt_font_exists ("texgyretermes-math") ||
+        !tt_font_exists ("texgyrepagella-math") ||
+        !tt_font_exists ("texgyrebonum-math"))
+      QSKIP ("TeX Gyre Termes/Pagella/Bonum Math are not available");
+
+    string profile=
+      "cal=TeX Gyre Termes,bold-cal=TeX Gyre Termes,"
+      "frak=TeX Gyre Pagella,bbb=TeX Gyre Bonum,DejaVu Serif";
+    font math= smart_font (profile, "rm", "medium", "mathitalic", 12, 600);
+    QVERIFY (!is_nil (math));
+
+    for (auto expected: {
+           std::pair<string,string> ("<cal-A>", "termes"),
+           std::pair<string,string> ("<b-cal-A>", "termes"),
+           std::pair<string,string> ("<frak-A>", "pagella"),
+           std::pair<string,string> ("<bbb-A>", "bonum")}) {
+      font_metric metric;
+      font_glyphs glyphs;
+      int index= math->index_glyph (expected.first, metric, glyphs);
+      QVERIFY2 (index >= 0 && !is_nil (metric) && !is_nil (glyphs),
+                as_charp (expected.first));
+      string resource= locase_all (metric->res_name);
+      QVERIFY2 (occurs (expected.second, resource), as_charp (metric->res_name));
+      QVERIFY2 (occurs ("math", resource), as_charp (metric->res_name));
+    }
+  }
+
+  void automaticCalFrakAndBbbUseDedicatedMathFallback () {
+    if (N(font_database_styles ("DejaVu Serif")) == 0)
+      QSKIP ("DejaVu Serif is not available");
+    if (N(font_database_styles ("STIX Two Math")) == 0 &&
+        N(font_database_styles ("Latin Modern Math")) == 0 &&
+        N(font_database_styles ("STIX Math")) == 0 &&
+        N(font_database_styles ("Asana Math")) == 0)
+      QSKIP ("No dedicated OpenType math fallback is available");
+
+    font math= smart_font ("DejaVu Serif", "rm", "medium", "mathitalic",
+                           12, 600);
+    QVERIFY (!is_nil (math));
+    for (string token: {string ("<cal-A>"), string ("<frak-A>"),
+                        string ("<bbb-A>")}) {
+      font_metric metric;
+      font_glyphs glyphs;
+      int index= math->index_glyph (token, metric, glyphs);
+      QVERIFY2 (index >= 0 && !is_nil (metric) && !is_nil (glyphs),
+                as_charp (token));
+      string resource= locase_all (metric->res_name);
+      QVERIFY2 (!occurs ("dejavu", resource), as_charp (metric->res_name));
+      QVERIFY2 (occurs ("math", resource), as_charp (metric->res_name));
+    }
+  }
+
   void pagellaUsesNativeMathDelimiterVariants () {
     for (auto family: {std::pair<string,string> ("TeX Gyre Pagella",
                                                   "texgyrepagella-math"),
@@ -222,6 +292,8 @@ private slots:
 
   void configuredTypewriterMetrics () {
     string family= "typewriter=JetBrains Mono,TeX Gyre Pagella";
+    if (N(font_database_styles ("JetBrains Mono")) == 0)
+      QSKIP ("JetBrains Mono is not available");
     for (string series: {string ("medium"), string ("bold")}) {
       font text= smart_font (family, "rm", series, "right", 12, 600);
       font mono= smart_font (family, "tt", series, "right", 12, 600);
@@ -234,7 +306,28 @@ private slots:
       double reported= (double) (mono_x->y2-mono_x->y1)/mono->yx;
       QVERIFY2 (reported > 0.95 && reported < 1.05,
                 as_charp (as_string (reported)));
+      font_metric mono_metric;
+      font_glyphs mono_glyphs;
+      int mono_index= mono->index_glyph ("x", mono_metric, mono_glyphs);
+      QVERIFY (mono_index >= 0 && !is_nil (mono_metric));
+      QVERIFY2 (occurs ("jetbrains", locase_all (mono_metric->res_name)),
+                as_charp (mono_metric->res_name));
     }
+  }
+
+  void automaticTypewriterUsesSystemMonospaceRole () {
+    string generic= tt_font_match_family ("monospace");
+    if (generic == "" || N(font_database_styles (generic)) == 0)
+      QSKIP ("Fontconfig did not resolve a concrete monospace family");
+    font mono= smart_font ("TeX Gyre Pagella", "tt", "medium", "right",
+                           12, 600);
+    QVERIFY (!is_nil (mono));
+    font_metric metric;
+    font_glyphs glyphs;
+    int index= mono->index_glyph ("x", metric, glyphs);
+    QVERIFY (index >= 0 && !is_nil (metric));
+    QVERIFY2 (!occurs ("pagella", locase_all (metric->res_name)),
+              as_charp (metric->res_name));
   }
 
   void legacyInlineCalPreservesFont () {

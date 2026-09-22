@@ -235,10 +235,8 @@ array<string> font_database_styles (string family);
 array<string> font_database_global_styles (string family);
 array<string> font_database_search (string family, string style);
 array<string> font_database_search (string fam, string var,
-                                    string series, string shape);
+                                     string series, string shape);
 array<string> font_database_characteristics (string family, string style);
-array<string> font_database_feature_entry (string family);
-array<string> font_database_master_variants (string master);
 tree font_database_substitutions (string family);
 
 // Font selection
@@ -246,19 +244,14 @@ tree array_as_tuple (array<string> a);
 array<string> tuple_as_array (tree t);
 string encode_feature (string s);
 string upgrade_family_name (string f);
-string family_to_master (string f);
-array<string> master_to_families (string f);
-array<string> master_features (string m);
-array<string> family_features (string f);
-array<string> family_strict_features (string f);
 array<string> style_features (string s);
 array<string> logical_font (string family, string shape);
 array<string> logical_font_exact (string family, string style);
 array<string> logical_font (string f, string v, string ser, string sh);
 array<string> guessed_features (string family, string shape);
-array<string> guessed_features (string family, bool pure_guess);
+array<string> guessed_features (string family);
 double guessed_distance (string fam1, string sty1, string fam2, string sty2);
-double guessed_distance (string master1, string master2);
+double guessed_distance (string fam1, string fam2);
 string get_family (array<string> v);
 string get_variant (array<string> v);
 string get_series (array<string> v);

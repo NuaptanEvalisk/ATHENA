@@ -19,6 +19,7 @@
 url    tt_font_path ();
 tree   tt_font_catalog (bool refresh= false);
 string tt_font_catalog_signature ();
+string tt_font_match_family (string family);
 void   tt_font_cache_set_warmup_disabled (bool disabled);
 void   tt_font_cache_warmup ();
 void   tt_extend_font_path (url u);
