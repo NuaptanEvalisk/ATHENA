@@ -51,6 +51,15 @@ public:
   std::size_t previous (std::size_t byte);
 };
 
+struct word_span {
+  std::size_t begin, end; // UTF-8 byte offsets, including punctuation spans.
+  bool lexical; // ICU letter/kana/ideograph segments, not whitespace or numbers.
+};
+// Callers doing incremental work pass bounded windows and retain incomplete
+// edge segments. ICU state is local; no normalization or symbol interpretation.
+std::vector<word_span> word_segments (
+  std::string_view text, std::string_view locale= "root");
+
 enum class paragraph_direction { automatic_ltr, automatic_rtl, ltr, rtl };
 
 struct line_break {

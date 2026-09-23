@@ -1,7 +1,7 @@
 
 /******************************************************************************
 * MODULE     : ispell.hpp
-* DESCRIPTION: interface with the ispell spell checker
+* DESCRIPTION: UTF-8 spell checking with thread-owned Hunspell dictionaries
 * COPYRIGHT  : (C) 1999  Joris van der Hoeven
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
@@ -14,6 +14,8 @@
 #include "tree.hpp"
 
 string ispell_start (string lan);
+// "ok", an error string, or (tuple suggestion-count suggestion ...).
+// All text is UTF-8; dictionary encoding is confined to the implementation.
 tree   ispell_check (string lan, string s);
 bool   ispell_test (string lan, string s);
 unsigned long ispell_dictionary_revision ();

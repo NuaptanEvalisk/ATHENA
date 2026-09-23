@@ -69,6 +69,10 @@ public:
   Utf8TestEditor (server_rep* server, buffer_document_state* buffer):
     editor_rep (server, buffer), edit_main_rep (server, buffer) {}
   void* derived_this () override { return this; }
+  path spellable_range (path p, string language) {
+    search_lan= language;
+    return test_spellable (p);
+  }
 };
 
 class TestUtf8Editor: public QObject {
@@ -357,6 +361,18 @@ private slots:
     const QKeyEvent shifted (QEvent::KeyPress, Qt::Key_1,
       Qt::ControlModifier | Qt::ShiftModifier, 0, 0x1234, 0, "\x01");
     QCOMPARE (QTMKeyboardEvent (keyboard, shifted).texmacsKeyCombination (), "C-" * composed);
+  }
+  void unicodeSpellingRange () {
+    const string source= u8"\u00e9cole e\u0301qq";
+    const path atom= buffer->root_path * 0;
+    editor->go_to (atom * 0);
+    editor->start_editing ();
+    editor->insert_tree (source);
+    editor->end_editing ();
+    QVERIFY (editor->spellable_range (atom * 0, "french") == atom * 6);
+    QVERIFY (editor->spellable_range (atom * 1, "french") == atom * 1);
+    QVERIFY (editor->spellable_range (atom * 7, "french") == atom * N(source));
+    QVERIFY (editor->spellable_range (atom * 8, "french") == atom * 8);
   }
   void clipboardAndUndo () {
     const string source= u8"\u00e9\u4e2d e\u0301 <alpha> \U0001f600";

@@ -475,20 +475,8 @@ tree
 spell_check (string lan, string s) {
   if (spell_busy->contains (lan)) {
     if (lan == "verbatim") return "ok";
-    string f= uni_Locase_all (s);
-    if (f == s) {
-      tree r= ispell_check (lan, s);
-      return r;
-    }
-    else {
-      string l= uni_locase_all (s);
-      tree r= ispell_check (lan, l);
-      if (s == uni_upcase_all (s) && is_tuple (r))
-        for (int i=1; i<N(r); i++)
-          if (is_atomic (r[i]))
-            r[i]= uni_upcase_all (r[i]->label);
-      return r;
-    }
+    // Dictionary affixes and case rules belong to Hunspell, not Cork casing.
+    return ispell_check (lan, s);
   }
   else {
     if (spell_start (lan) == "ok"){
@@ -513,14 +501,10 @@ check_word (string lan, string s) {
     revision= current;
   }
   string key= lan * ":" * s;
-  string f= uni_Locase_all (s);
-  string l= uni_locase_first (f);
-  if (s != l && s != f) key= lan * ":" * l;
   int val= spell_cache[key];
   if (val == 0) {
     // Live highlighting needs a verdict, not the expensive suggestion list.
-    string word= s == f? s: uni_locase_all (s);
-    val= ispell_test (lan, word)? 1: -1;
+    val= ispell_test (lan, s)? 1: -1;
     spell_cache (key)= val;
   }
   return val == 1;
@@ -528,9 +512,6 @@ check_word (string lan, string s) {
 
 void
 spell_accept (string lan, string s, bool permanent) {
-  string f= uni_Locase_all (s);
-  string l= uni_locase_first (f);
-  if (s != f) s= l;
   string key= lan * ":" * s;
   spell_cache (key) = 1;
   if (!permanent) spell_temp (key)= 1;
@@ -539,9 +520,6 @@ spell_accept (string lan, string s, bool permanent) {
 
 void
 spell_insert (string lan, string s) {
-  string f= uni_Locase_all (s);
-  string l= uni_locase_first (f);
-  if (s != f) s= l;
   string key= lan * ":" * s;
   spell_cache (key) = 1;
   ispell_insert (lan, s);

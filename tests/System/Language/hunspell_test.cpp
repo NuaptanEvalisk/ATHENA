@@ -16,6 +16,7 @@
 #include "drd_std.hpp"
 #include "language.hpp"
 #include "convert.hpp"
+#include "unicode_text.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }
@@ -37,12 +38,28 @@ int main (int argc, char** argv) {
   aff.close ();
   QFile dic (home.path () + "/fr_FR.dic");
   CHECK (dic.open (QIODevice::WriteOnly));
-  dic.write ("1\n\xe9" "cole\n");
+  dic.write ("2\n\xe9" "cole\n?\n");
   dic.close ();
   init_std_drd ();
   CHECK (ispell_start ("french") == "ok");
-  CHECK (ispell_test ("french", utf8_to_cork ("\xc3\xa9" "cole")));
-  CHECK (is_tuple (ispell_check ("french", "ecole")));
+  CHECK (ispell_test ("french", u8"\u00e9cole"));
+  tree suggestions= ispell_check ("french", "ecole");
+  CHECK (is_tuple (suggestions) && as_int (suggestions[0]) == N(suggestions) - 1);
+  bool accent= false;
+  for (int i= 1; i < N(suggestions); ++i) {
+    const string value= suggestions[i]->label;
+    CHECK (athena::text::valid_utf8 ({value.data (), std::size_t (N(value))}));
+    accent |= value == u8"\u00e9cole";
+  }
+  CHECK (accent);
+  CHECK (!ispell_test ("french", u8"\u4e2d")); // Must not become the accepted '?'.
+  CHECK (!ispell_test ("french", string ("?\0junk", 6)));
+  ispell_insert ("french", u8"\u4e2d e\u0301");
+  CHECK (ispell_test ("french", u8"\u4e2d e\u0301"));
+  ispell_done ("french");
+  QFile french_personal (home.path () + "/system/spelling/fr_FR.txt");
+  CHECK (french_personal.open (QIODevice::ReadOnly));
+  CHECK (french_personal.readAll ().contains (u8"\u4e2d e\u0301\n"));
   CHECK (ispell_start ("english") == "ok");
   CHECK (ispell_test ("english", "hello"));
   CHECK (!ispell_test ("english", "zzqqxxzz"));
@@ -83,6 +100,25 @@ int main (int argc, char** argv) {
   scan.reset ();
   CHECK (scan.done () && !scan.initialized);
 
+  const string unicode= u8"\u00e9cole\u2003qzx\u00e9\u00a0e\u0301qq";
+  scan.start (tree (unicode), "text", "french", path (0), path ());
+  while (!scan.done ()) scan.step (1, 16, 1000);
+  hits= scan.selections (path ());
+  CHECK (N(hits) == 4);
+  CHECK (hits[0] == path (0, 9) && hits[1] == path (0, 14));
+  CHECK (hits[2] == path (0, 16) && hits[3] == path (0, N(unicode)));
+
+  // Crossing a bounded ICU window must neither lose nor invent partial words.
+  string boundary;
+  for (int i= 0; i < 4093; ++i) boundary << ' ';
+  boundary << unicode;
+  scan.start (tree (boundary), "text", "french", path (0), path ());
+  while (!scan.done ()) scan.step (1, 16, 1000);
+  hits= scan.selections (path ());
+  CHECK (N(hits) == 4);
+  CHECK (hits[0] == path (0, 4102) && hits[1] == path (0, 4107));
+  CHECK (hits[2] == path (0, 4109) && hits[3] == path (0, N(boundary)));
+
   // Many nodes and a very long atom must yield even with no misspellings.
   string large;
   for (int i=0; i<10000; ++i) large << 'a';
@@ -91,6 +127,11 @@ int main (int argc, char** argv) {
   CHECK (!scan.done ());
   while (!scan.done ()) scan.step (64, 256, 1000);
   CHECK (N(scan.selections (path ())) == 0);
+  large << " qzxqzxqzx";
+  scan.start (tree (large), "text", "english", path (0), path ());
+  while (!scan.done ()) scan.step (64, 256, 1000);
+  hits= scan.selections (path ());
+  CHECK (N(hits) == 2 && hits[0] == path (0, 10001));
   scan.start (tree ("qzxqzxqzx hello qzxqzxqzx"), "text", "english",
               path (0), path (16));
   scan.step (1, 16, 1000);

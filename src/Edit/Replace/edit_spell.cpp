@@ -1,7 +1,7 @@
 
 /******************************************************************************
 * MODULE     : edit_spell.cpp
-* DESCRIPTION: spell checker based on ispell
+* DESCRIPTION: Owner-thread interactive Unicode spell checking with Hunspell
 * COPYRIGHT  : (C) 1999  Joris van der Hoeven
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
@@ -14,6 +14,9 @@
 #include "Interface/edit_interface.hpp"
 
 #include "Ispell/ispell.hpp"
+#include "unicode_text.hpp"
+#include "locale.hpp"
+#include <algorithm>
 
 
 /******************************************************************************
@@ -82,11 +85,24 @@ edit_replace_rep::test_spellable (path p) {
   if (is_compound (st)) return p;
   string s= st->label;
   int    b= last_item (p);
-  int    e= b;
-  if ((e > 0) && ((is_iso_alpha (s[e-1])) || (is_digit (s[e-1])))) return p;
-  while ((e < N(s)) && (is_iso_alpha (s[e]))) e++;
-  if ((e < N(s)) && (is_digit (s[e]))) return p;
-  if (e == b) return p;
+  // Manual spelling advances one caret at a time; segment a leaf revision
+  // once, rather than rescanning its prefix at every grapheme.
+  static thread_local string cached_text, cached_language;
+  static thread_local std::vector<athena::text::word_span> words;
+  bool same= N(cached_text) == N(s) &&
+    (cached_text.data () == s.data () || (N(s) <= 32 && cached_text == s));
+  if (!same || cached_language != search_lan) {
+    string locale= language_to_locale (search_lan);
+    words= athena::text::word_segments (
+      {s.data (), std::size_t (N(s))}, {locale.data (), std::size_t (N(locale))});
+    cached_text= s;
+    cached_language= search_lan;
+  }
+  auto word= std::lower_bound (words.begin (), words.end (), b,
+    [] (const auto& candidate, int offset) { return candidate.begin < std::size_t (offset); });
+  if (word == words.end () || word->begin != std::size_t (b) || !word->lexical ||
+      word->end - word->begin > 512) return p;
+  int e= word->end;
   spell_s= s (b, e);
   return path_add (p, e - b);
 }

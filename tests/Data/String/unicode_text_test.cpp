@@ -56,6 +56,24 @@ void boundaries () {
   require (cursor.boundary (0) && cursor.next (0) == 0 && cursor.previous (0) == 0);
 }
 
+void words () {
+  const std::string source= u8"\u00e9cole\u00a0don't\uff0ce\u0301 123 \U0001f600";
+  std::vector<std::string> lexical;
+  grapheme_cursor graphemes (source);
+  std::size_t previous= 0;
+  for (const auto& word: word_segments (source, "fr_FR")) {
+    require (word.begin == previous && word.end > word.begin);
+    require (graphemes.boundary (word.begin) && graphemes.boundary (word.end));
+    if (word.lexical) lexical.push_back (source.substr (word.begin, word.end - word.begin));
+    previous= word.end;
+  }
+  require (previous == source.size ());
+  require (lexical == std::vector<std::string> {u8"\u00e9cole", "don't", u8"e\u0301"});
+  require (word_segments ("").empty ());
+  rejects ([] { word_segments ("\xff"); });
+  rejects ([] { word_segments ("word", std::string ("en\0US", 5)); });
+}
+
 void paragraphs () {
   const std::string mixed= u8"abc \u05d0\u05d1\u05d2 xyz";
   unicode_paragraph paragraph (mixed);
@@ -209,11 +227,13 @@ int main () {
     rejects ([&] { byte_to_utf16 (sample, 2); });
     rejects ([&] { codepoint_to_byte (sample, 6); });
     boundaries ();
+    words ();
     paragraphs ();
     std::vector<std::future<void>> workers;
     for (int i= 0; i < 4; ++i)
       workers.push_back (std::async (std::launch::async, [] {
         boundaries ();
+        words ();
         paragraphs ();
       }));
     for (auto& worker: workers) worker.get ();

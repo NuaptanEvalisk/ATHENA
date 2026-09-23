@@ -19,6 +19,8 @@
 #include "hashset.hpp"
 #include "universal.hpp"
 #include "tree_spell.hpp"
+#include "utf8_edit.hpp"
+#include "locale.hpp"
 #include <chrono>
 
 thread_local int spell_max_hits= 1000000;
@@ -48,10 +50,10 @@ merge (range_set& sel, range_set ssel) {
 static bool
 is_accessible_for_spell (tree t, int i) {
   if (spell_ignore->contains (L(t))) return false;
+  if (is_func (t, RAW_DATA) || is_func (t, NAMED_SYMBOL)) return false;
   if (is_accessible_child (t, i)) return true;
   if (is_func (t, HIDDEN)) return true;
   if (get_access_mode () != DRD_ACCESS_SOURCE) return false;
-  if (is_func (t, RAW_DATA)) return false;
   return i >= 0 && i < N(t);
 }
 
@@ -68,55 +70,18 @@ spell_string (tree lan, string s) {
 void
 spell_string (tree lan, range_set& sel, string s,
               path p, int pos1, int pos2) {
-  int pos= pos1;
-  while (pos < pos2 && s[pos] == ' ') pos++;
-  while (pos < pos2) {
-    while (pos < pos2 && s[pos] == ' ') pos++;
-    int start= pos;
-    while (pos < pos2 && s[pos] != ' ') pos++;
-    int end= pos;
-    if (!spell_string (lan, s (start, end))) {
-      int start2= start, end2= end;
-      if (start < end && (is_numeric (s[start]) || is_numeric (s[end-1]))) {
-        // NOTE: always accept postal codes; could be a user preference
-        bool ok= true;
-        for (int i= start; i<end; ) {
-          int save= i;
-          tm_char_forwards (s, i);
-          string ss= s (save, i);
-          ok= ok && ss == uni_upcase_char (ss);
-        }
-        if (ok) start= end;
-      }
-      while (start < end) {
-        int save= start;
-        tm_char_forwards (s, start);
-        if (uni_is_letter (s (save, start))) { start= save; break; }
-      }
-      while (start < end) {
-        int save= end;
-        tm_char_backwards (s, end);
-        if (uni_is_letter (s (end, save))) { end= save; break; }
-      }
-      if ((start == start2 && end == end2) ||
-          (start < end && !spell_string (lan, s (start, end))))
-        while (start < end) {
-          int begin= start;
-          while (start < end) {
-            int save= start;
-            tm_char_forwards (s, start);
-            if (!uni_is_letter (s (save, start))) { start= save; break; }
-          }
-          if ((begin == start2 && start == end2) ||
-              !spell_string (lan, s (begin, start)))
-            merge (sel, simple_range (p * begin, p * start));
-          while (start < end) {
-            int save= start;
-            tm_char_forwards (s, start);
-            if (uni_is_letter (s (save, start))) { start= save; break; }
-          }
-        }
-    }
+  if (!is_atomic (lan)) return;
+  pos1= utf8_grapheme_snap (s, pos1, true);
+  pos2= utf8_grapheme_snap (s, pos2, false);
+  if (pos1 >= pos2) return;
+  string locale= language_to_locale (lan->label);
+  for (const auto& word: athena::text::word_segments (
+         {s.data () + pos1, std::size_t (pos2 - pos1)},
+         {locale.data (), std::size_t (N(locale))})) {
+    int begin= pos1 + word.begin, end= pos1 + word.end;
+    if (word.lexical && end - begin <= 512 &&
+        !spell_string (lan, s (begin, end)))
+      merge (sel, simple_range (p * begin, p * end));
   }
 }
 
@@ -173,8 +138,8 @@ spell (tree mode, tree lan, range_set& sel, tree t,
        path p, path pos1, path pos2) {
   if (is_nil (pos1) || is_nil (pos2));
   else if (is_atomic (t))
-    spell_string (lan, sel, t->label,
-                  p, max (pos1->item, 0), min (pos2->item, N(t->label)));
+    { if (mode == "text") spell_string (lan, sel, t->label,
+                  p, max (pos1->item, 0), min (pos2->item, N(t->label))); }
   else if (pos1 == path (0) && pos2 == path (1))
     spell (mode, lan, sel, t, p);
   else if (!is_atom (pos1) && !is_atom (pos2) && pos1->item == pos2->item)
@@ -223,6 +188,9 @@ incremental_spell::frame::frame (tree t2, tree mode2, tree lan2,
       while (offset > 0 && t->label[offset-1] != ' ' && --remaining > 0)
         --offset;
       if (remaining == 0) offset= 0;
+      // The byte-limited viewport search must not stop inside a UTF-8 scalar.
+      while (offset > 0 && !athena::text::scalar_boundary (
+               {t->label.data (), std::size_t (limit)}, offset)) --offset;
       stop= offset;
     }
   }
@@ -253,36 +221,55 @@ incremental_spell::step (int word_budget, int node_budget, int milliseconds) {
          std::chrono::steady_clock::now () < deadline) {
     frame& f= stack.back ();
     if (is_atomic (f.t)) {
-      if (f.mode != "text" || (f.offset >= f.limit && f.stop == 0)) {
+      if (f.mode != "text" || !is_atomic (f.lan) ||
+          (f.word == f.words.size () && f.offset >= f.limit && f.stop == 0)) {
         stack.pop_back ();
         --node_budget;
         continue;
       }
-      if (f.offset >= f.limit) {
+      if (f.word == f.words.size () && f.offset >= f.limit) {
         f.limit= f.stop;
         f.stop= 0;
         f.offset= 0;
+        f.skip_first= false;
       }
       string s= f.t->label;
-      while (f.offset < f.limit && s[f.offset] == ' ' && chars > 0) {
-        ++f.offset;
-        --chars;
+      if (f.word == f.words.size ()) {
+        f.words.clear ();
+        f.word= 0;
+        int begin= f.offset, end= begin + min (4096, f.limit - begin);
+        while (end > begin && !athena::text::scalar_boundary (
+                 {s.data (), std::size_t (N(s))}, end)) --end;
+        string locale= language_to_locale (f.lan->label);
+        auto segments= athena::text::word_segments (
+          {s.data () + begin, std::size_t (end - begin)},
+          {locale.data (), std::size_t (N(locale))});
+        const bool skip_first= f.skip_first;
+        f.skip_first= false;
+        f.offset= end;
+        if (end < f.limit && !segments.empty ()) {
+          const auto tail= segments.back ();
+          // Retain an unfinished word; overlong tokens are skipped across
+          // windows rather than rescanned or reported as partial words.
+          if (tail.end - tail.begin <= 512 && tail.begin != 0)
+            f.offset= begin + tail.begin;
+          else f.skip_first= true;
+          segments.pop_back ();
+        }
+        for (std::size_t i= 0; i < segments.size (); ++i) {
+          const auto& word= segments[i];
+          if ((i == 0 && skip_first) || !word.lexical || word.end - word.begin > 512)
+            continue;
+          f.words.push_back ({begin + word.begin, begin + word.end, true});
+        }
+        chars-= end - begin;
       }
-      if (f.begin < 0) f.begin= f.offset;
-      while (f.offset < f.limit && s[f.offset] != ' ' && chars > 0) {
-        ++f.offset;
-        --chars;
-      }
-      if (f.offset < f.limit && s[f.offset] != ' ') continue;
-      range_set hits;
-      // Hunspell is a word checker, not a checker for megabyte-long tokens.
-      if (f.offset - f.begin <= 512)
-        spell_string (f.lan, hits, s, f.p, f.begin, f.offset);
-      for (int i=0; i+1<N(hits); i+=2) {
-        errors[hits[i]]= hits[i+1];
+      if (f.word == f.words.size ()) continue;
+      const auto word= f.words[f.word++];
+      if (!spell_string (f.lan, s (word.begin, word.end))) {
+        errors[f.p * int (word.begin)]= f.p * int (word.end);
         changed= true;
       }
-      f.begin= -1;
       --word_budget;
     }
     else {

@@ -52,6 +52,18 @@ selected external file encodings. `auto` now means UTF-8, not byte guessing.
 HTML/LaTeX converter internals and other serialized clipboard consumers remain
 part of the broader converter migration; this does not activate document saves.
 
+Hunspell now receives original UTF-8 words, without Cork decoding or legacy
+case rewriting. Dictionary-specific casing stays in Hunspell; its declared
+external encoding is converted with per-call state and checked for exact
+representability. Unrepresentable words never alias a replacement `?`, and
+personal words remain UTF-8 even when the installed dictionary cannot encode
+them. Suggestions return UTF-8 with the count expected by interactive spelling.
+ICU word segmentation supplies byte ranges for manual and live checking.
+Live traversal retains viewport priority, word/node/time budgets and bounded
+4 KiB text windows, carrying incomplete edge words forward and skipping words
+longer than the existing 512-byte dictionary-input budget. Symbol identities
+and binary payloads are not spellchecked, including in source access mode.
+
 Native document constructors no longer add a TeXmacs compatibility version.
 Until XML activation, only the legacy document serializers add their required
 `TeXmacs 2.1.4` format signature to a temporary serialization tree. This is not

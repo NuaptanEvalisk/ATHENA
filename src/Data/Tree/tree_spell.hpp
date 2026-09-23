@@ -11,6 +11,7 @@
 #ifndef TREE_SPELL_H
 #define TREE_SPELL_H
 #include "tree_search.hpp"
+#include "unicode_text.hpp"
 #include <map>
 #include <vector>
 
@@ -18,7 +19,10 @@ class incremental_spell {
   struct frame {
     tree t, mode, lan;
     path p, focus;
-    int next= 0, pivot= 0, offset= 0, begin= -1, stop= 0, limit= 0;
+    int next= 0, pivot= 0, offset= 0, stop= 0, limit= 0;
+    bool skip_first= false;
+    std::vector<athena::text::word_span> words;
+    std::size_t word= 0;
     frame (tree t, tree mode, tree lan, path p, path focus);
   };
   struct path_order {

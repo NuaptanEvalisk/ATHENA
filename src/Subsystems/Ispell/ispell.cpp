@@ -12,6 +12,7 @@
 #include "convert.hpp"
 #include "locale.hpp"
 #include "file.hpp"
+#include "unicode_text.hpp"
 #include <hunspell.hxx>
 #include <QDir>
 #include <QFile>
@@ -23,12 +24,18 @@
 #include <memory>
 #include <mutex>
 #include <set>
+#include <optional>
 
 namespace {
 
 std::string bytes (string s) {
-  c_string c (s);
-  return std::string (c, N(s));
+  athena::text::require_utf8 ({s.data (), std::size_t (N(s))});
+  return std::string (s.data (), N(s));
+}
+
+bool valid_personal_word (std::string_view word) {
+  return !word.empty () && athena::text::valid_utf8 (word) &&
+    word.find_first_of (std::string_view ("\r\n\0", 3)) == std::string_view::npos;
 }
 
 struct personal_dictionary {
@@ -53,7 +60,7 @@ personal_dictionary& personal (const std::string& locale) {
   if (file.open (QIODevice::ReadOnly))
     while (!file.atEnd ()) {
       QByteArray word= file.readLine ().trimmed ();
-      if (!word.isEmpty ()) p.words.insert (word.toStdString ());
+      if (valid_personal_word (word.toStdString ())) p.words.insert (word.toStdString ());
     }
   // The old -a -i utf-8 subprocess stored additions here. Read it without
   // modifying it; new additions are saved atomically in ATHENA's own profile.
@@ -65,7 +72,7 @@ personal_dictionary& personal (const std::string& locale) {
       QByteArray word= legacy.readLine ().trimmed ();
       bool count= false;
       word.toUInt (&count);
-      if (!(first && count) && !word.isEmpty ())
+      if (!(first && count) && valid_personal_word (word.toStdString ()))
         p.words.insert (word.toStdString ());
       first= false;
     }
@@ -99,6 +106,7 @@ struct dictionary {
   std::unique_ptr<Hunspell> engine;
   QTextCodec* codec= nullptr;
   std::set<std::string> accepted;
+  std::set<std::string> personal_words;
   unsigned long revision= 0;
   string error;
 
@@ -123,24 +131,31 @@ struct dictionary {
     }
   }
 
-  std::string encode (const std::string& utf8) const {
-    return codec->fromUnicode (QString::fromUtf8 (
-      utf8.data (), (int) utf8.size ())).toStdString ();
+  std::optional<std::string> encode (const std::string& utf8) const {
+    if (!valid_personal_word (utf8)) return std::nullopt;
+    const QString text= QString::fromUtf8 (utf8.data (), int (utf8.size ()));
+    QTextCodec::ConverterState state (QTextCodec::IgnoreHeader);
+    QByteArray encoded= codec->fromUnicode (text.constData (), text.size (), &state);
+    if (state.invalidChars || codec->toUnicode (encoded) != text) return std::nullopt;
+    return encoded.toStdString ();
   }
 
   void sync () {
     auto current= dictionary_revision.load (std::memory_order_acquire);
     if (!engine || revision == current) return;
     std::lock_guard<std::mutex> lock (personal_mutex);
-    for (const auto& word: personal (locale).words) engine->add (encode (word));
+    personal_words= personal (locale).words;
+    for (const auto& word: personal_words)
+      if (auto encoded= encode (word)) engine->add (*encoded);
     revision= current;
   }
 
   bool test (const std::string& utf8) {
     sync ();
     // Missing dictionaries must not mark every word as an error.
-    if (!engine || accepted.count (utf8)) return true;
-    return engine->spell (encode (utf8));
+    if (!engine || accepted.count (utf8) || personal_words.count (utf8)) return true;
+    auto encoded= encode (utf8);
+    return encoded && engine->spell (*encoded);
   }
 };
 
@@ -165,7 +180,7 @@ ispell_start (string lan) {
 
 bool
 ispell_test (string lan, string word) {
-  return lan == "verbatim" || get_dictionary (lan).test (bytes (cork_to_utf8 (word)));
+  return lan == "verbatim" || get_dictionary (lan).test (bytes (word));
 }
 
 tree
@@ -173,27 +188,33 @@ ispell_check (string lan, string word) {
   if (lan == "verbatim") return "ok";
   auto& d= get_dictionary (lan);
   if (!d.engine) return d.error;
-  std::string utf8= bytes (cork_to_utf8 (word));
+  std::string utf8= bytes (word);
   if (d.test (utf8)) return "ok";
-  tree result (TUPLE, word);
-  for (const auto& suggestion: d.engine->suggest (d.encode (utf8))) {
+  tree result (TUPLE, "0");
+  auto encoded= d.encode (utf8);
+  if (!encoded) return result;
+  for (const auto& suggestion: d.engine->suggest (*encoded)) {
+    QTextCodec::ConverterState state (QTextCodec::IgnoreHeader);
     QByteArray decoded= d.codec->toUnicode (suggestion.data (),
-                                           (int) suggestion.size ()).toUtf8 ();
-    result << utf8_to_cork (string (decoded.constData (), decoded.size ()));
+                                           (int) suggestion.size (), &state).toUtf8 ();
+    if (!state.invalidChars)
+      result << string (decoded.constData (), decoded.size ());
   }
+  result[0]= as_string (N(result) - 1);
   return result;
 }
 
 void
 ispell_accept (string lan, string word) {
-  get_dictionary (lan).accepted.insert (bytes (cork_to_utf8 (word)));
+  std::string utf8= bytes (word);
+  if (valid_personal_word (utf8)) get_dictionary (lan).accepted.insert (utf8);
 }
 
 void
 ispell_insert (string lan, string word) {
   auto& d= get_dictionary (lan);
-  std::string utf8= bytes (cork_to_utf8 (word));
-  if (utf8.empty () || utf8.find_first_of ("\r\n") != std::string::npos) return;
+  std::string utf8= bytes (word);
+  if (!valid_personal_word (utf8)) return;
   std::lock_guard<std::mutex> lock (personal_mutex);
   auto& p= personal (d.locale);
   if (p.words.insert (utf8).second) {

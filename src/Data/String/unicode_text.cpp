@@ -181,6 +181,30 @@ std::size_t grapheme_cursor::previous (std::size_t byte) {
   return result == UBRK_DONE ? 0 : std::size_t (result);
 }
 
+std::vector<word_span> word_segments (std::string_view text, std::string_view locale) {
+  require_utf8 (text);
+  if (locale.find ('\0') != std::string_view::npos)
+    throw std::invalid_argument ("Embedded NUL in word-break locale");
+  UErrorCode status= U_ZERO_ERROR;
+  const std::string language (locale);
+  std::unique_ptr<UBreakIterator, decltype (&ubrk_close)> iterator (
+    ubrk_open (UBRK_WORD, language.c_str (), nullptr, 0, &status), ubrk_close);
+  checked (status);
+  std::unique_ptr<UText, decltype (&utext_close)> input (
+    utext_openUTF8 (nullptr, text.empty () ? "" : text.data (), length (text), &status),
+    utext_close);
+  checked (status);
+  ubrk_setUText (iterator.get (), input.get (), &status);
+  checked (status);
+  std::vector<word_span> result;
+  int32_t begin= ubrk_first (iterator.get ());
+  for (int32_t end; (end= ubrk_next (iterator.get ())) != UBRK_DONE; begin= end) {
+    const int rule= ubrk_getRuleStatus (iterator.get ());
+    result.push_back ({std::size_t (begin), std::size_t (end), rule >= UBRK_WORD_LETTER});
+  }
+  return result;
+}
+
 struct unicode_paragraph::implementation {
   struct index { int32_t byte, units; };
   struct script_range { std::size_t begin, end; std::string tag; };
