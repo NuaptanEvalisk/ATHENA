@@ -70,7 +70,9 @@ TestDelegationNetwork::exercisesLiveArtifactDelegation () {
   QString error;
   QVERIFY2 (qtm_delegation_fetch_identity (url, server, &error),
             qPrintable (error));
-  QVERIFY (server.capabilities.contains ("athena-delegation-v1"));
+  QCOMPARE (server.protocol, 2);
+  QVERIFY (server.capabilities.contains ("athena-delegation-v2"));
+  QVERIFY (server.capabilities.contains ("rag-embedding-v2"));
   QVERIFY (server.capabilities.contains ("artifact-definition-span-v2"));
   QVERIFY2 (qtm_delegation_save_servers ({server}, &error),
             qPrintable (error));

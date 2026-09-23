@@ -67,7 +67,10 @@ client_connection::client_connection (std::filesystem::path discovery,
     const std::filesystem::path& identity_path, const std::string& name) {
   if (discovery.empty ()) discovery = discover ();
   const auto descriptor = read_descriptor (discovery);
-  if (descriptor.at ("version") != 1) throw std::invalid_argument ("Unknown endpoint version");
+  if (descriptor.at ("version") != audmap_endpoint_descriptor_version ||
+      descriptor.at ("protocol_version") != audmap_protocol_version ||
+      descriptor.at ("document_model_version") != audmap_document_model_version)
+    throw std::invalid_argument ("Incompatible AUDMAP endpoint/protocol/document model version");
   const std::string endpoint = descriptor.at ("endpoint");
   if (endpoint.compare (0, 6, "ipc://") != 0) throw std::invalid_argument ("Only local IPC endpoints are supported");
   const auto identity = load_client_identity (identity_path);
@@ -79,7 +82,8 @@ client_connection::client_connection (std::filesystem::path discovery,
   socket.set (zmq::sockopt::sndtimeo, 1000);
   socket.set (zmq::sockopt::maxmsgsize, static_cast<std::int64_t> (wire_size_limit));
   socket.connect (endpoint);
-  send (value::array ({static_cast<unsigned> (transport_opcode::hello), 1, name}));
+  send (value::array ({static_cast<unsigned> (transport_opcode::hello),
+                       audmap_protocol_version, audmap_document_model_version, name}));
 }
 client_connection::~client_connection () {
   try { send (value::array ({static_cast<unsigned> (transport_opcode::bye)})); }
@@ -109,7 +113,13 @@ void client_connection::wait_for_authorization () {
     tick ();
     if (auto msg = receive ()) {
       const auto op = msg->at (0).get<unsigned> ();
-      if (op == static_cast<unsigned> (transport_opcode::welcome)) return;
+      if (op == static_cast<unsigned> (transport_opcode::welcome)) {
+        if (msg->size () != 2 || !msg->at (1).is_object () ||
+            msg->at (1).value ("protocol_version", 0u) != audmap_protocol_version ||
+            msg->at (1).value ("document_model_version", 0u) != audmap_document_model_version)
+          throw std::runtime_error ("AUDMAP server accepted an incompatible model version");
+        return;
+      }
       if (op == static_cast<unsigned> (transport_opcode::rejected)) throw std::runtime_error (msg->dump ());
       if (!announced) { std::cerr << "Waiting for ATHENA authorization...\n"; announced = true; }
     }

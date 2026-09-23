@@ -11,6 +11,8 @@
 
 #include "vault_map_sqlite.hpp"
 #include "reference_graph_cache.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
+#include "Subsystems/RAG/rag_index.hpp"
 #include "vault_safe_rename.hpp"
 #include "vaultfile_json.hpp"
 #include "vault.hpp"
@@ -24,6 +26,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <sqlite3.h>
 
 bool headless_mode= true;
 bool is_headless () { return true; }
@@ -42,6 +45,7 @@ private slots:
   void extractsDocumentReferencesWithoutHints ();
   void cachesBoundedAndUnlimitedReferenceGraphs ();
   void cachesAndInvalidatesStructuralTransclusions ();
+  void preservesRagChunksAcrossStorageFormatRewrite ();
 };
 
 namespace {
@@ -61,6 +65,58 @@ tree_contains_text (tree value, string text) {
   for (int i=0; i<N(value); ++i)
     if (tree_contains_text (value[i], text)) return true;
   return false;
+}
+
+bool
+sqlite_exec_test (const std::filesystem::path& database,
+                  const std::string& sql, std::string& error) {
+  sqlite3* db= nullptr;
+  if (sqlite3_open (database.string ().c_str (), &db) != SQLITE_OK) {
+    error= db ? sqlite3_errmsg (db) : "failed to open sqlite database";
+    if (db) sqlite3_close (db);
+    return false;
+  }
+  char* message= nullptr;
+  const int rc= sqlite3_exec (db, sql.c_str (), nullptr, nullptr, &message);
+  if (rc != SQLITE_OK) {
+    error= message ? message : sqlite3_errmsg (db);
+    sqlite3_free (message);
+    sqlite3_close (db);
+    return false;
+  }
+  sqlite3_close (db);
+  return true;
+}
+
+bool
+sqlite_scalar_test (const std::filesystem::path& database,
+                    const std::string& sql, std::string& value,
+                    std::string& error) {
+  sqlite3* db= nullptr;
+  if (sqlite3_open_v2 (database.string ().c_str (), &db, SQLITE_OPEN_READONLY,
+                       nullptr) != SQLITE_OK) {
+    error= db ? sqlite3_errmsg (db) : "failed to open sqlite database";
+    if (db) sqlite3_close (db);
+    return false;
+  }
+  sqlite3_stmt* statement= nullptr;
+  if (sqlite3_prepare_v2 (db, sql.c_str (), -1, &statement, nullptr) != SQLITE_OK) {
+    error= sqlite3_errmsg (db);
+    sqlite3_close (db);
+    return false;
+  }
+  const int rc= sqlite3_step (statement);
+  if (rc != SQLITE_ROW) {
+    error= rc == SQLITE_DONE ? "query returned no row" : sqlite3_errmsg (db);
+    sqlite3_finalize (statement);
+    sqlite3_close (db);
+    return false;
+  }
+  const unsigned char* text= sqlite3_column_text (statement, 0);
+  value= text ? reinterpret_cast<const char*> (text) : std::string ();
+  sqlite3_finalize (statement);
+  sqlite3_close (db);
+  return true;
 }
 
 string
@@ -417,6 +473,72 @@ TestVaultMapSqlite::cachesBoundedAndUnlimitedReferenceGraphs () {
   QVERIFY (std::filesystem::exists (
     root / ".athena/reference-graph.sqlite"));
 
+  // A storage-only rewrite must not rebuild the logical reference rows.
+  const std::filesystem::path graph_db= root / ".athena/reference-graph.sqlite";
+  std::string semantic_before;
+  QVERIFY2 (sqlite_scalar_test (
+    graph_db, "SELECT semantic_hash FROM documents WHERE path='A.ath';",
+    semantic_before, error), error.c_str ());
+  QVERIFY (!semantic_before.empty ());
+  QVERIFY2 (sqlite_exec_test (graph_db,
+    "CREATE TABLE IF NOT EXISTS test_reference_deletes(n INTEGER);"
+    "DELETE FROM test_reference_deletes;"
+    "DROP TRIGGER IF EXISTS test_a_reference_delete;"
+    "CREATE TRIGGER test_a_reference_delete AFTER DELETE ON document_references "
+    "WHEN OLD.source_path='A.ath' BEGIN "
+    "INSERT INTO test_reference_deletes VALUES(1); END;", error), error.c_str ());
+  // Downgrade to the v1 shape and ensure reopening migrates in place without
+  // deleting the already cached logical edges.
+  QVERIFY2 (sqlite_exec_test (graph_db,
+    "PRAGMA user_version=1;"
+    "ALTER TABLE documents DROP COLUMN semantic_hash;", error), error.c_str ());
+  edges.clear ();
+  QVERIFY2 (athena_reference_graph_query (
+    "A.ath", 1, edges, {}, error), error.c_str ());
+  QCOMPARE (edges.size (), (size_t) 2);
+  std::string migrated_version;
+  QVERIFY2 (sqlite_scalar_test (
+    graph_db, "PRAGMA user_version;", migrated_version, error), error.c_str ());
+  QCOMPARE (migrated_version, std::string ("2"));
+  std::string semantic_migrated;
+  QVERIFY2 (sqlite_scalar_test (
+    graph_db, "SELECT semantic_hash FROM documents WHERE path='A.ath';",
+    semantic_migrated, error), error.c_str ());
+  QCOMPARE (semantic_migrated, semantic_before);
+  std::string migration_deletes;
+  QVERIFY2 (sqlite_scalar_test (
+    graph_db, "SELECT COUNT(*) FROM test_reference_deletes;",
+    migration_deletes, error), error.c_str ());
+  QCOMPARE (migration_deletes, std::string ("0"));
+
+  auto decoded_a= athena::document::decode_document_bytes (
+    std::string_view (as_charp (serialized), (std::size_t) N(serialized)));
+  const std::string xml_a= athena::document::write_xml (decoded_a.document);
+  {
+    std::ofstream output (root / "A.ath", std::ios::binary | std::ios::trunc);
+    output.write (xml_a.data (), std::streamsize (xml_a.size ()));
+  }
+  edges.clear ();
+  QVERIFY2 (athena_reference_graph_query (
+    "A.ath", 1, edges, {}, error), error.c_str ());
+  QCOMPARE (edges.size (), (size_t) 2);
+  QVERIFY (std::any_of (edges.begin (), edges.end (), [] (const auto& edge) {
+    return edge.referenced_path == "B.ath" && edge.referencing_path == "A.ath";
+  }));
+  QVERIFY (std::any_of (edges.begin (), edges.end (), [] (const auto& edge) {
+    return edge.referenced_path == "C.ath" && edge.referencing_path == "A.ath";
+  }));
+  std::string semantic_after;
+  QVERIFY2 (sqlite_scalar_test (
+    graph_db, "SELECT semantic_hash FROM documents WHERE path='A.ath';",
+    semantic_after, error), error.c_str ());
+  QCOMPARE (semantic_after, semantic_before);
+  std::string delete_count;
+  QVERIFY2 (sqlite_scalar_test (
+    graph_db, "SELECT COUNT(*) FROM test_reference_deletes;",
+    delete_count, error), error.c_str ());
+  QCOMPARE (delete_count, std::string ("0"));
+
   // Changing only the authoritative map must redirect the cached edge even
   // though the source document and its optional hints are unchanged.
   vault_set_node ("uuid-b", "D.ath", "", "");
@@ -429,6 +551,124 @@ TestVaultMapSqlite::cachesBoundedAndUnlimitedReferenceGraphs () {
            edge.referencing_path == "A.ath";
   }));
   vault_close ();
+}
+
+void
+TestVaultMapSqlite::preservesRagChunksAcrossStorageFormatRewrite () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  std::filesystem::path root (temporary.path ().toStdString ());
+  AthenaVaultfileInfo info;
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+
+  tree body (DOCUMENT);
+  body << tree ("Alpha topology studies open and closed subsets.")
+       << tree ("Continuous maps preserve the semantic document revision.");
+  tree legacy (DOCUMENT);
+  legacy << compound ("TeXmacs", "2.1.4")
+         << compound ("style", tuple ("generic"))
+         << compound ("body", body);
+  string legacy_bytes= tree_to_texmacs (legacy);
+  {
+    std::ofstream output (root / "Alpha.ath", std::ios::binary | std::ios::trunc);
+    output.write (as_charp (legacy_bytes), N(legacy_bytes));
+  }
+
+  const std::filesystem::path database= root / ".athena/rag.sqlite";
+  athena::rag::RagConfig config;
+  config.vault_root= root;
+  config.db_path= database;
+  config.load_embedding_model= false;
+  config.progress= false;
+  {
+    athena::rag::RagIndex index;
+    QVERIFY (index.open (config));
+    QVERIFY (index.scan_once ());
+  }
+
+  std::string chunk_count_before, chunk_id_before;
+  std::string storage_before, semantic_before;
+  QVERIFY2 (sqlite_scalar_test (
+    database, "SELECT COUNT(*) FROM chunks;", chunk_count_before, error),
+    error.c_str ());
+  QVERIFY (std::stoll (chunk_count_before) > 0);
+  QVERIFY2 (sqlite_scalar_test (
+    database, "SELECT chunk_id FROM chunks ORDER BY chunk_id LIMIT 1;",
+    chunk_id_before, error), error.c_str ());
+  QVERIFY2 (sqlite_scalar_test (
+    database, "SELECT storage_hash FROM documents WHERE rel_path='Alpha.ath';",
+    storage_before, error), error.c_str ());
+  QVERIFY2 (sqlite_scalar_test (
+    database, "SELECT content_hash FROM documents WHERE rel_path='Alpha.ath';",
+    semantic_before, error), error.c_str ());
+  QVERIFY (!semantic_before.empty ());
+
+  QVERIFY2 (sqlite_exec_test (database,
+    "UPDATE chunks SET embedding=x'01020304',embedding_dim=1,"
+    "embedding_model='sentinel-v1' WHERE rel_path='Alpha.ath';", error),
+    error.c_str ());
+
+  // Simulate an existing v1 database: the old content_hash stored the raw
+  // storage hash and there was no storage_hash column. Reopening must migrate
+  // metadata only and preserve chunks and embedding blobs.
+  QVERIFY2 (sqlite_exec_test (database,
+    "UPDATE documents SET content_hash=storage_hash;"
+    "ALTER TABLE documents DROP COLUMN storage_hash;"
+    "INSERT INTO meta(key,value) VALUES('schema-version','1') "
+    "ON CONFLICT(key) DO UPDATE SET value='1';", error), error.c_str ());
+  athena::rag::RagIndex index;
+  QVERIFY (index.open (config));
+  QVERIFY (index.scan_once ());
+  std::string migrated_embedding, migrated_model, migrated_semantic;
+  QVERIFY2 (sqlite_scalar_test (
+    database, "SELECT hex(embedding) FROM chunks ORDER BY chunk_id LIMIT 1;",
+    migrated_embedding, error), error.c_str ());
+  QVERIFY2 (sqlite_scalar_test (
+    database, "SELECT embedding_model FROM chunks ORDER BY chunk_id LIMIT 1;",
+    migrated_model, error), error.c_str ());
+  QVERIFY2 (sqlite_scalar_test (
+    database, "SELECT content_hash FROM documents WHERE rel_path='Alpha.ath';",
+    migrated_semantic, error), error.c_str ());
+  QCOMPARE (migrated_embedding, std::string ("01020304"));
+  QCOMPARE (migrated_model, std::string ("sentinel-v1"));
+  QCOMPARE (migrated_semantic, semantic_before);
+
+  auto migrated= athena::document::decode_document_bytes (
+    std::string_view (as_charp (legacy_bytes), (std::size_t) N(legacy_bytes)));
+  const std::string xml= athena::document::write_xml (migrated.document);
+  {
+    std::ofstream output (root / "Alpha.ath", std::ios::binary | std::ios::trunc);
+    output.write (xml.data (), std::streamsize (xml.size ()));
+  }
+  QVERIFY (index.scan_once ());
+
+  std::string chunk_count_after, chunk_id_after, embedding_hex, embedding_model;
+  std::string storage_after, semantic_after;
+  QVERIFY2 (sqlite_scalar_test (
+    database, "SELECT COUNT(*) FROM chunks;", chunk_count_after, error),
+    error.c_str ());
+  QVERIFY2 (sqlite_scalar_test (
+    database, "SELECT chunk_id FROM chunks ORDER BY chunk_id LIMIT 1;",
+    chunk_id_after, error), error.c_str ());
+  QVERIFY2 (sqlite_scalar_test (
+    database, "SELECT hex(embedding) FROM chunks ORDER BY chunk_id LIMIT 1;",
+    embedding_hex, error), error.c_str ());
+  QVERIFY2 (sqlite_scalar_test (
+    database, "SELECT embedding_model FROM chunks ORDER BY chunk_id LIMIT 1;",
+    embedding_model, error), error.c_str ());
+  QVERIFY2 (sqlite_scalar_test (
+    database, "SELECT storage_hash FROM documents WHERE rel_path='Alpha.ath';",
+    storage_after, error), error.c_str ());
+  QVERIFY2 (sqlite_scalar_test (
+    database, "SELECT content_hash FROM documents WHERE rel_path='Alpha.ath';",
+    semantic_after, error), error.c_str ());
+  QCOMPARE (chunk_count_after, chunk_count_before);
+  QCOMPARE (chunk_id_after, chunk_id_before);
+  QCOMPARE (embedding_hex, std::string ("01020304"));
+  QCOMPARE (embedding_model, std::string ("sentinel-v1"));
+  QVERIFY (storage_after != storage_before);
+  QCOMPARE (semantic_after, semantic_before);
 }
 
 void

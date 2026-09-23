@@ -6,6 +6,7 @@
 
 #include "document_file_codec.hpp"
 #include "file.hpp"
+#include <QCryptographicHash>
 
 namespace athena::document {
 namespace {
@@ -76,6 +77,15 @@ standard_legacy_cork_table () {
       std::string (path.data (), static_cast<std::size_t> (N(path))));
   } ();
   return table;
+}
+
+std::string
+semantic_document_fingerprint (const tree& document, codec_limits limits) {
+  const std::string canonical= write_xml (document, xml_kind::document, limits);
+  const QByteArray digest= QCryptographicHash::hash (
+    QByteArray (canonical.data (), (qsizetype) canonical.size ()),
+    QCryptographicHash::Sha256).toHex ();
+  return "sha256:" + std::string (digest.constData (), (std::size_t) digest.size ());
 }
 
 } // namespace athena::document

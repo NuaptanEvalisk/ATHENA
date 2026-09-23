@@ -20,6 +20,7 @@
 #include "ATHENA/Data/artifact_radioactive_links.hpp"
 #include "ATHENA/Data/artifact_title_filter.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
 #include "converter.hpp"
 #include "convert.hpp"
 #include "drd_std.hpp"
@@ -82,6 +83,8 @@ private slots:
   void reportsBuildPhasesInOrder ();
   void excludesExternalResourcesFromDefinitionRangeRequests ();
   void resumesDefinitionRangeSelectionFromCheckpoint ();
+  void preservesArtifactsAcrossStorageFormatRewrite ();
+  void migratesArtifactSchemaWithoutRebuildingSemanticData ();
   void delegatedFailureLeavesDatabaseUnchanged ();
 };
 
@@ -245,8 +248,7 @@ artifact_test_document (const char* keyword) {
             << " when it maps bounded sets to relatively compact sets.";
   body << paragraph;
   tree document (DOCUMENT);
-  document << compound ("TeXmacs", "2.1.4")
-           << compound ("style", "generic")
+  document << compound ("style", "generic")
            << compound ("body", body);
   return document;
 }
@@ -256,6 +258,13 @@ write_document (const fs::path& path, const tree& document) {
   string serialized= tree_to_texmacs (document);
   std::ofstream output (path, std::ios::binary | std::ios::trunc);
   output.write (as_charp (serialized), N(serialized));
+}
+
+static void
+write_xml_document (const fs::path& path, const tree& document) {
+  std::string serialized= athena::document::write_xml (document);
+  std::ofstream output (path, std::ios::binary | std::ios::trunc);
+  output.write (serialized.data (), std::streamsize (serialized.size ()));
 }
 
 static tree
@@ -875,9 +884,9 @@ TestArtifacts::preservesAccentedArtifactTextAcrossWorkerAndDatabase () {
   std::string error;
   QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
 
-  string keyword= utf8_to_cork ("Ces\xc3\xa0ro summation");
-  string anchor= utf8_to_cork ("H\xc3\xb6lder theorem {");
-  string statement= utf8_to_cork ("A th\xc3\xa9or\xc3\xa8me statement.");
+  string keyword= "Ces\xc3\xa0ro summation";
+  string anchor= "H\xc3\xb6lder theorem {";
+  string statement= "A th\xc3\xa9or\xc3\xa8me statement.";
   tree body (DOCUMENT);
   body << compound ("label", anchor)
        << compound ("theorem", statement);
@@ -885,10 +894,9 @@ TestArtifacts::preservesAccentedArtifactTextAcrossWorkerAndDatabase () {
   paragraph << "A sequence is " << compound ("strong", keyword) << ".";
   body << paragraph;
   tree document (DOCUMENT);
-  document << compound ("TeXmacs", "2.1.4")
-           << compound ("style", "generic")
+  document << compound ("style", "generic")
            << compound ("body", body);
-  write_document (root / "Accented.ath", document);
+  write_xml_document (root / "Accented.ath", document);
 
   AthenaArtifactsBuildResult first;
   QVERIFY2 (athena_artifacts_build (root, {}, true, {}, first, error),
@@ -1544,16 +1552,16 @@ TestArtifacts::extractsEveryDefinitionAliasFromFirstLine () {
 void
 TestArtifacts::preservesStructuredDefinitionNames () {
   MissingRangeModel noModel;
-  tree sigma= compound ("math", "<sigma>");
+  tree sigma= compound ("math", "σ");
   tree script= compound ("math", tree (CONCAT, "R", tree (RSUB, "n")));
   tree pair= compound ("math", "(x,y)");
   tree title (CONCAT);
   title << "(" << sigma << "-algebra, " << script << "-module, " << pair
-        << "-space, <sigma>-algebra)";
+        << "-space, σ-algebra)";
   tree body (DOCUMENT);
   body << compound ("definition", tree (CONCAT, compound ("strong", title), " is defined here."));
   tree document (DOCUMENT);
-  document << compound ("TeXmacs", "2.1.4") << compound ("style", "generic")
+  document << compound ("style", "generic")
            << compound ("body", body);
   std::vector<AthenaArtifactRecord> records;
   std::string error;
@@ -1570,7 +1578,7 @@ TestArtifacts::preservesStructuredDefinitionNames () {
   QCOMPARE (parse (records[0].semantic_name_trees[0]), tree (CONCAT, sigma, "-algebra"));
   QCOMPARE (parse (records[0].semantic_name_trees[1]), tree (CONCAT, script, "-module"));
   QCOMPARE (parse (records[0].semantic_name_trees[2]), tree (CONCAT, pair, "-space"));
-  QCOMPARE (parse (records[0].semantic_name_trees[3]), tree ("<sigma>-algebra"));
+  QCOMPARE (parse (records[0].semantic_name_trees[3]), tree ("σ-algebra"));
 
   QTemporaryDir temporary;
   QVERIFY (temporary.isValid ());
@@ -1580,7 +1588,7 @@ TestArtifacts::preservesStructuredDefinitionNames () {
   info.enunciations_path= "indexes/enunciations.db";
   info.bold_text_path= "indexes/bold-text.db";
   QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
-  write_document (root / "structured.ath", document);
+  write_xml_document (root / "structured.ath", document);
   AthenaArtifactsBuildResult built;
   QVERIFY2 (athena_artifacts_build (root, {}, true, {}, built, error), error.c_str ());
   std::vector<AthenaArtifactRecord> stored;
@@ -2053,6 +2061,165 @@ TestArtifacts::resumesDefinitionRangeSelectionFromCheckpoint () {
               root, {}, true, {}, built, error, resumed), error.c_str ());
   QCOMPARE (resumed_batches, std::vector<size_t> ({1}));
   QCOMPARE (built.bold_texts, (size_t) 129);
+}
+
+void
+TestArtifacts::preservesArtifactsAcrossStorageFormatRewrite () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  fs::path root (temporary.path ().toStdString ());
+  AthenaVaultfileInfo info;
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+  tree original= artifact_test_document ("format invariant term");
+  fs::path source= root / "Format.ath";
+  write_document (source, original);
+
+  int selector_calls= 0;
+  AthenaArtifactsBuildOptions options;
+  options.range_selector=
+    [&] (const std::vector<AthenaArtifactRangeRequest>& requests,
+         std::vector<std::vector<int>>& results,
+         const AthenaArtifactRangeSelectionProgress&,
+         std::string&) {
+      selector_calls++;
+      results.assign (requests.size (), std::vector<int> ({0}));
+      return true;
+    };
+  AthenaArtifactsBuildResult first;
+  QVERIFY2 (athena_artifacts_build (
+              root, {}, true, {}, first, error, options), error.c_str ());
+  QVERIFY (selector_calls > 0);
+  std::vector<AthenaArtifactRecord> before;
+  QVERIFY2 (athena_artifacts_query (root, before, error), error.c_str ());
+  QVERIFY (!before.empty ());
+  struct StableArtifactState {
+    std::string uuid;
+    std::string content_uuid;
+    std::string anchor;
+    std::string decision;
+    std::string evidence;
+  };
+  std::map<std::string,StableArtifactState> stable;
+  for (const auto& record: before)
+    stable[record.display_text]= {
+      record.uuid, record.content_uuid, record.anchor_stem,
+      record.identity_decision, record.identity_evidence};
+  const int history_before= query_test_int (
+    root / info.artifacts_path,
+    "SELECT COUNT(*) FROM artifact_identity_history;", error);
+  QVERIFY2 (history_before >= 0, error.c_str ());
+  const int calls_after_first= selector_calls;
+
+  string legacy= tree_to_texmacs (original);
+  auto migrated= athena::document::decode_document_bytes (
+    std::string_view (as_charp (legacy), (std::size_t) N(legacy))).document;
+  std::string xml= athena::document::write_xml (migrated);
+  {
+    std::ofstream output (source, std::ios::binary | std::ios::trunc);
+    output.write (xml.data (), std::streamsize (xml.size ()));
+  }
+
+  AthenaArtifactsBuildResult second;
+  error.clear ();
+  QVERIFY2 (athena_artifacts_build (
+              root, {}, true, {}, second, error, options), error.c_str ());
+  QCOMPARE (selector_calls, calls_after_first);
+  QCOMPARE (second.documents_changed, (size_t) 0);
+  std::vector<AthenaArtifactRecord> after;
+  QVERIFY2 (athena_artifacts_query (root, after, error), error.c_str ());
+  QCOMPARE (after.size (), before.size ());
+  for (const auto& record: after) {
+    auto found= stable.find (record.display_text);
+    QVERIFY (found != stable.end ());
+    QCOMPARE (record.uuid, found->second.uuid);
+    QCOMPARE (record.content_uuid, found->second.content_uuid);
+    QCOMPARE (record.anchor_stem, found->second.anchor);
+    QCOMPARE (record.identity_decision, found->second.decision);
+    QCOMPARE (record.identity_evidence, found->second.evidence);
+  }
+  QCOMPARE (query_test_int (
+              root / info.artifacts_path,
+              "SELECT COUNT(*) FROM artifact_identity_history;", error),
+            history_before);
+}
+
+void
+TestArtifacts::migratesArtifactSchemaWithoutRebuildingSemanticData () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  fs::path root (temporary.path ().toStdString ());
+  AthenaVaultfileInfo info;
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+  write_document (root / "LegacyDb.ath", artifact_test_document ("schema invariant term"));
+
+  int selector_calls= 0;
+  AthenaArtifactsBuildOptions options;
+  options.range_selector=
+    [&] (const std::vector<AthenaArtifactRangeRequest>& requests,
+         std::vector<std::vector<int>>& results,
+         const AthenaArtifactRangeSelectionProgress&, std::string&) {
+      selector_calls++;
+      results.assign (requests.size (), std::vector<int> ({0}));
+      return true;
+    };
+  AthenaArtifactsBuildResult first;
+  QVERIFY2 (athena_artifacts_build (
+              root, {}, true, {}, first, error, options), error.c_str ());
+  QVERIFY (selector_calls > 0);
+  std::vector<AthenaArtifactRecord> before;
+  QVERIFY2 (athena_artifacts_query (root, before, error), error.c_str ());
+  QVERIFY (!before.empty ());
+  const int history_before= query_test_int (
+    root / info.artifacts_path,
+    "SELECT COUNT(*) FROM artifact_identity_history;", error);
+  const int checkpoints_before= query_test_int (
+    root / info.artifacts_path,
+    "SELECT COUNT(*) FROM artifact_range_cache;", error);
+  QVERIFY (history_before >= 0);
+  QVERIFY (checkpoints_before > 0);
+  const int calls_before_migration= selector_calls;
+
+  QVERIFY2 (exec_test_sql (
+    root / info.artifacts_path,
+    "DROP TABLE artifact_metadata;"
+    "ALTER TABLE documents DROP COLUMN semantic_hash;"
+    "ALTER TABLE artifact_range_cache DROP COLUMN semantic_hash;",
+    error), error.c_str ());
+
+  AthenaArtifactsBuildResult migrated;
+  error.clear ();
+  QVERIFY2 (athena_artifacts_build (
+              root, {}, true, {}, migrated, error, options), error.c_str ());
+  QCOMPARE (selector_calls, calls_before_migration);
+  QCOMPARE (migrated.documents_changed, (size_t) 0);
+  QCOMPARE (query_test_int (
+              root / info.artifacts_path,
+              "SELECT COUNT(*) FROM artifact_identity_history;", error),
+            history_before);
+  QCOMPARE (query_test_int (
+              root / info.artifacts_path,
+              "SELECT COUNT(*) FROM artifact_range_cache;", error),
+            checkpoints_before);
+  QCOMPARE (query_test_int (
+              root / info.artifacts_path,
+              "SELECT COUNT(*) FROM pragma_table_info('documents') "
+              "WHERE name='semantic_hash';", error), 1);
+  QCOMPARE (query_test_int (
+              root / info.artifacts_path,
+              "SELECT COUNT(*) FROM pragma_table_info('artifact_range_cache') "
+              "WHERE name='semantic_hash';", error), 1);
+  std::vector<AthenaArtifactRecord> after;
+  QVERIFY2 (athena_artifacts_query (root, after, error), error.c_str ());
+  QCOMPARE (after.size (), before.size ());
+  for (size_t i=0; i<before.size (); ++i) {
+    QCOMPARE (after[i].uuid, before[i].uuid);
+    QCOMPARE (after[i].content_uuid, before[i].content_uuid);
+    QCOMPARE (after[i].anchor_stem, before[i].anchor_stem);
+    QCOMPARE (after[i].identity_decision, before[i].identity_decision);
+    QCOMPARE (after[i].identity_evidence, before[i].identity_evidence);
+  }
 }
 
 void

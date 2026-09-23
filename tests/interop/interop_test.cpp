@@ -371,11 +371,23 @@ static void transport_test () {
     require (client.recv (bytes).has_value (), "Authenticated IPC response timed out");
     return decode_message (bytes.to_string_view ());
   };
-  send (value::array ({static_cast<unsigned> (transport_opcode::hello), 1, "interop-test"}));
+  send (value::array ({static_cast<unsigned> (transport_opcode::hello),
+                       audmap_protocol_version - 1,
+                       audmap_document_model_version, "stale-client"}));
+  auto stale = receive ();
+  require (stale[0] == static_cast<unsigned> (transport_opcode::rejected) &&
+           approvals == 0, "Stale AUDMAP protocol was not rejected before authorization");
+  send (value::array ({static_cast<unsigned> (transport_opcode::hello),
+                       audmap_protocol_version, audmap_document_model_version,
+                       "interop-test"}));
   auto response = receive ();
   if (response[0] == static_cast<unsigned> (transport_opcode::pending)) response = receive ();
   require (response[0] == static_cast<unsigned> (transport_opcode::welcome) && approvals == 1,
            "CURVE identity was not authorized");
+  require (response.size () == 2 && response[1].is_object () &&
+           response[1].value ("protocol_version", 0u) == audmap_protocol_version &&
+           response[1].value ("document_model_version", 0u) == audmap_document_model_version,
+           "AUDMAP WELCOME did not confirm protocol/document model versions");
   require (approved_key == public_key, "Authorization UI did not receive authenticated key");
   send (frame (opcode::req, {1, "@/fork/leaf", value::array ({1})}));
   require (receive ()[0] == static_cast<unsigned> (opcode::ack), "Missing wire ACK");

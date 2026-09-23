@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "rag_delegation_crypto.hpp"
+#include "rag_delegation_patch.hpp"
 
 #include <boost/json.hpp>
 #include <boost/json/src.hpp>
@@ -263,13 +264,13 @@ identity_object () {
   json::object o;
   o["name"]= "ATHENA Delegation Transmitter";
   o["kind"]= "transmitter";
-  o["protocol"]= 1;
+  o["protocol"]= athena::rag::delegation::rag_delegation_protocol_version;
   o["public_key"]= crypto::base64_encode (transmitter_keypair.public_key);
   o["fingerprint"]=
     crypto::fingerprint_for_public_key (transmitter_keypair.public_key);
   json::array caps;
-  caps.emplace_back ("athena-delegation-v1");
-  caps.emplace_back ("rag-embedding-v1");
+  caps.emplace_back ("athena-delegation-v2");
+  caps.emplace_back ("rag-embedding-v2");
   caps.emplace_back ("artifact-definition-span-v2");
   caps.emplace_back ("pending-enrollment");
   caps.emplace_back ("pre-post-forward-scripts");
@@ -895,7 +896,7 @@ handle_plain_rpc (const json::object& plain,
     }
     std::string error;
     std::string requiredCapability=
-      method == "rag.embedding.build_patch" ? "rag-embedding-v1":
+      method == "rag.embedding.build_patch" ? "rag-embedding-v2":
                                                "artifact-definition-span-v2";
     std::string reply= forward_plain_rpc (json::serialize (forwarded_request),
                                           sender_public_key, error,

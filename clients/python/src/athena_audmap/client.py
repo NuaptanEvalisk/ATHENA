@@ -20,6 +20,9 @@ import msgpack
 import zmq
 
 WIRE_LIMIT = 8 * 1024 * 1024
+ENDPOINT_DESCRIPTOR_VERSION = 2
+PROTOCOL_VERSION = 2
+DOCUMENT_MODEL_VERSION = 2
 
 
 class ProtocolError(RuntimeError):
@@ -111,8 +114,11 @@ def _descriptor(path):
     path = Path(path).absolute()
     _private_directory(path.parent)
     data = _private_json(path, 65536)
-    if data.get("version") != 1 or not data["endpoint"].startswith("ipc://"):
-        raise ValueError("Only AUDMAP v1 local IPC is supported")
+    if (data.get("version") != ENDPOINT_DESCRIPTOR_VERSION or
+            data.get("protocol_version") != PROTOCOL_VERSION or
+            data.get("document_model_version") != DOCUMENT_MODEL_VERSION or
+            not data["endpoint"].startswith("ipc://")):
+        raise ValueError("Incompatible AUDMAP endpoint/protocol/document model version")
     return data
 
 
@@ -323,7 +329,8 @@ class Client:
             socket.sndtimeo = 1000
             socket.maxmsgsize = WIRE_LIMIT
             socket.connect(descriptor["endpoint"])
-            socket.send(_encode([100, 1, self._name]))
+            socket.send(_encode([100, PROTOCOL_VERSION, DOCUMENT_MODEL_VERSION,
+                                 self._name]))
             start = heartbeat = time.monotonic()
             while not self._stop.is_set():
                 now = time.monotonic()
@@ -367,6 +374,10 @@ class Client:
                 if op == 102:
                     continue
                 if op == 101:
+                    if (len(frame) != 2 or not isinstance(frame[1], dict) or
+                            frame[1].get("protocol_version") != PROTOCOL_VERSION or
+                            frame[1].get("document_model_version") != DOCUMENT_MODEL_VERSION):
+                        raise ProtocolError(frame)
                     if not self._ready.done():
                         self._ready.set_result(None)
                     continue

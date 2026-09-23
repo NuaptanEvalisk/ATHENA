@@ -60,6 +60,10 @@ int main (int argc, char** argv) {
         const auto& msg = *received;
         const auto op = msg[0].get<unsigned> ();
         if (op == static_cast<unsigned> (transport_opcode::welcome)) {
+          if (msg.size () != 2 || !msg[1].is_object () ||
+              msg[1].value ("protocol_version", 0u) != audmap_protocol_version ||
+              msg[1].value ("document_model_version", 0u) != audmap_document_model_version)
+            throw std::runtime_error ("AUDMAP server accepted an incompatible model version");
           if (ready) continue;
           ready = true;
           if (stdio) std::cout << msg.dump () << std::endl;

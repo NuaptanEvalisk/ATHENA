@@ -306,6 +306,7 @@ qtm_delegation_servers () {
   for (const QJsonValue& value: root.value ("servers").toArray ()) {
     QJsonObject obj= value.toObject ();
     QTMDelegationServer server;
+    server.protocol= obj.value ("protocol").toInt (0);
     server.name= obj.value ("name").toString ();
     server.url= obj.value ("url").toString ();
     server.publicKey= obj.value ("public_key").toString ();
@@ -347,6 +348,7 @@ qtm_delegation_save_servers (
   QJsonArray arr;
   for (const QTMDelegationServer& server: servers) {
     QJsonObject obj;
+    obj["protocol"]= server.protocol;
     obj["name"]= server.name;
     obj["url"]= server.url;
     obj["public_key"]= server.publicKey;
@@ -383,11 +385,14 @@ qtm_delegation_fetch_identity (
     return false;
   }
   QJsonObject obj= doc.object ();
-  if (obj.value ("protocol").toInt () != 1 ||
+  const int protocol= obj.value ("protocol").toInt ();
+  if (protocol !=
+        athena::rag::delegation::rag_delegation_protocol_version ||
       obj.value ("public_key").toString ().isEmpty ()) {
     if (error) *error= "This endpoint is not an ATHENA Delegation Server.";
     return false;
   }
+  server.protocol= protocol;
   server.url= url;
   server.name= obj.value ("name").toString ("ATHENA Delegation Server");
   server.publicKey= obj.value ("public_key").toString ();
@@ -451,6 +456,11 @@ qtm_delegation_run_embedding (
   const QTMDelegationServer& server, const QString& vaultRoot,
   const QString& dbPath, const QString& embeddingModel,
   const QString& embeddingDevice, QString* summary, QString* error) {
+  if (!server.capabilities.contains ("athena-delegation-v2") ||
+      !server.capabilities.contains ("rag-embedding-v2")) {
+    if (error) *error= "Delegation server does not support persistence model v2";
+    return false;
+  }
   athena::rag::delegation::DelegatedJob job;
   std::string err;
   std::string expectedModel;
@@ -508,13 +518,17 @@ qtm_delegation_run_embedding (
       // JSON numbers cannot exactly represent timestamps above 2^53.
       obj["size"]= QString::number (file.size);
       obj["mtime_ns"]= QString::number (file.mtime_ns);
-      obj["content_hash"]= QString::fromStdString (file.content_hash);
+      obj["storage_hash"]= QString::fromStdString (file.storage_hash);
+      obj["semantic_hash"]= QString::fromStdString (file.semantic_hash);
       files.append (obj);
     }
     QJsonArray deleted;
     for (const std::string& rel: current.deleted)
       deleted.append (QString::fromStdString (rel));
     QJsonObject jobRoot;
+    jobRoot["version"]= athena::rag::delegation::rag_delegation_job_version;
+    jobRoot["persistence_model_version"]=
+      athena::rag::delegation::rag_persistence_model_version;
     jobRoot["files"]= files;
     jobRoot["deleted"]= deleted;
     QJsonObject params;

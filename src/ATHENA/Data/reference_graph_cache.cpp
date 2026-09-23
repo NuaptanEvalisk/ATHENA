@@ -27,7 +27,7 @@ namespace fs = std::filesystem;
 
 namespace {
 
-constexpr int reference_cache_schema_version= 1;
+constexpr int reference_cache_schema_version= 2;
 
 std::string
 tm_std (string value) {
@@ -166,24 +166,31 @@ initialize_schema (sqlite3* db, std::string& error) {
   int version= sqlite3_step (statement) == SQLITE_ROW ?
                sqlite3_column_int (statement, 0) : 0;
   sqlite3_finalize (statement);
-  if (version != 0 && version != reference_cache_schema_version) {
+  if (version == 1) {
     if (!exec_sql (db,
-      "DROP TABLE IF EXISTS document_references;"
-      "DROP TABLE IF EXISTS documents;"
-      "DROP TABLE IF EXISTS metadata;", error)) return false;
+      "BEGIN IMMEDIATE;"
+      "ALTER TABLE documents ADD COLUMN semantic_hash TEXT NOT NULL DEFAULT '';"
+      "PRAGMA user_version=2;"
+      "COMMIT;", error)) return false;
+    version= 2;
+  }
+  if (version != 0 && version != reference_cache_schema_version) {
+    error= "Unsupported reference cache schema version " + std::to_string (version);
+    return false;
   }
   return exec_sql (db,
     "CREATE TABLE IF NOT EXISTS metadata("
     " key TEXT PRIMARY KEY, value TEXT NOT NULL);"
     "CREATE TABLE IF NOT EXISTS documents("
-    " path TEXT PRIMARY KEY, modified TEXT NOT NULL, size INTEGER NOT NULL);"
+    " path TEXT PRIMARY KEY, modified TEXT NOT NULL, size INTEGER NOT NULL,"
+    " semantic_hash TEXT NOT NULL DEFAULT '');"
     "CREATE TABLE IF NOT EXISTS document_references("
     " source_path TEXT NOT NULL, uuid TEXT NOT NULL, kind TEXT NOT NULL,"
     " target_path TEXT, PRIMARY KEY(source_path,uuid,kind),"
     " FOREIGN KEY(source_path) REFERENCES documents(path) ON DELETE CASCADE);"
     "CREATE INDEX IF NOT EXISTS document_references_target_idx"
     " ON document_references(target_path);"
-    "PRAGMA user_version=1;", error);
+    "PRAGMA user_version=2;", error);
 }
 
 bool
@@ -261,17 +268,19 @@ refresh_target_paths (sqlite3* db, std::string& error) {
 
 bool
 cached_document_fingerprint (sqlite3* db, const std::string& path,
-                             std::string& modified, uintmax_t& size,
-                             bool& found, std::string& error) {
+                              std::string& modified, uintmax_t& size,
+                              std::string& semantic_hash,
+                              bool& found, std::string& error) {
   sqlite3_stmt* statement= nullptr;
   if (!prepare (db,
-      "SELECT modified,size FROM documents WHERE path=?1;", &statement,
+      "SELECT modified,size,semantic_hash FROM documents WHERE path=?1;", &statement,
       error)) return false;
   bool ok= bind_text (db, statement, 1, path, error);
   found= false;
   if (ok && sqlite3_step (statement) == SQLITE_ROW) {
     modified= column_text (statement, 0);
     size= (uintmax_t) sqlite3_column_int64 (statement, 1);
+    semantic_hash= column_text (statement, 2);
     found= true;
   }
   sqlite3_finalize (statement);
@@ -279,44 +288,59 @@ cached_document_fingerprint (sqlite3* db, const std::string& path,
 }
 
 bool
-replace_document (sqlite3* db, const fs::path& absolute,
-                  const std::string& relative, const std::string& modified,
-                  uintmax_t size, std::string& error) {
+load_document_semantics (const fs::path& absolute, tree& document,
+                         std::string& semantic_hash, std::string& error) {
   string source;
   if (load_string (url_system (std_tm (absolute.string ())), source, false)) {
-    error= "Could not read ATHENA document " + relative;
+    error= "Could not read ATHENA document " + absolute.string ();
     return false;
   }
-  tree document;
   try {
     document= athena::document::decode_document_bytes (
       std::string_view (as_charp (source), (std::size_t) N(source))).document;
+    semantic_hash= athena::document::semantic_document_fingerprint (document);
   }
-  catch (...) {
-    error= "Could not parse ATHENA document " + relative;
+  catch (const std::exception& e) {
+    error= "Could not parse ATHENA document " + absolute.string () + ": " + e.what ();
     return false;
   }
-  if (is_func (document, _ERROR)) {
-    error= "Could not parse ATHENA document " + relative;
-    return false;
+  return true;
+}
+
+bool
+update_document_fingerprint (sqlite3* db, const std::string& relative,
+                             const std::string& modified, uintmax_t size,
+                             const std::string& semantic_hash,
+                             std::string& error) {
+  sqlite3_stmt* statement= nullptr;
+  if (!prepare (db,
+      "INSERT INTO documents(path,modified,size,semantic_hash) VALUES(?1,?2,?3,?4)"
+      " ON CONFLICT(path) DO UPDATE SET modified=excluded.modified,"
+      " size=excluded.size,semantic_hash=excluded.semantic_hash;",
+      &statement, error)) return false;
+  bool ok= bind_text (db, statement, 1, relative, error) &&
+           bind_text (db, statement, 2, modified, error);
+  if (ok) sqlite3_bind_int64 (statement, 3, (sqlite3_int64) size);
+  if (ok) ok= bind_text (db, statement, 4, semantic_hash, error);
+  if (ok && sqlite3_step (statement) != SQLITE_DONE) {
+    error= sqlite_message (db, "Could not update cached document revision");
+    ok= false;
   }
+  sqlite3_finalize (statement);
+  return ok;
+}
+
+bool
+replace_document (sqlite3* db, const fs::path& absolute,
+                   const std::string& relative, const std::string& modified,
+                   uintmax_t size, const std::string& semantic_hash,
+                   const tree& document, std::string& error) {
   std::vector<AthenaDocumentReference> references=
     athena_collect_document_references (document);
 
-  sqlite3_stmt* documentStatement= nullptr;
-  if (!prepare (db,
-      "INSERT INTO documents(path,modified,size) VALUES(?1,?2,?3)"
-      " ON CONFLICT(path) DO UPDATE SET modified=excluded.modified,"
-      " size=excluded.size;", &documentStatement, error)) return false;
-  bool ok= bind_text (db, documentStatement, 1, relative, error) &&
-           bind_text (db, documentStatement, 2, modified, error);
-  if (ok) sqlite3_bind_int64 (documentStatement, 3, (sqlite3_int64) size);
-  if (ok && sqlite3_step (documentStatement) != SQLITE_DONE) {
-    error= sqlite_message (db, "Could not update cached document");
-    ok= false;
-  }
-  sqlite3_finalize (documentStatement);
-  if (!ok) return false;
+  if (!update_document_fingerprint (
+        db, relative, modified, size, semantic_hash, error)) return false;
+  bool ok= true;
 
   sqlite3_stmt* remove= nullptr;
   if (!prepare (db, "DELETE FROM document_references WHERE source_path=?1;",
@@ -389,13 +413,25 @@ refresh_documents (sqlite3* db, const fs::path& root,
     std::string modified=
       std::to_string (modifiedTime.time_since_epoch ().count ());
     std::string cachedModified;
+    std::string cachedSemantic;
     uintmax_t cachedSize= 0;
     bool found= false;
     if (!cached_document_fingerprint (db, relative, cachedModified,
-                                      cachedSize, found, error)) return false;
-    if (!found || cachedModified != modified || cachedSize != size)
-      if (!replace_document (db, absolute, relative, modified, size, error))
+                                      cachedSize, cachedSemantic, found, error))
+      return false;
+    const bool storage_same= found && cachedModified == modified && cachedSize == size;
+    if (!storage_same || cachedSemantic.empty ()) {
+      tree document;
+      std::string semantic;
+      if (!load_document_semantics (absolute, document, semantic, error)) return false;
+      if (found && (storage_same || (!cachedSemantic.empty () && cachedSemantic == semantic))) {
+        if (!update_document_fingerprint (
+              db, relative, modified, size, semantic, error)) return false;
+      }
+      else if (!replace_document (
+                 db, absolute, relative, modified, size, semantic, document, error))
         return false;
+    }
     done++;
     if (progress) progress (done, absoluteFiles.size ());
   }

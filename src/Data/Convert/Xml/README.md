@@ -434,7 +434,9 @@ retain their relocation table without retaining a second tree, advertise their
 source format, and expose exact `path + byte + affinity` relocation to the
 migrated UTF-8 tree. Failed/interior-token positions are rejected rather than
 snapped. Interop edits invalidate the legacy relocation table after the first
-write. Database range/anchor migration still has to consume these mappings.
+write. Persistence code no longer treats a storage-format rewrite as a logical
+document edit; any subsystem that persists legacy byte positions can use this
+same exact relocation capability rather than re-deriving offsets heuristically.
 
 `document_file_codec` is the common read-only bytes entry point. It dispatches
 only by explicit XML/legacy signatures, returns native XML trees directly and
@@ -445,6 +447,37 @@ filesystem checks and saved AUDMAP/interop documents now use this entry point.
 Reading never rewrites or upgrades a file. Existing XML files remain XML when
 edited through the saved-document interop path; legacy files remain legacy
 until the transactional normal-save migration is enabled.
+
+## Protocol and Persistence Model v2
+
+`semantic_document_fingerprint` hashes the canonical XML serialization of the
+already migrated tree. It is the logical document revision shared by artifact,
+reference-graph and RAG persistence; mtime, size and raw hashes remain storage
+revisions only. Consequently a legacy-to-XML rewrite of the same tree changes
+storage metadata without invalidating semantic caches.
+
+Artifact databases use schema version 2. `documents` and definition-range
+checkpoints carry the semantic revision; old v1 tables are extended in place.
+An unchanged semantic revision updates storage metadata and backfills old
+checkpoint hashes without re-extracting artifacts or invoking the range model.
+Artifact UUIDs/content UUIDs, anchors, identity decisions/evidence and identity
+history rows therefore survive format rewrites and v1-to-v2 migration.
+
+The reference-graph cache uses SQLite user version 2 and adds its semantic hash
+column with `ALTER TABLE`; existing reference rows are not dropped. Continuous
+RAG persistence version 2 separates `storage_hash` from the semantic
+`content_hash`. Existing v1 chunks, FTS rows, edges and embedding blobs/models
+remain in place while the semantic revision is lazily initialized. A later
+format-only rewrite updates only the document storage revision, so chunk ids and
+vectors are preserved. Delegated RAG jobs and patch databases carry protocol,
+job and persistence-model version 2 plus both hashes, preventing a v1 patch from
+being applied to the v2 persistence model.
+
+AUDMAP now publishes endpoint descriptor version 2 and requires wire protocol
+version 2 plus document-model version 2 in HELLO/WELCOME. The bundled C++ and
+Python SDKs, REPL/client tools, delegation clients, MCP RAG server and standalone
+transmitter use the same version/capability contract and reject mismatches before
+resource resolution or workload execution.
 
 ## Upgrade Storage Transaction
 
@@ -478,8 +511,8 @@ can inspect without confusing a later pathname replacement with their write.
 It also returns the root-child mapping caused by metadata removal. This is not
 a replacement for the importer's complete text-offset and tree-path mapping.
 
-This transaction is **not wired into normal saves or maintenance**. It cannot
-be enabled independently of the database/position migrations below. Tests cover
+This transaction is **not wired into normal saves or maintenance** yet. The
+reader, relocation and persistence prerequisites above are now in place. Tests cover
 legacy markup/Scheme captures, vault and sidecar backup placement, repeat
 attempts, corrupt/blocked backups, bounded serialization, read-only originals
 and stale source revisions. Disk-full and post-rename fsync fault injection,
@@ -490,11 +523,7 @@ batch cancellation/resume and database recovery are still integration work.
 1. Integrate the role-aware legacy importer with remaining application metadata
    and style/custom macro contracts.
    The old `Strict-Cork` converter is **not** a substitute for this importer.
-2. AUDMAP, SDK, delegates and caches need explicit model/protocol versions.
-3. Database migrations must preserve identities, decisions and vectors,
-   relocate ranges explicitly, and distinguish format rewrites from logical
-   content changes before any normal-save or maintenance upgrade is enabled.
-4. Route all writers through the common codec and enable the transactional XML
+2. Route all writers through the common codec and enable the transactional XML
    writer for normal saves only after those readers and database schemas migrate.
 
 Production Notes and remote backends are not test inputs. Tests use synthetic

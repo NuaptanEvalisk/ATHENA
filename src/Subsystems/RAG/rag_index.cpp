@@ -610,6 +610,23 @@ exec_sql (sqlite3* db, const char* sql, std::string& error) {
   return false;
 }
 
+static bool
+documents_has_column (sqlite3* db, const char* name) {
+  sqlite3_stmt* st= nullptr;
+  if (sqlite3_prepare_v2 (db, "PRAGMA table_info(documents);", -1, &st, nullptr) !=
+      SQLITE_OK) return false;
+  bool found= false;
+  while (sqlite3_step (st) == SQLITE_ROW) {
+    const unsigned char* text= sqlite3_column_text (st, 1);
+    if (text && std::string (reinterpret_cast<const char*> (text)) == name) {
+      found= true;
+      break;
+    }
+  }
+  sqlite3_finalize (st);
+  return found;
+}
+
 static void
 bind_text (sqlite3_stmt* st, int col, const std::string& s) {
   sqlite3_bind_text (st, col, s.c_str (), int (s.size ()), SQLITE_TRANSIENT);
@@ -739,6 +756,7 @@ RagIndex::open (const RagConfig& config) {
     "CREATE TABLE IF NOT EXISTS documents ("
     "  rel_path TEXT PRIMARY KEY, abs_path TEXT NOT NULL,"
     "  size INTEGER NOT NULL, mtime_ns INTEGER NOT NULL,"
+    "  storage_hash TEXT NOT NULL DEFAULT '',"
     "  content_hash TEXT NOT NULL, indexed_at INTEGER NOT NULL,"
     "  status TEXT NOT NULL, error TEXT NOT NULL);"
     "CREATE TABLE IF NOT EXISTS chunks ("
@@ -756,6 +774,41 @@ RagIndex::open (const RagConfig& config) {
     impl->status.last_error= error;
     athena_spdlog_error (
       "rag index: schema initialization failed: " + error);
+    return false;
+  }
+  {
+    Statement version (impl->db,
+      "SELECT value FROM meta WHERE key='schema-version'");
+    if (version.get () == nullptr) {
+      impl->status.last_error= sqlite3_errmsg (impl->db);
+      return false;
+    }
+    if (sqlite3_step (version.get ()) == SQLITE_ROW) {
+      const unsigned char* raw= sqlite3_column_text (version.get (), 0);
+      std::string value= raw == nullptr ? std::string () :
+        std::string (reinterpret_cast<const char*> (raw));
+      if (value != "1" && value != "2") {
+        impl->status.last_error= "Unsupported RAG database schema version " + value;
+        return false;
+      }
+    }
+  }
+  if (!documents_has_column (impl->db, "storage_hash")) {
+    if (!exec_sql (impl->db,
+          "BEGIN IMMEDIATE;"
+          "ALTER TABLE documents ADD COLUMN storage_hash TEXT NOT NULL DEFAULT '';"
+          "UPDATE documents SET storage_hash=content_hash,content_hash='';"
+          "INSERT INTO meta(key,value) VALUES('schema-version','2') "
+          "ON CONFLICT(key) DO UPDATE SET value='2';"
+          "COMMIT;", error)) {
+      impl->status.last_error= error;
+      return false;
+    }
+  }
+  else if (!exec_sql (impl->db,
+             "INSERT INTO meta(key,value) VALUES('schema-version','2') "
+             "ON CONFLICT(key) DO NOTHING;", error)) {
+    impl->status.last_error= error;
     return false;
   }
 
@@ -782,20 +835,35 @@ RagIndex::open (const RagConfig& config) {
   return true;
 }
 
-static bool
-document_is_current (sqlite3* db, const std::string& rel, int64_t size,
-                     int64_t mtime, const std::string& hash) {
-  Statement st (db, "SELECT size, mtime_ns, content_hash, status "
+struct CachedDocumentRevision {
+  bool found= false;
+  int64_t size= 0;
+  int64_t mtime= 0;
+  std::string storage_hash;
+  std::string semantic_hash;
+  std::string status;
+};
+
+static CachedDocumentRevision
+document_revision (sqlite3* db, const std::string& rel) {
+  CachedDocumentRevision result;
+  Statement st (db, "SELECT size,mtime_ns,storage_hash,content_hash,status "
                     "FROM documents WHERE rel_path=?");
-  if (st.get () == nullptr) return false;
+  if (st.get () == nullptr) return result;
   bind_text (st.get (), 1, rel);
-  if (sqlite3_step (st.get ()) != SQLITE_ROW) return false;
-  return sqlite3_column_int64 (st.get (), 0) == size &&
-         sqlite3_column_int64 (st.get (), 1) == mtime &&
-         hash == reinterpret_cast<const char*> (
-                   sqlite3_column_text (st.get (), 2)) &&
-         std::string (reinterpret_cast<const char*> (
-           sqlite3_column_text (st.get (), 3))) == "ok";
+  if (sqlite3_step (st.get ()) != SQLITE_ROW) return result;
+  result.found= true;
+  result.size= sqlite3_column_int64 (st.get (), 0);
+  result.mtime= sqlite3_column_int64 (st.get (), 1);
+  auto column= [&] (int index) {
+    const unsigned char* text= sqlite3_column_text (st.get (), index);
+    return text == nullptr ? std::string () :
+      std::string (reinterpret_cast<const char*> (text));
+  };
+  result.storage_hash= column (2);
+  result.semantic_hash= column (3);
+  result.status= column (4);
+  return result;
 }
 
 static void
@@ -849,12 +917,12 @@ merge_worker_database (sqlite3* db, const std::string& path,
 
   {
     Statement src (worker, "SELECT rel_path, abs_path, size, mtime_ns, "
-                           "content_hash, indexed_at, status, error "
+                           "storage_hash, content_hash, indexed_at, status, error "
                            "FROM documents");
     Statement dst (db, "INSERT OR REPLACE INTO documents "
-                       "(rel_path, abs_path, size, mtime_ns, content_hash, "
+                       "(rel_path, abs_path, size, mtime_ns, storage_hash, content_hash, "
                        " indexed_at, status, error) "
-                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
     while (sqlite3_step (src.get ()) == SQLITE_ROW) {
       sqlite3_reset (dst.get ());
       sqlite3_clear_bindings (dst.get ());
@@ -865,10 +933,12 @@ merge_worker_database (sqlite3* db, const std::string& path,
       sqlite3_bind_int64 (dst.get (), 4, sqlite3_column_int64 (src.get (), 3));
       sqlite3_bind_text (dst.get (), 5, text_col (src.get (), 4),
                          -1, SQLITE_TRANSIENT);
-      sqlite3_bind_int64 (dst.get (), 6, sqlite3_column_int64 (src.get (), 5));
-      sqlite3_bind_text (dst.get (), 7, text_col (src.get (), 6),
+      sqlite3_bind_text (dst.get (), 6, text_col (src.get (), 5),
                          -1, SQLITE_TRANSIENT);
+      sqlite3_bind_int64 (dst.get (), 7, sqlite3_column_int64 (src.get (), 6));
       sqlite3_bind_text (dst.get (), 8, text_col (src.get (), 7),
+                         -1, SQLITE_TRANSIENT);
+      sqlite3_bind_text (dst.get (), 9, text_col (src.get (), 8),
                          -1, SQLITE_TRANSIENT);
       if (sqlite3_step (dst.get ()) != SQLITE_DONE) {
         error= sqlite3_errmsg (db);
@@ -935,19 +1005,21 @@ merge_worker_database (sqlite3* db, const std::string& path,
 
 static void
 upsert_document (sqlite3* db, const std::string& rel, const fs::path& abs,
-                 int64_t size, int64_t mtime, const std::string& hash,
-                 const std::string& status, const std::string& error) {
+                  int64_t size, int64_t mtime, const std::string& storage_hash,
+                  const std::string& semantic_hash,
+                  const std::string& status, const std::string& error) {
   Statement st (db, "INSERT OR REPLACE INTO documents "
-                  "(rel_path, abs_path, size, mtime_ns, content_hash, "
-                  " indexed_at, status, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                  "(rel_path, abs_path, size, mtime_ns, storage_hash, content_hash, "
+                  " indexed_at, status, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
   bind_text (st.get (), 1, rel);
   bind_text (st.get (), 2, abs.generic_string ());
   sqlite3_bind_int64 (st.get (), 3, size);
   sqlite3_bind_int64 (st.get (), 4, mtime);
-  bind_text (st.get (), 5, hash);
-  sqlite3_bind_int64 (st.get (), 6, (sqlite3_int64) std::time (nullptr));
-  bind_text (st.get (), 7, status);
-  bind_text (st.get (), 8, error);
+  bind_text (st.get (), 5, storage_hash);
+  bind_text (st.get (), 6, semantic_hash);
+  sqlite3_bind_int64 (st.get (), 7, (sqlite3_int64) std::time (nullptr));
+  bind_text (st.get (), 8, status);
+  bind_text (st.get (), 9, error);
   sqlite3_step (st.get ());
 }
 
@@ -1043,7 +1115,7 @@ RagIndex::scan_once () {
     live.insert (rel);
     std::string text;
     if (!read_bytes (file, text)) {
-      upsert_document (impl->db, rel, file, 0, 0, "", "error",
+      upsert_document (impl->db, rel, file, 0, 0, "", "", "error",
                        "failed to read file");
       log_file ("rag index: failed to read " + rel, true);
       progress_file_done ();
@@ -1052,17 +1124,35 @@ RagIndex::scan_once () {
 
     int64_t size= int64_t (text.size ());
     int64_t mt= mtime_ns (file);
-    std::string hash= fnv1a_hex (text);
-    if (document_is_current (impl->db, rel, size, mt, hash)) {
+    std::string storage_hash= fnv1a_hex (text);
+    CachedDocumentRevision cached= document_revision (impl->db, rel);
+    const bool storage_same= cached.found && cached.status == "ok" &&
+      cached.size == size && cached.mtime == mt &&
+      cached.storage_hash == storage_hash;
+    if (storage_same && !cached.semantic_hash.empty ()) {
       if (impl->config.progress || impl->config.progress_fd >= 0)
         log_file ("rag index: up-to-date " + rel);
       progress_file_done ();
       continue;
     }
 
-    delete_document_rows (impl->db, rel);
     try {
       tree doc= athena::document::decode_document_bytes (text).document;
+      std::string semantic_hash=
+        athena::document::semantic_document_fingerprint (doc);
+      if (cached.found && cached.status == "ok" &&
+          (storage_same || (!cached.semantic_hash.empty () &&
+                            cached.semantic_hash == semantic_hash))) {
+        upsert_document (impl->db, rel, file, size, mt, storage_hash,
+                         semantic_hash, "ok", "");
+        if (impl->config.progress || impl->config.progress_fd >= 0)
+          log_file (cached.semantic_hash.empty () ?
+            "rag index: initialized semantic revision " + rel :
+            "rag index: storage rewrite preserved semantic revision " + rel);
+        progress_file_done ();
+        continue;
+      }
+      delete_document_rows (impl->db, rel);
       std::vector<ChunkBuild> chunks= chunk_document (rel, doc);
       std::vector<std::vector<float>> embeddings (chunks.size ());
       if (impl->embedder ().available ()) {
@@ -1087,7 +1177,8 @@ RagIndex::scan_once () {
         insert_chunk (impl->db, chunks[j], embeddings[j],
                       impl->embedder ().model_fingerprint ());
       }
-      upsert_document (impl->db, rel, file, size, mt, hash, "ok", "");
+      upsert_document (impl->db, rel, file, size, mt, storage_hash,
+                       semantic_hash, "ok", "");
       size_t embedded= 0;
       for (const std::vector<float>& emb: embeddings)
         if (!emb.empty ()) embedded++;
@@ -1096,7 +1187,8 @@ RagIndex::scan_once () {
                 std::to_string (embedded));
     }
     catch (...) {
-      upsert_document (impl->db, rel, file, size, mt, hash, "error",
+      delete_document_rows (impl->db, rel);
+      upsert_document (impl->db, rel, file, size, mt, storage_hash, "", "error",
                        "failed to parse TeXmacs document");
       log_file ("rag index: malformed .ath file: " + rel, true);
     }

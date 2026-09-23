@@ -21,6 +21,10 @@
 namespace athena::interop {
 namespace {
 using clock = std::chrono::steady_clock;
+value welcome_versions () {
+  return {{"protocol_version", audmap_protocol_version},
+          {"document_model_version", audmap_document_model_version}};
+}
 value control (transport_opcode opcode, value argument = nullptr) {
   return value::array ({static_cast<unsigned> (opcode), std::move (argument)});
 }
@@ -134,7 +138,7 @@ struct local_server::impl {
           [confirmation, ui_id] (value request, std::function<void (bool)> reply) {
             confirmation (ui_id, std::move (request), std::move (reply));
           }, [&s, peer] (value reply) { s.send (peer, reply); }, grant->capabilities);
-        s.send (peer, control (transport_opcode::welcome, 1));
+        s.send (peer, control (transport_opcode::welcome, welcome_versions ()));
       });
     });
   }
@@ -163,12 +167,16 @@ struct local_server::impl {
       auto it = connections.find (peer);
       const auto op = msg[0].get<unsigned> ();
       if (op == static_cast<unsigned> (transport_opcode::hello)) {
-        if (msg.size () != 3 || msg[1] != 1 || !msg[2].is_string () || msg[2].get_ref<const std::string&> ().size () > 256)
-          throw std::invalid_argument ("HELLO requires version 1 and client name (<=256 bytes)");
-        if (it == connections.end ()) admit (peer, msg[2]);
+        if (msg.size () != 4 || msg[1] != audmap_protocol_version ||
+            msg[2] != audmap_document_model_version || !msg[3].is_string () ||
+            msg[3].get_ref<const std::string&> ().size () > 256)
+          throw std::invalid_argument (
+            "HELLO requires current protocol/document model versions and client name (<=256 bytes)");
+        if (it == connections.end ()) admit (peer, msg[3]);
         else {
           it->second.touched = clock::now ();
-          send (peer, control (it->second.session ? transport_opcode::welcome : transport_opcode::pending, 1));
+          send (peer, control (it->second.session ? transport_opcode::welcome : transport_opcode::pending,
+                               it->second.session ? welcome_versions () : value (nullptr)));
         }
         return;
       }
@@ -221,8 +229,11 @@ struct local_server::impl {
     chmod ((directory / "socket").c_str (), 0600);
     {
       std::ofstream output (discovery);
-      if (!output || !(output << value ({{"version", 1}, {"pid", getpid ()},
-          {"endpoint", endpoint}, {"server_key", public_key}}).dump (2)))
+      if (!output || !(output << value ({{"version", audmap_endpoint_descriptor_version},
+          {"protocol_version", audmap_protocol_version},
+          {"document_model_version", audmap_document_model_version},
+          {"pid", getpid ()}, {"endpoint", endpoint},
+          {"server_key", public_key}}).dump (2)))
         throw std::runtime_error ("Cannot publish AUDMAP endpoint");
     }
     chmod (discovery.c_str (), 0600);

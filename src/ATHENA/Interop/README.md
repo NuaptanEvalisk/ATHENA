@@ -1,4 +1,4 @@
-# ATHENA Interop, protocol version 1
+# ATHENA Interop, protocol version 2 / document model version 2
 
 AUDM selects live resources; AUDMAP exposes ticket-local occurrence handles.
 This implementation does not restore TeXmacs plugins or expose arbitrary Scheme
@@ -50,7 +50,12 @@ Each desktop instance publishes a `connection.json` under
 `$XDG_RUNTIME_DIR/athena-audmap-PID-XXXXXX/` (fallback: `/tmp`). The directory is
 0700; descriptor and IPC socket are 0600. No TCP listener is created. The
 descriptor contains only the endpoint, PID, protocol version and ephemeral
-server public key. libzmq restricts IPC clients to the server's UID.
+server public key, plus the document-model version. HELLO declares both the
+wire protocol and document-model versions; WELCOME echoes both. Version 2 is
+the first protocol that guarantees UTF-8 document text, versioned XML saved
+documents, explicit `NAMED_SYMBOL` identity and exact legacy source-position
+relocation. Mismatched clients are rejected before resource resolution.
+libzmq restricts IPC clients to the server's UID.
 
 The bundled clients persist a CURVE keypair. ZAP binds
 the authenticated public key to message `User-Id`; a ROUTER identity must match
@@ -74,8 +79,8 @@ Transport control arrays:
 
 | Opcode | Request/response |
 |---|---|
-| 100 | Client HELLO: `[100, 1, client_name]` |
-| 101 | Server WELCOME: `[101, 1]` |
+| 100 | Client HELLO: `[100, protocol_version, document_model_version, client_name]` |
+| 101 | Server WELCOME: `[101, {protocol_version, document_model_version}]` |
 | 102 | Server authorization pending: `[102, null]` |
 | 103 | Client heartbeat: `[103]` |
 | 104 | Client disconnect: `[104]` |

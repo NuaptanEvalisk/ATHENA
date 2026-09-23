@@ -38,4 +38,9 @@ document_read_result decode_document_bytes (
 // the legacy branch above; native XML never passes through Cork.
 const legacy_cork_table& standard_legacy_cork_table ();
 
+// Stable logical revision for persistence/index caches. The fingerprint is
+// computed from canonical XML serialization of the migrated tree, never from
+// the source file bytes, so legacy<->XML rewrites preserve the revision.
+std::string semantic_document_fingerprint (const tree&, codec_limits = {});
+
 } // namespace athena::document

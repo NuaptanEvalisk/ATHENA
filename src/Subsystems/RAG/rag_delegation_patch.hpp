@@ -20,12 +20,17 @@
 
 namespace athena::rag::delegation {
 
+inline constexpr int rag_delegation_protocol_version= 2;
+inline constexpr int rag_delegation_job_version= 2;
+inline constexpr int rag_persistence_model_version= 2;
+
 struct DelegatedFile {
   std::string rel_path;
   std::string content;
   int64_t size= 0;
   int64_t mtime_ns= 0;
-  std::string content_hash;
+  std::string storage_hash;
+  std::string semantic_hash;
 };
 
 struct DelegatedJob {

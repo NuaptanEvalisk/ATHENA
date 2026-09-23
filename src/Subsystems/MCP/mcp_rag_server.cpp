@@ -559,7 +559,7 @@ identity_result () {
   QJsonObject o;
   o["name"]= "ATHENA Delegation Server";
   o["kind"]= "backend";
-  o["protocol"]= 1;
+  o["protocol"]= athena::rag::delegation::rag_delegation_protocol_version;
   o["public_key"]= QString::fromStdString (
     athena::rag::delegation::base64_encode (
       delegation_keypair.public_key));
@@ -567,8 +567,8 @@ identity_result () {
     athena::rag::delegation::fingerprint_for_public_key (
       delegation_keypair.public_key));
   QJsonArray caps;
-  caps.append ("athena-delegation-v1");
-  caps.append ("rag-embedding-v1");
+  caps.append ("athena-delegation-v2");
+  caps.append ("rag-embedding-v2");
   if (artifact_queue && artifact_queue->available ())
     caps.append ("artifact-definition-span-v2");
   caps.append ("pending-enrollment");
@@ -664,6 +664,11 @@ handle_delegation_plain_rpc (const QJsonObject& request,
     if (parse.error != QJsonParseError::NoError || !jobDoc.isObject ())
       return jsonrpc_error_object ("invalid delegation job");
     QJsonObject jobRoot= jobDoc.object ();
+    if (jobRoot.value ("version").toInt () !=
+          athena::rag::delegation::rag_delegation_job_version ||
+        jobRoot.value ("persistence_model_version").toInt () !=
+          athena::rag::delegation::rag_persistence_model_version)
+      return jsonrpc_error_object ("incompatible delegation job/persistence model version");
     athena::rag::delegation::DelegatedJob job;
     for (const QJsonValue& value: jobRoot.value ("files").toArray ()) {
       QJsonObject obj= value.toObject ();
@@ -678,7 +683,10 @@ handle_delegation_plain_rpc (const QJsonObject& request,
       file.mtime_ns= mtimeValue.isString () ?
         mtimeValue.toString ().toLongLong ():
         qint64 (mtimeValue.toDouble ());
-      file.content_hash= obj.value ("content_hash").toString ().toStdString ();
+      file.storage_hash= obj.value ("storage_hash").toString ().toStdString ();
+      file.semantic_hash= obj.value ("semantic_hash").toString ().toStdString ();
+      if (file.storage_hash.empty () || file.semantic_hash.empty ())
+        return jsonrpc_error_object ("delegated file is missing revision hashes");
       job.files.push_back (std::move (file));
     }
     for (const QJsonValue& value: jobRoot.value ("deleted").toArray ())

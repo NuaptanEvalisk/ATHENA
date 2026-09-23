@@ -92,10 +92,6 @@ std::string to_std (string s) {
 
 string to_tm (const std::string& s) { return string (s.data (), (int) s.size ()); }
 
-std::string cork_bytes_to_utf8 (const std::string& value) {
-  return to_std (cork_to_utf8 (to_tm (value)));
-}
-
 QString qstr (const std::string& s) {
   return QString::fromUtf8 (s.data (), (qsizetype) s.size ());
 }
@@ -247,9 +243,12 @@ bool open_databases (const fs::path& root, SqliteDb& holder,
   if (!exec_sql (holder.db, attach, error)) return false;
   const char* schema=
     "PRAGMA foreign_keys=ON;"
+    "CREATE TABLE IF NOT EXISTS artifact_metadata("
+    " key TEXT PRIMARY KEY,value TEXT NOT NULL);"
     "CREATE TABLE IF NOT EXISTS documents("
     " path TEXT PRIMARY KEY,mtime_ns INTEGER NOT NULL,size INTEGER NOT NULL,"
-    " locator_contract TEXT NOT NULL DEFAULT '');"
+    " locator_contract TEXT NOT NULL DEFAULT '',"
+    " semantic_hash TEXT NOT NULL DEFAULT '');"
     "CREATE TABLE IF NOT EXISTS enunciations.entries("
     " uuid TEXT PRIMARY KEY,path TEXT NOT NULL,anchor_stem TEXT NOT NULL,"
     " tag TEXT NOT NULL,display_text TEXT NOT NULL,document_order INTEGER NOT NULL,"
@@ -285,6 +284,7 @@ bool open_databases (const fs::path& root, SqliteDb& holder,
     "CREATE INDEX IF NOT EXISTS artifact_names_name_idx ON artifact_names(name);"
     "CREATE TABLE IF NOT EXISTS artifact_range_cache("
     " path TEXT NOT NULL,mtime_ns INTEGER NOT NULL,size INTEGER NOT NULL,"
+    " semantic_hash TEXT NOT NULL DEFAULT '',"
     " request_hash TEXT NOT NULL,paragraph_offsets TEXT NOT NULL,"
     " updated_at INTEGER NOT NULL,"
     " PRIMARY KEY(path,mtime_ns,size,request_hash));"
@@ -300,7 +300,32 @@ bool open_databases (const fs::path& root, SqliteDb& holder,
     "ON artifact_identity_history(path,sequence);";
   if (!exec_sql (holder.db, schema, error)) return false;
   if (!ensure_column (holder.db, "documents", "locator_contract",
+                       "TEXT NOT NULL DEFAULT ''", error))
+    return false;
+  if (!ensure_column (holder.db, "documents", "semantic_hash",
+                      "TEXT NOT NULL DEFAULT ''", error) ||
+      !ensure_column (holder.db, "artifact_range_cache", "semantic_hash",
                       "TEXT NOT NULL DEFAULT ''", error))
+    return false;
+  Statement version;
+  if (!prepare (holder.db,
+        "SELECT value FROM artifact_metadata WHERE key='schema-version';",
+        version, error)) return false;
+  int version_status= sqlite3_step (version.st);
+  if (version_status == SQLITE_ROW) {
+    std::string value= column_text (version.st, 0);
+    if (value != "1" && value != "2") {
+      error= "Unsupported artifact database schema version " + value;
+      return false;
+    }
+  }
+  else if (version_status != SQLITE_DONE) {
+    error= sqlite3_errmsg (holder.db);
+    return false;
+  }
+  if (!exec_sql (holder.db,
+        "INSERT INTO artifact_metadata(key,value) VALUES('schema-version','2') "
+        "ON CONFLICT(key) DO UPDATE SET value='2';", error))
     return false;
   return true;
 }
@@ -318,7 +343,7 @@ std::string collapse_spaces (const std::string& value) {
 }
 
 bool has_name_bearing_text (const std::string& value) {
-  const QString text= qstr (cork_bytes_to_utf8 (value));
+  const QString text= qstr (value);
   for (QChar character: text)
     if (character.isLetter ()) return true;
   return false;
@@ -442,13 +467,13 @@ void append_definition_names (const tree& title, AthenaArtifactRecord& record) {
   tree parts (CONCAT);
   append_title_parts (title, parts);
   if (N(parts) > 0 && is_atomic (parts[0]) && is_atomic (parts[N(parts)-1])) {
-    QString first= qstr (cork_bytes_to_utf8 (to_std (parts[0]->label))).trimmed ();
-    QString last= qstr (cork_bytes_to_utf8 (to_std (parts[N(parts)-1]->label))).trimmed ();
+    QString first= qstr (to_std (parts[0]->label)).trimmed ();
+    QString last= qstr (to_std (parts[N(parts)-1]->label)).trimmed ();
     if ((first.startsWith ('(') && last.endsWith (')')) ||
         (first.startsWith (QChar (0xff08)) && last.endsWith (QChar (0xff09)))) {
       auto native= [] (const QString& s) {
         QByteArray bytes= s.toUtf8 ();
-        return tree (utf8_to_cork (string (bytes.constData (), bytes.size ())));
+        return tree (string (bytes.constData (), bytes.size ()));
       };
       if (N(parts) == 1) parts[0]= native (first.mid (1, first.size ()-2));
       else {
@@ -461,13 +486,13 @@ void append_definition_names (const tree& title, AthenaArtifactRecord& record) {
   std::vector<tree> aliases (1, tree (CONCAT));
   for (int i=0; i<N(parts); ++i) {
     if (!is_atomic (parts[i])) { aliases.back () << parts[i]; continue; }
-    QString text= qstr (cork_bytes_to_utf8 (to_std (parts[i]->label)));
+    QString text= qstr (to_std (parts[i]->label));
     const QStringList pieces= text.split (
       QRegularExpression (QStringLiteral ("[,\\x{ff0c}]")));
     for (qsizetype j=0; j<pieces.size (); ++j) {
       if (j != 0) aliases.emplace_back (CONCAT);
       QByteArray bytes= pieces[j].toUtf8 ();
-      aliases.back () << tree (utf8_to_cork (string (bytes.constData (), bytes.size ())));
+      aliases.back () << tree (string (bytes.constData (), bytes.size ()));
     }
   }
   for (tree alias: aliases) {
@@ -476,7 +501,7 @@ void append_definition_names (const tree& title, AthenaArtifactRecord& record) {
     if (is_atomic (alias[N(alias)-1]))
       alias[N(alias)-1]= trim_spaces (alias[N(alias)-1]->label);
     alias= simplify_concat (alias);
-    std::string display= cork_bytes_to_utf8 (collapse_spaces (definition_name_text (alias)));
+    std::string display= collapse_spaces (definition_name_text (alias));
     std::string serialized= to_std (tree_to_texmacs (alias));
     if (display.empty () || std::find (record.semantic_name_trees.begin (),
         record.semantic_name_trees.end (), serialized) != record.semantic_name_trees.end ())
@@ -624,14 +649,13 @@ std::string latex_for_tree (const tree& t) {
   // selectors only need a stable textual representation; the full ATHENA
   // process continues to use the normal LaTeX converter below.
   if (headless_mode)
-    return cork_bytes_to_utf8 (to_std (tree_to_texmacs (semantic)));
+    return to_std (tree_to_texmacs (semantic));
   try {
-    return cork_bytes_to_utf8 (
-      to_std (as_string (call ("convert", semantic, "texmacs-tree",
-                               "latex-snippet"))));
+    return to_std (as_string (call ("convert", semantic, "texmacs-tree",
+                                    "latex-snippet")));
   }
   catch (...) {
-    return cork_bytes_to_utf8 (to_std (tree_to_texmacs (semantic)));
+    return to_std (tree_to_texmacs (semantic));
   }
 }
 
@@ -693,7 +717,7 @@ void scan_enunciations (const tree& parent, const std::string& rel,
     std::string base;
     std::string type= enunciation_type (tag_name (child), base);
     if (!type.empty ()) {
-      std::string display= cork_bytes_to_utf8 (plain_text (child));
+      std::string display= plain_text (child);
       // Image-only enunciations have no textual semantic identity that can be
       // named, searched, or matched reliably. Leave them out until image
       // understanding becomes part of artifactization.
@@ -715,11 +739,10 @@ void scan_enunciations (const tree& parent, const std::string& rel,
       record.type= type;
       record.origin= "enunciation";
       record.relative_path= rel;
-      record.anchor_stem= cork_bytes_to_utf8 (anchor);
+      record.anchor_stem= anchor;
       record.display_text= display;
       std::string explicit_title;
-      if (leading_bold_text (child, explicit_title))
-        explicit_title= cork_bytes_to_utf8 (explicit_title);
+      (void) leading_bold_text (child, explicit_title);
       if (type == "definition" && N(child) > 0)
         definition_names_in_first_line (child[N(child)-1], record);
       else
@@ -851,8 +874,8 @@ std::string range_request_hash (const AthenaArtifactRangeRequest& request,
 }
 
 bool load_range_checkpoint (sqlite3* db, const std::string& path,
-                            long long modified, long long size,
-                            const std::string& request_hash,
+                             const std::string& semantic_hash,
+                             const std::string& request_hash,
                             const AthenaArtifactRangeRequest& request,
                             std::vector<int>& offsets, bool& found,
                             std::string& error) {
@@ -860,13 +883,13 @@ bool load_range_checkpoint (sqlite3* db, const std::string& path,
   if (!prepare (
         db,
         "SELECT paragraph_offsets FROM artifact_range_cache "
-        "WHERE path=?1 AND mtime_ns=?2 AND size=?3 AND request_hash=?4;",
+        "WHERE path=?1 AND semantic_hash=?2 AND request_hash=?3 "
+        "ORDER BY updated_at DESC LIMIT 1;",
         statement, error))
     return false;
   bind_text (statement.st, 1, path);
-  sqlite3_bind_int64 (statement.st, 2, modified);
-  sqlite3_bind_int64 (statement.st, 3, size);
-  bind_text (statement.st, 4, request_hash);
+  bind_text (statement.st, 2, semantic_hash);
+  bind_text (statement.st, 3, request_hash);
   int status= sqlite3_step (statement.st);
   if (status == SQLITE_DONE) { found= false; return true; }
   if (status != SQLITE_ROW) { error= sqlite3_errmsg (db); return false; }
@@ -879,6 +902,7 @@ struct RangeCheckpoint {
   std::string path;
   long long modified= 0;
   long long size= 0;
+  std::string semantic_hash;
   std::string request_hash;
   std::vector<int> offsets;
 };
@@ -898,9 +922,10 @@ bool store_range_checkpoints (sqlite3* db,
   Statement insert;
   if (!prepare (
         db,
-        "INSERT INTO artifact_range_cache(path,mtime_ns,size,request_hash,"
-        "paragraph_offsets,updated_at) VALUES(?1,?2,?3,?4,?5,?6) "
+        "INSERT INTO artifact_range_cache(path,mtime_ns,size,semantic_hash,request_hash,"
+        "paragraph_offsets,updated_at) VALUES(?1,?2,?3,?4,?5,?6,?7) "
         "ON CONFLICT(path,mtime_ns,size,request_hash) DO UPDATE SET "
+        "semantic_hash=excluded.semantic_hash,"
         "paragraph_offsets=excluded.paragraph_offsets,"
         "updated_at=excluded.updated_at;",
         insert, error)) {
@@ -916,9 +941,10 @@ bool store_range_checkpoints (sqlite3* db,
     bind_text (insert.st, 1, checkpoint.path);
     sqlite3_bind_int64 (insert.st, 2, checkpoint.modified);
     sqlite3_bind_int64 (insert.st, 3, checkpoint.size);
-    bind_text (insert.st, 4, checkpoint.request_hash);
-    bind_text (insert.st, 5, offsets_text (checkpoint.offsets));
-    sqlite3_bind_int64 (insert.st, 6, updated_at);
+    bind_text (insert.st, 4, checkpoint.semantic_hash);
+    bind_text (insert.st, 5, checkpoint.request_hash);
+    bind_text (insert.st, 6, offsets_text (checkpoint.offsets));
+    sqlite3_bind_int64 (insert.st, 7, updated_at);
     if (sqlite3_step (insert.st) != SQLITE_DONE) {
       error= sqlite3_errmsg (db);
       rollback ();
@@ -955,7 +981,7 @@ bool extract (const tree& document, const std::string& rel,
       if (collapse_spaces (display).empty () ||
           !has_name_bearing_text (display) ||
           athena_artifact_title_filter_contains (
-            title_filter, cork_bytes_to_utf8 (display))) continue;
+            title_filter, display)) continue;
       std::string serialized= to_std (tree_to_texmacs (keyword));
       int occurrence= ++occurrences[serialized];
       std::vector<std::pair<int,std::string>> candidates;
@@ -971,7 +997,7 @@ bool extract (const tree& document, const std::string& rel,
       record.type= "definition";
       record.origin= "bold-text";
       record.relative_path= rel;
-      record.display_text= cork_bytes_to_utf8 (display);
+      record.display_text= display;
       record.semantic_names= semantic_names_for (
         record.origin, record.type, record.display_text);
       record.keyword_tree= serialized;
@@ -1073,6 +1099,7 @@ struct DocumentWork {
   std::string rel;
   long long modified= 0;
   long long size= 0;
+  std::string semantic_hash;
 };
 
 bool read_document (const fs::path& path, tree& document, std::string& error);
@@ -1113,6 +1140,7 @@ bool select_definition_ranges (
     std::string path;
     long long modified;
     long long size;
+    std::string semantic_hash;
     AthenaArtifactRangeRequest request;
     std::string request_hash;
   };
@@ -1143,7 +1171,7 @@ bool select_definition_ranges (
                               texmacs_to_tree (to_tm (candidate.second)))});
       const DocumentWork& source= *document_metadata->second;
       work.push_back ({&record, document.first, source.modified, source.size,
-                       std::move (request), {}});
+                       source.semantic_hash, std::move (request), {}});
       work.back ().request_hash= range_request_hash (
         work.back ().request, cache_contract);
     }
@@ -1174,7 +1202,7 @@ bool select_definition_ranges (
     }
     bool found= false;
     if (db && !load_range_checkpoint (
-                db, work[index].path, work[index].modified, work[index].size,
+                db, work[index].path, work[index].semantic_hash,
                 work[index].request_hash, work[index].request, selected[index],
                 found, error))
       return false;
@@ -1255,7 +1283,8 @@ bool select_definition_ranges (
       }
       selected[index]= std::move (chunk_selected[i]);
       checkpoints.push_back ({work[index].path, work[index].modified,
-                              work[index].size, work[index].request_hash,
+                              work[index].size, work[index].semantic_hash,
+                              work[index].request_hash,
                               selected[index]});
     }
     if (db && !store_range_checkpoints (db, checkpoints, error)) return false;
@@ -1558,9 +1587,10 @@ AthenaArtifactIdentityObservation identity_observation (
 }
 
 bool replace_document (sqlite3* db, const std::string& rel,
-                       ExtractedDocument& extracted, long long modified,
-                       long long size, const std::string& extraction_contract,
-                       std::string& error) {
+                        ExtractedDocument& extracted, long long modified,
+                        long long size, const std::string& semantic_hash,
+                        const std::string& extraction_contract,
+                        std::string& error) {
   std::vector<AthenaArtifactIdentityObservation> old_observations;
   if (!load_identity_observations (db, rel, old_observations, error))
     return false;
@@ -1759,15 +1789,17 @@ bool replace_document (sqlite3* db, const std::string& rel,
 
   Statement doc;
   if (!prepare (db,
-      "INSERT INTO documents(path,mtime_ns,size,locator_contract) "
-      "VALUES(?1,?2,?3,?4) "
+      "INSERT INTO documents(path,mtime_ns,size,locator_contract,semantic_hash) "
+      "VALUES(?1,?2,?3,?4,?5) "
       "ON CONFLICT(path) DO UPDATE SET mtime_ns=excluded.mtime_ns,"
-      "size=excluded.size,locator_contract=excluded.locator_contract;",
+      "size=excluded.size,locator_contract=excluded.locator_contract,"
+      "semantic_hash=excluded.semantic_hash;",
       doc, error)) return false;
   bind_text (doc.st, 1, rel);
   sqlite3_bind_int64 (doc.st, 2, modified);
   sqlite3_bind_int64 (doc.st, 3, size);
   bind_text (doc.st, 4, extraction_contract);
+  bind_text (doc.st, 5, semantic_hash);
   if (sqlite3_step (doc.st) != SQLITE_DONE) {
     error= sqlite3_errmsg (db); return false;
   }
@@ -1775,12 +1807,11 @@ bool replace_document (sqlite3* db, const std::string& rel,
   if (!prepare (
         db,
         "DELETE FROM artifact_range_cache WHERE path=?1 AND "
-        "(mtime_ns<>?2 OR size<>?3);",
+        "(semantic_hash='' OR semantic_hash<>?2);",
         prune_cache, error))
     return false;
   bind_text (prune_cache.st, 1, rel);
-  sqlite3_bind_int64 (prune_cache.st, 2, modified);
-  sqlite3_bind_int64 (prune_cache.st, 3, size);
+  bind_text (prune_cache.st, 2, semantic_hash);
   if (sqlite3_step (prune_cache.st) != SQLITE_DONE) {
     error= sqlite3_errmsg (db);
     return false;
@@ -1833,20 +1864,77 @@ bool delete_document (sqlite3* db, const std::string& rel,
   return true;
 }
 
-bool is_current_fingerprint (sqlite3* db, const std::string& rel,
-                             long long modified, long long size,
-                             const std::string& extraction_contract,
+struct ArtifactDocumentRevision {
+  bool found= false;
+  long long modified= 0;
+  long long size= 0;
+  std::string extraction_contract;
+  std::string semantic_hash;
+};
+
+bool load_document_revision (sqlite3* db, const std::string& rel,
+                             ArtifactDocumentRevision& revision,
                              std::string& error) {
   Statement st;
   if (!prepare (
         db,
-        "SELECT mtime_ns,size,locator_contract FROM documents WHERE path=?1;",
+        "SELECT mtime_ns,size,locator_contract,semantic_hash "
+        "FROM documents WHERE path=?1;",
         st, error)) return false;
   bind_text (st.st, 1, rel);
   int rc= sqlite3_step (st.st);
-  return rc == SQLITE_ROW && sqlite3_column_int64 (st.st, 0) == modified &&
-         sqlite3_column_int64 (st.st, 1) == size &&
-         column_text (st.st, 2) == extraction_contract;
+  if (rc == SQLITE_DONE) { revision= {}; return true; }
+  if (rc != SQLITE_ROW) { error= sqlite3_errmsg (db); return false; }
+  revision.found= true;
+  revision.modified= sqlite3_column_int64 (st.st, 0);
+  revision.size= sqlite3_column_int64 (st.st, 1);
+  revision.extraction_contract= column_text (st.st, 2);
+  revision.semantic_hash= column_text (st.st, 3);
+  return true;
+}
+
+bool update_document_revision (sqlite3* db, const std::string& rel,
+                               long long modified, long long size,
+                               const std::string& semantic_hash,
+                               const std::string& extraction_contract,
+                               std::string& error) {
+  Statement st;
+  if (!prepare (
+        db,
+        "UPDATE documents SET mtime_ns=?2,size=?3,semantic_hash=?4,"
+        "locator_contract=?5 WHERE path=?1;",
+        st, error)) return false;
+  bind_text (st.st, 1, rel);
+  sqlite3_bind_int64 (st.st, 2, modified);
+  sqlite3_bind_int64 (st.st, 3, size);
+  bind_text (st.st, 4, semantic_hash);
+  bind_text (st.st, 5, extraction_contract);
+  if (sqlite3_step (st.st) != SQLITE_DONE) {
+    error= sqlite3_errmsg (db);
+    return false;
+  }
+  return true;
+}
+
+bool backfill_range_cache_semantic (sqlite3* db, const std::string& rel,
+                                    long long modified, long long size,
+                                    const std::string& semantic_hash,
+                                    std::string& error) {
+  Statement st;
+  if (!prepare (
+        db,
+        "UPDATE artifact_range_cache SET semantic_hash=?4 WHERE path=?1 AND "
+        "mtime_ns=?2 AND size=?3 AND semantic_hash='';",
+        st, error)) return false;
+  bind_text (st.st, 1, rel);
+  sqlite3_bind_int64 (st.st, 2, modified);
+  sqlite3_bind_int64 (st.st, 3, size);
+  bind_text (st.st, 4, semantic_hash);
+  if (sqlite3_step (st.st) != SQLITE_DONE) {
+    error= sqlite3_errmsg (db);
+    return false;
+  }
+  return true;
 }
 
 } // namespace
@@ -1910,7 +1998,7 @@ athena_artifacts_extract_document (
   std::vector<AthenaArtifactRecord>& records, std::string& error) {
   std::map<std::string,ExtractedDocument> extracted;
   std::vector<DocumentWork> source= {
-    {fs::path (), relative_path, 0, 0}
+    {fs::path (), relative_path, 0, 0, ""}
   };
   AthenaArtifactTitleFilter title_filter=
     athena_artifact_title_filter_defaults ();
@@ -2025,7 +2113,7 @@ bool enunciation_matches_record (
     }
   }
   return (!record.anchor_stem.empty () &&
-          cork_bytes_to_utf8 (anchor) == record.anchor_stem) ||
+          anchor == record.anchor_stem) ||
          (!record.identity_focus.empty () &&
           identity_fingerprint (enunciation) == record.identity_focus);
 }
@@ -2209,11 +2297,43 @@ athena_artifacts_build (
     std::string rel= relative_key (root, path);
     long long modified= mtime_ns (path);
     long long size= (long long) fs::file_size (path);
-    if (full_vault && is_current_fingerprint (
-          holder.db, rel, modified, size, extraction_contract, error))
+    ArtifactDocumentRevision cached;
+    if (!load_document_revision (holder.db, rel, cached, error)) return false;
+    const bool storage_same= cached.found && cached.modified == modified &&
+                             cached.size == size;
+    const bool contract_same= cached.found &&
+                              cached.extraction_contract == extraction_contract;
+    if (full_vault && storage_same && contract_same &&
+        !cached.semantic_hash.empty ())
       continue;
-    if (!error.empty ()) return false;
-    work.push_back ({path, rel, modified, size});
+
+    tree document;
+    if (!read_document (path, document, error)) return false;
+    std::string semantic_hash;
+    try {
+      semantic_hash= athena::document::semantic_document_fingerprint (document);
+    }
+    catch (const std::exception& e) {
+      error= "Could not fingerprint " + rel + ": " + e.what ();
+      return false;
+    }
+    if (full_vault && contract_same && cached.found &&
+        (storage_same || (!cached.semantic_hash.empty () &&
+                          cached.semantic_hash == semantic_hash))) {
+      if (cached.semantic_hash.empty () && storage_same &&
+          !backfill_range_cache_semantic (
+            holder.db, rel, modified, size, semantic_hash, error))
+        return false;
+      if (!update_document_revision (
+            holder.db, rel, modified, size, semantic_hash,
+            extraction_contract, error))
+        return false;
+      artifact_log (cached.semantic_hash.empty () ?
+        "initialized semantic revision without rebuilding artifacts: " + rel :
+        "storage-format rewrite preserved artifact revision: " + rel);
+      continue;
+    }
+    work.push_back ({path, rel, modified, size, semantic_hash});
   }
   artifact_log ("incremental plan: rebuild " + std::to_string (work.size ()) +
                 " document(s), purge " + std::to_string (deleted.size ()) +
@@ -2259,7 +2379,8 @@ athena_artifacts_build (
       return false;
     }
     if (!replace_document (holder.db, item.rel, found->second, item.modified,
-                           item.size, extraction_contract, error)) {
+                            item.size, item.semantic_hash, extraction_contract,
+                            error)) {
       rollback ();
       return false;
     }

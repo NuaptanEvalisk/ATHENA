@@ -195,6 +195,11 @@ private slots:
     QVERIFY (s.format == document_source_format::legacy_scheme);
     QVERIFY (s.document == m.document);
     QCOMPARE (s.mappings.size (), m.mappings.size ());
+    QCOMPARE (semantic_document_fingerprint (m.document),
+              semantic_document_fingerprint (s.document));
+    QCOMPARE (semantic_document_fingerprint (m.document),
+              semantic_document_fingerprint (
+                decode_document_bytes (write_xml (m.document), t).document));
 
     QVERIFY_THROWS_EXCEPTION (codec_exception,
       decode_document_bytes ("plain text is not a document", t));

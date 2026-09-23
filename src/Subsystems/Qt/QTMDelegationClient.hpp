@@ -19,6 +19,7 @@
 #include <QVector>
 
 struct QTMDelegationServer {
+  int protocol= 0;
   QString name;
   QString url;
   QString publicKey;
