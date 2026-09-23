@@ -8,6 +8,7 @@
 
 #include "ATHENA/Data/evaluation_bars.hpp"
 #include "ATHENA/Data/vault_maintenance_internal.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
 #include "convert.hpp"
 #include "drd_std.hpp"
 #include "tree_analyze.hpp"
@@ -41,7 +42,7 @@ vault_maintenance_pass_promote_evaluation_bars (VaultMaintenanceContext& ctx) {
         "could not read " + paths[i].string ());
     }
     tree document;
-    try { document= texmacs_document_to_tree (std_to_tm (source)); }
+    try { document= athena::document::decode_document_bytes (source).document; }
     catch (...) { document= tree (_ERROR, "parse failed"); }
     int body_index= -1;
     if (is_func (document, DOCUMENT))

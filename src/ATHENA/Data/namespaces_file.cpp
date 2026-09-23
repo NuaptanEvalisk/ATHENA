@@ -10,6 +10,7 @@
 
 #include "namespaces_private.hpp"
 
+#include "Data/Convert/Xml/document_file_codec.hpp"
 #include "boot.hpp"
 #include "file.hpp"
 #include "new_style.hpp"
@@ -145,8 +146,11 @@ namespace_load_initial_document (const athena_namespace_definition& ns,
            ns.initial_content_path;
     return false;
   }
-  doc= texmacs_document_to_tree (text);
-  if (is_func (doc, _ERROR)) {
+  try {
+    doc= athena::document::decode_document_bytes (
+      std::string_view (as_charp (text), (std::size_t) N(text))).document;
+  }
+  catch (...) {
     error= "Namespace initial content is not a valid document.";
     return false;
   }

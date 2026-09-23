@@ -10,6 +10,7 @@
 
 #include "QTMVaultSearch.hpp"
 #include "QTMVaultSearchWorker.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
 #include "convert.hpp"
 #include "boot.hpp"
 #include "math_token.hpp"
@@ -139,12 +140,10 @@ tree vault_search_read_body (const QString& file) {
     bytes.append (block);
   }
   if (bytes.isEmpty ()) return tree (DOCUMENT, "");
-  string source (bytes.constData (), bytes.size ());
   // Search parses persisted documents, without converter/Scheme callbacks,
   // current-buffer fallback, link registration, or preview image rewriting.
-  tree doc= starts (source, "(document (TeXmacs") ? scheme_document_to_tree (source) :
-                                                   texmacs_document_to_tree (source);
-  if (is_func (doc, _ERROR)) throw std::runtime_error ("Invalid search document");
+  tree doc= athena::document::decode_document_bytes (
+    std::string_view (bytes.constData (), (std::size_t) bytes.size ())).document;
   tree body= extract (doc, "body");
   return is_empty (body) ? doc : body;
 }

@@ -12,6 +12,7 @@
 #include "rag_embedding.hpp"
 
 #include "ATHENA/Data/vaultfile_json.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
 #include "convert.hpp"
 #include "tm_ostream.hpp"
 
@@ -1061,7 +1062,7 @@ RagIndex::scan_once () {
 
     delete_document_rows (impl->db, rel);
     try {
-      tree doc= texmacs_document_to_tree (to_tm (text));
+      tree doc= athena::document::decode_document_bytes (text).document;
       std::vector<ChunkBuild> chunks= chunk_document (rel, doc);
       std::vector<std::vector<float>> embeddings (chunks.size ());
       if (impl->embedder ().available ()) {

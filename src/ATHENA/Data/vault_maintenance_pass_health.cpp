@@ -36,24 +36,10 @@ namespace fs = std::filesystem;
 
 static bool
 is_legible_ath_file (const fs::path& path, std::string& reason) {
-  std::string text;
-  if (!read_file_bytes (path, text)) {
-    reason = "failed to read";
-    return false;
-  }
-
-  try {
-    tree doc = texmacs_document_to_tree (std_to_tm (text));
-    if (is_func (doc, _ERROR)) {
-      reason = "malformed ATHENA document";
-      return false;
-    }
-    return true;
-  }
-  catch (...) {
-    reason = "parser exception";
-    return false;
-  }
+  tree document;
+  if (read_document_file (path, document, reason)) return true;
+  if (reason.empty ()) reason= "malformed ATHENA document";
+  return false;
 }
 
 VaultMaintenancePassResult
@@ -104,15 +90,10 @@ tree_contains_table_of_contents (const tree& t) {
 
 static bool
 document_contains_table_of_contents (const fs::path& path) {
-  std::string text;
-  if (!read_file_bytes (path, text)) return false;
-  try {
-    tree doc = texmacs_document_to_tree (std_to_tm (text));
-    return !is_func (doc, _ERROR) && tree_contains_table_of_contents (doc);
-  }
-  catch (...) {
-    return false;
-  }
+  tree document;
+  std::string error;
+  return read_document_file (path, document, error) &&
+         tree_contains_table_of_contents (document);
 }
 
 static uint64_t

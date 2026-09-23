@@ -11,6 +11,7 @@
 #include "QTMFontSelector.hpp"
 #include "ATHENA/Data/new_buffer.hpp"
 #include "ATHENA/Data/vault.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
 #include "convert.hpp"
 #include "file.hpp"
 #include "scheme.hpp"
@@ -111,14 +112,12 @@ readDocument (const fs::path& path, tree& document, QString& error) {
       QString::fromStdString (path.string ()));
     return false;
   }
-  try { document= texmacs_document_to_tree (source); }
+  try {
+    document= athena::document::decode_document_bytes (
+      std::string_view (as_charp (source), (std::size_t) N(source))).document;
+  }
   catch (...) {
     error= QString ("Could not parse %1").arg (
-      QString::fromStdString (path.string ()));
-    return false;
-  }
-  if (is_func (document, _ERROR)) {
-    error= QString ("Malformed ATHENA document: %1").arg (
       QString::fromStdString (path.string ()));
     return false;
   }

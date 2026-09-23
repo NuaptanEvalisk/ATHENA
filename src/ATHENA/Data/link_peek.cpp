@@ -10,6 +10,7 @@
 #include "artifact_document.hpp"
 #include "vault.hpp"
 #include "vault_map_sqlite.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
 #include "file.hpp"
 #include "convert.hpp"
 #include "QTMVaultAnchorModel.hpp"
@@ -160,7 +161,12 @@ tree athena_link_peek_document (string target, url& source) {
     return unavailable ("Preview unavailable: cannot read source.");
   // Native read, not import_tree: import also changes conversion focus and
   // registers links globally, neither of which belongs to a hover operation.
-  tree document= texmacs_document_to_tree (serialized);
+  tree document;
+  try {
+    document= athena::document::decode_document_bytes (
+      std::string_view (as_charp (serialized), (std::size_t) N(serialized))).document;
+  }
+  catch (...) { return unavailable ("Preview unavailable: cannot read source."); }
   if (!is_document (document)) return unavailable ("Preview unavailable: cannot read source.");
   if (artifact_target) {
     path focus;

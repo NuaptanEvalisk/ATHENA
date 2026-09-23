@@ -10,6 +10,7 @@
 
 #include "ATHENA/Data/vault_maintenance_internal.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
 #include "convert.hpp"
 
 #include <algorithm>
@@ -105,7 +106,7 @@ athena_global_transformation_prepare (
     std::string source;
     if (!read_current (path, source, error)) return false;
     tree document;
-    try { document= texmacs_document_to_tree (std_to_tm (source)); }
+    try { document= athena::document::decode_document_bytes (source).document; }
     catch (...) { document= tree (_ERROR, "parse failed"); }
     if (is_func (document, _ERROR)) {
       error= "Could not parse " + relative_text;

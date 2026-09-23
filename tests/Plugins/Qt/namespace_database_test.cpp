@@ -21,6 +21,8 @@
 #include "ATHENA/Interop/traversal.hpp"
 #include "ATHENA/Data/interop_filesystem.hpp"
 #include "ATHENA/Data/interop_document.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
+#include <algorithm>
 #include <fstream>
 
 bool headless_mode= true;
@@ -491,11 +493,13 @@ NamespaceDatabaseTest::nativeInteropResolution () {
   QCOMPARE (checked.status, std::string ("OK"));
   QVERIFY2 (checked.data.at ("valid").get<bool> (), checked.data.dump ().c_str ());
   // Use native markup, including a custom field that save/export filtering must not remove.
+  const std::string source_markup=
+    "<TeXmacs|2.1.4>\n\n<style|generic>\n\n"
+    "<\\body>\nfirst\n\n<transclude|other.ath|anchor>\n</body>\n\n"
+    "<custom-field|retained>\n";
   {
     std::ofstream document (root / "Source.ath");
-    document << "<TeXmacs|" << "2.1.4" << ">\n\n<style|generic>\n\n"
-      "<\\body>\nfirst\n\n<transclude|other.ath|anchor>\n</body>\n\n"
-      "<custom-field|retained>\n";
+    document << source_markup;
   }
   result= run ("@/vaults/@/filesystem/Source.ath/saved");
   QVERIFY2 (result.state == resolution_result::status::complete, result.error.c_str ());
@@ -505,6 +509,55 @@ NamespaceDatabaseTest::nativeInteropResolution () {
   auto source= saved->operate ("get", value::object ());
   QCOMPARE (source.status, std::string ("OK"));
   QCOMPARE (source.data.at ("tree").at ("tag").get<std::string> (), std::string ("document"));
+  QCOMPARE (source.data.at ("document_format").get<std::string> (),
+            std::string ("legacy-markup"));
+  QVERIFY (source.data.at ("legacy_relocation").get<bool> ());
+  {
+    auto decoded= athena::document::decode_document_bytes (source_markup);
+    std::optional<athena::document::document_position> expected;
+    athena::document::document_path source_path;
+    std::size_t source_byte= 0;
+    for (const auto& mapping: decoded.mappings) {
+      for (const auto& span: mapping.spans) {
+        expected= decoded.relocate (
+          mapping.source, span.begin, athena::document::boundary_affinity::following);
+        if (expected) {
+          source_path= mapping.source;
+          source_byte= span.begin;
+          break;
+        }
+      }
+      if (expected) break;
+    }
+    QVERIFY (expected.has_value ());
+    auto relocated= saved->operate ("relocate_source_position",
+      {{"path", source_path}, {"byte", source_byte}, {"affinity", "following"}});
+    QCOMPARE (relocated.status, std::string ("OK"));
+    QCOMPARE (relocated.data.at ("path").get<std::vector<int>> (), expected->node);
+    QCOMPARE (relocated.data.at ("byte").get<std::size_t> (), expected->offset);
+  }
+  {
+    auto decoded= athena::document::decode_document_bytes (source_markup);
+    std::ofstream xml_file (root / "Xml.ath", std::ios::binary);
+    xml_file << athena::document::write_xml (decoded.document);
+    xml_file.close ();
+    auto xml_result= run (R"(@/vaults/@/filesystem/Xml.ath/saved/?($tag = "body")[0]/[0]/[0])");
+    QVERIFY2 (xml_result.state == resolution_result::status::complete, xml_result.error.c_str ());
+    QCOMPARE (xml_result.leaves.size (), std::size_t (1));
+    auto xml_text= xml_result.tree.back ()->accessor;
+    QCOMPARE (xml_text->operate ("set", {{"tree", {{"text", "xml changed"}}}}).status,
+              std::string ("OK"));
+    std::ifstream input (root / "Xml.ath", std::ios::binary);
+    std::string persisted ((std::istreambuf_iterator<char> (input)),
+                           std::istreambuf_iterator<char> ());
+    QVERIFY (persisted.rfind ("<?xml", 0) == 0 ||
+             persisted.rfind ("<athena-document", 0) == 0);
+    auto xml_saved= run ("@/vaults/@/filesystem/Xml.ath/saved").tree.back ()->accessor;
+    auto xml_source= xml_saved->operate ("get", value::object ());
+    QCOMPARE (xml_source.data.at ("document_format").get<std::string> (),
+              std::string ("xml-v1"));
+    QVERIFY (!xml_source.data.at ("legacy_relocation").get<bool> ());
+  }
   result= run ("@/vaults/@/filesystem/Source.ath/saved/custom-field/[0]");
   QVERIFY2 (result.state == resolution_result::status::complete, result.error.c_str ());
   QCOMPARE (result.leaves.size (), std::size_t (1));

@@ -32,20 +32,13 @@ vault_maintenance_pass_scan_missing_images (VaultMaintenanceContext& ctx) {
     const fs::path& document_path= documents[i];
     print_progress (i + 1, documents.size (), "Scanning for missing images",
                     document_path.filename ().string ());
-    std::string text;
-    if (!read_file_bytes (document_path, text)) {
-      finish_progress ();
-      return VaultMaintenancePassResult::failure (
-        "could not read " + compact_log_path (document_path));
-    }
-
     tree document;
-    try { document= texmacs_document_to_tree (std_to_tm (text)); }
-    catch (...) { document= tree (_ERROR, "parse failed"); }
-    if (is_func (document, _ERROR)) {
+    std::string error;
+    if (!read_document_file (document_path, document, error)) {
       finish_progress ();
       return VaultMaintenancePassResult::failure (
-        "could not parse " + compact_log_path (document_path));
+        "could not parse " + compact_log_path (document_path) +
+        (error.empty () ? "" : ": " + error));
     }
 
     std::vector<AthenaVaultFileReference> references;

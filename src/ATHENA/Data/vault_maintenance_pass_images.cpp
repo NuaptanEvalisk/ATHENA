@@ -63,19 +63,12 @@ parse_documents (const fs::path& root, std::vector<ParsedDocument>& documents,
   for (size_t i=0; i<paths.size (); ++i) {
     print_progress (i + 1, paths.size (), "Scanning asset references",
                     paths[i].filename ().string ());
-    std::string text;
-    if (!read_file_bytes (paths[i], text)) {
-      finish_progress ();
-      log_error ("failed to read document " + paths[i].string ());
-      return false;
-    }
     tree document;
-    try { document= texmacs_document_to_tree (std_to_tm (text)); }
-    catch (...) { document= tree (_ERROR, "parse failed"); }
-    if (is_func (document, _ERROR)) {
+    std::string error;
+    if (!read_document_file (paths[i], document, error)) {
       finish_progress ();
       log_error ("failed to parse document while collecting assets: " +
-                 paths[i].string ());
+                 paths[i].string () + (error.empty () ? "" : " (" + error + ")"));
       return false;
     }
     athena_vault_collect_file_references (document, paths[i], references);

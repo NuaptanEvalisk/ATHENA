@@ -6,6 +6,7 @@
 
 #include "ATHENA/Data/vault_maintenance_internal.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
 
 #include "tm_ostream.hpp"
 
@@ -452,6 +453,23 @@ read_file_bytes (const fs::path& path, std::string& text) {
   std::ostringstream buf;
   buf << in.rdbuf ();
   text = buf.str ();
+  return true;
+}
+
+bool
+read_document_file (const fs::path& path, tree& document, std::string& error) {
+  std::string bytes;
+  if (!read_file_bytes (path, bytes)) {
+    error= "Could not read ATHENA document: " + path.string ();
+    return false;
+  }
+  try {
+    document= athena::document::decode_document_bytes (bytes).document;
+  }
+  catch (const std::exception& e) {
+    error= "Could not parse ATHENA document " + path.string () + ": " + e.what ();
+    return false;
+  }
   return true;
 }
 

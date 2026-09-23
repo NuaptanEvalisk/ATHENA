@@ -9,6 +9,7 @@
 #include "ATHENA/Data/transclusion_cache.hpp"
 
 #include "ATHENA/Data/vault.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
 #include "analyze.hpp"
 #include "convert.hpp"
 #include "converter.hpp"
@@ -132,8 +133,12 @@ cached_source (url source_url, string signature) {
 
   string serialized;
   if (load_string (source_url, serialized, false)) return nullptr;
-  tree document= texmacs_document_to_tree (serialized);
-  if (is_func (document, _ERROR)) return nullptr;
+  tree document;
+  try {
+    document= athena::document::decode_document_bytes (
+      std::string_view (as_charp (serialized), (std::size_t) N(serialized))).document;
+  }
+  catch (...) { return nullptr; }
 
   SourceTreeCacheEntry entry;
   entry.signature= signature;

@@ -12,6 +12,7 @@
 #include "interop_document_nodes.hpp"
 #include "interop_document_source.hpp"
 #include "interop_filesystem.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
 #include "../Interop/traversal.hpp"
 #include "buffer_actor.hpp"
 #include "buffer_name_catalog.hpp"
@@ -94,6 +95,10 @@ struct document_source {
   virtual node_result query (query_kind, const document_node& = {}) const = 0;
   virtual bool matches (const athena::filesystem::entry&) const { return false; }
   virtual bool writable () const { return false; }
+  virtual bool source_relocation_available () const { return false; }
+  virtual value relocate_source_position (const value&) const {
+    throw std::logic_error ("Legacy source relocation is not available for this source");
+  }
   virtual value edit (const document_node&, const std::string&, const value&) const {
     throw std::logic_error ("Document editing is not available for this source");
   }
@@ -211,6 +216,8 @@ class disk_document final: public document_source {
   mutable bool revision_available= true;
   mutable std::mutex mutex;
   mutable document_node_transfer snapshot;
+  mutable athena::document::document_source_format source_format;
+  mutable std::vector<athena::document::legacy_node_mapping> relocation;
 
   void check_revision () const {
     check_vault ();
@@ -232,17 +239,84 @@ public:
     document_source (std::move (vault), std::move (mode), entry.path ().string ()),
     root (std::move (filesystem)), relative (std::move (relative)), pinned (entry), revision (entry.stat ()) {
     const auto bytes= entry.read (64 * 1024 * 1024);
-    tree source= texmacs_document_to_tree (string (bytes.data (), bytes.size ()));
+    athena::document::document_read_result decoded;
+    try {
+      decoded= athena::document::decode_document_bytes (
+        std::string_view (bytes.data (), bytes.size ()));
+    }
+    catch (const athena::document::codec_exception& e) {
+      throw invalid_document (e.what ());
+    }
+    source_format= decoded.format;
+    relocation= std::move (decoded.mappings);
+    tree source= std::move (decoded.document);
     validate_document (source);
     document_nodes nodes;
     snapshot= nodes.export_nodes (source);
     if (!athena::filesystem::same_revision (revision, entry.stat ()))
       throw std::system_error (ESTALE, std::generic_category (), "Document changed while loading");
   }
+  value metadata () const override {
+    auto result= document_source::metadata ();
+    switch (source_format) {
+      case athena::document::document_source_format::xml_v1:
+        result["document_format"]= "xml-v1";
+        break;
+      case athena::document::document_source_format::legacy_markup:
+        result["document_format"]= "legacy-markup";
+        break;
+      case athena::document::document_source_format::legacy_scheme:
+        result["document_format"]= "legacy-scheme";
+        break;
+    }
+    result["legacy_relocation"]= !relocation.empty ();
+    return result;
+  }
   bool matches (const athena::filesystem::entry& entry) const override {
     std::lock_guard<std::mutex> lock (mutex);
     return revision_available && entry.same_object (pinned) &&
       athena::filesystem::same_revision (revision, entry.stat ());
+  }
+  bool source_relocation_available () const override {
+    std::lock_guard<std::mutex> lock (mutex);
+    return !relocation.empty ();
+  }
+  value relocate_source_position (const value& parameters) const override {
+    std::lock_guard<std::mutex> lock (mutex);
+    check_revision ();
+    if (relocation.empty ())
+      throw std::logic_error ("Legacy source relocation is no longer available");
+    require_parameters (parameters, {"path", "byte", "affinity"});
+    const auto& encoded_path= parameters.at ("path");
+    if (!encoded_path.is_array ())
+      throw std::invalid_argument ("path must be an array of nonnegative child indexes");
+    athena::document::document_path path;
+    path.reserve (encoded_path.size ());
+    for (const auto& item: encoded_path) {
+      if (!item.is_number_integer () ||
+          (!item.is_number_unsigned () && item.get<std::int64_t> () < 0) ||
+          item.get<std::uint64_t> () > std::uint64_t (std::numeric_limits<int>::max ()))
+        throw std::invalid_argument ("path must contain nonnegative child indexes");
+      path.push_back (int (item.get<std::uint64_t> ()));
+    }
+    const auto& encoded_byte= parameters.at ("byte");
+    if (!encoded_byte.is_number_integer () ||
+        (!encoded_byte.is_number_unsigned () && encoded_byte.get<std::int64_t> () < 0) ||
+        encoded_byte.get<std::uint64_t> () > std::uint64_t (std::numeric_limits<std::size_t>::max ()))
+      throw std::invalid_argument ("byte must be a nonnegative source byte offset");
+    if (!parameters.at ("affinity").is_string ())
+      throw std::invalid_argument ("affinity must be preceding or following");
+    const auto affinity_text= parameters.at ("affinity").get<std::string> ();
+    athena::document::boundary_affinity affinity;
+    if (affinity_text == "preceding") affinity= athena::document::boundary_affinity::preceding;
+    else if (affinity_text == "following") affinity= athena::document::boundary_affinity::following;
+    else throw std::invalid_argument ("affinity must be preceding or following");
+    athena::document::legacy_document_result mapping {tree (), relocation};
+    auto relocated= mapping.relocate (
+      path, std::size_t (encoded_byte.get<std::uint64_t> ()), affinity);
+    if (!relocated)
+      throw std::invalid_argument ("Legacy source position has no exact migrated position");
+    return {{"path", relocated->node}, {"byte", relocated->offset}};
   }
   node_result query (query_kind kind, const document_node& node) const override {
     check_vault ();
@@ -286,16 +360,33 @@ public:
     nodes.import_nodes (source, snapshot);
     edit_node (source, nodes, node ? node : nodes.track (source, {}), command, parameters);
     auto next= nodes.export_nodes (source);
-    string bytes= tree_to_texmacs (source);
-    if (N (bytes) > 64 * 1024 * 1024)
+    std::string serialized;
+    if (source_format == athena::document::document_source_format::xml_v1)
+      serialized= athena::document::write_xml (source);
+    else {
+      string bytes= tree_to_texmacs (source);
+      serialized.assign (bytes.data (), std::size_t (N(bytes)));
+    }
+    if (serialized.size () > 64 * 1024 * 1024)
       throw std::length_error ("Document exceeds the file size limit");
-    if (texmacs_document_to_tree (bytes) != source)
+    tree validation;
+    try {
+      validation= athena::document::decode_document_bytes (
+        std::string_view (serialized.data (), serialized.size ())).document;
+    }
+    catch (...) {
+      throw std::invalid_argument ("The legacy file format cannot preserve this source tree exactly");
+    }
+    if (validation != source)
       throw std::invalid_argument ("The native file format cannot preserve this source tree exactly");
     check_revision ();
     auto replaced= root->replace (relative, pinned, revision,
-      std::string_view (bytes.data (), std::size_t (N (bytes))));
+      std::string_view (serialized.data (), serialized.size ()));
     pinned= std::move (replaced.file);
     snapshot= std::move (next);
+    relocation.clear ();
+    if (source_format != athena::document::document_source_format::xml_v1)
+      source_format= athena::document::document_source_format::legacy_markup;
     // The rename already committed. A subsequent metadata error must not be
     // reported as an aborted write or leave the old snapshot usable.
     try { revision= pinned.stat (); }
@@ -343,7 +434,22 @@ public:
     refresh ();
     return current->query (kind, node);
   }
+  value metadata () const override {
+    std::lock_guard<std::mutex> lock (mutex);
+    refresh ();
+    return current->metadata ();
+  }
   bool writable () const override { return true; }
+  bool source_relocation_available () const override {
+    std::lock_guard<std::mutex> lock (mutex);
+    refresh ();
+    return current->source_relocation_available ();
+  }
+  value relocate_source_position (const value& parameters) const override {
+    std::lock_guard<std::mutex> lock (mutex);
+    refresh ();
+    return current->relocate_source_position (parameters);
+  }
   value edit (const document_node& node, const std::string& command, const value& parameters) const override {
     std::lock_guard<std::mutex> lock (mutex);
     refresh ();
@@ -399,6 +505,11 @@ public:
       commands["erase"]= {{"parameters", value::object ()}};
       commands["set_tag"]= {{"parameters", {{"tag", "UTF-8 node tag"}}}};
     }
+    if (document && source->source_relocation_available ())
+      commands["relocate_source_position"]= {{"parameters",
+        {{"path", "legacy source child-index array"},
+         {"byte", "legacy source byte offset"},
+         {"affinity", "preceding|following"}}}};
     return commands;
   }
   operation_result operate (const std::string& command, const value& parameters) const override {
@@ -411,6 +522,11 @@ public:
           command == "insert_before" || command == "insert_after") {
         if (!source->writable ()) return {"UNSUPPORTED", "Editing this source is not available"};
         return {"OK", source->edit (node, command, parameters)};
+      }
+      if (command == "relocate_source_position") {
+        if (!document || !source->source_relocation_available ())
+          return {"UNSUPPORTED", "Legacy source relocation is not available"};
+        return {"OK", source->relocate_source_position (parameters)};
       }
       if (command != "get") return {"UNKNOWN_COMMAND", command};
       require_parameters (parameters, {});

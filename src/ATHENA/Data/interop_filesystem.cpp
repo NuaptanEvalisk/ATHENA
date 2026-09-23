@@ -8,6 +8,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include "interop_filesystem.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
 #include "interop_document_source.hpp"
 #include "../Interop/traversal.hpp"
 #include "convert.hpp"
@@ -83,9 +84,14 @@ operation_result filesystem_resource::operate (const std::string& command, const
     if (entry.path ().extension () != ".ath")
       return {"INVALID_ARGUMENT", "Document checking requires an .ath file"};
     const auto bytes = entry.read (64 * 1024 * 1024);
-    const tree doc = texmacs_document_to_tree (string (bytes.data (), bytes.size ()));
-    if (is_func (doc, _ERROR))
-      return {"OK", {{"valid", false}, {"reason", N(doc) ? text (doc[0]->label) : "Native parser rejected document"}}};
+    tree doc;
+    try {
+      doc= athena::document::decode_document_bytes (
+        std::string_view (bytes.data (), bytes.size ())).document;
+    }
+    catch (const std::exception& e) {
+      return {"OK", {{"valid", false}, {"reason", e.what ()}}};
+    }
     const auto error= interop_document_source_error (doc);
     return {"OK", {{"valid", error.empty ()}, {"reason", error}}};
   }

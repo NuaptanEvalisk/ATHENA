@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "convert.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
 #include "analyze.hpp"
 #include "hashmap.hpp"
 #include "iterator.hpp"
@@ -156,7 +157,8 @@ compute_keys (url u) {
   load_string (u, s, false);
   string fm= get_format (s, suffix (u));
   if (fm != "texmacs") return compute_keys (s, fm);
-  tree t= texmacs_document_to_tree (s);
+  tree t= athena::document::decode_document_bytes (
+    std::string_view (as_charp (s), (std::size_t) N(s))).document;
   return compute_keys (t, fm);
 }
 
@@ -166,6 +168,7 @@ compute_index (url u) {
   load_string (u, s, false);
   string fm= get_format (s, suffix (u));
   if (fm != "texmacs") return compute_index (s, fm);
-  tree t= texmacs_document_to_tree (s);
+  tree t= athena::document::decode_document_bytes (
+    std::string_view (as_charp (s), (std::size_t) N(s))).document;
   return compute_index (t, fm);
 }

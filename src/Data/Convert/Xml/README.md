@@ -421,15 +421,30 @@ Import distinguishes presentation content, identity strings, scalar fields,
 code and raw bytes. Standard DRD child types provide the built-in slot policy;
 callers can supply explicit policies for application/custom macro fields.
 Unknown glyphs in a scalar/code field cause a diagnostic rather than a lossy
-substitution. RAW_DATA remains byte-for-byte binary. These policies still need
-integration with all application metadata and style-defined macro contracts
-before opening arbitrary migrated trees in the live editor.
+substitution. RAW_DATA remains byte-for-byte binary. Application-defined
+metadata and style/custom macro contracts still need explicit slot policies;
+unknown scalar/code roles remain errors rather than being guessed.
 
 The result includes exact node relocation and text spans with preceding/following
 affinity at structural splits. ASCII runs map interior positions linearly;
 interior bytes of old character tokens are rejected. Removed metadata has no
 destination. Maps are bounded separately from text and node counts. This
-mapping is not yet connected to database migrations or live editing.
+mapping now crosses the saved-document interop boundary: legacy disk sources
+retain their relocation table without retaining a second tree, advertise their
+source format, and expose exact `path + byte + affinity` relocation to the
+migrated UTF-8 tree. Failed/interior-token positions are rejected rather than
+snapped. Interop edits invalidate the legacy relocation table after the first
+write. Database range/anchor migration still has to consume these mappings.
+
+`document_file_codec` is the common read-only bytes entry point. It dispatches
+only by explicit XML/legacy signatures, returns native XML trees directly and
+routes old markup/S-expression files through the semantic importer. Editor
+open/reload, Vault previews, global search, RAG/generic indexing, artifact and
+reference/transclusion readers, maintenance passes, namespace initial content,
+filesystem checks and saved AUDMAP/interop documents now use this entry point.
+Reading never rewrites or upgrades a file. Existing XML files remain XML when
+edited through the saved-document interop path; legacy files remain legacy
+until the transactional normal-save migration is enabled.
 
 ## Upgrade Storage Transaction
 
@@ -472,16 +487,14 @@ batch cancellation/resume and database recovery are still integration work.
 
 ## Remaining Integration Gates
 
-1. Integrate the role-aware legacy importer with application metadata and
-   style-defined macro contracts, including complete source-position relocation.
+1. Integrate the role-aware legacy importer with remaining application metadata
+   and style/custom macro contracts.
    The old `Strict-Cork` converter is **not** a substitute for this importer.
-2. Route editor open/reload, preview, search/indexing, maintenance and AUDMAP
-   document reads through the common codec without upgrading files in place.
-3. AUDMAP, SDK, delegates and caches need explicit model/protocol versions.
-4. Database migrations must preserve identities, decisions and vectors,
+2. AUDMAP, SDK, delegates and caches need explicit model/protocol versions.
+3. Database migrations must preserve identities, decisions and vectors,
    relocate ranges explicitly, and distinguish format rewrites from logical
    content changes before any normal-save or maintenance upgrade is enabled.
-5. Route all writers through the common codec and enable the transactional XML
+4. Route all writers through the common codec and enable the transactional XML
    writer for normal saves only after those readers and database schemas migrate.
 
 Production Notes and remote backends are not test inputs. Tests use synthetic

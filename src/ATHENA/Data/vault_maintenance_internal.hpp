@@ -67,8 +67,10 @@ std::vector<std::filesystem::path> scan_ath_documents (
 std::vector<std::filesystem::path> scan_asset_files (
   const std::filesystem::path& root);
 bool read_file_bytes (const std::filesystem::path& path, std::string& text);
+bool read_document_file (const std::filesystem::path& path, tree& document,
+                         std::string& error);
 bool write_file_bytes (const std::filesystem::path& path,
-                       const std::string& text);
+                        const std::string& text);
 std::filesystem::path normalize_root (const std::filesystem::path& input);
 
 #endif // VAULT_MAINTENANCE_INTERNAL_HPP

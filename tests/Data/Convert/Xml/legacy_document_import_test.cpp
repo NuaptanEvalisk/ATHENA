@@ -8,6 +8,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include <QtTest/QtTest>
+#include "Xml/document_file_codec.hpp"
 #include "Xml/legacy_document_import.hpp"
 #include "drd_std.hpp"
 #include "convert.hpp"
@@ -161,6 +162,42 @@ private slots:
       "(document (TeXmacs \"2.1.4\") (body (a (b (c (d \"x\"))))))", t, budget));
     QVERIFY_THROWS_EXCEPTION (codec_exception, import_legacy_document_bytes (
       "<TeXmacs|2.1.4><body|<a|<b|<c|<d|x>>>>>", t, budget));
+  }
+  void unifiedDocumentCodec () {
+    auto t= table ();
+    tree native (DOCUMENT, compound ("body", tree (DOCUMENT, "α中")));
+    std::string xml= write_xml (native);
+    auto x= decode_document_bytes (xml, t);
+    QVERIFY (x.format == document_source_format::xml_v1);
+    QVERIFY (!x.legacy ());
+    QVERIFY (x.document == native);
+    auto xnode= x.relocate_node ({0, 0, 0});
+    QVERIFY (xnode && *xnode == document_path ({0, 0, 0}));
+    auto xpos= x.relocate ({0, 0, 0}, 2, boundary_affinity::following);
+    QVERIFY (xpos && xpos->node == document_path ({0, 0, 0}) && xpos->offset == 2);
+
+    tree legacy= doc (tree (DOCUMENT, "x<mathD>\xe9"));
+    string markup= tree_to_texmacs (legacy);
+    auto m= decode_document_bytes (
+      std::string_view (as_charp (markup), N(markup)), t);
+    QVERIFY (m.format == document_source_format::legacy_markup);
+    QVERIFY (m.legacy ());
+    QVERIFY (m.document == import_legacy_document (legacy, t).document);
+    auto before= m.relocate ({1, 0, 0}, 1, boundary_affinity::preceding);
+    auto after= m.relocate ({1, 0, 0}, 1, boundary_affinity::following);
+    QVERIFY (before && after);
+    QVERIFY (before->node == document_path ({0, 0, 0, 0}));
+    QVERIFY (after->node == document_path ({0, 0, 0, 1}));
+
+    string scheme= tree_to_scheme (legacy);
+    auto s= decode_document_bytes (
+      std::string_view (as_charp (scheme), N(scheme)), t);
+    QVERIFY (s.format == document_source_format::legacy_scheme);
+    QVERIFY (s.document == m.document);
+    QCOMPARE (s.mappings.size (), m.mappings.size ());
+
+    QVERIFY_THROWS_EXCEPTION (codec_exception,
+      decode_document_bytes ("plain text is not a document", t));
   }
 };
 QTEST_GUILESS_MAIN (TestLegacyImport)

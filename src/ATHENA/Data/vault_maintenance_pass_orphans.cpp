@@ -22,18 +22,11 @@ static const char* orphan_manifest_name = "orphans.lst";
 static bool
 collect_used_asset_refs_from_document (const fs::path& doc_path,
                                        std::unordered_set<std::string>& used) {
-  std::string text;
-  if (!read_file_bytes (doc_path, text)) {
-    log_error ("failed to read document " + doc_path.string ());
-    return false;
-  }
-
   tree document;
-  try { document= texmacs_document_to_tree (std_to_tm (text)); }
-  catch (...) { document= tree (_ERROR, "parse failed"); }
-  if (is_func (document, _ERROR)) {
+  std::string error;
+  if (!read_document_file (doc_path, document, error)) {
     log_error ("failed to parse document while collecting used assets: " +
-               doc_path.string ());
+               doc_path.string () + (error.empty () ? "" : " (" + error + ")"));
     return false;
   }
 

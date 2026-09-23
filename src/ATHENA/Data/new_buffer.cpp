@@ -27,6 +27,7 @@
 #include "new_style.hpp"
 #include "merge_sort.hpp"
 #include "materials_document.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
 #include <filesystem>
 #include <algorithm>
 #include <stdexcept>
@@ -875,20 +876,19 @@ import_loaded_tree (string s, url u, string fm) {
   }
   if (fm == "generic" && suffix (u) == "txt") fm= "verbatim";
   if (fm == "generic") fm= get_format (s, suffix (u));
-  if (fm == "texmacs" && starts (s, "(document (TeXmacs")) fm= "stm";
-  if (fm == "verbatim" && starts (s, "(document (TeXmacs")) fm= "stm";
-  if (fm == "texmacs" && starts (s, "<TeXmacs|") &&
-      !descends (u, url ("$ATHENA_PATH"))) {
-    int end= 9;
-    while (end < N(s) && s[end] != '>') end++;
-    string version= s (9, end);
-    if (version_inf (version, "2.1.3"))
-      std_warning << "ATHENA: TeXmacs document version " << version
-                  << " predates the supported 2.1.3 baseline; parsing it as "
-                  << "current-format input without historical upgrades" << LF;
+  std::string_view bytes (as_charp (s), (std::size_t) N(s));
+  const bool legacy_scheme= starts (s, "(document (TeXmacs");
+  const bool document_input=
+    fm == "texmacs" || starts (s, "<TeXmacs|") || legacy_scheme ||
+    starts (s, "<?xml") || starts (s, "<athena-document") ||
+    (N(s) >= 3 && (unsigned char) s[0] == 0xef &&
+     (unsigned char) s[1] == 0xbb && (unsigned char) s[2] == 0xbf);
+  tree t;
+  if (document_input) {
+    try { t= athena::document::decode_document_bytes (bytes).document; }
+    catch (const std::exception& e) { return tree (_ERROR, string (e.what ())); }
   }
-  tree t= fm == "texmacs" ? texmacs_document_to_tree (s)
-                           : generic_to_tree (s, fm * "-document");
+  else t= generic_to_tree (s, fm * "-document");
   tree links= extract (t, "links");
   if (N (links) != 0)
     (void) call ("register-link-locations", object (u), object (links));

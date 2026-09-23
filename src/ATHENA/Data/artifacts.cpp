@@ -16,6 +16,7 @@
 #include "ATHENA/Data/vault.hpp"
 #include "ATHENA/Data/vault_maintenance_internal.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
 #include "convert.hpp"
 #include "file.hpp"
 #include "scheme.hpp"
@@ -1453,7 +1454,7 @@ bool read_document (const fs::path& path, tree& document, std::string& error) {
     error= "Could not read " + path.string ();
     return false;
   }
-  try { document= texmacs_document_to_tree (to_tm (bytes)); }
+  try { document= athena::document::decode_document_bytes (bytes).document; }
   catch (...) { error= "Could not parse " + path.string (); return false; }
   if (is_func (document, _ERROR)) {
     error= "Malformed ATHENA document: " + path.string ();

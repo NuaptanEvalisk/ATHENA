@@ -24,11 +24,8 @@ namespace {
 
 bool
 read_person_document (const fs::path& path, tree& document) {
-  std::string source;
-  if (!read_file_bytes (path, source)) return false;
-  try { document= texmacs_document_to_tree (std_to_tm (source)); }
-  catch (...) { document= tree (_ERROR, "parse failed"); }
-  return !is_func (document, _ERROR);
+  std::string error;
+  return read_document_file (path, document, error);
 }
 
 bool

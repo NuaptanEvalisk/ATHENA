@@ -8,6 +8,7 @@
 
 #include "ATHENA/Data/reference_graph_cache.hpp"
 
+#include "Data/Convert/Xml/document_file_codec.hpp"
 #include "analyze.hpp"
 #include "convert.hpp"
 #include "file.hpp"
@@ -288,7 +289,8 @@ replace_document (sqlite3* db, const fs::path& absolute,
   }
   tree document;
   try {
-    document= texmacs_document_to_tree (source);
+    document= athena::document::decode_document_bytes (
+      std::string_view (as_charp (source), (std::size_t) N(source))).document;
   }
   catch (...) {
     error= "Could not parse ATHENA document " + relative;
