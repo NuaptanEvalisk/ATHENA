@@ -905,7 +905,7 @@ join_rigid_text (path ip, array<line_item> a) {
     array<bool> markers;
     while (end < N(a) && (end == i || a[end-1]->spc == space (0)) &&
            (a[end]->type == MARKER_ITEM ||
-            (a[end]->type == STD_ITEM && is_utf8_line_box (a[end]->b)))) {
+            (a[end]->type == STD_ITEM && is_utf8_inline_box (a[end]->b)))) {
       pieces << a[end]->b;
       markers << (a[end]->type == MARKER_ITEM);
       ++end;

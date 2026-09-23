@@ -291,7 +291,8 @@ unicode_paragraph& font_paragraph::analysis () {
 }
 
 shaped_line font_paragraph::line (std::size_t begin, std::size_t end,
-                                 const shaping_options& options, double horizontal_scale) {
+                                 const shaping_options& options, double horizontal_scale,
+                                 const item_splitter& split) {
   const double scaled= std::round (request_.horizontal_dpi * horizontal_scale);
   if (!std::isfinite (horizontal_scale) || horizontal_scale <= 0 ||
       !std::isfinite (scaled) || scaled < 1 || scaled > std::numeric_limits<int>::max ())
@@ -314,6 +315,18 @@ shaped_line font_paragraph::line (std::size_t begin, std::size_t end,
       std::vector<std::size_t> cuts;
       for (auto font= locate (item.run.begin); font != fonts_.end () && font->end < item.run.end; ++font)
         cuts.push_back (font->end);
+      if (split) {
+        auto extra= split (item);
+        std::size_t previous= item.run.begin;
+        for (const auto byte: extra) {
+          if (byte <= previous || byte >= item.run.end || !scalar_boundary (source_, byte))
+            throw std::invalid_argument ("Invalid additional shaping boundary");
+          previous= byte;
+        }
+        cuts.insert (cuts.end (), extra.begin (), extra.end ());
+        std::sort (cuts.begin (), cuts.end ());
+        cuts.erase (std::unique (cuts.begin (), cuts.end ()), cuts.end ());
+      }
       return cuts;
     });
 }

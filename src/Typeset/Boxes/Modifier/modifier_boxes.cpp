@@ -13,6 +13,7 @@
 #include "Boxes/modifier.hpp"
 #include "Boxes/composite.hpp"
 #include "Boxes/construct.hpp"
+#include "Boxes/inline_link.hpp"
 
 /******************************************************************************
 * Modifier boxes
@@ -167,7 +168,7 @@ modifier_box_rep::graphical_select (SI x1, SI y1, SI x2, SI y2) {
 * Direct link boxes
 ******************************************************************************/
 
-class direct_link_box_rep: public modifier_box_rep {
+class direct_link_box_rep: public modifier_box_rep, public inline_link_source {
   string ref;
 public:
   direct_link_box_rep (path ip, box b, string ref);
@@ -176,6 +177,11 @@ public:
   box  expand_glyphs (int mode, double factor);
   tree message (tree type, SI x, SI y, rectangles& rs);
   void post_display (renderer& ren);
+  bool inline_link (box& body, inline_link_info& link) override {
+    body= b;
+    link= {list<string> (), ref, "", 0};
+    return true;
+  }
 };
 
 direct_link_box_rep::direct_link_box_rep (path ip, box b, string ref2):

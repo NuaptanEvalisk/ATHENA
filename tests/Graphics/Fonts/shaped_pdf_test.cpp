@@ -218,6 +218,68 @@ static void check_collection_export (const QString& pdf) {
   check_text_geometry (pdf, 6);
 }
 
+static void check_inline_links (const QString& filename) {
+  using namespace athena::text;
+  font_domain owner;
+  font_domain_binding binding (owner);
+  cache_set ("font_cache.scm", "ttf:texgyrepagella-regular",
+    string (std::getenv ("ATHENA_PATH")) * "/fonts/truetype/texgyre/texgyrepagella-regular.otf");
+  font nominal= unicode_font ("texgyrepagella-regular", 12, 600);
+  font_request request {"TeX Gyre Pagella"};
+  request.horizontal_dpi= request.vertical_dpi= 600;
+  const std::string source= "label link destination";
+  auto paragraph= std::make_shared<font_paragraph> (source, request);
+  array<box> pieces;
+  pieces << locus_box (path (0), utf8_line_box (path (0), paragraph, 0, 6, nominal, pencil (black)),
+    list<string> (), PIXEL, "", "#here", true);
+  pieces << direct_link_box (path (0),
+    utf8_line_box (path (0), paragraph, 6, 10, nominal, pencil (red)), "#here");
+  pieces << direct_link_box (path (0),
+    utf8_line_box (path (0), paragraph, 10, source.size (), nominal, pencil (black)),
+    "https://example.invalid/target");
+  array<bool> markers;
+  markers << false << false << false;
+  box line= join_utf8_line_boxes (path (0), pieces, markers);
+  require (!is_nil (line), "Could not join colored linked Unicode text");
+  renderer pdf= printer (url_system (string (filename.toUtf8 ().constData ())),
+    600, 1, "a4", false, 21.0, 29.7);
+  require (pdf->is_started (), "Could not create linked PDF");
+  try {
+    pdf->move_origin (400 * PIXEL, -600 * PIXEL);
+    line->display (pdf);
+    line->post_display (pdf);
+  }
+  catch (...) { tm_delete (pdf); throw; }
+  tm_delete (pdf);
+  execute ("qpdf", {"--check", filename});
+  const auto extracted= execute ("pdftotext", {"-raw", "-nopgbrk", "-enc", "UTF-8", filename, "-"});
+  require (extracted.trimmed () == "label link destination",
+           "Inline paint/link segmentation changed extracted PDF text");
+  const auto json= QJsonDocument::fromJson (execute ("qpdf", {
+    "--json", "--json-key=qpdf", filename}));
+  const auto objects= json.object ().value ("qpdf").toArray ().at (1).toObject ();
+  int internal= 0, external= 0;
+  for (auto object= objects.begin (); object != objects.end (); ++object) {
+    const auto value= object.value ().toObject ().value ("value").toObject ();
+    if (value.value ("/Subtype").toString () != "/Link") continue;
+    const auto rect= value.value ("/Rect").toArray ();
+    require (rect.size () == 4 && rect[2].toDouble () > rect[0].toDouble () &&
+      rect[3].toDouble () > rect[1].toDouble (), "Invalid shaped link annotation rectangle");
+    if (value.contains ("/Dest")) {
+      require (value.value ("/Dest").isArray (), "Shaped label did not resolve an internal PDF destination");
+      ++internal;
+    }
+    else {
+      const auto action= value.value ("/A").toObject ();
+      require (action.value ("/S").toString () == "/URI" &&
+        action.value ("/URI").toString () == "u:https://example.invalid/target",
+        "Shaped link lost its external URI");
+      ++external;
+    }
+  }
+  require (internal == 1 && external == 1, "Missing or duplicated shaped PDF links");
+}
+
 static void render_document (const QString &path) {
   font_domain owner;
   font_domain_binding binding (owner);
@@ -308,6 +370,7 @@ static void run_tests (int, char **) {
     require (output.isValid (), "No temporary PDF directory");
     check_postscript_import (output);
     check_collection_export (output.filePath ("collection.pdf"));
+    check_inline_links (output.filePath ("linked.pdf"));
     {
       const QString stem= "shaped";
       const QString pdf= output.filePath (stem + ".pdf");

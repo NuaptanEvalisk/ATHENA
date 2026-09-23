@@ -26,6 +26,7 @@ box utf8_line_box (path ip, std::shared_ptr<athena::text::font_paragraph> paragr
 // their individual tree positions. Unsupported paint/effect combinations return
 // a null box; callers must retain their original boxes and wrappers unchanged.
 bool is_utf8_line_box (box b);
+bool is_utf8_inline_box (box b);
 box join_utf8_line_boxes (path ip, array<box> pieces, array<bool> markers);
 
 // Reassemble selected word fragments after line breaking/justification. Sources

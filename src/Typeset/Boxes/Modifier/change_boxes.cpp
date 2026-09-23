@@ -11,6 +11,7 @@
 
 #include "Boxes/change.hpp"
 #include "Boxes/construct.hpp"
+#include "Boxes/inline_link.hpp"
 #include "scheme.hpp"
 #include "gui.hpp"
 #include "effect.hpp"
@@ -739,7 +740,7 @@ public:
 * locus boxes
 ******************************************************************************/
 
-struct locus_box_rep: public change_box_rep {
+struct locus_box_rep: public change_box_rep, public inline_link_source {
   list<string> ids;
   SI pixel;
   string ref;
@@ -755,6 +756,12 @@ struct locus_box_rep: public change_box_rep {
   void loci (SI x, SI y, SI delta, list<string>& ids2, rectangles& rs);
   void collect_page_numbers (hashmap<string,tree>& h, tree page);
   void post_display (renderer &ren);
+  bool inline_link (box& body, inline_link_info& link) override {
+    if (!cursor_transparent || sx(0) != 0 || sy(0) != 0) return false;
+    body= bs[0];
+    link= {ids, ref, anchor, pixel};
+    return true;
+  }
 };
 
 locus_box_rep::locus_box_rep (path ip, box b, list<string> ids2, SI pixel2):

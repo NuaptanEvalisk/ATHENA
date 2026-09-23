@@ -155,8 +155,14 @@ unchanged. Legacy readers still recognize existing file headers.
   explicit source markers into one styled Unicode paragraph: source spans retain
   node paths and byte offsets, and caret paths retain the source-span identity at
   shared endpoints. Font-style boundaries preserve joining context; ICU computes
-  bidi order and grapheme stops across source nodes. Mixed paints, non-text
-  wrappers and explicit inter-item layout spacing retain their original boxes.
+  bidi order and grapheme stops across source nodes. Foreground/background spans
+  retain separate drawing runs without restarting paragraph analysis. Backgrounds
+  are painted before glyphs, including reordered RTL runs and justified spaces.
+  Transparent direct-link and locus wrappers expose semantic references, ids and
+  anchors through an explicit typesetter interface. Joined lines retain visual
+  hit regions, locus outlines, page-number collection and PDF annotations; their
+  geometry follows justification and glyph expansion. Nontransparent wrappers
+  and explicit inter-item layout spacing retain their original boxes.
   Before wrapping, compatible adjacent source atoms and font-style markers
   share a paragraph analysis and source map. Interior grapheme boundaries do
   not become line breaks merely because a source/style node ends there. The
@@ -164,21 +170,22 @@ unchanged. Legacy readers still recognize existing file headers.
   cross-node CJK breaks and retaining word-joiner constraints across nodes.
   Empty atoms and source markers do not duplicate a logical break opportunity.
   Explicit negative penalties are retained; control items terminate a flow.
-  The
-  paragraph formatter reassembles selected fragments after line breaking and
+  The paragraph formatter reassembles selected fragments after line breaking and
   justification, including lines beginning inside a different source atom or
   style span. Source markers and source-relative offsets survive this mapping
   and glyph expansion. Lines retain the original
   paragraph's bidi analysis and byte coordinates, while final ASCII-space glue
   widths update glyph advances, caret positions and selection intervals together
   in visual order. Glyph outlines are translated, not stretched by word-space
-  justification. Non-text wrappers and mixed paints remain intact. Automatic
-  wrapping still needs shared analysis across mixed paints, link wrappers and
-  inline objects;
-  legacy dictionary hyphenation is deliberately
+  justification. Non-text wrappers remain intact. Automatic wrapping still needs
+  shared analysis across opaque wrappers, nested composite links and inline
+  objects. Legacy dictionary hyphenation is deliberately
   not applied to these UTF-8 fragments because it reconstructs Cork boxes. Font synthesis/effects,
   mathematical strings, programming text and runtime import/input remain gates.
   This intermediate implementation must not be deployed.
+  Regression coverage includes actual mixed-color/background RTL painting,
+  linked source selection and glyph expansion, and inspection of final native
+  PDF link dictionaries, resolved internal destinations, URIs and extracted text.
 - Shaped drawing borrows the original UTF-8 input, passing the selected range
   separately from glyph ids to the renderer. The native PDF renderer emits
   Unicode cluster mappings and per-run ActualText (PDF 1.5), preserving original

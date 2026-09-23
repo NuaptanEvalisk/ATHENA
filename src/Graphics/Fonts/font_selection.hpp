@@ -81,8 +81,11 @@ public:
   const font_request& request () const { return request_; }
   const std::vector<font_style_span>& styles () const { return styles_; }
   const std::vector<selected_font_run>& fonts () const { return fonts_; }
+  // Additional scalar run boundaries (for example paint changes) share the
+  // same bidi analysis, font selection and surrounding shaping context.
   shaped_line line (std::size_t begin, std::size_t end,
-                    const shaping_options& options= {}, double horizontal_scale= 1.0);
+                    const shaping_options& options= {}, double horizontal_scale= 1.0,
+                    const item_splitter& split= {});
 };
 
 } // namespace athena::text

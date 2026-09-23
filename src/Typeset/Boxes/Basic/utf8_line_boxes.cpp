@@ -9,6 +9,7 @@
 ******************************************************************************/
 #include "Boxes/utf8_line.hpp"
 #include "Boxes/modifier.hpp"
+#include "Boxes/inline_link.hpp"
 #include "Format/line_item.hpp"
 #include <algorithm>
 #include <cmath>
@@ -23,6 +24,13 @@ struct flow_position {
   std::shared_ptr<const paragraph_flow> flow;
   int source= 0;
 };
+
+struct text_paint_span {
+  std::size_t begin, end;
+  pencil pen;
+  brush background;
+};
+using text_paints= std::shared_ptr<const std::vector<text_paint_span>>;
 
 SI offset (SI x, SI dx) {
   if ((dx > 0 && x > std::numeric_limits<SI>::max () - dx) ||
@@ -47,20 +55,30 @@ struct utf8_line_box_rep: box_rep {
   shaping_options options;
   double horizontal_scale;
   std::vector<line_space_width> space_widths;
+  text_paints paints;
   flow_position flow;
   shaped_line line;
 
   utf8_line_box_rep (path ip, std::shared_ptr<font_paragraph> source,
                      int first, int last, font fn, pencil p,
                      const shaping_options& opts, brush bg, double scale,
-                     std::vector<line_space_width> spaces= {}):
+                     std::vector<line_space_width> spaces= {}, text_paints paint= {}):
     box_rep (ip), paragraph (std::move (source)), begin (first), end (last),
     nominal (fn), pen (p), background (bg), options (opts), horizontal_scale (scale),
-    space_widths (std::move (spaces)) {
+    space_widths (std::move (spaces)), paints (std::move (paint)) {
     if (!paragraph || begin < 0 || end < begin ||
         static_cast<std::size_t> (end) > paragraph->analysis ().source ().size ())
       throw std::invalid_argument ("Invalid Unicode line box source range");
-    line= paragraph->line (begin, end, options, scale);
+    line= paragraph->line (begin, end, options, scale, [&] (const shaping_item& item) {
+      std::vector<std::size_t> cuts;
+      if (paints) {
+        auto span= std::upper_bound (paints->begin (), paints->end (), item.run.begin,
+          [] (std::size_t at, const text_paint_span& p) { return at < p.end; });
+        for (; span != paints->end () && span->end < item.run.end; ++span)
+          cuts.push_back (span->end);
+      }
+      return cuts;
+    });
     line.set_space_widths (paragraph->analysis ().source (), space_widths);
     x1= min (0, line.advance); x2= max (0, line.advance);
     y1= nominal->y1; y2= nominal->y2;
@@ -96,8 +114,31 @@ struct utf8_line_box_rep: box_rep {
     return static_cast<caret_affinity> (value);
   }
   operator tree () override { return get_leaf_string (); }
+  const text_paint_span& paint_at (std::size_t byte) const {
+    const auto at= std::upper_bound (paints->begin (), paints->end (), byte,
+      [] (std::size_t b, const text_paint_span& p) { return b < p.end; });
+    if (at == paints->end () || at->begin > byte)
+      throw std::logic_error ("Unicode paint map does not cover glyph run");
+    return *at;
+  }
   void display (renderer ren) override {
     if (begin == end) return;
+    if (paints) {
+      const auto previous= ren->get_background ();
+      for (const auto& placed: line.runs) {
+        auto paint= paint_at (placed.text.byte_begin);
+        if (paint.background->get_type () != brush_none) {
+          ren->set_background (paint.background);
+          ren->clear_pattern (placed.x, y1, offset (placed.x, placed.text.advance_x), y2);
+        }
+      }
+      ren->set_background (previous);
+      for (const auto& placed: line.runs) {
+        ren->set_pencil (paint_at (placed.text.byte_begin).pen);
+        placed.text.draw_fixed (ren, bytes (), placed.x, 0);
+      }
+      return;
+    }
     if (background->get_type () != brush_none) {
       const auto previous= ren->get_background ();
       ren->set_background (background);
@@ -118,7 +159,7 @@ struct utf8_line_box_rep: box_rep {
       space.width= static_cast<SI> (width);
     }
     auto* result= tm_new<utf8_line_box_rep> (ip, paragraph, begin, end, nominal, pen,
-      options, background, horizontal_scale * (1.0 + factor), std::move (spaces));
+      options, background, horizontal_scale * (1.0 + factor), std::move (spaces), paints);
     result->flow= flow;
     return result;
   }
@@ -202,6 +243,32 @@ struct source_span {
   font nominal;
 };
 
+struct text_annotation {
+  int begin, end, source;
+  SI bottom, top;
+  inline_link_info link;
+};
+using text_annotations= std::shared_ptr<const std::vector<text_annotation>>;
+
+struct inline_piece {
+  utf8_line_box_rep* text= nullptr;
+  std::vector<inline_link_info> links;
+};
+
+inline_piece inspect_inline (box b) {
+  inline_piece result;
+  while (auto* wrapper= dynamic_cast<inline_link_source*> (b.operator-> ())) {
+    if (result.links.size () >= 256) return {};
+    box body;
+    inline_link_info link;
+    if (!wrapper->inline_link (body, link) || is_nil (body)) return {};
+    result.links.push_back (link);
+    b= body;
+  }
+  result.text= dynamic_cast<utf8_line_box_rep*> (b.operator-> ());
+  return result;
+}
+
 struct paragraph_flow {
   path ip;
   std::shared_ptr<font_paragraph> paragraph;
@@ -210,6 +277,8 @@ struct paragraph_flow {
   font nominal;
   pencil pen;
   brush background;
+  text_paints paints;
+  text_annotations annotations;
 };
 
 struct flow_marker_box_rep final: modifier_box_rep {
@@ -223,21 +292,88 @@ struct flow_marker_box_rep final: modifier_box_rep {
 struct mapped_utf8_line_box_rep final: utf8_line_box_rep {
   std::shared_ptr<const std::vector<source_span>> sources;
   int first_source, last_source;
+  text_annotations annotations;
+  struct link_region {
+    inline_link_info info;
+    std::vector<line_selection_span> spans;
+    bool owns_anchor;
+    SI anchor_x;
+    SI bottom, top;
+  };
+  std::vector<link_region> links;
 
   mapped_utf8_line_box_rep (path ip, std::shared_ptr<font_paragraph> paragraph,
     std::shared_ptr<const std::vector<source_span>> spans, font nominal,
     pencil pen, brush background, double scale= 1.0,
     int first= 0, int last= -1, int source_first= 0, int source_last= -1,
-    std::vector<line_space_width> spaces= {}):
+    std::vector<line_space_width> spaces= {}, text_paints paints= {},
+    text_annotations links= {}):
     utf8_line_box_rep (ip, paragraph, first,
                        last < 0 ? paragraph->analysis ().source ().size () : last,
-                       nominal, pen, {}, background, scale, std::move (spaces)),
+                       nominal, pen, {}, background, scale, std::move (spaces), std::move (paints)),
     sources (std::move (spans)), first_source (source_first),
-    last_source (source_last < 0 ? sources->size ()-1 : source_last) {
+    last_source (source_last < 0 ? sources->size ()-1 : source_last),
+    annotations (std::move (links)) {
     for (int i=first_source; i<=last_source; ++i) {
       const auto& s= (*sources)[i];
       y1= min (y1, s.nominal->y1);
       y2= max (y2, s.nominal->y2);
+    }
+    if (!annotations) return;
+    const auto first_link= std::lower_bound (annotations->begin (), annotations->end (), begin,
+      [] (const text_annotation& a, int byte) { return a.end < byte; });
+    for (auto it= first_link; it != annotations->end () && it->begin <= end; ++it) {
+      const auto& annotation= *it;
+      const int first= max (begin, annotation.begin), last= min (end, annotation.end);
+      const bool anchor= annotation.link.anchor != "" && annotation.begin >= begin &&
+        annotation.begin <= end && annotation.source >= first_source && annotation.source <= last_source;
+      if (first == last && !anchor) continue;
+      const int a= begin + snap (first-begin);
+      const auto after= std::lower_bound (line.carets.begin (), line.carets.end (), last,
+        [] (const line_caret& c, int at) { return c.byte < static_cast<std::size_t> (at); });
+      const int b= after->byte;
+      this->links.push_back ({annotation.link, line.selection_spans (a, b), anchor,
+        line.caret_x (a, caret_affinity::downstream), annotation.bottom, annotation.top});
+    }
+  }
+
+  bool contains (const link_region& link, SI x, SI y) const {
+    if (y < link.bottom || y >= link.top) return false;
+    return std::any_of (link.spans.begin (), link.spans.end (),
+      [x] (const auto& span) { return x >= span.left && x < span.right; });
+  }
+  tree message (tree type, SI x, SI y, rectangles& rs) override {
+    for (const auto& link: links) if (link.info.reference != "" && contains (link, x, y)) {
+      if (type == "link-target") return tree (TUPLE, "link-target", link.info.reference);
+      if (is_nil (link.info.ids) && (type == "select" || type == "double-click"))
+        return tree (TUPLE, "direct-link", link.info.reference);
+    }
+    return box_rep::message (type, x, y, rs);
+  }
+  void loci (SI x, SI y, SI, list<string>& ids, rectangles& rs) override {
+    ids= list<string> ();
+    rs= rectangles ();
+    for (auto link= links.rbegin (); link != links.rend (); ++link)
+      if (!is_nil (link->info.ids) && contains (*link, x, y)) {
+        ids= ids * link->info.ids;
+        for (const auto& span: link->spans)
+          rs= rs * outlines (rectangles (rectangle (span.left, link->bottom, span.right, link->top)),
+                             link->info.outline_pixel);
+      }
+  }
+  void collect_page_numbers (hashmap<string,tree>& numbers, tree page) override {
+    for (const auto& link: links) if (link.owns_anchor) {
+      string key= link.info.anchor;
+      if (N(key) > 0 && key[0] == '#') key= key (1, N(key));
+      numbers (key)= page;
+    }
+  }
+  void post_display (renderer& ren) override {
+    for (const auto& link: links) {
+      if (link.info.reference != "") for (const auto& span: link.spans)
+        ren->href (link.info.reference, span.left, link.bottom, span.right, link.top);
+      if (link.owns_anchor)
+        ren->anchor (link.info.anchor, link.anchor_x, link.bottom, offset (link.anchor_x, 1), link.top);
     }
   }
 
@@ -310,7 +446,7 @@ struct mapped_utf8_line_box_rep final: utf8_line_box_rep {
     }
     return tm_new<mapped_utf8_line_box_rep> (ip, paragraph, sources, nominal, pen,
       background, horizontal_scale * (1.0 + factor), begin, end,
-      first_source, last_source, std::move (spaces));
+      first_source, last_source, std::move (spaces), paints, annotations);
   }
   int get_type () override { return box_rep::get_type (); }
 };
@@ -322,7 +458,7 @@ bool same_paint (pencil a, pencil b) {
 }
 
 flow_position flow_at (box b) {
-  if (auto* text= dynamic_cast<utf8_line_box_rep*> (b.operator-> ())) return text->flow;
+  if (auto* text= inspect_inline (b).text) return text->flow;
   if (auto* marker= dynamic_cast<flow_marker_box_rep*> (b.operator-> ())) return marker->flow;
   return {};
 }
@@ -340,18 +476,23 @@ bool is_utf8_line_box (box b) {
   return dynamic_cast<utf8_line_box_rep*> (b.operator-> ()) != nullptr;
 }
 
+bool is_utf8_inline_box (box b) { return inspect_inline (b).text != nullptr; }
+
 static std::shared_ptr<paragraph_flow>
 build_utf8_flow (path ip, array<box> pieces, array<bool> markers, bool restore_spaces) {
   if (N(pieces) != N(markers))
     throw std::invalid_argument ("Unicode source marker count mismatch");
   utf8_line_box_rep* base= nullptr;
+  std::vector<inline_piece> contents;
   int text_count= 0;
   for (int i=0; i<N(pieces); ++i) {
     if (markers[i]) {
       if (pieces[i]->w () != 0 || pieces[i]->get_leaf_string () != "") return {};
+      contents.push_back ({});
       continue;
     }
-    auto* b= dynamic_cast<utf8_line_box_rep*> (pieces[i].operator-> ());
+    contents.push_back (inspect_inline (pieces[i]));
+    auto* b= contents.back ().text;
     const shaping_options defaults;
     if (!b || dynamic_cast<mapped_utf8_line_box_rep*> (b) || b->horizontal_scale != 1.0 ||
         !b->options.ligatures || !b->options.script.empty () ||
@@ -362,14 +503,15 @@ build_utf8_flow (path ip, array<box> pieces, array<bool> markers, bool restore_s
     if (!base) base= b;
     const auto& first= base->paragraph->request ();
     const auto& next= b->paragraph->request ();
-    if (!same_paint (base->pen, b->pen) || base->background != b->background ||
-        first.horizontal_dpi != next.horizontal_dpi || first.vertical_dpi != next.vertical_dpi ||
+    if (first.horizontal_dpi != next.horizontal_dpi || first.vertical_dpi != next.vertical_dpi ||
         first.direction != next.direction) return {};
     ++text_count;
   }
   if (text_count < 2) return {};
   std::string text;
   std::vector<font_style_span> styles;
+  auto paints= std::make_shared<std::vector<text_paint_span>> ();
+  auto annotations= std::make_shared<std::vector<text_annotation>> ();
   auto sources= std::make_shared<std::vector<source_span>> ();
   auto result= std::make_shared<paragraph_flow> ();
   const auto append= [&] (const utf8_line_box_rep* b, int first, int last) {
@@ -377,6 +519,11 @@ build_utf8_flow (path ip, array<box> pieces, array<bool> markers, bool restore_s
     if (last-first > std::numeric_limits<int>::max () - text.size ())
       throw std::length_error ("Unicode inline source exceeds path range");
     text.append (b->bytes (), first, last-first);
+    if (first != last) {
+      if (!paints->empty () && same_paint (paints->back ().pen, b->pen) &&
+          paints->back ().background == b->background) paints->back ().end= text.size ();
+      else paints->push_back ({static_cast<std::size_t> (begin), text.size (), b->pen, b->background});
+    }
     std::size_t at= first;
     auto add_style= [&] (std::size_t end, const font_request& request) {
       if (end > at) styles.push_back ({begin + at - first, begin + end - first, request});
@@ -393,7 +540,7 @@ build_utf8_flow (path ip, array<box> pieces, array<bool> markers, bool restore_s
   const utf8_line_box_rep* previous= nullptr;
   for (int i=0; i<N(pieces); ++i) {
     if (!markers[i]) {
-      const auto* b= static_cast<utf8_line_box_rep*> (pieces[i].operator-> ());
+      const auto* b= contents[i].text;
       if (restore_spaces) {
         if (previous && previous->paragraph == b->paragraph && previous->ip == b->ip) {
           if (b->begin < previous->end) return {};
@@ -408,7 +555,11 @@ build_utf8_flow (path ip, array<box> pieces, array<bool> markers, bool restore_s
                  (previous && previous->end != static_cast<int> (previous->bytes ().size ()))) return {};
       }
       result->piece_sources.push_back (sources->size ());
+      const int begin= text.size ();
       append (b, b->begin, b->end);
+      for (const auto& link: contents[i].links)
+        annotations->push_back ({begin, static_cast<int> (text.size ()),
+                                result->piece_sources.back (), pieces[i]->y1, pieces[i]->y2, link});
       previous= b;
     }
     else {
@@ -425,6 +576,8 @@ build_utf8_flow (path ip, array<box> pieces, array<bool> markers, bool restore_s
   result->nominal= base->nominal;
   result->pen= base->pen;
   result->background= base->background;
+  result->paints= paints;
+  result->annotations= annotations;
   return result;
 }
 
@@ -432,7 +585,8 @@ box join_utf8_line_boxes (path ip, array<box> pieces, array<bool> markers) {
   const auto flow= build_utf8_flow (ip, pieces, markers, false);
   if (!flow) return {};
   return tm_new<mapped_utf8_line_box_rep> (flow->ip, flow->paragraph, flow->sources,
-                                         flow->nominal, flow->pen, flow->background);
+    flow->nominal, flow->pen, flow->background, 1.0, 0, -1, 0, -1,
+    std::vector<line_space_width> (), flow->paints, flow->annotations);
 }
 
 void prepare_utf8_paragraph (path ip, array<line_item>& items) {
@@ -444,11 +598,12 @@ void prepare_utf8_paragraph (path ip, array<line_item>& items) {
     bool multiple= false;
     while (last < N(items)) {
       auto item= items[last];
-      auto* text= dynamic_cast<utf8_line_box_rep*> (item->b.operator-> ());
+      const auto content= inspect_inline (item->b);
+      auto* text= content.text;
       if (item->type != MARKER_ITEM && (item->type != STD_ITEM || !text)) break;
       if (text) {
         if (text->flow.flow) break;
-        multiple= multiple || (previous && previous != text->paragraph);
+        multiple= multiple || !content.links.empty () || (previous && previous != text->paragraph);
         previous= text->paragraph;
       }
       pieces << item->b;
@@ -466,7 +621,7 @@ void prepare_utf8_paragraph (path ip, array<line_item>& items) {
         flow_position position {flow, index};
         if (items[i]->type == MARKER_ITEM)
           items[i]->b= tm_new<flow_marker_box_rep> (items[i]->b, position);
-        else static_cast<utf8_line_box_rep*> (items[i]->b.operator-> ())->flow= position;
+        else inspect_inline (items[i]->b).text->flow= position;
         if (i+1 < last) {
           const auto byte= static_cast<std::size_t> (
             (*flow->sources)[flow->piece_sources[i+1-first]].begin);
@@ -506,7 +661,7 @@ void reassemble_utf8_line (array<box>& pieces, array<SI>& spaces) {
         if (next.flow != position.flow || next.source < source_last) break;
         const auto& span= sources[next.source];
         if (span.begin < end && last != first) break;
-        auto* text= dynamic_cast<utf8_line_box_rep*> (pieces[last].operator-> ());
+        auto* text= inspect_inline (pieces[last]).text;
         if (text && (have_text && text->horizontal_scale != scale)) break;
         if (last != first) {
           const auto gap= bytes.substr (end, span.begin-end);
@@ -522,7 +677,7 @@ void reassemble_utf8_line (array<box>& pieces, array<SI>& spaces) {
       if (have_text) {
         output << box (tm_new<mapped_utf8_line_box_rep> (flow.ip, flow.paragraph,
           flow.sources, flow.nominal, flow.pen, flow.background, scale,
-          begin, end, position.source, source_last, std::move (widths)));
+          begin, end, position.source, source_last, std::move (widths), flow.paints, flow.annotations));
         output_spaces << spaces[first];
         first= last;
         continue;

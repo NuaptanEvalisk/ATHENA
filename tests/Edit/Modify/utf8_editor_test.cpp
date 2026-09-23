@@ -29,10 +29,35 @@
 #include "drd_std.hpp"
 #include "Stack/stacker.hpp"
 #include "Boxes/utf8_line.hpp"
+#include "Qt/qt_renderer.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }
 static server_rep* test_server= nullptr;
+
+class InlineRenderProbe: public qt_renderer_rep {
+public:
+  struct Draw { std::string text; color pen; SI x; };
+  std::vector<Draw> draws;
+  struct Link { string target; SI x1, y1, x2, y2; };
+  std::vector<Link> references, anchors;
+  InlineRenderProbe (QPainter* painter): qt_renderer_rep (painter, 1.0, 400, 120) {
+    set_zoom_factor (1.0);
+    set_clipping (0, -120*std_shrinkf*PIXEL, 400*std_shrinkf*PIXEL, 0);
+    move_origin (10*std_shrinkf*PIXEL, -60*std_shrinkf*PIXEL);
+  }
+  void draw_utf8 (const athena::text::shaped_text& run, std::string_view source,
+                  SI x, SI y) override {
+    draws.push_back ({std::string (source), get_pencil ()->get_color (), x});
+    qt_renderer_rep::draw_utf8 (run, source, x, y);
+  }
+  void href (string target, SI x1, SI y1, SI x2, SI y2) override {
+    references.push_back ({target, x1, y1, x2, y2});
+  }
+  void anchor (string target, SI x1, SI y1, SI x2, SI y2) override {
+    anchors.push_back ({target, x1, y1, x2, y2});
+  }
+};
 
 class Utf8TestEditor: public edit_main_rep {
 public:
@@ -261,13 +286,37 @@ private slots:
     QVERIFY (found);
     QVERIFY (joined->find_tree_path (accent_end) == path (0, 1, 2));
 
-    // Paint changes and explicit layout spacing are not silently flattened.
+    // Paint changes share paragraph direction without losing their colors.
     joined= typeset_as_concat (env, tree (CONCAT, "x",
       tree (WITH, COLOR, "red", "y"), "z"), path (0));
-    QVERIFY (N(joined) > 1);
+    QCOMPARE (N(joined), 1);
     const auto color_path= joined->find_box_path (path (0, path (1, path (2, 1))), found);
     QVERIFY (found);
     QVERIFY (joined->find_tree_path (color_path) == path (0, path (1, path (2, 1))));
+
+    const string left= "\xd7\x90", right= "\xd7\x91";
+    joined= typeset_as_concat (env, tree (CONCAT, left,
+      tree (WITH, COLOR, "red", "text-background-color", "blue", right)), path (0));
+    QCOMPARE (N(joined), 1);
+    QImage image (400, 120, QImage::Format_ARGB32_Premultiplied);
+    image.fill (Qt::white);
+    QPainter painter (&image);
+    InlineRenderProbe probe (&painter);
+    joined[0]->display (&probe);
+    QCOMPARE (probe.draws.size (), std::size_t(2));
+    QCOMPARE (probe.draws[0].text, std::string (right.data (), N(right)));
+    QCOMPARE (probe.draws[0].pen, named_color ("red"));
+    QCOMPARE (probe.draws[1].text, std::string (left.data (), N(left)));
+    QCOMPARE (probe.draws[1].pen, env->pen->get_color ());
+    QVERIFY (probe.draws[0].x < probe.draws[1].x);
+    painter.end ();
+    int red_pixels= 0, blue_pixels= 0;
+    for (int y=0; y<image.height (); ++y) for (int x=0; x<image.width (); ++x) {
+      const auto pixel= image.pixel (x, y);
+      if (qRed (pixel) > 100 && qGreen (pixel) < 80 && qBlue (pixel) < 80) ++red_pixels;
+      if (qBlue (pixel) > 100 && qRed (pixel) < 80 && qGreen (pixel) < 80) ++blue_pixels;
+    }
+    QVERIFY (red_pixels > 0 && blue_pixels > 0);
   }
   void wrappedText () {
     drd_info drd ("utf8-wrapped-text", std_drd);
@@ -465,6 +514,89 @@ private slots:
     for (const auto& point: paragraph.breaks ()) if (point.byte == 5) break_at_five= true;
     QVERIFY (!break_at_five);
     QCOMPARE (items[0]->penalty == 0, break_at_five);
+  }
+  void linkedText () {
+    drd_info drd ("utf8-linked-text", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write ("athena-radioactive-links-suppressed", "true");
+    env->update ();
+    const string word= "\xd7\x90\xd7\x91";
+    const string source= word * " " * word * " 12";
+    auto items= typeset_concat (env, tree (source), path (0));
+    QCOMPARE (N(items), 3);
+    const string target= "https://example.invalid/target";
+    items[1]->b= direct_link_box (items[1]->b->ip, items[1]->b, target);
+    box opaque= locus_box (items[2]->b->ip, items[2]->b, list<string> ("id"),
+      PIXEL, "#destination", "#label", false);
+    QVERIFY (!is_utf8_inline_box (opaque));
+    items[2]->b= locus_box (items[2]->b->ip, items[2]->b, list<string> ("id"),
+      PIXEL, "#destination", "#label", true);
+    QVERIFY (is_utf8_inline_box (items[1]->b));
+    QVERIFY (is_utf8_inline_box (items[2]->b));
+    prepare_utf8_paragraph (path (0), items);
+    array<box> pieces;
+    array<SI> spaces;
+    for (int i=0; i<N(items); ++i) {
+      pieces << items[i]->b;
+      spaces << (i == 0 ? SI(0) : items[i-1]->spc->def);
+    }
+    reassemble_utf8_line (pieces, spaces);
+    QCOMPARE (N(pieces), 1);
+    auto leaf= pieces[0];
+    bool found= false;
+    const auto first= leaf->find_box_path (path (0, 5), found);
+    QVERIFY (found);
+    const auto last= leaf->find_box_path (path (0, 9), found);
+    QVERIFY (found);
+    auto selected= leaf->find_selection (first, last);
+    QVERIFY (!is_nil (selected->rs));
+    auto region= selected->rs->item;
+    const SI x= region->x1 + (region->x2-region->x1)/2, y= (leaf->y1+leaf->y2)/2;
+    rectangles rs;
+    QVERIFY (leaf->message ("link-target", x, y, rs) == tree (TUPLE, "link-target", target));
+    QVERIFY (leaf->message ("select", x, y, rs) == tree (TUPLE, "direct-link", target));
+    QVERIFY (leaf->message ("link-target", leaf->x2+PIXEL, y, rs) == tree (""));
+    auto expanded= leaf->expand_glyphs (0, 0.1);
+    const auto a= expanded->find_box_path (path (0, 5), found);
+    QVERIFY (found);
+    const auto b= expanded->find_box_path (path (0, 9), found);
+    QVERIFY (found);
+    auto changed= expanded->find_selection (a, b)->rs->item;
+    QVERIFY (expanded->message ("select", changed->x1+(changed->x2-changed->x1)/2,
+      y, rs) == tree (TUPLE, "direct-link", target));
+
+    const auto label_start= leaf->find_box_path (path (0, 10), found);
+    QVERIFY (found);
+    const auto label_end= leaf->find_box_path (path (0, 12), found);
+    QVERIFY (found);
+    auto label_region= leaf->find_selection (label_start, label_end)->rs->item;
+    list<string> ids;
+    leaf->loci (label_region->x1+(label_region->x2-label_region->x1)/2, y, 0, ids, rs);
+    QVERIFY (ids == list<string> ("id"));
+    QVERIFY (!is_nil (rs));
+    hashmap<string,tree> numbers (UNINIT);
+    leaf->collect_page_numbers (numbers, tree ("7"));
+    QVERIFY (numbers["label"] == tree ("7"));
+
+    QImage image (400, 120, QImage::Format_ARGB32_Premultiplied);
+    image.fill (Qt::white);
+    QPainter painter (&image);
+    InlineRenderProbe probe (&painter);
+    renderer ren= &probe;
+    leaf->display (ren);
+    leaf->post_display (ren);
+    QCOMPARE (probe.references.size (), std::size_t(2));
+    QCOMPARE (probe.anchors.size (), std::size_t(1));
+    QCOMPARE (probe.references[0].target, target);
+    QCOMPARE (probe.references[0].x1, region->x1);
+    QCOMPARE (probe.references[0].x2, region->x2);
+    QCOMPARE (probe.references[1].target, string ("#destination"));
+    QCOMPARE (probe.anchors[0].target, string ("#label"));
+    painter.end ();
   }
   void deletionAndUndo_data () {
     QTest::addColumn<bool> ("forward");
