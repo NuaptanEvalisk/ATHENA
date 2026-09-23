@@ -11,11 +11,13 @@
 
 #include "packrat_grammar.hpp"
 #include "convert.hpp"
+#include "drd_std.hpp"
 
 class TestBuiltinLanguage: public QObject {
   Q_OBJECT
 
 private slots:
+  void initTestCase () { init_std_drd (); }
   void test_std_symbol_properties ();
   void test_std_math_inheritance ();
   void test_minimal_language ();
@@ -51,8 +53,10 @@ TestBuiltinLanguage::test_definition_compatibility () {
   scheme_tree definition=
     builtin_packrat_definition ("std-symbols", "Assign-symbol");
   string encoded= scheme_tree_to_string (definition);
-  QVERIFY (occurs ("<assign>", encoded));
-  QVERIFY (occurs ("<backassign>", encoded));
+  QVERIFY (occurs ("\342\211\224", encoded));
+  QVERIFY (occurs ("named-symbol", encoded));
+  QVERIFY (occurs ("texmacs:backassign", encoded));
+  QVERIFY (!occurs ("<assign>", encoded));
 }
 
 QTEST_MAIN(TestBuiltinLanguage)

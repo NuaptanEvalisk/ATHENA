@@ -191,15 +191,15 @@ language_rep::language_rep (string s):
   rep<language> (s), lan_name (s), hl_lan (0) {}
 
 string
-language_rep::get_group (string s) {
+language_rep::get_group (tree s) {
   (void) s;
   return "default";
 }
 
-array<string>
+array<tree>
 language_rep::get_members (string s) {
   (void) s;
-  return array<string> ();
+  return array<tree> ();
 }
 
 void

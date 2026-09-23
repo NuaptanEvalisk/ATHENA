@@ -17,6 +17,7 @@
 #include "radioactive_link_scope.hpp"
 #include "new_document.hpp"
 #include "Boxes/utf8_line.hpp"
+#include "utf8_edit.hpp"
 #include <stdexcept>
 
 #include <algorithm>
@@ -482,13 +483,15 @@ concater_rep::typeset_hgroup (tree t, path ip) {
 
 void
 concater_rep::print_semantic (box b, tree sem) {
-  if (is_atomic (sem) && tm_string_length (sem->label) == 1) {
+  if ((is_atomic (sem) && utf8_grapheme_count (sem->label) == 1) ||
+      is_func (sem, NAMED_SYMBOL, 1)) {
     array<space> spc_tab=
       get_spacing (env->fn, env->spacing_policy, env->math_condensed,
                    env->display_style && env->nesting_level == 0);
     int    pos= 0;
-    string s= sem->label;
-    text_property tp= env->lan->advance (s, pos);
+    text_property tp= is_func (sem, NAMED_SYMBOL, 1)
+      ? math_language ("std-math")->advance (sem, pos)
+      : env->lan->advance (sem, pos);
     int k= N(a);
     while (k > 0 && a[k-1]->op_type == OP_SKIP) k--;
     int prev_op_type= (k == 0? OP_TEXT: a[k-1]->op_type);

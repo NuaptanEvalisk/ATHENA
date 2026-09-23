@@ -140,8 +140,8 @@ struct language_rep: rep<language> {
   virtual text_property advance (tree t, int& pos) = 0;
   virtual array<int> get_hyphens (string s) = 0;
   virtual void hyphenate (string s, int after, string& l, string& r) = 0;
-  virtual string get_group (string s);
-  virtual array<string> get_members (string s);
+  virtual string get_group (tree s);
+  virtual array<tree> get_members (string s);
   virtual void highlight (tree t);
   virtual string get_color (tree t, int start, int end);
 };
@@ -154,9 +154,9 @@ bool prog_lang_exists (string s);
 language hyphenless_language (language base);
 language ad_hoc_language (language base, tree hyphs);
 
-string math_symbol_group (string s, string lan= "std-math");
-array<string> math_group_members (string s, string lan= "std-math");
-string math_symbol_type (string s, string lan= "std-math");
+string math_symbol_group (tree s, string lan= "std-math");
+array<tree> math_group_members (string s, string lan= "std-math");
+string math_symbol_type (tree s, string lan= "std-math");
 
 void   initialize_color_decodings (string lan_name);
 int    encode_color (string s);

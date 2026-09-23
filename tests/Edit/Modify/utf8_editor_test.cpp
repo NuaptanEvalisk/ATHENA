@@ -36,6 +36,7 @@
 #include "Xml/legacy_document_import.hpp"
 #include "Xml/clipboard_xml.hpp"
 #include "packrat_parser.hpp"
+#include "math_token.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }
@@ -362,6 +363,52 @@ private slots:
     const QKeyEvent shifted (QEvent::KeyPress, Qt::Key_1,
       Qt::ControlModifier | Qt::ShiftModifier, 0, 0x1234, 0, "\x01");
     QCOMPARE (QTMKeyboardEvent (keyboard, shifted).texmacsKeyCombination (), "C-" * composed);
+  }
+  void unicodeMathLanguage () {
+    const string alpha= "\316\261";
+    const tree backassign (NAMED_SYMBOL, "texmacs:backassign");
+    QCOMPARE (math_symbol_group (alpha), "Letter-symbol");
+    QCOMPARE (math_symbol_group (backassign), "Assign-symbol");
+    QCOMPARE (math_symbol_type (backassign), "infix");
+    QCOMPARE (math_symbol_type ("\342\211\244"), "infix");
+    QCOMPARE (math_symbol_group ("<leq>"), "symbol");
+    bool found= false;
+    const array<tree> members= math_group_members ("Assign-symbol");
+    for (int i= 0; i < N(members); ++i)
+      if (members[i] == backassign) found= true;
+    QVERIFY (found);
+    QCOMPARE (symbol_type (backassign), SYMBOL_INFIX);
+    QCOMPARE (symbol_priority (backassign), symbol_priority (tree ("\342\211\224")));
+
+    auto gr= find_packrat_grammar ("std-math");
+    const auto rule= [] (const char* name) {
+      return encode_symbol (compound ("symbol", name));
+    };
+    for (tree expression: {tree (alpha),
+         tree (CONCAT, alpha, backassign, "1"),
+         tree (CONCAT, alpha, "\342\211\244", "1"),
+         tree (FRAC, alpha, "\360\235\224\270")}) {
+      packrat_parser parser (gr, expression);
+      QVERIFY (parser->parse (rule ("Main"), 0) == N(parser->current_input));
+    }
+    packrat_parser literal (gr, tree ("<alpha>"));
+    QCOMPARE (literal->parse (rule ("Letter-symbol"), 0), PACKRAT_FAILED);
+
+    const string tokens= "sin" * alpha * "e\314\201<alpha>12.3..";
+    const int boundaries[]= {3, 5, 8, 9, 14, 15, 19, 20, 21};
+    int pos= 0;
+    for (int end: boundaries) {
+      pos= math_word_end (tokens, pos);
+      QCOMPARE (pos, end);
+    }
+    QCOMPARE (pos, N(tokens));
+    QVERIFY (as_bool (eval ("(string=? (math-symbol-group '(named-symbol \"texmacs:backassign\")) \"Assign-symbol\")")));
+    QVERIFY (as_bool (eval ("(string=? (math-symbol-type '(named-symbol \"texmacs:backassign\")) \"infix\")")));
+    QVERIFY (as_bool (eval (
+      "(let loop ((members (math-group-members \"Assign-symbol\"))) "
+      "(and (pair? members) "
+      "(or (equal? (tree->stree (car members)) '(named-symbol \"texmacs:backassign\")) "
+      "(loop (cdr members)))))")));
   }
   void unicodePackrat () {
     packrat_grammar_rep grammar ("utf8-packrat-test");

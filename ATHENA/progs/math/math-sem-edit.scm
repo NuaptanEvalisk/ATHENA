@@ -32,7 +32,8 @@
   (tree-in? t (math-annotation-tag-list)))
 
 (define (quantifier? s)
-  (and (string? s) (== (math-symbol-group s) "Quantifier-symbol")))
+  (and (or (tm-atomic? s) (tm-func? s 'named-symbol 1))
+       (== (math-symbol-group s) "Quantifier-symbol")))
 
 (define (space? t)
   (or (in? t '(" " "<space>" "<nospace>"))
@@ -52,7 +53,9 @@
       (infix? t)))
 
 (define (infix? t)
-  (cond ((tm-atomic? t)
+  (cond ((tm-func? t 'named-symbol 1)
+         (in? (math-symbol-type t) (list "infix" "separator")))
+        ((tm-atomic? t)
          (and (== (tmstring-length (tm->string t)) 1)
               (in? (math-symbol-type (tm->string t))
                    (list "infix" "separator"))))

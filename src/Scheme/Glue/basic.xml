@@ -107,13 +107,13 @@
     <arg type="url" />
   </binding>
   <binding name="math-symbol-group" native="math_symbol_group" returns="string">
-    <arg type="string" />
+    <arg type="content" />
   </binding>
-  <binding name="math-group-members" native="math_group_members" returns="array_string">
+  <binding name="math-group-members" native="math_group_members" returns="array_tree">
     <arg type="string" />
   </binding>
   <binding name="math-symbol-type" native="math_symbol_type" returns="string">
-    <arg type="string" />
+    <arg type="content" />
   </binding>
   <binding name="object-&gt;command" native="as_actor_command" returns="command">
     <arg type="object" />

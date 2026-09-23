@@ -12,24 +12,22 @@
 #define MATH_TOKEN_H
 
 #include "analyze.hpp"
+#include "utf8_edit.hpp"
 
 inline int
 math_word_end (const string& s, int pos) {
+  ASSERT (pos >= 0 && pos <= N(s), "invalid mathematical text position");
   if (pos >= N(s)) return pos;
   if (is_digit (s[pos])) {
     while (pos < N(s) && is_numeric (s[pos])) ++pos;
     while (s[pos-1] == '.') --pos;
-    return pos;
+    return utf8_grapheme_snap (s, pos, true);
   }
   if (is_alpha (s[pos])) {
     while (pos < N(s) && is_alpha (s[pos])) ++pos;
-    return pos;
+    return utf8_grapheme_snap (s, pos, true);
   }
-  if (s[pos] == '<') {
-    while (pos < N(s) && s[pos] != '>') ++pos;
-    return pos < N(s) ? pos + 1 : pos;
-  }
-  return pos + 1;
+  return utf8_grapheme_next (s, pos);
 }
 
 #endif

@@ -457,55 +457,66 @@ packrat_grammar_rep::get_property (string s, string var) {
 * Member analysis
 ******************************************************************************/
 
-string
-packrat_grammar_rep::decode_as_string (C sym) {
-  string r;
+tree
+packrat_grammar_rep::decode_as_tree (C sym) {
   if (sym >= 0 && sym <= 0x10ffff && !(sym >= 0xd800 && sym <= 0xdfff)) {
     char bytes[4];
     int length= 0;
     U8_APPEND_UNSAFE (bytes, length, sym);
-    r= string (bytes, length);
+    return string (bytes, length);
   }
   else if (sym < PACKRAT_OR) {
     tree t= packrat_decode [sym];
-    if (is_atomic (t)) r << t->label;
+    return t;
   }
   else {
     array<C> def= grammar[sym];
     if (N(def) == 1 && (def[0] < PACKRAT_OR || def[0] >= PACKRAT_SYMBOLS))
-      r << decode_as_string (def[0]);
-    else if (N(def) >= 1 && def[0] == PACKRAT_CONCAT)
-      for (int i=1; i<N(def); i++)
-        r << decode_as_string (def[i]);
-    else {
-      cout << "Warning: could not transform " << packrat_decode[sym]
-           << " into a string\n";
+      return decode_as_tree (def[0]);
+    else if (N(def) >= 1 && def[0] == PACKRAT_CONCAT) {
+      tree result (CONCAT);
+      for (int i=1; i<N(def); i++) {
+        tree part= decode_as_tree (def[i]);
+        if (N(result) > 0 && is_atomic (result[N(result)-1]) && is_atomic (part))
+          result[N(result)-1]= result[N(result)-1]->label * part->label;
+        else result << part;
+      }
+      if (N(result) == 0) return tree ("");
+      if (N(result) == 1) return result[0];
+      return result;
     }
   }
-  return r;
+  FAILED ("packrat member is not a literal tree");
+  return tree (UNINIT);
 }
 
-array<string>
-packrat_grammar_rep::decode_as_array_string (C sym) {
-  array<string> r;
+string
+packrat_grammar_rep::decode_as_string (C sym) {
+  tree t= decode_as_tree (sym);
+  ASSERT (is_atomic (t), "structured packrat member is not a string");
+  return t->label;
+}
+
+array<tree>
+packrat_grammar_rep::decode_as_array_tree (C sym) {
+  array<tree> r;
   array<C> def= grammar[sym];
   if (N(def) == 1 && def[0] >= PACKRAT_SYMBOLS)
-    r << decode_as_array_string (def[0]);
+    r << decode_as_array_tree (def[0]);
   else if (N(def) >= 1 && def[0] == PACKRAT_OR)
     for (int i=1; i<N(def); i++)
-      r << decode_as_array_string (def[i]);
+      r << decode_as_array_tree (def[i]);
   else if (N(def) == 3 && def[0] == PACKRAT_RANGE)
     for (C c=def[1]; c<=def[2]; c++)
-      r << decode_as_string (c);
-  else r << decode_as_string (sym);
+      r << decode_as_tree (c);
+  else r << decode_as_tree (sym);
   return r;
 }
 
-array<string>
+array<tree>
 packrat_grammar_rep::members (string s) {
   C sym= encode_symbol (compound ("symbol", s));
-  //cout << s << " -> " << decode_as_array_string (sym) << "\n";
-  return decode_as_array_string (sym);
+  return decode_as_array_tree (sym);
 }
 
 /******************************************************************************

@@ -94,8 +94,9 @@ struct packrat_grammar_rep {
   string get_property (string s, string var);
 
   string decode_as_string (C sym);
-  array<string> decode_as_array_string (C sym);
-  array<string> members (string s);
+  tree decode_as_tree (C sym);
+  array<tree> decode_as_array_tree (C sym);
+  array<tree> members (string s);
 };
 
 packrat_grammar find_packrat_grammar (string s);

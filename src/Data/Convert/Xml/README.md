@@ -84,9 +84,21 @@ declarations use explicit structural terminals. Diagnostic strings are not
 parser input; a recorded boundary index maps their bytes to token positions,
 rejecting UTF-8 scalar interiors and out-of-range tree paths. RAW_DATA never
 enters the text decoder. Focused editor tests cover structure/text collisions,
-named identities, byte mappings and nested built-in fraction parsing. The
-remaining legacy mathematical literal tables, lexer and font dispatch still
-need migration; this change alone does not complete mathematical Unicode support.
+named identities, byte mappings and nested built-in fraction parsing.
+
+Built-in grammar records now contain UTF-8 literals and explicit named-symbol
+identities, converted once with the same lossless legacy import mapping, not
+transcoded when a language is loaded. This migrates 1,462 literal records;
+614 occurrences without a scalar equivalent retain structured identities.
+Grammar member enumeration and mathematical classifications carry trees instead
+of flattening named symbols to strings. Scheme classification accepts content,
+and group enumeration returns native trees. The math lexer retains its ASCII
+word/decimal conventions but uses ICU grapheme boundaries and never scans
+angle-bracket tokens. Named-symbol layout uses ordinary operator spacing,
+penalties and limits; definitions outside the grammar can still supply their
+declared class through the symbol registry. Mathematical font dispatch, complete
+rendering recipes, keyboard/style resources and remaining math-edit helpers
+still need migration; this does not complete mathematical Unicode support.
 
 Native document constructors no longer add a TeXmacs compatibility version.
 Until XML activation, only the legacy document serializers add their required

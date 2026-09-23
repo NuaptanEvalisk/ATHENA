@@ -67,13 +67,16 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (tmsymbol->cas s)
+  (set! s (tm->stree s))
+  (if (tm-func? s 'named-symbol 1)
+      (list (string->symbol (string-append "%" (cadr s))))
   (let* ((l1 (ahash-table->list cas-symbol-table))
 	 (l2 (map (lambda (x) (cons (cdr x) (car x))) l1))
 	 (l3 (list-filter l2 (lambda (x) (== (car x) s))))
 	 (l4 (map cdr l3)))
     (if (string-starts? s "<")
 	(set! s (string-append "%" (substring s 1 (- (string-length s) 1)))))
-    (map string->symbol (if (in? s l4) l4 (cons s l4)))))
+    (map string->symbol (if (in? s l4) l4 (cons s l4))))))
 
 (define (cas-collect-members . grs)
   (append-map

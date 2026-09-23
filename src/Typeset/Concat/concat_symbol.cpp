@@ -32,6 +32,7 @@ void concater_rep::typeset_named_symbol (tree t, path ip) {
     env->fn, symbol ? env->pen : pencil (red), {},
     background == "" ? brush (false) : brush (background, env->alpha));
   // Reuse the standard indivisible box mapping, not the unfinished SYMBOL tag.
-  print (STD_ITEM, symbol ? symbol->op_type : OP_SYMBOL,
-         macro_box (ip, glyph, env->fn));
+  box result= macro_box (ip, glyph, env->fn);
+  if (env->read (MODE) == "math") print_semantic (result, t);
+  else print (STD_ITEM, symbol ? symbol->op_type : OP_SYMBOL, result);
 }

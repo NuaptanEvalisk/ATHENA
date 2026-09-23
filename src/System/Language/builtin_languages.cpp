@@ -46,6 +46,8 @@ packrat_expression (unsigned index) {
     return symbol_expression (node.text);
   case builtin_expr_kind::literal:
     return tree (string (node.text));
+  case builtin_expr_kind::named_symbol:
+    return tree (NAMED_SYMBOL, string (node.text));
   case builtin_expr_kind::sequence: {
     tree result= compound ("concat");
     for (unsigned i=0; i<node.child_count; ++i)
@@ -83,6 +85,8 @@ definition_expression (unsigned index) {
     return scheme_tree (string (node.text));
   if (node.kind == builtin_expr_kind::literal)
     return scheme_tree (scm_quote (string (node.text)));
+  if (node.kind == builtin_expr_kind::named_symbol)
+    return tree_to_scheme_tree (tree (NAMED_SYMBOL, string (node.text)));
 
   scheme_tree result (TUPLE);
   switch (node.kind) {
@@ -95,6 +99,7 @@ definition_expression (unsigned index) {
   case builtin_expr_kind::sequence:
   case builtin_expr_kind::symbol:
   case builtin_expr_kind::literal:
+  case builtin_expr_kind::named_symbol:
     break;
   }
   for (unsigned i=0; i<node.child_count; ++i)

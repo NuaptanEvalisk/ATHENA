@@ -11,7 +11,6 @@
 
 #include "tree_analyze.hpp"
 #include "convert.hpp"
-#include "named_symbol.hpp"
 
 drd_info get_style_drd (tree style);
 
@@ -152,14 +151,7 @@ symbol_type (tree t) {
   }
   else if (is_atomic (t) || is_func (t, NAMED_SYMBOL, 1)) {
     int pos= 0;
-    int op= OP_SYMBOL;
-    if (is_atomic (t)) op= math_language ("std-math")->advance (t, pos)->op_type;
-    else if (is_atomic (t[0])) {
-      const auto& identity= t[0]->label;
-      const auto* symbol= athena::text::standard_named_symbols ().lookup (
-        std::string_view (identity.data (), N(identity)));
-      if (symbol) op= symbol->op_type;
-    }
+    int op= math_language ("std-math")->advance (t, pos)->op_type;
     switch (op) {
     case OP_UNKNOWN:
     case OP_TEXT:
@@ -258,8 +250,8 @@ symbol_types (array<tree> a) {
 int
 symbol_priority (tree t) {
   language lan= math_language ("std-math");
-  if (is_atomic (t)) {
-    string g= lan->get_group (t->label);
+  if (is_atomic (t) || is_func (t, NAMED_SYMBOL, 1)) {
+    string g= lan->get_group (t);
     if (starts (g, "Separator")) return PRIORITY_SEPARATOR;
     if (starts (g, "Ponctuation")) return PRIORITY_SEPARATOR;
     if (starts (g, "Assign")) return PRIORITY_ASSIGN;

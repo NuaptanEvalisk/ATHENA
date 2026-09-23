@@ -39,12 +39,16 @@
 
 (tm-define (allow-space-after? b)
   (and b (not (tm-func? b 'big))
+       (if (tm-func? b 'named-symbol 1)
+           (nin? (math-symbol-type b)
+                 (list "prefix" "infix" "separator" "prefix-infix"
+                       "opening-bracket" "middle-bracket"))
        (or (not (tm-atomic? b))
            (let* ((s (tm->string b))
                   (last (and (!= s "") (tmstring-reverse-ref s 0)))
                   (type (and last (math-symbol-type last))))
 	     (nin? type (list "prefix" "infix" "separator" "prefix-infix"
-			      "opening-bracket" "middle-bracket"))))))
+			      "opening-bracket" "middle-bracket")))))))
 
 (tm-define (skip-decorations-leftwards t)
   (if (and (tree? t)
@@ -78,7 +82,8 @@
   (:require (in-math?))
   (when (== (before-cursor) " ")
     (let* ((p (get-preference "math spacebar"))
-	   (type (if (string? s) (math-symbol-type s) "symbol")))
+	   (type (if (or (tm-atomic? s) (tm-func? s 'named-symbol 1))
+                     (math-symbol-type s) "symbol")))
       (when (in? type (list "postfix" "infix" "separator" "prefix-infix"
 			    "middle-bracket" "closing-bracket"))
 	(remove-text #f))))

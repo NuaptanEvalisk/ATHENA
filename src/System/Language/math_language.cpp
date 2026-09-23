@@ -16,15 +16,16 @@
 #include "iterator.hpp"
 #include "packrat_grammar.hpp"
 #include "math_token.hpp"
+#include "named_symbol.hpp"
 
 /******************************************************************************
 * Mathematical languages
 ******************************************************************************/
 
 struct math_language_rep: language_rep {
-  hashmap<string,string>            group;
+  hashmap<tree,string>              group;
   hashmap<string,text_property_rep> tpr_class;
-  hashmap<string,text_property_rep> tpr_member;
+  hashmap<tree,text_property_rep>   tpr_member;
 
   math_language_rep (string name);
   void set_type (string cl, string s);
@@ -33,15 +34,15 @@ struct math_language_rep: language_rep {
   void set_left_spacing (string cl, string s);
   void set_right_spacing (string cl, string s);
   void set_limits (string cl, string s);
-  void set_macro (string sym, string s);
+  void set_macro (tree sym, string s);
 
   void skip_spaces (string s, int& pos, space fn_spc, space& spc);
   string next_word (string s, int& pos);
   text_property advance (tree t, int& pos);
   array<int> get_hyphens (string s);
   void hyphenate (string s, int after, string& left, string& right);
-  string get_group (string s);
-  array<string> get_members (string s);
+  string get_group (tree s);
+  array<tree> get_members (string s);
 };
 
 /******************************************************************************
@@ -138,7 +139,7 @@ math_language_rep::set_limits (string cl, string s) {
 }
 
 void
-math_language_rep::set_macro (string sym, string s) {
+math_language_rep::set_macro (tree sym, string s) {
   tpr_member(sym)= copy (tpr_member(sym));
   tpr_member(sym).macro= make_tree_label (s);
 }
@@ -179,7 +180,7 @@ math_language_rep::math_language_rep (string name):
   iterator<string> it2= iterate (cls);
   while (it2->busy ()) {
     string cl= it2->next ();
-    array<string> a= gr->members (cl);
+    array<tree> a= gr->members (cl);
     for (int i=0; i<N(a); i++) {
       group (a[i])= cl;
       tpr_member (a[i])= tpr_class [cl];
@@ -195,6 +196,7 @@ math_language_rep::math_language_rep (string name):
     string var= packrat_decode[prop][0]->label;
     string val= props[key];
     if (var == "macro") set_macro (smb, val);
+    else if (var == "named-macro") set_macro (tree (NAMED_SYMBOL, smb), val);
   }
 }
 
@@ -212,6 +214,16 @@ math_language_rep::next_word (string s, int& pos) {
 
 text_property
 math_language_rep::advance (tree t, int& pos) {
+  if (!is_atomic (t)) {
+    pos= 1;
+    if (!tpr_member->contains (t) && is_func (t, NAMED_SYMBOL, 1) && is_atomic (t[0])) {
+      const auto& name= t[0]->label;
+      const auto* definition= athena::text::standard_named_symbols ().lookup (
+        {name.data (), static_cast<size_t> (N(name))});
+      if (definition) tpr_member(t).op_type= definition->op_type;
+    }
+    return &tpr_member(t);
+  }
   string s= t->label;
   bool op_flag1=
     (pos==0) ||
@@ -262,16 +274,16 @@ math_language_rep::hyphenate (string s, int after, string& left, string& right)
 ******************************************************************************/
 
 string
-math_language_rep::get_group (string s) {
+math_language_rep::get_group (tree s) {
   return group[s];
 }
 
-array<string>
+array<tree>
 math_language_rep::get_members (string g) {
-  array<string> r;
-  iterator<string> it= iterate (group);
+  array<tree> r;
+  iterator<tree> it= iterate (group);
   while (it->busy ()) {
-    string s= it->next ();
+    tree s= it->next ();
     if (group[s] == g) r << s;
   }
   return r;
@@ -288,22 +300,22 @@ math_language (string name) {
 }
 
 string
-math_symbol_group (string sym, string lang) {
+math_symbol_group (tree sym, string lang) {
   language lan= math_language (lang);
   return lan->get_group (sym);
 }
 
-array<string>
+array<tree>
 math_group_members (string gr, string lang) {
   language lan= math_language (lang);
   return lan->get_members (gr);
 }
 
 string
-math_symbol_type (string sym, string lang) {
+math_symbol_type (tree sym, string lang) {
   int pos= 0;
   language lan= math_language (lang);
-  text_property prop= lan->advance (tree (sym), pos);
+  text_property prop= lan->advance (sym, pos);
   switch (prop->op_type) {
   case OP_UNKNOWN:
     return "unknown";

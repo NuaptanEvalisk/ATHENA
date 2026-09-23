@@ -89,13 +89,15 @@
 (tm-define (wide-context? t) (tree-in? t '(wide wide*)))
 
 (tm-define (math-symbol? s)
-  (and (string? s) (== (math-symbol-type s) "symbol")))
+  (and (or (tm-atomic? s) (tm-func? s 'named-symbol 1))
+       (== (math-symbol-type s) "symbol")))
 
 (tm-define (math-operator? s)
   (and (string? s) (>= (string-length s) 2) (string-alpha? s)))
 
 (tm-define (math-relation? s)
-  (and (string? s) (== (math-symbol-group s) "Relation-nolim-symbol")))
+  (and (or (tm-atomic? s) (tm-func? s 'named-symbol 1))
+       (== (math-symbol-group s) "Relation-nolim-symbol")))
 
 (define weak-infix-types
   (list "Assign-symbol"
@@ -104,7 +106,8 @@
         "Relation-nolim-symbol" "Arrow-nolim-symbol"))
 
 (tm-define (math-weak-infix? s)
-  (and (string? s) (in? (math-symbol-group s) weak-infix-types)))
+  (and (or (tm-atomic? s) (tm-func? s 'named-symbol 1))
+       (in? (math-symbol-group s) weak-infix-types)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Analysis of content before cursor
