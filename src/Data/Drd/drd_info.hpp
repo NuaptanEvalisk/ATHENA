@@ -139,6 +139,10 @@ class drd_info {
 };
 CONCRETE_CODE(drd_info);
 
+// Apply one declarative <drd-props|...> node without evaluating a macro.
+// Detached importers and the live environment share this implementation.
+void apply_drd_properties (drd_info drd, tree properties);
+
 tree drd_env_write (tree env, string var, tree val);
 tree drd_env_merge (tree env, tree t);
 tree drd_env_read (tree env, string var, tree val= tree (UNINIT));

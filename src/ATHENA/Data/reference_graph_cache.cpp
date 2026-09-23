@@ -297,7 +297,7 @@ load_document_semantics (const fs::path& absolute, tree& document,
   }
   try {
     document= athena::document::decode_document_bytes (
-      std::string_view (as_charp (source), (std::size_t) N(source))).document;
+      std::string_view (as_charp (source), (std::size_t) N(source)), absolute).document;
     semantic_hash= athena::document::semantic_document_fingerprint (document);
   }
   catch (const std::exception& e) {

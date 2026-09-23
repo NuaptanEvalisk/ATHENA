@@ -42,7 +42,7 @@ vault_maintenance_pass_promote_evaluation_bars (VaultMaintenanceContext& ctx) {
         "could not read " + paths[i].string ());
     }
     tree document;
-    try { document= athena::document::decode_document_bytes (source).document; }
+    try { document= athena::document::decode_document_bytes (source, paths[i]).document; }
     catch (...) { document= tree (_ERROR, "parse failed"); }
     int body_index= -1;
     if (is_func (document, DOCUMENT))

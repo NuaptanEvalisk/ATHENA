@@ -157,8 +157,13 @@ compute_keys (url u) {
   load_string (u, s, false);
   string fm= get_format (s, suffix (u));
   if (fm != "texmacs") return compute_keys (s, fm);
-  tree t= athena::document::decode_document_bytes (
-    std::string_view (as_charp (s), (std::size_t) N(s))).document;
+  string local= concretize (u);
+  tree t= N(local) != 0 ?
+    athena::document::decode_document_bytes (
+      std::string_view (as_charp (s), (std::size_t) N(s)),
+      std::filesystem::path (as_charp (local))).document :
+    athena::document::decode_document_bytes (
+      std::string_view (as_charp (s), (std::size_t) N(s))).document;
   return compute_keys (t, fm);
 }
 
@@ -168,7 +173,12 @@ compute_index (url u) {
   load_string (u, s, false);
   string fm= get_format (s, suffix (u));
   if (fm != "texmacs") return compute_index (s, fm);
-  tree t= athena::document::decode_document_bytes (
-    std::string_view (as_charp (s), (std::size_t) N(s))).document;
+  string local= concretize (u);
+  tree t= N(local) != 0 ?
+    athena::document::decode_document_bytes (
+      std::string_view (as_charp (s), (std::size_t) N(s)),
+      std::filesystem::path (as_charp (local))).document :
+    athena::document::decode_document_bytes (
+      std::string_view (as_charp (s), (std::size_t) N(s))).document;
   return compute_index (t, fm);
 }

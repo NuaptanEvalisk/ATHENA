@@ -33,6 +33,9 @@ document_read_result decode_document_bytes (
   const legacy_slot_policy& = {});
 document_read_result decode_document_bytes (
   std::string_view, legacy_import_limits = {}, const legacy_slot_policy& = {});
+document_read_result decode_document_bytes (
+  std::string_view, const std::filesystem::path& source_path,
+  legacy_import_limits = {}, const legacy_slot_policy& = {});
 
 // Application-wide immutable canonical Cork import table. It is only used by
 // the legacy branch above; native XML never passes through Cork.

@@ -10,8 +10,13 @@
 #include "legacy_document_import.hpp"
 #include "legacy_document_reader.hpp"
 #include "drd_std.hpp"
+#include "drd_info.hpp"
+#include "file.hpp"
+#include "analyze.hpp"
 #include <algorithm>
 #include <limits>
+#include <memory>
+#include <set>
 
 namespace athena::document {
 namespace {
@@ -23,23 +28,150 @@ tree atom (const std::string& s) {
 }
 document_path child_path (document_path path, int index) { path.push_back (index); return path; }
 
+legacy_text_role role_for_type (int type, legacy_text_role inherited) {
+  switch (type) {
+  case TYPE_CODE: return legacy_text_role::code;
+  case TYPE_VARIABLE: case TYPE_ARGUMENT: case TYPE_BINDING:
+  case TYPE_IDENTIFIER: case TYPE_URL:
+  case TYPE_BOOLEAN: case TYPE_INTEGER: case TYPE_LENGTH:
+  case TYPE_NUMERIC: case TYPE_COLOR: case TYPE_DURATION:
+  case TYPE_FONT_SIZE: case TYPE_GRAPHICAL_ID:
+    return legacy_text_role::identifier;
+  case TYPE_STRING: return legacy_text_role::scalar;
+  default: return inherited;
+  }
+}
+
 legacy_text_role standard_role (const tree& parent, int i, legacy_text_role inherited) {
   // A code block or scalar container does not turn ordinary descendants into
   // presentation text. Explicit child types can further restrict a field.
   if (L (parent) < START_EXTENSIONS) {
-    switch (standard_drd_for_thread ()->get_type_child (parent, i)) {
-    case TYPE_CODE: return legacy_text_role::code;
-    case TYPE_VARIABLE: case TYPE_ARGUMENT: case TYPE_BINDING:
-    case TYPE_IDENTIFIER: case TYPE_URL:
-    case TYPE_BOOLEAN: case TYPE_INTEGER: case TYPE_LENGTH:
-    case TYPE_NUMERIC: case TYPE_COLOR: case TYPE_DURATION:
-    case TYPE_FONT_SIZE: case TYPE_GRAPHICAL_ID:
-      return legacy_text_role::identifier;
-    case TYPE_STRING: return legacy_text_role::scalar;
-    default: break;
-    }
+    return role_for_type (
+      standard_drd_for_thread ()->get_type_child (parent, i), inherited);
   }
   return inherited;
+}
+
+tree find_preamble (const tree& t) {
+  if (is_atomic (t)) return "";
+  if ((is_compound (t, "hide-preamble", 1) ||
+       is_compound (t, "show-preamble", 1))) return t[0];
+  for (int i=0; i<N(t); ++i) {
+    tree found= find_preamble (t[i]);
+    if (found != "") return found;
+  }
+  return "";
+}
+
+tree find_document_field (const tree& document, string label) {
+  if (!is_func (document, DOCUMENT)) return "";
+  for (int i=0; i<N(document); ++i)
+    if (is_compound (document[i], label, 1)) return document[i][0];
+  return "";
+}
+
+class contract_compiler {
+  drd_info drd;
+  hashmap<string,tree> environment;
+  std::vector<tree> properties;
+  std::set<std::string> loaded;
+  legacy_import_limits limits;
+  std::optional<std::filesystem::path> document_path;
+
+  url resolve_package (string package,
+                       const std::optional<std::filesystem::path>& base) {
+    string filename= ends (package, ".ts") ? package : package * ".ts";
+    const std::filesystem::path requested (
+      std::string (filename.data (), (std::size_t) N(filename)));
+    bool safe_relative= !requested.empty () && !requested.is_absolute ();
+    for (const auto& component: requested)
+      if (component == "..") safe_relative= false;
+    if (!safe_relative) return url_none ();
+    if (base) {
+      url base_url= url_system (string (base->string ().c_str ()));
+      url local= resolve (expand (head (base_url) * url_ancestor () * filename));
+      if (!is_none (local)) return local;
+    }
+    return resolve (url ("$ATHENA_STYLE_PATH") * filename);
+  }
+
+  void load_package (string package,
+                     const std::optional<std::filesystem::path>& base) {
+    if (loaded.size () >= 128)
+      throw codec_exception (codec_error::resource_limit,
+                             "Too many legacy style dependencies");
+    url resolved= resolve_package (package, base);
+    if (is_none (resolved)) return;
+    string key= as_string (resolved, URL_SYSTEM);
+    std::string identity (key.data (), (std::size_t) N(key));
+    if (!loaded.insert (identity).second) return;
+    string source;
+    if (load_string (resolved, source, false)) return;
+    if ((std::size_t) N(source) > limits.codec.input_bytes)
+      throw codec_exception (codec_error::resource_limit,
+                             "Legacy style contract exceeds import budget");
+    tree package_tree= read_legacy_markup (
+      std::string_view (as_charp (source), (std::size_t) N(source)), limits.codec);
+    std::optional<std::filesystem::path> package_path;
+    if (N(key) != 0) package_path= std::filesystem::path (identity);
+    scan (package_tree, package_path);
+  }
+
+  void scan (const tree& t, const std::optional<std::filesystem::path>& base) {
+    if (is_atomic (t)) return;
+    if (is_func (t, MACRO) || is_func (t, XMACRO)) return;
+    if ((is_func (t, ASSIGN, 2) || is_func (t, PROVIDE, 2)) &&
+        is_atomic (t[0])) {
+      string name= t[0]->label;
+      if (is_func (t, ASSIGN) || !environment->contains (name))
+        environment (name)= t[1];
+      return;
+    }
+    if (is_func (t, DRD_PROPS)) {
+      properties.push_back (copy (t));
+      return;
+    }
+    if (is_func (t, USE_PACKAGE)) {
+      for (int i=0; i<N(t); ++i)
+        if (is_atomic (t[i])) load_package (t[i]->label, base);
+      return;
+    }
+    for (int i=0; i<N(t); ++i) scan (t[i], base);
+  }
+
+public:
+  contract_compiler (const tree& source, legacy_import_limits import_limits,
+                     const legacy_import_context& context):
+    drd ("legacy-import", standard_drd_for_thread ()),
+    environment (UNINIT), limits (import_limits), document_path (context.source_path) {
+    tree style= find_document_field (source, "style");
+    if (is_atomic (style) && style != "") load_package (style->label, document_path);
+    else if (is_tuple (style))
+      for (int i=0; i<N(style); ++i)
+        if (is_atomic (style[i])) load_package (style[i]->label, document_path);
+    tree preamble= find_preamble (source);
+    if (preamble != "") scan (preamble, document_path);
+    // Explicit contracts freeze their slots before heuristic inference so a
+    // macro body cannot weaken a declared scalar/code/identifier role.
+    for (const auto& property: properties) apply_drd_properties (drd, property);
+    drd->heuristic_init (environment);
+  }
+
+  legacy_text_role role (const tree& parent, int child,
+                         legacy_text_role inherited) {
+    return role_for_type (drd->get_type_child (parent, child), inherited);
+  }
+};
+
+legacy_slot_policy compile_contract_policy (
+  const tree& source, legacy_import_limits limits,
+  const legacy_import_context& context, const legacy_slot_policy& caller) {
+  auto contracts= std::make_shared<contract_compiler> (source, limits, context);
+  return [contracts, caller] (const tree& parent, int child,
+                              legacy_text_role inherited) {
+    auto role= contracts->role (parent, child, inherited);
+    return caller ? caller (parent, child, role) : role;
+  };
 }
 
 class importer {
@@ -181,16 +313,17 @@ std::optional<document_path> legacy_document_result::relocate_node (const docume
 
 legacy_document_result import_legacy_document (
   const tree& source, const legacy_cork_table& table, legacy_import_limits limits,
-  const legacy_slot_policy& policy) {
-  return importer (table, limits, policy).run (source);
+  const legacy_slot_policy& policy, const legacy_import_context& context) {
+  auto effective= compile_contract_policy (source, limits, context, policy);
+  return importer (table, limits, effective).run (source);
 }
 
 legacy_document_result import_legacy_document_bytes (
   std::string_view input, const legacy_cork_table& table, legacy_import_limits limits,
-  const legacy_slot_policy& policy) {
+  const legacy_slot_policy& policy, const legacy_import_context& context) {
   tree source;
   if (input.substr (0, 9) == "<TeXmacs|") source= read_legacy_markup (input, limits.codec);
   else source= read_legacy_scheme (input, limits.codec);
-  return import_legacy_document (source, table, limits, policy);
+  return import_legacy_document (source, table, limits, policy, context);
 }
 } // namespace athena::document

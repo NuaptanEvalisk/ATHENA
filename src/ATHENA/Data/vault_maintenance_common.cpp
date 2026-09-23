@@ -464,7 +464,7 @@ read_document_file (const fs::path& path, tree& document, std::string& error) {
     return false;
   }
   try {
-    document= athena::document::decode_document_bytes (bytes).document;
+    document= athena::document::decode_document_bytes (bytes, path).document;
   }
   catch (const std::exception& e) {
     error= "Could not parse ATHENA document " + path.string () + ": " + e.what ();

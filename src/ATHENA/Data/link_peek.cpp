@@ -164,7 +164,8 @@ tree athena_link_peek_document (string target, url& source) {
   tree document;
   try {
     document= athena::document::decode_document_bytes (
-      std::string_view (as_charp (serialized), (std::size_t) N(serialized))).document;
+      std::string_view (as_charp (serialized), (std::size_t) N(serialized)),
+      root / relative).document;
   }
   catch (...) { return unavailable ("Preview unavailable: cannot read source."); }
   if (!is_document (document)) return unavailable ("Preview unavailable: cannot read source.");

@@ -136,7 +136,8 @@ cached_source (url source_url, string signature) {
   tree document;
   try {
     document= athena::document::decode_document_bytes (
-      std::string_view (as_charp (serialized), (std::size_t) N(serialized))).document;
+      std::string_view (as_charp (serialized), (std::size_t) N(serialized)),
+      std::filesystem::path (path)).document;
   }
   catch (...) { return nullptr; }
 

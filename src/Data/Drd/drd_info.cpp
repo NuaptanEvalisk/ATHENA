@@ -1039,3 +1039,122 @@ drd_info_rep::heuristic_init (hashmap<string,tree> env2) {
   }
   // cout << "--> " << (texmacs_time ()-tt) << "ms\n";
 }
+
+void
+apply_drd_properties (drd_info drd, tree t) {
+  int n= N(t);
+  if ((n < 3) || !is_atomic (t[0])) return;
+  for (int i=1; i<n-1; i+=2) {
+    if (!is_atomic (t[i])) continue;
+    string var= t[0]->label;
+    string prop= t[i]->label;
+    tree val= t[i+1];
+    tree_label l= make_tree_label (var);
+    if (prop == "arity") {
+      if (is_tuple (val, "repeat", 2))
+        drd->set_arity (l, as_int (val[1]), as_int (val[2]),
+                        ARITY_REPEAT, CHILD_BIFORM);
+      else if (is_tuple (val, "repeat*", 2))
+        drd->set_arity (l, as_int (val[1]), as_int (val[2]),
+                        ARITY_VAR_REPEAT, CHILD_BIFORM);
+      else if (is_tuple (val, "options", 2))
+        drd->set_arity (l, as_int (val[1]), as_int (val[2]),
+                        ARITY_OPTIONS, CHILD_BIFORM);
+      else
+        drd->set_arity (l, as_int (val), 0, ARITY_NORMAL, CHILD_DETAILED);
+      drd->freeze_arity (l);
+    }
+    else if (prop == "name") {
+      if (is_atomic (val)) drd->set_attribute (l, prop, val->label);
+    }
+    else if (prop == "syntax") drd->set_syntax (l, val);
+    else if (prop == "border") {
+      if (val == "yes") drd->set_border (l, BORDER_YES);
+      if (val == "inner") drd->set_border (l, BORDER_INNER);
+      if (val == "outer") drd->set_border (l, BORDER_OUTER);
+      if (val == "no") drd->set_border (l, BORDER_INNER);
+      drd->freeze_border (l);
+    }
+    else if (prop == "with-like") {
+      if (val == "yes") drd->set_with_like (l, true);
+      if (val == "no") drd->set_with_like (l, false);
+      drd->freeze_with_like (l);
+    }
+    else if (prop == "locals") {
+      int count= drd->get_nr_indices (l);
+      for (int j=0; j<count; ++j) {
+        drd->set_env (l, j, val);
+        drd->freeze_env (l, j);
+      }
+    }
+    else if (prop == "unaccessible" || prop == "hidden" ||
+             prop == "accessible") {
+      int prop_code= ACCESSIBLE_NEVER;
+      if (prop == "hidden") prop_code= ACCESSIBLE_HIDDEN;
+      if (prop == "accessible") prop_code= ACCESSIBLE_ALWAYS;
+      if (val == "none") prop_code= ACCESSIBLE_NEVER;
+      if (is_int (val)) {
+        int j= as_int (val);
+        drd->set_accessible (l, j, prop_code);
+        drd->freeze_accessible (l, j);
+      }
+      else if (val == "none" || val == "all") {
+        int count= drd->get_nr_indices (l);
+        for (int j=0; j<count; ++j) {
+          drd->set_accessible (l, j, prop_code);
+          drd->freeze_accessible (l, j);
+        }
+      }
+    }
+    else if (prop == "normal-writability" || prop == "disable-writability" ||
+             prop == "enable-writability") {
+      int prop_code= WRITABILITY_NORMAL;
+      if (prop == "disable-writability") prop_code= WRITABILITY_DISABLE;
+      if (prop == "enable-writability") prop_code= WRITABILITY_ENABLE;
+      if (is_int (val)) {
+        int j= as_int (val);
+        drd->set_writability (l, j, prop_code);
+        drd->freeze_writability (l, j);
+      }
+      else if (val == "all") {
+        int count= drd->get_nr_indices (l);
+        for (int j=0; j<count; ++j) {
+          drd->set_writability (l, j, prop_code);
+          drd->freeze_writability (l, j);
+        }
+      }
+    }
+    else if (prop == "returns" && drd_encode_type (as_string (val)) >= 0) {
+      drd->set_type (l, drd_encode_type (as_string (val)));
+      drd->freeze_type (l);
+    }
+    else if (prop == "parameter" && drd_encode_type (as_string (val)) >= 0) {
+      drd->set_var_type (l, VAR_PARAMETER);
+      drd->set_type (l, drd_encode_type (as_string (val)));
+      drd->freeze_var_type (l);
+      drd->freeze_type (l);
+    }
+    else if (prop == "macro-parameter" &&
+             drd_encode_type (as_string (val)) >= 0) {
+      drd->set_var_type (l, VAR_MACRO_PARAMETER);
+      drd->set_type (l, drd_encode_type (as_string (val)));
+      drd->freeze_var_type (l);
+      drd->freeze_type (l);
+    }
+    else if (drd_encode_type (prop) >= 0) {
+      int tp= drd_encode_type (prop);
+      if (is_int (val)) {
+        int j= as_int (val);
+        drd->set_type (l, j, tp);
+        drd->freeze_type (l, j);
+      }
+      else if (val == "all") {
+        int count= drd->get_nr_indices (l);
+        for (int j=0; j<count; ++j) {
+          drd->set_type (l, j, tp);
+          drd->freeze_type (l, j);
+        }
+      }
+    }
+  }
+}

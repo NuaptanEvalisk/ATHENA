@@ -8,11 +8,14 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include <QtTest/QtTest>
+#include <QTemporaryDir>
 #include "Xml/document_file_codec.hpp"
 #include "Xml/legacy_document_import.hpp"
 #include "drd_std.hpp"
 #include "convert.hpp"
 #include <future>
+#include <filesystem>
+#include <fstream>
 
 using namespace athena::document;
 bool headless_mode= true;
@@ -32,6 +35,15 @@ std::string text_of (const std::vector<legacy_text_piece>& pieces) {
 }
 tree doc (tree body) {
   return tree (DOCUMENT, compound ("TeXmacs", "2.1.4"), compound ("body", body));
+}
+tree find_tag (const tree& value, string label) {
+  if (is_compound (value, label)) return value;
+  if (!is_atomic (value))
+    for (int i=0; i<N(value); ++i) {
+      tree found= find_tag (value[i], label);
+      if (found != "") return found;
+    }
+  return "";
 }
 }
 
@@ -203,6 +215,75 @@ private slots:
 
     QVERIFY_THROWS_EXCEPTION (codec_exception,
       decode_document_bytes ("plain text is not a document", t));
+  }
+  void styleAndPreambleContracts () {
+    QTemporaryDir temporary;
+    QVERIFY (temporary.isValid ());
+    const std::filesystem::path root (temporary.path ().toStdString ());
+
+    tree style_body (DOCUMENT,
+      tree (ASSIGN, "typed-slot", tree (MACRO, "id", "text", tree (ARG, "text"))),
+      tree (DRD_PROPS, "typed-slot", "arity", "2",
+            "identifier", "0", "string", "1"));
+    tree style_doc (DOCUMENT, compound ("TeXmacs", "2.1.4"),
+                    compound ("body", style_body));
+    string style_bytes= tree_to_texmacs (style_doc);
+    {
+      std::ofstream output (root / "custom.ts", std::ios::binary | std::ios::trunc);
+      output.write (as_charp (style_bytes), N(style_bytes));
+    }
+
+    tree body (DOCUMENT,
+      compound ("typed-slot", "<mathD>", tree (string ("\xe9", 1))));
+    tree legacy (DOCUMENT, compound ("TeXmacs", "2.1.4"),
+                 compound ("style", "custom"), compound ("body", body));
+    string legacy_bytes= tree_to_texmacs (legacy);
+    auto imported= decode_document_bytes (
+      std::string_view (as_charp (legacy_bytes), N(legacy_bytes)), root / "note.ath");
+    tree typed= find_tag (imported.document, "typed-slot");
+    QVERIFY (typed != "");
+    QCOMPARE (typed[0], tree ("<mathD>"));
+    QCOMPARE (typed[1], tree (u8"\u00e9"));
+
+    tree inferred_macro (MACRO, "id", "body",
+      tree (CONCAT, tree (LABEL, tree (ARG, "id")), tree (ARG, "body")));
+    tree preamble (DOCUMENT, tree (ASSIGN, "custom-ref", inferred_macro));
+    tree inferred_body (DOCUMENT, compound ("custom-ref", "<mathD>", "ordinary"),
+                        compound ("hide-preamble", preamble));
+    auto inferred= import_legacy_document (doc (inferred_body), table ());
+    tree custom= find_tag (inferred.document, "custom-ref");
+    QVERIFY (custom != "");
+    QCOMPARE (custom[0], tree ("<mathD>"));
+    QCOMPARE (custom[1], tree ("ordinary"));
+
+    // Source-local style lookup is intentionally confined to relative package
+    // names without parent traversal. A legacy document cannot use its style
+    // field to make the importer read an arbitrary sibling/ancestor .ts file.
+    std::filesystem::create_directory (root / "nested");
+    {
+      std::ofstream output (root / "escape.ts", std::ios::binary | std::ios::trunc);
+      output.write (as_charp (style_bytes), N(style_bytes));
+    }
+    tree escaped_body (DOCUMENT,
+      compound ("typed-slot", "<definitely-unmapped-contract-token>", "plain"));
+    tree escaped (DOCUMENT, compound ("TeXmacs", "2.1.4"),
+                  compound ("style", "../escape"), compound ("body", escaped_body));
+    string escaped_bytes= tree_to_texmacs (escaped);
+    bool preserved_as_identifier= false;
+    try {
+      auto confined= decode_document_bytes (
+        std::string_view (as_charp (escaped_bytes), N(escaped_bytes)),
+        root / "nested" / "note.ath");
+      tree untyped= find_tag (confined.document, "typed-slot");
+      QVERIFY (untyped != "");
+      preserved_as_identifier=
+        is_atomic (untyped[0]) && untyped[0] == "<definitely-unmapped-contract-token>";
+    }
+    catch (const codec_exception&) {
+      // A scalar default role may reject the unmapped token outright. That is
+      // also proof that the escaped identifier contract was not loaded.
+    }
+    QVERIFY (!preserved_as_identifier);
   }
 };
 QTEST_GUILESS_MAIN (TestLegacyImport)

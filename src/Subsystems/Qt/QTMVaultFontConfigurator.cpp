@@ -114,7 +114,7 @@ readDocument (const fs::path& path, tree& document, QString& error) {
   }
   try {
     document= athena::document::decode_document_bytes (
-      std::string_view (as_charp (source), (std::size_t) N(source))).document;
+      std::string_view (as_charp (source), (std::size_t) N(source)), path).document;
   }
   catch (...) {
     error= QString ("Could not parse %1").arg (

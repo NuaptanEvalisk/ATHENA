@@ -421,9 +421,16 @@ Import distinguishes presentation content, identity strings, scalar fields,
 code and raw bytes. Standard DRD child types provide the built-in slot policy;
 callers can supply explicit policies for application/custom macro fields.
 Unknown glyphs in a scalar/code field cause a diagnostic rather than a lossy
-substitution. RAW_DATA remains byte-for-byte binary. Application-defined
-metadata and style/custom macro contracts still need explicit slot policies;
-unknown scalar/code roles remain errors rather than being guessed.
+substitution. RAW_DATA remains byte-for-byte binary. Legacy import also compiles
+declarative slot contracts from the document style and preamble without Scheme
+evaluation: bundled/source-local style files contribute `drd-props`, macro
+definitions feed the same DRD heuristic used by the live environment, and
+explicit properties are frozen before heuristic inference. Source-local package
+lookup is relative to the document and rejects absolute/parent-traversal paths.
+Real editor, preview/search/index, artifact/RAG/reference, maintenance and
+interop readers pass their source path into the codec so these contracts apply
+outside tests as well. Caller-supplied slot policies remain the final override;
+unknown scalar/code roles are still errors rather than being guessed.
 
 The result includes exact node relocation and text spans with preceding/following
 affinity at structural splits. ASCII runs map interior positions linearly;
@@ -541,10 +548,7 @@ post-rename fsync fault injection remain integration work.
 
 ## Remaining Integration Gates
 
-1. Integrate the role-aware legacy importer with remaining application metadata
-   and style/custom macro contracts. The old `Strict-Cork` converter is **not**
-   a substitute for this importer.
-2. Remove the remaining read-only legacy token/parser compatibility paths only
+1. Remove the remaining read-only legacy token/parser compatibility paths only
    after the supported legacy-file import window is intentionally closed.
 
 Production Notes and remote backends are not test inputs. Tests use synthetic

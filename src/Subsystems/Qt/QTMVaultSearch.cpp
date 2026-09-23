@@ -143,7 +143,8 @@ tree vault_search_read_body (const QString& file) {
   // Search parses persisted documents, without converter/Scheme callbacks,
   // current-buffer fallback, link registration, or preview image rewriting.
   tree doc= athena::document::decode_document_bytes (
-    std::string_view (bytes.constData (), (std::size_t) bytes.size ())).document;
+    std::string_view (bytes.constData (), (std::size_t) bytes.size ()),
+    std::filesystem::path (file.toStdString ())).document;
   tree body= extract (doc, "body");
   return is_empty (body) ? doc : body;
 }

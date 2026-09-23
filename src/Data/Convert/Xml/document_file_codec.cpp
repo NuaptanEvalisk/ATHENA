@@ -61,6 +61,20 @@ decode_document_bytes (
 
 document_read_result
 decode_document_bytes (
+  std::string_view source, const std::filesystem::path& source_path,
+  legacy_import_limits limits, const legacy_slot_policy& policy) {
+  const auto format= classify_document (source);
+  if (format == document_source_format::xml_v1)
+    return {format, read_xml (source, xml_kind::document, limits.codec), {}};
+  legacy_import_context context;
+  context.source_path= source_path;
+  auto imported= import_legacy_document_bytes (
+    source, standard_legacy_cork_table (), limits, policy, context);
+  return {format, std::move (imported.document), std::move (imported.mappings)};
+}
+
+document_read_result
+decode_document_bytes (
   std::string_view source, legacy_import_limits limits,
   const legacy_slot_policy& policy) {
   return decode_document_bytes (

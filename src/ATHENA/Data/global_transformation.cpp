@@ -106,7 +106,7 @@ athena_global_transformation_prepare (
     std::string source;
     if (!read_current (path, source, error)) return false;
     tree document;
-    try { document= athena::document::decode_document_bytes (source).document; }
+    try { document= athena::document::decode_document_bytes (source, path).document; }
     catch (...) { document= tree (_ERROR, "parse failed"); }
     if (is_func (document, _ERROR)) {
       error= "Could not parse " + relative_text;

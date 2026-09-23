@@ -576,7 +576,7 @@ collect_delegated_job (const fs::path& vault_root, const fs::path& local_db,
     std::string storage_hash= content_hash (bytes);
     std::string semantic_hash;
     try {
-      tree document= athena::document::decode_document_bytes (bytes).document;
+      tree document= athena::document::decode_document_bytes (bytes, file).document;
       semantic_hash= athena::document::semantic_document_fingerprint (document);
     }
     catch (const std::exception& e) {

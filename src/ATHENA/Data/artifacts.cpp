@@ -1483,7 +1483,7 @@ bool read_document (const fs::path& path, tree& document, std::string& error) {
     error= "Could not read " + path.string ();
     return false;
   }
-  try { document= athena::document::decode_document_bytes (bytes).document; }
+  try { document= athena::document::decode_document_bytes (bytes, path).document; }
   catch (...) { error= "Could not parse " + path.string (); return false; }
   if (is_func (document, _ERROR)) {
     error= "Malformed ATHENA document: " + path.string ();

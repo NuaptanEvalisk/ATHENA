@@ -148,7 +148,7 @@ namespace_load_initial_document (const athena_namespace_definition& ns,
   }
   try {
     doc= athena::document::decode_document_bytes (
-      std::string_view (as_charp (text), (std::size_t) N(text))).document;
+      std::string_view (as_charp (text), (std::size_t) N(text)), source).document;
   }
   catch (...) {
     error= "Namespace initial content is not a valid document.";

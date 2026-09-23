@@ -11,6 +11,7 @@
 #include "athena_document_xml.hpp"
 #include "legacy_cork.hpp"
 #include <functional>
+#include <filesystem>
 #include <optional>
 
 namespace athena::document {
@@ -40,6 +41,11 @@ struct legacy_import_limits {
   codec_limits codec;
   std::size_t positions= 4000000;
 };
+struct legacy_import_context {
+  // Used only to resolve source-local/ancestor style files. Empty contexts still
+  // compile bundled style contracts and document-local preamble declarations.
+  std::optional<std::filesystem::path> source_path;
+};
 struct legacy_document_result {
   tree document;
   // Source paths are in lexicographic/preorder order, permitting indexed lookup.
@@ -57,9 +63,9 @@ using legacy_slot_policy= std::function<legacy_text_role (
   const tree& parent, int child, legacy_text_role inherited)>;
 legacy_document_result import_legacy_document (
   const tree&, const legacy_cork_table&, legacy_import_limits = {},
-  const legacy_slot_policy& = {});
+  const legacy_slot_policy& = {}, const legacy_import_context& = {});
 // Dispatch by an explicit legacy file signature, never by byte plausibility.
 legacy_document_result import_legacy_document_bytes (
   std::string_view, const legacy_cork_table&, legacy_import_limits = {},
-  const legacy_slot_policy& = {});
+  const legacy_slot_policy& = {}, const legacy_import_context& = {});
 } // namespace athena::document

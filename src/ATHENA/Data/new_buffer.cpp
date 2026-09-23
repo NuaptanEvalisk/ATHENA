@@ -886,7 +886,13 @@ import_loaded_tree (string s, url u, string fm) {
      (unsigned char) s[1] == 0xbb && (unsigned char) s[2] == 0xbf);
   tree t;
   if (document_input) {
-    try { t= athena::document::decode_document_bytes (bytes).document; }
+    try {
+      string local= concretize (u);
+      if (N(local) != 0)
+        t= athena::document::decode_document_bytes (
+          bytes, std::filesystem::path (as_charp (local))).document;
+      else t= athena::document::decode_document_bytes (bytes).document;
+    }
     catch (const std::exception& e) { return tree (_ERROR, string (e.what ())); }
   }
   else t= generic_to_tree (s, fm * "-document");

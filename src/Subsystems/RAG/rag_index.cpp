@@ -1137,7 +1137,7 @@ RagIndex::scan_once () {
     }
 
     try {
-      tree doc= athena::document::decode_document_bytes (text).document;
+      tree doc= athena::document::decode_document_bytes (text, file).document;
       std::string semantic_hash=
         athena::document::semantic_document_fingerprint (doc);
       if (cached.found && cached.status == "ok" &&

@@ -87,7 +87,7 @@ operation_result filesystem_resource::operate (const std::string& command, const
     tree doc;
     try {
       doc= athena::document::decode_document_bytes (
-        std::string_view (bytes.data (), bytes.size ())).document;
+        std::string_view (bytes.data (), bytes.size ()), entry.path ()).document;
     }
     catch (const std::exception& e) {
       return {"OK", {{"valid", false}, {"reason", e.what ()}}};

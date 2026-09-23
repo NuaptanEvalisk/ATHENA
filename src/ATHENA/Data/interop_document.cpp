@@ -242,7 +242,7 @@ public:
     athena::document::document_read_result decoded;
     try {
       decoded= athena::document::decode_document_bytes (
-        std::string_view (bytes.data (), bytes.size ()));
+        std::string_view (bytes.data (), bytes.size ()), entry.path ());
     }
     catch (const athena::document::codec_exception& e) {
       throw invalid_document (e.what ());
