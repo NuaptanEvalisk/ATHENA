@@ -485,9 +485,27 @@ static void check_font_styles (font nominal) {
       {{0, 3, alternate}, {2, 4, alternate}}})
     rejects<std::invalid_argument> ([&] { font_paragraph p ("AAAA", base, invalid, catalog); });
   rejects<std::invalid_argument> ([&] { font_paragraph p ("\xce\xb1", base, {{1, 2, alternate}}, catalog); });
-  auto wrong_device= alternate;
-  wrong_device.horizontal_dpi= 144;
-  rejects<std::invalid_argument> ([&] { font_paragraph p ("A", base, {{0, 1, wrong_device}}, catalog); });
+  auto adjusted= base;
+  adjusted.horizontal_dpi= 144;
+  adjusted.vertical_dpi= 72;
+  font_paragraph mixed_scale ("AAAA", base, {{1, 3, adjusted}}, catalog);
+  require (mixed_scale.fonts ().size () == 3 &&
+           mixed_scale.fonts ()[1].horizontal_dpi == 144 && mixed_scale.fonts ()[1].vertical_dpi == 72,
+           "Font-size adjustment merged into neighboring device scales");
+  const auto exact= shape_freetype_utf8 (font_file_source {file, 0}, 12, 144, 72, "AAAA", 1, 3);
+  const auto adjusted_line= mixed_scale.line (1, 3);
+  require (adjusted_line.advance == exact.advance_x &&
+           adjusted_line.runs[0].text.glyph_source->physical_source (physical) &&
+           physical.horizontal_dpi == 144 && physical.vertical_dpi == 72 && physical.point_size == 12,
+           "Styled shaping lost its native device scale");
+  require (mixed_scale.line (1, 3, {}, 1.5).advance ==
+           shape_freetype_utf8 (font_file_source {file, 0}, 12, 216, 72, "AAAA", 1, 3).advance_x,
+           "Expansion used paragraph DPI instead of the styled run's DPI");
+  auto invalid_scale= adjusted;
+  invalid_scale.vertical_dpi= 0;
+  rejects<std::invalid_argument> ([&] { font_paragraph p ("A", base, {{0, 1, invalid_scale}}, catalog); });
+  invalid_scale.vertical_dpi= std::numeric_limits<int>::max ();
+  rejects<std::invalid_argument> ([&] { font_paragraph p ("A", base, {{0, 1, invalid_scale}}, catalog); });
   auto wrong_direction= alternate;
   wrong_direction.direction= paragraph_direction::rtl;
   rejects<std::invalid_argument> ([&] { font_paragraph p ("A", base, {{0, 1, wrong_direction}}, catalog); });

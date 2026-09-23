@@ -27,14 +27,15 @@ struct selected_font_run {
   font_file_source font;
   int point_size;
   std::string language;
+  int horizontal_dpi, vertical_dpi;
 };
 
 font_request font_request_from_source (const physical_font_source& source,
                                        std::string language= "und");
 
 // Sorted, nonoverlapping scalar ranges. Gaps use the paragraph's base request.
-// Device resolution and paragraph direction must match that base request;
-// changing language/family/size does not create another Unicode paragraph.
+// Paragraph direction must match that base request. Device resolution can
+// differ for profile font-size adjustment without creating another paragraph.
 struct font_style_span {
   std::size_t begin, end;
   font_request request;

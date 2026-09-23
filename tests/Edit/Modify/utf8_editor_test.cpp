@@ -201,6 +201,7 @@ private slots:
     auto request= athena::text::font_request_from_source (physical);
     QCOMPARE (request.point_size, physical.point_size);
     QCOMPARE (request.vertical_dpi, physical.vertical_dpi);
+    const auto regular= request;
     env->write_update (FONT_FAMILY, "tt");
     QVERIFY (env->fn->physical_source (physical));
     request= athena::text::font_request_from_source (physical);
@@ -208,6 +209,17 @@ private slots:
     QCOMPARE (request.vertical_dpi, physical.vertical_dpi);
     result= typeset_as_concat (env, tree (source), path (0));
     QCOMPARE (result[0]->get_leaf_string (), source);
+    const auto monospace= request;
+    env->write_update (FONT_FAMILY, "rm");
+    athena::text::font_paragraph mixed ("x MMM y", regular, {{2, 5, monospace}});
+    result= typeset_as_concat (env, tree (CONCAT, "x ",
+      tree (WITH, FONT_FAMILY, "tt", "MMM"), " y"), path (0));
+    QCOMPARE (N(result), 1);
+    QCOMPARE (result->w (), mixed.line (0, 7).advance);
+    bool restored= false;
+    const auto mono_cursor= result->find_box_path (path (0, path (1, path (2, 2))), restored);
+    QVERIFY (restored);
+    QVERIFY (result->find_tree_path (mono_cursor) == path (0, path (1, path (2, 2))));
   }
   void inlineSourceMapping () {
     drd_info drd ("utf8-inline-source", std_drd);

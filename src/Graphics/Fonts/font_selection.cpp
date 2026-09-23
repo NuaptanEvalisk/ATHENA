@@ -42,11 +42,17 @@ void validate_request (const font_request& request) {
 
 using description_ptr= std::unique_ptr<PangoFontDescription, decltype (&pango_font_description_free)>;
 
-description_ptr describe (const font_request& request) {
+description_ptr describe (const font_request& request, int reference_dpi= 0) {
   description_ptr desc (pango_font_description_from_string (request.description_utf8.c_str ()),
                          pango_font_description_free);
   if (!desc) throw std::bad_alloc ();
-  pango_font_description_set_size (desc.get (), request.point_size * PANGO_SCALE);
+  // Pango's map has one DPI. Express a span's effective size in that map while
+  // retaining its original point size and device scale for native shaping.
+  const double size= std::round (static_cast<double> (request.point_size) * PANGO_SCALE *
+    request.vertical_dpi / (reference_dpi == 0 ? request.vertical_dpi : reference_dpi));
+  if (!std::isfinite (size) || size < 1 || size > G_MAXINT)
+    throw std::invalid_argument ("Font span exceeds Pango size range");
+  pango_font_description_set_size (desc.get (), static_cast<int> (size));
   return desc;
 }
 
@@ -145,8 +151,7 @@ std::vector<selected_font_run> font_catalog::select (
     validate_request (span.request);
     if (span.begin < previous || span.begin >= span.end || span.end > source.size () ||
         !scalar_boundary (source, span.begin) || !scalar_boundary (source, span.end) ||
-        span.request.horizontal_dpi != request.horizontal_dpi ||
-        span.request.vertical_dpi != request.vertical_dpi || span.request.direction != request.direction)
+        span.request.direction != request.direction)
       throw std::invalid_argument ("Invalid paragraph font style range");
     previous= span.end;
   }
@@ -164,7 +169,7 @@ std::vector<selected_font_run> font_catalog::select (
   std::unique_ptr<PangoAttrList, decltype (&pango_attr_list_unref)> attrs (
     pango_attr_list_new (), pango_attr_list_unref);
   for (const auto& span: styles) {
-    descriptions.push_back (describe (span.request));
+    descriptions.push_back (describe (span.request, request.vertical_dpi));
     for (auto attr: {pango_attr_font_desc_new (descriptions.back ().get ()),
                      pango_attr_language_new (pango_language_from_string (span.request.language.c_str ()))}) {
       if (!attr) throw std::bad_alloc ();
@@ -189,9 +194,12 @@ std::vector<selected_font_run> font_catalog::select (
           result.back ().end == begin && result.back ().font.file_utf8 == font.file_utf8 &&
           result.back ().font.face_index == font.face_index &&
           result.back ().font.design_coords == font.design_coords &&
-          result.back ().point_size == active.point_size && result.back ().language == active.language)
+          result.back ().point_size == active.point_size && result.back ().language == active.language &&
+          result.back ().horizontal_dpi == active.horizontal_dpi &&
+          result.back ().vertical_dpi == active.vertical_dpi)
         result.back ().end= next;
-      else result.push_back ({begin, next, font, active.point_size, active.language});
+      else result.push_back ({begin, next, font, active.point_size, active.language,
+                             active.horizontal_dpi, active.vertical_dpi});
       begin= next;
     }
   };
@@ -293,11 +301,8 @@ unicode_paragraph& font_paragraph::analysis () {
 shaped_line font_paragraph::line (std::size_t begin, std::size_t end,
                                  const shaping_options& options, double horizontal_scale,
                                  const item_splitter& split) {
-  const double scaled= std::round (request_.horizontal_dpi * horizontal_scale);
-  if (!std::isfinite (horizontal_scale) || horizontal_scale <= 0 ||
-      !std::isfinite (scaled) || scaled < 1 || scaled > std::numeric_limits<int>::max ())
+  if (!std::isfinite (horizontal_scale) || horizontal_scale <= 0)
     throw std::invalid_argument ("Invalid horizontal font scale");
-  const int hdpi= static_cast<int> (scaled);
   auto locate= [&] (std::size_t byte) {
     return std::lower_bound (fonts_.begin (), fonts_.end (), byte,
       [] (const selected_font_run& run, std::size_t at) { return run.end <= at; });
@@ -309,8 +314,11 @@ shaped_line font_paragraph::line (std::size_t begin, std::size_t end,
         throw std::logic_error ("Shaping item crosses selected font boundary");
       auto selected= o;
       if (selected.language.empty () || selected.language == "und") selected.language= font->language;
+      const double scaled= std::round (font->horizontal_dpi * horizontal_scale);
+      if (!std::isfinite (scaled) || scaled < 1 || scaled > std::numeric_limits<int>::max ())
+        throw std::invalid_argument ("Invalid horizontal font scale");
       return shape_freetype_utf8 (font->font, font->point_size,
-        hdpi, request_.vertical_dpi, source, item.run.begin, item.run.end, selected);
+        static_cast<int> (scaled), font->vertical_dpi, source, item.run.begin, item.run.end, selected);
     }, options, [&] (const shaping_item& item) {
       std::vector<std::size_t> cuts;
       for (auto font= locate (item.run.begin); font != fonts_.end () && font->end < item.run.end; ++font)

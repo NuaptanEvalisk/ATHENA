@@ -63,15 +63,18 @@ unchanged. Legacy readers still recognize existing file headers.
   itemization is done once per immutable paragraph, not once per wrapped line.
   Sorted, nonoverlapping `font_style_span` byte ranges provide font family,
   size and language overrides through Pango attributes on the same source.
-  Gaps retain the base request; resolution and paragraph direction cannot
-  change inside a span. Spans may meet inside a grapheme without introducing
-  editing stops. Selected physical runs retain their own point size and language
+  Gaps retain the base request; paragraph direction cannot change inside a
+  span. Effective horizontal/vertical DPI may vary for font-profile adjustments:
+  Pango descriptions express the corresponding size in the shared font map,
+  while native shaping retains each run's original point size and DPI. Spans
+  may meet inside a grapheme without introducing editing stops. Selected
+  physical runs retain their own size, device scale and language
   through shaping, wrapping, expansion, raster recording and native PDF export.
   Identical neighboring requests are coalesced so redundant style markup does
   not split ligatures. Span validation rejects overlaps, scalar interiors and
   excessive declarations; configuration is consumed once, not borrowed by lines.
-  ICU remains the authority for bidi levels and editing stops. The existing
-  paragraph formatter still needs integration.
+  ICU remains the authority for bidi levels and editing stops. Paragraph
+  integration and its remaining limitations are described below.
 - Physical Unicode fonts expose `shape_utf8` separately from their legacy
   encoded-string methods. HarfBuzz (the existing MIT-licensed dependency) is
   the shaping engine, not a second handwritten ligature/mark parser. It returns

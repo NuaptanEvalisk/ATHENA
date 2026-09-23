@@ -503,8 +503,7 @@ build_utf8_flow (path ip, array<box> pieces, array<bool> markers, bool restore_s
     if (!base) base= b;
     const auto& first= base->paragraph->request ();
     const auto& next= b->paragraph->request ();
-    if (first.horizontal_dpi != next.horizontal_dpi || first.vertical_dpi != next.vertical_dpi ||
-        first.direction != next.direction) return {};
+    if (first.direction != next.direction) return {};
     ++text_count;
   }
   if (text_count < 2) return {};
