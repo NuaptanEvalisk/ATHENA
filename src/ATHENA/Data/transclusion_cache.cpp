@@ -254,8 +254,8 @@ absolute_asset_path (const string& path) {
 string
 rebase_asset_path (const string& path, url source_dir) {
   if (absolute_asset_path (path)) return path;
-  url absolute= source_dir * url_unix (cork_to_utf8 (path));
-  return utf8_to_cork (as_system_string (absolute));
+  url absolute= source_dir * url_unix (path);
+  return as_system_string (absolute);
 }
 
 tree

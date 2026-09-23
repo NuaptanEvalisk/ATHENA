@@ -10,7 +10,9 @@
 
 #include "heading_word_count.hpp"
 #include "analyze.hpp"
-#include "converter.hpp"
+#include "unicode_text.hpp"
+#include <unicode/utf8.h>
+#include <stdexcept>
 
 static string
 athena_tree_tag (tree t) {
@@ -64,13 +66,22 @@ athena_ascii_word_codepoint (unsigned int code) {
          (is_iso_alpha ((char) code) || is_numeric ((char) code));
 }
 
+static unsigned int
+athena_utf8_codepoint (string s, int& offset) {
+  UChar32 code= 0;
+  U8_NEXT (s.data (), offset, N(s), code);
+  if (code < 0) throw std::invalid_argument ("Invalid UTF-8 text");
+  return (unsigned int) code;
+}
+
 int
 athena_word_count_text (string s) {
-  string utf= strict_cork_to_utf8 (s);
+  athena::text::require_utf8 (
+    std::string_view (s.data (), static_cast<std::size_t> (N(s))));
   int count= 0;
   bool in_word= false;
-  for (int i=0; i<N(utf); ) {
-    unsigned int code= decode_from_utf8 (utf, i);
+  for (int i=0; i<N(s); ) {
+    unsigned int code= athena_utf8_codepoint (s, i);
     if (athena_cjk_codepoint (code)) {
       if (in_word) in_word= false;
       count++;
@@ -110,10 +121,11 @@ athena_word_count_tree (tree t) {
 
 int
 athena_character_count_text (string s) {
-  string utf= strict_cork_to_utf8 (s);
+  athena::text::require_utf8 (
+    std::string_view (s.data (), static_cast<std::size_t> (N(s))));
   int count= 0;
-  for (int i=0; i<N(utf); ) {
-    (void) decode_from_utf8 (utf, i);
+  for (int i=0; i<N(s); ) {
+    (void) athena_utf8_codepoint (s, i);
     count++;
   }
   return count;

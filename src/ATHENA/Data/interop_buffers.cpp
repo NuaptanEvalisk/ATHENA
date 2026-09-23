@@ -11,18 +11,12 @@
 #include "interop_document.hpp"
 #include "../Interop/traversal.hpp"
 #include "buffer_name_catalog.hpp"
-#include "convert.hpp"
 #include <algorithm>
 #include <cerrno>
 #include <system_error>
 
 namespace athena::interop {
 namespace {
-std::string utf8 (const std::string& native) {
-  const auto text= cork_to_utf8 (string (native.data (), native.size ()));
-  return {text.data (), std::size_t (N (text))};
-}
-
 class buffer_resource final: public resource {
 public:
   const std::uint64_t id;
@@ -32,8 +26,8 @@ public:
   value properties () const override {
     for (const auto& entry: published_buffer_metadata ()) {
       if (entry.second.actor_id != id) continue;
-      return {{"type", type ()}, {"id", id}, {"name", utf8 (entry.second.title)},
-              {"url", utf8 (entry.first)}, {"modified", entry.second.modified},
+      return {{"type", type ()}, {"id", id}, {"name", entry.second.title},
+              {"url", entry.first}, {"modified", entry.second.modified},
               {"active", published_active_buffer () == id}};
     }
     throw std::system_error (ESTALE, std::generic_category (), "Buffer has closed");

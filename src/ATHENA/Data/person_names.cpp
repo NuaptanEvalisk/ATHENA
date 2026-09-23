@@ -111,7 +111,7 @@ load_person_dictionary_unlocked () {
       search_forwards ("\t", first_tab + 1, line);
     string kind= first_tab < 0 ? "label" :
       line (first_tab + 1, second_tab < 0 ? N(line) : second_tab);
-    string name= trim_person_name (utf8_to_cork (utf8_name));
+    string name= trim_person_name (utf8_name);
     if (eligible_person_name (name, kind == "family"))
       names.push_back (name);
   }

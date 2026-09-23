@@ -20,8 +20,9 @@ struct document_codec_limits {
   std::size_t depth= 256;
 };
 
-// Atoms: {"text": UTF8}, or {"cork": BIN} when UTF8 cannot round-trip.
-// Compounds: {"tag": UTF8, "children": [...]}; tag_cork is the lossless fallback.
+// Atoms: {"text": UTF8}. RAW_DATA's single child is {"raw": BIN}.
+// Compounds: {"tag": UTF8, "children": [...]}. Ordinary text/tag data never
+// uses a legacy Cork fallback in AUDMAP protocol v2.
 // These functions run on the native tree owner. Only value crosses threads.
 value document_node_to_value (const tree&, document_codec_limits = {});
 tree document_node_from_value (const value&, document_codec_limits = {});

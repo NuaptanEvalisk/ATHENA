@@ -272,8 +272,9 @@ Node properties include `node_kind` (`compound` or `text`), `arity`, `path`,
 
 `get {}` returns the source mode, path and encoded tree. An atomic node is
 `{"text":"UTF-8 text"}`; a compound is `{"tag":"name","children":[...]}`.
-When native Cork bytes cannot round-trip through UTF-8, `cork` or `tag_cork`
-contains MessagePack binary instead, preserving arbitrary source bytes.
+Protocol v2 ordinary atom/tag text is UTF-8 only. Binary payloads are explicit:
+the single child of a `raw-data` node is `{"raw":BIN}` in MessagePack. There is
+no Cork/tag-Cork fallback or character-encoding guessing at this boundary.
 
 Buffers can also be reached independently of a vault:
 

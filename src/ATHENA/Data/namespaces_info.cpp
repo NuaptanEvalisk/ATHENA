@@ -244,8 +244,8 @@ namespace_absolute_image_path (const string& path) {
 static string
 namespace_rebase_image_path (const string& path, url source_dir) {
   if (namespace_absolute_image_path (path)) return path;
-  url absolute= source_dir * url_unix (cork_to_utf8 (path));
-  return utf8_to_cork (as_system_string (absolute));
+  url absolute= source_dir * url_unix (path);
+  return as_system_string (absolute);
 }
 
 static tree

@@ -21,7 +21,7 @@ namespace {
 
 string
 tm_text (const std::string& utf8) {
-  return utf8_to_cork (string (utf8.data (), utf8.size ()));
+  return string (utf8.data (), utf8.size ());
 }
 
 tree

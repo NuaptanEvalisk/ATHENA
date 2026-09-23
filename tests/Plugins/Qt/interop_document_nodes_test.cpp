@@ -39,20 +39,21 @@ private slots:
     QCOMPARE (document_node_from_value (value {{"text", ""}}), tree (""));
   }
 
-  void corkAndUtf8RemainLossless () {
+  void utf8AndRawDataRemainLossless () {
     string bytes;
     for (int i= 0; i < 256; ++i) bytes << char (i);
-    tree source (CONCAT, bytes, "<alpha>", "<#1F600>", "<not-a-known-symbol>");
+    tree source (CONCAT, "α", "中文", "😀", tree (RAW_DATA, bytes));
     const auto encoded= document_node_to_value (source);
     QCOMPARE (document_node_from_value (encoded), source);
     QCOMPARE (document_node_from_value (value::from_msgpack (value::to_msgpack (encoded))), source);
     const std::string unicode= "\xce\xb1 \xe4\xb8\xad\xe6\x96\x87 \xf0\x9f\x98\x80";
     auto node= document_node_from_value (value {{"text", unicode}});
-    auto utf8= cork_to_utf8 (node->label);
-    QCOMPARE (std::string (utf8.data (), N (utf8)), unicode);
-    auto raw= document_node_from_value (value {{"cork", value::binary ({0, 128, 255})}});
-    QCOMPARE (N (raw->label), 3);
-    QCOMPARE (static_cast<unsigned char> (raw->label[2]), 255);
+    QCOMPARE (std::string (node->label.data (), N(node->label)), unicode);
+    auto raw= document_node_from_value (value {{"tag", "raw-data"}, {"children",
+      value::array ({value {{"raw", value::binary ({0, 128, 255})}}})}});
+    QVERIFY (is_func (raw, RAW_DATA, 1));
+    QCOMPARE (N (raw[0]->label), 3);
+    QCOMPARE (static_cast<unsigned char> (raw[0]->label[2]), 255);
     QVERIFY_THROWS_EXCEPTION (std::invalid_argument,
       document_node_from_value (value {{"text", std::string ("\xff", 1)}}));
     QVERIFY_THROWS_EXCEPTION (std::invalid_argument,
@@ -62,10 +63,10 @@ private slots:
   void structuredValuesRejectMalformedOrOversizeInput () {
     for (const auto& invalid: std::vector<value> {
       nullptr, value::array (), value {{"text", 1}}, value {{"text", "x"}, {"ignored", 1}},
-      value {{"cork", "not binary"}}, value {{"tag", ""}, {"children", value::array ()}},
+      value {{"raw", value::binary ({1})}}, value {{"tag", ""}, {"children", value::array ()}},
       value {{"tag", "string"}, {"children", value::array ()}},
       value {{"tag", "math"}, {"children", "x"}},
-      value {{"tag", "math"}, {"tag_cork", value::binary ({1})}, {"children", value::array ()}}
+      value {{"tag", "raw-data"}, {"children", value::array ()}}
     }) QVERIFY_THROWS_EXCEPTION (std::invalid_argument, document_node_from_value (invalid));
     document_codec_limits limits;
     limits.bytes= 2;

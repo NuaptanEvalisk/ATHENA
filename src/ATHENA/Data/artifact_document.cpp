@@ -15,7 +15,6 @@
 #include "System/Boot/boot.hpp"
 #include "convert.hpp"
 #include "scheme.hpp"
-#include "wencoding.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -27,11 +26,7 @@ std::string to_std (string value) {
 }
 
 string internal_text (const std::string& value) {
-  string raw (value.data (), (int) value.size ());
-  bool universal= false;
-  for (int i=0; i+1<N(raw); ++i)
-    if (raw[i] == '<' && raw[i+1] == '#') { universal= true; break; }
-  return looks_utf8 (raw) && !universal ? utf8_to_cork (raw) : raw;
+  return string (value.data (), (int) value.size ());
 }
 
 tree artifact_document (tree body, string preferred_font) {
@@ -136,7 +131,7 @@ athena_artifact_disambiguation_document (
   AthenaArtifactNameResolution result;
   result.exact= records;
   if (!records.empty ())
-    result.query= to_std (cork_to_utf8 (athena_artifact_radioactive_name (records.front ())));
+    result.query= to_std (athena_artifact_radioactive_name (records.front ()));
   return athena_artifact_disambiguation_document (result, preferred_font);
 }
 

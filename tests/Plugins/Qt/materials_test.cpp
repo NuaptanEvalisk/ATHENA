@@ -1234,9 +1234,8 @@ MaterialsTest::rendersMaterialInfoWithGenericMacros () {
   tree link;
   QVERIFY (find_compound (page, "hlink", link));
   QVERIFY (N(link) == 2 && is_atomic (link[1]));
-  string target_utf8= cork_to_utf8 (link[1]->label);
-  fs::path target= fs::u8path (std::string (as_charp (target_utf8),
-                                           N(target_utf8)));
+  fs::path target= fs::u8path (std::string (as_charp (link[1]->label),
+                                           N(link[1]->label)));
   QCOMPARE (target.u8string (),
             (root / fs::u8path (imported.attachment.stored_path)).u8string ());
   QVERIFY (fs::exists (target));

@@ -199,7 +199,7 @@ public:
     if (!buffer_bound) return document_source::metadata ();
     const auto entry= endpoint ();
     return {{"source", "buffer"}, {"buffer_id", actor},
-            {"url", native_text (cork_to_utf8 (string (entry.first.c_str ())))}};
+            {"url", entry.first}};
   }
   node_result query (query_kind kind, const document_node& node) const override { return invoke (kind, node); }
   bool writable () const override { return true; }

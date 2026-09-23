@@ -1774,14 +1774,12 @@ TestArtifacts::namesEnunciationsStrictlyAndSkipsCompletions () {
     "enunciation");
   we_have.anchor_stem= "theorem:We have";
 
-  QCOMPARE (cork_to_utf8 (athena_artifact_radioactive_name (named)),
-            string ("Lagrange"));
-  QCOMPARE (cork_to_utf8 (athena_artifact_radioactive_name (unnamed)),
+  QCOMPARE (athena_artifact_radioactive_name (named), string ("Lagrange"));
+  QCOMPARE (athena_artifact_radioactive_name (unnamed),
             string ("Let X be a compact Hausdorff space."));
   QVERIFY (athena_artifact_radioactive_name (proof) == "");
-  QCOMPARE (cork_to_utf8 (athena_artifact_radioactive_name (dated)),
-            string ("Einstein, 2026"));
-  QCOMPARE (cork_to_utf8 (athena_artifact_radioactive_name (we_have)),
+  QCOMPARE (athena_artifact_radioactive_name (dated), string ("Einstein, 2026"));
+  QCOMPARE (athena_artifact_radioactive_name (we_have),
             string ("We have a natural isomorphism between these functors."));
 
   tree forensic_body (DOCUMENT);
@@ -1874,11 +1872,11 @@ TestArtifacts::namesEnunciationsStrictlyAndSkipsCompletions () {
 void
 TestArtifacts::preservesUnicodeRadioactiveMatchOffsets () {
   std::vector<AthenaArtifactRecord> records= {
-    radioactive_record ("frechet", "Fr<#e9>chet theorem", "enunciation")};
-  string text= utf8_to_cork ("The FR\xC3\x89" "CHET theorems apply.");
+    radioactive_record ("frechet", "Fr\xC3\xA9" "chet theorem", "enunciation")};
+  string text= "The FR\xC3\x89" "CHET theorems apply.";
   auto matches= athena_artifact_radioactive_matches_for_records (records, text);
   QCOMPARE (matches.size (), (size_t) 1);
-  QCOMPARE (cork_to_utf8 (text (matches[0].start, matches[0].end)),
+  QCOMPARE (text (matches[0].start, matches[0].end),
             string ("FR\xC3\x89" "CHET theorems"));
 }
 

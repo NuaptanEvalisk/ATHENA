@@ -12,10 +12,9 @@
 #include "ATHENA/Data/vault.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "analyze.hpp"
-#include "converter.hpp"
 #include "convert.hpp"
 #include "message.hpp"
-#include "wencoding.hpp"
+#include "unicode_text.hpp"
 
 #include <QCryptographicHash>
 #include <QHash>
@@ -83,19 +82,9 @@ std::string to_std (string value) {
   return std::string (as_charp (value), (size_t) N(value));
 }
 
-bool has_universal_glyph (string value) {
-  if (looks_universal (value)) return true;
-  for (int i=0; i+1<N(value); i++)
-    if (value[i] == '<' && value[i+1] == '#') return true;
-  return false;
-}
-
-QString qstring_from_tm_or_utf8 (const std::string& bytes) {
-  string value (bytes.data (), (int) bytes.size ());
-  if (looks_utf8 (value) && !has_universal_glyph (value))
-    return QString::fromUtf8 (bytes.data (), (qsizetype) bytes.size ());
-  string utf8= cork_to_utf8 (value);
-  return QString::fromUtf8 (as_charp (utf8), N(utf8));
+QString qstring_from_utf8 (const std::string& bytes) {
+  athena::text::require_utf8 (bytes);
+  return QString::fromUtf8 (bytes.data (), (qsizetype) bytes.size ());
 }
 
 class EnglishStemmer {
@@ -185,7 +174,7 @@ std::vector<QString> artifact_terms (
   std::vector<QString> terms;
   terms.reserve (record.semantic_names.size ());
   for (const std::string& name: record.semantic_names) {
-    QString term= qstring_from_tm_or_utf8 (name).simplified ();
+    QString term= qstring_from_utf8 (name).simplified ();
     QByteArray utf8= term.toUtf8 ();
     if (!term.isEmpty () &&
         (filter == nullptr ||
@@ -250,7 +239,7 @@ std::vector<Token> tree_tokens (tree name) {
   std::vector<Token> result;
   auto append= [&] (const tree& part) {
     if (is_atomic (part)) {
-      auto tokens= tokenize (qstring_from_tm_or_utf8 (to_std (part->label)));
+      auto tokens= tokenize (qstring_from_utf8 (to_std (part->label)));
       result.insert (result.end (), tokens.begin (), tokens.end ());
     }
     else result.push_back ({structure_key (part), 0, 0});
@@ -263,7 +252,7 @@ std::vector<Token> tree_tokens (tree name) {
 
 std::vector<Token> name_tokens (const AthenaArtifactRecord& record, size_t i) {
   if (i >= record.semantic_name_trees.size () || record.semantic_name_trees[i].empty ())
-    return tokenize (qstring_from_tm_or_utf8 (record.semantic_names[i]));
+    return tokenize (qstring_from_utf8 (record.semantic_names[i]));
   const std::string& bytes= record.semantic_name_trees[i];
   return tree_tokens (texmacs_to_tree (string (bytes.data (), (int) bytes.size ())));
 }
@@ -282,7 +271,7 @@ std::shared_ptr<const RadioactiveIndex> build_index (
     index->records.emplace (record.uuid, record);
     if (record.type == "completion") continue;
     for (size_t i=0; i<record.semantic_names.size (); ++i) {
-      QString term= qstring_from_tm_or_utf8 (record.semantic_names[i]).simplified ();
+      QString term= qstring_from_utf8 (record.semantic_names[i]).simplified ();
       if (term.isEmpty () || term.size () > maximum_term_characters ||
           (filter && athena_artifact_title_filter_contains (*filter, term.toStdString ())))
         continue;
@@ -357,27 +346,24 @@ AthenaArtifactNameResolution resolve_tokens (
 
 TextProjection project_text (string source) {
   TextProjection projection;
-  bool universal= has_universal_glyph (source);
-  if (looks_ascii (source) && !universal) {
+  athena::text::require_utf8 (
+    std::string_view (source.data (), static_cast<std::size_t> (N(source))));
+  const bool ascii= std::all_of (source.data (), source.data () + N(source),
+    [] (char c) { return static_cast<unsigned char> (c) < 0x80; });
+  if (ascii) {
     projection.text= QString::fromLatin1 (as_charp (source), N(source));
     projection.source_boundary.resize (N(source) + 1);
     for (int i=0; i<=N(source); i++) projection.source_boundary[i]= i;
     return projection;
   }
   projection.source_boundary.push_back (0);
-  bool direct_utf8= looks_utf8 (source) && !universal;
   int position= 0;
   while (position < N(source)) {
-    int next= position;
-    string utf8;
-    if (direct_utf8) {
-      (void) decode_from_utf8 (source, next);
-      utf8= source (position, next);
-    }
-    else {
-      tm_char_forwards (source, next);
-      utf8= cork_to_utf8 (source (position, next));
-    }
+    const auto bytes= std::string_view (
+      source.data (), static_cast<std::size_t> (N(source)));
+    int next= static_cast<int> (
+      athena::text::next_scalar (bytes, static_cast<std::size_t> (position)));
+    string utf8= source (position, next);
     QString character= QString::fromUtf8 (as_charp (utf8), N(utf8));
     if (character.isEmpty ()) {
       projection.source_boundary.back ()= next;
@@ -391,6 +377,26 @@ TextProjection project_text (string source) {
     position= next;
   }
   return projection;
+}
+
+QString tree_display_text (const tree& value) {
+  if (is_atomic (value)) return qstring_from_utf8 (to_std (value->label));
+  if (is_func (value, NAMED_SYMBOL, 1) && is_atomic (value[0])) {
+    std::string identity= to_std (value[0]->label);
+    constexpr std::string_view prefix= "texmacs:";
+    if (identity.size () >= prefix.size () &&
+        std::string_view (identity).substr (0, prefix.size ()) == prefix)
+      identity.erase (0, prefix.size ());
+    return qstring_from_utf8 (identity);
+  }
+  QString result;
+  for (int i=0; i<N(value); ++i) {
+    QString child= tree_display_text (value[i]);
+    if (child.isEmpty ()) continue;
+    if (!result.isEmpty () && !is_func (value, CONCAT)) result += QLatin1Char (' ');
+    result += child;
+  }
+  return result.simplified ();
 }
 
 std::vector<AthenaArtifactRadioactiveMatch> match_tokens (
@@ -563,10 +569,10 @@ AthenaArtifactRadioactiveMatcher::matches_tree (const tree& text) const {
 
 AthenaArtifactNameResolution
 AthenaArtifactRadioactiveMatcher::resolve (const tree& query) const {
-  return impl && impl->index
-    ? resolve_tokens (*impl->index, tree_tokens (query),
-                      to_std (cork_to_utf8 (tree_to_texmacs (query))))
-    : AthenaArtifactNameResolution ();
+  if (!impl || !impl->index) return {};
+  QByteArray display= tree_display_text (query).toUtf8 ();
+  return resolve_tokens (*impl->index, tree_tokens (query),
+    std::string (display.constData (), (std::size_t) display.size ()));
 }
 
 std::string
@@ -580,7 +586,7 @@ athena_artifact_radioactive_destination (
 string
 athena_artifact_radioactive_name (const AthenaArtifactRecord& record) {
   QByteArray utf8= artifact_term (record).toUtf8 ();
-  return utf8_to_cork (string (utf8.constData (), (int) utf8.size ()));
+  return string (utf8.constData (), (int) utf8.size ());
 }
 
 std::string
@@ -655,8 +661,9 @@ athena_artifact_resolve_name (
   result= {};
   auto index= active_index ();
   if (!index) return false;
+  QByteArray display= tree_display_text (query).toUtf8 ();
   result= resolve_tokens (*index, tree_tokens (query),
-                         to_std (cork_to_utf8 (tree_to_texmacs (query))));
+    std::string (display.constData (), (std::size_t) display.size ()));
   return true;
 }
 
