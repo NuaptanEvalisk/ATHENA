@@ -13,6 +13,7 @@
 #include "analyze.hpp"
 #include "boot.hpp"
 #include "drd_mode.hpp"
+#include "unicode_text.hpp"
 
 static thread_local int  search_max_hits= 1000000;
 static thread_local bool blank_match_flag= false;
@@ -62,9 +63,9 @@ initialize_search () {
   }
 }
 
-static string
-normalize_for_search (string s) {
-  return case_insensitive_match_flag ? locase_all (s) : s;
+static std::string_view
+search_bytes (const string& s) {
+  return {s.data (), std::size_t (N(s))};
 }
 
 static void
@@ -76,10 +77,10 @@ merge (range_set& sel, range_set ssel) {
 
 static bool
 is_accessible_for_search (tree t, int i) {
+  if (is_func (t, RAW_DATA) || is_func (t, NAMED_SYMBOL)) return false;
   if (is_accessible_child (t, i)) return true;
   if (is_func (t, HIDDEN)) return true;
   if (get_access_mode () != DRD_ACCESS_SOURCE) return false;
-  if (is_func (t, RAW_DATA)) return false;
   return i >= 0 && i < N(t);
 }
 
@@ -87,41 +88,45 @@ is_accessible_for_search (tree t, int i) {
 * Matching complex patterns inside strings
 ******************************************************************************/
 
-bool
-match_atomic (string s, tree what, int pos, int i, int& start, int& end) {
-  string source= normalize_for_search (s);
+static bool
+match_atomic (athena::text::literal_search& source, tree what,
+              int pos, int i, int& start, int& end) {
   if (i == 0) start= pos;
   if (i >= N(what)) {
     end= pos;
     if (initial_match_flag) return true;
-    return pos == N(s);
+    return pos == source.size ();
   }
   if (is_atomic (what[i])) {
-    string needle= normalize_for_search (what[i]->label);
-    if (test (source, pos, needle) &&
-        match_atomic (s, what, pos + N(what[i]->label), i+1, start, end))
+    auto hit= source.at (search_bytes (what[i]->label), pos);
+    if (hit &&
+        match_atomic (source, what, hit->end, i+1, start, end))
       return true;
-    if (i == 0 &&
-        partial_match_flag &&
-        pos < N(s) &&
-        match_atomic (s, what, tm_char_next (s, pos), i, start, end))
-      return true;
+    if (i == 0 && partial_match_flag)
+      while (pos < source.size ()) {
+        pos= source.next (pos);
+        hit= what[i]->label == "" ? source.at ("", pos) :
+          source.find (search_bytes (what[i]->label), pos);
+        if (!hit) return false;
+        pos= start= hit->begin;
+        if (match_atomic (source, what, hit->end, i+1, start, end)) return true;
+      }
     return false;
   }
   else if (is_func (what[i], WILDCARD, 1)) {
     if (i+1 >= N(what)) {
-      end= N(s);
+      end= source.size ();
       return true;
     }
     if (is_func (what[i+1], WILDCARD, 1))
-      return match_atomic (s, what, pos, i+1, start, end);
+      return match_atomic (source, what, pos, i+1, start, end);
     if (!is_atomic (what[i+1])) return false;
-    while (pos < N(s)) {
-      string needle= normalize_for_search (what[i+1]->label);
-      pos= tm_search_forwards (needle, pos, source);
-      if (pos < 0) return false;
-      if (match_atomic (s, what, pos, i+1, start, end)) return true;
-      if (pos < N(s)) tm_char_forwards (s, pos);
+    while (pos < source.size ()) {
+      auto hit= source.find (search_bytes (what[i+1]->label), pos);
+      if (!hit) return false;
+      pos= hit->begin;
+      if (match_atomic (source, what, pos, i+1, start, end)) return true;
+      if (pos < source.size ()) pos= source.next (pos);
     }
     return false;
   }
@@ -147,22 +152,17 @@ bool
 match (tree t, tree what) {
   if (blank_match_flag && what == "") return true;
   if (is_func (what, WILDCARD, 1)) return true;
+  if (is_func (t, RAW_DATA) || is_func (t, NAMED_SYMBOL)) return t == what;
   if (is_atomic (t)) {
+    athena::text::literal_search source (search_bytes (t->label), case_insensitive_match_flag);
     if (is_concat (what)) {
       int start, end;
-      return match_atomic (t->label, what, 0, 0, start, end);
+      return match_atomic (source, what, 0, 0, start, end);
     }
     if (!is_atomic (what)) return false;
-    string source= normalize_for_search (t->label);
-    string needle= normalize_for_search (what->label);
-    if (partial_match_flag) {
-      int pos= 0;
-      return tm_search_forwards (needle, pos, source) != -1;
-    }
-    else if (initial_match_flag)
-      return starts (source, needle);
-    else
-      return source == needle;
+    if (partial_match_flag) return source.find (search_bytes (what->label)).has_value ();
+    auto hit= source.at (search_bytes (what->label), 0);
+    return hit && (initial_match_flag || hit->end == source.size ());
   }
   else if (injective_match_flag) {
     if (L(t) != L(what)) return false;
@@ -263,24 +263,23 @@ search_concat (tree t, tree what, int pos, int i,
 
 void
 search_string (range_set& sel, string s, tree what, path p) {
-  string source= normalize_for_search (s);
+  athena::text::literal_search source (search_bytes (s), case_insensitive_match_flag);
 
   if (is_atomic (what)) {
-    string w= normalize_for_search (what->label);
     int pos= 0;
-    while (pos < N(s)) {
-      int next= tm_search_forwards (w, pos, source);
-      if (next < 0 || next >= N(s)) break;
-      merge (sel, simple_range (p * next, p * (next + N(w))));
-      pos= next + N(w);
+    while (pos < N(s) && N(sel) <= search_max_hits) {
+      auto hit= source.find (search_bytes (what->label), pos);
+      if (!hit) break;
+      merge (sel, simple_range (p * int (hit->begin), p * int (hit->end)));
+      pos= hit->end;
     }
   }
   else if (is_concat (what)) {
-    for (int pos=0; pos<N(s); ) {
+    for (int pos=0; pos<N(s) && N(sel) <= search_max_hits; ) {
       int start, end;
-      if (match_atomic (s, what, pos, 0, start, end)) {
+      if (match_atomic (source, what, pos, 0, start, end)) {
         merge (sel, simple_range (p * start, p * end));
-        pos= end;
+        pos= end > pos ? end : source.next (pos);
       }
       else break;
     }

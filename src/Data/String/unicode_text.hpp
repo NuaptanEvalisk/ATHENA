@@ -12,6 +12,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -59,6 +60,24 @@ struct word_span {
 // edge segments. ICU state is local; no normalization or symbol interpretation.
 std::vector<word_span> word_segments (
   std::string_view text, std::string_view locale= "root");
+
+struct text_match { std::size_t begin, end; };
+// Borrow one immutable UTF-8 leaf. ICU case folding is a search-only view;
+// returned positions always refer to whole graphemes in the original bytes.
+// No canonical/compatibility normalization or partial expansion matches.
+class literal_search {
+  struct implementation;
+  std::unique_ptr<implementation> impl_;
+public:
+  explicit literal_search (std::string_view source, bool ignore_case= false);
+  ~literal_search ();
+  literal_search (const literal_search&) = delete;
+  literal_search& operator= (const literal_search&) = delete;
+  std::size_t size () const;
+  std::size_t next (std::size_t byte);
+  std::optional<text_match> find (std::string_view needle, std::size_t start= 0);
+  std::optional<text_match> at (std::string_view needle, std::size_t start);
+};
 
 enum class paragraph_direction { automatic_ltr, automatic_rtl, ltr, rtl };
 

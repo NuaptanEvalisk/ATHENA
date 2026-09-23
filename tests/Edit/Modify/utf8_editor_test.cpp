@@ -362,6 +362,33 @@ private slots:
       Qt::ControlModifier | Qt::ShiftModifier, 0, 0x1234, 0, "\x01");
     QCOMPARE (QTMKeyboardEvent (keyboard, shifted).texmacsKeyCombination (), "C-" * composed);
   }
+  void unicodeSearchAndReplace () {
+    const string source= u8"Stra\u00dfe STRASSE <alpha> e\u0301";
+    const path atom= buffer->root_path * 0;
+    editor->go_to (atom * 0);
+    editor->start_editing ();
+    editor->insert_tree (source);
+    editor->end_editing ();
+    QCOMPARE (editor->document_search ("strasse", true), 2);
+    QCOMPARE (editor->selection_get_start (), atom * 0);
+    QCOMPARE (editor->selection_get_end (), atom * 7);
+    editor->archive_state ();
+    QCOMPARE (editor->document_replace (u8"\u4e2d", true), 2);
+    QVERIFY (subtree (current_document_tree (), atom) == tree (u8"\u4e2d \u4e2d <alpha> e\u0301"));
+    editor->undo (0);
+    QVERIFY (subtree (current_document_tree (), atom) == tree (source));
+    QCOMPARE (editor->document_search ("alpha", false), 1);
+    QCOMPARE (editor->selection_get_start (), atom * 17);
+    QCOMPARE (editor->selection_get_end (), atom * 22);
+    QCOMPARE (editor->document_search (u8"\u0301", false), 0);
+    QCOMPARE (editor->document_search (u8"e\u0301", false), 1);
+
+    tree pattern (CONCAT, "STRASSE", compound ("wildcard", "rest"), "STRASSE");
+    range_set hits= search (tree (u8"Stra\u00dfe + Stra\u00dfe"), pattern, path (0), true);
+    QCOMPARE (N(hits), 2);
+    QCOMPARE (hits[0], path (0, 0));
+    QCOMPARE (hits[1], path (0, 17));
+  }
   void unicodeSpellingRange () {
     const string source= u8"\u00e9cole e\u0301qq";
     const path atom= buffer->root_path * 0;

@@ -64,6 +64,17 @@ Live traversal retains viewport priority, word/node/time budgets and bounded
 longer than the existing 512-byte dictionary-input budget. Symbol identities
 and binary payloads are not spellchecked, including in source access mode.
 
+Native tree search and document replacement now use ICU full case folding with
+fine-grained Edits mappings back to original UTF-8 byte positions. Search-only
+folding never rewrites the source. Matches must start and end on original
+grapheme boundaries and cannot consume half a case-fold expansion: `ss` can
+match a whole sharp-s, but a single `s` cannot select half of it. There is no
+implicit NFC/NFKC normalization. Structural wildcard matching shares the same
+mapped leaf view instead of repeatedly lowercasing entire atoms; native search
+navigation no longer parses angle-bracket spellings. Binary payloads and named
+symbol identities remain exact structural values rather than ordinary searched
+text. Focused native editor tests exercise length-changing replacement and undo.
+
 Native document constructors no longer add a TeXmacs compatibility version.
 Until XML activation, only the legacy document serializers add their required
 `TeXmacs 2.1.4` format signature to a temporary serialization tree. This is not

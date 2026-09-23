@@ -15,6 +15,9 @@
 #include <unicode/utext.h>
 #include <unicode/utf8.h>
 #include <unicode/utf16.h>
+#include <unicode/casemap.h>
+#include <unicode/edits.h>
+#include <unicode/bytestream.h>
 #include <pango/pango.h>
 #include <limits>
 #include <stdexcept>
@@ -203,6 +206,103 @@ std::vector<word_span> word_segments (std::string_view text, std::string_view lo
     result.push_back ({std::size_t (begin), std::size_t (end), rule >= UBRK_WORD_LETTER});
   }
   return result;
+}
+
+namespace {
+std::string fold_for_search (std::string_view text, icu::Edits* edits= nullptr) {
+  require_utf8 (text);
+  std::string output;
+  icu::StringByteSink<std::string> sink (&output);
+  UErrorCode status= U_ZERO_ERROR;
+  icu::CaseMap::utf8Fold (0, icu::StringPiece (text.data (), length (text)),
+                         sink, edits, status);
+  checked (status);
+  (void) length (output);
+  return output;
+}
+}
+
+struct literal_search::implementation {
+  struct span { std::size_t source, target, old_size, new_size; bool changed; };
+  std::string_view original;
+  bool ignore_case;
+  grapheme_cursor graphemes;
+  std::string folded;
+  std::vector<span> mapping;
+
+  implementation (std::string_view source, bool insensitive):
+    original (source), ignore_case (insensitive), graphemes (source) {
+    if (!ignore_case) return;
+    icu::Edits edits;
+    folded= fold_for_search (source, &edits);
+    auto iterator= edits.getFineIterator ();
+    UErrorCode status= U_ZERO_ERROR;
+    while (iterator.next (status))
+      mapping.push_back ({std::size_t (iterator.sourceIndex ()),
+        std::size_t (iterator.destinationIndex ()), std::size_t (iterator.oldLength ()),
+        std::size_t (iterator.newLength ()), bool (iterator.hasChange ())});
+    checked (status);
+  }
+
+  std::optional<std::size_t> map (std::size_t byte, bool reverse) const {
+    if (!ignore_case) return byte;
+    if (byte == (reverse ? folded.size () : original.size ()))
+      return reverse ? original.size () : folded.size ();
+    auto after= std::upper_bound (mapping.begin (), mapping.end (), byte,
+      [reverse] (std::size_t position, const span& entry) {
+        return position < (reverse ? entry.target : entry.source);
+      });
+    if (after == mapping.begin ()) return std::nullopt;
+    const span& entry= *--after;
+    const auto from= reverse ? entry.target : entry.source;
+    const auto to= reverse ? entry.source : entry.target;
+    if (byte == from) return to;
+    // ICU's convenience index mapping rounds changed interiors to the end;
+    // search must reject them, never turn half of a folded expansion into a hit.
+    if (entry.changed) return std::nullopt;
+    return to + byte - from;
+  }
+};
+
+literal_search::literal_search (std::string_view source, bool ignore_case):
+  impl_ (std::make_unique<implementation> (source, ignore_case)) {}
+literal_search::~literal_search () = default;
+std::size_t literal_search::size () const { return impl_->original.size (); }
+std::size_t literal_search::next (std::size_t byte) { return impl_->graphemes.next (byte); }
+
+std::optional<text_match> literal_search::find (std::string_view needle, std::size_t start) {
+  position (impl_->original, start);
+  require_utf8 (needle);
+  if (needle.empty ()) return std::nullopt;
+  auto first= impl_->map (start, false);
+  if (!first) return std::nullopt;
+  const std::string folded= impl_->ignore_case ? fold_for_search (needle) : std::string ();
+  const std::string_view query= impl_->ignore_case ? std::string_view (folded) : needle;
+  const std::string_view text= impl_->ignore_case ? std::string_view (impl_->folded) : impl_->original;
+  for (auto at= text.find (query, *first); at != std::string_view::npos;
+       at= text.find (query, at + 1)) {
+    auto begin= impl_->map (at, true), end= impl_->map (at + query.size (), true);
+    if (begin && end && *begin >= start &&
+        impl_->graphemes.boundary (*begin) && impl_->graphemes.boundary (*end))
+      return text_match {*begin, *end};
+  }
+  return std::nullopt;
+}
+
+std::optional<text_match> literal_search::at (std::string_view needle, std::size_t start) {
+  position (impl_->original, start);
+  require_utf8 (needle);
+  if (!impl_->graphemes.boundary (start)) return std::nullopt;
+  if (needle.empty ()) return text_match {start, start};
+  auto first= impl_->map (start, false);
+  if (!first) return std::nullopt;
+  const std::string folded= impl_->ignore_case ? fold_for_search (needle) : std::string ();
+  const std::string_view query= impl_->ignore_case ? std::string_view (folded) : needle;
+  const std::string_view text= impl_->ignore_case ? std::string_view (impl_->folded) : impl_->original;
+  if (text.substr (*first, query.size ()) != query) return std::nullopt;
+  auto end= impl_->map (*first + query.size (), true);
+  if (end && impl_->graphemes.boundary (*end)) return text_match {start, *end};
+  return std::nullopt;
 }
 
 struct unicode_paragraph::implementation {

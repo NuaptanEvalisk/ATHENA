@@ -16,6 +16,8 @@
 #include "analyze.hpp"
 #include "tm_data.hpp"
 #include "tree_search.hpp"
+#include "utf8_edit.hpp"
+#include "unicode_text.hpp"
 
 /******************************************************************************
 * Constructor and destructor
@@ -219,6 +221,8 @@ edit_replace_rep::test_sub (path p, tree t) {
       // cout << "Test with " << st->label << " at " << l << "\n";
       if (N(st->label) < (N(t->label) + l)) return p;
       if (st->label (l, l + N(t->label)) != t->label) return p;
+      if (!utf8_grapheme_boundary (st->label, l) ||
+          !utf8_grapheme_boundary (st->label, l + N(t->label))) return p;
       return path_add (p, N (t->label));
     }
   }
@@ -294,13 +298,7 @@ edit_replace_rep::step_horizontal (bool forward) {
       if (l == right_index (st)) step_ascend (forward);
       else {
         if (is_atomic (st)) {
-          if (st->label[l]=='<') {
-            string s= st->label;
-            while ((l<N(s)) && (s[l]!='>')) l++;
-            if (l<N(s)) l++;
-            search_at= path_up (search_at) * l;
-          }
-          else search_at= path_inc (search_at);
+          search_at= path_up (search_at) * utf8_grapheme_next (st->label, l);
         }
         else {
           int i;
@@ -318,13 +316,7 @@ edit_replace_rep::step_horizontal (bool forward) {
       if (l == 0) step_ascend (forward);
       else {
         if (is_atomic (st)) {
-          if (st->label[l-1]=='>') {
-            string s= st->label;
-            l--;
-            while ((l>0) && (s[l]!='<')) l--;
-            search_at= path_up (search_at) * l;
-          }
-          else search_at= path_dec (search_at);
+          search_at= path_up (search_at) * utf8_grapheme_previous (st->label, l);
         }
         else {
           int i;
@@ -429,7 +421,8 @@ bool
 edit_replace_rep::search_keypress (string s) {
   set_message ("", "");
   if (s == "space") s= " ";
-  if (N(s) == 1) {
+  if (N(s) > 0 && athena::text::valid_utf8 ({s.data (), std::size_t (N(s))}) &&
+      utf8_grapheme_next (s, 0) == N(s)) {
     if (is_atomic (search_what))
       search_next (as_string (search_what) * s, forward, false);
   }

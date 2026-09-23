@@ -56,6 +56,47 @@ void boundaries () {
   require (cursor.boundary (0) && cursor.next (0) == 0 && cursor.previous (0) == 0);
 }
 
+void searching () {
+  const std::string source= u8"Stra\u00dfe STRASSE";
+  literal_search folded (source, true);
+  auto hit= folded.find ("strasse");
+  require (hit && hit->begin == 0 && hit->end == 7);
+  hit= folded.find ("strasse", hit->end);
+  require (hit && hit->begin == 8 && hit->end == 15);
+  require (!folded.at ("strasse", 1));
+  literal_search sharp (u8"\u00df", true);
+  require (!sharp.find ("s") && !sharp.at ("s", 0));
+  hit= sharp.find ("ss");
+  require (hit && hit->begin == 0 && hit->end == 2);
+  literal_search contraction (u8"a\u212ax K", true);
+  hit= contraction.find ("k");
+  require (hit && hit->begin == 1 && hit->end == 4);
+  hit= contraction.find ("k", hit->end);
+  require (hit && hit->begin == 6 && hit->end == 7);
+  literal_search capital ("ABC", true);
+  hit= capital.find ("b");
+  require (hit && hit->begin == 1 && hit->end == 2);
+  literal_search dotted (u8"\u0130", true);
+  require (!dotted.find ("i"));
+  hit= dotted.find (u8"i\u0307");
+  require (hit && hit->begin == 0 && hit->end == 2);
+  literal_search combining (u8"e\u0301 <alpha> \U0001f469\u200d\U0001f4bb");
+  require (!combining.find ("e") && !combining.find (u8"\u0301"));
+  require (!combining.find (u8"\u00e9")); // No normalization of either side.
+  hit= combining.find ("alpha");
+  require (hit && hit->begin == 5 && hit->end == 10);
+  require (!combining.find (u8"\U0001f469"));
+  literal_search supplementary (u8"\U00010400", true);
+  hit= supplementary.find (u8"\U00010428");
+  require (hit && hit->begin == 0 && hit->end == 4);
+  const std::string with_nul ("A\0B", 3);
+  literal_search binary_safe_text (with_nul, true);
+  hit= binary_safe_text.find (std::string_view ("\0b", 2));
+  require (hit && hit->begin == 1 && hit->end == 3);
+  require (!folded.find (""));
+  rejects ([&] { folded.find ("\xff"); });
+}
+
 void words () {
   const std::string source= u8"\u00e9cole\u00a0don't\uff0ce\u0301 123 \U0001f600";
   std::vector<std::string> lexical;
@@ -228,12 +269,14 @@ int main () {
     rejects ([&] { codepoint_to_byte (sample, 6); });
     boundaries ();
     words ();
+    searching ();
     paragraphs ();
     std::vector<std::future<void>> workers;
     for (int i= 0; i < 4; ++i)
       workers.push_back (std::async (std::launch::async, [] {
         boundaries ();
         words ();
+        searching ();
         paragraphs ();
       }));
     for (auto& worker: workers) worker.get ();
