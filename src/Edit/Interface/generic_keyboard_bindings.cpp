@@ -20,14 +20,11 @@
 
 namespace {
 
-// Scheme's existing keymap interface uses byte strings, not Unicode strings.
-// JSON itself is UTF-8; Latin-1 codepoints preserve each original Cork byte.
 string binding_string (QJsonValue value) {
   ASSERT (value.isString (), "keymap string expected");
   QString text= value.toString ();
-  QByteArray bytes= text.toLatin1 ();
-  ASSERT (QString::fromLatin1 (bytes) == text,
-          "keymap string is not representable in its declared encoding");
+  QByteArray bytes= text.toUtf8 ();
+  ASSERT (QString::fromUtf8 (bytes) == text, "invalid Unicode keymap string");
   return string (bytes.constData (), bytes.size ());
 }
 
@@ -84,7 +81,7 @@ const QJsonArray& keymap_groups () {
     ASSERT (error.error == QJsonParseError::NoError && document.isObject (),
             "invalid generic-keybindings.json");
     auto root= document.object ();
-    ASSERT (root["version"].toInt () == 1 && root["string_encoding"] == "latin1" &&
+    ASSERT (root["version"].toInt () == 2 && root["string_encoding"] == "utf-8" &&
             root["groups"].isArray (), "unsupported generic keymap schema");
     QJsonArray result= root["groups"].toArray ();
     for (QJsonValue value: result) {

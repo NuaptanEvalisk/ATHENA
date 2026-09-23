@@ -90,7 +90,7 @@ public:
 protected:
     void patchForMingw();
     bool patchForShift();
-    void computeUnicodeToCork();
+    void computeUnicodeText();
     void patchForMac();
     void computeModifiers();
 

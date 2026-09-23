@@ -42,9 +42,9 @@ public:
         initkeymap (); 
     }
 
-    void setShiftPreference (int key_code, char shifted);
+    void setShiftPreference (int key_code, string shifted);
     bool hasShiftPreference (int key_code);
-    string getShiftPreference (char key_code);
+    string getShiftPreference (int key_code);
 
     void map (int code, string name);
     void deadmap (int code, string name);

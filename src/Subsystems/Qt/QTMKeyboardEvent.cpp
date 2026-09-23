@@ -87,7 +87,11 @@ bool QTMKeyboardEvent::patchForShift() {
 
   if (!upcase && mKeyboard.hasShiftPreference (kc) && isShift() && isControl()) {
     string pref= mKeyboard.getShiftPreference (kc);
-    if (N(pref) > 0) mKey= (int) (unsigned char) pref [0];
+    if (N(pref) > 0) {
+      mTexmacsKeyCombination= pref;
+      removeShift ();
+      return true;
+    }
     if (DEBUG_QT && DEBUG_KEYBOARD) {
       debug_qt << "Control+Shift " << kc << " -> " << mKey << LF;
     }
@@ -98,46 +102,10 @@ bool QTMKeyboardEvent::patchForShift() {
   
 }
 
-void QTMKeyboardEvent::computeUnicodeToCork() {
-  switch (unic) {
-    case 96:   mTexmacsKeyCombination= "`"; 
-    // unicode to cork conversion not appropriate for this case...
-#ifdef Q_OS_MAC
-    // CHECKME: are these two MAC exceptions really needed?
-      if (isAlt()) mTexmacsKeyCombination= "grave";
-#endif
-      break;
-    case 168:  mTexmacsKeyCombination= "umlaut"; break;
-    case 180:  mTexmacsKeyCombination= "acute"; break;
-      // the following combining characters should be caught by qtdeadmap
-    case 0x300: mTexmacsKeyCombination= "grave"; break;
-    case 0x301: mTexmacsKeyCombination= "acute"; break;
-    case 0x302: mTexmacsKeyCombination= "hat"; break;
-    case 0x308: mTexmacsKeyCombination= "umlaut"; break;
-    case 0x33e: mTexmacsKeyCombination= "tilde"; break;
-    default:
-      QByteArray buf= nss.toUtf8();
-      string rr (buf.constData(), buf.size());
-      string tstr= utf8_to_cork (rr);
-      // HACK! The encodings defined in langs/encoding and which
-      // utf8_to_cork uses (via the converters loaded in
-      // converter_rep::load()), enclose the texmacs symbols in "< >", 
-      // but this format is not used for keypresses, so we must remove
-      // them.
-      int len= N (tstr);
-      if (len >= 1 && tstr[0] == '<' && tstr[1] != '#' && tstr[len-1] == '>') {
-        mTexmacsKeyCombination= tstr (1, len-1);
-      }
-      else {
-        mTexmacsKeyCombination= tstr;
-      }
-      if (mTexmacsKeyCombination == "less") {
-        mTexmacsKeyCombination= "<";
-      }
-      else if (mTexmacsKeyCombination == "gtr") {
-        mTexmacsKeyCombination= ">";
-      }
-  }
+void QTMKeyboardEvent::computeUnicodeText() {
+  // Actual dead keys are handled by qtdeadmap, not inferred from typed text.
+  QByteArray buf= nss.toUtf8 ();
+  mTexmacsKeyCombination= string (buf.constData (), buf.size ());
 }
 
 void QTMKeyboardEvent::patchForMac() {
@@ -177,16 +145,17 @@ QTMKeyboardEvent::handleKeyboardByTexmacs() {
     unic= ucs4[0];
   }
 
-  if (unic > 32 && unic < 255 && 
+  if (unic > 32 &&
       isShift() && !isControl() && !isAlt() && !isMeta()) {
-    mKeyboard.setShiftPreference (kc, (char) unic);
+    const QByteArray bytes= nss.toUtf8 ();
+    mKeyboard.setShiftPreference (kc, string (bytes.constData (), bytes.size ()));
   }
 
   if (patchForShift()) {
     return;
   }
 
-  computeUnicodeToCork();
+  computeUnicodeText();
 
 #ifdef Q_OS_MAC
   patchForMac();

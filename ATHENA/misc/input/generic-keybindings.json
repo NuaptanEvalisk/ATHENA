@@ -1,6 +1,6 @@
 {
-  "version": 1,
-  "string_encoding": "latin1",
+  "version": 2,
+  "string_encoding": "utf-8",
   "groups": [
     {
       "bindings": [
@@ -12,8 +12,8 @@
         {"key": "C-S-O", "commands": [{"call": "open-quick-switcher", "args": []}]},
         {"key": "C-S-tab", "commands": [{"call": "visual-buffer-switcher-show", "args": []}]},
         {"key": "escape", "commands": [{"call": "open-escape-symbol-picker", "args": []}]},
-        {"key": "<", "text": "<less>"},
-        {"key": ">", "text": "<gtr>"},
+        {"key": "<", "text": "<"},
+        {"key": ">", "text": ">"},
         {"key": "(", "commands": [{"call": "make-bracket-open", "args": ["(", ")"]}]},
         {"key": ")", "commands": [{"call": "make-bracket-close", "args": [")", "("]}]},
         {"key": "[", "commands": [{"call": "make-bracket-open", "args": ["[", "]"]}]},
@@ -22,7 +22,7 @@
         {"key": "}", "commands": [{"call": "make-bracket-close", "args": ["}", "{"]}]},
         {"key": "\\", "commands": [{"if": {"any": [{"call": "inside?", "args": [{"symbol": "hybrid"}]}, {"call": "in-prog?", "args": []}]}, "then": {"call": "insert", "args": ["\\"]}, "else": {"call": "make-hybrid", "args": []}}]},
         {"key": "\\ var", "text": "\\"},
-        {"key": "\\ var var", "text": "<setminus>"},
+        {"key": "\\ var var", "text": "\u2216"},
         {"key": "\\ \\", "commands": [{"call": "insert-return", "args": []}]},
         {"key": "$", "commands": [{"call": "make", "args": [{"symbol": "math"}]}]},
         {"key": "$ var", "text": "$"},
@@ -165,7 +165,7 @@
         {"key": "symbol $", "text": "$"},
         {"key": "symbol &", "text": "&"},
         {"key": "symbol #", "text": "#"},
-        {"key": "symbol \u00ef\u00bf\u00bd", "text": "\u00ef\u00bf\u00bd"},
+        {"key": "symbol \ufffd", "text": "\ufffd"},
         {"key": "symbol %", "text": "%"},
         {"key": "symbol _", "text": "_"},
         {"key": "symbol ^", "text": "^"},
@@ -518,7 +518,7 @@
         {"key": "windows S-end", "commands": [{"call": "kbd-select", "args": [{"procedure": "go-end"}]}]},
         {"key": "windows S-space", "commands": [{"call": "make", "args": [{"symbol": "nbsp"}]}]},
         {"key": "windows _", "commands": [{"call": "make", "args": [{"symbol": "nbhyph"}]}]},
-        {"key": "windows A-.", "text": "<ldots>"},
+        {"key": "windows A-.", "text": "\u2026"},
         {"key": "windows A-c", "commands": [{"call": "make", "args": [{"symbol": "copyright"}]}]},
         {"key": "windows e", "commands": [{"call": "make", "args": [{"symbol": "footnote"}]}]},
         {"key": "windows F", "commands": [{"call": "make", "args": [{"symbol": "footnote"}]}]},

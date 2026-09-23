@@ -119,16 +119,16 @@ QTMKeyboard::initkeymap () {
 }
 
 void
-QTMKeyboard::setShiftPreference (int key_code, char shifted) {
-  set_user_preference ("shift-" * as_string (key_code), string (shifted));
+QTMKeyboard::setShiftPreference (int key_code, string shifted) {
+  set_user_preference ("shift-utf8-" * as_string (key_code), shifted);
 }
 
 bool
 QTMKeyboard::hasShiftPreference (int key_code) {
-  return has_user_preference ("shift-" * as_string (key_code));
+  return has_user_preference ("shift-utf8-" * as_string (key_code));
 }
 
 string
-QTMKeyboard::getShiftPreference (char key_code) {
-  return get_user_preference ("shift-" * as_string (key_code));
+QTMKeyboard::getShiftPreference (int key_code) {
+  return get_user_preference ("shift-utf8-" * as_string (key_code));
 }

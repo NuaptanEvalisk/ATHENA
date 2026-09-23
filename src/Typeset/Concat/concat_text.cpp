@@ -125,23 +125,30 @@ concater_rep::typeset_colored_substring
 #define PRINT_SPACE(spc_type) \
   if (spc_type != SPC_NONE) print (spc_tab[spc_type]);
 
+namespace {
+class scoped_text_paragraph {
+  std::shared_ptr<athena::text::font_paragraph>& slot;
+  std::shared_ptr<athena::text::font_paragraph> previous;
+public:
+  scoped_text_paragraph (
+    std::shared_ptr<athena::text::font_paragraph>& current, font fn, string s):
+    slot (current), previous (current) {
+    athena::text::physical_font_source physical;
+    if (!fn->physical_source (physical))
+      throw std::runtime_error ("Text font has no physical Unicode source");
+    // Fragments share source bytes and owner-local ICU/font state.
+    slot= std::make_shared<athena::text::font_paragraph> (
+      std::string (s.data (), N(s)),
+      athena::text::font_request_from_source (physical));
+  }
+  ~scoped_text_paragraph () { slot= std::move (previous); }
+};
+}
 
 void
 concater_rep::typeset_text_string (tree t, path ip, int pos, int end) {
   string s= t->label;
-  athena::text::physical_font_source physical;
-  if (!env->fn->physical_source (physical))
-    throw std::runtime_error ("Text font has no physical Unicode source");
-  auto request= athena::text::font_request_from_source (physical);
-  // Source and ICU state belong to this concater's font domain. All fragments
-  // retain the same source allocation instead of analyzing copied words.
-  struct RestoreParagraph {
-    std::shared_ptr<athena::text::font_paragraph>& slot;
-    std::shared_ptr<athena::text::font_paragraph> previous;
-    ~RestoreParagraph () { slot= std::move (previous); }
-  } restore {text_paragraph, text_paragraph};
-  text_paragraph= std::make_shared<athena::text::font_paragraph> (
-    std::string (s.data (), N(s)), std::move (request));
+  scoped_text_paragraph paragraph (text_paragraph, env->fn, s);
 
   struct ActiveMatch {
     int start;
@@ -313,13 +320,23 @@ void
 concater_rep::typeset_prog_string (tree t, path ip, int pos, int end) {
   array<space> spc_tab= env->fn->get_normal_spacing (env->spacing_policy);
   string s= t->label;
+  scoped_text_paragraph paragraph (text_paragraph, env->fn, s);
+  athena::text::grapheme_cursor graphemes (std::string_view (s.data (), N(s)));
   int    start;
 
   do {
     start= pos;
     text_property tp= env->lan->advance (t, pos);
+    // A highlighting boundary may separate a base character from its marks;
+    // it must not become a standalone box or an editing stop.
+    if (!graphemes.boundary (pos)) pos= graphemes.next (pos);
     if (pos > end) pos= end;
     if ((pos-start == 1) && (s[start]==' ')) { // spaces
+      if (rigid) {
+        typeset_colored_substring (s (start, pos), ip, start,
+                                  env->lan->get_color (t, start, pos));
+        continue;
+      }
       if (start == 0) typeset_substring ("", ip, 0);
       penalty_min (tp->pen_after);
       PRINT_SPACE (tp->spc_before);

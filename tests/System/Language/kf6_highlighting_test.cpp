@@ -40,9 +40,16 @@ static bool check () {
   cpp->highlight (split);
   if (cpp->get_color (split[0], 0, 2) != keyword ||
       cpp->get_color (split[1], 0, 1) != keyword) return failed (__LINE__);
-  tree unicode ("\"<#1F600>\" int value;");
+  tree unicode ("\"\xf0\x9f\x98\x80\xe4\xb8\xad" "e\xcc\x81\" int value;");
   cpp->highlight (unicode);
-  if (cpp->get_color (unicode, 11, 14) != keyword) return failed (__LINE__);
+  if (cpp->get_color (unicode, 13, 16) != keyword) return failed (__LINE__);
+  const string quoted= cpp->get_color (unicode, 1, 5);
+  for (int byte=1; byte<11; ++byte)
+    if (quoted == "" || cpp->get_color (unicode, byte, byte+1) != quoted)
+      return failed (__LINE__);
+  tree literal ("<alpha> int value;");
+  cpp->highlight (literal);
+  if (cpp->get_color (literal, 8, 11) != keyword) return failed (__LINE__);
 
   language python= prog_language ("python");
   tree py (DOCUMENT, "\"\"\"open", "still a string", "\"\"\"", "return 42");

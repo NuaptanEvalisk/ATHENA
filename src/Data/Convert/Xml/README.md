@@ -15,7 +15,11 @@ Delete/Backspace and selection endpoints through UTF-8 ICU grapheme boundaries.
 Those entry points require UTF-8, not Cork; the remaining input, resource and
 typesetting paths must be converted before deploying this intermediate build.
 `utf8_editor_test` exercises native editor transactions and undo/redo with UTF-8
-atoms. It does not establish completion of keyboard input or document rendering.
+atoms. Qt key text and IME commits/preedit now enter as UTF-8; preedit cursor
+positions explicitly convert UTF-16 to bytes and snap to ICU grapheme stops.
+Shift-key preferences retain complete UTF-8 strings under a new key namespace,
+and generic keyboard declarations specify UTF-8. Legacy mathematical keymaps,
+named-key fallback and the global Scheme bridge still need conversion.
 
 Native document constructors no longer add a TeXmacs compatibility version.
 Until XML activation, only the legacy document serializers add their required
@@ -111,7 +115,13 @@ unchanged. Legacy readers still recognize existing file headers.
   syntax implementation. Embedded NUL bytes are retained as separate control
   runs across Pango's C-string boundary. Synthetic font transforms currently
   report an explicit unsupported error rather than silently discarding the
-  requested style; synthesis and color-font rendering remain activation work.
+  requested style. Fixed-strike fonts now decode FreeType BGRA/gray/mono pixels
+  into owner-local bounded caches and preserve requested layout dimensions,
+  including independent horizontal scaling. Font selection recognizes only
+  verified fixed-strike normalization, allowing one Pango device-size quantum.
+  Qt records owned image pixels; native PDF emits color images plus an empty
+  Type 3 text carrier for exact ActualText extraction and run geometry.
+  Synthetic outline transforms and other color-font formats remain work.
   Integration contracts: [Pango itemization](https://docs.gtk.org/Pango/func.itemize_with_base_dir.html),
   [private Fontconfig configuration](https://docs.gtk.org/PangoFc/method.FontMap.set_config.html),
   [immutable HarfBuzz font access](https://docs.gtk.org/Pango/method.Font.get_hb_font.html).
@@ -184,7 +194,11 @@ unchanged. Legacy readers still recognize existing file headers.
   shared analysis across opaque wrappers, nested composite links and inline
   objects. Legacy dictionary hyphenation is deliberately
   not applied to these UTF-8 fragments because it reconstructs Cork boxes. Font synthesis/effects,
-  mathematical strings, programming text and runtime import/input remain gates.
+  mathematical strings and runtime import/input remain gates. Programming text
+  now uses the same Unicode paragraph and line boxes, retaining KF6 colors and
+  grapheme endpoints. KF6 receives explicit UTF-16 text with a scalar-to-byte
+  mapping, including surrogate pairs; literal angle-bracket text is not decoded
+  as a Cork symbol. Rigid code lines retain their source spaces for joining.
   This intermediate implementation must not be deployed.
   Regression coverage includes actual mixed-color/background RTL painting,
   linked source selection and glyph expansion, and inspection of final native

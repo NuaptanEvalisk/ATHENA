@@ -1622,21 +1622,6 @@ QTMWidget::updateInputMethodCursorRectangle () const {
 }
 
 void
-setShiftPreference (int key_code, char shifted) {
-  set_user_preference ("shift-" * as_string (key_code), string (shifted));
-}
-
-bool
-hasShiftPreference (int key_code) {
-  return has_user_preference ("shift-" * as_string (key_code));
-}
-
-string
-getShiftPreference (char key_code) {
-  return get_user_preference ("shift-" * as_string (key_code));
-}
-
-void
 QTMWidget::keyPressEvent (QKeyEvent* event) {
   refreshCursorBlinking (true);
   if (event->key () == Qt::Key_Escape &&
@@ -1734,7 +1719,7 @@ QTMWidget::inputMethodEvent (QInputMethodEvent* event) {
         debug_qt << "IM committing: " << commit_string.toUtf8().data() << LF;
       if (!is_nil (tmwid))
         the_gui->process_text_input (
-          tm_widget (), from_qstring (commit_string), texmacs_time ());
+          tm_widget (), from_qstring_utf8 (commit_string), texmacs_time ());
     }
   }
   
@@ -1779,9 +1764,9 @@ QTMWidget::inputMethodEvent (QInputMethodEvent* event) {
         preedit_string[utf16Pos].isLowSurrogate () &&
         preedit_string[utf16Pos - 1].isHighSurrogate ())
       utf16Pos--;
-    int scalarPos=
-      preedit_string.left (utf16Pos).toUcs4 ().size ();
-    r = r * as_string (scalarPos) * ":" * from_qstring (preedit_string);
+    // The event boundary converts Qt UTF-16 once; the actor receives bytes.
+    const int bytePos= preedit_string.left (utf16Pos).toUtf8 ().size ();
+    r = r * as_string (bytePos) * ":" * from_qstring_utf8 (preedit_string);
   }
 
   if (!is_nil (tmwid)) {

@@ -10,6 +10,7 @@
 #include "analyze.hpp"
 #include "drd_std.hpp"
 #include "modification.hpp"
+#include "unicode_text.hpp"
 #include <KSyntaxHighlighting/AbstractHighlighter>
 #include <KSyntaxHighlighting/Definition>
 #include <KSyntaxHighlighting/Format>
@@ -85,16 +86,18 @@ class program_highlighter final: public AbstractHighlighter {
     if (is_atomic (t)) {
       size_t leaf= leaves.size ();
       leaves.push_back (t);
+      const std::string_view source (t->label.data (), N(t->label));
+      athena::text::require_utf8 (source);
       for (int pos=0; pos<N(t->label);) {
         int begin= pos;
-        tm_char_forwards (t->label, pos);
+        pos= athena::text::next_scalar (source, pos);
         if (pos == begin+1 && static_cast<unsigned char> (t->label[begin]) < 128) {
           text+= QChar::fromLatin1 (t->label[begin]);
           positions.push_back ({leaf, begin, pos});
           continue;
         }
-        string utf8= cork_to_utf8 (t->label (begin, pos));
-        QString character_text= QString::fromUtf8 (utf8.data (), N(utf8));
+        QString character_text= QString::fromUtf8 (
+          t->label.data () + begin, pos - begin);
         text+= character_text;
         for (int i=0; i<character_text.size (); ++i)
           positions.push_back ({leaf, begin, pos});

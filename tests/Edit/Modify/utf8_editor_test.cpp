@@ -30,6 +30,7 @@
 #include "Stack/stacker.hpp"
 #include "Boxes/utf8_line.hpp"
 #include "Qt/qt_renderer.hpp"
+#include "Qt/QTMKeyboardEvent.hpp"
 #include "named_symbol.hpp"
 #include "tree_analyze.hpp"
 #include "Xml/legacy_document_import.hpp"
@@ -334,6 +335,57 @@ private slots:
     const auto mono_cursor= result->find_box_path (path (0, path (1, path (2, 2))), restored);
     QVERIFY (restored);
     QVERIFY (result->find_tree_path (mono_cursor) == path (0, path (1, path (2, 2))));
+  }
+  void unicodeKeyboard () {
+    QTMKeyboard keyboard;
+    for (const string text: {string ("\xc3\xa9"), string ("\xe4\xb8\xad"),
+         string ("\xf0\x9f\x98\x80"), string ("e\xcc\x81"),
+         string ("\xc2\xa8"), string ("\xcc\x81"), string ("<"), string (">")}) {
+      const QKeyEvent event (QEvent::KeyPress, Qt::Key_unknown, Qt::NoModifier,
+                             QString::fromUtf8 (text.data (), N(text)));
+      QCOMPARE (QTMKeyboardEvent (keyboard, event).texmacsKeyCombination (), text);
+    }
+    const QKeyEvent dead (QEvent::KeyPress, Qt::Key_Dead_Acute, Qt::NoModifier);
+    QCOMPARE (QTMKeyboardEvent (keyboard, dead).texmacsKeyCombination (), string ("acute"));
+    const QKeyEvent shortcut (QEvent::KeyPress, Qt::Key_F, Qt::ControlModifier, "\x06");
+    QCOMPARE (QTMKeyboardEvent (keyboard, shortcut).texmacsKeyCombination (), string ("C-f"));
+    const string composed= "\xc3\x89";
+    keyboard.setShiftPreference (0x1234, composed);
+    QVERIFY (keyboard.hasShiftPreference (0x1234));
+    QCOMPARE (keyboard.getShiftPreference (0x1234), composed);
+    const QKeyEvent shifted (QEvent::KeyPress, Qt::Key_1,
+      Qt::ControlModifier | Qt::ShiftModifier, 0, 0x1234, 0, "\x01");
+    QCOMPARE (QTMKeyboardEvent (keyboard, shifted).texmacsKeyCombination (), "C-" * composed);
+  }
+  void programTypesetting () {
+    drd_info drd ("utf8-editor-program", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (MODE, "prog");
+    env->write (PROG_FONT, "JetBrains Mono");
+    env->write (PROG_LANGUAGE, "cpp");
+    env->update ();
+    const string source= "int x = 1; // \xe4\xb8\xad "
+      "e\xcc\x81 \xf0\x9f\x98\x80 <alpha>";
+    tree program (source);
+    env->lan->highlight (program);
+    auto items= typeset_concat (env, program, path (0));
+    QVERIFY (N(items) > 1);
+    for (int i=0; i<N(items); ++i) {
+      QVERIFY (is_utf8_line_box (items[i]->b));
+      QVERIFY (items[i]->type != STRING_ITEM);
+      QVERIFY (utf8_grapheme_boundary (source, items[i]->b->get_leaf_left_pos ()));
+      QVERIFY (utf8_grapheme_boundary (source, items[i]->b->get_leaf_right_pos ()));
+    }
+    box result= typeset_as_concat (env, program, path (0));
+    QCOMPARE (N(result), 1);
+    QCOMPARE (result[0]->get_leaf_string (), source);
+    bool found= false;
+    auto caret= result->find_box_path (path (0, N(source)), found);
+    QVERIFY (found);
+    QVERIFY (result->find_tree_path (caret) == path (0, N(source)));
   }
   void inlineSourceMapping () {
     drd_info drd ("utf8-inline-source", std_drd);

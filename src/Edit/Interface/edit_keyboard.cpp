@@ -13,6 +13,9 @@
 #include "analyze.hpp"
 #include "tm_buffer.hpp"
 #include "archiver.hpp"
+#include "utf8_edit.hpp"
+#include "unicode_text.hpp"
+#include <algorithm>
 
 #ifdef Q_OS_MAC
 #include "Subsystems/Qt/QTMApplication.hpp"
@@ -149,24 +152,17 @@ edit_interface_rep::try_shortcut (string comb) {
 
 static string
 std_accent (string s) {
-  string c= "x";
-        c.set (0, '\0');
-  s= replace (s, c, "`");
-        c.set (0, '\1');
-  s= replace (s, c, "'");
-        c.set (0, '\2');
-  s= replace (s, c, "^");
-        c.set (0, '\3');
-  s= replace (s, c, "~");
-        c.set (0, '\4');
-  s= replace (s, c, "\"");
+  if (s == "\xcc\x80") return "`";
+  if (s == "\xcc\x81" || s == "\xc2\xb4") return "'";
+  if (s == "\xcc\x82") return "^";
+  if (s == "\xcc\x83" || s == "\xcc\xbe") return "~";
+  if (s == "\xcc\x88" || s == "\xc2\xa8") return "\"";
   return s;
 }
 
 void
 edit_interface_rep::key_press (string gkey) {
-  string zero= "a"; zero.set (0, '\0');
-  string key= replace (gkey, "<#0>", zero);
+  string key= gkey;
   if (pre_edit_mark != 0) {
     ASSERT (sh_mark == 0, "invalid shortcut during pre-edit");
     mark_cancel (pre_edit_mark);
@@ -180,9 +176,7 @@ edit_interface_rep::key_press (string gkey) {
       if (s[i] == ':' && is_int (s (0, i))) {
         int k= as_int (s (0, i));
         s= s (i+1, n);
-        pos= 0;
-        for (int j=0; j<k && pos<N(s); j++)
-          tm_char_forwards (s, pos);
+        pos= utf8_grapheme_snap (s, std::clamp (k, 0, N(s)), false);
         break;
       }
     if (as_bool (call ("disable-pre-edit?", std_accent (s)))) {
@@ -207,8 +201,7 @@ edit_interface_rep::key_press (string gkey) {
     }
   }
   else if (pre_edit_skip) {
-    string u= cork_to_utf8 (key);
-    string r= as_string (call ("downgrade-pre-edit", u));
+    string r= as_string (call ("downgrade-pre-edit", key));
     if (r == "") return;
     else key= r;
   }
@@ -236,9 +229,12 @@ edit_interface_rep::key_press (string gkey) {
       }
     interrupt_shortcut ();
   }
-  else if (contains_unicode_char (rew)) {
+  else if (N(rew) > 1 &&
+           athena::text::valid_utf8 (std::string_view (rew.data (), N(rew))) &&
+           utf8_grapheme_next (rew, 0) == N(rew) &&
+           !inside_active_graphics ()) {
     archive_state ();
-    call ("kbd-insert", key);
+    call ("kbd-insert", rew);
     (void) complete_try_realtime ();
     interrupt_shortcut ();    
   }
@@ -372,6 +368,7 @@ edit_interface_rep::handle_text_input (string text, time_t t) {
 #ifdef USE_EXCEPTIONS
   try {
 #endif
+    athena::text::require_utf8 (std::string_view (text.data (), N(text)));
     if (is_nil (eb) ||
         (env_change & (THE_TREE + THE_ENVIRONMENT)) != 0)
       apply_changes ();
@@ -385,7 +382,7 @@ edit_interface_rep::handle_text_input (string text, time_t t) {
     }
     if (pre_edit_skip) {
       string converted= as_string (
-        call ("downgrade-pre-edit", cork_to_utf8 (text)));
+        call ("downgrade-pre-edit", text));
       if (converted == "") {
         end_editing ();
         return;
