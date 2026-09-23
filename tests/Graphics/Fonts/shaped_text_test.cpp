@@ -473,6 +473,18 @@ static void check_font_styles (font nominal) {
            (load_tt_face (emphasis.fonts ()[2].font)->ft_face->style_flags & FT_STYLE_FLAG_ITALIC) &&
            !emphasis.line (0, 3).missing_glyphs,
            "Pagella emphasis did not use its real bold/italic faces");
+  font_request bold_italic {"TeX Gyre Pagella Bold Italic", "el", 14, 144, 120};
+  const auto upright_bold= font_request_with_italic (bold_italic, false);
+  require (upright_bold.point_size == 14 && upright_bold.horizontal_dpi == 144 &&
+           upright_bold.vertical_dpi == 120 && upright_bold.language == "el",
+           "Symbol slant override changed the effective font size or language");
+  font_paragraph upright_symbol ("D", upright_bold);
+  const auto flags= load_tt_face (upright_symbol.fonts ()[0].font)->ft_face->style_flags;
+  require ((flags & FT_STYLE_FLAG_BOLD) && !(flags & FT_STYLE_FLAG_ITALIC),
+           "Upright symbol lost bold or retained inherited italic");
+  font_paragraph italic_symbol ("C", font_request_with_italic (roman, true));
+  require (load_tt_face (italic_symbol.fonts ()[0].font)->ft_face->style_flags & FT_STYLE_FLAG_ITALIC,
+           "Italic symbol did not select an actual italic face");
   font_paragraph ligature ("ffi", roman, {{0, 1, roman}, {1, 3, roman}});
   font_paragraph unstyled ("ffi", roman);
   require (ligature.fonts ().size () == 1 &&

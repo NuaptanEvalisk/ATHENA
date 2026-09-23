@@ -204,9 +204,20 @@ unchanged. Legacy readers still recognize existing file headers.
   production printer factory even with retired native-PDF preferences disabled.
   PDF export is always native: there is no PS intermediary or distillation.
   Ghostscript is restricted to importing PS/EPS images.
-- The codec does not interpret `<...>` inside text. Structural symbols are a
-  separate tree-model concern; the old incomplete-input `SYMBOL` is not a
-  substitute for the planned `named-symbol` representation.
+- The codec does not interpret `<...>` inside text. Complete semantic symbols
+  use the built-in `NAMED_SYMBOL` / `(named-symbol identity)` node, separate
+  from the old incomplete-input `SYMBOL`. Its identifier is inaccessible during
+  normal editing; navigation and deletion treat the entire symbol atomically.
+  `misc/symbols/named-symbols.json` is the native registry for symbol identity,
+  mathematical class and glyph/slant recipes. Recipes are rendering data, not
+  replacement source text. The initial entries cover ten mathematical constants
+  and differential operators from the legacy roman/italic/upgreek encodings.
+  They use owner-local Pango selection and HarfBuzz shaping, with explicit slant
+  and inherited font family, weight, point size and device scales. No angle-token
+  parser or Cork converter is involved. Missing definitions remain intact and
+  display an error marker instead of an approximate substitute. Virtual glyph
+  recipes, extensible symbols and the remaining symbol inventory are still
+  integration work, as is migrating keyboard input to construct these nodes.
 
 ## XML Version 1
 
@@ -326,7 +337,8 @@ batch cancellation/resume and database recovery are still integration work.
 ## Remaining Integration Gates
 
 1. Integrate the role-aware legacy importer with application metadata and
-   style-defined macro contracts, and register/render `named-symbol` identities.
+   style-defined macro contracts, and finish the `named-symbol` registry's
+   remaining glyph recipes and mathematical layout integration.
    The old `Strict-Cork` converter is **not** a substitute for this importer.
 2. All editor/parser/font/IME/Guile/Qt boundaries, bundled resources and undo
    paths must agree on the UTF-8 model before these trees become live.

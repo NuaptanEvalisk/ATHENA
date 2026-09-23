@@ -661,6 +661,9 @@ concater_rep::typeset (tree t, path ip) {
   case CLOSE_TAG:
     typeset_src_tag (t, ip);
     break;
+  case NAMED_SYMBOL:
+    typeset_named_symbol (t, ip);
+    break;
   case SYMBOL:
   case LATEX:
   case HYBRID:

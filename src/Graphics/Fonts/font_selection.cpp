@@ -101,6 +101,18 @@ void append_directory (url u, std::vector<std::string>& dirs) {
 }
 }
 
+font_request font_request_with_italic (font_request request, bool italic) {
+  validate_request (request);
+  auto description= describe (request);
+  pango_font_description_set_style (description.get (),
+    italic ? PANGO_STYLE_ITALIC : PANGO_STYLE_NORMAL);
+  std::unique_ptr<char, decltype (&g_free)> name (
+    pango_font_description_to_string (description.get ()), g_free);
+  if (!name) throw std::bad_alloc ();
+  request.description_utf8= name.get ();
+  return request;
+}
+
 struct font_catalog::impl {
   font_domain& owner= current_font_domain ();
   std::unique_ptr<FcConfig, decltype (&FcConfigDestroy)> config;

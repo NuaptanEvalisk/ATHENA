@@ -141,6 +141,9 @@ enum tree_label {
   SET, RESET, EXPAND, VAR_EXPAND, HIDE_EXPAND,
   APPLY, BEGIN, END, FUNC, ENV,
 
+  // Complete semantic symbols, distinct from unfinished source input SYMBOL.
+  NAMED_SYMBOL,
+
   // user extensions
   START_EXTENSIONS
 };

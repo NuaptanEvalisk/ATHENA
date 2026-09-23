@@ -167,6 +167,7 @@ edit_text_rep::remove_text_sub (bool forward) {
   if (last == (forward? 0: 1))
     switch (L(t)) {
     case RAW_DATA:
+    case NAMED_SYMBOL:
     case HSPACE:
     case VAR_VSPACE:
     case VSPACE:

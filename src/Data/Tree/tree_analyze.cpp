@@ -11,6 +11,7 @@
 
 #include "tree_analyze.hpp"
 #include "convert.hpp"
+#include "named_symbol.hpp"
 
 drd_info get_style_drd (tree style);
 
@@ -141,7 +142,6 @@ with_recompose (tree w, array<tree> a) {
 
 int
 symbol_type (tree t) {
-  language lan= math_language ("std-math");
   tree r= the_drd->get_syntax (t);
   if (r != UNINIT) {
     if (is_compound (t, "text")) return SYMBOL_SKIP;
@@ -150,10 +150,17 @@ symbol_type (tree t) {
     else if (is_compound (t, "br")) return SYMBOL_CLOSE;
     else return symbol_type (r);
   }
-  else if (is_atomic (t)) {
+  else if (is_atomic (t) || is_func (t, NAMED_SYMBOL, 1)) {
     int pos= 0;
-    text_property prop= lan->advance (t, pos);
-    switch (prop->op_type) {
+    int op= OP_SYMBOL;
+    if (is_atomic (t)) op= math_language ("std-math")->advance (t, pos)->op_type;
+    else if (is_atomic (t[0])) {
+      const auto& identity= t[0]->label;
+      const auto* symbol= athena::text::standard_named_symbols ().lookup (
+        std::string_view (identity.data (), N(identity)));
+      if (symbol) op= symbol->op_type;
+    }
+    switch (op) {
     case OP_UNKNOWN:
     case OP_TEXT:
     case OP_SKIP:

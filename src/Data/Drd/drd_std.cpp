@@ -546,6 +546,8 @@ init_std_drd () {
   init (SYMBOL, "symbol",
         fixed (1) ->
         code (0) -> name (0, "name") -> locals (0, "mode", "src"));
+  init (NAMED_SYMBOL, "named-symbol",
+        fixed (1) -> identifier (0) -> name (0, "identity"));
   init (LATEX, "latex",
         fixed (1) ->
         code (0) -> name (0, "command") -> locals (0, "mode", "src"));

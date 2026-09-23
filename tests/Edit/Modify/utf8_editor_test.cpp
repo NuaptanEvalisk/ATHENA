@@ -30,6 +30,9 @@
 #include "Stack/stacker.hpp"
 #include "Boxes/utf8_line.hpp"
 #include "Qt/qt_renderer.hpp"
+#include "named_symbol.hpp"
+#include "tree_analyze.hpp"
+#include "Xml/legacy_document_import.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }
@@ -119,6 +122,117 @@ private slots:
     QVERIFY (!valid_cursor (binary, path (0, 1)));
     QVERIFY (closest_inside (binary, path (0, 2)) == path (0, 0));
     QVERIFY (next_valid (binary, path (0, 0)) == path (1));
+  }
+  void namedSymbols () {
+    using namespace athena::text;
+    using namespace athena::document;
+    const auto& registry= standard_named_symbols ();
+    QCOMPARE (registry.size (), std::size_t (10));
+    QVERIFY (!registry.lookup ("unknown:symbol"));
+    QVERIFY (!registry.lookup ("<mathD>"));
+    QVERIFY_THROWS_EXCEPTION (std::invalid_argument, named_symbol_registry ("{}"));
+    const std::string entry= R"({"identity":"test:symbol","glyph":"x","math_class":"symbol","slant":"upright"})";
+    QVERIFY_THROWS_EXCEPTION (std::invalid_argument,
+      named_symbol_registry ("{\"version\":1,\"symbols\":[" + entry + "," + entry + "]}"));
+    QVERIFY_THROWS_EXCEPTION (std::invalid_argument, named_symbol_registry (
+      R"({"version":1,"symbols":[{"identity":"test:symbol","glyph":"x","math_class":"typo","slant":"upright"}]})"));
+
+    drd_info drd ("utf8-symbols", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write (FONT_SHAPE, "italic");
+    env->update ();
+    physical_font_source physical;
+    QVERIFY (env->fn->physical_source (physical));
+    const auto base= font_request_from_source (physical);
+    const legacy_cork_table legacy ((qEnvironmentVariable ("ATHENA_PATH") + "/langs/encoding").toStdString ());
+    for (const char* name: {"mathD", "mathd", "mathe", "mathi", "mathcatalan",
+                            "mathGamma", "mathLaplace", "matheuler", "mathlambda", "mathpi"}) {
+      const string identity= string ("texmacs:") * name;
+      const auto* definition= registry.lookup (std::string_view (identity.data (), N(identity)));
+      QVERIFY (definition);
+      int legacy_position= 0;
+      QCOMPARE (math_language ("std-math")->advance (
+        tree (string ("<") * name * ">"), legacy_position)->op_type,
+        definition->op_type);
+      const tree symbol (NAMED_SYMBOL, identity);
+      const auto imported= import_legacy_document (
+        tree (DOCUMENT, string ("<") * name * ">"), legacy).document;
+      QVERIFY (imported == tree (DOCUMENT, tree (CONCAT, symbol)));
+      QVERIFY (read_xml (write_xml (imported)) == imported);
+      QVERIFY (env->exec (symbol) == symbol);
+      QVERIFY (!is_accessible_cursor (symbol, path (0, 0)));
+      QVERIFY (valid_cursor (symbol, path (0)));
+      QVERIFY (valid_cursor (symbol, path (1)));
+      QVERIFY (next_accessible (symbol, path (0)) == path (1));
+      QVERIFY (previous_accessible (symbol, path (1)) == path (0));
+      const int old_access= set_access_mode (DRD_ACCESS_SOURCE);
+      const bool source_access= is_accessible_cursor (symbol, path (0, 0));
+      set_access_mode (old_access);
+      QVERIFY (source_access);
+
+      array<line_item> items= typeset_concat (env, symbol, path (0));
+      QCOMPARE (N(items), 1);
+      QCOMPARE (items[0]->type, STD_ITEM);
+      QCOMPARE (items[0]->op_type, definition->op_type);
+      box rendered= items[0]->b;
+      QVERIFY (rendered->w () > 0);
+      QVERIFY (is_utf8_line_box (rendered[0]));
+      auto expected_request= base;
+      expected_request.description_utf8= definition->italic ?
+        "TeX Gyre Pagella Italic" : "TeX Gyre Pagella";
+      auto expected= utf8_line_box (decorate (path (0)),
+        std::make_shared<font_paragraph> (definition->glyph_utf8,
+          expected_request),
+        0, definition->glyph_utf8.size (), env->fn, env->pen);
+      QCOMPARE (rendered->w (), expected->w ());
+      QCOMPARE (rendered->y1, expected->y1);
+      QCOMPARE (rendered->y2, expected->y2);
+      for (int endpoint: {0, 1}) {
+        bool found= false;
+        const auto caret= rendered->find_box_path (path (endpoint), found);
+        QVERIFY (found);
+        QVERIFY (rendered->find_tree_path (caret) == path (0, endpoint));
+        auto expanded= rendered->expand_glyphs (0, 0.1);
+        const auto expanded_caret= expanded->find_box_path (path (endpoint), found);
+        QVERIFY (found && expanded->find_tree_path (expanded_caret) == path (0, endpoint));
+      }
+    }
+    const tree unknown (NAMED_SYMBOL, "unregistered:symbol");
+    QVERIFY (env->exec (unknown) == unknown);
+    auto missing= typeset_concat (env, unknown, path (0));
+    QCOMPARE (N(missing), 1);
+    QCOMPARE (missing[0]->b[0]->get_leaf_string (), string ("[missing symbol]"));
+    QCOMPARE (symbol_type (tree (NAMED_SYMBOL, "texmacs:mathD")), SYMBOL_BASIC);
+    QCOMPARE (symbol_type (tree (NAMED_SYMBOL, "texmacs:mathcatalan")), SYMBOL_BASIC);
+  }
+  void symbolDeletion_data () {
+    QTest::addColumn<bool> ("forward");
+    QTest::newRow ("delete-symbol") << true;
+    QTest::newRow ("backspace-symbol") << false;
+  }
+  void symbolDeletion () {
+    QFETCH (bool, forward);
+    const tree symbol (NAMED_SYMBOL, "texmacs:mathD");
+    const tree source (CONCAT, "a", symbol, "b");
+    const path paragraph= buffer->root_path * 0;
+    editor->go_to (paragraph * 0);
+    editor->start_editing ();
+    editor->insert_tree (source);
+    editor->end_editing ();
+    editor->go_to (paragraph * path (1, forward ? 0 : 1));
+    editor->archive_state ();
+    editor->start_editing ();
+    editor->remove_text (forward);
+    editor->end_editing ();
+    QVERIFY (subtree (current_document_tree (), paragraph) == tree ("ab"));
+    editor->undo (0);
+    QVERIFY (subtree (current_document_tree (), paragraph) == source);
+    editor->redo (0);
+    QVERIFY (subtree (current_document_tree (), paragraph) == tree ("ab"));
   }
   void revisionsAndOwners () {
     string original= "long source: e\xcc\x81";

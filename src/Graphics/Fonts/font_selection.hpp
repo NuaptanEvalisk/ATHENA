@@ -32,6 +32,8 @@ struct selected_font_run {
 
 font_request font_request_from_source (const physical_font_source& source,
                                        std::string language= "und");
+// Preserve family, weight, variations and device scale; replace only slant.
+font_request font_request_with_italic (font_request request, bool italic);
 
 // Sorted, nonoverlapping scalar ranges. Gaps use the paragraph's base request.
 // Paragraph direction must match that base request. Device resolution can

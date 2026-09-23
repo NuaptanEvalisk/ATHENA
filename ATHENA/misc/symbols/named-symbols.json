@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "symbols": [
+    {"identity": "texmacs:mathD", "math_class": "unary", "glyph": "D", "slant": "upright"},
+    {"identity": "texmacs:mathd", "math_class": "unary", "glyph": "d", "slant": "upright"},
+    {"identity": "texmacs:mathe", "math_class": "symbol", "glyph": "e", "slant": "upright"},
+    {"identity": "texmacs:mathi", "math_class": "symbol", "glyph": "i", "slant": "upright"},
+    {"identity": "texmacs:mathcatalan", "math_class": "symbol", "glyph": "C", "slant": "italic"},
+    {"identity": "texmacs:mathGamma", "math_class": "symbol", "glyph": "\u0393", "slant": "upright"},
+    {"identity": "texmacs:mathLaplace", "math_class": "unary", "glyph": "\u0394", "slant": "upright"},
+    {"identity": "texmacs:matheuler", "math_class": "symbol", "glyph": "\u03b3", "slant": "upright"},
+    {"identity": "texmacs:mathlambda", "math_class": "symbol", "glyph": "\u03bb", "slant": "upright"},
+    {"identity": "texmacs:mathpi", "math_class": "symbol", "glyph": "\u03c0", "slant": "upright"}
+  ]
+}
