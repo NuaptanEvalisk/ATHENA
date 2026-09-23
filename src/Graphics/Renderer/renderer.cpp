@@ -83,9 +83,12 @@ renderer_rep::is_printer () {
 void
 renderer_rep::draw_utf8 (const athena::text::shaped_text& run,
                          std::string_view, SI x, SI y) {
-  for (const auto& glyph: run.glyphs)
-    draw (0x0c000000 + glyph.index, run.glyph_source,
-          x + glyph.x, y + glyph.y);
+  for (std::size_t i=0; i<run.glyphs.size (); ++i) {
+    const auto& glyph= run.glyphs[i];
+    if (!run.bitmaps.empty ()) run.bitmaps.at (i).draw (this, x + glyph.x, y + glyph.y);
+    else draw (0x0c000000 + glyph.index, run.glyph_source,
+                x + glyph.x, y + glyph.y);
+  }
 }
 
 void
@@ -543,6 +546,14 @@ void
 renderer_rep::draw_picture (picture p, SI x, SI y, int alpha) {
   (void) p; (void) x; (void) y; (void) alpha;
   FAILED ("rendering pictures is not supported");
+}
+
+void
+renderer_rep::draw_picture_scaled (picture p, SI x, SI y, SI w, SI h, int alpha) {
+  if (is_nil (p) || p->get_width () <= 0 || p->get_height () <= 0 || w <= 0 || h <= 0) return;
+  picture scaled= magnify (p, double (w) / pixel / p->get_width (),
+                             double (h) / pixel / p->get_height ());
+  draw_picture (scaled, x, y, alpha);
 }
 
 renderer

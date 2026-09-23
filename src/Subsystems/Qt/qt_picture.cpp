@@ -98,6 +98,21 @@ qt_renderer_rep::draw_picture (picture p, SI x, SI y, int alpha) {
   painter->setOpacity (old_opacity);
 }
 
+void
+qt_renderer_rep::draw_picture_scaled (picture p, SI x, SI y, SI w, SI h, int alpha) {
+  if (is_nil (p) || w <= 0 || h <= 0) return;
+  p= as_qt_picture (p);
+  auto* pict= static_cast<qt_picture_rep*> (p->get_handle ());
+  double left, bottom;
+  decode (x, y, left, bottom);
+  painter->save ();
+  painter->setOpacity (qreal (alpha) / 255.0);
+  painter->setRenderHint (QPainter::SmoothPixmapTransform, true);
+  painter->drawImage (QRectF (left, bottom - double (h)/pixel,
+                             double (w)/pixel, double (h)/pixel), pict->pict);
+  painter->restore ();
+}
+
 /******************************************************************************
 * Rendering on images
 ******************************************************************************/

@@ -9,6 +9,7 @@
 ******************************************************************************/
 #include "shaped_text.hpp"
 #include "shaped_line.hpp"
+#include "bitmap_text.hpp"
 #include "unicode_text.hpp"
 #include "Freetype/tt_face.hpp"
 #include "Freetype/tt_file.hpp"
@@ -297,10 +298,15 @@ static shaped_text shape_freetype_run (
   if (count > options.max_glyphs)
     throw std::length_error ("Shaped glyph budget exceeded");
 
-  result.glyph_source= tt_font_glyphs (face, size, hdpi, vdpi);
-  font_metric metrics= tt_font_metric (face, size, hdpi, vdpi);
-  if (metrics->bad_font_metric || result.glyph_source->bad_font_glyphs)
-    throw std::runtime_error ("Cannot load shaped font metrics or glyphs");
+  const bool bitmap= !FT_IS_SCALABLE (face->ft_face) && FT_HAS_FIXED_SIZES (face->ft_face);
+  font_metric metrics;
+  if (bitmap) result.bitmaps.reserve (count);
+  else {
+    result.glyph_source= tt_font_glyphs (face, size, hdpi, vdpi);
+    metrics= tt_font_metric (face, size, hdpi, vdpi);
+    if (metrics->bad_font_metric || result.glyph_source->bad_font_glyphs)
+      throw std::runtime_error ("Cannot load shaped font metrics or glyphs");
+  }
   result.glyphs.reserve (count);
   std::int64_t x= 0, y= 0;
   for (unsigned int i= 0; i < count; ++i) {
@@ -318,12 +324,21 @@ static shaped_text shape_freetype_run (
        HB_GLYPH_FLAG_UNSAFE_TO_BREAK) != 0};
     result.glyphs.push_back (glyph);
     result.missing_glyphs= result.missing_glyphs || glyph.index == 0;
-    metric& m= metrics->get (glyph_index_base + glyph.index);
+    metric bitmap_metric;
+    if (bitmap) {
+      result.bitmaps.push_back (load_bitmap_text_glyph (face, glyph.index, size, hdpi, vdpi));
+      const auto& raster= result.bitmaps.back ();
+      bitmap_metric->x3= raster.left;
+      bitmap_metric->x4= checked_si (static_cast<std::int64_t> (raster.left) + raster.width);
+      bitmap_metric->y3= raster.bottom;
+      bitmap_metric->y4= checked_si (static_cast<std::int64_t> (raster.bottom) + raster.height);
+    }
+    metric& m= bitmap ? bitmap_metric : metrics->get (glyph_index_base + glyph.index);
     // FreeType may render a zero-outline glyph into a blank 1x1 bitmap.
     // Do not turn that raster allocation into a claim of visible ink.
     hb_glyph_extents_t outline;
-    if (hb_font_get_glyph_extents (hbfont, glyph.index, &outline) &&
-        outline.width != 0 && outline.height != 0 &&
+    if ((bitmap || (hb_font_get_glyph_extents (hbfont, glyph.index, &outline) &&
+        outline.width != 0 && outline.height != 0)) &&
         m->x3 < m->x4 && m->y3 < m->y4) {
       const SI x1= checked_si (static_cast<std::int64_t> (glyph.x) + m->x3);
       const SI x2= checked_si (static_cast<std::int64_t> (glyph.x) + m->x4);
@@ -388,7 +403,9 @@ void shaped_text::draw_fixed (renderer ren, std::string_view source,
     throw std::invalid_argument ("Shaped text source range is invalid");
   const auto text= source.substr (byte_begin, byte_end - byte_begin);
   require_utf8 (text);
-  if (!glyphs.empty () && is_nil (glyph_source))
+  if (!bitmaps.empty () && bitmaps.size () != glyphs.size ())
+    throw std::invalid_argument ("Bitmap glyph count does not match shaped run");
+  if (!glyphs.empty () && bitmaps.empty () && is_nil (glyph_source))
     throw std::invalid_argument ("Missing shaped glyph source");
   // Preflight coordinates so a failure cannot leave a partially drawn run.
   for (const auto& glyph: glyphs) {

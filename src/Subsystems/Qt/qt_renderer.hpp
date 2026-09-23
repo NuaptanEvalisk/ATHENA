@@ -74,6 +74,7 @@ public:
   void apply_shadow (SI x1, SI y1, SI x2, SI y2) override;
 
   void draw_picture (picture pict, SI x, SI y, int alpha) override;
+  void draw_picture_scaled (picture pict, SI x, SI y, SI w, SI h, int alpha) override;
 };
 
 qt_renderer_rep* the_qt_renderer (double pixel_ratio = 1.0);

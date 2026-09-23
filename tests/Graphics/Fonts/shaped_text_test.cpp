@@ -19,6 +19,7 @@
 #include "Qt/QTMRenderService.hpp"
 #include "Qt/qt_renderer.hpp"
 #include <QTemporaryDir>
+#include <QPicture>
 #include <cstdlib>
 #include <cmath>
 #include <future>
@@ -728,6 +729,54 @@ static void check_line_spacing () {
   }
 }
 
+static void record_bitmap_text (QPicture& recording) {
+  font_domain owner;
+  font_domain_binding binding (owner);
+  const std::string source= "\xf0\x9f\x98\x80";
+  font_request request {"Noto Color Emoji"};
+  request.horizontal_dpi= request.vertical_dpi= 600;
+  font_paragraph paragraph (source, request);
+  const auto line= paragraph.line (0, source.size ());
+  require (line.runs.size () == 1, "Emoji did not select a single font run");
+  const auto& run= line.runs[0].text;
+  require (run.bitmaps.size () == 1 && run.has_ink && !run.missing_glyphs,
+           "Fixed-strike color glyph was lost");
+  require (run.carets.size () == 2 && run.carets.back ().byte == source.size (),
+           "Bitmap font changed UTF-8 grapheme carets");
+  const auto& bitmap= run.bitmaps[0];
+  require (bitmap.intrinsic_color && !is_nil (bitmap.pixels), "Emoji lost its color bitmap");
+  const auto expanded= paragraph.line (0, source.size (), {}, 1.5);
+  require (expanded.runs[0].text.bitmaps[0].width > bitmap.width &&
+           expanded.runs[0].text.bitmaps[0].height == bitmap.height,
+           "Bitmap glyph lost anisotropic text scaling");
+  QPainter painter (&recording);
+  qt_renderer_rep renderer (&painter, 1.0, 160, 80);
+  renderer.set_zoom_factor (1.0);
+  renderer.set_clipping (0, -80*std_shrinkf*PIXEL, 160*std_shrinkf*PIXEL, 0);
+  renderer.set_pencil (pencil (black));
+  line.draw_fixed (&renderer, source, 20*std_shrinkf*PIXEL, -50*std_shrinkf*PIXEL);
+  painter.end ();
+}
+
+static void check_bitmap_text () {
+  QPicture recording;
+  record_bitmap_text (recording);
+  // Recorded pixels must survive destruction of the shaping domain and face.
+  QImage image (160, 80, QImage::Format_ARGB32);
+  image.fill (Qt::white);
+  QPainter painter (&image);
+  painter.drawPicture (0, 0, recording);
+  painter.end ();
+  int colored= 0;
+  for (int y=0; y<image.height (); ++y)
+    for (int x=0; x<image.width (); ++x) {
+      const auto pixel= image.pixel (x, y);
+      colored+= std::max ({qRed (pixel), qGreen (pixel), qBlue (pixel)}) -
+                 std::min ({qRed (pixel), qGreen (pixel), qBlue (pixel)}) > 40;
+    }
+  require (colored > 40, "Color glyph produced no colored pixels");
+}
+
 static void check_text () {
   font_domain owner;
   font_domain_binding binding (owner);
@@ -740,6 +789,7 @@ static void check_text () {
   check_font_styles (fn);
   check_line_boxes (fn);
   check_line_spacing ();
+  check_bitmap_text ();
   auto literal= shape (fn, "a<alpha>b");
   require (literal.glyphs.size () == 9 && !literal.missing_glyphs,
            "Literal angle-bracket text was interpreted as Cork");

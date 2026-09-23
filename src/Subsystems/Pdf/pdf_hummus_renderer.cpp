@@ -74,6 +74,7 @@ class pdf_pattern;
 class pdf_hummus_renderer_rep : public renderer_rep {
   EPDFVersion ePDFVersion= ePDFVersion14;
   bool shaped_actual_text= false;
+  ObjectIDType bitmap_text_font= 0;
   
   static const int default_dpi= 72; // PDF initial coordinate system corresponds to 72 dpi
   bool		started;  // initialisation is OK
@@ -254,6 +255,8 @@ public:
   void  polygon (array<SI> x, array<SI> y, bool convex=true);
   
   void draw_picture (picture p, SI x, SI y, int alpha);
+  url picture_file (picture p);
+  void draw_picture_scaled (picture p, SI x, SI y, SI w, SI h, int alpha) override;
   void draw_scalable (scalable im, SI x, SI y, int alpha);
   renderer shadow (picture& pic, SI x1, SI y1, SI x2, SI y2);
   void fetch (SI x1, SI y1, SI x2, SI y2, renderer ren, SI x, SI y);
@@ -1182,6 +1185,23 @@ t3font_rep::write_definition (int& registry_id) {
 void
 pdf_hummus_renderer_rep::flush_fonts()
 {
+  if (bitmap_text_font) {
+    auto& objects= pdfWriter.GetObjectsContext ();
+    const auto glyph_id= objects.GetInDirectObjectsRegistry ().AllocateNewObjectID ();
+    objects.StartNewIndirectObject (glyph_id);
+    PDFStream* stream= objects.StartPDFStream ();
+    const std::string metrics= "1000 0 0 0 1000 1000 d1\n";
+    stream->GetWriteStream ()->Write (
+      reinterpret_cast<const unsigned char*> (metrics.data ()), metrics.size ());
+    objects.EndPDFStream (stream);
+    delete stream;
+    string dictionary= "<< /Type /Font /Subtype /Type3 "
+      "/FontBBox [0 0 1000 1000] /FontMatrix [0.001 0 0 0.001 0 0] "
+      "/FirstChar 0 /LastChar 0 /Widths [1000] /Resources << >> "
+      "/Encoding << /Type /Encoding /Differences [0 /space] >> "
+      "/CharProcs << /space " * as_string (glyph_id) * " 0 R >> >>";
+    write_indirect_obj (objects, bitmap_text_font, dictionary);
+  }
   // flush t3 fonts
   iterator<string> it = iterate(t3font_list);
   while (it->busy()) {
@@ -1458,7 +1478,32 @@ pdf_hummus_renderer_rep::draw_utf8 (
   shaped_actual_text= true;
   contentContext->WriteFreeCode (begin);
   try {
-    for (const auto& glyph: run.glyphs) {
+    if (!run.bitmaps.empty ()) {
+      // Image painting alone supplies no text geometry to PDF readers. An
+      // empty Type 3 glyph carries the exact run rectangle and ActualText;
+      // the color images below remain the only visible rendering.
+      if (!bitmap_text_font)
+        bitmap_text_font= pdfWriter.GetObjectsContext ().GetInDirectObjectsRegistry ()
+          .AllocateNewObjectID ();
+      const auto font= page->GetResourcesDictionary ().AddFontMapping (bitmap_text_font);
+      const double width= std::max (1.0, std::abs (static_cast<double> (run.advance_x))) / pixel;
+      const double height= std::max (1.0,
+        static_cast<double> (run.ink_y2) - run.ink_y1) / pixel;
+      contentContext->q ();
+      contentContext->BT ();
+      contentContext->TfLow (font, 1);
+      contentContext->Tm (width, 0, 0, height, to_x (x), to_y (y) +
+                          static_cast<double> (run.ink_y1) / pixel);
+      contentContext->TjLow (std::string (1, '\0'));
+      contentContext->ET ();
+      contentContext->Q ();
+    }
+    for (std::size_t i=0; i<run.glyphs.size (); ++i) {
+      const auto& glyph= run.glyphs[i];
+      if (!run.bitmaps.empty ()) {
+        run.bitmaps.at (i).draw (this, x + glyph.x, y + glyph.y);
+        continue;
+      }
       const auto at= std::lower_bound (starts.begin (), starts.end (),
                                        glyph.byte - run.byte_begin);
       const ULongVector& mapping= mappings[at - starts.begin ()];
@@ -2021,10 +2066,8 @@ pdf_raster_picture (picture pic) {
 }
 #endif
 
-void
-pdf_hummus_renderer_rep::draw_picture (picture p, SI x, SI y, int alpha) {
-  // debug_convert << "pdf renderer, draw_picture " << x << ", " << y
-  //		<< " (" << alpha << ")" << LF;
+url
+pdf_hummus_renderer_rep::picture_file (picture p) {
   url temp;
   unsigned long long int key= p->get_unique_id ();
   if (picture_cache->contains (key)) temp= picture_cache[key];
@@ -2042,6 +2085,18 @@ pdf_hummus_renderer_rep::draw_picture (picture p, SI x, SI y, int alpha) {
 #endif
     picture_cache (key)= temp;
   }
+  return temp;
+}
+
+void
+pdf_hummus_renderer_rep::draw_picture_scaled (picture p, SI x, SI y, SI w, SI h, int alpha) {
+  if (is_nil (p) || w <= 0 || h <= 0) return;
+  image (picture_file (p), double (w) / pixel, double (h) / pixel, x, y, alpha);
+}
+
+void
+pdf_hummus_renderer_rep::draw_picture (picture p, SI x, SI y, int alpha) {
+  url temp= picture_file (p);
   int _pixel= (int) (PIXEL / PICTURE_ZOOM);
   int w= p->get_width (), h= p->get_height ();
   int ox= p->get_origin_x (), oy= p->get_origin_y ();

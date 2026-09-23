@@ -52,6 +52,13 @@ struct text_caret {
   SI x;
 };
 
+struct bitmap_text_glyph {
+  picture pixels;
+  SI left= 0, bottom= 0, width= 0, height= 0;
+  bool intrinsic_color= false;
+  void draw (renderer ren, SI x, SI y) const;
+};
+
 // Like other font/box resources, a run is confined to its font domain and must
 // be consumed before that domain dies. Renderer recording owns emitted pixels.
 struct shaped_text {
@@ -60,6 +67,9 @@ struct shaped_text {
   // constructing it requires the item endpoints to be grapheme boundaries.
   std::vector<text_caret> carets;
   font_glyphs glyph_source;
+  // Fixed-strike fonts have pixels instead of outline glyph resources.
+  // When present this vector has the same order and size as glyphs.
+  std::vector<bitmap_text_glyph> bitmaps;
   std::size_t byte_begin= 0, byte_end= 0;
   run_direction direction= run_direction::left_to_right;
   SI advance_x= 0, advance_y= 0;

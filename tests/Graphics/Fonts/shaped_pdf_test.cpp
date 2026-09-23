@@ -32,6 +32,7 @@
 #include <QTemporaryDir>
 #include <QXmlStreamReader>
 #include <cmath>
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <filesystem>
@@ -280,6 +281,43 @@ static void check_inline_links (const QString& filename) {
   require (internal == 1 && external == 1, "Missing or duplicated shaped PDF links");
 }
 
+static void check_color_bitmap_export (const QString& filename) {
+  using namespace athena::text;
+  font_domain owner;
+  font_domain_binding binding (owner);
+  const std::string source= "\xf0\x9f\x98\x80";
+  font_request request {"Noto Color Emoji"};
+  request.horizontal_dpi= request.vertical_dpi= 600;
+  font_paragraph paragraph (source, request);
+  const auto line= paragraph.line (0, source.size ());
+  require (!line.runs.empty () && !line.runs[0].text.bitmaps.empty (),
+           "PDF emoji must exercise fixed color strikes");
+  renderer pdf= printer (url_system (string (filename.toUtf8 ().constData ())),
+                         600, 1, "a4", false, 21.0, 29.7);
+  require (pdf->is_started (), "Cannot open bitmap PDF");
+  try {
+    pdf->set_pencil (pencil (black));
+    line.draw_fixed (pdf, source, 400*PIXEL, -600*PIXEL);
+  }
+  catch (...) { tm_delete (pdf); throw; }
+  tm_delete (pdf);
+  execute ("qpdf", {"--check", filename});
+  const auto text= execute ("pdftotext", {"-raw", "-nopgbrk", "-enc", "UTF-8", filename, "-"});
+  require (text.trimmed () == QByteArray::fromStdString (source),
+           "Color bitmap PDF lost its original text");
+  execute ("pdftoppm", {"-png", "-singlefile", "-r", "96", filename, filename});
+  QImage image (filename + ".png");
+  require (!image.isNull (), "Could not rasterize color bitmap PDF");
+  int colored= 0;
+  for (int y=70; y<110; ++y)
+    for (int x=50; x<100; ++x) {
+      const auto pixel= image.pixel (x, y);
+      colored+= std::max ({qRed (pixel), qGreen (pixel), qBlue (pixel)}) -
+                 std::min ({qRed (pixel), qGreen (pixel), qBlue (pixel)}) > 40;
+    }
+  require (colored > 40, "PDF color glyph is blank, misplaced or monochrome");
+}
+
 static void render_document (const QString &path) {
   font_domain owner;
   font_domain_binding binding (owner);
@@ -371,6 +409,7 @@ static void run_tests (int, char **) {
     check_postscript_import (output);
     check_collection_export (output.filePath ("collection.pdf"));
     check_inline_links (output.filePath ("linked.pdf"));
+    check_color_bitmap_export (output.filePath ("color-bitmap.pdf"));
     {
       const QString stem= "shaped";
       const QString pdf= output.filePath (stem + ".pdf");

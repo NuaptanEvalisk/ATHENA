@@ -56,7 +56,7 @@ description_ptr describe (const font_request& request, int reference_dpi= 0) {
   return desc;
 }
 
-font_file_source physical_font (PangoFont* font) {
+font_file_source physical_font (PangoFont* font, double requested_pixels) {
   if (!font || !PANGO_IS_FC_FONT (font))
     throw std::runtime_error ("Pango did not select a physical font");
   const auto pattern= pango_fc_font_get_pattern (PANGO_FC_FONT (font));
@@ -69,10 +69,32 @@ font_file_source physical_font (PangoFont* font) {
   FcMatrix* matrix= nullptr;
   FcPatternGetBool (pattern, FC_EMBOLDEN, 0, &embolden);
   FcPatternGetMatrix (pattern, FC_MATRIX, 0, &matrix);
-  if (embolden || (matrix && (matrix->xx != 1 || matrix->yy != 1 ||
-                             matrix->xy != 0 || matrix->yx != 0)))
-    throw std::runtime_error ("Synthetic font transforms require raster integration");
   font_file_source result {reinterpret_cast<const char*> (file), index};
+  if (embolden)
+    throw std::runtime_error ("Synthetic emboldening requires raster integration");
+  if (matrix && (matrix->xx != 1 || matrix->yy != 1 || matrix->xy != 0 || matrix->yx != 0)) {
+    // Pango normalizes a fixed bitmap strike to the requested pixel size using
+    // FC_MATRIX. Native bitmap layout performs that normalization itself;
+    // this is not a synthetic outline slant/stretch and must not be applied twice.
+    const auto selected= load_tt_face (result);
+    double pixels= 0;
+    bool strike_scale= false;
+    if (!selected->bad_face && !FT_IS_SCALABLE (selected->ft_face) &&
+        matrix->xy == 0 && matrix->yx == 0 && matrix->xx > 0 &&
+        std::abs (matrix->xx - matrix->yy) < 1e-9 &&
+        FcPatternGetDouble (pattern, FC_PIXEL_SIZE, 0, &pixels) == FcResultMatch) {
+      for (int i=0; i<selected->ft_face->num_fixed_sizes; ++i) {
+        const double ppem= selected->ft_face->available_sizes[i].y_ppem / 64.0;
+        // The font map quantizes device sizes to Pango units, independently
+        // of the point-size rounding in the description.
+        if (ppem > 0 && std::abs (pixels - ppem) < 1e-6 &&
+            std::abs (matrix->yy * ppem - requested_pixels) <= 1.0 / PANGO_SCALE)
+          strike_scale= true;
+      }
+    }
+    if (!strike_scale)
+      throw std::runtime_error ("Synthetic font transforms require raster integration");
+  }
   unsigned int count= 0;
   const auto hb= pango_font_get_hb_font (font);
   if (!hb) throw std::runtime_error ("Selected font has no shaping face");
@@ -194,11 +216,16 @@ std::vector<selected_font_run> font_catalog::select (
     return std::lower_bound (styles.begin (), styles.end (), byte,
       [] (const font_style_span& span, std::size_t at) { return span.end <= at; });
   };
-  const auto append= [&] (std::size_t begin, std::size_t end, const font_file_source& font) {
+  const auto append= [&] (std::size_t begin, std::size_t end, PangoFont* selected) {
     while (begin < end) {
       const auto span= locate_style (begin);
       const bool inside= span != styles.end () && span->begin <= begin;
       const auto& active= inside ? span->request : request;
+      const auto index= inside ? static_cast<std::size_t> (span - styles.begin ()) + 1 : 0;
+      const double pixels= static_cast<double> (
+        pango_font_description_get_size (descriptions[index].get ())) *
+        request.vertical_dpi / (PANGO_SCALE * 72.0);
+      const auto font= physical_font (selected, pixels);
       const auto next= span == styles.end () ? end : std::min (end, inside ? span->end : span->begin);
       // Identical adjacent declarations must not break joining or ligatures.
       // Keep explicit NUL control runs separate from neighboring text.
@@ -227,7 +254,7 @@ std::vector<selected_font_run> font_catalog::select (
         static_cast<std::size_t> (span - styles.begin ()) + 1 : 0;
       object_ptr<PangoFont> font (pango_context_load_font (context.get (), descriptions[index].get ()),
                                  g_object_unref);
-      append (start, start + 1, physical_font (font.get ()));
+      append (start, start + 1, font.get ());
       ++start;
       continue;
     }
@@ -245,7 +272,7 @@ std::vector<selected_font_run> font_catalog::select (
       const auto next= covered + item->length;
       if (!scalar_boundary (source, covered) || !scalar_boundary (source, next))
         throw std::runtime_error ("Font item splits a UTF-8 scalar");
-      append (covered, next, physical_font (item->analysis.font));
+      append (covered, next, item->analysis.font);
       covered= next;
     }
     if (covered != end) throw std::runtime_error ("Font selection omitted source bytes");
