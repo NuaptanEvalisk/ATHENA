@@ -10,6 +10,7 @@
 #include "concater.hpp"
 #include "Boxes/utf8_line.hpp"
 #include "named_symbol.hpp"
+#include "math_font.hpp"
 #include <stdexcept>
 
 void concater_rep::typeset_named_symbol (tree t, path ip) {
@@ -22,6 +23,9 @@ void concater_rep::typeset_named_symbol (tree t, path ip) {
     throw std::runtime_error ("Symbol font has no physical Unicode source");
   auto request= athena::text::font_request_with_italic (
     athena::text::font_request_from_source (physical), symbol && symbol->italic);
+  if (symbol && env->read (MODE) == "math")
+    request= athena::text::math_font_request (env->fn, symbol->italic ?
+      athena::text::math_alphabet::italic : athena::text::math_alphabet::normal);
   // Missing definitions are visible errors, not guessed Unicode substitutes.
   // The complete identity is still in the source node and survives saving.
   auto paragraph= std::make_shared<athena::text::font_paragraph> (

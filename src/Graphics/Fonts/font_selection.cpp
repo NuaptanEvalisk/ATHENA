@@ -16,6 +16,7 @@
 #include <pango/pangoft2.h>
 #include <pango/pangofc-font.h>
 #include <pango/pangofc-fontmap.h>
+#include <unicode/utf8.h>
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -191,6 +192,59 @@ std::vector<selected_font_run> font_catalog::select (
   }
   std::vector<selected_font_run> result;
   if (source.empty ()) return result;
+  if (request.math_variant != math_alphabet::normal ||
+      std::any_of (styles.begin (), styles.end (), [] (const font_style_span& span) {
+        return span.request.math_variant != math_alphabet::normal;
+      })) {
+    // Itemize the glyph-selection projection, not the plain source letters:
+    // fallback must cover the actual mathematical alphabet. Map all results
+    // back to original bytes before publishing any font run or caret geometry.
+    std::string rendered;
+    std::vector<std::size_t> originals {0}, projected {0};
+    std::size_t style= 0;
+    for (int32_t at= 0; at<static_cast<int32_t> (source.size ());) {
+      while (style < styles.size () && styles[style].end <= static_cast<std::size_t> (at)) ++style;
+      const auto& active= style < styles.size () && styles[style].begin <= static_cast<std::size_t> (at) ?
+        styles[style].request : request;
+      UChar32 c;
+      U8_NEXT (source.data (), at, static_cast<int32_t> (source.size ()), c);
+      const auto glyph= math_variant_character (c, active.math_variant);
+      char encoded[4];
+      int32_t length= 0;
+      U8_APPEND_UNSAFE (encoded, length, glyph);
+      rendered.append (encoded, length);
+      originals.push_back (at);
+      projected.push_back (rendered.size ());
+    }
+    const auto translate= [] (std::size_t position, const auto& from, const auto& to) {
+      const auto found= std::lower_bound (from.begin (), from.end (), position);
+      if (found == from.end () || *found != position)
+        throw std::logic_error ("Math font projection splits a Unicode scalar");
+      return to[found - from.begin ()];
+    };
+    auto plain= request;
+    plain.math_variant= math_alphabet::normal;
+    auto projected_styles= styles;
+    for (auto& span: projected_styles) {
+      span.begin= translate (span.begin, originals, projected);
+      span.end= translate (span.end, originals, projected);
+      span.request.math_variant= math_alphabet::normal;
+    }
+    for (auto run: select (rendered, plain, base_level, projected_styles)) {
+      run.begin= translate (run.begin, projected, originals);
+      const auto end= translate (run.end, projected, originals);
+      while (run.begin < end) {
+        const auto span= std::lower_bound (styles.begin (), styles.end (), run.begin,
+          [] (const font_style_span& s, std::size_t at) { return s.end <= at; });
+        const bool inside= span != styles.end () && span->begin <= run.begin;
+        run.end= span == styles.end () ? end : std::min (end, inside ? span->end : span->begin);
+        run.math_variant= inside ? span->request.math_variant : request.math_variant;
+        result.push_back (run);
+        run.begin= run.end;
+      }
+    }
+    return result;
+  }
   std::vector<description_ptr> descriptions;
   descriptions.push_back (describe (request));
   pango_ft2_font_map_set_resolution (PANGO_FT2_FONT_MAP (state_->map.get ()),
@@ -235,10 +289,11 @@ std::vector<selected_font_run> font_catalog::select (
           result.back ().font.design_coords == font.design_coords &&
           result.back ().point_size == active.point_size && result.back ().language == active.language &&
           result.back ().horizontal_dpi == active.horizontal_dpi &&
-          result.back ().vertical_dpi == active.vertical_dpi)
+          result.back ().vertical_dpi == active.vertical_dpi &&
+          result.back ().math_variant == active.math_variant)
         result.back ().end= next;
       else result.push_back ({begin, next, font, active.point_size, active.language,
-                             active.horizontal_dpi, active.vertical_dpi});
+                             active.horizontal_dpi, active.vertical_dpi, active.math_variant});
       begin= next;
     }
   };
@@ -352,6 +407,7 @@ shaped_line font_paragraph::line (std::size_t begin, std::size_t end,
       if (font == fonts_.end () || font->begin > item.run.begin || font->end < item.run.end)
         throw std::logic_error ("Shaping item crosses selected font boundary");
       auto selected= o;
+      selected.math_variant= font->math_variant;
       if (selected.language.empty () || selected.language == "und") selected.language= font->language;
       const double scaled= std::round (font->horizontal_dpi * horizontal_scale);
       if (!std::isfinite (scaled) || scaled < 1 || scaled > std::numeric_limits<int>::max ())

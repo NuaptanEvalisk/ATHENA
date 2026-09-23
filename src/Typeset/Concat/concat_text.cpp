@@ -18,6 +18,10 @@
 #include "new_document.hpp"
 #include "Boxes/utf8_line.hpp"
 #include "utf8_edit.hpp"
+#include "math_font.hpp"
+#include <unicode/uchar.h>
+#include <unicode/utf8.h>
+#include <map>
 #include <stdexcept>
 
 #include <algorithm>
@@ -29,9 +33,16 @@ static box
 make_text_box (edit_env env, path ip, int pos, string s, pencil pen,
                std::shared_ptr<athena::text::font_paragraph> paragraph= {}) {
   tree bg= env->read ("text-background-color");
-  if (paragraph)
+  if (paragraph) {
+    athena::text::shaping_options options;
+    if (env->mode == 2) {
+      options.ligatures= false;
+      options.context_begin= pos;
+      options.context_end= pos + N(s);
+    }
     return utf8_line_box (ip, std::move (paragraph), pos, pos + N(s), env->fn,
-                          pen, {}, bg == "" ? brush (false) : brush (bg, env->alpha));
+                          pen, options, bg == "" ? brush (false) : brush (bg, env->alpha));
+  }
   if (bg == "" || N(s) == 0)
     return text_box (ip, pos, s, env->fn, pen);
   return text_box (ip, pos, s, env->fn, pen, brush (bg, env->alpha));
@@ -69,8 +80,8 @@ concater_rep::typeset_radioactive_substring (
 
 void
 concater_rep::typeset_math_substring (string s, path ip, int pos, int otype) {
-  box b= make_text_box (env, ip, pos, s, env->pen);
-  a << line_item (STRING_ITEM, otype, b, HYPH_INVALID, env->lan);
+  box b= make_text_box (env, ip, pos, s, env->pen, text_paragraph);
+  a << line_item (STD_ITEM, otype, b, HYPH_INVALID, env->lan);
 }
 
 void
@@ -141,6 +152,39 @@ public:
     slot= std::make_shared<athena::text::font_paragraph> (
       std::string (s.data (), N(s)),
       athena::text::font_request_from_source (physical));
+  }
+  scoped_text_paragraph (
+    std::shared_ptr<athena::text::font_paragraph>& current, font fn, tree t, language lan):
+    slot (current), previous (current) {
+    using namespace athena::text;
+    const string s= t->label;
+    const std::string source (s.data (), N(s));
+    require_utf8 (source);
+    grapheme_cursor graphemes (source);
+    std::map<math_alphabet, font_request> requests;
+    const auto request= [&] (math_alphabet alphabet) -> const font_request& {
+      auto found= requests.find (alphabet);
+      if (found == requests.end ())
+        found= requests.emplace (alphabet, math_font_request (fn, alphabet)).first;
+      return found->second;
+    };
+    std::vector<font_style_span> styles;
+    for (int at= 0; at<N(s);) {
+      const int first= at;
+      (void) lan->advance (t, at);
+      if (at <= first || at > N(s))
+        throw std::logic_error ("Math lexer returned an invalid UTF-8 range");
+      int32_t next= first;
+      UChar32 character;
+      U8_NEXT (source.data (), next, at, character);
+      const bool variable= u_isalpha (character) && graphemes.next (first) == static_cast<std::size_t> (at);
+      const auto explicit_alphabet= math_character_alphabet (character);
+      const auto alphabet= explicit_alphabet == math_alphabet::normal ?
+        default_math_alphabet (fn, variable) : explicit_alphabet;
+      styles.push_back ({static_cast<std::size_t> (first), static_cast<std::size_t> (at), request (alphabet)});
+    }
+    slot= std::make_shared<font_paragraph> (
+      source, request (default_math_alphabet (fn, false)), styles);
   }
   ~scoped_text_paragraph () { slot= std::move (previous); }
 };
@@ -267,6 +311,7 @@ concater_rep::typeset_math_string (tree t, path ip, int pos, int end) {
     get_spacing (env->fn, env->spacing_policy, env->math_condensed,
                  env->display_style && env->nesting_level == 0);
   string s= t->label;
+  scoped_text_paragraph paragraph (text_paragraph, env->fn, t, env->lan);
   int    start;
 
   do {
@@ -298,7 +343,9 @@ concater_rep::typeset_math_string (tree t, path ip, int pos, int end) {
       if (spc_ok) { PRINT_SPACE (tp->spc_before); }
       if (pos > start && s[start] == '*' && env->info_level >= INFO_SHORT) {
         color c = rgb_color (160, 160, 255);
-        box   tb= text_box (decorate (ip), 0, "<cdot>", env->fn, c);
+        auto dot= std::make_shared<athena::text::font_paragraph> (
+          "\xc2\xb7", athena::text::math_font_request (env->fn, athena::text::math_alphabet::normal));
+        box   tb= utf8_line_box (decorate (ip), std::move (dot), 0, 2, env->fn, c);
         box   sb= specific_box (decorate (ip), tb, "screen", env->fn);
         box   mb= move_box (decorate (ip), sb, -tb->w()>>1, 0);
         box   rb= resize_box (decorate (ip), mb, 0, tb->y1, 0, tb->y2);

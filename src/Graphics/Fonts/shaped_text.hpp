@@ -11,6 +11,7 @@
 
 #include "renderer.hpp"
 #include "font_source.hpp"
+#include "math_alphabet.hpp"
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -27,6 +28,7 @@ struct shaping_options {
   std::string script;
   std::string language= "und";
   bool ligatures= true;
+  math_alphabet math_variant= math_alphabet::normal;
   std::size_t max_glyphs= 1000000;
   bool editing_carets= false;
   // Paragraph itemization can split a grapheme across scripts/directions.

@@ -282,6 +282,12 @@ static shaped_text shape_freetype_run (
                      static_cast<unsigned int> (begin - context_begin),
                      static_cast<int> (end - begin));
   hb_buffer_guess_segment_properties (buffer.get ());
+  if (options.math_variant != math_alphabet::normal) {
+    unsigned int length= 0;
+    auto* characters= hb_buffer_get_glyph_infos (buffer.get (), &length);
+    for (unsigned int i=0; i<length; ++i)
+      characters[i].codepoint= math_variant_character (characters[i].codepoint, options.math_variant);
+  }
   const hb_feature_t features[]= {
     {HB_TAG ('l','i','g','a'), 0, HB_FEATURE_GLOBAL_START, HB_FEATURE_GLOBAL_END},
     {HB_TAG ('c','l','i','g'), 0, HB_FEATURE_GLOBAL_START, HB_FEATURE_GLOBAL_END}};

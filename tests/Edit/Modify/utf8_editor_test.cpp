@@ -37,6 +37,7 @@
 #include "Xml/clipboard_xml.hpp"
 #include "packrat_parser.hpp"
 #include "math_token.hpp"
+#include "math_font.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }
@@ -364,6 +365,64 @@ private slots:
       Qt::ControlModifier | Qt::ShiftModifier, 0, 0x1234, 0, "\x01");
     QCOMPARE (QTMKeyboardEvent (keyboard, shifted).texmacsKeyCombination (), "C-" * composed);
   }
+  void mathTypesetting () {
+    using namespace athena::text;
+    drd_info drd ("utf8-math-typesetting", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "cal=TeX Gyre Termes,frak=TeX Gyre Pagella,bbb=TeX Gyre Bonum,TeX Gyre Pagella");
+    env->write (MODE, "math");
+    env->update ();
+    for (auto test: {std::pair<string, math_alphabet> {"h", math_alphabet::italic},
+          {"\xce\xb1", math_alphabet::italic}, {"e\xcc\x81", math_alphabet::italic},
+          {"12", math_alphabet::normal}, {"xyz", math_alphabet::normal},
+          {"\xe2\x84\xb0", math_alphabet::script},
+          {"\xe2\x84\x9d", math_alphabet::double_struck}}) {
+      auto items= typeset_concat (env, tree (test.first), path (0));
+      QCOMPARE (N(items), 1);
+      auto b= items[0]->b;
+      QVERIFY (is_utf8_line_box (b));
+      QCOMPARE (b->get_leaf_string (), test.first);
+      QCOMPARE (b->get_leaf_left_pos (), 0);
+      QCOMPARE (b->get_leaf_right_pos (), N(test.first));
+      auto request= math_font_request (env->fn, test.second);
+      auto expected= std::make_shared<font_paragraph> (
+        std::string (test.first.data (), N(test.first)), request);
+      shaping_options options;
+      options.ligatures= false;
+      const auto line= expected->line (0, N(test.first), options);
+      QVERIFY (!line.missing_glyphs);
+      QCOMPARE (b->w (), line.advance);
+      auto cursor= b->find_cursor (path (N(test.first)));
+      QCOMPARE (cursor->ox, line.advance);
+      QVERIFY (b->find_tree_path (path (N(test.first))) == path (0, N(test.first)));
+      if (test.second == math_alphabet::script)
+        QVERIFY (request.description_utf8.find ("Termes") != std::string::npos);
+      if (test.second == math_alphabet::double_struck)
+        QVERIFY (request.description_utf8.find ("Bonum") != std::string::npos);
+    }
+    auto expression= typeset_concat (env, tree ("\xce\xb1=1"), path (0));
+    QCOMPARE (N(expression), 3);
+    QCOMPARE (expression[0]->b->get_leaf_right_pos (), 2);
+    QCOMPARE (expression[1]->b->get_leaf_left_pos (), 2);
+    QCOMPARE (expression[1]->op_type, OP_INFIX);
+    QVERIFY (expression[0]->spc->def > 0);
+    QVERIFY (expression[1]->spc->def > 0);
+    auto literal= typeset_concat (env, tree ("<alpha>"), path (0));
+    string retained;
+    for (int i=0; i<N(literal); ++i) retained << literal[i]->b->get_leaf_string ();
+    QCOMPARE (retained, string ("<alpha>"));
+    env->write (MATH_FONT, "cal");
+    env->update ();
+    auto calligraphic= typeset_concat (env, tree ("E"), path (0));
+    auto req= math_font_request (env->fn, math_alphabet::script);
+    font_paragraph reference ("E", req);
+    QCOMPARE (calligraphic[0]->b->w (), reference.line (0, 1).advance);
+    QCOMPARE (calligraphic[0]->b->get_leaf_string (), string ("E"));
+  }
+
   void unicodeMathLanguage () {
     const string alpha= "\316\261";
     const tree backassign (NAMED_SYMBOL, "texmacs:backassign");

@@ -96,9 +96,24 @@ and group enumeration returns native trees. The math lexer retains its ASCII
 word/decimal conventions but uses ICU grapheme boundaries and never scans
 angle-bracket tokens. Named-symbol layout uses ordinary operator spacing,
 penalties and limits; definitions outside the grammar can still supply their
-declared class through the symbol registry. Mathematical font dispatch, complete
-rendering recipes, keyboard/style resources and remaining math-edit helpers
+declared class through the symbol registry. Extensible mathematical font dispatch,
+complete rendering recipes, keyboard/style resources and remaining math-edit helpers
 still need migration; this does not complete mathematical Unicode support.
+
+Ordinary mathematical source atoms now use native Unicode paragraph selection
+and shaping rather than Cork text boxes. Font-profile script, Fraktur and
+blackboard roles select physical companion math fonts; single-letter variables,
+upright words/numbers, explicit Unicode alphabets and calligraphic scopes retain
+their distinct typography. ICU UCD font decompositions and character names supply
+mathematical alphabet glyph mappings, including reserved Letterlike Symbols
+holes. This is a rendering projection, not normalization of user text. Pango
+itemizes the projected characters so fallback and HarfBuzz see the same glyph
+repertoire; selected runs, carets, source paths and PDF ActualText retain original
+UTF-8 bytes. Mathematical lexical items disable discretionary ligatures and
+cross-token text reassembly so the existing operator spacing and penalties remain
+authoritative. Named-symbol math recipes use this font selection path too.
+Extensible delimiters/operators, vertical MATH metrics, height-dependent script
+kerning and remaining legacy formula helpers still need conversion.
 
 Native document constructors no longer add a TeXmacs compatibility version.
 Until XML activation, only the legacy document serializers add their required

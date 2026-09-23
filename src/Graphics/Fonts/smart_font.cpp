@@ -18,6 +18,8 @@
 #include "translator.hpp"
 #include "iterator.hpp"
 #include "unicode_ranges.hpp"
+#include "math_font.hpp"
+#include <stdexcept>
 
 #include <cstdlib>
 
@@ -2087,6 +2089,54 @@ smart_font (string family, string variant, string series, string shape,
   }
   if (shape == "right") tsh= "mathupright";
   return smart_font (tfam, tvar, tser, tsh, sz, dpi);
+}
+
+namespace athena::text {
+math_alphabet default_math_alphabet (font source, bool variable) {
+  const auto* smart= dynamic_cast<const smart_font_rep*> (source.rep);
+  const bool bold= smart && smart->series == "bold";
+  if (smart && smart->shape == "mathcal")
+    return bold ? math_alphabet::bold_script : math_alphabet::script;
+  const bool italic= variable && (!smart || smart->shape != "mathupright");
+  if (bold) return italic ? math_alphabet::bold_italic : math_alphabet::bold;
+  return italic ? math_alphabet::italic : math_alphabet::normal;
+}
+
+font_request math_font_request (font source, math_alphabet alphabet) {
+  physical_font_source physical;
+  if (!source->physical_source (physical))
+    throw std::runtime_error ("Math font has no physical Unicode source");
+  if (const auto* smart= dynamic_cast<const smart_font_rep*> (source.rep)) {
+    string role= smart->variant;
+    string weight= "medium";
+    switch (alphabet) {
+    case math_alphabet::bold_script: weight= "bold"; [[fallthrough]];
+    case math_alphabet::script: role= "cal"; break;
+    case math_alphabet::bold_fraktur: weight= "bold"; [[fallthrough]];
+    case math_alphabet::fraktur: role= "frak"; break;
+    case math_alphabet::double_struck: role= "bbb"; break;
+    case math_alphabet::bold: case math_alphabet::bold_italic:
+    case math_alphabet::bold_sans: case math_alphabet::bold_italic_sans:
+      weight= "bold"; break;
+    default: break;
+    }
+    string family= profile_face_family (smart->family, role, weight, "right");
+    string companion= dedicated_math_family (family);
+    if (companion != "") family= companion;
+    // Weight/slant are encoded by the mathematical alphabet, not synthetic
+    // transformations of a math font's upright physical face.
+    font selected= closest_font (family, "rm", "medium", "right",
+                                 physical.point_size, physical.vertical_dpi);
+    physical_font_source selected_source;
+    if (!is_nil (selected) && selected->physical_source (selected_source)) {
+      selected_source.horizontal_dpi= physical.horizontal_dpi;
+      physical= std::move (selected_source);
+    }
+  }
+  auto result= font_request_from_source (physical);
+  result.math_variant= alphabet;
+  return result;
+}
 }
 
 static string

@@ -13,6 +13,7 @@
 #include "unicode_text.hpp"
 #include "shaped_line.hpp"
 #include "font_selection.hpp"
+#include "math_font.hpp"
 #include "Boxes/construct.hpp"
 #include "Boxes/utf8_line.hpp"
 #include "Freetype/tt_face.hpp"
@@ -778,6 +779,65 @@ static void check_bitmap_text () {
   require (colored > 40, "Color glyph produced no colored pixels");
 }
 
+static void check_math_alphabets () {
+  using alphabet= math_alphabet;
+  require (math_variant_character (U'h', alphabet::italic) == 0x210e &&
+           math_variant_character (U'E', alphabet::script) == 0x2130 &&
+           math_variant_character (U'H', alphabet::fraktur) == 0x210c &&
+           math_variant_character (U'I', alphabet::fraktur) == 0x2111 &&
+           math_variant_character (U'R', alphabet::double_struck) == 0x211d &&
+           math_variant_character (U'7', alphabet::double_struck) == 0x1d7df &&
+           math_variant_character (0x03b1, alphabet::italic) == 0x1d6fc &&
+           math_variant_character (U'A', alphabet::bold_italic) == 0x1d468,
+           "UCD math variants lost alphabet holes, Greek, digits or font roles");
+  require (math_variant_character (0x1d434, alphabet::bold) == 0x1d434 &&
+           math_variant_character (0x301, alphabet::italic) == 0x301 &&
+           math_variant_character (0x4e2d, alphabet::italic) == 0x4e2d,
+           "Math font style changed explicit alphabet, combining mark or unmapped script");
+  require (math_character_alphabet (0x2130) == alphabet::script &&
+           math_character_alphabet (0x210c) == alphabet::fraktur &&
+           math_character_alphabet (0x2145) == alphabet::normal,
+           "Math alphabet classification guessed an unsupported variant");
+
+  const std::string root= std::getenv ("ATHENA_PATH");
+  const std::string regular= root + "/fonts/truetype/texgyre/texgyrepagella-regular.otf";
+  const std::string math= root + "/fonts/truetype/texgyre/texgyrepagella-math.otf";
+  font_catalog catalog (false, {regular, math});
+  font_request base {"TeX Gyre Pagella,TeX Gyre Pagella Math"};
+  auto italic= base;
+  italic.math_variant= alphabet::italic;
+  const std::string source= "ahe\xcc\x81\xce\xb1 7";
+  const std::vector<font_style_span> spans {{1, 7, italic}};
+  font_paragraph paragraph (source, base, spans, catalog);
+  require (paragraph.analysis ().source () == source,
+           "Math glyph projection rewrote the source atom");
+  const auto line= paragraph.line (0, source.size ());
+  require (!line.missing_glyphs, "Pango fallback did not cover the math projection");
+  for (auto expected: {std::pair<std::size_t, char32_t> {1, 0x210e}, {5, 0x1d6fc}}) {
+    bool found= false;
+    for (const auto& placed: line.runs) {
+      for (const auto& glyph: placed.text.glyphs) {
+        if (glyph.byte != expected.first) continue;
+        const auto font= std::find_if (paragraph.fonts ().begin (), paragraph.fonts ().end (),
+          [&] (const selected_font_run& run) { return run.begin <= glyph.byte && glyph.byte < run.end; });
+        require (font != paragraph.fonts ().end () && font->math_variant == alphabet::italic,
+                 "Math projection lost its original-byte style range");
+        auto face= load_tt_face (font->font);
+        require (glyph.index == FT_Get_Char_Index (face->ft_face, expected.second),
+                 "Shaper and fallback selected different math characters");
+        found= true;
+      }
+    }
+    require (found, "Math glyph lost its original byte cluster");
+  }
+  require (line.byte_end == source.size () && line.carets.back ().byte == source.size (),
+           "Rendered projection offsets escaped into editor positions");
+  rejects<std::invalid_argument> ([&] { line.caret_x (3, caret_affinity::downstream); });
+  auto scaled= paragraph.line (1, 7, {}, 1.5);
+  require (!scaled.missing_glyphs && scaled.byte_begin == 1 && scaled.byte_end == 7,
+           "Partial math layout lost projection mapping");
+}
+
 static void check_math_metrics () {
   const std::string file= std::string (std::getenv ("ATHENA_PATH")) +
     "/fonts/truetype/texgyre/texgyrepagella-math.otf";
@@ -882,6 +942,7 @@ static void check_text () {
   check_line_spacing ();
   check_bitmap_text ();
   check_math_metrics ();
+  check_math_alphabets ();
   auto literal= shape (fn, "a<alpha>b");
   require (literal.glyphs.size () == 9 && !literal.missing_glyphs,
            "Literal angle-bracket text was interpreted as Cork");

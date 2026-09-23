@@ -20,6 +20,7 @@ struct font_request {
   std::string language= "und";
   int point_size= 12, horizontal_dpi= 96, vertical_dpi= 96;
   paragraph_direction direction= paragraph_direction::automatic_ltr;
+  math_alphabet math_variant= math_alphabet::normal;
 };
 
 struct selected_font_run {
@@ -28,6 +29,7 @@ struct selected_font_run {
   int point_size;
   std::string language;
   int horizontal_dpi, vertical_dpi;
+  math_alphabet math_variant= math_alphabet::normal;
 };
 
 font_request font_request_from_source (const physical_font_source& source,
