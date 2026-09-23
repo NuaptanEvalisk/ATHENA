@@ -457,16 +457,27 @@ void prepare_utf8_paragraph (path ip, array<line_item>& items) {
     }
     const auto flow= multiple ? build_utf8_flow (ip, pieces, markers, true) : nullptr;
     if (flow) {
-      grapheme_cursor boundaries (flow->paragraph->analysis ().source ());
+      const auto& analysis= flow->paragraph->analysis ();
+      const auto& breaks= analysis.breaks ();
+      std::size_t previous_boundary= 0;
+      auto boundary= breaks.begin ();
       for (int i=first; i<last; ++i) {
         const int index= flow->piece_sources[i-first];
         flow_position position {flow, index};
         if (items[i]->type == MARKER_ITEM)
           items[i]->b= tm_new<flow_marker_box_rep> (items[i]->b, position);
         else static_cast<utf8_line_box_rep*> (items[i]->b.operator-> ())->flow= position;
-        // A source/style boundary is not necessarily a Unicode caret or break.
-        if (i > first && !boundaries.boundary ((*flow->sources)[index].begin))
-          items[i-1]->penalty= HYPH_INVALID;
+        if (i+1 < last) {
+          const auto byte= static_cast<std::size_t> (
+            (*flow->sources)[flow->piece_sources[i+1-first]].begin);
+          while (boundary != breaks.end () && boundary->byte < byte) ++boundary;
+          // Atom-local end penalties are not paragraph boundaries. Retain one
+          // break per logical byte even when empty atoms or markers intervene.
+          const bool allowed= byte > previous_boundary && byte < analysis.source ().size () &&
+            boundary != breaks.end () && boundary->byte == byte;
+          if (items[i]->penalty >= 0) items[i]->penalty= allowed ? 0 : HYPH_INVALID;
+          previous_boundary= byte;
+        }
       }
     }
     first= max (first+1, last);

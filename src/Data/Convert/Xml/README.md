@@ -160,6 +160,11 @@ unchanged. Legacy readers still recognize existing file headers.
   Before wrapping, compatible adjacent source atoms and font-style markers
   share a paragraph analysis and source map. Interior grapheme boundaries do
   not become line breaks merely because a source/style node ends there. The
+  shared ICU line-break stream replaces atom-local end penalties, admitting
+  cross-node CJK breaks and retaining word-joiner constraints across nodes.
+  Empty atoms and source markers do not duplicate a logical break opportunity.
+  Explicit negative penalties are retained; control items terminate a flow.
+  The
   paragraph formatter reassembles selected fragments after line breaking and
   justification, including lines beginning inside a different source atom or
   style span. Source markers and source-relative offsets survive this mapping
@@ -169,7 +174,7 @@ unchanged. Legacy readers still recognize existing file headers.
   in visual order. Glyph outlines are translated, not stretched by word-space
   justification. Non-text wrappers and mixed paints remain intact. Automatic
   wrapping still needs shared analysis across mixed paints, link wrappers and
-  inline objects, and additional ICU break opportunities at source boundaries;
+  inline objects;
   legacy dictionary hyphenation is deliberately
   not applied to these UTF-8 fragments because it reconstructs Cork boxes. Font synthesis/effects,
   mathematical strings, programming text and runtime import/input remain gates.

@@ -423,6 +423,49 @@ private slots:
     QVERIFY (found);
     QVERIFY (pieces[0]->find_tree_path (end) == path (0, 1, 2));
   }
+  void sourceBoundaryBreaks () {
+    drd_info drd ("utf8-source-breaks", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write (PAR_MODE, "left");
+    env->write (PAR_FIRST, "0cm");
+    env->write (PAR_LEFT, "0cm");
+    env->write (PAR_RIGHT, "0cm");
+    env->write ("athena-radioactive-links-suppressed", "true");
+    env->update ();
+    const string a= "\xe4\xb8\xad", b= "\xe6\x96\x87";
+    tree text (CONCAT, a, b, a, b);
+    auto items= typeset_concat (env, text, path (0));
+    QCOMPARE (N(items), 4);
+    for (int i=0; i<3; ++i) QCOMPARE (items[i]->penalty, 0);
+    const SI width= items[0]->b->w () + items[1]->b->w ();
+    stack_border border;
+    auto pages= typeset_stack (env, text, path (0), width,
+                               array<line_item> (), array<line_item> (), border);
+    int lines= 0;
+    for (int i=0; i<N(pages); ++i) if (pages[i]->type == PAGE_LINE_ITEM) {
+      QVERIFY (pages[i]->b->w () <= width);
+      ++lines;
+    }
+    QCOMPARE (lines, 2);
+
+    items= typeset_concat (env, tree (CONCAT, "of",
+      tree (WITH, FONT_SERIES, "bold", "fice")), path (0));
+    for (int i=0; i<N(items)-1; ++i) QCOMPARE (items[i]->penalty, HYPH_INVALID);
+
+    // A word joiner at the next source node also constrains the break
+    // which the previous atom would otherwise allow after its ASCII space.
+    items= typeset_concat (env, tree (CONCAT, "word ", "\xe2\x81\xa0" "word"), path (0));
+    const std::string joined= "word \xe2\x81\xa0word";
+    athena::text::unicode_paragraph paragraph (joined);
+    bool break_at_five= false;
+    for (const auto& point: paragraph.breaks ()) if (point.byte == 5) break_at_five= true;
+    QVERIFY (!break_at_five);
+    QCOMPARE (items[0]->penalty == 0, break_at_five);
+  }
   void deletionAndUndo_data () {
     QTest::addColumn<bool> ("forward");
     QTest::newRow ("delete-zwj") << true;
