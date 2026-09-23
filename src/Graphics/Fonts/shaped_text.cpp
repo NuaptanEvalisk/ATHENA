@@ -568,4 +568,74 @@ void shaped_line::draw_fixed (renderer ren, std::string_view source, SI x, SI y)
   for (const auto& run: runs) run.text.draw_fixed (ren, source, translated (x, run.x), y);
 }
 
+void shaped_line::set_space_widths (std::string_view source,
+                                    const std::vector<line_space_width>& spaces) {
+  struct adjustment { SI left, right, width; std::int64_t before; };
+  std::vector<adjustment> changes;
+  std::size_t previous= byte_begin;
+  if (byte_end > source.size () || spaces.size () > carets.size ())
+    throw std::invalid_argument ("Invalid Unicode line spacing request");
+  for (const auto& s: spaces) {
+    if (s.begin < previous || s.begin >= s.end || s.end > byte_end || s.width < 0 ||
+        source.substr (s.begin, s.end-s.begin).find_first_not_of (' ') != std::string_view::npos)
+      throw std::invalid_argument ("Glue must address disjoint ASCII-space ranges");
+    const auto spans= selection_spans (s.begin, s.end);
+    if (spans.size () != 1 || spans[0].left >= spans[0].right)
+      throw std::invalid_argument ("Glue has no contiguous visual interval");
+    changes.push_back ({spans[0].left, spans[0].right, s.width, 0});
+    previous= s.end;
+  }
+  if (changes.empty ()) return;
+  std::sort (changes.begin (), changes.end (),
+    [] (const auto& a, const auto& b) { return a.left < b.left; });
+  std::int64_t delta= 0;
+  for (std::size_t i=0; i<changes.size (); ++i) {
+    auto& s= changes[i];
+    if (i && changes[i-1].right > s.left)
+      throw std::invalid_argument ("Overlapping visual glue intervals");
+    s.before= delta;
+    delta += static_cast<std::int64_t> (s.width) - (static_cast<std::int64_t> (s.right) - s.left);
+    checked_si (static_cast<std::int64_t> (s.right) + delta);
+  }
+  const auto move= [&] (SI x) {
+    const auto after= std::upper_bound (changes.begin (), changes.end (), x,
+      [] (SI at, const adjustment& s) { return at < s.left; });
+    if (after == changes.begin ()) return x;
+    const auto& s= *(after-1);
+    const std::int64_t width= static_cast<std::int64_t> (s.right) - s.left;
+    if (x >= s.right)
+      return checked_si (static_cast<std::int64_t> (x) + s.before + s.width - width);
+    const auto inside= (static_cast<std::int64_t> (x) - s.left) * s.width / width;
+    return checked_si (s.left + s.before + inside);
+  };
+  const SI next_advance= move (advance);
+  for (auto& placed: runs) {
+    auto& run= placed.text;
+    const SI origin= placed.x, next_origin= move (origin);
+    SI pen= origin;
+    SI min_shift= 0, max_shift= 0;
+    for (auto& glyph: run.glyphs) {
+      const SI next_pen= translated (pen, glyph.advance_x);
+      const SI shift= checked_si (static_cast<std::int64_t> (move (pen)) - pen - next_origin + origin);
+      glyph.x= translated (glyph.x, shift);
+      glyph.advance_x= checked_si (static_cast<std::int64_t> (move (next_pen)) - move (pen));
+      min_shift= std::min (min_shift, shift);
+      max_shift= std::max (max_shift, shift);
+      pen= next_pen;
+    }
+    for (auto& caret: run.carets)
+      caret.x= checked_si (static_cast<std::int64_t> (move (translated (origin, caret.x))) - next_origin);
+    run.advance_x= checked_si (static_cast<std::int64_t> (move (translated (origin, run.advance_x))) - next_origin);
+    // Conservative ink bounds cover all translated outlines without stretching
+    // their shapes or treating a font's whitespace glyph as visible text.
+    if (run.has_ink) {
+      run.ink_x1= translated (run.ink_x1, min_shift);
+      run.ink_x2= translated (run.ink_x2, max_shift);
+    }
+    placed.x= next_origin;
+  }
+  for (auto& caret: carets) caret.x= move (caret.x);
+  advance= next_advance;
+}
+
 } // namespace athena::text

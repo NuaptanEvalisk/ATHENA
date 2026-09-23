@@ -27,6 +27,7 @@ struct placed_text {
 };
 
 struct line_selection_span { SI left, right; };
+struct line_space_width { std::size_t begin, end; SI width; };
 
 // Retains font-domain-owned runs, not a copy of the source. A byte position at
 // a bidi boundary may have distinct upstream/downstream visual coordinates.
@@ -42,6 +43,11 @@ struct shaped_line {
   std::vector<line_selection_span> selection_spans (std::size_t begin,
                                                   std::size_t end) const;
   void draw_fixed (renderer ren, std::string_view source, SI x, SI y) const;
+  // Apply the paragraph formatter's glue widths to ASCII-space ranges. This
+  // translates glyph outlines, not scales them, and updates the same caret
+  // geometry used for hit testing and selection (including RTL runs).
+  void set_space_widths (std::string_view source,
+                        const std::vector<line_space_width>& spaces);
 };
 
 // The caller supplies font selection; this layer never silently substitutes a

@@ -15,6 +15,7 @@
 #include "Format/format.hpp"
 #include "Line/lazy_vstream.hpp"
 #include "Boxes/construct.hpp"
+#include "Boxes/utf8_line.hpp"
 #include "analyze.hpp"
 #include "scheme.hpp"
 
@@ -768,7 +769,10 @@ lazy_paragraph_rep::line_end (space spc, int penalty) {
       items_sp= ::append ((SI) 0, items_sp);
     }
   }
-  box b= phrase_box (sss->ip, items, items_sp);
+  array<box> line_items= items;
+  array<SI> line_spaces= items_sp;
+  reassemble_utf8_line (line_items, line_spaces);
+  box b= phrase_box (sss->ip, line_items, line_spaces);
   sss->print (b, fl, nr_cols);
   sss->print (spc);
   sss->penalty (max (penalty, min_pen));

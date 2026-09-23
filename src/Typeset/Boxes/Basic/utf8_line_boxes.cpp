@@ -23,6 +23,13 @@ SI offset (SI x, SI dx) {
   return x + dx;
 }
 
+bool same_options (const shaping_options& a, const shaping_options& b) {
+  return a.direction == b.direction && a.script == b.script && a.language == b.language &&
+    a.ligatures == b.ligatures && a.max_glyphs == b.max_glyphs &&
+    a.editing_carets == b.editing_carets && a.grapheme_fragments == b.grapheme_fragments &&
+    a.max_carets == b.max_carets && a.context_begin == b.context_begin && a.context_end == b.context_end;
+}
+
 struct utf8_line_box_rep: box_rep {
   std::shared_ptr<font_paragraph> paragraph;
   int begin, end;
@@ -31,17 +38,21 @@ struct utf8_line_box_rep: box_rep {
   brush background;
   shaping_options options;
   double horizontal_scale;
+  std::vector<line_space_width> space_widths;
   shaped_line line;
 
   utf8_line_box_rep (path ip, std::shared_ptr<font_paragraph> source,
                      int first, int last, font fn, pencil p,
-                     const shaping_options& opts, brush bg, double scale):
+                     const shaping_options& opts, brush bg, double scale,
+                     std::vector<line_space_width> spaces= {}):
     box_rep (ip), paragraph (std::move (source)), begin (first), end (last),
-    nominal (fn), pen (p), background (bg), options (opts), horizontal_scale (scale) {
+    nominal (fn), pen (p), background (bg), options (opts), horizontal_scale (scale),
+    space_widths (std::move (spaces)) {
     if (!paragraph || begin < 0 || end < begin ||
         static_cast<std::size_t> (end) > paragraph->analysis ().source ().size ())
       throw std::invalid_argument ("Invalid Unicode line box source range");
     line= paragraph->line (begin, end, options, scale);
+    line.set_space_widths (paragraph->analysis ().source (), space_widths);
     x1= min (0, line.advance); x2= max (0, line.advance);
     y1= nominal->y1; y2= nominal->y2;
     x3= x4= y3= y4= 0;
@@ -90,8 +101,15 @@ struct utf8_line_box_rep: box_rep {
   box expand_glyphs (int, double factor) override {
     if (!std::isfinite (factor) || factor <= -1.0)
       throw std::invalid_argument ("Invalid Unicode line expansion");
-    return utf8_line_box (ip, paragraph, begin, end, nominal,
-                          pen, options, background, horizontal_scale * (1.0 + factor));
+    auto spaces= space_widths;
+    for (auto& space: spaces) {
+      const double width= std::round (space.width * (1.0 + factor));
+      if (width > std::numeric_limits<SI>::max ())
+        throw std::overflow_error ("Expanded Unicode glue exceeds coordinates");
+      space.width= static_cast<SI> (width);
+    }
+    return tm_new<utf8_line_box_rep> (ip, paragraph, begin, end, nominal, pen,
+      options, background, horizontal_scale * (1.0 + factor), std::move (spaces));
   }
   double left_slope () override { return nominal->slope * horizontal_scale; }
   double right_slope () override { return nominal->slope * horizontal_scale; }
@@ -325,4 +343,43 @@ box join_utf8_line_boxes (path ip, array<box> pieces, array<bool> markers) {
   auto paragraph= std::make_shared<font_paragraph> (std::move (text), base->paragraph->request (), styles);
   return tm_new<mapped_utf8_line_box_rep> (ip, std::move (paragraph), sources,
                                          base->nominal, base->pen, base->background);
+}
+
+void reassemble_utf8_line (array<box>& pieces, array<SI>& spaces) {
+  if (N(pieces) != N(spaces))
+    throw std::invalid_argument ("Unicode line spacing count mismatch");
+  array<box> output;
+  array<SI> output_spaces;
+  for (int first=0; first<N(pieces);) {
+    auto* base= dynamic_cast<utf8_line_box_rep*> (pieces[first].operator-> ());
+    int last= first+1;
+    std::vector<line_space_width> widths;
+    if (base && !dynamic_cast<mapped_utf8_line_box_rep*> (base) && base->space_widths.empty ()) {
+      int end= base->end;
+      for (; last<N(pieces); ++last) {
+        auto* next= dynamic_cast<utf8_line_box_rep*> (pieces[last].operator-> ());
+        if (!next || next->paragraph != base->paragraph || next->ip != base->ip ||
+            !next->space_widths.empty () || next->begin < end || spaces[last] < 0 ||
+            !same_paint (base->pen, next->pen) || base->background != next->background ||
+            !same_options (base->options, next->options) ||
+            base->horizontal_scale != next->horizontal_scale) break;
+        const auto gap= base->bytes ().substr (end, next->begin - end);
+        if (gap.empty () ? spaces[last] != 0 : gap.find_first_not_of (' ') != std::string_view::npos) break;
+        if (!gap.empty ()) widths.push_back ({static_cast<std::size_t> (end),
+          static_cast<std::size_t> (next->begin), spaces[last]});
+        end= next->end;
+      }
+      if (last > first+1) {
+        output << box (tm_new<utf8_line_box_rep> (base->ip, base->paragraph,
+          base->begin, end, base->nominal, base->pen, base->options,
+          base->background, base->horizontal_scale, std::move (widths)));
+      }
+      else output << pieces[first];
+    }
+    else output << pieces[first];
+    output_spaces << spaces[first];
+    first= last;
+  }
+  pieces= output;
+  spaces= output_spaces;
 }

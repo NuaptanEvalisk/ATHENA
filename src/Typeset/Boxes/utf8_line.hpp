@@ -27,3 +27,7 @@ box utf8_line_box (path ip, std::shared_ptr<athena::text::font_paragraph> paragr
 // a null box; callers must retain their original boxes and wrappers unchanged.
 bool is_utf8_line_box (box b);
 box join_utf8_line_boxes (path ip, array<box> pieces, array<bool> markers);
+
+// Reassemble selected word fragments after line breaking/justification. Sources
+// must share the same paragraph analysis; unrelated wrappers are left intact.
+void reassemble_utf8_line (array<box>& pieces, array<SI>& spaces);

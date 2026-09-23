@@ -654,6 +654,50 @@ static void check_line_boxes (font nominal) {
            "Line box did not retain its shared immutable paragraph");
 }
 
+static void check_line_spacing () {
+  font_request request;
+  request.description_utf8= "TeX Gyre Pagella";
+  for (const std::string source: {std::string ("ab  cd ef"),
+       std::string ("\xd7\x90\xd7\x91  \xd7\x92\xd7\x93 ef")}) {
+    font_paragraph paragraph (source, request);
+    const auto begin= source.find (' '), end= source.find_first_not_of (' ', begin);
+    auto line= paragraph.line (0, source.size ());
+    const SI original= line.advance;
+    const auto region= line.selection_spans (begin, end).at (0);
+    const SI old_width= region.right-region.left;
+    line.set_space_widths (source, {{begin, end, old_width + 1700}});
+    require (line.advance == original+1700, "Justification changed nonspace advances");
+    const auto expanded= line.selection_spans (begin, end).at (0);
+    require (expanded.right-expanded.left == old_width+1700, "Space selection missed justification");
+    for (const auto& caret: line.carets)
+      require (line.hit_test (caret.x).x == caret.x, "Justified hit test disagrees with carets");
+    for (const auto& placed: line.runs) {
+      SI pen= 0;
+      for (const auto& glyph: placed.text.glyphs) pen += glyph.advance_x;
+      require (pen == placed.text.advance_x, "Justified run advances disagree with glyphs");
+    }
+    line.set_space_widths (source, {{begin, end, old_width}});
+    require (line.advance == original, "Restoring glue did not restore line width");
+    rejects<std::invalid_argument> ([&] {
+      line.set_space_widths (source, {{0, 1, 100}});
+    });
+    const auto next= source.find (' ', end);
+    const auto next_end= source.find_first_not_of (' ', next);
+    const auto next_region= line.selection_spans (next, next_end).at (0);
+    const SI next_width= next_region.right-next_region.left;
+    line.set_space_widths (source, {{begin, end, old_width+1700},
+                                    {next, next_end, next_width/2}});
+    require (line.advance == original+1700+next_width/2-next_width,
+             "Logical glue order did not account for visual bidi ordering");
+    require (line.selection_spans (begin, end).at (0).right -
+             line.selection_spans (begin, end).at (0).left == old_width+1700,
+             "A later glue adjustment changed an earlier space width");
+    rejects<std::invalid_argument> ([&] {
+      line.set_space_widths (source, {{begin, end, -1}});
+    });
+  }
+}
+
 static void check_text () {
   font_domain owner;
   font_domain_binding binding (owner);
@@ -665,6 +709,7 @@ static void check_text () {
   check_font_selection ();
   check_font_styles (fn);
   check_line_boxes (fn);
+  check_line_spacing ();
   auto literal= shape (fn, "a<alpha>b");
   require (literal.glyphs.size () == 9 && !literal.missing_glyphs,
            "Literal angle-bracket text was interpreted as Cork");

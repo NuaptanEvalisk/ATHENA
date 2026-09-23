@@ -27,6 +27,8 @@
 #include "utf8_edit.hpp"
 #include "Concat/concater.hpp"
 #include "drd_std.hpp"
+#include "Stack/stacker.hpp"
+#include "Boxes/utf8_line.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }
@@ -266,6 +268,49 @@ private slots:
     const auto color_path= joined->find_box_path (path (0, path (1, path (2, 1))), found);
     QVERIFY (found);
     QVERIFY (joined->find_tree_path (color_path) == path (0, path (1, path (2, 1))));
+  }
+  void wrappedText () {
+    drd_info drd ("utf8-wrapped-text", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write (PAR_MODE, "justify");
+    env->write (PAR_FIRST, "0cm");
+    env->write (PAR_LEFT, "0cm");
+    env->write (PAR_RIGHT, "0cm");
+    env->write ("athena-radioactive-links-suppressed", "true");
+    env->update ();
+    const string word= "\xd7\x90\xd7\x91";
+    const string source= word * " " * word * " " * word * " " * word * " " * word * " " * word;
+    auto atoms= typeset_concat (env, tree (source), path (0));
+    const SI width= 3 * atoms[0]->b->w () + 2 * atoms[0]->spc->def + env->fn->spc->def / 2;
+    stack_border border;
+    auto pages= typeset_stack (env, tree (source), path (0), width,
+                               array<line_item> (), array<line_item> (), border);
+    int lines= 0;
+    for (int i=0; i<N(pages); ++i) if (pages[i]->type == PAGE_LINE_ITEM) {
+      auto row= pages[i]->b;
+      QVERIFY (N(row) == 1);
+      auto leaf= row[0];
+      QVERIFY (is_utf8_line_box (leaf));
+      const int first= leaf->get_leaf_left_pos (), last= leaf->get_leaf_right_pos ();
+      bool found= false;
+      const auto start= row->find_box_path (path (0, first), found);
+      QVERIFY (found);
+      const auto end= row->find_box_path (path (0, last), found);
+      QVERIFY (found);
+      QVERIFY (row->find_cursor (start)->ox > row->find_cursor (end)->ox);
+      if (lines == 0) QCOMPARE (row->w (), width);
+      for (int at=first; at<=last; ++at) if (utf8_grapheme_boundary (source, at)) {
+        const auto bp= row->find_box_path (path (0, at), found);
+        QVERIFY (found);
+        QVERIFY (row->find_tree_path (bp) == path (0, at));
+      }
+      ++lines;
+    }
+    QVERIFY (lines >= 2);
   }
   void deletionAndUndo_data () {
     QTest::addColumn<bool> ("forward");

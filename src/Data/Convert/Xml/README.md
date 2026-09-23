@@ -157,9 +157,15 @@ unchanged. Legacy readers still recognize existing file headers.
   shared endpoints. Font-style boundaries preserve joining context; ICU computes
   bidi order and grapheme stops across source nodes. Mixed paints, non-text
   wrappers and explicit inter-item layout spacing retain their original boxes.
-  Wrappable text still needs final-line reassembly across source/style
-  boundaries; legacy dictionary hyphenation is deliberately not applied to these
-  UTF-8 fragments because it reconstructs Cork boxes. Font synthesis/effects,
+  The paragraph formatter now reassembles selected words sharing an atomic
+  source after line breaking and justification. Lines retain the original
+  paragraph's bidi analysis and byte coordinates, while final ASCII-space glue
+  widths update glyph advances, caret positions and selection intervals together
+  in visual order. Glyph outlines are translated, not stretched by word-space
+  justification. Non-text wrappers and mixed paints remain intact. Automatic
+  wrapping still needs shared analysis/reassembly across different source nodes
+  and their style/link boundaries; legacy dictionary hyphenation is deliberately
+  not applied to these UTF-8 fragments because it reconstructs Cork boxes. Font synthesis/effects,
   mathematical strings, programming text and runtime import/input remain gates.
   This intermediate implementation must not be deployed.
 - Shaped drawing borrows the original UTF-8 input, passing the selected range
