@@ -28,9 +28,6 @@
 #include "../../Style/Memorizer/clean_copy.hpp"
 #endif
 
-#ifdef USE_GS
-#include "Ghostscript/gs_utilities.hpp"
-#endif
 
 #ifdef QTTEXMACS
 #include "Qt/qt_gui.hpp"
@@ -262,24 +259,6 @@ edit_main_rep::get_metadata (string kind) {
 string printing_dpi ("600");
 string printing_on ("a4");
 
-bool
-use_pdf () {
-#ifdef PDF_RENDERER
-  return get_preference ("native pdf", "on") == "on";
-#else
-  return false;
-#endif
-}
-
-bool
-use_ps () {
-#ifdef PDF_RENDERER
-  return get_preference ("native postscript", "on") == "on";
-#else
-  return true;
-#endif
-}
-
 int
 edit_main_rep::nr_pages () {
   string medium = env->get_string (PAGE_MEDIUM);
@@ -293,15 +272,6 @@ edit_main_rep::nr_pages () {
 
 void
 edit_main_rep::print_doc (url name, bool conform, int first, int last) {
-#ifdef USE_GS
-  bool ps  = (suffix (name) == "ps");
-  bool pdf = (suffix (name) == "pdf");
-  url  orig= resolve (name, "");
-  if (!use_pdf () && pdf)
-    name= url_temp (".ps");
-  if (!use_ps () && ps)
-    name= url_temp (".pdf");
-#endif
 
   string medium = env->get_string (PAGE_MEDIUM);
   if (conform && (medium != "paper")) conform= false;
@@ -373,27 +343,6 @@ edit_main_rep::print_doc (url name, bool conform, int first, int last) {
   }
   tm_delete (ren);
 
-#ifdef USE_GS
-  if (!use_pdf () && pdf) {
-    gs_to_pdf (name, orig, landsc, h/cm, w/cm);
-    ::remove (name);
-  }
-  if (!use_ps () && ps) {
-    gs_to_ps (name, orig, landsc, h/cm, w/cm);
-    ::remove (name);
-  }
-  if (ps || pdf)
-    if (get_preference ("texmacs->pdf:check", "off") == "on") {
-# if QT_VERSION >= 0x060000
-      system_wait ("Checking exported file '" *
-		   as_string (tail (orig)) * "' for correctness");
-# endif
-      gs_check (orig);
-# if QT_VERSION >= 0x060000
-      system_wait ("");
-# endif
-    }
-#endif
 }
 
 void
@@ -416,34 +365,12 @@ edit_main_rep::print_to_file (url name, string first, string last) {
 void
 edit_main_rep::print_buffer (string first, string last) {
   url target;
-  target= use_pdf ()? url_temp (".pdf"): url_temp (".ps");
+  target= url_temp (".pdf");
   print_doc (target, false, as_int (first), as_int (last));
   system (get_printing_cmd (), target);  // Send the document to the printer
   set_message ("Done printing", "print buffer");
   ::remove (target);
 }
-
-#ifdef THISISTHEPREVIOUSCODE_IJUSTLEFTITHEREINCASE
-void
-edit_main_rep::print_buffer (string first, string last) {
-  // in Qt this is the main entry point to the printing subsystem.
-  // the other routines (print_to_file, ...) are overriden since all fine tuning 
-  // is made here via the Qt print dialog
-  bool to_file, landscape;
-  url name = url_none();
-  string printer;
-  string paper_type;
-  if (qt_print (to_file, landscape, printer, name, first, last, paper_type)) {
-      if (!to_file) name = url_temp (".ps");
-      print_doc (name, false, as_int (first), as_int (last));
-      if (!to_file) {
-        string cmd = printing_cmd * " -P" * printer;
-        system (cmd, name);  
-        ::remove (name);
-      }
-  }
-}
-#endif
 
 void
 edit_main_rep::export_ps (url name, string first, string last) {
@@ -460,8 +387,7 @@ edit_main_rep::print_snippet (url name, tree t, bool conserve_preamble) {
   string s= suffix (name);
   bool bitmap=
     (s == "png" || s == "jpg" || s == "jpeg" || s == "tif" || s == "tiff");
-  bool ps= (s == "ps" || s == "eps");
-  if (use_pdf ()) ps= (ps || s == "pdf");
+  bool ps= (s == "ps" || s == "eps" || s == "pdf");
 
   typeset_prepare ();
   int dpi= as_int (printing_dpi);
@@ -482,7 +408,7 @@ edit_main_rep::print_snippet (url name, tree t, bool conserve_preamble) {
     if (bitmap) make_raster_image (name, b, 5.0);
     else if (ps) make_eps (name, b, dpi);
     else {
-      url temp= url_temp (use_pdf ()? ".pdf": ".eps");
+      url temp= url_temp (".pdf");
       make_eps (temp, b, dpi);
       ::remove (name);
       if (!call_scm_converter (temp, name)) {

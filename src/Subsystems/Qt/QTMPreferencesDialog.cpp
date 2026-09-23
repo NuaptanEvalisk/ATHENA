@@ -1636,21 +1636,11 @@ QTMPreferencesDialog::buildConversionPage () {
 
   QWidget* pdf= make_page ();
   QFormLayout* pdfForm= add_section (pdf, "ATHENA → Pdf/Postscript");
-  if (scheme_bool ("supports-native-pdf?"))
-    add_toggle (pdfForm, "Produce Pdf using native export filter:",
-                "native pdf");
-  if (scheme_bool ("supports-ghostscript?"))
-    add_toggle (pdfForm, "Produce Postscript using native export filter:",
-                "native postscript");
   add_toggle (pdfForm, "Expand beamer slides:",
               "texmacs->pdf:expand slides");
   add_toggle (pdfForm, "Generate DataArt cover image when exporting:",
               "texmacs->pdf:data-art cover");
-  if (scheme_bool ("supports-native-pdf?")) {
-    add_toggle (pdfForm, "Distill encapsulated Pdf files:",
-                "texmacs->pdf:distill inclusion");
-    add_toggle (pdfForm, "Check exported Pdf files for correctness:",
-                "texmacs->pdf:check");
+  {
     add_combo (pdfForm, "Pdf version number:", "texmacs->pdf:version",
                {{"default", "default"}, {"1.4", "1.4"}, {"1.5", "1.5"},
                 {"1.6", "1.6"}, {"1.7", "1.7"}}, "default");

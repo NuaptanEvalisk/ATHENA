@@ -489,7 +489,6 @@ set (GS_FONTS ../share/ghostscript/fonts:/usr/share/fonts:)
 set (GS_LIB ../share/ghostscript/9.06/lib:)
 
 set (GUILE_NUM 1)
-set (PDF_RENDERER 1)
 set (SIZEOF_VOID_P 8)
 set (STDC_HEADERS 1)
 

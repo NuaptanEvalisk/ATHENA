@@ -19,6 +19,7 @@
 #include "font_selection.hpp"
 #include "pdf_text_string.hpp"
 #include "printer.hpp"
+#include "Ghostscript/gs_utilities.hpp"
 #include "scheme.hpp"
 #include <QCoreApplication>
 #include <QFile>
@@ -60,6 +61,36 @@ static QByteArray execute (const QString &program,
     throw std::runtime_error (program.toStdString () + ": " +
                               errors.toStdString ());
   return process.readAllStandardOutput ();
+}
+
+static void check_postscript_import (const QTemporaryDir& output) {
+  const QString eps= output.filePath ("import.eps");
+  QFile source (eps);
+  require (source.open (QIODevice::WriteOnly), "Cannot create EPS import fixture");
+  source.write ("%!PS-Adobe-3.0 EPSF-3.0\n%%BoundingBox: 0 0 72 36\n"
+                "0 0 0 setrgbcolor 4 4 64 28 rectfill\nshowpage\n");
+  source.close ();
+  const auto native_url= [] (const QString& path) {
+    const auto bytes= path.toUtf8 ();
+    return url_system (string (bytes.constData (), bytes.size ()));
+  };
+  const auto input= native_url (eps);
+  const QString pdf= output.filePath ("import.pdf");
+  gs_to_pdf (input, native_url (pdf), 72, 36);
+  require (QFile::exists (pdf), "EPS import did not produce a PDF image");
+  execute ("qpdf", {"--check", pdf});
+  int width= 0, height= 0;
+  hummus_pdf_image_size (native_url (pdf), width, height);
+  require (width == 72 && height == 36, "EPS import lost image dimensions");
+  const QString png= output.filePath ("import.png");
+  require (gs_to_png (input, native_url (png), 144, 72), "EPS raster import failed");
+  const QImage image (png);
+  require (image.size () == QSize (144, 72) && qGray (image.pixel (72, 36)) < 10,
+           "EPS raster import is blank or incorrectly sized");
+  const auto forbidden= native_url (output.filePath ("forbidden.pdf"));
+  gs_to_pdf (native_url (pdf), forbidden, 72, 36);
+  require (!QFile::exists (output.filePath ("forbidden.pdf")),
+           "Ghostscript still accepts PDF input");
 }
 
 static void check_bitmap_mappings (const QString& pdf) {
@@ -187,7 +218,7 @@ static void check_collection_export (const QString& pdf) {
   check_text_geometry (pdf, 6);
 }
 
-static void render_document (const QString &path, bool postscript) {
+static void render_document (const QString &path) {
   font_domain owner;
   font_domain_binding binding (owner);
   const string fonts = string (std::getenv ("ATHENA_PATH")) *
@@ -203,9 +234,10 @@ static void render_document (const QString &path, bool postscript) {
   font math = unicode_font ("texgyrepagella-math", 12, 600);
   font embedded = unicode_font ("LinLibertine_R", 12, 600);
   const url output = url_system (string (path.toUtf8 ().constData ()));
-  renderer pdf = postscript ? static_cast<renderer> (tm_new<printer_rep> (
-                                  output, 600, 1, "a4", false, 21.0, 29.7))
-                            : pdf_hummus_renderer (output, 600);
+  // Old profiles must not re-enable the retired PostScript intermediary.
+  set_preference ("native pdf", "off");
+  set_preference ("native postscript", "off");
+  renderer pdf= printer (output, 600, 1, "a4", false, 21.0, 29.7);
   require (pdf->is_started (), "Could not create PDF");
   pdf->set_pencil (pencil (black));
   auto line = [&] (font fn, const std::string &source, int row,
@@ -274,21 +306,15 @@ static void run_tests (int, char **) {
     require (rejected, "PDF text strings must reject invalid UTF-8");
     QTemporaryDir output;
     require (output.isValid (), "No temporary PDF directory");
+    check_postscript_import (output);
     check_collection_export (output.filePath ("collection.pdf"));
-    for (const bool postscript : {false, true}) {
-      const QString stem = postscript ? "shaped-ps" : "shaped";
-      const QString pdf = output.filePath (stem + ".pdf");
-      if (postscript) {
-        const QString ps = output.filePath (stem + ".ps");
-        render_document (ps, true);
-        if (const char *directory = std::getenv ("ATHENA_SHAPED_PDF_TEST_OUTPUT"))
-          require (QFile::copy (ps, QString::fromUtf8 (directory) + "/" + stem + ".ps"),
-                   "Could not retain PostScript source");
-        execute ("gs",
-                 {"-q", "-dSAFER", "-dBATCH", "-dNOPAUSE", "-sDEVICE=pdfwrite",
-                  "-dCompatibilityLevel=1.5", "-sOutputFile=" + pdf, ps});
-      } else
-        render_document (pdf, false);
+    {
+      const QString stem= "shaped";
+      const QString pdf= output.filePath (stem + ".pdf");
+      require (!gs_supports (url_system ("test.pdf")), "GS must not accept PDF input");
+      require (gs_supports (url_system ("test.ps")) &&
+               gs_supports (url_system ("test.eps")), "GS must retain PS/EPS import");
+      render_document (pdf);
       if (const char *directory = std::getenv ("ATHENA_SHAPED_PDF_TEST_OUTPUT"))
         require (QFile::copy (pdf, QString::fromUtf8 (directory) + "/" + stem +
                                      ".pdf"),
@@ -305,8 +331,8 @@ static void run_tests (int, char **) {
           pdf15,
           "ActualText spans require an effective PDF version of at least 1.5");
       const auto fonts = execute ("pdffonts", {pdf});
-      if (!postscript) check_bitmap_mappings (pdf);
-      require (postscript || (fonts.contains ("Type 3") &&
+      check_bitmap_mappings (pdf);
+      require ((fonts.contains ("Type 3") &&
                               fonts.contains ("TeXGyrePagellaMath") &&
                               fonts.contains ("LinLibertine") &&
                               (fonts.contains ("CID Type 0C") ||
@@ -327,8 +353,6 @@ static void run_tests (int, char **) {
       require (lines.count (QByteArray ("\xf0\x9d\x90\x80")) == 2,
                "Native and bitmap fonts must both preserve non-BMP text");
       for (const auto &value : expected) {
-        if (postscript && value == "legacy")
-          continue;
         if (!lines.contains (value)) {
           std::cerr << "Expected PDF line: " << value.constData ()
                     << "\nActual PDF text:\n"
@@ -363,7 +387,7 @@ static void run_tests (int, char **) {
       }
     }
     std::cout
-        << "Shaped PDF/PostScript text, glyphs and bitmap fallback passed\n";
+        << "Shaped native PDF text, glyphs and bitmap fallback passed\n";
     status = 0;
   } catch (const std::exception &error) {
     std::cerr << error.what () << '\n';

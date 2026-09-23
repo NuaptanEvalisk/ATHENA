@@ -23,7 +23,6 @@
 #include "ntuple.hpp"
 #include "link.hpp"
 #include "frame.hpp"
-#include "Ghostscript/gs_utilities.hpp" // for gs_prefix
 #include "wencoding.hpp"
 #include "shaped_text.hpp"
 #include "pdf_text_string.hpp"
@@ -320,11 +319,7 @@ pdf_hummus_renderer_rep::pdf_hummus_renderer_rep (
 
   EStatusCode status;
   ePDFVersion= ePDFVersion14; // PDF 1.4 for alpha
-#ifdef USE_GS
-  string version= pdf_version ();
-#else
-  string version= "1.4";
-#endif
+  string version= get_preference ("texmacs->pdf:version", "1.4");
   if (version == "1.5") ePDFVersion= ePDFVersion15;
   if (version == "1.6") ePDFVersion= ePDFVersion16;
   if (version == "1.7") ePDFVersion= ePDFVersion17;
@@ -1640,26 +1635,9 @@ pdf_image_rep::flush (PDFWriter& pdfw, EPDFVersion output_version)
   string s= suffix (name);
   //debug_convert << "flushing :" << name << LF;
   if (s == "pdf") {
-    // double v= as_double (pdf_version (name));
-    // if (10 * v > ((double) ePDFVersion))
-    //   convert_warning << "\"" << concretize (name) << "\" has version "
-    // 		      << v << "." << LF
-    // 		      << "But current PDF version has been set to " << ((double) ePDFVersion)/10
-    // 		      << " (see the preference menu)." << LF;
-    if (get_preference ("texmacs->pdf:distill inclusion") == "on") {
-      temp= url_temp (".pdf");
-#ifdef USE_GS
-      if (!gs_PDF_EmbedAllFonts (name, temp)) {
-	temp= name;
-	name= url_none ();
-      }
-#endif
-    }
-    else {
-      temp= name;
-      name= url_none ();
-    }
-  } 
+    temp= name;
+    name= url_none ();
+  }
   else {
     // first try to work out inclusion using our own tools
     // note that we have to return since flush_raster and flush_jpg

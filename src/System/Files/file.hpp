@@ -65,7 +65,6 @@ void append_to (url what, url to);
 void mkdir (url dir);
 void rmdir (url what);
 void change_mode (url u, int mode);
-void ps2pdf (url u1, url u2);
 
 int search_score (url u, array<string> a);
 

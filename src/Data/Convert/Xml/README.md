@@ -153,20 +153,14 @@ unchanged. Legacy readers still recognize existing file headers.
   This also covers bitmap Type 3 fallback; no glyph id is cast to Unicode. The
   PDF 1.4 output is promoted through the catalog version when it uses this
   feature; version state belongs to each renderer. The legacy drawing entry
-  remains separate until the runtime switch. PostScript carries the same
-  source through ActualText pdfmark spans for PDF conversion. Both paths use
-  Qt's UTF-16BE encoder for PDF text strings, never the Cork converter.
-  Editor/PDF end-to-end integration remains migration work.
+  remains separate until the runtime switch. PDF text strings use Qt's UTF-16BE
+  encoder, never the Cork converter. Editor/PDF end-to-end integration remains
+  migration work.
   `shaped_pdf_test` checks native and Type 3 CMaps, exact Poppler extraction,
-  effective PDF version, qpdf structure and rendered pixels for both native
-  PDF and Ghostscript-converted PostScript. The bitmap PostScript prologue
-  accumulates real glyph bounds instead of declaring a zero FontBBox.
-  Known external failure: Ghostscript 10.07.1 conversion followed by Poppler
-  extraction loses ActualText geometry even for a standalone Helvetica sample
-  without ATHENA fonts or code. See `tests/Graphics/Fonts/fixtures/actualtext-ghostscript.ps`.
-  The resulting text is present but its bounds have zero height; native PDF
-  output is unaffected. Do not weaken the PostScript assertions or merge whole
-  lines into replacement text to conceal this converter/extractor failure.
+  effective PDF version, qpdf structure and rendered pixels. It exercises the
+  production printer factory even with retired native-PDF preferences disabled.
+  PDF export is always native: there is no PS intermediary or distillation.
+  Ghostscript is restricted to importing PS/EPS images.
 - The codec does not interpret `<...>` inside text. Structural symbols are a
   separate tree-model concern; the old incomplete-input `SYMBOL` is not a
   substitute for the planned `named-symbol` representation.
@@ -287,13 +281,6 @@ and stale source revisions. Disk-full and post-rename fsync fault injection,
 batch cancellation/resume and database recovery are still integration work.
 
 ## Remaining Integration Gates
-
-The paragraph-level PDF regression currently exposes a PostScript conversion
-defect: Ghostscript places a graphics-state restore before the closing
-ActualText mark; Poppler consequently extracts wrong text bounds and separates
-adjacent script items into different lines. Native PDF extraction and geometry
-remain covered independently. The failing PostScript assertion is retained;
-single-span text extraction alone is not sufficient verification of that path.
 
 1. Integrate the role-aware legacy importer with application metadata and
    style-defined macro contracts, and register/render `named-symbol` identities.

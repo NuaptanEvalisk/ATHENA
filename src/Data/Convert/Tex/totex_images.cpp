@@ -39,7 +39,7 @@ force_string (scheme_tree value) {
 GeneratedImageName
 generated_image_name () {
   int serial= latex_export_next_serial ();
-  string suffix= get_preference ("native pdf") == "on" ? ".pdf" : ".eps";
+  string suffix= ".pdf";
   string postfix= "-" * as_string (serial) * suffix;
   GeneratedImageName result;
   result.file= glue (latex_export_image_root_url (), postfix);

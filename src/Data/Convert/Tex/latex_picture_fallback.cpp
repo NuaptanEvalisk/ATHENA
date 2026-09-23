@@ -224,7 +224,7 @@ load_picture_fallback_image (url image) {
 }
 
 static array<tree>
-load_picture_fallbacks (url wdir, bool dvips= false) {
+load_picture_fallbacks (url wdir, bool dvips, int count) {
 #if defined(USE_GS)
   string cmdln= "cd \"" * as_string (wdir) * "\"; ";
   if (dvips) {
@@ -233,10 +233,19 @@ load_picture_fallbacks (url wdir, bool dvips= false) {
       << "-dLanguageLevel=3 -sOutputFile=temp%d.eps temp.ps";
   }
   else {
-    cmdln << gs_prefix()* " -sDEVICE="*eps_device()*" -dSAFER -q -dNOPAUSE -dBATCH "
-      << "-dLanguageLevel=3 -sOutputFile=temp%d.eps temp.pdf";
+    if (!exists_in_path ("pdftops")) {
+      dbg ("LaTeX picture fallback: pdftops not found");
+      return array<tree> ();
+    }
+    cmdln= "";
+    for (int i=1; i<=count; i++) {
+      if (i > 1) cmdln << " && ";
+      cmdln << "pdftops -eps -f " << as_string (i) << " -l " << as_string (i)
+            << " " << sys_concretize (wdir * "temp.pdf")
+            << " " << sys_concretize (wdir * ("temp" * as_string (i) * ".eps"));
+    }
   }
-  dbg ("GS command: " * cmdln);
+  dbg ("Picture extraction command: " * cmdln);
   if (system (cmdln)) {
     dbg ("Could not extract pictures from LaTeX document");
     return array<tree> ();
@@ -303,8 +312,8 @@ render_picture_fallbacks (string s, tree t) {
       return array<tree> ();
     }
   }
-  array<tree> r= load_picture_fallbacks (wdir, dvips);
   int exp= N(search_picture_fallbacks (t));
+  array<tree> r= load_picture_fallbacks (wdir, dvips, exp);
   if (N(r) != exp) {
     string msg;
     msg << "Warning: did not found the expected number of pictures:\n"

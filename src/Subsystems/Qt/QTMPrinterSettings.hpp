@@ -88,11 +88,11 @@ public:
   
   QStringList getChoices(DriverChoices _which, int& _default);
   
-  /*! Implemented by one of CupsQTMPrinterSettings, WinQTMPrinterSettings */
+  /*! Implemented by one of CupsQTMPrinterSettings */
   virtual QString toSystemCommand() const = 0;
   
   /*! 
-   *  Implemented by one of CupsQTMPrinterSettings, WinQTMPrinterSettings 
+   *  Implemented by CupsQTMPrinterSettings
    *  Must return a list of pairs of strings. The first item in each pair being
    *  the printer's display name (i.e. the one to be shown to the user), the
    *  second the queue name.
@@ -113,7 +113,7 @@ protected slots:
                                      QProcess::ExitStatus exitStatus) = 0;
   
 protected:
-  /*! Implemented by one of CupsQTMPrinterSettings, WinQTMPrinterSettings */
+  /*! Implemented by one of CupsQTMPrinterSettings */
   virtual bool fromSystemConfig(const QString& printer) = 0;
   
   QProcess* configProgram;
@@ -142,35 +142,5 @@ protected:
 
 #endif
 
-#ifdef Q_OS_WIN
-
-/*!
- * A WinQTMPrinterSettings object sets the the default print command to be either
- * Ghostscript's mswinpr2 driver or the tool gsprint.
- *
- * The GPL Ghostscript docs state
- * that "The mswinpr2 device uses MS Windows printer drivers, and thus should 
- * work with any printer with device-independent bitmap (DIB) raster
- * capabilities". See:
- * @link http://pages.cs.wisc.edu/~ghost/doc/svn/Devices.htm#Win @endlink
- *
- * However, the author of that driver has written another tool which should
- * perform better on colour printers. See 
- * @link http://pages.cs.wisc.edu/~ghost/gsview/gsprint.htm @endlink
- 
- */
-class WinQTMPrinterSettings : public QTMPrinterSettings {
-  // Q_OBJECT
-  // MOC does not support conditional compilation  
-public:
-  WinQTMPrinterSettings();
-  QString toSystemCommand() const;
-  QList<QPair<QString,QString> > availablePrinters();
-protected:
-  bool fromSystemConfig(const QString& printer);
-  void systemCommandFinished(int exitCode, QProcess::ExitStatus exitStatus);
-};
-
-#endif
 
 #endif

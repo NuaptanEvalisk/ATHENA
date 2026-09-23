@@ -108,7 +108,7 @@
 /* Define to the version of this package. */
 #cmakedefine PACKAGE_VERSION ""
 
-#cmakedefine PDF_RENDERER 1
+#define PDF_RENDERER 1
 
 #cmakedefine QTTEXMACS 1
 

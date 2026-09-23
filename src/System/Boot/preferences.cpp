@@ -156,11 +156,8 @@ ensure_builtin_user_preferences () {
     PREF ("blinking cursor", "on", ""),
     PREF ("rendering performance monitor", "off", ""),
 
-    PREF ("native pdf", "on", ""),
-    PREF ("native postscript", "on", ""),
     PREF ("texmacs->pdf:data-art cover", "off", ""),
     PREF ("texmacs->pdf:expand slides", "off", ""),
-    PREF ("texmacs->pdf:check", "off", ""),
     PREF ("preview command", "default", "notify-preview-command"),
     PREF_KIND ("printing command", "lpr", "notify-printing-command",
                PREF_PRINTING_COMMAND),

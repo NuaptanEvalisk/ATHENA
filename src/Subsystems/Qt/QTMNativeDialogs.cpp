@@ -68,9 +68,6 @@ printer_settings () {
 #if defined(Q_OS_MAC) || defined(Q_OS_LINUX)
   if (settings == nullptr) settings= new CupsQTMPrinterSettings ();
 #endif
-#ifdef Q_OS_WIN
-  if (settings == nullptr) settings= new WinQTMPrinterSettings ();
-#endif
   return settings;
 }
 
@@ -962,7 +959,11 @@ qtm_print_file_dialog (url file) {
   QString fileName= qs (as_string (file));
   invoke_gui_blocking ([fileName] () {
     QTMPrinterSettings*& settings= printer_settings ();
-    if (settings == nullptr) return;
+    if (settings == nullptr) {
+      QMessageBox::warning (nullptr, QObject::tr ("Print"),
+        QObject::tr ("Direct printing is unavailable on this platform. Export to PDF and print it with your PDF viewer."));
+      return;
+    }
     settings->fileName= fileName;
     QTMPrintDialog dialog (settings);
     if (dialog.exec () != QDialog::Accepted) return;

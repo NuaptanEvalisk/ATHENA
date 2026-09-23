@@ -24,15 +24,6 @@
 (tm-define (has-pdftocairo?)
   (url-exists-in-path? "pdftocairo"))
 
-(tm-define (gs-binary)
-  (let* ((n1 "$ATHENA_PATH\\bin\\gs.exe;c:\\Program F*\\gs\\gs*\\gswin*c.exe")
-         (n2 "$ATHENA_PATH/bin/gs:gs")
-         (name (if (os-mingw?) n1 n2)))
-    (url->system (url-resolve-in-path name))))
-
-(tm-define (has-gs?)
-  (url-exists? (gs-binary)))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Helper functions for conversions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -66,7 +57,8 @@
 (tm-define (pdf-file->pdftocairo-raster x opts)
   (let* ((dest (assoc-ref opts 'dest))
          (fullname (url-concretize dest))
-         (fm (url-format fullname))
+         (format (url-format fullname))
+         (fm (if (== format "tif") "tiff" format))
          (transp (if (== fm "png") "-transp " ""))
          (suffix (url-suffix fullname))
          (name (string-drop-right fullname (+ 1 (string-length suffix))))
@@ -75,40 +67,6 @@
     ;;(display (string-append cmd " -singlefile " transp "-" fm " -r " res " " x " "  name))
     (system-2 (string-append cmd " -singlefile " transp "-" fm " -r " res)
 	      x name)
-    (if (url-exists? dest) dest #f)))
-
-(tm-define (pdf-file->imagemagick-raster x opts)
-  (let* ((dest (assoc-ref opts 'dest))
-         (res (get-raster-resolution opts)))
-    ;;(display (string-append "convert -density " res " " x " "  dest))
-    (system-2 (string-append "convert -density " res) x dest)
-    ;; NOTE: changing the resolution to 300 (the default) causes a problem
-    ;; when converting TeXmacs documents to Html with formulas as images:
-    ;; the formulas appear way too large...
-    ;;(system-2 (string-append "convert ") x dest)
-    (if (url-exists? dest) dest #f)))
-
-(tm-define (gs-convert x opts)
-  ;; many options for pdf->ps/eps see http://tex.stackexchange.com/a/20884
-  ;; this one does a better rendering than pdf2ps (also based on gs):
-  (let* ((dest (assoc-ref opts 'dest))
-	 (gs (gs-binary)))
-    (system-2 (string-append gs " -q -dNOCACHE -dUseCropBox -dNOPAUSE -dBATCH -dSAFER -sDEVICE=eps2write -sOutputFile=") dest x))
-  ;; problem: 
-  ;; eps2write available starting with gs  9.14 (2014-03-26)
-  ;; epswrite removed in gs 9.16 (2015-03-30)
-  )
-
-(tm-define (pdf-file->gs-raster x opts)
-  (let* ((dest (assoc-ref opts 'dest))
-         (res (get-raster-resolution opts))
-	 (gs (gs-binary)))
-    (evaluate-system (list gs "-dBATCH" "-dNOPAUSE" "-dQUIET" "-dSAFER"
-                           "-dNOPROMPT" "-sDEVICE=pngalpha"
-                           (string-append "-r" res)
-                           (string-append "-sOutputFile="
-                                          (url-concretize dest))
-                           (url-concretize x)) '() '() '(1 2))
     (if (url-exists? dest) dest #f)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -123,17 +81,12 @@
   (:name "Pdf")
   (:suffix "pdf"))
 
-;;(converter pdf-file postscript-file
-;;  (:require (url-exists-in-path? "pdf2ps"))
-;;  (:shell "pdf2ps" from to))
-
 (converter pdf-file postscript-file
-  (:require (or (os-mingw?) (url-exists-in-path? "gs")))
-  (:function-with-options gs-convert))
+  (:require (url-exists-in-path? "pdftops"))
+  (:shell "pdftops" "-eps" from to))
 
 (converter postscript-file pdf-file
-  (:require (url-exists-in-path? "ps2pdf"))
-  (:shell "ps2pdf" from to))
+  (:function-with-options native-image-file->pdf))
 
 (define-format xmgrace
   (:name "Xmgrace")
@@ -272,24 +225,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (converter pdf-file png-file
-  (:require (has-convert?))
-  (:function-with-options pdf-file->imagemagick-raster)
-  ;;(:option "texmacs->image:raster-resolution" "300")
-  )
-  
-(converter pdf-file jpeg-file
-  (:require (has-convert?))
-  (:function-with-options pdf-file->imagemagick-raster)
-  ;;(:option "texmacs->image:raster-resolution" "300")
-  )
- 
-(converter pdf-file tif-file
-  (:require (has-convert?))
-  (:function-with-options pdf-file->imagemagick-raster)
-  ;;(:option "texmacs->image:raster-resolution" "300")
-  )
-
-(converter pdf-file png-file
   (:require (has-pdftocairo?))
   (:function-with-options pdf-file->pdftocairo-raster)
   ;;(:option "texmacs->image:raster-resolution" "450")
@@ -302,14 +237,6 @@
   ;;(:option "texmacs->image:raster-resolution" "300")
   )
 
-(converter pdf-file png-file
-  (:require (has-gs?))
-  (:function-with-options pdf-file->gs-raster))
-  
-(converter pdf-file jpeg-file
-  (:require (has-gs?))
-  (:function-with-options pdf-file->gs-raster))
- 
 (converter pdf-file tif-file
-  (:require (has-gs?))
-  (:function-with-options pdf-file->gs-raster))
+  (:require (has-pdftocairo?))
+  (:function-with-options pdf-file->pdftocairo-raster))

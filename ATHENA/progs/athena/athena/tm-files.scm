@@ -901,14 +901,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (tm-define (printer-file-suffix)
-  (if (and (supports-native-pdf?)
-	   (get-boolean-preference "native pdf"))
-      "pdf" "ps"))
+  "pdf")
 
 (tm-define (printer-file-format)
-  (if (and (supports-native-pdf?)
-	   (get-boolean-preference "native pdf"))
-      "pdf" "postscript"))
+  "pdf")
 
 (tm-define (interactive-page-setup)
   (:synopsis "Specify the page setup")

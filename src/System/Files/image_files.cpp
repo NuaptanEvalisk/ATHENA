@@ -51,9 +51,7 @@
 #include "Ghostscript/gs_utilities.hpp"
 #endif
 
-#ifdef PDF_RENDERER
 #include "Pdf/pdf_hummus_renderer.hpp"
-#endif
 
 /******************************************************************************
 * Inform about missing dependencies
@@ -67,7 +65,7 @@ inform_about_dependencies () {
 #ifdef USE_GS
   if (!has_gs ())
     convert_warning << "The installation of the Ghostscript software is "
-		    << "recommended for handling PS, EPS, and PDF files.\n";
+		    << "recommended for importing PS and EPS files.\n";
 #endif
   if (!has_image_magick ())
     convert_warning << "The installation of the ImageMagick software "
@@ -282,19 +280,7 @@ image_size_sub (url image, int& w, int& h) { // returns w,h in units of pt (1/72
 
 void
 pdf_image_size (url image, int& w, int& h) {
-// we have two ways of finding pdf sizes
-// centralize here to ensure consistent determination;
-// prefer internal method (avoid calling gs)
-#ifdef PDF_RENDERER
   hummus_pdf_image_size (image, w, h);
-  return;
-#endif
-#ifdef USE_GS
-  gs_PDFimage_size (image, w, h);
-  return;
-#endif
-// if above methods are absent :-(, fallback to 
-  imagemagick_image_size(image, w, h, true);
 }
 
 void
@@ -359,7 +345,7 @@ image_to_eps (url image, url eps, int w_pt, int h_pt, int dpi) {
   // Note: since inkscape would most likely be the prog called to
   // translate svg we could at no additional cost allow other
   // vector formats supported by inkscape : ai, svgz, cdr, wmf ...
-  if ((s == "svg") && !wrap_qt_supports (image) &&
+  if ((s == "pdf" || (s == "svg" && !wrap_qt_supports (image))) &&
       (call_scm_converter (image, eps))) return;
   
 #ifdef USE_GS
@@ -522,6 +508,9 @@ imagemagick_cmd () {
 
 void
 call_imagemagick_convert (url image, url dest, int w_pt, int h_pt, int dpi) {
+  // ImageMagick delegates PDF input to Ghostscript. PDF uses native readers
+  // or Poppler converters, never an implicit PostScript interpreter fallback.
+  if (suffix (image) == "pdf") return;
   if (has_image_magick ()) { 
     string cmd= imagemagick_cmd ();
     string s= suffix (image);
@@ -542,6 +531,7 @@ call_imagemagick_convert (url image, url dest, int w_pt, int h_pt, int dpi) {
 
 bool
 imagemagick_image_size(url image, int& w, int& h, bool pt_units) {
+  if (suffix (image) == "pdf") return false;
   if (!has_image_magick()) return false;
   else {		
     string cmd= "identify"; //ImageMagick utility
