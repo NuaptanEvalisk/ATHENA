@@ -29,6 +29,9 @@ struct selected_font_run {
   std::string language;
 };
 
+font_request font_request_from_source (const physical_font_source& source,
+                                       std::string language= "und");
+
 // Sorted, nonoverlapping scalar ranges. Gaps use the paragraph's base request.
 // Device resolution and paragraph direction must match that base request;
 // changing language/family/size does not create another Unicode paragraph.

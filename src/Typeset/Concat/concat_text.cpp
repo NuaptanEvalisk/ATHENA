@@ -16,6 +16,8 @@
 #include "ATHENA/Data/artifact_radioactive_links.hpp"
 #include "radioactive_link_scope.hpp"
 #include "new_document.hpp"
+#include "Boxes/utf8_line.hpp"
+#include <stdexcept>
 
 #include <algorithm>
 #include <vector>
@@ -23,8 +25,12 @@
 lazy make_lazy_vstream (edit_env env, tree t, path ip, tree channel);
 
 static box
-make_text_box (edit_env env, path ip, int pos, string s, pencil pen) {
+make_text_box (edit_env env, path ip, int pos, string s, pencil pen,
+               std::shared_ptr<athena::text::font_paragraph> paragraph= {}) {
   tree bg= env->read ("text-background-color");
+  if (paragraph)
+    return utf8_line_box (ip, std::move (paragraph), pos, pos + N(s), env->fn,
+                          pen, {}, bg == "" ? brush (false) : brush (bg, env->alpha));
   if (bg == "" || N(s) == 0)
     return text_box (ip, pos, s, env->fn, pen);
   return text_box (ip, pos, s, env->fn, pen, brush (bg, env->alpha));
@@ -36,8 +42,11 @@ make_text_box (edit_env env, path ip, int pos, string s, pencil pen) {
 
 void
 concater_rep::typeset_substring (string s, path ip, int pos) {
-  box b= make_text_box (env, ip, pos, s, env->pen);
-  a << line_item (STRING_ITEM, OP_TEXT, b, HYPH_INVALID, env->lan);
+  box b= make_text_box (env, ip, pos, s, env->pen, text_paragraph);
+  // Legacy hyphenation reconstructs Cork text boxes. Unicode items carry ICU
+  // break opportunities until the dictionary hyphenation path is migrated.
+  a << line_item (text_paragraph ? STD_ITEM : STRING_ITEM,
+                  OP_TEXT, b, HYPH_INVALID, env->lan);
 }
 
 void
@@ -108,8 +117,9 @@ concater_rep::typeset_colored_substring
     else c= named_color (as_string (t), env->alpha);
   }
   else c= named_color (col, env->alpha);
-  box b= make_text_box (env, ip, pos, s, c);
-  a << line_item (STRING_ITEM, OP_TEXT, b, HYPH_INVALID, env->lan);
+  box b= make_text_box (env, ip, pos, s, c, text_paragraph);
+  a << line_item (text_paragraph ? STD_ITEM : STRING_ITEM,
+                  OP_TEXT, b, HYPH_INVALID, env->lan);
 }
 
 #define PRINT_SPACE(spc_type) \
@@ -118,9 +128,20 @@ concater_rep::typeset_colored_substring
 
 void
 concater_rep::typeset_text_string (tree t, path ip, int pos, int end) {
-  array<space> spc_tab= env->fn->get_normal_spacing (env->spacing_policy);
   string s= t->label;
-  int    start;
+  athena::text::physical_font_source physical;
+  if (!env->fn->physical_source (physical))
+    throw std::runtime_error ("Text font has no physical Unicode source");
+  auto request= athena::text::font_request_from_source (physical);
+  // Source and ICU state belong to this concater's font domain. All fragments
+  // retain the same source allocation instead of analyzing copied words.
+  struct RestoreParagraph {
+    std::shared_ptr<athena::text::font_paragraph>& slot;
+    std::shared_ptr<athena::text::font_paragraph> previous;
+    ~RestoreParagraph () { slot= std::move (previous); }
+  } restore {text_paragraph, text_paragraph};
+  text_paragraph= std::make_shared<athena::text::font_paragraph> (
+    std::string (s.data (), N(s)), std::move (request));
 
   struct ActiveMatch {
     int start;
@@ -198,26 +219,31 @@ concater_rep::typeset_text_string (tree t, path ip, int pos, int end) {
     if (current < last) typeset_substring (s (current, last), ip, current);
   };
 
-  do {
-    start= pos;
-    text_property tp= env->lan->advance (t, pos);
-    if (pos > end) pos= end;
-    if ((pos > start) && (s[start] == ' ')) { // spaces
-      if (start == 0) typeset_substring ("", ip, 0);
-      penalty_min (tp->pen_after);
-      PRINT_SPACE (tp->spc_before);
-      PRINT_SPACE (tp->spc_after);
-      if ((pos==end) || (s[pos]==' '))
-        typeset_substring ("", ip, pos);
+  if (pos == end) { typeset_piece (pos, end); return; }
+  if (rigid && links.empty ()) {
+    bool hard_break= false;
+    for (const auto& boundary: text_paragraph->analysis ().breaks ())
+      if (boundary.mandatory && boundary.byte > static_cast<std::size_t> (pos) &&
+          boundary.byte < static_cast<std::size_t> (end)) hard_break= true;
+    if (!hard_break) { typeset_piece (pos, end); return; }
+  }
+  for (const auto& boundary: text_paragraph->analysis ().breaks ()) {
+    if (boundary.byte <= static_cast<std::size_t> (pos)) continue;
+    int last= std::min (end, static_cast<int> (boundary.byte));
+    int visible= last;
+    while (visible > pos && s[visible-1] == ' ') --visible;
+    typeset_piece (pos, visible);
+    space whitespace (0);
+    for (int i=visible; i<last; ++i) whitespace += env->fn->spc;
+    if (visible != last) print (whitespace);
+    if (last < end || visible != last) penalty_min (0);
+    pos= last;
+    if (pos == end) {
+      if (visible != end) typeset_piece (end, end);
+      break;
     }
-    else { // strings
-      penalty_max (tp->pen_before);
-      PRINT_SPACE (tp->spc_before)
-      typeset_piece (start, pos);
-      penalty_min (tp->pen_after);
-      PRINT_SPACE (tp->spc_after)
-    }
-  } while (pos<end);
+    if (boundary.mandatory) control (tree (NEXT_LINE), ip);
+  }
 }
 
 inline array<space>

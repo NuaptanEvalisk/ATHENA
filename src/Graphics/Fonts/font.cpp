@@ -21,6 +21,11 @@
 
 FONT_RESOURCE_CODE(font);
 
+bool
+font_rep::physical_source (athena::text::physical_font_source&) const {
+  return false;
+}
+
 athena::text::shaped_text
 font_rep::shape_utf8 (std::string_view, std::size_t, std::size_t,
                       const athena::text::shaping_options&) {

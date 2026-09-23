@@ -9,6 +9,9 @@
 ******************************************************************************/
 #include "font_selection.hpp"
 #include "Freetype/tt_file.hpp"
+#include "Freetype/tt_face.hpp"
+#include <fontconfig/fontconfig.h>
+#include <fontconfig/fcfreetype.h>
 #include "file.hpp"
 #include <pango/pangoft2.h>
 #include <pango/pangofc-font.h>
@@ -242,6 +245,32 @@ font_catalog& current_font_catalog () {
     catalog_slot (): value (true, {}, directories ()) {}
   };
   return font_domain_local<catalog_slot> ().value;
+}
+
+font_request font_request_from_source (const physical_font_source& source,
+                                       std::string language) {
+  const auto face= load_tt_face (source.file);
+  if (face->bad_face) throw std::runtime_error ("Cannot describe primary text font");
+  std::unique_ptr<FcPattern, decltype (&FcPatternDestroy)> pattern (
+    FcFreeTypeQueryFace (face->ft_face,
+      reinterpret_cast<const FcChar8*> (source.file.file_utf8.c_str ()),
+      source.file.face_index, nullptr), FcPatternDestroy);
+  if (!pattern) throw std::runtime_error ("Cannot read primary font metadata");
+  description_ptr description (
+    pango_fc_font_description_from_pattern (pattern.get (), FALSE),
+    pango_font_description_free);
+  if (!description) throw std::runtime_error ("Cannot describe primary font style");
+  std::unique_ptr<char, decltype (&g_free)> name (
+    pango_font_description_to_string (description.get ()), g_free);
+  if (!name) throw std::bad_alloc ();
+  font_request request;
+  request.description_utf8= name.get ();
+  request.language= std::move (language);
+  request.point_size= source.point_size;
+  request.horizontal_dpi= source.horizontal_dpi;
+  request.vertical_dpi= source.vertical_dpi;
+  validate_request (request);
+  return request;
 }
 
 font_paragraph::font_paragraph (std::string source, font_request request, font_catalog& catalog):

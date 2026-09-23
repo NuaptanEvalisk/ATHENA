@@ -16,6 +16,7 @@
 #include "typesetter.hpp"
 #include "Format/line_item.hpp"
 #include "Boxes/construct.hpp"
+#include "font_selection.hpp"
 
 #define MODE_JUSTIFY   0
 #define MODE_LEFT      1
@@ -26,6 +27,7 @@ class concater_rep {
   edit_env              env;        // the environment
   array<line_item>      a;          // the line items
   bool                  rigid;      // when surely not wrappable
+  std::shared_ptr<athena::text::font_paragraph> text_paragraph;
 
   // useful subroutines
   void print (box b);

@@ -150,6 +150,9 @@ struct unicode_font_rep: font_rep {
   void   advance_glyph (string s, int& pos, bool ligf);
   glyph  get_glyph (string s);
   int    index_glyph (string s, font_metric& fnm, font_glyphs& fng);
+  bool physical_source (athena::text::physical_font_source& out) const override {
+    return fng->physical_source (out);
+  }
   athena::text::shaped_text shape_utf8 (
     std::string_view text, std::size_t begin, std::size_t end,
     const athena::text::shaping_options& options) override;

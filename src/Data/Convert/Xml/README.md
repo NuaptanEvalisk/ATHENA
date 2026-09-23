@@ -144,8 +144,18 @@ unchanged. Legacy readers still recognize existing file headers.
   composites use that contract to choose the previous/next wrapped line or inline
   fragment at a shared endpoint, without assuming visual child order is logical
   order. Opaque/legacy positions do not claim this contract. This is not yet
-  whole-document bidi navigation: the old concater does not instantiate the line
-  box, and inline objects and undo/position persistence still need integration.
+  whole-document bidi navigation: inline objects, cross-atom line reordering
+  and undo/position persistence still need integration.
+  The actual text-mode concater now instantiates Unicode line boxes, deriving
+  font metadata and effective size/resolution from the profile-selected physical
+  font (including the existing monospace x-height adjustment). Atomic text shares
+  one paragraph analysis across its fragments; ICU supplies candidate line breaks
+  instead of the Cork language scanner. Rigid unlinked atomic text is shaped as
+  one line. Wrappable text still needs final-line reassembly across source/style
+  boundaries; legacy dictionary hyphenation is deliberately not applied to these
+  UTF-8 fragments because it reconstructs Cork boxes. Font synthesis/effects,
+  mathematical strings, programming text and runtime import/input remain gates.
+  This intermediate implementation must not be deployed.
 - Shaped drawing borrows the original UTF-8 input, passing the selected range
   separately from glyph ids to the renderer. The native PDF renderer emits
   Unicode cluster mappings and per-run ActualText (PDF 1.5), preserving original

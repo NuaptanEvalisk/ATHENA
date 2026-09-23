@@ -142,6 +142,8 @@ struct font_rep: rep<font> {
   virtual athena::text::shaped_text shape_utf8 (
     std::string_view text, std::size_t begin, std::size_t end,
     const athena::text::shaping_options& options= {});
+  // Physical primary face after profile selection and size adjustment.
+  virtual bool physical_source (athena::text::physical_font_source& out) const;
 
   array<space> get_spacing_table (int mode, int id, array<array<space> >& t);
   space        get_spacing_entry (int mode, tree t, int i);

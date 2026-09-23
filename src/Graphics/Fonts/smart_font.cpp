@@ -897,6 +897,10 @@ struct smart_font_rep: font_rep {
   array<font> fn;
   smart_map   sm;
 
+  bool physical_source (athena::text::physical_font_source& out) const override {
+    return fn[SUBFONT_MAIN]->physical_source (out);
+  }
+
   smart_font_rep (string name, font base_fn, font err_fn,
                   string family, string variant,
                   string series, string shape, int sz, int hdpi, int vdpi);

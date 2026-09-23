@@ -25,6 +25,8 @@
 #include "sys_utils.hpp"
 #include "tree_traverse.hpp"
 #include "utf8_edit.hpp"
+#include "Concat/concater.hpp"
+#include "drd_std.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }
@@ -113,6 +115,72 @@ private slots:
     QVERIFY (worker_ok);
     QVERIFY_EXCEPTION_THROWN (utf8_grapheme_next (string ("\xff"), 0), std::invalid_argument);
     QCOMPARE (utf8_grapheme_next (original, size - 3), size);
+  }
+  void textTypesetting () {
+    drd_info drd ("utf8-editor-text", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "typewriter=JetBrains Mono,TeX Gyre Pagella");
+    env->write ("athena-radioactive-links-suppressed", "true");
+    env->update ();
+    const string source= "A\xe4\xb8\xad" "e\xcc\x81 <alpha> \xce\xb1";
+    box result= typeset_as_concat (env, tree (source), path (0));
+    QCOMPARE (N(result), 1);
+    box text= result[0];
+    QCOMPARE (text->get_leaf_string (), source);
+    QVERIFY (text->w () > 0);
+    bool found= false;
+    text->find_box_path (path (5), found);
+    QVERIFY (!found); // Interior of e + combining acute.
+    const path caret= text->find_box_path (path (7), found);
+    QVERIFY (found);
+    QVERIFY (text->find_tree_path (caret) == path (0, 7));
+    // Literal angle brackets survive into actual layout, not a Greek glyph.
+    const path angle= text->find_box_path (path (9), found);
+    QVERIFY (found);
+    QVERIFY (text->find_cursor (angle)->ox > text->find_cursor (caret)->ox);
+
+    array<line_item> items= typeset_concat (env, tree (source), path (0));
+    QVERIFY (N(items) > 1);
+    bool literal= false;
+    for (int i=0; i<N(items); ++i) {
+      QVERIFY (items[i]->type != STRING_ITEM);
+      const string fragment= items[i]->b->get_leaf_string ();
+      if (fragment == "<alpha>") literal= true;
+      const int first= items[i]->b->get_leaf_left_pos ();
+      const int last= items[i]->b->get_leaf_right_pos ();
+      QVERIFY (utf8_grapheme_boundary (source, first));
+      QVERIFY (utf8_grapheme_boundary (source, last));
+    }
+    QVERIFY (literal);
+
+    items= typeset_concat (env, tree ("x  y"), path (0));
+    QCOMPARE (N(items), 2);
+    QCOMPARE (items[0]->spc->def, 2 * env->fn->spc->def);
+    const string rtl= "\xd7\x90\xd7\x91 \xd7\x92\xd7\x93";
+    result= typeset_as_concat (env, tree (rtl), path (0));
+    QCOMPARE (N(result), 1);
+    text= result[0];
+    const auto left= text->find_box_path (path (N(rtl)), found);
+    QVERIFY (found);
+    const auto right= text->find_box_path (path (0), found);
+    QVERIFY (found);
+    QVERIFY (text->find_cursor (right)->ox > text->find_cursor (left)->ox);
+
+    athena::text::physical_font_source physical;
+    QVERIFY (env->fn->physical_source (physical));
+    auto request= athena::text::font_request_from_source (physical);
+    QCOMPARE (request.point_size, physical.point_size);
+    QCOMPARE (request.vertical_dpi, physical.vertical_dpi);
+    env->write_update (FONT_FAMILY, "tt");
+    QVERIFY (env->fn->physical_source (physical));
+    request= athena::text::font_request_from_source (physical);
+    QVERIFY (request.description_utf8.find ("JetBrains Mono") != std::string::npos);
+    QCOMPARE (request.vertical_dpi, physical.vertical_dpi);
+    result= typeset_as_concat (env, tree (source), path (0));
+    QCOMPARE (result[0]->get_leaf_string (), source);
   }
   void deletionAndUndo_data () {
     QTest::addColumn<bool> ("forward");
