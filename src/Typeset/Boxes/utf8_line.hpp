@@ -21,3 +21,9 @@ box utf8_line_box (path ip, std::shared_ptr<athena::text::font_paragraph> paragr
                    int begin, int end, font nominal, pencil pen,
                    const athena::text::shaping_options& options= {},
                    brush background= brush (false), double horizontal_scale= 1.0);
+
+// Join adjacent text and explicit zero-width source markers without losing
+// their individual tree positions. Unsupported paint/effect combinations return
+// a null box; callers must retain their original boxes and wrappers unchanged.
+bool is_utf8_line_box (box b);
+box join_utf8_line_boxes (path ip, array<box> pieces, array<bool> markers);

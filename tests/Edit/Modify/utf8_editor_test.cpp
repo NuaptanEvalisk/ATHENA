@@ -182,6 +182,91 @@ private slots:
     result= typeset_as_concat (env, tree (source), path (0));
     QCOMPARE (result[0]->get_leaf_string (), source);
   }
+  void inlineSourceMapping () {
+    drd_info drd ("utf8-inline-source", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write ("athena-radioactive-links-suppressed", "true");
+    env->update ();
+
+    const string first= "\xd7\x90\xd7\x91 ", second= "\xd7\x92\xd7\x93";
+    auto whole= typeset_as_concat (env, tree (first * second), path (0));
+    box joined= typeset_as_concat (env, tree (CONCAT, first, second), path (0));
+    QCOMPARE (N(joined), 1);
+    QCOMPARE (joined->w (), whole->w ());
+    bool found= false;
+    const path start= joined->find_box_path (path (0, 0, 0), found);
+    QVERIFY (found);
+    const path end= joined->find_box_path (path (0, 1, N(second)), found);
+    QVERIFY (found);
+    QVERIFY (joined->find_cursor (start)->ox > joined->find_cursor (end)->ox);
+    for (const path source: {path (0, 0, N(first)), path (0, 1, 0), path (0, 1, 2)}) {
+      const path bp= joined->find_box_path (source, found);
+      QVERIFY (found);
+      QVERIFY (joined->find_tree_path (bp) == source);
+      const auto other= joined->with_cursor_affinity (bp, athena::text::caret_affinity::upstream);
+      QVERIFY (joined->find_tree_path (other) == source);
+    }
+    const path selection_start= joined->find_box_path (path (0, 0, 0), found);
+    QVERIFY (found);
+    const auto selection= joined->find_selection (selection_start, end);
+    QVERIFY (selection->start == path (0, 0, 0));
+    QVERIFY (selection->end == path (0, 1, N(second)));
+    QVERIFY (!is_nil (selection->rs));
+
+    box ligature= typeset_as_concat (env, tree (CONCAT, "of", "fice"), path (0));
+    auto reference= typeset_as_concat (env, tree ("office"), path (0));
+    QCOMPARE (N(ligature), 1);
+    QCOMPARE (ligature->w (), reference->w ());
+    auto expanded= ligature->expand_glyphs (0, 0.1);
+    const path bp= expanded->find_box_path (path (0, 1, 2), found);
+    QVERIFY (found);
+    QVERIFY (expanded->find_tree_path (bp) == path (0, 1, 2));
+
+    tree styled (CONCAT, first, tree (WITH, FONT_SERIES, "bold", second), "!");
+    joined= typeset_as_concat (env, styled, path (0));
+    QCOMPARE (N(joined), 1);
+    for (const path source: {path (0, 0, 2), path (0, 1, 0),
+                            path (0, path (1, path (2, 2))), path (0, 1, 1), path (0, 2, 1)}) {
+      const auto at= joined->find_box_path (source, found);
+      QVERIFY (found);
+      QVERIFY (joined->find_tree_path (at) == source);
+    }
+    joined->find_box_path (path (0, path (1, path (2, 1))), found);
+    QVERIFY (!found);
+
+    athena::text::physical_font_source physical;
+    QVERIFY (env->fn->physical_source (physical));
+    const auto regular= athena::text::font_request_from_source (physical);
+    env->write_update (FONT_SERIES, "bold");
+    QVERIFY (env->fn->physical_source (physical));
+    const auto bold= athena::text::font_request_from_source (physical);
+    env->write_update (FONT_SERIES, "medium");
+    athena::text::font_paragraph expected ("x WWW y", regular, {{2, 5, bold}});
+    joined= typeset_as_concat (env, tree (CONCAT, "x ",
+      tree (WITH, FONT_SERIES, "bold", "WWW"), " y"), path (0));
+    QCOMPARE (N(joined), 1);
+    QCOMPARE (joined->w (), expected.line (0, 7).advance);
+
+    joined= typeset_as_concat (env, tree (CONCAT, "e", "\xcc\x81"), path (0));
+    QCOMPARE (N(joined), 1);
+    joined->find_box_path (path (0, 0, 1), found);
+    QVERIFY (!found); // A node boundary must not introduce a grapheme stop.
+    const auto accent_end= joined->find_box_path (path (0, 1, 2), found);
+    QVERIFY (found);
+    QVERIFY (joined->find_tree_path (accent_end) == path (0, 1, 2));
+
+    // Paint changes and explicit layout spacing are not silently flattened.
+    joined= typeset_as_concat (env, tree (CONCAT, "x",
+      tree (WITH, COLOR, "red", "y"), "z"), path (0));
+    QVERIFY (N(joined) > 1);
+    const auto color_path= joined->find_box_path (path (0, path (1, path (2, 1))), found);
+    QVERIFY (found);
+    QVERIFY (joined->find_tree_path (color_path) == path (0, path (1, path (2, 1))));
+  }
   void deletionAndUndo_data () {
     QTest::addColumn<bool> ("forward");
     QTest::newRow ("delete-zwj") << true;

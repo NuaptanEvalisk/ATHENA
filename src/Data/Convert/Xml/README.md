@@ -151,7 +151,13 @@ unchanged. Legacy readers still recognize existing file headers.
   font (including the existing monospace x-height adjustment). Atomic text shares
   one paragraph analysis across its fragments; ICU supplies candidate line breaks
   instead of the Cork language scanner. Rigid unlinked atomic text is shaped as
-  one line. Wrappable text still needs final-line reassembly across source/style
+  one line. Rigid concatenations now also join adjacent compatible text and
+  explicit source markers into one styled Unicode paragraph: source spans retain
+  node paths and byte offsets, and caret paths retain the source-span identity at
+  shared endpoints. Font-style boundaries preserve joining context; ICU computes
+  bidi order and grapheme stops across source nodes. Mixed paints, non-text
+  wrappers and explicit inter-item layout spacing retain their original boxes.
+  Wrappable text still needs final-line reassembly across source/style
   boundaries; legacy dictionary hyphenation is deliberately not applied to these
   UTF-8 fragments because it reconstructs Cork boxes. Font synthesis/effects,
   mathematical strings, programming text and runtime import/input remain gates.

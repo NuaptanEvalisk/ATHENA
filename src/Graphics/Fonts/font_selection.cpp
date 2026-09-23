@@ -279,7 +279,7 @@ font_paragraph::font_paragraph (std::string source, font_request request, font_c
 font_paragraph::font_paragraph (std::string source, font_request request,
                                 const std::vector<font_style_span>& styles, font_catalog& catalog):
   source_ (std::move (source)), analysis_ (source_, request.direction, request.language),
-  request_ (std::move (request)),
+  request_ (std::move (request)), styles_ (styles),
   fonts_ (catalog.select (source_, request_, analysis_.base_level (), styles)),
   owner_ (&current_font_domain ()) {}
 

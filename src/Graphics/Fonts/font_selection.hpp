@@ -66,6 +66,7 @@ class font_paragraph {
   std::string source_;
   unicode_paragraph analysis_;
   font_request request_;
+  std::vector<font_style_span> styles_;
   std::vector<selected_font_run> fonts_;
   font_domain* owner_;
 public:
@@ -77,6 +78,8 @@ public:
   font_paragraph (const font_paragraph&)= delete;
   font_paragraph& operator= (const font_paragraph&)= delete;
   unicode_paragraph& analysis ();
+  const font_request& request () const { return request_; }
+  const std::vector<font_style_span>& styles () const { return styles_; }
   const std::vector<selected_font_run>& fonts () const { return fonts_; }
   shaped_line line (std::size_t begin, std::size_t end,
                     const shaping_options& options= {}, double horizontal_scale= 1.0);

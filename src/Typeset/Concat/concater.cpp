@@ -14,6 +14,7 @@
 #include "analyze.hpp"
 #include "concater.hpp"
 #include "scheme.hpp"
+#include "Boxes/utf8_line.hpp"
 
 /******************************************************************************
 
@@ -893,6 +894,40 @@ typeset_marker (edit_env env, path ip) {
   return a;
 }
 
+static box
+join_rigid_text (path ip, array<line_item> a) {
+  array<box> items;
+  array<SI> spc;
+  for (int i=0; i<N(a);) {
+    int end= i;
+    array<box> pieces;
+    array<bool> markers;
+    while (end < N(a) && (end == i || a[end-1]->spc == space (0)) &&
+           (a[end]->type == MARKER_ITEM ||
+            (a[end]->type == STD_ITEM && is_utf8_line_box (a[end]->b)))) {
+      pieces << a[end]->b;
+      markers << (a[end]->type == MARKER_ITEM);
+      ++end;
+    }
+    box joined= join_utf8_line_boxes (ip, pieces, markers);
+    spc << (i == 0 ? (SI) 0 : a[i-1]->spc->def);
+    if (!is_nil (joined)) {
+      items << joined;
+      i= end;
+    }
+    else {
+      // Do not discard wrappers, markers or explicit spacing on a failed join.
+      end= max (i+1, end);
+      items << a[i++]->b;
+      while (i < end) {
+        spc << a[i-1]->spc->def;
+        items << a[i++]->b;
+      }
+    }
+  }
+  return N(items) == 0 ? empty_box (ip) : concat_box (ip, items, spc);
+}
+
 box
 typeset_as_concat (edit_env env, tree t, path ip) {
   concater ccc= tm_new<concater_rep> (env, true);
@@ -901,21 +936,7 @@ typeset_as_concat (edit_env env, tree t, path ip) {
   array<line_item> a= ccc->a;
   tm_delete (ccc);
 
-  int i, n=N(a);
-  if (n == 0) return empty_box (ip); // FIXME: n=0 should never happen
-  array<box> items (n);
-  array<SI>  spc (n);
-  if (n>0) {
-    spc[0]=0;
-    for (i=0; i<n-1; i++) {
-      items[i]  = a[i]->b;
-      spc  [i+1]= a[i]->spc->def;
-    }
-    items[i]= a[i]->b;
-  }
-  box b= concat_box (ip, items, spc);
-
-  return b;
+  return join_rigid_text (ip, a);
 }
 
 box
@@ -926,21 +947,7 @@ typeset_as_concat (edit_env env, tree t, path ip, array<line_item>& a) {
   a= ccc->a;
   tm_delete (ccc);
 
-  int i, n=N(a);
-  if (n == 0) return empty_box (ip); // FIXME: n=0 should never happen
-  array<box> items (n);
-  array<SI>  spc (n);
-  if (n>0) {
-    spc[0]=0;
-    for (i=0; i<n-1; i++) {
-      items[i]  = a[i]->b;
-      spc  [i+1]= a[i]->spc->def;
-    }
-    items[i]= a[i]->b;
-  }
-  box b= concat_box (ip, items, spc);
-
-  return b;
+  return join_rigid_text (ip, a);
 }
 
 box
