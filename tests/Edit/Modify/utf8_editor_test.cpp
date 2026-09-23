@@ -312,6 +312,117 @@ private slots:
     }
     QVERIFY (lines >= 2);
   }
+  void wrappedSourceMapping () {
+    drd_info drd ("utf8-wrapped-source", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write (PAR_MODE, "justify");
+    env->write (PAR_FIRST, "0cm");
+    env->write (PAR_LEFT, "0cm");
+    env->write (PAR_RIGHT, "0cm");
+    env->write ("athena-radioactive-links-suppressed", "true");
+    env->update ();
+    const string word= "\xd7\x90\xd7\x91";
+    const string first= word * " " * word * " ";
+    const string middle= word * " " * word * " " * word * " " * word;
+    const string last= " " * word * " " * word;
+    const tree source (CONCAT, first, tree (WITH, FONT_SERIES, "bold", middle), last);
+    auto atoms= typeset_concat (env, tree (word), path (0));
+    const SI width= 3 * atoms[0]->b->w () + 3 * env->fn->spc->def;
+    stack_border border;
+    auto pages= typeset_stack (env, source, path (0), width,
+                               array<line_item> (), array<line_item> (), border);
+    int lines= 0, mapped= 0;
+    bool start_marker= false, end_marker= false;
+    for (int i=0; i<N(pages); ++i) if (pages[i]->type == PAGE_LINE_ITEM) {
+      auto row= pages[i]->b;
+      QCOMPARE (N(row), 1);
+      auto leaf= row[0];
+      QVERIFY (is_utf8_line_box (leaf));
+      const auto start= leaf->find_left_box_path (), end= leaf->find_right_box_path ();
+      QVERIFY (leaf->find_cursor (start)->ox > leaf->find_cursor (end)->ox);
+      if (lines == 0) QCOMPARE (row->w (), width);
+      for (int marker=0; marker<2; ++marker) {
+        const path source_marker (0, path (1, marker));
+        bool found= false;
+        const auto bp= leaf->find_box_path (source_marker, found);
+        if (found) {
+          QVERIFY (leaf->find_tree_path (bp) == source_marker);
+          (marker == 0 ? start_marker : end_marker)= true;
+        }
+      }
+      // Source offsets on later lines are relative to their own atomic node,
+      // not relative to either the concatenated paragraph or the selected line.
+      for (int node=0; node<3; ++node) {
+        const string text= node == 0 ? first : node == 1 ? middle : last;
+        const path parent= node == 1 ? path (0, path (1, 2)) : path (0, node);
+        for (int at=0; at<=N(text); ++at) if (utf8_grapheme_boundary (text, at)) {
+          bool found= false;
+          const auto bp= leaf->find_box_path (parent * at, found);
+          if (found) {
+            QVERIFY (leaf->find_tree_path (bp) == parent * at);
+            auto expanded= leaf->expand_glyphs (0, 0.05);
+            const auto ep= expanded->find_box_path (parent * at, found);
+            QVERIFY (found);
+            QVERIFY (expanded->find_tree_path (ep) == parent * at);
+            ++mapped;
+          }
+        }
+      }
+      ++lines;
+    }
+    QVERIFY (lines >= 2);
+    QVERIFY (mapped >= 20);
+    QVERIFY (start_marker && end_marker);
+
+    // A later line containing only numbers/punctuation still uses the RTL
+    // base direction established by a different source node on the first line.
+    const string prefix= word * " ", neutral= "123 456.";
+    auto numeric= typeset_concat (env, tree (CONCAT, prefix, neutral), path (0));
+    array<box> numeric_pieces;
+    array<SI> numeric_spaces;
+    for (int i=0; i<N(numeric); ++i) if (numeric[i]->b->ip == path (1, 0)) {
+      numeric_pieces << numeric[i]->b;
+      numeric_spaces << (N(numeric_pieces) == 1 ? SI(0) : numeric[i-1]->spc->def);
+    }
+    reassemble_utf8_line (numeric_pieces, numeric_spaces);
+    QCOMPARE (N(numeric_pieces), 1);
+    athena::text::physical_font_source physical;
+    QVERIFY (env->fn->physical_source (physical));
+    const string combined= prefix * neutral;
+    athena::text::font_paragraph reference (std::string (combined.data (), N(combined)),
+      athena::text::font_request_from_source (physical));
+    auto expected= reference.line (N(prefix), N(combined));
+    expected.set_space_widths (reference.analysis ().source (),
+      {{std::size_t(N(prefix)+3), std::size_t(N(prefix)+4), env->fn->spc->def}});
+    for (int at=0; at<=N(neutral); ++at) {
+      bool found= false;
+      auto bp= numeric_pieces[0]->find_box_path (path (0, 1, at), found);
+      QVERIFY (found);
+      bp= numeric_pieces[0]->with_cursor_affinity (bp, athena::text::caret_affinity::downstream);
+      QCOMPARE (numeric_pieces[0]->find_cursor (bp)->ox,
+        expected.caret_x (N(prefix)+at, athena::text::caret_affinity::downstream));
+    }
+
+    // A source-node boundary inside a grapheme is not an emergency break.
+    auto cluster= typeset_concat (env, tree (CONCAT, "e", "\xcc\x81"), path (0));
+    QCOMPARE (N(cluster), 2);
+    QCOMPARE (cluster[0]->penalty, HYPH_INVALID);
+    array<box> pieces;
+    array<SI> spaces;
+    for (int i=0; i<N(cluster); ++i) { pieces << cluster[i]->b; spaces << SI(0); }
+    reassemble_utf8_line (pieces, spaces);
+    QCOMPARE (N(pieces), 1);
+    bool found= false;
+    pieces[0]->find_box_path (path (0, 0, 1), found);
+    QVERIFY (!found);
+    const auto end= pieces[0]->find_box_path (path (0, 1, 2), found);
+    QVERIFY (found);
+    QVERIFY (pieces[0]->find_tree_path (end) == path (0, 1, 2));
+  }
   void deletionAndUndo_data () {
     QTest::addColumn<bool> ("forward");
     QTest::newRow ("delete-zwj") << true;

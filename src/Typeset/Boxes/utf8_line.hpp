@@ -31,3 +31,8 @@ box join_utf8_line_boxes (path ip, array<box> pieces, array<bool> markers);
 // Reassemble selected word fragments after line breaking/justification. Sources
 // must share the same paragraph analysis; unrelated wrappers are left intact.
 void reassemble_utf8_line (array<box>& pieces, array<SI>& spaces);
+
+class line_item;
+// Prepare compatible source/style fragments before wrapping. The owner-local
+// shared analysis and source map survive selection and glyph expansion.
+void prepare_utf8_paragraph (path ip, array<line_item>& items);

@@ -881,6 +881,7 @@ typeset_concat (edit_env env, tree t, path ip) {
   ccc->typeset (t, ip);
   ccc->finish ();
   array<line_item> a= ccc->a;
+  prepare_utf8_paragraph (ip, a);
   tm_delete (ccc);
   return a;
 }

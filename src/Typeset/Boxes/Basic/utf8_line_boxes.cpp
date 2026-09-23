@@ -8,6 +8,8 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include "Boxes/utf8_line.hpp"
+#include "Boxes/modifier.hpp"
+#include "Format/line_item.hpp"
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -15,6 +17,12 @@
 
 namespace {
 using namespace athena::text;
+
+struct paragraph_flow;
+struct flow_position {
+  std::shared_ptr<const paragraph_flow> flow;
+  int source= 0;
+};
 
 SI offset (SI x, SI dx) {
   if ((dx > 0 && x > std::numeric_limits<SI>::max () - dx) ||
@@ -39,6 +47,7 @@ struct utf8_line_box_rep: box_rep {
   shaping_options options;
   double horizontal_scale;
   std::vector<line_space_width> space_widths;
+  flow_position flow;
   shaped_line line;
 
   utf8_line_box_rep (path ip, std::shared_ptr<font_paragraph> source,
@@ -108,8 +117,10 @@ struct utf8_line_box_rep: box_rep {
         throw std::overflow_error ("Expanded Unicode glue exceeds coordinates");
       space.width= static_cast<SI> (width);
     }
-    return tm_new<utf8_line_box_rep> (ip, paragraph, begin, end, nominal, pen,
+    auto* result= tm_new<utf8_line_box_rep> (ip, paragraph, begin, end, nominal, pen,
       options, background, horizontal_scale * (1.0 + factor), std::move (spaces));
+    result->flow= flow;
+    return result;
   }
   double left_slope () override { return nominal->slope * horizontal_scale; }
   double right_slope () override { return nominal->slope * horizontal_scale; }
@@ -191,35 +202,58 @@ struct source_span {
   font nominal;
 };
 
+struct paragraph_flow {
+  path ip;
+  std::shared_ptr<font_paragraph> paragraph;
+  std::shared_ptr<const std::vector<source_span>> sources;
+  std::vector<int> piece_sources;
+  font nominal;
+  pencil pen;
+  brush background;
+};
+
+struct flow_marker_box_rep final: modifier_box_rep {
+  flow_position flow;
+  flow_marker_box_rep (box marker, flow_position position):
+    modifier_box_rep (marker->ip, marker), flow (std::move (position)) {}
+};
+
 // Source order is independent of ICU's visual order. A shared byte endpoint
 // can name either adjacent source node, so box paths retain a source-span id.
 struct mapped_utf8_line_box_rep final: utf8_line_box_rep {
   std::shared_ptr<const std::vector<source_span>> sources;
+  int first_source, last_source;
 
   mapped_utf8_line_box_rep (path ip, std::shared_ptr<font_paragraph> paragraph,
     std::shared_ptr<const std::vector<source_span>> spans, font nominal,
-    pencil pen, brush background, double scale= 1.0):
-    utf8_line_box_rep (ip, paragraph, 0, paragraph->analysis ().source ().size (),
-                       nominal, pen, {}, background, scale), sources (std::move (spans)) {
-    for (const auto& s: *sources) {
+    pencil pen, brush background, double scale= 1.0,
+    int first= 0, int last= -1, int source_first= 0, int source_last= -1,
+    std::vector<line_space_width> spaces= {}):
+    utf8_line_box_rep (ip, paragraph, first,
+                       last < 0 ? paragraph->analysis ().source ().size () : last,
+                       nominal, pen, {}, background, scale, std::move (spaces)),
+    sources (std::move (spans)), first_source (source_first),
+    last_source (source_last < 0 ? sources->size ()-1 : source_last) {
+    for (int i=first_source; i<=last_source; ++i) {
+      const auto& s= (*sources)[i];
       y1= min (y1, s.nominal->y1);
       y2= max (y2, s.nominal->y2);
     }
   }
 
   int source_index (path bp) const {
-    const int at= relative (bp);
+    const int at= begin + relative (bp);
     if (N(bp) >= 3) {
       const int i= bp->next->next->item;
-      if (i >= 0 && i < static_cast<int> (sources->size ()) &&
+      if (i >= first_source && i <= last_source &&
           (*sources)[i].begin <= at && at <= (*sources)[i].end) return i;
     }
     if (affinity (bp) == caret_affinity::upstream) {
-      for (int i=0; i<static_cast<int> (sources->size ()); ++i)
+      for (int i=first_source; i<=last_source; ++i)
         if ((*sources)[i].end >= at) return i;
     }
     else {
-      for (int i=static_cast<int> (sources->size ())-1; i>=0; --i)
+      for (int i=last_source; i>=first_source; --i)
         if ((*sources)[i].begin <= at) return i;
     }
     throw std::logic_error ("Unicode source map does not cover cursor");
@@ -230,32 +264,36 @@ struct mapped_utf8_line_box_rep final: utf8_line_box_rep {
       descend_decode (s.ip, at == s.end ? 1 : 0);
   }
   path find_lip () override {
-    return is_accessible (sources->front ().ip) ? source_path (0, 0) : sources->front ().ip;
+    const auto& s= (*sources)[first_source];
+    return is_accessible (s.ip) ? source_path (first_source, begin) : s.ip;
   }
   path find_rip () override {
-    return is_accessible (sources->back ().ip) ? source_path (sources->size ()-1, end) : sources->back ().ip;
+    const auto& s= (*sources)[last_source];
+    return is_accessible (s.ip) ? source_path (last_source, end) : s.ip;
   }
   path find_left_box_path () override {
-    return path (0, path (static_cast<int> (caret_affinity::downstream), 0));
+    return path (0, path (static_cast<int> (caret_affinity::downstream), first_source));
   }
   path find_right_box_path () override {
-    return path (end, path (static_cast<int> (caret_affinity::upstream), sources->size ()-1));
+    return path (end-begin, path (static_cast<int> (caret_affinity::upstream), last_source));
   }
   path find_box_path (path p, bool& found) override {
     found= false;
-    if (!is_nil (p)) for (int i=0; i<static_cast<int> (sources->size ()); ++i) {
+    if (!is_nil (p)) for (int i=first_source; i<=last_source; ++i) {
       const auto& s= (*sources)[i];
       if (!is_accessible (s.ip) || path_up (p) != reverse (s.ip)) continue;
       const int at= last_item (p) - s.source_begin;
-      if (at < 0 || at > s.end - s.begin || snap (s.begin + at) != s.begin + at) continue;
+      const int absolute= s.begin + at;
+      if (at < 0 || at > s.end - s.begin || absolute < begin || absolute > end ||
+          snap (absolute-begin) != absolute-begin) continue;
       found= true;
       const auto side= at == s.end - s.begin ? caret_affinity::upstream : caret_affinity::downstream;
-      return path (s.begin + at, path (static_cast<int> (side), i));
+      return path (absolute-begin, path (static_cast<int> (side), i));
     }
     return path (0, static_cast<int> (caret_affinity::downstream));
   }
   path find_tree_path (path bp) override {
-    return reverse (source_path (source_index (bp), relative (bp)));
+    return reverse (source_path (source_index (bp), begin + relative (bp)));
   }
   path with_cursor_affinity (path bp, caret_affinity side) override {
     return path (relative (bp), path (static_cast<int> (side), source_index (bp)));
@@ -263,8 +301,16 @@ struct mapped_utf8_line_box_rep final: utf8_line_box_rep {
   box expand_glyphs (int, double factor) override {
     if (!std::isfinite (factor) || factor <= -1.0)
       throw std::invalid_argument ("Invalid Unicode line expansion");
+    auto spaces= space_widths;
+    for (auto& space: spaces) {
+      const double width= std::round (space.width * (1.0 + factor));
+      if (width > std::numeric_limits<SI>::max ())
+        throw std::overflow_error ("Expanded Unicode glue exceeds coordinates");
+      space.width= static_cast<SI> (width);
+    }
     return tm_new<mapped_utf8_line_box_rep> (ip, paragraph, sources, nominal, pen,
-      background, horizontal_scale * (1.0 + factor));
+      background, horizontal_scale * (1.0 + factor), begin, end,
+      first_source, last_source, std::move (spaces));
   }
   int get_type () override { return box_rep::get_type (); }
 };
@@ -273,6 +319,12 @@ bool same_paint (pencil a, pencil b) {
   return a == b || (a->get_brush () == b->get_brush () &&
     a->get_width () == b->get_width () && a->get_cap () == b->get_cap () &&
     a->get_join () == b->get_join () && a->get_miter_lim () == b->get_miter_lim ());
+}
+
+flow_position flow_at (box b) {
+  if (auto* text= dynamic_cast<utf8_line_box_rep*> (b.operator-> ())) return text->flow;
+  if (auto* marker= dynamic_cast<flow_marker_box_rep*> (b.operator-> ())) return marker->flow;
+  return {};
 }
 }
 
@@ -288,7 +340,8 @@ bool is_utf8_line_box (box b) {
   return dynamic_cast<utf8_line_box_rep*> (b.operator-> ()) != nullptr;
 }
 
-box join_utf8_line_boxes (path ip, array<box> pieces, array<bool> markers) {
+static std::shared_ptr<paragraph_flow>
+build_utf8_flow (path ip, array<box> pieces, array<bool> markers, bool restore_spaces) {
   if (N(pieces) != N(markers))
     throw std::invalid_argument ("Unicode source marker count mismatch");
   utf8_line_box_rep* base= nullptr;
@@ -318,31 +371,106 @@ box join_utf8_line_boxes (path ip, array<box> pieces, array<bool> markers) {
   std::string text;
   std::vector<font_style_span> styles;
   auto sources= std::make_shared<std::vector<source_span>> ();
-  for (int i=0; i<N(pieces); ++i) {
+  auto result= std::make_shared<paragraph_flow> ();
+  const auto append= [&] (const utf8_line_box_rep* b, int first, int last) {
     const int begin= text.size ();
+    if (last-first > std::numeric_limits<int>::max () - text.size ())
+      throw std::length_error ("Unicode inline source exceeds path range");
+    text.append (b->bytes (), first, last-first);
+    std::size_t at= first;
+    auto add_style= [&] (std::size_t end, const font_request& request) {
+      if (end > at) styles.push_back ({begin + at - first, begin + end - first, request});
+      at= end;
+    };
+    for (const auto& style: b->paragraph->styles ()) {
+      if (style.end <= at || style.begin >= static_cast<std::size_t> (last)) continue;
+      if (style.begin > at) add_style (style.begin, b->paragraph->request ());
+      add_style (std::min (style.end, static_cast<std::size_t> (last)), style.request);
+    }
+    add_style (last, b->paragraph->request ());
+    sources->push_back ({begin, static_cast<int> (text.size ()), first, b->ip, b->nominal});
+  };
+  const utf8_line_box_rep* previous= nullptr;
+  for (int i=0; i<N(pieces); ++i) {
     if (!markers[i]) {
       const auto* b= static_cast<utf8_line_box_rep*> (pieces[i].operator-> ());
-      if (b->end - b->begin > std::numeric_limits<int>::max () - text.size ())
-        throw std::length_error ("Unicode inline source exceeds path range");
-      text.append (b->bytes (), b->begin, b->end - b->begin);
-      std::size_t at= b->begin;
-      auto add_style= [&] (std::size_t last, const font_request& request) {
-        if (last > at) styles.push_back ({begin + at - b->begin, begin + last - b->begin, request});
-        at= last;
-      };
-      for (const auto& style: b->paragraph->styles ()) {
-        if (style.end <= at || style.begin >= static_cast<std::size_t> (b->end)) continue;
-        if (style.begin > at) add_style (style.begin, b->paragraph->request ());
-        add_style (std::min (style.end, static_cast<std::size_t> (b->end)), style.request);
+      if (restore_spaces) {
+        if (previous && previous->paragraph == b->paragraph && previous->ip == b->ip) {
+          if (b->begin < previous->end) return {};
+          if (b->begin > previous->end) {
+            if (i == 0 || markers[i-1] ||
+                b->bytes ().substr (previous->end, b->begin - previous->end)
+                  .find_first_not_of (' ') != std::string_view::npos) return {};
+            append (previous, previous->end, b->begin);
+          }
+        }
+        else if (b->begin != 0 ||
+                 (previous && previous->end != static_cast<int> (previous->bytes ().size ()))) return {};
       }
-      add_style (b->end, b->paragraph->request ());
+      result->piece_sources.push_back (sources->size ());
+      append (b, b->begin, b->end);
+      previous= b;
     }
-    sources->push_back ({begin, static_cast<int> (text.size ()), pieces[i]->get_leaf_left_pos (),
-                        pieces[i]->ip, pieces[i]->get_leaf_font ()});
+    else {
+      const int at= text.size ();
+      result->piece_sources.push_back (sources->size ());
+      sources->push_back ({at, at, pieces[i]->get_leaf_left_pos (),
+                          pieces[i]->ip, pieces[i]->get_leaf_font ()});
+    }
   }
-  auto paragraph= std::make_shared<font_paragraph> (std::move (text), base->paragraph->request (), styles);
-  return tm_new<mapped_utf8_line_box_rep> (ip, std::move (paragraph), sources,
-                                         base->nominal, base->pen, base->background);
+  if (restore_spaces && previous->end != static_cast<int> (previous->bytes ().size ())) return {};
+  result->ip= ip;
+  result->paragraph= std::make_shared<font_paragraph> (std::move (text), base->paragraph->request (), styles);
+  result->sources= sources;
+  result->nominal= base->nominal;
+  result->pen= base->pen;
+  result->background= base->background;
+  return result;
+}
+
+box join_utf8_line_boxes (path ip, array<box> pieces, array<bool> markers) {
+  const auto flow= build_utf8_flow (ip, pieces, markers, false);
+  if (!flow) return {};
+  return tm_new<mapped_utf8_line_box_rep> (flow->ip, flow->paragraph, flow->sources,
+                                         flow->nominal, flow->pen, flow->background);
+}
+
+void prepare_utf8_paragraph (path ip, array<line_item>& items) {
+  for (int first=0; first<N(items);) {
+    int last= first;
+    array<box> pieces;
+    array<bool> markers;
+    std::shared_ptr<font_paragraph> previous;
+    bool multiple= false;
+    while (last < N(items)) {
+      auto item= items[last];
+      auto* text= dynamic_cast<utf8_line_box_rep*> (item->b.operator-> ());
+      if (item->type != MARKER_ITEM && (item->type != STD_ITEM || !text)) break;
+      if (text) {
+        if (text->flow.flow) break;
+        multiple= multiple || (previous && previous != text->paragraph);
+        previous= text->paragraph;
+      }
+      pieces << item->b;
+      markers << (item->type == MARKER_ITEM);
+      ++last;
+    }
+    const auto flow= multiple ? build_utf8_flow (ip, pieces, markers, true) : nullptr;
+    if (flow) {
+      grapheme_cursor boundaries (flow->paragraph->analysis ().source ());
+      for (int i=first; i<last; ++i) {
+        const int index= flow->piece_sources[i-first];
+        flow_position position {flow, index};
+        if (items[i]->type == MARKER_ITEM)
+          items[i]->b= tm_new<flow_marker_box_rep> (items[i]->b, position);
+        else static_cast<utf8_line_box_rep*> (items[i]->b.operator-> ())->flow= position;
+        // A source/style boundary is not necessarily a Unicode caret or break.
+        if (i > first && !boundaries.boundary ((*flow->sources)[index].begin))
+          items[i-1]->penalty= HYPH_INVALID;
+      }
+    }
+    first= max (first+1, last);
+  }
 }
 
 void reassemble_utf8_line (array<box>& pieces, array<SI>& spaces) {
@@ -351,6 +479,44 @@ void reassemble_utf8_line (array<box>& pieces, array<SI>& spaces) {
   array<box> output;
   array<SI> output_spaces;
   for (int first=0; first<N(pieces);) {
+    const auto position= flow_at (pieces[first]);
+    if (position.flow) {
+      const auto& flow= *position.flow;
+      const auto& sources= *flow.sources;
+      const auto bytes= flow.paragraph->analysis ().source ();
+      const int begin= sources[position.source].begin;
+      int end= sources[position.source].end, source_last= position.source;
+      int last= first;
+      double scale= 1.0;
+      bool have_text= false;
+      std::vector<line_space_width> widths;
+      for (; last<N(pieces); ++last) {
+        const auto next= flow_at (pieces[last]);
+        if (next.flow != position.flow || next.source < source_last) break;
+        const auto& span= sources[next.source];
+        if (span.begin < end && last != first) break;
+        auto* text= dynamic_cast<utf8_line_box_rep*> (pieces[last].operator-> ());
+        if (text && (have_text && text->horizontal_scale != scale)) break;
+        if (last != first) {
+          const auto gap= bytes.substr (end, span.begin-end);
+          if (spaces[last] < 0 || (gap.empty () ? spaces[last] != 0 :
+              gap.find_first_not_of (' ') != std::string_view::npos)) break;
+          if (!gap.empty ()) widths.push_back ({static_cast<std::size_t> (end),
+            static_cast<std::size_t> (span.begin), spaces[last]});
+        }
+        if (text) { scale= text->horizontal_scale; have_text= true; }
+        source_last= next.source;
+        end= span.end;
+      }
+      if (have_text) {
+        output << box (tm_new<mapped_utf8_line_box_rep> (flow.ip, flow.paragraph,
+          flow.sources, flow.nominal, flow.pen, flow.background, scale,
+          begin, end, position.source, source_last, std::move (widths)));
+        output_spaces << spaces[first];
+        first= last;
+        continue;
+      }
+    }
     auto* base= dynamic_cast<utf8_line_box_rep*> (pieces[first].operator-> ());
     int last= first+1;
     std::vector<line_space_width> widths;
