@@ -14,6 +14,7 @@
 #include "drd_std.hpp"
 #include "language.hpp" //(en|de)code_color
 #include "new_document.hpp"
+#include <algorithm>
 /******************************************************************************
 * Constructor
 ******************************************************************************/
@@ -27,8 +28,6 @@ packrat_parser_rep::packrat_parser_rep (packrat_grammar gr):
   current_string (""),
   current_start (-1),
   current_end (-1),
-  current_path_pos (-1),
-  current_pos_path (-1),
   current_cursor (-1),
   current_input (),
   current_cache (PACKRAT_UNDEFINED),
@@ -78,10 +77,11 @@ void
 packrat_parser_rep::set_input (tree t) {
   current_string= "";
   current_tree  = t;
+  current_input= array<C> ();
+  current_token_bytes= {0};
   serialize (t, path ());
   if (DEBUG_FLATTEN)
     debug_packrat << "Input " << current_string << "\n";
-  current_input= encode_tokens (current_string);
 }
 
 void
@@ -97,14 +97,10 @@ packrat_parser_rep::set_cursor (path p) {
 
 C
 packrat_parser_rep::encode_string_position (int i) {
-  if (i < 0) return PACKRAT_FAILED;
-  int j=0;
-  C k=0;
-  while (j<i && j<N(current_string)) {
-    tm_char_forwards (current_string, j);
-    k++;
-  }
-  return k;
+  auto it= std::lower_bound (current_token_bytes.begin (),
+                            current_token_bytes.end (), i);
+  if (it == current_token_bytes.end () || *it != i) return PACKRAT_FAILED;
+  return static_cast<C> (it - current_token_bytes.begin ());
 }
 
 int
@@ -113,15 +109,13 @@ packrat_parser_rep::encode_path (tree t, path p, path pos) {
   //cout << "Range " << current_start[p] << " -- " << current_end[p] << "\n";
   if (is_nil (pos) || !current_start->contains (p)) return -1;
   else if (is_atomic (t)) {
-    if (current_path_pos->contains (p * pos))
-      return current_path_pos[p * pos];
-    else if (pos->item < 0 || pos->item > N(t->label)) return -1;
+    if (!is_atom (pos) || pos->item < 0 || pos->item > N(t->label)) return -1;
     return current_start[p] + pos->item;
   }
   else {
     if (pos == path (0)) return current_start[p];
     if (pos == path (1)) return current_end[p];
-    if (pos->item < 0 || pos->item > N(t) || is_nil (pos->next)) return -1;
+    if (pos->item < 0 || pos->item >= N(t) || is_nil (pos->next)) return -1;
     return encode_path (t[pos->item], p * pos->item, pos->next);
   }
 }
@@ -136,14 +130,9 @@ packrat_parser_rep::encode_tree_position (path p) {
 int
 packrat_parser_rep::decode_string_position (C pos) {
   //cout << "Decode " << pos << "\n";
-  if (pos == PACKRAT_FAILED) return -1;
-  int i=0;
-  C k=0;
-  while (i<N(current_string) && k<pos) {
-    tm_char_forwards (current_string, i);
-    k++;
-  }
-  return i;
+  if (pos < 0 || static_cast<size_t> (pos) >= current_token_bytes.size ())
+    return -1;
+  return current_token_bytes[pos];
 }
 
 path
@@ -151,13 +140,12 @@ packrat_parser_rep::decode_path (tree t, path p, int pos) {
   //cout << "Search " << pos << " in " << t << ", " << p << "\n";
   //cout << "Range " << current_start[p] << " -- " << current_end[p] << "\n";
   if (is_atomic (t)) {
-    if (current_pos_path->contains (pos))
-      return current_pos_path[pos];
-    else return p * (pos - current_start[p]);
+    return p * (pos - current_start[p]);
   }
   else {
     for (int i=0; i<N(t); i++)
-      if (pos >= current_start[p*i] && pos <= current_end[p*i])
+      if (current_start->contains (p*i) &&
+          pos >= current_start[p*i] && pos <= current_end[p*i])
         return decode_path (t[i], p * i, pos);
     if (pos <= current_start[p]) return p * 0;
     if (pos >= current_end[p]) return p * 1;
@@ -183,6 +171,7 @@ starts (tree t, string s) {
 
 C
 packrat_parser_rep::parse (C sym, C pos) {
+  if (pos < 0 || pos > N(current_input)) return PACKRAT_FAILED;
   D key= (((D) sym) << 32) + ((D) (sym^pos));
   C im = current_cache [key];
   if (im != PACKRAT_UNDEFINED) {
@@ -247,13 +236,13 @@ packrat_parser_rep::parse (C sym, C pos) {
       break;
     case PACKRAT_TM_OPEN:
       if (pos < N (current_input) &&
-          starts (packrat_decode[current_input[pos]], "<\\"))
+          is_compound (packrat_decode[current_input[pos]], "tm-node-open", 1))
         im= pos + 1;
       else im= PACKRAT_FAILED;
       break;
     case PACKRAT_TM_ANY:
       im= pos;
-      while (true) {
+      while (im < N(current_input)) {
         C old= im;
         im= parse (PACKRAT_TM_OPEN, old);
         if (im == PACKRAT_FAILED)
@@ -261,22 +250,24 @@ packrat_parser_rep::parse (C sym, C pos) {
         else {
           im= parse (PACKRAT_TM_ARGS, im);
           if (im != PACKRAT_FAILED)
-            im= parse (encode_token ("</>"), im);
+            im= parse (encode_terminal (compound ("tm-node-close")), im);
         }
+        if (im == PACKRAT_FAILED) break;
         if (old == im) break;
       }
       break;
     case PACKRAT_TM_ARGS:
       im= parse (PACKRAT_TM_ANY, pos);
-      while (im < N (current_input))
-        if (current_input[im] != encode_token ("<|>")) break;
+      while (im >= 0 && im < N (current_input))
+        if (current_input[im] !=
+            encode_terminal (compound ("tm-node-separator"))) break;
         else im= parse (PACKRAT_TM_ANY, im + 1);
       break;
     case PACKRAT_TM_LEAF:
       im= pos;
       while (im < N (current_input)) {
         tree t= packrat_decode[current_input[im]];
-        if (starts (t, "<\\") || t == "<|>" || t == "</>") break;
+        if (!is_atomic (t) && !is_func (t, NAMED_SYMBOL, 1)) break;
         else im++;
       }
       break;
@@ -284,7 +275,7 @@ packrat_parser_rep::parse (C sym, C pos) {
       if (pos >= N (current_input)) im= PACKRAT_FAILED;
       else {
         tree t= packrat_decode[current_input[pos]];
-        if (starts (t, "<\\") || t == "<|>" || t == "</>") im= PACKRAT_FAILED;
+        if (!is_atomic (t) && !is_func (t, NAMED_SYMBOL, 1)) im= PACKRAT_FAILED;
         else im= pos + 1;
       }
       break;

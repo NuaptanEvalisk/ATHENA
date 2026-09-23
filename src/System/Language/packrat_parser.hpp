@@ -12,6 +12,7 @@
 #ifndef PACKRAT_PARSER_H
 #define PACKRAT_PARSER_H
 #include "packrat_grammar.hpp"
+#include <vector>
 
 #define PACKRAT_UNDEFINED ((C) (-2))
 #define PACKRAT_FAILED    ((C) (-1))
@@ -28,8 +29,8 @@ public:
   string                    current_string;
   hashmap<path,int>         current_start;
   hashmap<path,int>         current_end;
-  hashmap<path,int>         current_path_pos;
-  hashmap<int,path>         current_pos_path;
+  // Diagnostic string byte boundaries for the independently emitted tokens.
+  std::vector<int>          current_token_bytes;
   C                         current_cursor;
   int                       current_hl_lan;
 
@@ -38,6 +39,7 @@ public:
   hashmap<D,tree>           current_production;
 
 protected:
+  void emit_token (C token, string display);
   void serialize_atomic (tree t, path p);
   void serialize_compound (tree t, path p);
   void serialize (tree t, path p);
@@ -79,7 +81,15 @@ CONCRETE_NULL_CODE (packrat_parser);
 inline packrat_parser::packrat_parser
   (packrat_grammar gr, tree t, path t_pos):
     rep (tm_new<packrat_parser_rep> (gr)) {
-      rep->set_input (t);
-      rep->set_cursor (t_pos); }
+      try {
+        rep->set_input (t);
+        rep->set_cursor (t_pos);
+      }
+      catch (...) {
+        tm_delete (rep);
+        rep= nullptr;
+        throw;
+      }
+    }
 
 #endif // PACKRAT_PARSER_H

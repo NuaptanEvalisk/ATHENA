@@ -26,15 +26,15 @@ tree
 symbol_expression (const char* text) {
   string s (text);
   if (s == ":<") return compound ("tm-open");
-  if (s == ":/") return tree ("<|>");
-  if (s == ":>") return tree ("</>");
+  if (s == ":/") return compound ("tm-node-separator");
+  if (s == ":>") return compound ("tm-node-close");
   if (s == ":any") return compound ("tm-any");
   if (s == ":args") return compound ("tm-args");
   if (s == ":leaf") return compound ("tm-leaf");
   if (s == ":char") return compound ("tm-char");
   if (s == ":cursor") return compound ("tm-cursor");
   if (starts (s, ":<") && N(s) > 2)
-    return tree ("<\\" * s (2, N(s)) * ">");
+    return compound ("tm-node-open", s (2, N(s)));
   return compound ("symbol", tree (s));
 }
 

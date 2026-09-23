@@ -13,15 +13,17 @@
 #include "analyze.hpp"
 #include "iterator.hpp"
 #include "convert.hpp"
+#include "unicode_text.hpp"
+#include <unicode/utf8.h>
 #include <atomic>
 #include <mutex>
 #include <string>
 #include <vector>
 
 thread_local tree                 packrat_uninit (UNINIT);
-thread_local int                  packrat_nr_tokens= 256;
+thread_local int                  packrat_nr_tokens= 0x110000;
 thread_local int                  packrat_nr_symbols= 0;
-thread_local hashmap<string,C>    packrat_tokens;
+thread_local hashmap<tree,C>      packrat_terminals;
 thread_local hashmap<tree,C>      packrat_symbols;
 thread_local hashmap<C,tree>      packrat_decode (packrat_uninit);
 
@@ -122,36 +124,48 @@ size_t packrat_grammar_revision () { return grammars ().revision; }
 ******************************************************************************/
 
 C
-new_token (string s) {
-  if (N(s) == 1)
-    return (C) (unsigned char) s[0];
-  else {
-    C ret= packrat_nr_tokens++;
-    //cout << "Encode " << s << " -> " << ret << LF;
-    return ret;
-  }
+encode_token (string s) {
+  int pos= 0;
+  UChar32 scalar;
+  if (N(s) == 0) return -1;
+  U8_NEXT (s.data (), pos, N(s), scalar);
+  if (scalar < 0 || pos != N(s)) return -1;
+  if (!packrat_decode->contains (scalar)) packrat_decode (scalar)= s;
+  return scalar;
+}
+
+bool
+is_packrat_terminal (tree t) {
+  return (is_compound (t, "tm-node-open", 1) && is_atomic (t[0])) ||
+         is_compound (t, "tm-node-separator", 0) ||
+         is_compound (t, "tm-node-close", 0) ||
+         (is_func (t, NAMED_SYMBOL, 1) && is_atomic (t[0]));
 }
 
 C
-encode_token (string s) {
-  if (!packrat_tokens->contains (s)) {
-    int pos= 0;
-    tm_char_forwards (s, pos);
-    if (pos == 0 || pos != N(s)) return -1;
-    C sym= new_token (s);
-    packrat_tokens (s)= sym;
-    packrat_decode (sym)= s;
+encode_terminal (tree t) {
+  ASSERT (is_packrat_terminal (t), "invalid packrat structural terminal");
+  if (N(t) == 1)
+    athena::text::require_utf8 ({t[0]->label.data (),
+                               static_cast<size_t> (N(t[0]->label))});
+  if (!packrat_terminals->contains (t)) {
+    ASSERT (packrat_nr_tokens < PACKRAT_OR, "packrat terminal limit exceeded");
+    C sym= packrat_nr_tokens++;
+    packrat_terminals(t)= sym;
+    packrat_decode(sym)= t;
   }
-  return packrat_tokens[s];
+  return packrat_terminals[t];
 }
 
 array<C>
 encode_tokens (string s) {
   int pos= 0;
   array<C> ret;
+  const std::string_view text (s.data (), N(s));
+  athena::text::require_utf8 (text);
   while (pos < N(s)) {
     int old= pos;
-    tm_char_forwards (s, pos);
+    pos= athena::text::next_scalar (text, pos);
     ret << encode_token (s (old, pos));
   }
   return ret;
@@ -159,6 +173,7 @@ encode_tokens (string s) {
 
 C
 new_symbol (tree t) {
+  if (is_packrat_terminal (t)) return encode_terminal (t);
   if (is_atomic (t)) {
     C ret= encode_token (t->label);
     if (ret != -1) return ret;
@@ -347,17 +362,18 @@ packrat_grammar_rep::define (tree t) {
   if (t == "")
     def << PACKRAT_CONCAT;
   else if (is_atomic (t)) {
-    int pos= 0;
     string s= t->label;
-    tm_char_forwards (s, pos);
-    if (pos > 0 && pos == N(s)) def << encode_symbol (s);
+    if (encode_token (s) >= 0) def << encode_symbol (s);
     else def << PACKRAT_CONCAT << encode_tokens (s);
   }
+  else if (is_packrat_terminal (t))
+    def << encode_terminal (t);
   else if (is_compound (t, "symbol", 1))
     def << encode_symbol (t);
   else if (is_compound (t, "range", 2) &&
            is_atomic (t[0]) && is_atomic (t[1]) &&
-           N(t[0]->label) == 1 && N(t[1]->label) == 1)
+           encode_token (t[0]->label) >= 0 &&
+           encode_token (t[1]->label) >= 0)
     def << PACKRAT_RANGE
         << encode_token (t[0]->label)
         << encode_token (t[1]->label);
@@ -444,7 +460,13 @@ packrat_grammar_rep::get_property (string s, string var) {
 string
 packrat_grammar_rep::decode_as_string (C sym) {
   string r;
-  if (sym < PACKRAT_OR) {
+  if (sym >= 0 && sym <= 0x10ffff && !(sym >= 0xd800 && sym <= 0xdfff)) {
+    char bytes[4];
+    int length= 0;
+    U8_APPEND_UNSAFE (bytes, length, sym);
+    r= string (bytes, length);
+  }
+  else if (sym < PACKRAT_OR) {
     tree t= packrat_decode [sym];
     if (is_atomic (t)) r << t->label;
   }

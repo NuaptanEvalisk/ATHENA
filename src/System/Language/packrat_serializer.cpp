@@ -12,6 +12,7 @@
 #include "packrat_parser.hpp"
 #include "analyze.hpp"
 #include "drd_std.hpp"
+#include "unicode_text.hpp"
 
 /******************************************************************************
 * Useful subroutines
@@ -32,6 +33,26 @@ as_path (tree t) {
 ******************************************************************************/
 
 void
+packrat_parser_rep::emit_token (C token, string display) {
+  current_input << token;
+  current_string << display;
+  current_token_bytes.push_back (N(current_string));
+}
+
+void
+packrat_parser_rep::serialize_atomic (tree t, path) {
+  string s= t->label;
+  const std::string_view text (s.data (), N(s));
+  athena::text::require_utf8 (text);
+  for (int pos= 0; pos < N(s); ) {
+    int end= athena::text::next_scalar (text, pos);
+    string scalar= s (pos, end);
+    emit_token (encode_token (scalar), scalar);
+    pos= end;
+  }
+}
+
+void
 packrat_parser_rep::serialize_compound (tree t, path p) {
   tree r= the_drd->get_syntax (t, p);
   if (r != UNINIT)
@@ -42,12 +63,14 @@ packrat_parser_rep::serialize_compound (tree t, path p) {
     serialize (tt, pp);
   }
   else {
-    current_string << "<\\" << as_string (L(t)) << ">";
+    emit_token (encode_terminal (compound ("tm-node-open", as_string (L(t)))),
+                "<\\" * as_string (L(t)) * ">");
     for (int i=0; i<N(t); i++) {
-      if (i != 0) current_string << "<|>";
+      if (i != 0)
+        emit_token (encode_terminal (compound ("tm-node-separator")), "<|>");
       serialize (t[i], p * i);
     }
-    current_string << "</>";
+    emit_token (encode_terminal (compound ("tm-node-close")), "</>");
   }
 }
 
@@ -55,45 +78,24 @@ void
 packrat_parser_rep::serialize (tree t, path p) {
   if (is_nil (p) || p->item != -1)
     current_start (p)= N(current_string);
-  if (is_atomic (t)) {
-    int begin= N(current_string);
-    int pos=0;
-    string s= t->label;
-    while (true) {  
-      if (N(current_string) != begin + pos)
-        if (is_nil (p) || p->item != -1) {
-          //cout << p * pos << " <-> " << N(current_string) << LF;
-          //cout << "  " << s (0, pos) << LF;
-          //cout << "  " << current_string (begin, N(current_string)) << LF;
-          current_path_pos (p * pos)= N(current_string);
-          current_pos_path (N(current_string))= p * pos;
-        }
-      if (pos >= N(s)) break;
-      int start= pos;
-      tm_char_forwards (s, pos);
-      if (pos == start+1)
-        current_string << s[start];
-      else {
-        // FIXME: where did we use this kind of syntactical substitutions?
-        tree r (UNINIT);
-        string ss= s (start, pos);
-        if (N(ss) != 1 && existing_tree_label (ss))
-          r= the_drd->get_syntax (as_tree_label (ss));
-        //if (r != UNINIT) cout << "Rewrite " << ss << " -> " << r << "\n";
-        if (r == UNINIT) current_string << ss;
-        else serialize (r, path (-1));
-      }
-    }
-  }
+  if (is_atomic (t)) serialize_atomic (t, p);
   else switch (L(t)) {
+    case NAMED_SYMBOL:
+      ASSERT (N(t) == 1 && is_atomic (t[0]), "invalid named symbol");
+      athena::text::require_utf8 ({t[0]->label.data (),
+                                 static_cast<size_t> (N(t[0]->label))});
+      emit_token (encode_terminal (t), "<symbol:" * t[0]->label * ">");
+      break;
     case RAW_DATA:
-      current_string << "<\\rawdata></>";
+      emit_token (encode_terminal (compound ("tm-node-open", "rawdata")),
+                  "<\\rawdata>");
+      emit_token (encode_terminal (compound ("tm-node-close")), "</>");
       break;
     case DOCUMENT:
     case PARA:
       for (int i=0; i<N(t); i++) {
         serialize (t[i], p * i);
-        current_string << "\n";
+        emit_token (encode_token ("\n"), "\n");
       }
       break;
     case SURROUND:

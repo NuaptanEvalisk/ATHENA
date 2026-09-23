@@ -75,6 +75,19 @@ navigation no longer parses angle-bracket spellings. Binary payloads and named
 symbol identities remain exact structural values rather than ordinary searched
 text. Focused native editor tests exercise length-changing replacement and undo.
 
+Packrat now emits tokens directly from the tree instead of reparsing flattened
+angle-bracket markup. Text terminals are Unicode scalars, with scalar-order
+ranges including supplementary characters. Node openings, argument separators,
+closings and named-symbol identities occupy a disjoint owner-local terminal
+space. Literal text cannot impersonate any of them. Native and Scheme grammar
+declarations use explicit structural terminals. Diagnostic strings are not
+parser input; a recorded boundary index maps their bytes to token positions,
+rejecting UTF-8 scalar interiors and out-of-range tree paths. RAW_DATA never
+enters the text decoder. Focused editor tests cover structure/text collisions,
+named identities, byte mappings and nested built-in fraction parsing. The
+remaining legacy mathematical literal tables, lexer and font dispatch still
+need migration; this change alone does not complete mathematical Unicode support.
+
 Native document constructors no longer add a TeXmacs compatibility version.
 Until XML activation, only the legacy document serializers add their required
 `TeXmacs 2.1.4` format signature to a temporary serialization tree. This is not

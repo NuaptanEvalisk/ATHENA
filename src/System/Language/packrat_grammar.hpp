@@ -61,12 +61,16 @@ struct packrat_grammar {
 
 extern thread_local int               packrat_nr_tokens;
 extern thread_local int               packrat_nr_symbols;
-extern thread_local hashmap<string,C> packrat_tokens;
+extern thread_local hashmap<tree,C>   packrat_terminals;
 extern thread_local hashmap<tree,C>   packrat_symbols;
 extern thread_local hashmap<C,tree>   packrat_decode;
 extern thread_local tree              packrat_uninit;
 
+// Text terminals use Unicode scalar values. Structural terminals occupy a
+// separate owner-local ID range and can never be supplied by literal text.
 C        encode_token  (string s);
+C        encode_terminal (tree t);
+bool     is_packrat_terminal (tree t);
 array<C> encode_tokens (string s);
 C        encode_symbol (tree t);
 
