@@ -14,6 +14,11 @@
 #include "convert.hpp"
 #include "iterator.hpp"
 #include "analyze.hpp"
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonParseError>
+#include <stdexcept>
 
 FONT_RESOURCE_CODE(translator);
 
@@ -70,6 +75,21 @@ operator << (translator& trl, translator trm) {
 * Loading virtual fonts as translators
 ******************************************************************************/
 
+static tree
+json_virtual_tree (const QJsonValue& value, int depth= 0) {
+  if (depth > 128) throw std::runtime_error ("Virtual font recipe is too deep");
+  if (value.isString ()) {
+    QByteArray bytes= value.toString ().toUtf8 ();
+    return string (bytes.constData (), bytes.size ());
+  }
+  if (!value.isArray ()) throw std::runtime_error ("Invalid virtual font recipe node");
+  QJsonArray source= value.toArray ();
+  tree result (TUPLE, source.size ());
+  for (int i=0; i<source.size (); ++i)
+    result[i]= json_virtual_tree (source[i], depth + 1);
+  return result;
+}
+
 translator
 load_virtual (string name) {
   if (translator::instances -> contains (name))
@@ -78,23 +98,33 @@ load_virtual (string name) {
     tm_new<translator_rep> (name), &tm_delete<translator_rep>);
 
   string s, r;
-  name= name * ".vfn";
+  name= name * ".json";
   if (DEBUG_STD) debug_fonts << "Loading " << name << "\n";
   url u ("$ATHENA_HOME_PATH/fonts/virtual:$ATHENA_PATH/fonts/virtual", name);
-  load_string (u, s, true);
-  tree t= string_to_scheme_tree (s);
-  ASSERT (is_tuple (t, "virtual-font"), "bad virtual font format");
-
-  int i, n= N(t);
-  trl->virt_def= array<tree> (n);
-  for (i=1; i<n; i++)
-    if (is_func (t[i], TUPLE, 2) && is_atomic (t[i][0])) {
-      string s= as_string (t[i][0]);
-      if (N(s)>1) s= "<" * s * ">";
-      trl->dict (s)= i;
-      trl->virt_def[i]= t[i][1];
-      // cout << s << "\t" << i << "\t" << t[i][1] << "\n";
-    }
+  if (load_string (u, s, false))
+    throw std::runtime_error ("Cannot read virtual font JSON");
+  QJsonParseError error;
+  QJsonDocument doc= QJsonDocument::fromJson (
+    QByteArray (s.data (), N(s)), &error);
+  if (error.error != QJsonParseError::NoError || !doc.isObject ())
+    throw std::runtime_error ("Invalid virtual font JSON");
+  QJsonObject root= doc.object ();
+  if (root.value ("version").toInt () != 1 || !root.value ("definitions").isArray ())
+    throw std::runtime_error ("Unsupported virtual font JSON");
+  QJsonArray defs= root.value ("definitions").toArray ();
+  trl->virt_def= array<tree> (defs.size () + 1);
+  for (int i=0; i<defs.size (); ++i) {
+    if (!defs[i].isArray ()) throw std::runtime_error ("Invalid virtual font definition");
+    QJsonArray def= defs[i].toArray ();
+    if (def.size () != 2 || !def[0].isString ())
+      throw std::runtime_error ("Invalid virtual font definition");
+    QByteArray bytes= def[0].toString ().toUtf8 ();
+    string key (bytes.constData (), bytes.size ());
+    if (N(key) > 1) key= "<" * key * ">";
+    const int slot= i + 1;
+    trl->dict (key)= slot;
+    trl->virt_def[slot]= json_virtual_tree (def[1]);
+  }
   return translator (trl.release ());
 }
 
