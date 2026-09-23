@@ -17,36 +17,7 @@
 #include "drd_mode.hpp"
 #include "tm_buffer.hpp"
 #include "utf8_edit.hpp"
-
-/******************************************************************************
-* Internationalization
-******************************************************************************/
-
-string
-selection_encode (string lan, string s) {
-  if (get_preference ("texmacs->verbatim:encoding", "auto") == "iso-8859-2" &&
-      ((lan == "croatian") || (lan == "czech") || (lan == "hungarian") ||
-       (lan == "polish") || (lan == "slovak") || (lan == "slovene")))
-    return cork_to_il2 (s);
-  else if (lan == "spanish")
-    return spanish_to_ispanish (s);
-  else if (lan == "german")
-    return german_to_igerman (s);
-  else return s;
-}
-
-string
-selection_decode (string lan, string s) {
-  if (get_preference ("verbatim->texmacs:encoding", "auto") == "iso-8859-2" &&
-      ((lan == "croatian") || (lan == "czech") || (lan == "hungarian") ||
-       (lan == "polish") || (lan == "slovak") || (lan == "slovene")))
-    return il2_to_cork (s);
-  else if (lan == "spanish")
-    return ispanish_to_spanish (s);
-  else if (lan == "german")
-    return igerman_to_german (s);
-  else return s;
-}
+#include "Xml/clipboard_xml.hpp"
 
 /******************************************************************************
 * Constructor and destructor
@@ -690,19 +661,21 @@ edit_select_rep::selection_set (string key, tree t, bool persistant) {
     if (selection_export == "latex") t= exec_latex (t, tp);
     if ((selection_export == "latex") && (mode == "math"))
       t= compound ("math", t);
-    if (selection_export != "default")
+    if (selection_export == "verbatim")
+      s= tree_to_verbatim (t, false, "utf-8");
+    else if (selection_export != "default")
       s= tree_to_generic (t, selection_export * "-snippet");
     else {
-      s= tree_to_generic (t, "texmacs-snippet");
+      std::string xml= athena::document::write_clipboard_xml (sel);
+      s= string (xml.data (), static_cast<int> (xml.size ()));
 #ifdef QTTEXMACS
       tree tmp;
       tmp= exec_verbatim (t, tp);
-      sv= tree_to_generic (tmp, "verbatim-snippet");
+      sv= tree_to_verbatim (tmp, false, "utf-8");
       //tmp= exec_html (t, tp);
       //sh= tree_to_generic (tmp, "html-snippet");
 #endif
     }
-    s= selection_encode (lan, s);
   }
   if (::set_selection (key, sel, s, sv, sh, selection_export) && !persistant)
     selection_cancel ();
@@ -756,10 +729,17 @@ edit_select_rep::selection_paste (string key) {
       (void) native_graphics_paste_selection (t[1]);
     return;
   }
+  if (is_tuple (t, "extern-utf8", 1)) {
+    bool wrap= get_env_string (MODE) != "prog" &&
+      get_preference ("verbatim->texmacs:wrap", "off") == "on";
+    tree doc= verbatim_to_tree (as_string (t[1]), wrap, "utf-8");
+    if (is_func (doc, DOCUMENT, 1)) doc= doc[0];
+    if (!is_empty (doc)) insert_tree (doc);
+    return;
+  }
   if (is_tuple (t, "extern", 1)) {
     string mode= get_env_string (MODE);
-    string lan = get_env_string (MODE_LANGUAGE (mode));
-    string s   = selection_decode (lan, as_string (t[1]));
+    string s   = as_string (t[1]);
     if (mode == "prog")
       if (selection_import == "latex" || selection_import == "html")
         selection_import= "verbatim";

@@ -163,7 +163,7 @@ qt_font_rep::qt_font_rep (string name, string family2, int size2, int dpi2):
 
 bool
 qt_font_rep::supports (string c) {
-  QString qs= utf8_to_qstring (cork_to_utf8 (c));
+  QString qs= to_qstring (c);
   QVector<uint> ucs4= qs.toUcs4 ();
   if (ucs4.size () == 0) return false;
   if (family == "" || family == "emoji") return true;
@@ -173,7 +173,7 @@ qt_font_rep::supports (string c) {
 
 void
 qt_font_rep::get_extents (string s, metric& ex) {
-  QString qs  = utf8_to_qstring (cork_to_utf8 (s));
+  QString qs  = to_qstring (s);
   QRectF  rect= qfm.tightBoundingRect (qs);
   qreal   w   = qfm.horizontalAdvance (qs);
   ex->x1= 0;
@@ -195,7 +195,7 @@ qt_font_rep::get_extents (string s, metric& ex) {
 void
 qt_font_rep::draw_fixed (renderer ren, string s, SI x, SI y) {
   if (N(s)!=0) {
-    QString qs= utf8_to_qstring (cork_to_utf8 (s));
+    QString qs= to_qstring (s);
     if (ren->is_screen) {
       double zoom= dpi / (std_shrinkf * 72.0);
       qt_renderer_rep* qren= (qt_renderer_rep*) ren->get_handle ();

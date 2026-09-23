@@ -34,6 +34,7 @@
 #include "named_symbol.hpp"
 #include "tree_analyze.hpp"
 #include "Xml/legacy_document_import.hpp"
+#include "Xml/clipboard_xml.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }
@@ -356,6 +357,34 @@ private slots:
     const QKeyEvent shifted (QEvent::KeyPress, Qt::Key_1,
       Qt::ControlModifier | Qt::ShiftModifier, 0, 0x1234, 0, "\x01");
     QCOMPARE (QTMKeyboardEvent (keyboard, shifted).texmacsKeyCombination (), "C-" * composed);
+  }
+  void clipboardAndUndo () {
+    const string source= u8"\u00e9\u4e2d e\u0301 <alpha> \U0001f600";
+    const string key= "utf8-clipboard-test";
+    const path atom= buffer->root_path * 0;
+    QVERIFY (::set_selection (key, tuple ("extern-utf8", source),
+                               "", "", "", "default"));
+    editor->go_to (atom * 0);
+    editor->archive_state ();
+    editor->start_editing ();
+    editor->selection_paste (key);
+    editor->end_editing ();
+    QVERIFY (subtree (current_document_tree (), atom) == tree (source));
+    QVERIFY (editor->the_path () == atom * N(source));
+    editor->undo (0);
+    QVERIFY (subtree (current_document_tree (), atom) == "");
+    editor->redo (0);
+    QVERIFY (subtree (current_document_tree (), atom) == tree (source));
+
+    editor->selection_set ("primary", tree (source));
+    tree selection;
+    string bytes;
+    QVERIFY (::get_selection ("primary", selection, bytes, "default"));
+    QVERIFY (athena::document::read_clipboard_xml (
+      {bytes.data (), std::size_t (N(bytes))}) == selection);
+    QVERIFY (selection[1] == tree (source));
+    ::clear_selection (key);
+    ::clear_selection ("primary");
   }
   void schemeTextBoundaries () {
     QVERIFY (as_bool (eval (

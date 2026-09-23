@@ -3,7 +3,8 @@
 ## Activation Status
 
 These APIs are migration infrastructure, **not the active document format**.
-The editor, bundled resources, legacy converters and protocols still use Cork.
+Some mathematical/editor paths, bundled resources, legacy converters and
+protocols still use Cork; the migrated text/editing boundaries below do not.
 Do not pass a legacy runtime tree to `write_xml`, or pass `read_xml` output to a
 Cork editor. ASCII-only tests do not establish that those crossings are safe.
 No setting enables a mixed runtime. Normal saves must remain on the existing
@@ -31,6 +32,25 @@ index conversion have explicit native APIs. Core content ranges and cursor
 queries use byte offsets; Scheme character navigation uses ICU graphemes. The
 remaining Scheme consumers, legacy converters and resource data still require
 migration before runtime activation.
+
+Qt's general string bridge now converts strictly between native UTF-8 and
+QString UTF-16, preserves embedded NULs and rejects malformed UTF-8 or isolated
+surrogates. It no longer guesses Cork from byte contents or interprets literal
+angle-bracket strings. Qt font text, menu labels and preview/export image paths
+use the same contract.
+
+Native cross-process clipboard offers use `application/x-athena-selection+xml`,
+carrying a versioned XML fragment containing content, mode and language. Binary
+RAW_DATA stays binary through the codec. Invalid native offers are rejected,
+not silently pasted as their plain-text alternative. Legacy TeXmacs clipboard
+MIME is no longer emitted or interpreted as a native UTF-8 tree; external apps
+can exchange plain text. The ordinary text clipboard bypasses legacy snippet
+parsers and locale/language rewrites; insertion still runs on the editor owner.
+Verbatim conversion uses UTF-8 internally, ICU grapheme counting and deletion,
+and owner-local ICU converters with stop-on-error callbacks for explicitly
+selected external file encodings. `auto` now means UTF-8, not byte guessing.
+HTML/LaTeX converter internals and other serialized clipboard consumers remain
+part of the broader converter migration; this does not activate document saves.
 
 Native document constructors no longer add a TeXmacs compatibility version.
 Until XML activation, only the legacy document serializers add their required

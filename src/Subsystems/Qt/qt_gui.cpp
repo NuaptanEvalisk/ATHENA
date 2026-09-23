@@ -12,6 +12,7 @@
 #include <locale.h>
 
 #include "convert.hpp"
+#include "Xml/clipboard_xml.hpp"
 #include "font_domain.hpp"
 #include "iterator.hpp"
 #include "file.hpp" // added for copy_as_graphics
@@ -405,6 +406,7 @@ qt_gui_rep::get_selection (string key, tree& t, string& s, string format) {
   
   s = "";
   t = "none";
+  if (empty_offer && !clipboard_text_cache_valid) return false;
     // Knowing when we owns (or not) the content is not clear
   bool owns = (format != "temp" && format != "wrapbuf" && key != "primary") &&
   !(key == "mouse" && cb->supportsSelection ());
@@ -436,9 +438,19 @@ qt_gui_rep::get_selection (string key, tree& t, string& s, string format) {
     if (format == "default") input_format= "verbatim-snippet";
   }
   else if (format == "default") {
-    if (md->hasFormat ("application/x-texmacs-clipboard")) {
-      buf = md->data ("application/x-texmacs-clipboard");
-      input_format = "texmacs-snippet";
+    if (md->hasFormat (athena::document::clipboard_mime)) {
+      buf= md->data (athena::document::clipboard_mime);
+      try {
+        t= athena::document::read_clipboard_xml (
+          {buf.constData (), static_cast<std::size_t> (buf.size ())});
+        s= string (buf.constData (), static_cast<int> (buf.size ()));
+        return true;
+      }
+      catch (const std::exception& error) {
+        // A declared native payload must not silently degrade to plain text.
+        std_warning << "Cannot paste ATHENA selection: " << error.what () << LF;
+        return false;
+      }
     }
     else if (md->hasImage ()) {
       if (md->hasUrls ()) {
@@ -519,15 +531,19 @@ qt_gui_rep::get_selection (string key, tree& t, string& s, string format) {
       input_format = "verbatim-snippet";
     }
   }
-  else if (format == "verbatim"
-           && (get_preference ("verbatim->texmacs:encoding") == "utf-8" ||
-               get_preference ("verbatim->texmacs:encoding") == "auto"  ))
+  else if (format == "verbatim")
     buf = md->text().toUtf8 ();
   else {
-    if (md->hasFormat ("plain/text")) buf = md->data ("plain/text").data();
+    if (md->hasFormat ("plain/text")) buf = md->data ("plain/text");
     else buf = md->text().toUtf8 ();
   }
   if (!(buf.isEmpty())) s << string (buf.constData(), buf.size());
+  if (input_format == "verbatim-snippet" || format == "verbatim") {
+    // Qt has already decoded the external offer. File-encoding preferences
+    // must not reinterpret its UTF-8 bytes or apply the legacy symbol parser.
+    t= tuple ("extern-utf8", s);
+    return true;
+  }
   if (input_format == "html-snippet" && seems_buggy_html_paste (s))
     s = correct_buggy_html_paste (s);
   if (input_format != "picture" && seems_buggy_paste (s))
@@ -586,7 +602,7 @@ qt_gui_rep::set_selection (string key, tree t,
 
   if (format == "verbatim" || format == "default") {
     if (format == "default") {
-      md->setData ("application/x-texmacs-clipboard",
+      md->setData (athena::document::clipboard_mime,
                    QByteArray ((char*) selection, N_selection));
       
       QString pid_str;
@@ -599,16 +615,7 @@ qt_gui_rep::set_selection (string key, tree t,
       N_selection = N(sv);
     }
     
-    string enc = get_preference ("texmacs->verbatim:encoding");
-    if (enc == "auto")
-      enc = get_locale_charset ();
-    
-    if (enc == "utf-8" || enc == "UTF-8")
-      md->setText (QString::fromUtf8 (selection, N_selection));
-    else if (enc == "iso-8859-1" || enc == "ISO-8859-1")
-      md->setText (QString::fromLatin1 (selection, N_selection));
-    else
-      md->setText (QString::fromLatin1 (selection, N_selection));
+    md->setText (to_qstring (string ((char*) selection, N_selection)));
   }
   else if (format == "html") 
       md->setHtml (QString::fromUtf8 (selection, N_selection));
@@ -645,7 +652,7 @@ qt_gui_rep::clear_selection (string key) {
   
   bool owns = false;
   const QMimeData *md = cb->mimeData (mode);
-  if (md) owns = md->hasFormat ("application/x-texmacs-clipboard");
+  if (md) owns = md->hasFormat (athena::document::clipboard_mime);
   if (owns) cb->clear (mode);
   if (mode == QClipboard::Clipboard) {
     clipboard_text_cache.clear ();

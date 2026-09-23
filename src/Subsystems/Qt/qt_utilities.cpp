@@ -13,6 +13,8 @@
 #include "actor_ui_bridge.hpp"
 #include "qt_utilities.hpp"
 #include "scheme_execution_context.hpp"
+#include "unicode_text.hpp"
+#include <stdexcept>
 #include <time.h>
 #include <cmath>
 
@@ -446,7 +448,7 @@ to_qpoint (const coord2 & p) {
 
 array<string>
 from_qstringlist(const QStringList& l) {
-  array<string> tl (l.size());
+  array<string> tl;
   for(QStringList::const_iterator it = l.begin(); it != l.end(); ++it)
     tl << from_qstring(*it);
   return tl;
@@ -460,27 +462,14 @@ to_qstringlist (array<string> l) {
   return ql;
 }
 
-/* HACK!!! Something has to be done wrt. to internal encoding: most of the times
- it's cork, but often it's utf8. For instance when the title is built in a tmfs
- title handler in scheme, it is sent to us as an utf8 string. Should we convert
- before? Another example are items in the go-menu: file names are internally
- stored using the os 8-bit encoding (UTF-8 on linux/Mac OS locale code page on windows),
- but we assume that strings are sent to us for display in
- widgets as cork and thus display the wrong encoding.
- 
- It gets tricky soon, so for the time being we use this hack.
- */
-QString //uses heuristics
+QString
 to_qstring (const string& s) {
-  if (looks_utf8 (s) && !(looks_ascii (s) || looks_universal (s)))
-    return utf8_to_qstring (s);
-  else
-    return utf8_to_qstring (cork_to_utf8 (s));
+  return utf8_to_qstring (s);
 }
 
 string
 from_qstring (const QString &s) {
-  return utf8_to_cork (from_qstring_utf8 (s));
+  return from_qstring_utf8 (s);
 }
 
 QString
@@ -492,16 +481,19 @@ latin1_to_qstring (const string& s) {
 
 QString
 utf8_to_qstring (const string& s) {
-  c_string p (s);
-  QString nss= QString::fromUtf8 (p, N(s));
-  return nss;
+  athena::text::require_utf8 ({s.data (), std::size_t (N(s))});
+  return QString::fromUtf8 (s.data (), N(s));
 }
 
 string
 from_qstring_utf8 (const QString &s) {
   QByteArray arr= s.toUtf8 ();
-  const char* cstr= arr.constData ();
-  return string ((char*) cstr);
+  // QString permits isolated surrogates; never silently replace user text.
+  if (QString::fromUtf8 (arr) != s)
+    throw std::invalid_argument ("Qt text contains an unpaired UTF-16 surrogate");
+  if (arr.size () > std::numeric_limits<int>::max ())
+    throw std::length_error ("Qt text exceeds native string limit");
+  return string (arr.constData (), static_cast<int> (arr.size ()));
 }
 
 // This should provide better lookup times

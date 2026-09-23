@@ -543,10 +543,7 @@ qt_ui_element_rep::as_qaction () {
       int   style = x.x2;  //FIXME: ignored. Use a QWidgeAction to use it?
       
       act = new QTMAction (NULL);
-      if (looks_universal (name))
-        act->setText (utf8_to_qstring (cork_to_utf8 (name)));
-      else
-        act->setText (to_qstring (name));
+      act->setText (to_qstring (name));
       act->setEnabled (false);
       act->setFont (to_qfont (style, act->font())); 
     }

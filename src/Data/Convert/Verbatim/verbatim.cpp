@@ -16,6 +16,10 @@
 #include "vars.hpp"
 #include "drd_std.hpp"
 #include "analyze.hpp"
+#include "utf8_edit.hpp"
+#include <unicode/ucnv.h>
+#include <memory>
+#include <stdexcept>
 
 /******************************************************************************
 * TeXmacs to verbatim
@@ -27,7 +31,7 @@ static string as_verbatim (tree t, bool wrap);
 static void
 print_verbatim_arg (string& buf, tree t, bool wrap) {
   string s= as_verbatim (t, wrap);
-  if (tm_string_length (s) <= 1 || is_numeric (s) || is_iso_alpha (s))
+  if (utf8_grapheme_count (s) <= 1 || is_numeric (s) || is_iso_alpha (s))
     print_verbatim (buf, t, wrap);
   else {
     buf << "(";
@@ -39,7 +43,7 @@ print_verbatim_arg (string& buf, tree t, bool wrap) {
 static int
 get_width (string s) {
   if (occurs ("\n", s)) return 0;
-  else return tm_string_length (s);
+  else return utf8_grapheme_count (s);
 }
 
 static void
@@ -179,7 +183,7 @@ as_verbatim (tree t, bool wrap) {
     while (i<n) {
       int pos= i;
       while (i<n && buf[i]!='\n') i++;
-      array<string> a= tm_tokenize (buf (pos, i));
+      array<string> a= utf8_graphemes (buf (pos, i));
       int start= 0;
       //cout << "a= " << a << "\n";
       //cout << "l= " << N(a) << "\n";
@@ -214,44 +218,47 @@ unix_to_dos (string s) {
   return r;
 }
 
-string
-var_cork_to_utf8 (string s) {
-  string r;
-  for (int i=0; i<N(s); ) {
-    int start= i;
-    while (i<N(s) && s[i] != '\n') i++;
-    r << cork_to_utf8 (s (start, i));
-    if (i<N(s)) { r << '\n'; i++; }
-  }
-  return r;
-}
-
-string
-var_cork_to_sourcecode (string s) {
-  string r;
-  for (int i=0; i<N(s); ) {
-    int start= i;
-    while (i<N(s) && s[i] != '\n') i++;
-    r << cork_to_sourcecode (s (start, i));
-    if (i<N(s)) { r << '\n'; i++; }
-  }
-  return r;
+static string
+external_text_encoding (string s, string enc, bool importing) {
+  // Default/auto no longer guesses from bytes or depends on the process locale.
+  if (enc == "default" || enc == "auto" || enc == "SourceCode" ||
+      enc == "utf-8" || enc == "UTF-8") return utf8_text (s);
+  if (!importing) (void) utf8_text (s);
+  UErrorCode status= U_ZERO_ERROR;
+  c_string encoding (enc);
+  std::unique_ptr<UConverter, decltype (&ucnv_close)> converter (
+    ucnv_open (encoding, &status), ucnv_close);
+  if (U_FAILURE (status))
+    throw std::invalid_argument ("Unsupported external text encoding");
+  ucnv_setToUCallBack (converter.get (), UCNV_TO_U_CALLBACK_STOP,
+                      nullptr, nullptr, nullptr, &status);
+  ucnv_setFromUCallBack (converter.get (), UCNV_FROM_U_CALLBACK_STOP,
+                        nullptr, nullptr, nullptr, &status);
+  auto convert_bytes= [&] (char* output, int capacity) {
+    return importing ?
+      ucnv_toAlgorithmic (UCNV_UTF8, converter.get (), output, capacity,
+                          s.data (), N(s), &status) :
+      ucnv_fromAlgorithmic (converter.get (), UCNV_UTF8, output, capacity,
+                            s.data (), N(s), &status);
+  };
+  int length= convert_bytes (nullptr, 0);
+  if (status != U_BUFFER_OVERFLOW_ERROR && U_FAILURE (status))
+    throw std::invalid_argument ("External text cannot be converted losslessly");
+  status= U_ZERO_ERROR;
+  string output (length);
+  convert_bytes (output.mutable_data (), length);
+  if (U_FAILURE (status))
+    throw std::invalid_argument ("External text cannot be converted losslessly");
+  return importing ? utf8_text (output) : output;
 }
 
 string
 tree_to_verbatim (tree t, bool wrap, string enc) {
-  if (enc == "default") enc= "auto";
   string buf= as_verbatim (t, wrap);
-  if (enc == "auto")
-    enc= get_locale_charset ();
-  if (enc == "iso-8859-1" || enc == "ISO-8859-1") buf= tm_decode (buf);
-  else if (enc == "SourceCode") buf= var_cork_to_sourcecode (buf);
-  else if (enc != "cork" && enc != "Cork") buf= var_cork_to_utf8 (buf);
 #ifdef OS_WIN32
-  return unix_to_dos (buf);
-#else
-  return buf;
+  buf= unix_to_dos (buf);
 #endif
+  return external_text_encoding (buf, enc, false);
 }
 
 /******************************************************************************
@@ -260,33 +267,34 @@ tree_to_verbatim (tree t, bool wrap, string enc) {
 
 static string
 un_special (string s) {
-  int i, j;
+  int i= 0, j= 0;
   string r;
-  for (i=0, j=0; i<N(s); i++, j++)
+  while (i<N(s)) {
     if (s[i] == '\t') {
       do {
         r << " "; j++;
       } while ((j&7) != 0);
-      j--;
+      i++;
     }
-    else if ((s[i] == '\b') && (N(r)>0) && (r[N(r)-1]!='\n'))
-      r.resize (N(r)-1);
-    else r << s[i];
+    else if (s[i] == '\b') {
+      if (N(r)>0 && r[N(r)-1]!='\n') {
+        r.resize (utf8_grapheme_previous (r, N(r)));
+        if (j > 0) j--;
+      }
+      i++;
+    }
+    else {
+      int next= utf8_grapheme_next (s, i);
+      r << s (i, next);
+      i= next;
+      j++;
+    }
+  }
   return r;
 }
 
-static string
-encode (string s, string enc) {
-  if (enc == "auto") return western_to_cork (s);
-  else if (enc == "utf-8") return utf8_to_cork (s);
-  else if (enc == "iso-8859-1") return tm_encode (s);
-  else if (enc == "SourceCode") return sourcecode_to_cork(s);
-  else return tm_encode (s);
-}
-
-tree
-verbatim_to_tree (string s, string enc) {
-  s= encode (s, enc);
+static tree
+parse_verbatim_utf8 (string s) {
   int i, j;
   for (i=0; i<N(s); i++)
     if (s[i]=='\n') {
@@ -324,7 +332,7 @@ mac_to_unix (string s) {
 
 tree
 verbatim_to_tree (string s, bool wrap, string enc) {
-  if (enc == "default") enc= "auto";
+  s= external_text_encoding (s, enc, true);
   s= mac_to_unix (dos_to_unix (s));
   if (wrap) {
     string r;
@@ -343,7 +351,7 @@ verbatim_to_tree (string s, bool wrap, string enc) {
     }
     s= r;
   }
-  return verbatim_to_tree (s, enc);
+  return parse_verbatim_utf8 (s);
 }
 
 tree

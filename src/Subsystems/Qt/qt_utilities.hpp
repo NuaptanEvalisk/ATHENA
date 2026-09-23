@@ -77,7 +77,8 @@ QKeySequence to_qkeysequence (string s);
 QStringList     to_qstringlist (array<string> l);
 array<string> from_qstringlist (const QStringList& l);
 
-///// String conversion: Assumes UTF8 encodings both in QT and TeXmacs.
+// Native text is strict UTF-8; Qt text is UTF-16. Preserve embedded NULs,
+// reject malformed text, and never interpret angle-bracket symbol spellings.
 
 QString        to_qstring (const string& s);
 string       from_qstring (const QString & s);

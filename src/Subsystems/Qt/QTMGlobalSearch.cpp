@@ -150,8 +150,8 @@ preview_absolute_image_path (const string& path) {
 static string
 preview_rebase_image_path (const string& path, url sourceDir) {
   if (preview_absolute_image_path (path)) return path;
-  url absolute= sourceDir * url_unix (cork_to_utf8 (path));
-  return utf8_to_cork (as_system_string (absolute));
+  url absolute= sourceDir * url_unix (path);
+  return as_system_string (absolute);
 }
 
 static tree

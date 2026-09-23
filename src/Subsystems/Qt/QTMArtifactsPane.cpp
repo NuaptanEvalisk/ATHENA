@@ -116,7 +116,7 @@ void execute_open (const AthenaArtifactRecord& record) {
   }
   array<object> cmd;
   cmd << symbol_object ("artifact-navigation-failed")
-      << object (utf8_to_cork (tmstr (record.relative_path)));
+      << object (tmstr (record.relative_path));
   exec_delayed (scheme_cmd (as_list_object (cmd)));
 }
 
