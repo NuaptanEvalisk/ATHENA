@@ -49,6 +49,8 @@ struct concat_box_rep: public composite_box_rep {
   SI        sup_hi_lim  (int level);
   SI        wide_correction (int mode);
   std::optional<SI> top_accent_attachment () override;
+  std::optional<SI> math_script_kern (
+    athena::text::math_kern_corner corner, SI height) override;
   void      get_bracket_extents (SI& lo, SI& hi);
 
   int       find_any_child (SI x, SI y, SI delta, SI& delta_out);
@@ -363,6 +365,18 @@ concat_box_rep::top_accent_attachment () {
     result= bs[i]->top_accent_attachment ();
     if (!result) return std::nullopt;
     *result += sx (i);
+  }
+  return result;
+}
+
+std::optional<SI>
+concat_box_rep::math_script_kern (athena::text::math_kern_corner corner, SI height) {
+  std::optional<SI> result;
+  for (int i=0; i<N(bs); ++i) {
+    if (bs[i]->w () == 0 && bs[i]->x3 == bs[i]->x4) continue;
+    if (result) return std::nullopt;
+    result= bs[i]->math_script_kern (corner, height - sy (i));
+    if (!result) return std::nullopt;
   }
   return result;
 }

@@ -2102,7 +2102,7 @@ math_alphabet default_math_alphabet (font source, bool variable) {
   return italic ? math_alphabet::italic : math_alphabet::normal;
 }
 
-font_request math_font_request (font source, math_alphabet alphabet) {
+physical_font_source math_font_source (font source, math_alphabet alphabet) {
   physical_font_source physical;
   if (!source->physical_source (physical))
     throw std::runtime_error ("Math font has no physical Unicode source");
@@ -2133,9 +2133,23 @@ font_request math_font_request (font source, math_alphabet alphabet) {
       physical= std::move (selected_source);
     }
   }
-  auto result= font_request_from_source (physical);
+  return physical;
+}
+
+font_request math_font_request (font source, math_alphabet alphabet) {
+  auto result= font_request_from_source (math_font_source (source, alphabet));
   result.math_variant= alphabet;
   return result;
+}
+
+std::optional<math_font_metrics> math_layout_metrics (font source) {
+  return open_type_math_metrics (math_font_source (source, math_alphabet::normal));
+}
+
+std::optional<math_stretch_result> shape_math_stretch (
+  font source, std::string_view scalar, SI target_extent, bool vertical) {
+  return shape_open_type_math_stretch (
+    math_font_source (source, math_alphabet::normal), scalar, target_extent, vertical);
 }
 }
 

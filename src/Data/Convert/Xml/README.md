@@ -112,8 +112,15 @@ repertoire; selected runs, carets, source paths and PDF ActualText retain origin
 UTF-8 bytes. Mathematical lexical items disable discretionary ligatures and
 cross-token text reassembly so the existing operator spacing and penalties remain
 authoritative. Named-symbol math recipes use this font selection path too.
-Extensible delimiters/operators, vertical MATH metrics, height-dependent script
-kerning and remaining legacy formula helpers still need conversion.
+OpenType MATH delimiters and large operators now select real vertical variants
+and build oversized assemblies from the selected physical math face; glyph ids
+remain rendering data and the source scalar remains unchanged. Fractions,
+radicals, limits and side scripts consume the same face's axis, rule, gap,
+baseline, degree and script-spacing constants, including the MATH script-size
+percentages under the default size policy. Side scripts query HarfBuzz's four
+corner MathKern tables at the two correction heights required by the OpenType
+algorithm. Fonts without MATH data retain the legacy box fallback. Remaining
+legacy formula helpers, symbol recipes and input/resources still need conversion.
 
 Native document constructors no longer add a TeXmacs compatibility version.
 Until XML activation, only the legacy document serializers add their required
@@ -243,8 +250,10 @@ unchanged. Legacy readers still recognize existing file headers.
   correction; absent data retains ink-overhang/legacy accent fallbacks. Link,
   atomic-symbol, translation and single-glyph concatenation wrappers preserve
   physical accent anchors, which take precedence over slope heuristics. This
-  does not yet replace mathematical font-role selection, extensible glyph
-  assembly, vertical MATH constants or height-dependent script kerning.
+  also supplies the physical face identity used by extensible glyph assembly,
+  vertical MATH constants and height-dependent script kerning. Those values are
+  copied or re-queried through owner-local immutable HarfBuzz caches; boxes never
+  retain mutable font handles across ownership boundaries.
   Wrapped lines share immutable paragraph source and selected fonts. Local box
   paths retain both byte and caret affinity, whereas document tree paths retain
   only the absolute byte. Visual selections are unions of selected run intervals,
@@ -332,9 +341,11 @@ unchanged. Legacy readers still recognize existing file headers.
   They use owner-local Pango selection and HarfBuzz shaping, with explicit slant
   and inherited font family, weight, point size and device scales. No angle-token
   parser or Cork converter is involved. Missing definitions remain intact and
-  display an error marker instead of an approximate substitute. Virtual glyph
-  recipes, extensible symbols and the remaining symbol inventory are still
-  integration work, as is migrating keyboard input to construct these nodes.
+   display an error marker instead of an approximate substitute. Unicode scalar
+   delimiters, radicals and large operators use OpenType MATH variants/assemblies
+   directly; virtual/non-scalar glyph recipes and the remaining symbol inventory
+   are still integration work, as is migrating keyboard input to construct these
+   nodes.
 
 ## XML Version 1
 
@@ -455,7 +466,7 @@ batch cancellation/resume and database recovery are still integration work.
 
 1. Integrate the role-aware legacy importer with application metadata and
    style-defined macro contracts, and finish the `named-symbol` registry's
-   remaining glyph recipes and mathematical layout integration.
+   remaining virtual/non-scalar glyph recipes plus math input/style resources.
    The old `Strict-Cork` converter is **not** a substitute for this importer.
 2. All editor/parser/font/IME/Guile/Qt boundaries, bundled resources and undo
    paths must agree on the UTF-8 model before these trees become live.

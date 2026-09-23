@@ -13,5 +13,9 @@
 class font;
 namespace athena::text {
 math_alphabet default_math_alphabet (font source, bool variable);
+physical_font_source math_font_source (font source, math_alphabet alphabet);
 font_request math_font_request (font source, math_alphabet alphabet);
+std::optional<math_font_metrics> math_layout_metrics (font source);
+std::optional<math_stretch_result> shape_math_stretch (
+  font source, std::string_view scalar, SI target_extent, bool vertical= true);
 }

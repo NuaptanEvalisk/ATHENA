@@ -15,6 +15,7 @@
 #include "Freetype/tt_file.hpp"
 #include <harfbuzz/hb-ft.h>
 #include <harfbuzz/hb-ot.h>
+#include <unicode/utf8.h>
 #include <algorithm>
 #include <cstdlib>
 #include <limits>
@@ -96,6 +97,71 @@ shaping_font& cached_font (tt_face source, int xscale, int yscale) {
   try { cache.emplace (std::move (key), fresh); }
   catch (...) { tm_delete (fresh); throw; }
   return *fresh;
+}
+
+physical_font_source physical_source (tt_face face, int size, int hdpi, int vdpi) {
+  return {face->source, size, hdpi, vdpi};
+}
+
+std::optional<std::pair<tt_face, shaping_font*>> math_font (
+  const physical_font_source& source) {
+  if (source.point_size <= 0 || source.horizontal_dpi <= 0 || source.vertical_dpi <= 0)
+    throw std::invalid_argument ("OpenType MATH query requires a sized physical font");
+  tt_face face= load_tt_face (source.file);
+  if (face->bad_face) return std::nullopt;
+  shaping_font& cached= cached_font (
+    face, font_scale (source.point_size, source.horizontal_dpi),
+    font_scale (source.point_size, source.vertical_dpi));
+  if (!hb_ot_math_has_data (cached.face.get ())) return std::nullopt;
+  return std::pair<tt_face, shaping_font*> (face, &cached);
+}
+
+std::optional<hb_codepoint_t> scalar_glyph (hb_font_t* font, std::string_view scalar) {
+  require_utf8 (scalar);
+  if (scalar.empty () || scalar.size () > 4) return std::nullopt;
+  int32_t offset= 0;
+  UChar32 cp;
+  U8_NEXT (scalar.data (), offset, static_cast<int32_t> (scalar.size ()), cp);
+  if (cp < 0 || offset != static_cast<int32_t> (scalar.size ())) return std::nullopt;
+  hb_codepoint_t glyph= 0;
+  if (!hb_font_get_nominal_glyph (font, static_cast<hb_codepoint_t> (cp), &glyph) || glyph == 0)
+    return std::nullopt;
+  return glyph;
+}
+
+void add_outline_bounds (shaped_text& run, font_metric metrics,
+                         const positioned_glyph& glyph) {
+  metric& m= metrics->get (glyph_index_base + glyph.index);
+  if (m->x3 >= m->x4 || m->y3 >= m->y4) return;
+  const SI gx1= checked_si (static_cast<std::int64_t> (glyph.x) + m->x3);
+  const SI gx2= checked_si (static_cast<std::int64_t> (glyph.x) + m->x4);
+  const SI gy1= checked_si (static_cast<std::int64_t> (glyph.y) + m->y3);
+  const SI gy2= checked_si (static_cast<std::int64_t> (glyph.y) + m->y4);
+  run.ink_x1= run.has_ink ? std::min (run.ink_x1, gx1) : gx1;
+  run.ink_x2= run.has_ink ? std::max (run.ink_x2, gx2) : gx2;
+  run.ink_y1= run.has_ink ? std::min (run.ink_y1, gy1) : gy1;
+  run.ink_y2= run.has_ink ? std::max (run.ink_y2, gy2) : gy2;
+  run.has_ink= true;
+}
+
+shaped_text make_math_glyph_run (tt_face face, hb_font_t* font,
+  const physical_font_source& source, std::string_view scalar, hb_codepoint_t glyph) {
+  shaped_text run;
+  run.byte_end= scalar.size ();
+  run.glyph_source= tt_font_glyphs (
+    face, source.point_size, source.horizontal_dpi, source.vertical_dpi);
+  font_metric metrics= tt_font_metric (
+    face, source.point_size, source.horizontal_dpi, source.vertical_dpi);
+  if (run.glyph_source->bad_font_glyphs || metrics->bad_font_metric)
+    throw std::runtime_error ("Cannot load OpenType MATH glyph resources");
+  const SI advance= hb_font_get_glyph_h_advance (font, glyph);
+  run.glyphs.push_back ({glyph, 0, 0, 0, advance, 0, false});
+  run.advance_x= advance;
+  add_outline_bounds (run, metrics, run.glyphs.back ());
+  run.math= shaped_math_metrics {
+    hb_ot_math_get_glyph_italics_correction (font, glyph),
+    hb_ot_math_get_glyph_top_accent_attachment (font, glyph), source, glyph};
+  return run;
 }
 
 void build_carets (shaped_text& run, hb_font_t* font, std::string_view text,
@@ -365,7 +431,8 @@ static shaped_text shape_freetype_run (
     const auto& glyph= result.glyphs.front ();
     result.math= shaped_math_metrics {
       hb_ot_math_get_glyph_italics_correction (hbfont, glyph.index),
-      translated (glyph.x, hb_ot_math_get_glyph_top_accent_attachment (hbfont, glyph.index))};
+      translated (glyph.x, hb_ot_math_get_glyph_top_accent_attachment (hbfont, glyph.index)),
+      physical_source (face, size, hdpi, vdpi), glyph.index};
   }
   if (options.editing_carets)
     build_carets (result, hbfont, text, options.max_carets,
@@ -381,6 +448,244 @@ shaped_text shape_freetype_utf8 (string family, int size, int hdpi, int vdpi,
 shaped_text shape_freetype_utf8 (const font_file_source& file, int size, int hdpi, int vdpi,
   std::string_view text, std::size_t begin, std::size_t end, const shaping_options& options) {
   return shape_freetype_run ("", &file, size, hdpi, vdpi, text, begin, end, options);
+}
+
+std::optional<math_font_metrics> open_type_math_metrics (
+  const physical_font_source& source) {
+  auto selected= math_font (source);
+  if (!selected) return std::nullopt;
+  hb_font_t* font= selected->second->font.get ();
+  auto C= [font] (hb_ot_math_constant_t constant) -> SI {
+    return checked_si (hb_ot_math_get_constant (font, constant));
+  };
+  math_font_metrics result;
+  result.script_percent_scale_down=
+    hb_ot_math_get_constant (font, HB_OT_MATH_CONSTANT_SCRIPT_PERCENT_SCALE_DOWN);
+  result.script_script_percent_scale_down=
+    hb_ot_math_get_constant (font, HB_OT_MATH_CONSTANT_SCRIPT_SCRIPT_PERCENT_SCALE_DOWN);
+  result.delimited_sub_formula_min_height= C (HB_OT_MATH_CONSTANT_DELIMITED_SUB_FORMULA_MIN_HEIGHT);
+  result.display_operator_min_height= C (HB_OT_MATH_CONSTANT_DISPLAY_OPERATOR_MIN_HEIGHT);
+  result.math_leading= C (HB_OT_MATH_CONSTANT_MATH_LEADING);
+  result.axis_height= C (HB_OT_MATH_CONSTANT_AXIS_HEIGHT);
+  result.subscript_shift_down= C (HB_OT_MATH_CONSTANT_SUBSCRIPT_SHIFT_DOWN);
+  result.subscript_top_max= C (HB_OT_MATH_CONSTANT_SUBSCRIPT_TOP_MAX);
+  result.subscript_baseline_drop_min= C (HB_OT_MATH_CONSTANT_SUBSCRIPT_BASELINE_DROP_MIN);
+  result.superscript_shift_up= C (HB_OT_MATH_CONSTANT_SUPERSCRIPT_SHIFT_UP);
+  result.superscript_shift_up_cramped= C (HB_OT_MATH_CONSTANT_SUPERSCRIPT_SHIFT_UP_CRAMPED);
+  result.superscript_bottom_min= C (HB_OT_MATH_CONSTANT_SUPERSCRIPT_BOTTOM_MIN);
+  result.superscript_baseline_drop_max= C (HB_OT_MATH_CONSTANT_SUPERSCRIPT_BASELINE_DROP_MAX);
+  result.sub_superscript_gap_min= C (HB_OT_MATH_CONSTANT_SUB_SUPERSCRIPT_GAP_MIN);
+  result.superscript_bottom_max_with_subscript=
+    C (HB_OT_MATH_CONSTANT_SUPERSCRIPT_BOTTOM_MAX_WITH_SUBSCRIPT);
+  result.space_after_script= C (HB_OT_MATH_CONSTANT_SPACE_AFTER_SCRIPT);
+  result.upper_limit_gap_min= C (HB_OT_MATH_CONSTANT_UPPER_LIMIT_GAP_MIN);
+  result.upper_limit_baseline_rise_min= C (HB_OT_MATH_CONSTANT_UPPER_LIMIT_BASELINE_RISE_MIN);
+  result.lower_limit_gap_min= C (HB_OT_MATH_CONSTANT_LOWER_LIMIT_GAP_MIN);
+  result.lower_limit_baseline_drop_min= C (HB_OT_MATH_CONSTANT_LOWER_LIMIT_BASELINE_DROP_MIN);
+  result.fraction_numerator_shift_up= C (HB_OT_MATH_CONSTANT_FRACTION_NUMERATOR_SHIFT_UP);
+  result.fraction_numerator_display_shift_up=
+    C (HB_OT_MATH_CONSTANT_FRACTION_NUMERATOR_DISPLAY_STYLE_SHIFT_UP);
+  result.fraction_denominator_shift_down= C (HB_OT_MATH_CONSTANT_FRACTION_DENOMINATOR_SHIFT_DOWN);
+  result.fraction_denominator_display_shift_down=
+    C (HB_OT_MATH_CONSTANT_FRACTION_DENOMINATOR_DISPLAY_STYLE_SHIFT_DOWN);
+  result.fraction_numerator_gap_min= C (HB_OT_MATH_CONSTANT_FRACTION_NUMERATOR_GAP_MIN);
+  result.fraction_numerator_display_gap_min=
+    C (HB_OT_MATH_CONSTANT_FRACTION_NUM_DISPLAY_STYLE_GAP_MIN);
+  result.fraction_rule_thickness= C (HB_OT_MATH_CONSTANT_FRACTION_RULE_THICKNESS);
+  result.fraction_denominator_gap_min= C (HB_OT_MATH_CONSTANT_FRACTION_DENOMINATOR_GAP_MIN);
+  result.fraction_denominator_display_gap_min=
+    C (HB_OT_MATH_CONSTANT_FRACTION_DENOM_DISPLAY_STYLE_GAP_MIN);
+  result.radical_vertical_gap= C (HB_OT_MATH_CONSTANT_RADICAL_VERTICAL_GAP);
+  result.radical_display_vertical_gap= C (HB_OT_MATH_CONSTANT_RADICAL_DISPLAY_STYLE_VERTICAL_GAP);
+  result.radical_rule_thickness= C (HB_OT_MATH_CONSTANT_RADICAL_RULE_THICKNESS);
+  result.radical_extra_ascender= C (HB_OT_MATH_CONSTANT_RADICAL_EXTRA_ASCENDER);
+  result.radical_kern_before_degree= C (HB_OT_MATH_CONSTANT_RADICAL_KERN_BEFORE_DEGREE);
+  result.radical_kern_after_degree= C (HB_OT_MATH_CONSTANT_RADICAL_KERN_AFTER_DEGREE);
+  result.radical_degree_bottom_raise_percent=
+    hb_ot_math_get_constant (font, HB_OT_MATH_CONSTANT_RADICAL_DEGREE_BOTTOM_RAISE_PERCENT);
+  return result;
+}
+
+SI open_type_math_kern (const shaped_math_metrics& glyph, math_kern_corner corner,
+                         SI correction_height) {
+  auto selected= math_font (glyph.source);
+  if (!selected) return 0;
+  hb_ot_math_kern_t which= HB_OT_MATH_KERN_TOP_RIGHT;
+  switch (corner) {
+  case math_kern_corner::top_right: which= HB_OT_MATH_KERN_TOP_RIGHT; break;
+  case math_kern_corner::top_left: which= HB_OT_MATH_KERN_TOP_LEFT; break;
+  case math_kern_corner::bottom_right: which= HB_OT_MATH_KERN_BOTTOM_RIGHT; break;
+  case math_kern_corner::bottom_left: which= HB_OT_MATH_KERN_BOTTOM_LEFT; break;
+  }
+  return checked_si (hb_ot_math_get_glyph_kerning (
+    selected->second->font.get (), glyph.glyph_index, which, correction_height));
+}
+
+std::optional<math_stretch_result> shape_open_type_math_stretch (
+  const physical_font_source& source, std::string_view scalar, SI target_extent,
+  bool vertical) {
+  auto selected= math_font (source);
+  if (!selected) return std::nullopt;
+  tt_face face= selected->first;
+  hb_font_t* font= selected->second->font.get ();
+  auto base= scalar_glyph (font, scalar);
+  if (!base) return std::nullopt;
+  const hb_direction_t direction= vertical ? HB_DIRECTION_TTB : HB_DIRECTION_LTR;
+
+  unsigned int count= 0;
+  const unsigned int total= hb_ot_math_get_glyph_variants (
+    font, *base, direction, 0, &count, nullptr);
+  std::vector<hb_ot_math_glyph_variant_t> variants (total);
+  if (total != 0) {
+    count= total;
+    hb_ot_math_get_glyph_variants (font, *base, direction, 0, &count, variants.data ());
+    variants.resize (count);
+  }
+  for (const auto& variant: variants)
+    if (variant.advance >= target_extent) {
+      math_stretch_result result;
+      result.run= make_math_glyph_run (face, font, source, scalar, variant.glyph);
+      result.extent= variant.advance;
+      return result;
+    }
+
+  unsigned int part_count= 0;
+  hb_position_t assembly_italic= 0;
+  const unsigned int total_parts= hb_ot_math_get_glyph_assembly (
+    font, *base, direction, 0, &part_count, nullptr, &assembly_italic);
+  if (total_parts == 0) {
+    const hb_codepoint_t glyph= variants.empty () ? *base : variants.back ().glyph;
+    const SI extent= variants.empty () ?
+      (vertical ? hb_font_get_glyph_v_advance (font, glyph) :
+                  hb_font_get_glyph_h_advance (font, glyph)) : variants.back ().advance;
+    return math_stretch_result {make_math_glyph_run (face, font, source, scalar, glyph),
+                                std::abs (extent), false};
+  }
+  std::vector<hb_ot_math_glyph_part_t> parts (total_parts);
+  part_count= total_parts;
+  hb_ot_math_get_glyph_assembly (
+    font, *base, direction, 0, &part_count, parts.data (), &assembly_italic);
+  parts.resize (part_count);
+  const SI min_overlap= std::max<SI> (0, hb_ot_math_get_min_connector_overlap (font, direction));
+
+  std::vector<hb_ot_math_glyph_part_t> expanded;
+  auto rebuild= [&] (unsigned int repeats) {
+    expanded.clear ();
+    for (const auto& part: parts) {
+      const bool extender= (part.flags & HB_OT_MATH_GLYPH_PART_FLAG_EXTENDER) != 0;
+      const unsigned int n= extender ? repeats : 1;
+      for (unsigned int i=0; i<n; ++i) expanded.push_back (part);
+    }
+  };
+  auto connector_maxima= [&] () {
+    std::vector<SI> result;
+    result.reserve (expanded.size () > 0 ? expanded.size () - 1 : 0);
+    for (std::size_t i=1; i<expanded.size (); ++i)
+      result.push_back (std::max<SI> (min_overlap,
+        std::min<SI> (expanded[i-1].end_connector_length,
+                      expanded[i].start_connector_length)));
+    return result;
+  };
+  auto extent_with= [&] (const std::vector<SI>& overlaps) -> SI {
+    std::int64_t extent= 0;
+    for (const auto& part: expanded) extent += part.full_advance;
+    for (SI overlap: overlaps) extent -= overlap;
+    return checked_si (extent);
+  };
+
+  const bool has_extender= std::any_of (parts.begin (), parts.end (),
+    [] (const hb_ot_math_glyph_part_t& part) {
+      return (part.flags & HB_OT_MATH_GLYPH_PART_FLAG_EXTENDER) != 0;
+    });
+  unsigned int repeats= 0;
+  std::vector<SI> maxima;
+  SI minimum_extent= 0, maximum_extent= 0;
+  while (true) {
+    rebuild (repeats);
+    if (expanded.empty ()) { ++repeats; continue; }
+    maxima= connector_maxima ();
+    minimum_extent= extent_with (maxima);
+    std::vector<SI> minimum_overlaps (maxima.size (), min_overlap);
+    maximum_extent= extent_with (minimum_overlaps);
+    if (target_extent <= maximum_extent || !has_extender) break;
+    if (++repeats >= 1024)
+      throw std::length_error ("OpenType MATH assembly exceeds extender budget");
+  }
+
+  // Begin at the smallest assembly (maximum connector overlap), then reduce
+  // every overlap as evenly as integer font units allow until the target is
+  // reached.  This follows the OpenType construction recommendation and keeps
+  // symmetric assemblies such as braces visually balanced.
+  std::vector<SI> reductions (maxima.size (), 0);
+  std::int64_t grow= std::clamp<std::int64_t> (
+    static_cast<std::int64_t> (target_extent) - minimum_extent,
+    0, static_cast<std::int64_t> (maximum_extent) - minimum_extent);
+  std::vector<std::size_t> active;
+  for (std::size_t i=0; i<maxima.size (); ++i)
+    if (maxima[i] > min_overlap) active.push_back (i);
+  while (grow > 0 && !active.empty ()) {
+    const SI share= static_cast<SI> (grow / active.size ());
+    bool saturated= false;
+    if (share > 0) {
+      std::vector<std::size_t> next;
+      for (std::size_t i: active) {
+        const SI capacity= maxima[i] - min_overlap - reductions[i];
+        const SI add= std::min (capacity, share);
+        reductions[i] += add;
+        grow -= add;
+        if (add == capacity) saturated= true;
+        else next.push_back (i);
+      }
+      if (saturated) { active= std::move (next); continue; }
+    }
+    for (std::size_t i: active) {
+      if (grow == 0) break;
+      if (reductions[i] < maxima[i] - min_overlap) {
+        ++reductions[i];
+        --grow;
+      }
+    }
+    break;
+  }
+  std::vector<SI> overlaps;
+  overlaps.reserve (maxima.size ());
+  for (std::size_t i=0; i<maxima.size (); ++i)
+    overlaps.push_back (maxima[i] - reductions[i]);
+  const SI extent= extent_with (overlaps);
+
+  shaped_text run;
+  run.byte_end= scalar.size ();
+  run.glyph_source= tt_font_glyphs (
+    face, source.point_size, source.horizontal_dpi, source.vertical_dpi);
+  font_metric metrics= tt_font_metric (
+    face, source.point_size, source.horizontal_dpi, source.vertical_dpi);
+  if (run.glyph_source->bad_font_glyphs || metrics->bad_font_metric)
+    throw std::runtime_error ("Cannot load OpenType MATH assembly resources");
+  SI max_cross_advance= 0;
+  for (const auto& part: expanded)
+    max_cross_advance= std::max<SI> (max_cross_advance,
+      vertical ? hb_font_get_glyph_h_advance (font, part.glyph) :
+                 std::abs (hb_font_get_glyph_v_advance (font, part.glyph)));
+  SI along= 0;
+  for (std::size_t i=0; i<expanded.size (); ++i) {
+    const auto& part= expanded[i];
+    const SI cross= vertical ? hb_font_get_glyph_h_advance (font, part.glyph) :
+                               std::abs (hb_font_get_glyph_v_advance (font, part.glyph));
+    const SI centered= (max_cross_advance - cross) / 2;
+    positioned_glyph glyph {part.glyph, 0,
+      vertical ? centered : along,
+      // OpenType orders vertical assembly records from bottom to top.
+      vertical ? along : centered,
+      vertical ? cross : part.full_advance, 0, false};
+    run.glyphs.push_back (glyph);
+    add_outline_bounds (run, metrics, glyph);
+    along= checked_si (static_cast<std::int64_t> (along) + part.full_advance -
+      (i < overlaps.size () ? overlaps[i] : 0));
+  }
+  run.advance_x= vertical ? max_cross_advance : extent;
+  run.math= shaped_math_metrics {checked_si (assembly_italic), run.advance_x / 2,
+                                  source, *base};
+  return math_stretch_result {std::move (run), extent, true};
 }
 
 SI shaped_text::caret_x (std::size_t byte) const {

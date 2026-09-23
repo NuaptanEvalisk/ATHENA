@@ -187,6 +187,13 @@ struct utf8_line_box_rep: box_rep {
                      line.runs.front ().text.math->top_accent_attachment);
     return std::nullopt;
   }
+  std::optional<SI> math_script_kern (
+    athena::text::math_kern_corner corner, SI height) override {
+    if (line.runs.size () != 1 || !line.runs.front ().text.math)
+      return std::nullopt;
+    return athena::text::open_type_math_kern (
+      *line.runs.front ().text.math, corner, height);
+  }
   SI sub_lo_base (int level) override {
     return nominal->ysub_lo_base + (level > 0 ? nominal->yshift : 0);
   }

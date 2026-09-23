@@ -12,6 +12,7 @@
 #include "Boxes/composite.hpp"
 #include "Boxes/Composite/italic_correct.hpp"
 #include "Boxes/construct.hpp"
+#include "math_font.hpp"
 
 /******************************************************************************
 * subroutine for scripts
@@ -60,6 +61,38 @@ test_script_border (path p, box sb) {
     (path_up (p) == path_up (reverse (sb->ip)));
 }
 
+static SI
+math_kern_or_zero (box b, athena::text::math_kern_corner corner, SI height) {
+  auto value= b->math_script_kern (corner, height);
+  return value ? *value : 0;
+}
+
+static SI
+math_script_pair_kern (box base, box script, SI baseline,
+                       bool right_side, bool superscript) {
+  using corner= athena::text::math_kern_corner;
+  if (superscript) {
+    const corner base_corner= right_side ? corner::top_right : corner::top_left;
+    const corner script_corner= right_side ? corner::bottom_left : corner::bottom_right;
+    const SI first=
+      math_kern_or_zero (base, base_corner, baseline + script->y1) +
+      math_kern_or_zero (script, script_corner, base->y2 - baseline);
+    const SI second=
+      math_kern_or_zero (base, base_corner, base->y2) +
+      math_kern_or_zero (script, script_corner, script->y1);
+    return min (first, second);
+  }
+  const corner base_corner= right_side ? corner::bottom_right : corner::bottom_left;
+  const corner script_corner= right_side ? corner::top_left : corner::top_right;
+  const SI first=
+    math_kern_or_zero (base, base_corner, baseline + script->y2) +
+    math_kern_or_zero (script, script_corner, base->y1 - baseline);
+  const SI second=
+    math_kern_or_zero (base, base_corner, base->y1) +
+    math_kern_or_zero (script, script_corner, script->y2);
+  return min (first, second);
+}
+
 /******************************************************************************
 * limits
 ******************************************************************************/
@@ -82,26 +115,45 @@ struct lim_box_rep: public composite_box_rep {
 lim_box_rep::lim_box_rep (path ip, box r2, box lo, box hi, font fn2, bool gl):
   composite_box_rep (ip), ref (r2), fn (fn2), glued (gl)
 {
-  SI sep_lo= fn->sep + fn->yshift;
-  SI sep_hi= fn->sep + (fn->yshift >> 1);
+  auto math= athena::text::math_layout_metrics (fn);
+  SI sep_lo= math ? math->lower_limit_gap_min : fn->sep + fn->yshift;
+  SI sep_hi= math ? math->upper_limit_gap_min : fn->sep + (fn->yshift >> 1);
   SI X, Y;
   insert (ref, 0, 0);
   type= 0;
   if (!is_nil (lo)) type += 1;
   if (!is_nil (hi)) type += 2;
-  if (!is_nil (lo)) {
-    SI top= max (lo->y2, fn->y2 * script (fn->size, 1) / fn->size) + sep_lo;
-    Y= ref->y1;
-    X= ((SI) (ref->right_slope ()* (Y+top-lo->y1))) + ((ref->x1+ref->x2)>>1);
-    insert (lo, X- (lo->x2 >> 1), Y-top);
-    italic_correct (lo);
+  if (math) {
+    if (!is_nil (lo)) {
+      const SI baseline= min (-math->lower_limit_baseline_drop_min,
+                              ref->y1 - sep_lo - lo->y2);
+      X= ((ref->x1 + ref->x2) >> 1) - (ref->right_correction () >> 1);
+      insert (lo, X - ((lo->x1 + lo->x2) >> 1), baseline);
+      italic_correct (lo);
+    }
+    if (!is_nil (hi)) {
+      const SI baseline= max (math->upper_limit_baseline_rise_min,
+                              ref->y2 + sep_hi - hi->y1);
+      X= ((ref->x1 + ref->x2) >> 1) + (ref->right_correction () >> 1);
+      insert (hi, X - ((hi->x1 + hi->x2) >> 1), baseline);
+      italic_correct (hi);
+    }
   }
-  if (!is_nil (hi)) {
-    SI bot= min (hi->y1, fn->y1 * script (fn->size, 1) / fn->size) - sep_hi;
-    Y= ref->y2;
-    X= ((SI) (ref->right_slope ()*(Y+hi->y2-bot))) + ((ref->x1+ref->x2)>>1);
-    insert (hi, X- (hi->x2 >> 1), Y-bot);
-    italic_correct (hi);
+  else {
+    if (!is_nil (lo)) {
+      SI top= max (lo->y2, fn->y2 * script (fn->size, 1) / fn->size) + sep_lo;
+      Y= ref->y1;
+      X= ((SI) (ref->right_slope ()* (Y+top-lo->y1))) + ((ref->x1+ref->x2)>>1);
+      insert (lo, X- (lo->x2 >> 1), Y-top);
+      italic_correct (lo);
+    }
+    if (!is_nil (hi)) {
+      SI bot= min (hi->y1, fn->y1 * script (fn->size, 1) / fn->size) - sep_hi;
+      Y= ref->y2;
+      X= ((SI) (ref->right_slope ()*(Y+hi->y2-bot))) + ((ref->x1+ref->x2)>>1);
+      insert (hi, X- (hi->x2 >> 1), Y-bot);
+      italic_correct (hi);
+    }
   }
   italic_correct (ref);
   position ();
@@ -365,6 +417,8 @@ side_box_rep::side_box_rep (
 {
   insert (ref, 0, 0);
 
+  auto math= athena::text::math_layout_metrics (fn);
+
   SI sep= fn->sep;
   SI sub_lo_base= ref->sub_lo_base (level);
   SI sub_hi_lim = ref->sub_hi_lim  (level);
@@ -381,6 +435,50 @@ side_box_rep::side_box_rep (
   if (!is_nil (l2)) type += 2;
   if (!is_nil (r1)) type += 4;
   if (!is_nil (r2)) type += 8;
+
+  if (math) {
+    auto place_vertical= [&] (box sub, box sup, SI& sub_y, SI& sup_y) {
+      if (!is_nil (sub)) {
+        sub_y= -math->subscript_shift_down;
+        sub_y= min (sub_y, math->subscript_top_max - sub->y2);
+        sub_y= min (sub_y, ref->y1 - math->subscript_baseline_drop_min);
+      }
+      if (!is_nil (sup)) {
+        sup_y= math->superscript_shift_up;
+        sup_y= max (sup_y, math->superscript_bottom_min - sup->y1);
+        sup_y= max (sup_y, ref->y2 - math->superscript_baseline_drop_max);
+      }
+      if (!is_nil (sub) && !is_nil (sup)) {
+        sup_y= max (sup_y, math->superscript_bottom_max_with_subscript - sup->y1);
+        SI gap= (sup_y + sup->y1) - (sub_y + sub->y2);
+        if (gap < math->sub_superscript_gap_min)
+          sub_y -= math->sub_superscript_gap_min - gap;
+      }
+    };
+    place_vertical (l1, l2, lsub, lsup);
+    place_vertical (r1, r2, rsub, rsup);
+
+    nr_left= (is_nil (l1) ? 0 : 1) + (is_nil (l2) ? 0 : 1);
+    nr_right= (is_nil (r1) ? 0 : 1) + (is_nil (r2) ? 0 : 1);
+
+    if (!is_nil (l1)) {
+      const SI kern= math_script_pair_kern (ref, l1, lsub, false, false);
+      insert (l1, ref->x1 - l1->x2 - kern, lsub);
+    }
+    if (!is_nil (l2)) {
+      const SI kern= math_script_pair_kern (ref, l2, lsup, false, true);
+      insert (l2, ref->x1 - l2->x2 - ref->lsup_correction () - kern, lsup);
+    }
+    if (!is_nil (r1)) {
+      const SI kern= math_script_pair_kern (ref, r1, rsub, true, false);
+      insert (r1, ref->x2 + kern, rsub);
+    }
+    if (!is_nil (r2)) {
+      const SI kern= math_script_pair_kern (ref, r2, rsup, true, true);
+      insert (r2, ref->x2 + ref->rsup_correction () + kern, rsup);
+    }
+  }
+  else {
 
   if (is_nil (l1)) {
     if (is_nil (l2)) nr_left= 0;
@@ -450,9 +548,11 @@ side_box_rep::side_box_rep (
     SI dx= -r2->lsub_correction () + ref->rsup_correction ();
     insert (r2, ref->x2+ dx, rsup);
   }
+  }
 
   position ();
   left_justify ();
+  if (math && nr_right > 0) x2 += math->space_after_script;
 
   int i;
   id_left= id_right= 0;

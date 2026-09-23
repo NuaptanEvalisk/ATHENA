@@ -116,6 +116,8 @@ box image_box (path ip, url u, SI w, SI h, int alpha, int px);
 
 box text_box (path ip, int pos, string s, font fn, pencil pen);
 box text_box (path ip, int pos, string s, font fn, pencil pen, brush bg);
+box math_glyph_box (path ip, string source, font nominal, pencil pen,
+                    athena::text::shaped_text run);
 // The immutable source atom supplies shaping context; positions are UTF-8 bytes.
 box utf8_text_box (path ip, string source, int begin, int end, font fn,
                    pencil pen, const athena::text::shaping_options& options= {},
@@ -164,8 +166,10 @@ box highlight_box (path ip, box b, box xb, ornament_parameters ps);
 box highlight_box (path ip, box b, SI w, brush col, brush sunc, brush shad);
 box art_box (path ip, box b, art_box_parameters ps);
 
-box frac_box (path ip, box b1, box b2, font fn, font sfn, pencil pen);
-box sqrt_box (path ip, box b1, box b2, box sqrtb, font fn, pencil pen);
+box frac_box (path ip, box b1, box b2, font fn, font sfn, pencil pen,
+              bool display_style= false);
+box sqrt_box (path ip, box b1, box b2, box sqrtb, font fn, pencil pen,
+              bool display_style= false);
 box neg_box (path ip, box b, font fn, pencil pen);
 box tree_box (path ip, array<box> bs, font fn, pencil pen);
 box wide_box (path ip, box ref, string s, font fn, pencil p, bool wf, bool af);

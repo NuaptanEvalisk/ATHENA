@@ -11,8 +11,10 @@
 
 #include "boxes.hpp"
 #include "font.hpp"
+#include "math_font.hpp"
 #include "Boxes/construct.hpp"
 #include "analyze.hpp"
+#include <unicode/utf8.h>
 #include <algorithm>
 #include <stdexcept>
 
@@ -90,6 +92,11 @@ struct utf8_text_box_rep final: box_rep {
     if (run.math) return run.math->top_accent_attachment;
     return std::nullopt;
   }
+  std::optional<SI> math_script_kern (
+    athena::text::math_kern_corner corner, SI height) override {
+    if (!run.math) return std::nullopt;
+    return athena::text::open_type_math_kern (*run.math, corner, height);
+  }
   SI sub_lo_base (int level) override {
     return fn->ysub_lo_base + (level > 0 ? fn->yshift : 0);
   }
@@ -156,6 +163,73 @@ struct utf8_text_box_rep final: box_rep {
         return caret.x;
     return w ();
   }
+};
+
+struct math_glyph_box_rep final: box_rep {
+  string source;
+  font nominal;
+  pencil pen;
+  athena::text::shaped_text run;
+
+  math_glyph_box_rep (path ip, string s, font fn, pencil p,
+                      athena::text::shaped_text shaped):
+    box_rep (ip), source (s), nominal (fn), pen (p), run (std::move (shaped)) {
+    x1= min (0, run.advance_x); x2= max (0, run.advance_x);
+    y1= run.has_ink ? run.ink_y1 : 0;
+    y2= run.has_ink ? run.ink_y2 : 0;
+    x3= run.has_ink ? run.ink_x1 : x1;
+    x4= run.has_ink ? run.ink_x2 : x2;
+    y3= y1; y4= y2;
+  }
+  operator tree () override { return source; }
+  void display (renderer ren) override {
+    ren->set_pencil (pen);
+    run.draw_fixed (ren,
+      std::string_view (source.data (), static_cast<std::size_t> (N(source))), 0, 0);
+  }
+  double left_slope () override { return nominal->slope; }
+  double right_slope () override { return nominal->slope; }
+  SI left_correction () override { return max (0, x1 - x3); }
+  SI right_correction () override {
+    return run.math ? run.math->italic_correction : max (0, x4 - x2);
+  }
+  SI lsub_correction () override { return -left_correction (); }
+  SI rsup_correction () override { return right_correction (); }
+  std::optional<SI> top_accent_attachment () override {
+    return run.math ? std::optional<SI> (run.math->top_accent_attachment) : std::nullopt;
+  }
+  std::optional<SI> math_script_kern (
+    athena::text::math_kern_corner corner, SI height) override {
+    if (!run.math) return std::nullopt;
+    return athena::text::open_type_math_kern (*run.math, corner, height);
+  }
+  SI sub_lo_base (int level) override {
+    if (auto m= athena::text::math_layout_metrics (nominal))
+      return -m->subscript_shift_down;
+    return nominal->ysub_lo_base + (level > 0 ? nominal->yshift : 0);
+  }
+  SI sub_hi_lim (int) override {
+    if (auto m= athena::text::math_layout_metrics (nominal)) return m->subscript_top_max;
+    return nominal->ysub_hi_lim;
+  }
+  SI sup_lo_lim (int) override {
+    if (auto m= athena::text::math_layout_metrics (nominal)) return m->superscript_bottom_min;
+    return nominal->ysup_lo_lim;
+  }
+  SI sup_lo_base (int) override {
+    if (auto m= athena::text::math_layout_metrics (nominal)) return m->superscript_shift_up;
+    return nominal->ysup_lo_base;
+  }
+  SI sup_hi_lim (int) override {
+    if (auto m= athena::text::math_layout_metrics (nominal))
+      return y2 + m->superscript_baseline_drop_max;
+    return nominal->ysup_hi_lim;
+  }
+  int get_leaf_left_pos () override { return 0; }
+  int get_leaf_right_pos () override { return N(source); }
+  string get_leaf_string () override { return source; }
+  font get_leaf_font () override { return nominal; }
+  pencil get_leaf_pencil () override { return pen; }
 };
 
 box
@@ -667,9 +741,32 @@ get_wide_stix (string s, font fn, SI width) {
 * Exported routines
 ******************************************************************************/
 
+static bool
+single_unicode_scalar (string s) {
+  std::string_view bytes (s.data (), static_cast<std::size_t> (N(s)));
+  try { athena::text::require_utf8 (bytes); }
+  catch (...) { return false; }
+  if (bytes.empty ()) return false;
+  int32_t offset= 0;
+  UChar32 cp;
+  U8_NEXT (bytes.data (), offset, static_cast<int32_t> (bytes.size ()), cp);
+  return cp >= 0 && offset == static_cast<int32_t> (bytes.size ());
+}
+
 box
 delimiter_box (path ip, string s, font fn, pencil pen, SI bot, SI top) {
   SI h= top - bot;
+  if (single_unicode_scalar (s)) {
+    auto stretched= athena::text::shape_math_stretch (
+      fn, std::string_view (s.data (), static_cast<std::size_t> (N(s))), h);
+    if (stretched) {
+      box b= math_glyph_box (ip, s, fn, pen, std::move (stretched->run));
+      SI x= -b->x1;
+      SI y= (top + bot - b->y1 - b->y2) >> 1;
+      SI var_bot= max (bot, b->y1 + y), var_top= min (top, b->y2 + y);
+      return move_delimiter_box (ip, b, x, y, var_bot, var_top);
+    }
+  }
   string r= get_delimiter (s, fn, h);
   box b= text_box (ip, 0, r, fn, pen);
   SI x= -b->x1;
@@ -701,6 +798,21 @@ delimiter_box (path ip, string s, font fn, pencil pen,
                SI bot, SI top, SI mid, SI real_bot, SI real_top)
 {
   SI h= top - bot;
+  if (single_unicode_scalar (s)) {
+    auto stretched= athena::text::shape_math_stretch (
+      fn, std::string_view (s.data (), static_cast<std::size_t> (N(s))), h);
+    if (stretched) {
+      box b= math_glyph_box (ip, s, fn, pen, std::move (stretched->run));
+      SI x= -b->x1;
+      SI y= (top + bot - b->y1 - b->y2) >> 1;
+      if (b->y2 - b->y1 < h) {
+        y= (mid - b->y1 - b->y2) >> 1;
+        y= min (top - b->y2, y);
+        y= max (bot - b->y1, y);
+      }
+      return move_delimiter_box (ip, b, x, y, real_bot, real_top);
+    }
+  }
   string r= get_delimiter (s, fn, h);
   box b= text_box (ip, 0, r, fn, pen);
   SI x= -b->x1;
@@ -722,6 +834,22 @@ delimiter_box (path ip, string s, font fn, pencil pen,
 
 box
 big_operator_box (path ip, string s, font fn, pencil pen, int n) {
+  if (single_unicode_scalar (s)) {
+    SI target= 0;
+    if (n >= 2)
+      if (auto metrics= athena::text::math_layout_metrics (fn))
+        target= metrics->display_operator_min_height;
+    auto stretched= athena::text::shape_math_stretch (
+      fn, std::string_view (s.data (), static_cast<std::size_t> (N(s))), target);
+    if (stretched) {
+      box b= math_glyph_box (ip, s, fn, pen, std::move (stretched->run));
+      const SI axis= athena::text::math_layout_metrics (fn) ?
+        athena::text::math_layout_metrics (fn)->axis_height : fn->yfrac;
+      SI y= axis - ((b->y1 + b->y2) >> 1);
+      box mvb= move_box (ip, b, 0, y, false, true);
+      return macro_box (ip, mvb, fn, BIG_OP_BOX);
+    }
+  }
   ASSERT (N(s) >= 2 && s[0] == '<' && s[N(s)-1] == '>',
 	  "invalid rubber character");
   string r= s (0, N(s)-1) * "-" * as_string (n) * ">";
@@ -759,4 +887,11 @@ text_box (path ip, int pos, string s, font fn, pencil pen) {
 box
 text_box (path ip, int pos, string s, font fn, pencil pen, brush bg) {
   return tm_new<text_box_rep> (ip, pos, s, fn, pen, xkerning (), bg);
+}
+
+box
+math_glyph_box (path ip, string source, font nominal, pencil pen,
+                athena::text::shaped_text run) {
+  return tm_new<math_glyph_box_rep> (
+    ip, source, nominal, pen, std::move (run));
 }

@@ -14,6 +14,7 @@
 #include "typesetter.hpp"
 #include "Boxes/construct.hpp"
 #include "analyze.hpp"
+#include "math_font.hpp"
 
 /******************************************************************************
 * Retrieving the page size
@@ -579,9 +580,22 @@ edit_env_rep::update_font () {
       math_font= "cal";
       math_shape= "right";
     }
+    int selected_size= get_script_size (fn_size, index_level);
     fn= smart_font (math_font, math_family, math_series, math_shape,
                     text_font, text_family, text_series, text_shape,
-                    get_script_size (fn_size, index_level), (int) (magn*dpi));
+                    selected_size, (int) (magn*dpi));
+    if (index_level > 0 && math_font_sizes == "default")
+      if (auto metrics= athena::text::math_layout_metrics (fn)) {
+        const int percent= index_level == 1 ? metrics->script_percent_scale_down :
+                                              metrics->script_script_percent_scale_down;
+        if (percent > 0) {
+          const int math_size= max (1, (fn_size * percent + 99) / 100);
+          if (math_size != selected_size)
+            fn= smart_font (math_font, math_family, math_series, math_shape,
+                            text_font, text_family, text_series, text_shape,
+                            math_size, (int) (magn*dpi));
+        }
+      }
     break;
   }
   case 3:

@@ -856,6 +856,106 @@ static void check_math_metrics () {
   hb_font_set_scale (reference.get (), scale, scale);
   require (hb_ot_math_has_data (face.get ()), "Fixture has no OpenType MATH data");
 
+  const auto physical_source= math_font_source (physical, math_alphabet::normal);
+  require (physical_source.file.file_utf8 == file,
+           "Math layout did not retain the selected physical face");
+  const auto constants= math_layout_metrics (physical);
+  require (constants.has_value (), "Native math font did not expose MATH constants");
+  require (constants->axis_height ==
+             hb_ot_math_get_constant (reference.get (), HB_OT_MATH_CONSTANT_AXIS_HEIGHT) &&
+           constants->display_operator_min_height ==
+             hb_ot_math_get_constant (reference.get (), HB_OT_MATH_CONSTANT_DISPLAY_OPERATOR_MIN_HEIGHT) &&
+           constants->fraction_rule_thickness ==
+             hb_ot_math_get_constant (reference.get (), HB_OT_MATH_CONSTANT_FRACTION_RULE_THICKNESS) &&
+           constants->radical_vertical_gap ==
+             hb_ot_math_get_constant (reference.get (), HB_OT_MATH_CONSTANT_RADICAL_VERTICAL_GAP) &&
+           constants->radical_degree_bottom_raise_percent ==
+             hb_ot_math_get_constant (reference.get (), HB_OT_MATH_CONSTANT_RADICAL_DEGREE_BOTTOM_RAISE_PERCENT),
+           "Native MATH constants disagree with HarfBuzz");
+
+  hb_codepoint_t paren= 0;
+  require (hb_font_get_nominal_glyph (reference.get (), '(', &paren) && paren != 0,
+           "Math fixture has no left parenthesis");
+  unsigned int variant_count= 64;
+  std::vector<hb_ot_math_glyph_variant_t> reference_variants (variant_count);
+  hb_ot_math_get_glyph_variants (reference.get (), paren, HB_DIRECTION_TTB,
+                                  0, &variant_count, reference_variants.data ());
+  reference_variants.resize (variant_count);
+  require (!reference_variants.empty (), "Math fixture has no parenthesis variants");
+  const auto& wanted_variant= reference_variants[std::min<std::size_t> (
+    1, reference_variants.size () - 1)];
+  auto variant= shape_math_stretch (physical, "(", wanted_variant.advance, true);
+  require (variant && !variant->assembled && variant->run.glyphs.size () == 1 &&
+           variant->run.glyphs.front ().index == wanted_variant.glyph &&
+           variant->extent == wanted_variant.advance,
+           "Native math stretch did not select HarfBuzz's ready-made variant");
+  const SI assembly_target= reference_variants.back ().advance + scale;
+  auto assembly= shape_math_stretch (physical, "(", assembly_target, true);
+  require (assembly && assembly->assembled && assembly->extent >= assembly_target &&
+           assembly->run.glyphs.size () > 1,
+           "Native math stretch did not construct an oversized delimiter");
+  for (std::size_t i=1; i<assembly->run.glyphs.size (); ++i)
+    require (assembly->run.glyphs[i-1].y <= assembly->run.glyphs[i].y,
+             "Vertical MATH assembly is not ordered bottom-to-top");
+  const string paren_source ("(");
+  auto assembly_box= math_glyph_box (
+    path (0), paren_source, physical, pencil (black), assembly->run);
+  require (assembly_box->get_leaf_string () == paren_source &&
+           assembly_box->h () > 0,
+           "Math assembly box lost source identity or physical geometry");
+  QPicture math_recording;
+  {
+    QPainter painter (&math_recording);
+    qt_renderer_rep renderer (&painter, 1.0, 200, 200);
+    renderer.set_pencil (pencil (black));
+    assembly_box->display (&renderer);
+    painter.end ();
+  }
+  require (math_recording.size () > 0,
+           "Math assembly did not reach the native glyph renderer");
+
+  bool saw_math_kern_table= false;
+  const unsigned int glyph_count= hb_face_get_glyph_count (face.get ());
+  for (hb_codepoint_t glyph= 1; glyph<glyph_count; ++glyph)
+    for (auto [corner, hb_corner]: {
+           std::pair {math_kern_corner::top_right, HB_OT_MATH_KERN_TOP_RIGHT},
+           std::pair {math_kern_corner::top_left, HB_OT_MATH_KERN_TOP_LEFT},
+           std::pair {math_kern_corner::bottom_right, HB_OT_MATH_KERN_BOTTOM_RIGHT},
+           std::pair {math_kern_corner::bottom_left, HB_OT_MATH_KERN_BOTTOM_LEFT}}) {
+      unsigned int entry_count= 0;
+      const unsigned int total= hb_ot_math_get_glyph_kernings (
+        reference.get (), glyph, hb_corner, 0, &entry_count, nullptr);
+      if (total == 0) continue;
+      saw_math_kern_table= true;
+      std::vector<hb_ot_math_kern_entry_t> entries (total);
+      entry_count= total;
+      hb_ot_math_get_glyph_kernings (
+        reference.get (), glyph, hb_corner, 0, &entry_count, entries.data ());
+      entries.resize (entry_count);
+      shaped_math_metrics probe {0, 0, physical_source, glyph};
+      for (const auto& entry: entries)
+        for (SI height: {entry.max_correction_height - 1,
+                         entry.max_correction_height,
+                         entry.max_correction_height + 1})
+          require (open_type_math_kern (probe, corner, height) ==
+                     hb_ot_math_get_glyph_kerning (
+                       reference.get (), glyph, hb_corner, height),
+                   "Native height-dependent MATH kern disagrees with HarfBuzz");
+    }
+  if (!saw_math_kern_table) {
+    shaped_math_metrics probe {0, 0, physical_source, paren};
+    for (auto [corner, hb_corner]: {
+           std::pair {math_kern_corner::top_right, HB_OT_MATH_KERN_TOP_RIGHT},
+           std::pair {math_kern_corner::top_left, HB_OT_MATH_KERN_TOP_LEFT},
+           std::pair {math_kern_corner::bottom_right, HB_OT_MATH_KERN_BOTTOM_RIGHT},
+           std::pair {math_kern_corner::bottom_left, HB_OT_MATH_KERN_BOTTOM_LEFT}})
+      for (SI height: {-scale, 0, scale})
+        require (open_type_math_kern (probe, corner, height) ==
+                   hb_ot_math_get_glyph_kerning (
+                     reference.get (), paren, hb_corner, height),
+                 "Absent MATH kern table did not match HarfBuzz's zero result");
+  }
+
   font_catalog catalog (false, {file});
   font_request request {"TeX Gyre Pagella Math"};
   bool nonzero_correction= false, offcenter_anchor= false;
@@ -882,6 +982,10 @@ static void check_math_metrics () {
       require (b->right_correction () == correction && b->rsup_correction () == correction &&
                b->top_accent_attachment () == anchor && b->wide_correction (0) == 1,
                "Unicode box lost math script or accent metrics");
+      require (b->math_script_kern (math_kern_corner::top_right, 0).value_or (MAX_SI) ==
+                 hb_ot_math_get_glyph_kerning (
+                   reference.get (), glyph.index, HB_OT_MATH_KERN_TOP_RIGHT, 0),
+               "Unicode box lost height-dependent MATH kerning");
       auto decorated= macro_box (path (0), direct_link_box (path (0), b, "#target"));
       require (decorated->top_accent_attachment () == anchor &&
                decorated->rsup_correction () == correction,

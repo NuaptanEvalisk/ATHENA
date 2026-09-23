@@ -12,38 +12,55 @@
 #include "concater.hpp"
 #include "analyze.hpp"
 #include "packrat.hpp"
+#include "converter.hpp"
+#include "math_font.hpp"
 
 /******************************************************************************
 * Typesetting special mathematical symbols
 ******************************************************************************/
 
+static bool
+is_unicode_scalar_atom (string s) {
+  if (N(s) == 0) return false;
+  int pos= 0;
+  (void) decode_from_utf8 (s, pos);
+  return pos == N(s);
+}
+
 void
 concater_rep::typeset_large (tree t, path ip, int tp, int otp, string prefix) {
   font old_fn= env->fn;
-  if (starts (old_fn->res_name, "stix-"))
-    //if (old_fn->type == FONT_TYPE_UNICODE)
-    env->fn= rubber_font (old_fn);
   
   if (N(t) < 1 || !is_atomic (t[0]))
     typeset_error (t, ip);
   else {
     string br= t[0]->label;
+    const bool native= is_unicode_scalar_atom (br);
+    if (!native && starts (old_fn->res_name, "stix-")) env->fn= rubber_font (old_fn);
     if (N(br) > 2 && br[0] == '<' && br[N(br)-1] == '>')
       br= br (1, N(br) - 1);
     if (N(t) == 1) {
-      string s= prefix * br * ">";
-      box b= text_box (ip, 0, s, env->fn, env->pen);
+      box b;
+      if (native)
+        b= utf8_text_box (ip, br, 0, N(br), old_fn, env->pen);
+      else
+        b= text_box (ip, 0, prefix * br * ">", env->fn, env->pen);
       print (tp, otp, b);
       // temporarary: use parameters from group-open class in std-math.syx
       // bug: allow hyphenation after ) and before *
     }
     else if (N(t) == 2 && is_int (t[1])) {
       int nr= max (as_int (t[1]->label), 0);
-      string s= prefix * br * "-" * as_string (nr) * ">";
-      box b= text_box (ip, 0, s, env->fn, env->pen);
-      SI dy= env->fn->yfrac - ((b->y1 + b->y2) >> 1);
+      box b= native ?
+        delimiter_box (ip, br, old_fn, env->pen,
+                       old_fn->yfrac - ((nr + 1) * old_fn->yx >> 1),
+                       old_fn->yfrac + ((nr + 1) * old_fn->yx >> 1)) :
+        text_box (ip, 0, prefix * br * "-" * as_string (nr) * ">", env->fn, env->pen);
+      const SI axis= native && athena::text::math_layout_metrics (old_fn) ?
+        athena::text::math_layout_metrics (old_fn)->axis_height : env->fn->yfrac;
+      SI dy= axis - ((b->y1 + b->y2) >> 1);
       box mvb= move_box (ip, b, 0, dy, false, true);
-      print (STD_ITEM, otp, macro_box (ip, mvb, env->fn));
+      print (STD_ITEM, otp, macro_box (ip, mvb, native ? old_fn : env->fn));
     }
     else {
       SI y1, y2;
@@ -56,8 +73,8 @@ concater_rep::typeset_large (tree t, path ip, int tp, int otp, string prefix) {
         y1= env->as_length (t[1]);
         y2= env->as_length (t[2]);
       }
-      string s= prefix * br * ">";
-      box b= delimiter_box (ip, s, env->fn, env->pen, y1, y2);
+      string s= native ? br : prefix * br * ">";
+      box b= delimiter_box (ip, s, native ? old_fn : env->fn, env->pen, y1, y2);
       print (STD_ITEM, otp, b);
     }
   }
@@ -108,10 +125,13 @@ concater_rep::typeset_bigop (tree t, path ip) {
   if ((N(t) == 1) && is_atomic (t[0])) {
     space spc= env->fn->spc;
     string l= t[0]->label;
-    string s= "<big-" * l * ">";
+    const bool native= is_unicode_scalar_atom (l);
+    string s= native ? l : "<big-" * l * ">";
     bool flag= (!env->math_condensed) && (l != ".");
     box b;
-    if (env->fn->type == FONT_TYPE_UNICODE) {
+    if (native)
+      b= big_operator_box (ip, s, env->fn, env->pen, env->display_style? 2: 1);
+    else if (env->fn->type == FONT_TYPE_UNICODE) {
       font mfn= rubber_font (env->fn);
       b= big_operator_box (ip, s, mfn, env->pen,
                            env->display_style? 2: 1);
@@ -121,7 +141,13 @@ concater_rep::typeset_bigop (tree t, path ip) {
     print (STD_ITEM, OP_BIG, b);
     penalty_min (HYPH_PANIC);
     bool int_flag= false, it_flag= false, lim_flag= true;
-    get_big_flags (l, int_flag, it_flag, lim_flag);
+    if (native) {
+      const std::string_view scalar (l.data (), static_cast<std::size_t> (N(l)));
+      int_flag= scalar == "∫" || scalar == "∮" || scalar == "∬" || scalar == "∭";
+      it_flag= int_flag;
+      lim_flag= !int_flag;
+    }
+    else get_big_flags (l, int_flag, it_flag, lim_flag);
     if (lim_flag) with_limits (LIMITS_DISPLAY);
     if (flag) {
       if (int_flag) {
@@ -381,7 +407,7 @@ concater_rep::typeset_frac (tree t, path ip) {
   if (disp) env->local_end (MATH_DISPLAY, old);
   else env->local_end_script (old);
   if (num->w() <= env->frac_max && den->w () <= env->frac_max)
-    print (frac_box (ip, num, den, env->fn, sfn, env->pen));
+    print (frac_box (ip, num, den, env->fn, sfn, env->pen, disp));
   else typeset_wide_frac (t, ip);
 }
 
@@ -417,7 +443,7 @@ concater_rep::typeset_wide_sqrt (tree t, path ip) {
     env->pen= env->flatten_pen;
   }
   else den= typeset_as_concat (env, "2", decorate_middle (ip));
-  box fr= frac_box (decorate_middle (ip), num, den, env->fn, env->fn, env->pen);
+  box fr= frac_box (decorate_middle (ip), num, den, env->fn, env->fn, env->pen, false);
   env->pen= old_pen;
   env->local_end_script (old_il);
   if (disp) env->local_end (MATH_DISPLAY, old);
@@ -446,15 +472,15 @@ concater_rep::typeset_sqrt (tree t, path ip) {
     if (disp) env->local_end (MATH_DISPLAY, old);
   }
   SI sep= env->fn->sep;
-  font lfn= env->fn;
-  bool stix= starts (lfn->res_name, "stix-");
-  if (stix) lfn= rubber_font (lfn);
-  box sqrtb= delimiter_box (decorate_left (ip), "<large-sqrt>",
-                            lfn, env->pen, b->y1, b->y2 + (3*sep >> 1));
-  if (stix) sqrtb= shift_box (decorate_left (ip), sqrtb,
-                              -env->fn->wline/2, -env->fn->wline/3,
-                              false, true);
-  print (sqrt_box (ip, b, ind, sqrtb, env->fn, env->pen));
+  SI radical_extra= (3*sep >> 1);
+  if (auto math= athena::text::math_layout_metrics (env->fn)) {
+    const SI gap= env->display_style ? math->radical_display_vertical_gap :
+                                       math->radical_vertical_gap;
+    radical_extra= gap + math->radical_rule_thickness + math->radical_extra_ascender;
+  }
+  box sqrtb= delimiter_box (decorate_left (ip), "√",
+                              env->fn, env->pen, b->y1, b->y2 + radical_extra);
+  print (sqrt_box (ip, b, ind, sqrtb, env->fn, env->pen, env->display_style));
 }
 
 void

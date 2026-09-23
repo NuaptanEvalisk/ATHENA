@@ -117,6 +117,10 @@ struct move_box_rep: public change_box_rep {
     if (anchor) *anchor += sx (0);
     return anchor;
   }
+  std::optional<SI> math_script_kern (
+    athena::text::math_kern_corner corner, SI height) override {
+    return bs[0]->math_script_kern (corner, height - sy (0));
+  }
   operator tree () { return tree (TUPLE, "move", (tree) bs[0]); }
 };
 

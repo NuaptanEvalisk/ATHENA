@@ -102,6 +102,9 @@ SI modifier_box_rep::wide_correction (int mode) {
   return b->wide_correction (mode); }
 std::optional<SI> modifier_box_rep::top_accent_attachment () {
   return b->top_accent_attachment (); }
+std::optional<SI> modifier_box_rep::math_script_kern (
+  athena::text::math_kern_corner corner, SI height) {
+  return b->math_script_kern (corner, height); }
 void modifier_box_rep::get_bracket_extents (SI& lo, SI& hi) {
   b->get_bracket_extents (lo, hi); }
 
@@ -480,6 +483,10 @@ struct macro_box_rep: public composite_box_rep {
     auto anchor= bs[0]->top_accent_attachment ();
     if (anchor) *anchor += sx (0);
     return anchor;
+  }
+  std::optional<SI> math_script_kern (
+    athena::text::math_kern_corner corner, SI height) override {
+    return bs[0]->math_script_kern (corner, height);
   }
   void get_bracket_extents (SI& lo, SI& hi) {
     bs[0]->get_bracket_extents (lo, hi); }

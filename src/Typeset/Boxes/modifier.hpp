@@ -59,6 +59,8 @@ public:
   SI        sup_hi_lim  (int level);
   SI        wide_correction (int mode);
   std::optional<SI> top_accent_attachment () override;
+  std::optional<SI> math_script_kern (
+    athena::text::math_kern_corner corner, SI height) override;
   void      get_bracket_extents (SI& lo, SI& hi);
 
 };

@@ -229,6 +229,10 @@ public:
   // Physical glyph anchor, relative to this box's origin. When present it
   // supersedes the legacy slope/italic heuristic for positioning an accent.
   virtual std::optional<SI> top_accent_attachment () { return std::nullopt; }
+  // OpenType MATH cut-in at a requested correction height. Only a box which
+  // still represents one physical math glyph may expose this value.
+  virtual std::optional<SI> math_script_kern (
+    athena::text::math_kern_corner, SI) { return std::nullopt; }
   virtual void      get_bracket_extents (SI& lo, SI& hi);
 
   /*************************** for graphical boxes ***************************/

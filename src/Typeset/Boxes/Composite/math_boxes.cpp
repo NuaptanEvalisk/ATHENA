@@ -14,6 +14,7 @@
 #include "Boxes/construct.hpp"
 #include "Boxes/Composite/italic_correct.hpp"
 #include "analyze.hpp"
+#include "math_font.hpp"
 
 /******************************************************************************
 * Miscellaneous routines
@@ -50,7 +51,9 @@ italic_correction (box L, box R) {
 struct frac_box_rep: public composite_box_rep {
   font fn, sfn;
   pencil pen;
-  frac_box_rep (path ip, box b1, box b2, font fn, font sfn, pencil pen);
+  bool display_style;
+  frac_box_rep (path ip, box b1, box b2, font fn, font sfn, pencil pen,
+                bool display_style);
   operator tree () { return tree (TUPLE, "frac", bs[0], bs[1]); }
   box adjust_kerning (int mode, double factor);
   box expand_glyphs (int mode, double factor);
@@ -58,23 +61,41 @@ struct frac_box_rep: public composite_box_rep {
 };
 
 frac_box_rep::frac_box_rep (
-  path ip, box b1, box b2, font fn2, font sfn2, pencil pen2):
-    composite_box_rep (ip), fn (fn2), sfn (sfn2), pen (pen2)
+  path ip, box b1, box b2, font fn2, font sfn2, pencil pen2, bool display2):
+    composite_box_rep (ip), fn (fn2), sfn (sfn2), pen (pen2), display_style (display2)
 {
   // Italic correction does not lead to nicer results,
   // because right correction is not equilibrated w.r.t. left correction
 
-  SI bar_y = fn->yfrac;
-  SI bar_w = fn->wline;
+  auto math= athena::text::math_layout_metrics (fn);
+  SI bar_y = math ? math->axis_height : fn->yfrac;
+  SI bar_w = math ? math->fraction_rule_thickness : fn->wline;
   SI sep   = fn->sep;
-  SI b1_y  = min (b1->y1, sfn->y1);
-  SI b2_y  = max (b2->y2, sfn->y2);
   SI w     = max (b1->w (), b2->w()) + 2*sep;
   SI d     = sep >> 1;
 
   pencil bar_pen= pen->set_width (bar_w);
-  insert (b1, (w>>1) - (b1->x2>>1), bar_y+ sep+ (bar_w>>1)- b1_y);
-  insert (b2, (w>>1) - (b2->x2>>1), bar_y- sep- (bar_w>>1)- b2_y);
+  SI num_y, den_y;
+  if (math) {
+    num_y= display_style ? math->fraction_numerator_display_shift_up :
+                           math->fraction_numerator_shift_up;
+    den_y= -(display_style ? math->fraction_denominator_display_shift_down :
+                             math->fraction_denominator_shift_down);
+    const SI num_gap= display_style ? math->fraction_numerator_display_gap_min :
+                                      math->fraction_numerator_gap_min;
+    const SI den_gap= display_style ? math->fraction_denominator_display_gap_min :
+                                      math->fraction_denominator_gap_min;
+    num_y= max (num_y, bar_y + (bar_w >> 1) + num_gap - b1->y1);
+    den_y= min (den_y, bar_y - (bar_w >> 1) - den_gap - b2->y2);
+  }
+  else {
+    SI b1_y= min (b1->y1, sfn->y1);
+    SI b2_y= max (b2->y2, sfn->y2);
+    num_y= bar_y + sep + (bar_w >> 1) - b1_y;
+    den_y= bar_y - sep - (bar_w >> 1) - b2_y;
+  }
+  insert (b1, (w>>1) - ((b1->x1 + b1->x2)>>1), num_y);
+  insert (b2, (w>>1) - ((b2->x1 + b2->x2)>>1), den_y);
   insert (line_box (decorate_middle (ip), d, 0, w-d, 0, bar_pen), 0, bar_y);
 
   italic_correct (b1);
@@ -93,7 +114,7 @@ frac_box_rep::adjust_kerning (int mode, double factor) {
   (void) mode;
   box num= bs[0]->adjust_kerning (0, factor);
   box den= bs[1]->adjust_kerning (0, factor);
-  return frac_box (ip, num, den, fn, sfn, pen);
+  return frac_box (ip, num, den, fn, sfn, pen, display_style);
 }
 
 box
@@ -101,7 +122,7 @@ frac_box_rep::expand_glyphs (int mode, double factor) {
   (void) mode;
   box num= bs[0]->expand_glyphs (0, factor);
   box den= bs[1]->expand_glyphs (0, factor);
-  return frac_box (ip, num, den, fn, sfn, pen);
+  return frac_box (ip, num, den, fn, sfn, pen, display_style);
 }
 
 int
@@ -122,7 +143,9 @@ frac_box_rep::find_child (SI x, SI y, SI delta, bool force) {
 struct sqrt_box_rep: public composite_box_rep {
   font fn;
   pencil pen;
-  sqrt_box_rep (path ip, box b1, box b2, box sqrtb, font fn, pencil pen);
+  bool display_style;
+  sqrt_box_rep (path ip, box b1, box b2, box sqrtb, font fn, pencil pen,
+                bool display_style);
   operator tree () { return tree (TUPLE, "sqrt", bs[0]); }
   box adjust_kerning (int mode, double factor);
   box expand_glyphs (int mode, double factor);
@@ -130,44 +153,61 @@ struct sqrt_box_rep: public composite_box_rep {
 };
 
 sqrt_box_rep::sqrt_box_rep (
-  path ip, box b1, box b2, box sqrtb, font fn2, pencil pen2):
-    composite_box_rep (ip), fn (fn2), pen (pen2)
+  path ip, box b1, box b2, box sqrtb, font fn2, pencil pen2, bool display2):
+    composite_box_rep (ip), fn (fn2), pen (pen2), display_style (display2)
 {
   right_italic_correct (b1);
 
-  SI sep  = fn->sep;
-  SI wline= fn->wline;
+  auto math= athena::text::math_layout_metrics (fn);
+  SI sep= math ? (display_style ? math->radical_display_vertical_gap :
+                                  math->radical_vertical_gap) : fn->sep;
+  SI wline= math ? math->radical_rule_thickness : fn->wline;
   SI dx   = -fn->wfn/36, dy= -fn->wfn/36; // correction
-  SI by   = sqrtb->y2+ dy;
+  SI by   = math ? b1->y2 + sep + (wline >> 1) : sqrtb->y2 + dy;
   if (sqrtb->x2 - sqrtb->x4 > wline) dx -= (sqrtb->x2 - sqrtb->x4);
   
   pencil rpen= pen->set_width (wline);
   insert (b1, 0, 0);
   if (!is_nil (b2)) {
-    SI X = - sqrtb->w();
-    SI M = X / 3;
-    SI Y = sqrtb->y1;
-    SI bw= sqrtb->w();
-    SI bh= sqrtb->h();
-    if (fn->math_type == MATH_TYPE_TEX_GYRE) {
-      if (2*bh < 9*bw) Y += bh >> 1;
-      else if (occurs ("ermes", fn->res_name)) Y += (19*bw) >> 3;
-      else if (occurs ("agella", fn->res_name)) Y += (16*bw) >> 3;
-      else Y += (15*bw) >> 3;
+    if (math) {
+      const SI radical_height= sqrtb->y2 - sqrtb->y1;
+      const SI degree_bottom= sqrtb->y1 +
+        (radical_height * math->radical_degree_bottom_raise_percent) / 100;
+      const SI radical_left= sqrtb->x1 - sqrtb->x2;
+      const SI x= radical_left - math->radical_kern_after_degree - b2->x2;
+      insert (b2, x, degree_bottom - b2->y1);
     }
     else {
-      if (bh < 3*bw) Y += bh >> 1;
-      else Y += (bw*3) >> 1;
+      SI X = - sqrtb->w();
+      SI M = X / 3;
+      SI Y = sqrtb->y1;
+      SI bw= sqrtb->w();
+      SI bh= sqrtb->h();
+      if (fn->math_type == MATH_TYPE_TEX_GYRE) {
+        if (2*bh < 9*bw) Y += bh >> 1;
+        else if (occurs ("ermes", fn->res_name)) Y += (19*bw) >> 3;
+        else if (occurs ("agella", fn->res_name)) Y += (16*bw) >> 3;
+        else Y += (15*bw) >> 3;
+      }
+      else {
+        if (bh < 3*bw) Y += bh >> 1;
+        else Y += (bw*3) >> 1;
+      }
+      insert (b2, min (X, M- b2->x2), Y- b2->y1+ sep);
     }
-    insert (b2, min (X, M- b2->x2), Y- b2->y1+ sep);
   }
   insert (sqrtb, -sqrtb->x2, 0);
   insert (line_box (decorate_middle (ip), dx, by, b1->x2, by, rpen), 0, 0);
   
   position ();
+  if (math && !is_nil (b2)) x1 -= math->radical_kern_before_degree;
   left_justify ();
-  y1 -= wline;
-  y2 += wline;
+  if (math)
+    y2= max (y2, by + (wline >> 1) + math->radical_extra_ascender);
+  else {
+    y1 -= wline;
+    y2 += wline;
+  }
   x2 += sep >> 1;
 
   right_italic_restore (b1);
@@ -180,7 +220,7 @@ sqrt_box_rep::adjust_kerning (int mode, double factor) {
   box body = bs[0]->adjust_kerning (0, factor);
   box ramif= (N(bs) == 3? box (): bs[1]->adjust_kerning (0, factor/2));
   box sqrtb= (N(bs) == 3? bs[1]: bs[2]);
-  return sqrt_box (ip, body, ramif, sqrtb, fn, pen);
+  return sqrt_box (ip, body, ramif, sqrtb, fn, pen, display_style);
 }
 
 box
@@ -189,7 +229,7 @@ sqrt_box_rep::expand_glyphs (int mode, double factor) {
   box body = bs[0]->expand_glyphs (0, factor);
   box ramif= (N(bs) == 3? box (): bs[1]->expand_glyphs (0, factor));
   box sqrtb= (N(bs) == 3? bs[1]: bs[2]);
-  return sqrt_box (ip, body, ramif, sqrtb, fn, pen);
+  return sqrt_box (ip, body, ramif, sqrtb, fn, pen, display_style);
 }
 
 int
@@ -730,13 +770,15 @@ wide_box_rep::get_bracket_extents (SI& lo, SI& hi) {
 ******************************************************************************/
 
 box
-frac_box (path ip, box b1, box b2, font fn, font sfn, pencil pen) {
-  return tm_new<frac_box_rep> (ip, b1, b2, fn, sfn, pen);
+frac_box (path ip, box b1, box b2, font fn, font sfn, pencil pen,
+          bool display_style) {
+  return tm_new<frac_box_rep> (ip, b1, b2, fn, sfn, pen, display_style);
 }
 
 box
-sqrt_box (path ip, box b1, box b2, box sqrtb, font fn, pencil pen) {
-  return tm_new<sqrt_box_rep> (ip, b1, b2, sqrtb, fn, pen);
+sqrt_box (path ip, box b1, box b2, box sqrtb, font fn, pencil pen,
+          bool display_style) {
+  return tm_new<sqrt_box_rep> (ip, b1, b2, sqrtb, fn, pen, display_style);
 }
 
 box

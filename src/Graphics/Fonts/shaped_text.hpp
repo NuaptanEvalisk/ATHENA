@@ -21,6 +21,7 @@
 namespace athena::text {
 
 enum class run_direction { left_to_right, right_to_left };
+enum class math_kern_corner { top_right, top_left, bottom_right, bottom_left };
 
 struct shaping_options {
   run_direction direction= run_direction::left_to_right;
@@ -67,6 +68,47 @@ struct bitmap_text_glyph {
 struct shaped_math_metrics {
   SI italic_correction;
   SI top_accent_attachment;
+  physical_font_source source;
+  std::uint32_t glyph_index= 0;
+};
+
+struct math_font_metrics {
+  int script_percent_scale_down= 100;
+  int script_script_percent_scale_down= 100;
+  SI delimited_sub_formula_min_height= 0;
+  SI display_operator_min_height= 0;
+  SI math_leading= 0;
+  SI axis_height= 0;
+  SI subscript_shift_down= 0;
+  SI subscript_top_max= 0;
+  SI subscript_baseline_drop_min= 0;
+  SI superscript_shift_up= 0;
+  SI superscript_shift_up_cramped= 0;
+  SI superscript_bottom_min= 0;
+  SI superscript_baseline_drop_max= 0;
+  SI sub_superscript_gap_min= 0;
+  SI superscript_bottom_max_with_subscript= 0;
+  SI space_after_script= 0;
+  SI upper_limit_gap_min= 0;
+  SI upper_limit_baseline_rise_min= 0;
+  SI lower_limit_gap_min= 0;
+  SI lower_limit_baseline_drop_min= 0;
+  SI fraction_numerator_shift_up= 0;
+  SI fraction_numerator_display_shift_up= 0;
+  SI fraction_denominator_shift_down= 0;
+  SI fraction_denominator_display_shift_down= 0;
+  SI fraction_numerator_gap_min= 0;
+  SI fraction_numerator_display_gap_min= 0;
+  SI fraction_rule_thickness= 0;
+  SI fraction_denominator_gap_min= 0;
+  SI fraction_denominator_display_gap_min= 0;
+  SI radical_vertical_gap= 0;
+  SI radical_display_vertical_gap= 0;
+  SI radical_rule_thickness= 0;
+  SI radical_extra_ascender= 0;
+  SI radical_kern_before_degree= 0;
+  SI radical_kern_after_degree= 0;
+  int radical_degree_bottom_raise_percent= 0;
 };
 
 // Like other font/box resources, a run is confined to its font domain and must
@@ -95,6 +137,12 @@ struct shaped_text {
   std::size_t hit_test (SI x, bool prefer_right= true) const;
 };
 
+struct math_stretch_result {
+  shaped_text run;
+  SI extent= 0;
+  bool assembled= false;
+};
+
 // Shape an already itemized, single-font/script/direction run. Surrounding text
 // supplies joining context; no paragraph bidi or font fallback is guessed here.
 // Font size is in points; all output coordinates use renderer SI units.
@@ -104,5 +152,13 @@ shaped_text shape_freetype_utf8 (
 shaped_text shape_freetype_utf8 (
   const font_file_source& source, int size, int hdpi, int vdpi, std::string_view text,
   std::size_t begin, std::size_t end, const shaping_options& options= {});
+
+std::optional<math_font_metrics> open_type_math_metrics (
+  const physical_font_source& source);
+SI open_type_math_kern (const shaped_math_metrics& glyph, math_kern_corner corner,
+                        SI correction_height);
+std::optional<math_stretch_result> shape_open_type_math_stretch (
+  const physical_font_source& source, std::string_view scalar, SI target_extent,
+  bool vertical= true);
 
 } // namespace athena::text
