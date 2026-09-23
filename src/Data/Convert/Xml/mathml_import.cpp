@@ -12,6 +12,7 @@
 #include "convert.hpp"
 #include "analyze.hpp"
 #include "scheme.hpp"
+#include "unicode_text.hpp"
 
 #include <cstdlib>
 #include <initializer_list>
@@ -32,6 +33,21 @@ node (string name, const array<tree>& args) {
   tree r (make_tree_label (name), N(args));
   for (int i=0; i<N(args); ++i) r[i]= args[i];
   return r;
+}
+
+tree
+named_math_symbol (string identity) {
+  return tree (NAMED_SYMBOL, identity);
+}
+
+tree
+styled_math_symbol (string style, tree value) {
+  return node (style, {value});
+}
+
+tree
+stretched_math_accent (tree value) {
+  return tree (WITH, "math-accent-stretch", "true", value);
 }
 
 void
@@ -184,24 +200,24 @@ clean_elements (scheme_tree t) {
 }
 
 struct MathmlMaps {
-  hashmap<string,string> mathml_constant;
-  hashmap<string,string> mathml_operator;
-  hashmap<string,string> mathml_symbol;
-  hashmap<string,string> mathml_above;
-  hashmap<string,string> mathml_below;
-  hashmap<string,string> mathml_above_below;
-  hashmap<string,string> mathml_left;
-  hashmap<string,string> tmtm_left;
-  hashmap<string,string> mathml_right;
-  hashmap<string,string> tmtm_right;
-  hashmap<string,string> mathml_big;
-  hashmap<string,string> tmtm_big;
+  hashmap<string,tree> mathml_constant;
+  hashmap<string,tree> mathml_operator;
+  hashmap<string,tree> mathml_symbol;
+  hashmap<string,tree> mathml_above;
+  hashmap<string,tree> mathml_below;
+  hashmap<string,tree> mathml_above_below;
+  hashmap<string,tree> mathml_left;
+  hashmap<string,tree> tmtm_left;
+  hashmap<string,tree> mathml_right;
+  hashmap<string,tree> tmtm_right;
+  hashmap<string,tree> mathml_big;
+  hashmap<string,tree> tmtm_big;
 
   MathmlMaps ():
-    mathml_constant (""), mathml_operator (""), mathml_symbol (""),
-    mathml_above (""), mathml_below (""), mathml_above_below (""),
-    mathml_left (""), tmtm_left (""), mathml_right (""), tmtm_right (""),
-    mathml_big (""), tmtm_big ("") {
+    mathml_constant (UNINIT), mathml_operator (UNINIT), mathml_symbol (UNINIT),
+    mathml_above (UNINIT), mathml_below (UNINIT), mathml_above_below (UNINIT),
+    mathml_left (UNINIT), tmtm_left (UNINIT), mathml_right (UNINIT), tmtm_right (UNINIT),
+    mathml_big (UNINIT), tmtm_big (UNINIT) {
 #define ADD(map, key, value) map (key)= value
 #include "mathml_symbol_maps.inc"
 #undef ADD
@@ -215,40 +231,39 @@ maps () {
 }
 
 bool
-lookup (hashmap<string,string>& map, string key, string& value) {
+lookup (hashmap<string,tree>& map, string key, tree& value) {
   if (!map->contains (key)) return false;
   value= map[key];
   return true;
 }
 
 bool
-lookup_above (string key, string& value) {
+lookup_above (string key, tree& value) {
   return lookup (maps ().mathml_above, key, value) ||
          lookup (maps ().mathml_above_below, key, value);
 }
 
 bool
-lookup_below (string key, string& value) {
+lookup_below (string key, tree& value) {
   return lookup (maps ().mathml_below, key, value) ||
          lookup (maps ().mathml_above_below, key, value);
 }
 
 string
 xml_text_to_tm (string s) {
-  string in= utf8_to_cork (s);
-  string out;
-  for (int i=0; i<N(in); ++i) out << (in[i] == '\0' ? '`' : in[i]);
-  return out;
+  athena::text::require_utf8 (
+    std::string_view (s.data (), static_cast<std::size_t> (N(s))));
+  return s;
 }
 
 tree
 entity_to_tm (string s) {
   int n= N(s);
-  string prefix;
-  if (n == 6 && ends (s, "opf;")) prefix= "<bbb-";
-  else if (n == 6 && ends (s, "scr;")) prefix= "<cal-";
-  else if (n == 5 && ends (s, "fr;")) prefix= "<frak-";
-  if (prefix != "" && n > 2) return tree (prefix * s (1, 2) * ">");
+  string style;
+  if (n == 6 && ends (s, "opf;")) style= "math-alpha-bbb";
+  else if (n == 6 && ends (s, "scr;")) style= "math-alpha-cal";
+  else if (n == 5 && ends (s, "fr;")) style= "math-alpha-frak";
+  if (style != "" && n > 2) return node (style, {tree (s (1, 2))});
   return tree (s);
 }
 
@@ -260,20 +275,20 @@ mapped_symbol (string s) {
   if (s == " ") return node ("hspace", {tree ("1em")});
   if (s == " ") return node ("hspace", {tree ("1en")});
 
-  string v;
+  tree v;
   if (lookup (maps ().mathml_symbol, s, v) ||
       lookup (maps ().mathml_constant, s, v) ||
       lookup (maps ().mathml_operator, s, v))
-    return tree (v);
+    return v;
 
-  if (s == "&bigcup;") return node ("big", {tree ("cup")});
-  if (s == "&bigcap;") return node ("big", {tree ("cap")});
-  if (s == "&Integral;") return node ("big", {tree ("int")});
-  if (s == "&fpartint;") return node ("big", {tree ("fint")});
-  if (s == "&prod;") return node ("big", {tree ("prod")});
-  if (s == "&coprod;") return node ("big", {tree ("amalg")});
-  if (s == "&sum;") return node ("big", {tree ("sum")});
-  if (s == "&mnplus;") return tree ("<mp>");
+  if (s == "&bigcup;") return node ("big", {tree ("⋃")});
+  if (s == "&bigcap;") return node ("big", {tree ("⋂")});
+  if (s == "&Integral;") return node ("big", {tree ("∫")});
+  if (s == "&fpartint;") return node ("big", {tree ("⨍")});
+  if (s == "&prod;") return node ("big", {tree ("∏")});
+  if (s == "&coprod;") return node ("big", {tree ("∐")});
+  if (s == "&sum;") return node ("big", {tree ("∑")});
+  if (s == "&mnplus;") return tree ("∓");
   if (starts (s, "&")) return entity_to_tm (s);
   return tree (xml_text_to_tm (s));
 }
@@ -418,15 +433,14 @@ with_scripts (tree base, tree lsub, tree lsup, tree rsub, tree rsup) {
 
 bool
 stretchy (scheme_tree source, tree converted) {
-  return element_name (source) == "mo" && attribute_is (source, "stretchy", "true") &&
-         is_atomic (converted) && starts (converted->label, "<") &&
-         ends (converted->label, ">");
-}
-
-string
-rubberify (string s) {
-  if (!starts (s, "<") || !ends (s, ">")) return s;
-  return "<rubber-" * s (1, N(s));
+  if (element_name (source) != "mo" || !attribute_is (source, "stretchy", "true"))
+    return false;
+  if (is_func (converted, NAMED_SYMBOL, 1)) return true;
+  if (!is_atomic (converted)) return false;
+  std::string_view bytes (converted->label.data (),
+                          static_cast<std::size_t> (N(converted->label)));
+  return !bytes.empty () && athena::text::valid_utf8 (bytes) &&
+         athena::text::next_scalar (bytes, 0) == bytes.size ();
 }
 
 tree
@@ -434,23 +448,25 @@ convert_mo (scheme_tree t) {
   array<scheme_tree> c= clean_mixed (t);
   if (N(c) == 0) return "";
   tree r= convert_list (c);
-  if (N(c) != 1 || !scheme_string (c[0]) || !is_atomic (r))
+  if (N(c) != 1 || !scheme_string (c[0]))
     return apply_styles (t, r);
 
   string source= scheme_text (c[0]);
-  string v;
+  tree v;
   if (lookup (maps ().mathml_left, source, v))
-    return apply_styles (t, node ("left", {tree (v)}));
+    return apply_styles (t, node ("left", {v}));
   if (lookup (maps ().mathml_right, source, v))
-    return apply_styles (t, node ("right", {tree (v)}));
+    return apply_styles (t, node ("right", {v}));
   if (lookup (maps ().mathml_big, source, v))
-    return apply_styles (t, node ("big", {tree (v)}));
-  if (lookup (maps ().tmtm_left, r->label, v))
-    return apply_styles (t, node ("left", {tree (v)}));
-  if (lookup (maps ().tmtm_right, r->label, v))
-    return apply_styles (t, node ("right", {tree (v)}));
-  if (lookup (maps ().tmtm_big, r->label, v))
-    return apply_styles (t, node ("big", {tree (v)}));
+    return apply_styles (t, node ("big", {v}));
+  if (is_atomic (r)) {
+    if (lookup (maps ().tmtm_left, r->label, v))
+      return apply_styles (t, node ("left", {v}));
+    if (lookup (maps ().tmtm_right, r->label, v))
+      return apply_styles (t, node ("right", {v}));
+    if (lookup (maps ().tmtm_big, r->label, v))
+      return apply_styles (t, node ("big", {v}));
+  }
   return apply_styles (t, r);
 }
 
@@ -664,7 +680,7 @@ convert_mathml (scheme_tree t) {
   if (tag == "mfenced") {
     string left= attribute (t, "open"); if (left == "") left= "(";
     string right= attribute (t, "close"); if (right == "") right= ")";
-    string lv= left, rv= right;
+    tree lv= tree (left), rv= tree (right);
     (void) lookup (maps ().mathml_left, left, lv);
     (void) lookup (maps ().mathml_right, right, rv);
     array<scheme_tree> c= clean_elements (t);
@@ -674,7 +690,7 @@ convert_mathml (scheme_tree t) {
       append_serial (inside, convert_mathml (c[i]));
       if (i+1 < N(c) && i < N(seps)) append_serial (inside, mapped_symbol (seps[i]));
     }
-    return apply_styles (t, node ("around*", {tree (lv), serial (inside), tree (rv)}));
+    return apply_styles (t, node ("around*", {lv, serial (inside), rv}));
   }
   if (tag == "msub" || tag == "msup" || tag == "msubsup") {
     array<scheme_tree> c= clean_elements (t);
@@ -711,20 +727,19 @@ convert_mathml (scheme_tree t) {
     tree sup= tag == "munder" ? tree ("") : convert_mathml (c[needed-1]);
     if (stretchy (c[0], base)) {
       if (tag == "munder")
-        return apply_styles (t, node ("long-arrow", {tree (rubberify (base->label)),
-                                                      tree (""), sub}));
+        return apply_styles (t, node ("long-arrow", {base, tree (""), sub}));
       if (tag == "mover")
-        return apply_styles (t, node ("long-arrow", {tree (rubberify (base->label)), sup}));
-      return apply_styles (t, node ("long-arrow", {tree (rubberify (base->label)), sup, sub}));
+        return apply_styles (t, node ("long-arrow", {base, sup}));
+      return apply_styles (t, node ("long-arrow", {base, sup, sub}));
     }
-    string mapped;
+    tree mapped;
     if (tag != "mover" && is_atomic (sub) && lookup_below (sub->label, mapped))
-      sub= node ("wide*", {base, tree (mapped)});
+      sub= node ("wide*", {base, mapped});
     else if (tag != "mover") sub= node ("below", {base, sub});
     if (tag == "munder") return apply_styles (t, sub);
     if (is_atomic (sup) && lookup_above (sup->label, mapped))
       return apply_styles (t, node ("wide", {tag == "munderover" ? sub : base,
-                                              tree (mapped)}));
+                                              mapped}));
     return apply_styles (t, node ("above", {tag == "munderover" ? sub : base, sup}));
   }
   if (tag == "mtable") return convert_table (t);

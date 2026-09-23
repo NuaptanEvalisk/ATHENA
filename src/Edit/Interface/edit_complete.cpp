@@ -15,7 +15,7 @@
 #include "analyze.hpp"
 #include "scheme.hpp"
 #include "vars.hpp"
-#include "wencoding.hpp"
+#include "unicode_text.hpp"
 #include <QJsonArray>
 #include <QJsonDocument>
 
@@ -150,7 +150,9 @@ edit_interface_rep::complete_start (string prefix, array<string> compls) {
   set_input_mode (INPUT_COMPLETE);
   QJsonArray choices;
   for (int i=0; i<N(completions); ++i) {
-    string utf8= cork_to_utf8 (completion_prefix * completions[i]);
+    string utf8= completion_prefix * completions[i];
+    athena::text::require_utf8 (
+      std::string_view (utf8.data (), static_cast<std::size_t> (N(utf8))));
     choices.append (QString::fromUtf8 (as_charp (utf8), N(utf8)));
   }
   QByteArray encoded= QJsonDocument (choices).toJson (QJsonDocument::Compact);

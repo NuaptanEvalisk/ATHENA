@@ -96,15 +96,15 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (find-opening-quote* s i)
-  (let* ((open  (string-search-backwards "<#2018>" i s))
-         (close (string-search-backwards "<#2019>" i s)))
+  (let* ((open  (string-search-backwards "‘" i s))
+         (close (string-search-backwards "’" i s)))
     (and (>= open 0) (or (< close 0) (< close open)) open)))
 
 (define (find-opening-quote t i j)
   (cond ((and (string? (tm-ref t i))
               (find-opening-quote* (tm-ref t i) j)) #t)
         ((and (string? (tm-ref t i))
-              (>= (string-search-forwards "<#2019>" 0 (tm-ref t i)) 0)) #f)
+              (>= (string-search-forwards "’" 0 (tm-ref t i)) 0)) #f)
         ((and (> i 0)
               (let* ((s (tm-ref t (- i 1)))
                      (n (if (string? s) (string-length s) 0)))
@@ -124,7 +124,7 @@
 
 (tm-define (insert-apostrophe flag?)
   (if (xor flag? (nnot (search-opening-quote)))
-      (insert "<#2019>")
+      (insert "’")
       (insert "'")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -139,7 +139,7 @@
 	  (if sel? (clipboard-cut "temp"))
 	  (if large?
 	      (insert-go-to `(concat (left ,l) (right ,r)) '(1 0))
-	      (insert-go-to (string-append l r) (list (string-length l))))
+	      (insert-go-to (string-append l r) (list (utf8-byte-length l))))
 	  (if sel? (clipboard-paste "temp")))
 	(if large?
 	    (insert `(left ,l))

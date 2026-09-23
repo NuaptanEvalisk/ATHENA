@@ -504,8 +504,8 @@ public:
   virtual void make_fraction () = 0;
   virtual void make_sqrt () = 0;
   virtual void make_var_sqrt () = 0;
-  virtual void make_wide (string wide) = 0;
-  virtual void make_wide_under (string wide) = 0;
+  virtual void make_wide (string wide, bool stretch= false) = 0;
+  virtual void make_wide_under (string wide, bool stretch= false) = 0;
   virtual void make_neg () = 0;
   virtual void make_tree () = 0;
 

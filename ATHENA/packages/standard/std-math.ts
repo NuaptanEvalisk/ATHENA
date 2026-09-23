@@ -48,6 +48,20 @@
 
   <assign|math-sl|<macro|x|<text|<with|font-family|rm|font-shape|slanted|<arg|x>>>>>
 
+  <assign|math-alpha-bold|<macro|x|<with|math-font-series|bold|<arg|x>>>>
+
+  <assign|math-alpha-up|<macro|x|<with|math-font-shape|right|<arg|x>>>>
+
+  <assign|math-alpha-bold-up|<macro|x|<with|math-font-series|bold|math-font-shape|right|<arg|x>>>>
+
+  <assign|math-alpha-cal|<macro|x|<with|math-font-shape|cal|<arg|x>>>>
+
+  <assign|math-alpha-bold-cal|<macro|x|<with|math-font-series|bold|math-font-shape|cal|<arg|x>>>>
+
+  <assign|math-alpha-frak|<macro|x|<with|math-font-shape|frak|<arg|x>>>>
+
+  <assign|math-alpha-bbb|<macro|x|<with|math-font-shape|bbb|<arg|x>>>>
+
   <drd-props|math-up|syntax|<macro|x|x>>
 
   <drd-props|math-ss|syntax|<macro|x|x>>
@@ -59,6 +73,20 @@
   <drd-props|math-it|syntax|<macro|x|x>>
 
   <drd-props|math-sl|syntax|<macro|x|x>>
+
+  <drd-props|math-alpha-bold|syntax|<macro|x|x>>
+
+  <drd-props|math-alpha-up|syntax|<macro|x|x>>
+
+  <drd-props|math-alpha-bold-up|syntax|<macro|x|x>>
+
+  <drd-props|math-alpha-cal|syntax|<macro|x|x>>
+
+  <drd-props|math-alpha-bold-cal|syntax|<macro|x|x>>
+
+  <drd-props|math-alpha-frak|syntax|<macro|x|x>>
+
+  <drd-props|math-alpha-bbb|syntax|<macro|x|x>>
 
   <\active*>
     <\src-comment>

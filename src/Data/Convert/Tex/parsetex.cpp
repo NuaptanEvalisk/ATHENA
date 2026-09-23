@@ -576,11 +576,7 @@ latex_parser::parse (string s, int& i, string stop, int change) {
         t << parse_length (s, i);
       else if (unicode && ((unsigned char) s[i]) >= 128) {
         unsigned int code= decode_from_utf8 (s, i);
-        string c = utf8_to_cork(encode_as_utf8(code));
-        if (c(0,1) == "<#")
-          t << tree (TUPLE, "\\" * c(1, N(c)-1));
-        else
-          t << c;
+        t << encode_as_utf8 (code);
       }
       else if (!unicode && is_iso_alpha (s[i])) {
         // If we encounter too much text in math mode, then return

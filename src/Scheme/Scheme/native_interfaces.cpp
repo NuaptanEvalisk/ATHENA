@@ -27,6 +27,7 @@
 #include "editor.hpp"
 #include "universal.hpp"
 #include "convert.hpp"
+#include "named_symbol.hpp"
 #include "file.hpp"
 #include "gui.hpp"
 #include "gui_text.hpp"
@@ -425,6 +426,15 @@ coerce_string_tree (string s) {
 string
 coerce_tree_string (tree t) {
   return as_string (t);
+}
+
+string
+named_symbol_render_glyph (string identity) {
+  const auto* definition= athena::text::standard_named_symbols ().lookup (
+    std::string_view (identity.data (), static_cast<std::size_t> (N(identity))));
+  if (!definition || definition->glyph_utf8.empty ()) return "";
+  return string (definition->glyph_utf8.data (),
+                 static_cast<int> (definition->glyph_utf8.size ()));
 }
 
 tree

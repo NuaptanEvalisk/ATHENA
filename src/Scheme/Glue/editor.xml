@@ -293,8 +293,16 @@
   <binding name="cpp-make-wide" native="make_wide" returns="void">
     <arg type="string" />
   </binding>
+  <binding name="cpp-make-wide-stretched" native="make_wide" returns="void">
+    <arg type="string" />
+    <arg type="bool" />
+  </binding>
   <binding name="cpp-make-wide-under" native="make_wide_under" returns="void">
     <arg type="string" />
+  </binding>
+  <binding name="cpp-make-wide-under-stretched" native="make_wide_under" returns="void">
+    <arg type="string" />
+    <arg type="bool" />
   </binding>
   <binding name="cpp-make-var-sqrt" native="make_var_sqrt" returns="void" />
   <binding name="cpp-make-neg" native="make_neg" returns="void" />

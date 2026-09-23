@@ -204,6 +204,7 @@ scheme_tree latex_export_core_dispatch (string key, scheme_tree args);
 scheme_tree latex_export_convert_node (scheme_tree value);
 scheme_tree latex_export_generic_function (string key, scheme_tree args);
 scheme_tree latex_export_string (string value);
+scheme_tree latex_export_named_symbol (string identity, bool math_mode);
 scheme_tree latex_export_verb_string (string value);
 string latex_export_tt (scheme_tree value);
 scheme_tree latex_export_transform_style (scheme_tree style);

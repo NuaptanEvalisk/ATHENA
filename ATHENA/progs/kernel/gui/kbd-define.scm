@@ -327,12 +327,5 @@
   (:synopsis "Add backslashed commands in @l to keyboard mapping")
   `(for-each kbd-command ,(list 'quasiquote (map kbd-command-pre l))))
 
-(tm-define-macro (kbd-symbols . l)
-  (:synopsis "Add symbols in @l to keyboard mapping")
-  (define (fun s)
-    (list s (string-append "insert#<" s ">")
-	  (list 'kbd-insert (string-append "<" s ">"))))
-  `(kbd-commands ,@(map fun l)))
-
 (tm-define (emulate-keyboard k)
   (delayed (raw-emulate-keyboard k)))

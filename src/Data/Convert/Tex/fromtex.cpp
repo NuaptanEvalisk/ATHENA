@@ -17,12 +17,119 @@
 #include "url.hpp"
 #include "font.hpp"
 #include "unicode_ranges.hpp"
+#include "converter.hpp"
+#include "named_symbol.hpp"
+#include <map>
 
 tree upgrade_tex (tree t);
 bool textm_class_flag= false;
 //bool textm_class_flag= true;
 bool textm_appendices= false;
 bool textm_unicode   = false;
+
+namespace {
+
+const std::map<string,string>&
+latex_strict_math_symbols () {
+  static const std::map<string,string> table= [] {
+    std::map<string,string> out;
+    for (const char* dictionary: {"tmuniversaltounicode", "symbol-unicode-math"}) {
+      std::vector<std::pair<string,string>> mappings;
+      if (!load_encoding_dictionary (dictionary, mappings)) continue;
+      for (const auto& [key, value]: mappings) {
+        if (N(key) < 3 || key[0] != '<' || key[N(key)-1] != '>') continue;
+        string name= key (1, N(key)-1);
+        string unicode= convert_escapes (value, true);
+        if (unicode != "") out.emplace (name, unicode);
+      }
+    }
+    out.emplace ("imath", "ı");
+    out.emplace ("jmath", "ȷ");
+    out.emplace ("mho", "℧");
+    return out;
+  } ();
+  return table;
+}
+
+tree
+latex_named_symbol (string name) {
+  return tree (NAMED_SYMBOL, string ("texmacs:") * name);
+}
+
+tree
+latex_math_symbol (string name) {
+  static const std::map<string,string> aliases {
+    {"FiveStar", "bigstar"}, {"lnot", "neg"}, {"land", "wedge"},
+    {"lor", "vee"}, {"hdots", "ldots"}, {"dagger", "dag"},
+    {"ddagger", "ddag"}, {"to", "rightarrow"}, {"le", "leq"},
+    {"ge", "geq"}, {"ne", "neq"}
+  };
+  const auto alias= aliases.find (name);
+  if (alias != aliases.end ()) name= alias->second;
+
+  if (name == "textbackslash") return tree ("\\");
+  if (name == "arrowvert") return tree ("|");
+  if (name == "Arrowvert" || name == "bracevert") return tree ("‖");
+  if (name == "lbrack") return tree ("[");
+  if (name == "rbrack") return tree ("]");
+  if (name == "lbrace") return tree ("{");
+  if (name == "rbrace") return tree ("}");
+  if (name == "tmprecdot") return latex_named_symbol ("precdot");
+
+  const auto& strict= latex_strict_math_symbols ();
+  if (starts (name, "up") && N(name) > 2) {
+    string base= name (2, N(name));
+    const auto found= strict.find (base);
+    if (found != strict.end ()) return compound ("math-alpha-up", tree (found->second));
+  }
+  if (starts (name, "Up") && N(name) > 2) {
+    string base= name (2, N(name));
+    if (N(base) > 0 && base[0] >= 'a' && base[0] <= 'z')
+      base.set (0, (char) (base[0] - 'a' + 'A'));
+    const auto found= strict.find (base);
+    if (found != strict.end ()) return tree (found->second);
+  }
+  const auto found= strict.find (name);
+  if (found != strict.end ()) return tree (found->second);
+  // No strict Unicode identity: preserve the TeXmacs semantic name. Missing
+  // rendering recipes remain visible errors instead of guessed substitutions.
+  return latex_named_symbol (name);
+}
+
+tree
+latex_big_symbol (string name) {
+  if (starts (name, "big")) name= name (3, N(name));
+  bool upright= false;
+  if (starts (name, "up")) {
+    upright= true;
+    name= name (2, N(name));
+  }
+  if (ends (name, "wl")) name= name (0, N(name)-2);
+
+  static const std::map<string,string> scalars {
+    {"sum", "∑"}, {"prod", "∏"}, {"coprod", "∐"},
+    {"int", "∫"}, {"fint", "⨍"}, {"iint", "∬"},
+    {"iiint", "∭"}, {"iiiint", "⨌"}, {"oint", "∮"},
+    {"oiint", "∯"}, {"oiiint", "∰"}, {"cap", "⋂"},
+    {"cup", "⋃"}, {"pluscup", "⨄"}, {"sqcap", "⨅"},
+    {"sqcup", "⨆"}, {"vee", "⋁"}, {"wedge", "⋀"},
+    {"curlyvee", "⋎"}, {"curlywedge", "⋏"}, {"odot", "⨀"},
+    {"oplus", "⨁"}, {"otimes", "⨂"}, {"box", "□"},
+    {"triangleup", "▵"}, {"triangledown", "▿"},
+    {"parallel", "∥"}, {"interleave", "⫴"}, {"times", "×"}
+  };
+  tree content;
+  if (name == "idotsint") content= latex_named_symbol ("idotsint");
+  else {
+    const auto found= scalars.find (name);
+    content= found == scalars.end () ? latex_named_symbol (name) : tree (found->second);
+  }
+  if (upright)
+    content= tree (WITH, "math-big-upright", "true", content);
+  return tree (BIG, content);
+}
+
+} // namespace
 
 /*
 bool
@@ -639,8 +746,8 @@ latex_symbol_to_tree (string s) {
   if (N(s) >= 3 && s[0] == '<' && s[N(s)-1] == '>') return s;
   if (s[0] == '\\') {
     s= s(1,N(s));
-    if (s == "less") return "<less>";
-    if (s == "gtr") return "<gtr>";
+    if (s == "less") return "<";
+    if (s == "gtr") return ">";
     if ((s == "ldots" || s == "dots" || s == "dotso")
         && (command_type ("!mode") != "math")) return "...";
     if (s == "\n")     return tree (APPLY, "!emptyline");
@@ -648,8 +755,8 @@ latex_symbol_to_tree (string s) {
       if (s == " ")      return " ";
       if (s == "-")      return "";
       if (s == "/")      return "";
-      if (s == "lq")     return "<#2018>";
-      if (s == "rq")     return "<#2019>";
+      if (s == "lq")     return "‘";
+      if (s == "rq")     return "’";
       if (s == "AA")     return "\xC5";
       if (s == "AE")     return "\xC6";
       if (s == "DH")     return "\xD0";
@@ -756,13 +863,13 @@ latex_symbol_to_tree (string s) {
       if (s == "nolimits") return ""; // temporarily
       if (s == "*")        return "*";
       if (s == "vert")     return "|";
-      if (s == "|")        return "<||>";
-      if (s == "Vert")     return "<||>";
-      if (s == "notin")    return "<nin>";
-      if (s == "addots")   return "<udots>";
-      if (s == "dots")     return "<ldots>";
-      if (s == "infin")    return "<infty>";
-      if (s == "rang")     return "<rangle>";
+      if (s == "|")        return "‖";
+      if (s == "Vert")     return "‖";
+      if (s == "notin")    return "∉";
+      if (s == "addots")   return "⋰";
+      if (s == "dots")     return "…";
+      if (s == "infin")    return "∞";
+      if (s == "rang")     return "⟩";
       if (s == "today")    return compound ("date", "");
       if (s == "tableofcontents")
         return compound ("table-of-contents", "toc", tree (DOCUMENT, ""));
@@ -772,20 +879,20 @@ latex_symbol_to_tree (string s) {
       if (s == "bgroup")     return "";
       if (s == "egroup")     return "";
       if (s == "colon")      return ":";
-      if (s == "coloneqq")   return "<assign>";
-      if (s == "dotsc")      return "<ldots>";
-      if (s == "dotsb")      return "<cdots>";
-      if (s == "dotsm")      return "<cdots>";
-      if (s == "dotsi")      return "<cdots>";
-      if (s == "dotso")      return "<ldots>";
+      if (s == "coloneqq")   return "≔";
+      if (s == "dotsc")      return "…";
+      if (s == "dotsb")      return "⋯";
+      if (s == "dotsm")      return "⋯";
+      if (s == "dotsi")      return "⋯";
+      if (s == "dotso")      return "…";
       if (s == "lvert")      return "|";
       if (s == "rvert")      return "|";
-      if (s == "lVert")      return "<||>";
-      if (s == "rVert")      return "<||>";
-      if (s == "qed")        return compound ("math", "<Box>");
-      if (s == "implies")    return "<Longrightarrow>";
-      if (s == "iff")        return "<Longleftrightarrow>";
-      if (s == "gets")       return "<leftarrow>";
+      if (s == "lVert")      return "‖";
+      if (s == "rVert")      return "‖";
+      if (s == "qed")        return compound ("math", "□");
+      if (s == "implies")    return "⇒";
+      if (s == "iff")        return "⇔";
+      if (s == "gets")       return "←";
       if (s == "printindex") return compound ("the-index", "idx", "");
       if (s == "twocolumn")
         return tree (SET, "par-columns", "2");
@@ -796,79 +903,7 @@ latex_symbol_to_tree (string s) {
     }
 
     if (latex_type (s) == "symbol") {
-      if (s == "FiveStar")      return "<bigstar>";
-      if (s == "lnot")          return "<neg>";
-      if (s == "land")          return "<wedge>";
-      if (s == "lor")           return "<vee>";
-      if (s == "textbackslash") return "\\";
-      if (s == "hdots")         return "<ldots>";
-      if (s == "arrowvert")     return "|";
-      if (s == "Arrowvert")     return "<||>";
-      if (s == "lbrack")        return "[";
-      if (s == "rbrack")        return "]";
-      if (s == "lbrace")        return "{";
-      if (s == "rbrace")        return "}";
-      if (s == "tmprecdot")     return "<precdot>";
-      
-      if (starts (s, "up")) {
-        if (s == "upalpha") return "<up-alpha>";
-        if (s == "upbeta") return "<up-beta>";
-        if (s == "upgamma") return "<up-gamma>";
-        if (s == "updelta") return "<up-delta>";
-        if (s == "upepsilon") return "<up-epsilon>";
-        if (s == "upvarepsilon") return "<up-varepsilon>";
-        if (s == "upzeta") return "<up-zeta>";
-        if (s == "upeta") return "<up-eta>";
-        if (s == "uptheta") return "<up-theta>";
-        if (s == "upvartheta") return "<up-vartheta>";
-        if (s == "upiota") return "<up-iota>";
-        if (s == "upkappa") return "<up-kappa>";
-        if (s == "uplambda") return "<up-lambda>";
-        if (s == "upmu") return "<up-mu>";
-        if (s == "upnu") return "<up-nu>";
-        if (s == "upomicron") return "<up-omicron>";
-        if (s == "uppi") return "<up-pi>";
-        if (s == "upvarpi") return "<up-varpi>";
-        if (s == "uprho") return "<up-rho>";
-        if (s == "upvarrho") return "<up-varrho>";
-        if (s == "upsigma") return "<up-sigma>";
-        if (s == "upvarsigma") return "<up-varsigma>";
-        if (s == "uptau") return "<up-tau>";
-        if (s == "upupsilon") return "<up-upsilon>";
-        if (s == "upphi") return "<up-phi>";
-        if (s == "upvarphi") return "<up-varphi>";
-        if (s == "upchi") return "<up-chi>";
-        if (s == "uppsi") return "<up-psi>";
-        if (s == "upomega") return "<up-omega>";
-      }
-
-      if (starts (s, "Up")) {
-        if (s == "Upalpha") return "<Alpha>";
-        if (s == "Upbeta") return "<Beta>";
-        if (s == "Upgamma") return "<Gamma>";
-        if (s == "Updelta") return "<Delta>";
-        if (s == "Upepsilon") return "<Epsilon>";
-        if (s == "Upzeta") return "<Zeta>";
-        if (s == "Upeta") return "<Eta>";
-        if (s == "Uptheta") return "<Theta>";
-        if (s == "Upiota") return "<Iota>";
-        if (s == "Upkappa") return "<Kappa>";
-        if (s == "Uplambda") return "<Lambda>";
-        if (s == "Upmu") return "<Mu>";
-        if (s == "Upnu") return "<Nu>";
-        if (s == "Upomicron") return "<Omicron>";
-        if (s == "Uppi") return "<Pi>";
-        if (s == "Uprho") return "<Rho>";
-        if (s == "Upsigma") return "<Sigma>";
-        if (s == "Uptau") return "<Tau>";
-        if (s == "Upupsilon") return "<Upsilon>";
-        if (s == "Upphi") return "<Phi>";
-        if (s == "Upchi") return "<Chi>";
-        if (s == "Uppsi") return "<Psi>";
-        if (s == "Upomega") return "<Omega>";
-      }
-
-      return "<" * s * ">";
+      return latex_math_symbol (s);
     }
 
     if (latex_type (s) == "texmacs") {
@@ -1016,9 +1051,15 @@ latex_symbol_to_tree (string s) {
     if (latex_type (s) == "ignore") return "";
 
     if (latex_type (s) == "operator" || latex_type (s) == "control") {
-      if (s == "varinjlim") return tree (VAR_WIDE, "lim", "<wide-varrightarrow>");
-      if (s == "varprojlim") return tree (VAR_WIDE, "lim", "<wide-varleftarrow>");
-      if (s == "mathd" || s == "mathD" || s == "partial") return "<" * s * ">";
+      if (s == "varinjlim")
+        return tree (VAR_WIDE, "lim",
+                     tree (WITH, "math-accent-stretch", "true", "⃗"));
+      if (s == "varprojlim")
+        return tree (VAR_WIDE, "lim",
+                     tree (WITH, "math-accent-stretch", "true", "⃖"));
+      if (s == "mathd" || s == "mathD")
+        return tree (NAMED_SYMBOL, string ("texmacs:") * s);
+      if (s == "partial") return "∂";
       return s;
     }
     if (s == "bignone") return tree (BIG, ".");
@@ -1027,8 +1068,7 @@ latex_symbol_to_tree (string s) {
     if (s == "og") return "\x13 "; // open guillemets (French)
     if (s == "fg") return "\x14"; // close guillemets (French)
     if (latex_type (s) == "big-symbol") {
-      if (s(0,3)=="big") return tree (BIG, s(3,N(s)));
-      else return tree (BIG, s);
+      return latex_big_symbol (s);
     }
 
     if ((N(s) > 6) && (s(0,6) == "begin-")) {
@@ -1105,7 +1145,7 @@ latex_symbol_to_tree (string s) {
     
     if (starts (s, "#") && s != "#") {
       textm_unicode= true;
-      return "<" * s * ">";
+      return encode_as_utf8 (from_hexadecimal (s (1, N(s))));
     }
     return tree (APPLY, s);
   }
@@ -2297,80 +2337,82 @@ latex_command_to_tree (tree t) {
   if (is_tuple (t, "\\<sub>", 1)) return tree (RSUB, l2e (t[1]));
   if (is_tuple (t, "\\not", 1)) return tree (NEG, l2e (t[1]));
   if (is_tuple (t, "\\bar", 1) || is_tuple (t, "\\Bar", 1))
-    return tree (WIDE, l2e (t[1]), "<bar>");
+    return tree (WIDE, l2e (t[1]), "̅");
   if (is_tuple (t, "\\overline", 1))
-    return tree (WIDE, l2e (t[1]), "<bar>");
+    return tree (WIDE, l2e (t[1]), tree (WITH, "math-accent-stretch", "true", "̅"));
   if (is_tuple (t, "\\underline", 1))
-    return tree (VAR_WIDE, l2e (t[1]), "<bar>");
+    return tree (VAR_WIDE, l2e (t[1]), tree (WITH, "math-accent-stretch", "true", "̅"));
   if (is_tuple (t, "\\overrightarrow", 1))
-    return tree (WIDE, l2e (t[1]), "<wide-varrightarrow>");
+    return tree (WIDE, l2e (t[1]), tree (WITH, "math-accent-stretch", "true", "⃗"));
   if (is_tuple (t, "\\underrightarrow", 1))
-    return tree (VAR_WIDE, l2e (t[1]), "<wide-varrightarrow>");
+    return tree (VAR_WIDE, l2e (t[1]), tree (WITH, "math-accent-stretch", "true", "⃗"));
   if (is_tuple (t, "\\overleftarrow", 1))
-    return tree (WIDE, l2e (t[1]), "<wide-varleftarrow>");
+    return tree (WIDE, l2e (t[1]), tree (WITH, "math-accent-stretch", "true", "⃖"));
   if (is_tuple (t, "\\underleftarrow", 1))
-    return tree (VAR_WIDE, l2e (t[1]), "<wide-varleftarrow>");
+    return tree (VAR_WIDE, l2e (t[1]), tree (WITH, "math-accent-stretch", "true", "⃖"));
   if (is_tuple (t, "\\overleftrightarrow", 1))
-    return tree (WIDE, l2e (t[1]), "<wide-varleftrightarrow>");
+    return tree (WIDE, l2e (t[1]), tree (WITH, "math-accent-stretch", "true", "⃡"));
   if (is_tuple (t, "\\underleftrightarrow", 1))
-    return tree (VAR_WIDE, l2e (t[1]), "<wide-varleftrightarrow>");
+    return tree (VAR_WIDE, l2e (t[1]), tree (WITH, "math-accent-stretch", "true", "⃡"));
   if (is_tuple (t, "\\Overrightarrow", 1))
-    return tree (WIDE, l2e (t[1]), "<wide-Rightarrow>");
+    return tree (WIDE, l2e (t[1]), tree (WITH, "math-accent-stretch", "true", "⇒"));
   if (is_tuple (t, "\\Underrightarrow", 1))
-    return tree (VAR_WIDE, l2e (t[1]), "<wide-Rightarrow>");
+    return tree (VAR_WIDE, l2e (t[1]), tree (WITH, "math-accent-stretch", "true", "⇒"));
   if (is_tuple (t, "\\Overleftarrow", 1))
-    return tree (WIDE, l2e (t[1]), "<wide-Leftarrow>");
+    return tree (WIDE, l2e (t[1]), tree (WITH, "math-accent-stretch", "true", "⇐"));
   if (is_tuple (t, "\\Underleftarrow", 1))
-    return tree (VAR_WIDE, l2e (t[1]), "<wide-Leftarrow>");
+    return tree (VAR_WIDE, l2e (t[1]), tree (WITH, "math-accent-stretch", "true", "⇐"));
   if (is_tuple (t, "\\hat", 1) || is_tuple (t, "\\Hat", 1))
-    return tree (WIDE, l2e (t[1]), "^");
+    return tree (WIDE, l2e (t[1]), "̂");
   if (is_tuple (t, "\\uhat", 1))
-    return tree (VAR_WIDE, l2e (t[1]), "^");
+    return tree (VAR_WIDE, l2e (t[1]), "̂");
   if (is_tuple (t, "\\tilde", 1) || is_tuple (t, "\\Tilde", 1))
-    return tree (WIDE, l2e (t[1]), "~");
+    return tree (WIDE, l2e (t[1]), "̃");
   if (is_tuple (t, "\\utilde", 1))
-    return tree (VAR_WIDE, l2e (t[1]), "~");
-  if (is_tuple (t, "\\widehat", 1)) return tree (WIDE, l2e (t[1]), "^");
-  if (is_tuple (t, "\\uwidehat", 1)) return tree (VAR_WIDE, l2e (t[1]), "^");
+    return tree (VAR_WIDE, l2e (t[1]), "̃");
+  if (is_tuple (t, "\\widehat", 1))
+    return tree (WIDE, l2e (t[1]), tree (WITH, "math-accent-stretch", "true", "̂"));
+  if (is_tuple (t, "\\uwidehat", 1))
+    return tree (VAR_WIDE, l2e (t[1]), tree (WITH, "math-accent-stretch", "true", "̂"));
   if (is_tuple (t, "\\widetilde", 1))
-    return tree (WIDE, l2e (t[1]), "<wide-tilde>");
+    return tree (WIDE, l2e (t[1]), tree (WITH, "math-accent-stretch", "true", "̃"));
   if (is_tuple (t, "\\uwidetilde", 1))
-    return tree (VAR_WIDE, l2e (t[1]), "<wide-tilde>");
+    return tree (VAR_WIDE, l2e (t[1]), tree (WITH, "math-accent-stretch", "true", "̃"));
   if (is_tuple (t, "\\dot", 1) || is_tuple (t, "\\Dot", 1))
-    return tree (WIDE, l2e (t[1]), "<dot>");
-  if (is_tuple (t, "\\underdot", 1)) return tree (VAR_WIDE, l2e (t[1]), "<dot>");
+    return tree (WIDE, l2e (t[1]), "̇");
+  if (is_tuple (t, "\\underdot", 1)) return tree (VAR_WIDE, l2e (t[1]), "̇");
   if (is_tuple (t, "\\ddot", 1) || is_tuple (t, "\\Ddot", 1))
-    return tree (WIDE, l2e (t[1]), "<ddot>");
-  if (is_tuple (t, "\\uddot", 1)) return tree (VAR_WIDE, l2e (t[1]), "<ddot>");
-  if (is_tuple (t, "\\dddot", 1)) return tree (WIDE, l2e (t[1]), "<dddot>");
-  if (is_tuple (t, "\\udddot", 1)) return tree (VAR_WIDE, l2e (t[1]), "<dddot>");
-  if (is_tuple (t, "\\ddddot", 1)) return tree (WIDE, l2e (t[1]), "<ddddot>");
+    return tree (WIDE, l2e (t[1]), "̈");
+  if (is_tuple (t, "\\uddot", 1)) return tree (VAR_WIDE, l2e (t[1]), "̈");
+  if (is_tuple (t, "\\dddot", 1)) return tree (WIDE, l2e (t[1]), "⃛");
+  if (is_tuple (t, "\\udddot", 1)) return tree (VAR_WIDE, l2e (t[1]), "⃛");
+  if (is_tuple (t, "\\ddddot", 1)) return tree (WIDE, l2e (t[1]), "⃜");
   if (is_tuple (t, "\\uddddot", 1))
-    return tree (VAR_WIDE, l2e (t[1]), "<ddddot>");
+    return tree (VAR_WIDE, l2e (t[1]), "⃜");
   if (is_tuple (t, "\\check", 1) || is_tuple (t, "\\Check", 1))
-    return tree (WIDE, l2e (t[1]), "<check>");
-  if (is_tuple (t, "\\ucheck", 1)) return tree (VAR_WIDE, l2e (t[1]), "<check>");
+    return tree (WIDE, l2e (t[1]), "̌");
+  if (is_tuple (t, "\\ucheck", 1)) return tree (VAR_WIDE, l2e (t[1]), "̌");
   if (is_tuple (t, "\\grave", 1) || is_tuple (t, "\\Grave", 1))
-    return tree (WIDE, l2e (t[1]), "<grave>");
-  if (is_tuple (t, "\\ugrave", 1)) return tree (VAR_WIDE, l2e (t[1]), "<grave>");
+    return tree (WIDE, l2e (t[1]), "̀");
+  if (is_tuple (t, "\\ugrave", 1)) return tree (VAR_WIDE, l2e (t[1]), "̀");
   if (is_tuple (t, "\\acute", 1) || is_tuple (t, "\\Acute", 1))
-    return tree (WIDE, l2e (t[1]), "<acute>");
-  if (is_tuple (t, "\\uacute", 1)) return tree (VAR_WIDE, l2e (t[1]), "<acute>");
+    return tree (WIDE, l2e (t[1]), "́");
+  if (is_tuple (t, "\\uacute", 1)) return tree (VAR_WIDE, l2e (t[1]), "́");
   if (is_tuple (t, "\\vec", 1) || is_tuple (t, "\\Vec", 1))
-    return tree (WIDE, l2e (t[1]), "<vect>");
-  if (is_tuple (t, "\\uvec", 1)) return tree (VAR_WIDE, l2e (t[1]), "<vect>");
+    return tree (WIDE, l2e (t[1]), "⃗");
+  if (is_tuple (t, "\\uvec", 1)) return tree (VAR_WIDE, l2e (t[1]), "⃗");
   if (is_tuple (t, "\\breve", 1) || is_tuple (t, "\\Breve", 1))
-    return tree (WIDE, l2e (t[1]), "<breve>");
-  if (is_tuple (t, "\\ubreve", 1)) return tree (VAR_WIDE, l2e (t[1]), "<breve>");
+    return tree (WIDE, l2e (t[1]), "̆");
+  if (is_tuple (t, "\\ubreve", 1)) return tree (VAR_WIDE, l2e (t[1]), "̆");
   if (is_tuple (t, "\\textroundcap", 1) || is_tuple (t, "\\invbreve", 1))
-    return tree (WIDE, l2e (t[1]), "<invbreve>");
+    return tree (WIDE, l2e (t[1]), "̑");
   if (is_tuple (t, "\\uinvbreve", 1))
-    return tree (VAR_WIDE, l2e (t[1]), "<invbreve>");
+    return tree (VAR_WIDE, l2e (t[1]), "̑");
   if (is_tuple (t, "\\abovering", 1) ||
       is_tuple (t, "\\ring", 1) || is_tuple (t, "\\mathring", 1))
-    return tree (WIDE, l2e (t[1]), "<abovering>");
+    return tree (WIDE, l2e (t[1]), "̊");
   if (is_tuple (t, "\\uring", 1))
-    return tree (VAR_WIDE, l2e (t[1]), "<abovering>");
+    return tree (VAR_WIDE, l2e (t[1]), "̊");
   if (is_tuple (t, "\\hspace", 1) || is_tuple (t, "\\hspace*", 1) ||
       is_tuple (t, "\\mspace", 1)) {
     if (is_tuple (t[1], "\\tex-len", 3))
@@ -2489,9 +2531,9 @@ latex_command_to_tree (tree t) {
   if (is_tuple (t, "\\mathrel", 1)) return l2e (t[1]);
   if (is_tuple (t, "\\mathinner", 1)) return l2e (t[1]);
   if (is_tuple (t, "\\overbrace", 1))
-    return tree (WIDE, l2e (t[1]), "<wide-overbrace>");
+    return tree (WIDE, l2e (t[1]), tree (WITH, "math-accent-stretch", "true", "⏞"));
   if (is_tuple (t, "\\underbrace", 1))
-    return tree (VAR_WIDE, l2e (t[1]), "<wide-underbrace>");
+    return tree (VAR_WIDE, l2e (t[1]), tree (WITH, "math-accent-stretch", "true", "⏟"));
 
   if (is_tuple (t, "\\text", 1) || is_tuple (t, "\\textnormal", 1) ||
       is_tuple (t, "\\mbox", 1) || is_tuple (t, "\\hbox", 1) ||
@@ -2625,48 +2667,49 @@ latex_command_to_tree (tree t) {
     return "\x14"; // close guillemets (French)
 
   if (is_tuple (t, "\\xminus", 1))
-    return tree (LONG_ARROW, "<rubber-minus>", l2e (t[1]));
+    return tree (LONG_ARROW, "−", l2e (t[1]));
   if (is_tuple (t, "\\xleftarrow", 1))
-    return tree (LONG_ARROW, "<rubber-leftarrow>", l2e (t[1]));
+    return tree (LONG_ARROW, "←", l2e (t[1]));
   if (is_tuple (t, "\\xrightarrow", 1))
-    return tree (LONG_ARROW, "<rubber-rightarrow>", l2e (t[1]));
+    return tree (LONG_ARROW, "→", l2e (t[1]));
   if (is_tuple (t, "\\xleftrightarrow", 1))
-    return tree (LONG_ARROW, "<rubber-leftrightarrow>", l2e (t[1]));
+    return tree (LONG_ARROW, "↔", l2e (t[1]));
   if (is_tuple (t, "\\xmapsto", 1))
-    return tree (LONG_ARROW, "<rubber-mapsto>", l2e (t[1]));
+    return tree (LONG_ARROW, "↦", l2e (t[1]));
   if (is_tuple (t, "\\xmapsfrom", 1))
-    return tree (LONG_ARROW, "<rubber-mapsfrom>", l2e (t[1]));
+    return tree (LONG_ARROW, "↤", l2e (t[1]));
   if (is_tuple (t, "\\xequal", 1))
-    return tree (LONG_ARROW, "<rubber-equal>", l2e (t[1]));
+    return tree (LONG_ARROW, "=", l2e (t[1]));
   if (is_tuple (t, "\\xlongequal", 1))
-    return tree (LONG_ARROW, "<rubber-equal>", l2e (t[1]));
-  if (is_tuple (t, "\\xLeftarrow", 1))    return tree (LONG_ARROW, "<rubber-Leftarrow>", l2e (t[1]));
+    return tree (LONG_ARROW, "=", l2e (t[1]));
+  if (is_tuple (t, "\\xLeftarrow", 1)) return tree (LONG_ARROW, "⇐", l2e (t[1]));
   if (is_tuple (t, "\\xRightarrow", 1))
-    return tree (LONG_ARROW, "<rubber-Rightarrow>", l2e (t[1]));
+    return tree (LONG_ARROW, "⇒", l2e (t[1]));
   if (is_tuple (t, "\\xLeftrightarrow", 1))
-    return tree (LONG_ARROW, "<rubber-Leftrightarrow>", l2e (t[1]));
+    return tree (LONG_ARROW, "⇔", l2e (t[1]));
   if (is_tuple (t, "\\xminus*", 2))
-    return tree (LONG_ARROW, "<rubber-minus>", l2e (t[1]), l2e (t[2]));
+    return tree (LONG_ARROW, "−", l2e (t[1]), l2e (t[2]));
   if (is_tuple (t, "\\xleftarrow*", 2))
-    return tree (LONG_ARROW, "<rubber-leftarrow>", l2e (t[1]), l2e (t[2]));
+    return tree (LONG_ARROW, "←", l2e (t[1]), l2e (t[2]));
   if (is_tuple (t, "\\xrightarrow*", 2))
-    return tree (LONG_ARROW, "<rubber-rightarrow>", l2e (t[1]), l2e (t[2]));
+    return tree (LONG_ARROW, "→", l2e (t[1]), l2e (t[2]));
   if (is_tuple (t, "\\xleftrightarrow*", 2))
-    return tree (LONG_ARROW, "<rubber-leftrightarrow>",
+    return tree (LONG_ARROW, "↔",
                  l2e (t[1]), l2e (t[2]));
   if (is_tuple (t, "\\xmapsto*", 2))
-    return tree (LONG_ARROW, "<rubber-mapsto>", l2e (t[1]), l2e (t[2]));
+    return tree (LONG_ARROW, "↦", l2e (t[1]), l2e (t[2]));
   if (is_tuple (t, "\\xmapsfrom*", 2))
-    return tree (LONG_ARROW, "<rubber-mapsfrom>", l2e (t[1]), l2e (t[2]));
+    return tree (LONG_ARROW, "↤", l2e (t[1]), l2e (t[2]));
   if (is_tuple (t, "\\xequal*", 2))
-    return tree (LONG_ARROW, "<rubber-equal>", l2e (t[1]), l2e (t[2]));
+    return tree (LONG_ARROW, "=", l2e (t[1]), l2e (t[2]));
   if (is_tuple (t, "\\xlongequal*", 2))
-    return tree (LONG_ARROW, "<rubber-equal>", l2e (t[1]), l2e (t[2]));
-  if (is_tuple (t, "\\xLeftarrow*", 2))    return tree (LONG_ARROW, "<rubber-Leftarrow>", l2e (t[1]), l2e (t[2]));
+    return tree (LONG_ARROW, "=", l2e (t[1]), l2e (t[2]));
+  if (is_tuple (t, "\\xLeftarrow*", 2))
+    return tree (LONG_ARROW, "⇐", l2e (t[1]), l2e (t[2]));
   if (is_tuple (t, "\\xRightarrow*", 2))
-    return tree (LONG_ARROW, "<rubber-Rightarrow>", l2e (t[1]), l2e (t[2]));
+    return tree (LONG_ARROW, "⇒", l2e (t[1]), l2e (t[2]));
   if (is_tuple (t, "\\xLeftrightarrow*", 2))
-    return tree (LONG_ARROW, "<rubber-Leftrightarrow>",
+    return tree (LONG_ARROW, "⇔",
                  l2e (t[1]), l2e (t[2]));
 
   // Start TeXmacs specific markup

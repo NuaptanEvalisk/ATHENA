@@ -95,7 +95,9 @@
 (tm-define (make-sqrt) (cpp-make-sqrt))
 (tm-define (make-var-sqrt) (cpp-make-var-sqrt))
 (tm-define (make-wide s) (cpp-make-wide s))
+(tm-define (make-wide-stretched s) (cpp-make-wide-stretched s #t))
 (tm-define (make-wide-under s) (cpp-make-wide-under s))
+(tm-define (make-wide-under-stretched s) (cpp-make-wide-under-stretched s #t))
 (tm-define (make-neg) (cpp-make-neg))
 (tm-define (make-tree) (cpp-make-tree))
 

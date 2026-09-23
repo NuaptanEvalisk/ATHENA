@@ -101,7 +101,7 @@ decompress_tree (tree t) {
 void
 compressed_as_html (string& s, tree t, int mode) {
   if (is_atomic (t)) {
-    string r= cork_to_utf8 (t->label);
+    string r= t->label;
     r= replace (r, "&", "&amp;");
     r= replace (r, "<", "&lt;");
     r= replace (r, ">", "&gt;");
@@ -202,9 +202,8 @@ html_as_compressed (string s, int& pos, int mode) {
     r= replace (r, "&gt;", ">");
     r= replace (r, "&amp;", "&");
     r= html_to_utf8 (r);
-    r= utf8_to_cork (r);
-    r= replace (r, "<varspace>", " ");
-    r= replace (r, "<#202F>", " ");
+    r= replace (r, "\xC2\xA0", " ");
+    r= replace (r, "\xE2\x80\xAF", " ");
     return r;
   }
   string var, val;

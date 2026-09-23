@@ -92,6 +92,14 @@
 (tm-define (math-insert t)
   (insert t))
 
+(tm-define (math-insert-content . pieces)
+  (:require (in-math?))
+  (insert (apply tmconcat pieces)))
+
+(tm-define (math-insert-alphabet tag value)
+  (:require (in-math?))
+  (insert `(,tag ,value)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Special customizations inside formulas and equations
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -391,7 +399,7 @@
                      selected)
                    "")
       ;; Keep the limit outside the stretchable pair, not inside its body.
-      (insert-go-to `(around* "<nobracket>" ,body "|")
+      (insert-go-to `(around* "." ,body "|")
                     (if (tree-empty? body) '(1 0) '(1))))))
 
 (define (math-word-char? c)
@@ -466,71 +474,84 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define wide-list-1
-  '("~" "^" "<bar>" "<vect>" "<check>" "<breve>" "<invbreve>"))
+  '("̃" "̂" "̅" "⃗" "̌" "̆" "̑"))
 
 (define wide-list-2
-  '("<acute>" "<grave>" "<dot>" "<ddot>" "<dddot>" "<ddddot>" "<abovering>"))
+  '("́" "̀" "̇" "̈" "⃛" "⃜" "̊"))
 
 (define wide-list-3
-  '("<wide-overbrace>" "<wide-underbrace*>"
-    "<wide-poverbrace>" "<wide-punderbrace*>"
-    "<wide-sqoverbrace>" "<wide-squnderbrace*>"))
+  '("⏞" "⏟"
+    "⏜" "⏝"
+    "⎴" "⎵"))
 
 (define wide-list-4
-  '("<wide-underbrace>" "<wide-overbrace*>"
-    "<wide-punderbrace>" "<wide-poverbrace*>"
-    "<wide-squnderbrace>" "<wide-sqoverbrace*>"))
+  '("⏟" "⏞"
+    "⏝" "⏜"
+    "⎵" "⎴"))
 
 (define wide-list-5
-  '("<wide-varrightarrow>" "<wide-varleftarrow>"
-    "<wide-varleftrightarrow>" "<wide-bar>"))
+  '("⃗" "⃖"
+    "⃡" "̅"))
+
+(define (wide-accent-node t)
+  (with a (tree-ref t 1)
+    (if (and (tree-is? a 'with) (= (tree-arity a) 3)
+             (== (tree->string (tree-ref a 0)) "math-accent-stretch")
+             (== (tree->string (tree-ref a 1)) "true"))
+        (tree-ref a 2)
+        a)))
+
+(define (wide-accent-set! t value)
+  (with a (tree-ref t 1)
+    (if (and (tree-is? a 'with) (= (tree-arity a) 3)
+             (== (tree->string (tree-ref a 0)) "math-accent-stretch")
+             (== (tree->string (tree-ref a 1)) "true"))
+        (tree-set! a 2 value)
+        (tree-set! t 1 value))))
 
 (tm-define (variant-circulate t forward?)
   (:require (tree-in? t '(wide wide*)))
-  (when (tree-atomic? (tree-ref t 1))
-    (with s (tree->string (tree-ref t 1))
+  (with a (wide-accent-node t)
+    (when (tree-atomic? a)
+      (with s (tree->string a)
       (and-with i (list-find-index wide-list-1 (lambda (x) (== x s)))
         (with j (modulo (+ i (if forward? 1 -1)) (length wide-list-1))
-          (tree-set t 1 (list-ref wide-list-1 j))))
+          (wide-accent-set! t (list-ref wide-list-1 j))))
       (and-with i (list-find-index wide-list-2 (lambda (x) (== x s)))
         (with j (modulo (+ i (if forward? 1 -1)) (length wide-list-2))
-          (tree-set t 1 (list-ref wide-list-2 j))))
+          (wide-accent-set! t (list-ref wide-list-2 j))))
       (and-with i (list-find-index wide-list-3 (lambda (x) (== x s)))
         (with j (modulo (+ i (if forward? 1 -1)) (length wide-list-3))
-          (tree-set t 1 (list-ref wide-list-3 j))))
+          (wide-accent-set! t (list-ref wide-list-3 j))))
       (and-with i (list-find-index wide-list-4 (lambda (x) (== x s)))
         (with j (modulo (+ i (if forward? 1 -1)) (length wide-list-4))
-          (tree-set t 1 (list-ref wide-list-4 j))))
+          (wide-accent-set! t (list-ref wide-list-4 j))))
       (and-with i (list-find-index wide-list-5 (lambda (x) (== x s)))
         (with j (modulo (+ i (if forward? 1 -1)) (length wide-list-5))
-          (tree-set t 1 (list-ref wide-list-5 j)))))))
+          (wide-accent-set! t (list-ref wide-list-5 j))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Wide arrows
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (tm-define (make-long-arrow s)
-  (when (and (string? s) (string-starts? s "<") (string-ends? s ">"))
-    (with rs (string-append "<rubber-" (substring s 1 (string-length s)))
-      (insert-go-to `(long-arrow ,rs "") '(1 0)))))
+  (insert-go-to `(long-arrow ,s "") '(1 0)))
 
 (tm-define (make-long-arrow* s)
-  (when (and (string? s) (string-starts? s "<") (string-ends? s ">"))
-    (with rs (string-append "<rubber-" (substring s 1 (string-length s)))
-      (insert-go-to `(long-arrow ,rs "" "") '(2 0)))))
+  (insert-go-to `(long-arrow ,s "" "") '(2 0)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Modifying the shape of brackets
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define lbrackets
-  '("(" "[" "{" "<langle>" "|" "<||>" "<lfloor>" "<lceil>" "<llbracket>"))
+  '("(" "[" "{" "⟨" "|" "‖" "⌊" "⌈" "⟦"))
 
 (define mbrackets
-  '("|" "<||>" "/" "\\"))
+  '("|" "‖" "/" "\\"))
 
 (define rbrackets
-  '(")" "]" "}" "<rangle>" "|" "<||>" "<rfloor>" "<rceil>" "<rrbracket>"))
+  '(")" "]" "}" "⟩" "|" "‖" "⌋" "⌉" "⟧"))
 
 (define (bracket-circulate t forward? brackets)
   (cond ((and (tree-in? t '(around around*))
@@ -556,24 +577,21 @@
   (bracket-circulate t forward? mbrackets))
 
 (define bigops
-  '("<int>" "<intlim>" "<fint>" "<oint>" "<ointlim>"
-    "<sum>" "<prod>" "<amalg>"
-    "<cap>" "<cup>" "<sqcap>" "<sqcup>"
-    "<vee>" "<wedge>" "<curlyvee>" "<curlywedge>"
-    "<odot>" "<otimes>" "<oplus>"
-    "<triangleup>" "<triangledown>"
-    "<box>" "<parallel>" "<interleave>"))
+  '("∫" (with "math-big-limits" "true" "∫") "⨍"
+    "∮" (with "math-big-limits" "true" "∮")
+    "∑" "∏" "∐"
+    "⋂" "⋃" "⨅" "⨆"
+    "⋁" "⋀" "⋎" "⋏"
+    "⨀" "⨂" "⨁"
+    "▵" "▿" "□" "∥" "⫴"))
 
 (tm-define (variant-circulate t forward?)
   (:require (tree-is? t 'big-around))
-  (when (and (== (tree-arity t) 2)
-             (tree-atomic? (tree-ref t 0)))
-    (with s (tree->string (tree-ref t 0))
-      (when (in? s bigops)
-        (let* ((i (list-find-index bigops (lambda (x) (== x s))))
-               (j (modulo (+ i (if forward? 1 -1)) (length bigops)))
-               (ns (list-ref bigops j)))
-          (tree-assign (tree-ref t 0) ns))))))
+  (when (== (tree-arity t) 2)
+    (with s (tm->stree (tree-ref t 0))
+      (and-with i (list-find-index bigops (lambda (x) (equal? x s)))
+        (with j (modulo (+ i (if forward? 1 -1)) (length bigops))
+          (tree-set! t 0 (list-ref bigops j)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Modifying the dimension of brackets
@@ -670,8 +688,8 @@
 	   (tag (if large? 'around* 'around)))
       ;;(display* nr ", " (find-non-bracket (cursor-tree)) "\n")
       (if open?
-	  (insert-go-to (list tag which "" "<nobracket>") '(1 0))
-	  (insert-go-to (list tag "<nobracket>" "" which) '(1)))
+	  (insert-go-to (list tag which "" ".") '(1 0))
+	  (insert-go-to (list tag "." "" which) '(1)))
       (brackets-refresh)
       ;;(display* (count-missing (find-non-bracket (cursor-tree)) open?) ", "
       ;;(find-non-bracket (cursor-tree)) "\n")
@@ -682,7 +700,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (deleted? t i)
-  (== (tm->stree (tree-ref t i)) "<nobracket>"))
+  (in? (tm->stree (tree-ref t i)) '("." "<nobracket>")))
 
 ;;(define (make-small s)
 ;;  (cond ((nstring? s) "<nobracket>")
@@ -745,7 +763,7 @@
                       (== (tree->stree (tree-ref u 2)) rb))
                  (tree-go-to u :end))
                 ((and u (== rb "|")
-                      (== (tree->stree (tree-ref u 0)) "<langle>"))
+                      (== (tree->stree (tree-ref u 0)) "⟨"))
                  (tree-set u 2 rb)
                  (tree-go-to u :end))
                 ((try-matching-insert #t lb large?)
@@ -757,8 +775,6 @@
 (tm-define (math-separator sep large?)
   (when (== large? 'default)
     (set! large? (!= (get-preference "use large brackets") "off")))
-  (when (and (string? sep) (string-starts? sep "<") (string-ends? sep ">"))
-    (set! sep (substring sep 1 (- (string-length sep) 1))))
   (when (== (get-preference "automatic brackets") "off")
     (make-separator sep large?)
     (brackets-refresh))

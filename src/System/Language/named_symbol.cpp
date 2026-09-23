@@ -16,6 +16,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
+#include <cmath>
 #include <stdexcept>
 
 namespace athena::text {
@@ -50,6 +51,71 @@ std::string text_field (const QJsonObject& object, const char* key) {
            "Invalid named-symbol string field");
   return result;
 }
+
+std::string optional_text_field (const QJsonObject& object, const char* key) {
+  const auto value= object.value (key);
+  if (value.isUndefined () || value.isNull ()) return {};
+  require (value.isString (), "Invalid optional named-symbol string field");
+  const auto bytes= value.toString ().toUtf8 ();
+  std::string result (bytes.constData (), bytes.size ());
+  require_utf8 (result);
+  require (result.size () <= 1024 && result.find ('\0') == std::string::npos,
+           "Invalid optional named-symbol string field");
+  return result;
+}
+
+std::shared_ptr<const named_symbol_recipe>
+parse_recipe (const QJsonValue& value, int depth= 0) {
+  require (depth <= 16, "Named-symbol recipe nesting is too deep");
+  auto recipe= std::make_shared<named_symbol_recipe> ();
+  if (value.isString ()) {
+    const auto bytes= value.toString ().toUtf8 ();
+    recipe->kind= named_symbol_recipe_kind::glyph;
+    recipe->glyph_utf8.assign (bytes.constData (), bytes.size ());
+    require_utf8 (recipe->glyph_utf8);
+    require (!recipe->glyph_utf8.empty () && recipe->glyph_utf8.size () <= 64 &&
+             recipe->glyph_utf8.find ('\0') == std::string::npos,
+             "Invalid named-symbol recipe glyph");
+    return recipe;
+  }
+  require (value.isArray (), "Invalid named-symbol recipe");
+  const auto array= value.toArray ();
+  require (!array.empty () && array[0].isString (), "Invalid named-symbol recipe operation");
+  const QString operation= array[0].toString ();
+  if (operation == "rotate") {
+    require (array.size () == 3 && array[1].isDouble (), "Invalid rotate recipe");
+    const double degrees= array[1].toDouble ();
+    require (std::isfinite (degrees) && std::abs (degrees) <= 360.0,
+             "Invalid rotate angle");
+    recipe->kind= named_symbol_recipe_kind::rotate;
+    recipe->parameter= degrees;
+    recipe->first= parse_recipe (array[2], depth + 1);
+    return recipe;
+  }
+  if (operation == "scale-x") {
+    require (array.size () == 3 && array[1].isDouble (), "Invalid scale-x recipe");
+    const double factor= array[1].toDouble ();
+    require (std::isfinite (factor) && factor >= 0.25 && factor <= 4.0,
+             "Invalid scale-x factor");
+    recipe->kind= named_symbol_recipe_kind::scale_x;
+    recipe->parameter= factor;
+    recipe->first= parse_recipe (array[2], depth + 1);
+    return recipe;
+  }
+  require (array.size () == 4 && array[1].isDouble (),
+           "Invalid binary named-symbol recipe");
+  const double overlap= array[1].toDouble ();
+  require (std::isfinite (overlap) && std::abs (overlap) <= 2.0,
+           "Invalid named-symbol recipe overlap");
+  if (operation == "stack") recipe->kind= named_symbol_recipe_kind::stack;
+  else if (operation == "glue-above") recipe->kind= named_symbol_recipe_kind::glue_above;
+  else if (operation == "glue-below") recipe->kind= named_symbol_recipe_kind::glue_below;
+  else throw std::invalid_argument ("Unknown named-symbol recipe operation");
+  recipe->parameter= overlap;
+  recipe->first= parse_recipe (array[2], depth + 1);
+  recipe->second= parse_recipe (array[3], depth + 1);
+  return recipe;
+}
 }
 
 named_symbol_registry::named_symbol_registry (std::string_view json) {
@@ -68,7 +134,19 @@ named_symbol_registry::named_symbol_registry (std::string_view json) {
     const auto object= entry.toObject ();
     named_symbol_definition symbol;
     symbol.identity= text_field (object, "identity");
-    symbol.glyph_utf8= text_field (object, "glyph");
+    symbol.glyph_utf8= optional_text_field (object, "glyph");
+    symbol.virtual_font= optional_text_field (object, "virtual_font");
+    symbol.virtual_symbol= optional_text_field (object, "virtual_symbol");
+    const auto recipe_value= object.value ("recipe");
+    if (!recipe_value.isUndefined () && !recipe_value.isNull ())
+      symbol.recipe= parse_recipe (recipe_value);
+    const bool native= !symbol.glyph_utf8.empty ();
+    const bool virtual_recipe= !symbol.virtual_font.empty () || !symbol.virtual_symbol.empty ();
+    const int recipe_count= (native ? 1 : 0) + (virtual_recipe ? 1 : 0) +
+                            (symbol.recipe ? 1 : 0);
+    require (recipe_count == 1, "Named symbol needs exactly one rendering recipe");
+    require (!virtual_recipe || (!symbol.virtual_font.empty () && !symbol.virtual_symbol.empty ()),
+             "Incomplete virtual named-symbol recipe");
     symbol.op_type= math_class (QString::fromStdString (text_field (object, "math_class")));
     const auto slant= text_field (object, "slant");
     require (slant == "upright" || slant == "italic", "Invalid named-symbol slant");

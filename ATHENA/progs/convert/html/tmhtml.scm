@@ -97,57 +97,32 @@
             (h:span (@ (style "vertical-align: -0.25em")) "E")
             "NA")))
 
-(define (cork->html s)
-  (utf8->html (cork->utf8 s)))
-
-(define (tmhtml-sub-token s pos)
-  (with ss (substring s pos (- (string-length s) 1))
-    (if (= (string-length ss) 1) ss
-	(tmhtml-math-token (string-append "<" ss ">")))))
-
 (define (tmhtml-math-token s)
   (cond ((= (string-length s) 1)
 	 (cond ((== s "*") " ")
 	       ((in? s '("+" "-" "=")) (string-append " " s " "))
-	       ((char-alphabetic? (string-ref s 0)) `(h:var ,s))
-	       (else s)))
-	((string-starts? s "<cal-")
-	 `(h:font (@ (face "Zapf Chancery")) ,(tmhtml-sub-token s 5)))
-	((string-starts? s "<b-cal-")
-	 `(h:u (h:font (@ (face "Zapf Chancery")) ,(tmhtml-sub-token s 7))))
-	((string-starts? s "<frak-")
-	 `(h:u ,(tmhtml-sub-token s 6)))
-	((string-starts? s "<bbb-") `(h:u (h:b ,(tmhtml-sub-token s 5))))
-	((string-starts? s "<up-") (tmhtml-sub-token s 4))
-	((string-starts? s "<b-up-") `(h:b ,(tmhtml-sub-token s 6)))
-	((string-starts? s "<b-") `(h:b (h:var ,(tmhtml-sub-token s 3))))
-	((string-starts? s "<")
-	 (with encoded (cork->utf8 s)
-           (if (== s encoded)
-             (utf8->html (old-tm->xml-cdata s))
-             `(h:var ,(utf8->html encoded)))))
-	(else s)))
+	       ((char-alphabetic? (string-ref s 0))
+                (if (ahash-ref tmhtml-env :math-upright)
+                    (utf8->html s)
+                    `(h:var ,(utf8->html s))))
+	       (else (utf8->html s))))
+	(else (utf8->html s))))
 
 (define (tmhtml-string s)
   (if (ahash-ref tmhtml-env :math)
       (tmhtml-post-simplify-nodes
        (map tmhtml-math-token (tmconcat-tokenize-math s)))
-      (list (cork->html s))))
+      (list (utf8->html s))))
 
 (define (tmhtml-text s)
   (if (or (ahash-ref tmhtml-env :math) (ahash-ref tmhtml-env :preformatted))
       (tmhtml-string s)
       (tmhtml-string (make-ligatures s))))
 
-(define cork-endash (char->string (integer->char 21)))
-(define cork-ldquo (char->string (integer->char 16)))
-(define cork-rdquo (char->string (integer->char 17)))
-
 (define (make-ligatures s)
-  ;; Make texmacs ligatures in Cork encoding
   (string-replace
    (string-replace
-    (string-replace s "--" cork-endash) "``" cork-ldquo) "''" cork-rdquo))
+    (string-replace s "--" "–") "``" "“") "''" "”"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Entire documents
@@ -209,6 +184,9 @@
 	  ".fraction td { padding: 0px; text-align: center } "
 	  ".wide { position: relative; margin-left: -0.4em } "
 	  ".accent { position: relative; margin-left: -0.4em; top: -0.1em } "
+	  ".math-cal { font-family: cursive; font-style: normal } "
+	  ".math-frak { font-family: serif; font-style: normal } "
+	  ".math-bbb { font-family: serif; font-weight: bold; font-style: normal } "
 	  ".title-block { width: 100%; text-align: center } "
 	  ".title-block p { margin: 0px } "
 	  ".tmdoc-body { max-width: 72em; margin: 0 auto; } "
@@ -292,9 +270,9 @@
                  (with-extract doc "html-doc-title"))
 		((not title) "No title")
 		((in? "tmdoc" styles)
-		 `(concat ,(utf8->cork (tmhtml-force-string title))
-                          " (FSF GNU project)"))
-		(else (utf8->cork (tmhtml-force-string title)))))
+		 `(concat ,(tmhtml-force-string title)
+                           " (FSF GNU project)"))
+		(else (tmhtml-force-string title))))
     (set! css
 	  (cond ((with-extract doc "html-css")
 		 `(h:link (@ (rel "stylesheet")
@@ -786,13 +764,53 @@
   (tmhtml (car l)))
 
 (define (tmhtml-big l)
-  (cond ((in? (car l) '("sum" "prod" "int" "fint" "oint" "amalg"))
-	 (tmhtml (string-append "<" (car l) ">")))
-	((in? (car l) '("<cap>" "<cup>" "<vee>" "<wedge>"))
-	 (with s (substring (car l) 1 (- (string-length (car l)) 1))
-	   (tmhtml (string-append "<big" s ">"))))
-	((== (car l) ".") '())
-	(else (tmhtml (car l)))))
+  (let* ((x (car l))
+         (legacy '( ("sum" . "∑") ("prod" . "∏") ("int" . "∫")
+                    ("fint" . "⨍") ("oint" . "∮") ("amalg" . "∐")
+                    ("<cap>" . "⋂") ("<cup>" . "⋃")
+                    ("<vee>" . "⋁") ("<wedge>" . "⋀") ))
+         (old (and (string? x) (assoc x legacy))))
+    (cond ((and (string? x) (== x ".")) '())
+          (old (tmhtml (cdr old)))
+          (else (tmhtml x)))))
+
+(define (tmhtml-named-symbol l)
+  (if (or (null? l) (not (string? (car l)))) '()
+      (let* ((identity (car l))
+             (glyph (named-symbol-render-glyph identity))
+             (fallback (if (string-starts? identity "texmacs:")
+                           (substring identity 8 (string-length identity))
+                           identity)))
+        (if (!= glyph "") (tmhtml glyph)
+            `((h:span (@ (class "athena-named-symbol")
+                          (data-athena-symbol ,identity))
+                      ,fallback))))))
+
+(define (tmhtml-math-alpha-up l)
+  (ahash-with tmhtml-env :math-upright #t (tmhtml (car l))))
+
+(define (tmhtml-math-alpha-bold l)
+  `((h:b ,@(tmhtml (car l)))))
+
+(define (tmhtml-math-alpha-bold-up l)
+  `((h:b ,@(ahash-with tmhtml-env :math-upright #t (tmhtml (car l))))))
+
+(define (tmhtml-math-alpha-class class bold? l)
+  (let ((body (ahash-with tmhtml-env :math-upright #t (tmhtml (car l)))))
+    `((h:span (@ (class ,class))
+              ,@(if bold? `((h:b ,@body)) body)))))
+
+(define (tmhtml-math-alpha-cal l)
+  (tmhtml-math-alpha-class "math-cal" #f l))
+
+(define (tmhtml-math-alpha-bold-cal l)
+  (tmhtml-math-alpha-class "math-cal" #t l))
+
+(define (tmhtml-math-alpha-frak l)
+  (tmhtml-math-alpha-class "math-frak" #f l))
+
+(define (tmhtml-math-alpha-bbb l)
+  (tmhtml-math-alpha-class "math-bbb" #f l))
 
 (define (tmhtml-below l)
   `("below (" ,@(tmhtml (car l)) ", " ,@(tmhtml (cadr l)) ")"))
@@ -843,7 +861,7 @@
 (define (tmhtml-wide l)
   (let* ((body (tmhtml (car l)))
 	 (acc (tmhtml (cadr l)))
-	 (class (if (in? acc '(("^") ("~"))) "accent" "wide")))
+	 (class (if (in? acc '(("̂") ("̃") ("^") ("~"))) "accent" "wide")))
     (if (tmhtml-short? body)
 	`(,@body (h:sup (@ (class ,class)) ,@acc))
 	`("(" ,@body ")" (h:sup ,@acc)))))
@@ -1136,13 +1154,7 @@
 
 (define (tmhtml-label l)
   ;; WARNING: bad conversion if ID is not a string.
-  `((h:a (@ (id ,(cork->html (force-string (car l))))))))
-
-;(define (tmhtml-reference l)
-;  (list 'ref (cork->html (force-string (car l)))))
-
-;(define (tmhtml-pageref l)
-;  (list 'pageref (cork->html (force-string (car l)))))
+  `((h:a (@ (id ,(utf8->html (force-string (car l))))))))
 
 (define (tmhtml-suffix s)
   ;; Change local TeXmacs document suffixes to .html for exported sites.
@@ -1165,7 +1177,7 @@
   ;; TODO: change label at start of content into ID attribute, move other
   ;; labels out (A elements cannot be nested!).
   (let* ((body (tmhtml (first l)))
-	 (to (cork->html (force-string (second l)))))
+	 (to (utf8->html (force-string (second l)))))
     (if (string-starts? to "$")
 	body ;; temporary fix for URLs like $ATHENA_PATH/...
 	`((h:a (@ (href ,(tmhtml-suffix to))) ,@body)))))
@@ -1436,7 +1448,7 @@
               (string? (caddar l)))
          ;; embedded web image, extract it    
          (receive (name-url name-string)
-                  (tmhtml-image-names (url-suffix (cork->utf8 (caddar l))))
+                   (tmhtml-image-names (url-suffix (caddar l)))
            (bytes-save (cadr (cadar l)) name-url)
            (tmhtml-image (cons name-string (cdr l)))))
         ((nstring? (first l))
@@ -1862,7 +1874,7 @@
 		      (src ,(tmhtml-force-string (car l)))))))
 
 (define (tmhtml-html-video l)
-  (let* ((dest (cork->html (force-string (car l))))
+  (let* ((dest (utf8->html (force-string (car l))))
          (mp4 (string-append dest ".mp4"))
          (ogg (string-append dest ".ogg"))
          (webm (string-append dest ".webm"))
@@ -1990,11 +2002,12 @@
 (tm-define (tmhtml-root x)
   (ahash-with tmhtml-env :mag "1"
     (ahash-with tmhtml-env :math #f
-      (ahash-with tmhtml-env :math-display #f
-        (ahash-with tmhtml-env :preformatted #f
-          (ahash-with tmhtml-env :left-margin 0
-            (ahash-with tmhtml-env :right-margin 0
-              (tmhtml x))))))))
+      (ahash-with tmhtml-env :math-upright #f
+        (ahash-with tmhtml-env :math-display #f
+          (ahash-with tmhtml-env :preformatted #f
+            (ahash-with tmhtml-env :left-margin 0
+              (ahash-with tmhtml-env :right-margin 0
+                (tmhtml x)))))))))
 
 (define (tmhtml x)
   ;; Main conversion function.
@@ -2074,6 +2087,14 @@
   (mid tmhtml-id)
   (right tmhtml-id)
   (big tmhtml-big)
+  (named-symbol tmhtml-named-symbol)
+  (math-alpha-up tmhtml-math-alpha-up)
+  (math-alpha-bold tmhtml-math-alpha-bold)
+  (math-alpha-bold-up tmhtml-math-alpha-bold-up)
+  (math-alpha-cal tmhtml-math-alpha-cal)
+  (math-alpha-bold-cal tmhtml-math-alpha-bold-cal)
+  (math-alpha-frak tmhtml-math-alpha-frak)
+  (math-alpha-bbb tmhtml-math-alpha-bbb)
   (lprime tmhtml-id)
   (rprime tmhtml-id)
   (below tmhtml-below)

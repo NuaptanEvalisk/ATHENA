@@ -120,32 +120,106 @@ get_big_flags (string l, bool& int_flag, bool& it_flag, bool& lim_flag) {
   }
 }
 
+struct native_big_operator_spec {
+  tree content;
+  bool upright= false;
+  bool force_limits= false;
+};
+
+static native_big_operator_spec
+decode_native_big_operator (tree source) {
+  native_big_operator_spec spec {source, false, false};
+  while (is_func (spec.content, WITH) && N(spec.content) >= 3) {
+    tree wrapper= spec.content;
+    for (int i=0; i+1<N(wrapper)-1; i+=2)
+      if (is_atomic (wrapper[i]) && is_atomic (wrapper[i+1])) {
+        if (wrapper[i] == "math-big-upright" && wrapper[i+1] == "true")
+          spec.upright= true;
+        if (wrapper[i] == "math-big-limits" && wrapper[i+1] == "true")
+          spec.force_limits= true;
+      }
+    spec.content= wrapper[N(wrapper)-1];
+  }
+  return spec;
+}
+
+static bool
+named_big_operator (tree t, const char* identity) {
+  return is_func (t, NAMED_SYMBOL, 1) && is_atomic (t[0]) &&
+         t[0] == string (identity);
+}
+
+static string
+integral_recipe_base (tree t) {
+  if (!is_atomic (t)) return "";
+  const string s= t->label;
+  if (s == "∫") return "int";
+  if (s == "∬") return "iint";
+  if (s == "∭") return "iiint";
+  if (s == "⨌") return "iiiint";
+  if (s == "∮") return "oint";
+  if (s == "∯") return "oiint";
+  if (s == "∰") return "oiiint";
+  return "";
+}
+
+static bool
+native_integral_operator (tree t) {
+  return integral_recipe_base (t) != "" ||
+         (is_atomic (t) && t->label == "⨍") ||
+         named_big_operator (t, "texmacs:idotsint");
+}
+
+static box
+virtual_big_operator_box (path ip, string definition, font fn, pencil pen) {
+  box glyph= virtual_recipe_box (ip, "tradi-long", definition, fn, pen);
+  const SI axis= athena::text::math_layout_metrics (fn) ?
+    athena::text::math_layout_metrics (fn)->axis_height : fn->yfrac;
+  const SI y= axis - ((glyph->y1 + glyph->y2) >> 1);
+  return macro_box (ip, move_box (ip, glyph, 0, y, false, true), fn, BIG_OP_BOX);
+}
+
 void
 concater_rep::typeset_bigop (tree t, path ip) {
-  if ((N(t) == 1) && is_atomic (t[0])) {
+  if (N(t) == 1) {
     space spc= env->fn->spc;
-    string l= t[0]->label;
-    const bool native= is_unicode_scalar_atom (l);
-    string s= native ? l : "<big-" * l * ">";
-    bool flag= (!env->math_condensed) && (l != ".");
+    native_big_operator_spec spec= decode_native_big_operator (t[0]);
+    const bool scalar= is_atomic (spec.content) &&
+      is_unicode_scalar_atom (spec.content->label);
+    const bool structured= scalar || named_big_operator (spec.content, "texmacs:idotsint");
+    string l= is_atomic (spec.content) ? spec.content->label : "";
+    string s= scalar ? l : "";
+    bool flag= (!env->math_condensed) && (!is_atomic (spec.content) || l != ".");
     box b;
-    if (native)
-      b= big_operator_box (ip, s, env->fn, env->pen, env->display_style? 2: 1);
-    else if (env->fn->type == FONT_TYPE_UNICODE) {
+    const int size= env->display_style ? 2 : 1;
+    const string recipe_base= integral_recipe_base (spec.content);
+    if (structured && spec.upright && recipe_base != "")
+      b= virtual_big_operator_box (
+        ip, "big-up" * recipe_base * "-" * as_string (size), env->fn, env->pen);
+    else if (named_big_operator (spec.content, "texmacs:idotsint"))
+      b= virtual_big_operator_box (ip,
+        string (spec.upright ? "big-upidotsint-" : "big-idotsint-") *
+        as_string (size), env->fn, env->pen);
+    else if (scalar)
+      b= big_operator_box (ip, s, env->fn, env->pen, size);
+    else if (is_atomic (spec.content) && env->fn->type == FONT_TYPE_UNICODE) {
+      // Read-only compatibility for old BIG nodes storing symbolic font keys.
+      s= "<big-" * l * ">";
       font mfn= rubber_font (env->fn);
-      b= big_operator_box (ip, s, mfn, env->pen,
-                           env->display_style? 2: 1);
+      b= big_operator_box (ip, s, mfn, env->pen, size);
     }
-    else b= big_operator_box (ip, s, env->fn, env->pen,
-                              env->display_style? 2: 1);
+    else if (is_atomic (spec.content)) {
+      s= "<big-" * l * ">";
+      b= big_operator_box (ip, s, env->fn, env->pen, size);
+    }
+    else { typeset_error (t, ip); return; }
     print (STD_ITEM, OP_BIG, b);
     penalty_min (HYPH_PANIC);
     bool int_flag= false, it_flag= false, lim_flag= true;
-    if (native) {
-      const std::string_view scalar (l.data (), static_cast<std::size_t> (N(l)));
-      int_flag= scalar == "∫" || scalar == "∮" || scalar == "∬" || scalar == "∭";
-      it_flag= int_flag;
-      lim_flag= !int_flag;
+    if (structured) {
+      int_flag= native_integral_operator (spec.content);
+      it_flag= int_flag && !spec.upright;
+      lim_flag= spec.force_limits || !int_flag;
     }
     else get_big_flags (l, int_flag, it_flag, lim_flag);
     if (lim_flag) with_limits (LIMITS_DISPLAY);
@@ -266,11 +340,27 @@ concater_rep::typeset_long_arrow (tree t, path ip) {
   env->local_end (MATH_CONDENSED, old_mc);
   env->local_end (MATH_DISPLAY, old_ds);
 
-  string s= env->exec_string (t[0]);
   SI w= sup_b->w();
   if (N(t) == 3) w= max (w, sub_b->w());
   w += env->fn->wquad;
-  box arrow= wide_box (decorate (descend (ip, 0)), s, env->fn, env->pen, w);
+  box arrow;
+  if (is_atomic (t[0]) && is_unicode_scalar_atom (t[0]->label))
+    arrow= wide_box (decorate (descend (ip, 0)), t[0]->label,
+                     env->fn, env->pen, w);
+  else if (is_func (t[0], NAMED_SYMBOL, 1)) {
+    box base= typeset_as_concat (env, t[0], decorate (descend (ip, 0)));
+    if (base->w () > 0 && base->w () < w) {
+      const double sx= static_cast<double> (w) / base->w ();
+      base= transformed_box (decorate (descend (ip, 0)), base,
+                             scaling (point (sx, 1.0), point (0.0, 0.0)));
+    }
+    arrow= macro_box (decorate (descend (ip, 0)), base, env->fn);
+  }
+  else {
+    // Read-only compatibility for old LONG_ARROW nodes containing a rubber key.
+    string s= env->exec_string (t[0]);
+    arrow= wide_box (decorate (descend (ip, 0)), s, env->fn, env->pen, w);
+  }
 
   space spc= env->fn->spc;
   if (env->math_condensed) spc= space (spc->min>>3, spc->def>>3, spc->max>>2);
@@ -487,10 +577,18 @@ void
 concater_rep::typeset_wide (tree t, path ip, bool above) {
   if (N(t) != 2) { typeset_error (t, ip); return; }
   box b= typeset_as_concat (env, t[0], descend (ip, 0));
-  string s= env->exec_string (t[1]);
-  if (s == "^") s= "<hat>";
-  if (s == "~") s= "<tilde>";
   bool request_wide= false;
+  tree accent= t[1];
+  if (is_func (accent, WITH) && N(accent) >= 3) {
+    for (int i=0; i+1<N(accent)-1; i+=2)
+      if (is_atomic (accent[i]) && is_atomic (accent[i+1]) &&
+          accent[i] == "math-accent-stretch" && accent[i+1] == "true")
+        request_wide= true;
+    accent= accent[N(accent)-1];
+  }
+  string s= env->exec_string (accent);
+  // Read-only compatibility for pre-UTF-8 accent descriptors. New edit paths
+  // store the scalar itself and an explicit tree attribute for forced stretch.
   if (starts (s, "<wide-")) {
     s= "<" * s (6, N(s));
     request_wide= true;
@@ -536,7 +634,7 @@ make_large (tree_label l, tree t) {
     else return tree (l, ".");
   }
   string s= t->label;
-  if (N(s) <= 1) return tree (l, s);
+  if (is_unicode_scalar_atom (s)) return tree (l, s);
   if (s[0] != '<' || s[N(s)-1] != '>' || s == "<nobracket>")
     return tree (l, ".");
   return tree (l, s (1, N(s)-1));

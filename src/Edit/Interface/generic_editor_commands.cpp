@@ -266,7 +266,7 @@ bool linked_image_context_impl (tree t) {
 bool embedded_image_name (tree t, string& name) {
   if (!embedded_image_context_impl (t) || N (t[0]) < 2 || !is_atomic (t[0][1]))
     return false;
-  name= cork_to_utf8 (as_string (t[0][1]));
+  name= as_string (t[0][1]);
   return true;
 }
 

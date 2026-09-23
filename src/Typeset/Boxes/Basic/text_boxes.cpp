@@ -843,6 +843,10 @@ big_operator_box (path ip, string s, font fn, pencil pen, int n) {
       fn, std::string_view (s.data (), static_cast<std::size_t> (N(s))), target);
     if (stretched) {
       box b= math_glyph_box (ip, s, fn, pen, std::move (stretched->run));
+      if (target > 0 && stretched->extent > 0 && stretched->extent < target) {
+        const double sy= static_cast<double> (target) / stretched->extent;
+        b= transformed_box (ip, b, scaling (point (1.0, sy), point (0.0, 0.0)));
+      }
       const SI axis= athena::text::math_layout_metrics (fn) ?
         athena::text::math_layout_metrics (fn)->axis_height : fn->yfrac;
       SI y= axis - ((b->y1 + b->y2) >> 1);
@@ -862,6 +866,19 @@ big_operator_box (path ip, string s, font fn, pencil pen, int n) {
 
 box
 wide_box (path ip, string s, font fn, pencil pen, SI width) {
+  if (single_unicode_scalar (s)) {
+    auto stretched= athena::text::shape_math_stretch (
+      fn, std::string_view (s.data (), static_cast<std::size_t> (N(s))), width, false);
+    if (stretched && stretched->extent >= width)
+      return macro_box (ip,
+        math_glyph_box (ip, s, fn, pen, std::move (stretched->run)), fn);
+    box base= utf8_text_box (ip, s, 0, N(s), fn, pen);
+    if (base->w () > 0 && base->w () < width) {
+      const double sx= static_cast<double> (width) / base->w ();
+      base= transformed_box (ip, base, scaling (point (sx, 1.0), point (0.0, 0.0)));
+    }
+    return macro_box (ip, base, fn);
+  }
   string r= get_wide (s, fn, width);
   metric ex;
   fn->get_extents (r, ex);
@@ -894,4 +911,14 @@ math_glyph_box (path ip, string source, font nominal, pencil pen,
                 athena::text::shaped_text run) {
   return tm_new<math_glyph_box_rep> (
     ip, source, nominal, pen, std::move (run));
+}
+
+box
+virtual_recipe_box (path ip, string virtual_font_name, string definition,
+                    font base, pencil pen) {
+  int hdpi= (72 * base->wpt + (PIXEL/2)) / PIXEL;
+  int vdpi= (72 * base->hpt + (PIXEL/2)) / PIXEL;
+  font vfn= virtual_font (base, virtual_font_name, base->size, hdpi, vdpi, true);
+  string token= N(definition) == 1 ? definition : "<" * definition * ">";
+  return text_box (ip, 0, token, vfn, pen);
 }

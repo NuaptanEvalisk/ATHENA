@@ -335,17 +335,25 @@ unchanged. Legacy readers still recognize existing file headers.
   from the old incomplete-input `SYMBOL`. Its identifier is inaccessible during
   normal editing; navigation and deletion treat the entire symbol atomically.
   `misc/symbols/named-symbols.json` is the native registry for symbol identity,
-  mathematical class and glyph/slant recipes. Recipes are rendering data, not
-  replacement source text. The initial entries cover ten mathematical constants
-  and differential operators from the legacy roman/italic/upgreek encodings.
-  They use owner-local Pango selection and HarfBuzz shaping, with explicit slant
-  and inherited font family, weight, point size and device scales. No angle-token
-  parser or Cork converter is involved. Missing definitions remain intact and
-   display an error marker instead of an approximate substitute. Unicode scalar
-   delimiters, radicals and large operators use OpenType MATH variants/assemblies
-   directly; virtual/non-scalar glyph recipes and the remaining symbol inventory
-   are still integration work, as is migrating keyboard input to construct these
-   nodes.
+  mathematical class and rendering recipes. Recipes are rendering data, not
+  replacement source text. The migrated inventory now includes direct Unicode
+  projections, read-only legacy virtual-font recipes and bounded native box
+  recipes composed from Unicode-shaped leaves using rotate/stack/glue/scale
+  operations. Native recipes never call the legacy virtual-font token API.
+  Missing definitions remain intact and display an error marker instead of an
+  approximate substitute. Unicode scalar delimiters, radicals and large
+  operators use OpenType MATH variants/assemblies directly.
+  Keyboard maps and math menus now insert UTF-8 scalars or explicit
+  `NAMED_SYMBOL` nodes; mathematical alphabet shortcuts insert base characters
+  wrapped in structural `math-alpha-*` roles, so Mathematical Alphanumeric
+  Symbols are only UI/rendering projections and never source text. Wide accents,
+  long arrows and big operators store Unicode content plus explicit layout
+  metadata instead of creating `<wide-...>`, `<rubber-...>` or `<big-...>` keys.
+  MathML and LaTeX import construct these UTF-8/structural trees directly, HTML
+  preserves non-scalar identities in `data-athena-symbol`, and LaTeX export sends
+  the identity directly through the native TeX symbol registry without rebuilding
+  an angle-token string. Active converter/editor paths no longer call the Cork
+  UTF-8 conversion helpers; remaining legacy token checks are read-only readers.
 
 ## XML Version 1
 
@@ -465,17 +473,16 @@ batch cancellation/resume and database recovery are still integration work.
 ## Remaining Integration Gates
 
 1. Integrate the role-aware legacy importer with application metadata and
-   style-defined macro contracts, and finish the `named-symbol` registry's
-   remaining virtual/non-scalar glyph recipes plus math input/style resources.
+   style-defined macro contracts, including complete source-position relocation.
    The old `Strict-Cork` converter is **not** a substitute for this importer.
-2. All editor/parser/font/IME/Guile/Qt boundaries, bundled resources and undo
-   paths must agree on the UTF-8 model before these trees become live.
+2. Route editor open/reload, preview, search/indexing, maintenance and AUDMAP
+   document reads through the common codec without upgrading files in place.
 3. AUDMAP, SDK, delegates and caches need explicit model/protocol versions.
 4. Database migrations must preserve identities, decisions and vectors,
    relocate ranges explicitly, and distinguish format rewrites from logical
    content changes before any normal-save or maintenance upgrade is enabled.
-5. Route all document consumers and writers through the common codec; opening,
-   previewing and indexing must never upgrade files in place.
+5. Route all writers through the common codec and enable the transactional XML
+   writer for normal saves only after those readers and database schemas migrate.
 
 Production Notes and remote backends are not test inputs. Tests use synthetic
 trees and isolated temporary directories. No deployment or database migration

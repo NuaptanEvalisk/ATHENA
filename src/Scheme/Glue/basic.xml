@@ -386,6 +386,9 @@
   <binding name="tree-&gt;string" native="coerce_tree_string" returns="string">
     <arg type="tree" />
   </binding>
+  <binding name="named-symbol-render-glyph" native="named_symbol_render_glyph" returns="string">
+    <arg type="string" />
+  </binding>
   <binding name="string-&gt;tree" native="coerce_string_tree" returns="tree">
     <arg type="string" />
   </binding>

@@ -2047,9 +2047,11 @@ smart_font_bis (string family, string variant, string series, string shape,
   //family= stix_fix (family, series, shape);
   family= math_fix (family, series, shape);
   string sh= shape;
-  if (shape == "mathitalic" || shape == "mathshape" || shape == "mathcal")
+  if (shape == "mathitalic" || shape == "mathshape" || shape == "mathcal" ||
+      shape == "mathfrak" || shape == "mathbbb")
     sh= "right";
-  string face_family= profile_face_family (family, variant, series, shape);
+  string profile_shape= (shape == "mathfrak" || shape == "mathbbb") ? "right" : shape;
+  string face_family= profile_face_family (family, variant, series, profile_shape);
   string face_variant= physical_variant (variant);
   font base_fn= closest_font (face_family, face_variant, series, sh, sz, vdpi);
   if (is_nil (base_fn)) return font ();
@@ -2088,6 +2090,9 @@ smart_font (string family, string variant, string series, string shape,
     if (variant == "mt") tvar= "tt";
   }
   if (shape == "right") tsh= "mathupright";
+  else if (shape == "cal") tsh= "mathcal";
+  else if (shape == "frak") tsh= "mathfrak";
+  else if (shape == "bbb") tsh= "mathbbb";
   return smart_font (tfam, tvar, tser, tsh, sz, dpi);
 }
 
@@ -2097,6 +2102,9 @@ math_alphabet default_math_alphabet (font source, bool variable) {
   const bool bold= smart && smart->series == "bold";
   if (smart && smart->shape == "mathcal")
     return bold ? math_alphabet::bold_script : math_alphabet::script;
+  if (smart && smart->shape == "mathfrak")
+    return bold ? math_alphabet::bold_fraktur : math_alphabet::fraktur;
+  if (smart && smart->shape == "mathbbb") return math_alphabet::double_struck;
   const bool italic= variable && (!smart || smart->shape != "mathupright");
   if (bold) return italic ? math_alphabet::bold_italic : math_alphabet::bold;
   return italic ? math_alphabet::italic : math_alphabet::normal;

@@ -545,6 +545,7 @@ std::optional<math_stretch_result> shape_open_type_math_stretch (
     if (variant.advance >= target_extent) {
       math_stretch_result result;
       result.run= make_math_glyph_run (face, font, source, scalar, variant.glyph);
+      if (!vertical) result.run.advance_x= variant.advance;
       result.extent= variant.advance;
       return result;
     }

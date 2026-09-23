@@ -240,13 +240,13 @@ edit_main_rep::get_metadata (string kind) {
   if (val != "") return val;
   val= search_metadata (subtree (et, rp), kind);
   if (val != "") return val;
-  if (kind == "title") return utf8_to_cork (as_string (tail (get_name ())));
+  if (kind == "title") return as_string (tail (get_name ()));
 #ifndef OS_MINGW
   if (kind == "author" &&
       !is_none (resolve_in_path ("finger")) &&
       !is_none (resolve_in_path ("sed"))) {
     string val= var_eval_system ("finger `whoami` | sed -e '/Name/!d' -e 's/.*Name: //'");
-    if (N(val) > 1) return utf8_to_cork (val);
+    if (N(val) > 1) return val;
   }
 #endif
   return "";

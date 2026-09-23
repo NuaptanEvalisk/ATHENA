@@ -136,15 +136,37 @@ private slots:
     using namespace athena::text;
     using namespace athena::document;
     const auto& registry= standard_named_symbols ();
-    QCOMPARE (registry.size (), std::size_t (10));
+    QCOMPARE (registry.size (), std::size_t (869));
     QVERIFY (!registry.lookup ("unknown:symbol"));
     QVERIFY (!registry.lookup ("<mathD>"));
+    const auto* native_mathd= registry.lookup ("texmacs:mathD");
+    QVERIFY (native_mathd && native_mathd->glyph_utf8 == "D" &&
+             native_mathd->virtual_font.empty ());
+    const auto* virtual_backassign= registry.lookup ("texmacs:backassign");
+    QVERIFY (virtual_backassign && virtual_backassign->glyph_utf8.empty () &&
+             virtual_backassign->virtual_font == "emu-operators" &&
+             virtual_backassign->virtual_symbol == "backassign");
+    const auto* idotsint= registry.lookup ("texmacs:idotsint");
+    QVERIFY (idotsint && idotsint->op_type == OP_UNARY &&
+             idotsint->virtual_font == "tradi-long");
+    const auto* native_recipe= registry.lookup ("texmacs:Yleft");
+    QVERIFY (native_recipe && native_recipe->glyph_utf8.empty () &&
+             native_recipe->virtual_font.empty () && native_recipe->recipe &&
+             native_recipe->recipe->kind == named_symbol_recipe_kind::rotate);
     QVERIFY_THROWS_EXCEPTION (std::invalid_argument, named_symbol_registry ("{}"));
     const std::string entry= R"({"identity":"test:symbol","glyph":"x","math_class":"symbol","slant":"upright"})";
     QVERIFY_THROWS_EXCEPTION (std::invalid_argument,
       named_symbol_registry ("{\"version\":1,\"symbols\":[" + entry + "," + entry + "]}"));
     QVERIFY_THROWS_EXCEPTION (std::invalid_argument, named_symbol_registry (
       R"({"version":1,"symbols":[{"identity":"test:symbol","glyph":"x","math_class":"typo","slant":"upright"}]})"));
+    QVERIFY_THROWS_EXCEPTION (std::invalid_argument, named_symbol_registry (
+      R"({"version":1,"symbols":[{"identity":"test:symbol","glyph":"x","virtual_font":"v","virtual_symbol":"s","math_class":"symbol","slant":"upright"}]})"));
+    QVERIFY_THROWS_EXCEPTION (std::invalid_argument, named_symbol_registry (
+      R"({"version":1,"symbols":[{"identity":"test:symbol","virtual_font":"v","math_class":"symbol","slant":"upright"}]})"));
+    QVERIFY_THROWS_EXCEPTION (std::invalid_argument, named_symbol_registry (
+      R"({"version":1,"symbols":[{"identity":"test:symbol","glyph":"x","recipe":["rotate",90,"x"],"math_class":"symbol","slant":"upright"}]})"));
+    QVERIFY_THROWS_EXCEPTION (std::invalid_argument, named_symbol_registry (
+      R"({"version":1,"symbols":[{"identity":"test:symbol","recipe":["rotate",900,"x"],"math_class":"symbol","slant":"upright"}]})"));
 
     drd_info drd ("utf8-symbols", std_drd);
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
@@ -163,11 +185,11 @@ private slots:
       const string identity= string ("texmacs:") * name;
       const auto* definition= registry.lookup (std::string_view (identity.data (), N(identity)));
       QVERIFY (definition);
-      int legacy_position= 0;
-      QCOMPARE (math_language ("std-math")->advance (
-        tree (string ("<") * name * ">"), legacy_position)->op_type,
-        definition->op_type);
       const tree symbol (NAMED_SYMBOL, identity);
+      int semantic_position= 0;
+      QCOMPARE (math_language ("std-math")->advance (
+        symbol, semantic_position)->op_type,
+        definition->op_type);
       const auto imported= import_legacy_document (
         tree (DOCUMENT, string ("<") * name * ">"), legacy).document;
       QVERIFY (imported == tree (DOCUMENT, tree (CONCAT, symbol)));
@@ -209,6 +231,24 @@ private slots:
         const auto expanded_caret= expanded->find_box_path (path (endpoint), found);
         QVERIFY (found && expanded->find_tree_path (expanded_caret) == path (0, endpoint));
       }
+    }
+    for (const char* identity: {"texmacs:Yleft", "texmacs:Yright",
+                                "texmacs:curlywedgeuparrow",
+                                "texmacs:curlywedgedownarrow",
+                                "texmacs:curlyveeuparrow",
+                                "texmacs:curlyveedownarrow",
+                                "texmacs:leftrightarroweq",
+                                "texmacs:subsetpluseq",
+                                "texmacs:supsetpluseq",
+                                "texmacs:longequivlim"}) {
+      const auto* definition= registry.lookup (identity);
+      QVERIFY (definition && definition->recipe);
+      const tree symbol (NAMED_SYMBOL, string (identity));
+      auto items= typeset_concat (env, symbol, path (0));
+      QCOMPARE (N(items), 1);
+      QCOMPARE (items[0]->op_type, definition->op_type);
+      QVERIFY (items[0]->b->w () > 0);
+      QVERIFY (items[0]->b->h () > 0);
     }
     const tree unknown (NAMED_SYMBOL, "unregistered:symbol");
     QVERIFY (env->exec (unknown) == unknown);

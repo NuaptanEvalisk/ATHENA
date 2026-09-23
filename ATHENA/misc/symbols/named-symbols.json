@@ -1,15 +1,5558 @@
 {
   "version": 1,
   "symbols": [
-    {"identity": "texmacs:mathD", "math_class": "unary", "glyph": "D", "slant": "upright"},
-    {"identity": "texmacs:mathd", "math_class": "unary", "glyph": "d", "slant": "upright"},
-    {"identity": "texmacs:mathe", "math_class": "symbol", "glyph": "e", "slant": "upright"},
-    {"identity": "texmacs:mathi", "math_class": "symbol", "glyph": "i", "slant": "upright"},
-    {"identity": "texmacs:mathcatalan", "math_class": "symbol", "glyph": "C", "slant": "italic"},
-    {"identity": "texmacs:mathGamma", "math_class": "symbol", "glyph": "\u0393", "slant": "upright"},
-    {"identity": "texmacs:mathLaplace", "math_class": "unary", "glyph": "\u0394", "slant": "upright"},
-    {"identity": "texmacs:matheuler", "math_class": "symbol", "glyph": "\u03b3", "slant": "upright"},
-    {"identity": "texmacs:mathlambda", "math_class": "symbol", "glyph": "\u03bb", "slant": "upright"},
-    {"identity": "texmacs:mathpi", "math_class": "symbol", "glyph": "\u03c0", "slant": "upright"}
+    {
+      "identity": "texmacs:mathD",
+      "math_class": "unary",
+      "glyph": "D",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:mathd",
+      "math_class": "unary",
+      "glyph": "d",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:mathe",
+      "math_class": "symbol",
+      "glyph": "e",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:mathi",
+      "math_class": "symbol",
+      "glyph": "i",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:mathcatalan",
+      "math_class": "symbol",
+      "glyph": "C",
+      "slant": "italic"
+    },
+    {
+      "identity": "texmacs:mathGamma",
+      "math_class": "symbol",
+      "glyph": "Γ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:mathLaplace",
+      "math_class": "unary",
+      "glyph": "Δ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:matheuler",
+      "math_class": "symbol",
+      "glyph": "γ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:mathlambda",
+      "math_class": "symbol",
+      "glyph": "λ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:mathpi",
+      "math_class": "symbol",
+      "glyph": "π",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Backepsilon",
+      "math_class": "symbol",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "Backepsilon",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Backsigma",
+      "math_class": "symbol",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "Backsigma",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:DashV",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "DashV",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:DashVv",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "DashVv",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Dashv",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "Dashv",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Exists",
+      "math_class": "prefix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "Exists",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:LRleftrightarrow",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "LRleftrightarrow",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Leftarrowlim",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "Leftarrowlim",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Leftrightarrowlim",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "Leftrightarrowlim",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Llongleftarrow",
+      "math_class": "infix",
+      "virtual_font": "emu-arrows",
+      "virtual_symbol": "Llongleftarrow",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Llongleftrightarrow",
+      "math_class": "infix",
+      "virtual_font": "emu-arrows",
+      "virtual_symbol": "Llongleftrightarrow",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Llongrightarrow",
+      "math_class": "infix",
+      "virtual_font": "emu-arrows",
+      "virtual_symbol": "Llongrightarrow",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Longdownarrow",
+      "math_class": "symbol",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "Longdownarrow",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Longleftarrowlim",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "Longleftarrowlim",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Longleftrightarrowlim",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "Longleftrightarrowlim",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Longrightarrowlim",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "Longrightarrowlim",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Longuparrow",
+      "math_class": "symbol",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "Longuparrow",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Longupdownarrow",
+      "math_class": "symbol",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "Longupdownarrow",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Rightarrowlim",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "Rightarrowlim",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:VDash",
+      "math_class": "prefix-infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "VDash",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:VvDash",
+      "math_class": "prefix-infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "VvDash",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:asympasymp",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "asympasymp",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:backassign",
+      "math_class": "infix",
+      "virtual_font": "emu-operators",
+      "virtual_symbol": "backassign",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:barsuchthat",
+      "math_class": "middle-bracket",
+      "virtual_font": "emu-operators",
+      "virtual_symbol": "barsuchthat",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:blacktrianglelefteq",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "blacktrianglelefteq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:blacktrianglelefteqslant",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "blacktrianglelefteqslant",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:blacktrianglerighteq",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "blacktrianglerighteq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:blacktrianglerighteqslant",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "blacktrianglerighteqslant",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:box",
+      "math_class": "symbol",
+      "virtual_font": "emu-operators",
+      "virtual_symbol": "box",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:boxbar",
+      "math_class": "infix",
+      "virtual_font": "emu-operators",
+      "virtual_symbol": "boxbar",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:btimes",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "btimes",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:cdotslim",
+      "math_class": "symbol",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "cdotslim",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:colons",
+      "math_class": "symbol",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "colons",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:dashV",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "dashV",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:dashVv",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "dashVv",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:divides",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "divides",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:dotast",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "dotast",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:dotgeq",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "dotgeq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:dotgeqslant",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "dotgeqslant",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:dotminus",
+      "math_class": "prefix-infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "dotminus",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:dotsucc",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "dotsucc",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:dotsucccurlyeq",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "dotsucccurlyeq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:dotsucceq",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "dotsucceq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:dottimes",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "dottimes",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:downequal",
+      "math_class": "symbol",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "downequal",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:downsquigarrow",
+      "math_class": "symbol",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "downsquigarrow",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:equallim",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "equallim",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:fourleftarrows",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "fourleftarrows",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:fourrightarrows",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "fourrightarrows",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:geangle",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "geangle",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:gebar",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "gebar",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:geleangle",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "geleangle",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:geqangle",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "geqangle",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ggeq",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "ggeq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:gggeq",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "gggeq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:gvertneqq",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "gvertneqq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:hdots",
+      "math_class": "symbol",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "hdots",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:hookdownarrow",
+      "math_class": "symbol",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "hookdownarrow",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:hookuparrow",
+      "math_class": "symbol",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "hookuparrow",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:imath",
+      "math_class": "symbol",
+      "virtual_font": "emu-operators",
+      "virtual_symbol": "imath",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:jmath",
+      "math_class": "symbol",
+      "virtual_font": "emu-operators",
+      "virtual_symbol": "jmath",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:leangle",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "leangle",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:lebar",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "lebar",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:leftarrowlim",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "leftarrowlim",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:leftprec",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "leftprec",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:leftpreceq",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "leftpreceq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:leftrightarrowlim",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "leftrightarrowlim",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:leftrightsquigarrowlim",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "leftrightsquigarrowlim",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:leftsquigarrowlim",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "leftsquigarrowlim",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:lefttimesthree",
+      "math_class": "infix",
+      "virtual_font": "emu-operators",
+      "virtual_symbol": "lefttimesthree",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:legeangle",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "legeangle",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:leqangle",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "leqangle",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:leqdot",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "leqdot",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:leqslantdot",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "leqslantdot",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:lleq",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "lleq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:llleq",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "llleq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longDashV",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longDashV",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longDashVv",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longDashVv",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longDashv",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longDashv",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longVDash",
+      "math_class": "prefix-infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longVDash",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longVdash",
+      "math_class": "prefix-infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longVdash",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longVvDash",
+      "math_class": "prefix-infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longVvDash",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longVvdash",
+      "math_class": "prefix-infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longVvdash",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longdashV",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longdashV",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longdashVv",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longdashVv",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longdashv",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longdashv",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longdownarrow",
+      "math_class": "symbol",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longdownarrow",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longdownequal",
+      "math_class": "symbol",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longdownequal",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longdownminus",
+      "math_class": "symbol",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longdownminus",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longequallim",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longequallim",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longequiv",
+      "math_class": "infix",
+      "virtual_font": "emu-arrows",
+      "virtual_symbol": "longequiv",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longfourleftarrows",
+      "math_class": "infix",
+      "virtual_font": "emu-arrows",
+      "virtual_symbol": "longfourleftarrows",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longfourrightarrows",
+      "math_class": "infix",
+      "virtual_font": "emu-arrows",
+      "virtual_symbol": "longfourrightarrows",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longhookdownarrow",
+      "math_class": "symbol",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longhookdownarrow",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longhookleftarrow",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longhookleftarrow",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longhookrightarrow",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longhookrightarrow",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longhookuparrow",
+      "math_class": "symbol",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longhookuparrow",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longleftarrowlim",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longleftarrowlim",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longleftarrowtriangle",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longleftarrowtriangle",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longleftharpoondown",
+      "math_class": "infix",
+      "virtual_font": "emu-arrows",
+      "virtual_symbol": "longleftharpoondown",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longleftharpoonup",
+      "math_class": "infix",
+      "virtual_font": "emu-arrows",
+      "virtual_symbol": "longleftharpoonup",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longleftleftarrows",
+      "math_class": "infix",
+      "virtual_font": "emu-arrows",
+      "virtual_symbol": "longleftleftarrows",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longleftrightarrowlim",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longleftrightarrowlim",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longleftrightarrows",
+      "math_class": "infix",
+      "virtual_font": "emu-arrows",
+      "virtual_symbol": "longleftrightarrows",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longleftrightarrowtriangle",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longleftrightarrowtriangle",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longleftrightharpoons",
+      "math_class": "infix",
+      "virtual_font": "emu-arrows",
+      "virtual_symbol": "longleftrightharpoons",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longmapmulti",
+      "math_class": "infix",
+      "virtual_font": "emu-arrows",
+      "virtual_symbol": "longmapmulti",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longmapsdown",
+      "math_class": "symbol",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longmapsdown",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longmapstolim",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longmapstolim",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longmapstotriangle",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longmapstotriangle",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longmapsup",
+      "math_class": "symbol",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longmapsup",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longmultimap",
+      "math_class": "infix",
+      "virtual_font": "emu-arrows",
+      "virtual_symbol": "longmultimap",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longrightarrowlim",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longrightarrowlim",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longrightarrowtriangle",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longrightarrowtriangle",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longrightharpoondown",
+      "math_class": "infix",
+      "virtual_font": "emu-arrows",
+      "virtual_symbol": "longrightharpoondown",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longrightharpoonup",
+      "math_class": "infix",
+      "virtual_font": "emu-arrows",
+      "virtual_symbol": "longrightharpoonup",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longrightleftarrows",
+      "math_class": "infix",
+      "virtual_font": "emu-arrows",
+      "virtual_symbol": "longrightleftarrows",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longrightleftharpoons",
+      "math_class": "infix",
+      "virtual_font": "emu-arrows",
+      "virtual_symbol": "longrightleftharpoons",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longrightrightarrows",
+      "math_class": "infix",
+      "virtual_font": "emu-arrows",
+      "virtual_symbol": "longrightrightarrows",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longthreeleftarrows",
+      "math_class": "infix",
+      "virtual_font": "emu-arrows",
+      "virtual_symbol": "longthreeleftarrows",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longthreerightarrows",
+      "math_class": "infix",
+      "virtual_font": "emu-arrows",
+      "virtual_symbol": "longthreerightarrows",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longtwoheadleftarrow",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longtwoheadleftarrow",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longtwoheadrightarrow",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longtwoheadrightarrow",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longuparrow",
+      "math_class": "symbol",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longuparrow",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longupdownarrow",
+      "math_class": "symbol",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longupdownarrow",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longvDash",
+      "math_class": "prefix-infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longvDash",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longvdash",
+      "math_class": "prefix-infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longvdash",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:lvertneqq",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "lvertneqq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:mapmulti",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "mapmulti",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:mapsdown",
+      "math_class": "symbol",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "mapsdown",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:mapstolim",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "mapstolim",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:mapsup",
+      "math_class": "symbol",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "mapsup",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:mho",
+      "math_class": "symbol",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "mho",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:minusassign",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "minusassign",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nDashV",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "nDashV",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nDashVv",
+      "math_class": "infix",
+      "virtual_font": "emu-relations",
+      "virtual_symbol": "nDashVv",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nDashv",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "nDashv",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nVvDash",
+      "math_class": "prefix-infix",
+      "virtual_font": "emu-relations",
+      "virtual_symbol": "nVvDash",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nVvdash",
+      "math_class": "prefix-infix",
+      "virtual_font": "emu-relations",
+      "virtual_symbol": "nVvdash",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:napproxeq",
+      "math_class": "infix",
+      "virtual_font": "emu-relations",
+      "virtual_symbol": "napproxeq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nasympasymp",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "nasympasymp",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nblacktriangleleft",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "nblacktriangleleft",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nblacktrianglelefteq",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "nblacktrianglelefteq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nblacktrianglelefteqslant",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "nblacktrianglelefteqslant",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nblacktriangleright",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "nblacktriangleright",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nblacktrianglerighteq",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "nblacktrianglerighteq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nblacktrianglerighteqslant",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "nblacktrianglerighteqslant",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ndashV",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "ndashV",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ndashVv",
+      "math_class": "infix",
+      "virtual_font": "emu-relations",
+      "virtual_symbol": "ndashVv",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ndashv",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "ndashv",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ndivides",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "ndivides",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ngeqq",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "ngeqq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ngeqslant",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "ngeqslant",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ngg",
+      "math_class": "infix",
+      "virtual_font": "tradi-negate",
+      "virtual_symbol": "ngg",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nggeq",
+      "math_class": "infix",
+      "virtual_font": "tradi-negate",
+      "virtual_symbol": "nggeq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nggg",
+      "math_class": "infix",
+      "virtual_font": "tradi-negate",
+      "virtual_symbol": "nggg",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ngggeq",
+      "math_class": "infix",
+      "virtual_font": "tradi-negate",
+      "virtual_symbol": "ngggeq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ngtrapprox",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "ngtrapprox",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ngtrsim",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "ngtrsim",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nleqq",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "nleqq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nleqslant",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "nleqslant",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nlessapprox",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "nlessapprox",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nlesssim",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "nlesssim",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nll",
+      "math_class": "infix",
+      "virtual_font": "tradi-negate",
+      "virtual_symbol": "nll",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nlleq",
+      "math_class": "infix",
+      "virtual_font": "tradi-negate",
+      "virtual_symbol": "nlleq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nlll",
+      "math_class": "infix",
+      "virtual_font": "tradi-negate",
+      "virtual_symbol": "nlll",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nllleq",
+      "math_class": "infix",
+      "virtual_font": "tradi-negate",
+      "virtual_symbol": "nllleq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nprecapprox",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "nprecapprox",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:npreceq",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "npreceq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:npreceqq",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "npreceqq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nprecprec",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "nprecprec",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nprecpreceq",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "nprecpreceq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nprecprecprec",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "nprecprecprec",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nprecprecpreceq",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "nprecprecpreceq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nprecsim",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "nprecsim",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nsimsim",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "nsimsim",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nsqsubset",
+      "math_class": "infix",
+      "virtual_font": "tradi-negate",
+      "virtual_symbol": "nsqsubset",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nsqsubseteqq",
+      "math_class": "infix",
+      "virtual_font": "emu-setrels",
+      "virtual_symbol": "nsqsubseteqq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nsqsupset",
+      "math_class": "infix",
+      "virtual_font": "tradi-negate",
+      "virtual_symbol": "nsqsupset",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nsqsupseteqq",
+      "math_class": "infix",
+      "virtual_font": "emu-setrels",
+      "virtual_symbol": "nsqsupseteqq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nsubseteqq",
+      "math_class": "infix",
+      "virtual_font": "emu-setrels",
+      "virtual_symbol": "nsubseteqq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nsuccapprox",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "nsuccapprox",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nsucceq",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "nsucceq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nsucceqq",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "nsucceqq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nsuccsim",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "nsuccsim",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nsuccsucc",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "nsuccsucc",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nsuccsucceq",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "nsuccsucceq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nsuccsuccsucc",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "nsuccsuccsucc",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nsuccsuccsucceq",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "nsuccsuccsucceq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nsupseteqq",
+      "math_class": "infix",
+      "virtual_font": "emu-setrels",
+      "virtual_symbol": "nsupseteqq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ntrianglelefteqslant",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "ntrianglelefteqslant",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ntrianglerighteqslant",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "ntrianglerighteqslant",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ntriplesim",
+      "math_class": "infix",
+      "virtual_font": "emu-relations",
+      "virtual_symbol": "ntriplesim",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:obar",
+      "math_class": "infix",
+      "virtual_font": "emu-operators",
+      "virtual_symbol": "obar",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:odot",
+      "math_class": "infix",
+      "virtual_font": "emu-operators",
+      "virtual_symbol": "odot",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ominus",
+      "math_class": "prefix-infix",
+      "virtual_font": "emu-operators",
+      "virtual_symbol": "ominus",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:oplus",
+      "math_class": "prefix-infix",
+      "virtual_font": "emu-operators",
+      "virtual_symbol": "oplus",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:oslash",
+      "math_class": "infix",
+      "virtual_font": "emu-operators",
+      "virtual_symbol": "oslash",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:otimes",
+      "math_class": "infix",
+      "virtual_font": "emu-operators",
+      "virtual_symbol": "otimes",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:plusassign",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "plusassign",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:pplus",
+      "math_class": "prefix-infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "pplus",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:preccurlyeqdot",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "preccurlyeqdot",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:precdot",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "precdot",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:preceqdot",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "preceqdot",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:preceqq",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "preceqq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:precneq",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "precneq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:precprec",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "precprec",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:precpreceq",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "precpreceq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:precprecprec",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "precprecprec",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:precprecpreceq",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "precprecpreceq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:precvertneqq",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "precvertneqq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:rightarrowlim",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "rightarrowlim",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:rightsquigarrowlim",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "rightsquigarrowlim",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:righttimesthree",
+      "math_class": "infix",
+      "virtual_font": "emu-operators",
+      "virtual_symbol": "righttimesthree",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:shortmid",
+      "math_class": "infix",
+      "virtual_font": "emu-operators",
+      "virtual_symbol": "shortmid",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:simsim",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "simsim",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:sqsubseteqq",
+      "math_class": "infix",
+      "virtual_font": "emu-setrels",
+      "virtual_symbol": "sqsubseteqq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:sqsubsetneq",
+      "math_class": "infix",
+      "virtual_font": "emu-setrels",
+      "virtual_symbol": "sqsubsetneq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:sqsubsetneqq",
+      "math_class": "infix",
+      "virtual_font": "emu-setrels",
+      "virtual_symbol": "sqsubsetneqq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:sqsupseteqq",
+      "math_class": "infix",
+      "virtual_font": "emu-setrels",
+      "virtual_symbol": "sqsupseteqq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:sqsupsetneq",
+      "math_class": "infix",
+      "virtual_font": "emu-setrels",
+      "virtual_symbol": "sqsupsetneq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:sqsupsetneqq",
+      "math_class": "infix",
+      "virtual_font": "emu-setrels",
+      "virtual_symbol": "sqsupsetneqq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:subsetplus",
+      "math_class": "infix",
+      "virtual_font": "emu-setrels",
+      "virtual_symbol": "subsetplus",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:subsetsim",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "subsetsim",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:succeqq",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "succeqq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:succeqright",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "succeqright",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:succneq",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "succneq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:succright",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "succright",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:succsucc",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "succsucc",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:succsucceq",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "succsucceq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:succsuccsucc",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "succsuccsucc",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:succsuccsucceq",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "succsuccsucceq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:succvertneqq",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "succvertneqq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:suchthat",
+      "math_class": "middle-bracket",
+      "virtual_font": "emu-operators",
+      "virtual_symbol": "suchthat",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:supsetplus",
+      "math_class": "infix",
+      "virtual_font": "emu-setrels",
+      "virtual_symbol": "supsetplus",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:supsetsim",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "supsetsim",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:thickapprox",
+      "math_class": "infix",
+      "virtual_font": "emu-relations",
+      "virtual_symbol": "thickapprox",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:thicksim",
+      "math_class": "infix",
+      "virtual_font": "emu-relations",
+      "virtual_symbol": "thicksim",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:threeleftarrows",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "threeleftarrows",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:threerightarrows",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "threerightarrows",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:transtype",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "transtype",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:trianglelefteqslant",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "trianglelefteqslant",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:trianglerighteqslant",
+      "math_class": "infix",
+      "virtual_font": "emu-orderings",
+      "virtual_symbol": "trianglerighteqslant",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:triplesim",
+      "math_class": "infix",
+      "virtual_font": "emu-relations",
+      "virtual_symbol": "triplesim",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ttimes",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "ttimes",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:updownsquigarrow",
+      "math_class": "symbol",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "updownsquigarrow",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:upsquigarrow",
+      "math_class": "symbol",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "upsquigarrow",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:varsqsubsetneq",
+      "math_class": "infix",
+      "virtual_font": "emu-setrels",
+      "virtual_symbol": "varsqsubsetneq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:varsqsubsetneqq",
+      "math_class": "infix",
+      "virtual_font": "emu-setrels",
+      "virtual_symbol": "varsqsubsetneqq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:varsqsupsetneq",
+      "math_class": "infix",
+      "virtual_font": "emu-setrels",
+      "virtual_symbol": "varsqsupsetneq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:varsqsupsetneqq",
+      "math_class": "infix",
+      "virtual_font": "emu-setrels",
+      "virtual_symbol": "varsqsupsetneqq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:varsubsetneq",
+      "math_class": "infix",
+      "virtual_font": "emu-setrels",
+      "virtual_symbol": "varsubsetneq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:varsubsetneqq",
+      "math_class": "infix",
+      "virtual_font": "emu-setrels",
+      "virtual_symbol": "varsubsetneqq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:varsupsetneq",
+      "math_class": "infix",
+      "virtual_font": "emu-setrels",
+      "virtual_symbol": "varsupsetneq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:varsupsetneqq",
+      "math_class": "infix",
+      "virtual_font": "emu-setrels",
+      "virtual_symbol": "varsupsetneqq",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:idotsint",
+      "math_class": "unary",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "big-idotsint-1",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Im",
+      "math_class": "unary",
+      "glyph": "ℑ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Re",
+      "math_class": "unary",
+      "glyph": "ℜ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:asterisk",
+      "math_class": "symbol",
+      "glyph": "∗",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:bigcirc",
+      "math_class": "infix",
+      "glyph": "◯",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:circledast",
+      "math_class": "infix",
+      "virtual_font": "emu-operators",
+      "virtual_symbol": "circledast",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:circledcirc",
+      "math_class": "infix",
+      "glyph": "⊚",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:dag",
+      "math_class": "symbol",
+      "glyph": "†",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ddag",
+      "math_class": "symbol",
+      "glyph": "‡",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:dotamalg",
+      "math_class": "prefix-infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "dotamalg",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:dotoplus",
+      "math_class": "prefix-infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "dotoplus",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:dototimes",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "dototimes",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:fullmoon",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "fullmoon",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:gluon",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "gluon",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:hbar",
+      "math_class": "symbol",
+      "glyph": "ℏ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:homsim",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "homsim",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:lefthook",
+      "math_class": "infix",
+      "virtual_font": "emu-fundamental",
+      "virtual_symbol": "lefthook",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:mars",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "mars",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:newmoon",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "newmoon",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:notin",
+      "math_class": "infix",
+      "virtual_font": "tradi-negate",
+      "virtual_symbol": "notin",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:notni",
+      "math_class": "infix",
+      "virtual_font": "tradi-negate",
+      "virtual_symbol": "notni",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nshortmid",
+      "math_class": "infix",
+      "glyph": "∤",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nshortparallel",
+      "math_class": "infix",
+      "glyph": "∦",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:perp",
+      "math_class": "infix",
+      "glyph": "⊥",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:photon",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "photon",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:righthook",
+      "math_class": "infix",
+      "virtual_font": "emu-fundamental",
+      "virtual_symbol": "righthook",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:shortparallel",
+      "math_class": "infix",
+      "glyph": "∥",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:smallsetminus",
+      "math_class": "infix",
+      "glyph": "∖",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:triangle",
+      "math_class": "symbol",
+      "virtual_font": "emu-operators",
+      "virtual_symbol": "triangle",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:varnothing",
+      "math_class": "symbol",
+      "glyph": "∅",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:varshortmid",
+      "math_class": "infix",
+      "virtual_font": "emu-fundamental",
+      "virtual_symbol": "varshortmid",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:vect",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "vect",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:venus",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "venus",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:checked",
+      "math_class": "symbol",
+      "glyph": "✓",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:diagdown",
+      "math_class": "infix",
+      "glyph": "⟍",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:diagup",
+      "math_class": "infix",
+      "glyph": "⟋",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:endofline",
+      "math_class": "infix",
+      "glyph": "↵",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:eth",
+      "math_class": "infix",
+      "glyph": "ð",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:fallingdotseq",
+      "math_class": "infix",
+      "glyph": "≒",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:kreuz",
+      "math_class": "symbol",
+      "glyph": "✠",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longLeftarrow",
+      "math_class": "infix",
+      "glyph": "⟸",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longLeftrightarrow",
+      "math_class": "infix",
+      "glyph": "⟺",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longRightarrow",
+      "math_class": "infix",
+      "glyph": "⟹",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:negate",
+      "math_class": "infix",
+      "glyph": "̸",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:risingdotseq",
+      "math_class": "infix",
+      "glyph": "≓",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:shortleftarrow",
+      "math_class": "infix",
+      "glyph": "←",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:shortrightarrow",
+      "math_class": "infix",
+      "glyph": "→",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:smalldash",
+      "math_class": "infix",
+      "glyph": "−",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:smallfrown",
+      "math_class": "symbol",
+      "glyph": "⌢",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:smallsmile",
+      "math_class": "symbol",
+      "glyph": "⌣",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:varpropto",
+      "math_class": "infix",
+      "glyph": "∝",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:bell",
+      "math_class": "symbol",
+      "glyph": "🔔",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:pointer",
+      "math_class": "infix",
+      "glyph": "☞",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Bbbk",
+      "math_class": "infix",
+      "glyph": "𝕜",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Box",
+      "math_class": "symbol",
+      "virtual_font": "emu-operators",
+      "virtual_symbol": "Box",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:DOWNarrow",
+      "math_class": "infix",
+      "glyph": "▾",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:LEFTarrow",
+      "math_class": "infix",
+      "glyph": "◂",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:RIGHTarrow",
+      "math_class": "infix",
+      "glyph": "▸",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:UParrow",
+      "math_class": "infix",
+      "glyph": "▴",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:agemO",
+      "math_class": "infix",
+      "glyph": "℧",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:anglege",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "anglege",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:anglele",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "anglele",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:binampersand",
+      "math_class": "infix",
+      "glyph": "&",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:boxempty",
+      "math_class": "symbol",
+      "virtual_font": "emu-operators",
+      "virtual_symbol": "boxempty",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:cdummy",
+      "math_class": "symbol",
+      "glyph": "⋅",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:dotmp",
+      "math_class": "prefix-infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "dotmp",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:dotpm",
+      "math_class": "prefix-infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "dotpm",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:exterior",
+      "math_class": "infix",
+      "glyph": "∧",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ge",
+      "math_class": "infix",
+      "glyph": "≥",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:lVert",
+      "math_class": "opening-bracket",
+      "glyph": "‖",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:large-llbracket",
+      "math_class": "infix",
+      "glyph": "⟦",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:large-rrbracket",
+      "math_class": "infix",
+      "glyph": "⟧",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:le",
+      "math_class": "infix",
+      "glyph": "≤",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:leadsto",
+      "math_class": "infix",
+      "virtual_font": "tradi-negate",
+      "virtual_symbol": "leadsto",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:leftmap",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "leftmap",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:leftrightmap",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "leftrightmap",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:lhd",
+      "math_class": "infix",
+      "glyph": "⊲",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longupequal",
+      "math_class": "symbol",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longupequal",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longupminus",
+      "math_class": "symbol",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "longupminus",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ne",
+      "math_class": "infix",
+      "virtual_font": "tradi-negate",
+      "virtual_symbol": "ne",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nleadsto",
+      "math_class": "infix",
+      "virtual_font": "tradi-negate",
+      "virtual_symbol": "nleadsto",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nobracket",
+      "math_class": "middle-bracket",
+      "glyph": "​",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nosymbol",
+      "math_class": "symbol",
+      "glyph": "​",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:oempty",
+      "math_class": "symbol",
+      "virtual_font": "emu-fundamental",
+      "virtual_symbol": "oempty",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:overassign",
+      "math_class": "infix",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "overassign",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:rVert",
+      "math_class": "closing-bracket",
+      "glyph": "‖",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:rhd",
+      "math_class": "infix",
+      "glyph": "⊳",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:rightmap",
+      "math_class": "infix",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "rightmap",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:to",
+      "math_class": "infix",
+      "glyph": "→",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:triangleup",
+      "math_class": "infix",
+      "virtual_font": "emu-operators",
+      "virtual_symbol": "triangleup",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:um",
+      "math_class": "prefix",
+      "glyph": "−",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ump",
+      "math_class": "prefix",
+      "glyph": "∓",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:unlhd",
+      "math_class": "infix",
+      "glyph": "⊴",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:unrhd",
+      "math_class": "infix",
+      "glyph": "⊵",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:upequal",
+      "math_class": "symbol",
+      "virtual_font": "tradi-long",
+      "virtual_symbol": "upequal",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:upl",
+      "math_class": "prefix",
+      "glyph": "+",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:upm",
+      "math_class": "prefix",
+      "glyph": "±",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:varangle",
+      "math_class": "infix",
+      "glyph": "∢",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:varlightning",
+      "math_class": "infix",
+      "glyph": "↯",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:wasylhd",
+      "math_class": "infix",
+      "glyph": "⊲",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:wasyrhd",
+      "math_class": "infix",
+      "glyph": "⊳",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:wasysqsubset",
+      "math_class": "infix",
+      "glyph": "⊏",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:wasysqsupset",
+      "math_class": "infix",
+      "glyph": "⊐",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:wasytherefore",
+      "math_class": "infix",
+      "glyph": "∴",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:wasyunlhd",
+      "math_class": "infix",
+      "glyph": "⊴",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:wasyunrhd",
+      "math_class": "infix",
+      "glyph": "⊵",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:APLbox",
+      "math_class": "infix",
+      "glyph": "⎕",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:APLdownarrowbox",
+      "math_class": "infix",
+      "glyph": "⍗",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:APLinput",
+      "math_class": "infix",
+      "glyph": "⍞",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:APLleftarrowbox",
+      "math_class": "infix",
+      "glyph": "⍇",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:APLrightarrowbox",
+      "math_class": "infix",
+      "glyph": "⍈",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:APLuparrowbox",
+      "math_class": "infix",
+      "glyph": "⍐",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Alpha",
+      "math_class": "infix",
+      "glyph": "Α",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Beta",
+      "math_class": "infix",
+      "glyph": "Β",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Bowtie",
+      "math_class": "infix",
+      "glyph": "⨝",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Bumpeq",
+      "math_class": "infix",
+      "glyph": "≎",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:CIRCLE",
+      "math_class": "infix",
+      "glyph": "●",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Cap",
+      "math_class": "infix",
+      "glyph": "⋒",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Chi",
+      "math_class": "infix",
+      "glyph": "Χ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Circle",
+      "math_class": "infix",
+      "glyph": "○",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Cup",
+      "math_class": "infix",
+      "glyph": "⋓",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Delta",
+      "math_class": "infix",
+      "glyph": "Δ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Downarrow",
+      "math_class": "infix",
+      "glyph": "⇓",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Epsilon",
+      "math_class": "infix",
+      "glyph": "Ε",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Eta",
+      "math_class": "infix",
+      "glyph": "Η",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Gamma",
+      "math_class": "infix",
+      "glyph": "Γ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Iota",
+      "math_class": "infix",
+      "glyph": "Ι",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Kappa",
+      "math_class": "infix",
+      "glyph": "Κ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:LEFTCIRCLE",
+      "math_class": "infix",
+      "glyph": "◖",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Lambda",
+      "math_class": "infix",
+      "glyph": "Λ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Leftarrow",
+      "math_class": "infix",
+      "glyph": "⇐",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Leftrightarrow",
+      "math_class": "infix",
+      "glyph": "⇔",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Lleftarrow",
+      "math_class": "infix",
+      "glyph": "⇚",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Longleftarrow",
+      "math_class": "infix",
+      "glyph": "⟸",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Longleftrightarrow",
+      "math_class": "infix",
+      "glyph": "⟺",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Longrightarrow",
+      "math_class": "infix",
+      "glyph": "⟹",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Lsh",
+      "math_class": "infix",
+      "glyph": "↰",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Mho",
+      "math_class": "infix",
+      "glyph": "℧",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Mu",
+      "math_class": "infix",
+      "glyph": "Μ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Nu",
+      "math_class": "infix",
+      "glyph": "Ν",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Omega",
+      "math_class": "infix",
+      "glyph": "Ω",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Omicron",
+      "math_class": "infix",
+      "glyph": "Ο",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Phi",
+      "math_class": "infix",
+      "glyph": "Φ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Pi",
+      "math_class": "infix",
+      "glyph": "Π",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Psi",
+      "math_class": "infix",
+      "glyph": "Ψ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:RIGHTCIRCLE",
+      "math_class": "infix",
+      "glyph": "◗",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Rho",
+      "math_class": "infix",
+      "glyph": "Ρ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Rightarrow",
+      "math_class": "infix",
+      "glyph": "⇒",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Rrightarrow",
+      "math_class": "infix",
+      "glyph": "⇛",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Rsh",
+      "math_class": "infix",
+      "glyph": "↱",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Sigma",
+      "math_class": "infix",
+      "glyph": "Σ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Subset",
+      "math_class": "infix",
+      "glyph": "⋐",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Supset",
+      "math_class": "infix",
+      "glyph": "⋑",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Tau",
+      "math_class": "infix",
+      "glyph": "Τ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Theta",
+      "math_class": "infix",
+      "glyph": "Θ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Thorn",
+      "math_class": "infix",
+      "glyph": "Þ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Uparrow",
+      "math_class": "infix",
+      "glyph": "⇑",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Updownarrow",
+      "math_class": "infix",
+      "glyph": "⇕",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Upsilon",
+      "math_class": "infix",
+      "glyph": "Υ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Vdash",
+      "math_class": "infix",
+      "glyph": "⊩",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Vvdash",
+      "math_class": "infix",
+      "glyph": "⊪",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:XBox",
+      "math_class": "infix",
+      "glyph": "☑",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Xi",
+      "math_class": "infix",
+      "glyph": "Ξ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Zeta",
+      "math_class": "infix",
+      "glyph": "Ζ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:aleph",
+      "math_class": "infix",
+      "glyph": "ℵ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:alpha",
+      "math_class": "infix",
+      "glyph": "α",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:amalg",
+      "math_class": "infix",
+      "glyph": "⨿",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:angle",
+      "math_class": "infix",
+      "glyph": "∠",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:approx",
+      "math_class": "infix",
+      "glyph": "≈",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:approxeq",
+      "math_class": "infix",
+      "glyph": "≊",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:aquarius",
+      "math_class": "infix",
+      "glyph": "♒",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ascnode",
+      "math_class": "infix",
+      "glyph": "☊",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:assign",
+      "math_class": "infix",
+      "glyph": "≔",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ast",
+      "math_class": "infix",
+      "glyph": "∗",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:asymp",
+      "math_class": "infix",
+      "glyph": "≍",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:backepsilon",
+      "math_class": "infix",
+      "glyph": "϶",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:backprime",
+      "math_class": "infix",
+      "glyph": "‵",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:backsim",
+      "math_class": "infix",
+      "glyph": "∽",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:backsimeq",
+      "math_class": "infix",
+      "glyph": "⋍",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:backslash",
+      "math_class": "symbol",
+      "glyph": "\\",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:barwedge",
+      "math_class": "infix",
+      "glyph": "⌅",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:because",
+      "math_class": "infix",
+      "glyph": "∵",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:beta",
+      "math_class": "infix",
+      "glyph": "β",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:beth",
+      "math_class": "infix",
+      "glyph": "ℶ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:between",
+      "math_class": "infix",
+      "glyph": "≬",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:bigstar",
+      "math_class": "infix",
+      "glyph": "★",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:blacklozenge",
+      "math_class": "infix",
+      "glyph": "⧫",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:blacksmiley",
+      "math_class": "infix",
+      "glyph": "☻",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:blacksquare",
+      "math_class": "infix",
+      "glyph": "■",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:blacktriangle",
+      "math_class": "infix",
+      "glyph": "▴",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:blacktriangledown",
+      "math_class": "infix",
+      "glyph": "▾",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:blacktriangleleft",
+      "math_class": "infix",
+      "glyph": "◂",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:blacktriangleright",
+      "math_class": "infix",
+      "glyph": "▸",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:bot",
+      "math_class": "infix",
+      "glyph": "⊥",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:boxast",
+      "math_class": "infix",
+      "glyph": "⧆",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:boxbox",
+      "math_class": "infix",
+      "glyph": "⧈",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:boxbslash",
+      "math_class": "infix",
+      "glyph": "⧅",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:boxcircle",
+      "math_class": "infix",
+      "glyph": "⧇",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:boxdot",
+      "math_class": "infix",
+      "glyph": "⊡",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:boxminus",
+      "math_class": "infix",
+      "glyph": "⊟",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:boxplus",
+      "math_class": "infix",
+      "glyph": "⊞",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:boxslash",
+      "math_class": "infix",
+      "glyph": "⧄",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:boxtimes",
+      "math_class": "infix",
+      "glyph": "⊠",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:brokenvert",
+      "math_class": "infix",
+      "glyph": "¦",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:bullet",
+      "math_class": "infix",
+      "glyph": "•",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:bumpeq",
+      "math_class": "infix",
+      "glyph": "≏",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:cancer",
+      "math_class": "infix",
+      "glyph": "♋",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:cap",
+      "math_class": "infix",
+      "glyph": "∩",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:capricornus",
+      "math_class": "infix",
+      "glyph": "♑",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:cdot",
+      "math_class": "infix",
+      "glyph": "⋅",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:cdots",
+      "math_class": "infix",
+      "glyph": "⋯",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:cent",
+      "math_class": "infix",
+      "glyph": "¢",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:centerdot",
+      "math_class": "infix",
+      "glyph": "·",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:checkmark",
+      "math_class": "infix",
+      "glyph": "✓",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:chi",
+      "math_class": "infix",
+      "glyph": "χ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:circ",
+      "math_class": "infix",
+      "glyph": "∘",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:circeq",
+      "math_class": "infix",
+      "glyph": "≗",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:circlearrowleft",
+      "math_class": "infix",
+      "glyph": "↺",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:circlearrowright",
+      "math_class": "infix",
+      "glyph": "↻",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:circledR",
+      "math_class": "infix",
+      "glyph": "®",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:circledS",
+      "math_class": "infix",
+      "glyph": "Ⓢ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:circleddash",
+      "math_class": "infix",
+      "glyph": "⊝",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:clubsuit",
+      "math_class": "infix",
+      "glyph": "♣",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:complement",
+      "math_class": "infix",
+      "glyph": "∁",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:cong",
+      "math_class": "infix",
+      "glyph": "≅",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:conjunction",
+      "math_class": "infix",
+      "glyph": "☌",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:copyright",
+      "math_class": "infix",
+      "glyph": "©",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:cup",
+      "math_class": "infix",
+      "glyph": "∪",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:curlyeqprec",
+      "math_class": "infix",
+      "glyph": "⋞",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:curlyeqsucc",
+      "math_class": "infix",
+      "glyph": "⋟",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:curlyvee",
+      "math_class": "infix",
+      "glyph": "⋎",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:curlywedge",
+      "math_class": "infix",
+      "glyph": "⋏",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:currency",
+      "math_class": "infix",
+      "glyph": "¤",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:curvearrowleft",
+      "math_class": "infix",
+      "glyph": "↶",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:curvearrowright",
+      "math_class": "infix",
+      "glyph": "↷",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:dagger",
+      "math_class": "infix",
+      "glyph": "†",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:daleth",
+      "math_class": "infix",
+      "glyph": "ℸ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:dashv",
+      "math_class": "infix",
+      "glyph": "⊣",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ddagger",
+      "math_class": "infix",
+      "glyph": "‡",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ddots",
+      "math_class": "infix",
+      "glyph": "⋱",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:degree",
+      "math_class": "infix",
+      "glyph": "°",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:delta",
+      "math_class": "infix",
+      "glyph": "δ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:descnode",
+      "math_class": "infix",
+      "glyph": "☋",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:dh",
+      "math_class": "infix",
+      "glyph": "ð",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:diameter",
+      "math_class": "infix",
+      "glyph": "⌀",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:diamond",
+      "math_class": "infix",
+      "glyph": "⋄",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:diamondsuit",
+      "math_class": "infix",
+      "glyph": "♦",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:digamma",
+      "math_class": "infix",
+      "glyph": "ϝ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:div",
+      "math_class": "infix",
+      "glyph": "÷",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:divideontimes",
+      "math_class": "infix",
+      "glyph": "⋇",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:doteq",
+      "math_class": "infix",
+      "glyph": "≐",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:doteqdot",
+      "math_class": "infix",
+      "glyph": "≑",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:dotplus",
+      "math_class": "infix",
+      "glyph": "∔",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:doublebarwedge",
+      "math_class": "infix",
+      "glyph": "⌆",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:downarrow",
+      "math_class": "infix",
+      "glyph": "↓",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:downdownarrows",
+      "math_class": "infix",
+      "glyph": "⇊",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:downharpoonleft",
+      "math_class": "infix",
+      "glyph": "⇃",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:downharpoonright",
+      "math_class": "infix",
+      "glyph": "⇂",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:eighthnote",
+      "math_class": "infix",
+      "glyph": "♪",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ell",
+      "math_class": "infix",
+      "glyph": "ℓ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:emptyset",
+      "math_class": "infix",
+      "glyph": "∅",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:epsilon",
+      "math_class": "infix",
+      "glyph": "ϵ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:eqcirc",
+      "math_class": "infix",
+      "glyph": "≖",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:eqsim",
+      "math_class": "infix",
+      "glyph": "≂",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:eqslantgtr",
+      "math_class": "infix",
+      "glyph": "⪖",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:eqslantless",
+      "math_class": "infix",
+      "glyph": "⪕",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:equiv",
+      "math_class": "infix",
+      "glyph": "≡",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:eta",
+      "math_class": "infix",
+      "glyph": "η",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:exists",
+      "math_class": "infix",
+      "glyph": "∃",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:female",
+      "math_class": "infix",
+      "glyph": "♀",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:flat",
+      "math_class": "infix",
+      "glyph": "♭",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:forall",
+      "math_class": "infix",
+      "glyph": "∀",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:frown",
+      "math_class": "infix",
+      "glyph": "⌢",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:frownie",
+      "math_class": "infix",
+      "glyph": "☹",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:fullnote",
+      "math_class": "infix",
+      "glyph": "𝅝",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:gamma",
+      "math_class": "infix",
+      "glyph": "γ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:gemini",
+      "math_class": "infix",
+      "glyph": "♊",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:geq",
+      "math_class": "infix",
+      "glyph": "≥",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:geqq",
+      "math_class": "infix",
+      "glyph": "≧",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:geqslant",
+      "math_class": "infix",
+      "glyph": "⩾",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:gg",
+      "math_class": "infix",
+      "glyph": "≫",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ggg",
+      "math_class": "infix",
+      "glyph": "⋙",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:gimel",
+      "math_class": "infix",
+      "glyph": "ℷ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:gnapprox",
+      "math_class": "infix",
+      "glyph": "⪊",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:gneq",
+      "math_class": "infix",
+      "glyph": "⪈",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:gneqq",
+      "math_class": "infix",
+      "glyph": "≩",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:gnsim",
+      "math_class": "infix",
+      "glyph": "⋧",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:gtrapprox",
+      "math_class": "infix",
+      "glyph": "⪆",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:gtrdot",
+      "math_class": "infix",
+      "glyph": "⋗",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:gtreqless",
+      "math_class": "infix",
+      "glyph": "⋛",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:gtreqqless",
+      "math_class": "infix",
+      "glyph": "⪌",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:gtrless",
+      "math_class": "infix",
+      "glyph": "≷",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:gtrsim",
+      "math_class": "infix",
+      "glyph": "≳",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:guillemotleft",
+      "math_class": "infix",
+      "glyph": "«",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:guillemotright",
+      "math_class": "infix",
+      "glyph": "»",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:halfnote",
+      "math_class": "infix",
+      "glyph": "𝅗𝅥",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:heartsuit",
+      "math_class": "infix",
+      "glyph": "♥",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:hookleftarrow",
+      "math_class": "infix",
+      "glyph": "↩",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:hookrightarrow",
+      "math_class": "infix",
+      "glyph": "↪",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:hslash",
+      "math_class": "infix",
+      "glyph": "ℏ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:in",
+      "math_class": "infix",
+      "glyph": "∈",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:infty",
+      "math_class": "infix",
+      "glyph": "∞",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:intercal",
+      "math_class": "infix",
+      "glyph": "⊺",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:interleave",
+      "math_class": "infix",
+      "glyph": "⫴",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:invneg",
+      "math_class": "infix",
+      "glyph": "⌐",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:iota",
+      "math_class": "infix",
+      "glyph": "ι",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:join",
+      "math_class": "infix",
+      "glyph": "⋈",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:jupiter",
+      "math_class": "infix",
+      "glyph": "♃",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:kappa",
+      "math_class": "infix",
+      "glyph": "κ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:lambda",
+      "math_class": "infix",
+      "glyph": "λ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:langle",
+      "math_class": "infix",
+      "glyph": "⟨",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:lceil",
+      "math_class": "infix",
+      "glyph": "⌈",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ldots",
+      "math_class": "infix",
+      "glyph": "…",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:leftarrow",
+      "math_class": "infix",
+      "glyph": "←",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:leftarrowtail",
+      "math_class": "infix",
+      "glyph": "↢",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:leftarrowtriangle",
+      "math_class": "infix",
+      "glyph": "⇽",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:leftharpoondown",
+      "math_class": "infix",
+      "glyph": "↽",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:leftharpoonup",
+      "math_class": "infix",
+      "glyph": "↼",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:leftleftarrows",
+      "math_class": "infix",
+      "glyph": "⇇",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:leftmoon",
+      "math_class": "infix",
+      "glyph": "☾",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:leftrightarrow",
+      "math_class": "infix",
+      "glyph": "↔",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:leftrightarrows",
+      "math_class": "infix",
+      "glyph": "⇆",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:leftrightarrowtriangle",
+      "math_class": "infix",
+      "glyph": "⇿",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:leftrightharpoons",
+      "math_class": "infix",
+      "glyph": "⇋",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:leftrightsquigarrow",
+      "math_class": "infix",
+      "glyph": "↭",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:leftslice",
+      "math_class": "infix",
+      "glyph": "⪦",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:leftsquigarrow",
+      "math_class": "infix",
+      "glyph": "↜",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:leftthreetimes",
+      "math_class": "infix",
+      "glyph": "⋋",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:leftturn",
+      "math_class": "infix",
+      "glyph": "⥀",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:leq",
+      "math_class": "infix",
+      "glyph": "≤",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:leqq",
+      "math_class": "infix",
+      "glyph": "≦",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:leqslant",
+      "math_class": "infix",
+      "glyph": "⩽",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:lessapprox",
+      "math_class": "infix",
+      "glyph": "⪅",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:lessdot",
+      "math_class": "infix",
+      "glyph": "⋖",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:lesseqgtr",
+      "math_class": "infix",
+      "glyph": "⋚",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:lesseqqgtr",
+      "math_class": "infix",
+      "glyph": "⪋",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:lessgtr",
+      "math_class": "infix",
+      "glyph": "≶",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:lesssim",
+      "math_class": "infix",
+      "glyph": "≲",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:lfloor",
+      "math_class": "infix",
+      "glyph": "⌊",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:libra",
+      "math_class": "infix",
+      "glyph": "♎",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:lightning",
+      "math_class": "infix",
+      "glyph": "↯",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ll",
+      "math_class": "infix",
+      "glyph": "≪",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:llangle",
+      "math_class": "infix",
+      "glyph": "⟪",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:llbracket",
+      "math_class": "infix",
+      "glyph": "⟦",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:llcorner",
+      "math_class": "infix",
+      "glyph": "⌞",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:lll",
+      "math_class": "infix",
+      "glyph": "⋘",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:llparenthesis",
+      "math_class": "infix",
+      "glyph": "⦇",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:lnapprox",
+      "math_class": "infix",
+      "glyph": "⪉",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:lneq",
+      "math_class": "infix",
+      "glyph": "⪇",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:lneqq",
+      "math_class": "infix",
+      "glyph": "≨",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:lnsim",
+      "math_class": "infix",
+      "glyph": "⋦",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longequal",
+      "math_class": "infix",
+      "glyph": "＝",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longleftarrow",
+      "math_class": "infix",
+      "glyph": "⟵",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longleftrightarrow",
+      "math_class": "infix",
+      "glyph": "⟷",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longmapsfrom",
+      "math_class": "infix",
+      "glyph": "⟻",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longmapsto",
+      "math_class": "infix",
+      "glyph": "⟼",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longminus",
+      "math_class": "infix",
+      "glyph": "－",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:longrightarrow",
+      "math_class": "infix",
+      "glyph": "⟶",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:looparrowleft",
+      "math_class": "infix",
+      "glyph": "↫",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:looparrowright",
+      "math_class": "infix",
+      "glyph": "↬",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:lozenge",
+      "math_class": "infix",
+      "glyph": "◊",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:lrcorner",
+      "math_class": "infix",
+      "glyph": "⌟",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ltimes",
+      "math_class": "infix",
+      "glyph": "⋉",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:male",
+      "math_class": "infix",
+      "glyph": "♂",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:maltese",
+      "math_class": "infix",
+      "glyph": "✠",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:mapsfrom",
+      "math_class": "infix",
+      "glyph": "↤",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:mapsto",
+      "math_class": "infix",
+      "glyph": "↦",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:measuredangle",
+      "math_class": "infix",
+      "glyph": "∡",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:mercury",
+      "math_class": "infix",
+      "glyph": "☿",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:merge",
+      "math_class": "infix",
+      "glyph": "⨇",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:mid",
+      "math_class": "infix",
+      "glyph": "∣",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:minuso",
+      "math_class": "infix",
+      "glyph": "⦵",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:models",
+      "math_class": "infix",
+      "glyph": "⊧",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:mp",
+      "math_class": "infix",
+      "glyph": "∓",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:mu",
+      "math_class": "infix",
+      "glyph": "µ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:multimap",
+      "math_class": "infix",
+      "glyph": "⊸",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nLeftarrow",
+      "math_class": "infix",
+      "glyph": "⇍",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nLeftrightarrow",
+      "math_class": "infix",
+      "glyph": "⇎",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nRightarrow",
+      "math_class": "infix",
+      "glyph": "⇏",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nVDash",
+      "math_class": "infix",
+      "glyph": "⊯",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nVdash",
+      "math_class": "infix",
+      "glyph": "⊮",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nabla",
+      "math_class": "infix",
+      "glyph": "∇",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:napprox",
+      "math_class": "infix",
+      "glyph": "≉",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nasymp",
+      "math_class": "infix",
+      "glyph": "≭",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:natural",
+      "math_class": "infix",
+      "glyph": "♮",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ncong",
+      "math_class": "infix",
+      "glyph": "≇",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nearrow",
+      "math_class": "infix",
+      "glyph": "↗",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:neg",
+      "math_class": "infix",
+      "glyph": "¬",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:neptune",
+      "math_class": "infix",
+      "glyph": "♆",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:neq",
+      "math_class": "infix",
+      "glyph": "≠",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nequiv",
+      "math_class": "infix",
+      "glyph": "≢",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nexists",
+      "math_class": "infix",
+      "glyph": "∄",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ngeq",
+      "math_class": "infix",
+      "glyph": "≱",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ngtr",
+      "math_class": "infix",
+      "glyph": "≯",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ni",
+      "math_class": "infix",
+      "glyph": "∋",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nin",
+      "math_class": "infix",
+      "glyph": "∉",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nleftarrow",
+      "math_class": "infix",
+      "glyph": "↚",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nleftrightarrow",
+      "math_class": "infix",
+      "glyph": "↮",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nleq",
+      "math_class": "infix",
+      "glyph": "≰",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nless",
+      "math_class": "infix",
+      "glyph": "≮",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nmid",
+      "math_class": "infix",
+      "glyph": "∤",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nni",
+      "math_class": "infix",
+      "glyph": "∌",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nocomma",
+      "math_class": "infix",
+      "glyph": "⁣",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:noplus",
+      "math_class": "infix",
+      "glyph": "⁤",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nospace",
+      "math_class": "infix",
+      "glyph": "⁡",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nparallel",
+      "math_class": "infix",
+      "glyph": "∦",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nprec",
+      "math_class": "infix",
+      "glyph": "⊀",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:npreccurlyeq",
+      "math_class": "infix",
+      "glyph": "⋠",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nrightarrow",
+      "math_class": "infix",
+      "glyph": "↛",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nsim",
+      "math_class": "infix",
+      "glyph": "≁",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nsimeq",
+      "math_class": "infix",
+      "glyph": "≄",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nsqsubseteq",
+      "math_class": "infix",
+      "glyph": "⋢",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nsqsupseteq",
+      "math_class": "infix",
+      "glyph": "⋣",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nsubset",
+      "math_class": "infix",
+      "glyph": "⊄",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nsubseteq",
+      "math_class": "infix",
+      "glyph": "⊈",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nsucc",
+      "math_class": "infix",
+      "glyph": "⊁",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nsucccurlyeq",
+      "math_class": "infix",
+      "glyph": "⋡",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nsupseteq",
+      "math_class": "infix",
+      "glyph": "⊉",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ntriangleleft",
+      "math_class": "infix",
+      "glyph": "⋪",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ntrianglelefteq",
+      "math_class": "infix",
+      "glyph": "⋬",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ntriangleright",
+      "math_class": "infix",
+      "glyph": "⋫",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ntrianglerighteq",
+      "math_class": "infix",
+      "glyph": "⋭",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nu",
+      "math_class": "infix",
+      "glyph": "ν",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nvDash",
+      "math_class": "infix",
+      "glyph": "⊭",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nvdash",
+      "math_class": "infix",
+      "glyph": "⊬",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nwarrow",
+      "math_class": "infix",
+      "glyph": "↖",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:oblong",
+      "math_class": "infix",
+      "glyph": "▯",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:omega",
+      "math_class": "infix",
+      "glyph": "ω",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:omicron",
+      "math_class": "infix",
+      "glyph": "ο",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:opposition",
+      "math_class": "infix",
+      "glyph": "☍",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:parallel",
+      "math_class": "infix",
+      "glyph": "∥",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:partial",
+      "math_class": "infix",
+      "glyph": "∂",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:permil",
+      "math_class": "postfix",
+      "glyph": "‰",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:phi",
+      "math_class": "infix",
+      "glyph": "ϕ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:phone",
+      "math_class": "infix",
+      "glyph": "☎",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:pi",
+      "math_class": "infix",
+      "glyph": "π",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:pisces",
+      "math_class": "infix",
+      "glyph": "♓",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:pitchfork",
+      "math_class": "infix",
+      "glyph": "⋔",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:pluto",
+      "math_class": "infix",
+      "glyph": "♇",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:pm",
+      "math_class": "infix",
+      "glyph": "±",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:prec",
+      "math_class": "infix",
+      "glyph": "≺",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:precapprox",
+      "math_class": "infix",
+      "glyph": "⪷",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:preccurlyeq",
+      "math_class": "infix",
+      "glyph": "≼",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:preceq",
+      "math_class": "infix",
+      "glyph": "⪯",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:precnapprox",
+      "math_class": "infix",
+      "glyph": "⪹",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:precneqq",
+      "math_class": "infix",
+      "glyph": "⪵",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:precnsim",
+      "math_class": "infix",
+      "glyph": "⋨",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:precsim",
+      "math_class": "infix",
+      "glyph": "≾",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:prime",
+      "math_class": "infix",
+      "glyph": "′",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:propto",
+      "math_class": "infix",
+      "glyph": "∝",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:psi",
+      "math_class": "infix",
+      "glyph": "ψ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:quarternote",
+      "math_class": "infix",
+      "glyph": "♩",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:rangle",
+      "math_class": "infix",
+      "glyph": "⟩",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:rceil",
+      "math_class": "infix",
+      "glyph": "⌉",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:recorder",
+      "math_class": "infix",
+      "glyph": "⌕",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:rfloor",
+      "math_class": "infix",
+      "glyph": "⌋",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:rho",
+      "math_class": "infix",
+      "glyph": "ρ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:rightarrow",
+      "math_class": "infix",
+      "glyph": "→",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:rightarrowtail",
+      "math_class": "infix",
+      "glyph": "↣",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:rightarrowtriangle",
+      "math_class": "infix",
+      "glyph": "⇾",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:rightharpoondown",
+      "math_class": "infix",
+      "glyph": "⇁",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:rightharpoonup",
+      "math_class": "infix",
+      "glyph": "⇀",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:rightleftarrows",
+      "math_class": "infix",
+      "glyph": "⇄",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:rightleftharpoons",
+      "math_class": "infix",
+      "glyph": "⇌",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:rightmoon",
+      "math_class": "infix",
+      "glyph": "☽",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:rightrightarrows",
+      "math_class": "infix",
+      "glyph": "⇉",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:rightslice",
+      "math_class": "infix",
+      "glyph": "⪧",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:rightsquigarrow",
+      "math_class": "infix",
+      "glyph": "↝",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:rightthreetimes",
+      "math_class": "infix",
+      "glyph": "⋌",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:rightturn",
+      "math_class": "infix",
+      "glyph": "⥁",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:rrangle",
+      "math_class": "infix",
+      "glyph": "⟫",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:rrbracket",
+      "math_class": "infix",
+      "glyph": "⟧",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:rrparenthesis",
+      "math_class": "infix",
+      "glyph": "⦈",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:rtimes",
+      "math_class": "infix",
+      "glyph": "⋊",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:sagittarius",
+      "math_class": "infix",
+      "glyph": "♐",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:saturn",
+      "math_class": "infix",
+      "glyph": "♄",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:scorpio",
+      "math_class": "infix",
+      "glyph": "♏",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:searrow",
+      "math_class": "infix",
+      "glyph": "↘",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:setminus",
+      "math_class": "infix",
+      "glyph": "∖",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:sharp",
+      "math_class": "infix",
+      "glyph": "♯",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:sigma",
+      "math_class": "infix",
+      "glyph": "σ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:sim",
+      "math_class": "infix",
+      "glyph": "∼",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:simeq",
+      "math_class": "infix",
+      "glyph": "≃",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:smile",
+      "math_class": "infix",
+      "glyph": "⌣",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:smiley",
+      "math_class": "infix",
+      "glyph": "☺",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:spadesuit",
+      "math_class": "infix",
+      "glyph": "♠",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:sphericalangle",
+      "math_class": "infix",
+      "glyph": "∢",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:sqcap",
+      "math_class": "infix",
+      "glyph": "⊓",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:sqcup",
+      "math_class": "infix",
+      "glyph": "⊔",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:sqsubset",
+      "math_class": "infix",
+      "glyph": "⊏",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:sqsubseteq",
+      "math_class": "infix",
+      "glyph": "⊑",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:sqsupset",
+      "math_class": "infix",
+      "glyph": "⊐",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:sqsupseteq",
+      "math_class": "infix",
+      "glyph": "⊒",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:square",
+      "math_class": "infix",
+      "glyph": "◽",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:star",
+      "math_class": "infix",
+      "glyph": "⋆",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:subset",
+      "math_class": "infix",
+      "glyph": "⊂",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:subseteq",
+      "math_class": "infix",
+      "glyph": "⊆",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:subseteqq",
+      "math_class": "infix",
+      "glyph": "⫅",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:subsetneq",
+      "math_class": "infix",
+      "glyph": "⊊",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:subsetneqq",
+      "math_class": "infix",
+      "glyph": "⫋",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:succ",
+      "math_class": "infix",
+      "glyph": "≻",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:succapprox",
+      "math_class": "infix",
+      "glyph": "⪸",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:succcurlyeq",
+      "math_class": "infix",
+      "glyph": "≽",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:succeq",
+      "math_class": "infix",
+      "glyph": "⪰",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:succnapprox",
+      "math_class": "infix",
+      "glyph": "⪺",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:succneqq",
+      "math_class": "infix",
+      "glyph": "⪶",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:succnsim",
+      "math_class": "infix",
+      "glyph": "⋩",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:succsim",
+      "math_class": "infix",
+      "glyph": "≿",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:sun",
+      "math_class": "infix",
+      "glyph": "☼",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:supset",
+      "math_class": "infix",
+      "glyph": "⊃",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:supseteq",
+      "math_class": "infix",
+      "glyph": "⊇",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:supseteqq",
+      "math_class": "infix",
+      "glyph": "⫆",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:supsetneq",
+      "math_class": "infix",
+      "glyph": "⊋",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:supsetneqq",
+      "math_class": "infix",
+      "glyph": "⫌",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:swarrow",
+      "math_class": "infix",
+      "glyph": "↙",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:talloblong",
+      "math_class": "infix",
+      "glyph": "⌸",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:tau",
+      "math_class": "infix",
+      "glyph": "τ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:taurus",
+      "math_class": "infix",
+      "glyph": "♉",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:therefore",
+      "math_class": "infix",
+      "glyph": "∴",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:theta",
+      "math_class": "infix",
+      "glyph": "θ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:thorn",
+      "math_class": "symbol",
+      "glyph": "þ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:times",
+      "math_class": "infix",
+      "glyph": "×",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:top",
+      "math_class": "infix",
+      "glyph": "⊤",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:triangledown",
+      "math_class": "infix",
+      "glyph": "▿",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:triangleleft",
+      "math_class": "infix",
+      "glyph": "◃",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:trianglelefteq",
+      "math_class": "infix",
+      "glyph": "⊴",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:triangleq",
+      "math_class": "infix",
+      "glyph": "≜",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:triangleright",
+      "math_class": "infix",
+      "glyph": "▹",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:trianglerighteq",
+      "math_class": "infix",
+      "glyph": "⊵",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:twoheadleftarrow",
+      "math_class": "infix",
+      "glyph": "↞",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:twoheadrightarrow",
+      "math_class": "infix",
+      "glyph": "↠",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:twonotes",
+      "math_class": "infix",
+      "glyph": "♫",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:udots",
+      "math_class": "infix",
+      "glyph": "⋰",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ulcorner",
+      "math_class": "infix",
+      "glyph": "⌜",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:uparrow",
+      "math_class": "infix",
+      "glyph": "↑",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:updownarrow",
+      "math_class": "infix",
+      "glyph": "↕",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:upharpoonleft",
+      "math_class": "infix",
+      "glyph": "↿",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:upharpoonright",
+      "math_class": "infix",
+      "glyph": "↾",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:uplus",
+      "math_class": "infix",
+      "glyph": "⊎",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:upsilon",
+      "math_class": "infix",
+      "glyph": "υ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:upuparrows",
+      "math_class": "infix",
+      "glyph": "⇈",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:uranus",
+      "math_class": "infix",
+      "glyph": "♅",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:urcorner",
+      "math_class": "infix",
+      "glyph": "⌝",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:vDash",
+      "math_class": "infix",
+      "glyph": "⊨",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:varbigcirc",
+      "math_class": "infix",
+      "glyph": "◯",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:varepsilon",
+      "math_class": "infix",
+      "glyph": "ε",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:varkappa",
+      "math_class": "infix",
+      "glyph": "ϰ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:varoast",
+      "math_class": "infix",
+      "glyph": "⊛",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:varobar",
+      "math_class": "infix",
+      "glyph": "⦶",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:varobslash",
+      "math_class": "infix",
+      "glyph": "⦸",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:varocircle",
+      "math_class": "infix",
+      "glyph": "⊚",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:varodot",
+      "math_class": "infix",
+      "glyph": "⊙",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:varominus",
+      "math_class": "infix",
+      "glyph": "⊖",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:varoplus",
+      "math_class": "infix",
+      "glyph": "⊕",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:varoslash",
+      "math_class": "infix",
+      "glyph": "⊘",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:varotimes",
+      "math_class": "infix",
+      "glyph": "⊗",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:varphi",
+      "math_class": "infix",
+      "glyph": "φ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:varpi",
+      "math_class": "infix",
+      "glyph": "ϖ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:varrho",
+      "math_class": "infix",
+      "glyph": "ϱ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:varsigma",
+      "math_class": "infix",
+      "glyph": "ς",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:vartheta",
+      "math_class": "infix",
+      "glyph": "ϑ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:vartriangle",
+      "math_class": "infix",
+      "glyph": "▵",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:vartriangleleft",
+      "math_class": "infix",
+      "glyph": "⊲",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:vartriangleright",
+      "math_class": "infix",
+      "glyph": "⊳",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:vdash",
+      "math_class": "infix",
+      "glyph": "⊢",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:vdots",
+      "math_class": "infix",
+      "glyph": "⋮",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:vee",
+      "math_class": "infix",
+      "glyph": "∨",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:veebar",
+      "math_class": "infix",
+      "glyph": "⊻",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:virgo",
+      "math_class": "infix",
+      "glyph": "♍",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:wasyBox",
+      "math_class": "infix",
+      "glyph": "☐",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:wasyDiamond",
+      "math_class": "infix",
+      "glyph": "◇",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:wedge",
+      "math_class": "infix",
+      "glyph": "∧",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:wp",
+      "math_class": "infix",
+      "glyph": "℘",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:wr",
+      "math_class": "infix",
+      "glyph": "≀",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:xi",
+      "math_class": "infix",
+      "glyph": "ξ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:yen",
+      "math_class": "infix",
+      "glyph": "¥",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:zeta",
+      "math_class": "infix",
+      "glyph": "ζ",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Yup",
+      "math_class": "binary",
+      "glyph": "⅄",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Ydown",
+      "math_class": "binary",
+      "glyph": "Y",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nlessgtr",
+      "math_class": "infix",
+      "glyph": "≸",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ngtrless",
+      "math_class": "infix",
+      "glyph": "≹",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nlesseqgtr",
+      "math_class": "infix",
+      "glyph": "⋚̸",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ngtreqless",
+      "math_class": "infix",
+      "glyph": "⋛̸",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:nlesseqqgtr",
+      "math_class": "infix",
+      "glyph": "⪋̸",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ngtreqqless",
+      "math_class": "infix",
+      "glyph": "⪌̸",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:oast",
+      "math_class": "binary",
+      "glyph": "⊛",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:obslash",
+      "math_class": "binary",
+      "glyph": "⍉",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:olessthan",
+      "math_class": "binary",
+      "glyph": "⧀",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ogreaterthan",
+      "math_class": "binary",
+      "glyph": "⧁",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:owedge",
+      "math_class": "binary",
+      "glyph": "∧⃝",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:ovee",
+      "math_class": "binary",
+      "glyph": "∨⃝",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:Yleft",
+      "math_class": "binary",
+      "slant": "upright",
+      "recipe": [
+        "rotate",
+        90.0,
+        "⅄"
+      ]
+    },
+    {
+      "identity": "texmacs:Yright",
+      "math_class": "binary",
+      "slant": "upright",
+      "recipe": [
+        "rotate",
+        -90.0,
+        "⅄"
+      ]
+    },
+    {
+      "identity": "texmacs:curlywedgeuparrow",
+      "math_class": "infix",
+      "slant": "upright",
+      "recipe": [
+        "glue-above",
+        0.18,
+        "⋏",
+        "↑"
+      ]
+    },
+    {
+      "identity": "texmacs:curlywedgedownarrow",
+      "math_class": "infix",
+      "slant": "upright",
+      "recipe": [
+        "glue-below",
+        0.18,
+        "⋏",
+        "↓"
+      ]
+    },
+    {
+      "identity": "texmacs:curlyveeuparrow",
+      "math_class": "infix",
+      "slant": "upright",
+      "recipe": [
+        "glue-above",
+        0.18,
+        "⋎",
+        "↑"
+      ]
+    },
+    {
+      "identity": "texmacs:curlyveedownarrow",
+      "math_class": "infix",
+      "slant": "upright",
+      "recipe": [
+        "glue-below",
+        0.18,
+        "⋎",
+        "↓"
+      ]
+    },
+    {
+      "identity": "texmacs:leftrightarroweq",
+      "math_class": "infix",
+      "slant": "upright",
+      "recipe": [
+        "stack",
+        0.18,
+        "↔",
+        "="
+      ]
+    },
+    {
+      "identity": "texmacs:subsetpluseq",
+      "math_class": "infix",
+      "slant": "upright",
+      "recipe": [
+        "stack",
+        0.22,
+        "⪿",
+        "="
+      ]
+    },
+    {
+      "identity": "texmacs:supsetpluseq",
+      "math_class": "infix",
+      "slant": "upright",
+      "recipe": [
+        "stack",
+        0.22,
+        "⫀",
+        "="
+      ]
+    },
+    {
+      "identity": "texmacs:longequivlim",
+      "math_class": "infix",
+      "slant": "upright",
+      "recipe": [
+        "scale-x",
+        1.6,
+        "≡"
+      ]
+    },
+    {
+      "identity": "texmacs:over",
+      "math_class": "infix",
+      "glyph": ":",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:oover",
+      "math_class": "binary",
+      "glyph": ":⃝",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:wedges",
+      "math_class": "binary",
+      "glyph": "⋏⋏",
+      "slant": "upright"
+    }
   ]
 }

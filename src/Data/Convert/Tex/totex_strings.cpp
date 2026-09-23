@@ -116,7 +116,7 @@ struct token_piece {
 };
 
 token_piece
-latex_token_piece (string name, bool group) {
+latex_token_piece (string name, bool group, bool math_mode) {
   string special;
   if (special_token_text (name, special)) return token_piece (special);
   scheme_tree fixed= special_token_tree (name);
@@ -133,7 +133,7 @@ latex_token_piece (string name, bool group) {
   if (starts (name, "b-up-")) return token_piece (modified_token ("mathbf", name, 5));
   if (starts (name, "b-")) return token_piece (modified_token ("tmmathbf", name, 2));
 
-  if (!export_math_mode ()) {
+  if (!math_mode) {
     string command= text_symbol_command (name);
     if (command != "") {
       scheme_tree group_node= stree_apply ("!group");
@@ -251,7 +251,7 @@ latex_text_string_native (string s) {
       int j= i + 1;
       while (j < N(s) && s[j] != '>') ++j;
       string name= s (i+1, j);
-      token_piece piece= latex_token_piece (name, true);
+      token_piece piece= latex_token_piece (name, true, false);
       if (piece.plain) run << piece.text;
       else { flush_text_run (out, run); out << piece.node; }
       i= j < N(s) ? j + 1 : N(s);
@@ -323,7 +323,7 @@ latex_math_string_native (string s) {
       int j= i + 1;
       while (j < N(s) && s[j] != '>') ++j;
       string name= s (i+1, j);
-      token_piece piece= latex_token_piece (name, false);
+      token_piece piece= latex_token_piece (name, false, true);
       if (piece.plain)
         append_math_plain (out, run, start_alpha, start_numeric,
                            N(piece.text) == 1 ? piece.text[0] : c, piece.text);
@@ -387,7 +387,7 @@ latex_verb_string_native (string s) {
     if (s[i] == '<') {
       int j= i + 1;
       while (j < N(s) && s[j] != '>') ++j;
-      token_piece piece= latex_token_piece (s (i+1, j), true);
+      token_piece piece= latex_token_piece (s (i+1, j), true, false);
       if (piece.plain) plain << piece.text;
       i= j < N(s) ? j + 1 : N(s);
       continue;
@@ -478,6 +478,19 @@ tt_native (scheme_tree x) {
 scheme_tree
 latex_export_string (string value) {
   return latex_string_native (value);
+}
+
+scheme_tree
+latex_export_named_symbol (string identity, bool math_mode) {
+  static const string prefix= "texmacs:";
+  if (!starts (identity, prefix) || N(identity) <= N(prefix)) {
+    scheme_tree command= stree_apply ("nonconverted");
+    command << stree_string (identity);
+    return command;
+  }
+  const string name= identity (N(prefix), N(identity));
+  token_piece piece= latex_token_piece (name, false, math_mode);
+  return piece.plain ? stree_string (piece.text) : piece.node;
 }
 
 scheme_tree

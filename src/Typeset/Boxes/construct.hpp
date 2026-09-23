@@ -118,6 +118,8 @@ box text_box (path ip, int pos, string s, font fn, pencil pen);
 box text_box (path ip, int pos, string s, font fn, pencil pen, brush bg);
 box math_glyph_box (path ip, string source, font nominal, pencil pen,
                     athena::text::shaped_text run);
+box virtual_recipe_box (path ip, string virtual_font_name, string definition,
+                        font base, pencil pen);
 // The immutable source atom supplies shaping context; positions are UTF-8 bytes.
 box utf8_text_box (path ip, string source, int begin, int end, font fn,
                    pencil pen, const athena::text::shaping_options& options= {},

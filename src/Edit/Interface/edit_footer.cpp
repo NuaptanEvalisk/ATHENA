@@ -10,8 +10,8 @@
 ******************************************************************************/
 
 #include "edit_interface.hpp"
-#include "convert.hpp"
 #include "gui_text.hpp"
+#include "utf8_edit.hpp"
 #include "tm_server.hpp"
 #include "server.hpp"
 #include "new_view.hpp"
@@ -104,15 +104,11 @@ edit_interface_rep::compute_text_footer (tree st) {
   string r;
   language lan= get_env_language ();
   int end  = last_item (tp);
-  int start= end;
-  tm_char_backwards (st->label, start);
+  int start= utf8_grapheme_previous (st->label, end);
   r= st->label (start, end);
   if (r == "") r= "start";
   if (r == " ") r= "space";
   if (r == "space" && get_env_string (MODE) == "math") r= "apply";
-  if (starts (r, "<") && !starts (r, "<#"))
-    if (cork_to_utf8 (r) != r)
-      r= r * " (" * r(1, N(r)-1) * ")";
   if (starts (r, "<")) return verbatim (r);
   return r;
 }

@@ -12,12 +12,33 @@
 #include <string>
 #include <string_view>
 #include <map>
+#include <memory>
 
 namespace athena::text {
+
+enum class named_symbol_recipe_kind {
+  glyph,
+  rotate,
+  stack,
+  glue_above,
+  glue_below,
+  scale_x
+};
+
+struct named_symbol_recipe {
+  named_symbol_recipe_kind kind= named_symbol_recipe_kind::glyph;
+  std::string glyph_utf8;
+  double parameter= 0.0;
+  std::shared_ptr<const named_symbol_recipe> first;
+  std::shared_ptr<const named_symbol_recipe> second;
+};
 
 struct named_symbol_definition {
   std::string identity;
   std::string glyph_utf8; // Rendering only, never a replacement source identity.
+  std::string virtual_font;
+  std::string virtual_symbol;
+  std::shared_ptr<const named_symbol_recipe> recipe;
   int op_type;
   bool italic;
 };

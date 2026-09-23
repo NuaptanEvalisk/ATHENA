@@ -113,7 +113,8 @@ void TestLatexImport::importsDeclarationsAndTheoremAliases() {
   QVERIFY (athena.contains (
     "<doc-data|<doc-title|Canonical centered title>>"));
   QVERIFY (!athena.contains ("FiveStar"));
-  QCOMPARE (athena.count ("\\<bigstar\\>"), 2);
+  QVERIFY (!athena.contains ("\\<bigstar\\>"));
+  QCOMPARE (athena.count (QByteArray::fromHex ("e29885")), 2);
   QVERIFY (athena.contains ("<assign|d|<macro|"));
   QVERIFY (athena.contains ("<\\render-remark>"));
   QVERIFY (!athena.contains ("customremark"));

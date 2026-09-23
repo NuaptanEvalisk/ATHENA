@@ -11,6 +11,8 @@
 #include <QtTest/QtTest>
 
 #include "converter.hpp"
+#include "convert.hpp"
+#include "scheme.hpp"
 #include "unicode_ranges.hpp"
 #include <future>
 #include <thread>
@@ -27,6 +29,8 @@ private slots:
   void test_universal_symbol_mappings();
   void test_json_latex_and_html_mappings();
   void test_finite_part_integral();
+  void test_native_mathml_utf8();
+  void test_named_symbol_latex_export();
   void test_unicode_17_cjk_ranges();
   void test_thread_local_converters();
 };
@@ -78,6 +82,35 @@ void TestConverter::test_finite_part_integral() {
   QCOMPARE (as_charp (strict_cork_to_utf8 ("<big-fint-1>")),
             "\xE2\xA8\x8D");
 }
+
+void TestConverter::test_native_mathml_utf8() {
+  scheme_tree mi (TUPLE, "mi", scm_quote ("中"));
+  QCOMPARE (mathml_to_tree (mi), tree ("中"));
+
+  scheme_tree sum (TUPLE, "mo", scm_quote ("&Sum;"));
+  QCOMPARE (mathml_to_tree (sum), tree (BIG, "∑"));
+
+  scheme_tree base (TUPLE, "mi", scm_quote ("x"));
+  scheme_tree brace (TUPLE, "mo", scm_quote ("⏞"));
+  tree wide= mathml_to_tree (scheme_tree (TUPLE, "mover", base, brace));
+  QVERIFY (is_func (wide, WIDE, 2));
+  QCOMPARE (wide[0], tree ("x"));
+  QVERIFY (is_func (wide[1], WITH, 3));
+  QCOMPARE (wide[1][0], tree ("math-accent-stretch"));
+  QCOMPARE (wide[1][1], tree ("true"));
+  QCOMPARE (wide[1][2], tree ("⏞"));
+}
+
+void TestConverter::test_named_symbol_latex_export() {
+  scheme_tree expected= tree (TUPLE, "!symbol", tree (TUPLE, "backassign"));
+  QCOMPARE (latex_export_named_symbol ("texmacs:backassign", true), expected);
+
+  scheme_tree unsupported= latex_export_named_symbol ("not-an-athena-symbol", true);
+  QVERIFY (is_tuple (unsupported, "nonconverted", 1));
+  QCOMPARE (scm_unquote (unsupported[1]->label), string ("not-an-athena-symbol"));
+}
+
+
 
 void TestConverter::test_unicode_17_cjk_ranges() {
   QCOMPARE (as_charp (utf8_to_cork ("\xF0\xA0\x80\x80")), "<#20000>");

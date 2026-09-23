@@ -80,7 +80,7 @@ struct locale_less_eq_operator {
   static std::locale le;
   static inline bool leq (string& a, string& b) {
     if (a == b) return true;
-    string A= cork_to_utf8 (a), B= cork_to_utf8 (b);
+    string A= a, B= b;
     c_string a8 (A), b8 (B);    
     return le (std::string (a8), std::string (b8));
   }
@@ -92,7 +92,7 @@ struct locale_less_eq_operator {
   static string locale_name;
   static inline bool leq (string& a, string& b) {
     if (a == b) return true;
-    string A= cork_to_utf8 (a), B= cork_to_utf8 (b);
+    string A= a, B= b;
     std::wstring wa= texmacs_utf8_to_wide (A);
     std::wstring wb= texmacs_utf8_to_wide (B);
     int result = CompareStringEx(

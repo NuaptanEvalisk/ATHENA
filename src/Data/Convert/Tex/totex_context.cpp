@@ -18,6 +18,7 @@
 #include "tree_traverse.hpp"
 #include "file.hpp"
 #include "new_view.hpp"
+#include "unicode_text.hpp"
 #include "Scheme/Scheme/glue.hpp"
 #include "Scheme/Scheme/object.hpp"
 
@@ -1227,11 +1228,7 @@ filter_styles_native (scheme_tree styles) {
 
 scheme_tree
 convert_charset_native (scheme_tree value) {
-  if (string_atom (value)) {
-    string s= utf8_to_cork (atom_text (value));
-    s= replace (replace (s, "<less>", "<"), "<gtr>", ">");
-    return stree_string (s);
-  }
+  if (string_atom (value)) return stree_string (atom_text (value));
   if (!stree_list (value) || N(value) == 0) return value;
   scheme_tree out (TUPLE);
   out << value[0];
@@ -1643,7 +1640,9 @@ long_arrow_output (scheme_tree args) {
 
 bool
 tmtex_token_string (string s) {
-  if (N(s) == 1) return true;
+  std::string_view bytes (s.data (), static_cast<std::size_t> (N(s)));
+  if (!bytes.empty () && athena::text::valid_utf8 (bytes) &&
+      athena::text::next_scalar (bytes, 0) == bytes.size ()) return true;
   if (N(s) == 0 || s[0] != '<') return false;
   return search_forwards (">", 0, s) == N(s) - 1;
 }
@@ -1656,11 +1655,47 @@ wide_source (scheme_tree x, bool below) {
   return !tmtex_token_string (atom_text (x));
 }
 
+struct wide_accent_spec {
+  scheme_tree value;
+  bool stretch= false;
+};
+
+wide_accent_spec
+decode_wide_accent (scheme_tree value) {
+  if (func_is (value, "with", 3) && string_atom (value[1]) &&
+      string_atom (value[2]) && atom_text (value[1]) == "math-accent-stretch" &&
+      atom_text (value[2]) == "true")
+    return {value[3], true};
+  return {value, false};
+}
+
 string
 normalize_wide_accent (scheme_tree value) {
   if (!string_atom (value)) return "";
   string acc= atom_text (value);
   if (N(acc) >= 6 && acc (0, 6) == "<wide-") acc= "<" * acc (6, N(acc));
+  if (acc == "^" || acc == "<hat>") return "̂";
+  if (acc == "~" || acc == "<tilde>") return "̃";
+  if (acc == "<bar>") return "̅";
+  if (acc == "<vect>" || acc == "<rightarrow>" || acc == "<varrightarrow>") return "⃗";
+  if (acc == "<leftarrow>" || acc == "<varleftarrow>") return "⃖";
+  if (acc == "<leftrightarrow>" || acc == "<varleftrightarrow>") return "⃡";
+  if (acc == "<breve>") return "̆";
+  if (acc == "<invbreve>") return "̑";
+  if (acc == "<check>") return "̌";
+  if (acc == "<abovering>") return "̊";
+  if (acc == "<acute>") return "́";
+  if (acc == "<grave>") return "̀";
+  if (acc == "<dot>") return "̇";
+  if (acc == "<ddot>") return "̈";
+  if (acc == "<dddot>") return "⃛";
+  if (acc == "<ddddot>") return "⃜";
+  if (acc == "<overbrace>" || acc == "<overbrace*>") return "⏞";
+  if (acc == "<underbrace>" || acc == "<underbrace*>") return "⏟";
+  if (acc == "<poverbrace>" || acc == "<poverbrace*>") return "⏜";
+  if (acc == "<punderbrace>" || acc == "<punderbrace*>") return "⏝";
+  if (acc == "<sqoverbrace>" || acc == "<sqoverbrace*>") return "⎴";
+  if (acc == "<squnderbrace>" || acc == "<squnderbrace*>") return "⎵";
   return acc;
 }
 
@@ -1683,81 +1718,71 @@ brace_fill_output (scheme_tree source, bool below) {
 scheme_tree
 wide_accent_output (scheme_tree args, bool below) {
   if (!stree_list (args) || N(args) < 2) return tree ("#f");
-  bool wide= wide_source (args[0], below);
+  wide_accent_spec spec= decode_wide_accent (args[1]);
+  bool wide= spec.stretch || wide_source (args[0], below);
   scheme_tree arg= tmtex_convert (args[0]);
-  if (!string_atom (args[1])) return arg;
-  string original= atom_text (args[1]);
-  string acc= normalize_wide_accent (args[1]);
+  if (!string_atom (spec.value)) return arg;
+  string acc= normalize_wide_accent (spec.value);
 
   if (below) {
-    if (acc == "<hat>" || acc == "^")
+    if (acc == "̂")
       return one_arg_command (wide ? "uwidehat" : "uhat", arg);
-    if (acc == "<tilde>" || acc == "~")
+    if (acc == "̃")
       return one_arg_command (wide ? "uwidetilde" : "utilde", arg);
-    if (acc == "<bar>") return one_arg_command ("underline", arg);
-    if (acc == "<vect>")
+    if (acc == "̅") return one_arg_command ("underline", arg);
+    if (acc == "⃗")
       return one_arg_command (wide ? "underrightarrow" : "uvec", arg);
-    if (acc == "<breve>") return one_arg_command ("ubreve", arg);
-    if (acc == "<invbreve>") return one_arg_command ("uinvbreve", arg);
-    if (acc == "<check>") return one_arg_command ("ucheck", arg);
-    if (acc == "<abovering>") return one_arg_command ("uring", arg);
-    if (acc == "<acute>") return one_arg_command ("uacute", arg);
-    if (acc == "<grave>") return one_arg_command ("ugrave", arg);
-    if (acc == "<dot>") return one_arg_command ("underdot", arg);
-    if (acc == "<ddot>") return one_arg_command ("uddot", arg);
-    if (acc == "<dddot>") return one_arg_command ("udddot", arg);
-    if (acc == "<ddddot>") return one_arg_command ("uddddot", arg);
-    if (acc == "<rightarrow>" || acc == "<varrightarrow>")
+    if (acc == "̆") return one_arg_command ("ubreve", arg);
+    if (acc == "̑") return one_arg_command ("uinvbreve", arg);
+    if (acc == "̌") return one_arg_command ("ucheck", arg);
+    if (acc == "̊") return one_arg_command ("uring", arg);
+    if (acc == "́") return one_arg_command ("uacute", arg);
+    if (acc == "̀") return one_arg_command ("ugrave", arg);
+    if (acc == "̇") return one_arg_command ("underdot", arg);
+    if (acc == "̈") return one_arg_command ("uddot", arg);
+    if (acc == "⃛") return one_arg_command ("udddot", arg);
+    if (acc == "⃜") return one_arg_command ("uddddot", arg);
+    if (acc == "⃗")
       return one_arg_command ("underrightarrow", arg);
-    if (acc == "<leftarrow>" || acc == "<varleftarrow>")
+    if (acc == "⃖")
       return one_arg_command ("underleftarrow", arg);
-    if (acc == "<leftrightarrow>" || acc == "<varleftrightarrow>")
+    if (acc == "⃡")
       return one_arg_command ("underleftrightarrow", arg);
-    if (acc == "<underbrace>" || acc == "<underbrace*>" ||
-        acc == "<punderbrace>" || acc == "<punderbrace*>" ||
-        acc == "<squnderbrace>" || acc == "<squnderbrace*>")
+    if (acc == "⏟" || acc == "⏝" || acc == "⎵")
       return one_arg_command ("underbrace", arg);
-    if (acc == "<overbrace>" || acc == "<overbrace*>" ||
-        acc == "<poverbrace>" || acc == "<poverbrace*>" ||
-        acc == "<sqoverbrace>" || acc == "<sqoverbrace*>")
+    if (acc == "⏞" || acc == "⏜" || acc == "⎴")
       return brace_fill_output (args[0], true);
     cout << "ATHENA] non converted accent below: " << acc << "\n";
     return arg;
   }
 
   bool text= !export_math_mode ();
-  if (acc == "<hat>" || acc == "^")
+  if (acc == "̂")
     return one_arg_command (text ? "^" : (wide ? "widehat" : "hat"), arg);
-  if (acc == "<tilde>" || acc == "~")
+  if (acc == "̃")
     return one_arg_command (text ? "~" : (wide ? "widetilde" : "tilde"), arg);
-  if (original == "<wide-bar>")
-    return one_arg_command (text ? "=" : "overline", arg);
-  if (acc == "<bar>")
+  if (acc == "̅")
     return one_arg_command (text ? "=" : (wide ? "overline" : "bar"), arg);
-  if (acc == "<vect>") return one_arg_command (wide ? "overrightarrow" : "vec", arg);
-  if (acc == "<breve>") return one_arg_command (text ? "u" : "breve", arg);
-  if (acc == "<invbreve>") return one_arg_command ("invbreve", arg);
-  if (acc == "<check>") return one_arg_command (text ? "v" : "check", arg);
-  if (acc == "<abovering>") return one_arg_command (text ? "r" : "ring", arg);
-  if (acc == "<acute>") return one_arg_command (text ? "'" : "acute", arg);
-  if (acc == "<grave>") return one_arg_command (text ? "`" : "grave", arg);
-  if (acc == "<dot>") return one_arg_command (text ? "." : "dot", arg);
-  if (acc == "<ddot>") return one_arg_command (text ? "\"" : "ddot", arg);
-  if (acc == "<dddot>") return one_arg_command ("dddot", arg);
-  if (acc == "<ddddot>") return one_arg_command ("ddddot", arg);
-  if (acc == "<rightarrow>" || acc == "<varrightarrow>")
+  if (acc == "⃗") return one_arg_command (wide ? "overrightarrow" : "vec", arg);
+  if (acc == "̆") return one_arg_command (text ? "u" : "breve", arg);
+  if (acc == "̑") return one_arg_command ("invbreve", arg);
+  if (acc == "̌") return one_arg_command (text ? "v" : "check", arg);
+  if (acc == "̊") return one_arg_command (text ? "r" : "ring", arg);
+  if (acc == "́") return one_arg_command (text ? "'" : "acute", arg);
+  if (acc == "̀") return one_arg_command (text ? "`" : "grave", arg);
+  if (acc == "̇") return one_arg_command (text ? "." : "dot", arg);
+  if (acc == "̈") return one_arg_command (text ? "\"" : "ddot", arg);
+  if (acc == "⃛") return one_arg_command ("dddot", arg);
+  if (acc == "⃜") return one_arg_command ("ddddot", arg);
+  if (acc == "⃗")
     return one_arg_command ("overrightarrow", arg);
-  if (acc == "<leftarrow>" || acc == "<varleftarrow>")
+  if (acc == "⃖")
     return one_arg_command ("overleftarrow", arg);
-  if (acc == "<leftrightarrow>" || acc == "<varleftrightarrow>")
+  if (acc == "⃡")
     return one_arg_command ("overleftrightarrow", arg);
-  if (acc == "<overbrace>" || acc == "<overbrace*>" ||
-      acc == "<poverbrace>" || acc == "<poverbrace*>" ||
-      acc == "<sqoverbrace>" || acc == "<sqoverbrace*>")
+  if (acc == "⏞" || acc == "⏜" || acc == "⎴")
     return one_arg_command ("overbrace", arg);
-  if (acc == "<underbrace>" || acc == "<underbrace*>" ||
-      acc == "<punderbrace>" || acc == "<punderbrace*>" ||
-      acc == "<squnderbrace>" || acc == "<squnderbrace*>")
+  if (acc == "⏟" || acc == "⏝" || acc == "⎵")
     return brace_fill_output (args[0], false);
   cout << "ATHENA] non converted accent: " << acc << "\n";
   return arg;
@@ -2875,6 +2900,9 @@ convert_node_native (scheme_tree value) {
   string key= value[0]->label;
   scheme_tree args (TUPLE);
   for (int i=1; i<N(value); ++i) args << value[i];
+
+  if (key == "named-symbol" && N(args) == 1 && string_atom (args[0]))
+    return latex_export_named_symbol (atom_text (args[0]), export_math_mode ());
 
   string dynamic= latex_export_context.dynamic[key];
   if (dynamic == "environment") {

@@ -59,7 +59,8 @@ is_useless_tree(const tree& t) {
 
 std::string
 tree_to_std_string(const tree& t) {
-  return std::string(as_charp(cork_to_utf8(as_string(t))));
+  string value= as_string(t);
+  return std::string (value.data (), (std::size_t) N(value));
 }
 
 tree

@@ -11,6 +11,7 @@
 
 #include "edit_math.hpp"
 #include "analyze.hpp"
+#include "utf8_edit.hpp"
 
 /******************************************************************************
 * Constructors and destructors
@@ -141,21 +142,23 @@ edit_math_rep::make_var_sqrt () {
 }
 
 void
-edit_math_rep::make_wide (string wide) {
+edit_math_rep::make_wide (string wide, bool stretch) {
+  tree accent= stretch ? tree (WITH, "math-accent-stretch", "true", wide) : tree (wide);
   if (selection_active_small ())
-    insert_tree (tree (WIDE, selection_get_cut (), wide));
+    insert_tree (tree (WIDE, selection_get_cut (), accent));
   else {
-    insert_tree (tree (WIDE, "", wide), path (0, 0));
+    insert_tree (tree (WIDE, "", accent), path (0, 0));
     set_message ("move to the right when finished", "wide accent");
   }
 }
 
 void
-edit_math_rep::make_wide_under (string wide) {
+edit_math_rep::make_wide_under (string wide, bool stretch) {
+  tree accent= stretch ? tree (WITH, "math-accent-stretch", "true", wide) : tree (wide);
   if (selection_active_small ())
-    insert_tree (tree (VAR_WIDE, selection_get_cut (), wide));
+    insert_tree (tree (VAR_WIDE, selection_get_cut (), accent));
   else {
-    insert_tree (tree (VAR_WIDE, "", wide), path (0, 0));
+    insert_tree (tree (VAR_WIDE, "", accent), path (0, 0));
     set_message ("move to the right when finished", "wide under accent");
   }
 }
@@ -194,7 +197,7 @@ edit_math_rep::back_around (tree t, path p, bool forward) {
     int i= (forward? 0: 2);
     if (is_deleted (t[i]));
     else if (is_atomic (t[i]))
-      assign (t[i], "<nobracket>");
+      assign (t[i], ".");
     else if (is_func (t[i], LEFT))
       assign (t[i], tree (LEFT, "."));
     else if (is_func (t[i], RIGHT))
@@ -227,7 +230,7 @@ edit_math_rep::back_in_around (tree t, path p, bool forward) {
     int i= (forward? 2: 0);
     if (is_deleted (t[i]));
     else if (is_atomic (t[i]))
-      assign (t[i], "<nobracket>");
+      assign (t[i], ".");
     else if (is_func (t[i], LEFT))
       assign (t[i], tree (LEFT, "."));
     else if (is_func (t[i], RIGHT))
@@ -267,7 +270,7 @@ edit_math_rep::back_prime (tree t, path p, bool forward) {
     string s= t[0]->label;
     if (forward) {
       int i= 0, n= N(s);
-      tm_char_forwards (s, i);
+      i= utf8_grapheme_next (s, i);
       if (i >= n) {
         assign (p, "");
         correct (path_up (p));
@@ -276,7 +279,7 @@ edit_math_rep::back_prime (tree t, path p, bool forward) {
     }
     else {
       int n= N(s), i= n;
-      tm_char_backwards (s, i);
+      i= utf8_grapheme_previous (s, i);
       if (i <= 0) {
         assign (p, "");
         correct (path_up (p));

@@ -131,24 +131,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (tm-define (xmltm-text s)
-  (cork-grave->backquote (utf8->cork s)))
+  s)
 
 (tm-define (xmltm-url-text s)
-  ;; (cork-grave->backquote (utf8->cork (url-decode s)))
   ;; NOTE: don't decode URL names, or also implement a corresponding
   ;; routine for the encoding, when we click on a hyperlink
   (string->tmstring s))
-
-;; Conversion of Cork GRAVE ACCENT to LEFT SINGLE QUOTATION MARK
-
-(define cork-grave-char #\nul)
-(define cork-grave (list->string '(#\nul)))
-(define cork-backquote (list->string '(#\`))) ;; that is GRAVE ACCENT in ASCII
-
-(define (cork-grave->backquote s)
-  (if (string-index s cork-grave-char)
-      (string-replace s cork-grave cork-backquote)
-      s))
 
 ;; Decoding URL strings
 ;;

@@ -12,6 +12,7 @@
 #include "tree_correct.hpp"
 #include "tree_analyze.hpp"
 #include "scheme.hpp"
+#include "unicode_text.hpp"
 
 static array<tree> upgrade_brackets (array<tree> a, int level);
 
@@ -227,11 +228,17 @@ make_small (tree br) {
       is_func (br, BIG))
     if (N(br) > 0 && is_atomic (br[0])) {
       string s= br[0]->label;
-      if (s == ".") return "<nobracket>";
+      if (s == ".") return ".";
+      std::string_view bytes (s.data (), static_cast<std::size_t> (N(s)));
+      if (!bytes.empty () && athena::text::valid_utf8 (bytes) &&
+          athena::text::next_scalar (bytes, 0) == bytes.size ())
+        return s;
       if (N(s) <= 1) return s;
+      // Compatibility only: old bracket nodes stored a symbolic ASCII name.
+      // New edit paths store either a Unicode scalar or the explicit dot sentinel.
       return "<" * s * ">";
     }
-  return "<nobracket>";
+  return ".";
 }
 
 static tree
@@ -279,7 +286,7 @@ add_missing_left (array<tree> a, array<int> tp) {
     if (tp[i] == SYMBOL_CLOSE) {
       tree body= concat_recompose (b);
       b= array<tree> ();
-      if (is_atomic (a[i])) b << make_around ("<nobracket>", body, a[i]);
+      if (is_atomic (a[i])) b << make_around (".", body, a[i]);
       else b << make_around (tree (LEFT, "."), body, a[i]);
     }
     else b << a[i];
@@ -293,7 +300,7 @@ add_missing_right (array<tree> a, array<int> tp) {
     if (tp[i] == SYMBOL_OPEN) {
       tree body= concat_recompose (reverse (b));
       b= array<tree> ();
-      if (is_atomic (a[i])) b << make_around (a[i], body, "<nobracket>");
+      if (is_atomic (a[i])) b << make_around (a[i], body, ".");
       else b << make_around (a[i], body, tree (RIGHT, "."));
     }
     else b << a[i];
@@ -552,7 +559,9 @@ downgrade_brackets (tree t, bool delete_missing, bool big_dot) {
   for (i=0; i<n; i++)
     r[i]= downgrade_brackets (t[i], delete_missing, big_dot);
   if (is_func (r, AROUND, 3)) {
-    if (delete_missing && r[0] == "<nobracket>" && r[2] == "<nobracket>")
+    if (delete_missing &&
+        (r[0] == "." || r[0] == "<nobracket>") &&
+        (r[2] == "." || r[2] == "<nobracket>"))
       return concat (r[0], r[1], r[2]);
     tree lb= downgrade_bracket (r[0], false);
     tree rb= downgrade_bracket (r[2], false);

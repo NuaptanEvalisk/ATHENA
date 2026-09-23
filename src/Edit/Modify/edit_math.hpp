@@ -27,8 +27,8 @@ public:
   void make_fraction ();
   void make_sqrt ();
   void make_var_sqrt ();
-  void make_wide (string wide);
-  void make_wide_under (string wide);
+  void make_wide (string wide, bool stretch= false);
+  void make_wide_under (string wide, bool stretch= false);
   void make_neg ();
   void make_tree ();
   void back_around (tree t, path p, bool forward);

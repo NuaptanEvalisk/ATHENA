@@ -12,6 +12,7 @@
 #include "convert.hpp"
 #include "analyze.hpp"
 #include "scheme.hpp"
+#include "unicode_text.hpp"
 
 #include <set>
 #include <vector>
@@ -90,34 +91,16 @@ old_tm_to_xml_cdata (string s) {
 
 object
 tm_to_xml_cdata (string s) {
-  array<object> a;
-  a << symbol_object ("!concat");
+  std::string_view bytes (s.data (), static_cast<std::size_t> (N(s)));
+  athena::text::require_utf8 (bytes);
   string r;
-  int i, n= N(s);
-  for (i=0; i<n; i++)
+  int n= N(s);
+  for (int i=0; i<n; ++i)
     if (s[i] == '&') r << "&amp;";
+    else if (s[i] == '<') r << "&lt;";
     else if (s[i] == '>') r << "&gt;";
-    else if (s[i] == '\\') r << "\\";
-    else if (s[i] != '<') r << cork_to_utf8 (s (i, i+1));
-    else {
-      int start= i++;
-      while ((i<n) && (s[i]!='>')) i++;
-      string ss= s (start, i+1);
-      string rr= cork_to_utf8 (ss);
-      string qq= utf8_to_cork (rr);
-      if (rr != ss && qq == ss && ss != "<less>" && ss != "<gtr>") r << rr;
-      else {
-        if (r != "") a << object (r);
-        a << cons (symbol_object ("tm-sym"),
-                   cons (ss (1, N(ss)-1),
-                         null_object ()));
-        r= "";
-      }
-    }
-  if (r != "") a << object (r);
-  if (N(a) == 1) return object ("");
-  else if (N(a) == 2) return a[1];
-  else return call ("list", a);
+    else r << s[i];
+  return object (r);
 }
 
 string

@@ -39,6 +39,7 @@ void cout_buffer ();
 string cout_unbuffer ();
 tree coerce_string_tree (string s);
 string coerce_tree_string (tree t);
+string named_symbol_render_glyph (string identity);
 tree tree_ref (tree t, int i);
 tree tree_set (tree t, int i, tree u);
 tree tree_range (tree t, int i, int j);

@@ -15,6 +15,7 @@
 #include "Boxes/Composite/italic_correct.hpp"
 #include "analyze.hpp"
 #include "math_font.hpp"
+#include "unicode_text.hpp"
 
 /******************************************************************************
 * Miscellaneous routines
@@ -415,7 +416,7 @@ static void
 accent_base_extents (box b, string s, SI& x1, SI& x2) {
   x1= b->x1;
   x2= b->x2;
-  if (s == "~" || s == "<tilde>") {
+  if (s == "~" || s == "<tilde>" || s == "̃") {
     x1= min (b->x1, b->x3);
     x2= max (b->x2, b->x4);
   }
@@ -430,14 +431,33 @@ emu_arrows_rubber_font (font fn) {
 
 bool
 compute_wide_accent (path ip, box b, string s,
-                     font fn, pencil pen, bool request_wide, bool above,
-                     box& wideb, SI& sep) {
+                      font fn, pencil pen, bool request_wide, bool above,
+                      box& wideb, SI& sep) {
   bool unicode= (fn->type == FONT_TYPE_UNICODE);
   bool stix= (fn->math_type == MATH_TYPE_STIX);
   bool tex_gyre= (fn->math_type == MATH_TYPE_TEX_GYRE);
   bool wide= (b->w() > (fn->wquad)) || request_wide;
   SI ax1, ax2;
   accent_base_extents (b, s, ax1, ax2);
+  std::string_view scalar (s.data (), static_cast<std::size_t> (N(s)));
+  const bool scalar_accent= !scalar.empty () && athena::text::valid_utf8 (scalar) &&
+    athena::text::next_scalar (scalar, 0) == scalar.size ();
+  if (unicode && scalar_accent) {
+    const SI target= max ((SI) 0, ax2 - ax1);
+    auto stretched= athena::text::shape_math_stretch (fn, scalar, target, false);
+    if (stretched && (!wide || stretched->extent >= target)) {
+      wideb= math_glyph_box (decorate_middle (ip), s, fn, pen,
+                             std::move (stretched->run));
+      sep= above ? -fn->yx : fn->sep;
+      if (above) {
+        const SI min_d= fn->yx / 8;
+        const SI max_d= fn->yx / 3;
+        if (wideb->y1 + sep < min_d) sep= min_d - wideb->y1;
+        if (wideb->y1 + sep >= max_d) sep= max_d - wideb->y1;
+      }
+      return stretched->assembled || stretched->extent > fn->wquad;
+    }
+  }
   if (ends (s, "dot>") || (s == "<acute>") ||
       (s == "<grave>") || (s == "<abovering>")) wide= false;
   if (wide && !request_wide && b->wide_correction (0) != 0) wide= false;

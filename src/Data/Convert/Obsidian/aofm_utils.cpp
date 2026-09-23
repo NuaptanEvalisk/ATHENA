@@ -1,6 +1,6 @@
 #include "aofm_utils.hpp"
-#include "converter.hpp"
 #include "tm_ostream.hpp"
+#include "unicode_text.hpp"
 #include <cmath>
 #include <cctype>
 #include <cstdlib>
@@ -12,12 +12,14 @@ namespace aofm {
 
 string
 tm_string(const std::string& s) {
-  return utf8_to_cork(string(s.c_str()));
+  athena::text::require_utf8 (s);
+  return string (s.data (), s.size ());
 }
 
 string
 std_to_tm_string(const std::string& s) {
-  return utf8_to_cork(string(s.c_str()));
+  athena::text::require_utf8 (s);
+  return string (s.data (), s.size ());
 }
 
 void

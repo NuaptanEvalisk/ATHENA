@@ -132,10 +132,6 @@ edit_interface_rep::try_shortcut (string comb) {
       tree t= rhs;
       if (is_compound (t, "render-key", 1)) t= t[0];
       if (is_func (t, WITH)) t= t[N(t)-1];
-      string r= as_string (t);
-      if (starts (r, "<") && !starts (r, "<#"))
-        if (cork_to_utf8 (r) != r)
-          rhs= tree (CONCAT, rhs, " (" * r(1, N(r)-1) * ")");
       call ("set-temporary-message",
             tree (CONCAT, "keyboard shortcut: ", rew),
             verbatim (rhs),
@@ -221,7 +217,7 @@ edit_interface_rep::key_press (string gkey) {
   string rew= sv->kbd_post_rewrite (key);
   if (N(rew) == 1) {
     int i ((unsigned char) rew[0]);
-    if ((i >= 1 && i <= 127) || (i >= 128 && i <= 255) || (i == 25))
+    if ((i >= 1 && i <= 127) || (i == 25))
       if (!inside_active_graphics ()) {
         archive_state ();
         call ("kbd-insert", rew);
@@ -245,18 +241,10 @@ edit_interface_rep::key_press (string gkey) {
     key_press (compose_key);
   }
 #endif
-  else if (!occurs (" ", key) && N(key) > 1 && key[1] != '-' &&
-           cork_to_utf8 ("<" * key * ">") != ("<" * key * ">") &&
-           !inside_active_graphics ()) {
-    archive_state ();
-    call ("kbd-insert", "<" * key * ">");
-    (void) complete_try_realtime ();
-    interrupt_shortcut ();    
-  }
   else if (DEBUG_KEYBOARD)
     debug_keyboard
       << "unrecognized key " << key << ". "
-      << "Undefined shortcut or key missing in the encoding files.\n";
+      << "Undefined shortcut or key missing from the UTF-8 keyboard resources.\n";
 }
 
 void
