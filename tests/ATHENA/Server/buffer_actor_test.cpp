@@ -17,6 +17,8 @@
 #include "tm_buffer.hpp"
 #include "ATHENA/Data/interop_document_codec.hpp"
 #include "ATHENA/Data/new_buffer.hpp"
+#include "ATHENA/Data/vault.hpp"
+#include "Data/Convert/Xml/athena_document_xml.hpp"
 #include "ATHENA/Interop/resources.hpp"
 #include "vaultfile_json.hpp"
 #include "namespaces.hpp"
@@ -35,6 +37,18 @@
 
 bool headless_mode= true;
 bool is_headless () { return true; }
+
+static bool
+contains_text (const tree& value, const string& text) {
+  if (is_atomic (value)) {
+    const std::string haystack (value->label.data (), (std::size_t) N(value->label));
+    const std::string needle (text.data (), (std::size_t) N(text));
+    return haystack.find (needle) != std::string::npos;
+  }
+  for (int i=0; i<N(value); ++i)
+    if (contains_text (value[i], text)) return true;
+  return false;
+}
 
 class TestBufferActor: public QObject {
   Q_OBJECT
@@ -55,7 +69,184 @@ private slots:
   void onlineResolutionUsesUnsavedBody ();
   void bufferResolutionWithoutVault ();
   void sourceCommitPreservesBorrowedMetadata ();
+  void normalSaveUpgradesLegacyAndPinsXmlRevision ();
+  void nativeBufferSaveCreatesVaultBackup ();
+  void mismatchedOpenFingerprintBlocksSave ();
 };
+
+void
+TestBufferActor::mismatchedOpenFingerprintBlocksSave () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  const std::filesystem::path root (temporary.path ().toStdString ());
+  const std::filesystem::path file= root / "capture-race.ath";
+  const std::string legacy=
+    "(document (TeXmacs \"2.1.4\") (body \"captured\"))";
+  {
+    std::ofstream output (file, std::ios::binary | std::ios::trunc);
+    output.write (legacy.data (), std::streamsize (legacy.size ()));
+  }
+  url name= url_system (string (file.string ().c_str ()));
+  auto cleanup= qScopeGuard ([&] { remove_buffer (name); });
+  QVERIFY (!buffer_import (name, name, "texmacs"));
+  tm_buffer buffer= concrete_buffer (name);
+  QVERIFY (!is_nil (buffer));
+
+  // Rename clears the automatically captured handle. Re-capture with a hash
+  // which cannot match the pinned bytes to emulate an edit between read/capture.
+  athena_blob_id rename_payload= actor_text_from_string (as_string (name));
+  QVERIFY (buffer->actor->invoke (
+    actor_command_kind::rename_buffer, ATHENA_NO_VIEW, rename_payload));
+  tree payload (TUPLE,
+    string (file.string ().c_str ()), string (""), string (64, '0'));
+  athena_blob_id capture= actor_tree_registry::instance ().store (std::move (payload));
+  actor_command_record captured;
+  QVERIFY (buffer->actor->invoke (
+    actor_command_kind::capture_document_storage, ATHENA_NO_VIEW,
+    capture, ATHENA_NO_BLOB, &captured));
+  QCOMPARE (captured.argument[0], std::uint64_t (1));
+
+  actor_command_record saved;
+  QVERIFY (buffer->actor->invoke (
+    actor_command_kind::save_buffer, ATHENA_NO_VIEW,
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, &saved));
+  QCOMPARE (saved.argument[0], std::uint64_t (1));
+  std::ifstream input (file, std::ios::binary);
+  std::string persisted ((std::istreambuf_iterator<char> (input)), {});
+  QCOMPARE (persisted, legacy);
+}
+
+void
+TestBufferActor::nativeBufferSaveCreatesVaultBackup () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  const std::filesystem::path root (temporary.path ().toStdString ());
+  const std::filesystem::path file= root / "backup-before-save.ath";
+  const std::string legacy=
+    "(document (TeXmacs \"2.1.4\") (body \"backup source\"))";
+  {
+    std::ofstream output (file, std::ios::binary | std::ios::trunc);
+    output.write (legacy.data (), std::streamsize (legacy.size ()));
+  }
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (root, AthenaVaultfileInfo {}, error), error.c_str ());
+  QCOMPARE (vault_load (
+              url_system (string (root.string ().c_str ())),
+              "Buffer save backup test", "map.sqlite", "ns.sqlite"), string (""));
+  auto close_vault= qScopeGuard ([] { vault_close (); });
+
+  url name= url_system (string (file.string ().c_str ()));
+  auto cleanup= qScopeGuard ([&] { remove_buffer (name); });
+  QVERIFY (!buffer_import (name, name, "texmacs"));
+  QVERIFY (!buffer_save (name));
+
+  const std::filesystem::path history= root / ".backup" / "manual-save";
+  QVERIFY (std::filesystem::exists (history));
+  bool found= false;
+  for (const auto& entry: std::filesystem::recursive_directory_iterator (history))
+    if (entry.is_regular_file () && entry.path ().extension () == ".zst") {
+      found= true;
+      break;
+    }
+  QVERIFY (found);
+  std::ifstream input (file, std::ios::binary);
+  std::string persisted ((std::istreambuf_iterator<char> (input)), {});
+  QVERIFY (persisted.rfind ("<?xml", 0) == 0 ||
+           persisted.rfind ("<athena-document", 0) == 0);
+}
+
+void
+TestBufferActor::normalSaveUpgradesLegacyAndPinsXmlRevision () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  const std::filesystem::path root (temporary.path ().toStdString ());
+  const std::filesystem::path file= root / "normal-save.ath";
+  const std::string legacy=
+    "(document (TeXmacs \"2.1.4\") (body \"first\"))";
+  {
+    std::ofstream output (file, std::ios::binary | std::ios::trunc);
+    output.write (legacy.data (), std::streamsize (legacy.size ()));
+  }
+  url name= url_system (string (file.string ().c_str ()));
+  auto cleanup= qScopeGuard ([&] { remove_buffer (name); });
+  QVERIFY (!buffer_import (name, name, "texmacs"));
+  tm_buffer buffer= concrete_buffer (name);
+  QVERIFY (!is_nil (buffer));
+  auto save_actor= [&] {
+    actor_command_record result;
+    return buffer->actor->invoke (
+      actor_command_kind::save_buffer, ATHENA_NO_VIEW,
+      ATHENA_NO_BLOB, ATHENA_NO_BLOB, &result) && result.argument[0] == 0;
+  };
+  QVERIFY (save_actor ());
+  std::ifstream first_input (file, std::ios::binary);
+  std::string first ((std::istreambuf_iterator<char> (first_input)), {});
+  tree first_tree= athena::document::read_xml (first);
+  QVERIFY (first_tree == tree (DOCUMENT, compound ("body", tree (DOCUMENT, "first"))) ||
+           contains_text (first_tree, "first"));
+  bool saw_backup= false;
+  for (const auto& entry: std::filesystem::directory_iterator (root))
+    if (entry.path ().filename ().string ().rfind (
+          "normal-save.ath.pre-utf8-", 0) == 0) {
+      std::ifstream backup_input (entry.path (), std::ios::binary);
+      std::string backup ((std::istreambuf_iterator<char> (backup_input)), {});
+      QCOMPARE (backup, legacy);
+      saw_backup= true;
+    }
+  QVERIFY (saw_backup);
+
+  auto replace_body= [&] (const char* text) {
+    athena_continuation_id id= actor_continuation_registry::instance ().store ([=] {
+      auto* state= current_scheme_execution_context ()->actor->current_state ();
+      assign (subtree (state->document, state->root_path), tree (DOCUMENT, text));
+    });
+    return buffer->actor->invoke (
+      actor_command_kind::run_native_continuation, ATHENA_NO_VIEW,
+      ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER, id);
+  };
+  QVERIFY (replace_body ("second"));
+  QVERIFY (save_actor ());
+  std::ifstream second_input (file, std::ios::binary);
+  std::string second ((std::istreambuf_iterator<char> (second_input)), {});
+  QVERIFY (contains_text (athena::document::read_xml (second), "second"));
+
+  const std::string external= athena::document::write_xml (
+    tree (DOCUMENT, compound ("body", tree (DOCUMENT, "external"))));
+  {
+    std::ofstream output (file, std::ios::binary | std::ios::trunc);
+    output.write (external.data (), std::streamsize (external.size ()));
+  }
+  QVERIFY (replace_body ("third"));
+  QVERIFY (!save_actor ());
+  std::ifstream final_input (file, std::ios::binary);
+  std::string final ((std::istreambuf_iterator<char> (final_input)), {});
+  QCOMPARE (final, external);
+
+  const std::filesystem::path renamed_file= root / "save-as-existing.ath";
+  {
+    std::ofstream output (renamed_file, std::ios::binary | std::ios::trunc);
+    output.write (legacy.data (), std::streamsize (legacy.size ()));
+  }
+  athena_blob_id rename_payload= actor_text_from_string (
+    as_string (url_system (string (renamed_file.string ().c_str ()))));
+  QVERIFY (buffer->actor->invoke (
+    actor_command_kind::rename_buffer, ATHENA_NO_VIEW, rename_payload));
+  QVERIFY (replace_body ("renamed"));
+  QVERIFY (save_actor ());
+  std::ifstream renamed_input (renamed_file, std::ios::binary);
+  std::string renamed_bytes ((std::istreambuf_iterator<char> (renamed_input)), {});
+  QVERIFY (contains_text (athena::document::read_xml (renamed_bytes), "renamed"));
+  bool saw_renamed_backup= false;
+  for (const auto& entry: std::filesystem::directory_iterator (root))
+    if (entry.path ().filename ().string ().rfind (
+          "save-as-existing.ath.pre-utf8-", 0) == 0) {
+      std::ifstream backup_input (entry.path (), std::ios::binary);
+      std::string backup ((std::istreambuf_iterator<char> (backup_input)), {});
+      QCOMPARE (backup, legacy);
+      saw_renamed_backup= true;
+    }
+  QVERIFY (saw_renamed_backup);
+}
 
 void
 TestBufferActor::nativeGeometryLengths () {

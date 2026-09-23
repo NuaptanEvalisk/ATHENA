@@ -27,6 +27,7 @@
 #include "new_style.hpp"
 #include "merge_sort.hpp"
 #include "materials_document.hpp"
+#include "ATHENA/Data/vault_backup.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
 #include <filesystem>
 #include <algorithm>
@@ -896,7 +897,7 @@ import_loaded_tree (string s, url u, string fm) {
 }
 
 tree
-import_tree (url u, string fm) {
+import_tree (url u, string fm, std::string* storage_sha256) {
   url r= resolve (u, "fr");
   if (is_none (r)) {
     url b= get_current_buffer ();
@@ -904,13 +905,46 @@ import_tree (url u, string fm) {
   }
   string s;
   if (is_none (r) || load_string (r, s, false)) return "error";
+  if (storage_sha256 != nullptr)
+    *storage_sha256= athena::document::storage_bytes_fingerprint (
+      std::string_view (as_charp (s), (std::size_t) N(s)));
   set_file_focus (r);
   return import_loaded_tree (s, r, fm);
 }
 
+void
+capture_buffer_document_storage (
+  tm_buffer buf, url name, url source, const std::string& expected_sha256) {
+  if (is_nil (buf)) return;
+  string extension= suffix (name);
+  if (extension != "ath" && extension != "tm") return;
+  url resolved_source= resolve (source, "fr");
+  url resolved_name= resolve (name, "fr");
+  if (is_none (resolved_source) || is_none (resolved_name) ||
+      is_rooted_tmfs (resolved_source) || is_rooted_web (resolved_source))
+    return;
+  string source_path= as_string (concretize (resolved_source), URL_SYSTEM);
+  string name_path= as_string (concretize (resolved_name), URL_SYSTEM);
+  if (N(source_path) == 0 || source_path != name_path) return;
+  string vault_path;
+  if (vault_active ())
+    vault_path= as_string (concretize (vault_get_root ()), URL_SYSTEM);
+  tree capture (TUPLE, source_path, vault_path,
+                string (expected_sha256.data (), (int) expected_sha256.size ()));
+  athena_blob_id payload= actor_tree_registry::instance ().store (std::move (capture));
+  actor_command_record result;
+  const bool invoked= invoke_buffer_actor (
+    buf, actor_command_kind::capture_document_storage, ATHENA_NO_VIEW,
+    payload, ATHENA_NO_BLOB, &result);
+  if (!invoked) discard_tree_payload (payload);
+  if (!invoked || result.argument[0] != 0)
+    std_warning << "Could not pin document storage revision for " << source << LF;
+}
+
 bool
 buffer_import (url name, url src, string fm) {
-  tree t= import_tree (src, fm);
+  std::string storage_sha256;
+  tree t= import_tree (src, fm, &storage_sha256);
   if (t == "error" || is_func (t, _ERROR)) return true;
   if (vault_active () && suffix (name) == "ath") {
     string preference= get_preference ("materials csl style", "springer-mathphys");
@@ -922,6 +956,8 @@ buffer_import (url name, url src, string fm) {
     else std_warning << "Could not refresh document Materials: " << string (error.c_str ()) << LF;
   }
   set_buffer_tree (name, t);
+  capture_buffer_document_storage (
+    concrete_buffer (name), name, src, storage_sha256);
   return false;
 }
 
@@ -1064,7 +1100,27 @@ bool
 buffer_save (url name) {
   string fm= file_format (name);
   if (fm == "generic") fm= "verbatim";
-  bool r= buffer_export (name, name, fm);
+  bool r;
+  if (fm == "texmacs" && !is_rooted_tmfs (name) && !is_rooted_web (name)) {
+    tm_buffer buf= concrete_buffer (name);
+    if (is_nil (buf)) return true;
+    // Backup policy is native and completes before the actor may replace the
+    // pinned file. The helper is a no-op for non-vault/new/non-local paths.
+    (void) vault_backup_pre_save (name);
+    string vault_path;
+    if (vault_active ())
+      vault_path= as_string (concretize (vault_get_root ()), URL_SYSTEM);
+    athena_blob_id vault_payload= vault_path == "" ? ATHENA_NO_BLOB :
+      actor_text_from_string (vault_path);
+    actor_command_record result;
+    const bool invoked= invoke_buffer_actor (
+      buf, actor_command_kind::save_buffer, buffer_command_view (buf, name),
+      vault_payload, ATHENA_NO_BLOB, &result);
+    if (!invoked && vault_payload != ATHENA_NO_BLOB)
+      discard_text_payload (vault_payload);
+    r= !invoked || result.argument[0] != 0;
+  }
+  else r= buffer_export (name, name, fm);
   if (!r) {
     pretend_buffer_saved (name);
     athena_view_id view_id= ATHENA_NO_VIEW;

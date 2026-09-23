@@ -1045,9 +1045,46 @@ buffer_actor::dispatch (actor_command_record& command) {
     if (N (name) != 0) {
       impl_->state.name= url (std::move (name));
       impl_->state.master= impl_->state.name;
+      impl_->state.storage.reset ();
+      impl_->state.storage_capture_failed= false;
       for (auto& entry: impl_->views)
         entry.second.instance->notify_change (THE_ENVIRONMENT);
       publish_tmfs_title (editor);
+    }
+    break;
+  }
+  case actor_command_kind::capture_document_storage: {
+    command.argument[0]= 1;
+    impl_->state.storage_capture_failed= true;
+    tree capture= actor_tree_registry::instance ().take (command.payload0);
+    try {
+      if (!is_func (capture, TUPLE, 3) || !is_atomic (capture[0]) ||
+          !is_atomic (capture[1]) || !is_atomic (capture[2]))
+        throw std::invalid_argument ("Invalid document storage capture payload");
+      string source_text= capture[0]->label;
+      string vault_text= capture[1]->label;
+      string expected_text= capture[2]->label;
+      std::filesystem::path source (
+        std::string (source_text.data (), (std::size_t) N(source_text)));
+      std::optional<std::filesystem::path> vault;
+      if (N(vault_text) != 0)
+        vault= std::filesystem::path (
+          std::string (vault_text.data (), (std::size_t) N(vault_text)));
+      auto storage= athena::document::document_file::capture (source, vault);
+      const std::string expected (
+        expected_text.data (), (std::size_t) N(expected_text));
+      if (!expected.empty () && storage.source_sha256 () != expected)
+        throw std::system_error (
+          EAGAIN, std::generic_category (),
+          "Document changed between import and storage capture");
+      impl_->state.storage= std::move (storage);
+      impl_->state.storage_capture_failed= false;
+      command.argument[0]= 0;
+    }
+    catch (const std::exception& error) {
+      std_warning << "Could not capture document storage revision: "
+                  << string (error.what ()) << LF;
+      impl_->state.storage.reset ();
     }
     break;
   }
@@ -1213,6 +1250,63 @@ buffer_actor::dispatch (actor_command_record& command) {
     for (auto& entry: impl_->views)
       entry.second.instance->notify_save (false);
     break;
+  case actor_command_kind::save_buffer: {
+    command.argument[0]= 1;
+    string vault_text;
+    if (command.payload0 != ATHENA_NO_BLOB)
+      vault_text= actor_text_registry::instance ().take (command.payload0);
+    try {
+      editor_rep* save_editor= current_editor (command.view_id);
+      if (save_editor != nullptr) save_editor->get_data (impl_->state.data);
+      refresh_interop_document_source (
+        impl_->state.source_envelope,
+        subtree (impl_->state.document, impl_->state.root_path),
+        impl_->state.data);
+      tree document= impl_->state.source_envelope;
+      document= remove_doc_attr (document, "view");
+      if (!is_headless ()) {
+        tree body= subtree (impl_->state.document, impl_->state.root_path);
+        tree links= as_tree (call (
+          "get-link-locations", object (impl_->state.name), object (body)));
+        document= remove_doc_attr (document, "links");
+        if (N(links) != 0) document << compound ("links", links);
+      }
+      string native= as_string (concretize (impl_->state.name), URL_SYSTEM);
+      if (N(native) == 0)
+        throw std::runtime_error ("Could not resolve local document path");
+      std::filesystem::path path (
+        std::string (native.data (), (std::size_t) N(native)));
+      athena::document::document_save_result saved;
+      if (impl_->state.storage)
+        saved= impl_->state.storage->save (document);
+      else {
+        if (impl_->state.storage_capture_failed)
+          throw std::runtime_error (
+            "Document storage revision was not captured when the file was opened");
+        if (std::filesystem::exists (path)) {
+          std::optional<std::filesystem::path> vault;
+          if (N(vault_text) != 0)
+            vault= std::filesystem::path (
+              std::string (vault_text.data (), (std::size_t) N(vault_text)));
+          impl_->state.storage= athena::document::document_file::capture (path, vault);
+          saved= impl_->state.storage->save (document);
+        }
+        else
+          impl_->state.storage= athena::document::document_file::create (
+            path, document, saved);
+      }
+      if (saved.durability == athena::document::upgrade_durability::durable)
+        command.argument[0]= 0;
+      else
+        std_warning << "Document was replaced but directory sync failed for "
+                    << impl_->state.name << LF;
+    }
+    catch (const std::exception& error) {
+      std_warning << "Could not save XML document " << impl_->state.name << ": "
+                  << string (error.what ()) << LF;
+    }
+    break;
+  }
   case actor_command_kind::attach_notifier:
     if (!impl_->state.notifier_attached) {
       string id= as_string (impl_->state.name, URL_UNIX);

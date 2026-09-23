@@ -2770,9 +2770,6 @@
     <arg type="url" />
   </binding>
   <binding name="clear-recent-vaults" native="vault_clear_recent" returns="void" />
-  <binding name="vault-backup-pre-save" native="vault_backup_pre_save" returns="bool">
-    <arg type="url" />
-  </binding>
   <binding name="vault-set-node" native="vault_set_node" returns="void">
     <arg type="string" />
     <arg type="string" />

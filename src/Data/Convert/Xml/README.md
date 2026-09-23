@@ -511,20 +511,41 @@ can inspect without confusing a later pathname replacement with their write.
 It also returns the root-child mapping caused by metadata removal. This is not
 a replacement for the importer's complete text-offset and tree-path mapping.
 
-This transaction is **not wired into normal saves or maintenance** yet. The
-reader, relocation and persistence prerequisites above are now in place. Tests cover
-legacy markup/Scheme captures, vault and sidecar backup placement, repeat
-attempts, corrupt/blocked backups, bounded serialization, read-only originals
-and stale source revisions. Disk-full and post-rename fsync fault injection,
-batch cancellation/resume and database recovery are still integration work.
+The transaction is now wired into normal local document saves through the
+BufferActor, which owns both the live tree and the captured storage revision.
+Opening a local `.ath`/`.tm` file pins its descriptor-backed revision. The raw
+SHA-256 of the bytes actually parsed by `import_tree()` must match the bytes read
+through the pinned storage descriptor; a change in the read-to-capture window
+invalidates storage capture and blocks later overwrite. A normal save strips
+obsolete legacy version metadata, serializes native XML, verifies an
+XML round trip, rejects outside modification, and atomically replaces the pinned
+file. Legacy files first preserve their exact original bytes in the migration
+backup location above, then transition the same `document_file` handle to pinned
+XML storage so subsequent saves cannot silently overwrite a later external
+replacement. New files use create-only `O_TMPFILE` publication and report parent
+directory durability. Existing XML files use the same revision-checked atomic
+replacement path. Native `buffer_save()` synchronously creates the existing vault
+`manual-save` compressed pre-save backup before invoking the BufferActor; this
+backup policy no longer depends on Scheme glue. XML normal saves therefore retain
+the user-facing backup history in addition to one-time legacy format-migration
+backups.
+
+Reading, previewing, indexing and maintenance never perform format upgrades.
+Maintenance migration remains deliberately disabled; only an explicit normal
+save may replace a legacy document with XML. Tests cover legacy markup/Scheme
+captures, vault and sidecar migration backups, repeat attempts, corrupt/blocked
+backups, bounded serialization, read-only originals, stale source revisions,
+create-only XML publication, repeated pinned XML saves, external-modification
+rejection and BufferActor normal-save upgrade behavior. Disk-full and
+post-rename fsync fault injection remain integration work.
 
 ## Remaining Integration Gates
 
 1. Integrate the role-aware legacy importer with remaining application metadata
-   and style/custom macro contracts.
-   The old `Strict-Cork` converter is **not** a substitute for this importer.
-2. Route all writers through the common codec and enable the transactional XML
-   writer for normal saves only after those readers and database schemas migrate.
+   and style/custom macro contracts. The old `Strict-Cork` converter is **not**
+   a substitute for this importer.
+2. Remove the remaining read-only legacy token/parser compatibility paths only
+   after the supported legacy-file import window is intentionally closed.
 
 Production Notes and remote backends are not test inputs. Tests use synthetic
 trees and isolated temporary directories. No deployment or database migration

@@ -114,7 +114,7 @@ bool buffer_load (url name);
 bool buffer_export (url name, url dest, string fm);
 bool buffer_save (url name);
 tree import_loaded_tree (string s, url u, string fm);
-tree import_tree (url u, string fm);
+tree import_tree (url u, string fm, std::string* storage_sha256= nullptr);
 bool export_tree (tree doc, url u, string fm);
 tree load_style_tree (string package);
 tree with_package_definitions (string package, tree body);

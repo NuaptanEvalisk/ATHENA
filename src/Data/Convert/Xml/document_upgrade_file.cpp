@@ -10,6 +10,7 @@
 #include "document_upgrade_file.hpp"
 #include <QCryptographicHash>
 #include <cerrno>
+#include <fstream>
 #include <system_error>
 
 namespace athena::document {
@@ -33,6 +34,9 @@ legacy_format identify_legacy (std::string_view bytes) {
   throw codec_exception (codec_error::invalid_structure, "Not a supported legacy document signature");
 }
 } // namespace
+
+std::string
+storage_bytes_fingerprint (std::string_view bytes) { return sha256 (bytes); }
 
 legacy_file::legacy_file (filesystem::confined_root root, std::filesystem::path relative,
     bool in_vault, filesystem::entry file, filesystem::metadata revision,
@@ -88,5 +92,117 @@ upgrade_result legacy_file::commit (const tree& utf8_document, codec_limits limi
   return {std::move (backup_path), std::move (original_digest), std::move (xml_digest), replaced.file,
     replaced.directory_synced ? upgrade_durability::durable : upgrade_durability::replaced_not_durable,
     std::move (root_child_map)};
+}
+
+xml_file::xml_file (filesystem::confined_root root,
+                    std::filesystem::path relative,
+                    filesystem::entry file,
+                    filesystem::metadata revision, std::string digest):
+  root_ (std::move (root)), relative_ (std::move (relative)),
+  file_ (std::move (file)), revision_ (revision), digest_ (std::move (digest)) {}
+
+xml_file
+xml_file::capture (const std::filesystem::path& source, codec_limits limits) {
+  const auto absolute= std::filesystem::canonical (source);
+  filesystem::confined_root root (absolute.parent_path ());
+  const auto relative= absolute.filename ();
+  auto file= root.open (relative);
+  const auto revision= file.stat ();
+  const auto bytes= file.read (limits.input_bytes);
+  if (!filesystem::same_revision (revision, file.stat ()))
+    throw std::system_error (EAGAIN, std::generic_category (),
+                             "Document changed during XML capture");
+  (void) read_xml (bytes, xml_kind::document, limits);
+  return xml_file (
+    std::move (root), relative, std::move (file), revision, sha256 (bytes));
+}
+
+xml_file
+xml_file::create (const std::filesystem::path& source, const tree& document,
+                  xml_save_result& result, codec_limits limits) {
+  const auto parent= std::filesystem::canonical (source.parent_path ());
+  filesystem::confined_root root (parent);
+  const auto relative= source.filename ();
+  const auto clean= strip_legacy_document_version (document);
+  const auto xml= write_xml (clean, xml_kind::document, limits);
+  if (read_xml (xml, xml_kind::document, limits) != clean)
+    throw codec_exception (codec_error::invalid_structure,
+                           "XML create round-trip verification failed");
+  auto created= root.create (relative, xml);
+  auto file= created.file;
+  if (file.read (limits.input_bytes) != xml)
+    throw std::system_error (ESTALE, std::generic_category (),
+                             "New XML document changed before capture");
+  const auto revision= file.stat ();
+  result= {sha256 (xml), created.directory_synced ? upgrade_durability::durable :
+                                                  upgrade_durability::replaced_not_durable};
+  return xml_file (
+    std::move (root), relative, std::move (file), revision, result.xml_sha256);
+}
+
+xml_save_result
+xml_file::commit (const tree& document, codec_limits limits) {
+  const auto current= root_.open (relative_);
+  if (!current.same_object (file_) ||
+      !filesystem::same_revision (revision_, current.stat ()))
+    throw std::system_error (ESTALE, std::generic_category (),
+                             "XML document changed since it was opened");
+  const auto clean= strip_legacy_document_version (document);
+  const auto xml= write_xml (clean, xml_kind::document, limits);
+  if (read_xml (xml, xml_kind::document, limits) != clean)
+    throw codec_exception (codec_error::invalid_structure,
+                           "XML save round-trip verification failed");
+  auto replaced= root_.replace (relative_, file_, revision_, xml);
+  file_= replaced.file;
+  revision_= file_.stat ();
+  digest_= sha256 (xml);
+  return {digest_, replaced.directory_synced ? upgrade_durability::durable :
+                                              upgrade_durability::replaced_not_durable};
+}
+
+document_file
+document_file::capture (const std::filesystem::path& source,
+                        const std::optional<std::filesystem::path>& vault,
+                        codec_limits limits) {
+  const auto absolute= std::filesystem::canonical (source);
+  std::ifstream input (absolute, std::ios::binary);
+  if (!input)
+    throw std::system_error (errno ? errno : EIO, std::generic_category (),
+                             "Could not inspect document storage format");
+  char prefix[32]= {};
+  input.read (prefix, sizeof (prefix));
+  const std::string_view head (prefix, std::size_t (input.gcount ()));
+  if (starts (head, "<TeXmacs|") || starts (head, "(document (TeXmacs ") ||
+      starts (head, "(document (apply \"TeXmacs\"") ||
+      starts (head, "(document (expand \"TeXmacs\""))
+    return document_file (legacy_file::capture (absolute, vault, limits));
+  return document_file (xml_file::capture (absolute, limits));
+}
+
+document_file
+document_file::create (const std::filesystem::path& source,
+                       const tree& document, document_save_result& result,
+                       codec_limits limits) {
+  xml_save_result saved;
+  document_file file (xml_file::create (source, document, saved, limits));
+  result= {{}, std::move (saved.xml_sha256), saved.durability, false};
+  return file;
+}
+
+document_save_result
+document_file::save (const tree& document, codec_limits limits) {
+  if (legacy_) {
+    upgrade_result upgraded= legacy_->commit (document, limits);
+    xml_file next (
+      legacy_->root_, legacy_->relative_, upgraded.file, upgraded.file.stat (),
+      upgraded.xml_sha256);
+    legacy_.reset ();
+    xml_= std::move (next);
+    return {upgraded.backup, upgraded.xml_sha256, upgraded.durability, true};
+  }
+  if (!xml_)
+    throw std::logic_error ("Document file has no captured storage state");
+  auto saved= xml_->commit (document, limits);
+  return {{}, std::move (saved.xml_sha256), saved.durability, false};
 }
 } // namespace athena::document

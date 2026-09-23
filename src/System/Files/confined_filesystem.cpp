@@ -240,6 +240,53 @@ replacement confined_root::replace (const std::filesystem::path& relative,
 #endif
 }
 
+replacement confined_root::create (const std::filesystem::path& relative,
+                                    std::string_view bytes) const {
+#ifdef __linux__
+  if (relative.empty () || relative.is_absolute ())
+    throw std::invalid_argument ("Expected a relative document path");
+  for (const auto& part: relative) validate_component (part.string ());
+  (void) open (".");
+  auto parent_path= relative.parent_path ();
+  if (parent_path.empty ()) parent_path= ".";
+  descriptor parent (beneath (
+    implementation->descriptor_.fd, parent_path, O_RDONLY | O_DIRECTORY));
+  descriptor temporary (::openat (
+    parent.fd, ".", O_TMPFILE | O_RDWR | O_CLOEXEC, 0600));
+  std::size_t offset= 0;
+  while (offset < bytes.size ()) {
+    const auto n= ::write (temporary.fd, bytes.data () + offset,
+      std::min<std::size_t> (bytes.size () - offset, 1024 * 1024));
+    if (n < 0) {
+      if (errno == EINTR) continue;
+      fail ("Write confined document creation");
+    }
+    if (!n) throw std::runtime_error ("Short write to confined document creation");
+    offset+= n;
+  }
+  if (::fchmod (temporary.fd, 0600) < 0)
+    fail ("Set created document permissions");
+  sync_file (temporary.fd);
+  descriptor current_parent (beneath (
+    implementation->descriptor_.fd, parent_path, O_PATH | O_DIRECTORY));
+  const auto before= information (parent.fd), now= information (current_parent.fd);
+  if (before.device != now.device || before.inode != now.inode)
+    throw std::system_error (ESTALE, std::generic_category (),
+                             "Document parent directory moved");
+  const auto temporary_fd= "/proc/self/fd/" + std::to_string (temporary.fd);
+  if (::linkat (AT_FDCWD, temporary_fd.c_str (), parent.fd,
+                relative.filename ().c_str (), AT_SYMLINK_FOLLOW) < 0)
+    fail ("Commit confined document creation");
+  auto created= std::make_shared<entry::impl> (
+    beneath (parent.fd, relative.filename (), O_PATH), path () / relative);
+  int synced;
+  do { synced= ::fsync (parent.fd); } while (synced < 0 && errno == EINTR);
+  return {entry (std::move (created)), synced == 0};
+#else
+  throw std::runtime_error ("Confined filesystem access is unavailable");
+#endif
+}
+
 entry confined_root::preserve (const std::filesystem::path& relative,
                               std::string_view bytes) const {
 #ifdef __linux__

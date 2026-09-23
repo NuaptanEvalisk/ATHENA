@@ -40,6 +40,55 @@ class TestDocumentUpgrade: public QObject {
   Q_OBJECT
 private slots:
   void initTestCase () { make_tree_label (DOCUMENT, "document"); }
+  void persistentXmlStorage () {
+    QTemporaryDir temporary;
+    QVERIFY (temporary.isValid ());
+    fs::path root (temporary.path ().toStdString ());
+    auto file= root / "created.ath";
+    document_save_result created;
+    auto storage= document_file::create (file, migrated (), created);
+    QVERIFY (created.durability == upgrade_durability::durable);
+    QVERIFY (!storage.legacy ());
+    QCOMPARE (storage.source_sha256 (), created.xml_sha256);
+    QCOMPARE (storage.source_sha256 (), storage_bytes_fingerprint (get (file)));
+    QCOMPARE (read_xml (get (file)), migrated ());
+    tree second (DOCUMENT, "second");
+    auto saved= storage.save (second);
+    QVERIFY (!saved.upgraded_legacy);
+    QVERIFY (saved.durability == upgrade_durability::durable);
+    QCOMPARE (storage.source_sha256 (), saved.xml_sha256);
+    QCOMPARE (storage.source_sha256 (), storage_bytes_fingerprint (get (file)));
+    QCOMPARE (read_xml (get (file)), second);
+    const std::string external= write_xml (tree (DOCUMENT, "external"));
+    put (file, external);
+    QVERIFY_THROWS_EXCEPTION (std::system_error, storage.save (tree (DOCUMENT, "third")));
+    QCOMPARE (get (file), external);
+    document_save_result overwrite;
+    QVERIFY_THROWS_EXCEPTION (std::system_error,
+      document_file::create (file, tree (DOCUMENT, "overwrite"), overwrite));
+  }
+  void legacyStorageTransitionsToPinnedXml () {
+    QTemporaryDir temporary;
+    QVERIFY (temporary.isValid ());
+    fs::path root (temporary.path ().toStdString ());
+    auto file= root / "legacy.ath";
+    put (file, legacy);
+    auto storage= document_file::capture (file, root);
+    QVERIFY (storage.legacy ());
+    QCOMPARE (storage.source_sha256 (), storage_bytes_fingerprint (legacy));
+    auto upgraded= storage.save (migrated ());
+    QVERIFY (upgraded.upgraded_legacy);
+    QVERIFY (upgraded.backup.has_value ());
+    QCOMPARE (get (*upgraded.backup), legacy);
+    QVERIFY (!storage.legacy ());
+    QCOMPARE (storage.source_sha256 (), upgraded.xml_sha256);
+    QCOMPARE (storage.source_sha256 (), storage_bytes_fingerprint (get (file)));
+    tree second (DOCUMENT, "second");
+    auto saved= storage.save (second);
+    QVERIFY (!saved.upgraded_legacy);
+    QCOMPARE (read_xml (get (file)), second);
+    QCOMPARE (get (*upgraded.backup), legacy);
+  }
   void backupAndUpgrade () {
     QTemporaryDir temporary;
     QVERIFY (temporary.isValid ());

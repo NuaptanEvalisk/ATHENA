@@ -186,7 +186,6 @@
   ;;(display* "save-buffer-save " name "\n")
   (with vname `(verbatim ,(utf8->cork (url->system name)))
     (save-buffer-preserve-current-viewport name)
-    (vault-backup-pre-save name)
     (if (buffer-save name)
         (begin
           (buffer-pretend-modified name)

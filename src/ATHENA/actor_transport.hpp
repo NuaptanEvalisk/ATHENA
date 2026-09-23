@@ -87,6 +87,7 @@ enum class actor_command_kind: std::uint32_t {
   save_buffer,
   autosave_buffer,
   replace_document,
+  capture_document_storage,
   replace_body,
   set_message,
   recall_message,

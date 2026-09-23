@@ -61,6 +61,10 @@ public:
   // outside writes before commit, but are not a CAS against uncooperative code.
   replacement replace (const std::filesystem::path& relative, const entry& expected,
                        const metadata& revision, std::string_view bytes) const;
+  // Atomically create a new regular document. The destination must not exist;
+  // parent directories must already exist inside the confined root.
+  replacement create (const std::filesystem::path& relative,
+                      std::string_view bytes) const;
   // Durable, create-only backup. Parent directories are created privately;
   // symlinks are refused. An existing file must contain exactly these bytes.
   // Failure never replaces an existing file; retrying is safe after interruption.

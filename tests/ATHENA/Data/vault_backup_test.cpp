@@ -6,9 +6,11 @@
 
 #include <QtTest/QtTest>
 #include <QTemporaryDir>
+#include <QScopeGuard>
 
 #include "ATHENA/Data/vault_backup.hpp"
 #include "ATHENA/Data/vault.hpp"
+#include "ATHENA/Data/vaultfile_json.hpp"
 
 #include <filesystem>
 #include <fstream>
@@ -69,16 +71,18 @@ TestVaultBackup::publishesCompleteDistinctPreSaveHistories () {
   fs::path root= temporary.path ().toStdString ();
   fs::path document= root / "Document.ath";
 
-  is_vault_active= true;
-  current_vault.root= url_system (string (root.string ().c_str ()));
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (root, AthenaVaultfileInfo {}, error), error.c_str ());
+  QCOMPARE (vault_load (
+              url_system (string (root.string ().c_str ())),
+              "Backup test", "map.sqlite", "ns.sqlite"), string (""));
+  auto close_vault= qScopeGuard ([] { vault_close (); });
   QVERIFY (write_file (document, "first persisted version"));
   QVERIFY (vault_backup_pre_save (
     url_system (string (document.string ().c_str ()))));
   QVERIFY (write_file (document, "second persisted version"));
   QVERIFY (vault_backup_pre_save (
     url_system (string (document.string ().c_str ()))));
-  is_vault_active= false;
-  current_vault= vault_info ();
 
   std::set<std::string> histories;
   size_t partials= 0;
