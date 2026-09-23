@@ -112,6 +112,11 @@ struct move_box_rep: public change_box_rep {
   int get_type () { return MOVE_BOX; }
   box adjust_kerning (int mode, double factor);
   box expand_glyphs (int mode, double factor);
+  std::optional<SI> top_accent_attachment () override {
+    auto anchor= bs[0]->top_accent_attachment ();
+    if (anchor) *anchor += sx (0);
+    return anchor;
+  }
   operator tree () { return tree (TUPLE, "move", (tree) bs[0]); }
 };
 

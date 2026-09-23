@@ -645,10 +645,13 @@ wide_box_rep::wide_box_rep (
   insert (ref, 0, 0);
   if (above) {
     Y= ref->y2;
-    X= m;
-    if (ref->right_slope () != 0)
-      X += ref->rsup_correction() + ((SI) (ref->right_slope() * fn->yx * 0.5));
-    X += ref->wide_correction (1);
+    auto anchor= ref->top_accent_attachment ();
+    X= anchor ? *anchor : m;
+    if (!anchor) {
+      if (ref->right_slope () != 0)
+        X += ref->rsup_correction() + ((SI) (ref->right_slope() * fn->yx * 0.5));
+      X += ref->wide_correction (1);
+    }
     //X= ((SI) (ref->right_slope () * (Y - fn->yx))) + m;
     insert (hi, X- ((hi->x1 + hi->x2)>>1), Y+ sep);
   }

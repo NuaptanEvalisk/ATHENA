@@ -165,6 +165,28 @@ struct utf8_line_box_rep: box_rep {
   }
   double left_slope () override { return nominal->slope * horizontal_scale; }
   double right_slope () override { return nominal->slope * horizontal_scale; }
+  SI left_correction () override { return max (0, x1 - x3); }
+  SI right_correction () override {
+    if (!line.runs.empty () && line.runs.back ().text.math)
+      return line.runs.back ().text.math->italic_correction;
+    return max (0, x4 - x2);
+  }
+  SI lsub_correction () override { return -left_correction (); }
+  SI rsup_correction () override { return right_correction (); }
+  SI wide_correction (int mode) override {
+    if (mode != 0) return 0;
+    return std::none_of (line.carets.begin (), line.carets.end (),
+      [&] (const line_caret& caret) {
+        return caret.byte > static_cast<std::size_t> (begin) &&
+               caret.byte < static_cast<std::size_t> (end);
+      });
+  }
+  std::optional<SI> top_accent_attachment () override {
+    if (line.runs.size () == 1 && line.runs.front ().text.math)
+      return offset (line.runs.front ().x,
+                     line.runs.front ().text.math->top_accent_attachment);
+    return std::nullopt;
+  }
   SI sub_lo_base (int level) override {
     return nominal->ysub_lo_base + (level > 0 ? nominal->yshift : 0);
   }

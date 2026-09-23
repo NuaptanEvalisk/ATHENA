@@ -12,6 +12,7 @@
 #include "renderer.hpp"
 #include "font_source.hpp"
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -59,6 +60,13 @@ struct bitmap_text_glyph {
   void draw (renderer ren, SI x, SI y) const;
 };
 
+// OpenType MATH values for a single shaped glyph, in the run's SI coordinates.
+// Absent means the selected physical face has no MATH table (not a zero value).
+struct shaped_math_metrics {
+  SI italic_correction;
+  SI top_accent_attachment;
+};
+
 // Like other font/box resources, a run is confined to its font domain and must
 // be consumed before that domain dies. Renderer recording owns emitted pixels.
 struct shaped_text {
@@ -76,6 +84,7 @@ struct shaped_text {
   SI ink_x1= 0, ink_y1= 0, ink_x2= 0, ink_y2= 0;
   bool has_ink= false;
   bool missing_glyphs= false;
+  std::optional<shaped_math_metrics> math;
 
   // Supply the same immutable input used for shaping (including context).
   // Borrow it during drawing instead of copying each leaf into every run.

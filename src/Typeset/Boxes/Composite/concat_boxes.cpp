@@ -48,6 +48,7 @@ struct concat_box_rep: public composite_box_rep {
   SI        sup_lo_base (int level);
   SI        sup_hi_lim  (int level);
   SI        wide_correction (int mode);
+  std::optional<SI> top_accent_attachment () override;
   void      get_bracket_extents (SI& lo, SI& hi);
 
   int       find_any_child (SI x, SI y, SI delta, SI& delta_out);
@@ -351,6 +352,19 @@ concat_box_rep::wide_correction (int mode) {
     }
   if (!done && mode == 0) return 1;
   return current;
+}
+
+std::optional<SI>
+concat_box_rep::top_accent_attachment () {
+  std::optional<SI> result;
+  for (int i=0; i<N(bs); ++i) {
+    if (bs[i]->w () == 0 && bs[i]->x3 == bs[i]->x4) continue;
+    if (result) return std::nullopt;
+    result= bs[i]->top_accent_attachment ();
+    if (!result) return std::nullopt;
+    *result += sx (i);
+  }
+  return result;
 }
 
 void

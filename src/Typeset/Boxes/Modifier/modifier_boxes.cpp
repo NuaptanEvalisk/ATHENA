@@ -100,6 +100,8 @@ SI modifier_box_rep::sup_hi_lim  (int level) {
   return b->sup_hi_lim (level); }
 SI modifier_box_rep::wide_correction (int mode) {
   return b->wide_correction (mode); }
+std::optional<SI> modifier_box_rep::top_accent_attachment () {
+  return b->top_accent_attachment (); }
 void modifier_box_rep::get_bracket_extents (SI& lo, SI& hi) {
   b->get_bracket_extents (lo, hi); }
 
@@ -279,6 +281,10 @@ public:
   path   find_rip ();
   path   find_right_box_path ();
   std::optional<athena::text::caret_affinity> cursor_affinities (path bp) override;
+  std::optional<SI> top_accent_attachment () override {
+    return len == b->get_leaf_right_pos () - pos ?
+      b->top_accent_attachment () : std::nullopt;
+  }
   int    get_type ();
   int    get_leaf_left_pos ();
   int    get_leaf_right_pos ();
@@ -470,6 +476,11 @@ struct macro_box_rep: public composite_box_rep {
     return y2- syx; }
   SI wide_correction (int mode) {
     return bs[0]->wide_correction (mode); }
+  std::optional<SI> top_accent_attachment () override {
+    auto anchor= bs[0]->top_accent_attachment ();
+    if (anchor) *anchor += sx (0);
+    return anchor;
+  }
   void get_bracket_extents (SI& lo, SI& hi) {
     bs[0]->get_bracket_extents (lo, hi); }
 };

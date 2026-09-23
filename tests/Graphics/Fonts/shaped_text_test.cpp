@@ -18,6 +18,7 @@
 #include "Freetype/tt_face.hpp"
 #include "Qt/QTMRenderService.hpp"
 #include "Qt/qt_renderer.hpp"
+#include <harfbuzz/hb-ot.h>
 #include <QTemporaryDir>
 #include <QPicture>
 #include <cstdlib>
@@ -777,6 +778,96 @@ static void check_bitmap_text () {
   require (colored > 40, "Color glyph produced no colored pixels");
 }
 
+static void check_math_metrics () {
+  const std::string file= std::string (std::getenv ("ATHENA_PATH")) +
+    "/fonts/truetype/texgyre/texgyrepagella-math.otf";
+  cache_set ("font_cache.scm", "ttf:texgyrepagella-math", string (file.c_str ()));
+  font physical= unicode_font ("texgyrepagella-math", 12, 96);
+  // Read the fixture independently of the owner-local shaping cache.
+  std::unique_ptr<hb_blob_t, decltype (&hb_blob_destroy)> blob (
+    hb_blob_create_from_file_or_fail (file.c_str ()), hb_blob_destroy);
+  require (blob != nullptr, "Cannot read math font fixture");
+  std::unique_ptr<hb_face_t, decltype (&hb_face_destroy)> face (
+    hb_face_create (blob.get (), 0), hb_face_destroy);
+  std::unique_ptr<hb_font_t, decltype (&hb_font_destroy)> reference (
+    hb_font_create (face.get ()), hb_font_destroy);
+  hb_ot_font_set_funcs (reference.get ());
+  const int scale= (12 * 96 * PIXEL + 36) / 72;
+  hb_font_set_scale (reference.get (), scale, scale);
+  require (hb_ot_math_has_data (face.get ()), "Fixture has no OpenType MATH data");
+
+  font_catalog catalog (false, {file});
+  font_request request {"TeX Gyre Pagella Math"};
+  bool nonzero_correction= false, offcenter_anchor= false;
+  for (const std::string source: {std::string ("A"), std::string ("\xf0\x9d\x91\x93"),
+                                  std::string ("\xe2\x88\xab")}) {
+    const auto run= shape (physical, source);
+    require (run.glyphs.size () == 1 && run.math && !run.missing_glyphs,
+             "Single Unicode math glyph lost physical metrics");
+    const auto glyph= run.glyphs.front ();
+    const SI correction= hb_ot_math_get_glyph_italics_correction (reference.get (), glyph.index);
+    const SI anchor= glyph.x +
+      hb_ot_math_get_glyph_top_accent_attachment (reference.get (), glyph.index);
+    require (run.math->italic_correction == correction &&
+             run.math->top_accent_attachment == anchor,
+             "Native math metrics disagree with the selected physical glyph");
+    nonzero_correction |= correction != 0;
+    offcenter_anchor |= anchor != run.advance_x / 2;
+    const string atom (source.data (), source.size ());
+    auto single= utf8_text_box (path (0), atom, 0, N(atom), physical, pencil (black));
+    auto paragraph= std::make_shared<font_paragraph> (source, request, catalog);
+    // The nominal text font has no MATH table: actual selected glyphs own these metrics.
+    auto leaf= utf8_line_box (path (0), paragraph, 0, source.size (), pagella (), pencil (black));
+    for (auto b: {single, leaf}) {
+      require (b->right_correction () == correction && b->rsup_correction () == correction &&
+               b->top_accent_attachment () == anchor && b->wide_correction (0) == 1,
+               "Unicode box lost math script or accent metrics");
+      auto decorated= macro_box (path (0), direct_link_box (path (0), b, "#target"));
+      require (decorated->top_accent_attachment () == anchor &&
+               decorated->rsup_correction () == correction,
+               "Atomic symbol or link wrapper discarded math metrics");
+      auto moved= move_box (path (0), decorated, 37, 0);
+      require (moved->top_accent_attachment () == anchor + 37,
+               "Moved math glyph retained an untranslated accent anchor");
+      array<box> pieces;
+      pieces << moved;
+      require (concat_box (path (0), pieces)->top_accent_attachment () == anchor + 37,
+               "Single-glyph concatenation lost the accent anchor");
+      pieces << single;
+      require (!concat_box (path (0), pieces)->top_accent_attachment (),
+               "Multiple-glyph expression inherited a single-glyph accent anchor");
+      auto accented= wide_box (path (0), b, "^", physical, pencil (black), false, true);
+      require (accented->subnr () == 2, "Accent box is missing its glyph");
+      auto accent= accented->subbox (1);
+      require (accented->sx (1) + ((accent->x1 + accent->x2) >> 1) ==
+               accented->sx (0) + anchor,
+               "Accent layout added legacy corrections to an OpenType anchor");
+    }
+    auto expanded= leaf->expand_glyphs (0, 1.0);
+    hb_font_set_scale (reference.get (), 2 * scale, scale);
+    require (expanded->rsup_correction () ==
+               hb_ot_math_get_glyph_italics_correction (reference.get (), glyph.index) &&
+             expanded->top_accent_attachment () ==
+               hb_ot_math_get_glyph_top_accent_attachment (reference.get (), glyph.index),
+             "Horizontal glyph expansion did not rescale math metrics");
+    hb_font_set_scale (reference.get (), scale, scale);
+    if (source.size () > 1)
+      require (!shorter_box (path (0), leaf, 1)->top_accent_attachment (),
+               "Clipped glyph retained an invalid whole-glyph anchor");
+  }
+  require (nonzero_correction && offcenter_anchor, "Math test did not exercise nontrivial metrics");
+  require (!shape (pagella (), "A").math && !shape (physical, "AB").math &&
+           !shape (physical, "").math && !shape (physical, "\xf4\x8f\xbf\xbf").math,
+           "Absent MATH, multiple, empty or missing glyphs acquired false metrics");
+  auto combining= std::make_shared<font_paragraph> ("e\xcc\x81", request, catalog);
+  require (utf8_line_box (path (0), combining, 0, 3, pagella (), pencil (black))->wide_correction (0) == 1,
+           "Accent width classification counted UTF-8 bytes instead of graphemes");
+  auto word= std::make_shared<font_paragraph> ("AB", request, catalog);
+  auto word_box= utf8_line_box (path (0), word, 0, 2, pagella (), pencil (black));
+  require (!word_box->top_accent_attachment () && word_box->wide_correction (0) == 0,
+           "Multi-grapheme math text was classified as one accent base");
+}
+
 static void check_text () {
   font_domain owner;
   font_domain_binding binding (owner);
@@ -790,6 +881,7 @@ static void check_text () {
   check_line_boxes (fn);
   check_line_spacing ();
   check_bitmap_text ();
+  check_math_metrics ();
   auto literal= shape (fn, "a<alpha>b");
   require (literal.glyphs.size () == 9 && !literal.missing_glyphs,
            "Literal angle-bracket text was interpreted as Cork");

@@ -217,10 +217,19 @@ unchanged. Legacy readers still recognize existing file headers.
   and source-path interfaces. It retains a COW source atom with joining context,
   rather than copying substrings for every caret or shaping a prefix on each
   mouse move. Its explicit UTF-8 factory is not selected by the legacy concater:
-  paragraph itemization, microtypography and mathematical glyph corrections
-  must migrate before that cutover. Font-domain rendering and PDF tests exercise
+  mathematical font roles and remaining microtypography must migrate before
+  that cutover. Font-domain rendering and PDF tests exercise
   the box directly, including destruction after recording and source COW edits.
   `utf8_line_box` connects the multi-font paragraph result to those box APIs.
+  Both native box paths consume single-glyph italic corrections and top-accent
+  attachments read by HarfBuzz from the actual selected face's OpenType MATH
+  table, including font variations and device scaling. These are copied numeric
+  metrics, not shared FreeType state. Missing MATH data is distinct from a zero
+  correction; absent data retains ink-overhang/legacy accent fallbacks. Link,
+  atomic-symbol, translation and single-glyph concatenation wrappers preserve
+  physical accent anchors, which take precedence over slope heuristics. This
+  does not yet replace mathematical font-role selection, extensible glyph
+  assembly, vertical MATH constants or height-dependent script kerning.
   Wrapped lines share immutable paragraph source and selected fonts. Local box
   paths retain both byte and caret affinity, whereas document tree paths retain
   only the absolute byte. Visual selections are unions of selected run intervals,

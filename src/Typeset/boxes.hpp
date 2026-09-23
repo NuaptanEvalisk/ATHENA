@@ -226,6 +226,9 @@ public:
   virtual SI        sup_lo_base (int level);
   virtual SI        sup_hi_lim  (int level);
   virtual SI        wide_correction (int mode);
+  // Physical glyph anchor, relative to this box's origin. When present it
+  // supersedes the legacy slope/italic heuristic for positioning an accent.
+  virtual std::optional<SI> top_accent_attachment () { return std::nullopt; }
   virtual void      get_bracket_extents (SI& lo, SI& hi);
 
   /*************************** for graphical boxes ***************************/

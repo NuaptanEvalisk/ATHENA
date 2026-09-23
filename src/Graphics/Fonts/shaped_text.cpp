@@ -355,6 +355,12 @@ static shaped_text shape_freetype_run (
   }
   result.advance_x= checked_si (x);
   result.advance_y= checked_si (y);
+  if (count == 1 && !result.missing_glyphs && hb_ot_math_has_data (cached.face.get ())) {
+    const auto& glyph= result.glyphs.front ();
+    result.math= shaped_math_metrics {
+      hb_ot_math_get_glyph_italics_correction (hbfont, glyph.index),
+      translated (glyph.x, hb_ot_math_get_glyph_top_accent_attachment (hbfont, glyph.index))};
+  }
   if (options.editing_carets)
     build_carets (result, hbfont, text, options.max_carets,
                   options.grapheme_fragments);
@@ -635,6 +641,8 @@ void shaped_line::set_space_widths (std::string_view source,
       const SI next_pen= translated (pen, glyph.advance_x);
       const SI shift= checked_si (static_cast<std::int64_t> (move (pen)) - pen - next_origin + origin);
       glyph.x= translated (glyph.x, shift);
+      if (run.math)
+        run.math->top_accent_attachment= translated (run.math->top_accent_attachment, shift);
       glyph.advance_x= checked_si (static_cast<std::int64_t> (move (next_pen)) - move (pen));
       min_shift= std::min (min_shift, shift);
       max_shift= std::max (max_shift, shift);

@@ -77,6 +77,19 @@ struct utf8_text_box_rep final: box_rep {
   }
   double left_slope () override { return fn->slope; }
   double right_slope () override { return fn->slope; }
+  SI left_correction () override { return max (0, x1 - x3); }
+  SI right_correction () override {
+    return run.math ? run.math->italic_correction : max (0, x4 - x2);
+  }
+  SI lsub_correction () override { return -left_correction (); }
+  SI rsup_correction () override { return right_correction (); }
+  SI wide_correction (int mode) override {
+    return mode == 0 && run.carets.size () <= 2;
+  }
+  std::optional<SI> top_accent_attachment () override {
+    if (run.math) return run.math->top_accent_attachment;
+    return std::nullopt;
+  }
   SI sub_lo_base (int level) override {
     return fn->ysub_lo_base + (level > 0 ? fn->yshift : 0);
   }
