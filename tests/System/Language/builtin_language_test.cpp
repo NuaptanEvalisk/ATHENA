@@ -12,6 +12,7 @@
 #include "packrat_grammar.hpp"
 #include "convert.hpp"
 #include "drd_std.hpp"
+#include "dictionary.hpp"
 
 class TestBuiltinLanguage: public QObject {
   Q_OBJECT
@@ -22,6 +23,7 @@ private slots:
   void test_std_math_inheritance ();
   void test_minimal_language ();
   void test_definition_compatibility ();
+  void test_utf8_document_dictionary ();
 };
 
 void
@@ -57,6 +59,15 @@ TestBuiltinLanguage::test_definition_compatibility () {
   QVERIFY (occurs ("named-symbol", encoded));
   QVERIFY (occurs ("texmacs:backassign", encoded));
   QVERIFY (!occurs ("<assign>", encoded));
+}
+
+void
+TestBuiltinLanguage::test_utf8_document_dictionary () {
+  dictionary_rep french ("english", "french");
+  french.load (url ("$ATHENA_PATH/langs/document/english-french.json"));
+  QCOMPARE (french.translate ("abstract", false), string ("résumé"));
+  QCOMPARE (french.translate ("answer", false), string ("réponse"));
+  QCOMPARE (french.translate ("unknown-entry", false), string ("unknown-entry"));
 }
 
 QTEST_MAIN(TestBuiltinLanguage)

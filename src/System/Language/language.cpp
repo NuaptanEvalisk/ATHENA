@@ -391,12 +391,10 @@ ad_hoc_language_rep::advance (tree t, int& pos) {
 array<int>
 ad_hoc_language_rep::get_hyphens (string s) {
   if (hyphens->contains (s)) {
-    string h= hyphens[s];
-    array<int> penalty;
-    for (int i=0; i<N(h); tm_char_forwards (h, i))
-      if (h[i] != '-') penalty << HYPH_INVALID;
-      else if (N(penalty)>0) penalty[N(penalty)-1]= 0;
-    return penalty;
+    hashmap<string,string> patterns ("?");
+    hashmap<string,string> explicit_hyphenations ("?");
+    explicit_hyphenations (uni_locase_all (s))= hyphens[s];
+    return ::get_hyphens (s, patterns, explicit_hyphenations);
   }
   else return base->get_hyphens (s);
 }
@@ -407,7 +405,7 @@ ad_hoc_language_rep::hyphenate (
 {
   if (hyphens->contains (s)) {
     array<int> penalty= get_hyphens (s);
-    std_hyphenate (s, after, left, right, penalty[after], true);
+    std_hyphenate (s, after, left, right, penalty[after]);
   }
   else base->hyphenate (s, after, left, right);
 }

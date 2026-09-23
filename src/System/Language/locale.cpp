@@ -32,6 +32,7 @@
 
 #include "sys_utils.hpp"
 #include "analyze.hpp"
+#include "unicode_text.hpp"
 
 #ifdef QTTEXMACS
 #include "Qt/qt_utilities.hpp"
@@ -314,22 +315,27 @@ get_date (string lan, string fm) {
         string m= simplify_date (var_eval_system ("date +\"%m\""));
         string d= simplify_date (var_eval_system ("date +\"%d\""));
         if (lan == "korean")
-          return y * "<#b144> " * m * "<#c6d4> " * d * "<#c77c>";
-	      return y * "<#5e74>" * m * "<#6708>" * d * "<#65e5>";
+          return y * "년 " * m * "월 " * d * "일";
+	      return y * "年" * m * "月" * d * "日";
       }
     else fm= "%d %B %Y";
   }
-  lan= language_to_locale (lan);
+  lan= language_to_locale (lan) * ".UTF-8";
   string lvar= "LC_TIME";
   if (get_env (lvar) == "") lvar= "LC_ALL";
   if (get_env (lvar) == "") lvar= "LANG";
   string old= get_env (lvar);
   set_env (lvar, lan);
   string date= simplify_date (var_eval_system ("date +\"" * fm * "\""));
-  if ((lan == "cz_CZ") || (lan == "hu_HU") || (lan == "pl_PL"))
-    date= il2_to_cork (date);
-  // if (lan == "ru_RU") date= iso_to_koi8 (date);
   set_env (lvar, old);
+  if (!athena::text::valid_utf8 (
+        std::string_view (date.data (), static_cast<std::size_t> (N(date))))) {
+    std_warning << "date command returned non-UTF-8 text for locale " << lan
+                << "; using C.UTF-8 fallback\n";
+    set_env (lvar, "C.UTF-8");
+    date= simplify_date (var_eval_system ("date +\"" * fm * "\""));
+    set_env (lvar, old);
+  }
   return date;
 }
 

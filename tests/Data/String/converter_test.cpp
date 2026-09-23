@@ -13,6 +13,8 @@
 #include "converter.hpp"
 #include "convert.hpp"
 #include "scheme.hpp"
+#include "universal.hpp"
+#include "hyphenate.hpp"
 #include "unicode_ranges.hpp"
 #include <future>
 #include <thread>
@@ -31,6 +33,8 @@ private slots:
   void test_finite_part_integral();
   void test_native_mathml_utf8();
   void test_named_symbol_latex_export();
+  void test_native_unicode_case_and_accents();
+  void test_utf8_hyphen_byte_offsets();
   void test_unicode_17_cjk_ranges();
   void test_thread_local_converters();
 };
@@ -108,6 +112,29 @@ void TestConverter::test_named_symbol_latex_export() {
   scheme_tree unsupported= latex_export_named_symbol ("not-an-athena-symbol", true);
   QVERIFY (is_tuple (unsupported, "nonconverted", 1));
   QCOMPARE (scm_unquote (unsupported[1]->label), string ("not-an-athena-symbol"));
+}
+
+void TestConverter::test_native_unicode_case_and_accents() {
+  QCOMPARE (uni_locase_all ("ÉCOLE Σ"), string ("école σ"));
+  QCOMPARE (uni_upcase_all ("école σ"), string ("ÉCOLE Σ"));
+  QCOMPARE (uni_unaccent_char ("é"), string ("e"));
+  QCOMPARE (uni_unaccent_char ("Ă"), string ("A"));
+  QCOMPARE (uni_unaccent_char ("Ń"), string ("N"));
+}
+
+void TestConverter::test_utf8_hyphen_byte_offsets() {
+  hashmap<string,string> patterns ("?");
+  hashmap<string,string> explicit_hyphenations ("?");
+  explicit_hyphenations ("école")= "é-cole";
+  const string word= "école";
+  array<int> penalty= get_hyphens (word, patterns, explicit_hyphenations);
+  QCOMPARE (N(penalty), N(word)-1);
+  QCOMPARE (penalty[0], HYPH_INVALID);
+  QCOMPARE (penalty[1], HYPH_STD);
+  string left, right;
+  std_hyphenate (word, 1, left, right, penalty[1]);
+  QCOMPARE (left, string ("é-"));
+  QCOMPARE (right, string ("cole"));
 }
 
 

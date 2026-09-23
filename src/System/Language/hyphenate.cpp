@@ -12,8 +12,8 @@
 #include "file.hpp"
 #include "hyphenate.hpp"
 #include "analyze.hpp"
-#include "converter.hpp"
 #include "universal.hpp"
+#include "unicode_text.hpp"
 #include "sys_utils.hpp"
 
 #include <stdio.h>
@@ -33,26 +33,21 @@ my_strncmp (char* s1, char* s2, int len) {
 */
 
 void
-goto_next_char (string s, int &i, bool utf8) {
-  if (utf8) decode_from_utf8 (s, i);
-  else if (i < N(s)) {
-    if (s[i] == '<') {
-      i++;
-      while (i < N(s) && s[i] != '>') i++;
-      if (i < N(s)) i++;
-    }
-    else i++;
-  }
+goto_next_char (string s, int& i) {
+  if (i >= N(s)) return;
+  i= static_cast<int> (athena::text::next_scalar (
+    std::string_view (s.data (), static_cast<std::size_t> (N(s))),
+    static_cast<std::size_t> (i)));
 }
 
 static string
-unpattern (string s, bool utf8) {
+unpattern (string s) {
   int i, j, n= N(s);
   string r;
   for (i=0; i<n; ) {
-    while (i<n && is_digit (s[i])) goto_next_char (s, i, utf8);
+    while (i<n && is_digit (s[i])) goto_next_char (s, i);
     j = i;
-    goto_next_char (s, j, utf8);
+    goto_next_char (s, j);
     if (i<n) r << s(i,j);
     i = j;
   }
@@ -74,15 +69,16 @@ hyphen_normalize (string s) {
 
 void
 load_hyphen_tables (string file_name,
-                    hashmap<string,string>& patterns,
-                    hashmap<string,string>& hyphenations, bool toCork) {
+                     hashmap<string,string>& patterns,
+                     hashmap<string,string>& hyphenations) {
   string s;
   file_name= string ("hyphen.") * file_name;
   load_string (url ("$ATHENA_PATH/langs/natural/hyphen", file_name), s, true);
   if (DEBUG_VERBOSE)
     debug_automatic << "ATHENA] Loading " << file_name << "\n";
 
-  if (toCork) s= utf8_to_cork (s);
+  athena::text::require_utf8 (
+    std::string_view (s.data (), static_cast<std::size_t> (N(s))));
 
   hashmap<string,string> H ("?");
   bool pattern_flag=false;
@@ -102,7 +98,7 @@ load_hyphen_tables (string file_name,
     }
     if (pattern_flag && i != 0 && N(buffer) != 0) {
       string norm= hyphen_normalize (buffer);
-      patterns (unpattern (norm, !toCork))= norm;
+      patterns (unpattern (norm))= norm;
       //cout << buffer << " ==> " << unpattern (norm, !toCork) << " ==> " << norm << "\n";
     }
     if (hyphenation_flag && i != 0 && N(buffer) != 0) {
@@ -116,59 +112,46 @@ load_hyphen_tables (string file_name,
   }
 }
 
-array<int>
-get_hyphens (string s,
-             hashmap<string,string> patterns,
-             hashmap<string,string> hyphenations) {
-  return get_hyphens (s, patterns, hyphenations, false);
-}
-
 string
-sub_str (string s, int i, int len, bool utf8) {
+sub_str (string s, int i, int len) {
   // i: start (index is encoding-dependent, i.e. it is not a number of characters)
   // len: length in characters (encoding-independent)
   int j=i, k=0;
   for (k = 0; k < len; k++)
-    goto_next_char (s, j, utf8);
+    goto_next_char (s, j);
   return s (i, j);
 }
 
 int
-str_ind (string s, int ind, bool utf8) {
+str_ind (string s, int ind) {
   int i=0, k;
   for (k=0; k<ind; k++)
-    goto_next_char (s, i, utf8);
+    goto_next_char (s, i);
   return i;
 }
 
 int
-str_length (string s, bool utf8) {
-  if (utf8) {
-    int i=0, r=0;
-    while (i < N(s)) {
-      decode_from_utf8 (s, i);
-      r++;
-    }
-    return r;
-  }
-  else return N(s);
+str_length (string s) {
+  return (int) athena::text::byte_to_codepoint (
+    std::string_view (s.data (), static_cast<std::size_t> (N(s))),
+    static_cast<std::size_t> (N(s)));
 }
 
-array<int>
-get_hyphens (string s,
-             hashmap<string,string> patterns,
-             hashmap<string,string> hyphenations, bool utf8) {
+static array<int>
+get_hyphens_scalar (string s,
+                    hashmap<string,string> patterns,
+                    hashmap<string,string> hyphenations) {
   ASSERT (N(s) != 0, "hyphenation of empty string");
-
-  if (utf8) s= cork_to_utf8 (uni_locase_all(s));
-  else s= uni_locase_all(s);
+  s= uni_locase_all (s);
+  athena::text::require_utf8 (
+    std::string_view (s.data (), static_cast<std::size_t> (N(s))));
 
   if (hyphenations->contains (s)) {
     string h= hyphenations [s];
-    array<int> penalty (str_length (s, utf8)-1);
+    array<int> penalty (str_length (s)-1);
     int i=0, j=0;
     while (h[j] == '-') j++;
-    i++; goto_next_char (h, j, utf8);
+    i++; goto_next_char (h, j);
     while (i < N(penalty)+1) {
       penalty[i-1]= HYPH_INVALID;
       while (j < N(h) && h[j] == '-') {
@@ -176,28 +159,27 @@ get_hyphens (string s,
         j++;
       }
       i++;
-      goto_next_char (h, j, utf8);
+      goto_next_char (h, j);
     }
     //cout << s << " --> " << penalty << "\n";
     return penalty;
   }
-  else if (utf8) {
+  else {
     s= "." * s * ".";
-    // cout << s << "\n";
-    int i, j, k, l, m, len, slen= str_length (s, utf8);
+    int i, j, k, l, m, len, slen= str_length (s);
     array<int> T (slen+1);
     for (i=0; i<N(T); i++) T[i]=0;
     for (len=1; len < MAX_SEARCH; len++)
       for (i=0, l=0;
-          i<str_ind (s, slen-len+1, utf8);
-          goto_next_char (s, i, utf8), l++) {
-        string r= patterns [sub_str (s, i, len, utf8)];
+          i<str_ind (s, slen-len+1);
+          goto_next_char (s, i), l++) {
+        string r= patterns [sub_str (s, i, len)];
         if (!(r == "?")) {
           // cout << "  " << sub_str (s, i, len, utf8) << " => " << r << "\n";
-          for (j=0, k=0; j<=len; j++, goto_next_char (r, k, utf8)) {
+          for (j=0, k=0; j<=len; j++, goto_next_char (r, k)) {
             if (k<N(r) && is_digit (r[k])) {
               m= ((int) r[k])-((int) '0');
-              goto_next_char (r, k, utf8);
+              goto_next_char (r, k);
             }
             else m=0;
             if (m>T[l+j]) T[l+j]=m;
@@ -214,66 +196,32 @@ get_hyphens (string s,
     // cout << s << " --> " << penalty << "\n";
     return penalty;
   }
-  else {
-    s= "." * s * ".";
-    // cout << s << "\n";
-    int i, j, k, l, m, len;
-    array<int> T (N(s)+1);
-    for (i=0; i<N(T); i++) T[i]=0;
-    for (len=1; len < MAX_SEARCH; len++)
-      for (i=0, l=0; i<N(s) - len; goto_next_char (s, i, utf8), l++) {
-        string r= patterns [s (i, i+len)];
-        if (!(r == "?")) {
-          // cout << "  " << s (i, i+len) << " => " << r << "\n";
-          for (j=0, k=0; j<=len; j++, k++) {
-            if (k<N(r) && is_digit (r[k])) {
-              m= ((int) r[k])-((int) '0');
-              k++;
-            }
-            else m=0;
-            if (m>T[l+j]) T[l+j]=m;
-          }
-        }
-      }
+}
 
-    array<int> penalty (N(T)-4);
-    for (i=2; i < N(T)-4; i++)
-      penalty [i-2]= (((T[i]&1)==1)? HYPH_STD: HYPH_INVALID);
-    if (N(penalty)>0) penalty[0] = penalty[N(penalty)-1] = HYPH_INVALID;
-    if (N(penalty)>1) penalty[1] = penalty[N(penalty)-2] = HYPH_INVALID;
-    if (N(penalty)>2) penalty[N(penalty)-3] = HYPH_INVALID;
-    // cout << s << " --> " << penalty << "\n";
-    return penalty;
+array<int>
+get_hyphens (string s,
+             hashmap<string,string> patterns,
+             hashmap<string,string> hyphenations) {
+  athena::text::require_utf8 (
+    std::string_view (s.data (), static_cast<std::size_t> (N(s))));
+  array<int> scalar= get_hyphens_scalar (s, patterns, hyphenations);
+  array<int> bytes (max (0, N(s)-1));
+  for (int i=0; i<N(bytes); ++i) bytes[i]= HYPH_INVALID;
+  const std::string_view text (s.data (), static_cast<std::size_t> (N(s)));
+  std::size_t boundary= 0;
+  for (int i=0; i<N(scalar); ++i) {
+    boundary= athena::text::next_scalar (text, boundary);
+    if (boundary > 0 && boundary-1 < static_cast<std::size_t> (N(bytes)))
+      bytes[(int) boundary-1]= scalar[i];
   }
+  return bytes;
 }
 
 void
 std_hyphenate (string s, int after, string& left, string& right, int penalty) {
-  std_hyphenate (s, after, left, right, penalty, false);
-}
-
-void
-std_hyphenate (string s, int after, string& left, string& right, int penalty,
-               bool utf8) {
-  //cout << "Hyphen " << s << ", " << after << "\n";
-  if (!utf8) {
-    left = s (0, after+1);
-    right= s (after+1, N(s));
-  }
-  else {
-    int i= 0, l= 0;
-    while (i < N(s) && l <= after) {
-      if (s[i] == '<') {
-        while (i < N(s) && s[i] != '>') i++;
-        if (i < N(s)) i++;
-      }
-      else i++;
-      l++;
-    }
-    left = s (0, i);
-    right= s (i, N(s));
-    if (i == N(s)) return;
-  }
+  ASSERT (after >= 0 && after < N(s), "hyphenation position out of range");
+  left = s (0, after+1);
+  right= s (after+1, N(s));
   if (penalty >= HYPH_INVALID) left << string ("\\");
   else left << string ("-");
   //cout << "Yields " << left << ", " << right << "\n";

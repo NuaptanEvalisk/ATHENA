@@ -11,6 +11,7 @@
 
 #include "Boxes/construct.hpp"
 #include "Format/line_item.hpp"
+#include "unicode_text.hpp"
 #define PEN DI
 
 /******************************************************************************
@@ -92,9 +93,15 @@ get_position (font fn, string s, SI x) {
   int prev_i, prev_x=0, i=0, n=N(s);
   STACK_NEW_ARRAY (xpos, SI, n+1);
   fn->get_xpositions (s, xpos);
+  const std::string_view bytes (s.data (), static_cast<std::size_t> (n));
+  const bool utf8= athena::text::valid_utf8 (bytes);
   while (i<n) {
     prev_i= i;
-    if (s[i]=='<') {
+    if (utf8) {
+      i= static_cast<int> (
+        athena::text::next_scalar (bytes, static_cast<std::size_t> (i)));
+    }
+    else if (s[i]=='<') {
       while ((i<n) && (s[i]!='>')) i++;
       if (i<n) i++;
     }
@@ -102,6 +109,9 @@ get_position (font fn, string s, SI x) {
     int m= (prev_x + xpos[i]) >> 1;
     if (x<m) {
       STACK_DELETE_ARRAY (xpos);
+      // Caret/hyphen positions are UTF-8 byte offsets.  Returning i-1 for a
+      // multi-byte scalar would point into a continuation byte; prev_i is the
+      // exact scalar-start boundary for both ASCII and UTF-8 text.
       return prev_i;
     }
     prev_x= xpos[i];

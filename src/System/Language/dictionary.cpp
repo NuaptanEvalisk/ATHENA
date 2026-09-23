@@ -11,13 +11,14 @@
 
 #include "dictionary.hpp"
 #include "file.hpp"
-#include "convert.hpp"
-#include "converter.hpp"
 #include "universal.hpp"
 #include "drd_std.hpp"
-#include "scheme.hpp"
 #include "iterator.hpp"
 #include "gui_text.hpp"
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonParseError>
 
 RESOURCE_CODE(dictionary);
 
@@ -39,28 +40,40 @@ dictionary_rep::load (url u) {
 
   string s;
   if (load_string (u, s, false)) return;
-  tree t= block_to_scheme_tree (s);
-  if (!is_tuple (t)) return;
-
-  int i, n= N(t);
-  for (i=0; i<n; i++)
-    if (is_func (t[i], TUPLE, 2) &&
-        is_atomic (t[i][0]) && is_atomic (t[i][1]))
-    {
-      string l= t[i][0]->label; if (is_quoted (l)) l= scm_unquote (l);
-      string r= t[i][1]->label; if (is_quoted (r)) r= scm_unquote (r);
-      if (to == "chinese" ||  to == "japanese"  ||
-          to == "korean"  ||  to == "taiwanese" ||
-          to == "russian" ||  to == "ukrainian" || to == "bulgarian" ||
-          to == "german" || to == "greek" || to == "slovak")
-        r= utf8_to_cork (r);
-      table (l)= r;
+  QJsonParseError error;
+  QJsonDocument document= QJsonDocument::fromJson (
+    QByteArray (s.data (), N(s)), &error);
+  if (error.error != QJsonParseError::NoError || !document.isObject ()) {
+    convert_error << "Invalid localization dictionary JSON at " << u << LF;
+    return;
+  }
+  QJsonObject root= document.object ();
+  if (root.value ("version").toInt () != 1 ||
+      !root.value ("translations").isArray ()) {
+    convert_error << "Unsupported localization dictionary JSON at " << u << LF;
+    return;
+  }
+  const QJsonArray translations= root.value ("translations").toArray ();
+  for (const QJsonValue& value: translations) {
+    if (!value.isArray ()) {
+      convert_error << "Invalid localization dictionary entry at " << u << LF;
+      return;
     }
+    const QJsonArray entry= value.toArray ();
+    if (entry.size () != 2 || !entry[0].isString () || !entry[1].isString ()) {
+      convert_error << "Invalid localization dictionary entry at " << u << LF;
+      return;
+    }
+    const QByteArray left= entry[0].toString ().toUtf8 ();
+    const QByteArray right= entry[1].toString ().toUtf8 ();
+    table (string (left.constData (), left.size ()))=
+      string (right.constData (), right.size ());
+  }
 }
 
 void
 dictionary_rep::load (string fname) {
-  fname= fname * ".scm";
+  fname= fname * ".json";
   if (DEBUG_CONVERT) debug_convert << "Loading " << fname << "\n";
   url u= url ("$ATHENA_DOCUMENT_LOCALE_PATH") * url_wildcard ("*" * fname);
   load (expand (complete (u)));

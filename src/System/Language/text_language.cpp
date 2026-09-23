@@ -14,7 +14,10 @@
 #include "hyphenate.hpp"
 #include "impl_language.hpp"
 #include "sys_utils.hpp"
+#include "converter.hpp"
 #include "unicode_ranges.hpp"
+#include "unicode_text.hpp"
+#include <unicode/utf8.h>
 
 /******************************************************************************
 * Shared Unicode CJK classification
@@ -37,6 +40,21 @@ read_unicode_entity (string s, int pos, int& next, int& code) {
 }
 
 static bool
+read_text_codepoint (string s, int pos, int& next, int& code) {
+  if (read_unicode_entity (s, pos, next, code)) return true;
+  if (pos < 0 || pos >= N(s)) return false;
+  const std::string_view bytes (s.data (), static_cast<std::size_t> (N(s)));
+  if (!athena::text::valid_utf8 (bytes)) return false;
+  int32_t offset= pos;
+  UChar32 scalar= 0;
+  U8_NEXT (bytes.data (), offset, static_cast<int32_t> (bytes.size ()), scalar);
+  if (scalar < 0) return false;
+  next= offset;
+  code= scalar;
+  return true;
+}
+
+static bool
 is_cjk_letter_code (int code) {
   return unicode_is_east_asian_letter (code) ||
          (code >= 0xFF00 && code <= 0xFFEF);
@@ -54,14 +72,14 @@ is_cjk_forbidden_line_start (string s, int pos) {
   int next, code;
   if (pos >= N(s)) return true;
   if (is_punctuation (s[pos])) return true;
-  return read_unicode_entity (s, pos, next, code) &&
+  return read_text_codepoint (s, pos, next, code) &&
          is_cjk_punctuation_code (code);
 }
 
 static text_property
 advance_cjk_entity (string s, int& pos) {
   int code, next;
-  if (!read_unicode_entity (s, pos, next, code)) return NULL;
+  if (!read_text_codepoint (s, pos, next, code)) return NULL;
   if (!is_cjk_letter_code (code) && !is_cjk_punctuation_code (code))
     return NULL;
 
@@ -95,7 +113,7 @@ struct text_language_rep: language_rep {
 text_language_rep::text_language_rep (string lan_name, string hyph_name):
   language_rep (lan_name), patterns ("?"), hyphenations ("?"),
   hyphen_cache (array<int> ()) {
-    load_hyphen_tables (hyph_name, patterns, hyphenations, true); }
+    load_hyphen_tables (hyph_name, patterns, hyphenations); }
 
 text_property
 text_language_rep::advance (tree t, int& pos) {
@@ -136,15 +154,17 @@ text_language_rep::advance (tree t, int& pos) {
     return &tp_normal_rep;
   }
 
+  if ((unsigned char) s[pos] >= 0x80) {
+    int next, code;
+    if (read_text_codepoint (s, pos, next, code)) {
+      pos= next;
+      return &tp_normal_rep;
+    }
+  }
+
   if (is_numeric (s[pos])) { // can not be a '.'
     while ((pos<N(s)) && is_numeric (s[pos])) pos++;
     while (s[pos-1]=='.') pos--;
-    return &tp_normal_rep;
-  }
-
-  if (s[pos]=='<') {
-    while ((pos<N(s)) && (s[pos]!='>')) pos++;
-    if (pos<N(s)) pos++;
     return &tp_normal_rep;
   }
 
@@ -187,7 +207,7 @@ struct french_language_rep: language_rep {
 french_language_rep::french_language_rep (string lan_name, string hyph_name):
   language_rep (lan_name), patterns ("?"), hyphenations ("?"),
   hyphen_cache (array<int> ()) {
-    load_hyphen_tables (hyph_name, patterns, hyphenations, true); }
+    load_hyphen_tables (hyph_name, patterns, hyphenations); }
 
 inline bool
 is_french_punctuation (char c) {
@@ -243,15 +263,17 @@ french_language_rep::advance (tree t, int& pos) {
     return &tp_normal_rep;
   }
 
+  if ((unsigned char) s[pos] >= 0x80) {
+    int next, code;
+    if (read_text_codepoint (s, pos, next, code)) {
+      pos= next;
+      return &tp_normal_rep;
+    }
+  }
+
   if (is_numeric (s[pos])) { // can not be a '.'
     while ((pos<N(s)) && is_numeric (s[pos])) pos++;
     while (s[pos-1]=='.') pos--;
-    return &tp_normal_rep;
-  }
-
-  if (s[pos]=='<') {
-    while ((pos<N(s)) && (s[pos]!='>')) pos++;
-    if (pos<N(s)) pos++;
     return &tp_normal_rep;
   }
 
@@ -295,7 +317,7 @@ struct ucs_text_language_rep: language_rep {
 ucs_text_language_rep::ucs_text_language_rep (string lan_name, string hyph_name):
   language_rep (lan_name), patterns ("?"), hyphenations ("?"),
   hyphen_cache (array<int> ())
-  { load_hyphen_tables (hyph_name, patterns, hyphenations, false); }
+  { load_hyphen_tables (hyph_name, patterns, hyphenations); }
 
 text_property
 ucs_text_language_rep::advance (tree t, int& pos) {
@@ -333,16 +355,17 @@ ucs_text_language_rep::advance (tree t, int& pos) {
     return &tp_hyph_rep;
   }
 
-  if (is_iso_alpha (s[pos]) || (s[pos]=='<')) {
-    while ((pos<N(s)) && (is_iso_alpha (s[pos]) || (s[pos]=='<'))) {
-      if (s[pos]=='<') {
-        while ((pos<N(s)) && (s[pos]!='>')) pos++;
-        if (pos<N(s)) pos++;
-      }
-      else
-        pos++;
-    }
+  if (is_iso_alpha (s[pos])) {
+    while ((pos<N(s)) && is_iso_alpha (s[pos])) pos++;
     return &tp_normal_rep;
+  }
+
+  if ((unsigned char) s[pos] >= 0x80) {
+    int next, code;
+    if (read_text_codepoint (s, pos, next, code)) {
+      pos= next;
+      return &tp_normal_rep;
+    }
   }
 
   if (is_numeric (s[pos])) { // can not be a '.'
@@ -359,7 +382,7 @@ array<int>
 ucs_text_language_rep::get_hyphens (string s) {
   if (hyphen_cache->contains (s)) return hyphen_cache[s];
   if (N(hyphen_cache) >= 8192) hyphen_cache->clear ();
-  array<int> result= ::get_hyphens (s, patterns, hyphenations, true);
+  array<int> result= ::get_hyphens (s, patterns, hyphenations);
   hyphen_cache (s)= result;
   return result;
 }
@@ -369,7 +392,7 @@ ucs_text_language_rep::hyphenate (
   string s, int after, string& left, string& right)
 {
   array<int> penalty= get_hyphens (s);
-  std_hyphenate (s, after, left, right, penalty[after], true);
+  std_hyphenate (s, after, left, right, penalty[after]);
 }
 
 /******************************************************************************
@@ -394,54 +417,11 @@ oriental_language_rep::oriental_language_rep (string lan_name):
   punct (";")= true;
   punct ("!")= true;
   punct ("?")= true;
-  punct ("<#3000>")= true;
-  punct ("<#3001>")= true;
-  punct ("<#3002>")= true;
-  punct ("<#3003>")= true;
-  punct ("<#3004>")= true;
-  punct ("<#3005>")= true;
-  punct ("<#3006>")= true;
-  punct ("<#3007>")= true;
-  punct ("<#3008>")= true;
-  punct ("<#3009>")= true;
-  punct ("<#300a>")= true;
-  punct ("<#300b>")= true;
-  punct ("<#300c>")= true;
-  punct ("<#300d>")= true;
-  punct ("<#300e>")= true;
-  punct ("<#300f>")= true;
-  punct ("<#300A>")= true;
-  punct ("<#300B>")= true;
-  punct ("<#300C>")= true;
-  punct ("<#300D>")= true;
-  punct ("<#300E>")= true;
-  punct ("<#300F>")= true;
-  punct ("<#ff01>")= true;
-  punct ("<#ff0c>")= true;
-  punct ("<#ff0e>")= true;
-  punct ("<#ff1a>")= true;
-  punct ("<#ff1b>")= true;
-  punct ("<#ff1f>")= true;
-  punct ("<#FF01>")= true;
-  punct ("<#FF0C>")= true;
-  punct ("<#FF0E>")= true;
-  punct ("<#FF1A>")= true;
-  punct ("<#FF1B>")= true;
-  punct ("<#FF1F>")= true;
+  for (int code=0x3000; code<=0x300f; ++code)
+    punct (encode_as_utf8 (code))= true;
+  for (int code: {0xff01, 0xff0c, 0xff0e, 0xff1a, 0xff1b, 0xff1f})
+    punct (encode_as_utf8 (code))= true;
 
-  //wide_punct ("<#3001>")= true;
-  //wide_punct ("<#ff01>")= true;
-  //wide_punct ("<#ff0c>")= true;
-  //wide_punct ("<#ff0e>")= true;
-  //wide_punct ("<#ff1a>")= true;
-  //wide_punct ("<#ff1b>")= true;
-  //wide_punct ("<#ff1f>")= true;
-  //wide_punct ("<#FF01>")= true;
-  //wide_punct ("<#FF0C>")= true;
-  //wide_punct ("<#FF0E>")= true;
-  //wide_punct ("<#FF1A>")= true;
-  //wide_punct ("<#FF1B>")= true;
-  //wide_punct ("<#FF1F>")= true;
 }
 
 text_property
@@ -454,29 +434,21 @@ oriental_language_rep::advance (tree t, int& pos) {
     return &tp_space_rep;
   }
 
-  if (test (s, pos, "<#3000>")) {
-    pos += 7;
-    return &tp_space_before_rep;
-  }
-
-  if (s[pos] == '<' && !test (s, pos, "<#")) {
-    while ((pos<N(s)) && (s[pos]!='>')) pos++;
-    if (pos<N(s)) pos++;
+  int code, next;
+  if (!read_text_codepoint (s, pos, next, code)) {
+    pos++;
     return &tp_normal_rep;
   }
-
-  if (pos < N(s) && !test (s, pos, "<#")) {
-    while (pos < N(s) && s[pos] != ' ' && s[pos] != '<')
-      tm_char_forwards (s, pos);
-    return &tp_cjk_no_break_rep;
+  if (code == 0x3000) {
+    pos= next;
+    return &tp_space_before_rep;
   }
-
   int start= pos;
-  tm_char_forwards (s, pos);
+  pos= next;
   string c= s (start, pos);
-  int next= pos;
-  tm_char_forwards (s, next);
-  string x= s (pos, next);
+  int next2= pos, code2= -1;
+  if (pos < N(s)) (void) read_text_codepoint (s, pos, next2, code2);
+  string x= pos < N(s) ? s (pos, next2) : string ("");
 
   if (punct->contains (c)) {
     if (punct->contains (x) || pos == N(s))

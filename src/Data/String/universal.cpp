@@ -12,6 +12,9 @@
 #include "universal.hpp"
 #include "hashmap.hpp"
 #include "converter.hpp"
+#include "unicode_text.hpp"
+#include <unicode/uchar.h>
+#include <unicode/utf8.h>
 
 /******************************************************************************
 * Transliteration
@@ -28,8 +31,26 @@ extern char Cork_unaccented[128];
 static void
 translit_set (int i, string s) {
   string h= as_hexadecimal (i);
+  translit_table (encode_as_utf8 (i))= s;
   translit_table ("<#" * locase_all (h) * ">")= s;
   translit_table ("<#" * upcase_all (h) * ">")= s;
+}
+
+static bool
+utf8_scalar (string s, UChar32& code) {
+  std::string_view bytes (s.data (), static_cast<std::size_t> (N(s)));
+  if (bytes.empty () || !athena::text::valid_utf8 (bytes)) return false;
+  int32_t pos= 0;
+  U8_NEXT (bytes.data (), pos, static_cast<int32_t> (bytes.size ()), code);
+  return code >= 0 && pos == static_cast<int32_t> (bytes.size ());
+}
+
+static void
+universal_char_forwards (string s, int& pos, bool utf8) {
+  if (!utf8) { tm_char_forwards (s, pos); return; }
+  pos= static_cast<int> (athena::text::next_scalar (
+    std::string_view (s.data (), static_cast<std::size_t> (N(s))),
+    static_cast<std::size_t> (pos)));
 }
 
 static void
@@ -115,13 +136,18 @@ string
 uni_translit (string s) {
   translit_init ();
   string r;
+  const bool utf8= athena::text::valid_utf8 (
+    std::string_view (s.data (), static_cast<std::size_t> (N(s))));
   int i=0, n=N(s);
   while (i<n) {
     int start= i;
-    tm_char_forwards (s, i);
+    universal_char_forwards (s, i, utf8);
     string ss= s (start, i);
     if (translit_table->contains (ss)) r << translit_table [ss];
-    else r << ss;
+    else {
+      string plain= uni_unaccent_char (ss);
+      r << (plain == "" ? ss : plain);
+    }
   }
   return r;
 }
@@ -193,6 +219,9 @@ init_case_tables () {
 
 string
 uni_locase_char (string s) {
+  UChar32 scalar= 0;
+  if (utf8_scalar (s, scalar))
+    return encode_as_utf8 (u_tolower (scalar));
   if (N(s) == 1) {
     unsigned char c= s[0];
     if ((is_iso_upcase (c)) ||
@@ -244,6 +273,9 @@ uni_locase_char (string s) {
 
 string
 uni_upcase_char (string s) {
+  UChar32 scalar= 0;
+  if (utf8_scalar (s, scalar))
+    return encode_as_utf8 (u_toupper (scalar));
   if (N(s) == 1) {
     unsigned char c= s[0];
     if ((is_iso_locase (c)) ||
@@ -297,7 +329,9 @@ string
 uni_locase_first (string s) {
   if (N(s) == 0) return s;
   int pos= 0;
-  tm_char_forwards (s, pos);
+  const bool utf8= athena::text::valid_utf8 (
+    std::string_view (s.data (), static_cast<std::size_t> (N(s))));
+  universal_char_forwards (s, pos, utf8);
   return uni_locase_char (s (0, pos)) * s (pos, N(s));
 }
 
@@ -305,17 +339,21 @@ string
 uni_upcase_first (string s) {
   if (N(s) == 0) return s;
   int pos= 0;
-  tm_char_forwards (s, pos);
+  const bool utf8= athena::text::valid_utf8 (
+    std::string_view (s.data (), static_cast<std::size_t> (N(s))));
+  universal_char_forwards (s, pos, utf8);
   return uni_upcase_char (s (0, pos)) * s (pos, N(s));
 }
 
 string
 uni_locase_all (string s) {
   string r;
+  const bool utf8= athena::text::valid_utf8 (
+    std::string_view (s.data (), static_cast<std::size_t> (N(s))));
   int i=0, n=N(s);
   while (i<n) {
     int start= i;
-    tm_char_forwards (s, i);
+    universal_char_forwards (s, i, utf8);
     r << uni_locase_char (s (start, i));
   }
   return r;
@@ -324,15 +362,17 @@ uni_locase_all (string s) {
 string
 uni_Locase_all (string s) {
   string r;
+  const bool utf8= athena::text::valid_utf8 (
+    std::string_view (s.data (), static_cast<std::size_t> (N(s))));
   int i=0, n=N(s);
   if (i<n) {
     int start= i;
-    tm_char_forwards (s, i);
+    universal_char_forwards (s, i, utf8);
     r << s (start, i);
   }
   while (i<n) {
     int start= i;
-    tm_char_forwards (s, i);
+    universal_char_forwards (s, i, utf8);
     r << uni_locase_char (s (start, i));
   }
   return r;
@@ -341,10 +381,12 @@ uni_Locase_all (string s) {
 string
 uni_upcase_all (string s) {
   string r;
+  const bool utf8= athena::text::valid_utf8 (
+    std::string_view (s.data (), static_cast<std::size_t> (N(s))));
   int i=0, n=N(s);
   while (i<n) {
     int start= i;
-    tm_char_forwards (s, i);
+    universal_char_forwards (s, i, utf8);
     r << uni_upcase_char (s (start, i));
   }
   return r;
@@ -363,8 +405,8 @@ fill (array<int> a, int start, int kind) {
   for (int i=0; i<N(a); i++)
     if (a[i] != -1) {
       int code= start + i;
-      string c= utf8_to_cork (encode_as_utf8 (code));
-      string v= utf8_to_cork (encode_as_utf8 (a[i]));
+      string c= encode_as_utf8 (code);
+      string v= encode_as_utf8 (a[i]);
       if (kind == 0) accented_list << c;
       if (kind == 0) unaccent_table (c)= v;
       else get_accent_table (c)= v;
@@ -373,11 +415,22 @@ fill (array<int> a, int start, int kind) {
 
 static void
 fill_bis (array<int> a, int start, int kind) {
+  static const int cork_extended_unicode[64]= {
+    0x0102, 0x0104, 0x0106, 0x010C, 0x010E, 0x011A, 0x0118, 0x011E,
+    0x0139, 0x013D, 0x0141, 0x0143, 0x0147, 0x014A, 0x0150, 0x0154,
+    0x0158, 0x015A, 0x0160, 0x015E, 0x0164, 0x0162, 0x0170, 0x016E,
+    0x0178, 0x0179, 0x017D, 0x017B, 0x0132, 0x0130, 0x0111, 0x00A7,
+    0x0103, 0x0105, 0x0107, 0x010D, 0x010F, 0x011B, 0x0119, 0x011F,
+    0x013A, 0x013E, 0x0142, 0x0144, 0x0148, 0x014B, 0x0151, 0x0155,
+    0x0159, 0x015B, 0x0161, 0x015F, 0x0165, 0x0163, 0x0171, 0x016F,
+    0x00FF, 0x017A, 0x017E, 0x017C, 0x0133, 0x00A1, 0x00BF, 0x00A3
+  };
+  ASSERT (start == 0x80 && N(a) <= 64, "unexpected Cork accent table range");
   for (int i=0; i<N(a); i++)
     if (a[i] != -1) {
-      int code= start + i;
-      string c; c << ((unsigned char) code);
-      string v= utf8_to_cork (encode_as_utf8 (a[i]));
+      int code= cork_extended_unicode[i];
+      string c= encode_as_utf8 (code);
+      string v= encode_as_utf8 (a[i]);
       if (kind == 0) accented_list << c;
       if (kind == 0) unaccent_table (c)= v;
       else get_accent_table (c)= v;
@@ -436,10 +489,12 @@ string
 uni_unaccent_all (string s) {
   (void) uni_unaccent_char ("a");
   string r;
+  const bool utf8= athena::text::valid_utf8 (
+    std::string_view (s.data (), static_cast<std::size_t> (N(s))));
   int i=0, n=N(s);
   while (i<n) {
     int start= i;
-    tm_char_forwards (s, i);
+    universal_char_forwards (s, i, utf8);
     string c= s (start, i);
     if (unaccent_table->contains (c)) r << unaccent_table[c];
     else r << c;
@@ -453,6 +508,8 @@ uni_unaccent_all (string s) {
 
 bool
 uni_is_letter (string s) {
+  UChar32 scalar= 0;
+  if (utf8_scalar (s, scalar)) return u_isalpha (scalar);
   if (N(s) == 1) {
     unsigned char c= s[0];
     return
