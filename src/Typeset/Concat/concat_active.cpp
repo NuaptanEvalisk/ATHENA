@@ -154,7 +154,7 @@ build_locus (edit_env env, tree t, list<string>& ids, string& col, string &ref,
       }
       else if (is_compound (arg, "observer", 2) && !is_nil (env->link_env)) {
         string id= as_string (arg[0]);
-        string cb= cork_to_utf8 (as_string (arg[1]));
+        string cb= as_string (arg[1]);
         if (accessible) {
           if (env->secure ||
               as_bool (eval ("(secure? '(" * cb * " #f #f #f))")))
@@ -471,7 +471,7 @@ concater_rep::typeset_image (tree t, path ip) {
   if (is_atomic (image_tree)) {
     if (N (image_tree->label) == 0)
       error_image (tree (WITH, "color", "red", "no image"));
-    url im= cork_to_utf8( image_tree->label);
+    url im= image_tree->label;
     image= resolve (relative (env->base_file_name, im));
     if (is_none (image) && suffix (im) == "")
       image= resolve (relative (env->base_file_name, ::glue (im, ".eps")));

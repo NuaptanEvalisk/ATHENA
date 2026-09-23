@@ -90,7 +90,7 @@ art_box_rep::display_one (renderer ren, tree prg) {
   if (prg[0] == "image" && is_atomic (prg[1])) {
     SI xl= 0, xr= x2, yb= 0, yt= y2;
     get_image_extents (prg, xl, xr, yb, yt);
-    url u= cork_to_utf8 (prg[1]->label);
+    url u= prg[1]->label;
     tree eff= "";
     for (int i=2; i<N(prg); i+=2)
       if (prg[i] == "effect") eff= prg[i+1];
@@ -100,7 +100,7 @@ art_box_rep::display_one (renderer ren, tree prg) {
     SI xl= 0, xr= x2, yb= 0, yt= y2;
     get_image_extents (prg, xl, xr, yb, yt);
     if (xl >= xr || yb >= yt) return;
-    url u= cork_to_utf8 (prg[1]->label);
+    url u= prg[1]->label;
     int uw, uh;
     image_size (u, uw, uh);
     tree grid= "";

@@ -16,6 +16,8 @@
 #include "Freetype/tt_face.hpp"
 #include "analyze.hpp"
 #include "converter.hpp"
+#include "unicode_text.hpp"
+#include <unicode/utf8.h>
 
 #define std_dpi 600
 #define std_pixel (std_shrinkf*256)
@@ -661,9 +663,13 @@ unicode_font_rep::read_unicode_char (string s, int& i) {
     }
   }
   else {
-    unsigned int c= (unsigned int) s[i++];
-    if (c >= 32 && c <= 127) return c;
-    string ss= s (i-1, i);
+    const int begin= i;
+    UChar32 code= 0;
+    U8_NEXT (s.data (), i, N(s), code);
+    if (code >= 0) return (unsigned int) code;
+    i= begin + 1;
+    string ss= s (begin, i);
+    // Read-only compatibility for a historical single Cork byte.
     string uu= strict_cork_to_utf8 (ss);
     int j= 0;
     return decode_from_utf8 (uu, j);
@@ -859,9 +865,13 @@ unicode_font_rep::index_glyph (string s, font_metric& rm, font_glyphs& rg) {
 
 static bool
 is_math_italic (string c) {
-  if (N(c) <= 2) return false;
+  if (N(c) == 0) return false;
+  string unicode= c;
+  const std::string_view bytes (c.data (), static_cast<std::size_t> (N(c)));
+  if ((c[0] == '<' && c[N(c)-1] == '>') || !athena::text::valid_utf8 (bytes))
+    unicode= strict_cork_to_utf8 (c);
   int i= 0;
-  int code= decode_from_utf8 (strict_cork_to_utf8 (c), i);
+  int code= decode_from_utf8 (unicode, i);
   if (code < 0x2100 || code > 0x1d7ff) return false;
   if (code <= 0x213a) {
     if (code == 0x210a || code == 0x210b || code == 0x210e ||

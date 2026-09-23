@@ -2187,7 +2187,7 @@ utf8_as_hummus_string (string s) {
 
 static PDFTextString
 as_hummus_string (string s) {
-  return utf8_as_hummus_string(cork_to_utf8 (s));
+  return utf8_as_hummus_string (s);
 }
 
 static string

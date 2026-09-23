@@ -18,7 +18,9 @@
 #include "translator.hpp"
 #include "iterator.hpp"
 #include "unicode_ranges.hpp"
+#include "unicode_text.hpp"
 #include "math_font.hpp"
+#include <algorithm>
 #include <stdexcept>
 
 #include <cstdlib>
@@ -224,7 +226,26 @@ is_rubber (string c) {
 
 
 static bool
+legacy_font_token (string s) {
+  return N(s) >= 2 && s[0] == '<' && s[N(s)-1] == '>';
+}
+
+static string
+font_unicode_text (string s) {
+  const std::string_view bytes (s.data (), static_cast<std::size_t> (N(s)));
+  if (!legacy_font_token (s) && athena::text::valid_utf8 (bytes)) return s;
+  // Read-only compatibility for historical Cork/font tokens.
+  return strict_cork_to_utf8 (s);
+}
+
+static bool
 unicode_provides (string s) {
+  if (!legacy_font_token (s)) {
+    const std::string_view bytes (s.data (), static_cast<std::size_t> (N(s)));
+    if (!athena::text::valid_utf8 (bytes)) return false;
+    return std::any_of (bytes.begin (), bytes.end (),
+      [] (char c) { return static_cast<unsigned char> (c) >= 0x80; });
+  }
   return strict_cork_to_utf8 (s) != s;
 }
 
@@ -370,7 +391,7 @@ init_unicode_substitution () {
 
 int
 get_utf8_code (string c) {
-  string uc= strict_cork_to_utf8 (c);
+  string uc= font_unicode_text (c);
   int pos= 0;
   int code= decode_from_utf8 (uc, pos);
   if (pos == N(uc)) return code;
@@ -389,7 +410,7 @@ is_emoji_code (int code) {
 
 static bool
 is_emoji (string c) {
-  string uc= strict_cork_to_utf8 (c);
+  string uc= font_unicode_text (c);
   int pos= 0;
   bool has_emoji = false;
   while (pos < N(uc)) {
@@ -636,7 +657,7 @@ get_unicode_range (int code) {
 
 string
 get_unicode_range (string c) {
-  string uc= strict_cork_to_utf8 (c);
+  string uc= font_unicode_text (c);
   if (N(uc) == 0) return "";
   int pos= 0;
   int code= decode_from_utf8 (uc, pos);
@@ -647,7 +668,7 @@ get_unicode_range (string c) {
 
 bool
 in_unicode_range (string c, string range) {
-  string uc= strict_cork_to_utf8 (c);
+  string uc= font_unicode_text (c);
   if (N(uc) == 0) return "";
   int pos= 0;
   int code= decode_from_utf8 (uc, pos);
@@ -1041,6 +1062,8 @@ rewrite_math (string s) {
   while (i < n) {
     int start= i;
     tm_char_forwards (s, i);
+    // This rewrite is intentionally limited to the legacy <#HEX> font-token
+    // compatibility path. Native UTF-8 math text is shaped directly.
     if (s[start] == '<' && start+1 < n && s[start+1] == '#' && s[i-1] == '>')
       r << utf8_to_cork (strict_cork_to_utf8 (s (start, i)));
     else r << s (start, i);
