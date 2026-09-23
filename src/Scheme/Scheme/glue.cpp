@@ -12,6 +12,7 @@
 #include "glue.hpp"
 #include "native_interfaces.hpp"
 #include "scheme.hpp"
+#include "utf8_edit.hpp"
 
 #include "promise.hpp"
 #include "tree.hpp"
@@ -83,6 +84,9 @@
 
 #define TMSCM_ASSERT_STRING(s,arg,rout) \
 TMSCM_ASSERT (tmscm_is_string (s), s, arg, rout)
+using bytes= string;
+#define TMSCM_ASSERT_BYTES(s,arg,rout) \
+TMSCM_ASSERT (tmscm_is_bytes (s), s, arg, rout)
 #define TMSCM_ASSERT_BOOL(flag,arg,rout) \
 TMSCM_ASSERT (tmscm_is_bool (flag), flag, arg, rout)
 #define TMSCM_ASSERT_INT(i,arg,rout) \
@@ -156,6 +160,10 @@ tmscm_to_tree (tmscm obj) {
 
 tmscm 
 scheme_tree_to_tmscm (scheme_tree t) {
+  // The raw-data slot is bytes even when its value happens to be valid UTF-8.
+  if (is_tuple (t, "raw-data", 1) && is_atomic (t[1]) && is_quoted (t[1]->label))
+    return tmscm_cons (symbol_to_tmscm ("raw-data"),
+      tmscm_cons (bytes_to_tmscm (scm_unquote (t[1]->label)), tmscm_null ()));
   if (is_atomic (t)) {
     string s= t->label;
     if (s == "#t") return tmscm_true ();
@@ -177,8 +185,19 @@ scheme_tree_to_tmscm (scheme_tree t) {
   }
 }
 
+static bool
+raw_data_content (tmscm p) {
+  if (!tmscm_is_pair (p) || !scm_is_eq (tmscm_car (p), symbol_to_tmscm ("raw-data")))
+    return false;
+  const auto tail= tmscm_cdr (p);
+  return tmscm_is_pair (tail) && tmscm_is_bytes (tmscm_car (tail)) &&
+         tmscm_is_null (tmscm_cdr (tail));
+}
+
 scheme_tree
 tmscm_to_scheme_tree (tmscm p) {
+  if (raw_data_content (p))
+    return tuple ("raw-data", scm_quote (tmscm_to_bytes (tmscm_car (tmscm_cdr (p)))));
   if (tmscm_is_list (p)) {
     tree t (TUPLE);
     while (!tmscm_is_null (p)) {
@@ -204,6 +223,8 @@ bool
 tmscm_is_content (tmscm p) {
   if (tmscm_is_string (p) || tmscm_is_tree (p)) return true;
   else if (!tmscm_is_pair (p) || !tmscm_is_symbol (tmscm_car (p))) return false;
+  else if (scm_is_eq (tmscm_car (p), symbol_to_tmscm ("raw-data")))
+    return raw_data_content (p);
   else {
     for (p= tmscm_cdr (p); tmscm_is_pair (p); p= tmscm_cdr (p))
       if (!tmscm_is_content (tmscm_car (p))) return false;
@@ -218,6 +239,8 @@ tmscm_is_content (tmscm p) {
 
 tree
 tmscm_to_content (tmscm p) {
+  if (raw_data_content (p))
+    return tree (RAW_DATA, tmscm_to_bytes (tmscm_car (tmscm_cdr (p))));
   if (tmscm_is_string (p)) return tmscm_to_string (p);
   if (tmscm_is_tree (p)) return tmscm_to_tree (p);
   if (tmscm_is_pair (p)) {

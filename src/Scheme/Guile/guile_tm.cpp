@@ -23,8 +23,13 @@
 #include "convert.hpp" // tree_to_texmacs (should not belong here)
 #include "scheme_execution_context.hpp"
 #include "scheme_native_context.hpp"
+#include "unicode_text.hpp"
 
 #include <atomic>
+#include <cstring>
+#include <limits>
+#include <memory>
+#include <stdexcept>
 #include <mutex>
 #include <thread>
 #include <unordered_map>
@@ -636,36 +641,39 @@ double_to_scm (double i) {
  * Strings
  ******************************************************************************/
 
-static char*
-athena_scm_string_to_bytes (SCM value, size_t* length) {
-  size_t count= scm_c_string_length (value);
-  for (size_t i=0; i<count; ++i)
-    if (SCM_CHAR (scm_c_string_ref (value, i)) > 0xff)
-      return scm_to_utf8_stringn (value, length);
-  return scm_to_latin1_stringn (value, length);
-}
-
 tmscm
 string_to_tmscm (string s) {
-  c_string _s (s);
-  // TeXmacs strings are byte strings (typically Cork or UTF-8), matching
-  // Guile 1.8 semantics.  Locale decoding corrupts both under embedded
-  // Guile 3 when the process still has the C locale.
-  SCM r= scm_from_latin1_stringn (_s, N(s));
-  return r;
+  athena::text::require_utf8 (std::string_view (s.data (), N(s)));
+  return scm_from_utf8_stringn (s.data (), N(s));
 }
 
 string
 tmscm_to_string (tmscm s) {
-  guile_str_size_t len_r;
-  char* _r= athena_scm_string_to_bytes (s, &len_r);
-  string r (_r, len_r);
-#ifdef OS_WIN32
-  scm_must_free(_r);
-#else
-  free (_r);
-#endif
-  return r;
+  size_t length= 0;
+  std::unique_ptr<char, decltype (&free)> data (scm_to_utf8_stringn (s, &length), free);
+  if (length > static_cast<size_t> (std::numeric_limits<int>::max ()))
+    throw std::length_error ("Scheme text exceeds native string limit");
+  athena::text::require_utf8 ({data.get (), length});
+  return string (data.get (), static_cast<int> (length));
+}
+
+tmscm
+bytes_to_tmscm (string s) {
+  tmscm result= scm_c_make_bytevector (N(s));
+  if (N(s)) std::memcpy (SCM_BYTEVECTOR_CONTENTS (result), s.data (), N(s));
+  scm_remember_upto_here_1 (result);
+  return result;
+}
+
+string
+tmscm_to_bytes (tmscm value) {
+  const auto length= scm_c_bytevector_length (value);
+  if (length > static_cast<size_t> (std::numeric_limits<int>::max ()))
+    throw std::length_error ("Scheme bytes exceed native string limit");
+  string result (reinterpret_cast<const char*> (SCM_BYTEVECTOR_CONTENTS (value)),
+                 static_cast<int> (length));
+  scm_remember_upto_here_1 (value);
+  return result;
 }
 
 /******************************************************************************
@@ -674,29 +682,18 @@ tmscm_to_string (tmscm s) {
 
 tmscm
 symbol_to_tmscm (string s) {
-  c_string _s (s);
-  SCM r= scm_from_latin1_symboln (_s, N(s));
-  return r;
+  athena::text::require_utf8 (std::string_view (s.data (), N(s)));
+  return scm_from_utf8_symboln (s.data (), N(s));
 }
 
 tmscm
 keyword_to_tmscm (string s) {
-  c_string _s (s);
-  SCM symbol= scm_from_latin1_symboln (_s, N(s));
-  return scm_symbol_to_keyword (symbol);
+  return scm_symbol_to_keyword (symbol_to_tmscm (s));
 }
 
 string
 tmscm_to_symbol (tmscm s) {
-  guile_str_size_t len_r;
-  char* _r= athena_scm_string_to_bytes (scm_symbol_to_string (s), &len_r);
-  string r (_r, len_r);
-#ifdef OS_WIN32
-  scm_must_free(_r);
-#else
-  free (_r);
-#endif
-  return r;
+  return tmscm_to_string (scm_symbol_to_string (s));
 }
 
 /******************************************************************************

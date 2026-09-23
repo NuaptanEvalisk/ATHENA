@@ -16,7 +16,7 @@ import xml.etree.ElementTree as ET
 
 TYPES = frozenset("""
     array_SI array_double array_int array_patch
-    array_path array_string array_tree array_url array_widget bool command
+    array_path array_string array_tree array_url array_widget bool bytes command
     content double int list_string list_tree modification object observer
     patch path procedure promise_widget scheme_tree string tmscm tree tree_label uint url
     widget

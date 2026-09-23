@@ -75,3 +75,67 @@ int utf8_grapheme_snap (const string& text, int byte, bool forwards) {
   if (cursor.boundary (byte)) return byte;
   return static_cast<int> (forwards ? cursor.next (byte) : cursor.previous (byte));
 }
+
+string utf8_text (string text) {
+  athena::text::require_utf8 ({text.data (), std::size_t (N(text))});
+  return text;
+}
+
+int utf8_byte_length (string text) { return N(utf8_text (text)); }
+
+int utf8_byte_to_character (string text, int byte) {
+  check_position (text, byte);
+  return static_cast<int> (athena::text::byte_to_codepoint (
+    {text.data (), std::size_t (N(text))}, byte));
+}
+
+int utf8_character_to_byte (string text, int character) {
+  if (character < 0) throw std::out_of_range ("Negative Unicode character index");
+  return static_cast<int> (athena::text::codepoint_to_byte (
+    {text.data (), std::size_t (N(text))}, character));
+}
+
+string utf8_byte_slice (string text, int begin, int end) {
+  check_position (text, begin);
+  check_position (text, end);
+  utf8_text (text);
+  const std::string_view source (text.data (), N(text));
+  if (begin > end || !athena::text::scalar_boundary (source, begin) ||
+      !athena::text::scalar_boundary (source, end))
+    throw std::invalid_argument ("UTF-8 slice splits a scalar or reverses its range");
+  return text (begin, end);
+}
+
+int utf8_grapheme_count (string text) {
+  auto& cursor= cursor_for (text);
+  int count= 0;
+  for (std::size_t at=0; at<std::size_t (N(text)); at=cursor.next (at)) ++count;
+  return count;
+}
+
+string utf8_forward_access (string text, int index) {
+  if (index < 0) throw std::out_of_range ("Negative grapheme index");
+  auto& cursor= cursor_for (text);
+  int at= 0;
+  while (index-- > 0 && at < N(text)) at= cursor.next (at);
+  return at == N(text) ? string ("") : text (at, cursor.next (at));
+}
+
+string utf8_backward_access (string text, int index) {
+  if (index < 0) throw std::out_of_range ("Negative grapheme index");
+  auto& cursor= cursor_for (text);
+  int at= N(text);
+  while (index-- > 0 && at > 0) at= cursor.previous (at);
+  return at == 0 ? string ("") : text (cursor.previous (at), at);
+}
+
+array<string> utf8_graphemes (string text) {
+  auto& cursor= cursor_for (text);
+  array<string> result;
+  for (int at=0; at<N(text);) {
+    const int end= cursor.next (at);
+    result << text (at, end);
+    at= end;
+  }
+  return result;
+}

@@ -10,6 +10,7 @@
 #pragma once
 
 #include "string.hpp"
+#include "array.hpp"
 
 // Text only, never RAW_DATA or a legacy Cork atom. Positions remain byte offsets.
 // The owning thread retains a bounded cache of COW text revisions and private
@@ -18,3 +19,14 @@ bool utf8_grapheme_boundary (const string& text, int byte);
 int utf8_grapheme_next (const string& text, int byte);
 int utf8_grapheme_previous (const string& text, int byte);
 int utf8_grapheme_snap (const string& text, int byte, bool forwards);
+
+// Explicit native-byte / Scheme-character boundaries, never encoding guesses.
+string utf8_text (string text);
+int utf8_byte_length (string text);
+int utf8_byte_to_character (string text, int byte);
+int utf8_character_to_byte (string text, int character);
+string utf8_byte_slice (string text, int begin, int end);
+int utf8_grapheme_count (string text);
+string utf8_forward_access (string text, int index);
+string utf8_backward_access (string text, int index);
+array<string> utf8_graphemes (string text);

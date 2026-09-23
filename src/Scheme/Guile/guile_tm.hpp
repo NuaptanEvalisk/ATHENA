@@ -149,6 +149,10 @@ inline tmscm int_to_tmscm (int i) { return int_to_scm (i); }
 inline tmscm long_to_tmscm (long l) { return long_to_scm (l); }
 inline tmscm double_to_tmscm (double i) { return double_to_scm (i); }
 tmscm string_to_tmscm (string s);
+// Text is UTF-8; binary data is always an explicit Guile bytevector.
+inline bool tmscm_is_bytes (tmscm obj) { return scm_is_bytevector (obj); }
+tmscm bytes_to_tmscm (string s);
+string tmscm_to_bytes (tmscm obj);
 tmscm symbol_to_tmscm (string s);
 tmscm keyword_to_tmscm (string s);
 

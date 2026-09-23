@@ -18,8 +18,19 @@ typesetting paths must be converted before deploying this intermediate build.
 atoms. Qt key text and IME commits/preedit now enter as UTF-8; preedit cursor
 positions explicitly convert UTF-16 to bytes and snap to ICU grapheme stops.
 Shift-key preferences retain complete UTF-8 strings under a new key namespace,
-and generic keyboard declarations specify UTF-8. Legacy mathematical keymaps,
-named-key fallback and the global Scheme bridge still need conversion.
+and generic keyboard declarations specify UTF-8. Legacy mathematical keymaps
+and named-key fallback still need conversion.
+
+The native Guile bridge now uses strict UTF-8 string/symbol/keyword APIs in both
+directions, without Latin-1-range heuristics. Binary values use bytevectors,
+including generated `bytes` bindings, Base64 payloads, binary file IO and the
+single child of `raw-data` in Scheme content. Native containers remain unchanged.
+`utf8-text->bytes` / `utf8-bytes->text` explicitly encode/decode UTF-8. Guile
+string indices remain codepoint indices; byte length, substring and bidirectional
+index conversion have explicit native APIs. Core content ranges and cursor
+queries use byte offsets; Scheme character navigation uses ICU graphemes. The
+remaining Scheme consumers, legacy converters and resource data still require
+migration before runtime activation.
 
 Native document constructors no longer add a TeXmacs compatibility version.
 Until XML activation, only the legacy document serializers add their required

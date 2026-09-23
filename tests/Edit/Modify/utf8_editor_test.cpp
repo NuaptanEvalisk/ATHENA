@@ -357,6 +357,19 @@ private slots:
       Qt::ControlModifier | Qt::ShiftModifier, 0, 0x1234, 0, "\x01");
     QCOMPARE (QTMKeyboardEvent (keyboard, shifted).texmacsKeyCombination (), "C-" * composed);
   }
+  void schemeTextBoundaries () {
+    QVERIFY (as_bool (eval (
+      "(let* ((s (string (integer->char #xe9) #\\e (integer->char #x301))) "
+      "       (t (string->tree s))) "
+      "  (and (= (string-length s) 3) (= (tm-length s) 5) "
+      "       (= (tm-length t) 5) "
+      "       (equal? (tm-range t 2 5) (substring s 1 3))))")));
+    QVERIFY (as_bool (eval (
+      "(let* ((b (decode-base64 \"AP8=\")) "
+      "       (s (list 'raw-data b)) (t (stree->tree s))) "
+      "  (and (tm-equal? t s) (equal? (tree->list t) s) "
+      "       (equal? (tree->stree (tm->tree (tree->list t))) s)))")));
+  }
   void programTypesetting () {
     drd_info drd ("utf8-editor-program", std_drd);
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);

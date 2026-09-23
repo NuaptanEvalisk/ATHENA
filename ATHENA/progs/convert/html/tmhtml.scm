@@ -1432,12 +1432,12 @@
          (tmhtml-png (cons 'image l)))
         ((and (func? (car l) 'tuple 2)
               (func? (cadar l) 'raw-data 1)
-              (string? (cadr (cadar l)))
+              ((@ (rnrs bytevectors) bytevector?) (cadr (cadar l)))
               (string? (caddar l)))
          ;; embedded web image, extract it    
          (receive (name-url name-string)
                   (tmhtml-image-names (url-suffix (cork->utf8 (caddar l))))
-           (string-save (cadr (cadar l)) name-url)
+           (bytes-save (cadr (cadar l)) name-url)
            (tmhtml-image (cons name-string (cdr l)))))
         ((nstring? (first l))
          ;; treat complex images as generic markup

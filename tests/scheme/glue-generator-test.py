@@ -114,6 +114,16 @@ class GlueGeneratorTest(unittest.TestCase):
                     '<binding name="collect" native="collect" returns="void">'
                     + args + '</binding>')])
 
+    def test_binary_marshalling_is_a_generic_type(self):
+        interface = glue.read_interfaces([self.interface(
+            '<binding name="arbitrary-bytes" native="arbitrary" returns="bytes">'
+            '<arg type="bytes" passing="move"/></binding>')])[0]
+        code = glue.cpp_bindings(interface)
+        self.assertIn('TMSCM_ASSERT_BYTES (arg1, TMSCM_ARG1, "arbitrary-bytes");', code)
+        self.assertIn('bytes in1= tmscm_to_bytes (arg1);', code)
+        self.assertIn('bytes out= arbitrary (std::move (in1));', code)
+        self.assertIn('return bytes_to_tmscm (out);', code)
+
     def test_reject_wrong_version_and_receiver(self):
         body = '<binding name="test" native="native" returns="void"/>'
         for attrs in [{"version": "2"}, {"prefix": "bad();receiver()->"}, {"initializer": "x();bad"}]:

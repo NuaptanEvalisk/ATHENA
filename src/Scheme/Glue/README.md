@@ -40,6 +40,15 @@ does not need an editor, display, user profile, or vault.
   are not hardcoded in the generator. The accessor enforces ownership.
 - `returns` and argument `type` use the marshalling types validated in
   `generate-glue.py`. `void` is a return type only.
+- `string` is Unicode text encoded as strict UTF-8 in the native string container.
+  `bytes` uses the same native container but marshals only Guile bytevectors;
+  no byte values or character ranges are inspected to guess an encoding.
+  File bytes, Base64 payloads and `raw-data` content use this explicit channel.
+  Use `utf8-text->bytes` / `utf8-bytes->text` for explicit UTF-8 conversion.
+  Scheme character indices differ from native byte offsets: use the generated
+  `utf8-byte->char-index`, `utf8-char->byte-index`, `utf8-byte-length` and
+  `utf8-byte-substring` interfaces at position boundaries. `string-next` and
+  `string-previous` traverse ICU graphemes in native byte coordinates.
 - `<arg type="string" passing="move" />` transfers the converted local value
   into the native call. Use it when the native API consumes that value.
 - `dispatch="ui"` is available for free nullary functions returning `void`.

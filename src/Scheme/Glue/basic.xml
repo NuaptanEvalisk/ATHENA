@@ -1166,9 +1166,9 @@
     <arg type="string" />
   </binding>
   <binding name="encode-base64" native="encode_base64" returns="string">
-    <arg type="string" />
+    <arg type="bytes" />
   </binding>
-  <binding name="decode-base64" native="decode_base64" returns="string">
+  <binding name="decode-base64" native="decode_base64" returns="bytes">
     <arg type="string" />
   </binding>
   <binding name="sourcecode-&gt;cork" native="sourcecode_to_cork" returns="string">
@@ -1254,34 +1254,56 @@
     <arg type="string" />
     <arg type="string" />
   </binding>
-  <binding name="string-&gt;tmstring" native="tm_encode" returns="string">
+  <binding name="utf8-byte-length" native="utf8_byte_length" returns="int">
     <arg type="string" />
   </binding>
-  <binding name="tmstring-&gt;string" native="tm_decode" returns="string">
-    <arg type="string" />
-  </binding>
-  <binding name="tmstring-length" native="tm_string_length" returns="int">
-    <arg type="string" />
-  </binding>
-  <binding name="tmstring-ref" native="tm_forward_access" returns="string">
+  <binding name="utf8-byte-&gt;char-index" native="utf8_byte_to_character" returns="int">
     <arg type="string" />
     <arg type="int" />
   </binding>
-  <binding name="tmstring-reverse-ref" native="tm_backward_access" returns="string">
+  <binding name="utf8-char-&gt;byte-index" native="utf8_character_to_byte" returns="int">
     <arg type="string" />
     <arg type="int" />
   </binding>
-  <binding name="tmstring-&gt;list" native="tm_tokenize" returns="array_string">
+  <binding name="utf8-byte-substring" native="utf8_byte_slice" returns="string">
+    <arg type="string" />
+    <arg type="int" />
+    <arg type="int" />
+  </binding>
+  <binding name="utf8-text-&gt;bytes" native="utf8_text" returns="bytes">
+    <arg type="string" />
+  </binding>
+  <binding name="utf8-bytes-&gt;text" native="utf8_text" returns="string">
+    <arg type="bytes" />
+  </binding>
+  <binding name="string-&gt;tmstring" native="utf8_text" returns="string">
+    <arg type="string" />
+  </binding>
+  <binding name="tmstring-&gt;string" native="utf8_text" returns="string">
+    <arg type="string" />
+  </binding>
+  <binding name="tmstring-length" native="utf8_grapheme_count" returns="int">
+    <arg type="string" />
+  </binding>
+  <binding name="tmstring-ref" native="utf8_forward_access" returns="string">
+    <arg type="string" />
+    <arg type="int" />
+  </binding>
+  <binding name="tmstring-reverse-ref" native="utf8_backward_access" returns="string">
+    <arg type="string" />
+    <arg type="int" />
+  </binding>
+  <binding name="tmstring-&gt;list" native="utf8_graphemes" returns="array_string">
     <arg type="string" />
   </binding>
   <binding name="list-&gt;tmstring" native="tm_recompose" returns="string">
     <arg type="array_string" />
   </binding>
-  <binding name="string-next" native="tm_char_next" returns="int">
+  <binding name="string-next" native="utf8_grapheme_next" returns="int">
     <arg type="string" />
     <arg type="int" />
   </binding>
-  <binding name="string-previous" native="tm_char_previous" returns="int">
+  <binding name="string-previous" native="utf8_grapheme_previous" returns="int">
     <arg type="string" />
     <arg type="int" />
   </binding>
@@ -2184,6 +2206,17 @@
     <arg type="url" />
   </binding>
   <binding name="string-load" native="string_load" returns="string">
+    <arg type="url" />
+  </binding>
+  <binding name="bytes-save" native="string_save" returns="void">
+    <arg type="bytes" />
+    <arg type="url" />
+  </binding>
+  <binding name="bytes-load" native="string_load" returns="bytes">
+    <arg type="url" />
+  </binding>
+  <binding name="bytes-append-to-file" native="string_append_to_file" returns="void">
+    <arg type="bytes" />
     <arg type="url" />
   </binding>
   <binding name="string-append-to-file" native="string_append_to_file" returns="void">

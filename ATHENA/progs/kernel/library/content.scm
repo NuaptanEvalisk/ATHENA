@@ -46,9 +46,9 @@
 	(else (== x y))))
 
 (define-public (tm-length x)
-  (cond ((string? x) (string-length x))
+  (cond ((string? x) (utf8-byte-length x))
 	((list? x) (- (length x) 1))
-	((tree-atomic? x) (string-length (tree->string x)))
+	((tree-atomic? x) (utf8-byte-length (tree->string x)))
 	(else (tree-arity x))))
 
 (define-public (tm-arity x)
@@ -80,9 +80,9 @@
   (if (pair? x) (cdr x) (tree-children x)))
 
 (define-public (tm-range x from to)
-  (cond ((string? x) (substring x from to))
+  (cond ((string? x) (utf8-byte-substring x from to))
 	((list? x) (cons (car x) (sublist (cdr x) from to)))
-	((tree-atomic? x) (substring (tm->string x) from to))
+	((tree-atomic? x) (utf8-byte-substring (tm->string x) from to))
 	(else (cons (tm-car x) (sublist (tm-cdr x) from to)))))
 
 (define-public (tm-func? x . args)

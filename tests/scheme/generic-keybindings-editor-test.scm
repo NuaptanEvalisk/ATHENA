@@ -51,9 +51,9 @@
 (check (not (promise-source (action "undo")))
        "multiple-command source is not misrepresented as a single command")
 (check (equal? (action "<") "<") "literal text action")
-(let ((legacy (list->string (map integer->char '(239 191 189)))))
-  (check (equal? (action (string-append "symbol " legacy)) legacy)
-         "UTF-8 key and text bytes preserved through the legacy Scheme bridge"))
+(let ((replacement (string (integer->char #xfffd))))
+  (check (equal? (action (string-append "symbol " replacement)) replacement)
+         "Unicode key and text preserved through the UTF-8 Scheme bridge"))
 (check (eq? (car (cadr (entry "_"))) in-hybrid?) "mode predicate identity")
 
 ;; Public command lookup must happen at invocation, not JSON load time.
