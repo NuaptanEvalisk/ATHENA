@@ -87,7 +87,7 @@
 (lazy-define (athena athena tm-files)
              buffer-missing-style? buffer-set-default-style command-line-convert)
 (import-from (athena keyboard config-kbd))
-(lazy-keyboard (athena keyboard prefix-kbd) always?)
+(module-provide '(athena keyboard prefix-kbd))
 (lazy-menu (athena menus file-menu)
            file-menu go-menu buffer-go-menu
            new-file-menu load-menu save-menu
@@ -119,7 +119,7 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting generic mode\n")
-(lazy-keyboard (generic generic-kbd) always?)
+(module-provide '(generic generic-kbd))
 (lazy-menu (generic live-spell) spell-live-popup-menu)
 (lazy-define (generic live-spell)
              spell-live-import-custom-dictionary-from-preferences)
