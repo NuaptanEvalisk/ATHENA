@@ -31,6 +31,8 @@ protected:
 
   bool cursor_is_accessible ();
   path make_cursor_accessible (path p, bool forwards);
+  bool physical_border_jump_skips_accessible_child (
+    path old_path, path new_path, bool forwards);
   path tree_path (path sp, SI x, SI y, SI delta) override;
   path tree_path (path sp, SI x, SI y, SI delta,
                   athena::text::caret_affinity* affinity);

@@ -79,6 +79,16 @@ public:
   Utf8TestEditor (server_rep* server, buffer_document_state* buffer):
     editor_rep (server, buffer), edit_main_rep (server, buffer) {}
   void* derived_this () override { return this; }
+  bool border_jump_skips_accessible_child (
+    path old_path, path new_path, bool forwards) {
+    return physical_border_jump_skips_accessible_child (
+      old_path, new_path, forwards);
+  }
+  void set_test_child_accessibility (tree_label tag, int child, bool accessible) {
+    drd->set_arity (tag, 1, 0, ARITY_NORMAL, CHILD_DETAILED);
+    drd->set_accessible (
+      tag, child, accessible ? ACCESSIBLE_ALWAYS : ACCESSIBLE_NEVER);
+  }
   path spellable_range (path p, string language) {
     search_lan= language;
     return test_spellable (p);
@@ -657,6 +667,22 @@ private slots:
       QVERIFY (entered != path (1));
       QVERIFY (!is_atom (entered) && entered->item == 0);
     }
+
+    const tree_label test_heading= make_tree_label ("test-heading-navigation");
+    const tree_label test_anchor= make_tree_label ("test-anchor-navigation");
+    tree navigation (DOCUMENT,
+      tree (test_heading, "Heading"), tree (test_anchor, "anchor"));
+    set_document (buffer->document, buffer->root_path, navigation);
+    editor->set_test_child_accessibility (test_heading, 0, true);
+    editor->set_test_child_accessibility (test_anchor, 0, false);
+    const path heading_path= buffer->root_path * 0;
+    const path anchor_path= buffer->root_path * 1;
+    QVERIFY (editor->border_jump_skips_accessible_child (
+      heading_path * 0, heading_path * 1, true));
+    QVERIFY (editor->border_jump_skips_accessible_child (
+      heading_path * 1, heading_path * 0, false));
+    QVERIFY (!editor->border_jump_skips_accessible_child (
+      anchor_path * 0, anchor_path * 1, true));
   }
 
   void nativeUtf8MetadataAndLegacyEncodingPreference () {

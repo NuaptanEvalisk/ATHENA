@@ -269,6 +269,22 @@ edit_cursor_rep::go_right_physical () {
   select_from_cursor_if_active ();
 }
 
+bool
+edit_cursor_rep::physical_border_jump_skips_accessible_child (
+  path old_path, path new_path, bool forwards) {
+  path parent= path_up (old_path);
+  if (!(rp <= parent) || !has_subtree (et, parent)) return false;
+  tree st= subtree (et, parent);
+  bool has_accessible_child= false;
+  for (int i=0; i<N(st); ++i)
+    has_accessible_child |= drd->is_accessible_child (st, i);
+  if (!has_accessible_child) return false;
+  if (forwards)
+    return old_path == parent * 0 &&
+           new_path == parent * right_index (st);
+  return old_path == parent * right_index (st) && new_path == parent * 0;
+}
+
 void
 edit_cursor_rep::go_up () {
   if (has_changed (THE_TREE+THE_ENVIRONMENT)) return;
@@ -338,9 +354,13 @@ edit_cursor_rep::go_left () {
   const auto old_affinity= cu->affinity;
   go_left_physical ();
   if (tp == old_tp && cu->affinity != old_affinity) return;
-  if (tp != old_tp && is_accessible_cursor (et, tp) &&
-      inside_contiguous_document (et, old_tp, tp)) return;
   path parent= path_up (old_tp);
+  bool skipped_accessible_child=
+    !in_source () &&
+    physical_border_jump_skips_accessible_child (old_tp, tp, false);
+  if (tp != old_tp && !skipped_accessible_child &&
+      is_accessible_cursor (et, tp) &&
+      inside_contiguous_document (et, old_tp, tp)) return;
   if (!in_source () && rp <= parent) {
     tree st= subtree (et, parent);
     bool has_accessible_child= false;
@@ -366,9 +386,13 @@ edit_cursor_rep::go_right () {
   const auto old_affinity= cu->affinity;
   go_right_physical ();
   if (tp == old_tp && cu->affinity != old_affinity) return;
-  if (tp != old_tp && is_accessible_cursor (et, tp) &&
-      inside_contiguous_document (et, old_tp, tp)) return;
   path parent= path_up (old_tp);
+  bool skipped_accessible_child=
+    !in_source () &&
+    physical_border_jump_skips_accessible_child (old_tp, tp, true);
+  if (tp != old_tp && !skipped_accessible_child &&
+      is_accessible_cursor (et, tp) &&
+      inside_contiguous_document (et, old_tp, tp)) return;
   if (!in_source () && rp <= parent) {
     tree st= subtree (et, parent);
     bool has_accessible_child= false;
