@@ -508,6 +508,15 @@ public:
   virtual void make_wide_under (string wide, bool stretch= false) = 0;
   virtual void make_neg () = 0;
   virtual void make_tree () = 0;
+  virtual void math_make_above () = 0;
+  virtual void math_make_below () = 0;
+  virtual void math_bracket_open (string left, string right, int large_mode) = 0;
+  virtual void math_bracket_close (string right, string left, int large_mode) = 0;
+  virtual void math_separator (string separator, int large_mode) = 0;
+  virtual void math_kbd_select_enlarge () = 0;
+  virtual void math_evaluation_bar () = 0;
+  virtual void equation_to_eqnarray (tree_label equation_tag) = 0;
+  virtual void eqnarray_to_equation () = 0;
 
   /* public routines from edit_table */
   virtual void   make_table (int nr_rows=1, int nr_cols=1) = 0;

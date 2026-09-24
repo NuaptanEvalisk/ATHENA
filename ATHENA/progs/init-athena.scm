@@ -88,7 +88,6 @@
              buffer-missing-style? buffer-set-default-style command-line-convert)
 (import-from (athena keyboard config-kbd))
 (lazy-keyboard (athena keyboard prefix-kbd) always?)
-(lazy-keyboard (athena keyboard latex-kbd) always?)
 (lazy-menu (athena menus file-menu)
            file-menu go-menu buffer-go-menu
            new-file-menu load-menu save-menu
@@ -215,7 +214,6 @@
 (lazy-define (text text-drd) tm-register-new-list-tag)
 
 ;(display "Booting math mode\n")
-(lazy-keyboard (math math-kbd) in-math?)
 (lazy-keyboard (math math-sem-edit) in-sem-math?)
 (lazy-menu (math math-menu) math-format-menu math-format-icons
 	   math-menu math-insert-menu

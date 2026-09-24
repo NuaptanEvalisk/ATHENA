@@ -31,6 +31,16 @@ public:
   void make_wide_under (string wide, bool stretch= false);
   void make_neg ();
   void make_tree ();
+  void math_make_above ();
+  void math_make_below ();
+  void math_bracket_open (string left, string right, int large_mode);
+  void math_bracket_close (string right, string left, int large_mode);
+  void math_separator (string separator, int large_mode);
+  void math_kbd_select_enlarge ();
+  void math_evaluation_bar ();
+  void equation_to_eqnarray (tree_label equation_tag);
+  void eqnarray_to_equation ();
+  bool math_select_before_cursor_unit ();
   void back_around (tree t, path p, bool forward);
   void back_prime (tree t, path p, bool forward);
   void back_in_around (tree t, path p, bool forward);

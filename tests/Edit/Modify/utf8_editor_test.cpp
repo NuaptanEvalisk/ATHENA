@@ -16,6 +16,8 @@
 
 #include "ATHENA/server.hpp"
 #include "Editor/edit_main.hpp"
+#include "Edit/Interface/native_math_keyboard.hpp"
+#include "Edit/Interface/native_latex_commands.hpp"
 #include "Graphics/Gui/gui.hpp"
 #include "boot.hpp"
 #include "buffer_state.hpp"
@@ -407,6 +409,14 @@ private slots:
   }
   void mathTypesetting () {
     using namespace athena::text;
+    QCOMPARE (native_math_keyboard_binding_count (), 2375);
+    QCOMPARE (native_latex_command_count (), 736);
+    string latex_help;
+    command latex_command;
+    QVERIFY (native_latex_get_command ("alpha", latex_help, latex_command));
+    QCOMPARE (latex_help, string ("Insert α"));
+    QVERIFY (native_latex_get_command ("acute", latex_help, latex_command));
+    QCOMPARE (latex_help, string ("Make acute"));
     drd_info drd ("utf8-math-typesetting", std_drd);
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);

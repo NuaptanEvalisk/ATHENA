@@ -12,6 +12,7 @@
 #include "tm_config.hpp"
 #include "analyze.hpp"
 #include "gui_text.hpp"
+#include "native_latex_commands.hpp"
 
 #ifdef Q_OS_MAC
 #include "Subsystems/Qt/QTMApplication.hpp"
@@ -32,6 +33,7 @@ tm_config_rep::~tm_config_rep () {}
 
 bool
 tm_config_rep::kbd_get_command (string which, string& help, command& cmd) {
+  if (native_latex_get_command (which, help, cmd)) return true;
   object im= call ("kbd-get-command", which);
   if (im == object (false)) return false;
   help= as_string (car (im));

@@ -1,0 +1,7787 @@
+{
+  "version": 1,
+  "string_encoding": "utf-8",
+  "bindings": [
+    {
+      "command": "alpha",
+      "help": "Insert α",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "α"
+        }
+      ]
+    },
+    {
+      "command": "beta",
+      "help": "Insert β",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "β"
+        }
+      ]
+    },
+    {
+      "command": "gamma",
+      "help": "Insert γ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "γ"
+        }
+      ]
+    },
+    {
+      "command": "delta",
+      "help": "Insert δ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "δ"
+        }
+      ]
+    },
+    {
+      "command": "epsilon",
+      "help": "Insert ϵ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "ϵ"
+        }
+      ]
+    },
+    {
+      "command": "zeta",
+      "help": "Insert ζ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "ζ"
+        }
+      ]
+    },
+    {
+      "command": "eta",
+      "help": "Insert η",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "η"
+        }
+      ]
+    },
+    {
+      "command": "theta",
+      "help": "Insert θ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "θ"
+        }
+      ]
+    },
+    {
+      "command": "iota",
+      "help": "Insert ι",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "ι"
+        }
+      ]
+    },
+    {
+      "command": "kappa",
+      "help": "Insert κ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "κ"
+        }
+      ]
+    },
+    {
+      "command": "lambda",
+      "help": "Insert λ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "λ"
+        }
+      ]
+    },
+    {
+      "command": "mu",
+      "help": "Insert μ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "μ"
+        }
+      ]
+    },
+    {
+      "command": "nu",
+      "help": "Insert ν",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "ν"
+        }
+      ]
+    },
+    {
+      "command": "xi",
+      "help": "Insert ξ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "ξ"
+        }
+      ]
+    },
+    {
+      "command": "omicron",
+      "help": "Insert ο",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "ο"
+        }
+      ]
+    },
+    {
+      "command": "pi",
+      "help": "Insert π",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "π"
+        }
+      ]
+    },
+    {
+      "command": "rho",
+      "help": "Insert ρ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "ρ"
+        }
+      ]
+    },
+    {
+      "command": "sigma",
+      "help": "Insert σ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "σ"
+        }
+      ]
+    },
+    {
+      "command": "tau",
+      "help": "Insert τ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "τ"
+        }
+      ]
+    },
+    {
+      "command": "upsilon",
+      "help": "Insert υ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "υ"
+        }
+      ]
+    },
+    {
+      "command": "phi",
+      "help": "Insert ϕ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "ϕ"
+        }
+      ]
+    },
+    {
+      "command": "chi",
+      "help": "Insert χ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "χ"
+        }
+      ]
+    },
+    {
+      "command": "psi",
+      "help": "Insert ψ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "ψ"
+        }
+      ]
+    },
+    {
+      "command": "omega",
+      "help": "Insert ω",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "ω"
+        }
+      ]
+    },
+    {
+      "command": "varepsilon",
+      "help": "Insert ε",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "ε"
+        }
+      ]
+    },
+    {
+      "command": "vartheta",
+      "help": "Insert ϑ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "ϑ"
+        }
+      ]
+    },
+    {
+      "command": "varpi",
+      "help": "Insert ϖ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "ϖ"
+        }
+      ]
+    },
+    {
+      "command": "varrho",
+      "help": "Insert ϱ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "ϱ"
+        }
+      ]
+    },
+    {
+      "command": "varsigma",
+      "help": "Insert ς",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "ς"
+        }
+      ]
+    },
+    {
+      "command": "varphi",
+      "help": "Insert φ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "φ"
+        }
+      ]
+    },
+    {
+      "command": "leftharpoonup",
+      "help": "Insert ↼",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "↼"
+        }
+      ]
+    },
+    {
+      "command": "leftharpoondown",
+      "help": "Insert ↽",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "↽"
+        }
+      ]
+    },
+    {
+      "command": "rightharpoonup",
+      "help": "Insert ⇀",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⇀"
+        }
+      ]
+    },
+    {
+      "command": "rightharpoondown",
+      "help": "Insert ⇁",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⇁"
+        }
+      ]
+    },
+    {
+      "command": "lefthook",
+      "help": "Insert lefthook",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:lefthook"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "righthook",
+      "help": "Insert righthook",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:righthook"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "triangleright",
+      "help": "Insert ▹",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "▹"
+        }
+      ]
+    },
+    {
+      "command": "triangleleft",
+      "help": "Insert ◃",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "◃"
+        }
+      ]
+    },
+    {
+      "command": "star",
+      "help": "Insert ⋆",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋆"
+        }
+      ]
+    },
+    {
+      "command": "partial",
+      "help": "Insert ∂",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∂"
+        }
+      ]
+    },
+    {
+      "command": "flat",
+      "help": "Insert ♭",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "♭"
+        }
+      ]
+    },
+    {
+      "command": "natural",
+      "help": "Insert ♮",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "♮"
+        }
+      ]
+    },
+    {
+      "command": "sharp",
+      "help": "Insert ♯",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "♯"
+        }
+      ]
+    },
+    {
+      "command": "smile",
+      "help": "Insert ⌣",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⌣"
+        }
+      ]
+    },
+    {
+      "command": "frown",
+      "help": "Insert ⌢",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⌢"
+        }
+      ]
+    },
+    {
+      "command": "ell",
+      "help": "Insert ℓ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "ℓ"
+        }
+      ]
+    },
+    {
+      "command": "imath",
+      "help": "Insert ı",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "ı"
+        }
+      ]
+    },
+    {
+      "command": "jmath",
+      "help": "Insert jmath",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:jmath"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "wp",
+      "help": "Insert ℘",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "℘"
+        }
+      ]
+    },
+    {
+      "command": "vect",
+      "help": "Insert vect",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:vect"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "Alpha",
+      "help": "Insert Α",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "Α"
+        }
+      ]
+    },
+    {
+      "command": "Beta",
+      "help": "Insert Β",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "Β"
+        }
+      ]
+    },
+    {
+      "command": "Gamma",
+      "help": "Insert Γ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "Γ"
+        }
+      ]
+    },
+    {
+      "command": "Delta",
+      "help": "Insert Δ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "Δ"
+        }
+      ]
+    },
+    {
+      "command": "Epsilon",
+      "help": "Insert Ε",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "Ε"
+        }
+      ]
+    },
+    {
+      "command": "Zeta",
+      "help": "Insert Ζ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "Ζ"
+        }
+      ]
+    },
+    {
+      "command": "Eta",
+      "help": "Insert Η",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "Η"
+        }
+      ]
+    },
+    {
+      "command": "Theta",
+      "help": "Insert Θ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "Θ"
+        }
+      ]
+    },
+    {
+      "command": "Iota",
+      "help": "Insert Ι",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "Ι"
+        }
+      ]
+    },
+    {
+      "command": "Kappa",
+      "help": "Insert Κ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "Κ"
+        }
+      ]
+    },
+    {
+      "command": "Lambda",
+      "help": "Insert Λ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "Λ"
+        }
+      ]
+    },
+    {
+      "command": "Mu",
+      "help": "Insert Μ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "Μ"
+        }
+      ]
+    },
+    {
+      "command": "Nu",
+      "help": "Insert Ν",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "Ν"
+        }
+      ]
+    },
+    {
+      "command": "Xi",
+      "help": "Insert Ξ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "Ξ"
+        }
+      ]
+    },
+    {
+      "command": "Omicron",
+      "help": "Insert Ο",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "Ο"
+        }
+      ]
+    },
+    {
+      "command": "Pi",
+      "help": "Insert Π",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "Π"
+        }
+      ]
+    },
+    {
+      "command": "Rho",
+      "help": "Insert Ρ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "Ρ"
+        }
+      ]
+    },
+    {
+      "command": "Sigma",
+      "help": "Insert Σ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "Σ"
+        }
+      ]
+    },
+    {
+      "command": "Tau",
+      "help": "Insert Τ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "Τ"
+        }
+      ]
+    },
+    {
+      "command": "Upsilon",
+      "help": "Insert Υ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "Υ"
+        }
+      ]
+    },
+    {
+      "command": "Phi",
+      "help": "Insert Φ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "Φ"
+        }
+      ]
+    },
+    {
+      "command": "Chi",
+      "help": "Insert Χ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "Χ"
+        }
+      ]
+    },
+    {
+      "command": "Psi",
+      "help": "Insert Ψ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "Ψ"
+        }
+      ]
+    },
+    {
+      "command": "Omega",
+      "help": "Insert Ω",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "Ω"
+        }
+      ]
+    },
+    {
+      "command": "grave",
+      "help": "Insert `",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "`"
+        }
+      ]
+    },
+    {
+      "command": "acute",
+      "help": "Insert ´",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "´"
+        }
+      ]
+    },
+    {
+      "command": "check",
+      "help": "Insert ˇ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "ˇ"
+        }
+      ]
+    },
+    {
+      "command": "breve",
+      "help": "Insert ˘",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "˘"
+        }
+      ]
+    },
+    {
+      "command": "invbreve",
+      "help": "Insert ̑",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "̑"
+        }
+      ]
+    },
+    {
+      "command": "bar",
+      "help": "Insert ¯",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "¯"
+        }
+      ]
+    },
+    {
+      "command": "cedille",
+      "help": "Insert ¸",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "¸"
+        }
+      ]
+    },
+    {
+      "command": "degree",
+      "help": "Insert °",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "°"
+        }
+      ]
+    },
+    {
+      "command": "ast",
+      "help": "Insert ∗",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∗"
+        }
+      ]
+    },
+    {
+      "command": "asterisk",
+      "help": "Insert asterisk",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:asterisk"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "cdot",
+      "help": "Insert ⋅",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋅"
+        }
+      ]
+    },
+    {
+      "command": "times",
+      "help": "Insert ×",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "×"
+        }
+      ]
+    },
+    {
+      "command": "asterisk",
+      "help": "Insert asterisk",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:asterisk"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "div",
+      "help": "Insert ÷",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "÷"
+        }
+      ]
+    },
+    {
+      "command": "diamond",
+      "help": "Insert ⋄",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋄"
+        }
+      ]
+    },
+    {
+      "command": "pm",
+      "help": "Insert ±",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "±"
+        }
+      ]
+    },
+    {
+      "command": "mp",
+      "help": "Insert ∓",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∓"
+        }
+      ]
+    },
+    {
+      "command": "oplus",
+      "help": "Insert oplus",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:oplus"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "ominus",
+      "help": "Insert ominus",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:ominus"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "otimes",
+      "help": "Insert otimes",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:otimes"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "oslash",
+      "help": "Insert oslash",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:oslash"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "odot",
+      "help": "Insert odot",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:odot"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "bigcirc",
+      "help": "Insert bigcirc",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:bigcirc"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "circ",
+      "help": "Insert ∘",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∘"
+        }
+      ]
+    },
+    {
+      "command": "bullet",
+      "help": "Insert •",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "•"
+        }
+      ]
+    },
+    {
+      "command": "asymp",
+      "help": "Insert ≍",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≍"
+        }
+      ]
+    },
+    {
+      "command": "equiv",
+      "help": "Insert ≡",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≡"
+        }
+      ]
+    },
+    {
+      "command": "subseteq",
+      "help": "Insert ⊆",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊆"
+        }
+      ]
+    },
+    {
+      "command": "supseteq",
+      "help": "Insert ⊇",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊇"
+        }
+      ]
+    },
+    {
+      "command": "leq",
+      "help": "Insert ≤",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≤"
+        }
+      ]
+    },
+    {
+      "command": "geq",
+      "help": "Insert ≥",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≥"
+        }
+      ]
+    },
+    {
+      "command": "preceq",
+      "help": "Insert ⪯",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⪯"
+        }
+      ]
+    },
+    {
+      "command": "succeq",
+      "help": "Insert ⪰",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⪰"
+        }
+      ]
+    },
+    {
+      "command": "sim",
+      "help": "Insert ∼",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∼"
+        }
+      ]
+    },
+    {
+      "command": "approx",
+      "help": "Insert ≈",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≈"
+        }
+      ]
+    },
+    {
+      "command": "subset",
+      "help": "Insert ⊂",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊂"
+        }
+      ]
+    },
+    {
+      "command": "supset",
+      "help": "Insert ⊃",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊃"
+        }
+      ]
+    },
+    {
+      "command": "ll",
+      "help": "Insert ≪",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≪"
+        }
+      ]
+    },
+    {
+      "command": "gg",
+      "help": "Insert ≫",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≫"
+        }
+      ]
+    },
+    {
+      "command": "prec",
+      "help": "Insert ≺",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≺"
+        }
+      ]
+    },
+    {
+      "command": "succ",
+      "help": "Insert ≻",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≻"
+        }
+      ]
+    },
+    {
+      "command": "leftarrow",
+      "help": "Insert ←",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "←"
+        }
+      ]
+    },
+    {
+      "command": "rightarrow",
+      "help": "Insert →",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "→"
+        }
+      ]
+    },
+    {
+      "command": "uparrow",
+      "help": "Insert ↑",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "↑"
+        }
+      ]
+    },
+    {
+      "command": "downarrow",
+      "help": "Insert ↓",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "↓"
+        }
+      ]
+    },
+    {
+      "command": "leftrightarrow",
+      "help": "Insert ↔",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "↔"
+        }
+      ]
+    },
+    {
+      "command": "nearrow",
+      "help": "Insert ↗",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "↗"
+        }
+      ]
+    },
+    {
+      "command": "searrow",
+      "help": "Insert ↘",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "↘"
+        }
+      ]
+    },
+    {
+      "command": "simeq",
+      "help": "Insert ≃",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≃"
+        }
+      ]
+    },
+    {
+      "command": "Leftarrow",
+      "help": "Insert ⇐",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⇐"
+        }
+      ]
+    },
+    {
+      "command": "Rightarrow",
+      "help": "Insert ⇒",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⇒"
+        }
+      ]
+    },
+    {
+      "command": "Uparrow",
+      "help": "Insert ⇑",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⇑"
+        }
+      ]
+    },
+    {
+      "command": "Downarrow",
+      "help": "Insert ⇓",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⇓"
+        }
+      ]
+    },
+    {
+      "command": "Leftrightarrow",
+      "help": "Insert ⇔",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⇔"
+        }
+      ]
+    },
+    {
+      "command": "nwarrow",
+      "help": "Insert ↖",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "↖"
+        }
+      ]
+    },
+    {
+      "command": "swarrow",
+      "help": "Insert ↙",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "↙"
+        }
+      ]
+    },
+    {
+      "command": "propto",
+      "help": "Insert ∝",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∝"
+        }
+      ]
+    },
+    {
+      "command": "infty",
+      "help": "Insert ∞",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∞"
+        }
+      ]
+    },
+    {
+      "command": "in",
+      "help": "Insert ∈",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∈"
+        }
+      ]
+    },
+    {
+      "command": "ni",
+      "help": "Insert ∋",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∋"
+        }
+      ]
+    },
+    {
+      "command": "mid",
+      "help": "Insert ∣",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∣"
+        }
+      ]
+    },
+    {
+      "command": "bigtriangleup",
+      "help": "Insert △",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "△"
+        }
+      ]
+    },
+    {
+      "command": "triangle",
+      "help": "Insert triangle",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:triangle"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "bigtriangledown",
+      "help": "Insert ▽",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "▽"
+        }
+      ]
+    },
+    {
+      "command": "negate",
+      "help": "Insert negate",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:negate"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "varshortmid",
+      "help": "Insert varshortmid",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:varshortmid"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "forall",
+      "help": "Insert ∀",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∀"
+        }
+      ]
+    },
+    {
+      "command": "exists",
+      "help": "Insert ∃",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∃"
+        }
+      ]
+    },
+    {
+      "command": "neg",
+      "help": "Insert ¬",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "¬"
+        }
+      ]
+    },
+    {
+      "command": "emptyset",
+      "help": "Insert ∅",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∅"
+        }
+      ]
+    },
+    {
+      "command": "Re",
+      "help": "Insert Re",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:Re"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "Im",
+      "help": "Insert Im",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:Im"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "top",
+      "help": "Insert ⊤",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊤"
+        }
+      ]
+    },
+    {
+      "command": "bot",
+      "help": "Insert ⊥",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊥"
+        }
+      ]
+    },
+    {
+      "command": "aleph",
+      "help": "Insert ℵ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "ℵ"
+        }
+      ]
+    },
+    {
+      "command": "perp",
+      "help": "Insert perp",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:perp"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "cup",
+      "help": "Insert ∪",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∪"
+        }
+      ]
+    },
+    {
+      "command": "cap",
+      "help": "Insert ∩",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∩"
+        }
+      ]
+    },
+    {
+      "command": "uplus",
+      "help": "Insert ⊎",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊎"
+        }
+      ]
+    },
+    {
+      "command": "wedge",
+      "help": "Insert ∧",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∧"
+        }
+      ]
+    },
+    {
+      "command": "vee",
+      "help": "Insert ∨",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∨"
+        }
+      ]
+    },
+    {
+      "command": "vdash",
+      "help": "Insert ⊢",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊢"
+        }
+      ]
+    },
+    {
+      "command": "dashv",
+      "help": "Insert ⊣",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊣"
+        }
+      ]
+    },
+    {
+      "command": "lfloor",
+      "help": "Insert ⌊",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⌊"
+        }
+      ]
+    },
+    {
+      "command": "rfloor",
+      "help": "Insert ⌋",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⌋"
+        }
+      ]
+    },
+    {
+      "command": "lceil",
+      "help": "Insert ⌈",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⌈"
+        }
+      ]
+    },
+    {
+      "command": "rceil",
+      "help": "Insert ⌉",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⌉"
+        }
+      ]
+    },
+    {
+      "command": "langle",
+      "help": "Insert ⟨",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⟨"
+        }
+      ]
+    },
+    {
+      "command": "rangle",
+      "help": "Insert ⟩",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⟩"
+        }
+      ]
+    },
+    {
+      "command": "updownarrow",
+      "help": "Insert ↕",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "↕"
+        }
+      ]
+    },
+    {
+      "command": "Updownarrow",
+      "help": "Insert ⇕",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⇕"
+        }
+      ]
+    },
+    {
+      "command": "wr",
+      "help": "Insert ≀",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≀"
+        }
+      ]
+    },
+    {
+      "command": "amalg",
+      "help": "Insert ⨿",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⨿"
+        }
+      ]
+    },
+    {
+      "command": "nabla",
+      "help": "Insert ∇",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∇"
+        }
+      ]
+    },
+    {
+      "command": "sqcup",
+      "help": "Insert ⊔",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊔"
+        }
+      ]
+    },
+    {
+      "command": "sqcap",
+      "help": "Insert ⊓",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊓"
+        }
+      ]
+    },
+    {
+      "command": "sqsubseteq",
+      "help": "Insert ⊑",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊑"
+        }
+      ]
+    },
+    {
+      "command": "sqsupseteq",
+      "help": "Insert ⊒",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊒"
+        }
+      ]
+    },
+    {
+      "command": "dag",
+      "help": "Insert dag",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:dag"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "ddag",
+      "help": "Insert ddag",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:ddag"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "endofline",
+      "help": "Insert endofline",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:endofline"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "clubsuit",
+      "help": "Insert ♣",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "♣"
+        }
+      ]
+    },
+    {
+      "command": "diamondsuit",
+      "help": "Insert ♦",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "♦"
+        }
+      ]
+    },
+    {
+      "command": "heartsuit",
+      "help": "Insert ♥",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "♥"
+        }
+      ]
+    },
+    {
+      "command": "spadesuit",
+      "help": "Insert ♠",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "♠"
+        }
+      ]
+    },
+    {
+      "command": "backslash",
+      "help": "Insert \\",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "\\"
+        }
+      ]
+    },
+    {
+      "command": "setminus",
+      "help": "Insert ∖",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∖"
+        }
+      ]
+    },
+    {
+      "command": "boxdot",
+      "help": "Insert ⊡",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊡"
+        }
+      ]
+    },
+    {
+      "command": "boxplus",
+      "help": "Insert ⊞",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊞"
+        }
+      ]
+    },
+    {
+      "command": "boxtimes",
+      "help": "Insert ⊠",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊠"
+        }
+      ]
+    },
+    {
+      "command": "box",
+      "help": "Insert box",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:box"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "blacksquare",
+      "help": "Insert ■",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "■"
+        }
+      ]
+    },
+    {
+      "command": "centerdot",
+      "help": "Insert ·",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "·"
+        }
+      ]
+    },
+    {
+      "command": "lozenge",
+      "help": "Insert ◊",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "◊"
+        }
+      ]
+    },
+    {
+      "command": "blacklozenge",
+      "help": "Insert ⧫",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⧫"
+        }
+      ]
+    },
+    {
+      "command": "circlearrowright",
+      "help": "Insert ↻",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "↻"
+        }
+      ]
+    },
+    {
+      "command": "circlearrowleft",
+      "help": "Insert ↺",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "↺"
+        }
+      ]
+    },
+    {
+      "command": "rightleftharpoons",
+      "help": "Insert ⇌",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⇌"
+        }
+      ]
+    },
+    {
+      "command": "leftrightharpoons",
+      "help": "Insert ⇋",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⇋"
+        }
+      ]
+    },
+    {
+      "command": "boxminus",
+      "help": "Insert ⊟",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊟"
+        }
+      ]
+    },
+    {
+      "command": "Vdash",
+      "help": "Insert ⊩",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊩"
+        }
+      ]
+    },
+    {
+      "command": "Vvdash",
+      "help": "Insert ⊪",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊪"
+        }
+      ]
+    },
+    {
+      "command": "dashV",
+      "help": "Insert dashV",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:dashV"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "twoheadrightarrow",
+      "help": "Insert ↠",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "↠"
+        }
+      ]
+    },
+    {
+      "command": "twoheadleftarrow",
+      "help": "Insert ↞",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "↞"
+        }
+      ]
+    },
+    {
+      "command": "leftleftarrows",
+      "help": "Insert ⇇",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⇇"
+        }
+      ]
+    },
+    {
+      "command": "rightrightarrows",
+      "help": "Insert ⇉",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⇉"
+        }
+      ]
+    },
+    {
+      "command": "upuparrows",
+      "help": "Insert ⇈",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⇈"
+        }
+      ]
+    },
+    {
+      "command": "downdownarrows",
+      "help": "Insert ⇊",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⇊"
+        }
+      ]
+    },
+    {
+      "command": "upharpoonright",
+      "help": "Insert ↾",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "↾"
+        }
+      ]
+    },
+    {
+      "command": "downharpoonright",
+      "help": "Insert ⇂",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⇂"
+        }
+      ]
+    },
+    {
+      "command": "upharpoonleft",
+      "help": "Insert ↿",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "↿"
+        }
+      ]
+    },
+    {
+      "command": "downharpoonleft",
+      "help": "Insert ⇃",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⇃"
+        }
+      ]
+    },
+    {
+      "command": "rightarrowtail",
+      "help": "Insert ↣",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "↣"
+        }
+      ]
+    },
+    {
+      "command": "leftarrowtail",
+      "help": "Insert ↢",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "↢"
+        }
+      ]
+    },
+    {
+      "command": "leftrightarrows",
+      "help": "Insert ⇆",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⇆"
+        }
+      ]
+    },
+    {
+      "command": "rightleftarrows",
+      "help": "Insert ⇄",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⇄"
+        }
+      ]
+    },
+    {
+      "command": "Lsh",
+      "help": "Insert ↰",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "↰"
+        }
+      ]
+    },
+    {
+      "command": "Rsh",
+      "help": "Insert ↱",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "↱"
+        }
+      ]
+    },
+    {
+      "command": "rightsquigarrow",
+      "help": "Insert ↝",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "↝"
+        }
+      ]
+    },
+    {
+      "command": "leftrightsquigarrow",
+      "help": "Insert ↭",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "↭"
+        }
+      ]
+    },
+    {
+      "command": "looparrowleft",
+      "help": "Insert ↫",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "↫"
+        }
+      ]
+    },
+    {
+      "command": "looparrowright",
+      "help": "Insert ↬",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "↬"
+        }
+      ]
+    },
+    {
+      "command": "circeq",
+      "help": "Insert ≗",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≗"
+        }
+      ]
+    },
+    {
+      "command": "succsim",
+      "help": "Insert ≿",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≿"
+        }
+      ]
+    },
+    {
+      "command": "gtrsim",
+      "help": "Insert ≳",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≳"
+        }
+      ]
+    },
+    {
+      "command": "gtrapprox",
+      "help": "Insert ⪆",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⪆"
+        }
+      ]
+    },
+    {
+      "command": "multimap",
+      "help": "Insert ⊸",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊸"
+        }
+      ]
+    },
+    {
+      "command": "therefore",
+      "help": "Insert ∴",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∴"
+        }
+      ]
+    },
+    {
+      "command": "because",
+      "help": "Insert ∵",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∵"
+        }
+      ]
+    },
+    {
+      "command": "doteqdot",
+      "help": "Insert ≑",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≑"
+        }
+      ]
+    },
+    {
+      "command": "triangleq",
+      "help": "Insert ≜",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≜"
+        }
+      ]
+    },
+    {
+      "command": "precsim",
+      "help": "Insert ≾",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≾"
+        }
+      ]
+    },
+    {
+      "command": "lesssim",
+      "help": "Insert ≲",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≲"
+        }
+      ]
+    },
+    {
+      "command": "lessapprox",
+      "help": "Insert ⪅",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⪅"
+        }
+      ]
+    },
+    {
+      "command": "eqslantless",
+      "help": "Insert ⪕",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⪕"
+        }
+      ]
+    },
+    {
+      "command": "eqslantgtr",
+      "help": "Insert ⪖",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⪖"
+        }
+      ]
+    },
+    {
+      "command": "curlyeqprec",
+      "help": "Insert ⋞",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋞"
+        }
+      ]
+    },
+    {
+      "command": "curlyeqsucc",
+      "help": "Insert ⋟",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋟"
+        }
+      ]
+    },
+    {
+      "command": "preccurlyeq",
+      "help": "Insert ≼",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≼"
+        }
+      ]
+    },
+    {
+      "command": "leqq",
+      "help": "Insert ≦",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≦"
+        }
+      ]
+    },
+    {
+      "command": "leqslant",
+      "help": "Insert ⩽",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⩽"
+        }
+      ]
+    },
+    {
+      "command": "lessgtr",
+      "help": "Insert ≶",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≶"
+        }
+      ]
+    },
+    {
+      "command": "smalldash",
+      "help": "Insert smalldash",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:smalldash"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "risingdotseq",
+      "help": "Insert risingdotseq",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:risingdotseq"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "fallingdotseq",
+      "help": "Insert fallingdotseq",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:fallingdotseq"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "succcurlyeq",
+      "help": "Insert ≽",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≽"
+        }
+      ]
+    },
+    {
+      "command": "geqq",
+      "help": "Insert ≧",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≧"
+        }
+      ]
+    },
+    {
+      "command": "geqslant",
+      "help": "Insert ⩾",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⩾"
+        }
+      ]
+    },
+    {
+      "command": "gtrless",
+      "help": "Insert ≷",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≷"
+        }
+      ]
+    },
+    {
+      "command": "sqsubset",
+      "help": "Insert ⊏",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊏"
+        }
+      ]
+    },
+    {
+      "command": "sqsupset",
+      "help": "Insert ⊐",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊐"
+        }
+      ]
+    },
+    {
+      "command": "vartriangleright",
+      "help": "Insert ⊳",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊳"
+        }
+      ]
+    },
+    {
+      "command": "vartriangleleft",
+      "help": "Insert ⊲",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊲"
+        }
+      ]
+    },
+    {
+      "command": "trianglerighteq",
+      "help": "Insert ⊵",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊵"
+        }
+      ]
+    },
+    {
+      "command": "trianglelefteq",
+      "help": "Insert ⊴",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊴"
+        }
+      ]
+    },
+    {
+      "command": "bigstar",
+      "help": "Insert ★",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "★"
+        }
+      ]
+    },
+    {
+      "command": "between",
+      "help": "Insert ≬",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≬"
+        }
+      ]
+    },
+    {
+      "command": "blacktriangledown",
+      "help": "Insert ▾",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "▾"
+        }
+      ]
+    },
+    {
+      "command": "blacktriangleright",
+      "help": "Insert ▸",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "▸"
+        }
+      ]
+    },
+    {
+      "command": "blacktriangleleft",
+      "help": "Insert ◂",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "◂"
+        }
+      ]
+    },
+    {
+      "command": "shortrightarrow",
+      "help": "Insert shortrightarrow",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:shortrightarrow"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "shortleftarrow",
+      "help": "Insert shortleftarrow",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:shortleftarrow"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "vartriangle",
+      "help": "Insert ▵",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "▵"
+        }
+      ]
+    },
+    {
+      "command": "blacktriangle",
+      "help": "Insert ▴",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "▴"
+        }
+      ]
+    },
+    {
+      "command": "triangledown",
+      "help": "Insert ▿",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "▿"
+        }
+      ]
+    },
+    {
+      "command": "eqcirc",
+      "help": "Insert ≖",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≖"
+        }
+      ]
+    },
+    {
+      "command": "lesseqgtr",
+      "help": "Insert ⋚",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋚"
+        }
+      ]
+    },
+    {
+      "command": "gtreqless",
+      "help": "Insert ⋛",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋛"
+        }
+      ]
+    },
+    {
+      "command": "lesseqqgtr",
+      "help": "Insert ⪋",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⪋"
+        }
+      ]
+    },
+    {
+      "command": "gtreqqless",
+      "help": "Insert ⪌",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⪌"
+        }
+      ]
+    },
+    {
+      "command": "yen",
+      "help": "Insert ¥",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "¥"
+        }
+      ]
+    },
+    {
+      "command": "Rrightarrow",
+      "help": "Insert ⇛",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⇛"
+        }
+      ]
+    },
+    {
+      "command": "Lleftarrow",
+      "help": "Insert ⇚",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⇚"
+        }
+      ]
+    },
+    {
+      "command": "checkmark",
+      "help": "Insert ✓",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "✓"
+        }
+      ]
+    },
+    {
+      "command": "veebar",
+      "help": "Insert ⊻",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊻"
+        }
+      ]
+    },
+    {
+      "command": "barwedge",
+      "help": "Insert ⌅",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⌅"
+        }
+      ]
+    },
+    {
+      "command": "doublebarwedge",
+      "help": "Insert ⌆",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⌆"
+        }
+      ]
+    },
+    {
+      "command": "angle",
+      "help": "Insert ∠",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∠"
+        }
+      ]
+    },
+    {
+      "command": "measuredangle",
+      "help": "Insert ∡",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∡"
+        }
+      ]
+    },
+    {
+      "command": "sphericalangle",
+      "help": "Insert ∢",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∢"
+        }
+      ]
+    },
+    {
+      "command": "varpropto",
+      "help": "Insert varpropto",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:varpropto"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "smallsmile",
+      "help": "Insert smallsmile",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:smallsmile"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "smallfrown",
+      "help": "Insert smallfrown",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:smallfrown"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "Subset",
+      "help": "Insert ⋐",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋐"
+        }
+      ]
+    },
+    {
+      "command": "Supset",
+      "help": "Insert ⋑",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋑"
+        }
+      ]
+    },
+    {
+      "command": "Cup",
+      "help": "Insert ⋓",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋓"
+        }
+      ]
+    },
+    {
+      "command": "Cap",
+      "help": "Insert ⋒",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋒"
+        }
+      ]
+    },
+    {
+      "command": "curlyvee",
+      "help": "Insert ⋎",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋎"
+        }
+      ]
+    },
+    {
+      "command": "curlywedge",
+      "help": "Insert ⋏",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋏"
+        }
+      ]
+    },
+    {
+      "command": "leftthreetimes",
+      "help": "Insert ⋋",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋋"
+        }
+      ]
+    },
+    {
+      "command": "rightthreetimes",
+      "help": "Insert ⋌",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋌"
+        }
+      ]
+    },
+    {
+      "command": "subseteqq",
+      "help": "Insert ⫅",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⫅"
+        }
+      ]
+    },
+    {
+      "command": "supseteqq",
+      "help": "Insert ⫆",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⫆"
+        }
+      ]
+    },
+    {
+      "command": "bumpeq",
+      "help": "Insert ≏",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≏"
+        }
+      ]
+    },
+    {
+      "command": "Bumpeq",
+      "help": "Insert ≎",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≎"
+        }
+      ]
+    },
+    {
+      "command": "lll",
+      "help": "Insert ⋘",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋘"
+        }
+      ]
+    },
+    {
+      "command": "ggg",
+      "help": "Insert ⋙",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋙"
+        }
+      ]
+    },
+    {
+      "command": "ulcorner",
+      "help": "Insert ⌜",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⌜"
+        }
+      ]
+    },
+    {
+      "command": "urcorner",
+      "help": "Insert ⌝",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⌝"
+        }
+      ]
+    },
+    {
+      "command": "circledR",
+      "help": "Insert ®",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "®"
+        }
+      ]
+    },
+    {
+      "command": "circledS",
+      "help": "Insert Ⓢ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "Ⓢ"
+        }
+      ]
+    },
+    {
+      "command": "pitchfork",
+      "help": "Insert ⋔",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋔"
+        }
+      ]
+    },
+    {
+      "command": "dotplus",
+      "help": "Insert ∔",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∔"
+        }
+      ]
+    },
+    {
+      "command": "backsim",
+      "help": "Insert ∽",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∽"
+        }
+      ]
+    },
+    {
+      "command": "backsimeq",
+      "help": "Insert ⋍",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋍"
+        }
+      ]
+    },
+    {
+      "command": "llcorner",
+      "help": "Insert ⌞",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⌞"
+        }
+      ]
+    },
+    {
+      "command": "lrcorner",
+      "help": "Insert ⌟",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⌟"
+        }
+      ]
+    },
+    {
+      "command": "maltese",
+      "help": "Insert ✠",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "✠"
+        }
+      ]
+    },
+    {
+      "command": "complement",
+      "help": "Insert ∁",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∁"
+        }
+      ]
+    },
+    {
+      "command": "intercal",
+      "help": "Insert ⊺",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊺"
+        }
+      ]
+    },
+    {
+      "command": "circledcirc",
+      "help": "Insert circledcirc",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:circledcirc"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "circledast",
+      "help": "Insert circledast",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:circledast"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "circleddash",
+      "help": "Insert ⊝",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊝"
+        }
+      ]
+    },
+    {
+      "command": "lvertneqq",
+      "help": "Insert lvertneqq",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:lvertneqq"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "gvertneqq",
+      "help": "Insert gvertneqq",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:gvertneqq"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "nleq",
+      "help": "Insert ≰",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≰"
+        }
+      ]
+    },
+    {
+      "command": "ngeq",
+      "help": "Insert ≱",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≱"
+        }
+      ]
+    },
+    {
+      "command": "nless",
+      "help": "Insert ≮",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≮"
+        }
+      ]
+    },
+    {
+      "command": "ngtr",
+      "help": "Insert ≯",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≯"
+        }
+      ]
+    },
+    {
+      "command": "nprec",
+      "help": "Insert ⊀",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊀"
+        }
+      ]
+    },
+    {
+      "command": "nsucc",
+      "help": "Insert ⊁",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊁"
+        }
+      ]
+    },
+    {
+      "command": "lneqq",
+      "help": "Insert ≨",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≨"
+        }
+      ]
+    },
+    {
+      "command": "gneqq",
+      "help": "Insert ≩",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≩"
+        }
+      ]
+    },
+    {
+      "command": "nleqslant",
+      "help": "Insert nleqslant",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:nleqslant"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "ngeqslant",
+      "help": "Insert ngeqslant",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:ngeqslant"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "lneq",
+      "help": "Insert ⪇",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⪇"
+        }
+      ]
+    },
+    {
+      "command": "gneq",
+      "help": "Insert ⪈",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⪈"
+        }
+      ]
+    },
+    {
+      "command": "npreceq",
+      "help": "Insert npreceq",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:npreceq"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "nsucceq",
+      "help": "Insert nsucceq",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:nsucceq"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "precnsim",
+      "help": "Insert ⋨",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋨"
+        }
+      ]
+    },
+    {
+      "command": "succnsim",
+      "help": "Insert ⋩",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋩"
+        }
+      ]
+    },
+    {
+      "command": "lnsim",
+      "help": "Insert ⋦",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋦"
+        }
+      ]
+    },
+    {
+      "command": "gnsim",
+      "help": "Insert ⋧",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋧"
+        }
+      ]
+    },
+    {
+      "command": "nleqq",
+      "help": "Insert nleqq",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:nleqq"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "ngeqq",
+      "help": "Insert ngeqq",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:ngeqq"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "precneqq",
+      "help": "Insert ⪵",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⪵"
+        }
+      ]
+    },
+    {
+      "command": "succneqq",
+      "help": "Insert ⪶",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⪶"
+        }
+      ]
+    },
+    {
+      "command": "precnapprox",
+      "help": "Insert ⪹",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⪹"
+        }
+      ]
+    },
+    {
+      "command": "succnapprox",
+      "help": "Insert ⪺",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⪺"
+        }
+      ]
+    },
+    {
+      "command": "lnapprox",
+      "help": "Insert ⪉",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⪉"
+        }
+      ]
+    },
+    {
+      "command": "gnapprox",
+      "help": "Insert ⪊",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⪊"
+        }
+      ]
+    },
+    {
+      "command": "nsim",
+      "help": "Insert ≁",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≁"
+        }
+      ]
+    },
+    {
+      "command": "ncong",
+      "help": "Insert ≇",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≇"
+        }
+      ]
+    },
+    {
+      "command": "diagup",
+      "help": "Insert diagup",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:diagup"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "diagdown",
+      "help": "Insert diagdown",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:diagdown"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "varsubsetneq",
+      "help": "Insert varsubsetneq",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:varsubsetneq"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "varsupsetneq",
+      "help": "Insert varsupsetneq",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:varsupsetneq"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "nsubseteqq",
+      "help": "Insert nsubseteqq",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:nsubseteqq"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "nsupseteqq",
+      "help": "Insert nsupseteqq",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:nsupseteqq"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "subsetneqq",
+      "help": "Insert ⫋",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⫋"
+        }
+      ]
+    },
+    {
+      "command": "supsetneqq",
+      "help": "Insert ⫌",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⫌"
+        }
+      ]
+    },
+    {
+      "command": "varsubsetneqq",
+      "help": "Insert varsubsetneqq",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:varsubsetneqq"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "varsupsetneqq",
+      "help": "Insert varsupsetneqq",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:varsupsetneqq"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "subsetneq",
+      "help": "Insert ⊊",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊊"
+        }
+      ]
+    },
+    {
+      "command": "supsetneq",
+      "help": "Insert ⊋",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊋"
+        }
+      ]
+    },
+    {
+      "command": "nsubseteq",
+      "help": "Insert ⊈",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊈"
+        }
+      ]
+    },
+    {
+      "command": "nsupseteq",
+      "help": "Insert ⊉",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊉"
+        }
+      ]
+    },
+    {
+      "command": "parallel",
+      "help": "Insert ∥",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∥"
+        }
+      ]
+    },
+    {
+      "command": "nparallel",
+      "help": "Insert ∦",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∦"
+        }
+      ]
+    },
+    {
+      "command": "nmid",
+      "help": "Insert ∤",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∤"
+        }
+      ]
+    },
+    {
+      "command": "nshortmid",
+      "help": "Insert nshortmid",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:nshortmid"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "nshortparallel",
+      "help": "Insert nshortparallel",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:nshortparallel"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "nvdash",
+      "help": "Insert ⊬",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊬"
+        }
+      ]
+    },
+    {
+      "command": "nVdash",
+      "help": "Insert ⊮",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊮"
+        }
+      ]
+    },
+    {
+      "command": "nvDash",
+      "help": "Insert ⊭",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊭"
+        }
+      ]
+    },
+    {
+      "command": "nVDash",
+      "help": "Insert ⊯",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊯"
+        }
+      ]
+    },
+    {
+      "command": "models",
+      "help": "Insert ⊧",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊧"
+        }
+      ]
+    },
+    {
+      "command": "ntrianglerighteq",
+      "help": "Insert ⋭",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋭"
+        }
+      ]
+    },
+    {
+      "command": "ntrianglelefteq",
+      "help": "Insert ⋬",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋬"
+        }
+      ]
+    },
+    {
+      "command": "ntriangleleft",
+      "help": "Insert ⋪",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋪"
+        }
+      ]
+    },
+    {
+      "command": "ntriangleright",
+      "help": "Insert ⋫",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋫"
+        }
+      ]
+    },
+    {
+      "command": "nleftarrow",
+      "help": "Insert ↚",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "↚"
+        }
+      ]
+    },
+    {
+      "command": "nrightarrow",
+      "help": "Insert ↛",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "↛"
+        }
+      ]
+    },
+    {
+      "command": "nLeftarrow",
+      "help": "Insert ⇍",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⇍"
+        }
+      ]
+    },
+    {
+      "command": "nRightarrow",
+      "help": "Insert ⇏",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⇏"
+        }
+      ]
+    },
+    {
+      "command": "nLeftrightarrow",
+      "help": "Insert ⇎",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⇎"
+        }
+      ]
+    },
+    {
+      "command": "nleftrightarrow",
+      "help": "Insert ↮",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "↮"
+        }
+      ]
+    },
+    {
+      "command": "divideontimes",
+      "help": "Insert ⋇",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋇"
+        }
+      ]
+    },
+    {
+      "command": "varnothing",
+      "help": "Insert varnothing",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:varnothing"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "nexists",
+      "help": "Insert ∄",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∄"
+        }
+      ]
+    },
+    {
+      "command": "Mho",
+      "help": "Insert ℧",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "℧"
+        }
+      ]
+    },
+    {
+      "command": "thorn",
+      "help": "Insert þ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "þ"
+        }
+      ]
+    },
+    {
+      "command": "eth",
+      "help": "Insert eth",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:eth"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "eqsim",
+      "help": "Insert ≂",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≂"
+        }
+      ]
+    },
+    {
+      "command": "beth",
+      "help": "Insert ℶ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "ℶ"
+        }
+      ]
+    },
+    {
+      "command": "gimel",
+      "help": "Insert ℷ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "ℷ"
+        }
+      ]
+    },
+    {
+      "command": "daleth",
+      "help": "Insert ℸ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "ℸ"
+        }
+      ]
+    },
+    {
+      "command": "lessdot",
+      "help": "Insert ⋖",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋖"
+        }
+      ]
+    },
+    {
+      "command": "gtrdot",
+      "help": "Insert ⋗",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋗"
+        }
+      ]
+    },
+    {
+      "command": "ltimes",
+      "help": "Insert ⋉",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋉"
+        }
+      ]
+    },
+    {
+      "command": "rtimes",
+      "help": "Insert ⋊",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋊"
+        }
+      ]
+    },
+    {
+      "command": "shortmid",
+      "help": "Insert shortmid",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:shortmid"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "shortparallel",
+      "help": "Insert shortparallel",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:shortparallel"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "smallsetminus",
+      "help": "Insert smallsetminus",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:smallsetminus"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "thicksim",
+      "help": "Insert thicksim",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:thicksim"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "thickapprox",
+      "help": "Insert thickapprox",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:thickapprox"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "approxeq",
+      "help": "Insert ≊",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≊"
+        }
+      ]
+    },
+    {
+      "command": "succapprox",
+      "help": "Insert ⪸",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⪸"
+        }
+      ]
+    },
+    {
+      "command": "precapprox",
+      "help": "Insert ⪷",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⪷"
+        }
+      ]
+    },
+    {
+      "command": "curvearrowleft",
+      "help": "Insert ↶",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "↶"
+        }
+      ]
+    },
+    {
+      "command": "curvearrowright",
+      "help": "Insert ↷",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "↷"
+        }
+      ]
+    },
+    {
+      "command": "digamma",
+      "help": "Insert ϝ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "ϝ"
+        }
+      ]
+    },
+    {
+      "command": "varkappa",
+      "help": "Insert ϰ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "ϰ"
+        }
+      ]
+    },
+    {
+      "command": "hslash",
+      "help": "Insert ℏ",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "ℏ"
+        }
+      ]
+    },
+    {
+      "command": "hbar",
+      "help": "Insert hbar",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:hbar"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "backepsilon",
+      "help": "Insert ϶",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "϶"
+        }
+      ]
+    },
+    {
+      "command": "mapsto",
+      "help": "Insert ↦",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "↦"
+        }
+      ]
+    },
+    {
+      "command": "longmapsto",
+      "help": "Insert ⟼",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⟼"
+        }
+      ]
+    },
+    {
+      "command": "longrightarrow",
+      "help": "Insert ⟶",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⟶"
+        }
+      ]
+    },
+    {
+      "command": "longleftarrow",
+      "help": "Insert ⟵",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⟵"
+        }
+      ]
+    },
+    {
+      "command": "longleftrightarrow",
+      "help": "Insert ⟷",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⟷"
+        }
+      ]
+    },
+    {
+      "command": "longRightarrow",
+      "help": "Insert longRightarrow",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:longRightarrow"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "longLeftarrow",
+      "help": "Insert longLeftarrow",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:longLeftarrow"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "longLeftrightarrow",
+      "help": "Insert longLeftrightarrow",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:longLeftrightarrow"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "ldots",
+      "help": "Insert …",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "…"
+        }
+      ]
+    },
+    {
+      "command": "cdots",
+      "help": "Insert ⋯",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋯"
+        }
+      ]
+    },
+    {
+      "command": "vdots",
+      "help": "Insert ⋮",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋮"
+        }
+      ]
+    },
+    {
+      "command": "ddots",
+      "help": "Insert ⋱",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋱"
+        }
+      ]
+    },
+    {
+      "command": "dotamalg",
+      "help": "Insert dotamalg",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:dotamalg"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "dottimes",
+      "help": "Insert dottimes",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:dottimes"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "dotoplus",
+      "help": "Insert dotoplus",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:dotoplus"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "dototimes",
+      "help": "Insert dototimes",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:dototimes"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "venus",
+      "help": "Insert venus",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:venus"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "mars",
+      "help": "Insert mars",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:mars"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "earth",
+      "help": "Insert ♁",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "♁"
+        }
+      ]
+    },
+    {
+      "command": "aries",
+      "help": "Insert ♈",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "♈"
+        }
+      ]
+    },
+    {
+      "command": "fullmoon",
+      "help": "Insert fullmoon",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:fullmoon"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "newmoon",
+      "help": "Insert newmoon",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:newmoon"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "astrosun",
+      "help": "Insert ☉",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "☉"
+        }
+      ]
+    },
+    {
+      "command": "leo",
+      "help": "Insert ♌",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "♌"
+        }
+      ]
+    },
+    {
+      "command": "LEFTcircle",
+      "help": "Insert ◐",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "◐"
+        }
+      ]
+    },
+    {
+      "command": "RIGHTcircle",
+      "help": "Insert ◑",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "◑"
+        }
+      ]
+    },
+    {
+      "command": "Square",
+      "help": "Insert □",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "□"
+        }
+      ]
+    },
+    {
+      "command": "CheckedBox",
+      "help": "Insert ☒",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "☒"
+        }
+      ]
+    },
+    {
+      "command": "photon",
+      "help": "Insert photon",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:photon"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "gluon",
+      "help": "Insert gluon",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:gluon"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "neq",
+      "help": "Insert ≠",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "≠"
+        }
+      ]
+    },
+    {
+      "command": "notin",
+      "help": "Insert notin",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:notin"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "nin",
+      "help": "Insert ∉",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∉"
+        }
+      ]
+    },
+    {
+      "command": "notni",
+      "help": "Insert notni",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:notni"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "nni",
+      "help": "Insert ∌",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "∌"
+        }
+      ]
+    },
+    {
+      "command": "nll",
+      "help": "Insert nll",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:nll"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "nlll",
+      "help": "Insert nlll",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:nlll"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "ngg",
+      "help": "Insert ngg",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:ngg"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "nggg",
+      "help": "Insert nggg",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:nggg"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "dagger",
+      "help": "Insert †",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "†"
+        }
+      ]
+    },
+    {
+      "command": "ddagger",
+      "help": "Insert ‡",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "‡"
+        }
+      ]
+    },
+    {
+      "command": "boxbar",
+      "help": "Insert boxbar",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:boxbar"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "checked",
+      "help": "Insert checked",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:checked"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "obar",
+      "help": "Insert obar",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:obar"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "kreuz",
+      "help": "Insert kreuz",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:kreuz"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "lhd",
+      "help": "Insert left normal subgroup relation",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊲"
+        }
+      ]
+    },
+    {
+      "command": "rhd",
+      "help": "Insert right normal subgroup relation",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊳"
+        }
+      ]
+    },
+    {
+      "command": "unlhd",
+      "help": "Insert left normal subgroup or equal relation",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊴"
+        }
+      ]
+    },
+    {
+      "command": "unrhd",
+      "help": "Insert right normal subgroup or equal relation",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⊵"
+        }
+      ]
+    },
+    {
+      "command": "cd",
+      "help": "Insert a commutative diagram",
+      "actions": [
+        {
+          "op": "make-cd"
+        }
+      ]
+    },
+    {
+      "command": "#",
+      "help": "Insert sharp",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "#"
+        }
+      ]
+    },
+    {
+      "command": "$",
+      "help": "Insert dollar",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "$"
+        }
+      ]
+    },
+    {
+      "command": "(",
+      "help": "Insert formula",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "mode",
+          "value": "math"
+        }
+      ]
+    },
+    {
+      "command": ",",
+      "help": "Insert small horizontal space",
+      "actions": [
+        {
+          "op": "make-space",
+          "value": "0.2spc"
+        }
+      ]
+    },
+    {
+      "command": ":",
+      "help": "Insert medium horizontal space",
+      "actions": [
+        {
+          "op": "make-space",
+          "value": "0.4spc"
+        }
+      ]
+    },
+    {
+      "command": ";",
+      "help": "Insert thick horizontal space",
+      "actions": [
+        {
+          "op": "make-space",
+          "value": "0.6spc"
+        }
+      ]
+    },
+    {
+      "command": " ",
+      "help": "Insert horizontal interword space",
+      "actions": [
+        {
+          "op": "make-space",
+          "value": "1spc"
+        }
+      ]
+    },
+    {
+      "command": "!",
+      "help": "Insert negative horizontal space",
+      "actions": [
+        {
+          "op": "make-space",
+          "value": "-0.2spc"
+        }
+      ]
+    },
+    {
+      "command": "|",
+      "help": "Insert norm",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "‖"
+        }
+      ]
+    },
+    {
+      "command": "quad",
+      "help": "Insert a quad space",
+      "actions": [
+        {
+          "op": "make-space",
+          "value": "1em"
+        }
+      ]
+    },
+    {
+      "command": "qquad",
+      "help": "Insert a qquad space",
+      "actions": [
+        {
+          "op": "make-space",
+          "value": "2em"
+        }
+      ]
+    },
+    {
+      "command": "\\",
+      "help": "Go to the next line",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "next-line"
+        }
+      ]
+    },
+    {
+      "command": "[",
+      "help": "Insert equation",
+      "actions": [
+        {
+          "op": "make-equation-like",
+          "tag": "equation*"
+        }
+      ]
+    },
+    {
+      "command": "equation",
+      "help": "Insert numbered equation",
+      "actions": [
+        {
+          "op": "make-equation-like",
+          "tag": "equation"
+        }
+      ]
+    },
+    {
+      "command": "eqnarray",
+      "help": "Insert equation array",
+      "actions": [
+        {
+          "op": "make-equation-like",
+          "tag": "eqnarray"
+        }
+      ]
+    },
+    {
+      "command": "eqnarray*",
+      "help": "Insert equation array",
+      "actions": [
+        {
+          "op": "make-equation-like",
+          "tag": "eqnarray*"
+        }
+      ]
+    },
+    {
+      "command": "cC",
+      "help": "Make Ç",
+      "actions": [
+        {
+          "op": "emulate-keyboard",
+          "keys": "cedilla C"
+        }
+      ]
+    },
+    {
+      "command": "cc",
+      "help": "Make ç",
+      "actions": [
+        {
+          "op": "emulate-keyboard",
+          "keys": "cedilla c"
+        }
+      ]
+    },
+    {
+      "command": "'E",
+      "help": "Insert É",
+      "actions": [
+        {
+          "op": "emulate-keyboard",
+          "keys": "acute E"
+        }
+      ]
+    },
+    {
+      "command": "'e",
+      "help": "Insert é",
+      "actions": [
+        {
+          "op": "emulate-keyboard",
+          "keys": "acute e"
+        }
+      ]
+    },
+    {
+      "command": "`A",
+      "help": "Insert À",
+      "actions": [
+        {
+          "op": "emulate-keyboard",
+          "keys": "grave A"
+        }
+      ]
+    },
+    {
+      "command": "`E",
+      "help": "Insert È",
+      "actions": [
+        {
+          "op": "emulate-keyboard",
+          "keys": "grave E"
+        }
+      ]
+    },
+    {
+      "command": "`U",
+      "help": "Insert Ù",
+      "actions": [
+        {
+          "op": "emulate-keyboard",
+          "keys": "grave U"
+        }
+      ]
+    },
+    {
+      "command": "`a",
+      "help": "Insert à",
+      "actions": [
+        {
+          "op": "emulate-keyboard",
+          "keys": "grave a"
+        }
+      ]
+    },
+    {
+      "command": "`e",
+      "help": "Insert è",
+      "actions": [
+        {
+          "op": "emulate-keyboard",
+          "keys": "grave e"
+        }
+      ]
+    },
+    {
+      "command": "`u",
+      "help": "Insert ù",
+      "actions": [
+        {
+          "op": "emulate-keyboard",
+          "keys": "grave u"
+        }
+      ]
+    },
+    {
+      "command": "^A",
+      "help": "Insert Â",
+      "actions": [
+        {
+          "op": "emulate-keyboard",
+          "keys": "hat A"
+        }
+      ]
+    },
+    {
+      "command": "^E",
+      "help": "Insert Ê",
+      "actions": [
+        {
+          "op": "emulate-keyboard",
+          "keys": "hat E"
+        }
+      ]
+    },
+    {
+      "command": "^I",
+      "help": "Insert Î",
+      "actions": [
+        {
+          "op": "emulate-keyboard",
+          "keys": "hat I"
+        }
+      ]
+    },
+    {
+      "command": "^O",
+      "help": "Insert Ô",
+      "actions": [
+        {
+          "op": "emulate-keyboard",
+          "keys": "hat O"
+        }
+      ]
+    },
+    {
+      "command": "^U",
+      "help": "Insert Û",
+      "actions": [
+        {
+          "op": "emulate-keyboard",
+          "keys": "hat U"
+        }
+      ]
+    },
+    {
+      "command": "^a",
+      "help": "Insert â",
+      "actions": [
+        {
+          "op": "emulate-keyboard",
+          "keys": "hat a"
+        }
+      ]
+    },
+    {
+      "command": "^e",
+      "help": "Insert ê",
+      "actions": [
+        {
+          "op": "emulate-keyboard",
+          "keys": "hat e"
+        }
+      ]
+    },
+    {
+      "command": "^i",
+      "help": "Insert î",
+      "actions": [
+        {
+          "op": "emulate-keyboard",
+          "keys": "hat i"
+        }
+      ]
+    },
+    {
+      "command": "^o",
+      "help": "Insert ô",
+      "actions": [
+        {
+          "op": "emulate-keyboard",
+          "keys": "hat o"
+        }
+      ]
+    },
+    {
+      "command": "^u",
+      "help": "Insert û",
+      "actions": [
+        {
+          "op": "emulate-keyboard",
+          "keys": "hat u"
+        }
+      ]
+    },
+    {
+      "command": "S",
+      "help": "Make ",
+      "actions": [
+        {
+          "op": "emulate-keyboard",
+          "keys": "S-F5 p"
+        }
+      ]
+    },
+    {
+      "command": "aa",
+      "help": "Insert å",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "å"
+        }
+      ]
+    },
+    {
+      "command": "ae",
+      "help": "Insert ae",
+      "actions": [
+        {
+          "op": "emulate-keyboard",
+          "keys": "S-F5 a"
+        }
+      ]
+    },
+    {
+      "command": "dh",
+      "help": "Insert Ã°",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "ð"
+        }
+      ]
+    },
+    {
+      "command": "dj",
+      "help": "Insert <#0111>",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "đ"
+        }
+      ]
+    },
+    {
+      "command": "i",
+      "help": "Insert \u0019",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "\u0019"
+        }
+      ]
+    },
+    {
+      "command": "j",
+      "help": "Insert <#0237>",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "ȷ"
+        }
+      ]
+    },
+    {
+      "command": "l",
+      "help": "Insert <#0142>",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "ł"
+        }
+      ]
+    },
+    {
+      "command": "ng",
+      "help": "Insert <#014B>",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "ŋ"
+        }
+      ]
+    },
+    {
+      "command": "o",
+      "help": "Insert <#00F8>",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "ø"
+        }
+      ]
+    },
+    {
+      "command": "oe",
+      "help": "Insert oe",
+      "actions": [
+        {
+          "op": "emulate-keyboard",
+          "keys": "S-F5 o e"
+        }
+      ]
+    },
+    {
+      "command": "ss",
+      "help": "Insert ÿ",
+      "actions": [
+        {
+          "op": "emulate-keyboard",
+          "keys": "S-F5 s"
+        }
+      ]
+    },
+    {
+      "command": "sz",
+      "help": "Insert ÿ",
+      "actions": [
+        {
+          "op": "emulate-keyboard",
+          "keys": "S-F5 s"
+        }
+      ]
+    },
+    {
+      "command": "th",
+      "help": "Insert <#00FE>",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "þ"
+        }
+      ]
+    },
+    {
+      "command": "AA",
+      "help": "Insert Å",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "Å"
+        }
+      ]
+    },
+    {
+      "command": "AE",
+      "help": "Insert AE",
+      "actions": [
+        {
+          "op": "emulate-keyboard",
+          "keys": "S-F5 A"
+        }
+      ]
+    },
+    {
+      "command": "DH",
+      "help": "Insert Ã",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "Ð"
+        }
+      ]
+    },
+    {
+      "command": "L",
+      "help": "Insert <#0141>",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "Ł"
+        }
+      ]
+    },
+    {
+      "command": "NG",
+      "help": "Insert <#014A>",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "Ŋ"
+        }
+      ]
+    },
+    {
+      "command": "O",
+      "help": "Insert <#00D8>",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "Ø"
+        }
+      ]
+    },
+    {
+      "command": "OE",
+      "help": "Insert OE",
+      "actions": [
+        {
+          "op": "emulate-keyboard",
+          "keys": "S-F5 O E"
+        }
+      ]
+    },
+    {
+      "command": "S",
+      "help": "Insert <#00A7>",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "§"
+        }
+      ]
+    },
+    {
+      "command": "SS",
+      "help": "Insert SS",
+      "actions": [
+        {
+          "op": "emulate-keyboard",
+          "keys": "S-F5 S"
+        }
+      ]
+    },
+    {
+      "command": "TH",
+      "help": "Insert <#00DE>",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "Þ"
+        }
+      ]
+    },
+    {
+      "command": "arccos",
+      "help": "Insert arccos",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "arccos"
+        }
+      ]
+    },
+    {
+      "command": "arcsin",
+      "help": "Insert arcsin",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "arcsin"
+        }
+      ]
+    },
+    {
+      "command": "arctan",
+      "help": "Insert arctan",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "arctan"
+        }
+      ]
+    },
+    {
+      "command": "arg",
+      "help": "Insert arg",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "arg"
+        }
+      ]
+    },
+    {
+      "command": "cos",
+      "help": "Insert cos",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "cos"
+        }
+      ]
+    },
+    {
+      "command": "cosh",
+      "help": "Insert cosh",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "cosh"
+        }
+      ]
+    },
+    {
+      "command": "cot",
+      "help": "Insert cot",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "cot"
+        }
+      ]
+    },
+    {
+      "command": "coth",
+      "help": "Insert coth",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "coth"
+        }
+      ]
+    },
+    {
+      "command": "csc",
+      "help": "Insert csc",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "csc"
+        }
+      ]
+    },
+    {
+      "command": "deg",
+      "help": "Insert deg",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "deg"
+        }
+      ]
+    },
+    {
+      "command": "det",
+      "help": "Insert det",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "det"
+        }
+      ]
+    },
+    {
+      "command": "dim",
+      "help": "Insert dim",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "dim"
+        }
+      ]
+    },
+    {
+      "command": "exp",
+      "help": "Insert exp",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "exp"
+        }
+      ]
+    },
+    {
+      "command": "gcd",
+      "help": "Insert gcd",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "gcd"
+        }
+      ]
+    },
+    {
+      "command": "hom",
+      "help": "Insert hom",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "hom"
+        }
+      ]
+    },
+    {
+      "command": "inf",
+      "help": "Insert inf",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "inf"
+        }
+      ]
+    },
+    {
+      "command": "ker",
+      "help": "Insert ker",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "ker"
+        }
+      ]
+    },
+    {
+      "command": "lg",
+      "help": "Insert lg",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "lg"
+        }
+      ]
+    },
+    {
+      "command": "lim",
+      "help": "Insert lim",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "lim"
+        }
+      ]
+    },
+    {
+      "command": "liminf",
+      "help": "Insert liminf",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "liminf"
+        }
+      ]
+    },
+    {
+      "command": "limsup",
+      "help": "Insert limsup",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "limsup"
+        }
+      ]
+    },
+    {
+      "command": "ln",
+      "help": "Insert ln",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "ln"
+        }
+      ]
+    },
+    {
+      "command": "log",
+      "help": "Insert log",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "log"
+        }
+      ]
+    },
+    {
+      "command": "max",
+      "help": "Insert max",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "max"
+        }
+      ]
+    },
+    {
+      "command": "min",
+      "help": "Insert min",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "min"
+        }
+      ]
+    },
+    {
+      "command": "Pr",
+      "help": "Insert Pr",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "Pr"
+        }
+      ]
+    },
+    {
+      "command": "sec",
+      "help": "Insert sec",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "sec"
+        }
+      ]
+    },
+    {
+      "command": "sin",
+      "help": "Insert sin",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "sin"
+        }
+      ]
+    },
+    {
+      "command": "sinh",
+      "help": "Insert sinh",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "sinh"
+        }
+      ]
+    },
+    {
+      "command": "sup",
+      "help": "Insert sup",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "sup"
+        }
+      ]
+    },
+    {
+      "command": "tan",
+      "help": "Insert tan",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "tan"
+        }
+      ]
+    },
+    {
+      "command": "tanh",
+      "help": "Insert tanh",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "tanh"
+        }
+      ]
+    },
+    {
+      "command": "abstract",
+      "help": "Insert abstract",
+      "actions": [
+        {
+          "op": "make-abstract-data"
+        }
+      ]
+    },
+    {
+      "command": "maketitle",
+      "help": "Insert title",
+      "actions": [
+        {
+          "op": "make-doc-data"
+        }
+      ]
+    },
+    {
+      "command": "tableofcontents",
+      "help": "Insert table of contents",
+      "actions": [
+        {
+          "op": "make-aux",
+          "env": "table-of-contents",
+          "var": "toc-prefix",
+          "fallback": "toc"
+        }
+      ]
+    },
+    {
+      "command": "appendix",
+      "help": "Insert appendix",
+      "actions": [
+        {
+          "op": "make-section",
+          "tag": "appendix"
+        }
+      ]
+    },
+    {
+      "command": "chapter",
+      "help": "Insert chapter",
+      "actions": [
+        {
+          "op": "make-section",
+          "tag": "chapter"
+        }
+      ]
+    },
+    {
+      "command": "section",
+      "help": "Insert section",
+      "actions": [
+        {
+          "op": "make-section",
+          "tag": "section"
+        }
+      ]
+    },
+    {
+      "command": "subsection",
+      "help": "Insert subsection",
+      "actions": [
+        {
+          "op": "make-section",
+          "tag": "subsection"
+        }
+      ]
+    },
+    {
+      "command": "subsubsection",
+      "help": "Insert subsubsection",
+      "actions": [
+        {
+          "op": "make-section",
+          "tag": "subsubsection"
+        }
+      ]
+    },
+    {
+      "command": "paragraph",
+      "help": "Insert paragraph",
+      "actions": [
+        {
+          "op": "make-section",
+          "tag": "paragraph"
+        }
+      ]
+    },
+    {
+      "command": "subparagraph",
+      "help": "Insert subparagraph",
+      "actions": [
+        {
+          "op": "make-section",
+          "tag": "subparagraph"
+        }
+      ]
+    },
+    {
+      "command": "table",
+      "help": "Insert a big table",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "big-table"
+        }
+      ]
+    },
+    {
+      "command": "figure",
+      "help": "Insert a big figure",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "big-figure"
+        }
+      ]
+    },
+    {
+      "command": "graph-rev-hierarchy",
+      "help": "Insert reverse hierarchy graph",
+      "actions": [
+        {
+          "op": "insert-reverse-hierarchy-graph"
+        }
+      ]
+    },
+    {
+      "command": "def",
+      "help": "Insert definition",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "definition"
+        }
+      ]
+    },
+    {
+      "command": "rem",
+      "help": "Insert remark",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "remark"
+        }
+      ]
+    },
+    {
+      "command": "cau",
+      "help": "Insert caution",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "warning"
+        }
+      ]
+    },
+    {
+      "command": "cor",
+      "help": "Insert corollary",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "corollary"
+        }
+      ]
+    },
+    {
+      "command": "prop",
+      "help": "Insert proposition",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "proposition"
+        }
+      ]
+    },
+    {
+      "command": "thm",
+      "help": "Insert theorem",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "theorem"
+        }
+      ]
+    },
+    {
+      "command": "lem",
+      "help": "Insert lemma",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "lemma"
+        }
+      ]
+    },
+    {
+      "command": "eg",
+      "help": "Insert example",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "example"
+        }
+      ]
+    },
+    {
+      "command": "sln",
+      "help": "Insert unnumbered solution",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "solution*"
+        }
+      ]
+    },
+    {
+      "command": "pf",
+      "help": "Insert proof",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "proof"
+        }
+      ]
+    },
+    {
+      "command": "alt",
+      "help": "Insert alternative proof",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "proof-alternative"
+        }
+      ]
+    },
+    {
+      "command": "conj",
+      "help": "Insert conjecture",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "conjecture"
+        }
+      ]
+    },
+    {
+      "command": "qsn",
+      "help": "Insert question",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "question"
+        }
+      ]
+    },
+    {
+      "command": "ax",
+      "help": "Insert axiom",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "axiom"
+        }
+      ]
+    },
+    {
+      "command": "disam",
+      "help": "Insert disambiguation",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "disambiguation"
+        }
+      ]
+    },
+    {
+      "command": "frac",
+      "help": "Make fraction",
+      "actions": [
+        {
+          "op": "make-fraction"
+        }
+      ]
+    },
+    {
+      "command": "sqrt",
+      "help": "Make square root",
+      "actions": [
+        {
+          "op": "make-sqrt"
+        }
+      ]
+    },
+    {
+      "command": "not",
+      "help": "Make negation",
+      "actions": [
+        {
+          "op": "make-neg"
+        }
+      ]
+    },
+    {
+      "command": "acute",
+      "help": "Make acute",
+      "actions": [
+        {
+          "op": "make-wide",
+          "value": "́",
+          "stretch": false
+        }
+      ]
+    },
+    {
+      "command": "bar",
+      "help": "Make bar",
+      "actions": [
+        {
+          "op": "make-wide",
+          "value": "̅",
+          "stretch": false
+        }
+      ]
+    },
+    {
+      "command": "breve",
+      "help": "Make breve",
+      "actions": [
+        {
+          "op": "make-wide",
+          "value": "̆",
+          "stretch": false
+        }
+      ]
+    },
+    {
+      "command": "invbreve",
+      "help": "Make inverted breve",
+      "actions": [
+        {
+          "op": "make-wide",
+          "value": "̑",
+          "stretch": false
+        }
+      ]
+    },
+    {
+      "command": "check",
+      "help": "Make check",
+      "actions": [
+        {
+          "op": "make-wide",
+          "value": "̌",
+          "stretch": false
+        }
+      ]
+    },
+    {
+      "command": "grave",
+      "help": "Make grave",
+      "actions": [
+        {
+          "op": "make-wide",
+          "value": "̀",
+          "stretch": false
+        }
+      ]
+    },
+    {
+      "command": "hat",
+      "help": "Make hat",
+      "actions": [
+        {
+          "op": "make-wide",
+          "value": "̂",
+          "stretch": false
+        }
+      ]
+    },
+    {
+      "command": "tilde",
+      "help": "Make tilde",
+      "actions": [
+        {
+          "op": "make-wide",
+          "value": "̃",
+          "stretch": false
+        }
+      ]
+    },
+    {
+      "command": "vect",
+      "help": "Make vector",
+      "actions": [
+        {
+          "op": "make-wide",
+          "value": "⃗",
+          "stretch": false
+        }
+      ]
+    },
+    {
+      "command": "dot",
+      "help": "Make dot",
+      "actions": [
+        {
+          "op": "make-wide",
+          "value": "̇",
+          "stretch": false
+        }
+      ]
+    },
+    {
+      "command": "ddot",
+      "help": "Make double dot",
+      "actions": [
+        {
+          "op": "make-wide",
+          "value": "̈",
+          "stretch": false
+        }
+      ]
+    },
+    {
+      "command": "dddot",
+      "help": "Make triple dot",
+      "actions": [
+        {
+          "op": "make-wide",
+          "value": "⃛",
+          "stretch": false
+        }
+      ]
+    },
+    {
+      "command": "ddddot",
+      "help": "Make quadruple dot",
+      "actions": [
+        {
+          "op": "make-wide",
+          "value": "⃜",
+          "stretch": false
+        }
+      ]
+    },
+    {
+      "command": "widecheck",
+      "help": "Make check",
+      "actions": [
+        {
+          "op": "make-wide",
+          "value": "̌",
+          "stretch": false
+        }
+      ]
+    },
+    {
+      "command": "widehat",
+      "help": "Make hat",
+      "actions": [
+        {
+          "op": "make-wide",
+          "value": "̂",
+          "stretch": false
+        }
+      ]
+    },
+    {
+      "command": "widetilde",
+      "help": "Make tilde",
+      "actions": [
+        {
+          "op": "make-wide",
+          "value": "̃",
+          "stretch": true
+        }
+      ]
+    },
+    {
+      "command": "sum",
+      "help": "Insert big summation",
+      "actions": [
+        {
+          "op": "insert-big",
+          "value": "∑"
+        }
+      ]
+    },
+    {
+      "command": "prod",
+      "help": "Insert big product",
+      "actions": [
+        {
+          "op": "insert-big",
+          "value": "∏"
+        }
+      ]
+    },
+    {
+      "command": "coprod",
+      "help": "Insert big coproduct",
+      "actions": [
+        {
+          "op": "insert-big",
+          "value": "∐"
+        }
+      ]
+    },
+    {
+      "command": "int",
+      "help": "Insert big integral",
+      "actions": [
+        {
+          "op": "insert-big",
+          "value": "∫"
+        }
+      ]
+    },
+    {
+      "command": "fint",
+      "help": "Insert finite part integral",
+      "actions": [
+        {
+          "op": "insert-big",
+          "value": "⨍"
+        }
+      ]
+    },
+    {
+      "command": "iint",
+      "help": "Insert big integrals",
+      "actions": [
+        {
+          "op": "insert-big",
+          "value": "∬"
+        }
+      ]
+    },
+    {
+      "command": "iiint",
+      "help": "Insert big integrals",
+      "actions": [
+        {
+          "op": "insert-big",
+          "value": "∭"
+        }
+      ]
+    },
+    {
+      "command": "oint",
+      "help": "Insert big contour integral",
+      "actions": [
+        {
+          "op": "insert-big",
+          "value": "∮"
+        }
+      ]
+    },
+    {
+      "command": "oiint",
+      "help": "Insert big contour integrals",
+      "actions": [
+        {
+          "op": "insert-big",
+          "value": "∯"
+        }
+      ]
+    },
+    {
+      "command": "oiiint",
+      "help": "Insert big contour integrals",
+      "actions": [
+        {
+          "op": "insert-big",
+          "value": "∰"
+        }
+      ]
+    },
+    {
+      "command": "bigcap",
+      "help": "Insert big intersection",
+      "actions": [
+        {
+          "op": "insert-big",
+          "value": "⋂"
+        }
+      ]
+    },
+    {
+      "command": "bigcup",
+      "help": "Insert big union",
+      "actions": [
+        {
+          "op": "insert-big",
+          "value": "⋃"
+        }
+      ]
+    },
+    {
+      "command": "bigsqcup",
+      "help": "Insert big square union",
+      "actions": [
+        {
+          "op": "insert-big",
+          "value": "⨆"
+        }
+      ]
+    },
+    {
+      "command": "bigvee",
+      "help": "Insert big logical or",
+      "actions": [
+        {
+          "op": "insert-big",
+          "value": "⋁"
+        }
+      ]
+    },
+    {
+      "command": "bigwedge",
+      "help": "Insert big logical and",
+      "actions": [
+        {
+          "op": "insert-big",
+          "value": "⋀"
+        }
+      ]
+    },
+    {
+      "command": "bigodot",
+      "help": "Insert big dotted point",
+      "actions": [
+        {
+          "op": "insert-big",
+          "value": "⨀"
+        }
+      ]
+    },
+    {
+      "command": "bigotimes",
+      "help": "Insert big tensor product",
+      "actions": [
+        {
+          "op": "insert-big",
+          "value": "⨂"
+        }
+      ]
+    },
+    {
+      "command": "bigoplus",
+      "help": "Insert big direct sum",
+      "actions": [
+        {
+          "op": "insert-big",
+          "value": "⨁"
+        }
+      ]
+    },
+    {
+      "command": "biguplus",
+      "help": "Insert big union sum",
+      "actions": [
+        {
+          "op": "insert-big",
+          "value": "⨄"
+        }
+      ]
+    },
+    {
+      "command": "left(",
+      "help": "Insert large (",
+      "actions": [
+        {
+          "op": "bracket-open",
+          "left": "(",
+          "right": ")",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "left)",
+      "help": "Insert large left )",
+      "actions": [
+        {
+          "op": "bracket-open",
+          "left": ")",
+          "right": "(",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "left[",
+      "help": "Insert large [",
+      "actions": [
+        {
+          "op": "bracket-open",
+          "left": "[",
+          "right": "]",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "left]",
+      "help": "Insert large left ]",
+      "actions": [
+        {
+          "op": "bracket-open",
+          "left": "]",
+          "right": "[",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "left\\{",
+      "help": "Insert large {",
+      "actions": [
+        {
+          "op": "bracket-open",
+          "left": "{",
+          "right": "}",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "left\\}",
+      "help": "Insert large left }",
+      "actions": [
+        {
+          "op": "bracket-open",
+          "left": "}",
+          "right": "{",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "left\\lfloor",
+      "help": "Insert large <lfloor>",
+      "actions": [
+        {
+          "op": "bracket-open",
+          "left": "⌊",
+          "right": "⌋",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "left\\rfloor",
+      "help": "Insert large left <rfloor>",
+      "actions": [
+        {
+          "op": "bracket-open",
+          "left": "⌋",
+          "right": "⌊",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "left\\lceil",
+      "help": "Insert large <lceil>",
+      "actions": [
+        {
+          "op": "bracket-open",
+          "left": "⌈",
+          "right": "⌉",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "left\\rceil",
+      "help": "Insert large left <rceil>",
+      "actions": [
+        {
+          "op": "bracket-open",
+          "left": "⌉",
+          "right": "⌈",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "left\\langle",
+      "help": "Insert large <langle>",
+      "actions": [
+        {
+          "op": "bracket-open",
+          "left": "⟨",
+          "right": "⟩",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "left\\rangle",
+      "help": "Insert large left <rangle>",
+      "actions": [
+        {
+          "op": "bracket-open",
+          "left": "⟩",
+          "right": "⟨",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "left|",
+      "help": "Insert large left <mid>",
+      "actions": [
+        {
+          "op": "bracket-open",
+          "left": "|",
+          "right": "|",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "left||",
+      "help": "Insert large left <parallel>",
+      "actions": [
+        {
+          "op": "bracket-open",
+          "left": "||",
+          "right": "||",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "left/",
+      "help": "Insert large left /",
+      "actions": [
+        {
+          "op": "bracket-open",
+          "left": "/",
+          "right": "\\",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "left\\",
+      "help": "Insert large left \\",
+      "actions": [
+        {
+          "op": "bracket-open",
+          "left": "\\",
+          "right": "/",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "left.",
+      "help": "Insert large left .",
+      "actions": [
+        {
+          "op": "bracket-open",
+          "left": ".",
+          "right": ".",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "right(",
+      "help": "Insert large right (",
+      "actions": [
+        {
+          "op": "bracket-close",
+          "right": "(",
+          "left": ")",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "right)",
+      "help": "Insert large )",
+      "actions": [
+        {
+          "op": "bracket-close",
+          "right": ")",
+          "left": "(",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "right[",
+      "help": "Insert large right [",
+      "actions": [
+        {
+          "op": "bracket-close",
+          "right": "[",
+          "left": "]",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "right]",
+      "help": "Insert large ]",
+      "actions": [
+        {
+          "op": "bracket-close",
+          "right": "]",
+          "left": "[",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "right\\{",
+      "help": "Insert large right {",
+      "actions": [
+        {
+          "op": "bracket-close",
+          "right": "{",
+          "left": "}",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "right\\}",
+      "help": "Insert large }",
+      "actions": [
+        {
+          "op": "bracket-close",
+          "right": "}",
+          "left": "{",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "right\\lfloor",
+      "help": "Insert large right <lfloor>",
+      "actions": [
+        {
+          "op": "bracket-close",
+          "right": "⌊",
+          "left": "⌋",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "right\\rfloor",
+      "help": "Insert large <rfloor>",
+      "actions": [
+        {
+          "op": "bracket-close",
+          "right": "⌋",
+          "left": "⌊",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "right\\lceil",
+      "help": "Insert large right <lceil>",
+      "actions": [
+        {
+          "op": "bracket-close",
+          "right": "⌈",
+          "left": "⌉",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "right\\rceil",
+      "help": "Insert large <rceil>",
+      "actions": [
+        {
+          "op": "bracket-close",
+          "right": "⌉",
+          "left": "⌈",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "right\\langle",
+      "help": "Insert large right <langle>",
+      "actions": [
+        {
+          "op": "bracket-close",
+          "right": "⟨",
+          "left": "⟩",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "right\\rangle",
+      "help": "Insert large <rangle>",
+      "actions": [
+        {
+          "op": "bracket-close",
+          "right": "⟩",
+          "left": "⟨",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "right|",
+      "help": "Insert large right <mid>",
+      "actions": [
+        {
+          "op": "bracket-close",
+          "right": "|",
+          "left": "|",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "right||",
+      "help": "Insert large right <parallel>",
+      "actions": [
+        {
+          "op": "bracket-close",
+          "right": "||",
+          "left": "||",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "right/",
+      "help": "Insert large right /",
+      "actions": [
+        {
+          "op": "bracket-close",
+          "right": "/",
+          "left": "\\",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "right\\",
+      "help": "Insert large right \\",
+      "actions": [
+        {
+          "op": "bracket-close",
+          "right": "\\",
+          "left": "/",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "right.",
+      "help": "Insert large right .",
+      "actions": [
+        {
+          "op": "bracket-close",
+          "right": ".",
+          "left": ".",
+          "large": true
+        }
+      ]
+    },
+    {
+      "command": "rmfamily",
+      "help": "Use roman font family",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-family",
+          "value": "rm"
+        }
+      ]
+    },
+    {
+      "command": "ttfamily",
+      "help": "Use typewriter font family",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-family",
+          "value": "tt"
+        }
+      ]
+    },
+    {
+      "command": "sffamily",
+      "help": "Use sans serif font family",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-family",
+          "value": "ss"
+        }
+      ]
+    },
+    {
+      "command": "mdseries",
+      "help": "Use medium font series",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-series",
+          "value": "medium"
+        }
+      ]
+    },
+    {
+      "command": "bfseries",
+      "help": "Use bold font series",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-series",
+          "value": "bold"
+        }
+      ]
+    },
+    {
+      "command": "upshape",
+      "help": "Use right font shape",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-shape",
+          "value": "right"
+        }
+      ]
+    },
+    {
+      "command": "itshape",
+      "help": "Use italic font shape",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-shape",
+          "value": "italic"
+        }
+      ]
+    },
+    {
+      "command": "slshape",
+      "help": "Use slanted font shape",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-shape",
+          "value": "slanted"
+        }
+      ]
+    },
+    {
+      "command": "scshape",
+      "help": "Use small-caps font shape",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-shape",
+          "value": "small-caps"
+        }
+      ]
+    },
+    {
+      "command": "rm",
+      "help": "Use roman font family",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-family",
+          "value": "rm"
+        }
+      ]
+    },
+    {
+      "command": "tt",
+      "help": "Use typewriter font family",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "tt"
+        }
+      ]
+    },
+    {
+      "command": "sf",
+      "help": "Use sans serif font family",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-family",
+          "value": "ss"
+        }
+      ]
+    },
+    {
+      "command": "md",
+      "help": "Use medium font series",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-series",
+          "value": "medium"
+        }
+      ]
+    },
+    {
+      "command": "bf",
+      "help": "Use bold font series",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-series",
+          "value": "bold"
+        }
+      ]
+    },
+    {
+      "command": "up",
+      "help": "Use right font shape",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-shape",
+          "value": "right"
+        }
+      ]
+    },
+    {
+      "command": "it",
+      "help": "Use italic font shape",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-shape",
+          "value": "italic"
+        }
+      ]
+    },
+    {
+      "command": "em",
+      "help": "Emphasize text",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "em"
+        }
+      ]
+    },
+    {
+      "command": "sl",
+      "help": "Use slanted font shape",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-shape",
+          "value": "slanted"
+        }
+      ]
+    },
+    {
+      "command": "sc",
+      "help": "Use small-caps font shape",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-shape",
+          "value": "small-caps"
+        }
+      ]
+    },
+    {
+      "command": "textrm",
+      "help": "Use roman font family",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-family",
+          "value": "rm"
+        }
+      ]
+    },
+    {
+      "command": "texttt",
+      "help": "Use typewriter font family",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-family",
+          "value": "tt"
+        }
+      ]
+    },
+    {
+      "command": "textsf",
+      "help": "Use sans serif font family",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-family",
+          "value": "ss"
+        }
+      ]
+    },
+    {
+      "command": "textmd",
+      "help": "Use medium font series",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-series",
+          "value": "medium"
+        }
+      ]
+    },
+    {
+      "command": "textbf",
+      "help": "Use bold font series",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-series",
+          "value": "bold"
+        }
+      ]
+    },
+    {
+      "command": "textup",
+      "help": "Use right font shape",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-shape",
+          "value": "right"
+        }
+      ]
+    },
+    {
+      "command": "textit",
+      "help": "Use italic font shape",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-shape",
+          "value": "italic"
+        }
+      ]
+    },
+    {
+      "command": "emph",
+      "help": "Use italic font shape",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-shape",
+          "value": "italic"
+        }
+      ]
+    },
+    {
+      "command": "textsl",
+      "help": "Use slanted font shape",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-shape",
+          "value": "slanted"
+        }
+      ]
+    },
+    {
+      "command": "textsc",
+      "help": "Use small-caps font shape",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-shape",
+          "value": "small-caps"
+        }
+      ]
+    },
+    {
+      "command": "cal",
+      "help": "Use calligraphic font",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "math-font",
+          "value": "cal"
+        }
+      ]
+    },
+    {
+      "command": "frak",
+      "help": "Use fraktur font",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font",
+          "value": "Euler"
+        }
+      ]
+    },
+    {
+      "command": "Bbb",
+      "help": "Use blackboard bold font",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font",
+          "value": "Bbb*"
+        }
+      ]
+    },
+    {
+      "command": "mathcal",
+      "help": "Use calligraphic font",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "math-font",
+          "value": "cal"
+        }
+      ]
+    },
+    {
+      "command": "mathscr",
+      "help": "Use script font",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font",
+          "value": "cal*"
+        }
+      ]
+    },
+    {
+      "command": "mathfrak",
+      "help": "Use fraktur font",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font",
+          "value": "Euler"
+        }
+      ]
+    },
+    {
+      "command": "mathbb",
+      "help": "Use blackboard math font",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font",
+          "value": "Bbb"
+        }
+      ]
+    },
+    {
+      "command": "mathbbm",
+      "help": "Use blackboard math font",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font",
+          "value": "Bbb*"
+        }
+      ]
+    },
+    {
+      "command": "mathrm",
+      "help": "Use upright roman math text",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "math-up"
+        }
+      ]
+    },
+    {
+      "command": "mathtt",
+      "help": "Use typewriter font family",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-family",
+          "value": "tt"
+        }
+      ]
+    },
+    {
+      "command": "mathsf",
+      "help": "Use sans serif font family",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-family",
+          "value": "ss"
+        }
+      ]
+    },
+    {
+      "command": "mathmd",
+      "help": "Use medium font series",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-series",
+          "value": "medium"
+        }
+      ]
+    },
+    {
+      "command": "mathbf",
+      "help": "Use bold font series",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-series",
+          "value": "bold"
+        }
+      ]
+    },
+    {
+      "command": "mathup",
+      "help": "Use right font shape",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-shape",
+          "value": "right"
+        }
+      ]
+    },
+    {
+      "command": "mathit",
+      "help": "Use italic font shape",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "font-shape",
+          "value": "italic"
+        }
+      ]
+    },
+    {
+      "command": "tiny",
+      "help": "Use tiny font font size",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "tiny"
+        }
+      ]
+    },
+    {
+      "command": "scriptsize",
+      "help": "Use script font size",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "very-small"
+        }
+      ]
+    },
+    {
+      "command": "footnotesize",
+      "help": "Use footnote font size",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "smaller"
+        }
+      ]
+    },
+    {
+      "command": "small",
+      "help": "Use small font size",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "small"
+        }
+      ]
+    },
+    {
+      "command": "normalsize",
+      "help": "Use normal font size",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "normal-size"
+        }
+      ]
+    },
+    {
+      "command": "large",
+      "help": "Use large font size",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "large"
+        }
+      ]
+    },
+    {
+      "command": "Large",
+      "help": "Use very large font size",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "larger"
+        }
+      ]
+    },
+    {
+      "command": "LARGE",
+      "help": "Use very large font size",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "very-large"
+        }
+      ]
+    },
+    {
+      "command": "huge",
+      "help": "Use huge font size",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "huge"
+        }
+      ]
+    },
+    {
+      "command": "Huge",
+      "help": "Use really huge font size",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "really-huge"
+        }
+      ]
+    },
+    {
+      "command": "displaystyle",
+      "help": "Switch to formula style",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "math-display",
+          "value": "true"
+        }
+      ]
+    },
+    {
+      "command": "black",
+      "help": "Use a black color",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "color",
+          "value": "black"
+        }
+      ]
+    },
+    {
+      "command": "white",
+      "help": "Use a white color",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "color",
+          "value": "white"
+        }
+      ]
+    },
+    {
+      "command": "grey",
+      "help": "Use a grey color",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "color",
+          "value": "grey"
+        }
+      ]
+    },
+    {
+      "command": "red",
+      "help": "Use a red color",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "color",
+          "value": "red"
+        }
+      ]
+    },
+    {
+      "command": "blue",
+      "help": "Use a blue color",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "color",
+          "value": "blue"
+        }
+      ]
+    },
+    {
+      "command": "yellow",
+      "help": "Use a yellow color",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "color",
+          "value": "yellow"
+        }
+      ]
+    },
+    {
+      "command": "green",
+      "help": "Use a green color",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "color",
+          "value": "green"
+        }
+      ]
+    },
+    {
+      "command": "orange",
+      "help": "Use a orange color",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "color",
+          "value": "orange"
+        }
+      ]
+    },
+    {
+      "command": "magenta",
+      "help": "Use a magenta color",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "color",
+          "value": "magenta"
+        }
+      ]
+    },
+    {
+      "command": "brown",
+      "help": "Use a brown color",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "color",
+          "value": "brown"
+        }
+      ]
+    },
+    {
+      "command": "pink",
+      "help": "Use a pink color",
+      "actions": [
+        {
+          "op": "make-with",
+          "var": "color",
+          "value": "pink"
+        }
+      ]
+    },
+    {
+      "command": "smallskip",
+      "help": "Insert small vertical space",
+      "actions": [
+        {
+          "op": "make-vspace-after",
+          "value": "0.5fn"
+        }
+      ]
+    },
+    {
+      "command": "medskip",
+      "help": "Insert medium vertical space",
+      "actions": [
+        {
+          "op": "make-vspace-after",
+          "value": "1fn"
+        }
+      ]
+    },
+    {
+      "command": "bigskip",
+      "help": "Insert big vertical space",
+      "actions": [
+        {
+          "op": "make-vspace-after",
+          "value": "2fn"
+        }
+      ]
+    },
+    {
+      "command": "item",
+      "help": "Insert new item or number",
+      "actions": [
+        {
+          "op": "make-item"
+        }
+      ]
+    },
+    {
+      "command": "label",
+      "help": "Make label",
+      "actions": [
+        {
+          "op": "make-label"
+        }
+      ]
+    },
+    {
+      "command": "ref",
+      "help": "Make reference",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "reference"
+        }
+      ]
+    },
+    {
+      "command": "pageref",
+      "help": "Make page reference",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "pageref"
+        }
+      ]
+    },
+    {
+      "command": "footnote",
+      "help": "Insert a footnote",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "footnote"
+        }
+      ]
+    },
+    {
+      "command": "input",
+      "help": "Include a document",
+      "actions": [
+        {
+          "op": "make",
+          "tag": "include"
+        }
+      ]
+    },
+    {
+      "command": "big.",
+      "help": "Insert big .",
+      "actions": [
+        {
+          "op": "insert-big",
+          "value": "."
+        }
+      ]
+    },
+    {
+      "command": "underbrace",
+      "help": "Insert underbrace",
+      "actions": [
+        {
+          "op": "make-wide-under",
+          "value": "⏟",
+          "stretch": true
+        }
+      ]
+    },
+    {
+      "command": "overbrace",
+      "help": "Insert overbrace",
+      "actions": [
+        {
+          "op": "make-wide",
+          "value": "⏞",
+          "stretch": true
+        }
+      ]
+    },
+    {
+      "command": "ddots",
+      "help": "Insert ⋱",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "⋱"
+        }
+      ]
+    },
+    {
+      "command": "mho",
+      "help": "Insert mho",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:mho"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "Backepsilon",
+      "help": "Insert Backepsilon",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:Backepsilon"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "Backsigma",
+      "help": "Insert Backsigma",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:Backsigma"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "homsim",
+      "help": "Insert homsim",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:homsim"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "mathcatalan",
+      "help": "Insert mathcatalan",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:mathcatalan"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "mathD",
+      "help": "Insert mathD",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:mathD"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "mathd",
+      "help": "Insert mathd",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:mathd"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "mathe",
+      "help": "Insert mathe",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:mathe"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "mathi",
+      "help": "Insert mathi",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:mathi"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "mathGamma",
+      "help": "Insert mathGamma",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:mathGamma"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "mathLaplace",
+      "help": "Insert mathLaplace",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:mathLaplace"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "matheuler",
+      "help": "Insert matheuler",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:matheuler"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "mathlambda",
+      "help": "Insert mathlambda",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:mathlambda"
+          ]
+        }
+      ]
+    },
+    {
+      "command": "mathpi",
+      "help": "Insert mathpi",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:mathpi"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -15,6 +15,7 @@
 #include "archiver.hpp"
 #include "utf8_edit.hpp"
 #include "unicode_text.hpp"
+#include "native_math_keyboard.hpp"
 #include <algorithm>
 
 #ifdef Q_OS_MAC
@@ -103,7 +104,8 @@ edit_interface_rep::try_shortcut (string comb) {
   string  shorth;
   string  help;
 
-  sv->get_keycomb (comb, status, cmd, shorth, help);
+  if (!native_math_keyboard_get_keycomb (comb, status, cmd, shorth, help))
+    sv->get_keycomb (comb, status, cmd, shorth, help);
   //cout << "Try " << comb << " -> " << shorth << ", " << help
   //<< "; " << sh_mark << ", " << status << "\n";
   if (status != 0) {
@@ -175,11 +177,15 @@ edit_interface_rep::key_press (string gkey) {
         pos= utf8_grapheme_snap (s, std::clamp (k, 0, N(s)), false);
         break;
       }
-    if (as_bool (call ("disable-pre-edit?", std_accent (s)))) {
+    const string accent= std_accent (s);
+    const bool disable_pre_edit= native_math_keyboard_context_active () ?
+      native_math_disable_pre_edit (accent) :
+      as_bool (call ("disable-pre-edit?", accent));
+    if (disable_pre_edit) {
       pre_edit_skip= false;
       if (s == "") return;
       pre_edit_skip= true;
-      key= std_accent (s);
+      key= accent;
     }
     else if (pre_edit_skip) {
       if (s == "") pre_edit_skip= false;
@@ -197,7 +203,9 @@ edit_interface_rep::key_press (string gkey) {
     }
   }
   else if (pre_edit_skip) {
-    string r= as_string (call ("downgrade-pre-edit", key));
+    string r= native_math_keyboard_context_active () ?
+      native_math_downgrade_pre_edit (key) :
+      as_string (call ("downgrade-pre-edit", key));
     if (r == "") return;
     else key= r;
   }
@@ -369,8 +377,9 @@ edit_interface_rep::handle_text_input (string text, time_t t) {
       pre_edit_mark= 0;
     }
     if (pre_edit_skip) {
-      string converted= as_string (
-        call ("downgrade-pre-edit", text));
+      string converted= native_math_keyboard_context_active () ?
+        native_math_downgrade_pre_edit (text) :
+        as_string (call ("downgrade-pre-edit", text));
       if (converted == "") {
         end_editing ();
         return;
