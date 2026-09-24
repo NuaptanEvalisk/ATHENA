@@ -140,6 +140,8 @@ struct font_catalog::impl {
   font_domain& owner= current_font_domain ();
   std::unique_ptr<FcConfig, decltype (&FcConfigDestroy)> config;
   object_ptr<PangoFontMap> map;
+  int horizontal_dpi= 0;
+  int vertical_dpi= 0;
 
   impl (bool system, const std::vector<std::string>& files,
         const std::vector<std::string>& directories):
@@ -159,6 +161,13 @@ struct font_catalog::impl {
         throw std::runtime_error ("Cannot add application font directory: " + dir);
     }
     pango_fc_font_map_set_config (PANGO_FC_FONT_MAP (map.get ()), config.get ());
+  }
+  void set_resolution (int horizontal, int vertical) {
+    if (horizontal_dpi == horizontal && vertical_dpi == vertical) return;
+    pango_ft2_font_map_set_resolution (
+      PANGO_FT2_FONT_MAP (map.get ()), horizontal, vertical);
+    horizontal_dpi= horizontal;
+    vertical_dpi= vertical;
   }
   void check () const {
     owner.check_owner ();
@@ -247,8 +256,7 @@ std::vector<selected_font_run> font_catalog::select (
   }
   std::vector<description_ptr> descriptions;
   descriptions.push_back (describe (request));
-  pango_ft2_font_map_set_resolution (PANGO_FT2_FONT_MAP (state_->map.get ()),
-                                    request.horizontal_dpi, request.vertical_dpi);
+  state_->set_resolution (request.horizontal_dpi, request.vertical_dpi);
   object_ptr<PangoContext> context (
     pango_font_map_create_context (state_->map.get ()), g_object_unref);
   if (!context) throw std::bad_alloc ();
