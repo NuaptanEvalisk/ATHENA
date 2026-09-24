@@ -622,7 +622,13 @@ concater_rep::typeset_label (tree t, path ip) {
     tree tiny_t = tree (WITH, "font-size", "0.5", "color", "grey", 
                         tree (CONCAT, "[", name, "]"));
     tree hidden_anchor (LOCUS, src_id, link, binding);
-    typeset_locus (hidden_anchor, ip);
+    // The hidden anchor is metadata for the visible small label, not a second
+    // structural occurrence of the LABEL node.  Keeping it on the label's
+    // source path duplicates the right boundary marker before the visible
+    // text, so whole-node selection resolves LABEL*1 to the left edge of the
+    // rendered label.  Decorate the anchor and leave LABEL*0/LABEL*1 solely to
+    // the visible representation.
+    typeset_locus (hidden_anchor, decorate_middle (ip));
     tree old_radioactive_scope=
       env->local_begin ("athena-radioactive-links-suppressed", "true");
     typeset (tiny_t, ip);

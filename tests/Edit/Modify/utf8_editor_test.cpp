@@ -636,6 +636,36 @@ private slots:
     QVERIFY (text.find ("<backprime>") == std::string::npos);
   }
 
+  void smallLabelSelectionGeometry () {
+    drd_info drd ("small-label-selection", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->update ();
+
+    const string previous= get_preference ("vault labels mode", "visible");
+    set_preference ("vault labels mode", "small");
+    box b= typeset_as_concat (env, tree (LABEL, "H2 §9.3 Supplementary Contents"),
+                              path (0));
+    set_preference ("vault labels mode", previous);
+
+    selection sel= b->find_check_selection (path (0, 0), path (0, 1));
+    QVERIFY (sel->valid);
+    QVERIFY (!is_nil (sel->rs));
+    rectangle bounds= least_upper_bound (sel->rs);
+    QVERIFY (bounds->x2 - bounds->x1 > b->w () / 2);
+
+    QImage image (600, 120, QImage::Format_ARGB32);
+    image.fill (Qt::white);
+    QPainter painter (&image);
+    InlineRenderProbe probe (&painter);
+    rectangles painted;
+    b->redraw (&probe, path (), painted);
+    QVERIFY (!probe.anchors.empty ());
+  }
+
   void structuralNavigationSelections () {
     drd_info drd ("utf8-structural-navigation", std_drd);
     {
