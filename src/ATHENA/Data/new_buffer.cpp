@@ -1108,8 +1108,14 @@ buffer_save (url name) {
   if (fm == "generic") fm= "verbatim";
   bool r;
   if (fm == "texmacs" && !is_rooted_tmfs (name) && !is_rooted_web (name)) {
-    tm_buffer buf= concrete_buffer (name);
-    if (is_nil (buf)) return true;
+    athena_view_id view_id= ATHENA_NO_VIEW;
+    buffer_actor* actor= current_buffer_actor (name, view_id);
+    if (actor == nullptr) {
+      tm_buffer buf= concrete_buffer (name);
+      if (is_nil (buf)) return true;
+      actor= buf->actor;
+      view_id= buffer_command_view (buf, name);
+    }
     // Backup policy is native and completes before the actor may replace the
     // pinned file. The helper is a no-op for non-vault/new/non-local paths.
     (void) vault_backup_pre_save (name);
@@ -1119,9 +1125,9 @@ buffer_save (url name) {
     athena_blob_id vault_payload= vault_path == "" ? ATHENA_NO_BLOB :
       actor_text_from_string (vault_path);
     actor_command_record result;
-    const bool invoked= invoke_buffer_actor (
-      buf, actor_command_kind::save_buffer, buffer_command_view (buf, name),
-      vault_payload, ATHENA_NO_BLOB, &result);
+    const bool invoked= actor->invoke (
+      actor_command_kind::save_buffer, view_id, vault_payload,
+      ATHENA_NO_BLOB, &result, SCHEME_CAPABILITY_BUFFER);
     if (!invoked && vault_payload != ATHENA_NO_BLOB)
       discard_text_payload (vault_payload);
     r= !invoked || result.argument[0] != 0;

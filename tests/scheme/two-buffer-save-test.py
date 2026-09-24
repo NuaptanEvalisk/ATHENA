@@ -5,11 +5,20 @@ import argparse
 import json
 import os
 from pathlib import Path
-import re
 import shutil
 import signal
 import subprocess
 import tempfile
+import xml.etree.ElementTree as ET
+
+
+def native_nodes(document, tag):
+    root = ET.parse(document).getroot()
+    return [node for node in root.iter("node") if node.get("tag") == tag]
+
+
+def node_text(node):
+    return "".join(node.itertext())
 
 
 def run_case(args, mode):
@@ -77,11 +86,15 @@ def run_case(args, mode):
             if not result.exists() or result.read_text() != "#t":
                 errors.append(f"{tag}: {result.read_text() if result.exists() else 'no completion'}")
             document = home / f"{tag}.ath"
-            text = document.read_text() if document.exists() else ""
-            if f"{tag.upper()} BUFFER" not in text or "<hlink|" not in text:
-                errors.append(f"{tag}: missing or incorrect saved document")
+            try:
+                hlinks = native_nodes(document, "hlink")
+                if (f"{tag.upper()} BUFFER" not in document.read_text() or
+                        not any("Other document" in node_text(node) for node in hlinks)):
+                    errors.append(f"{tag}: missing or incorrect saved document")
+            except (OSError, ET.ParseError):
+                errors.append(f"{tag}: missing or invalid native XML document")
             if mode == "manual-approve":
-                labels = re.findall(r"<label\|([^<>]+)>", text)
+                labels = [node_text(node) for node in native_nodes(document, "label")]
                 upper = {label[:-2] for label in labels
                          if label.startswith("definition:") and label.endswith(" {")}
                 lower = {label[:-2] for label in labels
