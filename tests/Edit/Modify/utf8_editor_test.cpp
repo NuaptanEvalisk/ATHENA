@@ -499,6 +499,14 @@ private slots:
     QCOMPARE (test_server->kbd_pre_rewrite ("math t"), string ("A-t"));
     QVERIFY (native_math_keyboard_has_registered_key ("A-t"));
   }
+  void nativeMathTabVariants () {
+    eval ("(module-provide '(athena keyboard prefix-kbd))");
+    QCOMPARE (test_server->kbd_pre_rewrite ("math t var"),
+              string ("A-t tab"));
+    QVERIFY (native_math_keyboard_has_registered_key ("A-t tab"));
+    QCOMPARE (test_server->kbd_pre_rewrite ("- var"), string ("- tab"));
+    QVERIFY (native_math_keyboard_has_registered_key ("- tab"));
+  }
 
   void mathDelimiterFonts () {
     using namespace athena::text;

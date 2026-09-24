@@ -113,6 +113,8 @@ struct native_math_registry {
     }
     for (int g=0; g<(int) groups.size (); ++g)
       for (int b=0; b<(int) groups[(std::size_t) g].bindings.size (); ++b) {
+        // Pre-rewrite both command prefixes and variant suffixes, matching
+        // kbd-map registration (for example math -> A- and var -> tab).
         const string key= get_server ()->kbd_pre_rewrite (
           groups[(std::size_t) g].bindings[(std::size_t) b].key);
         const std::string std_key (key.data (), (std::size_t) N(key));
