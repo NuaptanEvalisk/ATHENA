@@ -495,6 +495,70 @@ private slots:
     QCOMPARE (calligraphic[0]->b->get_leaf_string (), string ("E"));
   }
 
+  void mathDelimiterFonts () {
+    using namespace athena::text;
+    drd_info drd ("utf8-math-delimiters", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write (MODE, "math");
+    for (const char* weight: {"medium", "bold"}) {
+      env->write (FONT_SERIES, weight);
+      env->update ();
+      for (tree delimiter: {tree (LEFT, "("), tree (RIGHT, ")"),
+                             tree (MID, "|"), tree (LEFT, "\xe2\x9f\xa8")}) {
+        auto items= typeset_concat (env, delimiter, path (0));
+        QCOMPARE (N(items), 1);
+        QVERIFY (items[0]->b->w () > 0);
+        const string scalar= delimiter[0]->label;
+        // Concatenation replaces delimiters with stretch wrappers; cursor
+        // assertions belong to the editable text leaf before that step.
+        box b= math_text_box (path (0), scalar, env->fn, env->pen);
+        font_paragraph expected (std::string (scalar.data (), N(scalar)),
+          math_font_request (env->fn, math_alphabet::normal));
+        auto line= expected.line (0, N(scalar));
+        QVERIFY (!line.missing_glyphs);
+        QCOMPARE (b->w (), line.advance);
+        QCOMPARE (b->get_leaf_string (), scalar);
+        QCOMPARE (b->find_cursor (path (N(scalar)))->ox, line.advance);
+      }
+      tree nested (VAR_AROUND, "(",
+        tree (CONCAT, "B", tree (RSUB, "E"), tree (VAR_AROUND, "(", "0,1", ")")), ")");
+      QVERIFY (typeset_as_concat (env, nested, path (0))->w () > 0);
+      // A glyph with no horizontal assembly exercises wide_box's fallback.
+      SI width= 4 * env->fn->wfn;
+      box accent= wide_box (path (0), "x", env->fn, env->pen, width);
+      QVERIFY (accent->w () >= width - 1);
+    }
+  }
+
+  void nativeListMarkers () {
+    drd_info drd ("utf8-list-markers", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->update ();
+    env->exec (tree (USE_PACKAGE,
+      string (std::getenv ("ATHENA_PATH")) * "/packages/standard/std-list.ts"));
+    for (auto marker: {std::pair<const char*, const char*> {"item-1", "\xe2\x80\xa2"},
+                       {"item-2", "\xe2\x88\x98"}}) {
+      box b= typeset_as_concat (env, compound (marker.first), path (0));
+      QImage image (400, 120, QImage::Format_ARGB32);
+      image.fill (Qt::white);
+      QPainter painter (&image);
+      InlineRenderProbe probe (&painter);
+      rectangles painted;
+      b->redraw (&probe, path (), painted);
+      std::string text;
+      for (const auto& draw: probe.draws) text+= draw.text;
+      QCOMPARE (text, std::string (marker.second));
+    }
+  }
+
   void unicodeMathLanguage () {
     const string alpha= "\316\261";
     const tree backassign (NAMED_SYMBOL, "texmacs:backassign");

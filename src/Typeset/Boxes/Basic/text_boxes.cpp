@@ -13,6 +13,7 @@
 #include "font.hpp"
 #include "math_font.hpp"
 #include "Boxes/construct.hpp"
+#include "Boxes/utf8_line.hpp"
 #include "analyze.hpp"
 #include <unicode/utf8.h>
 #include <algorithm>
@@ -872,7 +873,7 @@ wide_box (path ip, string s, font fn, pencil pen, SI width) {
     if (stretched && stretched->extent >= width)
       return macro_box (ip,
         math_glyph_box (ip, s, fn, pen, std::move (stretched->run)), fn);
-    box base= utf8_text_box (ip, s, 0, N(s), fn, pen);
+    box base= math_text_box (ip, s, fn, pen);
     if (base->w () > 0 && base->w () < width) {
       const double sx= static_cast<double> (width) / base->w ();
       base= transformed_box (ip, base, scaling (point (sx, 1.0), point (0.0, 0.0)));
@@ -904,6 +905,16 @@ text_box (path ip, int pos, string s, font fn, pencil pen) {
 box
 text_box (path ip, int pos, string s, font fn, pencil pen, brush bg) {
   return tm_new<text_box_rep> (ip, pos, s, fn, pen, xkerning (), bg);
+}
+
+box
+math_text_box (path ip, string source, font nominal, pencil pen) {
+  auto paragraph= std::make_shared<athena::text::font_paragraph> (
+    std::string (source.data (), N(source)),
+    athena::text::math_font_request (nominal, athena::text::math_alphabet::normal));
+  athena::text::shaping_options options;
+  options.ligatures= false;
+  return utf8_line_box (ip, std::move (paragraph), 0, N(source), nominal, pen, options);
 }
 
 box

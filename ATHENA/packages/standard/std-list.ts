@@ -146,9 +146,9 @@
 
   <assign|itemize-levels|3>
 
-  <assign|item-1|<macro|<active*|<with|mode|math|\<bullet\>>>>>
+  <assign|item-1|<macro|<active*|<with|mode|math|•>>>>
 
-  <assign|item-2|<macro|<active*|<with|mode|math|<rigid|\<circ\>>>>>>
+  <assign|item-2|<macro|<active*|<with|mode|math|<rigid|∘>>>>>
 
   <assign|item-3|<macro|<active*|<with|mode|math|<rigid|->>>>>
 
@@ -256,9 +256,9 @@
 
   <new-list|itemize-minus|<value|aligned-space-item>|<macro|name|<active*|<with|mode|math|<rigid|->>>>>
 
-  <new-list|itemize-dot|<value|aligned-space-item>|<macro|name|<active*|<with|mode|math|\<bullet\>>>>>
+  <new-list|itemize-dot|<value|aligned-space-item>|<macro|name|<active*|<with|mode|math|•>>>>
 
-  <new-list|itemize-arrow|<value|aligned-space-item>|<macro|name|<active*|<with|mode|math|<rigid|\<rightarrow\>>>>>>
+  <new-list|itemize-arrow|<value|aligned-space-item>|<macro|name|<active*|<with|mode|math|<rigid|→>>>>>
 
   <assign|todo-box-render|<macro|<active*|<with|mode|math|<rigid|\<box\>>>>>>
 

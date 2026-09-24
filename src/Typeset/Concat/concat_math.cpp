@@ -42,7 +42,7 @@ concater_rep::typeset_large (tree t, path ip, int tp, int otp, string prefix) {
     if (N(t) == 1) {
       box b;
       if (native)
-        b= utf8_text_box (ip, br, 0, N(br), old_fn, env->pen);
+        b= math_text_box (ip, br, old_fn, env->pen);
       else
         b= text_box (ip, 0, prefix * br * ">", env->fn, env->pen);
       print (tp, otp, b);

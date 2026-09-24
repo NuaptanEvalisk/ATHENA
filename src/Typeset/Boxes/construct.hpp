@@ -116,6 +116,8 @@ box image_box (path ip, url u, SI w, SI h, int alpha, int px);
 
 box text_box (path ip, int pos, string s, font fn, pencil pen);
 box text_box (path ip, int pos, string s, font fn, pencil pen, brush bg);
+// Upright mathematical text selected from the nominal font's math profile.
+box math_text_box (path ip, string source, font nominal, pencil pen);
 box math_glyph_box (path ip, string source, font nominal, pencil pen,
                     athena::text::shaped_text run);
 box virtual_recipe_box (path ip, string virtual_font_name, string definition,
