@@ -25,6 +25,7 @@
 #include "drd_mode.hpp"
 #include "scheme.hpp"
 #include "sys_utils.hpp"
+#include "tree_select.hpp"
 #include "tree_traverse.hpp"
 #include "utf8_edit.hpp"
 #include "Concat/concater.hpp"
@@ -623,6 +624,39 @@ private slots:
     QVERIFY (text.find ("′′") != std::string::npos);
     QVERIFY (text.find ("<prime>") == std::string::npos);
     QVERIFY (text.find ("<backprime>") == std::string::npos);
+  }
+
+  void structuralNavigationSelections () {
+    drd_info drd ("utf8-structural-navigation", std_drd);
+    {
+      with_drd use (drd);
+      tree doc (DOCUMENT, tree (LABEL, "anchor"), "tail");
+      path start_in (0, 0), end_in (0, 1), start_out, end_out;
+      ::selection_correct (doc, start_in, end_in, start_out, end_out);
+      QVERIFY (start_out == start_in);
+      QVERIFY (end_out == end_in);
+      QCOMPARE (selection_compute (doc, start_out, end_out),
+                tree (LABEL, "anchor"));
+    }
+
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->update ();
+    env->exec (tree (USE_PACKAGE,
+      string (std::getenv ("ATHENA_PATH")) * "/packages/section/section-base.ts"));
+    env->update ();
+    QVERIFY (drd->is_accessible_child (
+      compound ("heading-fold-title", "Heading"), 0));
+    tree heading= compound ("section", "Heading");
+    QVERIFY (drd->is_accessible_child (heading, 0));
+    {
+      with_drd use (drd);
+      path entered= next_accessible (heading, path (0));
+      QVERIFY (entered != path (1));
+      QVERIFY (!is_atom (entered) && entered->item == 0);
+    }
   }
 
   void nativeUtf8MetadataAndLegacyEncodingPreference () {

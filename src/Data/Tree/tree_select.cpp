@@ -203,6 +203,17 @@ selection_adjust (tree t, path i1, path i2, path& o1, path& o2) {
 static void
 selection_make_accessible (tree t, path i1, path i2, path& o1, path& o2) {
   o1= i1; o2= i2;
+  // A complete compound is a structural selection, not a pair of cursor
+  // positions inside that compound.  Its borders remain meaningful even when
+  // the node intentionally exposes no accessible children (labels, anchors,
+  // opaque objects, ...).  Pushing these borders to neighbouring accessible
+  // cursors collapses zero-width nodes and makes them impossible to select.
+  path whole= common (i1, i2);
+  if (has_subtree (t, whole)) {
+    tree st= subtree (t, whole);
+    if (is_compound (st) && i1 == whole * 0 && i2 == whole * 1)
+      return;
+  }
   if (!is_accessible_cursor (t, o1))
     o1= previous_accessible (t, o1);
   if (!is_accessible_cursor (t, o1))
