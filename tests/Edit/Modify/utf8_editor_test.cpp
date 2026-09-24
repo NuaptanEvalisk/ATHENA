@@ -495,15 +495,13 @@ private slots:
     QCOMPARE (calligraphic[0]->b->get_leaf_string (), string ("E"));
   }
   void nativeMathAltTableShortcut () {
-    eval ("(module-provide '(athena keyboard prefix-kbd))");
-    QCOMPARE (test_server->kbd_pre_rewrite ("math t"), string ("A-t"));
     QVERIFY (native_math_keyboard_has_registered_key ("A-t"));
+    QCOMPARE (test_server->kbd_pre_rewrite ("math t"), string ("A-t"));
   }
   void nativeMathTabVariants () {
-    eval ("(module-provide '(athena keyboard prefix-kbd))");
+    QVERIFY (native_math_keyboard_has_registered_key ("A-t tab"));
     QCOMPARE (test_server->kbd_pre_rewrite ("math t var"),
               string ("A-t tab"));
-    QVERIFY (native_math_keyboard_has_registered_key ("A-t tab"));
     QCOMPARE (test_server->kbd_pre_rewrite ("- var"), string ("- tab"));
     QVERIFY (native_math_keyboard_has_registered_key ("- tab"));
   }

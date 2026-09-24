@@ -62,6 +62,11 @@ struct native_math_registry {
   std::unordered_map<std::string,std::vector<binding_ref>> prefixes;
 
   native_math_registry () {
+    // The JSON uses the logical keyboard vocabulary from prefix-kbd (math,
+    // var, font, ...).  This dependency used to be implicit through kbd-map,
+    // but the native registry builds its own physical index, so make it
+    // explicit before applying the shared pre-rewrite rules.
+    eval ("(module-provide '(athena keyboard prefix-kbd))");
     string source;
     if (load_string (url ("$ATHENA_PATH/misc/input/math-keybindings.json"),
                      source, false))
@@ -113,8 +118,6 @@ struct native_math_registry {
     }
     for (int g=0; g<(int) groups.size (); ++g)
       for (int b=0; b<(int) groups[(std::size_t) g].bindings.size (); ++b) {
-        // Pre-rewrite both command prefixes and variant suffixes, matching
-        // kbd-map registration (for example math -> A- and var -> tab).
         const string key= get_server ()->kbd_pre_rewrite (
           groups[(std::size_t) g].bindings[(std::size_t) b].key);
         const std::string std_key (key.data (), (std::size_t) N(key));
@@ -348,12 +351,18 @@ bool native_math_keyboard_get_keycomb (
     }
   }
   auto prefix= r.prefixes.find (key);
-  if (prefix != r.prefixes.end ())
+  if (prefix != r.prefixes.end ()) {
+    // Legacy kbd-map only synthesized a partial binding when no exact shared
+    // binding already existed.  Preserve that precedence here: e.g. the
+    // native "space var" family must not shadow generic "space" -> kbd-space.
+    if (call ("kbd-find-key-binding", object (combination)) != object (false))
+      return false;
     for (auto it= prefix->second.rbegin (); it != prefix->second.rend (); ++it)
       if (active_ref (r, *it)) {
         status= 2; cmd= command (); shorthand= combination; help= "";
         return true;
       }
+  }
   return false;
 }
 
