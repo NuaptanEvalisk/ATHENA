@@ -15,6 +15,7 @@
 #include "analyze.hpp"
 #include "hashmap.hpp"
 #include "scheme.hpp"
+#include "Xml/document_file_codec.hpp"
 
 #ifdef QTTEXMACS
 #include "../Subsystems/Qt/qt_utilities.hpp"
@@ -134,7 +135,14 @@ get_from_server (url u) {
     if (!as_bool (call ("tmfs-can-autosave?", unglue (u, 1))))
       return url_none ();
   }
-  string r= as_string (call ("tmfs-load", object (name)));
+  object response= call ("tmfs-load", object (name));
+  string r;
+  if (is_tree (response)) {
+    // Generated documents are native trees, not legacy Cork/Scheme input.
+    const auto xml= athena::document::write_xml (as_tree (response));
+    r= string (xml.data (), (int) xml.size ());
+  }
+  else r= as_string (response);
   if (r == "") return url_none ();
   url tmp= url_temp (string (".") * suffix (name));
   (void) save_string (tmp, r, true);

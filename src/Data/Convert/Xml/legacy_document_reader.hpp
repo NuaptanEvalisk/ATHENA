@@ -12,5 +12,8 @@
 
 namespace athena::document {
 tree read_legacy_markup (std::string_view, codec_limits = {});
+// Index payloads are headerless snippets; retain the reader's document wrapper
+// and root whitespace semantics, rather than embedding source in a macro slot.
+tree read_legacy_markup_fragment (std::string_view, codec_limits = {});
 tree read_legacy_scheme (std::string_view, codec_limits = {});
 } // namespace athena::document

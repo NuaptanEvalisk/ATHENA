@@ -21,6 +21,7 @@
 #include "ATHENA/Data/artifact_title_filter.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
+#include "Data/Convert/Xml/vault_format_upgrade.hpp"
 #include "converter.hpp"
 #include "convert.hpp"
 #include "drd_std.hpp"
@@ -38,6 +39,9 @@ bool headless_mode= true;
 bool is_headless () { return true; }
 
 namespace fs= std::filesystem;
+using athena::document::read_xml;
+using athena::document::write_xml;
+using athena::document::xml_kind;
 
 class TestArtifacts: public QObject {
   Q_OBJECT
@@ -77,6 +81,7 @@ private slots:
   void namesEnunciationsStrictlyAndSkipsCompletions ();
   void extractsEveryDefinitionAliasFromFirstLine ();
   void preservesStructuredDefinitionNames ();
+  void upgradesLegacyNamesBeforeRadioactiveIndex ();
   void matchesStructuredRadioactiveNames ();
   void preservesUnicodeRadioactiveMatchOffsets ();
   void matchesLargeRadioactiveArtifactIndexWithinBudget ();
@@ -412,8 +417,8 @@ TestArtifacts::extractsEnunciationsBoldTextAndProofLink () {
   QCOMPARE (records[2].display_text, std::string ("compact operator"));
   QCOMPARE (records[2].semantic_names,
             std::vector<std::string> ({"compact operator"}));
-  QVERIFY (records[2].keyword_tree.find ("<strong|compact operator>") !=
-           std::string::npos);
+  QCOMPARE (read_xml (records[2].keyword_tree, xml_kind::fragment),
+            compound ("strong", "compact operator"));
   QCOMPARE (records[2].paragraph_offsets, std::vector<int> ({0}));
 }
 
@@ -676,9 +681,9 @@ TestArtifacts::excludesOnlyArtifactDefiningOccurrences () {
               document, *bold, location, error), error.c_str ());
   QCOMPARE (location.parent, path ());
   QCOMPARE (location.focus_child, 1);
-  string serialized_keyword=
-    tree_to_texmacs (subtree (body, path (1) * 1));
-  QCOMPARE (std::string (as_charp (serialized_keyword), N(serialized_keyword)),
+  auto serialized_keyword=
+    write_xml (subtree (body, path (1) * 1), xml_kind::fragment);
+  QCOMPARE (serialized_keyword,
             bold->keyword_tree);
   QVERIFY (athena_artifact_is_defining_occurrence (
     document, path (1) * 1 * 0, *bold));
@@ -921,10 +926,8 @@ TestArtifacts::preservesAccentedArtifactTextAcrossWorkerAndDatabase () {
               {"A th\xc3\xa9or\xc3\xa8me statement."}));
   QCOMPARE (found->semantic_names,
             std::vector<std::string> ({"Ces\xc3\xa0ro summation"}));
-  string expected_keyword= tree_to_texmacs (compound ("strong", keyword));
   QCOMPARE (found->keyword_tree,
-            std::string (as_charp (expected_keyword),
-                         (size_t) N(expected_keyword)));
+            write_xml (compound ("strong", keyword), xml_kind::fragment));
 
   int utf8_rows= query_test_int (
     root / "indexes/artifacts.db",
@@ -1572,8 +1575,7 @@ TestArtifacts::preservesStructuredDefinitionNames () {
   QCOMPARE (records[0].semantic_name_trees.size (), size_t (4));
   QCOMPARE (records[0].semantic_names[0], records[0].semantic_names[3]);
   auto parse= [] (const std::string& source) {
-    tree parsed= texmacs_to_tree (string (source.data (), source.size ()));
-    return is_func (parsed, DOCUMENT, 1) ? parsed[0] : parsed;
+    return read_xml (source, xml_kind::fragment);
   };
   QCOMPARE (parse (records[0].semantic_name_trees[0]), tree (CONCAT, sigma, "-algebra"));
   QCOMPARE (parse (records[0].semantic_name_trees[1]), tree (CONCAT, script, "-module"));
@@ -1599,13 +1601,40 @@ TestArtifacts::preservesStructuredDefinitionNames () {
 }
 
 void
+TestArtifacts::upgradesLegacyNamesBeforeRadioactiveIndex () {
+  QTemporaryDir temporary;
+  const fs::path root (temporary.path ().toStdString ());
+  AthenaVaultfileInfo info;
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+  write_document (root / "probe.ath", tree (DOCUMENT,
+    compound ("style", "generic"), compound ("body", tree (DOCUMENT, "probe"))));
+  std::vector<AthenaArtifactRecord> records;
+  QVERIFY2 (athena_artifacts_query (root, records, error), error.c_str ());
+  QVERIFY2 (exec_test_sql (root / info.artifacts_path,
+    "DELETE FROM artifact_metadata WHERE key='tree-format';"
+    "INSERT INTO artifacts(uuid,type,origin,content_uuid,path,anchor_stem,display_text,document_order) "
+    "VALUES('legacy','definition','enunciation','source','probe.ath','anchor','Cesàro summation',0);"
+    "INSERT INTO artifact_names VALUES('legacy','Cesàro summation',0,CAST(x'436573E0726F2073756D6D6174696F6E' AS TEXT));",
+    error), error.c_str ());
+  athena::document::upgrade_vault_format (root);
+  QVERIFY2 (athena_artifacts_query (root, records, error, true), error.c_str ());
+  QCOMPARE (records.size (), size_t (1));
+  QCOMPARE (records[0].uuid, std::string ("legacy"));
+  QCOMPARE (read_xml (records[0].semantic_name_trees[0], xml_kind::fragment), tree ("Cesàro summation"));
+  AthenaArtifactRadioactiveMatcher matcher (records);
+  const auto found= matcher.resolve (tree ("Cesàro summation"));
+  QCOMPARE (found.exact.size (), size_t (1));
+  QCOMPARE (found.exact[0].uuid, std::string ("legacy"));
+}
+
+void
 TestArtifacts::matchesStructuredRadioactiveNames () {
   tree sigma= compound ("math", "<sigma>");
   tree subscript= compound ("math", tree (CONCAT, "R", tree (RSUB, "n")));
   auto record= [] (const char* uuid, tree name) {
     AthenaArtifactRecord r= radioactive_record (uuid, "structured term");
-    string bytes= tree_to_texmacs (name);
-    r.semantic_name_trees= {std::string (as_charp (bytes), N(bytes))};
+    r.semantic_name_trees= {write_xml (name, xml_kind::fragment)};
     return r;
   };
   std::vector<AthenaArtifactRecord> records {

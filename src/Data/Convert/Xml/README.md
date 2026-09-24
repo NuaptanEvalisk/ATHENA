@@ -2,14 +2,13 @@
 
 ## Activation Status
 
-These APIs are migration infrastructure, **not the active document format**.
-Some mathematical/editor paths, bundled resources, legacy converters and
-protocols still use Cork; the migrated text/editing boundaries below do not.
-Do not pass a legacy runtime tree to `write_xml`, or pass `read_xml` output to a
-Cork editor. ASCII-only tests do not establish that those crossings are safe.
-No setting enables a mixed runtime. Normal saves must remain on the existing
-path until the text, symbol, position, persistence and protocol migrations are
-complete and accepted together.
+Normal local saves now write native UTF-8 XML through `document_file`, including
+backup-first upgrades of captured legacy files. AUDMAP and delegated persistence
+use document-model/protocol version 2. Native text positions are UTF-8 bytes;
+Cork is accepted at explicit read-only compatibility boundaries. There is no
+CMake TeXmacs compatibility-version setting. The detailed subsystem notes below
+also record intermediate migration stages; their historical pending-work notes
+are not an end-to-end acceptance certificate.
 
 The migration branch now routes native tree cursor validation/traversal, editor
 Delete/Backspace and selection endpoints through UTF-8 ICU grapheme boundaries.
@@ -19,8 +18,8 @@ typesetting paths must be converted before deploying this intermediate build.
 atoms. Qt key text and IME commits/preedit now enter as UTF-8; preedit cursor
 positions explicitly convert UTF-16 to bytes and snap to ICU grapheme stops.
 Shift-key preferences retain complete UTF-8 strings under a new key namespace,
-and generic keyboard declarations specify UTF-8. Legacy mathematical keymaps
-and named-key fallback still need conversion.
+and generic keyboard declarations specify UTF-8. Mathematical keymaps and LaTeX
+command declarations now use native registries backed by UTF-8 JSON.
 
 The native Guile bridge now uses strict UTF-8 string/symbol/keyword APIs in both
 directions, without Latin-1-range heuristics. Binary values use bytevectors,
@@ -537,16 +536,76 @@ backup policy no longer depends on Scheme glue. XML normal saves therefore retai
 the user-facing backup history in addition to one-time legacy format-migration
 backups.
 
-Reading, previewing, indexing and maintenance never perform format upgrades.
-Maintenance migration remains deliberately disabled; only an explicit normal
-save may replace a legacy document with XML. Tests cover legacy markup/Scheme
+Reading, previewing, indexing and ordinary maintenance never perform format
+upgrades. Explicit normal saves and the offline mode below can upgrade legacy
+documents. Tests cover legacy markup/Scheme
 captures, vault and sidecar migration backups, repeat attempts, corrupt/blocked
 backups, bounded serialization, read-only originals, stale source revisions,
 create-only XML publication, repeated pinned XML saves, external-modification
 rejection and BufferActor normal-save upgrade behavior. Disk-full and
 post-rename fsync fault injection remain integration work.
 
-## Remaining Integration Gates
+## Offline Whole-Vault Upgrade
+
+```
+ATHENA.bin --upgrade-vault-format /absolute/path/to/vault
+```
+
+This is an exclusive CLI mode, not a maintenance pass. It starts QCoreApplication
+and the native DRD, but no GUI, Guile session, models or background indexer. Close
+all applications using the vault first. New ATHENA vault sessions and headless
+services hold shared directory leases; the upgrade requires exclusive leases.
+Older binaries and unrelated programs do not honor these leases, so offline
+operation is mandatory. Full source inventories are checked again before commit;
+this is not a kernel compare-and-swap against an uncooperative last-instant writer.
+
+The sequence is: inventory and validate all live `.ath` files (both legacy
+serializations and already-upgraded XML), copy a private sibling snapshot,
+verify snapshot bytes, initialize eligible cached semantic revisions in that
+snapshot, convert legacy documents, re-read every resulting XML document and
+compare its logical fingerprint, fsync, verify the original inventory again,
+then Linux `renameat2(RENAME_EXCHANGE)`. It never commits documents one by one.
+Mixed vaults are supported; existing XML bytes are retained. `.backup`, `.git`,
+`.hg` and `.svn` are copied intact but their archived `.ath` files are not live
+migration inputs. Document symlinks and hardlinks, special files, nested mounts,
+read-only legacy documents and malformed input fail closed. Other symlinks are
+copied as links and never traversed.
+
+GNU coreutils `cp --archive --reflink=auto` supplies metadata-preserving snapshots,
+using copy-on-write where supported and normal copying otherwise. Enough sibling
+storage is required; the vault root cannot itself be a mount point or symlink.
+Unsupported atomic exchange never falls back to non-atomic per-file replacement.
+The whole original vault, including databases and resources, remains under
+`.<vault-name>.format-upgrade-<uuid>/vault` next to the upgraded vault. The sibling
+`manifest.json` records source and logical document fingerprints. A successful
+upgrade never deletes that backup. Cancellation/error before exchange leaves the
+original untouched; SIGKILL may leave an uncommitted sibling workspace. Do not
+blindly delete such workspaces: after an exchange the same location holds the
+original vault. Restarting the command is safe; an all-XML vault is a validated
+no-op. Interruption cannot publish a partially converted vault.
+
+Artifact and RAG databases are changed only in the private snapshot.
+`artifact_names.name_tree` and the Base64-wrapped `bold-text.entries.keyword_tree`
+payloads are semantically imported from Cork before publication, including named
+math symbols. These tree fields now use native UTF-8 XML fragments;
+display strings, UUIDs, selected paragraph offsets, identity evidence and vectors
+are not transcoded or regenerated. Each index receives a separate `tree-format`
+marker only after conversion succeeds; schema version 2 alone is not an encoding
+marker. New empty indexes are marked `utf8-xml-v1` when created. The editor does not decode
+Cork index payloads at runtime. Invalid fragments or Base64 abort the vault upgrade,
+and both index conversions report CLI progress.
+
+Missing semantic revisions are filled only when the captured original storage revision
+matches (including RAG's storage hash); stale rows are not marked current. UUIDs,
+model decisions, chunk ids, embeddings and their models are left intact. Existing
+semantic revisions are preserved. The operation never invokes inference.
+
+Exit status 0 means success, 1 failure before commit, 130 handled cancellation.
+Status 2 explicitly means exchange succeeded but directory durability could not
+be confirmed; the old vault backup is retained. Terminal progress is throttled;
+redirected output uses ordinary lines without terminal escape sequences.
+
+## Remaining Compatibility Work
 
 1. Remove the remaining read-only legacy token/parser compatibility paths only
    after the supported legacy-file import window is intentionally closed.

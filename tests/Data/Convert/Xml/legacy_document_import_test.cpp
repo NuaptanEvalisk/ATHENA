@@ -110,6 +110,31 @@ private slots:
     auto interior= linear.relocate ({1, 0}, 4, boundary_affinity::following);
     QVERIFY (interior && interior->node == document_path ({0, 0}) && interior->offset == 4);
   }
+  void wrappedExtensibleDelimiters () {
+    auto t= table ();
+    tree original= doc (tree (VAR_AROUND, "<<less>>", "y", "<<gtr>>"));
+    auto result= import_legacy_document (original, t);
+    QVERIFY (result.document[0][0] == tree (VAR_AROUND, "<", "y", ">"));
+    for (const auto& serialized: {tree_to_texmacs (original), tree_to_scheme (original)}) {
+      auto imported= import_legacy_document_bytes (
+        std::string_view (serialized.data (), N(serialized)), t);
+      QVERIFY (imported.document == result.document);
+      QVERIFY (read_xml (write_xml (imported.document)) == result.document);
+    }
+    const document_path old {1, 0, 0}, dest {0, 0, 0};
+    auto start= result.relocate (old, 0, boundary_affinity::following);
+    auto end= result.relocate (old, 8, boundary_affinity::preceding);
+    QVERIFY (start && start->node == dest && start->offset == 0);
+    QVERIFY (end && end->node == dest && end->offset == 1);
+    QVERIFY (!result.relocate (old, 3, boundary_affinity::following));
+    // A normal token is unchanged, and nested tokens in content remain invalid.
+    QVERIFY (import_legacy_document (doc (tree (VAR_AROUND, "<less>", "y", "<gtr>")), t).document == result.document);
+    for (tree invalid: {doc ("<<less>>"),
+                       doc (tree (VAR_AROUND, "(", "<<less>>", ")")),
+                       doc (tree (VAR_AROUND, "<<less>", "y", ")")),
+                       doc (tree (VAR_AROUND, "<<less><gtr>>", "y", ")"))})
+      QVERIFY_THROWS_EXCEPTION (legacy_document_error, import_legacy_document (invalid, t));
+  }
   void macrosAndBudgets () {
     auto t= table ();
     tree source= doc (tree (MACRO, "<arg>", tree (CONCAT, tree (ARG, "<arg>"), "<mathD>")));

@@ -188,11 +188,30 @@ class importer {
     used += n;
   }
   tree text (const tree& source, const document_path& old, const document_path& dest,
-             legacy_text_role role) {
+             legacy_text_role role, bool extensible_delimiter) {
     const auto raw= bytes (source->label);
     count (raw.size (), input_bytes, limits.input_bytes);
-    auto pieces= table.decode (raw, role, limits.text_bytes - output_bytes,
-                               position_limit - positions);
+    std::string_view encoded= raw;
+    // Legacy around* applies make_large before typeset_large: each removes
+    // one wrapper. Thus <<less>> in a delimiter slot denotes <less>, not a
+    // malformed content token. Do not apply this rule to ordinary text.
+    const bool wrapped= extensible_delimiter && raw.size () >= 5 &&
+      raw.compare (0, 2, "<<") == 0 && raw.compare (raw.size () - 2, 2, ">>") == 0 &&
+      raw.find_first_of ("<>", 2) == raw.size () - 2;
+    if (wrapped) encoded= encoded.substr (1, encoded.size () - 2);
+    std::vector<legacy_text_piece> pieces;
+    try {
+      pieces= table.decode (encoded, role, limits.text_bytes - output_bytes,
+                            position_limit - positions);
+    }
+    catch (const legacy_text_error& error) {
+      throw legacy_text_error (error.byte + (wrapped ? 1 : 0), error.what ());
+    }
+    if (wrapped) {
+      for (auto& piece: pieces) { ++piece.begin; ++piece.end; }
+      pieces.front ().begin= 0;
+      pieces.back ().end= raw.size ();
+    }
     count (std::max<std::size_t> (pieces.size (), 1), positions, position_limit);
     const bool structured= std::any_of (pieces.begin (), pieces.end (), [] (const auto& p) {
       return p.kind == legacy_piece_kind::named_symbol;
@@ -227,11 +246,11 @@ class importer {
   }
 
   tree visit (const tree& source, const document_path& old, const document_path& dest,
-              legacy_text_role role, std::size_t depth) {
+              legacy_text_role role, std::size_t depth, bool extensible_delimiter= false) {
     if (depth > limits.depth) throw codec_exception (codec_error::resource_limit, "Legacy tree too deep");
     count (1, nodes, limits.nodes);
     if (is_atomic (source)) {
-      try { return text (source, old, dest, role); }
+      try { return text (source, old, dest, role, extensible_delimiter); }
       catch (const legacy_text_error& error) { throw legacy_document_error (old, error); }
     }
     if (is_func (source, RAW_DATA)) {
@@ -266,7 +285,9 @@ class importer {
       }
       auto child_role= standard_role (source, i, role);
       if (policy) child_role= policy (source, i, child_role);
-      result << visit (source[i], from, child_path (dest, N (result)), child_role, depth + 1);
+      const bool delimiter= is_func (source, VAR_AROUND, 3) && (i == 0 || i == 2);
+      result << visit (source[i], from, child_path (dest, N (result)), child_role,
+                       depth + 1, delimiter);
     }
     return result;
   }

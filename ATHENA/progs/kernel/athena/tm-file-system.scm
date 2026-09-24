@@ -56,11 +56,11 @@
     (cond ((ahash-ref tmfs-handler-table (cons class 'load)) =>
            (lambda (handler)
              (with r (handler name)
-               (if (string? r) r (object->tmstring r)))))
+               (if (or (string? r) (tree? r)) r (stree->tree r)))))
           ((ahash-ref tmfs-handler-table (cons #t 'load)) =>
            (lambda (handler)
              (with r (handler name)
-               (if (string? r) r (object->tmstring r)))))
+               (if (or (string? r) (tree? r)) r (stree->tree r)))))
           (else ""))))
 
 (define-public (tmfs-save u what)

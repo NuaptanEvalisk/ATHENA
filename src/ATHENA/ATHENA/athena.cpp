@@ -57,6 +57,8 @@
 #include "convert.hpp"
 #include "Freetype/tt_file.hpp"
 #include "ATHENA/Data/vault_maintenance.hpp"
+#include "Xml/vault_format_upgrade.hpp"
+#include "vault_directory_lease.hpp"
 #include "ATHENA/Data/artifacts.hpp"
 #include "ATHENA/Data/artifact_range_llm.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
@@ -800,6 +802,7 @@ print_command_line_help () {
   cout << "  -V         Show some informative messages\n";
   cout << "  --no-splash-screen       Start without the startup progress window\n";
   cout << "  --vault-maintenance [dir]  Maintain an ATHENA vault headlessly\n";
+  cout << "  --upgrade-vault-format [dir]  Offline transactional UTF-8/XML vault upgrade\n";
   cout << "  --rag-delegated-embedding [dir]  Run only delegated incremental embedding\n";
   cout << "  --vault-maintenance-toc-worker [file] [marker]  Internal ToC maintenance worker\n";
   cout << "  --generate-website [dir] [id]  Generate a vault website headlessly\n";
@@ -2005,6 +2008,18 @@ athena_refresh_stale_scheme_bytecode (int argc, char** argv) {
 
 int
 texmacs_entrypoint (int argc, char** argv) {
+  // Deliberately bypass Scheme, GUI startup, cache refresh, vault loading and
+  // model services. The converter owns detached trees on this one CLI thread.
+  for (int i=1; i<argc; ++i) {
+    if (std::string (argv[i]) != "--upgrade-vault-format") continue;
+    if (argc != 3 || i != 1 || std::string (argv[2]) == "--help") {
+      std::cerr << "Usage: ATHENA.bin --upgrade-vault-format VAULT_DIRECTORY\n";
+      return argc == 3 && std::string (argv[2]) == "--help" ? 0 : 1;
+    }
+    headless_mode= true;
+    QCoreApplication app (argc, argv);
+    return athena::document::upgrade_vault_format_cli (std::filesystem::path (argv[2]));
+  }
   athena_watchdog_configure_from_argv (argc, argv);
   athena_crash_register_thread (AthenaCrashThreadRole::Main);
   bench_start ("startup to editor shell");
@@ -2213,6 +2228,20 @@ texmacs_entrypoint (int argc, char** argv) {
   }
   ATHENA_init_paths (argc, argv);
   process_query_options (argc, argv);
+  // Headless services do not necessarily call vault_load(), but must also
+  // exclude whole-directory upgrades for their entire synchronous lifetime.
+  std::vector<std::unique_ptr<athena::filesystem::vault_directory_lease>> vault_leases;
+  try {
+    for (const auto& directory: {vault_maintenance_dir, rag_server_dir,
+                                 rag_delegated_embedding_dir, website_generate_dir})
+      if (directory != "")
+        vault_leases.emplace_back (new athena::filesystem::vault_directory_lease (
+          std::filesystem::path (athena_to_std_string (directory))));
+  }
+  catch (const std::exception& e) {
+    std::cerr << e.what () << '\n';
+    return 1;
+  }
   if (scheme_bytecode_output_dir != "") {
     set_env ("ATHENA_GUILE_SOURCE_ROOT", "$ATHENA_PATH/progs");
     set_env ("GUILE_AUTO_COMPILE", "0");

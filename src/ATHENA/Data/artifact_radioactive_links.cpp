@@ -13,6 +13,7 @@
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "analyze.hpp"
 #include "convert.hpp"
+#include "Xml/athena_document_xml.hpp"
 #include "message.hpp"
 #include "unicode_text.hpp"
 
@@ -254,7 +255,7 @@ std::vector<Token> name_tokens (const AthenaArtifactRecord& record, size_t i) {
   if (i >= record.semantic_name_trees.size () || record.semantic_name_trees[i].empty ())
     return tokenize (qstring_from_utf8 (record.semantic_names[i]));
   const std::string& bytes= record.semantic_name_trees[i];
-  return tree_tokens (texmacs_to_tree (string (bytes.data (), (int) bytes.size ())));
+  return tree_tokens (athena::document::read_xml (bytes, athena::document::xml_kind::fragment));
 }
 
 std::shared_ptr<const RadioactiveIndex> build_index (

@@ -18,6 +18,7 @@
 #include "server.hpp"
 #include "typesetter.hpp"
 #include "convert.hpp"
+#include "Xml/athena_document_xml.hpp"
 #include "link.hpp"
 #include "formatter.hpp"
 #include "Format/format.hpp"
@@ -249,8 +250,8 @@ private slots:
     auto math= record ("6", {"sigma-algebra"});
     tree sigma= compound ("math", "<sigma>");
     tree name (CONCAT, sigma, "-algebra");
-    string serialized= tree_to_texmacs (name);
-    math.semantic_name_trees= {std::string (as_charp (serialized), N(serialized))};
+    math.semantic_name_trees= {athena::document::write_xml (
+      name, athena::document::xml_kind::fragment)};
     AthenaArtifactRadioactiveMatcher matcher ({group, subgroup, theorem, general, excluded, math});
     auto result= matcher.resolve (tree ("GROUPS"));
     QCOMPARE (result.exact.size (), size_t (1));

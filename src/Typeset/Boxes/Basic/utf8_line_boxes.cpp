@@ -516,7 +516,10 @@ build_utf8_flow (path ip, array<box> pieces, array<bool> markers, bool restore_s
   int text_count= 0;
   for (int i=0; i<N(pieces); ++i) {
     if (markers[i]) {
-      if (pieces[i]->w () != 0 || pieces[i]->get_leaf_string () != "") return {};
+      // Structural markers (for example loci) are not textual and may carry
+      // annotations. Keep them intact instead of replacing them with a caret.
+      if (pieces[i]->get_type () != TEXT_BOX || pieces[i]->w () != 0 ||
+          pieces[i]->get_leaf_string () != "") return {};
       contents.push_back ({});
       continue;
     }

@@ -24,6 +24,7 @@
 #include "ATHENA/Data/vault_map_sqlite.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "ATHENA/Data/vault_safe_rename.hpp"
+#include "vault_directory_lease.hpp"
 #include "ATHENA/Data/transclusion_cache.hpp"
 #include "ATHENA/tm_window.hpp"
 
@@ -41,6 +42,7 @@ bool       is_vault_active = false;
 vault_info current_vault;
 static std::unique_ptr<AthenaVaultMapSqlite> current_vault_map;
 static std::unique_ptr<MaterialsStore> current_materials_store;
+static std::shared_ptr<athena::filesystem::vault_directory_lease> current_directory_lease;
 
 namespace {
 
@@ -99,7 +101,8 @@ publish_vault_snapshot (bool active, const std::filesystem::path& root,
   if (active)
     context= std::make_shared<const vault_context> (vault_context {
       root, map_db, namespace_db, name,
-      QUuid::createUuid ().toString (QUuid::WithoutBraces).toStdString ()});
+      QUuid::createUuid ().toString (QUuid::WithoutBraces).toStdString (),
+      current_directory_lease});
   auto next= std::make_shared<const vault_public_snapshot> (
     vault_public_snapshot {
       active, root.string (), name, map_db.string (), namespace_db.string (),
@@ -193,6 +196,11 @@ string
 vault_load (url root_dir, string name, string db_rel_path,
             string ns_db_rel_path) {
   std::filesystem::path root (vault_std_string (concretize (root_dir)));
+  std::shared_ptr<athena::filesystem::vault_directory_lease> directory_lease;
+  try {
+    directory_lease= std::make_shared<athena::filesystem::vault_directory_lease> (root);
+  }
+  catch (const std::exception& e) { return vault_tm_string (e.what ()); }
   std::string resolved;
   std::string error;
   if (!athena_vault_map_prepare (vault_std_string (db_rel_path),
@@ -226,6 +234,7 @@ vault_load (url root_dir, string name, string db_rel_path,
   current_vault.ns_db_url = root_dir * url (ns_db_rel_path);
   current_vault_map = std::move (map);
   current_materials_store = std::move (materials);
+  current_directory_lease = std::move (directory_lease);
   is_vault_active = true;
   publish_vault_snapshot (
     true, root, vault_std_string (name), root / resolved,
@@ -246,6 +255,7 @@ vault_close () {
   }
   current_vault_map.reset ();
   current_materials_store.reset ();
+  current_directory_lease.reset ();
   is_vault_active = false;
   athena_artifact_radioactive_invalidate ();
   current_vault.root = url_none ();

@@ -92,6 +92,14 @@ std::string to_std (string s) {
 
 string to_tm (const std::string& s) { return string (s.data (), (int) s.size ()); }
 
+std::string fragment_bytes (const tree& value) {
+  return athena::document::write_xml (value, athena::document::xml_kind::fragment);
+}
+
+tree fragment_tree (const std::string& bytes) {
+  return athena::document::read_xml (bytes, athena::document::xml_kind::fragment);
+}
+
 QString qstr (const std::string& s) {
   return QString::fromUtf8 (s.data (), (qsizetype) s.size ());
 }
@@ -245,6 +253,8 @@ bool open_databases (const fs::path& root, SqliteDb& holder,
     "PRAGMA foreign_keys=ON;"
     "CREATE TABLE IF NOT EXISTS artifact_metadata("
     " key TEXT PRIMARY KEY,value TEXT NOT NULL);"
+    "CREATE TABLE IF NOT EXISTS bold_text.bold_text_metadata("
+    " key TEXT PRIMARY KEY,value TEXT NOT NULL);"
     "CREATE TABLE IF NOT EXISTS documents("
     " path TEXT PRIMARY KEY,mtime_ns INTEGER NOT NULL,size INTEGER NOT NULL,"
     " locator_contract TEXT NOT NULL DEFAULT '',"
@@ -299,6 +309,14 @@ bool open_databases (const fs::path& root, SqliteDb& holder,
     "CREATE INDEX IF NOT EXISTS artifact_identity_history_path_idx "
     "ON artifact_identity_history(path,sequence);";
   if (!exec_sql (holder.db, schema, error)) return false;
+  // Only empty indexes can be declared native without an offline conversion.
+  // Schema v2 alone does not prove that preexisting tree payloads were migrated.
+  if (!exec_sql (holder.db,
+        "INSERT OR IGNORE INTO artifact_metadata(key,value) "
+        "SELECT 'tree-format','utf8-xml-v1' WHERE NOT EXISTS(SELECT 1 FROM artifact_names);"
+        "INSERT OR IGNORE INTO bold_text.bold_text_metadata(key,value) "
+        "SELECT 'tree-format','utf8-xml-v1' WHERE NOT EXISTS(SELECT 1 FROM bold_text.entries);",
+        error)) return false;
   if (!ensure_column (holder.db, "documents", "locator_contract",
                        "TEXT NOT NULL DEFAULT ''", error))
     return false;
@@ -502,7 +520,7 @@ void append_definition_names (const tree& title, AthenaArtifactRecord& record) {
       alias[N(alias)-1]= trim_spaces (alias[N(alias)-1]->label);
     alias= simplify_concat (alias);
     std::string display= collapse_spaces (definition_name_text (alias));
-    std::string serialized= to_std (tree_to_texmacs (alias));
+    std::string serialized= fragment_bytes (alias);
     if (display.empty () || std::find (record.semantic_name_trees.begin (),
         record.semantic_name_trees.end (), serialized) != record.semantic_name_trees.end ())
       continue;
@@ -982,7 +1000,7 @@ bool extract (const tree& document, const std::string& rel,
           !has_name_bearing_text (display) ||
           athena_artifact_title_filter_contains (
             title_filter, display)) continue;
-      std::string serialized= to_std (tree_to_texmacs (keyword));
+      std::string serialized= fragment_bytes (keyword);
       int occurrence= ++occurrences[serialized];
       std::vector<std::pair<int,std::string>> candidates;
       for (int offset=-5; offset<=5; offset++) {
@@ -991,7 +1009,7 @@ bool extract (const tree& document, const std::string& rel,
         if (paragraphs[(size_t) index].segment !=
             paragraphs[paragraph_index].segment) continue;
         candidates.push_back ({offset,
-          to_std (tree_to_texmacs (paragraphs[(size_t) index].value))});
+          fragment_bytes (paragraphs[(size_t) index].value)});
       }
       AthenaArtifactRecord record;
       record.type= "definition";
@@ -1001,11 +1019,11 @@ bool extract (const tree& document, const std::string& rel,
       record.semantic_names= semantic_names_for (
         record.origin, record.type, record.display_text);
       record.keyword_tree= serialized;
-      record.semantic_name_trees= {to_std (tree_to_texmacs (visible_body (keyword)))};
+      record.semantic_name_trees= {fragment_bytes (visible_body (keyword))};
       record.keyword_occurrence= occurrence;
       record.definition_candidates= candidates;
       record.paragraph_offsets= {0};
-      record.identity_focus= identity_fingerprint (serialized);
+      record.identity_focus= identity_fingerprint (keyword);
       record.identity_host= paragraphs[paragraph_index].fingerprint;
       if (paragraph_index > 0 &&
           paragraphs[paragraph_index - 1].segment ==
@@ -1162,13 +1180,13 @@ bool select_definition_ranges (
       if (record.origin != "bold-text") continue;
       AthenaArtifactRangeRequest request;
       request.keyword_latex= latex_for_tree (
-        texmacs_to_tree (to_tm (record.keyword_tree)));
+        fragment_tree (record.keyword_tree));
       record.keyword_latex= request.keyword_latex;
       request.paragraphs.reserve (record.definition_candidates.size ());
       for (const auto& candidate: record.definition_candidates)
         request.paragraphs.push_back (
           {candidate.first, latex_for_tree (
-                              texmacs_to_tree (to_tm (candidate.second)))});
+                              fragment_tree (candidate.second))});
       const DocumentWork& source= *document_metadata->second;
       work.push_back ({&record, document.first, source.modified, source.size,
                        source.semantic_hash, std::move (request), {}});
@@ -1558,7 +1576,7 @@ bool load_identity_observations (
     observation.document_order= sqlite3_column_int (bold.st, 3);
     observation.focus= column_text (bold.st, 4);
     if (observation.focus.empty ())
-      observation.focus= identity_fingerprint (keyword);
+      observation.focus= identity_fingerprint (fragment_tree (keyword));
     observation.host= column_text (bold.st, 5);
     observation.before= column_text (bold.st, 6);
     observation.after= column_text (bold.st, 7);
@@ -2035,7 +2053,7 @@ athena_artifact_locate_paragraph (
     for (const tree& keyword: bolds) {
       std::string display= plain_text (visible_body (keyword));
       if (collapse_spaces (display).empty ()) continue;
-      std::string serialized= to_std (tree_to_texmacs (keyword));
+      std::string serialized= fragment_bytes (keyword);
       int occurrence= ++occurrences[serialized];
       if (serialized == record.keyword_tree &&
           occurrence == record.keyword_occurrence) {
@@ -2215,7 +2233,7 @@ athena_artifact_is_defining_occurrence (
     if (!has_subtree (body, current)) continue;
     tree value= subtree (body, current);
     if (record.origin == "bold-text" && bold_wrapper (value) &&
-        to_std (tree_to_texmacs (value)) == record.keyword_tree) return true;
+        fragment_bytes (value) == record.keyword_tree) return true;
     if (record.origin == "enunciation" &&
         enunciation_matches_record (body, current, value, record)) return true;
   }

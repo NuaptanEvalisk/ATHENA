@@ -68,7 +68,8 @@ void populate (const fs::path& root, const AthenaVaultfileInfo& info) {
     "('c','definition','enunciation','ec','C.ath','anchor-c','A definition',0),"
     "('d','completion','enunciation','ed','A.ath','proof-anchor','Proof of the theorem',1);"
     "INSERT INTO artifact_names(artifact_uuid,name,ordinal,name_tree) VALUES"
-    "('a','strong nullstellensatz',0,''),('a','Hilbert theorem',1,'<math|k>'),"
+    "('a','strong nullstellensatz',0,''),('a','Hilbert theorem',1,"
+    "'<athena-tree version=\"1\" text-model=\"utf-8\"><node tag=\"math\"><text>k</text></node></athena-tree>'),"
     "('b','strong nullstellensatz',0,''),('c','weak nullstellensatz',0,'');");
 }
 

@@ -40,6 +40,9 @@
 #include "packrat_parser.hpp"
 #include "math_token.hpp"
 #include "math_font.hpp"
+#include "ATHENA/Data/new_buffer.hpp"
+#include "file.hpp"
+#include "web_files.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }
@@ -83,6 +86,25 @@ public:
 class TestUtf8Editor: public QObject {
   Q_OBJECT
 private slots:
+  void tmfsNativeDocument () {
+    const tree expected (DOCUMENT, compound ("style", "generic"),
+      compound ("body", tree (DOCUMENT, "caf\xc3\xa9 \xe4\xb8\xad \xf0\x9f\x91\xa9 <literal> \\\\xE9",
+                               compound ("named-symbol", "texmacs:mathD"))));
+    object handler= call (eval ("(lambda (doc) (lambda (name) "
+      "(if (equal? name \"tree\") doc (tree->stree doc))))"), object (expected));
+    call ("tmfs-handler", object ("utf8-native-test"), eval ("'load"), handler);
+    for (const char* kind: {"tree", "stree"}) {
+      url source (string ("tmfs://utf8-native-test/") * kind);
+      QVERIFY (import_tree (source, "stm") == expected);
+    }
+    call ("tmfs-handler", object ("utf8-raw-test"), eval ("'load"),
+          eval ("(lambda (name) \"raw caf\xc3\xa9\")"));
+    url raw= get_from_server (url ("tmfs://utf8-raw-test/file"));
+    string data;
+    QVERIFY (!load_string (raw, data, false));
+    QCOMPARE (data, string ("raw caf\xc3\xa9"));
+    remove (raw);
+  }
   void init () {
     buffer= tm_new<buffer_document_state> (nullptr, "tmfs://utf8-test", "", "UTF-8", false, 0);
     swap_current_document_tree (&buffer->document);
@@ -1022,6 +1044,16 @@ private slots:
     env->write (FONT, "TeX Gyre Pagella");
     env->write ("athena-radioactive-links-suppressed", "true");
     env->update ();
+    {
+      auto text= typeset_concat (env, tree (CONCAT, "left", "right"), path (0));
+      box marker= locus_box (path (0), empty_box (path (0), 0, 0, 0, 0),
+        list<string> ("marker"), 0, "", "#destination", false);
+      array<box> pieces;
+      pieces << text[0]->b << marker << text[N(text)-1]->b;
+      array<bool> markers;
+      markers << false << true << false;
+      QVERIFY (is_nil (join_utf8_line_boxes (path (0), pieces, markers)));
+    }
     const string word= "\xd7\x90\xd7\x91";
     const string source= word * " " * word * " 12";
     auto items= typeset_concat (env, tree (source), path (0));
@@ -1095,6 +1127,20 @@ private slots:
     QCOMPARE (probe.references[1].target, string ("#destination"));
     QCOMPARE (probe.anchors[0].target, string ("#label"));
     painter.end ();
+  }
+  void tocNotification () {
+    drd_info drd ("utf8-toc", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->update ();
+    const string title= "caf\xc3\xa9 \xe4\xb8\xad \xf0\x9f\x91\xa9";
+    auto items= typeset_concat (env, tree (TOC_NOTIFY, "toc-strong-2", title), path (0));
+    bool found= false;
+    for (int i= 0; i < N(items); ++i)
+      if ((tree) items[i]->b == tuple ("toc", "toc-strong-2", title)) found= true;
+    QVERIFY (found);
   }
   void deletionAndUndo_data () {
     QTest::addColumn<bool> ("forward");

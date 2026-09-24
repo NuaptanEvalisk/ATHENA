@@ -27,9 +27,9 @@ struct AthenaArtifactRecord {
   std::string content_uuid;
   std::string proof_uuid;
   std::string relative_path;
-  // User-facing and tree text is UTF-8. keyword_tree and definition_candidates
-  // are opaque serialized tree representations; they are not a character-set
-  // conversion boundary.
+  // User-facing and tree text is UTF-8. Bold keyword_tree, semantic_name_trees
+  // and definition_candidates use native XML tree fragments. Legacy decoding
+  // belongs exclusively to the offline vault upgrader.
   std::string anchor_stem;
   std::string display_text;
   // Semantic names are extracted from artifact content.  anchor_stem is only

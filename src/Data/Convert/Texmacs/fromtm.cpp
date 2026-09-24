@@ -417,6 +417,18 @@ texmacs_to_tree (string s) {
 }
 
 namespace athena::document {
+tree read_legacy_markup_fragment (std::string_view input, codec_limits limits) {
+  init_std_drd ();
+  if (input.size () > limits.input_bytes || input.size () > std::numeric_limits<int>::max ())
+    throw codec_exception (codec_error::resource_limit, "Legacy fragment exceeds size budget");
+  tm_reader reader (string (input.data (), static_cast<int> (input.size ())));
+  reader.limits= &limits;
+  tree result= finish_read (reader);
+  if (is_func (result, _ERROR))
+    throw codec_exception (codec_error::invalid_structure, "Malformed legacy index tree");
+  return result;
+}
+
 tree read_legacy_markup (std::string_view input, codec_limits limits) {
   init_std_drd ();
   if (input.size () > limits.input_bytes || input.size () > std::numeric_limits<int>::max ())

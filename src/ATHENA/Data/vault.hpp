@@ -21,6 +21,7 @@
 #include <string>
 
 class MaterialsStore;
+namespace athena::filesystem { class vault_directory_lease; }
 
 // Native, immutable operation context. Incarnations differ even when the same
 // vault is closed and reopened. No GUI objects or thread-affine strings escape.
@@ -30,6 +31,7 @@ struct vault_context {
   std::filesystem::path namespace_db;
   std::string name;
   std::string incarnation;
+  std::shared_ptr<athena::filesystem::vault_directory_lease> directory_lease;
 };
 using vault_context_handle= std::shared_ptr<const vault_context>;
 
