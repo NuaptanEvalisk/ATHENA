@@ -12,6 +12,7 @@
 #include "editor.hpp"
 #include "file.hpp"
 #include "hashset.hpp"
+#include "native_latex_commands.hpp"
 #include "new_view.hpp"
 #include "scheme.hpp"
 
@@ -535,6 +536,13 @@ generic_escape_symbol_dispatch (string action) {
     if (!starts (action, prefix)) continue;
     string capture= action (N (prefix), N (action));
     return json_keyboard_dispatch_result (action_value.toObject (), capture);
+  }
+
+  string help;
+  command cmd;
+  if (native_latex_get_command (action, help, cmd)) {
+    cmd ();
+    return object (true);
   }
   return object (false);
 }

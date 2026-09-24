@@ -212,6 +212,21 @@
        "native escape symbol inserts derivative tree")
 
 (reset "" 0)
+(escape-symbol-insert "alpha")
+(check (equal? (body) '(document "α"))
+       "ESC symbol fallback resolves native LaTeX alpha")
+
+(reset "" 0)
+(escape-symbol-insert "infty")
+(check (equal? (body) '(document "∞"))
+       "ESC symbol fallback resolves native LaTeX infinity")
+
+(reset "" 0)
+(escape-symbol-insert "cdots")
+(check (equal? (body) '(document "⋯"))
+       "ESC default action resolves native LaTeX cdots")
+
+(reset "" 0)
 (escape-symbol-insert "tree:math-up:sin")
 (check (equal? (body) '(document (math-up "sin")))
        "native escape symbol inserts dynamic math-up tree")
