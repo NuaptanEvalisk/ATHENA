@@ -103,7 +103,7 @@
   <assign|dueto|<macro|name|<with|font-shape|right|<theorem-name|(<arg|name>)
   >>>>
 
-  <assign|qed|<macro|<math-ignore|<active*|<with|mode|math|font-size|1.35|\<box\>>>>>>
+  <assign|qed|<macro|<math-ignore|<active*|<with|mode|math|font-size|1.35|□>>>>>
 
   <assign|tab-qed|<macro|<htab|0.5fn|0><qed>>>
 
