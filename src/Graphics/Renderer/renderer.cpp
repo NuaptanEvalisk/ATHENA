@@ -15,9 +15,11 @@
 #include "image_files.hpp"
 #include "frame.hpp"
 #include "shaped_text.hpp"
+#include "Freetype/tt_face.hpp"
 
 #include <cmath>
 #include <limits>
+#include <stdexcept>
 
 int    std_shrinkf  = 5;
 
@@ -80,9 +82,83 @@ renderer_rep::is_printer () {
   return false;
 }
 
+namespace {
+
+SI scaled_text_coordinate (SI value, double scale) {
+  const double result= std::round (value * scale);
+  if (!std::isfinite (result) ||
+      result < std::numeric_limits<SI>::min () ||
+      result > std::numeric_limits<SI>::max ())
+    throw std::overflow_error ("Scaled text coordinate is out of range");
+  return static_cast<SI> (result);
+}
+
+// Raster glyph drawing expects zoom-normalized coordinates, as font_rep::draw
+// supplies for the older font API. Keep shaped advances intact; only magnify
+// the physical raster and its device coordinates, not the shaping operation.
+struct text_raster_zoom {
+  renderer r;
+  SI ox, oy, cx1, cy1, cx2, cy2;
+  double zoom;
+  int shrink, pixel, retina_pixel, brushpx, thicken;
+
+  explicit text_raster_zoom (renderer ren):
+    r (ren), ox (r->ox), oy (r->oy), cx1 (r->cx1), cy1 (r->cy1),
+    cx2 (r->cx2), cy2 (r->cy2), zoom (r->zoomf), shrink (r->shrinkf),
+    pixel (r->pixel), retina_pixel (r->retina_pixel), brushpx (r->brushpx),
+    thicken (r->thicken) {}
+
+  void normalize () {
+    r->ox= scaled_text_coordinate (ox, zoom);
+    r->oy= scaled_text_coordinate (oy, zoom);
+    r->cx1= scaled_text_coordinate (cx1, zoom);
+    r->cy1= scaled_text_coordinate (cy1, zoom);
+    r->cx2= scaled_text_coordinate (cx2, zoom);
+    r->cy2= scaled_text_coordinate (cy2, zoom);
+    r->zoomf= 1.0;
+    r->shrinkf= std_shrinkf;
+    r->brushpx= pixel;
+    r->thicken= (std_shrinkf >> 1) * PIXEL;
+    r->pixel= r->retina_pixel= std_shrinkf * PIXEL;
+  }
+
+  ~text_raster_zoom () {
+    r->ox= ox; r->oy= oy;
+    r->cx1= cx1; r->cy1= cy1; r->cx2= cx2; r->cy2= cy2;
+    r->zoomf= zoom; r->shrinkf= shrink;
+    r->pixel= pixel; r->retina_pixel= retina_pixel;
+    r->brushpx= brushpx; r->thicken= thicken;
+  }
+};
+
+} // namespace
+
 void
 renderer_rep::draw_utf8 (const athena::text::shaped_text& run,
                          std::string_view, SI x, SI y) {
+  if (!run.glyphs.empty () && run.bitmaps.empty () &&
+      zoomf != 1.0 && !is_printer ()) {
+    athena::text::physical_font_source source;
+    if (!run.glyph_source->physical_source (source))
+      throw std::invalid_argument ("Missing physical source for scaled text");
+    const int hdpi= scaled_text_coordinate (source.horizontal_dpi, zoomf);
+    const int vdpi= scaled_text_coordinate (source.vertical_dpi, zoomf);
+    if (hdpi <= 0 || vdpi <= 0)
+      throw std::invalid_argument ("Invalid scaled text resolution");
+    font_glyphs raster= tt_font_glyphs (load_tt_face (source.file),
+                                       source.point_size, hdpi, vdpi);
+    for (const auto& glyph: run.glyphs) {
+      scaled_text_coordinate (x + glyph.x, zoomf);
+      scaled_text_coordinate (y + glyph.y, zoomf);
+    }
+    text_raster_zoom state (this);
+    state.normalize ();
+    for (const auto& glyph: run.glyphs)
+      draw (0x0c000000 + glyph.index, raster,
+            scaled_text_coordinate (x + glyph.x, state.zoom),
+            scaled_text_coordinate (y + glyph.y, state.zoom));
+    return;
+  }
   for (std::size_t i=0; i<run.glyphs.size (); ++i) {
     const auto& glyph= run.glyphs[i];
     if (!run.bitmaps.empty ()) run.bitmaps.at (i).draw (this, x + glyph.x, y + glyph.y);

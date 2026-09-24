@@ -30,6 +30,7 @@
 #include <limits>
 #include <stdexcept>
 #include <thread>
+#include <tuple>
 
 bool headless_mode= true;
 bool is_headless () { return true; }
@@ -1154,11 +1155,14 @@ static void check_text () {
   });
 }
 
-static void check_recording (bool multi_font= false) {
+static void check_recording (bool multi_font= false, double zoom= 1.0,
+                             double pixel_ratio= 1.0) {
+  const int width= 800, height= 320;
   auto connection= QTMRenderConnection::create (2, 64 * 1024);
   require (bool (connection), "No render connection");
   auto recording= connection->beginRecording (
-    200, 80, 1.0, qRgb (255, 255, 255), 1, 1, {0, 0, 200, 80});
+    width, height, pixel_ratio, qRgb (255, 255, 255), 1, 1,
+    {0, 0, width, height});
   require (bool (recording), "No recording");
   int expected_left, expected_right, expected_top, expected_bottom;
   {
@@ -1194,16 +1198,15 @@ static void check_recording (bool multi_font= false) {
     require (refreshed.glyph_source.rep != run.glyph_source.rep &&
              refreshed.advance_x == run.advance_x,
              "Shaping cache was not invalidated with its font domain");
-    const double pixel= std_shrinkf * PIXEL;
-    expected_left= static_cast<int> (std::floor (10 + leaf->x3 / pixel));
-    expected_right= static_cast<int> (std::ceil (10 + leaf->x4 / pixel));
-    expected_top= static_cast<int> (std::floor (45 - leaf->y4 / pixel));
-    expected_bottom= static_cast<int> (std::ceil (45 - leaf->y3 / pixel));
+    const double pixel= std_shrinkf * PIXEL / (zoom * pixel_ratio);
+    expected_left= static_cast<int> (std::floor (20 + leaf->x3 / pixel));
+    expected_right= static_cast<int> (std::ceil (20 + leaf->x4 / pixel));
+    expected_top= static_cast<int> (std::floor (200 - leaf->y4 / pixel));
+    expected_bottom= static_cast<int> (std::ceil (200 - leaf->y3 / pixel));
     QPainter painter (recording->device ());
-    qt_renderer_rep renderer (&painter, 1.0, 200, 80, true);
-    renderer.set_zoom_factor (1.0);
-    renderer.set_clipping (0, -80*std_shrinkf*PIXEL,
-                           200*std_shrinkf*PIXEL, 0);
+    qt_renderer_rep renderer (&painter, pixel_ratio, width, height, true);
+    renderer.set_zoom_factor (zoom);
+    renderer.set_clipping (0, -height*pixel, width*pixel, 0);
     renderer.set_pencil (pencil ((color) qRgb (0, 0, 0)));
     rejects<std::overflow_error> ([&] {
       run.draw_fixed (&renderer, source, std::numeric_limits<SI>::max (), 0);
@@ -1212,8 +1215,17 @@ static void check_recording (bool multi_font= false) {
       run.draw_fixed (&renderer, "short", 0, 0);
     });
     // A retained run still uses its original resources after a font refresh.
-    renderer.move_origin (10*std_shrinkf*PIXEL, -45*std_shrinkf*PIXEL);
+    renderer.move_origin (20*pixel, -200*pixel);
+    const auto state= std::make_tuple (
+      renderer.ox, renderer.oy, renderer.cx1, renderer.cy1,
+      renderer.cx2, renderer.cy2, renderer.zoomf, renderer.shrinkf,
+      renderer.pixel, renderer.retina_pixel, renderer.brushpx, renderer.thicken);
     leaf->display (&renderer);
+    require (state == std::make_tuple (
+      renderer.ox, renderer.oy, renderer.cx1, renderer.cy1,
+      renderer.cx2, renderer.cy2, renderer.zoomf, renderer.shrinkf,
+      renderer.pixel, renderer.retina_pixel, renderer.brushpx, renderer.thicken),
+      "Shaped drawing changed the caller's renderer coordinates");
     painter.end ();
   }
   require (recording->finish (), "Could not publish recording");
@@ -1222,7 +1234,7 @@ static void check_recording (bool multi_font= false) {
     auto frame= connection->acquireLatestFrame ();
     if (frame) {
       unsigned ink= 0;
-      int left= 200, right= -1, top= 80, bottom= -1;
+      int left= width, right= -1, top= height, bottom= -1;
       for (int y= 0; y < frame.image ().height (); ++y)
         for (int x= 0; x < frame.image ().width (); ++x) {
           if (frame.image ().pixel (x, y) == qRgb (255, 255, 255)) continue;
@@ -1238,7 +1250,9 @@ static void check_recording (bool multi_font= false) {
                std::abs (bottom + 1 - expected_bottom) <= 2,
                "Shaped metrics and recorded ink bounds disagree");
       if (const char* output= std::getenv ("ATHENA_SHAPED_TEXT_TEST_IMAGE"))
-        require (frame.image ().save (QString::fromUtf8 (output) + (multi_font ? "-line.png" : "")),
+        require (frame.image ().save (QString::fromUtf8 (output) +
+          QString ("-%1-%2%3.png").arg (zoom).arg (pixel_ratio)
+            .arg (multi_font ? "-line" : "")),
                  "Could not save shaped text image");
       return;
     }
@@ -1264,6 +1278,11 @@ int main () {
              "Font workers mutated the GUI debug-message tree");
     check_recording ();
     check_recording (true);
+    for (double zoom: {0.75, 1.5, 3.2})
+      for (double ratio: {1.0, 2.0}) {
+        check_recording (false, zoom, ratio);
+        check_recording (true, zoom, ratio);
+      }
   }
   catch (const std::exception& error) {
     std::cerr << error.what () << '\n';
