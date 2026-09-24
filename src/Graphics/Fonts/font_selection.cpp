@@ -26,6 +26,14 @@ namespace athena::text {
 namespace {
 template<class T> using object_ptr= std::unique_ptr<T, decltype (&g_object_unref)>;
 
+constexpr const char native_fontconfig_policy[]= R"fontconfig(
+<fontconfig>
+  <match target="font">
+    <edit name="embolden" mode="assign"><bool>false</bool></edit>
+  </match>
+</fontconfig>
+)fontconfig";
+
 void require_c_string (std::string_view s) {
   require_utf8 (s);
   if (s.find ('\0') != std::string_view::npos)
@@ -160,6 +168,14 @@ struct font_catalog::impl {
             reinterpret_cast<const FcChar8*> (dir.c_str ())))
         throw std::runtime_error ("Cannot add application font directory: " + dir);
     }
+    // Native shaping and rasterization consume the selected physical face
+    // directly. Fontconfig's system-wide synthetic emboldening would describe
+    // a transform that this path does not apply, so disable it in this private
+    // catalog rather than accepting mismatched Pango/native output.
+    if (!FcConfigParseAndLoadFromMemory (
+          config.get (), reinterpret_cast<const FcChar8*> (native_fontconfig_policy),
+          FcTrue))
+      throw std::runtime_error ("Cannot install native Fontconfig policy");
     pango_fc_font_map_set_config (PANGO_FC_FONT_MAP (map.get ()), config.get ());
   }
   void set_resolution (int horizontal, int vertical) {

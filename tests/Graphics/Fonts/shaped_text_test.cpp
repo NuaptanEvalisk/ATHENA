@@ -397,7 +397,14 @@ static void check_font_selection () {
            "Pango-selected variation changed during shaping");
   font_paragraph installed ("A", font_request {"TeX Gyre Pagella"});
   require (!installed.line (0, 1).missing_glyphs,
-           "Application/system catalog did not select an installed font");
+            "Application/system catalog did not select an installed font");
+  font_catalog synthetic_catalog (true, {file});
+  font_paragraph synthetic_bold (
+    "A", font_request {"ATHENA Collection Fixture One Bold"}, synthetic_catalog);
+  require (synthetic_bold.fonts ().size () == 1 &&
+           synthetic_bold.fonts ()[0].font.file_utf8 == file &&
+           synthetic_bold.fonts ()[0].font.face_index == 0,
+           "Synthetic bold fallback did not retain the real physical face");
 }
 
 static void check_font_styles (font nominal) {
