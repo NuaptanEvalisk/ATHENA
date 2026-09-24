@@ -15,6 +15,7 @@ bool native_math_keyboard_get_keycomb (
   string combination, int& status, command& cmd, string& shorthand, string& help);
 
 int native_math_keyboard_binding_count ();
+bool native_math_keyboard_has_registered_key (string combination);
 bool native_math_keyboard_context_active ();
 bool native_math_disable_pre_edit (string key);
 string native_math_downgrade_pre_edit (string key);

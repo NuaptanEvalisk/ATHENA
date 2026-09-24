@@ -113,7 +113,8 @@ struct native_math_registry {
     }
     for (int g=0; g<(int) groups.size (); ++g)
       for (int b=0; b<(int) groups[(std::size_t) g].bindings.size (); ++b) {
-        const string& key= groups[(std::size_t) g].bindings[(std::size_t) b].key;
+        const string key= get_server ()->kbd_pre_rewrite (
+          groups[(std::size_t) g].bindings[(std::size_t) b].key);
         const std::string std_key (key.data (), (std::size_t) N(key));
         exact[std_key].push_back ({g,b});
         for (int i=0; i<N(key); ++i)
@@ -358,6 +359,13 @@ int native_math_keyboard_binding_count () {
   int total= 0;
   for (const auto& group: registry ().groups) total += (int) group.bindings.size ();
   return total;
+}
+
+bool native_math_keyboard_has_registered_key (string combination) {
+  const auto& r= registry ();
+  const std::string key (combination.data (), (std::size_t) N(combination));
+  auto found= r.exact.find (key);
+  return found != r.exact.end () && !found->second.empty ();
 }
 
 bool native_math_keyboard_context_active () {

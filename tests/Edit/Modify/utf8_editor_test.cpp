@@ -494,6 +494,11 @@ private slots:
     QCOMPARE (calligraphic[0]->b->w (), reference.line (0, 1).advance);
     QCOMPARE (calligraphic[0]->b->get_leaf_string (), string ("E"));
   }
+  void nativeMathAltTableShortcut () {
+    eval ("(module-provide '(athena keyboard prefix-kbd))");
+    QCOMPARE (test_server->kbd_pre_rewrite ("math t"), string ("A-t"));
+    QVERIFY (native_math_keyboard_has_registered_key ("A-t"));
+  }
 
   void mathDelimiterFonts () {
     using namespace athena::text;
