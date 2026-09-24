@@ -22,14 +22,14 @@
   </src-title>>
 
   <assign|pat-or*|<macro|x|<active*|<with|color|dark
-  magenta|mode|math|\<vee\>>><arg|x>>>
+  magenta|mode|math|∨>><arg|x>>>
 
   <assign|pat-or|<xmacro|x|<active*|<with|color|dark
   magenta|(>><arg|x|0><map-args|pat-or*|concat|x|1><active*|<with|color|dark
   magenta|)>>>>
 
   <assign|pat-and*|<macro|x|<active*|<with|color|dark
-  magenta|mode|math|\<wedge\>>><arg|x>>>
+  magenta|mode|math|∧>><arg|x>>>
 
   <assign|pat-and|<xmacro|x|<active*|<with|color|dark
   magenta|(>><arg|x|0><map-args|pat-and*|concat|x|1><active*|<with|color|dark
@@ -50,13 +50,13 @@
   magenta|mode|math|\|>><arg|x>>>
 
   <assign|pat-compound|<xmacro|x|<active*|<with|color|dark
-  magenta|<with|mode|math|\<langle\>><with|font-family|ss|<inactive*|<arg|x|0>>>>><map-args|pat-compound*|concat|x|1><active*|<with|color|dark
-  magenta|mode|math|\<rangle\>>>>>
+  magenta|<with|mode|math|⟨><with|font-family|ss|<inactive*|<arg|x|0>>>>><map-args|pat-compound*|concat|x|1><active*|<with|color|dark
+  magenta|mode|math|⟩>>>>
 
   <assign|pat-repeat|<macro|x|<arg|x><active*|<with|color|dark
-  magenta|mode|math|<rsup|\<ast\>>>>>>
+  magenta|mode|math|<rsup|∗>>>>>
 
-  <assign|pat-any|<macro|<active*|<with|color|magenta|mode|math|<group|\<ast\>>>>>>
+  <assign|pat-any|<macro|<active*|<with|color|magenta|mode|math|<group|∗>>>>>
 
   <assign|pat-several-any|<macro|nr|<pat-any><active*|<with|color|dark
   magenta|mode|math|<rsup|<inactive*|<arg|nr>>>>>>>

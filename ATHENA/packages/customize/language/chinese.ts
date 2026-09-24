@@ -71,10 +71,10 @@
 
       Affected:
 
-      Insert -\<gtr\> Program<compound|math|><compound|math|> -\<gtr\>
+      Insert -> Program<compound|math|><compound|math|> ->
       Algorithm
 
-      Insert -\<gtr\> Program -\<gtr\> Pseudo code
+      Insert -> Program -> Pseudo code
     </src-comment>
   </active*>
 

@@ -78,13 +78,13 @@
 
   <new-counter|item>
 
-  <assign|last-item|<active*|<with|mode|math|<with|font-series|bold|math-font-series|bold|<rigid|\<ast\>>>>>>
+  <assign|last-item|<active*|<with|mode|math|<with|font-series|bold|math-font-series|bold|<rigid|∗>>>>>
 
   <assign|last-item-nr|0>
 
   <assign|current-item|<value|aligned-space-item>>
 
-  <assign|transform-item|<macro|name|<active*|<with|mode|math|<with|font-series|bold|math-font-series|bold|<rigid|\<ast\>>>>>>>
+  <assign|transform-item|<macro|name|<active*|<with|mode|math|<with|font-series|bold|math-font-series|bold|<rigid|∗>>>>>>
 
   <assign|the-item|<macro|<transform-item|<value|<counter-item>>>>>
 
@@ -260,9 +260,9 @@
 
   <new-list|itemize-arrow|<value|aligned-space-item>|<macro|name|<active*|<with|mode|math|<rigid|→>>>>>
 
-  <assign|todo-box-render|<macro|<active*|<with|mode|math|<rigid|\<box\>>>>>>
+  <assign|todo-box-render|<macro|<active*|<with|mode|math|<rigid|<named-symbol|texmacs:box>>>>>>
 
-  <assign|todo-checked-box-render|<macro|<superpose|<todo-box-render>|<active*|<with|mode|math|<move|<rigid|\<checkmark\>>|0.1em|0.05em>>>>>>
+  <assign|todo-checked-box-render|<macro|<superpose|<todo-box-render>|<active*|<with|mode|math|<move|<rigid|✓>|0.1em|0.05em>>>>>>
 
   <assign|todo-box|<macro|<action|<todo-box-render>|mouse-toggle-todo-item|<todo-box-render>>>>
 
@@ -296,15 +296,15 @@
 
   <new-list|enumerate-Alpha|<value|aligned-bracket-item>|<macro|name|<number|<arg|name>|Alpha>>>
 
-  <new-list|description-compact|<value|compact-strong-dot-item>|<macro|name|<active*|<with|mode|math|<with|font-series|bold|math-font-series|bold|<rigid|\<ast\>>>>>>>
+  <new-list|description-compact|<value|compact-strong-dot-item>|<macro|name|<active*|<with|mode|math|<with|font-series|bold|math-font-series|bold|<rigid|∗>>>>>>
 
-  <new-list|description-aligned|<value|aligned-strong-dot-item>|<macro|name|<active*|<with|mode|math|<with|font-series|bold|math-font-series|bold|<rigid|\<ast\>>>>>>>
+  <new-list|description-aligned|<value|aligned-strong-dot-item>|<macro|name|<active*|<with|mode|math|<with|font-series|bold|math-font-series|bold|<rigid|∗>>>>>>
 
-  <new-list|description-dash|<value|compact-strong-dash-item>|<macro|name|<active*|<with|mode|math|<with|font-series|bold|math-font-series|bold|<rigid|\<ast\>>>>>>>
+  <new-list|description-dash|<value|compact-strong-dash-item>|<macro|name|<active*|<with|mode|math|<with|font-series|bold|math-font-series|bold|<rigid|∗>>>>>>
 
-  <new-list|description-long|<value|long-compact-strong-dot-item>|<macro|name|<active*|<with|mode|math|<with|font-series|bold|math-font-series|bold|<rigid|\<ast\>>>>>>>
+  <new-list|description-long|<value|long-compact-strong-dot-item>|<macro|name|<active*|<with|mode|math|<with|font-series|bold|math-font-series|bold|<rigid|∗>>>>>>
 
-  <new-list|description|<value|compact-strong-dot-item>|<macro|name|<active*|<with|mode|math|<with|font-series|bold|math-font-series|bold|<rigid|\<ast\>>>>>>>
+  <new-list|description|<value|compact-strong-dot-item>|<macro|name|<active*|<with|mode|math|<with|font-series|bold|math-font-series|bold|<rigid|∗>>>>>>
 
   \;
 </body>

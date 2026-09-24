@@ -154,9 +154,9 @@
     A few symbols for personal use.
   </src-comment>>
 
-  <assign|der|<macro|x|<with|font|pagella|\<partial\>>>>
+  <assign|der|<macro|x|<with|font|pagella|∂>>>
 
-  <assign|smallo|<macro|x|<with|magnification|<times|0.7|<value|magnification>>|\<cal-O\>>>>
+  <assign|smallo|<macro|x|<with|magnification|<times|0.7|<value|magnification>>|𝒪>>>
 </body>
 
 <\initial>

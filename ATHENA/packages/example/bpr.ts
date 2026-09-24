@@ -12,7 +12,7 @@
       become interactive.
     </src-purpose>
 
-    <src-copyright|1998--2004|Marie-Fran�oise Roy and Joris van der Hoeven>
+    <src-copyright|1998--2004|Marie-Françoise Roy and Joris van der Hoeven>
 
     <\src-license>
       This software falls under the <hlink|GNU general public
@@ -73,7 +73,7 @@
 
   <assign|Ch|<macro|Ch>>
 
-  <assign|chiep|<macro|\<chi\>>>
+  <assign|chiep|<macro|χ>>
 
   <assign|charpoly|<macro|CharPol>>
 
@@ -117,7 +117,7 @@
 
   <assign|Elim|<macro|Elim>>
 
-  <assign|eps|<macro|\<varepsilon\>>>
+  <assign|eps|<macro|ε>>
 
   <assign|EQ|<macro|EuQ>>
 
@@ -163,7 +163,7 @@
 
   <assign|Ker|<macro|Ker>>
 
-  <assign|la|<macro|\<langle\>>>
+  <assign|la|<macro|⟨>>
 
   <assign|lc|<macro|lcof>>
 
@@ -241,7 +241,7 @@
 
   <assign|R|<macro|<with|mode|text|font-family|rm|font-shape|right|R>>>
 
-  <assign|ra|<macro|\<rangle\>>>
+  <assign|ra|<macro|⟩>>
 
   <assign|rad|<macro|rad>>
 
@@ -351,14 +351,14 @@
     </with>
   </surround>>>
 
-  <assign|fold-bpr|<macro|x|y|<style-with|src-compact|none|<\surround|<with|par-first|-1.5fn|<style-with|src-compact|none|<yes-indent><action|<resize|<specific|screen|<active*|<with|mode|math|<op|\<circ\>>>>>|||r]1.5fn|>|mouse-unfold|<arg|x>>>>|<right-flush>>
+  <assign|fold-bpr|<macro|x|y|<style-with|src-compact|none|<\surround|<with|par-first|-1.5fn|<style-with|src-compact|none|<yes-indent><action|<resize|<specific|screen|<active*|<with|mode|math|<op|∘>>>>|||r]1.5fn|>|mouse-unfold|<arg|x>>>>|<right-flush>>
     <\with|padded-normal|<value|fold-padded-normal>>
       <arg|x>
     </with>
   </surround>>>>
 
   <assign|unfold-bpr|<\macro|x|y>
-    <style-with|src-compact|none|<\surround|<with|par-first|-1.5fn|<style-with|src-compact|none|<yes-indent><action|<resize|<specific|screen|<active*|<with|mode|math|\<bullet\>>>>|||r]1.5fn|>|mouse-fold|<arg|x>>>>|<right-flush>>
+    <style-with|src-compact|none|<\surround|<with|par-first|-1.5fn|<style-with|src-compact|none|<yes-indent><action|<resize|<specific|screen|<active*|<with|mode|math|•>>>|||r]1.5fn|>|mouse-fold|<arg|x>>>>|<right-flush>>
       <\with|padded-normal|<value|fold-padded-normal>>
         <arg|y>
       </with>
@@ -383,16 +383,16 @@
 
   <assign|old-item|<value|item>>
 
-  <assign|fold-item|<resize|<active*|<with|mode|math|\<bullet\>>>|||1.5fn||><assign|item|<value|old-item>>>
+  <assign|fold-item|<resize|<active*|<with|mode|math|•>>|||1.5fn||><assign|item|<value|old-item>>>
 
-  <assign|summarized-algorithm|<macro|x|y|<style-with|src-compact|none|<\surround|<with|par-first|-3fn|<style-with|src-compact|none|<yes-indent><action|<resize|<specific|screen|<active*|<with|mode|math|<op|\<circ\>>>>>|||r]1.5fn|>|mouse-unfold|<arg|x>>>>|<right-flush>>
+  <assign|summarized-algorithm|<macro|x|y|<style-with|src-compact|none|<\surround|<with|par-first|-3fn|<style-with|src-compact|none|<yes-indent><action|<resize|<specific|screen|<active*|<with|mode|math|<op|∘>>>>|||r]1.5fn|>|mouse-unfold|<arg|x>>>>|<right-flush>>
     <\with|padded-normal|<value|fold-padded-normal>|item|<value|fold-item>>
       <arg|x>
     </with>
   </surround>>>>
 
   <assign|detailed-algorithm|<\macro|x|y>
-    <style-with|src-compact|none|<\surround|<with|par-first|-3fn|<style-with|src-compact|none|<yes-indent><action|<resize|<specific|screen|<active*|<with|mode|math|\<bullet\>>>>|||r]1.5fn|>|mouse-fold|<arg|x>|<arg|y>>>>|<right-flush>>
+    <style-with|src-compact|none|<\surround|<with|par-first|-3fn|<style-with|src-compact|none|<yes-indent><action|<resize|<specific|screen|<active*|<with|mode|math|•>>>|||r]1.5fn|>|mouse-fold|<arg|x>|<arg|y>>>>|<right-flush>>
       <\with|padded-normal|<value|fold-padded-normal>|item|<value|fold-item>>
         <arg|y>
       </with>
@@ -403,7 +403,7 @@
     Miscellaneous.
   </src-comment>>
 
-  <assign|coucou|<macro|1| <with|mode|math|\<langle\>><with|font-shape|small-caps|<arg|1>><with|mode|math|\<rangle\>>>>
+  <assign|coucou|<macro|1| <with|mode|math|⟨><with|font-shape|small-caps|<arg|1>><with|mode|math|⟩>>>
 
   <assign|w|<macro|1|<coucou|<underline|WARNING>: <arg|1>>>>
 
@@ -412,7 +412,7 @@
   </src-comment>>
 
   <assign|render-proof|<\macro|which|body>
-    <\surround||<space|0.5fn><active*|<with|mode|math|\<box\>>>>
+    <\surround||<space|0.5fn><active*|<with|mode|math|<named-symbol|texmacs:box>>>>
       <padded-normal|1fn|1fn|<surround|<theorem-name|<arg|which>>||<arg|body>>>
     </surround>
   </macro>>
@@ -420,25 +420,25 @@
   <assign|old-notation|<value|notation>>
 
   <assign|notation|<\macro|body>
-    <old-notation|<surround||<right-flush><active*|<with|mode|math|\<box\>>>|<with|font-shape|right|<arg|body>>>>
+    <old-notation|<surround||<right-flush><active*|<with|mode|math|<named-symbol|texmacs:box>>>|<with|font-shape|right|<arg|body>>>>
   </macro>>
 
   <assign|old-remark|<value|remark>>
 
   <assign|remark|<\macro|body>
-    <old-remark|<surround||<right-flush><active*|<with|mode|math|\<box\>>>|<with|font-shape|right|<arg|body>>>>
+    <old-remark|<surround||<right-flush><active*|<with|mode|math|<named-symbol|texmacs:box>>>|<with|font-shape|right|<arg|body>>>>
   </macro>>
 
   <assign|old-definition|<value|definition>>
 
   <assign|definition|<\macro|body>
-    <old-definition|<surround||<right-flush><active*|<with|mode|math|\<box\>>>|<with|font-shape|right|<arg|body>>>>
+    <old-definition|<surround||<right-flush><active*|<with|mode|math|<named-symbol|texmacs:box>>>|<with|font-shape|right|<arg|body>>>>
   </macro>>
 
   <assign|old-example|<value|example>>
 
   <assign|example|<\macro|body>
-    <old-example|<surround||<right-flush><active*|<with|mode|math|\<box\>>>|<arg|body>>>
+    <old-example|<surround||<right-flush><active*|<with|mode|math|<named-symbol|texmacs:box>>>|<arg|body>>>
   </macro>>
 
   \;

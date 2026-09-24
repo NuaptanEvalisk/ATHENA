@@ -10,7 +10,7 @@
       Some environments for typesetting pseudo-code.
     </src-purpose>
 
-    <src-copyright|2012--2014|François Poulain, Joris van der Hoeven>
+    <src-copyright|2012--2014|FranÃ§ois Poulain, Joris van der Hoeven>
 
     <\src-license>
       This software falls under the <hlink|GNU general public license,

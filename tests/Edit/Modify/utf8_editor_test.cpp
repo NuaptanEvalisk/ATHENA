@@ -570,6 +570,34 @@ private slots:
     }
   }
 
+  void nativeMathPackageDots () {
+    drd_info drd ("utf8-math-package-dots", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write (MODE, "math");
+    env->update ();
+    env->exec (tree (USE_PACKAGE,
+      string (std::getenv ("ATHENA_PATH")) * "/packages/standard/std-math.ts"));
+
+    box b= typeset_as_concat (env, compound ("center-dots"), path (0));
+    QImage image (500, 140, QImage::Format_ARGB32);
+    image.fill (Qt::white);
+    QPainter painter (&image);
+    InlineRenderProbe probe (&painter);
+    rectangles painted;
+    b->redraw (&probe, path (), painted);
+    std::string text;
+    for (const auto& draw: probe.draws) text+= draw.text;
+    QCOMPARE (text, std::string ("\xe2\x8b\x85\xe2\x8b\x85\xe2\x8b\x85"));
+    QVERIFY (text.find ("<cdot>") == std::string::npos);
+
+    for (const char* macro: {"high-dots", "tiny-box", "explicit-space"})
+      QVERIFY (typeset_as_concat (env, compound (macro), path (0))->w () >= 0);
+  }
+
   void unicodeMathLanguage () {
     const string alpha= "\316\261";
     const tree backassign (NAMED_SYMBOL, "texmacs:backassign");

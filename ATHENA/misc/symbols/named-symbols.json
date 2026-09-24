@@ -454,6 +454,13 @@
       "slant": "upright"
     },
     {
+      "identity": "texmacs:hdot",
+      "math_class": "symbol",
+      "virtual_font": "emu-fundamental",
+      "virtual_symbol": "hdot",
+      "slant": "upright"
+    },
+    {
       "identity": "texmacs:hdots",
       "math_class": "symbol",
       "virtual_font": "tradi-misc",
@@ -2133,6 +2140,13 @@
       "identity": "texmacs:risingdotseq",
       "math_class": "infix",
       "glyph": "≓",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:short-underscore",
+      "math_class": "symbol",
+      "virtual_font": "tradi-misc",
+      "virtual_symbol": "short-underscore",
       "slant": "upright"
     },
     {
@@ -3873,6 +3887,12 @@
       "identity": "texmacs:leqslant",
       "math_class": "infix",
       "glyph": "⩽",
+      "slant": "upright"
+    },
+    {
+      "identity": "texmacs:less",
+      "math_class": "infix",
+      "glyph": "<",
       "slant": "upright"
     },
     {

@@ -6,6 +6,12 @@ target_link_libraries (unicode_text_test PRIVATE athena_unicode Threads::Threads
 add_test (NAME unicode_text_test COMMAND unicode_text_test)
 set_tests_properties (unicode_text_test PROPERTIES TIMEOUT 15)
 
+add_test(NAME package_utf8_resources_test
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/package-utf8-resources-test.py
+    ${ATHENA_SOURCE_DIR}/ATHENA)
+set_tests_properties(package_utf8_resources_test PROPERTIES TIMEOUT 15)
+
 list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/watchdog/watchdog_fake_child\\.cpp$")
 list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/qt/completion_popup_test\\.cpp$")
 list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/interop/interop_test\\.cpp$")

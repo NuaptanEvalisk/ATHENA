@@ -10,7 +10,7 @@
       Macros defining sizes for a 10pt Revtex document.
     </src-purpose>
 
-    <src-copyright|2012--2012|Joris van der Hoeven, François Poulain>
+    <src-copyright|2012--2012|Joris van der Hoeven, FranÃ§ois Poulain>
 
     <\src-license>
       This software falls under the <hlink|GNU general public license,

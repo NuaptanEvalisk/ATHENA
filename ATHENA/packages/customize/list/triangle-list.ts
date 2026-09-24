@@ -21,11 +21,11 @@
     </src-license>
   </src-title>>
 
-  <assign|item-1|<macro|<math|<strong|<op|\<blacktriangleright\>>>>>>
+  <assign|item-1|<macro|<math|<strong|<op|▸>>>>>
 
-  <assign|item-2|<macro|<math|<strong|<op|\<vartriangleright\>>>>>>
+  <assign|item-2|<macro|<math|<strong|<op|⊳>>>>>
 
-  <assign|item-3|<macro|<math|<strong|<op|\<minus\>>>>>>
+  <assign|item-3|<macro|<math|<strong|<op|−>>>>>
 
   <assign|item-4|<macro|<math|<strong|<op|.>>>>>
 </body>

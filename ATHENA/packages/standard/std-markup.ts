@@ -87,7 +87,7 @@
 
   <assign|LaTeX|<macro|<active*|L<rsup|<space|-0.8spc><move|A|0fn|-0.1fn>><space|-0.2spc>T<rsub|<space|-0.4spc><move|<resize|<with|math-level|0|E>||||0.5fn>|0fn|-0.1fn>><space|-0.4spc>X>>>
 
-  <assign|LaTeXe|<macro|<active*|L<rsup|<space|-0.8spc><move|A|0fn|-0.1fn>><space|-0.2spc>T<rsub|<space|-0.4spc><move|<resize|<with|math-level|0|E>||||0.5fn>|0fn|-0.1fn>><space|-0.4spc>X<compound|math|>><space|0.2spc>2<move|<math|\<varepsilon\>>|-0.0fn|-0.15fn>>>
+  <assign|LaTeXe|<macro|<active*|L<rsup|<space|-0.8spc><move|A|0fn|-0.1fn>><space|-0.2spc>T<rsub|<space|-0.4spc><move|<resize|<with|math-level|0|E>||||0.5fn>|0fn|-0.1fn>><space|-0.4spc>X<compound|math|>><space|0.2spc>2<move|<math|ε>|-0.0fn|-0.15fn>>>
 
   <assign|LaTeX*|<macro|<active*|(L<rsup|<space|-0.8spc><move|A|0fn|-0.1fn>><space|-0.2spc>)<space|-0.2spc>T<rsub|<space|-0.4spc><move|<resize|<with|math-level|0|E>||||0.5fn>|0fn|-0.1fn>><space|-0.4spc>X>>>
 
@@ -606,7 +606,7 @@
 
   <assign|html-video|<macro|dest|width|height|<small|<colored-frame|pastel
   yellow|<tabular*|<tformat|<table|<row|<cell|<small|<with|font-family|tt|<arg|dest>>>>>|<row|<cell|<arg|width>
-  <math|\<times\>> <arg|height>>>>>>>>>>
+  <math|×> <arg|height>>>>>>>>>>
 
   <\active*>
     <\src-comment>

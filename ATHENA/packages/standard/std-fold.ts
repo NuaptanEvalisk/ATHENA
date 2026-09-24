@@ -128,7 +128,7 @@
   </macro>>
 
   <assign|folded-std|<\macro|x|y>
-    <\render-folded-std|<unfold-button|<resize|<active*|<with|mode|math|<op|\<circ\>>>>|||<maximum|1r|1.5fn>|>|<arg|x>>>
+    <\render-folded-std|<unfold-button|<resize|<active*|<with|mode|math|<op|∘>>>|||<maximum|1r|1.5fn>|>|<arg|x>>>
       <arg|x>
 
       <hidden|<arg|y>>
@@ -136,7 +136,7 @@
   </macro>>
 
   <assign|unfolded-std|<\macro|x|y>
-    <\render-folded-std|<fold-button|<resize|<active*|<with|mode|math|\<bullet\>>>|||<maximum|1r|1.5fn>|>|<arg|x>>>
+    <\render-folded-std|<fold-button|<resize|<active*|<with|mode|math|•>>|||<maximum|1r|1.5fn>|>|<arg|x>>>
       <arg|x>
 
       <arg|y>
@@ -146,7 +146,7 @@
   <assign|folded-reverse|<\macro|x|y>
     <hidden|<arg|x>>
 
-    <\render-folded-std|<unfold-button|<resize|<active*|<with|mode|math|<op|\<circ\>>>>|||<maximum|1r|1.5fn>|>|<arg|y>>>
+    <\render-folded-std|<unfold-button|<resize|<active*|<with|mode|math|<op|∘>>>|||<maximum|1r|1.5fn>|>|<arg|y>>>
       <arg|y>
     </render-folded-std>
   </macro>>
@@ -156,13 +156,13 @@
       <arg|x>
     </render-folded-std>
 
-    <\render-folded-std|<fold-button|<resize|<active*|<with|mode|math|\<bullet\>>>|||<maximum|1r|1.5fn>|>|<arg|y>>>
+    <\render-folded-std|<fold-button|<resize|<active*|<with|mode|math|•>>|||<maximum|1r|1.5fn>|>|<arg|y>>>
       <arg|y>
     </render-folded-std>
   </macro>>
 
   <assign|folded-env|<\macro|x|y>
-    <\render-folded-env|<unfold-button|<resize|<specific|screen|<active*|<with|mode|math|<op|\<circ\>>>>>|||<maximum|1r|1.5fn>|>|<arg|x>>>
+    <\render-folded-env|<unfold-button|<resize|<specific|screen|<active*|<with|mode|math|<op|∘>>>>|||<maximum|1r|1.5fn>|>|<arg|x>>>
       <arg|x>
 
       <hidden|<arg|y>>
@@ -170,7 +170,7 @@
   </macro>>
 
   <assign|unfolded-env|<\macro|x|y>
-    <\render-folded-env|<fold-button|<resize|<specific|screen|<active*|<with|mode|math|\<bullet\>>>>|||<maximum|1r|1.5fn>|>|<arg|x>>>
+    <\render-folded-env|<fold-button|<resize|<specific|screen|<active*|<with|mode|math|•>>>|||<maximum|1r|1.5fn>|>|<arg|x>>>
       <arg|x>
 
       <arg|y>
@@ -190,7 +190,7 @@
   </macro>>
 
   <assign|folded-documentation|<\macro|x|y>
-    <\render-folded-documentation|<unfold-button|<with|color|#336666|<strong|<large|<math|<op|\<Downarrow\>>>>>>|<arg|x>>>
+    <\render-folded-documentation|<unfold-button|<with|color|#336666|<strong|<large|<math|<op|⇓>>>>>|<arg|x>>>
       <strong|<large|<arg|x>>>
     <|render-folded-documentation>
       <hidden|<arg|y>>
@@ -198,7 +198,7 @@
   </macro>>
 
   <assign|unfolded-documentation|<\macro|x|y>
-    <\render-unfolded-documentation|<fold-button|<with|color|#336666|<strong|<math|<op|\<Uparrow\>>>>>|<arg|x>>>
+    <\render-unfolded-documentation|<fold-button|<with|color|#336666|<strong|<math|<op|⇑>>>>|<arg|x>>>
       <strong|<large|<arg|x>>>
     </render-unfolded-documentation|<arg|y>>
   </macro>>
@@ -208,7 +208,7 @@
   </macro>>
 
   <assign|source-mixed|<\macro|x|y>
-    <\render-folded-std|<action|<resize|<active*|<with|mode|math|||||\<blacktriangleleft\>>>|||<maximum|1r|1.5fn>|>|mouse-fold|<verbatim|<arg|y>>>>
+    <\render-folded-std|<action|<resize|<active*|<with|mode|math|||||◂>>|||<maximum|1r|1.5fn>|>|mouse-fold|<verbatim|<arg|y>>>>
       <verbatim|<arg|y>><hidden|<arg|x>>
     </render-folded-std>
   </macro>>
@@ -272,25 +272,25 @@
   </macro>>
 
   <assign|summarized-std|<\macro|x|y>
-    <\render-folded-std|<unfold-button|<resize|<specific|screen|<active*|<with|mode|math|<op|\<circ\>>>>>|||<maximum|1r|1.5fn>|>|<arg|x>>>
+    <\render-folded-std|<unfold-button|<resize|<specific|screen|<active*|<with|mode|math|<op|∘>>>>|||<maximum|1r|1.5fn>|>|<arg|x>>>
       <arg|x>
     </render-folded-std>
   </macro>>
 
   <assign|detailed-std|<\macro|x|y>
-    <\render-folded-std|<fold-button|<resize|<specific|screen|<active*|<with|mode|math|\<bullet\>>>>|||<maximum|1r|1.5fn>|>|<arg|x>>>
+    <\render-folded-std|<fold-button|<resize|<specific|screen|<active*|<with|mode|math|•>>>|||<maximum|1r|1.5fn>|>|<arg|x>>>
       <arg|y>
     </render-folded-std>
   </macro>>
 
   <assign|summarized-env|<\macro|x|y>
-    <\render-folded-env|<unfold-button|<resize|<specific|screen|<active*|<with|mode|math|<op|\<circ\>>>>>|||<maximum|1r|1.5fn>|>|<arg|x>>>
+    <\render-folded-env|<unfold-button|<resize|<specific|screen|<active*|<with|mode|math|<op|∘>>>>|||<maximum|1r|1.5fn>|>|<arg|x>>>
       <arg|x>
     </render-folded-env>
   </macro>>
 
   <assign|detailed-env|<\macro|x|y>
-    <\render-folded-env|<fold-button|<resize|<specific|screen|<active*|<with|mode|math|\<bullet\>>>>|||<maximum|1r|1.5fn>|>|<arg|x>>>
+    <\render-folded-env|<fold-button|<resize|<specific|screen|<active*|<with|mode|math|•>>>|||<maximum|1r|1.5fn>|>|<arg|x>>>
       <arg|y>
     </render-folded-env>
   </macro>>
@@ -308,13 +308,13 @@
   </macro>>
 
   <assign|summarized-documentation|<\macro|x|y>
-    <\render-folded-documentation|<unfold-button|<with|color|#336666|<strong|<large|<math|<op|\<ldots\>>>>>>|<arg|x>>>
+    <\render-folded-documentation|<unfold-button|<with|color|#336666|<strong|<large|<math|<op|…>>>>>|<arg|x>>>
       <strong|<large|<arg|x>>>
     </render-folded-documentation>
   </macro>>
 
   <assign|detailed-documentation|<\macro|x|y>
-    <\render-folded-documentation|<fold-button|<with|color|#336666|<strong|<math|<op|\<Leftarrow\>>>>>|<arg|x>>>
+    <\render-folded-documentation|<fold-button|<with|color|#336666|<strong|<math|<op|⇐>>>>|<arg|x>>>
       <arg|y>
     </render-folded-documentation>
   </macro>>

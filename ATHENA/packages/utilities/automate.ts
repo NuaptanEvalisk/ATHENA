@@ -168,7 +168,7 @@
   </macro>>
 
   <assign|block-assign|<\macro|var|val>
-    <block-render|brown|<arg|var> <math|\<longleftarrow\>> <arg|val>>
+    <block-render|brown|<arg|var> <math|⟵> <arg|val>>
   </macro>>
 
   <assign|block-intersperse|<\macro|sep|body>
@@ -193,11 +193,11 @@
     </src-comment>
   </active*>
 
-  <assign|inline-render|<macro|bgc|body|<with|color|<arg|bgc>|<math|\<langle\>><arg|body><math|\<rangle\>>>>>
+  <assign|inline-render|<macro|bgc|body|<with|color|<arg|bgc>|<math|⟨><arg|body><math|⟩>>>>
 
-  <assign|inline-unary|<macro|bgc|body|arg1|<with|color|<arg|bgc>|<math|\<langle\>><arg|body>\|><arg|arg1><with|color|<arg|bgc>|<math|\<rangle\>>>>>
+  <assign|inline-unary|<macro|bgc|body|arg1|<with|color|<arg|bgc>|<math|⟨><arg|body>\|><arg|arg1><with|color|<arg|bgc>|<math|⟩>>>>
 
-  <assign|inline-unary-inline-unary|<macro|bgc|body1|arg1|body2|arg2|<with|color|<arg|bgc>|<math|\<langle\>><arg|body1>\|><arg|arg1><with|color|<arg|bgc>|\|<arg|body2>\|><arg|arg2><with|color|<arg|bgc>|<math|\<rangle\>>>>>
+  <assign|inline-unary-inline-unary|<macro|bgc|body1|arg1|body2|arg2|<with|color|<arg|bgc>|<math|⟨><arg|body1>\|><arg|arg1><with|color|<arg|bgc>|\|<arg|body2>\|><arg|arg2><with|color|<arg|bgc>|<math|⟩>>>>
 
   <\active*>
     <\src-comment>
@@ -218,7 +218,7 @@
   <arg|cond>|<arg|body>>>>
 
   <assign|inline-assign|<macro|var|val|<inline-render|brown|<arg|var>
-  <math|\<leftarrow\>> <arg|val>>>>
+  <math|←> <arg|val>>>>
 
   <assign|inline-intersperse|<macro|sep|body|<with|old-color|<value|color>|<inline-unary|brown|<auto-keyword|intersperse>
   <with|color|<value|old-color>|<arg|sep>>|<arg|body>>>>>
