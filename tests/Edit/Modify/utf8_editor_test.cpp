@@ -1254,6 +1254,38 @@ private slots:
     env->write ("athena-radioactive-links-suppressed", "true");
     env->update ();
     {
+      auto prefix= typeset_marker (env, decorate_right (path (0)));
+      auto first= typeset_concat (env, tree ("ab"), path (0, 0));
+      auto second= typeset_concat (env, tree ("cd"), path (1, 0));
+      auto suffix= typeset_marker (env, decorate_right (path (0)));
+      QCOMPARE (N(prefix), 1);
+      QCOMPARE (N(first), 1);
+      QCOMPARE (N(second), 1);
+      QCOMPARE (N(suffix), 1);
+      array<line_item> flow_items;
+      flow_items << prefix << first << second << suffix;
+      prepare_utf8_paragraph (path (0), flow_items);
+      array<box> flow_pieces;
+      array<SI> flow_spaces;
+      for (int i=0; i<N(flow_items); ++i) {
+        flow_pieces << flow_items[i]->b;
+        flow_spaces << (i == 0 ? SI(0) : flow_items[i-1]->spc->def);
+      }
+      reassemble_utf8_line (flow_pieces, flow_spaces);
+      QCOMPARE (N(flow_pieces), 1);
+      box mapped= flow_pieces[0];
+      QCOMPARE (reverse (mapped->find_lip ()), path (0, 0, 0));
+      QCOMPARE (reverse (mapped->find_rip ()), path (0, 1, 2));
+      box phrase= phrase_box (decorate_right (path (0)), flow_pieces, flow_spaces);
+      bool found= false;
+      const path start= phrase->find_box_path (path (0, 0, 0), found);
+      QVERIFY (found);
+      QVERIFY (phrase->find_tree_path (start) == path (0, 0, 0));
+      const path end= phrase->find_box_path (path (0, 1, 2), found);
+      QVERIFY (found);
+      QVERIFY (phrase->find_tree_path (end) == path (0, 1, 2));
+    }
+    {
       auto text= typeset_concat (env, tree (CONCAT, "left", "right"), path (0));
       box marker= locus_box (path (0), empty_box (path (0), 0, 0, 0, 0),
         list<string> ("marker"), 0, "", "#destination", false);

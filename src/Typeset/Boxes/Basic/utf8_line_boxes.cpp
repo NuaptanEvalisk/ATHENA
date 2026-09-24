@@ -429,12 +429,20 @@ struct mapped_utf8_line_box_rep final: utf8_line_box_rep {
       descend_decode (s.ip, at == s.end ? 1 : 0);
   }
   path find_lip () override {
-    const auto& s= (*sources)[first_source];
-    return is_accessible (s.ip) ? source_path (first_source, begin) : s.ip;
+    for (int i= first_source; i <= last_source; ++i) {
+      const auto& s= (*sources)[i];
+      if (!is_accessible (s.ip) || s.end < begin || s.begin > end) continue;
+      return source_path (i, max (begin, s.begin));
+    }
+    return (*sources)[first_source].ip;
   }
   path find_rip () override {
-    const auto& s= (*sources)[last_source];
-    return is_accessible (s.ip) ? source_path (last_source, end) : s.ip;
+    for (int i= last_source; i >= first_source; --i) {
+      const auto& s= (*sources)[i];
+      if (!is_accessible (s.ip) || s.end < begin || s.begin > end) continue;
+      return source_path (i, min (end, s.end));
+    }
+    return (*sources)[last_source].ip;
   }
   path find_left_box_path () override {
     return path (0, path (static_cast<int> (caret_affinity::downstream), first_source));
