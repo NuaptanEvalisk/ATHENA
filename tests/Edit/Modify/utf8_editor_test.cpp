@@ -599,6 +599,32 @@ private slots:
       QVERIFY (typeset_as_concat (env, compound (macro), path (0))->w () >= 0);
   }
 
+  void nativeMathPrimeGlyphs () {
+    drd_info drd ("utf8-math-primes", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write (MODE, "math");
+    env->update ();
+
+    tree value (CONCAT, tree (LPRIME, "`"), "x", tree (RPRIME, "''"));
+    box b= typeset_as_concat (env, value, path (0));
+    QImage image (500, 140, QImage::Format_ARGB32);
+    image.fill (Qt::white);
+    QPainter painter (&image);
+    InlineRenderProbe probe (&painter);
+    rectangles painted;
+    b->redraw (&probe, path (), painted);
+    std::string text;
+    for (const auto& draw: probe.draws) text+= draw.text;
+    QVERIFY (text.find ("‵") != std::string::npos);
+    QVERIFY (text.find ("′′") != std::string::npos);
+    QVERIFY (text.find ("<prime>") == std::string::npos);
+    QVERIFY (text.find ("<backprime>") == std::string::npos);
+  }
+
   void nativeUtf8MetadataAndLegacyEncodingPreference () {
     tree doc (DOCUMENT,
       compound ("doc-data",
