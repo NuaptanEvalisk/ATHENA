@@ -41,6 +41,7 @@
 #include "math_token.hpp"
 #include "math_font.hpp"
 #include "ATHENA/Data/new_buffer.hpp"
+#include "convert.hpp"
 #include "file.hpp"
 #include "web_files.hpp"
 
@@ -596,6 +597,25 @@ private slots:
 
     for (const char* macro: {"high-dots", "tiny-box", "explicit-space"})
       QVERIFY (typeset_as_concat (env, compound (macro), path (0))->w () >= 0);
+  }
+
+  void nativeUtf8MetadataAndLegacyEncodingPreference () {
+    tree doc (DOCUMENT,
+      compound ("doc-data",
+        compound ("doc-title", "Functional Analysis 中"),
+        compound ("author-name", "Fran\xc3\xa7ois \xce\xb1")));
+    QCOMPARE (search_metadata (doc, "title"),
+              string ("Functional Analysis \xe4\xb8\xad"));
+    QCOMPARE (search_metadata (doc, "author"),
+              string ("Fran\xc3\xa7ois \xce\xb1"));
+
+    eval ("(module-provide '(convert rewrite init-rewrite))");
+    QCOMPARE (as_string (eval (
+      "(texmacs->code (tm->tree \"caf\303\251 \344\270\255\") \"cork\")")),
+      string ("caf\xc3\xa9 \xe4\xb8\xad"));
+    QVERIFY (as_bool (eval (
+      "(begin (verbatim->texmacs \"caf\303\251\" "
+      " (acons \"verbatim->texmacs:encoding\" \"cork\" '())) #t)")));
   }
 
   void unicodeMathLanguage () {

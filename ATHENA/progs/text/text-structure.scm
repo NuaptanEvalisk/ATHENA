@@ -39,7 +39,7 @@
 	    (tm/section-get-title-string-sub (cdr l) indent?)))))
 
 (tm-define (texmacs->string x)
-  (texmacs->code (verbatim-expand x) "cork"))
+  (texmacs->code (verbatim-expand x) "utf-8"))
 
 (tm-define (texmacs->title-string x)
   (downgrade-math-letters (texmacs->string x)))

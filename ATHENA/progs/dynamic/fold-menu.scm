@@ -307,7 +307,7 @@
   (with t (slide-get-document t*)
     (if (and (tree-is? t 'document)
              (tree-is? t 0 'tit))
-        (texmacs->code (verbatim-expand (tm-ref t 0 0)) "cork")
+        (texmacs->code (verbatim-expand (tm-ref t 0 0)) "utf-8")
         "")))
 
 (tm-define (get-slide-name t i)

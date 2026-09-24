@@ -1621,17 +1621,19 @@ QTMPreferencesDialog::buildConversionPage () {
   QFormLayout* v1= add_section (verbatim, "ATHENA → Verbatim");
   add_toggle (v1, "Use line wrapping for lines longer than 80 characters:",
               "texmacs->verbatim:wrap");
+  if (get_preference ("texmacs->verbatim:encoding") == "cork")
+    set_preference ("texmacs->verbatim:encoding", "utf-8");
   add_combo (v1, "Character encoding:", "texmacs->verbatim:encoding",
-             {{"auto", "Automatic"}, {"cork", "Cork"},
-              {"iso-8859-1", "Iso-8859-1"},
-              {"iso-8859-2", "Iso-8859-2"}, {"utf-8", "Utf-8"}});
+              {{"auto", "Automatic"}, {"iso-8859-1", "Iso-8859-1"},
+               {"iso-8859-2", "Iso-8859-2"}, {"utf-8", "Utf-8"}});
   QFormLayout* v2= add_section (verbatim, "Verbatim → ATHENA");
   add_toggle (v2, "Merge lines into paragraphs unless separated by blank lines:",
               "verbatim->texmacs:wrap");
+  if (get_preference ("verbatim->texmacs:encoding") == "cork")
+    set_preference ("verbatim->texmacs:encoding", "utf-8");
   add_combo (v2, "Character encoding:", "verbatim->texmacs:encoding",
-             {{"auto", "Automatic"}, {"cork", "Cork"},
-              {"iso-8859-1", "Iso-8859-1"},
-              {"iso-8859-2", "Iso-8859-2"}, {"utf-8", "Utf-8"}});
+              {{"auto", "Automatic"}, {"iso-8859-1", "Iso-8859-1"},
+               {"iso-8859-2", "Iso-8859-2"}, {"utf-8", "Utf-8"}});
   finish_page (verbatim);
 
   QWidget* pdf= make_page ();

@@ -78,8 +78,15 @@
 (define-format code
   (:name "Source code"))
 
+(define (normalize-external-text-encoding enc)
+  ;; Cork was removed from the normal UTF-8 text path.  Migrate stale
+  ;; converter preferences instead of passing the retired encoding into the
+  ;; native converter, where it is intentionally rejected.
+  (if (== enc "cork") "utf-8" enc))
+
 (tm-define (texmacs->code t . enc)
   (if (null? enc) (set! enc (list (get-locale-charset))))
+  (set! enc (list (normalize-external-text-encoding (car enc))))
   (if (tree? t)
       (cpp-texmacs->verbatim t #f (car enc))
       (texmacs->code (tm->tree t) (car enc))))
@@ -109,13 +116,15 @@
 (tm-define (texmacs->verbatim x . opts)
   (if (list-1? opts) (set! opts (car opts)))
   (let* ((wrap? (== (assoc-ref opts "texmacs->verbatim:wrap") "on"))
-         (enc (or (assoc-ref opts "texmacs->verbatim:encoding") "auto")))
+         (enc (normalize-external-text-encoding
+               (or (assoc-ref opts "texmacs->verbatim:encoding") "auto"))))
     (cpp-texmacs->verbatim x wrap? enc)))
 
 (tm-define (texmacs->verbatim-snippet x . opts)
   (if (list-1? opts) (set! opts (car opts)))
   (let* ((wrap? (== (assoc-ref opts "texmacs->verbatim:wrap") "on"))
-         (enc (or (assoc-ref opts "texmacs->verbatim:encoding") "auto")))
+         (enc (normalize-external-text-encoding
+               (or (assoc-ref opts "texmacs->verbatim:encoding") "auto"))))
     (if (or (== (get-env "mode") "prog") (== (get-env "font-family") "tt"))
         ;; FIXME: dirty hacks for "copy to verbatim" of code snippets
         (let ((conv (cpp-texmacs->verbatim x #f enc))
@@ -126,13 +135,15 @@
 (tm-define (verbatim->texmacs x . opts)
   (if (list-1? opts) (set! opts (car opts)))
   (let* ((wrap? (== (assoc-ref opts "verbatim->texmacs:wrap") "on"))
-         (enc (or (assoc-ref opts "verbatim->texmacs:encoding") "auto")))
+         (enc (normalize-external-text-encoding
+               (or (assoc-ref opts "verbatim->texmacs:encoding") "auto"))))
     (cpp-verbatim->texmacs x wrap? enc)))
 
 (tm-define (verbatim-snippet->texmacs x . opts)
   (if (list-1? opts) (set! opts (car opts)))
   (let* ((wrap? (== (assoc-ref opts "verbatim->texmacs:wrap") "on"))
-         (enc (or (assoc-ref opts "verbatim->texmacs:encoding") "auto")))
+         (enc (normalize-external-text-encoding
+               (or (assoc-ref opts "verbatim->texmacs:encoding") "auto"))))
     (cpp-verbatim-snippet->texmacs x wrap? enc)))
 
 (define-format verbatim
