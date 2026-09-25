@@ -5,6 +5,34 @@
 This repository contains layered systems. When a bug crosses representation
 boundaries, do not patch from intuition. Debug from evidence.
 
+### Lessons From The Structured Wide-Accent Failure
+
+- Preserve the exact live representation when debugging structured content.
+  `WIDE(u, CONCAT(NAMED_SYMBOL(...)))` and `WIDE(u, NAMED_SYMBOL(...))` are not
+  interchangeable summaries: a seemingly transparent wrapper can be the entire
+  cause of a failed control-flow branch.
+- When a real failing document is open and available for inspection, prefer its
+  exact source tree, expanded tree and live boxes over a visually equivalent
+  scratch reproduction. A modern input path can normalize away the historical
+  structure that actually triggers the bug.
+- Trace the first incorrect transition all the way through the active pipeline.
+  For rendering bugs, inspect the semantic payload that reaches the box, not
+  only the final geometry. An empty render descriptor or zero-width child proves
+  the symbol was already lost before spacing and positioning code can matter.
+- Before patching, state a falsifiable expectation for the suspected layer. If a
+  spacing bug is suspected, first prove that the intended glyph or primitive is
+  present. If it is absent, stop and move earlier instead of tuning layout.
+- Treat a patch with no observable change as strong evidence that the active
+  failing path was not reached. Do not stack second- and third-order fixes on
+  top of an unproven hypothesis.
+- Existing persisted documents define a compatibility contract. If a historical
+  structured form is already stored in native files, the runtime must render it
+  correctly without requiring vault-wide remigration unless the user explicitly
+  requests a migration.
+- After three consecutive attempts at the same bug without observable
+  improvement, stop local hypothesis patching and escalate with the exact live
+  tree, relevant boxes, control-flow evidence and current diff.
+
 ### What Went Wrong
 
 - I treated symptoms as causes and patched the PDF/backend path before proving
