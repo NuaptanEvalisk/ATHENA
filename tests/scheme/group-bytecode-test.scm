@@ -1,0 +1,32 @@
+;; Compile in an initialized world, then load into different group state.
+;; ATHENA_GROUP_TEST_DIR must name an isolated writable test directory.
+(use-modules (system base compile) (system vm loader))
+(import-from (utils edit variants))
+
+(let* ((root (getenv "ATHENA_GROUP_TEST_DIR"))
+       (source (string-append root "/group.scm"))
+       (output (string-append root "/group.go"))
+       (group 'bytecode-regression-tag))
+  (define (check expected actual)
+    (unless (equal? expected actual)
+      (error "Group bytecode regression" expected actual)))
+  (ahash-set! group-table group '(compile-only))
+  (call-with-output-file source
+    (lambda (port)
+      (write '(define-group bytecode-regression-tag inserted) port)))
+  (compile-file source #:output-file output #:env (current-module)
+                #:optimization-level 1 #:warning-level 0)
+  (ahash-set! group-table group '(runtime-only))
+  (set! group-resolve-table (make-ahash-table))
+  (check '(runtime-only) (group-resolve group))
+  (load-compiled output)
+  (check '(runtime-only inserted) (bytecode-regression-tag-list))
+  (check #t (bytecode-regression-tag? 'inserted))
+  (check #f (bytecode-regression-tag? 'compile-only))
+  (check #t (procedure? inside-bytecode-regression-tag?))
+  ;; Loading with an absent group must define it without compiler-world data.
+  (ahash-remove! group-table group)
+  (load-compiled output)
+  (check '(inserted) (bytecode-regression-tag-list))
+  (call-with-output-file (string-append root "/passed")
+    (lambda (port) (display "group bytecode regression passed\n" port))))
