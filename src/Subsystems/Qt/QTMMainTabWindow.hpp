@@ -83,6 +83,7 @@ protected:
   ads::CDockContainerWidget* activeAdsDockContainer() const;
   ads::CDockAreaWidget* activeAdsDockArea(
     ads::CDockContainerWidget* container) const;
+  void cycleActiveAdsTab(int delta);
 
 private:
   static QTMMainTabWindow *gTopTabWindow;

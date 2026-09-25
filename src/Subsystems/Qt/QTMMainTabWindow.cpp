@@ -31,6 +31,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QMap>
+#include <QShortcut>
 #include <QSaveFile>
 #include <QTimer>
 #include <QStringList>
@@ -222,6 +223,17 @@ QTMMainTabWindow::QTMMainTabWindow()
   connect(qApp, &QCoreApplication::aboutToQuit,
            this, &QTMMainTabWindow::saveAdsLayoutState);
 
+  auto* nextTab= new QShortcut (QKeySequence (Qt::CTRL | Qt::Key_Tab), this);
+  nextTab->setContext (Qt::WindowShortcut);
+  connect (nextTab, &QShortcut::activated, this,
+           [this] { cycleActiveAdsTab (1); });
+
+  auto* previousTab= new QShortcut (
+    QKeySequence (Qt::CTRL | Qt::SHIFT | Qt::Key_Tab), this);
+  previousTab->setContext (Qt::WindowShortcut);
+  connect (previousTab, &QShortcut::activated, this,
+           [this] { cycleActiveAdsTab (-1); });
+
   // todo : keep the tab window size and position in the user preferences
   setMinimumSize(800, 600);
 
@@ -382,6 +394,33 @@ QTMMainTabWindow::activeAdsDockArea(
 
   QList<ads::CDockAreaWidget*> areas= container->openedDockAreas ();
   return areas.isEmpty () ? nullptr : areas.first ();
+}
+
+void
+QTMMainTabWindow::cycleActiveAdsTab(int delta) {
+  if (delta == 0 || mDockManager == nullptr) return;
+  ads::CDockContainerWidget* container= activeAdsDockContainer ();
+  ads::CDockAreaWidget* area= activeAdsDockArea (container);
+  if (area == nullptr) return;
+
+  const QList<ads::CDockWidget*> tabs= area->openedDockWidgets ();
+  if (tabs.size () < 2) return;
+  ads::CDockWidget* current= area->currentDockWidget ();
+  int index= tabs.indexOf (current);
+  if (index < 0) index= 0;
+  const int count= tabs.size ();
+  const int nextIndex= (index + (delta > 0 ? 1 : -1) + count) % count;
+  ads::CDockWidget* next= tabs[nextIndex];
+  if (next == nullptr) return;
+
+  area->setCurrentDockWidget (next);
+  mDockManager->setDockWidgetFocused (next);
+  if (isDocumentWidget (next->widget ()))
+    mLastFocusedDocumentWidget= next->widget ();
+  setMainTitle (next->windowTitle ());
+  if (QWidget* target= isDocumentWidget (next->widget ()) ?
+        documentFocusTarget (next->widget ()) : next->widget ())
+    target->setFocus (Qt::ShortcutFocusReason);
 }
 
 void QTMMainTabWindow::saveAdsLayoutState() {
