@@ -10,7 +10,7 @@ RUN zypper --non-interactive refresh && \
       Mesa-libEGL-devel Mesa-libGLESv2-devel cairo-devel dbus-1-devel \
       libdrm-devel libevdev-devel libinput-devel libjpeg8-devel \
       libnettle-devel libpng16-devel seatd-devel libudev-devel \
-      libxkbcommon-devel pam-devel pango-devel libpixman-1-0-devel \
+      libxkbcommon-devel pam-devel libpixman-1-0-devel \
       wayland-devel wayland-protocols-devel zlib-devel
 RUN zypper --non-interactive install --no-recommends libdisplay-info-devel
 
@@ -78,7 +78,7 @@ RUN zypper --non-interactive refresh && \
       tar thunar \
       Mesa-libEGL1 Mesa-libGL1 libcairo2 libdrm2 libevdev2 libinput10 \
       libjpeg8 libnettle8 libpng16-16 libseat1 libudev1 libxkbcommon0 \
-      libxkbcommon-x11-0 pam libpango-1_0-0 libpixman-1-0 \
+      libxkbcommon-x11-0 pam libpixman-1-0 \
       libwayland-client0 libwayland-cursor0 libwayland-egl1 \
       libwayland-server0 libz1 \
       gstreamer gstreamer-utils gstreamer-plugins-base gstreamer-plugins-good \

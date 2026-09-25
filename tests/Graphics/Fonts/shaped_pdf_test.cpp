@@ -17,6 +17,7 @@
 #include "unicode_text.hpp"
 #include "shaped_line.hpp"
 #include "font_selection.hpp"
+#include "font_database.hpp"
 #include "pdf_text_string.hpp"
 #include "printer.hpp"
 #include "Ghostscript/gs_utilities.hpp"
@@ -181,13 +182,13 @@ static void check_collection_export (const QString& pdf) {
     const auto medium= athena::text::shape_freetype_utf8 (
       athena::text::font_file_source {variable, 0, {650 * 65536}}, 12, 600, 600, text, 0, text.size ());
     medium.draw_fixed (ren, text, 400 * PIXEL, -1800 * PIXEL);
-    athena::text::font_catalog catalog (false, {file});
-    athena::text::font_request request {"ATHENA Collection Fixture One,ATHENA Collection Fixture Two"};
-    request.horizontal_dpi= request.vertical_dpi= 600;
+    athena::text::font_catalog catalog;
+    athena::text::font_request request=
+      athena::text::font_request_from_source ({
+        athena::text::font_file_source {file, 0}, 12, 600, 600});
     const std::string mixed= "A \xce\xb1\xce\xb2 A";
-    auto alternate= request;
-    alternate.description_utf8= "ATHENA Collection Fixture Two";
-    alternate.point_size= 24;
+    auto alternate= athena::text::font_request_from_source ({
+      athena::text::font_file_source {file, 1}, 24, 600, 600});
     alternate.language= "el";
     const std::vector<athena::text::font_style_span> styles {{2, 6, alternate}};
     auto paragraph= std::make_shared<athena::text::font_paragraph> (mixed, request, styles, catalog);
@@ -226,8 +227,10 @@ static void check_inline_links (const QString& filename) {
   cache_set ("font_cache.scm", "ttf:texgyrepagella-regular",
     string (std::getenv ("ATHENA_PATH")) * "/fonts/truetype/texgyre/texgyrepagella-regular.otf");
   font nominal= unicode_font ("texgyrepagella-regular", 12, 600);
-  font_request request {"TeX Gyre Pagella"};
-  request.horizontal_dpi= request.vertical_dpi= 600;
+  physical_font_source physical;
+  require (nominal->physical_source (physical),
+           "Pagella PDF fixture has no physical source");
+  font_request request= font_request_from_source (physical);
   const std::string source= "label link destination";
   auto paragraph= std::make_shared<font_paragraph> (source, request);
   array<box> pieces;
@@ -286,8 +289,9 @@ static void check_color_bitmap_export (const QString& filename) {
   font_domain owner;
   font_domain_binding binding (owner);
   const std::string source= "\xf0\x9f\x98\x80";
-  font_request request {"Noto Color Emoji"};
-  request.horizontal_dpi= request.vertical_dpi= 600;
+  auto emoji= font_database_match_family ("Noto Color Emoji");
+  require (emoji.has_value (), "Noto Color Emoji is missing from ATHENA's font database");
+  font_request request= font_request_from_source ({*emoji, 12, 600, 600});
   font_paragraph paragraph (source, request);
   const auto line= paragraph.line (0, source.size ());
   require (!line.runs.empty () && !line.runs[0].text.bitmaps.empty (),

@@ -21,11 +21,13 @@ namespace {
 box
 native_symbol_glyph_box (path ip, std::string_view utf8, font fn, pencil pen,
                          bool italic, bool math_mode, brush background) {
-  athena::text::physical_font_source physical;
-  if (!fn->physical_source (physical))
-    throw std::runtime_error ("Symbol font has no physical Unicode source");
+  athena::text::native_text_source native;
+  if (!fn->native_text_source (native))
+    throw std::runtime_error ("Symbol font has no native Unicode source");
   auto request= athena::text::font_request_with_italic (
-    athena::text::font_request_from_source (physical), italic);
+    athena::text::font_request_from_source (native.physical), italic);
+  request.fallback= std::move (native.fallback);
+  request.features= std::move (native.features);
   if (math_mode)
     request= athena::text::math_font_request (fn, italic ?
       athena::text::math_alphabet::italic : athena::text::math_alphabet::normal);

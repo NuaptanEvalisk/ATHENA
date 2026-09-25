@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "font.hpp"
+#include "font_database.hpp"
 #include "font_domain.hpp"
 #include "convert.hpp"
 #include "converter.hpp"
@@ -924,7 +925,12 @@ struct smart_font_rep: font_rep {
     return fn[SUBFONT_MAIN]->physical_source (out);
   }
   bool native_text_source (athena::text::native_text_source& out) const override {
-    return fn[SUBFONT_MAIN]->native_text_source (out);
+    if (!fn[SUBFONT_MAIN]->native_text_source (out)) return false;
+    out.fallback.family.assign (family.data (), N(family));
+    out.fallback.variant.assign (variant.data (), N(variant));
+    out.fallback.series.assign (series.data (), N(series));
+    out.fallback.shape.assign (shape.data (), N(shape));
+    return true;
   }
 
   smart_font_rep (string name, font base_fn, font err_fn,
@@ -2158,13 +2164,13 @@ physical_font_source math_font_source (font source, math_alphabet alphabet) {
     string companion= dedicated_math_family (family);
     if (companion != "") family= companion;
     // Weight/slant are encoded by the mathematical alphabet, not synthetic
-    // transformations of a math font's upright physical face.
-    font selected= closest_font (family, "rm", "medium", "right",
-                                 physical.point_size, physical.vertical_dpi);
-    physical_font_source selected_source;
-    if (!is_nil (selected) && selected->physical_source (selected_source)) {
-      selected_source.horizontal_dpi= physical.horizontal_dpi;
-      physical= std::move (selected_source);
+    // transformations of a math font's upright physical face. The target
+    // family is already known, so resolve only that indexed family bucket.
+    const int requested_weight= weight == "bold" ? 700 : 400;
+    if (auto selected= font_database_match_family (
+          std::string_view (family.data (), N(family)),
+          requested_weight, 0, 100, 0)) {
+      physical.file= std::move (*selected);
     }
   }
   return physical;
@@ -2172,6 +2178,9 @@ physical_font_source math_font_source (font source, math_alphabet alphabet) {
 
 font_request math_font_request (font source, math_alphabet alphabet) {
   auto result= font_request_from_source (math_font_source (source, alphabet));
+  native_text_source native;
+  if (source->native_text_source (native))
+    result.fallback= std::move (native.fallback);
   result.math_variant= alphabet;
   return result;
 }

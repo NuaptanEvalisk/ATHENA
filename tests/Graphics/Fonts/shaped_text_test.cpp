@@ -13,6 +13,7 @@
 #include "unicode_text.hpp"
 #include "shaped_line.hpp"
 #include "font_selection.hpp"
+#include "font_database.hpp"
 #include "math_font.hpp"
 #include "Boxes/construct.hpp"
 #include "Boxes/utf8_line.hpp"
@@ -52,6 +53,24 @@ static font pagella (int size= 12, int dpi= 96) {
     string (std::getenv ("ATHENA_PATH")) *
       "/fonts/truetype/texgyre/texgyrepagella-regular.otf");
   return unicode_font ("texgyrepagella-regular", size, dpi);
+}
+
+static font_request exact_request (
+    const std::string& file, long face= 0, int size= 12,
+    int hdpi= 96, int vdpi= 96,
+    std::vector<std::int32_t> coordinates= {}) {
+  return font_request_from_source ({
+    font_file_source {file, face, std::move (coordinates)},
+    size, hdpi, vdpi});
+}
+
+static font_request installed_request (
+    std::string_view family, int size= 12, int hdpi= 96, int vdpi= 96,
+    int weight= 400, int slant= 0, int width= 100, int spacing= 0) {
+  auto file= font_database_match_family (
+    family, weight, slant, width, spacing);
+  require (file.has_value (), "Installed font family is missing from ATHENA's database");
+  return font_request_from_source ({*file, size, hdpi, vdpi});
 }
 
 static shaped_text shape (font fn, std::string_view text,
@@ -339,34 +358,38 @@ static void check_physical_faces () {
 
 static void check_font_selection () {
   const auto file= (std::filesystem::path (__FILE__).parent_path () /
-                    "fixtures/two-faces.ttc").string ();
-  font_catalog catalog (false, {file});
-  font_request request {"ATHENA Collection Fixture One,ATHENA Collection Fixture Two"};
+                     "fixtures/two-faces.ttc").string ();
+  font_catalog catalog;
+  font_request request= installed_request ("TeX Gyre Pagella");
   const std::string source= "A \xce\xb1\xce\xb2 \xd7\x90\xd7\x91 A";
   font_paragraph paragraph (source, request, catalog);
   bool fallback= false;
   std::size_t covered= 0;
   for (const auto& run: paragraph.fonts ()) {
-    require (run.begin == covered && run.end > covered && run.font.file_utf8 == file,
-             "Font itemization lost coverage or used fonts outside its private catalog");
+    require (run.begin == covered && run.end > covered,
+             "Font itemization lost source coverage");
     covered= run.end;
-    fallback= fallback || run.font.face_index == 1;
+    fallback= fallback ||
+      font_database_face_key (run.font) !=
+        font_database_face_key (request.primary.file);
   }
-  require (fallback && covered == source.size (), "Fallback did not cover the paragraph");
+  require (fallback && covered == source.size (),
+           "Shared ATHENA fallback did not cover the paragraph");
   const auto line= paragraph.line (0, source.size ());
   require (!line.missing_glyphs, "Font-selected line still has missing glyphs");
-  bool rtl_first= false, rtl_second= false;
+  bool rtl= false;
   for (const auto& run: line.runs) {
-    if (run.text.byte_begin == 9) rtl_first= true;
-    if (run.text.byte_begin == 7) {
-      require (rtl_first, "Font fallback reversed the visual order of RTL subitems");
-      rtl_second= true;
+    if (run.text.direction == run_direction::right_to_left) {
+      rtl= true;
+      if (run.text.glyphs.size () > 1)
+        require (run.text.glyphs.front ().byte >= run.text.glyphs.back ().byte,
+                 "Font fallback reversed the visual order of an RTL run");
     }
   }
-  require (rtl_first && rtl_second, "Fixture did not split its RTL font item");
+  require (rtl, "Fallback fixture did not exercise an RTL run");
   const auto wrapped= paragraph.line (2, source.size ());
   require (wrapped.byte_begin == 2 && !wrapped.missing_glyphs,
-           "Wrapped line failed to reuse selected fonts");
+            "Wrapped line failed to reuse selected fonts");
   const std::string with_nul ("A\0A", 3);
   font_paragraph controls (with_nul, request, catalog);
   const auto control_line= controls.line (0, 3);
@@ -380,39 +403,39 @@ static void check_font_selection () {
   }
   rejects<std::invalid_argument> ([&] {
     auto invalid= request;
-    invalid.description_utf8.push_back ('\0');
+    invalid.primary.file.file_utf8.push_back ('\0');
     catalog.select (source, invalid);
   });
   const auto variable= (std::filesystem::path (__FILE__).parent_path () /
-                        "fixtures/named-instance.ttf").string ();
-  font_catalog variable_catalog (false, {variable});
-  request.description_utf8= "ATHENA Collection Fixture One @wght=650";
-  font_paragraph varied ("A", request, variable_catalog);
+                         "fixtures/named-instance.ttf").string ();
+  request= exact_request (
+    variable, 0, 12, 96, 96, {650 * 65536});
+  font_paragraph varied ("A", request, catalog);
   require (varied.fonts ().size () == 1 &&
            varied.fonts ()[0].font.design_coords == std::vector<std::int32_t> {650 * 65536},
-           "Pango-selected variation was not transferred to the native font source");
+           "Explicit variation was not retained by native font selection");
   const auto expected= shape_freetype_utf8 (font_file_source {variable, 0, {650 * 65536}},
-                                          12, 96, 96, "A", 0, 1);
+                                           12, 96, 96, "A", 0, 1);
   require (varied.line (0, 1).advance == expected.advance_x,
-           "Pango-selected variation changed during shaping");
-  font_paragraph installed ("A", font_request {"TeX Gyre Pagella"});
+           "Explicit variation changed during shaping");
+  font_paragraph installed ("A", installed_request ("TeX Gyre Pagella"));
   require (!installed.line (0, 1).missing_glyphs,
-            "Application/system catalog did not select an installed font");
-  font_catalog synthetic_catalog (true, {file});
-  font_paragraph synthetic_bold (
-    "A", font_request {"ATHENA Collection Fixture One Bold"}, synthetic_catalog);
-  require (synthetic_bold.fonts ().size () == 1 &&
-           synthetic_bold.fonts ()[0].font.file_utf8 == file &&
-           synthetic_bold.fonts ()[0].font.face_index == 0,
-           "Synthetic bold fallback did not retain the real physical face");
+             "Shared ATHENA catalog did not select an installed font");
+  auto bold= installed_request ("TeX Gyre Pagella", 12, 96, 96, 700);
+  font_paragraph real_bold ("A", bold, catalog);
+  require (real_bold.fonts ().size () == 1 &&
+           (load_tt_face (real_bold.fonts ()[0].font)->ft_face->style_flags &
+            FT_STYLE_FLAG_BOLD),
+           "Bold selection did not use a real bold physical face");
 }
 
 static void check_font_styles (font nominal) {
   const auto file= (std::filesystem::path (__FILE__).parent_path () /
-                    "fixtures/two-faces.ttc").string ();
-  font_catalog catalog (false, {file});
-  font_request base {"ATHENA Collection Fixture One"};
-  font_request alternate {"ATHENA Collection Fixture Two", "he", 24};
+                     "fixtures/two-faces.ttc").string ();
+  font_catalog catalog;
+  font_request base= exact_request (file, 0);
+  font_request alternate= exact_request (file, 1, 24);
+  alternate.language= "he";
   std::vector<font_style_span> styles {{1, 3, alternate}};
   auto paragraph= std::make_shared<font_paragraph> ("AAAA", base, styles, catalog);
   styles.clear ();
@@ -447,7 +470,7 @@ static void check_font_styles (font nominal) {
   const std::string rtl= "A \xd7\x90\xd7\x91 A";
   font_request hebrew= base;
   hebrew.language= "he";
-  hebrew.point_size= 18;
+  hebrew.primary.point_size= 18;
   font_paragraph bidi (rtl, base, {{2, 4, hebrew}, {4, 6, alternate}}, catalog);
   const auto bidi_line= bidi.line (0, rtl.size ());
   bool saw_bet= false, saw_alef= false;
@@ -475,19 +498,23 @@ static void check_font_styles (font nominal) {
            control.fonts ()[1].font.face_index == 1 && control.fonts ()[2].font.face_index == 1 &&
            control.line (0, 3).byte_end == 3, "NUL handling ignored its font style or following text");
 
-  font_request roman {"TeX Gyre Pagella"};
-  font_request bold {"TeX Gyre Pagella Bold"};
-  font_request italic {"TeX Gyre Pagella Italic"};
+  font_request roman= installed_request ("TeX Gyre Pagella");
+  font_request bold= installed_request ("TeX Gyre Pagella", 12, 96, 96, 700);
+  font_request italic= font_request_with_italic (roman, true);
   font_paragraph emphasis ("AAA", roman, {{1, 2, bold}, {2, 3, italic}});
   require (emphasis.fonts ().size () == 3, "Emphasis did not select distinct physical styles");
   require ((load_tt_face (emphasis.fonts ()[1].font)->ft_face->style_flags & FT_STYLE_FLAG_BOLD) &&
            (load_tt_face (emphasis.fonts ()[2].font)->ft_face->style_flags & FT_STYLE_FLAG_ITALIC) &&
            !emphasis.line (0, 3).missing_glyphs,
            "Pagella emphasis did not use its real bold/italic faces");
-  font_request bold_italic {"TeX Gyre Pagella Bold Italic", "el", 14, 144, 120};
+  font_request bold_italic= installed_request (
+    "TeX Gyre Pagella", 14, 144, 120, 700, 1);
+  bold_italic.language= "el";
   const auto upright_bold= font_request_with_italic (bold_italic, false);
-  require (upright_bold.point_size == 14 && upright_bold.horizontal_dpi == 144 &&
-           upright_bold.vertical_dpi == 120 && upright_bold.language == "el",
+  require (upright_bold.primary.point_size == 14 &&
+           upright_bold.primary.horizontal_dpi == 144 &&
+           upright_bold.primary.vertical_dpi == 120 &&
+           upright_bold.language == "el",
            "Symbol slant override changed the effective font size or language");
   font_paragraph upright_symbol ("D", upright_bold);
   const auto flags= load_tt_face (upright_symbol.fonts ()[0].font)->ft_face->style_flags;
@@ -509,8 +536,8 @@ static void check_font_styles (font nominal) {
     rejects<std::invalid_argument> ([&] { font_paragraph p ("AAAA", base, invalid, catalog); });
   rejects<std::invalid_argument> ([&] { font_paragraph p ("\xce\xb1", base, {{1, 2, alternate}}, catalog); });
   auto adjusted= base;
-  adjusted.horizontal_dpi= 144;
-  adjusted.vertical_dpi= 72;
+  adjusted.primary.horizontal_dpi= 144;
+  adjusted.primary.vertical_dpi= 72;
   font_paragraph mixed_scale ("AAAA", base, {{1, 3, adjusted}}, catalog);
   require (mixed_scale.fonts ().size () == 3 &&
            mixed_scale.fonts ()[1].horizontal_dpi == 144 && mixed_scale.fonts ()[1].vertical_dpi == 72,
@@ -525,9 +552,9 @@ static void check_font_styles (font nominal) {
            shape_freetype_utf8 (font_file_source {file, 0}, 12, 216, 72, "AAAA", 1, 3).advance_x,
            "Expansion used paragraph DPI instead of the styled run's DPI");
   auto invalid_scale= adjusted;
-  invalid_scale.vertical_dpi= 0;
+  invalid_scale.primary.vertical_dpi= 0;
   rejects<std::invalid_argument> ([&] { font_paragraph p ("A", base, {{0, 1, invalid_scale}}, catalog); });
-  invalid_scale.vertical_dpi= std::numeric_limits<int>::max ();
+  invalid_scale.primary.vertical_dpi= std::numeric_limits<int>::max ();
   rejects<std::invalid_argument> ([&] { font_paragraph p ("A", base, {{0, 1, invalid_scale}}, catalog); });
   auto wrong_direction= alternate;
   wrong_direction.direction= paragraph_direction::rtl;
@@ -535,10 +562,8 @@ static void check_font_styles (font nominal) {
 }
 
 static void check_line_boxes (font nominal) {
-  const auto file= (std::filesystem::path (__FILE__).parent_path () /
-                    "fixtures/two-faces.ttc").string ();
-  font_catalog catalog (false, {file});
-  font_request request {"ATHENA Collection Fixture One,ATHENA Collection Fixture Two"};
+  font_catalog catalog;
+  font_request request= installed_request ("TeX Gyre Pagella");
   const std::string source= "A \xce\xb1\xce\xb2 \xd7\x90\xd7\x91 A";
   auto paragraph= std::make_shared<font_paragraph> (source, request, catalog);
   auto line= paragraph->line (0, source.size ());
@@ -696,8 +721,7 @@ static void check_line_boxes (font nominal) {
 }
 
 static void check_line_spacing () {
-  font_request request;
-  request.description_utf8= "TeX Gyre Pagella";
+  font_request request= installed_request ("TeX Gyre Pagella");
   for (const std::string source: {std::string ("ab  cd ef"),
        std::string ("\xd7\x90\xd7\x91  \xd7\x92\xd7\x93 ef")}) {
     font_paragraph paragraph (source, request);
@@ -743,8 +767,8 @@ static void record_bitmap_text (QPicture& recording) {
   font_domain owner;
   font_domain_binding binding (owner);
   const std::string source= "\xf0\x9f\x98\x80";
-  font_request request {"Noto Color Emoji"};
-  request.horizontal_dpi= request.vertical_dpi= 600;
+  font_request request= installed_request (
+    "Noto Color Emoji", 12, 600, 600);
   font_paragraph paragraph (source, request);
   const auto line= paragraph.line (0, source.size ());
   require (line.runs.size () == 1, "Emoji did not select a single font run");
@@ -809,9 +833,12 @@ static void check_math_alphabets () {
 
   const std::string root= std::getenv ("ATHENA_PATH");
   const std::string regular= root + "/fonts/truetype/texgyre/texgyrepagella-regular.otf";
-  const std::string math= root + "/fonts/truetype/texgyre/texgyrepagella-math.otf";
-  font_catalog catalog (false, {regular, math});
-  font_request base {"TeX Gyre Pagella,TeX Gyre Pagella Math"};
+  font_catalog catalog;
+  font_request base= exact_request (regular);
+  base.fallback.family= "TeX Gyre Pagella";
+  base.fallback.variant= "rm";
+  base.fallback.series= "medium";
+  base.fallback.shape= "right";
   auto italic= base;
   italic.math_variant= alphabet::italic;
   const std::string source= "ahe\xcc\x81\xce\xb1 7";
@@ -820,7 +847,7 @@ static void check_math_alphabets () {
   require (paragraph.analysis ().source () == source,
            "Math glyph projection rewrote the source atom");
   const auto line= paragraph.line (0, source.size ());
-  require (!line.missing_glyphs, "Pango fallback did not cover the math projection");
+  require (!line.missing_glyphs, "ATHENA fallback did not cover the math projection");
   for (auto expected: {std::pair<std::size_t, char32_t> {1, 0x210e}, {5, 0x1d6fc}}) {
     bool found= false;
     for (const auto& placed: line.runs) {
@@ -964,8 +991,8 @@ static void check_math_metrics () {
                  "Absent MATH kern table did not match HarfBuzz's zero result");
   }
 
-  font_catalog catalog (false, {file});
-  font_request request {"TeX Gyre Pagella Math"};
+  font_catalog catalog;
+  font_request request= font_request_from_source (physical_source);
   bool nonzero_correction= false, offcenter_anchor= false;
   for (const std::string source: {std::string ("A"), std::string ("\xf0\x9d\x91\x93"),
                                   std::string ("\xe2\x88\xab")}) {
@@ -1186,12 +1213,9 @@ static void check_recording (bool multi_font= false, double zoom= 1.0,
     if (multi_font) {
       const auto file= (std::filesystem::path (__FILE__).parent_path () /
                         "fixtures/two-faces.ttc").string ();
-      font_catalog catalog (false, {file});
-      font_request request {"ATHENA Collection Fixture One,ATHENA Collection Fixture Two"};
-      request.horizontal_dpi= request.vertical_dpi= 600;
-      auto alternate= request;
-      alternate.description_utf8= "ATHENA Collection Fixture Two";
-      alternate.point_size= 24;
+      font_catalog catalog;
+      font_request request= exact_request (file, 0, 12, 600, 600);
+      auto alternate= exact_request (file, 1, 24, 600, 600);
       alternate.language= "el";
       const std::vector<font_style_span> styles {{2, 6, alternate}};
       auto paragraph= std::make_shared<font_paragraph> (source, request, styles, catalog);

@@ -12,6 +12,7 @@
 #ifndef TT_TOOLS_H
 #define TT_TOOLS_H
 #include "url.hpp"
+#include "font_source.hpp"
 
 void tt_dump (url u);
 scheme_tree tt_font_name (url u);
@@ -19,6 +20,8 @@ url tt_unpack (string name);
 
 string find_attribute_value (array<string> a, string s);
 array<string> tt_analyze (string family);
+array<string> tt_analyze (
+  const athena::text::font_file_source& source, string family);
 double characteristic_distance (array<string> a1, array<string> a2);
 double trace_distance (string v1, string v2, double m);
 

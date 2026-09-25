@@ -151,6 +151,7 @@ public:
     if (!fn->native_text_source (source))
       throw std::runtime_error ("Text font has no native Unicode shaping source");
     auto request= athena::text::font_request_from_source (source.physical);
+    request.fallback= std::move (source.fallback);
     request.features= std::move (source.features);
     // Fragments share source bytes and owner-local ICU/font state.
     slot= std::make_shared<athena::text::font_paragraph> (

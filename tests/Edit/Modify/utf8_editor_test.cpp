@@ -249,9 +249,8 @@ private slots:
       box rendered= items[0]->b;
       QVERIFY (rendered->w () > 0);
       QVERIFY (is_utf8_line_box (rendered[0]));
-      auto expected_request= base;
-      expected_request.description_utf8= definition->italic ?
-        "TeX Gyre Pagella Italic" : "TeX Gyre Pagella";
+      auto expected_request= font_request_with_italic (
+        base, definition->italic);
       auto expected= utf8_line_box (decorate (path (0)),
         std::make_shared<font_paragraph> (definition->glyph_utf8,
           expected_request),
@@ -399,14 +398,14 @@ private slots:
     athena::text::physical_font_source physical;
     QVERIFY (env->fn->physical_source (physical));
     auto request= athena::text::font_request_from_source (physical);
-    QCOMPARE (request.point_size, physical.point_size);
-    QCOMPARE (request.vertical_dpi, physical.vertical_dpi);
+    QCOMPARE (request.primary.point_size, physical.point_size);
+    QCOMPARE (request.primary.vertical_dpi, physical.vertical_dpi);
     const auto regular= request;
     env->write_update (FONT_FAMILY, "tt");
     QVERIFY (env->fn->physical_source (physical));
     request= athena::text::font_request_from_source (physical);
-    QVERIFY (request.description_utf8.find ("JetBrains Mono") != std::string::npos);
-    QCOMPARE (request.vertical_dpi, physical.vertical_dpi);
+    QVERIFY (request.primary.file.file_utf8.find ("JetBrains") != std::string::npos);
+    QCOMPARE (request.primary.vertical_dpi, physical.vertical_dpi);
     result= typeset_as_concat (env, tree (source), path (0));
     QCOMPARE (result[0]->get_leaf_string (), source);
     const auto monospace= request;
@@ -484,9 +483,9 @@ private slots:
       QCOMPARE (cursor->ox, line.advance);
       QVERIFY (b->find_tree_path (path (N(test.first))) == path (0, N(test.first)));
       if (test.second == math_alphabet::script)
-        QVERIFY (request.description_utf8.find ("Termes") != std::string::npos);
+        QVERIFY (request.primary.file.file_utf8.find ("termes") != std::string::npos);
       if (test.second == math_alphabet::double_struck)
-        QVERIFY (request.description_utf8.find ("Bonum") != std::string::npos);
+        QVERIFY (request.primary.file.file_utf8.find ("bonum") != std::string::npos);
     }
     auto expression= typeset_concat (env, tree ("\xce\xb1=1"), path (0));
     QCOMPARE (N(expression), 3);

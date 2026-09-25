@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "font.hpp"
+#include "font_database.hpp"
 #include <mutex>
 #include "Freetype/tt_file.hpp"
 #include "Freetype/tt_tools.hpp"
@@ -367,15 +368,8 @@ closest_font (string family, string variant, string series, string shape,
     as_string (sz) * "-" * as_string (dpi) * "-" * as_string (attempt);
   if (font::instances->contains (s)) return font (s);
   find_closest (family, variant, series, shape, attempt);
-  auto strip_file_extension= [] (string name) {
-    if (occurs (".", name)) {
-      int pos= search_backwards (".", name);
-      name= name (0, pos);
-    }
-    return name;
-  };
   auto materialize= [&] (auto&& self, string fam, string var, string ser,
-                           string sh) -> font {
+                            string sh) -> font {
     if (ends (sh, "-poorit")) {
       font base= self (self, fam, var, ser, sh (0, N(sh) - 7));
       return is_nil (base) ? base
@@ -390,14 +384,20 @@ closest_font (string family, string variant, string series, string shape,
       font base= self (self, fam, var, ser (0, N(ser) - 7), sh);
       return is_nil (base) ? base : poor_bold_font (base);
     }
-    array<string> names= font_database_search (fam, var, ser, sh);
-    for (int i=0; i<N(names); i++) {
-      string name= strip_file_extension (names[i]);
-      if (tt_font_exists (name)) return unicode_font (name, sz, dpi);
+    array<string> pfn= search_font (logical_font (fam, var, ser, sh));
+    if (N(pfn) >= 2) {
+      const std::string selected_family (pfn[0].data (), N(pfn[0]));
+      const std::string selected_style (pfn[1].data (), N(pfn[1]));
+      if (auto source= athena::text::font_database_match_style (
+            selected_family, selected_style))
+        return unicode_font (pfn[0], *source, sz, dpi, dpi);
     }
-    string fallback= tt_font_exists ("Latin Modern Roman")
-                       ? string ("Latin Modern Roman") : string ("STIX-Regular");
-    return unicode_font (fallback, sz, dpi);
+    if (auto source= athena::text::font_database_match_family (
+          "Latin Modern Roman"))
+      return unicode_font ("Latin Modern Roman", *source, sz, dpi, dpi);
+    if (auto source= athena::text::font_database_match_family ("STIX"))
+      return unicode_font ("STIX", *source, sz, dpi, dpi);
+    return unicode_font ("STIX-Regular", sz, dpi);
   };
   font fn= materialize (materialize, family, variant, series, shape);
   //cout << "Found " << fn->res_name << "\n";

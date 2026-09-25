@@ -554,11 +554,9 @@ double get_up_pen_height (array<string> a) { return get_ratio (a, "uhw"); }
 
 extern bool get_glyph_fatal;
 
-array<string>
-tt_analyze (string family) {
+static array<string>
+tt_analyze_resources (font fn, font_metric fnm, string family) {
   array<string> r;
-  font fn= tt_font (family, 10, 1200);
-  font_metric fnm= tt_font_metric (family, 10, 1200, 1200);
   //cout << "Analyzing " << family << "\n";
 
   get_glyph_fatal= false;
@@ -571,4 +569,22 @@ tt_analyze (string family) {
   //cout << "  -> " << r << "\n";
   cout << r << " " << family << "\n";
   return r;
+}
+
+array<string>
+tt_analyze (string family) {
+  return tt_analyze_resources (
+    tt_font (family, 10, 1200),
+    tt_font_metric (family, 10, 1200, 1200),
+    family);
+}
+
+array<string>
+tt_analyze (
+    const athena::text::font_file_source& source, string family) {
+  tt_face face= load_tt_face (source);
+  return tt_analyze_resources (
+    unicode_font (family, source, 10, 1200, 1200),
+    tt_font_metric (face, 10, 1200, 1200),
+    family);
 }

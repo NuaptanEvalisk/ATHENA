@@ -177,6 +177,9 @@ font virtual_font (font base, string fam, int sz, int hdpi, int vdpi, bool ext);
 font virtual_enhance_font (font base, string virt);
 font tt_font (string family, int size, int dpi);
 font unicode_font (string family, int size, int dpi);
+font unicode_font (string family,
+                   const athena::text::font_file_source& source,
+                   int size, int hdpi, int vdpi);
 font rubber_unicode_font (font base);
 font rubber_stix_font (font base);
 font rubber_assemble_font (font base);

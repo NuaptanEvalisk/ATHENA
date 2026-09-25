@@ -15,10 +15,35 @@
 #include "url.hpp"
 #include "bitmap_font.hpp"
 #include "tree.hpp"
+#include "font_source.hpp"
+
+#include <array>
+#include <cstdint>
+#include <string>
+#include <vector>
+
+struct tt_font_coverage_page {
+  std::uint32_t first= 0;
+  std::array<std::uint32_t, 8> bits {};
+};
+
+struct tt_font_catalog_record {
+  athena::text::font_file_source file;
+  std::vector<std::string> families;
+  std::string style;
+  int weight= 0;
+  int width= 0;
+  int slant= 0;
+  int spacing= 0;
+  bool scalable= true;
+  bool color= false;
+  std::vector<tt_font_coverage_page> coverage;
+};
 
 url    tt_font_path ();
 url    tt_private_font_path ();
 tree   tt_font_catalog (bool refresh= false);
+std::vector<tt_font_catalog_record> tt_font_catalog_records (bool refresh= false);
 string tt_font_catalog_signature ();
 string tt_font_match_family (string family);
 void   tt_font_cache_set_warmup_disabled (bool disabled);

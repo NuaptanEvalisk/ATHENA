@@ -18,11 +18,13 @@
 #include <unicode/casemap.h>
 #include <unicode/edits.h>
 #include <unicode/bytestream.h>
-#include <pango/pango.h>
+#include <unicode/uchar.h>
+#include <unicode/uscript.h>
 #include <limits>
 #include <stdexcept>
 #include <string>
 #include <algorithm>
+#include <iterator>
 
 namespace athena::text {
 namespace {
@@ -76,6 +78,154 @@ std::size_t from_units (std::string_view text, std::size_t units, bool utf16) {
 void checked (UErrorCode status) {
   if (U_FAILURE (status))
     throw std::runtime_error (std::string ("ICU: ") + u_errorName (status));
+}
+
+std::vector<UScriptCode>
+script_extensions (UChar32 scalar) {
+  UScriptCode local[16];
+  UErrorCode status= U_ZERO_ERROR;
+  int32_t count= uscript_getScriptExtensions (
+    scalar, local, static_cast<int32_t> (std::size (local)), &status);
+  std::vector<UScriptCode> result;
+  if (status == U_BUFFER_OVERFLOW_ERROR) {
+    status= U_ZERO_ERROR;
+    result.resize (count);
+    count= uscript_getScriptExtensions (
+      scalar, result.data (), count, &status);
+    checked (status);
+    result.resize (count);
+  }
+  else {
+    checked (status);
+    result.assign (local, local + count);
+  }
+  result.erase (
+    std::remove_if (
+      result.begin (), result.end (), [] (UScriptCode script) {
+        return script == USCRIPT_COMMON ||
+               script == USCRIPT_INHERITED ||
+               script == USCRIPT_UNKNOWN;
+      }),
+    result.end ());
+  std::sort (result.begin (), result.end ());
+  result.erase (std::unique (result.begin (), result.end ()), result.end ());
+  return result;
+}
+
+std::vector<UScriptCode>
+script_intersection (const std::vector<UScriptCode>& left,
+                     const std::vector<UScriptCode>& right) {
+  std::vector<UScriptCode> result;
+  std::set_intersection (
+    left.begin (), left.end (), right.begin (), right.end (),
+    std::back_inserter (result));
+  return result;
+}
+
+bool
+has_script (const std::vector<UScriptCode>& scripts, UScriptCode script) {
+  return std::binary_search (scripts.begin (), scripts.end (), script);
+}
+
+UScriptCode
+strong_script (UChar32 scalar) {
+  UErrorCode status= U_ZERO_ERROR;
+  const UScriptCode script= uscript_getScript (scalar, &status);
+  checked (status);
+  if (script == USCRIPT_COMMON || script == USCRIPT_INHERITED ||
+      script == USCRIPT_UNKNOWN)
+    return USCRIPT_UNKNOWN;
+  return script;
+}
+
+std::string
+script_tag (const std::vector<UScriptCode>& scripts, UScriptCode preferred) {
+  UScriptCode selected= USCRIPT_COMMON;
+  if (preferred != USCRIPT_UNKNOWN && has_script (scripts, preferred))
+    selected= preferred;
+  else if (!scripts.empty ())
+    selected= scripts.front ();
+  const char* name= uscript_getShortName (selected);
+  if (name == nullptr || std::char_traits<char>::length (name) != 4)
+    throw std::runtime_error ("ICU returned an invalid script tag");
+  return std::string (name, 4);
+}
+
+std::vector<script_run>
+contextual_script_ranges (std::string_view text) {
+  struct open_bracket {
+    UChar32 scalar;
+    std::vector<UScriptCode> scripts;
+    std::size_t run_begin;
+  };
+
+  std::vector<script_run> result;
+  if (text.empty ()) return result;
+  std::vector<open_bracket> brackets;
+  std::vector<UScriptCode> active;
+  UScriptCode preferred= USCRIPT_UNKNOWN;
+  std::size_t run_begin= 0;
+
+  const auto flush= [&] (std::size_t end) {
+    if (end <= run_begin) return;
+    result.push_back ({run_begin, end, script_tag (active, preferred)});
+  };
+
+  int32_t at= 0;
+  while (at < length (text)) {
+    const std::size_t begin= static_cast<std::size_t> (at);
+    const UChar32 scalar= read (text, at);
+    auto scripts= script_extensions (scalar);
+    const auto bracket_type= static_cast<UBidiPairedBracketType> (
+      u_getIntPropertyValue (scalar, UCHAR_BIDI_PAIRED_BRACKET_TYPE));
+
+    if (bracket_type == U_BPT_CLOSE) {
+      const UChar32 opening= u_getBidiPairedBracket (scalar);
+      for (std::size_t i= brackets.size (); i>0; --i)
+        if (brackets[i-1].scalar == opening) {
+          if (!brackets[i-1].scripts.empty ())
+            scripts= brackets[i-1].scripts;
+          brackets.resize (i-1);
+          break;
+        }
+    }
+
+    const UScriptCode scalar_script= strong_script (scalar);
+    if (!scripts.empty ()) {
+      if (active.empty ()) {
+        active= scripts;
+        preferred= scalar_script != USCRIPT_UNKNOWN &&
+                   has_script (active, scalar_script) ?
+          scalar_script : active.front ();
+        for (auto& bracket: brackets)
+          if (bracket.run_begin == run_begin && bracket.scripts.empty ())
+            bracket.scripts= active;
+      }
+      else {
+        auto common= script_intersection (active, scripts);
+        if (common.empty ()) {
+          flush (begin);
+          run_begin= begin;
+          active= scripts;
+          preferred= scalar_script != USCRIPT_UNKNOWN &&
+                     has_script (active, scalar_script) ?
+            scalar_script : active.front ();
+        }
+        else {
+          active= std::move (common);
+          if (!has_script (active, preferred))
+            preferred= scalar_script != USCRIPT_UNKNOWN &&
+                       has_script (active, scalar_script) ?
+              scalar_script : active.front ();
+        }
+      }
+    }
+
+    if (bracket_type == U_BPT_OPEN)
+      brackets.push_back ({scalar, active, run_begin});
+  }
+  flush (text.size ());
+  return result;
 }
 } // namespace
 
@@ -307,12 +457,11 @@ std::optional<text_match> literal_search::at (std::string_view needle, std::size
 
 struct unicode_paragraph::implementation {
   struct index { int32_t byte, units; };
-  struct script_range { std::size_t begin, end; std::string tag; };
   std::string_view source;
   std::vector<index> indices;
   std::vector<UChar> utf16;
   std::vector<line_break> line_breaks;
-  std::vector<script_range> scripts;
+  std::vector<script_run> scripts;
   std::unique_ptr<UBiDi, decltype (&ubidi_close)> paragraph {nullptr, ubidi_close};
   std::unique_ptr<UBiDi, decltype (&ubidi_close)> current_line {nullptr, ubidi_close};
   std::unique_ptr<grapheme_cursor> graphemes;
@@ -383,24 +532,8 @@ struct unicode_paragraph::implementation {
         throw std::runtime_error ("ICU hard line break splits a grapheme");
     }
     if (!text.empty ()) {
-      // Pango handles inherited/common script and paired punctuation; do not
-      // replace that context-sensitive algorithm with per-scalar script tests.
-      std::unique_ptr<PangoScriptIter, decltype (&pango_script_iter_free)> iter (
-        pango_script_iter_new (bytes, length (text)), pango_script_iter_free);
-      do {
-        const char *start, *limit;
-        PangoScript script;
-        pango_script_iter_get_range (iter.get (), &start, &limit, &script);
-        const auto iso= g_unicode_script_to_iso15924 (static_cast<GUnicodeScript> (script));
-        if (iso == 0) throw std::runtime_error ("Pango returned an invalid script");
-        const char tag[]= {static_cast<char> (iso >> 24),
-                          static_cast<char> ((iso >> 16) & 0xff),
-                          static_cast<char> ((iso >> 8) & 0xff),
-                          static_cast<char> (iso & 0xff)};
-        scripts.push_back ({static_cast<std::size_t> (start - bytes),
-                            static_cast<std::size_t> (limit - bytes),
-                            std::string (tag, 4)});
-      } while (pango_script_iter_next (iter.get ()));
+      for (const auto& range: contextual_script_ranges (text))
+        scripts.push_back ({range.begin, range.end, range.script});
     }
   }
 };
@@ -414,6 +547,10 @@ std::uint8_t unicode_paragraph::base_level () const { return impl_->base; }
 std::string_view unicode_paragraph::source () const { return impl_->source; }
 const std::vector<line_break>& unicode_paragraph::breaks () const {
   return impl_->line_breaks;
+}
+
+const std::vector<script_run>& unicode_paragraph::scripts () const {
+  return impl_->scripts;
 }
 
 std::size_t unicode_paragraph::byte_to_utf16 (std::size_t byte) const {
@@ -471,12 +608,12 @@ std::vector<shaping_item> unicode_paragraph::items (std::size_t begin,
   for (const auto& run: runs) {
     const auto first= result.size ();
     auto script= std::lower_bound (impl_->scripts.begin (), impl_->scripts.end (),
-      run.begin, [] (const implementation::script_range& s, std::size_t byte) {
+      run.begin, [] (const script_run& s, std::size_t byte) {
         return s.end <= byte;
       });
     for (; script != impl_->scripts.end () && script->begin < run.end; ++script)
       result.push_back ({{std::max (run.begin, script->begin),
-                          std::min (run.end, script->end), run.level}, script->tag});
+                          std::min (run.end, script->end), run.level}, script->script});
     // Bidi runs are already visual. Sub-items of an RTL run reverse their
     // order, not the logical byte range or the source text inside each item.
     if (run.right_to_left ())

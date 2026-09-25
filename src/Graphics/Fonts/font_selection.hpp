@@ -16,9 +16,9 @@
 namespace athena::text {
 
 struct font_request {
-  std::string description_utf8; // Pango family/style description, not a filename.
+  physical_font_source primary;
+  font_fallback_policy fallback;
   std::string language= "und";
-  int point_size= 12, horizontal_dpi= 96, vertical_dpi= 96;
   paragraph_direction direction= paragraph_direction::automatic_ltr;
   math_alphabet math_variant= math_alphabet::normal;
   std::vector<open_type_feature> features;
@@ -36,7 +36,8 @@ struct selected_font_run {
 
 font_request font_request_from_source (const physical_font_source& source,
                                        std::string language= "und");
-// Preserve family, weight, variations and device scale; replace only slant.
+// Preserve weight, width, variations and device scale; select a real face with
+// the requested slant through ATHENA's shared font database.
 font_request font_request_with_italic (font_request request, bool italic);
 
 // Sorted, nonoverlapping scalar ranges. Gaps use the paragraph's base request.
@@ -47,22 +48,21 @@ struct font_style_span {
   font_request request;
 };
 
-// A private Fontconfig configuration and PangoFT2 map. No Qt/GTK font objects
-// or process-global current configuration; use only on its owning font domain.
+// Owner-local selector/cache over the shared immutable ATHENA font database.
+// It never discovers fonts or owns platform font-catalog objects.
 class font_catalog {
   struct impl;
   std::unique_ptr<impl> state_;
 public:
-  explicit font_catalog (bool system_fonts= true,
-                         const std::vector<std::string>& files= {},
-                         const std::vector<std::string>& directories= {});
+  font_catalog ();
   ~font_catalog ();
   font_catalog (const font_catalog&)= delete;
   font_catalog& operator= (const font_catalog&)= delete;
   std::vector<selected_font_run> select (const std::string& source,
-                                       const font_request& request,
-                                       std::uint8_t base_level= 0,
-                                       const std::vector<font_style_span>& styles= {});
+                                        const font_request& request,
+                                        std::uint8_t base_level= 0,
+                                        const std::vector<font_style_span>& styles= {},
+                                        const std::vector<script_run>* scripts= nullptr);
 };
 
 font_catalog& current_font_catalog ();

@@ -32,6 +32,7 @@ font_rep::native_text_source (athena::text::native_text_source& out) const {
   if (!physical_source (physical)) return false;
   out.physical= std::move (physical);
   out.features.clear ();
+  out.fallback= {};
   return true;
 }
 

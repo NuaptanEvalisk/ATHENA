@@ -1,6 +1,6 @@
 /******************************************************************************
 * MODULE     : font_selection.cpp
-* DESCRIPTION: Pango font itemization feeding native UTF-8 shaping and export
+* DESCRIPTION: Unicode-native font selection over ATHENA's shared font database
 * COPYRIGHT  : (C) 2026 Nuaptan Felix Evalisk
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
@@ -8,199 +8,570 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include "font_selection.hpp"
-#include "Freetype/tt_file.hpp"
+#include "font_database.hpp"
+#include "font.hpp"
 #include "Freetype/tt_face.hpp"
-#include <fontconfig/fontconfig.h>
-#include <fontconfig/fcfreetype.h>
-#include "file.hpp"
-#include <pango/pangoft2.h>
-#include <pango/pangofc-font.h>
-#include <pango/pangofc-fontmap.h>
+#include "Freetype/free_type.hpp"
+#include <unicode/uchar.h>
+#include <unicode/uscript.h>
 #include <unicode/utf8.h>
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <limits>
+#include <map>
+#include <optional>
 #include <stdexcept>
+#include <unordered_map>
 
 namespace athena::text {
 namespace {
-template<class T> using object_ptr= std::unique_ptr<T, decltype (&g_object_unref)>;
-
-constexpr const char native_fontconfig_policy[]= R"fontconfig(
-<fontconfig>
-  <match target="font">
-    <edit name="embolden" mode="assign"><bool>false</bool></edit>
-  </match>
-</fontconfig>
-)fontconfig";
-
-void require_c_string (std::string_view s) {
-  require_utf8 (s);
-  if (s.find ('\0') != std::string_view::npos)
-    throw std::invalid_argument ("NUL in font configuration");
-}
 
 void validate_request (const font_request& request) {
-  require_c_string (request.description_utf8);
-  require_c_string (request.language);
-  if (request.description_utf8.empty () || request.point_size <= 0 ||
-      request.point_size > G_MAXINT / PANGO_SCALE ||
-      request.horizontal_dpi <= 0 || request.vertical_dpi <= 0)
+  require_utf8 (request.primary.file.file_utf8);
+  require_utf8 (request.language);
+  if (request.primary.file.file_utf8.empty () ||
+      request.primary.file.file_utf8.find ('\0') != std::string::npos ||
+      request.language.find ('\0') != std::string::npos ||
+      request.primary.point_size <= 0 ||
+      request.primary.horizontal_dpi <= 0 ||
+      request.primary.vertical_dpi <= 0)
     throw std::invalid_argument ("Invalid font selection request");
 }
 
-using description_ptr= std::unique_ptr<PangoFontDescription, decltype (&pango_font_description_free)>;
-
-description_ptr describe (const font_request& request, int reference_dpi= 0) {
-  description_ptr desc (pango_font_description_from_string (request.description_utf8.c_str ()),
-                         pango_font_description_free);
-  if (!desc) throw std::bad_alloc ();
-  // Pango's map has one DPI. Express a span's effective size in that map while
-  // retaining its original point size and device scale for native shaping.
-  const double size= std::round (static_cast<double> (request.point_size) * PANGO_SCALE *
-    request.vertical_dpi / (reference_dpi == 0 ? request.vertical_dpi : reference_dpi));
-  if (!std::isfinite (size) || size < 1 || size > G_MAXINT)
-    throw std::invalid_argument ("Font span exceeds Pango size range");
-  pango_font_description_set_size (desc.get (), static_cast<int> (size));
-  return desc;
+bool is_variation_selector (char32_t scalar) {
+  return (scalar >= 0xfe00 && scalar <= 0xfe0f) ||
+         (scalar >= 0xe0100 && scalar <= 0xe01ef);
 }
 
-font_file_source physical_font (PangoFont* font, double requested_pixels) {
-  if (!font || !PANGO_IS_FC_FONT (font))
-    throw std::runtime_error ("Pango did not select a physical font");
-  const auto pattern= pango_fc_font_get_pattern (PANGO_FC_FONT (font));
-  FcChar8* file= nullptr;
-  int index= 0;
-  if (FcPatternGetString (pattern, FC_FILE, 0, &file) != FcResultMatch ||
-      FcPatternGetInteger (pattern, FC_INDEX, 0, &index) != FcResultMatch)
-    throw std::runtime_error ("Selected font has no file/face identity");
-  FcBool embolden= FcFalse;
-  FcMatrix* matrix= nullptr;
-  FcPatternGetBool (pattern, FC_EMBOLDEN, 0, &embolden);
-  FcPatternGetMatrix (pattern, FC_MATRIX, 0, &matrix);
-  font_file_source result {reinterpret_cast<const char*> (file), index};
-  if (embolden)
-    throw std::runtime_error ("Synthetic emboldening requires raster integration");
-  if (matrix && (matrix->xx != 1 || matrix->yy != 1 || matrix->xy != 0 || matrix->yx != 0)) {
-    // Pango normalizes a fixed bitmap strike to the requested pixel size using
-    // FC_MATRIX. Native bitmap layout performs that normalization itself;
-    // this is not a synthetic outline slant/stretch and must not be applied twice.
-    const auto selected= load_tt_face (result);
-    double pixels= 0;
-    bool strike_scale= false;
-    if (!selected->bad_face && !FT_IS_SCALABLE (selected->ft_face) &&
-        matrix->xy == 0 && matrix->yx == 0 && matrix->xx > 0 &&
-        std::abs (matrix->xx - matrix->yy) < 1e-9 &&
-        FcPatternGetDouble (pattern, FC_PIXEL_SIZE, 0, &pixels) == FcResultMatch) {
-      for (int i=0; i<selected->ft_face->num_fixed_sizes; ++i) {
-        const double ppem= selected->ft_face->available_sizes[i].y_ppem / 64.0;
-        // The font map quantizes device sizes to Pango units, independently
-        // of the point-size rounding in the description.
-        if (ppem > 0 && std::abs (pixels - ppem) < 1e-6 &&
-            std::abs (matrix->yy * ppem - requested_pixels) <= 1.0 / PANGO_SCALE)
-          strike_scale= true;
-      }
+bool needs_font_glyph (char32_t scalar) {
+  if (scalar == 0) return false;
+  if (is_variation_selector (scalar)) return false;
+  const auto type= u_charType (static_cast<UChar32> (scalar));
+  if (type == U_CONTROL_CHAR || type == U_FORMAT_CHAR ||
+      type == U_SURROGATE || type == U_UNASSIGNED)
+    return false;
+  return !u_hasBinaryProperty (
+    static_cast<UChar32> (scalar), UCHAR_DEFAULT_IGNORABLE_CODE_POINT);
+}
+
+struct coverage_requirement {
+  std::vector<char32_t> scalars;
+  std::vector<std::pair<char32_t,char32_t>> variations;
+};
+
+coverage_requirement required_coverage (
+    std::string_view source, std::size_t begin, std::size_t end) {
+  coverage_requirement result;
+  std::optional<char32_t> previous;
+  int32_t at= static_cast<int32_t> (begin);
+  while (at < static_cast<int32_t> (end)) {
+    UChar32 scalar;
+    U8_NEXT (source.data (), at, static_cast<int32_t> (end), scalar);
+    if (scalar < 0) throw std::invalid_argument ("Invalid UTF-8 font slice");
+    const auto value= static_cast<char32_t> (scalar);
+    if (is_variation_selector (value)) {
+      if (previous) result.variations.emplace_back (*previous, value);
+      continue;
     }
-    if (!strike_scale)
-      throw std::runtime_error ("Synthetic font transforms require raster integration");
-  }
-  unsigned int count= 0;
-  const auto hb= pango_font_get_hb_font (font);
-  if (!hb) throw std::runtime_error ("Selected font has no shaping face");
-  const auto coords= hb_font_get_var_coords_design (hb, &count);
-  if (count > 0xffff) throw std::length_error ("Too many font variation axes");
-  for (unsigned int i= 0; i < count; ++i) {
-    const double fixed= std::round (static_cast<double> (coords[i]) * 65536.0);
-    if (!std::isfinite (fixed) || fixed < std::numeric_limits<std::int32_t>::min () ||
-        fixed > std::numeric_limits<std::int32_t>::max ())
-      throw std::runtime_error ("Invalid font variation coordinate");
-    result.design_coords.push_back (static_cast<std::int32_t> (fixed));
+    previous= value;
+    if (!needs_font_glyph (value)) continue;
+    if (std::find (result.scalars.begin (), result.scalars.end (), value) ==
+        result.scalars.end ())
+      result.scalars.push_back (value);
   }
   return result;
 }
 
-void append_directory (url u, std::vector<std::string>& dirs) {
-  if (is_none (u)) return;
-  if (is_or (u)) {
-    append_directory (u[1], dirs);
-    append_directory (u[2], dirs);
+bool joining_sensitive (
+    std::string_view source, std::size_t begin, std::size_t end) {
+  int32_t at= static_cast<int32_t> (begin);
+  while (at < static_cast<int32_t> (end)) {
+    UChar32 scalar;
+    U8_NEXT (source.data (), at, static_cast<int32_t> (end), scalar);
+    if (scalar < 0) throw std::invalid_argument ("Invalid UTF-8 font slice");
+    const auto joining= static_cast<UJoiningType> (
+      u_getIntPropertyValue (scalar, UCHAR_JOINING_TYPE));
+    if (joining == U_JT_JOIN_CAUSING || joining == U_JT_DUAL_JOINING ||
+        joining == U_JT_LEFT_JOINING || joining == U_JT_RIGHT_JOINING)
+      return true;
   }
-  else if (is_directory (u)) {
-    const auto path= concretize (u);
-    dirs.emplace_back (path.data (), N(path));
-  }
-}
+  return false;
 }
 
-font_request font_request_with_italic (font_request request, bool italic) {
-  validate_request (request);
-  auto description= describe (request);
-  pango_font_description_set_style (description.get (),
-    italic ? PANGO_STYLE_ITALIC : PANGO_STYLE_NORMAL);
-  std::unique_ptr<char, decltype (&g_free)> name (
-    pango_font_description_to_string (description.get ()), g_free);
-  if (!name) throw std::bad_alloc ();
-  request.description_utf8= name.get ();
-  return request;
+bool sequence_sensitive (
+    std::string_view source, std::size_t begin, std::size_t end) {
+  int scalars= 0;
+  bool emoji= false;
+  int32_t at= static_cast<int32_t> (begin);
+  while (at < static_cast<int32_t> (end)) {
+    UChar32 scalar;
+    U8_NEXT (source.data (), at, static_cast<int32_t> (end), scalar);
+    if (scalar < 0) throw std::invalid_argument ("Invalid UTF-8 font slice");
+    ++scalars;
+    emoji= emoji || scalar == 0x200d ||
+      is_variation_selector (static_cast<char32_t> (scalar)) ||
+      u_hasBinaryProperty (scalar, UCHAR_EMOJI) ||
+      u_hasBinaryProperty (scalar, UCHAR_EMOJI_MODIFIER);
+  }
+  return scalars > 1 && emoji;
 }
+
+std::string cjk_preferred_family (const std::vector<char32_t>& scalars) {
+  for (char32_t scalar: scalars) {
+    UErrorCode status= U_ZERO_ERROR;
+    const UScriptCode script= uscript_getScript (
+      static_cast<UChar32> (scalar), &status);
+    if (U_FAILURE (status)) continue;
+    const char* range= nullptr;
+    if (script == USCRIPT_HAN) range= "cjk";
+    else if (script == USCRIPT_HIRAGANA || script == USCRIPT_KATAKANA)
+      range= "hiragana";
+    else if (script == USCRIPT_HANGUL) range= "hangul";
+    if (range != nullptr) {
+      string family= default_cjk_font_name_for_range (string (range));
+      if (family != "")
+        return std::string (family.data (), N(family));
+    }
+  }
+  return {};
+}
+
+std::string unicode_range_feature (const std::vector<char32_t>& scalars) {
+  for (char32_t scalar: scalars) {
+    UErrorCode status= U_ZERO_ERROR;
+    const UScriptCode script= uscript_getScript (
+      static_cast<UChar32> (scalar), &status);
+    if (U_FAILURE (status)) continue;
+    if (script == USCRIPT_HAN) return "cjk";
+    if (script == USCRIPT_HIRAGANA || script == USCRIPT_KATAKANA)
+      return "hiragana";
+    if (script == USCRIPT_HANGUL) return "hangul";
+    if (script == USCRIPT_GREEK) return "greek";
+    if (script == USCRIPT_CYRILLIC) return "cyrillic";
+  }
+  return {};
+}
+
+void append_unique (
+    std::vector<std::string>& values, std::string value) {
+  if (value.empty ()) return;
+  if (std::find (values.begin (), values.end (), value) == values.end ())
+    values.push_back (std::move (value));
+}
+
+std::vector<std::string>
+policy_families (
+    const font_request& request, const std::vector<char32_t>& scalars,
+    const font_database_view& view) {
+  std::vector<std::string> result;
+  const std::string cjk= cjk_preferred_family (scalars);
+  append_unique (result, cjk);
+
+  if (!request.fallback.family.empty ()) {
+    string family (request.fallback.family.data (), request.fallback.family.size ());
+    string variant (request.fallback.variant.data (), request.fallback.variant.size ());
+    string series (request.fallback.series.data (), request.fallback.series.size ());
+    string shape (request.fallback.shape.data (), request.fallback.shape.size ());
+    const std::string range= unicode_range_feature (scalars);
+    if (!range.empty ()) {
+      string range_variant (range.data (), range.size ());
+      if (variant != "" && variant != "rm")
+        range_variant= variant * "-" * range_variant;
+      array<string> logical=
+        logical_font (family, range_variant, series, shape);
+      logical= apply_substitutions (logical);
+      if (N(logical) > 0)
+        append_unique (
+          result, std::string (logical[0].data (), N(logical[0])));
+    }
+    array<string> logical= logical_font (family, variant, series, shape);
+    logical= apply_substitutions (logical);
+    if (N(logical) > 0) {
+      append_unique (
+        result, std::string (logical[0].data (), N(logical[0])));
+      bool sans= false, mono= false;
+      for (int i=1; i<N(logical); ++i) {
+        sans= sans || logical[i] == "sansserif";
+        mono= mono || logical[i] == "typewriter" || logical[i] == "mono";
+      }
+      const char* generic= mono ? "monospace" : sans ? "sans-serif" : "serif";
+      auto found= view.generic_families.find (generic);
+      if (found != view.generic_families.end ())
+        append_unique (result, found->second);
+    }
+  }
+  return result;
+}
+
+bool contains_family (
+    const font_database_face& face, std::string_view family) {
+  const auto key= font_database_family_key (family);
+  return std::any_of (
+    face.families.begin (), face.families.end (),
+    [&] (const std::string& current) {
+      return font_database_family_key (current) == key;
+    });
+}
+
+} // namespace
 
 struct font_catalog::impl {
   font_domain& owner= current_font_domain ();
-  std::unique_ptr<FcConfig, decltype (&FcConfigDestroy)> config;
-  object_ptr<PangoFontMap> map;
-  int horizontal_dpi= 0;
-  int vertical_dpi= 0;
+  std::shared_ptr<const font_database_view> view= font_database_native_view ();
+  std::map<std::string,tt_face> loaded_faces;
+  std::unordered_map<std::string,std::size_t> fallback_cache;
 
-  impl (bool system, const std::vector<std::string>& files,
-        const std::vector<std::string>& directories):
-    config (system ? FcInitLoadConfigAndFonts () : FcConfigCreate (), FcConfigDestroy),
-    map (pango_ft2_font_map_new (), g_object_unref) {
-    if (!config || !map) throw std::bad_alloc ();
-    for (const auto& file: files) {
-      require_c_string (file);
-      if (!FcConfigAppFontAddFile (config.get (),
-            reinterpret_cast<const FcChar8*> (file.c_str ())))
-        throw std::runtime_error ("Cannot add application font: " + file);
-    }
-    for (const auto& dir: directories) {
-      require_c_string (dir);
-      if (!FcConfigAppFontAddDir (config.get (),
-            reinterpret_cast<const FcChar8*> (dir.c_str ())))
-        throw std::runtime_error ("Cannot add application font directory: " + dir);
-    }
-    // Native shaping and rasterization consume the selected physical face
-    // directly. Fontconfig's system-wide synthetic emboldening would describe
-    // a transform that this path does not apply, so disable it in this private
-    // catalog rather than accepting mismatched Pango/native output.
-    if (!FcConfigParseAndLoadFromMemory (
-          config.get (), reinterpret_cast<const FcChar8*> (native_fontconfig_policy),
-          FcTrue))
-      throw std::runtime_error ("Cannot install native Fontconfig policy");
-    pango_fc_font_map_set_config (PANGO_FC_FONT_MAP (map.get ()), config.get ());
-  }
-  void set_resolution (int horizontal, int vertical) {
-    if (horizontal_dpi == horizontal && vertical_dpi == vertical) return;
-    pango_ft2_font_map_set_resolution (
-      PANGO_FT2_FONT_MAP (map.get ()), horizontal, vertical);
-    horizontal_dpi= horizontal;
-    vertical_dpi= vertical;
-  }
   void check () const {
     owner.check_owner ();
     if (&current_font_domain () != &owner)
       throw std::logic_error ("Font catalog belongs to another font domain");
   }
+
+  void synchronize_view () {
+    auto current= font_database_native_view ();
+    if (current->generation == view->generation) return;
+    view= std::move (current);
+    fallback_cache.clear ();
+  }
+
+  tt_face face (const font_file_source& source) {
+    const std::string key= font_database_physical_key (source);
+    auto found= loaded_faces.find (key);
+    if (found != loaded_faces.end ()) return found->second;
+    tt_face result= load_tt_face (source);
+    loaded_faces.emplace (key, result);
+    return result;
+  }
+
+  bool covers (const font_file_source& source,
+               const coverage_requirement& required) {
+    if (required.scalars.empty () && required.variations.empty ()) return true;
+    const auto known= view->physical_faces.find (font_database_face_key (source));
+    if (known != view->physical_faces.end () && required.variations.empty ()) {
+      const auto& metadata= view->faces[known->second];
+      return std::all_of (
+        required.scalars.begin (), required.scalars.end (),
+        [&] (char32_t scalar) {
+          return font_database_supports (metadata, scalar);
+        });
+    }
+    tt_face physical= face (source);
+    if (physical->bad_face) return false;
+    for (char32_t scalar: required.scalars)
+      if (ft_get_char_index (
+            physical->ft_face, static_cast<unsigned int> (scalar)) == 0)
+        return false;
+    for (const auto& variation: required.variations) {
+      const FT_Int is_default= FT_Face_GetCharVariantIsDefault (
+        physical->ft_face, static_cast<FT_ULong> (variation.first),
+        static_cast<FT_ULong> (variation.second));
+      if (is_default < 0) return false;
+      if (is_default == 0 &&
+          FT_Face_GetCharVariantIndex (
+            physical->ft_face, static_cast<FT_ULong> (variation.first),
+            static_cast<FT_ULong> (variation.second)) == 0)
+        return false;
+    }
+    return true;
+  }
+
+  bool supports_sequence (
+      const font_file_source& source, const font_request& request,
+      std::string_view text, std::size_t begin, std::size_t end,
+      std::string_view script) {
+    if (!sequence_sensitive (text, begin, end)) return true;
+    shaping_options options;
+    options.script.assign (script.data (), script.size ());
+    options.language= request.language;
+    options.features= request.features;
+    options.max_glyphs= 64;
+    const auto shaped= shape_freetype_utf8 (
+      source, request.primary.point_size,
+      request.primary.horizontal_dpi, request.primary.vertical_dpi,
+      text, begin, end, options);
+    if (shaped.missing_glyphs || shaped.glyphs.empty ()) return false;
+    const std::size_t cluster= shaped.glyphs.front ().byte;
+    return std::all_of (
+      shaped.glyphs.begin (), shaped.glyphs.end (),
+      [cluster] (const positioned_glyph& glyph) {
+        return glyph.index != 0 && glyph.byte == cluster;
+      });
+  }
+
+  std::optional<std::size_t> record_for (const font_file_source& source) const {
+    const auto found= view->physical_faces.find (font_database_face_key (source));
+    if (found == view->physical_faces.end ()) return std::nullopt;
+    return found->second;
+  }
+
+  long long score_candidate (
+      std::size_t candidate, const font_request& request,
+      const std::vector<char32_t>& scalars,
+      const std::optional<std::size_t>& primary_record,
+      const std::vector<std::string>& policy) const {
+    const auto& face= view->faces[candidate];
+    long long score= static_cast<long long> (candidate);
+    for (std::size_t i=0; i<policy.size (); ++i)
+      if (contains_family (face, policy[i])) {
+        score-= 2000000000LL -
+                static_cast<long long> (i) * 10000000LL;
+        break;
+      }
+    if (primary_record) {
+      const auto& primary= view->faces[*primary_record];
+      bool same_family= false;
+      for (const auto& family: primary.families)
+        if (contains_family (face, family)) {
+          same_family= true;
+          break;
+        }
+      if (!same_family) score+= 1000000000LL;
+      score+= 1000LL * std::llabs (
+        static_cast<long long> (face.weight) - primary.weight);
+      score+= 100LL * std::llabs (
+        static_cast<long long> (face.width) - primary.width);
+      if (face.slant != primary.slant) score+= 100000LL;
+      if (face.spacing != primary.spacing) score+= 1000000LL;
+    }
+    const bool emoji= std::any_of (
+      scalars.begin (), scalars.end (), [] (char32_t scalar) {
+        return u_hasBinaryProperty (
+          static_cast<UChar32> (scalar), UCHAR_EMOJI);
+      });
+    if (emoji && face.color) score-= 500000000LL;
+    (void) request;
+    (void) scalars;
+    return score;
+  }
+
+  std::optional<font_file_source> fallback (
+      const font_request& request, const coverage_requirement& required,
+      std::string_view text= {}, std::size_t begin= 0, std::size_t end= 0,
+      std::string_view script= {}) {
+    if (required.scalars.empty () && required.variations.empty ())
+      return request.primary.file;
+    const auto& scalars= required.scalars;
+    std::string key= std::to_string (view->generation) + ":" +
+                     font_database_physical_key (request.primary.file);
+    const auto append_key= [&] (std::string_view value) {
+      key+= ":" + std::to_string (value.size ()) + ":";
+      key.append (value.data (), value.size ());
+    };
+    append_key (request.fallback.family);
+    append_key (request.fallback.variant);
+    append_key (request.fallback.series);
+    append_key (request.fallback.shape);
+    append_key (request.language);
+    for (char32_t scalar: scalars)
+      key+= ":" + std::to_string (static_cast<std::uint32_t> (scalar));
+    for (const auto& variation: required.variations)
+      key+= ":v" + std::to_string (
+               static_cast<std::uint32_t> (variation.first)) +
+             "-" + std::to_string (
+               static_cast<std::uint32_t> (variation.second));
+    if (!text.empty () && begin < end && sequence_sensitive (text, begin, end)) {
+      key+= ":seq:" + std::to_string (end - begin) + ":";
+      key.append (text.data () + begin, end - begin);
+    }
+    auto cached= fallback_cache.find (key);
+    if (cached != fallback_cache.end ()) {
+      if (cached->second == std::numeric_limits<std::size_t>::max ())
+        return std::nullopt;
+      return view->faces[cached->second].file;
+    }
+
+    const auto primary_record= record_for (request.primary.file);
+    const auto policy= policy_families (request, scalars, *view);
+    const std::string primary_key= font_database_face_key (request.primary.file);
+    std::vector<std::size_t> preferred;
+    const auto add_family= [&] (std::string_view family) {
+      const auto found= view->families.find (font_database_family_key (family));
+      if (found == view->families.end ()) return;
+      for (std::size_t candidate: found->second)
+        if (std::find (preferred.begin (), preferred.end (), candidate) ==
+            preferred.end ())
+          preferred.push_back (candidate);
+    };
+    for (const auto& family: policy) add_family (family);
+    if (primary_record)
+      for (const auto& family: view->faces[*primary_record].families)
+        add_family (family);
+
+    std::optional<std::size_t> best;
+    long long best_score= std::numeric_limits<long long>::max ();
+    const auto consider= [&] (std::size_t candidate) {
+      const auto& face= view->faces[candidate];
+      if (font_database_face_key (face.file) == primary_key) return;
+      if (!std::all_of (
+            scalars.begin (), scalars.end (),
+            [&] (char32_t scalar) {
+              return font_database_supports (face, scalar);
+            }))
+        return;
+      if (!required.variations.empty () && !covers (face.file, required))
+        return;
+      if (!text.empty () && begin < end &&
+          !supports_sequence (
+            face.file, request, text, begin, end, script))
+        return;
+      const long long score=
+        score_candidate (candidate, request, scalars, primary_record, policy);
+      if (!best || score < best_score) {
+        best= candidate;
+        best_score= score;
+      }
+    };
+    for (std::size_t candidate: preferred) consider (candidate);
+    if (best) {
+      if (fallback_cache.size () >= 4096) fallback_cache.clear ();
+      fallback_cache.emplace (std::move (key), *best);
+      return view->faces[*best].file;
+    }
+
+    struct fallback_pool {
+      const std::vector<std::size_t>* page= nullptr;
+      const font_database_page_shortlist* shortlist= nullptr;
+      std::uint32_t offset= 0;
+      std::size_t count= std::numeric_limits<std::size_t>::max ();
+    } pool;
+    for (char32_t scalar: scalars) {
+      const std::uint32_t page=
+        static_cast<std::uint32_t> (scalar) & ~std::uint32_t (0xff);
+      const auto found= view->unicode_pages.find (page);
+      if (found == view->unicode_pages.end ()) {
+        if (fallback_cache.size () >= 4096) fallback_cache.clear ();
+        fallback_cache.emplace (
+          std::move (key), std::numeric_limits<std::size_t>::max ());
+        return std::nullopt;
+      }
+      const std::uint32_t offset=
+        static_cast<std::uint32_t> (scalar) - page;
+      const auto hot= view->unicode_shortlists.find (page);
+      const std::size_t count=
+        hot == view->unicode_shortlists.end () ?
+          found->second.size () :
+          hot->second.offsets[offset + 1] - hot->second.offsets[offset];
+      if (count == 0) {
+        if (fallback_cache.size () >= 4096) fallback_cache.clear ();
+        fallback_cache.emplace (
+          std::move (key), std::numeric_limits<std::size_t>::max ());
+        return std::nullopt;
+      }
+      if (count < pool.count) {
+        pool.page= &found->second;
+        pool.shortlist=
+          hot == view->unicode_shortlists.end () ? nullptr : &hot->second;
+        pool.offset= offset;
+        pool.count= count;
+      }
+    }
+    if (pool.page == nullptr && !required.variations.empty ()) {
+      const std::uint32_t base= static_cast<std::uint32_t> (
+        required.variations.front ().first);
+      const std::uint32_t page= base & ~std::uint32_t (0xff);
+      const auto found= view->unicode_pages.find (page);
+      if (found != view->unicode_pages.end ()) {
+        pool.page= &found->second;
+        const auto hot= view->unicode_shortlists.find (page);
+        pool.shortlist=
+          hot == view->unicode_shortlists.end () ? nullptr : &hot->second;
+        pool.offset= base - page;
+        pool.count= pool.shortlist == nullptr ?
+          pool.page->size () :
+          pool.shortlist->offsets[pool.offset + 1] -
+            pool.shortlist->offsets[pool.offset];
+      }
+    }
+    if (pool.page == nullptr) return std::nullopt;
+    constexpr std::size_t max_global_candidates= 256;
+    if (pool.shortlist != nullptr) {
+      const std::uint32_t begin= pool.shortlist->offsets[pool.offset];
+      const std::uint32_t end= pool.shortlist->offsets[pool.offset + 1];
+      for (std::uint32_t at= begin; at<end; ++at)
+        consider (pool.shortlist->faces[at]);
+    }
+    else {
+      std::size_t checked= 0;
+      for (std::size_t candidate: *pool.page) {
+        if (checked++ >= max_global_candidates) break;
+        consider (candidate);
+      }
+    }
+    if (fallback_cache.size () >= 4096) fallback_cache.clear ();
+    fallback_cache.emplace (
+      std::move (key),
+      best ? *best : std::numeric_limits<std::size_t>::max ());
+    if (!best) return std::nullopt;
+    return view->faces[*best].file;
+  }
 };
 
-font_catalog::font_catalog (bool system, const std::vector<std::string>& files,
-                            const std::vector<std::string>& dirs):
-  state_ (std::make_unique<impl> (system, files, dirs)) {}
+font_catalog::font_catalog (): state_ (std::make_unique<impl> ()) {}
 font_catalog::~font_catalog () { state_->owner.check_owner (); }
+
+font_request font_request_with_italic (font_request request, bool italic) {
+  validate_request (request);
+  if (!request.fallback.family.empty ())
+    request.fallback.shape= italic ? "italic" : "right";
+  auto view= font_database_native_view ();
+  const auto source= view->physical_faces.find (
+    font_database_face_key (request.primary.file));
+  if (source == view->physical_faces.end ()) return request;
+  const auto& base= view->faces[source->second];
+
+  std::vector<std::string> family_keys;
+  for (const auto& family: base.families) {
+    array<string> logical;
+    logical << string (family.data (), family.size ())
+            << string (italic ? "italic" : "upright");
+    logical= apply_substitutions (logical);
+    if (N(logical) > 0)
+      family_keys.push_back (
+        font_database_family_key (
+          std::string (logical[0].data (), N(logical[0]))));
+    family_keys.push_back (font_database_family_key (family));
+  }
+  std::optional<std::size_t> best;
+  long long best_score= std::numeric_limits<long long>::max ();
+  for (std::size_t family_rank=0; family_rank<family_keys.size (); ++family_rank) {
+    const auto members= view->families.find (family_keys[family_rank]);
+    if (members == view->families.end ()) continue;
+    for (std::size_t candidate: members->second) {
+      const auto& face= view->faces[candidate];
+      const int slant_penalty= italic ?
+        (face.slant == 1 ? 0 : face.slant == 2 ? 1 : 100) :
+        (face.slant == 0 ? 0 : 100);
+      const long long score=
+        static_cast<long long> (family_rank) * 1000000000LL +
+        static_cast<long long> (slant_penalty) * 10000000LL +
+        1000LL * std::llabs (static_cast<long long> (face.weight) - base.weight) +
+        100LL * std::llabs (static_cast<long long> (face.width) - base.width) +
+        (face.spacing == base.spacing ? 0 : 1000000LL) +
+        static_cast<long long> (candidate);
+      if (!best || score < best_score) {
+        best= candidate;
+        best_score= score;
+      }
+    }
+  }
+  if (!best) return request;
+  const auto selected= view->faces[*best].file;
+  if (font_database_face_key (selected) ==
+      font_database_face_key (request.primary.file)) {
+    request.primary.file.file_utf8= selected.file_utf8;
+    request.primary.file.face_index= selected.face_index;
+  }
+  else request.primary.file= selected;
+  return request;
+}
 
 std::vector<selected_font_run> font_catalog::select (
     const std::string& source, const font_request& request, std::uint8_t base_level,
-    const std::vector<font_style_span>& styles) {
+    const std::vector<font_style_span>& styles,
+    const std::vector<script_run>* script_ranges) {
   state_->check ();
+  state_->synchronize_view ();
   require_utf8 (source);
   validate_request (request);
   if (source.size () > 16 * 1024 * 1024 || base_level > 1)
@@ -255,7 +626,7 @@ std::vector<selected_font_run> font_catalog::select (
       span.end= translate (span.end, originals, projected);
       span.request.math_variant= math_alphabet::normal;
     }
-    for (auto run: select (rendered, plain, base_level, projected_styles)) {
+    for (auto run: select (rendered, plain, base_level, projected_styles, nullptr)) {
       run.begin= translate (run.begin, projected, originals);
       const auto end= translate (run.end, projected, originals);
       while (run.begin < end) {
@@ -270,133 +641,106 @@ std::vector<selected_font_run> font_catalog::select (
     }
     return result;
   }
-  std::vector<description_ptr> descriptions;
-  descriptions.push_back (describe (request));
-  state_->set_resolution (request.horizontal_dpi, request.vertical_dpi);
-  object_ptr<PangoContext> context (
-    pango_font_map_create_context (state_->map.get ()), g_object_unref);
-  if (!context) throw std::bad_alloc ();
-  pango_context_set_font_description (context.get (), descriptions[0].get ());
-  pango_context_set_language (context.get (), pango_language_from_string (request.language.c_str ()));
-  std::unique_ptr<PangoAttrList, decltype (&pango_attr_list_unref)> attrs (
-    pango_attr_list_new (), pango_attr_list_unref);
-  for (const auto& span: styles) {
-    descriptions.push_back (describe (span.request, request.vertical_dpi));
-    for (auto attr: {pango_attr_font_desc_new (descriptions.back ().get ()),
-                     pango_attr_language_new (pango_language_from_string (span.request.language.c_str ()))}) {
-      if (!attr) throw std::bad_alloc ();
-      attr->start_index= span.begin;
-      attr->end_index= span.end;
-      pango_attr_list_insert (attrs.get (), attr);
-    }
-  }
   const auto locate_style= [&] (std::size_t byte) {
     return std::lower_bound (styles.begin (), styles.end (), byte,
       [] (const font_style_span& span, std::size_t at) { return span.end <= at; });
   };
-  const auto append= [&] (std::size_t begin, std::size_t end, PangoFont* selected) {
-    while (begin < end) {
-      const auto span= locate_style (begin);
-      const bool inside= span != styles.end () && span->begin <= begin;
-      const auto& active= inside ? span->request : request;
-      const auto index= inside ? static_cast<std::size_t> (span - styles.begin ()) + 1 : 0;
-      const double pixels= static_cast<double> (
-        pango_font_description_get_size (descriptions[index].get ())) *
-        request.vertical_dpi / (PANGO_SCALE * 72.0);
-      const auto font= physical_font (selected, pixels);
-      const auto next= span == styles.end () ? end : std::min (end, inside ? span->end : span->begin);
-      // Identical adjacent declarations must not break joining or ligatures.
-      // Keep explicit NUL control runs separate from neighboring text.
-      if (!result.empty () && begin > 0 && source[begin - 1] != '\0' && source[begin] != '\0' &&
-          result.back ().end == begin && result.back ().font.file_utf8 == font.file_utf8 &&
-          result.back ().font.face_index == font.face_index &&
-          result.back ().font.design_coords == font.design_coords &&
-          result.back ().point_size == active.point_size && result.back ().language == active.language &&
-          result.back ().horizontal_dpi == active.horizontal_dpi &&
-          result.back ().vertical_dpi == active.vertical_dpi &&
-          result.back ().math_variant == active.math_variant &&
-          result.back ().features == active.features)
-        result.back ().end= next;
-      else result.push_back ({begin, next, font, active.point_size, active.language,
-                              active.horizontal_dpi, active.vertical_dpi,
-                              active.math_variant, active.features});
-      begin= next;
-    }
+  const auto append= [&] (
+      std::size_t begin, std::size_t end, const font_request& active,
+      const font_file_source& font) {
+    if (!result.empty () && begin > 0 &&
+        source[begin - 1] != '\0' && source[begin] != '\0' &&
+        result.back ().end == begin &&
+        result.back ().font.file_utf8 == font.file_utf8 &&
+        result.back ().font.face_index == font.face_index &&
+        result.back ().font.design_coords == font.design_coords &&
+        result.back ().point_size == active.primary.point_size &&
+        result.back ().language == active.language &&
+        result.back ().horizontal_dpi == active.primary.horizontal_dpi &&
+        result.back ().vertical_dpi == active.primary.vertical_dpi &&
+        result.back ().math_variant == active.math_variant &&
+        result.back ().features == active.features)
+      result.back ().end= end;
+    else result.push_back ({
+      begin, end, font, active.primary.point_size, active.language,
+      active.primary.horizontal_dpi, active.primary.vertical_dpi,
+      active.math_variant, active.features});
   };
-  const auto free_items= [] (GList* list) {
-    g_list_free_full (list, [] (gpointer item) { pango_item_free (static_cast<PangoItem*> (item)); });
-  };
-  // Pango's C string interface stops at NUL. Keep those source bytes as their
-  // own control runs; never truncate the rest of the paragraph or rewrite it.
-  for (std::size_t start= 0; start < source.size ();) {
-    if (source[start] == '\0') {
-      const auto span= locate_style (start);
-      const auto index= span != styles.end () && span->begin <= start ?
-        static_cast<std::size_t> (span - styles.begin ()) + 1 : 0;
-      object_ptr<PangoFont> font (pango_context_load_font (context.get (), descriptions[index].get ()),
-                                 g_object_unref);
-      append (start, start + 1, font.get ());
-      ++start;
+  std::optional<unicode_paragraph> local_analysis;
+  if (script_ranges == nullptr) {
+    local_analysis.emplace (source, request.direction, request.language);
+    script_ranges= &local_analysis->scripts ();
+  }
+  grapheme_cursor graphemes (source);
+  auto script= script_ranges->begin ();
+  for (std::size_t at= 0; at<source.size ();) {
+    const auto span= locate_style (at);
+    const bool inside= span != styles.end () && span->begin <= at;
+    const auto& active= inside ? span->request : request;
+    const std::size_t style_end=
+      span == styles.end () ? source.size () :
+      (inside ? span->end : span->begin);
+    while (script != script_ranges->end () && script->end <= at) ++script;
+    const std::size_t script_end=
+      script == script_ranges->end () ? source.size () : script->end;
+    const std::size_t segment_end= std::min (style_end, script_end);
+    if (segment_end <= at || segment_end > source.size ())
+      throw std::logic_error ("Font selection segment did not advance");
+
+    if (joining_sensitive (source, at, segment_end)) {
+      const auto required= required_coverage (source, at, segment_end);
+      font_file_source selected= active.primary.file;
+      if (!state_->covers (selected, required) ||
+          !state_->supports_sequence (
+            selected, active, source, at, segment_end,
+            script == script_ranges->end () ? std::string_view () :
+              std::string_view (script->script))) {
+        auto fallback= state_->fallback (
+          active, required, source, at, segment_end,
+          script == script_ranges->end () ? std::string_view () :
+            std::string_view (script->script));
+        if (fallback) selected= std::move (*fallback);
+      }
+      append (at, segment_end, active, selected);
+      at= segment_end;
       continue;
     }
-    auto end= source.find ('\0', start);
-    if (end == std::string::npos) end= source.size ();
-    std::unique_ptr<GList, decltype (free_items)> items (
-      pango_itemize_with_base_dir (context.get (), base_level ? PANGO_DIRECTION_RTL : PANGO_DIRECTION_LTR,
-        source.c_str (), start, end - start, attrs.get (), nullptr), free_items);
-    auto covered= start;
-    for (auto link= items.get (); link; link= link->next) {
-      const auto item= static_cast<PangoItem*> (link->data);
-      if (item->offset < 0 || static_cast<std::size_t> (item->offset) != covered ||
-          item->length <= 0 || static_cast<std::size_t> (item->length) > end - covered)
-        throw std::runtime_error ("Invalid Pango font item coverage");
-      const auto next= covered + item->length;
-      if (!scalar_boundary (source, covered) || !scalar_boundary (source, next))
-        throw std::runtime_error ("Font item splits a UTF-8 scalar");
-      append (covered, next, item->analysis.font);
-      covered= next;
+
+    while (at < segment_end) {
+      std::size_t next= source[at] == '\0' ? at + 1 :
+        std::min (graphemes.next (at), segment_end);
+      if (next <= at || next > source.size ())
+        throw std::logic_error ("Font selection did not advance");
+      const auto required= required_coverage (source, at, next);
+      font_file_source selected= active.primary.file;
+      if (!state_->covers (selected, required) ||
+          !state_->supports_sequence (
+            selected, active, source, at, next,
+            script == script_ranges->end () ? std::string_view () :
+              std::string_view (script->script))) {
+        auto fallback= state_->fallback (
+          active, required, source, at, next,
+          script == script_ranges->end () ? std::string_view () :
+            std::string_view (script->script));
+        if (fallback) selected= std::move (*fallback);
+      }
+      append (at, next, active, selected);
+      at= next;
     }
-    if (covered != end) throw std::runtime_error ("Font selection omitted source bytes");
-    start= end;
   }
+  (void) base_level;
   return result;
 }
 
 font_catalog& current_font_catalog () {
-  struct catalog_slot {
-    font_catalog value;
-    static std::vector<std::string> directories () {
-      std::vector<std::string> result;
-      append_directory (tt_private_font_path (), result);
-      return result;
-    }
-    catalog_slot (): value (true, {}, directories ()) {}
-  };
-  return font_domain_local<catalog_slot> ().value;
+  return font_domain_local<font_catalog> ();
 }
 
 font_request font_request_from_source (const physical_font_source& source,
                                        std::string language) {
-  const auto face= load_tt_face (source.file);
-  if (face->bad_face) throw std::runtime_error ("Cannot describe primary text font");
-  std::unique_ptr<FcPattern, decltype (&FcPatternDestroy)> pattern (
-    FcFreeTypeQueryFace (face->ft_face,
-      reinterpret_cast<const FcChar8*> (source.file.file_utf8.c_str ()),
-      source.file.face_index, nullptr), FcPatternDestroy);
-  if (!pattern) throw std::runtime_error ("Cannot read primary font metadata");
-  description_ptr description (
-    pango_fc_font_description_from_pattern (pattern.get (), FALSE),
-    pango_font_description_free);
-  if (!description) throw std::runtime_error ("Cannot describe primary font style");
-  std::unique_ptr<char, decltype (&g_free)> name (
-    pango_font_description_to_string (description.get ()), g_free);
-  if (!name) throw std::bad_alloc ();
   font_request request;
-  request.description_utf8= name.get ();
+  request.primary= source;
   request.language= std::move (language);
-  request.point_size= source.point_size;
-  request.horizontal_dpi= source.horizontal_dpi;
-  request.vertical_dpi= source.vertical_dpi;
   validate_request (request);
   return request;
 }
@@ -408,7 +752,8 @@ font_paragraph::font_paragraph (std::string source, font_request request,
                                 const std::vector<font_style_span>& styles, font_catalog& catalog):
   source_ (std::move (source)), analysis_ (source_, request.direction, request.language),
   request_ (std::move (request)), styles_ (styles),
-  fonts_ (catalog.select (source_, request_, analysis_.base_level (), styles)),
+  fonts_ (catalog.select (
+    source_, request_, analysis_.base_level (), styles, &analysis_.scripts ())),
   owner_ (&current_font_domain ()) {}
 
 unicode_paragraph& font_paragraph::analysis () {

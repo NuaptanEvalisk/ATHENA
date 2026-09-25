@@ -16,6 +16,8 @@
 #include "analyze.hpp"
 #include "boot.hpp"
 
+#include <unordered_set>
+
 #ifdef QTTEXMACS
 #include <QMessageBox>
 #include <QApplication>
@@ -716,13 +718,27 @@ add_properties (array<string> v, tree props) {
 
 array<string>
 apply_substitutions (array<string> v) {
-  if (N(v) <= 0) return v;
-  tree t= font_database_substitutions (v[0]);
-  for (int i=0; i<N(t); i++)
-    if (match_properties (v, t[i][0])) {
-      v= remove_properties (v, t[i][0]);
-      v= add_properties (v, t[i][1]);
-      return apply_substitutions (v);
+  std::unordered_set<std::string> seen;
+  while (N(v) > 0) {
+    std::string state;
+    for (int i=0; i<N(v); ++i) {
+      state+= std::to_string (N(v[i]));
+      state.push_back (':');
+      state.append (v[i].data (), N(v[i]));
+      state.push_back (';');
     }
+    if (!seen.insert (state).second) return v;
+
+    tree t= font_database_substitutions (v[0]);
+    bool changed= false;
+    for (int i=0; i<N(t); i++)
+      if (match_properties (v, t[i][0])) {
+        v= remove_properties (v, t[i][0]);
+        v= add_properties (v, t[i][1]);
+        changed= true;
+        break;
+      }
+    if (!changed) return v;
+  }
   return v;
 }

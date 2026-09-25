@@ -97,6 +97,11 @@ struct shaping_item {
   std::string script; // ISO 15924 tag, ready for HarfBuzz shaping options.
 };
 
+struct script_run {
+  std::size_t begin, end; // Logical UTF-8 bytes; not an editing boundary.
+  std::string script;     // ISO 15924 tag.
+};
+
 // Analyze one Unicode paragraph once, then resolve each chosen line separately
 // (UBA rule L1 changes trailing whitespace levels at line boundaries).
 // Borrow immutable UTF-8 bytes; the necessary ICU UTF-16 copy and all mutable
@@ -116,6 +121,7 @@ public:
   std::uint8_t base_level () const;
   std::string_view source () const;
   const std::vector<line_break>& breaks () const;
+  const std::vector<script_run>& scripts () const;
   // Exact scalar-boundary conversions, including an explicit rejection of
   // surrogate interiors. Repeated line queries do not rescan text prefixes.
   std::size_t byte_to_utf16 (std::size_t byte) const;
@@ -125,8 +131,9 @@ public:
   // Line endpoints must be grapheme boundaries, without an interior hard break;
   // emergency wrapping may choose a boundary absent from breaks().
   std::vector<bidi_run> line (std::size_t begin, std::size_t end);
-  // Intersect visual bidi runs with Pango script ranges. Each item still needs
-  // font selection/fallback; rendering never guesses one script for a paragraph.
+  // Intersect visual bidi runs with ICU/UCD context-sensitive script ranges.
+  // Each item still needs font selection/fallback; rendering never guesses one
+  // script for a paragraph.
   std::vector<shaping_item> items (std::size_t begin, std::size_t end);
 };
 

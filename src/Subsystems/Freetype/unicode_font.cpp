@@ -129,6 +129,8 @@ hashmap<string,double> above_fira_italic_table ();
 
 struct unicode_font_rep: font_rep {
   string      family;
+  bool        exact_source;
+  athena::text::font_file_source source;
   int         hdpi;
   int         vdpi;
   font_metric fnm;
@@ -137,7 +139,9 @@ struct unicode_font_rep: font_rep {
 
   hashmap<string,int> native; // additional native (non unicode) characters
   
-  unicode_font_rep (string name, string family, int size, int hdpi, int vdpi);
+  unicode_font_rep (
+    string name, string family, int size, int hdpi, int vdpi,
+    const athena::text::font_file_source* exact= nullptr);
   void tex_gyre_operators ();
 
   unsigned int read_unicode_char (string s, int& i);
@@ -174,14 +178,24 @@ struct unicode_font_rep: font_rep {
 ******************************************************************************/
 
 unicode_font_rep::unicode_font_rep (string name,
-  string family2, int size2, int hdpi2, int vdpi2):
-    font_rep (name), family (family2), hdpi (hdpi2), vdpi (vdpi2), ligs (0),
+  string family2, int size2, int hdpi2, int vdpi2,
+  const athena::text::font_file_source* exact):
+    font_rep (name), family (family2), exact_source (exact != nullptr),
+    source (exact == nullptr ? athena::text::font_file_source () : *exact),
+    hdpi (hdpi2), vdpi (vdpi2), ligs (0),
     native (0)
 {
   type= FONT_TYPE_UNICODE;
   size= size2;
-  fnm = tt_font_metric (family, size, std_dpi, (std_dpi * vdpi) / hdpi);
-  fng = tt_font_glyphs (family, size, hdpi, vdpi);
+  if (exact_source) {
+    tt_face face= load_tt_face (source);
+    fnm= tt_font_metric (face, size, std_dpi, (std_dpi * vdpi) / hdpi);
+    fng= tt_font_glyphs (face, size, hdpi, vdpi);
+  }
+  else {
+    fnm= tt_font_metric (family, size, std_dpi, (std_dpi * vdpi) / hdpi);
+    fng= tt_font_glyphs (family, size, hdpi, vdpi);
+  }
   if (fnm->bad_font_metric || fng->bad_font_glyphs) {
     fnm= std_font_metric (res_name, NULL, 0, -1);
     fng= std_font_glyphs (res_name, NULL, 0, -1);
@@ -680,6 +694,9 @@ athena::text::shaped_text
 unicode_font_rep::shape_utf8 (
   std::string_view text, std::size_t begin, std::size_t end,
   const athena::text::shaping_options& options) {
+  if (exact_source)
+    return athena::text::shape_freetype_utf8 (
+      source, size, hdpi, vdpi, text, begin, end, options);
   return athena::text::shape_freetype_utf8 (
     family, size, hdpi, vdpi, text, begin, end, options);
 }
@@ -822,6 +839,11 @@ unicode_font_rep::draw_fixed (renderer ren, string s, SI x, SI y) {
 
 font
 unicode_font_rep::magnify (double zoomx, double zoomy) {
+  if (exact_source)
+    return unicode_font (
+      family, source, size,
+      (int) tm_round (hdpi * zoomx),
+      (int) tm_round (vdpi * zoomy));
   return unicode_font (family, size,
                        (int) tm_round (hdpi * zoomx),
                        (int) tm_round (vdpi * zoomy));
@@ -1047,6 +1069,24 @@ unicode_font (string family, int size, int hdpi, int vdpi) {
   if (vdpi != hdpi) name << "x" << as_string (vdpi);
   return make (font, name,
                tm_new<unicode_font_rep> (name, family, size, hdpi, vdpi));
+}
+
+font
+unicode_font (
+    string family, const athena::text::font_file_source& source,
+    int size, int hdpi, int vdpi) {
+  string axes;
+  for (auto coordinate: source.design_coords)
+    axes << as_string (coordinate) << ",";
+  string name=
+    "unicode:file-face:" * as_string (source.face_index) * ":" * axes * ":" *
+    string (source.file_utf8.data (), source.file_utf8.size ()) * ":" *
+    family * as_string (size) * "@" * as_string (hdpi);
+  if (vdpi != hdpi) name << "x" << as_string (vdpi);
+  return make (
+    font, name,
+    tm_new<unicode_font_rep> (
+      name, family, size, hdpi, vdpi, &source));
 }
 
 font

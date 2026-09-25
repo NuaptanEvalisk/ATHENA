@@ -39,9 +39,17 @@ struct open_type_feature {
   }
 };
 
+struct font_fallback_policy {
+  std::string family;
+  std::string variant;
+  std::string series;
+  std::string shape;
+};
+
 struct native_text_source {
   physical_font_source physical;
   std::vector<open_type_feature> features;
+  font_fallback_policy fallback;
 };
 
 struct shaping_options {
