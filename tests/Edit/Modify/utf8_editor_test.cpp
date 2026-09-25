@@ -495,6 +495,15 @@ private slots:
     QCOMPARE (expression[1]->op_type, OP_INFIX);
     QVERIFY (expression[0]->spc->def > 0);
     QVERIFY (expression[1]->spc->def > 0);
+    auto product= typeset_concat (env, tree ("a*b"), path (0));
+    QCOMPARE (N(product), 3);
+    QCOMPARE (product[1]->b->get_leaf_string (), string ("*"));
+    QCOMPARE (product[1]->b->get_leaf_left_pos (), 1);
+    QCOMPARE (product[1]->b->get_leaf_right_pos (), 2);
+    QCOMPARE (product[1]->b->w (), SI (0));
+    QCOMPARE (product[1]->op_type, OP_INFIX);
+    QVERIFY (product[0]->spc->def > 0);
+    QVERIFY (product[1]->spc->def > 0);
     auto literal= typeset_concat (env, tree ("<alpha>"), path (0));
     string retained;
     for (int i=0; i<N(literal); ++i) retained << literal[i]->b->get_leaf_string ();

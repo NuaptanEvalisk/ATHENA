@@ -7147,8 +7147,8 @@
       "actions": [
         {
           "op": "make-with",
-          "var": "font",
-          "value": "Bbb"
+          "var": "math-font-shape",
+          "value": "bbb"
         }
       ]
     },

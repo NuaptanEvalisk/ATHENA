@@ -834,6 +834,17 @@ shaped_line shape_line (unicode_paragraph& paragraph,
     if (run.byte_begin != item.run.begin || run.byte_end != item.run.end ||
         run.direction != selected.direction || run.advance_y != 0)
       throw std::invalid_argument ("Item shaper changed the line contract");
+    if (selected.invisible) {
+      run.glyphs.clear ();
+      run.bitmaps.clear ();
+      run.advance_x= 0;
+      run.advance_y= 0;
+      run.ink_x1= run.ink_y1= run.ink_x2= run.ink_y2= 0;
+      run.has_ink= false;
+      run.missing_glyphs= false;
+      run.math.reset ();
+      for (auto& caret: run.carets) caret.x= 0;
+    }
     if (run.glyphs.size () > options.max_glyphs - glyph_count ||
         run.carets.size () > options.max_carets - result.carets.size ())
       throw std::length_error ("Shaped line budget exceeded");

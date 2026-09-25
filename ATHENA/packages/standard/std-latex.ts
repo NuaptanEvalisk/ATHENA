@@ -148,7 +148,7 @@
 
   <assign|mathfrak|<macro|x|<with|font|Euler|font-shape|right|math-font-shape|right|<arg|x>>>>
 
-  <assign|mathbb|<macro|x|<with|font|Bbb*|font-shape|right|math-font-shape|right|<arg|x>>>>
+  <assign|mathbb|<macro|x|<with|math-font-shape|bbb|<arg|x>>>>
 
   <active*|<\src-comment>
     A few symbols for personal use.

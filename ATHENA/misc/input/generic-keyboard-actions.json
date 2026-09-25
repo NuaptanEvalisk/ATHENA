@@ -217,6 +217,18 @@
   },
   "escape_rules": [
     {
+      "prefix": "bbb-",
+      "action": {
+        "kind": "tree",
+        "value": [
+          "math-alpha-bbb",
+          {
+            "capture": "suffix"
+          }
+        ]
+      }
+    },
+    {
       "prefix": "tree:math-up:",
       "action": {
         "kind": "tree",
