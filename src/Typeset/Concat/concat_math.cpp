@@ -579,20 +579,52 @@ concater_rep::typeset_sqrt (tree t, path ip) {
   print (sqrt_box (ip, b, ind, sqrtb, env->fn, env->pen, env->display_style));
 }
 
+static tree
+wide_accent_payload (tree accent, bool& request_wide) {
+  // Imported symbol text is stored as CONCAT(NAMED_SYMBOL(...)), even when
+  // it contains just one symbol.  Unwrap transparent containers at this
+  // argument boundary, not by rewriting the document or stringifying a tree.
+  for (;;) {
+    if (is_func (accent, CONCAT)) {
+      int child= -1;
+      for (int i=0; i<N(accent); ++i)
+        if (accent[i] != "") {
+          if (child >= 0) return accent;
+          child= i;
+        }
+      if (child < 0) return tree ("");
+      accent= accent[child];
+    }
+    else if (is_func (accent, WITH) && N(accent) >= 3) {
+      for (int i=0; i+1<N(accent)-1; i+=2)
+        if (accent[i] == "math-accent-stretch" && accent[i+1] == "true")
+          request_wide= true;
+      accent= accent[N(accent)-1];
+    }
+    else return accent;
+  }
+}
+
 void
 concater_rep::typeset_wide (tree t, path ip, bool above) {
   if (N(t) != 2) { typeset_error (t, ip); return; }
   box b= typeset_as_concat (env, t[0], descend (ip, 0));
   bool request_wide= false;
-  tree accent= t[1];
-  if (is_func (accent, WITH) && N(accent) >= 3) {
-    for (int i=0; i+1<N(accent)-1; i+=2)
-      if (is_atomic (accent[i]) && is_atomic (accent[i+1]) &&
-          accent[i] == "math-accent-stretch" && accent[i+1] == "true")
-        request_wide= true;
-    accent= accent[N(accent)-1];
+  tree accent= wide_accent_payload (t[1], request_wide);
+  // A computed accent may also evaluate to structured symbol text.  Keep the
+  // tree until its identity has been resolved; exec_string loses compounds.
+  accent= wide_accent_payload (env->exec (accent), request_wide);
+  string s;
+  // Existing persisted accent identities use the same geometric descriptor
+  // as the old atomic spelling.  This is local to the WIDE argument, never
+  // a conversion of ordinary native text back to Cork.
+  if (is_func (accent, NAMED_SYMBOL, 1) && is_atomic (accent[0]) &&
+      starts (accent[0]->label, "texmacs:")) {
+    const string identity= accent[0]->label;
+    s= "<" * identity (8, N(identity)) * ">";
   }
-  string s= env->exec_string (accent);
+  else if (is_atomic (accent)) s= accent->label;
+  else { typeset_error (t, ip); return; }
   // Read-only compatibility for pre-UTF-8 accent descriptors. New edit paths
   // store the scalar itself and an explicit tree attribute for forced stretch.
   if (starts (s, "<wide-")) {

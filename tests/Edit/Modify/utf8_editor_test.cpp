@@ -530,6 +530,44 @@ private slots:
     QCOMPARE (calligraphic[0]->b->w (), reference.line (0, 1).advance);
     QCOMPARE (calligraphic[0]->b->get_leaf_string (), string ("E"));
   }
+  void structuredWideAccents () {
+    drd_info drd ("structured-wide-accents", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write (MODE, "math");
+    env->update ();
+    const tree named (NAMED_SYMBOL, "texmacs:wide-bar");
+    const tree wrapped (CONCAT, named);
+    for (tree_label tag: {WIDE, VAR_WIDE})
+      for (string base: {string ("u"), string ("v")}) {
+        auto reference= typeset_concat (env, tree (tag, base, "<wide-bar>"), path (0));
+        QCOMPARE (N(reference), 1);
+        box expected= reference[0]->b;
+        QCOMPARE (expected->subnr (), 2);
+        for (tree descriptor: {named, wrapped, tree (CONCAT, "", wrapped, ""),
+               tree (WITH, "math-accent-stretch", "true", wrapped),
+               tree (CONCAT, tree (WITH, "math-accent-stretch", "true", wrapped))}) {
+          tree source (tag, base, descriptor);
+          tree saved= copy (source);
+          auto items= typeset_concat (env, source, path (0));
+          QCOMPARE (N(items), 1);
+          box rendered= items[0]->b;
+          QCOMPARE (rendered->subnr (), 2);
+          // Empty accent text has nonzero nominal height: height alone was
+          // a false positive.  Require the same real line box as a drawn bar.
+          QVERIFY (tree (rendered[1]) == tree (expected[1]));
+          QVERIFY (rendered[1]->w () > 0);
+          QCOMPARE (rendered->sx1 (1), expected->sx1 (1));
+          QCOMPARE (rendered->sx2 (1), expected->sx2 (1));
+          QCOMPARE (rendered->sy3 (1), expected->sy3 (1));
+          QCOMPARE (rendered->sy4 (1), expected->sy4 (1));
+          QVERIFY (source == saved);
+        }
+      }
+  }
   void nativeMathAltTableShortcut () {
     QVERIFY (native_math_keyboard_has_registered_key ("A-t"));
     QCOMPARE (test_server->kbd_pre_rewrite ("math t"), string ("A-t"));
