@@ -12,7 +12,7 @@
 // Returns true when the native math registry owns this exact/prefix sequence.
 // Output status follows server::get_keycomb: 1 = command, 2 = shorthand text.
 bool native_math_keyboard_get_keycomb (
-  string combination, int& status, command& cmd, string& shorthand, string& help);
+  string& combination, int& status, command& cmd, string& shorthand, string& help);
 
 int native_math_keyboard_binding_count ();
 bool native_math_keyboard_has_registered_key (string combination);

@@ -60,6 +60,8 @@ struct native_math_registry {
   std::vector<math_group> groups;
   std::unordered_map<std::string,std::vector<binding_ref>> exact;
   std::unordered_map<std::string,std::vector<binding_ref>> prefixes;
+  std::string variant_suffix;
+  std::string unvariant_suffix;
 
   native_math_registry () {
     // The JSON uses the logical keyboard vocabulary from prefix-kbd (math,
@@ -67,6 +69,11 @@ struct native_math_registry {
     // but the native registry builds its own physical index, so make it
     // explicit before applying the shared pre-rewrite rules.
     eval ("(module-provide '(athena keyboard prefix-kbd))");
+    const string variant= get_server ()->kbd_pre_rewrite ("var");
+    const string unvariant= get_server ()->kbd_pre_rewrite ("unvar");
+    variant_suffix= " " + std::string (variant.data (), (std::size_t) N(variant));
+    unvariant_suffix=
+      " " + std::string (unvariant.data (), (std::size_t) N(unvariant));
     string source;
     if (load_string (url ("$ATHENA_PATH/misc/input/math-keybindings.json"),
                      source, false))
@@ -327,12 +334,52 @@ bool active_ref (const native_math_registry& r, const binding_ref& ref) {
          context_active (r.groups[(std::size_t) ref.group].context);
 }
 
+bool active_exact (
+    const native_math_registry& r, const std::string& key) {
+  auto found= r.exact.find (key);
+  if (found == r.exact.end ()) return false;
+  return std::any_of (
+    found->second.begin (), found->second.end (),
+    [&] (const binding_ref& ref) { return active_ref (r, ref); });
+}
+
+bool native_ends_with (
+    const std::string& value, const std::string& suffix) {
+  return value.size () >= suffix.size () &&
+         value.compare (
+           value.size () - suffix.size (), suffix.size (), suffix) == 0;
+}
+
+void simplify_native_variant (
+    const native_math_registry& r, std::string& key) {
+  if (!r.variant_suffix.empty () &&
+      native_ends_with (key, r.variant_suffix) &&
+      !active_exact (r, key))
+    while (native_ends_with (key, r.variant_suffix))
+      key.resize (key.size () - r.variant_suffix.size ());
+
+  if (r.unvariant_suffix.empty () ||
+      !native_ends_with (key, r.unvariant_suffix))
+    return;
+  const std::string pair= r.variant_suffix + r.unvariant_suffix;
+  if (!r.variant_suffix.empty () && native_ends_with (key, pair)) {
+    key.resize (key.size () - pair.size ());
+    return;
+  }
+  key.resize (key.size () - r.unvariant_suffix.size ());
+  while (!r.variant_suffix.empty () &&
+         active_exact (r, key + r.variant_suffix))
+    key+= r.variant_suffix;
+}
+
 } // namespace
 
 bool native_math_keyboard_get_keycomb (
-  string combination, int& status, command& cmd, string& shorthand, string& help) {
+  string& combination, int& status, command& cmd, string& shorthand, string& help) {
   auto& r= registry ();
-  const std::string key (combination.data (), (std::size_t) N(combination));
+  std::string key (combination.data (), (std::size_t) N(combination));
+  simplify_native_variant (r, key);
+  combination= string (key.data (), key.size ());
   auto exact= r.exact.find (key);
   if (exact != r.exact.end ()) {
     for (auto it= exact->second.rbegin (); it != exact->second.rend (); ++it) {

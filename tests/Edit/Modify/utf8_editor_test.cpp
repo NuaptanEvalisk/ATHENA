@@ -541,6 +541,8 @@ private slots:
     QCOMPARE (test_server->kbd_pre_rewrite ("- var"), string ("- tab"));
     QVERIFY (native_math_keyboard_has_registered_key ("- tab"));
     QVERIFY (native_math_keyboard_has_registered_key ("- - > tab tab tab"));
+    QVERIFY (native_math_keyboard_has_registered_key (": tab tab"));
+    QVERIFY (native_math_keyboard_has_registered_key (": tab tab tab"));
   }
 
   void mathDelimiterFonts () {
