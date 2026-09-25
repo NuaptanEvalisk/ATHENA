@@ -352,6 +352,13 @@ static shaped_text shape_freetype_run (
                      static_cast<int> (context_end - context_begin),
                      static_cast<unsigned int> (begin - context_begin),
                      static_cast<int> (end - begin));
+  if (options.math_semantics) {
+    unsigned int length= 0;
+    auto* characters= hb_buffer_get_glyph_infos (buffer.get (), &length);
+    for (unsigned int i=0; i<length; ++i)
+      if (characters[i].codepoint == '-')
+        characters[i].codepoint= 0x2212;
+  }
   hb_buffer_guess_segment_properties (buffer.get ());
   if (options.math_variant != math_alphabet::normal) {
     unsigned int length= 0;

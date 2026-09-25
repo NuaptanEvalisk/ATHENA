@@ -443,7 +443,7 @@ private slots:
   }
   void mathTypesetting () {
     using namespace athena::text;
-    QCOMPARE (native_math_keyboard_binding_count (), 2375);
+    QCOMPARE (native_math_keyboard_binding_count (), 2376);
     QCOMPARE (native_latex_command_count (), 736);
     string latex_help;
     command latex_command;
@@ -503,6 +503,12 @@ private slots:
     QCOMPARE (product[1]->op_type, OP_INFIX);
     QVERIFY (product[0]->spc->def > 0);
     QVERIFY (product[1]->spc->def > 0);
+    auto minus= typeset_concat (env, tree ("-"), path (0));
+    QCOMPARE (N(minus), 1);
+    QCOMPARE (minus[0]->b->get_leaf_string (), string ("-"));
+    auto minus_request= math_font_request (env->fn, math_alphabet::normal);
+    font_paragraph minus_reference ("\xe2\x88\x92", minus_request);
+    QCOMPARE (minus[0]->b->w (), minus_reference.line (0, 3).advance);
     auto radical= typeset_concat (env, tree (SQRT, "2222"), path (0));
     QCOMPARE (N(radical), 1);
     auto radical_box= radical[0]->b;
@@ -534,6 +540,7 @@ private slots:
               string ("A-t tab"));
     QCOMPARE (test_server->kbd_pre_rewrite ("- var"), string ("- tab"));
     QVERIFY (native_math_keyboard_has_registered_key ("- tab"));
+    QVERIFY (native_math_keyboard_has_registered_key ("- - > tab tab tab"));
   }
 
   void mathDelimiterFonts () {

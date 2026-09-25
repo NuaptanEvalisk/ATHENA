@@ -20,6 +20,7 @@ struct font_request {
   font_fallback_policy fallback;
   std::string language= "und";
   paragraph_direction direction= paragraph_direction::automatic_ltr;
+  bool math_semantics= false;
   math_alphabet math_variant= math_alphabet::normal;
   std::vector<open_type_feature> features;
 };
@@ -30,6 +31,7 @@ struct selected_font_run {
   int point_size;
   std::string language;
   int horizontal_dpi, vertical_dpi;
+  bool math_semantics= false;
   math_alphabet math_variant= math_alphabet::normal;
   std::vector<open_type_feature> features;
 };

@@ -42,6 +42,7 @@ SI offset (SI x, SI dx) {
 bool same_options (const shaping_options& a, const shaping_options& b) {
   return a.direction == b.direction && a.script == b.script && a.language == b.language &&
     a.ligatures == b.ligatures && a.invisible == b.invisible &&
+    a.math_semantics == b.math_semantics &&
     a.math_variant == b.math_variant && a.max_glyphs == b.max_glyphs &&
     a.math_script_level == b.math_script_level &&
     a.editing_carets == b.editing_carets && a.grapheme_fragments == b.grapheme_fragments &&

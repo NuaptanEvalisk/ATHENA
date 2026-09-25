@@ -7759,6 +7759,20 @@
           ]
         },
         {
+          "key": "- - > var var var",
+          "actions": [
+            {
+              "op": "insert-content",
+              "pieces": [
+                [
+                  "named-symbol",
+                  "texmacs:dashrightarrow"
+                ]
+              ]
+            }
+          ]
+        },
+        {
           "key": "- - > . .",
           "text": "⟶⋯⟶"
         },

@@ -2181,6 +2181,7 @@ font_request math_font_request (font source, math_alphabet alphabet) {
   native_text_source native;
   if (source->native_text_source (native))
     result.fallback= std::move (native.fallback);
+  result.math_semantics= true;
   result.math_variant= alphabet;
   return result;
 }

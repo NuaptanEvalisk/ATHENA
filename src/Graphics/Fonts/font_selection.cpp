@@ -588,9 +588,11 @@ std::vector<selected_font_run> font_catalog::select (
   }
   std::vector<selected_font_run> result;
   if (source.empty ()) return result;
-  if (request.math_variant != math_alphabet::normal ||
+  if (request.math_semantics ||
+      request.math_variant != math_alphabet::normal ||
       std::any_of (styles.begin (), styles.end (), [] (const font_style_span& span) {
-        return span.request.math_variant != math_alphabet::normal;
+        return span.request.math_semantics ||
+               span.request.math_variant != math_alphabet::normal;
       })) {
     // Itemize the glyph-selection projection, not the plain source letters:
     // fallback must cover the actual mathematical alphabet. Map all results
@@ -604,7 +606,9 @@ std::vector<selected_font_run> font_catalog::select (
         styles[style].request : request;
       UChar32 c;
       U8_NEXT (source.data (), at, static_cast<int32_t> (source.size ()), c);
-      const auto glyph= math_variant_character (c, active.math_variant);
+      const UChar32 semantic=
+        active.math_semantics && c == '-' ? 0x2212 : c;
+      const auto glyph= math_variant_character (semantic, active.math_variant);
       char encoded[4];
       int32_t length= 0;
       U8_APPEND_UNSAFE (encoded, length, glyph);
@@ -619,11 +623,13 @@ std::vector<selected_font_run> font_catalog::select (
       return to[found - from.begin ()];
     };
     auto plain= request;
+    plain.math_semantics= false;
     plain.math_variant= math_alphabet::normal;
     auto projected_styles= styles;
     for (auto& span: projected_styles) {
       span.begin= translate (span.begin, originals, projected);
       span.end= translate (span.end, originals, projected);
+      span.request.math_semantics= false;
       span.request.math_variant= math_alphabet::normal;
     }
     for (auto run: select (rendered, plain, base_level, projected_styles, nullptr)) {
@@ -634,6 +640,8 @@ std::vector<selected_font_run> font_catalog::select (
           [] (const font_style_span& s, std::size_t at) { return s.end <= at; });
         const bool inside= span != styles.end () && span->begin <= run.begin;
         run.end= span == styles.end () ? end : std::min (end, inside ? span->end : span->begin);
+        run.math_semantics= inside ?
+          span->request.math_semantics : request.math_semantics;
         run.math_variant= inside ? span->request.math_variant : request.math_variant;
         result.push_back (run);
         run.begin= run.end;
@@ -658,13 +666,14 @@ std::vector<selected_font_run> font_catalog::select (
         result.back ().language == active.language &&
         result.back ().horizontal_dpi == active.primary.horizontal_dpi &&
         result.back ().vertical_dpi == active.primary.vertical_dpi &&
+        result.back ().math_semantics == active.math_semantics &&
         result.back ().math_variant == active.math_variant &&
         result.back ().features == active.features)
       result.back ().end= end;
     else result.push_back ({
       begin, end, font, active.primary.point_size, active.language,
       active.primary.horizontal_dpi, active.primary.vertical_dpi,
-      active.math_variant, active.features});
+      active.math_semantics, active.math_variant, active.features});
   };
   std::optional<unicode_paragraph> local_analysis;
   if (script_ranges == nullptr) {
@@ -778,6 +787,7 @@ shaped_line font_paragraph::line (std::size_t begin, std::size_t end,
       if (font == fonts_.end () || font->begin > item.run.begin || font->end < item.run.end)
         throw std::logic_error ("Shaping item crosses selected font boundary");
       auto selected= o;
+      selected.math_semantics= font->math_semantics;
       selected.math_variant= font->math_variant;
       for (const auto& feature: font->features) {
         auto existing= std::find_if (

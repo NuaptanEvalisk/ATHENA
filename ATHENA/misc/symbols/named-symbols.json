@@ -3326,6 +3326,12 @@
       "slant": "upright"
     },
     {
+      "identity": "texmacs:dashrightarrow",
+      "math_class": "infix",
+      "glyph": "⇢",
+      "slant": "upright"
+    },
+    {
       "identity": "texmacs:ddagger",
       "math_class": "infix",
       "glyph": "‡",
