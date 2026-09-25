@@ -2,8 +2,8 @@
   "schema": 1,
   "id": "example.hello-world",
   "name": "Hello World",
-  "version": "1.0",
-  "description": "Insert a Hello, World! paragraph using the Python AUDMAP SDK.",
+  "version": "2.0",
+  "description": "Insert a Hello, World! paragraph using the Python AUDMAP v2 SDK.",
   "executable": "plugin_exec",
   "commands": [
     {"id": "insert-hello-world", "title": "Insert Hello World", "parameters": {}}

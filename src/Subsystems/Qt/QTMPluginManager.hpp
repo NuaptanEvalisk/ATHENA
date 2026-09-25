@@ -43,9 +43,9 @@ public:
   void install (const std::filesystem::path& source);
   void uninstall (const std::string& id);
   void configure (const std::string& id, const QTMPluginPolicy& policy);
-  void start (const std::string& id);
+  void start (const std::string& id, bool userInitiated = false);
   void stop (const std::string& id, bool force = false);
-  void restart (const std::string& id);
+  void restart (const std::string& id, bool userInitiated = false);
   std::uint64_t command (const std::string& id, const std::string& command);
   bool authorize (const std::string& key, std::optional<athena::interop::connection_grant>& grant,
                   std::string* display_name = nullptr);
@@ -53,4 +53,5 @@ public:
 signals:
   void changed ();
   void managementFinished (QString error);
+  void launchFailed (QString plugin, QString error);
 };

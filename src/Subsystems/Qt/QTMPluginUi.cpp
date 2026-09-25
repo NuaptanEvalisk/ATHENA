@@ -9,6 +9,7 @@
 ******************************************************************************/
 #include "QTMPluginUi.hpp"
 #include "QTMPluginManager.hpp"
+#include "QTMToast.hpp"
 #include "QTMAudmap.hpp"
 #include <QComboBox>
 #include <QDialog>
@@ -40,6 +41,15 @@ QString menu_text (const std::string& text) { return qs (text).replace ('&', "&&
 void execute (QWidget* parent, const std::function<void ()>& action) {
   try { action (); }
   catch (const std::exception& e) { QMessageBox::warning (parent, "ATHENA Plugins", QString::fromUtf8 (e.what ())); }
+}
+void launch_plugin (QTMPluginManager* manager, const std::string& id, bool restart) {
+  try {
+    if (restart) manager->restart (id, true);
+    else manager->start (id, true);
+  }
+  catch (const std::exception& e) {
+    qtm_show_toast (string (e.what ()), "Plugin Failed to Start");
+  }
 }
 QToolButton* tool (QWidget* parent, QHBoxLayout* layout, const char* icon, const char* text,
                   QStyle::StandardPixmap fallback = QStyle::SP_CustomBase) {
@@ -216,10 +226,11 @@ public:
       for (const auto& plugin: this->manager->plugins ()) if (plugin.manifest.id == id) { current = plugin; selected = id; break; }
       load_policy (); refresh ();
     });
-    connect (startStop, &QToolButton::clicked, this, [this] { execute (this, [&] {
-      if (current.running || current.state == "Scheduled") this->manager->stop (selected); else this->manager->start (selected);
-    }); });
-    connect (restart, &QToolButton::clicked, this, [this] { execute (this, [&] { this->manager->restart (selected); }); });
+    connect (startStop, &QToolButton::clicked, this, [this] {
+      if (current.running || current.state == "Scheduled") execute (this, [&] { this->manager->stop (selected); });
+      else launch_plugin (this->manager, selected, false);
+    });
+    connect (restart, &QToolButton::clicked, this, [this] { launch_plugin (this->manager, selected, true); });
     connect (force, &QToolButton::clicked, this, [this] { execute (this, [&] { this->manager->stop (selected, true); }); });
     connect (remove, &QToolButton::clicked, this, [this] {
       if (QMessageBox::question (this, "Uninstall Plugin", "Uninstall " + qs (current.manifest.name) + "?\nPlugin data will be retained.",
@@ -277,8 +288,11 @@ QMenu* qtm_plugins_menu (QWidget* parent) {
       };
       const bool active = plugin.running || plugin.state == "Scheduled";
       action (active ? "Stop" : "Start", active ? "media-playback-stop" : "media-playback-start",
-        !manager->busy () && plugin.state != "Invalid", [id, active] (auto* m) { if (active) m->stop (id); else m->start (id); });
-      action ("Restart", "view-refresh", !manager->busy () && plugin.state != "Invalid", [id] (auto* m) { m->restart (id); });
+        !manager->busy () && plugin.state != "Invalid", [id, active] (auto* m) {
+          if (active) m->stop (id); else launch_plugin (m, id, false);
+        });
+      action ("Restart", "view-refresh", !manager->busy () && plugin.state != "Invalid",
+        [id] (auto* m) { launch_plugin (m, id, true); });
       action ("Force quit", "process-stop", plugin.running, [id] (auto* m) { m->stop (id, true); });
       actions->addSeparator ();
       for (const auto& command: plugin.manifest.commands)

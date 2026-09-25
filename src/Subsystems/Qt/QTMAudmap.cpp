@@ -33,6 +33,7 @@
 #include <deque>
 #include <thread>
 #include "QTMPluginManager.hpp"
+#include "QTMToast.hpp"
 
 using namespace athena::interop;
 
@@ -283,6 +284,11 @@ struct QTMAudmap::impl: QObject {
       if (home.isEmpty ()) home = QDir::home ().filePath (".ATHENA");
       plugins = std::make_unique<QTMPluginManager> (home.toStdString (), server->discovery_file (),
         registry, [this] (std::string key) { server->disconnect_peer (key); });
+      QObject::connect (plugins.get (), &QTMPluginManager::launchFailed, this,
+        [] (const QString& plugin, const QString& error) {
+          const QByteArray body= (plugin + ": " + error).toUtf8 ();
+          qtm_show_toast (string (body.constData (), body.size ()), "Plugin Failed to Start");
+        });
     }
     catch (const std::exception& e) { qWarning ("ATHENA plugins unavailable: %s", e.what ()); }
     qInfo ("ATHENA AUDMAP endpoint: %s", server->discovery_file ().c_str ());

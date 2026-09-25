@@ -188,7 +188,35 @@ int main (int argc, char** argv) {
     manager->uninstall ("fixture.plugin"); until ([&] { return !manager->busy (); }, "Uninstall did not finish");
     require (manager->plugins ().empty (), "Uninstall left a registered plugin");
     require (std::filesystem::is_directory (profile.filePath ("home/plugins-data/fixture.plugin").toStdString ()),
-             "Uninstall removed persistent plugin data");
+              "Uninstall removed persistent plugin data");
+
+    const auto failureSource = profile.filePath ("failure").toStdString ();
+    std::filesystem::create_directory (failureSource);
+    {
+      std::ofstream script (failureSource + "/plugin_exec");
+      script << "#!/bin/sh\necho 'Incompatible AUDMAP protocol version' >&2\nexit 23\n";
+    }
+    require (::chmod ((failureSource + "/plugin_exec").c_str (), 0700) == 0,
+             "Cannot make failing plugin executable");
+    const value failureManifest {{"schema", 1}, {"id", "fixture.failure"},
+      {"name", "Old Fixture Plugin"}, {"version", "1"}, {"commands", value::array ()}};
+    { std::ofstream file (failureSource + "/manifest.json"); file << failureManifest.dump (); }
+    QString launchName, launchError;
+    int launchFailures= 0;
+    QObject::connect (manager, &QTMPluginManager::launchFailed, &app,
+      [&] (QString name, QString error) {
+        ++launchFailures; launchName= std::move (name); launchError= std::move (error);
+      });
+    manager->install (failureSource);
+    until ([&] { return !manager->busy (); }, "Failing fixture install did not finish");
+    manager->start ("fixture.failure", true);
+    until ([&] { return info (manager).state == "Failed"; }, "Manual startup failure was not recorded");
+    until ([&] { return launchFailures == 1; }, "Manual startup failure emitted no notification signal");
+    require (launchName == "Old Fixture Plugin", "Startup failure lost plugin identity");
+    require (launchError.contains ("Incompatible AUDMAP protocol version"),
+             "Startup failure omitted the plugin's diagnostic output");
+    manager->uninstall ("fixture.failure");
+    until ([&] { return !manager->busy (); }, "Failing fixture uninstall did not finish");
     std::cout << "Plugin runtime tests passed\n";
     return 0;
   }

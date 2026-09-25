@@ -1,13 +1,13 @@
 # Hello World Plugin
 
-An installable Python example of an ATHENA subprocess plugin. The manifest
+An installable Python AUDMAP v2 example of an ATHENA subprocess plugin. The manifest
 registers **Insert Hello World**. Each invocation adds a new paragraph containing
 `Hello, World!` at the end of the active document. It does not save the
 document. No vault is required.
 
 ## Install
 
-The ZIP includes the repository's Python AUDMAP SDK unchanged. The executable
+The ZIP includes the repository's current Python AUDMAP v2 SDK unchanged. The executable
 uses `/usr/bin/python3`, which must have `zmq` and `msgpack` available. It does
 not use the shell's Conda interpreter. No dependencies are installed at startup.
 

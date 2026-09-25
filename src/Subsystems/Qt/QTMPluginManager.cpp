@@ -96,6 +96,8 @@ struct QTMPluginManager::impl {
     std::uint64_t generation = 0, schedule = 0;
     qint64 group = 0;
     bool stopping = false, restart = false, force = false;
+    bool userLaunchPending = false, restartUserInitiated = false;
+    bool launchFailureReported = false;
   };
   struct inbox {
     std::mutex mutex;
@@ -177,11 +179,18 @@ struct QTMPluginManager::impl {
     auto found = entries.find (id);
     if (closing || found == entries.end () || found->second->schedule != token || found->second->info.running) return;
     if (busy) { deferred_starts[id] = token; return; }
-    try { owner->start (id); }
+    try { owner->start (id, false); }
     catch (const std::exception& ex) {
       found->second->info.error = QString::fromUtf8 (ex.what ()); found->second->info.state = "Failed";
       emit owner->changed ();
     }
+  }
+  void report_launch_failure (entry& e) {
+    if (!e.userLaunchPending || e.launchFailureReported) return;
+    e.launchFailureReported = true;
+    emit owner->launchFailed (
+      QString::fromUtf8 (e.info.manifest.name.data (), e.info.manifest.name.size ()),
+      e.info.error);
   }
   void invalidate (entry& e) {
     if (e.channel) e.channel->close ();
@@ -198,20 +207,45 @@ struct QTMPluginManager::impl {
     auto found = entries.find (id);
     if (found == entries.end () || found->second->generation != generation) return;
     auto& e = *found->second;
+    if (e.process) {
+      e.info.log += QString::fromUtf8 (e.process->readAllStandardOutput ());
+      e.info.log = e.info.log.right (65536);
+    }
     invalidate (e);
     // A plugin must not leave its worker children behind when its leader exits.
     signal_group (e, SIGKILL); e.group = 0;
     e.info.running = false; e.info.pid = 0;
-    const bool restart = e.restart; e.restart = false;
-    if (e.stopping || (code == 0 && status == QProcess::NormalExit)) {
+    const bool restart = e.restart;
+    const bool restartUserInitiated = e.restartUserInitiated;
+    e.restart = false; e.restartUserInitiated = false;
+    const bool failedDuringManualLaunch= e.userLaunchPending && !e.info.connected && !e.stopping;
+    if (e.stopping || (!failedDuringManualLaunch && code == 0 && status == QProcess::NormalExit)) {
       e.info.state = "Stopped"; e.info.error.clear ();
     }
-    else { e.info.state = "Failed"; e.info.error = QString ("Process exited: %1").arg (code); }
+    else {
+      e.info.state = "Failed";
+      e.info.error = failedDuringManualLaunch && code == 0 && status == QProcess::NormalExit ?
+        QStringLiteral ("Process exited before connecting to ATHENA") :
+        QString ("Process exited: %1").arg (code);
+      const QStringList lines= e.info.log.trimmed ().split ('\n', Qt::SkipEmptyParts);
+      if (!lines.isEmpty ()) e.info.error += "\n" + lines.back ().trimmed ();
+      report_launch_failure (e);
+    }
     e.stopping = false;
     emit owner->changed ();
-    if (restart && !closing) QTimer::singleShot (0, owner, [this, id] {
-      try { owner->start (id); }
-      catch (const std::exception& ex) { emit owner->managementFinished (QString::fromUtf8 (ex.what ())); }
+    if (restart && !closing) QTimer::singleShot (0, owner, [this, id, restartUserInitiated] {
+      try { owner->start (id, restartUserInitiated); }
+      catch (const std::exception& ex) {
+        const QString error= QString::fromUtf8 (ex.what ());
+        if (restartUserInitiated) {
+          auto& e= at (id);
+          e.info.state= "Failed"; e.info.error= error;
+          emit owner->changed ();
+          emit owner->launchFailed (
+            QString::fromUtf8 (e.info.manifest.name.data (), e.info.manifest.name.size ()), error);
+        }
+        else emit owner->managementFinished (error);
+      }
     });
   }
   template<class Job> void background (Job job) {
@@ -250,7 +284,7 @@ std::vector<QTMPluginInfo> QTMPluginManager::plugins () const {
   return result;
 }
 bool QTMPluginManager::busy () const { implementation->check (); return implementation->busy; }
-void QTMPluginManager::start (const std::string& id) {
+void QTMPluginManager::start (const std::string& id, bool userInitiated) {
   auto& s = *implementation; auto& e = s.at (id);
   if (s.busy) throw std::runtime_error ("Plugin installation or removal is in progress");
   if (e.info.running) return;
@@ -259,6 +293,8 @@ void QTMPluginManager::start (const std::string& id) {
   if (metadata.id != id) throw std::runtime_error ("Installed plugin identity changed");
   e.info.manifest = std::move (metadata);
   e.schedule = ++s.serial; e.generation = ++s.serial;
+  e.userLaunchPending = userInitiated;
+  e.launchFailureReported = false;
   e.identity = std::make_unique<QTemporaryDir> ();
   if (!e.identity->isValid ()) throw std::runtime_error ("Cannot create private plugin launch identity");
   const auto keyfile = e.identity->filePath ("identity.json").toStdString ();
@@ -309,6 +345,7 @@ void QTMPluginManager::start (const std::string& id) {
     if (!e.stopping) e.info.error = e.process->errorString ();
     if (error == QProcess::FailedToStart) {
       s.invalidate (e); e.info.running = false; e.info.state = "Failed"; e.info.pid = 0; e.restart = false;
+      s.report_launch_failure (e);
     }
     emit changed ();
   });
@@ -330,9 +367,11 @@ void QTMPluginManager::stop (const std::string& id, bool force) {
   });
   emit changed ();
 }
-void QTMPluginManager::restart (const std::string& id) {
-  if (!implementation->at (id).info.running) { start (id); return; }
-  stop (id); implementation->at (id).restart = true;
+void QTMPluginManager::restart (const std::string& id, bool userInitiated) {
+  if (!implementation->at (id).info.running) { start (id, userInitiated); return; }
+  stop (id);
+  implementation->at (id).restart = true;
+  implementation->at (id).restartUserInitiated = userInitiated;
 }
 std::uint64_t QTMPluginManager::command (const std::string& id, const std::string& name) {
   auto& e = implementation->at (id);
@@ -360,7 +399,11 @@ bool QTMPluginManager::authorize (const std::string& key, std::optional<connecti
     for (const auto& [type, commands]: e.info.policy.commands) policy.capabilities[type] = {true, commands};
   }
   policy.capabilities["subscription"] = {true, {"get", "reply", "inspect"}, false};
-  grant = std::move (policy); e.info.connected = true; emit changed (); return true;
+  grant = std::move (policy);
+  e.info.connected = true;
+  e.userLaunchPending = false;
+  emit changed ();
+  return true;
 }
 void QTMPluginManager::disconnected (const std::string& key) {
   auto& s = *implementation; s.check ();
