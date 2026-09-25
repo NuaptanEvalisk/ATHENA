@@ -51,6 +51,7 @@ private slots:
   void caseInsensitiveExactMatch ();
   void unicodeOffsetsMapToTeXmacsBytes ();
   void listFilteringRespectsOptions ();
+  void fileRankingLetsQueryBeatCurrent ();
   void recognizesEnunciationAnchorPairs ();
   void findsInnermostEnclosingAnchorPair ();
   void recognizesHeadingAnchorTargets ();
@@ -68,6 +69,35 @@ private slots:
   void modeChoicesCycle ();
   void availableArrowKeysKeepInputFocus ();
 };
+
+void TestVaultSearch::fileRankingLetsQueryBeatCurrent () {
+  WikilinkFileEntry lectureOne;
+  lectureOne.relPath= "Lecture Notes I.ath";
+  lectureOne.stem= "Lecture Notes I";
+  lectureOne.searchPath= "Lecture Notes I";
+  lectureOne.searchStem= "Lecture Notes I";
+  lectureOne.mtime= 10;
+  lectureOne.isCurrent= false;
+
+  WikilinkFileEntry lectureTwo;
+  lectureTwo.relPath= "Lecture Notes II.ath";
+  lectureTwo.stem= "Lecture Notes II";
+  lectureTwo.searchPath= "Lecture Notes II";
+  lectureTwo.searchStem= "Lecture Notes II";
+  lectureTwo.mtime= 20;
+  lectureTwo.isCurrent= true;
+
+  const std::vector<WikilinkFileEntry> files {lectureOne, lectureTwo};
+  const auto initial= rank_vault_link_files (files, "");
+  QCOMPARE (initial.size (), std::size_t (2));
+  QCOMPARE (initial[0].index, 1);
+
+  const auto filtered=
+    rank_vault_link_files (files, "Lecture Notes I");
+  QCOMPARE (filtered.size (), std::size_t (2));
+  QCOMPARE (filtered[0].index, 0);
+  QVERIFY (filtered[0].score > filtered[1].score);
+}
 
 void TestVaultSearch::modeChoicesCycle () {
   for (int count: {3, 4}) {

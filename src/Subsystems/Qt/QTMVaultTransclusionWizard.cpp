@@ -371,29 +371,15 @@ TransclusionFilePage::updateList () {
   searchEdit->setEnabled (true);
   string query= from_qstring (searchEdit->text ().trimmed ());
 
-  std::vector<std::pair<int,int> > matches;
-  for (int i=0; i<(int) w->files.size (); i++) {
-    int score= fuzzy_file_score (w->files[i], query);
-    if (score >= 0) matches.push_back (std::make_pair (-score, i));
-  }
-  std::sort (matches.begin (), matches.end (),
-             [&] (const std::pair<int,int>& a,
-                  const std::pair<int,int>& b) {
-               const WikilinkFileEntry& fa= w->files[a.second];
-               const WikilinkFileEntry& fb= w->files[b.second];
-               if (fa.isCurrent != fb.isCurrent) return fa.isCurrent;
-               if (a.first != b.first) return a.first < b.first;
-               if (fa.mtime != fb.mtime) return fa.mtime > fb.mtime;
-               return fa.relPath < fb.relPath;
-             });
+  const auto matches= rank_vault_link_files (w->files, query);
 
   const int limit= 200;
   int count= 0;
   for (auto m: matches) {
-    const WikilinkFileEntry& e= w->files[m.second];
+    const WikilinkFileEntry& e= w->files[m.index];
     QListWidgetItem* item= new QListWidgetItem (e.relPath);
     item->setData (WikilinkPayloadRole, e.relPath);
-    item->setData (WikilinkIndexRole, m.second);
+    item->setData (WikilinkIndexRole, m.index);
     item->setData (WikilinkCompletionRole, strip_known_extension (e.relPath));
     fileList->addItem (item);
     if (++count >= limit) break;

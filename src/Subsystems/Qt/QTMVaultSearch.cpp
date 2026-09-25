@@ -256,6 +256,32 @@ fuzzy_file_score (const WikilinkFileEntry& file, string query) {
   return result.matched ? result.score : -1;
 }
 
+std::vector<VaultFileMatch>
+rank_vault_link_files (
+    const std::vector<WikilinkFileEntry>& files, string query) {
+  std::vector<VaultFileMatch> matches;
+  for (int i=0; i<(int) files.size (); ++i) {
+    const int score= fuzzy_file_score (files[i], query);
+    if (score >= 0) matches.push_back ({score, i});
+  }
+  const bool emptyQuery= query == "";
+  std::sort (
+    matches.begin (), matches.end (),
+    [&] (const VaultFileMatch& a, const VaultFileMatch& b) {
+      const WikilinkFileEntry& fa= files[a.index];
+      const WikilinkFileEntry& fb= files[b.index];
+      // Current-file bias is useful only for the unfiltered initial list.
+      // Once the user types, relevance must be authoritative; otherwise an
+      // approximate match in the current buffer steals selection from an
+      // exact target and completion jumps back to the current file.
+      if (emptyQuery && fa.isCurrent != fb.isCurrent) return fa.isCurrent;
+      if (a.score != b.score) return a.score > b.score;
+      if (fa.mtime != fb.mtime) return fa.mtime > fb.mtime;
+      return fa.relPath < fb.relPath;
+    });
+  return matches;
+}
+
 namespace {
 
 struct FuzzyAtomicText {

@@ -54,6 +54,11 @@ struct VaultContentMatch {
   int    titleMatchScore= -1;
 };
 
+struct VaultFileMatch {
+  int score;
+  int index;
+};
+
 // Called on the GUI owner before publishing paths to SearchWorkers. The origin
 // is the document captured when the inserter opened, not its preview buffer.
 bool vault_search_candidate_files (url origin, string namespace_name,
@@ -77,6 +82,8 @@ int fuzzy_score (const QString& text, const QString& query);
 int list_filter_score (const QString& text, const QString& query,
                        bool case_insensitive, bool fuzzy);
 int fuzzy_file_score (const WikilinkFileEntry& file, string query);
+std::vector<VaultFileMatch> rank_vault_link_files (
+  const std::vector<WikilinkFileEntry>& files, string query);
 void append_content_matches (std::vector<VaultContentMatch>& out, tree t,
                              tree query, path base, int limit,
                              bool case_insensitive, bool fuzzy);
