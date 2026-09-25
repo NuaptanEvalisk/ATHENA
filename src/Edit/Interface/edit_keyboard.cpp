@@ -134,10 +134,9 @@ edit_interface_rep::try_shortcut (string comb) {
       tree t= rhs;
       if (is_compound (t, "render-key", 1)) t= t[0];
       if (is_func (t, WITH)) t= t[N(t)-1];
-      call ("set-temporary-message",
-            tree (CONCAT, "keyboard shortcut: ", rew),
-            verbatim (rhs),
-            shorth == ""? 1: 3000);
+      set_status_hint (
+        tree (CONCAT, "keyboard shortcut: ", rew),
+        verbatim (rhs));
     }
     if ((status & 1) == 1) cmd ();
     else if (N(shorth) > 0) call ("kbd-insert", shorth);

@@ -158,7 +158,7 @@ edit_dynamic_rep::make_compound (tree_label l, int n= -1) {
       mess << kbd ("return") << ": activate";
     }
     if (mess == concat ()) mess= "Move to the right when finished";
-    set_message (mess, drd->get_name (l));
+    set_status_hint (mess, drd->get_name (l));
   }
 }
 
@@ -528,8 +528,8 @@ edit_dynamic_rep::make_hybrid () {
   path p= end (t, path (0));
   if (in_source ()) insert_tree (t, p);
   else insert_tree (tree (INACTIVE, t), path (0, p));
-  set_message (concat (kbd ("return"), ": activate symbol or macro"),
-               "hybrid");
+  set_status_hint (concat (kbd ("return"), ": activate symbol or macro"),
+                   "hybrid");
 }
 
 bool

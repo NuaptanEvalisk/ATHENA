@@ -279,6 +279,7 @@ public:
   virtual array<SI> get_mouse_position () = 0;
   virtual void set_pointer (string name) = 0;
   virtual void set_pointer (string curs_name, string mask_name) = 0;
+  virtual void set_status_hint (tree l, tree r= "") = 0;
   virtual void set_message (tree l, tree r= "", bool temp= false) = 0;
   virtual void recall_message () = 0;
   virtual void handle_center_message_state (bool active) = 0;

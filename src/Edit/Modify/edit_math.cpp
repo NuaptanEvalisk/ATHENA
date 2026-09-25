@@ -225,7 +225,7 @@ edit_math_rep::make_rigid () {
     insert_tree (tree (RIGID, selection_get_cut ()));
   else {
     insert_tree (tree (RIGID, ""), path (0, 0));
-    set_message ("move to the right when finished", "group");
+    set_status_hint ("move to the right when finished", "group");
   }
 }
 
@@ -253,11 +253,11 @@ void
 edit_math_rep::make_below () {
   if (selection_active_small ()) {
     insert_tree (tree (BELOW, selection_get_cut (), ""), path (1, 0));
-    set_message ("type script, move right", "under");
+    set_status_hint ("type script, move right", "under");
   }
   else {
     insert_tree (tree (BELOW, "", ""), path (0, 0));
-    set_message ("type body, move down, type script", "under");
+    set_status_hint ("type body, move down, type script", "under");
   }
 }
 
@@ -265,11 +265,11 @@ void
 edit_math_rep::make_above () {
   if (selection_active_small ()) {
     insert_tree (tree (ABOVE, selection_get_cut (), ""), path (1, 0));
-    set_message ("type script, move right", "above");
+    set_status_hint ("type script, move right", "above");
   }
   else {
     insert_tree (tree (ABOVE, "", ""), path (0, 0));
-    set_message ("type body, move up, type script", "above");
+    set_status_hint ("type body, move up, type script", "above");
   }
 }
 
@@ -292,9 +292,10 @@ edit_math_rep::make_script (bool sup, bool right) {
       return;
     }
     insert_tree (tree (s, ""), path (0, 0));
-    set_message ("move to the right when finished",
-                 (char*) (sup? (right? "superscript": "left superscript"):
-                               (right? "subscript": "left subscript")));
+    set_status_hint (
+      "move to the right when finished",
+      (char*) (sup? (right? "superscript": "left superscript"):
+                    (right? "subscript": "left subscript")));
   }
 }
 
@@ -302,11 +303,11 @@ void
 edit_math_rep::make_fraction () {
   if (selection_active_small ()) {
     insert_tree (tree (FRAC, selection_get_cut (), ""), path (1, 0));
-    set_message ("type denominator, move right", "fraction");
+    set_status_hint ("type denominator, move right", "fraction");
   }
   else {
     insert_tree (tree (FRAC, "", ""), path (0, 0));
-    set_message ("type numerator, move down, type denominator", "fraction");
+    set_status_hint ("type numerator, move down, type denominator", "fraction");
   }
 }
 
@@ -316,7 +317,7 @@ edit_math_rep::make_sqrt () {
     insert_tree (tree (SQRT, selection_get_cut ()));
   else {
     insert_tree (tree (SQRT, ""), path (0, 0));
-    set_message ("move to the right when finished", "square root");
+    set_status_hint ("move to the right when finished", "square root");
   }
 }
 
@@ -330,9 +331,9 @@ edit_math_rep::make_var_sqrt () {
   }
   else {
     insert_tree (tree (SQRT, "", ""), path (0, 0));
-    set_message (concat (kbd ("left"), ": set n",
-                         kbd ("right"), ": when finished"),
-                 "n-th root");
+    set_status_hint (concat (kbd ("left"), ": set n",
+                            kbd ("right"), ": when finished"),
+                     "n-th root");
   }
 }
 
@@ -343,7 +344,7 @@ edit_math_rep::make_wide (string wide, bool stretch) {
     insert_tree (tree (WIDE, selection_get_cut (), accent));
   else {
     insert_tree (tree (WIDE, "", accent), path (0, 0));
-    set_message ("move to the right when finished", "wide accent");
+    set_status_hint ("move to the right when finished", "wide accent");
   }
 }
 
@@ -354,7 +355,7 @@ edit_math_rep::make_wide_under (string wide, bool stretch) {
     insert_tree (tree (VAR_WIDE, selection_get_cut (), accent));
   else {
     insert_tree (tree (VAR_WIDE, "", accent), path (0, 0));
-    set_message ("move to the right when finished", "wide under accent");
+    set_status_hint ("move to the right when finished", "wide under accent");
   }
 }
 
@@ -364,7 +365,7 @@ edit_math_rep::make_neg () {
     insert_tree (tree (NEG, selection_get_cut ()));
   else {
     insert_tree (tree (NEG, ""), path (0, 0));
-    set_message ("move to the right when finished", "negation");
+    set_status_hint ("move to the right when finished", "negation");
   }
 }
 

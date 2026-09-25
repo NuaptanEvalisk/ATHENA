@@ -309,6 +309,7 @@ public:
   void set_right_footer ();
   tree live_statistics_footer ();
   void set_footer ();
+  void set_status_hint (tree l, tree r= "");
   void set_message (tree l, tree r= "", bool temp= false);
   void recall_message ();
   void handle_center_message_state (bool active);

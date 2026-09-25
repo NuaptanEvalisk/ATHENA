@@ -409,23 +409,21 @@ edit_interface_rep::set_hybrid_footer (tree st) {
         int i, n= N(mt)-1;
         for (i=0; i<n; i++)
           if (mt[i] == name) {
-            set_message (concat (kbd ("return"), ": insert argument ", name),
-                         "hybrid command");
+            set_left_footer (concat (kbd ("return"), ": insert argument ", name));
+            set_right_footer ("hybrid command");
             return true;
           }
       }
       // macro application
       tree f= get_env_value (name);
       if (drd->contains (name) && (f == UNINIT))
-        set_message (concat (kbd ("return"), ": insert primitive ", name),
-                     "hybrid command");
+        set_left_footer (concat (kbd ("return"), ": insert primitive ", name));
       else if (is_func (f, MACRO) || is_func (f, XMACRO))
-        set_message (concat (kbd ("return"), ": insert macro ", name),
-                     "hybrid command");
+        set_left_footer (concat (kbd ("return"), ": insert macro ", name));
       else if (f != UNINIT)
-        set_message (concat (kbd ("return"), ": insert value ", name),
-                     "hybrid command");
+        set_left_footer (concat (kbd ("return"), ": insert value ", name));
       else return false;
+      set_right_footer ("hybrid command");
       return true;
     }
   return false;
@@ -526,6 +524,13 @@ edit_interface_rep::set_footer () {
 /******************************************************************************
 * Exported routines
 ******************************************************************************/
+
+void
+edit_interface_rep::set_status_hint (tree l, tree r) {
+  message_l= l;
+  message_r= r;
+  notify_change (THE_DECORATIONS);
+}
 
 void
 edit_interface_rep::set_message (tree l, tree r, bool temp) {
