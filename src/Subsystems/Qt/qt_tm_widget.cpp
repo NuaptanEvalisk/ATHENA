@@ -21,6 +21,7 @@
 #include <QDialog>
 #include <QComboBox>
 #include <QStatusBar>
+#include <QSizePolicy>
 #include <QDockWidget>
 #include <QFile>
 #include <QLayout>
@@ -356,19 +357,22 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   QStatusBar* bar= new QStatusBar(mw);
   leftLabel= new QLabel (QStringLiteral ("Welcome to ATHENA"), mw);
   centerLabel= new QLabel ("", mw);
-  rightSpacer= new QLabel ("", mw);
   rightLabel= new QLabel (QStringLiteral ("Booting"), mw);
   leftLabel->setFrameStyle (QFrame::NoFrame);
   centerLabel->setFrameStyle (QFrame::NoFrame);
-  rightSpacer->setFrameStyle (QFrame::NoFrame);
   rightLabel->setFrameStyle (QFrame::NoFrame);
   leftLabel->setIndent (8);
+  leftLabel->setAlignment (Qt::AlignLeft | Qt::AlignVCenter);
   centerLabel->setAlignment (Qt::AlignCenter);
+  rightLabel->setAlignment (Qt::AlignRight | Qt::AlignVCenter);
+  for (QLabel* label: {leftLabel, centerLabel, rightLabel}) {
+    label->setMinimumWidth (0);
+    label->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Preferred);
+  }
 
   bar->addWidget (leftLabel, 1);
   bar->addWidget (centerLabel, 1);
-  bar->addWidget (rightSpacer, 1);
-  bar->addPermanentWidget (rightLabel);
+  bar->addWidget (rightLabel, 1);
   if (tm_style_sheet == "")
     bar->setStyle (qtmstyle ());
   
@@ -1080,7 +1084,6 @@ qt_tm_widget_rep::update_visibility () {
     qt_set_font_size (f, qt_zoom (fs > 0 ? fs : QTM_MINI_FONTSIZE));
     leftLabel->setFont(f);
     centerLabel->setFont(f);
-    rightSpacer->setFont(f);
     rightLabel->setFont(f);
   }
 }
