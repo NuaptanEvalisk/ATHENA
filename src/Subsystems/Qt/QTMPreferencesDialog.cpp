@@ -28,6 +28,7 @@
 #include "rag_index.hpp"
 #include "boot.hpp"
 #include "font.hpp"
+#include "file.hpp"
 #include "namespaces.hpp"
 #include "scheme.hpp"
 #include "tm_ostream.hpp"
@@ -38,6 +39,7 @@
 #include <QAbstractItemView>
 #include <QCheckBox>
 #include <QClipboard>
+#include <QColor>
 #include <QColorDialog>
 #include <QComboBox>
 #include <QCompleter>
@@ -53,6 +55,11 @@
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QInputDialog>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonParseError>
+#include <QJsonValue>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -62,6 +69,7 @@
 #include <QPushButton>
 #include <QRandomGenerator>
 #include <QScrollArea>
+#include <QSet>
 #include <QSignalBlocker>
 #include <QShortcut>
 #include <QSpinBox>
@@ -565,288 +573,142 @@ document_language_choices () {
           {"japanese", "Japanese"}, {"korean", "Korean"}};
 }
 
-using PrefValue = Choice;
-using Preset = std::pair<const char*, std::vector<PrefValue> >;
+struct EnunciationPreset {
+  QString name;
+  std::vector<QStringChoice> preferences;
+};
 
-static const std::vector<Preset>&
+static url
+enunciation_presets_url () {
+  return url ("$ATHENA_PATH/misc/preferences/enunciation-presets.json");
+}
+
+static void
+warn_enunciation_presets (const QString& message) {
+  std_warning << "enunciation preset warning: "
+              << from_qstring_pref (message) << "\n";
+}
+
+static std::vector<EnunciationPreset>
+load_enunciation_presets () {
+  const url source= enunciation_presets_url ();
+  string text;
+  if (!exists (source) || load_string (source, text, false)) {
+    warn_enunciation_presets (
+      "Cannot read " + to_qstring_pref (concretize (source)));
+    return {};
+  }
+
+  c_string bytes (text);
+  QJsonParseError error;
+  const QJsonDocument document= QJsonDocument::fromJson (
+    QByteArray (bytes, N(text)), &error);
+  if (error.error != QJsonParseError::NoError || !document.isObject ()) {
+    warn_enunciation_presets ("Invalid JSON: " + error.errorString ());
+    return {};
+  }
+
+  const QJsonObject root= document.object ();
+  if (root.value ("version").toInt (-1) != 1 ||
+      !root.value ("presets").isArray ()) {
+    warn_enunciation_presets (
+      "enunciation-presets.json must contain version 1 and a presets array");
+    return {};
+  }
+
+  std::vector<EnunciationPreset> result;
+  QSet<QString> names;
+  QSet<QString> expectedKeys;
+  bool haveExpectedKeys= false;
+  for (const QJsonValue& value: root.value ("presets").toArray ()) {
+    if (!value.isObject ()) {
+      warn_enunciation_presets ("Every preset must be an object");
+      return {};
+    }
+    const QJsonObject object= value.toObject ();
+    const QString name= object.value ("name").toString ().trimmed ();
+    if (name.isEmpty () || names.contains (name) ||
+        !object.value ("preferences").isObject ()) {
+      warn_enunciation_presets (
+        "Every preset needs a unique name and a preferences object");
+      return {};
+    }
+
+    const QJsonObject preferences= object.value ("preferences").toObject ();
+    if (preferences.isEmpty ()) {
+      warn_enunciation_presets ("Preset " + name + " has no preferences");
+      return {};
+    }
+
+    EnunciationPreset preset;
+    preset.name= name;
+    QSet<QString> keys;
+    for (auto it= preferences.begin (); it != preferences.end (); ++it) {
+      const QString key= it.key ();
+      if (!key.startsWith ("vault ") || !key.endsWith (" color") ||
+          !it.value ().isString ()) {
+        warn_enunciation_presets (
+          "Preset " + name + " contains an invalid color preference");
+        return {};
+      }
+      const QString color= it.value ().toString ();
+      if (!QColor (color).isValid ()) {
+        warn_enunciation_presets (
+          "Preset " + name + " contains an invalid color: " + color);
+        return {};
+      }
+      keys.insert (key);
+      preset.preferences.emplace_back (key, color);
+    }
+
+    if (!haveExpectedKeys) {
+      expectedKeys= keys;
+      haveExpectedKeys= true;
+    }
+    else if (keys != expectedKeys) {
+      warn_enunciation_presets (
+        "All enunciation presets must define the same preference keys");
+      return {};
+    }
+    names.insert (name);
+    result.push_back (std::move (preset));
+  }
+
+  if (result.empty ())
+    warn_enunciation_presets ("enunciation-presets.json contains no presets");
+  return result;
+}
+
+static const std::vector<EnunciationPreset>&
 enunciation_presets () {
-  static const std::vector<Preset> presets= {
-    {"Solarized Light",
-     {{"vault theorem color", "#eee8d5"},
-      {"vault lemma color", "#e7f1df"},
-      {"vault corollary color", "#ddeef2"},
-      {"vault proposition color", "#e8e2f2"},
-      {"vault axiom color", "#f4e1dc"},
-      {"vault definition color", "#f1ead2"},
-      {"vault notation color", "#dfeee8"},
-      {"vault convention color", "#ebe6d6"},
-      {"vault conjecture color", "#e0eaf2"},
-      {"vault law color", "#f3e7c8"},
-      {"vault remark color", "#e6ead8"},
-      {"vault note color", "#dcecf0"},
-      {"vault example color", "#e9efd5"},
-      {"vault warning color", "#f5dfd6"},
-      {"vault disambiguation color", "#e2e6f1"},
-      {"vault acknowledgments color", "#f0e2ea"},
-      {"vault exercise color", "#e4efd8"},
-      {"vault problem color", "#dcebe3"},
-      {"vault question color", "#f2e8d1"},
-      {"vault solution color", "#e7edd8"},
-      {"vault answer color", "#dfece8"},
-      {"vault proof color", "#eee6d4"},
-      {"vault proof alternative color", "#e2e8ee"},
-      {"vault proof standard color", "#ece5d2"}}},
-    {"Gruvbox Light",
-     {{"vault theorem color", "#f1e5c0"},
-      {"vault lemma color", "#e5ecc4"},
-      {"vault corollary color", "#dce9d1"},
-      {"vault proposition color", "#d7e7de"},
-      {"vault axiom color", "#ead6cb"},
-      {"vault definition color", "#f0dec2"},
-      {"vault notation color", "#e8e0c5"},
-      {"vault convention color", "#dfe4c8"},
-      {"vault conjecture color", "#d8e2cf"},
-      {"vault law color", "#ecd9bf"},
-      {"vault remark color", "#eee8cc"},
-      {"vault note color", "#d9e8dc"},
-      {"vault example color", "#e3e9c2"},
-      {"vault warning color", "#f1d7c7"},
-      {"vault disambiguation color", "#dedde8"},
-      {"vault acknowledgments color", "#ead9dd"},
-      {"vault exercise color", "#e1edcb"},
-      {"vault problem color", "#d8e5d6"},
-      {"vault question color", "#efe0c8"},
-      {"vault solution color", "#e5edcf"},
-      {"vault answer color", "#dce8d7"},
-      {"vault proof color", "#eee4c9"},
-      {"vault proof alternative color", "#dde2dc"},
-      {"vault proof standard color", "#ede1c7"}}},
-    {"Catppuccin Latte",
-     {{"vault theorem color", "#e8e4f4"},
-      {"vault lemma color", "#dfe8f4"},
-      {"vault corollary color", "#dcecf0"},
-      {"vault proposition color", "#dceee8"},
-      {"vault axiom color", "#f2e1e6"},
-      {"vault definition color", "#f1e4d5"},
-      {"vault notation color", "#e7ead7"},
-      {"vault convention color", "#e4e8dc"},
-      {"vault conjecture color", "#e6e1ef"},
-      {"vault law color", "#f3dfd9"},
-      {"vault remark color", "#ebe7d6"},
-      {"vault note color", "#e1e7f2"},
-      {"vault example color", "#e4eedf"},
-      {"vault warning color", "#f4dfd4"},
-      {"vault disambiguation color", "#e0e3f0"},
-      {"vault acknowledgments color", "#efdfec"},
-      {"vault exercise color", "#dfeee1"},
-      {"vault problem color", "#dfe9ed"},
-      {"vault question color", "#f0e7d8"},
-      {"vault solution color", "#e3eedf"},
-      {"vault answer color", "#dfe9e6"},
-      {"vault proof color", "#efe6dc"},
-      {"vault proof alternative color", "#e2e5f0"},
-      {"vault proof standard color", "#eee4d9"}}},
-    {"Everforest Light",
-     {{"vault theorem color", "#e7e8c9"},
-      {"vault lemma color", "#dce9c8"},
-      {"vault corollary color", "#d8e8d0"},
-      {"vault proposition color", "#d6e7dc"},
-      {"vault axiom color", "#edd6c8"},
-      {"vault definition color", "#eee0c2"},
-      {"vault notation color", "#e1e6c7"},
-      {"vault convention color", "#e5dfca"},
-      {"vault conjecture color", "#d9e2db"},
-      {"vault law color", "#f0dac4"},
-      {"vault remark color", "#e9e4c8"},
-      {"vault note color", "#d7e7df"},
-      {"vault example color", "#e1eac9"},
-      {"vault warning color", "#f0d4c6"},
-      {"vault disambiguation color", "#dce1e3"},
-      {"vault acknowledgments color", "#ead8da"},
-      {"vault exercise color", "#d9eacb"},
-      {"vault problem color", "#d7e5d7"},
-      {"vault question color", "#ebe1c9"},
-      {"vault solution color", "#dfe9cc"},
-      {"vault answer color", "#d9e7d6"},
-      {"vault proof color", "#eee2c9"},
-      {"vault proof alternative color", "#dbe2dc"},
-      {"vault proof standard color", "#ece0c7"}}},
-    {"Nord Light",
-     {{"vault theorem color", "#e5e9f0"},
-      {"vault lemma color", "#dfeaf2"},
-      {"vault corollary color", "#dcecf0"},
-      {"vault proposition color", "#dceeea"},
-      {"vault axiom color", "#ece3ed"},
-      {"vault definition color", "#f0e4d8"},
-      {"vault notation color", "#e7ebdd"},
-      {"vault convention color", "#e3e8e2"},
-      {"vault conjecture color", "#e2e5f1"},
-      {"vault law color", "#f1e0d5"},
-      {"vault remark color", "#e8eadc"},
-      {"vault note color", "#dde8f1"},
-      {"vault example color", "#e2eddc"},
-      {"vault warning color", "#f1ded4"},
-      {"vault disambiguation color", "#e0e4ec"},
-      {"vault acknowledgments color", "#ece0e9"},
-      {"vault exercise color", "#dfece0"},
-      {"vault problem color", "#dce9e7"},
-      {"vault question color", "#eee6da"},
-      {"vault solution color", "#e2ece0"},
-      {"vault answer color", "#dfe9e8"},
-      {"vault proof color", "#ece7dc"},
-      {"vault proof alternative color", "#e2e6ee"},
-      {"vault proof standard color", "#ebe6da"}}},
-    {"Sumi Ink",
-     {{"vault theorem color", "#e4e8ef"},
-      {"vault lemma color", "#dfe9ee"},
-      {"vault corollary color", "#dcebea"},
-      {"vault proposition color", "#dcebe4"},
-      {"vault axiom color", "#eadfe7"},
-      {"vault definition color", "#efe4d6"},
-      {"vault notation color", "#e7eadc"},
-      {"vault convention color", "#e3e8df"},
-      {"vault conjecture color", "#e2e3ef"},
-      {"vault law color", "#f0ded2"},
-      {"vault remark color", "#e9e6d7"},
-      {"vault note color", "#dfe8ef"},
-      {"vault example color", "#e2ead9"},
-      {"vault warning color", "#f1ddd4"},
-      {"vault disambiguation color", "#e1e4ea"},
-      {"vault acknowledgments color", "#eadfe4"},
-      {"vault exercise color", "#e0eadd"},
-      {"vault problem color", "#dde7e4"},
-      {"vault question color", "#eee5d8"},
-      {"vault solution color", "#e6ecdf"},
-      {"vault answer color", "#e1e9e5"},
-      {"vault proof color", "#e8e6dd"},
-      {"vault proof alternative color", "#e3e7ec"},
-      {"vault proof standard color", "#e7e5dc"}}},
-    {"Aegean Marble",
-     {{"vault theorem color", "#e1e9f2"},
-      {"vault lemma color", "#dcecf0"},
-      {"vault corollary color", "#d8ece8"},
-      {"vault proposition color", "#dceee1"},
-      {"vault axiom color", "#efe1e8"},
-      {"vault definition color", "#f1e5d4"},
-      {"vault notation color", "#e9ecdb"},
-      {"vault convention color", "#e4e9de"},
-      {"vault conjecture color", "#e5e3f1"},
-      {"vault law color", "#f2e0d1"},
-      {"vault remark color", "#ebe8d9"},
-      {"vault note color", "#dfeaf1"},
-      {"vault example color", "#e3edda"},
-      {"vault warning color", "#f4ded4"},
-      {"vault disambiguation color", "#e1e5ec"},
-      {"vault acknowledgments color", "#eee0e6"},
-      {"vault exercise color", "#e0ecdc"},
-      {"vault problem color", "#dce9e5"},
-      {"vault question color", "#f0e8d8"},
-      {"vault solution color", "#e6eddf"},
-      {"vault answer color", "#e0e9e7"},
-      {"vault proof color", "#e9e7dc"},
-      {"vault proof alternative color", "#e4e8ef"},
-      {"vault proof standard color", "#e8e6dc"}}},
-    {"Kyoto Garden",
-     {{"vault theorem color", "#e6e8d5"},
-      {"vault lemma color", "#dfead0"},
-      {"vault corollary color", "#d9e7d6"},
-      {"vault proposition color", "#d7e6de"},
-      {"vault axiom color", "#ecd9d8"},
-      {"vault definition color", "#efe1cb"},
-      {"vault notation color", "#e5e8cf"},
-      {"vault convention color", "#e8e2d1"},
-      {"vault conjecture color", "#e2e1ea"},
-      {"vault law color", "#f0dcc8"},
-      {"vault remark color", "#eae6cf"},
-      {"vault note color", "#dae6dd"},
-      {"vault example color", "#dfe9cd"},
-      {"vault warning color", "#efd6ca"},
-      {"vault disambiguation color", "#dfe2e0"},
-      {"vault acknowledgments color", "#ead8dd"},
-      {"vault exercise color", "#dce8cf"},
-      {"vault problem color", "#d7e3d6"},
-      {"vault question color", "#ece2cc"},
-      {"vault solution color", "#e5ead5"},
-      {"vault answer color", "#dde6d9"},
-      {"vault proof color", "#e9e5d5"},
-      {"vault proof alternative color", "#e0e4df"},
-      {"vault proof standard color", "#e8e4d4"}}},
-    {"Oxford Desk",
-     {{"vault theorem color", "#e6e8f0"},
-      {"vault lemma color", "#dfe8ed"},
-      {"vault corollary color", "#dce9e5"},
-      {"vault proposition color", "#dee9df"},
-      {"vault axiom color", "#eadfe2"},
-      {"vault definition color", "#f0e5d6"},
-      {"vault notation color", "#e8e9dc"},
-      {"vault convention color", "#e4e7dc"},
-      {"vault conjecture color", "#e3e5ef"},
-      {"vault law color", "#f1e2d3"},
-      {"vault remark color", "#e9e6d8"},
-      {"vault note color", "#dfe6ee"},
-      {"vault example color", "#e3ebdc"},
-      {"vault warning color", "#f2ddd3"},
-      {"vault disambiguation color", "#e2e3e8"},
-      {"vault acknowledgments color", "#eadfe5"},
-      {"vault exercise color", "#e0e9db"},
-      {"vault problem color", "#dde6e2"},
-      {"vault question color", "#efe7d8"},
-      {"vault solution color", "#e6ebdf"},
-      {"vault answer color", "#e2e8e3"},
-      {"vault proof color", "#e9e6dc"},
-      {"vault proof alternative color", "#e4e7ec"},
-      {"vault proof standard color", "#e8e5db"}}},
-    {"Dusty Rose",
-     {{"vault theorem color", "#e8e4ee"},
-      {"vault lemma color", "#e1e8e4"},
-      {"vault corollary color", "#dfe9ec"},
-      {"vault proposition color", "#e0eadf"},
-      {"vault axiom color", "#efdde1"},
-      {"vault definition color", "#f1e2d7"},
-      {"vault notation color", "#e8e6da"},
-      {"vault convention color", "#e4e8dc"},
-      {"vault conjecture color", "#e8e1eb"},
-      {"vault law color", "#f0ddd3"},
-      {"vault remark color", "#ebe5d7"},
-      {"vault note color", "#e1e7ee"},
-      {"vault example color", "#e5ecdc"},
-      {"vault warning color", "#f2d9d2"},
-      {"vault disambiguation color", "#e3e4ea"},
-      {"vault acknowledgments color", "#efdfe6"},
-      {"vault exercise color", "#e3ebdc"},
-      {"vault problem color", "#dee7e3"},
-      {"vault question color", "#f0e6d7"},
-      {"vault solution color", "#e7ebde"},
-      {"vault answer color", "#e3e9e4"},
-      {"vault proof color", "#ebe5dc"},
-      {"vault proof alternative color", "#e5e6ec"},
-      {"vault proof standard color", "#eae4da"}}}
-  };
+  static const std::vector<EnunciationPreset> presets=
+    load_enunciation_presets ();
   return presets;
 }
 
 static QStringList
 enunciation_preset_names () {
   QStringList names;
-  for (const Preset& preset: enunciation_presets ())
-    names << preset.first;
+  for (const EnunciationPreset& preset: enunciation_presets ())
+    names << preset.name;
   return names;
 }
 
 static QString
 current_enunciation_preset () {
-  QString current= pref ("enunciation color preset", "Solarized Light");
-  if (enunciation_preset_names ().contains (current)) return current;
-  return "Solarized Light";
+  const QString current= pref ("enunciation color preset");
+  const QStringList names= enunciation_preset_names ();
+  if (names.contains (current) || names.isEmpty ()) return current;
+  return names.first ();
 }
 
 static void
 apply_enunciation_preset (const QString& name) {
-  std::string wanted= name.toUtf8 ().constData ();
-  for (const Preset& preset: enunciation_presets ()) {
-    if (wanted != preset.first) continue;
-    for (const PrefValue& value: preset.second)
-      set_preference (value.value, value.label);
+  for (const EnunciationPreset& preset: enunciation_presets ()) {
+    if (name != preset.name) continue;
+    for (const QStringChoice& preference: preset.preferences)
+      set_preference (from_qstring_pref (preference.first),
+                      from_qstring_pref (preference.second));
     return;
   }
 }
