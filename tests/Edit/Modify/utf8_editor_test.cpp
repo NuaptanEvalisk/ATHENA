@@ -503,6 +503,15 @@ private slots:
     QCOMPARE (product[1]->op_type, OP_INFIX);
     QVERIFY (product[0]->spc->def > 0);
     QVERIFY (product[1]->spc->def > 0);
+    auto radical= typeset_concat (env, tree (SQRT, "2222"), path (0));
+    QCOMPARE (N(radical), 1);
+    auto radical_box= radical[0]->b;
+    QCOMPARE (radical_box->subnr (), 3);
+    // Child 1 is the stretched radical glyph and child 2 is its overbar.
+    // Their ink bands must overlap both vertically and horizontally.
+    QVERIFY (radical_box->sy4 (1) >= radical_box->sy3 (2));
+    QVERIFY (radical_box->sy4 (1) <= radical_box->sy4 (2));
+    QVERIFY (radical_box->sx4 (1) >= radical_box->sx3 (2));
     auto literal= typeset_concat (env, tree ("<alpha>"), path (0));
     string retained;
     for (int i=0; i<N(literal); ++i) retained << literal[i]->b->get_leaf_string ();

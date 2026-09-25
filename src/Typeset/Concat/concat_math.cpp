@@ -570,7 +570,9 @@ concater_rep::typeset_sqrt (tree t, path ip) {
   if (auto math= athena::text::math_layout_metrics (env->fn)) {
     const SI gap= env->display_style ? math->radical_display_vertical_gap :
                                        math->radical_vertical_gap;
-    radical_extra= gap + math->radical_rule_thickness + math->radical_extra_ascender;
+    // RadicalExtraAscender is white space above the completed radical, not
+    // part of the glyph height used to choose a vertical variant/assembly.
+    radical_extra= gap + math->radical_rule_thickness;
   }
   box sqrtb= delimiter_box (decorate_left (ip), "√",
                               env->fn, env->pen, b->y1, b->y2 + radical_extra);

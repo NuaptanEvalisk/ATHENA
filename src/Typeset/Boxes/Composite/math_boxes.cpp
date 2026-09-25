@@ -165,6 +165,12 @@ sqrt_box_rep::sqrt_box_rep (
   SI wline= math ? math->radical_rule_thickness : fn->wline;
   SI dx   = -fn->wfn/36, dy= -fn->wfn/36; // correction
   SI by   = math ? b1->y2 + sep + (wline >> 1) : sqrtb->y2 + dy;
+  // A native OpenType radical is selected by requested extent, but a ready
+  // variant may be taller than that extent.  Generic delimiter centering then
+  // places its top hook above the separately drawn radical rule.  Anchor the
+  // actual radical ink top to the rule ink top; any variant overshoot belongs
+  // below the radicand, while RadicalExtraAscender remains white space above.
+  SI radical_y= math ? by + (wline >> 1) - sqrtb->y4 : 0;
   if (sqrtb->x2 - sqrtb->x4 > wline) dx -= (sqrtb->x2 - sqrtb->x4);
   
   pencil rpen= pen->set_width (wline);
@@ -172,7 +178,7 @@ sqrt_box_rep::sqrt_box_rep (
   if (!is_nil (b2)) {
     if (math) {
       const SI radical_height= sqrtb->y2 - sqrtb->y1;
-      const SI degree_bottom= sqrtb->y1 +
+      const SI degree_bottom= radical_y + sqrtb->y1 +
         (radical_height * math->radical_degree_bottom_raise_percent) / 100;
       const SI radical_left= sqrtb->x1 - sqrtb->x2;
       const SI x= radical_left - math->radical_kern_after_degree - b2->x2;
@@ -197,7 +203,7 @@ sqrt_box_rep::sqrt_box_rep (
       insert (b2, min (X, M- b2->x2), Y- b2->y1+ sep);
     }
   }
-  insert (sqrtb, -sqrtb->x2, 0);
+  insert (sqrtb, -sqrtb->x2, radical_y);
   insert (line_box (decorate_middle (ip), dx, by, b1->x2, by, rpen), 0, 0);
   
   position ();
