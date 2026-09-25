@@ -64,8 +64,11 @@ QTMToolbarController::QTMToolbarController (
   reveal->addWidget (toolbar_stretch (reveal));
   _window->insertToolBar (_mainToolbar, reveal);
 
-  QWidget* overlayParent= _window->centralWidget ();
-  if (overlayParent == nullptr) overlayParent= _window;
+  // Keep the reveal toolbar in QMainWindow's toolbar layout at all times so
+  // expanding the real toolbars never changes the central viewport geometry.
+  // The overlay is a direct child of the window and is positioned over the
+  // reveal strip when expanded.
+  QWidget* overlayParent= _window;
   overlay= new QWidget (overlayParent);
   overlay->setObjectName ("toolbarOverlay");
   overlay->setAutoFillBackground (true);
@@ -247,7 +250,12 @@ QTMToolbarController::positionOverlay () {
   if (!overlayMode || overlay == nullptr || overlay->parentWidget () == nullptr)
     return;
 
+  QPoint origin (0, 0);
   int width= overlay->parentWidget ()->width ();
+  if (reveal != nullptr && reveal->isVisible ()) {
+    origin= reveal->mapTo (overlay->parentWidget (), QPoint (0, 0));
+    if (reveal->width () > 0) width= reveal->width ();
+  }
   int y= 0;
   if (mainToolbar != nullptr && mainToolbar->isVisible () &&
       modeToolbar != nullptr && modeToolbar->isVisible () && modeMerged) {
@@ -269,7 +277,7 @@ QTMToolbarController::positionOverlay () {
   y= positionOverlayToolbar (focusToolbar, y, width);
   y= positionOverlayToolbar (userToolbar, y, width);
 
-  overlay->setGeometry (0, 0, width, y);
+  overlay->setGeometry (origin.x (), origin.y (), width, y);
   if (overlay->isVisible ()) overlay->raise ();
 }
 

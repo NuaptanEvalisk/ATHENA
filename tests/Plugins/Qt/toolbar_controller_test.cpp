@@ -22,7 +22,7 @@ private slots:
   void mergesWhenWidthAllows ();
   void wrapsWhenWidthIsInsufficient ();
   void collapsesToRevealBar ();
-  void overlayKeepsViewportGeometryStable ();
+  void overlayReplacesRevealBarWithoutMovingViewport ();
   void disablingAutoHideRestoresNativeToolbars ();
   void reloadsAutoHidePreference ();
 };
@@ -97,7 +97,7 @@ TestToolbarController::collapsesToRevealBar () {
 }
 
 void
-TestToolbarController::overlayKeepsViewportGeometryStable () {
+TestToolbarController::overlayReplacesRevealBarWithoutMovingViewport () {
   QMainWindow window;
   QToolBar *main, *mode, *focus, *user;
   QTMToolbarController* controller=
@@ -112,9 +112,13 @@ TestToolbarController::overlayKeepsViewportGeometryStable () {
   controller->expand ();
   QCoreApplication::processEvents ();
   QCOMPARE (window.centralWidget ()->geometry (), collapsedGeometry);
+  QVERIFY (!controller->revealToolbar ()->isHidden ());
   QCOMPARE (controller->overlayWidget ()->parentWidget (),
-            window.centralWidget ());
-  QCOMPARE (controller->overlayWidget ()->pos (), QPoint (0, 0));
+            &window);
+  QCOMPARE (controller->overlayWidget ()->pos (),
+            controller->revealToolbar ()->mapTo (&window, QPoint (0, 0)));
+  QCOMPARE (controller->overlayWidget ()->width (),
+            controller->revealToolbar ()->width ());
   QVERIFY (controller->overlayWidget ()->height () > 0);
   QCOMPARE (main->x (), 0);
   QCOMPARE (mode->x (), main->width ());
