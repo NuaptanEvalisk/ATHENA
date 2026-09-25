@@ -21,6 +21,7 @@ struct font_request {
   int point_size= 12, horizontal_dpi= 96, vertical_dpi= 96;
   paragraph_direction direction= paragraph_direction::automatic_ltr;
   math_alphabet math_variant= math_alphabet::normal;
+  std::vector<open_type_feature> features;
 };
 
 struct selected_font_run {
@@ -30,6 +31,7 @@ struct selected_font_run {
   std::string language;
   int horizontal_dpi, vertical_dpi;
   math_alphabet math_variant= math_alphabet::normal;
+  std::vector<open_type_feature> features;
 };
 
 font_request font_request_from_source (const physical_font_source& source,

@@ -144,6 +144,10 @@ struct font_rep: rep<font> {
     const athena::text::shaping_options& options= {});
   // Physical primary face after profile selection and size adjustment.
   virtual bool physical_source (athena::text::physical_font_source& out) const;
+  // Complete native text-shaping source. Composite logical fonts may expose a
+  // physical face together with OpenType features while keeping physical_source
+  // false when the logical font is not equivalent to that face by itself.
+  virtual bool native_text_source (athena::text::native_text_source& out) const;
 
   array<space> get_spacing_table (int mode, int id, array<array<space> >& t);
   space        get_spacing_entry (int mode, tree t, int i);

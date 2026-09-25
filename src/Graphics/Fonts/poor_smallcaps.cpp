@@ -12,6 +12,7 @@
 #include "font.hpp"
 #include "font_domain.hpp"
 #include "universal.hpp"
+#include <optional>
 
 /******************************************************************************
 * The poor smallcaps font class
@@ -20,8 +21,10 @@
 struct poor_smallcaps_font_rep: font_rep {
   font         base;
   array<font>  subfn;
+  std::optional<athena::text::native_text_source> native_source;
 
   poor_smallcaps_font_rep (string name, font base);
+  bool   native_text_source (athena::text::native_text_source& out) const override;
   bool   supports (string c);
   void   advance (string s, int& pos, string& r, int& ch);
   void   get_extents (string s, metric& ex);
@@ -43,11 +46,27 @@ struct poor_smallcaps_font_rep: font_rep {
   SI     get_wide_correction  (string s, int mode);
 };
 
+bool
+poor_smallcaps_font_rep::native_text_source (
+  athena::text::native_text_source& out) const {
+  if (!native_source) return false;
+  out= *native_source;
+  return true;
+}
+
 poor_smallcaps_font_rep::poor_smallcaps_font_rep (
   string name, font base2):
     font_rep (name, base2), base (base2), subfn (2)
 {
   this->copy_math_pars (base);
+  athena::text::native_text_source source;
+  constexpr auto smcp= athena::text::open_type_tag ('s', 'm', 'c', 'p');
+  if (base->native_text_source (source) &&
+      athena::text::open_type_has_substitution_feature (
+        source.physical, smcp)) {
+    source.features.push_back ({smcp, 1});
+    native_source= std::move (source);
+  }
   subfn[0]= base;
   if (base->supports ("x") && base->supports ("X")) {
     metric ex, eX;

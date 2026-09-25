@@ -9,6 +9,7 @@
 ******************************************************************************/
 #include <QApplication>
 #include <QtTest/QtTest>
+#include <algorithm>
 #include <cstdlib>
 #include <stdexcept>
 #include <thread>
@@ -209,7 +210,7 @@ private slots:
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
     edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
-    env->write (FONT, "TeX Gyre Pagella");
+    env->write (FONT, "pagella");
     env->write (FONT_SHAPE, "italic");
     env->update ();
     physical_font_source physical;
@@ -580,6 +581,52 @@ private slots:
       for (const auto& draw: probe.draws) text+= draw.text;
       QCOMPARE (text, std::string (marker.second));
     }
+  }
+
+  void nativePagellaSmallCaps () {
+    using namespace athena::text;
+    drd_info drd ("utf8-pagella-smallcaps", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write (FONT_SHAPE, "small-caps");
+    env->write ("athena-radioactive-links-suppressed", "true");
+    env->update ();
+
+    native_text_source source;
+    QVERIFY (env->fn->native_text_source (source));
+    constexpr auto smcp= open_type_tag ('s', 'm', 'c', 'p');
+    QVERIFY (std::find_if (
+      source.features.begin (), source.features.end (),
+      [smcp] (const open_type_feature& feature) {
+        return feature.tag == smcp && feature.value == 1;
+      }) != source.features.end ());
+    QVERIFY (open_type_has_substitution_feature (source.physical, smcp));
+
+    const std::string text= "By Somebody";
+    shaping_options smallcaps;
+    smallcaps.features= source.features;
+    const auto shaped= shape_freetype_utf8 (
+      source.physical.file, source.physical.point_size,
+      source.physical.horizontal_dpi, source.physical.vertical_dpi,
+      text, 0, text.size (), smallcaps);
+    const auto plain= shape_freetype_utf8 (
+      source.physical.file, source.physical.point_size,
+      source.physical.horizontal_dpi, source.physical.vertical_dpi,
+      text, 0, text.size ());
+    QVERIFY (!shaped.missing_glyphs);
+    QVERIFY (shaped.glyphs.size () == plain.glyphs.size ());
+    bool substituted= false;
+    for (std::size_t i=0; i<shaped.glyphs.size (); ++i)
+      if (shaped.glyphs[i].index != plain.glyphs[i].index)
+        substituted= true;
+    QVERIFY (substituted);
+
+    box rendered= typeset_as_concat (env, tree ("By Somebody"), path (0));
+    QVERIFY (rendered->w () > 0);
+    QVERIFY (is_utf8_line_box (rendered[0]));
   }
 
   void nativeMathPackageDots () {

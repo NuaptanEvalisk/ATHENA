@@ -314,10 +314,12 @@ std::vector<selected_font_run> font_catalog::select (
           result.back ().point_size == active.point_size && result.back ().language == active.language &&
           result.back ().horizontal_dpi == active.horizontal_dpi &&
           result.back ().vertical_dpi == active.vertical_dpi &&
-          result.back ().math_variant == active.math_variant)
+          result.back ().math_variant == active.math_variant &&
+          result.back ().features == active.features)
         result.back ().end= next;
       else result.push_back ({begin, next, font, active.point_size, active.language,
-                             active.horizontal_dpi, active.vertical_dpi, active.math_variant});
+                              active.horizontal_dpi, active.vertical_dpi,
+                              active.math_variant, active.features});
       begin= next;
     }
   };
@@ -432,6 +434,16 @@ shaped_line font_paragraph::line (std::size_t begin, std::size_t end,
         throw std::logic_error ("Shaping item crosses selected font boundary");
       auto selected= o;
       selected.math_variant= font->math_variant;
+      for (const auto& feature: font->features) {
+        auto existing= std::find_if (
+          selected.features.begin (), selected.features.end (),
+          [&] (const open_type_feature& current) {
+            return current.tag == feature.tag;
+          });
+        if (existing == selected.features.end ())
+          selected.features.push_back (feature);
+        else *existing= feature;
+      }
       if (selected.language.empty () || selected.language == "und") selected.language= font->language;
       const double scaled= std::round (font->horizontal_dpi * horizontal_scale);
       if (!std::isfinite (scaled) || scaled < 1 || scaled > std::numeric_limits<int>::max ())

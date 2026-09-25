@@ -146,13 +146,14 @@ public:
   scoped_text_paragraph (
     std::shared_ptr<athena::text::font_paragraph>& current, font fn, string s):
     slot (current), previous (current) {
-    athena::text::physical_font_source physical;
-    if (!fn->physical_source (physical))
-      throw std::runtime_error ("Text font has no physical Unicode source");
+    athena::text::native_text_source source;
+    if (!fn->native_text_source (source))
+      throw std::runtime_error ("Text font has no native Unicode shaping source");
+    auto request= athena::text::font_request_from_source (source.physical);
+    request.features= std::move (source.features);
     // Fragments share source bytes and owner-local ICU/font state.
     slot= std::make_shared<athena::text::font_paragraph> (
-      std::string (s.data (), N(s)),
-      athena::text::font_request_from_source (physical));
+      std::string (s.data (), N(s)), std::move (request));
   }
   scoped_text_paragraph (
     std::shared_ptr<athena::text::font_paragraph>& current, font fn, tree t, language lan):

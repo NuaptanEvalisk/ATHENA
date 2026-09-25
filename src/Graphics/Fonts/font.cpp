@@ -26,6 +26,15 @@ font_rep::physical_source (athena::text::physical_font_source&) const {
   return false;
 }
 
+bool
+font_rep::native_text_source (athena::text::native_text_source& out) const {
+  athena::text::physical_font_source physical;
+  if (!physical_source (physical)) return false;
+  out.physical= std::move (physical);
+  out.features.clear ();
+  return true;
+}
+
 athena::text::shaped_text
 font_rep::shape_utf8 (std::string_view, std::size_t, std::size_t,
                       const athena::text::shaping_options&) {

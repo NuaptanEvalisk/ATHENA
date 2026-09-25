@@ -359,14 +359,24 @@ static shaped_text shape_freetype_run (
     for (unsigned int i=0; i<length; ++i)
       characters[i].codepoint= math_variant_character (characters[i].codepoint, options.math_variant);
   }
-  hb_feature_t features[]= {
-    {HB_TAG ('l','i','g','a'), 0, HB_FEATURE_GLOBAL_START, HB_FEATURE_GLOBAL_END},
-    {HB_TAG ('c','l','i','g'), 0, HB_FEATURE_GLOBAL_START, HB_FEATURE_GLOBAL_END},
-    {HB_TAG ('s','s','t','y'), std::min (options.math_script_level, 2u),
-     HB_FEATURE_GLOBAL_START, HB_FEATURE_GLOBAL_END}};
-  const unsigned int first_feature= options.ligatures ? 2 : 0;
+  std::vector<hb_feature_t> features;
+  if (!options.ligatures) {
+    features.push_back ({
+      HB_TAG ('l','i','g','a'), 0,
+      HB_FEATURE_GLOBAL_START, HB_FEATURE_GLOBAL_END});
+    features.push_back ({
+      HB_TAG ('c','l','i','g'), 0,
+      HB_FEATURE_GLOBAL_START, HB_FEATURE_GLOBAL_END});
+  }
+  features.push_back ({
+    HB_TAG ('s','s','t','y'), std::min (options.math_script_level, 2u),
+    HB_FEATURE_GLOBAL_START, HB_FEATURE_GLOBAL_END});
+  for (const auto& feature: options.features)
+    features.push_back ({
+      static_cast<hb_tag_t> (feature.tag), feature.value,
+      HB_FEATURE_GLOBAL_START, HB_FEATURE_GLOBAL_END});
   if (!hb_shape_full (hbfont, buffer.get (),
-                     features + first_feature, 3 - first_feature, nullptr))
+                     features.data (), features.size (), nullptr))
     throw std::runtime_error ("HarfBuzz could not shape this text run");
   if (!hb_buffer_allocation_successful (buffer.get ()))
     throw std::bad_alloc ();
@@ -455,6 +465,25 @@ shaped_text shape_freetype_utf8 (string family, int size, int hdpi, int vdpi,
 shaped_text shape_freetype_utf8 (const font_file_source& file, int size, int hdpi, int vdpi,
   std::string_view text, std::size_t begin, std::size_t end, const shaping_options& options) {
   return shape_freetype_run ("", &file, size, hdpi, vdpi, text, begin, end, options);
+}
+
+bool
+open_type_has_substitution_feature (
+  const physical_font_source& source, std::uint32_t tag) {
+  const tt_face face= load_tt_face (source.file);
+  if (face->bad_face) return false;
+  std::unique_ptr<hb_face_t, decltype (&hb_face_destroy)> hbface (
+    hb_ft_face_create_referenced (face->ft_face), hb_face_destroy);
+  if (hbface.get () == hb_face_get_empty ()) return false;
+  const unsigned int total= hb_ot_layout_table_get_feature_tags (
+    hbface.get (), HB_OT_TAG_GSUB, 0, nullptr, nullptr);
+  unsigned int count= total;
+  std::vector<hb_tag_t> tags (count);
+  if (count != 0)
+    hb_ot_layout_table_get_feature_tags (
+      hbface.get (), HB_OT_TAG_GSUB, 0, &count, tags.data ());
+  return std::find (tags.begin (), tags.begin () + count,
+                    static_cast<hb_tag_t> (tag)) != tags.begin () + count;
 }
 
 std::optional<math_font_metrics> open_type_math_metrics (

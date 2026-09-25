@@ -923,6 +923,9 @@ struct smart_font_rep: font_rep {
   bool physical_source (athena::text::physical_font_source& out) const override {
     return fn[SUBFONT_MAIN]->physical_source (out);
   }
+  bool native_text_source (athena::text::native_text_source& out) const override {
+    return fn[SUBFONT_MAIN]->native_text_source (out);
+  }
 
   smart_font_rep (string name, font base_fn, font err_fn,
                   string family, string variant,

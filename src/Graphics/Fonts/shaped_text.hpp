@@ -23,12 +23,34 @@ namespace athena::text {
 enum class run_direction { left_to_right, right_to_left };
 enum class math_kern_corner { top_right, top_left, bottom_right, bottom_left };
 
+constexpr std::uint32_t
+open_type_tag (char a, char b, char c, char d) {
+  return (static_cast<std::uint32_t> (static_cast<unsigned char> (a)) << 24) |
+         (static_cast<std::uint32_t> (static_cast<unsigned char> (b)) << 16) |
+         (static_cast<std::uint32_t> (static_cast<unsigned char> (c)) << 8) |
+          static_cast<std::uint32_t> (static_cast<unsigned char> (d));
+}
+
+struct open_type_feature {
+  std::uint32_t tag= 0;
+  std::uint32_t value= 1;
+  bool operator== (const open_type_feature& other) const {
+    return tag == other.tag && value == other.value;
+  }
+};
+
+struct native_text_source {
+  physical_font_source physical;
+  std::vector<open_type_feature> features;
+};
+
 struct shaping_options {
   run_direction direction= run_direction::left_to_right;
   // An ISO 15924 script tag, or empty to infer it from this homogeneous run.
   std::string script;
   std::string language= "und";
   bool ligatures= true;
+  std::vector<open_type_feature> features;
   math_alphabet math_variant= math_alphabet::normal;
   unsigned int math_script_level= 0; // OpenType ssty: 0 normal, 1 script, 2 scriptscript.
   std::size_t max_glyphs= 1000000;
@@ -153,6 +175,8 @@ shaped_text shape_freetype_utf8 (
 shaped_text shape_freetype_utf8 (
   const font_file_source& source, int size, int hdpi, int vdpi, std::string_view text,
   std::size_t begin, std::size_t end, const shaping_options& options= {});
+bool open_type_has_substitution_feature (
+  const physical_font_source& source, std::uint32_t tag);
 
 std::optional<math_font_metrics> open_type_math_metrics (
   const physical_font_source& source);
