@@ -247,7 +247,7 @@ replace_primes (string s) {
   string r;
   int i, n= N(s);
   for (i=0; i<n; i++)
-    if (s[i] == '\'') r << "′";
+    if (s[i] == '\'') r << "ʹ";
     else if (s[i] == '`') r << "‵";
     else r << s[i];
   return r;

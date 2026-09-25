@@ -631,9 +631,15 @@ private slots:
     std::string text;
     for (const auto& draw: probe.draws) text+= draw.text;
     QVERIFY (text.find ("‵") != std::string::npos);
-    QVERIFY (text.find ("′′") != std::string::npos);
+    QVERIFY (text.find ("ʹʹ") != std::string::npos);
     QVERIFY (text.find ("<prime>") == std::string::npos);
     QVERIFY (text.find ("<backprime>") == std::string::npos);
+
+    box prime_expr= typeset_as_concat (
+      env, tree (CONCAT, "e", tree (RPRIME, "'")), path (9));
+    box superscript_expr= typeset_as_concat (
+      env, tree (CONCAT, "e", tree (RSUP, "2")), path (10));
+    QVERIFY (prime_expr->y2 - superscript_expr->y2 <= env->fn->yx / 4);
   }
 
   void smallLabelSelectionGeometry () {
