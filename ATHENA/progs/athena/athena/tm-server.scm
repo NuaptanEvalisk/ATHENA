@@ -158,13 +158,51 @@
                                               (cons 'on-saved next))))
                 (notify-now "Could not schedule buffer save")))))))
 
+(define (ask-unsaved-close cont)
+  (user-ask
+    (list "The document has unsaved changes. What would you like to do?"
+          "question" "Save and Close" "Close Without Saving" "Cancel")
+    cont))
+
+(define (close-buffer-by-name-global buf-name)
+  (let ((buf (string->url buf-name)))
+    (when (buffer-exists? buf) (buffer-close buf))))
+
+(define (save-buffer-before-global-action buf-name action)
+  (let* ((buf (string->url buf-name))
+         (next (lambda () (exec-global action))))
+    (cond ((not (buffer-exists? buf)) (noop))
+          ((not (buffer-modified? buf)) (next))
+          (else
+            ;; Saving, including Save As for scratch buffers, remains owned by
+            ;; the buffer actor.  The close/window action runs only after the
+            ;; save path reports success through its on-saved continuation.
+            (switch-to-buffer buf)
+            (unless (exec-buffer buf
+                      (lambda ()
+                        (save-buffer-manual (url->url buf-name)
+                                            (cons 'on-saved next))))
+              (notify-now "Could not schedule buffer save"))))))
+
+(define (handle-close-buffer-choice buf-name answer)
+  (cond ((== answer "Save and Close")
+         (exec-global
+           (lambda ()
+             (save-buffer-before-global-action
+               buf-name
+               (lambda () (close-buffer-by-name-global buf-name))))))
+        ((== answer "Close Without Saving")
+         (exec-global
+           (lambda () (close-buffer-by-name-global buf-name))))))
+
 (tm-define (safely-kill-buffer)
   (cond ((buffer-embedded? (current-buffer))
          (alt-windows-delete (alt-window-search (current-buffer))))
         ((buffer-needs-save-confirmation? (current-buffer))
-         (user-confirm "The document has not been saved. Really close it?" #f  
-           (lambda (answ)
-             (when answ (buffer-close (current-buffer))))))
+         (let ((buf-name (url->string (current-buffer))))
+           (ask-unsaved-close
+             (lambda (answer)
+               (handle-close-buffer-choice buf-name answer)))))
         (else (buffer-close (current-buffer)))))
 
 (define (close-buffer-after-window buf)
@@ -187,6 +225,21 @@
   (kill-window win)
   (close-buffer-after-window-later buf))
 
+(define (handle-close-window-choice win-name buf-name answer)
+  (cond ((== answer "Save and Close")
+         (exec-global
+           (lambda ()
+             (save-buffer-before-global-action
+               buf-name
+               (lambda ()
+                 (do-kill-window-global
+                   (string->url win-name) (string->url buf-name)))))))
+        ((== answer "Close Without Saving")
+         (exec-global
+           (lambda ()
+             (do-kill-window-global
+               (string->url win-name) (string->url buf-name)))))))
+
 (define (safely-kill-window-global win-name fallback-buf-name)
   (let* ((win (string->url win-name))
          (mapped (window->buffer win))
@@ -198,15 +251,9 @@
     (cond ((and (<= (windows-number) 1) (not (ads-open-panes?)))
            (safely-quit-ATHENA))
           ((buffer-needs-save-confirmation? buf)
-           (user-confirm
-             "The document has not been saved. Really close it?" #f
-             (lambda (answ)
-               (when answ
-                 (exec-global
-                   (lambda ()
-                     (do-kill-window-global
-                       (string->url win-name*)
-                       (string->url buf-name*))))))))
+           (ask-unsaved-close
+             (lambda (answer)
+               (handle-close-window-choice win-name* buf-name* answer))))
           (else (do-kill-window-global win buf)))))
 
 (tm-define (safely-kill-window . opt-name)

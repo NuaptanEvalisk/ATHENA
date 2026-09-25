@@ -11,6 +11,7 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QLineEdit>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QThread>
 #include <QTimer>
@@ -64,6 +65,7 @@ private slots:
   void initTestCase ();
   void cleanupTestCase ();
   void nativeFormRunsOnGuiThreadAndReturnsValues ();
+  void questionUsesNativeLabelsWithoutRedundantCancel ();
   void asynchronousForm_data ();
   void asynchronousForm ();
 };
@@ -121,6 +123,41 @@ NativeInteractiveDialogTest::nativeFormRunsOnGuiThreadAndReturnsValues () {
   QCOMPARE (worker.result[0], string ("Grace Hopper"));
   QCOMPARE (worker.result[1], string ("compiler"));
   QVERIFY (!affinityWarning.load ());
+}
+
+void
+NativeInteractiveDialogTest::questionUsesNativeLabelsWithoutRedundantCancel () {
+  array<string> result;
+  auto* worker= QThread::create ([&] {
+    QTMInteractiveField field;
+    field.prompt= "Proceed?";
+    field.type= "question";
+    field.proposals << string ("yes") << string ("no");
+    result= qtm_interactive_dialog ("Ignored for native questions", {field});
+  });
+  worker->start ();
+  QTRY_VERIFY (QApplication::activeModalWidget () != nullptr);
+  auto* box= qobject_cast<QMessageBox*> (QApplication::activeModalWidget ());
+  QVERIFY (box != nullptr);
+  QCOMPARE (box->windowTitle (), QString ("Question"));
+  QStringList labels;
+  QPushButton* yes= nullptr;
+  for (QPushButton* button: box->findChildren<QPushButton*> ()) {
+    labels << button->text ();
+    if (button->text () == "Yes") yes= button;
+  }
+  QVERIFY (labels.contains ("Yes"));
+  QVERIFY (labels.contains ("No"));
+  QVERIFY (!labels.contains ("yes"));
+  QVERIFY (!labels.contains ("no"));
+  QVERIFY (!labels.contains ("Cancel"));
+  QVERIFY (yes != nullptr);
+  yes->click ();
+  QTRY_VERIFY_WITH_TIMEOUT (worker->isFinished (), 4000);
+  worker->wait ();
+  delete worker;
+  QCOMPARE (N(result), 1);
+  QCOMPARE (result[0], string ("yes"));
 }
 
 void

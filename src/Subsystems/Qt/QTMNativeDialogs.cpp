@@ -164,10 +164,15 @@ question_dialog (const QtInteractiveField& field) {
   box.setIcon (QMessageBox::Question);
   box.setText (field.prompt);
   box.setTextFormat (Qt::PlainText);
-  box.setStandardButtons (QMessageBox::Cancel);
+  box.setStandardButtons (QMessageBox::NoButton);
   QVector<QPushButton*> buttons;
-  for (const QString& proposal: field.proposals)
-    buttons << box.addButton (proposal, QMessageBox::ActionRole);
+  for (const QString& proposal: field.proposals) {
+    QString label= proposal;
+    if (proposal == QStringLiteral ("yes")) label= QStringLiteral ("Yes");
+    else if (proposal == QStringLiteral ("no")) label= QStringLiteral ("No");
+    else if (proposal == QStringLiteral ("cancel")) label= QStringLiteral ("Cancel");
+    buttons << box.addButton (label, QMessageBox::ActionRole);
+  }
   if (!buttons.isEmpty ()) box.setDefaultButton (buttons[0]);
   box.exec ();
   for (int i=0; i<buttons.size (); ++i)
@@ -249,10 +254,10 @@ public:
 
     QDialogButtonBox* buttons= new QDialogButtonBox (this);
     QPushButton* save= buttons->addButton (
-      restart ? "Save and restart" : "Save and exit",
+      restart ? "Save and Restart" : "Save and Exit",
       QDialogButtonBox::AcceptRole);
     QPushButton* discard= buttons->addButton (
-      restart ? "Restart without saving" : "Exit without saving",
+      restart ? "Restart Without Saving" : "Exit Without Saving",
       QDialogButtonBox::DestructiveRole);
     buttons->addButton (QDialogButtonBox::Cancel);
     connect (save, &QPushButton::clicked, this, [this] () {
@@ -653,7 +658,7 @@ public:
     QDialogButtonBox* buttons= new QDialogButtonBox (
       QDialogButtonBox::Save | QDialogButtonBox::Cancel,
       Qt::Horizontal, editor);
-    buttons->button (QDialogButtonBox::Save)->setText ("Save and close");
+    buttons->button (QDialogButtonBox::Save)->setText ("Save and Close");
     editorLayout->addWidget (buttons);
     connect (buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     connect (buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
