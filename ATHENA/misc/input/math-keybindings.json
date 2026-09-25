@@ -7710,7 +7710,17 @@
         },
         {
           "key": "- -",
-          "text": "－"
+          "actions": [
+            {
+              "op": "insert-content",
+              "pieces": [
+                [
+                  "named-symbol",
+                  "texmacs:longminus"
+                ]
+              ]
+            }
+          ]
         },
         {
           "key": "- - var",

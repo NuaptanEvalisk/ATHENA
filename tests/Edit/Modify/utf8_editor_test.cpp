@@ -186,6 +186,11 @@ private slots:
     const auto* idotsint= registry.lookup ("texmacs:idotsint");
     QVERIFY (idotsint && idotsint->op_type == OP_UNARY &&
              idotsint->virtual_font == "tradi-long");
+    const auto* longminus= registry.lookup ("texmacs:longminus");
+    QVERIFY (longminus && longminus->glyph_utf8.empty () &&
+             longminus->virtual_font == "tradi-long" &&
+             longminus->virtual_symbol == "longminus" &&
+             longminus->op_type == OP_INFIX);
     const auto* native_recipe= registry.lookup ("texmacs:Yleft");
     QVERIFY (native_recipe && native_recipe->glyph_utf8.empty () &&
              native_recipe->virtual_font.empty () && native_recipe->recipe &&
@@ -286,6 +291,19 @@ private slots:
       QVERIFY (items[0]->b->w () > 0);
       QVERIFY (items[0]->b->h () > 0);
     }
+    env->write (MODE, "math");
+    env->update ();
+    auto minus_items= typeset_concat (env, tree ("-"), path (0));
+    auto longminus_items= typeset_concat (
+      env, tree (NAMED_SYMBOL, "texmacs:longminus"), path (0));
+    QCOMPARE (N(minus_items), 1);
+    QCOMPARE (N(longminus_items), 1);
+    const box minus_box= minus_items[0]->b;
+    const box longminus_box= longminus_items[0]->b;
+    QVERIFY (longminus_box->w () > minus_box->w ());
+    const SI minus_center= (minus_box->y3 + minus_box->y4) >> 1;
+    const SI longminus_center= (longminus_box->y3 + longminus_box->y4) >> 1;
+    QVERIFY (std::abs (longminus_center - minus_center) <= PIXEL);
     const tree unknown (NAMED_SYMBOL, "unregistered:symbol");
     QVERIFY (env->exec (unknown) == unknown);
     auto missing= typeset_concat (env, unknown, path (0));
@@ -574,6 +592,7 @@ private slots:
   }
   void nativeMathTabVariants () {
     QVERIFY (native_math_keyboard_has_registered_key ("A-t tab"));
+    QVERIFY (native_math_keyboard_has_registered_key ("- -"));
     QCOMPARE (test_server->kbd_pre_rewrite ("math t var"),
               string ("A-t tab"));
     QCOMPARE (test_server->kbd_pre_rewrite ("- var"), string ("- tab"));
