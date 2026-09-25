@@ -89,6 +89,8 @@ bool json_keyboard_string (QJsonValue value, string capture, string& result) {
 bool json_keyboard_tree (QJsonValue value, string capture, tree& result) {
   string atomic;
   if (json_keyboard_string (value, capture, atomic)) {
+    if (N(atomic) >= 3 && atomic[0] == '<' && atomic[N(atomic)-1] == '>')
+      return false;
     result= tree (atomic);
     return true;
   }

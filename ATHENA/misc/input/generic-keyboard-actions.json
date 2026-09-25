@@ -5,10 +5,16 @@
       "kind": "tree",
       "value": [
         "frac",
-        "<mathd>",
+        [
+          "named-symbol",
+          "texmacs:mathd"
+        ],
         [
           "concat",
-          "<mathd>",
+          [
+            "named-symbol",
+            "texmacs:mathd"
+          ],
           "x"
         ]
       ]
@@ -17,10 +23,16 @@
       "kind": "tree",
       "value": [
         "frac",
-        "<mathd>",
+        [
+          "named-symbol",
+          "texmacs:mathd"
+        ],
         [
           "concat",
-          "<mathd>",
+          [
+            "named-symbol",
+            "texmacs:mathd"
+          ],
           "t"
         ]
       ]
@@ -61,7 +73,12 @@
       "value": [
         "wide*",
         "lim",
-        "<wide-varrightarrow>"
+        [
+          "with",
+          "math-accent-stretch",
+          "true",
+          "⃗"
+        ]
       ]
     },
     "tree:varprojlim": {
@@ -69,14 +86,22 @@
       "value": [
         "wide*",
         "lim",
-        "<wide-varleftarrow>"
+        [
+          "with",
+          "math-accent-stretch",
+          "true",
+          "⃖"
+        ]
       ]
     },
     "tree:bij": {
       "kind": "tree",
       "value": [
         "above",
-        "<longrightarrow>",
+        [
+          "named-symbol",
+          "texmacs:longrightarrow"
+        ],
         "1:1"
       ]
     },
@@ -84,8 +109,14 @@
       "kind": "tree",
       "value": [
         "above",
-        "<longrightarrow>",
-        "<sim>"
+        [
+          "named-symbol",
+          "texmacs:longrightarrow"
+        ],
+        [
+          "named-symbol",
+          "texmacs:sim"
+        ]
       ]
     },
     "tree:lim-n-infty": {
@@ -96,19 +127,28 @@
         [
           "rsub",
           [
-            "concat",
-            "n",
-            "<rightarrow>",
-            "<infty>"
+          "concat",
+          "n",
+          [
+            "named-symbol",
+            "texmacs:rightarrow"
+          ],
+          [
+            "named-symbol",
+            "texmacs:infty"
           ]
         ]
+      ]
       ]
     },
     "tree:varphi": {
       "kind": "tree",
       "value": [
         "concat",
-        "<varphi>"
+        [
+          "named-symbol",
+          "texmacs:varphi"
+        ]
       ]
     },
     "tree:rel": {
