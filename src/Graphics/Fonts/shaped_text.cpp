@@ -334,6 +334,11 @@ static shaped_text shape_freetype_run (
   hb_buffer_set_direction (buffer.get (),
     options.direction == run_direction::right_to_left ?
       HB_DIRECTION_RTL : HB_DIRECTION_LTR);
+  // Math fonts register ssty under the OpenType math script, not Latn/Zyyy
+  // inferred by paragraph itemization. Preserve text shaping for fallback faces.
+  if (options.math_script_level > 0 &&
+      hb_ot_math_has_data (hb_font_get_face (hbfont)))
+    script= HB_SCRIPT_MATH;
   if (script != HB_SCRIPT_INVALID)
     hb_buffer_set_script (buffer.get (), script);
   hb_buffer_set_language (buffer.get (), hb_language_from_string (
@@ -354,12 +359,14 @@ static shaped_text shape_freetype_run (
     for (unsigned int i=0; i<length; ++i)
       characters[i].codepoint= math_variant_character (characters[i].codepoint, options.math_variant);
   }
-  const hb_feature_t features[]= {
+  hb_feature_t features[]= {
     {HB_TAG ('l','i','g','a'), 0, HB_FEATURE_GLOBAL_START, HB_FEATURE_GLOBAL_END},
-    {HB_TAG ('c','l','i','g'), 0, HB_FEATURE_GLOBAL_START, HB_FEATURE_GLOBAL_END}};
+    {HB_TAG ('c','l','i','g'), 0, HB_FEATURE_GLOBAL_START, HB_FEATURE_GLOBAL_END},
+    {HB_TAG ('s','s','t','y'), std::min (options.math_script_level, 2u),
+     HB_FEATURE_GLOBAL_START, HB_FEATURE_GLOBAL_END}};
+  const unsigned int first_feature= options.ligatures ? 2 : 0;
   if (!hb_shape_full (hbfont, buffer.get (),
-                     options.ligatures ? nullptr : features,
-                     options.ligatures ? 0 : 2, nullptr))
+                     features + first_feature, 3 - first_feature, nullptr))
     throw std::runtime_error ("HarfBuzz could not shape this text run");
   if (!hb_buffer_allocation_successful (buffer.get ()))
     throw std::bad_alloc ();

@@ -42,6 +42,7 @@ SI offset (SI x, SI dx) {
 bool same_options (const shaping_options& a, const shaping_options& b) {
   return a.direction == b.direction && a.script == b.script && a.language == b.language &&
     a.ligatures == b.ligatures && a.math_variant == b.math_variant && a.max_glyphs == b.max_glyphs &&
+    a.math_script_level == b.math_script_level &&
     a.editing_carets == b.editing_carets && a.grapheme_fragments == b.grapheme_fragments &&
     a.max_carets == b.max_carets && a.context_begin == b.context_begin && a.context_end == b.context_end;
 }
@@ -539,6 +540,7 @@ build_utf8_flow (path ip, array<box> pieces, array<bool> markers, bool restore_s
         b->options.language != "und" || b->options.direction != defaults.direction ||
         b->options.context_begin != defaults.context_begin || b->options.context_end != defaults.context_end ||
         b->options.max_glyphs != defaults.max_glyphs || b->options.max_carets != defaults.max_carets ||
+        b->options.math_script_level != 0 ||
         b->options.grapheme_fragments || b->options.editing_carets) return {};
     if (!base) base= b;
     const auto& first= base->paragraph->request ();

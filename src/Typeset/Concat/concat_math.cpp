@@ -247,7 +247,7 @@ replace_primes (string s) {
   string r;
   int i, n= N(s);
   for (i=0; i<n; i++)
-    if (s[i] == '\'') r << "ʹ";
+    if (s[i] == '\'') r << "′";
     else if (s[i] == '`') r << "‵";
     else r << s[i];
   return r;
@@ -257,11 +257,14 @@ void
 concater_rep::typeset_lprime (tree t, path ip) {
   if ((N(t) == 1) && is_atomic (t[0])) {
     string s= t[0]->label;
-    bool flag= (env->fn->type == FONT_TYPE_UNICODE);
+    const bool native_math= athena::text::math_layout_metrics (env->fn).has_value ();
+    // The legacy Unicode path keeps full-size primes and manually lowers them.
+    // OpenType math uses real script sizing and the font's ssty alternatives.
+    bool flag= !native_math && (env->fn->type == FONT_TYPE_UNICODE);
     if (flag)
       for (int i=0; i<N(s); i++)
         flag= flag && (s[i] == '\'' || s[i] == '`');
-    if (env->fn->type == FONT_TYPE_TEX ||
+    if (native_math || env->fn->type == FONT_TYPE_TEX ||
         env->fn->math_type != MATH_TYPE_NORMAL)
       s= replace_primes (s);
     tree old_il;
@@ -270,7 +273,7 @@ concater_rep::typeset_lprime (tree t, path ip) {
     box b1, b2;
     b2= typeset_as_concat (env, s /*t[0]*/, sip);
     b2= symbol_box (sip, b2, N(t[0]->label));
-    if (flag || env->fn->math_type != MATH_TYPE_TEX_GYRE)
+    if (!native_math && (flag || env->fn->math_type != MATH_TYPE_TEX_GYRE))
       b2= move_box (sip, b2,
                     flag? 0: env->as_length (string ("-0.05fn")),
                     flag? env->as_length ("-0.75ex"): 0,
@@ -286,11 +289,12 @@ void
 concater_rep::typeset_rprime (tree t, path ip) {
   if ((N(t) == 1) && is_atomic (t[0])) {
     string s= t[0]->label;
-    bool flag= (env->fn->type == FONT_TYPE_UNICODE);
+    const bool native_math= athena::text::math_layout_metrics (env->fn).has_value ();
+    bool flag= !native_math && (env->fn->type == FONT_TYPE_UNICODE);
     if (flag)
       for (int i=0; i<N(s); i++)
 	flag= flag && (s[i] == '\'' || s[i] == '`');
-    if (env->fn->type == FONT_TYPE_TEX ||
+    if (native_math || env->fn->type == FONT_TYPE_TEX ||
         env->fn->math_type != MATH_TYPE_NORMAL)
       s= replace_primes (s);
     tree old_il;
@@ -302,7 +306,7 @@ concater_rep::typeset_rprime (tree t, path ip) {
       // NOTE: hack for detection of poor italic font
       b2= shift_box (sip, b2, (SI) (-1.0 * b2->y1 * b2->right_slope ()), 0);
     b2= symbol_box (sip, b2, N(t[0]->label));
-    if (flag || env->fn->math_type != MATH_TYPE_TEX_GYRE)
+    if (!native_math && (flag || env->fn->math_type != MATH_TYPE_TEX_GYRE))
       b2= move_box (sip, b2,
                     flag? 0: env->as_length (string ("0.05fn")),
                     flag? env->as_length ("-0.75ex"): 0,

@@ -30,6 +30,7 @@ struct shaping_options {
   std::string language= "und";
   bool ligatures= true;
   math_alphabet math_variant= math_alphabet::normal;
+  unsigned int math_script_level= 0; // OpenType ssty: 0 normal, 1 script, 2 scriptscript.
   std::size_t max_glyphs= 1000000;
   bool editing_carets= false;
   // Paragraph itemization can split a grapheme across scripts/directions.

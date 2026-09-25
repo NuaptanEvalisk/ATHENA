@@ -52,7 +52,7 @@ static server_rep* test_server= nullptr;
 
 class InlineRenderProbe: public qt_renderer_rep {
 public:
-  struct Draw { std::string text; color pen; SI x; };
+  struct Draw { std::string text; color pen; SI x, y; };
   std::vector<Draw> draws;
   struct Link { string target; SI x1, y1, x2, y2; };
   std::vector<Link> references, anchors;
@@ -63,7 +63,7 @@ public:
   }
   void draw_utf8 (const athena::text::shaped_text& run, std::string_view source,
                   SI x, SI y) override {
-    draws.push_back ({std::string (source), get_pencil ()->get_color (), x});
+    draws.push_back ({std::string (source), get_pencil ()->get_color (), x, y});
     qt_renderer_rep::draw_utf8 (run, source, x, y);
   }
   void href (string target, SI x1, SI y1, SI x2, SI y2) override {
@@ -631,7 +631,8 @@ private slots:
     std::string text;
     for (const auto& draw: probe.draws) text+= draw.text;
     QVERIFY (text.find ("‵") != std::string::npos);
-    QVERIFY (text.find ("ʹʹ") != std::string::npos);
+    QVERIFY (text.find ("′′") != std::string::npos);
+    QVERIFY (text.find ("ʹ") == std::string::npos);
     QVERIFY (text.find ("<prime>") == std::string::npos);
     QVERIFY (text.find ("<backprime>") == std::string::npos);
 
@@ -639,7 +640,27 @@ private slots:
       env, tree (CONCAT, "e", tree (RPRIME, "'")), path (9));
     box superscript_expr= typeset_as_concat (
       env, tree (CONCAT, "e", tree (RSUP, "2")), path (10));
-    QVERIFY (prime_expr->y2 - superscript_expr->y2 <= env->fn->yx / 4);
+    // Equal baselines alone miss a text-style prime lifted as a superscript.
+    // Pagella's ssty alternate must also keep the actual prime ink lower.
+    QVERIFY (prime_expr->y2 < superscript_expr->y2);
+    auto painted_baseline= [] (box expr, const std::string& glyph) {
+      QImage image (300, 140, QImage::Format_ARGB32);
+      image.fill (Qt::white);
+      QPainter painter (&image);
+      InlineRenderProbe probe (&painter);
+      rectangles painted;
+      expr->redraw (&probe, path (), painted);
+      for (const auto& draw: probe.draws)
+        if (draw.text == glyph) return draw.y;
+      return MAX_SI;
+    };
+    SI prime_y= painted_baseline (prime_expr, "′");
+    SI superscript_y= painted_baseline (superscript_expr, "2");
+    QVERIFY (prime_y != MAX_SI);
+    QVERIFY (superscript_y != MAX_SI);
+    SI baseline_delta= prime_y > superscript_y ?
+      prime_y - superscript_y : superscript_y - prime_y;
+    QVERIFY (baseline_delta <= env->fn->yx / 2);
   }
 
   void smallLabelSelectionGeometry () {

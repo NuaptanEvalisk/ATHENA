@@ -37,6 +37,7 @@ make_text_box (edit_env env, path ip, int pos, string s, pencil pen,
     athena::text::shaping_options options;
     if (env->mode == 2) {
       options.ligatures= false;
+      options.math_script_level= std::clamp (env->index_level, 0, 2);
       options.context_begin= pos;
       options.context_end= pos + N(s);
     }
