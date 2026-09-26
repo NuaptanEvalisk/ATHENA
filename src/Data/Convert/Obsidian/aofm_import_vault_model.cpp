@@ -141,7 +141,7 @@ string
 style_name_from_namespace_path(string style_path) {
   if (style_path == "") return "";
   std::filesystem::path p(std::string(as_charp(style_path)));
-  if (p.extension() != ".ts") return "";
+  if (p.extension() != ".ats" && p.extension() != ".ts") return "";
   return string(p.stem().string().c_str());
 }
 

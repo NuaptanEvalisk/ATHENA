@@ -21,7 +21,7 @@ LECTURE_NOTES_REL = Path("Notes Root") / "Sources" / "Lecture Notes"
 DEFAULT_DB_NAME = "ns.sqlite"
 DEFAULT_PARENT = "Courses"
 DEFAULT_SORTER_REL = Path("dependencies") / "roman-sorter.c"
-DEFAULT_STYLE_REL = Path("dependencies") / "unnumbered-sections-generic.ts"
+DEFAULT_STYLE_REL = Path("dependencies") / "unnumbered-sections-generic.ats"
 
 
 @dataclass(frozen=True)
@@ -215,7 +215,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--style",
         type=Path,
         default=None,
-        help="style path; defaults to <vault-root>/dependencies/unnumbered-sections-generic.ts",
+        help="style path; defaults to <vault-root>/dependencies/unnumbered-sections-generic.ats",
     )
     parser.add_argument(
         "--apply",

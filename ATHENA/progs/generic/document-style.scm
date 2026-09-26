@@ -50,20 +50,18 @@
 
 (tm-define (install-custom-style name)
   (:synopsis* "Install custom document style")
-  (let* ((style-name (custom-style-file-name name))
-         (dest-dir   (url-append "$ATHENA_HOME_PATH" "styles"))
-         (dest       (url-append dest-dir
-                                 (string-append style-name ".ts"))))
-    (cond ((not (string-ends? (url->system (url-tail name)) ".ts"))
-           (show-message "Please select a TeXmacs stylesheet file ending in .ts."
+  (let ((style-name (custom-style-file-name name)))
+    (cond ((not (or (string-ends? (url->system (url-tail name)) ".ats")
+                    (string-ends? (url->system (url-tail name)) ".ts")))
+           (show-message "Please select an ATHENA .ats style or legacy .ts style."
+                          "Install custom style"))
+          ((not (install-custom-style-file name))
+           (show-message "Could not install the selected style."
                          "Install custom style"))
           (else
-           (system-mkdir dest-dir)
-           (system-copy name dest)
-           (style-clear-cache)
-           (set-main-style style-name)
-           (show-message
-            (string-append "Installed and activated style: " style-name)
+            (set-main-style style-name)
+            (show-message
+             (string-append "Installed and activated style: " style-name)
             "Install custom style")))))
 
 (tm-define (choose-and-install-custom-style)

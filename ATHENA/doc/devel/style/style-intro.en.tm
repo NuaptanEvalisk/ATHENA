@@ -26,7 +26,7 @@
   document is selected in the <apply|menu|Document|Style> menu. Extra styles
   can be added using <apply|menu|Document|Use package>.
 
-  From the editor point of view, each style corresponds to a <verbatim|.ts>
+  From the editor point of view, each style corresponds to a <verbatim|.ats>
   file. The files corresponding to each style are processed in as if they
   were usual documents, but at the end, the editor only keeps the final
   environment as the initial environment for the main document. More

@@ -5,12 +5,11 @@
 <\body>
   <tmdoc-title|Default serialization>
 
-  Documents are generally written to disk using the standard <TeXmacs> syntax
-  (which corresponds to the <verbatim|.tm> and <verbatim|.ts> file
-  extensions). This syntax is designed to be unobtrusive and easy to read, so
-  the content of a document can be easily understood from a plain text
-  editor. For instance, the formula (<reference|tm-tree-ex>) is represented
-  by
+  Native <ATHENA> documents and style packages are stored as versioned UTF-8
+  XML, using the <verbatim|.ath> and <verbatim|.ats> file extensions. Legacy
+  <TeXmacs> markup in <verbatim|.tm> documents and <verbatim|.ts> styles is
+  accepted only through compatibility import paths. For reference, the old
+  serialization represented the formula (<reference|tm-tree-ex>) as
 
   <\quote-env>
     <framed-fragment|<verbatim|\<less\>with\|mode\|math\|x+y+\<less\>frac\|1\|2\<gtr\>+\<less\>sqrt\|y+z\<gtr\>\<gtr\>>>

@@ -13,7 +13,7 @@ def main() -> int:
     legacy = re.compile(r"\\<([^<>\\]+)\\>")
     failures: list[str] = []
 
-    for path in sorted(packages.rglob("*.ts")):
+    for path in sorted(packages.rglob("*.ats")):
         try:
             text = path.read_text(encoding="utf-8")
         except UnicodeDecodeError as error:

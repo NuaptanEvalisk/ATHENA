@@ -21,6 +21,7 @@
 #include "typesetter.hpp"
 #include "drd_mode.hpp"
 #include "dictionary.hpp"
+#include "new_style.hpp"
 
 extern int script_status;
 extern tree with_package_definitions (string package, tree body);
@@ -1107,18 +1108,12 @@ edit_env_rep::exec_use_package (tree t) {
     if (is_rooted (base_file_name, "default"))
       styp= styp | ::expand (head (base_file_name) * url_ancestor ());
     else styp= styp | head (base_file_name);
-    if (ends (as_string (t[i]), ".ts")) name= url_system (as_string (t[i]));
-    else name= styp * (as_string (t[i]) * string (".ts"));
-    name= resolve (name);
+    name= resolve_style_file (as_string (t[i]), styp, true);
     //cout << as_string (t[i]) << " -> " << name << "\n";
-    string doc_s;
-    if (!load_string (name, doc_s, false)) {
-      tree doc= texmacs_document_to_tree (doc_s);
-      if (is_func (doc, _ERROR))
-        std_warning << "Style parse error in " << name << ": "
-                    << doc[0] << LF;
-      else if (is_compound (doc))
-        exec (filter_style (extract (doc, "body")));
+    if (!is_none (name)) {
+      tree body= load_style_body (name);
+      if (is_func (body, _ERROR)) std_warning << body[0] << LF;
+      else exec (filter_style (body));
     }
   }
   return "";

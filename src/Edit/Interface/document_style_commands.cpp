@@ -9,8 +9,11 @@
 *******************************************************************************/
 
 #include "document_style_commands.hpp"
+#include "boot.hpp"
 #include "editor.hpp"
 #include "new_buffer.hpp"
+#include "new_style.hpp"
+#include "sys_utils.hpp"
 
 namespace {
 
@@ -201,16 +204,36 @@ document_style_get_menu_name (string style) {
 string
 document_custom_style_file_name (url name) {
   string file= as_system_string (tail (name));
+  if (ends (file, ".ats")) return file (0, N (file) - 4);
   if (ends (file, ".ts")) return file (0, N (file) - 3);
   return file;
 }
 
 url
 document_url_resolve_package (string name) {
-  string style_name= name * ".ts";
-  url style_url= url ("$ATHENA_STYLE_PATH") * url (style_name);
-  url style_local= relative (get_current_buffer_safe (), url (style_name));
-  return resolve (style_local | style_url, "r");
+  url search= head (get_current_buffer_safe ()) | url ("$ATHENA_STYLE_PATH");
+  return resolve_style_file (name, search, true);
+}
+
+bool
+document_install_custom_style (url source) {
+  string source_s= as_string (concretize (source), URL_SYSTEM);
+  string home_s= get_env ("ATHENA_HOME_PATH");
+  if (N(source_s) == 0 || N(home_s) == 0) return false;
+  std::filesystem::path input (
+    std::string (source_s.data (), (std::size_t) N(source_s)));
+  std::filesystem::path target (
+    std::string (home_s.data (), (std::size_t) N(home_s)));
+  target/= "styles";
+  target/= input.stem ();
+  target.replace_extension (".ats");
+  std::string error;
+  if (!install_style_file (input, target, error)) {
+    std_warning << "Could not install custom style: " << string (error.c_str ()) << LF;
+    return false;
+  }
+  style_invalidate_cache ();
+  return true;
 }
 
 object

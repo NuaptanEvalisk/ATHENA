@@ -13,7 +13,7 @@
 ;; Most of the procedures in this file are wrappers to the procedures in 
 ;; apidoc-funcs which will be used in <extern> and <action> tags in the scheme 
 ;; documentation. Most of them are needed for example in the style file
-;; packages/documentation/scheme-api.ts.
+;; packages/documentation/scheme-api.ats.
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

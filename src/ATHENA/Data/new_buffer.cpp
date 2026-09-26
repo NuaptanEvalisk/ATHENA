@@ -885,7 +885,10 @@ import_loaded_tree (string s, url u, string fm) {
     (N(s) >= 3 && (unsigned char) s[0] == 0xef &&
      (unsigned char) s[1] == 0xbb && (unsigned char) s[2] == 0xbf);
   tree t;
-  if (document_input) {
+  if (suffix (u) == "ts") {
+    t= load_style_document (u);
+  }
+  else if (document_input) {
     try {
       string local= concretize (u);
       if (N(local) != 0)
@@ -985,19 +988,10 @@ load_style_tree (string package) {
   }
   if (style_tree_cache->contains (package))
     return style_tree_cache [package];
-  url name= url_none ();
-  url styp= "$ATHENA_STYLE_PATH";
-  if (ends (package, ".ts")) name= package;
-  else name= styp * (package * ".ts");
-  name= resolve (name);
-  string doc_s;
-  if (!load_string (name, doc_s, false)) {
-    tree doc= texmacs_document_to_tree (doc_s);
-    if (is_func (doc, _ERROR))
-      std_warning << "Style parse error in " << name << ": "
-                  << doc[0] << LF;
-    else if (is_compound (doc))
-      doc= extract (doc, "body");
+  url name= resolve_style_file (package, "$ATHENA_STYLE_PATH", true);
+  if (!is_none (name)) {
+    tree doc= load_style_body (name);
+    if (is_func (doc, _ERROR)) std_warning << doc[0] << LF;
     style_tree_cache (package)= doc;
     return doc;
   }
@@ -1104,6 +1098,11 @@ latex_expand (tree doc) {
 
 bool
 buffer_save (url name) {
+  if (suffix (name) == "ts") {
+    std_warning << "Legacy .ts styles are read-only compatibility input; "
+                << "convert or Save As .ats before editing: " << name << LF;
+    return true;
+  }
   string fm= file_format (name);
   if (fm == "generic") fm= "verbatim";
   bool r;

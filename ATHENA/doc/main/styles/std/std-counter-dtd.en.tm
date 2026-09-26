@@ -107,7 +107,7 @@
   </explain>
 
   We notice that group counters may recursively belong to super-groups. For
-  instance, the following declarations are from <verbatim|env-base.ts>:
+  instance, the following declarations are from <verbatim|env-base.ats>:
 
   <\tm-fragment>
     <\inactive*>

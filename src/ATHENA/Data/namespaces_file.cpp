@@ -15,8 +15,6 @@
 #include "file.hpp"
 #include "new_style.hpp"
 #include "vault.hpp"
-#include <QFile>
-#include <QSaveFile>
 #include <QTemporaryFile>
 #include <cerrno>
 #include <unistd.h>
@@ -72,8 +70,8 @@ namespace_install_style (string style_path, string base_root,
     error= "Namespace style file does not exist: " * style_path;
     return false;
   }
-  if (source.extension () != ".ts") {
-    error= "Namespace style file must end in .ts: " * style_path;
+  if (source.extension () != ".ats" && source.extension () != ".ts") {
+    error= "Namespace style file must end in .ats or legacy .ts: " * style_path;
     return false;
   }
 
@@ -93,22 +91,12 @@ namespace_install_style (string style_path, string base_root,
     return false;
   }
 
-  std::filesystem::path target= styles_dir / source.filename ();
-  if (!std::filesystem::exists (target) ||
-      std::filesystem::absolute (source) != std::filesystem::absolute (target)) {
-    QFile input (QString::fromStdString (source.string ()));
-    QSaveFile output (QString::fromStdString (target.string ()));
-    if (!input.open (QIODevice::ReadOnly) || !output.open (QIODevice::WriteOnly)) {
-      error= "Could not open namespace style for installation.";
-      return false;
-    }
-    const auto contents= input.readAll ();
-    if (input.error () != QFileDevice::NoError ||
-        output.write (contents) != contents.size () || !output.commit ()) {
-      error= "Could not install namespace style: " *
-             std_to_tm (output.errorString ().toStdString ());
-      return false;
-    }
+  std::filesystem::path target= styles_dir / source.stem ();
+  target.replace_extension (".ats");
+  std::string native_error;
+  if (!install_style_file (source, target, native_error)) {
+    error= "Could not install namespace style: " * std_to_tm (native_error);
+    return false;
   }
 
   style_invalidate_cache ();

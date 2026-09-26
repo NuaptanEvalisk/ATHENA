@@ -50,7 +50,7 @@
 
 ;; The built-in short document menu passes the legacy matching math font as
 ;; an explicit argument.  It must still use the smart profile rather than
-;; reinstalling pagella-font.ts.
+;; reinstalling pagella-font.ats.
 (reset-font-init)
 (init-font "pagella" "math-pagella")
 (check (== (get-init "font") "TeX Gyre Pagella")

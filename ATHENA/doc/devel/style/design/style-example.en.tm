@@ -25,7 +25,7 @@
 
   contains your personal style files. After saving your empty style package,
   it should automatically appear in the <menu|Document|Package> menu. Notice
-  that style files must be saved using the <verbatim|.ts> file extension. If
+  that style files must be saved using the <verbatim|.ats> file extension. If
   you save the style file in a subdirectory of
   <verbatim|$HOME/.ATHENA/packages>, then it will automatically appear in
   the corresponding submenu of <menu|Document|Package>.

@@ -6,16 +6,16 @@
   <expand|tmdoc-title|Look at an example>
 
   Before writing your own style file, it may be useful to take a look at some
-  standard style files. For instance, you may load <verbatim|book.ts> using
+  standard style files. For instance, you may load <verbatim|book.ats> using
   <submenu|File|load> (no path is necessary here, since the style directory
   is included in the default file path).
 
-  After loading <verbatim|book.ts>, you will see many function and
+  After loading <verbatim|book.ats>, you will see many function and
   environment declarations (these declarations are visible, since style files
   are written in ``preamble mode'' (see <submenu|Options|mode>)). Some more
-  declarations are contained in the files <verbatim|basic.ts>,
-  <verbatim|list.ts>, <verbatim|theorem.ts> and <verbatim|program.ts> on
-  which <verbatim|book.ts> is based. These files respectively contain basic,
+  declarations are contained in the files <verbatim|basic.ats>,
+  <verbatim|list.ats>, <verbatim|theorem.ats> and <verbatim|program.ats> on
+  which <verbatim|book.ats> is based. These files respectively contain basic,
   itemize-like, theorem-like and programming environments.
 
   <apply|tmdoc-copyright|1998--2002|Joris van der Hoeven>

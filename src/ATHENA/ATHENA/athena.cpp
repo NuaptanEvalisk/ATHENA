@@ -50,6 +50,7 @@
 #include "new_buffer.hpp"
 #include "new_view.hpp"
 #include "new_document.hpp"
+#include "new_style.hpp"
 #include "tm_window.hpp"
 #include "Interface/edit_interface.hpp"
 #include "ATHENA/Watchdog/watchdog_client.hpp"
@@ -803,6 +804,7 @@ print_command_line_help () {
   cout << "  --no-splash-screen       Start without the startup progress window\n";
   cout << "  --vault-maintenance [dir]  Maintain an ATHENA vault headlessly\n";
   cout << "  --upgrade-vault-format [dir]  Offline transactional UTF-8/XML vault upgrade\n";
+  cout << "  --convert-style [source.ts] [dest.ats]  Convert a legacy style to native UTF-8 XML\n";
   cout << "  --rag-delegated-embedding [dir]  Run only delegated incremental embedding\n";
   cout << "  --vault-maintenance-toc-worker [file] [marker]  Internal ToC maintenance worker\n";
   cout << "  --generate-website [dir] [id]  Generate a vault website headlessly\n";
@@ -2019,6 +2021,33 @@ texmacs_entrypoint (int argc, char** argv) {
     headless_mode= true;
     QCoreApplication app (argc, argv);
     return athena::document::upgrade_vault_format_cli (std::filesystem::path (argv[2]));
+  }
+  for (int i=1; i<argc; ++i) {
+    if (std::string (argv[i]) != "--convert-style") continue;
+    const bool help= argc == 3 && i == 1 && std::string (argv[2]) == "--help";
+    if (help) {
+      std::cerr << "Usage: ATHENA.bin --convert-style SOURCE.ts [DESTINATION.ats]\n";
+      return 0;
+    }
+    if (i != 1 || (argc != 3 && argc != 4)) {
+      std::cerr << "Usage: ATHENA.bin --convert-style SOURCE.ts [DESTINATION.ats]\n";
+      return 1;
+    }
+    ATHENA_init_paths (argc, argv);
+    std::filesystem::path source (argv[2]);
+    std::filesystem::path target;
+    if (argc == 4) target= std::filesystem::path (argv[3]);
+    else {
+      target= source;
+      target.replace_extension (".ats");
+    }
+    std::string error;
+    if (!convert_legacy_style_file (source, target, error)) {
+      std::cerr << "ATHENA style conversion failed: " << error << '\n';
+      return 1;
+    }
+    std::cout << source << " -> " << target << '\n';
+    return 0;
   }
   athena_watchdog_configure_from_argv (argc, argv);
   athena_crash_register_thread (AthenaCrashThreadRole::Main);

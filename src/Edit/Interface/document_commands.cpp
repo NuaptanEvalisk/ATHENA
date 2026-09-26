@@ -201,7 +201,7 @@ document_init_font (string value, object options) {
 
   string package= font_package_name (value);
   object file= call ("url-append", object ("$ATHENA_PATH/packages/customize/fonts"),
-                     object (package * ".ts"));
+                     object (package * ".ats"));
   if (as_bool (call ("url-exists?", file))) {
     init_default_current_view ("font");
     init_default_current_view ("font-family");

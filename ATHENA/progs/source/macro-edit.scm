@@ -77,7 +77,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (tree-load-style* s)
-  (with f (if (string-ends? s ".ts") s (string-append s ".ts"))
+  (with f (if (or (string-ends? s ".ats") (string-ends? s ".ts"))
+              s (string-append s ".ats"))
     (if (url-exists? (url-relative (current-buffer) f))
         (tree-load-style (url->string (url-relative (current-buffer) f)))
         (tree-load-style s))))
@@ -94,9 +95,12 @@
 
 (tm-define (built-in-style? s)
   (with d (url-complete (url-append "$ATHENA_PATH/styles" (url-any)) "dr")
-    (with name (string-append s ".ts")
-      (with f (url-complete (url-append (url-expand d) name) "fr")
-        (nnull? (url->list (url-expand f)))))))
+    (let* ((native (string-append s ".ats"))
+           (legacy (string-append s ".ts"))
+           (nf (url-complete (url-append (url-expand d) native) "fr"))
+           (lf (url-complete (url-append (url-expand d) legacy) "fr")))
+      (or (nnull? (url->list (url-expand nf)))
+          (nnull? (url->list (url-expand lf)))))))
 
 (tm-define (get-public-style-list)
   (with st (get-style-list)
@@ -177,9 +181,7 @@
 
 (define (edit-macro-in-style-file l)
   (and-with name (search-style-package l)
-    (let* ((style-name (string-append name ".ts"))
-           (style-url (url-append "$ATHENA_STYLE_PATH" style-name))
-           (file-name (url-resolve style-url "r")))
+    (let ((file-name (url-resolve-package name)))
       (cursor-history-add (cursor-path))
       (load-document file-name)
       (delayed

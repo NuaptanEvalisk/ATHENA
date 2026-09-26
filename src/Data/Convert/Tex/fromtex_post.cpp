@@ -2629,7 +2629,8 @@ latex_to_tree (tree t0, bool not_document) {
 
   auto s_style = std::chrono::high_resolution_clock::now();
   if (!not_document) {
-    if (!exists (url ("$ATHENA_STYLE_PATH", style * ".ts")))
+    if (!exists (url ("$ATHENA_STYLE_PATH", style * ".ats")) &&
+        !exists (url ("$ATHENA_STYLE_PATH", style * ".ts")))
       style= "generic";
 
     // cout << "(DEBUG) style = " << style  << "\n";

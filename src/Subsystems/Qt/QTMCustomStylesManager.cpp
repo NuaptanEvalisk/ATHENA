@@ -15,6 +15,7 @@
 #include "server.hpp"
 #include "sys_utils.hpp"
 #include "qt_utilities.hpp"
+#include "new_style.hpp"
 
 #include <DockWidget.h>
 #include <QAbstractItemView>
@@ -30,6 +31,7 @@
 #include <QMenu>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QSet>
 #include <QSizeGrip>
 #include <QStyle>
 #include <QTimer>
@@ -142,7 +144,10 @@ QString
 QTMCustomStylesManager::selectedStylePath () const {
   QString name= selectedStyleName ();
   if (name.isEmpty ()) return QString ();
-  return QDir (stylesDirectory ()).filePath (name + ".ts");
+  QDir dir (stylesDirectory ());
+  QString native= dir.filePath (name + ".ats");
+  if (QFileInfo::exists (native)) return native;
+  return dir.filePath (name + ".ts");
 }
 
 void
@@ -160,9 +165,15 @@ QTMCustomStylesManager::refresh () {
   if (!dir.exists ()) dir.mkpath (".");
 
   QFileInfoList files= dir.entryInfoList (
-    QStringList () << "*.ts", QDir::Files | QDir::Readable, QDir::Name);
+    QStringList () << "*.ats" << "*.ts",
+    QDir::Files | QDir::Readable, QDir::Name);
+  QSet<QString> seen;
   for (const QFileInfo& info: files) {
     QString name= info.completeBaseName ();
+    if (seen.contains (name)) continue;
+    if (info.suffix () == "ts" &&
+        QFileInfo::exists (dir.filePath (name + ".ats"))) continue;
+    seen.insert (name);
     QListWidgetItem* item= new QListWidgetItem (name, list);
     item->setData (Qt::UserRole, name);
     item->setToolTip (info.absoluteFilePath ());
@@ -199,19 +210,19 @@ QTMCustomStylesManager::installStyle () {
 
   QString source= QFileDialog::getOpenFileName (
     this, "Install custom style", QDir::homePath (),
-    "TeXmacs styles (*.ts);;All files (*)");
+    "ATHENA styles (*.ats);;Legacy TeXmacs styles (*.ts);;All files (*)");
   if (source.isEmpty ()) return;
 
   QFileInfo sourceInfo (source);
-  if (sourceInfo.suffix () != "ts") {
-    showError ("Please select a TeXmacs stylesheet file ending in .ts.");
+  if (sourceInfo.suffix () != "ats" && sourceInfo.suffix () != "ts") {
+    showError ("Please select an ATHENA .ats style or legacy .ts style.");
     return;
   }
 
-  QString target= dir.filePath (sourceInfo.fileName ());
+  QString styleName= sourceInfo.completeBaseName ();
+  QString target= dir.filePath (styleName + ".ats");
   if (QFileInfo (target).absoluteFilePath () == sourceInfo.absoluteFilePath ()) {
     refresh ();
-    QString styleName= sourceInfo.completeBaseName ();
     QList<QListWidgetItem*> hits= list->findItems (styleName, Qt::MatchExactly);
     if (!hits.isEmpty ()) list->setCurrentItem (hits.first ());
     showInfo (QString ("Style is already installed: %1").arg (styleName));
@@ -223,20 +234,18 @@ QTMCustomStylesManager::installStyle () {
       QString ("Replace existing custom style?\n\n%1").arg (target),
       QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
     if (answer != QMessageBox::Yes) return;
-    if (!QFile::remove (target)) {
-      showError (QString ("Could not replace existing style:\n%1").arg (target));
-      return;
-    }
   }
 
-  if (!QFile::copy (source, target)) {
-    showError (QString ("Could not install style:\n%1").arg (target));
+  std::string error;
+  if (!install_style_file (std::filesystem::path (source.toStdString ()),
+                           std::filesystem::path (target.toStdString ()), error)) {
+    showError (QString ("Could not install style:\n%1\n\n%2")
+               .arg (target, QString::fromStdString (error)));
     return;
   }
 
   get_server ()->style_clear_cache ();
   refresh ();
-  QString styleName= QFileInfo (target).completeBaseName ();
   QList<QListWidgetItem*> hits= list->findItems (styleName, Qt::MatchExactly);
   if (!hits.isEmpty ()) list->setCurrentItem (hits.first ());
   showInfo (QString ("Installed custom style: %1").arg (styleName));

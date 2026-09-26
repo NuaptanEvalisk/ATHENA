@@ -185,10 +185,11 @@ declare_style (url u) {
   }
   else if (is_atomic (u)) {
     string s= as_string (u);
-    if (ends (s, ".ts") && !starts (s, "source")) {
-      internal_styles->insert (s (0, N (s) - 3));
-      if (starts (s, "old-")) internal_styles->insert (s (4, N (s) - 3));
-      if (starts (s, "old2-")) internal_styles->insert (s (5, N (s) - 3));
+    int ext= ends (s, ".ats") ? 4 : (ends (s, ".ts") ? 3 : 0);
+    if (ext != 0 && !starts (s, "source")) {
+      internal_styles->insert (s (0, N (s) - ext));
+      if (starts (s, "old-")) internal_styles->insert (s (4, N (s) - ext));
+      if (starts (s, "old2-")) internal_styles->insert (s (5, N (s) - ext));
     }
   }
 }
@@ -227,17 +228,21 @@ get_url_image_or_include_tree (tree t, url path) {
 }
 
 // Pass in a tree with style label.
-// return a actual ts file url
+// return an actual ATS file URL, falling back to a legacy .ts attachment
 static url
 get_actual_style_url (string style_name, url path) {
   url style_file;
   if (!is_internal_style (style_name)) {
-    style_file= glue (url (style_name), ".ts");
+    style_file= glue (url (style_name), ".ats");
     if (!exists (style_file)) {
       style_file= relative (path, style_file);
       if (!exists (style_file)) {
-        if (DEBUG_CONVERT) debug_convert << style_file << "do not exist" << LF;
-        style_file= url_none ();
+        style_file= glue (url (style_name), ".ts");
+        if (!exists (style_file)) style_file= relative (path, style_file);
+        if (!exists (style_file)) {
+          if (DEBUG_CONVERT) debug_convert << style_file << "do not exist" << LF;
+          style_file= url_none ();
+        }
       }
     }
   }
@@ -245,7 +250,7 @@ get_actual_style_url (string style_name, url path) {
 }
 
 // Pass in a style tree.
-// return all external ts file url
+// return all external style file URLs
 static array<url>
 get_url_style_tree (tree t, url path) {
   array<url> style_file;
@@ -329,11 +334,14 @@ repalce_url_style (tree t, url path) {
   string style_name= get_label (t);
   if (!is_internal_style (style_name)) {
     url style_url= url (style_name);
-    style_url    = glue (style_url, ".ts");
+    style_url    = glue (style_url, ".ats");
     if (!exists (style_url)) {
       style_url= relative (path, style_url);
       if (!exists (style_url)) {
-        if (DEBUG_CONVERT) debug_convert << style_url << "do not exist" << LF;
+        style_url= glue (url (style_name), ".ts");
+        if (!exists (style_url)) style_url= relative (path, style_url);
+        if (!exists (style_url) && DEBUG_CONVERT)
+          debug_convert << style_url << "do not exist" << LF;
       }
     }
     string name= basename (style_url);

@@ -172,7 +172,7 @@ bool
 do_cache_stat_fail (string name) {
   if (!cache_initialize_paths ()) return false;
   return
-    !ends (name, ".ts") &&
+    !ends (name, ".ats") && !ends (name, ".ts") &&
     (starts (name, texmacs_path_string) ||
      starts (name, texmacs_doc_path_string));
 }
@@ -181,7 +181,7 @@ bool
 do_cache_file (string name) {
   if (!cache_initialize_paths ()) return false;
   return
-    !ends (name, ".ts") && !ends (name, ".css") &&
+    !ends (name, ".ats") && !ends (name, ".ts") && !ends (name, ".css") &&
     (starts (name, texmacs_path_string) ||
      starts (name, texmacs_font_path_string));
 }

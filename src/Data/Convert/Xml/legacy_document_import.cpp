@@ -13,6 +13,7 @@
 #include "drd_info.hpp"
 #include "file.hpp"
 #include "analyze.hpp"
+#include "convert.hpp"
 #include <algorithm>
 #include <limits>
 #include <memory>
@@ -80,19 +81,30 @@ class contract_compiler {
 
   url resolve_package (string package,
                        const std::optional<std::filesystem::path>& base) {
-    string filename= ends (package, ".ts") ? package : package * ".ts";
-    const std::filesystem::path requested (
-      std::string (filename.data (), (std::size_t) N(filename)));
-    bool safe_relative= !requested.empty () && !requested.is_absolute ();
-    for (const auto& component: requested)
-      if (component == "..") safe_relative= false;
-    if (!safe_relative) return url_none ();
-    if (base) {
-      url base_url= url_system (string (base->string ().c_str ()));
-      url local= resolve (expand (head (base_url) * url_ancestor () * filename));
-      if (!is_none (local)) return local;
+    const bool explicit_ats= ends (package, ".ats");
+    const bool explicit_ts= ends (package, ".ts");
+    std::vector<string> filenames;
+    if (explicit_ats || explicit_ts) filenames.push_back (package);
+    else {
+      filenames.push_back (package * ".ats");
+      filenames.push_back (package * ".ts");
     }
-    return resolve (url ("$ATHENA_STYLE_PATH") * filename);
+    for (const string& filename: filenames) {
+      const std::filesystem::path requested (
+        std::string (filename.data (), (std::size_t) N(filename)));
+      bool safe_relative= !requested.empty () && !requested.is_absolute ();
+      for (const auto& component: requested)
+        if (component == "..") safe_relative= false;
+      if (!safe_relative) continue;
+      if (base) {
+        url base_url= url_system (string (base->string ().c_str ()));
+        url local= resolve (expand (head (base_url) * url_ancestor () * filename));
+        if (!is_none (local)) return local;
+      }
+      url global= resolve (url ("$ATHENA_STYLE_PATH") * filename);
+      if (!is_none (global)) return global;
+    }
+    return url_none ();
   }
 
   void load_package (string package,
@@ -110,8 +122,16 @@ class contract_compiler {
     if ((std::size_t) N(source) > limits.codec.input_bytes)
       throw codec_exception (codec_error::resource_limit,
                              "Legacy style contract exceeds import budget");
-    tree package_tree= read_legacy_markup (
-      std::string_view (as_charp (source), (std::size_t) N(source)), limits.codec);
+    std::string_view bytes (as_charp (source), (std::size_t) N(source));
+    tree package_tree;
+    if (suffix (resolved) == "ats")
+      package_tree= read_xml (bytes, xml_kind::document, limits.codec);
+    else {
+      package_tree= texmacs_document_to_tree (source);
+      if (is_func (package_tree, _ERROR))
+        throw codec_exception (codec_error::invalid_structure,
+                               "Malformed legacy style contract");
+    }
     std::optional<std::filesystem::path> package_path;
     if (N(key) != 0) package_path= std::filesystem::path (identity);
     scan (package_tree, package_path);

@@ -108,7 +108,7 @@
   into account additional action which might have been undertaken by the
   previous value of the macro <markup|inc-theorem>.
 
-  The following code from <verbatim|number-long-article.ts> is used in order
+  The following code from <verbatim|number-long-article.ats> is used in order
   to prefix all standard environments with the number of the current section:
 
   <\tm-fragment>

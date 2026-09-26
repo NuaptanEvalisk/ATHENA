@@ -29,6 +29,17 @@ athena_document_xml.{hpp,cpp} implements the native versioned XML codec.
 A complete document uses the athena-document envelope; a standalone tree
 fragment uses athena-tree. Both require version="1" and text-model="utf-8".
 
+Native `.ath` documents and `.ats` style/package resources use this same
+complete-document codec. Their extensions describe their application role, not
+different XML dialects. Style/package lookup prefers `.ats`; legacy `.ts`
+resources are accepted only as compatibility input and are semantically imported
+to the same UTF-8 tree model. New style installation and persistence emit
+`.ats`, never `.ts`.
+
+`ATHENA.bin --convert-style SOURCE.ts [DESTINATION.ats]` performs the explicit
+legacy-style conversion. When the destination is omitted, the command writes a
+sibling with the `.ats` extension and refuses to overwrite an existing target.
+
 For example:
 
     <?xml version="1.0" encoding="UTF-8"?>

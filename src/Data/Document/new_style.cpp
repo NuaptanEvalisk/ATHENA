@@ -13,10 +13,15 @@
 #include "file.hpp"
 #include "data_cache.hpp"
 #include "convert.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
+#include "Data/Convert/Xml/athena_document_xml.hpp"
 #include "tm_configure.hpp"
 #include "../../Typeset/env.hpp"
+#include <QFileInfo>
+#include <QSaveFile>
 #include <atomic>
 #include <cstdint>
+#include <filesystem>
 #include <mutex>
 
 /******************************************************************************
@@ -63,6 +68,187 @@ init_style_data () {
 extern thread_local hashmap<string,tree> style_tree_cache;
 
 /******************************************************************************
+* Native style files
+******************************************************************************/
+
+namespace {
+
+bool
+has_style_extension (string name) {
+  return ends (name, ".ats") || ends (name, ".ts");
+}
+
+url
+resolve_style_candidate (url search_path, string name) {
+  url direct= resolve (url_system (name));
+  if (!is_none (direct)) return direct;
+  return resolve (search_path * name);
+}
+
+tree
+style_error (string message) {
+  return tree (_ERROR, message);
+}
+
+} // namespace
+
+url
+resolve_style_file (string package, url search_path, bool allow_legacy) {
+  if (has_style_extension (package)) {
+    if (ends (package, ".ts") && !allow_legacy) return url_none ();
+    return resolve_style_candidate (search_path, package);
+  }
+
+  url native= resolve (search_path * (package * ".ats"));
+  if (is_none (native)) native= resolve (url_system (package * ".ats"));
+  if (!is_none (native)) return native;
+  if (!allow_legacy) return url_none ();
+  url legacy= resolve (search_path * (package * ".ts"));
+  if (is_none (legacy)) legacy= resolve (url_system (package * ".ts"));
+  return legacy;
+}
+
+tree
+load_style_document (url name) {
+  string source;
+  if (load_string (name, source, false))
+    return style_error ("Could not read style file " * as_string (name));
+  try {
+    std::string_view bytes (as_charp (source), (std::size_t) N(source));
+    tree doc;
+    if (suffix (name) == "ats")
+      doc= athena::document::read_xml (
+        bytes, athena::document::xml_kind::document);
+    else if (suffix (name) == "ts") {
+      tree legacy= texmacs_document_to_tree (source);
+      if (is_func (legacy, _ERROR)) return legacy;
+      athena::document::legacy_import_context context;
+      string local= concretize (name);
+      if (N(local) != 0)
+        context.source_path= std::filesystem::path (as_charp (local));
+      doc= athena::document::import_legacy_document (
+        legacy, athena::document::standard_legacy_cork_table (), {}, {}, context).document;
+    }
+    else return style_error ("Unsupported style file extension in " * as_string (name));
+    if (!is_func (doc, DOCUMENT))
+      return style_error ("Style file is not a document: " * as_string (name));
+    return doc;
+  }
+  catch (const std::exception& e) {
+    return style_error ("Style parse error in " * as_string (name) * ": " *
+                        string (e.what ()));
+  }
+}
+
+tree
+load_style_body (url name) {
+  tree doc= load_style_document (name);
+  if (is_func (doc, _ERROR)) return doc;
+  return extract (doc, "body");
+}
+
+namespace {
+
+bool
+write_native_style_file (const tree& doc, const std::filesystem::path& target,
+                         std::string& error) {
+  namespace fs= std::filesystem;
+  try {
+    const std::string xml= athena::document::write_xml (
+      doc, athena::document::xml_kind::document);
+    tree roundtrip= athena::document::read_xml (
+      xml, athena::document::xml_kind::document);
+    if (roundtrip != doc) {
+      error= "native XML round-trip changed the style tree";
+      return false;
+    }
+    std::error_code ec;
+    if (!target.parent_path ().empty ())
+      fs::create_directories (target.parent_path (), ec);
+    if (ec) {
+      error= "could not create target directory: " + ec.message ();
+      return false;
+    }
+    QSaveFile output (QString::fromStdString (target.string ()));
+    if (!output.open (QIODevice::WriteOnly)) {
+      error= "could not open target style";
+      return false;
+    }
+    const QByteArray data (xml.data (), (qsizetype) xml.size ());
+    if (output.write (data) != data.size () || !output.commit ()) {
+      error= "could not atomically write target style";
+      return false;
+    }
+    return true;
+  }
+  catch (const std::exception& e) {
+    error= e.what ();
+    return false;
+  }
+}
+
+} // namespace
+
+bool
+install_style_file (const std::filesystem::path& source,
+                    const std::filesystem::path& target,
+                    std::string& error) {
+  namespace fs= std::filesystem;
+  if (source.extension () != ".ats" && source.extension () != ".ts") {
+    error= "source style must end in .ats or .ts";
+    return false;
+  }
+  if (target.extension () != ".ats") {
+    error= "target style must end in .ats";
+    return false;
+  }
+  std::error_code ec;
+  fs::path input= fs::absolute (source, ec);
+  if (ec || !fs::exists (input) || !fs::is_regular_file (input)) {
+    error= "source style does not exist";
+    return false;
+  }
+  tree doc= load_style_document (url_system (string (input.string ().c_str ())));
+  if (is_func (doc, _ERROR)) {
+    error= std::string (doc[0]->label.data (), (std::size_t) N(doc[0]->label));
+    return false;
+  }
+  return write_native_style_file (doc, target, error);
+}
+
+bool
+convert_legacy_style_file (const std::filesystem::path& source,
+                           const std::filesystem::path& target,
+                           std::string& error) {
+  namespace fs= std::filesystem;
+  try {
+    if (source.extension () != ".ts") {
+      error= "source style must end in .ts";
+      return false;
+    }
+    if (target.extension () != ".ats") {
+      error= "target style must end in .ats";
+      return false;
+    }
+    if (!fs::exists (source) || !fs::is_regular_file (source)) {
+      error= "source style does not exist";
+      return false;
+    }
+    if (fs::exists (target)) {
+      error= "target style already exists";
+      return false;
+    }
+
+    init_std_drd ();
+    return install_style_file (source, target, error);
+  }
+  catch (const std::exception& e) {
+    error= e.what ();
+    return false;
+  }
+}
+
+/******************************************************************************
 * Modify style so as to search in all ancestor directories
 ******************************************************************************/
 
@@ -77,9 +263,11 @@ preprocess_style (tree st, url name) {
   for (int i=0; i<N(st); i++) {
     r[i]= st[i];
     if (!is_atomic (st[i])) continue;
-    string pack= st[i]->label * ".ts";
-    if (!remote || is_none (resolve (url ("$ATHENA_STYLE_PATH") * pack))) {
-      url stf= resolve (expand (head (name) * url_ancestor () * pack));
+    string pack= st[i]->label;
+    url global= resolve_style_file (pack, "$ATHENA_STYLE_PATH", true);
+    if (!remote || is_none (global)) {
+      url local_path= expand (head (name) * url_ancestor ());
+      url stf= resolve_style_file (pack, local_path, true);
       if (!is_none (stf)) r[i]= as_string (stf);
     }
   }
@@ -95,7 +283,8 @@ static string
 cache_file_name (tree t) {
   if (is_atomic (t)) {
     string s= t->label;
-    if (ends (s, ".ts")) s= s (0, N(s) - 3);
+    if (ends (s, ".ats")) s= s (0, N(s) - 4);
+    else if (ends (s, ".ts")) s= s (0, N(s) - 3);
     s= replace (s, "/", "%");
     s= replace (s, "\\", "%");
     s= replace (s, ":", "_");
@@ -340,7 +529,8 @@ hidden_package (url u, string name, bool hidden) {
   }
   if (hidden && is_atomic (u)) {
     string l= as_string (u);
-    if (ends (l, ".ts")) l= l (0, N(l)-3);
+    if (ends (l, ".ats")) l= l (0, N(l)-4);
+    else if (ends (l, ".ts")) l= l (0, N(l)-3);
     else if (ends (l, ".hook")) l= l (0, N(l)-5);
     else return false;
     return name == l;
@@ -378,7 +568,8 @@ compute_style_menu (url u, int kind) {
   }
   if (is_atomic (u)) {
     string l  = as_string (u);
-    if (ends (l, ".ts")) l= l (0, N(l)-3);
+    if (ends (l, ".ats")) l= l (0, N(l)-4);
+    else if (ends (l, ".ts")) l= l (0, N(l)-3);
     else if (ends (l, ".hook")) l= l (0, N(l)-5);
     else return "";
     string cmd ("set-main-style");

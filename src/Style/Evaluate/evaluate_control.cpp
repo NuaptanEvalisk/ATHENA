@@ -15,6 +15,7 @@
 #include "file.hpp"
 #include "convert.hpp"
 #include "scheme.hpp"
+#include "new_style.hpp"
 
 tree load_inclusion (url u); // implemented in tm_file.cpp
 
@@ -141,20 +142,14 @@ evaluate_use_package (tree t) {
   for (i=0; i<n; i++) {
     url base_file_name (as_string (std_env["base-file-name"]));
     url styp= "$ATHENA_STYLE_PATH";
-    url name= as_string (t[i]) * string (".ts");
-    //cout << "Package " << name << "\n";
     if (is_rooted_web (base_file_name))
       styp= styp | head (base_file_name);
     else styp= head (base_file_name) | styp;
-    string doc_s;
-    if (!load_string (styp * name, doc_s, false)) {
-      tree doc= texmacs_document_to_tree (doc_s);
-      if (is_func (doc, _ERROR))
-        std_warning << "Style parse error in " << (styp * name) << ": "
-                    << doc[0] << LF;
-      else if (is_compound (doc))
-	evaluate (filter_style (extract (doc, "body")));
-    }
+    url name= resolve_style_file (as_string (t[i]), styp, true);
+    if (is_none (name)) continue;
+    tree body= load_style_body (name);
+    if (is_func (body, _ERROR)) std_warning << body[0] << LF;
+    else evaluate (filter_style (body));
   }
   return "";
 }

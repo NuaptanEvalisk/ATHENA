@@ -650,7 +650,7 @@ private slots:
     env->write (FONT, "TeX Gyre Pagella");
     env->update ();
     env->exec (tree (USE_PACKAGE,
-      string (std::getenv ("ATHENA_PATH")) * "/packages/standard/std-list.ts"));
+      string (std::getenv ("ATHENA_PATH")) * "/packages/standard/std-list.ats"));
     for (auto marker: {std::pair<const char*, const char*> {"item-1", "\xe2\x80\xa2"},
                        {"item-2", "\xe2\x88\x98"}}) {
       box b= typeset_as_concat (env, compound (marker.first), path (0));
@@ -722,7 +722,7 @@ private slots:
     env->write (MODE, "math");
     env->update ();
     env->exec (tree (USE_PACKAGE,
-      string (std::getenv ("ATHENA_PATH")) * "/packages/standard/std-math.ts"));
+      string (std::getenv ("ATHENA_PATH")) * "/packages/standard/std-math.ats"));
 
     box b= typeset_as_concat (env, compound ("center-dots"), path (0));
     QImage image (500, 140, QImage::Format_ARGB32);
@@ -842,7 +842,7 @@ private slots:
     env->write_default_env ();
     env->update ();
     env->exec (tree (USE_PACKAGE,
-      string (std::getenv ("ATHENA_PATH")) * "/packages/section/section-base.ts"));
+      string (std::getenv ("ATHENA_PATH")) * "/packages/section/section-base.ats"));
     env->update ();
     QVERIFY (drd->is_accessible_child (
       compound ("heading-fold-title", "Heading"), 0));

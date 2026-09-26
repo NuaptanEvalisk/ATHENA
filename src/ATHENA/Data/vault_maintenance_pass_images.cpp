@@ -38,7 +38,7 @@ struct DocumentRewrite {
 bool
 document_asset_extension (const fs::path& path) {
   static const std::unordered_set<std::string> extensions= {
-    ".ath", ".tm", ".ts", ".tp", ".stm"};
+    ".ath", ".tm", ".ats", ".ts", ".tp", ".stm"};
   return extensions.find (lower_copy (path.extension ().string ())) !=
          extensions.end ();
 }

@@ -14,8 +14,23 @@
 #include "drd_std.hpp"
 #include "scheme.hpp"
 #include <cstdint>
+#include <filesystem>
+#include <string>
 
 tree preprocess_style (tree st, url name);
+
+// Native ATHENA styles/packages use .ats and the same UTF-8 XML document
+// codec as .ath documents. Legacy .ts remains a read-only compatibility input.
+url  resolve_style_file (string package, url search_path,
+                         bool allow_legacy= true);
+tree load_style_document (url name);
+tree load_style_body (url name);
+bool convert_legacy_style_file (const std::filesystem::path& source,
+                                const std::filesystem::path& target,
+                                std::string& error);
+bool install_style_file (const std::filesystem::path& source,
+                         const std::filesystem::path& target,
+                         std::string& error);
 
 void style_invalidate_cache ();
 std::uint64_t style_cache_generation ();

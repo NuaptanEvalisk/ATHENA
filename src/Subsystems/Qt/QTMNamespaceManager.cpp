@@ -431,7 +431,7 @@ public:
     });
     connect (styleBrowseButton, &QPushButton::clicked, this, [this] () {
       QString selected= namespace_choose_file (
-        this, styleEdit, "Choose Namespace Style", "*.ts *.scm|ATHENA style files");
+        this, styleEdit, "Choose Namespace Style", "*.ats *.ts|ATHENA style files");
       if (!selected.isEmpty ()) styleEdit->setText (selected);
     });
     connect (initialContentBrowseButton, &QPushButton::clicked, this, [this] () {
@@ -1988,7 +1988,7 @@ QTMNamespaceManager::updateModeUi () {
   styleEdit->setEnabled (concrete);
   styleBrowseButton->setEnabled (concrete);
   styleEdit->setPlaceholderText (
-    concrete ? "Optional .ts stylesheet for new files" :
+    concrete ? "Optional .ats stylesheet for new files" :
                "Only concrete namespaces use a style");
   initialContentEdit->setEnabled (concrete);
   initialContentBrowseButton->setEnabled (concrete);
@@ -2040,7 +2040,7 @@ QTMNamespaceManager::chooseSorterPath () {
 void
 QTMNamespaceManager::chooseStylePath () {
   QString selected= namespace_choose_file (
-    this, styleEdit, "Choose Namespace Style", "*.ts *.scm|ATHENA style files");
+    this, styleEdit, "Choose Namespace Style", "*.ats *.ts|ATHENA style files");
   if (!selected.isEmpty ()) styleEdit->setText (selected);
 }
 
