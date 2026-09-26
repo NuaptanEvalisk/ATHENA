@@ -32,6 +32,7 @@ constexpr std::size_t manifest_limit = 256 * 1024;
 constexpr std::uint64_t file_limit = 256ULL * 1024 * 1024;
 constexpr std::uint64_t package_limit = 1024ULL * 1024 * 1024;
 constexpr std::size_t entry_limit = 10000;
+constexpr std::uint64_t license_limit = 4ULL * 1024 * 1024;
 struct fd {
   int value;
   explicit fd (int n): value (n) { if (n < 0) throw std::system_error (errno, std::generic_category ()); }
@@ -64,13 +65,61 @@ void archive_ok (int status, archive* a) {
 }
 struct stage {
   fs::path path;
+  bool active = true;
   explicit stage (const fs::path& root) {
     auto pattern = (root / ".install-XXXXXX").string ();
     if (!mkdtemp (pattern.data ())) throw std::system_error (errno, std::generic_category ());
     path = pattern;
   }
-  ~stage () { std::error_code ignored; fs::remove_all (path, ignored); }
+  fs::path release () { active = false; return path; }
+  ~stage () { if (active) { std::error_code ignored; fs::remove_all (path, ignored); } }
 };
+
+bool bool_field (const value& object, const char* key, bool fallback = false) {
+  if (!object.contains (key)) return fallback;
+  if (!object.at (key).is_boolean ())
+    throw std::invalid_argument (std::string (key) + " must be a boolean");
+  return object.at (key).get<bool> ();
+}
+
+void vault_relative_path (const std::string& text, bool allow_empty) {
+  if (text.empty ()) {
+    if (allow_empty) return;
+    throw std::invalid_argument ("Vault permission path may not be empty");
+  }
+  if (text.front () == '/' || text.back () == '/' || text.find ("//") != std::string::npos ||
+      text.find ('\\') != std::string::npos || text.find ('\0') != std::string::npos ||
+      text.find (':') != std::string::npos || text.front () == '~' || text.front () == '$')
+    throw std::invalid_argument ("Vault permission paths must be plain vault-relative paths");
+  fs::path path (text);
+  if (path.is_absolute ()) throw std::invalid_argument ("Vault permission path may not be absolute");
+  for (const auto& part: path)
+    if (part.empty () || part == "." || part == "..")
+      throw std::invalid_argument ("Vault permission path contains a traversal component");
+}
+
+void package_relative_file (const fs::path& path) {
+  relative_path (path);
+  if (path.empty () || path.filename ().empty ())
+    throw std::invalid_argument ("Plugin package file path may not be empty");
+}
+
+void validate_package_file (const fs::path& root, const fs::path& relative,
+                            std::uint64_t byte_limit, const char* what) {
+  auto current= root;
+  for (const auto& part: relative) {
+    current/= part;
+    if (fs::is_symlink (fs::symlink_status (current)))
+      throw std::runtime_error (std::string (what) + " path contains a symlink");
+  }
+  std::error_code ec;
+  const auto status= fs::status (current, ec);
+  if (ec || !fs::is_regular_file (status))
+    throw std::runtime_error (std::string (what) + " is not a regular file");
+  const auto size= fs::file_size (current, ec);
+  if (ec || size > byte_limit)
+    throw std::runtime_error (std::string (what) + " exceeds its size limit");
+}
 struct store_lock {
   fd file;
   explicit store_lock (const fs::path& root): file (::open ((root / ".lock").c_str (),
@@ -217,10 +266,33 @@ bool valid_plugin_id (const std::string& id) {
     id.find_first_not_of ("abcdefghijklmnopqrstuvwxyz0123456789._-") == std::string::npos &&
     id.find ("..") == std::string::npos;
 }
+std::string jail_permission_id (const jail_permission& p) {
+  switch (p.permission) {
+  case jail_permission_kind::network:
+    return "network";
+  case jail_permission_kind::filesystem_read:
+  case jail_permission_kind::filesystem_write: {
+    const char* kind= p.permission == jail_permission_kind::filesystem_read ?
+      "filesystem.read" : "filesystem.write";
+    const char* scope= p.scope == filesystem_scope::file ? "file" : "tree";
+    return std::string (kind) + ":" + p.root + ":" + scope + ":" + p.path.generic_string ();
+  }
+  }
+  throw std::logic_error ("Unknown jail permission");
+}
+bool ends_with_text (const std::string& text, const char* suffix) {
+  const std::string_view s (suffix);
+  return text.size () >= s.size () &&
+    text.compare (text.size () - s.size (), s.size (), s) == 0;
+}
 manifest parse_manifest (const value& json) {
-  if (!json.is_object () || !json.contains ("schema") || !json.at ("schema").is_number_integer () || json.at ("schema") != 1)
-    throw std::invalid_argument ("Plugin manifest requires schema 1");
+  if (!json.is_object () || !json.contains ("schema") || !json.at ("schema").is_number_integer ())
+    throw std::invalid_argument ("Plugin manifest requires a schema version");
+  const int schema= json.at ("schema").get<int> ();
+  if (schema != 1 && schema != 2)
+    throw std::invalid_argument ("Plugin manifest requires schema 1 or 2");
   manifest result;
+  result.schema= static_cast<unsigned> (schema);
   result.id = string_field (json, "id", 128);
   if (!valid_plugin_id (result.id)) throw std::invalid_argument ("Invalid plugin ID");
   result.name = string_field (json, "name", 256);
@@ -248,7 +320,122 @@ manifest parse_manifest (const value& json) {
       result.commands.push_back (std::move (c));
     }
   }
+  if (schema >= 2 && json.contains ("license")) {
+    const auto& license= json.at ("license");
+    if (!license.is_object ()) throw std::invalid_argument ("license must be an object");
+    const auto format= string_field (license, "format", 32);
+    const auto file= string_field (license, "file", 4096);
+    package_relative_file (file);
+    license_spec spec;
+    if (format == "athena") {
+      if (!ends_with_text (file, ".ath"))
+        throw std::invalid_argument ("ATHENA license file must end in .ath");
+      spec.format= license_format::athena;
+    }
+    else if (format == "text") {
+      if (!ends_with_text (file, ".txt"))
+        throw std::invalid_argument ("Text license file must end in .txt");
+      spec.format= license_format::text;
+    }
+    else throw std::invalid_argument ("license format must be athena or text");
+    spec.file= file;
+    result.license= std::move (spec);
+  }
+  if (schema >= 2 && json.contains ("permissions")) {
+    const auto& permissions= json.at ("permissions");
+    if (!permissions.is_object ()) throw std::invalid_argument ("permissions must be an object");
+    if (permissions.contains ("jail")) {
+      const auto& entries= permissions.at ("jail");
+      if (!entries.is_array () || entries.size () > 128)
+        throw std::invalid_argument ("permissions.jail must be a bounded array");
+      std::set<std::string> unique;
+      for (const auto& item: entries) {
+        if (!item.is_object ()) throw std::invalid_argument ("Jail permission must be an object");
+        const auto name= string_field (item, "permission", 64);
+        jail_permission p;
+        p.required= bool_field (item, "required");
+        if (name == "network") {
+          if (item.contains ("root") || item.contains ("path") || item.contains ("scope"))
+            throw std::invalid_argument ("network permission does not accept filesystem fields");
+          p.permission= jail_permission_kind::network;
+          if (!unique.insert (name).second) throw std::invalid_argument ("Duplicate network permission");
+        }
+        else if (name == "filesystem.read" || name == "filesystem.write") {
+          p.permission= name == "filesystem.read" ? jail_permission_kind::filesystem_read :
+                                                     jail_permission_kind::filesystem_write;
+          p.root= string_field (item, "root", 32);
+          if (p.root != "vault") throw std::invalid_argument ("Filesystem permissions currently require root=vault");
+          const auto path= string_field (item, "path", 4096, true);
+          const auto scope= item.contains ("scope") ? string_field (item, "scope", 16) : "tree";
+          if (scope == "file") p.scope= filesystem_scope::file;
+          else if (scope == "tree") p.scope= filesystem_scope::tree;
+          else throw std::invalid_argument ("Filesystem permission scope must be file or tree");
+          vault_relative_path (path, p.scope == filesystem_scope::tree);
+          if (p.scope == filesystem_scope::file && path.empty ())
+            throw std::invalid_argument ("File permission requires a path");
+          p.path= path;
+          const std::string key= name + "\n" + path + "\n" + scope;
+          if (!unique.insert (key).second) throw std::invalid_argument ("Duplicate filesystem permission");
+        }
+        else throw std::invalid_argument ("Unknown jail permission: " + name);
+        result.jail_permissions.push_back (std::move (p));
+      }
+    }
+    if (permissions.contains ("audmap")) {
+      const auto& entries= permissions.at ("audmap");
+      if (!entries.is_array () || entries.size () > 128)
+        throw std::invalid_argument ("permissions.audmap must be a bounded array");
+      std::set<std::string> resources;
+      for (const auto& item: entries) {
+        if (!item.is_object ()) throw std::invalid_argument ("AUDMAP permission must be an object");
+        audmap_permission p;
+        p.resource= string_field (item, "resource", 128);
+        if (!valid_plugin_id (p.resource) || p.resource == "root" || p.resource == "subscription")
+          throw std::invalid_argument ("Invalid or reserved AUDMAP resource permission");
+        if (!resources.insert (p.resource).second)
+          throw std::invalid_argument ("Duplicate AUDMAP resource permission");
+        p.required= bool_field (item, "required");
+        if (!item.contains ("actions") || !item.at ("actions").is_array () ||
+            item.at ("actions").empty () || item.at ("actions").size () > 128)
+          throw std::invalid_argument ("AUDMAP permission actions must be a nonempty bounded array");
+        for (const auto& action_value: item.at ("actions")) {
+          value wrapper {{"action", action_value}};
+          const auto action= string_field (wrapper, "action", 128);
+          if (!valid_plugin_id (action) || !p.actions.insert (action).second)
+            throw std::invalid_argument ("Invalid or duplicate AUDMAP action");
+        }
+        result.audmap_permissions.push_back (std::move (p));
+      }
+    }
+  }
   return result;
+}
+
+prepared_plugin::prepared_plugin (manifest m, fs::path staging, fs::path package):
+  staging_ (std::move (staging)), package_ (std::move (package)), metadata (std::move (m)) {}
+
+prepared_plugin::prepared_plugin (prepared_plugin&& other) noexcept:
+  staging_ (std::move (other.staging_)), package_ (std::move (other.package_)),
+  metadata (std::move (other.metadata)) {
+  other.staging_.clear (); other.package_.clear ();
+}
+
+prepared_plugin& prepared_plugin::operator= (prepared_plugin&& other) noexcept {
+  if (this == &other) return *this;
+  if (!staging_.empty ()) { std::error_code ignored; fs::remove_all (staging_, ignored); }
+  staging_= std::move (other.staging_); package_= std::move (other.package_);
+  metadata= std::move (other.metadata);
+  other.staging_.clear (); other.package_.clear ();
+  return *this;
+}
+
+prepared_plugin::~prepared_plugin () {
+  if (!staging_.empty ()) { std::error_code ignored; fs::remove_all (staging_, ignored); }
+}
+
+std::optional<fs::path> prepared_plugin::license_file () const {
+  if (!metadata.license) return {};
+  return package_ / metadata.license->file;
 }
 manifest read_manifest (const fs::path& directory) {
   fd file (::open ((directory / "manifest.json").c_str (), O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK));
@@ -296,6 +483,13 @@ package_store::package_store (fs::path directory): directory_ (fs::absolute (std
     throw std::system_error (errno, std::generic_category (), "Cannot make plugin store private");
 }
 installed_plugin package_store::install (const fs::path& source_path) const {
+  auto prepared= prepare (source_path);
+  if (prepared.metadata.license)
+    throw std::runtime_error ("Plugin requires license review before installation");
+  return publish (std::move (prepared));
+}
+
+prepared_plugin package_store::prepare (const fs::path& source_path) const {
   store_lock lock (directory_);
   const auto source = fs::absolute (source_path).lexically_normal ();
   const auto status = fs::symlink_status (source);
@@ -326,8 +520,24 @@ installed_plugin package_store::install (const fs::path& source_path) const {
   // ZIPs created on non-Unix systems may not carry an executable permission bit.
   fs::permissions (package / metadata.executable, fs::perms::owner_all);
   const auto destination = directory_ / metadata.id;
-  if (syscall (SYS_renameat2, AT_FDCWD, package.c_str (), AT_FDCWD, destination.c_str (), RENAME_NOREPLACE))
+  if (fs::exists (destination))
+    throw std::runtime_error ("Cannot install plugin (already installed?)");
+  if (metadata.license)
+    validate_package_file (package, metadata.license->file, license_limit, "Plugin license");
+  return prepared_plugin (std::move (metadata), staging.release (), package);
+}
+
+installed_plugin package_store::publish (prepared_plugin&& prepared) const {
+  store_lock lock (directory_);
+  if (prepared.staging_.empty () || prepared.package_.empty () ||
+      prepared.staging_.parent_path () != directory_)
+    throw std::invalid_argument ("Prepared plugin does not belong to this package store");
+  const auto destination= directory_ / prepared.metadata.id;
+  if (syscall (SYS_renameat2, AT_FDCWD, prepared.package_.c_str (), AT_FDCWD,
+               destination.c_str (), RENAME_NOREPLACE))
     throw std::system_error (errno, std::generic_category (), "Cannot install plugin (already installed?)");
+  manifest metadata= std::move (prepared.metadata);
+  prepared.package_.clear ();
   return {std::move (metadata), destination};
 }
 void package_store::uninstall (const std::string& id) const {

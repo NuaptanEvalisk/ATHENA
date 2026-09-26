@@ -107,9 +107,14 @@ the AUDMAP envelope: it neither interprets domain types/commands nor fetches
 resource properties. Connection public key, operation ID and the complete raw
 request remain available in collapsed details. Buttons explicitly allow this
 request or reject it; rejection is the default. Confirmation
-dialogs are queued rather than stacked. Per-adapter capability masks are enforced
-before invoking OPR; the native session API accepts an enforced flag and command
-whitelist for each type. The desktop's initial policy adds no narrower masks.
+dialogs are queued rather than stacked. Per-resource capability masks are enforced
+independently of confirmation. A mask has a `resolve` bit and a command whitelist:
+when `resolve` is denied, resolver emissions of that resource type are discarded
+before an occurrence/handle is published or traversed further; when a command is
+denied, OPR fails before invoking the resource. A `"*"` mask remains the fallback
+for resource types without an explicit entry. Ordinary desktop clients receive no
+narrower masks; plugin sessions install deny-by-default masks derived from the
+plugin manifest and the user's grants.
 
 ## Selection grammar
 

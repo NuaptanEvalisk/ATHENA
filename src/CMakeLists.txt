@@ -28,12 +28,26 @@ target_link_libraries (athena_audmap_terminal PUBLIC Qt6::Widgets PRIVATE qtermw
 include(AthenaGlue)
 add_subdirectory(ATHENA/Interop)
 add_subdirectory(Subsystems/Plugins)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  add_executable(athena-plugin-sandbox
+    Subsystems/Plugins/sandbox_main.cpp
+    System/Files/confined_filesystem.cpp)
+  set_target_properties(athena-plugin-sandbox PROPERTIES AUTOMOC OFF)
+  target_include_directories(athena-plugin-sandbox PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/System/Files"
+    "${CMAKE_CURRENT_SOURCE_DIR}/ATHENA/Interop")
+  target_link_libraries(athena-plugin-sandbox PRIVATE
+    athena_minijail athena_interop Threads::Threads)
+endif()
 add_library(athena_plugin_runtime STATIC Subsystems/Qt/QTMPluginManager.cpp Subsystems/Qt/QTMPluginManager.hpp)
 set_target_properties(athena_plugin_runtime PROPERTIES AUTOMOC ON)
 target_include_directories(athena_plugin_runtime PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/Subsystems/Qt")
 target_link_libraries(athena_plugin_runtime PUBLIC athena_plugins athena_audmap Qt6::Core)
 add_library(athena_plugin_ui STATIC Subsystems/Qt/QTMPluginUi.cpp)
 set_target_properties(athena_plugin_ui PROPERTIES AUTOMOC OFF)
+target_include_directories(athena_plugin_ui PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}/Data/Convert/Xml"
+  "${CMAKE_CURRENT_SOURCE_DIR}/Data/String")
 target_link_libraries(athena_plugin_ui PUBLIC athena_plugin_runtime Qt6::Widgets)
 set_source_files_properties(Scheme/Scheme/glue.cpp PROPERTIES
   INCLUDE_DIRECTORIES "${ATHENA_BINARY_DIR}/generated")
@@ -101,6 +115,7 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     ./ATHENA/Watchdog/watchdog_main.cpp)
   target_compile_features (ATHENA-Watchdog PRIVATE cxx_std_17)
   set_target_properties (ATHENA-Watchdog PROPERTIES AUTOMOC OFF)
+  add_dependencies (${ATHENA_binary_name} athena-plugin-sandbox)
 endif ()
 if (ATHENA_ENABLE_TSAN)
   target_sources (${ATHENA_binary_name} PRIVATE
@@ -206,8 +221,13 @@ if (NOT WIN32)
       COMMAND ${CMAKE_COMMAND} -E copy_if_different
               $<TARGET_FILE:ATHENA-Watchdog>
               "${ATHENA_LOCAL_RUNTIME_DIR}/bin/ATHENA-Watchdog")
+    set (ATHENA_LOCAL_PLUGIN_SANDBOX_COPY
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              $<TARGET_FILE:athena-plugin-sandbox>
+              "${ATHENA_LOCAL_RUNTIME_DIR}/bin/athena-plugin-sandbox")
   else ()
     set (ATHENA_LOCAL_WATCHDOG_COPY)
+    set (ATHENA_LOCAL_PLUGIN_SANDBOX_COPY)
   endif ()
   add_custom_target (athena_local_runtime ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory
@@ -241,12 +261,13 @@ if (NOT WIN32)
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
             $<TARGET_FILE:athena-audmap-repl>
             "${ATHENA_LOCAL_RUNTIME_DIR}/bin/athena-audmap-repl"
+    ${ATHENA_LOCAL_PLUGIN_SANDBOX_COPY}
     COMMENT "Deploying the complete ATHENA runtime tree"
     VERBATIM)
   add_dependencies (athena_local_runtime
                     athena_scheme_bytecode athena_guile_runtime athena-audmap athena-audmap-repl)
   if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    add_dependencies (athena_local_runtime ATHENA-Watchdog)
+    add_dependencies (athena_local_runtime ATHENA-Watchdog athena-plugin-sandbox)
   endif ()
 endif ()
 

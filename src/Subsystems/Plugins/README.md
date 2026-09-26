@@ -12,13 +12,21 @@ Packages live in `~/.ATHENA/plugins/ID`; `ATHENA_HOME_PATH` overrides the profil
 Install never starts code. Uninstall requires a stopped process and retains
 `plugins-data/ID`.
 
-Startup can be Manual, Automatic or Delayed (seconds). API permissions can be
-Read only, Full API access or Custom commands. Custom rules map resource types to
-command names; `*` is the fallback resource type, not a command glob. Missing types
-are denied in custom mode. Confirmation is independently No confirmation, Confirm
-operations, or Confirm every request. Defaults are Manual, Read only, Confirm
-operations. The host preauthorizes get/reply/inspect on the private control
-subscription, so polling does not open repeated operation prompts.
+Startup can be Manual, Automatic or Delayed (seconds). Permissions have two
+independent domains:
+
+* **System access** is enforced by the Linux Minijail helper. It controls what the
+  subprocess can do independently of ATHENA, such as network access and selected
+  current-vault filesystem paths.
+* **ATHENA access** is enforced by AUDMAP. It controls which resource types may be
+  resolved and which commands may be invoked on them.
+
+The manifest is the ceiling for both domains. User settings may grant only a subset
+of permissions explicitly requested by the installed manifest. New permissions in
+an updated manifest are therefore denied until reviewed. Confirmation is a separate
+AUDMAP layer: granting a command can still require per-operation or per-request
+confirmation; confirmation can never override a denied permission. The host injects
+the private subscription capability needed for command polling.
 
 Applying a policy stops the old process and revokes its grants in this desktop
 instance. Settings persist in `plugins/.settings.json`; other running desktop
@@ -32,13 +40,28 @@ processes are outside this cooperative lifecycle model and the API permission mo
 Process state, bounded stdout/stderr and the latest result are shown in the
 management page. Failures remain visible; there is no automatic crash/restart loop.
 
-The executable runs directly, without a shell, in its package directory with:
+On Linux the desktop launches `athena-plugin-sandbox`, which applies user/PID/IPC/
+UTS/mount/network namespaces as appropriate, drops Linux capabilities, sets
+`no_new_privs` and resource limits, and applies a Minijail Landlock filesystem
+allowlist before executing the package entry point. Sandbox setup failure is a
+launch failure; there is no unsandboxed fallback. The plugin receives a clean
+environment containing only the runtime variables below and a controlled
+`PATH`/locale:
 
-* `ATHENA_AUDMAP_ENDPOINT`: current instance discovery file.
-* `ATHENA_AUDMAP_IDENTITY`: private per-launch SDK identity file.
+* `ATHENA_AUDMAP_ENDPOINT`: the current instance discovery file.
+* `ATHENA_AUDMAP_IDENTITY`: the private per-launch identity file.
 * `ATHENA_SUBSCRIPTION_GUID`: launch mailbox selector component.
 * `ATHENA_PLUGIN_ID`: manifest ID.
-* `ATHENA_PLUGIN_DATA_DIR`: persistent plugin data directory.
+* `ATHENA_PLUGIN_DATA_DIR`: the plugin's persistent private directory.
+* `ATHENA_VAULT_ROOT`: the captured current vault root, only when at least one
+  vault filesystem permission is effective for this launch.
+
+The package is Landlock read/execute; the plugin data directory is read/write and is
+also used as `HOME`. `TMPDIR` points to a private `.tmp` directory under plugin data.
+Host `HOME`, SSH-agent variables, language-tool environments and other inherited
+secrets are not passed to the plugin. With no network permission the process receives
+a private network namespace. A network grant shares the host network namespace and
+therefore means Internet, LAN and localhost access.
 
 See `tools/interop/examples/echo-plugin`. Its Python interpreter must have the
 independent `clients/python` SDK installed.
@@ -49,7 +72,7 @@ A package contains `manifest.json`, its executable and optional supporting files
 
 ```json
 {
-  "schema": 1,
+  "schema": 2,
   "id": "example.plugin",
   "name": "Example Plugin",
   "version": "1.0",
@@ -58,7 +81,18 @@ A package contains `manifest.json`, its executable and optional supporting files
   "arguments": [],
   "commands": [
     {"id": "hello", "title": "Hello", "parameters": {}}
-  ]
+  ],
+  "license": {"format": "text", "file": "LICENSE.txt"},
+  "permissions": {
+    "jail": [
+      {"permission": "filesystem.read", "required": false,
+       "root": "vault", "path": "References", "scope": "tree"},
+      {"permission": "network", "required": false}
+    ],
+    "audmap": [
+      {"resource": "document", "actions": ["resolve", "get"], "required": true}
+    ]
+  }
 }
 ```
 
@@ -66,11 +100,39 @@ A package contains `manifest.json`, its executable and optional supporting files
 need a shebang. Arguments are an argument vector, not shell source. Command IDs
 and plugin IDs start with a lowercase ASCII letter and contain lowercase ASCII
 letters, digits, dots, underscores or hyphens, with no consecutive dots.
-Manifest command parameters are JSON objects. A manifest does not grant itself
-access to ATHENA resources.
+Manifest command parameters are JSON objects. Schema 1 remains parseable for old
+packages but requests no new system/AUDMAP permissions; packages that need access
+should migrate to schema 2.
+
+Jail permission names currently are `network`, `filesystem.read`, and
+`filesystem.write`. Filesystem permissions use only `root: "vault"` and a plain
+vault-relative path. Absolute paths, `.`, `..`, empty intermediate components,
+backslashes, tilde/environment expansion, URI-like paths and globs are not part of
+the grammar. `scope` is `file` or `tree`; omitting `path` is allowed only for a tree
+grant covering the current vault. Read grants are read-only; write grants are
+read/write. The manifest never contains a host absolute path. At launch ATHENA
+resolves the relative target through the descriptor-backed confined filesystem
+(`openat2` with `RESOLVE_BENEATH`, no symlinks/magic links). The pinned descriptor
+is used to create the Landlock rule and is closed before plugin `execve`, so the
+plugin receives authority only to the inode(s) named by the effective grant.
+
+AUDMAP permissions list explicit resource types and actions. `resolve` controls
+resource visibility: a denied resource is not published as an occurrence or handle.
+Other actions are ordinary OPR command names. Wildcard resource requests are not
+accepted in schema 2. `root` and the per-launch `subscription` are protocol
+infrastructure supplied by ATHENA rather than manifest permissions.
+
+An optional license is either native UTF-8 XML ATHENA format (`LICENSE.ath`) or
+UTF-8 plain text (`LICENSE.txt`). Installation first stages and validates the package
+without executing it. The license and requested permissions are then shown in the
+review dialog; `.ath` licenses are rendered in the embedded ATHENA preview using a
+strict static-document tag whitelist. Accept publishes the staged package; Cancel
+deletes staging and leaves nothing installed.
 
 `package_store` accepts a directory or a ZIP, optionally with a single enclosing
-directory. It stages and validates before publishing with a no-replace rename.
+directory. `prepare()` stages and validates without publishing; `publish()` performs
+the no-replace rename only after UI review. The convenience `install()` is retained
+for license-free callers and rejects packages requiring license review.
 Existing installations must be explicitly removed before replacement. It never
 runs package code. Uninstall detaches the directory before removing its contents;
 the caller must stop the plugin first.
@@ -122,15 +184,16 @@ The mailbox uses standard UTF-8 strings, JSON values and a mutex. No Qt object,
 Scheme value or editor tree crosses its boundary. Resolvers and operations run
 on the existing bounded worker pools.
 
-An authorization `connection_grant` can replace a session's resolver registry
-and supply command capability masks. A `"*"` mask is the fallback for resource
-types without an explicit mask, allowing deny-by-default policies. Trust-mode
-confirmation and command permission enforcement are separate. A denied command
-cannot be enabled by approving a confirmation dialog.
+An authorization `connection_grant` can replace a session's resolver registry and
+supply resource capability masks. A mask independently controls resolution
+visibility and command names; the host uses a deny-by-default fallback for plugin
+sessions. Trust-mode confirmation and permission enforcement are separate. A denied
+resource or command cannot be enabled by approving a confirmation dialog.
 
-Plugins are native subprocesses running as the user. AUDMAP permissions restrict
-the API, **not operating-system filesystem or network access**. This system is
-not an OS sandbox.
+Minijail and AUDMAP are independent enforcement boundaries: granting network or a
+vault filesystem path never grants ATHENA API access, and granting `document:set` never grants
+host filesystem access. Minijail is defense-in-depth for subprocess containment,
+not a claim that arbitrary malicious native code is safe to execute.
 
 ## Focused Verification
 

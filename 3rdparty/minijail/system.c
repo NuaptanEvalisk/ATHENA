@@ -1,0 +1,726 @@
+/* Copyright 2017 The ChromiumOS Authors
+ * Use of this source code is governed by a BSD-style license that can be
+ * found in the LICENSE file.
+ */
+
+#include "system.h"
+
+#include <ctype.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <grp.h>
+#include <net/if.h>
+#include <pwd.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <sys/prctl.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/statvfs.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+#include <linux/securebits.h>
+
+#include "syscall_wrapper.h"
+#include "util.h"
+
+/*
+ * SECBIT_NO_CAP_AMBIENT_RAISE was added in kernel 4.3, so fill in the
+ * definition if the securebits header doesn't provide it.
+ */
+#ifndef SECBIT_NO_CAP_AMBIENT_RAISE
+#define SECBIT_NO_CAP_AMBIENT_RAISE (issecure_mask(6))
+#endif
+
+#ifndef SECBIT_NO_CAP_AMBIENT_RAISE_LOCKED
+#define SECBIT_NO_CAP_AMBIENT_RAISE_LOCKED (issecure_mask(7))
+#endif
+
+/*
+ * SECBIT_EXEC_RESTRICT_FILE was added in kernel 6.14, so fill in the
+ * definition if the securebits header doesn't provide it.
+ */
+#ifndef SECBIT_EXEC_RESTRICT_FILE
+#define SECBIT_EXEC_RESTRICT_FILE (issecure_mask(8))
+#endif
+
+#ifndef SECBIT_EXEC_RESTRICT_FILE_LOCKED
+#define SECBIT_EXEC_RESTRICT_FILE_LOCKED (issecure_mask(9))
+#endif
+
+/*
+ * SECBIT_EXEC_DENY_INTERACTIVE was added in kernel 6.14, so fill in the
+ * definition if the securebits header doesn't provide it.
+ */
+#ifndef SECBIT_EXEC_DENY_INTERACTIVE
+#define SECBIT_EXEC_DENY_INTERACTIVE (issecure_mask(10))
+#endif
+
+#ifndef SECBIT_EXEC_DENY_INTERACTIVE_LOCKED
+#define SECBIT_EXEC_DENY_INTERACTIVE_LOCKED (issecure_mask(11))
+#endif
+
+/*
+ * Assert the value of SECURE_ALL_BITS at compile-time to detect a change in
+ * the set of secure bits coming from the kernel headers.
+ * Kernel 6.14 introduced new secure bits that need to be removed when
+ * running on older kernels. An older kernel can be detected when the
+ * prctl(PR_SET_SECUREBITS, ...) fails with errno set to EPERM.
+ * When this is detected, remove the new bits and try the prctl call again.
+ */
+#if defined(__ANDROID__)
+_Static_assert(SECURE_ALL_BITS == 0x555, "SECURE_ALL_BITS == 0x555.");
+#endif
+
+#define SECURE_BITS_6_14                                                       \
+	(SECBIT_EXEC_RESTRICT_FILE | SECBIT_EXEC_DENY_INTERACTIVE)
+#define SECURE_LOCK_BITS_6_14                                                  \
+	(SECBIT_EXEC_RESTRICT_FILE_LOCKED | SECBIT_EXEC_DENY_INTERACTIVE_LOCKED)
+
+/* Used by lookup_(user|group) functions. */
+#define MAX_PWENT_SZ (1 << 20)
+#define MAX_GRENT_SZ (1 << 20)
+
+int secure_noroot_set_and_locked(uint64_t mask)
+{
+	return (mask & (SECBIT_NOROOT | SECBIT_NOROOT_LOCKED)) ==
+	       (SECBIT_NOROOT | SECBIT_NOROOT_LOCKED);
+}
+
+int lock_securebits(uint64_t skip_mask, bool require_keep_caps)
+{
+	/* The general idea is to set all bits, subject to exceptions below. */
+	unsigned long securebits = SECURE_ALL_BITS | SECURE_ALL_LOCKS;
+
+	/*
+	 * SECBIT_KEEP_CAPS is special in that it is automatically cleared on
+	 * execve(2). This implies that attempts to set SECBIT_KEEP_CAPS (as is
+	 * the default) in processes that have it locked already (such as nested
+	 * minijail usage) would fail. Thus, unless the caller requires it,
+	 * allow it to remain off if it is already locked.
+	 */
+	if (!require_keep_caps) {
+		int current_securebits = prctl(PR_GET_SECUREBITS);
+		if (current_securebits < 0) {
+			pwarn("prctl(PR_GET_SECUREBITS) failed");
+			return -1;
+		}
+
+		if ((current_securebits & SECBIT_KEEP_CAPS_LOCKED) != 0 &&
+		    (current_securebits & SECBIT_KEEP_CAPS) == 0) {
+			securebits &= ~SECBIT_KEEP_CAPS;
+		}
+	}
+
+	/*
+	 * Ambient capabilities can only be raised if they're already present
+	 * in the permitted *and* inheritable set. Therefore, we don't really
+	 * need to lock the NO_CAP_AMBIENT_RAISE securebit, since we are already
+	 * configuring the permitted and inheritable set.
+	 */
+	securebits &=
+	    ~(SECBIT_NO_CAP_AMBIENT_RAISE | SECBIT_NO_CAP_AMBIENT_RAISE_LOCKED);
+
+	/* Don't set any bits that the user requested not to be touched. */
+	securebits &= ~skip_mask;
+
+	if (!securebits) {
+		warn("not locking any securebits");
+		return 0;
+	}
+	int securebits_ret = prctl(PR_SET_SECUREBITS, securebits);
+	if (securebits_ret < 0) {
+		if (errno == EPERM &&
+		    (securebits & (SECURE_BITS_6_14 | SECURE_LOCK_BITS_6_14)) !=
+			0) {
+			/* Possibly running on kernel < 6.14. */
+			securebits &=
+			    ~(SECURE_BITS_6_14 | SECURE_LOCK_BITS_6_14);
+			securebits_ret = prctl(PR_SET_SECUREBITS, securebits);
+		}
+		if (securebits_ret < 0) {
+			pwarn("prctl(PR_SET_SECUREBITS) failed");
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+int write_proc_file(pid_t pid, const char *content, const char *basename)
+{
+	attribute_cleanup_fd int fd = -1;
+	int ret;
+	size_t sz, len;
+	ssize_t written;
+	char filename[32];
+
+	sz = sizeof(filename);
+	ret = snprintf(filename, sz, "/proc/%d/%s", pid, basename);
+	if (ret < 0 || (size_t)ret >= sz) {
+		warn("failed to generate %s filename", basename);
+		return -1;
+	}
+
+	fd = open(filename, O_WRONLY | O_CLOEXEC);
+	if (fd < 0) {
+		pwarn("failed to open '%s'", filename);
+		return -errno;
+	}
+
+	len = strlen(content);
+	written = write(fd, content, len);
+	if (written < 0) {
+		pwarn("failed to write '%s'", filename);
+		return -errno;
+	}
+
+	if ((size_t)written < len) {
+		warn("failed to write %zu bytes to '%s'", len, filename);
+		return -1;
+	}
+	return 0;
+}
+
+/*
+ * Run newuidmap or newgidmap helper to set up a uid/gid map.
+ * These are privileged helper binaries that consult /etc/subuid and /etc/subgid
+ * to allow unprivileged users to set up multi-range ID mappings.
+ *
+ * The map string is in the format "inside outside count\n..." (newlines
+ * between entries, as converted from commas by minijail_uidmap/gidmap).
+ * We convert this to the helper's argv format:
+ *   newuidmap <pid> <inside> <outside> <count> [<inside> <outside> <count>...]
+ */
+int run_id_map_helper(pid_t pid, const char *map, const char *helper)
+{
+	/*
+	 * Count tokens in the map string to size argv.
+	 * Each entry is "inside outside count" (3 tokens), separated by
+	 * whitespace. We over-count slightly since we start at 1,
+	 * but that just means a few extra NULL slots from calloc.
+	 */
+	size_t token_count = 1;
+	const char *p;
+	for (p = map; *p; p++) {
+		if (isspace(*p))
+			token_count++;
+	}
+
+	/* Allocate argv: helper + pid_str + tokens + NULL terminator. */
+	size_t max_args = 2 + token_count + 1;
+	const char **argv = calloc(max_args, sizeof(char *));
+	if (!argv)
+		return -ENOMEM;
+
+	char pid_str[32];
+	snprintf(pid_str, sizeof(pid_str), "%d", pid);
+
+	argv[0] = helper;
+	argv[1] = pid_str;
+
+	/*
+	 * Tokenize the map string on whitespace.
+	 * The tokens are already the numeric strings we need for argv.
+	 */
+	char *map_copy = strdup(map);
+	if (!map_copy) {
+		free(argv);
+		return -ENOMEM;
+	}
+
+	int argc = 2;
+	char *saveptr = NULL;
+	char *token = strtok_r(map_copy, " \t\n", &saveptr);
+	while (token) {
+		argv[argc++] = token;
+		token = strtok_r(NULL, " \t\n", &saveptr);
+	}
+	argv[argc] = NULL;
+
+	if (argc == 2) {
+		warn("id map is empty");
+		free(map_copy);
+		free(argv);
+		return -EINVAL;
+	}
+
+	if ((argc - 2) % 3 != 0) {
+		warn("id map has %d tokens, expected a multiple of 3",
+		     argc - 2);
+		free(map_copy);
+		free(argv);
+		return -EINVAL;
+	}
+
+	pid_t child = fork();
+	if (child < 0) {
+		pwarn("failed to fork for %s", helper);
+		free(map_copy);
+		free(argv);
+		return -errno;
+	}
+	if (child == 0) {
+		execv(helper, (char *const *)argv);
+		pwarn("execv(%s) failed", helper);
+		_exit(EXIT_FAILURE);
+	}
+
+	free(map_copy);
+	free(argv);
+
+	int status;
+	if (waitpid(child, &status, 0) < 0)
+		return -errno;
+	if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+		warn("%s failed with status %d", helper,
+		     WIFEXITED(status) ? WEXITSTATUS(status) : -1);
+		return -EPERM;
+	}
+	return 0;
+}
+
+/*
+ * We specifically do not use cap_valid() as that only tells us the last
+ * valid cap we were *compiled* against (i.e. what the version of kernel
+ * headers says). If we run on a different kernel version, then it's not
+ * uncommon for that to be less (if an older kernel) or more (if a newer
+ * kernel).
+ * Normally, we suck up the answer via /proc. On Android, not all processes are
+ * guaranteed to be able to access '/proc/sys/kernel/cap_last_cap' so we
+ * programmatically find the value by calling prctl(PR_CAPBSET_READ).
+ */
+unsigned int get_last_valid_cap(void)
+{
+	unsigned int last_valid_cap = 0;
+	if (is_android()) {
+		for (; prctl(PR_CAPBSET_READ, last_valid_cap, 0, 0, 0) >= 0;
+		     ++last_valid_cap)
+			;
+
+		/* |last_valid_cap| will be the first failing value. */
+		if (last_valid_cap > 0) {
+			last_valid_cap--;
+		}
+	} else {
+		static const char cap_file[] = "/proc/sys/kernel/cap_last_cap";
+		FILE *fp = fopen(cap_file, "re");
+		if (!fp)
+			pdie("fopen(%s)", cap_file);
+		if (fscanf(fp, "%u", &last_valid_cap) != 1)
+			pdie("fscanf(%s)", cap_file);
+		fclose(fp);
+	}
+	/* Caps are bitfields stored in 64-bit int. */
+	if (last_valid_cap > 64)
+		pdie("unable to detect last valid cap: %u > 64",
+		     last_valid_cap);
+	return last_valid_cap;
+}
+
+int cap_ambient_supported(void)
+{
+	return prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_IS_SET, CAP_CHOWN, 0, 0) >=
+	       0;
+}
+
+int config_net_loopback(void)
+{
+	const char ifname[] = "lo";
+	attribute_cleanup_fd int sock = -1;
+	struct ifreq ifr;
+
+	/* Make sure people don't try to add really long names. */
+	_Static_assert(sizeof(ifname) <= IFNAMSIZ, "interface name too long");
+
+	sock = socket(AF_LOCAL, SOCK_DGRAM | SOCK_CLOEXEC, 0);
+	if (sock < 0) {
+		pwarn("socket(AF_LOCAL) failed");
+		return -1;
+	}
+
+	/*
+	 * Do the equiv of `ip link set up lo`.  The kernel will assign
+	 * IPv4 (127.0.0.1) & IPv6 (::1) addresses automatically!
+	 */
+	strcpy(ifr.ifr_name, ifname);
+	if (ioctl(sock, SIOCGIFFLAGS, &ifr) < 0) {
+		pwarn("ioctl(SIOCGIFFLAGS) failed");
+		return -1;
+	}
+
+	/* The kernel preserves ifr.ifr_name for use. */
+	ifr.ifr_flags |= IFF_UP | IFF_RUNNING;
+	if (ioctl(sock, SIOCSIFFLAGS, &ifr) < 0) {
+		pwarn("ioctl(SIOCSIFFLAGS) failed");
+		return -1;
+	}
+
+	return 0;
+}
+
+int write_pid_to_path(pid_t pid, const char *path)
+{
+	FILE *fp = fopen(path, "we");
+
+	if (!fp) {
+		pwarn("failed to open '%s'", path);
+		return -errno;
+	}
+	if (fprintf(fp, "%d\n", (int)pid) < 0) {
+		/* fprintf(3) does not set errno on failure. */
+		warn("fprintf(%s) failed", path);
+		fclose(fp);
+		return -1;
+	}
+	if (fclose(fp)) {
+		pwarn("fclose(%s) failed", path);
+		return -errno;
+	}
+
+	return 0;
+}
+
+/*
+ * Create the |path| directory and its parents (if need be) with |mode|.
+ * If not |isdir|, then |path| is actually a file, so the last component
+ * will not be created.
+ */
+int mkdir_p(const char *path, mode_t mode, bool isdir)
+{
+	int rc;
+	char *dir = strdup(path);
+	if (!dir) {
+		rc = errno;
+		pwarn("strdup(%s) failed", path);
+		return -rc;
+	}
+
+	/* Starting from the root, work our way out to the end. */
+	char *p = strchr(dir + 1, '/');
+	while (p) {
+		*p = '\0';
+		if (mkdir(dir, mode) && errno != EEXIST) {
+			rc = errno;
+			pwarn("mkdir(%s, 0%o) failed", dir, mode);
+			free(dir);
+			return -rc;
+		}
+		*p = '/';
+		p = strchr(p + 1, '/');
+	}
+
+	/*
+	 * Create the last directory.  We still check EEXIST here in case
+	 * of trailing slashes.
+	 */
+	free(dir);
+	if (isdir && mkdir(path, mode) && errno != EEXIST) {
+		rc = errno;
+		pwarn("mkdir(%s, 0%o) failed", path, mode);
+		return -rc;
+	}
+	return 0;
+}
+
+/*
+ * get_mount_flags: Obtain the mount flags of the mount where |source| lives.
+ */
+int get_mount_flags(const char *source, unsigned long *mnt_flags)
+{
+	if (mnt_flags) {
+		struct statvfs stvfs_buf;
+		int rc = statvfs(source, &stvfs_buf);
+		if (rc) {
+			rc = errno;
+			pwarn("failed to look up mount flags: source=%s",
+			      source);
+			return -rc;
+		}
+		*mnt_flags = stvfs_buf.f_flag;
+	}
+	return 0;
+}
+
+/*
+ * setup_mount_destination: Ensures the mount target exists.
+ * Creates it if needed and possible.
+ */
+int setup_mount_destination(const char *source, const char *dest, uid_t uid,
+			    uid_t gid, bool bind)
+{
+	int rc;
+	struct stat st_buf;
+	bool domkdir;
+
+	rc = stat(dest, &st_buf);
+	if (rc == 0) /* destination exists */
+		return 0;
+
+	/*
+	 * Try to create the destination.
+	 * Either make a directory or touch a file depending on the source type.
+	 *
+	 * If the source isn't an absolute path, assume it is a filesystem type
+	 * such as "tmpfs" and create a directory to mount it on.  The dest will
+	 * be something like "none" or "proc" which we shouldn't be checking.
+	 */
+	if (source[0] == '/') {
+		/* The source is an absolute path -- it better exist! */
+		rc = stat(source, &st_buf);
+		if (rc) {
+			rc = errno;
+			pwarn("stat(%s) failed", source);
+			return -rc;
+		}
+
+		/*
+		 * If bind mounting, we only create a directory if the source
+		 * is a directory, else we always bind mount it as a file to
+		 * support device nodes, sockets, etc...
+		 *
+		 * For all other mounts, we assume a block/char source is
+		 * going to want a directory to mount to.  If the source is
+		 * something else (e.g. a fifo or socket), this probably will
+		 * not do the right thing, but we'll fail later on when we try
+		 * to mount(), so shouldn't be a big deal.
+		 */
+		domkdir = S_ISDIR(st_buf.st_mode) ||
+			  (!bind && (S_ISBLK(st_buf.st_mode) ||
+				     S_ISCHR(st_buf.st_mode)));
+	} else {
+		/* The source is a relative path -- assume it's a pseudo fs. */
+
+		/* Disallow relative bind mounts. */
+		if (bind) {
+			warn("relative bind-mounts are not allowed: source=%s",
+			     source);
+			return -EINVAL;
+		}
+
+		domkdir = true;
+	}
+
+	/*
+	 * Now that we know what we want to do, do it!
+	 * We always create the intermediate dirs and the final path with 0755
+	 * perms and root/root ownership.  This shouldn't be a problem because
+	 * the actual mount will set those perms/ownership on the mount point
+	 * which is all people should need to access it.
+	 */
+	rc = mkdir_p(dest, 0755, domkdir);
+	if (rc)
+		return rc;
+	if (!domkdir) {
+		attribute_cleanup_fd int fd =
+		    open(dest, O_RDWR | O_CREAT | O_CLOEXEC, 0700);
+		if (fd < 0) {
+			rc = errno;
+			pwarn("open(%s) failed", dest);
+			return -rc;
+		}
+	}
+	if (chown(dest, uid, gid)) {
+		rc = errno;
+		pwarn("chown(%s, %u, %u) failed", dest, uid, gid);
+		return -rc;
+	}
+	return 0;
+}
+
+/*
+ * lookup_user: Gets the uid/gid for the given username.
+ */
+int lookup_user(const char *user, uid_t *uid, gid_t *gid)
+{
+	char *buf = NULL;
+	struct passwd pw;
+	struct passwd *ppw = NULL;
+	/*
+	 * sysconf(_SC_GETPW_R_SIZE_MAX), under glibc, is documented to return
+	 * a suggested starting size for the buffer, so let's try getting this
+	 * size first, and fallback to a default othersise.
+	 */
+	ssize_t sz = sysconf(_SC_GETPW_R_SIZE_MAX);
+	if (sz == -1)
+		sz = 65536; /* your guess is as good as mine... */
+
+	do {
+		buf = malloc(sz);
+		if (!buf)
+			return -ENOMEM;
+		int err = getpwnam_r(user, &pw, buf, sz, &ppw);
+		/*
+		 * We're safe to free the buffer here. The strings inside |pw|
+		 * point inside |buf|, but we don't use any of them; this leaves
+		 * the pointers dangling but it's safe.
+		 * |ppw| points at |pw| if getpwnam_r(3) succeeded.
+		 */
+		free(buf);
+		if (err == ERANGE) {
+			/* |buf| was too small, retry with a bigger one. */
+			sz <<= 1;
+		} else if (err != 0) {
+			/* We got an error not related to the size of |buf|. */
+			return -err;
+		} else if (!ppw) {
+			/* Not found. */
+			return -ENOENT;
+		} else {
+			*uid = ppw->pw_uid;
+			*gid = ppw->pw_gid;
+			return 0;
+		}
+	} while (sz <= MAX_PWENT_SZ);
+
+	/* A buffer of size MAX_PWENT_SZ is still too small, return an error. */
+	return -ERANGE;
+}
+
+/*
+ * lookup_group: Gets the gid for the given group name.
+ */
+int lookup_group(const char *group, gid_t *gid)
+{
+	char *buf = NULL;
+	struct group gr;
+	struct group *pgr = NULL;
+	/*
+	 * sysconf(_SC_GETGR_R_SIZE_MAX), under glibc, is documented to return
+	 * a suggested starting size for the buffer, so let's try getting this
+	 * size first, and fallback to a default otherwise.
+	 */
+	ssize_t sz = sysconf(_SC_GETGR_R_SIZE_MAX);
+	if (sz == -1)
+		sz = 65536; /* and mine is as good as yours, really */
+
+	do {
+		buf = malloc(sz);
+		if (!buf)
+			return -ENOMEM;
+		int err = getgrnam_r(group, &gr, buf, sz, &pgr);
+		/*
+		 * We're safe to free the buffer here. The strings inside |gr|
+		 * point inside |buf|, but we don't use any of them; this leaves
+		 * the pointers dangling but it's safe.
+		 * |pgr| points at |gr| if getgrnam_r(3) succeeded.
+		 */
+		free(buf);
+		if (err == ERANGE) {
+			/* |buf| was too small, retry with a bigger one. */
+			sz <<= 1;
+		} else if (err != 0) {
+			/* We got an error not related to the size of |buf|. */
+			return -err;
+		} else if (!pgr) {
+			/* Not found. */
+			return -ENOENT;
+		} else {
+			*gid = pgr->gr_gid;
+			return 0;
+		}
+	} while (sz <= MAX_GRENT_SZ);
+
+	/* A buffer of size MAX_GRENT_SZ is still too small, return an error. */
+	return -ERANGE;
+}
+
+static bool seccomp_action_is_available(const char *wanted)
+{
+	if (is_android()) {
+		/*
+		 * Accessing |actions_avail| is generating SELinux denials, so
+		 * skip for now.
+		 * TODO(crbug.com/978022, jorgelo): Remove once the denial is
+		 * fixed.
+		 */
+		return false;
+	}
+	static const char actions_avail_path[] =
+	    "/proc/sys/kernel/seccomp/actions_avail";
+	attribute_cleanup_fp FILE *f = fopen(actions_avail_path, "re");
+
+	if (!f) {
+		pwarn("fopen(%s) failed", actions_avail_path);
+		return false;
+	}
+
+	attribute_cleanup_str char *actions_avail = NULL;
+	size_t buf_size = 0;
+	if (getline(&actions_avail, &buf_size, f) < 0) {
+		pwarn("getline() failed");
+		return false;
+	}
+
+	/*
+	 * This is just substring search, which means that partial matches will
+	 * match too (e.g. "action" would match "longaction"). There are no
+	 * seccomp actions which include other actions though, so we're good for
+	 * now. Eventually we might want to split the string by spaces.
+	 */
+	return strstr(actions_avail, wanted) != NULL;
+}
+
+int seccomp_ret_log_available(void)
+{
+	static int ret_log_available = -1;
+
+	if (ret_log_available == -1)
+		ret_log_available = seccomp_action_is_available("log");
+
+	return ret_log_available;
+}
+
+int seccomp_ret_kill_process_available(void)
+{
+	static int ret_kill_process_available = -1;
+
+	if (ret_kill_process_available == -1)
+		ret_kill_process_available =
+		    seccomp_action_is_available("kill_process");
+
+	return ret_kill_process_available;
+}
+
+bool sys_set_no_new_privs(void)
+{
+	/*
+	 * Set no_new_privs. See </kernel/seccomp.c> and </kernel/sys.c>
+	 * in the kernel source tree for an explanation of the parameters.
+	 */
+	if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) == 0) {
+		return true;
+	} else {
+		pwarn("prctl(PR_SET_NO_NEW_PRIVS) failed");
+		return false;
+	}
+}
+
+bool seccomp_filter_flags_available(unsigned int flags)
+{
+	return sys_seccomp(SECCOMP_SET_MODE_FILTER, flags, NULL) != -1 ||
+	       errno != EINVAL;
+}
+
+bool is_canonical_path(const char *path)
+{
+	attribute_cleanup_str char *rp = realpath(path, NULL);
+	if (!rp) {
+		pwarn("realpath(%s) failed", path);
+		return false;
+	}
+
+	if (streq(path, rp)) {
+		return true;
+	}
+
+	size_t path_len = strlen(path);
+	size_t rp_len = strlen(rp);
+	/* If |path| has a single trailing slash, that's OK. */
+	return path_len == rp_len + 1 && strncmp(path, rp, rp_len) == 0 &&
+	       path[path_len - 1] == '/';
+}

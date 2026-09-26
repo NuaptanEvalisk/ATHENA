@@ -72,6 +72,7 @@ struct resolution_ticket::impl: std::enable_shared_from_this<impl> {
   resolution_workers& workers;
   const std::shared_ptr<const resolver_registry> registry;
   const selection selectors;
+  const resource_visibility visible;
   const std::size_t node_limit;
   completion finished;
   std::atomic<bool> stopped {false};
@@ -86,9 +87,10 @@ struct resolution_ticket::impl: std::enable_shared_from_this<impl> {
   bool delivered = false;
 
   impl (resolution_workers& w, std::shared_ptr<const resolver_registry> r,
-        selection s, completion f, std::size_t limit):
+        selection s, completion f, resource_visibility visibility,
+        std::size_t limit):
     workers (w), registry (std::move (r)), selectors (std::move (s)),
-    node_limit (limit), finished (std::move (f)) {}
+    visible (std::move (visibility)), node_limit (limit), finished (std::move (f)) {}
 
   void fail (std::string error) {
     if (fault.empty ()) fault = std::move (error);
@@ -157,6 +159,7 @@ struct resolution_ticket::impl: std::enable_shared_from_this<impl> {
           for (auto& branch: output.branches) {
             if (!branch.accessor || branch.continuations.empty ())
               throw std::logic_error ("Resolver emitted an invalid binding");
+            if (visible && !visible (*branch.accessor)) continue;
             if (nodes.size () >= node_limit) throw std::runtime_error ("Resolution node capacity exceeded");
             auto node = std::make_shared<const occurrence> (
               occurrence {nodes.size () + 1, std::move (branch.accessor), parent});
@@ -213,11 +216,11 @@ struct resolution_ticket::impl: std::enable_shared_from_this<impl> {
 
 resolution_ticket::resolution_ticket (resolution_workers& workers,
     std::shared_ptr<const resolver_registry> registry, selection selectors,
-    completion finished, std::size_t node_limit) {
+    completion finished, resource_visibility visible, std::size_t node_limit) {
   if (!registry || selectors.empty () || !finished || !node_limit)
     throw std::invalid_argument ("Invalid resolution ticket configuration");
   implementation = std::make_shared<impl> (workers, std::move (registry),
-    std::move (selectors), std::move (finished), node_limit);
+    std::move (selectors), std::move (finished), std::move (visible), node_limit);
   {
     std::lock_guard<std::mutex> lock (implementation->mutex);
     implementation->enqueue ({}, 0, {});

@@ -11,8 +11,12 @@ import sys
 import threading
 from contextlib import contextmanager
 
-# The installable ZIP bundles the repository's independent SDK, unchanged.
-sys.path.insert(0, str(Path(__file__).resolve().parent / "sdk"))
+# The installable package is self-contained: both third-party Python packages
+# and the ATHENA SDK live next to this script. Isolated mode (-I) prevents user
+# or system site-packages from becoming runtime dependencies.
+PACKAGE_ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(PACKAGE_ROOT / "runtime" / "site-packages"))
+sys.path.insert(0, str(PACKAGE_ROOT / "sdk"))
 from athena_audmap import Client
 
 TIMEOUT = 300  # Allow time for the user to answer operation confirmation dialogs.

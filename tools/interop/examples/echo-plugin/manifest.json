@@ -1,10 +1,11 @@
 {
-  "schema": 1,
+  "schema": 2,
   "id": "example.echo",
   "name": "AUDMAP Echo",
   "version": "1.0",
   "description": "A minimal subprocess plugin using the independent Python AUDMAP SDK.",
   "commands": [
     {"id": "hello", "title": "Say hello", "parameters": {"message": "Hello from ATHENA"}}
-  ]
+  ],
+  "permissions": {"jail": [], "audmap": []}
 }

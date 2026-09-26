@@ -11,6 +11,7 @@
 #include "../AUDMAP/audmap_server.hpp"
 #include "../AUDMAP/identity.hpp"
 #include "../../ATHENA/Interop/resources.hpp"
+#include "../../ATHENA/Data/vault.hpp"
 #include <QApplication>
 #include <QComboBox>
 #include <QDialog>
@@ -36,6 +37,10 @@
 #include "QTMToast.hpp"
 
 using namespace athena::interop;
+
+static std::string tm_std_string (string value) {
+  return std::string (as_charp (value), static_cast<std::size_t> (N(value)));
+}
 
 static std::filesystem::path authorization_path () {
   auto home = qEnvironmentVariable ("ATHENA_HOME_PATH");
@@ -283,7 +288,10 @@ struct QTMAudmap::impl: QObject {
       auto home = qEnvironmentVariable ("ATHENA_HOME_PATH");
       if (home.isEmpty ()) home = QDir::home ().filePath (".ATHENA");
       plugins = std::make_unique<QTMPluginManager> (home.toStdString (), server->discovery_file (),
-        registry, [this] (std::string key) { server->disconnect_peer (key); });
+        registry, [this] (std::string key) { server->disconnect_peer (key); }, [] () -> std::optional<std::filesystem::path> {
+          if (!vault_active ()) return {};
+          return std::filesystem::path (tm_std_string (concretize (vault_get_root ())));
+        });
       QObject::connect (plugins.get (), &QTMPluginManager::launchFailed, this,
         [] (const QString& plugin, const QString& error) {
           const QByteArray body= (plugin + ": " + error).toUtf8 ();

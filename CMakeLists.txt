@@ -928,6 +928,10 @@ if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt6")
   endif ()
 endif ()
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  include(AthenaMinijail)
+endif()
+
 ### --------------------------------------------------------------------
 ### OS System selection
 ### --------------------------------------------------------------------

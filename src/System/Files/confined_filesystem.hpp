@@ -37,6 +37,10 @@ public:
   const std::filesystem::path& path () const;
   metadata stat () const;
   std::string read (std::size_t byte_limit) const;
+  // Duplicate the already-confined O_PATH descriptor. The caller owns the
+  // returned descriptor and must close it. This avoids re-resolving the path
+  // when handing the object to another kernel API.
+  int duplicate_descriptor () const;
   // Directory iteration uses an independent descriptor for each invocation.
   std::vector<std::string> names () const;
   bool same_object (const entry&) const;

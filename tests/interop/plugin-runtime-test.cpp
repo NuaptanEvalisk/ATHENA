@@ -82,17 +82,20 @@ int main (int argc, char** argv) {
     const auto source = profile.filePath ("fixture").toStdString ();
     std::filesystem::create_directory (source);
     require (QFile::copy (PLUGIN_FIXTURE_PATH, QString::fromStdString (source + "/plugin_exec")), "Cannot copy plugin script");
-    const value manifest {{"schema", 1}, {"id", "fixture.plugin"}, {"name", "Fixture Plugin"}, {"version", "1"},
+    const value manifest {{"schema", 2}, {"id", "fixture.plugin"}, {"name", "Fixture Plugin"}, {"version", "1"},
       {"commands", value::array ({{{"id", "hello"}, {"title", "Say hello"}, {"parameters", {{"x", 42}}}},
         {{"id", "probe"}, {"title", "Probe write"}}, {{"id", "child"}, {"title", "Spawn child"}},
-        {{"id", "ignore-stop"}, {"title", "Ignore stop"}}})}};
+        {{"id", "ignore-stop"}, {"title", "Ignore stop"}}})},
+      {"permissions", {{"jail", value::array ()}, {"audmap", value::array ()}}}};
     { std::ofstream file (source + "/manifest.json"); file << manifest.dump (); }
     qt_audmap_start ();
     auto* manager = qtm_plugin_manager (); require (manager, "No desktop plugin manager");
     QString error;
     QObject::connect (manager, &QTMPluginManager::managementFinished, &app, [&] (QString e) { error = e; });
     manager->install (source);
-    until ([&] { return !manager->busy (); }, "Install did not finish");
+    until ([&] { return manager->pendingInstall ().has_value (); }, "Install review did not become ready");
+    manager->acceptInstall (QTMPluginPolicy {});
+    until ([&] { return !manager->busy (); }, "Install publish did not finish");
     require (error.isEmpty () && !info (manager).running, "Install failed or auto-executed a new plugin");
     std::unique_ptr<QWidget> page (qtm_plugin_preferences (manager)); page->resize (760, 900); page->show ();
     require (page->findChild<QTreeWidget*> ("plugin-list")->topLevelItemCount () == 1, "Preferences omitted plugin");
@@ -120,38 +123,15 @@ int main (int argc, char** argv) {
     until ([&] { auto i = info (manager); return i.connected && i.pid && i.pid != first.pid; }, "Restart did not create a new process");
     require (!alive (first.pid), "Restart left old leader alive");
     require (run (manager, "hello").at ("guid") != oldGuid, "Restart reused subscription identity");
-    page->findChild<QComboBox*> ("plugin-access")->setCurrentIndex (1);
     page->findChild<QComboBox*> ("plugin-trust")->setCurrentIndex (0);
     page->findChild<QPushButton*> ("plugin-apply")->click ();
     until ([&] { return !info (manager).running; }, "Changing policy left old process running");
     manager->start ("fixture.plugin");
-    until ([&] { return info (manager).connected; }, "Full-access restart did not connect");
-    require (run (manager, "probe").at ("allowed") == true, "Configured full access was not granted");
+    until ([&] { return info (manager).connected; }, "Policy restart did not connect");
+    require (run (manager, "probe").at ("allowed") == false,
+             "Manifest ceiling was bypassed by a policy change");
     if (!qEnvironmentVariable ("ATHENA_PLUGIN_TEST_SCREENSHOT").isEmpty ())
       require (page->grab ().save (qEnvironmentVariable ("ATHENA_PLUGIN_TEST_SCREENSHOT")), "Cannot save preferences screenshot");
-    auto confirmed = info (manager).policy; confirmed.trust = trust_mode::confirm_operations;
-    manager->configure ("fixture.plugin", confirmed);
-    until ([&] { return !info (manager).running; }, "Confirmation policy did not stop old grant");
-    manager->start ("fixture.plugin"); until ([&] { return info (manager).connected; }, "Confirmation launch failed");
-    const auto probe = manager->command ("fixture.plugin", "probe");
-    QDialog* confirmation = nullptr;
-    until ([&] {
-      for (auto* widget: QApplication::topLevelWidgets ())
-        if (widget->isVisible () && widget->findChild<QLabel*> ("audmap_command")) {
-          confirmation = qobject_cast<QDialog*> (widget); return confirmation != nullptr;
-        }
-      return false;
-    }, "Native operation was not confirmed");
-    require (confirmation->findChild<QLabel*> ("audmap_client")->text () == "Fixture Plugin [fixture.plugin]",
-             "Confirmation trusted the plugin's self-declared name");
-    confirmation->reject ();
-    until ([&] { auto r = info (manager).lastResult; return r.is_object () && r.at ("id") == probe; }, "Rejected operation lost plugin reply");
-    require (info (manager).lastResult.at ("result").at ("allowed") == false, "Rejected operation executed");
-    confirmed.trust = trust_mode::full_access; confirmed.access = QTMPluginPolicy::Access::Custom;
-    confirmed.commands = {{"root", {"write"}}}; manager->configure ("fixture.plugin", confirmed);
-    until ([&] { return !info (manager).running; }, "Custom policy did not retire old process");
-    manager->start ("fixture.plugin"); until ([&] { return info (manager).connected; }, "Custom policy launch failed");
-    require (run (manager, "probe").at ("allowed") == true, "Custom command permission did not reach session");
     auto child = run (manager, "child").at ("child").get<pid_t> ();
     auto leader = info (manager).pid;
     manager->stop ("fixture.plugin", true);
@@ -198,8 +178,9 @@ int main (int argc, char** argv) {
     }
     require (::chmod ((failureSource + "/plugin_exec").c_str (), 0700) == 0,
              "Cannot make failing plugin executable");
-    const value failureManifest {{"schema", 1}, {"id", "fixture.failure"},
-      {"name", "Old Fixture Plugin"}, {"version", "1"}, {"commands", value::array ()}};
+    const value failureManifest {{"schema", 2}, {"id", "fixture.failure"},
+      {"name", "Old Fixture Plugin"}, {"version", "1"}, {"commands", value::array ()},
+      {"permissions", {{"jail", value::array ()}, {"audmap", value::array ()}}}};
     { std::ofstream file (failureSource + "/manifest.json"); file << failureManifest.dump (); }
     QString launchName, launchError;
     int launchFailures= 0;
@@ -208,6 +189,8 @@ int main (int argc, char** argv) {
         ++launchFailures; launchName= std::move (name); launchError= std::move (error);
       });
     manager->install (failureSource);
+    until ([&] { return manager->pendingInstall ().has_value (); }, "Failing fixture review did not become ready");
+    manager->acceptInstall (QTMPluginPolicy {});
     until ([&] { return !manager->busy (); }, "Failing fixture install did not finish");
     manager->start ("fixture.failure", true);
     until ([&] { return info (manager).state == "Failed"; }, "Manual startup failure was not recorded");

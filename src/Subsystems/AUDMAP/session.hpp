@@ -17,6 +17,7 @@ namespace athena::interop {
 struct capability_mask {
   // The "*" entry is the fallback for resource types without an explicit entry.
   bool enforced = false;
+  bool resolve = true;
   std::set<std::string> commands;
   bool confirmation_required = true;
 };

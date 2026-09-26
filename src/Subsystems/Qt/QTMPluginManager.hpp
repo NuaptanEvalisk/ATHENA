@@ -12,13 +12,20 @@
 #include "package.hpp"
 #include <QObject>
 #include <QString>
+#include <map>
+#include <optional>
+#include <set>
 
 struct QTMPluginPolicy {
   enum class Startup { Manual, Automatic, Delayed } startup = Startup::Manual;
-  enum class Access { ReadOnly, Full, Custom } access = Access::ReadOnly;
   int delaySeconds = 10;
   athena::interop::trust_mode trust = athena::interop::trust_mode::confirm_operations;
-  std::map<std::string, std::set<std::string>> commands;
+  std::set<std::string> jailGrants;
+  std::map<std::string, std::set<std::string>> audmapGrants;
+};
+struct QTMPluginPendingInstall {
+  athena::plugins::manifest manifest;
+  std::optional<std::filesystem::path> licenseFile;
 };
 struct QTMPluginInfo {
   athena::plugins::manifest manifest;
@@ -36,11 +43,16 @@ class QTMPluginManager final: public QObject {
 public:
   QTMPluginManager (std::filesystem::path home, std::filesystem::path endpoint,
     std::shared_ptr<const athena::interop::resolver_registry> registry,
-    std::function<void (std::string)> revoke, QObject* parent = nullptr);
+    std::function<void (std::string)> revoke,
+    std::function<std::optional<std::filesystem::path> ()> currentVaultRoot,
+    QObject* parent = nullptr);
   ~QTMPluginManager () override;
   std::vector<QTMPluginInfo> plugins () const;
   bool busy () const;
   void install (const std::filesystem::path& source);
+  std::optional<QTMPluginPendingInstall> pendingInstall () const;
+  void acceptInstall (const QTMPluginPolicy& policy);
+  void cancelInstall ();
   void uninstall (const std::string& id);
   void configure (const std::string& id, const QTMPluginPolicy& policy);
   void start (const std::string& id, bool userInitiated = false);
@@ -52,6 +64,7 @@ public:
   void disconnected (const std::string& key);
 signals:
   void changed ();
+  void installPrepared ();
   void managementFinished (QString error);
   void launchFailed (QString plugin, QString error);
 };

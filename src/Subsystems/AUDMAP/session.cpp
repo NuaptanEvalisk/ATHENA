@@ -89,6 +89,12 @@ struct protocol_session::impl: std::enable_shared_from_this<impl> {
     auto it = tickets.find (id);
     if (it == tickets.end ()) return;
     std::weak_ptr<impl> weak = shared_from_this ();
+    const auto visible= [masks = capabilities] (const resource& resource) {
+      if (resource.type () == "root" || resource.type () == "subscription") return true;
+      auto mask= masks.find (resource.type ());
+      if (mask == masks.end ()) mask= masks.find ("*");
+      return mask == masks.end () || !mask->second.enforced || mask->second.resolve;
+    };
     it->second.resolution = std::make_unique<resolution_ticket> (resolutions, registry,
       *selectors, [weak, id] (resolution_result result) mutable {
         if (auto self = weak.lock ()) self->event ([id, result = std::move (result)] (impl& s) mutable {
@@ -118,7 +124,7 @@ struct protocol_session::impl: std::enable_shared_from_this<impl> {
           t.terminal = message (opcode::acx, {id, value::array ({projected, reasons})});
           s.reply (t.terminal);
         });
-      });
+      }, visible);
   }
 
   void finish_operation (std::uint64_t tid, std::uint64_t oid, value result) {

@@ -22,6 +22,7 @@
 #include <QThread>
 #include <QTimer>
 #include <QUuid>
+#include <algorithm>
 #include <csignal>
 #include <deque>
 #include <fstream>
@@ -33,31 +34,68 @@ using namespace athena::plugins;
 namespace fs = std::filesystem;
 namespace {
 value policy_json (const QTMPluginPolicy& p) {
-  return {{"startup", static_cast<int> (p.startup)}, {"access", static_cast<int> (p.access)},
-    {"delay_seconds", p.delaySeconds}, {"trust", static_cast<int> (p.trust)}, {"commands", p.commands}};
+  value jail= value::array ();
+  for (const auto& grant: p.jailGrants) jail.push_back (grant);
+  return {{"version", 2}, {"startup", static_cast<int> (p.startup)},
+    {"delay_seconds", p.delaySeconds}, {"trust", static_cast<int> (p.trust)},
+    {"jail_grants", std::move (jail)}, {"audmap_grants", p.audmapGrants}};
 }
-QTMPluginPolicy policy_from_json (const value& v) {
+QTMPluginPolicy policy_from_json (const value& v, const manifest& manifest) {
   QTMPluginPolicy p;
-  for (const char* field: {"startup", "access", "trust", "delay_seconds"})
+  for (const char* field: {"startup", "trust", "delay_seconds"})
     if (!v.at (field).is_number_integer () || v.at (field) < 0 || v.at (field) > 86400)
       throw std::invalid_argument ("Plugin policy modes and delay must be bounded integers");
-  const int startup = v.at ("startup").get<int> (), access = v.at ("access").get<int> ();
+  const int startup = v.at ("startup").get<int> ();
   const int trust = v.at ("trust").get<int> ();
-  if (startup < 0 || startup > 2 || access < 0 || access > 2 ||
+  if (startup < 0 || startup > 2 ||
       trust < static_cast<int> (trust_mode::full_access) || trust > static_cast<int> (trust_mode::confirm_requests))
     throw std::invalid_argument ("Invalid plugin policy mode");
   p.startup = static_cast<QTMPluginPolicy::Startup> (startup);
-  p.access = static_cast<QTMPluginPolicy::Access> (access);
   p.trust = static_cast<trust_mode> (trust);
   p.delaySeconds = v.at ("delay_seconds").get<int> ();
   if (p.delaySeconds < 1 || p.delaySeconds > 86400) throw std::invalid_argument ("Delay must be 1 through 86400 seconds");
-  p.commands = v.at ("commands").get<std::map<std::string, std::set<std::string>>> ();
-  if (p.commands.size () > 128) throw std::invalid_argument ("Too many permission rules");
-  for (const auto& [type, commands]: p.commands) {
-    if (type.empty () || type.size () > 128 || commands.size () > 128)
-      throw std::invalid_argument ("Invalid permission rule");
-    for (const auto& command: commands) if (command.empty () || command.size () > 128)
-      throw std::invalid_argument ("Invalid permitted command");
+  std::set<std::string> requested_jail;
+  for (const auto& request: manifest.jail_permissions)
+    requested_jail.insert (jail_permission_id (request));
+  std::map<std::string, std::set<std::string>> requested_audmap;
+  for (const auto& request: manifest.audmap_permissions)
+    requested_audmap[request.resource]= request.actions;
+
+  if (v.value ("version", 1) == 2) {
+    if (!v.contains ("jail_grants") || !v.at ("jail_grants").is_array () ||
+        !v.contains ("audmap_grants") || !v.at ("audmap_grants").is_object ())
+      throw std::invalid_argument ("Invalid plugin policy grant sets");
+    for (const auto& grant: v.at ("jail_grants")) {
+      if (!grant.is_string ()) throw std::invalid_argument ("Invalid jail grant");
+      const auto id= grant.get<std::string> ();
+      if (requested_jail.count (id)) p.jailGrants.insert (id);
+    }
+    const auto stored= v.at ("audmap_grants").get<std::map<std::string, std::set<std::string>>> ();
+    for (const auto& [resource, actions]: stored) {
+      auto requested= requested_audmap.find (resource);
+      if (requested == requested_audmap.end ()) continue;
+      for (const auto& action: actions)
+        if (requested->second.count (action)) p.audmapGrants[resource].insert (action);
+    }
+  }
+  else if (v.contains ("access")) {
+    const int access= v.at ("access").get<int> ();
+    if (access < 0 || access > 2) throw std::invalid_argument ("Invalid legacy plugin access mode");
+    std::map<std::string, std::set<std::string>> commands;
+    if (v.contains ("commands"))
+      commands= v.at ("commands").get<std::map<std::string, std::set<std::string>>> ();
+    for (const auto& [resource, actions]: requested_audmap) {
+      for (const auto& action: actions) {
+        bool grant= access == 1;
+        if (access == 0) grant= action == "resolve" || action == "get" || action == "inspect";
+        if (access == 2) {
+          auto found= commands.find (resource);
+          if (found == commands.end ()) found= commands.find ("*");
+          grant= action == "resolve" || (found != commands.end () && found->second.count (action));
+        }
+        if (grant) p.audmapGrants[resource].insert (action);
+      }
+    }
   }
   return p;
 }
@@ -69,6 +107,16 @@ value read_settings (const fs::path& path) {
   auto json = value::parse (file.readAll ().toStdString ());
   if (!json.is_object ()) throw std::runtime_error ("Invalid plugin settings");
   return json;
+}
+void write_private_json (const fs::path& path, const value& data) {
+  const auto bytes= data.dump (2);
+  QSaveFile file (QString::fromStdString (path.string ()));
+  file.setDirectWriteFallback (false);
+  if (!file.open (QIODevice::WriteOnly) ||
+      !file.setPermissions (QFile::ReadOwner | QFile::WriteOwner) ||
+      file.write (bytes.data (), static_cast<qint64> (bytes.size ())) !=
+        static_cast<qint64> (bytes.size ()) || !file.commit ())
+    throw std::runtime_error ("Cannot write private plugin launch file");
 }
 void save_setting (const fs::path& path, const std::string& id, const value& policy) {
   QLockFile lock (QString::fromStdString (path.string () + ".lock"));
@@ -108,20 +156,26 @@ struct QTMPluginManager::impl {
   package_store packages;
   std::shared_ptr<const resolver_registry> registry;
   std::function<void (std::string)> revoke;
+  std::function<std::optional<fs::path> ()> currentVaultRoot;
   std::map<std::string, std::unique_ptr<entry>> entries;
+  std::shared_ptr<prepared_plugin> pendingInstall;
   std::map<std::string, std::pair<std::string, std::uint64_t>> identities;
   std::map<std::string, std::uint64_t> deferred_starts;
   std::shared_ptr<inbox> incoming = std::make_shared<inbox> ();
   resolution_workers jobs {1};
   std::uint64_t serial = 0;
   bool busy = false, closing = false, dirty = false;
+  std::optional<fs::path> observedVaultRoot;
   QTimer timer;
 
   impl (QTMPluginManager* owner, fs::path home, fs::path endpoint,
-        std::shared_ptr<const resolver_registry> registry, std::function<void (std::string)> revoke):
+        std::shared_ptr<const resolver_registry> registry, std::function<void (std::string)> revoke,
+        std::function<std::optional<fs::path> ()> currentVaultRoot):
     owner (owner), home (std::move (home)), endpoint (std::move (endpoint)),
     settings (this->home / "plugins" / ".settings.json"), packages (this->home / "plugins"),
-    registry (std::move (registry)), revoke (std::move (revoke)) {
+    registry (std::move (registry)), revoke (std::move (revoke)),
+    currentVaultRoot (std::move (currentVaultRoot)) {
+    observedVaultRoot= this->currentVaultRoot ? this->currentVaultRoot () : std::optional<fs::path> {};
     const auto policies = read_settings (settings);
     for (const auto& path: fs::directory_iterator (packages.directory ())) {
       const auto id = path.path ().filename ().string ();
@@ -133,7 +187,7 @@ struct QTMPluginManager::impl {
         if (!fs::is_directory (path.symlink_status ())) throw std::runtime_error ("Plugin directory is not a regular directory");
         e->info.manifest = read_manifest (path.path ());
         if (e->info.manifest.id != id) throw std::runtime_error ("Installed plugin ID does not match its directory");
-        if (policies.contains (id)) e->info.policy = policy_from_json (policies.at (id));
+        if (policies.contains (id)) e->info.policy = policy_from_json (policies.at (id), e->info.manifest);
       }
       catch (const std::exception& ex) { e->info.error = QString::fromUtf8 (ex.what ()); e->info.state = "Invalid"; }
       entries.emplace (id, std::move (e));
@@ -150,6 +204,20 @@ struct QTMPluginManager::impl {
       for (auto& [id, e]: entries) if (e->channel) {
         const auto replies = e->channel->take_responses ();
         if (!replies.empty ()) { e->info.lastResult = replies.back (); changed = true; }
+      }
+      const auto vault_now= this->currentVaultRoot ? this->currentVaultRoot () :
+                                                    std::optional<fs::path> {};
+      if (vault_now != observedVaultRoot) {
+        observedVaultRoot= vault_now;
+        for (auto& [id, e]: entries) {
+          if (!needs_vault (e->info.manifest, e->info.policy)) continue;
+          if (e->info.running) {
+            const bool restart_after= e->info.policy.startup != QTMPluginPolicy::Startup::Manual;
+            this->owner->stop (id);
+            e->restart= restart_after;
+          }
+          else schedule (id);
+        }
       }
       if (changed) emit this->owner->changed ();
     });
@@ -270,12 +338,76 @@ struct QTMPluginManager::impl {
       signal_group (*e, SIGKILL);
     }
   }
+  bool needs_vault (const manifest& m, const QTMPluginPolicy& p) const {
+    return std::any_of (m.jail_permissions.begin (), m.jail_permissions.end (),
+      [&] (const jail_permission& permission) {
+        return permission.permission != jail_permission_kind::network &&
+          (permission.required || p.jailGrants.count (jail_permission_id (permission)));
+      });
+  }
+  void validate_policy (const manifest& m, const QTMPluginPolicy& p) const {
+    std::set<std::string> requested_jail;
+    for (const auto& request: m.jail_permissions) requested_jail.insert (jail_permission_id (request));
+    for (const auto& grant: p.jailGrants)
+      if (!requested_jail.count (grant)) throw std::invalid_argument ("Jail grant is not requested by the manifest");
+    std::map<std::string, std::set<std::string>> requested;
+    for (const auto& permission: m.audmap_permissions) requested[permission.resource]= permission.actions;
+    for (const auto& [resource, actions]: p.audmapGrants) {
+      auto found= requested.find (resource);
+      if (found == requested.end ()) throw std::invalid_argument ("AUDMAP resource grant is not requested by the manifest");
+      for (const auto& action: actions)
+        if (!found->second.count (action)) throw std::invalid_argument ("AUDMAP action grant is not requested by the manifest");
+    }
+  }
+  void require_permissions (const manifest& m, const QTMPluginPolicy& p) const {
+    validate_policy (m, p);
+    for (const auto& request: m.jail_permissions)
+      if (request.required && !p.jailGrants.count (jail_permission_id (request)))
+        throw std::runtime_error ("Plugin is missing a required system permission");
+    for (const auto& request: m.audmap_permissions) if (request.required) {
+      auto found= p.audmapGrants.find (request.resource);
+      for (const auto& action: request.actions)
+        if (found == p.audmapGrants.end () || !found->second.count (action))
+          throw std::runtime_error ("Plugin is missing a required ATHENA permission");
+    }
+    if (needs_vault (m, p) && (!currentVaultRoot || !currentVaultRoot ()))
+      throw std::runtime_error ("Plugin requires access to the current vault, but no vault is open");
+  }
+  value sandbox_plan (entry& e, const fs::path& data, const fs::path& identity_file) const {
+    value mounts= value::array ();
+    bool network= false;
+    for (const auto& permission: e.info.manifest.jail_permissions) {
+      if (!e.info.policy.jailGrants.count (jail_permission_id (permission))) continue;
+      if (permission.permission == jail_permission_kind::network) { network= true; continue; }
+      mounts.push_back ({{"path", permission.path.generic_string ()},
+        {"scope", permission.scope == filesystem_scope::file ? "file" : "tree"},
+        {"writable", permission.permission == jail_permission_kind::filesystem_write}});
+    }
+    value arguments= value::array ();
+    for (const auto& argument: e.info.manifest.arguments) arguments.push_back (argument);
+    value plan {{"version", 1}, {"plugin_dir", fs::absolute (e.directory).string ()},
+      {"data_dir", fs::absolute (data).string ()},
+      {"identity_file", fs::absolute (identity_file).string ()},
+      {"connection_file", fs::absolute (endpoint).string ()},
+      {"audmap_socket", fs::absolute (endpoint.parent_path () / "socket").string ()},
+      {"plugin_id", e.info.manifest.id}, {"subscription_guid", e.channel->guid ()},
+      {"executable", e.info.manifest.executable.generic_string ()},
+      {"arguments", std::move (arguments)}, {"network", network},
+      {"vault_access", std::move (mounts)}};
+    if (needs_vault (e.info.manifest, e.info.policy)) {
+      const auto root= currentVaultRoot ? currentVaultRoot () : std::optional<fs::path> {};
+      if (!root) throw std::runtime_error ("Current vault disappeared before plugin launch");
+      plan["vault_root"]= fs::absolute (*root).string ();
+    }
+    return plan;
+  }
 };
 
 QTMPluginManager::QTMPluginManager (fs::path home, fs::path endpoint,
-    std::shared_ptr<const resolver_registry> registry, std::function<void (std::string)> revoke, QObject* parent):
+    std::shared_ptr<const resolver_registry> registry, std::function<void (std::string)> revoke,
+    std::function<std::optional<fs::path> ()> currentVaultRoot, QObject* parent):
   QObject (parent), implementation (std::make_unique<impl> (this, std::move (home), std::move (endpoint),
-    std::move (registry), std::move (revoke))) {}
+    std::move (registry), std::move (revoke), std::move (currentVaultRoot))) {}
 QTMPluginManager::~QTMPluginManager () = default;
 std::vector<QTMPluginInfo> QTMPluginManager::plugins () const {
   implementation->check ();
@@ -292,6 +424,10 @@ void QTMPluginManager::start (const std::string& id, bool userInitiated) {
   auto metadata = read_manifest (e.directory);
   if (metadata.id != id) throw std::runtime_error ("Installed plugin identity changed");
   e.info.manifest = std::move (metadata);
+  s.require_permissions (e.info.manifest, e.info.policy);
+  const QString helper= QDir (QCoreApplication::applicationDirPath ()).filePath ("athena-plugin-sandbox");
+  if (!QFileInfo::exists (helper) || !QFileInfo (helper).isExecutable ())
+    throw std::runtime_error ("ATHENA plugin sandbox helper is unavailable");
   e.schedule = ++s.serial; e.generation = ++s.serial;
   e.userLaunchPending = userInitiated;
   e.launchFailureReported = false;
@@ -301,25 +437,19 @@ void QTMPluginManager::start (const std::string& id, bool userInitiated) {
   const auto identity = load_client_identity (keyfile);
   e.key = identity.public_key;
   e.channel = std::make_shared<subscription> (QUuid::createUuid ().toString (QUuid::WithoutBraces).toStdString (), id);
-  s.identities[e.key] = {id, e.generation};
   const auto data = s.home / "plugins-data" / id;
   fs::create_directories (data); fs::permissions (data, fs::perms::owner_all);
+  const fs::path policy_file= fs::path (e.identity->path ().toStdString ()) / "sandbox.json";
+  write_private_json (policy_file, s.sandbox_plan (e, data, keyfile));
+  s.identities[e.key] = {id, e.generation};
   e.process = std::make_unique<QProcess> ();
   auto* process = e.process.get ();
   process->setUnixProcessParameters (QProcess::UnixProcessFlag::CreateNewSession |
     QProcess::UnixProcessFlag::CloseFileDescriptors | QProcess::UnixProcessFlag::ResetSignalHandlers);
-  auto environment = QProcessEnvironment::systemEnvironment ();
-  environment.insert ("ATHENA_AUDMAP_ENDPOINT", QString::fromStdString (s.endpoint.string ()));
-  environment.insert ("ATHENA_AUDMAP_IDENTITY", QString::fromStdString (keyfile));
-  environment.insert ("ATHENA_SUBSCRIPTION_GUID", QString::fromStdString (e.channel->guid ()));
-  environment.insert ("ATHENA_PLUGIN_ID", QString::fromStdString (id));
-  environment.insert ("ATHENA_PLUGIN_DATA_DIR", QString::fromStdString (data.string ()));
-  process->setProcessEnvironment (environment);
-  process->setProgram (QString::fromStdString ((e.directory / e.info.manifest.executable).string ()));
-  QStringList arguments;
-  for (const auto& arg: e.info.manifest.arguments) arguments.push_back (QString::fromStdString (arg));
-  process->setArguments (arguments);
-  process->setWorkingDirectory (QString::fromStdString (e.directory.string ()));
+  process->setProcessEnvironment (QProcessEnvironment::systemEnvironment ());
+  process->setProgram (helper);
+  process->setArguments ({"--policy", QString::fromStdString (policy_file.string ())});
+  process->setWorkingDirectory (e.identity->path ());
   process->setProcessChannelMode (QProcess::MergedChannels);
   const auto generation = e.generation;
   connect (process, &QProcess::started, this, [this, id, generation] {
@@ -392,13 +522,25 @@ bool QTMPluginManager::authorize (const std::string& key, std::optional<connecti
   auto registry = std::make_shared<resolver_registry> (*s.registry);
   registry->push_back (subscription_resolver (e.channel));
   policy.registry = registry;
-  if (e.info.policy.access == QTMPluginPolicy::Access::ReadOnly)
-    policy.capabilities["*"] = {true, {"get", "inspect"}};
-  else if (e.info.policy.access == QTMPluginPolicy::Access::Custom) {
-    policy.capabilities["*"] = {true, {}};
-    for (const auto& [type, commands]: e.info.policy.commands) policy.capabilities[type] = {true, commands};
+  capability_mask deny;
+  deny.enforced= true; deny.resolve= false;
+  policy.capabilities["*"]= deny;
+  for (const auto& request: e.info.manifest.audmap_permissions) {
+    capability_mask mask;
+    mask.enforced= true; mask.resolve= false;
+    auto granted= e.info.policy.audmapGrants.find (request.resource);
+    if (granted != e.info.policy.audmapGrants.end ()) {
+      mask.resolve= granted->second.count ("resolve") != 0;
+      for (const auto& action: granted->second)
+        if (action != "resolve") mask.commands.insert (action);
+    }
+    policy.capabilities[request.resource]= std::move (mask);
   }
-  policy.capabilities["subscription"] = {true, {"get", "reply", "inspect"}, false};
+  capability_mask subscription_mask;
+  subscription_mask.enforced= true; subscription_mask.resolve= true;
+  subscription_mask.commands= {"get", "reply", "inspect"};
+  subscription_mask.confirmation_required= false;
+  policy.capabilities["subscription"]= std::move (subscription_mask);
   grant = std::move (policy);
   e.info.connected = true;
   e.userLaunchPending = false;
@@ -417,7 +559,8 @@ void QTMPluginManager::disconnected (const std::string& key) {
 void QTMPluginManager::configure (const std::string& id, const QTMPluginPolicy& policy) {
   auto& s = *implementation; auto& e = s.at (id);
   if (s.busy) throw std::runtime_error ("Plugin management operation is in progress");
-  const auto validated = policy_from_json (policy_json (policy));
+  s.validate_policy (e.info.manifest, policy);
+  const auto validated = policy_from_json (policy_json (policy), e.info.manifest);
   save_setting (s.settings, id, policy_json (validated));
   const bool running = e.info.running;
   e.info.policy = validated;
@@ -428,25 +571,74 @@ void QTMPluginManager::configure (const std::string& id, const QTMPluginPolicy& 
 }
 void QTMPluginManager::install (const fs::path& source) {
   auto& s = *implementation; s.check ();
+  if (s.pendingInstall) throw std::runtime_error ("A plugin is already waiting for installation review");
   const auto store = s.packages.directory (), settings = s.settings;
   s.background ([this, source, store, settings] {
-    QString error; std::optional<installed_plugin> installed;
+    (void) settings;
+    QString error; std::shared_ptr<prepared_plugin> prepared;
     try {
-      installed = package_store (store).install (source);
-      try { save_setting (settings, installed->metadata.id, policy_json (QTMPluginPolicy {})); }
-      catch (...) { package_store (store).uninstall (installed->metadata.id); installed.reset (); throw; }
+      prepared= std::make_shared<prepared_plugin> (package_store (store).prepare (source));
     }
     catch (const std::exception& e) { error = QString::fromUtf8 (e.what ()); }
-    return [this, installed = std::move (installed), error] {
-      auto& s = *implementation; s.busy = false;
+    return [this, prepared = std::move (prepared), error] {
+      auto& s = *implementation;
+      if (!prepared) {
+        s.busy = false;
+        emit changed (); emit managementFinished (error);
+        return;
+      }
+      s.pendingInstall= prepared;
+      // Keep management busy until review is accepted or cancelled so another
+      // package operation cannot invalidate the private staging directory.
+      s.busy= true;
+      emit changed (); emit installPrepared ();
+    };
+  });
+}
+
+std::optional<QTMPluginPendingInstall> QTMPluginManager::pendingInstall () const {
+  auto& s= *implementation; s.check ();
+  if (!s.pendingInstall) return {};
+  return QTMPluginPendingInstall {s.pendingInstall->metadata,
+                                  s.pendingInstall->license_file ()};
+}
+
+void QTMPluginManager::acceptInstall (const QTMPluginPolicy& policy) {
+  auto& s= *implementation; s.check ();
+  if (!s.pendingInstall) throw std::runtime_error ("No plugin is waiting for installation review");
+  s.validate_policy (s.pendingInstall->metadata, policy);
+  const auto validated= policy_from_json (policy_json (policy), s.pendingInstall->metadata);
+  auto prepared= std::move (s.pendingInstall);
+  const auto store= s.packages.directory (), settings= s.settings;
+  s.busy= false;
+  s.background ([this, prepared = std::move (prepared), validated, store, settings] {
+    QString error; std::optional<installed_plugin> installed;
+    try {
+      const std::string id= prepared->metadata.id;
+      save_setting (settings, id, policy_json (validated));
+      try { installed= package_store (store).publish (std::move (*prepared)); }
+      catch (...) { save_setting (settings, id, nullptr); throw; }
+    }
+    catch (const std::exception& e) { error= QString::fromUtf8 (e.what ()); }
+    return [this, installed = std::move (installed), validated, error] {
+      auto& s= *implementation; s.busy= false;
       if (installed) {
-        auto e = std::make_unique<impl::entry> (); e->info.manifest = installed->metadata;
-        e->directory = installed->directory; e->info.state = "Stopped";
-        s.entries[installed->metadata.id] = std::move (e);
+        auto e= std::make_unique<impl::entry> ();
+        e->info.manifest= installed->metadata; e->info.policy= validated;
+        e->directory= installed->directory; e->info.state= "Stopped";
+        s.entries[installed->metadata.id]= std::move (e);
       }
       emit changed (); emit managementFinished (error);
     };
   });
+}
+
+void QTMPluginManager::cancelInstall () {
+  auto& s= *implementation; s.check ();
+  if (!s.pendingInstall) return;
+  s.pendingInstall.reset ();
+  s.busy= false;
+  emit changed (); emit managementFinished (QString ());
 }
 void QTMPluginManager::uninstall (const std::string& id) {
   auto& s = *implementation; auto& e = s.at (id);

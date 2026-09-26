@@ -97,6 +97,7 @@ public:
                                     resolution_output& output) const = 0;
 };
 using resolver_registry = std::vector<std::shared_ptr<const resolver>>;
+using resource_visibility = std::function<bool (const resource&)>;
 
 struct resolution_result {
   enum class status { complete, cancelled, fault };
@@ -115,6 +116,7 @@ public:
   resolution_ticket (resolution_workers& workers,
                      std::shared_ptr<const resolver_registry> registry,
                      selection selectors, completion finished,
+                     resource_visibility visible = {},
                      std::size_t node_limit = 65536);
   void cancel () const;
 };

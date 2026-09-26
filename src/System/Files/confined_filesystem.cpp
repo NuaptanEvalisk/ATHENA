@@ -375,6 +375,17 @@ std::string entry::read (std::size_t limit) const {
   throw std::runtime_error ("Confined filesystem access is unavailable");
 #endif
 }
+int entry::duplicate_descriptor () const {
+#ifdef __linux__
+  int result;
+  do { result= ::fcntl (implementation->descriptor_.fd, F_DUPFD_CLOEXEC, 3); }
+  while (result < 0 && errno == EINTR);
+  if (result < 0) fail ("Duplicate confined filesystem descriptor");
+  return result;
+#else
+  throw std::runtime_error ("Confined filesystem access is unavailable");
+#endif
+}
 std::vector<std::string> entry::names () const {
 #ifdef __linux__
   if (!stat ().directory) throw std::invalid_argument ("Only directories have filesystem children");

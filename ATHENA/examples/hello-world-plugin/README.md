@@ -7,31 +7,39 @@ document. No vault is required.
 
 ## Install
 
-The ZIP includes the repository's current Python AUDMAP v2 SDK unchanged. The executable
-uses `/usr/bin/python3`, which must have `zmq` and `msgpack` available. It does
-not use the shell's Conda interpreter. No dependencies are installed at startup.
+`package.py` uses `uv` to build a self-contained package with a pinned standalone
+CPython runtime plus binary-wheel installs of `pyzmq` and `msgpack`. The ATHENA
+AUDMAP v2 SDK is bundled under `sdk/`. Runtime execution uses the packaged Python
+in isolated mode (`-I`), so no system or user Python package is required or read.
+No dependency is downloaded or installed when the plugin starts.
 
 1. Install the ZIP through **Plugins -> Manage plugins**.
-2. Set **Full API access**, or use **Custom commands** with resource type `node`
-   allowing `get` and `insert`. The launch subscription permissions are provided by ATHENA.
-3. Choose the desired confirmation mode, apply the settings, and start the plugin.
+2. Review the bundled GPL license and the requested ATHENA permissions. This
+   example requests no filesystem or network access. Its required AUDMAP grants
+   are `buffer:resolve`, `document:resolve`, and `node:resolve/get/insert`.
+3. Accept the license and required permissions, choose the desired confirmation
+   mode, then start the plugin.
 4. Activate a document and choose **Insert Hello World** in the plugin's menu.
 
-The default Read only policy cannot insert text. Denials, read-only documents,
-or the absence of an active buffer are reported as command errors in the plugin
-manager. A connection failure stops the plugin rather than risking a duplicate
-insertion by automatically retrying it.
+If a required permission is later revoked, the plugin cannot start until it is
+granted again. Denials, read-only documents, or the absence of an active buffer
+are reported as command errors in the plugin manager. A connection failure stops
+the plugin rather than risking a duplicate insertion by automatically retrying it.
 
 ## Build the ZIP
 
-From the repository root, using a new output path:
+From the repository root:
 
 ```sh
 python3 ATHENA/examples/hello-world-plugin/package.py build_qt6/examples/hello-world-plugin.zip
 ```
 
-Installing the source directory directly instead requires the SDK to be
-installed for `/usr/bin/python3`; the ZIP avoids this requirement.
+The packager replaces that destination if it already exists, so rebuilding does
+not retain an older plugin ZIP beside the current package.
+
+The source directory is a build source, not an installable runtime package. Use
+the generated ZIP; it contains the standalone Python runtime and all Python
+dependencies.
 
 ## API Flow
 

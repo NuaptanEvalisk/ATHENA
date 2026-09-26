@@ -11,6 +11,10 @@
 #include "QTMPluginManager.hpp"
 #include "QTMToast.hpp"
 #include "QTMAudmap.hpp"
+#include "QTMVaultPreviewWidget.hpp"
+#include "athena_document_xml.hpp"
+#include "convert.hpp"
+#include "unicode_text.hpp"
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -34,6 +38,8 @@
 #include <QToolButton>
 #include <QTreeWidget>
 #include <QVBoxLayout>
+#include <fstream>
+#include <set>
 
 namespace {
 QString qs (const std::string& text) { return QString::fromUtf8 (text.data (), text.size ()); }
@@ -50,6 +56,154 @@ void launch_plugin (QTMPluginManager* manager, const std::string& id, bool resta
   catch (const std::exception& e) {
     qtm_show_toast (string (e.what ()), "Plugin Failed to Start");
   }
+}
+QString jail_label (const athena::plugins::jail_permission& permission) {
+  using namespace athena::plugins;
+  if (permission.permission == jail_permission_kind::network)
+    return "Network (Internet, LAN and localhost)";
+  const QString path= permission.path.empty () ? QStringLiteral ("/") :
+    QStringLiteral ("/") + qs (permission.path.generic_string ());
+  const QString mode= permission.permission == jail_permission_kind::filesystem_read ?
+    "Read current vault " : "Read & write current vault ";
+  return mode + path + (permission.scope == filesystem_scope::tree ? " (tree)" : " (file)");
+}
+void fill_permissions (const athena::plugins::manifest& manifest, const QTMPluginPolicy& policy,
+                       QTreeWidget* jail, QTreeWidget* audmap, bool default_required) {
+  jail->clear (); audmap->clear ();
+  for (const auto& request: manifest.jail_permissions) {
+    const auto id= athena::plugins::jail_permission_id (request);
+    auto* item= new QTreeWidgetItem (jail, {jail_label (request), request.required ? "Required" : "Optional"});
+    item->setData (0, Qt::UserRole, qs (id));
+    item->setFlags (item->flags () | Qt::ItemIsUserCheckable);
+    item->setCheckState (0, policy.jailGrants.count (id) || (default_required && request.required) ?
+                            Qt::Checked : Qt::Unchecked);
+  }
+  for (const auto& request: manifest.audmap_permissions) {
+    for (const auto& action: request.actions) {
+      auto* item= new QTreeWidgetItem (audmap,
+        {qs (request.resource + ": " + action), request.required ? "Required" : "Optional"});
+      item->setData (0, Qt::UserRole, qs (request.resource));
+      item->setData (0, Qt::UserRole + 1, qs (action));
+      item->setFlags (item->flags () | Qt::ItemIsUserCheckable);
+      auto found= policy.audmapGrants.find (request.resource);
+      item->setCheckState (0,
+        (found != policy.audmapGrants.end () && found->second.count (action)) ||
+        (default_required && request.required) ? Qt::Checked : Qt::Unchecked);
+    }
+  }
+  jail->resizeColumnToContents (1); audmap->resizeColumnToContents (1);
+}
+QTMPluginPolicy policy_from_permissions (QTreeWidget* jail, QTreeWidget* audmap,
+                                         QTMPluginPolicy policy) {
+  policy.jailGrants.clear (); policy.audmapGrants.clear ();
+  for (int i=0; i<jail->topLevelItemCount (); ++i) {
+    auto* item= jail->topLevelItem (i);
+    if (item->checkState (0) == Qt::Checked)
+      policy.jailGrants.insert (item->data (0, Qt::UserRole).toString ().toStdString ());
+  }
+  for (int i=0; i<audmap->topLevelItemCount (); ++i) {
+    auto* item= audmap->topLevelItem (i);
+    if (item->checkState (0) != Qt::Checked) continue;
+    policy.audmapGrants[item->data (0, Qt::UserRole).toString ().toStdString ()].insert (
+      item->data (0, Qt::UserRole + 1).toString ().toStdString ());
+  }
+  return policy;
+}
+
+bool safe_license_tree (tree t) {
+  if (is_atomic (t)) return true;
+  // Licenses are rendered before installation, so only a deliberately small
+  // static-document vocabulary is accepted. Unknown/custom macros are rejected
+  // rather than interpreted by the normal typesetter.
+  static const std::set<std::string> allowed {
+    "document", "concat", "para", "surround", "with", "rigid",
+    "hspace", "vspace", "space", "line-break", "new-line", "page-break",
+    "strong", "em", "verbatim", "code", "tt", "small", "large",
+    "section", "subsection", "subsubsection", "paragraph", "subparagraph",
+    "itemize", "enumerate", "description", "item", "item*",
+    "table", "row", "cell", "tabular", "block",
+    "math", "frac", "sqrt", "root", "rsub", "rsup", "lsub", "lsup",
+    "around", "around*", "left", "mid", "right", "wide", "neg",
+    "matrix", "det", "binom", "choice", "above", "below"
+  };
+  const string tm_label= as_string (L (t));
+  const std::string label (as_charp (tm_label), static_cast<std::size_t> (N(tm_label)));
+  if (!allowed.count (label)) return false;
+  for (int i=0; i<N(t); ++i) if (!safe_license_tree (t[i])) return false;
+  return true;
+}
+
+tree read_license_ath (const std::filesystem::path& path) {
+  std::ifstream input (path, std::ios::binary);
+  if (!input) throw std::runtime_error ("Cannot read plugin license");
+  std::string bytes ((std::istreambuf_iterator<char> (input)), std::istreambuf_iterator<char> ());
+  tree document= athena::document::read_xml (bytes, athena::document::xml_kind::document);
+  if (!is_func (document, DOCUMENT)) throw std::runtime_error ("Plugin ATHENA license is not a document");
+  tree body= extract (document, "body");
+  if (!safe_license_tree (body))
+    throw std::runtime_error ("Plugin ATHENA license contains unsupported or active content");
+  return body;
+}
+
+bool review_install (QTMPluginManager* manager, QWidget* parent) {
+  const auto pending= manager->pendingInstall ();
+  if (!pending) return false;
+  QDialog dialog (parent); dialog.setWindowTitle ("Review ATHENA Plugin"); dialog.resize (760, 760);
+  auto* layout= new QVBoxLayout (&dialog);
+  auto* title= new QLabel ("<b>" + qs (pending->manifest.name).toHtmlEscaped () + "</b><br>" +
+                           qs (pending->manifest.description).toHtmlEscaped (), &dialog);
+  title->setWordWrap (true); layout->addWidget (title);
+  auto* tabs= new QTabWidget (&dialog); layout->addWidget (tabs, 1);
+
+  std::unique_ptr<WikilinkPreview> preview;
+  if (pending->licenseFile) {
+    auto* page= new QWidget; auto* pageLayout= new QVBoxLayout (page);
+    try {
+      if (pending->manifest.license->format == athena::plugins::license_format::text) {
+        QFile file (QString::fromStdString (pending->licenseFile->string ()));
+        if (!file.open (QIODevice::ReadOnly) || file.size () > 4 * 1024 * 1024)
+          throw std::runtime_error ("Cannot read plugin text license");
+        const QByteArray bytes= file.readAll ();
+        if (!athena::text::valid_utf8 (std::string_view (bytes.constData (), bytes.size ())))
+          throw std::runtime_error ("Plugin text license is not valid UTF-8");
+        auto* text= new QPlainTextEdit (QString::fromUtf8 (bytes), page);
+        text->setReadOnly (true); pageLayout->addWidget (text);
+      }
+      else {
+        auto* host= new QWidget (page); host->setMinimumHeight (420);
+        new QVBoxLayout (host); pageLayout->addWidget (host, 1);
+        preview= std::make_unique<WikilinkPreview> (&dialog);
+        preview->setBody (read_license_ath (*pending->licenseFile));
+        preview->ensureCreated (host);
+      }
+    }
+    catch (const std::exception& e) {
+      manager->cancelInstall ();
+      QMessageBox::warning (parent, "Invalid Plugin License", QString::fromUtf8 (e.what ()));
+      return false;
+    }
+    tabs->addTab (page, "License");
+  }
+
+  auto* permissions= new QWidget; auto* permissionsLayout= new QVBoxLayout (permissions);
+  permissionsLayout->addWidget (new QLabel ("System access (Minijail)", permissions));
+  auto* jail= new QTreeWidget (permissions); jail->setHeaderLabels ({"Permission", "Request"});
+  permissionsLayout->addWidget (jail, 1);
+  permissionsLayout->addWidget (new QLabel ("ATHENA access (AUDMAP)", permissions));
+  auto* audmap= new QTreeWidget (permissions); audmap->setHeaderLabels ({"Permission", "Request"});
+  permissionsLayout->addWidget (audmap, 1);
+  QTMPluginPolicy proposed; fill_permissions (pending->manifest, proposed, jail, audmap, true);
+  tabs->addTab (permissions, "Permissions");
+
+  auto* buttons= new QDialogButtonBox (&dialog);
+  auto* accept= buttons->addButton ("Accept && Install", QDialogButtonBox::AcceptRole);
+  buttons->addButton (QDialogButtonBox::Cancel);
+  QObject::connect (accept, &QPushButton::clicked, &dialog, &QDialog::accept);
+  QObject::connect (buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  layout->addWidget (buttons);
+  if (dialog.exec () != QDialog::Accepted) { manager->cancelInstall (); return false; }
+  manager->acceptInstall (policy_from_permissions (jail, audmap, proposed));
+  return true;
 }
 QToolButton* tool (QWidget* parent, QHBoxLayout* layout, const char* icon, const char* text,
                   QStyle::StandardPixmap fallback = QStyle::SP_CustomBase) {
@@ -69,9 +223,9 @@ class plugin_page final: public QWidget {
   QPointer<QTMPluginManager> manager;
   QTreeWidget* list;
   QWidget* settings;
-  QComboBox *startup, *access, *trust;
+  QComboBox *startup, *trust;
   QSpinBox* delay;
-  QTableWidget* rules;
+  QTreeWidget *jailRules, *audmapRules;
   QToolButton *remove, *startStop, *restart, *force, *install;
   QPushButton* apply;
   QProgressBar* progress;
@@ -79,19 +233,13 @@ class plugin_page final: public QWidget {
   QPlainTextEdit *log, *result;
   std::string selected;
   QTMPluginInfo current;
+  bool awaitingInstall = false;
   void load_policy () {
     identity->setText (qs (current.manifest.id));
     startup->setCurrentIndex (static_cast<int> (current.policy.startup));
-    access->setCurrentIndex (static_cast<int> (current.policy.access));
     trust->setCurrentIndex (static_cast<int> (current.policy.trust));
     delay->setValue (current.policy.delaySeconds);
-    rules->setRowCount (0);
-    for (const auto& [type, commands]: current.policy.commands) {
-      const int row = rules->rowCount (); rules->insertRow (row);
-      QStringList names; for (const auto& command: commands) names << qs (command);
-      rules->setItem (row, 0, new QTableWidgetItem (qs (type)));
-      rules->setItem (row, 1, new QTableWidgetItem (names.join (", ")));
-    }
+    fill_permissions (current.manifest, current.policy, jailRules, audmapRules, false);
   }
   void refresh () {
     if (!manager) { setEnabled (false); return; }
@@ -137,27 +285,18 @@ class plugin_page final: public QWidget {
     const auto path = directory ? QFileDialog::getExistingDirectory (this, "Install plugin directory") :
       QFileDialog::getOpenFileName (this, "Install plugin ZIP", {}, "ZIP packages (*.zip)");
     if (path.isEmpty ()) return;
-    if (QMessageBox::warning (this, "Install ATHENA Plugin",
-      "Plugins run native code with your user account. AUDMAP permissions are not an operating-system sandbox.\n\n"
-      "Install this package? It will remain stopped until started or configured for startup.",
-      QMessageBox::Ok | QMessageBox::Cancel, QMessageBox::Cancel) != QMessageBox::Ok) return;
-    execute (this, [&] { manager->install (path.toStdString ()); });
+    execute (this, [&] {
+      awaitingInstall= true;
+      try { manager->install (path.toStdString ()); }
+      catch (...) { awaitingInstall= false; throw; }
+    });
   }
   void save () {
     QTMPluginPolicy policy;
     policy.startup = static_cast<QTMPluginPolicy::Startup> (startup->currentIndex ());
-    policy.access = static_cast<QTMPluginPolicy::Access> (access->currentIndex ());
     policy.trust = static_cast<athena::interop::trust_mode> (trust->currentIndex ());
     policy.delaySeconds = delay->value ();
-    for (int row = 0; row < rules->rowCount (); ++row) {
-      const auto* type = rules->item (row, 0); const auto* commands = rules->item (row, 1);
-      if (!type || type->text ().trimmed ().isEmpty ()) throw std::invalid_argument ("Each permission rule needs a resource type");
-      const auto key = type->text ().trimmed ().toStdString ();
-      if (policy.commands.count (key)) throw std::invalid_argument ("Duplicate resource type in permission rules");
-      auto& names = policy.commands[key];
-      if (commands) for (const auto& name: commands->text ().split (',', Qt::SkipEmptyParts))
-        if (!name.trimmed ().isEmpty ()) names.insert (name.trimmed ().toStdString ());
-    }
+    policy= policy_from_permissions (jailRules, audmapRules, std::move (policy));
     manager->configure (selected, policy);
     message->setText ("Settings saved.");
   }
@@ -193,20 +332,18 @@ public:
     form->addRow ("Startup", startup);
     delay = new QSpinBox; delay->setObjectName ("plugin-startup-delay"); delay->setRange (1, 86400); delay->setSuffix (" s");
     form->addRow ("Startup delay", delay);
-    access = new QComboBox; access->setObjectName ("plugin-access"); access->addItems ({"Read only", "Full API access", "Custom commands"});
-    form->addRow ("API permissions", access);
     trust = new QComboBox; trust->setObjectName ("plugin-trust");
     trust->addItems ({"No confirmation", "Confirm operations", "Confirm every request"}); form->addRow ("Confirmation", trust);
-    auto* custom = new QWidget; auto* customLayout = new QVBoxLayout (custom); customLayout->setContentsMargins (0, 0, 0, 0);
-    rules = new QTableWidget (0, 2); rules->setObjectName ("plugin-permission-rules");
-    rules->setHorizontalHeaderLabels ({"Resource type (* = fallback)", "Allowed commands (comma-separated)"});
-    rules->horizontalHeader ()->setSectionResizeMode (QHeaderView::Stretch); rules->setMaximumHeight (150);
-    customLayout->addWidget (rules); auto* ruleTools = new QHBoxLayout;
-    auto* addRule = tool (custom, ruleTools, "list-add", "Add permission rule");
-    auto* removeRule = tool (custom, ruleTools, "list-remove", "Remove selected permission rule");
-    if (addRule->icon ().isNull ()) addRule->setText ("+");
-    if (removeRule->icon ().isNull ()) removeRule->setText ("-");
-    ruleTools->addStretch (); customLayout->addLayout (ruleTools); form->addRow (custom);
+    jailRules= new QTreeWidget; jailRules->setObjectName ("plugin-jail-permissions");
+    jailRules->setHeaderLabels ({"System permission", "Request"});
+    jailRules->header ()->setSectionResizeMode (0, QHeaderView::Stretch);
+    jailRules->setRootIsDecorated (false); jailRules->setMaximumHeight (150);
+    form->addRow ("System access", jailRules);
+    audmapRules= new QTreeWidget; audmapRules->setObjectName ("plugin-audmap-permissions");
+    audmapRules->setHeaderLabels ({"ATHENA permission", "Request"});
+    audmapRules->header ()->setSectionResizeMode (0, QHeaderView::Stretch);
+    audmapRules->setRootIsDecorated (false); audmapRules->setMaximumHeight (180);
+    form->addRow ("ATHENA access", audmapRules);
     apply = new QPushButton (QIcon::fromTheme ("dialog-ok-apply", style ()->standardIcon (QStyle::SP_DialogApplyButton)), "Apply");
     apply->setObjectName ("plugin-apply");
     apply->setAutoDefault (false); form->addRow (apply);
@@ -216,9 +353,6 @@ public:
     tabs->addTab (log, "Process log"); tabs->addTab (result, "Latest result"); tabs->setMinimumHeight (100); layout->addWidget (tabs, 1);
     message = new QLabel; message->setWordWrap (true); message->setTextFormat (Qt::PlainText); layout->addWidget (message);
     connect (startup, &QComboBox::currentIndexChanged, this, [this] (int mode) { delay->setEnabled (mode == 2); });
-    connect (access, &QComboBox::currentIndexChanged, this, [custom] (int mode) { custom->setVisible (mode == 2); });
-    connect (addRule, &QToolButton::clicked, this, [this] { rules->insertRow (rules->rowCount ()); });
-    connect (removeRule, &QToolButton::clicked, this, [this] { if (rules->currentRow () >= 0) rules->removeRow (rules->currentRow ()); });
     connect (list, &QTreeWidget::currentItemChanged, this, [this] (QTreeWidgetItem* item) {
       if (!item) return;
       selected.clear ();
@@ -239,11 +373,16 @@ public:
     });
     connect (apply, &QPushButton::clicked, this, [this] { execute (this, [this] { save (); }); });
     connect (manager, &QTMPluginManager::changed, this, [this] { refresh (); });
+    connect (manager, &QTMPluginManager::installPrepared, this, [this] {
+      if (!awaitingInstall) return;
+      awaitingInstall= false;
+      execute (this, [this] { review_install (this->manager, this); });
+    });
     connect (manager, &QTMPluginManager::managementFinished, this, [this] (const QString& error) {
       message->setText (error.isEmpty () ? "Done." : error); refresh ();
     });
     connect (manager, &QObject::destroyed, this, [this] { setEnabled (false); });
-    custom->hide (); delay->setEnabled (false); refresh ();
+    delay->setEnabled (false); refresh ();
   }
 };
 void manage_plugins (QWidget* parent) {
