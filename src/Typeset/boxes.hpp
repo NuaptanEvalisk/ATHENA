@@ -225,6 +225,10 @@ public:
   virtual SI        sup_lo_lim  (int level);
   virtual SI        sup_lo_base (int level);
   virtual SI        sup_hi_lim  (int level);
+  // Vertical nucleus used when a fraction enforces numerator/denominator
+  // clearance. Side scripts may enlarge a box without moving its base line.
+  virtual SI        fraction_y1 ();
+  virtual SI        fraction_y2 ();
   virtual SI        wide_correction (int mode);
   // Physical glyph anchor, relative to this box's origin. When present it
   // supersedes the legacy slope/italic heuristic for positioning an accent.

@@ -98,6 +98,8 @@ SI modifier_box_rep::sup_lo_base (int level) {
   return b->sup_lo_base (level); }
 SI modifier_box_rep::sup_hi_lim  (int level) {
   return b->sup_hi_lim (level); }
+SI modifier_box_rep::fraction_y1 () { return b->fraction_y1 (); }
+SI modifier_box_rep::fraction_y2 () { return b->fraction_y2 (); }
 SI modifier_box_rep::wide_correction (int mode) {
   return b->wide_correction (mode); }
 std::optional<SI> modifier_box_rep::top_accent_attachment () {

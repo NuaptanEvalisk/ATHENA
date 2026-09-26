@@ -73,6 +73,10 @@ SI change_box_rep::sup_lo_base (int l) {
   return big_flag? bs[0]->sup_lo_base (l): box_rep::sup_lo_base (l); }
 SI change_box_rep::sup_hi_lim  (int l) {
   return big_flag? bs[0]->sup_hi_lim (l): box_rep::sup_hi_lim (l); }
+SI change_box_rep::fraction_y1 () {
+  return sy (0) + bs[0]->fraction_y1 (); }
+SI change_box_rep::fraction_y2 () {
+  return sy (0) + bs[0]->fraction_y2 (); }
 SI change_box_rep::wide_correction (int mode) {
   return bs[0]->wide_correction (mode); }
 
