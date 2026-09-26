@@ -36,6 +36,12 @@ font_rep::native_text_source (athena::text::native_text_source& out) const {
   return true;
 }
 
+bool
+font_rep::math_source_base (font& out) const {
+  (void) out;
+  return false;
+}
+
 athena::text::shaped_text
 font_rep::shape_utf8 (std::string_view, std::size_t, std::size_t,
                       const athena::text::shaping_options&) {

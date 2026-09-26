@@ -148,6 +148,9 @@ struct font_rep: rep<font> {
   // physical face together with OpenType features while keeping physical_source
   // false when the logical font is not equivalent to that face by itself.
   virtual bool native_text_source (athena::text::native_text_source& out) const;
+  // Math-only wrappers may delegate native OpenType MATH source resolution to
+  // a logical base font without claiming generic physical-font equivalence.
+  virtual bool math_source_base (font& out) const;
 
   array<space> get_spacing_table (int mode, int id, array<array<space> >& t);
   space        get_spacing_entry (int mode, tree t, int i);

@@ -329,6 +329,34 @@ concater_rep::typeset_rprime (tree t, path ip) {
 void
 concater_rep::typeset_long_arrow (tree t, path ip) {
   if (N(t) != 2 && N(t) != 3) { typeset_error (t, ip); return; }
+  // Imported arrow descriptors may be wrapped in single-symbol CONCATs.
+  // Keep the evaluated tree: exec_string would discard the symbol identity.
+  tree descriptor= env->exec (t[0]);
+  while (is_func (descriptor, CONCAT)) {
+    int child= -1;
+    for (int i=0; i<N(descriptor); ++i)
+      if (descriptor[i] != "") {
+        if (child >= 0) { typeset_error (t, ip); return; }
+        child= i;
+      }
+    if (child < 0) { typeset_error (t, ip); return; }
+    descriptor= descriptor[child];
+  }
+  // Rubber identities denote parameterized font recipes, not ordinary glyphs.
+  // Adapt them only at this legacy recipe boundary, without rewriting source.
+  if (is_func (descriptor, NAMED_SYMBOL, 1) && is_atomic (descriptor[0]) &&
+      starts (descriptor[0]->label, "texmacs:rubber-")) {
+    string identity= descriptor[0]->label;
+    descriptor= "<" * identity (8, N(identity)) * ">";
+  }
+  const bool named= is_func (descriptor, NAMED_SYMBOL, 1) &&
+                   is_atomic (descriptor[0]);
+  const bool scalar= is_atomic (descriptor) &&
+                     is_unicode_scalar_atom (descriptor->label);
+  const bool rubber= is_atomic (descriptor) &&
+                     starts (descriptor->label, "<rubber-") &&
+                     ends (descriptor->label, ">");
+  if (!named && !scalar && !rubber) { typeset_error (t, ip); return; }
   tree old_ds= env->local_begin (MATH_DISPLAY, "false");
   tree old_mc= env->local_begin (MATH_CONDENSED, "true");
   tree old_il= env->local_begin_script ();
@@ -351,22 +379,17 @@ concater_rep::typeset_long_arrow (tree t, path ip) {
   if (N(t) == 3) w= max (w, sub_b->w());
   w += env->fn->wquad;
   box arrow;
-  if (is_atomic (t[0]) && is_unicode_scalar_atom (t[0]->label))
-    arrow= wide_box (decorate (descend (ip, 0)), t[0]->label,
+  if (scalar || rubber)
+    arrow= wide_box (decorate (descend (ip, 0)), descriptor->label,
                      env->fn, env->pen, w);
-  else if (is_func (t[0], NAMED_SYMBOL, 1)) {
-    box base= typeset_as_concat (env, t[0], decorate (descend (ip, 0)));
+  else {
+    box base= typeset_as_concat (env, descriptor, decorate (descend (ip, 0)));
     if (base->w () > 0 && base->w () < w) {
       const double sx= static_cast<double> (w) / base->w ();
       base= transformed_box (decorate (descend (ip, 0)), base,
                              scaling (point (sx, 1.0), point (0.0, 0.0)));
     }
     arrow= macro_box (decorate (descend (ip, 0)), base, env->fn);
-  }
-  else {
-    // Read-only compatibility for old LONG_ARROW nodes containing a rubber key.
-    string s= env->exec_string (t[0]);
-    arrow= wide_box (decorate (descend (ip, 0)), s, env->fn, env->pen, w);
   }
 
   space spc= env->fn->spc;

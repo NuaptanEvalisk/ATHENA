@@ -2143,10 +2143,26 @@ math_alphabet default_math_alphabet (font source, bool variable) {
 }
 
 physical_font_source math_font_source (font source, math_alphabet alphabet) {
+  for (int depth=0; depth<8; ++depth) {
+    font base;
+    if (!source->math_source_base (base)) break;
+    if (is_nil (base) || base.rep == source.rep)
+      throw std::runtime_error ("Invalid recursive math font source wrapper");
+    source= base;
+  }
   physical_font_source physical;
-  if (!source->physical_source (physical))
-    throw std::runtime_error ("Math font has no physical Unicode source");
   if (const auto* smart= dynamic_cast<const smart_font_rep*> (source.rep)) {
+    // The smart font's current display subfont may legitimately be synthetic
+    // (for example poor_bold when a family has no separate bold math face).
+    // Native OpenType MATH must resolve the underlying physical math family
+    // from the smart-font contract instead of requiring that synthetic wrapper
+    // to expose a physical source first.
+    const bool inherited= source->physical_source (physical);
+    if (!inherited) {
+      physical.point_size= smart->sz;
+      physical.horizontal_dpi= smart->hdpi;
+      physical.vertical_dpi= smart->dpi;
+    }
     string role= smart->variant;
     string weight= "medium";
     switch (alphabet) {
@@ -2171,8 +2187,13 @@ physical_font_source math_font_source (font source, math_alphabet alphabet) {
           std::string_view (family.data (), N(family)),
           requested_weight, 0, 100, 0)) {
       physical.file= std::move (*selected);
+      return physical;
     }
+    if (inherited) return physical;
+    throw std::runtime_error ("Math font has no physical Unicode source");
   }
+  if (!source->physical_source (physical))
+    throw std::runtime_error ("Math font has no physical Unicode source");
   return physical;
 }
 

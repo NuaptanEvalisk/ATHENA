@@ -586,6 +586,40 @@ private slots:
         }
       }
   }
+  void structuredLongArrows () {
+    drd_info drd ("structured-long-arrows", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write (MODE, "math");
+    env->update ();
+    const tree named (NAMED_SYMBOL, "texmacs:rubber-rightarrow");
+    const tree wrapped (CONCAT, named);
+    for (string below: {string ("F"), string ("long annotation")}) {
+      auto reference= typeset_concat (
+        env, tree (LONG_ARROW, "<rubber-rightarrow>", "", below), path (0));
+      QCOMPARE (N(reference), 1);
+      QVERIFY (reference[0]->b->w () > 0);
+      for (tree descriptor: {named, wrapped, tree (CONCAT, "", wrapped, ""),
+                             tree (QUOTE, wrapped)}) {
+        tree source (LONG_ARROW, descriptor, "", below);
+        tree saved= copy (source);
+        auto items= typeset_concat (env, source, path (0));
+        QCOMPARE (N(items), 1);
+        QVERIFY (tree (items[0]->b) == tree (reference[0]->b));
+        QCOMPARE (items[0]->b->w (), reference[0]->b->w ());
+        QVERIFY (source == saved);
+      }
+    }
+    // Invalid descriptors are local typesetting errors, not document resets.
+    for (tree descriptor: {tree (""), tree (CONCAT, named, named)}) {
+      auto items= typeset_concat (
+        env, tree (LONG_ARROW, descriptor, "", "F"), path (0));
+      QVERIFY (N(items) > 0);
+    }
+  }
   void nativeMathAltTableShortcut () {
     QVERIFY (native_math_keyboard_has_registered_key ("A-t"));
     QCOMPARE (test_server->kbd_pre_rewrite ("math t"), string ("A-t"));

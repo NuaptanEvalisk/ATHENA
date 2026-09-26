@@ -34,6 +34,10 @@ struct virtual_enhance_font_rep: font_rep {
   void   advance_glyph (string s, int& pos, bool ligf);
   glyph  get_glyph (string s);
   int    index_glyph (string s, font_metric& fnm, font_glyphs& fng);
+  bool   math_source_base (font& out) const override {
+    out= base;
+    return true;
+  }
   double get_left_slope  (string s);
   double get_right_slope (string s);
   SI     get_left_correction  (string s);
