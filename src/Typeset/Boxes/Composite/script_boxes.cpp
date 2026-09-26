@@ -395,10 +395,6 @@ struct side_box_rep: public composite_box_rep {
     return nr_right==0? bs[0]->rsub_correction (): right_correction (); }
   SI rsup_correction () {
     return nr_right==0? bs[0]->rsup_correction (): right_correction (); }
-  SI fraction_y1 () {
-    return bs[0]->w () == 0 ? y1 : sy (0) + bs[0]->fraction_y1 (); }
-  SI fraction_y2 () {
-    return bs[0]->w () == 0 ? y2 : sy (0) + bs[0]->fraction_y2 (); }
   void get_bracket_extents (SI& lo, SI& hi);
 
   /*
@@ -448,7 +444,8 @@ side_box_rep::side_box_rep (
         sub_y= min (sub_y, ref->y1 - math->subscript_baseline_drop_min);
       }
       if (!is_nil (sup)) {
-        sup_y= math->superscript_shift_up;
+        sup_y= level < 0 ? math->superscript_shift_up_cramped
+                         : math->superscript_shift_up;
         sup_y= max (sup_y, math->superscript_bottom_min - sup->y1);
         sup_y= max (sup_y, ref->y2 - math->superscript_baseline_drop_max);
       }

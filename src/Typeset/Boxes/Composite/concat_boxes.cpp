@@ -47,8 +47,6 @@ struct concat_box_rep: public composite_box_rep {
   SI        sup_lo_lim  (int level);
   SI        sup_lo_base (int level);
   SI        sup_hi_lim  (int level);
-  SI        fraction_y1 ();
-  SI        fraction_y2 ();
   SI        wide_correction (int mode);
   std::optional<SI> top_accent_attachment () override;
   std::optional<SI> math_script_kern (
@@ -341,30 +339,6 @@ concat_box_rep::sup_hi_lim  (int level) {
     y= max (y, bs[i]->sup_hi_lim (level));
   if (y == y1) y= y2;
   return y;
-}
-
-SI
-concat_box_rep::fraction_y1 () {
-  SI y= y2;
-  bool found= false;
-  for (int i=0; i<N(bs); ++i)
-    if (bs[i]->w () != 0) {
-      y= min (y, sy (i) + bs[i]->fraction_y1 ());
-      found= true;
-    }
-  return found ? y : y1;
-}
-
-SI
-concat_box_rep::fraction_y2 () {
-  SI y= y1;
-  bool found= false;
-  for (int i=0; i<N(bs); ++i)
-    if (bs[i]->w () != 0) {
-      y= max (y, sy (i) + bs[i]->fraction_y2 ());
-      found= true;
-    }
-  return found ? y : y2;
 }
 
 SI

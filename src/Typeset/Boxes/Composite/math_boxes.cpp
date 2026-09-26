@@ -86,12 +86,12 @@ frac_box_rep::frac_box_rep (
                                       math->fraction_numerator_gap_min;
     const SI den_gap= display_style ? math->fraction_denominator_display_gap_min :
                                       math->fraction_denominator_gap_min;
-    num_y= max (num_y, bar_y + (bar_w >> 1) + num_gap - b1->fraction_y1 ());
-    den_y= min (den_y, bar_y - (bar_w >> 1) - den_gap - b2->fraction_y2 ());
+    num_y= max (num_y, bar_y + (bar_w >> 1) + num_gap - b1->y1);
+    den_y= min (den_y, bar_y - (bar_w >> 1) - den_gap - b2->y2);
   }
   else {
-    SI b1_y= min (b1->fraction_y1 (), sfn->y1);
-    SI b2_y= max (b2->fraction_y2 (), sfn->y2);
+    SI b1_y= min (b1->y1, sfn->y1);
+    SI b2_y= max (b2->y2, sfn->y2);
     num_y= bar_y + sep + (bar_w >> 1) - b1_y;
     den_y= bar_y - sep - (bar_w >> 1) - b2_y;
   }

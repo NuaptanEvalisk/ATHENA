@@ -34,8 +34,6 @@ struct change_box_rep: public composite_box_rep {
   SI sup_lo_lim  (int l);
   SI sup_lo_base (int l);
   SI sup_hi_lim  (int l);
-  SI fraction_y1 ();
-  SI fraction_y2 ();
   SI wide_correction (int mode);
   void get_bracket_extents (SI& lo, SI& hi);
   SI get_leaf_offset (string search);

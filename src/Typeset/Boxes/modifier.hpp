@@ -57,8 +57,6 @@ public:
   SI        sup_lo_lim  (int level);
   SI        sup_lo_base (int level);
   SI        sup_hi_lim  (int level);
-  SI        fraction_y1 ();
-  SI        fraction_y2 ();
   SI        wide_correction (int mode);
   std::optional<SI> top_accent_attachment () override;
   std::optional<SI> math_script_kern (
