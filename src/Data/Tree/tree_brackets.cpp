@@ -228,17 +228,18 @@ make_small (tree br) {
       is_func (br, BIG))
     if (N(br) > 0 && is_atomic (br[0])) {
       string s= br[0]->label;
-      if (s == ".") return ".";
+      if (s == ".") return "<nobracket>";
       std::string_view bytes (s.data (), static_cast<std::size_t> (N(s)));
       if (!bytes.empty () && athena::text::valid_utf8 (bytes) &&
           athena::text::next_scalar (bytes, 0) == bytes.size ())
         return s;
       if (N(s) <= 1) return s;
       // Compatibility only: old bracket nodes stored a symbolic ASCII name.
-      // New edit paths store either a Unicode scalar or the explicit dot sentinel.
+      // New edit paths store either a Unicode scalar or the explicit dot sentinel;
+      // normalize the latter above before constructing an AROUND node.
       return "<" * s * ">";
     }
-  return ".";
+  return "<nobracket>";
 }
 
 static tree

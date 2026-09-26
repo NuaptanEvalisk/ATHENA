@@ -332,6 +332,20 @@ concater_rep::handle_matching (int start, int end) {
         pencil lp= a[i]->b->get_leaf_pencil ();
         font   fn= a[i]->b->get_leaf_font ();
 
+        const bool missing=
+          starts (ls, "<left-.") || starts (ls, "<mid-.") ||
+          starts (ls, "<right-.");
+
+        // The dot payload of a delimiter token is a structural sentinel for
+        // an absent endpoint.  Never hand it to a rubber font: some fallback
+        // fonts interpret it as an ordinary full stop when the pair stretches.
+        if (missing) {
+          a[i]->b= text_box (a[i]->b->ip, 0, "<nobracket>", fn, lp);
+          a[i]->type= STD_ITEM;
+          tp= STD_ITEM;
+          continue;
+        }
+
         // The unsized placeholder may use a different fallback font from the
         // selected delimiter. Use the math axis, not the placeholder's bounds.
         SI mid= fn->yfrac;
@@ -347,13 +361,9 @@ concater_rep::handle_matching (int start, int end) {
         else Y1 -= min (drift, tol) << 1;
 
         // further adjustments when the enclosed expression is not very high
-        // and for empty brackets
         SI h= y2 - y1 - fn->sep;
         SI d= 5 * fn->yx - h;
         if (d > 0) { Y1 += d/12; Y2 -= d/12; }
-        if (N(ls) >= 8 && (ls[6] == '.' || ls[7] == '.'))
-          if (starts (ls, "<left-.") || starts (ls, "<right-.")) {
-            Y1 += d/6; Y2 -= d/12; }
 
         // Tightening around the body must not shrink past already resolved
         // inner delimiters, whose glyphs may have different natural heights.

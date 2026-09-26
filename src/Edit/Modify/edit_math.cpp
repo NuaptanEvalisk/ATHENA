@@ -650,7 +650,7 @@ edit_math_rep::math_evaluation_bar () {
   }
   tree body= selection_active_any () ? selection_get_cut () : tree ("");
   tree evaluation (make_tree_label ("around*"), ".", body, "|");
-  insert_tree (evaluation, body == "" ? path (1, 0) : path (1, end (body)));
+  insert_tree (evaluation, body == "" ? path (1, 0) : path (1));
 }
 
 void

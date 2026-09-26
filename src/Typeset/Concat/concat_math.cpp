@@ -35,7 +35,10 @@ concater_rep::typeset_large (tree t, path ip, int tp, int otp, string prefix) {
     typeset_error (t, ip);
   else {
     string br= t[0]->label;
-    const bool native= is_unicode_scalar_atom (br);
+    // A dot in LEFT/MID/RIGHT is the structural sentinel for an invisible
+    // delimiter, not a literal Unicode full stop.  Keep it on the legacy
+    // delimiter-token path so matching can preserve the missing endpoint.
+    const bool native= br != "." && is_unicode_scalar_atom (br);
     if (!native && starts (old_fn->res_name, "stix-")) env->fn= rubber_font (old_fn);
     if (N(br) > 2 && br[0] == '<' && br[N(br)-1] == '>')
       br= br (1, N(br) - 1);
