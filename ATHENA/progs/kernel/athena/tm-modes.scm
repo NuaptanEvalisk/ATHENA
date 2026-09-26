@@ -231,9 +231,6 @@
 (define-public remote-control-flag? #f)
 (define-public remote-control-remap (make-ahash-table))
 
-(define-public (cyrillic-input-method? what)
-  (== (get-preference "cyrillic input method") what))
-
 (texmacs-modes
   (like-emacs% (has-look-and-feel? "emacs"))
   (like-gnome% (has-look-and-feel? "gnome"))
@@ -252,9 +249,6 @@
   (spell-mode% (== (get-input-mode) 3))
   (complete-mode% (== (get-input-mode) 4))
   (remote-control-mode% (== remote-control-flag? #t))
-  (in-cyrillic-jcuken% (cyrillic-input-method? "jcuken") in-cyrillic%)
-  (in-cyrillic-translit% (cyrillic-input-method? "translit") in-cyrillic%)
-  (in-cyrillic-yawerty% (cyrillic-input-method? "yawerty") in-cyrillic%)
   (in-math-like-macos% #t in-math% like-macos%))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

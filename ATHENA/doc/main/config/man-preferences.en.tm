@@ -144,9 +144,6 @@
     <item*|Automatic brackets>Controls automatic bracket insertion. It may be
     disabled, enabled everywhere, or enabled only inside mathematics.
 
-    <item*|Cyrillic input method>Chooses the Cyrillic input method:
-    <menu|None>, <menu|Translit>, <menu|Jcuken>, or <menu|Yawerty>.
-
     <item*|Advanced settings>Opens the keyboard shortcuts editor.
   </description>
 

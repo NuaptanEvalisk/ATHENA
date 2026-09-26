@@ -13,7 +13,6 @@
 
 (texmacs-module (athena keyboard config-kbd)
   (:use (athena athena tm-server)))
-(import-from (kernel athena tm-preferences))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -22,19 +21,3 @@
 
 (tm-define (disable-pre-edit? key) #f)
 (tm-define (downgrade-pre-edit key) "")
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Cyrillic input method
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define (notify-cyrillic-input-method var val)
-  (cond
-   ((== val "translit")
-    (lazy-keyboard (text cyrillic translit-kbd) in-cyrillic-translit?))
-   ((== val "jcuken")
-    (lazy-keyboard (text cyrillic jcuken-kbd) in-cyrillic-jcuken?))
-   ((== val "yawerty")
-    (lazy-keyboard (text cyrillic yawerty-kbd) in-cyrillic-yawerty?))))
-
-(register-preference-callback-procedures
-  (list notify-cyrillic-input-method))

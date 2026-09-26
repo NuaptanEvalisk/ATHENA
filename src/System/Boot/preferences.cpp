@@ -166,7 +166,6 @@ ensure_builtin_user_preferences () {
 
     PREF ("autosave", "120", "notify-autosave"),
     PREF ("autosave default", "on", ""),
-    PREF ("cyrillic input method", "none", "notify-cyrillic-input-method"),
     PREF ("source tree style", "angular", ""),
     PREF ("source tree special rendering", "normal", ""),
     PREF ("source tree compactification", "normal", ""),

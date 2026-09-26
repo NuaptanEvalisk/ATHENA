@@ -1145,9 +1145,6 @@ QTMPreferencesDialog::buildKeyboardPage () {
   add_combo (form, "Automatic brackets:", "automatic brackets",
              {{"off", "Disabled"}, {"on", "Enabled"},
               {"mathematics", "Inside mathematics"}});
-  add_combo (form, "Cyrillic input method:", "cyrillic input method",
-             {{"none", "None"}, {"translit", "Translit"},
-              {"jcuken", "Jcuken"}, {"yawerty", "Yawerty"}});
   QPushButton* shortcuts= new QPushButton ("Edit keyboard shortcuts");
   QObject::connect (shortcuts, &QPushButton::clicked, [] () {
     (void) call ("open-shortcuts-editor", string (""), string (""));
