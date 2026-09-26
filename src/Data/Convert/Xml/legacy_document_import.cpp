@@ -14,6 +14,7 @@
 #include "file.hpp"
 #include "analyze.hpp"
 #include "convert.hpp"
+#include "unicode_text.hpp"
 #include <algorithm>
 #include <limits>
 #include <memory>
@@ -199,6 +200,7 @@ class importer {
   codec_limits limits;
   std::size_t position_limit, positions= 0;
   const legacy_slot_policy& policy;
+  bool source_utf8;
   std::size_t nodes= 0, input_bytes= 0, output_bytes= 0;
   std::vector<legacy_node_mapping> mappings;
 
@@ -222,7 +224,7 @@ class importer {
     std::vector<legacy_text_piece> pieces;
     try {
       pieces= table.decode (encoded, role, limits.text_bytes - output_bytes,
-                            position_limit - positions);
+                            position_limit - positions, source_utf8);
     }
     catch (const legacy_text_error& error) {
       throw legacy_text_error (error.byte + (wrapped ? 1 : 0), error.what ());
@@ -288,7 +290,8 @@ class importer {
     auto old_name= bytes (as_string (L (source)));
     count (old_name.size (), input_bytes, limits.input_bytes);
     for (const auto& p: table.decode (old_name, legacy_text_role::identifier,
-                                     limits.text_bytes - output_bytes)) name += p.value;
+                                     limits.text_bytes - output_bytes,
+                                     4000000, source_utf8)) name += p.value;
     count (name.size (), output_bytes, limits.text_bytes);
     tree result (make_tree_label (atom (name)->label), 0);
     mappings.push_back ({old, dest, {}});
@@ -312,8 +315,10 @@ class importer {
     return result;
   }
 public:
-  importer (const legacy_cork_table& t, legacy_import_limits l, const legacy_slot_policy& p):
-    table (t), limits (l.codec), position_limit (l.positions), policy (p) {}
+  importer (const legacy_cork_table& t, legacy_import_limits l,
+            const legacy_slot_policy& p, bool utf8):
+    table (t), limits (l.codec), position_limit (l.positions), policy (p),
+    source_utf8 (utf8) {}
   legacy_document_result run (const tree& source) {
     if (!is_func (source, DOCUMENT))
       throw codec_exception (codec_error::invalid_structure, "Expected legacy document envelope");
@@ -356,7 +361,7 @@ legacy_document_result import_legacy_document (
   const tree& source, const legacy_cork_table& table, legacy_import_limits limits,
   const legacy_slot_policy& policy, const legacy_import_context& context) {
   auto effective= compile_contract_policy (source, limits, context, policy);
-  return importer (table, limits, effective).run (source);
+  return importer (table, limits, effective, context.source_utf8).run (source);
 }
 
 legacy_document_result import_legacy_document_bytes (
@@ -365,6 +370,8 @@ legacy_document_result import_legacy_document_bytes (
   tree source;
   if (input.substr (0, 9) == "<TeXmacs|") source= read_legacy_markup (input, limits.codec);
   else source= read_legacy_scheme (input, limits.codec);
-  return import_legacy_document (source, table, limits, policy, context);
+  legacy_import_context effective= context;
+  effective.source_utf8= effective.source_utf8 || text::valid_utf8 (input);
+  return import_legacy_document (source, table, limits, policy, effective);
 }
 } // namespace athena::document

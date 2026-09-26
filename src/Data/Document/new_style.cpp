@@ -126,6 +126,7 @@ load_style_document (url name) {
       string local= concretize (name);
       if (N(local) != 0)
         context.source_path= std::filesystem::path (as_charp (local));
+      context.source_utf8= athena::text::valid_utf8 (bytes);
       doc= athena::document::import_legacy_document (
         legacy, athena::document::standard_legacy_cork_table (), {}, {}, context).document;
     }

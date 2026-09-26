@@ -48,7 +48,8 @@ public:
   std::vector<legacy_text_piece> decode (
     std::string_view source, legacy_text_role role,
     std::size_t output_limit= 64 * 1024 * 1024,
-    std::size_t piece_limit= 4000000) const;
+    std::size_t piece_limit= 4000000,
+    bool preserve_utf8= false) const;
 };
 
 } // namespace athena::document

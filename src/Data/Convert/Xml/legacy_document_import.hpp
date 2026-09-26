@@ -45,6 +45,9 @@ struct legacy_import_context {
   // Used only to resolve source-local/ancestor style files. Empty contexts still
   // compile bundled style contracts and document-local preamble declarations.
   std::optional<std::filesystem::path> source_path;
+  // Recent legacy TeXmacs containers may already store text as UTF-8. Preserve
+  // valid multi-byte scalars while still decoding legacy character tokens.
+  bool source_utf8= false;
 };
 struct legacy_document_result {
   tree document;

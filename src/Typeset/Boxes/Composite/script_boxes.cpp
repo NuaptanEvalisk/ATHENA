@@ -475,7 +475,7 @@ side_box_rep::side_box_rep (
     }
     if (!is_nil (r1)) {
       const SI kern= math_script_pair_kern (ref, r1, rsub, true, false);
-      insert (r1, ref->x2 + kern, rsub);
+      insert (r1, ref->x2 + ref->rsub_correction () + kern, rsub);
     }
     if (!is_nil (r2)) {
       const SI kern= math_script_pair_kern (ref, r2, rsup, true, true);

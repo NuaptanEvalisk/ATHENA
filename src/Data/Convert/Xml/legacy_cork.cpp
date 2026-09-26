@@ -104,7 +104,7 @@ legacy_cork_table::legacy_cork_table (const std::string& directory) {
 
 std::vector<legacy_text_piece> legacy_cork_table::decode (
   std::string_view source, legacy_text_role role, std::size_t limit,
-  std::size_t piece_limit) const {
+  std::size_t piece_limit, bool preserve_utf8) const {
   std::vector<legacy_text_piece> result;
   std::size_t written= 0;
   auto append_piece= [&] (legacy_piece_kind kind, std::string value, std::size_t begin,
@@ -149,12 +149,26 @@ std::vector<legacy_text_piece> legacy_cork_table::decode (
         const auto name= token.substr (1, token.size () - 2);
         // The name itself is identity, not another stream of symbol tokens.
         std::string identity= "texmacs:";
-        for (const auto& piece: decode (name, legacy_text_role::identifier, limit, piece_limit))
+        for (const auto& piece:
+               decode (name, legacy_text_role::identifier, limit, piece_limit,
+                       preserve_utf8))
           identity += piece.value;
         append_piece (legacy_piece_kind::named_symbol, std::move (identity), i, end + 1);
       }
       else throw legacy_text_error (i, "Named glyph has no scalar character equivalent");
       i= end + 1;
+      continue;
+    }
+    if (preserve_utf8 && static_cast<unsigned char> (source[i]) >= 0x80) {
+      int32_t next= static_cast<int32_t> (i);
+      UChar32 cp;
+      U8_NEXT (source.data (), next, static_cast<int32_t> (source.size ()), cp);
+      if (cp < 0)
+        throw legacy_text_error (i, "Malformed UTF-8 in legacy UTF-8 source");
+      append_piece (legacy_piece_kind::text,
+                    std::string (source.substr (i, static_cast<std::size_t> (next) - i)),
+                    i, static_cast<std::size_t> (next));
+      i= static_cast<std::size_t> (next);
       continue;
     }
     std::size_t matched= 0;

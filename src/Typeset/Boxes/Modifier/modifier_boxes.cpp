@@ -14,6 +14,7 @@
 #include "Boxes/composite.hpp"
 #include "Boxes/construct.hpp"
 #include "Boxes/inline_link.hpp"
+#include "math_font.hpp"
 
 /******************************************************************************
 * Modifier boxes
@@ -462,8 +463,18 @@ struct macro_box_rep: public composite_box_rep {
   SI right_correction () { return bs[0]->right_correction(); }
   SI lsub_correction () { return bs[0]->lsub_correction(); }
   SI lsup_correction () { return bs[0]->lsup_correction(); }
-  SI rsub_correction () { return bs[0]->rsub_correction(); }
-  SI rsup_correction () { return bs[0]->rsup_correction(); }
+  SI rsub_correction () {
+    if (btype == BIG_OP_BOX && !is_nil (big_fn) &&
+        athena::text::math_layout_metrics (big_fn))
+      return -bs[0]->right_correction ();
+    return bs[0]->rsub_correction();
+  }
+  SI rsup_correction () {
+    if (btype == BIG_OP_BOX && !is_nil (big_fn) &&
+        athena::text::math_layout_metrics (big_fn))
+      return 0;
+    return bs[0]->rsup_correction();
+  }
   SI sub_lo_base (int l) {
     // second test separates small and large big operators
     return (!is_nil (big_fn)) && ((y2-y1) <= 3*big_fn->yx)?
