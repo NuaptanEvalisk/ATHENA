@@ -120,8 +120,8 @@ are not handed to the GUI for traversal.
 References: `notes/font-domain-ownership.md`,
 `notes/actor-runtime-architecture.md`, `src/ATHENA/actor_transport.hpp`,
 `src/ATHENA/actor_ui_bridge.hpp`, `src/ATHENA/buffer_state.hpp`, and
-`src/Subsystems/Qt/QTMRenderService.cpp`. Architecture notes include historical
-design material; verify the current implementation when details matter.
+`src/Subsystems/Qt/QTMRenderService.cpp`. The architecture notes describe the
+current ownership model; verify the implementation when exact details matter.
 
 ## Text, Documents And Rendering
 

@@ -1,6 +1,7 @@
 # ATHENA Actor, Rendering, and Guile Runtime Architecture
 
-Status: implementation in progress
+Status: core architecture implemented; this note records current ownership and
+cross-thread invariants.
 
 This note records the agreed direction for moving document computation away
 from the Qt/Server thread while retaining one shared ATHENA Scheme world.  The
@@ -248,16 +249,15 @@ allocator corruption boundary before actors allocate trees and boxes
 concurrently; ownership and reference-count safety of those objects remains a
 separate requirement.
 
-## Implementation order
+## Current implementation status
 
-1. Make allocation and cross-thread immutable value lifetimes safe.  Core
-   allocator and `string` work is complete; remaining cross-thread value types
-   must be handled at the boundary where they are introduced.
-2. Replace Scheme root handling and finalization with owner-affine mechanisms.
-3. Make Modified Guile module, `lazy-define`, and `tm-define` publication
-   concurrent.
-4. Introduce `SchemeExecutionContext` and route editor glue through it.
-5. Move each buffer's computation and Scheme execution into its BufferActor.
-6. Introduce the render chunk arena and RenderService boundary.
-7. Add global Scheme workers only for capability-restricted, buffer-independent
-   work.
+The core migration described above is implemented: allocator/string lifetime,
+owner-affine Scheme handling, concurrent module publication,
+`SchemeExecutionContext`, per-buffer actors, ID-based transports and the
+RenderService boundary are all part of the current runtime.
+
+Remaining work is feature-specific boundary auditing rather than completion of
+a numbered runtime migration. New cross-thread value types must continue to use
+immutable snapshots, stable IDs or explicitly thread-safe storage. Global
+Scheme workers, when used, are restricted to buffer-independent jobs and are
+not a fallback execution path for editor or document work.

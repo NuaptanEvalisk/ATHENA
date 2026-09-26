@@ -37,8 +37,9 @@ removed with those features.
 Build through ATHENA's `cmake/AthenaGuile.cmake`, which regenerates Autotools
 inputs before configuring. For a clean validation, do not set
 `ATHENA_GUILE_PREBUILT_PREFIX` and do not reuse old bootstrap or installed
-standard-library trees. See `notes/guile-trimming-audit.md` in the ATHENA root
-for the audit and validation record.
+standard-library trees. This file is the current source-of-truth for the
+trimmed runtime surface; use repository history for the original trimming audit
+and validation record.
 
 The runtime is built with a private library name and is installed beside
 ATHENA.  ATHENA must never silently fall back to a system Guile installation.
