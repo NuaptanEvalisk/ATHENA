@@ -178,8 +178,7 @@ edit_interface_rep::key_press (string gkey) {
       }
     const string accent= std_accent (s);
     const bool disable_pre_edit= native_math_keyboard_context_active () ?
-      native_math_disable_pre_edit (accent) :
-      as_bool (call ("disable-pre-edit?", accent));
+      native_math_disable_pre_edit (accent) : false;
     if (disable_pre_edit) {
       pre_edit_skip= false;
       if (s == "") return;
@@ -203,8 +202,7 @@ edit_interface_rep::key_press (string gkey) {
   }
   else if (pre_edit_skip) {
     string r= native_math_keyboard_context_active () ?
-      native_math_downgrade_pre_edit (key) :
-      as_string (call ("downgrade-pre-edit", key));
+      native_math_downgrade_pre_edit (key) : string ("");
     if (r == "") return;
     else key= r;
   }
@@ -377,8 +375,7 @@ edit_interface_rep::handle_text_input (string text, time_t t) {
     }
     if (pre_edit_skip) {
       string converted= native_math_keyboard_context_active () ?
-        native_math_downgrade_pre_edit (text) :
-        as_string (call ("downgrade-pre-edit", text));
+        native_math_downgrade_pre_edit (text) : string ("");
       if (converted == "") {
         end_editing ();
         return;

@@ -1,0 +1,37 @@
+{
+  "version": 2,
+  "string_encoding": "utf-8",
+  "groups": [
+    {
+      "bindings": [
+        {"key": "ir-up", "commands": [{"call": "screens-switch-to", "args": [{"keyword": "previous"}]}]},
+        {"key": "ir-down", "commands": [{"call": "screens-switch-to", "args": [{"keyword": "next"}]}]},
+        {"key": "ir-left", "commands": [{"call": "dynamic-traverse-buffer", "args": [{"keyword": "previous"}]}]},
+        {"key": "ir-right", "commands": [{"call": "dynamic-traverse-buffer", "args": [{"keyword": "next"}]}]},
+        {"key": "ir-center", "commands": [{"call": "dynamic-traverse-buffer", "args": [{"keyword": "next"}]}]},
+        {"key": "ir-play", "commands": [{"call": "dynamic-traverse-buffer", "args": [{"keyword": "next"}]}]},
+        {"key": "ir-pause", "commands": [{"call": "dynamic-traverse-buffer", "args": [{"keyword": "next"}]}]},
+        {"key": "ir-menu", "commands": [{"call": "toggle-full-screen-mode", "args": []}]},
+        {"key": "F9", "commands": [{"call": "dynamic-operate-on-buffer", "args": [{"keyword": "first"}]}]},
+        {"key": "F10", "commands": [{"call": "dynamic-traverse-buffer", "args": [{"keyword": "previous"}]}]},
+        {"key": "F11", "commands": [{"call": "dynamic-traverse-buffer", "args": [{"keyword": "next"}]}]},
+        {"key": "F12", "commands": [{"call": "dynamic-operate-on-buffer", "args": [{"keyword": "last"}]}]},
+        {"key": "S-F9", "commands": [{"call": "dynamic-first", "args": []}]},
+        {"key": "S-F10", "commands": [{"call": "dynamic-previous", "args": []}]},
+        {"key": "S-F11", "commands": [{"call": "dynamic-next", "args": []}]},
+        {"key": "S-F12", "commands": [{"call": "dynamic-last", "args": []}]},
+        {"key": "C-F9", "commands": [{"call": "toggle-full-screen-mode", "args": []}]},
+        {"key": "C-F10", "commands": [{"call": "toggle-panorama-mode", "args": []}]},
+        {"key": "C-S-F10", "commands": [{"call": "toggle-slideshow-mode", "args": []}]},
+        {"key": "C-F11", "commands": [{"call": "toggle-remote-control-mode", "args": []}]}
+      ]
+    },
+    {
+      "mode": "in-screens?",
+      "bindings": [
+        {"key": "pageup", "commands": [{"call": "screens-switch-to", "args": [{"keyword": "previous"}]}]},
+        {"key": "pagedown", "commands": [{"call": "screens-switch-to", "args": [{"keyword": "next"}]}]}
+      ]
+    }
+  ]
+}

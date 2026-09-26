@@ -1,0 +1,26 @@
+{
+  "version": 2,
+  "string_encoding": "utf-8",
+  "groups": [
+    {
+      "mode": "in-auto?",
+      "bindings": [
+        {"key": "I F", "commands": [{"call": "make-block-if", "args": []}]},
+        {"key": "I F var", "commands": [{"call": "make-block-if-else", "args": []}]},
+        {"key": "F O R", "commands": [{"call": "make-block-for", "args": []}]},
+        {"key": "W H I L E", "commands": [{"call": "make-block-while", "args": []}]},
+        {"key": "T A G", "commands": [{"call": "make-block-tag", "args": []}]},
+        {"key": "< - -", "commands": [{"call": "make-block-assign", "args": []}]},
+        {"key": "O U T", "commands": [{"call": "make-block-output", "args": []}]},
+        {"key": "I f", "commands": [{"call": "make-inline-if", "args": []}]},
+        {"key": "I f var", "commands": [{"call": "make-inline-if-else", "args": []}]},
+        {"key": "F o r", "commands": [{"call": "make-inline-for", "args": []}]},
+        {"key": "W h i l e", "commands": [{"call": "make-inline-while", "args": []}]},
+        {"key": "T a g", "commands": [{"call": "make-inline-tag", "args": []}]},
+        {"key": "< -", "commands": [{"call": "make-inline-assign", "args": []}]},
+        {"key": "O u t", "commands": [{"call": "make-inline-output", "args": []}]},
+        {"key": "$ $", "commands": [{"call": "make-output-string", "args": []}]}
+      ]
+    }
+  ]
+}

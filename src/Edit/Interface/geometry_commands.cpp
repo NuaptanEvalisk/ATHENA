@@ -181,6 +181,52 @@ void focused (const char* command, bool argument) {
   call (command, object (focus_tree ()), object (argument));
 }
 
+bool graphical_text_context (tree t) {
+  return is_graphical_text (t);
+}
+
+string graphical_attribute (tree t, string name) {
+  return as_string (call ("graphical-get-attribute", object (t), object (name)));
+}
+
+void set_graphical_attribute (tree t, string name, string value) {
+  (void) call ("graphical-set-attribute", object (t), object (name), object (value));
+}
+
+bool active_graphics_context () {
+  editor ed= get_current_editor ();
+  return !is_nil (ed) && ed->inside_graphics (false) &&
+         !as_bool (call ("in-commutative-diagram?")) &&
+         ed->get_env_string (PREAMBLE) == "false";
+}
+
+void graphical_text_horizontal (tree t, bool forwards) {
+  const string old= graphical_attribute (t, "text-at-halign");
+  string value;
+  if (forwards) value= old == "right" ? "center" : "left";
+  else value= old == "left" ? "center" : "right";
+  set_graphical_attribute (t, "text-at-halign", value);
+}
+
+void graphical_text_vertical (tree t, bool down) {
+  const string var= as_string (call ("graphics-valign-var", object (t)));
+  const string old= graphical_attribute (t, var);
+  string value;
+  if (down) {
+    if (old == "bottom") value= "base";
+    else if (old == "base") value= "axis";
+    else if (old == "axis") value= "center";
+    else value= "top";
+  }
+  else {
+    if (old == "top") value= "center";
+    else if (old == "center") value= "axis";
+    else if (old == "axis") value= "base";
+    else value= "bottom";
+  }
+  set_graphical_attribute (t, var, value);
+}
+
 void insert_wrapper (tree t, string message, string context) {
   editor ed= get_current_editor ();
   const bool selection= ed->selection_active_small ();
@@ -200,10 +246,33 @@ void insert_wrapper (tree t, string message, string context) {
 
 void geometry_speed (tree t, bool forward) { adjust (t, adjustment::speed, forward, "geometry-speed"); }
 void geometry_variant (tree t, bool forward) { adjust (t, adjustment::variant, forward, "geometry-variant"); }
-void geometry_horizontal (tree t, bool forward) { adjust (t, adjustment::horizontal, forward, "geometry-horizontal"); }
-void geometry_vertical (tree t, bool down) { adjust (t, adjustment::vertical, down, "geometry-vertical"); }
-void geometry_extremal (tree t, bool forward) { adjust (t, adjustment::extremal, forward, "geometry-extremal"); }
-void geometry_incremental (tree t, bool down) { adjust (t, adjustment::incremental, down, "geometry-incremental"); }
+void geometry_horizontal (tree t, bool forward) {
+  if (graphical_text_context (t)) { graphical_text_horizontal (t, forward); return; }
+  adjust (t, adjustment::horizontal, forward, "geometry-horizontal");
+}
+void geometry_vertical (tree t, bool down) {
+  if (graphical_text_context (t)) { graphical_text_vertical (t, down); return; }
+  if (active_graphics_context ()) {
+    (void) call ("graphics-change-geo-valign", object (down));
+    return;
+  }
+  adjust (t, adjustment::vertical, down, "geometry-vertical");
+}
+void geometry_extremal (tree t, bool forward) {
+  if (graphical_text_context (t)) {
+    set_graphical_attribute (t, "text-at-halign", forward ? "left" : "right");
+    return;
+  }
+  adjust (t, adjustment::extremal, forward, "geometry-extremal");
+}
+void geometry_incremental (tree t, bool down) {
+  if (graphical_text_context (t)) {
+    const string var= as_string (call ("graphics-valign-var", object (t)));
+    set_graphical_attribute (t, var, down ? "top" : "bottom");
+    return;
+  }
+  adjust (t, adjustment::incremental, down, "geometry-incremental");
+}
 void geometry_default (tree t) {
   tree parent;
   if (parent_tree (t, parent)) call ("geometry-default", object (parent));

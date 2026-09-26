@@ -1,5 +1,4 @@
-(import-from (text text-edit) (generic generic-edit)
-             (table table-edit) (athena keyboard latex-kbd))
+(import-from (text text-edit) (generic generic-edit) (table table-edit))
 (init-style "generic")
 
 (define (check condition message)

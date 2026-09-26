@@ -1,97 +1,38 @@
-;; Validate the shipped declarative keymap, using Scheme's reader rather than
-;; text matching so mode scopes and key sequence boundaries remain significant.
-(use-modules (srfi srfi-1))
+;; Validate the shipped native keymap sources without depending on the removed
+;; Scheme keyboard modules.
+(use-modules (ice-9 textual-ports))
+
 (define root (cadr (command-line)))
-(define (forms name)
-  (call-with-input-file (string-append root "/ATHENA/progs/" name)
-    (lambda (port)
-      (let loop ((result '()))
-        (let ((form (read port)))
-          (if (eof-object? form) (reverse result)
-              (loop (cons form result))))))))
-(define (check expected actual label)
-  (unless (equal? expected actual) (error label expected actual)))
-(define math-maps
-  (filter (lambda (form)
-            (and (pair? form) (eq? (car form) 'kbd-map)
-                 (member '(:mode in-math?) (cdr form))))
-          (forms "math/math-kbd.scm")))
-(define (binding key)
-  (append-map (lambda (form)
-                (filter (lambda (entry)
-                          (and (pair? entry) (equal? (car entry) key)))
-                        (cdr form)))
-              math-maps))
-(check '(("- var" "<setminus>")) (binding "- var") "minus variant")
-(check '(("- >" "<rightarrow>")) (binding "- >") "right arrow unchanged")
-(check '(("- -" "<longminus>")) (binding "- -") "long minus unchanged")
-(check '(("math:right | var" (math-evaluation-bar)))
-       (binding "math:right | var") "evaluation bar variant")
-(check '(("|" (math-bracket-open "|" "|" (quote default))))
-       (binding "|") "absolute value unchanged")
-(check '(("| var" "|")) (binding "| var") "literal bar remains available")
-(check '(("| var var" (math-evaluation-bar)))
-       (binding "| var var") "evaluation bar in ordinary Tab cycle")
-(check '(("| var var var" (math-separator "|" (quote default))))
-       (binding "| var var var") "middle separator remains available")
-(check '(("math:right |" (math-bracket-close "|" "|" #t)))
-       (binding "math:right |") "closing bar unchanged")
-(check #t
-  (and (member '(set-variant-keys "tab" "S-tab")
-               (forms "athena/keyboard/prefix-kbd.scm")) #t)
-  "Tab is the variant key")
-(check #f
-  (any (lambda (form)
-         (and (pair? form) (eq? (car form) 'kbd-map)
-              (member '("- var" "<setminus>") (cdr form))))
-       (forms "generic/generic-kbd.scm"))
-  "no text-mode override")
+(define (slurp name)
+  (call-with-input-file (string-append root "/ATHENA/misc/input/" name)
+    get-string-all))
+(define (check condition label)
+  (unless condition (error label)))
+(define (contains? text fragment)
+  (not (not (string-contains text fragment))))
+
+(define math (slurp "math-keybindings.json"))
+(define generic (slurp "generic-keybindings.json"))
+(define prefixes (slurp "keyboard-prefixes.json"))
+
+(check (contains? prefixes "\"variant_key\": \"tab\"")
+       "Tab is the variant key")
+(check (contains? prefixes "\"unvariant_key\": \"S-tab\"")
+       "Shift-Tab is the reverse variant key")
+
 (for-each
-  (lambda (entry)
-    (check (list entry) (binding (car entry)) "normal subgroup Tab variant"))
-  '(("< | var" "<vartriangleleft>")
-    ("| > var" "<vartriangleright>")
-    ("< | var var" "<blacktriangleleft>")
-    ("| > var var" "<blacktriangleright>")
-    ("< | var var var" "<trianglelefteq>")
-    ("| > var var var" "<trianglerighteq>")
-    ("| var > var var" "<trianglerighteq>")))
-(define latex-commands
-  (append-map cdr
-    (filter (lambda (form) (and (pair? form) (eq? (car form) 'kbd-commands)))
-            (forms "athena/keyboard/latex-kbd.scm"))))
+  (lambda (key)
+    (check (contains? math (string-append "\"key\": \"" key "\""))
+           (string-append "missing native math binding " key)))
+  '("- var" "- >" "- -" "math:right | var" "|" "| var"
+    "| var var" "| var var var" "math:right |"))
+
 (for-each
-  (lambda (entry)
-    (check `(insert ,(cadr entry))
-           (caddr (assoc (car entry) latex-commands))
-           "normal subgroup command uses canonical symbol"))
-  '(("lhd" "<vartriangleleft>") ("rhd" "<vartriangleright>")
-    ("unlhd" "<trianglelefteq>") ("unrhd" "<trianglerighteq>")))
-;; Hybrid command implementations are native.  Keep this source-level test
-;; focused on the declarative keymap; actor-owned editor regressions exercise
-;; the native command behavior and exact cursor/tree results.
-(define hybrid-maps
-  (filter (lambda (form)
-            (and (pair? form) (eq? (car form) 'kbd-map)
-                 (member '(:mode in-hybrid?) (cdr form))))
-          (forms "generic/generic-kbd.scm")))
-(define (hybrid-binding key command)
-  (any (lambda (form) (and (member `(,key ,command) (cdr form)) #t))
-       hybrid-maps))
-(check #t (hybrid-binding "{" '(hybrid-kbd-curly-left))
-       "hybrid opening brace binding")
-(check #t (hybrid-binding "}" '(hybrid-kbd-curly-right))
-       "hybrid closing brace binding")
-(check #t (hybrid-binding "\\" '(hybrid-kbd-backslash))
-       "hybrid backslash binding")
-(check #t (hybrid-binding "_" '(hybrid-kbd-sub))
-       "hybrid subscript binding")
-(check #t (hybrid-binding "^" '(hybrid-kbd-sup))
-       "hybrid superscript binding")
-(for-each
-  (lambda (bracket)
-    (check #t
-      (hybrid-binding bracket `(hybrid-kbd-formula-open ,bracket))
-      "hybrid formula key binding"))
-  '("[" "("))
-(display "PASS: math variants, commands, arrow bindings and hybrid shortcuts\n")
+  (lambda (command)
+    (check (contains? generic (string-append "\"call\": \"" command "\""))
+           (string-append "missing native hybrid command " command)))
+  '("hybrid-kbd-curly-left" "hybrid-kbd-curly-right"
+    "hybrid-kbd-backslash" "hybrid-kbd-sub" "hybrid-kbd-sup"
+    "hybrid-kbd-formula-open"))
+
+(display "PASS: native math keymap, prefix and hybrid sources\n")

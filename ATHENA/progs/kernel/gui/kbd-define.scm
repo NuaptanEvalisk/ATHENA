@@ -21,6 +21,18 @@
 (define lazy-keyboard-waiting '())
 (tm-define lazy-keyboard-done (make-ahash-table))
 
+(define (native-keyboard-module? module)
+  (and (pair? module)
+       (== (car module) 'native-keyboard)
+       (pair? (cdr module))
+       (null? (cddr module))
+       (symbol? (cadr module))))
+
+(define (lazy-keyboard-provide module)
+  (if (native-keyboard-module? module)
+      (generic-keyboard-load-domain (symbol->string (cadr module)))
+      (module-provide module)))
+
 (tm-define (lazy-keyboard-do module mode*)
   (with mode (texmacs-mode-mode mode*)
     (set! lazy-keyboard-waiting (acons mode module lazy-keyboard-waiting))))
@@ -29,8 +41,9 @@
   (for-each (lambda (mode) (lazy-keyboard-do module mode)) modes)
   `(delayed
      (:idle 250)
-     (ahash-set! lazy-keyboard-done ',module #t)
-     (module-provide ',module)))
+     (when (not (ahash-ref lazy-keyboard-done ',module))
+       (lazy-keyboard-provide ',module)
+       (ahash-set! lazy-keyboard-done ',module #t))))
 
 (define lazy-force-all? #f)
 (define lazy-force-busy? #f)
@@ -41,7 +54,7 @@
 	((ahash-ref lazy-keyboard-done (cdar l))
 	 (lazy-keyboard-force-do (cdr l)))
 	((or lazy-force-all? (texmacs-in-mode? (caar l)))
-         (module-provide (cdar l))
+         (lazy-keyboard-provide (cdar l))
 	 (ahash-set! lazy-keyboard-done (cdar l) #t)
 	 (lazy-keyboard-force-do (cdr l)))
 	(else (cons (car l) (lazy-keyboard-force-do (cdr l))))))
@@ -82,7 +95,7 @@
               (dynamic-wind
                 (lambda () (noop))
                 (lambda ()
-                  (module-provide module)
+                  (lazy-keyboard-provide module)
                   (ahash-set! lazy-keyboard-done module #t))
                 (lambda () (set! lazy-force-busy? #f)))
               (delayed (:idle 1) (kbd-inverse-warmup-step)))))))

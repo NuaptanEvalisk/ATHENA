@@ -15,6 +15,7 @@
 #include "native_latex_commands.hpp"
 #include "new_view.hpp"
 #include "scheme.hpp"
+#include "Subsystems/Qt/QTMESCSymbolPicker.hpp"
 
 #include <QByteArray>
 #include <QJsonArray>
@@ -213,11 +214,28 @@ void dispatch_focus (const char* command, bool flag) {
 
 bool generic_context_at_cursor () {
   editor ed= get_current_editor ();
+  if (ed->inside_graphics ()) return false;
   path p= ed->the_path ();
   if (is_nil (p)) return false;
   p= path_up (p);
   if (!ed->test_subtree (p)) return false;
   return as_bool (call ("generic-context?", object (ed->the_subtree (p))));
+}
+
+bool graphical_text_context (tree t) {
+  return is_graphical_text (t);
+}
+
+bool cursor_inside_graphical_text_context () {
+  editor ed= get_current_editor ();
+  if (is_nil (ed) || !ed->inside_graphics (false)) return false;
+  path p= ed->the_path ();
+  while (!is_nil (p)) {
+    if (ed->test_subtree (p) && is_graphical_text (ed->the_subtree (p)))
+      return true;
+    p= path_up (p);
+  }
+  return false;
 }
 
 enum generic_move_kind {
@@ -264,9 +282,29 @@ void generic_move_until_context (generic_move_kind kind, bool forwards) {
   if (!generic_context_at_cursor ()) ed->go_to (original);
 }
 
+void graphical_text_move (generic_move_kind kind, bool forwards) {
+  editor ed= get_current_editor ();
+  path original= copy (ed->the_path ());
+  hashset<path> visited;
+  while (true) {
+    path before= copy (ed->the_path ());
+    move_once (kind, forwards);
+    path after= copy (ed->the_path ());
+    if (after == before || visited->contains (after) ||
+        cursor_inside_graphical_text_context ())
+      break;
+    visited->insert (after);
+  }
+  if (!cursor_inside_graphical_text_context ()) ed->go_to (original);
+}
+
 } // namespace
 
 void generic_kbd_horizontal (tree t, bool forwards) {
+  if (graphical_text_context (t)) {
+    graphical_text_move (MOVE_HORIZONTAL, forwards);
+    return;
+  }
   if (!admits_edit_observer (t)) {
     outward (t, "kbd-horizontal", forwards);
     return;
@@ -275,6 +313,10 @@ void generic_kbd_horizontal (tree t, bool forwards) {
 }
 
 void generic_kbd_vertical (tree t, bool downwards) {
+  if (graphical_text_context (t)) {
+    graphical_text_move (MOVE_VERTICAL, downwards);
+    return;
+  }
   if (!admits_edit_observer (t)) {
     outward (t, "kbd-vertical", downwards);
     return;
@@ -283,6 +325,13 @@ void generic_kbd_vertical (tree t, bool downwards) {
 }
 
 void generic_kbd_extremal (tree t, bool forwards) {
+  if (graphical_text_context (t)) {
+    object child= call ("tree-down", object (t));
+    if (!(is_bool (child) && !as_bool (child)))
+      (void) call ("tree-go-to", child,
+                  keyword_object (forwards ? "end" : "start"));
+    return;
+  }
   if (!admits_edit_observer (t)) {
     outward (t, "kbd-extremal", forwards);
     return;
@@ -549,6 +598,24 @@ generic_escape_symbol_dispatch (string action) {
   return object (false);
 }
 
+void
+generic_escape_symbol_insert (string action) {
+  object dispatch= generic_escape_symbol_dispatch (action);
+  if (is_bool (dispatch) && as_bool (dispatch)) return;
+  if (as_bool (call ("pair?", dispatch))) {
+    object proc= eval (call ("car", dispatch));
+    (void) call ("apply", proc, call ("cdr", dispatch));
+    return;
+  }
+  get_current_editor ()->key_press (action);
+}
+
+void
+generic_open_escape_symbol_picker () {
+  string action= escape_symbol_picker_dialog ();
+  if (action != "") generic_escape_symbol_insert (action);
+}
+
 object
 generic_key_press_command (string key) {
   object binding= call ("kbd-find-key-binding", object (key));
@@ -596,6 +663,14 @@ string
 generic_handwriting_symbol_input_description (string command) {
   string direct;
   if (handwriting_symbol_direct_text (command, direct)) return direct;
+  const string key= handwriting_symbol_command_key (command);
+  string help;
+  class command native_cmd;
+  if (native_latex_get_command (key, help, native_cmd)) {
+    QJsonObject config= keyboard_action_data ().handwriting;
+    return keyboard_native_string (config.value ("command_prefix").toString ()) *
+           key * keyboard_native_string (config.value ("description_suffix").toString ());
+  }
   object procedure;
   if (!handwriting_symbol_command (command, procedure)) return "";
   QJsonObject config= keyboard_action_data ().handwriting;
@@ -609,6 +684,14 @@ generic_handwriting_symbol_insert (string command) {
   string direct;
   if (handwriting_symbol_direct_text (command, direct)) {
     get_current_editor ()->insert_tree (tree (direct));
+    return;
+  }
+
+  string help;
+  class command native_cmd;
+  if (native_latex_get_command (handwriting_symbol_command_key (command),
+                                help, native_cmd)) {
+    native_cmd ();
     return;
   }
 

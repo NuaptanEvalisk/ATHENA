@@ -11,6 +11,7 @@
 #include "file.hpp"
 #include "sys_utils.hpp"
 #include "language.hpp"
+#include "native_keyboard_prefixes.hpp"
 #include "utf8_edit.hpp"
 
 #include <QJsonArray>
@@ -64,11 +65,8 @@ struct native_math_registry {
   std::string unvariant_suffix;
 
   native_math_registry () {
-    // The JSON uses the logical keyboard vocabulary from prefix-kbd (math,
-    // var, font, ...).  This dependency used to be implicit through kbd-map,
-    // but the native registry builds its own physical index, so make it
-    // explicit before applying the shared pre-rewrite rules.
-    eval ("(module-provide '(athena keyboard prefix-kbd))");
+    // Math and the shared keymap loader use the same logical prefix vocabulary.
+    native_keyboard_prefixes_load ();
     const string variant= get_server ()->kbd_pre_rewrite ("var");
     const string unvariant= get_server ()->kbd_pre_rewrite ("unvar");
     variant_suffix= " " + std::string (variant.data (), (std::size_t) N(variant));

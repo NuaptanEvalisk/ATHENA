@@ -76,7 +76,8 @@
 (import-from (utils misc markup-funcs))
 (lazy-tmfs-handler (utils automate auto-tmfs) automate)
 (lazy-define (utils automate auto-tmfs) auto-load-help)
-(lazy-keyboard (utils automate auto-kbd) in-auto?)
+(lazy-keyboard (utils automate auto-tmfs) in-auto?)
+(lazy-keyboard (native-keyboard automate) in-auto?)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting main TeXmacs functionality\n")
@@ -86,8 +87,6 @@
              run-global-transformation)
 (lazy-define (athena athena tm-files)
              buffer-missing-style? buffer-set-default-style command-line-convert)
-(import-from (athena keyboard config-kbd))
-(module-provide '(athena keyboard prefix-kbd))
 (lazy-menu (athena menus file-menu)
            file-menu go-menu buffer-go-menu
            new-file-menu load-menu save-menu
@@ -119,7 +118,19 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting generic mode\n")
-(module-provide '(generic generic-kbd))
+(import-from (utils edit variants))
+(import-from (utils edit auto-close))
+(import-from (utils library cursor))
+(import-from (generic document-edit))
+(import-from (generic generic-edit))
+(import-from (generic format-drd))
+(import-from (source source-edit))
+(import-from (athena athena tm-files))
+(import-from (athena athena tm-print))
+(import-from (athena athena tm-vault))
+(import-from (athena menus file-menu))
+(import-from (doc help-funcs))
+(generic-keyboard-load)
 (lazy-menu (generic live-spell) spell-live-popup-menu)
 (lazy-define (generic live-spell)
              spell-live-import-custom-dictionary-from-preferences)
@@ -205,7 +216,8 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting text mode\n")
-(lazy-keyboard (text text-kbd) in-text?)
+(lazy-keyboard (text text-edit) in-text?)
+(lazy-keyboard (native-keyboard text) in-text?)
 (lazy-menu (text text-menu) text-format-menu text-format-icons
 	   text-menu text-block-menu text-inline-menu
            text-icons text-block-icons text-inline-icons)
@@ -226,13 +238,20 @@
 ;(display "Booting programming modes\n")
 (lazy-format (prog code-format) cpp julia scala java json csv)
 (lazy-format (prog python-format) python)
-(lazy-keyboard (prog prog-kbd) in-prog?)
+(lazy-keyboard (utils edit selections) in-prog?)
+(lazy-keyboard (prog dot-edit) in-prog?)
+(lazy-keyboard (prog java-edit) in-prog?)
+(lazy-keyboard (prog scala-edit) in-prog?)
+(lazy-keyboard (prog cpp-edit) in-prog?)
+(lazy-keyboard (prog python-edit) in-prog?)
+(lazy-keyboard (prog fortran-edit) in-prog?)
+(lazy-keyboard (native-keyboard prog) in-prog?)
 (lazy-menu (prog prog-menu) prog-format-menu prog-format-icons
 	   prog-menu prog-icons)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting source mode\n")
-(lazy-keyboard (source source-kbd) always?)
+(lazy-keyboard (native-keyboard source) always?)
 (lazy-menu (source source-menu) source-macros-menu source-menu source-icons
            source-transformational-menu source-executable-menu)
 (lazy-define (source macro-edit)
@@ -246,7 +265,8 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting table mode\n")
-(lazy-keyboard (table table-kbd) in-table?)
+(lazy-keyboard (table table-edit) in-table?)
+(lazy-keyboard (native-keyboard table) in-table?)
 (lazy-menu (table table-menu) insert-table-menu)
 (lazy-define (table table-edit) table-resize-notify)
 (lazy-define (table table-widgets) open-cell-properties open-table-properties)
@@ -255,7 +275,10 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting graphics mode\n")
-(lazy-keyboard (graphics graphics-kbd) in-active-graphics? graphics-wheel)
+(lazy-keyboard (graphics graphics-drd) in-graphics?)
+(lazy-keyboard (graphics graphics-main) in-graphics?)
+(lazy-keyboard (graphics graphics-utils) in-graphics?)
+(lazy-keyboard (native-keyboard graphics) in-graphics?)
 (lazy-menu (graphics graphics-menu) graphics-menu)
 (lazy-define (graphics graphics-utils) make-graphics)
 (lazy-define (graphics graphics-main) graphics-update-proviso
@@ -268,7 +291,8 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting dynamic features\n")
-(lazy-keyboard (dynamic fold-kbd) always?)
+(lazy-keyboard (dynamic fold-edit) always?)
+(lazy-keyboard (native-keyboard fold) always?)
 (lazy-menu (dynamic fold-menu) insert-fold-menu dynamic-menu dynamic-icons
            graphics-overlays-menu graphics-screens-menu
            graphics-focus-overlays-menu)
@@ -277,7 +301,7 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting documentation\n")
-(lazy-keyboard (doc tmdoc-kbd) in-manual?)
+(lazy-keyboard (native-keyboard tmdoc) in-manual?)
 (lazy-menu (doc tmdoc-menu) tmdoc-menu tmdoc-icons)
 (lazy-menu (doc help-menu) help-menu)
 (lazy-define (doc tmdoc) tmdoc-expand-help tmdoc-expand-help-manual

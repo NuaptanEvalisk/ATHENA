@@ -15,8 +15,11 @@
 #include "tree.hpp"
 
 void generic_keyboard_load ();
+void generic_keyboard_load_domain (string domain);
 object generic_keyboard_run (int group, int binding);
 bool generic_keyboard_condition (int group);
+void generic_escape_symbol_insert (string action);
+void generic_open_escape_symbol_picker ();
 
 void generic_kbd_horizontal (tree t, bool forwards);
 void generic_kbd_vertical (tree t, bool downwards);

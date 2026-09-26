@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "string_encoding": "utf-8",
+  "groups": [
+    {
+      "mode": "in-manual?",
+      "bindings": [
+        {"key": "S-F7", "commands": [{"call": "make", "args": [{"symbol": "scm"}]}]},
+        {"key": "C-F7", "commands": [{"call": "make", "args": [{"symbol": "scm-arg"}]}]},
+        {"key": "M-F7", "commands": [{"call": "make", "args": [{"symbol": "scm-code"}]}]}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,105 @@
+{
+  "version": 2,
+  "string_encoding": "utf-8",
+  "groups": [
+    {
+      "profiles": ["emacs"],
+      "bindings": [
+        {"key": "emacs", "text": "", "help": "Emacs command"},
+        {"key": "emacs:contextual", "text": "", "help": "Emacs mode specific prefix command"},
+        {"key": "emacs:prefix", "text": "", "help": "Emacs prefix command"},
+        {"key": "emacs:meta", "text": "Emacs meta"}
+      ]
+    },
+    {
+      "profiles": ["gnome"],
+      "bindings": [
+        {"key": "gnome", "text": "", "help": "Gnome command"},
+        {"key": "std", "text": "", "help": "Gnome command"}
+      ]
+    },
+    {
+      "profiles": ["kde"],
+      "bindings": [
+        {"key": "kde", "text": "", "help": "KDE command"},
+        {"key": "std", "text": "", "help": "KDE command"}
+      ]
+    },
+    {
+      "profiles": ["windows"],
+      "bindings": [
+        {"key": "windows", "text": "", "help": "Windows command"},
+        {"key": "std", "text": "", "help": "Windows command"}
+      ]
+    },
+    {
+      "profiles": ["macos"],
+      "bindings": [
+        {"key": "macos", "text": "", "help": "MacOS command"},
+        {"key": "std", "text": "", "help": "MacOS command"},
+        {"key": "A-", "text": "", "help": "MacOS option"}
+      ]
+    },
+    {
+      "bindings": [
+        {"key": "cmd", "text": "", "help": "TeXmacs command"},
+        {"key": "altcmd", "text": "", "help": "Alternate TeXmacs command"},
+        {"key": "special", "text": "", "help": "Special command"},
+        {"key": "structured:move", "text": "", "help": "Structured move"},
+        {"key": "structured:geometry", "text": "", "help": "Structured position or resize"},
+        {"key": "symbol", "text": "", "help": "Insert a TeXmacs symbol"},
+        {"key": "copyto", "text": "", "help": "Copy to (1, 2, 3, *:other)"},
+        {"key": "cutto", "text": "", "help": "Cut to (1, 2, 3, *:other)"},
+        {"key": "pastefrom", "text": "", "help": "Paste from (1, 2, 3, *:other)"},
+        {"key": "noop", "commands": [{"call": "set-message", "args": ["", ""]}]},
+        {"key": "font", "text": "", "help": "Change font"},
+        {"key": "executable", "text": "", "help": "Insert executable markup"},
+        {"key": "inactive", "text": "", "help": "Insert inactive markup"},
+        {"key": "table", "text": "", "help": "Table command"}
+      ]
+    },
+    {
+      "profiles": ["emacs"],
+      "bindings": [
+        {"key": "altcmd", "text": "", "help": "Alternate TeXmacs command"}
+      ]
+    },
+    {
+      "mode": "in-text?",
+      "bindings": [
+        {"key": "text", "text": "", "help": "TeXmacs command"},
+        {"key": "text:symbol", "text": "", "help": "Insert a special character"}
+      ]
+    },
+    {
+      "mode": "in-math?",
+      "bindings": [
+        {"key": "math", "text": "", "help": "Insert mathematical markup"},
+        {"key": "math:up", "text": "", "help": "Insert an upright character"},
+        {"key": "math:greek", "text": "", "help": "Insert a Greek character"},
+        {"key": "math:bold", "text": "", "help": "Insert a bold character"},
+        {"key": "math:bold:up", "text": "", "help": "Insert an upright bold character"},
+        {"key": "math:bold:greek", "text": "", "help": "Insert a bold Greek character"},
+        {"key": "math:cal", "text": "", "help": "Insert a calligraphic character"},
+        {"key": "math:bold:cal", "text": "", "help": "Insert a bold calligraphic character"},
+        {"key": "math:frak", "text": "", "help": "Insert a fraktur character"},
+        {"key": "math:bbb", "text": "", "help": "Insert a blackboard bold character"},
+        {"key": "math:over", "text": "", "help": "Insert a wide symbol above"},
+        {"key": "math:under", "text": "", "help": "Insert a wide symbol below"},
+        {"key": "math:left", "text": "", "help": "Insert a large left delimiter or left subscript"},
+        {"key": "math:middle", "text": "", "help": "Insert a large separator"},
+        {"key": "math:right", "text": "", "help": "Insert a large right delimiter"},
+        {"key": "math:symbol", "text": "", "help": "Insert a mathematical symbol"},
+        {"key": "math:symbol:circled", "text": "", "help": "Insert a big circled operator"},
+        {"key": "math:symbol:limits", "text": "", "help": "Insert a mathematical symbol with limits"},
+        {"key": "math:syntax", "text": "", "help": "Specify an alternative semantics"}
+      ]
+    },
+    {
+      "mode": "in-prog?",
+      "bindings": [
+        {"key": "prog", "text": "", "help": "TeXmacs command"}
+      ]
+    }
+  ]
+}

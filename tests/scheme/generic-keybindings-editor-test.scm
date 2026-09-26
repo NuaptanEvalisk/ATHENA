@@ -1,5 +1,4 @@
 ;; Exercise registration and native JSON dispatch on a real BufferActor.
-(module-provide '(generic generic-kbd))
 (lazy-keyboard-force #t)
 (init-style "generic")
 
@@ -15,6 +14,14 @@
 (define original-profile has-look-and-feel?)
 (define captured '())
 (define profile #f)
+(define native-domains
+  '(text prog source table graphics fold tmdoc automate))
+(define (load-all-native-keymaps)
+  (generic-keyboard-load)
+  (for-each
+    (lambda (domain)
+      (generic-keyboard-load-domain (symbol->string domain)))
+    native-domains))
 (dynamic-wind
   (lambda ()
     (set! kbd-binding
@@ -27,13 +34,13 @@
       (lambda (entry)
         (set! profile (car entry))
         (set! captured '())
-        (generic-keyboard-load)
+        (load-all-native-keymaps)
         (check (= (length captured) (cadr entry)) "profile filtering"))
-      '((emacs 292) (std 250) (gnome 258) (kde 253) (macos 251) (windows 264)))
+      '((emacs 876) (std 829) (gnome 839) (kde 834) (macos 837) (windows 853)))
     (set! profile #f)
     (set! captured '())
-    (generic-keyboard-load)
-    (check (= (length captured) 478) "all 478 declarations registered"))
+    (load-all-native-keymaps)
+    (check (= (length captured) 1083) "all native declarations registered"))
   (lambda ()
     (set! kbd-binding original-binding)
     (set! has-look-and-feel? original-profile)))
@@ -42,11 +49,16 @@
 (define (action key) (caddr (entry key)))
 (define (base-action key)
   (caddr (car (filter (lambda (entry)
-                       (and (equal? (car entry) key) (null? (cadr entry))))
-                     captured))))
+                        (and (equal? (car entry) key) (null? (cadr entry))))
+                      captured))))
+(define (condition-entry key predicate)
+  (car (filter (lambda (candidate)
+                 (and (equal? (car candidate) key)
+                      (memq predicate (cadr candidate))))
+               captured)))
 (check (equal? (promise-source (action "left")) '(kbd-left))
        "semantic command source retained for inverse lookup")
-(check (equal? (promise-source (action "C-0")) '(change-zoom-factor 1.0))
+(check (equal? (promise-source (base-action "C-0")) '(change-zoom-factor 1.0))
        "inexact numeric source retained")
 (check (not (promise-source (action "undo")))
        "multiple-command source is not misrepresented as a single command")
@@ -54,7 +66,7 @@
 (let ((replacement (string (integer->char #xfffd))))
   (check (equal? (action (string-append "symbol " replacement)) replacement)
          "Unicode key and text preserved through the UTF-8 Scheme bridge"))
-(check (eq? (car (cadr (entry "_"))) in-hybrid?) "mode predicate identity")
+(check (condition-entry "_" in-hybrid?) "mode predicate identity")
 
 ;; Public command lookup must happen at invocation, not JSON load time.
 (let ((saved kbd-left) (invoked #f))
@@ -88,7 +100,12 @@
 ;; Requirements are live predicates and short-circuit, not load-time filters.
 (let ((saved-prog in-prog?) (saved-verbatim in-verbatim?)
       (prog? #f) (verbatim? #f) (calls 0)
-      (predicate (car (cadr (entry "A-tab")))))
+      (predicate
+        (car (cadr
+          (car (filter (lambda (candidate)
+                         (and (equal? (car candidate) "A-tab")
+                              (not (memq in-prog-python? (cadr candidate)))))
+                       captured))))))
   (dynamic-wind
     (lambda ()
       (set! in-prog? (lambda () prog?))

@@ -1,7 +1,6 @@
 ;; Generic keyboard fallbacks execute on the owning BufferActor.
 (import-from (generic generic-edit))
 (import-from (generic insert-menu))
-(import-from (graphics graphics-kbd))
 (init-style "generic")
 
 (define (body) (tree->stree (buffer-tree)))
@@ -208,7 +207,9 @@
 (reset "" 0)
 (escape-symbol-insert "tree:dx")
 (check (equal? (body)
-               '(document (frac "<mathd>" "<mathd>x")))
+                '(document
+                   (frac (named-symbol "texmacs:mathd")
+                         (concat (named-symbol "texmacs:mathd") "x"))))
        "native escape symbol inserts derivative tree")
 
 (reset "" 0)
@@ -261,7 +262,7 @@
        "native handwriting description reaches keyboard command table")
 (reset "" 0)
 (handwriting-symbol-insert "\\lhd")
-(check (equal? (body) '(document "<vartriangleleft>"))
+(check (equal? (body) '(document "⊲"))
        "native handwriting insertion executes keyboard command procedure")
 
 (init-env "page-medium" "paper")

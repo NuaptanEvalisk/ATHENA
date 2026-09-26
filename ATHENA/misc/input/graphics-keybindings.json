@@ -1,0 +1,36 @@
+{
+  "version": 2,
+  "string_encoding": "utf-8",
+  "groups": [
+    {
+      "require": {"all": [{"call": "in-graphics?", "args": []}, {"not": {"call": "in-commutative-diagram?", "args": []}}, {"call": "==", "args": [{"call": "get-env", "args": ["preamble"]}, "false"]}]},
+      "bindings": [
+        {"key": "#", "commands": [{"call": "graphics-toggle-grid", "args": []}]},
+        {"key": "return", "commands": [{"call": "graphics-apply-props-at-mouse", "args": []}]},
+        {"key": "S-return", "commands": [{"call": "graphics-get-props-at-mouse", "args": []}]},
+        {"key": "C-g", "commands": [{"call": "graphics-toggle-logical-grid", "args": []}]},
+        {"key": "C-G", "commands": [{"call": "graphics-toggle-visual-grid", "args": []}]},
+        {"key": "C-2", "commands": [{"call": "graphics-set-grid-aspect", "args": [{"symbol": "detailed"}, 2, true]}]},
+        {"key": "C-3", "commands": [{"call": "graphics-set-grid-aspect", "args": [{"symbol": "detailed"}, 3, true]}]},
+        {"key": "C-4", "commands": [{"call": "graphics-set-grid-aspect", "args": [{"symbol": "detailed"}, 4, true]}]},
+        {"key": "C-5", "commands": [{"call": "graphics-set-grid-aspect", "args": [{"symbol": "detailed"}, 5, true]}]},
+        {"key": "C-6", "commands": [{"call": "graphics-set-grid-aspect", "args": [{"symbol": "detailed"}, 6, true]}]},
+        {"key": "C-7", "commands": [{"call": "graphics-set-grid-aspect", "args": [{"symbol": "detailed"}, 7, true]}]},
+        {"key": "C-8", "commands": [{"call": "graphics-set-grid-aspect", "args": [{"symbol": "detailed"}, 8, true]}]},
+        {"key": "C-9", "commands": [{"call": "graphics-set-grid-aspect", "args": [{"symbol": "detailed"}, 9, true]}]},
+        {"key": "C-0", "commands": [{"call": "graphics-set-grid-aspect", "args": [{"symbol": "detailed"}, 10, true]}]},
+        {"key": "C-left", "commands": [{"call": "graphics-rotate-xz", "args": [{"number": -0.1}]}]},
+        {"key": "C-right", "commands": [{"call": "graphics-rotate-xz", "args": [{"number": 0.1}]}]},
+        {"key": "C-up", "commands": [{"call": "graphics-rotate-yz", "args": [{"number": 0.1}]}]},
+        {"key": "C-down", "commands": [{"call": "graphics-rotate-yz", "args": [{"number": -0.1}]}]}
+      ]
+    },
+    {
+      "require": {"all": [{"call": "in-graphics?", "args": []}, {"not": {"call": "in-commutative-diagram?", "args": []}}, {"call": "==", "args": [{"call": "get-env", "args": ["preamble"]}, "false"]}, {"call": "in-screens?", "args": []}]},
+      "bindings": [
+        {"key": "pageup", "commands": [{"call": "screens-switch-to", "args": [{"keyword": "previous"}]}]},
+        {"key": "pagedown", "commands": [{"call": "screens-switch-to", "args": [{"keyword": "next"}]}]}
+      ]
+    }
+  ]
+}

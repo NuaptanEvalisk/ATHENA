@@ -1,0 +1,78 @@
+{
+  "version": 2,
+  "string_encoding": "utf-8",
+  "groups": [
+    {
+      "mode": "in-prog?",
+      "bindings": [
+        {"key": "cmd i", "commands": [{"call": "program-indent", "args": [false]}]},
+        {"key": "cmd I", "commands": [{"call": "program-indent", "args": [true]}]},
+        {"key": "cmd tab", "commands": [{"call": "program-indent", "args": [false]}]},
+        {"key": "cmd S-tab", "commands": [{"call": "program-indent", "args": [true]}]},
+        {"key": "cmd A-tab", "commands": [{"call": "program-indent-all", "args": [false]}]},
+        {"key": "space var", "commands": [{"call": "insert-tabstop", "args": []}]},
+        {"key": "space var var", "commands": [{"call": "insert-tabstop", "args": []}, {"call": "insert-tabstop", "args": []}]},
+        {"key": "$", "commands": [{"call": "insert", "args": ["$"]}]},
+        {"key": "$ var", "commands": [{"call": "make", "args": [{"symbol": "math"}]}]},
+        {"key": "\\", "text": "\\"},
+        {"key": "\\ var", "commands": [{"call": "make", "args": [{"symbol": "hybrid"}]}]},
+        {"key": "\"", "text": "\""},
+        {"key": "`", "text": "`"},
+        {"key": "` var", "text": "‘"},
+        {"key": "'", "text": "'"},
+        {"key": "' var", "text": "’"},
+        {"key": "< <", "text": "<<"},
+        {"key": "> >", "text": ">>"},
+        {"key": "' '", "text": "''"},
+        {"key": "` `", "text": "``"},
+        {"key": "- -", "text": "--"},
+        {"key": "- - -", "text": "---"},
+        {"key": "< < var", "text": "«"},
+        {"key": "> > var", "text": "»"},
+        {"key": "' ' var", "text": "”"},
+        {"key": "` ` var", "text": "“"},
+        {"key": ", , var", "text": "„"},
+        {"key": "- - var", "text": "–"},
+        {"key": "- - - var", "text": "—"}
+      ]
+    },
+    {
+      "mode": "in-prog-cpp?",
+      "bindings": [
+        {"key": "{", "commands": [{"call": "cpp-bracket-open", "args": ["{", "}"]}]},
+        {"key": "}", "commands": [{"call": "cpp-bracket-close", "args": ["{", "}"]}]},
+        {"key": "(", "commands": [{"call": "cpp-bracket-open", "args": ["(", ")"]}]},
+        {"key": ")", "commands": [{"call": "cpp-bracket-close", "args": ["(", ")"]}]},
+        {"key": "[", "commands": [{"call": "cpp-bracket-open", "args": ["[", "]"]}]},
+        {"key": "]", "commands": [{"call": "cpp-bracket-close", "args": ["[", "]"]}]},
+        {"key": "\"", "commands": [{"call": "cpp-bracket-open", "args": ["\"", "\""]}]}
+      ]
+    },
+    {
+      "mode": "in-prog-python?",
+      "bindings": [
+        {"key": "A-tab", "commands": [{"call": "insert-tabstop", "args": []}]},
+        {"key": "cmd S-tab", "commands": [{"call": "remove-tabstop", "args": []}]},
+        {"key": "{", "commands": [{"call": "python-bracket-open", "args": ["{", "}"]}]},
+        {"key": "}", "commands": [{"call": "python-bracket-close", "args": ["{", "}"]}]},
+        {"key": "(", "commands": [{"call": "python-bracket-open", "args": ["(", ")"]}]},
+        {"key": ")", "commands": [{"call": "python-bracket-close", "args": ["(", ")"]}]},
+        {"key": "[", "commands": [{"call": "python-bracket-open", "args": ["[", "]"]}]},
+        {"key": "]", "commands": [{"call": "python-bracket-close", "args": ["[", "]"]}]},
+        {"key": "\"", "commands": [{"call": "python-bracket-open", "args": ["\"", "\""]}]},
+        {"key": "'", "commands": [{"call": "python-bracket-open", "args": ["'", "'"]}]}
+      ]
+    },
+    {
+      "mode": "in-prog-fortran?",
+      "bindings": [
+        {"key": "(", "commands": [{"call": "fortran-bracket-open", "args": ["(", ")"]}]},
+        {"key": ")", "commands": [{"call": "fortran-bracket-close", "args": ["(", ")"]}]},
+        {"key": "[", "commands": [{"call": "fortran-bracket-open", "args": ["[", "]"]}]},
+        {"key": "]", "commands": [{"call": "fortran-bracket-close", "args": ["[", "]"]}]},
+        {"key": "\"", "commands": [{"call": "fortran-bracket-open", "args": ["\"", "\""]}]},
+        {"key": "'", "commands": [{"call": "fortran-bracket-open", "args": ["'", "'"]}]}
+      ]
+    }
+  ]
+}

@@ -1,12 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
   <binding name="generic-keyboard-load" native="generic_keyboard_load" returns="void" />
+  <binding name="generic-keyboard-load-domain" native="generic_keyboard_load_domain" returns="void">
+    <arg type="string" />
+  </binding>
   <binding name="generic-keyboard-run" native="generic_keyboard_run" returns="object">
     <arg type="int" /><arg type="int" />
   </binding>
   <binding name="generic-keyboard-condition?" native="generic_keyboard_condition" returns="bool">
     <arg type="int" />
   </binding>
+  <binding name="escape-symbol-insert" native="generic_escape_symbol_insert" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="open-escape-symbol-picker" native="generic_open_escape_symbol_picker" returns="void" />
   <binding name="make-interactive-with" native="format_make_interactive_with" returns="void">
     <arg type="string" />
   </binding>

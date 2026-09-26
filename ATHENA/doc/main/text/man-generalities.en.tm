@@ -5,13 +5,11 @@
 <\body>
   <tmdoc-title|Generalities for typing text>
 
-  The usual English characters and punctuation symbols can easily be obtained
-  on most keyboards. Most modern system also implement standard shortcuts in
-  order to obtain accented characters and other special symbols. If
-  necessary, accented characters can also be obtained using the
-  <prefix|accent> prefix. For instance, ``é'' is obtained by typing
-  <key|accent:acute e>. Similarly, we obtain ``à'' via <key|accent:grave a>
-  and so on.
+  Enter ordinary text, accented characters, and natural-language punctuation
+  using the keyboard layout, Compose key, Quick Accent, or input method
+  provided by the operating system. ATHENA accepts the resulting Unicode text
+  directly and does not provide application-specific natural-language input
+  methods.
 
   Long words at borders of successive lines are automatically hyphenated. In
   order to hyphenate foreign languages correctly, you should specify the

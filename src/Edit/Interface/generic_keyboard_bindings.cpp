@@ -10,6 +10,7 @@
 
 #include "generic_keyboard_commands.hpp"
 #include "file.hpp"
+#include "native_keyboard_prefixes.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -17,6 +18,7 @@
 #include <QJsonParseError>
 #include <climits>
 #include <cmath>
+#include <unordered_map>
 
 namespace {
 
@@ -55,11 +57,15 @@ void validate_expression (QJsonValue value) {
     ASSERT (item.size () == 1, "invalid keymap value descriptor");
     QString kind= item.begin ().key ();
     QJsonValue data= item.begin ().value ();
-    if (kind == "symbol" || kind == "procedure") {
+    if (kind == "symbol" || kind == "procedure" || kind == "keyword") {
       ASSERT (binding_string (data) != "", "empty keymap identifier");
     }
     else if (kind == "number") {
       ASSERT (data.isDouble (), "keymap real number expected");
+    }
+    else if (kind == "list") {
+      ASSERT (data.isArray (), "keymap list must be an array");
+      for (QJsonValue arg: data.toArray ()) validate_expression (arg);
     }
     else if (kind == "not") validate_expression (data);
     else {
@@ -70,56 +76,95 @@ void validate_expression (QJsonValue value) {
   }
 }
 
-const QJsonArray& keymap_groups () {
-  static const QJsonArray groups= [] {
+void validate_group (QJsonObject group) {
+  for (auto i= group.begin (); i != group.end (); ++i)
+    ASSERT (i.key () == "profiles" || i.key () == "mode" ||
+             i.key () == "require" || i.key () == "bindings" ||
+             i.key () == "unmap",
+             "unknown keymap group field");
+  if (group.contains ("profiles")) {
+    ASSERT (group["profiles"].isArray (), "keymap profiles must be an array");
+    for (QJsonValue profile: group["profiles"].toArray ())
+      (void) binding_string (profile);
+  }
+  if (group.contains ("mode")) (void) binding_string (group["mode"]);
+  if (group.contains ("require")) validate_expression (group["require"]);
+  ASSERT (group.contains ("bindings") || group.contains ("unmap"),
+          "keymap group needs bindings or unmap");
+  QJsonArray entries= group.contains ("bindings") ?
+    group["bindings"].toArray () : QJsonArray ();
+  for (QJsonValue entry: entries) {
+    ASSERT (entry.isObject (), "keymap binding expected");
+    auto binding= entry.toObject ();
+    ASSERT (binding_string (binding["key"]) != "", "empty shortcut");
+    if (binding.contains ("text")) {
+      ASSERT (binding.size () == (binding.contains ("help") ? 3 : 2),
+              "invalid text key binding");
+      (void) binding_string (binding["text"]);
+      if (binding.contains ("help")) (void) binding_string (binding["help"]);
+    }
+    else {
+      ASSERT (binding.size () == 2 && binding["commands"].isArray () &&
+              !binding["commands"].toArray ().isEmpty (), "invalid key commands");
+      for (QJsonValue command: binding["commands"].toArray ())
+        validate_expression (command);
+    }
+  }
+  if (group.contains ("unmap")) {
+    ASSERT (group["unmap"].isArray (), "keymap unmap must be an array");
+    for (QJsonValue key: group["unmap"].toArray ())
+      ASSERT (binding_string (key) != "", "empty unmap shortcut");
+  }
+}
+
+struct keymap_range { int first= 0; int last= 0; };
+
+struct native_keymap_registry {
+  QJsonArray groups;
+  std::unordered_map<std::string,keymap_range> ranges;
+
+  native_keymap_registry () {
+    add ("generic", "generic-keybindings.json");
+    add ("prefix", "prefix-keybindings.json");
+    add ("text", "text-keybindings.json");
+    add ("prog", "prog-keybindings.json");
+    add ("source", "source-keybindings.json");
+    add ("table", "table-keybindings.json");
+    add ("graphics", "graphics-keybindings.json");
+    add ("fold", "fold-keybindings.json");
+    add ("tmdoc", "tmdoc-keybindings.json");
+    add ("automate", "automate-keybindings.json");
+  }
+
+  void add (const char* domain, const char* file) {
+    const int first= groups.size ();
     string source;
-    ASSERT (!load_string (url ("$ATHENA_PATH/misc/input/generic-keybindings.json"),
-                          source, false), "cannot read generic-keybindings.json");
+    const string path= "$ATHENA_PATH/misc/input/" * string (file);
+    ASSERT (!load_string (url (path), source, false), "cannot read native keymap JSON");
     c_string bytes (source);
     QJsonParseError error;
     auto document= QJsonDocument::fromJson (QByteArray (bytes, N (source)), &error);
     ASSERT (error.error == QJsonParseError::NoError && document.isObject (),
-            "invalid generic-keybindings.json");
+            "invalid native keymap JSON");
     auto root= document.object ();
     ASSERT (root["version"].toInt () == 2 && root["string_encoding"] == "utf-8" &&
-            root["groups"].isArray (), "unsupported generic keymap schema");
-    QJsonArray result= root["groups"].toArray ();
-    for (QJsonValue value: result) {
+            root["groups"].isArray (), "unsupported native keymap schema");
+    for (QJsonValue value: root["groups"].toArray ()) {
       ASSERT (value.isObject (), "keymap group expected");
-      auto group= value.toObject ();
-      for (auto i= group.begin (); i != group.end (); ++i)
-        ASSERT (i.key () == "profiles" || i.key () == "mode" ||
-                i.key () == "require" || i.key () == "bindings",
-                "unknown keymap group field");
-      if (group.contains ("profiles")) {
-        ASSERT (group["profiles"].isArray (), "keymap profiles must be an array");
-        for (QJsonValue profile: group["profiles"].toArray ())
-          (void) binding_string (profile);
-      }
-      if (group.contains ("mode")) (void) binding_string (group["mode"]);
-      if (group.contains ("require")) validate_expression (group["require"]);
-      ASSERT (group["bindings"].isArray (), "keymap bindings must be an array");
-      for (QJsonValue entry: group["bindings"].toArray ()) {
-        ASSERT (entry.isObject (), "keymap binding expected");
-        auto binding= entry.toObject ();
-        ASSERT (binding_string (binding["key"]) != "", "empty shortcut");
-        if (binding.contains ("text")) {
-          ASSERT (binding.size () == (binding.contains ("help") ? 3 : 2),
-                  "invalid text key binding");
-          (void) binding_string (binding["text"]);
-          if (binding.contains ("help")) (void) binding_string (binding["help"]);
-        }
-        else {
-          ASSERT (binding.size () == 2 && binding["commands"].isArray () &&
-                  !binding["commands"].toArray ().isEmpty (), "invalid key commands");
-          for (QJsonValue command: binding["commands"].toArray ())
-            validate_expression (command);
-        }
-      }
+      validate_group (value.toObject ());
+      groups.append (value);
     }
-    return result;
-  } ();
-  return groups;
+    ranges.emplace (domain, keymap_range {first, (int) groups.size ()});
+  }
+};
+
+native_keymap_registry& keymap_registry () {
+  static native_keymap_registry registry;
+  return registry;
+}
+
+const QJsonArray& keymap_groups () {
+  return keymap_registry ().groups;
 }
 
 bool truth (object value) {
@@ -142,6 +187,15 @@ object expression (QJsonValue value, bool source) {
   if (item.contains ("symbol")) {
     object name= symbol_object (binding_string (item["symbol"]));
     return source ? list_object (symbol_object ("quote"), name) : name;
+  }
+  if (item.contains ("keyword"))
+    return keyword_object (binding_string (item["keyword"]));
+  if (item.contains ("list")) {
+    array<object> values;
+    for (QJsonValue arg: item["list"].toArray ())
+      values << expression (arg, false);
+    object value= as_list_object (values);
+    return source ? list_object (symbol_object ("quote"), value) : value;
   }
   if (item.contains ("call")) {
     array<object> args;
@@ -192,7 +246,8 @@ QJsonObject keymap_group (int group) {
 } // namespace
 
 object generic_keyboard_run (int group, int binding) {
-  auto entries= keymap_group (group)["bindings"].toArray ();
+  auto descriptor= keymap_group (group);
+  auto entries= descriptor["bindings"].toArray ();
   ASSERT (binding >= 0 && binding < entries.size (), "invalid generic key binding");
   auto commands= entries[binding].toObject ()["commands"].toArray ();
   object result= object (false);
@@ -206,42 +261,60 @@ bool generic_keyboard_condition (int group) {
   return truth (expression (descriptor, false));
 }
 
-void generic_keyboard_load () {
+void register_group (int g) {
   const auto& groups= keymap_groups ();
-  for (int g= 0; g < groups.size (); ++g) {
-    auto group= groups[g].toObject ();
-    if (group.contains ("profiles")) {
-      array<object> profiles;
-      for (QJsonValue profile: group["profiles"].toArray ())
-        profiles << symbol_object (binding_string (profile));
-      if (!as_bool (call ("has-look-and-feel?", as_list_object (profiles)))) continue;
-    }
-    array<object> conditions;
-    if (group.contains ("mode"))
-      conditions << eval (symbol_object (binding_string (group["mode"])));
-    if (group.contains ("require")) {
-      array<object> args, source;
-      args << object (g);
-      source << expression (group["require"], true);
-      conditions << native_callback ("generic-keyboard-condition?", args, source);
-    }
-    auto entries= group["bindings"].toArray ();
-    for (int b= 0; b < entries.size (); ++b) {
-      auto binding= entries[b].toObject ();
-      object action;
-      if (binding.contains ("text")) action= object (binding_string (binding["text"]));
-      else {
-        array<object> args, source;
-        args << object (g) << object (b);
-        for (QJsonValue command: binding["commands"].toArray ())
-          source << expression (command, true);
-        action= native_callback ("generic-keyboard-run", args, source);
-      }
-      string help= binding.contains ("help") ? binding_string (binding["help"]) : string ("");
-      // Use the shared registry: it owns prefix rewriting, partial sequences,
-      // inverse lookup and interaction with domain-specific/user bindings.
-      call ("kbd-binding", as_list_object (conditions),
-            object (binding_string (binding["key"])), action, object (help));
-    }
+  ASSERT (g >= 0 && g < groups.size (), "invalid native keymap group");
+  auto group= groups[g].toObject ();
+  if (group.contains ("profiles")) {
+    array<object> profiles;
+    for (QJsonValue profile: group["profiles"].toArray ())
+      profiles << symbol_object (binding_string (profile));
+    if (!as_bool (call ("has-look-and-feel?", as_list_object (profiles)))) return;
   }
+  array<object> conditions;
+  if (group.contains ("mode"))
+    conditions << eval (symbol_object (binding_string (group["mode"])));
+  if (group.contains ("require")) {
+    array<object> args, source;
+    args << object (g);
+    source << expression (group["require"], true);
+    conditions << native_callback ("generic-keyboard-condition?", args, source);
+  }
+  auto entries= group.contains ("bindings") ? group["bindings"].toArray () : QJsonArray ();
+  for (int b= 0; b < entries.size (); ++b) {
+    auto binding= entries[b].toObject ();
+    object action;
+    if (binding.contains ("text")) action= object (binding_string (binding["text"]));
+    else {
+      array<object> args, source;
+      args << object (g) << object (b);
+      for (QJsonValue command: binding["commands"].toArray ())
+        source << expression (command, true);
+      action= native_callback ("generic-keyboard-run", args, source);
+    }
+    string help= binding.contains ("help") ? binding_string (binding["help"]) : string ("");
+    // Use the shared registry: it owns prefix rewriting, partial sequences,
+    // inverse lookup and interaction with domain-specific/user bindings.
+    call ("kbd-binding", as_list_object (conditions),
+          object (binding_string (binding["key"])), action, object (help));
+  }
+  if (group.contains ("unmap"))
+    for (QJsonValue key: group["unmap"].toArray ())
+      call ("kbd-delete-key-binding2", as_list_object (conditions),
+            object (binding_string (key)));
+}
+
+void generic_keyboard_load_domain (string domain) {
+  const std::string key (domain.data (), (std::size_t) N(domain));
+  const auto& ranges= keymap_registry ().ranges;
+  auto found= ranges.find (key);
+  ASSERT (found != ranges.end (), "unknown native keymap domain");
+  for (int g= found->second.first; g < found->second.last; ++g)
+    register_group (g);
+}
+
+void generic_keyboard_load () {
+  native_keyboard_prefixes_load ();
+  generic_keyboard_load_domain ("generic");
+  generic_keyboard_load_domain ("prefix");
 }

@@ -1,39 +1,45 @@
-# Generic Keybindings
+# Native Keybindings
 
-`generic-keybindings.json` is the source of truth for the generic keyboard
-declarations. `generic_keyboard_bindings.cpp` validates and loads it; the small
-`generic-kbd.scm` module supplies the existing lazy-load point and imports.
-Other editing domains and user bindings continue to use the shared registry.
+ATHENA's non-math keyboard declarations live in domain-specific UTF-8 JSON
+files under this directory. `generic-keybindings.json` contains global editor
+bindings; `text-keybindings.json`, `prog-keybindings.json`,
+`source-keybindings.json`, `table-keybindings.json`,
+`graphics-keybindings.json`, `fold-keybindings.json`,
+`tmdoc-keybindings.json`, and `automate-keybindings.json` preserve the former
+domain boundaries. `prefix-keybindings.json` contains prefix help/partial
+bindings, while `keyboard-prefixes.json` defines the shared logical-to-physical
+prefix rewrites used by both these files and `math-keybindings.json`.
 
-The loader uses Qt's JSON parser, already a required dependency, rather than a
-new parser or an embedded Scheme-source format. The one-time migration used
-Guile's reader and SXML serializer to read the old declarations.
+`generic_keyboard_bindings.cpp` validates and registers the domain files with
+the existing shared keyboard registry. That registry continues to own partial
+key sequences, inverse lookup, user overrides, and mode/require precedence.
+Existing Scheme editing implementations remain behind ATHENA's ordinary
+`lazy-keyboard` module-loading hooks; only the keymap declarations themselves
+have moved out of Scheme.
 
 Groups and bindings are ordered. Later matching declarations retain their
 existing precedence. `profiles` is checked at registration using
-`has-look-and-feel?`; `mode` and `require` are checked at lookup in the owning
-editor context. Prefix expansion, partial key sequences, user overrides and
-inverse lookup remain owned by `kbd-binding` and the shared keyboard registry.
+`has-look-and-feel?`; `mode` and `require` remain live conditions evaluated in
+the owning editor context. A group may also contain `unmap` entries.
 
 Each binding has `key` and either `text` (optionally `help`) or an ordered
-`commands` array. Command/argument descriptors are:
+`commands` array. Command/argument descriptors include:
 
 - `{"call":"name","args":[...]}`: call the current public procedure.
 - `{"procedure":"name"}`: pass the current procedure as an argument.
 - `{"symbol":"name"}`: pass a literal symbol.
+- `{"keyword":"name"}`: pass a Scheme keyword such as `:next`.
+- `{"list":[...]}`: pass a literal Scheme list.
 - Strings, booleans and integers: literal arguments.
 - `{"number":1.0}`: an inexact number, distinct from integer `1`.
 - `{"if":condition,"then":action,"else":action}`: conditional execution.
 - `{"all":[...]}`, `{"any":[...]}`, `{"not":...}`: short-circuit conditions.
 
-There is no Scheme source text in the data. A native dispatcher executes the
-descriptors. Small registered callbacks enter it without changing thread or
-actor ownership. Their original semantic source is retained as metadata so
-menu shortcuts and command reverse lookup do not expose dispatcher indices.
+There is no Scheme source text in the data. Registered callbacks enter the
+native dispatcher without changing thread or actor ownership. Their original
+semantic source is retained as metadata so menu shortcuts and reverse lookup do
+not expose dispatcher indices.
 
-The JSON file is UTF-8. `string_encoding: "latin1"` describes the existing
-Scheme/native keyboard interface's **byte strings**: each JSON codepoint
-U+0000..U+00FF represents one original byte, including Cork bytes. It is not a
-conversion of document text to Unicode. This preserves legacy non-ASCII byte
-sequences exactly. Use ATHENA named symbols for other characters; the loader
-rejects unrepresentable strings rather than silently replacing them with `?`.
+All keymap JSON strings are UTF-8. Text actions contain the actual Unicode text
+inserted into documents; legacy Cork bytes and `<#...>` character tokens are
+not part of the native keymap contract.
