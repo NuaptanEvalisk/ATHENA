@@ -718,8 +718,11 @@ wide_box_rep::wide_box_rep (
         X += ref->rsup_correction() + ((SI) (ref->right_slope() * fn->yx * 0.5));
       X += ref->wide_correction (1);
     }
+    auto accent_anchor= hi->top_accent_attachment ();
+    const SI hi_anchor= accent_anchor ? *accent_anchor :
+      ((hi->x1 + hi->x2) >> 1);
     //X= ((SI) (ref->right_slope () * (Y - fn->yx))) + m;
-    insert (hi, X- ((hi->x1 + hi->x2)>>1), Y+ sep);
+    insert (hi, X- hi_anchor, Y+ sep);
   }
   else {
     Y= ref->y1 - hi->y2;
