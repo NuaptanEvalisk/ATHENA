@@ -33,6 +33,8 @@
 
 (tm-menu (athena-focus-menu)
   (link focus-menu)
+  ---
+  ("Node properties..." (node-properties-show (focus-tree)))
   (if (tree-innermost 'transclude #t)
     ---
     (link vault-transclusion-focus-menu))

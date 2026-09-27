@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="node-properties-show" native="node_properties_show" returns="bool">
+    <arg type="tree" />
+  </binding>
   <binding name="generic-keyboard-load" native="generic_keyboard_load" returns="void" />
   <binding name="generic-keyboard-load-domain" native="generic_keyboard_load_domain" returns="void">
     <arg type="string" />

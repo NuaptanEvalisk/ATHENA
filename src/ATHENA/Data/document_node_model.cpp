@@ -565,4 +565,47 @@ prepared_property_edit prepare_property_edit (
   return result;
 }
 
+tree property_header (const tree& source) {
+  tree header= is_atomic (source) ? tree ("") : tree (L(source), 0);
+  node::copy_metadata (source, header);
+  return header;
+}
+
+prepared_property_edit prepare_property_replacement (
+    const tree& scope, const source_path& where, const tree& expected,
+    const tree& desired, limits budget) {
+  const auto reject= [&] (issue code, const char* message) {
+    prepared_property_edit result;
+    result.diagnostics.push_back ({where, "", code, message});
+    return result;
+  };
+  if (where.size () > budget.maximum_depth)
+    return reject (issue::resource_limit, "Property target exceeds depth budget");
+  tree target= scope;
+  for (int index: where) {
+    if (!is_compound (target) || index < 0 || index >= N(target))
+      return reject (issue::invalid_path, "Property edit target no longer exists");
+    target= target[index];
+  }
+  if (property_header (target) != expected)
+    return reject (issue::stale_properties, "Node properties changed while the editor was open");
+  if (L(desired) != L(expected) || node::id (desired) != node::id (expected) ||
+      (is_atomic (desired) ? desired->label != "" : N(desired) != 0))
+    return reject (issue::protected_property, "A property edit cannot change the node type, UUID or body");
+  const node::property::dictionary empty;
+  const auto* before= node::get (expected);
+  const auto* after= node::get (desired);
+  const auto& old_values= before ? before->properties : empty;
+  const auto& new_values= after ? after->properties : empty;
+  property_edit delta;
+  for (const auto& item: old_values)
+    if (!new_values.count (item.first)) delta.remove.push_back (item.first);
+  for (const auto& item: new_values) {
+    auto old= old_values.find (item.first);
+    if (old == old_values.end () || !node::equal (old->second, item.second))
+      delta.set.emplace (item.first, item.second);
+  }
+  return prepare_property_edit (scope, where, delta, budget);
+}
+
 } // namespace athena::document_node

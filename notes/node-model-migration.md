@@ -184,6 +184,39 @@ v2 saves, advertise AUDMAP v3, or implement cross-document moves.
   `cmake --build build_qt6 --target ATHENA.bin -j20` build passed. No full suite,
   deployment, automatic identity assignment or production migration ran.
 
+## Native Property Editor (2026-09-27)
+
+- The shared Focus/context menu opens a native Qt node inspector. UUIDs and
+  generic/extension properties are read-only. Canonical enunciations expose
+  kind, variant, structured name, ordered structured attribution, year text,
+  numbering and an explicit target UUID. Unknown properties and reserved
+  artifact bindings survive confirmation unchanged.
+- The UI receives only a body-free XML v2 header and an opaque source-node
+  lease. It reuses the existing strict observer registry, not an AUDMAP
+  connection, resolver or request state machine. Live source access and final
+  schema checks run on the originating BufferActor. No body tree crosses to Qt.
+- Submission compares the captured tag/metadata with the still-live target,
+  accepting independent body edits but rejecting replacement, deletion and
+  concurrent property changes. One menu edit transaction contains one metadata
+  modification; a no-op creates no transaction. UUID changes are rejected.
+- Structured field editing reuses a private native input buffer in source mode
+  instead of executing arbitrary property macros. Cancel discards the draft;
+  the embedded buffer is explicitly destroyed on close. Simple atomic names
+  also retain any existing metadata when their text changes.
+- Normal unannotated source remains an inspector-only view. This UI does not
+  assign identities automatically, change normal saves, or migrate old theorem
+  tags merely because a dialog is opened. Format and source-creation gates
+  remain in force.
+- Focused checks passed: `document_node_model_test` (14 cases) and
+  `node_properties_dialog_test` (6 cases). The latter exercised lossless no-op
+  confirmation, reserved/structured property preservation, failed-submission
+  feedback and read-only inspection; its offscreen screenshot was inspected.
+  The normal `ATHENA.bin -j20` build passed. The binary exposed the generated
+  binding and rejected detached input
+  in the isolated Scheme bridge check. This is not yet a full live-actor GUI
+  acceptance test of structured editing, close races and undo; that remains
+  part of the final integration gates. No full suite or production vault ran.
+
 ## Integration Gates Still Required
 
 1. Assign source IDs through content roles, with complete handling of nested
@@ -191,9 +224,9 @@ v2 saves, advertise AUDMAP v3, or implement cross-document moves.
    and source-modifying Scheme paths. Preserve semantics across stree boundaries.
 2. Implement one-use cut/move credentials, copy policy for artifact bindings,
    internal tmfs-reference rewriting, and coordinated cross-document undo.
-3. Finish remaining live enunciation consumers, source creation and native
-   property editing. Native rendering/numbering and typed proof-target display
-   are implemented; target resolution and the proof association UI remain.
+3. Finish remaining live enunciation consumers and source creation. Native
+   rendering/numbering and property UI are implemented; proof targets can be
+   entered explicitly, but UUID resolution and target selection remain.
 4. Implement native UUID resolution using validated disposable location indexes,
    live actor snapshots, coalesced background scans and distinct error states.
    Ordered transclusions must reject ancestor/descendant overlap and retain

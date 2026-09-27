@@ -102,4 +102,5 @@
 (define replaced-native (tm-replace (tree-rebuild source (list paragraph))
                                    "Atomic paragraph" "Replacement"))
 (check (tree? replaced-native) "metadata reconstruction remains native")
+(check (not (node-properties-show paragraph)) "property dialog rejects detached node")
 (display "ATHENA-NODE-BRIDGE-PASS\n")

@@ -28,7 +28,8 @@ enum class issue {
   invalid_body, invalid_id, duplicate_id, unsupported_ambiguous_role,
   invalid_role_declaration, allocation_failed, resource_limit,
   invalid_metadata, missing_property, unknown_property, wrong_property_type,
-  invalid_property_value, unsafe_rich_text, invalid_path, protected_property
+  invalid_property_value, unsafe_rich_text, invalid_path, protected_property,
+  stale_properties
 };
 
 struct diagnostic {
@@ -160,6 +161,16 @@ struct prepared_property_edit {
 prepared_property_edit prepare_property_edit (
   const tree& scope, const source_path& where, const property_edit& edit,
   limits budget= {});
+
+// Detached, body-free draft for a property editor. The caller must separately
+// retain an owner-checked node lease; a path or this header is not an identity.
+tree property_header (const tree& source);
+// Compare-and-edit against the captured header. Body edits are allowed, but
+// changed properties/tag or a modified UUID reject the entire draft. Unknown
+// unchanged extensions and reserved bindings are preserved without rewriting.
+prepared_property_edit prepare_property_replacement (
+  const tree& scope, const source_path& where, const tree& expected_header,
+  const tree& desired_header, limits budget= {});
 
 } // namespace athena::document_node
 

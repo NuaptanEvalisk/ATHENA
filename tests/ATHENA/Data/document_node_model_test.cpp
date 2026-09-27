@@ -79,6 +79,7 @@ private slots:
   void property_update_is_atomic_and_protects_bindings ();
   void property_update_rejects_rich_identity_collisions ();
   void property_update_handles_atoms_and_noops ();
+  void property_drafts_reject_conflicts_and_protected_changes ();
 };
 
 void TestDocumentNodeModel::deterministic_paragraphs_and_headings () {
@@ -408,6 +409,46 @@ void TestDocumentNodeModel::property_update_handles_atoms_and_noops () {
   output= clean_apply (output, *removal.change);
   QCOMPARE (node::id (output[0]), prepared.id);
   QVERIFY (node::get (output[0])->properties.empty ());
+}
+
+void TestDocumentNodeModel::property_drafts_reject_conflicts_and_protected_changes () {
+  tree source (DOCUMENT, canonical ());
+  set_id (source[0], existing_id);
+  auto metadata= *node::get (source[0]);
+  metadata.properties["test:opaque-title"]= node::property (node::rich_text {
+    tree (EXTERN, "never-executed")});
+  metadata.properties["athena:artifact-bindings"]= node::property (node::property::dictionary {
+    {"statement", node::property (std::string ("22222222-2222-4222-8222-222222222222"))}});
+  node::set (source[0], metadata);
+  tree captured= model::property_header (source[0]);
+  QCOMPARE (N(captured), 0);
+  metadata.properties["year"]= node::property (std::string ("19XX"));
+  tree draft= copy (captured);
+  node::set (draft, metadata);
+  // Body changes do not conflict with independent property editing.
+  source[0][0]= tree (DOCUMENT, "Edited body");
+  auto prepared= model::prepare_property_replacement (source, {0}, captured, draft);
+  QVERIFY (prepared.ok () && prepared.change);
+  tree changed= clean_apply (source, *prepared.change);
+  QCOMPARE (changed[0][0], source[0][0]);
+  QCOMPARE (node::id (changed[0]), existing_id);
+  QVERIFY (node::equal (node::get (changed[0])->properties.at ("athena:artifact-bindings"),
+                       node::get (source[0])->properties.at ("athena:artifact-bindings")));
+  QVERIFY (has_issue (model::prepare_property_replacement (changed, {0}, captured, draft).diagnostics,
+                     model::issue::stale_properties));
+  metadata.id= "33333333-3333-4333-8333-333333333333";
+  node::set (draft, metadata);
+  QVERIFY (has_issue (model::prepare_property_replacement (source, {0}, captured, draft).diagnostics,
+                     model::issue::protected_property));
+  metadata.id= existing_id;
+  metadata.properties.erase ("athena:artifact-bindings");
+  node::set (draft, metadata);
+  QVERIFY (has_issue (model::prepare_property_replacement (source, {0}, captured, draft).diagnostics,
+                     model::issue::protected_property));
+  auto noop= model::prepare_property_replacement (source, {0}, captured, captured);
+  QVERIFY (noop.ok () && !noop.change);
+  QCOMPARE (clean_apply (changed, invert (*prepared.change, source)), source);
+  QVERIFY (!model::prepare_property_replacement (source, {9}, captured, captured).ok ());
 }
 
 QTEST_MAIN (TestDocumentNodeModel)
