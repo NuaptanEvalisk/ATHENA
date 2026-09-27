@@ -9,9 +9,11 @@
   (call-with-output-file (string-append root "/" leaf)
     (lambda (port) (display text port))))
 (define id "11111111-1111-4111-8111-111111111111")
+(define outer-id "22222222-2222-4222-8222-222222222222")
 (define source (path "source.ath"))
 (buffer-set source '(document (style "generic")
-                     (body (document "Plain export without an active vault."))))
+                     (body (document (concat "Plain export without an active vault."
+                                             (label "headless-probe"))))))
 (switch-to-buffer source)
 (check (not (buffer-export source (path "plain.pdf") "pdf")) "plain export")
 (write-file "Vaultfile.json" "{\"name\":\"Isolated node export\"}")
@@ -26,6 +28,23 @@
 (buffer-set-body source (stree->tree `(document "Export with a native UUID target."
                                       (transclude (tuple ,id)))))
 (check (not (buffer-export source (path "reference.pdf") "pdf")) "reference export")
+;; The source contains no transclude node. Only executing this secure layout
+;; function reveals the UUID dependency, so source-tree scanning cannot pass.
+(tm-define (node-export-generated-leaf)
+  (:secure #t)
+  (stree->tree `(transclude (tuple ,id))))
+(write-file "nested.ath"
+  (string-append
+    "<athena-document version=\"2\" text-model=\"utf-8\">"
+    "<node tag=\"document\"><node tag=\"body\"><node tag=\"document\" id=\"" outer-id "\">"
+    "<node tag=\"extern\"><text><value>node-export-generated-leaf</value></text></node>"
+    "</node></node></node></athena-document>"))
+(tm-define (node-export-generated-target)
+  (:secure #t)
+  (stree->tree `(transclude (tuple ,outer-id))))
+(buffer-set-body source (stree->tree '(document "DYNAMIC REFERENCE"
+                                      (extern "node-export-generated-target"))))
+(check (not (buffer-export source (path "dynamic.pdf") "pdf")) "dynamic reference export")
 ;; An actor-owned target overrides its disk version. No Qt completion callback
 ;; may be necessary while the global coordinator waits for its source capture.
 (buffer-set (path "target.ath") '(document (style "generic")

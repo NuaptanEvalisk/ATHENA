@@ -357,7 +357,7 @@ v2 saves, advertise AUDMAP v3, or implement cross-document moves.
 3. Finish remaining live enunciation consumers and source creation. Native
    rendering/numbering and property UI are implemented; proof targets can be
    entered explicitly, but UUID resolution and target selection remain.
-4. Finish dynamic export dependencies and
+4. Finish derived-buffer/selection-specific dynamic export acceptance and
    actual actor lifecycle/hover/export GUI acceptance for the integrated async
    reference paths. Switch
    default wikilinks together with migrated vault semantics. Persist any index
@@ -399,6 +399,31 @@ v2 saves, advertise AUDMAP v3, or implement cross-document moves.
 - Website/DataArt end-to-end acceptance and dynamically generated dependency
   discovery remain outstanding. No full suite, deployment, normal XML-v2 save
   activation or production migration was performed.
+
+## Dynamic Export Dependency Discovery (2026-09-27)
+
+- Owner-side reference probing uses the same paper layout as printing, but
+  creates no renderer, file, clipboard content or printer command. Derived
+  label, auxiliary and attachment maps are independently copied for the probe
+  and restored afterward, including on layout failure. The probe does not
+  masquerade as a source edit or invalidate its captured storage fingerprint.
+- Headless and interactive coordinators repeat preparation and layout discovery
+  until no new selections remain. They retain ordered target/ancestry keys,
+  propagate missing selections through nested scopes and enforce round and
+  selection budgets. Headless completion has one five-minute preparation
+  deadline across the rounds. Actual user export actions run only after the
+  dependency closure, never as speculative actions retried after side effects.
+- The normal ATHENA.bin -j20 build and all 22 focused reference cases passed.
+  Isolated real PDF checks passed for a label-bearing plain source, static UUID
+  content, a secure expansion generating a transclusion absent from the source
+  tree, and a second dynamic expansion inside that transcluded target. Extracted
+  PDF text contained the final nested payload. Unsaved target deletion produced
+  an explicit missing item through the same dynamic chain.
+- This probes the original source's paper layout. References introduced only
+  by subsequent DataArt/selection-specific transformations still fail closed at
+  the actual renderer if absent from the frozen snapshot; those derived paths
+  and interactive lifecycle behavior still need end-to-end acceptance. No full
+  suite, deployment, production migration or default model activation ran.
 
 ## Build Boundary
 

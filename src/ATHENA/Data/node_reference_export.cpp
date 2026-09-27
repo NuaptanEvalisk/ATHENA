@@ -187,7 +187,10 @@ export_reference_scope::export_reference_scope (prepared_snapshot prepared):
   active_export= this;
 }
 export_reference_scope::~export_reference_scope () {
-  if (previous && (incomplete_child || !absent.empty ())) previous->incomplete_child= true;
+  if (previous && (incomplete_child || !absent.empty ())) {
+    previous->incomplete_child= true;
+    previous->absent.insert (absent.begin (), absent.end ());
+  }
   active_export= previous;
 }
 std::vector<selection> export_reference_scope::missing () const { return {absent.begin (), absent.end ()}; }

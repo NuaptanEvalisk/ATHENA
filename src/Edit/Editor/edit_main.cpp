@@ -24,6 +24,7 @@
 #include "actor_ui_bridge.hpp"
 #include "scheme_execution_context.hpp"
 #include "tm_frame.hpp"
+#include "iterator.hpp"
 
 #ifdef EXPERIMENTAL
 #include "../../Style/Memorizer/clean_copy.hpp"
@@ -271,11 +272,8 @@ edit_main_rep::nr_pages () {
   return N (the_box[0]);
 }
 
-void
-edit_main_rep::print_doc (url name, bool conform, int first, int last) {
-  athena::node_reference::verify_export_origin ();
-  athena::node_reference::export_reference_scope references;
-
+box
+edit_main_rep::layout_print_document (bool& conform) {
   string medium = env->get_string (PAGE_MEDIUM);
   if (conform && (medium != "paper")) conform= false;
     // FIXME: better command for conform printing
@@ -300,7 +298,40 @@ edit_main_rep::print_doc (url name, bool conform, int first, int last) {
 
   // Typeset pages for printing
 
-  box the_box= typeset_as_document (env, subtree (et, rp), reverse (rp));
+  return typeset_as_document (env, subtree (et, rp), reverse (rp));
+}
+
+void
+edit_main_rep::probe_print_references () {
+  if (!athena::node_reference::current_export_references ())
+    throw std::logic_error ("Reference probing requires a frozen export scope");
+  athena::node_reference::verify_export_origin ();
+  bool conform= false;
+  // Layout writes derived labels, auxiliary records and attachments. A probe
+  // must not mutate the source revision that the coordinator just captured.
+  auto detached= [] (hashmap<string,tree> values) {
+    hashmap<string,tree> result (UNINIT);
+    iterator<string> keys= iterate (values);
+    while (keys->busy ()) {
+      const string key= keys->next ();
+      result (key)= copy (values[key]);
+    }
+    return result;
+  };
+  const auto refs= get_ref (), aux= get_aux (), attachments= get_att ();
+  const auto probe_refs= detached (refs), probe_aux= detached (aux), probe_att= detached (attachments);
+  set_ref (probe_refs); set_aux (probe_aux); set_att (probe_att);
+  auto restore= [&] { set_ref (refs); set_aux (aux); set_att (attachments); typeset_prepare (); };
+  try { (void) layout_print_document (conform); }
+  catch (...) { restore (); throw; }
+  restore ();
+}
+
+void
+edit_main_rep::print_doc (url name, bool conform, int first, int last) {
+  athena::node_reference::verify_export_origin ();
+  athena::node_reference::export_reference_scope references;
+  box the_box= layout_print_document (conform);
 
   references.require_ready ();
 

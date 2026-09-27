@@ -421,6 +421,7 @@ private slots:
         QCOMPARE (inner.missing ().size (), std::size_t (1));
         QVERIFY_EXCEPTION_THROWN (inner.require_ready (), std::runtime_error);
       }
+      QCOMPARE (outer.missing ().size (), std::size_t (1));
       QVERIFY_EXCEPTION_THROWN (outer.require_ready (), std::runtime_error);
     }
     QVERIFY (!ref::export_reference_view ({{a}, {}}));

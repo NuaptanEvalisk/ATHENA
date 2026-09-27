@@ -36,8 +36,11 @@ struct request {
   std::unique_ptr<ref::export_preparation> preparation;
   ref::prepared_snapshot ready;
   std::shared_ptr<athena::node_location::service> locator;
+  std::set<ref::selection> requested;
+  unsigned rounds= 0;
   ~request () { scheme_command_handle_release (action); }
 };
+void resume_preparation (std::shared_ptr<request>, std::vector<ref::selection>);
 std::string text (string s) { return {s.data (), std::size_t (N(s))}; }
 std::vector<int> indices (path p) {
   std::vector<int> out;
@@ -60,6 +63,12 @@ void perform (const std::shared_ptr<request>& job) {
                            indices (editor->selection_get_end ()) != job->selection_end)))
       throw std::runtime_error ("Cursor or selection changed while preparing export; please export again");
     ref::export_reference_scope frozen (job->ready);
+    editor->probe_print_references ();
+    auto missing= frozen.missing ();
+    if (!missing.empty ()) {
+      resume_preparation (job, std::move (missing));
+      return;
+    }
     (void) call_scheme (scheme_command_handle_value (job->action));
     frozen.require_ready ();
   }
@@ -82,6 +91,17 @@ public:
   }
   void add (std::shared_ptr<request> job, std::vector<ref::selection> seeds) {
     pending.push_back (job);
+    const auto before= job->requested.size ();
+    job->requested.insert (seeds.begin (), seeds.end ());
+    if (++job->rounds > 32 || job->requested.size () > ref::preparation_limits {}.selections ||
+        (job->rounds > 1 && job->requested.size () == before)) {
+      auto failed= std::make_shared<ref::prepared_references> ();
+      failed->error= "Export reference discovery exceeded its budget or made no progress";
+      job->ready= std::move (failed);
+      return;
+    }
+    job->ready.reset ();
+    seeds.assign (job->requested.begin (), job->requested.end ());
     job->preparation= std::make_unique<ref::export_preparation> (job->locator, std::move (seeds),
       [weak= std::weak_ptr<request> (job)] (ref::prepared_snapshot result) {
         qt_post_to_main_thread ([weak, result= std::move (result)] {
@@ -111,15 +131,32 @@ exports* controller () {
   if (!instance) instance= new exports (QCoreApplication::instance ());
   return instance;
 }
+void resume_preparation (std::shared_ptr<request> job, std::vector<ref::selection> missing) {
+  qt_post_to_main_thread ([job= std::move (job), missing= std::move (missing)] () mutable {
+    controller ()->add (std::move (job), std::move (missing));
+  });
 }
+} // namespace
 
 bool athena_node_reference_with_export (object action) {
   const auto* context= current_scheme_execution_context ();
   if (!context || !context->actor || !context->editor) return false;
   auto source= context->actor->current_source (context->view_id);
   auto seeds= ref::export_selections (source);
-  if (seeds.empty () || ref::current_export_references ()) {
+  if (ref::current_export_references ()) {
     (void) call (action); return true;
+  }
+  if (seeds.empty ()) {
+    try {
+      ref::export_reference_scope probe (std::make_shared<const ref::prepared_references> ());
+      context->editor->probe_print_references ();
+      seeds= probe.missing ();
+    }
+    catch (const std::exception& e) {
+      context->editor->set_message ("Export failed", tree (e.what ()), true);
+      return false;
+    }
+    if (seeds.empty ()) { (void) call (action); return true; }
   }
   auto vault= vault_capture_context ();
   if (!vault || !QCoreApplication::instance ()) {

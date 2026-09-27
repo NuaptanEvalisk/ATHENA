@@ -11,6 +11,7 @@
 #include "node_reference_export.hpp"
 #include "System/Boot/boot.hpp"
 #include "buffer_actor.hpp"
+#include "editor.hpp"
 #include "buffer_name_catalog.hpp"
 #include "file.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
@@ -247,42 +248,77 @@ prepared_snapshot prepare_headless_export (std::uint64_t actor, std::uint64_t vi
   if (!source->done)
     throw std::runtime_error (source->error.empty () ? "Export source capture failed" : source->error);
 
-  prepared_references result;
-  if (!source->seeds.empty ()) {
-    auto vault= vault_capture_context ();
-    auto locator= node_location::for_vault (vault);
-    struct response {
-      std::mutex lock;
-      std::condition_variable ready;
-      prepared_snapshot value;
-    };
-    auto answer= std::make_shared<response> ();
-    export_preparation preparation (locator, std::move (source->seeds),
-      [answer] (prepared_snapshot value) {
-        {
-          std::lock_guard<std::mutex> guard (answer->lock);
-          answer->value= std::move (value);
-        }
-        answer->ready.notify_all ();
-      });
-    std::unique_lock<std::mutex> guard (answer->lock);
-    if (!answer->ready.wait_for (guard, std::chrono::minutes (5),
-                                [&] { return bool (answer->value); })) {
+  auto vault= vault_capture_context ();
+  std::shared_ptr<node_location::service> locator;
+  std::set<selection> requested (source->seeds.begin (), source->seeds.end ());
+  const auto deadline= std::chrono::steady_clock::now () + std::chrono::minutes (5);
+  for (unsigned round= 0; round < 32; ++round) {
+    prepared_references result;
+    if (!requested.empty ()) {
+      if (!locator) locator= node_location::for_vault (vault);
+      struct response {
+        std::mutex lock;
+        std::condition_variable ready;
+        prepared_snapshot value;
+      };
+      auto answer= std::make_shared<response> ();
+      export_preparation preparation (locator, {requested.begin (), requested.end ()},
+        [answer] (prepared_snapshot value) {
+          {
+            std::lock_guard<std::mutex> guard (answer->lock);
+            answer->value= std::move (value);
+          }
+          answer->ready.notify_all ();
+        });
+      std::unique_lock<std::mutex> guard (answer->lock);
+      if (!answer->ready.wait_until (guard, deadline, [&] { return bool (answer->value); })) {
+        guard.unlock ();
+        preparation.cancel ();
+        throw std::runtime_error ("Headless export reference preparation timed out");
+      }
+      result= *answer->value;
       guard.unlock ();
-      preparation.cancel ();
-      throw std::runtime_error ("Headless export reference preparation timed out");
+      if (!vault_context_is_current (vault))
+        throw std::runtime_error ("Export vault changed during preparation");
+      if (result.cancelled || !result.error.empty ())
+        throw std::runtime_error (result.error.empty () ? "Export preparation cancelled" : result.error);
     }
-    result= *answer->value;
-    guard.unlock ();
-    if (!vault_context_is_current (vault))
-      throw std::runtime_error ("Export vault changed during preparation");
-    if (result.cancelled || !result.error.empty ())
-      throw std::runtime_error (result.error.empty () ? "Export preparation cancelled" : result.error);
+    result.origin_actor= actor; result.origin_view= view;
+    result.origin_url= source->url;
+    result.origin_revision= source->revision;
+    auto frozen= std::make_shared<const prepared_references> (std::move (result));
+    struct probe_result {
+      std::vector<selection> missing;
+      std::string error;
+      bool done= false;
+    };
+    auto probe= std::make_shared<probe_result> ();
+    auto inspect= actor_continuation_registry::instance ().store ([frozen, probe] {
+      try {
+        const auto* context= current_scheme_execution_context ();
+        if (!context || !context->editor) throw std::runtime_error ("Export view has closed");
+        export_reference_scope references (frozen);
+        context->editor->probe_print_references ();
+        probe->missing= references.missing ();
+        probe->done= true;
+      }
+      catch (const std::exception& e) { probe->error= e.what (); }
+      catch (const string& e) { probe->error.assign (e.data (), N(e)); }
+      catch (...) { probe->error= "Export reference layout failed"; }
+    });
+    if (!buffer_actor::invoke_on (actor, actor_command_kind::run_native_continuation,
+          view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER, inspect)) {
+      actor_continuation_registry::instance ().discard (inspect);
+      throw std::runtime_error ("Export source actor is unavailable");
+    }
+    if (!probe->done) throw std::runtime_error (probe->error);
+    if (probe->missing.empty ()) return frozen;
+    const auto before= requested.size ();
+    requested.insert (probe->missing.begin (), probe->missing.end ());
+    if (requested.size () == before || requested.size () > preparation_limits {}.selections)
+      throw std::runtime_error ("Export reference discovery exceeded its budget or made no progress");
   }
-  result.origin_actor= actor; result.origin_view= view;
-  result.origin_url= std::move (source->url);
-  result.origin_revision= std::move (source->revision);
-  return std::make_shared<const prepared_references> (std::move (result));
+  throw std::runtime_error ("Export reference discovery did not converge");
 }
 
 void verify_export_origin () {
