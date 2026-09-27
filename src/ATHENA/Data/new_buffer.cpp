@@ -33,6 +33,7 @@
 #include "Data/Convert/Xml/document_file_codec.hpp"
 #include <filesystem>
 #include <algorithm>
+#include <optional>
 #include <stdexcept>
 
 array<tm_buffer> bufs;
@@ -191,10 +192,11 @@ invoke_buffer_actor (
   athena_blob_id payload0= ATHENA_NO_BLOB,
   athena_blob_id payload1= ATHENA_NO_BLOB,
   actor_command_record* result= nullptr,
-  std::uint64_t argument0= 0) {
+  std::uint64_t argument0= 0,
+  std::uint64_t argument1= 0) {
   return actor != nullptr && actor->invoke (
     kind, view_id, payload0, payload1, result, SCHEME_CAPABILITY_BUFFER,
-    argument0);
+    argument0, argument1);
 }
 
 static bool
@@ -204,9 +206,10 @@ invoke_buffer_actor (
   athena_blob_id payload0= ATHENA_NO_BLOB,
   athena_blob_id payload1= ATHENA_NO_BLOB,
   actor_command_record* result= nullptr,
-  std::uint64_t argument0= 0) {
+  std::uint64_t argument0= 0,
+  std::uint64_t argument1= 0) {
   return !is_nil (buf) && invoke_buffer_actor (
-    buf->actor, kind, view_id, payload0, payload1, result, argument0);
+    buf->actor, kind, view_id, payload0, payload1, result, argument0, argument1);
 }
 
 static buffer_actor*
@@ -574,7 +577,9 @@ set_proposed_title_buffer (url name, string title) {
 ******************************************************************************/
 
 static bool
-try_set_buffer_tree (url name, tree doc) {
+try_set_buffer_tree (
+    url name, tree doc,
+    std::optional<athena::document::document_source_format> source_format= {}) {
   tm_buffer buf= concrete_buffer (name);
   bool inserted= is_nil (buf);
   if (inserted) {
@@ -588,9 +593,11 @@ try_set_buffer_tree (url name, tree doc) {
     actor_tree_registry::instance ().store (std::move (doc));
   athena_view_id view_id= source_view (buf);
   actor_command_record replacement;
+  const std::uint64_t persistence_mode= !source_format ? 0 :
+    (*source_format == athena::document::document_source_format::xml_v2 ? 2 : 1);
   if (!invoke_buffer_actor (
         buf, actor_command_kind::replace_document, view_id,
-        document_payload, ATHENA_NO_BLOB, &replacement)) {
+        document_payload, ATHENA_NO_BLOB, &replacement, 0, persistence_mode)) {
     discard_tree_payload (document_payload);
     return false;
   }
@@ -885,8 +892,10 @@ attach_buffer_notifier (url name) {
 * Loading
 ******************************************************************************/
 
-tree
-import_loaded_tree (string s, url u, string fm) {
+static tree
+import_loaded_tree_with_format (
+    string s, url u, string fm,
+    std::optional<athena::document::document_source_format>* format) {
   set_file_focus (u);
   if (s == "" && suffix (u) == "ath") {
     tree doc (DOCUMENT);
@@ -910,10 +919,12 @@ import_loaded_tree (string s, url u, string fm) {
   else if (document_input) {
     try {
       string local= concretize (u);
-      if (N(local) != 0)
-        t= athena::document::decode_document_bytes (
-          bytes, std::filesystem::path (as_charp (local))).document;
-      else t= athena::document::decode_document_bytes (bytes).document;
+      auto decoded= N(local) != 0 ?
+        athena::document::decode_document_bytes (
+          bytes, std::filesystem::path (as_charp (local))) :
+        athena::document::decode_document_bytes (bytes);
+      if (format) *format= decoded.format;
+      t= std::move (decoded.document);
     }
     catch (const std::exception& e) { return tree (_ERROR, string (e.what ())); }
   }
@@ -922,6 +933,12 @@ import_loaded_tree (string s, url u, string fm) {
   if (N (links) != 0)
     (void) call ("register-link-locations", object (u), object (links));
   return t;
+}
+
+tree
+import_loaded_tree (string s, url u, string fm) {
+  return import_loaded_tree_with_format (
+    std::move (s), std::move (u), std::move (fm), nullptr);
 }
 
 tree
@@ -938,6 +955,24 @@ import_tree (url u, string fm, std::string* storage_sha256) {
       std::string_view (as_charp (s), (std::size_t) N(s)));
   set_file_focus (r);
   return import_loaded_tree (s, r, fm);
+}
+
+static tree
+import_tree_with_format (
+    url u, string fm, std::string* storage_sha256,
+    std::optional<athena::document::document_source_format>& format) {
+  url r= resolve (u, "fr");
+  if (is_none (r)) {
+    url b= get_current_buffer ();
+    r= resolve (b * url_parent () * u);
+  }
+  string s;
+  if (is_none (r) || load_string (r, s, false)) return "error";
+  if (storage_sha256 != nullptr)
+    *storage_sha256= athena::document::storage_bytes_fingerprint (
+      std::string_view (as_charp (s), (std::size_t) N(s)));
+  set_file_focus (r);
+  return import_loaded_tree_with_format (s, r, fm, &format);
 }
 
 void
@@ -972,7 +1007,8 @@ capture_buffer_document_storage (
 bool
 buffer_import (url name, url src, string fm) {
   std::string storage_sha256;
-  tree t= import_tree (src, fm, &storage_sha256);
+  std::optional<athena::document::document_source_format> source_format;
+  tree t= import_tree_with_format (src, fm, &storage_sha256, source_format);
   if (t == "error" || is_func (t, _ERROR)) return true;
   if (vault_active () && suffix (name) == "ath") {
     string preference= get_preference ("materials csl style", "springer-mathphys");
@@ -983,7 +1019,7 @@ buffer_import (url name, url src, string fm) {
     if (error.empty ()) t= std::move (updated);
     else std_warning << "Could not refresh document Materials: " << string (error.c_str ()) << LF;
   }
-  if (!try_set_buffer_tree (name, std::move (t))) return true;
+  if (!try_set_buffer_tree (name, std::move (t), source_format)) return true;
   capture_buffer_document_storage (
     concrete_buffer (name), name, src, storage_sha256);
   return false;

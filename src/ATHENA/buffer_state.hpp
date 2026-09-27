@@ -43,9 +43,13 @@ struct buffer_document_state {
   std::unique_ptr<athena::interop::document_nodes> interop_node_registry;
   std::optional<athena::document::document_file> storage;
   bool storage_capture_failed= false;
-  // Explicit owner adoption requires an identity-complete history baseline.
-  // Replacements validate a new baseline before changing this index. No normal
-  // loader enables it yet; legacy/render buffers and expansions leave null.
+  // Persistence mode follows the source document, not the current filename.
+  // v2 is adopted only by explicit v2 input; v1/legacy buffers never promote
+  // themselves merely because node metadata exists in memory.
+  athena::document::xml_storage_version storage_version=
+    athena::document::xml_storage_version::v1;
+  // v2 normal loads and explicit owner adoption require an identity-complete
+  // history baseline. v1/legacy/render buffers and expansions leave this null.
   std::unique_ptr<athena::document_node::source_identity_state> node_identities;
 
   buffer_document_state (buffer_actor* actor2, string name2, string master2,

@@ -15,6 +15,7 @@
 namespace athena::document {
 std::string storage_bytes_fingerprint (std::string_view);
 enum class legacy_format { texmacs, scheme };
+enum class xml_storage_version { v1, v2 };
 enum class upgrade_durability { durable, replaced_not_durable };
 class xml_file;
 struct upgrade_result {
@@ -62,15 +63,19 @@ class xml_file {
   filesystem::entry file_;
   filesystem::metadata revision_;
   std::string digest_;
+  xml_storage_version version_;
   xml_file (filesystem::confined_root, std::filesystem::path,
-            filesystem::entry, filesystem::metadata, std::string);
+            filesystem::entry, filesystem::metadata, std::string,
+            xml_storage_version);
   friend class legacy_file;
   friend class document_file;
 public:
   static xml_file capture (const std::filesystem::path&, codec_limits = {});
   static xml_file create (const std::filesystem::path&, const tree&,
-                          xml_save_result&, codec_limits = {});
+                          xml_save_result&, xml_storage_version= xml_storage_version::v1,
+                          codec_limits = {});
   const std::string& source_sha256 () const { return digest_; }
+  xml_storage_version version () const { return version_; }
   xml_save_result commit (const tree&, codec_limits = {});
 };
 
@@ -90,8 +95,13 @@ public:
   static document_file capture (const std::filesystem::path&,
     const std::optional<std::filesystem::path>& vault= {}, codec_limits = {});
   static document_file create (const std::filesystem::path&, const tree&,
-                               document_save_result&, codec_limits = {});
+                               document_save_result&,
+                               xml_storage_version= xml_storage_version::v1,
+                               codec_limits = {});
   bool legacy () const { return legacy_.has_value (); }
+  xml_storage_version version () const {
+    return xml_ ? xml_->version () : xml_storage_version::v1;
+  }
   const std::string& source_sha256 () const {
     return legacy_ ? legacy_->original_sha256 () : xml_->source_sha256 ();
   }

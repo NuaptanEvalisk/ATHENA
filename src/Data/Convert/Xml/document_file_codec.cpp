@@ -6,6 +6,7 @@
 
 #include "document_file_codec.hpp"
 #include "file.hpp"
+#include "node_metadata.hpp"
 #include <QCryptographicHash>
 
 namespace athena::document {
@@ -31,6 +32,19 @@ document_source_format classify_document (std::string_view source) {
     codec_error::invalid_structure, "Unrecognized ATHENA document format");
 }
 
+document_read_result decode_xml_document (
+    std::string_view source, codec_limits limits) {
+  try {
+    return {document_source_format::xml_v1,
+            read_xml (source, xml_kind::document, limits), {}};
+  }
+  catch (const codec_exception& error) {
+    if (error.code != codec_error::unsupported_version) throw;
+  }
+  return {document_source_format::xml_v2,
+          read_xml_v2 (source, xml_kind::document, limits), {}};
+}
+
 } // namespace
 
 std::optional<document_path>
@@ -54,7 +68,7 @@ decode_document_bytes (
   legacy_import_limits limits, const legacy_slot_policy& policy) {
   const auto format= classify_document (source);
   if (format == document_source_format::xml_v1)
-    return {format, read_xml (source, xml_kind::document, limits.codec), {}};
+    return decode_xml_document (source, limits.codec);
   auto imported= import_legacy_document_bytes (source, table, limits, policy);
   return {format, std::move (imported.document), std::move (imported.mappings)};
 }
@@ -65,7 +79,7 @@ decode_document_bytes (
   legacy_import_limits limits, const legacy_slot_policy& policy) {
   const auto format= classify_document (source);
   if (format == document_source_format::xml_v1)
-    return {format, read_xml (source, xml_kind::document, limits.codec), {}};
+    return decode_xml_document (source, limits.codec);
   legacy_import_context context;
   context.source_path= source_path;
   auto imported= import_legacy_document_bytes (
@@ -95,7 +109,9 @@ standard_legacy_cork_table () {
 
 std::string
 semantic_document_fingerprint (const tree& document, codec_limits limits) {
-  const std::string canonical= write_xml (document, xml_kind::document, limits);
+  const std::string canonical= athena::node::contains_metadata (document) ?
+    write_xml_v2 (document, xml_kind::document, limits) :
+    write_xml (document, xml_kind::document, limits);
   const QByteArray digest= QCryptographicHash::hash (
     QByteArray (canonical.data (), (qsizetype) canonical.size ()),
     QCryptographicHash::Sha256).toHex ();

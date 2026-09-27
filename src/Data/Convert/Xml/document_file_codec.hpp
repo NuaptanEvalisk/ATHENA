@@ -11,7 +11,7 @@
 
 namespace athena::document {
 
-enum class document_source_format { xml_v1, legacy_markup, legacy_scheme };
+enum class document_source_format { xml_v1, xml_v2, legacy_markup, legacy_scheme };
 
 struct document_read_result {
   document_source_format format;
@@ -20,7 +20,10 @@ struct document_read_result {
   // through the same mappings returned by the semantic importer.
   std::vector<legacy_node_mapping> mappings;
 
-  bool legacy () const { return format != document_source_format::xml_v1; }
+  bool legacy () const {
+    return format == document_source_format::legacy_markup ||
+           format == document_source_format::legacy_scheme;
+  }
   std::optional<document_path> relocate_node (const document_path&) const;
   std::optional<document_position> relocate (
     const document_path&, std::size_t byte, boundary_affinity) const;

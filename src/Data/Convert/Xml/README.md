@@ -23,15 +23,25 @@ The native tree and string containers remain the runtime representation.
 Legacy Cork encoding is accepted only at explicit compatibility/import
 boundaries; it is not a native runtime text model.
 
-## Native XML version 1
+## Native XML versions
 
 athena_document_xml.{hpp,cpp} implements the native versioned XML codec.
 A complete document uses the athena-document envelope; a standalone tree
-fragment uses athena-tree. Both require version="1" and text-model="utf-8".
+fragment uses athena-tree. Both use text-model="utf-8". Version 1 stores the
+native UTF-8 tree without node metadata. Version 2 additionally stores optional
+node UUIDs and typed properties, including metadata on atomic nodes.
 
-Native `.ath` documents and `.ats` style/package resources use this same
-complete-document codec. Their extensions describe their application role, not
-different XML dialects. Style/package lookup prefers `.ats`; legacy `.ts`
+The low-level `read_xml`/`write_xml` APIs deliberately remain version-1-only;
+the default writer rejects metadata rather than dropping it. Explicit
+`read_xml_v2`/`write_xml_v2` APIs accept/persist the version-2 model. Normal
+document dispatch recognizes both XML envelope versions and reports which one
+was loaded so storage can preserve that version.
+
+Native `.ath` documents and `.ats` style/package resources use the same base
+complete-document codec. Ordinary v1 resources remain v1; an `.ath` document
+that is already version 2 stays version 2 across normal load/save/autosave.
+Their extensions describe application role, not a different text model.
+Style/package lookup prefers `.ats`; legacy `.ts`
 resources are accepted only as compatibility input and are semantically imported
 to the same UTF-8 tree model. New style installation and persistence emit
 `.ats`, never `.ts`.
@@ -83,10 +93,15 @@ document_file_codec.{hpp,cpp} is the common bytes-to-document entry point.
 decode_document_bytes classifies input by explicit file signatures:
 
 - native XML version 1;
+- native XML version 2;
 - legacy TeXmacs markup beginning with &lt;TeXmacs|;
 - supported legacy Scheme document serialization.
 
-Native XML is parsed directly. Legacy formats are semantically imported in
+Native XML is parsed directly and its envelope version is retained in the read
+result. A normal version-2 document load additionally requires an
+identity-complete source baseline before the BufferActor activates its
+owner-local identity index; version-1 and legacy inputs are not promoted merely
+because the runtime supports v2. Legacy formats are semantically imported in
 memory through legacy_document_import; reading never rewrites the source file.
 Random bytes are not guessed to be legacy text merely because they resemble a
 particular encoding.
@@ -108,7 +123,9 @@ is intentionally removed. New native persistence does not emit legacy formats.
 ## Semantic and storage revisions
 
 semantic_document_fingerprint hashes the canonical native XML serialization of
-the already imported document tree. It identifies logical document content.
+the already imported document tree. Trees with node metadata use canonical v2;
+trees without metadata use canonical v1. It identifies logical document content
+at this storage/model layer; it is not a model-specific embedding fingerprint.
 Raw-byte hashes, file metadata and descriptor revisions identify storage state.
 
 Keeping those concepts separate allows a legacy-to-XML rewrite with unchanged
@@ -127,13 +144,23 @@ for local document saves.
 
 Opening an existing document captures the concrete storage object and its
 revision. A later save verifies that the path still refers to the captured object
-and that its revision has not changed. The document is serialized to native XML,
-round-tripped through the configured XML reader, and then published through the
-descriptor-backed atomic replacement path. An external modification therefore
-causes the save to fail rather than silently overwriting newer bytes.
+and that its revision has not changed. The captured XML envelope version is also
+part of the storage mode: v1 saves as v1 and v2 saves as v2. The document is
+serialized and round-tripped through the matching reader before publication by
+the descriptor-backed atomic replacement path. An external modification
+therefore causes the save to fail rather than silently overwriting newer bytes.
 
-New documents are created directly as native XML. Existing native XML documents
-remain native XML on subsequent saves.
+Ordinary new/unmigrated documents continue to default to v1. A v2 buffer saved
+to a new target creates v2 storage, while saving it over an existing target with
+a different XML storage version is rejected rather than silently changing the
+document-model contract. Existing native XML documents retain their version on
+subsequent normal saves.
+
+For v2 buffers, native `texmacs` autosave export also writes XML v2 after
+finalizing pending source identities. Autosave recovery goes back through the
+normal buffer-import path so the recovered owner reactivates the same v2
+identity contract instead of losing the envelope version through a detached
+tree-only handoff.
 
 For a captured legacy document, the first explicit normal save performs the
 format transition. Before replacement, the exact original bytes are preserved

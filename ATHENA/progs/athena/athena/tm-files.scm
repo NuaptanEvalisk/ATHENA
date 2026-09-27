@@ -697,11 +697,16 @@
                   (let ((name (string->url name*)))
                     (if answ
                         (let* ((autosave-name (autosave-propose name))
-                               (format (url-format name))
-                               (doc (tree-import autosave-name format)))
-                          (buffer-set name doc)
-                          (load-buffer-open name opts)
-                          (buffer-pretend-modified name))
+                               (format (url-format name)))
+                          ;; Preserve the persisted document-model version.
+                          ;; In particular, a v2 autosave must activate the
+                          ;; same owner-local identity index as a normal load.
+                          (if (buffer-import name autosave-name format)
+                              (set-message "Could not load autosave file"
+                                           "Load file")
+                              (begin
+                                (load-buffer-open name opts)
+                                (buffer-pretend-modified name))))
                         (load-buffer-check-permissions name opts))))))))
         (load-buffer-check-permissions name opts))))
 

@@ -1114,6 +1114,17 @@ buffer_actor::dispatch (actor_command_record& command) {
         throw std::system_error (
           EAGAIN, std::generic_category (),
           "Document changed between import and storage capture");
+      const auto version= storage.version ();
+      if (version == athena::document::xml_storage_version::v2 &&
+          !impl_->state.node_identities) {
+        auto identities= replacement_node_identities (
+          impl_->state.source_envelope,
+          subtree (impl_->state.document, impl_->state.root_path));
+        if (!identities)
+          throw std::invalid_argument ("XML v2 source does not have a complete identity baseline");
+        impl_->state.node_identities= std::move (identities);
+      }
+      impl_->state.storage_version= version;
       impl_->state.storage= std::move (storage);
       impl_->state.storage_capture_failed= false;
       command.argument[0]= 0;
@@ -1130,8 +1141,10 @@ buffer_actor::dispatch (actor_command_record& command) {
     tree document= actor_tree_registry::instance ().take (command.payload0);
     // Loading/reloading is a baseline replacement, not a normal content edit.
     // Preflight before touching the old envelope, body, editor data or index.
+    const bool supplied_format= command.argument[1] != 0;
+    const bool source_v2= command.argument[1] == 2;
     std::unique_ptr<athena::document_node::source_identity_state> identities;
-    if (impl_->state.node_identities) {
+    if (source_v2 || (!supplied_format && impl_->state.node_identities)) {
       new_data projected;
       const tree body= detach_data (document, projected);
       identities= replacement_node_identities (document, body);
@@ -1141,7 +1154,13 @@ buffer_actor::dispatch (actor_command_record& command) {
     tree body= detach_data (document, impl_->state.data);
     set_document (
       impl_->state.document, impl_->state.root_path, std::move (body));
-    if (identities) impl_->state.node_identities= std::move (identities);
+    if (supplied_format) {
+      impl_->state.storage_version= source_v2 ?
+        athena::document::xml_storage_version::v2 :
+        athena::document::xml_storage_version::v1;
+      impl_->state.node_identities= std::move (identities);
+    }
+    else if (identities) impl_->state.node_identities= std::move (identities);
     for (auto& entry: impl_->views) {
       entry.second.instance->set_data (impl_->state.data);
       entry.second.instance->init_update ();
@@ -1319,6 +1338,9 @@ buffer_actor::dispatch (actor_command_record& command) {
       editor_rep* save_editor= current_editor (command.view_id);
       if (!save_editor && !impl_->views.empty ())
         save_editor= impl_->views.begin ()->second.instance.operator -> ();
+      if (impl_->state.storage_version == athena::document::xml_storage_version::v2 &&
+          !impl_->state.node_identities)
+        throw std::runtime_error ("XML v2 document has no active source identity index");
       if (impl_->state.node_identities && impl_->state.node_identities->pending ()) {
         if (!save_editor || !save_editor->finish_node_identities ())
           throw std::runtime_error ("Source identities must be finalized before saving");
@@ -1354,12 +1376,16 @@ buffer_actor::dispatch (actor_command_record& command) {
           if (N(vault_text) != 0)
             vault= std::filesystem::path (
               std::string (vault_text.data (), (std::size_t) N(vault_text)));
-          impl_->state.storage= athena::document::document_file::capture (path, vault);
+          auto storage= athena::document::document_file::capture (path, vault);
+          if (storage.version () != impl_->state.storage_version)
+            throw std::runtime_error (
+              "Save target uses a different ATHENA XML persistence version");
+          impl_->state.storage= std::move (storage);
           saved= impl_->state.storage->save (document);
         }
         else
           impl_->state.storage= athena::document::document_file::create (
-            path, document, saved);
+            path, document, saved, impl_->state.storage_version);
       }
       if (saved.durability == athena::document::upgrade_durability::durable)
       {
@@ -1429,6 +1455,29 @@ buffer_actor::dispatch (actor_command_record& command) {
       export_editor->print_to_file (dest);
       int new_stamp= last_modified (dest, false);
       failed= new_stamp <= old_stamp;
+    }
+    else if (!failed && format == "texmacs" &&
+             impl_->state.storage_version == athena::document::xml_storage_version::v2) {
+      if (!impl_->state.node_identities ||
+          (impl_->state.node_identities->pending () &&
+           !export_editor->finish_node_identities ())) {
+        failed= true;
+      }
+      else {
+        export_editor->get_data (impl_->state.data);
+        tree body= subtree (impl_->state.document, impl_->state.root_path);
+        refresh_interop_document_source (
+          impl_->state.source_envelope, body, impl_->state.data);
+        tree document= remove_doc_attr (impl_->state.source_envelope, "view");
+        tree links= as_tree (call (
+          "get-link-locations", object (impl_->state.name), object (body)));
+        document= remove_doc_attr (document, "links");
+        if (N(links) != 0) document << compound ("links", links);
+        document= athena::document::strip_legacy_document_version (document);
+        const std::string xml= athena::document::write_xml_v2 (document);
+        failed= save_string (
+          dest, string (xml.data (), static_cast<int> (xml.size ())));
+      }
     }
     else if (!failed) {
       tree body= subtree (
