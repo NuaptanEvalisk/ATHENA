@@ -651,17 +651,20 @@
            (if (buffer-load name)
                (set-message `(concat "Could not load " ,vname) "Load file")
                (load-buffer-open name opts)))
-          (else
-            (with uname (if (string? name) (string->url name) name)
-              (buffer-set-body name '(document ""))
-              (load-buffer-open name opts)
-              ;; Registry creation/opening is global/UI-owned, but style
-              ;; initialization mutates the editor and therefore belongs to
-              ;; the newly created buffer's BufferActor.
-              (exec-buffer name (lambda () (buffer-set-default-style)))
-              (set-message `(concat "Could not load " ,vname
-                                    ". Created new document")
-                           "Load file"))))))
+           (else
+             (with uname (if (string? name) (string->url name) name)
+               (if (buffer-create-source name)
+                   (set-message `(concat "Could not create " ,vname)
+                                "Load file")
+                   (begin
+                     (load-buffer-open name opts)
+                     ;; Registry creation/opening is global/UI-owned, but style
+                     ;; initialization mutates the editor and therefore belongs
+                     ;; to the newly created buffer's BufferActor.
+                     (exec-buffer name (lambda () (buffer-set-default-style)))
+                     (set-message `(concat "Could not load " ,vname
+                                           ". Created new document")
+                                  "Load file"))))))))
 
 (define (load-buffer-check-permissions name opts)
   ;;(display* "load-buffer-check-permissions " name ", " opts "\n")

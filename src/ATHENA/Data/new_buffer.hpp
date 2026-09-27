@@ -77,6 +77,9 @@ array<url> get_all_buffers ();
 class object;
 bool exec_buffer (url name, object command);
 url  make_new_buffer ();
+url  make_new_source_buffer ();
+// False on success, matching buffer_load/buffer_import error polarity.
+bool buffer_create_source (url name);
 void remove_buffer (url name);
 int  number_buffers ();
 url  get_current_buffer ();

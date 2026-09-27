@@ -704,6 +704,32 @@ v2 saves, advertise AUDMAP v3, or implement cross-document moves.
   undo once the move credential had been discarded. No production vault,
   deployment or broad test suite was used.
 
+## Born-v2 ordinary source documents (2026-09-27 night)
+
+- Ordinary user-created source documents no longer begin life as anonymous v1
+  buffers. The native creation helper builds a detached document body, assigns
+  the standard source-role identity baseline, installs it through the normal v2
+  replacement path and therefore starts the BufferActor with its owner-local
+  identity index active from the first edit.
+- Missing-file creation in the normal load UI now calls that source helper
+  instead of first installing `(document "")`. New document and New Window
+  entry points likewise allocate a born-v2 source buffer. Transient/derived
+  buffers such as DataArt retain the older generic `make_new_buffer` path so
+  this does not silently turn every internal scratch tree into persisted source.
+- The first normal save of such a document creates XML v2 storage. New edits
+  receive UUIDs transactionally before that save rather than relying on a
+  persistence-time migration.
+- The normal `ATHENA.bin -j20` build passed. One isolated real-BufferActor
+  fixture, `tests/scheme/node-new-v2-test.py` / `.scm`, passed
+  `ATHENA-NODE-NEW-V2-PASS`. It covered named source creation, active
+  identities, ordinary UUID allocation, first-save XML-v2 output and the
+  user-facing New scratch-buffer allocator.
+- This does not replace vault migration. Existing UTF-8/XML-v1 vaults remain v1
+  until a separate offline node-model migration is requested. The existing
+  `--upgrade-vault-format` command remains the older legacy
+  Cork/S-expression -> UTF-8/XML converter and must not be overloaded for the
+  node-model migration.
+
 ## Build Boundary
 
 Normal builds use only:

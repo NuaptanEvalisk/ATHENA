@@ -384,7 +384,7 @@ new_buffer_in_new_window (url name, tree doc, tree geom) {
 url
 create_buffer () {
   initial_view= url_none ();
-  url name= make_new_buffer ();
+  url name= make_new_source_buffer ();
   switch_to_buffer (name);
   return name;
 }
@@ -402,7 +402,7 @@ new_document_buffer () {
 url
 open_window (tree geom) {
   initial_view= url_none ();
-  url name= make_new_buffer ();
+  url name= make_new_source_buffer ();
   return new_buffer_in_new_window (name, tree (DOCUMENT), geom);
 }
 

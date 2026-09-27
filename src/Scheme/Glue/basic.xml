@@ -2664,6 +2664,9 @@
   <binding name="buffer-load" native="buffer_load" returns="bool">
     <arg type="url" />
   </binding>
+  <binding name="buffer-create-source" native="buffer_create_source" returns="bool">
+    <arg type="url" />
+  </binding>
   <binding name="buffer-export" native="buffer_export" returns="bool">
     <arg type="url" />
     <arg type="url" />

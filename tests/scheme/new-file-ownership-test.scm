@@ -33,9 +33,10 @@
 (define :background ':background)
 
 (define (buffer-exists? name) #f)
-(define (buffer-set-body name body)
-  (require-global "buffer-set-body")
-  (set! created (list name body)))
+(define (buffer-create-source name)
+  (require-global "buffer-create-source")
+  (set! created (list name 'xml-v2-source))
+  #f)
 (define (load-buffer-open name opts)
   (require-global "load-buffer-open")
   (set! opened (list name opts)))
@@ -76,8 +77,8 @@
 (load-buffer-load "/tmp/athena-new-file-ownership.ath" '())
 
 (check (equal? created
-               '("/tmp/athena-new-file-ownership.ath" (document "")))
-       "missing file did not create the expected document")
+                '("/tmp/athena-new-file-ownership.ath" xml-v2-source))
+       "missing file did not create an XML v2 source document")
 (check (equal? opened '("/tmp/athena-new-file-ownership.ath" ()))
        "new document was not opened globally")
 (check styled "default style was not initialized on the BufferActor")

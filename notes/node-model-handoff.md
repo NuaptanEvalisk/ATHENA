@@ -5,23 +5,25 @@
 ## 先读结论
 
 原交接停在 native tree-set-diff 完成处；用户随后要求按功能块继续。
-源生命周期、normal XML v2 persistence/activation、AUDMAP document-model v3
-与 Artifact source binding/revision block 已分别完成并提交。当前 worktree
-完成了一次性 cut/move credential + 跨 actor undo/redo block，已通过集中验证，
+源生命周期、normal XML v2 persistence/activation、AUDMAP document-model v3、
+Artifact source binding/revision 与 cut/move credential + 跨 actor undo/redo
+均已分别完成并提交。当前 worktree 完成“新建普通文档 born-v2”块并通过集中验证，
 正待本次独立提交。
 **整个迁移尚未统一切换，但核心运行链路已经较完整；主要剩余工作集中在剩余
 persistence 边界、离线迁移与最终引用语义切换。**
 
-当前最后代码提交：`70da9708a improve: bind artifacts to source node identities`。
-此前相邻集成提交：`417efe87e`（AUDMAP document-model v3）、
+当前最后代码提交：`e5fa5aae6 improve: preserve identities across source moves`。
+此前相邻集成提交：`70da9708a`（Artifact source identity）、
+`417efe87e`（AUDMAP document-model v3）、
 `6f2937262`（normal XML v2 persistence/activation）、
 `6b965f3c9`（source identity lifecycle）、`7e9b23a9b`（native tree diff）、
 `f8db49cf3`（格式/preamble）、`440f069d5`（DataArt）、
 `4617f4219`（增量身份事务）、`411f2ea0a`（动态引用导出）、`6325a84f1`（headless 导出）。
 
 旧 UTF-8/XML 项目与本项目不同：这里是在已有 UTF-8/XML 基础上增加节点元数据、
-XML v2、AUDMAP document-model v3 和新引用语义。不要重做 UTF-8 迁移，也不要把
-已有 `--upgrade-vault-format` 当成已经支持本次节点身份迁移。
+XML v2、AUDMAP document-model v3 和新引用语义。已有
+`--upgrade-vault-format` 只负责 legacy Cork/S-expression -> UTF-8/XML；
+node-model 离线迁移的输入必须是已经为 UTF-8 XML 的 vault，并使用独立 CLI 参数。
 
 详细历史记录在 `notes/node-model-migration.md`。它是逐批追加的日志，早期章节里的
 “尚未做”可能已被后续章节完成；本文件是暂停时的汇总，源码仍是行为的最终依据。
@@ -181,6 +183,9 @@ children:
   留下带旧 UUID 的空壳；同 vault 首次 paste 可保 UUID，第二次/跨 vault/stale paste
   统一走 `duplicate_source_nodes`。source/target 用同一 history marker 协调跨 actor undo/redo，
   redo 会按 marker 精确选择 peer redo branch，不依赖 branch 0 或内容相似度。
+- 🟩 新建普通文档 born-v2：不存在的用户文件与 New/New Window 的普通 source buffer
+  从创建时就拥有完整 source UUID baseline 与 active owner identity index；第一次保存直接
+  写 XML v2。DataArt/临时派生 buffer 仍可继续使用旧的匿名 `make_new_buffer`，不被误升级。
 
 ### 🟦 已起步、尚未整体完成
 
@@ -195,9 +200,11 @@ children:
 
 ### 🟧 尚未完成的关键集成/切换
 
-- 🟧 其余新文档/clipboard/委派及 tree-bearing persistence 边界的统一 v2 切换；normal v2
-  load/save/autosave/recovery 已完成，不应再作为待办重做。
-- 🟧 扩展离线 vault 升级器：确定性 node identity 映射、引用与 artifact 迁移及诊断。
+- 🟧 其余 clipboard/委派及 tree-bearing persistence 边界的统一 v2 切换；normal v2
+  load/save/autosave/recovery 和普通新建文档已完成，不应再作为待办重做。
+- 🟧 新增独立 node-model vault migrator：输入是已经 UTF-8/XML 的 v1 vault，
+  做确定性 node identity 映射、引用与 artifact 迁移及诊断；不得复用 legacy
+  `--upgrade-vault-format` CLI。
 - 🟧 迁移后切换 bare wikilink，淘汰 map/hints 作为身份真相，删除可确认的生成 anchors。
 - 🟧 故障注入/数据保全最终验收、用户验收、统一启用及部署。
 

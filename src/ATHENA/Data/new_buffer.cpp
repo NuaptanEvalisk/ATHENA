@@ -43,6 +43,26 @@ namespace {
 buffer_name_catalog published_buffer_names;
 std::atomic<std::uint64_t> active_buffer_id {0};
 
+tree
+new_source_document () {
+  tree body (DOCUMENT, tree (""));
+  new_data data;
+  tree document= attach_data (body, data);
+  auto identities= athena::document_node::assign_detached_source_ids (
+    body, get_document_drd (document),
+    athena::document_node::standard_source_role,
+    [] (const athena::document_node::identity_request&) {
+      return athena::node::new_id ();
+    });
+  if (!identities.ok ()) {
+    const std::string detail= identities.diagnostics.empty () ?
+      "Unknown source identity error" : identities.diagnostics.front ().detail;
+    throw std::runtime_error (
+      "Could not initialize a new XML v2 source document: " + detail);
+  }
+  return attach_data (std::move (*identities.body), data);
+}
+
 std::string
 catalog_text (string text) {
   return std::string (text.data (), N (text));
@@ -626,6 +646,35 @@ void
 set_buffer_tree (url name, tree doc) {
   if (!try_set_buffer_tree (name, std::move (doc)))
     std_warning << "Document replacement rejected for " << name << LF;
+}
+
+bool
+buffer_create_source (url name) {
+  if (!is_nil (concrete_buffer (name))) return true;
+  try {
+    return !try_set_buffer_tree (
+      name, new_source_document (),
+      athena::document::document_source_format::xml_v2);
+  }
+  catch (const std::exception& error) {
+    std_warning << "Could not create XML v2 source buffer " << name << ": "
+                << error.what () << LF;
+    return true;
+  }
+}
+
+url
+make_new_source_buffer () {
+  int i= 1;
+  while (true) {
+    url name= url_scratch ("no_name_", ".tm", i);
+    if (is_nil (concrete_buffer (name))) {
+      if (buffer_create_source (name))
+        FAILED ("could not create XML v2 source buffer");
+      return name;
+    }
+    ++i;
+  }
 }
 
 tree
