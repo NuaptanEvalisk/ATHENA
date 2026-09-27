@@ -422,6 +422,48 @@ archiver_rep::redo_possibilities () {
   return nr_redo (archive);
 }
 
+namespace {
+double
+find_move_marker (patch p) {
+  const int type= get_type (p);
+  if (type == PATCH_BIRTH) {
+    const double value= get_author (p);
+    // new_author() uses integers; new_marker() uses half-integers.
+    if (value > 0.0 && value != (double) ((long long) value)) return value;
+    return 0.0;
+  }
+  if (type == PATCH_MODIFICATION) return 0.0;
+  if (type == PATCH_AUTHOR) return find_move_marker (p[0]);
+  if (type == PATCH_COMPOUND || type == PATCH_BRANCH) {
+    for (int i=0; i<N(p); ++i) {
+      double marker= find_move_marker (p[i]);
+      if (marker != 0.0) return marker;
+    }
+  }
+  return 0.0;
+}
+}
+
+double
+archiver_rep::undo_move_marker () {
+  if (active () || nr_undo (archive) == 0) return 0.0;
+  return find_move_marker (car (get_undo (archive)));
+}
+
+double
+archiver_rep::redo_move_marker (int i) {
+  if (active () || i < 0 || i >= nr_redo (archive)) return 0.0;
+  return find_move_marker (car (branch (get_redo (archive), i)));
+}
+
+int
+archiver_rep::redo_move_branch (double marker) {
+  if (active ()) return -1;
+  for (int i=0; i<nr_redo (archive); ++i)
+    if (redo_move_marker (i) == marker) return i;
+  return -1;
+}
+
 path
 archiver_rep::undo_one (int i) {
   if (active ()) return path ();
@@ -555,6 +597,18 @@ has_marker (patch archive, double m) {
   //  return nr_redo (archive) == 0;
   if (is_marker (car (get_undo (archive)), m, false)) return true;
   return has_marker (cdr (get_undo (archive)), m);
+}
+
+bool
+archiver_rep::has_undo_move_marker (double marker) {
+  if (active ()) return false;
+  patch current= archive;
+  while (nr_undo (current) != 0) {
+    patch undo= get_undo (current);
+    if (find_move_marker (car (undo)) == marker) return true;
+    current= cdr (undo);
+  }
+  return false;
 }
 
 static patch

@@ -453,6 +453,13 @@ public:
   virtual bool adopt_node_identities () = 0;
   virtual bool node_identities_active () = 0;
   virtual bool finish_node_identities () = 0;
+  virtual void source_move_paste_pending (string token, double marker) = 0;
+  virtual bool source_move_cut_marker_present (double marker) = 0;
+  virtual double source_move_undo_marker () = 0;
+  virtual double source_move_redo_marker () = 0;
+  virtual bool source_move_redo_available (double marker) = 0;
+  virtual bool source_move_undo_local (double marker) = 0;
+  virtual bool source_move_redo_local (double marker) = 0;
   virtual void cancel_editing () = 0;
   virtual void start_slave (double a) = 0;
   virtual void mark_start (double a) = 0;
@@ -626,7 +633,8 @@ public:
   virtual path selection_get_cursor_path () = 0;
   virtual tree selection_get_env_value (string var) = 0;
   virtual tree selection_get (string key) = 0;
-  virtual void selection_set (string key, tree t, bool persistant= false) = 0;
+  virtual void selection_set (string key, tree t, bool persistant= false,
+                              string move_token= "") = 0;
   virtual void selection_set (tree t) = 0;
   virtual void selection_set_start (path p= path()) = 0;
   virtual void selection_set_end (path p= path()) = 0;

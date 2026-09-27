@@ -13,7 +13,14 @@
 namespace athena::document {
 namespace {
 void validate_selection (const tree& selection) {
-  if (!is_tuple (selection, "texmacs", 3) ||
+  const bool ordinary= is_tuple (selection, "texmacs", 3);
+  const bool move=
+    is_tuple (selection, "texmacs", 4) &&
+    is_tuple (selection[4], "athena-move-v1", 1) &&
+    is_atomic (selection[4][1]) &&
+    node::valid_id (std::string (
+      as_charp (selection[4][1]->label), N(selection[4][1]->label)));
+  if ((!ordinary && !move) ||
       !is_atomic (selection[2]) || !is_atomic (selection[3]))
     throw codec_exception (codec_error::invalid_structure,
                            "Invalid ATHENA clipboard selection envelope");

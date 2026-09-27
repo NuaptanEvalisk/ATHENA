@@ -18,7 +18,12 @@
 #include "tm_buffer.hpp"
 #include "utf8_edit.hpp"
 #include "Xml/clipboard_xml.hpp"
+#include "ATHENA/Data/vault.hpp"
 #include "ATHENA/Data/document_node_copy.hpp"
+#include "ATHENA/buffer_actor.hpp"
+#include "scheme_execution_context.hpp"
+
+#include <filesystem>
 
 /******************************************************************************
 * Constructor and destructor
@@ -598,6 +603,89 @@ edit_select_rep::selection_get_env_value (string var) {
 * Copy and paste
 ******************************************************************************/
 
+namespace {
+
+std::string
+selection_std (string value) {
+  return std::string (as_charp (value), (std::size_t) N(value));
+}
+
+std::string
+source_move_vault_key (buffer_document_state* state) {
+  namespace fs= std::filesystem;
+  if (state == nullptr || !state->node_identities || !vault_active ())
+    return {};
+  string root_text= as_string (concretize (vault_get_root ()), URL_SYSTEM);
+  string document_text= as_string (concretize (state->name), URL_SYSTEM);
+  if (root_text == "" || document_text == "") return {};
+  std::error_code error;
+  fs::path root= fs::weakly_canonical (fs::path (selection_std (root_text)), error);
+  if (error) return {};
+  error.clear ();
+  fs::path document=
+    fs::weakly_canonical (fs::path (selection_std (document_text)), error);
+  if (error) return {};
+  fs::path relative= document.lexically_relative (root);
+  if (relative.empty () || relative.is_absolute ()) return {};
+  for (const fs::path& part: relative)
+    if (part == "..") return {};
+  return root.generic_string ();
+}
+
+bool
+remote_source_move_marker_is_current (
+    athena::document_node::source_move_endpoint endpoint, double marker) {
+  struct response { bool current= false; };
+  auto answer= std::make_shared<response> ();
+  auto continuation= actor_continuation_registry::instance ().store (
+    [answer, marker] {
+      const auto* context= current_scheme_execution_context ();
+      if (context != nullptr && context->editor != nullptr)
+        answer->current=
+          context->editor->source_move_cut_marker_present (marker);
+    });
+  if (!buffer_actor::invoke_on (
+        endpoint.actor, actor_command_kind::run_native_continuation,
+        endpoint.view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
+        SCHEME_CAPABILITY_BUFFER, continuation)) {
+    actor_continuation_registry::instance ().discard (continuation);
+    return false;
+  }
+  return answer->current;
+}
+
+std::string
+source_move_token (const tree& selection) {
+  if (!is_tuple (selection, "texmacs", 4) ||
+      !is_tuple (selection[4], "athena-move-v1", 1) ||
+      !is_atomic (selection[4][1]))
+    return {};
+  return selection_std (selection[4][1]->label);
+}
+
+tree
+plain_clipboard_envelope (const tree& selection) {
+  if (!is_tuple (selection, "texmacs", 4)) return selection;
+  return tuple ("texmacs", selection[1], selection[2], selection[3]);
+}
+
+path
+complete_identified_selection_path (tree document, path p1, path p2, path root) {
+  path selected= common (p1, p2);
+  if (selected == root || is_nil (selected) || !has_subtree (document, selected))
+    return path ();
+  tree value= subtree (document, selected);
+  if (!athena::node::get (value) ||
+      p1 != start (document, selected) || p2 != end (document, selected))
+    return path ();
+  path parent= path_up (selected);
+  if (is_nil (parent) || !has_subtree (document, parent)) return path ();
+  tree container= subtree (document, parent);
+  return (is_document (container) || is_concat (container)) ? selected : path ();
+}
+
+} // namespace
+
 void
 edit_select_rep::selection_raw_set (string key, tree t) {
   (void) ::set_selection (key, t, "", "", "", "texmacs");
@@ -641,12 +729,16 @@ edit_select_rep::selection_set_range_set (range_set sel) {
 }
 
 void
-edit_select_rep::selection_set (string key, tree t, bool persistant) {
+edit_select_rep::selection_set (
+    string key, tree t, bool persistant, string move_token) {
   selecting= shift_selecting= false;
   string mode= as_string (selection_get_env_value (MODE));
   if (mode != "src" && is_equation_array (t)) mode= "text";
   string lan = as_string (selection_get_env_value (MODE_LANGUAGE (mode)));
-  tree sel= tuple ("texmacs", t, mode, lan);
+  tree sel= move_token == "" ?
+    tuple ("texmacs", t, mode, lan) :
+    tuple ("texmacs", t, mode, lan,
+           tuple ("athena-move-v1", move_token));
   /* TODO: add mode="graphics" somewhere in the context of the <graphics>
      tag. To be done when implementing the different embeddings for
      nicely copying graphics into text, text into graphics, etc. */
@@ -725,13 +817,19 @@ edit_select_rep::selection_paste (string key) {
 
   tree t; string s;
   (void) ::get_selection (key, t, s, selection_import);
-  // Until a verified move credential is supplied, every paste is a new object.
-  // Duplicate the whole selection once so references between siblings remap.
-  if (is_tuple (t, "texmacs", 3) && athena::node::contains_metadata (t[1]))
-    t[1]= athena::document_node::duplicate_source_nodes (t[1]);
+  const std::string move_token= source_move_token (t);
+  auto discard_move= [&] {
+    if (!move_token.empty ())
+      athena::document_node::invalidate_source_move (move_token);
+  };
+  t= plain_clipboard_envelope (t);
   if (inside_active_graphics ()) {
-    if (is_tuple (t, "texmacs", 3))
+    discard_move ();
+    if (is_tuple (t, "texmacs", 3)) {
+      if (athena::node::contains_metadata (t[1]))
+        t[1]= athena::document_node::duplicate_source_nodes (t[1]);
       (void) native_graphics_paste_selection (t[1]);
+    }
     return;
   }
   if (is_tuple (t, "extern-utf8", 1)) {
@@ -768,27 +866,39 @@ edit_select_rep::selection_paste (string key) {
     string mode= get_env_string (MODE);
     string lan = get_env_string (MODE_LANGUAGE (mode));
     if (mode == "math" && is_equation_array (t[1])) {
+      if (athena::node::contains_metadata (t[1]))
+        t[1]= athena::document_node::duplicate_source_nodes (t[1]);
       int row, col;
       path fp= search_format (row, col);
       tree content= t[1][0];
       while (is_func (content, DOCUMENT, 1)) content= content[0];
       if (!is_nil (fp) && !is_nil (equation_array_owner (et, fp)) &&
           (is_func (content, TFORMAT) || is_func (content, TABLE))) {
+        discard_move ();
         table_write_subtable (fp, row, col, content);
         return;
       }
     }
+    bool transformed= false;
     if (is_compound (t[1], "text", 1) && mode == "text" &&
-        !athena::node::get (t[1]))
+        !athena::node::get (t[1])) {
       t= tuple ("texmacs", t[1][0], "text", lan);
+      transformed= true;
+    }
     if (is_compound (t[1], "math", 1) && mode == "math" &&
-        !athena::node::get (t[1]))
+        !athena::node::get (t[1])) {
       t= tuple ("texmacs", t[1][0], "math", lan);
-    if (mode == "math" && t[2] == "text")
+      transformed= true;
+    }
+    if (mode == "math" && t[2] == "text") {
+      discard_move ();
       set_message ("Error: invalid paste of text into a formula", "paste");
+    }
     else {
-      if ((t[2] != mode) && (t[2] != "src") && (mode != "src") &&
-  ((t[2] == "math") || (mode == "math"))) {
+      const bool direct_mode=
+        (t[2] == mode) || (t[2] == "src") || (mode == "src");
+      if (!direct_mode && ((t[2] == "math") || (mode == "math"))) {
+        transformed= true;
         if (t[2] == "math")
           insert_tree (compound ("math", ""), path (0, 0));
         else if (t[2] == "text")
@@ -797,12 +907,54 @@ edit_select_rep::selection_paste (string key) {
           insert_tree (tree (WITH, copy (MODE), copy (t[2]), ""), path (2, 0));
       }
       if (is_func (t[1], TFORMAT) || is_func (t[1], TABLE)) {
+        discard_move ();
+        if (athena::node::contains_metadata (t[1]))
+          t[1]= athena::document_node::duplicate_source_nodes (t[1]);
         int row, col;
         path fp= search_format (row, col);
         if (is_nil (fp)) insert_tree (compound (copy (TABULAR), t[1]));
         else table_write_subtable (fp, row, col, t[1]);
       }
-      else insert_tree (t[1]);
+      else {
+        bool preserve_identity= false;
+        if (!move_token.empty () && !transformed && direct_mode &&
+            athena::node::contains_metadata (t[1]) &&
+            buf != nullptr && buf->actor != nullptr &&
+            node_identities_active ()) {
+          const std::string vault_key= source_move_vault_key (buf);
+          const athena::document_node::source_move_endpoint target {
+            buf->actor->id (), runtime_view_id};
+          auto claim= athena::document_node::reserve_source_move (
+            move_token, t[1], vault_key, target);
+          if (claim) {
+            bool source_valid= false;
+            if (claim->source.actor == target.actor) {
+              // Two views of the same mutable document share one owner/history
+              // domain; do not pretend that is a cross-document move.
+              if (claim->source.view == target.view)
+                source_valid=
+                  source_move_cut_marker_present (claim->marker);
+            }
+            else
+              source_valid= remote_source_move_marker_is_current (
+                claim->source, claim->marker);
+            if (source_valid) {
+              start_slave (claim->marker);
+              source_move_paste_pending (
+                string (claim->token.data (), (int) claim->token.size ()),
+                claim->marker);
+              preserve_identity= true;
+            }
+            else athena::document_node::invalidate_source_move (claim->token);
+          }
+        }
+        if (!preserve_identity) {
+          discard_move ();
+          if (athena::node::contains_metadata (t[1]))
+          t[1]= athena::document_node::duplicate_source_nodes (t[1]);
+        }
+        insert_tree (t[1]);
+      }
     }
   }
 }
@@ -992,11 +1144,28 @@ edit_select_rep::selection_cut (string key) {
       // deleted and may reattach to the wrong side of an adjacent math
       // operator.  Its right boundary belongs to the first surviving child.
       observer pos= position_new (stable_right_boundary? p2: p1);
+      const path complete_object=
+        complete_identified_selection_path (et, p1, p2, rp);
       if (key != "none") {
         tree sel= selection_compute (et, p1, p2);
-        selection_set (key, simplify_correct (sel));
+        tree clipboard= simplify_correct (sel);
+        athena::document_node::source_move_ticket move;
+        if (selection_export == "default" && node_identities_active () &&
+            athena::node::contains_metadata (clipboard) &&
+            buf != nullptr && buf->actor != nullptr) {
+          const std::string vault_key= source_move_vault_key (buf);
+          move= athena::document_node::issue_source_move (
+            clipboard, vault_key,
+            {buf->actor->id (), runtime_view_id});
+          if (!move.token.empty ()) start_slave (move.marker);
+        }
+        selection_set (
+          key, clipboard, false,
+          move.token.empty () ? string () :
+            string (move.token.data (), (int) move.token.size ()));
       }
-      cut (p1, p2);
+      if (!is_nil (complete_object)) remove (complete_object, 1);
+      else cut (p1, p2);
       go_to (position_get (pos));
       position_delete (pos);
     }

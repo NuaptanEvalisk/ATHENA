@@ -14,7 +14,9 @@
 #include "tm_window.hpp"
 #include "scheme.hpp"
 #include "node_metadata.hpp"
+#include "ATHENA/Data/document_node_copy.hpp"
 #include "ATHENA/Data/node_reference.hpp"
+#include "ATHENA/buffer_actor.hpp"
 #ifdef EXPERIMENTAL
 #include "../../Style/Memorizer/clean_copy.hpp"
 #endif
@@ -348,12 +350,44 @@ edit_modify_rep::end_editing () {
   }
   editing_depth= 0;
   if (buf != nullptr && buf->read_only && arch->has_content_changes ()) {
+    if (pending_source_move_token != "") {
+      athena::document_node::release_source_move (
+        std::string (as_charp (pending_source_move_token),
+                     (std::size_t) N(pending_source_move_token)));
+      pending_source_move_token= "";
+      pending_source_move_marker= 0.0;
+    }
     global_cancel ();
     if (buf->node_identities) buf->node_identities->cancelled (subtree (et, rp));
     set_message ("This view is read-only", "edit");
     return;
   }
-  if (!finish_node_identities ()) return;
+  if (!finish_node_identities ()) {
+    if (pending_source_move_token != "") {
+      athena::document_node::release_source_move (
+        std::string (as_charp (pending_source_move_token),
+                     (std::size_t) N(pending_source_move_token)));
+      pending_source_move_token= "";
+      pending_source_move_marker= 0.0;
+    }
+    return;
+  }
+  if (pending_source_move_token != "") {
+    const std::string token (
+      as_charp (pending_source_move_token),
+      (std::size_t) N(pending_source_move_token));
+    if (!athena::document_node::activate_source_move (token)) {
+      global_cancel ();
+      if (buf != nullptr && buf->node_identities)
+        buf->node_identities->cancelled (subtree (et, rp));
+      pending_source_move_token= "";
+      pending_source_move_marker= 0.0;
+      set_message ("Move paste rejected", "cut/paste");
+      return;
+    }
+    pending_source_move_token= "";
+    pending_source_move_marker= 0.0;
+  }
   global_confirm ();
 }
 
@@ -417,9 +451,68 @@ edit_modify_rep::finish_node_identities () {
 }
 
 void
+edit_modify_rep::source_move_paste_pending (string token, double marker) {
+  if (pending_source_move_token != "") {
+    athena::document_node::release_source_move (
+      std::string (as_charp (pending_source_move_token),
+                   (std::size_t) N(pending_source_move_token)));
+  }
+  pending_source_move_token= std::move (token);
+  pending_source_move_marker= marker;
+}
+
+bool
+edit_modify_rep::source_move_cut_marker_present (double marker) {
+  return arch->has_undo_move_marker (marker);
+}
+
+double
+edit_modify_rep::source_move_undo_marker () {
+  return arch->undo_move_marker ();
+}
+
+double
+edit_modify_rep::source_move_redo_marker () {
+  return arch->redo_move_marker ();
+}
+
+bool
+edit_modify_rep::source_move_redo_available (double marker) {
+  return arch->redo_move_branch (marker) >= 0;
+}
+
+bool
+edit_modify_rep::source_move_undo_local (double marker) {
+  if (buf != nullptr && buf->read_only) return false;
+  if (arch->undo_move_marker () != marker) return false;
+  arch->forget_cursor ();
+  path p= arch->undo ();
+  if (!is_nil (p)) go_to (p);
+  return true;
+}
+
+bool
+edit_modify_rep::source_move_redo_local (double marker) {
+  if (buf != nullptr && buf->read_only) return false;
+  const int branch= arch->redo_move_branch (marker);
+  if (branch < 0) return false;
+  arch->forget_cursor ();
+  path p= arch->redo (branch);
+  if (!is_nil (p)) go_to (p);
+  return true;
+}
+
+void
 edit_modify_rep::cancel_editing () {
   //cout << UNINDENT << "Cancel editing" << LF;
   editing_depth= 0;
+  if (pending_source_move_token != "") {
+    athena::document_node::release_source_move (
+      std::string (as_charp (pending_source_move_token),
+                   (std::size_t) N(pending_source_move_token)));
+    pending_source_move_token= "";
+    pending_source_move_marker= 0.0;
+  }
   global_cancel ();
   if (buf != nullptr && buf->node_identities)
     buf->node_identities->cancelled (subtree (et, rp));
@@ -465,6 +558,120 @@ edit_modify_rep::undo_possibilities () {
   return arch->undo_possibilities ();
 }
 
+bool
+edit_modify_rep::coordinate_source_move_history (bool redo) {
+  if (buf == nullptr || buf->actor == nullptr) return false;
+  const double marker= redo ? source_move_redo_marker () :
+                              source_move_undo_marker ();
+  if (marker == 0.0) return false;
+
+  using namespace athena::document_node;
+  const source_move_endpoint current {buf->actor->id (), runtime_view_id};
+  auto move= source_move_for_history (marker, current);
+  if (!move) return false;
+  const source_move_state expected=
+    redo ? source_move_state::undone : source_move_state::active;
+  const source_move_state next=
+    redo ? source_move_state::active : source_move_state::undone;
+  if (move->state != expected) {
+    set_message ("Move history is not in the expected state", "undo");
+    return true;
+  }
+
+  enum class history_action { query_undo, query_redo, undo, redo };
+  auto run= [&] (source_move_endpoint endpoint,
+                 history_action action) -> bool {
+    auto execute= [marker, action] (editor_rep* editor) {
+      if (editor == nullptr) return false;
+      switch (action) {
+      case history_action::query_undo:
+        return editor->source_move_undo_marker () == marker;
+      case history_action::query_redo:
+        return editor->source_move_redo_available (marker);
+      case history_action::undo:
+        return editor->source_move_undo_local (marker);
+      case history_action::redo:
+        return editor->source_move_redo_local (marker);
+      }
+      return false;
+    };
+
+    if (endpoint.actor == current.actor)
+      return execute (buf->actor->current_editor (endpoint.view));
+
+    struct response { bool value= false; };
+    auto answer= std::make_shared<response> ();
+    auto continuation= actor_continuation_registry::instance ().store (
+      [answer, marker, action] {
+        const auto* context= current_scheme_execution_context ();
+        editor_rep* editor= context ? context->editor : nullptr;
+        if (editor == nullptr) return;
+        switch (action) {
+        case history_action::query_undo:
+          answer->value= editor->source_move_undo_marker () == marker;
+          break;
+        case history_action::query_redo:
+          answer->value= editor->source_move_redo_available (marker);
+          break;
+        case history_action::undo:
+          answer->value= editor->source_move_undo_local (marker);
+          break;
+        case history_action::redo:
+          answer->value= editor->source_move_redo_local (marker);
+          break;
+        }
+      });
+    if (!buffer_actor::invoke_on (
+          endpoint.actor, actor_command_kind::run_native_continuation,
+          endpoint.view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
+          SCHEME_CAPABILITY_BUFFER, continuation)) {
+      actor_continuation_registry::instance ().discard (continuation);
+      return false;
+    }
+    return answer->value;
+  };
+
+  const source_move_endpoint first= redo ? move->source : move->target;
+  const source_move_endpoint second= redo ? move->target : move->source;
+  const history_action query= redo ? history_action::query_redo :
+                                     history_action::query_undo;
+  const history_action perform= redo ? history_action::redo :
+                                       history_action::undo;
+  const history_action rollback= redo ? history_action::undo :
+                                        history_action::redo;
+
+  // Both halves must still be the next history item before either side moves.
+  // This is the conflict boundary for cross-document undo: the user first
+  // undoes any later independent edits in the peer buffer.
+  if (!run (first, query) || !run (second, query)) {
+    set_message (
+      redo ? "Redo later edits in the other document before redoing this move"
+           : "Undo later edits in the other document before undoing this move",
+      redo ? "redo" : "undo");
+    return true;
+  }
+  if (!run (first, perform)) {
+    set_message ("Could not update the first half of the document move",
+                 redo ? "redo" : "undo");
+    return true;
+  }
+  if (!run (second, perform)) {
+    (void) run (first, rollback);
+    set_message ("Could not update both halves of the document move",
+                 redo ? "redo" : "undo");
+    return true;
+  }
+  if (!set_source_move_history_state (marker, expected, next)) {
+    // The process-local move registry is the authority for coordinating future
+    // history. Restore the document state rather than leave an untracked half.
+    (void) run (second, rollback);
+    (void) run (first, rollback);
+    set_message ("Move history coordination was lost", redo ? "redo" : "undo");
+    return true;
+  }
+  return true;
+}
+
 void
 edit_modify_rep::undo (bool redoable) {
   interrupt_shortcut ();
@@ -478,6 +685,7 @@ edit_modify_rep::undo (bool redoable) {
     in_graphics && native_graphics_owns_history ();
   if (arch->undo_possibilities () == 0) {
     set_message ("No more undo information available", "undo"); return; }
+  if (redoable && coordinate_source_move_history (false)) return;
   if (redoable) {
     path p= arch->undo ();
     if (!is_nil (p)) go_to (p);
@@ -518,6 +726,7 @@ edit_modify_rep::redo (int i) {
     in_graphics && native_graphics_owns_history ();
   if (arch->redo_possibilities () == 0) {
     set_message ("No more redo information available", "redo"); return; }
+  if (coordinate_source_move_history (true)) return;
   path p= arch->redo (i);
   if (!is_nil (p)) go_to (p);
   if (arch->conform_save ()) {

@@ -666,6 +666,44 @@ v2 saves, advertise AUDMAP v3, or implement cross-document moves.
   of the same Artifact UUIDs after deleting all three Artifact databases.
   No production vault, deployment or broad test suite was used.
 
+## One-use cut/move identity credentials (2026-09-27 night)
+
+- Native cut/paste now distinguishes snapshot copying from an authorized move.
+  A cut of metadata-bearing source in an active v2 vault issues an opaque
+  process-local credential bound to the exact native clipboard snapshot, source
+  actor/view, vault root and a history marker. The token may travel with the
+  native clipboard envelope, but clipboard bytes alone never authorize identity
+  preservation because the registry entry is process-local.
+- The first compatible paste in the same vault reserves that credential and
+  inserts the stored source identities unchanged. The credential becomes active
+  only after the target identity finalizer accepts the edit; failed target edits
+  release the reservation. Ordinary copy, second paste, cross-vault paste,
+  transformed/table/graphics paste, stale source history and external clipboard
+  offers all use `duplicate_source_nodes`, renewing UUIDs/remapping internal
+  references/clearing Artifact bindings as before. A cross-vault first paste
+  consumes the move opportunity rather than leaving a later same-vault paste
+  able to resurrect the old identity.
+- Full identified source-object cut semantics were corrected at the same
+  boundary. Selecting a complete identified child removes that source object;
+  it no longer leaves an empty node carrying the old UUID. Partial text deletion
+  still preserves the paragraph/source identity, so delete-content and
+  delete-object remain distinct operations.
+- Source and target history entries share the move marker. Coordinated undo
+  first removes the target then restores the source; redo first removes the
+  source then restores the target. Both peers must expose the corresponding move
+  as their next applicable history operation, otherwise coordination refuses to
+  cross later independent edits. Peer redo selects the branch containing the
+  marker instead of assuming branch zero. The marker detector recognizes both
+  birth directions because history inversion flips the birth bit on redo.
+- The normal `ATHENA.bin -j20` build passed after tracing was removed. The one
+  isolated real BufferActor fixture `tests/scheme/node-move-lifecycle-test.py`
+  / `.scm` passed `ATHENA-NODE-MOVE-LIFECYCLE-PASS`. It exercised same-vault
+  first move identity preservation, repeat-paste duplication, cross-actor
+  coordinated undo and redo, a second cut followed by cross-vault copy, consumed
+  credential fallback on returning to the original vault, and ordinary local
+  undo once the move credential had been discarded. No production vault,
+  deployment or broad test suite was used.
+
 ## Build Boundary
 
 Normal builds use only:

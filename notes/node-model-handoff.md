@@ -5,14 +5,16 @@
 ## 先读结论
 
 原交接停在 native tree-set-diff 完成处；用户随后要求按功能块继续。
-源生命周期、normal XML v2 persistence/activation 和 AUDMAP document-model v3
-三个纵向块已分别完成并提交。当前 worktree 完成了 Artifact source binding /
-revision block，已通过集中验证，正待本次独立提交。
-**整个迁移尚未统一切换，但核心运行链路已经较完整；主要剩余工作集中在 cut/move、
-剩余 persistence 边界、离线迁移与最终引用语义切换。**
+源生命周期、normal XML v2 persistence/activation、AUDMAP document-model v3
+与 Artifact source binding/revision block 已分别完成并提交。当前 worktree
+完成了一次性 cut/move credential + 跨 actor undo/redo block，已通过集中验证，
+正待本次独立提交。
+**整个迁移尚未统一切换，但核心运行链路已经较完整；主要剩余工作集中在剩余
+persistence 边界、离线迁移与最终引用语义切换。**
 
-当前最后代码提交：`417efe87e improve: activate AUDMAP document model v3`。
-此前相邻集成提交：`6f2937262`（normal XML v2 persistence/activation）、
+当前最后代码提交：`70da9708a improve: bind artifacts to source node identities`。
+此前相邻集成提交：`417efe87e`（AUDMAP document-model v3）、
+`6f2937262`（normal XML v2 persistence/activation）、
 `6b965f3c9`（source identity lifecycle）、`7e9b23a9b`（native tree diff）、
 `f8db49cf3`（格式/preamble）、`440f069d5`（DataArt）、
 `4617f4219`（增量身份事务）、`411f2ea0a`（动态引用导出）、`6325a84f1`（headless 导出）。
@@ -67,9 +69,11 @@ XML v2、AUDMAP document-model v3 和新引用语义。不要重做 UTF-8 迁移
 - 源节点改正文仍是同一身份；删除后重建是不同对象，不能靠内容相似度找回身份。
 - Split：第一个非空片段保留身份，两边均空则前者保留；另一片段新 ID。
   Join：前段身份保留，后段消失，其引用失效。Undo/redo 重放已记录的实际 ID。
-- Cut 最终应使用进程内一次性移动凭据：同 vault 首次成功粘贴保身份；再次粘贴、
-  跨 vault 或不可验证外部剪切按复制处理。跨文档撤销必须协调两侧 actor，不能产生双份 ID。
-  **这项还没实现；当前 cut 安全地降级为 copy，不要宣称已支持身份移动。**
+- Cut 使用进程内一次性移动凭据：同 vault 首次成功粘贴保身份；再次粘贴、跨 vault、
+  凭据失效或不可验证外部剪切按复制处理。clipboard bytes 本身不构成授权。
+  source/target history entry 共享同一 move marker；跨文档 undo/redo 在两侧该 marker
+  都是下一可执行项时协调两个 actor，顺序避免任一时刻产生双份 source UUID。
+  peer 文档存在更晚编辑时先拒绝跨过 move，要求先处理更晚历史，而不是猜测合并。
 - 全量相等/hash 包含元数据。内容比较、排版和模型输入应显式选择投影。
   `content_projection` 去源 UUID 但仍保留属性和引用目标，不是现成的 embedding 指纹。
 
@@ -173,6 +177,10 @@ children:
 - 🟩 Artifact revision/cache 契约已拆分：storage bytes、Artifact extraction content、
   source identity/semantic revision 与具体 range-model input fingerprint 分开；相同模型输入
   可跨无关文档编辑复用，不因 source UUID/binding 写入本身产生伪 cache miss。
+- 🟩 一次性 cut/move credential：完整 identified source object 的 cut 真正删除对象而不是
+  留下带旧 UUID 的空壳；同 vault 首次 paste 可保 UUID，第二次/跨 vault/stale paste
+  统一走 `duplicate_source_nodes`。source/target 用同一 history marker 协调跨 actor undo/redo，
+  redo 会按 marker 精确选择 peer redo branch，不依赖 branch 0 或内容相似度。
 
 ### 🟦 已起步、尚未整体完成
 
@@ -187,7 +195,6 @@ children:
 
 ### 🟧 尚未完成的关键集成/切换
 
-- 🟧 一次性 cut/move 凭据、同 vault 首次移动保身份、跨文档协调撤销。
 - 🟧 其余新文档/clipboard/委派及 tree-bearing persistence 边界的统一 v2 切换；normal v2
   load/save/autosave/recovery 已完成，不应再作为待办重做。
 - 🟧 扩展离线 vault 升级器：确定性 node identity 映射、引用与 artifact 迁移及诊断。

@@ -57,6 +57,10 @@ public:
 
   int  undo_possibilities ();
   int  redo_possibilities ();
+  double undo_move_marker ();
+  double redo_move_marker (int i= 0);
+  int redo_move_branch (double marker);
+  bool has_undo_move_marker (double marker);
   path undo_one (int i);
   path redo_one (int i);
   path undo (int i=0);

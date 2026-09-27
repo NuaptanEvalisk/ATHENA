@@ -22,6 +22,9 @@ protected:
   double   author;   // the author identifier associated to this view
   archiver arch;     // archiver attached to the editor
   int editing_depth; // nested commands belong to one input transaction
+  string pending_source_move_token;
+  double pending_source_move_marker= 0.0;
+  bool coordinate_source_move_history (bool redo);
 
 public:
   edit_modify_rep ();
@@ -46,6 +49,13 @@ public:
   bool adopt_node_identities ();
   bool node_identities_active ();
   bool finish_node_identities ();
+  void source_move_paste_pending (string token, double marker);
+  bool source_move_cut_marker_present (double marker);
+  double source_move_undo_marker ();
+  double source_move_redo_marker ();
+  bool source_move_redo_available (double marker);
+  bool source_move_undo_local (double marker);
+  bool source_move_redo_local (double marker);
   void cancel_editing ();
   void start_slave (double a);
   void mark_start (double a);

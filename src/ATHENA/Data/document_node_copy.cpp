@@ -8,12 +8,28 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include "document_node_copy.hpp"
+#include "patch.hpp"
 #include <QUrl>
 #include <QStringList>
+#include <map>
+#include <mutex>
 
 namespace athena::document_node {
 namespace {
 void remap_tree (tree&, const node::identity_map&);
+
+struct move_entry {
+  tree selection;
+  std::string vault;
+  source_move_endpoint source;
+  source_move_endpoint target;
+  double marker= 0.0;
+  source_move_state state= source_move_state::pending;
+};
+
+std::mutex move_mutex;
+std::map<std::string,move_entry> moves;
+std::map<double,std::string> moves_by_marker;
 
 void remap_rich_text (node::property& property, const node::identity_map& ids) {
   if (auto* rich= std::get_if<node::rich_text> (&property.data))
@@ -69,5 +85,90 @@ tree duplicate_source_nodes (const tree& source, node::identity_map* result) {
   remap_tree (duplicated, ids);
   if (result) *result= std::move (ids);
   return duplicated;
+}
+
+source_move_ticket issue_source_move (
+    const tree& selection, std::string vault_key, source_move_endpoint source) {
+  if (vault_key.empty () || source.actor == ATHENA_NO_ACTOR ||
+      !node::contains_metadata (selection)) return {};
+  source_move_ticket result {node::new_id (), new_marker ()};
+  std::lock_guard<std::mutex> lock (move_mutex);
+  moves[result.token]= {copy (selection), std::move (vault_key), source, {},
+                        result.marker, source_move_state::pending};
+  moves_by_marker[result.marker]= result.token;
+  return result;
+}
+
+std::optional<source_move_claim> reserve_source_move (
+    const std::string& token, const tree& selection, const std::string& vault_key,
+    source_move_endpoint target) {
+  if (token.empty () || vault_key.empty () || target.actor == ATHENA_NO_ACTOR)
+    return std::nullopt;
+  std::lock_guard<std::mutex> lock (move_mutex);
+  auto found= moves.find (token);
+  if (found == moves.end () ||
+      found->second.state != source_move_state::pending ||
+      found->second.vault != vault_key || found->second.selection != selection)
+    return std::nullopt;
+  found->second.target= target;
+  found->second.state= source_move_state::reserved;
+  return source_move_claim {
+    token, found->second.marker, found->second.source, target};
+}
+
+bool activate_source_move (const std::string& token) {
+  std::lock_guard<std::mutex> lock (move_mutex);
+  auto found= moves.find (token);
+  if (found == moves.end () ||
+      found->second.state != source_move_state::reserved) return false;
+  found->second.state= source_move_state::active;
+  found->second.selection= tree ();
+  return true;
+}
+
+void release_source_move (const std::string& token) {
+  std::lock_guard<std::mutex> lock (move_mutex);
+  auto found= moves.find (token);
+  if (found == moves.end () ||
+      found->second.state != source_move_state::reserved) return;
+  found->second.target= {};
+  found->second.state= source_move_state::pending;
+}
+
+void invalidate_source_move (const std::string& token) {
+  std::lock_guard<std::mutex> lock (move_mutex);
+  auto found= moves.find (token);
+  if (found == moves.end ()) return;
+  if (found->second.state == source_move_state::active ||
+      found->second.state == source_move_state::undone)
+    return;
+  moves_by_marker.erase (found->second.marker);
+  moves.erase (found);
+}
+
+std::optional<source_move_history> source_move_for_history (
+    double marker, source_move_endpoint endpoint) {
+  std::lock_guard<std::mutex> lock (move_mutex);
+  auto index= moves_by_marker.find (marker);
+  if (index == moves_by_marker.end ()) return std::nullopt;
+  auto found= moves.find (index->second);
+  if (found == moves.end () ||
+      !(endpoint == found->second.source || endpoint == found->second.target) ||
+      (found->second.state != source_move_state::active &&
+       found->second.state != source_move_state::undone))
+    return std::nullopt;
+  return source_move_history {found->second.marker, found->second.source,
+                              found->second.target, found->second.state};
+}
+
+bool set_source_move_history_state (
+    double marker, source_move_state expected, source_move_state next) {
+  std::lock_guard<std::mutex> lock (move_mutex);
+  auto index= moves_by_marker.find (marker);
+  if (index == moves_by_marker.end ()) return false;
+  auto found= moves.find (index->second);
+  if (found == moves.end () || found->second.state != expected) return false;
+  found->second.state= next;
+  return true;
 }
 }

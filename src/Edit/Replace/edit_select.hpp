@@ -76,7 +76,8 @@ public:
   path selection_get_cursor_path ();
   tree selection_get_env_value (string var);
   tree selection_get (string key);
-  void selection_set (string key, tree t, bool persistant= false);
+  void selection_set (string key, tree t, bool persistant= false,
+                      string move_token= "");
   void selection_set (tree t);
   void selection_set_start (path p= path());
   void selection_set_end (path p= path());
