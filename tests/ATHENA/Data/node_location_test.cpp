@@ -10,6 +10,7 @@
 #include <QtTest/QtTest>
 #include <QTemporaryDir>
 #include "ATHENA/Data/node_location.hpp"
+#include "ATHENA/Data/node_reference.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
 #include "node_metadata.hpp"
 #include <condition_variable>
@@ -53,6 +54,11 @@ private slots:
   void initTestCase () {
     make_tree_label (DOCUMENT, "document");
     make_tree_label (CONCAT, "concat");
+    make_tree_label (WITH, "with");
+    make_tree_label (TUPLE, "tuple");
+    make_tree_label (HLINK, "hlink");
+    make_tree_label (IMAGE, "image");
+    make_tree_label (TRANSCLUDE, "transclude");
   }
   void typedAddressesAndStaleIdentity () {
     tree paragraph= identified (tree ("Text"), b);
@@ -233,6 +239,64 @@ private slots:
     QVERIFY (result.items[0].state == loc::status::conflict);
     QVERIFY (result.items[1].state == loc::status::unreadable);
     QCOMPARE (result.diagnostics[0].identity, a);
+  }
+  void contentHandoffAndCompletion () {
+    QTemporaryDir dir;
+    tree target= identified (tree ("Target"), a);
+    document (root (dir) / "doc.ath", tree (DOCUMENT, target));
+    std::mutex lock;
+    std::condition_variable ready;
+    loc::snapshot received;
+    loc::service service (root (dir));
+    auto query= service.request ({a, b}, {}, true, [&] (loc::snapshot result) {
+      { std::lock_guard<std::mutex> guard (lock); received= result; }
+      ready.notify_all ();
+    });
+    {
+      std::unique_lock<std::mutex> guard (lock);
+      QVERIFY (ready.wait_for (guard, std::chrono::seconds (10), [&] { return bool (received); }));
+    }
+    QVERIFY (received == query->read ());
+    QVERIFY (received->items[0].state == loc::status::resolved);
+    QVERIFY (received->items[1].state == loc::status::missing);
+    QVERIFY (athena::document::read_xml_v2 (received->items[0].fragment_xml,
+      athena::document::xml_kind::fragment) == target);
+    QVERIFY (received->watched_paths && !received->watched_paths->empty ());
+    QCOMPARE (received->items[0].source_directory, root (dir).string ());
+  }
+  void canonicalPresentationPreservesOrderedMissingItemsAndIndependentAncestry () {
+    namespace ref= athena::node_reference;
+    tree transclusion (TRANSCLUDE, tree (TUPLE, string (b.c_str ()), string (a.c_str ()), string (b.c_str ())));
+    QVERIFY (ref::canonical (transclusion));
+    auto ids= ref::targets (transclusion);
+    QVERIFY (ids == std::vector<std::string> ({b, a}));
+    auto result= std::make_shared<loc::result> ();
+    result->state= loc::status::missing;
+    result->ancestry= {c};
+    loc::item missing; missing.id= b; missing.state= loc::status::missing;
+    loc::item resolved; resolved.id= a; resolved.state= loc::status::resolved;
+    resolved.fragment_xml= athena::document::write_xml_v2 (identified (tree ("Text"), a),
+      athena::document::xml_kind::fragment);
+    result->items= {missing, resolved};
+    tree display= ref::display ({result, 1});
+    QCOMPARE (N(display), 2);
+    QVERIFY (is_func (display[0], WITH));
+    QVERIFY (ref::ancestry (display[1][1]) == std::vector<std::string> ({c, a}));
+    QVERIFY (loc::collect (display).empty ());
+    QVERIFY (display[1][2][1][0] == "Text");
+    auto overlap= std::make_shared<loc::result> (*result);
+    overlap->state= loc::status::overlap;
+    QVERIFY (N(ref::display ({overlap, 2})) == 1);
+  }
+  void nativeTargetSyntaxDoesNotConsumeLegacyHints () {
+    namespace ref= athena::node_reference;
+    const auto url= string (("tmfs://wikilink/" + a).c_str ());
+    QCOMPARE (ref::target_id (url), a);
+    QCOMPARE (ref::target_id (string (("tmfs://transclude/" + a + "/context").c_str ())), a);
+    QVERIFY (ref::target_id (url * "/file/anchor").empty ());
+    QVERIFY (ref::target_id (url * "?recover=x").empty ());
+    QVERIFY (ref::target_id ("tmfs://wikilink/not-a-uuid").empty ());
+    QVERIFY (ref::target_id ("https://example.com/").empty ());
   }
 };
 QTEST_APPLESS_MAIN (TestNodeLocation)

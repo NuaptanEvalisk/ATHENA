@@ -14,6 +14,7 @@
 #include "tm_window.hpp"
 #include "scheme.hpp"
 #include "node_metadata.hpp"
+#include "ATHENA/Data/node_reference.hpp"
 #ifdef EXPERIMENTAL
 #include "../../Style/Memorizer/clean_copy.hpp"
 #endif
@@ -124,6 +125,7 @@ void
 edit_modify_rep::post_notify (path p) {
   // cout << "Post notify\n";
   if (!(rp <= p)) return;
+  athena::node_reference::source_changed ();
   selection_cancel ();
   cancel_alt_selections ();
   notify_change (THE_TREE);

@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "buffer_actor.hpp"
+#include "ATHENA/Data/node_reference.hpp"
 #include "actor_lifetime.hpp"
 #include "System/Misc/crash_report.hpp"
 
@@ -530,7 +531,10 @@ buffer_actor::commit_current_source () {
   }
   // Attached editors already track save/undo state in their archives. Keep a
   // fallback only for buffers edited through interop before any view exists.
-  if (impl_->views.empty ()) state.source_modified= state.source_autosave_modified= true;
+  if (impl_->views.empty ()) {
+    state.source_modified= state.source_autosave_modified= true;
+  }
+  athena::node_reference::source_changed ();
 }
 
 void
@@ -1118,12 +1122,14 @@ buffer_actor::dispatch (actor_command_record& command) {
       entry.second.instance->init_update ();
     }
     publish_tmfs_title (editor);
+    athena::node_reference::source_changed ();
     break;
   }
   case actor_command_kind::replace_body: {
     tree body= actor_tree_registry::instance ().take (command.payload0);
     assign (subtree (impl_->state.document, impl_->state.root_path),
             std::move (body));
+    athena::node_reference::source_changed ();
     break;
   }
   case actor_command_kind::set_message: {

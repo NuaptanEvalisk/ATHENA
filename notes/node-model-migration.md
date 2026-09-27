@@ -263,6 +263,31 @@ v2 saves, advertise AUDMAP v3, or implement cross-document moves.
   map.sqlite, add a persistent SQLite location cache, or enable XML v2 normal
   saves. Those changes require the remaining reference and migration gates.
 
+## Watched Native Reference Presentation (2026-09-27)
+
+- Canonical single-tuple transclusions consume immutable async location/content
+  snapshots. Both incremental and inline typesetting preserve ordered missing
+  items, render locating/error states, and track ancestry per selected object.
+  Actor-local presentation copies remove source identities and artifact bindings;
+  native source trees never cross the worker boundary.
+- The Qt reference facade subscribes owner views using nonblocking actor
+  continuations. Source edits, buffer membership changes and filesystem watches
+  invalidate snapshots. New watches require another scan before publication;
+  watcher failures remain visible and transient read failures retry. Stable
+  facade hits avoid filesystem work, although cold locator batches still census
+  the vault and invalidation is currently coarse.
+- Source links use tmfs://transclude/<uuid> and asynchronously navigate through
+  the existing buffer/tab loader, rechecking the actual source UUID before cursor
+  placement. Existing bare wikilinks can have legacy map semantics, so their
+  default dispatcher is intentionally not switched by URL-shape guessing.
+- Normal ATHENA.bin -j20 build passed. The locator/presentation suite passed
+  14 cases, and the isolated Scheme bridge check reported
+  ATHENA-NODE-BRIDGE-PASS for generated runtime bindings. Actual Qt watcher,
+  actor lifecycle and interactive navigation acceptance remain outstanding.
+- Native hover source styling/refresh and an offline export preparation barrier
+  are not integrated yet. There is no production migration, deployment, default
+  XML v2 save activation or default UUID wikilink switch in this batch.
+
 ## Integration Gates Still Required
 
 1. Assign source IDs through content roles, with complete handling of nested
@@ -273,11 +298,11 @@ v2 saves, advertise AUDMAP v3, or implement cross-document moves.
 3. Finish remaining live enunciation consumers and source creation. Native
    rendering/numbering and property UI are implemented; proof targets can be
    entered explicitly, but UUID resolution and target selection remain.
-4. Connect the native UUID location service to tmfs navigation, hover and
-   transclusion rendering with nonblocking placeholders and refresh completion.
-   Finish change invalidation/cached-hit acceleration and actual actor lifecycle
-   acceptance. Persist the index only as disposable data. Retire hint-dependent
-   map identity without losing rename recovery journals.
+4. Finish native hover, offline export preparation and actual actor lifecycle
+   acceptance for the integrated async transclusion/navigation paths. Switch
+   default wikilinks together with migrated vault semantics. Persist any index
+   only as disposable data; retire hint-dependent map identity without losing
+   rename recovery journals.
 5. Persist artifact identity bindings on source nodes. Separate storage
    revisions, content revisions and actual model-input fingerprints before
    changing index reuse or invalidation.

@@ -12,6 +12,7 @@
 #include "concater.hpp"
 #include "ATHENA/Data/artifact_radioactive_links.hpp"
 #include "ATHENA/Data/transclusion_cache.hpp"
+#include "ATHENA/Data/node_reference.hpp"
 #include "enunciation_surround.hpp"
 #include "Format/format.hpp"
 #include "formatter.hpp"
@@ -533,7 +534,7 @@ concater_rep::typeset_range (tree t, path ip) {
   }
 }
 
-static array<string> active_transclusions;
+static thread_local array<string> active_transclusions;
 
 struct TranscludeCycleLock {
   bool ok;
@@ -558,21 +559,30 @@ struct TranscludeCycleLock {
 
 void
 concater_rep::typeset_transclude (tree t, path ip) {
-  if (N(t) != 4) { typeset_error (t, ip); return; }
+  const bool native= athena::node_reference::canonical (t);
+  if (!native && N(t) != 4) { typeset_error (t, ip); return; }
   
-  string uuid = as_string (t[0]);
+  string uuid = native ? string ("") : as_string (t[0]);
   TranscludeCycleLock lock (uuid);
   
-  if (!lock.ok) {
+  if (!native && !lock.ok) {
     tree err = tree (WITH, "color", "red", tree (CONCAT, "Broken Transclusion: Cyclic transclusion detected (" * as_string (t[1]) * ")."));
     typeset (err, ip);
     return;
   }
   
-  tree content= athena_artifact_radioactive_suppress_definitions (
-    athena_resolve_transclusion_display (t));
+  tree content;
+  if (native) {
+    try {
+      namespace ref= athena::node_reference;
+      content= ref::display (ref::get (ref::targets (t), ref::ancestry (env->read (ref::ancestry_variable))));
+    }
+    catch (const std::exception& e) { content= tree (DOCUMENT, tree (e.what ())); }
+  }
+  else content= athena_resolve_transclusion_display (t);
+  content= athena_artifact_radioactive_suppress_definitions (content);
   
-  if (is_compound (content, DOCUMENT) && N(content) > 0)
+  if (!native && is_compound (content, DOCUMENT) && N(content) > 0)
     content = content[0];
   
   tree rewritten = env->rewrite (content);

@@ -8,6 +8,8 @@
 
 #include "Interface/edit_interface.hpp"
 #include "ATHENA/Data/link_peek.hpp"
+#include "ATHENA/Data/node_reference.hpp"
+#include "buffer_actor.hpp"
 #include "convert.hpp"
 #include "drd_std.hpp"
 #include "formatter.hpp"
@@ -15,6 +17,23 @@
 #include "actor_ui_bridge.hpp"
 #include <cmath>
 #include <QUrl>
+
+void edit_interface_rep::refresh_node_references () {
+  // A derived-reference refresh is not a source edit and must neither enter
+  // undo history nor close an unrelated interactive hover stack.
+  auto overlays= std::move (link_peeks);
+  typeset_invalidate_all ();
+  link_peeks= std::move (overlays);
+  if (ui_endpoint && !link_peeks.empty ()) ui_endpoint->set_overlay_wheel_capture (true);
+  invalidate_all ();
+}
+
+void athena_refresh_node_reference_view () {
+  const auto* context= current_scheme_execution_context ();
+  if (!context || !context->actor || !context->editor) return;
+  if (auto* editor= dynamic_cast<edit_interface_rep*> (context->editor))
+    editor->refresh_node_references ();
+}
 
 void edit_interface_rep::clear_link_peek () {
   if (link_peeks.empty ()) return;

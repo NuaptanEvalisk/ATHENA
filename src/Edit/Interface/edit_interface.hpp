@@ -162,6 +162,7 @@ public:
                         array<double> data);
   void update_link_peek (SI x, SI y, int modifiers);
   void draw_link_peek (renderer ren);
+  void refresh_node_references ();
   edit_interface_rep ();
   ~edit_interface_rep ();
   operator tree ();

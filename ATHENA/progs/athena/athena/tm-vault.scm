@@ -17,6 +17,10 @@
     (load-browse-buffer path
       (lambda () (if (!= label "") (go-to-label label))))))
 
+(tm-define (node-reference-jump-to-source path identity)
+  (load-browse-buffer path
+    (lambda () (node-reference-position identity))))
+
 (define (vault-transclusion-source-url uuid)
   (string-append "tmfs://transclusion-source/"
                  (vault-url-component-encode uuid)))
@@ -49,6 +53,7 @@
     (if (string-null? val) def val)))
 
 (define-secure-symbols wikilink-repair-apply vault-transclude-repair
+                       node-reference-jump-to-source
                        vault-jump-to-source artifact-jump-to-position
                        artifact-navigation-failed
                        load-buffer load-vault-dir
@@ -1071,6 +1076,12 @@
               (apply vault-jump-to-source target)
               (load-browse-buffer
                 (system->url (wikilink-repair-url name)))))))))
+
+(tm-define (go-to-url u . opt-from)
+  (:require (url-rooted-tmfs-protocol?
+              (if (string? u) (system->url u) u) "transclude"))
+  (when (pair? opt-from) (cursor-history-add (car opt-from)))
+  (node-reference-open (if (string? u) u (url->system u))))
 
 (tm-define (go-to-url u . opt-from)
   (:require (vault-transclusion-source-navigation-url? u))

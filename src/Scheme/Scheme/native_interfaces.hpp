@@ -16,6 +16,9 @@
 #include "Edit/Interface/document_style_commands.hpp"
 
 void athena_dispatch_ui (void (*function) ());
+bool athena_node_reference_target (string target);
+bool athena_node_reference_open (string target);
+bool athena_node_reference_position (string identity);
 void gui_set_cursor_color (string value);
 void gui_set_selection_color (string value);
 void gui_set_focus_color (string value);

@@ -62,6 +62,8 @@ struct item {
   status state= status::pending;
   std::vector<location> candidates;
   std::string diagnostic;
+  std::string fragment_xml;
+  std::string source_directory;
 };
 struct diagnostic {
   std::string file, message;
@@ -73,15 +75,21 @@ struct result {
   std::vector<item> items;
   std::vector<diagnostic> diagnostics;
   std::uint64_t scan= 0;
+  std::vector<std::string> ancestry;
+  std::shared_ptr<const std::vector<std::string>> watched_paths;
 };
+using snapshot= std::shared_ptr<const result>;
+using completion= std::function<void (snapshot)>;
+using content_provider= std::function<std::string (const item&, const std::atomic<bool>&)>;
 
 class query {
   struct impl;
   std::shared_ptr<impl> data;
-  query (std::vector<std::string>, std::vector<std::string>);
+  query (std::vector<std::string>, std::vector<std::string>, bool, completion);
   friend class service;
 public:
   result poll () const;
+  snapshot read () const;
   void cancel ();
 };
 
@@ -92,12 +100,13 @@ class service {
   struct impl;
   std::unique_ptr<impl> data;
 public:
-  explicit service (std::filesystem::path root, live_provider live= {});
+  explicit service (std::filesystem::path root, live_provider live= {}, content_provider content= {});
   ~service ();
   service (const service&)= delete;
   service& operator = (const service&)= delete;
   std::shared_ptr<query> request (std::vector<std::string> ids,
-                                std::vector<std::string> ancestry= {});
+                                std::vector<std::string> ancestry= {},
+                                bool content= false, completion ready= {});
   void clear_cache ();
 };
 

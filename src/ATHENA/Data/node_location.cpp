@@ -114,6 +114,7 @@ result resolve (const std::vector<std::string>& ids,
   result out;
   out.state= status::resolved;
   out.scan= scan;
+  out.ancestry= ancestry;
   out.diagnostics= errors;
   for (const auto& id: ids) {
     item target;
@@ -227,30 +228,45 @@ tree lookup (const tree& source, const address& where, const std::string& expect
 struct query::impl {
   std::mutex lock;
   const std::vector<std::string> ids, ancestry;
-  result answer;
-  impl (std::vector<std::string> ids, std::vector<std::string> ancestry):
-    ids (std::move (ids)), ancestry (std::move (ancestry)) {}
+  const bool content;
+  completion ready;
+  snapshot answer= std::make_shared<const result> ();
+  impl (std::vector<std::string> ids, std::vector<std::string> ancestry,
+        bool content, completion ready):
+    ids (std::move (ids)), ancestry (std::move (ancestry)), content (content), ready (std::move (ready)) {}
   void finish (result next) {
-    std::lock_guard<std::mutex> guard (lock);
-    if (answer.state == status::pending) answer= std::move (next);
+    completion notify;
+    snapshot published;
+    {
+      std::lock_guard<std::mutex> guard (lock);
+      if (answer->state != status::pending) return;
+      answer= std::make_shared<const result> (std::move (next));
+      published= answer;
+      notify= std::move (ready);
+    }
+    if (notify) try { notify (std::move (published)); } catch (...) {}
   }
 };
-query::query (std::vector<std::string> ids, std::vector<std::string> ancestry):
-  data (std::make_shared<impl> (std::move (ids), std::move (ancestry))) {}
-result query::poll () const { std::lock_guard<std::mutex> guard (data->lock); return data->answer; }
+query::query (std::vector<std::string> ids, std::vector<std::string> ancestry,
+              bool content, completion ready):
+  data (std::make_shared<impl> (std::move (ids), std::move (ancestry), content, std::move (ready))) {}
+snapshot query::read () const { std::lock_guard<std::mutex> guard (data->lock); return data->answer; }
+result query::poll () const { return *read (); }
 void query::cancel () { result stopped; stopped.state= status::cancelled; data->finish (std::move (stopped)); }
 
 struct service::impl {
   const std::filesystem::path root;
   const live_provider live;
+  const content_provider content;
   std::atomic<bool> stopping {false};
   std::mutex lock;
   std::condition_variable wake;
   std::deque<std::shared_ptr<query>> pending;
   std::uint64_t cache_epoch= 0;
   std::thread worker;
-  impl (std::filesystem::path root, live_provider live):
-    root (std::move (root)), live (std::move (live)), worker ([this] { run (); }) {}
+  impl (std::filesystem::path root, live_provider live, content_provider content):
+    root (std::move (root)), live (std::move (live)), content (std::move (content)),
+    worker ([this] { run (); }) {}
   ~impl () {
     { std::lock_guard<std::mutex> guard (lock); stopping= true; }
     wake.notify_all ();
@@ -275,6 +291,9 @@ struct service::impl {
           })) continue;
       sources documents;
       std::vector<diagnostic> errors;
+      auto watched= std::make_shared<std::vector<std::string>> ();
+      watched->push_back (root.string ());
+      watched->push_back (root.parent_path ().string ());
       std::set<std::string> overridden, present;
       try {
         if (live) {
@@ -315,6 +334,7 @@ struct service::impl {
             if (revision.directory) {
               if (!directories.emplace (revision.device, revision.inode).second)
                 return;
+              watched->push_back (entry.path ().string ());
               auto names= entry.names ();
               std::sort (names.begin (), names.end ());
               for (const auto& child: names)
@@ -322,6 +342,7 @@ struct service::impl {
             }
             else if (relative.extension () == ".ath") {
               if (!files.insert (name).second) return;
+              watched->push_back (entry.path ().string ());
               present.insert (name);
               const auto saved= cache.find (name);
               if (saved != cache.end () && fs::same_revision (*saved->second->disk_revision, revision)) {
@@ -368,22 +389,51 @@ struct service::impl {
       }
       for (const auto& task: batch) {
         if (stopping) task->cancel ();
-        else task->data->finish (resolve (task->data->ids, task->data->ancestry,
-                                         locations, errors, serial));
+        else if (task->read ()->state == status::pending) {
+          auto answer= resolve (task->data->ids, task->data->ancestry, locations, errors, serial);
+          answer.watched_paths= watched;
+          if (task->data->content && answer.state != status::overlap)
+            for (auto& target: answer.items) {
+              if (stopping || task->read ()->state == status::cancelled) break;
+              if (target.state != status::resolved) continue;
+              try {
+                if (!target.candidates.front ().file.empty ())
+                  target.source_directory= (root / target.candidates.front ().file).parent_path ().string ();
+                target.fragment_xml= content ? content (target, stopping) :
+                  document::write_xml_v2 (read_disk (root, target), document::xml_kind::fragment);
+              }
+              catch (const std::exception& e) {
+                target.state= status::unreadable; target.diagnostic= e.what ();
+              }
+              catch (const string& e) {
+                target.state= status::unreadable;
+                target.diagnostic= {e.data (), std::size_t (N(e))};
+              }
+              catch (...) {
+                target.state= status::unreadable; target.diagnostic= "Failed to read resolved node";
+              }
+              if (target.state != status::resolved && answer.state == status::resolved)
+                answer.state= target.state;
+            }
+          if (stopping) task->cancel ();
+          else task->data->finish (std::move (answer));
+        }
       }
     }
   }
 };
 
-service::service (std::filesystem::path root, live_provider live):
-  data (std::make_unique<impl> (std::move (root), std::move (live))) {}
+service::service (std::filesystem::path root, live_provider live, content_provider content):
+  data (std::make_unique<impl> (std::move (root), std::move (live), std::move (content))) {}
 service::~service ()= default;
 std::shared_ptr<query> service::request (std::vector<std::string> ids,
-                                       std::vector<std::string> ancestry) {
+                                       std::vector<std::string> ancestry,
+                                       bool content, completion ready) {
   std::vector<std::string> unique;
   std::set<std::string> seen;
   for (auto& id: ids) if (seen.insert (id).second) unique.push_back (std::move (id));
-  auto next= std::shared_ptr<query> (new query (std::move (unique), std::move (ancestry)));
+  auto next= std::shared_ptr<query> (new query (std::move (unique), std::move (ancestry),
+                                             content, std::move (ready)));
   if (next->data->ids.empty () || next->data->ids.size () > max_nodes ||
       next->data->ancestry.size () > max_depth ||
       !std::all_of (next->data->ids.begin (), next->data->ids.end (), node::valid_id) ||

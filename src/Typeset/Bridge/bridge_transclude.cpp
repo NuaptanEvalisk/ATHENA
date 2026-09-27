@@ -11,9 +11,11 @@
 #include "bridge.hpp"
 #include "ATHENA/Data/artifact_radioactive_links.hpp"
 #include "ATHENA/Data/transclusion_cache.hpp"
+#include "ATHENA/Data/node_reference.hpp"
 #include "drd_std.hpp"
+#include <optional>
 
-static array<string> active_transclusion_bridges;
+static thread_local array<string> active_transclusion_bridges;
 
 static tree
 transclusion_error_tree (tree t, string message) {
@@ -47,11 +49,6 @@ static tree
 resolve_transclusion_tree (tree t, string* cache_key) {
   if (N(t) != 4)
     return transclusion_error_tree (t, "Malformed transclusion");
-
-  string uuid= as_string (t[0]);
-  TranscludeBridgeCycleLock lock (uuid);
-  if (!lock.ok)
-    return transclusion_error_tree (t, "Cyclic transclusion detected");
 
   return athena_resolve_transclusion_display (t, cache_key);
 }
@@ -123,7 +120,22 @@ bridge_transclude_rep::notify_change () {
 void
 bridge_transclude_rep::my_typeset (int desired_status) {
   string next_key;
-  tree next= resolve_transclusion_tree (st, &next_key);
+  tree next;
+  std::optional<TranscludeBridgeCycleLock> cycle;
+  if (athena::node_reference::canonical (st)) {
+    try {
+      namespace ref= athena::node_reference;
+      const auto current= ref::get (ref::targets (st), ref::ancestry (env->read (ref::ancestry_variable)));
+      next= ref::display (current);
+      next_key= "node:" * as_string (static_cast<long long> (current.revision));
+    }
+    catch (const std::exception& e) { next= tree (DOCUMENT, tree (e.what ())); }
+  }
+  else {
+    if (N(st) == 4) cycle.emplace (as_string (st[0]));
+    if (cycle && !cycle->ok) next= transclusion_error_tree (st, "Cyclic transclusion detected");
+    else next= resolve_transclusion_tree (st, &next_key);
+  }
   if (resolved_key != next_key || !has_resolved) {
     resolved=
       athena_artifact_radioactive_suppress_definitions (next);

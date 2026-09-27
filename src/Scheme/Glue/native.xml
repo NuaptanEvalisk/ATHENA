@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="node-reference-target?" native="athena_node_reference_target" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="node-reference-open" native="athena_node_reference_open" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="node-reference-position" native="athena_node_reference_position" returns="bool">
+    <arg type="string" />
+  </binding>
   <binding name="node-properties-show" native="node_properties_show" returns="bool">
     <arg type="tree" />
   </binding>

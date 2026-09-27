@@ -165,7 +165,8 @@ std::shared_ptr<service> for_vault (vault_context_handle vault) {
   auto result= current.lock ();
   if (!result) {
     result= std::make_shared<service> (vault->root,
-      [vault] (const std::atomic<bool>& stop) { return capture_live (vault, stop); });
+      [vault] (const std::atomic<bool>& stop) { return capture_live (vault, stop); },
+      [vault] (const item& target, const std::atomic<bool>& stop) { return read_online (vault, target, stop); });
     current= result;
   }
   return result;
