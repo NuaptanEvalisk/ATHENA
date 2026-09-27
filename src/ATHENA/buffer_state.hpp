@@ -43,8 +43,9 @@ struct buffer_document_state {
   std::unique_ptr<athena::interop::document_nodes> interop_node_registry;
   std::optional<athena::document::document_file> storage;
   bool storage_capture_failed= false;
-  // Opt-in only after the file/model activation boundary has validated source
-  // identities. Legacy loads, render buffers and macro expansions leave null.
+  // Explicit owner adoption requires an identity-complete history baseline.
+  // Replacements validate a new baseline before changing this index. No normal
+  // loader enables it yet; legacy/render buffers and expansions leave null.
   std::unique_ptr<athena::document_node::source_identity_state> node_identities;
 
   buffer_document_state (buffer_actor* actor2, string name2, string master2,

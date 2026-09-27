@@ -13,6 +13,7 @@
 #include "path.hpp"
 #include "vars.hpp"
 #include "drd_std.hpp"
+#include "node_metadata.hpp"
 #include "Xml/legacy_document_reader.hpp"
 #include <limits>
 
@@ -572,10 +573,12 @@ tree
 change_doc_attr (tree doc, string attr, tree val) {
   int i, n= arity (doc);
   tree r (doc, n);
+  athena::node::copy_metadata (doc, r);
   bool done= false;
   for (i=0; i<n; i++)
     if (is_compound (doc[i], attr, 1)) {
       r[i]= tree (L(doc[i]), val);
+      athena::node::copy_metadata (doc[i], r[i]);
       done= true;
     }
     else r[i]= doc[i];
@@ -587,6 +590,7 @@ tree
 remove_doc_attr (tree doc, string attr) {
   int i, n= arity (doc);
   tree r (L(doc));
+  athena::node::copy_metadata (doc, r);
   for (i=0; i<n; i++)
     if (!is_compound (doc[i], attr, 1))
       r << doc[i];

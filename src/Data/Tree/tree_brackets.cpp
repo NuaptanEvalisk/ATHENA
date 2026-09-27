@@ -13,6 +13,7 @@
 #include "tree_analyze.hpp"
 #include "scheme.hpp"
 #include "unicode_text.hpp"
+#include "node_metadata.hpp"
 
 static array<tree> upgrade_brackets (array<tree> a, int level);
 
@@ -386,9 +387,10 @@ upgrade_above_below (tree t) {
   if (is_atomic (t)) return t;
   else if (is_concat (t)) {
     tree r (CONCAT);
+    athena::node::copy_metadata (t, r);
     for (int i=0; i<N(t); i++) {
       tree x= upgrade_above_below (t[i]);
-      if (is_concat (x)) r << A(x);
+      if (is_concat (x) && !athena::node::get (x)) r << A(x);
       else r << x;
     }
     return r;
@@ -396,8 +398,10 @@ upgrade_above_below (tree t) {
   else {
     int i, n= N(t);
     tree r (t, n);
+    athena::node::copy_metadata (t, r);
     for (i=0; i<n; i++)
       r[i]= upgrade_above_below (t[i]);
+    if (athena::node::contains_metadata (r)) return r;
     if (is_func (r, ABOVE, 2)) {
       if (is_func (r[0], BIG))
         r= tree (CONCAT, r[0], tree (RSUP, r[1]));
@@ -421,6 +425,11 @@ upgrade_above_below (tree t) {
 static array<tree>
 upgrade_brackets (array<tree> a, int level) {
   array<int> tp= symbol_types (a);
+  // make_around extracts delimiter/operator text, not the original node.
+  // Do not let a heuristic replace an explicitly identified delimiter.
+  for (int i= 0; i < N(a); ++i)
+    if ((tp[i] >= SYMBOL_OPEN_BIG) && athena::node::contains_metadata (a[i]))
+      return a;
   //cout << "Upgrade " << a << ", " << tp << "\n";
   if (admits_brackets (tp)) {
     //cout << "  Downgrade dubious\n";
@@ -481,6 +490,7 @@ upgrade_brackets_bis (tree t, string mode) {
   if (is_compound (t)) {
     int i, n= N(t);
     r= tree (t, n);
+    athena::node::copy_metadata (t, r);
     for (i=0; i<n; i++) {
       tree tmode= the_drd->get_env_child (t, i, MODE, mode);
       string smode= (is_atomic (tmode)? tmode->label: string ("text"));
@@ -491,9 +501,9 @@ upgrade_brackets_bis (tree t, string mode) {
   }
       
   if (mode == "math") {
-    array<tree> a= concat_tokenize (r);
+    array<tree> a= concat_tokenize_source (r);
     a= upgrade_brackets (a, 0);
-    tree ret= concat_recompose (a);
+    tree ret= concat_recompose_source (r, a);
     //if (ret != r) cout << "< " << r << LF << "> " << ret << LF;
     return ret;
   }
@@ -513,14 +523,15 @@ upgrade_big_bis (tree t) {
   if (is_atomic (t)) return t;
   int i, n= N(t);
   tree r (t, n);
+  athena::node::copy_metadata (t, r);
   for (i=0; i<n; i++)
     r[i]= upgrade_big_bis (t[i]);
   if (is_concat (r))
     for (int j=0; j<N(r); j++)
       if (is_func (r[j], BIG)) {
-        array<tree> a= concat_tokenize (r);
+        array<tree> a= concat_tokenize_source (r);
         a= upgrade_brackets (a, 0);
-        return concat_recompose (a);
+        return concat_recompose_source (r, a);
       }
   return r;
 }
@@ -557,8 +568,12 @@ downgrade_brackets (tree t, bool delete_missing, bool big_dot) {
   if (is_atomic (t)) return t;
   int i, n= N(t);
   tree r (t, n);
+  athena::node::copy_metadata (t, r);
   for (i=0; i<n; i++)
     r[i]= downgrade_brackets (t[i], delete_missing, big_dot);
+  if ((is_func (r, AROUND, 3) || is_func (r, VAR_AROUND, 3) ||
+       is_func (r, BIG_AROUND, 2)) && athena::node::contains_metadata (r))
+    return r;
   if (is_func (r, AROUND, 3)) {
     if (delete_missing &&
         (r[0] == "." || r[0] == "<nobracket>") &&
@@ -592,9 +607,10 @@ downgrade_big (tree t) {
   if (is_atomic (t)) return t;
   int i, n= N(t);
   tree r (t, n);
+  athena::node::copy_metadata (t, r);
   for (i=0; i<n; i++)
     r[i]= downgrade_big (t[i]);
-  if (is_func (r, BIG_AROUND, 2)) {
+  if (is_func (r, BIG_AROUND, 2) && !athena::node::contains_metadata (r)) {
     tree op= downgrade_bracket (r[0], true);
     r= concat (tree (BIG, op), r[1]);
   }
@@ -631,10 +647,13 @@ move_brackets_sub (tree t, bool in) {
   if (is_compound (t)) {
     int i, n= N(t);
     tree r= tree (t, n);
+    athena::node::copy_metadata (t, r);
     for (i=0; i<n; i++)
       r[i]= move_brackets_sub (t[i], in);
     t= r;
   }
+
+  if (athena::node::contains_metadata (t)) return t;
 
   while (true) {
     tree r= t;

@@ -4,8 +4,8 @@
 
 ## 先读结论
 
-用户要求因 weekly quota 暂停：完成当前 native tree-set-diff 后交接，
-不要继续扩展实现、部署或迁移生产 vault。当前这一步已完成并通过定向运行检查。
+原交接停在 native tree-set-diff 完成处；用户随后要求按功能块继续。
+2026-09-27 接续批次已完成下述 staged 源生命周期块并通过集中运行检查，尚未提交/部署。
 **整个迁移没有完成，也没有统一启用。基础设施较完整，源编辑审计及跨模块接通仍有实质缺口。**
 
 暂停时最后代码提交：`7e9b23a9b fix: preserve native metadata and Unicode boundaries in tree diffs`。
@@ -145,13 +145,20 @@ children:
 - 🟩 DataArt 源元数据保留，格式化/preamble 局部重建的身份保留及 owner undo/redo 验证。
 - 🟩 当前收尾：native tree-set-diff、ICU 字素边界编辑、完整目标 header、
   wrapper/unwrap observer 保留、格式/嵌入源文本/cardlink callers、Materials 局部字段更新。
+- 🟩 接续源生命周期块：完整 buffer 快照的外层/字段/collection/association/key 元数据，
+  包括带元数据的空 collection；删除或更新文档字段保留外层 header。
+- 🟩 显式 owner 接管完整身份基线、事务内赋 ID、split/join、撤销重做/冲突回滚，
+  replacement 基线预检查及索引重建；仍不是普通 buffer 自动启用。
+- 🟩 structural correction 与数学规范化的 source-aware 重建；保留独立标注的容器/子节点，
+  不允许启发式修正吞掉有身份的分隔符、脚本包裹或正文节点。
 
 ### 🟦 已起步、尚未整体完成
 
-- 🟦 源编辑全链路审计：上述路径已修，其余 tree-set!/tree->stree 重建、校正、
+- 🟦 源编辑全链路审计：上述快照、tree_correct/tree_brackets 路径已修，其余 tree-set!/tree->stree 重建、
   批量插入、格式化和规范化消费者仍需逐项审查。不能用事后路径猜 ID 补洞。
-- 🟦 自动赋 ID 的实际 buffer 生命周期接通：`buffer_state::node_identities` 是 opt-in，
-  普通 buffer 尚未创建此索引。开启前需加载、编辑、回滚、保存整体接受新模型。
+- 🟦 普通 buffer 的实际格式激活仍待完成：已有 `adopt-source-node-identities` 显式 owner 入口，
+  只接管 ID 完整且没有旧编辑历史的基线，不是迁移命令或全局开关。普通 loader 不调用它。
+  默认 v1 保存仍拒绝 metadata；统一 XML v2/恢复/协议/迁移切换仍需闭环。
 - 🟦 enunciation 剩余源创建入口/消费者、属性名称在搜索结果中的呈现、证明目标选择与解析。
 - 🟦 属性 UI 的真实 GUI/owner 关闭竞争及结构化编辑生命周期验收。
 - 🟦 locator/watchers、异步导航、嵌套 hover 的真实 Qt/actor 生命周期验收；缓存失效仍偏粗。
@@ -180,6 +187,7 @@ children:
 | 元数据与 tree | `src/Kernel/Types/node_metadata.{hpp,cpp}`、`tree.*` |
 | 修改与历史 | `src/Kernel/Types/modification.*`、`src/Kernel/Abstractions/observer.cpp`、`src/Data/History/commute.cpp` |
 | 源角色/增量身份 | `src/ATHENA/Data/document_node_model.*`、`src/Edit/Modify/edit_modify.cpp`、`src/ATHENA/buffer_state.hpp` |
+| 源快照/校正/加载 | `src/ATHENA/Data/interop_document_source.*`、`src/ATHENA/Server/buffer_actor.cpp`、`src/Data/Tree/tree_correct.cpp`、`tree_brackets.cpp`、`tree_analyze.cpp` |
 | 复制/剪贴板 | `src/ATHENA/Data/document_node_copy.*`，搜索 `tree_duplicate_source` / `duplicate_source` 的调用点 |
 | 源树 Scheme 接口 | `src/Scheme/Scheme/native_node_properties.cpp`、`native_tree_diff.cpp`、`src/Scheme/Glue/basic.xml` |
 | 类型与转换 | `src/ATHENA/Data/enunciation_model.*`、`ATHENA/misc/enunciations.json` |
@@ -220,8 +228,9 @@ header-only、增删子节点/标签、匿名目标、嵌套包裹解包裹及�
 
 ## 后续如何续上，不要重启项目
 
-建议首先完成源编辑审计和加载/事务生命周期这一个集成块，再做 cut/move 与
-Artifact/迁移闭环。不要继续反复打磨已经通过的 XML codec 或为每个小修改启动全部测试。
+源编辑/加载事务的 staged 接管与快照校正块已完成，具体范围见下节。
+后续继续其余源创建/批量重建消费者及格式激活边界，再做 cut/move 与 Artifact/迁移闭环。
+不要继续反复打磨已经通过的 XML codec 或为每个小修改启动全部测试。
 每个后续批次都明确输入、输出、owner 和持久化边界，完成一大块后做对应定向验证。
 
 离线迁移必须补齐以下约束，不能以“能打开新文件”代替：
@@ -260,3 +269,34 @@ Scheme bindings 先读 `src/Scheme/Glue/README.md`；在 XML 声明，CMake 生�
 
 最后：**没有一个可以现在随手打开的总开关。** XML 默认入口、源创建、
 actor identities、tmfs 语义、协议和迁移都刻意分开 gated；必须闭环后一起启用。
+
+## 接续批次：staged 源生命周期（2026-09-27 晚）
+
+本批还在工作树中，没有提交、部署、生产文件修改或统一新格式启用。
+
+- `source_identity_state::initialize_complete` 验证完整正文角色身份及唯一性，不分配 ID。
+  `adopt-source-node-identities` 在当前 owner 接管这个完整基线，要求旧编辑历史已清空；
+  `source-node-identities-active?` 查询本 buffer 状态。不是给旧文档自动迁移的命令。
+- `replace_document` / `replace_body` 在已接管的 buffer 中先验证新基线，拒绝后保持旧源、
+  索引及保存状态；成功后替换索引。文件导入在 replacement 被拒绝时返回失败，
+  不再继续 capture 错误的磁盘 revision 或把旧内容标作保存成功。
+- 透明 WITH-like 宏的尾参数可能被 DRD 标为 TYPE_UNKNOWN（如 em 的参数直接返回）。
+  此处使用已有 DRD with_like 契约识别内容透传，不按标签名猜，不把普通 inline 参数
+  当成新段落；其他未知/含糊角色仍拒绝。
+- 完整快照保留 source envelope、标准字段、集合/association/key 和未知字段的 header。
+  仍执行 viewport/no_aux 过滤，不把被过滤的值补回。空 COLLECTION 必须比较 L(t)，
+  两参数 is_func(t,COLLECTION) 要求非空，会误判并清掉空集合 metadata。
+- correction 重建显式保头；source tokenizer 与只读 tokenizer 分开，带独立 metadata
+  的子节点不可被拆碎或合并掉。启发式括号/脚本重写遇到独立标注结构时保留结构。
+
+本批 normal ATHENA.bin 构建成功，集中执行 `tests/scheme/node-source-lifecycle-test.py`
+及其同名 Scheme fixture，最后 exit 0，标记 `ATHENA-NODE-SOURCE-LIFECYCLE-PASS`。
+覆盖真实 BufferActor 的接管拒绝/成功、格式化 inline 角色、插入自动 ID、split/join、
+undo/redo UUID 稳定、重复 ID 回滚、取消后的索引可用性、基线替换、快照字段和空集合、
+九条 correction 入口、附着源 native diff，以及 v1 拒绝写 metadata 后原文件 bytes 不变。
+这是同一集成脚本的集中调试/验收，不是全量测试。
+
+日志：`build_qt6/node-source-lifecycle-build.log`；最终成功隔离目录：
+`build_qt6/node-source-lifecycle-check/source-lifecycle-7s839pll/`。
+其他同前缀目录保留了早期调试失败，不代表当前状态。fixture 曾误用 detached tree-set-diff，
+已改为只对附着源调用；不要因此放宽 native diff 的 owner/source 约束。

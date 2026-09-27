@@ -209,9 +209,20 @@ role_declaration roles_for (const tree& source, drd_info drd,
     if (index < 0 || index >= N(info->ci))
       fail (where, issue::unsupported_ambiguous_role, "DRD has no physical child role");
     const child_info& child= info->ci[index];
-    if (child.type == TYPE_ADHOC || child.type == TYPE_UNKNOWN || child.type == TYPE_ERROR)
-      fail (where, issue::unsupported_ambiguous_role, "DRD child role is ambiguous");
-    if (child.type != TYPE_REGULAR || child.accessible == ACCESSIBLE_NEVER) {
+    // A transparent WITH-like macro returns its final argument through only
+    // WITH-like wrappers. arg_access() consequently finds that argument without
+    // an enclosing typed expression and leaves TYPE_UNKNOWN. The DRD's
+    // with_like contract, unlike accessibility alone, proves it is content.
+    // Other unknown arguments remain errors; no tag-name guesses are involved.
+    const bool transparent_body= child.type == TYPE_UNKNOWN &&
+      i+1 == N(source) && drd->is_with_like (source);
+    if (child.type == TYPE_ADHOC || child.type == TYPE_ERROR ||
+        (child.type == TYPE_UNKNOWN && !transparent_body))
+      fail (where, issue::unsupported_ambiguous_role,
+            "DRD child role is ambiguous for " + bytes (as_string (L(source))) +
+            "[" + std::to_string (i) + "]");
+    if ((!transparent_body && child.type != TYPE_REGULAR) ||
+        child.accessible == ACCESSIBLE_NEVER) {
       result.children.push_back (child_role::data);
       continue;
     }
@@ -222,6 +233,11 @@ role_declaration roles_for (const tree& source, drd_info drd,
     }
     if (child.block == BLOCK_REQUIRE_INLINE)
       result.children.push_back (child_role::inline_content);
+    else if (transparent_body)
+      // Transparent formatting does not introduce a paragraph just because
+      // its formal parameter is called "body". A nested DOCUMENT still
+      // introduces its own structural body boundary in identity_planner.
+      result.children.push_back (child_role::content);
     // Legacy child_info initializes block to zero (BLOCK_REQUIRE_BLOCK), even
     // for CONCAT. It is not evidence of a declared paragraph/body boundary.
     // Nested DOCUMENTs are recognized structurally; other body slots need a
@@ -525,6 +541,21 @@ std::vector<diagnostic> source_identity_state::initialize (const tree& body, lim
   }
   catch (const failure& problem) { return {problem.value}; }
   catch (const std::exception& error) { return {{{}, "", issue::invalid_metadata, error.what ()}}; }
+  return {};
+}
+
+std::vector<diagnostic> source_identity_state::initialize_complete (
+    const tree& body, drd_info drd, const role_resolver& roles, limits budget) {
+  auto errors= initialize (body, budget);
+  if (!errors.empty ()) return errors;
+  const auto plan= prepare (body, drd, roles, {}, budget);
+  if (!plan.ok ()) {
+    ready= false;
+    return plan.diagnostics;
+  }
+  // No allocator was supplied: success proves there are no missing IDs, so
+  // the census built by initialize() already describes this exact baseline.
+  dirty.reset ();
   return {};
 }
 

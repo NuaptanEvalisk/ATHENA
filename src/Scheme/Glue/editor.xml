@@ -527,6 +527,8 @@
   <binding name="cancel-alt-selections" native="cancel_alt_selections" returns="void" />
   <binding name="clear-undo-history" native="clear_undo_history" returns="void" />
   <binding name="commit-changes" native="end_editing" returns="void" />
+  <binding name="adopt-source-node-identities" native="adopt_node_identities" returns="bool" />
+  <binding name="source-node-identities-active?" native="node_identities_active" returns="bool" />
   <binding name="start-slave" native="start_slave" returns="void">
     <arg type="double" />
   </binding>

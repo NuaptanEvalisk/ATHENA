@@ -83,6 +83,38 @@ concat_recompose (array<tree> a) {
   else return tree (CONCAT, r);
 }
 
+namespace {
+void tokenize_source_child (tree t, array<tree>& tokens) {
+  if (athena::node::get (t)) tokens << t;
+  else if (is_concat (t))
+    for (int i= 0; i < N(t); ++i) tokenize_source_child (t[i], tokens);
+  else tokens << concat_tokenize (t);
+}
+}
+
+array<tree>
+concat_tokenize_source (tree t) {
+  if (!is_concat (t)) return concat_tokenize (t);
+  array<tree> tokens;
+  for (int i= 0; i < N(t); ++i) tokenize_source_child (t[i], tokens);
+  return tokens;
+}
+
+tree
+concat_recompose_source (tree source, array<tree> a) {
+  tree result= concat_recompose (a);
+  if (!athena::node::get (source) ||
+      (!is_atomic (source) && !is_concat (source))) return result;
+  if (is_concat (source)) {
+    // A sole identified child is not the same object as its parent. Retain
+    // the parent instead of transferring its header onto that child.
+    if (!is_concat (result) || athena::node::get (result))
+      result= N(a) == 0 ? tree (CONCAT) : tree (CONCAT, result);
+  }
+  athena::node::copy_metadata (source, result);
+  return result;
+}
+
 /******************************************************************************
 * Subroutines for WITH-like macros
 ******************************************************************************/

@@ -25,9 +25,15 @@ drd_correct (drd_info drd, tree t) {
   else {
     int i, n= N(t);
     if (drd->contains (as_string (L(t))) &&
-        !drd->correct_arity (L(t), n))
+        !drd->correct_arity (L(t), n)) {
+      if (athena::node::contains_metadata (t))
+        // A heuristic corrector may not delete an explicitly annotated object.
+        // Retain invalid source for the editor/owner validator to diagnose.
+        return t;
       return "";
+    }
     tree r (t, n);
+    athena::node::copy_metadata (t, r);
     for (i=0; i<n; i++)
       r[i]= drd_correct (drd, t[i]);
     return r;
@@ -66,6 +72,7 @@ correct_missing_block (tree t) {
   if (is_atomic (t)) return t;
   int i, n= N(t);
   tree r (t, n);
+  athena::node::copy_metadata (t, r);
   for (i=0; i<n; i++)
     r[i]= correct_missing_block (t[i]);
   t= r;
@@ -80,14 +87,8 @@ correct_missing_block (tree t) {
 ******************************************************************************/
 
 static tree
-to_concat (tree t) {
-  if (t == "") return tree (CONCAT);
-  else if (is_concat (t)) return t;
-  else return tree (CONCAT, t);
-}
-
-static tree
 from_concat (tree t) {
+  if (athena::node::get (t)) return t;
   if (N(t) == 0) return "";
   else if (N(t) == 1) return t[0];
   else return t;
@@ -113,22 +114,30 @@ is_basic_environment (tree t) {
 
 static tree
 migrate_surround (tree bef, tree aft, tree body) {
+  if (bef == "" && aft == "") return body;
   if (is_document (body) && N(body) > 0) {
-    if (N(body) == 1)
-      return tree (DOCUMENT, migrate_surround (bef, aft, body[0]));
-    tree first (DOCUMENT, migrate_surround (bef, "", body[0]));
-    tree last  (DOCUMENT, migrate_surround ("", aft, body[N(body)-1]));
-    return first * body (1, N(body)-1) * last;
+    tree result (body, N(body));
+    athena::node::copy_metadata (body, result);
+    for (int i= 0; i < N(body); ++i)
+      result[i]= migrate_surround (i == 0 ? bef : tree (""),
+                                   i+1 == N(body) ? aft : tree (""), body[i]);
+    return result;
   }
-  else
-    return from_concat (to_concat (bef) * to_concat (body) * to_concat (aft));
+  else {
+    array<tree> parts= concat_decompose (bef);
+    parts << concat_decompose (body) << concat_decompose (aft);
+    return concat_recompose (parts);
+  }
 }
 
 static tree
 make_surround (tree bef, tree aft, tree t) {
   if (bef == "" && aft == "") return t;
-  else if (N(t) == 1 && is_basic_environment (t))
-    return tree (L(t), migrate_surround (bef, aft, t[0]));
+  else if (N(t) == 1 && is_basic_environment (t)) {
+    tree result (L(t), migrate_surround (bef, aft, t[0]));
+    athena::node::copy_metadata (t, result);
+    return result;
+  }
   return tree (SURROUND, bef, aft, t);
 }
 
@@ -137,14 +146,17 @@ correct_concat_block (tree t) {
   if (is_atomic (t)) return t;
   int i, n= N(t);
   tree r (t, n);
+  athena::node::copy_metadata (t, r);
   for (i=0; i<n; i++)
     r[i]= correct_concat_block (t[i]);
   t= r;
   if (is_concat (t)) {
     tree doc (DOCUMENT);
     int start= 0;
+    bool block= false;
     for (i=0; i<n; )
       if (is_multi_paragraph (t[i])) {
+        block= true;
         int bef_i= i;
         while (bef_i > start && is_migratable (t[bef_i-1])) bef_i--;
         int aft_i= i+1;
@@ -158,18 +170,27 @@ correct_concat_block (tree t) {
       }
       else i++;
     if (start < n) doc << from_concat (t (start, n));
+    if (!block) return from_concat (t);
+    if (athena::node::get (t)) {
+      athena::node::copy_metadata (t, doc);
+      return doc;
+    }
     if (N(doc) == 1) return doc[0];
     else return doc;
   }
   else if (is_document (t)) {
     tree doc (DOCUMENT);
+    athena::node::copy_metadata (t, doc);
     for (i=0; i<n; i++)
-      if (is_document (t[i])) doc << A(t[i]);
+      if (is_document (t[i]) && !athena::node::get (t[i])) doc << A(t[i]);
       else doc << t[i];
     return doc;
   }
-  else if (N(t) == 1 && is_basic_environment (t) && !is_document (t[0]))
-    return tree (L(t), tree (DOCUMENT, t[0]));
+  else if (N(t) == 1 && is_basic_environment (t) && !is_document (t[0])) {
+    tree result (L(t), tree (DOCUMENT, t[0]));
+    athena::node::copy_metadata (t, result);
+    return result;
+  }
   else return t;
 }
 
@@ -286,7 +307,8 @@ homoglyph_correct (array<tree> a) {
   array<tree> r;
   //cout << a << ", " << tp << "\n";
   for (int i=0; i<N(a); i++)
-    if (a[i] == "<minus>") r << tree ("-");
+    if (athena::node::contains_metadata (a[i])) r << a[i];
+    else if (a[i] == "<minus>") r << tree ("-");
     else if (a[i] == "\\" || a[i] == "<backslash>") {
       int j1, j2;
       for (j1= i-1; j1>=0; j1--)
@@ -367,6 +389,7 @@ homoglyph_correct (tree t, string mode) {
   if (is_compound (t)) {
     int i, n= N(t);
     r= tree (t, n);
+    athena::node::copy_metadata (t, r);
     for (i=0; i<n; i++) {
       string smode= get_submode (t, i, mode);
       if (is_correctable_child (t, i))
@@ -376,9 +399,9 @@ homoglyph_correct (tree t, string mode) {
   }
 
   if (mode == "math") {
-    array<tree> a= concat_tokenize (r);
+    array<tree> a= concat_tokenize_source (r);
     a= homoglyph_correct (a);
-    tree ret= concat_recompose (a);
+    tree ret= concat_recompose_source (r, a);
     //if (ret != r) cout << "< " << r << " >" << LF
     //<< "> " << ret << " <" << LF;
     return ret;
@@ -402,7 +425,8 @@ superfluous_invisible_correct (array<tree> a) {
   array<tree> r;
   //cout << a << ", " << tp << "\n";
   for (int i=0; i<N(a); i++)
-    if (a[i] == " " || a[i] == "*") {
+    if (athena::node::contains_metadata (a[i])) r << a[i];
+    else if (a[i] == " " || a[i] == "*") {
       int j1, j2;
       for (j1= i-1; j1>=0; j1--)
         if (tp[j1] != SYMBOL_SKIP && tp[j1] != SYMBOL_SCRIPT) break;
@@ -441,6 +465,7 @@ superfluous_invisible_correct (tree t, string mode) {
   if (is_compound (t)) {
     int i, n= N(t);
     r= tree (t, n);
+    athena::node::copy_metadata (t, r);
     for (i=0; i<n; i++) {
       string smode= get_submode (t, i, mode);
       //cout << "  " << i << ": " << is_correctable_child (t, i)
@@ -453,7 +478,7 @@ superfluous_invisible_correct (tree t, string mode) {
     }
   }
   
-  if (is_func (r, CONCAT)) {
+  if (is_func (r, CONCAT) && !athena::node::contains_metadata (r)) {
     bool ok= true;
     int i, found= -1;
     for (i=0; i<N(r); i++)
@@ -469,15 +494,16 @@ superfluous_invisible_correct (tree t, string mode) {
         for (int j=0; j<N(s); j++)
           if (s[j] != ' ') ok= false;
       }
-    if (ok) r= r[found];
+    if (ok && found >= 0) r= r[found];
   }
 
-  if (is_func (r, INACTIVE, 1) && is_func (r[0], RIGID))
+  if (is_func (r, INACTIVE, 1) && is_func (r[0], RIGID) &&
+      !athena::node::get (r))
     return r[0];
   else if (mode == "math") {
-    array<tree> a= concat_tokenize (r);
+    array<tree> a= concat_tokenize_source (r);
     a= superfluous_invisible_correct (a);
-    tree ret= concat_recompose (a);
+    tree ret= concat_recompose_source (r, a);
     //if (ret != r) cout << "< " << r << " >" << LF
     //<< "> " << ret << " <" << LF;
     return ret;
@@ -771,6 +797,7 @@ invisible_corrector::correct (tree t, string mode) {
   if (is_compound (t)) {
     int i, n= N(t);
     r= tree (t, n);
+    athena::node::copy_metadata (t, r);
     for (i=0; i<n; i++) {
       string smode= get_submode (t, i, mode);
       if (is_func (t, WITH) && i != N(t)-1)
@@ -782,9 +809,9 @@ invisible_corrector::correct (tree t, string mode) {
   }
   
   if (mode == "math") {
-    array<tree> a= concat_tokenize (r);
+    array<tree> a= concat_tokenize_source (r);
     a= correct (a);
-    tree ret= concat_recompose (a);
+    tree ret= concat_recompose_source (r, a);
     //if (ret != r)
     //  cout << "<< " << r << " >>" << LF
     //       << ">> " << ret << " <<" << LF;
@@ -821,6 +848,16 @@ missing_invisible_correct_twice (tree t, int force= -1) {
 tree
 misc_math_correct (tree t) {
   if (is_atomic (t)) return t;
+  // This pass moves punctuation across math boundaries and collapses nested
+  // script wrappers. Such heuristics may not consume independently annotated
+  // source nodes. Correct their children, but retain their explicit structure.
+  else if (athena::node::contains_metadata (t)) {
+    tree r (t, N(t));
+    athena::node::copy_metadata (t, r);
+    for (int i= 0; i < N(t); ++i) r[i]= misc_math_correct (t[i]);
+    if (is_concat (r)) return concat_recompose (concat_decompose (r));
+    return r;
+  }
   else if (is_compound (t, "math", 1) && is_func (t[0], RSUB, 1))
     return tree (RSUB, compound ("math", misc_math_correct (t[0][0])));
   else if (is_compound (t, "math", 1) && is_func (t[0], RSUP, 1))

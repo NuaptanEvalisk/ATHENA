@@ -24,6 +24,12 @@ array<tree> concat_tokenize (tree t);
 array<tree> concat_decompose (tree t);
 tree concat_recompose (array<tree> a);
 
+// Source-rewriting counterpart to the read-only tokenizer. The caller has
+// already processed children; independently annotated children are indivisible
+// here. Recomposition preserves the original atom/CONCAT header exactly once.
+array<tree> concat_tokenize_source (tree t);
+tree concat_recompose_source (tree source, array<tree> a);
+
 bool is_with_like (tree t);
 tree& with_body (tree w);
 bool with_same_type (tree w1, tree w2);

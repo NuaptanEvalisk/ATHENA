@@ -516,6 +516,49 @@ v2 saves, advertise AUDMAP v3, or implement cross-document moves.
   code was not changed to compensate for this fixture issue. Temporary history
   diagnostics were removed. No full suite, deployment or Notes migration ran.
 
+## Staged source lifecycle and correction integration (2026-09-27 evening)
+
+- Added explicit owner adoption of an already identity-complete body through
+  `adopt-source-node-identities` / `source-node-identities-active?`. This is a
+  fresh-baseline operation, not an implicit migration or a preference switch.
+  The native validator does not allocate identities, refuses incomplete or
+  ambiguous baselines, and keeps ordinary buffers unactivated.
+- Active document/body replacement validates the entire incoming baseline
+  before mutating the old source or disposable index. Successful replacement
+  replaces the index; a rejected import reports failure rather than pinning a
+  different disk revision or marking unchanged old contents saved. Existing
+  transaction/finalization/history hooks now have a validated owner entry path.
+- DRD WITH-like passthrough macros may have UNKNOWN tail argument types even
+  when their content flow is known. The planner uses the DRD with_like contract
+  (not a hardcoded macro list or accessibility alone), preserves inline role
+  inheritance, and still rejects unclassified custom macros.
+- Full buffer snapshots preserve document envelope, standard field,
+  COLLECTION/ASSOCIATE/key headers and unknown attributes without undoing
+  viewport/no_aux filtering. Annotated empty collections remain present. In
+  particular, the two-argument is_func predicate excludes zero-arity nodes;
+  comparing L(t) avoids resetting annotated empty COLLECTION nodes. Updating
+  or removing document attributes also preserves their surviving headers.
+- Structural correction and math normalization now reconstruct native headers
+  explicitly. A source-specific tokenize/recompose path preserves independently
+  annotated children and their parent identity; read-only token analysis is
+  unchanged. Heuristics do not consume identified delimiter/script wrappers or
+  flatten identified nested DOCUMENT/CONCAT nodes.
+- Normal ATHENA.bin build succeeded. One consolidated isolated real-BufferActor
+  fixture, `tests/scheme/node-source-lifecycle-test.py` / `.scm`, was debugged to
+  exit 0 with ATHENA-NODE-SOURCE-LIFECYCLE-PASS. It covers adoption, inline roles,
+  insert/split/join and replayed IDs, conflict/cancel rollback, baseline
+  replacement, source snapshots including empty collections, correction entry
+  points and native attached-source diff. Default XML v1 save was verified to
+  reject metadata while leaving the isolated original file byte-for-byte intact.
+- Final evidence: `build_qt6/node-source-lifecycle-build.log` and
+  `build_qt6/node-source-lifecycle-check/source-lifecycle-7s839pll/`.
+  Earlier same-prefix artifacts are failed diagnostic runs, not the final result.
+  A fixture initially invoked tree-set-diff on a detached target; it was fixed,
+  not the native ownership precondition. Temporary native tracing was removed.
+- No global XML/AUDMAP/tmfs cutover, normal-loader opt-in, production migration,
+  deployment, full suite or unrelated tests. Remaining source consumers and
+  cross-module activation are still gated. This batch has not been committed.
+
 ## Build Boundary
 
 Normal builds use only:

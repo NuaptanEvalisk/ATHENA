@@ -25,6 +25,7 @@
 #include "glue.hpp"
 #include "object.hpp"
 #include "outline_snapshot.hpp"
+#include "new_style.hpp"
 #include "Data/interop_document_source.hpp"
 #include "Subsystems/RAG/rag_realtime_generation.hpp"
 #include "tm_buffer.hpp"
@@ -50,6 +51,19 @@ std::mutex actor_registry_lock;
 std::atomic<std::uint64_t> continuous_rag_save_sequence {1};
 using actor_entry= actor_lifetime<buffer_actor>;
 std::unordered_map<athena_actor_id, std::shared_ptr<actor_entry>> actor_registry;
+
+std::unique_ptr<athena::document_node::source_identity_state>
+replacement_node_identities (const tree& document, const tree& body) {
+  auto next= std::make_unique<athena::document_node::source_identity_state> ();
+  const auto errors= next->initialize_complete (
+    body, get_document_drd (document), athena::document_node::standard_source_role);
+  if (!errors.empty ()) {
+    std_warning << "Source replacement rejected: "
+                << string (errors.front ().detail.c_str ()) << LF;
+    return {};
+  }
+  return next;
+}
 
 actor_entry::lease
 acquire_actor (athena_actor_id id) {
@@ -1112,24 +1126,45 @@ buffer_actor::dispatch (actor_command_record& command) {
     break;
   }
   case actor_command_kind::replace_document: {
+    command.argument[0]= 1;
     tree document= actor_tree_registry::instance ().take (command.payload0);
+    // Loading/reloading is a baseline replacement, not a normal content edit.
+    // Preflight before touching the old envelope, body, editor data or index.
+    std::unique_ptr<athena::document_node::source_identity_state> identities;
+    if (impl_->state.node_identities) {
+      new_data projected;
+      const tree body= detach_data (document, projected);
+      identities= replacement_node_identities (document, body);
+      if (!identities) break;
+    }
     impl_->state.source_envelope= document;
     tree body= detach_data (document, impl_->state.data);
     set_document (
       impl_->state.document, impl_->state.root_path, std::move (body));
+    if (identities) impl_->state.node_identities= std::move (identities);
     for (auto& entry: impl_->views) {
       entry.second.instance->set_data (impl_->state.data);
       entry.second.instance->init_update ();
     }
     publish_tmfs_title (editor);
     athena::node_reference::source_changed ();
+    command.argument[0]= 0;
     break;
   }
   case actor_command_kind::replace_body: {
+    command.argument[0]= 1;
     tree body= actor_tree_registry::instance ().take (command.payload0);
+    std::unique_ptr<athena::document_node::source_identity_state> identities;
+    if (impl_->state.node_identities) {
+      identities= replacement_node_identities (
+        attach_data (body, impl_->state.data), body);
+      if (!identities) break;
+    }
     assign (subtree (impl_->state.document, impl_->state.root_path),
             std::move (body));
+    if (identities) impl_->state.node_identities= std::move (identities);
     athena::node_reference::source_changed ();
+    command.argument[0]= 0;
     break;
   }
   case actor_command_kind::set_message: {
@@ -1164,7 +1199,7 @@ buffer_actor::dispatch (actor_command_record& command) {
     }
     tree body= subtree (impl_->state.document, impl_->state.root_path);
     tree snapshot= copy (attach_data (body, impl_->state.data, no_aux));
-    append_interop_source_attributes (snapshot, impl_->state.source_envelope);
+    append_interop_source_attributes (snapshot, impl_->state.source_envelope, no_aux);
     command.payload0= actor_tree_registry::instance ().store (
       std::move (snapshot));
     break;
@@ -1282,6 +1317,8 @@ buffer_actor::dispatch (actor_command_record& command) {
       vault_text= actor_text_registry::instance ().take (command.payload0);
     try {
       editor_rep* save_editor= current_editor (command.view_id);
+      if (!save_editor && !impl_->views.empty ())
+        save_editor= impl_->views.begin ()->second.instance.operator -> ();
       if (impl_->state.node_identities && impl_->state.node_identities->pending ()) {
         if (!save_editor || !save_editor->finish_node_identities ())
           throw std::runtime_error ("Source identities must be finalized before saving");

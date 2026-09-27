@@ -43,6 +43,8 @@ public:
   void archive_state ();
   void start_editing ();
   void end_editing ();
+  bool adopt_node_identities ();
+  bool node_identities_active ();
   bool finish_node_identities ();
   void cancel_editing ();
   void start_slave (double a);

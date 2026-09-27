@@ -358,6 +358,41 @@ edit_modify_rep::end_editing () {
 }
 
 bool
+edit_modify_rep::node_identities_active () {
+  return buf != nullptr && bool (buf->node_identities);
+}
+
+bool
+edit_modify_rep::adopt_node_identities () {
+  if (buf == nullptr) return false;
+  if (buf->node_identities) return finish_node_identities ();
+  // This explicit staged loader hook adopts a validated baseline, not an
+  // undoable switch. Do not leave pre-activation anonymous history behind it.
+  if (arch->has_content_changes () || arch->undo_possibilities () != 0 ||
+      arch->redo_possibilities () != 0) {
+    std_warning << "Source identity activation rejected: history is not a fresh baseline" << LF;
+    set_message ("Source identities require a fresh history baseline", "node model");
+    return false;
+  }
+  // A just-loaded editor need not have reached its first GUI idle/typesetting
+  // update. Resolve the source style/preamble DRD at this cold boundary rather
+  // than treating uninitialized macro child descriptors as an invalid source.
+  drd_update ();
+  auto state= std::make_unique<athena::document_node::source_identity_state> ();
+  const auto errors= state->initialize_complete (
+    subtree (et, rp), drd, athena::document_node::standard_source_role);
+  if (!errors.empty ()) {
+    std_warning << "Source identity activation rejected: "
+                << string (errors.front ().detail.c_str ()) << LF;
+    set_message ("Source identity activation rejected",
+                 tree (errors.front ().detail.c_str ()), true);
+    return false;
+  }
+  buf->node_identities= std::move (state);
+  return true;
+}
+
+bool
 edit_modify_rep::finish_node_identities () {
   if (buf == nullptr || !buf->node_identities || !buf->node_identities->pending ()) return true;
   auto& state= *buf->node_identities;
@@ -499,6 +534,7 @@ edit_modify_rep::require_save () {
 
 void
 edit_modify_rep::notify_save (bool real_save) {
+  if (!finish_node_identities ()) return;
   arch->confirm ();
   arch->notify_autosave ();
   if (real_save) arch->notify_save ();

@@ -573,8 +573,8 @@ set_proposed_title_buffer (url name, string title) {
 * Setting and getting the buffer tree contents
 ******************************************************************************/
 
-void
-set_buffer_tree (url name, tree doc) {
+static bool
+try_set_buffer_tree (url name, tree doc) {
   tm_buffer buf= concrete_buffer (name);
   bool inserted= is_nil (buf);
   if (inserted) {
@@ -587,12 +587,15 @@ set_buffer_tree (url name, tree doc) {
   athena_blob_id document_payload=
     actor_tree_registry::instance ().store (std::move (doc));
   athena_view_id view_id= source_view (buf);
+  actor_command_record replacement;
   if (!invoke_buffer_actor (
         buf, actor_command_kind::replace_document, view_id,
-        document_payload)) {
+        document_payload, ATHENA_NO_BLOB, &replacement)) {
     discard_tree_payload (document_payload);
-    return;
+    return false;
   }
+  if (replacement.argument[0] != 0)
+    return false;
   buf->buf->title= std::move (proposed_title);
   if (is_rooted_tmfs (name)) {
     buf->buf->read_only=
@@ -609,6 +612,13 @@ set_buffer_tree (url name, tree doc) {
         title_payload))
     discard_text_payload (title_payload);
   pretend_buffer_saved (name);
+  return true;
+}
+
+void
+set_buffer_tree (url name, tree doc) {
+  if (!try_set_buffer_tree (name, std::move (doc)))
+    std_warning << "Document replacement rejected for " << name << LF;
 }
 
 tree
@@ -634,11 +644,15 @@ set_buffer_body (url name, tree body) {
   if (buffer_actor* actor= current_buffer_actor (name, view_id)) {
     athena_blob_id body_payload=
       actor_tree_registry::instance ().store (std::move (body));
+    actor_command_record replacement;
     if (!invoke_buffer_actor (
-          actor, actor_command_kind::replace_body, view_id, body_payload)) {
+          actor, actor_command_kind::replace_body, view_id, body_payload,
+          ATHENA_NO_BLOB, &replacement)) {
       discard_tree_payload (body_payload);
       return;
     }
+    if (replacement.argument[0] != 0)
+      return;
     pretend_buffer_saved (name);
     return;
   }
@@ -651,12 +665,15 @@ set_buffer_body (url name, tree body) {
     athena_blob_id body_payload=
       actor_tree_registry::instance ().store (std::move (body));
     athena_view_id view_id= source_view (buf);
+    actor_command_record replacement;
     if (!invoke_buffer_actor (
           buf, actor_command_kind::replace_body, view_id,
-          body_payload)) {
+          body_payload, ATHENA_NO_BLOB, &replacement)) {
       discard_tree_payload (body_payload);
       return;
     }
+    if (replacement.argument[0] != 0)
+      return;
     pretend_buffer_saved (name);
   }
 }
@@ -966,7 +983,7 @@ buffer_import (url name, url src, string fm) {
     if (error.empty ()) t= std::move (updated);
     else std_warning << "Could not refresh document Materials: " << string (error.c_str ()) << LF;
   }
-  set_buffer_tree (name, t);
+  if (!try_set_buffer_tree (name, std::move (t))) return true;
   capture_buffer_document_storage (
     concrete_buffer (name), name, src, storage_sha256);
   return false;

@@ -134,6 +134,12 @@ class source_identity_state {
   bool ready= false, applying= false;
 public:
   std::vector<diagnostic> initialize (const tree&, limits budget= {});
+  // Activation/load boundary for an already migrated source body. Validate
+  // both uniqueness and complete role identities, without assigning IDs or
+  // mutating source. Failure leaves this index unusable. This is not migration
+  // or a vault-global uniqueness check.
+  std::vector<diagnostic> initialize_complete (
+    const tree&, drd_info, const role_resolver&, limits budget= {});
   void observe (modification);
   bool pending () const { return !ready || dirty.has_value (); }
   identity_edit_plan prepare (const tree&, drd_info, const role_resolver&,
