@@ -217,6 +217,52 @@ v2 saves, advertise AUDMAP v3, or implement cross-document moves.
   acceptance test of structured editing, close races and undo; that remains
   part of the final integration gates. No full suite or production vault ran.
 
+## Native UUID Location Service (2026-09-27)
+
+- `node_location.*` inventories persistent IDs in source children and typed
+  rich properties. Addresses distinguish child, property, list, dictionary and
+  rich-text steps without changing source child indices. Collection never
+  allocates an ID; consuming a location checks the expected UUID again.
+- A service has one sleeping worker and merges concurrent requests into one
+  captured inventory. Request/poll return native data without filesystem I/O or
+  actor waits. Ordered selections deduplicate first occurrences, preserve
+  missing entries, reject ancestor/descendant overlap and detect expansion
+  ancestry cycles. Duplicate identities are conflicts, not arbitrary choices.
+- The disposable in-memory cache stores validated file revisions and identity
+  censuses. Each scan currently inventories the vault and reuses unchanged
+  documents, reparsing only changed files. Clearing it loses no identity data.
+  A future filesystem-change invalidation layer is still needed to avoid whole
+  inventory validation on every independent request batch; do not describe the
+  present implementation as an O(1) cached-hit fast path or a persistent index.
+- Confined reads exclude `.athena`, `.backup` and `.git`, including aliases
+  pointing into them. Symlink escapes and changed roots fail closed. Canonical
+  path aliases do not create duplicate documents. Read failures remain distinct
+  from proven absence, including failures that prevent proving uniqueness.
+  XML duplicate-ID exceptions carry the offending UUID rather than requiring
+  diagnostic-string matching. XML v1 contributes no invented identities;
+  pre-XML input requires the separate upgrade boundary.
+- `vault_node_location.*` shares services by vault incarnation and captures live
+  inventories on the owning BufferActors. Only standard strings, addresses and
+  IDs cross the boundary; no full source-tree copy is made by the census. Live
+  files override disk even after unsaved deletion or an actor read failure.
+  Actor command watermarks describe captures, not fictitious storage revisions.
+- Nonblocking actor submission, cancellable timed waits and source membership
+  checks avoid a saturated actor mailbox trapping the locator worker or vault
+  close. Online consumption refuses newly actor-owned disk candidates, verifies
+  source names and UUIDs on the owner, and transfers an XML v2 fragment. These
+  are direct native calls, not AUDMAP sessions, requests or authentication.
+- `node_location_test` passed 11 QtTest cases (nine feature cases and
+  setup/cleanup), covering addresses, stale reads, cache rebuild, external
+  rename, excluded trees, malformed XML, duplicate IDs, ordered lists, cycles,
+  overlap, live deletion/read failure, merged requests, cancellation and root
+  replacement. Live precedence is exercised with a controlled provider; actual
+  actor lifecycle integration still requires runtime acceptance.
+- The normal `cmake --build build_qt6 --target ATHENA.bin -j20` build passed.
+  No full suite, deployment or production vault migration was performed.
+- This batch does not switch existing tmfs handlers or render caches, delete
+  map.sqlite, add a persistent SQLite location cache, or enable XML v2 normal
+  saves. Those changes require the remaining reference and migration gates.
+
 ## Integration Gates Still Required
 
 1. Assign source IDs through content roles, with complete handling of nested
@@ -227,11 +273,11 @@ v2 saves, advertise AUDMAP v3, or implement cross-document moves.
 3. Finish remaining live enunciation consumers and source creation. Native
    rendering/numbering and property UI are implemented; proof targets can be
    entered explicitly, but UUID resolution and target selection remain.
-4. Implement native UUID resolution using validated disposable location indexes,
-   live actor snapshots, coalesced background scans and distinct error states.
-   Ordered transclusions must reject ancestor/descendant overlap and retain
-   missing entries. Retire hint-dependent map identity without losing rename
-   recovery journals.
+4. Connect the native UUID location service to tmfs navigation, hover and
+   transclusion rendering with nonblocking placeholders and refresh completion.
+   Finish change invalidation/cached-hit acceleration and actual actor lifecycle
+   acceptance. Persist the index only as disposable data. Retire hint-dependent
+   map identity without losing rename recovery journals.
 5. Persist artifact identity bindings on source nodes. Separate storage
    revisions, content revisions and actual model-input fingerprints before
    changing index reuse or invalidation.

@@ -76,6 +76,17 @@ public:
     std::uint64_t argument4= 0, std::uint64_t argument5= 0,
     std::uint64_t argument6= 0, std::uint64_t argument7= 0);
 
+  static actor_command_ticket try_submit_to (
+    athena_actor_id actor_id, actor_command_kind kind,
+    athena_view_id view_id= ATHENA_NO_VIEW,
+    athena_blob_id payload0= ATHENA_NO_BLOB,
+    athena_blob_id payload1= ATHENA_NO_BLOB,
+    SchemeCapabilitySet capabilities= SCHEME_CAPABILITY_BUFFER,
+    std::uint64_t argument0= 0, std::uint64_t argument1= 0,
+    std::uint64_t argument2= 0, std::uint64_t argument3= 0,
+    std::uint64_t argument4= 0, std::uint64_t argument5= 0,
+    std::uint64_t argument6= 0, std::uint64_t argument7= 0);
+
   static bool try_submit_coalesced_to (
     athena_actor_id actor_id, actor_command_kind kind,
     athena_view_id view_id, std::uint64_t argument0= 0,

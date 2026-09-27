@@ -315,6 +315,22 @@ buffer_actor::try_submit_coalesced_to (
   return static_cast<bool> (ticket);
 }
 
+actor_command_ticket
+buffer_actor::try_submit_to (
+  athena_actor_id actor_id, actor_command_kind kind, athena_view_id view_id,
+  athena_blob_id payload0, athena_blob_id payload1,
+  SchemeCapabilitySet capabilities, std::uint64_t argument0,
+  std::uint64_t argument1, std::uint64_t argument2,
+  std::uint64_t argument3, std::uint64_t argument4,
+  std::uint64_t argument5, std::uint64_t argument6,
+  std::uint64_t argument7) {
+  auto lifetime= acquire_actor (actor_id);
+  buffer_actor* actor= lifetime.get ();
+  return actor == nullptr ? actor_command_ticket {} : actor->try_submit (
+    kind, view_id, payload0, payload1, capabilities, argument0, argument1,
+    argument2, argument3, argument4, argument5, argument6, argument7);
+}
+
 bool
 buffer_actor::invoke_on (
   athena_actor_id actor_id, actor_command_kind kind, athena_view_id view_id,

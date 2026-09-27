@@ -27,6 +27,11 @@ codec_exception::codec_exception (codec_error c, const std::string& message,
   std::runtime_error (message), code (c), line (l), column (col),
   character_offset (offset) {}
 
+identity_conflict::identity_conflict (std::string value, std::int64_t line,
+                                     std::int64_t column, std::int64_t offset):
+  codec_exception (codec_error::invalid_structure, "Duplicate node identity", line, column, offset),
+  id (std::move (value)) {}
+
 namespace {
 bool legacy_version (const tree& value) {
   return is_compound (value, "TeXmacs", 1) && is_atomic (value[0]);
@@ -211,7 +216,7 @@ class writer {
     if (!meta || meta->empty ()) return;
     if (!meta->id.empty ()) {
       if (!identities.insert (meta->id).second)
-        throw codec_exception (codec_error::invalid_structure, "Duplicate node identity");
+        throw identity_conflict (meta->id);
       reference_id (meta->id);
     }
     if (!meta->properties.empty ()) {
@@ -467,7 +472,7 @@ class reader {
     if (xml.attributes ().hasAttribute ("id")) {
       result.id= reference_id ();
       if (!identities.insert (result.id).second)
-        fail (codec_error::invalid_structure, "Duplicate node identity");
+        throw identity_conflict (result.id, xml.lineNumber (), xml.columnNumber (), xml.characterOffset ());
     }
     whitespace ();
     if (xml.isStartElement () && xml.name () == QLatin1StringView ("properties")) {

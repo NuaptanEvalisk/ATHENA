@@ -36,6 +36,12 @@ public:
   codec_exception (codec_error, const std::string&, std::int64_t line= -1,
                    std::int64_t column= -1, std::int64_t character_offset= -1);
 };
+class identity_conflict: public codec_exception {
+public:
+  const std::string id;
+  explicit identity_conflict (std::string id, std::int64_t line= -1,
+    std::int64_t column= -1, std::int64_t character_offset= -1);
+};
 
 // Input/output text is UTF-8, never Cork. RAW_DATA's sole child is bytes.
 // The caller owns the tree and all codec state remains local to this call.

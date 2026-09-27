@@ -1,0 +1,210 @@
+/******************************************************************************
+* MODULE     : vault_node_location.cpp
+* DESCRIPTION: Actor-owned identity inventories and revision-checked native node reads
+* COPYRIGHT  : (C) 2026 Nuaptan Felix Evalisk
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+******************************************************************************/
+#include "vault_node_location.hpp"
+#include "buffer_actor.hpp"
+#include "buffer_name_catalog.hpp"
+#include "file.hpp"
+#include "Data/Convert/Xml/athena_document_xml.hpp"
+#include <QCoreApplication>
+#include <QThread>
+#include <chrono>
+#include <condition_variable>
+#include <map>
+#include <mutex>
+#include <stdexcept>
+
+namespace athena::node_location {
+namespace {
+std::string text (const string& s) { return {s.data (), std::size_t (N(s))}; }
+struct endpoint {
+  std::string url, file;
+  std::uint64_t actor, view;
+  bool operator == (const endpoint& other) const {
+    return url == other.url && file == other.file && actor == other.actor && view == other.view;
+  }
+};
+using endpoints= std::map<std::uint64_t, endpoint>;
+
+void check_context (const vault_context_handle& vault) {
+  if (!vault || !vault_context_is_current (vault))
+    throw std::runtime_error ("Node location vault has closed or changed");
+}
+void require_background () {
+  if (QCoreApplication::instance () &&
+      QThread::currentThread () == QCoreApplication::instance ()->thread ())
+    throw std::logic_error ("Node location waits are forbidden on the GUI thread");
+  if (const auto* context= current_scheme_execution_context ())
+    if (context->actor) throw std::logic_error ("Node location waits are background-only");
+}
+
+endpoints capture_endpoints (const vault_context_handle& vault) {
+  check_context (vault);
+  endpoints out;
+  for (const auto& entry: published_buffer_metadata ()) {
+    if (!entry.second.actor_id) continue;
+    url name (entry.first.c_str ());
+    std::string relative;
+    if (is_rooted (name, "default") || is_rooted (name, "file")) {
+      auto file= std::filesystem::weakly_canonical (
+        std::filesystem::path (text (as_system_string (name))));
+      auto within= file.lexically_relative (vault->root);
+      if (within.empty () || within.is_absolute () || *within.begin () == ".." ||
+          within.extension () != ".ath") continue;
+      bool internal= false;
+      for (const auto& part: within)
+        if (part == ".athena" || part == ".backup" || part == ".git") internal= true;
+      if (internal) continue;
+      relative= within.generic_string ();
+    }
+    else if (!is_scratch (name)) continue;
+    endpoint found {entry.first, relative, entry.second.actor_id, entry.second.source_view};
+    if (!out.emplace (found.actor, found).second)
+      throw std::runtime_error ("Actor has ambiguous published source names");
+  }
+  return out;
+}
+
+template<class T, class F>
+T on_actor (const vault_context_handle& vault, const endpoint& source,
+            const std::atomic<bool>& cancelled, F action) {
+  require_background ();
+  struct response {
+    std::mutex lock;
+    std::condition_variable ready;
+    bool done= false;
+    T value;
+    std::string error;
+  };
+  auto answer= std::make_shared<response> ();
+  auto abandoned= std::make_shared<std::atomic<bool>> (false);
+  auto continuation= actor_continuation_registry::instance ().store (
+    [vault, source, action, answer, abandoned] {
+      if (*abandoned) return;
+      T value;
+      std::string error;
+      try {
+        check_context (vault);
+        auto* owner= current_scheme_execution_context ()->actor;
+        if (!owner || text (as_string (owner->current_buffer_url ())) != source.url)
+          throw std::runtime_error ("Node source was renamed or replaced");
+        value= action (*owner, source.view);
+      }
+      catch (const std::exception& e) { error= e.what (); }
+      catch (const string& e) { error= text (e); }
+      catch (...) { error= "Failed to capture actor-owned node source"; }
+      {
+        std::lock_guard<std::mutex> guard (answer->lock);
+        answer->value= std::move (value);
+        answer->error= std::move (error);
+        answer->done= true;
+      }
+      answer->ready.notify_all ();
+    });
+  // A saturated actor mailbox must not trap the locator worker or vault close.
+  const auto submitted= buffer_actor::try_submit_to (source.actor,
+    actor_command_kind::run_native_continuation, source.view,
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, continuation);
+  if (!submitted) {
+    actor_continuation_registry::instance ().discard (continuation);
+    throw std::runtime_error ("Source actor is busy or closed; retry node resolution");
+  }
+  const auto deadline= std::chrono::steady_clock::now () + std::chrono::seconds (10);
+  std::unique_lock<std::mutex> guard (answer->lock);
+  while (!answer->done && !cancelled && std::chrono::steady_clock::now () < deadline)
+    answer->ready.wait_for (guard, std::chrono::milliseconds (50));
+  if (!answer->done || cancelled) {
+    *abandoned= true;
+    actor_continuation_registry::instance ().discard (continuation);
+    throw std::runtime_error (cancelled ? "Node source query cancelled" : "Source actor query timed out");
+  }
+  if (!answer->error.empty ()) throw std::runtime_error (answer->error);
+  return std::move (answer->value);
+}
+
+std::vector<live_source> capture_live (const vault_context_handle& vault,
+                                      const std::atomic<bool>& cancelled) {
+  const auto before= capture_endpoints (vault);
+  std::vector<live_source> out;
+  for (const auto& pair: before) {
+    if (cancelled) throw std::runtime_error ("Node source inventory cancelled");
+    const auto& source= pair.second;
+    live_source next {source.file, source.actor, 0, {}, {}};
+    try {
+      auto captured= on_actor<std::pair<std::uint64_t, census>> (vault, source, cancelled,
+        [] (buffer_actor& owner, std::uint64_t view) {
+          return std::make_pair (current_scheme_execution_context ()->command_id,
+                                 collect (owner.current_source (view)));
+        });
+      next.capture= captured.first;
+      next.nodes= std::move (captured.second);
+    }
+    catch (const std::exception& e) { next.error= e.what (); }
+    out.push_back (std::move (next));
+  }
+  if (before != capture_endpoints (vault))
+    throw std::runtime_error ("Open source membership changed during node inventory; retry resolution");
+  return out;
+}
+} // namespace
+
+std::shared_ptr<service> for_vault (vault_context_handle vault) {
+  check_context (vault);
+  static std::mutex lock;
+  static std::map<std::string, std::weak_ptr<service>> services;
+  std::lock_guard<std::mutex> guard (lock);
+  for (auto i= services.begin (); i != services.end (); )
+    if (i->second.expired ()) i= services.erase (i); else ++i;
+  auto& current= services[vault->incarnation];
+  auto result= current.lock ();
+  if (!result) {
+    result= std::make_shared<service> (vault->root,
+      [vault] (const std::atomic<bool>& stop) { return capture_live (vault, stop); });
+    current= result;
+  }
+  return result;
+}
+
+std::string read_live (vault_context_handle vault, const item& target,
+                       const std::atomic<bool>& cancelled) {
+  require_background ();
+  if (target.state != status::resolved || target.candidates.size () != 1 ||
+      !target.candidates[0].actor)
+    throw std::invalid_argument ("Target is not a uniquely resolved live node");
+  const auto location= target.candidates[0];
+  const auto sources= capture_endpoints (vault);
+  const auto found= sources.find (location.actor);
+  if (found == sources.end () || found->second.file != location.file)
+    throw std::runtime_error ("Live node source has closed or moved");
+  return on_actor<std::string> (vault, found->second, cancelled,
+    [location, id= target.id] (buffer_actor& owner, std::uint64_t view) {
+      return document::write_xml_v2 (lookup (owner.current_source (view), location.where, id),
+                                      document::xml_kind::fragment);
+    });
+}
+
+std::string read_online (vault_context_handle vault, const item& target,
+                         const std::atomic<bool>& cancelled) {
+  require_background ();
+  check_context (vault);
+  if (target.state != status::resolved || target.candidates.size () != 1)
+    throw std::invalid_argument ("Target is not a uniquely resolved online node");
+  if (target.candidates[0].actor) return read_live (std::move (vault), target, cancelled);
+  auto check_saved= [&] {
+    if (cancelled) throw std::runtime_error ("Node source read cancelled");
+    for (const auto& pair: capture_endpoints (vault))
+      if (pair.second.file == target.candidates[0].file)
+        throw std::runtime_error ("Saved node is now actor-owned; retry node resolution");
+  };
+  check_saved ();
+  auto source= read_disk (vault->root, target);
+  check_saved ();
+  return document::write_xml_v2 (source, document::xml_kind::fragment);
+}
+} // namespace athena::node_location
