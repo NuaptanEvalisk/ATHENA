@@ -450,6 +450,7 @@ public:
   virtual void archive_state () = 0;
   virtual void start_editing () = 0;
   virtual void end_editing () = 0;
+  virtual bool finish_node_identities () = 0;
   virtual void cancel_editing () = 0;
   virtual void start_slave (double a) = 0;
   virtual void mark_start (double a) = 0;

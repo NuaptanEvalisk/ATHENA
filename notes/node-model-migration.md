@@ -34,7 +34,9 @@ typed internal references. Neither operation is a clipboard move credential.
   creation/property UI still require integration.
 - `document_node_model.*`: explicit detached identity planning from source roles
   and DRD contracts, caller-supplied deterministic allocation, duplicate checks
-  and property schema validation. It is not a live-editor identity allocator.
+  and property schema validation. An opt-in incremental source identity index
+  also prepares observer-aware metadata edits at owner transaction boundaries.
+  It is not yet enabled by normal source loading.
   Attribution is a list of structured names; year is optional unparsed text.
 
 The APIs are owner-local. Native trees and mutable rich property values must not
@@ -424,6 +426,29 @@ v2 saves, advertise AUDMAP v3, or implement cross-document moves.
   the actual renderer if absent from the frozen snapshot; those derived paths
   and interactive lifecycle behavior still need end-to-end acceptance. No full
   suite, deployment, production migration or default model activation ran.
+
+## Incremental Source Identity Transactions (2026-09-27)
+
+- An owner-local UUID/path index now prepares native metadata modifications
+  for missing source-role identities. Text edits classify only their affected
+  branch and ancestors; structural batches merge their affected scopes before
+  reindexing. The index retains no source trees and performs no content copies.
+  Rich-property identities are indexed at their containing source node, not
+  at invented ordinary child paths. The shared enunciation registry supplies
+  its body roles; there is no duplicated list of theorem/proof kinds.
+- Opt-in editor hooks observe modifications and finalize identities before
+  history confirmation or serialization. Generated metadata participates in
+  the same undo step. Rollback rebuilds the disposable index from the actual
+  restored source, even if an earlier save preflight already applied its plan.
+  Failed initialization remains pending and fails closed.
+- Normal ATHENA.bin -j20 compilation passed. Focused model tests passed 20
+  cases; metadata/history tests passed 28. Coverage includes a 10,000-paragraph
+  document edited within a four-node traversal budget, inserted nested bodies,
+  rich-property conflicts, stale plans, applied-plan rollback, failed rebuild,
+  and observer-driven insertion undo/redo with no additional UUID allocations.
+- This remains staged: ordinary buffers do not instantiate the opt-in index.
+  Loading/activation, full source-edit audit and actual enabled editor lifecycle
+  acceptance are not complete. No deployment, full suite or Notes migration ran.
 
 ## Build Boundary
 

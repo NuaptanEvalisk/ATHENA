@@ -13,6 +13,7 @@
 #include "new_document.hpp"
 #include "node_metadata.hpp"
 #include "ATHENA/Data/document_node_model.hpp"
+#include "drd_std.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }
@@ -57,6 +58,13 @@ public:
     headers_ready= headers_ready && node_header (joined) == single_node_header (forward);
   }
   void notify_detach (tree&, tree, bool) override { ++detachments; }
+};
+
+class identity_probe: public observer_rep {
+  athena::document_node::source_identity_state& state;
+public:
+  explicit identity_probe (athena::document_node::source_identity_state* value): state (*value) {}
+  void done (tree&, modification mod) override { state.observe (mod / path (0)); }
 };
 }
 
@@ -459,6 +467,52 @@ private slots:
       history->redo ();
       QCOMPARE (document[0], changed);
       QCOMPARE (athena::node::id (document[0][0]), prepared.id);
+    }
+    set_author (previous);
+  }
+
+  void automaticIdentitiesShareTheInsertionUndoStep () {
+    namespace model= athena::document_node;
+    namespace node= athena::node;
+    init_std_drd ();
+    tree document= make_document_tree ();
+    with_document_tree context (&document);
+    set_document (document, path (0), tree (DOCUMENT, "Original"));
+    model::source_identity_state state;
+    QVERIFY (state.initialize (document[0]).empty ());
+    int allocations= 0;
+    auto allocate= [&] (const auto&) { ++allocations; return node::new_id (); };
+    state.apply (document[0], state.prepare (document[0], standard_drd_for_thread (), {}, allocate));
+    const tree before= copy (document[0]);
+    double author= new_author (), previous= get_author ();
+    set_author (author);
+    {
+      archiver history (author, path (0));
+      observer watch (tm_new<identity_probe> (&state));
+      attach_observer (document, watch);
+      auto edit= mod_insert (path (), 1, tree (DOCUMENT, "Inserted"));
+      ::apply (document[0], edit);
+      auto plan= state.prepare (document[0], standard_drd_for_thread (), {}, allocate);
+      QVERIFY (plan.ok ());
+      state.apply (document[0], plan);
+      history->confirm ();
+      const tree expected= copy (document[0]);
+      const int created= allocations;
+      QVERIFY (!node::id (expected[1]).empty ());
+      history->undo ();
+      QCOMPARE (document[0], before);
+      QVERIFY (state.pending ());
+      auto undo_plan= state.prepare (document[0], standard_drd_for_thread (), {}, allocate);
+      QVERIFY (undo_plan.ok () && undo_plan.changes.empty ());
+      state.apply (document[0], undo_plan);
+      history->redo ();
+      QCOMPARE (document[0], expected);
+      QVERIFY (state.pending ());
+      auto redo_plan= state.prepare (document[0], standard_drd_for_thread (), {}, allocate);
+      QVERIFY (redo_plan.ok () && redo_plan.changes.empty ());
+      state.apply (document[0], redo_plan);
+      QCOMPARE (allocations, created);
+      remove_observer (document->obs, watch);
     }
     set_author (previous);
   }

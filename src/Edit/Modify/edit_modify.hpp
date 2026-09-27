@@ -43,6 +43,7 @@ public:
   void archive_state ();
   void start_editing ();
   void end_editing ();
+  bool finish_node_identities ();
   void cancel_editing ();
   void start_slave (double a);
   void mark_start (double a);

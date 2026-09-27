@@ -80,6 +80,12 @@ private slots:
   void property_update_rejects_rich_identity_collisions ();
   void property_update_handles_atoms_and_noops ();
   void property_drafts_reject_conflicts_and_protected_changes ();
+  void incremental_identities_keep_text_edits_local ();
+  void incremental_identities_classify_inserted_bodies ();
+  void incremental_identities_reserve_rich_property_owners ();
+  void incremental_identities_reject_stale_plans_and_rebase_batches ();
+  void incremental_identities_rebuild_after_applied_rollback ();
+  void incremental_identities_fail_closed_after_bad_reinitialization ();
 };
 
 void TestDocumentNodeModel::deterministic_paragraphs_and_headings () {
@@ -449,6 +455,142 @@ void TestDocumentNodeModel::property_drafts_reject_conflicts_and_protected_chang
   QVERIFY (noop.ok () && !noop.change);
   QCOMPARE (clean_apply (changed, invert (*prepared.change, source)), source);
   QVERIFY (!model::prepare_property_replacement (source, {9}, captured, captured).ok ());
+}
+
+void TestDocumentNodeModel::incremental_identities_keep_text_edits_local () {
+  tree source (DOCUMENT, 10000);
+  for (int i=0; i<N(source); ++i) source[i]= tree ("Text");
+  tree untouched= source[9999];
+  model::source_identity_state state;
+  QVERIFY (state.initialize (source).empty ());
+  auto initial= state.prepare (source, standard_drd_for_thread (), {}, deterministic_id);
+  QVERIFY (initial.ok ());
+  QCOMPARE (initial.changes.size (), std::size_t (10001));
+  state.apply (source, initial);
+  QVERIFY (strong_equal (untouched, source[9999]));
+  QVERIFY (!state.pending ());
+  auto insertion= mod_insert (path (5000), 2, "new");
+  raw_apply (source, insertion); state.observe (insertion);
+  model::limits tiny; tiny.maximum_nodes= 4;
+  auto typed= state.prepare (source, standard_drd_for_thread (), {}, {}, tiny);
+  QVERIFY (typed.ok ());
+  QVERIFY (typed.changes.empty ());
+  QCOMPARE (typed.scope, model::source_path {5000});
+  state.apply (source, typed);
+  QCOMPARE (source[5000]->label, string ("Tenewxt"));
+  QVERIFY (strong_equal (untouched, source[9999]));
+}
+
+void TestDocumentNodeModel::incremental_identities_classify_inserted_bodies () {
+  tree source (DOCUMENT, "Original");
+  model::source_identity_state state;
+  QVERIFY (state.initialize (source).empty ());
+  state.apply (source, state.prepare (source, standard_drd_for_thread (), {}, deterministic_id));
+  const auto root_id= node::id (source);
+  auto inserted= mod_insert (path (), 1, tree (DOCUMENT, canonical (tree (DOCUMENT, "New paragraph"))));
+  raw_apply (source, inserted); state.observe (inserted);
+  auto plan= state.prepare (source, standard_drd_for_thread (), model::standard_source_role,
+    [] (const auto&) { return node::new_id (); });
+  QVERIFY (plan.ok ());
+  QCOMPARE (plan.assigned.size (), std::size_t (3));
+  state.apply (source, plan);
+  QCOMPARE (node::id (source), root_id);
+  QVERIFY (!node::id (source[1]).empty ());
+  QVERIFY (!node::id (source[1][0]).empty ());
+  QVERIFY (!node::id (source[1][0][0]).empty ());
+  auto noop= state.prepare (source, standard_drd_for_thread (), {}, {});
+  QVERIFY (noop.ok () && noop.changes.empty ());
+}
+
+void TestDocumentNodeModel::incremental_identities_reserve_rich_property_owners () {
+  tree source (DOCUMENT, tree (CONCAT, "First"), "Second");
+  tree rich (CONCAT, "Rich identity"); set_id (rich[0], existing_id);
+  node::metadata metadata;
+  metadata.properties["test:rich"]= node::property (node::rich_text {rich});
+  node::set (source[0], metadata);
+  model::source_identity_state state;
+  QVERIFY (state.initialize (source).empty ());
+  auto initial= state.prepare (source, standard_drd_for_thread (), {}, deterministic_id);
+  QVERIFY (initial.ok ()); state.apply (source, initial);
+  auto edit= mod_insert (path (0, 0), 1, "!");
+  raw_apply (source, edit); state.observe (edit);
+  auto plan= state.prepare (source, standard_drd_for_thread (), {}, {});
+  QVERIFY (plan.ok ()); state.apply (source, plan);
+  tree original= copy (source[1]);
+  tree duplicate ("Duplicate rich identity"); set_id (duplicate, existing_id);
+  auto replace= mod_assign (path (1), duplicate);
+  raw_apply (source, replace); state.observe (replace);
+  auto failed= state.prepare (source, standard_drd_for_thread (), {}, {});
+  QVERIFY (has_issue (failed.diagnostics, model::issue::duplicate_id));
+  QVERIFY (failed.changes.empty ());
+  raw_apply (source, mod_assign (path (1), original));
+  QVERIFY (state.cancelled (source).empty ());
+  QVERIFY (!state.pending ());
+  QCOMPARE (node::id (source[1]), node::id (original));
+}
+
+void TestDocumentNodeModel::incremental_identities_reject_stale_plans_and_rebase_batches () {
+  tree source (DOCUMENT, "First", "Second", "Third");
+  model::source_identity_state state;
+  QVERIFY (state.initialize (source).empty ());
+  auto initial= state.prepare (source, standard_drd_for_thread (), {}, deterministic_id);
+  QVERIFY (initial.ok ()); state.apply (source, initial);
+  auto edit= mod_insert (path (2), 0, "!");
+  raw_apply (source, edit); state.observe (edit);
+  auto stale= state.prepare (source, standard_drd_for_thread (), {}, {});
+  auto removal= mod_remove (path (), 0, 1);
+  raw_apply (source, removal); state.observe (removal);
+  QVERIFY_EXCEPTION_THROWN (state.apply (source, stale), std::logic_error);
+  auto fresh= state.prepare (source, standard_drd_for_thread (), {}, {});
+  QVERIFY (fresh.ok () && fresh.changes.empty () && fresh.scope.empty ());
+  state.apply (source, fresh);
+  edit= mod_insert (path (1), 0, "?");
+  raw_apply (source, edit); state.observe (edit);
+  auto local= state.prepare (source, standard_drd_for_thread (), {}, {});
+  QVERIFY (local.ok ()); QCOMPARE (local.scope, model::source_path {1});
+  state.apply (source, local);
+}
+
+void TestDocumentNodeModel::incremental_identities_rebuild_after_applied_rollback () {
+  tree source (DOCUMENT, "First", "Second");
+  model::source_identity_state state;
+  QVERIFY (state.initialize (source).empty ());
+  auto initial= state.prepare (source, standard_drd_for_thread (), {}, deterministic_id);
+  QVERIFY (initial.ok ()); state.apply (source, initial);
+  const tree before= copy (source);
+  auto insertion= mod_insert (path (), 0, tree (DOCUMENT, "Inserted"));
+  raw_apply (source, insertion); state.observe (insertion);
+  auto plan= state.prepare (source, standard_drd_for_thread (), {},
+    [] (const auto&) { return node::new_id (); });
+  QVERIFY (plan.ok ()); state.apply (source, plan);
+  // A save/preflight can apply the plan before the history transaction fails.
+  source= copy (before);
+  QVERIFY (state.cancelled (source).empty ());
+  QVERIFY (!state.pending ());
+  auto edit= mod_insert (path (1), 0, "!");
+  raw_apply (source, edit); state.observe (edit);
+  auto local= state.prepare (source, standard_drd_for_thread (), {}, {});
+  QVERIFY (local.ok ());
+  QVERIFY (local.changes.empty ());
+  QCOMPARE (local.scope, model::source_path {1});
+  state.apply (source, local);
+}
+
+void TestDocumentNodeModel::incremental_identities_fail_closed_after_bad_reinitialization () {
+  tree source (DOCUMENT, "First");
+  model::source_identity_state state;
+  QVERIFY (state.pending ());
+  QVERIFY (state.initialize (source).empty ());
+  state.apply (source, state.prepare (source, standard_drd_for_thread (), {}, deterministic_id));
+  QVERIFY (!state.pending ());
+  tree duplicate (DOCUMENT, copy (source[0]), copy (source[0]));
+  QVERIFY (has_issue (state.cancelled (duplicate), model::issue::duplicate_id));
+  QVERIFY (state.pending ());
+  auto plan= state.prepare (duplicate, standard_drd_for_thread (), {}, deterministic_id);
+  QVERIFY (!plan.ok ());
+  QVERIFY_EXCEPTION_THROWN (state.apply (duplicate, plan), std::logic_error);
+  QVERIFY (state.cancelled (source).empty ());
+  QVERIFY (!state.pending ());
 }
 
 QTEST_MAIN (TestDocumentNodeModel)

@@ -11,6 +11,7 @@
 #include "ATHENA/Data/document_node_model.hpp"
 #include "ATHENA/Data/heading_word_count.hpp"
 #include "ATHENA/Data/document_node_copy.hpp"
+#include "ATHENA/Data/enunciation_model.hpp"
 #include "unicode_text.hpp"
 
 #include <algorithm>
@@ -86,6 +87,8 @@ class identity_audit {
   traversal_budget budget;
   std::set<const tree_rep*> active;
   std::set<std::string> identities;
+  std::map<source_path, std::set<std::string>> owners;
+  source_path property_owner;
 
   void value (const node::property& property, source_path& where,
               const std::string& key, std::size_t depth) {
@@ -115,9 +118,13 @@ class identity_audit {
           fail (where, issue::invalid_id, metadata->id, key);
         if (!identities.insert (metadata->id).second)
           fail (where, issue::duplicate_id, metadata->id, key);
+        owners[key.empty () ? where : property_owner].insert (metadata->id);
       }
+      const auto saved_owner= property_owner;
+      if (key.empty ()) property_owner= where;
       for (const auto& entry: metadata->properties)
         value (entry.second, where, key + "/" + entry.first, depth + 1);
+      property_owner= saved_owner;
     }
     if (is_compound (source)) {
       for (int i= 0; i < N(source); ++i) {
@@ -131,9 +138,11 @@ class identity_audit {
 
 public:
   explicit identity_audit (limits limit): budget {limit} {}
-  std::set<std::string> inspect (const tree& source) {
+  std::set<std::string> inspect (const tree& source,
+      std::map<source_path, std::set<std::string>>* collected= nullptr) {
     source_path where;
     visit (source, where, "", 0);
+    if (collected) *collected= std::move (owners);
     return std::move (identities);
   }
 };
@@ -229,6 +238,7 @@ class identity_planner {
   const role_resolver& resolve;
   traversal_budget budget;
   source_path where;
+  source_path scope;
   std::vector<identity_request> candidates;
 
   void visit (const tree& source, child_role context, bool paragraph,
@@ -244,7 +254,9 @@ class identity_planner {
       if (context == child_role::inline_content)
         fail (where, issue::unsupported_ambiguous_role, "DOCUMENT in an inline-only slot");
       candidates.push_back ({where, identity_role::body, ""});
-      for (int i= 0; i < N(source); ++i) {
+      const int begin= depth < scope.size () ? scope[depth] : 0;
+      const int end= depth < scope.size () ? begin + 1 : N(source);
+      for (int i= begin; i < end; ++i) {
         where.push_back (i);
         visit (source[i], child_role::content, true, depth + 1);
         where.pop_back ();
@@ -259,7 +271,9 @@ class identity_planner {
       candidates.push_back ({where, identity_role::heading, contract.category});
     else if (paragraph || context == child_role::body)
       candidates.push_back ({where, identity_role::paragraph, contract.category});
-    for (int i= 0; i < N(source); ++i) {
+    const int begin= depth < scope.size () ? scope[depth] : 0;
+    const int end= depth < scope.size () ? begin + 1 : N(source);
+    for (int i= begin; i < end; ++i) {
       where.push_back (i);
       auto child= contract.children[i];
       if (context == child_role::inline_content && child == child_role::content)
@@ -272,7 +286,14 @@ class identity_planner {
 public:
   identity_planner (drd_info value, const role_resolver& resolver, limits limit):
     drd (value), resolve (resolver), budget {limit} {}
-  std::vector<identity_request> inspect (const tree& body) {
+  std::vector<identity_request> inspect (const tree& body, source_path selected= {}) {
+    scope= std::move (selected);
+    const tree* target= &body;
+    for (int index: scope) {
+      if (!is_compound (*target) || index < 0 || index >= N(*target))
+        fail (scope, issue::invalid_path, "Identity planning scope is not in the source");
+      target= &(*target)[index];
+    }
     visit (body, child_role::body, false, 0);
     return std::move (candidates);
   }
@@ -427,6 +448,15 @@ public:
 
 } // namespace
 
+std::optional<role_declaration> standard_source_role (const tree& source) {
+  const auto& registry= enunciation::standard_registry ();
+  const int body= registry.body_index (source);
+  if (body < 0) return {};
+  std::vector<child_role> children (N(source), child_role::inline_content);
+  children[body]= child_role::body;
+  return role_declaration {semantic_role::enunciation, registry.category (source), std::move (children)};
+}
+
 identity_result assign_detached_source_ids (
     const tree& body, drd_info drd, const role_resolver& roles,
     const identity_allocator& allocate, limits budget) {
@@ -468,6 +498,131 @@ identity_result assign_detached_source_ids (
     result.diagnostics.push_back ({{}, "", issue::invalid_metadata, error.what ()});
   }
   return result;
+}
+
+namespace {
+bool within (const source_path& parent, const source_path& child) {
+  return parent.size () <= child.size () && std::equal (parent.begin (), parent.end (), child.begin ());
+}
+path native_path (const source_path& value) {
+  path result;
+  for (auto i= value.rbegin (); i != value.rend (); ++i) result= path (*i, result);
+  return result;
+}
+}
+
+std::vector<diagnostic> source_identity_state::initialize (const tree& body, limits budget) {
+  ready= false;
+  try {
+    if (!is_func (body, DOCUMENT)) fail ({}, issue::invalid_body, "Expected extracted DOCUMENT body");
+    std::map<source_path, std::set<std::string>> next;
+    identity_audit (budget).inspect (body, &next);
+    std::map<std::string, source_path> indexed;
+    for (const auto& entry: next)
+      for (const auto& id: entry.second) indexed.emplace (id, entry.first);
+    owners= std::move (next); locations= std::move (indexed);
+    dirty= source_path {}; ++revision; ready= true;
+  }
+  catch (const failure& problem) { return {problem.value}; }
+  catch (const std::exception& error) { return {{{}, "", issue::invalid_metadata, error.what ()}}; }
+  return {};
+}
+
+void source_identity_state::observe (modification mod) {
+  if (!ready || applying || mod->k == MOD_SET_CURSOR) return;
+  source_path affected;
+  for (path p= root (mod); !is_nil (p); p= p->next) affected.push_back (p->item);
+  if (!dirty) dirty= std::move (affected);
+  else {
+    std::size_t common= 0;
+    while (common < dirty->size () && common < affected.size () && (*dirty)[common] == affected[common])
+      ++common;
+    dirty->resize (common);
+  }
+  ++revision;
+}
+
+identity_edit_plan source_identity_state::prepare (const tree& body, drd_info drd,
+    const role_resolver& roles, const identity_allocator& allocate, limits budget) const {
+  identity_edit_plan plan;
+  plan.revision= revision;
+  try {
+    if (!ready) fail ({}, issue::invalid_metadata, "Source identity index is not initialized");
+    if (!is_func (body, DOCUMENT)) fail ({}, issue::invalid_body, "Expected extracted DOCUMENT body");
+    if (!dirty) return plan;
+    plan.scope= *dirty;
+    // Classify the ancestry first, validating the selected path before access.
+    const auto candidates= identity_planner (drd, roles, budget).inspect (body, *dirty);
+    std::map<source_path, std::set<std::string>> local;
+    auto reserved= identity_audit (budget).inspect (at (body, *dirty), &local);
+    for (auto& entry: local) {
+      source_path owner= *dirty;
+      owner.insert (owner.end (), entry.first.begin (), entry.first.end ());
+      for (const auto& id: entry.second) {
+        auto existing= locations.find (id);
+        if (existing != locations.end () && !within (*dirty, existing->second))
+          fail (owner, issue::duplicate_id, id);
+      }
+      plan.owners.emplace (std::move (owner), std::move (entry.second));
+    }
+    for (const auto& candidate: candidates) {
+      const tree& target= at (body, candidate.where);
+      if (!node::id (target).empty ()) continue;
+      if (!allocate) fail (candidate.where, issue::allocation_failed, "Missing caller-provided allocator");
+      std::string id;
+      try { id= allocate (candidate); }
+      catch (const std::exception& error) { fail (candidate.where, issue::allocation_failed, error.what ()); }
+      if (!node::valid_id (id)) fail (candidate.where, issue::invalid_id, "Allocator returned invalid UUID");
+      if (locations.count (id) || !reserved.insert (id).second)
+        fail (candidate.where, issue::duplicate_id, id);
+      tree header= node_header (target);
+      node::metadata metadata;
+      if (const auto* previous= node::get (header)) metadata= *previous;
+      metadata.id= id;
+      node::set (header, metadata);
+      plan.changes.push_back (mod_set_metadata (native_path (candidate.where), header));
+      if (!within (*dirty, candidate.where)) {
+        auto previous= owners.find (candidate.where);
+        if (previous != owners.end ()) plan.owners[candidate.where]= previous->second;
+      }
+      plan.owners[candidate.where].insert (id);
+      plan.assigned.push_back ({candidate, std::move (id)});
+    }
+  }
+  catch (const failure& problem) { plan.diagnostics.push_back (problem.value); }
+  catch (const std::exception& error) {
+    plan.diagnostics.push_back ({{}, "", issue::invalid_metadata, error.what ()});
+  }
+  if (!plan.ok ()) { plan.changes.clear (); plan.assigned.clear (); plan.owners.clear (); }
+  return plan;
+}
+
+void source_identity_state::apply (tree& body, const identity_edit_plan& plan) {
+  if (!ready || !plan.ok () || plan.revision != revision ||
+      (dirty && plan.scope != *dirty))
+    throw std::logic_error ("Stale or invalid source identity plan");
+  if (!dirty) return;
+  applying= true;
+  try {
+    for (const auto& change: plan.changes) ::apply (body, change);
+    auto i= owners.lower_bound (*dirty);
+    while (i != owners.end () && within (*dirty, i->first)) {
+      for (const auto& id: i->second) locations.erase (id);
+      i= owners.erase (i);
+    }
+    for (const auto& entry: plan.owners) {
+      owners[entry.first]= entry.second;
+      for (const auto& id: entry.second) locations[id]= entry.first;
+    }
+    dirty.reset (); ++revision; applying= false;
+  }
+  catch (...) { applying= false; ready= false; throw; }
+}
+
+std::vector<diagnostic> source_identity_state::cancelled (const tree& body, limits budget) {
+  auto errors= initialize (body, budget);
+  if (errors.empty ()) dirty.reset ();
+  return errors;
 }
 
 const std::vector<property_rule>& enunciation_property_schema () {

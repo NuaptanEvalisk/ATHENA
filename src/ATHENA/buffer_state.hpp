@@ -17,6 +17,7 @@
 #include "url.hpp"
 #include "Data/interop_document_nodes.hpp"
 #include "Data/Convert/Xml/document_upgrade_file.hpp"
+#include "Data/document_node_model.hpp"
 
 class buffer_actor;
 
@@ -42,6 +43,9 @@ struct buffer_document_state {
   std::unique_ptr<athena::interop::document_nodes> interop_node_registry;
   std::optional<athena::document::document_file> storage;
   bool storage_capture_failed= false;
+  // Opt-in only after the file/model activation boundary has validated source
+  // identities. Legacy loads, render buffers and macro expansions leave null.
+  std::unique_ptr<athena::document_node::source_identity_state> node_identities;
 
   buffer_document_state (buffer_actor* actor2, string name2, string master2,
                          string title2, bool read_only2, int last_save2):

@@ -1282,6 +1282,10 @@ buffer_actor::dispatch (actor_command_record& command) {
       vault_text= actor_text_registry::instance ().take (command.payload0);
     try {
       editor_rep* save_editor= current_editor (command.view_id);
+      if (impl_->state.node_identities && impl_->state.node_identities->pending ()) {
+        if (!save_editor || !save_editor->finish_node_identities ())
+          throw std::runtime_error ("Source identities must be finalized before saving");
+      }
       if (save_editor != nullptr) save_editor->get_data (impl_->state.data);
       refresh_interop_document_source (
         impl_->state.source_envelope,

@@ -16,7 +16,9 @@
 #include "modification.hpp"
 
 #include <functional>
+#include <map>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -62,9 +64,10 @@ struct role_declaration {
 // custom heading roles belong here. Footnotes/captions use these contracts or
 // DRD child roles, not a separate exclusion list.
 // Return nullopt for built-in handling or DRD; unknown/ambiguous roles are errors.
-// No registry dependency or duplicated enunciation kind list lives here.
+// The standard resolver consumes the shared registry, not a second kind list.
 using role_resolver=
   std::function<std::optional<role_declaration> (const tree&)>;
+std::optional<role_declaration> standard_source_role (const tree&);
 
 enum class identity_role { body, paragraph, heading, enunciation };
 
@@ -104,6 +107,46 @@ struct identity_result {
 identity_result assign_detached_source_ids (
   const tree& body, drd_info drd, const role_resolver& roles,
   const identity_allocator& allocate, limits budget= {});
+
+struct identity_edit_plan {
+  std::vector<modification> changes;
+  std::vector<assigned_identity> assigned;
+  std::vector<diagnostic> diagnostics;
+  source_path scope;
+  std::uint64_t revision= 0;
+  // Rich-property identities belong to their containing source node here;
+  // they never pretend to occupy ordinary body child indices.
+  std::map<source_path, std::set<std::string>> owners;
+  bool ok () const { return diagnostics.empty (); }
+};
+
+// Actor-local index and transaction planner. Initialize once from authoritative
+// source, observe BODY-relative edits, prepare, then apply before history
+// confirmation. No tree is retained, cloned, or shared by this index.
+// A common affected ancestor absorbs structural path shifts within a batch.
+// Text edits inspect only that branch and its semantic ancestors. Structural
+// edits may inspect their affected container, but never copy its content.
+class source_identity_state {
+  std::map<source_path, std::set<std::string>> owners;
+  std::map<std::string, source_path> locations;
+  std::optional<source_path> dirty;
+  std::uint64_t revision= 0;
+  bool ready= false, applying= false;
+public:
+  std::vector<diagnostic> initialize (const tree&, limits budget= {});
+  void observe (modification);
+  bool pending () const { return !ready || dirty.has_value (); }
+  identity_edit_plan prepare (const tree&, drd_info, const role_resolver&,
+                              const identity_allocator&, limits budget= {}) const;
+  // Uses native observer-aware modifications, hence joins the caller's undo
+  // transaction. The owner must cancel that transaction if applying throws.
+  void apply (tree& body, const identity_edit_plan&);
+  // After history rollback, rebuild from its actual result: the index may
+  // already reflect an applied plan whose transaction was not confirmed.
+  // Failure leaves the state pending and unusable, never silently current.
+  // Undo/redo of confirmed edits must instead be observed normally.
+  std::vector<diagnostic> cancelled (const tree&, limits budget= {});
+};
 
 enum class property_type {
   string, boolean, integer, real, list, dictionary, reference, rich_text

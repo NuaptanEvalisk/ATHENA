@@ -290,6 +290,8 @@ void
 edit_done (editor_rep* ed, modification mod) {
   path p= copy (mod->p);
   ASSERT (ed->the_buffer_path() <= p, "invalid modification");
+  if (ed->buf != nullptr && ed->buf->node_identities)
+    ed->buf->node_identities->observe (mod / ed->rp);
   if (mod->k != MOD_SET_CURSOR)
     ed->post_notify (p);
 #ifdef EXPERIMENTAL
@@ -347,10 +349,36 @@ edit_modify_rep::end_editing () {
   editing_depth= 0;
   if (buf != nullptr && buf->read_only && arch->has_content_changes ()) {
     global_cancel ();
+    if (buf->node_identities) buf->node_identities->cancelled (subtree (et, rp));
     set_message ("This view is read-only", "edit");
     return;
   }
+  if (!finish_node_identities ()) return;
   global_confirm ();
+}
+
+bool
+edit_modify_rep::finish_node_identities () {
+  if (buf == nullptr || !buf->node_identities || !buf->node_identities->pending ()) return true;
+  auto& state= *buf->node_identities;
+  tree& body= subtree (et, rp);
+  const auto plan= state.prepare (body, drd, athena::document_node::standard_source_role,
+    [] (const athena::document_node::identity_request&) { return athena::node::new_id (); });
+  if (!plan.ok ()) {
+    global_cancel ();
+    state.cancelled (body);
+    set_message ("Edit rejected", tree (plan.diagnostics.front ().detail.c_str ()), true);
+    return false;
+  }
+  try { state.apply (body, plan); }
+  catch (...) {
+    global_cancel ();
+    // A failed apply may have partially updated the disposable identity index.
+    // Rebuild it only on this exceptional rollback path, never on keystrokes.
+    state.cancelled (body);
+    throw;
+  }
+  return true;
 }
 
 void
@@ -358,6 +386,8 @@ edit_modify_rep::cancel_editing () {
   //cout << UNINDENT << "Cancel editing" << LF;
   editing_depth= 0;
   global_cancel ();
+  if (buf != nullptr && buf->node_identities)
+    buf->node_identities->cancelled (subtree (et, rp));
 }
 
 void
@@ -386,7 +416,7 @@ edit_modify_rep::mark_end (double a) {
 void
 edit_modify_rep::add_undo_mark () {
   //cout << "Add undo mark" << LF;
-  arch->confirm ();
+  if (finish_node_identities ()) arch->confirm ();
 }
 
 void
