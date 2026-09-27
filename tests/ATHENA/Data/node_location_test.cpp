@@ -11,6 +11,7 @@
 #include <QTemporaryDir>
 #include "ATHENA/Data/node_location.hpp"
 #include "ATHENA/Data/node_reference.hpp"
+#include "ATHENA/Data/node_reference_export.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
 #include "node_metadata.hpp"
 #include <condition_variable>
@@ -46,6 +47,15 @@ loc::result wait (const std::shared_ptr<loc::query>& query) {
     std::this_thread::sleep_for (std::chrono::milliseconds (10));
   }
 }
+athena::node_reference::prepared_snapshot wait (const athena::node_reference::export_preparation& job) {
+  const auto until= std::chrono::steady_clock::now () + std::chrono::seconds (10);
+  for (;;) {
+    if (auto result= job.read ()) return result;
+    if (std::chrono::steady_clock::now () >= until) throw std::runtime_error ("Export preparation timed out");
+    std::this_thread::sleep_for (std::chrono::milliseconds (10));
+  }
+}
+tree reference (const std::string& id) { return tree (TRANSCLUDE, tree (TUPLE, string (id.c_str ()))); }
 }
 
 class TestNodeLocation: public QObject {
@@ -348,6 +358,125 @@ private slots:
     auto absent= ref::preview_document ({result, 1}, source);
     QVERIFY (is_none (source));
     QVERIFY (is_func (absent[1][0][0], WITH));
+  }
+  void exportPreparationClosesDependenciesAndPreservesFailureStates () {
+    namespace ref= athena::node_reference;
+    QTemporaryDir dir;
+    document (root (dir) / "a.ath", identified (tree (DOCUMENT, reference (b)), a));
+    document (root (dir) / "b.ath", identified (tree (DOCUMENT, reference (a)), b));
+    tree source (DOCUMENT, reference (a));
+    node::metadata metadata;
+    metadata.properties["example:rich"]= node::property (node::rich_text {reference (c)});
+    node::set (source, metadata);
+    auto seeds= ref::export_selections (source);
+    QCOMPARE (seeds.size (), std::size_t (2));
+    auto service= std::make_shared<loc::service> (root (dir));
+    ref::export_preparation job (service, seeds);
+    auto prepared= wait (job);
+    QVERIFY2 (prepared->error.empty (), prepared->error.c_str ());
+    QVERIFY (!prepared->cancelled);
+    QCOMPARE (prepared->selections.size (), std::size_t (4));
+    QVERIFY (prepared->selections.at ({{a}, {}})->state == loc::status::resolved);
+    QVERIFY (prepared->selections.at ({{b}, {a}})->state == loc::status::resolved);
+    QVERIFY (prepared->selections.at ({{a}, {a, b}})->items[0].state == loc::status::cycle);
+    QVERIFY (prepared->selections.at ({{c}, {}})->items[0].state == loc::status::missing);
+    ref::export_reference_scope scope (prepared);
+    QVERIFY (ref::export_reference_view ({{b}, {a}})->snapshot != nullptr);
+    scope.require_ready ();
+  }
+  void exportScopesNeverSubstituteInteractiveOrPendingState () {
+    namespace ref= athena::node_reference;
+    QVERIFY (!ref::export_reference_view ({{a}, {}}));
+    auto prepared= std::make_shared<ref::prepared_references> ();
+    auto resolved= std::make_shared<loc::result> ();
+    resolved->state= loc::status::resolved;
+    prepared->selections[{{a}, {}}]= resolved;
+    {
+      ref::export_reference_scope outer (prepared);
+      {
+        ref::export_reference_scope inner;
+        QVERIFY (ref::export_reference_view ({{a}, {}})->snapshot == resolved);
+        inner.require_ready ();
+        QVERIFY (!ref::export_reference_view ({{b}, {}})->snapshot);
+        QCOMPARE (inner.missing ().size (), std::size_t (1));
+        QVERIFY_EXCEPTION_THROWN (inner.require_ready (), std::runtime_error);
+      }
+      QVERIFY_EXCEPTION_THROWN (outer.require_ready (), std::runtime_error);
+    }
+    QVERIFY (!ref::export_reference_view ({{a}, {}}));
+    {
+      ref::export_reference_scope empty;
+      QVERIFY (!ref::export_reference_view ({{a}, {}})->snapshot);
+      QVERIFY_EXCEPTION_THROWN (empty.require_ready (), std::runtime_error);
+    }
+    auto failed= std::make_shared<ref::prepared_references> ();
+    failed->error= "Preparation failed";
+    QVERIFY_EXCEPTION_THROWN (ref::export_reference_scope {failed}, std::runtime_error);
+    QVERIFY (!ref::export_reference_view ({{a}, {}}));
+  }
+  void exportPreparationBudgetsAndCancellation () {
+    namespace ref= athena::node_reference;
+    QTemporaryDir dir;
+    document (root (dir) / "a.ath", identified (tree (DOCUMENT, reference (b)), a));
+    auto service= std::make_shared<loc::service> (root (dir));
+    ref::export_preparation limited (service, {{{a}, {}}}, {}, {1, 1024*1024});
+    QVERIFY (!wait (limited)->error.empty ());
+    ref::export_preparation tiny (service, {{{a}, {}}}, {}, {4096, 1});
+    QVERIFY (!wait (tiny)->error.empty ());
+    ref::export_preparation no_refs ({}, {});
+    QVERIFY (wait (no_refs)->error.empty ());
+    std::atomic<bool> release {false};
+    std::atomic<unsigned> calls {0};
+    auto paused= std::make_shared<loc::service> (root (dir), [&] (const std::atomic<bool>& stop) {
+      while (!release && !stop) std::this_thread::sleep_for (std::chrono::milliseconds (1));
+      return std::vector<loc::live_source> {};
+    });
+    ref::export_preparation cancelled (paused, {{{a}, {}}}, [&] (ref::prepared_snapshot) { ++calls; });
+    cancelled.cancel ();
+    QVERIFY (cancelled.read ()->cancelled);
+    QCOMPARE (calls.load (), 1U);
+    cancelled.cancel ();
+    QCOMPARE (calls.load (), 1U);
+    release= true;
+  }
+  void exportPreparationRejectsMixedRevisionsOfOneSource () {
+    namespace ref= athena::node_reference;
+    QTemporaryDir dir;
+    const auto folder= root (dir);
+    auto body= [] (string text) {
+      return tree (DOCUMENT, identified (tree (DOCUMENT, reference (b)), a), identified (tree (text), b));
+    };
+    document (folder / "doc.ath", body ("before"));
+    auto service= std::make_shared<loc::service> (folder, loc::live_provider {},
+      [folder, body] (const loc::item& target, const std::atomic<bool>&) {
+        auto payload= loc::read_disk_content (folder, target);
+        if (target.id == a) document (folder / "doc.ath", body ("Changed after first capture"));
+        return payload;
+      });
+    ref::export_preparation job (service, {{{a}, {}}});
+    auto prepared= wait (job);
+    QVERIFY (prepared->error.find ("Source changed") != std::string::npos);
+  }
+  void completionCanReleaseTheLastLocatorOwner () {
+    QTemporaryDir dir;
+    document (root (dir) / "doc.ath", identified (tree (DOCUMENT, "Text"), a));
+    std::atomic<bool> admitted {false};
+    auto service= std::make_shared<loc::service> (root (dir), [&] (const std::atomic<bool>& stop) {
+      while (!admitted && !stop) std::this_thread::sleep_for (std::chrono::milliseconds (1));
+      return std::vector<loc::live_source> {};
+    });
+    std::mutex lock;
+    std::condition_variable ready;
+    bool released= false;
+    auto query= service->request ({a}, {}, true, [&] (loc::snapshot) {
+      service.reset ();
+      { std::lock_guard<std::mutex> guard (lock); released= true; }
+      ready.notify_all ();
+    });
+    admitted= true;
+    std::unique_lock<std::mutex> guard (lock);
+    QVERIFY (ready.wait_for (guard, std::chrono::seconds (10), [&] { return released; }));
+    QVERIFY (query->read ()->state == loc::status::resolved);
   }
 };
 QTEST_APPLESS_MAIN (TestNodeLocation)

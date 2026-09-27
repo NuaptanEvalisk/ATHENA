@@ -19,6 +19,7 @@ struct view {
 view get (std::vector<std::string> ids, std::vector<std::string> ancestry= {});
 // Only real source changes, not typesetting invalidations. O(1), no tree copy.
 void source_changed ();
+std::uint64_t source_epoch ();
 // Canonical TRANSCLUDE has one TUPLE child containing an ordered UUID set.
 bool canonical (const tree&);
 std::vector<std::string> targets (const tree&);

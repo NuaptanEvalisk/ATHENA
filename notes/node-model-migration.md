@@ -309,6 +309,44 @@ v2 saves, advertise AUDMAP v3, or implement cross-document moves.
   extraction, preamble deduplication, identity-free previews and explicit
   pending/missing bodies. No full suite or production data was used.
 
+## Frozen Export Reference Preparation (2026-09-27)
+
+- `node_reference_export.*` inspects an owner-local source once, then prepares
+  static native transclusion dependencies on the existing locator worker. No
+  per-export worker or actor wait is introduced. Typed rich properties are
+  inspected, dependency ancestry terminates cycles, and terminal failure states
+  remain explicit. Selection/content budgets and cancellation bound the work;
+  inconsistent revisions of the same saved source reject preparation.
+- Frozen export scopes bypass the interactive cache and event loop. References
+  generated dynamically but absent from preparation are recorded as incomplete.
+  PDF/print and image-snippet layout check readiness before opening a renderer
+  or writing output; they must not print a locating placeholder. Nested scopes
+  propagate incomplete status, and bridge reuse compares snapshot identity as
+  well as revision so frozen and interactive generations cannot alias.
+- The generated `node-reference-with-export` binding preserves a rooted Scheme
+  action behind an opaque handle, asynchronously prepares references, and resumes
+  on its original actor/view. It rejects changed source epochs, vaults, cursor or
+  selection state, and retries nonblocking mailbox submission. Closing the owner
+  cancels preparation. File/PDF, print, preview and selection-image/clipboard UI
+  wrappers keep their dependent actions inside that completion boundary.
+- Cross-actor `buffer_export` transfers immutable prepared wire snapshots for
+  temporary export buffers. The locator lifetime now permits the last owner to
+  be released inside a completion: worker state survives until stopped work
+  unwinds rather than attempting to join its own thread.
+- This is not complete export activation. Headless/batch callers still need an
+  explicit preparation coordinator; dynamically generated selections currently
+  fail closed rather than automatically retrying layout. Interactive PDF/preview,
+  temporary-buffer paths and cancellation still need end-to-end acceptance.
+  No normal-save format change, deployment or production vault migration ran.
+- The normal ATHENA.bin -j20 build passed. The focused location/reference suite
+  passed 21 cases, including dependency closure with cycles/missing targets,
+  nested frozen scopes, cancellation, budget failures, mixed saved revisions and
+  last-owner release inside a locator completion. These do not substitute for
+  full GUI export acceptance.
+- The isolated Scheme bridge run exited successfully with
+  ATHENA-NODE-BRIDGE-PASS, exercising the generated export binding's owner check
+  and loading the changed Scheme modules. No full test suite was run.
+
 ## Integration Gates Still Required
 
 1. Assign source IDs through content roles, with complete handling of nested
@@ -319,8 +357,9 @@ v2 saves, advertise AUDMAP v3, or implement cross-document moves.
 3. Finish remaining live enunciation consumers and source creation. Native
    rendering/numbering and property UI are implemented; proof targets can be
    entered explicitly, but UUID resolution and target selection remain.
-4. Finish offline export preparation and actual actor lifecycle/hover GUI
-   acceptance for the integrated async transclusion/navigation paths. Switch
+4. Finish headless/batch export coordination, dynamic export dependencies and
+   actual actor lifecycle/hover/export GUI acceptance for the integrated async
+   reference paths. Switch
    default wikilinks together with migrated vault semantics. Persist any index
    only as disposable data; retire hint-dependent map identity without losing
    rename recovery journals.

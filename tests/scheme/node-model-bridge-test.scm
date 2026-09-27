@@ -109,4 +109,6 @@
        "legacy hints stay outside canonical navigation")
 (check (not (node-reference-open "not-a-node-url")) "invalid navigation is not dispatched")
 (check (not (node-reference-position identity)) "positioning requires an owner editor")
+(check (not (node-reference-with-export (lambda () (error "Must not run without owner"))))
+       "export preparation requires an owner editor")
 (display "ATHENA-NODE-BRIDGE-PASS\n")

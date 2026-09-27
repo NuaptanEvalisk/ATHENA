@@ -8,6 +8,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include "ATHENA/Data/node_reference.hpp"
+#include "ATHENA/Data/node_reference_export.hpp"
 #include "ATHENA/Data/vault_node_location.hpp"
 #include "buffer_actor.hpp"
 #include "buffer_name_catalog.hpp"
@@ -229,7 +230,9 @@ void start (const std::shared_ptr<entry>& e) {
 }
 
 void source_changed () { changes.fetch_add (1, std::memory_order_relaxed); }
+std::uint64_t source_epoch () { return changes.load (std::memory_order_relaxed); }
 view get (std::vector<std::string> ids, std::vector<std::string> ancestry) {
+  if (auto frozen= export_reference_view ({ids, ancestry})) return *frozen;
   auto vault= vault_capture_context ();
   if (!vault || !QCoreApplication::instance ()) {
     auto error= std::make_shared<node_location::result> ();

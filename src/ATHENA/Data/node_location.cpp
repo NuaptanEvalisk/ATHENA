@@ -254,7 +254,7 @@ snapshot query::read () const { std::lock_guard<std::mutex> guard (data->lock); 
 result query::poll () const { return *read (); }
 void query::cancel () { result stopped; stopped.state= status::cancelled; data->finish (std::move (stopped)); }
 
-struct service::impl {
+struct service::impl: std::enable_shared_from_this<impl> {
   const std::filesystem::path root;
   const live_provider live;
   const content_provider content;
@@ -265,13 +265,17 @@ struct service::impl {
   std::uint64_t cache_epoch= 0;
   std::thread worker;
   impl (std::filesystem::path root, live_provider live, content_provider content):
-    root (std::move (root)), live (std::move (live)), content (std::move (content)),
-    worker ([this] { run (); }) {}
-  ~impl () {
-    { std::lock_guard<std::mutex> guard (lock); stopping= true; }
+    root (std::move (root)), live (std::move (live)), content (std::move (content)) {}
+  void start () { worker= std::thread ([self= shared_from_this ()] { self->run (); }); }
+  void stop () {
+    std::deque<std::shared_ptr<query>> cancelled;
+    { std::lock_guard<std::mutex> guard (lock); stopping= true; cancelled.swap (pending); }
     wake.notify_all ();
-    worker.join ();
-    for (const auto& task: pending) task->cancel ();
+    for (const auto& task: cancelled) task->cancel ();
+    // A completion may release the service's last external owner. The worker's
+    // shared state survives that callback until run() observes stop and exits.
+    if (worker.get_id () == std::this_thread::get_id ()) worker.detach ();
+    else if (worker.joinable ()) worker.join ();
   }
   void run () {
     std::map<std::string, std::shared_ptr<const source>> cache;
@@ -426,8 +430,8 @@ struct service::impl {
 };
 
 service::service (std::filesystem::path root, live_provider live, content_provider content):
-  data (std::make_unique<impl> (std::move (root), std::move (live), std::move (content))) {}
-service::~service ()= default;
+  data (std::make_shared<impl> (std::move (root), std::move (live), std::move (content))) { data->start (); }
+service::~service () { data->stop (); }
 std::shared_ptr<query> service::request (std::vector<std::string> ids,
                                        std::vector<std::string> ancestry,
                                        bool content, completion ready) {

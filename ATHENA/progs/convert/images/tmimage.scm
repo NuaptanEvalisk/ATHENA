@@ -214,6 +214,9 @@
   (:synopsis "Places an image of the current selection on the clipboard")
   (:argument void "not used")
   (:returns "nothing")
+  (node-reference-with-export (lambda () (clipboard-copy-image-ready))))
+
+(define (clipboard-copy-image-ready)
   ;;the format of the graphics is set in the preferences
   (if (not (qt-gui?))
     (set-message "Qt GUI only, sorry. Use \"Export selection...\"" "")
@@ -232,6 +235,9 @@
   (:synopsis "Generates graphics format of the current selection")
   (:argument myurl "A full file url with extension")
   (:returns "nothing")
+  (node-reference-with-export (lambda () (export-selection-as-graphics-ready myurl))))
+
+(define (export-selection-as-graphics-ready myurl)
   ;; for svg export, the texmacs code of the selection as well as
   ;; global document parameters such as style, fonts, etc. are
   ;; embedded in the drawing to enable re-editing from inkscape

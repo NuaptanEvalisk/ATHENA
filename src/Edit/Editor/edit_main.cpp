@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "edit_main.hpp"
+#include "ATHENA/Data/node_reference_export.hpp"
 #include "file.hpp"
 #include "sys_utils.hpp"
 #include "printer.hpp"
@@ -272,6 +273,7 @@ edit_main_rep::nr_pages () {
 
 void
 edit_main_rep::print_doc (url name, bool conform, int first, int last) {
+  athena::node_reference::export_reference_scope references;
 
   string medium = env->get_string (PAGE_MEDIUM);
   if (conform && (medium != "paper")) conform= false;
@@ -298,6 +300,8 @@ edit_main_rep::print_doc (url name, bool conform, int first, int last) {
   // Typeset pages for printing
 
   box the_box= typeset_as_document (env, subtree (et, rp), reverse (rp));
+
+  references.require_ready ();
 
   // Determine parameters for printer
 
@@ -379,6 +383,7 @@ edit_main_rep::export_ps (url name, string first, string last) {
 
 array<SI>
 edit_main_rep::print_snippet (url name, tree t, bool conserve_preamble) {
+  athena::node_reference::export_reference_scope references;
   tree buft= subtree (et, rp);
   if (conserve_preamble)
     if (is_document (buft) && is_compound (buft[0], "hide-preamble"))
@@ -404,6 +409,7 @@ edit_main_rep::print_snippet (url name, tree t, bool conserve_preamble) {
   env->style_init_env ();
   env->update ();
 
+  references.require_ready ();
   if (b->x4 - b->x3 >= 5*PIXEL && b->y4 - b->y3 >= 5*PIXEL) {
     if (bitmap) make_raster_image (name, b, 5.0);
     else if (ps) make_eps (name, b, dpi);

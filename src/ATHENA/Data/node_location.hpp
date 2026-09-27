@@ -105,7 +105,7 @@ public:
 // vault; unchanged files reuse their validated census. The cache owns no IDs.
 class service {
   struct impl;
-  std::unique_ptr<impl> data;
+  std::shared_ptr<impl> data;
 public:
   explicit service (std::filesystem::path root, live_provider live= {}, content_provider content= {});
   ~service ();

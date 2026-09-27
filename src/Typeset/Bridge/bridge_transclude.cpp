@@ -58,6 +58,7 @@ protected:
   tree   bt;
   tree   resolved;
   string resolved_key;
+  athena::node_location::snapshot resolved_snapshot;
   bool   has_resolved;
   bridge body;
 
@@ -98,6 +99,7 @@ bridge_transclude_rep::notify_assign (path p, tree u) {
   st= substitute (st, p, u);
   resolved= tree ();
   resolved_key= "";
+  resolved_snapshot.reset ();
   has_resolved= false;
 }
 
@@ -120,12 +122,14 @@ bridge_transclude_rep::notify_change () {
 void
 bridge_transclude_rep::my_typeset (int desired_status) {
   string next_key;
+  athena::node_location::snapshot next_snapshot;
   tree next;
   std::optional<TranscludeBridgeCycleLock> cycle;
   if (athena::node_reference::canonical (st)) {
     try {
       namespace ref= athena::node_reference;
       const auto current= ref::get (ref::targets (st), ref::ancestry (env->read (ref::ancestry_variable)));
+      next_snapshot= current.snapshot;
       next= ref::display (current);
       next_key= "node:" * as_string (static_cast<long long> (current.revision));
     }
@@ -136,10 +140,11 @@ bridge_transclude_rep::my_typeset (int desired_status) {
     if (cycle && !cycle->ok) next= transclusion_error_tree (st, "Cyclic transclusion detected");
     else next= resolve_transclusion_tree (st, &next_key);
   }
-  if (resolved_key != next_key || !has_resolved) {
+  if (resolved_key != next_key || resolved_snapshot != next_snapshot || !has_resolved) {
     resolved=
       athena_artifact_radioactive_suppress_definitions (next);
     resolved_key= next_key;
+    resolved_snapshot= std::move (next_snapshot);
     has_resolved= true;
   }
   initialize (env->rewrite (resolved));

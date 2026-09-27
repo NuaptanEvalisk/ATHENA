@@ -912,11 +912,14 @@
 
 (tm-define (direct-print-buffer)
   (:synopsis "Print the current buffer")
-  (print))
+  (node-reference-with-export (lambda () (print))))
 
 (tm-define (interactive-print-buffer)
   (:synopsis "Print the current buffer")
   (:interactive #t)
+  (node-reference-with-export (lambda () (interactive-print-buffer-ready))))
+
+(define (interactive-print-buffer-ready)
   (with file (url-append (url-temp-dir)
                          (string-append "tmpprint." (printer-file-suffix)))
     (print-to-file file)

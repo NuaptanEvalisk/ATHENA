@@ -88,6 +88,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (tm-define (wrapped-print-to-file fname)
+  (node-reference-with-export (lambda () (wrapped-print-to-file-ready fname))))
+
+(define (wrapped-print-to-file-ready fname)
   (if (screens-buffer?)
       (let* ((cur (current-buffer))
              (buf (buffer-new)))
@@ -102,6 +105,10 @@
       (data-art-print-to-file fname)))
 
 (tm-define (wrapped-print-to-pdf-embeded-with-tm fname)
+  (node-reference-with-export
+    (lambda () (wrapped-print-to-pdf-embeded-with-tm-ready fname))))
+
+(define (wrapped-print-to-pdf-embeded-with-tm-ready fname)
     (unless (string=? (url-suffix fname) "pdf")
       (texmacs-error "Wrapped-print-to-pdf-embeded-with-tm" "fname is not a pdf"))
     (if (screens-buffer?)
@@ -228,6 +235,9 @@
                  "preview")))))
 
 (tm-define (preview-buffer)
+  (node-reference-with-export (lambda () (preview-buffer-ready))))
+
+(define (preview-buffer-ready)
   (with file (url-append (url-temp-dir)
                          (if (== (printer-file-format) "pdf")
                              "preview.pdf" "preview.ps"))
@@ -239,9 +249,20 @@
   (:proposals start (list "1" ""))
   (:argument  end "Last page")
   (:proposals end (list (number->string (get-page-count)) ""))
-  (choose-file (lambda (name) (print-pages-to-file name start end))
+  (choose-file (lambda (name)
+                 (node-reference-with-export (lambda () (print-pages-to-file name start end))))
 	       "Print page selection to file" (printer-file-format)
 	       "Print:"))
+
+(tm-define (prepared-print-to-file name)
+  (node-reference-with-export (lambda () (print-to-file name))))
+
+(tm-define (prepared-print-pages first last)
+  (:argument first "First page")
+  (:proposals first (list "1" ""))
+  (:argument last "Last page")
+  (:proposals last (list (number->string (get-page-count)) ""))
+  (node-reference-with-export (lambda () (print-pages first last))))
 
 (register-preference-callback-procedures
   (list notify-paper-type notify-preview-command notify-printer-dpi notify-printing-command))

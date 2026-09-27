@@ -28,6 +28,7 @@
 #include "merge_sort.hpp"
 #include "materials_document.hpp"
 #include "ATHENA/Data/vault_backup.hpp"
+#include "ATHENA/Data/node_reference_export.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
 #include <filesystem>
 #include <algorithm>
@@ -1041,6 +1042,28 @@ buffer_export (url name, url dest, string fm) {
   }
   athena_blob_id destination= actor_text_from_string (as_string (dest));
   athena_blob_id format= actor_text_from_string (copy (fm));
+  if (auto frozen= athena::node_reference::current_export_references ();
+      frozen && !actor->is_owner_thread ()) {
+    // DataArt and slide exports use another actor. Transfer only the immutable
+    // prepared wire snapshot, never the initiating editor or its native trees.
+    auto failed= std::make_shared<bool> (true);
+    auto continuation= actor_continuation_registry::instance ().store (
+      [frozen, failed, destination, format, view_id] {
+        athena::node_reference::export_reference_scope references (frozen);
+        actor_command_record result;
+        auto* owner= current_scheme_execution_context ()->actor;
+        if (owner->invoke (actor_command_kind::export_buffer, view_id,
+            destination, format, &result, SCHEME_CAPABILITY_BUFFER, 1))
+          *failed= result.argument[0] != 0;
+      });
+    const bool completed= actor->invoke (actor_command_kind::run_native_continuation, view_id,
+      ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER, continuation);
+    if (!completed) {
+      actor_continuation_registry::instance ().discard (continuation);
+      discard_text_payload (destination); discard_text_payload (format);
+    }
+    return !completed || *failed;
+  }
   actor_command_record result;
   bool completed= actor->invoke (
     actor_command_kind::export_buffer, view_id,
