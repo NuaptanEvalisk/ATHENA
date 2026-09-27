@@ -27,6 +27,7 @@
 #include "drd_mode.hpp"
 #include "namespaces.hpp"
 #include "new_buffer.hpp"
+#include "node_metadata.hpp"
 #include "qt_utilities.hpp"
 #include "scheme.hpp"
 #include "tree_search.hpp"
@@ -132,6 +133,91 @@ absolute_vault_path (const QString& relPath) {
   QString root= to_qstring (concretize (vault_get_root ()));
   if (root.isEmpty ()) return relPath;
   return QDir (root).absoluteFilePath (relPath);
+}
+
+static bool
+blank_source_child (tree value) {
+  return is_atomic (value) &&
+    to_qstring (value->label).trimmed ().isEmpty ();
+}
+
+static QString
+migrated_wikilink_source_uuid (
+    const QString& relPath, const QString& anchor, QString& diagnostic) {
+  diagnostic.clear ();
+  if (vault_get_node_model_version () < 1) return {};
+  try {
+    const url file= vault_get_root () * url_unix (from_qstring (relPath));
+    tree body= import_body (file);
+    path target;
+    if (!anchor.isEmpty ()) {
+      std::vector<WikilinkAnchorEntry> anchors;
+      collect_anchors (body, path (), anchors);
+      std::vector<path> exact;
+      for (const auto& current: anchors)
+        if (current.anchor == anchor) exact.push_back (current.where);
+      if (exact.size () != 1) {
+        diagnostic= exact.empty () ?
+          "The selected source anchor no longer exists." :
+          "The selected source anchor is ambiguous.";
+        return {};
+      }
+      target= exact.front ();
+
+      std::vector<TransclusionAnchorPair> headings=
+        collect_heading_anchor_targets (body, path ());
+      std::vector<path> heading_targets;
+      for (const auto& heading: headings)
+        if (heading.upper == anchor)
+          heading_targets.push_back (heading.lowerWhere);
+      if (heading_targets.size () > 1) {
+        diagnostic= "The selected heading anchor is ambiguous.";
+        return {};
+      }
+      if (heading_targets.size () == 1) target= heading_targets.front ();
+      else {
+        std::vector<TransclusionAnchorPair> pairs=
+          collect_transclusion_pairs (anchors);
+        std::vector<path> enunciations;
+        for (const auto& pair: pairs) {
+          if (pair.upper != anchor || !anchor_pair_is_enunciation (pair))
+            continue;
+          const path parent= path_up (pair.upperWhere);
+          if (parent != path_up (pair.lowerWhere)) continue;
+          tree container= is_nil (parent) ? body : subtree (body, parent);
+          const int upper= last_item (pair.upperWhere);
+          const int lower= last_item (pair.lowerWhere);
+          int candidate= -1;
+          for (int i=upper + 1; i<lower; ++i) {
+            if (blank_source_child (container[i])) continue;
+            if (candidate >= 0) { candidate= -2; break; }
+            candidate= i;
+          }
+          if (candidate >= 0) enunciations.push_back (parent * candidate);
+        }
+        if (enunciations.size () > 1) {
+          diagnostic= "The selected enunciation anchor is ambiguous.";
+          return {};
+        }
+        if (enunciations.size () == 1) target= enunciations.front ();
+      }
+    }
+    tree selected= is_nil (target) ? body : subtree (body, target);
+    const std::string id= athena::node::id (selected);
+    if (!athena::node::valid_id (id)) {
+      diagnostic= "The selected source object has no persistent UUID.";
+      return {};
+    }
+    return QString::fromStdString (id);
+  }
+  catch (const std::exception& error) {
+    diagnostic= QString::fromUtf8 (error.what ());
+    return {};
+  }
+  catch (...) {
+    diagnostic= "Could not read the selected source object.";
+    return {};
+  }
 }
 
 static WikilinkDisplayContext
@@ -424,6 +510,7 @@ public:
   QString selectedAnchor;
   QString anchorHint;
   QString displayText;
+  QString sourceUuid;
   bool    filesLoaded;
   bool    filesLoadScheduled;
   bool    resultAccepted;
@@ -1555,6 +1642,17 @@ QTMVaultWikilinkWizard::setResult (const QString& relPath,
   fileHint= fileHint2;
   anchorHint= anchorHint2;
   displayText= displayText2;
+  sourceUuid.clear ();
+  if (vault_get_node_model_version () >= 1) {
+    QString diagnostic;
+    sourceUuid= migrated_wikilink_source_uuid (relPath, anchor, diagnostic);
+    if (sourceUuid.isEmpty () && !diagnostic.isEmpty ())
+      QMessageBox::warning (
+        this, "Insert wikilink",
+        diagnostic +
+          "\n\nThe migrated Vault will not fall back to file or anchor "
+          "hints for identity.");
+  }
   resultAccepted= true;
 }
 
@@ -1611,6 +1709,7 @@ QTMVaultWikilinkWizard::getResult () const {
   res << tree (from_qstring (fileHint));
   res << tree (from_qstring (anchorHint));
   res << tree (from_qstring (displayText));
+  res << tree (from_qstring (sourceUuid));
   return res;
 }
 

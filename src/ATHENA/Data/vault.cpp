@@ -52,12 +52,13 @@ struct vault_public_snapshot {
   std::string name;
   std::string map_db;
   std::string namespace_db;
+  int node_model_version;
   vault_context_handle context;
 };
 
 std::shared_ptr<const vault_public_snapshot> published_vault_snapshot=
   std::make_shared<const vault_public_snapshot> (
-    vault_public_snapshot {false, "", "", "", "", {}});
+    vault_public_snapshot {false, "", "", "", "", 0, {}});
 std::atomic<const vault_public_snapshot*> published_vault_identity {
   published_vault_snapshot.get ()};
 
@@ -87,6 +88,8 @@ vault_snapshot () {
       url_system (fresh_tm_string (source->map_db)) : url_none ();
     local.info.ns_db_url= source->active ?
       url_system (fresh_tm_string (source->namespace_db)) : url_none ();
+    local.info.node_model_version= source->active ?
+      source->node_model_version : 0;
     local.source= std::move (source);
   }
   return local;
@@ -96,17 +99,18 @@ static void
 publish_vault_snapshot (bool active, const std::filesystem::path& root,
                         const std::string& name,
                         const std::filesystem::path& map_db,
-                        const std::filesystem::path& namespace_db) {
+                        const std::filesystem::path& namespace_db,
+                        int node_model_version= 0) {
   vault_context_handle context;
   if (active)
     context= std::make_shared<const vault_context> (vault_context {
-      root, map_db, namespace_db, name,
+      root, map_db, namespace_db, name, node_model_version,
       QUuid::createUuid ().toString (QUuid::WithoutBraces).toStdString (),
       current_directory_lease});
   auto next= std::make_shared<const vault_public_snapshot> (
     vault_public_snapshot {
       active, root.string (), name, map_db.string (), namespace_db.string (),
-      std::move (context)});
+      node_model_version, std::move (context)});
   std::atomic_store_explicit (
     &published_vault_snapshot, next, std::memory_order_release);
   published_vault_identity.store (next.get (), std::memory_order_release);
@@ -153,6 +157,11 @@ vault_get_map_db () {
 url
 vault_get_namespace_db () {
   return vault_snapshot ().info.ns_db_url;
+}
+
+int
+vault_get_node_model_version () {
+  return vault_snapshot ().info.node_model_version;
 }
 
 MaterialsStore*
@@ -232,13 +241,14 @@ vault_load (url root_dir, string name, string db_rel_path,
   current_vault.name   = name;
   current_vault.db_url = root_dir * url (vault_tm_string (resolved));
   current_vault.ns_db_url = root_dir * url (ns_db_rel_path);
+  current_vault.node_model_version= vaultfile.node_model_version;
   current_vault_map = std::move (map);
   current_materials_store = std::move (materials);
   current_directory_lease = std::move (directory_lease);
   is_vault_active = true;
   publish_vault_snapshot (
     true, root, vault_std_string (name), root / resolved,
-    root / vault_std_string (ns_db_rel_path));
+    root / vault_std_string (ns_db_rel_path), vaultfile.node_model_version);
   athena_namespace_ontology_start (vault_get_root (),
                                    vault_get_namespace_db ());
   athena_artifact_radioactive_invalidate ();
@@ -262,6 +272,7 @@ vault_close () {
   current_vault.name = "";
   current_vault.db_url = url_none ();
   current_vault.ns_db_url = url_none ();
+  current_vault.node_model_version= 0;
   athena_clear_transclusion_caches ();
   vault_refresh_window_titles ();
 }

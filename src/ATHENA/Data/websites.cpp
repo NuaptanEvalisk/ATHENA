@@ -9,6 +9,8 @@
 ******************************************************************************/
 
 #include "ATHENA/Data/websites_internal.hpp"
+#include "ATHENA/Data/node_location.hpp"
+#include "ATHENA/Data/vaultfile_json.hpp"
 
 #include <QCryptographicHash>
 #include <QSaveFile>
@@ -282,6 +284,25 @@ generate_website_entry (const fs::path& root,
   cx.root = root;
   cx.destination = destination_for (root, website);
   cx.selected_files = selected;
+  AthenaVaultfileInfo vaultfile;
+  if (!athena_vaultfile_read (root, vaultfile, error)) return false;
+  cx.node_model_version= vaultfile.node_model_version;
+  if (cx.node_model_version >= 1) {
+    for (const std::string& rel: universe) {
+      try {
+        tree document= import_tree (
+          url_system (std_to_tm ((root / rel).string ())), "texmacs");
+        for (const auto& occurrence: athena::node_location::collect (document)) {
+          auto inserted= cx.node_files.emplace (occurrence.id, rel);
+          if (!inserted.second) cx.conflicting_node_ids.insert (occurrence.id);
+        }
+      }
+      catch (const std::exception& failure) {
+        error= "Could not index node identities in " + rel + ": " + failure.what ();
+        return false;
+      }
+    }
+  }
   for (const std::string& rel: selected) {
     cx.html_paths[rel] = html_rel_for_doc (rel);
     if (website.generate_pdfs) cx.pdf_paths[rel]= pdf_rel_for_doc (rel);

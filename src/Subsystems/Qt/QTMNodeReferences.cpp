@@ -21,6 +21,7 @@
 #include <QPointer>
 #include <QTimer>
 #include <QMessageBox>
+#include <QUrl>
 #include <atomic>
 #include <chrono>
 #include <map>
@@ -265,7 +266,14 @@ view get (std::vector<std::string> ids, std::vector<std::string> ancestry) {
 } // namespace athena::node_reference
 
 bool athena_node_reference_target (string target) {
-  return !athena::node_reference::target_id (target).empty ();
+  const auto id= athena::node_reference::target_id (target);
+  if (id.empty ()) return false;
+  const QUrl parsed (QString::fromUtf8 (target.data (), N(target)), QUrl::StrictMode);
+  if (parsed.host ().compare ("wikilink", Qt::CaseInsensitive) == 0) {
+    const auto vault= vault_capture_context ();
+    return vault && vault->node_model_version >= 1;
+  }
+  return true;
 }
 bool athena_node_reference_open (string target) {
   try {
@@ -273,6 +281,10 @@ bool athena_node_reference_open (string target) {
   const auto id= ref::target_id (target);
   const auto vault= vault_capture_context ();
   if (id.empty () || !vault) return false;
+  const QUrl parsed (QString::fromUtf8 (target.data (), N(target)), QUrl::StrictMode);
+  if (parsed.host ().compare ("wikilink", Qt::CaseInsensitive) == 0 &&
+      vault->node_model_version < 1)
+    return false;
   ref::get ({id});
   std::shared_ptr<ref::entry> entry;
   {

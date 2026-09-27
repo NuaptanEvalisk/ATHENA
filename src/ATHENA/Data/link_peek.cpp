@@ -9,6 +9,7 @@
 #include "link_peek.hpp"
 #include "node_reference.hpp"
 #include "artifact_document.hpp"
+#include "node_metadata.hpp"
 #include "vault.hpp"
 #include "vault_map_sqlite.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
@@ -46,6 +47,19 @@ tree with_preview_body (tree document, tree preview, path focus) {
     if (is_compound (result[i], "body", 1)) result[i][0]= preview;
   return result;
 }
+
+std::string migrated_wikilink_id (string target) {
+  if (vault_get_node_model_version () < 1) return {};
+  QUrl parsed= parsed_target (target);
+  if (!parsed.isValid () || parsed.scheme () != "tmfs" ||
+      parsed.host ().compare ("wikilink", Qt::CaseInsensitive) != 0 ||
+      !parsed.query ().isEmpty () || !parsed.fragment ().isEmpty () ||
+      !parsed.userInfo ().isEmpty () || parsed.port () != -1)
+    return {};
+  const QString path= parsed.path (QUrl::FullyDecoded);
+  const std::string id= path.section ('/', 1, 1).toStdString ();
+  return athena::node::valid_id (id) ? id : std::string ();
+}
 }
 
 bool athena_link_peek_target (string target) {
@@ -57,10 +71,12 @@ bool athena_link_peek_target (string target) {
 }
 
 bool athena_link_peek_native_target (string target) {
-  // Bare legacy wikilinks also contain UUIDs. Switch them only with the vault
-  // model activation, never by guessing from their URL shape.
-  return parsed_target (target).host () == "transclude" &&
-         !athena::node_reference::target_id (target).empty ();
+  if (parsed_target (target).host () == "transclude" &&
+      !athena::node_reference::target_id (target).empty ()) return true;
+  // Wikilink hint suffixes survive migration for display compatibility, but a
+  // migrated Vault resolves only the first UUID component through the native
+  // source locator. The Vaultfile gate, not the URL shape, enables this path.
+  return !migrated_wikilink_id (target).empty ();
 }
 
 tree athena_link_peek_range (tree document, string begin, string end) {
@@ -136,7 +152,9 @@ tree athena_link_peek_document (string target, url& source,
   const std::vector<std::string>& ancestry) {
   source= url_none ();
   if (athena_link_peek_native_target (target)) {
-    auto current= athena::node_reference::get ({athena::node_reference::target_id (target)}, ancestry);
+    std::string id= athena::node_reference::target_id (target);
+    if (id.empty ()) id= migrated_wikilink_id (target);
+    auto current= athena::node_reference::get ({id}, ancestry);
     return athena::node_reference::preview_document (current, source);
   }
   if (!athena_link_peek_target (target)) return tree (UNINIT);

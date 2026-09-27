@@ -796,6 +796,52 @@ v2 saves, advertise AUDMAP v3, or implement cross-document moves.
   and explicit rejection of legacy Cork input without modifying it. No
   production vault, deployment or broad test suite was used.
 
+## Bare wikilink source-UUID cutover for migrated Vaults (2026-09-28)
+
+- `Vaultfile.json` `node_model_version` is now published in the immutable native
+  Vault snapshot/context and exposed to Scheme. It is the only semantic switch:
+  a UUID-shaped `tmfs://wikilink/...` is not enough to opt a legacy Vault into
+  source-node semantics.
+- In a migrated Vault, following a wikilink strips any historical file/anchor
+  suffix from the identity operation and routes the UUID through the existing
+  native node-reference locator. That locator inventories live BufferActor
+  owners before saved files, distinguishes missing/conflict/read failures, and
+  revalidates the UUID at the resolved source address before navigation. Broken
+  migrated links no longer invoke fuzzy/file-hint repair: hints are explicitly
+  non-authoritative. Unmigrated Vaults retain the old `vault-get-node` / map
+  navigation and repair path unchanged.
+- Link preview uses the same Vaultfile gate. Migrated wikilinks, including URLs
+  that still carry old hint suffixes, request the native UUID reference view;
+  legacy wikilinks continue through map/anchor preview. The native
+  `node-reference-target?` and open boundary likewise reject wikilink UUID
+  semantics unless the active Vault is migrated.
+- The incremental reference graph now expands canonical transclusion UUID
+  tuples correctly and, in migrated Vaults, derives `UUID -> document path`
+  from the XML-v2 source census rather than `map.sqlite`. Duplicate source UUIDs
+  stay unresolved instead of choosing a file. Legacy Vaults keep map-signature
+  invalidation and map-based target resolution. Changing only compatibility map
+  rows therefore cannot redirect a migrated graph edge.
+- New Wikilink insertion in a migrated Vault resolves the user's selected file,
+  whole-document body, heading or migrated enunciation target to the actual
+  persistent UUID stored in the XML-v2 source. The result tuple carries that
+  UUID back to Scheme; Scheme refuses insertion when no persistent source
+  identity is available instead of allocating a new map UUID. Legacy insertion
+  continues its existing map lookup/allocation behavior.
+- Static website generation snapshots `node_model_version` from Vaultfile and
+  builds a source UUID -> document index from the Vault documents. Migrated
+  wikilinks use this index and never fall back to file hints/static assets when
+  identity resolution fails; legacy website export keeps map/hint behavior.
+  `map.sqlite` remains present for compatibility/rename consumers and is not
+  deleted by this cutover.
+- The normal `ATHENA.bin -j20` build passed. One focused existing Qt fixture,
+  `TestVaultMapSqlite::gatesBareWikilinksOnNodeModelVersion`, passed with 0
+  failures. It loaded a migrated Vault whose compatibility map deliberately
+  pointed the wikilink UUID at the wrong file and verified native-target gating
+  plus a reference edge to the real XML-v2 source UUID owner; changing the map
+  again did not redirect the edge. The same URL in an unmarked Vault was not a
+  native wikilink target, resolved through map.sqlite, and followed subsequent
+  map redirection. No production Vault, deployment or broad test suite was used.
+
 ## Build Boundary
 
 Normal builds use only:

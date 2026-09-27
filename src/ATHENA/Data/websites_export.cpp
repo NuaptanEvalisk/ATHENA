@@ -485,12 +485,22 @@ extract_transclusion_range (tree doc, const std::string& begin,
 
 bool
 decode_wikilink_target (const std::string& destination,
+                        const GenerationContext& cx,
                         std::string& rel_path, std::string& anchor) {
   const std::string prefix = "tmfs://wikilink/";
   if (!starts_with (lower_copy (destination), prefix)) return false;
   std::string rest = destination.substr (prefix.size ());
   size_t slash = rest.find ('/');
   std::string uuid = slash == std::string::npos ? rest : rest.substr (0, slash);
+  uuid= ss (QUrl::fromPercentEncoding (qs (uuid).toUtf8 ()));
+  if (cx.node_model_version >= 1) {
+    if (cx.conflicting_node_ids.count (uuid) != 0) return true;
+    auto found= cx.node_files.find (uuid);
+    if (found != cx.node_files.end ()) rel_path= clean_relative (found->second);
+    // File/anchor suffixes are intentionally ignored after node-model cutover.
+    anchor.clear ();
+    return true;
+  }
   tree node = vault_get_node (std_to_tm (ss (QUrl::fromPercentEncoding (
     qs (uuid).toUtf8 ()))));
   if (!is_func (node, TUPLE) || N(node) < 3) return true;
@@ -581,7 +591,7 @@ rewrite_link_like (tree t, const std::string& source_rel,
   std::string destination = tree_string (t[1]);
   std::string rel_path;
   std::string anchor;
-  bool handled = decode_wikilink_target (destination, rel_path, anchor);
+  bool handled = decode_wikilink_target (destination, cx, rel_path, anchor);
   if (!handled)
     handled = local_document_target (destination, source_rel, cx, rel_path,
                                      anchor);
@@ -594,7 +604,8 @@ rewrite_link_like (tree t, const std::string& source_rel,
     else {
       std::string hint;
       std::string href;
-      if (decode_wikilink_file_hint (destination, hint) &&
+      if (cx.node_model_version < 1 &&
+          decode_wikilink_file_hint (destination, hint) &&
           copy_static_asset (hint, source_rel, output_rel, cx, href))
         next = href;
       else next = modal_href (rel_path.empty () ? destination : rel_path);

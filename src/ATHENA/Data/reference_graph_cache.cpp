@@ -7,6 +7,7 @@
 *******************************************************************************/
 
 #include "ATHENA/Data/reference_graph_cache.hpp"
+#include "ATHENA/Data/node_location.hpp"
 
 #include "Data/Convert/Xml/document_file_codec.hpp"
 #include "analyze.hpp"
@@ -91,8 +92,17 @@ collect_references (
   if (is_atomic (document)) return;
   if ((is_func (document, TRANSCLUDE) ||
        is_compound (document, "transclude")) && N(document) >= 1) {
-    std::string uuid= tree_text (document[0]);
-    if (!uuid.empty ()) out.insert ({uuid, "transclusion"});
+    if (N(document) == 1 && is_tuple (document[0])) {
+      for (int i=0; i<N(document[0]); ++i)
+        if (is_atomic (document[0][i])) {
+          std::string uuid= tree_text (document[0][i]);
+          if (!uuid.empty ()) out.insert ({uuid, "transclusion"});
+        }
+    }
+    else {
+      std::string uuid= tree_text (document[0]);
+      if (!uuid.empty ()) out.insert ({uuid, "transclusion"});
+    }
   }
   else if ((is_func (document, HLINK) ||
             is_compound (document, "hlink") ||
@@ -226,9 +236,82 @@ set_metadata_value (sqlite3* db, const std::string& key,
 
 std::string
 resolved_target (const std::string& uuid) {
+  if (vault_get_node_model_version () >= 1) return {};
   tree node= vault_get_node (std_tm (uuid));
   if (!is_func (node, TUPLE) || N(node) < 1) return std::string ();
   return tree_text (node[0]);
+}
+
+bool load_document_semantics (const fs::path& absolute, tree& document,
+                              std::string& semantic_hash, std::string& error);
+
+bool
+refresh_native_target_paths (sqlite3* db, const fs::path& root,
+                             std::string& error) {
+  std::map<std::string,std::string> targets;
+  std::set<std::string> conflicts;
+  array<url> files= vault_get_all_files ();
+  for (int i=0; i<N(files); ++i) {
+    fs::path absolute (tm_std (concretize (files[i])));
+    if (absolute.extension () != ".ath") continue;
+    std::error_code ec;
+    fs::path relative= fs::relative (absolute, root, ec).lexically_normal ();
+    if (ec || relative.empty () || relative.is_absolute () ||
+        *relative.begin () == "..") {
+      error= "Vault document is outside the Vault root: " + absolute.string ();
+      return false;
+    }
+    tree document;
+    std::string semantic;
+    if (!load_document_semantics (absolute, document, semantic, error))
+      return false;
+    try {
+      for (const auto& occurrence: athena::node_location::collect (document)) {
+        auto found= targets.find (occurrence.id);
+        const std::string path= relative.generic_string ();
+        if (found == targets.end ()) targets.emplace (occurrence.id, path);
+        else conflicts.insert (occurrence.id);
+      }
+    }
+    catch (const std::exception& failure) {
+      error= "Could not index source UUIDs in " + relative.generic_string () +
+             ": " + failure.what ();
+      return false;
+    }
+  }
+
+  sqlite3_stmt* select= nullptr;
+  if (!prepare (db, "SELECT DISTINCT uuid FROM document_references;",
+                &select, error)) return false;
+  std::vector<std::string> uuids;
+  while (sqlite3_step (select) == SQLITE_ROW)
+    uuids.push_back (column_text (select, 0));
+  sqlite3_finalize (select);
+
+  sqlite3_stmt* update= nullptr;
+  if (!prepare (db,
+      "UPDATE document_references SET target_path=?1 WHERE uuid=?2;",
+      &update, error)) return false;
+  for (const std::string& uuid: uuids) {
+    auto target= targets.find (uuid);
+    if (target == targets.end () || conflicts.count (uuid))
+      sqlite3_bind_null (update, 1);
+    else if (!bind_text (db, update, 1, target->second, error)) {
+      sqlite3_finalize (update);
+      return false;
+    }
+    if (!bind_text (db, update, 2, uuid, error) ||
+        sqlite3_step (update) != SQLITE_DONE) {
+      if (error.empty ())
+        error= sqlite_message (db, "Could not resolve native cached reference");
+      sqlite3_finalize (update);
+      return false;
+    }
+    sqlite3_reset (update);
+    sqlite3_clear_bindings (update);
+  }
+  sqlite3_finalize (update);
+  return true;
 }
 
 bool
@@ -535,14 +618,19 @@ athena_reference_graph_query (
     return false;
   }
 
-  std::string mapSignature= file_signature (
-    fs::path (tm_std (concretize (vault_get_map_db ()))));
-  std::string previousMapSignature;
-  ok= metadata_value (db, "map_signature", previousMapSignature, error) &&
-      refresh_documents (db, root, progress, error);
-  if (ok && previousMapSignature != mapSignature)
-    ok= refresh_target_paths (db, error) &&
-        set_metadata_value (db, "map_signature", mapSignature, error);
+  ok= refresh_documents (db, root, progress, error);
+  if (ok && vault_get_node_model_version () >= 1)
+    ok= refresh_native_target_paths (db, root, error) &&
+        set_metadata_value (db, "target_identity", "source-uuid-v1", error);
+  else if (ok) {
+    std::string mapSignature= file_signature (
+      fs::path (tm_std (concretize (vault_get_map_db ()))));
+    std::string previousMapSignature;
+    ok= metadata_value (db, "map_signature", previousMapSignature, error);
+    if (ok && previousMapSignature != mapSignature)
+      ok= refresh_target_paths (db, error) &&
+          set_metadata_value (db, "map_signature", mapSignature, error);
+  }
   if (ok) ok= exec_sql (db, "COMMIT;", error);
   else {
     std::string ignored;

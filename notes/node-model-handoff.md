@@ -1,19 +1,21 @@
 # 节点身份、属性与引用改造交接
 
-更新：2026-09-27。接手者熟悉 ATHENA，但不应假定熟悉本次新文档模型。
+更新：2026-09-28。接手者熟悉 ATHENA，但不应假定熟悉本次新文档模型。
 
 ## 先读结论
 
 原交接停在 native tree-set-diff 完成处；用户随后要求按功能块继续。
 源生命周期、normal XML v2 persistence/activation、AUDMAP document-model v3、
-Artifact source binding/revision、cut/move credential + 跨 actor undo/redo 与
-普通新建文档 born-v2 均已分别完成并提交。当前 worktree 又完成独立 offline
-node-model vault migration 并通过集中验证，正待本次独立提交。
-**整个迁移尚未统一切换，但核心 source/runtime/migration 主链已较完整；主要剩余工作
-集中在少数 tree-bearing persistence 边界、迁移后的引用语义切换与最终数据保全验收。**
+Artifact source binding/revision、cut/move credential + 跨 actor undo/redo、
+普通新建文档 born-v2 与独立 offline node-model vault migration 均已分别完成并提交。
+当前 worktree 完成 migrated-vault bare wikilink source-UUID cutover 并通过集中验证，
+正待本次独立提交。
+**核心 source/runtime/migration/reference 主链已经闭环；主要剩余工作集中在少数
+tree-bearing persistence 边界、可确认生成 anchor 的清理与最终数据保全/启用验收。**
 
-当前最后代码提交：`727bea0cb improve: create ordinary documents as XML v2 sources`。
-此前相邻集成提交：`e5fa5aae6`（source move identity）、
+当前最后代码提交：`c465b4605 improve: migrate UTF-8 XML vaults to the node model`。
+此前相邻集成提交：`727bea0cb`（born-v2 ordinary source）、
+`e5fa5aae6`（source move identity）、
 `70da9708a`（Artifact source identity）、
 `417efe87e`（AUDMAP document-model v3）、
 `6f2937262`（normal XML v2 persistence/activation）、
@@ -111,8 +113,10 @@ children:
 ### 引用、定位与 Artifact
 
 - 最终 Wikilink：`tmfs://wikilink/<uuid>`；仍用成熟 tmfs 基础设施。
-  **bare wikilink 目前未切换**，因为旧格式的同形 URI 可能仍是 map 身份。
-  不能只看 URL 形状猜新旧语义。
+  `Vaultfile.json` 的 `node_model_version >= 1` 是语义 cutover gate：已迁移 vault
+  将第一个 UUID component 解释为 persistent source UUID；未迁移 vault 继续用
+  map.sqlite 身份。不能只看 URL 形状猜新旧语义。历史 file/anchor suffix 可保留作
+  显示兼容信息，但在 migrated vault 中不能覆盖、修复或替代 source UUID。
 - canonical transclusion：`TRANSCLUDE(TUPLE(uuid,...))`，有序明确对象集合，
   不是两个端点之间随内容变化的范围。来源导航是 `tmfs://transclude/<uuid>`。
 - UUID 列表去重保首次顺序；祖先/后代重叠选择拒绝。缺失项保留占位，不静默缩短列表。
@@ -129,7 +133,8 @@ children:
   已有 artifact UUID 必须保留，新旧绑定都写入源属性 `athena:artifact-bindings`。
   此保留属性是 role -> artifact UUID 字典；普通属性 API 禁止改，复制为新对象时清除。
   producer/database/source persistence 已接通；v2 以 source binding 为身份真相，
-  v1/legacy 仍使用旧 conservative association 兼容。离线 vault migration 仍未做。
+  v1/legacy 仍使用旧 conservative association 兼容；offline vault migration 已将旧
+  Artifact UUID/source 关系写回源 binding。
 
 ## 三色工作清单
 
@@ -193,6 +198,11 @@ children:
   private sibling snapshot 中 canonicalize enunciation、确定性分配 source UUID、优先复用可唯一
   映射的旧 map UUID、迁移 wikilink/transclude、写 Artifact source bindings，完整验证后才做
   atomic directory exchange；Vaultfile 以 `node_model_version: 1` 记录完成状态并支持重复运行 no-op。
+- 🟩 migrated-vault bare wikilink cutover：runtime vault snapshot 发布 `node_model_version`；
+  migrated vault 的点击导航、hover/link peek、reference graph 与 website export 都以 source UUID
+  为身份真相，不再接受 map/file/anchor hints 改写目标。未迁移 vault 保持原 map.sqlite 语义。
+  新 Wikilink 插入从实际 XML-v2 source object 读取 persistent UUID；选中对象没有 UUID 时拒绝
+  插入，而不是生成新的 map identity。map.sqlite 暂保留作兼容/rename 历史数据。
 
 ### 🟦 已起步、尚未整体完成
 
@@ -209,7 +219,8 @@ children:
 
 - 🟧 其余 clipboard/委派及 tree-bearing persistence 边界的统一 v2 切换；normal v2
   load/save/autosave/recovery 和普通新建文档已完成，不应再作为待办重做。
-- 🟧 迁移后切换 bare wikilink，淘汰 map/hints 作为身份真相，删除可确认的生成 anchors。
+- 🟧 删除可确认已经冗余的生成 anchors，并继续把 map.sqlite 从剩余兼容/rename consumers
+  中降级；bare wikilink 身份语义本身已经完成 cutover。
 - 🟧 故障注入/数据保全最终验收、用户验收、统一启用及部署。
 
 ## 接手时的代码入口

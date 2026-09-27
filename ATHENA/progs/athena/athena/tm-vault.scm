@@ -127,6 +127,9 @@
                  (vault-url-component-encode file-hint) "/"
                  (vault-url-component-encode anchor-hint)))
 
+(define (vault-node-model-active?)
+  (>= (vault-get-node-model-version) 1))
+
 (define (vault-tmfs-navigation-name u protocol)
   (when (string? u) (set! u (system->url u)))
   (let* ((text (url->unix (url-unroot u)))
@@ -513,12 +516,25 @@
            (file-hint (tree->string (tree-ref res 2)))
            (anchor-hint (tree->string (tree-ref res 3)))
            (display-text (tree->string (tree-ref res 4)))
-           (uuid (vault-find-uuid rel-path "" anchor)))
-      (when (string-null? uuid)
-        (set! uuid (vault-generate-uuid))
-        (vault-set-node uuid rel-path "" anchor))
-      (insert `(hlink ,display-text
-                      ,(vault-wikilink-url uuid file-hint anchor-hint))))))
+           (source-uuid
+             (if (>= (tree-arity res) 6)
+                 (tree->string (tree-ref res 5)) ""))
+           (uuid
+             (if (vault-node-model-active?)
+                 source-uuid
+                 (vault-find-uuid rel-path "" anchor))))
+      (if (and (vault-node-model-active?) (string-null? uuid))
+          (set-message
+            "Selected target has no persistent source identity"
+            "Insert wikilink")
+          (begin
+            (when (and (not (vault-node-model-active?))
+                       (string-null? uuid))
+              (set! uuid (vault-generate-uuid))
+              (vault-set-node uuid rel-path "" anchor))
+            (insert `(hlink ,display-text
+                            ,(vault-wikilink-url
+                               uuid file-hint anchor-hint))))))))
 
 (tm-define (insert-wikilink)
   (:interactive #t)
@@ -1032,7 +1048,14 @@
 
 (define (wikilink-repair-handler-sub name)
   (with (uuid file-hint anchor-hint) (wikilink-name-parts name)
-    (wikilink-trigger-repair uuid file-hint anchor-hint)))
+    (if (vault-node-model-active?)
+        `(document
+           (style (tuple "generic"))
+           (body
+             (document
+               (bold "Broken source UUID: ") ,uuid
+               " -- file and anchor hints are not identity in a migrated Vault.")))
+        (wikilink-trigger-repair uuid file-hint anchor-hint))))
 
 (define (wikilink-repair-url name)
   (string-append "tmfs://wikilink-repair/" name))
@@ -1077,13 +1100,21 @@
   (:require (vault-wikilink-navigation-url? u))
   (when (pair? opt-from) (cursor-history-add (car opt-from)))
   (let ((name (string-copy (vault-wikilink-navigation-name u))))
-    (exec-global
-      (lambda ()
-        (let ((target (wikilink-navigation-target name)))
-          (if target
-              (apply vault-jump-to-source target)
-              (load-browse-buffer
-                (system->url (wikilink-repair-url name)))))))))
+    (if (vault-node-model-active?)
+        (with (uuid file-hint anchor-hint) (wikilink-name-parts name)
+          ;; Hints remain in the URL for display/backward compatibility only.
+          ;; Identity and navigation come exclusively from the source UUID.
+          (if (string-null? uuid)
+              (set-message "Wikilink has no source UUID" "Wikilink")
+              (node-reference-open
+                (string-append "tmfs://wikilink/" uuid))))
+        (exec-global
+          (lambda ()
+            (let ((target (wikilink-navigation-target name)))
+              (if target
+                  (apply vault-jump-to-source target)
+                  (load-browse-buffer
+                    (system->url (wikilink-repair-url name))))))))))
 
 (tm-define (go-to-url u . opt-from)
   (:require (url-rooted-tmfs-protocol?

@@ -66,6 +66,9 @@ struct GenerationContext {
   fs::path root;
   fs::path destination;
   std::set<std::string> selected_files;
+  int node_model_version= 0;
+  std::map<std::string,std::string> node_files;
+  std::set<std::string> conflicting_node_ids;
   std::map<std::string,std::string> html_paths;
   std::map<std::string,std::string> pdf_paths;
   std::map<std::string,std::string> titles;

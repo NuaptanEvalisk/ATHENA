@@ -19,6 +19,8 @@
 #include "vault.hpp"
 #include "transclusion_cache.hpp"
 #include "link_peek.hpp"
+#include "node_metadata.hpp"
+#include "Scheme/Scheme/native_interfaces.hpp"
 #include "convert.hpp"
 #include "drd_std.hpp"
 #include "file.hpp"
@@ -45,6 +47,7 @@ private slots:
   void recoversInterruptedDirectoryRename ();
   void extractsDocumentReferencesWithoutHints ();
   void cachesBoundedAndUnlimitedReferenceGraphs ();
+  void gatesBareWikilinksOnNodeModelVersion ();
   void cachesAndInvalidatesStructuralTransclusions ();
   void rebuildsOldRagDatabaseAndPreservesV3SemanticRewrite ();
   void ragGenerationCommitIsAtomicAndReusesShiftedChunks ();
@@ -554,6 +557,120 @@ TestVaultMapSqlite::cachesBoundedAndUnlimitedReferenceGraphs () {
     return edge.referenced_path == "D.ath" &&
            edge.referencing_path == "A.ath";
   }));
+  vault_close ();
+}
+
+void
+TestVaultMapSqlite::gatesBareWikilinksOnNodeModelVersion () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  const std::filesystem::path base (temporary.path ().toStdString ());
+  const std::string target_id= "11111111-1111-4111-8111-111111111111";
+  const std::string hinted=
+    "tmfs://wikilink/" + target_id + "/Wrong.ath/Wrong-anchor";
+  const std::string bare= "tmfs://wikilink/" + target_id;
+
+  auto make_document= [] (tree body) {
+    tree content (DOCUMENT);
+    content << body;
+    tree document (DOCUMENT);
+    document << compound ("style", tuple ("generic"))
+             << compound ("body", content);
+    return document;
+  };
+  auto wikilink= [&] {
+    tree link (make_tree_label ("hlink"));
+    link << tree ("target") << tree (hinted.c_str ());
+    return link;
+  };
+  auto write_v1= [&] (const std::filesystem::path& root,
+                       const char* name, tree body) {
+    const std::string xml= athena::document::write_xml (make_document (body));
+    std::ofstream output (root / name, std::ios::binary | std::ios::trunc);
+    output.write (xml.data (), std::streamsize (xml.size ()));
+  };
+  auto write_v2= [&] (const std::filesystem::path& root,
+                       const char* name, tree body) {
+    const std::string xml= athena::document::write_xml_v2 (make_document (body));
+    std::ofstream output (root / name, std::ios::binary | std::ios::trunc);
+    output.write (xml.data (), std::streamsize (xml.size ()));
+  };
+
+  const std::filesystem::path migrated= base / "migrated";
+  std::filesystem::create_directory (migrated);
+  AthenaVaultfileInfo migrated_info;
+  migrated_info.map_path= "maps.sqlite";
+  migrated_info.node_model_version= 1;
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (migrated, migrated_info, error),
+            error.c_str ());
+  write_v2 (migrated, "A.ath", wikilink ());
+  tree identified ("Native target");
+  athena::node::metadata metadata;
+  metadata.id= target_id;
+  athena::node::set (identified, metadata);
+  write_v2 (migrated, "B.ath", identified);
+  write_v2 (migrated, "C.ath", tree ("Wrong map target"));
+
+  string load_error= vault_load (
+    url_system (string (migrated.string ().c_str ())), "Migrated",
+    "maps.sqlite");
+  QVERIFY2 (load_error == "", as_charp (load_error));
+  QCOMPARE (vault_get_node_model_version (), 1);
+  vault_set_node (string (target_id.c_str ()), "C.ath", "wrong", "wrong");
+  tree stale_map= vault_get_node (string (target_id.c_str ()));
+  QVERIFY (is_tuple (stale_map));
+  QCOMPARE (stale_map[0], tree ("C.ath"));
+
+  QVERIFY (athena_link_peek_native_target (string (hinted.c_str ())));
+  QVERIFY (athena_node_reference_target (string (bare.c_str ())));
+  std::vector<AthenaReferenceGraphEdge> edges;
+  QVERIFY2 (athena_reference_graph_query (
+    "A.ath", 1, edges, {}, error), error.c_str ());
+  QCOMPARE (edges.size (), (size_t) 1);
+  QCOMPARE (edges.front ().referenced_path, std::string ("B.ath"));
+  QCOMPARE (edges.front ().referencing_path, std::string ("A.ath"));
+
+  // Changing compatibility map state must not redirect a migrated wikilink.
+  vault_set_node (string (target_id.c_str ()), "A.ath", "", "");
+  edges.clear ();
+  QVERIFY2 (athena_reference_graph_query (
+    "A.ath", 1, edges, {}, error), error.c_str ());
+  QCOMPARE (edges.size (), (size_t) 1);
+  QCOMPARE (edges.front ().referenced_path, std::string ("B.ath"));
+  vault_close ();
+
+  const std::filesystem::path legacy= base / "legacy";
+  std::filesystem::create_directory (legacy);
+  AthenaVaultfileInfo legacy_info;
+  legacy_info.map_path= "maps.sqlite";
+  legacy_info.node_model_version= 0;
+  error.clear ();
+  QVERIFY2 (athena_vaultfile_write (legacy, legacy_info, error), error.c_str ());
+  write_v1 (legacy, "A.ath", wikilink ());
+  write_v1 (legacy, "B.ath", tree ("Legacy B"));
+  write_v1 (legacy, "C.ath", tree ("Legacy C"));
+
+  load_error= vault_load (
+    url_system (string (legacy.string ().c_str ())), "Legacy", "maps.sqlite");
+  QVERIFY2 (load_error == "", as_charp (load_error));
+  QCOMPARE (vault_get_node_model_version (), 0);
+  vault_set_node (string (target_id.c_str ()), "C.ath", "", "");
+  QVERIFY (!athena_link_peek_native_target (string (hinted.c_str ())));
+  QVERIFY (!athena_node_reference_target (string (bare.c_str ())));
+  edges.clear ();
+  QVERIFY2 (athena_reference_graph_query (
+    "A.ath", 1, edges, {}, error), error.c_str ());
+  QCOMPARE (edges.size (), (size_t) 1);
+  QCOMPARE (edges.front ().referenced_path, std::string ("C.ath"));
+
+  // Unmigrated vaults deliberately keep map.sqlite as identity authority.
+  vault_set_node (string (target_id.c_str ()), "B.ath", "", "");
+  edges.clear ();
+  QVERIFY2 (athena_reference_graph_query (
+    "A.ath", 1, edges, {}, error), error.c_str ());
+  QCOMPARE (edges.size (), (size_t) 1);
+  QCOMPARE (edges.front ().referenced_path, std::string ("B.ath"));
   vault_close ();
 }
 

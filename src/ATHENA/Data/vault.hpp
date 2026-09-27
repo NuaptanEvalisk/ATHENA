@@ -30,6 +30,7 @@ struct vault_context {
   std::filesystem::path map_db;
   std::filesystem::path namespace_db;
   std::string name;
+  int node_model_version= 0;
   std::string incarnation;
   std::shared_ptr<athena::filesystem::vault_directory_lease> directory_lease;
 };
@@ -44,6 +45,7 @@ struct vault_info {
   url    root;
   url    db_url;
   url    ns_db_url;
+  int    node_model_version= 0;
 };
 
 /* Global vault state */
@@ -57,6 +59,7 @@ string vault_get_name ();
 url  vault_get_root ();
 url  vault_get_map_db ();
 url  vault_get_namespace_db ();
+int  vault_get_node_model_version ();
 MaterialsStore* vault_get_materials_store ();
 string vault_load (url root_dir, string name, string db_rel_path);
 string vault_load (url root_dir, string name, string db_rel_path,

@@ -2807,6 +2807,7 @@
   <binding name="vault-get-node" native="vault_get_node" returns="tree">
     <arg type="string" />
   </binding>
+  <binding name="vault-get-node-model-version" native="vault_get_node_model_version" returns="int" />
   <binding name="vault-remove-node" native="vault_remove_node" returns="void">
     <arg type="string" />
   </binding>
