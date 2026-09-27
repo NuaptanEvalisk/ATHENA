@@ -185,22 +185,19 @@ void migrate_bold_trees (const std::filesystem::path& file, const vault_upgrade_
   db.exec ("PRAGMA wal_checkpoint(TRUNCATE)");
 }
 
-void seed (const std::filesystem::path& file, bool rag,
+void seed (const std::filesystem::path& file,
            const std::vector<vault_upgrade_revision>& revisions,
            const vault_upgrade_progress& progress) {
   database db (file);
   verify (db);
   if (!table_exists (db, "documents"))
     throw std::runtime_error ("Unknown index schema: " + file.string ());
-  const std::string metadata= rag ? "meta" : "artifact_metadata";
-  // Older artifact/RAG writers did not stamp a schema version. Recognize their
-  // document revision columns before creating metadata, as the live readers do.
-  for (const auto* column: {rag ? "rel_path" : "path", "size", "mtime_ns"})
+  const std::string metadata= "artifact_metadata";
+  // Older artifact writers did not stamp a schema version. Recognize their
+  // document revision columns before creating metadata, as the live reader does.
+  for (const auto* column: {"path", "size", "mtime_ns"})
     if (!column_exists (db, "documents", column))
       throw std::runtime_error ("Unknown index schema: " + file.string ());
-  if (rag && (!column_exists (db, "documents", "content_hash") ||
-              !column_exists (db, "documents", "status")))
-    throw std::runtime_error ("Unknown RAG index schema: " + file.string ());
   if (table_exists (db, metadata)) {
     statement version (db, "SELECT value FROM " + metadata + " WHERE key='schema-version'");
     if (version.step () == SQLITE_ROW) {
@@ -211,33 +208,24 @@ void seed (const std::filesystem::path& file, bool rag,
   db.exec ("BEGIN IMMEDIATE");
   db.exec ("CREATE TABLE IF NOT EXISTS " + metadata +
            "(key TEXT PRIMARY KEY,value TEXT NOT NULL)");
-  if (rag) {
-    if (!column_exists (db, "documents", "storage_hash"))
-      db.exec ("ALTER TABLE documents ADD COLUMN storage_hash TEXT NOT NULL DEFAULT '';"
-               "UPDATE documents SET storage_hash=content_hash,content_hash=''");
-  }
-  else {
-    if (!column_exists (db, "documents", "semantic_hash"))
-      db.exec ("ALTER TABLE documents ADD COLUMN semantic_hash TEXT NOT NULL DEFAULT ''");
-    if (table_exists (db, "artifact_range_cache") &&
-        !column_exists (db, "artifact_range_cache", "semantic_hash"))
-      db.exec ("ALTER TABLE artifact_range_cache ADD COLUMN semantic_hash TEXT NOT NULL DEFAULT ''");
-    migrate_names (db, progress);
-  }
+  if (!column_exists (db, "documents", "semantic_hash"))
+    db.exec ("ALTER TABLE documents ADD COLUMN semantic_hash TEXT NOT NULL DEFAULT ''");
+  if (table_exists (db, "artifact_range_cache") &&
+      !column_exists (db, "artifact_range_cache", "semantic_hash"))
+    db.exec ("ALTER TABLE artifact_range_cache ADD COLUMN semantic_hash TEXT NOT NULL DEFAULT ''");
+  migrate_names (db, progress);
   db.exec ("INSERT INTO " + metadata + "(key,value) VALUES('schema-version','2') "
            "ON CONFLICT(key) DO UPDATE SET value='2'");
   for (const auto& r: revisions) {
     // Empty semantic revisions are safe to initialize only while the original
     // storage revision still matches. Stale records remain stale, never blessed.
-    statement update (db, rag ?
-      "UPDATE documents SET content_hash=?1 WHERE rel_path=?2 AND size=?3 AND mtime_ns=?4 "
-      "AND storage_hash=?5 AND content_hash='' AND status='ok'" :
-      "UPDATE documents SET semantic_hash=?1 WHERE path=?2 AND size=?3 AND mtime_ns=?4 AND semantic_hash=''");
+    statement update (db,
+      "UPDATE documents SET semantic_hash=?1 WHERE path=?2 AND size=?3 "
+      "AND mtime_ns=?4 AND semantic_hash=''");
     update.text (1, r.semantic_hash); update.text (2, r.path);
     update.number (3, r.size); update.number (4, r.mtime);
-    if (rag) update.text (5, r.storage_hash);
     update.step ();
-    if (!rag && table_exists (db, "artifact_range_cache")) {
+    if (table_exists (db, "artifact_range_cache")) {
       statement ranges (db, "UPDATE artifact_range_cache SET semantic_hash=?1 "
         "WHERE path=?2 AND size=?3 AND mtime_ns=?4 AND semantic_hash=''");
       ranges.text (1, r.semantic_hash); ranges.text (2, r.path);
@@ -247,7 +235,7 @@ void seed (const std::filesystem::path& file, bool rag,
   db.exec ("COMMIT");
   verify (db);
   // Consolidate private WAL data before publishing the directory. No connection
-  // to the original vault is opened, and no chunk/vector/model row is rewritten.
+  // to the original vault is opened.
   db.exec ("PRAGMA wal_checkpoint(TRUNCATE)");
 }
 }
@@ -259,15 +247,41 @@ void prepare_vault_upgrade_indexes (const std::filesystem::path& root,
   std::string error;
   if (!athena_vaultfile_read (root, info, error)) throw std::runtime_error (error);
   filesystem::confined_root storage (root);
-  for (const auto& item: {std::make_pair (info.artifacts_path, false),
-                          std::make_pair (info.rag_index_path, true)}) {
-    const std::filesystem::path relative (item.first);
+  {
+    const std::filesystem::path relative (info.artifacts_path);
     if (relative.empty () || relative.is_absolute ())
       throw std::runtime_error ("Index path must stay inside vault");
     for (const auto& part: relative) filesystem::confined_root::validate_component (part.string ());
-    if (!std::filesystem::exists (root / relative)) continue;
-    storage.open (relative); // Reject symlinked database paths before SQLite opens them.
-    seed (root / relative, item.second, revisions, progress);
+    if (std::filesystem::exists (root / relative)) {
+      storage.open (relative); // Reject symlinked database paths before SQLite opens them.
+      seed (root / relative, revisions, progress);
+    }
+  }
+  {
+    // RAG is derived data. The v3 cutover intentionally has no migration path
+    // for old vector databases. The complete original remains in the sibling
+    // whole-vault backup after exchange; the upgraded live snapshot rebuilds.
+    const std::filesystem::path relative (info.rag_index_path);
+    if (relative.empty () || relative.is_absolute ())
+      throw std::runtime_error ("RAG index path must stay inside vault");
+    for (const auto& part: relative)
+      filesystem::confined_root::validate_component (part.string ());
+    if (std::filesystem::exists (root / relative)) {
+      storage.open (relative); // Reject a symlink before deleting the snapshot copy.
+      std::error_code ec;
+      for (const auto& path: {
+             root / relative,
+             std::filesystem::path ((root / relative).string () + "-wal"),
+             std::filesystem::path ((root / relative).string () + "-shm")}) {
+        std::filesystem::remove (path, ec);
+        if (ec && std::filesystem::exists (path))
+          throw std::runtime_error (
+            "Could not discard old RAG index: " + path.string () + ": " +
+            ec.message ());
+        ec.clear ();
+      }
+      if (progress) progress ("Discard old RAG index", 1, 1, relative.string ());
+    }
   }
   const std::filesystem::path bold (info.bold_text_path);
   if (bold.empty () || bold.is_absolute ())

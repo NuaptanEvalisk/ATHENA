@@ -28,7 +28,7 @@ vault_upgrade_result upgrade_vault_format (
 int upgrade_vault_format_cli (const std::filesystem::path&);
 
 struct vault_upgrade_revision {
-  std::string path, semantic_hash, storage_hash;
+  std::string path, semantic_hash;
   long long size, mtime;
 };
 // Called only on the private snapshot, before any document bytes are replaced.

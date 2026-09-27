@@ -25,6 +25,7 @@
 #include "object.hpp"
 #include "outline_snapshot.hpp"
 #include "Data/interop_document_source.hpp"
+#include "Subsystems/RAG/rag_realtime_generation.hpp"
 #include "tm_buffer.hpp"
 #include "tm_window.hpp"
 
@@ -35,6 +36,7 @@
 #endif
 
 #include <cstdio>
+#include <atomic>
 #include <cmath>
 #include <cstring>
 #include <exception>
@@ -44,6 +46,7 @@
 namespace {
 
 std::mutex actor_registry_lock;
+std::atomic<std::uint64_t> continuous_rag_save_sequence {1};
 using actor_entry= actor_lifetime<buffer_actor>;
 std::unordered_map<athena_actor_id, std::shared_ptr<actor_entry>> actor_registry;
 
@@ -1296,7 +1299,33 @@ buffer_actor::dispatch (actor_command_record& command) {
             path, document, saved);
       }
       if (saved.durability == athena::document::upgrade_durability::durable)
+      {
         command.argument[0]= 0;
+        if (N(vault_text) != 0 && !saved.xml_sha256.empty ()) {
+          const std::uint64_t save_sequence=
+            continuous_rag_save_sequence.fetch_add (
+              1, std::memory_order_relaxed);
+          athena::rag::rag_note_saved_generation (path, save_sequence);
+          editor_rep* target= save_editor;
+          if (target == nullptr || target->ui_endpoint == nullptr) {
+            target= nullptr;
+            for (auto& entry: impl_->views)
+              if (entry.second.instance->ui_endpoint != nullptr) {
+                target= entry.second.instance.operator -> ();
+                break;
+              }
+          }
+          if (target != nullptr && target->ui_endpoint != nullptr) {
+            string metadata= copy (vault_text);
+            metadata << '\0';
+            metadata << string (saved.xml_sha256.data (),
+                                static_cast<int> (saved.xml_sha256.size ()));
+            (void) target->ui_endpoint->publish_text_pair (
+              actor_command_kind::ui_continuous_rag_saved, copy (native),
+              std::move (metadata), save_sequence);
+          }
+        }
+      }
       else
         std_warning << "Document was replaced but directory sync failed for "
                     << impl_->state.name << LF;

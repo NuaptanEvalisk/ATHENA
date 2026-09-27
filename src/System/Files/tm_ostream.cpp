@@ -213,6 +213,12 @@ athena_get_worker_logger () {
 } // namespace
 
 void
+athena_spdlog_debug (const std::string& message) {
+  std::shared_ptr<spdlog::logger> logger= athena_get_worker_logger ();
+  if (logger) athena_log_line (logger, spdlog::level::debug, message);
+}
+
+void
 athena_spdlog_info (const std::string& message) {
   std::shared_ptr<spdlog::logger> logger= athena_get_worker_logger ();
   if (logger) athena_log_line (logger, spdlog::level::info, message);

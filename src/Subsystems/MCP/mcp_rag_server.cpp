@@ -262,6 +262,7 @@ call_tool (const QString& name, const QJsonObject& args) {
     o["vault_root"]= QString::fromStdString (s.vault_root);
     o["db_path"]= QString::fromStdString (s.db_path);
     o["embedding_model"]= QString::fromStdString (s.embedding_model);
+    o["embedding_space"]= QString::fromStdString (s.embedding_space);
     o["embeddings_enabled"]= s.embeddings_enabled;
     o["embedding_warning"]= QString::fromStdString (s.embedding_warning);
     o["document_count"]= s.document_count;
@@ -568,7 +569,7 @@ identity_result () {
       delegation_keypair.public_key));
   QJsonArray caps;
   caps.append ("athena-delegation-v2");
-  caps.append ("rag-embedding-v2");
+  caps.append ("rag-embedding-v3");
   if (artifact_queue && artifact_queue->available ())
     caps.append ("artifact-definition-span-v2");
   caps.append ("pending-enrollment");
@@ -683,9 +684,11 @@ handle_delegation_plain_rpc (const QJsonObject& request,
       file.mtime_ns= mtimeValue.isString () ?
         mtimeValue.toString ().toLongLong ():
         qint64 (mtimeValue.toDouble ());
-      file.storage_hash= obj.value ("storage_hash").toString ().toStdString ();
-      file.semantic_hash= obj.value ("semantic_hash").toString ().toStdString ();
-      if (file.storage_hash.empty () || file.semantic_hash.empty ())
+      file.storage_revision=
+        obj.value ("storage_revision").toString ().toStdString ();
+      file.semantic_revision=
+        obj.value ("semantic_revision").toString ().toStdString ();
+      if (file.storage_revision.empty () || file.semantic_revision.empty ())
         return jsonrpc_error_object ("delegated file is missing revision hashes");
       job.files.push_back (std::move (file));
     }
@@ -724,6 +727,12 @@ handle_delegation_plain_rpc (const QJsonObject& request,
       " encoding=" + (useCompression ? "qcompress": "raw"));
     QJsonObject result;
     result["ok"]= true;
+    const std::string patch_space=
+      embedding_runtime && embedding_runtime->available ()
+        ? embedding_runtime->space_id ()
+        : athena::rag::rag_embedding_space_id_for_model (
+            active_options.embedding_model.string ());
+    result["embedding_space"]= QString::fromStdString (patch_space);
     result["patch"]= QString::fromLatin1 (
       wirePatch.toBase64 ());
     result["patch_encoding"]= useCompression ? "qcompress": "raw";

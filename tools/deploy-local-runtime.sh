@@ -111,6 +111,11 @@ if [ -f "$build_dir/src/athena-codex-bridge" ]; then
     "$runtime_dir/bin/athena-codex-bridge" 755
 fi
 
+if [ -f "$build_dir/src/athena-rag-npu-worker" ]; then
+  atomic_install "$build_dir/src/athena-rag-npu-worker" \
+    "$runtime_dir/bin/athena-rag-npu-worker" 755
+fi
+
 for src in "$build_dir"/x64/lib/libqt6advanceddocking*.so.*; do
   deploy_library "$src"
 done

@@ -814,10 +814,15 @@
     ATHENA worker processes.
 
     <item*|Update Continuous RAG during vault maintenance>Runs one incremental
-    Continuous RAG indexing pass after document maintenance. With RAG
-    Delegation enabled, the pass sends only changed <verbatim|.ath> documents
-    to the selected configured server and applies the returned SQLite patch;
-    otherwise it updates <verbatim|rag.sqlite> locally.
+    Continuous RAG reconciliation pass after document maintenance. When
+    realtime Intel NPU indexing is disabled, this is the normal incremental
+    embedding path. When realtime NPU indexing is enabled, document saves have
+    already scheduled asynchronous BGE-M3 updates, so maintenance repairs
+    missed saves, external edits, deletions, and worker downtime. Reconciliation
+    is accepted only when it uses the same BGE-M3 embedding-space contract as
+    the realtime index. With RAG Delegation enabled, the pass sends only changed
+    <verbatim|.ath> documents to the selected configured server and applies the
+    returned SQLite patch; otherwise it updates <verbatim|rag.sqlite> locally.
 
     <item*|If delegated RAG is unavailable>Controls failure handling when the
     selected delegation server is unreachable, refuses authentication, or
@@ -1054,6 +1059,25 @@
     <item*|Embedding device>Chooses automatic device selection or CPU-only
     embedding.
 
+    <item*|Continuous vault indexing with Intel NPU>Continuously scans all
+    documents in the active vault and computes missing or outdated embeddings
+    in an independent OpenVINO worker process. Internal, backup, and Git trees
+    are excluded. Completed scans are followed by periodic rescans. Saving
+    invalidates older work for that document, but neither triggers embedding
+    nor moves the document ahead of others. Stale revisions are not committed.
+    Closing the vault or disabling this option stops its background work.
+
+    <item*|NPU BGE-M3 OpenVINO model>Path to a BAAI/bge-m3 encoder exported as
+    OpenVINO IR or ONNX. The encoder weights run on the Intel NPU. The model
+    directory must contain the matching <verbatim|config.json> so ATHENA can
+    verify the BGE-M3 architecture before compiling it for NPU execution.
+
+    <item*|NPU tokenizer GGUF>Path to the full BGE-M3 GGUF used as the tokenizer
+    and vocabulary contract for realtime NPU embedding. The NPU worker loads
+    this GGUF with llama.cpp in vocabulary-only mode; its neural-network weights
+    are not used for realtime inference. If this field is empty, ATHENA uses the
+    ordinary <em|Embedding model path> as the tokenizer source.
+
     <item*|MCP bearer token>Bearer token required by the local MCP endpoint.
 
     <item*|Token management>Generates a random bearer token or copies the
@@ -1063,6 +1087,17 @@
   The local RAG server is started from the command line with
   <verbatim|ATHENA.bin -H --rag-server VAULT_ROOT>. The endpoint is
   <verbatim|http://127.0.0.1:PORT/mcp> and requires the bearer token above.
+  With realtime NPU indexing enabled, query embedding uses the configured
+  BGE-M3 tokenizer GGUF so query vectors inhabit the same dense CLS/L2 space as
+  NPU document vectors. The shared BGE-M3 contract clips embedding input to
+  12000 UTF-8 bytes, then to at most 8192 tokens, uses CLS pooling, and applies
+  Euclidean normalization.
+
+  Continuous RAG databases use the current RAG persistence format only. When
+  ATHENA encounters a pre-v3 RAG database, it discards that derived database
+  and rebuilds it from the authoritative vault documents instead of migrating
+  old chunk embeddings. This operation does not rewrite <verbatim|.ath>
+  documents.
 
   <subsubsection|Artifact Generation>
 

@@ -21,16 +21,16 @@
 namespace athena::rag::delegation {
 
 inline constexpr int rag_delegation_protocol_version= 2;
-inline constexpr int rag_delegation_job_version= 2;
-inline constexpr int rag_persistence_model_version= 2;
+inline constexpr int rag_delegation_job_version= 3;
+inline constexpr int rag_persistence_model_version= 3;
 
 struct DelegatedFile {
   std::string rel_path;
   std::string content;
   int64_t size= 0;
   int64_t mtime_ns= 0;
-  std::string storage_hash;
-  std::string semantic_hash;
+  std::string storage_revision;
+  std::string semantic_revision;
 };
 
 struct DelegatedJob {
@@ -45,12 +45,12 @@ std::string relative_vault_path (const std::filesystem::path& vault_root,
                                  const std::filesystem::path& file);
 bool read_file_bytes (const std::filesystem::path& file, std::string& bytes);
 int64_t file_mtime_ns (const std::filesystem::path& file);
-std::string content_hash (const std::string& bytes);
+std::string storage_revision (const std::string& bytes);
 
-bool cached_embedding_model_fingerprint (
+bool cached_embedding_space_id (
   const std::filesystem::path& local_db,
   const std::filesystem::path& embedding_model,
-  std::string& fingerprint,
+  std::string& space_id,
   std::string& error);
 
 bool collect_delegated_job (const std::filesystem::path& vault_root,

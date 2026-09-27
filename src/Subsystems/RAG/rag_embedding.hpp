@@ -18,6 +18,9 @@
 namespace athena::rag {
 
 std::string rag_embedding_model_fingerprint (const std::string& model_path);
+std::string rag_llama_embedding_space_id (const std::string& model_fingerprint);
+std::string rag_embedding_space_id_for_model (const std::string& model_path);
+const char* rag_bge_m3_embedding_space_id ();
 
 class RagEmbedder {
 public:
@@ -30,6 +33,7 @@ public:
   bool available () const;
   int  dimension () const;
   std::string model_fingerprint () const;
+  std::string space_id () const;
   std::vector<float> embed (const std::string& text);
   std::vector<std::vector<float>> embed_many (
     const std::vector<std::string>& texts,

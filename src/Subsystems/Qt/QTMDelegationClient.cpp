@@ -457,14 +457,14 @@ qtm_delegation_run_embedding (
   const QString& dbPath, const QString& embeddingModel,
   const QString& embeddingDevice, QString* summary, QString* error) {
   if (!server.capabilities.contains ("athena-delegation-v2") ||
-      !server.capabilities.contains ("rag-embedding-v2")) {
-    if (error) *error= "Delegation server does not support persistence model v2";
+      !server.capabilities.contains ("rag-embedding-v3")) {
+    if (error) *error= "Delegation server does not support RAG persistence model v3";
     return false;
   }
   athena::rag::delegation::DelegatedJob job;
   std::string err;
   std::string expectedModel;
-  if (!athena::rag::delegation::cached_embedding_model_fingerprint (
+  if (!athena::rag::delegation::cached_embedding_space_id (
         fs::path (dbPath.toStdString ()),
         fs::path (embeddingModel.toStdString ()), expectedModel, err)) {
     if (error) *error= QString::fromStdString (err);
@@ -518,8 +518,8 @@ qtm_delegation_run_embedding (
       // JSON numbers cannot exactly represent timestamps above 2^53.
       obj["size"]= QString::number (file.size);
       obj["mtime_ns"]= QString::number (file.mtime_ns);
-      obj["storage_hash"]= QString::fromStdString (file.storage_hash);
-      obj["semantic_hash"]= QString::fromStdString (file.semantic_hash);
+      obj["storage_revision"]= QString::fromStdString (file.storage_revision);
+      obj["semantic_revision"]= QString::fromStdString (file.semantic_revision);
       files.append (obj);
     }
     QJsonArray deleted;
@@ -607,6 +607,15 @@ qtm_delegation_run_embedding (
     }
     if (result.value ("request_id").toString () != requestId) {
       if (error) *error= "Delegation server returned a mismatched RAG request id.";
+      return false;
+    }
+    const QString serverSpace= result.value ("embedding_space").toString ();
+    if (!expectedModel.empty () &&
+        serverSpace != QString::fromStdString (expectedModel)) {
+      if (error)
+        *error= QString ("Delegation server embedding space mismatch: expected %1, got %2")
+                  .arg (QString::fromStdString (expectedModel),
+                        serverSpace.isEmpty () ? QStringLiteral ("<none>") : serverSpace);
       return false;
     }
     QByteArray patchBytes= QByteArray::fromBase64 (

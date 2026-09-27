@@ -2559,9 +2559,14 @@ QTMPreferencesDialog::buildOtherPage () {
     }
     QString dbPath= QString::fromStdString (
       athena::rag::rag_default_db_path (root.toStdString ()));
+    QString embeddingModel= pref ("rag embedding model", "");
+    if (pref ("rag realtime npu enabled", "off") == "on") {
+      QString tokenizer= pref ("rag npu tokenizer gguf", "").trimmed ();
+      if (!tokenizer.isEmpty ()) embeddingModel= tokenizer;
+    }
     QString summary, error;
     if (!qtm_delegation_run_embedding (
-          server, root, dbPath, pref ("rag embedding model", ""),
+          server, root, dbPath, embeddingModel,
           pref ("rag embedding device", "auto"), &summary, &error)) {
       QMessageBox::warning (security, "RAG Delegation", error);
       return;
@@ -2707,6 +2712,61 @@ QTMPreferencesDialog::buildOtherPage () {
   });
   add_combo (rag, "Embedding device:", "rag embedding device",
              {{"auto", "Auto"}, {"cpu", "CPU only"}}, "auto");
+  QCheckBox* realtimeNpu= add_toggle (
+    rag, "Continuous vault indexing with Intel NPU:",
+    "rag realtime npu enabled");
+  QPushButton* chooseNpuModel= nullptr;
+  QLineEdit* npuModel= add_path_chooser_row (
+    rag, "NPU BGE-M3 OpenVINO model:", pref ("rag npu openvino model", ""),
+    chooseNpuModel);
+  mark_preference_control (npuModel->parentWidget (), "rag npu openvino model");
+  QObject::connect (npuModel, &QLineEdit::editingFinished,
+                    [npuModel] () {
+    set_pref ("rag npu openvino model", npuModel->text ().trimmed ());
+  });
+  QObject::connect (chooseNpuModel, &QPushButton::clicked,
+                    [connectivity, npuModel] () {
+    QString selected= QFileDialog::getOpenFileName (
+      connectivity, "Choose BGE-M3 OpenVINO encoder model",
+      npuModel->text ().trimmed (),
+      "OpenVINO / ONNX models (*.xml *.onnx);;All files (*)");
+    if (selected.isEmpty ()) return;
+    npuModel->setText (selected);
+    set_pref ("rag npu openvino model", selected);
+  });
+  QPushButton* chooseNpuTokenizer= nullptr;
+  QLineEdit* npuTokenizer= add_path_chooser_row (
+    rag, "NPU tokenizer GGUF:", pref ("rag npu tokenizer gguf", ""),
+    chooseNpuTokenizer);
+  mark_preference_control (npuTokenizer->parentWidget (),
+                           "rag npu tokenizer gguf");
+  QObject::connect (npuTokenizer, &QLineEdit::editingFinished,
+                    [npuTokenizer] () {
+    set_pref ("rag npu tokenizer gguf", npuTokenizer->text ().trimmed ());
+  });
+  QObject::connect (chooseNpuTokenizer, &QPushButton::clicked,
+                    [connectivity, npuTokenizer] () {
+    QString selected= QFileDialog::getOpenFileName (
+      connectivity, "Choose BGE-M3 tokenizer GGUF",
+      npuTokenizer->text ().trimmed (),
+      "GGUF models (*.gguf);;All files (*)");
+    if (selected.isEmpty ()) return;
+    npuTokenizer->setText (selected);
+    set_pref ("rag npu tokenizer gguf", selected);
+  });
+  auto refreshRealtimeNpuControls=
+    [realtimeNpu, npuModel, chooseNpuModel, npuTokenizer, chooseNpuTokenizer] () {
+      const bool enabled= realtimeNpu->isChecked ();
+      npuModel->setEnabled (enabled);
+      chooseNpuModel->setEnabled (enabled);
+      npuTokenizer->setEnabled (enabled);
+      chooseNpuTokenizer->setEnabled (enabled);
+    };
+  QObject::connect (realtimeNpu, &QCheckBox::toggled,
+                    [refreshRealtimeNpuControls] () {
+    refreshRealtimeNpuControls ();
+  });
+  refreshRealtimeNpuControls ();
   QLineEdit* bearerToken= add_line_edit (
     rag, "MCP bearer token:", "rag mcp bearer token", "", false);
   QWidget* tokenButtons= new QWidget (connectivity);

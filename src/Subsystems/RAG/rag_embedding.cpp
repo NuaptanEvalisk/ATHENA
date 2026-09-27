@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "rag_embedding.hpp"
+#include "rag_embedding_contract.hpp"
 
 #include "tm_ostream.hpp"
 
@@ -33,7 +34,7 @@ namespace {
 
 static bool llama_ready= false;
 static std::mutex llama_ready_mutex;
-constexpr int embedding_context_tokens= 8192;
+constexpr int embedding_context_tokens= bge_m3_max_tokens;
 constexpr int embedding_batch_tokens= 4096;
 constexpr int embedding_max_sequences= 8;
 
@@ -98,6 +99,7 @@ struct RagEmbedder::Impl {
   common_init_result_ptr init;
   int dim= 0;
   std::string fingerprint;
+  std::string space;
 
   llama_model* model () const {
     return init? init->model (): nullptr;
@@ -107,6 +109,53 @@ struct RagEmbedder::Impl {
     return init? init->context (): nullptr;
   }
 };
+
+static std::string
+model_metadata (const llama_model* model, const char* key) {
+  if (model == nullptr || key == nullptr) return {};
+  std::vector<char> buffer (512, '\0');
+  int32_t written= llama_model_meta_val_str (
+    model, key, buffer.data (), buffer.size ());
+  if (written >= static_cast<int32_t> (buffer.size ())) {
+    buffer.assign (static_cast<std::size_t> (written) + 1, '\0');
+    written= llama_model_meta_val_str (
+      model, key, buffer.data (), buffer.size ());
+  }
+  if (written <= 0) return {};
+  return std::string (buffer.data (), static_cast<std::size_t> (written));
+}
+
+static std::string
+lower_ascii (std::string value) {
+  for (char& c: value)
+    if (c >= 'A' && c <= 'Z') c= static_cast<char> (c - 'A' + 'a');
+  return value;
+}
+
+const char*
+rag_bge_m3_embedding_space_id () {
+  return bge_m3_embedding_space_id;
+}
+
+static bool
+is_bge_m3_metadata (const llama_model* model) {
+  if (model == nullptr) return false;
+  const llama_vocab* vocab= llama_model_get_vocab (model);
+  if (vocab == nullptr || llama_vocab_n_tokens (vocab) != bge_m3_vocab_size ||
+      llama_vocab_bos (vocab) != bge_m3_bos_token ||
+      llama_vocab_pad (vocab) != bge_m3_pad_token ||
+      llama_vocab_eos (vocab) != bge_m3_eos_token)
+    return false;
+  return lower_ascii (model_metadata (model, "general.architecture")) == "bert" &&
+         model_metadata (model, "bert.embedding_length") == "1024" &&
+         model_metadata (model, "bert.pooling_type") == "2" &&
+         lower_ascii (model_metadata (model, "tokenizer.ggml.model")) == "t5";
+}
+
+static bool
+is_bge_m3_model (const llama_model* model, int dim) {
+  return dim == bge_m3_embedding_dimension && is_bge_m3_metadata (model);
+}
 
 static std::vector<llama_token>
 tokenize_text (llama_context* ctx, const std::string& text) {
@@ -176,9 +225,13 @@ RagEmbedder::open (const std::string& model_path,
 
   impl->dim= llama_model_n_embd_out (impl->model ());
   impl->fingerprint= stable_file_fingerprint (model_path);
+  impl->space= is_bge_m3_model (impl->model (), impl->dim) &&
+               llama_pooling_type (impl->context ()) == LLAMA_POOLING_TYPE_CLS
+    ? std::string (rag_bge_m3_embedding_space_id ())
+    : rag_llama_embedding_space_id (impl->fingerprint);
   athena_spdlog_info (
     "rag embedding: loaded " + model_path +
-    " dim=" + std::to_string (impl->dim));
+    " dim=" + std::to_string (impl->dim) + " space=" + impl->space);
   return true;
 }
 
@@ -196,6 +249,40 @@ RagEmbedder::dimension () const {
 std::string
 RagEmbedder::model_fingerprint () const {
   return impl->fingerprint;
+}
+
+std::string
+rag_llama_embedding_space_id (const std::string& model_fingerprint) {
+  if (model_fingerprint.empty ()) return "";
+  // This identifier names the complete vector-space contract implemented by
+  // this backend, not merely a model file.  A future backend may deliberately
+  // claim the same space only after tokenizer/pooling/normalization parity has
+  // been verified against this contract.
+  return "athena-embedding/llama-gguf/v1/" + model_fingerprint;
+}
+
+std::string
+RagEmbedder::space_id () const {
+  return impl->space;
+}
+
+std::string
+rag_embedding_space_id_for_model (const std::string& model_path) {
+  if (model_path.empty () || !fs::exists (model_path)) return {};
+  ensure_llama_ready ();
+  llama_model_params params= llama_model_default_params ();
+  params.vocab_only= true;
+  params.n_gpu_layers= 0;
+  llama_model* model= llama_model_load_from_file (model_path.c_str (), params);
+  if (model == nullptr) return {};
+  // vocab_only deliberately skips tensor construction, so identify a known
+  // embedding space from stable tokenizer/model metadata instead of asking the
+  // unloaded model for a tensor-derived output dimension.
+  bool bge_m3= is_bge_m3_metadata (model);
+  llama_model_free (model);
+  if (bge_m3) return rag_bge_m3_embedding_space_id ();
+  std::string fingerprint= stable_file_fingerprint (model_path);
+  return rag_llama_embedding_space_id (fingerprint);
 }
 
 std::string
@@ -221,7 +308,8 @@ RagEmbedder::embed_many (
   for (size_t i=0; i<texts.size (); i++) {
     if (texts[i].empty ()) continue;
     std::string clipped= texts[i];
-    if (clipped.size () > 12000) clipped.resize (12000);
+    if (clipped.size () > bge_m3_input_byte_limit)
+      clipped.resize (bge_m3_input_byte_limit);
     tokenized[i]= tokenize_text (impl->context (), clipped);
   }
 

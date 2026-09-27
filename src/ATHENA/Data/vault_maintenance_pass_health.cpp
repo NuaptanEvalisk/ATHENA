@@ -13,6 +13,8 @@
 #include "QTMDelegationClient.hpp"
 #include "boot.hpp"
 #include "convert.hpp"
+#include "rag_embedding.hpp"
+#include "rag_embedding_contract.hpp"
 #include "rag_index.hpp"
 #include "scheme.hpp"
 
@@ -285,12 +287,42 @@ rag_database_status (const fs::path& root) {
 }
 
 static bool
-run_local_rag_update (VaultMaintenanceContext& ctx, std::string& error) {
+realtime_npu_enabled () {
+  return tm_to_std (get_preference ("rag realtime npu enabled", "off")) == "on";
+}
+
+static bool
+maintenance_embedding_model (fs::path& model, std::string& reason) {
+  const fs::path ordinary (tm_to_std (get_preference ("rag embedding model", "")));
+  if (!realtime_npu_enabled ()) {
+    model= ordinary;
+    return true;
+  }
+
+  std::vector<fs::path> candidates;
+  if (!ordinary.empty ()) candidates.push_back (ordinary);
+  fs::path tokenizer (tm_to_std (get_preference ("rag npu tokenizer gguf", "")));
+  if (!tokenizer.empty () && tokenizer != ordinary) candidates.push_back (tokenizer);
+  for (const fs::path& candidate: candidates) {
+    if (athena::rag::rag_embedding_space_id_for_model (candidate.string ()) ==
+        athena::rag::bge_m3_embedding_space_id) {
+      model= candidate;
+      return true;
+    }
+  }
+  reason= candidates.empty ()
+    ? "realtime NPU is enabled but no BGE-M3 GGUF is configured for maintenance reconciliation"
+    : "realtime NPU is enabled but the maintenance/tokenizer GGUF does not match the active BGE-M3 embedding space";
+  return false;
+}
+
+static bool
+run_local_rag_update (VaultMaintenanceContext& ctx,
+                      const fs::path& embedding_model, std::string& error) {
   athena::rag::RagConfig config;
   config.vault_root= ctx.root;
   config.db_path= fs::path (athena::rag::rag_default_db_path (ctx.root));
-  config.embedding_model= fs::path (tm_to_std (
-    get_preference ("rag embedding model", "")));
+  config.embedding_model= embedding_model;
   config.embedding_device= tm_to_std (
     get_preference ("rag embedding device", "auto"));
   config.force_reindex= false;
@@ -322,7 +354,9 @@ run_local_rag_update (VaultMaintenanceContext& ctx, std::string& error) {
 }
 
 static bool
-run_delegated_rag_update (VaultMaintenanceContext& ctx, std::string& error) {
+run_delegated_rag_update (VaultMaintenanceContext& ctx,
+                          const fs::path& embedding_model,
+                          std::string& error) {
   athena::rag::RagStatus before= rag_database_status (ctx.root);
   ctx.summary.rag_documents_before= before.document_count;
   ctx.summary.rag_documents_after= before.document_count;
@@ -341,8 +375,7 @@ run_delegated_rag_update (VaultMaintenanceContext& ctx, std::string& error) {
   if (!qtm_delegation_run_embedding (
         server, QString::fromStdString (ctx.root.string ()),
         QString::fromStdString (athena::rag::rag_default_db_path (ctx.root)),
-        QString::fromStdString (tm_to_std (
-          get_preference ("rag embedding model", ""))),
+        QString::fromStdString (embedding_model.string ()),
         QString::fromStdString (tm_to_std (
           get_preference ("rag embedding device", "auto"))),
         &delegated_summary, &qerror)) {
@@ -365,18 +398,31 @@ vault_maintenance_pass_continuous_rag (VaultMaintenanceContext& ctx) {
     return VaultMaintenancePassResult::success ("disabled by preference");
   }
 
+  fs::path embedding_model;
+  std::string compatibility_error;
+  if (!maintenance_embedding_model (embedding_model, compatibility_error)) {
+    ctx.summary.rag_result= compatibility_error + "; RAG reconciliation skipped";
+    ctx.warnings.push_back ("Continuous RAG: " + ctx.summary.rag_result);
+    log_info ("continuous RAG: " + ctx.summary.rag_result);
+    return VaultMaintenancePassResult::success (ctx.summary.rag_result);
+  }
+
   std::string error;
   if (!ctx.summary.rag_delegation_enabled) {
-    log_info ("continuous RAG: running incremental local indexing");
-    if (run_local_rag_update (ctx, error))
+    log_info (realtime_npu_enabled ()
+      ? "continuous RAG: reconciling realtime BGE-M3 index locally"
+      : "continuous RAG: running incremental local indexing");
+    if (run_local_rag_update (ctx, embedding_model, error))
       return VaultMaintenancePassResult::success (ctx.summary.rag_result);
     ctx.summary.rag_result= error;
     return VaultMaintenancePassResult::failure (error);
   }
 
   ctx.summary.rag_delegation_attempted= true;
-  log_info ("continuous RAG: attempting delegated incremental embedding");
-  if (run_delegated_rag_update (ctx, error)) {
+  log_info (realtime_npu_enabled ()
+    ? "continuous RAG: attempting delegated BGE-M3 reconciliation"
+    : "continuous RAG: attempting delegated incremental embedding");
+  if (run_delegated_rag_update (ctx, embedding_model, error)) {
     ctx.summary.rag_delegation_succeeded= true;
     return VaultMaintenancePassResult::success (ctx.summary.rag_result);
   }
@@ -396,7 +442,7 @@ vault_maintenance_pass_continuous_rag (VaultMaintenanceContext& ctx) {
   ctx.warnings.push_back (delegated_error + "; using local fallback");
   log_info (delegated_error + "; running local fallback");
   std::string local_error;
-  if (run_local_rag_update (ctx, local_error)) {
+  if (run_local_rag_update (ctx, embedding_model, local_error)) {
     ctx.summary.rag_result= delegated_error + "; local fallback succeeded";
     return VaultMaintenancePassResult::success (
       ctx.summary.rag_result);

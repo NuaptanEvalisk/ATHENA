@@ -25,6 +25,7 @@
 #include "QTMCompletionPopup.hpp"
 #include "QTMCommutativeDiagramArrowPane.hpp"
 #include "QTMVaultBackupDispatcher.hpp"
+#include "QTMContinuousRag.hpp"
 #include "QTMVaultExplorer.hpp"
 #include "ATHENA/Math/native_shape_recognizer.hpp"
 #include "qt_utilities.hpp"
@@ -719,6 +720,20 @@ qt_actor_widget_rep::drain_external_effects () {
       string saved_file=
         actor_text_registry::instance ().take (record.payload0);
       qtm_vault_backup_dispatch_realtime (to_qstring (saved_file));
+      break;
+    }
+    case actor_command_kind::ui_continuous_rag_saved: {
+      string saved_file= actor_text_registry::instance ().take (record.payload0);
+      string metadata= actor_text_registry::instance ().take (record.payload1);
+      int split= 0;
+      while (split < N(metadata) && metadata[split] != '\0') ++split;
+      if (split < N(metadata)) {
+        string vault= metadata (0, split);
+        string revision= metadata (split + 1, N(metadata));
+        qtm_continuous_rag_saved (
+          to_qstring (saved_file), to_qstring (vault), to_qstring (revision),
+          record.argument[0]);
+      }
       break;
     }
     case actor_command_kind::ui_vault_explorer_track_file: {

@@ -12,6 +12,7 @@
 #include "vault_map_sqlite.hpp"
 #include "reference_graph_cache.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
+#include "Data/Convert/Xml/document_upgrade_file.hpp"
 #include "Subsystems/RAG/rag_index.hpp"
 #include "vault_safe_rename.hpp"
 #include "vaultfile_json.hpp"
@@ -45,7 +46,10 @@ private slots:
   void extractsDocumentReferencesWithoutHints ();
   void cachesBoundedAndUnlimitedReferenceGraphs ();
   void cachesAndInvalidatesStructuralTransclusions ();
-  void preservesRagChunksAcrossStorageFormatRewrite ();
+  void rebuildsOldRagDatabaseAndPreservesV3SemanticRewrite ();
+  void ragGenerationCommitIsAtomicAndReusesShiftedChunks ();
+  void ragSweepExcludesInternalTrees ();
+  void ragEnunciationChunksAreUnique ();
 };
 
 namespace {
@@ -554,7 +558,7 @@ TestVaultMapSqlite::cachesBoundedAndUnlimitedReferenceGraphs () {
 }
 
 void
-TestVaultMapSqlite::preservesRagChunksAcrossStorageFormatRewrite () {
+TestVaultMapSqlite::rebuildsOldRagDatabaseAndPreservesV3SemanticRewrite () {
   QTemporaryDir temporary;
   QVERIFY (temporary.isValid ());
   std::filesystem::path root (temporary.path ().toStdString ());
@@ -597,42 +601,19 @@ TestVaultMapSqlite::preservesRagChunksAcrossStorageFormatRewrite () {
     database, "SELECT chunk_id FROM chunks ORDER BY chunk_id LIMIT 1;",
     chunk_id_before, error), error.c_str ());
   QVERIFY2 (sqlite_scalar_test (
-    database, "SELECT storage_hash FROM documents WHERE rel_path='Alpha.ath';",
+    database, "SELECT storage_revision FROM documents WHERE rel_path='Alpha.ath';",
     storage_before, error), error.c_str ());
   QVERIFY2 (sqlite_scalar_test (
-    database, "SELECT content_hash FROM documents WHERE rel_path='Alpha.ath';",
+    database, "SELECT semantic_revision FROM documents WHERE rel_path='Alpha.ath';",
     semantic_before, error), error.c_str ());
   QVERIFY (!semantic_before.empty ());
 
   QVERIFY2 (sqlite_exec_test (database,
-    "UPDATE chunks SET embedding=x'01020304',embedding_dim=1,"
-    "embedding_model='sentinel-v1' WHERE rel_path='Alpha.ath';", error),
+    "UPDATE chunks SET embedding_space='sentinel-v3' WHERE rel_path='Alpha.ath';"
+    "INSERT OR REPLACE INTO embeddings(space_id,input_hash,embedding,embedding_dim) "
+    "SELECT 'sentinel-v3',embedding_input_hash,x'01020304',1 FROM chunks "
+    "WHERE rel_path='Alpha.ath' AND embedding_input_hash!='' LIMIT 1;", error),
     error.c_str ());
-
-  // Simulate an existing v1 database: the old content_hash stored the raw
-  // storage hash and there was no storage_hash column. Reopening must migrate
-  // metadata only and preserve chunks and embedding blobs.
-  QVERIFY2 (sqlite_exec_test (database,
-    "UPDATE documents SET content_hash=storage_hash;"
-    "ALTER TABLE documents DROP COLUMN storage_hash;"
-    "INSERT INTO meta(key,value) VALUES('schema-version','1') "
-    "ON CONFLICT(key) DO UPDATE SET value='1';", error), error.c_str ());
-  athena::rag::RagIndex index;
-  QVERIFY (index.open (config));
-  QVERIFY (index.scan_once ());
-  std::string migrated_embedding, migrated_model, migrated_semantic;
-  QVERIFY2 (sqlite_scalar_test (
-    database, "SELECT hex(embedding) FROM chunks ORDER BY chunk_id LIMIT 1;",
-    migrated_embedding, error), error.c_str ());
-  QVERIFY2 (sqlite_scalar_test (
-    database, "SELECT embedding_model FROM chunks ORDER BY chunk_id LIMIT 1;",
-    migrated_model, error), error.c_str ());
-  QVERIFY2 (sqlite_scalar_test (
-    database, "SELECT content_hash FROM documents WHERE rel_path='Alpha.ath';",
-    migrated_semantic, error), error.c_str ());
-  QCOMPARE (migrated_embedding, std::string ("01020304"));
-  QCOMPARE (migrated_model, std::string ("sentinel-v1"));
-  QCOMPARE (migrated_semantic, semantic_before);
 
   auto migrated= athena::document::decode_document_bytes (
     std::string_view (as_charp (legacy_bytes), (std::size_t) N(legacy_bytes)));
@@ -641,9 +622,11 @@ TestVaultMapSqlite::preservesRagChunksAcrossStorageFormatRewrite () {
     std::ofstream output (root / "Alpha.ath", std::ios::binary | std::ios::trunc);
     output.write (xml.data (), std::streamsize (xml.size ()));
   }
+  athena::rag::RagIndex index;
+  QVERIFY (index.open (config));
   QVERIFY (index.scan_once ());
 
-  std::string chunk_count_after, chunk_id_after, embedding_hex, embedding_model;
+  std::string chunk_count_after, chunk_id_after, embedding_hex, embedding_space;
   std::string storage_after, semantic_after;
   QVERIFY2 (sqlite_scalar_test (
     database, "SELECT COUNT(*) FROM chunks;", chunk_count_after, error),
@@ -652,23 +635,203 @@ TestVaultMapSqlite::preservesRagChunksAcrossStorageFormatRewrite () {
     database, "SELECT chunk_id FROM chunks ORDER BY chunk_id LIMIT 1;",
     chunk_id_after, error), error.c_str ());
   QVERIFY2 (sqlite_scalar_test (
-    database, "SELECT hex(embedding) FROM chunks ORDER BY chunk_id LIMIT 1;",
+    database, "SELECT hex(embedding) FROM embeddings "
+              "WHERE space_id='sentinel-v3' LIMIT 1;",
     embedding_hex, error), error.c_str ());
   QVERIFY2 (sqlite_scalar_test (
-    database, "SELECT embedding_model FROM chunks ORDER BY chunk_id LIMIT 1;",
-    embedding_model, error), error.c_str ());
+    database, "SELECT embedding_space FROM chunks ORDER BY chunk_id LIMIT 1;",
+    embedding_space, error), error.c_str ());
   QVERIFY2 (sqlite_scalar_test (
-    database, "SELECT storage_hash FROM documents WHERE rel_path='Alpha.ath';",
+    database, "SELECT storage_revision FROM documents WHERE rel_path='Alpha.ath';",
     storage_after, error), error.c_str ());
   QVERIFY2 (sqlite_scalar_test (
-    database, "SELECT content_hash FROM documents WHERE rel_path='Alpha.ath';",
+    database, "SELECT semantic_revision FROM documents WHERE rel_path='Alpha.ath';",
     semantic_after, error), error.c_str ());
   QCOMPARE (chunk_count_after, chunk_count_before);
   QCOMPARE (chunk_id_after, chunk_id_before);
   QCOMPARE (embedding_hex, std::string ("01020304"));
-  QCOMPARE (embedding_model, std::string ("sentinel-v1"));
+  QCOMPARE (embedding_space, std::string ("sentinel-v3"));
   QVERIFY (storage_after != storage_before);
   QCOMPARE (semantic_after, semantic_before);
+
+  // A pre-v3 RAG database is derived data. Reopening deliberately discards it
+  // instead of migrating embeddings or schema state, then the next scan
+  // rebuilds from the authoritative .ath files.
+  QVERIFY2 (sqlite_exec_test (database,
+    "UPDATE meta SET value='2' WHERE key='schema-version';", error),
+    error.c_str ());
+  {
+    athena::rag::RagIndex rebuilt;
+    QVERIFY (rebuilt.open (config));
+    QVERIFY (rebuilt.scan_once ());
+  }
+  std::string rebuilt_version, rebuilt_embedding;
+  QVERIFY2 (sqlite_scalar_test (
+    database, "SELECT value FROM meta WHERE key='schema-version';",
+    rebuilt_version, error), error.c_str ());
+  QVERIFY2 (sqlite_scalar_test (
+    database, "SELECT count(*) FROM embeddings;",
+    rebuilt_embedding, error), error.c_str ());
+  QCOMPARE (rebuilt_version, std::string ("3"));
+  QCOMPARE (rebuilt_embedding, std::string ("0"));
+}
+
+void
+TestVaultMapSqlite::ragSweepExcludesInternalTrees () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  const std::filesystem::path root (temporary.path ().toStdString ());
+  for (const char* rel: {"Alpha.ath", "nested/Beta.ath", ".athena/cache/C.ath",
+                        ".backup/D.ath", "nested/.git/E.ath"}) {
+    std::filesystem::path file= root / rel;
+    std::filesystem::create_directories (file.parent_path ());
+    std::ofstream output (file);
+    output << "fixture";
+  }
+  const auto files= athena::rag::rag_document_files (root);
+  QCOMPARE (files.size (), std::size_t (2));
+  QVERIFY (files[0] == root / "Alpha.ath");
+  QVERIFY (files[1] == root / "nested/Beta.ath");
+  QVERIFY (athena::rag::rag_document_files (root, [] { return false; }).empty ());
+}
+
+void
+TestVaultMapSqlite::ragEnunciationChunksAreUnique () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  const std::filesystem::path root (temporary.path ().toStdString ());
+  AthenaVaultfileInfo info;
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+
+  tree body (DOCUMENT);
+  body << compound ("definition", "Repeated definition text")
+       << compound ("definition", "Repeated definition text")
+       << compound ("quote-env", compound ("note*", "Nested note text"))
+       << compound ("with", "color", "red", compound ("warning", "Warning text"));
+  tree document (DOCUMENT);
+  document << compound ("style", tuple ("generic")) << compound ("body", body);
+  const std::string xml= athena::document::write_xml (document);
+  std::ofstream output (root / "Enunciations.ath", std::ios::binary);
+  output.write (xml.data (), std::streamsize (xml.size ()));
+  output.close ();
+
+  athena::rag::RagConfig config;
+  config.vault_root= root;
+  config.db_path= root / "rag.sqlite";
+  config.load_embedding_model= false;
+  config.progress= false;
+  athena::rag::RagIndex index;
+  QVERIFY (index.open (config));
+  athena::rag::RagPreparedDocument prepared;
+  QVERIFY (index.prepare_document ("Enunciations.ath", "", "", prepared));
+  QCOMPARE (prepared.chunks.size (), std::size_t (6));
+  QVERIFY (prepared.chunks[0].chunk.chunk_id != prepared.chunks[1].chunk.chunk_id);
+  QCOMPARE (prepared.chunks[3].chunk.kind, std::string ("note"));
+  QCOMPARE (prepared.chunks[3].chunk.tree_path, std::string ("2.0"));
+  QCOMPARE (prepared.chunks[5].chunk.kind, std::string ("warning"));
+  QCOMPARE (prepared.chunks[5].chunk.tree_path, std::string ("3.2"));
+  QVERIFY2 (index.commit_document (prepared, {}), index.status ().last_error.c_str ());
+  // Replacing the same document must remain transactional and nonduplicating.
+  QVERIFY2 (index.commit_document (prepared, {}), index.status ().last_error.c_str ());
+  std::string count;
+  QVERIFY2 (sqlite_scalar_test (config.db_path,
+    "SELECT count(*) FROM chunks;", count, error), error.c_str ());
+  QCOMPARE (count, std::string ("6"));
+}
+
+void
+TestVaultMapSqlite::ragGenerationCommitIsAtomicAndReusesShiftedChunks () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  const std::filesystem::path root (temporary.path ().toStdString ());
+  AthenaVaultfileInfo info;
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+
+  auto write_document= [&] (std::initializer_list<const char*> paragraphs) {
+    tree body (DOCUMENT);
+    for (const char* paragraph: paragraphs) body << tree (paragraph);
+    tree document (DOCUMENT);
+    document << compound ("style", tuple ("generic"))
+             << compound ("body", body);
+    const std::string xml= athena::document::write_xml (document);
+    std::ofstream output (root / "Alpha.ath", std::ios::binary | std::ios::trunc);
+    output.write (xml.data (), std::streamsize (xml.size ()));
+    output.close ();
+    return athena::document::storage_bytes_fingerprint (xml);
+  };
+
+  athena::rag::RagConfig config;
+  config.vault_root= root;
+  config.db_path= root / "rag.sqlite";
+  config.load_embedding_model= false;
+  config.progress= false;
+  athena::rag::RagIndex index;
+  QVERIFY (index.open (config));
+
+  const std::string first_revision= write_document ({
+    "Alpha topology paragraph has enough searchable semantic content.",
+    "Beta geometry paragraph also has enough searchable semantic content."
+  });
+  athena::rag::RagPreparedDocument first;
+  QVERIFY (index.prepare_document (
+    "Alpha.ath", first_revision, "test-embedding-space", first));
+  QCOMPARE (first.missing_embedding_indices.size (), std::size_t (2));
+  const std::vector<std::vector<float>> first_vectors {
+    {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}
+  };
+  QVERIFY (index.commit_document (first, first_vectors, [] { return true; }));
+
+  const std::string second_revision= write_document ({
+    "Inserted algebra paragraph is the only new semantic embedding input.",
+    "Alpha topology paragraph has enough searchable semantic content.",
+    "Beta geometry paragraph also has enough searchable semantic content."
+  });
+  athena::rag::RagPreparedDocument second;
+  QVERIFY (index.prepare_document (
+    "Alpha.ath", second_revision, "test-embedding-space", second));
+  QCOMPARE (second.chunks.size (), std::size_t (3));
+  QCOMPARE (second.missing_embedding_indices.size (), std::size_t (1));
+  QCOMPARE (second.missing_embedding_indices.front (), std::size_t (0));
+  QVERIFY (first.chunks[0].chunk.chunk_id != second.chunks[1].chunk.chunk_id);
+  QVERIFY (first.chunks[1].chunk.chunk_id != second.chunks[2].chunk.chunk_id);
+  QVERIFY (!second.chunks[1].cached_embedding.empty ());
+  QVERIFY (!second.chunks[2].cached_embedding.empty ());
+
+  // The new save supersedes this prepared generation before commit. Nothing
+  // from it, including its newly computed vector, may become durable.
+  const std::vector<std::vector<float>> second_vectors {{0.0f, 0.0f, 1.0f}};
+  QVERIFY (!index.commit_document (second, second_vectors, [] { return false; }));
+  std::string stored_revision, chunk_count, embedding_count;
+  QVERIFY2 (sqlite_scalar_test (
+    config.db_path,
+    "SELECT storage_revision FROM documents WHERE rel_path='Alpha.ath';",
+    stored_revision, error), error.c_str ());
+  QVERIFY2 (sqlite_scalar_test (
+    config.db_path, "SELECT count(*) FROM chunks;", chunk_count, error),
+    error.c_str ());
+  QVERIFY2 (sqlite_scalar_test (
+    config.db_path, "SELECT count(*) FROM embeddings;", embedding_count, error),
+    error.c_str ());
+  QCOMPARE (stored_revision, first_revision);
+  QCOMPARE (chunk_count, std::string ("2"));
+  QCOMPARE (embedding_count, std::string ("2"));
+
+  QVERIFY (index.commit_document (second, second_vectors, [] { return true; }));
+  QVERIFY2 (sqlite_scalar_test (
+    config.db_path,
+    "SELECT storage_revision FROM documents WHERE rel_path='Alpha.ath';",
+    stored_revision, error), error.c_str ());
+  QVERIFY2 (sqlite_scalar_test (
+    config.db_path, "SELECT count(*) FROM chunks;", chunk_count, error),
+    error.c_str ());
+  QVERIFY2 (sqlite_scalar_test (
+    config.db_path, "SELECT count(*) FROM embeddings;", embedding_count, error),
+    error.c_str ());
+  QCOMPARE (stored_revision, second_revision);
+  QCOMPARE (chunk_count, std::string ("3"));
+  QCOMPARE (embedding_count, std::string ("3"));
 }
 
 void

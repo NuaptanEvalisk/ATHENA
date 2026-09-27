@@ -14,6 +14,7 @@ list (REMOVE_ITEM ATHENA_All_SRCS
   "${ATHENA_SOURCE_DIR}/src/Data/String/unicode_text.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Plugins/subscription.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Plugins/package.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Subsystems/RAG/rag_npu_worker.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPluginManager.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPluginUi.cpp"
   "${ATHENA_SOURCE_DIR}/src/System/Misc/tsan_mimalloc_shim.cpp"
@@ -38,6 +39,18 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     "${CMAKE_CURRENT_SOURCE_DIR}/ATHENA/Interop")
   target_link_libraries(athena-plugin-sandbox PRIVATE
     athena_minijail athena_interop Threads::Threads)
+  if (ATHENA_OPENVINO_RUNTIME_FOUND AND LLAMA_FOUND)
+    add_executable(athena-rag-npu-worker
+      Subsystems/RAG/rag_npu_worker.cpp)
+    set_target_properties(athena-rag-npu-worker PROPERTIES AUTOMOC OFF)
+    target_compile_features(athena-rag-npu-worker PRIVATE cxx_std_17)
+    target_include_directories(athena-rag-npu-worker PRIVATE
+      ${ATHENA_OPENVINO_INCLUDE_DIR})
+    target_link_libraries(athena-rag-npu-worker PRIVATE
+      ${ATHENA_OPENVINO_RUNTIME_LIBRARY}
+      ${ATHENA_LLAMA_LIBRARIES}
+      Threads::Threads)
+  endif()
 endif()
 add_library(athena_plugin_runtime STATIC Subsystems/Qt/QTMPluginManager.cpp Subsystems/Qt/QTMPluginManager.hpp)
 set_target_properties(athena_plugin_runtime PROPERTIES AUTOMOC ON)
@@ -116,6 +129,9 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_compile_features (ATHENA-Watchdog PRIVATE cxx_std_17)
   set_target_properties (ATHENA-Watchdog PROPERTIES AUTOMOC OFF)
   add_dependencies (${ATHENA_binary_name} athena-plugin-sandbox)
+  if (TARGET athena-rag-npu-worker)
+    add_dependencies (${ATHENA_binary_name} athena-rag-npu-worker)
+  endif ()
 endif ()
 if (ATHENA_ENABLE_TSAN)
   target_sources (${ATHENA_binary_name} PRIVATE
@@ -225,9 +241,18 @@ if (NOT WIN32)
       COMMAND ${CMAKE_COMMAND} -E copy_if_different
               $<TARGET_FILE:athena-plugin-sandbox>
               "${ATHENA_LOCAL_RUNTIME_DIR}/bin/athena-plugin-sandbox")
+    if (TARGET athena-rag-npu-worker)
+      set (ATHENA_LOCAL_RAG_NPU_WORKER_COPY
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:athena-rag-npu-worker>
+                "${ATHENA_LOCAL_RUNTIME_DIR}/bin/athena-rag-npu-worker")
+    else ()
+      set (ATHENA_LOCAL_RAG_NPU_WORKER_COPY)
+    endif ()
   else ()
     set (ATHENA_LOCAL_WATCHDOG_COPY)
     set (ATHENA_LOCAL_PLUGIN_SANDBOX_COPY)
+    set (ATHENA_LOCAL_RAG_NPU_WORKER_COPY)
   endif ()
   add_custom_target (athena_local_runtime ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory
@@ -262,12 +287,16 @@ if (NOT WIN32)
             $<TARGET_FILE:athena-audmap-repl>
             "${ATHENA_LOCAL_RUNTIME_DIR}/bin/athena-audmap-repl"
     ${ATHENA_LOCAL_PLUGIN_SANDBOX_COPY}
+    ${ATHENA_LOCAL_RAG_NPU_WORKER_COPY}
     COMMENT "Deploying the complete ATHENA runtime tree"
     VERBATIM)
   add_dependencies (athena_local_runtime
                     athena_scheme_bytecode athena_guile_runtime athena-audmap athena-audmap-repl)
   if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_dependencies (athena_local_runtime ATHENA-Watchdog athena-plugin-sandbox)
+    if (TARGET athena-rag-npu-worker)
+      add_dependencies (athena_local_runtime athena-rag-npu-worker)
+    endif ()
   endif ()
 endif ()
 
@@ -286,5 +315,8 @@ else (APPLE)
   install (TARGETS ${ATHENA_binary_name} DESTINATION ${tmbin}/bin)
   if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     install (TARGETS ATHENA-Watchdog DESTINATION ${tmbin}/bin)
+    if (TARGET athena-rag-npu-worker)
+      install (TARGETS athena-rag-npu-worker DESTINATION ${tmbin}/bin)
+    endif ()
   endif ()
 endif (APPLE)

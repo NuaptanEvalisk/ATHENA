@@ -40,6 +40,7 @@
 #include "qt_window_widget.hpp"
 #include "QTMApplication.hpp"
 #include "QTMProgressWindow.hpp"
+#include "QTMContinuousRag.hpp"
 
 
 #include <QDialog>
@@ -775,6 +776,7 @@ gui_open (int& argc, char** argv) {
 void
 gui_start_loop () {
   // start the main loop
+  qtm_continuous_rag_start ();
   the_gui->event_loop ();
 }
 

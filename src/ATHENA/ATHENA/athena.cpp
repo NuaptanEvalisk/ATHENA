@@ -1217,6 +1217,11 @@ TeXmacs_main (int argc, char** argv) {
           athena_to_std_string (rag_embedding_model));
       else {
         string pref_model= get_user_preference ("rag embedding model", "");
+        if (get_user_preference ("rag realtime npu enabled", "off") == "on") {
+          string npu_tokenizer=
+            get_user_preference ("rag npu tokenizer gguf", "");
+          if (npu_tokenizer != "") pref_model= npu_tokenizer;
+        }
         if (pref_model != "")
           options.embedding_model= std::filesystem::path (
             athena_to_std_string (pref_model));

@@ -10,9 +10,11 @@
 
 #include "rag_index.hpp"
 #include "rag_embedding.hpp"
+#include "rag_storage.hpp"
 
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
+#include "Data/Convert/Xml/document_upgrade_file.hpp"
 #include "convert.hpp"
 #include "tm_ostream.hpp"
 
@@ -305,8 +307,9 @@ shard_accepts (const std::string& rel, int shard_index, int shard_count) {
   return int (h % size_t (shard_count)) == shard_index;
 }
 
-static std::vector<fs::path>
-scan_ath_files (const fs::path& root) {
+std::vector<fs::path>
+scan_ath_files (const fs::path& root,
+                    const std::function<bool ()>& current) {
   std::vector<fs::path> out;
   fs::path maintenance_root;
   AthenaVaultfileInfo info;
@@ -324,10 +327,15 @@ scan_ath_files (const fs::path& root) {
     root, fs::directory_options::skip_permission_denied, ec);
   fs::recursive_directory_iterator end;
   for (; !ec && it != end; it.increment (ec)) {
+    if (current && !current ()) return {};
     fs::path p= it->path ();
+    if (it->is_symlink (ec)) {
+      it.disable_recursion_pending ();
+      continue;
+    }
     if (it->is_directory (ec)) {
       std::string name= p.filename ().string ();
-      if (name == ".backup" || name == ".git" ||
+      if (name == ".athena" || name == ".backup" || name == ".git" ||
           (!maintenance_root.empty () &&
            p.lexically_normal () == maintenance_root))
         it.disable_recursion_pending ();
@@ -507,8 +515,11 @@ fts_query (const std::string& query) {
   return out;
 }
 
+static bool should_embed_text (const std::string& text);
+
 struct ChunkBuild {
   RagChunk chunk;
+  std::string embedding_input_hash;
   std::vector<std::string> edges;
 };
 
@@ -529,9 +540,12 @@ add_chunk (std::vector<ChunkBuild>& chunks, const std::string& rel_path,
   c.text= text;
   c.source= snippet_from_text (text);
   c.chunk_id= fnv1a_hex (rel_path + "\n" + c.tree_path + "\n" + c.kind +
-                         "\n" + c.anchor + "\n" + c.title);
+                          "\n" + c.anchor + "\n" + c.title);
   ChunkBuild build;
   build.chunk= c;
+  if (should_embed_text (c.text))
+    build.embedding_input_hash= athena::document::storage_bytes_fingerprint (
+      std::string ("athena-rag-embedding-input-v1\n") + c.text);
   collect_edges (node, build.edges);
   chunks.push_back (build);
 }
@@ -582,7 +596,10 @@ chunk_document (const std::string& rel_path, tree doc) {
     std::string kind= is_atomic (child) ? "text" : strip_star (label_name (child));
     if (kind.empty () || kind == "document" || kind == "concat")
       kind= "block";
-    add_chunk (chunks, rel_path, kind, p, child, headings);
+    // The recursive collector includes its root when it is an enunciation.
+    // Do not emit that same (path, kind) chunk twice.
+    if (!is_enunciation_tag (kind))
+      add_chunk (chunks, rel_path, kind, p, child, headings);
     collect_nested_enunciations (chunks, rel_path, child, p, headings);
   }
 
@@ -608,23 +625,6 @@ exec_sql (sqlite3* db, const char* sql, std::string& error) {
   error= msg == nullptr ? sqlite3_errmsg (db) : msg;
   sqlite3_free (msg);
   return false;
-}
-
-static bool
-documents_has_column (sqlite3* db, const char* name) {
-  sqlite3_stmt* st= nullptr;
-  if (sqlite3_prepare_v2 (db, "PRAGMA table_info(documents);", -1, &st, nullptr) !=
-      SQLITE_OK) return false;
-  bool found= false;
-  while (sqlite3_step (st) == SQLITE_ROW) {
-    const unsigned char* text= sqlite3_column_text (st, 1);
-    if (text && std::string (reinterpret_cast<const char*> (text)) == name) {
-      found= true;
-      break;
-    }
-  }
-  sqlite3_finalize (st);
-  return found;
 }
 
 static void
@@ -681,6 +681,12 @@ dot (const std::vector<float>& a, const std::vector<float>& b) {
 }
 
 } // namespace
+
+std::vector<fs::path>
+rag_document_files (const fs::path& root,
+                    const std::function<bool ()>& current) {
+  return scan_ath_files (root, current);
+}
 
 bool
 rag_text_requires_embedding (const std::string& text) {
@@ -739,6 +745,11 @@ RagIndex::open (const RagConfig& config) {
 
   std::error_code ec;
   fs::create_directories (config.db_path.parent_path (), ec);
+  std::string reset_error;
+  if (!storage::prepare_database_path (config.db_path, reset_error)) {
+    impl->status.last_error= reset_error;
+    return false;
+  }
   if (sqlite3_open (config.db_path.string ().c_str (), &impl->db) !=
       SQLITE_OK) {
     impl->status.last_error= sqlite3_errmsg (impl->db);
@@ -747,75 +758,19 @@ RagIndex::open (const RagConfig& config) {
       impl->status.last_error);
     return false;
   }
-
   std::string error;
-  const char* schema =
-    "PRAGMA journal_mode=WAL;"
-    "CREATE TABLE IF NOT EXISTS meta ("
-    "  key TEXT PRIMARY KEY, value TEXT NOT NULL);"
-    "CREATE TABLE IF NOT EXISTS documents ("
-    "  rel_path TEXT PRIMARY KEY, abs_path TEXT NOT NULL,"
-    "  size INTEGER NOT NULL, mtime_ns INTEGER NOT NULL,"
-    "  storage_hash TEXT NOT NULL DEFAULT '',"
-    "  content_hash TEXT NOT NULL, indexed_at INTEGER NOT NULL,"
-    "  status TEXT NOT NULL, error TEXT NOT NULL);"
-    "CREATE TABLE IF NOT EXISTS chunks ("
-    "  chunk_id TEXT PRIMARY KEY, rel_path TEXT NOT NULL,"
-    "  kind TEXT NOT NULL, tree_path TEXT NOT NULL, anchor TEXT,"
-    "  title TEXT, heading_path TEXT, text TEXT NOT NULL, source TEXT,"
-    "  embedding BLOB, embedding_dim INTEGER, embedding_model TEXT);"
-    "CREATE INDEX IF NOT EXISTS chunks_rel_path_idx ON chunks(rel_path);"
-    "CREATE TABLE IF NOT EXISTS edges ("
-    "  src_chunk TEXT NOT NULL, relation TEXT NOT NULL,"
-    "  target TEXT NOT NULL, label TEXT);"
-    "CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5("
-    "  chunk_id UNINDEXED, rel_path, title, heading_path, text);";
-  if (!exec_sql (impl->db, schema, error)) {
+  if (!storage::ensure_schema (impl->db, error)) {
     impl->status.last_error= error;
     athena_spdlog_error (
       "rag index: schema initialization failed: " + error);
     return false;
   }
-  {
-    Statement version (impl->db,
-      "SELECT value FROM meta WHERE key='schema-version'");
-    if (version.get () == nullptr) {
-      impl->status.last_error= sqlite3_errmsg (impl->db);
-      return false;
-    }
-    if (sqlite3_step (version.get ()) == SQLITE_ROW) {
-      const unsigned char* raw= sqlite3_column_text (version.get (), 0);
-      std::string value= raw == nullptr ? std::string () :
-        std::string (reinterpret_cast<const char*> (raw));
-      if (value != "1" && value != "2") {
-        impl->status.last_error= "Unsupported RAG database schema version " + value;
-        return false;
-      }
-    }
-  }
-  if (!documents_has_column (impl->db, "storage_hash")) {
-    if (!exec_sql (impl->db,
-          "BEGIN IMMEDIATE;"
-          "ALTER TABLE documents ADD COLUMN storage_hash TEXT NOT NULL DEFAULT '';"
-          "UPDATE documents SET storage_hash=content_hash,content_hash='';"
-          "INSERT INTO meta(key,value) VALUES('schema-version','2') "
-          "ON CONFLICT(key) DO UPDATE SET value='2';"
-          "COMMIT;", error)) {
-      impl->status.last_error= error;
-      return false;
-    }
-  }
-  else if (!exec_sql (impl->db,
-             "INSERT INTO meta(key,value) VALUES('schema-version','2') "
-             "ON CONFLICT(key) DO NOTHING;", error)) {
-    impl->status.last_error= error;
-    return false;
-  }
 
   if (config.force_reindex) {
     exec_sql (impl->db,
-              "DELETE FROM documents; DELETE FROM chunks; DELETE FROM edges;"
-              "DELETE FROM chunks_fts;", error);
+               "DELETE FROM documents; DELETE FROM chunks; DELETE FROM edges;"
+               "DELETE FROM chunks_fts; DELETE FROM embeddings;"
+               "DELETE FROM embedding_spaces;", error);
   }
 
   if (config.load_embedding_model && !config.embedding_model.empty ()) {
@@ -824,6 +779,7 @@ RagIndex::open (const RagConfig& config) {
                                 config.embedding_device,
                                 config.embedding_threads)) {
       impl->status.embeddings_enabled= true;
+      impl->status.embedding_space= impl->embedder ().space_id ();
     }
     else {
       impl->status.embedding_warning=
@@ -839,15 +795,15 @@ struct CachedDocumentRevision {
   bool found= false;
   int64_t size= 0;
   int64_t mtime= 0;
-  std::string storage_hash;
-  std::string semantic_hash;
+  std::string storage_revision;
+  std::string semantic_revision;
   std::string status;
 };
 
 static CachedDocumentRevision
 document_revision (sqlite3* db, const std::string& rel) {
   CachedDocumentRevision result;
-  Statement st (db, "SELECT size,mtime_ns,storage_hash,content_hash,status "
+  Statement st (db, "SELECT size,mtime_ns,storage_revision,semantic_revision,status "
                     "FROM documents WHERE rel_path=?");
   if (st.get () == nullptr) return result;
   bind_text (st.get (), 1, rel);
@@ -860,22 +816,25 @@ document_revision (sqlite3* db, const std::string& rel) {
     return text == nullptr ? std::string () :
       std::string (reinterpret_cast<const char*> (text));
   };
-  result.storage_hash= column (2);
-  result.semantic_hash= column (3);
+  result.storage_revision= column (2);
+  result.semantic_revision= column (3);
   result.status= column (4);
   return result;
 }
 
-static void
+static bool
 delete_document_rows (sqlite3* db, const std::string& rel) {
+  Statement d0 (db, "DELETE FROM chunks_fts WHERE rel_path=?");
+  if (d0.get () == nullptr) return false;
+  bind_text (d0.get (), 1, rel);
+  if (sqlite3_step (d0.get ()) != SQLITE_DONE) return false;
   Statement d1 (db, "DELETE FROM chunks WHERE rel_path=?");
+  if (d1.get () == nullptr) return false;
   bind_text (d1.get (), 1, rel);
-  sqlite3_step (d1.get ());
+  if (sqlite3_step (d1.get ()) != SQLITE_DONE) return false;
   Statement d2 (db, "DELETE FROM edges WHERE src_chunk NOT IN "
                     "(SELECT chunk_id FROM chunks)");
-  sqlite3_step (d2.get ());
-  Statement d3 (db, "DELETE FROM chunks_fts");
-  sqlite3_step (d3.get ());
+  return d2.get () != nullptr && sqlite3_step (d2.get ()) == SQLITE_DONE;
 }
 
 static void
@@ -917,10 +876,10 @@ merge_worker_database (sqlite3* db, const std::string& path,
 
   {
     Statement src (worker, "SELECT rel_path, abs_path, size, mtime_ns, "
-                           "storage_hash, content_hash, indexed_at, status, error "
+                           "storage_revision, semantic_revision, indexed_at, status, error "
                            "FROM documents");
     Statement dst (db, "INSERT OR REPLACE INTO documents "
-                       "(rel_path, abs_path, size, mtime_ns, storage_hash, content_hash, "
+                       "(rel_path, abs_path, size, mtime_ns, storage_revision, semantic_revision, "
                        " indexed_at, status, error) "
                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
     while (sqlite3_step (src.get ()) == SQLITE_ROW) {
@@ -951,27 +910,69 @@ merge_worker_database (sqlite3* db, const std::string& path,
   {
     Statement src (worker, "SELECT chunk_id, rel_path, kind, tree_path, "
                            "anchor, title, heading_path, text, source, "
-                           "embedding, embedding_dim, embedding_model "
+                           "embedding_input_hash, embedding_space "
                            "FROM chunks");
     Statement dst (db, "INSERT OR REPLACE INTO chunks "
                        "(chunk_id, rel_path, kind, tree_path, anchor, title, "
-                       " heading_path, text, source, embedding, "
-                       " embedding_dim, embedding_model) "
-                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                       " heading_path, text, source, embedding_input_hash, "
+                       " embedding_space) "
+                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
     while (sqlite3_step (src.get ()) == SQLITE_ROW) {
       sqlite3_reset (dst.get ());
       sqlite3_clear_bindings (dst.get ());
-      for (int i=0; i<9; i++)
+      for (int i=0; i<11; i++)
         sqlite3_bind_text (dst.get (), i + 1, text_col (src.get (), i),
                            -1, SQLITE_TRANSIENT);
-      const void* blob= sqlite3_column_blob (src.get (), 9);
-      int bytes= sqlite3_column_bytes (src.get (), 9);
+      if (sqlite3_step (dst.get ()) != SQLITE_DONE) {
+        error= sqlite3_errmsg (db);
+        sqlite3_close (worker);
+        return false;
+      }
+    }
+  }
+
+  {
+    Statement src (worker, "SELECT space_id,input_hash,embedding,embedding_dim "
+                           "FROM embeddings");
+    Statement dst (db, "INSERT OR REPLACE INTO embeddings "
+                       "(space_id,input_hash,embedding,embedding_dim) "
+                       "VALUES (?,?,?,?)");
+    while (sqlite3_step (src.get ()) == SQLITE_ROW) {
+      sqlite3_reset (dst.get ());
+      sqlite3_clear_bindings (dst.get ());
+      sqlite3_bind_text (dst.get (), 1, text_col (src.get (), 0), -1,
+                         SQLITE_TRANSIENT);
+      sqlite3_bind_text (dst.get (), 2, text_col (src.get (), 1), -1,
+                         SQLITE_TRANSIENT);
+      const void* blob= sqlite3_column_blob (src.get (), 2);
+      int bytes= sqlite3_column_bytes (src.get (), 2);
       if (blob != nullptr && bytes > 0)
-        sqlite3_bind_blob (dst.get (), 10, blob, bytes, SQLITE_TRANSIENT);
-      else sqlite3_bind_null (dst.get (), 10);
-      sqlite3_bind_int (dst.get (), 11, sqlite3_column_int (src.get (), 10));
-      sqlite3_bind_text (dst.get (), 12, text_col (src.get (), 11),
-                         -1, SQLITE_TRANSIENT);
+        sqlite3_bind_blob (dst.get (), 3, blob, bytes, SQLITE_TRANSIENT);
+      else sqlite3_bind_null (dst.get (), 3);
+      sqlite3_bind_int (dst.get (), 4, sqlite3_column_int (src.get (), 3));
+      if (sqlite3_step (dst.get ()) != SQLITE_DONE) {
+        error= sqlite3_errmsg (db);
+        sqlite3_close (worker);
+        return false;
+      }
+    }
+  }
+
+  {
+    Statement src (worker, "SELECT space_id,dimension,backend,model,contract "
+                           "FROM embedding_spaces");
+    Statement dst (db, "INSERT OR REPLACE INTO embedding_spaces "
+                       "(space_id,dimension,backend,model,contract) "
+                       "VALUES (?,?,?,?,?)");
+    while (sqlite3_step (src.get ()) == SQLITE_ROW) {
+      sqlite3_reset (dst.get ());
+      sqlite3_clear_bindings (dst.get ());
+      sqlite3_bind_text (dst.get (), 1, text_col (src.get (), 0), -1,
+                         SQLITE_TRANSIENT);
+      sqlite3_bind_int (dst.get (), 2, sqlite3_column_int (src.get (), 1));
+      for (int i=2; i<5; ++i)
+        sqlite3_bind_text (dst.get (), i + 1, text_col (src.get (), i), -1,
+                           SQLITE_TRANSIENT);
       if (sqlite3_step (dst.get ()) != SQLITE_DONE) {
         error= sqlite3_errmsg (db);
         sqlite3_close (worker);
@@ -1003,35 +1004,36 @@ merge_worker_database (sqlite3* db, const std::string& path,
   return true;
 }
 
-static void
+static bool
 upsert_document (sqlite3* db, const std::string& rel, const fs::path& abs,
-                  int64_t size, int64_t mtime, const std::string& storage_hash,
-                  const std::string& semantic_hash,
+                  int64_t size, int64_t mtime,
+                  const std::string& storage_revision,
+                  const std::string& semantic_revision,
                   const std::string& status, const std::string& error) {
   Statement st (db, "INSERT OR REPLACE INTO documents "
-                  "(rel_path, abs_path, size, mtime_ns, storage_hash, content_hash, "
+                  "(rel_path, abs_path, size, mtime_ns, storage_revision, semantic_revision, "
                   " indexed_at, status, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
   bind_text (st.get (), 1, rel);
   bind_text (st.get (), 2, abs.generic_string ());
   sqlite3_bind_int64 (st.get (), 3, size);
   sqlite3_bind_int64 (st.get (), 4, mtime);
-  bind_text (st.get (), 5, storage_hash);
-  bind_text (st.get (), 6, semantic_hash);
+  bind_text (st.get (), 5, storage_revision);
+  bind_text (st.get (), 6, semantic_revision);
   sqlite3_bind_int64 (st.get (), 7, (sqlite3_int64) std::time (nullptr));
   bind_text (st.get (), 8, status);
   bind_text (st.get (), 9, error);
-  sqlite3_step (st.get ());
+  return st.get () != nullptr && sqlite3_step (st.get ()) == SQLITE_DONE;
 }
 
-static void
+static bool
 insert_chunk (sqlite3* db, const ChunkBuild& build,
-              const std::vector<float>& embedding,
-              const std::string& embedding_model) {
+               const std::string& embedding_space) {
   const RagChunk& c= build.chunk;
   Statement st (db, "INSERT INTO chunks "
-                  "(chunk_id, rel_path, kind, tree_path, anchor, title, "
-                  " heading_path, text, source, embedding, embedding_dim, "
-                  " embedding_model) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                   "(chunk_id, rel_path, kind, tree_path, anchor, title, "
+                   " heading_path, text, source, embedding_input_hash, "
+                   " embedding_space) "
+                   "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
   bind_text (st.get (), 1, c.chunk_id);
   bind_text (st.get (), 2, c.rel_path);
   bind_text (st.get (), 3, c.kind);
@@ -1041,15 +1043,21 @@ insert_chunk (sqlite3* db, const ChunkBuild& build,
   bind_text (st.get (), 7, c.heading_path);
   bind_text (st.get (), 8, c.text);
   bind_text (st.get (), 9, c.source);
-  if (!embedding.empty ())
-    sqlite3_bind_blob (st.get (), 10, embedding.data (),
-                       int (embedding.size () * sizeof (float)),
-                       SQLITE_TRANSIENT);
-  else
-    sqlite3_bind_null (st.get (), 10);
-  sqlite3_bind_int (st.get (), 11, int (embedding.size ()));
-  bind_text (st.get (), 12, embedding.empty ()? "" : embedding_model);
-  sqlite3_step (st.get ());
+  bind_text (st.get (), 10, build.embedding_input_hash);
+  bind_text (st.get (), 11, embedding_space);
+  if (st.get () == nullptr || sqlite3_step (st.get ()) != SQLITE_DONE)
+    return false;
+
+  Statement fts (db, "INSERT INTO chunks_fts "
+                     "(chunk_id,rel_path,title,heading_path,text) "
+                     "VALUES (?,?,?,?,?)");
+  bind_text (fts.get (), 1, c.chunk_id);
+  bind_text (fts.get (), 2, c.rel_path);
+  bind_text (fts.get (), 3, c.title);
+  bind_text (fts.get (), 4, c.heading_path);
+  bind_text (fts.get (), 5, c.text);
+  if (fts.get () == nullptr || sqlite3_step (fts.get ()) != SQLITE_DONE)
+    return false;
 
   for (const std::string& edge: build.edges) {
     Statement e (db, "INSERT INTO edges "
@@ -1058,14 +1066,268 @@ insert_chunk (sqlite3* db, const ChunkBuild& build,
     bind_text (e.get (), 2, "mentions");
     bind_text (e.get (), 3, edge);
     bind_text (e.get (), 4, c.title);
-    sqlite3_step (e.get ());
+    if (e.get () == nullptr || sqlite3_step (e.get ()) != SQLITE_DONE)
+      return false;
   }
+  return true;
+}
+
+static std::vector<float>
+cached_embedding (sqlite3* db, const std::string& space_id,
+                  const std::string& input_hash) {
+  if (space_id.empty () || input_hash.empty ()) return {};
+  Statement st (db, "SELECT embedding,embedding_dim FROM embeddings "
+                    "WHERE space_id=? AND input_hash=?");
+  if (st.get () == nullptr) return {};
+  bind_text (st.get (), 1, space_id);
+  bind_text (st.get (), 2, input_hash);
+  if (sqlite3_step (st.get ()) != SQLITE_ROW) return {};
+  return blob_to_vector (st.get (), 0, sqlite3_column_int (st.get (), 1));
+}
+
+static bool
+store_embedding (sqlite3* db, const std::string& space_id,
+                 const std::string& input_hash,
+                 const std::vector<float>& embedding) {
+  if (space_id.empty () || input_hash.empty () || embedding.empty ()) return true;
+  Statement st (db, "INSERT INTO embeddings "
+                    "(space_id,input_hash,embedding,embedding_dim) VALUES (?,?,?,?) "
+                    "ON CONFLICT(space_id,input_hash) DO NOTHING");
+  if (st.get () == nullptr) return false;
+  bind_text (st.get (), 1, space_id);
+  bind_text (st.get (), 2, input_hash);
+  sqlite3_bind_blob (st.get (), 3, embedding.data (),
+                     int (embedding.size () * sizeof (float)), SQLITE_TRANSIENT);
+  sqlite3_bind_int (st.get (), 4, int (embedding.size ()));
+  return sqlite3_step (st.get ()) == SQLITE_DONE;
+}
+
+static bool
+document_has_complete_space (sqlite3* db, const std::string& rel,
+                             const std::string& space_id) {
+  if (space_id.empty ()) return true;
+  Statement st (db,
+    "SELECT count(*) FROM chunks c LEFT JOIN embeddings e "
+    "ON e.space_id=? AND e.input_hash=c.embedding_input_hash "
+    "WHERE c.rel_path=? AND c.embedding_input_hash!='' AND "
+    "(c.embedding_space!=? OR e.input_hash IS NULL)");
+  if (st.get () == nullptr) return false;
+  bind_text (st.get (), 1, space_id);
+  bind_text (st.get (), 2, rel);
+  bind_text (st.get (), 3, space_id);
+  return sqlite3_step (st.get ()) == SQLITE_ROW && sqlite3_column_int64 (st.get (), 0) == 0;
+}
+
+bool
+RagIndex::prepare_document (const std::string& rel_path,
+                            const std::string& expected_storage_revision,
+                            const std::string& embedding_space,
+                            RagPreparedDocument& prepared) {
+  prepared= RagPreparedDocument ();
+  if (impl->db == nullptr || !valid_vault_relative_path (rel_path)) {
+    impl->status.last_error= "invalid RAG document path";
+    return false;
+  }
+
+  fs::path absolute= impl->config.vault_root / fs::path (rel_path);
+  std::string bytes;
+  if (!read_bytes (absolute, bytes)) {
+    impl->status.last_error= "failed to read RAG document " + rel_path;
+    return false;
+  }
+  const std::string storage_revision=
+    athena::document::storage_bytes_fingerprint (bytes);
+  if (!expected_storage_revision.empty () &&
+      storage_revision != expected_storage_revision) {
+    impl->status.last_error= "RAG document revision was superseded before prepare: " +
+                             rel_path;
+    return false;
+  }
+
+  prepared.rel_path= rel_path;
+  prepared.absolute_path= absolute;
+  prepared.storage_revision= storage_revision;
+  prepared.embedding_space= embedding_space;
+  prepared.size= static_cast<std::int64_t> (bytes.size ());
+  prepared.mtime_ns= mtime_ns (absolute);
+
+  CachedDocumentRevision cached= document_revision (impl->db, rel_path);
+  const bool storage_same= cached.found && cached.status == "ok" &&
+    cached.storage_revision == storage_revision;
+  if (storage_same && !cached.semantic_revision.empty () &&
+      document_has_complete_space (impl->db, rel_path, embedding_space)) {
+    prepared.semantic_revision= cached.semantic_revision;
+    prepared.unchanged= true;
+    return true;
+  }
+
+  tree document;
+  try {
+    document= athena::document::decode_document_bytes (bytes, absolute).document;
+  }
+  catch (const std::exception& error) {
+    impl->status.last_error= "failed to decode RAG document " + rel_path +
+                             ": " + error.what ();
+    return false;
+  }
+  prepared.semantic_revision=
+    athena::document::semantic_document_fingerprint (document);
+
+  if (cached.found && cached.status == "ok" &&
+      cached.semantic_revision == prepared.semantic_revision &&
+      document_has_complete_space (impl->db, rel_path, embedding_space)) {
+    prepared.metadata_only= true;
+    return true;
+  }
+
+  std::vector<ChunkBuild> built= chunk_document (rel_path, document);
+  prepared.chunks.reserve (built.size ());
+  for (std::size_t i=0; i<built.size (); ++i) {
+    RagPreparedChunk item;
+    item.chunk= built[i].chunk;
+    item.embedding_input_hash= built[i].embedding_input_hash;
+    item.edges= std::move (built[i].edges);
+    if (!embedding_space.empty () && should_embed_text (item.chunk.text)) {
+      item.cached_embedding= cached_embedding (
+        impl->db, embedding_space, item.embedding_input_hash);
+      if (item.cached_embedding.empty ()) {
+        item.needs_embedding= true;
+        prepared.missing_embedding_indices.push_back (i);
+      }
+    }
+    prepared.chunks.push_back (std::move (item));
+  }
+  return true;
+}
+
+bool
+RagIndex::commit_document (
+  const RagPreparedDocument& prepared,
+  const std::vector<std::vector<float>>& computed_embeddings,
+  const std::function<bool ()>& generation_is_current) {
+  if (impl->db == nullptr) return false;
+  if (prepared.unchanged) return true;
+  if (generation_is_current && !generation_is_current ()) return false;
+  if (prepared.missing_embedding_indices.size () != computed_embeddings.size ()) {
+    impl->status.last_error= "RAG computed embedding count does not match prepared work";
+    return false;
+  }
+
+  // Re-read the atomically saved file immediately before taking the SQLite
+  // write lock.  Long parsing and inference have already happened outside the
+  // transaction; a superseded save must not publish stale document rows.
+  std::string current_bytes;
+  if (!read_bytes (prepared.absolute_path, current_bytes) ||
+      athena::document::storage_bytes_fingerprint (current_bytes) !=
+        prepared.storage_revision)
+    return false;
+  if (generation_is_current && !generation_is_current ()) return false;
+
+  std::string error;
+  if (!exec_sql (impl->db, "BEGIN IMMEDIATE", error)) {
+    impl->status.last_error= error;
+    return false;
+  }
+  auto rollback= [&] (const std::string& message) {
+    std::string ignored;
+    (void) exec_sql (impl->db, "ROLLBACK", ignored);
+    impl->status.last_error= message;
+    return false;
+  };
+
+  if (generation_is_current && !generation_is_current ())
+    return rollback ("RAG generation superseded before commit");
+
+  if (prepared.metadata_only) {
+    if (!upsert_document (
+          impl->db, prepared.rel_path, prepared.absolute_path, prepared.size,
+          prepared.mtime_ns, prepared.storage_revision,
+          prepared.semantic_revision, "ok", ""))
+      return rollback (sqlite3_errmsg (impl->db));
+    if (generation_is_current && !generation_is_current ())
+      return rollback ("RAG generation superseded before metadata commit");
+    if (!exec_sql (impl->db, "COMMIT", error))
+      return rollback (error);
+    return true;
+  }
+
+  if (!delete_document_rows (impl->db, prepared.rel_path))
+    return rollback (sqlite3_errmsg (impl->db));
+
+  std::size_t computed_cursor= 0;
+  int space_dimension= 0;
+  for (const RagPreparedChunk& item: prepared.chunks) {
+    std::vector<float> embedding= item.cached_embedding;
+    if (item.needs_embedding) {
+      embedding= computed_embeddings[computed_cursor++];
+    }
+    if (!embedding.empty ()) {
+      space_dimension= int (embedding.size ());
+      if (!store_embedding (
+            impl->db, prepared.embedding_space, item.embedding_input_hash,
+            embedding))
+        return rollback (sqlite3_errmsg (impl->db));
+    }
+    ChunkBuild build;
+    build.chunk= item.chunk;
+    build.embedding_input_hash= item.embedding_input_hash;
+    build.edges= item.edges;
+    if (!insert_chunk (
+          impl->db, build,
+          embedding.empty () ? std::string () : prepared.embedding_space))
+      return rollback (sqlite3_errmsg (impl->db));
+  }
+
+  if (!prepared.embedding_space.empty ()) {
+    Statement space (impl->db,
+      "INSERT INTO embedding_spaces(space_id,dimension) VALUES (?,?) "
+      "ON CONFLICT(space_id) DO UPDATE SET dimension="
+      "CASE WHEN excluded.dimension>0 THEN excluded.dimension ELSE dimension END");
+    if (space.get () == nullptr)
+      return rollback (sqlite3_errmsg (impl->db));
+    bind_text (space.get (), 1, prepared.embedding_space);
+    sqlite3_bind_int (space.get (), 2, space_dimension);
+    if (sqlite3_step (space.get ()) != SQLITE_DONE)
+      return rollback (sqlite3_errmsg (impl->db));
+  }
+
+  if (!upsert_document (
+        impl->db, prepared.rel_path, prepared.absolute_path, prepared.size,
+        prepared.mtime_ns, prepared.storage_revision,
+        prepared.semantic_revision, "ok", ""))
+    return rollback (sqlite3_errmsg (impl->db));
+
+  if (generation_is_current && !generation_is_current ())
+    return rollback ("RAG generation superseded before final commit");
+  if (!exec_sql (impl->db, "COMMIT", error))
+    return rollback (error);
+  return true;
+}
+
+bool
+RagIndex::delete_document (const std::string& rel_path) {
+  if (impl->db == nullptr || !valid_vault_relative_path (rel_path)) return false;
+  std::string error;
+  if (!exec_sql (impl->db, "BEGIN IMMEDIATE", error)) return false;
+  if (!delete_document_rows (impl->db, rel_path)) {
+    std::string ignored;
+    (void) exec_sql (impl->db, "ROLLBACK", ignored);
+    return false;
+  }
+  Statement del (impl->db, "DELETE FROM documents WHERE rel_path=?");
+  bind_text (del.get (), 1, rel_path);
+  if (del.get () == nullptr || sqlite3_step (del.get ()) != SQLITE_DONE) {
+    std::string ignored;
+    (void) exec_sql (impl->db, "ROLLBACK", ignored);
+    return false;
+  }
+  return exec_sql (impl->db, "COMMIT", error);
 }
 
 bool
 RagIndex::scan_once () {
   if (impl->db == nullptr) return false;
-  std::vector<fs::path> files= scan_ath_files (impl->config.vault_root);
+  std::vector<fs::path> files= rag_document_files (impl->config.vault_root);
   std::vector<fs::path> work_files;
   work_files.reserve (files.size ());
   for (const fs::path& file: files) {
@@ -1075,8 +1337,6 @@ RagIndex::scan_once () {
       work_files.push_back (file);
   }
   std::set<std::string> live;
-  std::string error;
-  exec_sql (impl->db, "BEGIN", error);
   auto log_file= [this] (const std::string& message, bool warning= false) {
     if (impl->config.progress_fd >= 0) {
       write_progress_event (
@@ -1092,7 +1352,7 @@ RagIndex::scan_once () {
       write_progress_event (impl->config.progress_fd, "F");
   };
   auto progress_chunks= [this] (const std::string& rel, size_t done,
-                                size_t total) {
+                                 size_t total) {
     if (impl->config.progress_fd >= 0) {
       write_progress_event (
         impl->config.progress_fd,
@@ -1104,6 +1364,10 @@ RagIndex::scan_once () {
       rag_progress.update_chunks (done, total, "Embedding RAG chunks", rel);
   };
 
+  const std::string embedding_space=
+    impl->embedder ().available () ? impl->embedder ().space_id () :
+                                     std::string ();
+
   for (size_t i=0; i<work_files.size (); i++) {
     const fs::path& file= work_files[i];
     std::string rel= relative_path (impl->config.vault_root, file);
@@ -1113,85 +1377,46 @@ RagIndex::scan_once () {
                                 "Indexing RAG files", rel);
     }
     live.insert (rel);
-    std::string text;
-    if (!read_bytes (file, text)) {
-      upsert_document (impl->db, rel, file, 0, 0, "", "", "error",
-                       "failed to read file");
-      log_file ("rag index: failed to read " + rel, true);
+    RagPreparedDocument prepared;
+    if (!prepare_document (rel, "", embedding_space, prepared)) {
+      log_file ("rag index: failed to prepare " + rel + ": " +
+                impl->status.last_error, true);
       progress_file_done ();
       continue;
     }
-
-    int64_t size= int64_t (text.size ());
-    int64_t mt= mtime_ns (file);
-    std::string storage_hash= fnv1a_hex (text);
-    CachedDocumentRevision cached= document_revision (impl->db, rel);
-    const bool storage_same= cached.found && cached.status == "ok" &&
-      cached.size == size && cached.mtime == mt &&
-      cached.storage_hash == storage_hash;
-    if (storage_same && !cached.semantic_hash.empty ()) {
+    if (prepared.unchanged) {
       if (impl->config.progress || impl->config.progress_fd >= 0)
         log_file ("rag index: up-to-date " + rel);
       progress_file_done ();
       continue;
     }
 
-    try {
-      tree doc= athena::document::decode_document_bytes (text, file).document;
-      std::string semantic_hash=
-        athena::document::semantic_document_fingerprint (doc);
-      if (cached.found && cached.status == "ok" &&
-          (storage_same || (!cached.semantic_hash.empty () &&
-                            cached.semantic_hash == semantic_hash))) {
-        upsert_document (impl->db, rel, file, size, mt, storage_hash,
-                         semantic_hash, "ok", "");
-        if (impl->config.progress || impl->config.progress_fd >= 0)
-          log_file (cached.semantic_hash.empty () ?
-            "rag index: initialized semantic revision " + rel :
-            "rag index: storage rewrite preserved semantic revision " + rel);
-        progress_file_done ();
-        continue;
-      }
-      delete_document_rows (impl->db, rel);
-      std::vector<ChunkBuild> chunks= chunk_document (rel, doc);
-      std::vector<std::vector<float>> embeddings (chunks.size ());
-      if (impl->embedder ().available ()) {
-        std::vector<std::string> texts;
-        texts.reserve (chunks.size ());
-        std::vector<size_t> map;
-        map.reserve (chunks.size ());
-        for (size_t j=0; j<chunks.size (); j++)
-          if (should_embed_text (chunks[j].chunk.text)) {
-            texts.push_back (chunks[j].chunk.text);
-            map.push_back (j);
-          }
-        std::vector<std::vector<float>> batch= impl->embedder ().embed_many (
-          texts,
-          [&progress_chunks, &rel] (size_t done, size_t total) {
-            progress_chunks (rel, done, total);
-          });
-        for (size_t j=0; j<batch.size () && j<map.size (); j++)
-          embeddings[map[j]]= std::move (batch[j]);
-      }
-      for (size_t j=0; j<chunks.size (); j++) {
-        insert_chunk (impl->db, chunks[j], embeddings[j],
-                      impl->embedder ().model_fingerprint ());
-      }
-      upsert_document (impl->db, rel, file, size, mt, storage_hash,
-                       semantic_hash, "ok", "");
-      size_t embedded= 0;
-      for (const std::vector<float>& emb: embeddings)
-        if (!emb.empty ()) embedded++;
-      log_file ("rag index: indexed " + rel + " chunks=" +
-                std::to_string (chunks.size ()) + ", embedded=" +
-                std::to_string (embedded));
+    std::vector<std::string> texts;
+    texts.reserve (prepared.missing_embedding_indices.size ());
+    for (std::size_t index: prepared.missing_embedding_indices)
+      texts.push_back (prepared.chunks[index].chunk.text);
+    std::vector<std::vector<float>> computed;
+    if (!texts.empty () && impl->embedder ().available ()) {
+      computed= impl->embedder ().embed_many (
+        texts,
+        [&progress_chunks, &rel] (size_t done, size_t total) {
+          progress_chunks (rel, done, total);
+        });
     }
-    catch (...) {
-      delete_document_rows (impl->db, rel);
-      upsert_document (impl->db, rel, file, size, mt, storage_hash, "", "error",
-                       "failed to parse TeXmacs document");
-      log_file ("rag index: malformed .ath file: " + rel, true);
+    else computed.resize (texts.size ());
+
+    if (!commit_document (prepared, computed)) {
+      log_file ("rag index: document changed during indexing or commit failed " +
+                rel, true);
+      progress_file_done ();
+      continue;
     }
+    log_file ("rag index: indexed " + rel + " chunks=" +
+              std::to_string (prepared.chunks.size ()) + ", embedded-new=" +
+              std::to_string (computed.size ()) + ", reused=" +
+              std::to_string (
+                prepared.chunks.size () >= computed.size () ?
+                  prepared.chunks.size () - computed.size () : 0));
     progress_file_done ();
   }
   if (impl->config.progress) rag_progress.finish ();
@@ -1203,14 +1428,7 @@ RagIndex::scan_once () {
       sqlite3_column_text (docs.get (), 0));
     if (live.count (rel) == 0) stale.push_back (rel);
   }
-  for (const std::string& rel: stale) {
-    delete_document_rows (impl->db, rel);
-    Statement del (impl->db, "DELETE FROM documents WHERE rel_path=?");
-    bind_text (del.get (), 1, rel);
-    sqlite3_step (del.get ());
-  }
-  rebuild_fts (impl->db);
-  exec_sql (impl->db, "COMMIT", error);
+  for (const std::string& rel: stale) (void) delete_document (rel);
   return true;
 }
 
@@ -1220,7 +1438,7 @@ RagIndex::parallel_reindex (int jobs) {
   if (jobs <= 1) return scan_once ();
 
 #if defined(__unix__) || defined(__APPLE__)
-  size_t total_files= scan_ath_files (impl->config.vault_root).size ();
+  size_t total_files= rag_document_files (impl->config.vault_root).size ();
   if (total_files == 0) total_files= 1;
   std::vector<std::string> temp_dbs;
   temp_dbs.reserve (size_t (jobs));
@@ -1395,7 +1613,8 @@ RagIndex::parallel_reindex (int jobs) {
   std::string error;
   exec_sql (impl->db, "BEGIN", error);
   exec_sql (impl->db, "DELETE FROM documents; DELETE FROM chunks; "
-                      "DELETE FROM edges; DELETE FROM chunks_fts;", error);
+                      "DELETE FROM edges; DELETE FROM chunks_fts; "
+                      "DELETE FROM embeddings; DELETE FROM embedding_spaces;", error);
   for (const std::string& path: temp_dbs) {
     if (!merge_worker_database (impl->db, path, error)) {
       exec_sql (impl->db, "ROLLBACK", error);
@@ -1440,6 +1659,20 @@ RagIndex::status () const {
   Statement bad (impl->db, "SELECT count(*) FROM documents WHERE status!='ok'");
   if (sqlite3_step (bad.get ()) == SQLITE_ROW)
     s.malformed_count= sqlite3_column_int (bad.get (), 0);
+  if (s.embedding_space.empty ()) {
+    Statement spaces (
+      impl->db, "SELECT count(DISTINCT embedding_space), "
+                "min(embedding_space) FROM chunks WHERE embedding_space!=''");
+    if (sqlite3_step (spaces.get ()) == SQLITE_ROW) {
+      const int count= sqlite3_column_int (spaces.get (), 0);
+      if (count == 1) {
+        const unsigned char* text= sqlite3_column_text (spaces.get (), 1);
+        if (text != nullptr)
+          s.embedding_space= reinterpret_cast<const char*> (text);
+      }
+      else if (count > 1) s.embedding_space= "multiple";
+    }
+  }
   return s;
 }
 
@@ -1490,8 +1723,10 @@ RagIndex::search (const std::string& query, int limit) {
       impl->db,
       "SELECT c.chunk_id, c.rel_path, c.kind, c.tree_path, c.anchor, "
       "c.title, c.heading_path, c.text, c.source, bm25(chunks_fts), "
-      "c.embedding, c.embedding_dim, c.embedding_model "
+      "e.embedding, e.embedding_dim, c.embedding_space "
       "FROM chunks_fts JOIN chunks c ON c.chunk_id=chunks_fts.chunk_id "
+      "LEFT JOIN embeddings e ON e.space_id=c.embedding_space "
+      "AND e.input_hash=c.embedding_input_hash "
       "WHERE chunks_fts MATCH ? ORDER BY bm25(chunks_fts) LIMIT ?");
     bind_text (st.get (), 1, q);
     sqlite3_bind_int (st.get (), 2, std::max (limit * 5, 30));
@@ -1505,7 +1740,7 @@ RagIndex::search (const std::string& query, int limit) {
       std::string model= model_text == nullptr ? std::string ():
         std::string (reinterpret_cast<const char*> (model_text));
       if (!qemb.empty () && !emb.empty () &&
-          model == impl->embedder ().model_fingerprint ())
+          model == impl->embedder ().space_id ())
         c.score += dot (qemb, emb);
       out.push_back (c);
     }

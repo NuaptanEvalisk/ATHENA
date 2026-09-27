@@ -11,9 +11,11 @@
 #include "rag_delegation_patch.hpp"
 #include "rag_delegation_crypto.hpp"
 #include "rag_embedding.hpp"
+#include "rag_storage.hpp"
 
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
+#include "Data/Convert/Xml/document_upgrade_file.hpp"
 
 #include <sqlite3.h>
 
@@ -63,69 +65,21 @@ text_col (sqlite3_stmt* st, int col) {
 
 bool read_meta (sqlite3* db, const std::string& key, std::string& value);
 bool write_meta (sqlite3* db, const std::string& key, const std::string& value,
-                 std::string& error);
-
-bool
-ensure_schema (sqlite3* db, std::string& error) {
-  const char* schema =
-    "PRAGMA journal_mode=WAL;"
-    "CREATE TABLE IF NOT EXISTS meta ("
-    "  key TEXT PRIMARY KEY, value TEXT NOT NULL);"
-    "CREATE TABLE IF NOT EXISTS documents ("
-    "  rel_path TEXT PRIMARY KEY, abs_path TEXT NOT NULL,"
-    "  size INTEGER NOT NULL, mtime_ns INTEGER NOT NULL,"
-    "  storage_hash TEXT NOT NULL DEFAULT '',"
-    "  content_hash TEXT NOT NULL, indexed_at INTEGER NOT NULL,"
-    "  status TEXT NOT NULL, error TEXT NOT NULL);"
-    "CREATE TABLE IF NOT EXISTS chunks ("
-    "  chunk_id TEXT PRIMARY KEY, rel_path TEXT NOT NULL,"
-    "  kind TEXT NOT NULL, tree_path TEXT NOT NULL, anchor TEXT,"
-    "  title TEXT, heading_path TEXT, text TEXT NOT NULL, source TEXT,"
-    "  embedding BLOB, embedding_dim INTEGER, embedding_model TEXT);"
-    "CREATE INDEX IF NOT EXISTS chunks_rel_path_idx ON chunks(rel_path);"
-    "CREATE TABLE IF NOT EXISTS edges ("
-    "  src_chunk TEXT NOT NULL, relation TEXT NOT NULL,"
-    "  target TEXT NOT NULL, label TEXT);"
-    "CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5("
-    "  chunk_id UNINDEXED, rel_path, title, heading_path, text);";
-  if (!exec_sql (db, schema, error)) return false;
-  bool has_storage_hash= false;
-  {
-    Statement columns (db, "PRAGMA table_info(documents)");
-    if (columns.get () == nullptr) { error= sqlite3_errmsg (db); return false; }
-    while (sqlite3_step (columns.get ()) == SQLITE_ROW)
-      if (std::string (text_col (columns.get (), 1)) == "storage_hash")
-        has_storage_hash= true;
-  }
-  std::string version;
-  (void) read_meta (db, "schema-version", version);
-  if (!version.empty () && version != "1" && version != "2") {
-    error= "unsupported delegated RAG schema version " + version;
-    return false;
-  }
-  if (!has_storage_hash) {
-    if (!exec_sql (db,
-          "BEGIN IMMEDIATE;"
-          "ALTER TABLE documents ADD COLUMN storage_hash TEXT NOT NULL DEFAULT '';"
-          "UPDATE documents SET storage_hash=content_hash,content_hash='';"
-          "COMMIT;", error)) return false;
-  }
-  return write_meta (db, "schema-version", "2", error);
-}
+                  std::string& error);
 
 struct CachedRevision {
   bool found= false;
   int64_t size= 0;
   int64_t mtime= 0;
-  std::string storage_hash;
-  std::string semantic_hash;
+  std::string storage_revision;
+  std::string semantic_revision;
   std::string status;
 };
 
 CachedRevision
 document_revision (sqlite3* db, const std::string& rel) {
   CachedRevision result;
-  Statement st (db, "SELECT size,mtime_ns,storage_hash,content_hash,status "
+  Statement st (db, "SELECT size,mtime_ns,storage_revision,semantic_revision,status "
                     "FROM documents WHERE rel_path=?");
   if (st.get () == nullptr) return result;
   bind_text (st.get (), 1, rel);
@@ -133,8 +87,8 @@ document_revision (sqlite3* db, const std::string& rel) {
   result.found= true;
   result.size= sqlite3_column_int64 (st.get (), 0);
   result.mtime= sqlite3_column_int64 (st.get (), 1);
-  result.storage_hash= text_col (st.get (), 2);
-  result.semantic_hash= text_col (st.get (), 3);
+  result.storage_revision= text_col (st.get (), 2);
+  result.semantic_revision= text_col (st.get (), 3);
   result.status= text_col (st.get (), 4);
   return result;
 }
@@ -142,17 +96,17 @@ document_revision (sqlite3* db, const std::string& rel) {
 bool
 update_document_revision (sqlite3* db, const std::string& rel,
                           const fs::path& absolute, int64_t size, int64_t mtime,
-                          const std::string& storage_hash,
-                          const std::string& semantic_hash,
+                           const std::string& storage_revision,
+                           const std::string& semantic_revision,
                           std::string& error) {
   Statement st (db, "UPDATE documents SET abs_path=?,size=?,mtime_ns=?,"
-                    "storage_hash=?,content_hash=? WHERE rel_path=?");
+                    "storage_revision=?,semantic_revision=? WHERE rel_path=?");
   if (st.get () == nullptr) { error= sqlite3_errmsg (db); return false; }
   bind_text (st.get (), 1, absolute.generic_string ());
   sqlite3_bind_int64 (st.get (), 2, size);
   sqlite3_bind_int64 (st.get (), 3, mtime);
-  bind_text (st.get (), 4, storage_hash);
-  bind_text (st.get (), 5, semantic_hash);
+  bind_text (st.get (), 4, storage_revision);
+  bind_text (st.get (), 5, semantic_revision);
   bind_text (st.get (), 6, rel);
   if (sqlite3_step (st.get ()) != SQLITE_DONE) {
     error= sqlite3_errmsg (db);
@@ -172,17 +126,19 @@ read_local_documents (sqlite3* db, std::set<std::string>& docs) {
 
 bool
 read_stale_embedding_documents (sqlite3* db,
-                                const std::string& expected_model,
-                                std::set<std::string>& stale) {
+                                 const std::string& expected_model,
+                                 std::set<std::string>& stale) {
   if (expected_model.empty ()) return true;
-  Statement st (db, "SELECT rel_path, text, embedding, embedding_model "
-                    "FROM chunks");
+  Statement st (db, "SELECT c.rel_path,c.text,c.embedding_space,e.embedding "
+                    "FROM chunks c LEFT JOIN embeddings e "
+                    "ON e.space_id=? AND e.input_hash=c.embedding_input_hash");
   if (st.get () == nullptr) return false;
+  bind_text (st.get (), 1, expected_model);
   while (sqlite3_step (st.get ()) == SQLITE_ROW) {
     std::string text= text_col (st.get (), 1);
     if (!athena::rag::rag_text_requires_embedding (text)) continue;
-    if (sqlite3_column_bytes (st.get (), 2) == 0 ||
-        expected_model != text_col (st.get (), 3))
+    if (expected_model != text_col (st.get (), 2) ||
+        sqlite3_column_bytes (st.get (), 3) == 0)
       stale.insert (text_col (st.get (), 0));
   }
   return true;
@@ -227,7 +183,7 @@ restore_job_document_metadata (const fs::path& patch_db,
   bool ok= true;
   {
     Statement update (db, "UPDATE documents SET size=?, mtime_ns=?, "
-                          "storage_hash=?,content_hash=? WHERE rel_path=?");
+                           "storage_revision=?,semantic_revision=? WHERE rel_path=?");
     if (update.get () == nullptr) {
       error= sqlite3_errmsg (db);
       ok= false;
@@ -238,8 +194,8 @@ restore_job_document_metadata (const fs::path& patch_db,
       sqlite3_clear_bindings (update.get ());
       sqlite3_bind_int64 (update.get (), 1, file.size);
       sqlite3_bind_int64 (update.get (), 2, file.mtime_ns);
-      bind_text (update.get (), 3, file.storage_hash);
-      bind_text (update.get (), 4, file.semantic_hash);
+      bind_text (update.get (), 3, file.storage_revision);
+      bind_text (update.get (), 4, file.semantic_revision);
       bind_text (update.get (), 5, file.rel_path);
       if (sqlite3_step (update.get ()) != SQLITE_DONE ||
           sqlite3_changes (db) != 1) {
@@ -279,10 +235,10 @@ delete_document_rows (sqlite3* db, const std::string& rel,
 bool
 copy_patch_documents (sqlite3* local, sqlite3* patch,
                        const fs::path& vault_root, std::string& error) {
-  Statement src (patch, "SELECT rel_path,size,mtime_ns,storage_hash,content_hash,"
-                        "indexed_at,status,error FROM documents");
+  Statement src (patch, "SELECT rel_path,size,mtime_ns,storage_revision,semantic_revision,"
+                         "indexed_at,status,error FROM documents");
   Statement dst (local, "INSERT OR REPLACE INTO documents "
-                       "(rel_path,abs_path,size,mtime_ns,storage_hash,content_hash,"
+                       "(rel_path,abs_path,size,mtime_ns,storage_revision,semantic_revision,"
                        "indexed_at,status,error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
   while (sqlite3_step (src.get ()) == SQLITE_ROW) {
     sqlite3_reset (dst.get ());
@@ -308,26 +264,77 @@ copy_patch_documents (sqlite3* local, sqlite3* patch,
 bool
 copy_patch_chunks (sqlite3* local, sqlite3* patch, std::string& error) {
   Statement src (patch, "SELECT chunk_id, rel_path, kind, tree_path, "
-                        "anchor, title, heading_path, text, source, "
-                        "embedding, embedding_dim, embedding_model "
-                        "FROM chunks");
+                         "anchor, title, heading_path, text, source, "
+                         "embedding_input_hash, embedding_space "
+                         "FROM chunks");
   Statement dst (local, "INSERT OR REPLACE INTO chunks "
                        "(chunk_id, rel_path, kind, tree_path, anchor, title, "
-                       " heading_path, text, source, embedding, "
-                       " embedding_dim, embedding_model) "
-                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                       " heading_path, text, source, embedding_input_hash, "
+                       " embedding_space) "
+                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
   while (sqlite3_step (src.get ()) == SQLITE_ROW) {
     sqlite3_reset (dst.get ());
     sqlite3_clear_bindings (dst.get ());
-    for (int i=0; i<9; i++)
+    for (int i=0; i<11; i++)
       bind_text (dst.get (), i + 1, text_col (src.get (), i));
-    const void* blob= sqlite3_column_blob (src.get (), 9);
-    int bytes= sqlite3_column_bytes (src.get (), 9);
+    if (sqlite3_step (dst.get ()) != SQLITE_DONE) {
+      error= sqlite3_errmsg (local);
+      return false;
+    }
+  }
+  return true;
+}
+
+bool
+copy_patch_embeddings (sqlite3* local, sqlite3* patch, std::string& error) {
+  Statement src (patch, "SELECT space_id,input_hash,embedding,embedding_dim "
+                        "FROM embeddings");
+  Statement dst (local, "INSERT OR REPLACE INTO embeddings "
+                       "(space_id,input_hash,embedding,embedding_dim) "
+                       "VALUES (?,?,?,?)");
+  if (src.get () == nullptr || dst.get () == nullptr) {
+    error= sqlite3_errmsg (local);
+    return false;
+  }
+  while (sqlite3_step (src.get ()) == SQLITE_ROW) {
+    sqlite3_reset (dst.get ());
+    sqlite3_clear_bindings (dst.get ());
+    bind_text (dst.get (), 1, text_col (src.get (), 0));
+    bind_text (dst.get (), 2, text_col (src.get (), 1));
+    const void* blob= sqlite3_column_blob (src.get (), 2);
+    int bytes= sqlite3_column_bytes (src.get (), 2);
     if (blob != nullptr && bytes > 0)
-      sqlite3_bind_blob (dst.get (), 10, blob, bytes, SQLITE_TRANSIENT);
-    else sqlite3_bind_null (dst.get (), 10);
-    sqlite3_bind_int (dst.get (), 11, sqlite3_column_int (src.get (), 10));
-    bind_text (dst.get (), 12, text_col (src.get (), 11));
+      sqlite3_bind_blob (dst.get (), 3, blob, bytes, SQLITE_TRANSIENT);
+    else sqlite3_bind_null (dst.get (), 3);
+    sqlite3_bind_int (dst.get (), 4, sqlite3_column_int (src.get (), 3));
+    if (sqlite3_step (dst.get ()) != SQLITE_DONE) {
+      error= sqlite3_errmsg (local);
+      return false;
+    }
+  }
+  return true;
+}
+
+bool
+copy_patch_embedding_spaces (sqlite3* local, sqlite3* patch,
+                             std::string& error) {
+  Statement src (patch, "SELECT space_id,dimension,backend,model,contract "
+                        "FROM embedding_spaces");
+  Statement dst (local, "INSERT OR REPLACE INTO embedding_spaces "
+                       "(space_id,dimension,backend,model,contract) "
+                       "VALUES (?,?,?,?,?)");
+  if (src.get () == nullptr || dst.get () == nullptr) {
+    error= sqlite3_errmsg (local);
+    return false;
+  }
+  while (sqlite3_step (src.get ()) == SQLITE_ROW) {
+    sqlite3_reset (dst.get ());
+    sqlite3_clear_bindings (dst.get ());
+    bind_text (dst.get (), 1, text_col (src.get (), 0));
+    sqlite3_bind_int (dst.get (), 2, sqlite3_column_int (src.get (), 1));
+    bind_text (dst.get (), 3, text_col (src.get (), 2));
+    bind_text (dst.get (), 4, text_col (src.get (), 3));
+    bind_text (dst.get (), 5, text_col (src.get (), 4));
     if (sqlite3_step (dst.get ()) != SQLITE_DONE) {
       error= sqlite3_errmsg (local);
       return false;
@@ -458,24 +465,16 @@ file_mtime_ns (const fs::path& file) {
 }
 
 std::string
-content_hash (const std::string& bytes) {
-  uint64_t hash= 1469598103934665603ULL;
-  for (unsigned char c: bytes) {
-    hash ^= c;
-    hash *= 1099511628211ULL;
-  }
-  char buf[32];
-  snprintf (buf, sizeof (buf), "%016llx",
-            (unsigned long long) hash);
-  return buf;
+storage_revision (const std::string& bytes) {
+  return athena::document::storage_bytes_fingerprint (bytes);
 }
 
 bool
-cached_embedding_model_fingerprint (const fs::path& local_db,
-                                    const fs::path& embedding_model,
-                                    std::string& fingerprint,
-                                    std::string& error) {
-  fingerprint.clear ();
+cached_embedding_space_id (const fs::path& local_db,
+                           const fs::path& embedding_model,
+                           std::string& space_id,
+                           std::string& error) {
+  space_id.clear ();
   if (embedding_model.empty ()) return true;
   std::error_code ec;
   if (!fs::is_regular_file (embedding_model, ec)) return true;
@@ -486,7 +485,10 @@ cached_embedding_model_fingerprint (const fs::path& local_db,
   }
   int64_t mtime= file_mtime_ns (embedding_model);
   std::string path= embedding_model.generic_string ();
-  std::string cached_path, cached_size, cached_mtime, cached_fingerprint;
+  std::string cached_path, cached_size, cached_mtime, cached_space;
+
+  if (!athena::rag::storage::prepare_database_path (local_db, error))
+    return false;
 
   sqlite3* db= nullptr;
   if (sqlite3_open (local_db.string ().c_str (), &db) != SQLITE_OK) {
@@ -495,26 +497,26 @@ cached_embedding_model_fingerprint (const fs::path& local_db,
     if (db != nullptr) sqlite3_close (db);
     return false;
   }
-  bool schema_ok= ensure_schema (db, error);
+  bool schema_ok= athena::rag::storage::ensure_schema (db, error);
   bool cache_hit= schema_ok &&
     read_meta (db, "delegation_model_path", cached_path) &&
     read_meta (db, "delegation_model_size", cached_size) &&
     read_meta (db, "delegation_model_mtime_ns", cached_mtime) &&
-    read_meta (db, "delegation_model_fingerprint", cached_fingerprint) &&
+    read_meta (db, "delegation_model_space_id", cached_space) &&
     cached_path == path && cached_size == std::to_string (size) &&
-    cached_mtime == std::to_string (mtime) && !cached_fingerprint.empty ();
+    cached_mtime == std::to_string (mtime) && !cached_space.empty ();
   if (!schema_ok) {
     sqlite3_close (db);
     return false;
   }
   if (cache_hit) {
-    fingerprint= cached_fingerprint;
+    space_id= cached_space;
     sqlite3_close (db);
     return true;
   }
 
-  fingerprint= athena::rag::rag_embedding_model_fingerprint (path);
-  if (fingerprint.empty ()) {
+  space_id= athena::rag::rag_embedding_space_id_for_model (path);
+  if (space_id.empty ()) {
     error= "failed to fingerprint embedding model " + path;
     sqlite3_close (db);
     return false;
@@ -523,19 +525,24 @@ cached_embedding_model_fingerprint (const fs::path& local_db,
     write_meta (db, "delegation_model_path", path, error) &&
     write_meta (db, "delegation_model_size", std::to_string (size), error) &&
     write_meta (db, "delegation_model_mtime_ns", std::to_string (mtime), error) &&
-    write_meta (db, "delegation_model_fingerprint", fingerprint, error);
+    write_meta (db, "delegation_model_space_id", space_id, error);
   sqlite3_close (db);
   return ok;
 }
 
 bool
 collect_delegated_job (const fs::path& vault_root, const fs::path& local_db,
-                       const std::string& expected_embedding_model,
-                       DelegatedJob& job, std::string& error) {
+                        const std::string& expected_embedding_model,
+                        DelegatedJob& job, std::string& error) {
   job= DelegatedJob ();
+  if (!athena::rag::storage::prepare_database_path (local_db, error))
+    return false;
   sqlite3* db= nullptr;
   bool have_db= sqlite3_open (local_db.string ().c_str (), &db) == SQLITE_OK;
-  if (have_db) ensure_schema (db, error);
+  if (have_db && !athena::rag::storage::ensure_schema (db, error)) {
+    sqlite3_close (db);
+    return false;
+  }
   std::set<std::string> known;
   if (have_db) read_local_documents (db, known);
   std::set<std::string> staleEmbeddings;
@@ -563,7 +570,7 @@ collect_delegated_job (const fs::path& vault_root, const fs::path& local_db,
     const bool embeddings_current= staleEmbeddings.count (rel) == 0;
     if (cached.found && cached.status == "ok" && embeddings_current &&
         cached.size == observedSize && cached.mtime == observedMtime &&
-        !cached.semantic_hash.empty ()) continue;
+        !cached.semantic_revision.empty ()) continue;
 
     std::string bytes;
     if (!read_file_bytes (file, bytes)) {
@@ -573,11 +580,11 @@ collect_delegated_job (const fs::path& vault_root, const fs::path& local_db,
     }
     int64_t size= int64_t (bytes.size ());
     int64_t mt= file_mtime_ns (file);
-    std::string storage_hash= content_hash (bytes);
-    std::string semantic_hash;
+    std::string storage_rev= storage_revision (bytes);
+    std::string semantic_revision;
     try {
       tree document= athena::document::decode_document_bytes (bytes, file).document;
-      semantic_hash= athena::document::semantic_document_fingerprint (document);
+      semantic_revision= athena::document::semantic_document_fingerprint (document);
     }
     catch (const std::exception& e) {
       error= "failed to decode " + file.generic_string () + ": " + e.what ();
@@ -585,11 +592,11 @@ collect_delegated_job (const fs::path& vault_root, const fs::path& local_db,
       return false;
     }
     if (cached.found && cached.status == "ok" && embeddings_current &&
-        (cached.semantic_hash == semantic_hash ||
-         (cached.semantic_hash.empty () && cached.size == size &&
-          cached.mtime == mt && cached.storage_hash == storage_hash))) {
+        (cached.semantic_revision == semantic_revision ||
+         (cached.semantic_revision.empty () && cached.size == size &&
+          cached.mtime == mt && cached.storage_revision == storage_rev))) {
       if (!update_document_revision (
-            db, rel, file, size, mt, storage_hash, semantic_hash, error)) {
+            db, rel, file, size, mt, storage_rev, semantic_revision, error)) {
         if (db != nullptr) sqlite3_close (db);
         return false;
       }
@@ -600,8 +607,8 @@ collect_delegated_job (const fs::path& vault_root, const fs::path& local_db,
     f.content= std::move (bytes);
     f.size= size;
     f.mtime_ns= mt;
-    f.storage_hash= std::move (storage_hash);
-    f.semantic_hash= std::move (semantic_hash);
+    f.storage_revision= std::move (storage_rev);
+    f.semantic_revision= std::move (semantic_revision);
     job.files.push_back (std::move (f));
   }
   for (const std::string& rel: known)
@@ -674,9 +681,11 @@ build_patch_for_job (const DelegatedJob& job, const fs::path& patch_db,
 
 bool
 apply_patch_database (const fs::path& vault_root, const fs::path& local_db,
-                      const fs::path& patch_db,
-                      const std::vector<std::string>& deleted,
-                      std::string& error) {
+                       const fs::path& patch_db,
+                       const std::vector<std::string>& deleted,
+                       std::string& error) {
+  if (!athena::rag::storage::prepare_database_path (local_db, error))
+    return false;
   sqlite3* local= nullptr;
   if (sqlite3_open (local_db.string ().c_str (), &local) != SQLITE_OK) {
     error= local == nullptr ? "failed to open local RAG database" :
@@ -684,7 +693,7 @@ apply_patch_database (const fs::path& vault_root, const fs::path& local_db,
     if (local != nullptr) sqlite3_close (local);
     return false;
   }
-  if (!ensure_schema (local, error)) {
+  if (!athena::rag::storage::ensure_schema (local, error)) {
     sqlite3_close (local);
     return false;
   }
@@ -703,7 +712,7 @@ apply_patch_database (const fs::path& vault_root, const fs::path& local_db,
   while (sqlite3_step (docs.get ()) == SQLITE_ROW)
     affected.insert (text_col (docs.get (), 0));
 
-  if (!exec_sql (local, "BEGIN", error)) {
+  if (!exec_sql (local, "BEGIN IMMEDIATE", error)) {
     sqlite3_close (patch);
     sqlite3_close (local);
     return false;
@@ -728,6 +737,8 @@ apply_patch_database (const fs::path& vault_root, const fs::path& local_db,
       error) ||
       !copy_patch_documents (local, patch, vault_root, error) ||
       !copy_patch_chunks (local, patch, error) ||
+      !copy_patch_embeddings (local, patch, error) ||
+      !copy_patch_embedding_spaces (local, patch, error) ||
       !copy_patch_edges (local, patch, error) ||
       !copy_patch_fts (local, patch, error)) {
     exec_sql (local, "ROLLBACK", error);

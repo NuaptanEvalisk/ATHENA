@@ -12,6 +12,7 @@
 #define RAG_INDEX_HPP
 
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -20,6 +21,9 @@
 namespace athena::rag {
 
 bool rag_text_requires_embedding (const std::string& text);
+std::vector<std::filesystem::path> rag_document_files (
+  const std::filesystem::path& root,
+  const std::function<bool ()>& current= {});
 class RagEmbedder;
 
 struct RagConfig {
@@ -50,11 +54,34 @@ struct RagChunk {
   double score= 0.0;
 };
 
+struct RagPreparedChunk {
+  RagChunk chunk;
+  std::string embedding_input_hash;
+  std::vector<std::string> edges;
+  std::vector<float> cached_embedding;
+  bool needs_embedding= false;
+};
+
+struct RagPreparedDocument {
+  std::string rel_path;
+  std::string storage_revision;
+  std::string semantic_revision;
+  std::string embedding_space;
+  std::filesystem::path absolute_path;
+  std::int64_t size= 0;
+  std::int64_t mtime_ns= 0;
+  std::vector<RagPreparedChunk> chunks;
+  std::vector<std::size_t> missing_embedding_indices;
+  bool unchanged= false;
+  bool metadata_only= false;
+};
+
 struct RagStatus {
   bool open= false;
   std::string vault_root;
   std::string db_path;
   std::string embedding_model;
+  std::string embedding_space;
   bool embeddings_enabled= false;
   std::string embedding_warning;
   int document_count= 0;
@@ -71,6 +98,15 @@ public:
   bool open (const RagConfig& config);
   bool scan_once ();
   bool parallel_reindex (int jobs);
+  bool prepare_document (const std::string& rel_path,
+                         const std::string& expected_storage_revision,
+                         const std::string& embedding_space,
+                         RagPreparedDocument& prepared);
+  bool commit_document (
+    const RagPreparedDocument& prepared,
+    const std::vector<std::vector<float>>& computed_embeddings,
+    const std::function<bool ()>& generation_is_current= {});
+  bool delete_document (const std::string& rel_path);
   void set_progress_enabled (bool enabled);
   RagStatus status () const;
 

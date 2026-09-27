@@ -147,17 +147,13 @@ private slots:
         "INSERT INTO artifact_metadata VALUES('schema-version','" + version.toStdString () + "');");
     const auto old_db= get (db);
     const auto rag= root / "rag.sqlite";
-    std::uint64_t storage_hash= 1469598103934665603ULL;
-    for (unsigned char c: legacy) { storage_hash ^= c; storage_hash *= 1099511628211ULL; }
-    std::ostringstream encoded;
-    encoded << std::hex << std::setw (16) << std::setfill ('0') << storage_hash;
     sql (rag, "CREATE TABLE meta(key TEXT PRIMARY KEY,value TEXT);"
       "INSERT INTO meta VALUES('schema-version','1');"
       "CREATE TABLE documents(rel_path TEXT PRIMARY KEY,size INTEGER,mtime_ns INTEGER,content_hash TEXT,status TEXT);"
       "CREATE TABLE chunks(chunk_id TEXT,embedding BLOB,embedding_model TEXT);"
       "INSERT INTO chunks VALUES('stable-chunk',x'0000803f00000040','existing-model');"
       "INSERT INTO documents VALUES('a.ath'," + std::to_string (legacy.size ()) + "," +
-      std::to_string (mtime) + ",'" + encoded.str () + "','ok');");
+      std::to_string (mtime) + ",'old-derived-revision','ok');");
     const auto old_rag= get (rag);
     const auto expected= semantic_document_fingerprint (decode_document_bytes (legacy, root / "a.ath").document);
     const auto result= upgrade_vault_format (root);
@@ -169,10 +165,7 @@ private slots:
     QCOMPARE (read_xml (sql (db, "SELECT name_tree FROM artifact_names"), xml_kind::fragment), tree ("Cesàro"));
     QCOMPARE (sql (db, "SELECT value FROM artifact_metadata WHERE key='tree-format'"), std::string ("utf8-xml-v1"));
     QCOMPARE (get (result.backup / "rag.sqlite"), old_rag);
-    QCOMPARE (sql (rag, "SELECT content_hash FROM documents"), expected);
-    QCOMPARE (sql (rag, "SELECT storage_hash FROM documents"), encoded.str ());
-    QCOMPARE (sql (rag, "SELECT chunk_id,hex(embedding),embedding_model FROM chunks"),
-              std::string ("stable-chunk0000803F00000040existing-model"));
+    QVERIFY (!fs::exists (rag));
   }
   void rejectUnknownIndexVersion () {
     QTemporaryDir tmp;

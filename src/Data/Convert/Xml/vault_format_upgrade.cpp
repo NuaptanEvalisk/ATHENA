@@ -192,14 +192,6 @@ std::string bytes (const fs::path& root, const fs::path& path) {
   filesystem::confined_root storage (root);
   return storage.open (path).read (codec_limits ().output_bytes);
 }
-std::string rag_storage_hash (const std::string& bytes) {
-  // This is the existing RAG storage revision, not the logical SHA-256.
-  std::uint64_t h= 1469598103934665603ULL;
-  for (unsigned char c: bytes) { h ^= c; h *= 1099511628211ULL; }
-  std::ostringstream out;
-  out << std::hex << std::setw (16) << std::setfill ('0') << h;
-  return out.str ();
-}
 struct document_record {
   fs::path path;
   std::string semantic;
@@ -275,7 +267,7 @@ vault_upgrade_result upgrade_vault_format (const fs::path& requested,
       }
       else ++result.already_xml;
       documents.push_back ({path, semantic, decoded.legacy ()});
-      revisions.push_back ({path.generic_string (), semantic, rag_storage_hash (source),
+      revisions.push_back ({path.generic_string (), semantic,
         static_cast<long long> (source.size ()),
         static_cast<long long> (fs::last_write_time (root / path).time_since_epoch ().count ())});
     }
