@@ -18,6 +18,7 @@
 #include "tm_buffer.hpp"
 #include "utf8_edit.hpp"
 #include "Xml/clipboard_xml.hpp"
+#include "ATHENA/Data/document_node_copy.hpp"
 
 /******************************************************************************
 * Constructor and destructor
@@ -724,6 +725,10 @@ edit_select_rep::selection_paste (string key) {
 
   tree t; string s;
   (void) ::get_selection (key, t, s, selection_import);
+  // Until a verified move credential is supplied, every paste is a new object.
+  // Duplicate the whole selection once so references between siblings remap.
+  if (is_tuple (t, "texmacs", 3) && athena::node::contains_metadata (t[1]))
+    t[1]= athena::document_node::duplicate_source_nodes (t[1]);
   if (inside_active_graphics ()) {
     if (is_tuple (t, "texmacs", 3))
       (void) native_graphics_paste_selection (t[1]);
@@ -773,9 +778,11 @@ edit_select_rep::selection_paste (string key) {
         return;
       }
     }
-    if (is_compound (t[1], "text", 1) && mode == "text")
+    if (is_compound (t[1], "text", 1) && mode == "text" &&
+        !athena::node::get (t[1]))
       t= tuple ("texmacs", t[1][0], "text", lan);
-    if (is_compound (t[1], "math", 1) && mode == "math")
+    if (is_compound (t[1], "math", 1) && mode == "math" &&
+        !athena::node::get (t[1]))
       t= tuple ("texmacs", t[1][0], "math", lan);
     if (mode == "math" && t[2] == "text")
       set_message ("Error: invalid paste of text into a formula", "paste");

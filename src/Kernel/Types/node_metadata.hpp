@@ -41,6 +41,8 @@ struct metadata {
 bool valid_id (const std::string& id);
 std::string new_id ();
 const metadata* get (const tree& node);
+// Includes descendants; metadata itself implies true, so rich values need no scan.
+bool contains_metadata (const tree& node);
 std::string id (const tree& node);
 // Detached-tree primitives. Live edits must go through modification/observers.
 void set (tree& node, const metadata& value);

@@ -37,6 +37,48 @@ typed internal references. Neither operation is a clipboard move credential.
 The APIs are owner-local. Native trees and mutable rich property values must not
 be shared between actors; produce a deep snapshot or use an explicit wire codec.
 
+## Editing And Clipboard Integration
+
+- Atomic paragraph promotion to CONCAT now transfers its metadata in one
+  explicit structural modification. Enter/paragraph join use this operation so
+  identity belongs to the split/join unit; undo restores the original header.
+  Generic wrapping of an independently identified compound does not promote it.
+- Complete atomic/annotated selections preserve source metadata. Partial text
+  selections do not claim the containing object's UUID. Concat and WITH
+  decomposition/recomposition retain annotated boundaries and empty objects.
+- Clipboard snapshots use XML v2 when annotated, preserving v1 output for
+  unannotated selections. This is not normal-document XML v2 activation.
+- Source duplication renews all IDs, remaps typed references, native HLINK
+  targets and the staged TRANSCLUDE(TUPLE(uuid,...)) list. Ordinary text,
+  external links and legacy four-argument anchor transclusions are not rewritten.
+  Reserved `athena:artifact-bindings` (role -> artifact UUID strings) are removed
+  from new objects; the artifact producer still needs integration with this key.
+- Paste uses that new-object operation once per selection. Cut currently falls
+  back to copy semantics: verified one-use move credentials and cross-actor undo
+  are NOT implemented, so identity-preserving moves must not yet be enabled.
+- Scheme `tree-rebuild` preserves parent metadata with normal owner-local child
+  sharing. `tm-replace` uses it for native source inputs instead of reconstructing
+  stree. `tree-copy` remains an independent snapshot; `tree-duplicate-source`
+  explicitly creates new identities. Patch Scheme conversion is now in-memory
+  native-tree transport, not a persistent or printable S-expression format.
+
+These changes cover specific editing routes, not every correction, formatting,
+insertion, serialization or Scheme source-modification helper. In particular,
+partial range reconstruction, source roles during arbitrary formatting and
+whole-document insertion still require the integration audit below.
+
+### Focused Verification (2026-09-27)
+
+- Normal `ATHENA.bin -j20` build passed; no deployment or vault conversion.
+- `document_node_copy_test`: 8 passed; `modification_metadata_test`: 26 passed;
+  `node_metadata_test`: 10 passed. These are the only native suites executed for
+  this integration batch, not the whole test suite.
+- `tests/scheme/node-model-bridge-test.scm` passed in the newly built headless
+  binary with an isolated temporary profile, exercising generated native
+  bindings, native/stree replacement and modification/author/birth history.
+  Startup also reported `lazy-keyboard-provide` unbound twice; that separate
+  startup diagnostic has not been investigated or fixed by this batch.
+
 ## Integration Gates Still Required
 
 1. Assign source IDs through content roles, with complete handling of nested

@@ -13,6 +13,8 @@
 namespace athena::document {
 inline constexpr const char* clipboard_mime= "application/x-athena-selection+xml";
 // The fragment contains the existing (texmacs, content, mode, language) tuple.
+// Unannotated selections retain v1 output; annotated selections require v2.
+// Both versions decode losslessly. Decoding is a snapshot, not paste permission.
 // Codec state and decoded trees belong to the caller, never to a shared cache.
 std::string write_clipboard_xml (const tree& selection);
 tree read_clipboard_xml (std::string_view bytes);

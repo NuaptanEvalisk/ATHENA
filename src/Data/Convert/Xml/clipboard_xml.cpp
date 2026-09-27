@@ -8,6 +8,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include "clipboard_xml.hpp"
+#include "node_metadata.hpp"
 
 namespace athena::document {
 namespace {
@@ -20,10 +21,12 @@ void validate_selection (const tree& selection) {
 }
 std::string write_clipboard_xml (const tree& selection) {
   validate_selection (selection);
-  return write_xml (selection, xml_kind::fragment);
+  return node::contains_metadata (selection)?
+    write_xml_v2 (selection, xml_kind::fragment):
+    write_xml (selection, xml_kind::fragment);
 }
 tree read_clipboard_xml (std::string_view bytes) {
-  tree selection= read_xml (bytes, xml_kind::fragment);
+  tree selection= read_xml_v2 (bytes, xml_kind::fragment);
   validate_selection (selection);
   return selection;
 }

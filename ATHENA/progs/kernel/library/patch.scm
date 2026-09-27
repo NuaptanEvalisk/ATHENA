@@ -47,9 +47,11 @@
     (make-modification (symbol->string k) p t)))
 
 (define-public (modification->scheme m)
+  ;; In-memory Scheme representation, not an on-disk serialization. A native
+  ;; snapshot preserves metadata and prepared undo headers that stree loses.
   (list (modification-type m)
 	(modification-path m)
-	(tm->stree (modification-tree m))))
+	(tree-copy (modification-tree m))))
 
 (define-public-macro (modification-apply! t m)
   `(set! ,t (modification-inplace-apply ,t ,m)))
@@ -96,7 +98,7 @@
         ((patch-birth? p)
          `(birth ,(patch-get-birth p) ,(patch-get-author p)))
         ((patch-author? p)
-         `(author ,(patch-get-author p) ,(patch-ref p 0)))
+         `(author ,(patch-get-author p) ,(patch->scheme (patch-ref p 0))))
         (else #f)))
 
 (define-public (scheme->patch p)
@@ -108,9 +110,9 @@
         ((func? p 'branch)
          (patch-branch (map scheme->patch (cdr p))))
         ((func? p 'birth)
-         (patch-birth (cadr p) (caddr p)))
+         (patch-birth (caddr p) (cadr p)))
         ((func? p 'author)
-         (patch-birth (cadr p) (scheme->patch (caddr p))))
+         (patch-author (cadr p) (scheme->patch (caddr p))))
         (else #f)))
 
 (define-public-macro (patch-apply! t m)

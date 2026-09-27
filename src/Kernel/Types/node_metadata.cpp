@@ -298,6 +298,14 @@ bool content_equal (const tree& a, const tree& b) {
   for (int i=0; i<N(a); ++i) if (!content_equal (a[i], b[i])) return false;
   return true;
 }
+bool contains_metadata (const tree& source) {
+  if (get (source)) return true;
+  if (is_compound (source))
+    for (int i=0; i<N(source); ++i)
+      if (contains_metadata (source[i])) return true;
+  return false;
+}
+
 tree duplicate (const tree& source, identity_map* result) {
   tree target= copy (source);
   identity_map replacements;

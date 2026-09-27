@@ -122,6 +122,10 @@
 (define (tm-replace-sub t what? by)
   (cond ((what? t) (by t))
         ((tm-atomic? t) t)
+        ((tree? t)
+         (tree-rebuild t
+           (map (lambda (child) (tm->tree (tm-replace-sub child what? by)))
+                (tree-children t))))
         (else `(,(tm-car t)
                 ,@(map (cut tm-replace-sub <> what? by) (tm-cdr t))))))
 

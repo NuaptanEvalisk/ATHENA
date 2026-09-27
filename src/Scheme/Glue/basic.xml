@@ -446,6 +446,16 @@
   <binding name="tree-copy" native="copy" returns="tree">
     <arg type="tree" />
   </binding>
+  <binding name="tree-rebuild" native="tree_rebuild" returns="tree">
+    <arg type="tree" />
+    <arg type="array_tree" />
+  </binding>
+  <binding name="tree-node-id" native="tree_node_id" returns="string">
+    <arg type="tree" />
+  </binding>
+  <binding name="tree-duplicate-source" native="tree_duplicate_source" returns="tree">
+    <arg type="tree" />
+  </binding>
   <binding name="tree-append" native="tree_append" returns="tree">
     <arg type="tree" />
     <arg type="tree" />

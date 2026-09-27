@@ -46,6 +46,11 @@ tree tree_range (tree t, int i, int j);
 tree tree_append (tree t1, tree t2);
 bool tree_active (tree t);
 tree tree_child_insert (tree t, int pos, tree x);
+// Owner-local reconstruction; children retain normal tree sharing semantics.
+// Use copy() for an independent snapshot, duplicate_source for new identities.
+tree tree_rebuild (tree source, array<tree> children);
+string tree_node_id (tree source);
+tree tree_duplicate_source (tree source);
 tree tree_assign (tree r, tree t);
 tree tree_insert (tree r, int pos, tree t);
 tree tree_remove (tree r, int pos, int nr);
