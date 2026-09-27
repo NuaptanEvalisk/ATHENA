@@ -464,6 +464,28 @@ v2 saves, advertise AUDMAP v3, or implement cross-document moves.
   envelope preservation and snapshot isolation. This does not substitute for
   the outstanding full DataArt PDF/UI acceptance or enable new-format saves.
 
+## Native Formatting And Preamble Source Edits (2026-09-27)
+
+- Formatting simplification, adjacent WITH merging and resetting the last
+  format pair retain independently annotated WITH/DOCUMENT nodes. This also
+  applies to properties-only nodes, not just assigned UUIDs. Selection-based
+  multi-format reconstruction carries existing wrapper metadata; anonymous
+  wrappers retain their established compact behavior.
+- Preamble creation and show/hide preserve body-root and preamble headers.
+  Existing child trees retain their own identities. Explicitly annotated
+  temporary content groups become visible DOCUMENT groups on hide, retaining
+  their identities instead of being silently flattened away.
+- The normal ATHENA.bin -j20 build passed. The focused
+  `tests/scheme/node-source-edit-test.scm` passed on a real BufferActor-owned
+  editor in an isolated headless profile, including preamble undo/redo,
+  complete show/hide round trips, atomic paragraphs, annotated temporary
+  groups, selection formatting, properties-only nodes and anonymous merging.
+- The general Scheme tree-set-diff optimizer still needs a metadata-aware
+  audit: its same-children/assign-label shortcut does not apply target headers.
+  Its text prefix/suffix helpers also mix character counts and UTF-8 byte
+  offsets. This batch does not enable source-role allocation or complete the
+  overall source-modification audit. No deployment or production migration ran.
+
 ## Build Boundary
 
 Normal builds use only:

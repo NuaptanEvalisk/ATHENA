@@ -14,6 +14,7 @@
 #include "native_interfaces.hpp"
 #include "font.hpp"
 #include "analyze.hpp"
+#include "node_metadata.hpp"
 
 #include <cmath>
 #include <initializer_list>
@@ -568,10 +569,13 @@ void buffer_show_preamble_impl () {
     return;
 
   tree shown= compound ("show-preamble", root[0][0]);
+  athena::node::copy_metadata (root[0], shown);
   array<tree> body_children;
   for (int i= 1; i < N (root); ++i) body_children << root[i];
   tree body= compound ("ignore", compound ("document", body_children));
-  (void) tree_assign (root, compound ("document", shown, body));
+  tree replacement= compound ("document", shown, body);
+  athena::node::copy_metadata (root, replacement);
+  (void) tree_assign (root, replacement);
 }
 
 void buffer_hide_preamble_impl () {
@@ -583,9 +587,22 @@ void buffer_hide_preamble_impl () {
     return;
 
   array<tree> children;
-  children << compound ("hide-preamble", root[0][0]);
-  for (int i= 0; i < N (root[1][0]); ++i) children << root[1][0][i];
-  (void) tree_assign (root, compound ("document", children));
+  tree hidden= compound ("hide-preamble", root[0][0]);
+  athena::node::copy_metadata (root[0], hidden);
+  children << hidden;
+  if (athena::node::get (root[1])) {
+    // Normally these containers are anonymous presentation wrappers. If a
+    // caller explicitly annotated one, keep it as a visible content group.
+    tree visible (DOCUMENT, root[1][0]);
+    athena::node::copy_metadata (root[1], visible);
+    children << visible;
+  }
+  else if (athena::node::get (root[1][0])) children << root[1][0];
+  else
+    for (int i= 0; i < N (root[1][0]); ++i) children << root[1][0][i];
+  tree replacement= compound ("document", children);
+  athena::node::copy_metadata (root, replacement);
+  (void) tree_assign (root, replacement);
 }
 
 void document_refresh () {
@@ -638,7 +655,9 @@ document_buffer_make_preamble () {
   array<tree> children;
   children << hidden;
   for (int i= 0; i < N (root); ++i) children << root[i];
-  (void) tree_assign (root, compound ("document", children));
+  tree replacement= compound ("document", children);
+  athena::node::copy_metadata (root, replacement);
+  (void) tree_assign (root, replacement);
   buffer_show_preamble_impl ();
   root= ed->the_buffer ();
   ed->go_to_start (reverse (obtain_ip (root)) * 0 * 0);

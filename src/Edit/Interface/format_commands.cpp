@@ -19,6 +19,7 @@
 #include "buffer_actor.hpp"
 #include "QTMNativeDialogs.hpp"
 #include "gui_text.hpp"
+#include "node_metadata.hpp"
 
 #include <QCoreApplication>
 #include <QJsonArray>
@@ -161,9 +162,10 @@ void simplify_outer (tree t, tree variable) {
     for (int i= (N (t) - 3) / 2 * 2; i >= 0 && i + 2 < N (t); i-= 2)
       if (t[i] == variable) t= tree_remove (t, i, 2);
     tree body= t[N (t) - 1];
-    if (is_func (body, DOCUMENT, 1) && is_func (body[0], WITH))
+    if (is_func (body, DOCUMENT, 1) && is_func (body[0], WITH) &&
+        !athena::node::get (body))
       tree_remove_node (body, 0);
-    if (N (t) == 1) t= tree_remove_node (t, 0);
+    if (N (t) == 1 && !athena::node::get (t)) t= tree_remove_node (t, 0);
     if (parent_tree (t, parent)) simplify_outer (parent, variable);
   }
 }
@@ -230,6 +232,7 @@ tree add_with (tree properties, tree body, path& destination) {
   if (is_func (body, WITH) && N (body) > 0) {
     int last= N (body) - 1;
     tree wrapper (WITH, N (body));
+    athena::node::copy_metadata (body, wrapper);
     for (int i= 0; i < last; ++i) wrapper[i]= body[i];
     wrapper[last]= add_with (properties, body[last], destination);
     destination= path (last) * destination;
@@ -376,7 +379,7 @@ void format_with_simplify (tree t) {
 
 void format_with_merge (tree t) {
   tree parent;
-  if (!is_func (t, WITH) || N (t) == 0 ||
+  if (!is_func (t, WITH) || N (t) == 0 || athena::node::get (t) ||
       !parent_tree (t, parent) || !is_func (parent, WITH)) return;
   tree properties (TUPLE, N (t) - 1);
   for (int i= 0; i < N (properties); ++i) properties[i]= copy (t[i]);
@@ -416,7 +419,7 @@ void format_tree_with_reset (object value, tree variable) {
     int i= property_index (t, variable, true);
     if (i >= 0) {
       t= tree_remove (t, i, 2);
-      if (N (t) == 1) tree_remove_node (t, 0);
+      if (N (t) == 1 && !athena::node::get (t)) tree_remove_node (t, 0);
       return;
     }
   } while (enclosing_property_scope (t, t));
