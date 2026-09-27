@@ -12,7 +12,10 @@
 #include "ATHENA/Data/interop_document_codec.hpp"
 #include "converter.hpp"
 #include "drd_std.hpp"
+#include "node_metadata.hpp"
 #include "tree.hpp"
+#include <cmath>
+#include <limits>
 #include <thread>
 
 using namespace athena::interop;
@@ -81,6 +84,227 @@ private slots:
     limits= {}; limits.depth= 0;
     QVERIFY_THROWS_EXCEPTION (std::length_error, document_node_to_value (source, limits));
     QVERIFY_THROWS_EXCEPTION (std::length_error, document_node_from_value (encoded, limits));
+  }
+
+  void v3RawDataKeepsMessagePackBin () {
+    string bytes;
+    for (int i= 0; i < 256; ++i) bytes << char (i);
+    tree source (RAW_DATA, tree (bytes));
+    auto plain= document_node_to_value_v3 (source);
+    QVERIFY (plain == document_node_to_value (source));
+    athena::node::metadata metadata;
+    metadata.id= athena::node::new_id ();
+    metadata.properties.emplace ("format", athena::node::property (std::string ("opaque")));
+    athena::node::set (source[0], metadata);
+    metadata.id= athena::node::new_id ();
+    athena::node::set (source, metadata);
+    auto encoded= document_node_to_value_v3 (source);
+    const auto& payload= encoded.at ("children")[0];
+    QVERIFY (payload.at ("raw").is_binary ());
+    QVERIFY (!payload.contains ("encoding"));
+    QCOMPARE (payload.at ("raw").get_binary ().size (), std::size_t (256));
+    for (int i= 0; i < 256; ++i)
+      QCOMPARE (payload.at ("raw").get_binary ()[i], std::uint8_t (i));
+    tree decoded= document_node_from_value_v3 (
+      value::from_msgpack (value::to_msgpack (encoded)));
+    QVERIFY (decoded == source);
+    QVERIFY (athena::node::equal_metadata (decoded, source));
+    QVERIFY (athena::node::equal_metadata (decoded[0], source[0]));
+    QVERIFY (document_node_to_value_v3 (decoded) == encoded);
+    QVERIFY_THROWS_EXCEPTION (std::invalid_argument, document_node_to_value (source));
+    for (const auto& bad: std::vector<value> {
+      value {{"raw", "AA=="}},
+      value {{"raw", "AA=="}, {"encoding", "base64"}},
+      value {{"raw", value::binary ({0})}, {"encoding", "base64"}},
+      value {{"raw", value::array ({0})}},
+      value {{"raw", value::binary ({0})}, {"text", ""}}
+    }) QVERIFY_THROWS_EXCEPTION (std::invalid_argument,
+      document_node_from_value_v3 (value {{"tag", "raw-data"},
+        {"children", value::array ({bad})}}));
+    QVERIFY_THROWS_EXCEPTION (std::invalid_argument,
+      document_node_from_value_v3 (value {{"raw", value::binary ({0})}}));
+    tree empty (RAW_DATA, tree (""));
+    auto empty_encoded= document_node_to_value_v3 (empty);
+    QVERIFY (empty_encoded["children"][0]["raw"].is_binary ());
+    QVERIFY (document_node_from_value_v3 (
+      value::from_msgpack (value::to_msgpack (empty_encoded))) == empty);
+  }
+
+  void v3TypedPropertiesRoundTrip () {
+    using athena::node::property;
+    tree rich (CONCAT, tree (u8"\u4e2d"), tree (" text"));
+    athena::node::metadata rich_metadata;
+    rich_metadata.id= athena::node::new_id ();
+    rich_metadata.properties.emplace ("nested", property (true));
+    athena::node::set (rich, rich_metadata);
+    athena::node::metadata metadata;
+    metadata.id= athena::node::new_id ();
+    metadata.properties= {
+      {"string", property (std::string ("42"))},
+      {"boolean", property (false)},
+      {"integer", property (std::int64_t (42))},
+      {"minimum", property (std::numeric_limits<std::int64_t>::min ())},
+      {"maximum", property (std::numeric_limits<std::int64_t>::max ())},
+      {"double", property (42.0)},
+      {"negative-zero", property (-0.0)},
+      {"tiny", property (std::numeric_limits<double>::denorm_min ())},
+      {"large", property (std::numeric_limits<double>::max ())},
+      {"reference", property (athena::node::reference {metadata.id})},
+      {"rich", property (athena::node::rich_text {rich})},
+      {"list", property (property::list {property (true),
+        property (property::dictionary {{std::string ("key\0", 4),
+          property (std::string ("value\0\r", 7))}})})},
+      {"dictionary", property (property::dictionary {
+        {"empty-list", property (property::list {})},
+        {"empty-map", property (property::dictionary {})}})}
+    };
+    tree source (string ("text\0\r", 6));
+    athena::node::set (source, metadata);
+    auto encoded= document_node_to_value_v3 (source);
+    for (const auto& entry: encoded.at ("properties")) {
+      const auto& typed= entry.at ("value");
+      if (typed.at ("type") == "int64" || typed.at ("type") == "double")
+        QVERIFY (typed.at ("value").is_string ());
+    }
+    for (const auto& transported: std::vector<value> {
+      value::parse (encoded.dump ()),
+      value::from_msgpack (value::to_msgpack (encoded))
+    }) {
+      tree decoded= document_node_from_value_v3 (transported);
+      QVERIFY (decoded == source);
+      QVERIFY (athena::node::equal_metadata (decoded, source));
+      const auto* result= athena::node::get (decoded);
+      QVERIFY (result != nullptr);
+      QCOMPARE (std::get<std::int64_t> (result->properties.at ("maximum").data),
+                std::numeric_limits<std::int64_t>::max ());
+      QVERIFY (std::holds_alternative<std::string> (result->properties.at ("string").data));
+      QVERIFY (std::holds_alternative<std::int64_t> (result->properties.at ("integer").data));
+      QVERIFY (std::holds_alternative<double> (result->properties.at ("double").data));
+      QVERIFY (std::signbit (std::get<double> (result->properties.at ("negative-zero").data)));
+      QVERIFY (athena::node::equal_metadata (
+        std::get<athena::node::rich_text> (result->properties.at ("rich").data).content, rich));
+      QVERIFY (document_node_to_value_v3 (decoded) == encoded);
+    }
+  }
+
+  void v3RejectsMalformedProperties () {
+    auto wrap= [] (value typed) {
+      return value {{"text", ""}, {"properties", value::array ({
+        value {{"name", "p"}, {"value", std::move (typed)}}})}};
+    };
+    for (const auto& invalid: std::vector<value> {
+      nullptr, value::array (),
+      value {{"type", "unknown"}, {"value", ""}},
+      value {{"type", "string"}},
+      value {{"type", "string"}, {"value", ""}, {"extra", true}},
+      value {{"type", "string"}, {"value", std::string ("\xff", 1)}},
+      value {{"type", "boolean"}, {"value", 1}},
+      value {{"type", "int64"}, {"value", 42}},
+      value {{"type", "int64"}, {"value", "01"}},
+      value {{"type", "int64"}, {"value", "9223372036854775808"}},
+      value {{"type", "int64"}, {"value", "-9223372036854775809"}},
+      value {{"type", "double"}, {"value", 42.0}},
+      value {{"type", "double"}, {"value", "nan"}},
+      value {{"type", "double"}, {"value", "inf"}},
+      value {{"type", "double"}, {"value", "1e9999"}},
+      value {{"type", "double"}, {"value", "1tail"}},
+      value {{"type", "reference"}, {"value", "not-a-uuid"}},
+      value {{"type", "list"}, {"value", value::object ()}},
+      value {{"type", "dictionary"}, {"value", value::object ()}},
+      value {{"type", "rich_tree"}, {"value", value::array ()}},
+      value {{"type", "rich_tree"}, {"value", value {
+        {"tag", "raw-data"}, {"children", value::array ({value {{"raw", value::binary ({0})}}})}}}}
+    }) QVERIFY_THROWS_EXCEPTION (std::invalid_argument,
+      document_node_from_value_v3 (wrap (invalid)));
+    const value entry= {{"name", "p"}, {"value", {{"type", "string"}, {"value", ""}}}};
+    for (const auto& properties: std::vector<value> {
+      value::object (), nullptr, value::array ({entry, entry}),
+      value::array ({value {{"name", ""}, {"value", entry["value"]}}}),
+      value::array ({value {{"name", std::string ("\xff", 1)}, {"value", entry["value"]}}}),
+      value::array ({value {{"name", "p"}, {"value", entry["value"]}, {"extra", 1}}})
+    }) QVERIFY_THROWS_EXCEPTION (std::invalid_argument,
+      document_node_from_value_v3 (value {{"text", ""}, {"properties", properties}}));
+    QVERIFY_THROWS_EXCEPTION (std::invalid_argument,
+      document_node_from_value_v3 (wrap (value {{"type", "dictionary"},
+        {"value", value::array ({entry, entry})}})));
+    for (const auto& malformed: std::vector<value> {
+      value {{"text", ""}, {"id", ""}},
+      value {{"text", ""}, {"id", 1}},
+      value {{"text", ""}, {"id", "00000000-0000-4000-8000-00000000000A"}},
+      value {{"text", ""}, {"children", value::array ()}},
+      value {{"tag", "x"}, {"children", value::array ()}, {"extra", true}},
+      value {{"tag", std::string ("\xff", 1)}, {"children", value::array ()}},
+      value {{"text", std::string ("\xff", 1)}}
+    }) QVERIFY_THROWS_EXCEPTION (std::invalid_argument, document_node_from_value_v3 (malformed));
+  }
+
+  void v3RejectsDuplicateIdentities () {
+    using athena::node::property;
+    tree child ("child");
+    athena::node::metadata metadata;
+    metadata.id= athena::node::new_id ();
+    athena::node::set (child, metadata);
+    tree source (DOCUMENT, child, copy (child));
+    QVERIFY_THROWS_EXCEPTION (std::invalid_argument, document_node_to_value_v3 (source));
+    const auto encoded_child= document_node_to_value_v3 (child);
+    QVERIFY_THROWS_EXCEPTION (std::invalid_argument,
+      document_node_from_value_v3 (value {{"tag", "document"},
+        {"children", value::array ({encoded_child, encoded_child})}}));
+    source= tree (DOCUMENT, child);
+    metadata.id.clear ();
+    metadata.properties.emplace ("rich", property (athena::node::rich_text {child}));
+    athena::node::set (source, metadata);
+    QVERIFY_THROWS_EXCEPTION (std::invalid_argument, document_node_to_value_v3 (source));
+    QVERIFY_THROWS_EXCEPTION (std::invalid_argument,
+      document_node_from_value_v3 (value {{"tag", "document"},
+        {"properties", value::array ({value {{"name", "rich"}, {"value",
+          {{"type", "rich_tree"}, {"value", encoded_child}}}}})},
+        {"children", value::array ({encoded_child})}}));
+  }
+
+  void v3MetadataSharesAllLimits () {
+    using athena::node::property;
+    tree source ("");
+    athena::node::metadata metadata;
+    metadata.properties.emplace ("p", property (property::list {
+      property (std::int64_t (7)), property (property::dictionary {
+        {"k", property (athena::node::rich_text {tree ("x")})}})}));
+    athena::node::set (source, metadata);
+    document_codec_limits exact;
+    exact.nodes= 6;
+    exact.depth= 4;
+    exact.bytes= 4;
+    auto encoded= document_node_to_value_v3 (source, exact);
+    QVERIFY (document_node_from_value_v3 (encoded, exact) == source);
+    for (int field= 0; field < 3; ++field) {
+      auto limit= exact;
+      if (field == 0) --limit.nodes;
+      if (field == 1) --limit.depth;
+      if (field == 2) --limit.bytes;
+      QVERIFY_THROWS_EXCEPTION (std::length_error, document_node_to_value_v3 (source, limit));
+      QVERIFY_THROWS_EXCEPTION (std::length_error, document_node_from_value_v3 (encoded, limit));
+    }
+    metadata.properties.clear ();
+    metadata.id= athena::node::new_id ();
+    metadata.properties.emplace ("r", property (athena::node::reference {metadata.id}));
+    athena::node::set (source, metadata);
+    exact= {};
+    exact.bytes= 2 * metadata.id.size () + 1;
+    encoded= document_node_to_value_v3 (source, exact);
+    QVERIFY (document_node_from_value_v3 (encoded, exact) == source);
+    --exact.bytes;
+    QVERIFY_THROWS_EXCEPTION (std::length_error, document_node_to_value_v3 (source, exact));
+    QVERIFY_THROWS_EXCEPTION (std::length_error, document_node_from_value_v3 (encoded, exact));
+    source= tree (RAW_DATA, tree (string ("\0\xff", 2)));
+    exact= {};
+    exact.nodes= 2;
+    exact.depth= 1;
+    exact.bytes= 10; // "raw-data" plus two binary bytes, without Base64 inflation.
+    encoded= document_node_to_value_v3 (source, exact);
+    QVERIFY (document_node_from_value_v3 (encoded, exact) == source);
+    --exact.bytes;
+    QVERIFY_THROWS_EXCEPTION (std::length_error, document_node_to_value_v3 (source, exact));
+    QVERIFY_THROWS_EXCEPTION (std::length_error, document_node_from_value_v3 (encoded, exact));
   }
 
   void relativeInsertionFollowsIdentity () {

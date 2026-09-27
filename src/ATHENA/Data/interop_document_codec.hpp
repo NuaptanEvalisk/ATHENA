@@ -23,7 +23,19 @@ struct document_codec_limits {
 // Atoms: {"text": UTF8}. RAW_DATA's single child is {"raw": BIN}.
 // Compounds: {"tag": UTF8, "children": [...]}. Ordinary text/tag data never
 // uses a legacy Cork fallback in AUDMAP protocol v2.
+// The v2 encoder rejects node metadata rather than silently discarding it.
 // These functions run on the native tree owner. Only value crosses threads.
 value document_node_to_value (const tree&, document_codec_limits = {});
 tree document_node_from_value (const value&, document_codec_limits = {});
+
+// Explicit staged v3 boundary; does not negotiate or activate protocol v3.
+// Nodes retain text/tag/children and add optional id and properties fields.
+// RAW_DATA's child remains {"raw": BIN}, with optional id and properties.
+// JSON transports must represent binary explicitly at their own boundary.
+// Properties use the typed schema documented in the implementation and share
+// the node/depth/byte limits, including rich text.
+// Wire parsers must reject duplicate object members before constructing value;
+// this API can only validate the members retained in the parsed object.
+value document_node_to_value_v3 (const tree&, document_codec_limits = {});
+tree document_node_from_value_v3 (const value&, document_codec_limits = {});
 } // namespace athena::interop
