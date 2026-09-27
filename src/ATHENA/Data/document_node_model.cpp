@@ -794,4 +794,90 @@ prepared_property_edit prepare_property_replacement (
   return prepare_property_edit (scope, where, delta, budget);
 }
 
+prepared_property_edit prepare_artifact_binding (
+    const tree& scope, const source_path& where, const std::string& role,
+    const std::string& artifact_uuid, const std::string& source_uuid,
+    limits budget) {
+  prepared_property_edit result;
+  try {
+    if (role.empty ())
+      fail (where, issue::invalid_property_value,
+            "Artifact binding role must not be empty",
+            artifact_bindings_property);
+    if (!node::valid_id (artifact_uuid))
+      fail (where, issue::invalid_property_value,
+            "Artifact binding requires a canonical UUID",
+            artifact_bindings_property + std::string ("/") + role);
+    if (!source_uuid.empty () && !node::valid_id (source_uuid))
+      fail (where, issue::invalid_id,
+            "Artifact source identity must be a canonical UUID");
+    if (where.size () > budget.maximum_depth)
+      fail (where, issue::resource_limit,
+            "Artifact binding path exceeds depth budget");
+
+    tree target= scope;
+    path location;
+    for (int index: where) {
+      if (!is_compound (target) || index < 0 || index >= N(target))
+        fail (where, issue::invalid_path,
+              "Artifact binding target no longer exists");
+      target= target[index];
+      location= location * path (index);
+    }
+    if (is_generic (target) || L(target) == UNINIT)
+      fail (where, issue::invalid_metadata,
+            "Cannot bind an artifact to opaque or uninitialized data");
+
+    node::metadata metadata;
+    if (const auto* old= node::get (target)) metadata= *old;
+    if (metadata.id.empty ())
+      metadata.id= source_uuid.empty () ? node::new_id () : source_uuid;
+    else if (!source_uuid.empty () && metadata.id != source_uuid)
+      fail (where, issue::invalid_id,
+            "Artifact source identity changed during binding");
+
+    node::property::dictionary bindings;
+    auto existing_property= metadata.properties.find (artifact_bindings_property);
+    if (existing_property != metadata.properties.end ()) {
+      const auto* existing=
+        std::get_if<node::property::dictionary> (&existing_property->second.data);
+      if (!existing)
+        fail (where, issue::wrong_property_type,
+              "Artifact bindings require a role-to-UUID dictionary",
+              artifact_bindings_property);
+      bindings= *existing;
+    }
+    auto bound= bindings.find (role);
+    if (bound != bindings.end ()) {
+      const auto* id= std::get_if<std::string> (&bound->second.data);
+      if (!id || *id != artifact_uuid)
+        fail (where, issue::protected_property,
+              "Artifact role is already bound to another artifact UUID",
+              artifact_bindings_property + std::string ("/") + role);
+    }
+    else bindings.emplace (role, node::property (artifact_uuid));
+    metadata.properties[artifact_bindings_property]=
+      node::property (std::move (bindings));
+
+    tree candidate= is_atomic (target) ? tree (target->label) :
+                                         tree (L(target), N(target));
+    if (is_compound (target))
+      for (int i=0; i<N(target); ++i) candidate[i]= target[i];
+    node::set (candidate, metadata);
+    result.diagnostics= validate_node_properties (candidate, budget);
+    for (auto& problem: result.diagnostics) problem.where= where;
+    if (!result.ok ()) return result;
+    const auto mod= mod_set_metadata (location, candidate);
+    identity_audit (budget).inspect (clean_apply (scope, mod));
+    result.id= metadata.id;
+    if (!node::equal_metadata (target, candidate)) result.change= mod;
+  }
+  catch (const failure& problem) { result.diagnostics.push_back (problem.value); }
+  catch (const std::exception& error) {
+    result.diagnostics.push_back (
+      {where, artifact_bindings_property, issue::invalid_metadata, error.what ()});
+  }
+  return result;
+}
+
 } // namespace athena::document_node

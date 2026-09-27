@@ -26,6 +26,8 @@ value describe (const AthenaArtifactRecord& record) {
     {"names", record.semantic_names}, {"display_text", record.display_text},
     {"relative_path", record.relative_path}, {"document_order", record.document_order},
     {"content_uuid", record.content_uuid}, {"proof_uuid", record.proof_uuid},
+    {"source_uuid", record.source_uuid}, {"source_role", record.source_role},
+    {"input_fingerprint", record.input_fingerprint},
     {"anchor_stem", record.anchor_stem}};
 }
 

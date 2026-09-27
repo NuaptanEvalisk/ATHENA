@@ -221,6 +221,18 @@ prepared_property_edit prepare_property_replacement (
   const tree& scope, const source_path& where, const tree& expected_header,
   const tree& desired_header, limits budget= {});
 
+// Internal Artifact-producer boundary for the reserved role -> artifact UUID
+// dictionary. Unlike ordinary property edits, this may write
+// athena:artifact-bindings and may assign the source UUID when the extracted
+// object does not already have one. The caller still applies the returned
+// observer-aware modification on the owner/detached transaction it controls.
+// An existing different binding is never overwritten: source metadata is the
+// identity authority once present.
+prepared_property_edit prepare_artifact_binding (
+  const tree& scope, const source_path& where, const std::string& role,
+  const std::string& artifact_uuid, const std::string& source_uuid= {},
+  limits budget= {});
+
 } // namespace athena::document_node
 
 #endif // ATHENA_DOCUMENT_NODE_MODEL_HPP

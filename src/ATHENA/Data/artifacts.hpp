@@ -27,6 +27,12 @@ struct AthenaArtifactRecord {
   std::string content_uuid;
   std::string proof_uuid;
   std::string relative_path;
+  // Native node-model identity. For XML v2 this is the persistent source node
+  // UUID plus a stable extraction role; source_path is only the owner-local
+  // location used while applying/validating the binding and is never identity.
+  std::string source_uuid;
+  std::string source_role;
+  std::vector<int> source_path;
   // User-facing and tree text is UTF-8. Bold keyword_tree, semantic_name_trees
   // and definition_candidates use native XML tree fragments. Legacy decoding
   // belongs exclusively to the offline vault upgrader.
@@ -48,6 +54,9 @@ struct AthenaArtifactRecord {
   std::string identity_after;
   std::string identity_decision;
   std::string identity_evidence;
+  // Exact extraction/model input revision. This is intentionally distinct
+  // from document storage/content revisions.
+  std::string input_fingerprint;
   std::string keyword_latex;
   std::vector<std::pair<int,std::string>> definition_candidates;
   int document_order= 0;

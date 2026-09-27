@@ -19,6 +19,8 @@
 #include "ATHENA/Data/artifact_range_llm.hpp"
 #include "ATHENA/Data/artifact_radioactive_links.hpp"
 #include "ATHENA/Data/artifact_title_filter.hpp"
+#include "ATHENA/Data/document_node_copy.hpp"
+#include "ATHENA/Data/enunciation_model.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
 #include "Data/Convert/Xml/vault_format_upgrade.hpp"
@@ -91,6 +93,7 @@ private slots:
   void preservesArtifactsAcrossStorageFormatRewrite ();
   void migratesArtifactSchemaWithoutRebuildingSemanticData ();
   void delegatedFailureLeavesDatabaseUnchanged ();
+  void persistsNativeSourceBindingsAndReusesExactModelInput ();
 };
 
 void
@@ -270,6 +273,62 @@ write_xml_document (const fs::path& path, const tree& document) {
   std::string serialized= athena::document::write_xml (document);
   std::ofstream output (path, std::ios::binary | std::ios::trunc);
   output.write (serialized.data (), std::streamsize (serialized.size ()));
+}
+
+static void
+write_xml_v2_document (const fs::path& path, const tree& document) {
+  std::string serialized= athena::document::write_xml_v2 (document);
+  std::ofstream output (path, std::ios::binary | std::ios::trunc);
+  output.write (serialized.data (), std::streamsize (serialized.size ()));
+}
+
+static void
+set_node_id (tree& source, const std::string& id) {
+  athena::node::metadata metadata;
+  if (const auto* existing= athena::node::get (source)) metadata= *existing;
+  metadata.id= id;
+  athena::node::set (source, metadata);
+}
+
+static std::string
+artifact_binding_for (const tree& source, const std::string& role) {
+  const auto* metadata= athena::node::get (source);
+  if (!metadata) return {};
+  auto property= metadata->properties.find (
+    athena::document_node::artifact_bindings_property);
+  if (property == metadata->properties.end ()) return {};
+  const auto* bindings=
+    std::get_if<athena::node::property::dictionary> (&property->second.data);
+  if (!bindings) return {};
+  auto found= bindings->find (role);
+  if (found == bindings->end ()) return {};
+  const auto* id= std::get_if<std::string> (&found->second.data);
+  return id ? *id : std::string ();
+}
+
+static tree
+native_artifact_document (const std::string& theorem_text) {
+  tree statement (
+    athena::enunciation::label (),
+    tree (DOCUMENT, tree (theorem_text.c_str ())));
+  athena::node::metadata enunciation;
+  enunciation.id= "22222222-2222-4222-8222-222222222222";
+  enunciation.properties["kind"]=
+    athena::node::property (std::string ("theorem"));
+  enunciation.properties["numbered"]= athena::node::property (true);
+  enunciation.properties["name"]= athena::node::property (
+    athena::node::rich_text {tree ("Native theorem")});
+  athena::node::set (statement, enunciation);
+
+  tree paragraph (CONCAT);
+  paragraph << "An operator is " << compound ("strong", "compact operator")
+            << " when its image has compact closure.";
+  set_node_id (paragraph, "33333333-3333-4333-8333-333333333333");
+
+  tree body (DOCUMENT, statement, paragraph);
+  set_node_id (body, "11111111-1111-4111-8111-111111111111");
+  return tree (
+    DOCUMENT, compound ("style", "generic"), compound ("body", body));
 }
 
 static tree
@@ -2288,6 +2347,110 @@ TestArtifacts::delegatedFailureLeavesDatabaseUnchanged () {
   for (size_t i=0; i<before.size (); i++) {
     QCOMPARE (after[i].display_text, before[i].display_text);
     QCOMPARE (after[i].content_uuid, before[i].content_uuid);
+  }
+}
+
+void
+TestArtifacts::persistsNativeSourceBindingsAndReusesExactModelInput () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  fs::path root (temporary.path ().toStdString ());
+  AthenaVaultfileInfo info;
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+  const fs::path source= root / "Native.ath";
+  write_xml_v2_document (
+    source, native_artifact_document ("Every finite rank operator is compact."));
+
+  int selector_calls= 0;
+  AthenaArtifactsBuildOptions options;
+  options.range_selector=
+    [&] (const std::vector<AthenaArtifactRangeRequest>& requests,
+         std::vector<std::vector<int>>& results,
+         const AthenaArtifactRangeSelectionProgress&, std::string&) {
+      selector_calls += (int) requests.size ();
+      results.assign (requests.size (), std::vector<int> ({0}));
+      return true;
+    };
+
+  AthenaArtifactsBuildResult first;
+  QVERIFY2 (athena_artifacts_build (
+              root, {}, true, {}, first, error, options), error.c_str ());
+  QCOMPARE (first.documents_changed, (size_t) 1);
+  QCOMPARE (selector_calls, 1);
+
+  std::vector<AthenaArtifactRecord> initial;
+  QVERIFY2 (athena_artifacts_query (root, initial, error), error.c_str ());
+  QCOMPARE (initial.size (), (size_t) 2);
+  std::map<std::string,AthenaArtifactRecord> by_role;
+  for (const auto& record: initial) {
+    QVERIFY (!record.source_uuid.empty ());
+    QVERIFY (!record.source_role.empty ());
+    QCOMPARE (record.content_uuid, record.source_uuid);
+    by_role[record.source_role]= record;
+  }
+  QVERIFY (by_role.count ("enunciation"));
+  QVERIFY (by_role.count ("bold-text-definition"));
+  QVERIFY (!by_role["bold-text-definition"].input_fingerprint.empty ());
+
+  std::ifstream first_input (source, std::ios::binary);
+  std::string first_bytes ((std::istreambuf_iterator<char> (first_input)), {});
+  tree persisted= athena::document::read_xml_v2 (first_bytes);
+  tree persisted_body= persisted[1][0];
+  QCOMPARE (athena::node::id (persisted_body[0]),
+            std::string ("22222222-2222-4222-8222-222222222222"));
+  QCOMPARE (artifact_binding_for (persisted_body[0], "enunciation"),
+            by_role["enunciation"].uuid);
+  QVERIFY (!athena::node::id (persisted_body[1][1]).empty ());
+  QCOMPARE (athena::node::id (persisted_body[1][1]),
+            by_role["bold-text-definition"].source_uuid);
+  QCOMPARE (artifact_binding_for (
+              persisted_body[1][1], "bold-text-definition"),
+            by_role["bold-text-definition"].uuid);
+
+  // Change only enunciation content. Artifact extraction must rebuild the
+  // document, while the unchanged bold range request reuses its exact input
+  // fingerprint and both source-role bindings retain artifact UUIDs.
+  persisted_body[0][0][0]= tree ("The theorem text changed independently.");
+  write_xml_v2_document (source, persisted);
+  AthenaArtifactsBuildResult second;
+  error.clear ();
+  QVERIFY2 (athena_artifacts_build (
+              root, {}, true, {}, second, error, options), error.c_str ());
+  QCOMPARE (second.documents_changed, (size_t) 1);
+  QCOMPARE (selector_calls, 1);
+  std::vector<AthenaArtifactRecord> after_edit;
+  QVERIFY2 (athena_artifacts_query (root, after_edit, error), error.c_str ());
+  QCOMPARE (after_edit.size (), initial.size ());
+  for (const auto& record: after_edit) {
+    auto found= by_role.find (record.source_role);
+    QVERIFY (found != by_role.end ());
+    QCOMPARE (record.uuid, found->second.uuid);
+    QCOMPARE (record.source_uuid, found->second.source_uuid);
+  }
+
+  // The database is disposable. Removing every artifact DB must reconstruct
+  // the same artifact UUIDs from role bindings stored in the source document.
+  for (const std::string* relative:
+       {&info.artifacts_path, &info.enunciations_path, &info.bold_text_path}) {
+    fs::remove (root / *relative);
+    fs::remove (fs::path ((root / *relative).string () + "-wal"));
+    fs::remove (fs::path ((root / *relative).string () + "-shm"));
+  }
+  AthenaArtifactsBuildResult rebuilt;
+  error.clear ();
+  QVERIFY2 (athena_artifacts_build (
+              root, {}, true, {}, rebuilt, error, options), error.c_str ());
+  QCOMPARE (rebuilt.documents_changed, (size_t) 1);
+  QCOMPARE (selector_calls, 2);
+  std::vector<AthenaArtifactRecord> restored;
+  QVERIFY2 (athena_artifacts_query (root, restored, error), error.c_str ());
+  QCOMPARE (restored.size (), initial.size ());
+  for (const auto& record: restored) {
+    auto found= by_role.find (record.source_role);
+    QVERIFY (found != by_role.end ());
+    QCOMPARE (record.uuid, found->second.uuid);
+    QCOMPARE (record.source_uuid, found->second.source_uuid);
   }
 }
 

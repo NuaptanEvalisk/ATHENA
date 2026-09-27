@@ -629,6 +629,43 @@ v2 saves, advertise AUDMAP v3, or implement cross-document moves.
   `build_qt6/audmap-v3-check/audmap-v3-4x6vdpl2/`. No full test suite,
   production vault, deployment or persistence migration was used.
 
+## Artifact source binding and revision separation (2026-09-27 night)
+
+- XML-v2 Artifact extraction now carries the persistent source UUID and a stable
+  extraction role. The Artifact producer has a dedicated internal mutation
+  boundary for the reserved `athena:artifact-bindings` dictionary; ordinary
+  property APIs, AUDMAP and UI remain unable to overwrite this producer-owned
+  identity field. Missing source IDs are assigned through the same validated
+  metadata path.
+- On first v2 adoption, an existing Artifact UUID may be inherited from the old
+  conservative cross-build association when that association is accepted. The
+  role -> Artifact UUID pair is then persisted in the source document. From that
+  point the source binding is authoritative: database rows store
+  `source_uuid`, `source_role` and the exact model-input fingerprint, and
+  source lookup prefers UUID over anchor/content heuristics. v1/legacy documents
+  keep the old association behavior until offline migration.
+- Artifact database schema is now version 3. Existing databases are extended in
+  place with source/revision columns; read-only queries remain compatible with
+  older rows by projecting absent v3 columns as empty values. Artifact DBs are
+  still disposable caches rather than identity authorities.
+- Revision semantics are separated explicitly. Storage revision tracks source
+  bytes; Artifact content revision strips source UUIDs and producer bindings but
+  retains semantic typed properties; the full semantic/source revision still
+  notices UUID/property identity changes. Definition-range checkpoints use the
+  exact request/model contract hash, so an unrelated edit elsewhere in a
+  document does not invalidate a byte-identical model request.
+- Producer binding publication is completed before the disposable DB cache is
+  replaced. Closed files use the pinned XML-v2 document transaction. An open,
+  unmodified buffer is mutated on its BufferActor and saved normally; an open
+  modified buffer is rejected rather than merging disk-derived identity into
+  unsaved source state.
+- The normal `ATHENA.bin -j20` build passed. A single focused Artifact test,
+  `TestArtifacts::persistsNativeSourceBindingsAndReusesExactModelInput`,
+  passed with 0 failures. It verified source binding persistence, reuse of an
+  unchanged range-model input after a different enunciation edit, and recovery
+  of the same Artifact UUIDs after deleting all three Artifact databases.
+  No production vault, deployment or broad test suite was used.
+
 ## Build Boundary
 
 Normal builds use only:

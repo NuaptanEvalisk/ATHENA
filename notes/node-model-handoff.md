@@ -5,13 +5,16 @@
 ## 先读结论
 
 原交接停在 native tree-set-diff 完成处；用户随后要求按功能块继续。
-源生命周期块已提交为 `6b965f3c9`。当前 worktree 又完成 normal XML v2
-持久化/激活纵向块并通过集中运行检查，尚未提交/部署。
-**整个迁移尚未统一切换，但核心运行链路已经较完整；主要剩余工作集中在协议、Artifact、
-离线迁移与最终语义切换。**
+源生命周期、normal XML v2 persistence/activation 和 AUDMAP document-model v3
+三个纵向块已分别完成并提交。当前 worktree 完成了 Artifact source binding /
+revision block，已通过集中验证，正待本次独立提交。
+**整个迁移尚未统一切换，但核心运行链路已经较完整；主要剩余工作集中在 cut/move、
+剩余 persistence 边界、离线迁移与最终引用语义切换。**
 
-当前最后代码提交：`6b965f3c9 improve: integrate source identity lifecycle`。
-此前相邻集成提交：`7e9b23a9b`（native tree diff）、`f8db49cf3`（格式/preamble）、`440f069d5`（DataArt）、
+当前最后代码提交：`417efe87e improve: activate AUDMAP document model v3`。
+此前相邻集成提交：`6f2937262`（normal XML v2 persistence/activation）、
+`6b965f3c9`（source identity lifecycle）、`7e9b23a9b`（native tree diff）、
+`f8db49cf3`（格式/preamble）、`440f069d5`（DataArt）、
 `4617f4219`（增量身份事务）、`411f2ea0a`（动态引用导出）、`6325a84f1`（headless 导出）。
 
 旧 UTF-8/XML 项目与本项目不同：这里是在已有 UTF-8/XML 基础上增加节点元数据、
@@ -118,7 +121,8 @@ children:
 - Artifact 最终按 source UUID + 稳定 extraction role 绑定；改类别或正文不重新猜身份。
   已有 artifact UUID 必须保留，新旧绑定都写入源属性 `athena:artifact-bindings`。
   此保留属性是 role -> artifact UUID 字典；普通属性 API 禁止改，复制为新对象时清除。
-  **目前只有 schema/复制政策，producer、数据库和迁移尚未接通。**
+  producer/database/source persistence 已接通；v2 以 source binding 为身份真相，
+  v1/legacy 仍使用旧 conservative association 兼容。离线 vault migration 仍未做。
 
 ## 三色工作清单
 
@@ -132,7 +136,7 @@ children:
   已覆盖若干规范化、原子/concat 转换及独立 annotated wrapper 保护。
 - 🟩 显式 XML v2 codec，包括 atomic metadata、typed properties、资源预算和冲突诊断。
   默认 v1 writer 遇 metadata 拒绝，不静默丢弃；显式 v2 reader 可读 v1/v2。
-- 🟩 显式 AUDMAP document-model v3 tree codec；注意仅 codec，不是协议已激活。
+- 🟩 AUDMAP document-model v3 tree codec 与 protocol negotiation 已正式激活。
 - 🟩 detached 源角色规划、schema 校验、可注入确定性分配器、重复身份检查。
 - 🟩 owner 增量身份索引及事务末尾/保存前 hooks，回滚重建；按脏分支工作，不每键深拷贝。
 - 🟩 新对象复制重分配已有 ID，重写 typed 引用、native HLINK 和新 transclusion 内链，
@@ -163,6 +167,12 @@ children:
 - 🟩 AUDMAP v3 metadata operations：`assign_id` 仅 server 生成且幂等，`update_properties`
   复用原生 schema/保护规则；结构编辑不能注入 metadata，替换保留原 source header。
   C++/Python SDK 版本、REPL 帮助和示例同步更新。
+- 🟩 Artifact producer 已以 `source UUID + extraction role` 作为 XML v2 身份真相：
+  专用内部 mutation 写入 reserved `athena:artifact-bindings`，旧 DB identity 可在首次接管时
+  被可靠继承，之后删掉 Artifact DB 也能从源 binding 恢复同一 artifact UUID。
+- 🟩 Artifact revision/cache 契约已拆分：storage bytes、Artifact extraction content、
+  source identity/semantic revision 与具体 range-model input fingerprint 分开；相同模型输入
+  可跨无关文档编辑复用，不因 source UUID/binding 写入本身产生伪 cache miss。
 
 ### 🟦 已起步、尚未整体完成
 
@@ -178,8 +188,6 @@ children:
 ### 🟧 尚未完成的关键集成/切换
 
 - 🟧 一次性 cut/move 凭据、同 vault 首次移动保身份、跨文档协调撤销。
-- 🟧 Artifact producer 使用源 UUID/role，源内绑定落盘，数据库保留旧 artifact UUID。
-- 🟧 storage revision / content revision / 具体模型输入指纹及缓存复用联动。
 - 🟧 其余新文档/clipboard/委派及 tree-bearing persistence 边界的统一 v2 切换；normal v2
   load/save/autosave/recovery 已完成，不应再作为待办重做。
 - 🟧 扩展离线 vault 升级器：确定性 node identity 映射、引用与 artifact 迁移及诊断。
