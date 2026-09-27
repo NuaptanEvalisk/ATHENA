@@ -1104,15 +1104,6 @@
   <binding name="graphics-increase-hsize-fast" native="athena_graphics_increase_hsize_fast" returns="void" />
   <binding name="graphics-decrease-vsize-fast" native="athena_graphics_decrease_vsize_fast" returns="void" />
   <binding name="graphics-increase-vsize-fast" native="athena_graphics_increase_vsize_fast" returns="void" />
-  <binding name="vault-anchor-heading?" native="athena_vault_anchor_headingP" returns="bool">
-    <arg type="tree" />
-  </binding>
-  <binding name="vault-anchor-title-filter-invalidate" native="athena_vault_anchor_title_filter_invalidate" returns="void" />
-  <binding name="anchor-enunciations-current-document" native="athena_anchor_enunciations_current_document" returns="void" />
-  <binding name="vault-anchor-before-manual-save" native="athena_vault_anchor_before_manual_save" returns="void">
-    <arg type="url" />
-    <arg type="procedure" />
-  </binding>
   <binding name="native-font-selector" native="athena_native_font_selector" returns="array_string">
     <arg type="string" />
     <arg type="string" />

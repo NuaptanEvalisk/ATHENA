@@ -165,11 +165,6 @@ void athena_graphics_increase_hsize_fast ();
 void athena_graphics_decrease_vsize_fast ();
 void athena_graphics_increase_vsize_fast ();
 
-bool athena_vault_anchor_headingP (tree value);
-void athena_vault_anchor_title_filter_invalidate ();
-void athena_anchor_enunciations_current_document ();
-void athena_vault_anchor_before_manual_save (url buffer, object continuation);
-
 array<string>
 athena_native_font_selector (string arg1, string arg2, string arg3, string arg4, string arg5);
 

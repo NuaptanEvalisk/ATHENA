@@ -198,11 +198,7 @@
           (save-buffer-post name opts)))))
 
 (define (save-buffer-save name opts)
-  (if (in? :manual opts)
-      (vault-anchor-before-manual-save
-       name
-       (lambda () (save-buffer-save-now name opts)))
-      (save-buffer-save-now name opts)))
+  (save-buffer-save-now name opts))
 
 (define (save-buffer-check-faithful name opts)
   ;;(display* "save-buffer-check-faithful " name "\n")

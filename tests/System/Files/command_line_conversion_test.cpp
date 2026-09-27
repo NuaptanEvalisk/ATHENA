@@ -318,8 +318,6 @@ void TestCommandLineConversion::vaultMaintenanceUsesHeadlessDocumentContext() {
               process.exitCode () == 0, log.constData ());
     QVERIFY2 (log.contains ("health check: all 2 .ath file(s) are legible"),
               log.constData ());
-    if (!check_only)
-      QVERIFY2 (log.contains ("pass success: anchor-structures"), log.constData ());
     if (!check_only) {
       QVERIFY2 (log.contains ("pass success: generate-websites"), log.constData ());
       const QByteArray pdf= contents (

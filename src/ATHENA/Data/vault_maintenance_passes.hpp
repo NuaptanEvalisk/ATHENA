@@ -50,15 +50,7 @@ struct VaultMaintenanceSummary {
   size_t person_files_scanned = 0;
   size_t person_files_changed = 0;
   size_t person_names_wrapped = 0;
-  size_t anchor_files_scanned = 0;
-  size_t anchor_files_changed = 0;
-  size_t anchor_enunciations_wrapped = 0;
-  size_t anchor_headings_added = 0;
-  size_t anchor_stale_structures_updated = 0;
-  size_t anchor_map_references_updated = 0;
-  size_t anchor_dead_pairs_removed = 0;
-  size_t anchor_failures = 0;
-  int anchor_reader_processes = -1;
+  int maintenance_worker_processes = -1;
   size_t artifact_documents_seen = 0;
   size_t artifact_documents_changed = 0;
   size_t artifact_documents_deleted = 0;
@@ -163,8 +155,6 @@ VaultMaintenancePassResult vault_maintenance_pass_normalize_assets (
 VaultMaintenancePassResult vault_maintenance_pass_scan_missing_images (
   VaultMaintenanceContext& ctx);
 VaultMaintenancePassResult vault_maintenance_pass_normalize_person_names (
-  VaultMaintenanceContext& ctx);
-VaultMaintenancePassResult vault_maintenance_pass_anchor_enunciations (
   VaultMaintenanceContext& ctx);
 VaultMaintenancePassResult vault_maintenance_pass_promote_evaluation_bars (
   VaultMaintenanceContext& ctx);

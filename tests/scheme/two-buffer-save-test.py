@@ -93,14 +93,6 @@ def run_case(args, mode):
                     errors.append(f"{tag}: missing or incorrect saved document")
             except (OSError, ET.ParseError):
                 errors.append(f"{tag}: missing or invalid native XML document")
-            if mode == "manual-approve":
-                labels = [node_text(node) for node in native_nodes(document, "label")]
-                upper = {label[:-2] for label in labels
-                         if label.startswith("definition:") and label.endswith(" {")}
-                lower = {label[:-2] for label in labels
-                         if label.startswith("definition:") and label.endswith(" }")}
-                if not upper or upper != lower:
-                    errors.append(f"{tag}: approved definition anchor pair not saved")
         if args.artifacts:
             shutil.copytree(home, args.artifacts / mode, dirs_exist_ok=True)
         if timed_out or process.returncode or errors:
@@ -124,9 +116,8 @@ def main():
     args = parser.parse_args()
     args.runtime = args.runtime.resolve()
     args.resources = args.resources.resolve()
-    # Interactive decline/cancel belongs to anchor_confirmation_test, which can
-    # drive the native Qt dialog.  This headless concurrency test keeps the
-    # ordinary save path and the non-interactive manual auto-approve path.
+    # Both modes now exercise the same ordinary save path; the second keeps the
+    # historical manual-save scheduling coverage without an anchor side effect.
     for mode in ([args.mode] if args.mode else ("plain", "manual-approve")):
         run_case(args, mode)
 

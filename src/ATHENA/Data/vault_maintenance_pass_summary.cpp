@@ -383,19 +383,6 @@ summary_document_text (VaultMaintenanceContext& ctx, bool success,
                       std::to_string (summary.person_files_scanned) +
                       " .ath file(s)")}),
 #endif
-    tm_row ({tm_text ("Anchors"),
-             tm_text ("wrapped " +
-                      std::to_string (summary.anchor_enunciations_wrapped) +
-                      " enunciation(s), added " +
-                      std::to_string (summary.anchor_headings_added) +
-                      " heading anchor(s), updated " +
-                      std::to_string (summary.anchor_stale_structures_updated) +
-                      " stale structure(s), rewrote " +
-                      std::to_string (summary.anchor_map_references_updated) +
-                      " map reference(s), removed " +
-                      std::to_string (summary.anchor_dead_pairs_removed) +
-                      " dead pair(s), failures " +
-                      std::to_string (summary.anchor_failures))})
   };
   work_rows.push_back (
     tm_row ({tm_text ("Artifacts"),
@@ -676,21 +663,6 @@ vault_maintenance_pass_print_summary (VaultMaintenanceContext& ctx) {
             std::to_string (summary.person_files_changed) + " of " +
             std::to_string (summary.person_files_scanned) + " .ath file(s)");
 #endif
-  log_info ("summary: anchored " +
-            std::to_string (summary.anchor_enunciations_wrapped) +
-            " enunciation(s) and " +
-            std::to_string (summary.anchor_headings_added) +
-            " heading(s) in " +
-            std::to_string (summary.anchor_files_changed) + " of " +
-            std::to_string (summary.anchor_files_scanned) +
-            " .ath file(s); removed " +
-            std::to_string (summary.anchor_dead_pairs_removed) +
-            " dead anchor pair(s); updated " +
-            std::to_string (summary.anchor_stale_structures_updated) +
-            " stale anchor structure(s); rewrote " +
-            std::to_string (summary.anchor_map_references_updated) +
-            " map reference(s); failures " +
-            std::to_string (summary.anchor_failures));
   log_info ("summary: artifacts examined " +
             std::to_string (summary.artifact_documents_seen) +
             " document(s), rebuilt " +

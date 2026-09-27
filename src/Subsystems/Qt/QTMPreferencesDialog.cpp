@@ -1660,8 +1660,6 @@ QTMPreferencesDialog::buildVaultCategories () {
       QMessageBox::warning (artifacts, "Artifactization", error);
       return false;
     }
-    try { (void) call ("vault-anchor-title-filter-invalidate"); }
-    catch (...) {}
     try { (void) call ("update-current-buffer"); }
     catch (...) {}
     return true;
@@ -1794,8 +1792,8 @@ QTMPreferencesDialog::buildVaultCategories () {
               {"6 hours", "6 hours"}, {"1 day", "1 day"},
               {"3 days", "3 days"}, {"1 week", "1 week"},
               {"1 month", "1 month"}}, "1 week");
-  add_combo (mt, "Anchor reader processes:",
-             "vault maintenance anchor reader processes",
+  add_combo (mt, "Maintenance worker processes:",
+             "vault maintenance worker processes",
              {{"Unlimited", "Unlimited"}, {"1", "1"}, {"2", "2"},
               {"4", "4"}, {"8", "8"}, {"12", "12"}, {"16", "16"},
               {"20", "20"}},
@@ -1983,16 +1981,7 @@ QTMPreferencesDialog::buildVaultCategories () {
   finish_page (backup);
 
   QWidget* anchors= make_page ();
-  QFormLayout* a= add_section (anchors, "Anchors and Images");
-  QCheckBox* autoAnchor= add_toggle (
-    a, "Auto anchor structures on manual save:",
-    "vault auto anchor enunciations on save");
-  QCheckBox* autoApproveAnchors= add_toggle (
-    a, "Automatically approve anchor changes on manual save:",
-    "vault auto approve anchor changes");
-  autoApproveAnchors->setEnabled (autoAnchor->isChecked ());
-  QObject::connect (autoAnchor, &QCheckBox::toggled,
-                    autoApproveAnchors, &QWidget::setEnabled);
+  QFormLayout* a= add_section (anchors, "Images");
   add_toggle (a, "Auto copy images to vault:",
               "vault auto copy images to vault");
   add_toggle (a, "Normalize image filename when inserting:",
@@ -2360,10 +2349,6 @@ QTMPreferencesDialog::buildOtherPage () {
               "open console on errors");
   add_toggle (console, "Open Error messages automatically on warnings:",
               "open console on warnings");
-
-  QFormLayout* vaultDiagnostics= add_section (debugging, "Vault Diagnostics");
-  add_toggle (vaultDiagnostics, "Anchor structure dry-run details:",
-              "debug anchor structure dry runs");
 
   QFormLayout* performance= add_section (debugging, "Rendering Performance");
   QCheckBox* performanceMonitor= add_toggle (

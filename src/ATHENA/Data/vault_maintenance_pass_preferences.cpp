@@ -98,9 +98,9 @@ manual_save_retention_preference () {
 }
 
 static int
-anchor_reader_processes_preference () {
+maintenance_worker_processes_preference () {
   std::string pref = trim_copy (tm_to_std (
-    get_preference ("vault maintenance anchor reader processes", "Unlimited")));
+    get_preference ("vault maintenance worker processes", "Unlimited")));
   std::string low = lower_copy (pref);
   if (pref.empty () || low == "unlimited") return -1;
   try {
@@ -109,7 +109,7 @@ anchor_reader_processes_preference () {
     if (pos == pref.size () && value >= 1) return value;
   }
   catch (...) {}
-  log_info ("invalid anchor reader process preference '" + pref +
+  log_info ("invalid maintenance worker process preference '" + pref +
             "'; using Unlimited");
   return -1;
 }
@@ -219,7 +219,7 @@ vault_maintenance_pass_read_policy_preferences (VaultMaintenanceContext& ctx) {
   ctx.summary.backup_limit = backup_limit_preference ();
   ctx.summary.manual_save_retention_seconds =
     manual_save_retention_preference ();
-  ctx.summary.anchor_reader_processes = anchor_reader_processes_preference ();
+  ctx.summary.maintenance_worker_processes = maintenance_worker_processes_preference ();
   ctx.summary.toc_update_enabled = update_tables_of_contents_preference ();
   ctx.summary.rag_update_enabled =
     get_preference ("vault maintenance continuous rag", "off") == "on";

@@ -842,6 +842,36 @@ v2 saves, advertise AUDMAP v3, or implement cross-document moves.
   native wikilink target, resolved through map.sqlite, and followed subsequent
   map redirection. No production Vault, deployment or broad test suite was used.
 
+## Generated identity-anchor production removed (2026-09-28)
+
+- The old anchor generator is no longer a runtime subsystem. Removed
+  `src/ATHENA/Data/vault_anchors.{cpp,hpp}`, the manual `Anchor enunciations`
+  command/native glue, manual-save preflight/auto-approval, the Qt confirmation
+  dialog, the two auto-anchor preferences and their UI, and the dedicated
+  `anchor-structures` vault-maintenance pass. Their focused generator/dialog
+  tests were removed with the implementation.
+- Manual saves now go directly through the normal buffer save path. Vault
+  maintenance no longer creates, updates or rewrites heading/enunciation
+  identity anchors. The old "anchor reader processes" setting had also been
+  reused by ToC workers; it was renamed to the generic
+  `vault maintenance worker processes` / `maintenance_worker_processes` rather
+  than preserving an obsolete anchor name.
+- A legacy range helper still recognizes heading structure directly in Scheme;
+  it no longer calls a native anchor-generator predicate. Old anchor parsing in
+  transclusion/legacy compatibility code remains for reading unmigrated source,
+  but it is not an identity producer.
+- The normal `ATHENA.bin -j20` build passed. The existing two-BufferActor manual
+  save fixture passed six saves with correct source ownership and no anchor side
+  effect. A separate isolated `--vault-maintenance --check-only` run on an XML-v1
+  fixture passed health-check and asserted that no `anchor-structures`/anchoring
+  pass appeared (`ATHENA-NO-AUTO-ANCHORS-PASS`). No production Vault or broad
+  suite was used.
+- Historical generated labels are deliberately not deleted by ordinary runtime
+  maintenance. Their safe removal belongs to the offline node-model migration,
+  after legacy map/reference resolution has completed and before the staged XML
+  v2 vault is published. That migration-time cleanup and fully anchorless
+  migrated transclusion selection are the next block.
+
 ## Build Boundary
 
 Normal builds use only:

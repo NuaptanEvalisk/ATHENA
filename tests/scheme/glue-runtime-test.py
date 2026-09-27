@@ -71,8 +71,6 @@ def main():
             '            (not (blackbox? #f))) "raw predicates")\n'
             '(check (equal? (native-font-selector "" "" "" "" "") (quote ()))\n'
             '       "headless font selector")\n'
-            '(check (vault-anchor-heading? (stree->tree (quote (section "Heading"))))\n'
-            '       "native anchor heading predicate")\n'
             '(check (equal? (escape-symbol-picker) "") "headless symbol picker")\n'
             '(check (equal? (namespace-new-file-wizard) "") "headless namespace wizard")\n'
             '(check (equal? (image-remove-background #f)\n'

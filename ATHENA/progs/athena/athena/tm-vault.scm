@@ -947,8 +947,12 @@
             (cond ((and (tree-atomic? child)
                         (== (tm-string-trim-both (tree->string child)) ""))
                    (loop (+ i 1)))
-                  ((vault-anchor-heading? (tree->stree child)) (list child))
-                  (else #f)))))))
+                   ((in? (tree-label child)
+                         '(section section* subsection subsection*
+                           subsubsection subsubsection* paragraph paragraph*
+                           subparagraph subparagraph*))
+                    (list child))
+                   (else #f)))))))
 
 (define (vault-extract-range t b e)
   (if (and (string-null? b) (string-null? e))

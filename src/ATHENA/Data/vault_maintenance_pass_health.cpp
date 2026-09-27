@@ -161,7 +161,7 @@ run_toc_workers (const std::vector<fs::path>& docs,
     return false;
   }
 
-  int jobs = toc_worker_jobs (docs.size (), summary.anchor_reader_processes);
+  int jobs = toc_worker_jobs (docs.size (), summary.maintenance_worker_processes);
   summary.toc_worker_processes = jobs;
   log_info ("update ToCs: processing " + std::to_string (docs.size ()) +
             " document(s) with " + std::to_string (jobs) +

@@ -7,14 +7,17 @@
 原交接停在 native tree-set-diff 完成处；用户随后要求按功能块继续。
 源生命周期、normal XML v2 persistence/activation、AUDMAP document-model v3、
 Artifact source binding/revision、cut/move credential + 跨 actor undo/redo、
-普通新建文档 born-v2 与独立 offline node-model vault migration 均已分别完成并提交。
-当前 worktree 完成 migrated-vault bare wikilink source-UUID cutover 并通过集中验证，
-正待本次独立提交。
+普通新建文档 born-v2、独立 offline node-model vault migration 与 migrated-vault bare
+wikilink source-UUID cutover 均已分别完成并提交。当前 worktree 删除了旧 generated-anchor
+生产系统（manual save auto-anchor、`Anchor enunciations`、maintenance `anchor-structures`、
+confirmation UI 与 generator 本体）并通过集中验证，正待本次独立提交。
 **核心 source/runtime/migration/reference 主链已经闭环；主要剩余工作集中在少数
-tree-bearing persistence 边界、可确认生成 anchor 的清理与最终数据保全/启用验收。**
+tree-bearing persistence 边界、migration-time generated-anchor 清理 / anchorless transclusion UI、
+以及最终数据保全/启用验收。**
 
-当前最后代码提交：`c465b4605 improve: migrate UTF-8 XML vaults to the node model`。
-此前相邻集成提交：`727bea0cb`（born-v2 ordinary source）、
+当前最后代码提交：`78c6d7aa3 improve: cut over migrated wikilinks to source identities`。
+此前相邻集成提交：`c465b4605`（offline node-model migration）、
+`727bea0cb`（born-v2 ordinary source）、
 `e5fa5aae6`（source move identity）、
 `70da9708a`（Artifact source identity）、
 `417efe87e`（AUDMAP document-model v3）、
@@ -50,7 +53,8 @@ node-model 离线迁移的输入必须是已经为 UTF-8 XML 的 vault，并使�
 
 定位数据库不拥有引用语义；删除缓存后，扫描文档应恢复同一个目标。
 安全重命名的恢复日志是操作日志，不能因为定位缓存可删除就一起删除。
-运行期间不能先删旧 map/anchors 再补迁移；生产文件目前仍依赖旧机制。
+不能在迁移前盲删旧 map/anchors；未迁移 legacy vault 的读取兼容仍可能依赖它们。
+但新的 runtime 已不再生产 generated identity anchors，迁移后的身份真相是 source UUID。
 
 ## 已确定的模型契约
 
@@ -203,6 +207,10 @@ children:
   为身份真相，不再接受 map/file/anchor hints 改写目标。未迁移 vault 保持原 map.sqlite 语义。
   新 Wikilink 插入从实际 XML-v2 source object 读取 persistent UUID；选中对象没有 UUID 时拒绝
   插入，而不是生成新的 map identity。map.sqlite 暂保留作兼容/rename 历史数据。
+- 🟩 generated-anchor producer 已退役：删除 `vault_anchors.cpp/.hpp`、manual-save auto anchoring、
+  `Anchor enunciations` 菜单/native API、Qt confirmation dialog、`anchor-structures` maintenance pass
+  及其 preferences/tests。普通 save 与 maintenance 均不再创建、改名或补回 heading/enunciation
+  identity anchors；维护 worker preference 已改成通用名称，只供仍存在的并行维护任务使用。
 
 ### 🟦 已起步、尚未整体完成
 
@@ -219,8 +227,9 @@ children:
 
 - 🟧 其余 clipboard/委派及 tree-bearing persistence 边界的统一 v2 切换；normal v2
   load/save/autosave/recovery 和普通新建文档已完成，不应再作为待办重做。
-- 🟧 删除可确认已经冗余的生成 anchors，并继续把 map.sqlite 从剩余兼容/rename consumers
-  中降级；bare wikilink 身份语义本身已经完成 cutover。
+- 🟧 在 offline node-model migration 的 private staging 中删除可确认已经冗余的历史 generated
+  anchors，并把 migrated transclusion/Artifact 选择 UI 完全切到 source UUID/object-list；生产端已
+  不再生成 anchors。随后继续把 map.sqlite 从剩余兼容/rename consumers 中降级。
 - 🟧 故障注入/数据保全最终验收、用户验收、统一启用及部署。
 
 ## 接手时的代码入口

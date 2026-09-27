@@ -484,7 +484,6 @@
       ("Show main document" (toggle-preamble-mode)))
   (-> "Update" (link document-update-menu))
   (link athena-document-utilities-menu)
-  ("Anchor enunciations" (anchor-enunciations-current-document))
   ---
   ("Font" (open-document-font-selector))
   ("Paragraph" (open-document-paragraph-format))

@@ -42,9 +42,6 @@
                              "Definition body."))
        (hlink "Other document" ,(url->system other))))))
 
-(set-preference "vault auto anchor enunciations on save" "on")
-(set-preference "vault auto approve anchor changes"
-                (if (equal? save-mode "manual-approve") "on" "off"))
 (buffer-set first-name (fixture "FIRST BUFFER" second-name))
 (switch-to-buffer first-name)
 (buffer-set second-name (fixture "SECOND BUFFER" first-name))
