@@ -19,6 +19,7 @@
 #include <QRadioButton>
 #include <QVBoxLayout>
 #include "ATHENA/Data/transclusion_cache.hpp"
+#include "ATHENA/Data/enunciation_model.hpp"
 #include "convert.hpp"
 #include "Qt/QTMVaultSearch.hpp"
 #include "Qt/QTMVaultSearchWorker.hpp"
@@ -43,6 +44,7 @@ class TestVaultSearch: public QObject {
 private slots:
   void initTestCase ();
   void findsStructuredMathematicalExpressions ();
+  void filtersCanonicalAndLegacyEnunciations ();
   void keepsConcurrentSearchOptionsIndependent ();
   void fuzzyInsertion ();
   void fuzzySubstitution ();
@@ -388,6 +390,28 @@ TestVaultSearch::findsStructuredMathematicalExpressions () {
   append_content_matches (matches, compound ("math", "sinh"),
                           compound ("math", "sin"), path (), 200, false, false);
   QVERIFY (matches.empty ());
+}
+
+void TestVaultSearch::filtersCanonicalAndLegacyEnunciations () {
+  struct SourceAccess {
+    int previous= set_access_mode (DRD_ACCESS_SOURCE);
+    ~SourceAccess () { set_access_mode (previous); }
+  } sourceAccess;
+  tree legacy= compound ("theorem", tree (DOCUMENT, "Needle"));
+  tree canonical= athena::enunciation::convert_detached_source (legacy).source;
+  tree other= compound ("definition", tree (DOCUMENT, "Needle"));
+  tree source (DOCUMENT, legacy, canonical, other);
+  std::vector<VaultContentMatch> matches;
+  collect_enunciation_matches (matches, source, tree ("Needle"), "theorem",
+                               path (), 200, false, false);
+  QCOMPARE (matches.size (), std::size_t (2));
+  QCOMPARE (matches[0].start, path (0, 0, 0, 0));
+  QCOMPARE (matches[1].start, path (1, 0, 0, 0));
+  matches.clear ();
+  collect_enunciation_matches (matches, source, tree ("Needle"), "definition",
+                               path (), 200, false, false);
+  QCOMPARE (matches.size (), std::size_t (1));
+  QCOMPARE (matches[0].start, path (2, 0, 0, 0));
 }
 
 static std::vector<VaultContentMatch>

@@ -153,8 +153,9 @@ concater_rep::typeset_compound (tree t, path ip) {
     // WYVERN EDITION: Inject background colors for enunciations
     string var= macro_name;
     
-    if (is_enunciation_type (var)) {
-      string col = get_preference ("vault " * var * " color", "none");
+    string color_kind= athena_enunciation_color_kind (var);
+    if (color_kind != "") {
+      string col = get_preference ("vault " * color_kind * " color", "none");
       if (col != "none") {
         f = copy(f); // Must copy before modifying the global macro definition
         f[n] = tree(WITH, "vault-enunciation-color", col, f[n]);

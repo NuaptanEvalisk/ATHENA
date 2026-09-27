@@ -27,8 +27,10 @@ typed internal references. Neither operation is a clipboard move credential.
 - `interop_document_codec.*`: explicit document-model v3 codecs. These do not
   advertise v3, change authentication, or activate new mutation operations.
 - `enunciation_model.*` and `ATHENA/misc/enunciations.json`: declarative kind,
-  legacy variant and presentation contracts plus detached conversion. This is
-  not yet the live typesetter or a replacement for existing runtime consumers.
+  legacy variant and presentation contracts plus detached conversion. Search
+  classification, filter menus, block statistics, legacy artifact classification
+  and typesetter source colors consume this registry. Canonical-node native
+  presentation and the remaining runtime consumers still require integration.
 - `document_node_model.*`: explicit detached identity planning from source roles
   and DRD contracts, caller-supplied deterministic allocation, duplicate checks
   and property schema validation. It is not a live-editor identity allocator.
@@ -136,6 +138,24 @@ v2 saves, advertise AUDMAP v3, or implement cross-document moves.
   bindings, native/stree replacement and modification/author/birth history.
   Startup also reported `lazy-keyboard-provide` unbound twice; that separate
   startup diagnostic has not been investigated or fixed by this batch.
+
+## Runtime Registry Integration (2026-09-27)
+
+- Global search and both inserters derive their filter choices from the native
+  registry. Search matches legacy aliases and canonical kind/variant properties,
+  retaining physical body paths. UI choice lists no longer define source-tree
+  recognition. Metadata titles still need a separate property-aware result path.
+- Block word counts use declared body layouts, correcting the previous ordinary
+  body child-1 and proof-of child-2 assumptions. Canonical bodies remain child 0.
+- All three macro typesetting routes use registry-backed source color kinds;
+  render helpers retain their separate background-injection behavior. This does
+  not implement canonical-node presentation or numbering yet.
+- Legacy artifact extraction uses declared alias policies, preserving exactly
+  the old 21 recognized aliases and their extraction base tags. This does not
+  allocate canonical artifact identities or activate source-owned bindings.
+- Normal ATHENA.bin build passed. The enunciation registry suite reported
+  14 passes; three selected vault-search cases plus initialization/cleanup
+  reported five passes. No full suite, deployment or production migration ran.
 
 ## Integration Gates Still Required
 

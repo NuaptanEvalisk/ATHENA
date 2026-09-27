@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "heading_word_count.hpp"
+#include "enunciation_model.hpp"
 #include "analyze.hpp"
 #include "unicode_text.hpp"
 #include <unicode/utf8.h>
@@ -173,38 +174,14 @@ athena_document_statistics_tree (tree t) {
   return stats;
 }
 
-static bool
-athena_enunciation_tree (tree t) {
-  if (!is_compound (t)) return false;
-  string s= athena_tree_tag (t);
-  if (ends (s, "*")) s= s (0, N(s) - 1);
-  return s == "theorem" || s == "lemma" || s == "corollary" ||
-         s == "proposition" || s == "axiom" || s == "definition" ||
-         s == "notation" || s == "convention" || s == "conjecture" ||
-         s == "law" || s == "remark" || s == "note" ||
-         s == "example" || s == "warning" || s == "disambiguation" ||
-         s == "acknowledgments" || s == "exercise" ||
-         s == "problem" || s == "question" || s == "solution" ||
-         s == "answer" || s == "proof" || s == "proof-alternative" ||
-         s == "proof-standard" || s == "proof-of" || s == "quote-env";
-}
-
-static tree
-athena_enunciation_body (tree t) {
-  string s= athena_tree_tag (t);
-  if ((s == "proof-of" || s == "proof-of*") && N(t) >= 3) return t[2];
-  if (N(t) >= 2) return t[1];
-  return "";
-}
-
 int
 athena_enunciation_word_count_at (tree doc, path p) {
   path q= p;
   if (!has_subtree (doc, q)) q= path_up (q);
   while (!is_nil (q) && has_subtree (doc, q)) {
     tree t= subtree (doc, q);
-    if (athena_enunciation_tree (t))
-      return athena_word_count_tree (athena_enunciation_body (t));
+    int body= athena::enunciation::standard_registry ().body_index (t);
+    if (body >= 0) return athena_word_count_tree (t[body]);
     q= path_up (q);
   }
   return 0;

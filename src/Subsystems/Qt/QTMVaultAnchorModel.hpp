@@ -31,11 +31,11 @@ struct TransclusionAnchorPair {
 };
 
 struct WikilinkEnunciationFilterEntry {
-  const char* label;
-  const char* tag;
+  QString label;
+  QString tag;
 };
 
-extern const std::vector<WikilinkEnunciationFilterEntry> wikilink_enunciation_filters;
+const std::vector<WikilinkEnunciationFilterEntry>& wikilink_enunciation_filters ();
 
 QString clean_anchor_display (QString anchor);
 bool is_wikilink_anchor (const QString& anchor);

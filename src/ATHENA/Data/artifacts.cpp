@@ -7,6 +7,7 @@
 ******************************************************************************/
 
 #include "ATHENA/Data/artifacts.hpp"
+#include "ATHENA/Data/enunciation_model.hpp"
 
 #include "ATHENA/Data/artifact_identity.hpp"
 #include "ATHENA/Data/artifact_radioactive_links.hpp"
@@ -588,33 +589,11 @@ std::vector<std::string> semantic_names_for (
 
 std::string enunciation_type (const std::string& original,
                               std::string& base_tag) {
-  static const std::map<std::string,std::pair<std::string,std::string>> tags= {
-    {"definition", {"definition", "definition"}},
-    {"axiom", {"axiom", "axiom"}},
-    {"theorem", {"provable", "theorem"}},
-    {"lemma", {"provable", "lemma"}},
-    {"corollary", {"provable", "corollary"}},
-    {"proposition", {"provable", "proposition"}},
-    {"conjecture", {"provable", "conjecture"}},
-    {"question", {"provable", "question"}},
-    {"example", {"provable", "example"}},
-    {"proof", {"completion", "proof"}},
-    {"proof-alternative", {"completion", "proof-alternative"}},
-    {"alternative-proof", {"completion", "proof-alternative"}},
-    {"proof-standard", {"completion", "proof-standard"}},
-    {"standard-proof", {"completion", "proof-standard"}},
-    {"solution", {"completion", "solution"}},
-    {"solution*", {"completion", "solution*"}},
-    {"render-proof", {"completion", "proof"}},
-    {"render-proof-alternative", {"completion", "proof-alternative"}},
-    {"render-proof-standard", {"completion", "proof-standard"}},
-    {"render-solution", {"completion", "solution"}},
-    {"render-theorem", {"provable", "theorem"}}
-  };
-  auto found= tags.find (original);
-  if (found == tags.end ()) return "";
-  base_tag= found->second.second;
-  return found->second.first;
+  const auto& registry= athena::enunciation::standard_registry ();
+  const auto* alias= registry.legacy (original);
+  if (!alias || alias->artifact_base.empty ()) return "";
+  base_tag= alias->artifact_base;
+  return registry.kind (alias->kind)->category;
 }
 
 bool ignorable (const tree& t) {

@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "QTMVaultSearch.hpp"
+#include "ATHENA/Data/enunciation_model.hpp"
 #include "QTMVaultSearchWorker.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
 #include "convert.hpp"
@@ -519,7 +520,8 @@ collect_enunciation_matches (std::vector<VaultContentMatch>& out, tree t,
                              tree query, const string& tag, path base,
                              int limit, bool caseInsensitive, bool fuzzy) {
   if (limit <= 0 || is_atomic (t)) return;
-  if (is_compound (t, tag)) {
+  if (athena::enunciation::standard_registry ().matches_filter (
+        t, std::string_view (tag.data (), N(tag)))) {
     append_content_matches (out, t, query, base, limit,
                             caseInsensitive, fuzzy);
     return;
@@ -597,14 +599,7 @@ bold_wrapper (tree t) {
 
 static bool
 enunciation_node (tree t) {
-  if (!is_compound (t)) return false;
-  string tag= as_string (L(t));
-  for (const WikilinkEnunciationFilterEntry& entry:
-       wikilink_enunciation_filters)
-    if (normalized_enunciation_tag (to_qstring (tag)) ==
-        normalized_enunciation_tag (entry.tag))
-      return true;
-  return false;
+  return athena::enunciation::standard_registry ().body_index (t) >= 0;
 }
 
 static bool
@@ -670,7 +665,7 @@ preferred_anchor_title (tree t, QString& title) {
   if (!is_upper_anchor (anchor)) return false;
   QString tag= anchor_pair_tag (anchor);
   for (const WikilinkEnunciationFilterEntry& entry:
-       wikilink_enunciation_filters)
+       wikilink_enunciation_filters ())
     if (tag == normalized_enunciation_tag (entry.tag)) {
       QString key= clean_anchor_display (anchor);
       int colon= key.indexOf (':');

@@ -273,15 +273,6 @@ inline bool is_bool (const tree& t) { return is_atomic (t) && is_bool (t->label)
 inline bool is_int (const tree& t) { return is_atomic (t) && is_int (t->label); }
 inline bool is_double (const tree& t) { return is_atomic (t) && is_double(t->label); }
 inline bool is_string (const tree& t) { return is_atomic (t); }
-inline bool is_enunciation_type (string var) {
-  return (var == "theorem" || var == "lemma" || var == "corollary" || 
-          var == "proposition" || var == "axiom" || var == "definition" || 
-          var == "notation" || var == "convention" || var == "conjecture" || 
-          var == "remark" || var == "note" || var == "example" || 
-          var == "warning" || var == "acknowledgments" || var == "exercise" || 
-          var == "problem" || var == "question" || var == "solution" || 
-          var == "answer" || var == "proof");
-}
 inline bool as_bool (tree t) {
   if (is_atomic (t)) return as_bool (t->label);
   else return false; }

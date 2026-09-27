@@ -49,7 +49,7 @@ QTMVaultAvailablePage::QTMVaultAvailablePage (QWidget* parent):
   display->setPlaceholderText ("Link text");
   kind= new QComboBox (this);
   kind->addItem ("All enunciations", "");
-  for (const auto& entry: wikilink_enunciation_filters)
+  for (const auto& entry: wikilink_enunciation_filters ())
     kind->addItem (entry.label, normalized_enunciation_tag (entry.tag));
   caseInsensitive= new QCheckBox ("Case-insensitive", this);
   caseInsensitive->setChecked (true);

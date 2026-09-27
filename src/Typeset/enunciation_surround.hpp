@@ -8,6 +8,14 @@
 
 #include "env.hpp"
 #include "tree_label.hpp"
+#include "ATHENA/Data/enunciation_model.hpp"
+
+static inline string
+athena_enunciation_color_kind (string tag) {
+  const auto kind= athena::enunciation::standard_registry ().color_kind (
+    std::string_view (tag.data (), N(tag)));
+  return string (kind.data (), static_cast<int> (kind.size ()));
+}
 
 static inline string
 athena_tree_tag (tree t) {

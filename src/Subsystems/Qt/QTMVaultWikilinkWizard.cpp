@@ -880,7 +880,7 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   enunciationCombo= new QComboBox (this);
   enunciationCombo->addItem ("Any", "");
   enunciationCombo->addItem ("Paragraph", "__athena_paragraph__");
-  for (const WikilinkEnunciationFilterEntry& entry: wikilink_enunciation_filters)
+  for (const WikilinkEnunciationFilterEntry& entry: wikilink_enunciation_filters ())
     enunciationCombo->addItem (entry.label, entry.tag);
   enunciationCombo->setMinimumWidth (190);
 #if ATHENA_ENABLE_PERSON_SUBSYSTEM

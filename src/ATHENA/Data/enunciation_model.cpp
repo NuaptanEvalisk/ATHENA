@@ -252,6 +252,7 @@ registry::registry (std::string_view source) {
       legacy.variant= text_field (alias, "variant", true);
       legacy.numbered= bool_field (alias, "numbered");
       legacy.numbering_preference= text_field (alias, "numbering_preference", true);
+      legacy.artifact_base= text_field (alias, "artifact_base", true);
       const auto layout= text_field (alias, "layout", true);
       require (layout.empty () || layout == "body" || layout == "title-body" ||
                layout == "subject-body", "unknown legacy layout");
@@ -279,6 +280,7 @@ registry::registry (std::string_view source) {
         require (legacy.tag != "enunciation", "canonical tag cannot be a starred alias");
         legacy.numbered= false;
         legacy.numbering_preference.clear ();
+        legacy.artifact_base= text_field (alias, "starred_artifact_base", true);
         require (legacy_.emplace (legacy.tag, legacy).second,
                  "duplicate starred tag " + legacy.tag);
       }
@@ -307,6 +309,76 @@ const kind_definition* registry::definition (const tree& source) const {
 
 bool registry::recognizes (const tree& source) const {
   return is_enunciation (source) || legacy (tag_name (source)) != nullptr;
+}
+
+std::string registry::kind_name (const tree& source) const {
+  if (is_enunciation (source)) {
+    const auto* name= property<std::string> (source, "kind");
+    return name ? *name : "";
+  }
+  const auto* alias= legacy (tag_name (source));
+  return alias ? alias->kind : "";
+}
+
+std::string registry::variant_name (const tree& source) const {
+  if (is_enunciation (source)) {
+    const auto* name= property<std::string> (source, "variant");
+    return name ? *name : "";
+  }
+  const auto* alias= legacy (tag_name (source));
+  return alias ? alias->variant : "";
+}
+
+int registry::body_index (const tree& source) const {
+  if (is_enunciation (source))
+    return N(source) == 1 && is_func (source[0], DOCUMENT) ? 0 : -1;
+  const auto* alias= legacy (tag_name (source));
+  if (!alias) return -1;
+  const int index= alias->layout == legacy_layout::body ? 0 : 1;
+  return N(source) == index + 1 ? index : -1;
+}
+
+bool registry::matches_filter (const tree& source, std::string_view filter) const {
+  if (!recognizes (source) || body_index (source) < 0) return false;
+  const auto name= kind_name (source);
+  if (filter.empty () || filter == name) return true;
+  const auto* alias= legacy (filter);
+  if (!alias || alias->kind != name) return false;
+  if (!alias->variant.empty ()) return variant_name (source) == alias->variant;
+  // Explicit unnumbered aliases remain available to callers with saved filters.
+  if (!filter.empty () && filter.back () == '*') {
+    if (is_enunciation (source)) {
+      const auto* numbered= property<bool> (source, "numbered");
+      return numbered && !*numbered;
+    }
+    return tag_name (source) == filter;
+  }
+  return true;
+}
+
+std::vector<filter_entry> registry::filters () const {
+  std::vector<filter_entry> result;
+  for (const auto& entry: declaration_["kinds"]) {
+    const auto* value= kind (entry["kind"].get<std::string> ());
+    result.push_back ({value->display_name, value->kind});
+    for (const auto& variant: value->variants) {
+      // Use a declared source alias, not an invented kind/variant spelling.
+      for (const auto& alias: legacy_) {
+        if (alias.second.kind == value->kind && alias.second.variant == variant.first &&
+            alias.second.layout == legacy_layout::body) {
+          result.push_back ({variant.second.display_name, alias.first});
+          break;
+        }
+      }
+    }
+  }
+  return result;
+}
+
+std::string registry::color_kind (std::string_view source_tag) const {
+  const auto* alias= legacy (source_tag);
+  if (!alias || alias->layout == legacy_layout::title_body) return "";
+  return alias->kind;
 }
 
 std::string registry::category (const tree& source) const {

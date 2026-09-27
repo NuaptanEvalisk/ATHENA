@@ -12,6 +12,7 @@
 #include <stdexcept>
 
 #include "ATHENA/Data/enunciation_model.hpp"
+#include "ATHENA/Data/heading_word_count.hpp"
 #include "drd_std.hpp"
 
 namespace en= athena::enunciation;
@@ -51,6 +52,10 @@ private slots:
   void unknown_and_malformed_content ();
   void conflicts_are_lossless ();
   void declarations_are_the_source_of_truth ();
+  void source_classification ();
+  void filters_and_colors ();
+  void legacy_artifact_policy ();
+  void body_statistics ();
 };
 
 void TestEnunciationModel::all_declared_aliases () {
@@ -246,6 +251,106 @@ void TestEnunciationModel::declarations_are_the_source_of_truth () {
   json= registry.declaration ();
   json["kinds"][0]["legacy"][0]["numbered"]= "true";
   QVERIFY_EXCEPTION_THROWN (en::registry (json.dump ()), std::invalid_argument);
+}
+
+void TestEnunciationModel::source_classification () {
+  const auto& registry= en::standard_registry ();
+  en::conversion_options options;
+  options.numbering_preferences["number solutions"]= true;
+  for (const auto& entry: registry.legacy_tags ()) {
+    const auto& alias= entry.second;
+    tree source= legacy_tree (alias, tree (DOCUMENT, "Body"));
+    const int body= alias.layout == en::legacy_layout::body ? 0 : 1;
+    QCOMPARE (registry.body_index (source), body);
+    QVERIFY (registry.kind_name (source) == alias.kind);
+    QVERIFY (registry.variant_name (source) == alias.variant);
+    QVERIFY (registry.matches_filter (source, alias.kind));
+    QVERIFY (registry.matches_filter (source, alias.tag));
+    QVERIFY (!registry.matches_filter (source, "unknown-filter"));
+    auto converted= en::convert_detached_source (source, registry, options);
+    QCOMPARE (registry.body_index (converted.source), 0);
+    QVERIFY (registry.matches_filter (converted.source, alias.tag));
+    source << tree ("Extra");
+    QCOMPARE (registry.body_index (source), -1);
+    QVERIFY (!registry.matches_filter (source, alias.kind));
+  }
+  QCOMPARE (registry.body_index (tree ("text")), -1);
+  QCOMPARE (registry.body_index (compound ("unknown", "body")), -1);
+  QCOMPARE (registry.body_index (tree (en::label (), "not a document")), -1);
+  auto numbered= en::convert_detached_source (compound ("theorem", "Body"));
+  QVERIFY (!registry.matches_filter (numbered.source, "theorem*"));
+  auto proof= en::convert_detached_source (compound ("proof-alternative", "Body"));
+  QVERIFY (registry.matches_filter (proof.source, "proof"));
+  QVERIFY (!registry.matches_filter (proof.source, "proof-standard"));
+}
+
+void TestEnunciationModel::filters_and_colors () {
+  auto json= en::standard_registry ().declaration ();
+  json["kinds"][0]["display_name"]= "Custom theorem";
+  en::registry registry (json.dump ());
+  auto filters= registry.filters ();
+  QVERIFY (filters.front ().label == "Custom theorem");
+  QVERIFY (filters.front ().key == "theorem");
+  QCOMPARE (filters.size (), std::size_t (26));
+  for (const auto& entry: filters) {
+    if (registry.kind (entry.key)) {
+      tree source (en::label (), tree (DOCUMENT, "Body"));
+      node::metadata metadata;
+      metadata.properties["kind"]= node::property (entry.key);
+      metadata.properties["name"]= node::property (node::rich_text {tree ("")});
+      metadata.properties["numbered"]= node::property (false);
+      node::set (source, metadata);
+      QVERIFY (registry.matches_filter (source, entry.key));
+      continue;
+    }
+    const auto* alias= registry.legacy (entry.key);
+    QVERIFY (alias);
+    QVERIFY (registry.matches_filter (
+      legacy_tree (*alias, tree (DOCUMENT, "Body")), entry.key));
+  }
+  QVERIFY (registry.color_kind ("theorem*") == "theorem");
+  QVERIFY (registry.color_kind ("proof-alternative") == "proof");
+  QVERIFY (registry.color_kind ("proof-of") == "proof");
+  QVERIFY (registry.color_kind ("render-proof").empty ());
+  QVERIFY (registry.color_kind ("render-theorem").empty ());
+  QVERIFY (registry.color_kind ("unknown").empty ());
+}
+
+void TestEnunciationModel::legacy_artifact_policy () {
+  // Migration must not silently broaden legacy extraction or rename its roles.
+  const std::map<std::string, std::string> expected {
+    {"definition", "definition"}, {"axiom", "axiom"},
+    {"theorem", "theorem"}, {"lemma", "lemma"},
+    {"corollary", "corollary"}, {"proposition", "proposition"},
+    {"conjecture", "conjecture"}, {"question", "question"},
+    {"example", "example"}, {"proof", "proof"},
+    {"proof-alternative", "proof-alternative"},
+    {"alternative-proof", "proof-alternative"},
+    {"proof-standard", "proof-standard"},
+    {"standard-proof", "proof-standard"},
+    {"solution", "solution"}, {"solution*", "solution*"},
+    {"render-proof", "proof"}, {"render-proof-alternative", "proof-alternative"},
+    {"render-proof-standard", "proof-standard"},
+    {"render-solution", "solution"}, {"render-theorem", "theorem"}
+  };
+  std::map<std::string, std::string> actual;
+  for (const auto& entry: en::standard_registry ().legacy_tags ())
+    if (!entry.second.artifact_base.empty ())
+      actual.emplace (entry.first, entry.second.artifact_base);
+  QVERIFY (actual == expected);
+}
+
+void TestEnunciationModel::body_statistics () {
+  tree body (DOCUMENT, "Three body words");
+  for (tree block: {compound ("theorem", body),
+                   compound ("proof-of", "Title excluded", body),
+                   compound ("render-theorem", "Title excluded", body),
+                   en::convert_detached_source (compound ("lemma", body)).source}) {
+    tree document (DOCUMENT, block);
+    QCOMPARE (athena_enunciation_word_count_at (document, path (0)), 3);
+    const int index= en::standard_registry ().body_index (block);
+    QCOMPARE (athena_enunciation_word_count_at (document, path (0, index, 0, 2)), 3);
+  }
 }
 
 QTEST_MAIN (TestEnunciationModel)

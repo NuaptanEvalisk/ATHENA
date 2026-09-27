@@ -16,6 +16,7 @@
 #include "ATHENA/Data/person_names.hpp"
 #endif
 #include "QTMVaultSearch.hpp"
+#include "QTMVaultAnchorModel.hpp"
 #include "QTMWidget.hpp"
 #include "convert.hpp"
 #include "converter.hpp"
@@ -94,32 +95,6 @@ public:
     qwid= adopted;
     return adopted;
   }
-};
-
-struct enunciation_filter_entry {
-  const char* label;
-  const char* tag;
-};
-
-static const enunciation_filter_entry enunciation_filter_entries[]= {
-  { "Theorem", "theorem" },
-  { "Proposition", "proposition" },
-  { "Lemma", "lemma" },
-  { "Corollary", "corollary" },
-  { "Axiom", "axiom" },
-  { "Definition", "definition" },
-  { "Conjecture", "conjecture" },
-  { "Remark", "remark" },
-  { "Note", "note" },
-  { "Example", "example" },
-  { "Warning", "warning" },
-  { "Disambiguation", "disambiguation" },
-  { "Question", "question" },
-  { "Solution", "solution" },
-  { "Solution*", "solution*" },
-  { "Proof", "proof" },
-  { "Alternative proof", "proof-alternative" },
-  { "Standard proof", "proof-standard" }
 };
 
 static QString
@@ -287,7 +262,7 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
 
   enunciationCombo= new QComboBox (this);
   enunciationCombo->addItem ("Not required", "");
-  for (const enunciation_filter_entry& entry: enunciation_filter_entries)
+  for (const auto& entry: wikilink_enunciation_filters ())
     enunciationCombo->addItem (entry.label, entry.tag);
   enunciationCombo->setMinimumWidth (220);
 

@@ -9,30 +9,20 @@
 ******************************************************************************/
 
 #include "QTMVaultAnchorModel.hpp"
+#include "ATHENA/Data/enunciation_model.hpp"
 #include "convert.hpp"
 #include "qt_utilities.hpp"
 #include <QRegularExpression>
 
-const std::vector<WikilinkEnunciationFilterEntry> wikilink_enunciation_filters= {
-  { "Theorem", "theorem" },
-  { "Proposition", "proposition" },
-  { "Lemma", "lemma" },
-  { "Corollary", "corollary" },
-  { "Axiom", "axiom" },
-  { "Definition", "definition" },
-  { "Conjecture", "conjecture" },
-  { "Remark", "remark" },
-  { "Note", "note" },
-  { "Example", "example" },
-  { "Warning", "warning" },
-  { "Disambiguation", "disambiguation" },
-  { "Question", "question" },
-  { "Solution", "solution" },
-  { "Solution*", "solution*" },
-  { "Proof", "proof" },
-  { "Alternative proof", "proof-alternative" },
-  { "Standard proof", "proof-standard" }
-};
+const std::vector<WikilinkEnunciationFilterEntry>& wikilink_enunciation_filters () {
+  static const auto entries= [] {
+    std::vector<WikilinkEnunciationFilterEntry> result;
+    for (const auto& entry: athena::enunciation::standard_registry ().filters ())
+      result.push_back ({QString::fromStdString (entry.label), QString::fromStdString (entry.key)});
+    return result;
+  } ();
+  return entries;
+}
 
 QString
 clean_anchor_display (QString anchor) {
@@ -74,8 +64,8 @@ anchor_pair_tag (QString anchor) {
 QString
 normalized_enunciation_tag (QString tag) {
   tag= tag.trimmed ().toLower ();
-  if (tag == "solution*") return "solution";
-  if (tag == "proof-alternative" || tag == "proof-standard") return "proof";
+  if (const auto* alias= athena::enunciation::standard_registry ().legacy (tag.toStdString ()))
+    return QString::fromStdString (alias->kind);
   return tag;
 }
 
@@ -91,7 +81,7 @@ bool
 anchor_pair_is_enunciation (const TransclusionAnchorPair& pair) {
   QString tag= anchor_pair_tag (pair.upper);
   for (const WikilinkEnunciationFilterEntry& entry:
-       wikilink_enunciation_filters)
+       wikilink_enunciation_filters ())
     if (tag == normalized_enunciation_tag (entry.tag)) return true;
   return false;
 }

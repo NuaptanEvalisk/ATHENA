@@ -60,9 +60,17 @@ struct legacy_definition {
   bool numbered= false;
   // Nonempty means conversion needs this preference supplied by the caller.
   std::string numbering_preference;
+  // Legacy extraction policy, not persistent identity. Empty means not indexed
+  // by the pre-node-ID artifact extractor; canonical kinds use their schema.
+  std::string artifact_base;
   legacy_layout layout= legacy_layout::body;
   render_metadata render;
   nlohmann::json declaration;
+};
+
+struct filter_entry {
+  std::string label;
+  std::string key;
 };
 
 class registry {
@@ -75,6 +83,14 @@ public:
   std::string category (const tree& source) const;
   std::string role (const tree& source) const;
   std::string display_name (const tree& source) const;
+  std::string kind_name (const tree& source) const;
+  std::string variant_name (const tree& source) const;
+  // -1 for unknown/malformed legacy shapes. Metadata does not shift indices.
+  int body_index (const tree& source) const;
+  bool matches_filter (const tree& source, std::string_view filter) const;
+  std::vector<filter_entry> filters () const;
+  // A source environment color, not a render-* helper. Empty for helpers.
+  std::string color_kind (std::string_view source_tag) const;
   const render_metadata* rendering (const tree& source) const;
   // Includes unknown fields verbatim as JSON values; never rewritten on load.
   const nlohmann::json& declaration () const { return declaration_; }
