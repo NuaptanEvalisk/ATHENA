@@ -50,6 +50,9 @@ tree tree_child_insert (tree t, int pos, tree x);
 // Use copy() for an independent snapshot, duplicate_source for new identities.
 tree tree_rebuild (tree source, array<tree> children);
 string tree_node_id (tree source);
+object tree_node_properties (tree source);
+object tree_update_node_properties (tree source, object replacements, object removals);
+object tree_ensure_node_id (tree source);
 tree tree_duplicate_source (tree source);
 tree tree_assign (tree r, tree t);
 tree tree_insert (tree r, int pos, tree t);

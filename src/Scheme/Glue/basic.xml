@@ -453,6 +453,17 @@
   <binding name="tree-node-id" native="tree_node_id" returns="string">
     <arg type="tree" />
   </binding>
+  <binding name="tree-node-properties" native="tree_node_properties" returns="object">
+    <arg type="tree" />
+  </binding>
+  <binding name="tree-update-node-properties!" native="tree_update_node_properties" returns="object">
+    <arg type="tree" />
+    <arg type="object" />
+    <arg type="object" />
+  </binding>
+  <binding name="tree-ensure-node-id!" native="tree_ensure_node_id" returns="object">
+    <arg type="tree" />
+  </binding>
   <binding name="tree-duplicate-source" native="tree_duplicate_source" returns="tree">
     <arg type="tree" />
   </binding>

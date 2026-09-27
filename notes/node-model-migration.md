@@ -67,6 +67,64 @@ insertion, serialization or Scheme source-modification helper. In particular,
 partial range reconstruction, source roles during arbitrary formatting and
 whole-document insertion still require the integration audit below.
 
+## Property Mutation Boundary
+
+`document_node_model::prepare_property_edit` prepares one `MOD_SET_METADATA`
+operation for an entire typed property delta and optional assign-if-absent ID.
+It validates the resulting schema and UUID occurrences across the supplied
+document (including rich properties). No operation is returned on failure;
+successful no-ops create no history. The ancestor spine and metadata are copied,
+not the complete body. Apply immediately on the owner through observers/history.
+Undo/redo replays the stored UUID, never another allocation.
+This explicit-edit preflight scans identity occurrences; it is not a per-keypress
+or automatic paragraph-allocation hot-path API.
+
+Ordinary edits cannot set/erase `id`, `uuid`, or `athena:artifact-bindings`.
+The latter is a reserved role-to-artifact-UUID dictionary, validated independently
+of enunciation kind. Other valid namespaced properties survive unchanged.
+
+Generated Scheme interfaces provide:
+
+- `tree-node-properties`: independent typed property snapshot.
+- `tree-update-node-properties! tree replacements removals`: one atomic delta.
+- `tree-ensure-node-id! tree`: assign only if absent; no arbitrary ID setter.
+
+The two mutation functions return `(ok value)` or `(error diagnostic-string)`.
+The value is the native target tree for a property edit, or its UUID for ensure.
+Replacements are a list of `(string-key (type payload))` entries, not dotted
+pairs. Removals are a list of string keys. Duplicate keys, conflicting set/remove,
+cycles, malformed lists and resource overflows are rejected before mutation.
+
+Property types are `string`, `boolean`, `integer` (exact signed 64-bit), `real`
+(finite inexact), `reference` (canonical UUID), `rich-text` (native tree, never
+stree), `list` (typed values) and `dictionary` (the same keyed entry format).
+Rich trees remain inert data, and are independently copied on both write and
+read; they do not acquire execution permissions.
+
+Attached mutations require the owning BufferActor editor and a writable buffer;
+detached calls operate only within the supplied detached subtree. Callers must
+not treat detached validation as a vault-wide uniqueness guarantee. No consumer
+is automatically assigning IDs yet, and these APIs do not activate normal XML
+v2 saves, advertise AUDMAP v3, or implement cross-document moves.
+
+### Property Boundary Verification (2026-09-27)
+
+- Normal `ATHENA.bin -j20` build passed, without deployment.
+- `document_node_model_test`: 13 passed; `modification_metadata_test`: 27 passed.
+  These include schema failure atomicity, reserved bindings, rich-text identity
+  conflicts, assign-once replay and one-step observer/archiver undo and redo.
+- The generated Scheme bindings passed `node-model-bridge-test.scm` in an
+  isolated headless profile: all eight types, exact int64 extremes, cycle/type
+  rejection, copy isolation, ID assignment and self-reference duplication.
+  No full suite or production vault was used. The pre-existing startup
+  `lazy-keyboard-provide` diagnostic remains unrelated and unresolved.
+- The role suite exposed a DRD assumption: legacy child descriptors initialize
+  `block` to zero, also named `BLOCK_REQUIRE_BLOCK`, even for CONCAT. The source
+  planner no longer interprets this default as a declared body slot. Nested
+  DOCUMENTs and explicit body contracts still create identities; ordinary
+  inline text does not. The code-field fixture also now sets TYPE_CODE after
+  `accessible()`, which otherwise resets the descriptor to TYPE_REGULAR.
+
 ### Focused Verification (2026-09-27)
 
 - Normal `ATHENA.bin -j20` build passed; no deployment or vault conversion.
