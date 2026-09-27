@@ -131,20 +131,12 @@
         (let* ((old (materials-reference-uuids node))
                (added (map tree->string (tree-children chosen)))
                (all (list-remove-duplicates (append old added))))
-          (tree-set! node
-            `(referenced-materials
-               ,(tree->stree (tree-ref node 0))
-               (tuple ,@all)
-               ,(tree->stree (tree-ref node 2))))
+          (tree-set! node 1 `(tuple ,@all))
           (materials-update-current-document)))))))
 
 (tm-define (materials-set-reference-style style)
   (and-with node (materials-focused-reference-list)
-    (tree-set! node
-      `(referenced-materials
-         ,style
-         ,(tree->stree (tree-ref node 1))
-         ,(tree->stree (tree-ref node 2))))
+    (tree-set! node 0 style)
     (materials-update-current-document)))
 
 (tm-menu (materials-reference-style-menu)

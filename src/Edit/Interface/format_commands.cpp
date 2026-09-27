@@ -355,8 +355,10 @@ tree format_with_set (tree t, tree variable, tree value) {
   int i= property_index (t, variable);
   if (i >= 0) {
     // The shared diff helper preserves cursors inside an edited property value.
+    value= copy (value);
+    athena::node::copy_metadata (t[i + 1], value);
     if (tree_active (t[i + 1]))
-      call ("tree-set-diff", object (t[i + 1]), object (value));
+      tree_set_diff (t[i + 1], value);
     else tree_set (t, i + 1, copy (value));
   }
   else if (is_func (t, WITH) && N (t) > 0)

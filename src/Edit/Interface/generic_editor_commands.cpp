@@ -23,6 +23,8 @@
 #include "tree_traverse.hpp"
 #include "basic.hpp"
 #include "hashmap.hpp"
+#include "native_interfaces.hpp"
+#include "node_metadata.hpp"
 
 namespace {
 
@@ -370,7 +372,9 @@ string spell_live_language_at (path start_path) {
 
 void replace_matching_embedded_source (tree t, tree source, string replacement) {
   if (t == source) {
-    (void) call ("tree-set-diff", object (t), object (tree (replacement)));
+    tree changed (replacement);
+    athena::node::copy_metadata (t, changed);
+    (void) tree_set_diff (t, changed);
     return;
   }
   if (is_atomic (t)) return;
@@ -440,12 +444,10 @@ bool cardlink_empty_body (tree body) {
 }
 
 tree cardlink_replace_whole (tree target, tree replacement) {
-  path ip= obtain_ip (target);
-  bool active= is_nil (ip) || last_item (ip) != DETACHED;
-  object result= active
-    ? call ("tree-set-diff", object (target), object (replacement))
-    : call ("tree-assign", object (target), object (replacement));
-  return is_tree (result) ? as_tree (result) : replacement;
+  replacement= copy (replacement);
+  athena::node::copy_metadata (target, replacement);
+  return tree_active (target) ? tree_set_diff (target, replacement)
+                             : tree_assign (target, replacement);
 }
 
 } // namespace

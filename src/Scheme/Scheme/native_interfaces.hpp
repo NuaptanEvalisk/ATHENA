@@ -60,6 +60,9 @@ object tree_ensure_node_id (tree source);
 bool node_properties_show (tree source);
 tree tree_duplicate_source (tree source);
 tree tree_assign (tree r, tree t);
+// Exact target, including metadata. Content-only callers must explicitly
+// preserve the source header when they mean to edit the same logical node.
+tree tree_set_diff (tree source, tree target);
 tree tree_insert (tree r, int pos, tree t);
 tree tree_remove (tree r, int pos, int nr);
 tree tree_split (tree r, int pos, int at);

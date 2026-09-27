@@ -655,6 +655,10 @@
     <arg type="tree" />
     <arg type="content" />
   </binding>
+  <binding name="tree-set-diff" native="tree_set_diff" returns="tree">
+    <arg type="tree" />
+    <arg type="content" />
+  </binding>
   <binding name="tree-var-insert" native="tree_insert" returns="tree">
     <arg type="tree" />
     <arg type="int" />
