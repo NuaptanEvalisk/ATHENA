@@ -1,5 +1,9 @@
 # Native Node Model Migration
 
+For the current consolidated architecture, activation gates and handoff status,
+read `notes/node-model-handoff.md`. The dated sections below are chronological:
+later batches can complete work recorded as outstanding in earlier sections.
+
 ## Activation Contract
 
 This is a staged migration, not an enabled document format change. Source
@@ -354,8 +358,9 @@ v2 saves, advertise AUDMAP v3, or implement cross-document moves.
 1. Assign source IDs through content roles, with complete handling of nested
    bodies, headings, paragraphs, insertion, deletion, formatting, normalization
    and source-modifying Scheme paths. Preserve semantics across stree boundaries.
-2. Implement one-use cut/move credentials, copy policy for artifact bindings,
-   internal tmfs-reference rewriting, and coordinated cross-document undo.
+2. Implement one-use cut/move credentials and coordinated cross-document undo.
+   New-object copying already clears artifact bindings and rewrites internal
+   native tmfs references; the move path must respect those separate policies.
 3. Finish remaining live enunciation consumers and source creation. Native
    rendering/numbering and property UI are implemented; proof targets can be
    entered explicitly, but UUID resolution and target selection remain.
@@ -485,6 +490,31 @@ v2 saves, advertise AUDMAP v3, or implement cross-document moves.
   Its text prefix/suffix helpers also mix character counts and UTF-8 byte
   offsets. This batch does not enable source-role allocation or complete the
   overall source-modification audit. No deployment or production migration ran.
+
+## Native Exact Tree Diff (2026-09-27)
+
+- `tree-set-diff` now uses a generated binding to native owner-local code.
+  Atomic changes compare complete ICU graphemes and edit UTF-8 byte offsets;
+  compound changes apply the target header even when children are unchanged.
+  Actual-descendant wrapping/unwrapping keeps observers and records explicit
+  headers so undo restores both parent and child identities.
+- The contract is exact replacement, including target metadata. Content-only
+  callers must explicitly preserve the original header; the helper must not
+  guess identities onto an anonymous target. Native formatting, embedded source
+  text and cardlink conversion now do this explicitly. Materials field updates
+  no longer reconstruct their entire reference-list node/body through stree.
+  This does not complete the audit of every tree-set! caller.
+- The normal ATHENA.bin -j20 build passed. The isolated owner-editor fixture
+  `tests/scheme/node-tree-diff-test.scm` exited zero with
+  ATHENA-NODE-TREE-DIFF-PASS, covering Unicode edits, exact metadata, cursor and
+  observer retention, compound edits, nested wrapping/unwrapping undo/redo and
+  bibliography field changes. Runtime execution also verified the generated
+  binding rather than only its declaration.
+- The fixture initially used an ambient Scheme author after setup. Undo then
+  traversed both foreign-author steps instead of stopping at the latest editor
+  step. Explicit start-editing now matches normal command entry. History/kernel
+  code was not changed to compensate for this fixture issue. Temporary history
+  diagnostics were removed. No full suite, deployment or Notes migration ran.
 
 ## Build Boundary
 
