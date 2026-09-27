@@ -375,7 +375,12 @@ make_lazy_compound (edit_env env, tree t, path ip) {
   int d;
   tree f;
   string macro_name;
-  if (L(t) == COMPOUND) {
+  if (athena::enunciation::is_enunciation (t)) {
+    d= 0;
+    macro_name= "enunciation";
+    f= native_enunciation_macro (env.operator-> (), t);
+  }
+  else if (L(t) == COMPOUND) {
     d= 1;
     f= t[0];
     if (is_compound (f)) f= env->exec (f);
@@ -406,7 +411,7 @@ make_lazy_compound (edit_env env, tree t, path ip) {
     // WYVERN EDITION: Inject background colors for enunciations
     string var= macro_name;
     
-    string color_kind= athena_enunciation_color_kind (var);
+    string color_kind= athena_enunciation_color_kind (var, t);
     if (color_kind != "") {
       string col = get_preference ("vault " * color_kind * " color", "none");
       if (col != "none") {

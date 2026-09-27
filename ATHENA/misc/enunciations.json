@@ -147,8 +147,8 @@
       "kind": "proof", "display_name": "Proof", "role": "completion", "category": "completion",
       "render": {"style": "render-proof", "title_mode": "none", "qed": true},
       "variants": {
-        "alternative": {"display_name": "Proof (Alternative)", "render_style": "render-proof-alternative"},
-        "standard": {"display_name": "Proof (Standard)", "render_style": "render-proof-standard"}
+        "alternative": {"display_name": "Proof (Alternative)", "render_style": "render-proof-alternative", "text": "proof-alternative-text"},
+        "standard": {"display_name": "Proof (Standard)", "render_style": "render-proof-standard", "text": "proof-standard-text"}
       },
       "legacy": [
         {"tag": "proof", "numbered": false, "artifact_base": "proof"},
@@ -164,7 +164,7 @@
     },
     {
       "kind": "solution", "display_name": "Solution", "role": "completion", "category": "completion",
-      "render": {"style": "render-solution", "counter": "exercise-env", "title_mode": "direct", "qed": false, "counter_scope": "individual"},
+      "render": {"style": "render-solution", "counter": "exercise-env", "title_mode": "direct", "qed": false, "counter_scope": "individual", "number_format": "solution-title"},
       "legacy": [
         {"tag": "solution", "numbered": true, "numbering_preference": "number solutions", "starred_tag": "solution*", "artifact_base": "solution", "starred_artifact_base": "solution*"},
         {"tag": "solution-with-number", "numbered": true},
@@ -175,7 +175,7 @@
     },
     {
       "kind": "quote-env", "display_name": "Quote", "role": "quotation", "category": "quotation",
-      "render": {"style": "quote-env", "title_mode": "direct", "qed": false},
+      "render": {"style": "quote-env", "title_mode": "direct", "qed": false, "body_only": true},
       "legacy": [{"tag": "quote-env", "numbered": false}]
     },
     {

@@ -185,7 +185,10 @@ public:
 
 } // namespace
 
-tree_label label () { return make_tree_label ("enunciation"); }
+tree_label label () {
+  static const tree_label value= make_tree_label ("enunciation");
+  return value;
+}
 
 bool is_enunciation (const tree& source) {
   return is_compound (source) && L(source) == label ();
@@ -223,6 +226,10 @@ registry::registry (std::string_view source) {
     definition.render.counter= text_field (render, "counter", true);
     definition.render.title_mode= text_field (render, "title_mode");
     definition.render.qed= bool_field (render, "qed");
+    definition.render.text= render.contains ("text") ? text_field (render, "text") :
+      definition.kind + "-text";
+    definition.render.number_format= text_field (render, "number_format", true);
+    definition.render.body_only= render.contains ("body_only") && bool_field (render, "body_only");
     if (entry.contains ("variants")) {
       require (entry["variants"].is_object (), "expected variants object");
       for (const auto& variant: entry["variants"].items ()) {
@@ -233,6 +240,8 @@ registry::registry (std::string_view source) {
         value.display_name= text_field (variant.value (), "display_name");
         value.render= definition.render;
         value.render.style= text_field (variant.value (), "render_style");
+        if (variant.value ().contains ("text"))
+          value.render.text= text_field (variant.value (), "text");
         value.declaration= variant.value ();
         definition.variants.emplace (variant.key (), std::move (value));
       }

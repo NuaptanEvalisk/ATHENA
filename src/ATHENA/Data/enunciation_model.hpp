@@ -21,7 +21,7 @@
 
 namespace athena::enunciation {
 
-// Extension label only; no new tree_label enumerator or runtime activation hook.
+// Native extension label; automatic source creation remains separately gated.
 tree_label label ();
 bool is_enunciation (const tree& source);
 // Structural/type validation, deliberately accepting unknown kinds/variants.
@@ -32,6 +32,9 @@ struct render_metadata {
   std::string counter;
   // complete/subject distinguish explicit legacy slots from body-title styles.
   std::string title_mode;
+  std::string text;
+  std::string number_format;
+  bool body_only= false;
   bool qed= false;
 };
 

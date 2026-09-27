@@ -9,11 +9,13 @@
 #include "env.hpp"
 #include "tree_label.hpp"
 #include "ATHENA/Data/enunciation_model.hpp"
+#include "enunciation_presentation.hpp"
 
 static inline string
-athena_enunciation_color_kind (string tag) {
-  const auto kind= athena::enunciation::standard_registry ().color_kind (
-    std::string_view (tag.data (), N(tag)));
+athena_enunciation_color_kind (string tag, const tree& source) {
+  const auto& registry= athena::enunciation::standard_registry ();
+  const auto kind= athena::enunciation::is_enunciation (source) ?
+    registry.kind_name (source) : registry.color_kind (std::string_view (tag.data (), N(tag)));
   return string (kind.data (), static_cast<int> (kind.size ()));
 }
 
@@ -348,6 +350,18 @@ athena_enunciation_surround_render_rewrite (edit_env env, tree t) {
   return tree (WITH, "ornament-color", color,
                "ornament-shape", "rectangular",
                "ornament-border", "0ln", tree (ORNAMENT, body));
+}
+
+static inline bool
+athena_enunciation_layout_rewrite (edit_env env, tree t, tree& result) {
+  if (athena_is_enunciation_surround (t))
+    result= athena_enunciation_surround_render_rewrite (env, t);
+  else if (athena_is_enunciation_background (t))
+    result= athena_enunciation_background_render_rewrite (t);
+  else if (athena_is_proof_qed_layout (t))
+    result= athena_proof_qed_layout_rewrite (env, t);
+  else return false;
+  return true;
 }
 
 #endif // ENUNCIATION_SURROUND_H

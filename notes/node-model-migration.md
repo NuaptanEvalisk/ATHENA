@@ -30,7 +30,8 @@ typed internal references. Neither operation is a clipboard move credential.
   legacy variant and presentation contracts plus detached conversion. Search
   classification, filter menus, block statistics, legacy artifact classification
   and typesetter source colors consume this registry. Canonical-node native
-  presentation and the remaining runtime consumers still require integration.
+  presentation uses the same declaration; remaining consumers and source
+  creation/property UI still require integration.
 - `document_node_model.*`: explicit detached identity planning from source roles
   and DRD contracts, caller-supplied deterministic allocation, duplicate checks
   and property schema validation. It is not a live-editor identity allocator.
@@ -148,14 +149,40 @@ v2 saves, advertise AUDMAP v3, or implement cross-document moves.
 - Block word counts use declared body layouts, correcting the previous ordinary
   body child-1 and proof-of child-2 assumptions. Canonical bodies remain child 0.
 - All three macro typesetting routes use registry-backed source color kinds;
-  render helpers retain their separate background-injection behavior. This does
-  not implement canonical-node presentation or numbering yet.
+  render helpers retain their separate background-injection behavior. Canonical
+  presentation and numbering were added in the following integration batch.
 - Legacy artifact extraction uses declared alias policies, preserving exactly
   the old 21 recognized aliases and their extraction base tags. This does not
   allocate canonical artifact identities or activate source-owned bindings.
 - Normal ATHENA.bin build passed. The enunciation registry suite reported
   14 passes; three selected vault-search cases plus initialization/cleanup
   reported five passes. No full suite, deployment or production migration ran.
+
+## Native Enunciation Presentation (2026-09-27)
+
+- Canonical enunciations now use one native presentation plan in environment
+  evaluation, cursor environment traversal, inline, lazy and incremental bridge
+  typesetting. The standard DRD exposes the sole body child at index zero.
+  The plan binds that original child as a macro argument; it does not replace
+  the source node or copy/reparent its body to generate a title.
+- The registry supplies label, style, counter group, variant label and exceptional
+  number formatting. Existing style macros retain presentation control. Names,
+  attribution and unparsed year text form a heading without changing body text.
+  Complete historical titles, proof variants and body-only quotes are retained;
+  unknown kinds use a generic heading and preserve their body.
+- Structured title display is a non-executing projection: supported native math
+  and literal formatting remain structured, historical label references become
+  read-only links, and arbitrary macros/assignments/external calls display as
+  literal source. This does not modify the stored property. Typed proof targets
+  link the heading to the UUID tmfs target; resolution remains a separate gate.
+- Native enunciation layout helpers now also participate in environment
+  evaluation, matching their existing typesetting interpretation. This repairs
+  undefined-helper errors and preserves the body font environment at the cursor.
+- The focused presentation suite passed all six QtTest cases (four feature
+  cases plus setup/cleanup), including incremental title replacement and exact
+  source cursor mapping. The registry suite passed 14 cases, and the normal
+  `cmake --build build_qt6 --target ATHENA.bin -j20` build passed. No full suite,
+  deployment, automatic identity assignment or production migration ran.
 
 ## Integration Gates Still Required
 
@@ -164,8 +191,9 @@ v2 saves, advertise AUDMAP v3, or implement cross-document moves.
    and source-modifying Scheme paths. Preserve semantics across stree boundaries.
 2. Implement one-use cut/move credentials, copy policy for artifact bindings,
    internal tmfs-reference rewriting, and coordinated cross-document undo.
-3. Replace live enunciation consumers with the registry; provide native
-   rendering, numbering, property editing and explicit proof associations.
+3. Finish remaining live enunciation consumers, source creation and native
+   property editing. Native rendering/numbering and typed proof-target display
+   are implemented; target resolution and the proof association UI remain.
 4. Implement native UUID resolution using validated disposable location indexes,
    live actor snapshots, coalesced background scans and distinct error states.
    Ordered transclusions must reject ancestor/descendant overlap and retain

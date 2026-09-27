@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "env.hpp"
+#include "enunciation_surround.hpp"
 #include "convert.hpp"
 #include "file.hpp"
 #include "locale.hpp"
@@ -668,8 +669,15 @@ edit_env_rep::exec_with (tree t) {
 
 tree
 edit_env_rep::exec_compound (tree t) {
+  tree layout;
+  if (athena_enunciation_layout_rewrite (edit_env (this), t, layout))
+    return exec (layout);
   int d; tree f;
-  if (L(t) == COMPOUND) {
+  if (athena::enunciation::is_enunciation (t)) {
+    d= 0;
+    f= native_enunciation_macro (this, t);
+  }
+  else if (L(t) == COMPOUND) {
     if (N(t)<1) return tree (_ERROR, "bad compound");
     d= 1;
     f= t[0];
@@ -2320,7 +2328,11 @@ edit_env_rep::exec_until_with (tree t, path p) {
 void
 edit_env_rep::exec_until_compound (tree t, path p) {
   int d; tree f;
-  if (L(t) == COMPOUND) {
+  if (athena::enunciation::is_enunciation (t)) {
+    d= 0;
+    f= native_enunciation_macro (this, t);
+  }
+  else if (L(t) == COMPOUND) {
     d= 1;
     f= t[0];
     if (is_compound (f)) f= exec (f);
@@ -2595,8 +2607,15 @@ edit_env_rep::exec_until_with (tree t, path p, string var, int level) {
 
 bool
 edit_env_rep::exec_until_compound (tree t, path p, string var, int level) {
+  tree layout;
+  if (athena_enunciation_layout_rewrite (edit_env (this), t, layout))
+    return exec_until (layout, p, var, level);
   int d; tree f;
-  if (L(t) == COMPOUND) {
+  if (athena::enunciation::is_enunciation (t)) {
+    d= 0;
+    f= native_enunciation_macro (this, t);
+  }
+  else if (L(t) == COMPOUND) {
     d= 1;
     f= t[0];
     if (is_compound (f)) f= exec (f);

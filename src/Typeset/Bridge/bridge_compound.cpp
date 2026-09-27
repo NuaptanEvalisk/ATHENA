@@ -411,7 +411,12 @@ bridge_compound_rep::my_typeset (int desired_status) {
   int d;
   tree f;
   string macro_name;
-  if (L(st) == COMPOUND) {
+  if (athena::enunciation::is_enunciation (st)) {
+    d= 0;
+    macro_name= "enunciation";
+    f= native_enunciation_macro (env.operator-> (), st);
+  }
+  else if (L(st) == COMPOUND) {
     d= 1;
     f= st[0];
     if (is_compound (f)) f= env->exec (f);
@@ -434,7 +439,7 @@ bridge_compound_rep::my_typeset (int desired_status) {
     // WYVERN EDITION: Inject background colors for enunciations
     string var= macro_name;
     
-    string color_kind= athena_enunciation_color_kind (var);
+    string color_kind= athena_enunciation_color_kind (var, st);
     if (color_kind != "") {
       string col = get_preference ("vault " * color_kind * " color", "none");
       if (col != "none") {
