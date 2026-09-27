@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "bridge.hpp"
+#include "node_metadata.hpp"
 
 class bridge_default_rep: public bridge_rep {
 public:
@@ -37,6 +38,7 @@ substitute (tree t, path p, tree u) {
   if (is_nil (p)) return u;
   int i, n= N(t);
   tree t2 (t, n);
+  athena::node::copy_metadata (t, t2);
   for (i=0; i<n; i++) {
     if (i == p->item) t2[i]= substitute (t[i], p->next, u);
     else t2[i]= t[i];

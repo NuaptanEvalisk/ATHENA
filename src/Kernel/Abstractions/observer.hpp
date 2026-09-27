@@ -58,6 +58,7 @@ public:
   virtual void announce_insert_node (tree& ref, path p, tree ins);
   virtual void announce_remove_node (tree& ref, path p);
   virtual void announce_set_cursor  (tree& ref, path p, tree data);
+  virtual void announce_set_metadata (tree& ref, path p, tree carrier);
   virtual void done                 (tree& ref, modification mod);
   virtual void touched              (tree& ref, path p);
 
@@ -73,6 +74,7 @@ public:
   virtual void notify_insert_node   (tree& ref, int pos);
   virtual void notify_remove_node   (tree& ref, int pos);
   virtual void notify_set_cursor    (tree& ref, int pos, tree data);
+  virtual void notify_set_metadata  (tree& ref, tree carrier);
   virtual void notify_detach        (tree& ref, tree closest, bool right);
 
   // Extra routines for particular types of observers
@@ -132,6 +134,7 @@ void assign_node (tree& ref, tree_label op);
 void insert_node (tree& ref, int pos, tree t);
 void remove_node (tree& ref, int pos);
 void set_cursor  (tree& ref, int pos, tree data);
+void set_metadata (tree& ref, tree carrier);
 void touch       (tree& ref);
 
 void assign      (path p, tree t);
@@ -143,6 +146,7 @@ void assign_node (path p, tree_label op);
 void insert_node (path p, tree ins);
 void remove_node (path p);
 void set_cursor  (path p, tree data);
+void set_metadata (path p, tree carrier);
 void touch       (path p);
 
 void insert_observer (observer& o, observer what);

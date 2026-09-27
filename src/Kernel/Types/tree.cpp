@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "generic_tree.hpp"
+#include "node_metadata.hpp"
 #include "drd_std.hpp"
 #include "hashset.hpp"
 
@@ -27,6 +28,8 @@ struct dummy_tree_rep_type : public tree_rep {
 };
 static dummy_tree_rep_type the_dummy_tree_rep;
 tree_rep* dummy_tree_rep = &the_dummy_tree_rep;
+
+tree_rep::~tree_rep () { delete attributes; }
 
 void
 destroy_tree_rep (tree_rep* rep) {
@@ -127,38 +130,42 @@ tree::operator () (int begin, int end) const {
 bool
 operator == (const tree& t, const tree& u) {
   if (strong_equal (t, u)) return true;
-  return (L(t)==L(u)) &&
+  return (L(t)==L(u)) && athena::node::equal_metadata (t, u) &&
     (L(t)==TMSTRING? (t->label==u->label): (A(t)==A(u)));
 }
 
 bool
 operator != (const tree& t, const tree& u) {
-  if (strong_equal (t, u)) return false;
-  return (L(t)!=L(u)) ||
-    (L(t)==TMSTRING? (t->label!=u->label): (A(t)!=A(u)));
+  return !(t == u);
 }
 
 tree
 copy (const tree& t) {
-  if (is_atomic (t)) return tree (copy (t->label));
+  if (is_atomic (t)) {
+    tree result (copy (t->label));
+    athena::node::copy_metadata (t, result);
+    return result;
+  }
   else {
     int i, n= N(t);
     // Do not change the source's owner-local reference count while copying it.
     tree t2 (L(t), n);
     for (i=0; i<n; i++) t2[i]= copy (t[i]);
+    athena::node::copy_metadata (t, t2);
     return t2;
   }
 }
 
 tree
 freeze (const tree& t) {
-  if (is_atomic (t)) return copy (t->label);
-  if (is_func (t, UNFREEZE, 1)) return t[0];
+  if (is_atomic (t)) return copy (t);
+  if (is_func (t, UNFREEZE, 1) && !athena::node::get (t)) return t[0];
   else {
     int i, n= N(t);
     tree r (t, n);
     for (i=0; i<n; i++)
       r[i]= freeze (t[i]);
+    athena::node::copy_metadata (t, r);
     return r;
   }
 }
@@ -229,8 +236,9 @@ hash (const array<tree>& a) {
 
 int
 hash (const tree& t) {
-  if (is_atomic (t)) return hash (t->label);
-  else return ((int) L(t)) ^ hash (A(t));
+  const int attributes= athena::node::hash_metadata (t);
+  if (is_atomic (t)) return hash (t->label) ^ attributes;
+  else return ((int) L(t)) ^ hash (A(t)) ^ attributes;
 }
 
 string
@@ -522,9 +530,10 @@ simplify_concat (tree& r, tree t) {
   }
   int i, n= N(t);
   for (i=0; i<n; i++)
-    if (is_concat (t[i])) simplify_concat (r, t[i]);
-    else if (t[i] == "");
-    else if (is_atomic (t[i]) && (N(r)>0) && is_atomic (r[N(r)-1]))
+    if (is_concat (t[i]) && !athena::node::get (t[i])) simplify_concat (r, t[i]);
+    else if (t[i] == "" && !athena::node::get (t[i]));
+    else if (is_atomic (t[i]) && (N(r)>0) && is_atomic (r[N(r)-1]) &&
+             !athena::node::get (t[i]) && !athena::node::get (r[N(r)-1]))
       r[N(r)-1]= tree (r[N(r)-1]->label * t[i]->label);
     else r << t[i];
 }
@@ -534,8 +543,12 @@ simplify_concat (tree t) {
   if (is_atomic (t)) return t;
   tree r (CONCAT);
   simplify_concat (r, t);
-  if (N(r) == 0) return "";
-  if (N(r) == 1) return r[0];
+  if (N(r) == 0) r= tree ("");
+  else if (N(r) == 1) {
+    if (!athena::node::get (t)) return r[0];
+    if (!athena::node::get (r[0])) r= copy (r[0]);
+  }
+  athena::node::copy_metadata (t, r);
   return r;
 }
 
@@ -543,7 +556,7 @@ static void
 simplify_document (tree& r, tree t) {
   int i, n= N(t);
   for (i=0; i<n; i++)
-    if (is_document (t[i])) simplify_document (r, t[i]);
+    if (is_document (t[i]) && !athena::node::get (t[i])) simplify_document (r, t[i]);
     else r << t[i];
 }
 
@@ -552,17 +565,20 @@ simplify_document (tree t) {
   if (!is_document (t)) return t;
   tree r (DOCUMENT);
   simplify_document (r, t);
+  athena::node::copy_metadata (t, r);
   return r;
 }
 
 tree
 simplify_correct (tree t) {
   if (is_atomic (t)) return t;
-  if (is_func (t, QUOTE, 1) && (is_atomic (t[0]))) return t[0];
+  if (is_func (t, QUOTE, 1) && is_atomic (t[0]) && !athena::node::get (t))
+    return t[0];
   int i, n= N(t);
   tree r (t, n);
   for (i=0; i<n; i++)
     r[i]= simplify_correct (t[i]);
+  athena::node::copy_metadata (t, r);
   if (is_concat (r)) r= simplify_concat (r);
   if (is_document (r)) r= simplify_document (r);
   return r;

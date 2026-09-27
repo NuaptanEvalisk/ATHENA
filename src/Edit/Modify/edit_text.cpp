@@ -14,6 +14,7 @@
 #include "analyze.hpp"
 #include "scheme.hpp"
 #include "ATHENA/Data/vault_image_insertion.hpp"
+#include "node_metadata.hpp"
 
 /******************************************************************************
 * Constructors and destructors
@@ -35,20 +36,31 @@ edit_text_rep::correct_concat (path p, int done) {
   }
 
   int i, n= N(t);
-  if (n == 0) { assign (p, string ("")); return; }
-  if (n == 1) { remove_node (p * 0); return; }
+  if (n == 0) {
+    tree empty ("");
+    athena::node::copy_metadata (t, empty);
+    assign (p, empty);
+    return;
+  }
+  if (n == 1) {
+    if (!athena::node::get (t) || !athena::node::get (t[0]))
+      remove_node (p * 0);
+    return;
+  }
   for (i=done; i<n; i++) {
-    if (t[i] == "") {
+    if (t[i] == "" && !athena::node::get (t[i])) {
       remove (p * i, 1);
       correct_concat (p, i);
       return;
     }
-    if ((i<n-1) && is_atomic (t[i]) && is_atomic (t[i+1])) {
+    if ((i<n-1) && is_atomic (t[i]) && is_atomic (t[i+1]) &&
+        !athena::node::get (t[i]) && !athena::node::get (t[i+1])) {
       join (p * i);
       correct_concat (p, i);
       return;
     }
-    if (is_concat (t[i])) {
+    if (is_concat (t[i]) && !athena::node::get (t[i]) &&
+        !athena::node::get (t)) {
       insert_node (p * 0, CONCAT);
       split (p * path (0, i));
       split (p * path (1, 1));
@@ -61,7 +73,7 @@ edit_text_rep::correct_concat (path p, int done) {
       correct_concat (p, max (i-1, 0));
       return;
     }
-    else if (is_multi_paragraph (t[i]) &&
+    else if (is_multi_paragraph (t[i]) && !athena::node::get (t) &&
              is_document (subtree (et, path_up (p))))
       {
         if ((i+1)<n) {

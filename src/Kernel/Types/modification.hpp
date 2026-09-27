@@ -27,6 +27,7 @@
 #define MOD_INSERT_NODE  7
 #define MOD_REMOVE_NODE  8
 #define MOD_SET_CURSOR   9
+#define MOD_SET_METADATA 10
 
 /******************************************************************************
 * The modification class
@@ -75,16 +76,27 @@ inline modification mod_remove (path p, int pos, int nr) {
   return modification (MOD_REMOVE, p * path (pos, nr)); }
 inline modification mod_split (path p, int pos, int at) {
   return modification (MOD_SPLIT, p * path (pos, at)); }
+inline modification mod_split (path p, int pos, int at, tree headers) {
+  return modification (MOD_SPLIT, p * path (pos, at), headers); }
 inline modification mod_join (path p, int pos) {
   return modification (MOD_JOIN, p * pos); }
+// The envelope distinguishes an explicit empty atomic header from no header.
+inline modification mod_join (path p, int pos, tree header) {
+  return modification (MOD_JOIN, p * pos, tree (TUPLE, header)); }
 inline modification mod_assign_node (path p, tree_label lab) {
   return modification (MOD_ASSIGN_NODE, p, tree (lab)); }
 inline modification mod_insert_node (path p, int pos, tree t) {
   return modification (MOD_INSERT_NODE, p * pos, t); }
+// An inverse wrapper edit also restores the selected child's pre-edit header.
+inline modification mod_insert_node (path p, int pos, tree t, tree child_header) {
+  return modification (MOD_INSERT_NODE, p * pos, tree (UNINIT, t, child_header)); }
 inline modification mod_remove_node (path p, int pos) {
   return modification (MOD_REMOVE_NODE, p * pos); }
+inline modification mod_remove_node (path p, int pos, tree child_header) {
+  return modification (MOD_REMOVE_NODE, p * pos, tree (TUPLE, child_header)); }
 inline modification mod_set_cursor (path p, int pos, tree data) {
   return modification (MOD_SET_CURSOR, p * pos, data); }
+modification mod_set_metadata (path p, tree carrier);
 inline modification operator * (int i, modification mod) {
   return modification (mod->k, path (i, mod->p), mod->t); }
 inline modification operator * (path p, modification mod) {
@@ -111,6 +123,14 @@ tree   get_tree (modification mod);
 ******************************************************************************/
 
 bool is_applicable (tree t, modification mod);
+tree node_header (const tree& t);
+void apply_node_header (tree& t, const tree& header);
+bool has_node_headers (modification mod);
+tree single_node_header (modification mod);
+bool restores_child_header (modification mod);
+tree inserted_node_template (modification mod);
+// Resolve a forward operation once; subsequent application reuses its payload.
+void prepare_modification (tree t, modification mod);
 tree clean_apply (tree t, modification mod);
 void raw_apply (tree& t, modification mod);      // in observer.cpp
 void apply (tree& t, modification mod);          // in observer.cpp

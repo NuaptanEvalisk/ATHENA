@@ -25,6 +25,7 @@ class atomic_rep;
 class compound_rep;
 class generic_rep;
 class blackbox;
+namespace athena::node { struct metadata; }
 tree copy (const tree& t);
 
 extern tree_rep* dummy_tree_rep;
@@ -109,7 +110,9 @@ class tree_rep: public concrete_struct {
 public:
   tree_label op;
   observer obs;
-  inline tree_rep (tree_label op2): op (op2) {}
+  athena::node::metadata* attributes;
+  inline tree_rep (tree_label op2): op (op2), attributes (nullptr) {}
+  ~tree_rep ();
   friend class tree;
 };
 

@@ -13,6 +13,7 @@
 #include "edit_modify.hpp"
 #include "tm_window.hpp"
 #include "scheme.hpp"
+#include "node_metadata.hpp"
 #ifdef EXPERIMENTAL
 #include "../../Style/Memorizer/clean_copy.hpp"
 #endif
@@ -216,6 +217,41 @@ edit_set_cursor (editor_rep* ed, path pp, tree data) {
 
 void
 edit_announce (editor_rep* ed, modification mod) {
+  // Bridges reconstruct structural edits independently. Use an exact preview
+  // when those reconstructions would discard source metadata or replay labels.
+  path p= root (mod);
+  tree source= subtree (ed->et, p);
+  bool preview= mod->k == MOD_SET_METADATA;
+  if (mod->k == MOD_INSERT || mod->k == MOD_REMOVE ||
+      mod->k == MOD_ASSIGN_NODE || mod->k == MOD_INSERT_NODE)
+    preview= athena::node::get (source) != nullptr ||
+      (mod->k == MOD_INSERT_NODE &&
+       athena::node::get (inserted_node_template (mod)) != nullptr);
+  if (restores_child_header (mod)) preview= true;
+  if (mod->k == MOD_SPLIT) {
+    preview= athena::node::get (source) != nullptr;
+    if (has_node_headers (mod)) {
+      tree child= source[index (mod)];
+      preview= preview || athena::node::get (child) != nullptr ||
+        athena::node::get (mod->t[0]) != nullptr ||
+        athena::node::get (mod->t[1]) != nullptr ||
+        L(mod->t[0]) != L(child) || L(mod->t[1]) != L(child);
+    }
+  }
+  if (mod->k == MOD_JOIN) {
+    preview= athena::node::get (source) != nullptr;
+    if (has_node_headers (mod)) {
+      tree header= single_node_header (mod);
+      preview= preview || athena::node::get (source[index (mod)]) != nullptr ||
+        athena::node::get (source[index (mod)+1]) != nullptr ||
+        athena::node::get (header) != nullptr ||
+        L(header) != L(source[index (mod)]);
+    }
+  }
+  if (preview) {
+    edit_assign (ed, p, clean_apply (source, mod / p));
+    return;
+  }
   switch (mod->k) {
   case MOD_ASSIGN:
     edit_assign (ed, mod->p, mod->t);

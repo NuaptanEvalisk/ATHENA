@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "patch.hpp"
+#include "node_metadata.hpp"
 
 /******************************************************************************
 * Subroutines
@@ -52,24 +53,42 @@ invert (modification m, tree t) {
       return mod_insert (rp, i, copy (insert_range (subtree (t, rp), i, n)));
     }
   case MOD_SPLIT:
-    return mod_join (rp, index (m));
+    {
+      tree source= subtree (t, rp * index (m));
+      if (!athena::node::get (source) && !has_node_headers (m))
+        return mod_join (rp, index (m));
+      return mod_join (rp, index (m), node_header (source));
+    }
   case MOD_JOIN:
     {
       int  i= index (m);
-      return mod_split (rp, i, insert_length (subtree (t, rp * i)));
+      tree left= subtree (t, rp * i), right= subtree (t, rp * (i+1));
+      if (!athena::node::get (left) && !athena::node::get (right) &&
+          L(left) == L(right) && !has_node_headers (m))
+        return mod_split (rp, i, insert_length (left));
+      return mod_split (rp, i, insert_length (left),
+                        tree (TUPLE, node_header (left), node_header (right)));
     }
   case MOD_ASSIGN_NODE:
     return mod_assign_node (rp, L (subtree (t, rp)));
   case MOD_INSERT_NODE:
-    return mod_remove_node (rp, argument (m));
+    if (!athena::node::get (inserted_node_template (m)) &&
+        !restores_child_header (m)) return mod_remove_node (rp, argument (m));
+    return mod_remove_node (rp, argument (m), node_header (subtree (t, rp)));
   case MOD_REMOVE_NODE:
     {
       tree u= subtree (t, rp);
       int  i= index (m);
-      return mod_insert_node (rp, i, copy (u (0, i) * u (i+1, N(u))));
+      tree wrapper= copy (u (0, i) * u (i+1, N(u)));
+      athena::node::copy_metadata (u, wrapper);
+      if (!athena::node::get (u) && !restores_child_header (m))
+        return mod_insert_node (rp, i, wrapper);
+      return mod_insert_node (rp, i, wrapper, node_header (u[i]));
     }
   case MOD_SET_CURSOR:
     return m;
+  case MOD_SET_METADATA:
+    return mod_set_metadata (rp, subtree (t, rp));
   default:
     FAILED ("unexpected situation");
   }
@@ -156,6 +175,12 @@ swap (modification& m1, modification& m2) {
   // m2 := m1* and return true.  Otherwise, return false
   path rp1= root (m1);
   path rp2= root (m2);
+  // Do not move a saved identity across an overlapping structural edit.
+  if (m1->k == MOD_SET_METADATA || m2->k == MOD_SET_METADATA ||
+      restores_child_header (m1) || restores_child_header (m2)) {
+    if (rp1 <= rp2 || rp2 <= rp1) return false;
+    return swap_basic (m1, m2);
+  }
   if (is_nil (rp1))
     switch (m1->k) {
     case MOD_ASSIGN:

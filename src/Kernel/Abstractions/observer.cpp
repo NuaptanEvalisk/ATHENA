@@ -14,6 +14,7 @@
 #include "hashmap.hpp"
 #include "blackbox.hpp"
 #include "new_document.hpp"
+#include "node_metadata.hpp"
 
 #define DETACHED (-5)
 
@@ -189,9 +190,9 @@ raw_remove (tree& ref, int pos, int nr) {
 }
 
 void
-raw_split (tree& ref, int pos, int at) {
+raw_split (tree& ref, int pos, int at, tree headers) {
   // cout << "Split " << ref << " at " << pos << ", " << at << "\n";
-  modification mod= mod_split (path (), pos, at);
+  modification mod= mod_split (path (), pos, at, headers);
   if (!is_nil (ref->obs))
     ref->obs->announce (ref, mod);
   tree t= ref[pos], t1, t2;
@@ -202,6 +203,10 @@ raw_split (tree& ref, int pos, int at) {
   else {
     t1= ref[pos] (0, at);
     t2= ref[pos] (at, N(ref[pos]));
+  }
+  if (is_func (headers, TUPLE, 2)) {
+    apply_node_header (t1, headers[0]);
+    apply_node_header (t2, headers[1]);
   }
   int i, n= N(ref);
   AR(ref)->resize (n+1);
@@ -224,7 +229,8 @@ raw_split (tree& ref, int pos, int at) {
 }
 
 void
-raw_join (tree& ref, int pos) {
+raw_join (tree& ref, modification mod) {
+  int pos= index (mod);
   // cout << "Join " << ref << " at " << pos << "\n";
   // the following code is added for security
   if (is_atomic (ref[pos]) && (!is_atomic (ref[pos+1])))
@@ -233,12 +239,12 @@ raw_join (tree& ref, int pos) {
     insert_node (ref[pos+1], 0, tree (L(ref[pos])));
   // end security code
 
-  modification mod= mod_join (path (), pos);
   if (!is_nil (ref->obs)) ref->obs->announce (ref, mod);
   tree t1= ref[pos], t2= ref[pos+1], t;
   int offset= is_atomic (t1)? N(t1->label): N(t1);
   if (is_atomic (t1) && is_atomic (t2)) t= t1->label * t2->label;
   else t= t1 * t2;
+  if (has_node_headers (mod)) apply_node_header (t, single_node_header (mod));
   if (!is_nil (ref->obs)) ref->obs->notify_join (ref, pos, t);
   if (!is_nil (t1->obs)) {
     t1->obs->notify_var_join (t1, t, 0);
@@ -274,16 +280,32 @@ raw_assign_node (tree& ref, tree_label op) {
   // consistency_check ();
 }
 
+static void
+restore_child_header (tree& ref, tree header) {
+  if (L(ref) != L(header) && !is_nil (ref->obs))
+    ref->obs->notify_assign_node (ref, L(header));
+  if (!athena::node::equal_metadata (ref, header) && !is_nil (ref->obs)) {
+    tree carrier (TUPLE);
+    athena::node::copy_metadata (header, carrier);
+    ref->obs->notify_set_metadata (ref, carrier);
+  }
+  apply_node_header (ref, header);
+  if (!is_nil (ref->obs)) simplify (ref->obs);
+}
+
 void
-raw_insert_node (tree& ref, int pos, tree t) {
+raw_insert_node (tree& ref, modification mod) {
+  int pos= argument (mod);
+  tree t= inserted_node_template (mod);
   // cout << "Insert node " << ref << " : " << t << " at " << pos << "\n";
-  modification mod= mod_insert_node (path (), pos, t);
   if (!is_nil (ref->obs)) ref->obs->announce (ref, mod);
   int i, n= N(t);
   tree r (t, n+1);
+  athena::node::copy_metadata (t, r);
   for (i=0; i<pos; i++) r[i]= t[i];
   r[pos]= ref;
   for (i=pos; i<n; i++) r[i+1]= t[i];
+  if (restores_child_header (mod)) restore_child_header (r[pos], mod->t[1]);
   ref= r;
   if (!is_nil (ref[pos]->obs)) {
     ref[pos]->obs->notify_insert_node (ref, pos);
@@ -295,11 +317,13 @@ raw_insert_node (tree& ref, int pos, tree t) {
 }
 
 void
-raw_remove_node (tree& ref, int pos) {
+raw_remove_node (tree& ref, modification mod) {
+  int pos= index (mod);
   // cout << "Remove node " << ref << " : " << pos << "\n";
-  modification mod= mod_remove_node (path (), pos);
+  if (!is_nil (ref->obs)) ref->obs->announce (ref, mod);
+  if (restores_child_header (mod))
+    restore_child_header (ref[pos], single_node_header (mod));
   if (!is_nil (ref->obs)) {
-    ref->obs->announce (ref, mod);
     ref->obs->notify_remove_node (ref, pos);
     simplify (ref->obs);
   }
@@ -327,8 +351,22 @@ raw_set_cursor (tree& ref, int pos, tree data) {
 }
 
 void
+raw_set_metadata (tree& ref, tree carrier) {
+  if (athena::node::equal_metadata (ref, carrier)) return;
+  modification mod= mod_set_metadata (path (), carrier);
+  if (!is_nil (ref->obs)) {
+    ref->obs->announce (ref, mod);
+    ref->obs->notify_set_metadata (ref, mod->t);
+    simplify (ref->obs);
+  }
+  athena::node::copy_metadata (mod->t, ref);
+  if (!is_nil (ref->obs)) ref->obs->done (ref, mod);
+}
+
+void
 raw_apply (tree& t, modification mod) {
   ASSERT (is_applicable (t, mod), "invalid modification");
+  prepare_modification (t, mod);
   switch (mod->k) {
   case MOD_ASSIGN:
     raw_assign (subtree (t, root (mod)), mod->t);
@@ -340,22 +378,25 @@ raw_apply (tree& t, modification mod) {
     raw_remove (subtree (t, root (mod)), index (mod), argument (mod));
     break;
   case MOD_SPLIT:
-    raw_split (subtree (t, root (mod)), index (mod), argument (mod));
+    raw_split (subtree (t, root (mod)), index (mod), argument (mod), mod->t);
     break;
   case MOD_JOIN:
-    raw_join (subtree (t, root (mod)), index (mod));
+    raw_join (subtree (t, root (mod)), mod / root (mod));
     break;
   case MOD_ASSIGN_NODE:
     raw_assign_node (subtree (t, root (mod)), L (mod));
     break;
   case MOD_INSERT_NODE:
-    raw_insert_node (subtree (t, root (mod)), argument (mod), mod->t);
+    raw_insert_node (subtree (t, root (mod)), mod / root (mod));
     break;
   case MOD_REMOVE_NODE:
-    raw_remove_node (subtree (t, root (mod)), index (mod));
+    raw_remove_node (subtree (t, root (mod)), mod / root (mod));
     break;
   case MOD_SET_CURSOR:
     raw_set_cursor (subtree (t, root (mod)), index (mod), mod->t);
+    break;
+  case MOD_SET_METADATA:
+    raw_set_metadata (subtree (t, root (mod)), mod->t);
     break;
   }
 }
@@ -468,6 +509,11 @@ set_cursor (tree& ref, int pos, tree data) {
 }
 
 void
+set_metadata (tree& ref, tree carrier) {
+  apply (ref, mod_set_metadata (path (), carrier));
+}
+
+void
 touch (tree& ref) {
   //cout << "Touch " << ref << "\n";
   if (!is_nil (ref->obs))
@@ -530,6 +576,11 @@ set_cursor (path p, tree data) {
 }
 
 void
+set_metadata (path p, tree carrier) {
+  set_metadata (subtree (current_document_tree (), p), carrier);
+}
+
+void
 touch (path p) {
   touch (subtree (current_document_tree (), p));
 }
@@ -561,13 +612,16 @@ observer_rep::announce (tree& ref, modification mod) {
     announce_assign_node (ref, mod->p, L(mod->t));
     break;
   case MOD_INSERT_NODE:
-    announce_insert_node (ref, mod->p, mod->t);
+    announce_insert_node (ref, mod->p, inserted_node_template (mod));
     break;
   case MOD_REMOVE_NODE:
     announce_remove_node (ref, mod->p);
     break;
   case MOD_SET_CURSOR:
     announce_set_cursor (ref, mod->p, mod->t);
+    break;
+  case MOD_SET_METADATA:
+    announce_set_metadata (ref, mod->p, mod->t);
     break;
   }
 }
@@ -628,6 +682,11 @@ observer_rep::announce_set_cursor (tree& ref, path p, tree data) {
 }
 
 void
+observer_rep::announce_set_metadata (tree& ref, path p, tree carrier) {
+  (void) ref; (void) p; (void) carrier;
+}
+
+void
 observer_rep::notify_assign (tree& ref, tree t) {
   (void) ref; (void) t;
 }
@@ -680,6 +739,11 @@ observer_rep::notify_remove_node (tree& ref, int pos) {
 void
 observer_rep::notify_set_cursor (tree& ref, int pos, tree data) {
   (void) ref; (void) pos; (void) data;
+}
+
+void
+observer_rep::notify_set_metadata (tree& ref, tree carrier) {
+  (void) ref; (void) carrier;
 }
 
 void

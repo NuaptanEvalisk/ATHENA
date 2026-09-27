@@ -13,6 +13,7 @@
 #include "drd_std.hpp"
 #include "path.hpp"
 #include "new_document.hpp"
+#include "node_metadata.hpp"
 
 /******************************************************************************
 * DRD-based correction of trees
@@ -23,21 +24,25 @@ correct_concat_node (tree& t, int done) {
   //cout << "Correct " << t << ", " << done << "\n";
   int i, n= N(t);
   if (n == 0) {
-    assign (t, "");
+    tree empty ("");
+    athena::node::copy_metadata (t, empty);
+    assign (t, empty);
     return;
   }
   for (i=done; i<n; i++) {
-    if (t[i] == "") {
+    if (t[i] == "" && !athena::node::get (t[i])) {
       remove (t, i, 1);
       correct_concat_node (t, i);
       return;
     }
-    if ((i<n-1) && is_atomic (t[i]) && is_atomic (t[i+1])) {
+    if ((i<n-1) && is_atomic (t[i]) && is_atomic (t[i+1]) &&
+        !athena::node::get (t[i]) && !athena::node::get (t[i+1])) {
       join (t, i);
       correct_concat_node (t, i);
       return;
     }
-    if (is_concat (t[i])) {
+    if (is_concat (t[i]) && !athena::node::get (t[i]) &&
+        !athena::node::get (t)) {
       insert_node (t, 0, CONCAT);
       split (t, 0, i);
       split (t, 1, 1);
