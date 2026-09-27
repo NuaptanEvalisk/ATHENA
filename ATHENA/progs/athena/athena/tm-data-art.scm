@@ -75,40 +75,42 @@
        (in? (car child) '(doc-data title doc-title tmdoc-title tmdoc-title*
                           doc-title-block))))
 
-(define (data-art-insert-cover-stree body cover)
-  (if (and (pair? body) (eq? (car body) 'document))
-      (let* ((children (cdr body))
-             (cover-tree (data-art-cover-tree cover)))
-        (cond ((and (pair? children) (data-art-title-block? (car children)))
-               `(document ,(car children) ,cover-tree ,@(cdr children)))
-              (else
-               `(document ,cover-tree ,@children))))
+(define (data-art-insert-cover-tree body cover)
+  (if (tree-func? body 'document)
+      (let* ((children (tree-children body))
+             (cover-tree (stree->tree (data-art-cover-tree cover))))
+        (tree-rebuild body
+          (if (and (pair? children)
+                   (data-art-title-block? (tree->stree (car children))))
+              (cons* (car children) cover-tree (cdr children))
+              (cons cover-tree children))))
       body))
 
 (define (data-art-insert-cover-in-doc-data-child child cover)
-  (if (and (pair? child) (eq? (car child) 'doc-data))
-      `(doc-data ,@(cdr child) ,(data-art-cover-doc-misc cover))
+  (if (tree-func? child 'doc-data)
+      (tree-rebuild child
+        (append (tree-children child)
+                (list (stree->tree (data-art-cover-doc-misc cover)))))
       child))
 
-(define (data-art-insert-cover-in-doc-data-stree body cover)
-  (if (data-art-cover-present-stree? body)
+(define (data-art-insert-cover-in-doc-data-tree body cover)
+  (if (data-art-cover-present-stree? (tree->stree body))
       body
-      (if (and (pair? body) (eq? (car body) 'document))
-          (let* ((children (cdr body))
+      (if (tree-func? body 'document)
+          (let* ((children (tree-children body))
                  (hit? #f)
                  (new-children
                   (map (lambda (child)
                          (if (and (not hit?)
-                                  (pair? child)
-                                  (eq? (car child) 'doc-data))
+                                  (tree-func? child 'doc-data))
                              (begin
                                (set! hit? #t)
                                (data-art-insert-cover-in-doc-data-child child cover))
                              child))
                        children)))
             (if hit?
-                `(document ,@new-children)
-                (data-art-insert-cover-stree body cover)))
+                (tree-rebuild body new-children)
+                (data-art-insert-cover-tree body cover)))
           body)))
 
 (define (data-art-seed-string buf)
@@ -130,11 +132,15 @@
           #f))))
 
 (define-public (data-art-body-with-cover body cover)
-  (stree->tree
-   (let ((stree-body (tree->stree body)))
-     (if (data-art-cover-present-stree? stree-body)
-         stree-body
-         (data-art-insert-cover-stree stree-body cover)))))
+  (let ((snapshot (tree-copy body)))
+    (if (data-art-cover-present-stree? (tree->stree snapshot))
+        snapshot
+        (data-art-insert-cover-tree snapshot cover))))
+
+(define (data-art-export-snapshot document body cover)
+  (tree-rebuild (stree->tree '(tuple))
+    (list (tree-copy document) (tree-copy body)
+          (stree->tree (url->system cover)))))
 
 (define-public (data-art-prepare-export buf fname)
   (if (not (and (data-art-enabled?)
@@ -150,10 +156,7 @@
                ;; never retain actor-owned tree references.  The first child
                ;; is the complete document envelope (style/init/references/
                ;; auxiliaries/attachments), not merely the visible body.
-               (stree->tree
-                `(tuple ,(tree->stree document)
-                        ,(tree->stree body)
-                        ,(url->system cover))))))))
+               (data-art-export-snapshot document body cover))))))
 
 (define-public (data-art-insert-cover-in-buffer buf cover)
   (buffer-set-body
@@ -162,8 +165,7 @@
 (define-public (data-art-insert-cover-in-doc-data-buffer buf cover)
   (let* ((body (buffer-get-body buf))
          (new-body
-          (stree->tree
-           (data-art-insert-cover-in-doc-data-stree (tree->stree body) cover))))
+          (data-art-insert-cover-in-doc-data-tree (tree-copy body) cover)))
     (buffer-set-body buf new-body)))
 
 (define-public (data-art-cover-present-in-buffer? buf)

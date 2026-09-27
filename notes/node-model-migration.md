@@ -450,6 +450,20 @@ v2 saves, advertise AUDMAP v3, or implement cross-document moves.
   Loading/activation, full source-edit audit and actual enabled editor lifecycle
   acceptance are not complete. No deployment, full suite or Notes migration ran.
 
+## DataArt Source Preservation (2026-09-27)
+
+- Cover insertion now rebuilds only native body/doc-data containers on a
+  detached snapshot, retaining their headers and untouched child metadata.
+  The export tuple deep-copies the native envelope and prepared body instead
+  of reconstructing either through stree. No source IDs are generated for the
+  synthetic cover. Read-only cover detection and the existing content seed
+  still use content-only stree projections; neither reconstructs source data.
+- The normal ATHENA.bin -j20 build passed. An isolated headless invocation of
+  `tests/scheme/node-data-art-test.scm` passed checks for root/title/atomic
+  paragraph metadata, doc-data and fallback insertion, idempotence, complete
+  envelope preservation and snapshot isolation. This does not substitute for
+  the outstanding full DataArt PDF/UI acceptance or enable new-format saves.
+
 ## Build Boundary
 
 Normal builds use only:
