@@ -8,6 +8,8 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include "vault_node_location.hpp"
+#include "node_reference_export.hpp"
+#include "System/Boot/boot.hpp"
 #include "buffer_actor.hpp"
 #include "buffer_name_catalog.hpp"
 #include "file.hpp"
@@ -209,3 +211,91 @@ content_payload read_online (vault_context_handle vault, const item& target,
   return source;
 }
 } // namespace athena::node_location
+
+namespace athena::node_reference {
+prepared_snapshot prepare_headless_export (std::uint64_t actor, std::uint64_t view) {
+  const auto* context= current_scheme_execution_context ();
+  if (!is_headless () || (context && context->actor))
+    throw std::logic_error ("Export preparation waits require the headless global owner");
+  struct capture {
+    std::vector<selection> seeds;
+    std::string url, revision, error;
+    bool done= false;
+  };
+  auto source= std::make_shared<capture> ();
+  auto continuation= actor_continuation_registry::instance ().store ([source, view] {
+    try {
+      auto* owner= current_scheme_execution_context ()->actor;
+      if (!owner) throw std::runtime_error ("Export source has no owner");
+      const tree& doc= owner->current_source (view);
+      source->seeds= export_selections (doc);
+      source->revision= export_source_revision (doc);
+      const string name= as_string (owner->current_buffer_url ());
+      source->url.assign (name.data (), N(name));
+      source->done= true;
+    }
+    catch (const std::exception& e) { source->error= e.what (); }
+    catch (const string& e) { source->error.assign (e.data (), N(e)); }
+    catch (...) { source->error= "Could not capture export source"; }
+  });
+  if (!buffer_actor::invoke_on (actor, actor_command_kind::run_native_continuation,
+        view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
+        SCHEME_CAPABILITY_BUFFER, continuation)) {
+    actor_continuation_registry::instance ().discard (continuation);
+    throw std::runtime_error ("Export source actor is unavailable");
+  }
+  if (!source->done)
+    throw std::runtime_error (source->error.empty () ? "Export source capture failed" : source->error);
+
+  prepared_references result;
+  if (!source->seeds.empty ()) {
+    auto vault= vault_capture_context ();
+    auto locator= node_location::for_vault (vault);
+    struct response {
+      std::mutex lock;
+      std::condition_variable ready;
+      prepared_snapshot value;
+    };
+    auto answer= std::make_shared<response> ();
+    export_preparation preparation (locator, std::move (source->seeds),
+      [answer] (prepared_snapshot value) {
+        {
+          std::lock_guard<std::mutex> guard (answer->lock);
+          answer->value= std::move (value);
+        }
+        answer->ready.notify_all ();
+      });
+    std::unique_lock<std::mutex> guard (answer->lock);
+    if (!answer->ready.wait_for (guard, std::chrono::minutes (5),
+                                [&] { return bool (answer->value); })) {
+      guard.unlock ();
+      preparation.cancel ();
+      throw std::runtime_error ("Headless export reference preparation timed out");
+    }
+    result= *answer->value;
+    guard.unlock ();
+    if (!vault_context_is_current (vault))
+      throw std::runtime_error ("Export vault changed during preparation");
+    if (result.cancelled || !result.error.empty ())
+      throw std::runtime_error (result.error.empty () ? "Export preparation cancelled" : result.error);
+  }
+  result.origin_actor= actor; result.origin_view= view;
+  result.origin_url= std::move (source->url);
+  result.origin_revision= std::move (source->revision);
+  return std::make_shared<const prepared_references> (std::move (result));
+}
+
+void verify_export_origin () {
+  auto snapshot= current_export_references ();
+  if (!snapshot || !snapshot->origin_actor) return;
+  const auto* context= current_scheme_execution_context ();
+  if (!context || !context->actor)
+    throw std::logic_error ("Export source verification requires its actor");
+  if (context->actor_id != snapshot->origin_actor) return;
+  const string name= as_string (context->actor->current_buffer_url ());
+  if (std::string (name.data (), N(name)) != snapshot->origin_url ||
+      export_source_revision (context->actor->current_source (snapshot->origin_view)) !=
+        snapshot->origin_revision)
+    throw std::runtime_error ("Source changed while preparing export; retry the export");
+}
+} // namespace athena::node_reference

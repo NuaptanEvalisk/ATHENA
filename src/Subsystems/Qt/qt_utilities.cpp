@@ -66,6 +66,7 @@
 #include "buffer_actor.hpp"
 #include "guile_tm.hpp"
 #include "object.hpp"
+#include "ATHENA/Data/node_reference_export.hpp"
 
 #define SCREEN_PIXEL (PIXEL)
 
@@ -91,10 +92,16 @@ qt_call_in_buffer (url buffer, const char* function, array<object> args) {
   state->arguments= scheme_command_handle_acquire (
     object_to_tmscm (as_list_object (transferable)));
   athena_continuation_id id= actor_continuation_registry::instance ().store (
-    [state, function] {
+    [state, function, frozen= athena::node_reference::current_export_references ()] {
+      std::unique_ptr<athena::node_reference::export_reference_scope> references;
+      if (frozen) {
+        references= std::make_unique<athena::node_reference::export_reference_scope> (frozen);
+        athena::node_reference::verify_export_origin ();
+      }
       object values= tmscm_to_object (
         scheme_command_handle_value (state->arguments));
       object result= call (function, as_array_object (values));
+      if (references) references->require_ready ();
       // Property trees are detached once on this cold UI query boundary.
       if (is_tree (result)) result= object (copy (as_tree (result)));
       state->result= scheme_command_handle_acquire (object_to_tmscm (result));

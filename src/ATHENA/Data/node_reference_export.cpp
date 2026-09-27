@@ -10,11 +10,18 @@
 #include "node_reference_export.hpp"
 #include "node_metadata.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
+#include <QCryptographicHash>
 #include <mutex>
 #include <stdexcept>
 #include <tuple>
 
 namespace athena::node_reference {
+std::string export_source_revision (const tree& source) {
+  const auto xml= document::write_xml_v2 (source, document::xml_kind::fragment);
+  return QCryptographicHash::hash (QByteArrayView (xml.data (), xml.size ()),
+                                   QCryptographicHash::Sha256).toHex ().toStdString ();
+}
+
 bool selection::operator < (const selection& other) const {
   return std::tie (ids, ancestry) < std::tie (other.ids, other.ancestry);
 }

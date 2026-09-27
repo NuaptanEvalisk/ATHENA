@@ -384,6 +384,26 @@ private slots:
     QVERIFY (ref::export_reference_view ({{b}, {a}})->snapshot != nullptr);
     scope.require_ready ();
   }
+  void exportSourceRevisionIncludesMetadataAndStructure () {
+    namespace ref= athena::node_reference;
+    tree source= identified (tree (DOCUMENT, "unchanged text"), a);
+    const auto revision= ref::export_source_revision (source);
+    QCOMPARE (revision.size (), std::size_t (64));
+    QCOMPARE (ref::export_source_revision (copy (source)), revision);
+    auto roundtrip= athena::document::read_xml_v2 (
+      athena::document::write_xml_v2 (source));
+    QCOMPARE (ref::export_source_revision (roundtrip), revision);
+    tree changed= copy (source);
+    node::set (changed, {b, {}});
+    QVERIFY (ref::export_source_revision (changed) != revision);
+    changed= copy (source);
+    node::set (changed, {a, {{"example:flag", node::property (true)}}});
+    QVERIFY (ref::export_source_revision (changed) != revision);
+    changed= copy (source); changed[0]= tree (CONCAT, "unchanged text");
+    QVERIFY (ref::export_source_revision (changed) != revision);
+    changed= copy (source); changed[0]= "changed text";
+    QVERIFY (ref::export_source_revision (changed) != revision);
+  }
   void exportScopesNeverSubstituteInteractiveOrPendingState () {
     namespace ref= athena::node_reference;
     QVERIFY (!ref::export_reference_view ({{a}, {}}));

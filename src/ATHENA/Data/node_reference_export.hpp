@@ -24,8 +24,18 @@ struct prepared_references {
   std::map<selection, node_location::snapshot> selections;
   std::string error;
   bool cancelled= false;
+  std::uint64_t origin_actor= 0, origin_view= 0;
+  std::string origin_url, origin_revision;
 };
 using prepared_snapshot= std::shared_ptr<const prepared_references>;
+// Full storage fingerprint, computed only at the cold export boundary.
+std::string export_source_revision (const tree&);
+// Only the headless global coordinator may wait. Actors stay available to the
+// locator throughout preparation; no Qt application/event loop is required.
+prepared_snapshot prepare_headless_export (std::uint64_t actor, std::uint64_t view);
+// Owner-local check before exporting the original source. Derived temporary
+// buffers inherit the frozen references without claiming the source's identity.
+void verify_export_origin ();
 struct preparation_limits {
   std::size_t selections= 4096;
   std::size_t content_bytes= 1024ULL * 1024 * 1024;

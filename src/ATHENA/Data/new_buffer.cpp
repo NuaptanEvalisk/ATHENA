@@ -29,6 +29,7 @@
 #include "materials_document.hpp"
 #include "ATHENA/Data/vault_backup.hpp"
 #include "ATHENA/Data/node_reference_export.hpp"
+#include "System/Boot/boot.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
 #include <filesystem>
 #include <algorithm>
@@ -1040,6 +1041,19 @@ buffer_export (url name, url dest, string fm) {
     actor= buf->actor;
     view_id= buffer_command_view (buf, name);
   }
+  std::unique_ptr<athena::node_reference::export_reference_scope> headless_references;
+  const auto* context= current_scheme_execution_context ();
+  if (is_headless () && (!context || !context->actor) &&
+      !athena::node_reference::current_export_references ()) {
+    try {
+      headless_references= std::make_unique<athena::node_reference::export_reference_scope> (
+        athena::node_reference::prepare_headless_export (actor->id (), view_id));
+    }
+    catch (const std::exception& e) {
+      std_error << "Export reference preparation failed: " << e.what () << LF;
+      return true;
+    }
+  }
   athena_blob_id destination= actor_text_from_string (as_string (dest));
   athena_blob_id format= actor_text_from_string (copy (fm));
   if (auto frozen= athena::node_reference::current_export_references ();
@@ -1050,6 +1064,7 @@ buffer_export (url name, url dest, string fm) {
     auto continuation= actor_continuation_registry::instance ().store (
       [frozen, failed, destination, format, view_id] {
         athena::node_reference::export_reference_scope references (frozen);
+        athena::node_reference::verify_export_origin ();
         actor_command_record result;
         auto* owner= current_scheme_execution_context ()->actor;
         if (owner->invoke (actor_command_kind::export_buffer, view_id,

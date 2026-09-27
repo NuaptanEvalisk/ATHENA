@@ -12,6 +12,8 @@
 #include "ATHENA/Data/transclusion_cache.hpp"
 #include "ATHENA/Data/data_art.hpp"
 #include "ATHENA/Data/new_window.hpp"
+#include "ATHENA/Data/node_reference_export.hpp"
+#include "buffer_name_catalog.hpp"
 #include "Qt/qt_utilities.hpp"
 
 #include <QTemporaryDir>
@@ -866,6 +868,10 @@ export_document_pdf (const fs::path& source, const fs::path& target,
 
   bool dispatched= false;
   try {
+    const string source_name= as_string (source_buffer);
+    const auto owner= published_buffer_source (std::string (source_name.data (), N(source_name)));
+    athena::node_reference::export_reference_scope references (
+      athena::node_reference::prepare_headless_export (owner.first, owner.second));
     url target_url= url_system (std_to_tm (target.string ()));
     object prepared= qt_call_in_buffer (
       source_buffer, "data-art-prepare-export",
@@ -895,6 +901,11 @@ export_document_pdf (const fs::path& source, const fs::path& target,
         source_buffer, "wrapped-print-to-file", object (target_url));
       dispatched= !(is_bool (printed) && !as_bool (printed));
     }
+    references.require_ready ();
+  }
+  catch (const std::exception& e) {
+    error= "PDF export failed for " + source.string () + ": " + e.what ();
+    dispatched= false;
   }
   catch (...) {
     dispatched= false;
@@ -902,8 +913,8 @@ export_document_pdf (const fs::path& source, const fs::path& target,
   if (transient_buffer && concrete_buffer (source_buffer) != nullptr)
     kill_buffer (source_buffer);
   if (!dispatched) {
-    error= "PDF export could not run in the source BufferActor for " +
-           source.string ();
+    if (error.empty ())
+      error= "PDF export could not run in the source BufferActor for " + source.string ();
     return false;
   }
 

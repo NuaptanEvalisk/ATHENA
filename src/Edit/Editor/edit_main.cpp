@@ -273,6 +273,7 @@ edit_main_rep::nr_pages () {
 
 void
 edit_main_rep::print_doc (url name, bool conform, int first, int last) {
+  athena::node_reference::verify_export_origin ();
   athena::node_reference::export_reference_scope references;
 
   string medium = env->get_string (PAGE_MEDIUM);
@@ -383,6 +384,7 @@ edit_main_rep::export_ps (url name, string first, string last) {
 
 array<SI>
 edit_main_rep::print_snippet (url name, tree t, bool conserve_preamble) {
+  athena::node_reference::verify_export_origin ();
   athena::node_reference::export_reference_scope references;
   tree buft= subtree (et, rp);
   if (conserve_preamble)

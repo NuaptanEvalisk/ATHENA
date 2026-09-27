@@ -357,7 +357,7 @@ v2 saves, advertise AUDMAP v3, or implement cross-document moves.
 3. Finish remaining live enunciation consumers and source creation. Native
    rendering/numbering and property UI are implemented; proof targets can be
    entered explicitly, but UUID resolution and target selection remain.
-4. Finish headless/batch export coordination, dynamic export dependencies and
+4. Finish dynamic export dependencies and
    actual actor lifecycle/hover/export GUI acceptance for the integrated async
    reference paths. Switch
    default wikilinks together with migrated vault semantics. Persist any index
@@ -376,6 +376,29 @@ v2 saves, advertise AUDMAP v3, or implement cross-document moves.
 9. Complete focused acceptance, including deleting the entire location cache,
    external renames, duplicate IDs, unsaved live sources and injected failures.
    Only then enable the model and deploy after user acceptance.
+
+## Headless Export Coordination (2026-09-27)
+
+- The central global/headless buffer export captures selections and a full
+  XML-v2/SHA256 source fingerprint on the owning actor, then waits on the shared
+  locator's completion condition outside all BufferActors. It does not require
+  a Qt application or pump an event loop. Sources without native references do
+  not require an active vault. Preparation errors return export failure.
+- The immutable prepared snapshot carries its source actor, view, URL and
+  fingerprint. The original owner checks these before output; derived export
+  buffers inherit reference snapshots without claiming the original identity.
+  These are cold export checks, not per-keypress whole-tree serialization.
+- Website PDF export now explicitly prepares before DataArt/print dispatch.
+  Existing synchronous Qt-to-actor helpers propagate a frozen scope only when
+  one is present, so their ordinary UI behavior remains unchanged.
+- The normal ATHENA.bin -j20 build passed. All 22 focused location/reference
+  cases passed. An isolated headless runtime produced three PDFs without a Qt
+  event loop: plain/no-vault output, a disk UUID transclusion with its actual
+  body, and an explicit missing target after an unsaved live deletion. Extracted
+  PDF text confirmed the latter two outcomes, not merely successful dispatch.
+- Website/DataArt end-to-end acceptance and dynamically generated dependency
+  discovery remain outstanding. No full suite, deployment, normal XML-v2 save
+  activation or production migration was performed.
 
 ## Build Boundary
 
