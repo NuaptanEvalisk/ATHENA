@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "tree_analyze.hpp"
+#include "node_metadata.hpp"
 #include "convert.hpp"
 
 drd_info get_style_drd (tree style);
@@ -41,7 +42,8 @@ concat_tokenize (tree t) {
 array<tree>
 concat_decompose (tree t) {
   array<tree> r;
-  if (t == "");
+  if (athena::node::get (t)) r << t;
+  else if (t == "");
   else if (is_atomic (t)) r << t;
   else if (is_concat (t))
     for (int i=0; i<N(t); i++)
@@ -62,7 +64,7 @@ concat_recompose (array<tree> a) {
   array<tree> r;
   string s;
   for (int i=0; i<N(a); i++)
-    if (is_atomic (a[i])) {
+    if (is_atomic (a[i]) && !athena::node::get (a[i])) {
       if (is_texmacs_symbol_string (a[i]->label)) {
         if (s != "") r << tree (s);
         r << a[i];
@@ -117,7 +119,8 @@ with_similar_type (tree w1, tree w2) {
 array<tree>
 with_decompose (tree w, tree t) {
   array<tree> r;
-  if (t == "");
+  if (athena::node::get (t)) r << t;
+  else if (t == "");
   else if (is_atomic (t)) r << t;
   else if (is_concat (t))
     for (int i=0; i<N(t); i++)
@@ -131,6 +134,7 @@ with_decompose (tree w, tree t) {
 tree
 with_recompose (tree w, array<tree> a) {
   tree r= w (0, N(w));
+  athena::node::copy_metadata (w, r);
   with_body (r)= concat_recompose (a);
   return r;
 }

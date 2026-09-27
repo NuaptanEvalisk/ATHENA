@@ -12,6 +12,7 @@
 #include "tree_select.hpp"
 #include "drd_std.hpp"
 #include "analyze.hpp"
+#include "node_metadata.hpp"
 
 path closest_up (tree t, path p);
 
@@ -255,6 +256,8 @@ selection_correct (tree t, path i1, path i2, path& o1, path& o2) {
 
 tree
 selection_compute (tree t, path start, path end) {
+  if (athena::node::get (t) && start != end &&
+      start == ::start (t) && end == ::end (t)) return copy (t);
   int  i1= start->item;
   int  i2= end->item;
   path p1= start->next;
@@ -267,6 +270,7 @@ selection_compute (tree t, path start, path end) {
     if (is_nil (p1) && is_nil (p2)) {
       if (is_compound (t)) return copy (t);
       if (i1>=i2) return "";
+      if (i1 == 0 && i2 == N(t->label)) return copy (t);
       return t->label (i1, i2);
     }
     if (is_compound (t) && (!is_format (t))) return copy (t);

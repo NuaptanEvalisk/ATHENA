@@ -164,17 +164,17 @@ private slots:
     const std::string rich_child_id= "44444444-4444-4444-8444-444444444444";
     tree rich= annotated (tree (CONCAT, annotated (tree ("note"), rich_child_id)), second_id);
     metadata rich_attributes= *get (rich);
-    rich_attributes.properties.emplace ("self", property (reference {second_id}));
+    rich_attributes.properties.emplace ("self", athena::node::property (reference {second_id}));
     if (root_id)
-      rich_attributes.properties.emplace ("owner", property (reference {first_id}));
+      rich_attributes.properties.emplace ("owner", athena::node::property (reference {first_id}));
     set (rich, rich_attributes);
 
     metadata attributes;
     if (root_id) attributes.id= first_id;
-    attributes.properties.emplace ("note", property (rich_text {rich}));
-    attributes.properties.emplace ("note-ref", property (reference {second_id}));
-    attributes.properties.emplace ("child-ref", property (reference {rich_child_id}));
-    attributes.properties.emplace ("body-ref", property (reference {body_id}));
+    attributes.properties.emplace ("note", athena::node::property (rich_text {rich}));
+    attributes.properties.emplace ("note-ref", athena::node::property (reference {second_id}));
+    attributes.properties.emplace ("child-ref", athena::node::property (reference {rich_child_id}));
+    attributes.properties.emplace ("body-ref", athena::node::property (reference {body_id}));
     tree body= annotated (tree ("abc"), body_id);
     tree fragment= keep_right? tree (CONCAT, "", body): tree (CONCAT, body, "");
     set (fragment, attributes);
@@ -208,6 +208,45 @@ private slots:
     QVERIFY (live == source);
     raw_apply (live, forward);
     QVERIFY (live == expected);
+  }
+
+  void paragraphWrappingTransfersIdentityInOneEdit () {
+    tree source= annotated (tree ("abc"));
+    modification forward= mod_insert_node_preserving_identity (
+      path (), 0, tree (CONCAT), source);
+    modification backward= invert (forward, source);
+    tree live= copy (source);
+    raw_apply (live, forward);
+    QVERIFY (is_concat (live));
+    QVERIFY (athena::node::equal_metadata (live, source));
+    QVERIFY (!athena::node::get (live[0]));
+    QVERIFY (live[0] == tree ("abc"));
+    tree expected= copy (live);
+    QVERIFY (clean_apply (source, forward) == expected);
+    raw_apply (live, backward);
+    QVERIFY (live == source);
+    raw_apply (live, forward);
+    QVERIFY (live == expected);
+
+    // Enter first splits the inner text, then the paragraph CONCAT. Only the
+    // paragraph split allocates an identity; redoing either split reuses it.
+    tree document (DOCUMENT, live);
+    modification text_split= mod_split (path (0), 0, 1);
+    raw_apply (document, text_split);
+    QVERIFY (!athena::node::get (document[0][0]));
+    QVERIFY (!athena::node::get (document[0][1]));
+    modification paragraph_split= mod_split (path (), 0, 1);
+    modification unsplit= invert (paragraph_split, document);
+    tree before= copy (document);
+    raw_apply (document, paragraph_split);
+    QVERIFY (athena::node::id (document[0]) == first_id);
+    QVERIFY (athena::node::valid_id (athena::node::id (document[1])));
+    QVERIFY (athena::node::id (document[1]) != first_id);
+    expected= copy (document);
+    raw_apply (document, unsplit);
+    QVERIFY (document == before);
+    raw_apply (document, paragraph_split);
+    QVERIFY (document == expected);
   }
 
   void joinRestoresLabelsAndProperties () {
@@ -390,7 +429,7 @@ private slots:
     modification b= mod_insert (path (1), 0, "x");
     QVERIFY (commute (a, b));
     QVERIFY (!commute (a, mod_insert (path (0), 0, "x")));
-    QVERIFY (is_nil (cursor_hint (a, source)));
+    QVERIFY (is_nil (cursor_hint (patch (a, invert (a, source)), source)));
   }
 };
 

@@ -90,6 +90,10 @@ inline modification mod_insert_node (path p, int pos, tree t) {
 // An inverse wrapper edit also restores the selected child's pre-edit header.
 inline modification mod_insert_node (path p, int pos, tree t, tree child_header) {
   return modification (MOD_INSERT_NODE, p * pos, tree (UNINIT, t, child_header)); }
+// The wrapper becomes the same logical source unit, not a new identified parent.
+// Callers must establish that role (e.g. an atomic paragraph becoming CONCAT).
+modification mod_insert_node_preserving_identity (
+  path p, int pos, tree wrapper, tree source);
 inline modification mod_remove_node (path p, int pos) {
   return modification (MOD_REMOVE_NODE, p * pos); }
 inline modification mod_remove_node (path p, int pos, tree child_header) {

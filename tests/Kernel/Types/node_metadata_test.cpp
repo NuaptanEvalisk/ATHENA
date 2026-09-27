@@ -43,6 +43,7 @@ tree rich_value (const tree& value, const std::string& key= "rich") {
 
 class TestNodeMetadata: public QObject {
   Q_OBJECT
+  using property= node::property;
 private slots:
   void initTestCase () {
     make_tree_label (DOCUMENT, "document");
@@ -274,9 +275,16 @@ private slots:
     QVERIFY (simplify_document (documents) == documents);
     QVERIFY (simplify_document (tree (DOCUMENT, tree (DOCUMENT, tree ("plain")))) ==
              tree (DOCUMENT, tree ("plain")));
-    tree quoted= annotated (tree (QUOTE, tree ("quoted")), child_id, "quote");
+    tree quoted= annotated (tree (QUOTE, tree ("quoted")), rich_id, "quote");
     tree corrected= annotated (tree (DOCUMENT, quoted, outer), root_id, "root");
-    QVERIFY (simplify_correct (corrected) == corrected);
+    tree expected= copy (corrected);
+    // The recursive corrector may collapse a one-child CONCAT while moving
+    // its metadata onto that unannotated child; the logical object survives.
+    expected[1][1]= annotated (tree ("inner"), child_id, "nested");
+    tree normalized= simplify_correct (corrected);
+    QVERIFY (normalized == expected);
+    QVERIFY (simplify_correct (normalized) == normalized);
+    QVERIFY (is_concat (corrected[1][1]));
     QVERIFY (simplify_correct (tree (QUOTE, tree ("plain"))) == tree ("plain"));
   }
 

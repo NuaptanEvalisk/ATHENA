@@ -15,6 +15,7 @@
 #include "scheme.hpp"
 #include "ATHENA/Data/vault_image_insertion.hpp"
 #include "node_metadata.hpp"
+#include "modification.hpp"
 
 /******************************************************************************
 * Constructors and destructors
@@ -140,7 +141,7 @@ edit_text_rep::accepts_return (path p) {
 bool
 edit_text_rep::insert_return () {
   if (accepts_return (path_up (tp)))
-    insert_node (path_up (tp) * 0, CONCAT);
+    wrap_paragraph_concat (path_up (tp));
   path p= path_up (tp, 2);
   if (!is_concat (subtree (et, p))) return true;
   if (!accepts_return (p)) return true;
@@ -160,14 +161,23 @@ edit_text_rep::insert_return () {
 }
 
 void
+edit_text_rep::wrap_paragraph_concat (path p) {
+  tree& source= subtree (et, p);
+  if (is_atomic (source) && accepts_return (p))
+    ::apply (source, mod_insert_node_preserving_identity (
+      path (), 0, tree (CONCAT), source));
+  else insert_node (p * 0, CONCAT);
+}
+
+void
 edit_text_rep::remove_return (path p) {
   if (!is_document (subtree (et, path_up (p))))
     FAILED ("parent is not a document");
 
   if (!is_concat (subtree (et, p)))
-    insert_node (p * 0, CONCAT);
+    wrap_paragraph_concat (p);
   if (!is_concat (subtree (et, path_inc (p))))
-    insert_node (path_inc (p) * 0, CONCAT);
+    wrap_paragraph_concat (path_inc (p));
   join (p);
   correct_concat (p);
 }
@@ -205,7 +215,7 @@ edit_text_rep::prepare_for_insert () {
     return path_inc (p);
   }
   
-  insert_node (p * 0, CONCAT);
+  wrap_paragraph_concat (p);
   if (is_atomic (st) && (l!=0) && (l!=N(st->label))) {
     split (p * path (0, l));
     return p * 1;
@@ -217,7 +227,7 @@ void
 edit_text_rep::insert_tree (tree t, path p_in_t) {
   if (!as_bool (call ("like-emacs?"))) selection_cut ("none");
   if (is_atomic (t) && (p_in_t == end (t)) &&
-      is_atomic (subtree (et, path_up (tp))))
+      !athena::node::get (t) && is_atomic (subtree (et, path_up (tp))))
     insert (tp, t);
   else if (is_document (t)) {
     if (subtree (et, path_up (tp)) == "" &&
@@ -266,7 +276,9 @@ edit_text_rep::insert_tree (tree t, path p_in_t) {
   }
   else {
     path p= prepare_for_insert ();
-    if (!is_concat (t)) { t= tree (CONCAT, t); p_in_t= path (0, p_in_t); }
+    if (!is_concat (t) || athena::node::get (t)) {
+      t= tree (CONCAT, t); p_in_t= path (0, p_in_t);
+    }
     insert (p, t);
     path q= path_add (p, p_in_t->item) * p_in_t->next;
     go_to (correct_cursor (et, q));

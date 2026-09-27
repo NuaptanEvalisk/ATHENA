@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "tree_correct.hpp"
+#include "node_metadata.hpp"
 #include "tree_analyze.hpp"
 #include "scheme.hpp"
 #include "packrat.hpp"
@@ -182,13 +183,15 @@ with_correct (tree t) {
   else {
     //cout << "Correcting " << t << LF << INDENT;
     tree u (t, N(t));
+    athena::node::copy_metadata (t, u);
     for (int k=0; k<N(t); k++)
       u[k]= with_correct (t[k]);
     array<tree> a= concat_decompose (u);
     int i, n= N(a);
     array<tree> r;
     for (i=0; i<n; i++) {
-      if (is_with_like (a[i])) {
+      if (athena::node::get (a[i])) r << a[i];
+      else if (is_with_like (a[i])) {
         array<tree> b= with_decompose (a[i], with_body (a[i]));
         int p= N(b), k1, k2;
         for (k1=0; k1<p ; k1++)
@@ -203,6 +206,7 @@ with_correct (tree t) {
         if (k2 < p ) x << range (b, k2, p);
         if (N(x) == 0) continue;
         if (N(r) != 0 &&
+            !athena::node::get (r[N(r)-1]) && !athena::node::get (x[0]) &&
             is_with_like (r[N(r)-1]) &&
             with_same_type (r[N(r)-1], x[0]))
           {
@@ -226,16 +230,28 @@ superfluous_with_correct (tree t, tree env) {
   if (is_atomic (t)) return t;
   else {
     //cout << "Superfluous correcting " << t << ", " << env << LF;
-    if (is_compound (t, "body", 1))
-      return compound ("body", superfluous_with_correct (t[0], env));
+    if (is_compound (t, "body", 1)) {
+      tree body= compound ("body", superfluous_with_correct (t[0], env));
+      athena::node::copy_metadata (t, body);
+      return body;
+    }
     if (is_func (t, WITH) && ((N(t) & 1) == 0))
-      t= t * tree (WITH, "");
+      {
+        tree repaired= t * tree (WITH, "");
+        athena::node::copy_metadata (t, repaired);
+        t= repaired;
+      }
     tree r (t, N(t));
+    athena::node::copy_metadata (t, r);
     for (int i=0; i<N(t); i++)
       r[i]= superfluous_with_correct
               (t[i], the_drd->get_env_child (t, i, env));
-    if (is_compound (r, "math", 1) && r[0] == "") return "";
-    else if (is_compound (r, "text", 1) && r[0] == "") return "";
+    // An identified or attributed wrapper is not redundant source content.
+    if (athena::node::get (r)) return r;
+    if (is_compound (r, "math", 1) && r[0] == "" &&
+        !athena::node::get (r[0])) return "";
+    else if (is_compound (r, "text", 1) && r[0] == "" &&
+             !athena::node::get (r[0])) return "";
     else if (is_compound (r, "math", 1) && drd_env_read (env, MODE) == "math")
       return r[0];
     else if (is_compound (r, "text", 1) && drd_env_read (env, MODE) == "text")

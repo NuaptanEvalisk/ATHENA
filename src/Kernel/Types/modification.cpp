@@ -33,6 +33,18 @@ mod_set_metadata (path p, tree carrier) {
   return modification (MOD_SET_METADATA, p, data);
 }
 
+modification
+mod_insert_node_preserving_identity (path p, int pos, tree wrapper, tree source) {
+  ASSERT (is_compound (wrapper) && pos >= 0 && pos <= N(wrapper),
+          "invalid identity-preserving wrapper");
+  ASSERT (!athena::node::get (wrapper), "wrapper already has source metadata");
+  if (!athena::node::get (source)) return mod_insert_node (p, pos, wrapper);
+  tree outer= copy (wrapper);
+  athena::node::copy_metadata (source, outer);
+  tree inner= is_atomic (source)? tree (""): tree (L(source));
+  return mod_insert_node (p, pos, outer, inner);
+}
+
 bool
 restores_child_header (modification mod) {
   return (mod->k == MOD_INSERT_NODE && is_func (mod->t, UNINIT, 2)) ||
