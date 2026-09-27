@@ -9,6 +9,7 @@
 ******************************************************************************/
 #pragma once
 #include "node_location.hpp"
+#include "url.hpp"
 
 namespace athena::node_reference {
 struct view {
@@ -22,6 +23,8 @@ void source_changed ();
 bool canonical (const tree&);
 std::vector<std::string> targets (const tree&);
 tree display (const view&);
+// A single-target preview inherits its source style, initial values and preamble.
+tree preview_document (const view&, url& source);
 inline constexpr const char* ancestry_variable= "athena-node-reference-ancestry";
 std::vector<std::string> ancestry (const tree& environment_value);
 std::string target_id (const string& url);

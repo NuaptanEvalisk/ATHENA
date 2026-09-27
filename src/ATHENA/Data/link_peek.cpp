@@ -7,6 +7,7 @@
 ******************************************************************************/
 
 #include "link_peek.hpp"
+#include "node_reference.hpp"
 #include "artifact_document.hpp"
 #include "vault.hpp"
 #include "vault_map_sqlite.hpp"
@@ -48,10 +49,18 @@ tree with_preview_body (tree document, tree preview, path focus) {
 }
 
 bool athena_link_peek_target (string target) {
+  if (athena_link_peek_native_target (target)) return true;
   QUrl parsed= parsed_target (target);
   return parsed.scheme () == "tmfs" &&
     (parsed.host () == "wikilink" || parsed.host () == "artifact-disambiguation" ||
      parsed.host () == "artifact" || parsed.host () == "transclusion-source");
+}
+
+bool athena_link_peek_native_target (string target) {
+  // Bare legacy wikilinks also contain UUIDs. Switch them only with the vault
+  // model activation, never by guessing from their URL shape.
+  return parsed_target (target).host () == "transclude" &&
+         !athena::node_reference::target_id (target).empty ();
 }
 
 tree athena_link_peek_range (tree document, string begin, string end) {
@@ -123,8 +132,13 @@ athena_transclusion_source_context (tree document, string begin, string end) {
   return with_preview_body (document, preview, first);
 }
 
-tree athena_link_peek_document (string target, url& source) {
+tree athena_link_peek_document (string target, url& source,
+  const std::vector<std::string>& ancestry) {
   source= url_none ();
+  if (athena_link_peek_native_target (target)) {
+    auto current= athena::node_reference::get ({athena::node_reference::target_id (target)}, ancestry);
+    return athena::node_reference::preview_document (current, source);
+  }
   if (!athena_link_peek_target (target)) return tree (UNINIT);
   QUrl parsed= parsed_target (target);
   QString key= parsed.path (QUrl::FullyEncoded).section ('/', 1, 1);

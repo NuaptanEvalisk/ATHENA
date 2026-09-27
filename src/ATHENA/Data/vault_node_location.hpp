@@ -17,10 +17,10 @@ namespace athena::node_location {
 std::shared_ptr<service> for_vault (vault_context_handle);
 
 // Background consumption for online targets. The actor revalidates the UUID
-// against its current source, then sends an independent XML v2 fragment. The
-// caller decodes that fragment on its own thread. No AUDMAP session is involved.
-std::string read_live (vault_context_handle, const item&, const std::atomic<bool>& cancelled);
+// against its current source, then sends XML v2 content and preview context from
+// that same revision. The caller decodes on its own thread; no AUDMAP is involved.
+content_payload read_live (vault_context_handle, const item&, const std::atomic<bool>& cancelled);
 // Online reference consumption also refuses a disk candidate which has become
 // actor-owned since resolution. Callers retry resolution on stale locations.
-std::string read_online (vault_context_handle, const item&, const std::atomic<bool>& cancelled);
+content_payload read_online (vault_context_handle, const item&, const std::atomic<bool>& cancelled);
 } // namespace athena::node_location

@@ -24,6 +24,16 @@ void edit_interface_rep::refresh_node_references () {
   auto overlays= std::move (link_peeks);
   typeset_invalidate_all ();
   link_peeks= std::move (overlays);
+  for (auto& peek: link_peeks) if (athena_link_peek_native_target (peek.target)) {
+    const rectangle old= peek.bounds;
+    if (!prepare_link_peek (peek, old->x2-old->x1)) continue;
+    const SI pad= 10*pixel;
+    const SI height= min (peek.content->h ()+2*pad, min (400*pixel, (vy2-vy1)/2));
+    const SI top= max (vy1+height+pad, min (old->y2, vy2-pad));
+    peek.bounds= rectangle (old->x1, top-height, old->x2, top);
+    peek.scroll_y= min (peek.scroll_y, max (0, peek.content->h ()-height+2*pad));
+  }
+  link_peek_pressed_target= "";
   if (ui_endpoint && !link_peeks.empty ()) ui_endpoint->set_overlay_wheel_capture (true);
   invalidate_all ();
 }
@@ -158,13 +168,33 @@ void edit_interface_rep::update_link_peek (SI x, SI y, int modifiers) {
   // Hovering another link replaces only that branch, never its ancestors.
   link_peeks.resize (next);
   invalidate_all ();
-  url source;
-  tree document= athena_link_peek_document (target, source);
-  if (document == tree (UNINIT)) return;
-
   SI pad= 10*pixel;
   SI width= min (560*pixel, vx2-vx1-4*pad);
   if (width <= 4*pad || vy2-vy1 <= 8*pad) return;
+  link_peek_layer peek;
+  peek.target= copy (target);
+  if (parent >= 0) {
+    peek.ancestry= link_peeks[parent].ancestry;
+    if (athena_link_peek_native_target (link_peeks[parent].target))
+      peek.ancestry.push_back (athena::node_reference::target_id (link_peeks[parent].target));
+  }
+  if (!prepare_link_peek (peek, width)) return;
+  SI height= min (peek.content->h ()+2*pad, min (400*pixel, (vy2-vy1)/2));
+  SI left= max (vx1+pad, min (x+pad, vx2-width-pad));
+  SI top= y-2*pad;
+  if (top-height < vy1+pad) top= min (vy2-pad, y+height+2*pad);
+  top= max (vy1+height+pad, min (top, vy2-pad));
+  peek.bounds= rectangle (left, top-height, left+width, top);
+  link_peeks.push_back (std::move (peek));
+  notify_change (THE_DECORATIONS | THE_FREEZE);
+  invalidate_all ();
+}
+
+bool edit_interface_rep::prepare_link_peek (link_peek_layer& peek, SI width) {
+  url source;
+  tree document= athena_link_peek_document (peek.target, source, peek.ancestry);
+  if (document == tree (UNINIT)) return false;
+  const SI pad= 10*pixel;
   // Independent environment and reference tables keep preview assignments,
   // labels and page numbers out of the edited document's typesetter state.
   drd_info preview_drd ("link-peek", std_drd);
@@ -193,16 +223,10 @@ void edit_interface_rep::update_link_peek (SI x, SI y, int modifiers) {
   lazy lines= content->produce (LAZY_VSTREAM,
                                make_format_vstream (width-2*pad, 0, 0));
   box rendered= (box) lines->produce (LAZY_BOX, make_format_none ());
-  if (is_nil (rendered)) return;
-  SI height= min (rendered->h ()+2*pad, min (400*pixel, (vy2-vy1)/2));
-  SI left= max (vx1+pad, min (x+pad, vx2-width-pad));
-  SI top= y-2*pad;
-  if (top-height < vy1+pad) top= min (vy2-pad, y+height+2*pad);
-  top= max (vy1+height+pad, min (top, vy2-pad));
-  link_peeks.push_back ({copy (target), source, rendered,
-                        rectangle (left, top-height, left+width, top)});
-  notify_change (THE_DECORATIONS | THE_FREEZE);
-  invalidate_all ();
+  if (is_nil (rendered)) return false;
+  peek.content= rendered;
+  peek.source= source;
+  return true;
 }
 
 void edit_interface_rep::draw_link_peek (renderer ren) {

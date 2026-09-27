@@ -99,6 +99,10 @@ static tree compute_display (const view& current) {
     }
     try {
       auto node= document::read_xml_v2 (target.fragment_xml, document::xml_kind::fragment);
+      if (target.candidates.size () == 1 && target.candidates[0].where.empty () && is_document (node))
+        for (int i=0; i<N(node); ++i) if (is_compound (node[i], "body", 1)) {
+          node= node[i][0]; break;
+        }
       node= presentation (node::content_projection (node), target.source_directory.empty () ?
         url_none () : url_system (native (target.source_directory)));
       tree content= is_document (node) ? node : tree (DOCUMENT, node);
@@ -141,5 +145,31 @@ tree display (const view& current) {
   }
   cache.emplace (key, cached {current.snapshot, rendered, ++clock});
   return rendered;
+}
+
+tree preview_document (const view& current, url& source) {
+  source= url_none ();
+  tree out (DOCUMENT, compound ("style", tree (TUPLE, "generic"))), preamble (DOCUMENT);
+  if (current.snapshot && current.snapshot->items.size () == 1) {
+    const auto& target= current.snapshot->items.front ();
+    if (target.state == node_location::status::resolved) {
+      if (!target.source_url.empty ()) source= url (native (target.source_url));
+      if (!target.preview_context_xml.empty ()) {
+        auto context= document::read_xml_v2 (target.preview_context_xml, document::xml_kind::fragment);
+        context= presentation (node::content_projection (context), target.source_directory.empty () ?
+          url_none () : url_system (native (target.source_directory)));
+        for (int i=0; i<N(context); ++i) {
+          if (is_compound (context[i], "style", 1)) out[0]= context[i];
+          else if (is_compound (context[i], "initial", 1))
+            out << context[i];
+          else if (is_compound (context[i], "body", 1) && is_document (context[i][0]))
+            preamble << A(context[i][0]);
+        }
+      }
+    }
+  }
+  preamble << A(display (current));
+  out << compound ("body", preamble);
+  return out;
 }
 } // namespace athena::node_reference

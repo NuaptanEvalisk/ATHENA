@@ -64,6 +64,8 @@ struct item {
   std::string diagnostic;
   std::string fragment_xml;
   std::string source_directory;
+  std::string preview_context_xml;
+  std::string source_url;
 };
 struct diagnostic {
   std::string file, message;
@@ -80,7 +82,12 @@ struct result {
 };
 using snapshot= std::shared_ptr<const result>;
 using completion= std::function<void (snapshot)>;
-using content_provider= std::function<std::string (const item&, const std::atomic<bool>&)>;
+struct content_payload {
+  std::string fragment_xml, preview_context_xml, source_url;
+};
+using content_provider= std::function<content_payload (const item&, const std::atomic<bool>&)>;
+// Capture content and its style/preamble from the same owner-local revision.
+content_payload capture_content (const tree& source, const item&, std::string source_url);
 
 class query {
   struct impl;
@@ -114,5 +121,6 @@ public:
 // its revision and UUID at the recorded address, and returns an owned snapshot.
 // A live candidate must instead be revalidated on its owning actor.
 tree read_disk (const std::filesystem::path& root, const item& target);
+content_payload read_disk_content (const std::filesystem::path& root, const item& target);
 
 } // namespace athena::node_location

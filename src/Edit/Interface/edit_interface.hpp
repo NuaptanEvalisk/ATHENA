@@ -123,6 +123,7 @@ protected:
     box content;
     rectangle bounds;
     SI scroll_y= 0;
+    std::vector<std::string> ancestry;
   };
   std::vector<link_peek_layer> link_peeks;
   bool          link_peek_pressed= false;
@@ -161,6 +162,7 @@ public:
   bool mouse_link_peek (string type, SI x, SI y, int modifiers,
                         array<double> data);
   void update_link_peek (SI x, SI y, int modifiers);
+  bool prepare_link_peek (link_peek_layer& peek, SI width);
   void draw_link_peek (renderer ren);
   void refresh_node_references ();
   edit_interface_rep ();

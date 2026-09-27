@@ -59,6 +59,8 @@ private slots:
     make_tree_label (HLINK, "hlink");
     make_tree_label (IMAGE, "image");
     make_tree_label (TRANSCLUDE, "transclude");
+    make_tree_label (COLLECTION, "collection");
+    make_tree_label (ASSOCIATE, "associate");
   }
   void typedAddressesAndStaleIdentity () {
     tree paragraph= identified (tree ("Text"), b);
@@ -297,6 +299,55 @@ private slots:
     QVERIFY (ref::target_id (url * "?recover=x").empty ());
     QVERIFY (ref::target_id ("tmfs://wikilink/not-a-uuid").empty ());
     QVERIFY (ref::target_id ("https://example.com/").empty ());
+  }
+  void previewRetainsSourceContextWithoutImportingSourceIdentities () {
+    namespace ref= athena::node_reference;
+    QTemporaryDir dir;
+    tree preamble= compound ("hide-preamble", tree (DOCUMENT, "Custom definition"));
+    tree style= compound ("style", tree (TUPLE, "generic"));
+    tree initial= compound ("initial", tree (COLLECTION, tree (ASSOCIATE, "font-base-size", "17")));
+    tree source= identified (tree (DOCUMENT, style, initial,
+      compound ("body", tree (DOCUMENT, preamble, identified (tree ("Selected text"), b)))), a);
+    document (root (dir) / "doc.ath", source);
+    loc::service service (root (dir));
+    auto child= service.request ({b}, {c}, true);
+    QVERIFY (wait (child).state == loc::status::resolved);
+    url location;
+    tree preview= ref::preview_document ({child->read (), 1}, location);
+    QVERIFY (preview[0] == style);
+    QVERIFY (preview[1] == initial);
+    QVERIFY (preview[2][0][0] == preamble);
+    QVERIFY (ref::ancestry (preview[2][0][1][1]) == std::vector<std::string> ({c, b}));
+    QVERIFY (preview[2][0][1][2][1][0] == "Selected text");
+    QVERIFY (loc::collect (preview).empty ());
+    QVERIFY (!is_none (location));
+    QCOMPARE (child->read ()->items[0].source_url, (root (dir) / "doc.ath").string ());
+
+    auto whole= service.request ({a}, {}, true);
+    QVERIFY (wait (whole).state == loc::status::resolved);
+    preview= ref::preview_document ({whole->read (), 2}, location);
+    QCOMPARE (N(preview[2][0]), 1); // The selected root already owns the preamble.
+    auto content= preview[2][0][0][2][1];
+    QCOMPARE (N(content), 2);
+    QVERIFY (content[0] == preamble);
+    QVERIFY (content[1] == "Selected text");
+    QVERIFY (loc::collect (preview).empty ());
+    QVERIFY (source[2][0][1] == identified (tree ("Selected text"), b));
+  }
+  void previewPendingAndMissingKeepAnExplicitBody () {
+    namespace ref= athena::node_reference;
+    url source;
+    tree pending= ref::preview_document ({}, source);
+    QVERIFY (is_none (source));
+    QVERIFY (is_compound (pending[1], "body", 1));
+    QVERIFY (pending[1][0][0] == "Locating referenced nodes...");
+    auto result= std::make_shared<loc::result> ();
+    result->state= loc::status::missing;
+    loc::item missing; missing.id= a; missing.state= loc::status::missing;
+    result->items.push_back (missing);
+    auto absent= ref::preview_document ({result, 1}, source);
+    QVERIFY (is_none (source));
+    QVERIFY (is_func (absent[1][0][0], WITH));
   }
 };
 QTEST_APPLESS_MAIN (TestNodeLocation)

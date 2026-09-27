@@ -399,8 +399,10 @@ struct service::impl {
               try {
                 if (!target.candidates.front ().file.empty ())
                   target.source_directory= (root / target.candidates.front ().file).parent_path ().string ();
-                target.fragment_xml= content ? content (target, stopping) :
-                  document::write_xml_v2 (read_disk (root, target), document::xml_kind::fragment);
+                auto payload= content ? content (target, stopping) : read_disk_content (root, target);
+                target.fragment_xml= std::move (payload.fragment_xml);
+                target.preview_context_xml= std::move (payload.preview_context_xml);
+                target.source_url= std::move (payload.source_url);
               }
               catch (const std::exception& e) {
                 target.state= status::unreadable; target.diagnostic= e.what ();
@@ -453,7 +455,7 @@ void service::clear_cache () {
   ++data->cache_epoch;
 }
 
-tree read_disk (const std::filesystem::path& root, const item& target) {
+static tree read_disk_source (const std::filesystem::path& root, const item& target) {
   if (target.state != status::resolved || target.candidates.size () != 1)
     throw std::invalid_argument ("Node target is not uniquely resolved");
   const auto& location= target.candidates.front ();
@@ -464,10 +466,45 @@ tree read_disk (const std::filesystem::path& root, const item& target) {
   if (!fs::same_revision (*location.disk_revision, entry.stat ()))
     throw std::runtime_error ("Stale saved node location");
   auto document= document::read_xml_v2 (entry.read (document::codec_limits ().input_bytes));
-  auto selected= lookup (document, location.where, target.id);
+  lookup (document, location.where, target.id);
   const auto now= directory.open (location.file);
   if (!entry.same_object (now) || !fs::same_revision (*location.disk_revision, now.stat ()))
     throw std::runtime_error ("Source changed while reading node target");
-  return selected;
+  return document;
+}
+
+tree read_disk (const std::filesystem::path& root, const item& target) {
+  auto source= read_disk_source (root, target);
+  return lookup (source, target.candidates.front ().where, target.id);
+}
+
+content_payload capture_content (const tree& source, const item& target, std::string source_url) {
+  if (target.state != status::resolved || target.candidates.size () != 1)
+    throw std::invalid_argument ("Node target is not uniquely resolved");
+  const auto& where= target.candidates.front ().where;
+  tree selected= lookup (source, where, target.id);
+  tree context (DOCUMENT);
+  if (is_document (source)) for (int i=0; i<N(source); ++i) {
+    const auto& field= source[i];
+    if (is_compound (field, "style", 1) || is_compound (field, "initial", 1))
+      context << field;
+    else if (is_compound (field, "body", 1) && is_document (field[0]) && N(field[0]) &&
+             is_compound (field[0][0], "hide-preamble")) {
+      // Do not duplicate the preamble when the selected root already contains it.
+      bool includes_preamble= where.empty () ||
+        (where[0].kind == step_kind::child && where[0].index == std::size_t (i) &&
+         (where.size () == 1 ||
+          (where[1].kind == step_kind::child && where[1].index == 0 &&
+           (where.size () == 2 || (where[2].kind == step_kind::child && where[2].index == 0)))));
+      if (!includes_preamble) context << compound ("body", tree (DOCUMENT, field[0][0]));
+    }
+  }
+  return {document::write_xml_v2 (selected, document::xml_kind::fragment),
+          document::write_xml_v2 (context, document::xml_kind::fragment), std::move (source_url)};
+}
+
+content_payload read_disk_content (const std::filesystem::path& root, const item& target) {
+  auto source= read_disk_source (root, target);
+  return capture_content (source, target, (root / target.candidates.front ().file).string ());
 }
 } // namespace athena::node_location

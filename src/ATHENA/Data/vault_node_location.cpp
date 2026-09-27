@@ -172,7 +172,7 @@ std::shared_ptr<service> for_vault (vault_context_handle vault) {
   return result;
 }
 
-std::string read_live (vault_context_handle vault, const item& target,
+content_payload read_live (vault_context_handle vault, const item& target,
                        const std::atomic<bool>& cancelled) {
   require_background ();
   if (target.state != status::resolved || target.candidates.size () != 1 ||
@@ -183,14 +183,14 @@ std::string read_live (vault_context_handle vault, const item& target,
   const auto found= sources.find (location.actor);
   if (found == sources.end () || found->second.file != location.file)
     throw std::runtime_error ("Live node source has closed or moved");
-  return on_actor<std::string> (vault, found->second, cancelled,
-    [location, id= target.id] (buffer_actor& owner, std::uint64_t view) {
-      return document::write_xml_v2 (lookup (owner.current_source (view), location.where, id),
-                                      document::xml_kind::fragment);
+  return on_actor<content_payload> (vault, found->second, cancelled,
+    [target] (buffer_actor& owner, std::uint64_t view) {
+      return capture_content (owner.current_source (view), target,
+                              text (as_string (owner.current_buffer_url ())));
     });
 }
 
-std::string read_online (vault_context_handle vault, const item& target,
+content_payload read_online (vault_context_handle vault, const item& target,
                          const std::atomic<bool>& cancelled) {
   require_background ();
   check_context (vault);
@@ -204,8 +204,8 @@ std::string read_online (vault_context_handle vault, const item& target,
         throw std::runtime_error ("Saved node is now actor-owned; retry node resolution");
   };
   check_saved ();
-  auto source= read_disk (vault->root, target);
+  auto source= read_disk_content (vault->root, target);
   check_saved ();
-  return document::write_xml_v2 (source, document::xml_kind::fragment);
+  return source;
 }
 } // namespace athena::node_location

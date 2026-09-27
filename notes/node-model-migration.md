@@ -288,6 +288,27 @@ v2 saves, advertise AUDMAP v3, or implement cross-document moves.
   are not integrated yet. There is no production migration, deployment, default
   XML v2 save activation or default UUID wikilink switch in this batch.
 
+## Native UUID Hover Integration (2026-09-27)
+
+- Native transclusion-source URLs now use the same async reference service for
+  hover. The source owner serializes the selected fragment, style, initial
+  environment and relevant hidden preamble in one capture. Saved reads validate
+  the source revision around decoding. No full source tree crosses actors.
+- Preview envelopes keep source styling and relative-link context; presentation
+  copies strip persistent identities. Whole-document targets display their body,
+  and a preamble already contained by the selected root is not duplicated.
+- Reference completion refreshes native overlay layers in place, retaining the
+  ancestor stack and clamping existing scroll positions. Nested hover carries
+  explicit target ancestry. Legacy map-based hover remains unchanged until the
+  unified vault/model activation switches bare wikilink semantics.
+- Live interactive overlay acceptance is still required, as is offline export
+  preparation. This implementation does not enable default saves, migrate any
+  vault or deploy the binary.
+- The normal ATHENA.bin -j20 build passed. The focused location/presentation
+  suite passed 16 cases, including source context preservation, root body
+  extraction, preamble deduplication, identity-free previews and explicit
+  pending/missing bodies. No full suite or production data was used.
+
 ## Integration Gates Still Required
 
 1. Assign source IDs through content roles, with complete handling of nested
@@ -298,7 +319,7 @@ v2 saves, advertise AUDMAP v3, or implement cross-document moves.
 3. Finish remaining live enunciation consumers and source creation. Native
    rendering/numbering and property UI are implemented; proof targets can be
    entered explicitly, but UUID resolution and target selection remain.
-4. Finish native hover, offline export preparation and actual actor lifecycle
+4. Finish offline export preparation and actual actor lifecycle/hover GUI
    acceptance for the integrated async transclusion/navigation paths. Switch
    default wikilinks together with migrated vault semantics. Persist any index
    only as disposable data; retire hint-dependent map identity without losing

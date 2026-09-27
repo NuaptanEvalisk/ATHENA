@@ -11,10 +11,14 @@
 
 #include "tree.hpp"
 #include "url.hpp"
+#include <string>
+#include <vector>
 
 bool athena_link_peek_target (string target);
+bool athena_link_peek_native_target (string target);
 // Called on the requesting editor's owner. Never opens or changes a GUI buffer.
-tree athena_link_peek_document (string target, url& source);
+tree athena_link_peek_document (string target, url& source,
+  const std::vector<std::string>& ancestry= {});
 tree athena_link_peek_range (tree document, string begin, string end);
 
 #endif
