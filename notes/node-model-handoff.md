@@ -7,10 +7,10 @@
 原交接停在 native tree-set-diff 完成处；用户随后要求按功能块继续。
 源生命周期、normal XML v2 persistence/activation、AUDMAP document-model v3、
 Artifact source binding/revision、cut/move credential + 跨 actor undo/redo、
-普通新建文档 born-v2、独立 offline node-model vault migration 与 migrated-vault bare
-wikilink source-UUID cutover 均已分别完成并提交。当前 worktree 删除了旧 generated-anchor
-生产系统（manual save auto-anchor、`Anchor enunciations`、maintenance `anchor-structures`、
-confirmation UI 与 generator 本体）并通过集中验证，正待本次独立提交。
+普通新建文档 born-v2、独立 offline node-model vault migration、migrated-vault bare
+wikilink source-UUID cutover 与 generated-anchor producer 删除均已分别完成并提交。
+当前 worktree 又把历史 generated labels 的安全删除接进 offline migration private staging，
+已通过集中验证，正待本次独立提交。
 **核心 source/runtime/migration/reference 主链已经闭环；主要剩余工作集中在少数
 tree-bearing persistence 边界、migration-time generated-anchor 清理 / anchorless transclusion UI、
 以及最终数据保全/启用验收。**
@@ -211,6 +211,10 @@ children:
   `Anchor enunciations` 菜单/native API、Qt confirmation dialog、`anchor-structures` maintenance pass
   及其 preferences/tests。普通 save 与 maintenance 均不再创建、改名或补回 heading/enunciation
   identity anchors；维护 worker preference 已改成通用名称，只供仍存在的并行维护任务使用。
+- 🟩 historical generated-label cleanup 已进入 offline migration：只在旧 map 定位、reference rewrite、
+  Artifact binding 都完成后删除能由旧 map 位置 + 当前结构 + 旧生成命名共同证明的 heading/enunciation
+  labels；用户 label 不满足完整证据链就保留。对应 migrated map 单目标行清空 anchor fields，只保 path/UUID
+  兼容信息。普通 save/maintenance 永远不做此清理。
 
 ### 🟦 已起步、尚未整体完成
 
@@ -227,9 +231,9 @@ children:
 
 - 🟧 其余 clipboard/委派及 tree-bearing persistence 边界的统一 v2 切换；normal v2
   load/save/autosave/recovery 和普通新建文档已完成，不应再作为待办重做。
-- 🟧 在 offline node-model migration 的 private staging 中删除可确认已经冗余的历史 generated
-  anchors，并把 migrated transclusion/Artifact 选择 UI 完全切到 source UUID/object-list；生产端已
-  不再生成 anchors。随后继续把 map.sqlite 从剩余兼容/rename consumers 中降级。
+- 🟧 把 migrated transclusion/Artifact 选择 UI 完全切到 source UUID/object-list；historical generated
+  anchors 的 migration-time 清理已经完成，生产端也不再生成 anchors。随后继续把 map.sqlite 从剩余
+  兼容/rename consumers 中降级。
 - 🟧 故障注入/数据保全最终验收、用户验收、统一启用及部署。
 
 ## 接手时的代码入口

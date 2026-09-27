@@ -254,6 +254,7 @@ struct map_resolution {
   node_model_document* document= nullptr;
   std::optional<node_path> direct;
   std::vector<node_path> range_roots;
+  std::vector<node_path> generated_labels;
   std::vector<std::string> targets;
   std::string diagnostic;
 };
@@ -376,9 +377,42 @@ std::string wrapper_base (const std::string& value, const char* suffix) {
     value.substr (0, value.size () - std::strlen (suffix)) : std::string ();
 }
 
+std::string generated_heading_label (const tree& heading) {
+  const int level= athena_heading_level (heading);
+  if (level <= 0) return {};
+  const std::string title= native_text (athena_heading_title (heading));
+  return title.empty () ? std::string () :
+    "H" + std::to_string (level) + " " + title;
+}
+
+bool generated_enunciation_stem (
+    const std::unordered_set<std::string>& stems, const std::string& stem) {
+  return !stem.empty () && stems.find (stem) != stems.end ();
+}
+
+std::optional<node_path> following_generated_lower (
+    const tree& body, const node_path& upper, const node_path& source,
+    const std::string& stem) {
+  if (parent_path (upper) != parent_path (source)) return std::nullopt;
+  node_path parent= parent_path (source);
+  const tree& container= tree_at (body, parent);
+  for (int i=source.back () + 1; i<N(container); ++i) {
+    if (whitespace_only (container[i])) continue;
+    std::string label;
+    if (!label_node (container[i], &label) || label != stem + " }")
+      return std::nullopt;
+    node_path lower= parent;
+    lower.push_back (i);
+    return lower;
+  }
+  return std::nullopt;
+}
+
 map_resolution resolve_map_node (
     const AthenaVaultMapNode& node,
-    std::unordered_map<std::string,node_model_document*>& documents) {
+    std::unordered_map<std::string,node_model_document*>& documents,
+    const std::unordered_map<std::string,std::unordered_set<std::string>>&
+      enunciation_stems) {
   map_resolution result;
   result.source= node;
   const fs::path relative= fs::path (node.path).lexically_normal ();
@@ -419,6 +453,20 @@ map_resolution resolve_map_node (
         const bool wrapper= ends_with (probe, " {");
         if (heading || wrapper) {
           result.direct= *next;
+          if (heading && probe == generated_heading_label (target))
+            result.generated_labels.push_back (first);
+          if (wrapper && athena::enunciation::is_canonical (target)) {
+            const std::string stem= wrapper_base (probe, " {");
+            auto stems= enunciation_stems.find (relative.generic_string ());
+            if (stems != enunciation_stems.end () &&
+                generated_enunciation_stem (stems->second, stem)) {
+              auto lower= following_generated_lower (body, first, *next, stem);
+              if (lower) {
+                result.generated_labels.push_back (first);
+                result.generated_labels.push_back (*lower);
+              }
+            }
+          }
           return result;
         }
       }
@@ -446,6 +494,14 @@ map_resolution resolve_map_node (
       node_path target= first_parent;
       target.push_back (substantive);
       result.direct= std::move (target);
+      const tree& source= tree_at (body, *result.direct);
+      auto stems= enunciation_stems.find (relative.generic_string ());
+      if (athena::enunciation::is_canonical (source) &&
+          stems != enunciation_stems.end () &&
+          generated_enunciation_stem (stems->second, upper)) {
+        result.generated_labels.push_back (first);
+        result.generated_labels.push_back (last);
+      }
       return result;
     }
 
@@ -585,6 +641,21 @@ void collect_ids (const tree& value, const std::string& owner,
   }
   if (!is_compound (value)) return;
   for (int i=0; i<N(value); ++i) collect_ids (value[i], owner, global);
+}
+
+tree remove_migration_paths (
+    const tree& source, const std::set<node_path>& removed,
+    node_path where= {}) {
+  if (is_atomic (source)) return copy (source);
+  tree result (L(source));
+  athena::node::copy_metadata (source, result);
+  for (int i=0; i<N(source); ++i) {
+    node_path child= where;
+    child.push_back (i);
+    if (removed.find (child) != removed.end ()) continue;
+    result << remove_migration_paths (source[i], removed, std::move (child));
+  }
+  return result;
 }
 
 std::string mapped_single (
@@ -1007,10 +1078,16 @@ upgrade_vault_node_model (
       "Could not read staged Artifact index" : error);
     std::unordered_map<std::string,std::vector<AthenaArtifactRecord>>
       artifacts_by_document;
+    std::unordered_map<std::string,std::unordered_set<std::string>>
+      enunciation_stems;
     for (const auto& artifact: artifacts)
-      artifacts_by_document[
-        fs::path (artifact.relative_path).lexically_normal ().generic_string ()]
-          .push_back (artifact);
+    {
+      const std::string relative=
+        fs::path (artifact.relative_path).lexically_normal ().generic_string ();
+      artifacts_by_document[relative].push_back (artifact);
+      if (artifact.origin == "enunciation" && !artifact.anchor_stem.empty ())
+        enunciation_stems[relative].insert (artifact.anchor_stem);
+    }
 
     std::vector<AthenaVaultMapNode> map_nodes;
     const fs::path map_relative (staged_info.map_path);
@@ -1058,11 +1135,21 @@ upgrade_vault_node_model (
     std::unordered_map<std::string,std::map<node_path,std::vector<std::string>>>
       direct_aliases;
     for (const auto& node: map_nodes) {
-      map_resolution resolution= resolve_map_node (node, by_path);
+      map_resolution resolution= resolve_map_node (
+        node, by_path, enunciation_stems);
       if (resolution.document && resolution.direct)
         direct_aliases[resolution.document->path.generic_string ()]
                       [*resolution.direct].push_back (node.uuid);
       resolutions.push_back (std::move (resolution));
+    }
+
+    std::unordered_map<std::string,std::set<node_path>> generated_labels;
+    for (const map_resolution& resolution: resolutions) {
+      if (!resolution.document || !resolution.diagnostic.empty ()) continue;
+      auto& paths=
+        generated_labels[resolution.document->path.generic_string ()];
+      paths.insert (
+        resolution.generated_labels.begin (), resolution.generated_labels.end ());
     }
 
     std::unordered_map<std::string,std::map<node_path,std::string>> preferred;
@@ -1197,6 +1284,18 @@ upgrade_vault_node_model (
               documents.size (), document.path);
     }
 
+    // Historical generated labels are consumed only as migration evidence.
+    // Once every map/reference/Artifact target has become a persistent UUID,
+    // remove the conservatively proven labels before publishing XML v2. User
+    // labels never enter generated_labels and therefore survive untouched.
+    for (node_model_document& document: documents) {
+      auto found= generated_labels.find (document.path.generic_string ());
+      if (found == generated_labels.end () || found->second.empty ()) continue;
+      tree& body= document_body_ref (document.document);
+      body= remove_migration_paths (body, found->second);
+      result.generated_labels_removed += found->second.size ();
+    }
+
     // Keep the old map as a compatibility locator until the later bare-wikilink
     // cutover. Single-target entries are re-keyed to the migrated source UUID;
     // duplicate aliases collapse deterministically. Multi-target range rows are
@@ -1208,8 +1307,13 @@ upgrade_vault_node_model (
       for (const map_resolution& resolution: resolutions) {
         AthenaVaultMapNode node= resolution.source;
         if (resolution.diagnostic.empty () &&
-            resolution.targets.size () == 1)
+            resolution.targets.size () == 1) {
           node.uuid= resolution.targets.front ();
+          if (!resolution.generated_labels.empty ()) {
+            node.anchor_begin.clear ();
+            node.anchor_end.clear ();
+          }
+        }
         if (seen.insert (node.uuid).second)
           migrated_map.push_back (std::move (node));
       }
@@ -1293,6 +1397,7 @@ upgrade_vault_node_model (
       {"commit", "atomic-directory-exchange"},
       {"references_rewritten", (qint64) result.references_rewritten},
       {"artifact_bindings", (qint64) result.artifact_bindings},
+      {"generated_labels_removed", (qint64) result.generated_labels_removed},
       {"documents", manifest}};
     filesystem::confined_root journal (workspace);
     const auto json= QJsonDocument (receipt).toJson (QJsonDocument::Indented);
@@ -1421,7 +1526,9 @@ int upgrade_vault_node_model_cli (const fs::path& root) {
       std::cerr << "\nMigrated " << result.migrated
                 << " document(s); rewrote " << result.references_rewritten
                 << " reference(s); persisted " << result.artifact_bindings
-                << " Artifact binding(s).\n";
+                << " Artifact binding(s); removed "
+                << result.generated_labels_removed
+                << " generated identity label(s).\n";
     if (!result.backup.empty ())
       std::cerr << "Original UTF-8 XML vault backup: "
                 << result.backup << '\n';

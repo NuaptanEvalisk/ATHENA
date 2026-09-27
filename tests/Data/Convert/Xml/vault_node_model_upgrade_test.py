@@ -37,6 +37,7 @@ def target_document():
         '<text>Every compact source survives migration.</text>'
         '</node></node>'
         '<node tag="label"><text>Theorem }</text></node>'
+        '<node tag="label"><text>User-kept</text></node>'
         '</node>'
     )
 
@@ -187,6 +188,9 @@ def check_migrated(root):
         "./property[@name='athena:artifact-bindings']"
         "/property[@name='enunciation']")
     assert binding is not None and binding.text == ARTIFACT
+    labels = ["".join(item.itertext()) for item in target.iter("node")
+              if item.get("tag") == "label"]
+    assert labels == ["User-kept"]
 
     hlink = node(source, "hlink")
     assert hlink[1].find("value").text.startswith(
@@ -201,7 +205,7 @@ def check_migrated(root):
         "SELECT uuid,path,anchor_begin,anchor_end FROM map_nodes ORDER BY uuid"
     ).fetchall()
     db.close()
-    assert rows == [(PRIMARY, "Target.ath", "Theorem {", "Theorem }")]
+    assert rows == [(PRIMARY, "Target.ath", "", "")]
 
     db = sqlite3.connect(root / "artifacts.db")
     artifact = db.execute(

@@ -872,6 +872,28 @@ v2 saves, advertise AUDMAP v3, or implement cross-document moves.
   v2 vault is published. That migration-time cleanup and fully anchorless
   migrated transclusion selection are the next block.
 
+## Migration-time generated-label retirement (2026-09-28)
+
+- Historical generated identity labels are now consumed as one-time migration
+  evidence and removed only in the private node-model staging vault. No runtime
+  anchor generator or maintenance pass was reintroduced.
+- Heading labels are retired only when a legacy map row points at the label,
+  the next substantive source object is a heading, and the label exactly equals
+  the old generated `H<level> <current heading title>` convention. Enunciation
+  wrapper pairs are retired only when begin/end form the same `{ / }` stem,
+  enclose exactly one canonical enunciation, and that stem is also recorded by
+  the old Artifact index for an enunciation in the same document. This
+  intentionally prefers false negatives over deleting a user label.
+- Removal happens only after source UUID planning, Artifact source binding and
+  reference rewriting. Matching single-target compatibility map rows are
+  re-keyed to the migrated source UUID and have `anchor_begin/anchor_end`
+  cleared, so they cannot point at labels that were just removed.
+- The existing isolated node-model migration fixture passed again. It now also
+  verifies that the generated theorem wrapper labels disappear, an unrelated
+  explicit `User-kept` label survives, and the retained map row contains the
+  migrated UUID/path with empty anchor fields while wikilink/transclusion and
+  Artifact UUID preservation remain correct.
+
 ## Build Boundary
 
 Normal builds use only:
