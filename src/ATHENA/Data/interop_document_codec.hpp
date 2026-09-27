@@ -28,8 +28,9 @@ struct document_codec_limits {
 value document_node_to_value (const tree&, document_codec_limits = {});
 tree document_node_from_value (const value&, document_codec_limits = {});
 
-// Explicit staged v3 boundary; does not negotiate or activate protocol v3.
-// Nodes retain text/tag/children and add optional id and properties fields.
+// AUDMAP document-model v3 boundary. Nodes retain text/tag/children and add
+// optional persistent id and properties fields. Connection-scoped AUDMAP
+// handles remain a separate transport identity and are never encoded here.
 // RAW_DATA's child remains {"raw": BIN}, with optional id and properties.
 // JSON transports must represent binary explicitly at their own boundary.
 // Properties use the typed schema documented in the implementation and share

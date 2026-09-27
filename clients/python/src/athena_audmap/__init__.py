@@ -3,6 +3,8 @@
 Copyright (C) 2026 Nuaptan Felix Evalisk.
 SPDX-License-Identifier: GPL-3.0-or-later
 """
-from .client import Client, PendingRequest, Response, ProtocolError
+from .client import (Client, PendingRequest, Response, ProtocolError,
+                     PROTOCOL_VERSION, DOCUMENT_MODEL_VERSION)
 
-__all__ = ["Client", "PendingRequest", "Response", "ProtocolError"]
+__all__ = ["Client", "PendingRequest", "Response", "ProtocolError",
+           "PROTOCOL_VERSION", "DOCUMENT_MODEL_VERSION"]

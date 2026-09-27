@@ -555,9 +555,79 @@ v2 saves, advertise AUDMAP v3, or implement cross-document moves.
   Earlier same-prefix artifacts are failed diagnostic runs, not the final result.
   A fixture initially invoked tree-set-diff on a detached target; it was fixed,
   not the native ownership precondition. Temporary native tracing was removed.
-- No global XML/AUDMAP/tmfs cutover, normal-loader opt-in, production migration,
-  deployment, full suite or unrelated tests. Remaining source consumers and
-  cross-module activation are still gated. This batch has not been committed.
+- No global XML/AUDMAP/tmfs cutover, production migration, deployment, full
+  suite or unrelated tests ran in this batch. It was subsequently committed as
+  `6b965f3c9 improve: integrate source identity lifecycle`.
+
+## Normal XML v2 persistence activation (2026-09-27 evening)
+
+- Native document dispatch now distinguishes XML v1 from XML v2 while keeping
+  the low-level v1 codec strict. Pinned XML storage records its envelope version
+  and serializes/round-trips with the same codec on later saves. Legacy-to-XML
+  conversion and ordinary v1 documents still land/stay on v1; nothing is
+  promoted merely because v2 support exists.
+- `buffer-import` carries the decoded persistence version to the BufferActor.
+  A normal v2 load preflights an identity-complete source baseline and activates
+  the owner-local identity index before publishing it. Ordinary edit
+  transactions then allocate new source UUIDs through the existing finalizer.
+  v1/legacy loads explicitly leave the index disabled. A v2 Save As to a new
+  path creates v2; an existing target with a different XML storage version is
+  rejected instead of silently changing the persistence contract.
+- Normal v2 saves preserve metadata with `write_xml_v2`. Native `texmacs`
+  autosave export for an active v2 buffer also writes v2 after finalizing pending
+  identities, rather than passing through the legacy TeXmacs serializer.
+  Recovery now uses `buffer-import` so the recovered buffer retains the v2
+  envelope state and recreates its identity index. Bare wikilink, AUDMAP
+  protocol activation, Artifact production and vault migration were untouched.
+- The shared semantic-document fingerprint now uses canonical v2 whenever node
+  metadata is present, so existing indexing/reference consumers can hash v2
+  source without a lossy v1 serialization. This is still distinct from the
+  outstanding model-input/embedding fingerprint contract.
+- The normal `ATHENA.bin -j20` build passed. One consolidated isolated runtime
+  fixture, `tests/scheme/node-v2-persistence-test.py` / `.scm`, passed
+  `ATHENA-NODE-V2-PERSISTENCE-PASS`. It exercised a real v2 normal load,
+  automatic owner activation, transactional UUID assignment, normal save,
+  v2 autosave, recovery into another buffer, save of that recovered buffer and
+  reopen of the normally saved file. The Python side parsed the resulting XML
+  and verified the original and newly allocated identities survived those
+  boundaries.
+- Final evidence: `build_qt6/node-v2-persistence-build.log` and
+  `build_qt6/node-v2-persistence-check/node-v2-persistence-lv75g3b8/`.
+  No production vault, deployment, full suite or unrelated test target was used.
+
+## AUDMAP document-model v3 activation (2026-09-27 evening)
+
+- The transport remains AUDMAP protocol 2, while the negotiated document model
+  is now version 3 in the endpoint descriptor, HELLO and WELCOME. Exact-version
+  rejection remains in place; authentication identities and remembered trust
+  rules were not reset or migrated.
+- Document resources now use the existing v3 codec for full reads, scalar
+  properties and source-generation handoff. Persistent node `id` and typed
+  `properties` are exposed separately from connection/ticket-scoped integer
+  handles. Structural `set` preserves the target's existing source metadata and
+  rejects client-supplied metadata; insertions likewise cannot inject UUIDs.
+- Active XML-v2 sources advertise `assign_id {}` and
+  `update_properties {set:[...], remove:[...]}`. Both reuse the native property
+  planner: assign-ID is server-generated and idempotent, property deltas keep
+  protected UUID/artifact-binding fields inaccessible, and edits remain owner
+  local. Live v2 structural edits finalize required source identities before
+  commit; saved v2 edits complete the detached identity baseline before atomic
+  publication. v1/legacy sources are not silently promoted by metadata commands.
+- The standalone Python SDK, bundled plugin SDK copy, public C++ SDK constants,
+  CLI/REPL help and examples now advertise document model 3. Documentation
+  explicitly distinguishes transient handles from persistent source UUIDs.
+- The normal `ATHENA.bin -j20` build passed. Because the host Python lacks
+  pyzmq/msgpack, the consolidated real-protocol fixture builds the repository's
+  current C++ stdio client sources as a disposable probe without adding or
+  invoking another CMake target. `tests/interop/audmap-v3-runtime-test.py`
+  passed `ATHENA-AUDMAP-V3-PASS` against an isolated offscreen ATHENA instance.
+  It verified v3 negotiation, anonymous-node assign-ID, idempotence, typed
+  property round-trip, arbitrary-UUID rejection, automatic identity allocation
+  after structural insertion, replacement-handle staleness with UUID retention,
+  and metadata persistence across a fresh client connection/re-resolution.
+- Final evidence: `build_qt6/audmap-v3-build.log` and
+  `build_qt6/audmap-v3-check/audmap-v3-4x6vdpl2/`. No full test suite,
+  production vault, deployment or persistence migration was used.
 
 ## Build Boundary
 

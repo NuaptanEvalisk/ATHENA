@@ -5,11 +5,13 @@
 ## 先读结论
 
 原交接停在 native tree-set-diff 完成处；用户随后要求按功能块继续。
-2026-09-27 接续批次已完成下述 staged 源生命周期块并通过集中运行检查，尚未提交/部署。
-**整个迁移没有完成，也没有统一启用。基础设施较完整，源编辑审计及跨模块接通仍有实质缺口。**
+源生命周期块已提交为 `6b965f3c9`。当前 worktree 又完成 normal XML v2
+持久化/激活纵向块并通过集中运行检查，尚未提交/部署。
+**整个迁移尚未统一切换，但核心运行链路已经较完整；主要剩余工作集中在协议、Artifact、
+离线迁移与最终语义切换。**
 
-暂停时最后代码提交：`7e9b23a9b fix: preserve native metadata and Unicode boundaries in tree diffs`。
-此前相邻集成提交：`f8db49cf3`（格式/preamble）、`440f069d5`（DataArt）、
+当前最后代码提交：`6b965f3c9 improve: integrate source identity lifecycle`。
+此前相邻集成提交：`7e9b23a9b`（native tree diff）、`f8db49cf3`（格式/preamble）、`440f069d5`（DataArt）、
 `4617f4219`（增量身份事务）、`411f2ea0a`（动态引用导出）、`6325a84f1`（headless 导出）。
 
 旧 UTF-8/XML 项目与本项目不同：这里是在已有 UTF-8/XML 基础上增加节点元数据、
@@ -148,17 +150,24 @@ children:
 - 🟩 接续源生命周期块：完整 buffer 快照的外层/字段/collection/association/key 元数据，
   包括带元数据的空 collection；删除或更新文档字段保留外层 header。
 - 🟩 显式 owner 接管完整身份基线、事务内赋 ID、split/join、撤销重做/冲突回滚，
-  replacement 基线预检查及索引重建；仍不是普通 buffer 自动启用。
+  replacement 基线预检查及索引重建。
 - 🟩 structural correction 与数学规范化的 source-aware 重建；保留独立标注的容器/子节点，
   不允许启发式修正吞掉有身份的分隔符、脚本包裹或正文节点。
+- 🟩 normal XML v2 文档持久化/激活：dispatcher 识别 v2，普通 load 自动验证完整身份基线并
+  启用 owner index；普通编辑事务分配 UUID，normal save/Save As 保持 v2，reopen 保持 UUID/properties。
+- 🟩 v2 autosave/recovery：native texmacs autosave 直接写 v2，不经过 legacy serializer；
+  recovery 通过 `buffer-import` 恢复格式身份并重新激活 owner index。v1/legacy 不自动升级。
+- 🟩 AUDMAP wire protocol 2 / document-model 3 已正式启用：HELLO/WELCOME 精确协商 v3，
+  document/node `get` 与属性投影携带 persistent UUID + typed properties；connection/ticket handle
+  明确保持瞬时 occurrence identity，不充当源 UUID。
+- 🟩 AUDMAP v3 metadata operations：`assign_id` 仅 server 生成且幂等，`update_properties`
+  复用原生 schema/保护规则；结构编辑不能注入 metadata，替换保留原 source header。
+  C++/Python SDK 版本、REPL 帮助和示例同步更新。
 
 ### 🟦 已起步、尚未整体完成
 
 - 🟦 源编辑全链路审计：上述快照、tree_correct/tree_brackets 路径已修，其余 tree-set!/tree->stree 重建、
   批量插入、格式化和规范化消费者仍需逐项审查。不能用事后路径猜 ID 补洞。
-- 🟦 普通 buffer 的实际格式激活仍待完成：已有 `adopt-source-node-identities` 显式 owner 入口，
-  只接管 ID 完整且没有旧编辑历史的基线，不是迁移命令或全局开关。普通 loader 不调用它。
-  默认 v1 保存仍拒绝 metadata；统一 XML v2/恢复/协议/迁移切换仍需闭环。
 - 🟦 enunciation 剩余源创建入口/消费者、属性名称在搜索结果中的呈现、证明目标选择与解析。
 - 🟦 属性 UI 的真实 GUI/owner 关闭竞争及结构化编辑生命周期验收。
 - 🟦 locator/watchers、异步导航、嵌套 hover 的真实 Qt/actor 生命周期验收；缓存失效仍偏粗。
@@ -171,9 +180,8 @@ children:
 - 🟧 一次性 cut/move 凭据、同 vault 首次移动保身份、跨文档协调撤销。
 - 🟧 Artifact producer 使用源 UUID/role，源内绑定落盘，数据库保留旧 artifact UUID。
 - 🟧 storage revision / content revision / 具体模型输入指纹及缓存复用联动。
-- 🟧 AUDMAP v3 协商/实际 operations、属性操作和 assign-ID，SDK、REPL、examples 一起升级。
-  不重置认证；connection handles 与 persistent UUID 始终不同。
-- 🟧 所有 normal save、recovery、委派/树持久化入口的统一新版本切换。
+- 🟧 其余新文档/clipboard/委派及 tree-bearing persistence 边界的统一 v2 切换；normal v2
+  load/save/autosave/recovery 已完成，不应再作为待办重做。
 - 🟧 扩展离线 vault 升级器：确定性 node identity 映射、引用与 artifact 迁移及诊断。
 - 🟧 迁移后切换 bare wikilink，淘汰 map/hints 作为身份真相，删除可确认的生成 anchors。
 - 🟧 故障注入/数据保全最终验收、用户验收、统一启用及部署。

@@ -519,10 +519,19 @@ buffer_actor::current_source (athena_view_id view_id) {
 }
 
 void
-buffer_actor::commit_current_source () {
+buffer_actor::commit_current_source (athena_view_id view_id) {
   ASSERT (is_owner_thread (), "document source committed outside its actor");
   auto& state= impl_->state;
   ASSERT (!state.read_only, "read-only document source cannot be committed");
+  if (state.node_identities && state.node_identities->pending ()) {
+    editor_rep* identity_editor= current_editor (view_id);
+    if (identity_editor == nullptr && view_id == ATHENA_NO_VIEW &&
+        !impl_->views.empty ())
+      identity_editor= impl_->views.begin ()->second.instance.operator -> ();
+    if (identity_editor == nullptr || !identity_editor->finish_node_identities ())
+      throw std::runtime_error (
+        "Active source identities could not be finalized after document edit");
+  }
   new_data next;
   tree body= detach_data (state.source_envelope, next);
   tree& live= subtree (state.document, state.root_path);

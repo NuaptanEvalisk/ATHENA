@@ -20,6 +20,8 @@
 namespace athena::audmap {
 using value = nlohmann::json;
 using id = std::uint64_t;
+inline constexpr unsigned protocol_version = 2;
+inline constexpr unsigned document_model_version = 3;
 struct response {
   std::string status = "OK";
   value data;

@@ -130,7 +130,7 @@ public:
   // Owner-thread only. Unlike the save snapshot, retains unrecognized fields
   // and current auxiliary/environment data without export-time filtering.
   tree& current_source (athena_view_id view_id= ATHENA_NO_VIEW);
-  void commit_current_source ();
+  void commit_current_source (athena_view_id view_id= ATHENA_NO_VIEW);
   void invalidate_typesetting (path p);
 
   // Fixed dispatch is public only for the Guile C trampoline.  Callers submit

@@ -2,7 +2,8 @@
 
 The SDKs connect to a running ATHENA instance over authenticated local IPC.
 Neither SDK links or loads the editor, Guile, Qt, the rendering engine, or the
-native resource resolvers. They share the v1 protocol and CURVE identity format.
+native resource resolvers. They share wire protocol 2, document model 3 and the
+CURVE identity format.
 The server still applies its connection and operation authorization policies.
 
 ## C++
@@ -35,6 +36,19 @@ for (const auto& h : resolved.data.at(0)) {
 client.finish(selection.ticket).result.get();
 ```
 
+Document-model-v3 node values expose persistent `id` and typed `properties`
+separately from the ticket-local integer handle. For an active XML-v2 source,
+metadata operations are ordinary `operate` calls:
+
+```cpp
+auto assigned = client.operate(ticket, handle, "assign_id").result.get();
+auto edited = client.operate(ticket, handle, "update_properties", {
+  {"set", {{{"name", "example:note"},
+             {"value", {{"type", "string"}, {"value", "hello"}}}}}},
+  {"remove", nlohmann::json::array()}
+}).result.get();
+```
+
 Set `options.endpoint` when several ATHENA instances are running.
 Set `options.identity` for an application's own persistent key and `options.name`
 for its reported client name. The default identity is
@@ -62,6 +76,21 @@ with Client(name="My tool") as client:
         client.release(operation.ticket, operation.operation).result()
     client.finish(selection.ticket).result()
 ```
+
+The same v3 metadata operations use plain Python values. Property entries use
+the exact wire shape returned in a node's `properties` field:
+
+```python
+assigned = client.operate(ticket, handle, "assign_id").result().data
+edited = client.operate(ticket, handle, "update_properties", {
+    "set": [{"name": "example:note",
+             "value": {"type": "string", "value": "hello"}}],
+    "remove": [],
+}).result().data
+```
+
+Neither SDK treats the integer handle as a source identity; reconnect and a new
+resolution may produce another handle for a node with the same persistent UUID.
 
 `Client(endpoint=..., identity=...)` overrides automatic discovery and the
 default `$XDG_CONFIG_HOME/athena-audmap/python.json` identity. Python `bytes`

@@ -11,6 +11,7 @@
 #include "interop_document_codec.hpp"
 #include "interop_document_nodes.hpp"
 #include "interop_document_source.hpp"
+#include "document_node_model.hpp"
 #include "interop_filesystem.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
 #include "../Interop/traversal.hpp"
@@ -18,6 +19,7 @@
 #include "buffer_name_catalog.hpp"
 #include "buffer_state.hpp"
 #include "convert.hpp"
+#include "new_style.hpp"
 #include <cerrno>
 #include <limits>
 #include <mutex>
@@ -26,7 +28,7 @@
 
 namespace athena::interop {
 namespace {
-enum class query_kind { root, properties, read, children, edit };
+enum class query_kind { root, properties, read, children, metadata_writable, edit };
 struct invalid_document: std::invalid_argument {
   using std::invalid_argument::invalid_argument;
 };
@@ -50,8 +52,44 @@ void require_parameters (const value& parameters, std::initializer_list<const ch
     if (!parameters.contains (key)) throw std::invalid_argument (std::string ("Missing parameter: ") + key);
 }
 
-void edit_node (tree& source, document_nodes& nodes, const document_node& node,
-                const std::string& command, const value& parameters) {
+athena::node::property::dictionary decode_property_set (const value& source) {
+  if (!source.is_array ())
+    throw std::invalid_argument ("set must be a document-model-v3 property array");
+  tree carrier= document_node_from_value_v3 (
+    value {{"text", ""}, {"properties", source}});
+  const auto* metadata= athena::node::get (carrier);
+  return metadata ? metadata->properties : athena::node::property::dictionary {};
+}
+
+std::vector<std::string> decode_property_removals (const value& source) {
+  if (!source.is_array ()) throw std::invalid_argument ("remove must be a string array");
+  std::vector<std::string> result;
+  result.reserve (source.size ());
+  for (const auto& item: source) {
+    if (!item.is_string () || item.get_ref<const std::string&> ().empty ())
+      throw std::invalid_argument ("remove must contain nonempty property names");
+    result.push_back (item.get<std::string> ());
+  }
+  return result;
+}
+
+std::string property_failure (const athena::document_node::diagnostic& problem) {
+  return problem.property.empty () ? problem.detail :
+    problem.property + ": " + problem.detail;
+}
+
+value metadata_snapshot (tree& source, document_nodes& nodes,
+                         const document_node& node) {
+  value encoded= nodes.properties (source, node);
+  value result= value::object ();
+  if (encoded.contains ("id")) result["id"]= encoded.at ("id");
+  if (encoded.contains ("properties")) result["properties"]= encoded.at ("properties");
+  else result["properties"]= value::array ();
+  return result;
+}
+
+value edit_node (tree& source, document_nodes& nodes, const document_node& node,
+                 const std::string& command, const value& parameters) {
   if (command == "set") {
     require_parameters (parameters, {"tree"});
     nodes.replace (source, node, parameters.at ("tree"));
@@ -76,8 +114,45 @@ void edit_node (tree& source, document_nodes& nodes, const document_node& node,
     require_parameters (parameters, {"tag"});
     nodes.set_tag (source, node, parameters.at ("tag"));
   }
+  else if (command == "update_properties" || command == "assign_id") {
+    athena::document_node::property_edit edit;
+    if (command == "update_properties") {
+      require_parameters (parameters, {"set", "remove"});
+      edit.set= decode_property_set (parameters.at ("set"));
+      edit.remove= decode_property_removals (parameters.at ("remove"));
+    }
+    else {
+      require_parameters (parameters, {});
+      edit.ensure_id= true;
+    }
+    const auto location= nodes.locate (source, node);
+    auto prepared= athena::document_node::prepare_property_edit (
+      source, location, edit);
+    if (!prepared.ok ())
+      throw std::invalid_argument (property_failure (prepared.diagnostics.front ()));
+    if (prepared.change) ::apply (source, *prepared.change);
+    value result= metadata_snapshot (source, nodes, node);
+    result["changed"]= prepared.change.has_value ();
+    return result;
+  }
   else throw std::invalid_argument ("Unknown document edit command");
   validate_document (source);
+  return {{"changed", true}};
+}
+
+void complete_v2_identities (tree& source) {
+  new_data data;
+  tree body= detach_data (source, data);
+  auto result= athena::document_node::assign_detached_source_ids (
+    body, get_document_drd (source), athena::document_node::standard_source_role,
+    [] (const athena::document_node::identity_request&) {
+      return athena::node::new_id ();
+    });
+  if (!result.ok ())
+    throw std::invalid_argument (
+      "XML v2 edit cannot produce a complete source identity baseline: " +
+      property_failure (result.diagnostics.front ()));
+  refresh_interop_document_source (source, *result.body, data);
 }
 
 struct document_source {
@@ -95,6 +170,7 @@ struct document_source {
   virtual node_result query (query_kind, const document_node& = {}) const = 0;
   virtual bool matches (const athena::filesystem::entry&) const { return false; }
   virtual bool writable () const { return false; }
+  virtual bool metadata_writable () const { return false; }
   virtual bool source_relocation_available () const { return false; }
   virtual value relocate_source_position (const value&) const {
     throw std::logic_error ("Legacy source relocation is not available for this source");
@@ -141,6 +217,9 @@ class actor_document final: public document_source {
             case query_kind::properties: answer->result.data= nodes.properties (source, target_node); break;
             case query_kind::read: answer->result.data= nodes.read (source, target_node); break;
             case query_kind::children: answer->result.children= nodes.children (source, target_node); break;
+            case query_kind::metadata_writable:
+              answer->result.data= bool (owner->current_state ()->node_identities);
+              break;
             case query_kind::edit: {
               if (owner->current_state ()->read_only)
                 throw std::system_error (EROFS, std::generic_category (), "Document buffer is read-only");
@@ -157,9 +236,11 @@ class actor_document final: public document_source {
               refresh_interop_document_source (projected, projected_body, projected_data);
               if (projected != staged)
                 throw std::invalid_argument ("The editor cannot preserve this source structure exactly");
-              edit_node (source, nodes, target_node, command, parameters);
-              owner->commit_current_source ();
-              answer->result.data= {{"committed", true}, {"saved", false}};
+              answer->result.data= edit_node (
+                source, nodes, target_node, command, parameters);
+              owner->commit_current_source (source_view);
+              answer->result.data["committed"]= true;
+              answer->result.data["saved"]= false;
               break;
             }
           }
@@ -203,6 +284,9 @@ public:
   }
   node_result query (query_kind kind, const document_node& node) const override { return invoke (kind, node); }
   bool writable () const override { return true; }
+  bool metadata_writable () const override {
+    return invoke (query_kind::metadata_writable, {}).data.get<bool> ();
+  }
   value edit (const document_node& node, const std::string& command, const value& parameters) const override {
     return invoke (query_kind::edit, node, command, parameters).data;
   }
@@ -261,6 +345,9 @@ public:
     switch (source_format) {
       case athena::document::document_source_format::xml_v1:
         result["document_format"]= "xml-v1";
+        break;
+      case athena::document::document_source_format::xml_v2:
+        result["document_format"]= "xml-v2";
         break;
       case athena::document::document_source_format::legacy_markup:
         result["document_format"]= "legacy-markup";
@@ -350,19 +437,27 @@ public:
     return result;
   }
   bool writable () const override { return true; }
+  bool metadata_writable () const override {
+    return source_format == athena::document::document_source_format::xml_v2;
+  }
   value edit (const document_node& node, const std::string& command, const value& parameters) const override {
     std::lock_guard<std::mutex> lock (mutex);
     check_revision ();
     // Native trees/observers exist only on this operation worker. Stage the edit
     // before touching either the published snapshot or the filesystem.
-    tree source= document_node_from_value (snapshot.source_value ());
+    tree source= document_node_from_value_v3 (snapshot.source_value ());
     document_nodes nodes;
     nodes.import_nodes (source, snapshot);
-    edit_node (source, nodes, node ? node : nodes.track (source, {}), command, parameters);
+    value result= edit_node (
+      source, nodes, node ? node : nodes.track (source, {}), command, parameters);
+    if (source_format == athena::document::document_source_format::xml_v2)
+      complete_v2_identities (source);
     auto next= nodes.export_nodes (source);
     std::string serialized;
     if (source_format == athena::document::document_source_format::xml_v1)
       serialized= athena::document::write_xml (source);
+    else if (source_format == athena::document::document_source_format::xml_v2)
+      serialized= athena::document::write_xml_v2 (source);
     else {
       string bytes= tree_to_texmacs (source);
       serialized.assign (bytes.data (), std::size_t (N(bytes)));
@@ -385,14 +480,17 @@ public:
     pinned= std::move (replaced.file);
     snapshot= std::move (next);
     relocation.clear ();
-    if (source_format != athena::document::document_source_format::xml_v1)
+    if (source_format != athena::document::document_source_format::xml_v1 &&
+        source_format != athena::document::document_source_format::xml_v2)
       source_format= athena::document::document_source_format::legacy_markup;
     // The rename already committed. A subsequent metadata error must not be
     // reported as an aborted write or leave the old snapshot usable.
     try { revision= pinned.stat (); }
     catch (const std::system_error&) { revision_available= false; }
-    return {{"committed", true}, {"directory_synced", replaced.directory_synced},
-            {"revision_available", revision_available}};
+    result["committed"]= true;
+    result["directory_synced"]= replaced.directory_synced;
+    result["revision_available"]= revision_available;
+    return result;
   }
 };
 
@@ -505,6 +603,12 @@ public:
       commands["erase"]= {{"parameters", value::object ()}};
       commands["set_tag"]= {{"parameters", {{"tag", "UTF-8 node tag"}}}};
     }
+    if (source->metadata_writable ()) {
+      commands["update_properties"]= { {"parameters",
+        {{"set", "document-model-v3 property entry array"},
+         {"remove", "property-name string array"}}} };
+      commands["assign_id"]= {{"parameters", value::object ()}};
+    }
     if (document && source->source_relocation_available ())
       commands["relocate_source_position"]= {{"parameters",
         {{"path", "legacy source child-index array"},
@@ -521,6 +625,11 @@ public:
       if (command == "set" || command == "insert" || command == "erase" || command == "set_tag" ||
           command == "insert_before" || command == "insert_after") {
         if (!source->writable ()) return {"UNSUPPORTED", "Editing this source is not available"};
+        return {"OK", source->edit (node, command, parameters)};
+      }
+      if (command == "update_properties" || command == "assign_id") {
+        if (!source->metadata_writable ())
+          return {"UNSUPPORTED", "Persistent node metadata requires an active XML v2 source"};
         return {"OK", source->edit (node, command, parameters)};
       }
       if (command == "relocate_source_position") {

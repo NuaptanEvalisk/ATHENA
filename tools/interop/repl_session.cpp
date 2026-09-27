@@ -66,7 +66,8 @@ void repl_session::line (const std::string& input) {
   if (text == "help") {
     if (ticket) print (
       "Operations target handle " + std::to_string (selected) + " in resolution " + std::to_string (ticket) + ".\n"
-      "A handle identifies a node in this resolution; it is not a persistent resource ID.\n\n"
+      "A handle identifies an occurrence in this resolution; it is not a persistent node UUID.\n"
+      "Document-model-v3 get/inspect results may separately contain an id and typed properties.\n\n"
       "  handles       List handles, their parents and the selected target.\n"
       "  use HANDLE    Select a target from that list, e.g. use " + std::to_string (selected) + ".\n"
       "  lineage       Show the root-to-target chain of handles.\n"
@@ -74,6 +75,7 @@ void repl_session::line (const std::string& input) {
       "  get           Read the target's properties.\n"
       "  COMMAND JSON  Run an operation returned by inspect. JSON must be an object.\n"
       "                Omit JSON for no parameters: get is equivalent to get {}.\n"
+      "                Document nodes may expose assign_id and update_properties.\n"
       "  exit          Close this resolution and return to selector input.\n\n"
       "Ctrl+C while waiting leaves the resolution; an admitted operation may still finish.");
     else print (

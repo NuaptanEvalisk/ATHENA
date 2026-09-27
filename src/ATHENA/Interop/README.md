@@ -1,4 +1,4 @@
-# ATHENA Interop, protocol version 2 / document model version 2
+# ATHENA Interop, protocol version 2 / document model version 3
 
 AUDM selects live resources; AUDMAP exposes ticket-local occurrence handles.
 This implementation does not restore TeXmacs plugins or expose arbitrary Scheme
@@ -51,10 +51,12 @@ Each desktop instance publishes a `connection.json` under
 0700; descriptor and IPC socket are 0600. No TCP listener is created. The
 descriptor contains only the endpoint, PID, protocol version and ephemeral
 server public key, plus the document-model version. HELLO declares both the
-wire protocol and document-model versions; WELCOME echoes both. Version 2 is
-the first protocol that guarantees UTF-8 document text, versioned XML saved
-documents, explicit `NAMED_SYMBOL` identity and exact legacy source-position
-relocation. Mismatched clients are rejected before resource resolution.
+wire protocol and document-model versions; WELCOME echoes both. Wire protocol 2
+continues to provide UTF-8 text, versioned XML saved documents, explicit
+`NAMED_SYMBOL` identity and exact legacy source-position relocation. Document
+model 3 adds persistent node UUIDs and typed properties to document values and
+node mutation commands. Mismatched clients are rejected before resource
+resolution; v2 document-model clients do not silently receive v3 trees.
 libzmq restricts IPC clients to the server's UID.
 
 The bundled clients persist a CURVE keypair. ZAP binds
@@ -272,12 +274,20 @@ Names within a document select immediate children by tag (or atomic text).
 local predicate can carry positions to select within its immediate matches.
 Positions are zero-based and are not supported on recursive query result sets.
 Node properties include `node_kind` (`compound` or `text`), `arity`, `path`,
-`tag` or `text`, plus `source` and `absolute_path`. The universal `type` remains
-`document` or `node`.
+`tag` or `text`, optional persistent `id`, optional typed `properties`, plus
+`source` and `absolute_path`. The universal `type` remains `document` or `node`.
+The positive integer AUDMAP handle is connection/ticket scoped and is never the
+persistent UUID. Reconnect/resolution can allocate a different handle while the
+v3 `id` remains the same source identity.
 
-`get {}` returns the source mode, path and encoded tree. An atomic node is
-`{"text":"UTF-8 text"}`; a compound is `{"tag":"name","children":[...]}`.
-Protocol v2 ordinary atom/tag text is UTF-8 only. Binary payloads are explicit:
+`get {}` returns the source mode, path and document-model-v3 encoded tree. An
+atomic node is `{"text":"UTF-8 text", ...metadata}`; a compound is
+`{"tag":"name","children":[...], ...metadata}`. `id` is an optional canonical
+UUID. `properties` is an ordered array of `{name,value}` entries; each value has
+an explicit `type` and `value`, using `string`, `boolean`, `int64`, `double`,
+`list`, `dictionary`, `reference` or `rich_tree`. `int64` and `double` payloads
+use canonical strings so JSON peers do not lose integer precision or negative
+zero. Ordinary atom/tag text is UTF-8 only. Binary payloads are explicit:
 the single child of a `raw-data` node is `{"raw":BIN}` in MessagePack. There is
 no Cork/tag-Cork fallback or character-encoding guessing at this boundary.
 
@@ -306,7 +316,9 @@ not paragraphs. These are source-tree edits, not high-level editor commands.
 
 Document and node operations:
 
-- `set {"tree": NODE}`: replace this node (or the full document root).
+- `set {"tree": NODE}`: replace this node (or the full document root). Structural
+  edits do not accept metadata in their input; replacing an existing source node
+  preserves its current UUID/properties. Use the metadata operations below.
 - `insert {"index": N, "children": [NODE, ...]}`: insert children at an offset.
 - `insert_before {"siblings": [NODE, ...]}` and `insert_after {"siblings": [NODE, ...]}`:
   insert siblings relative to this node's current identity. The structural parent
@@ -314,6 +326,18 @@ Document and node operations:
   supplied by the client. Root nodes have no siblings; stale targets are rejected.
 - `erase {}`: remove this node; removing the full document root is forbidden.
 - `set_tag {"tag": "name"}`: change a compound node's tag.
+- `assign_id {}`: assign a server-generated persistent UUID only when the target
+  has none; repeating it returns the same UUID. No arbitrary UUID setter exists.
+- `update_properties {"set": PROPERTY_ENTRIES, "remove": [NAME,...]}`: atomically
+  apply typed property replacements/removals using the v3 property schema.
+  `id`, `uuid` and reserved `athena:artifact-bindings` remain protected.
+
+`assign_id` and `update_properties` are advertised only for sources whose
+persistent metadata contract is active (normal XML v2 source / active v2
+BufferActor). Structural edits of active live v2 buffers finalize required source
+identities before the edit is committed. Saved v2 edits likewise complete missing
+role identities before publishing the revision. v1/legacy sources are not
+silently promoted to v2 by an AUDMAP metadata operation.
 
 Invalid edits are rejected before changing the source. Online mutations of an
 open document run on its BufferActor, update editor state and mark the document

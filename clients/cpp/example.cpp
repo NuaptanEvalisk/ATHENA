@@ -15,10 +15,17 @@ int main (int argc, char** argv) {
     if (argc > 1) config.endpoint = argv[1];
     if (argc > 2) config.identity = argv[2];
     athena::audmap::client client (config);
-    auto request = client.resolve (argc > 3 ? argv[3] : "@/vaults/@", true);
+    auto request = client.resolve (
+      argc > 3 ? argv[3] : "@/buffers/@/document/body/[0]/[0]", true);
     auto resolved = request.result.get ();
     std::cout << resolved.data.dump (2) << std::endl;
     for (const auto& handle: resolved.data.at (0)) {
+      auto get = client.operate (
+        request.ticket, handle.get<athena::audmap::id> (), "get");
+      auto node = get.result.get ();
+      std::cout << "document model " << athena::audmap::document_model_version
+                << " node: " << node.data.dump (2) << std::endl;
+      client.release (get.ticket, get.operation).result.get ();
       auto lineage = client.lineage (request.ticket, handle.get<athena::audmap::id> ());
       std::cout << client.ask (lineage.ticket, lineage.operation).result.get ().data.dump () << std::endl;
       client.release (lineage.ticket, lineage.operation).result.get ();

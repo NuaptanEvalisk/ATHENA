@@ -9,6 +9,7 @@
 ******************************************************************************/
 #include "interop_document_nodes.hpp"
 #include "interop_document_codec.hpp"
+#include "node_metadata.hpp"
 #include "tree.hpp"
 #include <algorithm>
 #include <atomic>
@@ -211,7 +212,7 @@ document_node_transfer document_nodes::export_nodes (const tree& root) {
   state->check_owner ();
   collect ();
   document_node_transfer result;
-  result.source= document_node_to_value (root);
+  result.source= document_node_to_value_v3 (root);
   struct occurrence { document_node_path path; unsigned count= 0; };
   std::unordered_map<tree_rep*, occurrence> occurrences;
   for (const auto& item: state->slots)
@@ -236,7 +237,7 @@ void document_nodes::import_nodes (const tree& root,
   collect ();
   if (!state->slots.empty ())
     throw std::logic_error ("Node identity handoff requires an empty registry");
-  if (document_node_to_value (root) != transfer.source)
+  if (document_node_to_value_v3 (root) != transfer.source)
     throw std::runtime_error ("STALE: source changed during document identity handoff");
   // Validate occurrence uniqueness before attaching anything. A source value
   // alone does not distinguish a copied tree from one with shared occurrences.
@@ -266,8 +267,9 @@ value document_nodes::properties (const tree& root, const document_node& node) {
   tree view= root;
   const tree& target= at (view, location);
   // Encode only this node's scalar data, never its descendants for a predicate.
-  tree scalar= is_atomic (target) ? target : tree (L (target));
-  value result= document_node_to_value (scalar);
+  tree scalar= is_atomic (target) ? tree (target->label) : tree (L (target));
+  athena::node::copy_metadata (target, scalar);
+  value result= document_node_to_value_v3 (scalar);
   result.erase ("children");
   result["type"]= is_atomic (target) ? "text" : "compound";
   result["arity"]= is_atomic (target) ? 0 : N (target);
@@ -280,7 +282,7 @@ value document_nodes::properties (const tree& root, const document_node& node) {
 value document_nodes::read (const tree& root, const document_node& node) {
   const auto location= locate (root, node);
   tree view= root;
-  return document_node_to_value (at (view, location));
+  return document_node_to_value_v3 (at (view, location));
 }
 
 std::vector<document_node> document_nodes::children (
@@ -302,7 +304,12 @@ std::vector<document_node> document_nodes::children (
 document_node document_nodes::replace (tree& root, const document_node& node,
                                        const value& source) {
   const auto location= locate (root, node);
-  tree replacement= document_node_from_value (source);
+  tree replacement= document_node_from_value_v3 (source);
+  if (athena::node::contains_metadata (replacement))
+    throw std::invalid_argument (
+      "Structural set cannot write node metadata; use update_properties or assign_id");
+  tree current= at (root, location);
+  athena::node::copy_metadata (current, replacement);
   assign (at (root, location), replacement);
   return track (root, location);
 }
@@ -315,7 +322,11 @@ std::vector<document_node> document_nodes::insert_children (
     throw std::invalid_argument ("Invalid insertion child index");
   // Decode the entire batch first, with one shared codec budget. Malformed
   // later children cannot leave a partially inserted batch in the editor.
-  tree insertion= document_node_from_value (value {{"tag", "tuple"}, {"children", children}});
+  tree insertion= document_node_from_value_v3 (
+    value {{"tag", "tuple"}, {"children", children}});
+  if (athena::node::contains_metadata (insertion))
+    throw std::invalid_argument (
+      "Structural insertion cannot write node metadata; use update_properties after insertion");
   if (N (insertion) > std::numeric_limits<int>::max () - N (target))
     throw std::length_error ("Document child count overflow");
   if (N (insertion) == 0) return {};
@@ -352,7 +363,8 @@ void document_nodes::set_tag (tree& root, const document_node& node, const value
   const auto location= locate (root, node);
   tree target= at (root, location);
   if (!is_compound (target)) throw std::invalid_argument ("A text node has no tag");
-  tree decoded= document_node_from_value (value {{"tag", tag}, {"children", value::array ()}});
+  tree decoded= document_node_from_value_v3 (
+    value {{"tag", tag}, {"children", value::array ()}});
   assign_node (target, L (decoded));
 }
 
