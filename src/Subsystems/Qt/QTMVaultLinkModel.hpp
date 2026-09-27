@@ -13,7 +13,10 @@
 
 #include "string.hpp"
 #include "url.hpp"
+#include "path.hpp"
+#include "tree.hpp"
 #include <QString>
+#include <QStringList>
 #include <Qt>
 #include <vector>
 
@@ -38,5 +41,17 @@ bool is_autosave_document_path (const QString& relPath);
 QString current_vault_relative_document ();
 QString file_display_stem (const QString& relPath);
 std::vector<WikilinkFileEntry> load_vault_link_files ();
+
+struct VaultSourceTarget {
+  QString uuid, title, kind;
+  path where;
+};
+
+// Owner-local source snapshots; preview transformations must happen afterwards.
+tree vault_link_source_body (url file);
+std::vector<VaultSourceTarget> vault_source_targets (const tree& body);
+bool vault_source_selection (const tree& body, const QStringList& requested,
+                             std::vector<VaultSourceTarget>& selected,
+                             QString& error);
 
 #endif // QTMVAULTLINKMODEL_HPP

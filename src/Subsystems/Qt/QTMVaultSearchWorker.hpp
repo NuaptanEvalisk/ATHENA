@@ -15,6 +15,7 @@ struct VaultSearchOptions {
   QString query, enunciation, person, root;
   bool caseInsensitive= true;
   bool fuzzy= false;
+  bool nodeModel= false;
 };
 
 struct VaultSearchControl {

@@ -2454,10 +2454,18 @@ athena_artifact_locate_paragraph (
   collect_paragraphs (body, paragraphs);
   std::unordered_map<std::string,int> occurrences;
   long focus= -1;
+  int identity_matches= 0;
   for (size_t i=0; i<paragraphs.size (); i++) {
     std::vector<tree> bolds;
     find_bold (paragraphs[i].value, bolds);
     for (const tree& keyword: bolds) {
+      if (!record.source_uuid.empty ()) {
+        if (athena::node::id (keyword) == record.source_uuid) {
+          focus= (long) i;
+          ++identity_matches;
+        }
+        continue;
+      }
       std::string display= plain_text (visible_body (keyword));
       if (collapse_spaces (display).empty ()) continue;
       std::string serialized= fragment_bytes (keyword);
@@ -2468,7 +2476,12 @@ athena_artifact_locate_paragraph (
         break;
       }
     }
-    if (focus >= 0) break;
+    if (focus >= 0 && record.source_uuid.empty ()) break;
+  }
+  if (!record.source_uuid.empty () && identity_matches != 1) {
+    error= identity_matches == 0 ? "Artifact source UUID is no longer present" :
+                                  "Artifact source UUID is duplicated";
+    return false;
   }
   if (focus < 0) {
     error= "Artifact source no longer matches the artifact database";
@@ -2484,6 +2497,14 @@ athena_artifact_locate_paragraph (
 
   long first= focus;
   long last= focus;
+  const bool native_range= !record.source_uuid.empty ();
+  if (native_range && record.definition_candidates.empty () &&
+      (record.source_content_fingerprint.empty () ||
+       artifact_content_fingerprint (document) !=
+         record.source_content_fingerprint)) {
+    error= "Artifact paragraph selection is stale; rebuild artifacts";
+    return false;
+  }
   for (int offset: record.paragraph_offsets) {
     long index= focus + offset;
     if (index < 0 || index >= (long) paragraphs.size () ||
@@ -2491,6 +2512,16 @@ athena_artifact_locate_paragraph (
           paragraphs[(size_t) focus].segment) {
       error= "Artifact paragraph range is stale";
       return false;
+    }
+    if (native_range && !record.definition_candidates.empty ()) {
+      const auto candidate= std::find_if (
+        record.definition_candidates.begin (), record.definition_candidates.end (),
+        [offset] (const auto& entry) { return entry.first == offset; });
+      if (candidate == record.definition_candidates.end () ||
+          candidate->second != fragment_bytes (paragraphs[(size_t) index].value)) {
+        error= "Artifact paragraph selection is stale; rebuild artifacts";
+        return false;
+      }
     }
     first= std::min (first, index);
     last= std::max (last, index);
@@ -3052,10 +3083,12 @@ bool table_has_column (sqlite3* db, const char* table, const char* column,
 }
 
 std::string artifact_select_columns (sqlite3* db, std::string& error) {
-  bool source_uuid= false, source_role= false, input_hash= false;
+  bool source_uuid= false, source_role= false, input_hash= false,
+       content_hash= false;
   if (!table_has_column (db, "artifacts", "source_uuid", source_uuid, error) ||
       !table_has_column (db, "artifacts", "source_role", source_role, error) ||
-      !table_has_column (db, "artifacts", "input_hash", input_hash, error))
+      !table_has_column (db, "artifacts", "input_hash", input_hash, error) ||
+      !table_has_column (db, "documents", "content_hash", content_hash, error))
     return {};
   return std::string (
     "SELECT a.uuid,a.type,a.origin,a.content_uuid,COALESCE(a.proof_uuid,''),"
@@ -3074,7 +3107,10 @@ std::string artifact_select_columns (sqlite3* db, std::string& error) {
     "ELSE COALESCE(e.identity_before,'') END,"
     "CASE WHEN a.origin='bold-text' THEN COALESCE(b.identity_after,'') "
     "ELSE COALESCE(e.identity_after,'') END,"
-    "a.identity_decision,a.identity_evidence FROM artifacts a "
+    "a.identity_decision,a.identity_evidence," +
+    (content_hash ?
+      "COALESCE((SELECT d.content_hash FROM documents d WHERE d.path=a.path),'')" :
+      "''") + " FROM artifacts a "
     "LEFT JOIN bold_text.entries b ON a.origin='bold-text' AND "
     "b.uuid=a.content_uuid LEFT JOIN enunciations.entries e ON "
     "a.origin='enunciation' AND e.uuid=a.content_uuid ";
@@ -3103,6 +3139,7 @@ AthenaArtifactRecord artifact_record_from_statement (sqlite3_stmt* statement) {
   record.identity_after= column_text (statement, 18);
   record.identity_decision= column_text (statement, 19);
   record.identity_evidence= column_text (statement, 20);
+  record.source_content_fingerprint= column_text (statement, 21);
   return record;
 }
 

@@ -40,6 +40,9 @@ tree presentation (const tree& source, const url& base) {
 }
 }
 bool canonical (const tree& t) { return is_func (t, TRANSCLUDE, 1) && is_tuple (t[0]); }
+tree presentation_copy (const tree& source, const url& base) {
+  return presentation (node::content_projection (source), base);
+}
 std::vector<std::string> targets (const tree& t) {
   if (!canonical (t) || N(t[0]) == 0) throw std::invalid_argument ("Expected a nonempty node UUID list");
   std::vector<std::string> out;

@@ -148,7 +148,7 @@ migrated_wikilink_source_uuid (
   if (vault_get_node_model_version () < 1) return {};
   try {
     const url file= vault_get_root () * url_unix (from_qstring (relPath));
-    tree body= import_body (file);
+    tree body= vault_link_source_body (file);
     path target;
     if (!anchor.isEmpty ()) {
       std::vector<WikilinkAnchorEntry> anchors;
@@ -425,6 +425,7 @@ public:
   QWidget*     previewHost;
   WikilinkPreview preview;
   std::vector<WikilinkAnchorEntry> anchors;
+  std::vector<VaultSourceTarget> sourceTargets;
   tree        fileBody;
   bool        displayTouched;
 };
@@ -499,7 +500,7 @@ public:
   tree getResult () const;
   void setResult (const QString& relPath, const QString& anchor,
                   const QString& fileHint, const QString& anchorHint,
-                  const QString& displayText);
+                  const QString& displayText, const QString& sourceId= {});
   bool selectFileFromPage ();
   bool finishFileFirst ();
 
@@ -673,10 +674,12 @@ WikilinkAnchorPage::WikilinkAnchorPage (QWidget* parent)
   : QWizardPage (parent), displayTouched (false) {
   setFinalPage (true);
   setTitle ("Choose an anchor and display text");
-  setSubTitle ("Choose an optional label in the file, preview the context, then insert.");
+  setSubTitle (vault_get_node_model_version () >= 1 ? "" :
+    "Choose an optional label in the file, preview the context, then insert.");
 
   searchEdit= new QLineEdit (this);
-  searchEdit->setPlaceholderText ("Filter anchors; leave empty for the whole file");
+  searchEdit->setPlaceholderText (vault_get_node_model_version () >= 1 ?
+    "Filter source objects" : "Filter anchors; leave empty for the whole file");
   caseInsensitiveCheck= new QCheckBox ("Case-insensitive", this);
   fuzzyCheck= new QCheckBox ("Fuzzy", this);
   preserveCheckboxLabel (caseInsensitiveCheck);
@@ -690,7 +693,7 @@ WikilinkAnchorPage::WikilinkAnchorPage (QWidget* parent)
   anchorList->setTabKeyNavigation (false);
   anchorList->setMinimumWidth (500);
   displayEdit= new QLineEdit (this);
-  previewTitle= new QLabel ("Select an anchor to preview it.", this);
+  previewTitle= new QLabel ("Target", this);
   configurePreviewTitle (previewTitle);
   previewHost= new QWidget (this);
   previewHost->setMinimumHeight (360);
@@ -701,7 +704,7 @@ WikilinkAnchorPage::WikilinkAnchorPage (QWidget* parent)
   QWidget* left= new QWidget (this);
   QVBoxLayout* leftLayout= new QVBoxLayout (left);
   leftLayout->setContentsMargins (0, 0, 0, 0);
-  leftLayout->addWidget (new QLabel ("Anchor:", this));
+  leftLayout->addWidget (new QLabel (vault_get_node_model_version () >= 1 ? "Source object:" : "Anchor:", this));
   leftLayout->addWidget (searchEdit);
   QHBoxLayout* filters= new QHBoxLayout ();
   filters->addWidget (caseInsensitiveCheck);
@@ -778,13 +781,15 @@ WikilinkAnchorPage::initializePage () {
   setBoundedSubTitle (this, "Target file: ", w->selectedRelPath);
 
   anchors.clear ();
+  sourceTargets.clear ();
   fileBody= tree (DOCUMENT, "");
   displayTouched= false;
   displayEdit->clear ();
 
   try {
-    fileBody= import_body_for_preview (w->selectedFileUrl);
-    collect_anchors (fileBody, path (), anchors);
+    fileBody= vault_link_source_body (w->selectedFileUrl);
+    if (vault_get_node_model_version () >= 1) sourceTargets= vault_source_targets (fileBody);
+    else collect_anchors (fileBody, path (), anchors);
   }
   catch (...) {
     fileBody= tree (DOCUMENT, "Preview unavailable.");
@@ -828,6 +833,22 @@ WikilinkAnchorPage::updateList () {
   whole->setData (WikilinkIndexRole, -1);
   whole->setData (WikilinkPayloadRole, QString ());
   anchorList->addItem (whole);
+
+  if (vault_get_node_model_version () >= 1) {
+    whole->setData (WikilinkPayloadRole, QString::fromStdString (athena::node::id (fileBody)));
+    for (int i=0; i<(int) sourceTargets.size (); ++i) {
+      const auto& target= sourceTargets[i];
+      if (is_nil (target.where) || list_filter_score (target.title, query,
+          caseInsensitiveCheck->isChecked (), fuzzyCheck->isChecked ()) < 0) continue;
+      auto* item= new QListWidgetItem (target.title, anchorList);
+      item->setData (WikilinkIndexRole, i);
+      item->setData (WikilinkPayloadRole, target.uuid);
+    }
+    anchorList->setCurrentRow (0);
+    updateCurrentPreview ();
+    updateDefaultDisplayText ();
+    return;
+  }
 
   std::set<int> pairedLower;
   std::set<int> enunciationUpper;
@@ -876,13 +897,18 @@ WikilinkAnchorPage::updateCurrentPreview () {
   int index= item == nullptr ? -1 : item->data (WikilinkIndexRole).toInt ();
   path focus= path ();
   QString title= w->selectedRelPath;
+  if (vault_get_node_model_version () >= 1 && index >= 0 && index < (int) sourceTargets.size ()) {
+    focus= sourceTargets[index].where;
+    title += "  --  " + sourceTargets[index].title;
+  }
   if (index >= 0 && index < (int) anchors.size ()) {
     focus= anchors[index].where;
     title += "  --  " + anchors[index].anchor;
   }
   previewTitle->setText (title);
   preview.ensureCreated (previewHost);
-  preview.setBody (build_preview_from_body (fileBody, focus, nullptr, nullptr));
+  preview.setBody (rebase_preview_images (
+    build_preview_from_body (fileBody, focus, nullptr, nullptr), head (w->selectedFileUrl)));
 }
 
 void
@@ -893,6 +919,11 @@ WikilinkAnchorPage::updateDefaultDisplayText () {
   QListWidgetItem* item= anchorList->currentItem ();
   QString anchor= item == nullptr ? QString () :
     item->data (WikilinkPayloadRole).toString ();
+  if (vault_get_node_model_version () >= 1) {
+    displayEdit->setText (item && item->data (WikilinkIndexRole).toInt () >= 0 ?
+                           item->text () : file_display_stem (w->selectedRelPath));
+    return;
+  }
   displayEdit->setText (
     default_wikilink_display_text (w->selectedRelPath, anchor));
 }
@@ -952,7 +983,8 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   : QWizardPage (parent), displayTouched (false) {
   setFinalPage (true);
   setTitle ("Locate by search");
-  setSubTitle ("Search the vault, then click a usable { anchor from the preview.");
+  setSubTitle (vault_get_node_model_version () >= 1 ? "" :
+    "Search the vault, then click a usable { anchor from the preview.");
 
   queryEdit= new QLineEdit (this);
   queryEdit->setPlaceholderText ("Search text");
@@ -1047,7 +1079,8 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   leftLayout->setContentsMargins (0, 0, 0, 0);
   leftLayout->addWidget (new QLabel ("Occurrences:", this));
   leftLayout->addWidget (resultList, 1);
-  leftLayout->addWidget (new QLabel ("Usable wikilink anchors in preview:", this));
+  leftLayout->addWidget (new QLabel (vault_get_node_model_version () >= 1 ?
+    "Source object:" : "Usable wikilink anchors in preview:", this));
   leftLayout->addWidget (anchorList, 1);
   leftLayout->addWidget (new QLabel ("Display text:", this));
   leftLayout->addWidget (displayEdit);
@@ -1279,6 +1312,18 @@ WikilinkSearchPage::searchFile (
     int occurrence= 1;
     for (const VaultContentMatch& match: matches) {
       WikilinkSearchResult result;
+      if (options.nodeModel) {
+        tree current= body;
+        path remaining= match.start;
+        result.sourceUuid= QString::fromStdString (athena::node::id (current));
+        while (!is_nil (remaining) && is_compound (current) &&
+               remaining->item >= 0 && remaining->item < N(current)) {
+          current= current[remaining->item];
+          remaining= remaining->next;
+          const auto id= athena::node::id (current);
+          if (!id.empty ()) result.sourceUuid= QString::fromStdString (id);
+        }
+      }
       result.relPath= rel;
       result.file= u;
       result.occurrence= occurrence++;
@@ -1343,6 +1388,7 @@ WikilinkSearchPage::startSearch () {
   }
 
   VaultSearchOptions options;
+  options.nodeModel= vault_get_node_model_version () >= 1;
   options.query= queryText;
   options.root= to_qstring (as_system_string (vault_get_root ()));
   options.enunciation= selectedEnunciation ();
@@ -1440,7 +1486,24 @@ WikilinkSearchPage::updatePreview (QListWidgetItem* current) {
       .arg (result.fileHits));
 
   try {
-    tree body= import_body_for_preview (result.file);
+    tree body= vault_link_source_body (result.file);
+    if (vault_get_node_model_version () >= 1) {
+      QString error;
+      std::vector<VaultSourceTarget> selected;
+      preview.ensureCreated (previewHost);
+      if (!vault_source_selection (body, {result.sourceUuid}, selected, error)) {
+        preview.setBody (tree (DOCUMENT, from_qstring (error)));
+        return;
+      }
+      const auto& target= selected.front ();
+      preview.setBody (rebase_preview_images (
+        build_preview_from_body (body, target.where), head (result.file)));
+      auto* item= new QListWidgetItem (target.title, anchorList);
+      item->setData (WikilinkPayloadRole, target.uuid);
+      anchorList->setCurrentRow (0);
+      displayEdit->setText (target.title);
+      return;
+    }
     int first= 0, last= 0;
     preview.ensureCreated (previewHost);
     preview.setBody (
@@ -1508,6 +1571,10 @@ WikilinkSearchPage::updateDefaultDisplayText () {
     displayEdit->clear ();
     return;
   }
+  if (vault_get_node_model_version () >= 1) {
+    displayEdit->setText (item->text ());
+    return;
+  }
   int anchorIndex= item->data (WikilinkIndexRole).toInt ();
   if (anchorIndex < 0 || anchorIndex >= (int) currentAnchors.size ()) {
     displayEdit->clear ();
@@ -1530,6 +1597,14 @@ WikilinkSearchPage::chooseAnchorItem (QListWidgetItem* item) {
   if (resultItem == nullptr) return false;
   int resultIndex= resultItem->data (WikilinkIndexRole).toInt ();
   int anchorIndex= item->data (WikilinkIndexRole).toInt ();
+  if (vault_get_node_model_version () >= 1) {
+    if (resultIndex < 0 || resultIndex >= (int) results.size ()) return false;
+    auto* w= static_cast<QTMVaultWikilinkWizard*> (wizard ());
+    w->setResult (results[resultIndex].relPath, {}, {}, {},
+                  displayEdit->text ().trimmed ().isEmpty () ? item->text () : displayEdit->text ().trimmed (),
+                  item->data (WikilinkPayloadRole).toString ());
+    return w->resultAccepted;
+  }
   if (resultIndex < 0 || resultIndex >= (int) results.size () ||
       anchorIndex < 0 || anchorIndex >= (int) currentAnchors.size ())
     return false;
@@ -1583,12 +1658,13 @@ QTMVaultWikilinkWizard::QTMVaultWikilinkWizard (QWidget* parent)
     wikilink_search_fuzzy_pref, this);
   artifactPage->setSelectionHandler (
     [this] (const QTMVaultArtifactSelection& selection) {
-      QString display= default_wikilink_display_text (
-        selection.relative_path, selection.upper_anchor);
+      QString display= selection.wikilink_uuid.isEmpty () ? default_wikilink_display_text (
+        selection.relative_path, selection.upper_anchor) : selection.display_text;
       if (display.isEmpty ()) display= selection.display_text;
       setResult (selection.relative_path, selection.upper_anchor,
                  file_display_stem (selection.relative_path),
-                 selection.upper_anchor, display);
+                 selection.upper_anchor, display, selection.wikilink_uuid);
+      return resultAccepted;
     });
 
   availablePage= new QTMVaultAvailablePage (this);
@@ -1596,7 +1672,8 @@ QTMVaultWikilinkWizard::QTMVaultWikilinkWizard (QWidget* parent)
     [this] (const QTMVaultArtifactSelection& selection) {
       setResult (selection.relative_path, selection.upper_anchor,
                  file_display_stem (selection.relative_path),
-                 selection.upper_anchor, selection.display_text);
+                 selection.upper_anchor, selection.display_text, selection.wikilink_uuid);
+      return resultAccepted;
     });
 
   setPage (WikilinkModePageId, modePage);
@@ -1636,7 +1713,8 @@ QTMVaultWikilinkWizard::setResult (const QString& relPath,
                                    const QString& anchor,
                                    const QString& fileHint2,
                                    const QString& anchorHint2,
-                                   const QString& displayText2) {
+                                   const QString& displayText2,
+                                   const QString& sourceId) {
   selectedRelPath= relPath;
   selectedAnchor= anchor;
   fileHint= fileHint2;
@@ -1645,7 +1723,14 @@ QTMVaultWikilinkWizard::setResult (const QString& relPath,
   sourceUuid.clear ();
   if (vault_get_node_model_version () >= 1) {
     QString diagnostic;
-    sourceUuid= migrated_wikilink_source_uuid (relPath, anchor, diagnostic);
+    if (sourceId.isEmpty ())
+      sourceUuid= migrated_wikilink_source_uuid (relPath, anchor, diagnostic);
+    else {
+      std::vector<VaultSourceTarget> checked;
+      if (vault_source_selection (vault_link_source_body (
+            vault_get_root () * url_unix (from_qstring (relPath))),
+            {sourceId}, checked, diagnostic)) sourceUuid= sourceId;
+    }
     if (sourceUuid.isEmpty () && !diagnostic.isEmpty ())
       QMessageBox::warning (
         this, "Insert wikilink",
@@ -1653,7 +1738,7 @@ QTMVaultWikilinkWizard::setResult (const QString& relPath,
           "\n\nThe migrated Vault will not fall back to file or anchor "
           "hints for identity.");
   }
-  resultAccepted= true;
+  resultAccepted= vault_get_node_model_version () < 1 || !sourceUuid.isEmpty ();
 }
 
 bool
@@ -1696,8 +1781,10 @@ QTMVaultWikilinkWizard::finishFileFirst () {
     text= default_wikilink_display_text (selectedRelPath, anchor);
   if (text.isEmpty ()) text= anchor;
 
-  setResult (selectedRelPath, anchor, fileHint, hint, text);
-  return true;
+  if (vault_get_node_model_version () >= 1)
+    setResult (selectedRelPath, {}, {}, {}, text, anchor);
+  else setResult (selectedRelPath, anchor, fileHint, hint, text);
+  return resultAccepted;
 }
 
 tree

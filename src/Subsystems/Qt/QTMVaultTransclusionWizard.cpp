@@ -23,9 +23,12 @@
 #include "QTMVaultPreviewWidget.hpp"
 #include "QTMVaultSearch.hpp"
 #include "QTMVaultSearchWorker.hpp"
+#include "ATHENA/Data/enunciation_model.hpp"
+#include "ATHENA/Data/heading_word_count.hpp"
 #include "drd_mode.hpp"
 #include "namespaces.hpp"
 #include "new_buffer.hpp"
+#include "node_metadata.hpp"
 #include "qt_utilities.hpp"
 #include "scheme.hpp"
 #include "tree_search.hpp"
@@ -130,6 +133,7 @@ public:
 class TransclusionKindPage : public QWizardPage {
 public:
   TransclusionKindPage (QWidget* parent= nullptr);
+  void initializePage () override;
   int nextId () const override;
 
   QRadioButton* enunciationRadio;
@@ -158,6 +162,7 @@ public:
   WikilinkPreview preview;
   tree fileBody;
   std::vector<TransclusionAnchorPair> pairs;
+  std::vector<VaultSourceTarget> sourceTargets;
 };
 
 class TransclusionUpperPage : public QWizardPage {
@@ -269,7 +274,8 @@ public:
   tree getResult () const;
   void setResult (const QString& relPath, const QString& anchorBegin,
                   const QString& anchorEnd, const QString& fileHint,
-                  const QString& anchorHint);
+                  const QString& anchorHint,
+                  const QStringList& sourceUuids= {});
   bool selectFileFromPage ();
 
   std::vector<WikilinkFileEntry> files;
@@ -282,6 +288,7 @@ public:
   int     selectedUpperIndex;
   QString selectedUpperAnchor;
   path    selectedUpperWhere;
+  QStringList selectedSourceUuids;
   bool    filesLoaded;
   bool    filesLoadScheduled;
   bool    resultAccepted;
@@ -456,8 +463,17 @@ TransclusionKindPage::TransclusionKindPage (QWidget* parent)
 
 int
 TransclusionKindPage::nextId () const {
+  if (vault_get_node_model_version () >= 1) return TransclusionEnunciationPageId;
   return arbitraryRadio->isChecked () ? TransclusionUpperPageId :
     TransclusionEnunciationPageId;
+}
+
+void
+TransclusionKindPage::initializePage () {
+  const bool migrated= vault_get_node_model_version () >= 1;
+  setTitle (migrated ? "Choose source objects" : "Choose transclusion bounds");
+  setSubTitle (migrated ? "" : "Choose a complete enunciation or arbitrary anchor bounds.");
+  arbitraryRadio->setText (migrated ? "Select document objects" : "Transclude between arbitrary anchors");
 }
 
 TransclusionEnunciationPage::TransclusionEnunciationPage (QWidget* parent)
@@ -490,7 +506,7 @@ TransclusionEnunciationPage::TransclusionEnunciationPage (QWidget* parent)
   QWidget* left= new QWidget (this);
   QVBoxLayout* leftLayout= new QVBoxLayout (left);
   leftLayout->setContentsMargins (0, 0, 0, 0);
-  leftLayout->addWidget (new QLabel ("Anchored ranges:", this));
+  leftLayout->addWidget (new QLabel ("Source objects:", this));
   leftLayout->addWidget (searchEdit);
   QHBoxLayout* filters= new QHBoxLayout ();
   filters->addWidget (caseInsensitiveCheck);
@@ -558,12 +574,27 @@ TransclusionEnunciationPage::initializePage () {
     static_cast<QTMVaultTransclusionWizard*> (wizard ());
   setBoundedSubTitle (this, "Target file: ", w->selectedRelPath);
   pairs.clear ();
+  sourceTargets.clear ();
+  const bool migrated= vault_get_node_model_version () >= 1;
+  setTitle (migrated && w->kindPage->arbitraryRadio->isChecked () ?
+              "Choose source objects" : "Choose an enunciation");
+  searchEdit->setPlaceholderText (migrated ? "Filter source objects" : "Filter enunciation anchors");
+  pairList->setSelectionMode (migrated ? QAbstractItemView::ExtendedSelection :
+                                       QAbstractItemView::SingleSelection);
   fileBody= tree (DOCUMENT, "");
   try {
-    fileBody= import_body_for_preview (w->selectedFileUrl);
-    std::vector<WikilinkAnchorEntry> anchors;
-    collect_anchors (fileBody, path (), anchors);
-    pairs= collect_transclusion_pairs (anchors);
+    fileBody= vault_link_source_body (w->selectedFileUrl);
+    if (migrated) {
+      for (const auto& target: vault_source_targets (fileBody))
+        if (w->kindPage->arbitraryRadio->isChecked () ||
+            athena::enunciation::is_canonical (subtree (fileBody, target.where)))
+          sourceTargets.push_back (target);
+    }
+    else {
+      std::vector<WikilinkAnchorEntry> anchors;
+      collect_anchors (fileBody, path (), anchors);
+      pairs= collect_transclusion_pairs (anchors);
+    }
   }
   catch (...) {
     fileBody= tree (DOCUMENT, "Preview unavailable.");
@@ -596,6 +627,19 @@ void
 TransclusionEnunciationPage::updateList () {
   pairList->clear ();
   QString query= searchEdit->text ().trimmed ();
+  if (vault_get_node_model_version () >= 1) {
+    for (int i=0; i<(int) sourceTargets.size (); ++i) {
+      const auto& target= sourceTargets[i];
+      if (list_filter_score (target.title, query, caseInsensitiveCheck->isChecked (),
+                             fuzzyCheck->isChecked ()) < 0) continue;
+      auto* item= new QListWidgetItem (target.title, pairList);
+      item->setData (WikilinkIndexRole, i);
+      item->setToolTip (target.uuid);
+    }
+    if (pairList->count () > 0) pairList->setCurrentRow (0);
+    updatePreview ();
+    return;
+  }
   std::vector<std::pair<int,int> > matches;
   for (int i=0; i<(int) pairs.size (); i++) {
     QString text= anchor_pair_key (pairs[i].upper);
@@ -626,6 +670,18 @@ TransclusionEnunciationPage::updatePreview () {
     static_cast<QTMVaultTransclusionWizard*> (wizard ());
   QListWidgetItem* item= pairList->currentItem ();
   int index= item == nullptr ? -1 : item->data (WikilinkIndexRole).toInt ();
+  if (vault_get_node_model_version () >= 1) {
+    preview.ensureCreated (previewHost);
+    if (index < 0 || index >= (int) sourceTargets.size ()) {
+      preview.setBody (tree (DOCUMENT, ""));
+      return;
+    }
+    const auto& target= sourceTargets[index];
+    previewTitle->setText (target.title);
+    preview.setBody (rebase_preview_images (
+      tree (DOCUMENT, copy (subtree (fileBody, target.where))), head (w->selectedFileUrl)));
+    return;
+  }
   if (index < 0 || index >= (int) pairs.size ()) {
     previewTitle->setText ("Select an enunciation to preview it.");
     preview.ensureCreated (previewHost);
@@ -650,6 +706,24 @@ TransclusionEnunciationPage::acceptCurrentPair () {
     return false;
   }
   int index= item->data (WikilinkIndexRole).toInt ();
+  if (vault_get_node_model_version () >= 1) {
+    QStringList ids;
+    // Freeze an explicit source-order set, never a live first/last range.
+    for (int row=0; row<pairList->count (); ++row) {
+      const auto* selected= pairList->item (row);
+      if (!selected->isSelected ()) continue;
+      const int at= selected->data (WikilinkIndexRole).toInt ();
+      if (at >= 0 && at < (int) sourceTargets.size ()) ids << sourceTargets[at].uuid;
+    }
+    QString error;
+    std::vector<VaultSourceTarget> checked;
+    if (!vault_source_selection (vault_link_source_body (w->selectedFileUrl), ids, checked, error)) {
+      QMessageBox::warning (this, "Insert transclusion", error);
+      return false;
+    }
+    w->setResult (w->selectedRelPath, {}, {}, w->fileHint, {}, ids);
+    return true;
+  }
   if (index < 0 || index >= (int) pairs.size ()) return false;
   const TransclusionAnchorPair& pair= pairs[index];
   w->setResult (w->selectedRelPath, pair.upper, pair.lower, w->fileHint,
@@ -1377,12 +1451,31 @@ TransclusionSearchPage::searchFile (
         !athena_tree_contains_person_text (body, from_qstring (person)))
       return 0;
 #endif
-    std::vector<WikilinkAnchorEntry> anchors;
-    collect_anchors (body, path (), anchors);
-    std::vector<TransclusionAnchorPair> pairs=
-      collect_transclusion_pairs (anchors);
+    std::vector<TransclusionAnchorPair> pairs;
+    std::vector<QString> sourceIds;
     QString tag= options.enunciation;
-    if (tag.isEmpty ()) {
+    if (options.nodeModel) {
+      const auto& registry= athena::enunciation::standard_registry ();
+      for (const auto& target: vault_source_targets (body)) {
+        if (vault_search_cancelled ()) return 0;
+        const tree value= subtree (body, target.where);
+        if (!athena::enunciation::is_canonical (value) &&
+            !(tag.isEmpty () && target.kind == "heading")) continue;
+        if (!tag.isEmpty () && !registry.matches_filter (value, tag.toStdString ())) continue;
+        TransclusionAnchorPair item;
+        item.upper= target.title;
+        item.upperWhere= target.where;
+        item.lowerWhere= target.where;
+        pairs.push_back (item);
+        sourceIds.push_back (target.uuid);
+      }
+    }
+    else {
+      std::vector<WikilinkAnchorEntry> anchors;
+      collect_anchors (body, path (), anchors);
+      pairs= collect_transclusion_pairs (anchors);
+    }
+    if (!options.nodeModel && tag.isEmpty ()) {
       std::vector<TransclusionAnchorPair> headings=
         collect_heading_anchor_targets (body, path ());
       pairs.insert (pairs.end (), headings.begin (), headings.end ());
@@ -1393,17 +1486,22 @@ TransclusionSearchPage::searchFile (
     try {
       bool caseInsensitive= options.caseInsensitive;
       bool fuzzy= options.fuzzy;
-      for (const TransclusionAnchorPair& pair: pairs) {
+      for (size_t index=0; index<pairs.size (); ++index) {
+        const auto& pair= pairs[index];
         if (vault_search_cancelled ()) break;
-        if (!tag.isEmpty () &&
+        if (!options.nodeModel && !tag.isEmpty () &&
             !anchor_pair_matches_enunciation (pair, tag))
           continue;
-        tree range= build_preview_from_anchor_range (
-          body, pair.upperWhere, pair.lowerWhere, nullptr, nullptr, false);
+        tree range= options.nodeModel ? subtree (body, pair.upperWhere) :
+          build_preview_from_anchor_range (
+            body, pair.upperWhere, pair.lowerWhere, nullptr, nullptr, false);
         std::vector<VaultContentMatch> matches;
         constexpr int matchLimit= 200;
         append_content_matches (matches, range, query, path (), matchLimit,
                                 caseInsensitive, fuzzy);
+        if (options.nodeModel && matches.empty ())
+          append_content_matches (matches, tree (from_qstring (pair.upper)), query,
+                                  path (), matchLimit, caseInsensitive, fuzzy);
         if (tag.isEmpty () && (int) matches.size () < matchLimit)
           append_heading_matches (matches, range, query, path (),
                                   matchLimit - (int) matches.size (),
@@ -1415,6 +1513,7 @@ TransclusionSearchPage::searchFile (
                           vault_search_match_precedes);
 
         TransclusionSearchResult result;
+        if (options.nodeModel) result.sourceUuid= sourceIds[index];
         result.file= u;
         result.upper= pair.upper;
         result.lower= pair.lower;
@@ -1490,6 +1589,7 @@ TransclusionSearchPage::startSearch () {
   }
 
   VaultSearchOptions options;
+  options.nodeModel= vault_get_node_model_version () >= 1;
   options.query= queryText;
   options.root= to_qstring (as_system_string (vault_get_root ()));
   options.enunciation= selectedEnunciation ();
@@ -1586,10 +1686,20 @@ TransclusionSearchPage::updatePreview (QListWidgetItem* current) {
       .arg (result.occurrence)
       .arg (result.fileHits));
   try {
-    tree body= import_body_for_preview (result.file);
+    tree body= vault_link_source_body (result.file);
     preview.ensureCreated (previewHost);
-    preview.setBody (build_preview_from_anchor_range (
-      body, result.upperWhere, result.lowerWhere));
+    if (!result.sourceUuid.isEmpty ()) {
+      QString error;
+      std::vector<VaultSourceTarget> selected;
+      if (!vault_source_selection (body, {result.sourceUuid}, selected, error)) {
+        preview.setBody (tree (DOCUMENT, from_qstring (error)));
+        return;
+      }
+      preview.setBody (rebase_preview_images (
+        tree (DOCUMENT, copy (subtree (body, selected.front ().where))), head (result.file)));
+    }
+    else preview.setBody (rebase_preview_images (build_preview_from_anchor_range (
+      body, result.upperWhere, result.lowerWhere), head (result.file)));
   }
   catch (...) {
     preview.ensureCreated (previewHost);
@@ -1611,6 +1721,17 @@ TransclusionSearchPage::acceptCurrentResult () {
   int index= item->data (WikilinkIndexRole).toInt ();
   if (index < 0 || index >= (int) results.size ()) return false;
   const TransclusionSearchResult& result= results[index];
+  if (vault_get_node_model_version () >= 1) {
+    QString error;
+    std::vector<VaultSourceTarget> checked;
+    if (!vault_source_selection (vault_link_source_body (result.file),
+                                 {result.sourceUuid}, checked, error)) {
+      QMessageBox::warning (this, "Insert transclusion", error);
+      return false;
+    }
+    w->setResult (result.relPath, {}, {}, {}, {}, {result.sourceUuid});
+    return true;
+  }
   w->setResult (result.relPath, result.upper, result.lower,
                 file_display_stem (result.relPath), result.upper);
   return true;
@@ -1646,7 +1767,8 @@ QTMVaultTransclusionWizard::QTMVaultTransclusionWizard (QWidget* parent)
       setResult (selection.relative_path, selection.upper_anchor,
                  selection.lower_anchor,
                  file_display_stem (selection.relative_path),
-                 selection.upper_anchor);
+                 selection.upper_anchor, selection.source_uuids);
+      return resultAccepted;
     });
 
   setPage (TransclusionModePageId, modePage);
@@ -1688,12 +1810,14 @@ QTMVaultTransclusionWizard::setResult (const QString& relPath,
                                        const QString& anchorBegin,
                                        const QString& anchorEnd,
                                        const QString& fileHint2,
-                                       const QString& anchorHint2) {
+                                       const QString& anchorHint2,
+                                       const QStringList& sourceUuids) {
   selectedRelPath= relPath;
   selectedAnchorBegin= anchorBegin;
   selectedAnchorEnd= anchorEnd;
   fileHint= fileHint2;
   anchorHint= anchorHint2;
+  selectedSourceUuids= sourceUuids;
   resultAccepted= true;
 }
 
@@ -1716,6 +1840,7 @@ QTMVaultTransclusionWizard::selectFileFromPage () {
   selectedAnchorBegin.clear ();
   selectedAnchorEnd.clear ();
   anchorHint.clear ();
+  selectedSourceUuids.clear ();
   selectedUpperIndex= -1;
   selectedUpperAnchor.clear ();
   selectedUpperWhere= path ();
@@ -1732,6 +1857,9 @@ QTMVaultTransclusionWizard::getResult () const {
   res << tree (from_qstring (selectedAnchorEnd));
   res << tree (from_qstring (fileHint));
   res << tree (from_qstring (anchorHint));
+  tree ids (TUPLE);
+  for (const auto& id: selectedSourceUuids) ids << tree (from_qstring (id));
+  res << ids;
   return res;
 }
 

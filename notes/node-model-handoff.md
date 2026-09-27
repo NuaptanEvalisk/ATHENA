@@ -9,13 +9,14 @@
 Artifact source binding/revision、cut/move credential + 跨 actor undo/redo、
 普通新建文档 born-v2、独立 offline node-model vault migration、migrated-vault bare
 wikilink source-UUID cutover 与 generated-anchor producer 删除均已分别完成并提交。
-当前 worktree 又把历史 generated labels 的安全删除接进 offline migration private staging，
-已通过集中验证，正待本次独立提交。
+历史 generated labels 的安全删除已由 `750639634` 接进 offline migration private staging。
+本次接续把 migrated-vault 的 Artifact、文件选择、搜索和 Available 插入入口接到源 UUID；
+Transclusion 产生明确的 UUID 列表，预览保留属性但剥离源身份。细节见下方接续记录。
 **核心 source/runtime/migration/reference 主链已经闭环；主要剩余工作集中在少数
-tree-bearing persistence 边界、migration-time generated-anchor 清理 / anchorless transclusion UI、
+tree-bearing persistence 边界、真实 GUI/actor 生命周期、
 以及最终数据保全/启用验收。**
 
-当前最后代码提交：`78c6d7aa3 improve: cut over migrated wikilinks to source identities`。
+本次接续基线：`750639634 improve: retire generated labels during node migration`。
 此前相邻集成提交：`c465b4605`（offline node-model migration）、
 `727bea0cb`（born-v2 ordinary source）、
 `e5fa5aae6`（source move identity）、
@@ -215,6 +216,10 @@ children:
   Artifact binding 都完成后删除能由旧 map 位置 + 当前结构 + 旧生成命名共同证明的 heading/enunciation
   labels；用户 label 不满足完整证据链就保留。对应 migrated map 单目标行清空 anchor fields，只保 path/UUID
   兼容信息。普通 save/maintenance 永远不做此清理。
+- 🟩 migrated inserter 的数据通路：文件选择、搜索和 Artifact 使用真实 source UUID；
+  Transclusion 输出去重的明确 UUID 列表并拒绝父子重叠。Available 使用 XML v2 快照和
+  shared native locator 遍历 canonical enunciation/transclusion，不再依赖成对 anchors。
+  此绿色限定已编译并定向验证的数据/选择逻辑，真实 GUI 验收仍列蓝色。
 
 ### 🟦 已起步、尚未整体完成
 
@@ -226,17 +231,59 @@ children:
 - 🟦 导出：原始源动态闭包已有真实验证；DataArt/selection 等后续派生转换新增依赖、
   临时 buffer 和交互取消/关闭等还需端到端验收。未准备好的引用必须 fail closed。
 - 🟦 比较/缓存契约审计：基础设施已区分元数据与内容，但尚未审完全部消费点。
+- 🟦 UUID inserter 的真实 GUI 验收：文件/搜索/Artifact/Available 均已接入源 UUID；
+  仍须验证外部重命名后失效文件路径的重新定位、模态期间 owner 关闭/换 vault、
+  自定义样式预览及多选交互。不能把模型层测试当成这些 GUI 验收已经通过。
 
 ### 🟧 尚未完成的关键集成/切换
 
 - 🟧 其余 clipboard/委派及 tree-bearing persistence 边界的统一 v2 切换；normal v2
   load/save/autosave/recovery 和普通新建文档已完成，不应再作为待办重做。
-- 🟧 把 migrated transclusion/Artifact 选择 UI 完全切到 source UUID/object-list；historical generated
-  anchors 的 migration-time 清理已经完成，生产端也不再生成 anchors。随后继续把 map.sqlite 从剩余
-  兼容/rename consumers 中降级。
+- 🟧 继续把 map.sqlite 从剩余兼容/rename consumers 中降级。historical generated anchors 的
+  migration-time 清理和 migrated inserter 的 source UUID/object-list 接入已经完成，不要重做。
 - 🟧 故障注入/数据保全最终验收、用户验收、统一启用及部署。
 
 ## 接手时的代码入口
+
+### 2026-09-28 接续：UUID inserter 集成
+
+本批从 `750639634` 和已有四文件 WIP 继续，没有重做先前 migration/producer 提交。
+
+- `QTMVaultLinkModel` 提供 owner-local source snapshot、UUID 对象枚举、去重和父子重叠校验。
+  文件页显示节点而非 anchor；搜索结果保存 UUID，接受时重新检查新快照，不能用旧 path
+  或旧正文去猜身份。文件路径仍只是 UI 用于读取快照的位置，不写入新链接的恢复语义。
+- `QTMVaultTransclusionWizard` migrated arbitrary 页改为源对象多选；结果第六项是 UUID tuple。
+  `tm-vault.scm` 在 node-model vault 插入 `(transclude (tuple ...))`，不写 map.sqlite。
+  未迁移 vault 的旧范围读取仍保留。
+- `QTMVaultArtifactPage` 删除最后一处 paragraph anchor 自动生成/写源文件；native Wikilink
+  直接指向 `record.source_uuid`，paragraph transclusion 固定为对应段落节点 UUID 列表。
+  实时文档使用同一次 actor document snapshot 提取 body，避免两次快照混用。
+- 段落 artifact 定位首先检查唯一 keyword UUID，不再按相同文字的第几次出现重新认领身份。
+  extraction 内存记录以候选段落快照校验范围；DB 记录没有这些候选，改用已有
+  `documents.content_hash` 校验源内容修订。无匹配证据时拒绝旧 offsets，提示重建 artifact，
+  不启动模型、不在 GUI 重新运行 LaTeX converter，也不改 artifact UUID。
+  这是保守范围校验：DB-only 记录遇到文档其他内容改变也可能要求重建；后续可以持久化
+  明确段落 UUID 列表进一步消除 offsets，不能用内容近似匹配放宽此检查。
+- `QTMVaultAvailableEnunciations` 的 native 分支以共享 `node_location::service` 读取真实
+  UUID fragment，保留顺序，限制递归深度/数量，并报告 cycle/missing/conflict 等状态。
+  页面在 SearchWorker 等待完成/取消，UI 不等待全库扫描；跨线程只传标准字符串 XML。
+  legacy 分支的树快照也切到 XML v2，避免未迁移 vault 中新建 v2 文档的属性丢失。
+- preview rebase 保留 metadata；统一展示入口剥离源 ID/artifact binding，保留 kind/name。
+  Artifact/Available 的选择 callback 返回是否成功，目标消失时不把失败当作正常完成。
+
+验证：正常 `cmake --build build_qt6 --target ATHENA.bin -j20` 成功。仅运行：
+
+- `vault_search_test` 的 `sourceSelectionsUsePersistentObjects`、
+  `sourcePreviewsKeepPropertiesNotIdentities`、`availableSourceEnunciationsFollowUuidSelections`、
+  `availableEnunciationsFollowOnlyReferencedRanges`、`availableEnunciationsKeepUnsavedSourceAndCancel`。
+- `artifacts_test` 的 `locatesNativeParagraphRangeWithoutIdentityGuessing`、
+  `locatesStoredParagraphRange`、`persistsNativeSourceBindingsAndReusesExactModelInput`。
+- 8 个实际测试全部通过；包含 init/cleanup 的 QtTest 汇总分别为 7/0、5/0。
+  使用 offscreen，`ATHENA_PATH=$PWD/ATHENA`，
+  `LD_LIBRARY_PATH=$PWD/build_qt6/athena-guile-runtime/lib:$PWD/ATHENA/lib`。
+  模型推理使用测试 selector/missing-model fixture，不加载真实模型。
+- 编译日志：`build_qt6/node-inserter-build.log`、`build_qt6/node-inserter-tests-build.log`。
+  没有全量测试、部署、生产 Notes 修改或迁移。真实 GUI、外部 rename 与 owner 关闭验收尚未做。
 
 路径均相对仓库 `/home/felix/data/Software/TeXmacs/texmacs`。
 

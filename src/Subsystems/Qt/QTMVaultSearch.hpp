@@ -21,6 +21,7 @@
 #include <vector>
 
 struct WikilinkSearchResult {
+  QString sourceUuid;
   QString relPath;
   url     file;
   int     occurrence;
@@ -33,6 +34,7 @@ struct WikilinkSearchResult {
 };
 
 struct TransclusionSearchResult {
+  QString sourceUuid;
   QString relPath;
   url     file;
   QString upper;

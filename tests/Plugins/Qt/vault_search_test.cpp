@@ -23,6 +23,10 @@
 #include "convert.hpp"
 #include "Qt/QTMVaultSearch.hpp"
 #include "Qt/QTMVaultSearchWorker.hpp"
+#include "Qt/QTMVaultPreviewBuilder.hpp"
+#include "ATHENA/Data/node_reference.hpp"
+#include "Data/Convert/Xml/athena_document_xml.hpp"
+#include "node_metadata.hpp"
 #include <QSemaphore>
 #include "Qt/qt_utilities.hpp"
 #include "drd_std.hpp"
@@ -43,6 +47,9 @@ class TestVaultSearch: public QObject {
 
 private slots:
   void initTestCase ();
+  void sourceSelectionsUsePersistentObjects ();
+  void sourcePreviewsKeepPropertiesNotIdentities ();
+  void availableSourceEnunciationsFollowUuidSelections ();
   void findsStructuredMathematicalExpressions ();
   void filtersCanonicalAndLegacyEnunciations ();
   void keepsConcurrentSearchOptionsIndependent ();
@@ -71,6 +78,116 @@ private slots:
   void modeChoicesCycle ();
   void availableArrowKeysKeepInputFocus ();
 };
+
+void TestVaultSearch::sourceSelectionsUsePersistentObjects () {
+  using namespace athena::node;
+  tree theorem (athena::enunciation::label (), tree (DOCUMENT, "Body"));
+  metadata properties;
+  properties.id= new_id ();
+  properties.properties["kind"]= athena::node::property (std::string ("theorem"));
+  properties.properties["numbered"]= athena::node::property (true);
+  properties.properties["name"]= athena::node::property (rich_text {tree ("Structured name")});
+  set (theorem, properties);
+  tree paragraph ("Second object");
+  metadata second; second.id= new_id (); set (paragraph, second);
+  tree body (DOCUMENT, theorem, paragraph);
+  metadata root; root.id= new_id (); set (body, root);
+  auto targets= vault_source_targets (body);
+  QCOMPARE (targets.size (), std::size_t (3));
+  QVERIFY (targets[1].title.contains ("Structured name"));
+  QCOMPARE (targets[1].where, path (0));
+  QString error;
+  std::vector<VaultSourceTarget> selected;
+  const QString a= QString::fromStdString (properties.id), b= QString::fromStdString (second.id);
+  QVERIFY (vault_source_selection (body, {b, a, b}, selected, error));
+  QCOMPARE (selected.size (), std::size_t (2));
+  QCOMPARE (selected[0].uuid, b);
+  QCOMPARE (selected[1].uuid, a);
+  QVERIFY (!vault_source_selection (body, {QString::fromStdString (root.id), a}, selected, error));
+  QVERIFY (!vault_source_selection (body, {QString::fromStdString (new_id ())}, selected, error));
+  body << copy (theorem);
+  QVERIFY (!vault_source_selection (body, {a}, selected, error));
+  QVERIFY (error.contains ("duplicated"));
+}
+
+void TestVaultSearch::sourcePreviewsKeepPropertiesNotIdentities () {
+  using namespace athena::node;
+  tree source (athena::enunciation::label (), tree (DOCUMENT, "Body"));
+  metadata properties; properties.id= new_id ();
+  properties.properties["kind"]= athena::node::property (std::string ("theorem"));
+  properties.properties["numbered"]= athena::node::property (true);
+  properties.properties["name"]= athena::node::property (rich_text {tree ("")});
+  property::dictionary bindings;
+  bindings["role"]= athena::node::property (new_id ());
+  properties.properties["athena:artifact-bindings"]= athena::node::property (bindings);
+  set (source, properties);
+  tree rebased= rebase_preview_images (source, url_system ("/tmp"));
+  QVERIFY (equal_metadata (source, rebased));
+  tree preview= athena::node_reference::presentation_copy (rebased);
+  QVERIFY (id (preview).empty ());
+  QVERIFY (athena::enunciation::is_canonical (preview));
+  QVERIFY (get (preview)->properties.count ("athena:artifact-bindings") == 0);
+  QVERIFY (id (source) == properties.id);
+}
+
+void TestVaultSearch::availableSourceEnunciationsFollowUuidSelections () {
+  using namespace athena;
+  const std::string local_id= node::new_id (), remote_id= node::new_id (),
+                    missing_id= node::new_id ();
+  auto enunciation= [] (const std::string& id, const char* text) {
+    tree value (athena::enunciation::label (), tree (DOCUMENT, text));
+    node::metadata metadata; metadata.id= id;
+    metadata.properties["kind"]= node::property (std::string ("theorem"));
+    metadata.properties["numbered"]= node::property (true);
+    metadata.properties["name"]= node::property (node::rich_text {tree ("")});
+    node::set (value, metadata);
+    return value;
+  };
+  auto reference= [] (const std::string& id) {
+    return tree (TRANSCLUDE, tree (TUPLE, string (id.data (), id.size ())));
+  };
+  tree local= enunciation (local_id, "Unsaved local theorem");
+  tree remote= enunciation (remote_id, "Remote theorem");
+  remote[0] << reference (remote_id);
+  tree body (DOCUMENT, local, reference (remote_id), reference (missing_id));
+  auto snapshot= std::make_shared<const std::string> (
+    document::write_xml_v2 (body, document::xml_kind::fragment));
+  int calls= 0;
+  auto resolve= [&] (const std::vector<std::string>& ids,
+                     const std::vector<std::string>& ancestry) -> node_location::snapshot {
+    ++calls;
+    auto answer= std::make_shared<node_location::result> ();
+    for (const auto& id: ids) {
+      node_location::item item; item.id= id;
+      if (std::find (ancestry.begin (), ancestry.end (), id) != ancestry.end ()) {
+        item.state= node_location::status::cycle;
+        item.diagnostic= "cycle";
+      }
+      else if (id == remote_id) {
+        item.state= node_location::status::resolved;
+        node_location::location location; location.file= "Remote.ath";
+        item.candidates.push_back (location);
+        item.fragment_xml= document::write_xml_v2 (remote, document::xml_kind::fragment);
+      }
+      else { item.state= node_location::status::missing; item.diagnostic= "missing"; }
+      answer->items.push_back (std::move (item));
+    }
+    return answer;
+  };
+  std::atomic<bool> cancelled {false};
+  const auto found= collect_available_source_enunciations (
+    snapshot, "Local.ath", resolve, cancelled);
+  QCOMPARE (found.entries.size (), std::size_t (2));
+  QCOMPARE (found.entries[0].source_uuid, QString::fromStdString (local_id));
+  QCOMPARE (found.entries[1].source_uuid, QString::fromStdString (remote_id));
+  QVERIFY (found.entries[0].title.contains ("Unsaved local theorem"));
+  QCOMPARE (found.warnings.size (), qsizetype (2));
+  QCOMPARE (calls, 3);
+  cancelled= true;
+  QVERIFY (collect_available_source_enunciations (
+    snapshot, "Local.ath", resolve, cancelled).entries.empty ());
+  QCOMPARE (calls, 3);
+}
 
 void TestVaultSearch::fileRankingLetsQueryBeatCurrent () {
   WikilinkFileEntry lectureOne;
@@ -154,8 +271,8 @@ void TestVaultSearch::availablePreviewHasAnEmbeddingLayout () {
 
 namespace {
 std::shared_ptr<const std::string> availableSnapshot (tree body) {
-  string bytes= tree_to_scheme (body);
-  return std::make_shared<const std::string> (bytes.data (), N (bytes));
+  return std::make_shared<const std::string> (athena::document::write_xml_v2 (
+    body, athena::document::xml_kind::fragment));
 }
 tree enunciationBody (string name, tree content) {
   return tree (DOCUMENT, tree (LABEL, name * " {"),
@@ -184,7 +301,7 @@ void TestVaultSearch::availableEnunciationsFollowOnlyReferencedRanges () {
   auto load= [&] (const QString& file) {
     ++reads[file];
     const auto& bytes= files.at (file);
-    return scheme_to_tree (string (bytes->data (), bytes->size ()));
+    return athena::document::read_xml_v2 (*bytes, athena::document::xml_kind::fragment);
   };
   std::atomic<bool> cancelled {false};
   auto result= collect_available_enunciations (availableSnapshot (local), "A.ath", locate, load, cancelled);
@@ -196,7 +313,8 @@ void TestVaultSearch::availableEnunciationsFollowOnlyReferencedRanges () {
   QCOMPARE (nested.relative_path, QString ("C.ath"));
   QCOMPARE (nested.upper, QString ("lemma:Nested {"));
   QVERIFY (nested.title != "theorem:Excluded");
-  tree source= scheme_to_tree (string (nested.source_body->data (), nested.source_body->size ()));
+  tree source= athena::document::read_xml_v2 (*nested.source_body,
+    athena::document::xml_kind::fragment);
   tree range= athena_transclusion_source_range (source, from_qstring (nested.upper), from_qstring (nested.lower));
   QVERIFY (range != UNINIT);
   std::vector<WikilinkAnchorEntry> anchors;

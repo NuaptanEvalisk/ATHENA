@@ -57,6 +57,9 @@ struct AthenaArtifactRecord {
   // Exact extraction/model input revision. This is intentionally distinct
   // from document storage/content revisions.
   std::string input_fingerprint;
+  // Persisted document content revision used to validate database-only range
+  // offsets when the extraction-time paragraph snapshots are unavailable.
+  std::string source_content_fingerprint;
   std::string keyword_latex;
   std::vector<std::pair<int,std::string>> definition_candidates;
   int document_order= 0;

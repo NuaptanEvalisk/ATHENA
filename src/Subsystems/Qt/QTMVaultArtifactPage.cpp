@@ -16,6 +16,7 @@
 #include "ATHENA/Data/new_buffer.hpp"
 #include "ATHENA/Data/vault.hpp"
 #include "convert.hpp"
+#include "node_metadata.hpp"
 #include "qt_utilities.hpp"
 #include "scheme.hpp"
 
@@ -112,8 +113,8 @@ bool load_artifact_source (const AthenaArtifactRecord& record,
   source.live= live_buffer_for_file (source.file, source.buffer);
   try {
     if (source.live) {
-      source.body= get_buffer_body (source.buffer);
       source.document= get_buffer_tree (source.buffer);
+      source.body= extract (source.document, "body");
     }
     else {
       source.document= import_tree (source.file, "texmacs");
@@ -156,57 +157,6 @@ int tightest_wrapping_pair (
   return best;
 }
 
-QString unique_paragraph_anchor (
-  const AthenaArtifactRecord& record,
-  const std::vector<WikilinkAnchorEntry>& anchors) {
-  QString base= qstr (record.display_text).simplified ();
-  base.remove ('{');
-  base.remove ('}');
-  base.replace (QRegularExpression ("[\\r\\n\\t]+"), " ");
-  if (base.size () > 96) base= base.left (96).trimmed ();
-  if (base.isEmpty ()) {
-    QString id= qstr (record.uuid);
-    base= "Artifact " + (id.isEmpty () ? QString ("paragraph") : id.left (8));
-  }
-
-  std::unordered_set<std::string> used;
-  for (const WikilinkAnchorEntry& anchor: anchors)
-    used.insert (anchor_pair_key (anchor.anchor).toUtf8 ().toStdString ());
-  QString candidate= base;
-  int suffix= 2;
-  while (used.count (candidate.toUtf8 ().toStdString ()))
-    candidate= base + " (" + QString::number (suffix++) + ")";
-  return candidate;
-}
-
-tree insert_paragraph_anchors_at (tree value, path parent, int first, int last,
-                                  const QString& upper,
-                                  const QString& lower) {
-  if (!is_nil (parent)) {
-    int child= parent->item;
-    if (!is_compound (value) || child < 0 || child >= N(value))
-      return copy (value);
-    tree result= copy (value);
-    result[child]= insert_paragraph_anchors_at (
-      value[child], parent->next, first, last, upper, lower);
-    return result;
-  }
-  if (!is_document (value)) return copy (value);
-  tree result (DOCUMENT);
-  for (int i=0; i<N(value); i++) {
-    if (i == first) result << compound ("label", from_qstring (upper));
-    result << copy (value[i]);
-    if (i == last) result << compound ("label", from_qstring (lower));
-  }
-  return result;
-}
-
-tree insert_paragraph_anchors (tree body, path parent, int first, int last,
-                               const QString& upper,
-                               const QString& lower) {
-  return insert_paragraph_anchors_at (
-    body, parent, first, last, upper, lower);
-}
 
 tree select_nested_paragraphs (tree value, path parent, int first, int last) {
   if (!is_nil (parent)) {
@@ -238,22 +188,6 @@ tree build_paragraph_preview (tree body,
   return tree (DOCUMENT, compound ("marked", block));
 }
 
-bool save_anchored_body (ArtifactSource& source, tree body, QString& error) {
-  if (source.live) {
-    set_buffer_body (source.buffer, body);
-    pretend_buffer_modified (source.buffer);
-    source.body= body;
-    return true;
-  }
-  tree document= change_doc_attr (source.document, "body", body);
-  if (export_tree (document, source.file, "texmacs")) {
-    error= "Could not save anchors to the artifact source document.";
-    return false;
-  }
-  source.document= document;
-  source.body= body;
-  return true;
-}
 
 bool resolve_enunciation (
   const AthenaArtifactRecord& record, const ArtifactSource& source,
@@ -275,7 +209,7 @@ bool resolve_enunciation (
 }
 
 bool resolve_paragraph (
-  QWidget* parent, const AthenaArtifactRecord& record, ArtifactSource& source,
+  const AthenaArtifactRecord& record, ArtifactSource& source,
   QTMVaultArtifactSelection& selection, QString& error) {
   AthenaArtifactParagraphLocation location;
   std::string locateError;
@@ -307,23 +241,77 @@ bool resolve_paragraph (
     return true;
   }
 
-  QString message=
-    "This paragraph has no wrapping anchors. ATHENA must add an anchor pair "
-    "to:\n\n" + qstr (record.relative_path) +
-    "\n\nContinue?";
-  if (QMessageBox::question (
-        parent, "Add paragraph anchors", message,
-        QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes) !=
-      QMessageBox::Yes)
-    return false;
+  error= "This legacy paragraph has no existing target. Upgrade the vault node model before linking it.";
+  return false;
+}
 
-  QString stem= unique_paragraph_anchor (record, anchors);
-  selection.upper_anchor= stem + " {";
-  selection.lower_anchor= stem + " }";
-  tree updated= insert_paragraph_anchors (
-    source.body, location.parent, location.first_child, location.last_child,
-    selection.upper_anchor, selection.lower_anchor);
-  return save_anchored_body (source, updated, error);
+bool resolve_migrated_source (
+    const AthenaArtifactRecord& record, const ArtifactSource& source,
+    QTMVaultArtifactUsage usage, QTMVaultArtifactSelection& selection, QString& error) {
+  tree body= source.body;
+  tree document= source.document;
+  if (!athena::node::valid_id (record.source_uuid)) {
+    error= "The Artifact has no persistent source identity. Rebuild artifacts and try again.";
+    return false;
+  }
+  std::vector<VaultSourceTarget> checked;
+  if (!vault_source_selection (source.body, {qstr (record.source_uuid)}, checked, error))
+    return false;
+  selection.wikilink_uuid= qstr (record.source_uuid);
+  if (usage == QTMVaultArtifactUsage::Wikilink) return true;
+  if (record.origin == "enunciation") {
+    path where;
+    std::string locate_error;
+    if (!athena_artifact_locate_source (
+          document, record, where, locate_error)) {
+      error= qstr (locate_error) + ". Rebuild artifacts and try again.";
+      return false;
+    }
+    tree target= is_nil (where) ? body : subtree (body, where);
+    const std::string id= athena::node::id (target);
+    if (!athena::node::valid_id (id)) {
+      error= "The selected enunciation has no persistent source UUID.";
+      return false;
+    }
+    selection.source_uuids << QString::fromStdString (id);
+    return true;
+  }
+  if (record.origin != "bold-text") {
+    error= "Unsupported artifact origin.";
+    return false;
+  }
+
+  AthenaArtifactParagraphLocation location;
+  std::string locate_error;
+  if (!athena_artifact_locate_paragraph (
+        document, record, location, locate_error)) {
+    error= qstr (locate_error) + ". Rebuild artifacts and try again.";
+    return false;
+  }
+  tree parent= is_nil (location.parent) ? body : subtree (body, location.parent);
+  for (int i=location.first_child; i<=location.last_child; ++i) {
+    if (!is_compound (parent) || i < 0 || i >= N(parent)) {
+      error= "The Artifact paragraph range is no longer valid.";
+      return false;
+    }
+    tree child= parent[i];
+    if (is_func (child, LABEL) ||
+        (is_atomic (child) && to_qstring (child->label).trimmed ().isEmpty ()))
+      continue;
+    const std::string id= athena::node::id (child);
+    if (!athena::node::valid_id (id)) {
+      error= "An object in the Artifact paragraph range has no persistent UUID.";
+      return false;
+    }
+    const QString qid= QString::fromStdString (id);
+    if (!selection.source_uuids.contains (qid))
+      selection.source_uuids << qid;
+  }
+  if (selection.source_uuids.isEmpty ()) {
+    error= "The Artifact paragraph range contains no source objects.";
+    return false;
+  }
+  return vault_source_selection (source.body, selection.source_uuids, checked, error);
 }
 
 bool locate_artifact_preview (
@@ -333,6 +321,18 @@ bool locate_artifact_preview (
   if (!load_artifact_source (record, source, error)) return false;
   title= qstr (record.relative_path) + "  --  " + qstr (record.display_text);
   if (record.origin == "enunciation") {
+    if (vault_get_node_model_version () >= 1) {
+      path focus;
+      std::string locate_error;
+      tree document= source.document;
+      if (!athena_artifact_locate_source (
+            document, record, focus, locate_error)) {
+        error= qstr (locate_error) + ". Rebuild artifacts and try again.";
+        return false;
+      }
+      previewBody= build_preview_from_body (source.body, focus);
+      return true;
+    }
     QTMVaultArtifactSelection selection;
     if (!resolve_enunciation (record, source, selection, error)) return false;
     std::vector<WikilinkAnchorEntry> anchors;
@@ -349,8 +349,7 @@ bool locate_artifact_preview (
   else if (record.origin == "bold-text") {
     AthenaArtifactParagraphLocation location;
     std::string locateError;
-    tree document= source.live ? tree (DOCUMENT,
-      compound ("body", source.body)) : source.document;
+    tree document= source.document;
     if (!athena_artifact_locate_paragraph (
           document, record, location, locateError)) {
       error= qstr (locateError) + ". Rebuild artifacts and try again.";
@@ -604,9 +603,11 @@ QTMVaultArtifactPage::resolveSelection (
   }
   selection.relative_path= qstr (record.relative_path);
   selection.display_text= qstr (record.display_text);
-  bool ok= record.origin == "enunciation" ?
-    resolve_enunciation (record, source, selection, error) :
-    resolve_paragraph (this, record, source, selection, error);
+  bool ok= vault_get_node_model_version () >= 1 ?
+    resolve_migrated_source (record, source, usage, selection, error) :
+    (record.origin == "enunciation" ?
+      resolve_enunciation (record, source, selection, error) :
+      resolve_paragraph (record, source, selection, error));
   if (!ok) {
     if (!error.isEmpty ())
       QMessageBox::critical (this, "Select an artifact", error);
@@ -620,7 +621,7 @@ QTMVaultArtifactPage::validatePage () {
   if (selectionAccepted) return true;
   QTMVaultArtifactSelection selection;
   if (!resolveSelection (selection)) return false;
-  if (selectionHandler) selectionHandler (selection);
+  if (selectionHandler && !selectionHandler (selection)) return false;
   selectionAccepted= true;
   return true;
 }

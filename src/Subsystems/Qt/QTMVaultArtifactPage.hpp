@@ -15,6 +15,7 @@
 #include "ATHENA/Data/artifacts.hpp"
 
 #include <QWizardPage>
+#include <QStringList>
 #include <functional>
 #include <vector>
 
@@ -36,12 +37,14 @@ struct QTMVaultArtifactSelection {
   QString upper_anchor;
   QString lower_anchor;
   QString display_text;
+  QStringList source_uuids;
+  QString wikilink_uuid;
 };
 
 class QTMVaultArtifactPage : public QWizardPage {
 public:
   using SelectionHandler=
-    std::function<void (const QTMVaultArtifactSelection&)>;
+    std::function<bool (const QTMVaultArtifactSelection&)>;
 
   QTMVaultArtifactPage (QTMVaultArtifactUsage usage,
                         const char* casePreference,

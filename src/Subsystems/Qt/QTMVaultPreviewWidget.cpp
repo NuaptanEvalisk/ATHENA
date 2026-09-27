@@ -10,6 +10,7 @@
 
 #include "QTMVaultPreviewWidget.hpp"
 #include "QTMVaultPreviewBuilder.hpp"
+#include "ATHENA/Data/node_reference.hpp"
 #include "qt_gui.hpp"
 #include "qt_utilities.hpp"
 #include "qt_widget.hpp"
@@ -74,7 +75,7 @@ WikilinkPreview::ensureCreated (QWidget* parent) {
 
 void
 WikilinkPreview::setBody (tree body) {
-  previewBody= body;
+  previewBody= athena::node_reference::presentation_copy (body);
   if (previewParent != nullptr) recreatePreview ();
 }
 

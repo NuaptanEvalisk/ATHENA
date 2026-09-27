@@ -14,6 +14,8 @@
 #include "QTMVaultPreviewBuilder.hpp"
 #include "QTMVaultSearchWorker.hpp"
 #include "ATHENA/Data/transclusion_cache.hpp"
+#include "ATHENA/Data/vault_node_location.hpp"
+#include "Data/Convert/Xml/athena_document_xml.hpp"
 #include "convert.hpp"
 #include "new_buffer.hpp"
 #include <QCheckBox>
@@ -31,6 +33,7 @@
 #include <QVBoxLayout>
 #include <QWizard>
 #include <algorithm>
+#include <future>
 
 struct QTMVaultAvailablePage::Task {
   std::atomic<bool> cancelled {false}, done {false};
@@ -152,8 +155,10 @@ void QTMVaultAvailablePage::initializePage () {
     return;
   }
   tree body= get_buffer_body (source);
-  string snapshot= tree_to_scheme (body);
-  auto bytes= std::make_shared<const std::string> (snapshot.data (), N (snapshot));
+  const bool native= vault_get_node_model_version () >= 1;
+  auto bytes= std::make_shared<const std::string> (athena::document::write_xml_v2 (
+    body, athena::document::xml_kind::fragment));
+  auto locator= native ? athena::node_location::for_vault (context) : nullptr;
   preview.ensureCreated (previewHost);
   auto job= task;
   auto vault= context;
@@ -163,7 +168,7 @@ void QTMVaultAvailablePage::initializePage () {
   progress->setRange (0, 0);
   stop->setEnabled (true);
   vault_search_workers ().setMaxThreadCount (vault_search_worker_count ());
-  vault_search_workers ().start (QRunnable::create ([job, vault, bytes, path] {
+  vault_search_workers ().start (QRunnable::create ([job, vault, bytes, path, locator] {
     VaultSearchCancellationScope cancellation (&job->cancelled);
     try {
       AthenaVaultMapSqlite map;
@@ -184,7 +189,26 @@ void QTMVaultAvailablePage::initializePage () {
           throw std::runtime_error ("Transclusion source is missing or outside the vault");
         return vault_search_read_body (file);
       };
-      job->result= collect_available_enunciations (bytes, path, locate, load, job->cancelled);
+      if (locator) {
+        auto resolve= [&] (const std::vector<std::string>& ids,
+                           const std::vector<std::string>& ancestry) {
+          using Snapshot= athena::node_location::snapshot;
+          auto completion= std::make_shared<std::promise<Snapshot>> ();
+          auto ready= completion->get_future ();
+          auto request= locator->request (ids, ancestry, true,
+            [completion] (Snapshot answer) { completion->set_value (std::move (answer)); });
+          while (ready.wait_for (std::chrono::milliseconds (250)) != std::future_status::ready)
+            if (job->cancelled.load ()) {
+              request->cancel ();
+              return Snapshot ();
+            }
+          return ready.get ();
+        };
+        job->result= collect_available_source_enunciations (
+          bytes, path, resolve, job->cancelled);
+      }
+      else job->result= collect_available_enunciations (
+        bytes, path, locate, load, job->cancelled);
     }
     catch (const std::exception& error) { job->error= QString::fromUtf8 (error.what ()); }
     catch (...) { job->error= "Could not enumerate available enunciations."; }
@@ -210,7 +234,8 @@ void QTMVaultAvailablePage::filter () {
     const auto& entry= entries[match.second];
     auto* item= new QListWidgetItem (entry.title, list);
     item->setData (Qt::UserRole, static_cast<qulonglong> (match.second));
-    item->setToolTip (entry.relative_path + "\n" + entry.upper);
+    item->setToolTip (entry.relative_path + "\n" +
+      (entry.source_uuid.isEmpty () ? entry.upper : entry.source_uuid));
   }
   if (list->count ()) list->setCurrentRow (0);
   emit completeChanged ();
@@ -220,8 +245,23 @@ void QTMVaultAvailablePage::showPreview () {
   auto* item= list->currentItem ();
   if (!item) { preview.setBody (tree (DOCUMENT, "")); emit completeChanged (); return; }
   const auto& entry= entries.at (item->data (Qt::UserRole).toULongLong ());
-  tree body= scheme_to_tree (string (entry.source_body->data (), entry.source_body->size ()));
-  tree range= athena_transclusion_source_range (body, from_qstring (entry.upper), from_qstring (entry.lower));
+  tree range;
+  if (!entry.source_uuid.isEmpty ()) {
+    tree body= athena::document::read_xml_v2 (*entry.source_body,
+      athena::document::xml_kind::fragment);
+    std::vector<VaultSourceTarget> selected;
+    QString error;
+    if (!vault_source_selection (body, {entry.source_uuid}, selected, error)) {
+      previewTitle->setText (error);
+      return;
+    }
+    range= is_nil (selected[0].where) ? body : subtree (body, selected[0].where);
+  }
+  else {
+    tree body= athena::document::read_xml_v2 (*entry.source_body,
+      athena::document::xml_kind::fragment);
+    range= athena_transclusion_source_range (body, from_qstring (entry.upper), from_qstring (entry.lower));
+  }
   previewTitle->setText (entry.relative_path);
   range= rebase_preview_images (range, head (url_system (
     from_qstring_utf8 (QDir (QString::fromStdString (context->root.string ())).filePath (entry.relative_path)))));
@@ -239,7 +279,8 @@ bool QTMVaultAvailablePage::validatePage () {
   if (!isComplete () || !selectionHandler) return false;
   const auto index= list->currentItem ()->data (Qt::UserRole).toULongLong ();
   const auto& entry= entries.at (index);
-  selectionHandler ({entry.relative_path, entry.upper, entry.lower,
-    display->text ().trimmed ().isEmpty () ? entry.title : display->text ().trimmed ()});
-  return true;
+  return selectionHandler ({entry.relative_path, entry.upper, entry.lower,
+    display->text ().trimmed ().isEmpty () ? entry.title : display->text ().trimmed (),
+    entry.source_uuid.isEmpty () ? QStringList () : QStringList {entry.source_uuid},
+    entry.source_uuid});
 }

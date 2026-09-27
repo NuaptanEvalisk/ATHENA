@@ -13,6 +13,7 @@
 #include "converter.hpp"
 #include "new_buffer.hpp"
 #include "scheme.hpp"
+#include "node_metadata.hpp"
 #include <algorithm>
 
 tree
@@ -47,6 +48,9 @@ rebase_preview_images (tree t, url sourceDir) {
   if (is_atomic (t)) return copy (t);
 
   tree r (L(t));
+  // Properties such as canonical enunciation kind/title affect presentation.
+  // Rebase only paths; identity stripping belongs to the presentation boundary.
+  athena::node::copy_metadata (t, r);
   for (int i=0; i<N(t); i++) {
     if (i == 0 && is_func (t, IMAGE) && is_atomic (t[i]))
       r << tree (preview_rebase_image_path (t[i]->label, sourceDir));

@@ -13,7 +13,103 @@
 #include "qt_utilities.hpp"
 #include "tm_buffer.hpp"
 #include "vault.hpp"
+#include "new_buffer.hpp"
+#include "QTMVaultPreviewBuilder.hpp"
+#include "ATHENA/Data/enunciation_model.hpp"
+#include "ATHENA/Data/heading_word_count.hpp"
+#include "node_metadata.hpp"
 #include <algorithm>
+#include <functional>
+#include <map>
+#include <set>
+
+tree
+vault_link_source_body (url file) {
+  const auto buffers= get_all_buffers ();
+  for (int i=0; i<N(buffers); ++i)
+    if (concretize (buffers[i]) == concretize (file))
+      return get_buffer_body (buffers[i]);
+  return import_body (file);
+}
+
+static QString source_excerpt (const tree& value) {
+  QString text;
+  std::function<void (const tree&)> visit= [&] (const tree& part) {
+    if (text.size () >= 120) return;
+    if (is_atomic (part)) text += to_qstring (part->label).left (120-text.size ()) + " ";
+    else for (int i=0; i<N(part) && text.size () < 120; ++i) visit (part[i]);
+  };
+  visit (value);
+  return text.simplified ();
+}
+
+std::vector<VaultSourceTarget>
+vault_source_targets (const tree& body) {
+  std::vector<VaultSourceTarget> result;
+  const auto& registry= athena::enunciation::standard_registry ();
+  std::function<void (const tree&, path)> visit= [&] (const tree& value, path where) {
+    const auto id= athena::node::id (value);
+    if (athena::node::valid_id (id)) {
+      QString kind, title;
+      if (athena::enunciation::is_canonical (value)) {
+        kind= QString::fromStdString (registry.kind_name (value));
+        title= QString::fromStdString (registry.display_name (value));
+        const auto* metadata= athena::node::get (value);
+        const auto name= metadata->properties.find ("name");
+        if (name != metadata->properties.end ())
+          if (const auto* rich= std::get_if<athena::node::rich_text> (&name->second.data))
+            title += ": " + source_excerpt (rich->content);
+      }
+      else if (athena_heading_level (value) > 0) {
+        kind= "heading";
+        title= to_qstring (athena_heading_title (value));
+      }
+      else if (is_nil (where)) title= "Whole document";
+      if (title.isEmpty ()) title= is_atomic (value) ? "Paragraph" :
+        to_qstring (as_string (L(value)));
+      QString excerpt= source_excerpt (value);
+      if (excerpt.size () > 120) excerpt= excerpt.left (117) + "...";
+      if (!excerpt.isEmpty ()) title += ": " + excerpt;
+      result.push_back ({QString::fromStdString (id), title, kind, where});
+    }
+    if (is_compound (value))
+      for (int i=0; i<N(value); ++i) visit (value[i], where * i);
+  };
+  visit (body, path ());
+  return result;
+}
+
+bool
+vault_source_selection (const tree& body, const QStringList& requested,
+                        std::vector<VaultSourceTarget>& selected, QString& error) {
+  selected.clear ();
+  error.clear ();
+  const auto targets= vault_source_targets (body);
+  std::map<QString, std::vector<const VaultSourceTarget*>> by_id;
+  for (const auto& target: targets) by_id[target.uuid].push_back (&target);
+  std::set<QString> seen;
+  for (const auto& id: requested) {
+    if (!seen.insert (id).second) continue;
+    const auto found= by_id.find (id);
+    if (found == by_id.end () || found->second.size () != 1) {
+      error= found == by_id.end () ? "The selected source object no longer exists." :
+                                    "The selected source UUID is duplicated.";
+      selected.clear ();
+      return false;
+    }
+    const auto& target= *found->second.front ();
+    for (const auto& prior: selected)
+      if (prior.where <= target.where || target.where <= prior.where) {
+        error= "Select either a parent object or its children, not both.";
+        selected.clear ();
+        return false;
+      }
+    selected.push_back (target);
+  }
+  if (!selected.empty ()) return true;
+  error= "Select a source object first.";
+  return false;
+}
 
 QString
 strip_known_extension (QString s) {

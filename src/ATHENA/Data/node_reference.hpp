@@ -24,6 +24,8 @@ std::uint64_t source_epoch ();
 bool canonical (const tree&);
 std::vector<std::string> targets (const tree&);
 tree display (const view&);
+// Independent rendering copy retaining semantic properties, not source identity.
+tree presentation_copy (const tree&, const url& base= url_none ());
 // A single-target preview inherits its source style, initial values and preamble.
 tree preview_document (const view&, url& source);
 inline constexpr const char* ancestry_variable= "athena-node-reference-ancestry";

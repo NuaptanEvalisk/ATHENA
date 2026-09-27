@@ -9,7 +9,12 @@
 ******************************************************************************/
 #include "QTMVaultAvailableEnunciations.hpp"
 #include "QTMVaultAnchorModel.hpp"
+#include "QTMVaultLinkModel.hpp"
 #include "ATHENA/Data/transclusion_cache.hpp"
+#include "ATHENA/Data/node_reference.hpp"
+#include "ATHENA/Data/enunciation_model.hpp"
+#include "Data/Convert/Xml/athena_document_xml.hpp"
+#include "node_metadata.hpp"
 #include "convert.hpp"
 #include "qt_utilities.hpp"
 #include <deque>
@@ -19,8 +24,8 @@
 
 namespace {
 std::shared_ptr<const std::string> serialize (tree body) {
-  string bytes= tree_to_scheme (body);
-  return std::make_shared<const std::string> (bytes.data (), N (bytes));
+  return std::make_shared<const std::string> (athena::document::write_xml_v2 (
+    body, athena::document::xml_kind::fragment));
 }
 struct Source {
   tree body;
@@ -37,8 +42,8 @@ AvailableEnunciations collect_available_enunciations (
   const std::atomic<bool>& cancelled) {
   AvailableEnunciations result;
   std::map<QString, Source> sources;
-  sources.emplace (source_path, Source {scheme_to_tree (
-    string (source_body->data (), source_body->size ())), source_body});
+  sources.emplace (source_path, Source {athena::document::read_xml_v2 (
+    *source_body, athena::document::xml_kind::fragment), source_body});
   std::deque<Range> pending {{source_path, {}, {}, 0}};
   std::set<Key> visited, emitted;
   std::size_t inspected= 0;
@@ -99,6 +104,83 @@ AvailableEnunciations collect_available_enunciations (
     }
     catch (const std::exception& error) {
       result.warnings << range.file + ": " + QString::fromUtf8 (error.what ());
+    }
+  }
+  return result;
+}
+
+AvailableEnunciations collect_available_source_enunciations (
+  std::shared_ptr<const std::string> source_body, const QString& source_path,
+  const std::function<athena::node_location::snapshot (
+    const std::vector<std::string>&, const std::vector<std::string>&)>& resolve,
+  const std::atomic<bool>& cancelled) {
+  AvailableEnunciations result;
+  struct Selection {
+    QString file;
+    std::shared_ptr<const std::string> xml;
+    std::vector<std::string> ancestry;
+  };
+  std::deque<Selection> pending {{source_path, source_body, {}}};
+  std::set<QString> emitted;
+  std::set<std::string> visited;
+  std::size_t inspected= 0;
+  while (!pending.empty () && !cancelled.load ()) {
+    auto selection= std::move (pending.front ());
+    pending.pop_front ();
+    try {
+      tree body= athena::document::read_xml_v2 (*selection.xml,
+        athena::document::xml_kind::fragment);
+      const auto targets= vault_source_targets (body);
+      std::map<QString, unsigned> counts;
+      for (const auto& target: targets) ++counts[target.uuid];
+      for (const auto& target: targets) {
+        if (cancelled.load ()) return result;
+        tree source= is_nil (target.where) ? body : subtree (body, target.where);
+        if (!athena::enunciation::is_canonical (source) || selection.file.isEmpty ())
+          continue;
+        if (counts[target.uuid] != 1) {
+          result.warnings << selection.file + ": duplicated source UUID " + target.uuid;
+          continue;
+        }
+        if (emitted.insert (target.uuid).second)
+          result.entries.push_back ({selection.file, {}, {}, target.title,
+                                     target.kind, selection.xml, target.uuid});
+      }
+      std::vector<tree> stack {body};
+      while (!stack.empty () && !cancelled.load ()) {
+        tree value= std::move (stack.back ()); stack.pop_back ();
+        if (++inspected > 1000000 || selection.ancestry.size () > 64) {
+          result.warnings << "Document traversal limit reached.";
+          return result;
+        }
+        if (athena::node_reference::canonical (value)) {
+          auto ids= athena::node_reference::targets (value);
+          auto located= resolve (ids, selection.ancestry);
+          if (!located) continue;
+          for (const auto& item: located->items) {
+            if (item.state != athena::node_location::status::resolved) {
+              result.warnings << selection.file + ": " +
+                QString::fromStdString (item.id + ": " + item.diagnostic);
+              continue;
+            }
+            if (!visited.insert (item.id).second) continue;
+            if (visited.size () > 10000) {
+              result.warnings << "Transclusion traversal limit reached.";
+              return result;
+            }
+            auto ancestry= selection.ancestry;
+            ancestry.push_back (item.id);
+            pending.push_back ({QString::fromStdString (item.candidates.at (0).file),
+              std::make_shared<const std::string> (item.fragment_xml), std::move (ancestry)});
+          }
+          continue;
+        }
+        if (is_compound (value))
+          for (int i=N(value)-1; i>=0; --i) stack.push_back (value[i]);
+      }
+    }
+    catch (const std::exception& error) {
+      result.warnings << selection.file + ": " + QString::fromUtf8 (error.what ());
     }
   }
   return result;

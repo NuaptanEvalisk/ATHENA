@@ -59,6 +59,7 @@ private slots:
   void boundsBoldDefinitionCandidatesAtEnunciations ();
   void isolatesStructuredBoldBlocks ();
   void locatesStoredParagraphRange ();
+  void locatesNativeParagraphRangeWithoutIdentityGuessing ();
   void locatesStructuredEnunciationsAfterEdits ();
   void excludesOnlyArtifactDefiningOccurrences ();
   void excludesEntireDefinitionsFromRadioactiveLinks ();
@@ -678,6 +679,42 @@ TestArtifacts::locatesStoredParagraphRange () {
   QVERIFY (!athena_artifact_locate_paragraph (
     document, *bold, location, error));
   QCOMPARE (error, std::string ("Artifact paragraph range is not continuous"));
+}
+
+void
+TestArtifacts::locatesNativeParagraphRangeWithoutIdentityGuessing () {
+  MissingRangeModel noModel;
+  tree keyword= compound ("strong", "covering map");
+  athena::node::metadata identity;
+  identity.id= athena::node::new_id ();
+  athena::node::set (keyword, identity);
+  tree paragraph (CONCAT, "A ", keyword, " has a local covering property.");
+  tree body (DOCUMENT, paragraph, "More context.");
+  tree document (DOCUMENT, compound ("body", body));
+  std::vector<AthenaArtifactRecord> records;
+  std::string error;
+  QVERIFY2 (athena_artifacts_extract_document (document, "native.ath", records, error), error.c_str ());
+  auto record= std::find_if (records.begin (), records.end (), [] (const auto& r) {
+    return r.origin == "bold-text";
+  });
+  QVERIFY (record != records.end ());
+  record->source_uuid= identity.id;
+  record->paragraph_offsets= {0};
+  AthenaArtifactParagraphLocation location;
+  QVERIFY2 (athena_artifact_locate_paragraph (document, *record, location, error), error.c_str ());
+  tree other= athena::document_node::duplicate_source_nodes (paragraph);
+  tree shifted (DOCUMENT, other, paragraph, "More context.");
+  tree shifted_document (DOCUMENT, compound ("body", shifted));
+  QVERIFY2 (athena_artifact_locate_paragraph (shifted_document, *record, location, error), error.c_str ());
+  QCOMPARE (location.focus_child, 1);
+  tree deleted (DOCUMENT, compound ("body", tree (DOCUMENT, other)));
+  QVERIFY (!athena_artifact_locate_paragraph (deleted, *record, location, error));
+  tree duplicate (DOCUMENT, compound ("body", tree (DOCUMENT, paragraph, copy (paragraph))));
+  QVERIFY (!athena_artifact_locate_paragraph (duplicate, *record, location, error));
+  tree edited= copy (document);
+  edited[0][0][0][2]= "The definition changed.";
+  QVERIFY (!athena_artifact_locate_paragraph (edited, *record, location, error));
+  QVERIFY (error.find ("stale") != std::string::npos);
 }
 
 void
@@ -2396,6 +2433,18 @@ TestArtifacts::persistsNativeSourceBindingsAndReusesExactModelInput () {
   std::ifstream first_input (source, std::ios::binary);
   std::string first_bytes ((std::istreambuf_iterator<char> (first_input)), {});
   tree persisted= athena::document::read_xml_v2 (first_bytes);
+  const auto& stored_range= by_role["bold-text-definition"];
+  QVERIFY (stored_range.definition_candidates.empty ());
+  QVERIFY (!stored_range.source_content_fingerprint.empty ());
+  AthenaArtifactParagraphLocation stored_location;
+  QVERIFY2 (athena_artifact_locate_paragraph (
+    persisted, stored_range, stored_location, error), error.c_str ());
+  tree stale= copy (persisted);
+  stale[1][0][1] << tree (" Changed definition.");
+  QVERIFY (!athena_artifact_locate_paragraph (
+    stale, stored_range, stored_location, error));
+  QVERIFY (error.find ("stale") != std::string::npos);
+  error.clear ();
   tree persisted_body= persisted[1][0];
   QCOMPARE (athena::node::id (persisted_body[0]),
             std::string ("22222222-2222-4222-8222-222222222222"));
