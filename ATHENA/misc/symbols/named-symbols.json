@@ -4018,7 +4018,11 @@
     {
       "identity": "texmacs:longequal",
       "math_class": "infix",
-      "glyph": "＝",
+      "recipe": [
+        "scale-x",
+        2.0,
+        "="
+      ],
       "slant": "upright"
     },
     {

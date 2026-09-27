@@ -191,6 +191,12 @@ private slots:
              longminus->virtual_font == "tradi-long" &&
              longminus->virtual_symbol == "longminus" &&
              longminus->op_type == OP_INFIX);
+    const auto* longequal= registry.lookup ("texmacs:longequal");
+    QVERIFY (longequal && longequal->glyph_utf8.empty () &&
+             longequal->virtual_font.empty () && longequal->recipe &&
+             longequal->recipe->kind == named_symbol_recipe_kind::scale_x &&
+             std::abs (longequal->recipe->parameter - 2.0) < 1e-9 &&
+             longequal->op_type == OP_INFIX);
     const auto* native_recipe= registry.lookup ("texmacs:Yleft");
     QVERIFY (native_recipe && native_recipe->glyph_utf8.empty () &&
              native_recipe->virtual_font.empty () && native_recipe->recipe &&
@@ -304,6 +310,17 @@ private slots:
     const SI minus_center= (minus_box->y3 + minus_box->y4) >> 1;
     const SI longminus_center= (longminus_box->y3 + longminus_box->y4) >> 1;
     QVERIFY (std::abs (longminus_center - minus_center) <= PIXEL);
+    auto equal_items= typeset_concat (env, tree ("="), path (0));
+    auto longequal_items= typeset_concat (
+      env, tree (NAMED_SYMBOL, "texmacs:longequal"), path (0));
+    QCOMPARE (N(equal_items), 1);
+    QCOMPARE (N(longequal_items), 1);
+    const box equal_box= equal_items[0]->b;
+    const box longequal_box= longequal_items[0]->b;
+    QVERIFY (longequal_box->w () >= (equal_box->w () * 19) / 10);
+    const SI equal_center= (equal_box->y3 + equal_box->y4) >> 1;
+    const SI longequal_center= (longequal_box->y3 + longequal_box->y4) >> 1;
+    QVERIFY (std::abs (longequal_center - equal_center) <= PIXEL);
     const tree unknown (NAMED_SYMBOL, "unregistered:symbol");
     QVERIFY (env->exec (unknown) == unknown);
     auto missing= typeset_concat (env, unknown, path (0));
@@ -627,6 +644,7 @@ private slots:
   void nativeMathTabVariants () {
     QVERIFY (native_math_keyboard_has_registered_key ("A-t tab"));
     QVERIFY (native_math_keyboard_has_registered_key ("- -"));
+    QVERIFY (native_math_keyboard_has_registered_key ("= ="));
     QCOMPARE (test_server->kbd_pre_rewrite ("math t var"),
               string ("A-t tab"));
     QCOMPARE (test_server->kbd_pre_rewrite ("- var"), string ("- tab"));
