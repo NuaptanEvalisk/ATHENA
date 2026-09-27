@@ -13,6 +13,7 @@
 
 #include "Kernel/Types/node_metadata.hpp"
 #include "drd_info.hpp"
+#include "modification.hpp"
 
 #include <functional>
 #include <optional>
@@ -27,7 +28,7 @@ enum class issue {
   invalid_body, invalid_id, duplicate_id, unsupported_ambiguous_role,
   invalid_role_declaration, allocation_failed, resource_limit,
   invalid_metadata, missing_property, unknown_property, wrong_property_type,
-  invalid_property_value, unsafe_rich_text
+  invalid_property_value, unsafe_rich_text, invalid_path, protected_property
 };
 
 struct diagnostic {
@@ -135,6 +136,30 @@ bool is_namespaced_extension (const std::string& name);
 // presenting stored content, including trees with executable-looking tags.
 std::vector<diagnostic> validate_node_properties (
   const tree& source, limits budget= {});
+
+struct property_edit {
+  node::property::dictionary set;
+  std::vector<std::string> remove;
+  bool ensure_id= false;
+};
+
+struct prepared_property_edit {
+  // Empty on a successful no-op. Apply only on the owner, before another edit.
+  std::optional<modification> change;
+  std::string id;
+  std::vector<diagnostic> diagnostics;
+  bool ok () const { return diagnostics.empty (); }
+};
+
+// Preflight only; neither mutates source nor deep-copies its body. The scope
+// must be the owning document for live edits, so rich-text IDs cannot collide
+// with body IDs. Metadata is cloned, untouched children remain owner-local.
+// UUIDs can only be assigned when absent. Reserved artifact bindings cannot be
+// edited here. Apply the returned modification through the observer/history
+// path, never node::set on a live source. This is not a cross-actor API.
+prepared_property_edit prepare_property_edit (
+  const tree& scope, const source_path& where, const property_edit& edit,
+  limits budget= {});
 
 } // namespace athena::document_node
 

@@ -10,6 +10,7 @@
 
 #include "ATHENA/Data/document_node_model.hpp"
 #include "ATHENA/Data/heading_word_count.hpp"
+#include "ATHENA/Data/document_node_copy.hpp"
 #include "unicode_text.hpp"
 
 #include <algorithm>
@@ -212,8 +213,11 @@ role_declaration roles_for (const tree& source, drd_info drd,
     }
     if (child.block == BLOCK_REQUIRE_INLINE)
       result.children.push_back (child_role::inline_content);
-    else if (child.block == BLOCK_REQUIRE_BLOCK ||
-             drd->get_child_name (L(source), index) == "body")
+    // Legacy child_info initializes block to zero (BLOCK_REQUIRE_BLOCK), even
+    // for CONCAT. It is not evidence of a declared paragraph/body boundary.
+    // Nested DOCUMENTs are recognized structurally; other body slots need a
+    // named DRD contract or the caller's explicit role declaration.
+    else if (drd->get_child_name (L(source), index) == "body")
       result.children.push_back (child_role::body);
     else result.children.push_back (child_role::content);
   }
@@ -401,6 +405,17 @@ public:
               error (issue::invalid_property_value, entry.first, "Expected nonempty kind");
           }
         }
+        else if (entry.first == artifact_bindings_property) {
+          const auto* bindings= std::get_if<node::property::dictionary> (&entry.second.data);
+          if (!bindings)
+            error (issue::wrong_property_type, entry.first, "Artifact bindings require a role-to-UUID dictionary");
+          else for (const auto& binding: *bindings) {
+            const auto* id= std::get_if<std::string> (&binding.second.data);
+            if (binding.first.empty () || !id || !node::valid_id (*id))
+              error (issue::invalid_property_value, entry.first + "/" + binding.first,
+                     "Artifact binding requires a nonempty role and canonical UUID");
+          }
+        }
         else if (!is_namespaced_extension (entry.first))
           error (issue::unknown_property, entry.first, "Unknown property must be namespaced");
         value (entry.second, entry.first, 0);
@@ -489,6 +504,65 @@ std::vector<diagnostic> validate_node_properties (
   catch (const std::exception& error) {
     return {{{}, "", issue::invalid_metadata, error.what ()}};
   }
+}
+
+prepared_property_edit prepare_property_edit (
+    const tree& scope, const source_path& where, const property_edit& edit,
+    limits budget) {
+  prepared_property_edit result;
+  try {
+    if (where.size () > budget.maximum_depth)
+      fail (where, issue::resource_limit, "Property edit path exceeds depth budget");
+    tree target= scope;
+    path location;
+    for (int index: where) {
+      if (!is_compound (target) || index < 0 || index >= N(target))
+        fail (where, issue::invalid_path, "Property edit target no longer exists");
+      target= target[index];
+      location= location * path (index);
+    }
+    if (is_generic (target) || L(target) == UNINIT)
+      fail (where, issue::invalid_metadata, "Cannot edit properties of opaque or uninitialized data");
+    node::metadata metadata;
+    if (const auto* old= node::get (target)) metadata= *old;
+    const auto writable= [&] (const std::string& key) {
+      if (key == "id" || key == "uuid" || key == artifact_bindings_property)
+        fail (where, issue::protected_property, "Identity is not an editable property", key);
+    };
+    std::set<std::string> removed;
+    for (const auto& key: edit.remove) {
+      writable (key);
+      if (key.empty () || !removed.insert (key).second || edit.set.count (key))
+        fail (where, issue::invalid_property_value, "Ambiguous property removal", key);
+      metadata.properties.erase (key);
+    }
+    for (const auto& entry: edit.set) {
+      writable (entry.first);
+      metadata.properties.insert_or_assign (entry.first, entry.second);
+    }
+    if (edit.ensure_id && metadata.id.empty ()) metadata.id= node::new_id ();
+
+    // Preserve physical child indices and avoid copying the body for metadata
+    // validation. node::set owns copies of any incoming rich property trees.
+    tree candidate= is_atomic (target) ? tree (target->label) : tree (L(target), N(target));
+    if (is_compound (target))
+      for (int i= 0; i < N(target); ++i) candidate[i]= target[i];
+    node::set (candidate, metadata);
+    result.diagnostics= validate_node_properties (candidate, budget);
+    for (auto& error: result.diagnostics) error.where= where;
+    if (!result.ok ()) return result;
+    const auto mod= mod_set_metadata (location, candidate);
+    // clean_apply copies only the ancestor spine. Audit occurrences, not
+    // tree_rep addresses: sharing the same annotated child twice is a conflict.
+    identity_audit (budget).inspect (clean_apply (scope, mod));
+    result.id= metadata.id;
+    if (!node::equal_metadata (target, candidate)) result.change= mod;
+  }
+  catch (const failure& problem) { result.diagnostics.push_back (problem.value); }
+  catch (const std::exception& error) {
+    result.diagnostics.push_back ({where, "", issue::invalid_metadata, error.what ()});
+  }
+  return result;
 }
 
 } // namespace athena::document_node

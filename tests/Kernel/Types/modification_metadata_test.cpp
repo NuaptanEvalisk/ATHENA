@@ -12,6 +12,7 @@
 #include "archiver.hpp"
 #include "new_document.hpp"
 #include "node_metadata.hpp"
+#include "ATHENA/Data/document_node_model.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }
@@ -430,6 +431,36 @@ private slots:
     QVERIFY (commute (a, b));
     QVERIFY (!commute (a, mod_insert (path (0), 0, "x")));
     QVERIFY (is_nil (cursor_hint (patch (a, invert (a, source)), source)));
+  }
+
+  void preparedPropertyEditUsesOneUndoStep () {
+    namespace model= athena::document_node;
+    tree document= make_document_tree ();
+    with_document_tree context (&document);
+    set_document (document, path (0), tree (DOCUMENT, "Paragraph"));
+    const tree before= copy (document[0]);
+    double author= new_author (), previous= get_author ();
+    set_author (author);
+    {
+      archiver history (author, path (0));
+      model::property_edit edit;
+      edit.ensure_id= true;
+      edit.set["test:flag"]= athena::node::property (true);
+      edit.set["test:title"]= athena::node::property (athena::node::rich_text {
+        compound ("em", "Structured")});
+      auto prepared= model::prepare_property_edit (document[0], {0}, edit);
+      QVERIFY (prepared.ok () && prepared.change);
+      ::apply (document[0], *prepared.change);
+      history->confirm ();
+      tree changed= copy (document[0]);
+      QCOMPARE (athena::node::id (changed[0]), prepared.id);
+      history->undo ();
+      QCOMPARE (document[0], before);
+      history->redo ();
+      QCOMPARE (document[0], changed);
+      QCOMPARE (athena::node::id (document[0][0]), prepared.id);
+    }
+    set_author (previous);
   }
 };
 

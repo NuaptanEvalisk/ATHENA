@@ -12,6 +12,8 @@
 
 #include "ATHENA/Data/document_node_model.hpp"
 #include "ATHENA/Data/enunciation_model.hpp"
+#include "ATHENA/Data/document_node_copy.hpp"
+#include "patch.hpp"
 #include "drd_std.hpp"
 
 #include <algorithm>
@@ -73,6 +75,10 @@ private slots:
   void rejects_duplicates_and_allocator_collisions ();
   void ambiguous_roles_and_budgets_fail_before_allocation ();
   void attribution_year_and_inert_extensions ();
+  void property_update_preserves_identity_and_replays ();
+  void property_update_is_atomic_and_protects_bindings ();
+  void property_update_rejects_rich_identity_collisions ();
+  void property_update_handles_atoms_and_noops ();
 };
 
 void TestDocumentNodeModel::deterministic_paragraphs_and_headings () {
@@ -144,7 +150,7 @@ void TestDocumentNodeModel::drd_roles_and_code_boundaries () {
   const auto tag= make_tree_label ("test-body-and-code");
   drd->info (tag)= tag_info (2, 0, ARITY_NORMAL, CHILD_DETAILED)->
     type (0, TYPE_REGULAR)->accessible (0)->name (0, "body")->
-    type (1, TYPE_CODE)->accessible (1);
+    accessible (1)->type (1, TYPE_CODE);
   tree hidden (DOCUMENT, "Not content");
   tree source (DOCUMENT, tree (tag, tree (DOCUMENT, "Content"), hidden),
                tree (MACRO, "body", hidden), tree (QUOTE, hidden),
@@ -278,6 +284,130 @@ void TestDocumentNodeModel::attribution_year_and_inert_extensions () {
   budget.maximum_nodes= 1;
   QVERIFY (has_issue (model::validate_node_properties (source, budget),
                      model::issue::resource_limit));
+}
+
+void TestDocumentNodeModel::property_update_preserves_identity_and_replays () {
+  tree statement= canonical ();
+  set_id (statement, existing_id);
+  tree source (DOCUMENT, statement, "Untouched");
+  tree before= copy (source);
+  tree title (CONCAT, "Hahn-Banach ", compound ("em", "Theorem"));
+  model::property_edit edit;
+  edit.set["name"]= node::property (node::rich_text {title});
+  edit.set["year"]= node::property (std::string ("19XX"));
+  edit.set["attribution"]= node::property (node::property::list {
+    node::property (node::rich_text {tree ("Hahn")}),
+    node::property (node::rich_text {tree ("Banach")})});
+  auto prepared= model::prepare_property_edit (source, {0}, edit);
+  QVERIFY (prepared.ok ());
+  QVERIFY (prepared.change.has_value ());
+  QVERIFY (prepared.change.value ()->k == MOD_SET_METADATA);
+  QCOMPARE (source, before);
+  auto inverse= invert (*prepared.change, source);
+  auto changed= clean_apply (source, *prepared.change);
+  QCOMPARE (node::id (changed[0]), existing_id);
+  QVERIFY (strong_equal (changed[0][0], source[0][0]));
+  QVERIFY (strong_equal (changed[1], source[1]));
+  title[0]= "Changed outside";
+  auto name= std::get<node::rich_text> (node::get (changed[0])->properties.at ("name").data).content;
+  QCOMPARE (name[0], tree ("Hahn-Banach "));
+  auto undone= clean_apply (changed, inverse);
+  QCOMPARE (undone, source);
+  QCOMPARE (clean_apply (undone, *prepared.change), changed);
+}
+
+void TestDocumentNodeModel::property_update_is_atomic_and_protects_bindings () {
+  tree source= canonical ();
+  node::metadata metadata= *node::get (source);
+  metadata.properties[model::artifact_bindings_property]= node::property (
+    node::property::dictionary {{"statement", node::property (existing_id)}});
+  metadata.properties["future:extension"]= node::property (std::string ("Keep me"));
+  node::set (source, metadata);
+  tree before= copy (source);
+  model::property_edit edit;
+  edit.set["year"]= node::property (std::int64_t (2000));
+  edit.set["kind"]= node::property (std::string ("lemma"));
+  auto invalid= model::prepare_property_edit (source, {}, edit);
+  QVERIFY (!invalid.ok ());
+  QVERIFY (!invalid.change);
+  QCOMPARE (source, before);
+  edit.set.erase ("year");
+  auto valid= model::prepare_property_edit (source, {}, edit);
+  QVERIFY (valid.ok () && valid.change);
+  auto output= clean_apply (source, *valid.change);
+  QVERIFY (node::equal (node::get (output)->properties.at (model::artifact_bindings_property),
+                       metadata.properties.at (model::artifact_bindings_property)));
+  QVERIFY (node::equal (node::get (output)->properties.at ("future:extension"),
+                       metadata.properties.at ("future:extension")));
+  for (const std::string key: {"id", "uuid", model::artifact_bindings_property}) {
+    edit= {};
+    edit.set[key]= node::property (existing_id);
+    QVERIFY (!model::prepare_property_edit (source, {}, edit).ok ());
+    edit.set.clear ();
+    edit.remove.push_back (key);
+    QVERIFY (!model::prepare_property_edit (source, {}, edit).ok ());
+  }
+  edit= {};
+  edit.remove= {"kind"};
+  QVERIFY (!model::prepare_property_edit (source, {}, edit).ok ());
+  edit.remove= {"future:extension", "future:extension"};
+  QVERIFY (!model::prepare_property_edit (source, {}, edit).ok ());
+  edit.remove= {"future:extension"};
+  edit.set["future:extension"]= node::property (true);
+  QVERIFY (!model::prepare_property_edit (source, {}, edit).ok ());
+  metadata.properties[model::artifact_bindings_property]= node::property (true);
+  node::set (source, metadata);
+  QVERIFY (!model::validate_node_properties (source).empty ());
+}
+
+void TestDocumentNodeModel::property_update_rejects_rich_identity_collisions () {
+  tree paragraph ("Identity owner");
+  set_id (paragraph, existing_id);
+  tree source (DOCUMENT, canonical (), paragraph);
+  model::property_edit edit;
+  edit.set["name"]= node::property (node::rich_text {paragraph});
+  auto conflict= model::prepare_property_edit (source, {0}, edit);
+  QVERIFY (has_issue (conflict.diagnostics, model::issue::duplicate_id));
+  QVERIFY (!conflict.change);
+  QVERIFY (!model::prepare_property_edit (source, {-1}, edit).ok ());
+  QVERIFY (!model::prepare_property_edit (source, {2}, edit).ok ());
+  QVERIFY (!model::prepare_property_edit (source, {1, 0}, edit).ok ());
+  QVERIFY (!model::prepare_property_edit (tree (UNINIT), {}, edit).ok ());
+  edit.set["name"]= node::property (node::rich_text {node::duplicate (paragraph)});
+  auto accepted= model::prepare_property_edit (source, {0}, edit);
+  QVERIFY (accepted.ok () && accepted.change);
+  auto output= clean_apply (source, *accepted.change);
+  // Replacing a rich property with its existing identity is not a duplicate.
+  QVERIFY (model::prepare_property_edit (output, {0}, edit).ok ());
+  model::limits budget;
+  budget.maximum_nodes= 1;
+  QVERIFY (!model::prepare_property_edit (source, {0}, edit, budget).ok ());
+}
+
+void TestDocumentNodeModel::property_update_handles_atoms_and_noops () {
+  tree source (DOCUMENT, "Atomic paragraph");
+  model::property_edit edit;
+  edit.ensure_id= true;
+  edit.set["test:enabled"]= node::property (false);
+  auto prepared= model::prepare_property_edit (source, {0}, edit);
+  QVERIFY (prepared.ok () && prepared.change);
+  QVERIFY (node::valid_id (prepared.id));
+  auto inverse= invert (*prepared.change, source);
+  auto output= clean_apply (source, *prepared.change);
+  QCOMPARE (node::id (output[0]), prepared.id);
+  auto repeated= model::prepare_property_edit (output, {0}, edit);
+  QVERIFY (repeated.ok () && !repeated.change);
+  QCOMPARE (repeated.id, prepared.id);
+  auto undone= clean_apply (output, inverse);
+  QCOMPARE (undone, source);
+  QCOMPARE (node::id (clean_apply (undone, *prepared.change)[0]), prepared.id);
+  edit= {};
+  edit.remove= {"test:enabled"};
+  auto removal= model::prepare_property_edit (output, {0}, edit);
+  QVERIFY (removal.ok () && removal.change);
+  output= clean_apply (output, *removal.change);
+  QCOMPARE (node::id (output[0]), prepared.id);
+  QVERIFY (node::get (output[0])->properties.empty ());
 }
 
 QTEST_MAIN (TestDocumentNodeModel)
