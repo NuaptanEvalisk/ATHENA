@@ -11,8 +11,16 @@
 #include "document_file_codec.hpp"
 #include "document_upgrade_file.hpp"
 #include "vault_directory_lease.hpp"
+#include "ATHENA/Data/artifacts.hpp"
+#include "ATHENA/Data/document_node_copy.hpp"
+#include "ATHENA/Data/document_node_model.hpp"
+#include "ATHENA/Data/enunciation_model.hpp"
+#include "ATHENA/Data/heading_word_count.hpp"
+#include "ATHENA/Data/vault_map_sqlite.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
+#include "new_style.hpp"
 #include "drd_std.hpp"
+#include "node_metadata.hpp"
 #include "unicode_text.hpp"
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -22,18 +30,25 @@
 #include <QJsonObject>
 #include <QProcess>
 #include <QStandardPaths>
+#include <QUrl>
 #include <QUuid>
 #include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <csignal>
+#include <cstring>
 #include <fcntl.h>
 #include <future>
 #include <iomanip>
 #include <iostream>
 #include <map>
+#include <optional>
+#include <set>
 #include <sstream>
 #include <thread>
+#include <unordered_map>
+#include <unordered_set>
+#include <sqlite3.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <unistd.h>
@@ -203,7 +218,7 @@ legacy_import_limits limits () {
   return out;
 }
 void clone (const fs::path& source, const fs::path& target,
-            const vault_upgrade_progress& progress) {
+             const vault_upgrade_progress& progress) {
   const auto cp= QStandardPaths::findExecutable ("cp");
   require (!cp.isEmpty (), "GNU coreutils cp is required for metadata-preserving vault snapshots");
   QProcess process;
@@ -224,12 +239,536 @@ void clone (const fs::path& source, const fs::path& target,
   require (process.exitStatus () == QProcess::NormalExit && process.exitCode () == 0,
            "Snapshot copy failed: " + diagnostics.right (8192).toStdString ());
 }
+
+using node_path= athena::document_node::source_path;
+
+struct node_model_document {
+  fs::path path;
+  tree document;
+  std::size_t assigned= 0;
+  std::size_t converted_enunciations= 0;
+};
+
+struct map_resolution {
+  AthenaVaultMapNode source;
+  node_model_document* document= nullptr;
+  std::optional<node_path> direct;
+  std::vector<node_path> range_roots;
+  std::vector<std::string> targets;
+  std::string diagnostic;
+};
+
+struct artifact_binding_update {
+  std::string artifact_uuid;
+  std::string source_uuid;
+  std::string role;
+};
+
+std::string native_text (string value) {
+  return std::string (as_charp (value), (std::size_t) N(value));
+}
+
+std::string source_path_text (const node_path& value) {
+  std::string out;
+  for (int index: value) out += "/" + std::to_string (index);
+  return out.empty () ? "/" : out;
+}
+
+tree& tree_at (tree& root, const node_path& where) {
+  tree* current= &root;
+  for (int index: where) {
+    require (is_compound (*current) && index >= 0 && index < N(*current),
+             "Node-model migration path no longer exists: " +
+             source_path_text (where));
+    current= &(*current)[index];
+  }
+  return *current;
+}
+
+const tree& tree_at (const tree& root, const node_path& where) {
+  const tree* current= &root;
+  for (int index: where) {
+    require (is_compound (*current) && index >= 0 && index < N(*current),
+             "Node-model migration path no longer exists: " +
+             source_path_text (where));
+    current= &(*current)[index];
+  }
+  return *current;
+}
+
+tree& document_body_ref (tree& document) {
+  for (int i=0; i<N(document); ++i)
+    if (is_compound (document[i], "body", 1) &&
+        is_func (document[i][0], DOCUMENT))
+      return document[i][0];
+  throw std::runtime_error ("Native XML document has no DOCUMENT body");
+}
+
+const tree& document_body_ref (const tree& document) {
+  for (int i=0; i<N(document); ++i)
+    if (is_compound (document[i], "body", 1) &&
+        is_func (document[i][0], DOCUMENT))
+      return document[i][0];
+  throw std::runtime_error ("Native XML document has no DOCUMENT body");
+}
+
+bool whitespace_only (const tree& value) {
+  return is_atomic (value) &&
+    QString::fromUtf8 (as_charp (value->label), N(value->label)).trimmed ().isEmpty ();
+}
+
+bool label_node (const tree& value, std::string* text= nullptr) {
+  if (!is_func (value, LABEL, 1) || !is_atomic (value[0])) return false;
+  if (text) *text= native_text (value[0]->label);
+  return true;
+}
+
+void find_labels (const tree& value, const std::string& label, node_path where,
+                  std::vector<node_path>& out) {
+  std::string text;
+  if (label_node (value, &text) && text == label) out.push_back (where);
+  if (!is_compound (value)) return;
+  for (int i=0; i<N(value); ++i) {
+    node_path child= where;
+    child.push_back (i);
+    find_labels (value[i], label, std::move (child), out);
+  }
+}
+
+node_path unique_label (const tree& body, const std::string& label) {
+  std::vector<node_path> matches;
+  find_labels (body, label, {}, matches);
+  require (matches.size () == 1,
+           matches.empty () ?
+             "Legacy anchor is missing: " + label :
+             "Legacy anchor is ambiguous: " + label);
+  return matches.front ();
+}
+
+node_path parent_path (node_path path) {
+  require (!path.empty (), "Legacy anchor cannot be the document body");
+  path.pop_back ();
+  return path;
+}
+
+std::optional<node_path> next_substantive_sibling (
+    const tree& body, const node_path& where) {
+  node_path parent= parent_path (where);
+  const tree& container= tree_at (body, parent);
+  const int start= where.back () + 1;
+  for (int i=start; i<N(container); ++i) {
+    if (whitespace_only (container[i])) continue;
+    node_path result= parent;
+    result.push_back (i);
+    return result;
+  }
+  return std::nullopt;
+}
+
+bool ends_with (const std::string& value, const char* suffix) {
+  const std::size_t n= std::strlen (suffix);
+  return value.size () >= n &&
+    value.compare (value.size () - n, n, suffix) == 0;
+}
+
+std::string wrapper_base (const std::string& value, const char* suffix) {
+  return ends_with (value, suffix) ?
+    value.substr (0, value.size () - std::strlen (suffix)) : std::string ();
+}
+
+map_resolution resolve_map_node (
+    const AthenaVaultMapNode& node,
+    std::unordered_map<std::string,node_model_document*>& documents) {
+  map_resolution result;
+  result.source= node;
+  const fs::path relative= fs::path (node.path).lexically_normal ();
+  if (relative.empty () || relative.is_absolute ()) {
+    result.diagnostic= "Map target path is not vault-relative";
+    return result;
+  }
+  for (const auto& part: relative)
+    if (part == "..") {
+      result.diagnostic= "Map target path escapes the vault";
+      return result;
+    }
+  auto document= documents.find (relative.generic_string ());
+  if (document == documents.end ()) {
+    result.diagnostic= "Map target document is missing: " + relative.generic_string ();
+    return result;
+  }
+  result.document= document->second;
+  const tree& body= document_body_ref (result.document->document);
+  try {
+    if (node.anchor_begin.empty () && node.anchor_end.empty ()) {
+      result.direct= node_path {};
+      return result;
+    }
+
+    const std::string probe=
+      !node.anchor_begin.empty () ? node.anchor_begin : node.anchor_end;
+    node_path first= unique_label (body, probe);
+
+    // Generated heading anchors and generated enunciation upper anchors both
+    // identify the following source object exactly. User labels remain
+    // first-class explicit targets rather than guessing a containing paragraph.
+    if (node.anchor_begin.empty () || node.anchor_begin == node.anchor_end) {
+      auto next= next_substantive_sibling (body, first);
+      if (next) {
+        const tree& target= tree_at (body, *next);
+        const bool heading= athena_heading_level (target) > 0;
+        const bool wrapper= ends_with (probe, " {");
+        if (heading || wrapper) {
+          result.direct= *next;
+          return result;
+        }
+      }
+      result.direct= first;
+      return result;
+    }
+
+    node_path last= unique_label (body, node.anchor_end);
+    const node_path first_parent= parent_path (first);
+    const node_path last_parent= parent_path (last);
+    require (first_parent == last_parent,
+             "Legacy range anchors do not share a structural parent");
+    require (first.back () < last.back (),
+             "Legacy range anchors are reversed");
+    const tree& container= tree_at (body, first_parent);
+
+    const std::string upper= wrapper_base (node.anchor_begin, " {");
+    const std::string lower= wrapper_base (node.anchor_end, " }");
+    if (!upper.empty () && upper == lower) {
+      int substantive= -1, count= 0;
+      for (int i=first.back () + 1; i<last.back (); ++i)
+        if (!whitespace_only (container[i])) { substantive= i; ++count; }
+      require (count == 1,
+               "Generated enunciation anchors do not enclose exactly one source object");
+      node_path target= first_parent;
+      target.push_back (substantive);
+      result.direct= std::move (target);
+      return result;
+    }
+
+    for (int i=first.back () + 1; i<last.back (); ++i) {
+      if (whitespace_only (container[i])) continue;
+      node_path target= first_parent;
+      target.push_back (i);
+      result.range_roots.push_back (std::move (target));
+    }
+    require (!result.range_roots.empty (),
+             "Legacy transclusion range contains no source objects");
+  }
+  catch (const std::exception& error) { result.diagnostic= error.what (); }
+  return result;
+}
+
+std::string role_name (athena::document_node::identity_role role) {
+  using role_t= athena::document_node::identity_role;
+  switch (role) {
+  case role_t::body: return "body";
+  case role_t::paragraph: return "paragraph";
+  case role_t::heading: return "heading";
+  case role_t::enunciation: return "enunciation";
+  }
+  return "unknown";
+}
+
+std::string deterministic_uuid (
+    const std::string& relative, const std::string& purpose,
+    const node_path& where, const std::string& category= {}) {
+  QByteArray seed ("athena-node-model-migration-v1\0", 31);
+  seed.append (relative.data (), (qsizetype) relative.size ());
+  seed.append ('\0');
+  seed.append (purpose.data (), (qsizetype) purpose.size ());
+  seed.append ('\0');
+  seed.append (category.data (), (qsizetype) category.size ());
+  seed.append ('\0');
+  for (int index: where) {
+    const std::string item= std::to_string (index);
+    seed.append (item.data (), (qsizetype) item.size ());
+    seed.append ('/');
+  }
+  QByteArray digest= QCryptographicHash::hash (seed, QCryptographicHash::Sha256);
+  unsigned char bytes[16];
+  std::memcpy (bytes, digest.constData (), sizeof bytes);
+  bytes[6]= (bytes[6] & 0x0f) | 0x50;
+  bytes[8]= (bytes[8] & 0x3f) | 0x80;
+  static constexpr char hex[]= "0123456789abcdef";
+  std::string out;
+  out.reserve (36);
+  for (int i=0; i<16; ++i) {
+    if (i == 4 || i == 6 || i == 8 || i == 10) out.push_back ('-');
+    out.push_back (hex[bytes[i] >> 4]);
+    out.push_back (hex[bytes[i] & 15]);
+  }
+  return out;
+}
+
+athena::enunciation::conversion_options migration_enunciation_options (
+    const fs::path& root, const AthenaVaultfileInfo& info) {
+  athena::enunciation::conversion_options options;
+  bool number_solutions= true;
+  fs::path relative= info.preferences_path.empty () ?
+    fs::path ("vprefs.json") : fs::path (info.preferences_path);
+  if (!relative.empty () && !relative.is_absolute ()) {
+    bool safe= true;
+    for (const auto& part: relative) if (part == "..") safe= false;
+    require (safe, "Vault preferences path escapes the vault");
+    const fs::path file= root / relative;
+    if (fs::exists (file)) {
+      require (relative.extension () == ".json",
+               "Node-model migration requires JSON vault preferences");
+      const std::string text= bytes (root, relative);
+      QJsonParseError parse;
+      QJsonDocument json= QJsonDocument::fromJson (
+        QByteArray (text.data (), (qsizetype) text.size ()), &parse);
+      require (parse.error == QJsonParseError::NoError && json.isObject (),
+               "Invalid vault preferences JSON");
+      const QJsonObject object= json.object ();
+      require (object.value ("format").toString () == "athena-preferences" &&
+               object.value ("version").toInt () == 1 &&
+               object.value ("preferences").isObject (),
+               "Unsupported vault preferences JSON");
+      const QJsonValue value=
+        object.value ("preferences").toObject ().value ("number solutions");
+      if (value.isString ()) {
+        const QString setting= value.toString ();
+        require (setting == "on" || setting == "off",
+                 "Invalid 'number solutions' vault preference");
+        number_solutions= setting == "on";
+      }
+    }
+  }
+  else require (relative.empty (), "Vault preferences path must be vault-relative");
+  options.numbering_preferences["number solutions"]= number_solutions;
+  return options;
+}
+
+void assign_id (tree& node, const std::string& id) {
+  require (athena::node::valid_id (id), "Migration allocator produced invalid UUID");
+  athena::node::metadata metadata;
+  if (const auto* current= athena::node::get (node)) metadata= *current;
+  if (!metadata.id.empty ()) {
+    require (metadata.id == id, "Conflicting source identity during migration");
+    return;
+  }
+  metadata.id= id;
+  athena::node::set (node, metadata);
+}
+
+void collect_top_level_ids (const tree& value, std::vector<std::string>& out) {
+  const std::string id= athena::node::id (value);
+  if (!id.empty ()) {
+    out.push_back (id);
+    return;
+  }
+  if (!is_compound (value)) return;
+  for (int i=0; i<N(value); ++i) collect_top_level_ids (value[i], out);
+}
+
+void dedupe_ids (std::vector<std::string>& ids) {
+  std::unordered_set<std::string> seen;
+  std::vector<std::string> out;
+  for (const std::string& id: ids)
+    if (seen.insert (id).second) out.push_back (id);
+  ids= std::move (out);
+}
+
+void collect_ids (const tree& value, const std::string& owner,
+                  std::unordered_map<std::string,std::string>& global) {
+  const std::string id= athena::node::id (value);
+  if (!id.empty ()) {
+    auto inserted= global.emplace (id, owner);
+    require (inserted.second,
+             "Duplicate migrated UUID " + id + " in " + owner +
+             " and " + inserted.first->second);
+  }
+  if (!is_compound (value)) return;
+  for (int i=0; i<N(value); ++i) collect_ids (value[i], owner, global);
+}
+
+std::string mapped_single (
+    const std::unordered_map<std::string,std::vector<std::string>>& aliases,
+    const std::string& old, const std::string& context) {
+  auto found= aliases.find (old);
+  require (found != aliases.end (),
+           "Unresolved legacy reference " + old + " in " + context);
+  require (found->second.size () == 1,
+           "Legacy reference " + old + " resolves to multiple source objects in " +
+           context);
+  return found->second.front ();
+}
+
+bool rewrite_tmfs_uuid (
+    tree& destination,
+    const std::unordered_map<std::string,std::vector<std::string>>& aliases,
+    const char* prefix, const std::string& context, std::size_t& changed) {
+  if (!is_atomic (destination)) return false;
+  std::string value= native_text (destination->label);
+  const std::string head (prefix);
+  if (value.rfind (head, 0) != 0) return false;
+  std::size_t end= value.find_first_of ("/?#", head.size ());
+  const std::string old= value.substr (
+    head.size (), end == std::string::npos ? std::string::npos : end-head.size ());
+  const std::string next= mapped_single (aliases, old, context);
+  if (next != old) {
+    value.replace (head.size (), old.size (), next);
+    destination->label= string (value.data (), (int) value.size ());
+    ++changed;
+  }
+  return true;
+}
+
+void rewrite_references (
+    tree& value,
+    const std::unordered_map<std::string,std::vector<std::string>>& aliases,
+    const std::string& context, std::size_t& changed) {
+  if (is_atomic (value)) return;
+  if ((is_func (value, HLINK, 2) || is_compound (value, "hlink", 2))) {
+    if (!rewrite_tmfs_uuid (
+          value[1], aliases, "tmfs://wikilink/", context, changed))
+      (void) rewrite_tmfs_uuid (
+        value[1], aliases, "tmfs://Wikilink/", context, changed);
+    (void) rewrite_tmfs_uuid (
+      value[1], aliases, "tmfs://transclude/", context, changed);
+  }
+  if ((is_func (value, TRANSCLUDE, 4) ||
+       is_compound (value, "transclude", 4)) && is_atomic (value[0])) {
+    const std::string old= native_text (value[0]->label);
+    auto found= aliases.find (old);
+    require (found != aliases.end (),
+             "Unresolved legacy transclusion " + old + " in " + context);
+    tree ids (TUPLE);
+    for (const std::string& id: found->second)
+      ids << string (id.data (), (int) id.size ());
+    tree replacement (TRANSCLUDE, ids);
+    athena::node::copy_metadata (value, replacement);
+    value= std::move (replacement);
+    ++changed;
+    return;
+  }
+  if (is_func (value, TRANSCLUDE, 1) && is_tuple (value[0])) {
+    std::vector<std::string> ids;
+    bool mapped= false;
+    for (int i=0; i<N(value[0]); ++i) {
+      require (is_atomic (value[0][i]),
+               "Malformed canonical transclusion in " + context);
+      const std::string old= native_text (value[0][i]->label);
+      auto found= aliases.find (old);
+      if (found == aliases.end ()) {
+        throw std::runtime_error (
+          "Unresolved canonical transclusion " + old + " in " + context);
+      }
+      else {
+        ids.insert (ids.end (), found->second.begin (), found->second.end ());
+        mapped|= found->second.size () != 1 || found->second.front () != old;
+      }
+    }
+    dedupe_ids (ids);
+    if (mapped) {
+      tree tuple_ids (TUPLE);
+      for (const std::string& id: ids)
+        tuple_ids << string (id.data (), (int) id.size ());
+      value[0]= std::move (tuple_ids);
+      ++changed;
+    }
+  }
+  for (int i=0; i<N(value); ++i)
+    rewrite_references (value[i], aliases, context, changed);
+}
+
+node_path native_to_source_path (path value) {
+  node_path reversed;
+  for (; !is_nil (value); value= value->next) reversed.push_back (value->item);
+  // Native path iteration is root-to-leaf; preserve that order.
+  return reversed;
+}
+
+void update_artifact_binding_database (
+    const fs::path& root, const AthenaVaultfileInfo& info,
+    const std::vector<artifact_binding_update>& bindings) {
+  if (bindings.empty ()) return;
+  const fs::path relative (info.artifacts_path);
+  require (!relative.empty () && !relative.is_absolute (),
+           "Artifact database path must be vault-relative");
+  for (const auto& part: relative)
+    require (part != "..", "Artifact database path escapes the vault");
+  if (!fs::exists (root / relative)) return;
+  filesystem::confined_root confined (root);
+  (void) confined.open (relative);
+  sqlite3* db= nullptr;
+  require (sqlite3_open_v2 (
+    (root / relative).c_str (), &db,
+    SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOFOLLOW, nullptr) == SQLITE_OK,
+    "Could not open staged Artifact database");
+  const auto close= [&] { if (db) sqlite3_close (db); db= nullptr; };
+  try {
+    auto exec= [&] (const char* sql) {
+      char* message= nullptr;
+      int code= sqlite3_exec (db, sql, nullptr, nullptr, &message);
+      std::string detail= message ? message : "";
+      sqlite3_free (message);
+      require (code == SQLITE_OK,
+               detail.empty () ? "Artifact database update failed" : detail);
+    };
+    auto has_column= [&] (const char* name) {
+      sqlite3_stmt* st= nullptr;
+      require (sqlite3_prepare_v2 (
+        db, "SELECT 1 FROM pragma_table_info('artifacts') WHERE name=?1;",
+        -1, &st, nullptr) == SQLITE_OK, sqlite3_errmsg (db));
+      sqlite3_bind_text (st, 1, name, -1, SQLITE_STATIC);
+      const bool found= sqlite3_step (st) == SQLITE_ROW;
+      sqlite3_finalize (st);
+      return found;
+    };
+    exec ("BEGIN IMMEDIATE;");
+    if (!has_column ("source_uuid"))
+      exec ("ALTER TABLE artifacts ADD COLUMN source_uuid TEXT NOT NULL DEFAULT '';");
+    if (!has_column ("source_role"))
+      exec ("ALTER TABLE artifacts ADD COLUMN source_role TEXT NOT NULL DEFAULT '';");
+    sqlite3_stmt* update= nullptr;
+    require (sqlite3_prepare_v2 (
+      db, "UPDATE artifacts SET source_uuid=?1,source_role=?2 WHERE uuid=?3;",
+      -1, &update, nullptr) == SQLITE_OK, sqlite3_errmsg (db));
+    for (const auto& binding: bindings) {
+      sqlite3_reset (update);
+      sqlite3_clear_bindings (update);
+      sqlite3_bind_text (update, 1, binding.source_uuid.c_str (), -1, SQLITE_TRANSIENT);
+      sqlite3_bind_text (update, 2, binding.role.c_str (), -1, SQLITE_TRANSIENT);
+      sqlite3_bind_text (update, 3, binding.artifact_uuid.c_str (), -1, SQLITE_TRANSIENT);
+      require (sqlite3_step (update) == SQLITE_DONE, sqlite3_errmsg (db));
+      require (sqlite3_changes (db) == 1,
+               "Artifact disappeared during staged migration: " +
+               binding.artifact_uuid);
+    }
+    sqlite3_finalize (update);
+    exec ("CREATE UNIQUE INDEX IF NOT EXISTS artifacts_source_binding_idx "
+          "ON artifacts(source_uuid,source_role) "
+          "WHERE source_uuid<>'' AND source_role<>'';");
+    exec ("COMMIT;");
+    sqlite3_stmt* check= nullptr;
+    require (sqlite3_prepare_v2 (db, "PRAGMA quick_check;", -1, &check, nullptr) ==
+             SQLITE_OK, sqlite3_errmsg (db));
+    require (sqlite3_step (check) == SQLITE_ROW &&
+             std::string ((const char*) sqlite3_column_text (check, 0)) == "ok",
+             "Artifact database failed quick_check after migration");
+    sqlite3_finalize (check);
+    exec ("PRAGMA wal_checkpoint(TRUNCATE);");
+    close ();
+  }
+  catch (...) {
+    if (db) sqlite3_exec (db, "ROLLBACK;", nullptr, nullptr, nullptr);
+    close ();
+    throw;
+  }
+}
+
 volatile std::sig_atomic_t interrupted= 0;
 void cancel_signal (int) { interrupted= 1; }
 } // namespace
 
 vault_upgrade_result upgrade_vault_format (const fs::path& requested,
-                                           const vault_upgrade_progress& progress) {
+                                            const vault_upgrade_progress& progress) {
 #ifndef __linux__
   throw std::runtime_error ("Atomic vault format upgrade requires Linux renameat2(RENAME_EXCHANGE)");
 #else
@@ -354,6 +893,442 @@ vault_upgrade_result upgrade_vault_format (const fs::path& requested,
 #endif
 }
 
+vault_node_model_upgrade_result
+upgrade_vault_node_model (
+    const fs::path& requested, const vault_upgrade_progress& progress) {
+#ifndef __linux__
+  throw std::runtime_error (
+    "Atomic vault node-model upgrade requires Linux renameat2(RENAME_EXCHANGE)");
+#else
+  const auto absolute= fs::absolute (requested).lexically_normal ();
+  require (!fs::is_symlink (fs::symlink_status (absolute)),
+           "Vault root must not be a symlink");
+  const auto root= fs::canonical (absolute);
+  text::require_utf8 (root.native ());
+  require (root != root.root_path (), "Cannot upgrade filesystem root");
+  filesystem::vault_directory_lease lease (root, true);
+  descriptor parent (
+    ::open (root.parent_path ().c_str (), O_RDONLY | O_DIRECTORY | O_CLOEXEC));
+  struct stat parent_info {}, root_info {};
+  require (::fstat (parent.value, &parent_info) == 0 &&
+           ::fstat (lease.descriptor (), &root_info) == 0 &&
+           parent_info.st_dev == root_info.st_dev,
+           "Vault must not be a mount point; atomic sibling exchange requires "
+           "the same filesystem");
+
+  AthenaVaultfileInfo info;
+  std::string error;
+  require (athena_vaultfile_read (root, info, error), error);
+  require (info.node_model_version == 0 || info.node_model_version == 1,
+           "Unsupported vault node-model version " +
+           std::to_string (info.node_model_version));
+
+  const auto original= scan (root, progress, "Inventory");
+  std::vector<fs::path> document_paths;
+  for (const auto& [path, record]: original) {
+    if (!is_document_file (path)) continue;
+    require (S_ISREG (record.info.st_mode) && record.info.st_nlink == 1,
+             "Document must be a regular, unlinked file: " + path.string ());
+    const auto source= bytes (root, path);
+    try {
+      const auto decoded= decode_document_bytes (source, root / path, limits ());
+      if (info.node_model_version == 0) {
+        require (
+          decoded.format == document_source_format::xml_v1,
+          decoded.legacy () ?
+            "Node-model migration requires UTF-8 XML input; run "
+            "--upgrade-vault-format first: " + path.string () :
+            "Unmarked vault contains XML v2 document: " + path.string ());
+        require ((record.info.st_mode & 0222) != 0,
+                 "Read-only document: " + path.string ());
+      }
+      else {
+        require (decoded.format == document_source_format::xml_v2,
+                 "node_model_version=1 vault contains a non-v2 document: " +
+                 path.string ());
+        athena::document_node::source_identity_state identities;
+        const tree& body= document_body_ref (decoded.document);
+        const auto diagnostics= identities.initialize_complete (
+          body, standard_drd_for_thread (),
+          athena::document_node::standard_source_role);
+        require (diagnostics.empty (),
+                 "Invalid migrated identity baseline in " + path.string () +
+                 (diagnostics.empty () ? "" : ": " +
+                  diagnostics.front ().detail));
+      }
+    }
+    catch (const std::exception& failure) {
+      throw std::runtime_error (
+        "Invalid document " + path.string () + ": " + failure.what ());
+    }
+    document_paths.push_back (path);
+    report (progress, "Validate node-model input",
+            document_paths.size (), 0, path);
+  }
+
+  vault_node_model_upgrade_result result;
+  if (info.node_model_version == 1) {
+    std::unordered_map<std::string,std::string> ids;
+    for (const fs::path& path: document_paths) {
+      auto decoded= decode_document_bytes (
+        bytes (root, path), root / path, limits ());
+      collect_ids (
+        document_body_ref (decoded.document), path.generic_string (), ids);
+    }
+    result.already_v2= document_paths.size ();
+    return result;
+  }
+
+  const auto workspace= root.parent_path () /
+    ("." + root.filename ().string () + ".node-model-upgrade-" +
+     QUuid::createUuid ().toString (QUuid::WithoutBraces).toStdString ());
+  require (::mkdir (workspace.c_str (), 0700) == 0,
+           "Cannot create private node-model upgrade workspace");
+  const auto staged= workspace / "vault";
+  bool exchanged= false;
+  try {
+    fs::create_directory (staged);
+    report (progress, "Recovery directory", 0, 0, workspace);
+    clone (root, staged, progress);
+    filesystem::vault_directory_lease staged_lease (staged, true);
+    compare (original, scan (staged, progress, "Verify snapshot"), false);
+
+    AthenaVaultfileInfo staged_info;
+    require (athena_vaultfile_read (staged, staged_info, error), error);
+    require (staged_info.node_model_version == 0,
+             "Snapshot node-model version changed before migration");
+    const auto conversion_options=
+      migration_enunciation_options (staged, staged_info);
+
+    std::vector<AthenaArtifactRecord> artifacts;
+    error.clear ();
+    require (athena_artifacts_query (
+      staged, artifacts, error, true), error.empty () ?
+      "Could not read staged Artifact index" : error);
+    std::unordered_map<std::string,std::vector<AthenaArtifactRecord>>
+      artifacts_by_document;
+    for (const auto& artifact: artifacts)
+      artifacts_by_document[
+        fs::path (artifact.relative_path).lexically_normal ().generic_string ()]
+          .push_back (artifact);
+
+    std::vector<AthenaVaultMapNode> map_nodes;
+    const fs::path map_relative (staged_info.map_path);
+    if (fs::exists (staged / map_relative)) {
+      require (!map_relative.empty () && !map_relative.is_absolute (),
+               "Vault map path must be vault-relative");
+      for (const auto& part: map_relative)
+        require (part != "..", "Vault map path escapes the vault");
+      filesystem::confined_root confined (staged);
+      (void) confined.open (map_relative);
+      AthenaVaultMapSqlite map;
+      require (map.open_read_only (staged / map_relative, error), error);
+      require (map.read_all (map_nodes, error), error);
+      map.close ();
+    }
+
+    std::vector<node_model_document> documents;
+    documents.reserve (document_paths.size ());
+    std::unordered_map<std::string,node_model_document*> by_path;
+    std::size_t done= 0;
+    for (const fs::path& path: document_paths) {
+      report (progress, "Canonicalize source", done, document_paths.size (), path);
+      const auto decoded= decode_document_bytes (
+        bytes (staged, path), staged / path, limits ());
+      require (decoded.format == document_source_format::xml_v1,
+               "Snapshot is no longer XML v1: " + path.string ());
+      tree document= copy (decoded.document);
+      tree& body= document_body_ref (document);
+      auto converted= athena::enunciation::convert_detached_source (
+        body, conversion_options);
+      require (converted.diagnostics.empty (),
+               "Cannot canonicalize " + path.string () + ": " +
+               (converted.diagnostics.empty () ? std::string () :
+                converted.diagnostics.front ().detail));
+      body= std::move (converted.source);
+      documents.push_back (
+        {path, std::move (document), 0, converted.converted});
+      by_path[path.generic_string ()]= &documents.back ();
+      report (progress, "Canonicalize source", ++done,
+              document_paths.size (), path);
+    }
+
+    std::vector<map_resolution> resolutions;
+    resolutions.reserve (map_nodes.size ());
+    std::unordered_map<std::string,std::map<node_path,std::vector<std::string>>>
+      direct_aliases;
+    for (const auto& node: map_nodes) {
+      map_resolution resolution= resolve_map_node (node, by_path);
+      if (resolution.document && resolution.direct)
+        direct_aliases[resolution.document->path.generic_string ()]
+                      [*resolution.direct].push_back (node.uuid);
+      resolutions.push_back (std::move (resolution));
+    }
+
+    std::unordered_map<std::string,std::map<node_path,std::string>> preferred;
+    for (auto& [relative, paths]: direct_aliases)
+      for (auto& [where, aliases]: paths) {
+        std::sort (aliases.begin (), aliases.end ());
+        for (const std::string& alias: aliases)
+          if (athena::node::valid_id (alias)) {
+            preferred[relative][where]= alias;
+            break;
+          }
+      }
+
+    done= 0;
+    for (node_model_document& document: documents) {
+      report (progress, "Assign source identities", done,
+              documents.size (), document.path);
+      tree& body= document_body_ref (document.document);
+      const std::string relative= document.path.generic_string ();
+      auto identities= athena::document_node::assign_detached_source_ids (
+        body, standard_drd_for_thread (),
+        athena::document_node::standard_source_role,
+        [&] (const athena::document_node::identity_request& request) {
+          auto preferred_path= preferred[relative].find (request.where);
+          if (preferred_path != preferred[relative].end ())
+            return preferred_path->second;
+          return deterministic_uuid (
+            relative, role_name (request.role), request.where,
+            request.category);
+        });
+      require (identities.ok (),
+               "Could not assign source identities in " + relative +
+               (identities.diagnostics.empty () ? "" : ": " +
+                identities.diagnostics.front ().detail));
+      body= std::move (*identities.body);
+      document.assigned= identities.assigned.size ();
+
+      auto direct= direct_aliases.find (relative);
+      if (direct != direct_aliases.end ())
+        for (const auto& [where, aliases]: direct->second) {
+          tree& target= tree_at (body, where);
+          if (!athena::node::id (target).empty ()) continue;
+          auto choice= preferred[relative].find (where);
+          assign_id (
+            target, choice != preferred[relative].end () ?
+              choice->second :
+              deterministic_uuid (relative, "legacy-target", where));
+          ++document.assigned;
+        }
+      report (progress, "Assign source identities", ++done,
+              documents.size (), document.path);
+    }
+
+    std::vector<artifact_binding_update> artifact_updates;
+    for (node_model_document& document: documents) {
+      const std::string relative= document.path.generic_string ();
+      auto found= artifacts_by_document.find (relative);
+      if (found == artifacts_by_document.end ()) continue;
+      tree& body= document_body_ref (document.document);
+      for (const AthenaArtifactRecord& artifact: found->second) {
+        path native;
+        std::string locate_error;
+        require (athena_artifact_locate_source (
+                   document.document, artifact, native, locate_error),
+                 "Cannot locate Artifact " + artifact.uuid + " in " +
+                 relative + ": " + locate_error);
+        node_path where= native_to_source_path (native);
+        const std::string role=
+          artifact.origin == "enunciation" ? "enunciation" :
+          artifact.origin == "bold-text" ? "bold-text-definition" :
+          std::string ();
+        require (!role.empty (),
+                 "Unsupported Artifact origin during node-model migration: " +
+                 artifact.origin);
+        const tree& source= tree_at (body, where);
+        std::string source_uuid= athena::node::id (source);
+        if (source_uuid.empty ())
+          source_uuid= deterministic_uuid (
+            relative, "artifact:" + role, where);
+        auto prepared= athena::document_node::prepare_artifact_binding (
+          body, where, role, artifact.uuid, source_uuid);
+        require (prepared.ok (),
+                 "Could not bind Artifact " + artifact.uuid + " in " +
+                 relative + (prepared.diagnostics.empty () ? "" : ": " +
+                   prepared.diagnostics.front ().detail));
+        if (prepared.change) ::apply (body, *prepared.change);
+        artifact_updates.push_back (
+          {artifact.uuid, prepared.id, role});
+        ++result.artifact_bindings;
+      }
+    }
+
+    std::unordered_map<std::string,std::string> global_ids;
+    for (node_model_document& document: documents)
+      collect_ids (
+        document_body_ref (document.document),
+        document.path.generic_string (), global_ids);
+
+    std::unordered_map<std::string,std::vector<std::string>> aliases;
+    for (map_resolution& resolution: resolutions) {
+      if (!resolution.document || !resolution.diagnostic.empty ()) continue;
+      const tree& body= document_body_ref (resolution.document->document);
+      if (resolution.direct) {
+        const std::string id= athena::node::id (
+          tree_at (body, *resolution.direct));
+        if (id.empty ())
+          resolution.diagnostic=
+            "Resolved legacy target has no source UUID";
+        else resolution.targets= {id};
+      }
+      else {
+        for (const node_path& root_path: resolution.range_roots)
+          collect_top_level_ids (
+            tree_at (body, root_path), resolution.targets);
+        dedupe_ids (resolution.targets);
+        if (resolution.targets.empty ())
+          resolution.diagnostic=
+            "Resolved legacy range has no source objects";
+      }
+      if (resolution.diagnostic.empty ())
+        aliases[resolution.source.uuid]= resolution.targets;
+    }
+
+    done= 0;
+    for (node_model_document& document: documents) {
+      report (progress, "Rewrite node references", done,
+              documents.size (), document.path);
+      rewrite_references (
+        document.document, aliases, document.path.generic_string (),
+        result.references_rewritten);
+      report (progress, "Rewrite node references", ++done,
+              documents.size (), document.path);
+    }
+
+    // Keep the old map as a compatibility locator until the later bare-wikilink
+    // cutover. Single-target entries are re-keyed to the migrated source UUID;
+    // duplicate aliases collapse deterministically. Multi-target range rows are
+    // retained only for old external readers; in-document transclusions are now
+    // canonical UUID lists and no longer depend on them.
+    if (fs::exists (staged / map_relative)) {
+      std::vector<AthenaVaultMapNode> migrated_map;
+      std::unordered_set<std::string> seen;
+      for (const map_resolution& resolution: resolutions) {
+        AthenaVaultMapNode node= resolution.source;
+        if (resolution.diagnostic.empty () &&
+            resolution.targets.size () == 1)
+          node.uuid= resolution.targets.front ();
+        if (seen.insert (node.uuid).second)
+          migrated_map.push_back (std::move (node));
+      }
+      AthenaVaultMapSqlite map;
+      require (map.open (staged / map_relative, false, error), error);
+      require (map.replace_all (migrated_map, error), error);
+      require (map.integrity_check (error), error);
+      map.close ();
+    }
+
+    filesystem::confined_root storage (staged);
+    QJsonArray manifest;
+    done= 0;
+    for (node_model_document& document: documents) {
+      report (progress, "Write XML v2", done, documents.size (), document.path);
+      tree& body= document_body_ref (document.document);
+      athena::document_node::source_identity_state identities;
+      const auto diagnostics= identities.initialize_complete (
+        body, standard_drd_for_thread (),
+        athena::document_node::standard_source_role);
+      require (diagnostics.empty (),
+               "Migrated identity baseline is incomplete in " +
+               document.path.generic_string () +
+               (diagnostics.empty () ? "" : ": " +
+                diagnostics.front ().detail));
+      const std::string xml= write_xml_v2 (document.document);
+      require (read_xml_v2 (
+                 xml, xml_kind::document, limits ().codec) ==
+               document.document,
+               "XML v2 round-trip mismatch: " + document.path.string ());
+      auto file= storage.open (document.path);
+      auto revision= file.stat ();
+      auto replacement= storage.replace (
+        document.path, file, revision, xml);
+      require (replacement.directory_synced,
+               "Cannot sync migrated document " + document.path.string ());
+      manifest.append (QJsonObject {
+        {"path", QString::fromStdString (document.path.generic_string ())},
+        {"assigned_ids", (qint64) document.assigned},
+        {"converted_enunciations", (qint64) document.converted_enunciations}});
+      ++result.migrated;
+      report (progress, "Write XML v2", ++done,
+              documents.size (), document.path);
+    }
+
+    update_artifact_binding_database (
+      staged, staged_info, artifact_updates);
+    staged_info.node_model_version= 1;
+    require (athena_vaultfile_write (staged, staged_info, error), error);
+
+    // Re-open every staged source from bytes after all database/Vaultfile
+    // mutations. This is the acceptance boundary before the directory exchange.
+    std::unordered_map<std::string,std::string> validated_ids;
+    done= 0;
+    for (const fs::path& path: document_paths) {
+      const auto decoded= decode_document_bytes (
+        bytes (staged, path), staged / path, limits ());
+      require (decoded.format == document_source_format::xml_v2,
+               "Migrated document is not XML v2: " + path.string ());
+      const tree& body= document_body_ref (decoded.document);
+      athena::document_node::source_identity_state identities;
+      const auto diagnostics= identities.initialize_complete (
+        body, standard_drd_for_thread (),
+        athena::document_node::standard_source_role);
+      require (diagnostics.empty (),
+               "Post-write identity validation failed: " + path.string ());
+      collect_ids (body, path.generic_string (), validated_ids);
+      report (progress, "Validate node model", ++done,
+              document_paths.size (), path);
+    }
+    AthenaVaultfileInfo verified_info;
+    require (athena_vaultfile_read (staged, verified_info, error), error);
+    require (verified_info.node_model_version == 1,
+             "Staged Vaultfile did not record node-model version");
+
+    scan (staged, progress, "Sync snapshot", true, false);
+    QJsonObject receipt {
+      {"version", 1},
+      {"migration", "utf8-xml-v1-to-node-model-v1"},
+      {"source", QString::fromStdString (root.string ())},
+      {"commit", "atomic-directory-exchange"},
+      {"references_rewritten", (qint64) result.references_rewritten},
+      {"artifact_bindings", (qint64) result.artifact_bindings},
+      {"documents", manifest}};
+    filesystem::confined_root journal (workspace);
+    const auto json= QJsonDocument (receipt).toJson (QJsonDocument::Indented);
+    journal.preserve (
+      "manifest.json",
+      std::string_view (json.constData (), (std::size_t) json.size ()));
+    sync_fd (parent.value);
+
+    report (progress, "Commit", 0, 1, root);
+    compare (
+      original, scan (root, progress, "Check external changes", true), true);
+    descriptor workspace_fd (
+      ::open (workspace.c_str (), O_RDONLY | O_DIRECTORY | O_CLOEXEC));
+    result.backup= staged;
+    if (::syscall (
+          SYS_renameat2, parent.value, root.filename ().c_str (),
+          AT_FDCWD, staged.c_str (), RENAME_EXCHANGE) != 0)
+      throw std::system_error (
+        errno, std::generic_category (),
+        "Atomic vault node-model directory exchange");
+    exchanged= true;
+    const int first= ::fsync (workspace_fd.value);
+    const int second= ::fsync (parent.value);
+    result.durable= first == 0 && second == 0;
+    return result;
+  }
+  catch (...) {
+    if (!exchanged) {
+      std::error_code ignored;
+      fs::remove_all (workspace, ignored);
+    }
+    throw;
+  }
+#endif
+}
+
 int upgrade_vault_format_cli (const fs::path& root) {
   interrupted= 0;
   const auto old_int= std::signal (SIGINT, cancel_signal);
@@ -393,6 +1368,76 @@ int upgrade_vault_format_cli (const fs::path& root) {
   }
   catch (const std::exception& e) { std::cerr << "\nVault upgrade failed: " << e.what () << '\n'; }
   catch (const string& e) { std::cerr << "\nVault upgrade failed: " << std::string (e.data (), N(e)) << '\n'; }
+  std::signal (SIGINT, old_int);
+  std::signal (SIGTERM, old_term);
+  return interrupted && code != 0 ? 130 : code;
+}
+
+int upgrade_vault_node_model_cli (const fs::path& root) {
+  interrupted= 0;
+  const auto old_int= std::signal (SIGINT, cancel_signal);
+  const auto old_term= std::signal (SIGTERM, cancel_signal);
+  int code= 1;
+  try {
+    init_std_drd ();
+    std::cerr
+      << "Offline node-model migration for an existing UTF-8 XML vault. "
+      << "Close all users of this vault before continuing.\n";
+    std::string previous;
+    auto last= std::chrono::steady_clock::now ();
+    const bool terminal= ::isatty (STDERR_FILENO);
+    auto progress= [&] (
+        const char* phase, std::size_t done, std::size_t total,
+        const std::string& path) {
+      if (interrupted)
+        throw std::runtime_error ("Node-model migration cancelled before commit");
+      const auto now= std::chrono::steady_clock::now ();
+      const bool complete= total != 0 && done == total;
+      if (previous == phase && !complete &&
+          now - last < std::chrono::milliseconds (terminal ? 200 : 2000))
+        return;
+      if (terminal) std::cerr << '\r' << "\033[K";
+      if (total) {
+        const auto filled= 24 * done / total;
+        std::cerr << '[' << std::string (filled, '=')
+                  << std::string (24 - filled, ' ') << "] ";
+      }
+      std::cerr << phase;
+      if (done || total) std::cerr << " " << done;
+      else std::cerr << " ...";
+      if (total) std::cerr << '/' << total;
+      if (previous != phase && !path.empty ())
+        std::cerr << " " << std::quoted (path);
+      if (!terminal || complete) std::cerr << '\n';
+      std::cerr << std::flush;
+      previous= phase;
+      last= now;
+    };
+    const auto result= upgrade_vault_node_model (root, progress);
+    if (result.backup.empty () && result.already_v2 != 0)
+      std::cerr << "\nVault already uses node model v1; validated "
+                << result.already_v2 << " XML v2 document(s).\n";
+    else
+      std::cerr << "\nMigrated " << result.migrated
+                << " document(s); rewrote " << result.references_rewritten
+                << " reference(s); persisted " << result.artifact_bindings
+                << " Artifact binding(s).\n";
+    if (!result.backup.empty ())
+      std::cerr << "Original UTF-8 XML vault backup: "
+                << result.backup << '\n';
+    if (!result.durable)
+      std::cerr
+        << "COMMITTED, but directory durability could not be confirmed. "
+        << "Do not delete the backup.\n";
+    code= result.durable ? 0 : 2;
+  }
+  catch (const std::exception& e) {
+    std::cerr << "\nVault node-model migration failed: " << e.what () << '\n';
+  }
+  catch (const string& e) {
+    std::cerr << "\nVault node-model migration failed: "
+              << std::string (e.data (), N(e)) << '\n';
+  }
   std::signal (SIGINT, old_int);
   std::signal (SIGTERM, old_term);
   return interrupted && code != 0 ? 130 : code;

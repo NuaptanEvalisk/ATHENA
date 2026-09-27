@@ -804,6 +804,7 @@ print_command_line_help () {
   cout << "  --no-splash-screen       Start without the startup progress window\n";
   cout << "  --vault-maintenance [dir]  Maintain an ATHENA vault headlessly\n";
   cout << "  --upgrade-vault-format [dir]  Offline transactional UTF-8/XML vault upgrade\n";
+  cout << "  --upgrade-vault-node-model [dir]  Offline UTF-8 XML v1 -> node-model XML v2 vault migration\n";
   cout << "  --convert-style [source.ts] [dest.ats]  Convert a legacy style to native UTF-8 XML\n";
   cout << "  --rag-delegated-embedding [dir]  Run only delegated incremental embedding\n";
   cout << "  --vault-maintenance-toc-worker [file] [marker]  Internal ToC maintenance worker\n";
@@ -2015,6 +2016,21 @@ athena_refresh_stale_scheme_bytecode (int argc, char** argv) {
 
 int
 texmacs_entrypoint (int argc, char** argv) {
+  for (int i=1; i<argc; ++i) {
+    if (std::string (argv[i]) != "--upgrade-vault-node-model") continue;
+    if (argc != 3 || i != 1 || std::string (argv[2]) == "--help") {
+      std::cerr << "Usage: ATHENA.bin --upgrade-vault-node-model VAULT_DIRECTORY\n";
+      return argc == 3 && std::string (argv[2]) == "--help" ? 0 : 1;
+    }
+    // Unlike the legacy format upgrader, node-model migration consumes the
+    // enunciation registry and style DRDs from ATHENA_PATH.
+    immediate_options (argc, argv);
+    ATHENA_init_paths (argc, argv);
+    headless_mode= true;
+    QCoreApplication app (argc, argv);
+    return athena::document::upgrade_vault_node_model_cli (
+      std::filesystem::path (argv[2]));
+  }
   // Deliberately bypass Scheme, GUI startup, cache refresh, vault loading and
   // model services. The converter owns detached trees on this one CLI thread.
   for (int i=1; i<argc; ++i) {

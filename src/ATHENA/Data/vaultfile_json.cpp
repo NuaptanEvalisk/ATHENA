@@ -121,6 +121,14 @@ read_json_file (const std::filesystem::path& path, AthenaVaultfileInfo& info,
                                          "materials");
   info.artifact_title_filter_path= json_string (
     obj, "artifact_title_filter_path", "artifact-title-filter.lst");
+  QJsonValue node_model= obj.value ("node_model_version");
+  if (!node_model.isUndefined () &&
+      (!node_model.isDouble () || node_model.toInt (-1) < 0)) {
+    error= "Invalid node_model_version in " + path.string ();
+    return false;
+  }
+  info.node_model_version= node_model.isUndefined () ? 0 :
+                           node_model.toInt ();
   info.backup_dispatchers.clear ();
   QJsonValue dispatchers_value= obj.value ("backup_dispatchers");
   if (dispatchers_value.isArray ()) {
@@ -197,6 +205,10 @@ athena_vaultfile_from_fields (const std::vector<std::string>& fields) {
   if (fields.size () >= 14) info.materials_db_path= fields[13];
   if (fields.size () >= 15) info.materials_directory= fields[14];
   if (fields.size () >= 16) info.artifact_title_filter_path= fields[15];
+  if (fields.size () >= 17) {
+    try { info.node_model_version= std::stoi (fields[16]); }
+    catch (...) { info.node_model_version= 0; }
+  }
   return athena_vaultfile_normalize (info);
 }
 
@@ -218,7 +230,8 @@ athena_vaultfile_to_fields (const AthenaVaultfileInfo& info) {
            out.bold_text_path,
            out.materials_db_path,
            out.materials_directory,
-           out.artifact_title_filter_path };
+           out.artifact_title_filter_path,
+           std::to_string (out.node_model_version) };
 }
 
 bool
@@ -260,6 +273,7 @@ athena_vaultfile_write (const std::filesystem::path& root,
   obj["materials_db_path"]= qs (out.materials_db_path);
   obj["materials_directory"]= qs (out.materials_directory);
   obj["artifact_title_filter_path"]= qs (out.artifact_title_filter_path);
+  obj["node_model_version"]= out.node_model_version;
   QJsonArray dispatchers;
   for (const AthenaBackupDispatcher& entry: out.backup_dispatchers) {
     QJsonObject dispatcher;

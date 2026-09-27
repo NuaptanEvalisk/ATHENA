@@ -291,6 +291,12 @@
       (list-ref data 15)
       "artifact-title-filter.lst"))
 
+(define (vaultfile-node-model-version data)
+  (if (and (list? data) (>= (length data) 17)
+           (string? (list-ref data 16)))
+      (list-ref data 16)
+      "0"))
+
 (define (vaultfile-normalized data)
   (list (car data)
         (cadr data)
@@ -307,7 +313,8 @@
         (vaultfile-bold-text-path data)
         (vaultfile-materials-db-path data)
         (vaultfile-materials-directory data)
-        (vaultfile-artifact-title-filter-path data)))
+        (vaultfile-artifact-title-filter-path data)
+        (vaultfile-node-model-version data)))
 
 (define (vaultfile-write! dir data)
   (let ((err (vaultfile-write dir (vaultfile-normalized data))))
@@ -337,7 +344,8 @@
         (vaultfile-bold-text-path data)
         (vaultfile-materials-db-path data)
         (vaultfile-materials-directory data)
-        (vaultfile-artifact-title-filter-path data)))
+        (vaultfile-artifact-title-filter-path data)
+        (vaultfile-node-model-version data)))
 
 (define (vault-preferences-url dir prefs-path)
   (url-append dir prefs-path))

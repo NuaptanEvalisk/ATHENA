@@ -467,10 +467,29 @@ public:
 std::optional<role_declaration> standard_source_role (const tree& source) {
   const auto& registry= enunciation::standard_registry ();
   const int body= registry.body_index (source);
-  if (body < 0) return {};
-  std::vector<child_role> children (N(source), child_role::inline_content);
-  children[body]= child_role::body;
-  return role_declaration {semantic_role::enunciation, registry.category (source), std::move (children)};
+  if (body >= 0) {
+    std::vector<child_role> children (N(source), child_role::inline_content);
+    children[body]= child_role::body;
+    return role_declaration {
+      semantic_role::enunciation, registry.category (source),
+      std::move (children)};
+  }
+  // Native links/transclusions are source content, but their locator payloads
+  // are data rather than nested source objects. This explicit contract is
+  // needed by both ordinary v2 identity activation and offline migration; DRD
+  // argument accessibility alone cannot distinguish those identities.
+  if ((is_func (source, HLINK, 2) || is_compound (source, "hlink", 2)))
+    return role_declaration {
+      semantic_role::content, "",
+      {child_role::inline_content, child_role::data}};
+  if ((is_func (source, TRANSCLUDE, 1) ||
+       is_compound (source, "transclude", 1)) ||
+      (is_func (source, TRANSCLUDE, 4) ||
+       is_compound (source, "transclude", 4)))
+    return role_declaration {
+      semantic_role::content, "",
+      std::vector<child_role> (N(source), child_role::data)};
+  return {};
 }
 
 identity_result assign_detached_source_ids (

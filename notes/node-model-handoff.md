@@ -6,14 +6,15 @@
 
 原交接停在 native tree-set-diff 完成处；用户随后要求按功能块继续。
 源生命周期、normal XML v2 persistence/activation、AUDMAP document-model v3、
-Artifact source binding/revision 与 cut/move credential + 跨 actor undo/redo
-均已分别完成并提交。当前 worktree 完成“新建普通文档 born-v2”块并通过集中验证，
-正待本次独立提交。
-**整个迁移尚未统一切换，但核心运行链路已经较完整；主要剩余工作集中在剩余
-persistence 边界、离线迁移与最终引用语义切换。**
+Artifact source binding/revision、cut/move credential + 跨 actor undo/redo 与
+普通新建文档 born-v2 均已分别完成并提交。当前 worktree 又完成独立 offline
+node-model vault migration 并通过集中验证，正待本次独立提交。
+**整个迁移尚未统一切换，但核心 source/runtime/migration 主链已较完整；主要剩余工作
+集中在少数 tree-bearing persistence 边界、迁移后的引用语义切换与最终数据保全验收。**
 
-当前最后代码提交：`e5fa5aae6 improve: preserve identities across source moves`。
-此前相邻集成提交：`70da9708a`（Artifact source identity）、
+当前最后代码提交：`727bea0cb improve: create ordinary documents as XML v2 sources`。
+此前相邻集成提交：`e5fa5aae6`（source move identity）、
+`70da9708a`（Artifact source identity）、
 `417efe87e`（AUDMAP document-model v3）、
 `6f2937262`（normal XML v2 persistence/activation）、
 `6b965f3c9`（source identity lifecycle）、`7e9b23a9b`（native tree diff）、
@@ -186,6 +187,12 @@ children:
 - 🟩 新建普通文档 born-v2：不存在的用户文件与 New/New Window 的普通 source buffer
   从创建时就拥有完整 source UUID baseline 与 active owner identity index；第一次保存直接
   写 XML v2。DataArt/临时派生 buffer 仍可继续使用旧的匿名 `make_new_buffer`，不被误升级。
+- 🟩 独立 offline node-model vault migration：新 CLI
+  `--upgrade-vault-node-model VAULT_DIRECTORY` 只接受已经 UTF-8/XML-v1 的 vault；
+  legacy Cork/S-expression 输入明确要求先运行旧 `--upgrade-vault-format`。migration 在
+  private sibling snapshot 中 canonicalize enunciation、确定性分配 source UUID、优先复用可唯一
+  映射的旧 map UUID、迁移 wikilink/transclude、写 Artifact source bindings，完整验证后才做
+  atomic directory exchange；Vaultfile 以 `node_model_version: 1` 记录完成状态并支持重复运行 no-op。
 
 ### 🟦 已起步、尚未整体完成
 
@@ -202,9 +209,6 @@ children:
 
 - 🟧 其余 clipboard/委派及 tree-bearing persistence 边界的统一 v2 切换；normal v2
   load/save/autosave/recovery 和普通新建文档已完成，不应再作为待办重做。
-- 🟧 新增独立 node-model vault migrator：输入是已经 UTF-8/XML 的 v1 vault，
-  做确定性 node identity 映射、引用与 artifact 迁移及诊断；不得复用 legacy
-  `--upgrade-vault-format` CLI。
 - 🟧 迁移后切换 bare wikilink，淘汰 map/hints 作为身份真相，删除可确认的生成 anchors。
 - 🟧 故障注入/数据保全最终验收、用户验收、统一启用及部署。
 

@@ -1743,6 +1743,8 @@ athena_vaultfile_write (url arg1, array<string> arg2) {
       if (N(fields) < 16)
         info.artifact_title_filter_path=
           previous.artifact_title_filter_path;
+      if (N(fields) < 17)
+        info.node_model_version= previous.node_model_version;
     }
   if (athena_vaultfile_write (root, info, error))
     return string ("");

@@ -730,6 +730,72 @@ v2 saves, advertise AUDMAP v3, or implement cross-document moves.
   Cork/S-expression -> UTF-8/XML converter and must not be overloaded for the
   node-model migration.
 
+## Offline UTF-8 XML -> node-model vault migration (2026-09-27 night)
+
+- Added a separate `--upgrade-vault-node-model VAULT_DIRECTORY` CLI. It is not
+  an alias for `--upgrade-vault-format`: an unmarked input vault must consist
+  entirely of native UTF-8 XML-v1 `.ath` documents. Legacy Cork/TeXmacs markup
+  and legacy Scheme serialization are rejected with an explicit instruction to
+  run the older format upgrader first. A migrated vault records
+  `node_model_version: 1` in `Vaultfile.json`; a repeated node-model upgrade
+  revalidates XML-v2 identity completeness and returns without creating another
+  backup or rewriting bytes.
+- Migration reuses the whole-vault offline safety model but has its own semantic
+  pipeline. It acquires the exclusive vault directory lease, inventories and
+  hashes the original tree, clones a private metadata-preserving sibling
+  snapshot, performs every source/database rewrite there, validates the staged
+  result, fsyncs it, rechecks the untouched original for external changes and
+  only then publishes by Linux `renameat2(RENAME_EXCHANGE)`. Before the
+  exchange, failures delete only the private workspace. After exchange, the
+  complete original UTF-8/XML vault remains as the sibling recovery backup with
+  a migration manifest.
+- Each source document first converts declared legacy enunciations through the
+  registry using the effective vault `number solutions` preference (defaulting
+  to the normal built-in value when absent). Identity planning then uses the
+  real document/style DRD and the standard source-role contract. HLINK and both
+  legacy/canonical transclusion forms now have explicit source-role contracts:
+  display text is inline source content while locator UUID/path/anchor payloads
+  are data, so reference metadata never receives spurious source IDs.
+- Missing source UUIDs use a deterministic SHA-256-derived UUID keyed by the
+  relative document path, semantic role/category and source path. This allocator
+  is pure and reproducible. When a legacy map row resolves structurally to one
+  identity candidate and its old map UUID is already a canonical UUID, that old
+  UUID is preferred so existing links retain identity without a rewrite where
+  possible. Multiple aliases may collapse to the same source UUID; no fuzzy
+  content matching is used to choose a source object.
+- Legacy map locations are resolved structurally in the private snapshot:
+  whole-document rows map to the body, generated heading/enunciation anchors map
+  to their following source object, explicit labels remain explicit targets, and
+  general begin/end ranges enumerate the identified source objects they contain.
+  Missing, ambiguous, reversed or structurally inconsistent anchors are
+  diagnostics. In-document `tmfs://wikilink/<old>` targets are rewritten to
+  the single migrated source UUID. Four-argument legacy transclusions become
+  canonical `TRANSCLUDE(TUPLE(uuid,...))` lists; unresolved references abort
+  migration rather than falling back to file/anchor hints.
+- Existing Artifact UUIDs are preserved. The old Artifact index is queried
+  read-only in the snapshot, each legacy artifact source is located before the
+  database becomes authoritative, and the producer-reserved
+  `athena:artifact-bindings` role -> Artifact UUID property is written into
+  migrated source. The disposable Artifact database is then extended/backfilled
+  with `source_uuid/source_role`. The later normal Artifact builder can
+  therefore reconstruct the same Artifact UUIDs from source even if all Artifact
+  databases are deleted.
+- `map.sqlite` is retained only as a compatibility locator for the subsequent
+  bare-wikilink cutover. Single-target rows are re-keyed to their migrated source
+  UUID and duplicate aliases collapse; old multi-target range rows may remain
+  for compatibility, but canonical transclusions in source no longer depend on
+  them. The Vaultfile node-model marker is the future semantic switch; URL shape
+  alone still does not authorize treating every bare wikilink UUID as a source
+  node until the next cutover block.
+- The normal `ATHENA.bin -j20` build passed. One isolated CLI fixture,
+  `tests/Data/Convert/Xml/vault_node_model_upgrade_test.py`, passed
+  `ATHENA-NODE-MODEL-UPGRADE-PASS`. It exercised XML-v1 -> XML-v2 conversion,
+  canonical enunciation conversion, old-map UUID preference/alias collapse,
+  wikilink and transclusion rewriting, Artifact UUID/source-binding preservation,
+  original-vault backup retention, Vaultfile activation, second-run idempotence
+  and explicit rejection of legacy Cork input without modifying it. No
+  production vault, deployment or broad test suite was used.
+
 ## Build Boundary
 
 Normal builds use only:

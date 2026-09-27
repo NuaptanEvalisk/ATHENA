@@ -27,6 +27,18 @@ vault_upgrade_result upgrade_vault_format (
   const std::filesystem::path&, const vault_upgrade_progress& = {});
 int upgrade_vault_format_cli (const std::filesystem::path&);
 
+struct vault_node_model_upgrade_result {
+  std::filesystem::path backup;
+  std::size_t migrated= 0, already_v2= 0;
+  std::size_t references_rewritten= 0, artifact_bindings= 0;
+  bool durable= true;
+};
+// Separate offline stage after the legacy format upgrader. Input documents must
+// already be native UTF-8 XML v1. The result is an XML-v2 source-identity vault.
+vault_node_model_upgrade_result upgrade_vault_node_model (
+  const std::filesystem::path&, const vault_upgrade_progress& = {});
+int upgrade_vault_node_model_cli (const std::filesystem::path&);
+
 struct vault_upgrade_revision {
   std::string path, semantic_hash;
   long long size, mtime;
