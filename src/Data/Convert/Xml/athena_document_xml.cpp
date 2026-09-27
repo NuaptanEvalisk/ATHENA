@@ -8,13 +8,17 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include "athena_document_xml.hpp"
+#include "node_metadata.hpp"
 #include "unicode_text.hpp"
 #include <QByteArray>
 #include <QIODevice>
 #include <QXmlStreamReader>
 #include <QXmlStreamWriter>
 #include <algorithm>
+#include <charconv>
+#include <cmath>
 #include <limits>
+#include <set>
 
 namespace athena::document {
 codec_exception::codec_exception (codec_error c, const std::string& message,
@@ -43,6 +47,32 @@ QString qtext (std::string_view s) {
   return QString::fromUtf8 (s.data (), qsizetype (s.size ()));
 }
 string native (const QByteArray& s) { return string (s.constData (), int (s.size ())); }
+std::string standard (const QByteArray& s) {
+  return {s.constData (), std::size_t (s.size ())};
+}
+
+// V2 properties: <property name="..." type="...">value</property>.
+// Types are string, boolean (true/false), int64 (canonical signed decimal),
+// double (finite, shortest round-trip decimal), list, dictionary, reference and
+// rich_tree. Types are explicit, never inferred from string contents.
+// Lists contain <item type>
+// values; dictionaries contain named <property> values. References have an id
+// attribute and no content; rich_tree contains exactly one regular V2 node.
+// Strings use the text codec's optional encoding="base64-utf8". Names use
+// optional name-encoding="base64-utf8", just like compound tag attributes.
+// Each property/item consumes one node and one depth level; rich_tree's node
+// consumes another. IDs, keys and scalar payloads share the tree text budget.
+// Properties/value wrappers are structural and consume no additional budget.
+// Maps are emitted in key order; empty properties wrappers are omitted. Node
+// IDs are unique throughout the envelope, including rich trees; references may
+// repeat or point outside the envelope (fragments need not resolve references).
+template<typename T> std::string number_text (T value) {
+  char buffer[128];
+  auto result= std::to_chars (buffer, buffer + sizeof (buffer), value);
+  if (result.ec != std::errc ())
+    throw codec_exception (codec_error::invalid_structure, "Invalid numeric property");
+  return {buffer, result.ptr};
+}
 
 struct budget {
   codec_limits limits;
@@ -94,34 +124,118 @@ class writer {
   budget count;
   output sink;
   QXmlStreamWriter xml;
+  bool v2;
+  std::set<std::string> identities;
   QString checked_text (std::string_view s) {
     count.consume (s.size ());
     if (!text::valid_utf8 (s))
       throw codec_exception (codec_error::invalid_utf8, "XML text is not valid UTF-8");
     return qtext (s);
   }
-  void atom (const string& value, bool binary) {
-    auto s= bytes (value);
+  void payload (std::string_view s, bool binary) {
     if (binary) {
       count.consume (s.size ());
-      xml.writeStartElement ("bytes");
       xml.writeAttribute ("encoding", "base64");
       xml.writeCharacters (QString::fromLatin1 (encoded (s)));
     }
     else {
       auto decoded= checked_text (s);
-      xml.writeStartElement ("text");
       if (xml_text (decoded)) xml.writeCharacters (decoded);
       else {
         xml.writeAttribute ("encoding", "base64-utf8");
         xml.writeCharacters (QString::fromLatin1 (encoded (s)));
       }
     }
+  }
+  void name_attribute (const char* name, const char* encoding, std::string_view s) {
+    auto value= checked_text (s);
+    if (xml_text (value) && !value.contains ('\t') && !value.contains ('\n'))
+      xml.writeAttribute (name, value);
+    else {
+      xml.writeAttribute (name, QString::fromLatin1 (encoded (s)));
+      xml.writeAttribute (encoding, "base64-utf8");
+    }
+  }
+  void reference_id (const std::string& id) {
+    if (!athena::node::valid_id (id))
+      throw codec_exception (codec_error::invalid_structure, "Invalid metadata identity");
+    xml.writeAttribute ("id", checked_text (id));
+  }
+  void property (const athena::node::property& value, std::size_t depth,
+                 const std::string* name= nullptr) {
+    count.node (depth);
+    xml.writeStartElement (name ? "property" : "item");
+    if (name) name_attribute ("name", "name-encoding", *name);
+    const auto& data= value.data;
+    if (const auto* s= std::get_if<std::string> (&data)) {
+      xml.writeAttribute ("type", "string");
+      payload (*s, false);
+    }
+    else if (const auto* b= std::get_if<bool> (&data)) {
+      xml.writeAttribute ("type", "boolean");
+      xml.writeCharacters (checked_text (*b ? "true" : "false"));
+    }
+    else if (const auto* i= std::get_if<std::int64_t> (&data)) {
+      xml.writeAttribute ("type", "int64");
+      xml.writeCharacters (checked_text (number_text (*i)));
+    }
+    else if (const auto* d= std::get_if<double> (&data)) {
+      if (!std::isfinite (*d))
+        throw codec_exception (codec_error::invalid_structure, "Nonfinite numeric property");
+      xml.writeAttribute ("type", "double");
+      xml.writeCharacters (checked_text (number_text (*d)));
+    }
+    else if (const auto* list= std::get_if<athena::node::property::list> (&data)) {
+      xml.writeAttribute ("type", "list");
+      for (const auto& item: *list) property (item, depth + 1);
+    }
+    else if (const auto* dict= std::get_if<athena::node::property::dictionary> (&data)) {
+      xml.writeAttribute ("type", "dictionary");
+      for (const auto& entry: *dict) property (entry.second, depth + 1, &entry.first);
+    }
+    else if (const auto* ref= std::get_if<athena::node::reference> (&data)) {
+      xml.writeAttribute ("type", "reference");
+      reference_id (ref->id);
+    }
+    else if (const auto* rich= std::get_if<athena::node::rich_text> (&data)) {
+      xml.writeAttribute ("type", "rich_tree");
+      node (rich->content, depth + 1);
+    }
+    else throw codec_exception (codec_error::invalid_structure, "Invalid property variant");
     xml.writeEndElement ();
+    if (sink.exhausted)
+      throw codec_exception (codec_error::resource_limit, "XML output byte limit exceeded");
+  }
+  void metadata (const tree& value, std::size_t depth) {
+    const auto* meta= athena::node::get (value);
+    if (!meta || meta->empty ()) return;
+    if (!meta->id.empty ()) {
+      if (!identities.insert (meta->id).second)
+        throw codec_exception (codec_error::invalid_structure, "Duplicate node identity");
+      reference_id (meta->id);
+    }
+    if (!meta->properties.empty ()) {
+      xml.writeStartElement ("properties");
+      for (const auto& entry: meta->properties)
+        property (entry.second, depth + 1, &entry.first);
+      xml.writeEndElement ();
+    }
   }
   void node (const tree& value, std::size_t depth, bool binary= false) {
     count.node (depth);
-    if (is_atomic (value)) atom (value->label, binary);
+    const auto* meta= athena::node::get (value);
+    if (!v2 && meta && !meta->empty ())
+      throw codec_exception (codec_error::invalid_structure, "XML v1 cannot preserve node metadata");
+    if (is_atomic (value)) {
+      xml.writeStartElement (binary ? "bytes" : "text");
+      if (v2) {
+        metadata (value, depth);
+        xml.writeStartElement ("value");
+      }
+      payload (bytes (value->label), binary);
+      if (v2) xml.writeEndElement ();
+      xml.writeEndElement ();
+    }
     else if (is_compound (value)) {
       if (binary || (L (value) == RAW_DATA &&
           (N (value) != 1 || !is_atomic (value[0]))))
@@ -138,6 +252,7 @@ class writer {
         xml.writeAttribute ("tag", QString::fromLatin1 (encoded (bytes (tag))));
         xml.writeAttribute ("tag-encoding", "base64-utf8");
       }
+      if (v2) metadata (value, depth);
       for (int i= 0; i < N (value); ++i) node (value[i], depth + 1, L (value) == RAW_DATA);
       xml.writeEndElement ();
     }
@@ -146,12 +261,13 @@ class writer {
       throw codec_exception (codec_error::resource_limit, "XML output byte limit exceeded");
   }
 public:
-  explicit writer (codec_limits limits): count {limits}, sink (limits.output_bytes), xml (&sink) {}
+  explicit writer (codec_limits limits, bool version2= false):
+    count {limits}, sink (limits.output_bytes), xml (&sink), v2 (version2) {}
   std::string write (const tree& value, xml_kind kind) {
     if (kind == xml_kind::document) check_document_envelope (value);
     xml.writeStartDocument ("1.0");
     xml.writeStartElement (envelope (kind));
-    xml.writeAttribute ("version", "1");
+    xml.writeAttribute ("version", v2 ? "2" : "1");
     xml.writeAttribute ("text-model", "utf-8");
     node (value, 0);
     xml.writeEndElement ();
@@ -167,6 +283,8 @@ public:
 class reader {
   budget count;
   QXmlStreamReader xml;
+  bool v2= false;
+  std::set<std::string> identities;
   [[noreturn]] void fail (codec_error code, const char* message) {
     throw codec_exception (code, message, xml.lineNumber (), xml.columnNumber (),
                            xml.characterOffset ());
@@ -219,12 +337,12 @@ class reader {
       fail (codec_error::invalid_utf8, "Decoded text is not valid UTF-8");
     return result;
   }
-  tree atom (bool binary) {
-    attributes ({"encoding"});
+  QByteArray scalar (bool binary= false) {
     auto encoding= xml.attributes ().value ("encoding");
     bool base64= binary || encoding == QLatin1StringView ("base64-utf8");
     if ((binary && encoding != QLatin1StringView ("base64")) ||
-        (!binary && !encoding.isEmpty () && !base64))
+        (!binary && ((!encoding.isEmpty () && !base64) ||
+         (v2 && xml.attributes ().hasAttribute ("encoding") && encoding.isEmpty ()))))
       fail (codec_error::invalid_structure, "Unexpected text encoding");
     QString value;
     while (true) {
@@ -237,18 +355,161 @@ class reader {
         fail (codec_error::resource_limit, "XML text token limit exceeded");
       value+= xml.text ();
     }
-    return tree (native (decode (value, base64, binary)));
+    return decode (value, base64, binary);
+  }
+  tree atom (bool binary) {
+    attributes ({"encoding"});
+    return tree (native (scalar (binary)));
+  }
+  std::string reference_id () {
+    auto id= standard (decode (xml.attributes ().value ("id").toString (), false, false));
+    if (!athena::node::valid_id (id))
+      fail (codec_error::invalid_structure, "Invalid metadata identity");
+    return id;
+  }
+  std::string property_name () {
+    if (!xml.attributes ().hasAttribute ("name"))
+      fail (codec_error::invalid_structure, "Missing property name");
+    auto encoding= xml.attributes ().value ("name-encoding");
+    bool base64= xml.attributes ().hasAttribute ("name-encoding");
+    if (base64 && encoding != QLatin1StringView ("base64-utf8"))
+      fail (codec_error::invalid_structure, "Unexpected property name encoding");
+    auto name= standard (decode (xml.attributes ().value ("name").toString (), base64, false));
+    if (name.empty ()) fail (codec_error::invalid_structure, "Empty property name");
+    return name;
+  }
+  athena::node::property property (std::size_t depth, bool named) {
+    using property_type= athena::node::property;
+    count.node (depth);
+    if (!xml.isStartElement () ||
+        xml.name () != QLatin1StringView (named ? "property" : "item"))
+      fail (codec_error::invalid_structure, "Unexpected property element");
+    // Copy attribute views before advancing the stream.
+    auto type= xml.attributes ().value ("type").toString ();
+    if (type == QLatin1StringView ("string")) {
+      if (named) attributes ({"name", "name-encoding", "type", "encoding"});
+      else attributes ({"type", "encoding"});
+      return property_type (standard (scalar ()));
+    }
+    if (type == QLatin1StringView ("reference")) {
+      if (named) attributes ({"name", "name-encoding", "type", "id"});
+      else attributes ({"type", "id"});
+      auto id= reference_id ();
+      whitespace ();
+      if (!xml.isEndElement ())
+        fail (codec_error::invalid_structure, "Reference must not contain a value");
+      return property_type (athena::node::reference {std::move (id)});
+    }
+    if (named) attributes ({"name", "name-encoding", "type"});
+    else attributes ({"type"});
+    if (type == QLatin1StringView ("list")) {
+      property_type::list items;
+      whitespace ();
+      while (xml.isStartElement ()) {
+        items.push_back (property (depth + 1, false));
+        whitespace ();
+      }
+      if (!xml.isEndElement ()) fail (codec_error::invalid_structure, "Missing list end");
+      return property_type (std::move (items));
+    }
+    if (type == QLatin1StringView ("dictionary"))
+      return property_type (dictionary (depth + 1));
+    if (type == QLatin1StringView ("rich_tree")) {
+      whitespace ();
+      if (!xml.isStartElement ()) fail (codec_error::invalid_structure, "Missing rich tree");
+      tree content= node (depth + 1);
+      whitespace ();
+      if (!xml.isEndElement ()) fail (codec_error::invalid_structure, "Multiple rich trees");
+      return property_type (athena::node::rich_text {content});
+    }
+    if (type != QLatin1StringView ("boolean") && type != QLatin1StringView ("int64") &&
+        type != QLatin1StringView ("double"))
+      fail (codec_error::invalid_structure, "Unknown property type");
+    auto value= standard (scalar ());
+    if (type == QLatin1StringView ("boolean")) {
+      if (value != "true" && value != "false")
+        fail (codec_error::invalid_structure, "Invalid boolean property");
+      return property_type (value == "true");
+    }
+    if (type == QLatin1StringView ("int64")) {
+      std::int64_t integer;
+      auto result= std::from_chars (value.data (), value.data () + value.size (), integer);
+      if (result.ec != std::errc () || result.ptr != value.data () + value.size () ||
+          number_text (integer) != value)
+        fail (codec_error::invalid_structure, "Invalid int64 property");
+      return property_type (integer);
+    }
+    double real;
+    auto result= std::from_chars (value.data (), value.data () + value.size (), real);
+    if (result.ec != std::errc () || result.ptr != value.data () + value.size () ||
+        !std::isfinite (real))
+      fail (codec_error::invalid_structure, "Invalid double property");
+    return property_type (real);
+  }
+  athena::node::property::dictionary dictionary (std::size_t depth) {
+    athena::node::property::dictionary result;
+    whitespace ();
+    while (xml.isStartElement ()) {
+      if (xml.name () != QLatin1StringView ("property"))
+        fail (codec_error::invalid_structure, "Expected named property");
+      auto name= property_name ();
+      if (result.find (name) != result.end ())
+        fail (codec_error::invalid_structure, "Duplicate property name");
+      auto value= property (depth, true);
+      result.emplace (std::move (name), std::move (value));
+      whitespace ();
+    }
+    if (!xml.isEndElement ()) fail (codec_error::invalid_structure, "Missing properties end");
+    return result;
+  }
+  athena::node::metadata metadata (std::size_t depth) {
+    athena::node::metadata result;
+    if (xml.attributes ().hasAttribute ("id")) {
+      result.id= reference_id ();
+      if (!identities.insert (result.id).second)
+        fail (codec_error::invalid_structure, "Duplicate node identity");
+    }
+    whitespace ();
+    if (xml.isStartElement () && xml.name () == QLatin1StringView ("properties")) {
+      attributes ({});
+      result.properties= dictionary (depth + 1);
+      whitespace ();
+    }
+    return result;
+  }
+  void attach (tree& value, const athena::node::metadata& meta) {
+    if (meta.empty ()) return;
+    try { athena::node::set (value, meta); }
+    catch (const std::invalid_argument& error) {
+      fail (codec_error::invalid_structure, error.what ());
+    }
+    catch (const std::length_error& error) {
+      fail (codec_error::resource_limit, error.what ());
+    }
   }
   tree node (std::size_t depth, bool binary= false) {
     count.node (depth);
-    if (xml.name () == QLatin1StringView (binary ? "bytes" : "text")) return atom (binary);
+    if (xml.name () == QLatin1StringView (binary ? "bytes" : "text")) {
+      if (!v2) return atom (binary);
+      attributes ({"id"});
+      auto meta= metadata (depth);
+      if (!xml.isStartElement () || xml.name () != QLatin1StringView ("value"))
+        fail (codec_error::invalid_structure, "Missing atomic value");
+      tree result= atom (binary);
+      whitespace ();
+      if (!xml.isEndElement ()) fail (codec_error::invalid_structure, "Unexpected atomic content");
+      attach (result, meta);
+      return result;
+    }
     if (binary || xml.name () != QLatin1StringView ("node"))
       fail (codec_error::invalid_structure, "Expected a node or text element");
-    attributes ({"tag", "tag-encoding"});
+    if (v2) attributes ({"tag", "tag-encoding", "id"});
+    else attributes ({"tag", "tag-encoding"});
     if (!xml.attributes ().hasAttribute ("tag"))
       fail (codec_error::invalid_structure, "Missing document tag");
     auto encoding= xml.attributes ().value ("tag-encoding");
-    if (!encoding.isEmpty () && encoding != QLatin1StringView ("base64-utf8"))
+    if ((!encoding.isEmpty () || (v2 && xml.attributes ().hasAttribute ("tag-encoding"))) &&
+        encoding != QLatin1StringView ("base64-utf8"))
       fail (codec_error::invalid_structure, "Unexpected tag encoding");
     string tag= native (decode (xml.attributes ().value ("tag").toString (),
                                 !encoding.isEmpty (), false));
@@ -256,17 +517,22 @@ class reader {
     tree_label label= make_tree_label (tag);
     if (label <= TMSTRING) fail (codec_error::invalid_structure, "Invalid compound tag");
     array<tree> children;
+    athena::node::metadata meta;
+    if (v2) meta= metadata (depth);
+    else whitespace ();
     while (true) {
-      whitespace ();
       if (xml.isEndElement ()) break;
       if (!xml.isStartElement ()) fail (codec_error::invalid_structure, "Missing node end");
       if (label == RAW_DATA && N (children) != 0)
         fail (codec_error::invalid_structure, "RAW_DATA requires one byte payload");
       children << node (depth + 1, label == RAW_DATA);
+      whitespace ();
     }
     if (label == RAW_DATA && N (children) != 1)
       fail (codec_error::invalid_structure, "RAW_DATA requires one byte payload");
-    return tree (label, children);
+    tree result (label, children);
+    attach (result, meta);
+    return result;
   }
 public:
   reader (std::string_view input, codec_limits limits): count {limits} {
@@ -275,12 +541,14 @@ public:
     if (!text::valid_utf8 (input)) fail (codec_error::invalid_utf8, "XML input is not UTF-8");
     xml.addData (QByteArray (input.data (), qsizetype (input.size ())));
   }
-  tree read (xml_kind kind) {
+  tree read (xml_kind kind, bool allow_v2= false) {
     whitespace ();
     if (!xml.isStartElement () || xml.name () != QLatin1StringView (envelope (kind)))
       fail (codec_error::invalid_structure, "Unexpected XML document envelope");
     attributes ({"version", "text-model"});
-    if (xml.attributes ().value ("version") != QLatin1StringView ("1") ||
+    auto version= xml.attributes ().value ("version");
+    v2= version == QLatin1StringView ("2");
+    if ((v2 && !allow_v2) || (!v2 && version != QLatin1StringView ("1")) ||
         xml.attributes ().value ("text-model") != QLatin1StringView ("utf-8"))
       fail (codec_error::unsupported_version, "Unsupported ATHENA XML or text-model version");
     whitespace ();
@@ -302,14 +570,21 @@ public:
 tree read_xml (std::string_view input, xml_kind kind, codec_limits limits) {
   return reader (input, limits).read (kind);
 }
+tree read_xml_v2 (std::string_view input, xml_kind kind, codec_limits limits) {
+  return reader (input, limits).read (kind, true);
+}
 std::string write_xml (const tree& input, xml_kind kind, codec_limits limits) {
   return writer (limits).write (input, kind);
+}
+std::string write_xml_v2 (const tree& input, xml_kind kind, codec_limits limits) {
+  return writer (limits, true).write (input, kind);
 }
 
 tree strip_legacy_document_version (const tree& input, std::vector<int>* child_map) {
   if (!is_func (input, DOCUMENT))
     throw codec_exception (codec_error::invalid_structure, "Expected a document tree");
   tree result (DOCUMENT);
+  athena::node::copy_metadata (input, result);
   std::vector<int> mapping;
   if (child_map) mapping.reserve (N (input));
   for (int i= 0; i < N (input); ++i) {

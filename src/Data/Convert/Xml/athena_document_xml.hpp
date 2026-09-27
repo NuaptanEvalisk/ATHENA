@@ -39,8 +39,12 @@ public:
 
 // Input/output text is UTF-8, never Cork. RAW_DATA's sole child is bytes.
 // The caller owns the tree and all codec state remains local to this call.
+// Default APIs remain v1-only: reading rejects v2; writing rejects metadata.
 tree read_xml (std::string_view, xml_kind = xml_kind::document, codec_limits = {});
 std::string write_xml (const tree&, xml_kind = xml_kind::document, codec_limits = {});
+// Explicit staged v2 APIs. The v2 reader accepts both v1 and v2 documents.
+tree read_xml_v2 (std::string_view, xml_kind = xml_kind::document, codec_limits = {});
+std::string write_xml_v2 (const tree&, xml_kind = xml_kind::document, codec_limits = {});
 
 // Explicit envelope migration, not a recursive rewrite. Nested TeXmacs macros
 // remain content. The optional old-root-child -> new-root-child map records
