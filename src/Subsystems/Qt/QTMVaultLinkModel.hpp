@@ -15,10 +15,20 @@
 #include "url.hpp"
 #include "path.hpp"
 #include "tree.hpp"
+#include "ATHENA/Data/node_location.hpp"
 #include <QString>
 #include <QStringList>
 #include <Qt>
 #include <vector>
+#include <functional>
+class QObject;
+
+// GUI-owned asynchronous lifetime; cancelled with owner destruction. No file
+// hint participates in identity selection, including after external renames.
+QObject* vault_resolve_source_ids (QObject* owner, const QStringList& ids,
+  std::function<void (athena::node_location::snapshot, QString)> completed,
+  bool content= true);
+tree vault_source_preview (const athena::node_location::result&);
 
 enum WikilinkItemRole {
   WikilinkPayloadRole= Qt::UserRole,

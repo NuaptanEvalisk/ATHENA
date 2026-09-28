@@ -49,6 +49,7 @@ private slots:
   void initTestCase ();
   void sourceSelectionsUsePersistentObjects ();
   void sourcePreviewsKeepPropertiesNotIdentities ();
+  void sourceLookupFollowsExternalRenameAndCancellation ();
   void availableSourceEnunciationsFollowUuidSelections ();
   void findsStructuredMathematicalExpressions ();
   void filtersCanonicalAndLegacyEnunciations ();
@@ -128,6 +129,53 @@ void TestVaultSearch::sourcePreviewsKeepPropertiesNotIdentities () {
   QVERIFY (athena::enunciation::is_canonical (preview));
   QVERIFY (get (preview)->properties.count ("athena:artifact-bindings") == 0);
   QVERIFY (id (source) == properties.id);
+}
+
+void TestVaultSearch::sourceLookupFollowsExternalRenameAndCancellation () {
+  namespace fs= std::filesystem;
+  using namespace athena;
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  struct CloseVault { ~CloseVault () { if (vault_active ()) vault_close (); } } close;
+  const fs::path root (temporary.path ().toStdString ());
+  AthenaVaultfileInfo info;
+  info.node_model_version= 1;
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+  tree paragraph ("Selected source");
+  node::metadata metadata; metadata.id= node::new_id ();
+  node::set (paragraph, metadata);
+  tree document (DOCUMENT, compound ("body", tree (DOCUMENT, paragraph)));
+  const auto xml= document::write_xml_v2 (document);
+  { std::ofstream out (root / "Original.ath"); out << xml; }
+  QCOMPARE (vault_load (url_system (from_qstring (temporary.path ())),
+                        "Source lookup", info.map_path.c_str (), "ns.sqlite"), string (""));
+  const QString id= QString::fromStdString (metadata.id);
+  node_location::snapshot answer;
+  QString diagnostic;
+  int callbacks= 0;
+  auto completed= [&] (auto result, QString failure) {
+    answer= result; diagnostic= failure; ++callbacks;
+  };
+  vault_resolve_source_ids (this, {id}, completed);
+  QTRY_COMPARE_WITH_TIMEOUT (callbacks, 1, 10000);
+  QVERIFY2 (diagnostic.isEmpty (), qPrintable (diagnostic));
+  QCOMPARE (answer->items.front ().candidates.front ().file, std::string ("Original.ath"));
+  fs::rename (root / "Original.ath", root / "Renamed.ath");
+  vault_resolve_source_ids (this, {id}, completed);
+  QTRY_COMPARE_WITH_TIMEOUT (callbacks, 2, 10000);
+  QVERIFY2 (diagnostic.isEmpty (), qPrintable (diagnostic));
+  QCOMPARE (answer->items.front ().candidates.front ().file, std::string ("Renamed.ath"));
+  QCOMPARE (vault_source_preview (*answer)[0], paragraph);
+  auto* owner= new QObject;
+  vault_resolve_source_ids (owner, {id}, completed);
+  delete owner;
+  QTest::qWait (80);
+  QCOMPARE (callbacks, 2);
+  vault_close ();
+  vault_resolve_source_ids (this, {id}, completed);
+  QTRY_COMPARE_WITH_TIMEOUT (callbacks, 3, 1000);
+  QVERIFY (!diagnostic.isEmpty ());
 }
 
 void TestVaultSearch::availableSourceEnunciationsFollowUuidSelections () {

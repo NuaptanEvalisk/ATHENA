@@ -18,10 +18,88 @@
 #include "ATHENA/Data/enunciation_model.hpp"
 #include "ATHENA/Data/heading_word_count.hpp"
 #include "node_metadata.hpp"
+#include "ATHENA/Data/vault_node_location.hpp"
+#include "Data/Convert/Xml/athena_document_xml.hpp"
+#include <QTimer>
+#include <QThreadPool>
+
+namespace {
+// Keep one locator alive across selection changes. Its worker may still be
+// reading disk/actors when a dialog closes; joining it must not block Qt.
+class SourceLookupLease final: public QObject {
+public:
+  std::shared_ptr<athena::node_location::service> service;
+  std::string incarnation;
+  SourceLookupLease (QObject* owner, vault_context_handle context): QObject (owner),
+    service (athena::node_location::for_vault (context)), incarnation (context->incarnation) {}
+  ~SourceLookupLease () override {
+    QThreadPool::globalInstance ()->start ([keep= std::move (service)] () mutable { keep.reset (); });
+  }
+};
+}
 #include <algorithm>
 #include <functional>
 #include <map>
 #include <set>
+
+QObject* vault_resolve_source_ids (QObject* owner, const QStringList& ids,
+    std::function<void (athena::node_location::snapshot, QString)> completed,
+    bool content) {
+  auto context= vault_capture_context ();
+  auto* timer= new QTimer (owner);
+  std::vector<std::string> requested;
+  for (const auto& id: ids) requested.push_back (id.toStdString ());
+  SourceLookupLease* lease= nullptr;
+  if (context) {
+    for (auto* child: owner->children ())
+      if (auto* candidate= dynamic_cast<SourceLookupLease*> (child))
+        if (candidate->incarnation == context->incarnation) { lease= candidate; break; }
+    if (!lease) lease= new SourceLookupLease (owner, context);
+  }
+  auto service= lease ? lease->service : nullptr;
+  if (!service || ids.isEmpty ()) {
+    QObject::connect (timer, &QTimer::timeout, timer,
+      [timer, completed= std::move (completed)] {
+        timer->stop ();
+        timer->deleteLater ();
+        completed ({}, "No active vault or no source identities selected.");
+      });
+    timer->start (0);
+    return timer;
+  }
+  auto request= service->request (requested, {}, content);
+  QObject::connect (timer, &QObject::destroyed, [request] { request->cancel (); });
+  QObject::connect (timer, &QTimer::timeout, timer,
+    [timer, request, context, completed= std::move (completed)] {
+      auto result= request->read ();
+      QString error;
+      if (!vault_context_is_current (context)) error= "The originating vault has closed.";
+      else if (result->state == athena::node_location::status::pending) return;
+      else if (result->state != athena::node_location::status::resolved || result->items.empty ()) {
+        error= "Could not resolve the selected source identities.";
+        for (const auto& item: result->items)
+          if (!item.diagnostic.empty ()) error += "\n" + QString::fromStdString (item.diagnostic);
+      }
+      timer->stop ();
+      timer->deleteLater ();
+      completed (result, error);
+    });
+  timer->start (40);
+  return timer;
+}
+
+tree vault_source_preview (const athena::node_location::result& result) {
+  tree body (DOCUMENT);
+  for (const auto& item: result.items) {
+    if (item.state != athena::node_location::status::resolved)
+      throw std::runtime_error ("Source preview requires resolved identities");
+    tree fragment= athena::document::read_xml_v2 (item.fragment_xml,
+      athena::document::xml_kind::fragment);
+    body << rebase_preview_images (fragment,
+      url_system (string (item.source_directory.data (), item.source_directory.size ())));
+  }
+  return body;
+}
 
 tree
 vault_link_source_body (url file) {

@@ -177,6 +177,11 @@ tree select_nested_paragraphs (tree value, path parent, int first, int last) {
 
 tree build_paragraph_preview (tree body,
                               const AthenaArtifactParagraphLocation& location) {
+  if (!location.nodes.empty ()) {
+    tree selected (DOCUMENT);
+    for (const auto& where: location.nodes) selected << copy (subtree (body, where));
+    return selected;
+  }
   if (is_nil (location.parent))
     return build_preview_from_anchor_range (
       body, path (location.first_child), path (location.last_child));
@@ -243,75 +248,6 @@ bool resolve_paragraph (
 
   error= "This legacy paragraph has no existing target. Upgrade the vault node model before linking it.";
   return false;
-}
-
-bool resolve_migrated_source (
-    const AthenaArtifactRecord& record, const ArtifactSource& source,
-    QTMVaultArtifactUsage usage, QTMVaultArtifactSelection& selection, QString& error) {
-  tree body= source.body;
-  tree document= source.document;
-  if (!athena::node::valid_id (record.source_uuid)) {
-    error= "The Artifact has no persistent source identity. Rebuild artifacts and try again.";
-    return false;
-  }
-  std::vector<VaultSourceTarget> checked;
-  if (!vault_source_selection (source.body, {qstr (record.source_uuid)}, checked, error))
-    return false;
-  selection.wikilink_uuid= qstr (record.source_uuid);
-  if (usage == QTMVaultArtifactUsage::Wikilink) return true;
-  if (record.origin == "enunciation") {
-    path where;
-    std::string locate_error;
-    if (!athena_artifact_locate_source (
-          document, record, where, locate_error)) {
-      error= qstr (locate_error) + ". Rebuild artifacts and try again.";
-      return false;
-    }
-    tree target= is_nil (where) ? body : subtree (body, where);
-    const std::string id= athena::node::id (target);
-    if (!athena::node::valid_id (id)) {
-      error= "The selected enunciation has no persistent source UUID.";
-      return false;
-    }
-    selection.source_uuids << QString::fromStdString (id);
-    return true;
-  }
-  if (record.origin != "bold-text") {
-    error= "Unsupported artifact origin.";
-    return false;
-  }
-
-  AthenaArtifactParagraphLocation location;
-  std::string locate_error;
-  if (!athena_artifact_locate_paragraph (
-        document, record, location, locate_error)) {
-    error= qstr (locate_error) + ". Rebuild artifacts and try again.";
-    return false;
-  }
-  tree parent= is_nil (location.parent) ? body : subtree (body, location.parent);
-  for (int i=location.first_child; i<=location.last_child; ++i) {
-    if (!is_compound (parent) || i < 0 || i >= N(parent)) {
-      error= "The Artifact paragraph range is no longer valid.";
-      return false;
-    }
-    tree child= parent[i];
-    if (is_func (child, LABEL) ||
-        (is_atomic (child) && to_qstring (child->label).trimmed ().isEmpty ()))
-      continue;
-    const std::string id= athena::node::id (child);
-    if (!athena::node::valid_id (id)) {
-      error= "An object in the Artifact paragraph range has no persistent UUID.";
-      return false;
-    }
-    const QString qid= QString::fromStdString (id);
-    if (!selection.source_uuids.contains (qid))
-      selection.source_uuids << qid;
-  }
-  if (selection.source_uuids.isEmpty ()) {
-    error= "The Artifact paragraph range contains no source objects.";
-    return false;
-  }
-  return vault_source_selection (source.body, selection.source_uuids, checked, error);
 }
 
 bool locate_artifact_preview (
@@ -559,6 +495,7 @@ QTMVaultArtifactPage::runSearch () {
 
 void
 QTMVaultArtifactPage::updatePreview () {
+  delete previewRequest.data ();
   QListWidgetItem* item= resultList->currentItem ();
   int index= item == nullptr ? -1 :
     item->data (ArtifactRecordRole).toInt ();
@@ -566,6 +503,28 @@ QTMVaultArtifactPage::updatePreview () {
     previewTitle->setText ("Select an artifact to preview it.");
     preview.ensureCreated (previewHost);
     preview.setBody (tree (DOCUMENT, ""));
+    return;
+  }
+  const auto& record= records[(size_t) index];
+  if (vault_get_node_model_version () >= 1) {
+    QStringList ids;
+    for (const auto& id: record.source_nodes) ids << qstr (id);
+    if (ids.isEmpty ()) ids << qstr (record.source_uuid);
+    previewTitle->setText ("Locating source...");
+    previewRequest= vault_resolve_source_ids (this, ids,
+      [this] (auto answer, QString error) {
+        if (!error.isEmpty ()) { previewTitle->setText (error); return; }
+        try {
+          preview.ensureCreated (previewHost);
+          preview.setBody (vault_source_preview (*answer));
+          QStringList files;
+          for (const auto& item: answer->items) {
+            const auto file= qstr (item.candidates.front ().file);
+            if (!files.contains (file)) files << file;
+          }
+          previewTitle->setText (files.join (", "));
+        } catch (...) { previewTitle->setText ("Preview unavailable."); }
+      });
     return;
   }
   tree body;
@@ -595,6 +554,18 @@ QTMVaultArtifactPage::resolveSelection (
     return false;
   }
   const AthenaArtifactRecord& record= records[(size_t) index];
+  if (vault_get_node_model_version () >= 1) {
+    selection.display_text= qstr (record.display_text);
+    selection.wikilink_uuid= qstr (record.source_uuid);
+    if (record.origin == "enunciation") selection.source_uuids << qstr (record.source_uuid);
+    else for (const auto& id: record.source_nodes) selection.source_uuids << qstr (id);
+    if (usage == QTMVaultArtifactUsage::Transclusion && selection.source_uuids.isEmpty ()) {
+      QMessageBox::warning (this, "Select an artifact",
+        "The Artifact has no verified source UUID list. Rebuild artifacts and try again.");
+      return false;
+    }
+    return true;
+  }
   ArtifactSource source;
   QString error;
   if (!load_artifact_source (record, source, error)) {
@@ -603,9 +574,7 @@ QTMVaultArtifactPage::resolveSelection (
   }
   selection.relative_path= qstr (record.relative_path);
   selection.display_text= qstr (record.display_text);
-  bool ok= vault_get_node_model_version () >= 1 ?
-    resolve_migrated_source (record, source, usage, selection, error) :
-    (record.origin == "enunciation" ?
+  bool ok= (record.origin == "enunciation" ?
       resolve_enunciation (record, source, selection, error) :
       resolve_paragraph (record, source, selection, error));
   if (!ok) {

@@ -16,6 +16,7 @@
 
 #include <QWizardPage>
 #include <QStringList>
+#include <QPointer>
 #include <functional>
 #include <vector>
 
@@ -80,6 +81,7 @@ private:
   std::vector<AthenaArtifactRecord> records;
   bool recordsLoaded;
   bool selectionAccepted;
+  QPointer<QObject> previewRequest;
 };
 
 #endif // QTMVAULTARTIFACTPAGE_HPP

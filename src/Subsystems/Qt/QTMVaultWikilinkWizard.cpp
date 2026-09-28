@@ -33,6 +33,7 @@
 #include "tree_search.hpp"
 #include "vault.hpp"
 #include <QApplication>
+#include <QPointer>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QCompleter>
@@ -133,91 +134,6 @@ absolute_vault_path (const QString& relPath) {
   QString root= to_qstring (concretize (vault_get_root ()));
   if (root.isEmpty ()) return relPath;
   return QDir (root).absoluteFilePath (relPath);
-}
-
-static bool
-blank_source_child (tree value) {
-  return is_atomic (value) &&
-    to_qstring (value->label).trimmed ().isEmpty ();
-}
-
-static QString
-migrated_wikilink_source_uuid (
-    const QString& relPath, const QString& anchor, QString& diagnostic) {
-  diagnostic.clear ();
-  if (vault_get_node_model_version () < 1) return {};
-  try {
-    const url file= vault_get_root () * url_unix (from_qstring (relPath));
-    tree body= vault_link_source_body (file);
-    path target;
-    if (!anchor.isEmpty ()) {
-      std::vector<WikilinkAnchorEntry> anchors;
-      collect_anchors (body, path (), anchors);
-      std::vector<path> exact;
-      for (const auto& current: anchors)
-        if (current.anchor == anchor) exact.push_back (current.where);
-      if (exact.size () != 1) {
-        diagnostic= exact.empty () ?
-          "The selected source anchor no longer exists." :
-          "The selected source anchor is ambiguous.";
-        return {};
-      }
-      target= exact.front ();
-
-      std::vector<TransclusionAnchorPair> headings=
-        collect_heading_anchor_targets (body, path ());
-      std::vector<path> heading_targets;
-      for (const auto& heading: headings)
-        if (heading.upper == anchor)
-          heading_targets.push_back (heading.lowerWhere);
-      if (heading_targets.size () > 1) {
-        diagnostic= "The selected heading anchor is ambiguous.";
-        return {};
-      }
-      if (heading_targets.size () == 1) target= heading_targets.front ();
-      else {
-        std::vector<TransclusionAnchorPair> pairs=
-          collect_transclusion_pairs (anchors);
-        std::vector<path> enunciations;
-        for (const auto& pair: pairs) {
-          if (pair.upper != anchor || !anchor_pair_is_enunciation (pair))
-            continue;
-          const path parent= path_up (pair.upperWhere);
-          if (parent != path_up (pair.lowerWhere)) continue;
-          tree container= is_nil (parent) ? body : subtree (body, parent);
-          const int upper= last_item (pair.upperWhere);
-          const int lower= last_item (pair.lowerWhere);
-          int candidate= -1;
-          for (int i=upper + 1; i<lower; ++i) {
-            if (blank_source_child (container[i])) continue;
-            if (candidate >= 0) { candidate= -2; break; }
-            candidate= i;
-          }
-          if (candidate >= 0) enunciations.push_back (parent * candidate);
-        }
-        if (enunciations.size () > 1) {
-          diagnostic= "The selected enunciation anchor is ambiguous.";
-          return {};
-        }
-        if (enunciations.size () == 1) target= enunciations.front ();
-      }
-    }
-    tree selected= is_nil (target) ? body : subtree (body, target);
-    const std::string id= athena::node::id (selected);
-    if (!athena::node::valid_id (id)) {
-      diagnostic= "The selected source object has no persistent UUID.";
-      return {};
-    }
-    return QString::fromStdString (id);
-  }
-  catch (const std::exception& error) {
-    diagnostic= QString::fromUtf8 (error.what ());
-    return {};
-  }
-  catch (...) {
-    diagnostic= "Could not read the selected source object.";
-    return {};
-  }
 }
 
 static WikilinkDisplayContext
@@ -487,6 +403,7 @@ public:
   WikilinkPreview preview;
   std::vector<WikilinkSearchResult> results;
   std::vector<WikilinkAnchorEntry> currentAnchors;
+  QPointer<QObject> previewRequest;
   bool        displayTouched;
   std::shared_ptr<VaultSearchControl> searchTask;
   unsigned long searchGeneration= 0;
@@ -512,6 +429,7 @@ public:
   QString anchorHint;
   QString displayText;
   QString sourceUuid;
+  QPointer<QObject> sourceRequest;
   bool    filesLoaded;
   bool    filesLoadScheduled;
   bool    resultAccepted;
@@ -1464,6 +1382,7 @@ WikilinkSearchPage::addResult (const WikilinkSearchResult& result) {
 
 void
 WikilinkSearchPage::updatePreview (QListWidgetItem* current) {
+  delete previewRequest.data ();
   currentAnchors.clear ();
   anchorList->clear ();
   displayTouched= false;
@@ -1485,25 +1404,28 @@ WikilinkSearchPage::updatePreview (QListWidgetItem* current) {
       .arg (result.occurrence)
       .arg (result.fileHits));
 
+  if (vault_get_node_model_version () >= 1) {
+    previewTitle->setText ("Locating source...");
+    previewRequest= vault_resolve_source_ids (this, {result.sourceUuid},
+      [this, id= result.sourceUuid] (auto answer, QString error) {
+        preview.ensureCreated (previewHost);
+        if (!error.isEmpty ()) { previewTitle->setText (error); return; }
+        try {
+          tree body= vault_source_preview (*answer);
+          preview.setBody (body);
+          const auto targets= vault_source_targets (body);
+          const QString title= targets.empty () ? id : targets.front ().title;
+          auto* item= new QListWidgetItem (title, anchorList);
+          item->setData (WikilinkPayloadRole, id);
+          anchorList->setCurrentRow (0);
+          displayEdit->setText (title);
+          previewTitle->setText (QString::fromStdString (answer->items.front ().candidates.front ().file));
+        } catch (...) { previewTitle->setText ("Preview unavailable."); }
+      });
+    return;
+  }
   try {
     tree body= vault_link_source_body (result.file);
-    if (vault_get_node_model_version () >= 1) {
-      QString error;
-      std::vector<VaultSourceTarget> selected;
-      preview.ensureCreated (previewHost);
-      if (!vault_source_selection (body, {result.sourceUuid}, selected, error)) {
-        preview.setBody (tree (DOCUMENT, from_qstring (error)));
-        return;
-      }
-      const auto& target= selected.front ();
-      preview.setBody (rebase_preview_images (
-        build_preview_from_body (body, target.where), head (result.file)));
-      auto* item= new QListWidgetItem (target.title, anchorList);
-      item->setData (WikilinkPayloadRole, target.uuid);
-      anchorList->setCurrentRow (0);
-      displayEdit->setText (target.title);
-      return;
-    }
     int first= 0, last= 0;
     preview.ensureCreated (previewHost);
     preview.setBody (
@@ -1637,6 +1559,7 @@ WikilinkSearchPage::validatePage () {
     static_cast<QTMVaultWikilinkWizard*> (wizard ());
   if (w->resultAccepted) return true;
   if (chooseAnchorItem (anchorList->currentItem ())) return true;
+  if (w->sourceRequest) return false;
   QMessageBox::information (this, "Insert wikilink",
                             "Click a usable { anchor in the search preview first.");
   return false;
@@ -1646,6 +1569,10 @@ QTMVaultWikilinkWizard::QTMVaultWikilinkWizard (QWidget* parent)
   : QWizard (parent), filesLoaded (false), filesLoadScheduled (false),
     resultAccepted (false) {
   setWindowTitle ("Insert Wikilink");
+  connect (this, &QWizard::currentIdChanged, this,
+           [this] { delete sourceRequest.data (); });
+  connect (this, &QDialog::rejected, this,
+           [this] { delete sourceRequest.data (); });
   resize (1220, 780);
   setOption (QWizard::NoBackButtonOnStartPage, true);
 
@@ -1721,22 +1648,24 @@ QTMVaultWikilinkWizard::setResult (const QString& relPath,
   anchorHint= anchorHint2;
   displayText= displayText2;
   sourceUuid.clear ();
+  delete sourceRequest.data ();
   if (vault_get_node_model_version () >= 1) {
-    QString diagnostic;
-    if (sourceId.isEmpty ())
-      sourceUuid= migrated_wikilink_source_uuid (relPath, anchor, diagnostic);
-    else {
-      std::vector<VaultSourceTarget> checked;
-      if (vault_source_selection (vault_link_source_body (
-            vault_get_root () * url_unix (from_qstring (relPath))),
-            {sourceId}, checked, diagnostic)) sourceUuid= sourceId;
+    resultAccepted= false;
+    const QString id= sourceId;
+    if (id.isEmpty ()) {
+      QMessageBox::warning (this, "Insert wikilink", "Select a source object with a persistent UUID.");
+      return;
     }
-    if (sourceUuid.isEmpty () && !diagnostic.isEmpty ())
-      QMessageBox::warning (
-        this, "Insert wikilink",
-        diagnostic +
-          "\n\nThe migrated Vault will not fall back to file or anchor "
-          "hints for identity.");
+    sourceRequest= vault_resolve_source_ids (this, {id},
+      [this, id, page= currentId ()] (auto answer, QString error) {
+        if (currentId () != page || !isVisible ()) return;
+        if (!error.isEmpty ()) { QMessageBox::warning (this, "Insert wikilink", error); return; }
+        sourceUuid= id;
+        selectedRelPath= QString::fromStdString (answer->items.front ().candidates.front ().file);
+        resultAccepted= true;
+        accept ();
+      }, false);
+    return;
   }
   resultAccepted= vault_get_node_model_version () < 1 || !sourceUuid.isEmpty ();
 }

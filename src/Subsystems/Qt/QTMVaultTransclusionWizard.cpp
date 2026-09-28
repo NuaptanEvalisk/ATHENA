@@ -29,6 +29,7 @@
 #include "namespaces.hpp"
 #include "new_buffer.hpp"
 #include "node_metadata.hpp"
+#include <QPointer>
 #include "qt_utilities.hpp"
 #include "scheme.hpp"
 #include "tree_search.hpp"
@@ -262,6 +263,7 @@ public:
   QWidget*     previewHost;
   WikilinkPreview preview;
   std::vector<TransclusionSearchResult> results;
+  QPointer<QObject> previewRequest;
   std::shared_ptr<VaultSearchControl> searchTask;
   unsigned long searchGeneration= 0;
 };
@@ -289,6 +291,7 @@ public:
   QString selectedUpperAnchor;
   path    selectedUpperWhere;
   QStringList selectedSourceUuids;
+  QPointer<QObject> sourceRequest;
   bool    filesLoaded;
   bool    filesLoadScheduled;
   bool    resultAccepted;
@@ -717,12 +720,12 @@ TransclusionEnunciationPage::acceptCurrentPair () {
     }
     QString error;
     std::vector<VaultSourceTarget> checked;
-    if (!vault_source_selection (vault_link_source_body (w->selectedFileUrl), ids, checked, error)) {
+    if (!vault_source_selection (fileBody, ids, checked, error)) {
       QMessageBox::warning (this, "Insert transclusion", error);
       return false;
     }
     w->setResult (w->selectedRelPath, {}, {}, w->fileHint, {}, ids);
-    return true;
+    return w->resultAccepted;
   }
   if (index < 0 || index >= (int) pairs.size ()) return false;
   const TransclusionAnchorPair& pair= pairs[index];
@@ -1671,6 +1674,7 @@ TransclusionSearchPage::addResult (const TransclusionSearchResult& result) {
 
 void
 TransclusionSearchPage::updatePreview (QListWidgetItem* current) {
+  delete previewRequest.data ();
   if (current == nullptr) {
     previewTitle->setText ("Select a search result to preview it.");
     preview.ensureCreated (previewHost);
@@ -1685,20 +1689,23 @@ TransclusionSearchPage::updatePreview (QListWidgetItem* current) {
       .arg (result.relPath)
       .arg (result.occurrence)
       .arg (result.fileHits));
+  if (!result.sourceUuid.isEmpty ()) {
+    previewTitle->setText ("Locating source...");
+    previewRequest= vault_resolve_source_ids (this, {result.sourceUuid},
+      [this] (auto answer, QString error) {
+        if (!error.isEmpty ()) { previewTitle->setText (error); return; }
+        try {
+          preview.ensureCreated (previewHost);
+          preview.setBody (vault_source_preview (*answer));
+          previewTitle->setText (QString::fromStdString (answer->items.front ().candidates.front ().file));
+        } catch (...) { previewTitle->setText ("Preview unavailable."); }
+      });
+    return;
+  }
   try {
     tree body= vault_link_source_body (result.file);
     preview.ensureCreated (previewHost);
-    if (!result.sourceUuid.isEmpty ()) {
-      QString error;
-      std::vector<VaultSourceTarget> selected;
-      if (!vault_source_selection (body, {result.sourceUuid}, selected, error)) {
-        preview.setBody (tree (DOCUMENT, from_qstring (error)));
-        return;
-      }
-      preview.setBody (rebase_preview_images (
-        tree (DOCUMENT, copy (subtree (body, selected.front ().where))), head (result.file)));
-    }
-    else preview.setBody (rebase_preview_images (build_preview_from_anchor_range (
+    preview.setBody (rebase_preview_images (build_preview_from_anchor_range (
       body, result.upperWhere, result.lowerWhere), head (result.file)));
   }
   catch (...) {
@@ -1722,15 +1729,8 @@ TransclusionSearchPage::acceptCurrentResult () {
   if (index < 0 || index >= (int) results.size ()) return false;
   const TransclusionSearchResult& result= results[index];
   if (vault_get_node_model_version () >= 1) {
-    QString error;
-    std::vector<VaultSourceTarget> checked;
-    if (!vault_source_selection (vault_link_source_body (result.file),
-                                 {result.sourceUuid}, checked, error)) {
-      QMessageBox::warning (this, "Insert transclusion", error);
-      return false;
-    }
     w->setResult (result.relPath, {}, {}, {}, {}, {result.sourceUuid});
-    return true;
+    return w->resultAccepted;
   }
   w->setResult (result.relPath, result.upper, result.lower,
                 file_display_stem (result.relPath), result.upper);
@@ -1749,6 +1749,10 @@ QTMVaultTransclusionWizard::QTMVaultTransclusionWizard (QWidget* parent)
   : QWizard (parent), selectedUpperIndex (-1), filesLoaded (false),
     filesLoadScheduled (false), resultAccepted (false) {
   setWindowTitle ("Insert Transclusion");
+  connect (this, &QWizard::currentIdChanged, this,
+           [this] { delete sourceRequest.data (); });
+  connect (this, &QDialog::rejected, this,
+           [this] { delete sourceRequest.data (); });
   resize (1220, 780);
   setOption (QWizard::NoBackButtonOnStartPage, true);
 
@@ -1818,6 +1822,19 @@ QTMVaultTransclusionWizard::setResult (const QString& relPath,
   fileHint= fileHint2;
   anchorHint= anchorHint2;
   selectedSourceUuids= sourceUuids;
+  delete sourceRequest.data ();
+  if (vault_get_node_model_version () >= 1) {
+    resultAccepted= false;
+    sourceRequest= vault_resolve_source_ids (this, sourceUuids,
+      [this] (auto answer, QString error) {
+        if (!error.isEmpty ()) { QMessageBox::warning (this, "Insert transclusion", error); return; }
+        selectedSourceUuids.clear ();
+        for (const auto& item: answer->items) selectedSourceUuids << QString::fromStdString (item.id);
+        resultAccepted= true;
+        accept ();
+      }, false);
+    return;
+  }
   resultAccepted= true;
 }
 
