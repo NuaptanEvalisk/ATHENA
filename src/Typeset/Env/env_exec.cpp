@@ -52,6 +52,8 @@ edit_env_rep::rewrite (tree t) {
   switch (L(t)) {
   case EXTERN:
     {
+      if (!scheme_modules_enabled)
+        return tree (_ERROR, "Scheme callback disabled in offline style analysis");
       int i, n= N(t);
       if (n < 1) return tree (_ERROR, "invalid extern");
       string fun= tm_decode(exec_string (t[0]));
@@ -1129,6 +1131,7 @@ edit_env_rep::exec_use_package (tree t) {
 
 tree
 edit_env_rep::exec_use_module (tree t) {
+  if (!scheme_modules_enabled) return "";
   int i, n= N(t);
   for (i=0; i<n; i++) {
     string s= exec_string (t[i]);

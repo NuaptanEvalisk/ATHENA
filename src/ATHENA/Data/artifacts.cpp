@@ -2699,7 +2699,49 @@ athena_artifact_locate_source (
     AthenaArtifactParagraphLocation location;
     if (!athena_artifact_locate_paragraph (
           document, record, location, error)) return false;
-    source_path= location.parent * location.focus_child;
+    // Legacy bold-text rows identify a paragraph range plus the exact serialized
+    // keyword occurrence.  The authoritative node-model binding belongs on the
+    // concrete bold wrapper itself (the same source_path produced by native v2
+    // extraction), not on the containing paragraph child.  Returning only the
+    // paragraph path collapses multiple bold artifacts in one paragraph onto the
+    // same role and creates false binding conflicts during migration.
+    std::vector<Paragraph> paragraphs;
+    collect_paragraphs (body, paragraphs);
+    std::unordered_map<std::string,int> occurrences;
+    tree matched;
+    bool matched_found= false;
+    for (const auto& paragraph: paragraphs) {
+      std::vector<tree> bolds;
+      find_bold (paragraph.value, bolds);
+      for (const tree& keyword: bolds) {
+        std::string display= plain_text (visible_body (keyword));
+        if (collapse_spaces (display).empty ()) continue;
+        std::string serialized= fragment_bytes (keyword);
+        int occurrence= ++occurrences[serialized];
+        if (serialized == record.keyword_tree &&
+            occurrence == record.keyword_occurrence) {
+          matched= keyword;
+          matched_found= true;
+          break;
+        }
+      }
+      if (matched_found) break;
+    }
+    if (!matched_found) {
+      error= "Artifact bold source no longer matches the artifact database";
+      return false;
+    }
+    path keyword_path;
+    unsigned matches= 0;
+    find_shared_source_paths (
+      body, matched, path (), keyword_path, matches);
+    if (matches != 1) {
+      error= matches == 0 ?
+        "Artifact bold source path is no longer present" :
+        "Artifact bold source occurs more than once in the source tree";
+      return false;
+    }
+    source_path= keyword_path;
     return true;
   }
   if (record.origin != "enunciation") {

@@ -192,6 +192,12 @@ role_declaration roles_for (const tree& source, drd_info drd,
             std::vector<child_role> (N(source), child_role::inline_content)};
   }
 
+  // An unknown nullary source macro has no payload whose semantic role could
+  // be misclassified.  Treat the persisted wrapper as content while retaining
+  // the conservative rejection below for every unknown macro with children.
+  if (N(source) == 0)
+    return {semantic_role::content, "", {}};
+
   if (!drd->contains (as_string (L(source))))
     fail (where, issue::unsupported_ambiguous_role, "No DRD or explicit body-role contract for " +
           bytes (as_string (L(source))));
@@ -267,8 +273,20 @@ class identity_planner {
       return;
     }
     if (is_func (source, DOCUMENT)) {
-      if (context == child_role::inline_content)
-        fail (where, issue::unsupported_ambiguous_role, "DOCUMENT in an inline-only slot");
+      if (context == child_role::inline_content) {
+        // Rich inline arguments (for example a heading title containing MARKED)
+        // may be serialized as a one-item DOCUMENT wrapper.  Treat that wrapper
+        // as transparent inline structure rather than inventing a nested body
+        // identity.  A genuinely multi-paragraph DOCUMENT remains invalid in an
+        // inline-only slot.
+        if (N(source) != 1)
+          fail (where, issue::unsupported_ambiguous_role,
+                "Multi-paragraph DOCUMENT in an inline-only slot");
+        where.push_back (0);
+        visit (source[0], child_role::inline_content, false, depth + 1);
+        where.pop_back ();
+        return;
+      }
       candidates.push_back ({where, identity_role::body, ""});
       const int begin= depth < scope.size () ? scope[depth] : 0;
       const int end= depth < scope.size () ? begin + 1 : N(source);
@@ -314,6 +332,63 @@ public:
     return std::move (candidates);
   }
 };
+
+source_path_classification classify_source_path_impl (
+    const tree& body, const source_path& selected, drd_info drd,
+    const role_resolver& resolve, limits budget) {
+  source_path_classification result;
+  try {
+    const tree* current= &body;
+    child_role context= child_role::body;
+    source_path prefix;
+    for (std::size_t depth= 0;; ++depth) {
+      if (depth > budget.maximum_depth)
+        fail (prefix, issue::resource_limit,
+              "Source path exceeds depth budget");
+      if (context == child_role::data || excluded (*current)) return result;
+
+      if (depth == selected.size ()) {
+        if (is_compound (*current) && !is_func (*current, DOCUMENT)) {
+          const auto contract= roles_for (*current, drd, resolve, prefix);
+          if (contract.role == semantic_role::data) return result;
+        }
+        result.content= true;
+        return result;
+      }
+
+      const int index= selected[depth];
+      if (!is_compound (*current) || index < 0 || index >= N(*current))
+        fail (selected, issue::invalid_path,
+              "Source classification path is not in the source");
+
+      child_role next= child_role::content;
+      if (is_func (*current, DOCUMENT)) {
+        if (context == child_role::inline_content) {
+          if (N(*current) != 1)
+            fail (prefix, issue::unsupported_ambiguous_role,
+                  "Multi-paragraph DOCUMENT in an inline-only slot");
+          next= child_role::inline_content;
+        }
+      }
+      else {
+        const auto contract= roles_for (*current, drd, resolve, prefix);
+        if (contract.role == semantic_role::data) return result;
+        next= contract.children[index];
+        if (context == child_role::inline_content &&
+            next == child_role::content)
+          next= child_role::inline_content;
+      }
+      if (next == child_role::data) return result;
+      prefix.push_back (index);
+      current= &(*current)[index];
+      context= next;
+    }
+  }
+  catch (const failure& problem) {
+    result.diagnostics.push_back (problem.value);
+    return result;
+  }
+}
 
 template<typename T> T& at (T& root, const source_path& where) {
   T* current= &root;
@@ -489,6 +564,203 @@ std::optional<role_declaration> standard_source_role (const tree& source) {
     return role_declaration {
       semantic_role::content, "",
       std::vector<child_role> (N(source), child_role::data)};
+  // Standard title metadata aggregators are persisted source structure. Their
+  // variable-arity layout is rendered through Scheme EXTERN callbacks, so DRD
+  // inference cannot recover physical child roles without executing Scheme.
+  // The children themselves are source content (titles, authors, abstracts,
+  // classification fields, etc.) and must remain traversable for nested source
+  // identities during offline migration.
+  if (is_compound (source, "doc-data") ||
+      is_compound (source, "author-data") ||
+      is_compound (source, "abstract-data"))
+    return role_declaration {
+      semantic_role::content, "",
+      std::vector<child_role> (N(source), child_role::content)};
+  // Title/author/abstract fields are authored source payloads.  Several of
+  // these macros are rendered through externals or style helpers, so their DRD
+  // child type may remain unknown even though the argument is retained source.
+  if (is_compound (source, "doc-title", 1) ||
+      is_compound (source, "doc-subtitle", 1) ||
+      is_compound (source, "doc-author", 1) ||
+      is_compound (source, "doc-misc", 1) ||
+      is_compound (source, "doc-date", 1) ||
+      is_compound (source, "doc-note", 1) ||
+      is_compound (source, "doc-running-title", 1) ||
+      is_compound (source, "doc-running-author", 1) ||
+      is_compound (source, "author-name", 1) ||
+      is_compound (source, "author-affiliation", 1) ||
+      is_compound (source, "author-misc", 1) ||
+      is_compound (source, "author-note", 1) ||
+      is_compound (source, "abstract", 1))
+    return role_declaration {
+      semantic_role::content, "", {child_role::content}};
+  if (is_compound (source, "author-name-affiliation", 2))
+    return role_declaration {
+      semantic_role::content, "",
+      {child_role::content, child_role::content}};
+  if (is_compound (source, "author-email", 1) ||
+      is_compound (source, "author-homepage", 1) ||
+      is_compound (source, "doc-title-options"))
+    return role_declaration {
+      semantic_role::content, "",
+      std::vector<child_role> (N(source), child_role::data)};
+  // Auxiliary section containers persist the channel/name wrapper in source,
+  // but their generated body is disposable derived data: generate_aux_recursively
+  // clears and rebuilds the last child on every refresh.  The channel selector
+  // is data as well; only the optional explicit display name is source content.
+  if (is_compound (source, "table-of-contents", 2) ||
+      is_compound (source, "the-index", 2) ||
+      is_compound (source, "the-glossary", 2) ||
+      is_compound (source, "list-of-figures", 2) ||
+      is_compound (source, "list-of-tables", 2))
+    return role_declaration {
+      semantic_role::content, "",
+      {child_role::data, child_role::data}};
+  if (is_compound (source, "table-of-contents*", 3) ||
+      is_compound (source, "the-index*", 3) ||
+      is_compound (source, "the-glossary*", 3))
+    return role_declaration {
+      semantic_role::content, "",
+      {child_role::data, child_role::inline_content, child_role::data}};
+  // Legacy presentation wrapper: the first argument is box/style data and the
+  // second argument is the displayed inline source expression.
+  if (is_compound (source, "bbox*", 2))
+    return role_declaration {
+      semantic_role::content, "",
+      {child_role::data, child_role::inline_content}};
+  // Historical postfix binomial notation may persist as n<choose|k>; the
+  // current style aliases CHOOSE to the two-argument BINOM macro, so DRD arity
+  // no longer describes this one-argument source form.  Its sole argument is
+  // authored inline math content.
+  if (is_compound (source, "choose", 1))
+    return role_declaration {
+      semantic_role::content, "", {child_role::inline_content}};
+  // The *alignat family stores a column-count/layout argument followed by the
+  // authored mathematical table body.  The style macro definitions preserve
+  // exactly this (ncol, body) shape.
+  if (is_compound (source, "alignat", 2) ||
+      is_compound (source, "alignat*", 2) ||
+      is_compound (source, "alignedat", 2) ||
+      is_compound (source, "alignedat*", 2))
+    return role_declaration {
+      semantic_role::content, "",
+      {child_role::data, child_role::content}};
+  // WIDE accents may be structured presentation tokens (for example a
+  // NAMED_SYMBOL wrapped in CONCAT), so the DRD cannot type them as strings.
+  // The decorated expression is source content; the accent descriptor is not.
+  if (is_func (source, WIDE, 2) || is_func (source, VAR_WIDE, 2))
+    return role_declaration {
+      semantic_role::content, "",
+      {child_role::content, child_role::data}};
+  // Math presentation primitives mix source expressions with structural
+  // operator/delimiter descriptors.  The latter may themselves be structured
+  // trees, so source identity planning must classify them by primitive
+  // semantics instead of DRD value type or edit accessibility.
+  if (is_func (source, AROUND, 3) || is_func (source, VAR_AROUND, 3))
+    return role_declaration {
+      semantic_role::content, "",
+      {child_role::data, child_role::content, child_role::data}};
+  if (is_func (source, BIG_AROUND, 2))
+    return role_declaration {
+      semantic_role::content, "",
+      {child_role::data, child_role::content}};
+  if (is_func (source, BIG, 1) || is_func (source, LPRIME, 1) ||
+      is_func (source, RPRIME, 1) || is_func (source, LEFT) ||
+      is_func (source, MID) || is_func (source, RIGHT))
+    return role_declaration {
+      semantic_role::content, "",
+      std::vector<child_role> (N(source), child_role::data)};
+  if (is_func (source, LONG_ARROW) && (N(source) == 2 || N(source) == 3)) {
+    std::vector<child_role> children (N(source), child_role::content);
+    children[0]= child_role::data;
+    return role_declaration {semantic_role::content, "", std::move (children)};
+  }
+  if ((is_func (source, ABOVE, 2) || is_func (source, BELOW, 2)) ||
+      (is_func (source, SQRT) && (N(source) == 1 || N(source) == 2)))
+    return role_declaration {
+      semantic_role::content, "",
+      std::vector<child_role> (N(source), child_role::content)};
+  // Legacy TeX imports may retain mathllap as a one-argument transparent
+  // presentation wrapper around authored mathematical content.
+  if (is_compound (source, "mathllap", 1))
+    return role_declaration {
+      semantic_role::content, "", {child_role::inline_content}};
+  // Legacy TeX imports retain RAISE as [vertical offset, math content].
+  // The offset is layout data; the second argument is authored inline source.
+  if (is_compound (source, "raise", 2))
+    return role_declaration {
+      semantic_role::content, "",
+      {child_role::data, child_role::inline_content}};
+  // Legacy TeX KERN carries only a spacing/length expression.
+  if (is_compound (source, "kern", 1))
+    return role_declaration {
+      semantic_role::content, "", {child_role::data}};
+  // Legacy math sources may use capitalized Big for a one-token large
+  // delimiter.  Its sole argument names the delimiter and is not source text.
+  if (is_compound (source, "Big", 1) && is_atomic (source[0]))
+    return role_declaration {
+      semantic_role::content, "", {child_role::data}};
+  // One historical Obsidian blockquote representation used the literal tag
+  // ">" with [source, body, link title, locator].  Accept only that exact
+  // persisted shape: the quote body is source structure, while its locator is
+  // data.  Other unknown ">" forms remain rejected.
+  if (is_compound (source, ">", 4) && is_func (source[1], DOCUMENT) &&
+      is_atomic (source[3]))
+    return role_declaration {
+      semantic_role::content, "",
+      {child_role::inline_content, child_role::body,
+       child_role::inline_content, child_role::data}};
+  // Materials citations persist structural identifiers/options together with a
+  // regenerable rendering cache.  None of these payload children are source
+  // objects; identity belongs to the citation/list wrapper in the document.
+  if (is_compound (source, "material-cite-item", 3) ||
+      is_compound (source, "material-citation", 2) ||
+      is_compound (source, "referenced-materials", 3))
+    return role_declaration {
+      semantic_role::content, "",
+      std::vector<child_role> (N(source), child_role::data)};
+  // Balloon macros carry two authored content trees followed by presentation
+  // alignment settings.  Style evaluation may leave the second content slot
+  // untyped, but the macro definitions preserve both x and y as source.
+  if (is_compound (source, "hover-balloon", 4) ||
+      is_compound (source, "hover-balloon*", 4) ||
+      is_compound (source, "popup-balloon", 4) ||
+      is_compound (source, "popup-balloon*", 4) ||
+      is_compound (source, "focus-balloon", 4) ||
+      is_compound (source, "help-balloon", 4))
+    return role_declaration {
+      semantic_role::content, "",
+      {child_role::content, child_role::content,
+       child_role::data, child_role::data}};
+  // TABULAR is a presentation wrapper around a persisted TFORMAT/TABLE source
+  // subtree; the wrapper does not make that table derived data.
+  if (is_compound (source, "tabular", 1) ||
+      is_compound (source, "tabular*", 1))
+    return role_declaration {
+      semantic_role::content, "", {child_role::content}};
+  if (is_compound (source, "matrix*", 1) ||
+      is_compound (source, "matrix", 1) ||
+      is_compound (source, "bmatrix", 1) ||
+      is_compound (source, "Bmatrix", 1) ||
+      is_compound (source, "det", 1) ||
+      is_compound (source, "choice", 1))
+    return role_declaration {
+      semantic_role::content, "", {child_role::content}};
+  if (is_func (source, TFORMAT) && N(source) >= 1) {
+    std::vector<child_role> children (N(source), child_role::data);
+    children.back ()= child_role::content;
+    return role_declaration {
+      semantic_role::content, "", std::move (children)};
+  }
+  if (is_compound (source, "description-paragraphs", 1))
+    return role_declaration {
+      semantic_role::content, "", {child_role::body}};
+  if (is_compound (source, "item*", 1))
+    return role_declaration {
+      semantic_role::content, "", {child_role::inline_content}};
+  if (is_compound (source, "stack", 1))
+    return role_declaration {
+      semantic_role::content, "", {child_role::content}};
   return {};
 }
 
@@ -533,6 +805,12 @@ identity_result assign_detached_source_ids (
     result.diagnostics.push_back ({{}, "", issue::invalid_metadata, error.what ()});
   }
   return result;
+}
+
+source_path_classification classify_source_path (
+    const tree& body, const source_path& where, drd_info drd,
+    const role_resolver& roles, limits budget) {
+  return classify_source_path_impl (body, where, drd, roles, budget);
 }
 
 namespace {

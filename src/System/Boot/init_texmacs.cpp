@@ -340,8 +340,8 @@ init_guile () {
 * Set additional environment variables
 ******************************************************************************/
 
-static void
-init_env_vars () {
+void
+init_athena_resource_paths () {
   // Set the application binary and resource paths
   url bin_path= get_env_path ("PATH");
 #if defined (OS_MINGW) || defined (OS_MACOS)
@@ -535,7 +535,7 @@ init_athena () {
   //cout << "Initialize -- Guile\n";
   init_guile ();
   //cout << "Initialize -- Environment variables\n";
-  init_env_vars ();
+  init_athena_resource_paths ();
   //cout << "Initialize -- Miscellaneous\n";
   init_misc ();
 }

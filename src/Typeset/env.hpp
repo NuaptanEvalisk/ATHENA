@@ -141,6 +141,7 @@ public:
   url                          base_file_name;
   url                          cur_file_name;
   bool                         secure;
+  bool                         scheme_modules_enabled;
   hashmap<string,tree>&        local_ref;
   hashmap<string,tree>&        global_ref;
   hashmap<string,tree>&        local_aux;
@@ -428,6 +429,9 @@ public:
 		hashmap<string,tree>& global_aux,
 		hashmap<string,tree>& local_att,
 		hashmap<string,tree>& global_att);
+  void   set_scheme_modules_enabled (bool enabled) {
+    scheme_modules_enabled= enabled;
+  }
   void   style_init_env ();
 
   /* execution of trees and setting environment variables */

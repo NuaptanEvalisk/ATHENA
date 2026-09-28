@@ -42,6 +42,7 @@ hashmap<string,tree> get_style_env (tree style);
 drd_info get_style_drd (tree style);
 tree get_document_preamble (tree t);
 drd_info get_document_drd (tree doc);
+drd_info get_offline_document_drd (tree doc, url source_name);
 
 object get_style_menu ();
 bool   hidden_package (string name);

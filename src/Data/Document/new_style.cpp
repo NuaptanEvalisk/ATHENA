@@ -36,6 +36,9 @@ struct style_data_rep {
   drd_info drd_void;
   hashmap<tree,hashmap<string,tree> > style_cached;
   hashmap<tree,drd_info> drd_cached;
+  hashmap<tree,hashmap<string,tree> > offline_style_env_cached;
+  hashmap<tree,drd_info> offline_style_drd_cached;
+  hashmap<tree,drd_info> offline_document_drd_cached;
 
   style_data_rep ():
     style_cache (hashmap<string,tree> (UNINIT)),
@@ -44,7 +47,10 @@ struct style_data_rep {
     style_void (UNINIT),
     drd_void ("void"),
     style_cached (style_void),
-    drd_cached (drd_void) {}
+    drd_cached (drd_void),
+    offline_style_env_cached (style_void),
+    offline_style_drd_cached (drd_void),
+    offline_document_drd_cached (drd_void) {}
 };
 
 static std::atomic<std::uint64_t> style_generation {1};
@@ -491,6 +497,71 @@ get_document_drd (tree doc) {
     env->read_env (H);
     drd->heuristic_init (H);
   }
+  return drd;
+}
+
+drd_info
+get_offline_style_drd (tree style, url source_name,
+                       hashmap<string,tree>& values) {
+  init_style_data ();
+  init_std_drd ();
+  // Keep the source directory in the cache key.  exec_use_package deliberately
+  // searches beside the owning document, so two documents with the same visible
+  // style tuple may still resolve nested local packages differently.
+  tree key (TUPLE, copy (style), as_string (head (source_name)));
+  if (sd->offline_style_drd_cached->contains (key)) {
+    values= sd->offline_style_env_cached [key];
+    return sd->offline_style_drd_cached [key];
+  }
+
+  drd_info drd ("offline-style", standard_drd_for_thread ());
+  hashmap<string,tree> lref;
+  hashmap<string,tree> gref;
+  hashmap<string,tree> laux;
+  hashmap<string,tree> gaux;
+  hashmap<string,tree> latt;
+  hashmap<string,tree> gatt;
+  edit_env env (drd, source_name, lref, gref, laux, gaux, latt, gatt);
+  env->set_scheme_modules_enabled (false);
+  env->exec (tree (USE_PACKAGE, A (style)));
+  env->read_env (values);
+  drd->heuristic_init (values);
+  sd->offline_style_env_cached (copy (key))= values;
+  sd->offline_style_drd_cached (copy (key))= drd;
+  return drd;
+}
+
+drd_info
+get_offline_document_drd (tree doc, url source_name) {
+  init_style_data ();
+  tree style= preprocess_style (extract (doc, "style"), source_name);
+  hashmap<string,tree> base_values;
+  drd_info base= get_offline_style_drd (style, source_name, base_values);
+
+  tree preamble= get_document_preamble (doc);
+  if (preamble == "") return base;
+
+  tree key (TUPLE, copy (style), as_string (head (source_name)), copy (preamble));
+  if (sd->offline_document_drd_cached->contains (key))
+    return sd->offline_document_drd_cached [key];
+
+  // Preamble processing is the document-specific overlay.  Reuse the cached
+  // package environment/DRD and execute only the local preamble on top of it.
+  drd_info drd ("offline-document-preamble", base);
+  hashmap<string,tree> lref;
+  hashmap<string,tree> gref;
+  hashmap<string,tree> laux;
+  hashmap<string,tree> gaux;
+  hashmap<string,tree> latt;
+  hashmap<string,tree> gatt;
+  edit_env env (drd, source_name, lref, gref, laux, gaux, latt, gatt);
+  env->set_scheme_modules_enabled (false);
+  env->patch_env (base_values);
+  env->exec (preamble);
+  hashmap<string,tree> values;
+  env->read_env (values);
+  drd->heuristic_init (values);
+  sd->offline_document_drd_cached (copy (key))= drd;
   return drd;
 }
 

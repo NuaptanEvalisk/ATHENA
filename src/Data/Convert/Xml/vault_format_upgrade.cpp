@@ -266,6 +266,12 @@ struct artifact_binding_update {
   std::vector<std::string> source_nodes;
 };
 
+struct stale_artifact_record {
+  std::string artifact_uuid;
+  std::string relative_path;
+  std::string reason;
+};
+
 std::string native_text (string value) {
   return std::string (as_charp (value), (std::size_t) N(value));
 }
@@ -659,36 +665,62 @@ tree remove_migration_paths (
   return result;
 }
 
-std::string mapped_single (
-    const std::unordered_map<std::string,std::vector<std::string>>& aliases,
-    const std::string& old, const std::string& context) {
-  auto found= aliases.find (old);
-  require (found != aliases.end (),
-           "Unresolved legacy reference " + old + " in " + context);
-  require (found->second.size () == 1,
-           "Legacy reference " + old + " resolves to multiple source objects in " +
-           context);
-  return found->second.front ();
-}
+enum class tmfs_rewrite_result { not_applicable, resolved, unresolved };
 
-bool rewrite_tmfs_uuid (
+tmfs_rewrite_result rewrite_tmfs_uuid (
     tree& destination,
     const std::unordered_map<std::string,std::vector<std::string>>& aliases,
-    const char* prefix, const std::string& context, std::size_t& changed) {
-  if (!is_atomic (destination)) return false;
+    const char* prefix, std::size_t& changed) {
+  if (!is_atomic (destination)) return tmfs_rewrite_result::not_applicable;
   std::string value= native_text (destination->label);
   const std::string head (prefix);
-  if (value.rfind (head, 0) != 0) return false;
+  if (value.rfind (head, 0) != 0) return tmfs_rewrite_result::not_applicable;
   std::size_t end= value.find_first_of ("/?#", head.size ());
   const std::string old= value.substr (
     head.size (), end == std::string::npos ? std::string::npos : end-head.size ());
-  const std::string next= mapped_single (aliases, old, context);
+  // Historical path-only wikilinks use a deliberately empty UUID component,
+  // e.g. tmfs://wikilink//Linear%20Algebra.Scope/.  There is no legacy source
+  // identity to rewrite in that form; keep the compatibility locator intact.
+  // Nonempty UUIDs that cannot be resolved are reported to the caller so the
+  // enclosing link can be degraded without aborting the whole vault migration.
+  if (old.empty ()) return tmfs_rewrite_result::resolved;
+  auto found= aliases.find (old);
+  if (found == aliases.end () || found->second.size () != 1)
+    return tmfs_rewrite_result::unresolved;
+  const std::string& next= found->second.front ();
   if (next != old) {
     value.replace (head.size (), old.size (), next);
     destination->label= string (value.data (), (int) value.size ());
     ++changed;
   }
-  return true;
+  return tmfs_rewrite_result::resolved;
+}
+
+void replace_with_display_text (tree& value) {
+  tree replacement= copy (value[0]);
+  athena::node::copy_metadata (value, replacement);
+  value= std::move (replacement);
+}
+
+std::string legacy_transclusion_fallback (const tree& value) {
+  std::string locator= "tmfs://transclude/";
+  if (N(value) > 0 && is_atomic (value[0]))
+    locator += native_text (value[0]->label);
+  std::string text=
+    "a transclusion was once here but is already lost (original link: " + locator;
+  if (N(value) > 1 && is_atomic (value[1]) && N(value[1]->label) != 0)
+    text += "; file hint: " + native_text (value[1]->label);
+  if (N(value) > 2 && is_atomic (value[2]) && N(value[2]->label) != 0)
+    text += "; begin anchor: " + native_text (value[2]->label);
+  if (N(value) > 3 && is_atomic (value[3]) && N(value[3]->label) != 0)
+    text += "; end anchor: " + native_text (value[3]->label);
+  return text + ")";
+}
+
+void replace_with_lost_transclusion (tree& value, const std::string& text) {
+  tree replacement (string (text.data (), (int) text.size ()));
+  athena::node::copy_metadata (value, replacement);
+  value= std::move (replacement);
 }
 
 void rewrite_references (
@@ -697,19 +729,44 @@ void rewrite_references (
     const std::string& context, std::size_t& changed) {
   if (is_atomic (value)) return;
   if ((is_func (value, HLINK, 2) || is_compound (value, "hlink", 2))) {
-    if (!rewrite_tmfs_uuid (
-          value[1], aliases, "tmfs://wikilink/", context, changed))
-      (void) rewrite_tmfs_uuid (
-        value[1], aliases, "tmfs://Wikilink/", context, changed);
-    (void) rewrite_tmfs_uuid (
-      value[1], aliases, "tmfs://transclude/", context, changed);
+    const std::string original_destination=
+      is_atomic (value[1]) ? native_text (value[1]->label) : "<non-atomic target>";
+    auto result= rewrite_tmfs_uuid (
+      value[1], aliases, "tmfs://wikilink/", changed);
+    if (result == tmfs_rewrite_result::not_applicable)
+      result= rewrite_tmfs_uuid (
+        value[1], aliases, "tmfs://Wikilink/", changed);
+    if (result == tmfs_rewrite_result::not_applicable)
+      result= rewrite_tmfs_uuid (
+        value[1], aliases, "tmfs://transclude/", changed);
+    if (result == tmfs_rewrite_result::unresolved) {
+      const std::string display=
+        is_atomic (value[0]) ? native_text (value[0]->label) : "<structured display>";
+      std::cerr
+        << "WARNING: node-model migration degraded an unresolved legacy link in "
+        << context << ": target=" << std::quoted (original_destination)
+        << ", display=" << std::quoted (display)
+        << "; the link wrapper was removed and only its display content was kept.\n";
+      replace_with_display_text (value);
+      ++changed;
+      rewrite_references (value, aliases, context, changed);
+      return;
+    }
   }
   if ((is_func (value, TRANSCLUDE, 4) ||
        is_compound (value, "transclude", 4)) && is_atomic (value[0])) {
     const std::string old= native_text (value[0]->label);
     auto found= aliases.find (old);
-    require (found != aliases.end (),
-             "Unresolved legacy transclusion " + old + " in " + context);
+    if (old.empty () || found == aliases.end () || found->second.empty ()) {
+      const std::string fallback= legacy_transclusion_fallback (value);
+      std::cerr
+        << "WARNING: node-model migration degraded an unresolved legacy "
+        << "transclusion in " << context << ": " << fallback
+        << "; the transclusion was replaced by this plain-text recovery marker.\n";
+      replace_with_lost_transclusion (value, fallback);
+      ++changed;
+      return;
+    }
     tree ids (TUPLE);
     for (const std::string& id: found->second)
       ids << string (id.data (), (int) id.size ());
@@ -722,14 +779,31 @@ void rewrite_references (
   if (is_func (value, TRANSCLUDE, 1) && is_tuple (value[0])) {
     std::vector<std::string> ids;
     bool mapped= false;
+    std::string fallback_links;
+    for (int i=0; i<N(value[0]); ++i) {
+      require (is_atomic (value[0][i]),
+               "Malformed canonical transclusion in " + context);
+      if (!fallback_links.empty ()) fallback_links += ", ";
+      fallback_links += "tmfs://transclude/" + native_text (value[0][i]->label);
+    }
     for (int i=0; i<N(value[0]); ++i) {
       require (is_atomic (value[0][i]),
                "Malformed canonical transclusion in " + context);
       const std::string old= native_text (value[0][i]->label);
       auto found= aliases.find (old);
       if (found == aliases.end ()) {
-        throw std::runtime_error (
-          "Unresolved canonical transclusion " + old + " in " + context);
+        const std::string fallback=
+          "a transclusion was once here but is already lost (original link: " +
+          fallback_links + ")";
+        std::cerr
+          << "WARNING: node-model migration degraded an unresolved canonical "
+          << "transclusion in " << context << ": unresolved UUID="
+          << std::quoted (old) << ", original links="
+          << std::quoted (fallback_links)
+          << "; the transclusion was replaced by a plain-text recovery marker.\n";
+        replace_with_lost_transclusion (value, fallback);
+        ++changed;
+        return;
       }
       else {
         ids.insert (ids.end (), found->second.begin (), found->second.end ());
@@ -758,8 +832,9 @@ node_path native_to_source_path (path value) {
 
 void update_artifact_binding_database (
     const fs::path& root, const AthenaVaultfileInfo& info,
-    const std::vector<artifact_binding_update>& bindings) {
-  if (bindings.empty ()) return;
+    const std::vector<artifact_binding_update>& bindings,
+    const std::vector<stale_artifact_record>& stale) {
+  if (bindings.empty () && stale.empty ()) return;
   const fs::path relative (info.artifacts_path);
   require (!relative.empty () && !relative.is_absolute (),
            "Artifact database path must be vault-relative");
@@ -783,22 +858,23 @@ void update_artifact_binding_database (
       require (code == SQLITE_OK,
                detail.empty () ? "Artifact database update failed" : detail);
     };
-    auto has_column= [&] (const char* name) {
+    auto has_column= [&] (const char* table, const char* name) {
       sqlite3_stmt* st= nullptr;
       require (sqlite3_prepare_v2 (
-        db, "SELECT 1 FROM pragma_table_info('artifacts') WHERE name=?1;",
-        -1, &st, nullptr) == SQLITE_OK, sqlite3_errmsg (db));
+        db, (std::string ("SELECT 1 FROM pragma_table_info('") + table +
+             "') WHERE name=?1;").c_str (), -1, &st, nullptr) == SQLITE_OK,
+        sqlite3_errmsg (db));
       sqlite3_bind_text (st, 1, name, -1, SQLITE_STATIC);
       const bool found= sqlite3_step (st) == SQLITE_ROW;
       sqlite3_finalize (st);
       return found;
     };
     exec ("BEGIN IMMEDIATE;");
-    if (!has_column ("source_uuid"))
+    if (!has_column ("artifacts", "source_uuid"))
       exec ("ALTER TABLE artifacts ADD COLUMN source_uuid TEXT NOT NULL DEFAULT '';");
-    if (!has_column ("source_role"))
+    if (!has_column ("artifacts", "source_role"))
       exec ("ALTER TABLE artifacts ADD COLUMN source_role TEXT NOT NULL DEFAULT '';");
-    if (!has_column ("source_nodes"))
+    if (!has_column ("artifacts", "source_nodes"))
       exec ("ALTER TABLE artifacts ADD COLUMN source_nodes TEXT NOT NULL DEFAULT '';");
     sqlite3_stmt* update= nullptr;
     require (sqlite3_prepare_v2 (
@@ -820,6 +896,50 @@ void update_artifact_binding_database (
                binding.artifact_uuid);
     }
     sqlite3_finalize (update);
+    if (!stale.empty ()) {
+      sqlite3_stmt* delete_names= nullptr;
+      sqlite3_stmt* delete_artifact= nullptr;
+      sqlite3_stmt* mark_document= nullptr;
+      require (sqlite3_prepare_v2 (
+        db, "DELETE FROM artifact_names WHERE artifact_uuid=?1;",
+        -1, &delete_names, nullptr) == SQLITE_OK, sqlite3_errmsg (db));
+      require (sqlite3_prepare_v2 (
+        db, "DELETE FROM artifacts WHERE uuid=?1;",
+        -1, &delete_artifact, nullptr) == SQLITE_OK, sqlite3_errmsg (db));
+      const bool can_mark_document=
+        has_column ("documents", "locator_contract");
+      if (can_mark_document)
+        require (sqlite3_prepare_v2 (
+          db, "UPDATE documents SET locator_contract='' WHERE path=?1;",
+          -1, &mark_document, nullptr) == SQLITE_OK, sqlite3_errmsg (db));
+      for (const auto& item: stale) {
+        sqlite3_reset (delete_names);
+        sqlite3_clear_bindings (delete_names);
+        sqlite3_bind_text (
+          delete_names, 1, item.artifact_uuid.c_str (), -1, SQLITE_TRANSIENT);
+        require (sqlite3_step (delete_names) == SQLITE_DONE, sqlite3_errmsg (db));
+
+        sqlite3_reset (delete_artifact);
+        sqlite3_clear_bindings (delete_artifact);
+        sqlite3_bind_text (
+          delete_artifact, 1, item.artifact_uuid.c_str (), -1, SQLITE_TRANSIENT);
+        require (sqlite3_step (delete_artifact) == SQLITE_DONE, sqlite3_errmsg (db));
+        require (sqlite3_changes (db) == 1,
+                 "Stale Artifact disappeared during staged migration: " +
+                 item.artifact_uuid);
+
+        if (can_mark_document) {
+          sqlite3_reset (mark_document);
+          sqlite3_clear_bindings (mark_document);
+          sqlite3_bind_text (
+            mark_document, 1, item.relative_path.c_str (), -1, SQLITE_TRANSIENT);
+          require (sqlite3_step (mark_document) == SQLITE_DONE, sqlite3_errmsg (db));
+        }
+      }
+      sqlite3_finalize (delete_names);
+      sqlite3_finalize (delete_artifact);
+      if (mark_document) sqlite3_finalize (mark_document);
+    }
     exec ("CREATE UNIQUE INDEX IF NOT EXISTS artifacts_source_binding_idx "
           "ON artifacts(source_uuid,source_role) "
           "WHERE source_uuid<>'' AND source_role<>'';");
@@ -1027,7 +1147,8 @@ upgrade_vault_node_model (
         athena::document_node::source_identity_state identities;
         const tree& body= document_body_ref (decoded.document);
         const auto diagnostics= identities.initialize_complete (
-          body, standard_drd_for_thread (),
+          body, get_offline_document_drd (
+                  decoded.document, url ((root / path).string ().c_str ())),
           athena::document_node::standard_source_role);
         require (diagnostics.empty (),
                  "Invalid migrated identity baseline in " + path.string () +
@@ -1177,7 +1298,9 @@ upgrade_vault_node_model (
       tree& body= document_body_ref (document.document);
       const std::string relative= document.path.generic_string ();
       auto identities= athena::document_node::assign_detached_source_ids (
-        body, standard_drd_for_thread (),
+        body, get_offline_document_drd (
+                document.document,
+                url ((staged / document.path).string ().c_str ())),
         athena::document_node::standard_source_role,
         [&] (const athena::document_node::identity_request& request) {
           auto preferred_path= preferred[relative].find (request.where);
@@ -1190,7 +1313,8 @@ upgrade_vault_node_model (
       require (identities.ok (),
                "Could not assign source identities in " + relative +
                (identities.diagnostics.empty () ? "" : ": " +
-                identities.diagnostics.front ().detail));
+                 identities.diagnostics.front ().detail + " at " +
+                 source_path_text (identities.diagnostics.front ().where)));
       body= std::move (*identities.body);
       document.assigned= identities.assigned.size ();
 
@@ -1211,19 +1335,52 @@ upgrade_vault_node_model (
     }
 
     std::vector<artifact_binding_update> artifact_updates;
+    std::vector<stale_artifact_record> stale_artifacts;
+    QJsonArray stale_artifact_manifest;
+    auto prune_artifact= [&] (const AthenaArtifactRecord& artifact,
+                              const std::string& relative,
+                              const std::string& reason) {
+      stale_artifacts.push_back ({artifact.uuid, relative, reason});
+      stale_artifact_manifest.append (QJsonObject {
+        {"uuid", QString::fromStdString (artifact.uuid)},
+        {"path", QString::fromStdString (relative)},
+        {"origin", QString::fromStdString (artifact.origin)},
+        {"reason", QString::fromStdString (reason)}});
+      ++result.stale_artifacts_pruned;
+    };
     for (node_model_document& document: documents) {
       const std::string relative= document.path.generic_string ();
       auto found= artifacts_by_document.find (relative);
       if (found == artifacts_by_document.end ()) continue;
       tree& body= document_body_ref (document.document);
+      const auto source_drd= get_offline_document_drd (
+        document.document, url ((staged / document.path).string ().c_str ()));
       for (const AthenaArtifactRecord& artifact: found->second) {
         path native;
         std::string locate_error;
-        require (athena_artifact_locate_source (
-                   document.document, artifact, native, locate_error),
-                 "Cannot locate Artifact " + artifact.uuid + " in " +
-                 relative + ": " + locate_error);
+        if (!athena_artifact_locate_source (
+              document.document, artifact, native, locate_error)) {
+          // Artifact indexes are derived state and may legitimately lag the
+          // source vault.  Do not invent a new source match for a stale row;
+          // prune it from the staged index and force the owning document to be
+          // reconsidered by the next normal Artifact build.
+          prune_artifact (artifact, relative, locate_error);
+          continue;
+        }
         node_path where= native_to_source_path (native);
+        const auto classification= athena::document_node::classify_source_path (
+          body, where, source_drd,
+          athena::document_node::standard_source_role);
+        require (classification.ok (),
+                 "Could not classify Artifact source " + artifact.uuid + " in " +
+                 relative + (classification.diagnostics.empty () ? "" : ": " +
+                   classification.diagnostics.front ().detail));
+        if (!classification.content) {
+          prune_artifact (
+            artifact, relative,
+            "Artifact source lies in generated or non-source data");
+          continue;
+        }
         const std::string role=
           artifact.origin == "enunciation" ? "enunciation" :
           artifact.origin == "bold-text" ? "bold-text-definition" :
@@ -1344,7 +1501,9 @@ upgrade_vault_node_model (
       tree& body= document_body_ref (document.document);
       athena::document_node::source_identity_state identities;
       const auto diagnostics= identities.initialize_complete (
-        body, standard_drd_for_thread (),
+        body, get_offline_document_drd (
+                document.document,
+                url ((staged / document.path).string ().c_str ())),
         athena::document_node::standard_source_role);
       require (diagnostics.empty (),
                "Migrated identity baseline is incomplete in " +
@@ -1372,7 +1531,7 @@ upgrade_vault_node_model (
     }
 
     update_artifact_binding_database (
-      staged, staged_info, artifact_updates);
+      staged, staged_info, artifact_updates, stale_artifacts);
     staged_info.node_model_version= 1;
     require (athena_vaultfile_write (staged, staged_info, error), error);
 
@@ -1388,7 +1547,8 @@ upgrade_vault_node_model (
       const tree& body= document_body_ref (decoded.document);
       athena::document_node::source_identity_state identities;
       const auto diagnostics= identities.initialize_complete (
-        body, standard_drd_for_thread (),
+        body, get_offline_document_drd (
+                decoded.document, url ((staged / path).string ().c_str ())),
         athena::document_node::standard_source_role);
       require (diagnostics.empty (),
                "Post-write identity validation failed: " + path.string ());
@@ -1409,6 +1569,8 @@ upgrade_vault_node_model (
       {"commit", "atomic-directory-exchange"},
       {"references_rewritten", (qint64) result.references_rewritten},
       {"artifact_bindings", (qint64) result.artifact_bindings},
+      {"stale_artifacts_pruned", (qint64) result.stale_artifacts_pruned},
+      {"stale_artifacts", stale_artifact_manifest},
       {"generated_labels_removed", (qint64) result.generated_labels_removed},
       {"documents", manifest}};
     filesystem::confined_root journal (workspace);
@@ -1536,10 +1698,12 @@ int upgrade_vault_node_model_cli (const fs::path& root) {
                 << result.already_v2 << " XML v2 document(s).\n";
     else
       std::cerr << "\nMigrated " << result.migrated
-                << " document(s); rewrote " << result.references_rewritten
-                << " reference(s); persisted " << result.artifact_bindings
-                << " Artifact binding(s); removed "
-                << result.generated_labels_removed
+                 << " document(s); rewrote " << result.references_rewritten
+                 << " reference(s); persisted " << result.artifact_bindings
+                 << " Artifact binding(s); pruned "
+                 << result.stale_artifacts_pruned
+                 << " stale Artifact row(s); removed "
+                 << result.generated_labels_removed
                 << " generated identity label(s).\n";
     if (!result.backup.empty ())
       std::cerr << "Original UTF-8 XML vault backup: "

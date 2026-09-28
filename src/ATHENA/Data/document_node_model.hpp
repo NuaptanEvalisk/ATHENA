@@ -95,6 +95,19 @@ struct identity_result {
   bool ok () const { return body.has_value () && diagnostics.empty (); }
 };
 
+struct source_path_classification {
+  bool content= false;
+  std::vector<diagnostic> diagnostics;
+  bool ok () const { return diagnostics.empty (); }
+};
+
+// Classify one BODY-relative path using the exact same source-role contracts as
+// identity planning. `content=false` with no diagnostics means the path lies in
+// derived/data structure and must not become a source identity authority.
+source_path_classification classify_source_path (
+  const tree& body, const source_path& where, drd_info drd,
+  const role_resolver& roles, limits budget= {});
+
 // Input is the extracted DOCUMENT body, NOT its file envelope or a BODY wrapper.
 // Assign root/nested content DOCUMENTs, their paragraph children (atoms and
 // CONCATs included), and semantic headings/enunciations even inside wrappers.

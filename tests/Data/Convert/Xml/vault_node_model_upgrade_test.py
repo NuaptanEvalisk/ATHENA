@@ -16,6 +16,7 @@ PRIMARY = "11111111-1111-4111-8111-111111111111"
 ALIAS = "22222222-2222-4222-8222-222222222222"
 ARTIFACT = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 CONTENT = "legacy-content"
+MISSING = "33333333-3333-4333-8333-333333333333"
 
 
 def xml_v1(body):
@@ -55,6 +56,27 @@ def source_document():
         '<text>Theorem {</text>'
         '<text>Theorem }</text>'
         '</node>'
+        '<node tag="hlink">'
+        '<text>Lost Jump</text>'
+        f'<text>tmfs://wikilink/{MISSING}/Missing.ath/Nowhere</text>'
+        '</node>'
+        '<node tag="transclude">'
+        '<text></text>'
+        '<text>Missing.ath</text>'
+        '<text>Missing {</text>'
+        '<text>Missing }</text>'
+        '</node>'
+        '</node>'
+    )
+
+
+def metadata_document():
+    return xml_v1(
+        '<node tag="document">'
+        '<node tag="doc-data">'
+        '<node tag="doc-title"><text>Abstract Algebra.Scope</text></node>'
+        '</node>'
+        '<text>Body paragraph</text>'
         '</node>'
     )
 
@@ -153,6 +175,7 @@ def create_vault(root):
     }))
     (root / "Target.ath").write_text(target_document())
     (root / "Source.ath").write_text(source_document())
+    (root / "Metadata.ath").write_text(metadata_document())
     create_map(root / "map.sqlite")
     create_artifacts(root)
 
@@ -175,8 +198,16 @@ def check_migrated(root):
 
     target = ET.parse(root / "Target.ath").getroot()
     source = ET.parse(root / "Source.ath").getroot()
+    metadata = ET.parse(root / "Metadata.ath").getroot()
     assert target.get("version") == "2"
     assert source.get("version") == "2"
+    assert metadata.get("version") == "2"
+
+    doc_data = node(metadata, "doc-data")
+    doc_title = node(metadata, "doc-title")
+    assert doc_data is not None
+    assert doc_title is not None
+    assert "".join(doc_title.itertext()) == "Abstract Algebra.Scope"
 
     enunciation = node(target, "enunciation")
     assert enunciation.get("id") == PRIMARY
@@ -192,13 +223,24 @@ def check_migrated(root):
               if item.get("tag") == "label"]
     assert labels == ["User-kept"]
 
-    hlink = node(source, "hlink")
+    hlinks = [item for item in source.iter("node") if item.get("tag") == "hlink"]
+    assert len(hlinks) == 1
+    hlink = hlinks[0]
     assert hlink[1].find("value").text.startswith(
         f"tmfs://wikilink/{PRIMARY}/")
-    transclude = node(source, "transclude")
+    transcludes = [item for item in source.iter("node")
+                   if item.get("tag") == "transclude"]
+    assert len(transcludes) == 1
+    transclude = transcludes[0]
     assert len(transclude) == 1 and transclude[0].get("tag") == "tuple"
     ids = [item.find("value").text for item in transclude[0] if item.tag == "text"]
     assert ids == [PRIMARY]
+    source_text = "".join(source.itertext())
+    assert "Lost Jump" in source_text
+    assert "tmfs://wikilink/33333333-3333-4333-8333-333333333333" not in source_text
+    assert ("a transclusion was once here but is already lost "
+            "(original link: tmfs://transclude/; file hint: Missing.ath; "
+            "begin anchor: Missing {; end anchor: Missing })") in source_text
 
     db = sqlite3.connect(root / "map.sqlite")
     rows = db.execute(
@@ -263,7 +305,10 @@ def main():
 
     live_before_repeat = {
         path.name: path.read_bytes()
-        for path in (vault / "Target.ath", vault / "Source.ath", vault / "Vaultfile.json")
+        for path in (
+            vault / "Target.ath", vault / "Source.ath", vault / "Metadata.ath",
+            vault / "Vaultfile.json",
+        )
     }
     second = run(args.binary.resolve(), vault, env)
     if second.returncode:

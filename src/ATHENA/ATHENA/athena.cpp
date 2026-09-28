@@ -2028,6 +2028,7 @@ texmacs_entrypoint (int argc, char** argv) {
     ATHENA_init_paths (argc, argv);
     headless_mode= true;
     QCoreApplication app (argc, argv);
+    init_athena_resource_paths ();
     return athena::document::upgrade_vault_node_model_cli (
       std::filesystem::path (argv[2]));
   }
