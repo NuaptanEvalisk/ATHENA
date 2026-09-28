@@ -51,9 +51,19 @@ insert_at (tree t, path p, tree u) {
   if (is_atom (p)) {
     if (is_atomic (t)) {
       ASSERT (is_atomic (u), "two atoms expected");
-      return t->label (0, p->item) *u->label* t->label (p->item, N(t->label));
+      tree r= t->label (0, p->item) *u->label* t->label (p->item, N(t->label));
+      athena::node::copy_metadata (t, r);
+      return r;
     }
-    else return (t (0, p->item) * u) * t (p->item, N(t));
+    else {
+      tree r (t, N(t) + N(u));
+      athena::node::copy_metadata (t, r);
+      int i= 0;
+      for (; i<p->item; ++i) r[i]= t[i];
+      for (int j=0; j<N(u); ++j) r[i+j]= u[j];
+      for (int j=p->item; j<N(t); ++j) r[j + N(u)]= t[j];
+      return r;
+    }
   }
   else return substitute (t, p->item, insert_at (t[p->item], p->next, u));
 }
@@ -61,9 +71,19 @@ insert_at (tree t, path p, tree u) {
 tree
 remove_at (tree t, path p, int nr) {
   if (is_atom (p)) {
-    if (is_atomic (t))
-      return t->label (0, p->item) * t->label (p->item+nr, N(t->label));
-    else return t (0, p->item) * t (p->item+nr, N(t));
+    if (is_atomic (t)) {
+      tree r= t->label (0, p->item) * t->label (p->item+nr, N(t->label));
+      athena::node::copy_metadata (t, r);
+      return r;
+    }
+    else {
+      tree r (t, N(t) - nr);
+      athena::node::copy_metadata (t, r);
+      int i= 0;
+      for (; i<p->item; ++i) r[i]= t[i];
+      for (int j=p->item+nr; j<N(t); ++j) r[j-nr]= t[j];
+      return r;
+    }
   }
   else return substitute (t, p->item, remove_at (t[p->item], p->next, nr));
 }

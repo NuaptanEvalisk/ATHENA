@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "bridge.hpp"
+#include "node_metadata.hpp"
 #include "Boxes/construct.hpp"
 #include "scheme.hpp"
 #include "new_document.hpp"
@@ -253,9 +254,19 @@ bridge_rep::notify_insert (path p, tree u) {
   tree t= subtree (st, q);
   if (is_atomic (t)) {
     ASSERT (is_atomic (u), "two atoms expected");
-    t= t->label (0, l) * u->label * t->label (l, N(t->label));
+    tree r= t->label (0, l) * u->label * t->label (l, N(t->label));
+    athena::node::copy_metadata (t, r);
+    t= r;
   }
-  else t= (t (0, l) * u) * t (l, N(t));
+  else {
+    tree r (t, N(t) + N(u));
+    athena::node::copy_metadata (t, r);
+    int i= 0;
+    for (; i<l; ++i) r[i]= t[i];
+    for (int j=0; j<N(u); ++j) r[i+j]= u[j];
+    for (int j=l; j<N(t); ++j) r[j + N(u)]= t[j];
+    t= r;
+  }
   notify_assign (q, t);
 }
 
@@ -265,8 +276,19 @@ bridge_rep::notify_remove (path p, int nr) {
   path q= path_up (p);
   int  l= last_item (p);
   tree t= subtree (st, q);
-  if (is_atomic (t)) t= t->label (0, l) * t->label (l+nr, N(t->label));
-  else t= t (0, l) * t (l+nr, N(t));
+  if (is_atomic (t)) {
+    tree r= t->label (0, l) * t->label (l+nr, N(t->label));
+    athena::node::copy_metadata (t, r);
+    t= r;
+  }
+  else {
+    tree r (t, N(t) - nr);
+    athena::node::copy_metadata (t, r);
+    int i= 0;
+    for (; i<l; ++i) r[i]= t[i];
+    for (int j=l+nr; j<N(t); ++j) r[j-nr]= t[j];
+    t= r;
+  }
   notify_assign (q, t);
 }
 

@@ -226,8 +226,11 @@ edit_announce (editor_rep* ed, modification mod) {
   path p= root (mod);
   tree source= subtree (ed->et, p);
   bool preview= mod->k == MOD_SET_METADATA;
-  if (mod->k == MOD_INSERT || mod->k == MOD_REMOVE ||
-      mod->k == MOD_ASSIGN_NODE || mod->k == MOD_INSERT_NODE)
+  // Plain insert/remove notifications can remain incremental: the bridge
+  // reconstruction helpers preserve node metadata.  Promoting every keystroke
+  // in an identified source node to a whole-node assign corrupts the paragraph
+  // bridge and needlessly restarts progressive typesetting below the edit.
+  if (mod->k == MOD_ASSIGN_NODE || mod->k == MOD_INSERT_NODE)
     preview= athena::node::get (source) != nullptr ||
       (mod->k == MOD_INSERT_NODE &&
        athena::node::get (inserted_node_template (mod)) != nullptr);
