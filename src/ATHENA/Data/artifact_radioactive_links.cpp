@@ -15,6 +15,7 @@
 #include "convert.hpp"
 #include "Xml/athena_document_xml.hpp"
 #include "message.hpp"
+#include "node_metadata.hpp"
 #include "unicode_text.hpp"
 
 #include <QCryptographicHash>
@@ -701,6 +702,17 @@ suppress_definitions (const tree& value) {
   if (is_compound (value, "definition", 1))
     return tree (WITH, "athena-radioactive-links-suppressed", "true", value);
   tree result (value, N(value));
+  // Semantic properties (notably canonical enunciation kind/name/numbering)
+  // are required by the renderer.  Rebuilding the tree without metadata turns
+  // a valid enunciation into "Malformed enunciation".  This is a presentation
+  // copy, though, so never propagate persistent source identity or producer
+  // bindings even if the caller supplied an identified tree.
+  if (const auto* metadata= athena::node::get (value)) {
+    auto presented= *metadata;
+    presented.id.clear ();
+    presented.properties.erase ("athena:artifact-bindings");
+    athena::node::set (result, presented);
+  }
   for (int i=0; i<N(value); i++)
     result[i]= suppress_definitions (value[i]);
   return result;

@@ -150,6 +150,28 @@ tree display (const view& current) {
   return rendered;
 }
 
+static void merge_preview_context (const node_location::item& target, tree& out,
+                                   tree& preamble, tree* nearby= nullptr) {
+  if (target.preview_context_xml.empty ()) return;
+  auto context= document::read_xml_v2 (
+    target.preview_context_xml, document::xml_kind::fragment);
+  context= presentation (node::content_projection (context),
+    target.source_directory.empty () ? url_none () :
+                                        url_system (native (target.source_directory)));
+  for (int i=0; i<N(context); ++i) {
+    if (is_compound (context[i], "style", 1)) out[0]= context[i];
+    else if (is_compound (context[i], "initial", 1)) out << context[i];
+    else if (is_compound (context[i], "body", 1) && is_document (context[i][0]))
+      for (int j=0; j<N(context[i][0]); ++j) {
+        const tree& child= context[i][0][j];
+        if (is_compound (child, "hide-preamble", 1) ||
+            is_compound (child, "show-preamble", 1))
+          preamble << child;
+        else if (nearby) *nearby << child;
+      }
+  }
+}
+
 tree preview_document (const view& current, url& source) {
   source= url_none ();
   tree out (DOCUMENT, compound ("style", tree (TUPLE, "generic"))), preamble (DOCUMENT);
@@ -157,22 +179,35 @@ tree preview_document (const view& current, url& source) {
     const auto& target= current.snapshot->items.front ();
     if (target.state == node_location::status::resolved) {
       if (!target.source_url.empty ()) source= url (native (target.source_url));
-      if (!target.preview_context_xml.empty ()) {
-        auto context= document::read_xml_v2 (target.preview_context_xml, document::xml_kind::fragment);
-        context= presentation (node::content_projection (context), target.source_directory.empty () ?
-          url_none () : url_system (native (target.source_directory)));
-        for (int i=0; i<N(context); ++i) {
-          if (is_compound (context[i], "style", 1)) out[0]= context[i];
-          else if (is_compound (context[i], "initial", 1))
-            out << context[i];
-          else if (is_compound (context[i], "body", 1) && is_document (context[i][0]))
-            preamble << A(context[i][0]);
-        }
-      }
+      merge_preview_context (target, out, preamble);
     }
   }
   preamble << A(display (current));
   out << compound ("body", preamble);
+  return out;
+}
+
+tree preview_context_document (const view& current, url& source) {
+  source= url_none ();
+  tree out (DOCUMENT, compound ("style", tree (TUPLE, "generic")));
+  tree body (DOCUMENT), nearby (DOCUMENT);
+  if (current.snapshot && current.snapshot->items.size () == 1) {
+    const auto& target= current.snapshot->items.front ();
+    if (target.state == node_location::status::resolved) {
+      if (!target.source_url.empty ()) source= url (native (target.source_url));
+      merge_preview_context (target, out, body, &nearby);
+      if (N(nearby) > 0) {
+        tree lineage (TUPLE);
+        for (const auto& id: current.snapshot->ancestry) lineage << native (id);
+        lineage << native (target.id);
+        body << tree (WITH, ancestry_variable, lineage, nearby);
+      }
+      else body << message ("No nearby source context is available.");
+    }
+    else body << A(display (current));
+  }
+  else body << A(display (current));
+  out << compound ("body", body);
   return out;
 }
 } // namespace athena::node_reference

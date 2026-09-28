@@ -28,6 +28,9 @@ tree display (const view&);
 tree presentation_copy (const tree&, const url& base= url_none ());
 // A single-target preview inherits its source style, initial values and preamble.
 tree preview_document (const view&, url& source);
+// Transclusion source peeks show nearby source context instead of repeating the
+// transcluded node itself.
+tree preview_context_document (const view&, url& source);
 inline constexpr const char* ancestry_variable= "athena-node-reference-ancestry";
 std::vector<std::string> ancestry (const tree& environment_value);
 std::string target_id (const string& url);

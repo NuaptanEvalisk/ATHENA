@@ -31,8 +31,11 @@ struct vault_node_model_upgrade_result {
   std::filesystem::path backup;
   std::size_t migrated= 0, already_v2= 0;
   std::size_t references_rewritten= 0, artifact_bindings= 0;
+  std::size_t references_direct_resolved= 0;
+  std::size_t references_hint_resolved= 0;
+  std::size_t references_failed= 0;
   std::size_t stale_artifacts_pruned= 0;
-  std::size_t generated_labels_removed= 0;
+  std::size_t legacy_anchors_removed= 0;
   bool durable= true;
 };
 // Separate offline stage after the legacy format upgrader. Input documents must

@@ -125,6 +125,9 @@ vault_maintenance_pass_remove_redundant_wikilinks (
   std::string error;
   if (!athena_vaultfile_read (ctx.root, vaultfile, error))
     return VaultMaintenancePassResult::failure (error);
+  if (vaultfile.node_model_version >= 1)
+    return VaultMaintenancePassResult::success (
+      "node-model vault does not use the legacy wikilink map");
   std::string map_relative;
   if (!athena_vault_map_prepare (
         vaultfile.map_path, map_relative, error))

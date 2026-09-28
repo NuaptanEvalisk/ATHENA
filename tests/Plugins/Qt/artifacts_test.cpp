@@ -27,6 +27,7 @@
 #include "converter.hpp"
 #include "convert.hpp"
 #include "drd_std.hpp"
+#include "node_metadata.hpp"
 
 #include <sqlite3.h>
 
@@ -832,6 +833,11 @@ TestArtifacts::excludesEntireDefinitionsFromRadioactiveLinks () {
   body << compound ("definition", definition_body)
        << compound ("proposition", proposition_body)
        << "A vector space outside the definition.";
+  athena::node::metadata semantic;
+  semantic.id= "11111111-1111-4111-8111-111111111111";
+  semantic.properties["example:semantic"]=
+    athena::node::property (std::string ("kept"));
+  athena::node::set (body[1], semantic);
   tree document (DOCUMENT);
   document << compound ("TeXmacs", "2.1.4")
            << compound ("style", "generic")
@@ -855,7 +861,11 @@ TestArtifacts::excludesEntireDefinitionsFromRadioactiveLinks () {
   QCOMPARE (marked[0][0], tree ("athena-radioactive-links-suppressed"));
   QCOMPARE (marked[0][1], tree ("true"));
   QCOMPARE (marked[0][2], body[0]);
-  QCOMPARE (marked[1], body[1]);
+  QVERIFY (athena::node::content_equal (marked[1], body[1]));
+  const auto* retained= athena::node::get (marked[1]);
+  QVERIFY (retained != nullptr);
+  QVERIFY (retained->id.empty ());
+  QVERIFY (retained->properties.count ("example:semantic") == 1);
   QCOMPARE (marked[2], body[2]);
   tree untitled= compound ("definition", "A definition without bold title.");
   tree marked_untitled= athena_artifact_radioactive_suppress_definitions (untitled);

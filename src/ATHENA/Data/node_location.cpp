@@ -11,6 +11,7 @@
 #include "node_metadata.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
 #include <algorithm>
+#include <cctype>
 #include <condition_variable>
 #include <deque>
 #include <map>
@@ -482,12 +483,91 @@ tree read_disk (const std::filesystem::path& root, const item& target) {
   return lookup (source, target.candidates.front ().where, target.id);
 }
 
+static bool preview_context_item (const tree& value) {
+  if (is_func (value, LABEL)) return false;
+  if (is_compound (value, "hide-preamble") ||
+      is_compound (value, "show-preamble")) return false;
+  if (!is_atomic (value)) return true;
+  const auto& text= value->label;
+  for (int i=0; i<N(text); ++i)
+    if (!std::isspace (static_cast<unsigned char> (text[i]))) return true;
+  return false;
+}
+
+static tree nearby_context (const tree& source, const address& where) {
+  const tree* current= &source;
+  const property* property_value= nullptr;
+  const tree* document_parent= nullptr;
+  std::size_t focus= 0;
+  for (const auto& part: where) {
+    switch (part.kind) {
+    case step_kind::child:
+      if (!current || !is_compound (*current) || part.index >= std::size_t (N(*current)))
+        return tree (DOCUMENT);
+      if (is_document (*current)) {
+        document_parent= current;
+        focus= part.index;
+      }
+      current= &(*current)[int (part.index)];
+      property_value= nullptr;
+      break;
+    case step_kind::property: {
+      if (!current) return tree (DOCUMENT);
+      const auto* metadata= node::get (*current);
+      if (!metadata) return tree (DOCUMENT);
+      auto found= metadata->properties.find (part.key);
+      if (found == metadata->properties.end ()) return tree (DOCUMENT);
+      property_value= &found->second;
+      current= nullptr;
+      break;
+    }
+    case step_kind::list_item: {
+      const auto* values= property_value ?
+        std::get_if<property::list> (&property_value->data) : nullptr;
+      if (!values || part.index >= values->size ()) return tree (DOCUMENT);
+      property_value= &(*values)[part.index];
+      break;
+    }
+    case step_kind::dictionary_item: {
+      const auto* values= property_value ?
+        std::get_if<property::dictionary> (&property_value->data) : nullptr;
+      if (!values) return tree (DOCUMENT);
+      auto found= values->find (part.key);
+      if (found == values->end ()) return tree (DOCUMENT);
+      property_value= &found->second;
+      break;
+    }
+    case step_kind::rich_text: {
+      const auto* rich= property_value ?
+        std::get_if<node::rich_text> (&property_value->data) : nullptr;
+      if (!rich) return tree (DOCUMENT);
+      current= &rich->content;
+      property_value= nullptr;
+      break;
+    }
+    }
+  }
+  tree context (DOCUMENT);
+  if (!document_parent || focus >= std::size_t (N(*document_parent))) return context;
+
+  std::vector<int> before;
+  for (int i=int (focus)-1; i>=0 && before.size () < 2; --i)
+    if (preview_context_item ((*document_parent)[i])) before.push_back (i);
+  std::reverse (before.begin (), before.end ());
+  for (int i: before) context << copy ((*document_parent)[i]);
+  context << tree (WITH, "color", "#808080", "… transcluded content …");
+  for (int i=int (focus)+1; i<N(*document_parent) && N(context) < int (before.size ()) + 3; ++i)
+    if (preview_context_item ((*document_parent)[i])) context << copy ((*document_parent)[i]);
+  return context;
+}
+
 content_payload capture_content (const tree& source, const item& target, std::string source_url) {
   if (target.state != status::resolved || target.candidates.size () != 1)
     throw std::invalid_argument ("Node target is not uniquely resolved");
   const auto& where= target.candidates.front ().where;
   tree selected= lookup (source, where, target.id);
   tree context (DOCUMENT);
+  tree context_body= nearby_context (source, where);
   if (is_document (source)) for (int i=0; i<N(source); ++i) {
     const auto& field= source[i];
     if (is_compound (field, "style", 1) || is_compound (field, "initial", 1))
@@ -500,9 +580,14 @@ content_payload capture_content (const tree& source, const item& target, std::st
          (where.size () == 1 ||
           (where[1].kind == step_kind::child && where[1].index == 0 &&
            (where.size () == 2 || (where[2].kind == step_kind::child && where[2].index == 0)))));
-      if (!includes_preamble) context << compound ("body", tree (DOCUMENT, field[0][0]));
+      if (!includes_preamble) {
+        tree with_preamble (DOCUMENT, copy (field[0][0]));
+        with_preamble << A(context_body);
+        context_body= std::move (with_preamble);
+      }
     }
   }
+  if (N(context_body) > 0) context << compound ("body", context_body);
   return {document::write_xml_v2 (selected, document::xml_kind::fragment),
           document::write_xml_v2 (context, document::xml_kind::fragment), std::move (source_url)};
 }

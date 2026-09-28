@@ -155,6 +155,8 @@ tree athena_link_peek_document (string target, url& source,
     std::string id= athena::node_reference::target_id (target);
     if (id.empty ()) id= migrated_wikilink_id (target);
     auto current= athena::node_reference::get ({id}, ancestry);
+    if (parsed_target (target).host () == "transclude")
+      return athena::node_reference::preview_context_document (current, source);
     return athena::node_reference::preview_document (current, source);
   }
   if (!athena_link_peek_target (target)) return tree (UNINIT);

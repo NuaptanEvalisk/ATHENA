@@ -10,6 +10,7 @@
 #include "vault_format_upgrade.hpp"
 #include "document_file_codec.hpp"
 #include "document_upgrade_file.hpp"
+#include "converter.hpp"
 #include "vault_directory_lease.hpp"
 #include "ATHENA/Data/artifacts.hpp"
 #include "ATHENA/Data/document_node_copy.hpp"
@@ -34,6 +35,7 @@
 #include <QUuid>
 #include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <chrono>
 #include <csignal>
 #include <cstring>
@@ -254,7 +256,6 @@ struct map_resolution {
   node_model_document* document= nullptr;
   std::optional<node_path> direct;
   std::vector<node_path> range_roots;
-  std::vector<node_path> generated_labels;
   std::vector<std::string> targets;
   std::string diagnostic;
 };
@@ -274,6 +275,43 @@ struct stale_artifact_record {
 
 std::string native_text (string value) {
   return std::string (as_charp (value), (std::size_t) N(value));
+}
+
+std::string decode_legacy_map_text (
+    const std::string& value, const char* field,
+    athena::document::legacy_text_role role) {
+  if (athena::text::valid_utf8 (value)) return value;
+  try {
+    std::string decoded;
+    for (const auto& piece: athena::document::standard_legacy_cork_table ().decode (
+           value, role)) {
+      if (piece.kind == athena::document::legacy_piece_kind::text)
+        decoded += piece.value;
+      else if (piece.value.rfind ("texmacs:", 0) == 0)
+        decoded += "<" + piece.value.substr (8) + ">";
+      else decoded += piece.value;
+    }
+    athena::text::require_utf8 (decoded);
+    return decoded;
+  }
+  catch (const std::exception& exception) {
+    throw std::runtime_error (
+      std::string ("Cannot decode legacy Vault map ") + field +
+      " as UTF-8 or Cork: " + exception.what ());
+  }
+}
+
+void decode_legacy_map_nodes (std::vector<AthenaVaultMapNode>& nodes) {
+  for (auto& node: nodes) {
+    node.path= decode_legacy_map_text (
+      node.path, "path", athena::document::legacy_text_role::scalar);
+    node.anchor_begin= decode_legacy_map_text (
+      node.anchor_begin, "anchor_begin",
+      athena::document::legacy_text_role::content);
+    node.anchor_end= decode_legacy_map_text (
+      node.anchor_end, "anchor_end",
+      athena::document::legacy_text_role::content);
+  }
 }
 
 std::string source_path_text (const node_path& value) {
@@ -365,12 +403,45 @@ std::optional<node_path> next_substantive_sibling (
   const tree& container= tree_at (body, parent);
   const int start= where.back () + 1;
   for (int i=start; i<N(container); ++i) {
-    if (whitespace_only (container[i])) continue;
+    if (whitespace_only (container[i]) || label_node (container[i])) continue;
     node_path result= parent;
     result.push_back (i);
     return result;
   }
   return std::nullopt;
+}
+
+std::optional<node_path> previous_substantive_sibling (
+    const tree& body, const node_path& where) {
+  node_path parent= parent_path (where);
+  const tree& container= tree_at (body, parent);
+  for (int i=where.back () - 1; i>=0; --i) {
+    if (whitespace_only (container[i]) || label_node (container[i])) continue;
+    node_path result= parent;
+    result.push_back (i);
+    return result;
+  }
+  return std::nullopt;
+}
+
+std::optional<node_path> surviving_anchor_target (
+    const tree& body, const node_path& anchor) {
+  node_path current= anchor;
+  while (!current.empty ()) {
+    node_path parent= parent_path (current);
+    const tree& container= tree_at (body, parent);
+    if (is_document (container)) {
+      // A label nested inside a paragraph/content object names that surviving
+      // object.  A top-level legacy anchor names the following source object,
+      // falling back to the previous one only for a trailing anchor.
+      if (current != anchor) return current;
+      if (auto next= next_substantive_sibling (body, current)) return next;
+      if (auto previous= previous_substantive_sibling (body, current)) return previous;
+      return parent;
+    }
+    current= std::move (parent);
+  }
+  return node_path {};
 }
 
 bool ends_with (const std::string& value, const char* suffix) {
@@ -384,42 +455,9 @@ std::string wrapper_base (const std::string& value, const char* suffix) {
     value.substr (0, value.size () - std::strlen (suffix)) : std::string ();
 }
 
-std::string generated_heading_label (const tree& heading) {
-  const int level= athena_heading_level (heading);
-  if (level <= 0) return {};
-  const std::string title= native_text (athena_heading_title (heading));
-  return title.empty () ? std::string () :
-    "H" + std::to_string (level) + " " + title;
-}
-
-bool generated_enunciation_stem (
-    const std::unordered_set<std::string>& stems, const std::string& stem) {
-  return !stem.empty () && stems.find (stem) != stems.end ();
-}
-
-std::optional<node_path> following_generated_lower (
-    const tree& body, const node_path& upper, const node_path& source,
-    const std::string& stem) {
-  if (parent_path (upper) != parent_path (source)) return std::nullopt;
-  node_path parent= parent_path (source);
-  const tree& container= tree_at (body, parent);
-  for (int i=source.back () + 1; i<N(container); ++i) {
-    if (whitespace_only (container[i])) continue;
-    std::string label;
-    if (!label_node (container[i], &label) || label != stem + " }")
-      return std::nullopt;
-    node_path lower= parent;
-    lower.push_back (i);
-    return lower;
-  }
-  return std::nullopt;
-}
-
 map_resolution resolve_map_node (
     const AthenaVaultMapNode& node,
-    std::unordered_map<std::string,node_model_document*>& documents,
-    const std::unordered_map<std::string,std::unordered_set<std::string>>&
-      enunciation_stems) {
+    std::unordered_map<std::string,node_model_document*>& documents) {
   map_resolution result;
   result.source= node;
   const fs::path relative= fs::path (node.path).lexically_normal ();
@@ -449,35 +487,29 @@ map_resolution resolve_map_node (
       !node.anchor_begin.empty () ? node.anchor_begin : node.anchor_end;
     node_path first= unique_label (body, probe);
 
-    // Generated heading anchors and generated enunciation upper anchors both
-    // identify the following source object exactly. User labels remain
-    // first-class explicit targets rather than guessing a containing paragraph.
     if (node.anchor_begin.empty () || node.anchor_begin == node.anchor_end) {
-      auto next= next_substantive_sibling (body, first);
-      if (next) {
-        const tree& target= tree_at (body, *next);
-        const bool heading= athena_heading_level (target) > 0;
-        const bool wrapper= ends_with (probe, " {");
-        if (heading || wrapper) {
-          result.direct= *next;
-          if (heading && probe == generated_heading_label (target))
-            result.generated_labels.push_back (first);
-          if (wrapper && athena::enunciation::is_canonical (target)) {
-            const std::string stem= wrapper_base (probe, " {");
-            auto stems= enunciation_stems.find (relative.generic_string ());
-            if (stems != enunciation_stems.end () &&
-                generated_enunciation_stem (stems->second, stem)) {
-              auto lower= following_generated_lower (body, first, *next, stem);
-              if (lower) {
-                result.generated_labels.push_back (first);
-                result.generated_labels.push_back (*lower);
-              }
-            }
-          }
-          return result;
-        }
+      result.direct= surviving_anchor_target (body, first);
+      if (!result.direct)
+        result.diagnostic= "Legacy anchor has no surviving source object";
+      return result;
+    }
+
+    if (!node.anchor_begin.empty () && node.anchor_end.empty ()) {
+      // Historical transclusion ranges may be open-ended.  vault-extract-range
+      // interpreted begin!=empty/end==empty as the content after the begin
+      // anchor through the end of that structural parent.  The anchor label
+      // itself is migration evidence only, so preserve the surviving source
+      // objects that follow it.
+      const node_path parent= parent_path (first);
+      const tree& container= tree_at (body, parent);
+      for (int i=first.back () + 1; i<N(container); ++i) {
+        if (whitespace_only (container[i]) || label_node (container[i])) continue;
+        node_path target= parent;
+        target.push_back (i);
+        result.range_roots.push_back (std::move (target));
       }
-      result.direct= first;
+      require (!result.range_roots.empty (),
+               "Open-ended legacy transclusion contains no source objects");
       return result;
     }
 
@@ -501,14 +533,6 @@ map_resolution resolve_map_node (
       node_path target= first_parent;
       target.push_back (substantive);
       result.direct= std::move (target);
-      const tree& source= tree_at (body, *result.direct);
-      auto stems= enunciation_stems.find (relative.generic_string ());
-      if (athena::enunciation::is_canonical (source) &&
-          stems != enunciation_stems.end () &&
-          generated_enunciation_stem (stems->second, upper)) {
-        result.generated_labels.push_back (first);
-        result.generated_labels.push_back (last);
-      }
       return result;
     }
 
@@ -667,6 +691,665 @@ tree remove_migration_paths (
 
 enum class tmfs_rewrite_result { not_applicable, resolved, unresolved };
 
+struct legacy_reference_hints {
+  std::string uuid;
+  std::string file;
+  std::string anchor;
+};
+
+struct reference_resolution_stats {
+  std::size_t direct= 0, hint= 0, failed= 0;
+};
+
+struct legacy_hint_anchor {
+  std::string name;
+  node_path where;
+  bool direct= false;
+  int heading_level= 0;
+  bool enunciation_compat= false;
+};
+
+struct legacy_hint_content {
+  node_path where;
+  std::vector<QString> words;
+};
+
+enum class hint_target_mode { link, transclusion };
+
+struct legacy_hint_document {
+  std::string relative;
+  std::string filename;
+  std::string stem;
+  node_model_document* document= nullptr;
+  std::vector<legacy_hint_anchor> anchors;
+  std::vector<legacy_hint_content> content;
+};
+
+using legacy_hint_index= std::vector<legacy_hint_document>;
+
+struct rewrite_heartbeat {
+  const vault_upgrade_progress& progress;
+  std::size_t done, total, visited= 0;
+  fs::path path;
+  std::chrono::steady_clock::time_point last= std::chrono::steady_clock::now ();
+  void tick () {
+    if ((++visited & 2047) != 0) return;
+    const auto now= std::chrono::steady_clock::now ();
+    if (now - last < std::chrono::milliseconds (250)) return;
+    report (progress, "Rewrite node references", done, total, path);
+    last= now;
+  }
+};
+
+std::string qbytes (const QString& value) {
+  const QByteArray bytes= value.toUtf8 ();
+  return std::string (bytes.constData (), std::size_t (bytes.size ()));
+}
+
+std::string percent_decoded (const QString& value) {
+  return qbytes (QUrl::fromPercentEncoding (value.toUtf8 ()));
+}
+
+std::optional<legacy_reference_hints> legacy_tmfs_hints (
+    const std::string& target) {
+  // Do not feed historical tmfs targets through QUrl here.  TeXmacs universal
+  // character tokens such as <#300A> contain a literal '#'; RFC URL parsers
+  // interpret that byte as the start of a fragment and silently truncate the
+  // anchor hint.  Legacy tmfs links used '/' as their only structural separator
+  // and percent-encoded literal slashes inside components, so parse that format
+  // directly and percent-decode each component afterwards.
+  const QString raw= QString::fromUtf8 (
+    target.data (), qsizetype (target.size ()));
+  const QString prefix= "tmfs://wikilink/";
+  if (!raw.startsWith (prefix, Qt::CaseInsensitive)) return std::nullopt;
+  const QString encoded= raw.mid (prefix.size ());
+  const QStringList parts= encoded.split ('/', Qt::KeepEmptyParts);
+  if (parts.empty ()) return std::nullopt;
+  legacy_reference_hints result;
+  result.uuid= percent_decoded (parts[0]);
+  if (parts.size () > 1) result.file= percent_decoded (parts[1]);
+  if (parts.size () > 2) {
+    QStringList anchor;
+    for (qsizetype i=2; i<parts.size (); ++i)
+      anchor << QUrl::fromPercentEncoding (parts[i].toUtf8 ());
+    result.anchor= qbytes (anchor.join ('/'));
+  }
+  return result;
+}
+
+bool fuzzy_hint_match (const std::string& value, const std::string& hint) {
+  if (hint.empty ()) return true;
+  const QString haystack= QString::fromUtf8 (value.data (), qsizetype (value.size ()));
+  const QString needle= QString::fromUtf8 (hint.data (), qsizetype (hint.size ()));
+  return haystack.contains (needle, Qt::CaseInsensitive);
+}
+
+bool legacy_anchor_cjk (uint code) {
+  return (code >= 0x3400 && code <= 0x4dbf) ||
+         (code >= 0x4e00 && code <= 0x9fff) ||
+         (code >= 0xf900 && code <= 0xfaff) ||
+         (code >= 0x20000 && code <= 0x2a6df) ||
+         (code >= 0x2a700 && code <= 0x2b73f) ||
+         (code >= 0x2b740 && code <= 0x2b81f) ||
+         (code >= 0x2b820 && code <= 0x2ceaf) ||
+         (code >= 0x2ceb0 && code <= 0x2ebef) ||
+         (code >= 0x30000 && code <= 0x3134f);
+}
+
+QString historical_anchor_key (const std::string& value) {
+  // Reproduce the removed vault-anchor-sanitize-text compatibility rule:
+  // collapse whitespace; preserve only ASCII alnum and CJK; discard all other
+  // punctuation/non-CJK Unicode.  ASCII case is ignored for recovery matching.
+  const QString input= QString::fromUtf8 (
+    value.data (), qsizetype (value.size ())).normalized (
+      QString::NormalizationForm_C).simplified ();
+  QString output;
+  bool space= true;
+  for (uint code: input.toUcs4 ()) {
+    if (QChar::isSpace (code)) {
+      if (!space) output.append (' ');
+      space= true;
+      continue;
+    }
+    const bool ascii= (code >= '0' && code <= '9') ||
+                      (code >= 'A' && code <= 'Z') ||
+                      (code >= 'a' && code <= 'z');
+    if (!ascii && !legacy_anchor_cjk (code)) continue;
+    if (code >= 'A' && code <= 'Z') code += 'a' - 'A';
+    char32_t character= static_cast<char32_t> (code);
+    output.append (QString::fromUcs4 (&character, 1));
+    space= false;
+  }
+  return output.trimmed ();
+}
+
+QString compact_historical_anchor_key (const std::string& value) {
+  QString key= historical_anchor_key (value);
+  key.remove (' ');
+  return key;
+}
+
+int legacy_heading_anchor_level (const tree& value) {
+  if (is_compound (value, "section") || is_compound (value, "section*")) return 1;
+  if (is_compound (value, "subsection") || is_compound (value, "subsection*")) return 2;
+  if (is_compound (value, "subsubsection") ||
+      is_compound (value, "subsubsection*")) return 3;
+  if (is_compound (value, "paragraph") || is_compound (value, "paragraph*")) return 4;
+  if (is_compound (value, "subparagraph") ||
+      is_compound (value, "subparagraph*")) return 5;
+  return 0;
+}
+
+void append_legacy_visible_text (const tree& value, std::string& out) {
+  if (is_atomic (value)) {
+    if (!out.empty () && N(value->label) != 0) out += ' ';
+    out += native_text (value->label);
+    return;
+  }
+  if (!is_compound (value)) return;
+  if (is_func (value, LABEL) || is_func (value, REFERENCE) ||
+      is_func (value, PAGEREF) || is_compound (value, "image") ||
+      is_compound (value, "include") || is_compound (value, "transclude") ||
+      is_func (value, TRANSCLUDE))
+    return;
+  if ((is_compound (value, "with") || is_compound (value, "style-with")) &&
+      N(value) >= 1) {
+    append_legacy_visible_text (value[N(value)-1], out);
+    return;
+  }
+  if (is_compound (value, "hlink") && N(value) >= 1) {
+    append_legacy_visible_text (value[0], out);
+    return;
+  }
+  for (int i=0; i<N(value); ++i)
+    append_legacy_visible_text (value[i], out);
+}
+
+void append_legacy_anchor_source_text (const tree& value, std::string& out) {
+  if (is_atomic (value)) {
+    out += native_text (value->label);
+    return;
+  }
+  if (!is_compound (value)) return;
+  if (is_func (value, LABEL) || is_func (value, REFERENCE) ||
+      is_func (value, PAGEREF) || is_compound (value, "image") ||
+      is_compound (value, "include") || is_compound (value, "transclude") ||
+      is_func (value, TRANSCLUDE))
+    return;
+  if ((is_compound (value, "with") || is_compound (value, "style-with")) &&
+      N(value) >= 1) {
+    append_legacy_anchor_source_text (value[N(value)-1], out);
+    return;
+  }
+  if (is_compound (value, "hlink") && N(value) >= 1) {
+    append_legacy_anchor_source_text (value[0], out);
+    return;
+  }
+  if (is_document (value)) {
+    for (int i=0; i<N(value); ++i) {
+      std::string part;
+      append_legacy_anchor_source_text (value[i], part);
+      const QString trimmed= QString::fromUtf8 (
+        part.data (), qsizetype (part.size ())).trimmed ();
+      if (trimmed.isEmpty ()) continue;
+      if (!out.empty () && out.back () != ' ') out += ' ';
+      out += qbytes (trimmed);
+    }
+    return;
+  }
+  // Inline structures preserve adjacency.  This is important for AOFM anchor
+  // samples produced from Markdown such as f:\Alpha\longrightarrow\Beta: the
+  // imported UTF-8 tree has separate text/math children but the old generated
+  // anchor did not insert spaces at those child boundaries.
+  for (int i=0; i<N(value); ++i)
+    append_legacy_anchor_source_text (value[i], out);
+}
+
+std::vector<QString> lexical_words (const std::string& value,
+                                    bool strip_math_delimiters) {
+  QString input= QString::fromUtf8 (
+    value.data (), qsizetype (value.size ())).normalized (
+      QString::NormalizationForm_KC).toCaseFolded ();
+  std::vector<QString> words;
+  QString current;
+  bool math= false;
+  for (qsizetype i=0; i<input.size ();) {
+    if (strip_math_delimiters && input[i] == QChar ('$')) {
+      while (i<input.size () && input[i] == QChar ('$')) ++i;
+      math= !math;
+      if (!current.isEmpty ()) {
+        words.push_back (current);
+        current.clear ();
+      }
+      continue;
+    }
+    const QChar ch= input[i++];
+    if (math) continue;
+    if (ch.isLetterOrNumber ()) current += ch;
+    else if (!current.isEmpty ()) {
+      words.push_back (current);
+      current.clear ();
+    }
+  }
+  if (!current.isEmpty ()) words.push_back (current);
+  return words;
+}
+
+std::string legacy_symbolized_sanitize (const std::string& utf8,
+                                        std::size_t limit) {
+  const string source (utf8.data (), int (utf8.size ()));
+  const std::string raw= native_text (utf8_to_cork (source));
+  std::string out;
+  bool space= true;
+  std::size_t count= 0;
+  for (unsigned char c: raw) {
+    if (limit != 0 && count >= limit) break;
+    if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+      if (!space) { out += ' '; ++count; space= true; }
+      continue;
+    }
+    const bool ascii= (c >= '0' && c <= '9') ||
+                      (c >= 'A' && c <= 'Z') ||
+                      (c >= 'a' && c <= 'z');
+    if (!ascii) continue;
+    out += char (c);
+    ++count;
+    space= false;
+  }
+  while (!out.empty () && out.back () == ' ') out.pop_back ();
+  return out;
+}
+
+std::string first_strong_anchor_text (const tree& value) {
+  if (!is_compound (value)) return {};
+  if (is_compound (value, "strong") && N(value) >= 1) {
+    std::string out;
+    append_legacy_anchor_source_text (value[0], out);
+    return out;
+  }
+  if ((is_compound (value, "with") || is_compound (value, "style-with")) &&
+      N(value) >= 3) {
+    bool bold= false;
+    for (int i=0; i+1<N(value)-1; i += 2)
+      if (is_atomic (value[i]) && is_atomic (value[i+1])) {
+        const std::string key= native_text (value[i]->label);
+        const std::string setting= native_text (value[i+1]->label);
+        if ((key == "font-series" || key == "fontseries") &&
+            (setting == "bold" || setting == "bold-series")) {
+          bold= true;
+          break;
+        }
+      }
+    if (bold) {
+      std::string out;
+      append_legacy_anchor_source_text (value[N(value)-1], out);
+      return out;
+    }
+    return first_strong_anchor_text (value[N(value)-1]);
+  }
+  if (is_compound (value, "hlink") && N(value) >= 1)
+    return first_strong_anchor_text (value[0]);
+  for (int i=0; i<N(value); ++i) {
+    std::string found= first_strong_anchor_text (value[i]);
+    if (!found.empty ()) return found;
+  }
+  return {};
+}
+
+std::string parenthesized_prefix (const std::string& value) {
+  const QString text= QString::fromUtf8 (
+    value.data (), qsizetype (value.size ())).trimmed ();
+  if (text.size () <= 2 || text.front () != QChar ('(')) return {};
+  const qsizetype close= text.indexOf (')', 1);
+  if (close <= 1) return {};
+  return qbytes (text.mid (1, close - 1).trimmed ());
+}
+
+void add_legacy_enunciation_aliases (
+    const tree& current, const node_path& where,
+    std::vector<legacy_hint_anchor>& anchors) {
+  if (!athena::enunciation::is_canonical (current)) return;
+  const auto& registry= athena::enunciation::standard_registry ();
+  const std::string kind= registry.kind_name (current);
+  if (kind.empty () || N(current) != 1 || !is_func (current[0], DOCUMENT)) return;
+
+  auto add= [&] (const std::string& title) {
+    const std::string sanitized= legacy_symbolized_sanitize (title, 100);
+    if (!sanitized.empty ())
+      anchors.push_back ({kind + ":" + sanitized, where, true, 0, true});
+  };
+
+  const std::string strong= first_strong_anchor_text (current[0]);
+  if (!strong.empty ()) {
+    const std::string parenthesized= parenthesized_prefix (strong);
+    if (!parenthesized.empty ()) add (parenthesized);
+    add (strong);
+  }
+  std::string body;
+  append_legacy_anchor_source_text (current[0], body);
+  if (!body.empty ()) add (body);
+}
+
+std::vector<QString> legacy_content_hint_words (const std::string& hint) {
+  if (!ends_with (hint, " {") && !ends_with (hint, " }")) return {};
+  std::string body= hint.substr (0, hint.size () - 2);
+  auto words= lexical_words (body, true);
+  // Generated enunciation IDs are handled by label/brace-mate recovery, not by
+  // paragraph-content guessing.
+  static const std::unordered_set<std::string> structural= {
+    "definition", "theorem", "lemma", "proposition", "corollary", "example",
+    "remark", "proof", "solution", "question", "exercise", "note"};
+  if (!words.empty () && structural.count (qbytes (words.front ()))) return {};
+  std::size_t chars= 0;
+  for (const auto& word: words) chars += std::size_t (word.size ());
+  return words.size () >= 3 && chars >= 12 ? words : std::vector<QString> {};
+}
+
+bool legacy_content_prefix_match (
+    const std::vector<QString>& hint, const std::vector<QString>& source) {
+  if (hint.empty () || source.empty () || hint.front () != source.front ()) return false;
+  std::size_t cursor= 0;
+  for (std::size_t i=0; i<hint.size (); ++i) {
+    const QString& word= hint[i];
+    const bool truncated_tail= i + 1 == hint.size ();
+    bool found= false;
+    while (cursor < source.size () && cursor < 32) {
+      const QString candidate= source[cursor++];
+      if (candidate == word ||
+          (truncated_tail && !word.isEmpty () && candidate.startsWith (word))) {
+        found= true;
+        break;
+      }
+    }
+    if (!found) return false;
+  }
+  return true;
+}
+
+std::string brace_mate_hint (const std::string& hint) {
+  if (ends_with (hint, " {")) return hint.substr (0, hint.size () - 2) + " }";
+  if (ends_with (hint, " }")) return hint.substr (0, hint.size () - 2) + " {";
+  return {};
+}
+
+std::vector<const legacy_hint_anchor*> anchors_matching_hint (
+    const legacy_hint_document& document, const std::string& hint) {
+  std::vector<const legacy_hint_anchor*> result;
+  for (const legacy_hint_anchor& anchor: document.anchors)
+    if (fuzzy_hint_match (anchor.name, hint)) result.push_back (&anchor);
+  if (!result.empty ()) return result;
+
+  const QString historical_hint= historical_anchor_key (hint);
+  if (!historical_hint.isEmpty ())
+    for (const legacy_hint_anchor& anchor: document.anchors)
+      if (historical_anchor_key (anchor.name) == historical_hint)
+        result.push_back (&anchor);
+  if (!result.empty ()) return result;
+
+  // AOFM block/enunciation anchors were generated from raw Markdown before
+  // import.  Math commands could contain spaces around \rightarrow there,
+  // while the imported inline tree is adjacent Unicode.  Both sides were also
+  // capped at 100 generated characters, so after removing generated whitespace
+  // one may be a one-token prefix of the other.  Restrict this compatibility
+  // rule to aliases reconstructed from canonical enunciations in the same file.
+  const QString compact_hint= compact_historical_anchor_key (hint);
+  if (compact_hint.size () >= 24)
+    for (const legacy_hint_anchor& anchor: document.anchors) {
+      if (!anchor.enunciation_compat) continue;
+      const QString compact_anchor= compact_historical_anchor_key (anchor.name);
+      if (compact_anchor.size () < 24) continue;
+      if (compact_anchor.startsWith (compact_hint) ||
+          compact_hint.startsWith (compact_anchor))
+        result.push_back (&anchor);
+    }
+  if (!result.empty ()) return result;
+
+  // Old map rows can outlive one side of an automatically generated { / }
+  // anchor pair.  If the requested side is gone, try its exact brace mate.
+  const std::string mate= brace_mate_hint (hint);
+  if (mate.empty ()) return result;
+  for (const legacy_hint_anchor& anchor: document.anchors)
+    if (fuzzy_hint_match (anchor.name, mate)) result.push_back (&anchor);
+  return result;
+}
+
+void collect_hint_anchors (
+    const tree& body, std::vector<legacy_hint_anchor>& anchors,
+    std::vector<legacy_hint_content>& content,
+    const vault_upgrade_progress& progress, std::size_t done, std::size_t total,
+    const fs::path& path) {
+  std::size_t visited= 0;
+  auto last= std::chrono::steady_clock::now ();
+  std::function<void (const tree&, node_path)> walk=
+    [&] (const tree& current, node_path where) {
+      if ((++visited & 2047) == 0) {
+        const auto now= std::chrono::steady_clock::now ();
+        if (now - last >= std::chrono::milliseconds (250)) {
+          report (progress, "Index legacy reference hints", done, total, path);
+          last= now;
+        }
+      }
+      std::string label;
+      if (label_node (current, &label))
+        anchors.push_back ({std::move (label), where, false, 0});
+      const int heading_level= legacy_heading_anchor_level (current);
+      if (heading_level > 0) {
+        const std::string title= native_text (athena_heading_title (current));
+        if (!title.empty ()) {
+          anchors.push_back ({"H" + std::to_string (heading_level) + " " + title,
+                              where, true, heading_level});
+          // AOFM/Obsidian transclusions use the Markdown heading text as their
+          // recovery hint when heading_map lookup failed.  That hint omits the
+          // generated H<n> prefix and may differ only by punctuation introduced
+          // during ATHENA conversion (for example "Aspect X → Y" versus
+          // "Aspect: X → Y").  Keep a title-only alias to the same heading.
+          anchors.push_back ({title, where, true, heading_level});
+        }
+      }
+      add_legacy_enunciation_aliases (current, where, anchors);
+      const std::string source_id= athena::node::id (current);
+      if (!source_id.empty () && !is_document (current) && heading_level == 0 &&
+          !athena::enunciation::is_canonical (current) && !label_node (current)) {
+        std::string visible;
+        append_legacy_visible_text (current, visible);
+        auto words= lexical_words (visible, false);
+        if (words.size () >= 3)
+          content.push_back ({where, std::move (words)});
+      }
+      if (is_compound (current))
+        for (int i=0; i<N(current); ++i) {
+          auto child= where; child.push_back (i); walk (current[i], std::move (child));
+        }
+    };
+  walk (body, {});
+}
+
+legacy_hint_index build_legacy_hint_index (
+    std::vector<node_model_document>& documents,
+    const vault_upgrade_progress& progress) {
+  legacy_hint_index result;
+  result.reserve (documents.size ());
+  std::size_t done= 0;
+  for (node_model_document& document: documents) {
+    report (progress, "Index legacy reference hints", done,
+            documents.size (), document.path);
+    legacy_hint_document entry;
+    entry.relative= document.path.generic_string ();
+    entry.filename= document.path.filename ().string ();
+    entry.stem= document.path.stem ().string ();
+    entry.document= &document;
+    collect_hint_anchors (
+      document_body_ref (document.document), entry.anchors, entry.content,
+      progress, done, documents.size (), document.path);
+    result.push_back (std::move (entry));
+    report (progress, "Index legacy reference hints", ++done,
+            documents.size (), document.path);
+  }
+  return result;
+}
+
+std::vector<std::string> target_ids_at (
+    const tree& body, const node_path& where) {
+  const std::string id= athena::node::id (tree_at (body, where));
+  if (!id.empty ()) return {id};
+  return {};
+}
+
+std::vector<std::string> heading_range_ids (
+    const tree& body, const legacy_hint_anchor& heading) {
+  if (heading.heading_level <= 0 || heading.where.empty ())
+    return target_ids_at (body, heading.where);
+  const node_path parent= parent_path (heading.where);
+  const tree& container= tree_at (body, parent);
+  if (!is_document (container)) return target_ids_at (body, heading.where);
+
+  std::vector<std::string> ids;
+  for (int i=heading.where.back (); i<N(container); ++i) {
+    const tree& child= container[i];
+    if (i != heading.where.back ()) {
+      const int level= legacy_heading_anchor_level (child);
+      if (level > 0 && level <= heading.heading_level) break;
+    }
+    if (label_node (child) || whitespace_only (child)) continue;
+    collect_top_level_ids (child, ids);
+  }
+  dedupe_ids (ids);
+  return ids;
+}
+
+std::vector<std::string> materialize_hint_targets (
+    const legacy_hint_document& document,
+    const legacy_hint_anchor* begin, const legacy_hint_anchor* end,
+    hint_target_mode mode) {
+  const tree& body= document_body_ref (document.document->document);
+  if (!begin && !end) {
+    const std::string id= athena::node::id (body);
+    if (!id.empty ()) return {id};
+    return {};
+  }
+
+  const legacy_hint_anchor* first= begin ? begin : end;
+  if (!begin || !end || begin->name == end->name) {
+    if (first->direct)
+      return mode == hint_target_mode::transclusion && first->heading_level > 0 ?
+             heading_range_ids (body, *first) : target_ids_at (body, first->where);
+    std::optional<node_path> target;
+    // A surviving lower/closing generated anchor names the source object just
+    // before it; an upper/opening anchor names the source object just after it.
+    if (ends_with (first->name, " }"))
+      target= previous_substantive_sibling (body, first->where);
+    else
+      target= surviving_anchor_target (body, first->where);
+    return target ? target_ids_at (body, *target) : std::vector<std::string> {};
+  }
+
+  const node_path first_parent= parent_path (begin->where);
+  const node_path last_parent= parent_path (end->where);
+  if (first_parent != last_parent || begin->where.back () >= end->where.back ())
+    return {};
+  const tree& container= tree_at (body, first_parent);
+
+  const std::string upper= wrapper_base (begin->name, " {");
+  const std::string lower= wrapper_base (end->name, " }");
+  if (!upper.empty () && upper == lower) {
+    int substantive= -1, count= 0;
+    for (int i=begin->where.back () + 1; i<end->where.back (); ++i)
+      if (!whitespace_only (container[i]) && !label_node (container[i])) {
+        substantive= i;
+        ++count;
+      }
+    if (count != 1) return {};
+    node_path target= first_parent;
+    target.push_back (substantive);
+    return target_ids_at (body, target);
+  }
+
+  std::vector<std::string> ids;
+  for (int i=begin->where.back () + 1; i<end->where.back (); ++i) {
+    if (whitespace_only (container[i]) || label_node (container[i])) continue;
+    collect_top_level_ids (container[i], ids);
+  }
+  dedupe_ids (ids);
+  return ids;
+}
+
+std::vector<std::string> resolve_legacy_hints (
+    const std::string& file_hint, const std::string& begin_hint,
+    const std::string& end_hint,
+    const legacy_hint_index& index, hint_target_mode mode) {
+  if (file_hint.empty ()) return {};
+  std::vector<std::vector<std::string>> candidates;
+  for (const legacy_hint_document& document: index) {
+    auto normalized_path= [] (std::string value) {
+      std::replace (value.begin (), value.end (), '\\', '/');
+      while (!value.empty () && value.front () == '/') value.erase (value.begin ());
+      std::transform (value.begin (), value.end (), value.begin (),
+        [] (unsigned char c) { return (char) std::tolower (c); });
+      return value;
+    };
+    const std::string normalized_hint= normalized_path (file_hint);
+    const std::string normalized_relative= normalized_path (document.relative);
+    std::string normalized_relative_stem= normalized_relative;
+    if (ends_with (normalized_relative_stem, ".ath"))
+      normalized_relative_stem.resize (normalized_relative_stem.size () - 4);
+    const bool path_hint= normalized_hint.find ('/') != std::string::npos;
+    const bool file_matches= path_hint ?
+      (normalized_hint == normalized_relative ||
+       normalized_hint == normalized_relative_stem) :
+      (fuzzy_hint_match (document.filename, file_hint) ||
+       fuzzy_hint_match (document.stem, file_hint));
+    if (!file_matches) continue;
+    const std::size_t candidates_before_document= candidates.size ();
+    std::vector<const legacy_hint_anchor*> begins;
+    std::vector<const legacy_hint_anchor*> ends;
+    if (begin_hint.empty ()) begins.push_back (nullptr);
+    if (end_hint.empty ()) ends.push_back (nullptr);
+    if (!begin_hint.empty ()) begins= anchors_matching_hint (document, begin_hint);
+    if (!end_hint.empty ()) ends= anchors_matching_hint (document, end_hint);
+    for (const legacy_hint_anchor* begin: begins)
+      for (const legacy_hint_anchor* end: ends) {
+        auto targets= materialize_hint_targets (document, begin, end, mode);
+        if (!targets.empty ()) candidates.push_back (std::move (targets));
+      }
+    std::string content_hint;
+    if (mode == hint_target_mode::link && begin_hint.empty () &&
+        !end_hint.empty ())
+      content_hint= end_hint;
+    else if (mode == hint_target_mode::transclusion &&
+             ends_with (begin_hint, " {") && ends_with (end_hint, " }") &&
+             begin_hint.substr (0, begin_hint.size () - 2) ==
+             end_hint.substr (0, end_hint.size () - 2))
+      content_hint= begin_hint;
+    if (!content_hint.empty () &&
+        candidates.size () == candidates_before_document) {
+      const auto hint_words= legacy_content_hint_words (content_hint);
+      if (!hint_words.empty ()) {
+        const tree& body= document_body_ref (document.document->document);
+        for (const legacy_hint_content& content: document.content)
+          if (legacy_content_prefix_match (hint_words, content.words)) {
+            auto targets= target_ids_at (body, content.where);
+            if (!targets.empty ()) candidates.push_back (std::move (targets));
+          }
+      }
+    }
+  }
+  if (candidates.empty ()) return {};
+  std::vector<std::string> selected;
+  std::vector<std::vector<std::string>> signatures;
+  for (auto& ids: candidates) {
+    dedupe_ids (ids);
+    if (ids.empty ()) continue;
+    std::vector<std::string> signature= ids;
+    std::sort (signature.begin (), signature.end ());
+    if (std::find (signatures.begin (), signatures.end (), signature) ==
+        signatures.end ()) {
+      signatures.push_back (std::move (signature));
+      if (selected.empty ()) selected= ids;
+    }
+  }
+  return signatures.size () == 1 ? selected : std::vector<std::string> {};
+}
+
 tmfs_rewrite_result rewrite_tmfs_uuid (
     tree& destination,
     const std::unordered_map<std::string,std::vector<std::string>>& aliases,
@@ -678,12 +1361,10 @@ tmfs_rewrite_result rewrite_tmfs_uuid (
   std::size_t end= value.find_first_of ("/?#", head.size ());
   const std::string old= value.substr (
     head.size (), end == std::string::npos ? std::string::npos : end-head.size ());
-  // Historical path-only wikilinks use a deliberately empty UUID component,
-  // e.g. tmfs://wikilink//Linear%20Algebra.Scope/.  There is no legacy source
-  // identity to rewrite in that form; keep the compatibility locator intact.
-  // Nonempty UUIDs that cannot be resolved are reported to the caller so the
-  // enclosing link can be degraded without aborting the whole vault migration.
-  if (old.empty ()) return tmfs_rewrite_result::resolved;
+  // Historical path-only wikilinks may use an empty UUID component.  In a
+  // node-model vault the legacy map is removed, so these must proceed through
+  // file/anchor hint recovery rather than surviving as compatibility locators.
+  if (old.empty ()) return tmfs_rewrite_result::unresolved;
   auto found= aliases.find (old);
   if (found == aliases.end () || found->second.size () != 1)
     return tmfs_rewrite_result::unresolved;
@@ -726,7 +1407,11 @@ void replace_with_lost_transclusion (tree& value, const std::string& text) {
 void rewrite_references (
     tree& value,
     const std::unordered_map<std::string,std::vector<std::string>>& aliases,
-    const std::string& context, std::size_t& changed) {
+    const legacy_hint_index& hint_index,
+    const std::string& context, std::size_t& changed,
+    reference_resolution_stats& resolution_stats,
+    rewrite_heartbeat* heartbeat= nullptr) {
+  if (heartbeat) heartbeat->tick ();
   if (is_atomic (value)) return;
   if ((is_func (value, HLINK, 2) || is_compound (value, "hlink", 2))) {
     const std::string original_destination=
@@ -740,31 +1425,81 @@ void rewrite_references (
       result= rewrite_tmfs_uuid (
         value[1], aliases, "tmfs://transclude/", changed);
     if (result == tmfs_rewrite_result::unresolved) {
-      const std::string display=
-        is_atomic (value[0]) ? native_text (value[0]->label) : "<structured display>";
-      std::cerr
-        << "WARNING: node-model migration degraded an unresolved legacy link in "
-        << context << ": target=" << std::quoted (original_destination)
-        << ", display=" << std::quoted (display)
-        << "; the link wrapper was removed and only its display content was kept.\n";
-      replace_with_display_text (value);
-      ++changed;
-      rewrite_references (value, aliases, context, changed);
-      return;
+      std::vector<std::string> recovered;
+      if (auto hints= legacy_tmfs_hints (original_destination);
+          hints && !hints->file.empty ())
+        recovered= resolve_legacy_hints (
+          hints->file, "", hints->anchor, hint_index, hint_target_mode::link);
+      if (recovered.size () == 1) {
+        const auto slash= original_destination.find ('/',
+          std::string ("tmfs://wikilink/").size ());
+        const std::string suffix= slash == std::string::npos ? std::string () :
+                                 original_destination.substr (slash);
+        const std::string destination=
+          "tmfs://wikilink/" + recovered.front () + suffix;
+        value[1]->label= string (destination.data (), int (destination.size ()));
+        ++changed;
+        ++resolution_stats.hint;
+      }
+      else {
+        const std::string display=
+          is_atomic (value[0]) ? native_text (value[0]->label) : "<structured display>";
+        std::cerr
+          << "WARNING: node-model migration degraded an unresolved legacy link in "
+          << context << ": target=" << std::quoted (original_destination)
+          << ", display=" << std::quoted (display)
+          << "; UUID lookup and file/anchor hint recovery both failed; the link "
+             "wrapper was removed and only its display content was kept.\n"
+          << std::flush;
+        replace_with_display_text (value);
+        ++changed;
+        ++resolution_stats.failed;
+        rewrite_references (
+          value, aliases, hint_index, context, changed, resolution_stats, heartbeat);
+        return;
+      }
     }
+    else if (result == tmfs_rewrite_result::resolved)
+      ++resolution_stats.direct;
   }
   if ((is_func (value, TRANSCLUDE, 4) ||
        is_compound (value, "transclude", 4)) && is_atomic (value[0])) {
     const std::string old= native_text (value[0]->label);
     auto found= aliases.find (old);
     if (old.empty () || found == aliases.end () || found->second.empty ()) {
+      std::vector<std::string> recovered;
+      if (N(value) == 4 && is_atomic (value[1]) && is_atomic (value[2]) &&
+          is_atomic (value[3])) {
+        const auto decode_hint= [] (const tree& item) {
+          const std::string raw= native_text (item->label);
+          return percent_decoded (
+            QString::fromUtf8 (raw.data (), qsizetype (raw.size ())));
+        };
+        recovered= resolve_legacy_hints (
+          decode_hint (value[1]), decode_hint (value[2]),
+          decode_hint (value[3]), hint_index, hint_target_mode::transclusion);
+      }
+      if (!recovered.empty ()) {
+        tree ids (TUPLE);
+        for (const std::string& id: recovered)
+          ids << string (id.data (), int (id.size ()));
+        tree replacement (TRANSCLUDE, ids);
+        athena::node::copy_metadata (value, replacement);
+        value= std::move (replacement);
+        ++changed;
+        ++resolution_stats.hint;
+        return;
+      }
       const std::string fallback= legacy_transclusion_fallback (value);
       std::cerr
         << "WARNING: node-model migration degraded an unresolved legacy "
         << "transclusion in " << context << ": " << fallback
-        << "; the transclusion was replaced by this plain-text recovery marker.\n";
+        << "; UUID lookup and file/anchor hint recovery both failed; the "
+           "transclusion was replaced by this plain-text recovery marker.\n"
+        << std::flush;
       replace_with_lost_transclusion (value, fallback);
       ++changed;
+      ++resolution_stats.failed;
       return;
     }
     tree ids (TUPLE);
@@ -774,6 +1509,7 @@ void rewrite_references (
     athena::node::copy_metadata (value, replacement);
     value= std::move (replacement);
     ++changed;
+    ++resolution_stats.direct;
     return;
   }
   if (is_func (value, TRANSCLUDE, 1) && is_tuple (value[0])) {
@@ -800,9 +1536,11 @@ void rewrite_references (
           << "transclusion in " << context << ": unresolved UUID="
           << std::quoted (old) << ", original links="
           << std::quoted (fallback_links)
-          << "; the transclusion was replaced by a plain-text recovery marker.\n";
+          << "; the transclusion was replaced by a plain-text recovery marker.\n"
+          << std::flush;
         replace_with_lost_transclusion (value, fallback);
         ++changed;
+        ++resolution_stats.failed;
         return;
       }
       else {
@@ -818,9 +1556,11 @@ void rewrite_references (
       value[0]= std::move (tuple_ids);
       ++changed;
     }
+    ++resolution_stats.direct;
   }
   for (int i=0; i<N(value); ++i)
-    rewrite_references (value[i], aliases, context, changed);
+    rewrite_references (
+      value[i], aliases, hint_index, context, changed, resolution_stats, heartbeat);
 }
 
 node_path native_to_source_path (path value) {
@@ -1206,30 +1946,31 @@ upgrade_vault_node_model (
       "Could not read staged Artifact index" : error);
     std::unordered_map<std::string,std::vector<AthenaArtifactRecord>>
       artifacts_by_document;
-    std::unordered_map<std::string,std::unordered_set<std::string>>
-      enunciation_stems;
     for (const auto& artifact: artifacts)
     {
       const std::string relative=
         fs::path (artifact.relative_path).lexically_normal ().generic_string ();
       artifacts_by_document[relative].push_back (artifact);
-      if (artifact.origin == "enunciation" && !artifact.anchor_stem.empty ())
-        enunciation_stems[relative].insert (artifact.anchor_stem);
     }
 
     std::vector<AthenaVaultMapNode> map_nodes;
     const fs::path map_relative (staged_info.map_path);
+    require (!map_relative.empty () && !map_relative.is_absolute (),
+             "Vault map path must be vault-relative");
+    for (const auto& part: map_relative)
+      require (part != "..", "Vault map path escapes the vault");
     if (fs::exists (staged / map_relative)) {
-      require (!map_relative.empty () && !map_relative.is_absolute (),
-               "Vault map path must be vault-relative");
-      for (const auto& part: map_relative)
-        require (part != "..", "Vault map path escapes the vault");
       filesystem::confined_root confined (staged);
       (void) confined.open (map_relative);
       AthenaVaultMapSqlite map;
       require (map.open_read_only (staged / map_relative, error), error);
       require (map.read_all (map_nodes, error), error);
       map.close ();
+      // map.sqlite predates the UTF-8 source cutover.  ASCII rows are already
+      // valid UTF-8, while historical non-ASCII path/anchor fields may still be
+      // raw Cork bytes (for example 0x9f=§, 0xe0=à, 0x15=EN DASH).  Decode that
+      // compatibility boundary once before any path or anchor resolution.
+      decode_legacy_map_nodes (map_nodes);
     }
 
     std::vector<node_model_document> documents;
@@ -1263,21 +2004,31 @@ upgrade_vault_node_model (
     std::unordered_map<std::string,std::map<node_path,std::vector<std::string>>>
       direct_aliases;
     for (const auto& node: map_nodes) {
-      map_resolution resolution= resolve_map_node (
-        node, by_path, enunciation_stems);
+      map_resolution resolution= resolve_map_node (node, by_path);
       if (resolution.document && resolution.direct)
         direct_aliases[resolution.document->path.generic_string ()]
                       [*resolution.direct].push_back (node.uuid);
       resolutions.push_back (std::move (resolution));
     }
 
-    std::unordered_map<std::string,std::set<node_path>> generated_labels;
-    for (const map_resolution& resolution: resolutions) {
-      if (!resolution.document || !resolution.diagnostic.empty ()) continue;
-      auto& paths=
-        generated_labels[resolution.document->path.generic_string ()];
-      paths.insert (
-        resolution.generated_labels.begin (), resolution.generated_labels.end ());
+    // Every legacy map anchor is migration-only evidence.  Capture every exact
+    // label node named by the map now, while paths still refer to the canonical
+    // source tree, and remove those labels after references have been rewritten.
+    std::unordered_map<std::string,std::set<node_path>> legacy_anchors;
+    for (const AthenaVaultMapNode& node: map_nodes) {
+      const fs::path relative= fs::path (node.path).lexically_normal ();
+      auto document= by_path.find (relative.generic_string ());
+      if (document == by_path.end ()) continue;
+      const tree& body= document_body_ref (document->second->document);
+      std::set<std::string> names;
+      if (!node.anchor_begin.empty ()) names.insert (node.anchor_begin);
+      if (!node.anchor_end.empty ()) names.insert (node.anchor_end);
+      for (const std::string& name: names) {
+        std::vector<node_path> matches;
+        find_labels (body, name, {}, matches);
+        legacy_anchors[relative.generic_string ()].insert (
+          matches.begin (), matches.end ());
+      }
     }
 
     std::unordered_map<std::string,std::map<node_path,std::string>> preferred;
@@ -1442,55 +2193,47 @@ upgrade_vault_node_model (
         aliases[resolution.source.uuid]= resolution.targets;
     }
 
+    const legacy_hint_index hint_index=
+      build_legacy_hint_index (documents, progress);
+
     done= 0;
+    reference_resolution_stats reference_stats;
     for (node_model_document& document: documents) {
       report (progress, "Rewrite node references", done,
               documents.size (), document.path);
+      rewrite_heartbeat heartbeat {
+        progress, done, documents.size (), 0, document.path};
       rewrite_references (
-        document.document, aliases, document.path.generic_string (),
-        result.references_rewritten);
+        document.document, aliases, hint_index, document.path.generic_string (),
+        result.references_rewritten, reference_stats, &heartbeat);
       report (progress, "Rewrite node references", ++done,
               documents.size (), document.path);
     }
+    result.references_direct_resolved= reference_stats.direct;
+    result.references_hint_resolved= reference_stats.hint;
+    result.references_failed= reference_stats.failed;
 
-    // Historical generated labels are consumed only as migration evidence.
-    // Once every map/reference/Artifact target has become a persistent UUID,
-    // remove the conservatively proven labels before publishing XML v2. User
-    // labels never enter generated_labels and therefore survive untouched.
+    // Legacy anchors are consumed only as migration evidence.  Once every
+    // reference target has become a persistent UUID, remove all labels named by
+    // the old map. Labels which were never map anchors remain ordinary source.
     for (node_model_document& document: documents) {
-      auto found= generated_labels.find (document.path.generic_string ());
-      if (found == generated_labels.end () || found->second.empty ()) continue;
+      auto found= legacy_anchors.find (document.path.generic_string ());
+      if (found == legacy_anchors.end () || found->second.empty ()) continue;
       tree& body= document_body_ref (document.document);
       body= remove_migration_paths (body, found->second);
-      result.generated_labels_removed += found->second.size ();
+      result.legacy_anchors_removed += found->second.size ();
     }
 
-    // Keep the old map as a compatibility locator until the later bare-wikilink
-    // cutover. Single-target entries are re-keyed to the migrated source UUID;
-    // duplicate aliases collapse deterministically. Multi-target range rows are
-    // retained only for old external readers; in-document transclusions are now
-    // canonical UUID lists and no longer depend on them.
-    if (fs::exists (staged / map_relative)) {
-      std::vector<AthenaVaultMapNode> migrated_map;
-      std::unordered_set<std::string> seen;
-      for (const map_resolution& resolution: resolutions) {
-        AthenaVaultMapNode node= resolution.source;
-        if (resolution.diagnostic.empty () &&
-            resolution.targets.size () == 1) {
-          node.uuid= resolution.targets.front ();
-          if (!resolution.generated_labels.empty ()) {
-            node.anchor_begin.clear ();
-            node.anchor_end.clear ();
-          }
-        }
-        if (seen.insert (node.uuid).second)
-          migrated_map.push_back (std::move (node));
-      }
-      AthenaVaultMapSqlite map;
-      require (map.open (staged / map_relative, false, error), error);
-      require (map.replace_all (migrated_map, error), error);
-      require (map.integrity_check (error), error);
-      map.close ();
+    // XML v2 source UUIDs replace the legacy map completely.  The original map
+    // remains in the sibling backup created by the atomic exchange; publishing a
+    // second stale identity database in the migrated vault would be misleading.
+    const bool legacy_map_removed= fs::exists (staged / map_relative);
+    for (const std::string suffix: {std::string (), std::string ("-wal"),
+                                    std::string ("-shm"), std::string ("-journal")}) {
+      std::error_code remove_error;
+      fs::remove (fs::path ((staged / map_relative).string () + suffix), remove_error);
+      require (!remove_error,
+               "Could not remove legacy Vault map: " + remove_error.message ());
     }
 
     filesystem::confined_root storage (staged);
@@ -1568,10 +2311,15 @@ upgrade_vault_node_model (
       {"source", QString::fromStdString (root.string ())},
       {"commit", "atomic-directory-exchange"},
       {"references_rewritten", (qint64) result.references_rewritten},
+      {"reference_resolution", QJsonObject {
+        {"direct", (qint64) result.references_direct_resolved},
+        {"hint", (qint64) result.references_hint_resolved},
+        {"failed", (qint64) result.references_failed}}},
       {"artifact_bindings", (qint64) result.artifact_bindings},
       {"stale_artifacts_pruned", (qint64) result.stale_artifacts_pruned},
       {"stale_artifacts", stale_artifact_manifest},
-      {"generated_labels_removed", (qint64) result.generated_labels_removed},
+      {"legacy_anchors_removed", (qint64) result.legacy_anchors_removed},
+      {"legacy_map_removed", legacy_map_removed},
       {"documents", manifest}};
     filesystem::confined_root journal (workspace);
     const auto json= QJsonDocument (receipt).toJson (QJsonDocument::Indented);
@@ -1672,10 +2420,17 @@ int upgrade_vault_node_model_cli (const fs::path& root) {
         throw std::runtime_error ("Node-model migration cancelled before commit");
       const auto now= std::chrono::steady_clock::now ();
       const bool complete= total != 0 && done == total;
+      const bool rewrite_phase=
+        std::strcmp (phase, "Rewrite node references") == 0;
+      const auto interval= rewrite_phase ? std::chrono::milliseconds (250) :
+        std::chrono::milliseconds (terminal ? 200 : 2000);
       if (previous == phase && !complete &&
-          now - last < std::chrono::milliseconds (terminal ? 200 : 2000))
+          now - last < interval)
         return;
-      if (terminal) std::cerr << '\r' << "\033[K";
+      // Rewrite can spend noticeable time inside one large document.  Emit
+      // newline-terminated heartbeats for this phase so PTYs, pipes and tee all
+      // surface progress immediately instead of waiting for a final newline.
+      if (terminal && !rewrite_phase) std::cerr << '\r' << "\033[K";
       if (total) {
         const auto filled= 24 * done / total;
         std::cerr << '[' << std::string (filled, '=')
@@ -1685,9 +2440,9 @@ int upgrade_vault_node_model_cli (const fs::path& root) {
       if (done || total) std::cerr << " " << done;
       else std::cerr << " ...";
       if (total) std::cerr << '/' << total;
-      if (previous != phase && !path.empty ())
+      if ((!terminal || rewrite_phase || previous != phase) && !path.empty ())
         std::cerr << " " << std::quoted (path);
-      if (!terminal || complete) std::cerr << '\n';
+      if (!terminal || rewrite_phase || complete) std::cerr << '\n';
       std::cerr << std::flush;
       previous= phase;
       last= now;
@@ -1696,15 +2451,20 @@ int upgrade_vault_node_model_cli (const fs::path& root) {
     if (result.backup.empty () && result.already_v2 != 0)
       std::cerr << "\nVault already uses node model v1; validated "
                 << result.already_v2 << " XML v2 document(s).\n";
-    else
+    else {
       std::cerr << "\nMigrated " << result.migrated
                  << " document(s); rewrote " << result.references_rewritten
                  << " reference(s); persisted " << result.artifact_bindings
                  << " Artifact binding(s); pruned "
                  << result.stale_artifacts_pruned
                  << " stale Artifact row(s); removed "
-                 << result.generated_labels_removed
-                << " generated identity label(s).\n";
+                 << result.legacy_anchors_removed
+                 << " legacy anchor label(s).\n";
+      std::cerr << "Reference resolution: direct="
+                << result.references_direct_resolved
+                << ", hint=" << result.references_hint_resolved
+                << ", failed=" << result.references_failed << ".\n";
+    }
     if (!result.backup.empty ())
       std::cerr << "Original UTF-8 XML vault backup: "
                 << result.backup << '\n';
