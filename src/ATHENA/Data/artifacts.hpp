@@ -48,6 +48,8 @@ struct AthenaArtifactRecord {
   std::string keyword_tree;
   int keyword_occurrence= 0;
   std::vector<int> paragraph_offsets;
+  // Explicit ordered source objects; offsets are inference/legacy evidence only.
+  std::vector<std::string> source_nodes;
   std::string identity_focus;
   std::string identity_host;
   std::string identity_before;
@@ -66,6 +68,7 @@ struct AthenaArtifactRecord {
 };
 
 struct AthenaArtifactParagraphLocation {
+  std::vector<path> nodes;
   path parent;
   int focus_child= -1;
   int first_child= -1;
@@ -159,6 +162,11 @@ bool athena_artifacts_extract_document (const tree& document,
 bool athena_artifact_locate_paragraph (
   const tree& document, const AthenaArtifactRecord& record,
   AthenaArtifactParagraphLocation& location, std::string& error);
+
+// Freeze an extraction/legacy range against its verified source revision.
+// Does not modify source content or invoke a model.
+bool athena_artifact_freeze_source_nodes (
+  const tree& document, AthenaArtifactRecord& record, std::string& error);
 
 bool athena_artifact_locate_source (
   const tree& document, const AthenaArtifactRecord& record,

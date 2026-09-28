@@ -674,6 +674,16 @@ TestArtifacts::locatesStoredParagraphRange () {
   QCOMPARE (location.first_child, 1);
   QCOMPARE (location.last_child, 3);
 
+  // Offline conversion freezes the attached equation as its own object too.
+  auto frozen= *bold;
+  std::vector<std::string> expected;
+  for (int i=1; i<=3; ++i) {
+    expected.push_back (athena::node::new_id ());
+    set_node_id (body[i], expected.back ());
+  }
+  QVERIFY2 (athena_artifact_freeze_source_nodes (document, frozen, error), error.c_str ());
+  QCOMPARE (frozen.source_nodes, expected);
+
   bold->paragraph_offsets= {0, 2};
   error.clear ();
   QVERIFY (!athena_artifact_locate_paragraph (
@@ -2436,14 +2446,51 @@ TestArtifacts::persistsNativeSourceBindingsAndReusesExactModelInput () {
   const auto& stored_range= by_role["bold-text-definition"];
   QVERIFY (stored_range.definition_candidates.empty ());
   QVERIFY (!stored_range.source_content_fingerprint.empty ());
+  QCOMPARE (stored_range.source_nodes, std::vector<std::string> {
+    "33333333-3333-4333-8333-333333333333"});
+  // Upgrade a schema-v3 record from the exact indexed revision without
+  // rerunning its range model or touching the source file.
+  sqlite3* database= nullptr;
+  QCOMPARE (sqlite3_open ((root / info.artifacts_path).string ().c_str (), &database), SQLITE_OK);
+  QCOMPARE (sqlite3_exec (database,
+    "UPDATE artifacts SET source_nodes='';", nullptr, nullptr, nullptr), SQLITE_OK);
+  sqlite3_close (database);
+  std::vector<AthenaArtifactRecord> upgraded;
+  QVERIFY2 (athena_artifacts_query (root, upgraded, error), error.c_str ());
+  QCOMPARE (selector_calls, 1);
+  for (const auto& record: upgraded)
+    if (record.origin == "bold-text") QCOMPARE (record.source_nodes, stored_range.source_nodes);
   AthenaArtifactParagraphLocation stored_location;
   QVERIFY2 (athena_artifact_locate_paragraph (
     persisted, stored_range, stored_location, error), error.c_str ());
   tree stale= copy (persisted);
   stale[1][0][1] << tree (" Changed definition.");
+  QVERIFY2 (athena_artifact_locate_paragraph (
+    stale, stored_range, stored_location, error), error.c_str ());
+  QCOMPARE (stored_location.nodes.size (), (size_t) 1);
+  tree unrelated ("Inserted before the selected paragraph");
+  set_node_id (unrelated, "44444444-4444-4444-8444-444444444444");
+  tree reordered (DOCUMENT, stale[1][0][0], unrelated, stale[1][0][1]);
+  stale[1][0]= reordered;
+  QVERIFY2 (athena_artifact_locate_paragraph (
+    stale, stored_range, stored_location, error), error.c_str ());
+  QCOMPARE (stored_location.nodes[0], path (2));
+  auto explicit_set= stored_range;
+  explicit_set.source_nodes.push_back ("22222222-2222-4222-8222-222222222222");
+  explicit_set.source_nodes.push_back (stored_range.source_nodes[0]);
+  QVERIFY2 (athena_artifact_locate_paragraph (
+    stale, explicit_set, stored_location, error), error.c_str ());
+  QCOMPARE (stored_location.nodes.size (), (size_t) 2);
+  QCOMPARE (stored_location.nodes[0], path (2));
+  QCOMPARE (stored_location.nodes[1], path (0));
+  stale[1][0] << copy (stale[1][0][2]);
   QVERIFY (!athena_artifact_locate_paragraph (
     stale, stored_range, stored_location, error));
-  QVERIFY (error.find ("stale") != std::string::npos);
+  QVERIFY (error.find ("duplicated") != std::string::npos);
+  stale[1][0]= tree (DOCUMENT, unrelated);
+  QVERIFY (!athena_artifact_locate_paragraph (
+    stale, stored_range, stored_location, error));
+  QVERIFY (error.find ("missing") != std::string::npos);
   error.clear ();
   tree persisted_body= persisted[1][0];
   QCOMPARE (athena::node::id (persisted_body[0]),

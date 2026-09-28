@@ -263,6 +263,7 @@ struct artifact_binding_update {
   std::string artifact_uuid;
   std::string source_uuid;
   std::string role;
+  std::vector<std::string> source_nodes;
 };
 
 std::string native_text (string value) {
@@ -797,9 +798,11 @@ void update_artifact_binding_database (
       exec ("ALTER TABLE artifacts ADD COLUMN source_uuid TEXT NOT NULL DEFAULT '';");
     if (!has_column ("source_role"))
       exec ("ALTER TABLE artifacts ADD COLUMN source_role TEXT NOT NULL DEFAULT '';");
+    if (!has_column ("source_nodes"))
+      exec ("ALTER TABLE artifacts ADD COLUMN source_nodes TEXT NOT NULL DEFAULT '';");
     sqlite3_stmt* update= nullptr;
     require (sqlite3_prepare_v2 (
-      db, "UPDATE artifacts SET source_uuid=?1,source_role=?2 WHERE uuid=?3;",
+      db, "UPDATE artifacts SET source_uuid=?1,source_role=?2,source_nodes=?4 WHERE uuid=?3;",
       -1, &update, nullptr) == SQLITE_OK, sqlite3_errmsg (db));
     for (const auto& binding: bindings) {
       sqlite3_reset (update);
@@ -807,6 +810,10 @@ void update_artifact_binding_database (
       sqlite3_bind_text (update, 1, binding.source_uuid.c_str (), -1, SQLITE_TRANSIENT);
       sqlite3_bind_text (update, 2, binding.role.c_str (), -1, SQLITE_TRANSIENT);
       sqlite3_bind_text (update, 3, binding.artifact_uuid.c_str (), -1, SQLITE_TRANSIENT);
+      QJsonArray nodes;
+      for (const auto& id: binding.source_nodes) nodes.append (QString::fromStdString (id));
+      const auto encoded= QJsonDocument (nodes).toJson (QJsonDocument::Compact);
+      sqlite3_bind_text (update, 4, encoded.constData (), encoded.size (), SQLITE_TRANSIENT);
       require (sqlite3_step (update) == SQLITE_DONE, sqlite3_errmsg (db));
       require (sqlite3_changes (db) == 1,
                "Artifact disappeared during staged migration: " +
@@ -1236,8 +1243,13 @@ upgrade_vault_node_model (
                  relative + (prepared.diagnostics.empty () ? "" : ": " +
                    prepared.diagnostics.front ().detail));
         if (prepared.change) ::apply (body, *prepared.change);
+        auto range= artifact;
+        if (artifact.origin == "bold-text")
+          require (athena_artifact_freeze_source_nodes (
+            document.document, range, locate_error),
+            "Cannot freeze Artifact range " + artifact.uuid + ": " + locate_error);
         artifact_updates.push_back (
-          {artifact.uuid, prepared.id, role});
+          {artifact.uuid, prepared.id, role, range.source_nodes});
         ++result.artifact_bindings;
       }
     }

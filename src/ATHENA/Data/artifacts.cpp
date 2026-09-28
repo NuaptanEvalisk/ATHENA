@@ -67,7 +67,9 @@ namespace fs= std::filesystem;
 namespace {
 
 constexpr size_t range_checkpoint_batch_size= 128;
-constexpr const char* source_locator_contract= "source-uuid-role-v1";
+constexpr const char* source_locator_contract= "source-uuid-role-list-v2";
+
+bool freeze_paragraph_sources (const tree&, AthenaArtifactRecord&, std::string&);
 
 void artifact_log (const std::string& message) {
   std::cout << "[artifacts] " << message << std::endl;
@@ -359,6 +361,8 @@ bool open_databases (const fs::path& root, SqliteDb& holder,
       !ensure_column (holder.db, "artifacts", "source_role",
                        "TEXT NOT NULL DEFAULT ''", error) ||
       !ensure_column (holder.db, "artifacts", "input_hash",
+                       "TEXT NOT NULL DEFAULT ''", error) ||
+      !ensure_column (holder.db, "artifacts", "source_nodes",
                        "TEXT NOT NULL DEFAULT ''", error))
     return false;
   if (!exec_sql (holder.db,
@@ -373,7 +377,7 @@ bool open_databases (const fs::path& root, SqliteDb& holder,
   int version_status= sqlite3_step (version.st);
   if (version_status == SQLITE_ROW) {
     std::string value= column_text (version.st, 0);
-    if (value != "1" && value != "2" && value != "3") {
+    if (value != "1" && value != "2" && value != "3" && value != "4") {
       error= "Unsupported artifact database schema version " + value;
       return false;
     }
@@ -385,8 +389,8 @@ bool open_databases (const fs::path& root, SqliteDb& holder,
   if (!exec_sql (holder.db,
         "UPDATE artifact_range_cache SET input_hash=request_hash "
         "WHERE input_hash='';"
-        "INSERT INTO artifact_metadata(key,value) VALUES('schema-version','3') "
-        "ON CONFLICT(key) DO UPDATE SET value='3';", error))
+        "INSERT INTO artifact_metadata(key,value) VALUES('schema-version','4') "
+        "ON CONFLICT(key) DO UPDATE SET value='4';", error))
     return false;
   return true;
 }
@@ -1984,6 +1988,9 @@ bool choose_and_persist_native_bindings (
     error= "Persisted artifact bindings changed extraction content for " + work.rel;
     return false;
   }
+  for (auto& record: extracted.records)
+    if (record.origin == "bold-text" &&
+        !freeze_paragraph_sources (persisted, record, error)) return false;
   try {
     work.semantic_hash=
       athena::document::semantic_document_fingerprint (persisted);
@@ -2063,8 +2070,8 @@ bool replace_document (sqlite3* db, const std::string& rel,
       !prepare (db,
       "INSERT INTO artifacts(uuid,type,origin,content_uuid,proof_uuid,path,"
       "source_uuid,source_role,input_hash,anchor_stem,display_text,document_order,"
-      "identity_decision,identity_evidence) "
-      "VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14);",
+      "identity_decision,identity_evidence,source_nodes) "
+      "VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15);",
       insert_artifact, error))
     return false;
   if (!prepare (db,
@@ -2137,6 +2144,10 @@ bool replace_document (sqlite3* db, const std::string& rel,
     sqlite3_bind_int (insert_artifact.st, 12, record.document_order);
     bind_text (insert_artifact.st, 13, record.identity_decision);
     bind_text (insert_artifact.st, 14, record.identity_evidence);
+    QJsonArray source_nodes;
+    for (const auto& id: record.source_nodes) source_nodes.append (qstr (id));
+    bind_text (insert_artifact.st, 15,
+      QJsonDocument (source_nodes).toJson (QJsonDocument::Compact).toStdString ());
     if (sqlite3_step (insert_artifact.st) != SQLITE_DONE) {
       error= sqlite3_errmsg (db); return false;
     }
@@ -2450,6 +2461,37 @@ athena_artifact_locate_paragraph (
     return false;
   }
 
+  if (!record.source_nodes.empty ()) {
+    std::map<std::string, std::vector<path>> locations;
+    std::function<void (const tree&, path)> visit= [&] (const tree& value, path where) {
+      const auto id= athena::node::id (value);
+      if (!id.empty ()) locations[id].push_back (where);
+      if (is_compound (value))
+        for (int i=0; i<N(value); ++i) visit (value[i], where * i);
+    };
+    visit (body, path ());
+    std::set<std::string> seen;
+    for (const auto& id: record.source_nodes) {
+      if (!athena::node::valid_id (id)) {
+        error= "Invalid Artifact source UUID"; return false;
+      }
+      if (!seen.insert (id).second) continue;
+      const auto& hits= locations[id];
+      if (hits.size () != 1) {
+        error= hits.empty () ? "Artifact source object is missing: " + id :
+                               "Artifact source UUID is duplicated: " + id;
+        return false;
+      }
+      for (const auto& prior: location.nodes)
+        if (prior <= hits[0] || hits[0] <= prior) {
+          error= "Artifact source list contains overlapping objects";
+          return false;
+        }
+      location.nodes.push_back (hits[0]);
+    }
+    return true;
+  }
+
   std::vector<Paragraph> paragraphs;
   collect_paragraphs (body, paragraphs);
   std::unordered_map<std::string,int> occurrences;
@@ -2542,7 +2584,35 @@ athena_artifact_locate_paragraph (
   return true;
 }
 
+bool athena_artifact_freeze_source_nodes (const tree& document, AthenaArtifactRecord& record,
+                               std::string& error) {
+  if (!record.source_nodes.empty ()) return true;
+  AthenaArtifactParagraphLocation location;
+  if (!athena_artifact_locate_paragraph (document, record, location, error)) return false;
+  tree body= document_body (document);
+  tree parent= is_nil (location.parent) ? body : subtree (body, location.parent);
+  std::vector<std::string> ids;
+  for (int i=location.first_child; i<=location.last_child; ++i) {
+    const auto& child= parent[i];
+    if (is_func (child, LABEL) || ignorable (child)) continue;
+    const auto id= athena::node::id (child);
+    if (!athena::node::valid_id (id)) {
+      error= "Artifact source paragraph has no persistent UUID";
+      return false;
+    }
+    if (std::find (ids.begin (), ids.end (), id) == ids.end ()) ids.push_back (id);
+  }
+  if (ids.empty ()) { error= "Artifact source list is empty"; return false; }
+  record.source_nodes= std::move (ids);
+  return true;
+}
+
 namespace {
+
+bool freeze_paragraph_sources (const tree& document, AthenaArtifactRecord& record,
+                               std::string& error) {
+  return athena_artifact_freeze_source_nodes (document, record, error);
+}
 
 bool enunciation_matches_record (
   tree body, path scope, const tree& enunciation,
@@ -3084,11 +3154,12 @@ bool table_has_column (sqlite3* db, const char* table, const char* column,
 
 std::string artifact_select_columns (sqlite3* db, std::string& error) {
   bool source_uuid= false, source_role= false, input_hash= false,
-       content_hash= false;
+       content_hash= false, source_nodes= false;
   if (!table_has_column (db, "artifacts", "source_uuid", source_uuid, error) ||
       !table_has_column (db, "artifacts", "source_role", source_role, error) ||
       !table_has_column (db, "artifacts", "input_hash", input_hash, error) ||
-      !table_has_column (db, "documents", "content_hash", content_hash, error))
+      !table_has_column (db, "documents", "content_hash", content_hash, error) ||
+      !table_has_column (db, "artifacts", "source_nodes", source_nodes, error))
     return {};
   return std::string (
     "SELECT a.uuid,a.type,a.origin,a.content_uuid,COALESCE(a.proof_uuid,''),"
@@ -3110,14 +3181,15 @@ std::string artifact_select_columns (sqlite3* db, std::string& error) {
     "a.identity_decision,a.identity_evidence," +
     (content_hash ?
       "COALESCE((SELECT d.content_hash FROM documents d WHERE d.path=a.path),'')" :
-      "''") + " FROM artifacts a "
+      "''") + "," + (source_nodes ? "a.source_nodes" : "''") + " FROM artifacts a "
     "LEFT JOIN bold_text.entries b ON a.origin='bold-text' AND "
     "b.uuid=a.content_uuid LEFT JOIN enunciations.entries e ON "
     "a.origin='enunciation' AND e.uuid=a.content_uuid ";
 }
 
-AthenaArtifactRecord artifact_record_from_statement (sqlite3_stmt* statement) {
-  AthenaArtifactRecord record;
+bool artifact_record_from_statement (sqlite3_stmt* statement,
+                                     AthenaArtifactRecord& record, std::string& error) {
+  record= AthenaArtifactRecord ();
   record.uuid= column_text (statement, 0);
   record.type= column_text (statement, 1);
   record.origin= column_text (statement, 2);
@@ -3140,7 +3212,60 @@ AthenaArtifactRecord artifact_record_from_statement (sqlite3_stmt* statement) {
   record.identity_decision= column_text (statement, 19);
   record.identity_evidence= column_text (statement, 20);
   record.source_content_fingerprint= column_text (statement, 21);
-  return record;
+  const auto stored_nodes= column_text (statement, 22);
+  if (!stored_nodes.empty ()) {
+    QJsonParseError parse_error;
+    auto nodes= QJsonDocument::fromJson (QByteArray::fromStdString (stored_nodes), &parse_error);
+    if (parse_error.error != QJsonParseError::NoError || !nodes.isArray ()) {
+      error= "Invalid Artifact source UUID list";
+      return false;
+    }
+    for (const auto& id: nodes.array ()) {
+      if (!id.isString () || !athena::node::valid_id (id.toString ().toStdString ())) {
+        error= "Invalid Artifact source UUID";
+        return false;
+      }
+      record.source_nodes.push_back (id.toString ().toStdString ());
+    }
+  }
+  return true;
+}
+
+bool upgrade_source_lists (const fs::path& root, sqlite3* db,
+                           std::vector<AthenaArtifactRecord>& records,
+                           bool read_only, std::string& error) {
+  // Old offsets are converted only against their exact saved content revision.
+  // No model invocation and no write to the document is permitted here.
+  std::error_code root_error;
+  const auto canonical_root= fs::weakly_canonical (root, root_error);
+  if (root_error) { error= root_error.message (); return false; }
+  std::map<std::string, tree> documents;
+  for (auto& record: records) {
+    if (record.origin != "bold-text" || record.source_uuid.empty () ||
+        !record.source_nodes.empty () || record.source_content_fingerprint.empty ()) continue;
+    std::error_code ec;
+    const auto file= fs::weakly_canonical (root / record.relative_path, ec);
+    const auto relative= file.lexically_relative (canonical_root);
+    if (ec || relative.empty () || relative.is_absolute () || *relative.begin () == "..") continue;
+    std::string diagnostic;
+    auto found= documents.find (file.string ());
+    if (found == documents.end ()) {
+      tree document;
+      if (!read_document (file, document, diagnostic)) continue;
+      found= documents.emplace (file.string (), document).first;
+    }
+    if (!freeze_paragraph_sources (found->second, record, diagnostic)) continue;
+    if (read_only) continue;
+    Statement update;
+    if (!prepare (db, "UPDATE artifacts SET source_nodes=?1 WHERE uuid=?2 "
+                       "AND (source_nodes='' OR source_nodes='[]');", update, error)) return false;
+    QJsonArray ids;
+    for (const auto& id: record.source_nodes) ids.append (qstr (id));
+    bind_text (update.st, 1, QJsonDocument (ids).toJson (QJsonDocument::Compact).toStdString ());
+    bind_text (update.st, 2, record.uuid);
+    if (sqlite3_step (update.st) != SQLITE_DONE) { error= sqlite3_errmsg (db); return false; }
+  }
+  return true;
 }
 
 bool load_semantic_names (sqlite3* db,
@@ -3193,13 +3318,17 @@ athena_artifacts_query (const fs::path& vault_root,
   if (!prepare (holder.db, sql.c_str (), st, error))
     return false;
   int rc;
-  while ((rc= sqlite3_step (st.st)) == SQLITE_ROW)
-    records.push_back (artifact_record_from_statement (st.st));
+  while ((rc= sqlite3_step (st.st)) == SQLITE_ROW) {
+    AthenaArtifactRecord record;
+    if (!artifact_record_from_statement (st.st, record, error)) return false;
+    records.push_back (std::move (record));
+  }
   if (rc != SQLITE_DONE) {
     error= sqlite3_errmsg (holder.db);
     return false;
   }
-  return load_semantic_names (holder.db, records, error);
+  return load_semantic_names (holder.db, records, error) &&
+    upgrade_source_lists (vault_root, holder.db, records, read_only, error);
 }
 
 bool
@@ -3225,9 +3354,11 @@ athena_artifact_query_uuid (const fs::path& vault_root,
     error= sqlite3_errmsg (holder.db);
     return false;
   }
-  record= artifact_record_from_statement (st.st);
+  if (!artifact_record_from_statement (st.st, record, error)) return false;
+  sqlite3_reset (st.st);
   std::vector<AthenaArtifactRecord> records= {record};
-  if (!load_semantic_names (holder.db, records, error)) return false;
+  if (!load_semantic_names (holder.db, records, error) ||
+      !upgrade_source_lists (vault_root, holder.db, records, read_only, error)) return false;
   record= std::move (records.front ());
   found= true;
   return true;
