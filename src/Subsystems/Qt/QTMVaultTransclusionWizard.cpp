@@ -275,18 +275,15 @@ public:
 
   tree getResult () const;
   void setResult (const QString& relPath, const QString& anchorBegin,
-                  const QString& anchorEnd, const QString& fileHint,
-                  const QString& anchorHint,
+                  const QString& anchorEnd,
                   const QStringList& sourceUuids= {});
   bool selectFileFromPage ();
 
   std::vector<WikilinkFileEntry> files;
   QString selectedRelPath;
   url     selectedFileUrl;
-  QString fileHint;
   QString selectedAnchorBegin;
   QString selectedAnchorEnd;
-  QString anchorHint;
   int     selectedUpperIndex;
   QString selectedUpperAnchor;
   path    selectedUpperWhere;
@@ -483,7 +480,8 @@ TransclusionEnunciationPage::TransclusionEnunciationPage (QWidget* parent)
   : QWizardPage (parent) {
   setFinalPage (true);
   setTitle ("Choose an enunciation");
-  setSubTitle ("Only { anchors with a matching } anchor are listed.");
+  setSubTitle (vault_get_node_model_version () >= 1 ? "" :
+    "Only { anchors with a matching } anchor are listed.");
 
   searchEdit= new QLineEdit (this);
   searchEdit->setPlaceholderText ("Filter enunciation anchors");
@@ -724,13 +722,12 @@ TransclusionEnunciationPage::acceptCurrentPair () {
       QMessageBox::warning (this, "Insert transclusion", error);
       return false;
     }
-    w->setResult (w->selectedRelPath, {}, {}, w->fileHint, {}, ids);
+    w->setResult (w->selectedRelPath, {}, {}, ids);
     return w->resultAccepted;
   }
   if (index < 0 || index >= (int) pairs.size ()) return false;
   const TransclusionAnchorPair& pair= pairs[index];
-  w->setResult (w->selectedRelPath, pair.upper, pair.lower, w->fileHint,
-                pair.upper);
+  w->setResult (w->selectedRelPath, pair.upper, pair.lower);
   return true;
 }
 
@@ -1171,7 +1168,7 @@ TransclusionLowerPage::validatePage () {
     return false;
   }
   w->setResult (w->selectedRelPath, w->selectedUpperAnchor,
-                anchors[index].anchor, w->fileHint, anchors[index].anchor);
+                anchors[index].anchor);
   return true;
 }
 
@@ -1729,11 +1726,10 @@ TransclusionSearchPage::acceptCurrentResult () {
   if (index < 0 || index >= (int) results.size ()) return false;
   const TransclusionSearchResult& result= results[index];
   if (vault_get_node_model_version () >= 1) {
-    w->setResult (result.relPath, {}, {}, {}, {}, {result.sourceUuid});
+    w->setResult (result.relPath, {}, {}, {result.sourceUuid});
     return w->resultAccepted;
   }
-  w->setResult (result.relPath, result.upper, result.lower,
-                file_display_stem (result.relPath), result.upper);
+  w->setResult (result.relPath, result.upper, result.lower);
   return true;
 }
 
@@ -1769,9 +1765,7 @@ QTMVaultTransclusionWizard::QTMVaultTransclusionWizard (QWidget* parent)
   artifactPage->setSelectionHandler (
     [this] (const QTMVaultArtifactSelection& selection) {
       setResult (selection.relative_path, selection.upper_anchor,
-                 selection.lower_anchor,
-                 file_display_stem (selection.relative_path),
-                 selection.upper_anchor, selection.source_uuids);
+                 selection.lower_anchor, selection.source_uuids);
       return resultAccepted;
     });
 
@@ -1813,14 +1807,10 @@ void
 QTMVaultTransclusionWizard::setResult (const QString& relPath,
                                        const QString& anchorBegin,
                                        const QString& anchorEnd,
-                                       const QString& fileHint2,
-                                       const QString& anchorHint2,
                                        const QStringList& sourceUuids) {
   selectedRelPath= relPath;
   selectedAnchorBegin= anchorBegin;
   selectedAnchorEnd= anchorEnd;
-  fileHint= fileHint2;
-  anchorHint= anchorHint2;
   selectedSourceUuids= sourceUuids;
   delete sourceRequest.data ();
   if (vault_get_node_model_version () >= 1) {
@@ -1852,11 +1842,8 @@ QTMVaultTransclusionWizard::selectFileFromPage () {
   if (index < 0 || index >= (int) files.size ()) return false;
   selectedRelPath= files[index].relPath;
   selectedFileUrl= files[index].file;
-  QString typed= filePage->searchEdit->text ().trimmed ();
-  fileHint= typed.isEmpty () ? files[index].stem : typed;
   selectedAnchorBegin.clear ();
   selectedAnchorEnd.clear ();
-  anchorHint.clear ();
   selectedSourceUuids.clear ();
   selectedUpperIndex= -1;
   selectedUpperAnchor.clear ();
@@ -1872,8 +1859,6 @@ QTMVaultTransclusionWizard::getResult () const {
   res << tree (from_qstring (selectedRelPath));
   res << tree (from_qstring (selectedAnchorBegin));
   res << tree (from_qstring (selectedAnchorEnd));
-  res << tree (from_qstring (fileHint));
-  res << tree (from_qstring (anchorHint));
   tree ids (TUPLE);
   for (const auto& id: selectedSourceUuids) ids << tree (from_qstring (id));
   res << ids;

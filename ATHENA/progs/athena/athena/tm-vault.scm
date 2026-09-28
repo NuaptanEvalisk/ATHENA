@@ -121,11 +121,9 @@
                   (loop (cdr cs) (cons (car cs) out))))
             (loop (cdr cs) (cons (car cs) out))))))
 
-(define (vault-wikilink-url uuid file-hint anchor-hint)
+(define (vault-wikilink-url uuid)
   (string-append "tmfs://wikilink/"
-                 (vault-url-component-encode uuid) "/"
-                 (vault-url-component-encode file-hint) "/"
-                 (vault-url-component-encode anchor-hint)))
+                 (vault-url-component-encode uuid)))
 
 (define (vault-node-model-active?)
   (>= (vault-get-node-model-version) 1))
@@ -510,15 +508,12 @@
       (vault-backup-viewer-show)))
 
 (define (insert-wikilink-complete res)
-  (when (and (tree? res) (== (tree-label res) 'tuple))
+  (when (and (tree? res) (== (tree-label res) 'tuple)
+             (== (tree-arity res) 4))
     (let* ((rel-path (tree->string (tree-ref res 0)))
            (anchor (tree->string (tree-ref res 1)))
-           (file-hint (tree->string (tree-ref res 2)))
-           (anchor-hint (tree->string (tree-ref res 3)))
-           (display-text (tree->string (tree-ref res 4)))
-           (source-uuid
-             (if (>= (tree-arity res) 6)
-                 (tree->string (tree-ref res 5)) ""))
+           (display-text (tree->string (tree-ref res 2)))
+           (source-uuid (tree->string (tree-ref res 3)))
            (uuid
              (if (vault-node-model-active?)
                  source-uuid
@@ -533,8 +528,7 @@
               (set! uuid (vault-generate-uuid))
               (vault-set-node uuid rel-path "" anchor))
             (insert `(hlink ,display-text
-                            ,(vault-wikilink-url
-                               uuid file-hint anchor-hint))))))))
+                            ,(vault-wikilink-url uuid))))))))
 
 (tm-define (insert-wikilink)
   (:interactive #t)
@@ -543,13 +537,12 @@
       (vault-choose-link #f insert-wikilink-complete)))
 
 (define (insert-transclude-complete res)
-  (when (and (tree? res) (== (tree-label res) 'tuple))
+  (when (and (tree? res) (== (tree-label res) 'tuple)
+             (== (tree-arity res) 4))
     (let* ((rel-path (tree->string (tree-ref res 0)))
            (anchor-b (tree->string (tree-ref res 1)))
            (anchor-e (tree->string (tree-ref res 2)))
-           (file-hint (tree->string (tree-ref res 3)))
-           (anchor-hint (tree->string (tree-ref res 4)))
-           (source-ids (and (>= (tree-arity res) 6) (tree-ref res 5))))
+           (source-ids (tree-ref res 3)))
       (if (vault-node-model-active?)
           (if (and (tree? source-ids)
                    (== (tree-label source-ids) 'tuple)
@@ -562,7 +555,8 @@
             (when (string-null? uuid)
               (set! uuid (vault-generate-uuid))
               (vault-set-node uuid rel-path anchor-b anchor-e))
-            (insert `(transclude ,uuid ,file-hint ,anchor-b ,anchor-e)))))))
+            ;; The legacy reader still requires its four-argument shape.
+            (insert `(transclude ,uuid "" ,anchor-b ,anchor-e)))))))
 
 (tm-define (insert-transclude)
   (:interactive #t)
@@ -570,8 +564,7 @@
       (set-message "No active vault. Please load a vault first." "Error")
       (vault-choose-link #t insert-transclude-complete)))
 
-(define (vault-transclude-replace-in-buffer! buf uuid file-hint
-                                             anchor-b anchor-e)
+(define (vault-transclude-replace-in-buffer! buf uuid anchor-b anchor-e)
   (let ((changed? #f)
         (t (buffer-get buf)))
     (tree-search t
@@ -580,23 +573,23 @@
                    (== (tree-label node) 'transclude)
                    (>= (tree-arity node) 1)
                    (== (tree->string (tree-ref node 0)) uuid))
-          (tree-set! node `(transclude ,uuid ,file-hint
+          (tree-set! node `(transclude ,uuid ""
                                        ,anchor-b ,anchor-e))
           (set! changed? #t))
         #f))
     changed?))
 
 (define (vault-transclude-repair-complete bad-uuid res)
-  (when (and (tree? res) (== (tree-label res) 'tuple))
+  (when (and (tree? res) (== (tree-label res) 'tuple)
+             (== (tree-arity res) 4) (not (vault-node-model-active?)))
     (let* ((rel-path (tree->string (tree-ref res 0)))
            (anchor-b (tree->string (tree-ref res 1)))
-           (anchor-e (tree->string (tree-ref res 2)))
-           (file-hint (tree->string (tree-ref res 3))))
+           (anchor-e (tree->string (tree-ref res 2))))
       (vault-set-node bad-uuid rel-path anchor-b anchor-e)
       (let ((changed 0))
         (for (b (buffer-list))
           (when (vault-transclude-replace-in-buffer!
-                 b bad-uuid file-hint anchor-b anchor-e)
+                 b bad-uuid anchor-b anchor-e)
             (set! changed (+ changed 1))))
         (if (> changed 0)
             (set-message "Transclusion repaired" "Vault")
