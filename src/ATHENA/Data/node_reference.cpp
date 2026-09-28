@@ -183,6 +183,11 @@ static void merge_preview_context (const node_location::item& target, tree& out,
   }
 }
 
+static void append_display (tree& destination, const tree& shown) {
+  if (is_document (shown)) destination << A(shown);
+  else destination << shown;
+}
+
 tree preview_document (const view& current, url& source) {
   source= url_none ();
   tree out (DOCUMENT, compound ("style", tree (TUPLE, "generic"))), preamble (DOCUMENT);
@@ -193,7 +198,7 @@ tree preview_document (const view& current, url& source) {
       merge_preview_context (target, out, preamble);
     }
   }
-  preamble << A(display (current));
+  append_display (preamble, display (current));
   out << compound ("body", preamble);
   return out;
 }
@@ -215,9 +220,9 @@ tree preview_context_document (const view& current, url& source) {
       }
       else body << message ("No nearby source context is available.");
     }
-    else body << A(display (current));
+    else append_display (body, display (current));
   }
-  else body << A(display (current));
+  else append_display (body, display (current));
   out << compound ("body", body);
   return out;
 }

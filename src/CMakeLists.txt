@@ -79,6 +79,7 @@ function (athena_configure_body_target target_name)
     athena_unicode
     athena_audmap
     PkgConfig::SPDLOG
+    PkgConfig::LMDB
     ${ATHENA_LLAMA_LIBRARIES}
     PRIVATE
     PkgConfig::HUNSPELL

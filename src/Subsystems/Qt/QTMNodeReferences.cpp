@@ -10,6 +10,7 @@
 #include "ATHENA/Data/node_reference.hpp"
 #include "ATHENA/Data/node_reference_export.hpp"
 #include "ATHENA/Data/vault_node_location.hpp"
+#include "ATHENA/Data/node_location_cache.hpp"
 #include "buffer_actor.hpp"
 #include "buffer_name_catalog.hpp"
 #include "qt_utilities.hpp"
@@ -53,6 +54,7 @@ class monitor: public QObject {
   QFileSystemWatcher watcher;
   QTimer timer;
   std::uint64_t observed= changes.load ();
+  std::uint64_t observed_index= node_location::persistent_index_generation ();
   std::map<std::string, recipient> members;
   std::set<recipient> refresh;
   std::weak_ptr<entry> navigating;
@@ -68,6 +70,16 @@ public:
         current[pair.first]= {pair.second.actor_id, pair.second.source_view};
       if (current != members) { members= std::move (current); source_changed (); }
       if (observed != changes.load ()) { observed= changes.load (); invalidate (); }
+      const auto index_generation= node_location::persistent_index_generation ();
+      const auto index_status= node_location::persistent_index_status ();
+      const bool index_quiescent=
+        index_status.phase == node_location::persistent_phase::idle ||
+        index_status.phase == node_location::persistent_phase::degraded ||
+        index_status.phase == node_location::persistent_phase::error;
+      if (observed_index != index_generation && index_quiescent) {
+        observed_index= index_generation;
+        invalidate ();
+      }
       std::vector<std::shared_ptr<entry>> retry;
       {
         std::lock_guard<std::mutex> guard (cache_lock);
@@ -230,7 +242,9 @@ void start (const std::shared_ptr<entry>& e) {
 }
 }
 
-void source_changed () { changes.fetch_add (1, std::memory_order_relaxed); }
+void source_changed () {
+  changes.fetch_add (1, std::memory_order_relaxed);
+}
 std::uint64_t source_epoch () { return changes.load (std::memory_order_relaxed); }
 view get (std::vector<std::string> ids, std::vector<std::string> ancestry) {
   if (auto frozen= export_reference_view ({ids, ancestry})) return *frozen;

@@ -8,6 +8,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include "node_location.hpp"
+#include "node_location_cache.hpp"
 #include "node_metadata.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
 #include <algorithm>
@@ -317,115 +318,165 @@ struct service::impl: std::enable_shared_from_this<impl> {
             documents.push_back (std::move (next));
           }
         }
-        if (!pinned_root) pinned_root= std::make_unique<fs::confined_root> (root);
-        const auto& directory= *pinned_root;
-        std::set<std::pair<std::uint64_t, std::uint64_t>> directories;
-        std::set<std::string> files;
-        std::size_t entries= 0;
-        std::function<void (const std::filesystem::path&, std::size_t)> visit;
-        visit= [&] (const std::filesystem::path& relative, std::size_t depth) {
-          if (stopping) return;
-          auto name= relative.generic_string ();
-          if (!relative.empty () && overridden.count (name)) return;
-          try {
-            if (depth > max_depth || ++entries > max_nodes)
-              throw std::length_error ("Vault location inventory exceeds its budget");
-            const auto entry= directory.open (relative);
-            const auto physical= entry.path ().lexically_relative (directory.path ());
-            if (internal_path (physical)) return;
-            name= physical.generic_string ();
-            if (overridden.count (name)) return;
-            const auto revision= entry.stat ();
-            if (revision.directory) {
-              if (!directories.emplace (revision.device, revision.inode).second)
-                return;
-              watched->push_back (entry.path ().string ());
-              auto names= entry.names ();
-              std::sort (names.begin (), names.end ());
-              for (const auto& child: names)
-                if (!excluded (child)) visit (relative / child, depth + 1);
+        std::set<std::string> requested;
+        for (const auto& task: batch)
+          if (task->read ()->state == status::pending)
+            requested.insert (task->data->ids.begin (), task->data->ids.end ());
+
+        index locations= make_index (documents);
+        std::vector<std::string> wanted (requested.begin (), requested.end ());
+        auto persistent= persistent_index_lookup (root, wanted);
+        for (const auto& pair: persistent.locations) {
+          (void) locations[pair.first];
+          for (const auto& found: pair.second) if (!overridden.count (found.file)) {
+            locations[pair.first].push_back (found);
+            watched->push_back ((root / found.file).string ());
+            watched->push_back ((root / found.file).parent_path ().string ());
+          }
+        }
+
+        bool need_fallback= false;
+        if (!persistent.bootstrap_complete)
+          for (const auto& id: requested)
+            if (locations.find (id) == locations.end () || locations[id].empty ()) {
+              need_fallback= true; break;
             }
-            else if (relative.extension () == ".ath") {
-              if (!files.insert (name).second) return;
-              watched->push_back (entry.path ().string ());
-              present.insert (name);
-              const auto saved= cache.find (name);
-              if (saved != cache.end () && fs::same_revision (*saved->second->disk_revision, revision)) {
-                documents.push_back (saved->second); return;
+
+        // Cold-start compatibility path only.  Once the persistent index has
+        // completed one full sweep, an LMDB miss is authoritative and no
+        // interactive request is allowed to enumerate the vault.
+        if (need_fallback) {
+          if (!pinned_root) pinned_root= std::make_unique<fs::confined_root> (root);
+          const auto& directory= *pinned_root;
+          std::set<std::pair<std::uint64_t, std::uint64_t>> directories;
+          std::set<std::string> files;
+          std::size_t entries= 0;
+          std::function<void (const std::filesystem::path&, std::size_t)> visit;
+          visit= [&] (const std::filesystem::path& relative, std::size_t depth) {
+            if (stopping) return;
+            auto name= relative.generic_string ();
+            if (!relative.empty () && overridden.count (name)) return;
+            try {
+              if (depth > max_depth || ++entries > max_nodes)
+                throw std::length_error ("Vault location inventory exceeds its budget");
+              const auto entry= directory.open (relative);
+              const auto physical= entry.path ().lexically_relative (directory.path ());
+              if (internal_path (physical)) return;
+              name= physical.generic_string ();
+              if (overridden.count (name)) return;
+              const auto revision= entry.stat ();
+              if (revision.directory) {
+                if (!directories.emplace (revision.device, revision.inode).second)
+                  return;
+                watched->push_back (entry.path ().string ());
+                auto names= entry.names ();
+                std::sort (names.begin (), names.end ());
+                for (const auto& child: names)
+                  if (!excluded (child)) visit (relative / child, depth + 1);
               }
-              const document::codec_limits limits;
-              const auto bytes= entry.read (limits.input_bytes);
-              auto source_tree= document::read_xml_v2 (bytes);
-              auto next= std::make_shared<source> ();
-              next->file= name;
-              next->disk_revision= revision;
-              next->nodes= collect (source_tree);
-              const auto now= directory.open (relative);
-              if (!entry.same_object (now) || !fs::same_revision (revision, now.stat ()))
-                throw std::runtime_error ("Source changed during UUID inventory");
-              cache[name]= next;
-              documents.push_back (std::move (next));
+              else if (relative.extension () == ".ath") {
+                if (!files.insert (name).second) return;
+                watched->push_back (entry.path ().string ());
+                present.insert (name);
+                const auto saved= cache.find (name);
+                if (saved != cache.end () &&
+                    fs::same_revision (*saved->second->disk_revision, revision)) {
+                  documents.push_back (saved->second); return;
+                }
+                const document::codec_limits limits;
+                const auto bytes= entry.read (limits.input_bytes);
+                auto source_tree= document::read_xml_v2 (bytes);
+                auto next= std::make_shared<source> ();
+                next->file= name;
+                next->disk_revision= revision;
+                next->nodes= collect (source_tree);
+                const auto now= directory.open (relative);
+                if (!entry.same_object (now) || !fs::same_revision (revision, now.stat ()))
+                  throw std::runtime_error ("Source changed during UUID inventory");
+                cache[name]= next;
+                documents.push_back (std::move (next));
+              }
             }
+            catch (const std::length_error&) { throw; }
+            catch (const document::identity_conflict& e) {
+              errors.push_back ({name, e.what (), status::conflict, e.id}); cache.erase (name);
+            }
+            catch (const std::exception& e) {
+              errors.push_back ({name, e.what ()}); cache.erase (name);
+            }
+            catch (const string& e) {
+              errors.push_back ({name, {e.data (), std::size_t (N(e))}}); cache.erase (name);
+            }
+          };
+          visit ({}, 0);
+          for (auto i= cache.begin (); i != cache.end (); )
+            if (!present.count (i->first)) i= cache.erase (i); else ++i;
+          locations= make_index (documents);
+        }
+
+        ++serial;
+        // Requests arriving during the optional cold fallback share that one
+        // vault walk, so opening a document with many uncached references does
+        // not start one scan per transclusion.
+        if (need_fallback) {
+          std::lock_guard<std::mutex> guard (lock);
+          if (epoch == cache_epoch) {
+            batch.insert (batch.end (), pending.begin (), pending.end ());
+            pending.clear ();
           }
-          catch (const std::length_error&) { throw; }
-          catch (const document::identity_conflict& e) {
-            errors.push_back ({name, e.what (), status::conflict, e.id}); cache.erase (name);
+        }
+        for (const auto& task: batch) {
+          if (stopping) task->cancel ();
+          else if (task->read ()->state == status::pending) {
+            auto answer= resolve (
+              task->data->ids, task->data->ancestry, locations, errors, serial);
+            answer.watched_paths= watched;
+            if (task->data->content && answer.state != status::overlap)
+              for (auto& target: answer.items) {
+                if (stopping || task->read ()->state == status::cancelled) break;
+                if (target.state != status::resolved) continue;
+                try {
+                  if (!target.candidates.front ().file.empty ())
+                    target.source_directory=
+                      (root / target.candidates.front ().file).parent_path ().string ();
+                  auto payload= content ? content (target, stopping) :
+                                           read_disk_content (root, target);
+                  target.fragment_xml= std::move (payload.fragment_xml);
+                  target.preview_context_xml= std::move (payload.preview_context_xml);
+                  target.source_url= std::move (payload.source_url);
+                }
+                catch (const std::exception& e) {
+                  target.state= status::unreadable; target.diagnostic= e.what ();
+                }
+                catch (const string& e) {
+                  target.state= status::unreadable;
+                  target.diagnostic= {e.data (), std::size_t (N(e))};
+                }
+                catch (...) {
+                  target.state= status::unreadable;
+                  target.diagnostic= "Failed to read resolved node";
+                }
+                if (target.state != status::resolved && answer.state == status::resolved)
+                  answer.state= target.state;
+              }
+            if (stopping) task->cancel ();
+            else task->data->finish (std::move (answer));
           }
-          catch (const std::exception& e) { errors.push_back ({name, e.what ()}); cache.erase (name); }
-          catch (const string& e) { errors.push_back ({name, {e.data (), std::size_t (N(e))}}); cache.erase (name); }
-        };
-        visit ({}, 0);
+        }
+        continue;
       }
       catch (const std::exception& e) { errors.push_back ({"", e.what ()}); }
       catch (const string& e) { errors.push_back ({"", {e.data (), std::size_t (N(e))}}); }
       catch (...) { errors.push_back ({"", "Failed to capture source identity inventory"}); }
-      for (auto i= cache.begin (); i != cache.end (); )
-        if (!present.count (i->first)) i= cache.erase (i); else ++i;
-      const auto locations= make_index (documents);
       ++serial;
-      // Requests arriving during I/O share this captured inventory. Consumers
-      // still validate its revision before using any returned node address.
-      {
-        std::lock_guard<std::mutex> guard (lock);
-        if (epoch == cache_epoch) {
-          batch.insert (batch.end (), pending.begin (), pending.end ());
-          pending.clear ();
-        }
-      }
-      for (const auto& task: batch) {
-        if (stopping) task->cancel ();
-        else if (task->read ()->state == status::pending) {
-          auto answer= resolve (task->data->ids, task->data->ancestry, locations, errors, serial);
+      const auto locations= make_index (documents);
+      for (const auto& task: batch)
+        if (task->read ()->state == status::pending) {
+          auto answer= resolve (
+            task->data->ids, task->data->ancestry, locations, errors, serial);
           answer.watched_paths= watched;
-          if (task->data->content && answer.state != status::overlap)
-            for (auto& target: answer.items) {
-              if (stopping || task->read ()->state == status::cancelled) break;
-              if (target.state != status::resolved) continue;
-              try {
-                if (!target.candidates.front ().file.empty ())
-                  target.source_directory= (root / target.candidates.front ().file).parent_path ().string ();
-                auto payload= content ? content (target, stopping) : read_disk_content (root, target);
-                target.fragment_xml= std::move (payload.fragment_xml);
-                target.preview_context_xml= std::move (payload.preview_context_xml);
-                target.source_url= std::move (payload.source_url);
-              }
-              catch (const std::exception& e) {
-                target.state= status::unreadable; target.diagnostic= e.what ();
-              }
-              catch (const string& e) {
-                target.state= status::unreadable;
-                target.diagnostic= {e.data (), std::size_t (N(e))};
-              }
-              catch (...) {
-                target.state= status::unreadable; target.diagnostic= "Failed to read resolved node";
-              }
-              if (target.state != status::resolved && answer.state == status::resolved)
-                answer.state= target.state;
-            }
-          if (stopping) task->cancel ();
-          else task->data->finish (std::move (answer));
+          task->data->finish (std::move (answer));
         }
-      }
     }
   }
 };

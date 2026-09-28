@@ -291,11 +291,16 @@ private slots:
       athena::document::xml_kind::fragment);
     result->items= {missing, resolved};
     tree display= ref::display ({result, 1});
-    QCOMPARE (N(display), 2);
-    QVERIFY (is_func (display[0], WITH));
-    QVERIFY (ref::ancestry (display[1][1]) == std::vector<std::string> ({c, a}));
+    QVERIFY (is_func (display, WITH, 17));
+    QVERIFY (is_compound (display[16], "ornamented", 1));
+    QVERIFY (is_func (display[16][0], WITH, 5));
+    tree framed= display[16][0][4];
+    QVERIFY (is_document (framed));
+    QCOMPARE (N(framed), 2);
+    QVERIFY (is_func (framed[0], WITH));
+    QVERIFY (ref::ancestry (framed[1][1]) == std::vector<std::string> ({c, a}));
     QVERIFY (loc::collect (display).empty ());
-    QVERIFY (display[1][2][1][0] == "Text");
+    QVERIFY (framed[1][2][1] == "Text");
     auto overlap= std::make_shared<loc::result> (*result);
     overlap->state= loc::status::overlap;
     QVERIFY (N(ref::display ({overlap, 2})) == 1);
@@ -328,8 +333,12 @@ private slots:
     QVERIFY (preview[0] == style);
     QVERIFY (preview[1] == initial);
     QVERIFY (preview[2][0][0] == preamble);
-    QVERIFY (ref::ancestry (preview[2][0][1][1]) == std::vector<std::string> ({c, b}));
-    QVERIFY (preview[2][0][1][2][1][0] == "Selected text");
+    tree display= preview[2][0][1];
+    QVERIFY (is_func (display, WITH, 17));
+    tree framed= display[16][0][4];
+    QVERIFY (is_document (framed) && N(framed) == 1);
+    QVERIFY (ref::ancestry (framed[0][1]) == std::vector<std::string> ({c, b}));
+    QVERIFY (framed[0][2][1] == "Selected text");
     QVERIFY (loc::collect (preview).empty ());
     QVERIFY (!is_none (location));
     QCOMPARE (child->read ()->items[0].source_url, (root (dir) / "doc.ath").string ());
@@ -351,12 +360,16 @@ private slots:
     QVERIFY (wait (whole).state == loc::status::resolved);
     preview= ref::preview_document ({whole->read (), 2}, location);
     QCOMPARE (N(preview[2][0]), 1); // The selected root already owns the preamble.
-    auto content= preview[2][0][0][2][1];
-    QCOMPARE (N(content), 4);
-    QVERIFY (content[0] == preamble);
-    QVERIFY (content[1] == "Before context");
-    QVERIFY (content[2] == "Selected text");
-    QVERIFY (content[3] == "After context");
+    display= preview[2][0][0];
+    QVERIFY (is_func (display, WITH, 17));
+    framed= display[16][0][4];
+    QVERIFY (is_document (framed) && N(framed) == 1);
+    tree content= framed[0][2];
+    QCOMPARE (N(content), 5); // Source header, then the four selected body nodes.
+    QVERIFY (content[1] == preamble);
+    QVERIFY (content[2] == "Before context");
+    QVERIFY (content[3] == "Selected text");
+    QVERIFY (content[4] == "After context");
     QVERIFY (loc::collect (preview).empty ());
     QVERIFY (source[2][0][2] == identified (tree ("Selected text"), b));
   }

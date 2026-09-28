@@ -32,6 +32,8 @@
 class QLabel; 
 class QAction;
 class QTMToolbarController;
+class QProgressBar;
+class QWidget;
 
 /*! Models one main window with toolbars, an associated view, etc.
  
@@ -56,6 +58,11 @@ class qt_tm_widget_rep: public qt_window_widget_rep {
    QLabel*       rightLabel;
    QLabel*       centerLabel;
    QLabel*       leftLabel;
+   QLabel*       nodeCacheIndicator;
+   QLabel*       nodeCacheCount;
+   QProgressBar* nodeCacheProgress;
+   QWidget*      nodeCacheWidget;
+   bool          nodeCacheBlink= false;
 #if !DISABLE_QTMTOOLBAR
   QTMToolbar*    menuToolBar;
   QTMToolbar*    mainToolBar;

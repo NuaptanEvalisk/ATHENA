@@ -504,16 +504,10 @@ edit_interface_rep::set_footer () {
 
   if ((message_l == "") && (message_r == "")) {
     last_l= ""; last_r= "";
-    tree st= subtree (et, path_up (tp));
-    if (set_latex_footer (st)) return;
-    if (set_hybrid_footer (st)) return;
-    set_left_footer();
     set_right_footer();
     set_center_footer (live_statistics_footer ());
   }
   else {
-    if (message_l == "") set_left_footer ();
-    else set_left_footer (message_l);
     set_center_footer (live_statistics_footer ());
     if (message_r == "") set_right_footer ();
     else set_right_footer (message_r);

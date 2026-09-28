@@ -13,6 +13,7 @@
 #include "rag_index.hpp"
 #include "rag_embedding_contract.hpp"
 #include "rag_realtime_generation.hpp"
+#include "ATHENA/Data/node_location_cache.hpp"
 #include "scheme.hpp"
 #include "tm_ostream.hpp"
 #include "vault.hpp"
@@ -775,6 +776,9 @@ void
 qtm_continuous_rag_saved (const QString& saved_file, const QString& vault_root,
                            const QString& storage_revision,
                            std::uint64_t save_sequence) {
+  // Wake the continuous UUID sweep, but deliberately do not enqueue or
+  // prioritize this file.  The worker still consumes the vault in sweep order.
+  athena::node_location::persistent_index_wake ();
   ContinuousRagManager* instance= manager (false);
   if (instance != nullptr)
     instance->saved (saved_file, vault_root, storage_revision, save_sequence);
