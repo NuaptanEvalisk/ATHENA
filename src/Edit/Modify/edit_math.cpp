@@ -694,6 +694,7 @@ edit_math_rep::equation_to_eqnarray (tree_label equation_tag) {
       tree (CELL, rows[(std::size_t) i][2]));
   tree replacement (make_tree_label ("eqnarray*"),
     tree (DOCUMENT, tree (TFORMAT, table)));
+  athena::node::copy_metadata (equation, replacement);
   assign (equation_path, replacement);
   correct (path_up (equation_path));
   path last_right= equation_path * 0 * 0 * 0 * ((int) rows.size () - 1) * 2 * 0;
@@ -722,6 +723,7 @@ edit_math_rep::eqnarray_to_equation () {
     }
   tree content= math_concat (pieces);
   tree replacement (make_tree_label (labels.empty () ? "equation*" : "equation"), content);
+  athena::node::copy_metadata (source, replacement);
   assign (eqnarray_path, replacement);
   correct (path_up (eqnarray_path));
   go_to_end (eqnarray_path * 0);
