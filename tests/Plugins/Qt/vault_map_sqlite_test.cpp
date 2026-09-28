@@ -1064,6 +1064,29 @@ TestVaultMapSqlite::cachesAndInvalidatesStructuralTransclusions () {
   QVERIFY (repeated.content == first.content);
 
   tree displayed= athena_resolve_transclusion_display (transclusion);
+  QVERIFY (is_func (displayed, WITH, 17));
+  QCOMPARE (displayed[0], tree ("ornament-color"));
+  QCOMPARE (displayed[2], tree ("ornament-shape"));
+  QCOMPARE (displayed[3], tree ("rectangular"));
+  QCOMPARE (displayed[4], tree ("ornament-border"));
+  QCOMPARE (displayed[5], tree ("1ln"));
+  QCOMPARE (displayed[6], tree ("ornament-vpadding"));
+  QCOMPARE (displayed[7], tree ("0.25spc"));
+  QCOMPARE (displayed[8], tree ("padding-above"));
+  QCOMPARE (displayed[9], tree ("0.15fn"));
+  QCOMPARE (displayed[10], tree ("padding-below"));
+  QCOMPARE (displayed[11], tree ("0.15fn"));
+  QCOMPARE (displayed[12], tree ("large-padding-above"));
+  QCOMPARE (displayed[13], tree ("0.2fn"));
+  QCOMPARE (displayed[14], tree ("large-padding-below"));
+  QCOMPARE (displayed[15], tree ("0.2fn"));
+  QVERIFY (is_compound (displayed[16], "ornamented", 1));
+  tree compact= displayed[16][0];
+  QVERIFY (is_func (compact, WITH, 5));
+  QCOMPARE (compact[0], tree ("par-par-sep"));
+  QCOMPARE (compact[1], tree ("0fn"));
+  QCOMPARE (compact[2], tree ("par-sep"));
+  QCOMPARE (compact[3], tree ("0fn"));
   QCOMPARE (first_hlink_target (displayed),
             string ("tmfs://transclusion-source/range"));
   QVERIFY (athena_link_peek_target ("tmfs://transclusion-source/range"));

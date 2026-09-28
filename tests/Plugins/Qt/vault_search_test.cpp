@@ -27,6 +27,7 @@
 #include "ATHENA/Data/node_reference.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
 #include "node_metadata.hpp"
+#include "boxes.hpp"
 #include <QSemaphore>
 #include "Qt/qt_utilities.hpp"
 #include "drd_std.hpp"
@@ -128,6 +129,9 @@ void TestVaultSearch::sourcePreviewsKeepPropertiesNotIdentities () {
   QVERIFY (id (preview).empty ());
   QVERIFY (athena::enunciation::is_canonical (preview));
   QVERIFY (get (preview)->properties.count ("athena:artifact-bindings") == 0);
+  tree attached= attach_dip (preview, path (0));
+  QVERIFY (athena::enunciation::is_canonical (attached));
+  QVERIFY (equal_metadata (preview, attached));
   QVERIFY (id (source) == properties.id);
 }
 

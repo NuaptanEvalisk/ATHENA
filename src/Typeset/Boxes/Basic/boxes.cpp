@@ -16,6 +16,7 @@
 #include "file.hpp"
 #include "merge_sort.hpp"
 #include "new_document.hpp"
+#include "node_metadata.hpp"
 
 /******************************************************************************
 * Default settings for virtual routines
@@ -867,12 +868,14 @@ attach_dip (tree ref, path dip) {
   if (old_ip != path (DETACHED)) return ref;
   if (is_atomic (ref)) {
     tree r (ref->label);
+    athena::node::copy_metadata (ref, r);
     r->obs= list_observer (ip_observer (dip), r->obs);
     return r;
   }
   else {
     int i, n= N(ref);
     tree r (ref, n);
+    athena::node::copy_metadata (ref, r);
     for (i=0; i<n; i++)
       r[i]= attach_dip (ref[i], descend (dip, i));
     r->obs= list_observer (ip_observer (dip), r->obs);

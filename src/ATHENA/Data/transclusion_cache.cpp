@@ -288,23 +288,9 @@ repair_error (tree t, string message) {
 }
 
 tree
-display_tree (tree transclusion, const AthenaTransclusionResolution& resolved) {
-  if (!resolved.ok) return resolved.content;
-  url absolute_source=
-    vault_get_root () * url_unix (resolved.source_relative_path);
-  string filename= as_string (tail (absolute_source));
-  string uuid= tree_text (transclusion[0]);
-  string source_url= "tmfs://transclusion-source/" * uuid;
-
-  tree source_line (CONCAT);
-  source_line << compound ("hlink", "[Source: " * filename * "]", source_url);
-  tree document (DOCUMENT);
-  document << tree (WITH, "font-size", "0.8", "color", "blue", source_line);
-  if (is_func (resolved.content, DOCUMENT)) document << A(resolved.content);
-  else document << resolved.content;
-
+compact_transclusion_frame (tree content) {
   tree compact= tree (WITH, "par-par-sep", "0fn", "par-sep", "0fn",
-                      document);
+                      content);
   tree ornamented= compound ("ornamented", compact);
   tree styled (WITH);
   styled << "ornament-color"
@@ -320,7 +306,31 @@ display_tree (tree transclusion, const AthenaTransclusionResolution& resolved) {
   return styled;
 }
 
+tree
+display_tree (tree transclusion, const AthenaTransclusionResolution& resolved) {
+  if (!resolved.ok) return resolved.content;
+  url absolute_source=
+    vault_get_root () * url_unix (resolved.source_relative_path);
+  string filename= as_string (tail (absolute_source));
+  string uuid= tree_text (transclusion[0]);
+  string source_url= "tmfs://transclusion-source/" * uuid;
+
+  tree source_line (CONCAT);
+  source_line << compound ("hlink", "[Source: " * filename * "]", source_url);
+  tree document (DOCUMENT);
+  document << tree (WITH, "font-size", "0.8", "color", "blue", source_line);
+  if (is_func (resolved.content, DOCUMENT)) document << A(resolved.content);
+  else document << resolved.content;
+
+  return compact_transclusion_frame (document);
+}
+
 } // namespace
+
+tree
+athena_transclusion_compact_frame (tree content) {
+  return compact_transclusion_frame (content);
+}
 
 tree
 athena_transclusion_source_range (tree body, string begin, string end) {

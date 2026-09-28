@@ -22,7 +22,12 @@ AthenaTransclusionResolution
 athena_resolve_transclusion_content (tree transclusion);
 
 tree athena_resolve_transclusion_display (tree transclusion,
-                                          string* cache_key= nullptr);
+                                           string* cache_key= nullptr);
+
+// Shared final presentation contract for resolved transclusions.  Both the
+// legacy map-backed path and native node-reference path use this compact frame
+// so spacing, background and border behavior cannot drift apart again.
+tree athena_transclusion_compact_frame (tree content);
 
 // Structural source range, retaining labels. No shared caches, GUI or Scheme.
 // The caller owns the document and the returned tree on its current thread.

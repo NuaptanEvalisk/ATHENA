@@ -9,6 +9,7 @@
 ******************************************************************************/
 #include "node_reference.hpp"
 #include "node_metadata.hpp"
+#include "transclusion_cache.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
 #include "file.hpp"
 #include "convert.hpp"
@@ -87,6 +88,7 @@ static tree compute_display (const view& current) {
   if (result.state == status::overlap)
     return tree (DOCUMENT, message ("Invalid transclusion: ancestor and descendant selected together."));
   tree out (DOCUMENT);
+  bool has_resolved= false;
   for (const auto& target: result.items) {
     if (target.state != status::resolved || target.fragment_xml.empty ()) {
       const char* label= "Unavailable node";
@@ -110,11 +112,20 @@ static tree compute_display (const view& current) {
         url_none () : url_system (native (target.source_directory)));
       tree content= is_document (node) ? node : tree (DOCUMENT, node);
       const string source= native ("tmfs://transclude/" + target.id);
+      std::string source_name= "Source";
+      if (target.candidates.size () == 1 && !target.candidates[0].file.empty ())
+        source_name= std::filesystem::path (target.candidates[0].file).filename ().string ();
+      tree source_line (CONCAT);
+      source_line << tree (HLINK,
+        native ("[Source: " + source_name + "]"), source);
       tree lineage (TUPLE);
       for (const auto& id: result.ancestry) lineage << native (id);
       lineage << native (target.id);
-      out << tree (WITH, ancestry_variable, lineage,
-        tree (DOCUMENT, tree (HLINK, "Source", source), content));
+      tree item (DOCUMENT);
+      item << tree (WITH, "font-size", "0.8", "color", "blue", source_line)
+           << A(content);
+      out << tree (WITH, ancestry_variable, lineage, item);
+      has_resolved= true;
     }
     catch (const std::exception& e) { out << message (e.what ()); }
   }
@@ -123,7 +134,7 @@ static tree compute_display (const view& current) {
     if (!result.diagnostics.empty ()) text+= ": " + result.diagnostics.front ().message;
     out << message (text);
   }
-  return out;
+  return has_resolved ? athena_transclusion_compact_frame (out) : out;
 }
 
 tree display (const view& current) {
