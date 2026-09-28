@@ -10,7 +10,6 @@
 #include "ATHENA/Data/node_reference.hpp"
 #include "ATHENA/Data/node_reference_export.hpp"
 #include "ATHENA/Data/vault_node_location.hpp"
-#include "ATHENA/Data/node_location_cache.hpp"
 #include "buffer_actor.hpp"
 #include "buffer_name_catalog.hpp"
 #include "qt_utilities.hpp"
@@ -42,6 +41,8 @@ struct entry {
   view published;
   std::set<recipient> subscribers;
   std::uint64_t generation= 0;
+  bool refreshing= false;
+  bool retry_pending= false;
   std::chrono::steady_clock::time_point retry_after;
 };
 std::atomic<std::uint64_t> changes {0};
@@ -54,7 +55,6 @@ class monitor: public QObject {
   QFileSystemWatcher watcher;
   QTimer timer;
   std::uint64_t observed= changes.load ();
-  std::uint64_t observed_index= node_location::persistent_index_generation ();
   std::map<std::string, recipient> members;
   std::set<recipient> refresh;
   std::weak_ptr<entry> navigating;
@@ -70,24 +70,16 @@ public:
         current[pair.first]= {pair.second.actor_id, pair.second.source_view};
       if (current != members) { members= std::move (current); source_changed (); }
       if (observed != changes.load ()) { observed= changes.load (); invalidate (); }
-      const auto index_generation= node_location::persistent_index_generation ();
-      const auto index_status= node_location::persistent_index_status ();
-      const bool index_quiescent=
-        index_status.phase == node_location::persistent_phase::idle ||
-        index_status.phase == node_location::persistent_phase::degraded ||
-        index_status.phase == node_location::persistent_phase::error;
-      if (observed_index != index_generation && index_quiescent) {
-        observed_index= index_generation;
-        invalidate ();
-      }
       std::vector<std::shared_ptr<entry>> retry;
       {
         std::lock_guard<std::mutex> guard (cache_lock);
         for (const auto& pair: entries) {
           auto& e= *pair.second;
-          if (e.published.snapshot && e.published.snapshot->state == node_location::status::unreadable &&
+          if (e.retry_pending && !e.refreshing &&
               e.retry_after <= std::chrono::steady_clock::now ()) {
-            ++e.generation; e.published= {{}, ++revision}; retry.push_back (pair.second);
+            ++e.generation;
+            e.retry_pending= false;
+            retry.push_back (pair.second);
           }
         }
       }
@@ -160,8 +152,7 @@ public:
         }
         auto& e= *i->second;
         ++e.generation;
-        e.published= {{}, ++revision};
-        refresh.insert (e.subscribers.begin (), e.subscribers.end ());
+        e.retry_pending= false;
         again.push_back (i->second); ++i;
       }
     }
@@ -172,10 +163,11 @@ public:
     for (const auto& e: again) start (e);
   }
   void complete (const std::shared_ptr<entry>& e, std::uint64_t generation,
-                  node_location::snapshot result) {
+                   node_location::snapshot result) {
     {
       std::lock_guard<std::mutex> guard (cache_lock);
       if (generation != e->generation || !vault_context_is_current (e->vault)) return;
+      e->refreshing= false;
     }
     QStringList missing;
     const auto known= watcher.files () + watcher.directories ();
@@ -204,7 +196,19 @@ public:
     {
       std::lock_guard<std::mutex> guard (cache_lock);
       if (generation != e->generation) return;
+      // A locator/cache miss or stale address is an implementation detail, not
+      // a change of node identity.  If this entry already has a verified
+      // resolved presentation, keep it visible while only this entry retries.
+      if (result->state == node_location::status::unreadable &&
+          e->published.snapshot &&
+          e->published.snapshot->state == node_location::status::resolved) {
+        e->retry_pending= true;
+        e->retry_after= std::chrono::steady_clock::now () + std::chrono::seconds (2);
+        return;
+      }
       e->published= {std::move (result), ++revision};
+      e->retry_pending= e->published.snapshot &&
+        e->published.snapshot->state == node_location::status::unreadable;
       e->retry_after= std::chrono::steady_clock::now () + std::chrono::seconds (2);
       refresh.insert (e->subscribers.begin (), e->subscribers.end ());
     }
@@ -222,7 +226,9 @@ void start (const std::shared_ptr<entry>& e) {
   std::uint64_t generation;
   {
     std::lock_guard<std::mutex> guard (cache_lock);
-    generation= e->generation; old.swap (e->query);
+    generation= e->generation;
+    e->refreshing= true;
+    old.swap (e->query);
   }
   if (old) old->cancel ();
   auto pending= e->locator->request (e->ids, e->ancestry, true,

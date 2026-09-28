@@ -65,22 +65,32 @@ bool resolve_open_target (const AthenaArtifactRecord& record, url& file,
                           path& source_path) {
   fs::path absolute= active_root () / fs::path (record.relative_path);
   file= url_system (tmstr (absolute.string ()));
+  bool opened_here= false;
   try {
-    bool already_open= concrete_buffer (file) != nullptr;
-    tree document= already_open ? get_buffer_tree (file)
-                                : import_tree (file, "texmacs");
+    const bool already_open= concrete_buffer (file) != nullptr;
+    if (!already_open) {
+      // Artifact navigation opens an ordinary editable source buffer.  Do not
+      // bypass buffer_load by parsing a v2 document and feeding its tree to
+      // set_buffer_tree: that loses the source persistence mode, storage pin,
+      // and owner-local identity baseline, leaving a v2 tree in a v1 buffer.
+      if (buffer_load (file)) {
+        std_warning << "Could not load artifact source for navigation" << LF;
+        return false;
+      }
+      opened_here= true;
+    }
+    tree document= get_buffer_tree (file);
     std::string error;
     if (athena_artifact_locate_source (
           document, record, source_path, error)) {
-      // Keep the parsed tree as the editor buffer. Loading it then only creates
-      // or switches the view instead of reading and parsing the file again.
-      if (!already_open) set_buffer_tree (file, document);
       return true;
     }
+    if (opened_here) remove_buffer (file);
     std_warning << "Could not locate artifact in source: " << error.c_str ()
                 << LF;
   }
   catch (...) {
+    if (opened_here) remove_buffer (file);
     std_warning << "Could not read artifact source for navigation" << LF;
   }
   std::string stale_error;
