@@ -10,6 +10,7 @@
 #pragma once
 
 #include "tree.hpp"
+#include <atomic>
 #include <cstdint>
 #include <map>
 #include <string>
@@ -38,9 +39,39 @@ struct metadata {
   bool empty () const { return id.empty () && properties.empty (); }
 };
 
+// Immutable copy-on-write storage. Most source nodes carry only an identity
+// (or scalar properties), so ordinary tree copies can share this immutable
+// payload instead of cloning maps and strings at every node. Metadata which
+// embeds rich-text trees remains unshared because those legacy tree handles can
+// be mutated after being obtained through a const property value.
+struct metadata_rep {
+  std::atomic<std::uint32_t> references {1};
+  metadata value;
+  bool shareable;
+  // Zero means uncached.  Cached hashes carry a validity bit in bit 32, so all
+  // 32-bit hash values remain representable without a second synchronization
+  // primitive.
+  mutable std::atomic<std::uint64_t> hash_state {0};
+
+  metadata_rep (metadata input, bool can_share):
+    value (std::move (input)), shareable (can_share) {}
+
+  void retain () noexcept {
+    references.fetch_add (1, std::memory_order_relaxed);
+  }
+  void release () noexcept {
+    if (references.fetch_sub (1, std::memory_order_acq_rel) == 1)
+      tm_delete (this);
+  }
+};
+
 bool valid_id (const std::string& id);
 std::string new_id ();
 const metadata* get (const tree& node);
+// Internal mutation boundary. Metadata storage is immutable once published to
+// a tree: callers always receive a private clone before changing it. This keeps
+// cross-owner copies safe even when the underlying storage is shared.
+metadata* edit (tree& node);
 // Includes descendants; metadata itself implies true, so rich values need no scan.
 bool contains_metadata (const tree& node);
 std::string id (const tree& node);

@@ -96,6 +96,31 @@ metadata clone (const metadata& source) {
   return result;
 }
 
+bool property_contains_rich_text (const property& p) {
+  if (std::holds_alternative<rich_text> (p.data)) return true;
+  if (const auto* a= std::get_if<property::list> (&p.data)) {
+    for (const auto& item: *a)
+      if (property_contains_rich_text (item)) return true;
+  }
+  else if (const auto* a= std::get_if<property::dictionary> (&p.data)) {
+    for (const auto& item: *a)
+      if (property_contains_rich_text (item.second)) return true;
+  }
+  return false;
+}
+
+bool shareable_metadata (const metadata& value) {
+  for (const auto& item: value.properties)
+    if (property_contains_rich_text (item.second)) return false;
+  return true;
+}
+
+metadata_rep* make_storage (const metadata& value) {
+  metadata copied= clone (value);
+  bool shareable= shareable_metadata (copied);
+  return tm_new<metadata_rep> (std::move (copied), shareable);
+}
+
 bool equal_property_content (const property& a, const property& b);
 bool equal_properties (const property::dictionary& a,
                        const property::dictionary& b, bool content= false) {
@@ -171,8 +196,9 @@ template<class F> void walk_property (property& p, F& fn) {
   else if (auto* r= std::get_if<rich_text> (&p.data)) walk (r->content, fn);
 }
 template<class F> void walk (tree& t, F& fn) {
-  fn (t);
-  if (auto* m= inside (t)->attributes)
+  metadata* m= edit (t);
+  fn (t, m);
+  if (m != nullptr)
     for (auto& item: m->properties) walk_property (item.second, fn);
   if (is_compound (t))
     for (int i=0; i<N(t); ++i) walk (t[i], fn);
@@ -208,7 +234,18 @@ bool valid_id (const std::string& value) {
 std::string new_id () {
   return QUuid::createUuid ().toString (QUuid::WithoutBraces).toStdString ();
 }
-const metadata* get (const tree& node) { return inside (node)->attributes; }
+const metadata* get (const tree& node) {
+  const auto* storage= inside (node)->attributes;
+  return storage == nullptr ? nullptr : &storage->value;
+}
+metadata* edit (tree& node) {
+  auto*& storage= inside (node)->attributes;
+  if (storage == nullptr) return nullptr;
+  metadata_rep* replacement= make_storage (storage->value);
+  storage->release ();
+  storage= replacement;
+  return &storage->value;
+}
 std::string id (const tree& node) {
   const metadata* m= get (node);
   return m == nullptr ? std::string () : m->id;
@@ -218,22 +255,31 @@ void set (tree& node, const metadata& value) {
     throw std::invalid_argument ("Cannot annotate an opaque or uninitialized tree");
   validation checked;
   checked.attributes (value, 0);
-  auto replacement= value.empty () ? std::unique_ptr<metadata> () :
-    std::make_unique<metadata> (clone (value));
-  delete inside (node)->attributes;
-  inside (node)->attributes= replacement.release ();
+  metadata_rep* replacement= value.empty () ? nullptr : make_storage (value);
+  if (inside (node)->attributes != nullptr)
+    inside (node)->attributes->release ();
+  inside (node)->attributes= replacement;
 }
 void clear (tree& node) {
-  delete inside (node)->attributes;
+  if (inside (node)->attributes != nullptr)
+    inside (node)->attributes->release ();
   inside (node)->attributes= nullptr;
 }
 void copy_metadata (const tree& source, tree& target) {
   if (strong_equal (source, target)) return;
-  const auto* m= get (source);
-  auto replacement= m == nullptr ? std::unique_ptr<metadata> () :
-    std::make_unique<metadata> (clone (*m));
-  delete inside (target)->attributes;
-  inside (target)->attributes= replacement.release ();
+  metadata_rep* source_storage= inside (source)->attributes;
+  metadata_rep*& target_storage= inside (target)->attributes;
+  if (source_storage == target_storage) return;
+  metadata_rep* replacement= nullptr;
+  if (source_storage != nullptr) {
+    if (source_storage->shareable) {
+      replacement= source_storage;
+      replacement->retain ();
+    }
+    else replacement= make_storage (source_storage->value);
+  }
+  if (target_storage != nullptr) target_storage->release ();
+  target_storage= replacement;
 }
 property copy_property (const property& p) {
   return std::visit (visitor {
@@ -271,19 +317,30 @@ bool equal (const property& a, const property& b) {
   }, a.data);
 }
 bool equal_metadata (const tree& a, const tree& b) {
-  const auto* x= get (a);
-  const auto* y= get (b);
+  const auto* x= inside (a)->attributes;
+  const auto* y= inside (b)->attributes;
   if (x == y) return true;
   if (x == nullptr || y == nullptr) return false;
-  return x->id == y->id && equal_properties (x->properties, y->properties);
+  return x->value.id == y->value.id &&
+    equal_properties (x->value.properties, y->value.properties);
 }
 int hash_metadata (const tree& node) {
-  const auto* m= get (node);
-  if (m == nullptr) return 0;
-  std::uint32_t h= hash_text (m->id);
-  for (const auto& item: m->properties)
+  auto* storage= inside (node)->attributes;
+  if (storage == nullptr) return 0;
+  if (storage->shareable) {
+    std::uint64_t cached= storage->hash_state.load (std::memory_order_relaxed);
+    if (cached != 0) return static_cast<int> (static_cast<std::uint32_t> (cached));
+  }
+  const metadata& m= storage->value;
+  std::uint32_t h= hash_text (m.id);
+  for (const auto& item: m.properties)
     h= mix (mix (h, hash_text (item.first)), hash_property (item.second));
-  return static_cast<int> (h);
+  int result= static_cast<int> (h);
+  if (storage->shareable)
+    storage->hash_state.store (
+      (std::uint64_t (1) << 32) | static_cast<std::uint32_t> (result),
+      std::memory_order_relaxed);
+  return result;
 }
 bool content_equal (const tree& a, const tree& b) {
   if (strong_equal (a, b)) return true;
@@ -309,8 +366,7 @@ bool contains_metadata (const tree& source) {
 tree duplicate (const tree& source, identity_map* result) {
   tree target= copy (source);
   identity_map replacements;
-  auto allocate= [&] (tree& t) {
-    auto* m= inside (t)->attributes;
+  auto allocate= [&] (tree& t, metadata* m) {
     if (m == nullptr || m->id.empty ()) return;
     const std::string fresh= new_id ();
     if (!replacements.emplace (m->id, fresh).second)
@@ -318,8 +374,9 @@ tree duplicate (const tree& source, identity_map* result) {
     m->id= fresh;
   };
   walk (target, allocate);
-  auto remap= [&] (tree& t) {
-    if (auto* m= inside (t)->attributes)
+  auto remap= [&] (tree& t, metadata* m) {
+    (void) t;
+    if (m != nullptr)
       for (auto& item: m->properties) remap_property (item.second, replacements);
   };
   walk (target, remap);
@@ -328,8 +385,8 @@ tree duplicate (const tree& source, identity_map* result) {
 }
 tree content_projection (const tree& source) {
   tree result= copy (source);
-  auto strip= [] (tree& t) {
-    if (auto* m= inside (t)->attributes) {
+  auto strip= [] (tree& t, metadata* m) {
+    if (m != nullptr) {
       m->id.clear ();
       if (m->empty ()) clear (t);
     }

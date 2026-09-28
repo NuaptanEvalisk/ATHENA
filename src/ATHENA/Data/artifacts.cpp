@@ -778,7 +778,7 @@ std::string identity_fingerprint (const tree& value) {
 }
 
 void strip_artifact_bindings (tree& value) {
-  if (auto* metadata= inside (value)->attributes) {
+  if (auto* metadata= athena::node::edit (value)) {
     metadata->properties.erase (
       athena::document_node::artifact_bindings_property);
     if (metadata->empty ()) athena::node::clear (value);

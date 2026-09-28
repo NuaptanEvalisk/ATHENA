@@ -66,7 +66,7 @@ void remap_link (tree& target, const node::identity_map& ids) {
 }
 
 void remap_tree (tree& value, const node::identity_map& ids) {
-  if (auto* metadata= inside (value)->attributes) {
+  if (auto* metadata= node::edit (value)) {
     metadata->properties.erase (artifact_bindings_property);
     for (auto& item: metadata->properties) remap_rich_text (item.second, ids);
     if (metadata->empty ()) node::clear (value);

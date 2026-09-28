@@ -29,7 +29,9 @@ struct dummy_tree_rep_type : public tree_rep {
 static dummy_tree_rep_type the_dummy_tree_rep;
 tree_rep* dummy_tree_rep = &the_dummy_tree_rep;
 
-tree_rep::~tree_rep () { delete attributes; }
+tree_rep::~tree_rep () {
+  if (attributes != nullptr) attributes->release ();
+}
 
 void
 destroy_tree_rep (tree_rep* rep) {
