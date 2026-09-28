@@ -216,15 +216,17 @@ vault_load (url root_dir, string name, string db_rel_path,
                                  resolved, error))
     return vault_tm_string (error);
 
-  std::unique_ptr<AthenaVaultMapSqlite> map (new AthenaVaultMapSqlite);
-  if (!map->open (root / resolved, true, error))
-    return vault_tm_string (error);
-  if (!vault_safe_rename_recover (root, *map, error))
-    return vault_tm_string (error);
-
   AthenaVaultfileInfo vaultfile;
   if (!athena_vaultfile_read (root, vaultfile, error))
     return vault_tm_string (error);
+  if (!vault_safe_rename_recover (root, resolved, error))
+    return vault_tm_string (error);
+  std::unique_ptr<AthenaVaultMapSqlite> map (new AthenaVaultMapSqlite);
+  if (!map->open (root / resolved, vaultfile.node_model_version < 1, error)) {
+    if (vaultfile.node_model_version < 1) return vault_tm_string (error);
+    map.reset ();
+    error.clear ();
+  }
   std::unique_ptr<MaterialsStore> materials (new MaterialsStore);
   if (!materials->open (root, vaultfile, error))
     return vault_tm_string (error);

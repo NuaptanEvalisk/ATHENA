@@ -239,11 +239,38 @@ children:
 
 - 🟧 其余 clipboard/委派及 tree-bearing persistence 边界的统一 v2 切换；normal v2
   load/save/autosave/recovery 和普通新建文档已完成，不应再作为待办重做。
-- 🟧 继续把 map.sqlite 从剩余兼容/rename consumers 中降级。historical generated anchors 的
-  migration-time 清理和 migrated inserter 的 source UUID/object-list 接入已经完成，不要重做。
+- 🟩 Safe rename 恢复日志独立保存到 `.athena/safe-rename.sqlite`；migrated vault
+  不再依赖 map.sqlite 完成计划、执行或恢复。未迁移 vault 保留旧 map 索引更新，旧 journal
+  先可靠导入新 journal 再删除旧行。historical generated anchors 的迁移清理也已完成。
 - 🟧 故障注入/数据保全最终验收、用户验收、统一启用及部署。
 
 ## 接手时的代码入口
+
+### 2026-09-28 接续：实际缺口 1–3
+
+- Artifact schema v4 持久化有序 `source_nodes`。新提取完成并持久化源 binding 后固定
+  段落对象集合；offline node-model upgrader 同样写入列表。后续消费不再解释 offsets，
+  插入中间段落不扩大集合，修改正文不改变定位，删除/重复 UUID 明确失败。
+- 旧 DB 记录只有在源内容修订完全匹配时才把 offsets 转换为列表并保存；没有证据则
+  提示重建，不近似猜测，不启动模型。offsets 只保留为提取/兼容转换输入。
+- 文件对象、搜索、Artifact、Available 的最终确认统一走 cancellable native UUID
+  locator；搜索/Artifact 预览也异步读取 UUID fragment。不再先打开陈旧 file hint 再
+  查 UUID。页面切换、销毁、拒绝取消确认请求；换 vault 不接受旧结果。文件页第一次
+  枚举对象仍需读取用户选定的文件，但确认时不再依赖它的旧文件名。
+- Safe rename 新日志与可丢弃 map 分离，使用 SQLite FULL synchronous。filesystem
+  rename 后失败保留恢复记录和暂存文件，后续继续完成；不再部分回滚后丢掉日志。
+  缺失/损坏的旧 map 不阻止 migrated vault 加载和恢复；旧 vault 仍需要其旧身份 map。
+  这不是删除全部历史兼容 map API，也不表示剩余架构任务均完成。
+
+本批验证：正常 `cmake --build build_qt6 --target ATHENA.bin -j20` 成功；没有部署。
+仅运行 `artifacts_test` 4 个用例（legacy range freeze、native UUID 定位、持久化绑定/
+范围/模型缓存复用、schema 升级）、`vault_search_test` 3 个用例（外部重命名/取消、
+source selection、preview metadata）、`vault_map_sqlite_test` 3 个用例（legacy map
+rename、旧日志导入恢复、缺失/损坏 map 的新日志恢复），全部通过。另运行一次隔离
+`vault_node_model_upgrade_test.py`，CLI migration/reference/artifact/idempotence/
+legacy-rejection 通过；没有触碰 Notes 或运行全量测试。
+构建日志：`build_qt6/node-source-completion-build.log`、
+`build_qt6/node-source-completion-tests-build.log`。
 
 ### 2026-09-28 接续：UUID inserter 集成
 
@@ -262,8 +289,8 @@ children:
   extraction 内存记录以候选段落快照校验范围；DB 记录没有这些候选，改用已有
   `documents.content_hash` 校验源内容修订。无匹配证据时拒绝旧 offsets，提示重建 artifact，
   不启动模型、不在 GUI 重新运行 LaTeX converter，也不改 artifact UUID。
-  这是保守范围校验：DB-only 记录遇到文档其他内容改变也可能要求重建；后续可以持久化
-  明确段落 UUID 列表进一步消除 offsets，不能用内容近似匹配放宽此检查。
+  本段记录上一批实现；上方的新批次已持久化明确段落 UUID 列表。此保守修订校验
+  现在只用于旧 DB offsets 转换，不能用内容近似匹配放宽检查。
 - `QTMVaultAvailableEnunciations` 的 native 分支以共享 `node_location::service` 读取真实
   UUID fragment，保留顺序，限制递归深度/数量，并报告 cycle/missing/conflict 等状态。
   页面在 SearchWorker 等待完成/取消，UI 不等待全库扫描；跨线程只传标准字符串 XML。

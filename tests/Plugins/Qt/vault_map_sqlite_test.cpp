@@ -45,6 +45,7 @@ private slots:
   void pathRenamePreservesIdentityAndBoundaries ();
   void structuralRewritePreservesRelativePathsAndHints ();
   void recoversInterruptedDirectoryRename ();
+  void recoversRenameWithoutDisposableMap ();
   void extractsDocumentReferencesWithoutHints ();
   void cachesBoundedAndUnlimitedReferenceGraphs ();
   void gatesBareWikilinksOnNodeModelVersion ();
@@ -354,6 +355,54 @@ TestVaultMapSqlite::recoversInterruptedDirectoryRename () {
   QVERIFY (pending.empty ());
   QVERIFY (std::filesystem::exists (
     root / ".backup/safe-rename/recovery/New/Note.ath"));
+}
+
+void
+TestVaultMapSqlite::recoversRenameWithoutDisposableMap () {
+  namespace fs= std::filesystem;
+  for (bool corrupt_map: {false, true}) {
+    QTemporaryDir temporary;
+    QVERIFY (temporary.isValid ());
+    fs::path root (temporary.path ().toStdString ());
+    AthenaVaultfileInfo info;
+    info.node_model_version= 1;
+    info.map_path= "map.sqlite";
+    std::string error;
+    QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+    fs::create_directories (root / "Old");
+    { std::ofstream out (root / "Old/Note.ath"); out << "original"; }
+    { std::ofstream out (root / "Old/Note.ath.athena-safe-rename-native.tmp"); out << "rewritten"; }
+    if (corrupt_map) { std::ofstream out (root / "map.sqlite"); out << "damaged cache"; }
+    VaultRenameJournal journal;
+    QVERIFY2 (journal.open (root, error), error.c_str ());
+    VaultRenameOperation operation {"native", "Old", "New", true, "prepared"};
+    QVERIFY2 (journal.prepare (operation, error), error.c_str ());
+    QVERIFY2 (journal.prepare (operation, error), error.c_str ());
+    auto conflicting= operation;
+    conflicting.new_path= "Other";
+    QVERIFY (!journal.prepare (conflicting, error));
+    auto escaped= operation;
+    escaped.old_path= "../Old";
+    escaped.new_path= "../New";
+    QVERIFY (!journal.prepare (escaped, error));
+    error.clear ();
+    fs::rename (root / "Old", root / "New");
+    fs::create_directories (root / "Old");
+    QVERIFY (!vault_safe_rename_recover (root, info.map_path, error));
+    std::vector<VaultRenameOperation> pending;
+    QVERIFY2 (journal.pending (pending, error), error.c_str ());
+    QCOMPARE (pending.size (), (size_t) 1);
+    fs::remove (root / "Old");
+    error.clear ();
+    QVERIFY2 (vault_safe_rename_recover (root, info.map_path, error), error.c_str ());
+    QVERIFY2 (vault_safe_rename_recover (root, info.map_path, error), error.c_str ());
+    std::ifstream result (root / "New/Note.ath");
+    QCOMPARE (std::string (std::istreambuf_iterator<char> (result), {}), std::string ("rewritten"));
+    QVERIFY2 (journal.pending (pending, error), error.c_str ());
+    QVERIFY (pending.empty ());
+    QVERIFY (fs::exists (root / ".backup/safe-rename/native/New/Note.ath"));
+    QCOMPARE (fs::exists (root / "map.sqlite"), corrupt_map);
+  }
 }
 
 void

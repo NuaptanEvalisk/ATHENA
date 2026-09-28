@@ -513,6 +513,15 @@ AthenaVaultMapSqlite::apply_path_rename (const std::string& operation_id,
     error = "Unknown safe rename operation: " + operation_id;
     return false;
   }
+  return apply_path_rename (*hit, changed, error);
+}
+
+bool
+AthenaVaultMapSqlite::apply_path_rename (
+  const AthenaVaultMapRenameOperation& operation, size_t& changed,
+  std::string& error) {
+  changed= 0;
+  const auto* hit= &operation;
 
   if (!exec_sql (impl->db, "BEGIN IMMEDIATE;", error)) return false;
   std::vector<AthenaVaultMapNode> nodes;
@@ -548,21 +557,6 @@ AthenaVaultMapSqlite::apply_path_rename (const std::string& operation_id,
     ++changed;
   }
   sqlite3_finalize (update);
-  sqlite3_stmt* phase = nullptr;
-  if (sqlite3_prepare_v2 (
-        impl->db,
-        "UPDATE rename_operations SET phase='map_updated' "
-        "WHERE operation_id=?;", -1, &phase, nullptr) != SQLITE_OK ||
-      !bind_text (phase, 1, operation_id, impl->db, error) ||
-      sqlite3_step (phase) != SQLITE_DONE) {
-    if (error.empty ())
-      error = sqlite_error (impl->db, "Could not update safe rename phase");
-    if (phase != nullptr) sqlite3_finalize (phase);
-    std::string ignored;
-    exec_sql (impl->db, "ROLLBACK;", ignored);
-    return false;
-  }
-  sqlite3_finalize (phase);
   if (!exec_sql (impl->db, "COMMIT;", error)) {
     std::string ignored;
     exec_sql (impl->db, "ROLLBACK;", ignored);

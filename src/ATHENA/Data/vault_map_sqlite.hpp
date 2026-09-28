@@ -14,6 +14,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include "vault_rename_journal.hpp"
 
 struct AthenaVaultMapNode {
   std::string uuid;
@@ -22,13 +23,7 @@ struct AthenaVaultMapNode {
   std::string anchor_end;
 };
 
-struct AthenaVaultMapRenameOperation {
-  std::string operation_id;
-  std::string old_path;
-  std::string new_path;
-  bool is_directory= false;
-  std::string phase;
-};
+using AthenaVaultMapRenameOperation= VaultRenameOperation;
 
 class AthenaVaultMapSqlite {
 public:
@@ -68,6 +63,8 @@ public:
   bool prepare_path_rename (const AthenaVaultMapRenameOperation& operation,
                             std::string& error);
   bool apply_path_rename (const std::string& operation_id, size_t& changed,
+                          std::string& error);
+  bool apply_path_rename (const VaultRenameOperation&, size_t& changed,
                           std::string& error);
   bool finish_path_rename (const std::string& operation_id,
                            std::string& error);

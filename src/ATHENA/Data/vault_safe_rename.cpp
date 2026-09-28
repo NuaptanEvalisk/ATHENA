@@ -13,6 +13,7 @@
 #include "ATHENA/Data/vault.hpp"
 #include "ATHENA/Data/vault_file_references.hpp"
 #include "ATHENA/Data/vault_map_sqlite.hpp"
+#include "ATHENA/Data/vault_node_location.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "analyze.hpp"
 #include "file.hpp"
@@ -140,6 +141,7 @@ bool rename_replace (const fs::path& stage, const fs::path& destination,
 struct VaultSafeRenamePlan::Impl {
   fs::path root;
   std::string map_relative_path;
+  bool legacy_map= true;
   std::vector<DocumentRewrite> rewrites;
   std::vector<fs::path> open_buffers;
 };
@@ -213,6 +215,7 @@ vault_safe_rename_plan (const fs::path& source_arg, const fs::path& target_arg,
   plan.impl= std::make_shared<VaultSafeRenamePlan::Impl> ();
   plan.impl->root= root;
   plan.impl->map_relative_path= info.map_path;
+  plan.impl->legacy_map= info.node_model_version < 1;
 
   if (plan.is_directory) {
     plan.filesystem_entries= 1;
@@ -227,9 +230,9 @@ vault_safe_rename_plan (const fs::path& source_arg, const fs::path& target_arg,
   else plan.filesystem_entries= 1;
 
   AthenaVaultMapSqlite map;
-  if (!map.open (root / info.map_path, true, error) ||
+  if (plan.impl->legacy_map && (!map.open (root / info.map_path, true, error) ||
       !map.count_path_rename (plan.old_relative_path, plan.is_directory,
-                              plan.map_rows, error))
+                              plan.map_rows, error)))
     return false;
 
   bool scan_references= plan.is_directory || !document_extension (source);
@@ -335,7 +338,10 @@ vault_safe_rename_execute (VaultSafeRenamePlan& plan, std::string& error) {
   }
 
   AthenaVaultMapSqlite map;
-  if (!map.open (plan.impl->root / plan.impl->map_relative_path, true, error)) {
+  VaultRenameJournal journal;
+  if (!journal.open (plan.impl->root, error) ||
+      (plan.impl->legacy_map &&
+       !map.open (plan.impl->root / plan.impl->map_relative_path, true, error))) {
     remove_stages ();
     return false;
   }
@@ -345,7 +351,13 @@ vault_safe_rename_execute (VaultSafeRenamePlan& plan, std::string& error) {
   operation.new_path= plan.new_relative_path;
   operation.is_directory= plan.is_directory;
   operation.phase= "prepared";
-  if (!map.prepare_path_rename (operation, error)) {
+  std::vector<VaultRenameOperation> pending;
+  if (!journal.pending (pending, error) || !pending.empty ()) {
+    if (!pending.empty ()) error= "Recover the previous safe rename before starting another.";
+    remove_stages ();
+    return false;
+  }
+  if (!journal.prepare (operation, error)) {
     remove_stages ();
     return false;
   }
@@ -355,42 +367,24 @@ vault_safe_rename_execute (VaultSafeRenamePlan& plan, std::string& error) {
   if (ec) {
     error= "Could not rename Vault item: " + ec.message ();
     std::string ignored;
-    map.finish_path_rename (id, ignored);
+    journal.finish (id, ignored);
     remove_stages ();
     return false;
   }
 
-  std::vector<DocumentRewrite*> installed;
+  // After the filesystem rename, keep the journal and remaining staged files
+  // on failure. Recovery rolls forward; a partial rollback could lose edits.
   for (DocumentRewrite& rewrite: plan.impl->rewrites) {
     fs::path stage= plan.is_directory ?
       replace_prefix (rewrite.stage_before, plan.source, plan.target) :
       rewrite.stage_before;
     if (!rename_replace (stage, rewrite.after, rewrite.backup, error)) {
-      for (DocumentRewrite* done: installed) {
-        std::error_code ignored;
-        fs::copy_file (done->backup, done->after,
-                       fs::copy_options::overwrite_existing, ignored);
-      }
-      fs::rename (plan.target, plan.source, ec);
-      std::string ignored;
-      map.finish_path_rename (id, ignored);
-      remove_stages ();
       return false;
     }
-    installed.push_back (&rewrite);
   }
 
   size_t changed= 0;
-  if (!map.apply_path_rename (id, changed, error)) {
-    for (DocumentRewrite* done: installed) {
-      std::error_code ignored;
-      fs::copy_file (done->backup, done->after,
-                     fs::copy_options::overwrite_existing, ignored);
-    }
-    fs::rename (plan.target, plan.source, ec);
-    std::string ignored;
-    map.finish_path_rename (id, ignored);
-    remove_stages ();
+  if (plan.impl->legacy_map && !map.apply_path_rename (operation, changed, error)) {
     return false;
   }
 
@@ -414,19 +408,33 @@ vault_safe_rename_execute (VaultSafeRenamePlan& plan, std::string& error) {
     if (rewrite != plan.impl->rewrites.end ())
       set_buffer_tree (new_url, rewrite->rewritten);
   }
-  if (!map.finish_path_rename (id, error)) return false;
+  if (!journal.finish (id, error)) return false;
+  if (auto context= vault_capture_context ())
+    if (auto locator= athena::node_location::for_vault (context))
+      locator->clear_cache ();
   return true;
 }
 
-bool
-vault_safe_rename_recover (const fs::path& root,
-                           AthenaVaultMapSqlite& map,
-                           std::string& error) {
+static bool
+recover_rename_journal (const fs::path& root, AthenaVaultMapSqlite* map,
+                       bool update_map, std::string& error) {
+  VaultRenameJournal journal;
+  if (!journal.open (root, error)) return false;
   std::vector<AthenaVaultMapRenameOperation> operations;
-  if (!map.pending_path_renames (operations, error)) return false;
+  if (map) {
+    if (!map->pending_path_renames (operations, error)) return false;
+    for (const auto& operation: operations)
+      if (!journal.prepare (operation, error) ||
+          !map->finish_path_rename (operation.operation_id, error)) return false;
+  }
+  if (!journal.pending (operations, error)) return false;
   for (const auto& operation: operations) {
     fs::path old_path= root / operation.old_path;
     fs::path new_path= root / operation.new_path;
+    if (!path_at_or_below (normalized_absolute (old_path), normalized_absolute (root)) ||
+        !path_at_or_below (normalized_absolute (new_path), normalized_absolute (root))) {
+      error= "Safe rename recovery path leaves the vault"; return false;
+    }
     bool old_exists= fs::exists (old_path);
     bool new_exists= fs::exists (new_path);
     if (old_exists && !new_exists) {
@@ -435,6 +443,9 @@ vault_safe_rename_recover (const fs::path& root,
       std::error_code ec;
       for (fs::recursive_directory_iterator it (root, ec), end;
            !ec && it != end; it.increment (ec)) {
+        if (it->is_directory (ec) && ignored_scan_path (it->path ().lexically_relative (root))) {
+          it.disable_recursion_pending (); continue;
+        }
         if (!it->is_regular_file (ec)) continue;
         std::string path= it->path ().string ();
         if (path.size () > suffix.size () &&
@@ -442,7 +453,8 @@ vault_safe_rename_recover (const fs::path& root,
                           suffix) == 0)
           fs::remove (it->path (), ec);
       }
-      if (!map.finish_path_rename (operation.operation_id, error)) return false;
+      if (ec) { error= ec.message (); return false; }
+      if (!journal.finish (operation.operation_id, error)) return false;
       continue;
     }
     if (!old_exists && new_exists) {
@@ -450,6 +462,9 @@ vault_safe_rename_recover (const fs::path& root,
       std::error_code ec;
       for (fs::recursive_directory_iterator it (root, ec), end;
            !ec && it != end; it.increment (ec)) {
+        if (it->is_directory (ec) && ignored_scan_path (it->path ().lexically_relative (root))) {
+          it.disable_recursion_pending (); continue;
+        }
         if (!it->is_regular_file (ec)) continue;
         std::string path= it->path ().string ();
         if (path.size () <= suffix.size () ||
@@ -460,12 +475,13 @@ vault_safe_rename_recover (const fs::path& root,
           operation.operation_id / destination.lexically_relative (root);
         if (!rename_replace (it->path (), destination, backup, error)) return false;
       }
+      if (ec) { error= ec.message (); return false; }
       size_t changed= 0;
-      if (!map.apply_path_rename (operation.operation_id, changed, error) ||
+      if ((update_map && !map->apply_path_rename (operation, changed, error)) ||
           !athena_artifacts_apply_path_rename (
             root, operation.old_path, operation.new_path,
             operation.is_directory, error) ||
-          !map.finish_path_rename (operation.operation_id, error))
+          !journal.finish (operation.operation_id, error))
         return false;
       continue;
     }
@@ -477,10 +493,25 @@ vault_safe_rename_recover (const fs::path& root,
 }
 
 bool
+vault_safe_rename_recover (const fs::path& root, AthenaVaultMapSqlite& map,
+                           std::string& error) {
+  return recover_rename_journal (root, &map, true, error);
+}
+
+bool
 vault_safe_rename_recover (const fs::path& root,
                            const std::string& map_relative_path,
                            std::string& error) {
   AthenaVaultMapSqlite map;
-  if (!map.open (root / map_relative_path, true, error)) return false;
-  return vault_safe_rename_recover (root, map, error);
+  AthenaVaultfileInfo info;
+  if (!athena_vaultfile_read (root, info, error)) return false;
+  const bool legacy= info.node_model_version < 1;
+  bool opened= false;
+  if (legacy || fs::exists (root / map_relative_path))
+    opened= map.open (root / map_relative_path, legacy, error);
+  if (!opened && legacy) return false;
+  // A migrated vault's disposable map may be absent or damaged. Its new
+  // filesystem recovery journal remains authoritative and independent.
+  error.clear ();
+  return recover_rename_journal (root, opened ? &map : nullptr, legacy, error);
 }
