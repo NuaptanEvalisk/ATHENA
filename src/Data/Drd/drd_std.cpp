@@ -155,7 +155,7 @@ init_std_drd () {
   init (DOCUMENT, "document",
         repeat (1, 1) -> inner_border () -> accessible (0));
   init (make_tree_label ("enunciation"), "enunciation",
-        fixed (1) -> inner_border () -> accessible (0) -> name (0, "body"));
+        fixed (1) -> accessible (0) -> name (0, "body"));
   init (PARA, "para",
         repeat (1, 1) -> inner_border () -> accessible (0) ->
         name ("paragraph"));

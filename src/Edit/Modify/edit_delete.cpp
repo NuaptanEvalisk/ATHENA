@@ -16,6 +16,15 @@
 
 bool is_empty_cell (tree t);
 
+static bool
+is_content_empty (const tree& t) {
+  if (is_atomic (t)) return t->label == "";
+  if (!is_document (t) && !is_concat (t)) return false;
+  for (int i= 0; i < N(t); ++i)
+    if (!is_content_empty (t[i])) return false;
+  return true;
+}
+
 /******************************************************************************
 * Getting the point where to delete
 ******************************************************************************/
@@ -101,7 +110,7 @@ edit_text_rep::remove_text_sub (bool forward) {
                 return;
               }
             }
-            if (t == tree (DOCUMENT, "")) {
+            if (is_content_empty (t)) {
               if (is_func (u, _FLOAT) ||
                   is_compound (u, "footnote", 1) ||
                   is_compound (u, "footnote-anchor", 2) ||
