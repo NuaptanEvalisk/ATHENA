@@ -9,6 +9,8 @@
 ******************************************************************************/
 
 #include "buffer_actor.hpp"
+#include "ATHENA/Data/document_persistence.hpp"
+#include "Data/Convert/Xml/athena_document_xml.hpp"
 #include "ATHENA/Data/node_reference.hpp"
 #include "actor_lifetime.hpp"
 #include "System/Misc/crash_report.hpp"
@@ -1239,6 +1241,60 @@ buffer_actor::dispatch (actor_command_record& command) {
       std::move (snapshot));
     break;
   }
+  case actor_command_kind::document_history_snapshot: {
+    command.argument[0]= 1;
+    try {
+      editor_rep* snapshot_editor= current_editor (command.view_id);
+      if (snapshot_editor == nullptr && !impl_->views.empty ())
+        snapshot_editor= impl_->views.begin ()->second.instance.operator -> ();
+      if (impl_->state.storage_version ==
+            athena::document::xml_storage_version::v2 &&
+          !impl_->state.node_identities)
+        throw std::runtime_error (
+          "XML v2 document has no active source identity index");
+      if (impl_->state.node_identities && impl_->state.node_identities->pending ()) {
+        if (snapshot_editor == nullptr ||
+            !snapshot_editor->finish_node_identities ())
+          throw std::runtime_error (
+            "Source identities must be finalized before history capture");
+      }
+      if (snapshot_editor != nullptr) snapshot_editor->get_data (impl_->state.data);
+      refresh_interop_document_source (
+        impl_->state.source_envelope,
+        subtree (impl_->state.document, impl_->state.root_path),
+        impl_->state.data);
+      tree document= remove_doc_attr (impl_->state.source_envelope, "view");
+      if (!is_headless ()) {
+        tree body= subtree (impl_->state.document, impl_->state.root_path);
+        tree links= as_tree (call (
+          "get-link-locations", object (impl_->state.name), object (body)));
+        document= remove_doc_attr (document, "links");
+        if (N(links) != 0) document << compound ("links", links);
+      }
+      std::string serialized=
+        impl_->state.storage_version == athena::document::xml_storage_version::v2 ?
+          athena::document::write_xml_v2 (document) :
+          athena::document::write_xml (document);
+      string bytes (serialized.data (), static_cast<int> (serialized.size ()));
+      if (command.response_id == ATHENA_NO_RESPONSE && snapshot_editor != nullptr) {
+        (void) snapshot_editor->publish_ui_text (
+          actor_command_kind::ui_document_history_snapshot, std::move (bytes),
+          command.argument[1], command.argument[2], 1);
+      }
+      else
+        command.payload0= actor_text_registry::instance ().store (std::move (bytes));
+      command.argument[0]= 0;
+    }
+    catch (const std::exception& error) {
+      std_warning << "Could not capture document history snapshot for "
+                  << impl_->state.name << ": " << string (error.what ()) << LF;
+      if (command.response_id == ATHENA_NO_RESPONSE && editor != nullptr)
+        (void) editor->publish_ui_text (
+          actor_command_kind::ui_document_history_snapshot, string (),
+          command.argument[1], command.argument[2], 0);
+    }
+    break;
+  }
   case actor_command_kind::document_search_update:
   case actor_command_kind::document_search_navigate:
   case actor_command_kind::document_replace:
@@ -1338,15 +1394,71 @@ buffer_actor::dispatch (actor_command_record& command) {
     for (auto& entry: impl_->views)
       entry.second.instance->notify_save (false);
     break;
-  case actor_command_kind::save_buffer: {
+  case actor_command_kind::set_realtime_save_paused: {
+    impl_->state.realtime_save_paused= command.argument[0] != 0;
+    editor_rep* target= editor;
+    if (target == nullptr || target->ui_endpoint == nullptr) {
+      target= nullptr;
+      for (auto& entry: impl_->views)
+        if (entry.second.instance->ui_endpoint != nullptr) {
+          target= entry.second.instance.operator -> ();
+          break;
+        }
+    }
+    if (target != nullptr)
+      (void) target->publish_ui (
+        actor_command_kind::ui_realtime_save_state,
+        impl_->state.realtime_save_paused ? 1 : 0, 0, 1);
+    break;
+  }
+  case actor_command_kind::save_buffer:
+  case actor_command_kind::realtime_save_buffer: {
+    const bool realtime=
+      command.kind == actor_command_kind::realtime_save_buffer;
     command.argument[0]= 1;
     string vault_text;
     if (command.payload0 != ATHENA_NO_BLOB)
       vault_text= actor_text_registry::instance ().take (command.payload0);
+    editor_rep* save_editor= current_editor (command.view_id);
+    if (!save_editor && !impl_->views.empty ())
+      save_editor= impl_->views.begin ()->second.instance.operator -> ();
+    auto publish_realtime_state= [&] (bool completed, bool success) {
+      if (!realtime) return;
+      editor_rep* target= save_editor;
+      if (target == nullptr || target->ui_endpoint == nullptr) {
+        target= nullptr;
+        for (auto& entry: impl_->views)
+          if (entry.second.instance->ui_endpoint != nullptr) {
+            target= entry.second.instance.operator -> ();
+            break;
+          }
+      }
+      if (target != nullptr)
+        (void) target->publish_ui (
+          actor_command_kind::ui_realtime_save_state,
+          impl_->state.realtime_save_paused ? 1 : 0,
+          completed ? 1 : 0, success ? 1 : 0);
+    };
+    if (realtime) {
+      if (athena_current_document_save_mode () !=
+          athena_document_save_mode::realtime) {
+        command.argument[0]= 0;
+        publish_realtime_state (true, true);
+        break;
+      }
+      bool modified= impl_->state.source_modified;
+      for (auto& entry: impl_->views)
+        if (entry.second.instance->need_save (true)) {
+          modified= true;
+          break;
+        }
+      if (impl_->state.realtime_save_paused || !modified) {
+        command.argument[0]= 0;
+        publish_realtime_state (true, true);
+        break;
+      }
+    }
     try {
-      editor_rep* save_editor= current_editor (command.view_id);
-      if (!save_editor && !impl_->views.empty ())
-        save_editor= impl_->views.begin ()->second.instance.operator -> ();
       if (impl_->state.storage_version == athena::document::xml_storage_version::v2 &&
           !impl_->state.node_identities)
         throw std::runtime_error ("XML v2 document has no active source identity index");
@@ -1399,7 +1511,18 @@ buffer_actor::dispatch (actor_command_record& command) {
       if (saved.durability == athena::document::upgrade_durability::durable)
       {
         command.argument[0]= 0;
-        if (N(vault_text) != 0 && !saved.xml_sha256.empty ()) {
+        if (realtime) {
+          impl_->state.last_save= last_modified (impl_->state.name);
+          impl_->state.source_modified=
+            impl_->state.source_autosave_modified= false;
+          for (auto& entry: impl_->views)
+            entry.second.instance->notify_save ();
+          if (save_editor != nullptr)
+            (void) save_editor->publish_ui (
+              actor_command_kind::ui_mark_buffer_saved,
+              static_cast<std::uint64_t> (impl_->state.last_save));
+        }
+        else if (N(vault_text) != 0 && !saved.xml_sha256.empty ()) {
           const std::uint64_t save_sequence=
             continuous_rag_save_sequence.fetch_add (
               1, std::memory_order_relaxed);
@@ -1430,8 +1553,11 @@ buffer_actor::dispatch (actor_command_record& command) {
     }
     catch (const std::exception& error) {
       std_warning << "Could not save XML document " << impl_->state.name << ": "
-                  << string (error.what ()) << LF;
+                   << string (error.what ()) << LF;
     }
+    if (realtime && command.argument[0] != 0)
+      impl_->state.realtime_save_paused= true;
+    publish_realtime_state (true, command.argument[0] == 0);
     break;
   }
   case actor_command_kind::attach_notifier:

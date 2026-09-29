@@ -23,6 +23,8 @@
 #include "QTMOutlinePane.hpp"
 #include "QTMDocumentSearchBar.hpp"
 #include "QTMCompletionPopup.hpp"
+#include "QTMDocumentPersistence.hpp"
+#include "QTMDocumentHistory.hpp"
 #include "QTMCommutativeDiagramArrowPane.hpp"
 #include "QTMVaultBackupDispatcher.hpp"
 #include "QTMContinuousRag.hpp"
@@ -945,21 +947,48 @@ qt_actor_widget_rep::drain_external_effects () {
     }
     case actor_command_kind::ui_set_modified: {
       tm_view view= concrete_runtime_view (view_id_);
-      if (view != nullptr)
-        publish_buffer_menu_modified (view->buf, record.argument[0] != 0);
+      const bool raw_modified= record.argument[0] != 0;
+      if (view != nullptr) {
+        if (raw_modified) ++view->buf->buf->history_generation;
+        publish_buffer_menu_modified (view->buf, raw_modified);
+      }
       if (view != nullptr && view->win != nullptr)
-        view->win->set_modified (record.argument[0] != 0);
+        view->win->set_modified (
+          qtm_document_persistence_show_modified (view->buf, raw_modified));
       break;
     }
     case actor_command_kind::ui_mark_buffer_saved: {
       tm_view view= concrete_runtime_view (view_id_);
       if (view != nullptr) {
         publish_buffer_menu_modified (view->buf, false);
+        view->buf->buf->realtime_save_queued= false;
         view->buf->buf->last_save= static_cast<int> (record.argument[0]);
         array<url> windows= buffer_to_windows (view->buf->buf->name);
         for (int i=0; i<N(windows); i++)
           concrete_window (windows[i])->set_modified (false);
       }
+      break;
+    }
+    case actor_command_kind::ui_realtime_save_state: {
+      tm_view view= concrete_runtime_view (view_id_);
+      if (view != nullptr)
+        qtm_document_persistence_realtime_state (
+          view->buf, record.argument[0] != 0,
+          record.argument[1] != 0, record.argument[2] != 0);
+      break;
+    }
+    case actor_command_kind::ui_document_history_snapshot: {
+      tm_view view= concrete_runtime_view (view_id_);
+      string bytes= actor_text_registry::instance ().take (record.payload0);
+      if (view != nullptr)
+        qtm_document_history_snapshot_received (
+          view->buf, std::move (bytes), record.argument[0], record.argument[1],
+          record.argument[2] != 0);
+      break;
+    }
+    case actor_command_kind::ui_document_history_manual_request: {
+      tm_view view= concrete_runtime_view (view_id_);
+      if (view != nullptr) qtm_document_history_manual_request (view->buf);
       break;
     }
     case actor_command_kind::ui_schedule_scheme:

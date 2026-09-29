@@ -79,24 +79,6 @@ summary_keep_count_preference () {
   return -1;
 }
 
-static long long
-manual_save_retention_preference () {
-  std::string pref = trim_copy (tm_to_std (
-    get_preference ("vault pre-save history preservation", "1 week")));
-  std::string low = lower_copy (pref);
-  if (pref.empty () || low == "unlimited")
-    return VAULT_MANUAL_SAVE_RETENTION_UNLIMITED;
-  if (low == "1 hour") return 60LL * 60LL;
-  if (low == "6 hours") return 6LL * 60LL * 60LL;
-  if (low == "1 day") return 24LL * 60LL * 60LL;
-  if (low == "3 days") return 3LL * 24LL * 60LL * 60LL;
-  if (low == "1 week") return 7LL * 24LL * 60LL * 60LL;
-  if (low == "1 month") return 30LL * 24LL * 60LL * 60LL;
-  log_info ("invalid pre-save history preservation preference '" + pref +
-            "'; using Unlimited");
-  return VAULT_MANUAL_SAVE_RETENTION_UNLIMITED;
-}
-
 static int
 maintenance_worker_processes_preference () {
   std::string pref = trim_copy (tm_to_std (
@@ -217,8 +199,6 @@ vault_maintenance_pass_load_preferences (VaultMaintenanceContext& ctx) {
 VaultMaintenancePassResult
 vault_maintenance_pass_read_policy_preferences (VaultMaintenanceContext& ctx) {
   ctx.summary.backup_limit = backup_limit_preference ();
-  ctx.summary.manual_save_retention_seconds =
-    manual_save_retention_preference ();
   ctx.summary.maintenance_worker_processes = maintenance_worker_processes_preference ();
   ctx.summary.toc_update_enabled = update_tables_of_contents_preference ();
   ctx.summary.rag_update_enabled =

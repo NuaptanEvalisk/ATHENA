@@ -15,6 +15,7 @@
 #include "QTMNamespaceManager.hpp"
 #include "QTMReverseHierarchyGraph.hpp"
 #include "QTMVaultExplorer.hpp"
+#include "QTMDocumentHistory.hpp"
 #include "QTMVaultInfoModel.hpp"
 #include "boot.hpp"
 #include "namespace_ontology.hpp"
@@ -822,6 +823,15 @@ QTMNamespaceExplorer::showContextMenu (const QPoint& pos) {
   }
   else if (type == FileItem) {
     menu.addAction ("Load file", this, [this, item] () { openFile (item); });
+    QString historyPath= selectedFilePath ();
+    QFileInfo historyInfo (historyPath);
+    bool historyEligible= historyInfo.isFile () &&
+      (historyInfo.suffix ().compare ("ath", Qt::CaseInsensitive) == 0 ||
+       historyInfo.suffix ().compare ("tm", Qt::CaseInsensitive) == 0);
+    menu.addAction ("Document history", this, [historyPath] () {
+      if (!historyPath.isEmpty ())
+        qtm_document_history_show (url_system (from_qstring (historyPath)));
+    })->setEnabled (historyEligible);
     menu.addSeparator ();
     menu.addAction ("Copy", this, [this] () { copySelectedFile (); });
     menu.addAction ("Paste", this, [this] () { pasteNearSelected (); })

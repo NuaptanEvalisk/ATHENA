@@ -500,12 +500,12 @@
       (show-message "No active vault. Please load a vault first." "Vault Explorer")
       (vault-show-explorer-and-track)))
 
-(tm-define (open-vault-backup-viewer)
+(tm-define (open-document-history)
   (:interactive #t)
   (if (not (vault-active?))
       (show-message "No active vault. Please load a vault first."
-                    "Vault Backup Viewer")
-      (vault-backup-viewer-show)))
+                    "Document History")
+      (document-history-show)))
 
 (define (insert-wikilink-complete res)
   (when (and (tree? res) (== (tree-label res) 'tuple)

@@ -20,6 +20,7 @@
 #include "buffer_actor.hpp"
 #include "editor.hpp"
 #include "scheme_execution_context.hpp"
+#include "ATHENA/Data/document_persistence.hpp"
 #include <memory>
 #include <vector>
 #include <string>
@@ -442,6 +443,11 @@ kill_buffer (url name) {
     }
     (void) context->editor->publish_ui (
       actor_command_kind::ui_close_buffer, actor_id);
+    return;
+  }
+  if (!athena_flush_realtime_buffer (name)) {
+    std_warning << "Could not close realtime-saved buffer because its latest "
+                << "changes could not be persisted: " << name << LF;
     return;
   }
   // Closing a document closes its tabs, never fills them with another buffer.

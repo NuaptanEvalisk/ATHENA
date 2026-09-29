@@ -2625,12 +2625,17 @@
   <binding name="buffer-last-visited" native="last_visited" returns="double">
     <arg type="url" />
   </binding>
-  <binding name="buffer-modified?" native="buffer_modified" returns="bool">
+  <binding name="buffer-modified?" native="athena_buffer_user_modified" returns="bool">
     <arg type="url" />
   </binding>
-  <binding name="buffer-menu-modified?" native="buffer_menu_modified" returns="bool">
+  <binding name="buffer-menu-modified?" native="athena_buffer_user_menu_modified" returns="bool">
     <arg type="url" />
   </binding>
+  <binding name="current-buffer-realtime-save-eligible?" native="athena_current_buffer_realtime_save_eligible" returns="bool" />
+  <binding name="current-buffer-realtime-save-paused?" native="athena_current_buffer_realtime_save_paused" returns="bool" />
+  <binding name="current-buffer-realtime-save-active?" native="athena_current_buffer_realtime_save_active" returns="bool" />
+  <binding name="toggle-realtime-save-current-buffer" native="athena_toggle_realtime_save_current_buffer" returns="bool" />
+  <binding name="document-history-manual-save-requested" native="qtm_document_history_manual_save_requested" returns="bool" />
   <binding name="buffer-modified-since-autosave?" native="buffer_modified_since_autosave" returns="bool">
     <arg type="url" />
   </binding>

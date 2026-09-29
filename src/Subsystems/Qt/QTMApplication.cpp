@@ -1,5 +1,7 @@
 #include "QTMApplication.hpp"
 #include "QTMCommandPalette.hpp"
+#include "QTMDocumentPersistence.hpp"
+#include "QTMDocumentHistory.hpp"
 #include "QTMProgressWindow.hpp"
 #include "QTMUpdateChecker.hpp"
 #include "QTMVaultBackupDispatcher.hpp"
@@ -103,6 +105,8 @@ void QTMApplication::load() {
   new QTMMainTabWindow();
   bench_cumul ("construct qt tab shell");
   bench_start ("initialize background services");
+  qtm_document_persistence_initialize ();
+  qtm_document_history_initialize ();
   qtm_vault_backup_dispatcher_initialize ();
   qtm_schedule_update_check ();
   bench_cumul ("initialize background services");

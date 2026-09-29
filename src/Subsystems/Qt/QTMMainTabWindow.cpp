@@ -7,7 +7,7 @@
 #include "QTMGlobalSearch.hpp"
 #include "QTMWidget.hpp"
 #include "QTMOutlinePane.hpp"
-#include "QTMVaultBackupViewer.hpp"
+#include "QTMDocumentHistoryPane.hpp"
 #include "QTMVaultExplorer.hpp"
 #include "QTMNamespaceExplorer.hpp"
 #if ATHENA_ENABLE_PERSON_SUBSYSTEM
@@ -90,7 +90,7 @@ isPersistentAdsPane (const QString& name) {
          name == "athena-neighborhoods-pane" ||
          name == "athena-handwritten-symbol" ||
          name == "athena-global-search" ||
-         name == "athena-vault-backup-viewer" ||
+         name == "athena-document-history" ||
          name == "athena-error-messages";
 }
 
@@ -547,8 +547,8 @@ void QTMMainTabWindow::restoreAdsVisiblePanes() {
       handwriting_symbol_pane_show ();
     else if (vault_active() && name == "athena-global-search")
       global_search_show ();
-    else if (vault_active() && name == "athena-vault-backup-viewer")
-      vault_backup_viewer_show ();
+    else if (vault_active() && name == "athena-document-history")
+      document_history_pane_show ();
     else if (name == "athena-error-messages" ||
              name == "athena-tool-pane-Error messages")
       error_messages_show ();

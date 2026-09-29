@@ -210,18 +210,6 @@ is_vault_infrastructure_path (
 
 
 std::string
-manual_save_retention_label (long long seconds) {
-  if (seconds == VAULT_MANUAL_SAVE_RETENTION_UNLIMITED) return "Unlimited";
-  if (seconds == 60LL * 60LL) return "1 hour";
-  if (seconds == 6LL * 60LL * 60LL) return "6 hours";
-  if (seconds == 24LL * 60LL * 60LL) return "1 day";
-  if (seconds == 3LL * 24LL * 60LL * 60LL) return "3 days";
-  if (seconds == 7LL * 24LL * 60LL * 60LL) return "1 week";
-  if (seconds == 30LL * 24LL * 60LL * 60LL) return "1 month";
-  return std::to_string (seconds) + " seconds";
-}
-
-std::string
 timestamp_string () {
   auto now = std::chrono::system_clock::now ();
   std::time_t t = std::chrono::system_clock::to_time_t (now);

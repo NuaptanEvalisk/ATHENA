@@ -14,6 +14,7 @@
 #include "ATHENA/Features/athena_features.hpp"
 #include "ATHENA/Data/materials_engine.hpp"
 #include "QTMESCSymbolPicker.hpp"
+#include "QTMDocumentPersistence.hpp"
 #include "QTMFontSelector.hpp"
 #include "QTMMainTabWindow.hpp"
 #include "QTMWidget.hpp"
@@ -1016,12 +1017,41 @@ QTMPreferencesDialog::buildGeneralPage () {
                 "middle click closes ads tab");
   QObject::connect (middleClickAdsTabs, &QCheckBox::toggled,
                     [] () { qtm_apply_ads_tab_close_preferences (); });
-  add_combo (basicForm, "Automatically save:", "autosave",
+  QComboBox* saveMode= add_combo (
+    basicForm, "Document saving:", "document save mode",
+    {{"realtime", "Realtime save"}, {"autosave", "Autosave"},
+     {"manual", "Manual save only"}},
+    "realtime");
+  QComboBox* realtimeInterval= add_combo (
+    basicForm, "Realtime save interval:", "realtime save interval",
+    {{"0.5", "500 ms"}, {"1", "1 sec"}, {"2", "2 sec"}, {"3", "3 sec"},
+     {"5", "5 sec"}, {"10", "10 sec"}},
+    "3");
+  QObject::connect (saveMode, qOverload<int> (&QComboBox::currentIndexChanged),
+                    [] { qtm_document_persistence_preferences_changed (); });
+  QObject::connect (realtimeInterval,
+                    qOverload<int> (&QComboBox::currentIndexChanged),
+                    [] { qtm_document_persistence_preferences_changed (); });
+  add_combo (basicForm, "Autosave interval:", "autosave",
              {{"5", "5 sec"}, {"30", "30 sec"}, {"120", "120 sec"},
-              {"300", "300 sec"}, {"0", "Disable"}});
-  add_toggle (basicForm, "Autosave by default:", "autosave default");
+              {"300", "300 sec"}},
+             "120");
   add_toggle (basicForm, "Use case-insensitive search:",
               "case-insensitive-match");
+
+  QFormLayout* historyForm= add_section (basic, "Document history");
+  add_toggle (historyForm, "Capture on manual save:",
+              "document history manual save");
+  add_combo (historyForm, "Periodic capture:", "document history interval",
+             {{"0", "Disabled"}, {"60", "Every 1 minute"},
+              {"300", "Every 5 minutes"}, {"600", "Every 10 minutes"},
+              {"1800", "Every 30 minutes"}, {"3600", "Every 1 hour"}},
+             "600");
+  add_combo (historyForm, "Preservation:", "document history preservation",
+             {{"Unlimited", "Unlimited"}, {"1 hour", "1 hour"},
+              {"6 hours", "6 hours"}, {"1 day", "1 day"},
+              {"3 days", "3 days"}, {"1 week", "1 week"},
+              {"1 month", "1 month"}}, "1 week");
   finish_page (basic);
 
   QWidget* appearance= make_page ();
@@ -1786,12 +1816,6 @@ QTMPreferencesDialog::buildVaultCategories () {
              {{"Unlimited", "Unlimited"}, {"1", "1"}, {"2", "2"}, {"3", "3"},
               {"5", "5"}, {"10", "10"}, {"20", "20"}, {"50", "50"}},
              "Unlimited");
-  add_combo (mt, "Preservation of pre-save histories for file:",
-             "vault pre-save history preservation",
-             {{"Unlimited", "Unlimited"}, {"1 hour", "1 hour"},
-              {"6 hours", "6 hours"}, {"1 day", "1 day"},
-              {"3 days", "3 days"}, {"1 week", "1 week"},
-              {"1 month", "1 month"}}, "1 week");
   add_combo (mt, "Maintenance worker processes:",
              "vault maintenance worker processes",
              {{"Unlimited", "Unlimited"}, {"1", "1"}, {"2", "2"},

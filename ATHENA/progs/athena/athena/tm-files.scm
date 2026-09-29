@@ -261,7 +261,10 @@
   (apply save-buffer-main l))
 
 (tm-define (save-buffer-manual . l)
-  (apply save-buffer-main (append l '(:manual))))
+  (document-history-manual-save-requested)
+  (if (current-buffer-realtime-save-active?)
+      (noop)
+      (apply save-buffer-main (append l '(:manual)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Saving buffers under a new name
@@ -394,14 +397,6 @@
 ;; Autosave
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define autosave-buffer-state (make-ahash-table))
-
-(define (autosave-key name)
-  (url->system name))
-
-(define (autosave-default-enabled?)
-  (== (get-preference "autosave default") "on"))
-
 (define (autosave-real-file? name)
   (and (url? name)
        (not (url-rooted-web? name))
@@ -411,25 +406,8 @@
        (url-test? name "fw")))
 
 (tm-define (autosave-buffer-enabled? name)
-  (and (autosave-real-file? name)
-       (with state (ahash-ref autosave-buffer-state (autosave-key name))
-         (if state (== state "on") (autosave-default-enabled?)))))
-
-(tm-define (current-buffer-autosave-enabled?)
-  (autosave-buffer-enabled? (current-buffer)))
-
-(tm-define (toggle-autosave-current-buffer)
-  (:check-mark "v" current-buffer-autosave-enabled?)
-  (let ((name (current-buffer)))
-    (if (not (autosave-real-file? name))
-        (set-message "Autosave is only available for on-disk files"
-                     "Auto-save file")
-        (let ((enabled? (not (autosave-buffer-enabled? name))))
-          (ahash-set! autosave-buffer-state (autosave-key name)
-                      (if enabled? "on" "off"))
-          (if enabled? (autosave-delayed))
-          (set-message (if enabled? "Autosave enabled" "Autosave disabled")
-                       "Auto-save file")))))
+  (and (== (get-preference "document save mode") "autosave")
+       (autosave-real-file? name)))
 
 (define (more-recent file suffix1 suffix2)
   (and (url-exists? (url-glue file suffix1))
@@ -485,7 +463,8 @@
   (let* ((pref (get-preference "autosave"))
          (len (if (and (string? pref) (integer? (string->number pref)))
                   (* (string->number pref) 1000) 120000)))
-    (if (> len 0)
+    (if (and (> len 0)
+             (== (get-preference "document save mode") "autosave"))
         (delayed
           (:pause len)
           ;; Autosave enumerates every open buffer.  A source-bound delayed

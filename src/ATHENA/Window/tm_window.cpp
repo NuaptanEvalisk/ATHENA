@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "tm_window.hpp"
+#include "ATHENA/Data/document_persistence.hpp"
 #include "tm_data.hpp"
 #include "scheme.hpp"
 #include "message.hpp"
@@ -356,6 +357,13 @@ tm_window_rep::set_window_name (string s) {
   refresh_window_title ();
 }
 
+void
+tm_window_rep::set_realtime_save_paused (bool flag) {
+  if (realtime_save_paused == flag) return;
+  realtime_save_paused= flag;
+  refresh_window_title ();
+}
+
 static string
 format_window_title (string title) {
   if (title == "" || title == "TeXmacs")
@@ -367,7 +375,10 @@ format_window_title (string title) {
 
 void
 tm_window_rep::refresh_window_title () {
-  string title= format_window_title (cur_doc_title);
+  string doc_title= cur_doc_title;
+  if (realtime_save_paused)
+    doc_title << " (Realtime save paused)";
+  string title= format_window_title (doc_title);
   if (cur_title != title) {
     cur_title= title;
     set_name (wid, title);
@@ -383,6 +394,11 @@ void
 tm_window_rep::set_window_url (url u) {
   if (cur_url != u)
     cur_url= u;
+  tm_buffer buffer= concrete_buffer (u);
+  realtime_save_paused=
+    buffer != nullptr &&
+    athena_current_document_save_mode () == athena_document_save_mode::realtime &&
+    buffer->buf->realtime_save_paused;
   refresh_window_title ();
   if (!is_none (u)) set_file (wid, as_string (u));
 }

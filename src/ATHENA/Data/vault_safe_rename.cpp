@@ -7,6 +7,8 @@
 *******************************************************************************/
 
 #include "ATHENA/Data/vault_safe_rename.hpp"
+#include "ATHENA/Data/document_history_store.hpp"
+#include "ATHENA/Data/document_persistence.hpp"
 
 #include "ATHENA/Data/artifacts.hpp"
 #include "ATHENA/Data/new_buffer.hpp"
@@ -28,6 +30,16 @@
 namespace fs = std::filesystem;
 
 namespace {
+static bool
+apply_document_history_path_rename (
+    const fs::path& root, const std::string& old_path,
+    const std::string& new_path, bool directory, std::string& error) {
+  if (!fs::exists (root / ".athena" / "document-history.sqlite")) return true;
+  athena::history::document_history_store store;
+  return store.open (root, error) &&
+         store.rename_path (old_path, new_path, directory, error);
+}
+
 
 struct DocumentRewrite {
   fs::path before;
@@ -296,6 +308,8 @@ vault_safe_rename_plan (const fs::path& source_arg, const fs::path& target_arg,
     if (!affected && !rewritten) continue;
     plan.impl->open_buffers.push_back (path);
     ++plan.affected_open_buffers;
+    if (athena_realtime_save_active (buffers[i]))
+      (void) athena_flush_realtime_buffer (buffers[i]);
     if (buffer_modified (buffers[i])) plan.modified_buffers.push_back (path.string ());
   }
   return true;
@@ -394,6 +408,10 @@ vault_safe_rename_execute (VaultSafeRenamePlan& plan, std::string& error) {
         plan.impl->root, plan.old_relative_path, plan.new_relative_path,
         plan.is_directory, error))
     return false;
+  if (!apply_document_history_path_rename (
+        plan.impl->root, plan.old_relative_path, plan.new_relative_path,
+        plan.is_directory, error))
+    return false;
 
   for (const fs::path& old_buffer: plan.impl->open_buffers) {
     fs::path new_buffer= plan.is_directory ?
@@ -479,6 +497,9 @@ recover_rename_journal (const fs::path& root, AthenaVaultMapSqlite* map,
       size_t changed= 0;
       if ((update_map && !map->apply_path_rename (operation, changed, error)) ||
           !athena_artifacts_apply_path_rename (
+            root, operation.old_path, operation.new_path,
+            operation.is_directory, error) ||
+          !apply_document_history_path_rename (
             root, operation.old_path, operation.new_path,
             operation.is_directory, error) ||
           !journal.finish (operation.operation_id, error))

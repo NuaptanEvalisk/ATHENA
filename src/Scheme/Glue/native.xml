@@ -1125,7 +1125,7 @@
   <binding name="metadata-properties-pane-show" native="metadata_properties_pane_show" returns="void" dispatch="ui" />
   <binding name="escape-symbol-picker" native="athena_escape_symbol_picker" returns="string" />
   <binding name="ads-restore-visible-panes" native="ads_restore_visible_panes" returns="void" />
-  <binding name="vault-backup-viewer-show" native="vault_backup_viewer_show" returns="void" dispatch="ui" />
+  <binding name="document-history-show" native="document_history_pane_show" returns="void" dispatch="ui" />
   <binding name="google-tasks-show" native="google_tasks_show" returns="void" dispatch="ui" />
   <binding name="google-cloud-todo-sync-buffer" native="athena_google_cloud_todo_sync_buffer" returns="void">
     <arg type="url" />

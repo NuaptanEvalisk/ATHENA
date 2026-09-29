@@ -217,6 +217,10 @@
 
 (menu-bind save-menu
   ("Save" (save-buffer-manual))
+  (if (current-buffer-realtime-save-eligible?)
+      (if (current-buffer-realtime-save-paused?)
+          ("Resume realtime save" (toggle-realtime-save-current-buffer))
+          ("Pause realtime save" (toggle-realtime-save-current-buffer))))
   ("Save as" (choose-file save-buffer-as "Save ATHENA file" "texmacs"))
   ---
   (link export-top-menu)
@@ -316,7 +320,10 @@
         ("Clear menu" (clear-recent-vaults))))
   ---
   ("Save" (save-buffer-manual))
-  ("Autosave" (toggle-autosave-current-buffer))
+  (if (current-buffer-realtime-save-eligible?)
+      (if (current-buffer-realtime-save-paused?)
+          ("Resume realtime save" (toggle-realtime-save-current-buffer))
+          ("Pause realtime save" (toggle-realtime-save-current-buffer))))
   ("Save as" (choose-file save-buffer-as "Save ATHENA file" "texmacs"))
   ---
   (link print-menu)

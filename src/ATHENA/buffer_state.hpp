@@ -36,6 +36,7 @@ struct buffer_document_state {
   tree source_envelope;
   bool source_modified= false;
   bool source_autosave_modified= false;
+  bool realtime_save_paused= false;
   path root_path;
   new_data data;
   link_repository links;

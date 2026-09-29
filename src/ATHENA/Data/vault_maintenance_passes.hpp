@@ -31,8 +31,6 @@ struct VaultMaintenanceSummary {
   std::filesystem::path backup_archive;
   int backup_limit = -1;
   size_t backups_purged = 0;
-  long long manual_save_retention_seconds = -1;
-  size_t manual_save_histories_purged = 0;
   size_t asset_renames = 0;
   size_t asset_reference_updates = 0;
   bool materials_database_present = false;

@@ -10,6 +10,7 @@
 
 #include "QTMVaultExplorer.hpp"
 #include "QTMVaultSafeRename.hpp"
+#include "QTMDocumentHistory.hpp"
 #include "QTMMainTabWindow.hpp"
 #include "editor.hpp"
 #include "boot.hpp"
@@ -444,9 +445,17 @@ QTMVaultExplorer::showContextMenu (const QPoint& pos) {
 
   bool hasSelection= selectedIndex ().isValid ();
   bool canPaste= !vault_explorer_clipboard_path.isEmpty ();
+  QFileInfo selectedInfo (selectedPath ());
+  bool historyEligible= selectedInfo.isFile () &&
+    (selectedInfo.suffix ().compare ("ath", Qt::CaseInsensitive) == 0 ||
+     selectedInfo.suffix ().compare ("tm", Qt::CaseInsensitive) == 0);
   QMenu menu (this);
   menu.addAction ("Load file", this, [this] () { loadSelected (); })
       ->setEnabled (hasSelection);
+  menu.addAction ("Document history", this, [this] () {
+    QString path= selectedPath ();
+    if (!path.isEmpty ()) qtm_document_history_show (url_system (from_qstring (path)));
+  })->setEnabled (historyEligible);
   menu.addSeparator ();
   menu.addAction ("New file", this, [this] () { newFile (); });
   menu.addAction ("New folder", this, [this] () { newFolder (); });

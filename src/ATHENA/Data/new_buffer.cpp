@@ -27,7 +27,6 @@
 #include "new_style.hpp"
 #include "merge_sort.hpp"
 #include "materials_document.hpp"
-#include "ATHENA/Data/vault_backup.hpp"
 #include "ATHENA/Data/node_reference_export.hpp"
 #include "System/Boot/boot.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
@@ -88,6 +87,7 @@ publish_buffer_metadata () {
         catalog_text (bufs[i]->buf->title),
         static_cast<double> (bufs[i]->buf->last_visit),
         bufs[i]->buf->menu_modified,
+        bufs[i]->buf->realtime_save_paused,
         bufs[i]->actor ? bufs[i]->actor->id () : ATHENA_NO_ACTOR,
         source_view (bufs[i])});
   published_buffer_names.publish_metadata (std::move (records));
@@ -870,6 +870,16 @@ publish_buffer_menu_modified (tm_buffer buf, bool modified) {
     catalog_text (as_string (buf->buf->name)), modified);
 }
 
+void
+publish_buffer_realtime_save_paused (tm_buffer buf, bool paused) {
+  ASSERT (current_scheme_execution_context () == nullptr,
+          "realtime save publication requires the GUI owner");
+  if (buf == nullptr) return;
+  buf->buf->realtime_save_paused= paused;
+  published_buffer_names.set_realtime_save_paused (
+    catalog_text (as_string (buf->buf->name)), paused);
+}
+
 bool
 buffer_modified_since_autosave (url name) {
   athena_view_id view_id= ATHENA_NO_VIEW;
@@ -1281,9 +1291,6 @@ buffer_save (url name) {
       actor= buf->actor;
       view_id= buffer_command_view (buf, name);
     }
-    // Backup policy is native and completes before the actor may replace the
-    // pinned file. The helper is a no-op for non-vault/new/non-local paths.
-    (void) vault_backup_pre_save (name);
     string vault_path;
     if (vault_active ())
       vault_path= as_string (concretize (vault_get_root ()), URL_SYSTEM);

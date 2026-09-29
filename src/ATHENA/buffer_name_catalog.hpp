@@ -29,6 +29,7 @@ public:
     std::string title;
     double last_visit= 0;
     bool modified= false;
+    bool realtime_save_paused= false;
     std::uint64_t actor_id= 0;
     std::uint64_t source_view= 0;
   };
@@ -65,6 +66,12 @@ public:
     std::lock_guard<std::mutex> guard (metadata_lock_);
     auto found= metadata_.find (name);
     if (found != metadata_.end ()) found->second.modified= modified;
+  }
+
+  void set_realtime_save_paused (const std::string& name, bool paused) {
+    std::lock_guard<std::mutex> guard (metadata_lock_);
+    auto found= metadata_.find (name);
+    if (found != metadata_.end ()) found->second.realtime_save_paused= paused;
   }
 
   void set_source_view (const std::string& name, std::uint64_t view) {

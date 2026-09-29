@@ -12,6 +12,7 @@
 #include "config.h"
 #include "boot.hpp"
 #include "tm_server.hpp"
+#include "ATHENA/Data/document_persistence.hpp"
 #include "drd_std.hpp"
 #include "convert.hpp"
 #include "sys_utils.hpp"
@@ -432,6 +433,11 @@ tm_server_rep::restart () {
 void
 tm_server_rep::quit () {
 #ifdef QTTEXMACS
+  if (!athena_flush_all_realtime_buffers ()) {
+    std_warning << "ATHENA exit cancelled because a realtime-saved document "
+                << "could not be persisted" << LF;
+    return;
+  }
   qt_audmap_stop ();
 #endif
   close_all_pipes ();

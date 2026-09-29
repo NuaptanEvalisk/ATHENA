@@ -28,7 +28,7 @@
 (menu-bind athena-view-panes-menu
   ("Vault Explorer" (open-vault-explorer))
   ("Namespace Explorer" (open-namespace-explorer))
-  ("Vault backup viewer" (open-vault-backup-viewer)))
+  ("Document History" (open-document-history)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Workspace management

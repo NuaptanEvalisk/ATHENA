@@ -32,12 +32,14 @@ protected:
   string   cur_title; // current window title
   string   cur_doc_title; // current document title before window decoration
   url      cur_url;   // current document url
+  bool     realtime_save_paused= false;
 
 public:
   tm_window_rep (widget wid2, tree geom);
   tm_window_rep (tree doc, command quit);
   ~tm_window_rep ();
   void set_window_name (string s);
+  void set_realtime_save_paused (bool flag);
   void set_modified (bool flag);
   void set_window_url (url u);
   void refresh_window_title ();

@@ -21,7 +21,6 @@
 #include <vector>
 
 inline constexpr int VAULT_BACKUP_LIMIT_UNLIMITED = -1;
-inline constexpr long long VAULT_MANUAL_SAVE_RETENTION_UNLIMITED = -1;
 
 struct RenamePlan {
   std::filesystem::path old_path;
@@ -51,7 +50,6 @@ bool collect_vault_infrastructure_paths (
 bool is_vault_infrastructure_path (
   const std::filesystem::path& path,
   const std::unordered_set<std::string>& infrastructure);
-std::string manual_save_retention_label (long long seconds);
 std::string timestamp_string ();
 void log_info (const std::string& message);
 void log_error (const std::string& message);

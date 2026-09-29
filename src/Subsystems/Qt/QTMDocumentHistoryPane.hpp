@@ -1,6 +1,6 @@
 /******************************************************************************
-* MODULE     : QTMVaultBackupViewer.hpp
-* DESCRIPTION: Qt vault backup viewer pane
+* MODULE     : QTMDocumentHistoryPane.hpp
+* DESCRIPTION: Qt document history pane
 * COPYRIGHT  : (C) 2026 Felix
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
@@ -8,39 +8,41 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
-#ifndef QTMVAULTBACKUPVIEWER_HPP
-#define QTMVAULTBACKUPVIEWER_HPP
+#ifndef QTMDOCUMENTHISTORYPANE_HPP
+#define QTMDOCUMENTHISTORYPANE_HPP
 
 #include <QSize>
 #include <QString>
 #include <QWidget>
+#include "url.hpp"
+
+#include <cstdint>
 
 class QPoint;
 class QTreeWidget;
 class QTreeWidgetItem;
 
-class QTMVaultBackupViewer : public QWidget {
+class QTMDocumentHistoryPane : public QWidget {
 public:
-  QTMVaultBackupViewer (QWidget* parent = nullptr);
+  QTMDocumentHistoryPane (QWidget* parent = nullptr);
 
-  void setVault (const QString& rootPath, const QString& vaultName);
+  void setDocument (url document, bool followCurrent= false);
   QSize sizeHint () const override;
 
 private:
   void refresh ();
-  void addBackupItem (const QString& kind, const QString& path,
-                      const QString& displayPath);
-  QList<QTreeWidgetItem*> selectedBackupItems () const;
-  QString backupPath (QTreeWidgetItem* item) const;
-  void openSelectedBackup ();
-  void removeSelectedBackups ();
+  std::int64_t selectedVersionId () const;
+  void openSelectedVersion ();
+  void restoreSelectedVersion ();
   void showContextMenu (const QPoint& pos);
+  void followCurrentDocument ();
 
   QTreeWidget* tree;
-  QString      rootPath;
-  QString      vaultName;
+  url          document;
+  bool         followCurrent;
 };
 
-void vault_backup_viewer_show ();
+void document_history_pane_show ();
+void document_history_pane_show_document (url document);
 
-#endif // QTMVAULTBACKUPVIEWER_HPP
+#endif // QTMDOCUMENTHISTORYPANE_HPP

@@ -32,13 +32,23 @@ public:
   int last_save;          // last time that the buffer was saved
   time_t last_visit;      // time that the buffer was visited last
   bool menu_modified;     // GUI's last published unsaved indicator, not save state
+  // UI-owner mirrors for native realtime persistence. The actor owns the
+  // authoritative pause state; these fields only drive scheduling/chrome.
+  bool realtime_save_paused;
+  bool realtime_save_queued;
+  std::uint64_t history_generation;
+  std::uint64_t history_checkpoint_generation;
+  bool history_snapshot_queued;
 
   inline new_buffer_rep (url name2):
     name (name2), master (name2),
     fm ("texmacs"), title (as_string (tail (name))),
     read_only (false), secure (is_secure (name2)),
     last_save (- (int) (((unsigned int) (-1)) >> 1)),
-    last_visit (texmacs_time ()), menu_modified (false) {}
+    last_visit (texmacs_time ()), menu_modified (false),
+    realtime_save_paused (false), realtime_save_queued (false),
+    history_generation (0), history_checkpoint_generation (0),
+    history_snapshot_queued (false) {}
 };
 
 class new_buffer;
@@ -106,6 +116,7 @@ void publish_buffer_source_view (tm_buffer buf);
 bool buffer_modified (url name);
 bool buffer_menu_modified (url name);
 void publish_buffer_menu_modified (tm_buffer buf, bool modified);
+void publish_buffer_realtime_save_paused (tm_buffer buf, bool paused);
 bool buffer_modified_since_autosave (url name);
 void pretend_buffer_modified (url name);
 void pretend_buffer_saved (url name);
