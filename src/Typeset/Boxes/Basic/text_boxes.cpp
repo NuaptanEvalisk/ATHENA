@@ -14,9 +14,13 @@
 #include "math_font.hpp"
 #include "Boxes/construct.hpp"
 #include "Boxes/utf8_line.hpp"
+#include "colors.hpp"
 #include "analyze.hpp"
+#include "tm_ostream.hpp"
 #include <unicode/utf8.h>
 #include <algorithm>
+#include <iomanip>
+#include <sstream>
 #include <stdexcept>
 
 /******************************************************************************
@@ -754,6 +758,49 @@ single_unicode_scalar (string s) {
   return cp >= 0 && offset == static_cast<int32_t> (bytes.size ());
 }
 
+static bool
+legacy_rubber_token (string s) {
+  return N(s) >= 2 && s[0] == '<' && s[N(s)-1] == '>';
+}
+
+static std::string
+rubber_character_description (string s) {
+  std::string_view bytes (s.data (), static_cast<std::size_t> (N(s)));
+  if (!bytes.empty () && athena::text::valid_utf8 (bytes)) {
+    int32_t offset= 0;
+    UChar32 cp;
+    U8_NEXT (bytes.data (), offset, static_cast<int32_t> (bytes.size ()), cp);
+    if (cp >= 0 && offset == static_cast<int32_t> (bytes.size ())) {
+      std::ostringstream out;
+      out << "U+" << std::uppercase << std::hex << std::setfill ('0')
+          << std::setw (cp <= 0xffff ? 4 : 6) << static_cast<std::uint32_t> (cp);
+      return out.str ();
+    }
+  }
+  std::ostringstream out;
+  const std::size_t limit= std::min<std::size_t> (bytes.size (), 8);
+  for (std::size_t i= 0; i<limit; ++i) {
+    if (i != 0) out << ' ';
+    out << "0x" << std::uppercase << std::hex << std::setfill ('0')
+        << std::setw (2)
+        << static_cast<unsigned int> (static_cast<unsigned char> (bytes[i]));
+  }
+  if (bytes.size () > limit) out << " ...";
+  return out.str ();
+}
+
+static box
+invalid_rubber_box (path ip, string s, font fn) {
+  const std::string detail= rubber_character_description (s);
+  const std::string message= "invalid rubber character: " + detail;
+  typeset_warning << message.c_str () << LF;
+  box text= text_box (
+    ip, 0, string (message.c_str ()), fn, pencil (red));
+  return highlight_box (
+    ip, text, PIXEL, brush (rgb_color (255, 240, 240)),
+    brush (red), brush (red));
+}
+
 box
 delimiter_box (path ip, string s, font fn, pencil pen, SI bot, SI top) {
   SI h= top - bot;
@@ -767,7 +814,17 @@ delimiter_box (path ip, string s, font fn, pencil pen, SI bot, SI top) {
       SI var_bot= max (bot, b->y1 + y), var_top= min (top, b->y2 + y);
       return move_delimiter_box (ip, b, x, y, var_bot, var_top);
     }
+    // A valid Unicode delimiter may be absent from the selected OpenType MATH
+    // face while still being available through the normal font fallback chain.
+    // Keep it visible at its natural size instead of treating it as a legacy
+    // <rubber-token> and throwing on the token syntax assertion below.
+    box b= math_text_box (ip, s, fn, pen);
+    SI x= -b->x1;
+    SI y= (top + bot - b->y1 - b->y2) >> 1;
+    SI var_bot= max (bot, b->y1 + y), var_top= min (top, b->y2 + y);
+    return move_delimiter_box (ip, b, x, y, var_bot, var_top);
   }
+  if (!legacy_rubber_token (s)) return invalid_rubber_box (ip, s, fn);
   string r= get_delimiter (s, fn, h);
   box b= text_box (ip, 0, r, fn, pen);
   SI x= -b->x1;
@@ -813,7 +870,17 @@ delimiter_box (path ip, string s, font fn, pencil pen,
       }
       return move_delimiter_box (ip, b, x, y, real_bot, real_top);
     }
+    box b= math_text_box (ip, s, fn, pen);
+    SI x= -b->x1;
+    SI y= (top + bot - b->y1 - b->y2) >> 1;
+    if (b->y2 - b->y1 < h) {
+      y= (mid - b->y1 - b->y2) >> 1;
+      y= min (top - b->y2, y);
+      y= max (bot - b->y1, y);
+    }
+    return move_delimiter_box (ip, b, x, y, real_bot, real_top);
   }
+  if (!legacy_rubber_token (s)) return invalid_rubber_box (ip, s, fn);
   string r= get_delimiter (s, fn, h);
   box b= text_box (ip, 0, r, fn, pen);
   SI x= -b->x1;
@@ -854,9 +921,14 @@ big_operator_box (path ip, string s, font fn, pencil pen, int n) {
       box mvb= move_box (ip, b, 0, y, false, true);
       return macro_box (ip, mvb, fn, BIG_OP_BOX);
     }
+    box b= math_text_box (ip, s, fn, pen);
+    const SI axis= athena::text::math_layout_metrics (fn) ?
+      athena::text::math_layout_metrics (fn)->axis_height : fn->yfrac;
+    SI y= axis - ((b->y1 + b->y2) >> 1);
+    return macro_box (
+      ip, move_box (ip, b, 0, y, false, true), fn, BIG_OP_BOX);
   }
-  ASSERT (N(s) >= 2 && s[0] == '<' && s[N(s)-1] == '>',
-	  "invalid rubber character");
+  if (!legacy_rubber_token (s)) return invalid_rubber_box (ip, s, fn);
   string r= s (0, N(s)-1) * "-" * as_string (n) * ">";
   metric ex;
   fn->get_extents (r, ex);
@@ -880,6 +952,7 @@ wide_box (path ip, string s, font fn, pencil pen, SI width) {
     }
     return macro_box (ip, base, fn);
   }
+  if (!legacy_rubber_token (s)) return invalid_rubber_box (ip, s, fn);
   string r= get_wide (s, fn, width);
   metric ex;
   fn->get_extents (r, ex);
@@ -889,6 +962,8 @@ wide_box (path ip, string s, font fn, pencil pen, SI width) {
 
 box
 wide_stix_box (path ip, string s, font fn, pencil pen, SI width) {
+  if (single_unicode_scalar (s)) return wide_box (ip, s, fn, pen, width);
+  if (!legacy_rubber_token (s)) return invalid_rubber_box (ip, s, fn);
   string r= get_wide_stix (s, fn, width);
   metric ex;
   fn->get_extents (r, ex);

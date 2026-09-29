@@ -1236,6 +1236,7 @@ void
 edit_typeset_rep::typeset_sub (SI& x1, SI& y1, SI& x2, SI& y2) {
   //time_t t1= texmacs_time ();
   typeset_prepare ();
+  box previous_eb= eb;
   eb= empty_box (reverse (rp));
   // saves memory, also necessary for change_log update
   bench_start ("typeset");
@@ -1286,11 +1287,17 @@ edit_typeset_rep::typeset_sub (SI& x1, SI& y1, SI& x2, SI& y2) {
   }
   catch (string msg) {
     the_exception= msg;
-    std_error << "Typesetting failure, resetting to empty document\n";
-    assign (rp, tree (DOCUMENT, ""));
+    std_error << "Typesetting failure; preserving source document\n";
     ttt->screen_tree= false;
+    progressive_typeset_pending= false;
+    progressive_typeset_continue= false;
+    // The failed pass may have left bridge-local state half updated.  Rebind it
+    // to the real source tree, but never mutate the editor document as an error
+    // recovery mechanism.  Keep the last successful layout when available.
     ::notify_assign (ttt, path(), subtree (et, rp));
-    eb= ::typeset (ttt, x1, y1, x2, y2);    
+    if (!is_nil (previous_eb)) eb= previous_eb;
+    SI big= (SI) (1 << 30);
+    x1= -big; y1= -big; x2= big; y2= big;
   }
   handle_exceptions ();
 #endif
