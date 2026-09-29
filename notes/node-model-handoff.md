@@ -1,48 +1,26 @@
-# 节点身份、属性与引用改造交接
+# 节点模型设计备忘录
 
-更新：2026-09-28。接手者熟悉 ATHENA，但不应假定熟悉本次新文档模型。
+更新：2026-09-29。
 
-## 先读结论
+这份文件曾用于节点模型改造的跨会话交接。该 handoff 阶段已经结束；现在保留它作为
+ATHENA 节点身份、属性、引用、持久化与迁移语义的长期设计备忘录。
 
-原交接停在 native tree-set-diff 完成处；用户随后要求按功能块继续。
-源生命周期、normal XML v2 persistence/activation、AUDMAP document-model v3、
-Artifact source binding/revision、cut/move credential + 跨 actor undo/redo、
-普通新建文档 born-v2、独立 offline node-model vault migration、migrated-vault bare
-wikilink source-UUID cutover 与 generated-anchor producer 删除均已分别完成并提交。
-历史 generated labels 的安全删除已由 `750639634` 接进 offline migration private staging。
-本次接续把 migrated-vault 的 Artifact、文件选择、搜索和 Available 插入入口接到源 UUID；
-Transclusion 产生明确的 UUID 列表，预览保留属性但剥离源身份。细节见下方接续记录。
-**核心 source/runtime/migration/reference 主链已经闭环；主要剩余工作集中在少数
-tree-bearing persistence 边界、真实 GUI/actor 生命周期、
-以及最终数据保全/启用验收。**
+本文不是待办清单，也不表示源码必须永远保持这里记录的具体实现方式。它记录的是已经
+确立、后续修改不应无意破坏的模型边界和设计理由。行为的最终依据仍是源码和格式版本。
 
-本次接续基线：`750639634 improve: retire generated labels during node migration`。
-此前相邻集成提交：`c465b4605`（offline node-model migration）、
-`727bea0cb`（born-v2 ordinary source）、
-`e5fa5aae6`（source move identity）、
-`70da9708a`（Artifact source identity）、
-`417efe87e`（AUDMAP document-model v3）、
-`6f2937262`（normal XML v2 persistence/activation）、
-`6b965f3c9`（source identity lifecycle）、`7e9b23a9b`（native tree diff）、
-`f8db49cf3`（格式/preamble）、`440f069d5`（DataArt）、
-`4617f4219`（增量身份事务）、`411f2ea0a`（动态引用导出）、`6325a84f1`（headless 导出）。
+逐批迁移历史见 `notes/node-model-migration.md`。早期日志中的 WIP、缺口和验证状态只用于
+追溯当时的实现过程，不应被解释为要求重做保存、恢复、AUDMAP、剪贴板或已经完成的 migration。
 
-旧 UTF-8/XML 项目与本项目不同：这里是在已有 UTF-8/XML 基础上增加节点元数据、
-XML v2、AUDMAP document-model v3 和新引用语义。已有
-`--upgrade-vault-format` 只负责 legacy Cork/S-expression -> UTF-8/XML；
-node-model 离线迁移的输入必须是已经为 UTF-8 XML 的 vault，并使用独立 CLI 参数。
+## 架构核心
 
-详细历史记录在 `notes/node-model-migration.md`。它是逐批追加的日志，早期章节里的
-“尚未做”可能已被后续章节完成；本文件是暂停时的汇总，源码仍是行为的最终依据。
+旧架构曾使用 enunciation 两侧的 generated anchors 定位对象，Wikilink、Transclusion、
+Artifact 又依赖 `map.sqlite` 中的映射和 file/anchor hints。这样会让可重建的定位索引
+事实上承担引用语义，一旦索引损坏就需要脆弱的 repair。
 
-## 新架构为什么这样设计
-
-旧架构用 enunciation 两侧的生成 anchor 定位对象，Wikilink、Transclusion、Artifact
-又依赖 map.sqlite 的映射和 URI 文件/anchor hints。定位库损坏可能丢失引用语义，
-需要脆弱的 repair。新的设计将身份放回文档本身：
+新模型把身份放回源文档：
 
 ```text
-源 tree 节点：可选 UUID + 可选 typed properties + 原有正文
+源 tree 节点：可选 UUID + typed properties + 原有正文
                      |
           原生节点定位服务 / 可重建缓存
              /          |           \
@@ -52,45 +30,98 @@ node-model 离线迁移的输入必须是已经为 UTF-8 XML 的 vault，并使�
 内部导航、排版、hover -> 原生服务 / tmfs，不经过 AUDMAP
 ```
 
-定位数据库不拥有引用语义；删除缓存后，扫描文档应恢复同一个目标。
-安全重命名的恢复日志是操作日志，不能因为定位缓存可删除就一起删除。
-不能在迁移前盲删旧 map/anchors；未迁移 legacy vault 的读取兼容仍可能依赖它们。
-但新的 runtime 已不再生产 generated identity anchors，迁移后的身份真相是 source UUID。
+长期原则：
 
-## 已确定的模型契约
+- persistent identity 属于源 tree，不属于定位数据库、文件路径、buffer handle 或内容 hash。
+- 定位缓存可以删除并重建；删除缓存后重新扫描文档应恢复同一个 source target。
+- 安全重命名的恢复日志属于操作事务记录，不是定位缓存，不能随 locator/map 清理一起删除。
+- 未迁移 legacy vault 的兼容读取可以继续依赖旧 map 语义；迁移后的身份真相是 source UUID。
+- 任何“修复身份”的逻辑都必须有明确证据，不能用内容相似度、当前路径或展示文本猜测。
 
-### tree、UUID 与 params
+## tree、UUID 与 typed properties
 
-- 保留现有原生 `tree`；原子和复合节点的共同表示支持惰性元数据。
-  不使用 wrapper 节点，不把属性塞进普通 children，不改变正文 child index。
-- 用户口中的 params 是命名、有类型的 properties，不是另一份位置参数列表。
-  UUID 是专用字段，不是任意可写属性，也不是临时路径、buffer handle 或内容 hash。
-- 八种值：UTF-8 string、bool、int64、有限 double、list、dictionary、UUID reference、
-  rich-text（原生 tree）。禁止循环、不透明对象和非有限浮点；未知 namespaced 属性保留。
-  富文本属性不因持久化而获得宏执行权限。
-- 目标是正文根、段落、标题、enunciation 自动有 ID，包括嵌套正文。
-  段落按内容角色识别，原子也能是段落；数学 x、图片等可以有 ID，但不自动分配。
-  样式、宏定义、展开结果和展示副本不生成源身份。
-- UUID 在 vault 中唯一。外部复制制造冲突时报告冲突，不能任选一个文件。
-  detached 子树验证不等于 vault 全局唯一性证明。
-- `copy()` / `tree-copy` 是保身份、元数据独立的快照。
-  `duplicate` / `tree-duplicate-source` 是新对象复制，重新分配已有 ID，重映射范围内引用。
-  二者不可混用。跨 actor 不共享可变原生树或 rich-text 属性树。
-- 源节点改正文仍是同一身份；删除后重建是不同对象，不能靠内容相似度找回身份。
-- Split：第一个非空片段保留身份，两边均空则前者保留；另一片段新 ID。
-  Join：前段身份保留，后段消失，其引用失效。Undo/redo 重放已记录的实际 ID。
-- Cut 使用进程内一次性移动凭据：同 vault 首次成功粘贴保身份；再次粘贴、跨 vault、
-  凭据失效或不可验证外部剪切按复制处理。clipboard bytes 本身不构成授权。
-  source/target history entry 共享同一 move marker；跨文档 undo/redo 在两侧该 marker
-  都是下一可执行项时协调两个 actor，顺序避免任一时刻产生双份 source UUID。
-  peer 文档存在更晚编辑时先拒绝跨过 move，要求先处理更晚历史，而不是猜测合并。
-- 全量相等/hash 包含元数据。内容比较、排版和模型输入应显式选择投影。
-  `content_projection` 去源 UUID 但仍保留属性和引用目标，不是现成的 embedding 指纹。
+ATHENA 保留原生 `tree`，不引入 identity wrapper 节点，也不把属性伪装成普通 children。
+因此已有正文 child index 保持稳定，atomic 与 compound 节点共享同一套惰性 metadata 能力。
 
-### 统一 enunciation
+节点 metadata 分成两类：
 
-源结构是 `enunciation(document(...))`，只有一个正文子节点，索引为 0。
-类别通过 `kind` 属性表达，而不是每个 theorem/lemma/proof 都是不同源标签。
+1. 专用 source UUID；
+2. 命名、带类型的 properties。
+
+UUID 不是普通可任意写 property。它表示 persistent source identity。
+
+properties 的持久类型集合为：
+
+- UTF-8 string
+- bool
+- int64
+- finite double
+- list
+- dictionary
+- UUID reference
+- rich-text（原生 tree）
+
+禁止循环值、不透明 runtime 对象和非有限浮点。未知 namespaced property 必须尽量保留。
+rich-text property 的存在不赋予宏执行权限。
+
+源角色规划要求正文根、段落、标题、enunciation 自动拥有身份，包括嵌套正文。段落按内容
+角色而不是单纯标签识别，因此 atomic node 也可能是一个 source paragraph。数学 atom、
+图片等节点可以拥有 UUID，但不会仅因存在于源文档中就自动分配。
+
+样式、宏定义、展开结果和展示副本不是 source object，不自动获得源身份。
+
+UUID 在 vault 语义上唯一。detached subtree 内部验证只能证明局部无重复，不能代替 vault
+全局唯一性判断。外部复制制造同一 UUID 多处出现时必须报告 conflict，不能任选其中一个。
+
+## copy、duplicate 与对象连续性
+
+以下两个操作必须严格区分：
+
+- `copy()` / `tree-copy`：制作快照，保留 source UUID；metadata 深层独立，不共享可变树。
+- `duplicate` / `tree-duplicate-source`：制造新 source object；已有 UUID 必须重新分配，
+  并重映射复制范围内的 UUID references。
+
+跨 actor 不能共享可变 native tree，也不能共享 rich-text property tree。
+
+source object 的 identity continuity 规则：
+
+- 修改正文不改变身份。
+- 删除后根据相同内容重新创建，是新对象。
+- Split：第一个非空 fragment 保留身份；若两边都空，前 fragment 保留；另一 fragment 新 ID。
+- Join：前段身份保留，后段身份消失；指向后段的引用随之失效。
+- Undo/redo 重放当时记录的实际 UUID，不重新推导身份。
+
+Cut/move 使用进程内一次性移动凭据。同一 vault 中第一次成功 paste 可以保留 source UUID；
+再次 paste、跨 vault、凭据失效或无法验证的外部 clipboard 一律按 duplicate 处理。
+
+clipboard bytes 本身不是“移动授权”。
+
+跨文档 move 的 source/target history entry 共享同一 marker。跨 actor undo/redo 只有在两侧
+该 marker 都是下一可执行项时才能协调执行；执行顺序必须避免任何瞬间出现两份同一 UUID。
+若 peer document 存在更晚编辑，则拒绝跨过该 move，而不是尝试猜测合并。
+
+## equality、hash 与 projection
+
+完整 tree equality/hash 包含 metadata。
+
+消费者如果只关心内容，必须显式选择 projection；不能依赖旧时代“metadata 不参与相等”的
+偶然行为。
+
+`content_projection` 去除 source UUID，但保留 properties 和引用目标。它是语义内容投影，
+不是 embedding fingerprint，也不是所有 cache 的统一 key。
+
+不同缓存应分别定义自己的输入契约，例如：
+
+- storage bytes fingerprint
+- Artifact extraction content
+- source identity / semantic revision
+- range-model input fingerprint
+
+不能因为 UUID 或 reserved binding 写入发生变化，就无条件让与这些字段无关的模型缓存失效。
+
+## 统一 enunciation 模型
+
+canonical source structure：
 
 ```text
 node: enunciation
@@ -98,221 +129,270 @@ id: <source UUID>
 properties:
   kind: string("theorem")
   numbered: boolean(true)
-  name: rich-text(...)
-  attribution: list(rich-text(...), ...)
-  year: string("19XX")
-  target: reference(<UUID>)       # 例如 proof 的显式证明目标，可选
+  name: rich-text(...)                   # optional
+  attribution: list(rich-text(...), ...) # optional
+  year: string("19XX")                   # optional
+  target: reference(<UUID>)              # e.g. proof target, optional
+  variant: ...                           # optional
+  legacy-tag: ...                        # optional
 children:
   0: document(...)
 ```
 
-当前 schema 还有可选 `variant` 和 `legacy-tag`，用来无损表达历史变体与呈现来源。
-`kind`、`numbered` 是 canonical 节点必需属性。未知 kind 保内容并使用通用呈现。
-名称、年份和署名不回写正文；旧正文手写的括号、人名、年份一字不动。
-迁移只处理明确结构槽，不从自然语言猜 metadata，也不引入 Notes 专用规则。
+enunciation 只有一个正文 child，index 为 0。theorem、lemma、proof 等类别通过 `kind`
+property 表达，不再通过不同 source labels 表示。
 
-唯一类型声明：`ATHENA/misc/enunciations.json`，由 native registry 消费。
-显示名、样式、编号组、类别、旧标签映射及 legacy extraction policy 均从这里取。
-不要在搜索、统计、UI、Artifact 等处重新硬编码 theorem/lemma 列表。
+`kind` 和 `numbered` 是 canonical enunciation 的必需属性。未知 kind 必须保留内容并使用
+通用呈现，而不是拒绝或猜成已知类型。
 
-### 引用、定位与 Artifact
+名称、年份、署名不会被迁移器回写到正文。旧正文中用户手写的括号、人名、年份保持原样。
+migration 只从明确的结构槽提取 metadata，不从自然语言猜测。
 
-- 最终 Wikilink：`tmfs://wikilink/<uuid>`；仍用成熟 tmfs 基础设施。
-  `Vaultfile.json` 的 `node_model_version >= 1` 是语义 cutover gate：已迁移 vault
-  将第一个 UUID component 解释为 persistent source UUID；未迁移 vault 继续用
-  map.sqlite 身份。不能只看 URL 形状猜新旧语义。历史 file/anchor suffix 可保留作
-  显示兼容信息，但在 migrated vault 中不能覆盖、修复或替代 source UUID。
-- canonical transclusion：`TRANSCLUDE(TUPLE(uuid,...))`，有序明确对象集合，
-  不是两个端点之间随内容变化的范围。来源导航是 `tmfs://transclude/<uuid>`。
-- UUID 列表去重保首次顺序；祖先/后代重叠选择拒绝。缺失项保留占位，不静默缩短列表。
-- 定位区分 pending、missing、read failure、conflict、cycle 等状态。
-  活文档 owner 一致快照优先，未保存删除不能从磁盘“复活”。命中后实际消费再验 UUID。
-- 冷定位在合并的后台扫描工作中做；排版显示正在定位，不同步等全库扫描。
-  核心 locator 冷批次仍做文件 census；Qt facade 的稳定快照命中才避免文件系统工作。
-  现在是内存缓存，不要声称已有持久 SQLite 定位库或所有请求都 O(1)。
-- 普通展示副本清除源身份及 artifact bindings。源上下文/style/initial/preamble
-  仍需保留以正确预览；展示复制不是新源对象复制。
-- PDF/打印不能把 pending 占位当最终内容：先异步/离线准备冻结引用快照，再排版输出。
-  动态宏生成的引用通过无输出布局探测迭代到依赖闭包，用户输出动作只执行一次。
-- Artifact 最终按 source UUID + 稳定 extraction role 绑定；改类别或正文不重新猜身份。
-  已有 artifact UUID 必须保留，新旧绑定都写入源属性 `athena:artifact-bindings`。
-  此保留属性是 role -> artifact UUID 字典；普通属性 API 禁止改，复制为新对象时清除。
-  producer/database/source persistence 已接通；v2 以 source binding 为身份真相，
-  v1/legacy 仍使用旧 conservative association 兼容；offline vault migration 已将旧
-  Artifact UUID/source 关系写回源 binding。
+唯一类型声明是 `ATHENA/misc/enunciations.json`。显示名、样式、编号组、类别、旧标签映射和
+legacy extraction policy 都应从 native registry 消费。搜索、统计、UI、Artifact 等模块
+不应重新维护一份 theorem/lemma 硬编码列表。
 
-## 三色工作清单
+## source ownership 与 identity lifecycle
 
-图例：🟩 该明确范围已实现并有定向验证；🟦 已有实现但集成/验收未闭环；
-🟧 尚未实现或尚未开始最终切换。绿色不代表已启用生产格式。
+persistent source identity 的运行时 owner 是 BufferActor。
 
-### 🟩 已完成的模块与局部闭环
+完整身份基线由 source identity state 接管；接管意味着当前文档已经满足 source role 的
+identity completeness 与唯一性要求。接管不是“顺便迁移旧文档”的入口。
 
-- 🟩 原子/复合节点可选 UUID、八类属性、独立复制、完整相等/hash、内容投影。
-- 🟩 原生 metadata modification、observer/history、保存 split/join 身份结果，
-  已覆盖若干规范化、原子/concat 转换及独立 annotated wrapper 保护。
-- 🟩 显式 XML v2 codec，包括 atomic metadata、typed properties、资源预算和冲突诊断。
-  默认 v1 writer 遇 metadata 拒绝，不静默丢弃；显式 v2 reader 可读 v1/v2。
-- 🟩 AUDMAP document-model v3 tree codec 与 protocol negotiation 已正式激活。
-- 🟩 detached 源角色规划、schema 校验、可注入确定性分配器、重复身份检查。
-- 🟩 owner 增量身份索引及事务末尾/保存前 hooks，回滚重建；按脏分支工作，不每键深拷贝。
-- 🟩 新对象复制重分配已有 ID，重写 typed 引用、native HLINK 和新 transclusion 内链，
-  清除 artifact 绑定；annotated 剪贴板快照可用 XML v2。
-- 🟩 native 属性读写/按需赋 ID Scheme 接口、保头 `tree-rebuild`、原生 patch 传递。
-- 🟩 enunciation registry、显式 detached 转换、搜索分类/筛选、统计、源颜色消费 registry。
-- 🟩 canonical enunciation 原生呈现/编号、结构化标题安全投影及源码 cursor 映射。
-- 🟩 Focus/context 原生属性编辑器与只读 UUID；owner lease 检查、单次可撤销提交。
-- 🟩 UUID locator、live owner census、冲突/失败/循环/有序列表语义与可清缓存。
-- 🟩 canonical transclusion 的异步呈现、源导航、带源样式 hover、快照失效通知代码。
-- 🟩 冻结引用导出基础设施、headless coordinator、动态生成引用闭包；真实隔离 PDF 验证。
-- 🟩 DataArt 源元数据保留，格式化/preamble 局部重建的身份保留及 owner undo/redo 验证。
-- 🟩 当前收尾：native tree-set-diff、ICU 字素边界编辑、完整目标 header、
-  wrapper/unwrap observer 保留、格式/嵌入源文本/cardlink callers、Materials 局部字段更新。
-- 🟩 接续源生命周期块：完整 buffer 快照的外层/字段/collection/association/key 元数据，
-  包括带元数据的空 collection；删除或更新文档字段保留外层 header。
-- 🟩 显式 owner 接管完整身份基线、事务内赋 ID、split/join、撤销重做/冲突回滚，
-  replacement 基线预检查及索引重建。
-- 🟩 structural correction 与数学规范化的 source-aware 重建；保留独立标注的容器/子节点，
-  不允许启发式修正吞掉有身份的分隔符、脚本包裹或正文节点。
-- 🟩 normal XML v2 文档持久化/激活：dispatcher 识别 v2，普通 load 自动验证完整身份基线并
-  启用 owner index；普通编辑事务分配 UUID，normal save/Save As 保持 v2，reopen 保持 UUID/properties。
-- 🟩 v2 autosave/recovery：native texmacs autosave 直接写 v2，不经过 legacy serializer；
-  recovery 通过 `buffer-import` 恢复格式身份并重新激活 owner index。v1/legacy 不自动升级。
-- 🟩 AUDMAP wire protocol 2 / document-model 3 已正式启用：HELLO/WELCOME 精确协商 v3，
-  document/node `get` 与属性投影携带 persistent UUID + typed properties；connection/ticket handle
-  明确保持瞬时 occurrence identity，不充当源 UUID。
-- 🟩 AUDMAP v3 metadata operations：`assign_id` 仅 server 生成且幂等，`update_properties`
-  复用原生 schema/保护规则；结构编辑不能注入 metadata，替换保留原 source header。
-  C++/Python SDK 版本、REPL 帮助和示例同步更新。
-- 🟩 Artifact producer 已以 `source UUID + extraction role` 作为 XML v2 身份真相：
-  专用内部 mutation 写入 reserved `athena:artifact-bindings`，旧 DB identity 可在首次接管时
-  被可靠继承，之后删掉 Artifact DB 也能从源 binding 恢复同一 artifact UUID。
-- 🟩 Artifact revision/cache 契约已拆分：storage bytes、Artifact extraction content、
-  source identity/semantic revision 与具体 range-model input fingerprint 分开；相同模型输入
-  可跨无关文档编辑复用，不因 source UUID/binding 写入本身产生伪 cache miss。
-- 🟩 一次性 cut/move credential：完整 identified source object 的 cut 真正删除对象而不是
-  留下带旧 UUID 的空壳；同 vault 首次 paste 可保 UUID，第二次/跨 vault/stale paste
-  统一走 `duplicate_source_nodes`。source/target 用同一 history marker 协调跨 actor undo/redo，
-  redo 会按 marker 精确选择 peer redo branch，不依赖 branch 0 或内容相似度。
-- 🟩 新建普通文档 born-v2：不存在的用户文件与 New/New Window 的普通 source buffer
-  从创建时就拥有完整 source UUID baseline 与 active owner identity index；第一次保存直接
-  写 XML v2。DataArt/临时派生 buffer 仍可继续使用旧的匿名 `make_new_buffer`，不被误升级。
-- 🟩 独立 offline node-model vault migration：新 CLI
-  `--upgrade-vault-node-model VAULT_DIRECTORY` 只接受已经 UTF-8/XML-v1 的 vault；
-  legacy Cork/S-expression 输入明确要求先运行旧 `--upgrade-vault-format`。migration 在
-  private sibling snapshot 中 canonicalize enunciation、确定性分配 source UUID、优先复用可唯一
-  映射的旧 map UUID、迁移 wikilink/transclude、写 Artifact source bindings，完整验证后才做
-  atomic directory exchange；Vaultfile 以 `node_model_version: 1` 记录完成状态并支持重复运行 no-op。
-- 🟩 migrated-vault bare wikilink cutover：runtime vault snapshot 发布 `node_model_version`；
-  migrated vault 的点击导航、hover/link peek、reference graph 与 website export 都以 source UUID
-  为身份真相，不再接受 map/file/anchor hints 改写目标。未迁移 vault 保持原 map.sqlite 语义。
-  新 Wikilink 插入从实际 XML-v2 source object 读取 persistent UUID；选中对象没有 UUID 时拒绝
-  插入，而不是生成新的 map identity。map.sqlite 暂保留作兼容/rename 历史数据。
-- 🟩 generated-anchor producer 已退役：删除 `vault_anchors.cpp/.hpp`、manual-save auto anchoring、
-  `Anchor enunciations` 菜单/native API、Qt confirmation dialog、`anchor-structures` maintenance pass
-  及其 preferences/tests。普通 save 与 maintenance 均不再创建、改名或补回 heading/enunciation
-  identity anchors；维护 worker preference 已改成通用名称，只供仍存在的并行维护任务使用。
-- 🟩 historical generated-label cleanup 已进入 offline migration：只在旧 map 定位、reference rewrite、
-  Artifact binding 都完成后删除能由旧 map 位置 + 当前结构 + 旧生成命名共同证明的 heading/enunciation
-  labels；用户 label 不满足完整证据链就保留。对应 migrated map 单目标行清空 anchor fields，只保 path/UUID
-  兼容信息。普通 save/maintenance 永远不做此清理。
-- 🟩 migrated inserter 的数据通路：文件选择、搜索和 Artifact 使用真实 source UUID；
-  Transclusion 输出去重的明确 UUID 列表并拒绝父子重叠。Available 使用 XML v2 快照和
-  shared native locator 遍历 canonical enunciation/transclusion，不再依赖成对 anchors。
-  此绿色限定已编译并定向验证的数据/选择逻辑，真实 GUI 验收仍列蓝色。
+已接管文档的关键约束：
 
-### 🟦 已起步、尚未整体完成
+- 普通编辑事务内按需生成 UUID。
+- transaction commit 后增量维护 owner identity index。
+- rollback/replacement 后索引必须与 owner document 重新一致。
+- `replace_document` / `replace_body` 必须先验证新基线；验证失败不能污染旧 document、
+  identity index 或 save state。
+- structural correction、normalization、wrapper/unwrap 必须显式决定 header 如何传播，
+  不能先丢 metadata 再靠路径猜测补回。
+- source tokenizer 与只读/展示 tokenizer 的语义不能混为一谈。
 
-- 🟦 源编辑全链路审计：上述快照、tree_correct/tree_brackets 路径已修，其余 tree-set!/tree->stree 重建、
-  批量插入、格式化和规范化消费者仍需逐项审查。不能用事后路径猜 ID 补洞。
-- 🟦 enunciation 剩余源创建入口/消费者、属性名称在搜索结果中的呈现、证明目标选择与解析。
-- 🟦 属性 UI 的真实 GUI/owner 关闭竞争及结构化编辑生命周期验收。
-- 🟦 locator/watchers、异步导航、嵌套 hover 的真实 Qt/actor 生命周期验收；缓存失效仍偏粗。
-- 🟦 导出：原始源动态闭包已有真实验证；DataArt/selection 等后续派生转换新增依赖、
-  临时 buffer 和交互取消/关闭等还需端到端验收。未准备好的引用必须 fail closed。
-- 🟦 比较/缓存契约审计：基础设施已区分元数据与内容，但尚未审完全部消费点。
-- 🟦 UUID inserter 的真实 GUI 验收：文件/搜索/Artifact/Available 均已接入源 UUID；
-  仍须验证外部重命名后失效文件路径的重新定位、模态期间 owner 关闭/换 vault、
-  自定义样式预览及多选交互。不能把模型层测试当成这些 GUI 验收已经通过。
+透明 WITH-like 宏的内容角色由已有 DRD `with_like` 契约判断，不按标签名猜。未知或含糊角色
+不能被随意认作新 source paragraph。
 
-### 🟧 尚未完成的关键集成/切换
+完整 source snapshot 除正文外还要保留 envelope、标准字段、collection、association、
+key 和未知字段的 metadata。空 COLLECTION 也是合法对象，不能因 arity 检查写错而丢 header。
 
-- 🟧 其余 clipboard/委派及 tree-bearing persistence 边界的统一 v2 切换；normal v2
-  load/save/autosave/recovery 和普通新建文档已完成，不应再作为待办重做。
-- 🟩 Safe rename 恢复日志独立保存到 `.athena/safe-rename.sqlite`；migrated vault
-  不再依赖 map.sqlite 完成计划、执行或恢复。未迁移 vault 保留旧 map 索引更新，旧 journal
-  先可靠导入新 journal 再删除旧行。historical generated anchors 的迁移清理也已完成。
-- 🟧 故障注入/数据保全最终验收、用户验收、统一启用及部署。
+## XML v2 persistence
 
-## 接手时的代码入口
+XML v2 是能够持久化 source UUID 与 typed properties 的文档格式。
 
-### 2026-09-28 接续：实际缺口 1–3
+核心要求：
 
-- Artifact schema v4 持久化有序 `source_nodes`。新提取完成并持久化源 binding 后固定
-  段落对象集合；offline node-model upgrader 同样写入列表。后续消费不再解释 offsets，
-  插入中间段落不扩大集合，修改正文不改变定位，删除/重复 UUID 明确失败。
-- 旧 DB 记录只有在源内容修订完全匹配时才把 offsets 转换为列表并保存；没有证据则
-  提示重建，不近似猜测，不启动模型。offsets 只保留为提取/兼容转换输入。
-- 文件对象、搜索、Artifact、Available 的最终确认统一走 cancellable native UUID
-  locator；搜索/Artifact 预览也异步读取 UUID fragment。不再先打开陈旧 file hint 再
-  查 UUID。页面切换、销毁、拒绝取消确认请求；换 vault 不接受旧结果。文件页第一次
-  枚举对象仍需读取用户选定的文件，但确认时不再依赖它的旧文件名。
-- Safe rename 新日志与可丢弃 map 分离，使用 SQLite FULL synchronous。filesystem
-  rename 后失败保留恢复记录和暂存文件，后续继续完成；不再部分回滚后丢掉日志。
-  缺失/损坏的旧 map 不阻止 migrated vault 加载和恢复；旧 vault 仍需要其旧身份 map。
-  这不是删除全部历史兼容 map API，也不表示剩余架构任务均完成。
+- atomic 和 compound metadata 都能往返。
+- reader/writer 有明确资源预算与冲突诊断。
+- v1 writer 遇到 metadata 必须拒绝，而不是静默丢字段。
+- v2 reader 可接受 v1/v2，但“能读 v1”不代表 v1 自动升级。
+- normal v2 load 会验证完整 identity baseline 并激活 owner identity index。
+- v2 normal save / Save As 保持 UUID 与 properties。
+- v2 autosave/recovery 必须直接走 v2-capable native persistence，不能经过会丢 metadata 的
+  legacy serializer。
+- ordinary new source documents born-v2：从创建开始就有完整 source identity baseline，
+  第一次保存直接写 XML v2。
+- DataArt、临时派生 buffer 等匿名工作树不应因普通文档规则被误升级为 source document。
 
-本批验证：正常 `cmake --build build_qt6 --target ATHENA.bin -j20` 成功；没有部署。
-仅运行 `artifacts_test` 4 个用例（legacy range freeze、native UUID 定位、持久化绑定/
-范围/模型缓存复用、schema 升级）、`vault_search_test` 3 个用例（外部重命名/取消、
-source selection、preview metadata）、`vault_map_sqlite_test` 3 个用例（legacy map
-rename、旧日志导入恢复、缺失/损坏 map 的新日志恢复），全部通过。另运行一次隔离
-`vault_node_model_upgrade_test.py`，CLI migration/reference/artifact/idempotence/
-legacy-rejection 通过；没有触碰 Notes 或运行全量测试。
-构建日志：`build_qt6/node-source-completion-build.log`、
-`build_qt6/node-source-completion-tests-build.log`。
+旧 `--upgrade-vault-format` 的职责仍然是 legacy Cork/S-expression -> UTF-8/XML。
+node-model migration 是另一层升级，输入前提是 vault 已经处于 UTF-8/XML 世界。
 
-### 2026-09-28 接续：UUID inserter 集成
+## Wikilink、Transclusion 与 locator
 
-本批从 `750639634` 和已有四文件 WIP 继续，没有重做先前 migration/producer 提交。
+migrated vault 的 canonical Wikilink：
 
-- `QTMVaultLinkModel` 提供 owner-local source snapshot、UUID 对象枚举、去重和父子重叠校验。
-  文件页显示节点而非 anchor；搜索结果保存 UUID，接受时重新检查新快照，不能用旧 path
-  或旧正文去猜身份。文件路径仍只是 UI 用于读取快照的位置，不写入新链接的恢复语义。
-- `QTMVaultTransclusionWizard` migrated arbitrary 页改为源对象多选；结果第六项是 UUID tuple。
-  `tm-vault.scm` 在 node-model vault 插入 `(transclude (tuple ...))`，不写 map.sqlite。
-  未迁移 vault 的旧范围读取仍保留。
-- `QTMVaultArtifactPage` 删除最后一处 paragraph anchor 自动生成/写源文件；native Wikilink
-  直接指向 `record.source_uuid`，paragraph transclusion 固定为对应段落节点 UUID 列表。
-  实时文档使用同一次 actor document snapshot 提取 body，避免两次快照混用。
-- 段落 artifact 定位首先检查唯一 keyword UUID，不再按相同文字的第几次出现重新认领身份。
-  extraction 内存记录以候选段落快照校验范围；DB 记录没有这些候选，改用已有
-  `documents.content_hash` 校验源内容修订。无匹配证据时拒绝旧 offsets，提示重建 artifact，
-  不启动模型、不在 GUI 重新运行 LaTeX converter，也不改 artifact UUID。
-  本段记录上一批实现；上方的新批次已持久化明确段落 UUID 列表。此保守修订校验
-  现在只用于旧 DB offsets 转换，不能用内容近似匹配放宽检查。
-- `QTMVaultAvailableEnunciations` 的 native 分支以共享 `node_location::service` 读取真实
-  UUID fragment，保留顺序，限制递归深度/数量，并报告 cycle/missing/conflict 等状态。
-  页面在 SearchWorker 等待完成/取消，UI 不等待全库扫描；跨线程只传标准字符串 XML。
-  legacy 分支的树快照也切到 XML v2，避免未迁移 vault 中新建 v2 文档的属性丢失。
-- preview rebase 保留 metadata；统一展示入口剥离源 ID/artifact binding，保留 kind/name。
-  Artifact/Available 的选择 callback 返回是否成功，目标消失时不把失败当作正常完成。
+```text
+tmfs://wikilink/<source-uuid>
+```
 
-验证：正常 `cmake --build build_qt6 --target ATHENA.bin -j20` 成功。仅运行：
+`Vaultfile.json` 中 `node_model_version >= 1` 是新语义的 cutover gate。不能只根据 URI 形状
+判断第一个 component 是 source UUID 还是旧 map identity。
 
-- `vault_search_test` 的 `sourceSelectionsUsePersistentObjects`、
-  `sourcePreviewsKeepPropertiesNotIdentities`、`availableSourceEnunciationsFollowUuidSelections`、
-  `availableEnunciationsFollowOnlyReferencedRanges`、`availableEnunciationsKeepUnsavedSourceAndCancel`。
-- `artifacts_test` 的 `locatesNativeParagraphRangeWithoutIdentityGuessing`、
-  `locatesStoredParagraphRange`、`persistsNativeSourceBindingsAndReusesExactModelInput`。
-- 8 个实际测试全部通过；包含 init/cleanup 的 QtTest 汇总分别为 7/0、5/0。
-  使用 offscreen，`ATHENA_PATH=$PWD/ATHENA`，
-  `LD_LIBRARY_PATH=$PWD/build_qt6/athena-guile-runtime/lib:$PWD/ATHENA/lib`。
-  模型推理使用测试 selector/missing-model fixture，不加载真实模型。
-- 编译日志：`build_qt6/node-inserter-build.log`、`build_qt6/node-inserter-tests-build.log`。
-  没有全量测试、部署、生产 Notes 修改或迁移。真实 GUI、外部 rename 与 owner 关闭验收尚未做。
+migrated vault 中，historical file/anchor suffix 最多只是显示兼容信息，不能覆盖、修复或替代
+source UUID。未迁移 vault 继续保留旧 map 语义。
 
-路径均相对仓库 `/home/felix/data/Software/TeXmacs/texmacs`。
+canonical Transclusion：
+
+```text
+TRANSCLUDE(TUPLE(uuid, uuid, ...))
+```
+
+它表示有序、明确的 source object 集合，不表示“两个 anchor 之间当前碰巧存在的内容范围”。
+
+规则：
+
+- UUID list 去重并保留首次出现顺序。
+- 祖先/后代重叠选择拒绝。
+- 缺失 source object 保留 missing placeholder，不静默缩短集合。
+- source navigation 使用 `tmfs://transclude/<uuid>`。
+- locator 明确区分 pending、missing、read failure、conflict、cycle 等状态。
+- live owner 的一致 snapshot 优先于磁盘；未保存删除不能被旧磁盘内容“复活”。
+- locator 命中后，最终消费者仍应再次验证实际节点 UUID。
+- cold lookup 可以后台扫描 vault；UI/排版不能同步阻塞整个文件 census。
+- 当前 locator/cache 是可重建内存服务，不应被描述成持久 O(1) identity database。
+
+Safe Rename 的恢复日志已经独立于旧 map，位于 `.athena/safe-rename.sqlite`。migrated vault
+的 rename 计划、执行和恢复不能要求 `map.sqlite` 健康存在；legacy vault 仍可维护旧 map
+兼容索引。
+
+## Artifact source binding
+
+Artifact 的长期 identity 是：
+
+```text
+source UUID + stable extraction role
+```
+
+而不是 file path、offset、当前类别文本或内容相似度。
+
+source tree 的 reserved property `athena:artifact-bindings` 保存：
+
+```text
+role -> artifact UUID
+```
+
+该 property 由专用内部 mutation 修改，普通 property API 不允许任意写。duplicate 为新 source
+object 时必须清除 bindings。
+
+已有 Artifact UUID 应尽量保留。migration 或首次接管旧数据库关系时，只能在证据充分时把
+旧 identity 写回 source binding。
+
+Artifact schema v4 持久化有序 `source_nodes`。段落对象集合一旦由提取结果和 source binding
+确认，就不再解释为动态 offsets 范围：
+
+- 在中间插入新 paragraph 不自动扩大集合。
+- 修改正文不改变定位对象。
+- source UUID 缺失、重复或冲突必须失败。
+- legacy offsets 只有在源内容 revision 完全匹配时才能转换为明确 UUID list。
+- 没有证据时提示重建 Artifact，不近似猜测，不启动模型。
+
+模型 cache 必须以真实模型输入契约决定是否复用，不能让无关 identity/binding 写入造成伪 miss。
+
+## AUDMAP document model
+
+AUDMAP 已定义 document-model v3，用于外部客户端访问带 persistent identity 的文档树。
+
+重要边界：
+
+- HELLO/WELCOME 进行明确 protocol/document-model negotiation。
+- document/node `get` 和相关 projection 可携带 persistent UUID + typed properties。
+- connection handle、ticket handle、runtime occurrence handle 都是瞬时运行时身份，
+  不能冒充 source UUID。
+- `assign_id` 只能由 server 生成 UUID，并保持幂等。
+- `update_properties` 复用 native schema 与 reserved-property 保护规则。
+- structural edit 不能通过 wire payload 注入任意 metadata。
+- replacement 要遵守 source header preservation / baseline validation 契约。
+
+内部导航、排版与 hover 不应为了统一接口而绕道 AUDMAP；它们已有 owner/local native 路径。
+
+## 展示副本、preview 与导出
+
+展示副本不是新 source object，也不是 source snapshot 本身。
+
+普通 preview/display copy：
+
+- 清除 source UUID。
+- 清除 Artifact bindings。
+- 保留普通 typed properties，例如 enunciation kind/name。
+- 保留正确呈现需要的 source context、style、initial、preamble。
+
+这与 `duplicate_source` 不同：duplicate 产生新的 source identity；display copy 则明确不拥有
+source identity。
+
+PDF/打印不能把 pending reference placeholder 当最终输出。输出前必须准备冻结引用快照。
+动态宏生成的引用可以通过无输出 layout probe 迭代到依赖闭包，但真正用户输出动作只执行一次。
+
+## generated anchors 已退役
+
+新 runtime 不再生产用于 heading/enunciation identity 的 generated anchors。
+
+已经退役的机制包括：
+
+- `vault_anchors.cpp/.hpp`
+- save-time/manual-save auto anchoring
+- `Anchor enunciations` 菜单/native API
+- `anchor-structures` maintenance pass
+- 对应 preferences/tests
+
+offline node-model migration 会在 reference rewrite、Artifact binding 和旧 map 定位都完成后，
+只删除能由“旧 map 位置 + 当前结构 + 旧生成命名规则”共同证明是 generated 的历史 labels。
+用户 label 只要证据链不完整就保留。
+
+普通 save 和 maintenance 不执行 historical anchor cleanup。
+
+## offline node-model migration
+
+node-model migration 是独立 CLI：
+
+```text
+--upgrade-vault-node-model VAULT_DIRECTORY
+```
+
+输入必须已经是 UTF-8/XML vault。若仍是 Cork/S-expression，先运行旧
+`--upgrade-vault-format`。
+
+migration 的事务模型：
+
+1. 预检查。
+2. 建 private sibling snapshot/staging。
+3. canonicalize source structures。
+4. 确定性分配 source UUID；旧 map UUID 能唯一映射时优先复用。
+5. 迁移 Wikilink/Transclusion。
+6. 写回 Artifact source bindings / source node sets。
+7. 在证据充分时清理 historical generated labels。
+8. 完整验证。
+9. 最终 atomic directory exchange 发布。
+
+失败必须保留原 vault。重复运行已完成 migration 应为 no-op。
+
+迁移语义：
+
+- 旧 map 多 UUID 指向同一 source object 时合并到 canonical node identity，并重写真实引用。
+- whole-file identity 对应 persistent root。
+- legacy range 转成明确 source object list，不继续依赖 anchor hints。
+- 原有坏链接/歧义应保留为 explicit unresolved，带原始目标和诊断；不能猜修。
+- 原本有效的引用若迁移失败，应阻止最终发布。
+- 不从自由文本猜 metadata。
+- 保留 Artifact UUID、判断结果和可复用 vectors；无法可靠重定位时标记待处理，而不是挂错对象。
+
+`Vaultfile.json` 的 `node_model_version: 1` 记录 migration cutover。
+
+## native tree diff 与 source-aware rebuild
+
+`tree-set-diff` 的语义是“把 source 更新成完整目标 tree”，因此目标 UUID/properties 也属于目标。
+
+这意味着：
+
+- 目标显式匿名时，被替换对象 metadata 可以被清除。
+- 如果调用者是在做“内容编辑但保身份”，调用者必须传递/保留正确 header。
+- native diff 正确不代表所有旧 `tree-set! ... stree` caller 自动安全。
+- source-attached update 要求正确 owner context。
+- 文本 diff 使用 ICU grapheme boundary，不能把 Unicode character count 与 UTF-8 byte offset 混用。
+- 仅修改 label/content 时也不能遗漏 metadata 差异。
+- wrapper/unwrap、format normalization、tree correction 要显式传播 header。
+- 将父节点替换为其真实 descendant 时，必须使用那个 descendant 的完整 header；
+  这与“普通 normalize 不得吞掉有身份结构”的规则并不冲突。
+
+历史上 tree diff 的定向验证覆盖中文、组合重音、ZWJ emoji、旗帜、空文本、header-only、
+child 增删/label 变化、匿名目标、嵌套 wrap/unwrap、undo/redo 与 Materials 局部字段修改。
+
+## 长期审计边界
+
+以下属于长期维护时值得继续审计的边界，但不是“重新开始 node-model migration”的清单：
+
+- 任何新增的 tree-bearing persistence/clipboard/delegation 边界是否完整支持 v2 metadata。
+- 新的 tree rebuild / normalization caller 是否错误丢 source header。
+- cache key 是否明确选择 full tree equality、content projection 或自己的输入 fingerprint。
+- Qt/actor 生命周期中的 owner close、vault switch、modal cancellation 是否正确取消异步 locator。
+- preview/export 是否错误携带 source identity，或反过来丢失呈现所需 typed properties。
+- 外部 rename、live unsaved state、conflict/missing/read-failure 的 locator 行为是否仍 fail closed。
+- 新增 source role 是否进入统一 role planner/schema，而不是局部硬编码。
+
+这些项目应作为功能修改时的 regression checklist，而不是周期性重跑一遍旧迁移工程。
+
+## 主要代码入口
+
+路径相对仓库根目录。
 
 | 领域 | 主要入口 |
 | --- | --- |
@@ -320,9 +400,9 @@ legacy-rejection 通过；没有触碰 Notes 或运行全量测试。
 | 修改与历史 | `src/Kernel/Types/modification.*`、`src/Kernel/Abstractions/observer.cpp`、`src/Data/History/commute.cpp` |
 | 源角色/增量身份 | `src/ATHENA/Data/document_node_model.*`、`src/Edit/Modify/edit_modify.cpp`、`src/ATHENA/buffer_state.hpp` |
 | 源快照/校正/加载 | `src/ATHENA/Data/interop_document_source.*`、`src/ATHENA/Server/buffer_actor.cpp`、`src/Data/Tree/tree_correct.cpp`、`tree_brackets.cpp`、`tree_analyze.cpp` |
-| 复制/剪贴板 | `src/ATHENA/Data/document_node_copy.*`，搜索 `tree_duplicate_source` / `duplicate_source` 的调用点 |
+| 复制/剪贴板 | `src/ATHENA/Data/document_node_copy.*`，以及 `tree_duplicate_source` / `duplicate_source` callers |
 | 源树 Scheme 接口 | `src/Scheme/Scheme/native_node_properties.cpp`、`native_tree_diff.cpp`、`src/Scheme/Glue/basic.xml` |
-| 类型与转换 | `src/ATHENA/Data/enunciation_model.*`、`ATHENA/misc/enunciations.json` |
+| enunciation | `src/ATHENA/Data/enunciation_model.*`、`ATHENA/misc/enunciations.json` |
 | 呈现 | `src/Typeset/Env/env_enunciation.cpp`、`src/Typeset/enunciation_presentation.hpp`、`enunciation_surround.hpp` |
 | 属性 UI | `src/Subsystems/Qt/QTMNodePropertiesDialog.*` |
 | 定位 | `src/ATHENA/Data/node_location.*`、`vault_node_location.*` |
@@ -330,105 +410,41 @@ legacy-rejection 通过；没有触碰 Notes 或运行全量测试。
 | 导出 | `src/ATHENA/Data/node_reference_export.*`、`src/Subsystems/Qt/QTMNodeReferenceExport.cpp` |
 | XML/离线迁移 | `src/Data/Convert/Xml/athena_document_xml.*`、`vault_format_upgrade.*` |
 | AUDMAP | `src/ATHENA/Data/interop_document_codec.*`、`interop_document_nodes.*` |
-| 历史与验收记录 | `notes/node-model-migration.md` |
+| Safe Rename | `src/ATHENA/Data/vault_safe_rename.*`、`.athena/safe-rename.sqlite` |
+| 历史实现记录 | `notes/node-model-migration.md` |
 
-## 当前 tree-set-diff 的特别说明
+## 实现演进中的关键提交
 
-这是“把源更新成完整目标”，包括 UUID 和 properties，而不是猜测语义的内容替换。
-目标明确匿名时会清除被替换对象的 metadata；内容编辑者若想保身份，必须显式保留 header。
-因此 native diff 正确不代表所有旧 `tree-set! ... stree` callers 都已安全。
+下面这些 commit 主要用于追溯设计形成过程，不表示必须保留其内部实现：
 
-原 Scheme optimizer 有两个真实问题：字符数与 UTF-8 byte offset 混用；
-子节点一样时只改标签而漏掉 metadata。新实现使用 ICU grapheme_cursor，
-对已附着源要求当前 editor owner，尽量用局部 edits 保留 cursor/observers。
-显式将父替换为实际子孙时记录完整 child header，与禁止丢身份的普通规范化不同。
+- `7e9b23a9b` — native tree diff
+- `6b965f3c9` — source identity lifecycle
+- `6f2937262` — normal XML v2 persistence/activation
+- `417efe87e` — AUDMAP document-model v3
+- `70da9708a` — Artifact source identity
+- `e5fa5aae6` — source move identity
+- `727bea0cb` — ordinary source born-v2
+- `c465b4605` — offline node-model migration
+- `750639634` — historical generated-label retirement
 
-本批正常编译已成功，随后仅运行 `tests/scheme/node-tree-diff-test.scm`。
-该脚本在真实 BufferActor、隔离 headless profile 中运行，最终 exit 0，日志包含
-`ATHENA-NODE-TREE-DIFF-PASS`。覆盖中文、组合重音、ZWJ emoji、旗帜、空文本、
-header-only、增删子节点/标签、匿名目标、嵌套包裹解包裹及撤销重做、Materials 字段修改。
+更细的逐批验证、旧缺口、调试日志和当时的 WIP 状态统一留在
+`notes/node-model-migration.md`，不再复制到本备忘录。
 
-测试中曾遗漏正常命令的 `start-editing` 作者设置，造成 undo 连续回退两步。
-补齐 fixture 事务入口后通过，**不要再为此修改 history 内核**。临时 debug-history 已去掉。
-有一次临时诊断对 atom 调用 tree-children 导致诊断自身崩溃，已用 atomic 分支修正。
-隔离目录中旧 `failure.txt` 可能仍在；它不是最新失败，判断看进程状态及最新成功日志。
+## 仓库工作流备注
 
-本批日志（忽略目录，不是可移植交接附件）：
-- `build_qt6/node-tree-diff-build-final.log`
-- `build_qt6/node-tree-diff-runtime.log`
-- `build_qt6/node-source-edit-runtime-ZoKSLw/`，专用测试 profile，没有生产 vault。
-
-## 后续如何续上，不要重启项目
-
-源编辑/加载事务的 staged 接管与快照校正块已完成，具体范围见下节。
-后续继续其余源创建/批量重建消费者及格式激活边界，再做 cut/move 与 Artifact/迁移闭环。
-不要继续反复打磨已经通过的 XML codec 或为每个小修改启动全部测试。
-每个后续批次都明确输入、输出、owner 和持久化边界，完成一大块后做对应定向验证。
-
-离线迁移必须补齐以下约束，不能以“能打开新文件”代替：
-
-1. 预检查、私有快照、确定性映射、转换、验证、事务发布，失败保原件，可取消/续跑/恢复。
-2. 旧 map 多 UUID 指向同一对象时合并到规范节点身份，并重写实际引用。
-   整文件对应持久根；旧范围变成明确对象列表，不留 anchor hint 作为必要恢复信息。
-3. 原有坏链接/歧义保存为 explicit unresolved，带原始目标、诊断和逐项日志；
-   不猜修、不阻塞其他可迁移内容。原本有效引用转换失败仍必须阻止发布。
-4. 只删可确认的生成 anchors，保留用户 label/ref 语义；自由文本完全不做 metadata 推测。
-5. 保留 Artifact UUID、判定和 vectors，绑定持久化进文档；mtime/size 变化不自动触发推理。
-   复用模型结果前验证真实模型输入契约，无法重定位标待处理，不挂错对象。
-6. 使用隔离副本验证删缓存、外部 rename、UUID 冲突、未保存修改、多节点有序选择、循环、
-   不可读、缺失和写入/中断故障。不自动操作 `~/data/Notes`。
-
-## 构建与提交硬约束
-
-正常构建固定且仅使用：
+正常 ATHENA 构建目标：
 
 ```sh
 cmake --build build_qt6 --target ATHENA.bin -j20
 ```
 
-产物是 `build_qt6/src/ATHENA.bin`。不是 `build_qt6/ATHENA.bin`。
-**禁止省略 target，禁止自作主张 -j8，禁止全量测试/TSan/utf8_editor_test，
-禁止默认部署或生产迁移。** 新增定向测试源不等于已运行；分别报告编译、运行、部署、启用。
-不要因为交接文档列出了已有测试，就重新全跑一次。
+binary 位于 `build_qt6/src/ATHENA.bin`。
 
-Scheme bindings 先读 `src/Scheme/Glue/README.md`；在 XML 声明，CMake 生成，
-实现放 native cpp。禁止手写 per-procedure wrappers、注册及修改生成文件。
-跨线程继续遵守 BufferActor 所有权，生成 glue 不授予 GUI/editor 访问权。
+Scheme native binding 先读 `src/Scheme/Glue/README.md`：binding 在 XML 声明，由 CMake 生成 glue，
+实现放 native C++。不要手写 per-procedure generated wrapper/registration。
 
-提交前读完整近期 commit bodies，按 `type: imperative summary` 加具体 bullet body。
-只 stage 当前批次；`.codex/`、GGUF、模型目录等已有 untracked 不要加入或删除。
-暂停前代码批次与这份交接应分开提交，接手可直接 `git log` 定位。
+跨线程继续遵守 BufferActor ownership。生成 glue 只解决 marshalling/dispatch，不授予任意线程
+GUI/editor/source-tree 访问权。
 
-最后：**没有一个可以现在随手打开的总开关。** XML 默认入口、源创建、
-actor identities、tmfs 语义、协议和迁移都刻意分开 gated；必须闭环后一起启用。
-
-## 接续批次：staged 源生命周期（2026-09-27 晚）
-
-本批还在工作树中，没有提交、部署、生产文件修改或统一新格式启用。
-
-- `source_identity_state::initialize_complete` 验证完整正文角色身份及唯一性，不分配 ID。
-  `adopt-source-node-identities` 在当前 owner 接管这个完整基线，要求旧编辑历史已清空；
-  `source-node-identities-active?` 查询本 buffer 状态。不是给旧文档自动迁移的命令。
-- `replace_document` / `replace_body` 在已接管的 buffer 中先验证新基线，拒绝后保持旧源、
-  索引及保存状态；成功后替换索引。文件导入在 replacement 被拒绝时返回失败，
-  不再继续 capture 错误的磁盘 revision 或把旧内容标作保存成功。
-- 透明 WITH-like 宏的尾参数可能被 DRD 标为 TYPE_UNKNOWN（如 em 的参数直接返回）。
-  此处使用已有 DRD with_like 契约识别内容透传，不按标签名猜，不把普通 inline 参数
-  当成新段落；其他未知/含糊角色仍拒绝。
-- 完整快照保留 source envelope、标准字段、集合/association/key 和未知字段的 header。
-  仍执行 viewport/no_aux 过滤，不把被过滤的值补回。空 COLLECTION 必须比较 L(t)，
-  两参数 is_func(t,COLLECTION) 要求非空，会误判并清掉空集合 metadata。
-- correction 重建显式保头；source tokenizer 与只读 tokenizer 分开，带独立 metadata
-  的子节点不可被拆碎或合并掉。启发式括号/脚本重写遇到独立标注结构时保留结构。
-
-本批 normal ATHENA.bin 构建成功，集中执行 `tests/scheme/node-source-lifecycle-test.py`
-及其同名 Scheme fixture，最后 exit 0，标记 `ATHENA-NODE-SOURCE-LIFECYCLE-PASS`。
-覆盖真实 BufferActor 的接管拒绝/成功、格式化 inline 角色、插入自动 ID、split/join、
-undo/redo UUID 稳定、重复 ID 回滚、取消后的索引可用性、基线替换、快照字段和空集合、
-九条 correction 入口、附着源 native diff，以及 v1 拒绝写 metadata 后原文件 bytes 不变。
-这是同一集成脚本的集中调试/验收，不是全量测试。
-
-日志：`build_qt6/node-source-lifecycle-build.log`；最终成功隔离目录：
-`build_qt6/node-source-lifecycle-check/source-lifecycle-7s839pll/`。
-其他同前缀目录保留了早期调试失败，不代表当前状态。fixture 曾误用 detached tree-set-diff，
-已改为只对附着源调用；不要因此放宽 native diff 的 owner/source 约束。
+`.codex/`、GGUF、模型目录、perf artifacts 等无关 untracked 内容不应因 node-model 工作被顺手
+加入或删除。
