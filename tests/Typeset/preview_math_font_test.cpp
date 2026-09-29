@@ -22,6 +22,7 @@
 #include "typesetter.hpp"
 #include "qt_renderer.hpp"
 #include "Freetype/tt_file.hpp"
+#include "named_symbol.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }
@@ -66,6 +67,11 @@ private slots:
     QCOMPARE (strict_cork_to_utf8 ("<of>"), string (":"));
     QCOMPARE (strict_cork_to_utf8 ("<over>"), string (":"));
     QCOMPARE (strict_cork_to_utf8 ("<suchthat>"), string (":"));
+
+    const auto* of= athena::text::standard_named_symbols ().lookup ("texmacs:of");
+    QVERIFY (of != nullptr);
+    QCOMPARE (of->glyph_utf8, std::string (":"));
+    QCOMPARE (of->op_type, OP_INFIX);
 
     font math= smart_font ("roman", "rm", "medium", "mathitalic", 10, 600);
     QVERIFY (!is_nil (math));

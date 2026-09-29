@@ -5568,6 +5568,12 @@
       ]
     },
     {
+      "identity": "texmacs:of",
+      "math_class": "infix",
+      "glyph": ":",
+      "slant": "upright"
+    },
+    {
       "identity": "texmacs:over",
       "math_class": "infix",
       "glyph": ":",
