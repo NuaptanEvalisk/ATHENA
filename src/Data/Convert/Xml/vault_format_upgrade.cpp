@@ -455,6 +455,54 @@ std::string wrapper_base (const std::string& value, const char* suffix) {
     value.substr (0, value.size () - std::strlen (suffix)) : std::string ();
 }
 
+void collect_generated_enunciation_anchors (
+    const tree& value, node_path where, std::set<node_path>& out) {
+  if (!is_compound (value)) return;
+
+  for (int i=0; i<N(value); ++i) {
+    std::string opening;
+    if (!label_node (value[i], &opening)) continue;
+    const std::string base= wrapper_base (opening, " {");
+    if (base.empty ()) continue;
+
+    int body= i + 1;
+    while (body < N(value) && whitespace_only (value[body])) ++body;
+    if (body >= N(value) || !athena::enunciation::is_canonical (value[body]))
+      continue;
+
+    int closing= body + 1;
+    while (closing < N(value) && whitespace_only (value[closing])) ++closing;
+    std::string closing_text;
+    if (closing >= N(value) || !label_node (value[closing], &closing_text) ||
+        closing_text != base + " }")
+      continue;
+
+    node_path opening_path= where;
+    opening_path.push_back (i);
+    out.insert (std::move (opening_path));
+    node_path closing_path= where;
+    closing_path.push_back (closing);
+    out.insert (std::move (closing_path));
+  }
+
+  for (int i=0; i<N(value); ++i) {
+    node_path child= where;
+    child.push_back (i);
+    collect_generated_enunciation_anchors (value[i], std::move (child), out);
+  }
+}
+
+void collect_all_labels (
+    const tree& value, node_path where, std::set<node_path>& out) {
+  if (label_node (value)) out.insert (where);
+  if (!is_compound (value)) return;
+  for (int i=0; i<N(value); ++i) {
+    node_path child= where;
+    child.push_back (i);
+    collect_all_labels (value[i], std::move (child), out);
+  }
+}
+
 map_resolution resolve_map_node (
     const AthenaVaultMapNode& node,
     std::unordered_map<std::string,node_model_document*>& documents) {
@@ -1833,7 +1881,8 @@ vault_upgrade_result upgrade_vault_format (const fs::path& requested,
 
 vault_node_model_upgrade_result
 upgrade_vault_node_model (
-    const fs::path& requested, const vault_upgrade_progress& progress) {
+    const fs::path& requested, const vault_upgrade_progress& progress,
+    const vault_node_model_upgrade_options& options) {
 #ifndef __linux__
   throw std::runtime_error (
     "Atomic vault node-model upgrade requires Linux renameat2(RENAME_EXCHANGE)");
@@ -1908,11 +1957,123 @@ upgrade_vault_node_model (
   vault_node_model_upgrade_result result;
   if (info.node_model_version == 1) {
     std::unordered_map<std::string,std::string> ids;
+    std::size_t labels= 0;
     for (const fs::path& path: document_paths) {
       auto decoded= decode_document_bytes (
         bytes (root, path), root / path, limits ());
-      collect_ids (
-        document_body_ref (decoded.document), path.generic_string (), ids);
+      const tree& body= document_body_ref (decoded.document);
+      collect_ids (body, path.generic_string (), ids);
+      if (options.drop_all_labels) {
+        std::set<node_path> found;
+        collect_all_labels (body, {}, found);
+        labels += found.size ();
+      }
+    }
+    if (options.drop_all_labels && labels != 0) {
+      const auto workspace= root.parent_path () /
+        ("." + root.filename ().string () + ".node-model-label-cleanup-" +
+         QUuid::createUuid ().toString (QUuid::WithoutBraces).toStdString ());
+      require (::mkdir (workspace.c_str (), 0700) == 0,
+               "Cannot create private node-model label cleanup workspace");
+      const auto staged= workspace / "vault";
+      bool exchanged= false;
+      try {
+        fs::create_directory (staged);
+        report (progress, "Recovery directory", 0, 0, workspace);
+        clone (root, staged, progress);
+        filesystem::vault_directory_lease staged_lease (staged, true);
+        compare (original, scan (staged, progress, "Verify snapshot"), false);
+
+        filesystem::confined_root storage (staged);
+        std::size_t done= 0;
+        for (const fs::path& path: document_paths) {
+          report (progress, "Remove label nodes", done, document_paths.size (), path);
+          auto decoded= decode_document_bytes (
+            bytes (staged, path), staged / path, limits ());
+          require (decoded.format == document_source_format::xml_v2,
+                   "Label cleanup encountered non-v2 document: " + path.string ());
+          tree& body= document_body_ref (decoded.document);
+          std::set<node_path> removed;
+          collect_all_labels (body, {}, removed);
+          if (!removed.empty ()) {
+            body= remove_migration_paths (body, removed);
+            result.legacy_anchors_removed += removed.size ();
+            athena::document_node::source_identity_state identities;
+            const auto diagnostics= identities.initialize_complete (
+              body, get_offline_document_drd (
+                      decoded.document, url ((staged / path).string ().c_str ())),
+              athena::document_node::standard_source_role);
+            require (diagnostics.empty (),
+                     "Label cleanup invalidated identity baseline in " +
+                     path.generic_string ());
+            const std::string xml= write_xml_v2 (decoded.document);
+            require (read_xml_v2 (
+                       xml, xml_kind::document, limits ().codec) == decoded.document,
+                     "XML v2 label-cleanup round-trip mismatch: " + path.string ());
+            auto file= storage.open (path);
+            auto revision= file.stat ();
+            auto replacement= storage.replace (path, file, revision, xml);
+            require (replacement.directory_synced,
+                     "Cannot sync label-cleaned document " + path.string ());
+            ++result.migrated;
+          }
+          report (progress, "Remove label nodes", ++done, document_paths.size (), path);
+        }
+
+        std::unordered_map<std::string,std::string> validated_ids;
+        done= 0;
+        for (const fs::path& path: document_paths) {
+          const auto decoded= decode_document_bytes (
+            bytes (staged, path), staged / path, limits ());
+          const tree& body= document_body_ref (decoded.document);
+          std::set<node_path> remaining;
+          collect_all_labels (body, {}, remaining);
+          require (remaining.empty (),
+                   "Label cleanup left label nodes in " + path.generic_string ());
+          collect_ids (body, path.generic_string (), validated_ids);
+          report (progress, "Validate label cleanup", ++done,
+                  document_paths.size (), path);
+        }
+
+        scan (staged, progress, "Sync snapshot", true, false);
+        QJsonObject receipt {
+          {"version", 1},
+          {"migration", "node-model-v1-drop-all-labels"},
+          {"source", QString::fromStdString (root.string ())},
+          {"commit", "atomic-directory-exchange"},
+          {"documents_changed", (qint64) result.migrated},
+          {"labels_removed", (qint64) result.legacy_anchors_removed}};
+        filesystem::confined_root journal (workspace);
+        const auto json= QJsonDocument (receipt).toJson (QJsonDocument::Indented);
+        journal.preserve (
+          "manifest.json",
+          std::string_view (json.constData (), (std::size_t) json.size ()));
+
+        report (progress, "Commit", 0, 1, root);
+        compare (
+          original, scan (root, progress, "Check external changes", true), true);
+        descriptor workspace_fd (
+          ::open (workspace.c_str (), O_RDONLY | O_DIRECTORY | O_CLOEXEC));
+        result.backup= staged;
+        if (::syscall (
+              SYS_renameat2, parent.value, root.filename ().c_str (),
+              AT_FDCWD, staged.c_str (), RENAME_EXCHANGE) != 0)
+          throw std::system_error (
+            errno, std::generic_category (),
+            "Atomic vault node-model label cleanup directory exchange");
+        exchanged= true;
+        const int first= ::fsync (workspace_fd.value);
+        const int second= ::fsync (parent.value);
+        result.durable= first == 0 && second == 0;
+        return result;
+      }
+      catch (...) {
+        if (!exchanged) {
+          std::error_code ignored;
+          fs::remove_all (workspace, ignored);
+        }
+        throw;
+      }
     }
     result.already_v2= document_paths.size ();
     return result;
@@ -2011,10 +2172,19 @@ upgrade_vault_node_model (
       resolutions.push_back (std::move (resolution));
     }
 
-    // Every legacy map anchor is migration-only evidence.  Capture every exact
-    // label node named by the map now, while paths still refer to the canonical
-    // source tree, and remove those labels after references have been rewritten.
+    // Generated enunciation braces and every legacy map anchor are migration-only
+    // evidence.  Capture them now, while paths still refer to the canonical source
+    // tree, and remove them only after references have been rewritten.
     std::unordered_map<std::string,std::set<node_path>> legacy_anchors;
+    for (const node_model_document& document: documents) {
+      const std::string relative= document.path.generic_string ();
+      if (options.drop_all_labels)
+        collect_all_labels (
+          document_body_ref (document.document), {}, legacy_anchors[relative]);
+      else
+        collect_generated_enunciation_anchors (
+          document_body_ref (document.document), {}, legacy_anchors[relative]);
+    }
     for (const AthenaVaultMapNode& node: map_nodes) {
       const fs::path relative= fs::path (node.path).lexically_normal ();
       auto document= by_path.find (relative.generic_string ());
@@ -2214,8 +2384,9 @@ upgrade_vault_node_model (
     result.references_failed= reference_stats.failed;
 
     // Legacy anchors are consumed only as migration evidence.  Once every
-    // reference target has become a persistent UUID, remove all labels named by
-    // the old map. Labels which were never map anchors remain ordinary source.
+    // reference target has become a persistent UUID, remove the generated
+    // enunciation brace pairs and map-named labels captured above.  The explicit
+    // drop-all-labels option widens that captured set to every LABEL node.
     for (node_model_document& document: documents) {
       auto found= legacy_anchors.find (document.path.generic_string ());
       if (found == legacy_anchors.end () || found->second.empty ()) continue;
@@ -2400,7 +2571,8 @@ int upgrade_vault_format_cli (const fs::path& root) {
   return interrupted && code != 0 ? 130 : code;
 }
 
-int upgrade_vault_node_model_cli (const fs::path& root) {
+int upgrade_vault_node_model_cli (
+    const fs::path& root, const vault_node_model_upgrade_options& options) {
   interrupted= 0;
   const auto old_int= std::signal (SIGINT, cancel_signal);
   const auto old_term= std::signal (SIGTERM, cancel_signal);
@@ -2447,7 +2619,7 @@ int upgrade_vault_node_model_cli (const fs::path& root) {
       previous= phase;
       last= now;
     };
-    const auto result= upgrade_vault_node_model (root, progress);
+    const auto result= upgrade_vault_node_model (root, progress, options);
     if (result.backup.empty () && result.already_v2 != 0)
       std::cerr << "\nVault already uses node model v1; validated "
                 << result.already_v2 << " XML v2 document(s).\n";
@@ -2459,7 +2631,8 @@ int upgrade_vault_node_model_cli (const fs::path& root) {
                  << result.stale_artifacts_pruned
                  << " stale Artifact row(s); removed "
                  << result.legacy_anchors_removed
-                 << " legacy anchor label(s).\n";
+                 << (options.drop_all_labels ? " label node(s).\n" :
+                                                " legacy anchor label(s).\n");
       std::cerr << "Reference resolution: direct="
                 << result.references_direct_resolved
                 << ", hint=" << result.references_hint_resolved

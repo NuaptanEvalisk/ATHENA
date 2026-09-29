@@ -42,6 +42,16 @@ def xml_v1(body):
 def target_document():
     return xml_v1(
         '<node tag="document">'
+        '<node tag="label"><text>proof:Unmapped proof {</text></node>'
+        '<node tag="proof"><node tag="document">'
+        '<text>This proof has no map.sqlite row.</text>'
+        '</node></node>'
+        '<node tag="label"><text>proof:Unmapped proof }</text></node>'
+        '<node tag="label"><text>note:Unmapped note {</text></node>'
+        '<node tag="note"><node tag="document">'
+        '<text>This note has no map.sqlite row.</text>'
+        '</node></node>'
+        '<node tag="label"><text>note:Unmapped note }</text></node>'
         '<node tag="label"><text>H2 §34.2 Arzelà–Ascoli Theorem</text></node>'
         '<node tag="subsection"><text>§34.2 Arzelà–Ascoli Theorem</text></node>'
         '<node tag="label"><text>Theorem {</text></node>'
@@ -336,9 +346,9 @@ def create_vault(root):
     create_artifacts(root)
 
 
-def run(binary, root, env):
+def run(binary, root, env, *options):
     return subprocess.run(
-        [str(binary), "--upgrade-vault-node-model", str(root)],
+        [str(binary), "--upgrade-vault-node-model", *options, str(root)],
         env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         timeout=120,
     )
@@ -375,7 +385,10 @@ def check_migrated(root):
     assert doc_title is not None
     assert "".join(doc_title.itertext()) == "Abstract Algebra.Scope"
 
-    enunciation = node(target, "enunciation")
+    enunciation = next(
+        item for item in target.iter("node")
+        if item.get("tag") == "enunciation" and item.get("id") == PRIMARY
+    )
     assert enunciation.get("id") == PRIMARY
     props = enunciation.find("properties")
     assert props is not None
@@ -566,6 +579,31 @@ def main():
     assert len(list(temporary.glob(".vault.node-model-upgrade-*"))) == 1
     for name, content in live_before_repeat.items():
         assert (vault / name).read_bytes() == content
+
+    cleanup = temporary / "drop-all-labels-vault"
+    create_vault(cleanup)
+    cleanup_migration = run(args.binary.resolve(), cleanup, env)
+    if cleanup_migration.returncode:
+        raise RuntimeError(
+            "cleanup fixture migration failed "
+            f"({cleanup_migration.returncode}):\n{cleanup_migration.stderr}"
+        )
+    assert any(
+        item.get("tag") == "label"
+        for item in ET.parse(cleanup / "Target.ath").getroot().iter("node")
+    )
+    aggressive_result = run(
+        args.binary.resolve(), cleanup, env, "--drop-all-labels"
+    )
+    if aggressive_result.returncode:
+        raise RuntimeError(
+            "drop-all-labels migration failed "
+            f"({aggressive_result.returncode}):\n{aggressive_result.stderr}"
+        )
+    aggressive_tree = ET.parse(cleanup / "Target.ath").getroot()
+    assert not any(
+        item.get("tag") == "label" for item in aggressive_tree.iter("node")
+    )
 
     legacy = temporary / "legacy-vault"
     legacy.mkdir()

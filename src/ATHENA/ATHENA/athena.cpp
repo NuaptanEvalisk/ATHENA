@@ -2018,9 +2018,14 @@ int
 texmacs_entrypoint (int argc, char** argv) {
   for (int i=1; i<argc; ++i) {
     if (std::string (argv[i]) != "--upgrade-vault-node-model") continue;
-    if (argc != 3 || i != 1 || std::string (argv[2]) == "--help") {
-      std::cerr << "Usage: ATHENA.bin --upgrade-vault-node-model VAULT_DIRECTORY\n";
-      return argc == 3 && std::string (argv[2]) == "--help" ? 0 : 1;
+    const bool help= argc == 3 && i == 1 && std::string (argv[2]) == "--help";
+    const bool drop_all_labels=
+      argc == 4 && i == 1 && std::string (argv[2]) == "--drop-all-labels";
+    if ((!drop_all_labels && argc != 3) || i != 1 || help) {
+      std::cerr
+        << "Usage: ATHENA.bin --upgrade-vault-node-model "
+        << "[--drop-all-labels] VAULT_DIRECTORY\n";
+      return help ? 0 : 1;
     }
     // Unlike the legacy format upgrader, node-model migration consumes the
     // enunciation registry and style DRDs from ATHENA_PATH.
@@ -2029,8 +2034,10 @@ texmacs_entrypoint (int argc, char** argv) {
     headless_mode= true;
     QCoreApplication app (argc, argv);
     init_athena_resource_paths ();
+    athena::document::vault_node_model_upgrade_options options;
+    options.drop_all_labels= drop_all_labels;
     return athena::document::upgrade_vault_node_model_cli (
-      std::filesystem::path (argv[2]));
+      std::filesystem::path (argv[drop_all_labels ? 3 : 2]), options);
   }
   // Deliberately bypass Scheme, GUI startup, cache refresh, vault loading and
   // model services. The converter owns detached trees on this one CLI thread.
