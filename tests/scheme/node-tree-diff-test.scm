@@ -63,13 +63,23 @@
 (define pointer (tree->tree-pointer (tree-ref (current) 0)))
 (tree-set-diff (current) target)
 (check (== (current) target) "same children still apply target metadata")
+;; Read the stored fields independently of ==: a regression in global tree
+;; equality must not make a skipped header update look like a passing test.
+(check (equal? (tree-node-properties (current)) (tree-node-properties target))
+       "header-only update writes properties, independently of tree equality")
+(check (equal? (tree-node-id (current)) (tree-node-id target))
+       "header-only update preserves the requested UUID")
 (check (equal? (tree->path (tree-pointer->tree pointer)) (tree->path (current) 0))
        "header edit retains child observers")
 (commit-changes)
 (undo 0)
 (check (== (current) original) "header edit undo")
+(check (equal? (tree-node-properties (current)) (tree-node-properties original))
+       "header edit undo restores properties")
 (redo 0)
 (check (== (current) target) "header edit redo")
+(check (equal? (tree-node-properties (current)) (tree-node-properties target))
+       "header edit redo restores properties")
 (tree-pointer-detach pointer)
 
 ;; Insertion, deletion and label changes must also apply the complete header.
