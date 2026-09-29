@@ -45,6 +45,48 @@ struct entry {
   bool retry_pending= false;
   std::chrono::steady_clock::time_point retry_after;
 };
+
+bool same_presentation_location (const node_location::location& a,
+                                 const node_location::location& b) {
+  return a.file == b.file && a.where == b.where;
+}
+
+bool same_presentation_item (const node_location::item& a,
+                             const node_location::item& b) {
+  if (a.id != b.id || a.state != b.state || a.diagnostic != b.diagnostic ||
+      a.fragment_xml != b.fragment_xml ||
+      a.source_directory != b.source_directory ||
+      a.preview_context_xml != b.preview_context_xml ||
+      a.source_url != b.source_url ||
+      a.candidates.size () != b.candidates.size ())
+    return false;
+  for (std::size_t i= 0; i < a.candidates.size (); ++i)
+    if (!same_presentation_location (a.candidates[i], b.candidates[i]))
+      return false;
+  return true;
+}
+
+bool same_presentation_diagnostic (const node_location::diagnostic& a,
+                                   const node_location::diagnostic& b) {
+  return a.file == b.file && a.message == b.message &&
+         a.state == b.state && a.identity == b.identity;
+}
+
+bool same_presentation_snapshot (const node_location::snapshot& a,
+                                 const node_location::snapshot& b) {
+  if (a == b) return true;
+  if (!a || !b || a->state != b->state || a->ancestry != b->ancestry ||
+      a->items.size () != b->items.size () ||
+      a->diagnostics.size () != b->diagnostics.size ())
+    return false;
+  for (std::size_t i= 0; i < a->items.size (); ++i)
+    if (!same_presentation_item (a->items[i], b->items[i])) return false;
+  for (std::size_t i= 0; i < a->diagnostics.size (); ++i)
+    if (!same_presentation_diagnostic (a->diagnostics[i], b->diagnostics[i]))
+      return false;
+  return true;
+}
+
 std::atomic<std::uint64_t> changes {0};
 std::mutex cache_lock;
 std::map<key, std::shared_ptr<entry>> entries;
@@ -163,7 +205,7 @@ public:
     for (const auto& e: again) start (e);
   }
   void complete (const std::shared_ptr<entry>& e, std::uint64_t generation,
-                   node_location::snapshot result) {
+                    node_location::snapshot result) {
     {
       std::lock_guard<std::mutex> guard (cache_lock);
       if (generation != e->generation || !vault_context_is_current (e->vault)) return;
@@ -193,6 +235,7 @@ public:
       }
       result= error;
     }
+    bool refresh_views= false;
     {
       std::lock_guard<std::mutex> guard (cache_lock);
       if (generation != e->generation) return;
@@ -206,13 +249,17 @@ public:
         e->retry_after= std::chrono::steady_clock::now () + std::chrono::seconds (2);
         return;
       }
-      e->published= {std::move (result), ++revision};
+      refresh_views= !same_presentation_snapshot (e->published.snapshot, result);
+      const std::uint64_t visible_revision=
+        refresh_views ? ++revision : e->published.revision;
+      e->published= {std::move (result), visible_revision};
       e->retry_pending= e->published.snapshot &&
         e->published.snapshot->state == node_location::status::unreadable;
       e->retry_after= std::chrono::steady_clock::now () + std::chrono::seconds (2);
-      refresh.insert (e->subscribers.begin (), e->subscribers.end ());
+      if (refresh_views)
+        refresh.insert (e->subscribers.begin (), e->subscribers.end ());
     }
-    deliver ();
+    if (refresh_views) deliver ();
   }
 };
 
