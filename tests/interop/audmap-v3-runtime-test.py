@@ -192,7 +192,7 @@ def main():
     parser.add_argument("--binary", type=Path, required=True)
     parser.add_argument("--runtime", type=Path, required=True)
     parser.add_argument("--resources", type=Path, required=True)
-    parser.add_argument("--artifacts", type=Path, required=True)
+    parser.add_argument("--artifacts", type=Path)
     args = parser.parse_args()
 
     repository = Path(__file__).resolve().parents[2]
@@ -202,15 +202,15 @@ def main():
     if "PROTOCOL_VERSION = 2" not in python_sdk or "DOCUMENT_MODEL_VERSION = 3" not in python_sdk:
         raise RuntimeError("Python SDK does not advertise AUDMAP 2 / document model 3")
 
-    artifacts = args.artifacts.resolve()
-    artifacts.mkdir(parents=True, exist_ok=True)
+    artifacts = args.artifacts.resolve() if args.artifacts else None
+    if artifacts:
+        artifacts.mkdir(parents=True, exist_ok=True)
     root = Path(tempfile.mkdtemp(prefix="audmap-v3-", dir=artifacts))
     profile = root / "profile"
     system = profile / "system"
     system.mkdir(parents=True, mode=0o700)
     (system / "sys_state.json").write_text(json.dumps({
-        "format": "athena-system-state", "version": 2,
-        "compatibility_version": "2.1.4",
+        "format": "athena-system-state", "version": 3,
     }))
     source = root / "source.ath"
     source.write_bytes(fixture())
@@ -391,6 +391,8 @@ def main():
                     pass
                 process.wait()
             shutil.rmtree(runtime_dir, ignore_errors=True)
+    if artifacts is None:
+        shutil.rmtree(root)
 
 
 if __name__ == "__main__":

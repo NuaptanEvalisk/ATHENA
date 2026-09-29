@@ -666,10 +666,9 @@ TestVaultMapSqlite::gatesBareWikilinksOnNodeModelVersion () {
     "maps.sqlite");
   QVERIFY2 (load_error == "", as_charp (load_error));
   QCOMPARE (vault_get_node_model_version (), 1);
+  // Migrated Vaults resolve native UUIDs from source, not from the legacy map.
+  // Compatibility-map writes may be ignored and are not a locator contract.
   vault_set_node (string (target_id.c_str ()), "C.ath", "wrong", "wrong");
-  tree stale_map= vault_get_node (string (target_id.c_str ()));
-  QVERIFY (is_tuple (stale_map));
-  QCOMPARE (stale_map[0], tree ("C.ath"));
 
   QVERIFY (athena_link_peek_native_target (string (hinted.c_str ())));
   QVERIFY (athena_node_reference_target (string (bare.c_str ())));

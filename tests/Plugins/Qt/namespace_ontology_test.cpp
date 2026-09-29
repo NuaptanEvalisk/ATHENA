@@ -12,6 +12,8 @@
 #include "namespace_ontology.hpp"
 #include "namespaces.hpp"
 #include "namespaces_private.hpp"
+#include "drd_std.hpp"
+#include "Data/Convert/Xml/athena_document_xml.hpp"
 #include "vault.hpp"
 #include "vaultfile_json.hpp"
 
@@ -30,6 +32,7 @@ class NamespaceOntologyTest: public QObject {
   Q_OBJECT
 
 private slots:
+  void initTestCase ();
   void incrementallyMaintainsMembers ();
   void sortersRetainGenerations ();
 };
@@ -40,7 +43,10 @@ void
 write_document (const fs::path& path) {
   fs::create_directories (path.parent_path ());
   std::ofstream output (path, std::ios::binary | std::ios::trunc);
-  output << "<TeXmacs|2.1.4>\n<style|generic>\n<\\body>test</body>\n";
+  const tree source (DOCUMENT,
+    compound ("style", tree (TUPLE, "generic")),
+    compound ("body", tree (DOCUMENT, "test")));
+  output << athena::document::write_xml_v2 (source);
 }
 
 int
@@ -71,6 +77,11 @@ execute_sql (const fs::path& database, const char* sql) {
 }
 
 } // namespace
+
+void
+NamespaceOntologyTest::initTestCase () {
+  init_std_drd ();
+}
 
 void
 NamespaceOntologyTest::incrementallyMaintainsMembers () {

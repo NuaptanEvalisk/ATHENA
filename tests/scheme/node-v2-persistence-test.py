@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import shutil
 import subprocess
 import tempfile
 import xml.etree.ElementTree as ET
@@ -40,16 +41,16 @@ def main():
     parser.add_argument("--binary", type=Path, required=True)
     parser.add_argument("--runtime", type=Path, required=True)
     parser.add_argument("--resources", type=Path, required=True)
-    parser.add_argument("--artifacts", type=Path, required=True)
+    parser.add_argument("--artifacts", type=Path)
     args = parser.parse_args()
-    artifacts = args.artifacts.resolve()
-    artifacts.mkdir(parents=True, exist_ok=True)
+    artifacts = args.artifacts.resolve() if args.artifacts else None
+    if artifacts:
+        artifacts.mkdir(parents=True, exist_ok=True)
     home = Path(tempfile.mkdtemp(prefix="node-v2-persistence-", dir=artifacts))
     system = home / "profile/system"
     system.mkdir(parents=True)
     (system / "sys_state.json").write_text(json.dumps({
-        "format": "athena-system-state", "version": 2,
-        "compatibility_version": "2.1.4",
+        "format": "athena-system-state", "version": 3,
     }))
     source = home / "source.ath"
     source.write_bytes(fixture())
@@ -106,6 +107,8 @@ def main():
     if auto != recovered:
         raise RuntimeError("autosave recovery changed persisted paragraph identities")
     print(f"ATHENA-NODE-V2-PERSISTENCE-PASS; normal save/autosave/recovery/reopen; {home}")
+    if artifacts is None:
+        shutil.rmtree(home)
 
 
 if __name__ == "__main__":

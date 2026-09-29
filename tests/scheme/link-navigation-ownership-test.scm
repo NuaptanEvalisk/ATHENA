@@ -18,7 +18,10 @@
 (define (string->object s) (call-with-input-string s read))
 (define-syntax with
   (syntax-rules ()
-    ((_ (a b) value body ...) (apply (lambda (a b) body ...) value))))
+    ((_ (vars ...) value body ...)
+     (apply (lambda (vars ...) body ...) value))
+    ((_ var value body ...)
+     (let ((var value)) body ...))))
 (define (load-definition file name . requirement)
   (call-with-input-file (string-append root "/ATHENA/progs/" file)
     (lambda (port)
@@ -94,6 +97,7 @@
   (check (eq? owner 'global) "artifact resolver used the source actor")
   (and resolve-ok? (list (system->url "/target.ath") '(0 3))))
 (define (set-message text title) (set! failed-message text))
+(define (vault-node-model-active?) #f)
 
 ;; Radioactive artifact: resolve globally, then jump and record on target actor.
 (load-definition vault 'go-to-url '(:require (artifact-url? u)))

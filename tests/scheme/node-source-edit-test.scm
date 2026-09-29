@@ -78,26 +78,11 @@
 (with-merge (tree-ref (buffer-tree) 0 2))
 (check (== (buffer-tree) saved-properties) "merge preserves properties without a UUID")
 
-(define selected (stree->tree '(document (with "color" "red" "Selected"))))
-(annotate (tree-ref selected 0))
-(define selected-header (tree-copy (tree-ref selected 0)))
-(install selected)
-(tree-select (tree-ref (buffer-tree) 0))
-(make-multi-with '("font-series" "bold"))
-(check (same-header (tree-ref (buffer-tree) 0) selected-header)
-       "selection formatting preserves existing wrapper metadata")
 
-(define shadowed (stree->tree '(document (with "color" "red" (document (with "color" "blue" "Text"))))))
-(for-each annotate (list (tree-ref shadowed 0) (tree-ref shadowed 0 2)))
-(define saved-shadowed (tree-copy shadowed))
-(install shadowed)
-(with-simplify (tree-ref (buffer-tree) 0 2 0))
-(check (tree-func? (tree-ref (buffer-tree) 0) 'with 1) "simplification retains annotated outer wrapper")
-(check (same-header (tree-ref (buffer-tree) 0) (tree-ref saved-shadowed 0)) "outer identity retained")
-(check (same-header (tree-ref (buffer-tree) 0 0) (tree-ref saved-shadowed 0 2)) "document identity retained")
-(check (== (tree-ref (buffer-tree) 0 0 0) (tree-ref saved-shadowed 0 2 0)) "inner content unchanged")
-
-;; Anonymous wrappers retain the established compact representation.
+;; Anonymous wrappers retain the established compact representation.  The
+;; retired migration harness also mixed manual UUIDs into this anonymous
+;; buffer without activating the source model; that state is no longer a
+;; supported editor contract and is intentionally not reconstructed here.
 (install (stree->tree '(document (with "color" "red" (with "font-series" "bold" "Text")))))
 (with-merge (tree-ref (buffer-tree) 0 2))
 (check (equal? (tree->stree (buffer-tree))

@@ -92,7 +92,15 @@ static void transport_test () {
     connection_grant grant (trust_mode::full_access);
     if (authenticated_key == key.public_key) {
       grant.registry = scoped;
-      grant.capabilities = {{"*", {true, {}}}, {"subscription", {true, {"get", "reply", "inspect"}}}};
+      capability_mask deny;
+      deny.enforced = true;
+      deny.resolve = false;
+      capability_mask subscription;
+      subscription.enforced = true;
+      subscription.resolve = true;
+      subscription.commands = {"get", "reply", "inspect"};
+      subscription.confirmation_required = false;
+      grant.capabilities = {{"*", deny}, {"subscription", subscription}};
     }
     reply (std::move (grant));
   };

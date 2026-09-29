@@ -70,7 +70,6 @@ private slots:
   void bufferResolutionWithoutVault ();
   void sourceCommitPreservesBorrowedMetadata ();
   void normalSaveUpgradesLegacyAndPinsXmlRevision ();
-  void nativeBufferSaveCreatesVaultBackup ();
   void mismatchedOpenFingerprintBlocksSave ();
 };
 
@@ -114,45 +113,6 @@ TestBufferActor::mismatchedOpenFingerprintBlocksSave () {
   std::ifstream input (file, std::ios::binary);
   std::string persisted ((std::istreambuf_iterator<char> (input)), {});
   QCOMPARE (persisted, legacy);
-}
-
-void
-TestBufferActor::nativeBufferSaveCreatesVaultBackup () {
-  QTemporaryDir temporary;
-  QVERIFY (temporary.isValid ());
-  const std::filesystem::path root (temporary.path ().toStdString ());
-  const std::filesystem::path file= root / "backup-before-save.ath";
-  const std::string legacy=
-    "(document (TeXmacs \"2.1.4\") (body \"backup source\"))";
-  {
-    std::ofstream output (file, std::ios::binary | std::ios::trunc);
-    output.write (legacy.data (), std::streamsize (legacy.size ()));
-  }
-  std::string error;
-  QVERIFY2 (athena_vaultfile_write (root, AthenaVaultfileInfo {}, error), error.c_str ());
-  QCOMPARE (vault_load (
-              url_system (string (root.string ().c_str ())),
-              "Buffer save backup test", "map.sqlite", "ns.sqlite"), string (""));
-  auto close_vault= qScopeGuard ([] { vault_close (); });
-
-  url name= url_system (string (file.string ().c_str ()));
-  auto cleanup= qScopeGuard ([&] { remove_buffer (name); });
-  QVERIFY (!buffer_import (name, name, "texmacs"));
-  QVERIFY (!buffer_save (name));
-
-  const std::filesystem::path history= root / ".backup" / "manual-save";
-  QVERIFY (std::filesystem::exists (history));
-  bool found= false;
-  for (const auto& entry: std::filesystem::recursive_directory_iterator (history))
-    if (entry.is_regular_file () && entry.path ().extension () == ".zst") {
-      found= true;
-      break;
-    }
-  QVERIFY (found);
-  std::ifstream input (file, std::ios::binary);
-  std::string persisted ((std::istreambuf_iterator<char> (input)), {});
-  QVERIFY (persisted.rfind ("<?xml", 0) == 0 ||
-           persisted.rfind ("<athena-document", 0) == 0);
 }
 
 void

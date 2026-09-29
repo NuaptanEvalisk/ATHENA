@@ -701,7 +701,10 @@ generic_link_embedded_image (tree t, url name) {
   if (!embedded_image_context_impl (t)) return;
   generic_save_embedded_image (t, name);
   string rel= as_standard_string (delta (get_current_buffer_safe (), name));
-  (void) call ("tree-set", object (t), object (0), object (rel));
+  tree changed (rel);
+  athena::node::copy_metadata (t[0], changed);
+  if (tree_active (t[0])) (void) tree_set_diff (t[0], changed);
+  else (void) tree_set (t, 0, changed);
 }
 
 void
@@ -773,7 +776,9 @@ generic_embed_image (tree t) {
   tree raw= compound ("tuple",
                       compound ("raw-data", data),
                       as_standard_string (tail (url (file))));
-  (void) call ("tree-set", object (t), object (0), object (raw));
+  athena::node::copy_metadata (t[0], raw);
+  if (tree_active (t[0])) (void) tree_set_diff (t[0], raw);
+  else (void) tree_set (t, 0, raw);
 }
 
 void

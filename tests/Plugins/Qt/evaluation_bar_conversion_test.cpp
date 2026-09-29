@@ -24,7 +24,7 @@ bool headless_mode= true;
 bool is_headless () { return true; }
 
 static tree bar (tree body) {
-  return tree (VAR_AROUND, "<nobracket>", body, "|");
+  return tree (VAR_AROUND, ".", body, "|");
 }
 
 class TestEvaluationBarConversion: public QObject {
@@ -45,9 +45,10 @@ private slots:
   }
   void atomsAndBoundaries () {
     int count= 0;
-    QVERIFY (athena_promote_evaluation_bars ("x|+y<vert>", count, "math") ==
-             bar (tree (CONCAT, bar ("x"), "+y")));
-    QCOMPARE (count, 2);
+    tree actual= athena_promote_evaluation_bars ("x|+y", count, "math");
+    tree expected= tree (CONCAT, bar ("x"), "+y");
+    QVERIFY (actual == expected);
+    QCOMPARE (count, 1);
     tree fraction (FRAC, "x|", "y|");
     count= 0;
     QVERIFY (athena_promote_evaluation_bars (fraction, count, "math") ==
@@ -62,12 +63,17 @@ private slots:
   }
   void preserveRelationsAndDelimiters () {
     tree source (CONCAT);
-    source << tree ("a<mid>b<divides>c<shortmid>d<nmid>e<||>f")
+    source << "a" << tree (NAMED_SYMBOL, "texmacs:mid") << "b"
+           << tree (NAMED_SYMBOL, "texmacs:divides") << "c"
+           << tree (NAMED_SYMBOL, "texmacs:shortmid") << "d"
+           << tree (NAMED_SYMBOL, "texmacs:nmid") << "e"
+           << tree (NAMED_SYMBOL, "texmacs:parallel") << "f"
            << tree (VAR_AROUND, "|", "x", "|")
            << tree (AROUND, "|", "y", "|")
            << tree (LEFT, "|") << tree (MID, "|") << tree (RIGHT, "|");
     int count= 0;
-    QVERIFY (athena_promote_evaluation_bars (source, count, "math") == source);
+    tree actual= athena_promote_evaluation_bars (source, count, "math");
+    QVERIFY (actual == source);
     QCOMPARE (count, 0);
   }
   void modesAndAttributes () {

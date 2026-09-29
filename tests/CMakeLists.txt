@@ -1,4 +1,26 @@
 file (GLOB_RECURSE TEST_SRC_FILES CONFIGURE_DEPENDS "*.cpp")
+
+function (athena_link_full_test_runtime target)
+  # Keep special test executables on the same production-runtime link closure
+  # as the automatically registered C++ tests below.  Hand-maintained subsets
+  # go stale whenever athena_test_body acquires a new library dependency.
+  if (NOT ATHENA_ENABLE_TSAN)
+    target_link_libraries (${target} PRIVATE mimalloc)
+  endif ()
+  target_link_libraries (${target} PRIVATE
+    athena_test_body
+    PkgConfig::SPDLOG
+    ${ATHENA_LLAMA_LIBRARIES}
+    ${ADS_LIBRARIES}
+    ${ATHENA_Libraries}
+    ${ATHENA_QT_TEST_LIBRARY})
+  target_include_directories (${target} PRIVATE
+    "${ATHENA_SOURCE_DIR}/src/Subsystems/Plugins")
+  if (ATHENA_ENABLE_TSAN)
+    target_sources (${target} PRIVATE
+      "${ATHENA_SOURCE_DIR}/src/System/Misc/tsan_mimalloc_shim.cpp")
+  endif ()
+endfunction ()
 list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/Data/String/unicode_text_test\\.cpp$")
 add_executable (unicode_text_test Data/String/unicode_text_test.cpp)
 set_target_properties (unicode_text_test PROPERTIES AUTOMOC OFF)
@@ -21,14 +43,33 @@ list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/interop/repl-pane-test\\.cpp$")
 list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/interop/plugin-subscription-test\\.cpp$")
 list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/interop/plugin-package-test\\.cpp$")
 list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/interop/plugin-runtime-test\\.cpp$")
+list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/interop/plugin-runtime-fixture\\.cpp$")
 
-add_executable(plugin_runtime_test interop/plugin-runtime-test.cpp
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMAudmap.cpp)
+add_executable(plugin_runtime_fixture interop/plugin-runtime-fixture.cpp)
+set_target_properties(plugin_runtime_fixture PROPERTIES AUTOMOC OFF)
+target_link_libraries(plugin_runtime_fixture PRIVATE athena_audmap_sdk)
+
+add_executable(plugin_runtime_test interop/plugin-runtime-test.cpp)
 set_target_properties(plugin_runtime_test PROPERTIES AUTOMOC OFF)
-target_link_libraries(plugin_runtime_test PRIVATE athena_plugin_ui Qt6::Test)
+athena_link_full_test_runtime(plugin_runtime_test)
+target_link_libraries(plugin_runtime_test PRIVATE Qt6::Test)
+if (TARGET athena-plugin-sandbox)
+  add_dependencies(plugin_runtime_test athena-plugin-sandbox)
+  add_custom_command(TARGET plugin_runtime_test POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      $<TARGET_FILE:athena-plugin-sandbox>
+      $<TARGET_FILE_DIR:plugin_runtime_test>/athena-plugin-sandbox)
+endif ()
+if (TARGET athena-plugin-sandbox)
+  add_dependencies(plugin_runtime_test athena-plugin-sandbox)
+  add_custom_command(TARGET plugin_runtime_test POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      $<TARGET_FILE:athena-plugin-sandbox>
+      $<TARGET_FILE_DIR:plugin_runtime_test>/athena-plugin-sandbox)
+endif ()
 target_compile_definitions(plugin_runtime_test PRIVATE
-  PLUGIN_FIXTURE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/interop/plugin-runtime-fixture.py"
-  PLUGIN_PYTHON_PATH="${ATHENA_SOURCE_DIR}/clients/python/src")
+  PLUGIN_FIXTURE_PATH="$<TARGET_FILE:plugin_runtime_fixture>")
+add_dependencies(plugin_runtime_test plugin_runtime_fixture)
 add_test(NAME plugin_runtime_test COMMAND plugin_runtime_test)
 set_tests_properties(plugin_runtime_test PROPERTIES TIMEOUT 45 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
@@ -75,11 +116,11 @@ add_dependencies(audmap_repl_pane_test athena-audmap-repl)
 add_test(NAME audmap_repl_pane_test COMMAND audmap_repl_pane_test)
 set_tests_properties(audmap_repl_pane_test PROPERTIES TIMEOUT 25 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
-add_executable(audmap_authorization_ui_test interop/authorization_ui_test.cpp
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMAudmap.cpp)
+add_executable(audmap_authorization_ui_test interop/authorization_ui_test.cpp)
 set_target_properties(audmap_authorization_ui_test PROPERTIES AUTOMOC OFF)
 target_include_directories(audmap_authorization_ui_test PRIVATE ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt)
-target_link_libraries(audmap_authorization_ui_test PRIVATE athena_audmap_client athena_audmap athena_plugin_runtime Qt6::Widgets Qt6::Test)
+athena_link_full_test_runtime(audmap_authorization_ui_test)
+target_link_libraries(audmap_authorization_ui_test PRIVATE athena_audmap_client Qt6::Widgets Qt6::Test)
 add_test(NAME audmap_authorization_ui_test COMMAND audmap_authorization_ui_test)
 set_tests_properties(audmap_authorization_ui_test PROPERTIES TIMEOUT 20 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
@@ -139,10 +180,17 @@ add_test(NAME glue_runtime_test
     --resources ${ATHENA_SOURCE_DIR}/ATHENA
     ${ATHENA_GLUE_TEST_INPUTS})
 set_tests_properties(glue_runtime_test PROPERTIES TIMEOUT 100)
+add_test(NAME vault_random_document_test
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/vault-random-document-test.py
+    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
+    --runtime ${ATHENA_GUILE_PREFIX}
+    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
+set_tests_properties(vault_random_document_test PROPERTIES TIMEOUT 45)
 add_test(NAME evaluation_bar_editor_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/editor-owner-setup.scm
+    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/anonymous-editor-owner-setup.scm
     --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
     --runtime ${ATHENA_GUILE_PREFIX}
     --resources ${ATHENA_SOURCE_DIR}/ATHENA)
@@ -150,7 +198,7 @@ set_tests_properties(evaluation_bar_editor_test PROPERTIES TIMEOUT 90)
 add_test(NAME html5_export_editor_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/editor-owner-setup.scm
+    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/anonymous-editor-owner-setup.scm
     --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/html5-export-test.scm
     --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
     --runtime ${ATHENA_GUILE_PREFIX}
@@ -167,7 +215,7 @@ set_tests_properties(commutative_diagram_editor_test PROPERTIES
 add_test(NAME eqnarray_clipboard_editor_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/editor-owner-setup.scm
+    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/anonymous-editor-owner-setup.scm
     --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/eqnarray-clipboard-test.scm
     --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
     --runtime ${ATHENA_GUILE_PREFIX}
@@ -212,7 +260,7 @@ set_tests_properties(document_tabs_editor_test PROPERTIES TIMEOUT 90)
 add_test(NAME link_invalidation_editor_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/editor-owner-setup.scm
+    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/anonymous-editor-owner-setup.scm
     --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/link-invalidation-editor-test.scm
     --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
     --runtime ${ATHENA_GUILE_PREFIX}
@@ -230,7 +278,7 @@ set_tests_properties(completion_editor_test PROPERTIES TIMEOUT 90)
 add_test(NAME geometry_editor_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/editor-owner-setup.scm
+    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/anonymous-editor-owner-setup.scm
     --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/geometry-editor-test.scm
     --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
     --runtime ${ATHENA_GUILE_PREFIX}
@@ -239,7 +287,7 @@ set_tests_properties(geometry_editor_test PROPERTIES TIMEOUT 90)
 add_test(NAME format_editor_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/editor-owner-setup.scm
+    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/anonymous-editor-owner-setup.scm
     --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/format-editor-test.scm
     --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
     --runtime ${ATHENA_GUILE_PREFIX}
@@ -320,7 +368,7 @@ set_tests_properties(document_style_editor_test PROPERTIES TIMEOUT 90)
 add_test(NAME embedded_image_editor_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/editor-owner-setup.scm
+    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/anonymous-editor-owner-setup.scm
     --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/embedded-image-editor-test.scm
     --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
     --runtime ${ATHENA_GUILE_PREFIX}
@@ -344,6 +392,102 @@ add_test(NAME live_spell_editor_test
     --runtime ${ATHENA_GUILE_PREFIX}
     --resources ${ATHENA_SOURCE_DIR}/ATHENA)
 set_tests_properties(live_spell_editor_test PROPERTIES TIMEOUT 90)
+add_test(NAME global_typeset_refresh_editor_test
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
+    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/editor-owner-setup.scm
+    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/global-typeset-refresh-test.scm
+    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
+    --runtime ${ATHENA_GUILE_PREFIX}
+    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
+set_tests_properties(global_typeset_refresh_editor_test PROPERTIES TIMEOUT 90)
+add_test(NAME node_move_lifecycle_test
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/node-move-lifecycle-test.py
+    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
+    --runtime ${ATHENA_GUILE_PREFIX}
+    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
+add_test(NAME node_new_v2_test
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/node-new-v2-test.py
+    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
+    --runtime ${ATHENA_GUILE_PREFIX}
+    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
+add_test(NAME node_v2_persistence_test
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/node-v2-persistence-test.py
+    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
+    --runtime ${ATHENA_GUILE_PREFIX}
+    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
+set_tests_properties(
+  node_move_lifecycle_test node_new_v2_test node_v2_persistence_test
+  PROPERTIES TIMEOUT 150)
+add_test(NAME vault_node_model_upgrade_runtime_test
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/Data/Convert/Xml/vault_node_model_upgrade_test.py
+    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
+    --runtime ${ATHENA_GUILE_PREFIX}
+    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
+set_tests_properties(vault_node_model_upgrade_runtime_test PROPERTIES TIMEOUT 240)
+add_test(NAME audmap_v3_runtime_test
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/interop/audmap-v3-runtime-test.py
+    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
+    --runtime ${ATHENA_GUILE_PREFIX}
+    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
+set_tests_properties(audmap_v3_runtime_test PROPERTIES TIMEOUT 240)
+add_test(NAME node_data_art_scheme_test
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/runtime-test.py
+    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/node-data-art-test.scm
+    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
+    --runtime ${ATHENA_GUILE_PREFIX}
+    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
+add_test(NAME node_model_bridge_scheme_test
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/runtime-test.py
+    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/node-model-bridge-test.scm
+    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
+    --runtime ${ATHENA_GUILE_PREFIX}
+    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
+add_test(NAME node_source_edit_scheme_test
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/runtime-test.py
+    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/node-source-edit-test.scm
+    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/anonymous-editor-owner-setup.scm
+    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
+    --runtime ${ATHENA_GUILE_PREFIX}
+    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
+add_test(NAME node_tree_diff_scheme_test
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/runtime-test.py
+    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/node-tree-diff-test.scm
+    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/anonymous-editor-owner-setup.scm
+    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
+    --runtime ${ATHENA_GUILE_PREFIX}
+    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
+add_test(NAME node_reference_headless_export_scheme_test
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/runtime-test.py
+    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/node-reference-headless-export-test.scm
+    --root-env ATHENA_NODE_EXPORT_TEST_ROOT
+    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
+    --runtime ${ATHENA_GUILE_PREFIX}
+    --resources ${ATHENA_SOURCE_DIR}/ATHENA
+    --timeout 120)
+add_test(NAME group_bytecode_scheme_test
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/runtime-test.py
+    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/group-bytecode-test.scm
+    --root-env ATHENA_GROUP_TEST_DIR
+    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
+    --runtime ${ATHENA_GUILE_PREFIX}
+    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
+set_tests_properties(
+  node_data_art_scheme_test node_model_bridge_scheme_test
+  node_source_edit_scheme_test node_tree_diff_scheme_test
+  node_reference_headless_export_scheme_test group_bytecode_scheme_test
+  PROPERTIES TIMEOUT 150)
 add_test(NAME two_buffer_save_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/two-buffer-save-test.py
@@ -362,11 +506,60 @@ add_test(NAME packrat_concurrency_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/two-buffer-save-test.py
     --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/packrat-concurrency-test.scm
-    --mode plain
     --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
     --runtime ${ATHENA_GUILE_PREFIX}
     --resources ${ATHENA_SOURCE_DIR}/ATHENA)
 set_tests_properties(packrat_concurrency_test PROPERTIES TIMEOUT 60)
+
+# These tests launch a complete ATHENA application/runtime, often with private
+# Guile, Qt, font and actor subsystems.  Running many of them at once turns the
+# ordinary suite into an accidental multi-instance stress test and has produced
+# startup timeouts and BufferActor crashes that do not reproduce in isolation.
+# Serialize application integrations with each other while leaving C++ unit
+# tests and host-Guile source tests fully parallel.
+set(_athena_application_runtime_tests
+  glue_runtime_test
+  vault_random_document_test
+  evaluation_bar_editor_test
+  html5_export_editor_test
+  commutative_diagram_editor_test
+  eqnarray_clipboard_editor_test
+  proof_eqnarray_navigation_editor_test
+  font_init_alias_editor_test
+  window_menu_editor_test
+  document_tabs_editor_test
+  link_invalidation_editor_test
+  completion_editor_test
+  geometry_editor_test
+  format_editor_test
+  structured_editor_test
+  generic_keyboard_editor_test
+  generic_keybindings_editor_test
+  native_math_keyboard_editor_test
+  generic_editor_test
+  generic_extra_editor_test
+  document_edit_editor_test
+  document_style_editor_test
+  embedded_image_editor_test
+  document_part_editor_test
+  live_spell_editor_test
+  global_typeset_refresh_editor_test
+  node_move_lifecycle_test
+  node_new_v2_test
+  node_v2_persistence_test
+  vault_node_model_upgrade_runtime_test
+  audmap_v3_runtime_test
+  node_data_art_scheme_test
+  node_model_bridge_scheme_test
+  node_source_edit_scheme_test
+  node_tree_diff_scheme_test
+  node_reference_headless_export_scheme_test
+  group_bytecode_scheme_test
+  two_buffer_save_test
+  save_as_ownership_test
+  packrat_concurrency_test)
+set_tests_properties(${_athena_application_runtime_tests}
+  PROPERTIES RESOURCE_LOCK athena_application_runtime)
 
 find_program (ATHENA_TEST_GUILE guile)
 if (ATHENA_TEST_GUILE)
@@ -406,6 +599,14 @@ if (ATHENA_TEST_GUILE)
     COMMAND ${ATHENA_TEST_GUILE} --no-auto-compile
       ${CMAKE_CURRENT_SOURCE_DIR}/scheme/converter-search-test.scm
       ${ATHENA_SOURCE_DIR})
+  add_test (NAME aux_buffer_permissions_scheme_test
+    COMMAND ${ATHENA_TEST_GUILE} --no-auto-compile
+      ${CMAKE_CURRENT_SOURCE_DIR}/scheme/aux-buffer-permissions-test.scm
+      ${ATHENA_SOURCE_DIR})
+  add_test (NAME vault_inserter_result_scheme_test
+    COMMAND ${ATHENA_TEST_GUILE} --no-auto-compile
+      ${CMAKE_CURRENT_SOURCE_DIR}/scheme/vault-inserter-result-test.scm
+      ${ATHENA_SOURCE_DIR})
 endif ()
 
 # from list of files we'll create tests test_name.cpp -> test_name
@@ -418,21 +619,7 @@ foreach (_test_file ${TEST_SRC_FILES})
     ${ATHENA_SOURCE_DIR}/src
   )
   # Match ATHENA.bin: the allocator must outlive SYCL's unload-time allocations.
-  if (NOT ATHENA_ENABLE_TSAN)
-    target_link_libraries (${_test_name} mimalloc)
-  endif ()
-  target_link_libraries (${_test_name}
-    athena_test_body
-    PkgConfig::SPDLOG
-    ${ATHENA_LLAMA_LIBRARIES}
-    ${ADS_LIBRARIES}
-    ${ATHENA_Libraries}
-    ${ATHENA_QT_TEST_LIBRARY}
-  )
-  if (ATHENA_ENABLE_TSAN)
-    target_sources (${_test_name} PRIVATE
-      "${ATHENA_SOURCE_DIR}/src/System/Misc/tsan_mimalloc_shim.cpp")
-  endif ()
+  athena_link_full_test_runtime (${_test_name})
   add_test (${_test_name} ${_test_name})
   if (_test_name STREQUAL "artifacts_test" OR
       _test_name STREQUAL "command_line_conversion_test" OR
@@ -446,22 +633,36 @@ foreach (_test_file ${TEST_SRC_FILES})
       add_dependencies (${_test_name} ATHENA)
     endif ()
   endif ()
-  set_tests_properties (${_test_name} PROPERTIES TIMEOUT 5)
+  # Five seconds is too small for tests that legitimately initialize fonts,
+  # render through Qt, or launch ATHENA.bin on a loaded CI host.  Keep a sane
+  # default and override genuinely long integrations below.
+  set_tests_properties (${_test_name} PROPERTIES TIMEOUT 15)
   if (_test_name STREQUAL "command_line_conversion_test")
-    set_tests_properties (${_test_name} PROPERTIES TIMEOUT 90)
+    set_tests_properties (${_test_name} PROPERTIES TIMEOUT 180)
   endif ()
   if (_test_name STREQUAL "delegation_network_test")
     set_tests_properties (${_test_name} PROPERTIES TIMEOUT 600)
   endif ()
   if (_test_name STREQUAL "hodge_recolor_test" OR
-      _test_name STREQUAL "file_chooser_test" OR
+      _test_name STREQUAL "native_interactive_dialog_test" OR
+      _test_name STREQUAL "completing_combo_box_test" OR
       _test_name STREQUAL "evaluation_bar_test" OR
       _test_name STREQUAL "evaluation_bar_conversion_test" OR
       _test_name STREQUAL "commutative_diagram_native_editor_test" OR
       _test_name STREQUAL "structured_radioactive_test" OR
+      _test_name STREQUAL "utf8_editor_test" OR
       _test_name STREQUAL "vault_maintenance_dialog_test" OR
       _test_name STREQUAL "preview_math_font_test")
     set_tests_properties (${_test_name} PROPERTIES TIMEOUT 30)
+  endif ()
+  if (_test_name STREQUAL "file_chooser_test")
+    set_tests_properties (${_test_name} PROPERTIES TIMEOUT 30)
+  endif ()
+  if (_test_name STREQUAL "file_chooser_test" OR
+      _test_name STREQUAL "native_interactive_dialog_test" OR
+      _test_name STREQUAL "completing_combo_box_test")
+    set_property (TEST ${_test_name} APPEND PROPERTY ENVIRONMENT
+      "QT_QPA_PLATFORM=offscreen")
   endif ()
   if (_test_name STREQUAL "shaped_pdf_test")
     set_tests_properties (${_test_name} PROPERTIES TIMEOUT 30)
@@ -484,5 +685,18 @@ foreach (_test_file ${TEST_SRC_FILES})
   if (_test_name STREQUAL "materials_latex_roundtrip_test")
     set_tests_properties (${_test_name} PROPERTIES TIMEOUT 90)
   endif ()
-  set_tests_properties (${_test_name} PROPERTIES ENVIRONMENT "ATHENA_PATH=${ATHENA_SOURCE_DIR}/ATHENA")
+  set_property (TEST ${_test_name} APPEND PROPERTY ENVIRONMENT
+    "ATHENA_PATH=${ATHENA_SOURCE_DIR}/ATHENA")
 endforeach ()
+
+# CTest must be able to launch the same runtime dependencies as ATHENA.bin
+# without requiring developers to remember an out-of-band LD_LIBRARY_PATH.
+# This is especially important for oneDNN and other libraries deployed into
+# ATHENA/lib rather than the system loader's default search path.
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  get_property (_athena_registered_tests DIRECTORY PROPERTY TESTS)
+  foreach (_test_name ${_athena_registered_tests})
+    set_property (TEST ${_test_name} APPEND PROPERTY ENVIRONMENT
+      "LD_LIBRARY_PATH=${ATHENA_SOURCE_DIR}/ATHENA/lib:$ENV{LD_LIBRARY_PATH}")
+  endforeach ()
+endif ()

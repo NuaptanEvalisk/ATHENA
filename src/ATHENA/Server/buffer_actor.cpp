@@ -67,6 +67,31 @@ replacement_node_identities (const tree& document, const tree& body) {
   return next;
 }
 
+std::unique_ptr<athena::document_node::source_identity_state>
+replacement_node_identities_for_edit (const tree& document, tree& body) {
+  const drd_info drd= get_document_drd (document);
+  const auto assigned= athena::document_node::assign_detached_source_ids (
+    body, drd, athena::document_node::standard_source_role,
+    [] (const athena::document_node::identity_request&) {
+      return athena::node::new_id ();
+    });
+  if (!assigned.ok ()) {
+    std_warning << "Source replacement rejected: "
+                << string (assigned.diagnostics.front ().detail.c_str ()) << LF;
+    return {};
+  }
+  body= *assigned.body;
+  auto next= std::make_unique<athena::document_node::source_identity_state> ();
+  const auto errors= next->initialize_complete (
+    body, drd, athena::document_node::standard_source_role);
+  if (!errors.empty ()) {
+    std_warning << "Source replacement rejected: "
+                << string (errors.front ().detail.c_str ()) << LF;
+    return {};
+  }
+  return next;
+}
+
 actor_entry::lease
 acquire_actor (athena_actor_id id) {
   std::shared_ptr<actor_entry> entry;
@@ -1186,7 +1211,7 @@ buffer_actor::dispatch (actor_command_record& command) {
     tree body= actor_tree_registry::instance ().take (command.payload0);
     std::unique_ptr<athena::document_node::source_identity_state> identities;
     if (impl_->state.node_identities) {
-      identities= replacement_node_identities (
+      identities= replacement_node_identities_for_edit (
         attach_data (body, impl_->state.data), body);
       if (!identities) break;
     }

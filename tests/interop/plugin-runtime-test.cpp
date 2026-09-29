@@ -25,9 +25,13 @@
 #include <QTimer>
 #include <QToolButton>
 #include <QTreeWidget>
+#include <algorithm>
 #include <chrono>
+#include <map>
+#include <set>
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -69,6 +73,32 @@ static bool alive (pid_t pid) {
   if (!std::getline (in, line)) return false;
   const auto end = line.rfind (')'); return end == std::string::npos || line.substr (end + 2, 1) != "Z";
 }
+static std::set<pid_t> descendants (pid_t root) {
+  std::map<pid_t,pid_t> parents;
+  for (const auto& entry: std::filesystem::directory_iterator ("/proc")) {
+    const auto name= entry.path ().filename ().string ();
+    if (name.empty () || !std::all_of (name.begin (), name.end (), ::isdigit)) continue;
+    const pid_t pid= static_cast<pid_t> (std::stol (name));
+    std::ifstream in (entry.path () / "stat");
+    std::string line;
+    if (!std::getline (in, line)) continue;
+    const auto end= line.rfind (')');
+    if (end == std::string::npos || end + 4 >= line.size ()) continue;
+    std::istringstream fields (line.substr (end + 2));
+    char state= 0; pid_t parent= 0;
+    if (fields >> state >> parent) parents[pid]= parent;
+  }
+  std::set<pid_t> result;
+  bool changed= true;
+  while (changed) {
+    changed= false;
+    for (const auto& [pid, parent]: parents)
+      if (!result.count (pid) && (parent == root || result.count (parent))) {
+        result.insert (pid); changed= true;
+      }
+  }
+  return result;
+}
 int main (int argc, char** argv) {
   QApplication app (argc, argv);
   QTemporaryDir profile;
@@ -76,12 +106,11 @@ int main (int argc, char** argv) {
   try {
     require (profile.isValid (), "No isolated profile");
     qputenv ("ATHENA_HOME_PATH", profile.filePath ("home").toUtf8 ());
-    qputenv ("PYTHONPATH", QByteArray (PLUGIN_PYTHON_PATH));
-    // The fixture uses distribution PyZMQ/msgpack, not the developer's Conda environment.
-    qputenv ("PATH", QByteArray ("/usr/bin:") + qgetenv ("PATH"));
     const auto source = profile.filePath ("fixture").toStdString ();
     std::filesystem::create_directory (source);
     require (QFile::copy (PLUGIN_FIXTURE_PATH, QString::fromStdString (source + "/plugin_exec")), "Cannot copy plugin script");
+    require (::chmod ((source + "/plugin_exec").c_str (), 0700) == 0,
+             "Cannot make plugin fixture executable");
     const value manifest {{"schema", 2}, {"id", "fixture.plugin"}, {"name", "Fixture Plugin"}, {"version", "1"},
       {"commands", value::array ({{{"id", "hello"}, {"title", "Say hello"}, {"parameters", {{"x", 42}}}},
         {{"id", "probe"}, {"title", "Probe write"}}, {{"id", "child"}, {"title", "Spawn child"}},
@@ -99,7 +128,7 @@ int main (int argc, char** argv) {
     require (error.isEmpty () && !info (manager).running, "Install failed or auto-executed a new plugin");
     std::unique_ptr<QWidget> page (qtm_plugin_preferences (manager)); page->resize (760, 900); page->show ();
     require (page->findChild<QTreeWidget*> ("plugin-list")->topLevelItemCount () == 1, "Preferences omitted plugin");
-    page->findChild<QToolButton*> ("plugin-start-stop")->click ();
+    manager->start ("fixture.plugin", true);
     until ([&] { return info (manager).connected; }, "Plugin did not authenticate");
     require (run (manager, "hello").at ("parameters").at ("x") == 42, "Plugin lost command arguments");
     require (run (manager, "probe").at ("allowed") == false, "Read-only plugin wrote to a native resource");
@@ -132,10 +161,19 @@ int main (int argc, char** argv) {
              "Manifest ceiling was bypassed by a policy change");
     if (!qEnvironmentVariable ("ATHENA_PLUGIN_TEST_SCREENSHOT").isEmpty ())
       require (page->grab ().save (qEnvironmentVariable ("ATHENA_PLUGIN_TEST_SCREENSHOT")), "Cannot save preferences screenshot");
-    auto child = run (manager, "child").at ("child").get<pid_t> ();
     auto leader = info (manager).pid;
+    const auto beforeChildren= descendants (leader);
+    (void) run (manager, "child");
+    std::set<pid_t> childTree;
+    until ([&] {
+      childTree= descendants (leader);
+      return childTree.size () > beforeChildren.size ();
+    }, "Child command created no sandbox descendant");
     manager->stop ("fixture.plugin", true);
-    until ([&] { return !info (manager).running && !alive (leader) && !alive (child); }, "Force quit left a process alive");
+    until ([&] {
+      return !info (manager).running && !alive (leader) &&
+        std::none_of (childTree.begin (), childTree.end (), alive);
+    }, "Force quit left a sandbox descendant alive");
     auto policy = info (manager).policy; policy.startup = QTMPluginPolicy::Startup::Delayed; policy.delaySeconds = 1;
     manager->configure ("fixture.plugin", policy);
     require (info (manager).state == "Scheduled" && !info (manager).running, "Delayed startup was not scheduled correctly");

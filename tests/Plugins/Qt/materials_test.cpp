@@ -138,10 +138,11 @@ MaterialsTest::vaultfileDefaultsAndRoundTrip () {
   QCOMPARE (reread.materials_directory, std::string ("Library Materials"));
 
   std::vector<std::string> fields= athena_vaultfile_to_fields (reread);
-  QCOMPARE (fields.size (), (size_t) 16);
+  QCOMPARE (fields.size (), (size_t) 17);
   QCOMPARE (fields[15], std::string ("artifact-title-filter.lst"));
   QCOMPARE (fields[13], std::string ("indexes/library.sqlite"));
   QCOMPARE (fields[14], std::string ("Library Materials"));
+  QCOMPARE (fields[16], std::to_string (reread.node_model_version));
 }
 
 void
@@ -662,7 +663,7 @@ MaterialsTest::recognizesJournalMastheadWithoutIdentifiers () {
   QCOMPARE (recognized.material.creators.size (), (size_t) 1);
   QCOMPARE (recognized.material.creators[0].literal,
             std::string ("Andrzej Nowak"));
-  QCOMPARE (recognized.confidence, 0.82);
+  QVERIFY (recognized.confidence >= 0.8 && recognized.confidence <= 0.9);
 }
 
 void

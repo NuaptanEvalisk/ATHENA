@@ -66,8 +66,7 @@ with tempfile.TemporaryDirectory(prefix="athena-crash-report-") as temporary:
         system = home / "profile/system"
         system.mkdir(parents=True)
         (system / "sys_state.json").write_text(json.dumps({
-            "format": "athena-system-state", "version": 2,
-            "compatibility_version": "2.1.4",
+            "format": "athena-system-state", "version": 3,
         }))
         environment = dict(os.environ)
         environment.update({

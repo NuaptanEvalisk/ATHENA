@@ -216,7 +216,7 @@ static resolution_result execute (resolution_workers& workers,
   std::promise<resolution_result> promise;
   auto future = promise.get_future ();
   resolution_ticket ticket (workers, registry, parse_selection ("@/fork/leaf"),
-    [&] (resolution_result r) { promise.set_value (std::move (r)); }, limit);
+    [&] (resolution_result r) { promise.set_value (std::move (r)); }, {}, limit);
   require (future.wait_for (5s) == std::future_status::ready, "Resolution did not finish");
   return future.get ();
 }

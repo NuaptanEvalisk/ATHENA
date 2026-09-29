@@ -1,6 +1,5 @@
 ;; Run in global context in the isolated runtime provided by the Python driver.
 (define test-root (getenv "ATHENA_SAVE_TEST_ROOT"))
-(define save-mode (getenv "ATHENA_SAVE_TEST_MODE"))
 (define first-name (string->url (string-append test-root "/first.ath")))
 (define second-name (string->url (string-append test-root "/second.ath")))
 (define completed-count 0)
@@ -25,13 +24,8 @@
       (if (= round 3) (finished tag #t)
           (begin
             (buffer-pretend-modified name)
-            (if (equal? save-mode "plain")
-                (begin
-                  (when (buffer-save name) (error "Native save failed" tag))
-                  (save-round name tag (+ round 1)))
-                (save-buffer-manual name
-                  (cons 'on-saved
-                    (lambda () (save-round name tag (+ round 1)))))))))
+            (when (buffer-save name) (error "Native save failed" tag))
+            (save-round name tag (+ round 1)))))
     (lambda args (finished tag args))))
 
 (define (fixture text other)

@@ -1,5 +1,6 @@
 ;; Run with -H -x (load ...), in an isolated ATHENA_HOME_PATH. The supplied
 ;; ATHENA_NODE_EXPORT_TEST_ROOT must be a new empty temporary directory.
+(set-preference "document save mode" "manual")
 (define root (getenv "ATHENA_NODE_EXPORT_TEST_ROOT"))
 (unless (and root (> (string-length root) 0)) (error "Missing isolated test root"))
 (define (check condition label)

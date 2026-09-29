@@ -43,7 +43,7 @@ athena_promote_evaluation_bars (tree t, int& promoted, string mode) {
     if (tokens[i] == "|" || tokens[i] == "<vert>") {
       tree expression= concat_recompose (result);
       result= array<tree> ();
-      result << tree (VAR_AROUND, "<nobracket>", expression, "|");
+      result << tree (VAR_AROUND, ".", expression, "|");
       ++promoted;
       changed= true;
     }

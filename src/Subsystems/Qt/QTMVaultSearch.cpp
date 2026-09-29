@@ -19,6 +19,7 @@
 #include "analyze.hpp"
 #include "drd_mode.hpp"
 #include "fuzzy_rank.hpp"
+#include "utf8_edit.hpp"
 #include "qt_utilities.hpp"
 #include "neighborhoods.hpp"
 #include "namespaces.hpp"
@@ -309,7 +310,10 @@ normalize_atomic_text (const string& source, bool caseInsensitive) {
   FuzzyAtomicText out;
   for (int start=0; start<N(source); ) {
     if (vault_search_cancelled ()) break;
-    int end= tm_char_next (source, start);
+    // Vault source atoms are native UTF-8.  tm_char_next is the legacy
+    // TeXmacs/Cork token scanner (one byte or <...>) and may split a Unicode
+    // scalar; fuzzy ranges must remain valid editor UTF-8 byte positions.
+    int end= utf8_grapheme_next (source, start);
     append_normalized_character (
       out, to_qstring (source (start, end)), start, end, caseInsensitive);
     start= end;

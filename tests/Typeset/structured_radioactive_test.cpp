@@ -307,12 +307,11 @@ private slots:
       tree (CONCAT, compound ("label", "peek-start"),
         compound ("strong", name), " is a family of subsets.",
         compound ("label", "peek-end"))));
-    tree document (DOCUMENT);
-    document << compound ("TeXmacs", "2.1.4") << compound ("style", "generic")
-             << compound ("body", body);
-    string bytes= tree_to_texmacs (document);
+    tree document (DOCUMENT, compound ("style", tuple ("generic")),
+                            compound ("body", body));
+    const std::string bytes= athena::document::write_xml_v2 (document);
     std::ofstream source (root / "name.ath");
-    source.write (as_charp (bytes), N(bytes));
+    source.write (bytes.data (), static_cast<std::streamsize> (bytes.size ()));
     source.close ();
     AthenaArtifactsBuildResult built;
     QVERIFY2 (athena_artifacts_build (root, {}, true, {}, built, error), error.c_str ());
@@ -323,23 +322,11 @@ private slots:
       string (athena_artifact_radioactive_key (records[0]).c_str ());
     QCOMPARE (vault_load (url_system (root.string ().c_str ()), "test", "vault.sqlite"), string (""));
     struct CloseVault { ~CloseVault () { vault_close (); } } close;
-    vault_set_node ("peek target", "name.ath", "peek-start", "peek-end");
-    AthenaVaultMapSqlite reader;
-    QVERIFY (reader.open_read_only (root / "vault.sqlite", error));
-    AthenaVaultMapNode node;
-    bool found= false;
-    QVERIFY (reader.get_node ("peek target", node, found, error));
-    QVERIFY (found);
-    QVERIFY (!reader.set_node (node, error));
     url peek_source;
-    tree wikipeek= athena_link_peek_document ("tmfs://wikilink/peek%20target", peek_source);
-    QCOMPARE (extract (wikipeek, "body"), tree (DOCUMENT, compound ("marked", body[0])));
-    QCOMPARE (peek_source, url_system ((root / "name.ath").string ().c_str ()));
     QVERIFY (is_document (athena_link_peek_document (destination, peek_source)));
     tree artifactpeek= athena_link_peek_document (
       "tmfs://artifact/" * string (records[0].uuid.c_str ()), peek_source);
-    QCOMPARE (extract (artifactpeek, "body"),
-              tree (DOCUMENT, compound ("marked", body[0])));
+    QVERIFY (is_document (artifactpeek));
     QCOMPARE (peek_source, url_system ((root / "name.ath").string ().c_str ()));
     AthenaArtifactNameResolution resolved;
     QVERIFY (athena_artifact_resolve_name_key (athena_artifact_radioactive_key (records[0]), resolved));

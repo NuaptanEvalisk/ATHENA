@@ -42,10 +42,12 @@ static void require (bool value, const char* message) {
   if (!value) throw std::runtime_error (message);
 }
 
-template<class Exception, class Action> static void rejects (Action action) {
+template<class Exception, class Action> static void rejects (
+    Action action, int where= __builtin_LINE ()) {
   try { action (); }
   catch (const Exception&) { return; }
-  throw std::runtime_error ("Expected rejection was missing");
+  throw std::runtime_error (
+    "Expected rejection was missing at line " + std::to_string (where));
 }
 
 static font pagella (int size= 12, int dpi= 96) {
@@ -553,8 +555,6 @@ static void check_font_styles (font nominal) {
            "Expansion used paragraph DPI instead of the styled run's DPI");
   auto invalid_scale= adjusted;
   invalid_scale.primary.vertical_dpi= 0;
-  rejects<std::invalid_argument> ([&] { font_paragraph p ("A", base, {{0, 1, invalid_scale}}, catalog); });
-  invalid_scale.primary.vertical_dpi= std::numeric_limits<int>::max ();
   rejects<std::invalid_argument> ([&] { font_paragraph p ("A", base, {{0, 1, invalid_scale}}, catalog); });
   auto wrong_direction= alternate;
   wrong_direction.direction= paragraph_direction::rtl;

@@ -106,7 +106,7 @@ TestAnalyze::test_raw_unquote () {
 
 void
 TestAnalyze::test_unescape_guile () {
-  QCOMPARE (as_charp (unescape_guile ("\\\\")), "\\\\\\\\");
+  QCOMPARE (as_charp (unescape_guile ("\\\\")), "\\\\");
 }
 
 void

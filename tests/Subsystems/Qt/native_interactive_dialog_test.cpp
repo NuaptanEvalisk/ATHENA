@@ -128,6 +128,36 @@ NativeInteractiveDialogTest::nativeFormRunsOnGuiThreadAndReturnsValues () {
 void
 NativeInteractiveDialogTest::questionUsesNativeLabelsWithoutRedundantCancel () {
   array<string> result;
+  bool sawQuestion= false;
+  QTimer responder;
+  connect (&responder, &QTimer::timeout, this, [&] {
+    QMessageBox* box= nullptr;
+    for (QWidget* widget: QApplication::topLevelWidgets ()) {
+      auto* candidate= qobject_cast<QMessageBox*> (widget);
+      if (candidate != nullptr && candidate->isVisible ()) {
+        box= candidate;
+        break;
+      }
+    }
+    if (box == nullptr) return;
+    responder.stop ();
+    sawQuestion= true;
+    QCOMPARE (box->windowTitle (), QString ("Question"));
+    QStringList labels;
+    QPushButton* yes= nullptr;
+    for (QPushButton* button: box->findChildren<QPushButton*> ()) {
+      labels << button->text ();
+      if (button->text () == "Yes") yes= button;
+    }
+    QVERIFY (labels.contains ("Yes"));
+    QVERIFY (labels.contains ("No"));
+    QVERIFY (!labels.contains ("yes"));
+    QVERIFY (!labels.contains ("no"));
+    QVERIFY (!labels.contains ("Cancel"));
+    QVERIFY (yes != nullptr);
+    yes->click ();
+  });
+  responder.start (10);
   auto* worker= QThread::create ([&] {
     QTMInteractiveField field;
     field.prompt= "Proceed?";
@@ -136,26 +166,11 @@ NativeInteractiveDialogTest::questionUsesNativeLabelsWithoutRedundantCancel () {
     result= qtm_interactive_dialog ("Ignored for native questions", {field});
   });
   worker->start ();
-  QTRY_VERIFY (QApplication::activeModalWidget () != nullptr);
-  auto* box= qobject_cast<QMessageBox*> (QApplication::activeModalWidget ());
-  QVERIFY (box != nullptr);
-  QCOMPARE (box->windowTitle (), QString ("Question"));
-  QStringList labels;
-  QPushButton* yes= nullptr;
-  for (QPushButton* button: box->findChildren<QPushButton*> ()) {
-    labels << button->text ();
-    if (button->text () == "Yes") yes= button;
-  }
-  QVERIFY (labels.contains ("Yes"));
-  QVERIFY (labels.contains ("No"));
-  QVERIFY (!labels.contains ("yes"));
-  QVERIFY (!labels.contains ("no"));
-  QVERIFY (!labels.contains ("Cancel"));
-  QVERIFY (yes != nullptr);
-  yes->click ();
   QTRY_VERIFY_WITH_TIMEOUT (worker->isFinished (), 4000);
+  responder.stop ();
   worker->wait ();
   delete worker;
+  QVERIFY (sawQuestion);
   QCOMPARE (N(result), 1);
   QCOMPARE (result[0], string ("yes"));
 }

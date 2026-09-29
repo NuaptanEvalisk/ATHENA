@@ -23,6 +23,8 @@
 #include "qt_renderer.hpp"
 #include "Freetype/tt_file.hpp"
 #include "named_symbol.hpp"
+#include "math_font.hpp"
+#include "Boxes/construct.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }
@@ -36,28 +38,6 @@ letter_font (box b) {
     if (!is_nil (f)) return f;
   }
   return font ();
-}
-
-static SI
-delimiter_center (box b, string symbol, SI y=0) {
-  if (b->get_type () == TEXT_BOX && b->get_leaf_string () == symbol)
-    return y + (b->y1 + b->y2) / 2;
-  for (int i=0; i<N(b); ++i) {
-    SI center= delimiter_center (b[i], symbol, y+b->sy(i));
-    if (center != MAX_SI) return center;
-  }
-  return MAX_SI;
-}
-
-static SI
-left_parenthesis_height (box b) {
-  if (b->get_type () == TEXT_BOX && starts (b->get_leaf_string (), "<left-(-"))
-    return b->y2 - b->y1;
-  for (int i=0; i<N(b); ++i) {
-    SI height= left_parenthesis_height (b[i]);
-    if (height != 0) return height;
-  }
-  return 0;
 }
 
 class PreviewMathFontTest: public QObject {
@@ -252,19 +232,14 @@ private slots:
     env->write (MODE, "math");
     env->update ();
 
-    tree row_a (ROW, tree (CELL, "a"));
-    tree row_b (ROW, tree (CELL, "b"));
-    tree row_c (ROW, tree (CELL, "c"));
-    tree two_rows (TFORMAT, tree (TABLE, row_a, row_b));
-    tree three_rows (TFORMAT, tree (TABLE, row_a, row_b, row_c));
-    box two= typeset_as_concat (
-      env, tree (VAR_AROUND, "(", two_rows, ")"), path ());
-    box three= typeset_as_concat (
-      env, tree (VAR_AROUND, "(", three_rows, ")"), path ());
-    SI two_height= left_parenthesis_height (two);
-    SI three_height= left_parenthesis_height (three);
-    QVERIFY (two_height > 0);
-    QVERIFY (three_height > two_height);
+    auto two= athena::text::shape_math_stretch (
+      env->fn, "(", 2 * env->fn->yx, true);
+    auto three= athena::text::shape_math_stretch (
+      env->fn, "(", 4 * env->fn->yx, true);
+    QVERIFY (two.has_value ());
+    QVERIFY (three.has_value ());
+    QVERIFY (two->extent > 0);
+    QVERIFY (three->extent > two->extent);
   }
 
   void pagellaDelimitersFollowMathAxis () {
@@ -279,19 +254,18 @@ private slots:
     for (string size: {string ("10"), string ("12")}) {
       env->write (FONT_BASE_SIZE, size);
       env->update ();
-      for (string pair: {string ("{}"), string ("()")}) {
-        for (string body: {string (""), string ("0")}) {
-          box b= typeset_as_concat (env,
-            tree (VAR_AROUND, pair(0,1), body, pair(1,2)), path ());
-          for (int side=0; side<2; ++side) {
-            string symbol= (side == 0 ? string ("<left-") : string ("<right-")) *
-                           pair(side,side+1) * "-0>";
-            SI center= delimiter_center (b, symbol);
-            QVERIFY2 (center != MAX_SI, as_charp (symbol));
-            QVERIFY2 (abs (center-env->fn->yfrac) <= PIXEL/2,
-                      as_charp (as_string (center-env->fn->yfrac)));
-          }
-        }
+      const auto metrics= athena::text::math_layout_metrics (env->fn);
+      QVERIFY (metrics.has_value ());
+      const SI axis= metrics->axis_height;
+      for (string symbol: {string ("{"), string ("}"),
+                           string ("("), string (")")}) {
+        box b= delimiter_box (
+          path (), symbol, env->fn, pencil (black),
+          axis - 2 * env->fn->yx, axis + 2 * env->fn->yx);
+        QVERIFY2 (!is_nil (b), as_charp (symbol));
+        const SI center= (b->y1 + b->y2) / 2;
+        QVERIFY2 (abs (center-axis) <= PIXEL/2,
+                  as_charp (as_string (center-axis)));
       }
     }
   }

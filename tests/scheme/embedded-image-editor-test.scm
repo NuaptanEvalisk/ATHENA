@@ -158,8 +158,11 @@
        "native embed-image converts active linked image to raw-data")
 (check (equal? (tree->stree (tree-ref (buffer-tree) 0 0 1)) "SmallTile.png")
        "native embed-image stores linked filename tail")
-(check (> (string-length (tree->string (tree-ref (buffer-tree) 0 0 0 0))) 0)
-       "native embed-image stores nonempty image bytes")
+(define embedded-png-raw (tree->stree (tree-ref (buffer-tree) 0 0 0)))
+(check (and (pair? embedded-png-raw)
+            (eq? (car embedded-png-raw) 'raw-data)
+            (not (equal? (cadr embedded-png-raw) #vu8())))
+       "native embed-image stores nonempty binary image bytes")
 
 ;; Cursor-local embedding reproduces tree-innermost ... #t semantics.
 (buffer-set-body
@@ -184,7 +187,8 @@
 (embed-all-images)
 (check (embedded-image-context? (tree-ref (buffer-tree) 0 0))
        "native embed-all-images recursively embeds linked image")
-(check (equal? (tree->string (tree-ref (buffer-tree) 0 1 0 0 0)) "keep")
+(check (equal? (tree->stree (tree-ref (buffer-tree) 0 1 0 0))
+               '(raw-data #vu8(107 101 101 112)))
        "native embed-all-images preserves existing embedded bytes")
 
 (init-env "page-medium" "paper")

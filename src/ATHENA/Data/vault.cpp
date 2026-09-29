@@ -326,31 +326,41 @@ vault_has_node (string uuid) {
          found;
 }
 
-static void
-scan_recursive (url dir, array<url>& res) {
-  bool err;
-  array<string> all = read_directory (dir, err);
-  if (err) return;
-  for (int i=0; i<N(all); i++) {
-    url u = dir * url (all[i]);
-    string name = all[i];
-    if (name != "" && name[0] == '.') continue;
-    if (is_directory (u)) {
-      scan_recursive (u, res);
-    } else {
-      string suf = suffix (u);
-      if (suf == "ath" || suf == "tm") {
-        res << u;
-      }
-    }
-  }
-}
-
 array<url>
 vault_get_all_files () {
+  namespace fs= std::filesystem;
   array<url> res;
-  if (!vault_active ()) return res;
-  scan_recursive (vault_get_root (), res);
+  const auto context= vault_capture_context ();
+  if (!context) return res;
+  std::error_code ec;
+  const fs::path root= fs::canonical (context->root, ec);
+  if (ec) return res;
+  fs::recursive_directory_iterator it (
+    root, fs::directory_options::skip_permission_denied, ec), end;
+  for (; !ec && it != end; it.increment (ec)) {
+    const fs::path path= it->path ();
+    const std::string name= path.filename ().string ();
+    std::error_code entry_error;
+    const auto status= it->symlink_status (entry_error);
+    // Never follow file or directory symlinks, including internal aliases and
+    // cycles. Keep the shared scanner's existing hidden-entry exclusion.
+    if (entry_error || fs::is_symlink (status) ||
+        (!name.empty () && name[0] == '.')) {
+      it.disable_recursion_pending ();
+      continue;
+    }
+    const fs::path canonical= fs::canonical (path, entry_error);
+    const fs::path relative= canonical.lexically_relative (root);
+    if (entry_error || canonical != path || relative.empty () ||
+        relative.is_absolute () || *relative.begin () == "..") {
+      it.disable_recursion_pending ();
+      continue;
+    }
+    if (!fs::is_regular_file (status)) continue;
+    const url u= url_system (vault_tm_string (canonical.string ()));
+    const string extension= suffix (u);
+    if (extension == "ath" || extension == "tm") res << u;
+  }
   return res;
 }
 

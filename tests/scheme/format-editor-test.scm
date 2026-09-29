@@ -116,7 +116,7 @@
 (reset '(with "color" "red" (document (with "color" "blue" "text"))))
 (with-simplify (tree-ref (node) 2 0))
 (check (equal? (body) '(document (with "color" "blue" "text")))
-       "simplify crosses a single-paragraph document")
+       "simplify removes the redundant outer wrapper across a single-paragraph document")
 (reset '(with "color" "red" (document (with "color" "blue" "text") "other")))
 (with-simplify (tree-ref (node) 2 0))
 (check (equal? (body)

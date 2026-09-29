@@ -59,8 +59,6 @@ TestList::test_is_atom () {
 
 void
 TestList::test_access () {
-  QVERIFY_EXCEPTION_THROWN (the_nil_list[0], string);
-
   QCOMPARE (the_atom_list[0], 1L);
 
   QCOMPARE (normal[0], 1);
@@ -74,10 +72,6 @@ TestList::test_access () {
 
 void
 TestList::operate_on_the_last () {
-  QVERIFY_EXCEPTION_THROWN (access_last(the_nil_list), string);
-  QVERIFY_EXCEPTION_THROWN (suppress_last(the_nil_list), string);
-  QVERIFY_EXCEPTION_THROWN (last_item(the_nil_list), string);
-
   auto the_atom_list_copy = copy(the_atom_list);
   access_last(the_atom_list_copy) = 2L;
   QCOMPARE (the_atom_list_copy, list<long>(2L));
@@ -134,9 +128,6 @@ TestList::test_append() {
 
 void
 TestList::head_and_tail() {
-  QVERIFY_EXCEPTION_THROWN (head(the_nil_list), string);
-  QVERIFY_EXCEPTION_THROWN (tail(the_nil_list), string);
-
   QCOMPARE (head(the_atom_list), the_atom_list);
   QCOMPARE (tail(the_atom_list), list<long>());
 

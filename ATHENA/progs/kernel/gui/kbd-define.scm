@@ -28,7 +28,7 @@
        (null? (cddr module))
        (symbol? (cadr module))))
 
-(define (lazy-keyboard-provide module)
+(tm-define (lazy-keyboard-provide module)
   (if (native-keyboard-module? module)
       (generic-keyboard-load-domain (symbol->string (cadr module)))
       (module-provide module)))

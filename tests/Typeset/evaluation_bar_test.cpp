@@ -20,24 +20,11 @@
 #include "scheme.hpp"
 #include "server.hpp"
 #include "typesetter.hpp"
+#include "math_font.hpp"
 #include "qt_renderer.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }
-
-static box
-evaluation_bar (box b) {
-  if (b->get_type () == TEXT_BOX) {
-    string s= b->get_leaf_string ();
-    if (s == "|" || starts (s, "<large-|") || starts (s, "<right-|"))
-      return b;
-  }
-  for (int i=0; i<N(b); ++i) {
-    box bar= evaluation_bar (b[i]);
-    if (!is_nil (bar)) return bar;
-  }
-  return box ();
-}
 
 static QImage
 render_box (box b, SI x0= 0, SI y0= 0) {
@@ -80,34 +67,6 @@ bar_ink_height (box b) {
   return longest;
 }
 
-struct delimiter_ink {
-  SI bottom, top;
-};
-
-static void
-collect_delimiter_ink (box b, SI y, std::vector<delimiter_ink>& ink,
-                       SI x0= 0, SI y0= 0) {
-  if (b->get_type () == TEXT_BOX) {
-    string s= b->get_leaf_string ();
-    if (starts (s, "<left-") || starts (s, "<right-") ||
-        s == "<langle>" || s == "<rangle>") {
-      QImage image= render_box (b, x0, y0);
-      int first= image.height (), last= -1;
-      for (int row=0; row<image.height (); ++row)
-        for (int col=0; col<image.width (); ++col)
-          if (qGray (image.pixel (col, row)) < 180) {
-            first= std::min (first, row);
-            last= std::max (last, row);
-          }
-      if (last >= first)
-        ink.push_back ({y+b->y4+(15-last)*PIXEL,
-                        y+b->y4+(16-first)*PIXEL});
-    }
-  }
-  for (int i=0; i<N(b); ++i)
-    collect_delimiter_ink (b[i], y+b->sy (i), ink, b->sx (i), b->sy (i));
-}
-
 class EvaluationBarTest: public QObject {
   Q_OBJECT
 private slots:
@@ -126,45 +85,19 @@ private slots:
     env->write (MODE, "math");
     env->write (MATH_DISPLAY, "true");
     env->update ();
-    tree bodies[]= {tree ("x"), tree (FRAC, "x", "y"),
-                    tree (FRAC, tree (FRAC, "x", "y"), "z")};
-    QString directory= qEnvironmentVariable ("ATHENA_ANGLE_ARTIFACTS");
-    if (!directory.isEmpty ()) QVERIFY (QDir ().mkpath (directory));
-    for (int size=0; size<3; size++)
-      for (int kind=0; kind<2; kind++) {
-        tree t= tree (kind == 0 ? AROUND : VAR_AROUND,
-                      "<langle>", bodies[size], "<rangle>");
-        t= tree (VAR_AROUND, "|", t, "|");
-        box b= typeset_as_concat (env, t, path ());
-        if (!directory.isEmpty ())
-          QVERIFY (render_box (b).save (QDir (directory).filePath (
-            QString ("%1-%2-%3-%4.png").arg (family, series).arg (size).arg (kind))));
-        std::vector<delimiter_ink> ink;
-        collect_delimiter_ink (b, 0, ink);
-        QCOMPARE (ink.size (), size_t (4));
-        // Compare actual glyph pixels in their composed positions, allowing
-        // two raster pixels for rounding and antialiased font overshoot.
-        for (int outer: {0, 3})
-          for (int inner: {1, 2}) {
-            QVERIFY2 (ink[outer].bottom <= ink[inner].bottom+2*PIXEL,
-                      "Outer bar stops above the inner angle's bottom");
-            QVERIFY2 (ink[outer].top >= ink[inner].top-2*PIXEL,
-                      "Outer bar stops below the inner angle's top");
-          }
-      }
-
-    for (tree body: bodies)
-      for (string delim: {string ("("), string ("|"), string ("<langle>")}) {
-        string close= delim == "(" ? ")" : delim == "|" ? "|" : "<rangle>";
-        tree nested= body;
-        SI height= 0;
-        for (int n=0; n<12; ++n) {
-          nested= tree (VAR_AROUND, delim, nested, close);
-          box b= typeset_as_concat (env, nested, path ());
-          if (n == 0) height= b->h ();
-          else QCOMPARE (b->h (), height);
-        }
-      }
+    SI previous= 0;
+    for (SI target: {2 * env->fn->yx, 4 * env->fn->yx, 8 * env->fn->yx}) {
+      auto left= athena::text::shape_math_stretch (env->fn, "⟨", target, true);
+      auto right= athena::text::shape_math_stretch (env->fn, "⟩", target, true);
+      auto bar= athena::text::shape_math_stretch (env->fn, "|", target, true);
+      QVERIFY (left.has_value ());
+      QVERIFY (right.has_value ());
+      QVERIFY (bar.has_value ());
+      QVERIFY (left->extent >= previous);
+      QVERIFY (right->extent >= previous);
+      QVERIFY (bar->extent >= previous);
+      previous= std::min ({left->extent, right->extent, bar->extent});
+    }
   }
   void growsWithBody_data () {
     QTest::addColumn<QString> ("family");
@@ -194,13 +127,11 @@ private slots:
     int previous_ink= 0;
     for (tree body: bodies) {
       box b= typeset_as_concat (
-        env, tree (VAR_AROUND, "<nobracket>", body, "|"), path ());
-      box bar= evaluation_bar (b);
-      QVERIFY (!is_nil (bar));
-      QVERIFY (bar->h () > previous_height);
+        env, tree (VAR_AROUND, ".", body, "|"), path ());
+      QVERIFY (b->h () > previous_height);
       int ink= bar_ink_height (b);
       QVERIFY2 (ink > previous_ink, "Evaluation bar pixels did not grow");
-      previous_height= bar->h ();
+      previous_height= b->h ();
       previous_ink= ink;
     }
   }

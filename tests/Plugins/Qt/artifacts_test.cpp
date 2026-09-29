@@ -604,11 +604,10 @@ TestArtifacts::isolatesStructuredBoldBlocks () {
               << "Unrelated second block.";
   tree body (DOCUMENT);
   body << "A long introductory paragraph that belongs to neither block."
-       << compound ("note", first_body)
-       << compound ("note", second_body);
+       << compound ("scope-block", first_body)
+       << compound ("scope-block", second_body);
   tree document (DOCUMENT);
-  document << compound ("TeXmacs", "2.1.4")
-           << compound ("style", "generic")
+  document << compound ("style", "generic")
            << compound ("body", body);
 
   std::vector<AthenaArtifactRecord> records;
@@ -1728,6 +1727,7 @@ TestArtifacts::upgradesLegacyNamesBeforeRadioactiveIndex () {
   std::vector<AthenaArtifactRecord> records;
   QVERIFY2 (athena_artifacts_query (root, records, error), error.c_str ());
   QVERIFY2 (exec_test_sql (root / info.artifacts_path,
+    "UPDATE artifact_metadata SET value='2' WHERE key='schema-version';"
     "DELETE FROM artifact_metadata WHERE key='tree-format';"
     "INSERT INTO artifacts(uuid,type,origin,content_uuid,path,anchor_stem,display_text,document_order) "
     "VALUES('legacy','definition','enunciation','source','probe.ath','anchor','Cesàro summation',0);"
@@ -1844,7 +1844,7 @@ TestArtifacts::matchesPossessiveAndEponymRadioactiveLinks () {
     radioactive_record ("artin", "Artin ring"),
     radioactive_record ("gauss", "Gauss measure"),
     radioactive_record ("lagrange", "Lagrange identity")};
-  string text= utf8_to_cork (
+  string text (
     "Euler's theorem; EULERIAN THEOREM; Euler\xE2\x80\x99s theorem. "
     "Noetherian spaces and Noether's space. Artinian rings. "
     "Gaussian measures. Lagrangian identities.");

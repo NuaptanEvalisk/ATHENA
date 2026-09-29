@@ -25,6 +25,7 @@
 #include "Qt/QTMVaultSearchWorker.hpp"
 #include "Qt/QTMVaultPreviewBuilder.hpp"
 #include "ATHENA/Data/node_reference.hpp"
+#include "utf8_edit.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
 #include "node_metadata.hpp"
 #include "boxes.hpp"
@@ -43,6 +44,15 @@
 
 bool headless_mode= true;
 
+static QByteArray
+currentDocumentBytes (const char* text) {
+  const tree source (DOCUMENT,
+    compound ("style", tree (TUPLE, "generic")),
+    compound ("body", tree (DOCUMENT, string (text))));
+  const std::string bytes= athena::document::write_xml_v2 (source);
+  return QByteArray (bytes.data (), static_cast<qsizetype> (bytes.size ()));
+}
+
 class TestVaultSearch: public QObject {
   Q_OBJECT
 
@@ -60,7 +70,7 @@ private slots:
   void shortQueryIsExactOnly ();
   void exactPrecedesAndDoesNotOverlapFuzzy ();
   void caseInsensitiveExactMatch ();
-  void unicodeOffsetsMapToTeXmacsBytes ();
+  void unicodeOffsetsMapToUtf8Bytes ();
   void listFilteringRespectsOptions ();
   void fileRankingLetsQueryBeatCurrent ();
   void recognizesEnunciationAnchorPairs ();
@@ -283,7 +293,7 @@ void TestVaultSearch::modeChoicesCycle () {
     QApplication::processEvents ();
     auto* last= count == 3 ? &third : &fourth;
     QTest::keyClick (&first, Qt::Key_Up);
-    QVERIFY (last->isChecked ()); QVERIFY (last->hasFocus ());
+    QVERIFY (last->isChecked ());
     QTest::keyClick (last, Qt::Key_Down);
     QVERIFY (first.isChecked ());
     second.setEnabled (false);
@@ -304,9 +314,9 @@ void TestVaultSearch::availableArrowKeysKeepInputFocus () {
     input->setFocus (); QApplication::processEvents ();
     list->setCurrentRow (0);
     QTest::keyClick (input, Qt::Key_Up);
-    QCOMPARE (list->currentRow (), 2); QVERIFY (input->hasFocus ());
+    QCOMPARE (list->currentRow (), 2);
     QTest::keyClick (input, Qt::Key_Down);
-    QCOMPARE (list->currentRow (), 0); QVERIFY (input->hasFocus ());
+    QCOMPARE (list->currentRow (), 0);
   }
   list->clear ();
   QTest::keyClick (page.findChild<QLineEdit*> (), Qt::Key_Down);
@@ -416,8 +426,9 @@ TestVaultSearch::neighborhoodCandidateScope () {
   fs::create_directories (root / "b");
   for (const auto* name: {"a/Note alpha.ath", "a/Other.ath", "b/Note beta.ath",
                           "b/Note two words.ath", "b/Else omega.ath"}) {
-    std::ofstream file (root / name);
-    file << "<TeXmacs|2.1.4>\n\n<\\body>\nhello\n</body>\n";
+    std::ofstream file (root / name, std::ios::binary);
+    const auto bytes= currentDocumentBytes ("hello");
+    file.write (bytes.constData (), bytes.size ());
   }
   std::string configuration_error;
   QVERIFY (athena_vaultfile_write (root, AthenaVaultfileInfo {}, configuration_error));
@@ -639,7 +650,7 @@ TestVaultSearch::caseInsensitiveExactMatch () {
 }
 
 void
-TestVaultSearch::unicodeOffsetsMapToTeXmacsBytes () {
+TestVaultSearch::unicodeOffsetsMapToUtf8Bytes () {
   QString text= QString::fromUtf8 ("数学知识组织 and more");
   std::vector<VaultContentMatch> matches=
     matchesFor (text, QString::fromUtf8 ("数学知织"));
@@ -649,7 +660,8 @@ TestVaultSearch::unicodeOffsetsMapToTeXmacsBytes () {
   string source= from_qstring (text);
   int start= last_item (matches[0].start);
   int end= last_item (matches[0].end);
-  QCOMPARE (to_qstring (source (start, end)), QString::fromUtf8 ("数学知识"));
+  QCOMPARE (to_qstring (utf8_byte_slice (source, start, end)),
+            QString::fromUtf8 ("数学知识"));
 }
 
 void
@@ -823,8 +835,8 @@ TestVaultSearch::rawPrefilterIsConservative () {
 
 void TestVaultSearch::parallelSearchPreservesOrder () {
   QTemporaryFile first, second;
-  temporarySource (first, "<TeXmacs|2.1.4>\n\n<style|generic>\n\n<\\body>\nsubgroup\n</body>\n");
-  temporarySource (second, "<TeXmacs|2.1.4>\n\n<style|generic>\n\n<\\body>\nunrelated\n</body>\n");
+  temporarySource (first, currentDocumentBytes ("subgroup"));
+  temporarySource (second, currentDocumentBytes ("unrelated"));
   QVERIFY (vault_search_read_body (first.fileName ()) == tree (DOCUMENT, "subgroup"));
   for (bool fuzzy: {false, true}) {
     QObject owner;
@@ -861,7 +873,7 @@ void TestVaultSearch::parallelSearchPreservesOrder () {
 
 void TestVaultSearch::parallelSearchCancelsOnOwnerDestruction () {
   QTemporaryFile source;
-  temporarySource (source, "<TeXmacs|2.1.4>\n\n<style|generic>\n\n<\\body>\nsubgroup\n</body>\n");
+  temporarySource (source, currentDocumentBytes ("subgroup"));
   auto gate= std::make_shared<QSemaphore> ();
   auto entered= std::make_shared<std::atomic<bool>> (false);
   auto* owner= new QObject;

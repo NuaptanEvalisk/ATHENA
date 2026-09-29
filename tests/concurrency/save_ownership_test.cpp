@@ -88,8 +88,8 @@ static void test_lifetime_pin () {
 
 static void test_menu_metadata () {
   buffer_name_catalog catalog;
-  catalog.publish_metadata ({{"first", {"First", 10, false, 11}},
-                             {"second", {"Second", 20, false, 22}}});
+  catalog.publish_metadata ({{"first", {"First", 10, false, false, 11}},
+                             {"second", {"Second", 20, false, false, 22}}});
   buffer_name_catalog::metadata value;
   assert (catalog.lookup ("first", value));
   assert (value.title == "First" && value.last_visit == 10);
@@ -116,7 +116,7 @@ static void test_menu_metadata () {
   catalog.set_source_view ("first", 0);
   assert (catalog.lookup ("first", value) && value.source_view == 0);
   assert (catalog.lookup ("second", value) && value.last_visit == 20);
-  catalog.publish_metadata ({{"renamed", {"New title", 10009, false, 11}}});
+  catalog.publish_metadata ({{"renamed", {"New title", 10009, false, false, 11}}});
   assert (!catalog.lookup ("first", value));
   assert (!catalog.lookup ("second", value));
   assert (catalog.lookup ("renamed", value));

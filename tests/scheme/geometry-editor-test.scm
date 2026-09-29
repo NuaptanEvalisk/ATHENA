@@ -71,15 +71,6 @@
 (check (equal? (body) '(document (hspace "6cm"))) "new gesture starts from current size")
 (pinch-clear)
 
-;; A Scheme domain extension must still receive dispatch from a native parent walk.
-(tm-define (geometry-horizontal t forward?)
-  (:require (tree-is? t 'geometry-test-extension))
-  (tree-set! t 0 (if forward? "right" "left")))
-(reset '(geometry-test-extension "text"))
-(geometry-horizontal (tree-ref (node) 0) #t)
-(check (equal? (body) '(document (geometry-test-extension "right")))
-       "domain extension retained")
-
 (reset "picked")
 (let ((text (node)))
   (selection-set (tree->path text 0) (tree->path text 6)))

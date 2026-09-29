@@ -559,6 +559,20 @@ edit_select_rep::selection_var_get_end () {
   return p2;
 }
 
+static tree
+selection_compute_without_source_root_identity (
+    tree document, path root, path p1, path p2) {
+  if (!is_nil (root) && has_subtree (document, root) &&
+      p1 == start (document, root) && p2 == end (document, root)) {
+    tree source= copy (subtree (document, root));
+    if (athena::node::get (source)) {
+      athena::node::clear (source);
+      return selection_compute (source, start (source), end (source));
+    }
+  }
+  return selection_compute (document, p1, p2);
+}
+
 tree
 edit_select_rep::selection_get () {
   if (!selection_active_any ()) return "";
@@ -572,7 +586,7 @@ edit_select_rep::selection_get () {
     // cout << "Selecting...\n";
     selection_get (p1, p2);
     // cout << "Between paths: " << p1 << " and " << p2 << "\n";
-    tree t= selection_compute (et, p1, p2);
+    tree t= selection_compute_without_source_root_identity (et, rp, p1, p2);
     // cout << "Selection : " << t << "\n";
     return simplify_correct (t);
   }
@@ -1147,7 +1161,7 @@ edit_select_rep::selection_cut (string key) {
       const path complete_object=
         complete_identified_selection_path (et, p1, p2, rp);
       if (key != "none") {
-        tree sel= selection_compute (et, p1, p2);
+        tree sel= selection_compute_without_source_root_identity (et, rp, p1, p2);
         tree clipboard= simplify_correct (sel);
         athena::document_node::source_move_ticket move;
         if (selection_export == "default" && node_identities_active () &&
@@ -1164,7 +1178,20 @@ edit_select_rep::selection_cut (string key) {
           move.token.empty () ? string () :
             string (move.token.data (), (int) move.token.size ()));
       }
-      if (!is_nil (complete_object)) remove (complete_object, 1);
+      if (!is_nil (complete_object)) {
+        const path parent_path= path_up (complete_object);
+        remove (complete_object, 1);
+        // A complete identified paragraph is removed as an object so its UUID
+        // can move rather than being duplicated on the empty remainder.  Keep
+        // the containing document editable, though: ordinary range cuts have
+        // always left an empty paragraph here, and wrapper insertion relies on
+        // that document invariant.
+        if (has_subtree (et, parent_path)) {
+          tree parent= subtree (et, parent_path);
+          if (is_document (parent) && N(parent) == 0)
+            insert (parent_path * 0, tree (""));
+        }
+      }
       else cut (p1, p2);
       go_to (position_get (pos));
       position_delete (pos);

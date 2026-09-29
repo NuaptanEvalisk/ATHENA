@@ -3,7 +3,7 @@
 (use-modules (system base compile) (system vm loader))
 (import-from (utils edit variants))
 
-(let* ((root (getenv "ATHENA_GROUP_TEST_DIR"))
+  (let* ((root (or (getenv "ATHENA_GROUP_TEST_DIR") (getenv "HOME")))
        (source (string-append root "/group.scm"))
        (output (string-append root "/group.go"))
        (group 'bytecode-regression-tag))

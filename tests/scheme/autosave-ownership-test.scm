@@ -10,12 +10,15 @@
 (define modified #f)
 (define permissions-checked #f)
 (define :strict ':strict)
+(define == equal?)
 
 (define (check condition message)
   (unless condition (error "Autosave ownership regression" message)))
 
 (define (get-preference key)
-  (if (equal? key "autosave") "1" ""))
+  (cond ((equal? key "autosave") "1")
+        ((equal? key "document save mode") "autosave")
+        (else "")))
 
 (define-macro (delayed timing . body)
   `(set! scheduled (lambda () ,@body)))

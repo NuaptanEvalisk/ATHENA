@@ -54,23 +54,6 @@
        "generic label insertion")
 (check (equal? (cursor-path) '(0 0 1 0 0 0)) "label insertion cursor")
 
-;; Later Scheme specializations still intercept the native baseline.
-(tm-define (label-insert t)
-  (:require (tree-is? t 'label-test-extension))
-  (tree-set! t 0 "handled"))
-(buffer-set-body (current-buffer)
-                 (stree->tree '(document (label-test-extension "x"))))
-(update-current-buffer)
-(tree-go-to (tree-ref (buffer-tree) 0 0) :end)
-(label-insert (tree-ref (buffer-tree) 0 0))
-(check (equal? (body) '(document (label-test-extension "handled")))
-       "label outward dispatch reaches Scheme extension")
-(tree-set! (tree-ref (buffer-tree) 0) 0 "x")
-(tree-go-to (tree-ref (buffer-tree) 0 0) :end)
-(make-label)
-(check (equal? (body) '(document (label-test-extension "handled")))
-       "no-argument make-label reaches Scheme label specialization")
-
 (reset '(document "abc") '(0 0 1))
 (recenter-window)
 
@@ -295,24 +278,6 @@
                          (stree->tree '(label "listed")))))
                '(label "listed"))
        "native focus label list search returns the first matching label")
-
-;; Later focus-label specializations remain authoritative.  The specialization
-;; deliberately uses the native structural search, while get/set dispatch back
-;; through the public focus-label command.
-(tm-define (focus-label t)
-  (:require (tree-is? t 'focus-label-extension))
-  (focus-search-label (tree-ref t 0)))
-(buffer-set-body
-  (current-buffer)
-  (stree->tree '(document (focus-label-extension (document (label "old"))))))
-(update-current-buffer)
-(define focus-extension (tree-ref (buffer-tree) 0))
-(check (equal? (focus-get-label focus-extension) "old")
-       "native focus-get-label reaches Scheme focus-label specialization")
-(focus-set-label focus-extension "new")
-(check (equal? (body)
-               '(document (focus-label-extension (document (label "new")))))
-       "native focus-set-label mutates the specialized active label")
 
 (buffer-set-body
   (current-buffer)

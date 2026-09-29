@@ -7,6 +7,7 @@
 #include <QtTest/QtTest>
 
 #include "QTMDelegationClient.hpp"
+#include "Data/Convert/Xml/athena_document_xml.hpp"
 
 #include <QFile>
 #include <QTemporaryDir>
@@ -38,8 +39,13 @@ write_ath (const QString& path, const QString& text) {
   QFile file (path);
   if (!file.open (QIODevice::WriteOnly | QIODevice::Truncate))
     qFatal ("Could not write test ATHENA document");
-  file.write (("<TeXmacs|2.1.4>\n\n<style|generic>\n\n<\\body>\n" +
-              text + "\n</body>\n").toUtf8 ());
+  const QByteArray utf8= text.toUtf8 ();
+  const tree source (DOCUMENT,
+    compound ("style", tree (TUPLE, "generic")),
+    compound ("body", tree (DOCUMENT,
+      string (utf8.constData (), static_cast<int> (utf8.size ())))));
+  const std::string bytes= athena::document::write_xml_v2 (source);
+  file.write (bytes.data (), static_cast<qint64> (bytes.size ()));
 }
 
 static int

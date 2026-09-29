@@ -326,17 +326,37 @@ struct service::impl: std::enable_shared_from_this<impl> {
         index locations= make_index (documents);
         std::vector<std::string> wanted (requested.begin (), requested.end ());
         auto persistent= persistent_index_lookup (root, wanted);
+        bool stale_persistent_location= false;
         for (const auto& pair: persistent.locations) {
           (void) locations[pair.first];
           for (const auto& found: pair.second) if (!overridden.count (found.file)) {
-            locations[pair.first].push_back (found);
-            watched->push_back ((root / found.file).string ());
-            watched->push_back ((root / found.file).parent_path ().string ());
+            bool current= found.disk_revision.has_value ();
+            try {
+              if (!pinned_root)
+                pinned_root= std::make_unique<fs::confined_root> (root);
+              const auto entry= pinned_root->open (found.file);
+              current= current && !entry.stat ().directory &&
+                       fs::same_revision (*found.disk_revision, entry.stat ());
+            }
+            catch (...) { current= false; }
+            if (current) {
+              locations[pair.first].push_back (found);
+              watched->push_back ((root / found.file).string ());
+              watched->push_back ((root / found.file).parent_path ().string ());
+            }
+            else stale_persistent_location= true;
           }
         }
 
-        bool need_fallback= false;
-        if (!persistent.bootstrap_complete)
+        // A post-bootstrap negative LMDB lookup is authoritative and must not
+        // turn an interactive reference lookup into a vault-wide scan.  A
+        // stale *positive* is different: the index named a concrete source
+        // whose object/revision no longer exists (for example, an external
+        // rename).  Repair that exceptional case immediately while waking the
+        // continuous writer to make the correction persistent.
+        bool need_fallback= stale_persistent_location;
+        if (stale_persistent_location) persistent_index_wake ();
+        if (!need_fallback && !persistent.bootstrap_complete)
           for (const auto& id: requested)
             if (locations.find (id) == locations.end () || locations[id].empty ()) {
               need_fallback= true; break;

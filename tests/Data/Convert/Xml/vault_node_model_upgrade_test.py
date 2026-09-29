@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import sqlite3
 import subprocess
 import tempfile
@@ -510,11 +511,12 @@ def main():
     parser.add_argument("--binary", type=Path, required=True)
     parser.add_argument("--runtime", type=Path, required=True)
     parser.add_argument("--resources", type=Path, required=True)
-    parser.add_argument("--artifacts", type=Path, required=True)
+    parser.add_argument("--artifacts", type=Path)
     args = parser.parse_args()
 
-    artifacts = args.artifacts.resolve()
-    artifacts.mkdir(parents=True, exist_ok=True)
+    artifacts = args.artifacts.resolve() if args.artifacts else None
+    if artifacts:
+        artifacts.mkdir(parents=True, exist_ok=True)
     temporary = Path(tempfile.mkdtemp(prefix="node-model-upgrade-", dir=artifacts))
     vault = temporary / "vault"
     create_vault(vault)
@@ -620,6 +622,8 @@ def main():
         "ATHENA-NODE-MODEL-UPGRADE-PASS; xml-v1->v2/reference/artifact/"
         f"idempotence/legacy-rejection; {temporary}"
     )
+    if artifacts is None:
+        shutil.rmtree(temporary)
 
 
 if __name__ == "__main__":

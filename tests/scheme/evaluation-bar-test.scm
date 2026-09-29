@@ -30,33 +30,33 @@
 
 (reset-math '(frac "d" "d x"))
 (math-evaluation-bar)
-(check-math '(around* "<nobracket>" (frac "d" "d x") "|") "fraction")
+(check-math '(around* "." (frac "d" "d x") "|") "fraction")
 (make-script #f #t)
 (insert "t=0")
-(check-math '(concat (around* "<nobracket>" (frac "d" "d x") "|")
+(check-math '(concat (around* "." (frac "d" "d x") "|")
                      (rsub "t=0")) "limit is outside the pair")
 
 (reset-math '(concat "x" (rsup "2")))
 (math-evaluation-bar)
-(check-math '(around* "<nobracket>" (concat "x" (rsup "2")) "|")
+(check-math '(around* "." (concat "x" (rsup "2")) "|")
             "script remains attached to its base")
 
 (reset-math '(concat (frac "d" "d x") "f" (around* "(" "x" ")")))
 (math-evaluation-bar)
-(check-math '(around* "<nobracket>"
+(check-math '(around* "."
                      (concat (frac "d" "d x") "f" (around* "(" "x" ")")) "|")
             "whole preceding expression, not only its final operand")
 
 (reset-math "x+y+z")
 (tree-go-to (body) 0 0 3)
 (math-evaluation-bar)
-(check-math '(concat (around* "<nobracket>" "x+y" "|") "+z")
+(check-math '(concat (around* "." "x+y" "|") "+z")
             "following content is preserved")
 
 (reset-math '(frac "x" "y+z"))
 (tree-go-to (body) 0 0 1 :end)
 (math-evaluation-bar)
-(check-math '(frac "x" (around* "<nobracket>" "y+z" "|"))
+(check-math '(frac "x" (around* "." "y+z" "|"))
             "fraction argument boundary")
 
 (reset-math '(concat "a+" (frac "b" "c")))
@@ -64,19 +64,19 @@
   (selection-set (tree->path math-body :start)
                  (tree->path math-body :end)))
 (math-evaluation-bar)
-(check-math '(around* "<nobracket>" (concat "a+" (frac "b" "c")) "|")
+(check-math '(around* "." (concat "a+" (frac "b" "c")) "|")
             "explicit selection")
 
 (reset-math "")
 (math-evaluation-bar)
 (insert '(frac "x" "y"))
-(check-math '(around* "<nobracket>" (frac "x" "y") "|")
+(check-math '(around* "." (frac "x" "y") "|")
             "empty insertion starts inside")
 
 (tree-go-to (body) 0 0 :end)
 (math-evaluation-bar)
-(check-math '(around* "<nobracket>"
-                     (around* "<nobracket>" (frac "x" "y") "|") "|")
+(check-math '(around* "."
+                     (around* "." (frac "x" "y") "|") "|")
             "nested evaluation")
 
 ;; Export the same editable representation, including a limit and nesting.
@@ -84,14 +84,14 @@
   (current-buffer)
   (stree->tree
     '(document
-      (math (concat (around* "<nobracket>" "x" "|") (rsub "t=0")))
-      (math (concat (around* "<nobracket>" (frac "d" "d x") "|")
+      (math (concat (around* "." "x" "|") (rsub "t=0")))
+      (math (concat (around* "." (frac "d" "d x") "|")
                     (rsub "t=0")))
-      (math (concat (around* "<nobracket>"
+      (math (concat (around* "."
                             (frac (frac "x" "y") "z") "|")
                     (rsub "t=0")))
-      (math (around* "<nobracket>"
-                     (around* "<nobracket>" (frac "x" "y") "|") "|")))))
+      (math (around* "."
+                     (around* "." (frac "x" "y") "|") "|")))))
 (init-env "font" "TeX Gyre Pagella")
 (init-env "math-display" "true")
 (init-env "page-medium" "paper")

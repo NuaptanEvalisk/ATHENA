@@ -18,6 +18,12 @@
 #include <QStandardPaths>
 #include <QTemporaryDir>
 
+#include "ATHENA/Data/document_node_model.hpp"
+#include "drd_std.hpp"
+#include "node_metadata.hpp"
+#include "Xml/athena_document_xml.hpp"
+#include "drd_std.hpp"
+
 class TestTocPagination: public QObject {
   Q_OBJECT
 
@@ -26,6 +32,7 @@ private slots:
 };
 
 void TestTocPagination::paginatesLongBookToc() {
+  init_std_drd ();
   QString pdfinfo= QStandardPaths::findExecutable ("pdfinfo");
   if (pdfinfo.isEmpty ())
     QSKIP ("pdfinfo is required for the PDF pagination regression test");
@@ -35,28 +42,39 @@ void TestTocPagination::paginatesLongBookToc() {
   QVERIFY (QDir ().mkpath (temp.filePath ("home/fonts")));
   QVERIFY (QDir ().mkpath (temp.filePath ("home/system")));
 
-  QByteArray source=
-    "<TeXmacs|2.1.4>\n\n"
-    "<style|book>\n\n"
-    "<\\body>\n"
-    "  <\\table-of-contents|toc>\n";
+  tree entries (DOCUMENT);
   for (int i= 1; i <= 180; ++i) {
-    QByteArray number= QByteArray::number (i);
-    source += "    <toc-1|TOCENTRY" + number.rightJustified (3, '0') +
-              "|" + number + ">\n\n";
+    const QByteArray number= QByteArray::number (i);
+    const QByteArray title= "TOCENTRY" + number.rightJustified (3, '0');
+    entries << compound ("toc-1",
+      string (title.constData (), title.size ()),
+      string (number.constData (), number.size ()));
   }
-  source +=
-    "  </table-of-contents>\n"
-    "</body>\n\n"
-    "<\\initial>\n"
-    "  <\\collection>\n"
-    "    <associate|page-medium|paper>\n"
-    "  </collection>\n"
-    "</initial>\n";
+  tree body (DOCUMENT, compound ("table-of-contents", "toc", entries));
+  init_std_drd ();
+  auto identified= athena::document_node::assign_detached_source_ids (
+    body, standard_drd_for_thread (), athena::document_node::standard_source_role,
+    [] (const athena::document_node::identity_request&) {
+      return athena::node::new_id ();
+    });
+  QByteArray identityDiagnostic= "Could not assign current document identities";
+  if (!identified.diagnostics.empty ())
+    identityDiagnostic += ": " + QByteArray::fromStdString (
+      identified.diagnostics.front ().detail);
+  QVERIFY2 (identified.ok (), identityDiagnostic.constData ());
+  tree document (DOCUMENT,
+    compound ("style", tuple ("book")),
+    compound ("body", *identified.body),
+    compound ("initial", tree (COLLECTION,
+      compound ("associate", "page-medium", "paper"),
+      compound ("associate", "font", "TeX Gyre Pagella"),
+      compound ("associate", "math-font", "math-pagella"))));
+  const std::string source= athena::document::write_xml_v2 (document);
 
-  QFile input (temp.filePath ("long-toc.tm"));
+  QFile input (temp.filePath ("long-toc.ath"));
   QVERIFY (input.open (QIODevice::WriteOnly | QIODevice::Text));
-  QCOMPARE (input.write (source), source.size ());
+  QCOMPARE (input.write (source.data (), static_cast<qint64> (source.size ())),
+            static_cast<qint64> (source.size ()));
   input.close ();
 
   QString executable=
@@ -78,7 +96,7 @@ void TestTocPagination::paginatesLongBookToc() {
   QByteArray processOutput= process.readAllStandardOutput () +
                             process.readAllStandardError ();
   QCOMPARE (process.exitStatus (), QProcess::NormalExit);
-  QCOMPARE (process.exitCode (), 0);
+  QVERIFY2 (process.exitCode () == 0, processOutput.constData ());
   QVERIFY2 (QFile::exists (outputFile), processOutput.constData ());
 
   QProcess inspect;

@@ -21,14 +21,13 @@ def node_text(node):
     return "".join(node.itertext())
 
 
-def run_case(args, mode):
-    with tempfile.TemporaryDirectory(prefix=f"athena-save-{mode}-") as temporary:
+def run_case(args):
+    with tempfile.TemporaryDirectory(prefix="athena-save-") as temporary:
         home = Path(temporary)
         system = home / "profile/system"
         system.mkdir(parents=True)
         (system / "sys_state.json").write_text(json.dumps({
-            "format": "athena-system-state", "version": 2,
-            "compatibility_version": "2.1.4",
+            "format": "athena-system-state", "version": 3,
         }))
         env = dict(os.environ)
         env.update({
@@ -38,7 +37,7 @@ def run_case(args, mode):
             "XDG_DATA_HOME": str(home / "data"),
             "ATHENA_PATH": str(args.resources.resolve()),
             "QT_QPA_PLATFORM": "offscreen", "GUILE_AUTO_COMPILE": "0",
-            "ATHENA_SAVE_TEST_ROOT": str(home), "ATHENA_SAVE_TEST_MODE": mode,
+            "ATHENA_SAVE_TEST_ROOT": str(home),
             "GUILE_LOAD_PATH": str(args.runtime / "share/guile/3.0"),
             "GUILE_LOAD_COMPILED_PATH": str(args.runtime / "lib/guile/3.0/ccache"),
             "LD_LIBRARY_PATH": ":".join([str(args.runtime / "lib"),
@@ -94,11 +93,11 @@ def run_case(args, mode):
             except (OSError, ET.ParseError):
                 errors.append(f"{tag}: missing or invalid native XML document")
         if args.artifacts:
-            shutil.copytree(home, args.artifacts / mode, dirs_exist_ok=True)
+            shutil.copytree(home, args.artifacts, dirs_exist_ok=True)
         if timed_out or process.returncode or errors:
-            raise RuntimeError(f"{mode}: timeout={timed_out}, exit={process.returncode}\n"
+            raise RuntimeError(f"timeout={timed_out}, exit={process.returncode}\n"
                                + "\n".join(errors) + "\n" + (home / "output.log").read_text())
-        print(f"PASS: {mode}, two actors, six saves, correct contents and source ownership",
+        print("PASS: two actors, six saves, correct contents and source ownership",
               flush=True)
 
 
@@ -112,14 +111,10 @@ def main():
                         default=Path(__file__).with_suffix(".scm"))
     parser.add_argument("--gdb", action="store_true")
     parser.add_argument("--capture-stacks", action="store_true")
-    parser.add_argument("--mode", choices=("plain", "manual-approve"))
     args = parser.parse_args()
     args.runtime = args.runtime.resolve()
     args.resources = args.resources.resolve()
-    # Both modes now exercise the same ordinary save path; the second keeps the
-    # historical manual-save scheduling coverage without an anchor side effect.
-    for mode in ([args.mode] if args.mode else ("plain", "manual-approve")):
-        run_case(args, mode)
+    run_case(args)
 
 
 if __name__ == "__main__":

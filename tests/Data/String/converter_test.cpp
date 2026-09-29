@@ -26,23 +26,26 @@ class TestConverter: public QObject {
   Q_OBJECT
 
 private slots:
-  void test_utf8_to_cork();
+  void legacy_cork_conversion();
   void test_json_encoding_dictionaries();
-  void test_universal_symbol_mappings();
+  void legacy_cork_symbol_mappings();
   void test_json_latex_and_html_mappings();
-  void test_finite_part_integral();
+  void legacy_cork_finite_part_integral();
   void test_native_mathml_utf8();
   void test_named_symbol_latex_export();
   void test_native_unicode_case_and_accents();
   void test_utf8_hyphen_byte_offsets();
   void test_unicode_17_cjk_ranges();
-  void test_thread_local_converters();
+  void legacy_cork_converter_is_thread_local();
 };
 
-void TestConverter::test_utf8_to_cork() {
+void TestConverter::legacy_cork_conversion() {
+  // Cork is no longer ATHENA's in-memory text model.  This is compatibility
+  // coverage for still-supported legacy import/export conversion only.
   QCOMPARE (as_charp (utf8_to_cork ("中")), "<#4E2D>");
   QCOMPARE (as_charp (utf8_to_cork ("“")), "\x10");
   QCOMPARE (as_charp (utf8_to_cork("”")), "\x11");
+  QCOMPARE (as_charp (utf8_to_cork ("\xF0\xA0\x80\x80")), "<#20000>");
 }
 
 void TestConverter::test_json_encoding_dictionaries() {
@@ -63,7 +66,7 @@ void TestConverter::test_json_encoding_dictionaries() {
   }
 }
 
-void TestConverter::test_universal_symbol_mappings() {
+void TestConverter::legacy_cork_symbol_mappings() {
   QCOMPARE (as_charp (strict_cork_to_utf8 ("<warning-sign>")),
             "\xE2\x9A\xA0");
   QCOMPARE (as_charp (strict_cork_to_utf8 ("<mu>")), "\xCE\xBC");
@@ -81,7 +84,7 @@ void TestConverter::test_json_latex_and_html_mappings() {
   QCOMPARE (as_charp (html_to_utf8 ("&copy;")), "\xC2\xA9");
 }
 
-void TestConverter::test_finite_part_integral() {
+void TestConverter::legacy_cork_finite_part_integral() {
   QCOMPARE (as_charp (strict_cork_to_utf8 ("<fint>")), "\xE2\xA8\x8D");
   QCOMPARE (as_charp (strict_cork_to_utf8 ("<big-fint-1>")),
             "\xE2\xA8\x8D");
@@ -140,7 +143,6 @@ void TestConverter::test_utf8_hyphen_byte_offsets() {
 
 
 void TestConverter::test_unicode_17_cjk_ranges() {
-  QCOMPARE (as_charp (utf8_to_cork ("\xF0\xA0\x80\x80")), "<#20000>");
   QVERIFY (unicode_is_cjk_ideograph (0x20000));
   QVERIFY (unicode_is_cjk_ideograph (0x2EBF0));
   QVERIFY (unicode_is_cjk_ideograph (0x31350));
@@ -149,7 +151,7 @@ void TestConverter::test_unicode_17_cjk_ranges() {
   QVERIFY (!unicode_is_cjk_ideograph (0x33480));
 }
 
-void TestConverter::test_thread_local_converters() {
+void TestConverter::legacy_cork_converter_is_thread_local() {
   std::promise<void> ready[2];
   auto first= ready[0].get_future ();
   auto second= ready[1].get_future ();
