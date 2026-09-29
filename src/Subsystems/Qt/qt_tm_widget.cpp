@@ -15,6 +15,8 @@
 #include <QToolBar>
 #include <QPushButton>
 #include <QLabel>
+#include <QHBoxLayout>
+#include <QStackedLayout>
 #include <QApplication>
 #include <QActionGroup>
 #include <QColorDialog>
@@ -360,9 +362,33 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   // status bar
   
   QStatusBar* bar= new QStatusBar(mw);
+  QWidget* statusContents= new QWidget (bar);
+  statusContents->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Preferred);
+
+  // Keep edge status and the logical center independent.  QStatusBar/QHBoxLayout
+  // stretch factors only divide the remaining space between siblings, so a
+  // nominal "center" widget drifts whenever the UUID progress or right status
+  // changes width.  Stack an edge layer and a true-center layer over the same
+  // geometry instead: the center label is always centered in the complete bar.
+  auto* statusStack= new QStackedLayout (statusContents);
+  statusStack->setContentsMargins (0, 0, 0, 0);
+  statusStack->setStackingMode (QStackedLayout::StackAll);
+  QWidget* edgeLayer= new QWidget (statusContents);
+  auto* edgeLayout= new QHBoxLayout (edgeLayer);
+  edgeLayout->setContentsMargins (0, 0, 0, 0);
+  edgeLayout->setSpacing (0);
+  QWidget* centerLayer= new QWidget (statusContents);
+  centerLayer->setAttribute (Qt::WA_TransparentForMouseEvents);
+  auto* centerLayout= new QHBoxLayout (centerLayer);
+  centerLayout->setContentsMargins (0, 0, 0, 0);
+  centerLayout->setSpacing (0);
+  statusStack->addWidget (edgeLayer);
+  statusStack->addWidget (centerLayer);
+  statusStack->setCurrentWidget (centerLayer);
+
   leftLabel= new QLabel (QString (), mw);
-  centerLabel= new QLabel ("", mw);
-  rightLabel= new QLabel (QStringLiteral ("Booting"), mw);
+  centerLabel= new QLabel ("", centerLayer);
+  rightLabel= new QLabel (QStringLiteral ("Booting"), edgeLayer);
   leftLabel->setFrameStyle (QFrame::NoFrame);
   leftLabel->hide ();
   centerLabel->setFrameStyle (QFrame::NoFrame);
@@ -371,16 +397,18 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   leftLabel->setAlignment (Qt::AlignLeft | Qt::AlignVCenter);
   centerLabel->setAlignment (Qt::AlignCenter);
   rightLabel->setAlignment (Qt::AlignRight | Qt::AlignVCenter);
-  for (QLabel* label: {leftLabel, centerLabel, rightLabel}) {
-    label->setMinimumWidth (0);
-    label->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Preferred);
-  }
+  leftLabel->setMinimumWidth (0);
+  leftLabel->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Preferred);
+  centerLabel->setMinimumWidth (0);
+  centerLabel->setSizePolicy (QSizePolicy::Preferred, QSizePolicy::Preferred);
+  rightLabel->setMinimumWidth (0);
+  rightLabel->setSizePolicy (QSizePolicy::Maximum, QSizePolicy::Preferred);
 
   // The old left footer (mode/font/LaTeX hybrid hints) was low-value and
   // consumed a third of the status bar.  Keep its compatibility label alive
   // for existing slot traffic but do not put it in the layout.  The left side
   // is now the compact persistent UUID-index health indicator.
-  nodeCacheWidget= new QWidget (mw);
+  nodeCacheWidget= new QWidget (edgeLayer);
   auto* cacheLayout= new QHBoxLayout (nodeCacheWidget);
   cacheLayout->setContentsMargins (8, 0, 4, 0);
   cacheLayout->setSpacing (5);
@@ -449,9 +477,13 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   });
   cacheTimer->start ();
 
-  bar->addWidget (nodeCacheWidget, 0);
-  bar->addWidget (centerLabel, 1);
-  bar->addWidget (rightLabel, 1);
+  edgeLayout->addWidget (nodeCacheWidget, 0, Qt::AlignLeft | Qt::AlignVCenter);
+  edgeLayout->addStretch (1);
+  edgeLayout->addWidget (rightLabel, 0, Qt::AlignRight | Qt::AlignVCenter);
+  centerLayout->addStretch (1);
+  centerLayout->addWidget (centerLabel, 0, Qt::AlignCenter);
+  centerLayout->addStretch (1);
+  bar->addWidget (statusContents, 1);
   if (tm_style_sheet == "")
     bar->setStyle (qtmstyle ());
   
