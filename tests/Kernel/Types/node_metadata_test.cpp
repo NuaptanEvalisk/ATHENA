@@ -201,6 +201,19 @@ private slots:
     QVERIFY (!node::content_equal (source, projected));
   }
 
+  void projectionClearsIdentityOnlyStorage () {
+    tree source (DOCUMENT, tree (""), tree ("text"));
+    node::set (source, {root_id, {}});
+    node::set (source[0], {child_id, {}});
+    node::set (source[1], {rich_id, {}});
+    tree projected= node::content_projection (source);
+    QVERIFY (projected == tree (DOCUMENT, tree (""), tree ("text")));
+    QVERIFY (!node::contains_metadata (projected));
+    QCOMPARE (node::id (source), root_id);
+    QCOMPARE (node::id (source[0]), child_id);
+    QCOMPARE (node::id (source[1]), rich_id);
+  }
+
   void duplicateRemapsInternalReferences () {
     auto rich_meta= attributes (rich_id, "rich");
     rich_meta.properties.emplace ("back", property (node::reference {root_id}));

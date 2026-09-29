@@ -385,10 +385,15 @@ tree duplicate (const tree& source, identity_map* result) {
 }
 tree content_projection (const tree& source) {
   tree result= copy (source);
-  auto strip= [] (tree& t, metadata* m) {
+  auto strip= [] (tree& t, metadata*& m) {
     if (m != nullptr) {
       m->id.clear ();
-      if (m->empty ()) clear (t);
+      if (m->empty ()) {
+        clear (t);
+        // clear() releases the storage containing m. The walker must not
+        // inspect the freed property dictionary after this callback returns.
+        m= nullptr;
+      }
     }
   };
   walk (result, strip);
