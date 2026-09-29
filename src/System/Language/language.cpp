@@ -14,10 +14,31 @@
 #include "hyphenate.hpp"
 #include "iterator.hpp"
 #include "universal.hpp"
+#include "unicode_ranges.hpp"
+#include <unicode/utf8.h>
 
 FONT_RESOURCE_CODE(language);
 
 text_property_rep global_tpr;
+
+namespace {
+
+bool
+skip_hunspell_word (string s) {
+  const auto* data= reinterpret_cast<const std::uint8_t*> (s.data ());
+  int32_t offset= 0;
+  const int32_t length= N(s);
+  while (offset < length) {
+    UChar32 scalar;
+    U8_NEXT (data, offset, length, scalar);
+    if (scalar < 0) return false;
+    if (unicode_is_east_asian_letter (static_cast<std::uint32_t> (scalar)))
+      return true;
+  }
+  return false;
+}
+
+} // namespace
 
 text_property_rep tp_normal_rep
   (TP_NORMAL);
@@ -471,6 +492,11 @@ spell_done (string lan) {
 
 tree
 spell_check (string lan, string s) {
+  // Hunspell dictionaries are word-list based and are not meaningful for CJK
+  // lexical runs.  ICU word breaking still marks Han/Kana/Hangul as lexical in
+  // an English paragraph, so filter those runs before dictionary lookup rather
+  // than painting every embedded East Asian word as a misspelling.
+  if (skip_hunspell_word (s)) return "ok";
   if (spell_busy->contains (lan)) {
     if (lan == "verbatim") return "ok";
     // Dictionary affixes and case rules belong to Hunspell, not Cork casing.
@@ -492,6 +518,7 @@ spell_check (string lan, string s) {
 
 bool
 check_word (string lan, string s) {
+  if (skip_hunspell_word (s)) return true;
   static thread_local unsigned long revision= 0;
   unsigned long current= ispell_dictionary_revision ();
   if (revision != current) {
