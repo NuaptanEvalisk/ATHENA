@@ -130,7 +130,7 @@ get_from_server (url u) {
   if (!is_none (res)) return res;
 
   string name= as_string (u);
-  if (ends (name, "~") || ends (name, "#")) {
+  if (ends (name, "~")) {
     if (!is_rooted_tmfs (name)) return url_none ();
     if (!as_bool (call ("tmfs-can-autosave?", unglue (u, 1))))
       return url_none ();

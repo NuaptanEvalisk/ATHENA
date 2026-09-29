@@ -116,10 +116,8 @@ public:
 };
 ABSTRACT_CODE(server);
 
-extern std::atomic<bool> rescue_mode;
 scheme_tree menu_merge (scheme_tree m1, scheme_tree m2);
 server_rep* get_server ();
-inline bool in_rescue_mode () { return rescue_mode; }
 
 /* low level */
 void create_buffer (url name, tree doc);

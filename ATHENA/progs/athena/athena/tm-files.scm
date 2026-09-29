@@ -153,8 +153,7 @@
   (and (url? name)
        (not (url-rooted-tmfs? name))
        (with s (url->system name)
-         (or (string-ends? s "~")
-             (string-ends? s "#")))))
+         (string-ends? s "~"))))
 
 (define (buffer-notify-recent name)
   (when (not (autosave-file? name))
@@ -438,10 +437,7 @@
        (url-newer? (url-glue file suffix1) (url-glue file suffix2))))
 
 (define (most-recent-suffix file)
-  (if (more-recent file "~" "")
-      (if (not (more-recent file "#" "")) "~"
-          (if (more-recent file "#" "~") "#" "~"))
-      (if (more-recent file "#" "") "#" "")))
+  (if (more-recent file "~" "") "~" ""))
 
 (define (autosave-eligible? name)
   (and (not (url-rooted-web? name))
@@ -454,40 +450,29 @@
          (and (!= s "")
               (url-glue name s)))))
 
-(define (autosave-rescue? name) 
-  (and (autosave-eligible? name)
-       (== (most-recent-suffix name) "#")))
-
 (define (autosave-remove name)
   (when (url-exists? (url-glue name "~"))
-    (url-remove (url-glue name "~")))
-  (when (url-exists? (url-glue name "#"))
-    (url-remove (url-glue name "#"))))
+    (url-remove (url-glue name "~"))))
 
 (tm-define (autosave-buffer name)
   (when (and (buffer-modified-since-autosave? name)
              (autosave-buffer-enabled? name)
              (url-autosave name "~"))
     ;;(display* "Autosave " name "\n")
-    ;; FIXME: incorrectly autosaves after cursor movements only
     (let* ((vname `(verbatim ,(url->system name)))
-           (suffix (if (rescue-mode?) "#" "~"))
-           (aname (url-autosave name suffix))
+           (aname (url-autosave name "~"))
            (fm (url-format name)))
       (if (url-scratch? name) (set! aname name))
       (cond ((nin? fm (list "texmacs" "stm"))
-             (when (not (rescue-mode?))
-               (set-message `(concat "Warning: " ,vname " not auto-saved")
-                            "Auto-save file")))
+             (set-message `(concat "Warning: " ,vname " not auto-saved")
+                          "Auto-save file"))
             ((buffer-export name aname fm)
-             (when (not (rescue-mode?))
-               (set-message `(concat "Failed to auto-save " ,vname)
-                            "Auto-save file")))
+             (set-message `(concat "Failed to auto-save " ,vname)
+                          "Auto-save file"))
             (else
-             (when (not (rescue-mode?))
-               (buffer-pretend-autosaved name)
-               (set-temporary-message `(concat "Auto-saved " ,vname)
-                                      "Auto-save file" 2500)))))))
+             (buffer-pretend-autosaved name)
+             (set-temporary-message `(concat "Auto-saved " ,vname)
+                                    "Auto-save file" 2500))))))
 
 (tm-define (autosave-all)
   (for-each autosave-buffer (buffer-list)))
@@ -681,9 +666,7 @@
   ;;(display* "load-buffer-check-autosave " name ", " opts "\n")
   (let ((proposal (autosave-propose name)))
     (if (and proposal (nin? :strict opts))
-        (let* ((question (if (autosave-rescue? name)
-                             "Rescue file from crash?"
-                             "Load more recent autosave file?"))
+        (let* ((question "Load more recent autosave file?")
                ;; Interactive answers resume through the current view and may
                ;; therefore run on its BufferActor.  Keep only a detached
                ;; string across that continuation; buffer creation, registry

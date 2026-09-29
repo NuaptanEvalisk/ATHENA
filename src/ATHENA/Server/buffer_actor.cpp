@@ -1484,8 +1484,10 @@ buffer_actor::dispatch (actor_command_record& command) {
         if (N(links) != 0) document << compound ("links", links);
         document= athena::document::strip_legacy_document_version (document);
         const std::string xml= athena::document::write_xml_v2 (document);
-        failed= save_string (
-          dest, string (xml.data (), static_cast<int> (xml.size ())));
+        string serialized (xml.data (), static_cast<int> (xml.size ()));
+        failed= ends (as_string (dest), "~") ?
+          save_autosave_string (dest, serialized) :
+          save_string (dest, serialized);
       }
     }
     else if (!failed) {

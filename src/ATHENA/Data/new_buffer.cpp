@@ -31,6 +31,8 @@
 #include "ATHENA/Data/node_reference_export.hpp"
 #include "System/Boot/boot.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
+#include "data_cache.hpp"
+#include <QSaveFile>
 #include <filesystem>
 #include <algorithm>
 #include <optional>
@@ -1123,6 +1125,28 @@ with_package_definitions (string package, tree body) {
 ******************************************************************************/
 
 bool
+save_autosave_string (url dest, string contents) {
+  if (is_rooted_web (dest) || is_rooted_tmfs (dest)) return true;
+  string native= concretize (dest);
+  if (N(native) == 0) return true;
+
+  QSaveFile file (QString::fromUtf8 (native.data (), N(native)));
+  // Autosave is only useful as crash recovery when an interrupted write leaves
+  // the previous complete snapshot intact. Never fall back to direct truncate.
+  file.setDirectWriteFallback (false);
+  if (!file.open (QIODevice::WriteOnly)) return true;
+  const qint64 expected= N(contents);
+  const qint64 written= file.write (contents.data (), expected);
+  if (written != expected) {
+    file.cancelWriting ();
+    return true;
+  }
+  if (!file.commit ()) return true;
+  declare_out_of_date (url_parent (dest));
+  return false;
+}
+
+bool
 export_tree (tree doc, url u, string fm) {
   if (fm == "generic") fm= "verbatim";
   // convert returns #f on failure. texmacs->generic turns that failure into
@@ -1130,7 +1154,9 @@ export_tree (tree doc, url u, string fm) {
   object converted= call ("convert", object (doc), object ("texmacs-tree"),
                           object (fm * "-document"));
   if (!is_string (converted)) return true;
-  return save_string (u, as_string (converted));
+  string serialized= as_string (converted);
+  return ends (as_string (u), "~") ?
+    save_autosave_string (u, serialized) : save_string (u, serialized);
 }
 
 bool

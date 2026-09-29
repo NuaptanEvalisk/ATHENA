@@ -51,7 +51,6 @@
   </binding>
   <binding name="supports-native-pdf?" native="supports_native_pdf" returns="bool" />
   <binding name="supports-ghostscript?" native="supports_ghostscript" returns="bool" />
-  <binding name="rescue-mode?" native="in_rescue_mode" returns="bool" />
   <binding name="scheme-dialect" native="scheme_dialect" returns="string" />
   <binding name="get-texmacs-path" native="get_texmacs_path" returns="url" />
   <binding name="get-texmacs-home-path" native="get_texmacs_home_path" returns="url" />

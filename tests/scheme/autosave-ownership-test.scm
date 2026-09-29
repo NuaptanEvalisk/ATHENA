@@ -34,7 +34,6 @@
 
 (define (nin? item xs) (not (memq item xs)))
 (define (autosave-propose name) (string-append name "~"))
-(define (autosave-rescue? name) #f)
 (define (url->string name) name)
 (define (string->url name) name)
 (define (url-format name) "texmacs")

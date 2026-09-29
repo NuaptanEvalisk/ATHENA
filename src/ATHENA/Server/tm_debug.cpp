@@ -20,7 +20,6 @@
 
 #include <ctime>
 
-std::atomic<bool> rescue_mode {false};
 
 /******************************************************************************
 * Status reports
@@ -122,7 +121,6 @@ get_crash_report (const char* msg) {
 
 void
 tm_failure (const char* msg) {
-  rescue_mode.store (true);
   // A damaged process cannot safely run Scheme, autosave other actors or
   // destroy shared services. The fatal-signal reporter leaves those untouched.
   athena_crash_abort (msg);
