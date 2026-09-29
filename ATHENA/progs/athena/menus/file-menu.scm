@@ -345,9 +345,29 @@
 ;; The Go menu
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(define (vault-random-document-scan dir)
+  (let* ((documents (url-read-directory dir "*.ath"))
+         (subdirs (list-filter (url-read-directory dir "*") url-directory?)))
+    (for (subdir subdirs)
+      (let ((name (url->unix (url-tail subdir))))
+        (when (and (!= name ".backup") (!= name ".athena"))
+          (set! documents
+                (append documents (vault-random-document-scan subdir))))))
+    documents))
+
+(tm-define (go-to-random-vault-document)
+  (if (not (vault-active?))
+      (set-message "No Vault is open" "Random document")
+      (let ((documents (vault-random-document-scan (vault-get-root))))
+        (if (null? documents)
+            (set-message "No .ath documents found in this Vault"
+                         "Random document")
+            (load-buffer (list-ref documents (random (length documents))))))))
+
 (menu-bind go-menu
   ("Welcome (System)" (go-to-system-welcome-page))
   ("Welcome (Vault)" (go-to-welcome-page))
+  ("Random document" (go-to-random-vault-document))
   (link athena-go-utilities-menu)
   ---
   (when (cursor-has-history?)
