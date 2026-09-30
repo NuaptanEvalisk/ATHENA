@@ -1829,7 +1829,7 @@ QTMVaultTransclusionWizard::setResult (const QString& relPath,
         for (const auto& item: answer->items) selectedSourceUuids << QString::fromStdString (item.id);
         resultAccepted= true;
         accept ();
-      }, false);
+      });
     return;
   }
   resultAccepted= true;

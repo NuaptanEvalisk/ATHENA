@@ -16,7 +16,10 @@ struct view {
   node_location::snapshot snapshot;
   std::uint64_t revision= 0;
 };
-view get (std::vector<std::string> ids, std::vector<std::string> ancestry= {});
+// Presentation may retain its last snapshot during refresh. Inserters require
+// a snapshot verified in the current source epoch before accepting a target.
+view get (std::vector<std::string> ids, std::vector<std::string> ancestry= {},
+          bool require_current= false);
 // Only real source changes, not typesetting invalidations. O(1), no tree copy.
 void source_changed ();
 std::uint64_t source_epoch ();

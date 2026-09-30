@@ -38,9 +38,10 @@ struct entry {
   std::shared_ptr<node_location::service> locator;
   std::vector<std::string> ids, ancestry;
   std::shared_ptr<node_location::query> query;
-  view published;
+  view published, verified;
   std::set<recipient> subscribers;
   std::uint64_t generation= 0;
+  std::uint64_t query_epoch= 0, verified_epoch= 0;
   bool refreshing= false;
   bool retry_pending= false;
   std::chrono::steady_clock::time_point retry_after;
@@ -239,6 +240,10 @@ public:
     {
       std::lock_guard<std::mutex> guard (cache_lock);
       if (generation != e->generation) return;
+      // Admission must see current failures even when presentation retains
+      // the last resolved image while retrying an unreadable source.
+      e->verified= {result, e->published.revision};
+      e->verified_epoch= e->query_epoch;
       // A locator/cache miss or stale address is an implementation detail, not
       // a change of node identity.  If this entry already has a verified
       // resolved presentation, keep it visible while only this entry retries.
@@ -253,6 +258,7 @@ public:
       const std::uint64_t visible_revision=
         refresh_views ? ++revision : e->published.revision;
       e->published= {std::move (result), visible_revision};
+      e->verified= e->published;
       e->retry_pending= e->published.snapshot &&
         e->published.snapshot->state == node_location::status::unreadable;
       e->retry_after= std::chrono::steady_clock::now () + std::chrono::seconds (2);
@@ -274,6 +280,7 @@ void start (const std::shared_ptr<entry>& e) {
   {
     std::lock_guard<std::mutex> guard (cache_lock);
     generation= e->generation;
+    e->query_epoch= changes.load (std::memory_order_relaxed);
     e->refreshing= true;
     old.swap (e->query);
   }
@@ -299,7 +306,8 @@ void source_changed () {
   changes.fetch_add (1, std::memory_order_relaxed);
 }
 std::uint64_t source_epoch () { return changes.load (std::memory_order_relaxed); }
-view get (std::vector<std::string> ids, std::vector<std::string> ancestry) {
+view get (std::vector<std::string> ids, std::vector<std::string> ancestry,
+          bool require_current) {
   if (auto frozen= export_reference_view ({ids, ancestry})) return *frozen;
   auto vault= vault_capture_context ();
   if (!vault || !QCoreApplication::instance ()) {
@@ -325,7 +333,10 @@ view get (std::vector<std::string> ids, std::vector<std::string> ancestry) {
     current= stored;
     if (const auto* context= current_scheme_execution_context ())
       if (context->actor) stored->subscribers.emplace (context->actor_id, context->view_id);
-    result= stored->published;
+    result= require_current? stored->verified: stored->published;
+    if (require_current && (stored->refreshing ||
+        stored->verified_epoch != changes.load (std::memory_order_relaxed)))
+      result= {};
   }
   if (fresh) { qt_post_to_main_thread ([] { controller (); }); start (current); }
   return result;

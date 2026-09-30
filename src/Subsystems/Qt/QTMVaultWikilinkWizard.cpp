@@ -1662,7 +1662,7 @@ QTMVaultWikilinkWizard::setResult (const QString& relPath,
         selectedRelPath= QString::fromStdString (answer->items.front ().candidates.front ().file);
         resultAccepted= true;
         accept ();
-      }, false);
+      });
     return;
   }
   resultAccepted= vault_get_node_model_version () < 1 || !sourceUuid.isEmpty ();
