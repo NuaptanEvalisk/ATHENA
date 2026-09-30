@@ -110,6 +110,9 @@ clipboard bytes 本身不是“移动授权”。
 `content_projection` 去除 source UUID，但保留 properties 和引用目标。它是语义内容投影，
 不是 embedding fingerprint，也不是所有 cache 的统一 key。
 
+关于 equality/hash 性能审计、metadata-only tree-diff 反例和历史 primitive benchmark，见
+`notes/node-equality-performance-audit.md`。
+
 不同缓存应分别定义自己的输入契约，例如：
 
 - storage bytes fingerprint
