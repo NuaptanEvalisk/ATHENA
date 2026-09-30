@@ -1542,10 +1542,15 @@ buffer_actor::dispatch (actor_command_record& command) {
             impl_->state.source_autosave_modified= false;
           for (auto& entry: impl_->views)
             entry.second.instance->notify_save ();
-          if (save_editor != nullptr)
+          if (save_editor != nullptr) {
             (void) save_editor->publish_ui (
               actor_command_kind::ui_mark_buffer_saved,
               static_cast<std::uint64_t> (impl_->state.last_save));
+            // Realtime saves bypass the Scheme save-buffer-post hook.
+            (void) save_editor->publish_ui_text (
+              actor_command_kind::ui_vault_backup_dispatch_realtime,
+              copy (native));
+          }
         }
         else if (N(vault_text) != 0 && !saved.xml_sha256.empty ()) {
           const std::uint64_t save_sequence=

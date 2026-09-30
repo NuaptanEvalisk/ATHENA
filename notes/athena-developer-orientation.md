@@ -224,8 +224,9 @@ acceptance; do not launch broad test suites or prolonged Xvfb sessions on your
 own. Any authorized automated run must use an isolated profile and temporary
 data, not production Notes.
 
-When deployment is requested, install to a temporary sibling, verify, then
-rename atomically. Do not overwrite an active executable in place:
+After a successful normal Debug build, deploy automatically unless the user
+explicitly requests build-only or no deployment. Install to a temporary sibling,
+verify, then rename atomically. Do not overwrite an active executable in place:
 
 ```sh
 install -m 755 build_qt6/src/ATHENA.bin ATHENA/bin/ATHENA.bin.new
