@@ -17,6 +17,8 @@
 #include "Data/Convert/Xml/document_upgrade_file.hpp"
 #include "convert.hpp"
 #include "tm_ostream.hpp"
+#include "confined_filesystem.hpp"
+#include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <chrono>
@@ -1118,6 +1120,41 @@ document_has_complete_space (sqlite3* db, const std::string& rel,
   return sqlite3_step (st.get ()) == SQLITE_ROW && sqlite3_column_int64 (st.get (), 0) == 0;
 }
 
+static std::string
+physical_file_revision (const athena::filesystem::metadata& value) {
+  // Exclude atime: reading a document must not invalidate this proof. Include
+  // inode and ctime so atomic replacement or preserved mtime cannot hide edits.
+  return nlohmann::json::array ({1, value.device, value.inode, value.size,
+    value.modified.seconds, value.modified.nanoseconds,
+    value.changed.seconds, value.changed.nanoseconds}).dump ();
+}
+
+static bool
+file_check_matches (sqlite3* db, const std::string& rel,
+                    const std::string& physical, const std::string& storage) {
+  Statement st (db, "SELECT 1 FROM document_file_checks WHERE rel_path=? "
+                    "AND file_revision=? AND storage_revision=?");
+  if (!st.get ()) return false;
+  bind_text (st.get (), 1, rel);
+  bind_text (st.get (), 2, physical);
+  bind_text (st.get (), 3, storage);
+  return sqlite3_step (st.get ()) == SQLITE_ROW;
+}
+
+static bool
+remember_file_check (sqlite3* db, const std::string& rel,
+                     const std::string& physical, const std::string& storage) {
+  Statement st (db, "INSERT INTO document_file_checks VALUES (?,?,?) "
+                    "ON CONFLICT(rel_path) DO UPDATE SET "
+                    "file_revision=excluded.file_revision, "
+                    "storage_revision=excluded.storage_revision");
+  if (!st.get ()) return false;
+  bind_text (st.get (), 1, rel);
+  bind_text (st.get (), 2, physical);
+  bind_text (st.get (), 3, storage);
+  return sqlite3_step (st.get ()) == SQLITE_DONE;
+}
+
 bool
 RagIndex::prepare_document (const std::string& rel_path,
                             const std::string& expected_storage_revision,
@@ -1130,9 +1167,37 @@ RagIndex::prepare_document (const std::string& rel_path,
   }
 
   fs::path absolute= impl->config.vault_root / fs::path (rel_path);
+  CachedDocumentRevision cached= document_revision (impl->db, rel_path);
+  prepared.rel_path= rel_path;
+  prepared.absolute_path= absolute;
+  prepared.embedding_space= embedding_space;
   std::string bytes;
-  if (!read_bytes (absolute, bytes)) {
-    impl->status.last_error= "failed to read RAG document " + rel_path;
+  std::string physical;
+  try {
+    athena::filesystem::confined_root root (impl->config.vault_root);
+    auto entry= root.open (rel_path);
+    const auto before= entry.stat ();
+    if (before.directory) throw std::runtime_error ("Source is a directory");
+    physical= physical_file_revision (before);
+    if (cached.found && cached.status == "ok" &&
+        !cached.storage_revision.empty () && !cached.semantic_revision.empty () &&
+        (expected_storage_revision.empty () || expected_storage_revision == cached.storage_revision) &&
+        file_check_matches (impl->db, rel_path, physical, cached.storage_revision) &&
+        document_has_complete_space (impl->db, rel_path, embedding_space) &&
+        athena::filesystem::same_revision (before, root.open (rel_path).stat ())) {
+      prepared.size= cached.size;
+      prepared.mtime_ns= cached.mtime;
+      prepared.storage_revision= cached.storage_revision;
+      prepared.semantic_revision= cached.semantic_revision;
+      prepared.unchanged= true;
+      return true;
+    }
+    bytes= entry.read (athena::document::codec_limits ().input_bytes);
+    if (!athena::filesystem::same_revision (before, root.open (rel_path).stat ()))
+      throw std::runtime_error ("Source changed while reading");
+  }
+  catch (const std::exception& error) {
+    impl->status.last_error= "failed to read RAG document " + rel_path + ": " + error.what ();
     return false;
   }
   const std::string storage_revision=
@@ -1144,14 +1209,14 @@ RagIndex::prepare_document (const std::string& rel_path,
     return false;
   }
 
-  prepared.rel_path= rel_path;
-  prepared.absolute_path= absolute;
   prepared.storage_revision= storage_revision;
-  prepared.embedding_space= embedding_space;
   prepared.size= static_cast<std::int64_t> (bytes.size ());
   prepared.mtime_ns= mtime_ns (absolute);
 
-  CachedDocumentRevision cached= document_revision (impl->db, rel_path);
+  if (!remember_file_check (impl->db, rel_path, physical, storage_revision)) {
+    impl->status.last_error= sqlite3_errmsg (impl->db);
+    return false;
+  }
   const bool storage_same= cached.found && cached.status == "ok" &&
     cached.storage_revision == storage_revision;
   if (storage_same && !cached.semantic_revision.empty () &&

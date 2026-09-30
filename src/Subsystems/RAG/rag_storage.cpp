@@ -136,6 +136,10 @@ ensure_schema (sqlite3* db, std::string& error) {
     "  size INTEGER NOT NULL, mtime_ns INTEGER NOT NULL,"
     "  storage_revision TEXT NOT NULL, semantic_revision TEXT NOT NULL,"
     "  indexed_at INTEGER NOT NULL, status TEXT NOT NULL, error TEXT NOT NULL);"
+    // Optional derived acceleration data; existing v3 indices remain valid.
+    "CREATE TABLE IF NOT EXISTS document_file_checks ("
+    "  rel_path TEXT PRIMARY KEY, file_revision TEXT NOT NULL,"
+    "  storage_revision TEXT NOT NULL);"
     "CREATE TABLE IF NOT EXISTS chunks ("
     "  chunk_id TEXT PRIMARY KEY, rel_path TEXT NOT NULL,"
     "  kind TEXT NOT NULL, tree_path TEXT NOT NULL, anchor TEXT,"
