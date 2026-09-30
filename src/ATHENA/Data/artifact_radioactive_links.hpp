@@ -99,4 +99,23 @@ tree athena_artifact_radioactive_suppress_definitions (
 
 void athena_artifact_radioactive_invalidate ();
 
+// Background refresh; matching itself never opens SQLite or reads the vault.
+void athena_artifact_radioactive_refresh ();
+void athena_artifact_radioactive_overlay (
+  const std::string& incarnation, const std::string& relative_path,
+  std::uint64_t owner, const std::vector<AthenaArtifactRecord>& records);
+void athena_artifact_radioactive_remove_overlay (std::uint64_t owner);
+// Apply the same per-document replacement semantics to database query results.
+void athena_artifact_radioactive_merge (
+  const std::filesystem::path& root, std::vector<AthenaArtifactRecord>& records);
+bool athena_artifact_radioactive_baseline (
+  const std::string& incarnation, const std::string& relative_path,
+  std::vector<AthenaArtifactRecord>& records);
+// Called on the actor which performed matching; only changes to names queried
+// by this actor require retypesetting its existing boxes.
+bool athena_artifact_radioactive_refresh_needed ();
+void athena_artifact_radioactive_saved_document (
+  const std::filesystem::path& root, const std::string& relative_path,
+  const std::vector<AthenaArtifactRecord>& records);
+
 #endif // ATHENA_ARTIFACT_RADIOACTIVE_LINKS_HPP

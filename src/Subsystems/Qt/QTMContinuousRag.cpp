@@ -275,12 +275,12 @@ private:
       (failures_.empty () ? bg::phase::idle : bg::phase::error);
     std::string detail= inventory_ ? "Inventory" : "";
     if (!latest_.empty ()) detail= std_string (latest_.begin ()->second->rel_path);
-    if (!failures_.empty ()) {
-      if (!detail.empty ()) detail += "\n";
-      detail += std_string (failures_.begin ()->second);
-    }
+    std::string error;
+    if (!failures_.empty ())
+      error= std_string (failures_.begin ()->first) + ": " +
+        std_string (failures_.begin ()->second);
     bg::publish (bg::worker::rag,
-      {phase, completed_files_, total_files_, failures_.size (), std::move (detail)});
+      {phase, completed_files_, total_files_, failures_.size (), std::move (detail), std::move (error)});
   }
 
   void failure (const QString& key, const QString& message) {

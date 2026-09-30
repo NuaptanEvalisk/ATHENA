@@ -181,6 +181,16 @@ tree athena_link_peek_document (string target, url& source,
   if (artifact_target) {
     if (!athena_artifact_radioactive_record (bytes (native (key)), artifact))
       return unavailable ("Preview unavailable: artifact was not found.");
+    if (!artifact.source_uuid.empty ()) {
+      auto ids= artifact.source_nodes;
+      if (ids.empty ()) ids.push_back (artifact.source_uuid);
+      auto current= athena::node_reference::get (ids, ancestry);
+      // Pending bold definitions have a source, but not a model-selected range.
+      // Show live source context without freezing it as a definition selection.
+      if (artifact.origin == "bold-text" && artifact.range_state != AthenaArtifactRangeState::resolved)
+        return athena::node_reference::preview_context_document (current, source);
+      return athena::node_reference::preview_document (current, source);
+    }
     node.path= artifact.relative_path;
   }
   else if (!map.open_read_only (fs::path (bytes (concretize (vault.db_url))), error) ||

@@ -42,6 +42,8 @@
 #include "QTMProgressWindow.hpp"
 #include "QTMContinuousRag.hpp"
 #include "QTMContinuousMaintenance.hpp"
+#include "QTMStructuralArtifacts.hpp"
+#include "QTMToast.hpp"
 
 
 #include <QDialog>
@@ -777,8 +779,10 @@ gui_open (int& argc, char** argv) {
 void
 gui_start_loop () {
   // start the main loop
+  qtm_background_notifications_start ();
   qtm_continuous_rag_start ();
   qtm_continuous_maintenance_start ();
+  qtm_structural_artifacts_start ();
   the_gui->event_loop ();
 }
 

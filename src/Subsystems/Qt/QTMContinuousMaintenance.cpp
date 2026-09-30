@@ -197,7 +197,7 @@ class Maintenance final: public QObject {
       if (!vault) bg::publish (bg::worker::maintenance, {});
       else try {
         bg::publish (bg::worker::maintenance,
-          {bg::phase::working, 0, 0, previous_errors, "Inventory\n" + reported_error});
+          {bg::phase::working, 0, 0, previous_errors, "Inventory", reported_error});
         auto files= bg::inventory (vault->root, stopping.get ());
         const auto buffers= published_buffer_metadata ();
         std::size_t count= 0, errors= 0, deferred= 0;
@@ -224,7 +224,8 @@ class Maintenance final: public QObject {
           present.insert (file.path);
           bg::publish (bg::worker::maintenance,
             {bg::phase::working, count, files.size () + buffers.size (),
-             std::max (errors, previous_errors), "Enunciations: " + file.path});
+             std::max (errors, previous_errors), "Enunciations: " + file.path,
+             last_error.empty () ? reported_error : last_error});
           try {
             const auto absolute= (vault->root / file.path).string ();
             if (published_buffer_source (absolute).first != ATHENA_NO_ACTOR) {
@@ -296,7 +297,8 @@ class Maintenance final: public QObject {
           }
           bg::publish (bg::worker::maintenance,
             {bg::phase::working, count-1, files.size () + buffers.size (),
-             std::max (errors, previous_errors), "Enunciations: " + buffer.first});
+             std::max (errors, previous_errors), "Enunciations: " + buffer.first,
+             last_error.empty () ? reported_error : last_error});
           try {
             live (vault, buffer.first, buffer.second.actor_id, buffer.second.source_view, numbered);
           }
@@ -306,8 +308,6 @@ class Maintenance final: public QObject {
         if (current (vault)) {
           for (auto it= retries.begin (); it != retries.end (); )
             if (!pending.count (it->first)) it= retries.erase (it); else ++it;
-          if (!last_error.empty () && last_error != reported_error)
-            athena_spdlog_warning ("continuous maintenance: " + last_error);
           reported_error= last_error;
           previous_errors= errors;
           std::string detail= last_error;
@@ -317,7 +317,7 @@ class Maintenance final: public QObject {
           }
           bg::publish (bg::worker::maintenance,
             {deferred ? bg::phase::working : errors ? bg::phase::error : bg::phase::idle,
-             count-deferred, count, errors, detail});
+             count-deferred, count, errors, detail, last_error});
         }
       }
       catch (const std::exception& e) {

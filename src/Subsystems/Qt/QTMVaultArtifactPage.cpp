@@ -511,8 +511,10 @@ QTMVaultArtifactPage::updatePreview () {
     for (const auto& id: record.source_nodes) ids << qstr (id);
     if (ids.isEmpty ()) ids << qstr (record.source_uuid);
     previewTitle->setText ("Locating source...");
+    const bool pending= record.origin == "bold-text" &&
+      record.range_state != AthenaArtifactRangeState::resolved;
     previewRequest= vault_resolve_source_ids (this, ids,
-      [this] (auto answer, QString error) {
+      [this, pending] (auto answer, QString error) {
         if (!error.isEmpty ()) { previewTitle->setText (error); return; }
         try {
           preview.ensureCreated (previewHost);
@@ -522,7 +524,8 @@ QTMVaultArtifactPage::updatePreview () {
             const auto file= qstr (item.candidates.front ().file);
             if (!files.contains (file)) files << file;
           }
-          previewTitle->setText (files.join (", "));
+          previewTitle->setText (files.join (", ") +
+            (pending ? " (definition range pending)" : ""));
         } catch (...) { previewTitle->setText ("Preview unavailable."); }
       });
     return;

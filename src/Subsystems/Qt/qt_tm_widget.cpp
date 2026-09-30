@@ -437,7 +437,7 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   QObject::connect (cacheTimer, &QTimer::timeout, nodeCacheWidget, [this, cacheTitle, tick=0u] () mutable {
     using athena::background::phase;
     const auto statuses= athena::background::snapshot ();
-    const char* names[]= {"UUID", "NPU RAG", "Maintenance"};
+    const char* names[]= {"UUID", "NPU RAG", "Maintenance", "Artifacts"};
     std::vector<std::size_t> busy;
     bool active= false, failed= false;
     QString tip;
@@ -445,7 +445,7 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
       const auto& status= statuses[i];
       if (status.state == phase::inactive) continue;
       active= true;
-      failed= failed || status.state == phase::error || status.errors != 0;
+      failed= failed || athena::background::failed (status);
       if (status.state == phase::working) busy.push_back (i);
       if (!tip.isEmpty ()) tip += "\n";
       tip += QString::fromLatin1 (names[i]) + ": " +
@@ -454,6 +454,8 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
       if (status.total) tip += QString (" %1/%2").arg (qulonglong (status.current)).arg (qulonglong (status.total));
       if (status.errors) tip += QString ("; %1 errors").arg (qulonglong (status.errors));
       if (!status.detail.empty ()) tip += "\n" + QString::fromStdString (status.detail);
+      if (!status.error_detail.empty () && status.error_detail != status.detail)
+        tip += "\nError: " + QString::fromStdString (status.error_detail);
     }
     const bool progress= !busy.empty ();
     const auto status= progress ? statuses[busy[(tick / 19) % busy.size ()]] :
@@ -481,6 +483,7 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
                                    .arg (qulonglong (status.total)));
       }
     }
+    if (failed) tip.prepend ("A background worker reported an error. The progress label rotates independently.\n\n");
     nodeCacheWidget->setToolTip (tip);
   });
   cacheTimer->start ();

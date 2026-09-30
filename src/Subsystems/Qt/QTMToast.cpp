@@ -9,6 +9,8 @@
 ******************************************************************************/
 
 #include "QTMToast.hpp"
+#include "ATHENA/Data/background_workers.hpp"
+#include "boot.hpp"
 
 #include "qt_utilities.hpp"
 #include "scheme.hpp"
@@ -77,6 +79,29 @@ position_toast (QFrame* toast, QWidget* parent) {
 
 } // namespace
 
+void
+qtm_background_notifications_start () {
+  static QPointer<QTimer> timer;
+  if (headless_mode || !qApp || timer) return;
+  timer= new QTimer (qApp);
+  QObject::connect (timer, &QTimer::timeout, timer, [] {
+    if (!toast_parent () || activeToast) return;
+    const auto errors= athena::background::take_error_notifications ();
+    QString message;
+    for (const auto& error: errors) {
+      if (!message.isEmpty ()) message += "\n\n";
+      const auto diagnostic= QString::fromStdString (error);
+      message += diagnostic.left (500);
+      if (diagnostic.size () > 500) message += "... (see log for full details)";
+    }
+    if (!message.isEmpty ()) {
+      const auto utf8= message.toUtf8 ();
+      qtm_show_toast (string (utf8.constData (), utf8.size ()), "Background worker error");
+    }
+  });
+  timer->start (500);
+}
+
 bool
 qtm_show_toast (string left, string right) {
   QWidget* parent= toast_parent ();
@@ -137,6 +162,7 @@ qtm_show_toast (string left, string right) {
 
   if (!title.trimmed ().isEmpty ()) {
     QLabel* titleLabel= new QLabel (title, content);
+    titleLabel->setTextFormat (Qt::PlainText);
     titleLabel->setObjectName ("athenaToastTitle");
     titleLabel->setWordWrap (true);
     titleLabel->setMinimumWidth (304);
@@ -146,6 +172,7 @@ qtm_show_toast (string left, string right) {
 
   if (!body.trimmed ().isEmpty ()) {
     QLabel* bodyLabel= new QLabel (body, content);
+    bodyLabel->setTextFormat (Qt::PlainText);
     bodyLabel->setObjectName ("athenaToastBody");
     bodyLabel->setWordWrap (true);
     bodyLabel->setMinimumWidth (304);

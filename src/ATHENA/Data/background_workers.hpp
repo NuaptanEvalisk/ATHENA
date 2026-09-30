@@ -15,15 +15,21 @@
 #include <vector>
 
 namespace athena::background {
-enum class worker { uuid, rag, maintenance };
+enum class worker { uuid, rag, maintenance, artifacts };
 enum class phase { inactive, idle, working, error };
 struct progress {
   phase state= phase::inactive;
   std::size_t current= 0, total= 0, errors= 0;
   std::string detail;
+  // Kept separate from the currently processed file/progress description.
+  std::string error_detail;
 };
+const char* worker_name (worker);
+bool failed (const progress&);
 void publish (worker, progress);
-std::array<progress, 3> snapshot ();
+std::array<progress, 4> snapshot ();
+// Coalesced once per worker, consumed by the GUI rather than each status bar.
+std::vector<std::string> take_error_notifications ();
 struct disk_file {
   std::string path;
   filesystem::metadata revision;

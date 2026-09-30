@@ -20,7 +20,10 @@
 #include <string>
 #include <vector>
 
+enum class AthenaArtifactRangeState { not_applicable, pending, resolved, failed };
+
 struct AthenaArtifactRecord {
+  AthenaArtifactRangeState range_state= AthenaArtifactRangeState::not_applicable;
   std::string uuid;
   std::string type;
   std::string origin;
@@ -59,6 +62,9 @@ struct AthenaArtifactRecord {
   // Exact extraction/model input revision. This is intentionally distinct
   // from document storage/content revisions.
   std::string input_fingerprint;
+  // Native candidate-content fingerprint; background structural extraction
+  // can validate an existing range without invoking Scheme or the model.
+  std::string range_structure_fingerprint;
   // Persisted document content revision used to validate database-only range
   // offsets when the extraction-time paragraph snapshots are unavailable.
   std::string source_content_fingerprint;
@@ -116,7 +122,23 @@ using AthenaArtifactRangeSelector= std::function<bool (
 
 struct AthenaArtifactsBuildOptions {
   AthenaArtifactRangeSelector range_selector;
+  bool structural_only= false;
+  // Background jobs must never mutate or save an open editor. Saved jobs only
+  // index this exact successfully published revision and require source bindings.
+  bool closed_sources_only= false;
+  std::string saved_sha256;
 };
+
+// Model-free extraction. Pending bold definitions deliberately have no selected
+// range; their source UUID still supports navigation to the defining keyword.
+bool athena_artifacts_extract_structure (
+  const tree& document, const std::string& relative_path,
+  std::vector<AthenaArtifactRecord>& records, std::string& error);
+
+// Apply authoritative source bindings to an owner-local tree. Call within the
+// caller's edit transaction for live source; never pass a shared actor tree.
+bool athena_artifacts_bind_structure (
+  tree& document, std::vector<AthenaArtifactRecord>& records, std::string& error);
 
 bool athena_artifacts_build (
   const std::filesystem::path& vault_root,
@@ -132,7 +154,8 @@ bool athena_artifacts_build_active_vault (
 
 bool athena_artifacts_query (const std::filesystem::path& vault_root,
                              std::vector<AthenaArtifactRecord>& records,
-                             std::string& error, bool read_only= false);
+                             std::string& error, bool read_only= false,
+                             bool include_live= true);
 
 bool athena_artifact_query_uuid (const std::filesystem::path& vault_root,
                                  const std::string& uuid,
@@ -142,6 +165,8 @@ bool athena_artifact_query_uuid (const std::filesystem::path& vault_root,
 bool athena_artifacts_mark_document_stale (
   const std::filesystem::path& vault_root, const std::string& relative_path,
   std::string& error);
+bool athena_artifacts_prune_missing (
+  const std::filesystem::path& vault_root, std::string& error);
 
 // Preserve artifact identity when ATHENA itself renames a Vault document or
 // directory.  External filesystem moves have no trustworthy lineage signal

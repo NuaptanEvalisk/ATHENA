@@ -18,6 +18,7 @@
 #include "Data/interop_document_nodes.hpp"
 #include "Data/Convert/Xml/document_upgrade_file.hpp"
 #include "Data/document_node_model.hpp"
+#include "Data/artifact_live_cache.hpp"
 
 class buffer_actor;
 
@@ -52,6 +53,7 @@ struct buffer_document_state {
   // v2 normal loads and explicit owner adoption require an identity-complete
   // history baseline. v1/legacy/render buffers and expansions leave this null.
   std::unique_ptr<athena::document_node::source_identity_state> node_identities;
+  athena::artifact::live_cache artifacts;
 
   buffer_document_state (buffer_actor* actor2, string name2, string master2,
                          string title2, bool read_only2, int last_save2):

@@ -474,6 +474,7 @@ struct manager_state {
   std::atomic<bool> stopping {false};
   bool wake_requested= false;
   persistent_status status;
+  std::string last_error;
   std::uint64_t epoch= 0;
   ~manager_state () {
     stopping.store (true, std::memory_order_release);
@@ -486,16 +487,20 @@ manager_state manager;
 
 void publish_status (persistent_phase phase, std::size_t current,
                      std::size_t total, const std::shared_ptr<store>& index,
-                     std::size_t errors= std::size_t (-1)) {
+                     const std::string& diagnostic= {}) {
   auto totals= index ? index->totals () : std::pair<std::size_t,std::size_t> {0,0};
-  if (index && errors == std::size_t (-1)) errors= index->errors ();
+  const auto errors= index ? index->errors () : 0;
   std::lock_guard<std::mutex> guard (manager.lock);
   manager.status.phase= phase;
   manager.status.current= current;
   manager.status.total= total;
   manager.status.files= totals.first;
   manager.status.nodes= totals.second;
-  manager.status.errors= errors == std::size_t (-1) ? 0 : errors;
+  manager.status.errors= errors;
+  if (!diagnostic.empty ()) manager.last_error= diagnostic;
+  else if (!errors && phase != persistent_phase::error) manager.last_error.clear ();
+  else if (manager.last_error.empty ()) manager.last_error=
+    std::to_string (errors) + " source file(s) have cached UUID indexing errors; rechecking sources";
   manager.status.generation= index ? index->generation () : 0;
   background::phase state= background::phase::working;
   if (phase == persistent_phase::inactive) state= background::phase::inactive;
@@ -504,7 +509,8 @@ void publish_status (persistent_phase phase, std::size_t current,
     state= background::phase::error;
   background::publish (background::worker::uuid,
     {state, current, total, manager.status.errors,
-     std::to_string (totals.first) + " files, " + std::to_string (totals.second) + " nodes"});
+     std::to_string (totals.first) + " files, " + std::to_string (totals.second) + " nodes",
+     manager.last_error});
 }
 
 bool index_one (const vault_context_handle& vault, const std::shared_ptr<store>& index,
@@ -563,7 +569,8 @@ void worker_main (vault_context_handle vault, std::shared_ptr<store> index,
           }
           std::string error;
           (void) index_one (vault, index, files[i].path, error);
-          publish_status (persistent_phase::bootstrap, i+1, files.size (), index);
+          publish_status (persistent_phase::bootstrap, i+1, files.size (), index,
+            error.empty () || error == "source changed while indexing" ? "" : files[i].path + ": " + error);
         }
         for (const auto& stale: index->indexed_files ())
           if (!present.count (stale)) index->erase_file (stale);
@@ -580,7 +587,7 @@ void worker_main (vault_context_handle vault, std::shared_ptr<store> index,
         for (std::size_t i=0; i<files.size (); ++i) {
           present.insert (files[i].path);
           const auto known= known_files.find (files[i].path);
-          if (known == known_files.end () || !known->second.found ||
+          if (known == known_files.end () || !known->second.found || known->second.error ||
               !fs::same_revision (known->second.revision, files[i].revision))
             changed.push_back (files[i].path);
           publish_status (persistent_phase::sweep, i+1, files.size (), index);
@@ -590,12 +597,13 @@ void worker_main (vault_context_handle vault, std::shared_ptr<store> index,
         if (!changed.empty ()) {
           publish_status (persistent_phase::work, 0, changed.size (), index);
           for (std::size_t i=0; i<changed.size (); ++i) {
+            std::string error;
             if (!present.count (changed[i])) index->erase_file (changed[i]);
             else {
-              std::string error;
               (void) index_one (vault, index, changed[i], error);
             }
-            publish_status (persistent_phase::work, i+1, changed.size (), index);
+            publish_status (persistent_phase::work, i+1, changed.size (), index,
+              error.empty () || error == "source changed while indexing" ? "" : changed[i] + ": " + error);
           }
         }
         publish_status (index->errors () ? persistent_phase::degraded :
@@ -613,8 +621,7 @@ void worker_main (vault_context_handle vault, std::shared_ptr<store> index,
     }
   }
   catch (const std::exception& e) {
-    athena_spdlog_error (std::string ("UUID index worker: ") + e.what ());
-    publish_status (persistent_phase::error, 0, 0, index);
+    publish_status (persistent_phase::error, 0, 0, index, e.what ());
   }
 }
 
@@ -635,7 +642,7 @@ void persistent_index_start (vault_context_handle vault) {
   std::uint64_t epoch;
   {
     std::lock_guard<std::mutex> guard (manager.lock);
-    manager.vault= vault; manager.index= index;
+    manager.vault= vault; manager.index= index; manager.last_error.clear ();
     manager.stopping.store (false, std::memory_order_release);
     manager.wake_requested= false; epoch= ++manager.epoch;
     manager.status= {};

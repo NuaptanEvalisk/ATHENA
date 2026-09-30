@@ -35,6 +35,7 @@
 #include <QThread>
 #include "QTMApplication.hpp"
 #include "QTMMainTabWindow.hpp"
+#include "QTMStructuralArtifacts.hpp"
 #include "qt_utilities.hpp"
 #include "scheme_execution_context.hpp"
 #endif
@@ -436,6 +437,10 @@ tm_server_rep::quit () {
   if (!athena_flush_all_realtime_buffers ()) {
     std_warning << "ATHENA exit cancelled because a realtime-saved document "
                 << "could not be persisted" << LF;
+    return;
+  }
+  if (!qtm_structural_artifacts_flush ()) {
+    std_warning << "ATHENA exit cancelled because saved artifacts could not be persisted" << LF;
     return;
   }
   qt_audmap_stop ();

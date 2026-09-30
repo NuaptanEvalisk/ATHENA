@@ -234,6 +234,7 @@ buffer_actor::buffer_actor (tm_buffer_rep* owner):
 buffer_actor::~buffer_actor () {
   unregister_actor (id_);
   shutdown ();
+  athena::artifact::close (id_);
 }
 
 athena_actor_id
@@ -1187,6 +1188,8 @@ buffer_actor::dispatch (actor_command_record& command) {
       if (!identities) break;
     }
     impl_->state.source_envelope= document;
+    impl_->state.artifacts.reset ();
+    athena::artifact::close (id_);
     tree body= detach_data (document, impl_->state.data);
     set_document (
       impl_->state.document, impl_->state.root_path, std::move (body));
@@ -1218,6 +1221,8 @@ buffer_actor::dispatch (actor_command_record& command) {
     assign (subtree (impl_->state.document, impl_->state.root_path),
             std::move (body));
     if (identities) impl_->state.node_identities= std::move (identities);
+    impl_->state.artifacts.reset ();
+    athena::artifact::close (id_);
     athena::node_reference::source_changed ();
     command.argument[0]= 0;
     break;
@@ -1487,6 +1492,14 @@ buffer_actor::dispatch (actor_command_record& command) {
       if (impl_->state.storage_version == athena::document::xml_storage_version::v2 &&
           !impl_->state.node_identities)
         throw std::runtime_error ("XML v2 document has no active source identity index");
+      if (save_editor && impl_->state.node_identities &&
+          !impl_->state.artifacts.ready (impl_->state)) {
+        tree body= save_editor->the_buffer ();
+        save_editor->start_editing ();
+        try { impl_->state.artifacts.update (impl_->state, body, {}); }
+        catch (...) { save_editor->cancel_editing (); impl_->state.artifacts.reset (); throw; }
+        save_editor->end_editing ();
+      }
       if (impl_->state.node_identities && impl_->state.node_identities->pending ()) {
         if (!save_editor || !save_editor->finish_node_identities ())
           throw std::runtime_error ("Source identities must be finalized before saving");
@@ -1535,6 +1548,7 @@ buffer_actor::dispatch (actor_command_record& command) {
       }
       if (saved.durability == athena::document::upgrade_durability::durable)
       {
+        athena::artifact::saved (path, saved.xml_sha256);
         command.argument[0]= 0;
         if (realtime) {
           impl_->state.last_save= last_modified (impl_->state.name);

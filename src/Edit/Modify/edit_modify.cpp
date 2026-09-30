@@ -450,6 +450,24 @@ edit_modify_rep::finish_node_identities () {
     state.cancelled (body);
     throw;
   }
+  try {
+    buf->artifacts.update (*buf, body, plan.scope);
+    // Artifact binding is metadata in the same undo transaction. Finalize any
+    // newly identified bold source nodes before confirming that transaction.
+    if (state.pending ()) {
+      const auto bound= state.prepare (body, drd,
+        athena::document_node::standard_source_role,
+        [] (const athena::document_node::identity_request&) { return athena::node::new_id (); });
+      if (!bound.ok ()) throw std::runtime_error (bound.diagnostics.front ().detail);
+      state.apply (body, bound);
+    }
+  }
+  catch (...) {
+    buf->artifacts.reset ();
+    global_cancel (); state.cancelled (body);
+    athena::artifact::close (buf->actor->id ());
+    throw;
+  }
   return true;
 }
 

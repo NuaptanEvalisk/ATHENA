@@ -778,7 +778,7 @@ athena_artifact_range_model_available (const std::string& path) {
     std::lock_guard<std::mutex> guard (warning_mutex);
     if (warned_path != path) {
       range_warning ("definition-range GGUF model not found at " + path +
-                     "; bold artifacts will use paragraph 0");
+                     "; definition ranges remain pending");
       warned_path= path;
     }
   }

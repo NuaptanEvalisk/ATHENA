@@ -51,6 +51,7 @@ class TestArtifacts: public QObject {
 
 private slots:
   void initTestCase ();
+  void extractsStructureWithoutSelectingRanges ();
   void validatesDefinitionRangeModelOutput ();
   void expandsDefinitionRangeWindowProgressively ();
   void selectsDefinitionRangeWithConfiguredModel ();
@@ -331,6 +332,35 @@ native_artifact_document (const std::string& theorem_text) {
   set_node_id (body, "11111111-1111-4111-8111-111111111111");
   return tree (
     DOCUMENT, compound ("style", "generic"), compound ("body", body));
+}
+
+void TestArtifacts::extractsStructureWithoutSelectingRanges () {
+  tree source= native_artifact_document ("A theorem body");
+  std::vector<AthenaArtifactRecord> records;
+  std::string error;
+  QVERIFY2 (athena_artifacts_extract_structure (source, "Live.ath", records, error), error.c_str ());
+  QCOMPARE (records.size (), size_t (2));
+  auto bold= std::find_if (records.begin (), records.end (), [] (const auto& r) {
+    return r.origin == "bold-text";
+  });
+  QVERIFY (bold != records.end ());
+  QVERIFY (bold->range_state == AthenaArtifactRangeState::pending);
+  QVERIFY (bold->paragraph_offsets.empty ());
+  QVERIFY (bold->definition_candidates.empty ());
+  QVERIFY (bold->source_nodes.empty ());
+  QVERIFY2 (athena_artifacts_bind_structure (source, records, error), error.c_str ());
+  std::vector<std::string> ids;
+  for (const auto& r: records) {
+    QVERIFY (athena::node::valid_id (r.uuid));
+    QVERIFY (athena::node::valid_id (r.source_uuid));
+    ids.push_back (r.uuid);
+  }
+  QVERIFY2 (athena_artifacts_extract_structure (source, "Live.ath", records, error), error.c_str ());
+  QVERIFY2 (athena_artifacts_bind_structure (source, records, error), error.c_str ());
+  QCOMPARE (records.size (), ids.size ());
+  for (size_t i=0; i<records.size (); ++i) QCOMPARE (records[i].uuid, ids[i]);
+  QCOMPARE (athena::node::id (source[1][0][0]),
+            std::string ("22222222-2222-4222-8222-222222222222"));
 }
 
 static tree
