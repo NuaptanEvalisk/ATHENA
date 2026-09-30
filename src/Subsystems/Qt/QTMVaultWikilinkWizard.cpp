@@ -413,6 +413,7 @@ class QTMVaultWikilinkWizard : public QWizard {
 public:
   QTMVaultWikilinkWizard (QWidget* parent= nullptr);
   void showEvent (QShowEvent* event) override;
+  bool validateCurrentPage () override;
 
   tree getResult () const;
   void setResult (const QString& relPath, const QString& anchor,
@@ -1610,6 +1611,13 @@ void
 QTMVaultWikilinkWizard::showEvent (QShowEvent* event) {
   QWizard::showEvent (event);
   scheduleLoadFiles ();
+}
+
+bool
+QTMVaultWikilinkWizard::validateCurrentPage () {
+  // QWizard::done validates again after the async resolver calls accept().
+  // Do not restart resolution and clear its already validated result.
+  return resultAccepted || QWizard::validateCurrentPage ();
 }
 
 void

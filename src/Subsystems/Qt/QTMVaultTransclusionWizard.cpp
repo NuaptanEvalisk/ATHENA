@@ -272,6 +272,7 @@ class QTMVaultTransclusionWizard : public QWizard {
 public:
   QTMVaultTransclusionWizard (QWidget* parent= nullptr);
   void showEvent (QShowEvent* event) override;
+  bool validateCurrentPage () override;
 
   tree getResult () const;
   void setResult (const QString& relPath, const QString& anchorBegin,
@@ -1784,6 +1785,12 @@ void
 QTMVaultTransclusionWizard::showEvent (QShowEvent* event) {
   QWizard::showEvent (event);
   scheduleLoadFiles ();
+}
+
+bool
+QTMVaultTransclusionWizard::validateCurrentPage () {
+  // Shared Artifact pages also re-enter validation through QWizard::done.
+  return resultAccepted || QWizard::validateCurrentPage ();
 }
 
 void

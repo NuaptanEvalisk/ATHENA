@@ -14,6 +14,9 @@
 #include "Concat/canvas_properties.hpp"
 #include "Line/lazy_paragraph.hpp"
 
+box surround (edit_env env, box b, path ip,
+              array<line_item> l, array<line_item> r, format fm);
+
 /******************************************************************************
 * Abstract bridge for ornaments
 ******************************************************************************/
@@ -40,6 +43,7 @@ public:
                                array<page_item>& l2, stack_border& sb2);
   box  typeset_ornament (int desired_status);
   void insert_ornament (box b);
+  void insert_ornament (array<page_item> lines, stack_border border);
 };
 
 bridge_ornamented_rep::bridge_ornamented_rep (
@@ -327,6 +331,34 @@ bridge_ornamented_rep::insert_ornament (box b) {
   ttt->insert_stack (par->sss->l, par->sss->sb);
 }
 
+void
+bridge_ornamented_rep::insert_ornament (array<page_item> lines,
+                                      stack_border border) {
+  // typeset_ornament_stack isolates the body from its surroundings. Restore
+  // them outside the frame, including the source cursor boundary markers,
+  // without collapsing the breakable stream into a single box.
+  if (N(ttt->a) != 0 || N(ttt->b) != 0) {
+    int first= -1, last= -1;
+    for (int i=0; i<N(lines); ++i)
+      if (lines[i]->type == PAGE_LINE_ITEM) {
+        if (first < 0) first= i;
+        last= i;
+      }
+    SI width, d1, d2, d3, d4, d5, d6, d7;
+    env->get_page_pars (width, d1, d2, d3, d4, d5, d6, d7);
+    for (int i=first; i>=0 && i<=last; ++i) {
+      if (i != first && i != last) continue;
+      page_item item= copy (lines[i]);
+      item->b= surround (env, item->b, ip,
+        i == first? ttt->a: array<line_item> (),
+        i == last? ttt->b: array<line_item> (),
+        make_format_width (width));
+      lines[i]= item;
+    }
+  }
+  ttt->insert_stack (lines, border);
+}
+
 /******************************************************************************
 * Canvases
 ******************************************************************************/
@@ -406,7 +438,7 @@ bridge_ornament_rep::my_typeset (int desired_status) {
   typeset_ornament_stack (desired_status, l2, sb2);
   if (is_block_background_ornament (ps, xb)) {
     mark_block_background (l2, ps->bg);
-    ttt->insert_stack (l2, sb2);
+    insert_ornament (l2, sb2);
     return;
   }
   SI body_w, d1, d2, d3, d4, d5, d6, d7;
@@ -469,7 +501,7 @@ bridge_ornament_rep::my_typeset (int desired_status) {
       item->b= remember_box (decorate (ip), mb);
       l2[i]= item;
     }
-  ttt->insert_stack (l2, sb2);
+  insert_ornament (l2, sb2);
 }
 
 /******************************************************************************
