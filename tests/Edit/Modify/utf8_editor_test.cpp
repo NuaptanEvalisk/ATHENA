@@ -53,7 +53,7 @@ static server_rep* test_server= nullptr;
 
 class InlineRenderProbe: public qt_renderer_rep {
 public:
-  struct Draw { std::string text; color pen; SI x, y, ink_y1, ink_y2; };
+  struct Draw { std::string text; color pen; SI x, y, ink_y1, ink_y2; bool missing; };
   std::vector<Draw> draws;
   struct Link { string target; SI x1, y1, x2, y2; };
   std::vector<Link> references, anchors;
@@ -65,7 +65,7 @@ public:
   void draw_utf8 (const athena::text::shaped_text& run, std::string_view source,
                   SI x, SI y) override {
     draws.push_back ({std::string (source), get_pencil ()->get_color (), x, y,
-                      run.ink_y1, run.ink_y2});
+                      run.ink_y1, run.ink_y2, run.missing_glyphs});
     qt_renderer_rep::draw_utf8 (run, source, x, y);
   }
   void href (string target, SI x1, SI y1, SI x2, SI y2) override {
@@ -451,6 +451,31 @@ private slots:
     const auto mono_cursor= result->find_box_path (path (0, path (1, path (2, 2))), restored);
     QVERIFY (restored);
     QVERIFY (result->find_tree_path (mono_cursor) == path (0, path (1, path (2, 2))));
+  }
+  void pagellaTextQuotes () {
+    drd_info drd ("utf8-pagella-quotes", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "pagella");
+    env->write (MODE, "text");
+    env->write ("athena-radioactive-links-suppressed", "true");
+    env->update ();
+    for (string quote: {string ("\""), string ("\xe2\x80\x9c"),
+                        string ("\xe2\x80\x9d")}) {
+      box result= typeset_as_concat (env, tree (quote), path (0));
+      QImage image (160, 100, QImage::Format_ARGB32);
+      image.fill (Qt::white);
+      QPainter painter (&image);
+      InlineRenderProbe probe (&painter);
+      rectangles painted;
+      result->redraw (&probe, path (), painted);
+      QCOMPARE (probe.draws.size (), std::size_t (1));
+      QCOMPARE (probe.draws[0].text,
+                std::string (quote.data (), static_cast<std::size_t> (N(quote))));
+      QVERIFY (!probe.draws[0].missing);
+    }
   }
   void unicodeKeyboard () {
     QTMKeyboard keyboard;

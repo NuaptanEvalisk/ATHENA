@@ -422,7 +422,12 @@ static void check_font_selection () {
            "Explicit variation changed during shaping");
   font_paragraph installed ("A", installed_request ("TeX Gyre Pagella"));
   require (!installed.line (0, 1).missing_glyphs,
-             "Shared ATHENA catalog did not select an installed font");
+              "Shared ATHENA catalog did not select an installed font");
+  font_paragraph straight_quote ("\"", installed_request ("TeX Gyre Pagella"));
+  require (!straight_quote.line (0, 1).missing_glyphs &&
+           !straight_quote.line (0, 1).runs.empty () &&
+           straight_quote.line (0, 1).runs[0].text.glyphs[0].index != 0,
+           "Pagella text shaping lost the straight double quote glyph");
   auto bold= installed_request ("TeX Gyre Pagella", 12, 96, 96, 700);
   font_paragraph real_bold ("A", bold, catalog);
   require (real_bold.fonts ().size () == 1 &&

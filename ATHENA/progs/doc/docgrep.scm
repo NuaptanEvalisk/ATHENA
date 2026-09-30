@@ -43,10 +43,10 @@
 
 (define (build-doc-search-results keyword the-result)
   ($tmdoc
-    ($tmdoc-title (replace "Search results for \x10%1\x11"
+    ($tmdoc-title (replace "Search results for “%1”"
                            `(verbatim ,keyword)))
     ($when (null? the-result)
-      (replace "No matches found for \x10%1\x11." keyword))
+      (replace "No matches found for “%1”." keyword))
     ($when (nnull? the-result)
       ($with highest-score (cdar the-result)
         ($description-aligned
@@ -79,10 +79,10 @@
 
 (define (build-src-search-results keyword the-result)
   ($tmdoc
-    ($tmdoc-title (replace "Search results for \x10%1\x11"
+    ($tmdoc-title (replace "Search results for “%1”"
                            `(verbatim ,keyword)))
     ($when (null? the-result)
-      (replace "No matches found for \x10%1\x11." keyword))
+      (replace "No matches found for “%1”." keyword))
     ($when (nnull? the-result)
       ($with highest-score (cdar the-result)
         ($description-aligned
@@ -161,7 +161,7 @@
 
 (tmfs-title-handler (grep query doc)
   (with what (query-ref query "what")
-    (replace "Help - Search results for \x10%1\x11" what)))
+    (replace "Help - Search results for “%1”" what)))
 
 (tm-define (docgrep-in-doc what)
   (:synopsis* "Search words in the documentation")

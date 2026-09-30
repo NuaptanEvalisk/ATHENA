@@ -27,8 +27,8 @@
 	    ($if (== s "body")
 		 "The main body of the macro."
 		 ($begin
-		   "An argument of type \x10"
-                   (tree-child-type t i) "\x11."))))))))
+		   "An argument of type “"
+                   (tree-child-type t i) "”."))))))))
 
 (tm-generate (focus-doc-usage t)
   ($let* ((lab (tree-label t))
@@ -91,7 +91,7 @@
           (lab* (symbol-toggle-alternate lab)))
     ($para
       ($when (alternate-first? t)
-        "The " ($markup lab) " environment is \x10folded\x11 "
+        "The " ($markup lab) " environment is “folded” "
         "and has an unfolded variant  " ($markup lab*) ". "
         "You may unfold the environment using the keyboard shortcut "
         ($shortcut (alternate-toggle (focus-tree))) ", the menu entry "
@@ -99,7 +99,7 @@
         ($tmdoc-icon "tm_alternate_first")
         " icon on the focus toolbar. ")
       ($when (alternate-second? t)
-        "The " ($markup lab) " environment is \x10unfolded\x11 "
+        "The " ($markup lab) " environment is “unfolded” "
         "and has a folded variant " ($markup lab*) ". "
         "You may fold the environment using the keyboard shortcut "
         ($shortcut (alternate-toggle (focus-tree))) ", the menu entry "
@@ -338,8 +338,8 @@
 
 (tm-define (focus-doc t)
   ($tmdoc
-    ($tmdoc-title "Contextual help on the \x10"
-                  (symbol->string (tree-label t)) "\x11 tag")
+    ($tmdoc-title "Contextual help on the “"
+                  (symbol->string (tree-label t)) "” tag")
     ($when #t
       ($unfolded-documentation "Usage"
 	(focus-doc-usage t)))
