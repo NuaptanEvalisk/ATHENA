@@ -11,6 +11,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -64,7 +65,8 @@ public:
   // accessor. Cooperating writers are serialized; revision checks also detect
   // outside writes before commit, but are not a CAS against uncooperative code.
   replacement replace (const std::filesystem::path& relative, const entry& expected,
-                       const metadata& revision, std::string_view bytes) const;
+                       const metadata& revision, std::string_view bytes,
+                       const std::function<void()>& before_commit= {}) const;
   // Atomically create a new regular document. The destination must not exist;
   // parent directories must already exist inside the confined root.
   replacement create (const std::filesystem::path& relative,

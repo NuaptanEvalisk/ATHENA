@@ -10,6 +10,7 @@ import signal
 import shutil
 import subprocess
 import tempfile
+import uuid
 import xml.etree.ElementTree as ET
 
 
@@ -19,6 +20,7 @@ def main():
     parser.add_argument("--runtime", type=Path, required=True)
     parser.add_argument("--resources", type=Path, required=True)
     parser.add_argument("--artifacts", type=Path)
+    parser.add_argument("--maintenance", action="store_true")
     args = parser.parse_args()
 
     artifacts = args.artifacts.resolve() if args.artifacts else None
@@ -53,6 +55,30 @@ def main():
             env.get("LD_LIBRARY_PATH", ""),
         )),
     })
+    if args.maintenance:
+        env["ATHENA_TEST_CONTINUOUS_MAINTENANCE"] = "1"
+        vault = root / "vault"
+        vault.mkdir()
+        env["ATHENA_TEST_MAINTENANCE_ROOT"] = str(vault)
+        (vault / "Vaultfile.json").write_text(json.dumps({
+            "version": 1, "name": "Maintenance fixture", "node_model_version": 1,
+        }))
+        def fixture(path):
+            document = ET.Element("athena-document", version="2", attrib={"text-model": "utf-8"})
+            envelope = ET.SubElement(document, "node", tag="document")
+            style = ET.SubElement(envelope, "node", tag="style")
+            ET.SubElement(ET.SubElement(style, "text"), "value").text = "generic"
+            body = ET.SubElement(envelope, "node", tag="body")
+            paragraphs = ET.SubElement(body, "node", tag="document", id=str(uuid.uuid4()))
+            statement = ET.SubElement(paragraphs, "node", tag="definition", id=str(uuid.uuid4()))
+            content = ET.SubElement(statement, "node", tag="document", id=str(uuid.uuid4()))
+            ET.SubElement(ET.SubElement(content, "text", id=str(uuid.uuid4())), "value").text = "Original body"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            ET.ElementTree(document).write(path, encoding="utf-8", xml_declaration=True)
+        for leaf in ("closed.ath", "live.ath", ".backup/skip.ath", ".athena/skip.ath", ".git/skip.ath"):
+            fixture(vault / leaf)
+        originals = {leaf: (vault / leaf).read_bytes() for leaf in
+                     ("closed.ath", "live.ath", ".backup/skip.ath", ".athena/skip.ath", ".git/skip.ath")}
     script = Path(__file__).with_suffix(".scm").resolve()
     expression = (
         '(exec-global (lambda () (primitive-load '
@@ -61,7 +87,7 @@ def main():
     log_path = root / "runtime.log"
     with log_path.open("w") as log:
         process = subprocess.Popen(
-            [str(args.binary.resolve()), "-H", "-X", "-x", expression],
+            [str(args.binary.resolve()), *([] if args.maintenance else ["-H"]), "-X", "-x", expression],
             cwd=root, env=env, start_new_session=True,
             stdout=log, stderr=subprocess.STDOUT,
         )
@@ -96,6 +122,18 @@ def main():
     ids = [node.get("id") for node in xml.iter() if node.get("id")]
     if inserted_id not in ids or len(ids) < 3:
         raise RuntimeError(f"Saved v2 source lost allocated identities: {ids}")
+    if args.maintenance:
+        before = ET.fromstring(originals["closed.ath"])
+        after = ET.parse(vault / "closed.ath").getroot()
+        old = next(node for node in before.iter("node") if node.get("tag") == "definition")
+        new = next(node for node in after.iter("node") if node.get("tag") == "enunciation")
+        assert old.get("id") == new.get("id"), "maintenance changed source UUID"
+        assert "Original body" in "".join(after.itertext())
+        backups = list((vault / ".athena/maintenance/enunciations").glob("*.ath"))
+        assert any(p.read_bytes() == originals["closed.ath"] for p in backups), "missing original backup"
+        for leaf in ("live.ath", ".backup/skip.ath", ".athena/skip.ath", ".git/skip.ath"):
+            assert (vault / leaf).read_bytes() == originals[leaf], f"unexpected rewrite: {leaf}"
+        print("ATHENA-CONTINUOUS-MAINTENANCE-PASS; closed/live/UUID/undo/backup/exclusions")
     print(f"ATHENA-NODE-NEW-V2-PASS; create/edit/first-save/New scratch; {root}")
     if artifacts is None:
         shutil.rmtree(root)

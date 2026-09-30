@@ -155,6 +155,7 @@ public:
     const tree&, drd_info, const role_resolver&, limits budget= {});
   void observe (modification);
   bool pending () const { return !ready || dirty.has_value (); }
+  std::uint64_t generation () const { return revision; }
   identity_edit_plan prepare (const tree&, drd_info, const role_resolver&,
                               const identity_allocator&, limits budget= {}) const;
   // Uses native observer-aware modifications, hence joins the caller's undo

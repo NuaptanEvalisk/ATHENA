@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "node_location_cache.hpp"
+#include "background_workers.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
 #include "System/Files/confined_filesystem.hpp"
 #include "node_metadata.hpp"
@@ -43,15 +44,6 @@ constexpr std::size_t hot_limit= 65536;
 // resize while the writer is publishing locations.
 constexpr std::size_t map_size= std::size_t (16) << 30;
 constexpr auto idle_delay= std::chrono::seconds (3);
-
-struct disk_file {
-  std::string path;
-  fs::metadata revision;
-};
-
-bool excluded (const std::string& name) {
-  return name == ".athena" || name == ".backup" || name == ".git";
-}
 
 void append_u32 (std::string& out, std::uint32_t n) {
   for (int i=0; i<4; ++i) out.push_back (char ((n >> (i*8)) & 0xff));
@@ -505,34 +497,14 @@ void publish_status (persistent_phase phase, std::size_t current,
   manager.status.nodes= totals.second;
   manager.status.errors= errors == std::size_t (-1) ? 0 : errors;
   manager.status.generation= index ? index->generation () : 0;
-}
-
-std::vector<disk_file> inventory_files (const stdfs::path& root,
-                                       const std::atomic<bool>* cancelled= nullptr) {
-  fs::confined_root directory (root);
-  std::vector<disk_file> files;
-  std::set<std::pair<std::uint64_t,std::uint64_t>> directories;
-  std::function<void(const stdfs::path&,std::size_t)> visit;
-  visit= [&] (const stdfs::path& relative, std::size_t depth) {
-    if (cancelled && cancelled->load (std::memory_order_acquire)) return;
-    if (depth > 256) throw std::length_error ("UUID index inventory exceeds depth budget");
-    const auto entry= directory.open (relative);
-    const auto physical= entry.path ().lexically_relative (directory.path ());
-    const auto revision= entry.stat ();
-    if (revision.directory) {
-      if (!directories.emplace (revision.device, revision.inode).second) return;
-      auto names= entry.names (); std::sort (names.begin (), names.end ());
-      for (const auto& child: names)
-        if (!excluded (child)) visit (relative / child, depth + 1);
-    }
-    else if (physical.extension () == ".ath")
-      files.push_back ({physical.generic_string (), revision});
-  };
-  visit ({}, 0);
-  std::sort (files.begin (), files.end (), [] (const disk_file& a, const disk_file& b) {
-    return a.path < b.path;
-  });
-  return files;
+  background::phase state= background::phase::working;
+  if (phase == persistent_phase::inactive) state= background::phase::inactive;
+  else if (phase == persistent_phase::idle) state= background::phase::idle;
+  else if (phase == persistent_phase::error || phase == persistent_phase::degraded)
+    state= background::phase::error;
+  background::publish (background::worker::uuid,
+    {state, current, total, manager.status.errors,
+     std::to_string (totals.first) + " files, " + std::to_string (totals.second) + " nodes"});
 }
 
 bool index_one (const vault_context_handle& vault, const std::shared_ptr<store>& index,
@@ -578,7 +550,7 @@ void worker_main (vault_context_handle vault, std::shared_ptr<store> index,
             epoch != manager.epoch ||
             !vault_context_is_current (vault)) return;
       }
-      auto files= inventory_files (vault->root, &manager.stopping);
+      auto files= background::inventory (vault->root, &manager.stopping);
       if (bootstrap) {
         publish_status (persistent_phase::bootstrap, 0, files.size (), index);
         std::set<std::string> present;
@@ -657,6 +629,7 @@ void persistent_index_start (vault_context_handle vault) {
     athena_spdlog_error (std::string ("UUID index open: ") + e.what ());
     std::lock_guard<std::mutex> guard (manager.lock);
     manager.status.phase= persistent_phase::error;
+    background::publish (background::worker::uuid, {background::phase::error, 0, 0, 1, e.what ()});
     return;
   }
   std::uint64_t epoch;
@@ -685,6 +658,7 @@ void persistent_index_stop () {
   manager.vault.reset (); manager.index.reset ();
   manager.stopping.store (false, std::memory_order_release);
   manager.status= {};
+  background::publish (background::worker::uuid, {});
 }
 
 void persistent_index_wake () {

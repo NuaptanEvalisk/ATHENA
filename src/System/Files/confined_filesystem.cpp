@@ -166,7 +166,8 @@ entry confined_root::open (const std::filesystem::path& relative) const {
 }
 
 replacement confined_root::replace (const std::filesystem::path& relative,
-    const entry& expected, const metadata& revision, std::string_view bytes) const {
+    const entry& expected, const metadata& revision, std::string_view bytes,
+    const std::function<void()>& before_commit) const {
 #ifdef __linux__
   auto original= open (relative);
   if (!original.same_object (expected))
@@ -222,6 +223,9 @@ replacement confined_root::replace (const std::filesystem::path& relative,
   } cleanup_ {parent.fd, name};
   auto new_entry= std::make_shared<entry::impl> (
     beneath (parent.fd, name, O_PATH), original.path ());
+  // A caller can acquire a publication lease after expensive writes/fsync,
+  // without blocking document opening throughout staging.
+  if (before_commit) before_commit ();
   check_revision ();
   descriptor current_parent (beneath (implementation->descriptor_.fd, parent_path, O_PATH | O_DIRECTORY));
   const auto before= information (parent.fd), now= information (current_parent.fd);

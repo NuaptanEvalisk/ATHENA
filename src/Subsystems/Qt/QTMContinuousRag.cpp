@@ -14,6 +14,7 @@
 #include "rag_embedding_contract.hpp"
 #include "rag_realtime_generation.hpp"
 #include "ATHENA/Data/node_location_cache.hpp"
+#include "ATHENA/Data/background_workers.hpp"
 #include "scheme.hpp"
 #include "tm_ostream.hpp"
 #include "vault.hpp"
@@ -40,6 +41,7 @@
 #include <cmath>
 #include <filesystem>
 #include <memory>
+#include <map>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -166,6 +168,7 @@ public:
         athena_spdlog_warning (
           "continuous RAG: NPU worker exited code=" + std::to_string (code) +
           (status == QProcess::CrashExit ? " (crash)" : ""));
+        failure ("", "NPU worker exited: " + QString::number (code));
         for (auto& entry: latest_)
           if (is_current (entry.second) && entry.second->awaiting_worker) {
             entry.second->awaiting_worker= false;
@@ -198,6 +201,7 @@ public:
           athena_spdlog_warning (
             "continuous RAG: could not start NPU worker: " +
             std_string (process_.errorString ()));
+          failure ("", process_.errorString ());
           fail_pending ();
         }
       });
@@ -243,6 +247,8 @@ public:
     latest_.clear ();
     pending_dispatch_.clear ();
 
+    athena::background::publish (athena::background::worker::rag, {});
+
     if (process_.state () != QProcess::NotRunning) {
       QJsonObject message;
       message["op"]= QStringLiteral ("shutdown");
@@ -261,7 +267,29 @@ public:
 private:
   using Clock= std::chrono::steady_clock;
 
+  void report () {
+    namespace bg= athena::background;
+    if (shutting_down_ || !context_) { bg::publish (bg::worker::rag, {}); return; }
+    const bool busy= inventory_ || !latest_.empty () || next_file_ < files_.size ();
+    const auto phase= busy ? bg::phase::working :
+      (failures_.empty () ? bg::phase::idle : bg::phase::error);
+    std::string detail= inventory_ ? "Inventory" : "";
+    if (!latest_.empty ()) detail= std_string (latest_.begin ()->second->rel_path);
+    if (!failures_.empty ()) {
+      if (!detail.empty ()) detail += "\n";
+      detail += std_string (failures_.begin ()->second);
+    }
+    bg::publish (bg::worker::rag,
+      {phase, completed_files_, total_files_, failures_.size (), std::move (detail)});
+  }
+
+  void failure (const QString& key, const QString& message) {
+    failures_[key]= message;
+    report ();
+  }
+
   void fail_pending () {
+    if (failures_.empty ()) failure ("", "NPU request failed or returned invalid data");
     next_scan_= Clock::now () + std::chrono::seconds (60);
     std::vector<std::shared_ptr<RealtimeJob>> jobs;
     for (const auto& entry: latest_) jobs.push_back (entry.second);
@@ -282,6 +310,8 @@ private:
       pending_dispatch_.clear ();
       files_.clear ();
       next_file_= 0;
+      completed_files_= total_files_= 0;
+      failures_.clear ();
       context_= std::move (context);
       scan_configuration_= configuration;
       next_scan_= Clock::now ();
@@ -294,6 +324,7 @@ private:
       finish_job (job);
     }
     advance ();
+    report ();
   }
 
   void advance () {
@@ -317,11 +348,14 @@ private:
       job->saved_generation= athena::rag::rag_saved_generation (file);
       latest_[job->key]= job;
       restart_attempted_= false;
+      report ();
       prepare (job);
       return;
     }
     auto active= std::make_shared<std::atomic<bool>> (true);
     inventory_= active;
+    completed_files_= total_files_= 0;
+    report ();
     auto context= context_;
     QPointer<ContinuousRagManager> self (this);
     rag_index_pool ().start ([self, context, active] {
@@ -337,9 +371,17 @@ private:
           self->inventory_.reset ();
           self->files_= std::move (files);
           self->next_file_= 0;
+          self->total_files_= self->files_.size ();
+          // Errors for deleted files no longer describe outstanding work.
+          for (auto it= self->failures_.begin (); it != self->failures_.end (); ) {
+            if (!it->first.isEmpty () && !QFileInfo (it->first).exists ())
+              it= self->failures_.erase (it);
+            else ++it;
+          }
           if (self->files_.empty ())
             self->next_scan_= Clock::now () + std::chrono::seconds (30);
           else self->advance ();
+          self->report ();
         }, Qt::QueuedConnection);
     });
   }
@@ -362,12 +404,14 @@ private:
     pending_dispatch_.erase (job->key);
     job->current.store (false, std::memory_order_release);
     latest_.erase (found);
+    completed_files_= next_file_;
     if (next_file_ >= files_.size ()) {
       files_.clear ();
       next_file_= 0;
       next_scan_= std::max (next_scan_, Clock::now () + std::chrono::seconds (30));
     }
     QTimer::singleShot (0, this, [this] { advance (); });
+    report ();
   }
 
   QString configured_model () const {
@@ -389,6 +433,7 @@ private:
     const QString model= configured_model ();
     const QString tokenizer= configured_tokenizer ();
     if (model.isEmpty () || tokenizer.isEmpty ()) {
+      failure ("", "OpenVINO model or tokenizer GGUF is not configured");
       if (!configuration_warning_shown_) {
         configuration_warning_shown_= true;
         athena_spdlog_warning (
@@ -407,6 +452,7 @@ private:
 
     const QString program= worker_program ();
     if (!QFileInfo (program).isExecutable ()) {
+      failure ("", "NPU worker is not executable: " + program);
       athena_spdlog_warning (
         "continuous RAG: NPU worker is not executable: " + std_string (program));
       fail_pending ();
@@ -492,6 +538,7 @@ private:
                  bool ok, const QString& error) {
     if (!is_current (job)) { finish_job (job); return; }
     if (!ok) {
+      failure (job->absolute_path, job->rel_path + ": " + error);
       athena_spdlog_warning (
         "continuous RAG: prepare failed for " + std_string (job->rel_path) +
         (error.isEmpty () ? std::string () : ": " + std_string (error)));
@@ -500,6 +547,7 @@ private:
     }
     job->prepared= std::move (prepared);
     if (job->prepared->unchanged) {
+      failures_.erase (job->absolute_path);
       finish_job (job);
       return;
     }
@@ -567,6 +615,7 @@ private:
                   const QString& error) {
     if (!is_current (job)) { finish_job (job); return; }
     if (!ok) {
+      failure (job->absolute_path, job->rel_path + ": " + error);
       athena_spdlog_warning (
         "continuous RAG: commit skipped or failed for " +
         std_string (job->rel_path) +
@@ -575,6 +624,8 @@ private:
       return;
     }
     job->committed= true;
+    failures_.erase (job->absolute_path);
+    failures_.erase ("");
     athena_spdlog_info (
       "continuous RAG: committed " + std_string (job->rel_path) +
       " job=" + std::to_string (job->generation));
@@ -592,6 +643,7 @@ private:
       QJsonParseError parse;
       QJsonDocument doc= QJsonDocument::fromJson (line, &parse);
       if (parse.error != QJsonParseError::NoError || !doc.isObject ()) {
+        failure ("", "Invalid NPU worker response");
         athena_spdlog_warning ("continuous RAG: invalid NPU worker response");
         continue;
       }
@@ -638,6 +690,7 @@ private:
     }
     if (type == QStringLiteral ("fatal") &&
         message.value ("key").toString ().isEmpty ()) {
+      failure ("", message.value ("error").toString ("NPU worker startup failed"));
       athena_spdlog_warning (
         "continuous RAG: NPU worker startup failed: " +
         std_string (message.value ("error").toString ("unknown error")));
@@ -657,6 +710,7 @@ private:
         return;
       }
       worker_ready_= true;
+      failures_.erase ("");
       athena_spdlog_info (
         "continuous RAG: NPU worker ready (BGE-M3, 1024 dimensions)");
       std::vector<std::shared_ptr<RealtimeJob>> pending;
@@ -677,6 +731,7 @@ private:
       return;
     }
     if (type == QStringLiteral ("error") || type == QStringLiteral ("fatal")) {
+      failure (job->absolute_path, job->rel_path + ": " + message.value ("error").toString ());
       athena_spdlog_warning (
         "continuous RAG: NPU worker error for " + std_string (job->rel_path) +
         ": " + std_string (message.value ("error").toString ()));
@@ -751,6 +806,8 @@ private:
   std::shared_ptr<std::atomic<bool>> inventory_;
   std::vector<fs::path> files_;
   std::size_t next_file_= 0;
+  std::size_t completed_files_= 0, total_files_= 0;
+  std::map<QString,QString> failures_;
   std::uint64_t next_generation_= 0;
   Clock::time_point next_scan_ {};
   std::unordered_map<QString,std::shared_ptr<RealtimeJob>> latest_;

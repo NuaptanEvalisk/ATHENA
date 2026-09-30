@@ -109,4 +109,9 @@ std::vector<std::uint64_t> published_file_buffers (const std::string& native_url
 std::uint64_t published_active_buffer ();
 void publish_active_buffer (std::uint64_t id);
 
+// Serialize background file publication with the load-to-buffer handoff. A
+// worker holds this only for its final revision/open-buffer check and replace,
+// never during inventory, parsing, conversion, or waiting for a BufferActor.
+std::recursive_mutex& document_publication_mutex ();
+
 #endif // BUFFER_NAME_CATALOG_HPP

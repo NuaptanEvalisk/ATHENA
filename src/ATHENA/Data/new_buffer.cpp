@@ -1067,6 +1067,7 @@ capture_buffer_document_storage (
 
 bool
 buffer_import (url name, url src, string fm) {
+  std::lock_guard<std::recursive_mutex> publication (document_publication_mutex ());
   std::string storage_sha256;
   std::optional<athena::document::document_source_format> source_format;
   tree t= import_tree_with_format (src, fm, &storage_sha256, source_format);
@@ -1090,6 +1091,12 @@ bool
 buffer_load (url name) {
   string fm= file_format (name);
   return buffer_import (name, name, fm);
+}
+
+std::recursive_mutex&
+document_publication_mutex () {
+  static std::recursive_mutex gate;
+  return gate;
 }
 
 thread_local hashmap<string,tree> style_tree_cache ("");

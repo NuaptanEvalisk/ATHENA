@@ -19,6 +19,7 @@
 #include "qt_widget.hpp"
 #include "qt_utilities.hpp"
 #include "convert.hpp"
+#include "native_interfaces.hpp"
 
 #include <QApplication>
 #include <QCheckBox>
@@ -432,6 +433,16 @@ bool node_properties_show (tree source) {
     if (!ip_attached (ip)) return false;
     path root= context->editor->the_buffer_path (), absolute= reverse (ip);
     if (!(root <= absolute)) return false;
+    if (!en::is_enunciation (source) &&
+        en::standard_registry ().body_index (source) >= 0 &&
+        !context->actor->current_state ()->read_only) {
+      en::conversion_options options;
+      options.numbering_preferences["number solutions"]= get_preference ("number solutions") == "on";
+      auto converted= en::convert_detached_source (source, options);
+      if (!converted.diagnostics.empty ())
+        throw std::runtime_error (converted.diagnostics.front ().detail);
+      source= tree_set_diff (source, converted.source);
+    }
     tree scope= context->editor->the_buffer ();
     path relative= absolute / root;
     if (!has_subtree (scope, relative) || !strong_equal (source, subtree (scope, relative))) return false;

@@ -982,15 +982,22 @@
 
 (tm-menu (focus-toggle-menu t)
   (:require (titled-context? t))
-  ((check "Named" "v" (titled-named? (focus-tree)))
-   (titled-toggle-name t))
+  (if (not (figure-context? t))
+    ("Properties..." (node-properties-show t)))
+  (if (figure-context? t)
+    ((check "Named" "v" (titled-named? (focus-tree)))
+     (titled-toggle-name t)))
   (dynamic (former t)))
 
 (tm-menu (focus-toggle-icons t)
   (:require (titled-context? t))
-  ((check (balloon (icon "tm_small_textual") "Toggle name") "v"
-          (titled-named? (focus-tree)))
-   (titled-toggle-name t))
+  (if (not (figure-context? t))
+    ((balloon (icon "tm_small_textual") "Properties")
+     (node-properties-show t)))
+  (if (figure-context? t)
+    ((check (balloon (icon "tm_small_textual") "Toggle name") "v"
+            (titled-named? (focus-tree)))
+     (titled-toggle-name t)))
   (dynamic (former t)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

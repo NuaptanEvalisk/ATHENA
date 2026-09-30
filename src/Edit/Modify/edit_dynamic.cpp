@@ -11,6 +11,7 @@
 
 #include "edit_dynamic.hpp"
 #include "tree_analyze.hpp"
+#include "ATHENA/Data/enunciation_model.hpp"
 
 /******************************************************************************
 * Constructors and destructors
@@ -93,6 +94,28 @@ contains_table_format (tree t, tree var) {
 void
 edit_dynamic_rep::make_compound (tree_label l, int n= -1) {
   //cout << "Make compound " << as_string (l) << ", " << n << "\n";
+  const string tag= as_string (l);
+  const auto* declaration= athena::enunciation::standard_registry ().legacy (
+    std::string (tag.data (), N(tag)));
+  if (declaration && !in_source () && !inside ("show-preamble")) {
+    const int arity= declaration->layout == athena::enunciation::legacy_layout::body ? 1 : 2;
+    if (n == -1 || n == arity) {
+      tree prototype (l, arity);
+      prototype[arity-1]= tree (DOCUMENT, "");
+      athena::enunciation::conversion_options options;
+      if (!declaration->numbering_preference.empty ())
+        options.numbering_preferences[declaration->numbering_preference]=
+          get_preference (string (declaration->numbering_preference.c_str ())) == "on";
+      auto converted= athena::enunciation::convert_detached_source (prototype, options);
+      ASSERT (converted.diagnostics.empty () && converted.converted == 1,
+              "Could not construct canonical enunciation");
+      tree selected= "";
+      if (selection_active_normal ()) selected= selection_get_cut ();
+      insert_tree (converted.source, path (0, 0, 0));
+      if (selected != "") insert_tree (selected, end (selected));
+      return;
+    }
+  }
   eval ("(use-modules (generic generic-edit))");
   if (n == -1) {
     for (n=0; true; n++) {

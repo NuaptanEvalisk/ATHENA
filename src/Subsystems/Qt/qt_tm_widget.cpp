@@ -41,6 +41,7 @@
 #include <QLayoutItem>
 #include "QTMApplication.hpp"
 #include "ATHENA/Data/node_location_cache.hpp"
+#include "ATHENA/Data/background_workers.hpp"
 
 #include "config.h"
 #include "analyze.hpp"
@@ -414,7 +415,8 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   cacheLayout->setSpacing (5);
   nodeCacheIndicator= new QLabel (nodeCacheWidget);
   nodeCacheIndicator->setFixedSize (10, 10);
-  QLabel* cacheTitle= new QLabel (QStringLiteral ("UUID"), nodeCacheWidget);
+  QLabel* cacheTitle= new QLabel (QStringLiteral ("Background"), nodeCacheWidget);
+  cacheTitle->setFixedWidth (cacheTitle->fontMetrics ().horizontalAdvance ("Maintenance") + 8);
   cacheTitle->setSizePolicy (QSizePolicy::Fixed, QSizePolicy::Preferred);
   nodeCacheProgress= new QProgressBar (nodeCacheWidget);
   nodeCacheProgress->setTextVisible (false);
@@ -432,28 +434,37 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
 
   auto* cacheTimer= new QTimer (nodeCacheWidget);
   cacheTimer->setInterval (160);
-  QObject::connect (cacheTimer, &QTimer::timeout, nodeCacheWidget, [this] {
-    using athena::node_location::persistent_phase;
-    const auto status= athena::node_location::persistent_index_status ();
-    nodeCacheBlink= !nodeCacheBlink;
-    QString color= QStringLiteral ("#808080");
-    bool blinking= false, progress= false;
-    switch (status.phase) {
-    case persistent_phase::inactive: break;
-    case persistent_phase::bootstrap:
-      color= QStringLiteral ("#e89322"); blinking= true; progress= true; break;
-    case persistent_phase::idle:
-      color= QStringLiteral ("#36a852"); break;
-    case persistent_phase::sweep:
-      color= QStringLiteral ("#2d7ff9"); progress= true; break;
-    case persistent_phase::work:
-      color= QStringLiteral ("#2d7ff9"); blinking= true; progress= true; break;
-    case persistent_phase::degraded:
-      color= QStringLiteral ("#e89322"); break;
-    case persistent_phase::error:
-      color= QStringLiteral ("#d94b4b"); blinking= true; break;
+  QObject::connect (cacheTimer, &QTimer::timeout, nodeCacheWidget, [this, cacheTitle, tick=0u] () mutable {
+    using athena::background::phase;
+    const auto statuses= athena::background::snapshot ();
+    const char* names[]= {"UUID", "NPU RAG", "Maintenance"};
+    std::vector<std::size_t> busy;
+    bool active= false, failed= false;
+    QString tip;
+    for (std::size_t i=0; i<statuses.size (); ++i) {
+      const auto& status= statuses[i];
+      if (status.state == phase::inactive) continue;
+      active= true;
+      failed= failed || status.state == phase::error || status.errors != 0;
+      if (status.state == phase::working) busy.push_back (i);
+      if (!tip.isEmpty ()) tip += "\n";
+      tip += QString::fromLatin1 (names[i]) + ": " +
+        (status.state == phase::working ? "Working" :
+          (status.state == phase::error ? "Error" : "Idle"));
+      if (status.total) tip += QString (" %1/%2").arg (qulonglong (status.current)).arg (qulonglong (status.total));
+      if (status.errors) tip += QString ("; %1 errors").arg (qulonglong (status.errors));
+      if (!status.detail.empty ()) tip += "\n" + QString::fromStdString (status.detail);
     }
-    if (blinking && !nodeCacheBlink) color= QStringLiteral ("transparent");
+    const bool progress= !busy.empty ();
+    const auto status= progress ? statuses[busy[(tick / 19) % busy.size ()]] :
+                                 athena::background::progress {};
+    cacheTitle->setText (progress ? QString::fromLatin1 (names[busy[(tick / 19) % busy.size ()]]) :
+                                   QStringLiteral ("Background"));
+    ++tick;
+    nodeCacheBlink= !nodeCacheBlink;
+    QString color= failed ? QStringLiteral ("#d94b4b") :
+      progress ? QStringLiteral ("#2d7ff9") :
+      active ? QStringLiteral ("#36a852") : QStringLiteral ("#808080");
     nodeCacheIndicator->setStyleSheet (
       QStringLiteral ("background:%1;border-radius:5px;").arg (color));
     nodeCacheProgress->setVisible (progress);
@@ -470,9 +481,6 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
                                    .arg (qulonglong (status.total)));
       }
     }
-    QString tip= QStringLiteral ("UUID cache: %1 files, %2 nodes")
-      .arg (qulonglong (status.files)).arg (qulonglong (status.nodes));
-    if (status.errors) tip+= QStringLiteral (", %1 errors").arg (qulonglong (status.errors));
     nodeCacheWidget->setToolTip (tip);
   });
   cacheTimer->start ();
