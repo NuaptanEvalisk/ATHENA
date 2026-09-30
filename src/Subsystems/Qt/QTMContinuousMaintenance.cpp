@@ -80,11 +80,15 @@ void identify_new_bodies (tree& value) {
   for (int i=0; i<N(value); ++i) identify_new_bodies (value[i]);
 }
 
+// Scheduling/lifecycle contention is unfinished work, not a conversion error.
+struct MaintenanceDeferred { std::string reason; };
+
 struct Reply {
   std::mutex lock;
   std::condition_variable ready;
   bool done= false;
   std::string error;
+  std::string deferred;
 };
 
 class Maintenance final: public QObject {
@@ -100,23 +104,24 @@ class Maintenance final: public QObject {
     return !stopping->load () && vault_context_is_current (vault);
   }
 
-  bool live (const vault_context_handle& vault, const std::string& name,
+  void live (const vault_context_handle& vault, const std::string& name,
              std::uint64_t actor, std::uint64_t view, bool numbered) {
     auto reply= std::make_shared<Reply> ();
     auto stop= stopping;
     const auto callback= actor_continuation_registry::instance ().store (
       [reply, stop, vault, name, numbered] {
         std::string error;
+        std::string deferred;
         try {
           if (!stop->load () && vault_context_is_current (vault)) {
             const auto* execution= current_scheme_execution_context ();
             if (!execution || !execution->actor || !execution->editor)
-              throw std::runtime_error ("Source view is no longer available");
+              throw MaintenanceDeferred {"Source view is no longer available"};
             auto* owner= execution->actor;
             auto* state= owner->current_state ();
             const string actual= as_string (owner->current_buffer_url ());
             if (std::string (actual.data (), N(actual)) != name)
-              throw std::runtime_error ("Source buffer was renamed");
+              throw MaintenanceDeferred {"Source buffer was renamed"};
             if (!state->node_identities)
               throw std::runtime_error ("Source is not in node-model mode");
             // One actor thread owns this checkpoint, including its undo history.
@@ -132,7 +137,7 @@ class Maintenance final: public QObject {
               if (result.converted) {
                 if (state->read_only) throw std::runtime_error ("Source is read-only");
                 if (state->node_identities->pending () || execution->editor->get_input_mode () != 0)
-                  throw std::runtime_error ("Waiting for the current input transaction");
+                  throw MaintenanceDeferred {"Waiting for the current input transaction"};
                 execution->editor->archive_state ();
                 execution->editor->start_editing ();
                 try { tree_set_diff (body, result.source); }
@@ -145,24 +150,27 @@ class Maintenance final: public QObject {
             }
           }
         }
+        catch (const MaintenanceDeferred& e) { deferred= e.reason; }
         catch (const std::exception& e) { error= e.what (); }
         catch (const string& e) { error.assign (e.data (), N(e)); }
         catch (...) { error= "Live enunciation maintenance failed"; }
         { std::lock_guard<std::mutex> guard (reply->lock);
-          reply->error= std::move (error); reply->done= true; }
+          reply->error= std::move (error);
+          reply->deferred= std::move (deferred); reply->done= true; }
         reply->ready.notify_one ();
       });
     if (!buffer_actor::try_submit_to (actor, actor_command_kind::run_native_continuation,
           view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, callback)) {
       actor_continuation_registry::instance ().discard (callback);
-      return false;
+      throw MaintenanceDeferred {
+        "Nonblocking actor submission unavailable (actor lifecycle or queue contention)"};
     }
     std::unique_lock<std::mutex> guard (reply->lock);
     while (!reply->done && current (vault))
       reply->ready.wait_for (guard, std::chrono::milliseconds (100));
-    if (!reply->done) return false;
+    if (!reply->done) throw MaintenanceDeferred {"Vault changed or maintenance stopped"};
     if (!reply->error.empty ()) throw std::runtime_error (reply->error);
-    return true;
+    if (!reply->deferred.empty ()) throw MaintenanceDeferred {reply->deferred};
   }
 
   void run () {
@@ -170,6 +178,12 @@ class Maintenance final: public QObject {
     std::map<std::string,fs::metadata> checked;
     std::string reported_error;
     std::size_t previous_errors= 0;
+    using Clock= std::chrono::steady_clock;
+    struct Retry {
+      Clock::time_point since= Clock::now (), reported= since;
+      std::size_t attempts= 0;
+    };
+    std::map<std::string, Retry> retries;
     for (;;) {
       vault_context_handle vault;
       bool numbered;
@@ -178,6 +192,7 @@ class Maintenance final: public QObject {
         vault= context; numbered= number_solutions; }
       if (vault != previous) {
         checked.clear (); previous= vault; previous_errors= 0; reported_error.clear ();
+        retries.clear ();
       }
       if (!vault) bg::publish (bg::worker::maintenance, {});
       else try {
@@ -185,8 +200,24 @@ class Maintenance final: public QObject {
           {bg::phase::working, 0, 0, previous_errors, "Inventory\n" + reported_error});
         auto files= bg::inventory (vault->root, stopping.get ());
         const auto buffers= published_buffer_metadata ();
-        std::size_t count= 0, errors= 0;
-        std::string last_error;
+        std::size_t count= 0, errors= 0, deferred= 0;
+        std::string last_error, last_deferred;
+        std::set<std::string> pending;
+        auto retry= [&] (const std::string& file, const std::string& reason) {
+          ++deferred;
+          pending.insert (file);
+          auto& state= retries[file];
+          ++state.attempts;
+          const auto now= Clock::now ();
+          const auto seconds= std::chrono::duration_cast<std::chrono::seconds> (
+            now - state.since).count ();
+          last_deferred= file + ": " + reason + " (" +
+            std::to_string (seconds) + "s, attempts=" + std::to_string (state.attempts) + ")";
+          if (now - state.reported >= std::chrono::seconds (60)) {
+            athena_spdlog_info ("continuous maintenance: retry pending: " + last_deferred);
+            state.reported= now;
+          }
+        };
         std::set<std::string> present;
         for (const auto& file: files) {
           if (!current (vault)) break;
@@ -227,7 +258,7 @@ class Maintenance final: public QObject {
               auto replaced= root.replace (file.path, entry, revision, output, [&] {
                 if (!publication.try_lock () || !current (vault) ||
                     published_buffer_source (absolute).first != ATHENA_NO_ACTOR)
-                  throw std::runtime_error ("File opened or vault changed before maintenance commit");
+                  throw MaintenanceDeferred {"File publication busy, file opened or vault changed"};
               });
               if (!replaced.directory_synced)
                 throw std::runtime_error ("Converted file published but directory fsync failed");
@@ -238,6 +269,7 @@ class Maintenance final: public QObject {
             }
             else checked[file.path]= revision;
           }
+          catch (const MaintenanceDeferred& e) { retry (file.path, e.reason); }
           catch (const std::exception& e) {
             ++errors; last_error= file.path + ": " + e.what ();
           }
@@ -259,26 +291,33 @@ class Maintenance final: public QObject {
             if (part == ".athena" || part == ".backup" || part == ".git") excluded= true;
           if (excluded || !buffer.second.actor_id) continue;
           if (!buffer.second.source_view) {
-            ++errors; last_error= "Waiting for source view: " + buffer.first;
+            retry (buffer.first, "Waiting for source view");
             continue;
           }
           bg::publish (bg::worker::maintenance,
             {bg::phase::working, count-1, files.size () + buffers.size (),
              std::max (errors, previous_errors), "Enunciations: " + buffer.first});
           try {
-            if (!live (vault, buffer.first, buffer.second.actor_id, buffer.second.source_view, numbered)) {
-              ++errors; last_error= "Waiting for source buffer: " + buffer.first;
-            }
+            live (vault, buffer.first, buffer.second.actor_id, buffer.second.source_view, numbered);
           }
+          catch (const MaintenanceDeferred& e) { retry (buffer.first, e.reason); }
           catch (const std::exception& e) { ++errors; last_error= buffer.first + ": " + e.what (); }
         }
         if (current (vault)) {
+          for (auto it= retries.begin (); it != retries.end (); )
+            if (!pending.count (it->first)) it= retries.erase (it); else ++it;
           if (!last_error.empty () && last_error != reported_error)
             athena_spdlog_warning ("continuous maintenance: " + last_error);
           reported_error= last_error;
           previous_errors= errors;
+          std::string detail= last_error;
+          if (deferred) {
+            if (!detail.empty ()) detail += "\n";
+            detail += "Pending retries: " + std::to_string (deferred) + "\n" + last_deferred;
+          }
           bg::publish (bg::worker::maintenance,
-            {errors ? bg::phase::error : bg::phase::idle, count, count, errors, last_error});
+            {deferred ? bg::phase::working : errors ? bg::phase::error : bg::phase::idle,
+             count-deferred, count, errors, detail});
         }
       }
       catch (const std::exception& e) {
