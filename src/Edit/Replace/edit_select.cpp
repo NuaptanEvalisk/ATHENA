@@ -1189,7 +1189,7 @@ edit_select_rep::selection_cut (string key) {
         if (has_subtree (et, parent_path)) {
           tree parent= subtree (et, parent_path);
           if (is_document (parent) && N(parent) == 0)
-            insert (parent_path * 0, tree (""));
+            insert (parent_path * 0, tree (DOCUMENT, ""));
         }
       }
       else cut (p1, p2);
