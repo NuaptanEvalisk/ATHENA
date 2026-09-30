@@ -85,6 +85,11 @@ qtm_background_notifications_start () {
   if (headless_mode || !qApp || timer) return;
   timer= new QTimer (qApp);
   QObject::connect (timer, &QTimer::timeout, timer, [] {
+    // Standard diagnostics own persistence and error-panel notification. Toast
+    // availability must not delay or coalesce entries in that console.
+    for (const auto& error: athena::background::take_error_messages ())
+      debug_message ("std-error", "background worker: " *
+        string (error.data (), error.size ()) * "\n");
     if (!toast_parent () || activeToast) return;
     const auto errors= athena::background::take_error_notifications ();
     QString message;

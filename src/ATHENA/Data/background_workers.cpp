@@ -9,10 +9,13 @@
 ******************************************************************************/
 #include "background_workers.hpp"
 #include "tm_ostream.hpp"
+#include "boot.hpp"
 #include <algorithm>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <set>
+#include <system_error>
 
 namespace athena::background {
 namespace {
@@ -21,6 +24,7 @@ struct registry {
   std::array<progress, 4> statuses;
   std::array<std::set<std::string>, 4> reported;
   std::array<std::string, 4> pending;
+  std::vector<std::string> console_messages;
 };
 registry& state () {
   // Other process-lifetime workers may publish while static objects shut down.
@@ -56,6 +60,7 @@ void publish (worker id, progress value) {
         reported.insert (value.error_detail);
         notification= std::string (worker_name (id)) + ": " + value.error_detail;
         state ().pending[i]= notification;
+        if (!headless_mode) state ().console_messages.push_back (notification);
       }
     }
     else {
@@ -64,8 +69,8 @@ void publish (worker id, progress value) {
     }
     state ().statuses[i]= std::move (value);
   }
-  if (!notification.empty ())
-    athena_spdlog_warning ("background worker: " + notification);
+  if (headless_mode && !notification.empty ())
+    athena_spdlog_error ("background worker: " + notification);
 }
 std::array<progress, 4> snapshot () {
   std::lock_guard<std::mutex> lock (state ().lock);
@@ -80,6 +85,12 @@ std::vector<std::string> take_error_notifications () {
   }
   return result;
 }
+std::vector<std::string> take_error_messages () {
+  std::lock_guard<std::mutex> lock (state ().lock);
+  std::vector<std::string> result;
+  result.swap (state ().console_messages);
+  return result;
+}
 std::vector<disk_file> inventory (const std::filesystem::path& root,
                                 const std::atomic<bool>* cancelled) {
   filesystem::confined_root directory (root);
@@ -89,7 +100,19 @@ std::vector<disk_file> inventory (const std::filesystem::path& root,
   visit= [&] (const std::filesystem::path& relative, std::size_t depth) {
     if (cancelled && cancelled->load (std::memory_order_acquire)) return;
     if (depth > 256) throw std::length_error ("Vault inventory exceeds depth budget");
-    const auto entry= directory.open (relative);
+    std::optional<filesystem::entry> opened;
+    try { opened.emplace (directory.open (relative)); }
+    catch (const std::system_error& error) {
+      // Directory listings are not snapshots. A child may disappear (SQLite
+      // journals, atomic saves) or an ancestor may cease to be a directory.
+      // Do not hide a lost/replaced vault root or other filesystem failures.
+      if (depth == 0 ||
+          (error.code () != std::errc::no_such_file_or_directory &&
+           error.code () != std::errc::not_a_directory)) throw;
+      (void) directory.open (".");
+      return;
+    }
+    const auto& entry= *opened;
     const auto physical= entry.path ().lexically_relative (directory.path ());
     const auto revision= entry.stat ();
     if (revision.directory) {

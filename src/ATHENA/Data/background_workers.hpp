@@ -30,6 +30,8 @@ void publish (worker, progress);
 std::array<progress, 4> snapshot ();
 // Coalesced once per worker, consumed by the GUI rather than each status bar.
 std::vector<std::string> take_error_notifications ();
+// Full diagnostics for the main-thread standard error console, not coalesced.
+std::vector<std::string> take_error_messages ();
 struct disk_file {
   std::string path;
   filesystem::metadata revision;
