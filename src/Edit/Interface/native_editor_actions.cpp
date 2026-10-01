@@ -8,6 +8,7 @@
 
 #include "native_editor_actions.hpp"
 
+#include "document_commands.hpp"
 #include "format_commands.hpp"
 #include "generic_editor_commands.hpp"
 #include "scheme.hpp"
@@ -95,6 +96,7 @@ valid_business_id (const QString& id) {
     "insert-floating-figure",
     "insert-floating-table",
     "insert-floating-algorithm",
+    "open-document-font-selector",
     "letter-today",
     "tmdoc-explain-synopsis",
     "make-alter-colors"
@@ -135,6 +137,8 @@ execute_business_id (const QString& id) {
     (void) call ("native-insert-floating-table");
   else if (id == "insert-floating-algorithm")
     (void) call ("native-insert-floating-algorithm");
+  else if (id == "open-document-font-selector")
+    (void) call ("open-document-font-selector");
   else if (id == "letter-today") {
     (void) call ("make-header", symbol_object ("letter-date"));
     (void) call ("make", symbol_object ("date"), object (0));
@@ -192,6 +196,21 @@ native_editor_action_validate (const QJsonObject& action, QString* error) {
       op == "make-line-with")
     return has_string (action, "var") && has_string (action, "value") ?
              true : fail_validation (error, op + " requires var/value");
+  if (op == "init-env")
+    return has_string (action, "var") && has_string (action, "value") ?
+             true : fail_validation (error, "init-env requires var/value");
+  if (op == "init-default")
+    return has_string (action, "var") ?
+             true : fail_validation (error, "init-default requires var");
+  if (op == "set-main-style")
+    return has_string (action, "style") ?
+             true : fail_validation (error, "set-main-style requires style");
+  if (op == "set-document-language")
+    return has_string (action, "language") ?
+             true : fail_validation (
+               error, "set-document-language requires language");
+  if (op == "set-default-document-language")
+    return true;
   if (op == "interactive-line-with")
     return has_string (action, "var") ?
              true : fail_validation (error, "interactive-line-with requires var");
@@ -308,6 +327,21 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
   else if (op == "make-style-with")
     ed->make_style_with (native_action_string (action.value ("var")),
                          native_action_string (action.value ("value")));
+  else if (op == "init-env")
+    ed->init_env (
+      native_action_string (action.value ("var")),
+      tree (native_action_string (action.value ("value"))));
+  else if (op == "init-default")
+    ed->init_default (native_action_string (action.value ("var")));
+  else if (op == "set-main-style")
+    (void) call (
+      "set-main-style",
+      object (native_action_string (action.value ("style"))));
+  else if (op == "set-document-language")
+    document_set_language (
+      native_action_string (action.value ("language")));
+  else if (op == "set-default-document-language")
+    document_set_default_language ();
   else if (op == "make-line-with")
     format_make_line_with (
       native_action_string (action.value ("var")),

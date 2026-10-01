@@ -244,9 +244,13 @@ Retirement is group-by-group, with no dual production for a migrated group:
   `editor-focus-toolbar.json` and an inactive per-view native presenter now
   cover the generic structured core (similar-tag traversal, structured
   insert/remove, variants, exit/delete/help) from an actor-owned plain focus
-  snapshot. Document/screens/prog and tag-specific toggle/float/table/title
-  contributors remain on the legacy path; `texmacs-focus-icons` is not removed
-  until those reach parity.
+  snapshot. The same snapshot now identifies document-buffer, code and screens
+  top-level surfaces. Code language display is native; document/screens expose
+  target-bound Style name, Document Font, Font size, Page, Language and Slide
+  property controls. Page/Slide native panes accept an explicit frozen target
+  URL rather than rediscovering Main's current buffer. Tag-specific
+  toggle/float/table/title contributors remain on the legacy path;
+  `texmacs-focus-icons` is not removed until those reach parity.
 - User/extension toolbar: replace `texmacs-extra-icons` with the native runtime
   contribution model, then remove the last legacy `ui_menu_icons` producer and
   consumer.  At that point `tm_frame/tm_window::menu_icons` production APIs and

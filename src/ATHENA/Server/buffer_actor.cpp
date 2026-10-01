@@ -69,6 +69,11 @@ run_native_editor_command (editor_rep* editor,
   const bool has_selection=
     state.selection_active () || state.graphics_selection_active ();
   actor_focus_toolbar_snapshot focus= editor->focus_toolbar_state_snapshot ();
+  const bool genericFocus=
+    focus.valid () &&
+    !focus.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
+    !focus.has (ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT) &&
+    !focus.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT);
   switch (command) {
   case native_editor_command_id::undo:
     if (state.read_only () || state.undo_count == 0) return false;
@@ -112,12 +117,12 @@ run_native_editor_command (editor_rep* editor,
   case native_editor_command_id::focus_traverse_previous:
   case native_editor_command_id::focus_traverse_next:
   case native_editor_command_id::focus_traverse_last:
-    if (!focus.valid () || !focus.has (ACTOR_FOCUS_TOOLBAR_CAN_MOVE))
+    if (!genericFocus || !focus.has (ACTOR_FOCUS_TOOLBAR_CAN_MOVE))
       return false;
     break;
   case native_editor_command_id::focus_insert_left:
   case native_editor_command_id::focus_insert_right:
-    if (!focus.valid () ||
+    if (!genericFocus ||
         !focus.has (ACTOR_FOCUS_TOOLBAR_CAN_INSERT_REMOVE) ||
         ((!focus.has (ACTOR_FOCUS_TOOLBAR_VERTICAL)) &&
          (!focus.has (ACTOR_FOCUS_TOOLBAR_HORIZONTAL) ||
@@ -126,7 +131,7 @@ run_native_editor_command (editor_rep* editor,
     break;
   case native_editor_command_id::focus_remove_left:
   case native_editor_command_id::focus_remove_right:
-    if (!focus.valid () ||
+    if (!genericFocus ||
         !focus.has (ACTOR_FOCUS_TOOLBAR_CAN_INSERT_REMOVE) ||
         ((!focus.has (ACTOR_FOCUS_TOOLBAR_VERTICAL)) &&
          (!focus.has (ACTOR_FOCUS_TOOLBAR_HORIZONTAL) ||
@@ -137,7 +142,7 @@ run_native_editor_command (editor_rep* editor,
   case native_editor_command_id::focus_insert_down:
   case native_editor_command_id::focus_remove_up:
   case native_editor_command_id::focus_remove_down:
-    if (!focus.valid () ||
+    if (!genericFocus ||
         !focus.has (ACTOR_FOCUS_TOOLBAR_CAN_INSERT_REMOVE) ||
         !focus.has (ACTOR_FOCUS_TOOLBAR_VERTICAL))
       return false;
@@ -145,11 +150,11 @@ run_native_editor_command (editor_rep* editor,
   case native_editor_command_id::focus_exit_left:
   case native_editor_command_id::focus_exit_right:
   case native_editor_command_id::focus_remove_tag:
-    if (!focus.valid () || !focus.has (ACTOR_FOCUS_TOOLBAR_CURSOR_INSIDE))
+    if (!genericFocus || !focus.has (ACTOR_FOCUS_TOOLBAR_CURSOR_INSIDE))
       return false;
     break;
   case native_editor_command_id::focus_help:
-    if (!focus.valid ()) return false;
+    if (!genericFocus) return false;
     break;
   case native_editor_command_id::revert:
   case native_editor_command_id::close_document:

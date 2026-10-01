@@ -95,6 +95,7 @@ public:
   actor_focus_toolbar_snapshot focus_toolbar_state_snapshot ();
   void refresh_editor_style_command_flags ();
   void publish_editor_command_state ();
+  void publish_focus_toolbar_state ();
   void rebuild_ui_chrome ();
 
 protected:

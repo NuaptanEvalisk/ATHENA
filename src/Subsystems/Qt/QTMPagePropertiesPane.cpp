@@ -31,6 +31,7 @@
 #include <QScrollArea>
 #include <QSignalBlocker>
 #include <QTabWidget>
+#include <QThread>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <algorithm>
@@ -735,8 +736,15 @@ QTMPagePropertiesPane::insertHeaderPageNumber () {
 }
 
 void
-page_properties_pane_show () {
-  if (qt_defer_to_main_thread (page_properties_pane_show)) return;
+page_properties_pane_show_for (url target) {
+  if (QCoreApplication::instance () != nullptr &&
+      QThread::currentThread () != QCoreApplication::instance ()->thread ()) {
+    QMetaObject::invokeMethod (
+      QCoreApplication::instance (),
+      [target] () { page_properties_pane_show_for (target); },
+      Qt::QueuedConnection);
+    return;
+  }
   QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
   if (win == nullptr || win->dockManager () == nullptr) {
     QMessageBox::warning (QApplication::activeWindow (), "Page properties",
@@ -767,6 +775,12 @@ page_properties_pane_show () {
   }
 
   win->showAdsDockWidget (page_properties_pane_dock, ads::RightDockWidgetArea);
-  page_properties_pane_widget->refreshFromCurrentBuffer ();
+  if (!is_none (target)) page_properties_pane_widget->setTargetBuffer (target);
+  else page_properties_pane_widget->refreshFromCurrentBuffer ();
   page_properties_pane_widget->setFocus ();
+}
+
+void
+page_properties_pane_show () {
+  page_properties_pane_show_for (get_current_buffer_safe ());
 }

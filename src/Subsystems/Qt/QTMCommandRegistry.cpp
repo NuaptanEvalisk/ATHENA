@@ -29,7 +29,9 @@
 #include "QTMNamespaceManager.hpp"
 #include "QTMNativeDialogs.hpp"
 #include "QTMOutlinePane.hpp"
+#include "QTMPagePropertiesPane.hpp"
 #include "QTMQuickSwitcher.hpp"
+#include "QTMSlidePropertiesPane.hpp"
 #include "QTMWebsitesManager.hpp"
 #include "QTMGoogleTasksPane.hpp"
 #include "qt_actor_widget.hpp"
@@ -54,6 +56,8 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
+#include <QInputDialog>
+#include <QLineEdit>
 #include <QJsonValue>
 #include <QLineEdit>
 #include <QPlainTextEdit>
@@ -185,6 +189,58 @@ parse_editor_capability_mask (
     QString name= item.toString ().trimmed ();
     if (!editor_capability_bit (name, bit)) {
       error= QString ("unknown editor capability: %1").arg (name);
+      return false;
+    }
+    mask |= bit;
+  }
+  return true;
+}
+
+bool
+focus_capability_bit (const QString& name, std::uint32_t& bit) {
+  static const QHash<QString, std::uint32_t> bits {
+    {"buffer", ACTOR_FOCUS_TOOLBAR_BUFFER},
+    {"can-move", ACTOR_FOCUS_TOOLBAR_CAN_MOVE},
+    {"can-insert-remove", ACTOR_FOCUS_TOOLBAR_CAN_INSERT_REMOVE},
+    {"horizontal", ACTOR_FOCUS_TOOLBAR_HORIZONTAL},
+    {"vertical", ACTOR_FOCUS_TOOLBAR_VERTICAL},
+    {"can-insert", ACTOR_FOCUS_TOOLBAR_CAN_INSERT},
+    {"can-remove", ACTOR_FOCUS_TOOLBAR_CAN_REMOVE},
+    {"cursor-inside", ACTOR_FOCUS_TOOLBAR_CURSOR_INSIDE},
+    {"has-variants", ACTOR_FOCUS_TOOLBAR_HAS_VARIANTS},
+    {"has-preferences", ACTOR_FOCUS_TOOLBAR_HAS_PREFERENCES},
+    {"has-parameters", ACTOR_FOCUS_TOOLBAR_HAS_PARAMETERS},
+    {"can-search", ACTOR_FOCUS_TOOLBAR_CAN_SEARCH},
+    {"has-search-menu", ACTOR_FOCUS_TOOLBAR_HAS_SEARCH_MENU},
+    {"has-label", ACTOR_FOCUS_TOOLBAR_HAS_LABEL},
+    {"has-hidden-children", ACTOR_FOCUS_TOOLBAR_HAS_HIDDEN_CHILDREN},
+    {"code-context", ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT},
+    {"screens-context", ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT}
+  };
+  auto found= bits.constFind (name);
+  if (found == bits.constEnd ()) return false;
+  bit= found.value ();
+  return true;
+}
+
+bool
+parse_focus_capability_mask (
+  const QJsonValue& value, std::uint32_t& mask, QString& error) {
+  mask= 0;
+  if (value.isUndefined ()) return true;
+  if (!value.isArray ()) {
+    error= "focus capability list must be an array";
+    return false;
+  }
+  for (const QJsonValue& item: value.toArray ()) {
+    if (!item.isString ()) {
+      error= "focus capability name must be a string";
+      return false;
+    }
+    std::uint32_t bit= 0;
+    QString name= item.toString ().trimmed ();
+    if (!focus_capability_bit (name, bit)) {
+      error= QString ("unknown focus capability: %1").arg (name);
       return false;
     }
     mask |= bit;
@@ -332,6 +388,23 @@ editor_provider_state (
   return state;
 }
 
+QTMCommandState
+focus_surface_state (
+  const QTMCommandContext& context, std::uint32_t anyFocusFlags,
+  bool writable= false) {
+  QTMCommandState state;
+  qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+  if (proxy == nullptr) return state;
+  actor_editor_command_snapshot editorState= proxy->editor_command_state ();
+  actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
+  if (!editorState.valid () || !focus.valid () ||
+      (focus.flags & anyFocusFlags) == 0)
+    return state;
+  state.available= true;
+  state.enabled= !writable || !editorState.read_only ();
+  return state;
+}
+
 bool
 local_text_input_owns_edit_command (const QTMCommandContext& context) {
   QWidget* input= context.inputWidget.data ();
@@ -453,6 +526,11 @@ native_editor_command_state (const QString& id,
   const bool hasSelection=
     snapshot.selection_active () || snapshot.graphics_selection_active ();
   actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
+  const bool genericFocus=
+    focus.valid () &&
+    !focus.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
+    !focus.has (ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT) &&
+    !focus.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT);
   switch (command) {
   case native_editor_command_id::undo:
     result.enabled= !snapshot.read_only () && snapshot.undo_count != 0;
@@ -529,13 +607,13 @@ native_editor_command_state (const QString& id,
   case native_editor_command_id::focus_traverse_next:
   case native_editor_command_id::focus_traverse_last:
     result.available=
-      focus.valid () && focus.has (ACTOR_FOCUS_TOOLBAR_CAN_MOVE);
+      genericFocus && focus.has (ACTOR_FOCUS_TOOLBAR_CAN_MOVE);
     result.enabled= result.available;
     break;
   case native_editor_command_id::focus_insert_left:
   case native_editor_command_id::focus_insert_right:
     result.available=
-      focus.valid () &&
+      genericFocus &&
       focus.has (ACTOR_FOCUS_TOOLBAR_CAN_INSERT_REMOVE) &&
       (focus.has (ACTOR_FOCUS_TOOLBAR_VERTICAL) ||
        (focus.has (ACTOR_FOCUS_TOOLBAR_HORIZONTAL) &&
@@ -545,7 +623,7 @@ native_editor_command_state (const QString& id,
   case native_editor_command_id::focus_remove_left:
   case native_editor_command_id::focus_remove_right:
     result.available=
-      focus.valid () &&
+      genericFocus &&
       focus.has (ACTOR_FOCUS_TOOLBAR_CAN_INSERT_REMOVE) &&
       (focus.has (ACTOR_FOCUS_TOOLBAR_VERTICAL) ||
        (focus.has (ACTOR_FOCUS_TOOLBAR_HORIZONTAL) &&
@@ -557,7 +635,7 @@ native_editor_command_state (const QString& id,
   case native_editor_command_id::focus_remove_up:
   case native_editor_command_id::focus_remove_down:
     result.available=
-      focus.valid () &&
+      genericFocus &&
       focus.has (ACTOR_FOCUS_TOOLBAR_CAN_INSERT_REMOVE) &&
       focus.has (ACTOR_FOCUS_TOOLBAR_VERTICAL);
     result.enabled= result.available && !snapshot.read_only ();
@@ -566,11 +644,11 @@ native_editor_command_state (const QString& id,
   case native_editor_command_id::focus_exit_right:
   case native_editor_command_id::focus_remove_tag:
     result.available=
-      focus.valid () && focus.has (ACTOR_FOCUS_TOOLBAR_CURSOR_INSIDE);
+      genericFocus && focus.has (ACTOR_FOCUS_TOOLBAR_CURSOR_INSIDE);
     result.enabled= result.available && !snapshot.read_only ();
     break;
   case native_editor_command_id::focus_help:
-    result.available= focus.valid ();
+    result.available= genericFocus;
     result.enabled= result.available;
     break;
   default:
@@ -1099,6 +1177,9 @@ QTMCommandRegistry::registerBuiltins () {
       actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
       actor_editor_command_snapshot editorState= proxy->editor_command_state ();
       if (!focus.valid () ||
+          focus.has (ACTOR_FOCUS_TOOLBAR_BUFFER) ||
+          focus.has (ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT) ||
+          focus.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT) ||
           !focus.has (ACTOR_FOCUS_TOOLBAR_HAS_VARIANTS) ||
           !editorState.valid ())
         return out;
@@ -1133,12 +1214,177 @@ QTMCommandRegistry::registerBuiltins () {
       actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
       actor_editor_command_snapshot editorState= proxy->editor_command_state ();
       if (!focus.valid () ||
+          focus.has (ACTOR_FOCUS_TOOLBAR_BUFFER) ||
+          focus.has (ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT) ||
+          focus.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT) ||
           !focus.has (ACTOR_FOCUS_TOOLBAR_HAS_VARIANTS) ||
           !editorState.valid ())
         return state;
       state.available= true;
       state.enabled= !editorState.read_only ();
       return state;
+    });
+  registerProvider (
+    "editor-focus-code-label", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QVector<QTMCommandDynamicItem> out;
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return out;
+      actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
+      if (!focus.valid () ||
+          !focus.has (ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT))
+        return out;
+      QString label= QString::fromUtf8 (
+        focus.code_language.data (),
+        static_cast<int> (focus.code_language.size ()));
+      if (label.isEmpty ()) label= QObject::tr ("Code");
+      QTMCommandDynamicItem item= enabled_dynamic_item (
+        QStringLiteral ("__label__"), label);
+      item.state.enabled= false;
+      out.append (std::move (item));
+      return out;
+    },
+    [] (const QString&, const QTMCommandContext&) {
+      return false;
+    },
+    [] (const QTMCommandContext& context) {
+      return focus_surface_state (
+        context, ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT, false);
+    });
+  registerProvider (
+    "editor-focus-document-font-sizes", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QVector<QTMCommandDynamicItem> out;
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return out;
+      actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
+      actor_editor_command_snapshot editorState= proxy->editor_command_state ();
+      const std::uint32_t surfaces=
+        ACTOR_FOCUS_TOOLBAR_BUFFER |
+        ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT;
+      if (!focus.valid () || (focus.flags & surfaces) == 0 ||
+          !editorState.valid ())
+        return out;
+      const bool enabled= !editorState.read_only ();
+      QTMCommandDynamicItem def= enabled_dynamic_item (
+        QStringLiteral ("__default__"), QObject::tr ("Default"));
+      def.state.enabled= enabled;
+      out.append (std::move (def));
+      static const char* values[]= {"8", "9", "10", "11", "12", "14"};
+      for (const char* value: values) {
+        QTMCommandDynamicItem item= enabled_dynamic_item (
+          QString::fromLatin1 (value), QString::fromLatin1 (value));
+        item.state.enabled= enabled;
+        out.append (std::move (item));
+      }
+      QTMCommandDynamicItem other= enabled_dynamic_item (
+        QStringLiteral ("__other__"), QObject::tr ("Other..."));
+      other.state.enabled= enabled;
+      out.append (std::move (other));
+      return out;
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      QJsonObject action;
+      if (key == QStringLiteral ("__default__")) {
+        action.insert ("op", "init-default");
+        action.insert ("var", "font-base-size");
+      }
+      else {
+        QString value= key;
+        if (key == QStringLiteral ("__other__")) {
+          qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+          if (proxy == nullptr) return false;
+          actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
+          QString current= QString::fromUtf8 (
+            focus.font_base_size.data (),
+            static_cast<int> (focus.font_base_size.size ()));
+          bool ok= false;
+          value= QInputDialog::getText (
+            context.shell.data (), QObject::tr ("Font size"),
+            QObject::tr ("Base size:"), QLineEdit::Normal, current, &ok)
+                    .trimmed ();
+          if (!ok || value.isEmpty ()) return true;
+        }
+        action.insert ("op", "init-env");
+        action.insert ("var", "font-base-size");
+        action.insert ("value", value);
+      }
+      return submit_inline_editor_action (
+        context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
+    },
+    [] (const QTMCommandContext& context) {
+      return focus_surface_state (
+        context,
+        ACTOR_FOCUS_TOOLBAR_BUFFER |
+        ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT,
+        true);
+    });
+  registerProvider (
+    "editor-focus-document-languages", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QVector<QTMCommandDynamicItem> out;
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return out;
+      actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
+      actor_editor_command_snapshot editorState= proxy->editor_command_state ();
+      const std::uint32_t surfaces=
+        ACTOR_FOCUS_TOOLBAR_BUFFER |
+        ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT;
+      if (!focus.valid () || (focus.flags & surfaces) == 0 ||
+          !editorState.valid ())
+        return out;
+      QString current= QString::fromUtf8 (
+        focus.document_language.data (),
+        static_cast<int> (focus.document_language.size ()));
+      const bool enabled= !editorState.read_only ();
+      QTMCommandDynamicItem def= enabled_dynamic_item (
+        QStringLiteral ("__default__"), QObject::tr ("Default"));
+      def.state.enabled= enabled;
+      out.append (std::move (def));
+      static const char* languages[]= {
+        "british", "bulgarian", "chinese", "croatian", "czech",
+        "danish", "dutch", "english", "esperanto", "finnish", "french",
+        "german", "greek", "hungarian", "italian", "japanese", "korean",
+        "polish", "portuguese", "romanian", "russian", "slovak",
+        "slovene", "spanish", "swedish", "taiwanese", "ukrainian"
+      };
+      for (const char* raw: languages) {
+        string language (raw);
+        bool supported= true;
+        try {
+          supported= as_bool (
+            call ("supported-language?", object (language)));
+        }
+        catch (...) {}
+        if (!supported) continue;
+        QString key= QString::fromLatin1 (raw);
+        QString label= key;
+        if (!label.isEmpty ()) label[0]= label[0].toUpper ();
+        QTMCommandDynamicItem item= enabled_dynamic_item (key, label);
+        item.state.enabled= enabled;
+        item.state.checkable= true;
+        item.state.checked= current == key;
+        out.append (std::move (item));
+      }
+      return out;
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      QJsonObject action;
+      if (key == QStringLiteral ("__default__"))
+        action.insert ("op", "set-default-document-language");
+      else {
+        action.insert ("op", "set-document-language");
+        action.insert ("language", key);
+      }
+      return submit_inline_editor_action (
+        context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
+    },
+    [] (const QTMCommandContext& context) {
+      return focus_surface_state (
+        context,
+        ACTOR_FOCUS_TOOLBAR_BUFFER |
+        ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT,
+        true);
     });
   registerProvider (
     "editor-personal-macros", QTMCommandScope::Editor,
@@ -1436,6 +1682,77 @@ QTMCommandRegistry::registerBuiltins () {
     "editor.math-preferences.semantic-correctness",
     "semantic correctness", "off", "on", "off");
 
+  registerBehavior (
+    "editor.focus.document-font", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QJsonObject action;
+      action.insert ("op", "business");
+      action.insert ("id", "open-document-font-selector");
+      return submit_inline_editor_action (
+        context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
+    },
+    [] (const QTMCommandContext& context) {
+      return focus_surface_state (
+        context,
+        ACTOR_FOCUS_TOOLBAR_BUFFER |
+        ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT,
+        true);
+    });
+  registerBehavior (
+    "editor.focus.page-properties", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      url target= frozen_document_url (context);
+      if (is_none (target)) return false;
+      page_properties_pane_show_for (target);
+      return true;
+    },
+    [] (const QTMCommandContext& context) {
+      return focus_surface_state (
+        context,
+        ACTOR_FOCUS_TOOLBAR_BUFFER |
+        ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT,
+        true);
+    });
+  registerBehavior (
+    "editor.focus.slide-properties", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      url target= frozen_document_url (context);
+      if (is_none (target)) return false;
+      slide_properties_pane_show_for (target);
+      return true;
+    },
+    [] (const QTMCommandContext& context) {
+      return focus_surface_state (
+        context, ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT, true);
+    });
+  registerBehavior (
+    "editor.focus.set-main-style", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return false;
+      actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
+      QString current= QString::fromUtf8 (
+        focus.document_style.data (),
+        static_cast<int> (focus.document_style.size ()));
+      bool ok= false;
+      QString style= QInputDialog::getText (
+        context.shell.data (), QObject::tr ("Document style"),
+        QObject::tr ("Style name:"), QLineEdit::Normal, current, &ok).trimmed ();
+      if (!ok || style.isEmpty ()) return true;
+      QJsonObject action;
+      action.insert ("op", "set-main-style");
+      action.insert ("style", style);
+      return submit_inline_editor_action (
+        context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
+    },
+    [] (const QTMCommandContext& context) {
+      return focus_surface_state (
+        context,
+        ACTOR_FOCUS_TOOLBAR_BUFFER |
+        ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT,
+        true);
+    });
+
   const QString paneCommands[]= {
     "namespace.open",
     "namespace.copy",
@@ -1712,6 +2029,15 @@ QTMCommandRegistry::loadPresentation () {
             itemMaskError) ||
           !parse_editor_capability_mask (
             itemObject.value ("requires_any"), item.anyFlags,
+            itemMaskError) ||
+          !parse_focus_capability_mask (
+            itemObject.value ("focus_requires"), item.focusRequiredFlags,
+            itemMaskError) ||
+          !parse_focus_capability_mask (
+            itemObject.value ("focus_forbids"), item.focusForbiddenFlags,
+            itemMaskError) ||
+          !parse_focus_capability_mask (
+            itemObject.value ("focus_requires_any"), item.focusAnyFlags,
             itemMaskError))
         return failPresentation (
           QString ("invalid item capability mask in %1: %2")

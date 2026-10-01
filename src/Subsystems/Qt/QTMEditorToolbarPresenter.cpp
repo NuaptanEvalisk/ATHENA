@@ -97,6 +97,9 @@ QTMEditorToolbarPresenter::buildItem (
   result->requiredFlags= item.requiredFlags;
   result->forbiddenFlags= item.forbiddenFlags;
   result->anyFlags= item.anyFlags;
+  result->focusRequiredFlags= item.focusRequiredFlags;
+  result->focusForbiddenFlags= item.focusForbiddenFlags;
+  result->focusAnyFlags= item.focusAnyFlags;
   result->whenMainToolbarHidden= item.whenMainToolbarHidden;
 
   if (item.kind == QTMCommandMenuItem::Kind::Separator) {
@@ -230,7 +233,10 @@ QTMEditorToolbarPresenter::presentationConditionSatisfied (
 
   if (item.requiredFlags == 0 &&
       item.forbiddenFlags == 0 &&
-      item.anyFlags == 0)
+      item.anyFlags == 0 &&
+      item.focusRequiredFlags == 0 &&
+      item.focusForbiddenFlags == 0 &&
+      item.focusAnyFlags == 0)
     return true;
   if (canvas_ == nullptr || canvas_->tm_widget () == nullptr) return false;
   qt_actor_widget_rep* proxy=
@@ -238,9 +244,21 @@ QTMEditorToolbarPresenter::presentationConditionSatisfied (
   if (proxy == nullptr) return false;
   actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
   if (!snapshot.valid ()) return false;
-  return (snapshot.flags & item.requiredFlags) == item.requiredFlags &&
+  bool editorOk=
+    (snapshot.flags & item.requiredFlags) == item.requiredFlags &&
          (snapshot.flags & item.forbiddenFlags) == 0 &&
          (item.anyFlags == 0 || (snapshot.flags & item.anyFlags) != 0);
+  if (!editorOk) return false;
+  if (item.focusRequiredFlags == 0 &&
+      item.focusForbiddenFlags == 0 &&
+      item.focusAnyFlags == 0)
+    return true;
+  actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
+  if (!focus.valid ()) return false;
+  return (focus.flags & item.focusRequiredFlags) == item.focusRequiredFlags &&
+         (focus.flags & item.focusForbiddenFlags) == 0 &&
+         (item.focusAnyFlags == 0 ||
+          (focus.flags & item.focusAnyFlags) != 0);
 }
 
 bool

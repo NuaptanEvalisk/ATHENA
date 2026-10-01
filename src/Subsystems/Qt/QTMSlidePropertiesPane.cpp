@@ -21,6 +21,7 @@
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QThread>
 #include <QTimer>
 #include <QVBoxLayout>
 
@@ -165,12 +166,19 @@ ads::CDockWidget* slideDock= nullptr;
 
 } // namespace
 
-void slide_properties_pane_show () {
-  if (qt_defer_to_main_thread (slide_properties_pane_show)) return;
+void slide_properties_pane_show_for (url target) {
+  if (QCoreApplication::instance () != nullptr &&
+      QThread::currentThread () != QCoreApplication::instance ()->thread ()) {
+    QMetaObject::invokeMethod (
+      QCoreApplication::instance (),
+      [target] () { slide_properties_pane_show_for (target); },
+      Qt::QueuedConnection);
+    return;
+  }
   QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
   if (win == nullptr || win->dockManager () == nullptr) return;
   if (slideWidget == nullptr) slideWidget= new QTMSlidePropertiesPane;
-  slideWidget->retarget (get_current_buffer_safe ());
+  slideWidget->retarget (target);
   if (slideDock == nullptr) {
     slideDock= new ads::CDockWidget ("Slide properties");
     slideDock->setObjectName ("athena-slide-properties");
@@ -181,4 +189,8 @@ void slide_properties_pane_show () {
     });
   }
   win->showAdsDockWidget (slideDock, ads::RightDockWidgetArea);
+}
+
+void slide_properties_pane_show () {
+  slide_properties_pane_show_for (get_current_buffer_safe ());
 }

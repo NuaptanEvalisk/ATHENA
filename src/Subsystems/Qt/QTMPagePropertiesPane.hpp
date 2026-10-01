@@ -34,6 +34,7 @@ public:
   QSize sizeHint () const override;
 
   void refreshFromCurrentBuffer ();
+  void setTargetBuffer (url buffer);
 
 private:
   QWidget* buildFormatTab ();
@@ -62,7 +63,6 @@ private:
   void setString (const QString& variable, const QString& value);
   void resetVariables (const QStringList& variables);
   bool targetLooksUsable () const;
-  void setTargetBuffer (url buffer);
 
   QString decodeRendering (const QString& value) const;
   QString encodeRendering (const QString& value) const;
@@ -109,5 +109,6 @@ private:
 };
 
 void page_properties_pane_show ();
+void page_properties_pane_show_for (url target);
 
 #endif // QTMPAGEPROPERTIESPANE_HPP

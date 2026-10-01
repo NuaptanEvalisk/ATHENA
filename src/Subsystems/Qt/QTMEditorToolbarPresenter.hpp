@@ -49,6 +49,9 @@ private:
     std::uint32_t requiredFlags= 0;
     std::uint32_t forbiddenFlags= 0;
     std::uint32_t anyFlags= 0;
+    std::uint32_t focusRequiredFlags= 0;
+    std::uint32_t focusForbiddenFlags= 0;
+    std::uint32_t focusAnyFlags= 0;
     bool whenMainToolbarHidden= false;
     QPointer<QMenu> providerMenu;
     std::vector<QPointer<QAction>> dynamicActions;

@@ -23,6 +23,7 @@
 #include "boot.hpp"
 #include "buffer_actor.hpp"
 #include "actor_ui_bridge.hpp"
+#include "document_commands.hpp"
 #include "generic_editor_commands.hpp"
 #include "structured_commands.hpp"
 #ifdef EXPERIMENTAL
@@ -719,6 +720,7 @@ void
 edit_interface_rep::update_menus () {
   refresh_editor_style_command_flags ();
   publish_editor_command_state ();
+  publish_focus_toolbar_state ();
   rebuild_ui_chrome ();
   set_footer ();
   pending_idle_footer_update= false;
@@ -829,6 +831,11 @@ editor_rep::focus_toolbar_state_snapshot () {
   };
 
   set (ACTOR_FOCUS_TOOLBAR_BUFFER, query ("tree-is-buffer?"));
+  try {
+    set (ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT, as_bool (call ("in-code?")));
+  }
+  catch (...) {}
+  set (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT, query ("screens-context?"));
   set (ACTOR_FOCUS_TOOLBAR_CAN_MOVE, query ("focus-can-move?", true));
   set (ACTOR_FOCUS_TOOLBAR_CAN_INSERT_REMOVE,
        query ("focus-can-insert-remove?"));
@@ -886,6 +893,42 @@ editor_rep::focus_toolbar_state_snapshot () {
   }
   catch (...) {}
   set (ACTOR_FOCUS_TOOLBAR_HAS_VARIANTS, snapshot.variants.size () > 1);
+
+  if (snapshot.has (ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT)) {
+    string language= get_env_string ("prog-language");
+    string display= language;
+    try {
+      object name= call ("format-get-name", object (language));
+      if (is_string (name)) display= as_string (name);
+    }
+    catch (...) {}
+    snapshot.code_language.assign (
+      display.data (), static_cast<std::size_t> (N(display)));
+  }
+  if (snapshot.has (ACTOR_FOCUS_TOOLBAR_BUFFER) ||
+      snapshot.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT)) {
+    try {
+      list<string> styles= as_list_string (call ("get-style-list"));
+      if (!is_nil (styles)) {
+        const string style= styles->item;
+        snapshot.document_style.assign (
+          style.data (), static_cast<std::size_t> (N(style)));
+      }
+    }
+    catch (...) {}
+    const string pageType= get_init_string ("page-type");
+    const string font= document_font_display_name (get_init_string ("font"));
+    const string fontSize= get_init_string ("font-base-size");
+    const string language= document_get_language ();
+    snapshot.page_type.assign (
+      pageType.data (), static_cast<std::size_t> (N(pageType)));
+    snapshot.document_font.assign (
+      font.data (), static_cast<std::size_t> (N(font)));
+    snapshot.font_base_size.assign (
+      fontSize.data (), static_cast<std::size_t> (N(fontSize)));
+    snapshot.document_language.assign (
+      language.data (), static_cast<std::size_t> (N(language)));
+  }
   return snapshot;
 }
 
@@ -938,6 +981,11 @@ editor_rep::publish_editor_command_state () {
   ui_endpoint->set_prominent_spacing_available (prominent_spacing);
   ui_endpoint->set_inside_table (inside ("table"));
   ui_endpoint->update_editor_command_state (editor_command_state_snapshot ());
+}
+
+void
+editor_rep::publish_focus_toolbar_state () {
+  if (ui_endpoint == nullptr) return;
   ui_endpoint->update_focus_toolbar_state (focus_toolbar_state_snapshot ());
 }
 

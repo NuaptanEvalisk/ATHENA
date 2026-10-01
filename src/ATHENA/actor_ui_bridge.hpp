@@ -150,7 +150,9 @@ enum actor_focus_toolbar_flag: std::uint32_t {
   ACTOR_FOCUS_TOOLBAR_CAN_SEARCH= 1U << 12,
   ACTOR_FOCUS_TOOLBAR_HAS_SEARCH_MENU= 1U << 13,
   ACTOR_FOCUS_TOOLBAR_HAS_LABEL= 1U << 14,
-  ACTOR_FOCUS_TOOLBAR_HAS_HIDDEN_CHILDREN= 1U << 15
+  ACTOR_FOCUS_TOOLBAR_HAS_HIDDEN_CHILDREN= 1U << 15,
+  ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT= 1U << 16,
+  ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT= 1U << 17
 };
 
 struct actor_focus_toolbar_snapshot {
@@ -159,6 +161,12 @@ struct actor_focus_toolbar_snapshot {
   std::string tag_name;
   std::vector<std::string> variants;
   std::vector<std::string> variant_names;
+  std::string code_language;
+  std::string document_style;
+  std::string page_type;
+  std::string document_font;
+  std::string font_base_size;
+  std::string document_language;
 
   bool valid () const noexcept {
     return (flags & ACTOR_FOCUS_TOOLBAR_VALID) != 0;

@@ -154,7 +154,11 @@ Scheme menu tree. The first inactive native focus slice binds similar-tag
 traversal, structured insert/remove, variant selection, structured exit,
 remove-tag, and Describe through finite BufferActor commands. The legacy focus
 toolbar remains the sole production surface until specialized document/screens
-and tag-specific contributors are migrated.
+and tag-specific contributors are migrated. Focus presentation items may also
+declare `focus_requires`, `focus_forbids`, and `focus_requires_any` masks;
+the presenter evaluates these masks from the published focus snapshot without
+querying the editor. Document/screens controls use typed document actions or
+native panes retargeted with the frozen document URL.
 
 ## Zero-buffer ownership now established
 
