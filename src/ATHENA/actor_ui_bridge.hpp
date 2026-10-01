@@ -197,6 +197,15 @@ struct actor_focus_toolbar_snapshot {
   bool figure_context= false;
   bool titled_named= false;
   bool frame_titled= false;
+  bool multicol_style= false;
+  bool float_wide= false;
+  bool floatable_wide= false;
+  bool float_context_available= false;
+  bool cursor_at_anchor= false;
+  std::string marginal_hpos;
+  std::string marginal_valign;
+  std::string balloon_halign;
+  std::string balloon_valign;
 
   bool valid () const noexcept {
     return (flags & ACTOR_FOCUS_TOOLBAR_VALID) != 0;

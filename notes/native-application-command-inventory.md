@@ -158,7 +158,12 @@ and tag-specific contributors are migrated. Focus presentation items may also
 declare `focus_requires`, `focus_forbids`, and `focus_requires_any` masks;
 the presenter evaluates these masks from the published focus snapshot without
 querying the editor. Document/screens controls use typed document actions or
-native panes retargeted with the frozen document URL.
+native panes retargeted with the frozen document URL. Tag-specific snapshot
+state now covers metadata/table contexts, checked structured toggles, algorithm
+variants, labels and float/footnote/balloon state. Float positions and
+alignments dispatch directly to fixed `generic_*` editor APIs; wide/floating/
+anchor mutations remain finite actor-side business adapters with current-focus
+revalidation.
 
 ## Zero-buffer ownership now established
 

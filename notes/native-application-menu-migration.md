@@ -248,8 +248,14 @@ Retirement is group-by-group, with no dual production for a migrated group:
   top-level surfaces. Code language display is native; document/screens expose
   target-bound Style name, Document Font, Font size, Page, Language and Slide
   property controls. Page/Slide native panes accept an explicit frozen target
-  URL rather than rediscovering Main's current buffer. Tag-specific
-  toggle/float/table/title contributors remain on the legacy path;
+  URL rather than rediscovering Main's current buffer. Native tag-specific
+  coverage now also includes Metadata/Table/Cell property panes, generic
+  Numbered/Alternate/Hidden toggles, Algorithm and detached-note/titled/frame
+  toggles, editable focus labels, plus float/footnote/balloon wide/anchor/
+  floating/position/alignment controls. These controls read only the actor
+  focus snapshot and execute through the validated focus-action whitelist.
+  Remaining style/theme/slide-selector and less common node-focus contributors
+  are still on the legacy path;
   `texmacs-focus-icons` is not removed until those reach parity.
 - User/extension toolbar: replace `texmacs-extra-icons` with the native runtime
   contribution model, then remove the last legacy `ui_menu_icons` producer and

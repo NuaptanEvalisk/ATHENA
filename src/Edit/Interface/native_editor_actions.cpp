@@ -115,9 +115,61 @@ valid_focus_action_id (const QString& id) {
     "algorithm-toggle-specification",
     "note-toggle-custom",
     "titled-toggle-name",
-    "frame-toggle-title"
+    "frame-toggle-title",
+    "float-toggle-wide",
+    "floatable-toggle-wide",
+    "turn-floating",
+    "turn-non-floating",
+    "cursor-toggle-anchor",
+    "set-marginal-note-hpos",
+    "set-marginal-note-valign",
+    "set-balloon-halign",
+    "set-balloon-valign",
+    "toggle-insertion-positioning",
+    "toggle-insertion-positioning-not"
   };
   return ids.contains (id);
+}
+
+bool
+valid_focus_action_value (const QJsonObject& action, QString* error) {
+  const QString id= action.value ("id").toString ();
+  const bool needsValue=
+    id == "set-marginal-note-hpos" ||
+    id == "set-marginal-note-valign" ||
+    id == "set-balloon-halign" ||
+    id == "set-balloon-valign" ||
+    id == "toggle-insertion-positioning" ||
+    id == "toggle-insertion-positioning-not";
+  if (!needsValue) return true;
+  if (!has_string (action, "value"))
+    return fail_validation (error, "focus action requires value");
+  const QString value= action.value ("value").toString ();
+  if (id == "set-marginal-note-hpos")
+    return QSet<QString> {
+      "normal", "left", "right", "even-left", "even-right"
+    }.contains (value) ? true :
+      fail_validation (error, "invalid marginal note horizontal position");
+  if (id == "set-marginal-note-valign")
+    return QSet<QString> {"t", "c", "b"}.contains (value) ? true :
+      fail_validation (error, "invalid marginal note vertical alignment");
+  if (id == "set-balloon-halign")
+    return QSet<QString> {
+      "Left", "left", "center", "right", "Right"
+    }.contains (value) ? true :
+      fail_validation (error, "invalid balloon horizontal alignment");
+  if (id == "set-balloon-valign")
+    return QSet<QString> {
+      "Bottom", "bottom", "center", "top", "Top"
+    }.contains (value) ? true :
+      fail_validation (error, "invalid balloon vertical alignment");
+  if (id == "toggle-insertion-positioning")
+    return QSet<QString> {"t", "h", "b"}.contains (value) ? true :
+      fail_validation (error, "invalid float position");
+  if (id == "toggle-insertion-positioning-not")
+    return value == "f" ? true :
+      fail_validation (error, "invalid excluded float position");
+  return true;
 }
 
 void
@@ -273,7 +325,8 @@ native_editor_action_validate (const QJsonObject& action, QString* error) {
              true : fail_validation (error, "focus-variant requires tag");
   if (op == "focus-action")
     return has_string (action, "id") &&
-           valid_focus_action_id (action.value ("id").toString ()) ?
+           valid_focus_action_id (action.value ("id").toString ()) &&
+           valid_focus_action_value (action, error) ?
              true : fail_validation (error, "unknown focus action id");
   if (op == "focus-set-label")
     return has_string (action, "value") ?
@@ -476,6 +529,55 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     else if (id == "frame-toggle-title" &&
              state.has (ACTOR_FOCUS_TOOLBAR_FRAME_CONTEXT))
       (void) call ("frame-toggle-title", object (target));
+    else if (id == "float-toggle-wide" &&
+             state.multicol_style &&
+             (state.has (ACTOR_FOCUS_TOOLBAR_RICH_FLOAT_CONTEXT) ||
+              state.has (ACTOR_FOCUS_TOOLBAR_FOOTNOTE_CONTEXT)))
+      (void) call ("float-toggle-wide", object (target));
+    else if (id == "floatable-toggle-wide" &&
+             state.multicol_style &&
+             state.has (ACTOR_FOCUS_TOOLBAR_FLOATABLE_CONTEXT))
+      (void) call ("floatable-toggle-wide", object (target));
+    else if (id == "turn-floating" &&
+             state.has (ACTOR_FOCUS_TOOLBAR_FLOATABLE_CONTEXT))
+      (void) call ("turn-floating", object (target));
+    else if (id == "turn-non-floating" &&
+             state.float_context_available) {
+      path p= ed->search_upwards ("float");
+      if (is_nil (p)) p= ed->search_upwards ("wide-float");
+      if (!is_nil (p) && ed->test_subtree (p))
+        (void) call ("turn-non-floating", object (ed->the_subtree (p)));
+    }
+    else if (id == "cursor-toggle-anchor" &&
+             (state.has (ACTOR_FOCUS_TOOLBAR_RICH_FLOAT_CONTEXT) ||
+              state.has (ACTOR_FOCUS_TOOLBAR_FOOTNOTE_CONTEXT)))
+      (void) call ("cursor-toggle-anchor");
+    else if (id == "set-marginal-note-hpos" &&
+             state.has (ACTOR_FOCUS_TOOLBAR_MARGINAL_NOTE_CONTEXT))
+      generic_set_marginal_note_hpos (
+        native_action_string (action.value ("value")));
+    else if (id == "set-marginal-note-valign" &&
+             state.has (ACTOR_FOCUS_TOOLBAR_MARGINAL_NOTE_CONTEXT))
+      generic_set_marginal_note_valign (
+        native_action_string (action.value ("value")));
+    else if (id == "set-balloon-halign" &&
+             state.has (ACTOR_FOCUS_TOOLBAR_BALLOON_CONTEXT))
+      generic_set_balloon_halign (
+        native_action_string (action.value ("value")));
+    else if (id == "set-balloon-valign" &&
+             state.has (ACTOR_FOCUS_TOOLBAR_BALLOON_CONTEXT))
+      generic_set_balloon_valign (
+        native_action_string (action.value ("value")));
+    else if (id == "toggle-insertion-positioning" &&
+             (state.has (ACTOR_FOCUS_TOOLBAR_RICH_FLOAT_CONTEXT) ||
+              state.has (ACTOR_FOCUS_TOOLBAR_PHANTOM_FLOAT_CONTEXT)))
+      generic_toggle_insertion_positioning (
+        native_action_string (action.value ("value")));
+    else if (id == "toggle-insertion-positioning-not" &&
+             (state.has (ACTOR_FOCUS_TOOLBAR_RICH_FLOAT_CONTEXT) ||
+              state.has (ACTOR_FOCUS_TOOLBAR_PHANTOM_FLOAT_CONTEXT)))
+      generic_toggle_insertion_positioning_not (
+        native_action_string (action.value ("value")));
   }
   else if (op == "focus-set-label") {
     actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();

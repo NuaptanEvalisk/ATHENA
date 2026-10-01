@@ -931,6 +931,64 @@ editor_rep::focus_toolbar_state_snapshot () {
   if (snapshot.has (ACTOR_FOCUS_TOOLBAR_FRAME_CONTEXT))
     snapshot.frame_titled= query ("frame-titled?");
 
+  if (snapshot.has (ACTOR_FOCUS_TOOLBAR_RICH_FLOAT_CONTEXT) ||
+      snapshot.has (ACTOR_FOCUS_TOOLBAR_FLOATABLE_CONTEXT) ||
+      snapshot.has (ACTOR_FOCUS_TOOLBAR_FOOTNOTE_CONTEXT)) {
+    try {
+      snapshot.multicol_style= as_bool (call ("in-multicol-style?"));
+    }
+    catch (...) {}
+  }
+  if (snapshot.has (ACTOR_FOCUS_TOOLBAR_RICH_FLOAT_CONTEXT) ||
+      snapshot.has (ACTOR_FOCUS_TOOLBAR_FOOTNOTE_CONTEXT)) {
+    snapshot.float_context_available=
+      inside ("float") || inside ("wide-float");
+    try { snapshot.float_wide= as_bool (call ("float-wide?", object (t))); }
+    catch (...) {}
+    try { snapshot.cursor_at_anchor= as_bool (call ("cursor-at-anchor?")); }
+    catch (...) {}
+  }
+  if (snapshot.has (ACTOR_FOCUS_TOOLBAR_FLOATABLE_CONTEXT)) {
+    try {
+      snapshot.floatable_wide= as_bool (call ("floatable-wide?", object (t)));
+    }
+    catch (...) {}
+  }
+  if (snapshot.has (ACTOR_FOCUS_TOOLBAR_MARGINAL_NOTE_CONTEXT)) {
+    static const char* hpos[]= {
+      "normal", "left", "right", "even-left", "even-right"
+    };
+    for (const char* value: hpos)
+      if (generic_test_marginal_note_hpos (value)) {
+        snapshot.marginal_hpos= value;
+        break;
+      }
+    static const char* valign[]= {"t", "c", "b"};
+    for (const char* value: valign)
+      if (generic_test_marginal_note_valign (value)) {
+        snapshot.marginal_valign= value;
+        break;
+      }
+  }
+  if (snapshot.has (ACTOR_FOCUS_TOOLBAR_BALLOON_CONTEXT)) {
+    static const char* halign[]= {
+      "Left", "left", "center", "right", "Right"
+    };
+    for (const char* value: halign)
+      if (generic_test_balloon_halign (value)) {
+        snapshot.balloon_halign= value;
+        break;
+      }
+    static const char* valign[]= {
+      "Bottom", "bottom", "center", "top", "Top"
+    };
+    for (const char* value: valign)
+      if (generic_test_balloon_valign (value)) {
+        snapshot.balloon_valign= value;
+        break;
+      }
+  }
+
   string tag= as_string (L (t));
   snapshot.tag_label.assign (tag.data (), static_cast<std::size_t> (N(tag)));
   try {

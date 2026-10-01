@@ -474,6 +474,232 @@ QTMCommandRegistry::registerFocusCommands () {
       state.enabled= !editorState.read_only ();
       return state;
     });
+  registerProvider (
+    "editor-focus-float-toggles", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QVector<QTMCommandDynamicItem> out;
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return out;
+      actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
+      actor_editor_command_snapshot editorState= proxy->editor_command_state ();
+      if (!focus.valid () || !editorState.valid ()) return out;
+      const bool enabled= !editorState.read_only ();
+      auto append=
+        [&] (const QString& key, const QString& label,
+             const QString& icon, bool checkable= false, bool checked= false) {
+          QTMCommandDynamicItem item= enabled_dynamic_item (key, label);
+          item.icon= icon;
+          item.state.enabled= enabled;
+          item.state.checkable= checkable;
+          item.state.checked= checked;
+          out.append (std::move (item));
+        };
+
+      if (focus.multicol_style &&
+          (focus.has (ACTOR_FOCUS_TOOLBAR_RICH_FLOAT_CONTEXT) ||
+           focus.has (ACTOR_FOCUS_TOOLBAR_FOOTNOTE_CONTEXT)))
+        append (
+          QStringLiteral ("float-toggle-wide"), QObject::tr ("Make wide"),
+          QStringLiteral ("tm_wide_float"), true, focus.float_wide);
+      if (focus.multicol_style &&
+          focus.has (ACTOR_FOCUS_TOOLBAR_FLOATABLE_CONTEXT))
+        append (
+          QStringLiteral ("floatable-toggle-wide"), QObject::tr ("Make wide"),
+          QStringLiteral ("tm_wide_float"), true, focus.floatable_wide);
+      if (focus.has (ACTOR_FOCUS_TOOLBAR_FLOATABLE_CONTEXT))
+        append (
+          QStringLiteral ("turn-floating"), QObject::tr ("Make floating"),
+          QStringLiteral ("tm_position_float"));
+      if (focus.float_context_available)
+        append (
+          QStringLiteral ("turn-non-floating"),
+          QObject::tr ("Make non floating"),
+          QStringLiteral ("tm_position_float"));
+      if (focus.has (ACTOR_FOCUS_TOOLBAR_RICH_FLOAT_CONTEXT) ||
+          focus.has (ACTOR_FOCUS_TOOLBAR_FOOTNOTE_CONTEXT))
+        append (
+          QStringLiteral ("cursor-toggle-anchor"),
+          focus.cursor_at_anchor ? QObject::tr ("Go to float or footnote")
+                                 : QObject::tr ("Go to anchor"),
+          QStringLiteral ("tm_anchor"));
+      return out;
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      static const QSet<QString> allowed {
+        QStringLiteral ("float-toggle-wide"),
+        QStringLiteral ("floatable-toggle-wide"),
+        QStringLiteral ("turn-floating"),
+        QStringLiteral ("turn-non-floating"),
+        QStringLiteral ("cursor-toggle-anchor")
+      };
+      if (!allowed.contains (key)) return false;
+      QJsonObject action;
+      action.insert ("op", "focus-action");
+      action.insert ("id", key);
+      return submit_inline_editor_action (
+        context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
+    },
+    [] (const QTMCommandContext& context) {
+      QTMCommandState state;
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return state;
+      actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
+      actor_editor_command_snapshot editorState= proxy->editor_command_state ();
+      const std::uint32_t flags=
+        ACTOR_FOCUS_TOOLBAR_RICH_FLOAT_CONTEXT |
+        ACTOR_FOCUS_TOOLBAR_FLOATABLE_CONTEXT |
+        ACTOR_FOCUS_TOOLBAR_FOOTNOTE_CONTEXT;
+      if (!focus.valid () || !editorState.valid () ||
+          (focus.flags & flags) == 0)
+        return state;
+      state.available= true;
+      state.enabled= !editorState.read_only ();
+      return state;
+    });
+  registerProvider (
+    "editor-focus-float-positioning", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QVector<QTMCommandDynamicItem> out;
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return out;
+      actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
+      actor_editor_command_snapshot editorState= proxy->editor_command_state ();
+      if (!focus.valid () || !editorState.valid ()) return out;
+      const bool enabled= !editorState.read_only ();
+      auto append=
+        [&] (const QString& group, const QString& key, const QString& label,
+             bool checked= false) {
+          QTMCommandDynamicItem item= enabled_dynamic_item (key, label);
+          item.group= group;
+          item.state.enabled= enabled;
+          item.state.checkable= true;
+          item.state.checked= checked;
+          out.append (std::move (item));
+        };
+
+      if (focus.has (ACTOR_FOCUS_TOOLBAR_MARGINAL_NOTE_CONTEXT)) {
+        const QString currentH= QString::fromUtf8 (
+          focus.marginal_hpos.data (),
+          static_cast<int> (focus.marginal_hpos.size ()));
+        const QString currentV= QString::fromUtf8 (
+          focus.marginal_valign.data (),
+          static_cast<int> (focus.marginal_valign.size ()));
+        const struct { const char* key; const char* label; } h[]= {
+          {"normal", "Automatic"}, {"left", "Left"}, {"right", "Right"},
+          {"even-left", "Left on even pages"},
+          {"even-right", "Right on even pages"}
+        };
+        for (const auto& value: h)
+          append (
+            QObject::tr ("Horizontal position"),
+            QStringLiteral ("marginal-h:") + value.key,
+            QObject::tr (value.label), currentH == value.key);
+        const struct { const char* key; const char* label; } v[]= {
+          {"t", "Top"}, {"c", "Center"}, {"b", "Bottom"}
+        };
+        for (const auto& value: v)
+          append (
+            QObject::tr ("Vertical alignment"),
+            QStringLiteral ("marginal-v:") + value.key,
+            QObject::tr (value.label), currentV == value.key);
+      }
+      if (focus.has (ACTOR_FOCUS_TOOLBAR_RICH_FLOAT_CONTEXT) ||
+          focus.has (ACTOR_FOCUS_TOOLBAR_PHANTOM_FLOAT_CONTEXT)) {
+        append (
+          QObject::tr ("Allowed positions"), QStringLiteral ("float:t"),
+          QObject::tr ("Top"));
+        append (
+          QObject::tr ("Allowed positions"), QStringLiteral ("float:h"),
+          QObject::tr ("Here"));
+        append (
+          QObject::tr ("Allowed positions"), QStringLiteral ("float:b"),
+          QObject::tr ("Bottom"));
+        append (
+          QObject::tr ("Allowed positions"), QStringLiteral ("float-not:f"),
+          QObject::tr ("Other pages"));
+      }
+      if (focus.has (ACTOR_FOCUS_TOOLBAR_BALLOON_CONTEXT)) {
+        const QString currentH= QString::fromUtf8 (
+          focus.balloon_halign.data (),
+          static_cast<int> (focus.balloon_halign.size ()));
+        const QString currentV= QString::fromUtf8 (
+          focus.balloon_valign.data (),
+          static_cast<int> (focus.balloon_valign.size ()));
+        const struct { const char* key; const char* label; } h[]= {
+          {"Left", "Outer left"}, {"left", "Inner left"},
+          {"center", "Center"}, {"right", "Inner right"},
+          {"Right", "Outer right"}
+        };
+        for (const auto& value: h)
+          append (
+            QObject::tr ("Horizontal alignment"),
+            QStringLiteral ("balloon-h:") + value.key,
+            QObject::tr (value.label), currentH == value.key);
+        const struct { const char* key; const char* label; } v[]= {
+          {"Bottom", "Outer bottom"}, {"bottom", "Inner bottom"},
+          {"center", "Center"}, {"top", "Inner top"}, {"Top", "Outer top"}
+        };
+        for (const auto& value: v)
+          append (
+            QObject::tr ("Vertical alignment"),
+            QStringLiteral ("balloon-v:") + value.key,
+            QObject::tr (value.label), currentV == value.key);
+      }
+      return out;
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      QString id;
+      QString value;
+      if (key.startsWith ("marginal-h:")) {
+        id= "set-marginal-note-hpos";
+        value= key.mid (11);
+      }
+      else if (key.startsWith ("marginal-v:")) {
+        id= "set-marginal-note-valign";
+        value= key.mid (11);
+      }
+      else if (key.startsWith ("balloon-h:")) {
+        id= "set-balloon-halign";
+        value= key.mid (10);
+      }
+      else if (key.startsWith ("balloon-v:")) {
+        id= "set-balloon-valign";
+        value= key.mid (10);
+      }
+      else if (key.startsWith ("float-not:")) {
+        id= "toggle-insertion-positioning-not";
+        value= key.mid (10);
+      }
+      else if (key.startsWith ("float:")) {
+        id= "toggle-insertion-positioning";
+        value= key.mid (6);
+      }
+      else return false;
+      QJsonObject action;
+      action.insert ("op", "focus-action");
+      action.insert ("id", id);
+      action.insert ("value", value);
+      return submit_inline_editor_action (
+        context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
+    },
+    [] (const QTMCommandContext& context) {
+      QTMCommandState state;
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return state;
+      actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
+      actor_editor_command_snapshot editorState= proxy->editor_command_state ();
+      const std::uint32_t flags=
+        ACTOR_FOCUS_TOOLBAR_MARGINAL_NOTE_CONTEXT |
+        ACTOR_FOCUS_TOOLBAR_RICH_FLOAT_CONTEXT |
+        ACTOR_FOCUS_TOOLBAR_PHANTOM_FLOAT_CONTEXT |
+        ACTOR_FOCUS_TOOLBAR_BALLOON_CONTEXT;
+      if (!focus.valid () || !editorState.valid () ||
+          (focus.flags & flags) == 0)
+        return state;
+      state.available= true;
+      state.enabled= !editorState.read_only ();
+      return state;
+    });
   registerBehavior (
     "editor.focus.document-font", QTMCommandScope::Editor,
     [] (const QTMCommandContext& context) {

@@ -57,6 +57,8 @@
       {"provider":"editor-focus-core-toggles","focus_forbids":["buffer","code-context","screens-context","algorithm-context"]},
       {"provider":"editor-focus-algorithm-toggles","focus_requires":["algorithm-context"]},
       {"provider":"editor-focus-tag-toggles","focus_requires_any":["detached-note-context","titled-context","frame-context"]},
+      {"provider":"editor-focus-float-toggles","focus_requires_any":["rich-float-context","floatable-context","footnote-context"]},
+      {"submenu":"editor-focus-float-positioning","label":"Position","icon":"tm_position_float","focus_requires_any":["marginal-note-context","rich-float-context","phantom-float-context","balloon-context"],"items":[{"provider":"editor-focus-float-positioning"}]},
       {"command":"editor.focus.edit-label","focus_requires":["has-label"],"focus_forbids":["buffer","code-context","screens-context"]},
       {"submenu":"editor-focus-variant","label":"Structured variant","items":[{"provider":"editor-focus-variants"}],"focus_forbids":["buffer","code-context","screens-context"]},
       {"command":"editor.focus.exit-left","focus_forbids":["buffer","code-context","screens-context"]},
