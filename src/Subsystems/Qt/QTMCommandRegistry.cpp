@@ -211,6 +211,98 @@ submit_inline_editor_action (
   return proxy->submit_editor_action (encoded, required, forbidden, any);
 }
 
+QVector<QTMCommandDynamicItem>
+editor_color_items (const QTMCommandContext& context,
+                    std::uint32_t allowedModes) {
+  QVector<QTMCommandDynamicItem> out;
+  qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+  if (proxy == nullptr) return out;
+  actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
+  if (!snapshot.valid () || (snapshot.flags & allowedModes) == 0) return out;
+
+  const bool enabled= !snapshot.read_only ();
+  QSet<QString> seen;
+  auto addColor= [&] (const QString& color) {
+    QColor qcolor (color);
+    if (!qcolor.isValid ()) return;
+    QString canonical= qcolor.name ();
+    if (seen.contains (canonical)) return;
+    seen.insert (canonical);
+    QTMCommandDynamicItem item=
+      enabled_dynamic_item (canonical, canonical, canonical);
+    item.icon= canonical;
+    item.state.enabled= enabled;
+    out.append (std::move (item));
+  };
+  static const char* standard[]= {
+    "#000000", "#434343", "#666666", "#999999",
+    "#b7b7b7", "#cccccc", "#d9d9d9", "#efefef",
+    "#f3f3f3", "#ffffff", "#980000", "#ff0000",
+    "#ff9900", "#ffff00", "#00ff00", "#00ffff",
+    "#4a86e8", "#0000ff", "#9900ff", "#ff00ff",
+    "#e6b8af", "#f4cccc", "#fce5cd", "#fff2cc",
+    "#d9ead3", "#d0e0e3", "#c9daf8", "#cfe2f3",
+    "#d9d2e9", "#ead1dc", "#85200c", "#a61c00",
+    "#bf9000", "#38761d"
+  };
+  for (const char* color: standard) addColor (QString::fromLatin1 (color));
+  try {
+    for (const QString& color:
+         scheme_string_vector (call ("color-picker-recent-colors")))
+      addColor (color);
+    for (const QString& color:
+         scheme_string_vector (call ("color-picker-saved-colors")))
+      addColor (color);
+  }
+  catch (...) {}
+  QTMCommandDynamicItem other= enabled_dynamic_item (
+    QStringLiteral ("__other__"), QObject::tr ("Other color..."));
+  other.state.enabled= enabled;
+  out.append (std::move (other));
+  return out;
+}
+
+bool
+execute_editor_color (const QString& key,
+                      const QTMCommandContext& context) {
+  qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+  if (proxy == nullptr || key.isEmpty ()) return false;
+  QString color= key;
+  if (key == QStringLiteral ("__other__")) {
+    array<string> recent, saved;
+    try {
+      recent= scheme_string_array (call ("color-picker-recent-colors"));
+      saved= scheme_string_array (call ("color-picker-saved-colors"));
+    }
+    catch (...) {}
+    array<string> selected= qtm_color_dialog ("Choose color", recent, saved);
+    if (N(selected) == 0) return true;
+    color= to_qstring (selected[0]);
+    if (N(selected) > 1) {
+      try {
+        (void) call (
+          "color-picker-set-saved-colors",
+          object (array_string_list (selected, 1)));
+      }
+      catch (...) {}
+    }
+  }
+  QColor qcolor (color);
+  if (!qcolor.isValid ()) return false;
+  color= qcolor.name ();
+  try {
+    (void) call (
+      "color-picker-remember-color", object (from_qstring (color)));
+  }
+  catch (...) {}
+  QJsonObject action;
+  action.insert ("op", "make-with");
+  action.insert ("var", "color");
+  action.insert ("value", color);
+  return submit_inline_editor_action (
+    context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
+}
+
 bool
 local_text_input_owns_edit_command (const QTMCommandContext& context) {
   QWidget* input= context.inputWidget.data ();
@@ -688,93 +780,31 @@ QTMCommandRegistry::registerBuiltins () {
   registerProvider (
     "editor-text-colors", QTMCommandScope::Editor,
     [] (const QTMCommandContext& context) {
-      QVector<QTMCommandDynamicItem> out;
-      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
-      if (proxy == nullptr) return out;
-      actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
-      if (!snapshot.valid () ||
-          (!snapshot.has (ACTOR_EDITOR_COMMAND_STATE_TEXT_MODE) &&
-           !snapshot.has (ACTOR_EDITOR_COMMAND_STATE_SOURCE_MODE)))
-        return out;
-      const bool enabled= !snapshot.read_only ();
-      QSet<QString> seen;
-      auto addColor= [&] (const QString& color) {
-        QColor qcolor (color);
-        if (!qcolor.isValid ()) return;
-        QString canonical= qcolor.name ();
-        if (seen.contains (canonical)) return;
-        seen.insert (canonical);
-        QTMCommandDynamicItem item=
-          enabled_dynamic_item (canonical, canonical, canonical);
-        item.icon= canonical;
-        item.state.enabled= enabled;
-        out.append (std::move (item));
-      };
-      static const char* standard[]= {
-        "#000000", "#434343", "#666666", "#999999",
-        "#b7b7b7", "#cccccc", "#d9d9d9", "#efefef",
-        "#f3f3f3", "#ffffff", "#980000", "#ff0000",
-        "#ff9900", "#ffff00", "#00ff00", "#00ffff",
-        "#4a86e8", "#0000ff", "#9900ff", "#ff00ff",
-        "#e6b8af", "#f4cccc", "#fce5cd", "#fff2cc",
-        "#d9ead3", "#d0e0e3", "#c9daf8", "#cfe2f3",
-        "#d9d2e9", "#ead1dc", "#85200c", "#a61c00",
-        "#bf9000", "#38761d"
-      };
-      for (const char* color: standard) addColor (QString::fromLatin1 (color));
-      try {
-        for (const QString& color:
-             scheme_string_vector (call ("color-picker-recent-colors")))
-          addColor (color);
-        for (const QString& color:
-             scheme_string_vector (call ("color-picker-saved-colors")))
-          addColor (color);
-      }
-      catch (...) {}
-      QTMCommandDynamicItem other= enabled_dynamic_item (
-        QStringLiteral ("__other__"), QObject::tr ("Other color..."));
-      other.state.enabled= enabled;
-      out.append (std::move (other));
-      return out;
+      return editor_color_items (
+        context,
+        ACTOR_EDITOR_COMMAND_STATE_TEXT_MODE |
+        ACTOR_EDITOR_COMMAND_STATE_SOURCE_MODE);
     },
     [] (const QString& key, const QTMCommandContext& context) {
-      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
-      if (proxy == nullptr || key.isEmpty ()) return false;
-      QString color= key;
-      if (key == QStringLiteral ("__other__")) {
-        array<string> recent, saved;
-        try {
-          recent= scheme_string_array (call ("color-picker-recent-colors"));
-          saved= scheme_string_array (call ("color-picker-saved-colors"));
-        }
-        catch (...) {}
-        array<string> selected= qtm_color_dialog (
-          "Choose color", recent, saved);
-        if (N(selected) == 0) return true;
-        color= to_qstring (selected[0]);
-        if (N(selected) > 1) {
-          try {
-            (void) call (
-              "color-picker-set-saved-colors",
-              object (array_string_list (selected, 1)));
-          }
-          catch (...) {}
-        }
-      }
-      QColor qcolor (color);
-      if (!qcolor.isValid ()) return false;
-      color= qcolor.name ();
-      try {
-        (void) call (
-          "color-picker-remember-color", object (from_qstring (color)));
-      }
-      catch (...) {}
-      QJsonObject action;
-      action.insert ("op", "make-with");
-      action.insert ("var", "color");
-      action.insert ("value", color);
-      return submit_inline_editor_action (
-        context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
+      return execute_editor_color (key, context);
+    });
+  registerProvider (
+    "editor-prog-colors", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      return editor_color_items (
+        context, ACTOR_EDITOR_COMMAND_STATE_PROG_MODE);
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      return execute_editor_color (key, context);
+    });
+  registerProvider (
+    "editor-math-colors", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      return editor_color_items (
+        context, ACTOR_EDITOR_COMMAND_STATE_MATH_MODE);
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      return execute_editor_color (key, context);
     });
   registerBehavior (
     "workspace.namespace-explorer", QTMCommandScope::Workspace,
@@ -1158,6 +1188,7 @@ QTMCommandRegistry::loadPresentation () {
     definition.help= object.value ("help").toString ().trimmed ();
     definition.shortcut= shortcut;
     definition.scope= behaviors_.value (id).scope;
+    definition.showInPalette= object.value ("palette").toBool (true);
     commandIndex_.insert (id, commands_.size ());
     commands_.append (std::move (definition));
     commandIds.insert (id);

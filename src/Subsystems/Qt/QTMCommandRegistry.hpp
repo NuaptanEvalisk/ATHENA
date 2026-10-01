@@ -52,6 +52,7 @@ struct QTMCommandDefinition {
   QString help;
   QKeySequence shortcut;
   QTMCommandScope scope= QTMCommandScope::Application;
+  bool showInPalette= true;
 };
 
 struct QTMCommandMenuItem {

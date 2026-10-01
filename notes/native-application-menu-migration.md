@@ -277,3 +277,12 @@ inactive while text-block/insert, math and prog groups are still pending.
 Foreground color is already a native provider: standard/recent/saved colors and
 the native QColorDialog feed a validated `make-with color` actor action; no
 legacy `color-menu` expansion is used by the native surface.
+
+The next migrated slice carries program formatting plus the complete static
+math symbol/insertion families.  Large delimiter, big-operator, relation,
+arrow, negation, Greek, styled alphabet and miscellaneous symbol leaves are
+shipped as compact `palette:false` command declarations, so they remain toolbar
+data without turning the command palette into a symbol catalog.  The actor-side
+action runner now has finite bracket/separator/long-arrow/alphabet operations.
+The JSON file uses compact one-command/one-toolbar-item lines rather than
+deep pretty-printing to keep this large static inventory reviewable.

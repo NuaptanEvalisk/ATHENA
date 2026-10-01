@@ -69,6 +69,7 @@ build_palette_groups (QObject* parent, const QTMCommandContext& context) {
   const QVector<QTMCommandDefinition>& commands=
     QTMCommandRegistry::instance ().commands ();
   for (const QTMCommandDefinition& definition: commands) {
+    if (!definition.showInPalette) continue;
     int index= groupIndex.value (definition.category, -1);
     if (index < 0) {
       index= groups.size ();

@@ -135,6 +135,11 @@ only from published actor capability masks; execution uses the nonblocking
 the foundation for text/math/prog/source mode toolbar migration and is not a
 generic Scheme invocation facility.
 
+Parameterized presentation commands can set `palette:false`.  They remain
+normal registry commands for toolbar state/dispatch, but are intentionally
+excluded from command-palette enumeration; static math symbol families use
+this to avoid hundreds of low-signal palette entries.
+
 ## Zero-buffer ownership now established
 
 The outer `QTMMainTabWindow` is shown directly at startup and no longer needs

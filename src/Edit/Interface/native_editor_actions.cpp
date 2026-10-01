@@ -52,6 +52,20 @@ has_bool (const QJsonObject& object, const char* name) {
 }
 
 bool
+valid_large_mode (const QJsonValue& value) {
+  return value.isBool () ||
+         (value.isString () && value.toString () == "default");
+}
+
+int
+native_action_large_mode (const QJsonValue& value) {
+  if (value.isBool ()) return value.toBool () ? 1 : 0;
+  ASSERT (value.isString () && value.toString () == "default",
+          "native editor bracket large mode expected");
+  return -1;
+}
+
+bool
 fail_validation (QString* error, const QString& message) {
   if (error != nullptr) *error= message;
   return false;
@@ -101,6 +115,25 @@ native_editor_action_validate (const QJsonObject& action, QString* error) {
   if (op == "make-space")
     return has_string (action, "value") ?
              true : fail_validation (error, "make-space requires value");
+  if (op == "math-bracket-open" || op == "math-bracket-close")
+    return has_string (action, "left") && has_string (action, "right") &&
+           valid_large_mode (action.value ("large")) ?
+             true : fail_validation (
+               error, op + " requires left/right/large");
+  if (op == "math-separator")
+    return has_string (action, "value") &&
+           valid_large_mode (action.value ("large")) ?
+             true : fail_validation (
+               error, "math-separator requires value/large");
+  if (op == "insert-long-arrow")
+    return has_string (action, "value") &&
+           (!action.contains ("below") || has_bool (action, "below")) ?
+             true : fail_validation (
+               error, "insert-long-arrow requires value and optional below");
+  if (op == "insert-alphabet")
+    return has_string (action, "tag") && has_string (action, "value") ?
+             true : fail_validation (
+               error, "insert-alphabet requires tag/value");
 
   if (op == "make-fraction" || op == "make-sqrt" ||
       op == "make-var-sqrt" || op == "make-neg" ||
@@ -167,6 +200,31 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     ed->emulate_keyboard (native_action_string (action.value ("keys")));
   else if (op == "make-space")
     ed->make_space (native_action_string (action.value ("value")));
+  else if (op == "math-bracket-open")
+    ed->math_bracket_open (
+      native_action_string (action.value ("left")),
+      native_action_string (action.value ("right")),
+      native_action_large_mode (action.value ("large")));
+  else if (op == "math-bracket-close")
+    ed->math_bracket_close (
+      native_action_string (action.value ("right")),
+      native_action_string (action.value ("left")),
+      native_action_large_mode (action.value ("large")));
+  else if (op == "math-separator")
+    ed->math_separator (
+      native_action_string (action.value ("value")),
+      native_action_large_mode (action.value ("large")));
+  else if (op == "insert-long-arrow") {
+    const string value= native_action_string (action.value ("value"));
+    const bool below= action.value ("below").toBool (false);
+    tree arrow= below ? tree (LONG_ARROW, tree (value), "", "") :
+                        tree (LONG_ARROW, tree (value), "");
+    ed->insert_tree (arrow, below ? path (2, 0) : path (1, 0));
+  }
+  else if (op == "insert-alphabet")
+    ed->insert_tree (
+      tree (as_tree_label (native_action_string (action.value ("tag"))),
+            tree (native_action_string (action.value ("value")))));
   else
     FAILED ("unhandled validated native editor action");
 }
