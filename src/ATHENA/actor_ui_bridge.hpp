@@ -168,6 +168,10 @@ public:
   void update_editor_command_state (
     const actor_editor_command_snapshot& snapshot) noexcept;
   actor_editor_command_snapshot editor_command_state () const noexcept;
+  void set_prominent_spacing_available (bool available) noexcept;
+  bool prominent_spacing_available () const noexcept;
+  void set_inside_table (bool inside) noexcept;
+  bool inside_table () const noexcept;
   bool begin_personal_macro_request () noexcept;
   void cancel_personal_macro_request () noexcept;
   void invalidate_personal_macro_items () noexcept;
@@ -248,6 +252,8 @@ private:
   std::atomic<std::uint64_t> applied_programmatic_scroll_generation_ {0};
   std::atomic<std::uint64_t> user_scroll_generation_ {0};
   std::atomic<std::uint64_t> editor_command_state_ {0};
+  std::atomic<bool> prominent_spacing_available_ {false};
+  std::atomic<bool> inside_table_ {false};
   std::atomic<bool> personal_macro_request_pending_ {false};
   std::atomic<bool> personal_macro_ready_ {false};
   mutable std::mutex personal_macro_lock_;

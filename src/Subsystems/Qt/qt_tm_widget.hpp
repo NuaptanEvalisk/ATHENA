@@ -97,10 +97,8 @@ class qt_tm_widget_rep: public qt_window_widget_rep {
   qt_widget main_menu_widget;
   qt_widget waiting_main_menu_widget;
   QList<QAction*> main_menu_actions;
-  QList<QAction*> mode_toolbar_actions;
   QList<QAction*> focus_toolbar_actions;
   QList<QAction*> user_toolbar_actions;
-  qt_widget mode_icons_widget;
   qt_widget focus_icons_widget;
   qt_widget user_icons_widget;
   qt_widget bottom_tools_widget;

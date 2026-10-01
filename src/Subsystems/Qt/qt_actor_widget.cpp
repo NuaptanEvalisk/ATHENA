@@ -143,6 +143,16 @@ qt_actor_widget_rep::editor_command_state () const noexcept {
          endpoint_->editor_command_state ();
 }
 
+bool
+qt_actor_widget_rep::prominent_spacing_available () const noexcept {
+  return endpoint_ != nullptr && endpoint_->prominent_spacing_available ();
+}
+
+bool
+qt_actor_widget_rep::inside_table () const noexcept {
+  return endpoint_ != nullptr && endpoint_->inside_table ();
+}
+
 actor_dynamic_menu_snapshot
 qt_actor_widget_rep::personal_macro_items () const {
   return endpoint_ == nullptr ? actor_dynamic_menu_snapshot {} :
@@ -850,8 +860,7 @@ qt_actor_widget_rep::drain_external_effects () {
       tm_view view= concrete_runtime_view (view_id_);
       int which= static_cast<int> (record.argument[1]);
       if (is_nil (icons) || view == nullptr || view->win == nullptr) break;
-      if (which == 1) ::set_mode_icons (view->win->wid, icons);
-      else if (which == 2) ::set_focus_icons (view->win->wid, icons);
+      if (which == 2) ::set_focus_icons (view->win->wid, icons);
       else if (which == 3) ::set_user_icons (view->win->wid, icons);
       break;
     }

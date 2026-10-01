@@ -294,6 +294,26 @@ actor_ui_endpoint::editor_command_state () const noexcept {
     editor_command_state_.load (std::memory_order_acquire));
 }
 
+void
+actor_ui_endpoint::set_prominent_spacing_available (bool available) noexcept {
+  prominent_spacing_available_.store (available, std::memory_order_release);
+}
+
+bool
+actor_ui_endpoint::prominent_spacing_available () const noexcept {
+  return prominent_spacing_available_.load (std::memory_order_acquire);
+}
+
+void
+actor_ui_endpoint::set_inside_table (bool inside) noexcept {
+  inside_table_.store (inside, std::memory_order_release);
+}
+
+bool
+actor_ui_endpoint::inside_table () const noexcept {
+  return inside_table_.load (std::memory_order_acquire);
+}
+
 bool
 actor_ui_endpoint::begin_personal_macro_request () noexcept {
   bool expected= false;

@@ -16,6 +16,7 @@
 #include "QTMToolbar.hpp"
 #include "QTMWidget.hpp"
 #include "qt_utilities.hpp"
+#include "qt_actor_widget.hpp"
 
 #include <QAction>
 #include <QColor>
@@ -48,8 +49,11 @@ presentation_icon (const QString& value) {
 } // namespace
 
 QTMEditorToolbarPresenter::QTMEditorToolbarPresenter (
-  QTMWidget* canvas, QToolBar* toolbar, QString definitionId):
-  canvas_ (canvas), toolbar_ (toolbar), definitionId_ (std::move (definitionId)) {}
+  QTMWidget* canvas, QToolBar* toolbar, QString definitionId,
+  QToolBar* visibilityReference):
+  canvas_ (canvas), toolbar_ (toolbar),
+  visibilityReference_ (visibilityReference),
+  definitionId_ (std::move (definitionId)) {}
 
 QTMEditorToolbarPresenter::~QTMEditorToolbarPresenter () {
   deactivate ();
@@ -90,6 +94,10 @@ QTMEditorToolbarPresenter::buildItem (
   result->kind= item.kind;
   result->commandId= item.commandId;
   result->providerId= item.providerId;
+  result->requiredFlags= item.requiredFlags;
+  result->forbiddenFlags= item.forbiddenFlags;
+  result->anyFlags= item.anyFlags;
+  result->whenMainToolbarHidden= item.whenMainToolbarHidden;
 
   if (item.kind == QTMCommandMenuItem::Kind::Separator) {
     QAction* action= new QAction (menuParent != nullptr ?
@@ -214,9 +222,36 @@ QTMEditorToolbarPresenter::refreshProviders (
 }
 
 bool
+QTMEditorToolbarPresenter::presentationConditionSatisfied (
+  const node& item, const QTMCommandContext&) const {
+  if (item.whenMainToolbarHidden &&
+      (visibilityReference_ == nullptr || visibilityReference_->isVisible ()))
+    return false;
+
+  if (item.requiredFlags == 0 &&
+      item.forbiddenFlags == 0 &&
+      item.anyFlags == 0)
+    return true;
+  if (canvas_ == nullptr || canvas_->tm_widget () == nullptr) return false;
+  qt_actor_widget_rep* proxy=
+    dynamic_cast<qt_actor_widget_rep*> (canvas_->tm_widget ());
+  if (proxy == nullptr) return false;
+  actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
+  if (!snapshot.valid ()) return false;
+  return (snapshot.flags & item.requiredFlags) == item.requiredFlags &&
+         (snapshot.flags & item.forbiddenFlags) == 0 &&
+         (item.anyFlags == 0 || (snapshot.flags & item.anyFlags) != 0);
+}
+
+bool
 QTMEditorToolbarPresenter::refreshNode (
   node& item, const QTMCommandContext& target) {
   if (item.action == nullptr) return false;
+  if (!presentationConditionSatisfied (item, target)) {
+    item.action->setVisible (false);
+    item.action->setEnabled (false);
+    return false;
+  }
   if (item.kind == QTMCommandMenuItem::Kind::Separator) return false;
 
   if (item.kind == QTMCommandMenuItem::Kind::Command) {

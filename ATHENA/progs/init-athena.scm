@@ -108,10 +108,10 @@
            open-preferences)
 (lazy-menu (athena menus main-menu)
            texmacs-extra-menu texmacs-extra-icons
-           bookmarks-menu test-menu help-icons
+           bookmarks-menu test-menu
            athena-focus-menu texmacs-menu window-list-menu
            workspace-menu presentation-popup-menu texmacs-popup-menu
-           texmacs-alternative-popup-menu texmacs-mode-icons)
+           texmacs-alternative-popup-menu)
 (lazy-define (athena menus file-menu) recent-file-list recent-directory-list)
 (tm-define (notify-set-attachment name key val) (noop))
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
@@ -147,7 +147,7 @@
 (lazy-define (generic document-part)
              buffer-has-preamble? in-preamble-mode? toggle-preamble-mode)
 (lazy-menu (generic insert-menu) insert-menu texmacs-insert-menu
-           texmacs-insert-icons insert-link-menu insert-image-menu)
+           insert-link-menu insert-image-menu)
 (lazy-define (generic document-edit) update-document set-document-language
              get-init-page-rendering init-page-rendering)
 (lazy-define (generic generic-edit) notify-activated notify-disactivated
@@ -226,17 +226,15 @@
 ;(display "Booting text mode\n")
 (lazy-keyboard (text text-edit) in-text?)
 (lazy-keyboard (native-keyboard text) in-text?)
-(lazy-menu (text text-menu) text-format-menu text-format-icons
-	   text-menu text-block-menu text-inline-menu
-           text-icons text-block-icons text-inline-icons)
+(lazy-menu (text text-menu) text-format-menu
+	   text-menu text-block-menu text-inline-menu)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 (lazy-define (text text-drd) tm-register-new-list-tag)
 
 ;(display "Booting math mode\n")
 (lazy-keyboard (math math-sem-edit) in-sem-math?)
-(lazy-menu (math math-menu) math-format-menu math-format-icons
+(lazy-menu (math math-menu) math-format-menu
 	   math-menu math-insert-menu
-           math-icons math-insert-icons
            math-correct-menu semantic-math-preferences-menu
            context-preferences-menu insert-math-menu)
 (lazy-initialize (math math-menu) (in-math?))
@@ -254,13 +252,12 @@
 (lazy-keyboard (prog python-edit) in-prog?)
 (lazy-keyboard (prog fortran-edit) in-prog?)
 (lazy-keyboard (native-keyboard prog) in-prog?)
-(lazy-menu (prog prog-menu) prog-format-menu prog-format-icons
-	   prog-menu prog-icons)
+(lazy-menu (prog prog-menu) prog-format-menu prog-menu)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting source mode\n")
 (lazy-keyboard (native-keyboard source) always?)
-(lazy-menu (source source-menu) source-macros-menu source-menu source-icons
+(lazy-menu (source source-menu) source-macros-menu source-menu
            source-transformational-menu source-executable-menu)
 (lazy-define (source macro-edit)
              has-macro-source? edit-macro-source edit-focus-macro-source
@@ -303,7 +300,7 @@
 ;(display "Booting dynamic features\n")
 (lazy-keyboard (dynamic fold-edit) always?)
 (lazy-keyboard (native-keyboard fold) always?)
-(lazy-menu (dynamic fold-menu) insert-fold-menu dynamic-menu dynamic-icons
+(lazy-menu (dynamic fold-menu) insert-fold-menu dynamic-menu
            graphics-overlays-menu graphics-screens-menu
            graphics-focus-overlays-menu)
 (lazy-define (dynamic fold-edit)
@@ -312,7 +309,7 @@
 
 ;(display "Booting documentation\n")
 (lazy-keyboard (native-keyboard tmdoc) in-manual?)
-(lazy-menu (doc tmdoc-menu) tmdoc-menu tmdoc-icons)
+(lazy-menu (doc tmdoc-menu) tmdoc-menu)
 (lazy-define (doc tmdoc-edit)
              tmdoc-make-branch tmdoc-insert-explain-synopsis)
 (lazy-menu (doc help-menu) help-menu)

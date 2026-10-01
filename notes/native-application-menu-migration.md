@@ -223,7 +223,7 @@ The legacy editor toolbar production chain is:
 -> Scheme lazy menu expansion / `make_menu_widget`
 -> `ui_menu_icons`
 -> `qt_actor_widget_rep::drain_external_effects`
--> `set_main_icons/set_mode_icons/set_focus_icons/set_user_icons`
+-> `set_focus_icons/set_user_icons`
 -> `qt_tm_widget_rep` QAction replacement.
 
 Retirement is group-by-group, with no dual production for a migrated group:
@@ -233,8 +233,13 @@ Retirement is group-by-group, with no dual production for a migrated group:
   registration, `SLOT_MAIN_ICONS`, and the Qt widget/action replacement cache
   have been removed. `SLOT_MAIN_ICONS_VISIBILITY` remains only as the
   visibility contract for the native toolbar.
-- Mode toolbar: migrate the text/math/prog/source/dynamic mode providers, then
-  remove `texmacs-mode-icons` production and its corresponding icon-bar route.
+- Mode toolbar: **cut over**. `editor-mode` is the production view-owned
+  toolbar. The Scheme `texmacs-mode-icons` root, its source/text/math/prog,
+  shared Insert, tmdoc, and presentation icon-menu leaves, `menu_icons(1)`,
+  `SLOT_MODE_ICONS`, actor routing, and Qt widget/action replacement caches
+  have been removed. `SLOT_MODE_ICONS_VISIBILITY` remains only as the
+  visibility contract for the native toolbar. Native drawing-tool actions are
+  an independent native layer appended to the same toolbar.
 - Focus toolbar: migrate structured focus capability/value providers, then
   remove `texmacs-focus-icons` production.
 - User/extension toolbar: replace `texmacs-extra-icons` with the native runtime
@@ -270,11 +275,11 @@ than synchronously queried by Main for each toolbar button.
 
 Mode presentation is split into
 `ATHENA/misc/ui/editor-mode-toolbar.json` and merged into the same validated
-registry at startup.  The first migrated data slice contains the complete
-source-mode operation groups and the shared text/source formatting controls.
-Its `QTMEditorToolbarPresenter` is constructed per editor but deliberately
-inactive while text-block/insert, math and prog groups are still pending.
-Foreground color is already a native provider: standard/recent/saved colors and
+registry at startup. It contains the complete source, text, math, prog, shared
+Insert, and documentation-mode toolbar inventory. Its
+`QTMEditorToolbarPresenter` is active per editor and is the sole producer of
+mode-dependent toolbar content. Foreground color is a native provider:
+standard/recent/saved colors and
 the native QColorDialog feed a validated `make-with color` actor action; no
 legacy `color-menu` expansion is used by the native surface.
 
@@ -297,16 +302,10 @@ and wizard transactions. Text block and tmdoc icon groups consume published
 style/mode/structure capability bits, including main-flow, letter/floating
 context, tmdoc traversal/explanation, overlays and screens-buffer state.
 
-The native mode presenter is still deliberately inactive. Before the
-`texmacs-mode-icons` cutover the remaining parity gaps are:
-
-- Prominent text `Compact`, `Compressed`, and `Amplified`, whose legacy
-  visibility depends on the current `par-par-sep` environment value.
-- The Math Preferences and semantic-annotation controls at the tail of
-  `math-insert-icons`.
-- Presentation traversal duplicated into text/math/prog mode bars only when
-  the main icon bar is hidden; native presentation must preserve that exact
-  surface condition rather than showing two copies.
-
-Those gaps are explicit cutover blockers; the legacy mode producer remains the
-sole production mode toolbar until they are resolved.
+The final parity slice is also native. Prominent-text spacing variants read an
+actor-owned `par-par-sep` availability bit; Math Preferences use the native
+preference registry and semantic annotations dispatch validated editor actions;
+presentation traversal reuses the existing presentation commands with a
+view-local `when_main_toolbar_hidden` condition so the mode bar shows them only
+when the main toolbar is hidden, matching the former placement policy without
+duplicating command implementations.

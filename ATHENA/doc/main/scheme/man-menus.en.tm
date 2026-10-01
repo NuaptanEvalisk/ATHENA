@@ -96,8 +96,12 @@
     <scm|texmacs-main-icons>. Commands and dynamic provider entries are
     registered in the native application command system.
 
-    <item><scm|texmacs-mode-icons>: contains the icons which depend on the
-    current editing mode, that is: mathematics, text, code, etc.
+    <item>The mode-dependent toolbar is also native and view-owned. Its
+    declarative inventory is loaded from
+    <verbatim|misc/ui/editor-mode-toolbar.json>; it is no longer produced by
+    the former <scm|texmacs-mode-icons> Scheme menu. Text, mathematics, code,
+    source, documentation, and presentation-specific controls are routed
+    through the native command registry and editor actor state.
 
     <item><scm|texmacs-focus-icons>: these icons change with the cursor. One
     should install here any icons that are specific to a particular tag or

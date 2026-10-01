@@ -27,7 +27,8 @@ class QToolBar;
 class QTMEditorToolbarPresenter {
 public:
   QTMEditorToolbarPresenter (QTMWidget* canvas, QToolBar* toolbar,
-                             QString definitionId);
+                             QString definitionId,
+                             QToolBar* visibilityReference= nullptr);
   ~QTMEditorToolbarPresenter ();
 
   QTMEditorToolbarPresenter (const QTMEditorToolbarPresenter&)= delete;
@@ -45,6 +46,10 @@ private:
     QString commandId;
     QString providerId;
     QTMCommandMenuItem::Kind kind= QTMCommandMenuItem::Kind::Command;
+    std::uint32_t requiredFlags= 0;
+    std::uint32_t forbiddenFlags= 0;
+    std::uint32_t anyFlags= 0;
+    bool whenMainToolbarHidden= false;
     QPointer<QMenu> providerMenu;
     std::vector<QPointer<QAction>> dynamicActions;
     std::vector<QPointer<QMenu>> dynamicMenus;
@@ -53,6 +58,7 @@ private:
 
   QPointer<QTMWidget> canvas_;
   QPointer<QToolBar> toolbar_;
+  QPointer<QToolBar> visibilityReference_;
   QString definitionId_;
   std::vector<std::unique_ptr<node>> roots_;
   QPointer<QTimer> refreshTimer_;
@@ -64,6 +70,8 @@ private:
     const QTMCommandMenuItem& item, QMenu* menuParent);
   void refreshProviders (node& item, const QTMCommandContext& context);
   void repopulateProvider (node& item, const QTMCommandContext& context);
+  bool presentationConditionSatisfied (
+    const node& item, const QTMCommandContext& context) const;
   bool refreshNode (node& item, const QTMCommandContext& context);
   void addToolbarAction (QAction* action);
   void clearToolbar ();

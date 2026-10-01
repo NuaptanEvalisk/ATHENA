@@ -21,6 +21,7 @@
 #include <QVector>
 #include <QWidget>
 
+#include <cstdint>
 #include <functional>
 
 enum class QTMCommandScope {
@@ -69,6 +70,10 @@ struct QTMCommandMenuItem {
   QString providerId;
   QString label;
   QString icon;
+  std::uint32_t requiredFlags= 0;
+  std::uint32_t forbiddenFlags= 0;
+  std::uint32_t anyFlags= 0;
+  bool whenMainToolbarHidden= false;
   QVector<QTMCommandMenuItem> items;
 };
 

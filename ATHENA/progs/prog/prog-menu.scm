@@ -52,29 +52,3 @@
   (-> "Font effects" (link text-font-effects-menu))
   (assuming (== (get-preference "bitmap effects") "on")
     (-> "Graphical effects" (link text-effects-menu))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Icons for modifying text properties
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(menu-bind prog-format-icons
-  ((balloon (icon "tm_italic") "Write italic text")
-   (make-with "prog-font-shape" "italic"))
-  ((balloon (icon "tm_bold") "Write bold text")
-   (make-with "prog-font-series" "bold"))
-  ((balloon (icon "tm_sansserif") "Use a sans serif font")
-   (make-with "prog-font-family" "ss"))
-  (if (not (in-graphics?))
-      (=> (balloon (icon "tm_color") "Select a foreground color")
-	  (link color-menu))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Icons in prog mode
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(menu-bind prog-icons
-  (link prog-format-icons)
-  (link texmacs-insert-icons)
-  (if (and (in-presentation?) (not (visible-icon-bar? 0)))
-    /
-    (link dynamic-icons)))

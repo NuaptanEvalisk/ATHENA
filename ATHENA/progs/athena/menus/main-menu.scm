@@ -29,7 +29,6 @@
 (tm-define (toggle-package-menu) (get-toggle-package-menu))
 (menu-bind bookmarks-menu)
 (menu-bind test-menu)
-(menu-bind help-icons)
 
 (tm-menu (athena-focus-menu)
   (link focus-menu)
@@ -158,14 +157,3 @@
   (former)
   ---
   ("Flatten transclusions into new document" (vault-flatten-document)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; The mode dependent icon bar
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(menu-bind texmacs-mode-icons
-  (if (in-source?) (link source-icons))
-  (if (in-text?) (link text-icons))
-  (if (in-math?) (link math-icons))
-  (if (in-prog?) (link prog-icons))
-  (link help-icons))

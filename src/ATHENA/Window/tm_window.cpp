@@ -471,11 +471,11 @@ tm_window_rep::menu_main (string menu) {
 
 void
 tm_window_rep::menu_icons (int which, string menu) {
+  if (which != 2 && which != 3) return;
   eval ("(lazy-initialize-force)");
   widget w;
   if (get_menu_widget (which, menu, w)) {
-    if      (which == 1) set_mode_icons (wid, w);
-    else if (which == 2) set_focus_icons (wid, w);
+    if      (which == 2) set_focus_icons (wid, w);
     else if (which == 3) set_user_icons (wid, w);
   }
 }

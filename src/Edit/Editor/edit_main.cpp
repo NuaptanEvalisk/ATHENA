@@ -108,7 +108,6 @@ editor_rep::publish_ui_text_pair (
 void
 editor_rep::rebuild_ui_chrome () {
   sv->menu_main ("(horizontal (link texmacs-menu))");
-  sv->menu_icons (1, "(horizontal (link texmacs-mode-icons))");
   sv->menu_icons (2, "(horizontal (link texmacs-focus-icons))");
   sv->menu_icons (3, "(horizontal (link texmacs-extra-icons))");
 }

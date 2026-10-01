@@ -875,6 +875,140 @@ QTMCommandRegistry::registerBuiltins () {
         context, ACTOR_EDITOR_COMMAND_STATE_MATH_MODE, true);
     });
   registerProvider (
+    "editor-prominent-spacing", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QVector<QTMCommandDynamicItem> out;
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return out;
+      actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
+      const std::uint32_t required=
+        ACTOR_EDITOR_COMMAND_STATE_TEXT_MODE |
+        ACTOR_EDITOR_COMMAND_STATE_STD_MARKUP;
+      if (!snapshot.valid () ||
+          (snapshot.flags & required) != required ||
+          !proxy->prominent_spacing_available ())
+        return out;
+      const bool enabled= !snapshot.read_only ();
+      const struct { const char* key; const char* label; } values[]= {
+        {"compact", "Compact"},
+        {"compressed", "Compressed"},
+        {"amplified", "Amplified"}
+      };
+      for (const auto& value: values) {
+        QTMCommandDynamicItem item= enabled_dynamic_item (
+          QString::fromLatin1 (value.key), QObject::tr (value.label));
+        item.state.enabled= enabled;
+        out.append (std::move (item));
+      }
+      return out;
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      static const QSet<QString> allowed {
+        QStringLiteral ("compact"),
+        QStringLiteral ("compressed"),
+        QStringLiteral ("amplified")
+      };
+      if (!allowed.contains (key)) return false;
+      QJsonObject action;
+      action.insert ("op", "make");
+      action.insert ("tag", key);
+      return submit_inline_editor_action (
+        context, action,
+        ACTOR_EDITOR_COMMAND_STATE_TEXT_MODE |
+        ACTOR_EDITOR_COMMAND_STATE_STD_MARKUP,
+        ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
+    },
+    [] (const QTMCommandContext& context) {
+      QTMCommandState state;
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return state;
+      actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
+      const std::uint32_t required=
+        ACTOR_EDITOR_COMMAND_STATE_TEXT_MODE |
+        ACTOR_EDITOR_COMMAND_STATE_STD_MARKUP;
+      if (!snapshot.valid () ||
+          (snapshot.flags & required) != required ||
+          !proxy->prominent_spacing_available ())
+        return state;
+      state.available= true;
+      state.enabled= !snapshot.read_only ();
+      return state;
+    });
+  registerProvider (
+    "editor-semantic-annotations", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QVector<QTMCommandDynamicItem> out;
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return out;
+      actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
+      if (!snapshot.valid () || !snapshot.math_mode () ||
+          get_user_preference ("semantic editing", "off") != "on")
+        return out;
+      const bool enabled= !snapshot.read_only ();
+      const struct {
+        const char* key;
+        const char* label;
+      } values[]= {
+        {"math-ordinary", "Ordinary symbol"},
+        {"math-ignore", "Ignore"},
+        {"math-separator", "Separator"},
+        {"math-quantifier", "Quantifier"},
+        {"math-imply", "Logical implication"},
+        {"math-or", "Logical or"},
+        {"math-and", "Logical and"},
+        {"math-not", "Logical not"},
+        {"math-relation", "Relation"},
+        {"math-union", "Set union"},
+        {"math-intersection", "Set intersection"},
+        {"math-exclude", "Set difference"},
+        {"math-plus", "Addition"},
+        {"math-minus", "Subtraction"},
+        {"math-times", "Multiplication"},
+        {"math-over", "Division"},
+        {"math-prefix", "Prefix"},
+        {"math-postfix", "Postfix"},
+        {"math-open", "Open"},
+        {"math-close", "Close"},
+        {"syntax", "Other"}
+      };
+      for (const auto& value: values) {
+        QTMCommandDynamicItem item= enabled_dynamic_item (
+          QString::fromLatin1 (value.key), QObject::tr (value.label));
+        item.state.enabled= enabled;
+        out.append (std::move (item));
+      }
+      return out;
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      static const QSet<QString> allowed {
+        "math-ordinary", "math-ignore", "math-separator", "math-quantifier",
+        "math-imply", "math-or", "math-and", "math-not", "math-relation",
+        "math-union", "math-intersection", "math-exclude", "math-plus",
+        "math-minus", "math-times", "math-over", "math-prefix",
+        "math-postfix", "math-open", "math-close", "syntax"
+      };
+      if (!allowed.contains (key) ||
+          get_user_preference ("semantic editing", "off") != "on")
+        return false;
+      QJsonObject action;
+      action.insert ("op", "make");
+      action.insert ("tag", key);
+      return submit_inline_editor_action (
+        context, action, ACTOR_EDITOR_COMMAND_STATE_MATH_MODE,
+        ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
+    },
+    [] (const QTMCommandContext& context) {
+      QTMCommandState state=
+        editor_provider_state (
+          context, ACTOR_EDITOR_COMMAND_STATE_MATH_MODE, true);
+      if (!state.available) return state;
+      if (get_user_preference ("semantic editing", "off") != "on") {
+        state.available= false;
+        state.enabled= false;
+      }
+      return state;
+    });
+  registerProvider (
     "editor-personal-macros", QTMCommandScope::Editor,
     [] (const QTMCommandContext& context) {
       QVector<QTMCommandDynamicItem> out;
@@ -1100,6 +1234,75 @@ QTMCommandRegistry::registerBuiltins () {
   registerMathPreference (
     "editor.math-correct-homoglyph",
     "manual homoglyph correct");
+
+  auto registerMathToggle=
+    [this] (const QString& id, string preference, string defaultValue,
+            string onValue, string offValue,
+            std::function<bool(const QTMCommandContext&)> available= {}) {
+      registerBehavior (
+        id, QTMCommandScope::Editor,
+        [preference, defaultValue, onValue, offValue, available]
+        (const QTMCommandContext& context) {
+          QTMCommandState state= math_mode_command_state (context, false);
+          if (!state.available || !state.enabled) return false;
+          if (available && !available (context)) return false;
+          string current= get_user_preference (preference, defaultValue);
+          set_user_preference (
+            preference, current == offValue ? onValue : offValue);
+          return true;
+        },
+        [preference, defaultValue, offValue, available]
+        (const QTMCommandContext& context) {
+          QTMCommandState state= math_mode_command_state (context, false);
+          if (!state.available) return state;
+          if (available && !available (context)) {
+            state.available= false;
+            state.enabled= false;
+            return state;
+          }
+          state.checkable= true;
+          state.checked=
+            get_user_preference (preference, defaultValue) != offValue;
+          return state;
+        });
+    };
+  registerMathToggle (
+    "editor.math-preferences.match-brackets",
+    "automatic brackets", "mathematics", "mathematics", "off");
+  registerMathToggle (
+    "editor.math-preferences.large-brackets",
+    "use large brackets", "on", "on", "off");
+  registerMathToggle (
+    "editor.math-preferences.full-context",
+    "show full context", "on", "on", "off");
+  registerMathToggle (
+    "editor.math-preferences.table-cells",
+    "show table cells", "on", "on", "off",
+    [] (const QTMCommandContext& context) {
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      return proxy != nullptr && proxy->inside_table ();
+    });
+  registerMathToggle (
+    "editor.math-preferences.focus",
+    "show focus", "on", "on", "off");
+  registerMathToggle (
+    "editor.math-preferences.semantic-focus-only",
+    "show only semantic focus", "on", "on", "off",
+    [] (const QTMCommandContext&) {
+      return get_user_preference ("semantic editing", "off") != "off";
+    });
+  registerMathToggle (
+    "editor.math-preferences.semantic-editing",
+    "semantic editing", "off", "on", "off");
+  registerMathToggle (
+    "editor.math-preferences.semantic-selections",
+    "semantic selections", "on", "on", "off",
+    [] (const QTMCommandContext&) {
+      return get_user_preference ("semantic editing", "off") == "on";
+    });
+  registerMathToggle (
+    "editor.math-preferences.semantic-correctness",
+    "semantic correctness", "off", "on", "off");
 
   const QString paneCommands[]= {
     "namespace.open",
@@ -1349,6 +1552,26 @@ QTMCommandRegistry::loadPresentation () {
           QString ("menu %1 item requires one item kind").arg (ownerId));
 
       QTMCommandMenuItem item;
+      QString itemMaskError;
+      if (!parse_editor_capability_mask (
+            itemObject.value ("requires"), item.requiredFlags,
+            itemMaskError) ||
+          !parse_editor_capability_mask (
+            itemObject.value ("forbids"), item.forbiddenFlags,
+            itemMaskError) ||
+          !parse_editor_capability_mask (
+            itemObject.value ("requires_any"), item.anyFlags,
+            itemMaskError))
+        return failPresentation (
+          QString ("invalid item capability mask in %1: %2")
+            .arg (ownerId, itemMaskError));
+      if (itemObject.contains ("when_main_toolbar_hidden") &&
+          !itemObject.value ("when_main_toolbar_hidden").isBool ())
+        return failPresentation (
+          QString ("menu %1 item has invalid main-toolbar condition")
+            .arg (ownerId));
+      item.whenMainToolbarHidden=
+        itemObject.value ("when_main_toolbar_hidden").toBool (false);
       if (separator)
         item.kind= QTMCommandMenuItem::Kind::Separator;
       else if (!commandId.isEmpty ()) {

@@ -123,27 +123,3 @@
   (if (in-text?) (link text-menu))
   (if (in-math?) (link math-menu))
   (if (not (or (in-text?) (in-math?))) (link texmacs-insert-menu)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; The main Insert icons
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(menu-bind texmacs-insert-icons
-  /
-  (=> (balloon (icon "tm_macro") "Insert a personal macro")
-      (link insert-macro-menu))
-  (if (not (in-text?))
-      ((balloon (icon "tm_textual") "Insert plain text")
-       (make 'text)))
-  (if (not (in-math?))
-      (=> (balloon (icon "tm_math") "Insert mathematics")
-	  (link insert-math-menu)))
-  (=> (balloon (icon "tm_table") "Insert a table")
-      (link insert-table-menu))
-  (=> (balloon (icon "tm_image") "Insert a picture")
-      (link insert-image-menu))
-  (=> (balloon (icon "tm_link") "Insert a link")
-      (link insert-link-menu))
-  (if (style-has? "std-fold-dtd")
-      (=> (balloon (icon "tm_switch") "Switching and folding")
-          (link insert-fold-menu))))

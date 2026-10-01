@@ -847,6 +847,11 @@ editor_rep::refresh_editor_style_command_flags () {
 void
 editor_rep::publish_editor_command_state () {
   if (ui_endpoint == nullptr) return;
+  string par_sep= get_env_string ("par-par-sep");
+  bool prominent_spacing=
+    !ends (par_sep, "fns") && !starts (par_sep, "0fn");
+  ui_endpoint->set_prominent_spacing_available (prominent_spacing);
+  ui_endpoint->set_inside_table (inside ("table"));
   ui_endpoint->update_editor_command_state (editor_command_state_snapshot ());
 }
 

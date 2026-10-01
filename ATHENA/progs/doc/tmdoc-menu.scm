@@ -79,21 +79,6 @@
   (-> "Indication" (link tmdoc-indication-menu)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Icons for TeXmacs documentation
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(menu-bind tmdoc-icons
-  /
-  (=> (balloon (icon "tm_traverse") "Specify how to traverse the manual")
-      (link tmdoc-traversal-menu))
-  (=> (balloon (icon "tm_explain") "Insert explanatory item")
-      (link tmdoc-explain-menu))
-  (=> (balloon (icon "tm_gui") "Insert user interface related markup")
-      (link tmdoc-gui-menu))
-  (=> (balloon (icon "tm_tmdoc_annotate") "Insert annotation")
-      (link tmdoc-annotate-menu)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Document meta information
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

@@ -168,22 +168,6 @@
   (:require (fold-context? t))
   "tm_alternate_both")
 
-(menu-bind dynamic-icons
-  ((balloon (icon "tm_larrow_bar") "First")
-   (dynamic-operate-on-buffer :first))
-  (if (in-screens?)
-      ((balloon (icon "tm_larrow_double") "Previous screen")
-       (screens-switch-to :previous)))
-  ((balloon (icon "tm_larrow") "Previous")
-   (dynamic-traverse-buffer :previous))
-  ((balloon (icon "tm_rarrow") "Next")
-   (dynamic-traverse-buffer :next))
-  (if (in-screens?)
-      ((balloon (icon "tm_rarrow_double") "Next screen")
-       (screens-switch-to :next)))
-  ((balloon (icon "tm_rarrow_bar") "Last")
-   (dynamic-operate-on-buffer :last)))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Beamer themes
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
