@@ -137,6 +137,21 @@ qt_actor_widget_rep::view_id () const noexcept {
   return view_id_;
 }
 
+actor_editor_command_snapshot
+qt_actor_widget_rep::editor_command_state () const noexcept {
+  return endpoint_ == nullptr ? actor_editor_command_snapshot {} :
+         endpoint_->editor_command_state ();
+}
+
+bool
+qt_actor_widget_rep::submit_editor_command (native_editor_command_id command) {
+  if (command == native_editor_command_id::none) return false;
+  return static_cast<bool> (buffer_actor::try_submit_to (
+    actor_id_, actor_command_kind::native_editor_command, view_id_,
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+    static_cast<std::uint64_t> (command)));
+}
+
 bool
 qt_actor_widget_rep::is_editor_widget () {
   return true;

@@ -91,6 +91,8 @@ public:
                              std::uint64_t argument1= 0,
                              std::uint64_t argument2= 0,
                              std::uint64_t argument3= 0);
+  actor_editor_command_snapshot editor_command_state_snapshot ();
+  void publish_editor_command_state ();
   void rebuild_ui_chrome ();
 
 protected:

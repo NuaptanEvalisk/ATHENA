@@ -21,6 +21,12 @@ not be reported as native cutover.
 | `namespace.rename` | pane | `QTMNamespaceExplorer` | pane provider state | native |
 | `namespace.delete` | pane | `QTMNamespaceExplorer` | pane provider state | native |
 | `namespace.refresh` | pane | `QTMNamespaceExplorer` | pane provider state | native |
+| `editor.undo` | editor | owning BufferActor | atomic per-view editor snapshot | native |
+| `editor.redo` | editor | owning BufferActor | atomic per-view editor snapshot | native |
+| `editor.copy` | editor | owning BufferActor | atomic per-view editor snapshot | native |
+| `editor.cut` | editor | owning BufferActor | atomic per-view editor snapshot | native |
+| `editor.paste` | editor | owning BufferActor | atomic per-view editor snapshot | native |
+| `editor.node-properties` | editor | owning BufferActor + native node-properties dialog | atomic per-view editor snapshot | native |
 
 Application shortcuts currently declared in the JSON inventory are
 `Ctrl+N`, `Ctrl+O`, `Ctrl+Shift+P`, and `Ctrl+Q`. They are resolved by
@@ -33,6 +39,21 @@ The command palette consumes the registry directly. It no longer walks editor
 `QMenuBar`/`QAction` trees or forces `QTMLazyMenu` expansion. Menu/palette
 invocations capture the current work pane and input widget with `QPointer`
 lifetimes; pane commands are rejected when the captured provider disappears.
+
+Editor command state is published by the owning BufferActor as one packed
+64-bit atomic snapshot per view. It currently carries read-only, selection,
+native-graphics selection, focus-node availability, and bounded undo/redo
+counts. Main reads that snapshot only; it never calls a live editor to populate
+the palette. Execution resolves the captured document view to actor/view IDs,
+uses nonblocking `try_submit_to`, and recomputes availability on the actor
+before running the command under the existing menu-action transaction boundary.
+Standard Qt text inputs inside an editor pane suppress the editor Edit commands
+so their local selection/clipboard behavior is not redirected to the document.
+
+The editor command declarations intentionally do not add Ctrl+Z/C/X/V shortcuts
+yet. Those keys still have their existing editor/input routes; adding a second
+native shortcut route before retiring the old one would violate the one-route
+rule.
 
 ## Zero-buffer ownership now established
 
@@ -53,9 +74,10 @@ native stage replaces them:
 - The application menubar is still produced by Scheme inside editor windows.
   A shell-owned menubar must not be enabled until overlapping production and
   shortcut routes can be retired without losing command coverage.
-- Editor Edit/Focus commands and their dynamic state need compact
-  BufferActor-published snapshots plus ID-only mailbox dispatch. Main must not
-  query a live editor synchronously or use the last-focused editor fallback.
+- The first editor Edit/Focus slice is native: Undo, Redo, Copy, Cut, Paste,
+  and Node properties use BufferActor snapshots plus ID-only dispatch. The
+  remaining Edit contents and the dynamic structured Focus hierarchy still need
+  grouped migration before the shell menubar can replace the legacy one.
 - Editor main/mode/focus toolbars remain view-owned and Scheme-produced.
 - Shared worker/error status is still editor-footer-oriented and needs a
   shell-owned zero-buffer surface.

@@ -48,6 +48,48 @@
       "help": "Show the Namespace Explorer pane"
     },
     {
+      "id": "editor.undo",
+      "label": "Undo",
+      "category": "Edit",
+      "icon": "edit-undo",
+      "help": "Undo the most recent editor change"
+    },
+    {
+      "id": "editor.redo",
+      "label": "Redo",
+      "category": "Edit",
+      "icon": "edit-redo",
+      "help": "Redo the most recently undone editor change"
+    },
+    {
+      "id": "editor.copy",
+      "label": "Copy",
+      "category": "Edit",
+      "icon": "edit-copy",
+      "help": "Copy the current editor selection"
+    },
+    {
+      "id": "editor.cut",
+      "label": "Cut",
+      "category": "Edit",
+      "icon": "edit-cut",
+      "help": "Cut the current editor selection"
+    },
+    {
+      "id": "editor.paste",
+      "label": "Paste",
+      "category": "Edit",
+      "icon": "edit-paste",
+      "help": "Paste into the active editor"
+    },
+    {
+      "id": "editor.node-properties",
+      "label": "Node properties...",
+      "category": "Focus",
+      "icon": "document-properties",
+      "help": "Inspect or edit properties of the focused structured node"
+    },
+    {
       "id": "namespace.open",
       "label": "Open selected item",
       "category": "Namespace Explorer",
@@ -107,6 +149,13 @@
       "id": "edit",
       "label": "Edit",
       "items": [
+        { "command": "editor.undo" },
+        { "command": "editor.redo" },
+        { "separator": true },
+        { "command": "editor.copy" },
+        { "command": "editor.cut" },
+        { "command": "editor.paste" },
+        { "separator": true },
         { "command": "namespace.copy" },
         { "command": "namespace.paste" },
         { "separator": true },
@@ -118,6 +167,8 @@
       "id": "focus",
       "label": "Focus",
       "items": [
+        { "command": "editor.node-properties" },
+        { "separator": true },
         { "command": "namespace.open" },
         { "command": "namespace.refresh" }
       ]

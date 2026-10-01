@@ -53,6 +53,36 @@ struct actor_viewport_snapshot {
   bool footer_visible= false;
 };
 
+enum actor_editor_command_state_flag: std::uint32_t {
+  ACTOR_EDITOR_COMMAND_STATE_VALID= 1U << 0,
+  ACTOR_EDITOR_COMMAND_STATE_READ_ONLY= 1U << 1,
+  ACTOR_EDITOR_COMMAND_STATE_SELECTION= 1U << 2,
+  ACTOR_EDITOR_COMMAND_STATE_GRAPHICS_SELECTION= 1U << 3,
+  ACTOR_EDITOR_COMMAND_STATE_FOCUS_NODE= 1U << 4
+};
+
+struct actor_editor_command_snapshot {
+  std::uint32_t flags= 0;
+  std::uint16_t undo_count= 0;
+  std::uint16_t redo_count= 0;
+
+  bool valid () const noexcept {
+    return (flags & ACTOR_EDITOR_COMMAND_STATE_VALID) != 0;
+  }
+  bool read_only () const noexcept {
+    return (flags & ACTOR_EDITOR_COMMAND_STATE_READ_ONLY) != 0;
+  }
+  bool selection_active () const noexcept {
+    return (flags & ACTOR_EDITOR_COMMAND_STATE_SELECTION) != 0;
+  }
+  bool graphics_selection_active () const noexcept {
+    return (flags & ACTOR_EDITOR_COMMAND_STATE_GRAPHICS_SELECTION) != 0;
+  }
+  bool focus_node_available () const noexcept {
+    return (flags & ACTOR_EDITOR_COMMAND_STATE_FOCUS_NODE) != 0;
+  }
+};
+
 class actor_ui_endpoint {
 public:
   explicit actor_ui_endpoint (athena_view_id view_id);
@@ -84,6 +114,9 @@ public:
   std::uint64_t applied_programmatic_scroll_generation () const noexcept;
   void mark_user_scroll () noexcept;
   std::uint64_t user_scroll_generation () const noexcept;
+  void update_editor_command_state (
+    const actor_editor_command_snapshot& snapshot) noexcept;
+  actor_editor_command_snapshot editor_command_state () const noexcept;
 
   bool publish (actor_command_kind kind,
                 athena_blob_id payload0= ATHENA_NO_BLOB,
@@ -157,6 +190,7 @@ private:
   std::atomic<std::uint64_t> zoom_factor_bits_ {0};
   std::atomic<std::uint64_t> applied_programmatic_scroll_generation_ {0};
   std::atomic<std::uint64_t> user_scroll_generation_ {0};
+  std::atomic<std::uint64_t> editor_command_state_ {0};
   actor_command_transport effects_;
   std::uint64_t next_effect_id_;
   std::atomic<std::uint32_t> pending_commands_ {0};

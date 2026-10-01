@@ -41,6 +41,16 @@ constexpr athena_scheme_handle_id ATHENA_NO_SCHEME_HANDLE= 0;
 constexpr athena_response_id ATHENA_NO_RESPONSE= 0;
 constexpr athena_continuation_id ATHENA_NO_CONTINUATION= 0;
 
+enum class native_editor_command_id: std::uint32_t {
+  none= 0,
+  undo,
+  redo,
+  copy,
+  cut,
+  paste,
+  node_properties
+};
+
 enum class actor_command_kind: std::uint32_t {
   none= 0,
   barrier,
@@ -164,7 +174,8 @@ enum class actor_command_kind: std::uint32_t {
   ui_document_history_manual_request,
   ui_schedule_scheme,
   ui_schedule_global_scheme,
-  ui_scheme_completed
+  ui_scheme_completed,
+  native_editor_command
 };
 
 // Records remain in shared arena storage while being consumed.  All fields are

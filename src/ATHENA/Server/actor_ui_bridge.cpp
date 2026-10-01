@@ -32,6 +32,23 @@ bits_double (std::uint64_t value) noexcept {
   return result;
 }
 
+std::uint64_t
+pack_editor_command_state (
+  const actor_editor_command_snapshot& snapshot) noexcept {
+  return static_cast<std::uint64_t> (snapshot.flags) |
+         (static_cast<std::uint64_t> (snapshot.undo_count) << 32) |
+         (static_cast<std::uint64_t> (snapshot.redo_count) << 48);
+}
+
+actor_editor_command_snapshot
+unpack_editor_command_state (std::uint64_t value) noexcept {
+  actor_editor_command_snapshot snapshot;
+  snapshot.flags= static_cast<std::uint32_t> (value & 0xffffffffULL);
+  snapshot.undo_count= static_cast<std::uint16_t> ((value >> 32) & 0xffffULL);
+  snapshot.redo_count= static_cast<std::uint16_t> ((value >> 48) & 0xffffULL);
+  return snapshot;
+}
+
 std::uint32_t
 coalesced_command_mask (actor_command_kind kind) noexcept {
   switch (kind) {
@@ -262,6 +279,19 @@ actor_ui_endpoint::mark_user_scroll () noexcept {
 std::uint64_t
 actor_ui_endpoint::user_scroll_generation () const noexcept {
   return user_scroll_generation_.load (std::memory_order_acquire);
+}
+
+void
+actor_ui_endpoint::update_editor_command_state (
+  const actor_editor_command_snapshot& snapshot) noexcept {
+  editor_command_state_.store (
+    pack_editor_command_state (snapshot), std::memory_order_release);
+}
+
+actor_editor_command_snapshot
+actor_ui_endpoint::editor_command_state () const noexcept {
+  return unpack_editor_command_state (
+    editor_command_state_.load (std::memory_order_acquire));
 }
 
 bool

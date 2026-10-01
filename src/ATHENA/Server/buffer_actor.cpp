@@ -34,6 +34,7 @@
 #include "tm_window.hpp"
 
 #ifdef QTTEXMACS
+#include "QTMNodePropertiesDialog.hpp"
 #include "QTMRenderService.hpp"
 #include "qt_renderer.hpp"
 #include <QPainter>
@@ -53,6 +54,88 @@ std::mutex actor_registry_lock;
 std::atomic<std::uint64_t> continuous_rag_save_sequence {1};
 using actor_entry= actor_lifetime<buffer_actor>;
 std::unordered_map<athena_actor_id, std::shared_ptr<actor_entry>> actor_registry;
+
+bool
+run_native_editor_command (editor_rep* editor,
+                           native_editor_command_id command) {
+  if (editor == nullptr) return false;
+  actor_editor_command_snapshot state= editor->editor_command_state_snapshot ();
+  if (!state.valid ()) return false;
+
+  const bool has_selection=
+    state.selection_active () || state.graphics_selection_active ();
+  switch (command) {
+  case native_editor_command_id::undo:
+    if (state.read_only () || state.undo_count == 0) return false;
+    break;
+  case native_editor_command_id::redo:
+    if (state.read_only () || state.redo_count == 0) return false;
+    break;
+  case native_editor_command_id::copy:
+    if (!has_selection) return false;
+    break;
+  case native_editor_command_id::cut:
+    if (state.read_only () || !has_selection) return false;
+    break;
+  case native_editor_command_id::paste:
+    if (state.read_only ()) return false;
+    break;
+  case native_editor_command_id::node_properties:
+    if (!state.focus_node_available ()) return false;
+    break;
+  default:
+    return false;
+  }
+
+  editor->before_menu_action ();
+  try {
+    switch (command) {
+    case native_editor_command_id::undo:
+      editor->undo (0);
+      break;
+    case native_editor_command_id::redo:
+      editor->redo (0);
+      break;
+    case native_editor_command_id::copy:
+      editor->selection_copy ("primary");
+      break;
+    case native_editor_command_id::cut:
+      editor->selection_cut ("primary");
+      break;
+    case native_editor_command_id::paste:
+      editor->selection_paste ("primary");
+      break;
+    case native_editor_command_id::node_properties: {
+#ifdef QTTEXMACS
+      path focus= editor->focus_get ();
+      if (!editor->test_subtree (focus) ||
+          !node_properties_show (editor->the_subtree (focus))) {
+        editor->cancel_menu_action ();
+        editor->publish_editor_command_state ();
+        return false;
+      }
+#else
+      editor->cancel_menu_action ();
+      editor->publish_editor_command_state ();
+      return false;
+#endif
+      break;
+    }
+    default:
+      editor->cancel_menu_action ();
+      editor->publish_editor_command_state ();
+      return false;
+    }
+    editor->after_menu_action ();
+  }
+  catch (...) {
+    editor->cancel_menu_action ();
+    editor->publish_editor_command_state ();
+    throw;
+  }
+  editor->publish_editor_command_state ();
+  return true;
+}
 
 std::unique_ptr<athena::document_node::source_identity_state>
 replacement_node_identities (const tree& document, const tree& body) {
@@ -722,6 +805,7 @@ buffer_actor::dispatch (actor_command_record& command) {
             "view was created without a UI endpoint");
     created->ui_endpoint->set_zoom_factor (created->handle_get_zoom_factor ());
     created->set_data (impl_->state.data);
+    created->publish_editor_command_state ();
     impl_->views.emplace (
       command.view_id,
       implementation::actor_view {
@@ -738,6 +822,7 @@ buffer_actor::dispatch (actor_command_record& command) {
     if (editor != nullptr) {
       initialize_current_view_scheme ();
       publish_tmfs_title (editor);
+      editor->publish_editor_command_state ();
     }
     break;
   case actor_command_kind::apply_changes:
@@ -773,6 +858,13 @@ buffer_actor::dispatch (actor_command_record& command) {
     }
     else
       (void) actor_text_registry::instance ().discard (command.payload0);
+    break;
+  case actor_command_kind::native_editor_command:
+    if (editor != nullptr)
+      command.argument[0]= run_native_editor_command (
+        editor,
+        static_cast<native_editor_command_id> (command.argument[0])) ? 1 : 0;
+    else command.argument[0]= 0;
     break;
   case actor_command_kind::keyboard_focus:
     if (editor != nullptr)
@@ -1246,6 +1338,8 @@ buffer_actor::dispatch (actor_command_record& command) {
   }
   case actor_command_kind::set_buffer_read_only:
     impl_->state.read_only= command.argument[0] != 0;
+    for (auto& entry: impl_->views)
+      entry.second.instance->publish_editor_command_state ();
     break;
   case actor_command_kind::set_buffer_title:
     impl_->state.title=

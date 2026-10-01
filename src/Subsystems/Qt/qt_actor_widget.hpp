@@ -26,6 +26,8 @@ public:
 
   athena_actor_id actor_id () const noexcept;
   athena_view_id view_id () const noexcept;
+  actor_editor_command_snapshot editor_command_state () const noexcept;
+  bool submit_editor_command (native_editor_command_id command);
 
   bool is_editor_widget () override;
   bool is_embedded_widget () override;

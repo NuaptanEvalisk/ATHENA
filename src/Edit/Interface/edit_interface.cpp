@@ -711,6 +711,7 @@ edit_interface_rep::change_time () {
 
 void
 edit_interface_rep::update_menus () {
+  publish_editor_command_state ();
   rebuild_ui_chrome ();
   set_footer ();
   pending_idle_footer_update= false;
@@ -721,6 +722,39 @@ edit_interface_rep::update_menus () {
   last_update= last_change;
   pending_idle_menu_update= false;
   save_user_preferences ();
+}
+
+actor_editor_command_snapshot
+editor_rep::editor_command_state_snapshot () {
+  actor_editor_command_snapshot snapshot;
+  if (buf == nullptr) return snapshot;
+
+  snapshot.flags= ACTOR_EDITOR_COMMAND_STATE_VALID;
+  if (buf->read_only)
+    snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_READ_ONLY;
+  if (selection_active_any ())
+    snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_SELECTION;
+  if (inside_active_graphics () && native_graphics_selection_active ())
+    snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_GRAPHICS_SELECTION;
+  path focus= focus_get ();
+  if (test_subtree (focus))
+    snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_FOCUS_NODE;
+
+  int undo= undo_possibilities ();
+  int redo= redo_possibilities ();
+  if (undo < 0) undo= 0;
+  if (redo < 0) redo= 0;
+  if (undo > 65535) undo= 65535;
+  if (redo > 65535) redo= 65535;
+  snapshot.undo_count= static_cast<std::uint16_t> (undo);
+  snapshot.redo_count= static_cast<std::uint16_t> (redo);
+  return snapshot;
+}
+
+void
+editor_rep::publish_editor_command_state () {
+  if (ui_endpoint == nullptr) return;
+  ui_endpoint->update_editor_command_state (editor_command_state_snapshot ());
 }
 
 int
@@ -1220,6 +1254,7 @@ edit_interface_rep::apply_changes () {
     (env_change & (THE_ENVIRONMENT | THE_SELECTION | THE_FOCUS | THE_MENUS)) !=
     0 ||
     ((env_change & THE_CURSOR) != 0 && (env_change & THE_TREE) == 0);
+  publish_editor_command_state ();
   env_change  = 0;
   last_change = texmacs_time ();
   pending_idle_menu_update= schedule_idle_menu_update;

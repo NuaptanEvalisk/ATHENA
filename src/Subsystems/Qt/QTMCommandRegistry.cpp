@@ -13,6 +13,8 @@
 #include "QTMCommandPalette.hpp"
 #include "QTMNamespaceExplorer.hpp"
 #include "QTMPreferencesDialog.hpp"
+#include "QTMWidget.hpp"
+#include "qt_actor_widget.hpp"
 #include "file.hpp"
 #include "new_window.hpp"
 #include "qt_utilities.hpp"
@@ -20,13 +22,18 @@
 #include "tm_ostream.hpp"
 
 #include <QApplication>
+#include <QAbstractSpinBox>
+#include <QComboBox>
 #include <QFileDialog>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
 #include <QJsonValue>
+#include <QLineEdit>
+#include <QPlainTextEdit>
 #include <QSet>
+#include <QTextEdit>
 
 namespace {
 
@@ -36,6 +43,104 @@ enabled_application_command () {
   state.available= true;
   state.enabled= true;
   return state;
+}
+
+QTMWidget*
+editor_canvas_for_context (const QTMCommandContext& context) {
+  QWidget* pane= context.workPane.data ();
+  if (pane == nullptr) return nullptr;
+  if (QTMWidget* canvas= qobject_cast<QTMWidget*> (pane)) return canvas;
+  return pane->findChild<QTMWidget*> ();
+}
+
+qt_actor_widget_rep*
+editor_proxy_for_context (const QTMCommandContext& context) {
+  QTMWidget* canvas= editor_canvas_for_context (context);
+  if (canvas == nullptr) return nullptr;
+  return dynamic_cast<qt_actor_widget_rep*> (canvas->tm_widget ());
+}
+
+bool
+local_text_input_owns_edit_command (const QTMCommandContext& context) {
+  QWidget* input= context.inputWidget.data ();
+  QWidget* pane= context.workPane.data ();
+  if (input == nullptr || pane == nullptr ||
+      (input != pane && !pane->isAncestorOf (input)))
+    return false;
+  if (qobject_cast<QLineEdit*> (input) != nullptr ||
+      qobject_cast<QTextEdit*> (input) != nullptr ||
+      qobject_cast<QPlainTextEdit*> (input) != nullptr ||
+      qobject_cast<QAbstractSpinBox*> (input) != nullptr)
+    return true;
+  if (QComboBox* combo= qobject_cast<QComboBox*> (input))
+    return combo->isEditable ();
+  return false;
+}
+
+native_editor_command_id
+editor_command_id (const QString& id) {
+  if (id == "editor.undo") return native_editor_command_id::undo;
+  if (id == "editor.redo") return native_editor_command_id::redo;
+  if (id == "editor.copy") return native_editor_command_id::copy;
+  if (id == "editor.cut") return native_editor_command_id::cut;
+  if (id == "editor.paste") return native_editor_command_id::paste;
+  if (id == "editor.node-properties")
+    return native_editor_command_id::node_properties;
+  return native_editor_command_id::none;
+}
+
+QTMCommandState
+native_editor_command_state (const QString& id,
+                             const QTMCommandContext& context) {
+  QTMCommandState result;
+  qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+  if (proxy == nullptr) return result;
+  actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
+  if (!snapshot.valid ()) return result;
+
+  native_editor_command_id command= editor_command_id (id);
+  if (command == native_editor_command_id::none) return result;
+  result.available= true;
+  const bool localEdit=
+    command != native_editor_command_id::node_properties &&
+    local_text_input_owns_edit_command (context);
+  if (localEdit) return result;
+
+  const bool hasSelection=
+    snapshot.selection_active () || snapshot.graphics_selection_active ();
+  switch (command) {
+  case native_editor_command_id::undo:
+    result.enabled= !snapshot.read_only () && snapshot.undo_count != 0;
+    break;
+  case native_editor_command_id::redo:
+    result.enabled= !snapshot.read_only () && snapshot.redo_count != 0;
+    break;
+  case native_editor_command_id::copy:
+    result.enabled= hasSelection;
+    break;
+  case native_editor_command_id::cut:
+    result.enabled= !snapshot.read_only () && hasSelection;
+    break;
+  case native_editor_command_id::paste:
+    result.enabled= !snapshot.read_only ();
+    break;
+  case native_editor_command_id::node_properties:
+    result.enabled= snapshot.focus_node_available ();
+    break;
+  default:
+    break;
+  }
+  return result;
+}
+
+bool
+invoke_native_editor_command (const QString& id,
+                              const QTMCommandContext& context) {
+  qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+  if (proxy == nullptr) return false;
+  native_editor_command_id command= editor_command_id (id);
+  return command != native_editor_command_id::none &&
+         proxy->submit_editor_command (command);
 }
 
 bool
@@ -134,6 +239,24 @@ QTMCommandRegistry::registerBuiltins () {
   };
   for (const QString& id: paneCommands)
     registerBehavior (id, QTMCommandScope::Pane, {});
+
+  const QString editorCommands[]= {
+    "editor.undo",
+    "editor.redo",
+    "editor.copy",
+    "editor.cut",
+    "editor.paste",
+    "editor.node-properties"
+  };
+  for (const QString& id: editorCommands)
+    registerBehavior (
+      id, QTMCommandScope::Editor,
+      [id] (const QTMCommandContext& context) {
+        return invoke_native_editor_command (id, context);
+      },
+      [id] (const QTMCommandContext& context) {
+        return native_editor_command_state (id, context);
+      });
 }
 
 bool
@@ -328,6 +451,11 @@ QTMCommandRegistry::state (const QString& id,
     return result;
   }
 
+  if (behavior.scope == QTMCommandScope::Editor) {
+    if (behavior.state) return behavior.state (context);
+    return {};
+  }
+
   return {};
 }
 
@@ -349,6 +477,9 @@ QTMCommandRegistry::execute (const QString& id,
     return provider != nullptr && provider->qtmSupportsCommand (id) &&
            provider->qtmInvokeCommand (id);
   }
+
+  if (behavior.scope == QTMCommandScope::Editor)
+    return behavior.execute ? behavior.execute (context): false;
 
   return false;
 }
