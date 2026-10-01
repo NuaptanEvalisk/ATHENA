@@ -27,11 +27,13 @@
 #include "QTMNeighborhoodsPane.hpp"
 #include "QTMNamespaceExport.hpp"
 #include "QTMNamespaceManager.hpp"
+#include "QTMNativeDialogs.hpp"
 #include "QTMOutlinePane.hpp"
 #include "QTMQuickSwitcher.hpp"
 #include "QTMWebsitesManager.hpp"
 #include "QTMGoogleTasksPane.hpp"
 #include "qt_actor_widget.hpp"
+#include "native_editor_actions.hpp"
 #include "document_persistence.hpp"
 #include "boot.hpp"
 #include "file.hpp"
@@ -44,6 +46,7 @@
 
 #include <QApplication>
 #include <QAbstractSpinBox>
+#include <QColor>
 #include <QComboBox>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -88,6 +91,23 @@ scheme_string_vector (object value) {
   return result;
 }
 
+array<string>
+scheme_string_array (object value) {
+  array<string> result;
+  list<string> values= as_list_string (value);
+  for (list<string> it= values; !is_nil (it); it= it->next)
+    result << it->item;
+  return result;
+}
+
+list<string>
+array_string_list (const array<string>& values, int start= 0) {
+  list<string> result;
+  for (int i=N(values)-1; i>=start; --i)
+    result= list<string> (values[i], result);
+  return result;
+}
+
 QString
 provider_format_suffix (const QString& format) {
   try {
@@ -106,6 +126,62 @@ provider_file_filter (const QString& format, const QString& suffix) {
   return QObject::tr ("%1 files (*.%2);;All files (*)").arg (display, suffix);
 }
 
+bool
+editor_capability_bit (const QString& name, std::uint32_t& bit) {
+  static const QHash<QString, std::uint32_t> bits {
+    {"read-only", ACTOR_EDITOR_COMMAND_STATE_READ_ONLY},
+    {"selection", ACTOR_EDITOR_COMMAND_STATE_SELECTION},
+    {"non-small-selection", ACTOR_EDITOR_COMMAND_STATE_NON_SMALL_SELECTION},
+    {"math-mode", ACTOR_EDITOR_COMMAND_STATE_MATH_MODE},
+    {"presentation-mode", ACTOR_EDITOR_COMMAND_STATE_PRESENTATION_MODE},
+    {"screens-mode", ACTOR_EDITOR_COMMAND_STATE_SCREENS_MODE},
+    {"text-mode", ACTOR_EDITOR_COMMAND_STATE_TEXT_MODE},
+    {"prog-mode", ACTOR_EDITOR_COMMAND_STATE_PROG_MODE},
+    {"source-mode", ACTOR_EDITOR_COMMAND_STATE_SOURCE_MODE},
+    {"graphics-mode", ACTOR_EDITOR_COMMAND_STATE_GRAPHICS_MODE},
+    {"poster-style", ACTOR_EDITOR_COMMAND_STATE_POSTER_STYLE},
+    {"manual-style", ACTOR_EDITOR_COMMAND_STATE_MANUAL_STYLE},
+    {"header-letter", ACTOR_EDITOR_COMMAND_STATE_HEADER_LETTER},
+    {"book-style", ACTOR_EDITOR_COMMAND_STATE_BOOK_STYLE},
+    {"section-base", ACTOR_EDITOR_COMMAND_STATE_SECTION_BASE},
+    {"env-theorem", ACTOR_EDITOR_COMMAND_STATE_ENV_THEOREM},
+    {"std-markup", ACTOR_EDITOR_COMMAND_STATE_STD_MARKUP},
+    {"std-list", ACTOR_EDITOR_COMMAND_STATE_STD_LIST},
+    {"env-float", ACTOR_EDITOR_COMMAND_STATE_ENV_FLOAT},
+    {"std-fold", ACTOR_EDITOR_COMMAND_STATE_STD_FOLD},
+    {"std-dtd", ACTOR_EDITOR_COMMAND_STATE_STD_DTD}
+  };
+  auto found= bits.constFind (name);
+  if (found == bits.constEnd ()) return false;
+  bit= found.value ();
+  return true;
+}
+
+bool
+parse_editor_capability_mask (
+  const QJsonValue& value, std::uint32_t& mask, QString& error) {
+  mask= 0;
+  if (value.isUndefined ()) return true;
+  if (!value.isArray ()) {
+    error= "editor capability list must be an array";
+    return false;
+  }
+  for (const QJsonValue& item: value.toArray ()) {
+    if (!item.isString ()) {
+      error= "editor capability name must be a string";
+      return false;
+    }
+    std::uint32_t bit= 0;
+    QString name= item.toString ().trimmed ();
+    if (!editor_capability_bit (name, bit)) {
+      error= QString ("unknown editor capability: %1").arg (name);
+      return false;
+    }
+    mask |= bit;
+  }
+  return true;
+}
+
 QTMWidget*
 editor_canvas_for_context (const QTMCommandContext& context) {
   QWidget* pane= context.workPane.data ();
@@ -119,6 +195,20 @@ editor_proxy_for_context (const QTMCommandContext& context) {
   QTMWidget* canvas= editor_canvas_for_context (context);
   if (canvas == nullptr) return nullptr;
   return dynamic_cast<qt_actor_widget_rep*> (canvas->tm_widget ());
+}
+
+bool
+submit_inline_editor_action (
+  const QTMCommandContext& context, const QJsonObject& action,
+  std::uint32_t required= 0, std::uint32_t forbidden= 0,
+  std::uint32_t any= 0) {
+  QString validation;
+  if (!native_editor_action_validate (action, &validation)) return false;
+  qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+  if (proxy == nullptr) return false;
+  QString encoded= QString::fromUtf8 (
+    QJsonDocument (action).toJson (QJsonDocument::Compact));
+  return proxy->submit_editor_action (encoded, required, forbidden, any);
 }
 
 bool
@@ -595,6 +685,94 @@ QTMCommandRegistry::registerBuiltins () {
       return athena_set_realtime_save_paused (
         source, !athena_realtime_save_paused (source));
     });
+  registerProvider (
+    "editor-text-colors", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QVector<QTMCommandDynamicItem> out;
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return out;
+      actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
+      if (!snapshot.valid ()) return out;
+      const bool enabled= !snapshot.read_only ();
+      QSet<QString> seen;
+      auto addColor= [&] (const QString& color) {
+        QColor qcolor (color);
+        if (!qcolor.isValid ()) return;
+        QString canonical= qcolor.name ();
+        if (seen.contains (canonical)) return;
+        seen.insert (canonical);
+        QTMCommandDynamicItem item=
+          enabled_dynamic_item (canonical, canonical, canonical);
+        item.icon= canonical;
+        item.state.enabled= enabled;
+        out.append (std::move (item));
+      };
+      static const char* standard[]= {
+        "#000000", "#434343", "#666666", "#999999",
+        "#b7b7b7", "#cccccc", "#d9d9d9", "#efefef",
+        "#f3f3f3", "#ffffff", "#980000", "#ff0000",
+        "#ff9900", "#ffff00", "#00ff00", "#00ffff",
+        "#4a86e8", "#0000ff", "#9900ff", "#ff00ff",
+        "#e6b8af", "#f4cccc", "#fce5cd", "#fff2cc",
+        "#d9ead3", "#d0e0e3", "#c9daf8", "#cfe2f3",
+        "#d9d2e9", "#ead1dc", "#85200c", "#a61c00",
+        "#bf9000", "#38761d"
+      };
+      for (const char* color: standard) addColor (QString::fromLatin1 (color));
+      try {
+        for (const QString& color:
+             scheme_string_vector (call ("color-picker-recent-colors")))
+          addColor (color);
+        for (const QString& color:
+             scheme_string_vector (call ("color-picker-saved-colors")))
+          addColor (color);
+      }
+      catch (...) {}
+      QTMCommandDynamicItem other= enabled_dynamic_item (
+        QStringLiteral ("__other__"), QObject::tr ("Other color..."));
+      other.state.enabled= enabled;
+      out.append (std::move (other));
+      return out;
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr || key.isEmpty ()) return false;
+      QString color= key;
+      if (key == QStringLiteral ("__other__")) {
+        array<string> recent, saved;
+        try {
+          recent= scheme_string_array (call ("color-picker-recent-colors"));
+          saved= scheme_string_array (call ("color-picker-saved-colors"));
+        }
+        catch (...) {}
+        array<string> selected= qtm_color_dialog (
+          "Choose color", recent, saved);
+        if (N(selected) == 0) return true;
+        color= to_qstring (selected[0]);
+        if (N(selected) > 1) {
+          try {
+            (void) call (
+              "color-picker-set-saved-colors",
+              object (array_string_list (selected, 1)));
+          }
+          catch (...) {}
+        }
+      }
+      QColor qcolor (color);
+      if (!qcolor.isValid ()) return false;
+      color= qcolor.name ();
+      try {
+        (void) call (
+          "color-picker-remember-color", object (from_qstring (color)));
+      }
+      catch (...) {}
+      QJsonObject action;
+      action.insert ("op", "make-with");
+      action.insert ("var", "color");
+      action.insert ("value", color);
+      return submit_inline_editor_action (
+        context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
+    });
   registerBehavior (
     "workspace.namespace-explorer", QTMCommandScope::Workspace,
     [] (const QTMCommandContext&) {
@@ -855,9 +1033,42 @@ QTMCommandRegistry::loadPresentation () {
   if (!root.value ("toolbars").isArray ())
     return failPresentation ("toolbars must be an array");
 
+  QJsonArray commandValues= root.value ("commands").toArray ();
+  QJsonArray menuValues= root.value ("menus").toArray ();
+  QJsonArray toolbarValues= root.value ("toolbars").toArray ();
+  {
+    string extensionText;
+    const char* extensionResource=
+      "$ATHENA_PATH/misc/ui/editor-mode-toolbar.json";
+    if (load_string (url (extensionResource), extensionText, false))
+      return failPresentation (
+        QString ("cannot read %1")
+          .arg (QString::fromLatin1 (extensionResource)));
+    c_string extensionBytes (extensionText);
+    QJsonParseError extensionParse;
+    QJsonDocument extensionDocument= QJsonDocument::fromJson (
+      QByteArray (extensionBytes, N(extensionText)), &extensionParse);
+    if (extensionParse.error != QJsonParseError::NoError ||
+        !extensionDocument.isObject ())
+      return failPresentation (
+        QString ("invalid editor mode JSON: %1")
+          .arg (extensionParse.errorString ()));
+    QJsonObject extensionRoot= extensionDocument.object ();
+    if (extensionRoot.value ("version").toInt (-1) != 1 ||
+        !extensionRoot.value ("commands").isArray () ||
+        !extensionRoot.value ("toolbars").isArray ())
+      return failPresentation ("invalid editor mode toolbar schema");
+    for (const QJsonValue& value:
+         extensionRoot.value ("commands").toArray ())
+      commandValues.append (value);
+    for (const QJsonValue& value:
+         extensionRoot.value ("toolbars").toArray ())
+      toolbarValues.append (value);
+  }
+
   QSet<QString> commandIds;
   QHash<QString, QString> shortcuts;
-  for (const QJsonValue& value: root.value ("commands").toArray ()) {
+  for (const QJsonValue& value: commandValues) {
     if (!value.isObject ())
       return failPresentation ("every commands entry must be an object");
     QJsonObject object= value.toObject ();
@@ -869,9 +1080,56 @@ QTMCommandRegistry::loadPresentation () {
         "every command requires non-empty id, label, and category");
     if (commandIds.contains (id))
       return failPresentation (QString ("duplicate command id: %1").arg (id));
-    if (!behaviors_.contains (id))
-      return failPresentation (
-        QString ("presentation references unknown command id: %1").arg (id));
+    if (!behaviors_.contains (id)) {
+      if (!object.value ("editor_action").isObject ())
+        return failPresentation (
+          QString ("presentation references unknown command id: %1").arg (id));
+      QJsonObject action= object.value ("editor_action").toObject ();
+      QString actionError;
+      if (!native_editor_action_validate (action, &actionError))
+        return failPresentation (
+          QString ("invalid editor_action for %1: %2").arg (id, actionError));
+      std::uint32_t required= 0;
+      std::uint32_t forbidden= 0;
+      std::uint32_t any= 0;
+      QString maskError;
+      if (!parse_editor_capability_mask (
+            object.value ("requires"), required, maskError) ||
+          !parse_editor_capability_mask (
+            object.value ("forbids"), forbidden, maskError) ||
+          !parse_editor_capability_mask (
+            object.value ("requires_any"), any, maskError))
+        return failPresentation (
+          QString ("invalid capability mask for %1: %2").arg (id, maskError));
+      if ((required & forbidden) != 0)
+        return failPresentation (
+          QString ("command %1 requires and forbids the same capability")
+            .arg (id));
+      QString encoded= QString::fromUtf8 (
+        QJsonDocument (action).toJson (QJsonDocument::Compact));
+      registerBehavior (
+        id, QTMCommandScope::Editor,
+        [encoded, required, forbidden, any] (const QTMCommandContext& context) {
+          qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+          return proxy != nullptr &&
+                 proxy->submit_editor_action (
+                   encoded, required, forbidden, any);
+        },
+        [required, forbidden, any] (const QTMCommandContext& context) {
+          QTMCommandState state;
+          if (local_text_input_owns_edit_command (context)) return state;
+          qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+          if (proxy == nullptr) return state;
+          actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
+          if (!snapshot.valid ()) return state;
+          state.available=
+            (snapshot.flags & required) == required &&
+            (snapshot.flags & forbidden) == 0 &&
+            (any == 0 || (snapshot.flags & any) != 0);
+          state.enabled= state.available;
+          return state;
+        });
+    }
 
     QString shortcutText= object.value ("shortcut").toString ().trimmed ();
     QKeySequence shortcut;
@@ -973,7 +1231,7 @@ QTMCommandRegistry::loadPresentation () {
     }
     return true;
   };
-  for (const QJsonValue& value: root.value ("menus").toArray ()) {
+  for (const QJsonValue& value: menuValues) {
     if (!value.isObject ())
       return failPresentation ("every menus entry must be an object");
     QJsonObject object= value.toObject ();
@@ -996,7 +1254,7 @@ QTMCommandRegistry::loadPresentation () {
     menus_.append (std::move (menu));
   }
 
-  for (const QJsonValue& value: root.value ("toolbars").toArray ()) {
+  for (const QJsonValue& value: toolbarValues) {
     if (!value.isObject ())
       return failPresentation ("every toolbars entry must be an object");
     QJsonObject object= value.toObject ();

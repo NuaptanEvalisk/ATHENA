@@ -245,3 +245,25 @@ Retirement is group-by-group, with no dual production for a migrated group:
 Generic Scheme menu-widget machinery is not part of that deletion while it is
 still used by context popups, dialogs or bottom-tools.  Main menubar/toolbars
 must not survive as hidden consumers merely to justify retaining the old path.
+
+### Parameterized editor actions for mode toolbars
+
+Mode toolbar migration uses validated `editor_action` command declarations
+instead of translating legacy Scheme menu trees.  Presentation JSON may name
+only operations accepted by `native_editor_action_validate` (for example
+`make`, `make-with`, `make-style-with`, fraction/root/script/wide actions
+and other finite editor primitives).  Each declaration can carry
+`requires`, `requires_any`, and `forbids` capability names.
+
+The owning BufferActor publishes the finite mode/style/selection capability
+bits.  Main reads those bits to present command state, sends only the validated
+compact action JSON plus numeric masks, and the BufferActor recomputes the
+current snapshot before executing inside the existing menu-action transaction.
+Unknown operations or capability names fail presentation validation at startup;
+there is no arbitrary Scheme procedure/expression route in this mechanism.
+
+The capability snapshot currently covers text/math/prog/source/graphics mode,
+poster/manual/letter/book/section/theorem/markup/list/float/fold/std style
+capabilities, presentation/screens mode, and non-small selection state.  Style
+capabilities are refreshed with the actor-owned menu/environment update rather
+than synchronously queried by Main for each toolbar button.

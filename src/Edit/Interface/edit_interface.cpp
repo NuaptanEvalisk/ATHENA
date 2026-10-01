@@ -711,6 +711,7 @@ edit_interface_rep::change_time () {
 
 void
 edit_interface_rep::update_menus () {
+  refresh_editor_style_command_flags ();
   publish_editor_command_state ();
   rebuild_ui_chrome ();
   set_footer ();
@@ -734,13 +735,27 @@ editor_rep::editor_command_state_snapshot () {
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_READ_ONLY;
   if (selection_active_any ())
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_SELECTION;
+  if (selection_active_any () && !selection_active_small ())
+    snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_NON_SMALL_SELECTION;
   if (inside_active_graphics () && native_graphics_selection_active ())
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_GRAPHICS_SELECTION;
   path focus= focus_get ();
   if (test_subtree (focus))
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_FOCUS_NODE;
-  if (get_env_string (MODE) == "math" && !inside_graphics (false))
+  const bool graphics_mode= inside_graphics (false);
+  const string mode= get_env_string (MODE);
+  if (mode == "math" && !graphics_mode)
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_MATH_MODE;
+  if (mode == "text" && !graphics_mode)
+    snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_TEXT_MODE;
+  if (mode == "prog" && !graphics_mode)
+    snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_PROG_MODE;
+  if (mode == "src")
+    snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_SOURCE_MODE;
+  if (graphics_mode)
+    snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_GRAPHICS_MODE;
+
+  snapshot.flags |= editor_style_command_flags;
   const bool screens_mode= inside ("screens");
   if (screens_mode)
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_SCREENS_MODE;
@@ -764,6 +779,42 @@ editor_rep::editor_command_state_snapshot () {
   snapshot.undo_count= static_cast<std::uint16_t> (undo);
   snapshot.redo_count= static_cast<std::uint16_t> (redo);
   return snapshot;
+}
+
+void
+editor_rep::refresh_editor_style_command_flags () {
+  editor_style_command_flags= 0;
+  if (buf == nullptr) return;
+  auto style_has= [] (const char* capability) {
+    try {
+      return as_bool (call ("style-has?", object (string (capability))));
+    }
+    catch (...) {
+      return false;
+    }
+  };
+  if (style_has ("poster-style"))
+    editor_style_command_flags |= ACTOR_EDITOR_COMMAND_STATE_POSTER_STYLE;
+  if (style_has ("tmdoc-style") && !is_rooted_tmfs (buf->name))
+    editor_style_command_flags |= ACTOR_EDITOR_COMMAND_STATE_MANUAL_STYLE;
+  if (style_has ("header-letter-dtd"))
+    editor_style_command_flags |= ACTOR_EDITOR_COMMAND_STATE_HEADER_LETTER;
+  if (style_has ("book-style"))
+    editor_style_command_flags |= ACTOR_EDITOR_COMMAND_STATE_BOOK_STYLE;
+  if (style_has ("section-base-dtd"))
+    editor_style_command_flags |= ACTOR_EDITOR_COMMAND_STATE_SECTION_BASE;
+  if (style_has ("env-theorem-dtd"))
+    editor_style_command_flags |= ACTOR_EDITOR_COMMAND_STATE_ENV_THEOREM;
+  if (style_has ("std-markup-dtd"))
+    editor_style_command_flags |= ACTOR_EDITOR_COMMAND_STATE_STD_MARKUP;
+  if (style_has ("std-list-dtd"))
+    editor_style_command_flags |= ACTOR_EDITOR_COMMAND_STATE_STD_LIST;
+  if (style_has ("env-float-dtd"))
+    editor_style_command_flags |= ACTOR_EDITOR_COMMAND_STATE_ENV_FLOAT;
+  if (style_has ("std-fold-dtd"))
+    editor_style_command_flags |= ACTOR_EDITOR_COMMAND_STATE_STD_FOLD;
+  if (style_has ("std-dtd"))
+    editor_style_command_flags |= ACTOR_EDITOR_COMMAND_STATE_STD_DTD;
 }
 
 void

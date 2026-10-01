@@ -30,6 +30,10 @@ public:
   bool submit_editor_command (native_editor_command_id command);
   bool submit_editor_command (native_editor_command_id command,
                               string argument);
+  bool submit_editor_action (QString encoded,
+                              std::uint32_t requiredFlags,
+                              std::uint32_t forbiddenFlags,
+                              std::uint32_t anyFlags= 0);
 
   bool is_editor_widget () override;
   bool is_embedded_widget () override;

@@ -92,6 +92,7 @@ public:
                              std::uint64_t argument2= 0,
                              std::uint64_t argument3= 0);
   actor_editor_command_snapshot editor_command_state_snapshot ();
+  void refresh_editor_style_command_flags ();
   void publish_editor_command_state ();
   void rebuild_ui_chrome ();
 
@@ -105,6 +106,7 @@ protected:
   path         previous_gp; // previous graphics path
   bool         progressive_typeset_pending;
   bool         progressive_typeset_continue;
+  std::uint32_t editor_style_command_flags= 0;
 #ifdef EXPERIMENTAL
   environment  ste;  // environment for style rewriting
   tree         cct;  // clean copy of the document tree

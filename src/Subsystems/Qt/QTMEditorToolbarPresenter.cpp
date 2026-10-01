@@ -10,16 +10,42 @@
 
 #include "QTMEditorToolbarPresenter.hpp"
 
+#include "QTMApplication.hpp"
 #include "QTMDocumentIdentity.hpp"
 #include "QTMMainTabWindow.hpp"
 #include "QTMToolbar.hpp"
 #include "QTMWidget.hpp"
+#include "qt_utilities.hpp"
 
 #include <QAction>
+#include <QColor>
 #include <QIcon>
 #include <QMenu>
+#include <QPixmap>
 #include <QTimer>
 #include <QToolBar>
+
+namespace {
+
+QIcon
+presentation_icon (const QString& value) {
+  if (value.isEmpty ()) return QIcon ();
+  if (value.startsWith ('#')) {
+    QColor color (value);
+    if (color.isValid ()) {
+      QPixmap pixmap (16, 16);
+      pixmap.fill (color);
+      return QIcon (pixmap);
+    }
+  }
+  QIcon themed= QIcon::fromTheme (value);
+  if (!themed.isNull ()) return themed;
+  if (tmapp () != nullptr)
+    return tmapp ()->icon_manager ().getIcon (url (from_qstring (value)));
+  return QIcon ();
+}
+
+} // namespace
 
 QTMEditorToolbarPresenter::QTMEditorToolbarPresenter (
   QTMWidget* canvas, QToolBar* toolbar, QString definitionId):
@@ -44,8 +70,7 @@ QTMEditorToolbarPresenter::makeCommandAction (
   const QTMCommandDefinition* command=
     QTMCommandRegistry::instance ().command (commandId);
   if (command == nullptr) return nullptr;
-  QIcon icon= command->icon.isEmpty () ? QIcon ():
-              QIcon::fromTheme (command->icon);
+  QIcon icon= presentation_icon (command->icon);
   QAction* action= new QAction (icon, command->label, parent);
   action->setToolTip (command->help);
   action->setStatusTip (command->help);
@@ -93,7 +118,7 @@ QTMEditorToolbarPresenter::buildItem (
     return result;
   }
 
-  QIcon icon= item.icon.isEmpty () ? QIcon (): QIcon::fromTheme (item.icon);
+  QIcon icon= presentation_icon (item.icon);
   QAction* action= new QAction (icon, item.label, toolbar_);
   QMenu* menu= new QMenu (item.label, toolbar_);
   action->setMenu (menu);
@@ -133,7 +158,7 @@ QTMEditorToolbarPresenter::repopulateProvider (
     QTMCommandRegistry::instance ().providerItems (item.providerId, target);
   for (const QTMCommandDynamicItem& value: values) {
     if (!value.state.available) continue;
-    QIcon icon= value.icon.isEmpty () ? QIcon (): QIcon::fromTheme (value.icon);
+    QIcon icon= presentation_icon (value.icon);
     QAction* action= new QAction (icon, value.label, menu);
     action->setToolTip (value.help);
     action->setStatusTip (value.help);

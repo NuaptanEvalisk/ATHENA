@@ -128,6 +128,13 @@ yet. Those keys still have their existing editor/input routes; adding a second
 native shortcut route before retiring the old one would violate the one-route
 rule.
 
+Parameterized editor commands are also accepted by the same registry when a
+JSON command carries a validated `editor_action`.  Their state is determined
+only from published actor capability masks; execution uses the nonblocking
+`native_editor_action_json` transport and actor-side revalidation.  This is
+the foundation for text/math/prog/source mode toolbar migration and is not a
+generic Scheme invocation facility.
+
 ## Zero-buffer ownership now established
 
 The outer `QTMMainTabWindow` is shown directly at startup and no longer needs

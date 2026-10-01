@@ -169,6 +169,24 @@ qt_actor_widget_rep::submit_editor_command (
 }
 
 bool
+qt_actor_widget_rep::submit_editor_action (
+  QString encoded, std::uint32_t requiredFlags,
+  std::uint32_t forbiddenFlags, std::uint32_t anyFlags) {
+  QByteArray bytes= encoded.toUtf8 ();
+  athena_blob_id payload= actor_text_from_string (
+    string (bytes.constData (), bytes.size ()));
+  actor_command_ticket ticket= buffer_actor::try_submit_to (
+    actor_id_, actor_command_kind::native_editor_action_json, view_id_,
+    payload, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+    0, requiredFlags, forbiddenFlags, anyFlags);
+  if (!ticket) {
+    (void) actor_text_registry::instance ().discard (payload);
+    return false;
+  }
+  return true;
+}
+
+bool
 qt_actor_widget_rep::is_editor_widget () {
   return true;
 }

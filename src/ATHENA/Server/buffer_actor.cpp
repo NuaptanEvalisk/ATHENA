@@ -27,6 +27,7 @@
 #include "glue.hpp"
 #include "object.hpp"
 #include "outline_snapshot.hpp"
+#include "native_editor_actions.hpp"
 #include "new_style.hpp"
 #include "Data/interop_document_source.hpp"
 #include "Subsystems/RAG/rag_realtime_generation.hpp"
@@ -37,6 +38,7 @@
 #include "QTMNodePropertiesDialog.hpp"
 #include "QTMRenderService.hpp"
 #include "qt_renderer.hpp"
+#include <QJsonDocument>
 #include <QPainter>
 #endif
 
@@ -974,6 +976,48 @@ buffer_actor::dispatch (actor_command_record& command) {
         static_cast<native_editor_command_id> (command.argument[0]),
         argument) ? 1 : 0;
     else command.argument[0]= 0;
+    break;
+  }
+  case actor_command_kind::native_editor_action_json: {
+    string encoded;
+    if (command.payload0 != ATHENA_NO_BLOB)
+      encoded= actor_text_registry::instance ().take (command.payload0);
+    command.argument[0]= 0;
+    if (editor == nullptr || N(encoded) == 0) break;
+    actor_editor_command_snapshot state= editor->editor_command_state_snapshot ();
+    const std::uint32_t required=
+      static_cast<std::uint32_t> (command.argument[1]);
+    const std::uint32_t forbidden=
+      static_cast<std::uint32_t> (command.argument[2]);
+    const std::uint32_t any=
+      static_cast<std::uint32_t> (command.argument[3]);
+    if (!state.valid () ||
+        (state.flags & required) != required ||
+        (state.flags & forbidden) != 0 ||
+        (any != 0 && (state.flags & any) == 0))
+      break;
+#ifdef QTTEXMACS
+    QJsonParseError parse;
+    QJsonDocument document= QJsonDocument::fromJson (
+      QByteArray (encoded.data (), N(encoded)), &parse);
+    if (parse.error != QJsonParseError::NoError || !document.isObject ())
+      break;
+    QString validation;
+    if (!native_editor_action_validate (document.object (), &validation))
+      break;
+    editor->before_menu_action ();
+    try {
+      native_editor_action_execute (editor, document.object ());
+      editor->after_menu_action ();
+      editor->publish_editor_command_state ();
+      command.argument[0]= 1;
+    }
+    catch (...) {
+      editor->cancel_menu_action ();
+      editor->publish_editor_command_state ();
+      throw;
+    }
+#endif
     break;
   }
   case actor_command_kind::keyboard_focus:
