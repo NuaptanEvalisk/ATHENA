@@ -24,6 +24,7 @@
 
 enum class QTMCommandScope {
   Application,
+  Workspace,
   Pane,
   Editor
 };

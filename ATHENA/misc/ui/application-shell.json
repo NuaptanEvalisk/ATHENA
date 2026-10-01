@@ -27,7 +27,7 @@
     {
       "id": "application.command-palette",
       "label": "Command palette...",
-      "category": "View",
+      "category": "Go",
       "icon": "system-search",
       "help": "Search commands available in the current work context",
       "shortcut": "Ctrl+Shift+P"
@@ -46,6 +46,83 @@
       "category": "Workspace",
       "icon": "view-list-tree",
       "help": "Show the Namespace Explorer pane"
+    },
+    {
+      "id": "view.error-messages",
+      "label": "Error messages",
+      "category": "View",
+      "icon": "dialog-error",
+      "help": "Show the shared Error Messages pane"
+    },
+    {
+      "id": "view.artifacts",
+      "label": "Artifacts",
+      "category": "View",
+      "icon": "view-list-details",
+      "help": "Show artifacts for the active vault"
+    },
+    {
+      "id": "file.compare-files",
+      "label": "Compare two files",
+      "category": "File",
+      "icon": "document-compare",
+      "help": "Compare two ATHENA documents"
+    },
+    {
+      "id": "file.export-namespace",
+      "label": "Export namespace",
+      "category": "File",
+      "icon": "document-export",
+      "help": "Export a namespace from the active vault"
+    },
+    {
+      "id": "application.quick-switcher",
+      "label": "Quick switcher",
+      "category": "Go",
+      "icon": "system-search",
+      "help": "Switch quickly among vault documents"
+    },
+    {
+      "id": "workspace.namespace-manager",
+      "label": "Namespace Manager",
+      "category": "Workspace",
+      "icon": "view-list-tree",
+      "help": "Open the Namespace Manager"
+    },
+    {
+      "id": "workspace.websites-manager",
+      "label": "Websites manager",
+      "category": "Workspace",
+      "icon": "applications-internet",
+      "help": "Open the Websites manager"
+    },
+    {
+      "id": "workspace.materials-manager",
+      "label": "Materials manager",
+      "category": "Workspace",
+      "icon": "folder-documents",
+      "help": "Open the Materials manager"
+    },
+    {
+      "id": "workspace.custom-styles-manager",
+      "label": "Custom styles manager",
+      "category": "Workspace",
+      "icon": "preferences-desktop-theme",
+      "help": "Open the Custom styles manager"
+    },
+    {
+      "id": "workspace.audmap-repl",
+      "label": "AUDMAP REPL",
+      "category": "Workspace",
+      "icon": "utilities-terminal",
+      "help": "Open the AUDMAP REPL pane"
+    },
+    {
+      "id": "workspace.google-tasks",
+      "label": "Google Tasks",
+      "category": "Workspace",
+      "icon": "view-task",
+      "help": "Open the Google Tasks pane"
     },
     {
       "id": "editor.undo",
@@ -139,6 +216,9 @@
       "items": [
         { "command": "application.new-document" },
         { "command": "application.open" },
+        { "command": "file.compare-files" },
+        { "separator": true },
+        { "command": "file.export-namespace" },
         { "separator": true },
         { "command": "application.preferences" },
         { "separator": true },
@@ -177,14 +257,30 @@
       "id": "view",
       "label": "View",
       "items": [
-        { "command": "application.command-palette" }
+        { "command": "view.error-messages" },
+        { "command": "view.artifacts" }
       ]
     },
     {
       "id": "workspace",
       "label": "Workspace",
       "items": [
-        { "command": "workspace.namespace-explorer" }
+        { "command": "workspace.namespace-explorer" },
+        { "command": "workspace.namespace-manager" },
+        { "command": "workspace.websites-manager" },
+        { "command": "workspace.materials-manager" },
+        { "command": "workspace.custom-styles-manager" },
+        { "separator": true },
+        { "command": "workspace.audmap-repl" },
+        { "command": "workspace.google-tasks" }
+      ]
+    },
+    {
+      "id": "go",
+      "label": "Go",
+      "items": [
+        { "command": "application.command-palette" },
+        { "command": "application.quick-switcher" }
       ]
     }
   ]

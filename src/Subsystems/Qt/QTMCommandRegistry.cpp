@@ -11,9 +11,20 @@
 #include "QTMCommandRegistry.hpp"
 
 #include "QTMCommandPalette.hpp"
+#include "QTMArtifactsPane.hpp"
+#include "QTMErrorMessagesPane.hpp"
 #include "QTMNamespaceExplorer.hpp"
 #include "QTMPreferencesDialog.hpp"
 #include "QTMWidget.hpp"
+#include "QTMATHENADiff.hpp"
+#include "QTMAudmap.hpp"
+#include "QTMCustomStylesManager.hpp"
+#include "QTMMaterialsManager.hpp"
+#include "QTMNamespaceExport.hpp"
+#include "QTMNamespaceManager.hpp"
+#include "QTMQuickSwitcher.hpp"
+#include "QTMWebsitesManager.hpp"
+#include "QTMGoogleTasksPane.hpp"
 #include "qt_actor_widget.hpp"
 #include "file.hpp"
 #include "new_window.hpp"
@@ -223,9 +234,75 @@ QTMCommandRegistry::registerBuiltins () {
       return state;
     });
   registerBehavior (
-    "workspace.namespace-explorer", QTMCommandScope::Application,
+    "workspace.namespace-explorer", QTMCommandScope::Workspace,
     [] (const QTMCommandContext&) {
       namespace_explorer_show ();
+      return true;
+    });
+  registerBehavior (
+    "view.error-messages", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      error_messages_show ();
+      return true;
+    });
+  registerBehavior (
+    "view.artifacts", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      artifacts_pane_show ();
+      return true;
+    });
+  registerBehavior (
+    "file.compare-files", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      athena_diff_show ();
+      return true;
+    });
+  registerBehavior (
+    "file.export-namespace", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      namespace_export_show ();
+      return true;
+    });
+  registerBehavior (
+    "application.quick-switcher", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      open_vault_quick_switcher ();
+      return true;
+    });
+  registerBehavior (
+    "workspace.namespace-manager", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      namespace_manager_show ();
+      return true;
+    });
+  registerBehavior (
+    "workspace.websites-manager", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      websites_manager_show ();
+      return true;
+    });
+  registerBehavior (
+    "workspace.materials-manager", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      materials_manager_show ();
+      return true;
+    });
+  registerBehavior (
+    "workspace.custom-styles-manager", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      custom_styles_manager_show ();
+      return true;
+    });
+  registerBehavior (
+    "workspace.audmap-repl", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      audmap_repl_show ();
+      return true;
+    });
+  registerBehavior (
+    "workspace.google-tasks", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      google_tasks_show ();
       return true;
     });
 
@@ -437,7 +514,8 @@ QTMCommandRegistry::state (const QString& id,
   if (it == behaviors_.constEnd ()) return {};
   const Behavior& behavior= it.value ();
 
-  if (behavior.scope == QTMCommandScope::Application) {
+  if (behavior.scope == QTMCommandScope::Application ||
+      behavior.scope == QTMCommandScope::Workspace) {
     if (behavior.state) return behavior.state (context);
     return enabled_application_command ();
   }
@@ -468,7 +546,8 @@ QTMCommandRegistry::execute (const QString& id,
   if (!current.available || !current.enabled) return false;
 
   const Behavior& behavior= it.value ();
-  if (behavior.scope == QTMCommandScope::Application)
+  if (behavior.scope == QTMCommandScope::Application ||
+      behavior.scope == QTMCommandScope::Workspace)
     return behavior.execute ? behavior.execute (context): false;
 
   if (behavior.scope == QTMCommandScope::Pane) {

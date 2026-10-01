@@ -15,6 +15,17 @@ not be reported as native cutover.
 | `application.command-palette` | application | `QTMCommandPalette` | native registry + JSON | native |
 | `application.quit` | application | shell close -> existing safe-quit transaction | native registry + JSON | native UI / existing quit transaction |
 | `workspace.namespace-explorer` | application | `QTMNamespaceExplorer` launcher | native registry + JSON | native |
+| `view.error-messages` | application | `QTMErrorMessagesPane` | native registry + JSON | native |
+| `view.artifacts` | workspace | `QTMArtifactsPane` | native registry + JSON | native |
+| `file.compare-files` | application | native ATHENA diff dialog | native registry + JSON | native |
+| `file.export-namespace` | workspace | native namespace export flow | native registry + JSON | native UI / existing export business operation |
+| `application.quick-switcher` | workspace | native vault quick switcher | native registry + JSON | native UI / existing recent-file adapter |
+| `workspace.namespace-manager` | workspace | `QTMNamespaceManager` | native registry + JSON | native |
+| `workspace.websites-manager` | workspace | `QTMWebsitesManager` | native registry + JSON | native |
+| `workspace.materials-manager` | workspace | `QTMMaterialsManager` | native registry + JSON | native |
+| `workspace.custom-styles-manager` | workspace | `QTMCustomStylesManager` | native registry + JSON | native |
+| `workspace.audmap-repl` | workspace | native AUDMAP ADS pane | native registry + JSON | native |
+| `workspace.google-tasks` | workspace | native Google Tasks ADS pane | native registry + JSON | native |
 | `namespace.open` | pane | `QTMNamespaceExplorer` | pane provider state | native |
 | `namespace.copy` | pane | `QTMNamespaceExplorer` | pane provider state | native |
 | `namespace.paste` | pane | `QTMNamespaceExplorer` | pane provider state | native |

@@ -53,7 +53,7 @@ must not make their commands unreachable.
 | Load Vault | pending | application/vault operation |
 | Unload Vault | pending | application/vault operation and stale-context invalidation |
 | Revert | pending | editor actor command + dirty-state policy |
-| Compare two files | pending | native diff UI exists; register application command |
+| Compare two files | native | `file.compare-files` |
 | Open in text editor | pending | current-file editor state + external launch adapter |
 | Open in file manager | pending | current-file editor state + external launch adapter |
 | Recent Files | provider | application recent-file provider + clear action |
@@ -64,7 +64,7 @@ must not make their commands unreachable.
 | Print / Page setup | pending | document-scoped print providers |
 | Import | provider | converter inventory/provider; includes embedded-PDF adapter |
 | Export | provider | converter/print inventory/provider + selection state |
-| Export namespace | pending | native namespace export UI exists; register command |
+| Export namespace | native/adapter | `file.export-namespace`; native flow with existing export business operation |
 | Close document | pending | document-view target, not application Quit |
 | Restart ATHENA | adapter pending | preserve safe restart transaction |
 | Close ATHENA | native/adapter | `application.quit` -> existing safe-quit transaction |
@@ -103,17 +103,17 @@ must not make their commands unreachable.
 
 ## View
 
-All existing legacy View entries remain reachable through the legacy menu until
-registered.  The native registry currently adds Command palette as an
-application View command; this is an additive native command, not a claim that
-the legacy View menu has migrated.
+All remaining legacy View entries remain reachable through the legacy menu until
+registered.  Error Messages and Artifacts now have native registry commands.
 
 | Current direct entry/branch | Disposition |
 | --- | --- |
 | Full screen / Presentation / Panorama / All slides | pending editor/view state |
 | Show outline | pending; native pane exists |
 | Vault Explorer / Namespace Explorer / Document History | partial; Namespace Explorer native, other native panes pending registration |
-| Neighborhoods / Error messages / Artifacts | pending; native panes exist |
+| Neighborhoods | pending; current implementation still reads global current-buffer state |
+| Error messages | native: `view.error-messages` |
+| Artifacts | native: `view.artifacts` |
 | Headings -> Unfold all | pending editor actor command |
 | Fit to screen / width / persistent width | pending editor view snapshot/dispatch |
 | Typewriter mode | pending preference + editor state |
@@ -131,13 +131,14 @@ the legacy View menu has migrated.
 | Configure Font for Vault | pending workspace/vault operation |
 | Run global transformation | pending workspace operation |
 | AUDMAP REPL | pending native pane registration |
-| Namespace Manager | pending; native manager exists |
-| Websites manager | pending; native manager exists |
-| Materials manager | pending; native manager exists |
-| Custom styles manager | pending; native manager exists |
+| Namespace Manager | native: `workspace.namespace-manager` |
+| Websites manager | native: `workspace.websites-manager` |
+| Materials manager | native: `workspace.materials-manager` |
+| Custom styles manager | native: `workspace.custom-styles-manager` |
 | Vault -> Bugcheck / Maintenance | pending workspace/vault commands |
 | Artifacts -> Build entire vault/current document | pending workspace/editor commands |
-| Google Tasks | pending native pane registration |
+| Google Tasks | native: `workspace.google-tasks` |
+| AUDMAP REPL | native: `workspace.audmap-repl` |
 | Refresh caches -> Styles | pending application/workspace command |
 | Clean cache | pending application command |
 | Namespace Explorer | native additive command: `workspace.namespace-explorer` |
@@ -156,7 +157,7 @@ editor predicates.  The editor toolbar remains view-owned after menubar cutover.
 | Welcome (System) / Welcome (Vault) | pending application/vault navigation |
 | Random document | pending vault provider |
 | Command palette | native: `application.command-palette` |
-| Quick switcher | pending native application command registration |
+| Quick switcher | native/adapter: `application.quick-switcher`; native UI with existing recent-file query adapter |
 | Back / Forward / Save position | pending editor navigation snapshot/dispatch |
 | Buffer/window/hidden/linked/recent/bookmark lists | provider; explicit document/view identities required |
 
