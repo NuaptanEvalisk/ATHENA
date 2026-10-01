@@ -72,8 +72,12 @@ The following remain intentionally on their existing path until a coherent
 native stage replaces them:
 
 - The application menubar is still produced by Scheme inside editor windows.
-  A shell-owned menubar must not be enabled until overlapping production and
-  shortcut routes can be retired without losing command coverage.
+  The shell now owns an inactive `QTMApplicationMenuPresenter` implementation
+  that consumes only the native registry, freezes work/input context on menu
+  presentation, and normalizes unavailable contextual groups.  It has no
+  production activation call.  It must not be enabled until overlapping
+  production and shortcut routes can be retired without losing command
+  coverage; see `notes/native-application-menu-migration.md`.
 - The first editor Edit/Focus slice is native: Undo, Redo, Copy, Cut, Paste,
   and Node properties use BufferActor snapshots plus ID-only dispatch. The
   remaining Edit contents and the dynamic structured Focus hierarchy still need

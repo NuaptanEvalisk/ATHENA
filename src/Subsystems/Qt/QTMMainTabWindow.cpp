@@ -1,5 +1,6 @@
 #include "QTMMainTabWindow.hpp"
 #include "ATHENA/Features/athena_features.hpp"
+#include "QTMApplicationMenuPresenter.hpp"
 #include "QTMApplication.hpp"
 #include "QTMBufferSwitcher.hpp"
 #include "QTMCustomStylesManager.hpp"
@@ -209,6 +210,9 @@ QTMMainTabWindow::QTMMainTabWindow()
   bench_start ("construct ads dock manager");
   mDockManager = new ads::CDockManager(this);
   setCentralWidget (mDockManager);
+  // Construct the application-shell presenter now so ownership is correct, but
+  // leave it inactive until command migration has complete production coverage.
+  mNativeMenuPresenter= std::make_unique<QTMApplicationMenuPresenter> (this);
   bench_cumul ("construct ads dock manager");
   bench_start ("connect main window shell");
   connect(mDockManager, &ads::CDockManager::focusedDockWidgetChanged,

@@ -1,0 +1,201 @@
+# Native application menubar migration inventory
+
+This file records the production disposition of the current Scheme menubar
+before the application shell takes ownership.  It is an inventory, not a second
+menu definition: shipped ordering belongs in `application-shell.json`, behavior
+belongs in the native command registry, and dynamic editor state belongs in
+BufferActor/pane providers.
+
+Disposition:
+
+- **native** — registered native command with native state/target enforcement.
+- **adapter** — native UI ownership is acceptable, but execution deliberately
+  delegates to an existing business operation while that operation remains the
+  domain authority.
+- **pending** — legacy production path remains authoritative; shell cutover must
+  not hide this entry.
+- **provider** — dynamic/extension content needs a native contribution provider,
+  not a static copy of the current rendered menu.
+
+## Top-level ownership
+
+| Current top-level entry | Source | Disposition |
+| --- | --- | --- |
+| File | `athena/menus/main-menu.scm -> file-menu` | partial; keep legacy production until remaining File commands migrate |
+| Edit | `athena/menus/edit-menu.scm` | partial native Edit core; remaining branches pending |
+| Insert | mode-dependent `insert-menu` / graphics insert menu | pending editor provider |
+| Manual | conditional `tmdoc-menu` | pending editor/provider |
+| Source | conditional `source-menu` | pending editor/provider |
+| Dynamic | conditional presentation menu | pending editor/provider |
+| Focus | `athena-focus-menu` / graphics focus menu | partial native; dynamic structured focus pending |
+| Format | mode-dependent `format-menu` | pending editor provider |
+| Document | `generic/document-menu.scm` plus ATHENA extension | pending editor/provider |
+| Interface | `athena/menus/interface-menu.scm` | pending editor-view state migration |
+| View | `athena/menus/view-menu.scm` | pending; several panes already have native Qt implementations |
+| Workspace | `athena/menus/main-menu.scm` plus utility menu | partial; Namespace Explorer is native |
+| Go | `athena/menus/file-menu.scm` plus utility menu | partial; Command palette is native |
+| Test | optional dynamic `test-menu` | provider |
+| Help | `doc/help-menu.scm` plus utility menu | pending application/help provider |
+| `texmacs-extra-menu` | runtime extension point | provider |
+
+The optional/contextual top-level entries above are part of the migration
+contract.  A stable shell menubar may present a stable superset, but cutover
+must not make their commands unreachable.
+
+## File
+
+| Current direct entry | Disposition | Native target / remaining work |
+| --- | --- | --- |
+| New | native | `application.new-document` |
+| New within namespace | pending | register existing namespace wizard operation |
+| Load | native/adapter | `application.open`; native file chooser -> existing load-buffer business operation |
+| Load in new window | pending | window/document identity must be explicit |
+| Load Vault | pending | application/vault operation |
+| Unload Vault | pending | application/vault operation and stale-context invalidation |
+| Revert | pending | editor actor command + dirty-state policy |
+| Compare two files | pending | native diff UI exists; register application command |
+| Open in text editor | pending | current-file editor state + external launch adapter |
+| Open in file manager | pending | current-file editor state + external launch adapter |
+| Recent Files | provider | application recent-file provider + clear action |
+| Recent Vaults | provider | vault recent-list provider + clear action |
+| Save | pending | editor actor save command/state |
+| Pause/Resume realtime save | pending | editor snapshot checked/state + actor dispatch |
+| Save as | pending | shell chooser + actor save-as transaction |
+| Print / Page setup | pending | document-scoped print providers |
+| Import | provider | converter inventory/provider; includes embedded-PDF adapter |
+| Export | provider | converter/print inventory/provider + selection state |
+| Export namespace | pending | native namespace export UI exists; register command |
+| Close document | pending | document-view target, not application Quit |
+| Restart ATHENA | adapter pending | preserve safe restart transaction |
+| Close ATHENA | native/adapter | `application.quit` -> existing safe-quit transaction |
+
+## Edit
+
+| Current direct entry/branch | Disposition | Native target / remaining work |
+| --- | --- | --- |
+| Undo | native | `editor.undo`, actor snapshot + ID dispatch |
+| Redo | native | `editor.redo`; multi-branch redo submenu still pending provider |
+| Copy | native | `editor.copy` with local Qt input ownership protection |
+| Cut | native | `editor.cut` with read-only/selection actor state |
+| Paste | native | `editor.paste` with read-only actor state |
+| Clear | pending | editor actor command |
+| Search | pending | native search bar exists; register editor/view command |
+| Global search | pending | native global search UI exists; register application/workspace command |
+| Replace | pending | native search/replace UI exists; register editor/view command |
+| Correct | provider | math-context correction provider |
+| AI | provider | selection-gated completion commands |
+| Copy to / Cut to / Paste from | provider | clipboard-format inventories and selection state |
+| Import selections as / Export selections as | provider | converter/preference inventories |
+| Clear undo history | pending | editor actor command |
+| View all preferences | pending | application preferences surface |
+| Preferences | native | `application.preferences` |
+
+## Focus
+
+| Current direct entry/branch | Disposition | Native target / remaining work |
+| --- | --- | --- |
+| Structured focus hierarchy | provider | publish compact focus capabilities/identities; do not copy focus trees to Main |
+| Node properties... | native | `editor.node-properties`, actor revalidation + native dialog |
+| Vault transclusion focus additions | provider | editor/vault focus provider |
+| Materials focus additions | provider | editor/materials focus provider |
+| Graphics focus menu | provider | graphics-mode editor provider |
+| Namespace open/refresh context | native | `namespace.open`, `namespace.refresh` when Namespace Explorer owns work context |
+
+## View
+
+All existing legacy View entries remain reachable through the legacy menu until
+registered.  The native registry currently adds Command palette as an
+application View command; this is an additive native command, not a claim that
+the legacy View menu has migrated.
+
+| Current direct entry/branch | Disposition |
+| --- | --- |
+| Full screen / Presentation / Panorama / All slides | pending editor/view state |
+| Show outline | pending; native pane exists |
+| Vault Explorer / Namespace Explorer / Document History | partial; Namespace Explorer native, other native panes pending registration |
+| Neighborhoods / Error messages / Artifacts | pending; native panes exist |
+| Headings -> Unfold all | pending editor actor command |
+| Fit to screen / width / persistent width | pending editor view snapshot/dispatch |
+| Typewriter mode | pending preference + editor state |
+| Labels | provider/pending preference commands |
+| Graphs | pending native graph launch commands |
+| Zoom in/out / fixed Zoom / Other | pending view-owned actor commands |
+| Snap to pages | pending preference/editor view state |
+
+## Workspace
+
+| Current direct entry/branch | Disposition |
+| --- | --- |
+| New tab | native via `application.new-document` presentation reuse |
+| New floating window | pending explicit window command |
+| Configure Font for Vault | pending workspace/vault operation |
+| Run global transformation | pending workspace operation |
+| AUDMAP REPL | pending native pane registration |
+| Namespace Manager | pending; native manager exists |
+| Websites manager | pending; native manager exists |
+| Materials manager | pending; native manager exists |
+| Custom styles manager | pending; native manager exists |
+| Vault -> Bugcheck / Maintenance | pending workspace/vault commands |
+| Artifacts -> Build entire vault/current document | pending workspace/editor commands |
+| Google Tasks | pending native pane registration |
+| Refresh caches -> Styles | pending application/workspace command |
+| Clean cache | pending application command |
+| Namespace Explorer | native additive command: `workspace.namespace-explorer` |
+
+## Interface
+
+Header bars, four editor icon-bar toggles, Status bar, Presentation tool, Source
+macros tool, Show key presses, and Remote control are all **pending**.  Their
+checked state must come from view/preference snapshots rather than Main calling
+editor predicates.  The editor toolbar remains view-owned after menubar cutover.
+
+## Go
+
+| Current direct entry/branch | Disposition |
+| --- | --- |
+| Welcome (System) / Welcome (Vault) | pending application/vault navigation |
+| Random document | pending vault provider |
+| Command palette | native: `application.command-palette` |
+| Quick switcher | pending native application command registration |
+| Back / Forward / Save position | pending editor navigation snapshot/dispatch |
+| Buffer/window/hidden/linked/recent/bookmark lists | provider; explicit document/view identities required |
+
+## Insert, Format, Document
+
+These are editor-local dynamic menus and remain **pending providers**.  The
+shell must not evaluate `in-text?`, `in-math?`, `in-prog?`,
+`buffer-has-preamble?`, style/font predicates, or similar Scheme predicates.
+Their eventual native presentation should consume finite actor-published mode,
+focus, selection, style/document and checked-state snapshots.
+
+Document's current direct branches include Style, Citation Style, style extras,
+source/preamble toggles, Update, Font, Paragraph, Page, Metadata,
+Magnification, Colors, Language, Informative flags, and the ATHENA document
+utilities (macros, auxiliary-data refresh/statistics/save-aux).  Every one is
+pending until its state/dispatch provider is native.
+
+## Help and runtime contributions
+
+About ATHENA, Welcome, Getting started, Configuration, Manual, Reference guide,
+Apropos, documentation/source/recent search, Full manuals, and Shortcuts listing
+are **pending application/help commands/providers**.  Help availability comes
+from shipped resources rather than an editor.
+
+`test-menu`, `bookmarks-menu`, `texmacs-extra-menu`, converter lists,
+style/package lists and plugin contributions are **provider** work.  They must
+join the registry/contribution model at runtime; they must not be captured by
+walking a rendered legacy `QMenu` tree.
+
+## Production cutover gate
+
+The shell-owned presenter may replace the editor-owned production menubar only
+after:
+
+1. Every row above is native/adapter/provider with a working native presentation
+   route, or explicitly retired with justification.
+2. Contextual top-level menus and runtime contributions remain reachable.
+3. Shortcut ownership has one winning route per key.
+4. Editor-local controls keep local clipboard/typing behavior.
+5. Zero-buffer File/View/Workspace/Go/Help operations remain usable.
+6. The old Scheme menubar production path is removed in the same coherent
+   milestone; it is not kept as a hidden fallback.

@@ -18,11 +18,14 @@
 #include <QPair>
 #include <QPointer>
 #include <DockManager.h>
+#include <memory>
 
 namespace ads {
 class CDockAreaWidget;
 class CDockContainerWidget;
 }
+
+class QTMApplicationMenuPresenter;
 
 bool athena_qt_is_closing ();
 bool athena_has_open_ads_panes ();
@@ -92,6 +95,7 @@ private:
 
   ads::CDockManager* mDockManager;
   QPointer<QWidget> mLastFocusedDocumentWidget;
+  std::unique_ptr<QTMApplicationMenuPresenter> mNativeMenuPresenter;
   QList<QPair<QPointer<ads::CDockWidget>, ads::DockWidgetArea>>
     mAdsDocksToReveal;
   bool mAdsLayoutRestoreScheduled;
