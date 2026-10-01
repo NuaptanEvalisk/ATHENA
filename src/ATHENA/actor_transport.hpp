@@ -58,7 +58,14 @@ enum class native_editor_command_id: std::uint32_t {
   print,
   close_window,
   history_back,
-  history_forward
+  history_forward,
+  math_correct_all,
+  presentation_first,
+  presentation_previous_screen,
+  presentation_previous,
+  presentation_next,
+  presentation_next_screen,
+  presentation_last
 };
 
 enum class actor_command_kind: std::uint32_t {

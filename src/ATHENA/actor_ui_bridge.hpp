@@ -58,7 +58,10 @@ enum actor_editor_command_state_flag: std::uint32_t {
   ACTOR_EDITOR_COMMAND_STATE_READ_ONLY= 1U << 1,
   ACTOR_EDITOR_COMMAND_STATE_SELECTION= 1U << 2,
   ACTOR_EDITOR_COMMAND_STATE_GRAPHICS_SELECTION= 1U << 3,
-  ACTOR_EDITOR_COMMAND_STATE_FOCUS_NODE= 1U << 4
+  ACTOR_EDITOR_COMMAND_STATE_FOCUS_NODE= 1U << 4,
+  ACTOR_EDITOR_COMMAND_STATE_MATH_MODE= 1U << 5,
+  ACTOR_EDITOR_COMMAND_STATE_PRESENTATION_MODE= 1U << 6,
+  ACTOR_EDITOR_COMMAND_STATE_SCREENS_MODE= 1U << 7
 };
 
 struct actor_editor_command_snapshot {
@@ -80,6 +83,15 @@ struct actor_editor_command_snapshot {
   }
   bool focus_node_available () const noexcept {
     return (flags & ACTOR_EDITOR_COMMAND_STATE_FOCUS_NODE) != 0;
+  }
+  bool math_mode () const noexcept {
+    return (flags & ACTOR_EDITOR_COMMAND_STATE_MATH_MODE) != 0;
+  }
+  bool presentation_mode () const noexcept {
+    return (flags & ACTOR_EDITOR_COMMAND_STATE_PRESENTATION_MODE) != 0;
+  }
+  bool screens_mode () const noexcept {
+    return (flags & ACTOR_EDITOR_COMMAND_STATE_SCREENS_MODE) != 0;
   }
 };
 

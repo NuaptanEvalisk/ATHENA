@@ -26,7 +26,7 @@ Disposition:
 | Insert | mode-dependent `insert-menu` / graphics insert menu | pending editor provider |
 | Manual | conditional `tmdoc-menu` | pending editor/provider |
 | Source | conditional `source-menu` | pending editor/provider |
-| Dynamic | conditional presentation menu | pending editor/provider |
+| Dynamic | conditional presentation menu | partial native | main-toolbar traversal is native from presentation/screens snapshot bits; broader Dynamic menu remains pending |
 | Focus | `athena-focus-menu` / graphics focus menu | partial native; dynamic structured focus pending |
 | Format | mode-dependent `format-menu` | pending editor provider |
 | Document | `generic/document-menu.scm` plus ATHENA extension | pending editor/provider |
@@ -82,7 +82,7 @@ must not make their commands unreachable.
 | Search | native | `editor.search`; opens the search bar on the frozen editor canvas |
 | Global search | native: `workspace.global-search`; preview zoom is frozen in the originating command context |
 | Replace | native | `editor.replace`; frozen editor canvas + read-only snapshot |
-| Correct | provider | math-context correction provider |
+| Correct | native | math-mode snapshot + `editor.math-correct-all` and three native preference toggle commands |
 | AI | provider | selection-gated completion commands |
 | Copy to / Cut to / Paste from | provider | clipboard-format inventories and selection state |
 | Import selections as / Export selections as | provider | converter/preference inventories |

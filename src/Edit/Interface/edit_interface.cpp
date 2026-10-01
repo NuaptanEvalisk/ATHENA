@@ -739,6 +739,21 @@ editor_rep::editor_command_state_snapshot () {
   path focus= focus_get ();
   if (test_subtree (focus))
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_FOCUS_NODE;
+  if (get_env_string (MODE) == "math" && !inside_graphics (false))
+    snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_MATH_MODE;
+  const bool screens_mode= inside ("screens");
+  if (screens_mode)
+    snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_SCREENS_MODE;
+  bool beamer_style= false;
+  tree style= get_style ();
+  for (int i= 0; i < arity (style); ++i)
+    if (is_atomic (style[i]) && as_string (style[i]) == "beamer") {
+      beamer_style= true;
+      break;
+    }
+  if (screens_mode || beamer_style ||
+      get_user_preference ("presentation tool", "off") == "on")
+    snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_PRESENTATION_MODE;
 
   int undo= undo_possibilities ();
   int redo= redo_possibilities ();

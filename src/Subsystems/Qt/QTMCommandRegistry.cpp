@@ -33,6 +33,7 @@
 #include "QTMGoogleTasksPane.hpp"
 #include "qt_actor_widget.hpp"
 #include "document_persistence.hpp"
+#include "boot.hpp"
 #include "file.hpp"
 #include "new_buffer.hpp"
 #include "new_window.hpp"
@@ -159,6 +160,18 @@ editor_command_id (const QString& id) {
     return native_editor_command_id::history_back;
   if (id == "editor.history-forward")
     return native_editor_command_id::history_forward;
+  if (id == "editor.presentation-first")
+    return native_editor_command_id::presentation_first;
+  if (id == "editor.presentation-previous-screen")
+    return native_editor_command_id::presentation_previous_screen;
+  if (id == "editor.presentation-previous")
+    return native_editor_command_id::presentation_previous;
+  if (id == "editor.presentation-next")
+    return native_editor_command_id::presentation_next;
+  if (id == "editor.presentation-next-screen")
+    return native_editor_command_id::presentation_next_screen;
+  if (id == "editor.presentation-last")
+    return native_editor_command_id::presentation_last;
   return native_editor_command_id::none;
 }
 
@@ -218,6 +231,18 @@ native_editor_command_state (const QString& id,
   case native_editor_command_id::history_forward:
     result.enabled= true;
     break;
+  case native_editor_command_id::presentation_first:
+  case native_editor_command_id::presentation_previous:
+  case native_editor_command_id::presentation_next:
+  case native_editor_command_id::presentation_last:
+    result.available= snapshot.presentation_mode ();
+    result.enabled= result.available;
+    break;
+  case native_editor_command_id::presentation_previous_screen:
+  case native_editor_command_id::presentation_next_screen:
+    result.available= snapshot.presentation_mode () && snapshot.screens_mode ();
+    result.enabled= result.available;
+    break;
   default:
     break;
   }
@@ -242,6 +267,18 @@ native_editor_view_command_state (const QTMCommandContext& context,
   if (proxy == nullptr) return result;
   actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
   if (!snapshot.valid ()) return result;
+  result.available= true;
+  result.enabled= !writable || !snapshot.read_only ();
+  return result;
+}
+
+QTMCommandState
+math_mode_command_state (const QTMCommandContext& context, bool writable) {
+  QTMCommandState result;
+  qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+  if (proxy == nullptr) return result;
+  actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
+  if (!snapshot.valid () || !snapshot.math_mode ()) return result;
   result.available= true;
   result.enabled= !writable || !snapshot.read_only ();
   return result;
@@ -621,6 +658,47 @@ QTMCommandRegistry::registerBuiltins () {
     [] (const QTMCommandContext& context) {
       return native_editor_view_command_state (context, true);
     });
+  registerBehavior (
+    "editor.math-correct-all", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      return proxy != nullptr &&
+             proxy->submit_editor_command (
+               native_editor_command_id::math_correct_all);
+    },
+    [] (const QTMCommandContext& context) {
+      return math_mode_command_state (context, true);
+    });
+
+  auto registerMathPreference=
+    [this] (const QString& id, string preference) {
+      registerBehavior (
+        id, QTMCommandScope::Editor,
+        [preference] (const QTMCommandContext& context) {
+          QTMCommandState state= math_mode_command_state (context, false);
+          if (!state.available || !state.enabled) return false;
+          string current= get_user_preference (preference, "on");
+          set_user_preference (
+            preference, current == "on" ? string ("off") : string ("on"));
+          return true;
+        },
+        [preference] (const QTMCommandContext& context) {
+          QTMCommandState state= math_mode_command_state (context, false);
+          if (!state.available) return state;
+          state.checkable= true;
+          state.checked= get_user_preference (preference, "on") == "on";
+          return state;
+        });
+    };
+  registerMathPreference (
+    "editor.math-correct-remove-superfluous",
+    "manual remove superfluous invisible");
+  registerMathPreference (
+    "editor.math-correct-insert-missing",
+    "manual insert missing invisible");
+  registerMathPreference (
+    "editor.math-correct-homoglyph",
+    "manual homoglyph correct");
 
   const QString paneCommands[]= {
     "namespace.open",
@@ -649,7 +727,13 @@ QTMCommandRegistry::registerBuiltins () {
     "editor.print",
     "editor.close-window",
     "editor.history-back",
-    "editor.history-forward"
+    "editor.history-forward",
+    "editor.presentation-first",
+    "editor.presentation-previous-screen",
+    "editor.presentation-previous",
+    "editor.presentation-next",
+    "editor.presentation-next-screen",
+    "editor.presentation-last"
   };
   for (const QString& id: editorCommands)
     registerBehavior (

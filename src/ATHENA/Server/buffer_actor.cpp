@@ -87,6 +87,19 @@ run_native_editor_command (editor_rep* editor,
   case native_editor_command_id::update_all:
     if (state.read_only ()) return false;
     break;
+  case native_editor_command_id::math_correct_all:
+    if (state.read_only () || !state.math_mode ()) return false;
+    break;
+  case native_editor_command_id::presentation_first:
+  case native_editor_command_id::presentation_previous:
+  case native_editor_command_id::presentation_next:
+  case native_editor_command_id::presentation_last:
+    if (!state.presentation_mode ()) return false;
+    break;
+  case native_editor_command_id::presentation_previous_screen:
+  case native_editor_command_id::presentation_next_screen:
+    if (!state.presentation_mode () || !state.screens_mode ()) return false;
+    break;
   case native_editor_command_id::revert:
   case native_editor_command_id::close_document:
   case native_editor_command_id::save_as:
@@ -163,6 +176,27 @@ run_native_editor_command (editor_rep* editor,
       break;
     case native_editor_command_id::history_forward:
       (void) call ("cursor-history-forward");
+      break;
+    case native_editor_command_id::math_correct_all:
+      (void) call ("math-correct-all");
+      break;
+    case native_editor_command_id::presentation_first:
+      (void) call ("dynamic-operate-on-buffer", keyword_object ("first"));
+      break;
+    case native_editor_command_id::presentation_previous_screen:
+      (void) call ("screens-switch-to", keyword_object ("previous"));
+      break;
+    case native_editor_command_id::presentation_previous:
+      (void) call ("dynamic-traverse-buffer", keyword_object ("previous"));
+      break;
+    case native_editor_command_id::presentation_next:
+      (void) call ("dynamic-traverse-buffer", keyword_object ("next"));
+      break;
+    case native_editor_command_id::presentation_next_screen:
+      (void) call ("screens-switch-to", keyword_object ("next"));
+      break;
+    case native_editor_command_id::presentation_last:
+      (void) call ("dynamic-operate-on-buffer", keyword_object ("last"));
       break;
     default:
       editor->cancel_menu_action ();

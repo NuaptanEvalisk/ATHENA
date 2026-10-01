@@ -300,6 +300,48 @@
       "help": "Go to the next cursor-history position"
     },
     {
+      "id": "editor.presentation-first",
+      "label": "First",
+      "category": "Presentation",
+      "icon": "go-first",
+      "help": "Go to the first presentation state"
+    },
+    {
+      "id": "editor.presentation-previous-screen",
+      "label": "Previous screen",
+      "category": "Presentation",
+      "icon": "go-previous",
+      "help": "Go to the previous presentation screen"
+    },
+    {
+      "id": "editor.presentation-previous",
+      "label": "Previous",
+      "category": "Presentation",
+      "icon": "go-previous",
+      "help": "Go to the previous presentation state"
+    },
+    {
+      "id": "editor.presentation-next",
+      "label": "Next",
+      "category": "Presentation",
+      "icon": "go-next",
+      "help": "Go to the next presentation state"
+    },
+    {
+      "id": "editor.presentation-next-screen",
+      "label": "Next screen",
+      "category": "Presentation",
+      "icon": "go-next",
+      "help": "Go to the next presentation screen"
+    },
+    {
+      "id": "editor.presentation-last",
+      "label": "Last",
+      "category": "Presentation",
+      "icon": "go-last",
+      "help": "Go to the last presentation state"
+    },
+    {
       "id": "editor.search",
       "label": "Search",
       "category": "Edit",
@@ -312,6 +354,31 @@
       "category": "Edit",
       "icon": "edit-find-replace",
       "help": "Search and replace in the active editor"
+    },
+    {
+      "id": "editor.math-correct-all",
+      "label": "Correct all",
+      "category": "Math",
+      "icon": "tools-check-spelling",
+      "help": "Correct the selected mathematical formula or all formulas"
+    },
+    {
+      "id": "editor.math-correct-remove-superfluous",
+      "label": "Remove superfluous invisible operators",
+      "category": "Math",
+      "help": "Toggle removal of superfluous invisible operators"
+    },
+    {
+      "id": "editor.math-correct-insert-missing",
+      "label": "Insert missing invisible operators",
+      "category": "Math",
+      "help": "Toggle insertion of missing invisible operators"
+    },
+    {
+      "id": "editor.math-correct-homoglyph",
+      "label": "Homoglyph substitutions",
+      "category": "Math",
+      "help": "Toggle mathematical homoglyph correction"
     },
     {
       "id": "namespace.open",
@@ -531,12 +598,30 @@
         { "command": "editor.paste" },
         { "command": "editor.search" },
         { "command": "editor.replace" },
+        {
+          "submenu": "editor-main-math-correct",
+          "label": "Correct mathematical formulas",
+          "icon": "tools-check-spelling",
+          "items": [
+            { "command": "editor.math-correct-all" },
+            { "separator": true },
+            { "command": "editor.math-correct-remove-superfluous" },
+            { "command": "editor.math-correct-insert-missing" },
+            { "command": "editor.math-correct-homoglyph" }
+          ]
+        },
         { "command": "editor.undo" },
         { "command": "editor.redo" },
         { "separator": true },
         { "command": "editor.history-back" },
         { "command": "editor.revert" },
-        { "command": "editor.history-forward" }
+        { "command": "editor.history-forward" },
+        { "command": "editor.presentation-first" },
+        { "command": "editor.presentation-previous-screen" },
+        { "command": "editor.presentation-previous" },
+        { "command": "editor.presentation-next" },
+        { "command": "editor.presentation-next-screen" },
+        { "command": "editor.presentation-last" }
       ]
     }
   ]

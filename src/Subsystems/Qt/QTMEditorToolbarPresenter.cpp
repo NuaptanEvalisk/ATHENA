@@ -170,7 +170,7 @@ bool
 QTMEditorToolbarPresenter::refreshNode (
   node& item, const QTMCommandContext& target) {
   if (item.action == nullptr) return false;
-  if (item.kind == QTMCommandMenuItem::Kind::Separator) return true;
+  if (item.kind == QTMCommandMenuItem::Kind::Separator) return false;
 
   if (item.kind == QTMCommandMenuItem::Kind::Command) {
     QTMCommandState state=

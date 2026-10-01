@@ -59,6 +59,16 @@ not be reported as native cutover.
 | `editor.close-window` | editor | owning BufferActor -> existing safely-kill-window transaction | frozen editor target | native UI / Scheme business adapter |
 | `editor.history-back` | editor | owning BufferActor -> cursor history transaction | frozen editor target | native UI / Scheme business adapter |
 | `editor.history-forward` | editor | owning BufferActor -> cursor future transaction | frozen editor target | native UI / Scheme business adapter |
+| `editor.math-correct-all` | editor | owning BufferActor -> existing math correction operation | math-mode + read-only actor snapshot | native UI / Scheme business adapter |
+| `editor.math-correct-remove-superfluous` | editor | native preference registry | math-mode actor snapshot + native preference state | native |
+| `editor.math-correct-insert-missing` | editor | native preference registry | math-mode actor snapshot + native preference state | native |
+| `editor.math-correct-homoglyph` | editor | native preference registry | math-mode actor snapshot + native preference state | native |
+| `editor.presentation-first` | editor | owning BufferActor -> presentation traversal | presentation-mode actor snapshot | native UI / Scheme business adapter |
+| `editor.presentation-previous-screen` | editor | owning BufferActor -> screen traversal | presentation/screens actor snapshot | native UI / Scheme business adapter |
+| `editor.presentation-previous` | editor | owning BufferActor -> presentation traversal | presentation-mode actor snapshot | native UI / Scheme business adapter |
+| `editor.presentation-next` | editor | owning BufferActor -> presentation traversal | presentation-mode actor snapshot | native UI / Scheme business adapter |
+| `editor.presentation-next-screen` | editor | owning BufferActor -> screen traversal | presentation/screens actor snapshot | native UI / Scheme business adapter |
+| `editor.presentation-last` | editor | owning BufferActor -> presentation traversal | presentation-mode actor snapshot | native UI / Scheme business adapter |
 
 ## Migrated dynamic presentation providers
 
@@ -86,8 +96,9 @@ lifetimes; pane commands are rejected when the captured provider disappears.
 
 Editor command state is published by the owning BufferActor as one packed
 64-bit atomic snapshot per view. It currently carries read-only, selection,
-native-graphics selection, focus-node availability, and bounded undo/redo
-counts. Main reads that snapshot only; it never calls a live editor to populate
+native-graphics selection, focus-node availability, math/presentation/screens
+mode bits, and bounded undo/redo counts. Main reads that snapshot only; it never
+calls a live editor to populate
 the palette. Execution resolves the captured document view to actor/view IDs,
 uses nonblocking `try_submit_to`, and recomputes availability on the actor
 before running the command under the existing menu-action transaction boundary.
