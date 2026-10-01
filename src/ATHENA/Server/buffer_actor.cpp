@@ -28,6 +28,7 @@
 #include "object.hpp"
 #include "outline_snapshot.hpp"
 #include "native_editor_actions.hpp"
+#include "structured_commands.hpp"
 #include "new_style.hpp"
 #include "Data/interop_document_source.hpp"
 #include "Subsystems/RAG/rag_realtime_generation.hpp"
@@ -67,6 +68,7 @@ run_native_editor_command (editor_rep* editor,
 
   const bool has_selection=
     state.selection_active () || state.graphics_selection_active ();
+  actor_focus_toolbar_snapshot focus= editor->focus_toolbar_state_snapshot ();
   switch (command) {
   case native_editor_command_id::undo:
     if (state.read_only () || state.undo_count == 0) return false;
@@ -105,6 +107,49 @@ run_native_editor_command (editor_rep* editor,
     break;
   case native_editor_command_id::export_selection_image:
     if (!has_selection || N(argument) == 0) return false;
+    break;
+  case native_editor_command_id::focus_traverse_first:
+  case native_editor_command_id::focus_traverse_previous:
+  case native_editor_command_id::focus_traverse_next:
+  case native_editor_command_id::focus_traverse_last:
+    if (!focus.valid () || !focus.has (ACTOR_FOCUS_TOOLBAR_CAN_MOVE))
+      return false;
+    break;
+  case native_editor_command_id::focus_insert_left:
+  case native_editor_command_id::focus_insert_right:
+    if (!focus.valid () ||
+        !focus.has (ACTOR_FOCUS_TOOLBAR_CAN_INSERT_REMOVE) ||
+        ((!focus.has (ACTOR_FOCUS_TOOLBAR_VERTICAL)) &&
+         (!focus.has (ACTOR_FOCUS_TOOLBAR_HORIZONTAL) ||
+          !focus.has (ACTOR_FOCUS_TOOLBAR_CAN_INSERT))))
+      return false;
+    break;
+  case native_editor_command_id::focus_remove_left:
+  case native_editor_command_id::focus_remove_right:
+    if (!focus.valid () ||
+        !focus.has (ACTOR_FOCUS_TOOLBAR_CAN_INSERT_REMOVE) ||
+        ((!focus.has (ACTOR_FOCUS_TOOLBAR_VERTICAL)) &&
+         (!focus.has (ACTOR_FOCUS_TOOLBAR_HORIZONTAL) ||
+          !focus.has (ACTOR_FOCUS_TOOLBAR_CAN_REMOVE))))
+      return false;
+    break;
+  case native_editor_command_id::focus_insert_up:
+  case native_editor_command_id::focus_insert_down:
+  case native_editor_command_id::focus_remove_up:
+  case native_editor_command_id::focus_remove_down:
+    if (!focus.valid () ||
+        !focus.has (ACTOR_FOCUS_TOOLBAR_CAN_INSERT_REMOVE) ||
+        !focus.has (ACTOR_FOCUS_TOOLBAR_VERTICAL))
+      return false;
+    break;
+  case native_editor_command_id::focus_exit_left:
+  case native_editor_command_id::focus_exit_right:
+  case native_editor_command_id::focus_remove_tag:
+    if (!focus.valid () || !focus.has (ACTOR_FOCUS_TOOLBAR_CURSOR_INSIDE))
+      return false;
+    break;
+  case native_editor_command_id::focus_help:
+    if (!focus.valid ()) return false;
     break;
   case native_editor_command_id::revert:
   case native_editor_command_id::close_document:
@@ -227,6 +272,54 @@ run_native_editor_command (editor_rep* editor,
     case native_editor_command_id::export_selection_image:
       (void) call ("native-export-selection-as-image-dialog",
                    object (argument));
+      break;
+    case native_editor_command_id::focus_traverse_first:
+      generic_traverse_first ();
+      break;
+    case native_editor_command_id::focus_traverse_previous:
+      generic_traverse_previous ();
+      break;
+    case native_editor_command_id::focus_traverse_next:
+      generic_traverse_next ();
+      break;
+    case native_editor_command_id::focus_traverse_last:
+      generic_traverse_last ();
+      break;
+    case native_editor_command_id::focus_insert_left:
+      generic_structured_insert_left ();
+      break;
+    case native_editor_command_id::focus_insert_right:
+      generic_structured_insert_right ();
+      break;
+    case native_editor_command_id::focus_insert_up:
+      generic_structured_insert_up ();
+      break;
+    case native_editor_command_id::focus_insert_down:
+      generic_structured_insert_down ();
+      break;
+    case native_editor_command_id::focus_remove_left:
+      generic_structured_remove_left ();
+      break;
+    case native_editor_command_id::focus_remove_right:
+      generic_structured_remove_right ();
+      break;
+    case native_editor_command_id::focus_remove_up:
+      generic_structured_remove_up ();
+      break;
+    case native_editor_command_id::focus_remove_down:
+      generic_structured_remove_down ();
+      break;
+    case native_editor_command_id::focus_exit_left:
+      generic_structured_exit_left ();
+      break;
+    case native_editor_command_id::focus_exit_right:
+      generic_structured_exit_right ();
+      break;
+    case native_editor_command_id::focus_remove_tag:
+      editor->remove_structure_upwards ();
+      break;
+    case native_editor_command_id::focus_help:
+      (void) call ("focus-help");
       break;
     default:
       editor->cancel_menu_action ();

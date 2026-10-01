@@ -295,6 +295,19 @@ actor_ui_endpoint::editor_command_state () const noexcept {
 }
 
 void
+actor_ui_endpoint::update_focus_toolbar_state (
+  actor_focus_toolbar_snapshot snapshot) noexcept {
+  std::lock_guard<std::mutex> lock (focus_toolbar_lock_);
+  focus_toolbar_state_= std::move (snapshot);
+}
+
+actor_focus_toolbar_snapshot
+actor_ui_endpoint::focus_toolbar_state () const {
+  std::lock_guard<std::mutex> lock (focus_toolbar_lock_);
+  return focus_toolbar_state_;
+}
+
+void
 actor_ui_endpoint::set_prominent_spacing_available (bool available) noexcept {
   prominent_spacing_available_.store (available, std::memory_order_release);
 }

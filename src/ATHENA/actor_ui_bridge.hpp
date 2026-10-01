@@ -134,6 +134,40 @@ struct actor_dynamic_menu_snapshot {
   std::vector<actor_dynamic_menu_item_snapshot> items;
 };
 
+enum actor_focus_toolbar_flag: std::uint32_t {
+  ACTOR_FOCUS_TOOLBAR_VALID= 1U << 0,
+  ACTOR_FOCUS_TOOLBAR_BUFFER= 1U << 1,
+  ACTOR_FOCUS_TOOLBAR_CAN_MOVE= 1U << 2,
+  ACTOR_FOCUS_TOOLBAR_CAN_INSERT_REMOVE= 1U << 3,
+  ACTOR_FOCUS_TOOLBAR_HORIZONTAL= 1U << 4,
+  ACTOR_FOCUS_TOOLBAR_VERTICAL= 1U << 5,
+  ACTOR_FOCUS_TOOLBAR_CAN_INSERT= 1U << 6,
+  ACTOR_FOCUS_TOOLBAR_CAN_REMOVE= 1U << 7,
+  ACTOR_FOCUS_TOOLBAR_CURSOR_INSIDE= 1U << 8,
+  ACTOR_FOCUS_TOOLBAR_HAS_VARIANTS= 1U << 9,
+  ACTOR_FOCUS_TOOLBAR_HAS_PREFERENCES= 1U << 10,
+  ACTOR_FOCUS_TOOLBAR_HAS_PARAMETERS= 1U << 11,
+  ACTOR_FOCUS_TOOLBAR_CAN_SEARCH= 1U << 12,
+  ACTOR_FOCUS_TOOLBAR_HAS_SEARCH_MENU= 1U << 13,
+  ACTOR_FOCUS_TOOLBAR_HAS_LABEL= 1U << 14,
+  ACTOR_FOCUS_TOOLBAR_HAS_HIDDEN_CHILDREN= 1U << 15
+};
+
+struct actor_focus_toolbar_snapshot {
+  std::uint32_t flags= 0;
+  std::string tag_label;
+  std::string tag_name;
+  std::vector<std::string> variants;
+  std::vector<std::string> variant_names;
+
+  bool valid () const noexcept {
+    return (flags & ACTOR_FOCUS_TOOLBAR_VALID) != 0;
+  }
+  bool has (actor_focus_toolbar_flag flag) const noexcept {
+    return (flags & static_cast<std::uint32_t> (flag)) != 0;
+  }
+};
+
 class actor_ui_endpoint {
 public:
   explicit actor_ui_endpoint (athena_view_id view_id);
@@ -168,6 +202,9 @@ public:
   void update_editor_command_state (
     const actor_editor_command_snapshot& snapshot) noexcept;
   actor_editor_command_snapshot editor_command_state () const noexcept;
+  void update_focus_toolbar_state (
+    actor_focus_toolbar_snapshot snapshot) noexcept;
+  actor_focus_toolbar_snapshot focus_toolbar_state () const;
   void set_prominent_spacing_available (bool available) noexcept;
   bool prominent_spacing_available () const noexcept;
   void set_inside_table (bool inside) noexcept;
@@ -254,6 +291,8 @@ private:
   std::atomic<std::uint64_t> editor_command_state_ {0};
   std::atomic<bool> prominent_spacing_available_ {false};
   std::atomic<bool> inside_table_ {false};
+  mutable std::mutex focus_toolbar_lock_;
+  actor_focus_toolbar_snapshot focus_toolbar_state_;
   std::atomic<bool> personal_macro_request_pending_ {false};
   std::atomic<bool> personal_macro_ready_ {false};
   mutable std::mutex personal_macro_lock_;

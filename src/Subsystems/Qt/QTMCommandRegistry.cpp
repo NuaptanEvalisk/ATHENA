@@ -394,6 +394,38 @@ editor_command_id (const QString& id) {
     return native_editor_command_id::export_pdf;
   if (id == "editor.export-postscript")
     return native_editor_command_id::export_postscript;
+  if (id == "editor.focus.first-similar")
+    return native_editor_command_id::focus_traverse_first;
+  if (id == "editor.focus.previous-similar")
+    return native_editor_command_id::focus_traverse_previous;
+  if (id == "editor.focus.next-similar")
+    return native_editor_command_id::focus_traverse_next;
+  if (id == "editor.focus.last-similar")
+    return native_editor_command_id::focus_traverse_last;
+  if (id == "editor.focus.insert-left")
+    return native_editor_command_id::focus_insert_left;
+  if (id == "editor.focus.insert-right")
+    return native_editor_command_id::focus_insert_right;
+  if (id == "editor.focus.insert-up")
+    return native_editor_command_id::focus_insert_up;
+  if (id == "editor.focus.insert-down")
+    return native_editor_command_id::focus_insert_down;
+  if (id == "editor.focus.remove-left")
+    return native_editor_command_id::focus_remove_left;
+  if (id == "editor.focus.remove-right")
+    return native_editor_command_id::focus_remove_right;
+  if (id == "editor.focus.remove-up")
+    return native_editor_command_id::focus_remove_up;
+  if (id == "editor.focus.remove-down")
+    return native_editor_command_id::focus_remove_down;
+  if (id == "editor.focus.exit-left")
+    return native_editor_command_id::focus_exit_left;
+  if (id == "editor.focus.exit-right")
+    return native_editor_command_id::focus_exit_right;
+  if (id == "editor.focus.remove-tag")
+    return native_editor_command_id::focus_remove_tag;
+  if (id == "editor.focus.help")
+    return native_editor_command_id::focus_help;
   return native_editor_command_id::none;
 }
 
@@ -420,6 +452,7 @@ native_editor_command_state (const QString& id,
 
   const bool hasSelection=
     snapshot.selection_active () || snapshot.graphics_selection_active ();
+  actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
   switch (command) {
   case native_editor_command_id::undo:
     result.enabled= !snapshot.read_only () && snapshot.undo_count != 0;
@@ -490,6 +523,55 @@ native_editor_command_state (const QString& id,
   case native_editor_command_id::export_pdf:
   case native_editor_command_id::export_postscript:
     result.enabled= true;
+    break;
+  case native_editor_command_id::focus_traverse_first:
+  case native_editor_command_id::focus_traverse_previous:
+  case native_editor_command_id::focus_traverse_next:
+  case native_editor_command_id::focus_traverse_last:
+    result.available=
+      focus.valid () && focus.has (ACTOR_FOCUS_TOOLBAR_CAN_MOVE);
+    result.enabled= result.available;
+    break;
+  case native_editor_command_id::focus_insert_left:
+  case native_editor_command_id::focus_insert_right:
+    result.available=
+      focus.valid () &&
+      focus.has (ACTOR_FOCUS_TOOLBAR_CAN_INSERT_REMOVE) &&
+      (focus.has (ACTOR_FOCUS_TOOLBAR_VERTICAL) ||
+       (focus.has (ACTOR_FOCUS_TOOLBAR_HORIZONTAL) &&
+        focus.has (ACTOR_FOCUS_TOOLBAR_CAN_INSERT)));
+    result.enabled= result.available && !snapshot.read_only ();
+    break;
+  case native_editor_command_id::focus_remove_left:
+  case native_editor_command_id::focus_remove_right:
+    result.available=
+      focus.valid () &&
+      focus.has (ACTOR_FOCUS_TOOLBAR_CAN_INSERT_REMOVE) &&
+      (focus.has (ACTOR_FOCUS_TOOLBAR_VERTICAL) ||
+       (focus.has (ACTOR_FOCUS_TOOLBAR_HORIZONTAL) &&
+        focus.has (ACTOR_FOCUS_TOOLBAR_CAN_REMOVE)));
+    result.enabled= result.available && !snapshot.read_only ();
+    break;
+  case native_editor_command_id::focus_insert_up:
+  case native_editor_command_id::focus_insert_down:
+  case native_editor_command_id::focus_remove_up:
+  case native_editor_command_id::focus_remove_down:
+    result.available=
+      focus.valid () &&
+      focus.has (ACTOR_FOCUS_TOOLBAR_CAN_INSERT_REMOVE) &&
+      focus.has (ACTOR_FOCUS_TOOLBAR_VERTICAL);
+    result.enabled= result.available && !snapshot.read_only ();
+    break;
+  case native_editor_command_id::focus_exit_left:
+  case native_editor_command_id::focus_exit_right:
+  case native_editor_command_id::focus_remove_tag:
+    result.available=
+      focus.valid () && focus.has (ACTOR_FOCUS_TOOLBAR_CURSOR_INSIDE);
+    result.enabled= result.available && !snapshot.read_only ();
+    break;
+  case native_editor_command_id::focus_help:
+    result.available= focus.valid ();
+    result.enabled= result.available;
     break;
   default:
     break;
@@ -1009,6 +1091,56 @@ QTMCommandRegistry::registerBuiltins () {
       return state;
     });
   registerProvider (
+    "editor-focus-variants", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QVector<QTMCommandDynamicItem> out;
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return out;
+      actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
+      actor_editor_command_snapshot editorState= proxy->editor_command_state ();
+      if (!focus.valid () ||
+          !focus.has (ACTOR_FOCUS_TOOLBAR_HAS_VARIANTS) ||
+          !editorState.valid ())
+        return out;
+      for (std::size_t i=0; i<focus.variants.size (); ++i) {
+        QString key= QString::fromUtf8 (
+          focus.variants[i].data (),
+          static_cast<int> (focus.variants[i].size ()));
+        QString label= key;
+        if (i < focus.variant_names.size ())
+          label= QString::fromUtf8 (
+            focus.variant_names[i].data (),
+            static_cast<int> (focus.variant_names[i].size ()));
+        QTMCommandDynamicItem item=
+          enabled_dynamic_item (key, label, QObject::tr ("Use %1").arg (label));
+        item.state.enabled= !editorState.read_only ();
+        out.append (std::move (item));
+      }
+      return out;
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      if (key.isEmpty ()) return false;
+      QJsonObject action;
+      action.insert ("op", "focus-variant");
+      action.insert ("tag", key);
+      return submit_inline_editor_action (
+        context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
+    },
+    [] (const QTMCommandContext& context) {
+      QTMCommandState state;
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return state;
+      actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
+      actor_editor_command_snapshot editorState= proxy->editor_command_state ();
+      if (!focus.valid () ||
+          !focus.has (ACTOR_FOCUS_TOOLBAR_HAS_VARIANTS) ||
+          !editorState.valid ())
+        return state;
+      state.available= true;
+      state.enabled= !editorState.read_only ();
+      return state;
+    });
+  registerProvider (
     "editor-personal-macros", QTMCommandScope::Editor,
     [] (const QTMCommandContext& context) {
       QVector<QTMCommandDynamicItem> out;
@@ -1342,7 +1474,23 @@ QTMCommandRegistry::registerBuiltins () {
     "editor.print-page-selection",
     "editor.print-page-selection-to-file",
     "editor.export-pdf",
-    "editor.export-postscript"
+    "editor.export-postscript",
+    "editor.focus.first-similar",
+    "editor.focus.previous-similar",
+    "editor.focus.next-similar",
+    "editor.focus.last-similar",
+    "editor.focus.insert-left",
+    "editor.focus.insert-right",
+    "editor.focus.insert-up",
+    "editor.focus.insert-down",
+    "editor.focus.remove-left",
+    "editor.focus.remove-right",
+    "editor.focus.remove-up",
+    "editor.focus.remove-down",
+    "editor.focus.exit-left",
+    "editor.focus.exit-right",
+    "editor.focus.remove-tag",
+    "editor.focus.help"
   };
   for (const QString& id: editorCommands)
     registerBehavior (
@@ -1395,10 +1543,10 @@ QTMCommandRegistry::loadPresentation () {
   QJsonArray commandValues= root.value ("commands").toArray ();
   QJsonArray menuValues= root.value ("menus").toArray ();
   QJsonArray toolbarValues= root.value ("toolbars").toArray ();
-  {
+  for (const char* extensionResource: {
+         "$ATHENA_PATH/misc/ui/editor-mode-toolbar.json",
+         "$ATHENA_PATH/misc/ui/editor-focus-toolbar.json"}) {
     string extensionText;
-    const char* extensionResource=
-      "$ATHENA_PATH/misc/ui/editor-mode-toolbar.json";
     if (load_string (url (extensionResource), extensionText, false))
       return failPresentation (
         QString ("cannot read %1")
@@ -1410,13 +1558,16 @@ QTMCommandRegistry::loadPresentation () {
     if (extensionParse.error != QJsonParseError::NoError ||
         !extensionDocument.isObject ())
       return failPresentation (
-        QString ("invalid editor mode JSON: %1")
-          .arg (extensionParse.errorString ()));
+        QString ("invalid toolbar extension JSON %1: %2")
+          .arg (QString::fromLatin1 (extensionResource),
+                extensionParse.errorString ()));
     QJsonObject extensionRoot= extensionDocument.object ();
     if (extensionRoot.value ("version").toInt (-1) != 1 ||
         !extensionRoot.value ("commands").isArray () ||
         !extensionRoot.value ("toolbars").isArray ())
-      return failPresentation ("invalid editor mode toolbar schema");
+      return failPresentation (
+        QString ("invalid toolbar extension schema: %1")
+          .arg (QString::fromLatin1 (extensionResource)));
     for (const QJsonValue& value:
          extensionRoot.value ("commands").toArray ())
       commandValues.append (value);

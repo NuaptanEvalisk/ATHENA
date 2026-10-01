@@ -82,6 +82,7 @@ class qt_tm_widget_rep: public qt_window_widget_rep {
   QTMToolbarController* toolbarController;
   std::unique_ptr<QTMEditorToolbarPresenter> nativeMainToolbarPresenter;
   std::unique_ptr<QTMEditorToolbarPresenter> nativeModeToolbarPresenter;
+  std::unique_ptr<QTMEditorToolbarPresenter> nativeFocusToolbarPresenter;
 
 #ifdef Q_OS_MAC
   QToolBar*      dumbToolBar;

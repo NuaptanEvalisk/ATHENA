@@ -143,6 +143,12 @@ qt_actor_widget_rep::editor_command_state () const noexcept {
          endpoint_->editor_command_state ();
 }
 
+actor_focus_toolbar_snapshot
+qt_actor_widget_rep::focus_toolbar_state () const {
+  return endpoint_ == nullptr ? actor_focus_toolbar_snapshot {} :
+         endpoint_->focus_toolbar_state ();
+}
+
 bool
 qt_actor_widget_rep::prominent_spacing_available () const noexcept {
   return endpoint_ != nullptr && endpoint_->prominent_spacing_available ();

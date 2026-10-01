@@ -233,6 +233,9 @@ native_editor_action_validate (const QJsonObject& action, QString* error) {
     return has_string (action, "tag") && has_string (action, "value") ?
              true : fail_validation (
                error, "insert-alphabet requires tag/value");
+  if (op == "focus-variant")
+    return has_string (action, "tag") ?
+             true : fail_validation (error, "focus-variant requires tag");
   if (op == "make-section" || op == "make-unnamed-section" ||
       op == "make-header" || op == "tmdoc-branch" ||
       op == "make-equation-like" ||
@@ -362,6 +365,28 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     ed->insert_tree (
       tree (as_tree_label (native_action_string (action.value ("tag"))),
             tree (native_action_string (action.value ("value")))));
+  else if (op == "focus-variant") {
+    path focus= ed->focus_get ();
+    if (!ed->test_subtree (focus)) return;
+    tree target= ed->the_subtree (focus);
+    string tag= native_action_string (action.value ("tag"));
+    object variants= call ("focus-variants-of", object (target));
+    bool allowed= false;
+    if (is_list (variants)) {
+      array<object> values= as_array_object (variants);
+      for (int i=0; i<N(values); ++i) {
+        string value;
+        if (is_symbol (values[i])) value= as_symbol (values[i]);
+        else if (is_string (values[i])) value= as_string (values[i]);
+        else continue;
+        if (value == tag) {
+          allowed= true;
+          break;
+        }
+      }
+    }
+    if (allowed) (void) call ("variant-set", object (target), symbol_object (tag));
+  }
   else if (op == "make-section")
     make_section (ed, native_action_string (action.value ("tag")));
   else if (op == "make-unnamed-section")

@@ -24,6 +24,7 @@
 #include "buffer_actor.hpp"
 #include "actor_ui_bridge.hpp"
 #include "generic_editor_commands.hpp"
+#include "structured_commands.hpp"
 #ifdef EXPERIMENTAL
 #include "../../Style/Evaluate/evaluate_main.hpp"
 #endif
@@ -804,6 +805,90 @@ editor_rep::editor_command_state_snapshot () {
   return snapshot;
 }
 
+actor_focus_toolbar_snapshot
+editor_rep::focus_toolbar_state_snapshot () {
+  actor_focus_toolbar_snapshot snapshot;
+  if (buf == nullptr || inside_graphics (false)) return snapshot;
+
+  path focus= focus_get ();
+  if (!test_subtree (focus)) return snapshot;
+  tree t= the_subtree (focus);
+  snapshot.flags= ACTOR_FOCUS_TOOLBAR_VALID;
+
+  auto query= [&] (const char* procedure, bool fallback= false) {
+    try {
+      object value= call (procedure, object (t));
+      return is_bool (value) ? as_bool (value) : fallback;
+    }
+    catch (...) {
+      return fallback;
+    }
+  };
+  auto set= [&] (actor_focus_toolbar_flag flag, bool enabled) {
+    if (enabled) snapshot.flags |= static_cast<std::uint32_t> (flag);
+  };
+
+  set (ACTOR_FOCUS_TOOLBAR_BUFFER, query ("tree-is-buffer?"));
+  set (ACTOR_FOCUS_TOOLBAR_CAN_MOVE, query ("focus-can-move?", true));
+  set (ACTOR_FOCUS_TOOLBAR_CAN_INSERT_REMOVE,
+       query ("focus-can-insert-remove?"));
+  set (ACTOR_FOCUS_TOOLBAR_HORIZONTAL, query ("structured-horizontal?"));
+  set (ACTOR_FOCUS_TOOLBAR_VERTICAL, query ("structured-vertical?"));
+  set (ACTOR_FOCUS_TOOLBAR_CAN_INSERT, query ("focus-can-insert?"));
+  set (ACTOR_FOCUS_TOOLBAR_CAN_REMOVE, query ("focus-can-remove?"));
+  set (ACTOR_FOCUS_TOOLBAR_CURSOR_INSIDE, query ("cursor-inside?"));
+  set (ACTOR_FOCUS_TOOLBAR_HAS_PREFERENCES,
+       query ("focus-has-preferences?"));
+  set (ACTOR_FOCUS_TOOLBAR_HAS_PARAMETERS, query ("focus-has-parameters?"));
+  set (ACTOR_FOCUS_TOOLBAR_CAN_SEARCH, query ("focus-can-search?"));
+  set (ACTOR_FOCUS_TOOLBAR_HAS_SEARCH_MENU,
+       query ("focus-has-search-menu?"));
+  try {
+    object label= call ("focus-label", object (t));
+    set (ACTOR_FOCUS_TOOLBAR_HAS_LABEL, is_tree (label));
+  }
+  catch (...) {}
+
+  string tag= as_string (L (t));
+  snapshot.tag_label.assign (tag.data (), static_cast<std::size_t> (N(tag)));
+  try {
+    object name= call ("focus-tag-name", symbol_object (tag));
+    if (is_string (name)) {
+      string value= as_string (name);
+      snapshot.tag_name.assign (
+        value.data (), static_cast<std::size_t> (N(value)));
+    }
+  }
+  catch (...) {}
+  if (snapshot.tag_name.empty ()) snapshot.tag_name= snapshot.tag_label;
+
+  try {
+    object raw= call ("focus-variants-of", object (t));
+    if (is_list (raw)) {
+      array<object> values= as_array_object (raw);
+      for (int i=0; i<N(values); ++i) {
+        string value;
+        if (is_symbol (values[i])) value= as_symbol (values[i]);
+        else if (is_string (values[i])) value= as_string (values[i]);
+        else continue;
+        snapshot.variants.emplace_back (
+          value.data (), static_cast<std::size_t> (N(value)));
+        string display= value;
+        try {
+          object name= call ("focus-tag-name", symbol_object (value));
+          if (is_string (name)) display= as_string (name);
+        }
+        catch (...) {}
+        snapshot.variant_names.emplace_back (
+          display.data (), static_cast<std::size_t> (N(display)));
+      }
+    }
+  }
+  catch (...) {}
+  set (ACTOR_FOCUS_TOOLBAR_HAS_VARIANTS, snapshot.variants.size () > 1);
+  return snapshot;
+}
+
 void
 editor_rep::refresh_editor_style_command_flags () {
   if (editor_style_command_flags_valid) return;
@@ -853,6 +938,7 @@ editor_rep::publish_editor_command_state () {
   ui_endpoint->set_prominent_spacing_available (prominent_spacing);
   ui_endpoint->set_inside_table (inside ("table"));
   ui_endpoint->update_editor_command_state (editor_command_state_snapshot ());
+  ui_endpoint->update_focus_toolbar_state (focus_toolbar_state_snapshot ());
 }
 
 int

@@ -27,6 +27,7 @@ public:
   athena_actor_id actor_id () const noexcept;
   athena_view_id view_id () const noexcept;
   actor_editor_command_snapshot editor_command_state () const noexcept;
+  actor_focus_toolbar_snapshot focus_toolbar_state () const;
   bool prominent_spacing_available () const noexcept;
   bool inside_table () const noexcept;
   actor_dynamic_menu_snapshot personal_macro_items () const;

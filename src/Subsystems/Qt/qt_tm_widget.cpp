@@ -594,6 +594,8 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
       editorCanvas, mainToolBar, QStringLiteral ("editor-main"));
     nativeModeToolbarPresenter= std::make_unique<QTMEditorToolbarPresenter> (
       editorCanvas, modeToolBar, QStringLiteral ("editor-mode"), mainToolBar);
+    nativeFocusToolbarPresenter= std::make_unique<QTMEditorToolbarPresenter> (
+      editorCanvas, focusToolBar, QStringLiteral ("editor-focus"));
   }
   if (nativeMainToolbarPresenter)
     (void) nativeMainToolbarPresenter->activate ();

@@ -92,6 +92,7 @@ public:
                              std::uint64_t argument2= 0,
                              std::uint64_t argument3= 0);
   actor_editor_command_snapshot editor_command_state_snapshot ();
+  actor_focus_toolbar_snapshot focus_toolbar_state_snapshot ();
   void refresh_editor_style_command_flags ();
   void publish_editor_command_state ();
   void rebuild_ui_chrome ();

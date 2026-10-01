@@ -71,7 +71,23 @@ enum class native_editor_command_id: std::uint32_t {
   print_page_selection_to_file,
   export_pdf,
   export_postscript,
-  export_selection_image
+  export_selection_image,
+  focus_traverse_first,
+  focus_traverse_previous,
+  focus_traverse_next,
+  focus_traverse_last,
+  focus_insert_left,
+  focus_insert_right,
+  focus_insert_up,
+  focus_insert_down,
+  focus_remove_left,
+  focus_remove_right,
+  focus_remove_up,
+  focus_remove_down,
+  focus_exit_left,
+  focus_exit_right,
+  focus_remove_tag,
+  focus_help
 };
 
 enum class actor_command_kind: std::uint32_t {

@@ -1,0 +1,44 @@
+{
+  "version":1,
+  "commands":[
+    {"id":"editor.focus.first-similar","label":"First similar","category":"Focus","icon":"tm_similar_first","help":"Go to the first similar structured tag","palette":false},
+    {"id":"editor.focus.previous-similar","label":"Previous similar","category":"Focus","icon":"tm_similar_previous","help":"Go to the previous similar structured tag","palette":false},
+    {"id":"editor.focus.next-similar","label":"Next similar","category":"Focus","icon":"tm_similar_next","help":"Go to the next similar structured tag","palette":false},
+    {"id":"editor.focus.last-similar","label":"Last similar","category":"Focus","icon":"tm_similar_last","help":"Go to the last similar structured tag","palette":false},
+    {"id":"editor.focus.insert-left","label":"Insert left","category":"Focus","icon":"tm_insert_left","help":"Structured insert at the left","palette":false},
+    {"id":"editor.focus.insert-right","label":"Insert right","category":"Focus","icon":"tm_insert_right","help":"Structured insert at the right","palette":false},
+    {"id":"editor.focus.insert-up","label":"Insert above","category":"Focus","icon":"tm_insert_up","help":"Structured insert above","palette":false},
+    {"id":"editor.focus.insert-down","label":"Insert below","category":"Focus","icon":"tm_insert_down","help":"Structured insert below","palette":false},
+    {"id":"editor.focus.remove-left","label":"Remove left","category":"Focus","icon":"tm_delete_left","help":"Structured remove leftwards","palette":false},
+    {"id":"editor.focus.remove-right","label":"Remove right","category":"Focus","icon":"tm_delete_right","help":"Structured remove rightwards","palette":false},
+    {"id":"editor.focus.remove-up","label":"Remove above","category":"Focus","icon":"tm_delete_up","help":"Structured remove upwards","palette":false},
+    {"id":"editor.focus.remove-down","label":"Remove below","category":"Focus","icon":"tm_delete_down","help":"Structured remove downwards","palette":false},
+    {"id":"editor.focus.exit-left","label":"Exit left","category":"Focus","icon":"tm_exit_left","help":"Exit the focused tag on the left","palette":false},
+    {"id":"editor.focus.exit-right","label":"Exit right","category":"Focus","icon":"tm_exit_right","help":"Exit the focused tag on the right","palette":false},
+    {"id":"editor.focus.remove-tag","label":"Remove tag","category":"Focus","icon":"tm_focus_delete","help":"Remove the focused structure","palette":false},
+    {"id":"editor.focus.help","label":"Describe tag","category":"Focus","icon":"tm_focus_help","help":"Describe the focused tag","palette":false}
+  ],
+  "toolbars":[
+    {"id":"editor-focus","items":[
+      {"command":"editor.focus.first-similar"},
+      {"command":"editor.focus.previous-similar"},
+      {"command":"editor.focus.next-similar"},
+      {"command":"editor.focus.last-similar"},
+      {"separator":true},
+      {"command":"editor.focus.insert-up"},
+      {"command":"editor.focus.insert-left"},
+      {"command":"editor.focus.insert-right"},
+      {"command":"editor.focus.insert-down"},
+      {"command":"editor.focus.remove-up"},
+      {"command":"editor.focus.remove-left"},
+      {"command":"editor.focus.remove-right"},
+      {"command":"editor.focus.remove-down"},
+      {"separator":true},
+      {"submenu":"editor-focus-variant","label":"Structured variant","items":[{"provider":"editor-focus-variants"}]},
+      {"command":"editor.focus.exit-left"},
+      {"command":"editor.focus.exit-right"},
+      {"command":"editor.focus.remove-tag"},
+      {"command":"editor.focus.help"}
+    ]}
+  ]
+}

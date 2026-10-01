@@ -147,6 +147,15 @@ without polling Scheme-backed data. Personal macros use an actor-owned grouped
 snapshot and a nonblocking request command; color providers use only
 mode/read-only snapshot state until the user opens the submenu.
 
+The focus-toolbar migration uses a separate actor-owned
+`actor_focus_toolbar_snapshot`. It carries only plain structured state
+(focus capabilities, tag label/display name, and variant values), never a
+Scheme menu tree. The first inactive native focus slice binds similar-tag
+traversal, structured insert/remove, variant selection, structured exit,
+remove-tag, and Describe through finite BufferActor commands. The legacy focus
+toolbar remains the sole production surface until specialized document/screens
+and tag-specific contributors are migrated.
+
 ## Zero-buffer ownership now established
 
 The outer `QTMMainTabWindow` is shown directly at startup and no longer needs

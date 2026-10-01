@@ -240,8 +240,13 @@ Retirement is group-by-group, with no dual production for a migrated group:
   have been removed. `SLOT_MODE_ICONS_VISIBILITY` remains only as the
   visibility contract for the native toolbar. Native drawing-tool actions are
   an independent native layer appended to the same toolbar.
-- Focus toolbar: migrate structured focus capability/value providers, then
-  remove `texmacs-focus-icons` production.
+- Focus toolbar: migration foundation is active in source but not production.
+  `editor-focus-toolbar.json` and an inactive per-view native presenter now
+  cover the generic structured core (similar-tag traversal, structured
+  insert/remove, variants, exit/delete/help) from an actor-owned plain focus
+  snapshot. Document/screens/prog and tag-specific toggle/float/table/title
+  contributors remain on the legacy path; `texmacs-focus-icons` is not removed
+  until those reach parity.
 - User/extension toolbar: replace `texmacs-extra-icons` with the native runtime
   contribution model, then remove the last legacy `ui_menu_icons` producer and
   consumer.  At that point `tm_frame/tm_window::menu_icons` production APIs and
