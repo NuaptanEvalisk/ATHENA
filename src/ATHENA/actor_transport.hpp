@@ -199,7 +199,8 @@ enum class actor_command_kind: std::uint32_t {
   ui_schedule_global_scheme,
   ui_scheme_completed,
   native_editor_command,
-  native_editor_action_json
+  native_editor_action_json,
+  request_personal_macro_items
 };
 
 // Records remain in shared arena storage while being consumed.  All fields are

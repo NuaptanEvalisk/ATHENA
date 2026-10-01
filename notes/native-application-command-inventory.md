@@ -140,6 +140,13 @@ normal registry commands for toolbar state/dispatch, but are intentionally
 excluded from command-palette enumeration; static math symbol families use
 this to avoid hundreds of low-signal palette entries.
 
+Dynamic toolbar providers expose a cheap native `providerState` separately
+from item enumeration. The view-owned presenter can therefore decide whether a
+provider-only submenu is visible or enabled during periodic state refresh
+without polling Scheme-backed data. Personal macros use an actor-owned grouped
+snapshot and a nonblocking request command; color providers use only
+mode/read-only snapshot state until the user opens the submenu.
+
 ## Zero-buffer ownership now established
 
 The outer `QTMMainTabWindow` is shown directly at startup and no longer needs

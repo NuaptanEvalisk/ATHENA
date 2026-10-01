@@ -23,6 +23,7 @@
 #include "boot.hpp"
 #include "buffer_actor.hpp"
 #include "actor_ui_bridge.hpp"
+#include "generic_editor_commands.hpp"
 #ifdef EXPERIMENTAL
 #include "../../Style/Evaluate/evaluate_main.hpp"
 #endif
@@ -679,7 +680,11 @@ edit_interface_rep::notify_change (int env_set, int env_unset) {
     live_spelling.reset ();
     live_spelling_dirty= true;
     live_spelling_next= texmacs_time () + 450;
+    if (ui_endpoint != nullptr)
+      ui_endpoint->invalidate_personal_macro_items ();
   }
+  if (env_set & THE_ENVIRONMENT)
+    editor_style_command_flags_valid= false;
   if (env_set & THE_TREE) live_spelling_edit_cursor= copy (tp);
   if (env_set & (THE_TREE | THE_ENVIRONMENT | THE_EXTENTS | THE_CURSOR | THE_SELECTION))
     clear_link_peek ();
@@ -754,6 +759,24 @@ editor_rep::editor_command_state_snapshot () {
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_SOURCE_MODE;
   if (graphics_mode)
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_GRAPHICS_MODE;
+  if (inside ("letter-header"))
+    snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_INSIDE_LETTER_HEADER;
+  if (inside ("float") || inside ("footnote"))
+    snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_INSIDE_FLOAT_OR_FOOTNOTE;
+  if (generic_in_main_flow ())
+    snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_MAIN_FLOW;
+  if (inside ("traverse"))
+    snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_TMDOC_TRAVERSE;
+  if (inside ("explain"))
+    snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_TMDOC_EXPLAIN;
+  if (inside ("overlays") || inside ("overlays-compressed") ||
+      inside ("overlays-phantoms") || inside ("overlays-greyed") ||
+      inside ("gr-overlays"))
+    snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_OVERLAYS_CONTEXT;
+  tree buffer_root= the_buffer ();
+  if (is_document (buffer_root) && N(buffer_root) > 0 &&
+      is_compound (buffer_root[N(buffer_root)-1], "screens"))
+    snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_SCREENS_BUFFER;
 
   snapshot.flags |= editor_style_command_flags;
   const bool screens_mode= inside ("screens");
@@ -783,6 +806,7 @@ editor_rep::editor_command_state_snapshot () {
 
 void
 editor_rep::refresh_editor_style_command_flags () {
+  if (editor_style_command_flags_valid) return;
   editor_style_command_flags= 0;
   if (buf == nullptr) return;
   auto style_has= [] (const char* capability) {
@@ -815,6 +839,9 @@ editor_rep::refresh_editor_style_command_flags () {
     editor_style_command_flags |= ACTOR_EDITOR_COMMAND_STATE_STD_FOLD;
   if (style_has ("std-dtd"))
     editor_style_command_flags |= ACTOR_EDITOR_COMMAND_STATE_STD_DTD;
+  if (style_has ("env-math-dtd"))
+    editor_style_command_flags |= ACTOR_EDITOR_COMMAND_STATE_ENV_MATH;
+  editor_style_command_flags_valid= true;
 }
 
 void

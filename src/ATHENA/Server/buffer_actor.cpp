@@ -1020,6 +1020,34 @@ buffer_actor::dispatch (actor_command_record& command) {
 #endif
     break;
   }
+  case actor_command_kind::request_personal_macro_items: {
+    if (editor == nullptr || editor->ui_endpoint == nullptr) break;
+    std::vector<actor_dynamic_menu_item_snapshot> items;
+    try {
+      list<string> values=
+        as_list_string (call ("native-personal-macro-provider-data"));
+      std::vector<string> flat;
+      for (list<string> it= values; !is_nil (it); it= it->next)
+        flat.push_back (it->item);
+      for (std::size_t i= 0; i + 2 < flat.size (); i += 3) {
+        actor_dynamic_menu_item_snapshot item;
+        item.group= std::string (
+          flat[i].data (), static_cast<std::size_t> (N(flat[i])));
+        item.label= std::string (
+          flat[i + 1].data (),
+          static_cast<std::size_t> (N(flat[i + 1])));
+        item.key= std::string (
+          flat[i + 2].data (),
+          static_cast<std::size_t> (N(flat[i + 2])));
+        items.push_back (std::move (item));
+      }
+    }
+    catch (...) {
+      items.clear ();
+    }
+    editor->ui_endpoint->update_personal_macro_items (std::move (items));
+    break;
+  }
   case actor_command_kind::keyboard_focus:
     if (editor != nullptr)
       editor->handle_keyboard_focus (

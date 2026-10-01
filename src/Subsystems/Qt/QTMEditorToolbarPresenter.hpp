@@ -47,6 +47,7 @@ private:
     QTMCommandMenuItem::Kind kind= QTMCommandMenuItem::Kind::Command;
     QPointer<QMenu> providerMenu;
     std::vector<QPointer<QAction>> dynamicActions;
+    std::vector<QPointer<QMenu>> dynamicMenus;
     std::vector<std::unique_ptr<node>> children;
   };
 

@@ -131,10 +131,19 @@ QTMEditorToolbarPresenter::buildItem (
   }
   node* submenuNode= result.get ();
   QObject::connect (
-    menu, &QMenu::aboutToShow, menu, [this, submenuNode] {
+    menu, &QMenu::aboutToShow, menu, [this, submenuNode, menu] {
       QTMCommandContext target= context ();
       refreshProviders (*submenuNode, target);
       (void) refreshNode (*submenuNode, target);
+      QPointer<QMenu> menuRef= submenuNode->action == nullptr ?
+        nullptr : submenuNode->action->menu ();
+      for (int delay: {120, 350})
+        QTimer::singleShot (delay, menu, [this, submenuNode, menuRef] {
+          if (menuRef == nullptr || !menuRef->isVisible ()) return;
+          QTMCommandContext refreshed= context ();
+          refreshProviders (*submenuNode, refreshed);
+          (void) refreshNode (*submenuNode, refreshed);
+        });
     });
   return result;
 }
@@ -148,18 +157,30 @@ QTMEditorToolbarPresenter::repopulateProvider (
 
   QMenu* menu= item.providerMenu.data ();
   for (const QPointer<QAction>& action: item.dynamicActions)
-    if (action != nullptr) {
-      menu->removeAction (action);
-      action->deleteLater ();
-    }
+    if (action != nullptr) action->deleteLater ();
   item.dynamicActions.clear ();
+  for (const QPointer<QMenu>& dynamicMenu: item.dynamicMenus)
+    if (dynamicMenu != nullptr) dynamicMenu->deleteLater ();
+  item.dynamicMenus.clear ();
 
   QVector<QTMCommandDynamicItem> values=
     QTMCommandRegistry::instance ().providerItems (item.providerId, target);
+  QHash<QString, QMenu*> groups;
   for (const QTMCommandDynamicItem& value: values) {
     if (!value.state.available) continue;
+    QMenu* targetMenu= menu;
+    if (!value.group.isEmpty ()) {
+      QMenu* groupMenu= groups.value (value.group, nullptr);
+      if (groupMenu == nullptr) {
+        groupMenu= new QMenu (value.group, menu);
+        menu->insertAction (item.action, groupMenu->menuAction ());
+        groups.insert (value.group, groupMenu);
+        item.dynamicMenus.push_back (groupMenu);
+      }
+      targetMenu= groupMenu;
+    }
     QIcon icon= presentation_icon (value.icon);
-    QAction* action= new QAction (icon, value.label, menu);
+    QAction* action= new QAction (icon, value.label, targetMenu);
     action->setToolTip (value.help);
     action->setStatusTip (value.help);
     action->setWhatsThis (value.help);
@@ -175,7 +196,8 @@ QTMEditorToolbarPresenter::repopulateProvider (
         providerId, key, target);
       refresh ();
     });
-    menu->insertAction (item.action, action);
+    if (targetMenu == menu) menu->insertAction (item.action, action);
+    else targetMenu->addAction (action);
     item.dynamicActions.push_back (action);
   }
 }
@@ -207,8 +229,13 @@ QTMEditorToolbarPresenter::refreshNode (
     return state.available;
   }
 
-  if (item.kind == QTMCommandMenuItem::Kind::Provider)
-    return !item.dynamicActions.empty ();
+  if (item.kind == QTMCommandMenuItem::Kind::Provider) {
+    QTMCommandState state=
+      QTMCommandRegistry::instance ().providerState (item.providerId, target);
+    item.action->setVisible (state.available);
+    item.action->setEnabled (state.available && state.enabled);
+    return state.available;
+  }
 
   bool any= false;
   std::vector<bool> visible (item.children.size (), false);

@@ -18,6 +18,7 @@
 #include <atomic>
 #include <cstdint>
 #include <mutex>
+#include <string>
 #include <vector>
 
 class widget;
@@ -77,7 +78,15 @@ enum actor_editor_command_state_flag: std::uint32_t {
   ACTOR_EDITOR_COMMAND_STATE_ENV_FLOAT= 1U << 20,
   ACTOR_EDITOR_COMMAND_STATE_STD_FOLD= 1U << 21,
   ACTOR_EDITOR_COMMAND_STATE_STD_DTD= 1U << 22,
-  ACTOR_EDITOR_COMMAND_STATE_NON_SMALL_SELECTION= 1U << 23
+  ACTOR_EDITOR_COMMAND_STATE_NON_SMALL_SELECTION= 1U << 23,
+  ACTOR_EDITOR_COMMAND_STATE_INSIDE_LETTER_HEADER= 1U << 24,
+  ACTOR_EDITOR_COMMAND_STATE_INSIDE_FLOAT_OR_FOOTNOTE= 1U << 25,
+  ACTOR_EDITOR_COMMAND_STATE_MAIN_FLOW= 1U << 26,
+  ACTOR_EDITOR_COMMAND_STATE_ENV_MATH= 1U << 27,
+  ACTOR_EDITOR_COMMAND_STATE_TMDOC_TRAVERSE= 1U << 28,
+  ACTOR_EDITOR_COMMAND_STATE_TMDOC_EXPLAIN= 1U << 29,
+  ACTOR_EDITOR_COMMAND_STATE_OVERLAYS_CONTEXT= 1U << 30,
+  ACTOR_EDITOR_COMMAND_STATE_SCREENS_BUFFER= 1U << 31
 };
 
 struct actor_editor_command_snapshot {
@@ -114,6 +123,17 @@ struct actor_editor_command_snapshot {
   }
 };
 
+struct actor_dynamic_menu_item_snapshot {
+  std::string group;
+  std::string label;
+  std::string key;
+};
+
+struct actor_dynamic_menu_snapshot {
+  bool ready= false;
+  std::vector<actor_dynamic_menu_item_snapshot> items;
+};
+
 class actor_ui_endpoint {
 public:
   explicit actor_ui_endpoint (athena_view_id view_id);
@@ -148,6 +168,12 @@ public:
   void update_editor_command_state (
     const actor_editor_command_snapshot& snapshot) noexcept;
   actor_editor_command_snapshot editor_command_state () const noexcept;
+  bool begin_personal_macro_request () noexcept;
+  void cancel_personal_macro_request () noexcept;
+  void invalidate_personal_macro_items () noexcept;
+  void update_personal_macro_items (
+    std::vector<actor_dynamic_menu_item_snapshot> items) noexcept;
+  actor_dynamic_menu_snapshot personal_macro_items () const;
 
   bool publish (actor_command_kind kind,
                 athena_blob_id payload0= ATHENA_NO_BLOB,
@@ -222,6 +248,10 @@ private:
   std::atomic<std::uint64_t> applied_programmatic_scroll_generation_ {0};
   std::atomic<std::uint64_t> user_scroll_generation_ {0};
   std::atomic<std::uint64_t> editor_command_state_ {0};
+  std::atomic<bool> personal_macro_request_pending_ {false};
+  std::atomic<bool> personal_macro_ready_ {false};
+  mutable std::mutex personal_macro_lock_;
+  std::vector<actor_dynamic_menu_item_snapshot> personal_macro_items_;
   actor_command_transport effects_;
   std::uint64_t next_effect_id_;
   std::atomic<std::uint32_t> pending_commands_ {0};

@@ -27,6 +27,8 @@ public:
   athena_actor_id actor_id () const noexcept;
   athena_view_id view_id () const noexcept;
   actor_editor_command_snapshot editor_command_state () const noexcept;
+  actor_dynamic_menu_snapshot personal_macro_items () const;
+  bool request_personal_macro_items ();
   bool submit_editor_command (native_editor_command_id command);
   bool submit_editor_command (native_editor_command_id command,
                               string argument);

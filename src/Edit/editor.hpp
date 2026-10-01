@@ -107,6 +107,7 @@ protected:
   bool         progressive_typeset_pending;
   bool         progressive_typeset_continue;
   std::uint32_t editor_style_command_flags= 0;
+  bool editor_style_command_flags_valid= false;
 #ifdef EXPERIMENTAL
   environment  ste;  // environment for style rewriting
   tree         cct;  // clean copy of the document tree

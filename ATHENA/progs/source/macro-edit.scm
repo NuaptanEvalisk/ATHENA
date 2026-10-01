@@ -125,6 +125,19 @@
          (list-macros-in (tree-load-style* type)))
         (else (list))))
 
+(tm-define (native-personal-macro-provider-data)
+  (append
+    (apply append
+      (map (lambda (m) (list "" m m))
+           (get-macro-list :preamble :sort 20)))
+    (apply append
+      (map
+        (lambda (pack)
+          (apply append
+            (map (lambda (m) (list pack m m))
+                 (get-macro-list pack :sort 30))))
+        (get-public-style-list)))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Searching a definition in style files and packages
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -101,6 +101,42 @@
                   (base (buffer-master))
                   (rel-files (map (lambda (x) (url-delta base x)) files)))
            (if (nnull? rel-files) (make-thumbnails-sub rel-files nr))))))
+
+(tm-define (native-insert-include-dialog)
+  (choose-file make-include "Include file" ""))
+
+(tm-define (native-insert-link-image-dialog)
+  (choose-file make-link-image "Load image" "image"))
+
+(tm-define (native-insert-inline-image-dialog)
+  (choose-file make-inline-image "Load image" "image"))
+
+(tm-define (native-insert-thumbnails-dialog)
+  (interactive make-thumbnails))
+
+(tm-define (native-insert-small-figure)
+  (wrap-selection-small
+    (make 'small-figure)))
+
+(tm-define (native-insert-big-figure)
+  (wrap-selection-small
+    (insert-go-to '(big-figure "" (document "")) '(0 0))))
+
+(tm-define (native-insert-floating-figure)
+  (wrap-selection-small
+    (make-insertion "float")
+    (insert-go-to '(big-figure "" (document "")) '(0 0))))
+
+(tm-define (native-insert-floating-table)
+  (wrap-selection-small
+    (make-insertion "float")
+    (insert-go-to '(big-table "" (document "")) '(0 0))
+    (make 'tabular)))
+
+(tm-define (native-insert-floating-algorithm)
+  (wrap-selection-any
+    (make-insertion "float")
+    (make 'algorithm)))
    
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Routines for floats

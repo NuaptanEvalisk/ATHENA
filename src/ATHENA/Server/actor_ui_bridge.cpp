@@ -295,6 +295,44 @@ actor_ui_endpoint::editor_command_state () const noexcept {
 }
 
 bool
+actor_ui_endpoint::begin_personal_macro_request () noexcept {
+  bool expected= false;
+  return personal_macro_request_pending_.compare_exchange_strong (
+    expected, true, std::memory_order_acq_rel);
+}
+
+void
+actor_ui_endpoint::cancel_personal_macro_request () noexcept {
+  personal_macro_request_pending_.store (false, std::memory_order_release);
+}
+
+void
+actor_ui_endpoint::invalidate_personal_macro_items () noexcept {
+  personal_macro_ready_.store (false, std::memory_order_release);
+}
+
+void
+actor_ui_endpoint::update_personal_macro_items (
+  std::vector<actor_dynamic_menu_item_snapshot> items) noexcept {
+  {
+    std::lock_guard<std::mutex> lock (personal_macro_lock_);
+    personal_macro_items_= std::move (items);
+  }
+  personal_macro_ready_.store (true, std::memory_order_release);
+  personal_macro_request_pending_.store (false, std::memory_order_release);
+}
+
+actor_dynamic_menu_snapshot
+actor_ui_endpoint::personal_macro_items () const {
+  actor_dynamic_menu_snapshot result;
+  result.ready= personal_macro_ready_.load (std::memory_order_acquire);
+  if (!result.ready) return result;
+  std::lock_guard<std::mutex> lock (personal_macro_lock_);
+  result.items= personal_macro_items_;
+  return result;
+}
+
+bool
 actor_ui_endpoint::publish (
   actor_command_kind kind, athena_blob_id payload0,
   std::uint64_t argument0, std::uint64_t argument1,

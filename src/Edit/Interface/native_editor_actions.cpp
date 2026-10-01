@@ -9,10 +9,14 @@
 #include "native_editor_actions.hpp"
 
 #include "format_commands.hpp"
+#include "generic_editor_commands.hpp"
 #include "scheme.hpp"
+#include "Scheme/Scheme/native_interfaces.hpp"
+#include "Subsystems/Qt/QTMReverseHierarchyGraph.hpp"
 
 #include <QJsonArray>
 #include <QJsonValue>
+#include <QSet>
 
 namespace {
 
@@ -69,6 +73,101 @@ bool
 fail_validation (QString* error, const QString& message) {
   if (error != nullptr) *error= message;
   return false;
+}
+
+bool
+valid_business_id (const QString& id) {
+  static const QSet<QString> ids {
+    "insert-wikilink",
+    "insert-transclusion",
+    "insert-material-citation",
+    "insert-referenced-materials",
+    "open-latex-formula-dialog",
+    "insert-include-dialog",
+    "insert-link-image-dialog",
+    "insert-inline-image-dialog",
+    "insert-thumbnails-dialog",
+    "make-graphics",
+    "insert-small-table",
+    "insert-big-table",
+    "insert-small-figure",
+    "insert-big-figure",
+    "insert-floating-figure",
+    "insert-floating-table",
+    "insert-floating-algorithm",
+    "letter-today",
+    "tmdoc-explain-synopsis",
+    "make-alter-colors"
+  };
+  return ids.contains (id);
+}
+
+void
+execute_business_id (const QString& id) {
+  if (id == "insert-wikilink") (void) call ("insert-wikilink");
+  else if (id == "insert-transclusion") (void) call ("insert-transclude");
+  else if (id == "insert-material-citation")
+    (void) call ("insert-material-citation");
+  else if (id == "insert-referenced-materials")
+    (void) call ("insert-referenced-materials");
+  else if (id == "open-latex-formula-dialog")
+    (void) call ("open-latex-formula-dialog");
+  else if (id == "insert-include-dialog")
+    (void) call ("native-insert-include-dialog");
+  else if (id == "insert-link-image-dialog")
+    (void) call ("native-insert-link-image-dialog");
+  else if (id == "insert-inline-image-dialog")
+    (void) call ("native-insert-inline-image-dialog");
+  else if (id == "insert-thumbnails-dialog")
+    (void) call ("native-insert-thumbnails-dialog");
+  else if (id == "make-graphics") (void) call ("make-graphics");
+  else if (id == "insert-small-table")
+    (void) call ("native-insert-small-table");
+  else if (id == "insert-big-table")
+    (void) call ("native-insert-big-table");
+  else if (id == "insert-small-figure")
+    (void) call ("native-insert-small-figure");
+  else if (id == "insert-big-figure")
+    (void) call ("native-insert-big-figure");
+  else if (id == "insert-floating-figure")
+    (void) call ("native-insert-floating-figure");
+  else if (id == "insert-floating-table")
+    (void) call ("native-insert-floating-table");
+  else if (id == "insert-floating-algorithm")
+    (void) call ("native-insert-floating-algorithm");
+  else if (id == "letter-today") {
+    (void) call ("make-header", symbol_object ("letter-date"));
+    (void) call ("make", symbol_object ("date"), object (0));
+  }
+  else if (id == "tmdoc-explain-synopsis")
+    (void) call ("tmdoc-insert-explain-synopsis");
+  else if (id == "make-alter-colors") (void) call ("make-alter-colors");
+  else FAILED ("unknown native editor business id");
+}
+
+void
+make_section (editor ed, string tag) {
+  if (ed->selection_active_any ()) {
+    if (!ed->selection_active_small ()) return;
+    ed->make_compound (as_tree_label (tag));
+    return;
+  }
+  if (!ed->make_return_after ()) ed->make_compound (as_tree_label (tag));
+}
+
+void
+make_equation_like (editor ed, string tag) {
+  if (ed->selection_active_any () && !ed->selection_active_small ()) return;
+  ed->make_compound (as_tree_label (tag));
+  ed->ensure_trailing_proof_paragraph ();
+}
+
+void
+make_aux (editor ed, string env, string var, string fallback) {
+  string aux= ed->defined_at_cursor (var) ? ed->get_env_string (var) : fallback;
+  if (ed->make_return_after ()) return;
+  tree value (as_tree_label (env), tree (aux), tree (DOCUMENT, ""));
+  ed->insert_tree (value);
 }
 
 } // namespace
@@ -134,10 +233,48 @@ native_editor_action_validate (const QJsonObject& action, QString* error) {
     return has_string (action, "tag") && has_string (action, "value") ?
              true : fail_validation (
                error, "insert-alphabet requires tag/value");
+  if (op == "make-section" || op == "make-unnamed-section" ||
+      op == "make-header" || op == "tmdoc-branch" ||
+      op == "make-equation-like" ||
+      op == "make-tmlist" || op == "make-toggle" ||
+      op == "make-switch" || op == "make-unroll" ||
+      op == "make-overlays" || op == "make-overlay" ||
+      op == "make-insertion")
+    return has_string (action, "tag") ?
+             true : fail_validation (error, op + " requires tag");
+  if (op == "make-star")
+    return has_string (action, "tag") && has_string (action, "style") ?
+             true : fail_validation (error, "make-star requires tag/style");
+  if (op == "make-switch-list")
+    return has_string (action, "tag") && has_string (action, "list") ?
+             true : fail_validation (
+               error, "make-switch-list requires tag/list");
+  if (op == "make-aux")
+    return has_string (action, "env") && has_string (action, "var") &&
+           has_string (action, "fallback") ?
+             true : fail_validation (
+               error, "make-aux requires env/var/fallback");
+  if (op == "make-alternate")
+    return has_string (action, "prompt") &&
+           has_string (action, "default") &&
+           has_string (action, "tag") ?
+             true : fail_validation (
+               error, "make-alternate requires prompt/default/tag");
+  if (op == "business")
+    return has_string (action, "id") &&
+           valid_business_id (action.value ("id").toString ()) ?
+             true : fail_validation (error, "unknown native business id");
 
   if (op == "make-fraction" || op == "make-sqrt" ||
       op == "make-var-sqrt" || op == "make-neg" ||
-      op == "make-above" || op == "make-below")
+      op == "make-above" || op == "make-below" ||
+      op == "make-screens" || op == "make-label" ||
+      op == "make-balloon" || op == "make-marginal-note" ||
+      op == "make-note-ref" || op == "make-note-inline" ||
+      op == "make-note-wide" || op == "make-note-footnote" ||
+      op == "make-doc-data" || op == "make-abstract-data" ||
+      op == "make-cd" || op == "insert-reverse-hierarchy-graph" ||
+      op == "make-experimental-build-warning")
     return true;
 
   return fail_validation (error, "unsupported native editor action op: " + op);
@@ -225,6 +362,92 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     ed->insert_tree (
       tree (as_tree_label (native_action_string (action.value ("tag"))),
             tree (native_action_string (action.value ("value")))));
+  else if (op == "make-section")
+    make_section (ed, native_action_string (action.value ("tag")));
+  else if (op == "make-unnamed-section")
+    (void) call (
+      "make-unnamed-section",
+      symbol_object (native_action_string (action.value ("tag"))));
+  else if (op == "make-header")
+    (void) call (
+      "make-header",
+      symbol_object (native_action_string (action.value ("tag"))));
+  else if (op == "make-star")
+    (void) call (
+      "make*",
+      symbol_object (native_action_string (action.value ("tag"))),
+      object (native_action_string (action.value ("style"))));
+  else if (op == "tmdoc-branch")
+    (void) call (
+      "tmdoc-make-branch",
+      symbol_object (native_action_string (action.value ("tag"))));
+  else if (op == "make-equation-like")
+    make_equation_like (ed, native_action_string (action.value ("tag")));
+  else if (op == "make-tmlist")
+    (void) call (
+      "make-tmlist", symbol_object (native_action_string (action.value ("tag"))));
+  else if (op == "make-toggle")
+    (void) call (
+      "make-toggle", symbol_object (native_action_string (action.value ("tag"))));
+  else if (op == "make-switch")
+    (void) call (
+      "make-switch", symbol_object (native_action_string (action.value ("tag"))));
+  else if (op == "make-unroll")
+    (void) call (
+      "make-unroll", symbol_object (native_action_string (action.value ("tag"))));
+  else if (op == "make-switch-list")
+    (void) call (
+      "make-switch-list",
+      symbol_object (native_action_string (action.value ("tag"))),
+      symbol_object (native_action_string (action.value ("list"))));
+  else if (op == "make-overlays")
+    (void) call (
+      "make-overlays",
+      symbol_object (native_action_string (action.value ("tag"))));
+  else if (op == "make-overlay")
+    (void) call (
+      "make-overlay",
+      symbol_object (native_action_string (action.value ("tag"))));
+  else if (op == "make-screens") (void) call ("make-screens");
+  else if (op == "make-insertion")
+    generic_make_insertion (native_action_string (action.value ("tag")));
+  else if (op == "make-label") generic_make_label ();
+  else if (op == "make-balloon") generic_make_balloon ();
+  else if (op == "make-marginal-note") generic_make_marginal_note ();
+  else if (op == "make-note-ref") generic_make_note_ref ();
+  else if (op == "make-note-inline") generic_make_note_inline ();
+  else if (op == "make-note-wide") generic_make_note_wide ();
+  else if (op == "make-note-footnote") generic_make_note_footnote ();
+  else if (op == "make-doc-data") {
+    tree value (
+      as_tree_label ("doc-data"),
+      tree (as_tree_label ("doc-title"), tree ("")));
+    ed->insert_tree (value, path (0, 0, 0));
+  }
+  else if (op == "make-abstract-data") {
+    tree value (
+      as_tree_label ("abstract-data"),
+      tree (as_tree_label ("abstract"), tree ("")));
+    ed->insert_tree (value, path (0, 0, 0));
+  }
+  else if (op == "make-aux")
+    make_aux (
+      ed,
+      native_action_string (action.value ("env")),
+      native_action_string (action.value ("var")),
+      native_action_string (action.value ("fallback")));
+  else if (op == "make-alternate")
+    format_make_alternate (
+      native_action_string (action.value ("prompt")),
+      object (native_action_string (action.value ("default"))),
+      as_tree_label (native_action_string (action.value ("tag"))));
+  else if (op == "make-cd") athena_make_commutative_diagram ();
+  else if (op == "insert-reverse-hierarchy-graph")
+    reverse_hierarchy_graph_insert ();
+  else if (op == "make-experimental-build-warning")
+    generic_make_experimental_build_warning ();
+  else if (op == "business")
+    execute_business_id (action.value ("id").toString ());
   else
     FAILED ("unhandled validated native editor action");
 }

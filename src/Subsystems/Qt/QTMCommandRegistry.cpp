@@ -149,7 +149,17 @@ editor_capability_bit (const QString& name, std::uint32_t& bit) {
     {"std-list", ACTOR_EDITOR_COMMAND_STATE_STD_LIST},
     {"env-float", ACTOR_EDITOR_COMMAND_STATE_ENV_FLOAT},
     {"std-fold", ACTOR_EDITOR_COMMAND_STATE_STD_FOLD},
-    {"std-dtd", ACTOR_EDITOR_COMMAND_STATE_STD_DTD}
+    {"std-dtd", ACTOR_EDITOR_COMMAND_STATE_STD_DTD},
+    {"inside-letter-header",
+     ACTOR_EDITOR_COMMAND_STATE_INSIDE_LETTER_HEADER},
+    {"inside-float-or-footnote",
+     ACTOR_EDITOR_COMMAND_STATE_INSIDE_FLOAT_OR_FOOTNOTE},
+    {"main-flow", ACTOR_EDITOR_COMMAND_STATE_MAIN_FLOW},
+    {"env-math", ACTOR_EDITOR_COMMAND_STATE_ENV_MATH},
+    {"tmdoc-traverse", ACTOR_EDITOR_COMMAND_STATE_TMDOC_TRAVERSE},
+    {"tmdoc-explain", ACTOR_EDITOR_COMMAND_STATE_TMDOC_EXPLAIN},
+    {"overlays-context", ACTOR_EDITOR_COMMAND_STATE_OVERLAYS_CONTEXT},
+    {"screens-buffer", ACTOR_EDITOR_COMMAND_STATE_SCREENS_BUFFER}
   };
   auto found= bits.constFind (name);
   if (found == bits.constEnd ()) return false;
@@ -301,6 +311,25 @@ execute_editor_color (const QString& key,
   action.insert ("value", color);
   return submit_inline_editor_action (
     context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
+}
+
+QTMCommandState
+editor_provider_state (
+  const QTMCommandContext& context, std::uint32_t allowedModes= 0,
+  bool writable= false, bool requireSelection= false) {
+  QTMCommandState state;
+  qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+  if (proxy == nullptr) return state;
+  actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
+  if (!snapshot.valid ()) return state;
+  if (allowedModes != 0 && (snapshot.flags & allowedModes) == 0) return state;
+  if (requireSelection &&
+      !snapshot.selection_active () &&
+      !snapshot.graphics_selection_active ())
+    return state;
+  state.available= true;
+  state.enabled= !writable || !snapshot.read_only ();
+  return state;
 }
 
 bool
@@ -559,9 +588,11 @@ QTMCommandRegistry::registerProvider (
   const QString& id, QTMCommandScope scope,
   std::function<QVector<QTMCommandDynamicItem>(
     const QTMCommandContext&)> items,
-  std::function<bool(const QString&, const QTMCommandContext&)> execute) {
+  std::function<bool(const QString&, const QTMCommandContext&)> execute,
+  std::function<QTMCommandState(const QTMCommandContext&)> state) {
   ProviderBehavior provider;
   provider.scope= scope;
+  provider.state= std::move (state);
   provider.items= std::move (items);
   provider.execute= std::move (execute);
   providers_.insert (id, std::move (provider));
@@ -721,6 +752,13 @@ QTMCommandRegistry::registerBuiltins () {
           context.shell.data (), QObject::tr ("Export"),
           QObject::tr ("Could not export the document to %1.").arg (path));
       return !failed;
+    },
+    [] (const QTMCommandContext& context) {
+      QTMCommandState state;
+      if (is_none (frozen_document_url (context))) return state;
+      state.available= true;
+      state.enabled= true;
+      return state;
     });
   registerProvider (
     "selection-image-formats", QTMCommandScope::Editor,
@@ -751,6 +789,9 @@ QTMCommandRegistry::registerBuiltins () {
              proxy->submit_editor_command (
                native_editor_command_id::export_selection_image,
                from_qstring (key));
+    },
+    [] (const QTMCommandContext& context) {
+      return editor_provider_state (context, 0, false, true);
     });
   registerProvider (
     "realtime-save-toggle", QTMCommandScope::Editor,
@@ -776,6 +817,18 @@ QTMCommandRegistry::registerBuiltins () {
         return false;
       return athena_set_realtime_save_paused (
         source, !athena_realtime_save_paused (source));
+    },
+    [] (const QTMCommandContext& context) {
+      QTMCommandState state;
+      url source= frozen_document_url (context);
+      if (is_none (source) ||
+          athena_current_document_save_mode () !=
+            athena_document_save_mode::realtime ||
+          !athena_realtime_save_eligible (source))
+        return state;
+      state.available= true;
+      state.enabled= true;
+      return state;
     });
   registerProvider (
     "editor-text-colors", QTMCommandScope::Editor,
@@ -787,6 +840,13 @@ QTMCommandRegistry::registerBuiltins () {
     },
     [] (const QString& key, const QTMCommandContext& context) {
       return execute_editor_color (key, context);
+    },
+    [] (const QTMCommandContext& context) {
+      return editor_provider_state (
+        context,
+        ACTOR_EDITOR_COMMAND_STATE_TEXT_MODE |
+        ACTOR_EDITOR_COMMAND_STATE_SOURCE_MODE,
+        true);
     });
   registerProvider (
     "editor-prog-colors", QTMCommandScope::Editor,
@@ -796,6 +856,10 @@ QTMCommandRegistry::registerBuiltins () {
     },
     [] (const QString& key, const QTMCommandContext& context) {
       return execute_editor_color (key, context);
+    },
+    [] (const QTMCommandContext& context) {
+      return editor_provider_state (
+        context, ACTOR_EDITOR_COMMAND_STATE_PROG_MODE, true);
     });
   registerProvider (
     "editor-math-colors", QTMCommandScope::Editor,
@@ -805,6 +869,65 @@ QTMCommandRegistry::registerBuiltins () {
     },
     [] (const QString& key, const QTMCommandContext& context) {
       return execute_editor_color (key, context);
+    },
+    [] (const QTMCommandContext& context) {
+      return editor_provider_state (
+        context, ACTOR_EDITOR_COMMAND_STATE_MATH_MODE, true);
+    });
+  registerProvider (
+    "editor-personal-macros", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QVector<QTMCommandDynamicItem> out;
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return out;
+      actor_editor_command_snapshot commandState= proxy->editor_command_state ();
+      const std::uint32_t insertModes=
+        ACTOR_EDITOR_COMMAND_STATE_TEXT_MODE |
+        ACTOR_EDITOR_COMMAND_STATE_MATH_MODE |
+        ACTOR_EDITOR_COMMAND_STATE_PROG_MODE;
+      if (!commandState.valid () || (commandState.flags & insertModes) == 0)
+        return out;
+      actor_dynamic_menu_snapshot snapshot= proxy->personal_macro_items ();
+      if (!snapshot.ready) {
+        (void) proxy->request_personal_macro_items ();
+        QTMCommandDynamicItem loading= enabled_dynamic_item (
+          QStringLiteral ("__loading__"),
+          QObject::tr ("Loading personal macros..."));
+        loading.state.enabled= false;
+        out.append (std::move (loading));
+        return out;
+      }
+      for (const actor_dynamic_menu_item_snapshot& source: snapshot.items) {
+        QString group= QString::fromUtf8 (
+          source.group.data (), static_cast<int> (source.group.size ()));
+        QString label= QString::fromUtf8 (
+          source.label.data (), static_cast<int> (source.label.size ()));
+        QString key= QString::fromUtf8 (
+          source.key.data (), static_cast<int> (source.key.size ()));
+        if (key.isEmpty ()) continue;
+        QTMCommandDynamicItem item= enabled_dynamic_item (
+          key, label, QObject::tr ("Insert personal macro %1").arg (label));
+        item.group= group;
+        out.append (std::move (item));
+      }
+      return out;
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      if (key.isEmpty () || key == QStringLiteral ("__loading__"))
+        return false;
+      QJsonObject action;
+      action.insert ("op", "make");
+      action.insert ("tag", key);
+      return submit_inline_editor_action (
+        context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
+    },
+    [] (const QTMCommandContext& context) {
+      return editor_provider_state (
+        context,
+        ACTOR_EDITOR_COMMAND_STATE_TEXT_MODE |
+        ACTOR_EDITOR_COMMAND_STATE_MATH_MODE |
+        ACTOR_EDITOR_COMMAND_STATE_PROG_MODE,
+        true);
     });
   registerBehavior (
     "workspace.namespace-explorer", QTMCommandScope::Workspace,
@@ -1428,6 +1551,29 @@ QTMCommandRegistry::providerItems (
   auto found= providers_.constFind (providerId);
   if (found == providers_.constEnd () || !found->items) return {};
   return found->items (context);
+}
+
+QTMCommandState
+QTMCommandRegistry::providerState (
+  const QString& providerId, const QTMCommandContext& context) const {
+  auto found= providers_.constFind (providerId);
+  if (found == providers_.constEnd ()) return {};
+  if (found->state) return found->state (context);
+  QTMCommandState state;
+  if (found->scope == QTMCommandScope::Application) {
+    state.available= true;
+    state.enabled= true;
+    return state;
+  }
+  if (found->scope == QTMCommandScope::Editor) {
+    qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+    if (proxy == nullptr) return state;
+    actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
+    if (!snapshot.valid ()) return state;
+    state.available= true;
+    state.enabled= true;
+  }
+  return state;
 }
 
 bool

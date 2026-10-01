@@ -286,3 +286,27 @@ data without turning the command palette into a symbol catalog.  The actor-side
 action runner now has finite bracket/separator/long-arrow/alphabet operations.
 The JSON file uses compact one-command/one-toolbar-item lines rather than
 deep pretty-printing to keep this large static inventory reviewable.
+
+The shared Insert and text/documentation slices are now migrated as well.
+Personal Macro is not derived from the rendered Scheme menu: the owning
+BufferActor publishes a plain grouped macro snapshot on demand, Main presents
+the groups lazily, and execution sends the selected macro name back through the
+validated `make` editor action. Text/Math/Table/Image/Link/Fold insertion uses
+typed editor actions or a finite C++ business-ID whitelist for existing file
+and wizard transactions. Text block and tmdoc icon groups consume published
+style/mode/structure capability bits, including main-flow, letter/floating
+context, tmdoc traversal/explanation, overlays and screens-buffer state.
+
+The native mode presenter is still deliberately inactive. Before the
+`texmacs-mode-icons` cutover the remaining parity gaps are:
+
+- Prominent text `Compact`, `Compressed`, and `Amplified`, whose legacy
+  visibility depends on the current `par-par-sep` environment value.
+- The Math Preferences and semantic-annotation controls at the tail of
+  `math-insert-icons`.
+- Presentation traversal duplicated into text/math/prog mode bars only when
+  the main icon bar is hidden; native presentation must preserve that exact
+  surface condition rather than showing two copies.
+
+Those gaps are explicit cutover blockers; the legacy mode producer remains the
+sole production mode toolbar until they are resolved.

@@ -74,6 +74,7 @@ struct QTMCommandMenuItem {
 
 struct QTMCommandDynamicItem {
   QString key;
+  QString group;
   QString label;
   QString help;
   QString icon;
@@ -123,6 +124,8 @@ public:
   bool execute (const QString& id, const QTMCommandContext& context) const;
   QVector<QTMCommandDynamicItem> providerItems (
     const QString& providerId, const QTMCommandContext& context) const;
+  QTMCommandState providerState (
+    const QString& providerId, const QTMCommandContext& context) const;
   bool executeProviderItem (const QString& providerId, const QString& key,
                             const QTMCommandContext& context) const;
 
@@ -134,6 +137,7 @@ private:
   };
   struct ProviderBehavior {
     QTMCommandScope scope= QTMCommandScope::Application;
+    std::function<QTMCommandState(const QTMCommandContext&)> state;
     std::function<QVector<QTMCommandDynamicItem>(
       const QTMCommandContext&)> items;
     std::function<bool(const QString&, const QTMCommandContext&)> execute;
@@ -149,7 +153,8 @@ private:
     const QString& id, QTMCommandScope scope,
     std::function<QVector<QTMCommandDynamicItem>(
       const QTMCommandContext&)> items,
-    std::function<bool(const QString&, const QTMCommandContext&)> execute);
+    std::function<bool(const QString&, const QTMCommandContext&)> execute,
+    std::function<QTMCommandState(const QTMCommandContext&)> state= {});
   bool loadPresentation ();
   bool failPresentation (const QString& message);
 

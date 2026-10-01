@@ -18,6 +18,16 @@
         (utils edit selections)
         (utils library cursor)))
 
+(tm-define (native-insert-small-table)
+  (wrap-selection-small
+    (insert-go-to '(small-table "" "") '(0 0))
+    (make 'tabular)))
+
+(tm-define (native-insert-big-table)
+  (wrap-selection-small
+    (insert-go-to '(big-table "" (document "")) '(0 0))
+    (make 'tabular)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Some drd properties, which should go into table-drd.scm later on
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

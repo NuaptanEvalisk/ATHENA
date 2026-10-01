@@ -143,6 +143,25 @@ qt_actor_widget_rep::editor_command_state () const noexcept {
          endpoint_->editor_command_state ();
 }
 
+actor_dynamic_menu_snapshot
+qt_actor_widget_rep::personal_macro_items () const {
+  return endpoint_ == nullptr ? actor_dynamic_menu_snapshot {} :
+         endpoint_->personal_macro_items ();
+}
+
+bool
+qt_actor_widget_rep::request_personal_macro_items () {
+  if (endpoint_ == nullptr) return false;
+  if (!endpoint_->begin_personal_macro_request ()) return true;
+  actor_command_ticket ticket= buffer_actor::try_submit_to (
+    actor_id_, actor_command_kind::request_personal_macro_items, view_id_);
+  if (!ticket) {
+    endpoint_->cancel_personal_macro_request ();
+    return false;
+  }
+  return true;
+}
+
 bool
 qt_actor_widget_rep::submit_editor_command (native_editor_command_id command) {
   if (command == native_editor_command_id::none) return false;

@@ -151,7 +151,16 @@
 (lazy-define (generic document-edit) update-document set-document-language
              get-init-page-rendering init-page-rendering)
 (lazy-define (generic generic-edit) notify-activated notify-disactivated
-             wheel-capture?)
+             wheel-capture?
+             native-insert-include-dialog
+             native-insert-link-image-dialog
+             native-insert-inline-image-dialog
+             native-insert-thumbnails-dialog
+             native-insert-small-figure
+             native-insert-big-figure
+             native-insert-floating-figure
+             native-insert-floating-table
+             native-insert-floating-algorithm)
 (lazy-define (generic generic-doc) focus-help)
 (lazy-define (generic global-search) open-global-search
              global-search-open-result global-search-open-occurrence)
@@ -254,7 +263,8 @@
 (lazy-menu (source source-menu) source-macros-menu source-menu source-icons
            source-transformational-menu source-executable-menu)
 (lazy-define (source macro-edit)
-             has-macro-source? edit-macro-source edit-focus-macro-source)
+             has-macro-source? edit-macro-source edit-focus-macro-source
+             native-personal-macro-provider-data)
 (lazy-menu (source macro-menu) insert-macro-menu)
 (lazy-define (source shortcut-edit) init-user-shortcuts has-user-shortcut?)
 (lazy-define (source shortcut-widgets) open-shortcuts-editor)
@@ -267,7 +277,8 @@
 (lazy-keyboard (table table-edit) in-table?)
 (lazy-keyboard (native-keyboard table) in-table?)
 (lazy-menu (table table-menu) insert-table-menu)
-(lazy-define (table table-edit) table-resize-notify)
+(lazy-define (table table-edit) table-resize-notify
+             native-insert-small-table native-insert-big-table)
 (lazy-define (table table-widgets) open-cell-properties open-table-properties)
 (tm-property (open-cell-properties) (:interactive #t))
 (tm-property (open-table-properties) (:interactive #t))
@@ -302,6 +313,8 @@
 ;(display "Booting documentation\n")
 (lazy-keyboard (native-keyboard tmdoc) in-manual?)
 (lazy-menu (doc tmdoc-menu) tmdoc-menu tmdoc-icons)
+(lazy-define (doc tmdoc-edit)
+             tmdoc-make-branch tmdoc-insert-explain-synopsis)
 (lazy-menu (doc help-menu) help-menu)
 (lazy-define (doc tmdoc) tmdoc-expand-help tmdoc-expand-help-manual
              tmdoc-expand-this tmdoc-include)
