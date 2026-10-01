@@ -32,7 +32,9 @@
 #include "QTMWebsitesManager.hpp"
 #include "QTMGoogleTasksPane.hpp"
 #include "qt_actor_widget.hpp"
+#include "document_persistence.hpp"
 #include "file.hpp"
+#include "new_buffer.hpp"
 #include "new_window.hpp"
 #include "qt_utilities.hpp"
 #include "scheme.hpp"
@@ -42,6 +44,7 @@
 #include <QAbstractSpinBox>
 #include <QComboBox>
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -49,6 +52,7 @@
 #include <QJsonValue>
 #include <QLineEdit>
 #include <QPlainTextEdit>
+#include <QMessageBox>
 #include <QSet>
 #include <QTextEdit>
 
@@ -60,6 +64,44 @@ enabled_application_command () {
   state.available= true;
   state.enabled= true;
   return state;
+}
+
+QTMCommandDynamicItem
+enabled_dynamic_item (QString key, QString label, QString help= QString ()) {
+  QTMCommandDynamicItem item;
+  item.key= std::move (key);
+  item.label= std::move (label);
+  item.help= std::move (help);
+  item.state.available= true;
+  item.state.enabled= true;
+  return item;
+}
+
+QVector<QString>
+scheme_string_vector (object value) {
+  QVector<QString> result;
+  list<string> values= as_list_string (value);
+  for (list<string> it= values; !is_nil (it); it= it->next)
+    result.append (to_qstring (it->item));
+  return result;
+}
+
+QString
+provider_format_suffix (const QString& format) {
+  try {
+    object value= call ("format-default-suffix", object (from_qstring (format)));
+    if (is_string (value)) return to_qstring (as_string (value));
+  }
+  catch (...) {}
+  return QString ();
+}
+
+QString
+provider_file_filter (const QString& format, const QString& suffix) {
+  if (suffix.isEmpty ()) return QObject::tr ("All files (*)");
+  QString display= format;
+  if (!display.isEmpty ()) display[0]= display[0].toUpper ();
+  return QObject::tr ("%1 files (*.%2);;All files (*)").arg (display, suffix);
 }
 
 QTMWidget*
@@ -257,6 +299,19 @@ QTMCommandRegistry::registerBehavior (
 }
 
 void
+QTMCommandRegistry::registerProvider (
+  const QString& id, QTMCommandScope scope,
+  std::function<QVector<QTMCommandDynamicItem>(
+    const QTMCommandContext&)> items,
+  std::function<bool(const QString&, const QTMCommandContext&)> execute) {
+  ProviderBehavior provider;
+  provider.scope= scope;
+  provider.items= std::move (items);
+  provider.execute= std::move (execute);
+  providers_.insert (id, std::move (provider));
+}
+
+void
 QTMCommandRegistry::registerBuiltins () {
   registerBehavior (
     "application.new-document", QTMCommandScope::Application,
@@ -312,6 +367,129 @@ QTMCommandRegistry::registerBuiltins () {
       state.enabled= context.shell != nullptr ||
                      QTMMainTabWindow::topTabWindow () != nullptr;
       return state;
+    });
+  registerProvider (
+    "recent-files", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      QVector<QTMCommandDynamicItem> out;
+      try {
+        QVector<QString> data= scheme_string_vector (
+          call ("native-recent-file-provider-data", object (25)));
+        for (int i= 0; i + 2 < data.size (); i += 3) {
+          QString label= data[i + 1].trimmed ();
+          if (label.isEmpty ()) label= QFileInfo (data[i + 2]).fileName ();
+          if (label.isEmpty ()) label= data[i];
+          out.append (enabled_dynamic_item (
+            data[i], label, data[i + 2]));
+        }
+      }
+      catch (...) {}
+      return out;
+    },
+    [] (const QString& key, const QTMCommandContext&) {
+      if (key.isEmpty ()) return false;
+      try {
+        (void) call ("load-buffer", object (url (from_qstring (key))));
+        return true;
+      }
+      catch (...) {
+        return false;
+      }
+    });
+  registerProvider (
+    "file-import-formats", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      QVector<QTMCommandDynamicItem> out;
+      try {
+        QVector<QString> data= scheme_string_vector (
+          call ("native-import-format-provider-data"));
+        for (int i= 0; i + 2 < data.size (); i += 3) {
+          QTMCommandDynamicItem item= enabled_dynamic_item (
+            data[i], QObject::tr ("Import %1").arg (data[i + 1]));
+          item.help= data[i + 2];
+          out.append (std::move (item));
+        }
+      }
+      catch (...) {}
+      return out;
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      if (key.isEmpty ()) return false;
+      QString suffix= provider_format_suffix (key);
+      QString path= QFileDialog::getOpenFileName (
+        context.shell.data (), QObject::tr ("Import file"), QString (),
+        provider_file_filter (key, suffix));
+      if (path.isEmpty ()) return true;
+      try {
+        (void) call ("import-buffer",
+                     object (url_system (from_qstring (path))),
+                     object (from_qstring (key)));
+        return true;
+      }
+      catch (...) {
+        return false;
+      }
+    });
+  registerProvider (
+    "file-export-formats", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QVector<QTMCommandDynamicItem> out;
+      if (is_none (frozen_document_url (context))) return out;
+      try {
+        QVector<QString> data= scheme_string_vector (
+          call ("native-export-format-provider-data"));
+        for (int i= 0; i + 2 < data.size (); i += 3) {
+          QTMCommandDynamicItem item= enabled_dynamic_item (
+            data[i], QObject::tr ("Export as %1").arg (data[i + 1]));
+          item.help= data[i + 2];
+          out.append (std::move (item));
+        }
+      }
+      catch (...) {}
+      return out;
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      url source= frozen_document_url (context);
+      if (key.isEmpty () || is_none (source)) return false;
+      QString suffix= provider_format_suffix (key);
+      QString path= QFileDialog::getSaveFileName (
+        context.shell.data (), QObject::tr ("Export document"), QString (),
+        provider_file_filter (key, suffix));
+      if (path.isEmpty ()) return true;
+      if (!suffix.isEmpty () && QFileInfo (path).suffix ().isEmpty ())
+        path += QStringLiteral (".") + suffix;
+      bool failed= buffer_export (
+        source, url_system (from_qstring (path)), from_qstring (key));
+      if (failed)
+        QMessageBox::warning (
+          context.shell.data (), QObject::tr ("Export"),
+          QObject::tr ("Could not export the document to %1.").arg (path));
+      return !failed;
+    });
+  registerProvider (
+    "realtime-save-toggle", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QVector<QTMCommandDynamicItem> out;
+      url source= frozen_document_url (context);
+      if (is_none (source) ||
+          athena_current_document_save_mode () !=
+            athena_document_save_mode::realtime ||
+          !athena_realtime_save_eligible (source))
+        return out;
+      bool paused= athena_realtime_save_paused (source);
+      out.append (enabled_dynamic_item (
+        QStringLiteral ("toggle"),
+        paused ? QObject::tr ("Resume realtime save")
+               : QObject::tr ("Pause realtime save")));
+      return out;
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      if (key != QStringLiteral ("toggle")) return false;
+      url source= frozen_document_url (context);
+      if (is_none (source) || !athena_realtime_save_eligible (source))
+        return false;
+      return athena_set_realtime_save_paused (
+        source, !athena_realtime_save_paused (source));
     });
   registerBehavior (
     "workspace.namespace-explorer", QTMCommandScope::Workspace,
@@ -590,8 +768,11 @@ QTMCommandRegistry::loadPresentation () {
         itemObject.value ("command").toString ().trimmed ();
       QString submenuId=
         itemObject.value ("submenu").toString ().trimmed ();
+      QString providerId=
+        itemObject.value ("provider").toString ().trimmed ();
       int kinds= (separator ? 1 : 0) + (!commandId.isEmpty () ? 1 : 0) +
-                 (!submenuId.isEmpty () ? 1 : 0);
+                  (!submenuId.isEmpty () ? 1 : 0) +
+                  (!providerId.isEmpty () ? 1 : 0);
       if (kinds != 1)
         return failPresentation (
           QString ("menu %1 item requires one item kind").arg (ownerId));
@@ -606,6 +787,14 @@ QTMCommandRegistry::loadPresentation () {
               .arg (ownerId, commandId));
         item.kind= QTMCommandMenuItem::Kind::Command;
         item.commandId= commandId;
+      }
+      else if (!providerId.isEmpty ()) {
+        if (!providers_.contains (providerId))
+          return failPresentation (
+            QString ("menu %1 references unknown provider: %2")
+              .arg (ownerId, providerId));
+        item.kind= QTMCommandMenuItem::Kind::Provider;
+        item.providerId= providerId;
       }
       else {
         QString label= itemObject.value ("label").toString ().trimmed ();
@@ -678,6 +867,7 @@ bool
 QTMCommandRegistry::initialize () {
   if (initialized_) return true;
   behaviors_.clear ();
+  providers_.clear ();
   commandIndex_.clear ();
   commands_.clear ();
   menus_.clear ();
@@ -782,4 +972,21 @@ QTMCommandRegistry::execute (const QString& id,
     return behavior.execute ? behavior.execute (context): false;
 
   return false;
+}
+
+QVector<QTMCommandDynamicItem>
+QTMCommandRegistry::providerItems (
+  const QString& providerId, const QTMCommandContext& context) const {
+  auto found= providers_.constFind (providerId);
+  if (found == providers_.constEnd () || !found->items) return {};
+  return found->items (context);
+}
+
+bool
+QTMCommandRegistry::executeProviderItem (
+  const QString& providerId, const QString& key,
+  const QTMCommandContext& context) const {
+  auto found= providers_.constFind (providerId);
+  return found != providers_.constEnd () && found->execute &&
+         found->execute (key, context);
 }

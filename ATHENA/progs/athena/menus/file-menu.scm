@@ -105,21 +105,6 @@
       ((balloon (eval short-name) (eval long-name))
        (if win? (load-document name) (load-buffer name))))))
 
-(tm-define (recent-file-list nr)
-  (let* ((l1 (map cdar (learned-interactive "recent-buffer")))
-         (l2 (map unix->url l1))
-         (l3 (list-filter l2 buffer-in-recent-menu?))
-         (l4 (list-filter l3 (lambda (u) (not (autosave-file? u))))))
-    (sublist l4 0 (min (length l4) nr))))
-
-(tm-define (recent-unloaded-file-list nr)
-  (let* ((l1 (map cdar (learned-interactive "recent-buffer")))
-         (l2 (map unix->url l1))
-         (l3 (list-filter l2 buffer-in-recent-menu?))
-         (l4 (list-filter l3 (lambda (u) (not (autosave-file? u)))))
-         (dl (list-difference l4 (buffer-list))))
-    (sublist dl 0 (min (length dl) nr))))
-
 (tm-define (recent-directory-list nr)
   (let* ((l1 (recent-file-list nr))
          (l2 (map url-head l1))

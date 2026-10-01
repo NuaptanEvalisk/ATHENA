@@ -155,6 +155,41 @@
        (with s (url->system name)
          (string-ends? s "~"))))
 
+;; Native shell/menu providers consume these as plain data.  Keep the recent
+;; file and converter inventories in the file/business module so retiring the
+;; legacy Scheme menu producer does not remove the underlying data source.
+(tm-define (recent-file-list nr)
+  (let* ((l1 (map cdar (learned-interactive "recent-buffer")))
+         (l2 (map unix->url l1))
+         (l3 (list-filter l2 buffer-in-recent-menu?))
+         (l4 (list-filter l3 (lambda (u) (not (autosave-file? u))))))
+    (sublist l4 0 (min (length l4) nr))))
+
+(tm-define (recent-unloaded-file-list nr)
+  (let* ((l1 (recent-file-list nr))
+         (dl (list-difference l1 (buffer-list))))
+    (sublist dl 0 (min (length dl) nr))))
+
+(tm-define (native-recent-file-provider-data nr)
+  (apply append
+    (map (lambda (u)
+           (list (url->string u)
+                 (url->system (url-tail u))
+                 (url->system u)))
+         (recent-file-list nr))))
+
+(tm-define (native-import-format-provider-data)
+  (apply append
+    (map (lambda (fm)
+           (list fm (format-get-name fm) (format-default-suffix fm)))
+         (converters-to-special "texmacs-file" "-file" #f))))
+
+(tm-define (native-export-format-provider-data)
+  (apply append
+    (map (lambda (fm)
+           (list fm (format-get-name fm) (format-default-suffix fm)))
+         (converters-from-special "texmacs-file" "-file" #f))))
+
 (define (buffer-notify-recent name)
   (when (not (autosave-file? name))
     (learn-interactive 'recent-buffer (list (cons "0" (url->unix name))))

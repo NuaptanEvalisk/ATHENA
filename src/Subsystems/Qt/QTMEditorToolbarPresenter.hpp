@@ -43,7 +43,10 @@ private:
   struct node {
     QPointer<QAction> action;
     QString commandId;
+    QString providerId;
     QTMCommandMenuItem::Kind kind= QTMCommandMenuItem::Kind::Command;
+    QPointer<QMenu> providerMenu;
+    std::vector<QPointer<QAction>> dynamicActions;
     std::vector<std::unique_ptr<node>> children;
   };
 
@@ -58,6 +61,8 @@ private:
   QAction* makeCommandAction (const QString& commandId, QObject* parent);
   std::unique_ptr<node> buildItem (
     const QTMCommandMenuItem& item, QMenu* menuParent);
+  void refreshProviders (node& item, const QTMCommandContext& context);
+  void repopulateProvider (node& item, const QTMCommandContext& context);
   bool refreshNode (node& item, const QTMCommandContext& context);
   void addToolbarAction (QAction* action);
   void clearToolbar ();

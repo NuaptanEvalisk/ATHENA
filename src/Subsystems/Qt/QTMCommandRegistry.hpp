@@ -58,15 +58,25 @@ struct QTMCommandMenuItem {
   enum class Kind {
     Command,
     Separator,
-    Submenu
+    Submenu,
+    Provider
   };
 
   Kind kind= Kind::Command;
   QString commandId;
   QString submenuId;
+  QString providerId;
   QString label;
   QString icon;
   QVector<QTMCommandMenuItem> items;
+};
+
+struct QTMCommandDynamicItem {
+  QString key;
+  QString label;
+  QString help;
+  QString icon;
+  QTMCommandState state;
 };
 
 struct QTMCommandMenuDefinition {
@@ -110,12 +120,22 @@ public:
   QTMCommandState state (const QString& id,
                          const QTMCommandContext& context) const;
   bool execute (const QString& id, const QTMCommandContext& context) const;
+  QVector<QTMCommandDynamicItem> providerItems (
+    const QString& providerId, const QTMCommandContext& context) const;
+  bool executeProviderItem (const QString& providerId, const QString& key,
+                            const QTMCommandContext& context) const;
 
 private:
   struct Behavior {
     QTMCommandScope scope= QTMCommandScope::Application;
     std::function<QTMCommandState(const QTMCommandContext&)> state;
     std::function<bool(const QTMCommandContext&)> execute;
+  };
+  struct ProviderBehavior {
+    QTMCommandScope scope= QTMCommandScope::Application;
+    std::function<QVector<QTMCommandDynamicItem>(
+      const QTMCommandContext&)> items;
+    std::function<bool(const QString&, const QTMCommandContext&)> execute;
   };
 
   QTMCommandRegistry ()= default;
@@ -124,11 +144,17 @@ private:
     const QString& id, QTMCommandScope scope,
     std::function<bool(const QTMCommandContext&)> execute,
     std::function<QTMCommandState(const QTMCommandContext&)> state= {});
+  void registerProvider (
+    const QString& id, QTMCommandScope scope,
+    std::function<QVector<QTMCommandDynamicItem>(
+      const QTMCommandContext&)> items,
+    std::function<bool(const QString&, const QTMCommandContext&)> execute);
   bool loadPresentation ();
   bool failPresentation (const QString& message);
 
   bool initialized_= false;
   QHash<QString, Behavior> behaviors_;
+  QHash<QString, ProviderBehavior> providers_;
   QHash<QString, int> commandIndex_;
   QVector<QTMCommandDefinition> commands_;
   QVector<QTMCommandMenuDefinition> menus_;

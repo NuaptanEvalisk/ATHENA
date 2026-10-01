@@ -64,6 +64,7 @@ QTMEditorToolbarPresenter::buildItem (
   auto result= std::make_unique<node> ();
   result->kind= item.kind;
   result->commandId= item.commandId;
+  result->providerId= item.providerId;
 
   if (item.kind == QTMCommandMenuItem::Kind::Separator) {
     QAction* action= new QAction (menuParent != nullptr ?
@@ -82,6 +83,16 @@ QTMEditorToolbarPresenter::buildItem (
     return result;
   }
 
+  if (item.kind == QTMCommandMenuItem::Kind::Provider) {
+    if (menuParent == nullptr || item.providerId.isEmpty ()) return {};
+    QAction* anchor= new QAction (menuParent);
+    anchor->setVisible (false);
+    anchor->setEnabled (false);
+    result->action= anchor;
+    result->providerMenu= menuParent;
+    return result;
+  }
+
   QIcon icon= item.icon.isEmpty () ? QIcon (): QIcon::fromTheme (item.icon);
   QAction* action= new QAction (icon, item.label, toolbar_);
   QMenu* menu= new QMenu (item.label, toolbar_);
@@ -93,8 +104,66 @@ QTMEditorToolbarPresenter::buildItem (
     menu->addAction (built->action);
     result->children.push_back (std::move (built));
   }
-  QObject::connect (menu, &QMenu::aboutToShow, menu, [this] { refresh (); });
+  node* submenuNode= result.get ();
+  QObject::connect (
+    menu, &QMenu::aboutToShow, menu, [this, submenuNode] {
+      QTMCommandContext target= context ();
+      refreshProviders (*submenuNode, target);
+      (void) refreshNode (*submenuNode, target);
+    });
   return result;
+}
+
+void
+QTMEditorToolbarPresenter::repopulateProvider (
+  node& item, const QTMCommandContext& target) {
+  if (item.kind != QTMCommandMenuItem::Kind::Provider ||
+      item.providerMenu == nullptr || item.action == nullptr)
+    return;
+
+  QMenu* menu= item.providerMenu.data ();
+  for (const QPointer<QAction>& action: item.dynamicActions)
+    if (action != nullptr) {
+      menu->removeAction (action);
+      action->deleteLater ();
+    }
+  item.dynamicActions.clear ();
+
+  QVector<QTMCommandDynamicItem> values=
+    QTMCommandRegistry::instance ().providerItems (item.providerId, target);
+  for (const QTMCommandDynamicItem& value: values) {
+    if (!value.state.available) continue;
+    QIcon icon= value.icon.isEmpty () ? QIcon (): QIcon::fromTheme (value.icon);
+    QAction* action= new QAction (icon, value.label, menu);
+    action->setToolTip (value.help);
+    action->setStatusTip (value.help);
+    action->setWhatsThis (value.help);
+    action->setEnabled (value.state.enabled);
+    action->setCheckable (value.state.checkable);
+    if (value.state.checkable) action->setChecked (value.state.checked);
+    const QString providerId= item.providerId;
+    const QString key= value.key;
+    QObject::connect (action, &QAction::triggered, action,
+                      [this, providerId, key] {
+      QTMCommandContext target= context ();
+      (void) QTMCommandRegistry::instance ().executeProviderItem (
+        providerId, key, target);
+      refresh ();
+    });
+    menu->insertAction (item.action, action);
+    item.dynamicActions.push_back (action);
+  }
+}
+
+void
+QTMEditorToolbarPresenter::refreshProviders (
+  node& item, const QTMCommandContext& target) {
+  if (item.kind == QTMCommandMenuItem::Kind::Provider) {
+    repopulateProvider (item, target);
+    return;
+  }
+  for (const std::unique_ptr<node>& child: item.children)
+    if (child) refreshProviders (*child, target);
 }
 
 bool
@@ -112,6 +181,9 @@ QTMEditorToolbarPresenter::refreshNode (
     if (state.checkable) item.action->setChecked (state.checked);
     return state.available;
   }
+
+  if (item.kind == QTMCommandMenuItem::Kind::Provider)
+    return !item.dynamicActions.empty ();
 
   bool any= false;
   for (const std::unique_ptr<node>& child: item.children)

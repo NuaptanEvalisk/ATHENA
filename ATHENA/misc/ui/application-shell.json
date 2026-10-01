@@ -484,7 +484,11 @@
           "items": [
             { "command": "application.open" },
             { "command": "editor.revert" },
-            { "command": "application.open-new-window" }
+            { "command": "application.open-new-window" },
+            { "separator": true },
+            { "provider": "file-import-formats" },
+            { "separator": true },
+            { "provider": "recent-files" }
           ]
         },
         {
@@ -493,7 +497,10 @@
           "icon": "document-save",
           "items": [
             { "command": "editor.save" },
-            { "command": "editor.save-as" }
+            { "provider": "realtime-save-toggle" },
+            { "command": "editor.save-as" },
+            { "separator": true },
+            { "provider": "file-export-formats" }
           ]
         },
         { "command": "editor.update-all" },

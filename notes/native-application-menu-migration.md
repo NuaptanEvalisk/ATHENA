@@ -56,14 +56,14 @@ must not make their commands unreachable.
 | Compare two files | native | `file.compare-files` |
 | Open in text editor | pending | current-file editor state + external launch adapter |
 | Open in file manager | pending | current-file editor state + external launch adapter |
-| Recent Files | provider | application recent-file provider + clear action |
+| Recent Files | native provider | `recent-files`; plain recent-file data from `tm-files.scm`, fixed load route; clear action still pending |
 | Recent Vaults | provider | vault recent-list provider + clear action |
 | Save | native/adapter | `editor.save` targets the owning BufferActor and preserves permissions/conflict/Save-As/post-hook logic |
-| Pause/Resume realtime save | pending | editor snapshot checked/state + actor dispatch |
+| Pause/Resume realtime save | native provider | `realtime-save-toggle`; explicit frozen document URL + native persistence API |
 | Save as | native/adapter | `editor.save-as`; owning BufferActor opens the existing chooser/save-as transaction |
 | Print / Page setup | partial native | `editor.preview`, `editor.print`, and application `application.page-setup`; print-to-file/page-selection branches remain provider work |
-| Import | provider | converter inventory/provider; includes embedded-PDF adapter |
-| Export | provider | converter/print inventory/provider + selection state |
+| Import | native provider | `file-import-formats`; converter inventory data + native chooser + fixed import route; embedded-PDF special adapter still pending |
+| Export | partial native provider | `file-export-formats`; converter inventory data + native chooser + `buffer_export` on frozen document; print/selection extras still pending |
 | Export namespace | native/adapter | `file.export-namespace`; native flow with existing export business operation |
 | Close document | native/adapter | `editor.close-document` targets the owning BufferActor and preserves unsaved-change confirmation |
 | Restart ATHENA | adapter pending | preserve safe restart transaction |

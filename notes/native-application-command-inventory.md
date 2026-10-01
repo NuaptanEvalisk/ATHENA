@@ -60,6 +60,18 @@ not be reported as native cutover.
 | `editor.history-back` | editor | owning BufferActor -> cursor history transaction | frozen editor target | native UI / Scheme business adapter |
 | `editor.history-forward` | editor | owning BufferActor -> cursor future transaction | frozen editor target | native UI / Scheme business adapter |
 
+## Migrated dynamic presentation providers
+
+These provider IDs return plain item data and accept opaque provider keys.
+Presentation JSON cannot name Scheme procedures or carry menu ASTs.
+
+| Provider ID | Scope | Data source | Execution route | Status |
+| --- | --- | --- | --- | --- |
+| `recent-files` | application | `native-recent-file-provider-data` in file/business module | fixed `load-buffer` route | native provider |
+| `file-import-formats` | application | converter registry via `native-import-format-provider-data` | native chooser -> fixed `import-buffer` route | native provider |
+| `file-export-formats` | editor | converter registry via `native-export-format-provider-data` | native chooser -> `buffer_export(frozen_document,...)` | native provider |
+| `realtime-save-toggle` | editor | explicit document persistence state | `athena_set_realtime_save_paused(frozen_document,...)` | native provider |
+
 Application shortcuts currently declared in the JSON inventory are
 `Ctrl+N`, `Ctrl+O`, `Ctrl+Shift+P`, and `Ctrl+Q`. They are resolved by
 the registry in `QTMApplication::notify`. Application-scope shortcuts are
