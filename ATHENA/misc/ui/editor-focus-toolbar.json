@@ -20,7 +20,11 @@
     {"id":"editor.focus.set-main-style","label":"Document style","category":"Focus","icon":"tm_style","help":"Set the main document style","palette":false},
     {"id":"editor.focus.document-font","label":"Document font","category":"Focus","icon":"tm_font","help":"Choose the main document font","palette":false},
     {"id":"editor.focus.page-properties","label":"Page properties","category":"Focus","icon":"tm_page","help":"Open page properties","palette":false},
-    {"id":"editor.focus.slide-properties","label":"Slide properties","category":"Focus","icon":"tm_page","help":"Open slide properties","palette":false}
+    {"id":"editor.focus.slide-properties","label":"Slide properties","category":"Focus","icon":"tm_page","help":"Open slide properties","palette":false},
+    {"id":"editor.focus.metadata-properties","label":"Metadata properties","category":"Focus","icon":"tm_title","help":"Open document metadata properties","palette":false},
+    {"id":"editor.focus.table-properties","label":"Table properties","category":"Focus","icon":"tm_set_properties","help":"Open table properties","palette":false},
+    {"id":"editor.focus.cell-properties","label":"Cell properties","category":"Focus","icon":"tm_set_properties","help":"Open cell properties","palette":false},
+    {"id":"editor.focus.edit-label","label":"Label","category":"Focus","help":"Edit the label of the focused structure","palette":false}
   ],
   "toolbars":[
     {"id":"editor-focus","items":[
@@ -31,6 +35,10 @@
       {"command":"editor.focus.page-properties","focus_requires_any":["buffer","screens-context"]},
       {"submenu":"editor-focus-language","label":"Document language","icon":"tm_stateless","focus_requires_any":["buffer","screens-context"],"items":[{"provider":"editor-focus-document-languages"}]},
       {"command":"editor.focus.slide-properties","focus_requires":["screens-context"]},
+      {"separator":true},
+      {"command":"editor.focus.metadata-properties","focus_requires_any":["doc-title-context","doc-author-context","abstract-context"]},
+      {"command":"editor.focus.table-properties","focus_requires":["table-context"]},
+      {"command":"editor.focus.cell-properties","focus_requires":["table-context"]},
       {"separator":true},
       {"command":"editor.focus.first-similar","focus_forbids":["buffer","code-context","screens-context"]},
       {"command":"editor.focus.previous-similar","focus_forbids":["buffer","code-context","screens-context"]},
@@ -46,6 +54,10 @@
       {"command":"editor.focus.remove-right","focus_forbids":["buffer","code-context","screens-context"]},
       {"command":"editor.focus.remove-down","focus_forbids":["buffer","code-context","screens-context"]},
       {"separator":true},
+      {"provider":"editor-focus-core-toggles","focus_forbids":["buffer","code-context","screens-context","algorithm-context"]},
+      {"provider":"editor-focus-algorithm-toggles","focus_requires":["algorithm-context"]},
+      {"provider":"editor-focus-tag-toggles","focus_requires_any":["detached-note-context","titled-context","frame-context"]},
+      {"command":"editor.focus.edit-label","focus_requires":["has-label"],"focus_forbids":["buffer","code-context","screens-context"]},
       {"submenu":"editor-focus-variant","label":"Structured variant","items":[{"provider":"editor-focus-variants"}],"focus_forbids":["buffer","code-context","screens-context"]},
       {"command":"editor.focus.exit-left","focus_forbids":["buffer","code-context","screens-context"]},
       {"command":"editor.focus.exit-right","focus_forbids":["buffer","code-context","screens-context"]},

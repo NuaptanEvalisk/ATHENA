@@ -836,6 +836,24 @@ editor_rep::focus_toolbar_state_snapshot () {
   }
   catch (...) {}
   set (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT, query ("screens-context?"));
+  set (ACTOR_FOCUS_TOOLBAR_TABLE_CONTEXT, query ("table-markup-context?"));
+  set (ACTOR_FOCUS_TOOLBAR_DOC_TITLE_CONTEXT, query ("doc-title-context?"));
+  set (ACTOR_FOCUS_TOOLBAR_DOC_AUTHOR_CONTEXT, query ("doc-author-context?"));
+  set (ACTOR_FOCUS_TOOLBAR_ABSTRACT_CONTEXT, query ("abstract-data-context?"));
+  set (ACTOR_FOCUS_TOOLBAR_ALGORITHM_CONTEXT, query ("algorithm-context?"));
+  set (ACTOR_FOCUS_TOOLBAR_MARGINAL_NOTE_CONTEXT,
+       query ("marginal-note-context?"));
+  set (ACTOR_FOCUS_TOOLBAR_RICH_FLOAT_CONTEXT, query ("rich-float-context?"));
+  set (ACTOR_FOCUS_TOOLBAR_PHANTOM_FLOAT_CONTEXT,
+       query ("phantom-float-context?"));
+  set (ACTOR_FOCUS_TOOLBAR_FLOATABLE_CONTEXT, query ("floatable-context?"));
+  set (ACTOR_FOCUS_TOOLBAR_FOOTNOTE_CONTEXT, query ("footnote-context?"));
+  set (ACTOR_FOCUS_TOOLBAR_BALLOON_CONTEXT, query ("balloon-context?"));
+  set (ACTOR_FOCUS_TOOLBAR_DETACHED_NOTE_CONTEXT,
+       query ("detached-note-context?"));
+  set (ACTOR_FOCUS_TOOLBAR_TITLED_CONTEXT, query ("titled-context?"));
+  set (ACTOR_FOCUS_TOOLBAR_FRAME_CONTEXT,
+       query ("frame-context?") || query ("frame-titled-context?"));
   set (ACTOR_FOCUS_TOOLBAR_CAN_MOVE, query ("focus-can-move?", true));
   set (ACTOR_FOCUS_TOOLBAR_CAN_INSERT_REMOVE,
        query ("focus-can-insert-remove?"));
@@ -853,8 +871,65 @@ editor_rep::focus_toolbar_state_snapshot () {
   try {
     object label= call ("focus-label", object (t));
     set (ACTOR_FOCUS_TOOLBAR_HAS_LABEL, is_tree (label));
+    object value= generic_focus_get_label (t);
+    if (is_string (value)) {
+      string labelValue= as_string (value);
+      snapshot.focus_label_value.assign (
+        labelValue.data (), static_cast<std::size_t> (N(labelValue)));
+    }
   }
   catch (...) {}
+
+  snapshot.numbered_available= query ("numbered-context?");
+  if (snapshot.numbered_available)
+    snapshot.numbered_checked= query ("numbered-numbered?");
+  const bool alternateFirst= query ("alternate-first?");
+  const bool alternateSecond= query ("alternate-second?");
+  snapshot.alternate_available= alternateFirst || alternateSecond;
+  snapshot.alternate_checked= alternateSecond;
+  if (snapshot.alternate_available) {
+    try {
+      object label= call ("alternate-second-name", object (t));
+      if (is_string (label)) {
+        string value= as_string (label);
+        snapshot.alternate_label.assign (
+          value.data (), static_cast<std::size_t> (N(value)));
+      }
+      object icon= call (
+        alternateSecond ? "alternate-second-icon" : "alternate-first-icon",
+        object (t));
+      if (is_string (icon)) {
+        string value= as_string (icon);
+        snapshot.alternate_icon.assign (
+          value.data (), static_cast<std::size_t> (N(value)));
+      }
+    }
+    catch (...) {}
+  }
+  for (int i=0; i<N(t); ++i)
+    if (!drd->is_accessible_child (t, i)) {
+      snapshot.hidden_toggle_available= true;
+      break;
+    }
+  if (snapshot.hidden_toggle_available && N(focus) > 0) {
+    path parentPath= path_up (focus);
+    if (test_subtree (parentPath))
+      snapshot.hidden_checked= is_compound (the_subtree (parentPath), "inactive");
+  }
+
+  if (snapshot.has (ACTOR_FOCUS_TOOLBAR_ALGORITHM_CONTEXT)) {
+    snapshot.algorithm_numbered= query ("algorithm-numbered?");
+    snapshot.algorithm_named= query ("algorithm-named?");
+    snapshot.algorithm_specified= query ("algorithm-specified?");
+  }
+  if (snapshot.has (ACTOR_FOCUS_TOOLBAR_DETACHED_NOTE_CONTEXT))
+    snapshot.detached_note_custom= query ("custom-note-context?");
+  if (snapshot.has (ACTOR_FOCUS_TOOLBAR_TITLED_CONTEXT)) {
+    snapshot.figure_context= query ("figure-context?");
+    snapshot.titled_named= query ("titled-named?");
+  }
+  if (snapshot.has (ACTOR_FOCUS_TOOLBAR_FRAME_CONTEXT))
+    snapshot.frame_titled= query ("frame-titled?");
 
   string tag= as_string (L (t));
   snapshot.tag_label.assign (tag.data (), static_cast<std::size_t> (N(tag)));

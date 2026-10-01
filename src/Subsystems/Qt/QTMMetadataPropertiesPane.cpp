@@ -23,6 +23,7 @@
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QThread>
 #include <QSignalBlocker>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -166,8 +167,15 @@ QTMMetadataPropertiesPane::refreshAll () {
 }
 
 void
-metadata_properties_pane_show () {
-  if (qt_defer_to_main_thread (metadata_properties_pane_show)) return;
+metadata_properties_pane_show_for (url target) {
+  if (QCoreApplication::instance () != nullptr &&
+      QThread::currentThread () != QCoreApplication::instance ()->thread ()) {
+    QMetaObject::invokeMethod (
+      QCoreApplication::instance (),
+      [target] () { metadata_properties_pane_show_for (target); },
+      Qt::QueuedConnection);
+    return;
+  }
   QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
   if (win == nullptr || win->dockManager () == nullptr) {
     QMessageBox::warning (QApplication::activeWindow (), "Document metadata",
@@ -206,6 +214,12 @@ metadata_properties_pane_show () {
   metadata_properties_pane_dock->toggleView (true);
   metadata_properties_pane_dock->show ();
   metadata_properties_pane_dock->raise ();
-  metadata_properties_pane_widget->refreshFromCurrentBuffer ();
+  if (!is_none (target)) metadata_properties_pane_widget->setTargetBuffer (target);
+  else metadata_properties_pane_widget->refreshFromCurrentBuffer ();
   metadata_properties_pane_widget->setFocus ();
+}
+
+void
+metadata_properties_pane_show () {
+  metadata_properties_pane_show_for (get_current_buffer_safe ());
 }

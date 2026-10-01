@@ -26,11 +26,11 @@ public:
   QSize sizeHint () const override;
 
   void refreshFromCurrentBuffer ();
+  void setTargetBuffer (url buffer);
 
 private:
   void buildUi ();
   void refreshAll ();
-  void setTargetBuffer (url buffer);
   bool targetLooksUsable () const;
   QString getMetadata (const QString& key) const;
   void setMetadata (const QString& variable, const QString& value);
@@ -43,5 +43,6 @@ private:
 };
 
 void metadata_properties_pane_show ();
+void metadata_properties_pane_show_for (url target);
 
 #endif // QTMMETADATAPROPERTIESPANE_HPP

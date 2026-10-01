@@ -120,8 +120,11 @@ QTMEditorToolbarPresenter::buildItem (
   }
 
   if (item.kind == QTMCommandMenuItem::Kind::Provider) {
-    if (menuParent == nullptr || item.providerId.isEmpty ()) return {};
-    QAction* anchor= new QAction (menuParent);
+    if (item.providerId.isEmpty ()) return {};
+    QObject* parent= menuParent != nullptr ?
+      static_cast<QObject*> (menuParent):
+      static_cast<QObject*> (toolbar_.data ());
+    QAction* anchor= new QAction (parent);
     anchor->setVisible (false);
     anchor->setEnabled (false);
     result->action= anchor;
@@ -163,12 +166,16 @@ void
 QTMEditorToolbarPresenter::repopulateProvider (
   node& item, const QTMCommandContext& target) {
   if (item.kind != QTMCommandMenuItem::Kind::Provider ||
-      item.providerMenu == nullptr || item.action == nullptr)
+      item.action == nullptr)
     return;
 
   QMenu* menu= item.providerMenu.data ();
-  for (const QPointer<QAction>& action: item.dynamicActions)
-    if (action != nullptr) action->deleteLater ();
+  for (const QPointer<QAction>& action: item.dynamicActions) {
+    if (action == nullptr) continue;
+    if (menu != nullptr) menu->removeAction (action);
+    else if (toolbar_ != nullptr) toolbar_->removeAction (action);
+    action->deleteLater ();
+  }
   item.dynamicActions.clear ();
   for (const QPointer<QMenu>& dynamicMenu: item.dynamicMenus)
     if (dynamicMenu != nullptr) dynamicMenu->deleteLater ();
@@ -180,7 +187,7 @@ QTMEditorToolbarPresenter::repopulateProvider (
   for (const QTMCommandDynamicItem& value: values) {
     if (!value.state.available) continue;
     QMenu* targetMenu= menu;
-    if (!value.group.isEmpty ()) {
+    if (menu != nullptr && !value.group.isEmpty ()) {
       QMenu* groupMenu= groups.value (value.group, nullptr);
       if (groupMenu == nullptr) {
         groupMenu= new QMenu (value.group, menu);
@@ -191,7 +198,10 @@ QTMEditorToolbarPresenter::repopulateProvider (
       targetMenu= groupMenu;
     }
     QIcon icon= presentation_icon (value.icon);
-    QAction* action= new QAction (icon, value.label, targetMenu);
+    QObject* parent= targetMenu != nullptr ?
+      static_cast<QObject*> (targetMenu):
+      static_cast<QObject*> (toolbar_.data ());
+    QAction* action= new QAction (icon, value.label, parent);
     action->setToolTip (value.help);
     action->setStatusTip (value.help);
     action->setWhatsThis (value.help);
@@ -207,7 +217,10 @@ QTMEditorToolbarPresenter::repopulateProvider (
         providerId, key, target);
       refresh ();
     });
-    if (targetMenu == menu) menu->insertAction (item.action, action);
+    if (menu == nullptr) {
+      if (toolbar_ != nullptr) toolbar_->insertAction (item.action, action);
+    }
+    else if (targetMenu == menu) menu->insertAction (item.action, action);
     else targetMenu->addAction (action);
     item.dynamicActions.push_back (action);
   }
@@ -285,6 +298,17 @@ QTMEditorToolbarPresenter::refreshNode (
   if (item.kind == QTMCommandMenuItem::Kind::Provider) {
     QTMCommandState state=
       QTMCommandRegistry::instance ().providerState (item.providerId, target);
+    if (item.providerMenu == nullptr) {
+      item.action->setVisible (false);
+      item.action->setEnabled (false);
+      if (!state.available) {
+        for (const QPointer<QAction>& action: item.dynamicActions)
+          if (action != nullptr) action->setVisible (false);
+        return false;
+      }
+      repopulateProvider (item, target);
+      return !item.dynamicActions.empty ();
+    }
     item.action->setVisible (state.available);
     item.action->setEnabled (state.available && state.enabled);
     return state.available;

@@ -26,6 +26,7 @@
 #include <QScrollArea>
 #include <QSpinBox>
 #include <QTabWidget>
+#include <QThread>
 #include <QTimer>
 #include <QVBoxLayout>
 
@@ -247,7 +248,7 @@ ads::CDockWidget* cellDock= nullptr;
 QTMTablePropertiesPane* tableWidget= nullptr;
 ads::CDockWidget* tableDock= nullptr;
 
-void showPane (bool cell) {
+void showPane (bool cell, url target) {
   QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
   if (win == nullptr || win->dockManager () == nullptr) {
     QMessageBox::warning (QApplication::activeWindow (),
@@ -258,7 +259,7 @@ void showPane (bool cell) {
   QTMTablePropertiesPane*& widget= cell ? cellWidget : tableWidget;
   ads::CDockWidget*& dock= cell ? cellDock : tableDock;
   if (widget == nullptr) widget= new QTMTablePropertiesPane (cell);
-  widget->retarget (get_current_buffer_safe ());
+  widget->retarget (target);
   if (dock == nullptr) {
     dock= new ads::CDockWidget (cell ? "Cell properties" : "Table properties");
     dock->setObjectName (cell ? "athena-cell-properties" : "athena-table-properties");
@@ -277,11 +278,33 @@ void showPane (bool cell) {
 } // namespace
 
 void cell_properties_pane_show () {
-  if (qt_defer_to_main_thread (cell_properties_pane_show)) return;
-  showPane (true);
+  cell_properties_pane_show_for (get_current_buffer_safe ());
 }
 
 void table_properties_pane_show () {
-  if (qt_defer_to_main_thread (table_properties_pane_show)) return;
-  showPane (false);
+  table_properties_pane_show_for (get_current_buffer_safe ());
+}
+
+void cell_properties_pane_show_for (url target) {
+  if (QCoreApplication::instance () != nullptr &&
+      QThread::currentThread () != QCoreApplication::instance ()->thread ()) {
+    QMetaObject::invokeMethod (
+      QCoreApplication::instance (),
+      [target] () { cell_properties_pane_show_for (target); },
+      Qt::QueuedConnection);
+    return;
+  }
+  showPane (true, target);
+}
+
+void table_properties_pane_show_for (url target) {
+  if (QCoreApplication::instance () != nullptr &&
+      QThread::currentThread () != QCoreApplication::instance ()->thread ()) {
+    QMetaObject::invokeMethod (
+      QCoreApplication::instance (),
+      [target] () { table_properties_pane_show_for (target); },
+      Qt::QueuedConnection);
+    return;
+  }
+  showPane (false, target);
 }

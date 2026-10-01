@@ -152,7 +152,21 @@ enum actor_focus_toolbar_flag: std::uint32_t {
   ACTOR_FOCUS_TOOLBAR_HAS_LABEL= 1U << 14,
   ACTOR_FOCUS_TOOLBAR_HAS_HIDDEN_CHILDREN= 1U << 15,
   ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT= 1U << 16,
-  ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT= 1U << 17
+  ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT= 1U << 17,
+  ACTOR_FOCUS_TOOLBAR_TABLE_CONTEXT= 1U << 18,
+  ACTOR_FOCUS_TOOLBAR_DOC_TITLE_CONTEXT= 1U << 19,
+  ACTOR_FOCUS_TOOLBAR_DOC_AUTHOR_CONTEXT= 1U << 20,
+  ACTOR_FOCUS_TOOLBAR_ABSTRACT_CONTEXT= 1U << 21,
+  ACTOR_FOCUS_TOOLBAR_ALGORITHM_CONTEXT= 1U << 22,
+  ACTOR_FOCUS_TOOLBAR_MARGINAL_NOTE_CONTEXT= 1U << 23,
+  ACTOR_FOCUS_TOOLBAR_RICH_FLOAT_CONTEXT= 1U << 24,
+  ACTOR_FOCUS_TOOLBAR_PHANTOM_FLOAT_CONTEXT= 1U << 25,
+  ACTOR_FOCUS_TOOLBAR_FLOATABLE_CONTEXT= 1U << 26,
+  ACTOR_FOCUS_TOOLBAR_FOOTNOTE_CONTEXT= 1U << 27,
+  ACTOR_FOCUS_TOOLBAR_BALLOON_CONTEXT= 1U << 28,
+  ACTOR_FOCUS_TOOLBAR_DETACHED_NOTE_CONTEXT= 1U << 29,
+  ACTOR_FOCUS_TOOLBAR_TITLED_CONTEXT= 1U << 30,
+  ACTOR_FOCUS_TOOLBAR_FRAME_CONTEXT= 1U << 31
 };
 
 struct actor_focus_toolbar_snapshot {
@@ -167,6 +181,22 @@ struct actor_focus_toolbar_snapshot {
   std::string document_font;
   std::string font_base_size;
   std::string document_language;
+  std::string focus_label_value;
+  std::string alternate_label;
+  std::string alternate_icon;
+  bool numbered_available= false;
+  bool numbered_checked= false;
+  bool alternate_available= false;
+  bool alternate_checked= false;
+  bool hidden_toggle_available= false;
+  bool hidden_checked= false;
+  bool algorithm_numbered= false;
+  bool algorithm_named= false;
+  bool algorithm_specified= false;
+  bool detached_note_custom= false;
+  bool figure_context= false;
+  bool titled_named= false;
+  bool frame_titled= false;
 
   bool valid () const noexcept {
     return (flags & ACTOR_FOCUS_TOOLBAR_VALID) != 0;

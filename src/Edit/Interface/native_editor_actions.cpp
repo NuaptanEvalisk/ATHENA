@@ -104,6 +104,22 @@ valid_business_id (const QString& id) {
   return ids.contains (id);
 }
 
+bool
+valid_focus_action_id (const QString& id) {
+  static const QSet<QString> ids {
+    "numbered-toggle",
+    "alternate-toggle",
+    "inactive-toggle",
+    "algorithm-toggle-number",
+    "algorithm-toggle-name",
+    "algorithm-toggle-specification",
+    "note-toggle-custom",
+    "titled-toggle-name",
+    "frame-toggle-title"
+  };
+  return ids.contains (id);
+}
+
 void
 execute_business_id (const QString& id) {
   if (id == "insert-wikilink") (void) call ("insert-wikilink");
@@ -255,6 +271,13 @@ native_editor_action_validate (const QJsonObject& action, QString* error) {
   if (op == "focus-variant")
     return has_string (action, "tag") ?
              true : fail_validation (error, "focus-variant requires tag");
+  if (op == "focus-action")
+    return has_string (action, "id") &&
+           valid_focus_action_id (action.value ("id").toString ()) ?
+             true : fail_validation (error, "unknown focus action id");
+  if (op == "focus-set-label")
+    return has_string (action, "value") ?
+             true : fail_validation (error, "focus-set-label requires value");
   if (op == "make-section" || op == "make-unnamed-section" ||
       op == "make-header" || op == "tmdoc-branch" ||
       op == "make-equation-like" ||
@@ -420,6 +443,50 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
       }
     }
     if (allowed) (void) call ("variant-set", object (target), symbol_object (tag));
+  }
+  else if (op == "focus-action") {
+    actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
+    path focus= ed->focus_get ();
+    if (!state.valid () || !ed->test_subtree (focus)) return;
+    tree target= ed->the_subtree (focus);
+    const QString id= action.value ("id").toString ();
+    if (id == "numbered-toggle" && state.numbered_available)
+      (void) call ("numbered-toggle", object (target));
+    else if (id == "alternate-toggle" && state.alternate_available)
+      (void) call ("alternate-toggle", object (target));
+    else if (id == "inactive-toggle" && state.hidden_toggle_available)
+      (void) call ("inactive-toggle", object (target));
+    else if (id == "algorithm-toggle-number" &&
+             state.has (ACTOR_FOCUS_TOOLBAR_ALGORITHM_CONTEXT) &&
+             !state.algorithm_named)
+      (void) call ("algorithm-toggle-number", object (target));
+    else if (id == "algorithm-toggle-name" &&
+             state.has (ACTOR_FOCUS_TOOLBAR_ALGORITHM_CONTEXT))
+      (void) call ("algorithm-toggle-name", object (target));
+    else if (id == "algorithm-toggle-specification" &&
+             state.has (ACTOR_FOCUS_TOOLBAR_ALGORITHM_CONTEXT))
+      (void) call ("algorithm-toggle-specification", object (target));
+    else if (id == "note-toggle-custom" &&
+             state.has (ACTOR_FOCUS_TOOLBAR_DETACHED_NOTE_CONTEXT))
+      (void) call ("note-toggle-custom", object (target));
+    else if (id == "titled-toggle-name" &&
+             state.has (ACTOR_FOCUS_TOOLBAR_TITLED_CONTEXT) &&
+             state.figure_context)
+      (void) call ("titled-toggle-name", object (target));
+    else if (id == "frame-toggle-title" &&
+             state.has (ACTOR_FOCUS_TOOLBAR_FRAME_CONTEXT))
+      (void) call ("frame-toggle-title", object (target));
+  }
+  else if (op == "focus-set-label") {
+    actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
+    path focus= ed->focus_get ();
+    if (!state.valid () ||
+        !state.has (ACTOR_FOCUS_TOOLBAR_HAS_LABEL) ||
+        !ed->test_subtree (focus))
+      return;
+    (void) generic_focus_set_label (
+      ed->the_subtree (focus),
+      native_action_string (action.value ("value")));
   }
   else if (op == "make-section")
     make_section (ed, native_action_string (action.value ("tag")));
