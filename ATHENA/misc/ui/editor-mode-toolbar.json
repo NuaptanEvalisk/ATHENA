@@ -1,0 +1,1542 @@
+{
+  "version": 1,
+  "commands": [
+    {
+      "id": "editor.source.assign",
+      "label": "Assign",
+      "category": "Source",
+      "help": "Assign",
+      "editor_action": {
+        "op": "make",
+        "tag": "assign"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.value",
+      "label": "Value",
+      "category": "Source",
+      "help": "Value",
+      "editor_action": {
+        "op": "make",
+        "tag": "value"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.macro",
+      "label": "Macro",
+      "category": "Source",
+      "help": "Macro",
+      "editor_action": {
+        "op": "make",
+        "tag": "macro"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.argument",
+      "label": "Argument",
+      "category": "Source",
+      "help": "Argument",
+      "editor_action": {
+        "op": "make",
+        "tag": "arg"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.compound",
+      "label": "Compound",
+      "category": "Source",
+      "help": "Compound",
+      "editor_action": {
+        "op": "make",
+        "tag": "compound"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.extern",
+      "label": "Extern",
+      "category": "Source",
+      "help": "Extern",
+      "editor_action": {
+        "op": "make",
+        "tag": "extern"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.long-macro",
+      "label": "Long macro",
+      "category": "Source",
+      "help": "Long macro",
+      "editor_action": {
+        "op": "make",
+        "tag": "xmacro"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.get-label",
+      "label": "Get label",
+      "category": "Source",
+      "help": "Get label",
+      "editor_action": {
+        "op": "make",
+        "tag": "get-label"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.get-arity",
+      "label": "Get arity",
+      "category": "Source",
+      "help": "Get arity",
+      "editor_action": {
+        "op": "make",
+        "tag": "get-arity"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.map-arguments",
+      "label": "Map arguments",
+      "category": "Source",
+      "help": "Map arguments",
+      "editor_action": {
+        "op": "make",
+        "tag": "map-args"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.evaluate",
+      "label": "Evaluate",
+      "category": "Source",
+      "help": "Evaluate",
+      "editor_action": {
+        "op": "make",
+        "tag": "eval"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.quote",
+      "label": "Quote",
+      "category": "Source",
+      "help": "Quote",
+      "editor_action": {
+        "op": "make",
+        "tag": "quote"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.quasi",
+      "label": "Quasi",
+      "category": "Source",
+      "help": "Quasi",
+      "editor_action": {
+        "op": "make",
+        "tag": "quasi"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.quasiquote",
+      "label": "Quasiquote",
+      "category": "Source",
+      "help": "Quasiquote",
+      "editor_action": {
+        "op": "make",
+        "tag": "quasi-quote"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.unquote",
+      "label": "Unquote",
+      "category": "Source",
+      "help": "Unquote",
+      "editor_action": {
+        "op": "make",
+        "tag": "unquote"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.quote-value",
+      "label": "Unevaluated value",
+      "category": "Source",
+      "help": "Unevaluated value",
+      "editor_action": {
+        "op": "make",
+        "tag": "quote-value"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.quote-argument",
+      "label": "Unevaluated argument",
+      "category": "Source",
+      "help": "Unevaluated argument",
+      "editor_action": {
+        "op": "make",
+        "tag": "quote-arg"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.if",
+      "label": "If",
+      "category": "Source",
+      "help": "If",
+      "editor_action": {
+        "op": "make",
+        "tag": "if"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.case",
+      "label": "Case",
+      "category": "Source",
+      "help": "Case",
+      "editor_action": {
+        "op": "make",
+        "tag": "case"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.while",
+      "label": "While",
+      "category": "Source",
+      "help": "While",
+      "editor_action": {
+        "op": "make",
+        "tag": "while"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.for-each",
+      "label": "For each",
+      "category": "Source",
+      "help": "For each",
+      "editor_action": {
+        "op": "make",
+        "tag": "for-each"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.plus",
+      "label": "Plus",
+      "category": "Source",
+      "help": "Plus",
+      "editor_action": {
+        "op": "make",
+        "tag": "plus"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.minus",
+      "label": "Minus",
+      "category": "Source",
+      "help": "Minus",
+      "editor_action": {
+        "op": "make",
+        "tag": "minus"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.times",
+      "label": "Times",
+      "category": "Source",
+      "help": "Times",
+      "editor_action": {
+        "op": "make",
+        "tag": "times"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.over",
+      "label": "Over",
+      "category": "Source",
+      "help": "Over",
+      "editor_action": {
+        "op": "make",
+        "tag": "over"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.div",
+      "label": "Div",
+      "category": "Source",
+      "help": "Div",
+      "editor_action": {
+        "op": "make",
+        "tag": "div"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.mod",
+      "label": "Mod",
+      "category": "Source",
+      "help": "Mod",
+      "editor_action": {
+        "op": "make",
+        "tag": "mod"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.merge",
+      "label": "Merge",
+      "category": "Source",
+      "help": "Merge",
+      "editor_action": {
+        "op": "make",
+        "tag": "merge"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.length",
+      "label": "Length",
+      "category": "Source",
+      "help": "Length",
+      "editor_action": {
+        "op": "make",
+        "tag": "length"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.range",
+      "label": "Range",
+      "category": "Source",
+      "help": "Range",
+      "editor_action": {
+        "op": "make",
+        "tag": "range"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.number",
+      "label": "Number",
+      "category": "Source",
+      "help": "Number",
+      "editor_action": {
+        "op": "make",
+        "tag": "number"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.date",
+      "label": "Formatted date",
+      "category": "Source",
+      "help": "Formatted date",
+      "editor_action": {
+        "op": "make",
+        "tag": "date"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.translate",
+      "label": "Translate::language",
+      "category": "Source",
+      "help": "Translate::language",
+      "editor_action": {
+        "op": "make",
+        "tag": "translate"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.find-file",
+      "label": "Find file",
+      "category": "Source",
+      "help": "Find file",
+      "editor_action": {
+        "op": "make",
+        "tag": "find-file"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.is-tuple",
+      "label": "Tuple?",
+      "category": "Source",
+      "help": "Tuple?",
+      "editor_action": {
+        "op": "make",
+        "tag": "is-tuple"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.look-up",
+      "label": "Look up",
+      "category": "Source",
+      "help": "Look up",
+      "editor_action": {
+        "op": "make",
+        "tag": "look-up"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.not",
+      "label": "Not",
+      "category": "Source",
+      "help": "Not",
+      "editor_action": {
+        "op": "make",
+        "tag": "not"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.and",
+      "label": "And",
+      "category": "Source",
+      "help": "And",
+      "editor_action": {
+        "op": "make",
+        "tag": "and"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.or",
+      "label": "Or",
+      "category": "Source",
+      "help": "Or",
+      "editor_action": {
+        "op": "make",
+        "tag": "or"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.xor",
+      "label": "Exclusive or",
+      "category": "Source",
+      "help": "Exclusive or",
+      "editor_action": {
+        "op": "make",
+        "tag": "xor"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.equal",
+      "label": "Equal",
+      "category": "Source",
+      "help": "Equal",
+      "editor_action": {
+        "op": "make",
+        "tag": "equal"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.unequal",
+      "label": "Not equal",
+      "category": "Source",
+      "help": "Not equal",
+      "editor_action": {
+        "op": "make",
+        "tag": "unequal"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.less",
+      "label": "Less",
+      "category": "Source",
+      "help": "Less",
+      "editor_action": {
+        "op": "make",
+        "tag": "less"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.lesseq",
+      "label": "Less or equal",
+      "category": "Source",
+      "help": "Less or equal",
+      "editor_action": {
+        "op": "make",
+        "tag": "lesseq"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.greater",
+      "label": "Greater",
+      "category": "Source",
+      "help": "Greater",
+      "editor_action": {
+        "op": "make",
+        "tag": "greater"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.greatereq",
+      "label": "Greater or equal",
+      "category": "Source",
+      "help": "Greater or equal",
+      "editor_action": {
+        "op": "make",
+        "tag": "greatereq"
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.with",
+      "label": "With",
+      "category": "Source",
+      "help": "With",
+      "editor_action": {
+        "op": "make",
+        "tag": "with",
+        "arity": 3
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.today",
+      "label": "Today",
+      "category": "Source",
+      "help": "Today",
+      "editor_action": {
+        "op": "make",
+        "tag": "date",
+        "arity": 0
+      },
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.source.activate",
+      "label": "Activate",
+      "category": "Source",
+      "help": "Activate",
+      "editor_action": {
+        "op": "make-mod-active",
+        "tag": "active*"
+      },
+      "icon": "tm_activate",
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only"
+      ]
+    },
+    {
+      "id": "editor.source.stretch",
+      "label": "Stretch",
+      "category": "Source",
+      "help": "Stretch",
+      "editor_action": {
+        "op": "make-style-with",
+        "var": "src-compact",
+        "value": "none"
+      },
+      "icon": "tm_stretch",
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only"
+      ]
+    },
+    {
+      "id": "editor.source.compact",
+      "label": "Compactify",
+      "category": "Source",
+      "help": "Compactify",
+      "editor_action": {
+        "op": "make-style-with",
+        "var": "src-compact",
+        "value": "all"
+      },
+      "icon": "tm_compact",
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only"
+      ]
+    },
+    {
+      "id": "editor.format.par-left",
+      "label": "Align text to the left",
+      "category": "Format",
+      "help": "Align text to the left",
+      "editor_action": {
+        "op": "make-line-with",
+        "var": "par-mode",
+        "value": "left"
+      },
+      "forbids": [
+        "read-only",
+        "std-markup"
+      ],
+      "requires_any": [
+        "text-mode",
+        "source-mode"
+      ]
+    },
+    {
+      "id": "editor.format.par-center",
+      "label": "Center text",
+      "category": "Format",
+      "help": "Center text",
+      "editor_action": {
+        "op": "make-line-with",
+        "var": "par-mode",
+        "value": "center"
+      },
+      "forbids": [
+        "read-only",
+        "std-markup"
+      ],
+      "requires_any": [
+        "text-mode",
+        "source-mode"
+      ]
+    },
+    {
+      "id": "editor.format.par-right",
+      "label": "Align text to the right",
+      "category": "Format",
+      "help": "Align text to the right",
+      "editor_action": {
+        "op": "make-line-with",
+        "var": "par-mode",
+        "value": "right"
+      },
+      "forbids": [
+        "read-only",
+        "std-markup"
+      ],
+      "requires_any": [
+        "text-mode",
+        "source-mode"
+      ]
+    },
+    {
+      "id": "editor.format.par-justify",
+      "label": "Justify text",
+      "category": "Format",
+      "help": "Justify text",
+      "editor_action": {
+        "op": "make-line-with",
+        "var": "par-mode",
+        "value": "justify"
+      },
+      "forbids": [
+        "read-only",
+        "std-markup"
+      ],
+      "requires_any": [
+        "text-mode",
+        "source-mode"
+      ]
+    },
+    {
+      "id": "editor.format.left-margin",
+      "label": "Left margin",
+      "category": "Format",
+      "help": "Left margin",
+      "editor_action": {
+        "op": "interactive-line-with",
+        "var": "par-left"
+      },
+      "requires": [
+        "std-markup"
+      ],
+      "forbids": [
+        "read-only"
+      ],
+      "requires_any": [
+        "text-mode",
+        "source-mode"
+      ]
+    },
+    {
+      "id": "editor.format.right-margin",
+      "label": "Right margin",
+      "category": "Format",
+      "help": "Right margin",
+      "editor_action": {
+        "op": "interactive-line-with",
+        "var": "par-right"
+      },
+      "requires": [
+        "std-markup"
+      ],
+      "forbids": [
+        "read-only"
+      ],
+      "requires_any": [
+        "text-mode",
+        "source-mode"
+      ]
+    },
+    {
+      "id": "editor.format.first-indent",
+      "label": "First indentation",
+      "category": "Format",
+      "help": "First indentation",
+      "editor_action": {
+        "op": "interactive-line-with",
+        "var": "par-first"
+      },
+      "requires": [
+        "std-markup"
+      ],
+      "forbids": [
+        "read-only"
+      ],
+      "requires_any": [
+        "text-mode",
+        "source-mode"
+      ]
+    },
+    {
+      "id": "editor.format.em",
+      "label": "Emphasize text",
+      "category": "Format",
+      "help": "Emphasize text",
+      "editor_action": {
+        "op": "make",
+        "tag": "em"
+      },
+      "icon": "tm_emphasize",
+      "requires": [
+        "text-mode",
+        "std-markup"
+      ],
+      "forbids": [
+        "read-only"
+      ]
+    },
+    {
+      "id": "editor.format.strong",
+      "label": "Write strong text",
+      "category": "Format",
+      "help": "Write strong text",
+      "editor_action": {
+        "op": "make",
+        "tag": "strong"
+      },
+      "icon": "tm_strong",
+      "requires": [
+        "text-mode",
+        "std-markup"
+      ],
+      "forbids": [
+        "read-only"
+      ]
+    },
+    {
+      "id": "editor.format.verbatim",
+      "label": "Write verbatim text",
+      "category": "Format",
+      "help": "Write verbatim text",
+      "editor_action": {
+        "op": "make",
+        "tag": "verbatim"
+      },
+      "icon": "tm_verbatim",
+      "requires": [
+        "text-mode",
+        "std-markup"
+      ],
+      "forbids": [
+        "read-only"
+      ]
+    },
+    {
+      "id": "editor.format.sample",
+      "label": "Write sample text",
+      "category": "Format",
+      "help": "Write sample text",
+      "editor_action": {
+        "op": "make",
+        "tag": "samp"
+      },
+      "icon": "tm_sansserif",
+      "requires": [
+        "text-mode",
+        "std-markup"
+      ],
+      "forbids": [
+        "read-only"
+      ]
+    },
+    {
+      "id": "editor.format.name",
+      "label": "Write a name",
+      "category": "Format",
+      "help": "Write a name",
+      "editor_action": {
+        "op": "make",
+        "tag": "name"
+      },
+      "icon": "tm_name",
+      "requires": [
+        "text-mode",
+        "std-markup"
+      ],
+      "forbids": [
+        "read-only"
+      ]
+    },
+    {
+      "id": "editor.format.italic-text",
+      "label": "Write italic text",
+      "category": "Format",
+      "help": "Write italic text",
+      "editor_action": {
+        "op": "make-with",
+        "var": "font-shape",
+        "value": "italic"
+      },
+      "icon": "tm_italic",
+      "requires": [
+        "text-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "std-markup"
+      ]
+    },
+    {
+      "id": "editor.format.italic-source",
+      "label": "Write italic text",
+      "category": "Format",
+      "help": "Write italic text",
+      "editor_action": {
+        "op": "make-with",
+        "var": "font-shape",
+        "value": "italic"
+      },
+      "icon": "tm_italic",
+      "requires": [
+        "source-mode"
+      ],
+      "forbids": [
+        "read-only"
+      ]
+    },
+    {
+      "id": "editor.format.bold",
+      "label": "Write bold text",
+      "category": "Format",
+      "help": "Write bold text",
+      "editor_action": {
+        "op": "make-with",
+        "var": "font-series",
+        "value": "bold"
+      },
+      "icon": "tm_bold",
+      "requires": [
+        "text-mode",
+        "std-markup"
+      ],
+      "forbids": [
+        "read-only"
+      ]
+    },
+    {
+      "id": "editor.format.typewriter",
+      "label": "Use a typewriter font",
+      "category": "Format",
+      "help": "Use a typewriter font",
+      "editor_action": {
+        "op": "make-with",
+        "var": "font-family",
+        "value": "tt"
+      },
+      "icon": "tm_typewriter",
+      "requires": [
+        "text-mode",
+        "std-markup"
+      ],
+      "forbids": [
+        "read-only"
+      ]
+    },
+    {
+      "id": "editor.format.sans-serif",
+      "label": "Use a sans serif font",
+      "category": "Format",
+      "help": "Use a sans serif font",
+      "editor_action": {
+        "op": "make-with",
+        "var": "font-family",
+        "value": "ss"
+      },
+      "icon": "tm_sansserif",
+      "requires": [
+        "text-mode",
+        "std-markup"
+      ],
+      "forbids": [
+        "read-only"
+      ]
+    },
+    {
+      "id": "editor.format.small-caps",
+      "label": "Use small capitals",
+      "category": "Format",
+      "help": "Use small capitals",
+      "editor_action": {
+        "op": "make-with",
+        "var": "font-shape",
+        "value": "small-caps"
+      },
+      "icon": "tm_smallcaps",
+      "requires": [
+        "text-mode",
+        "std-markup"
+      ],
+      "forbids": [
+        "read-only"
+      ]
+    }
+  ],
+  "toolbars": [
+    {
+      "id": "editor-mode",
+      "items": [
+        {
+          "submenu": "editor-mode-source-definition",
+          "label": "Set or get environment variables",
+          "icon": "tm_assign",
+          "items": [
+            {
+              "command": "editor.source.assign"
+            },
+            {
+              "command": "editor.source.with"
+            },
+            {
+              "command": "editor.source.value"
+            }
+          ]
+        },
+        {
+          "submenu": "editor-mode-source-macro",
+          "label": "Write a macro",
+          "icon": "tm_lambda",
+          "items": [
+            {
+              "command": "editor.source.macro"
+            },
+            {
+              "command": "editor.source.argument"
+            },
+            {
+              "command": "editor.source.compound"
+            },
+            {
+              "command": "editor.source.extern"
+            },
+            {
+              "separator": true
+            },
+            {
+              "command": "editor.source.long-macro"
+            },
+            {
+              "command": "editor.source.get-label"
+            },
+            {
+              "command": "editor.source.get-arity"
+            },
+            {
+              "command": "editor.source.map-arguments"
+            }
+          ]
+        },
+        {
+          "submenu": "editor-mode-source-evaluation",
+          "label": "Control the evaluation of expressions",
+          "icon": "tm_prime",
+          "items": [
+            {
+              "command": "editor.source.evaluate"
+            },
+            {
+              "separator": true
+            },
+            {
+              "command": "editor.source.quote"
+            },
+            {
+              "command": "editor.source.quasi"
+            },
+            {
+              "command": "editor.source.quasiquote"
+            },
+            {
+              "command": "editor.source.unquote"
+            },
+            {
+              "separator": true
+            },
+            {
+              "command": "editor.source.quote-value"
+            },
+            {
+              "command": "editor.source.quote-argument"
+            }
+          ]
+        },
+        {
+          "submenu": "editor-mode-source-flow",
+          "label": "Insert a control flow instruction",
+          "icon": "tm_ctrl_flow",
+          "items": [
+            {
+              "command": "editor.source.if"
+            },
+            {
+              "command": "editor.source.case"
+            },
+            {
+              "command": "editor.source.while"
+            },
+            {
+              "command": "editor.source.for-each"
+            }
+          ]
+        },
+        {
+          "separator": true
+        },
+        {
+          "submenu": "editor-mode-source-arithmetic",
+          "label": "Insert a numerical operation",
+          "icon": "tm_three",
+          "items": [
+            {
+              "command": "editor.source.plus"
+            },
+            {
+              "command": "editor.source.minus"
+            },
+            {
+              "command": "editor.source.times"
+            },
+            {
+              "command": "editor.source.over"
+            },
+            {
+              "command": "editor.source.div"
+            },
+            {
+              "command": "editor.source.mod"
+            }
+          ]
+        },
+        {
+          "submenu": "editor-mode-source-text",
+          "label": "Insert a textual operation",
+          "icon": "tm_textual",
+          "items": [
+            {
+              "command": "editor.source.merge"
+            },
+            {
+              "command": "editor.source.length"
+            },
+            {
+              "command": "editor.source.range"
+            },
+            {
+              "command": "editor.source.number"
+            },
+            {
+              "command": "editor.source.today"
+            },
+            {
+              "command": "editor.source.date"
+            },
+            {
+              "command": "editor.source.translate"
+            },
+            {
+              "command": "editor.source.find-file"
+            }
+          ]
+        },
+        {
+          "submenu": "editor-mode-source-tuple",
+          "label": "Insert an operation on tuples",
+          "icon": "tm_tuple",
+          "items": [
+            {
+              "command": "editor.source.is-tuple"
+            },
+            {
+              "command": "editor.source.merge"
+            },
+            {
+              "command": "editor.source.length"
+            },
+            {
+              "command": "editor.source.range"
+            },
+            {
+              "command": "editor.source.look-up"
+            }
+          ]
+        },
+        {
+          "submenu": "editor-mode-source-condition",
+          "label": "Insert a condition",
+          "icon": "tm_equal",
+          "items": [
+            {
+              "command": "editor.source.not"
+            },
+            {
+              "command": "editor.source.and"
+            },
+            {
+              "command": "editor.source.or"
+            },
+            {
+              "command": "editor.source.xor"
+            },
+            {
+              "separator": true
+            },
+            {
+              "command": "editor.source.equal"
+            },
+            {
+              "command": "editor.source.unequal"
+            },
+            {
+              "command": "editor.source.less"
+            },
+            {
+              "command": "editor.source.lesseq"
+            },
+            {
+              "command": "editor.source.greater"
+            },
+            {
+              "command": "editor.source.greatereq"
+            }
+          ]
+        },
+        {
+          "separator": true
+        },
+        {
+          "command": "editor.source.activate"
+        },
+        {
+          "command": "editor.source.stretch"
+        },
+        {
+          "command": "editor.source.compact"
+        },
+        {
+          "separator": true
+        },
+        {
+          "submenu": "editor-mode-paragraph-mode",
+          "label": "Set paragraph mode",
+          "icon": "tm_parstyle",
+          "items": [
+            {
+              "command": "editor.format.par-left"
+            },
+            {
+              "command": "editor.format.par-center"
+            },
+            {
+              "command": "editor.format.par-right"
+            },
+            {
+              "command": "editor.format.par-justify"
+            }
+          ]
+        },
+        {
+          "submenu": "editor-mode-paragraph-margins",
+          "label": "Set paragraph margins",
+          "icon": "tm_parindent",
+          "items": [
+            {
+              "command": "editor.format.left-margin"
+            },
+            {
+              "command": "editor.format.right-margin"
+            },
+            {
+              "command": "editor.format.first-indent"
+            }
+          ]
+        },
+        {
+          "separator": true
+        },
+        {
+          "command": "editor.format.em"
+        },
+        {
+          "command": "editor.format.strong"
+        },
+        {
+          "command": "editor.format.verbatim"
+        },
+        {
+          "command": "editor.format.sample"
+        },
+        {
+          "command": "editor.format.name"
+        },
+        {
+          "command": "editor.format.italic-text"
+        },
+        {
+          "command": "editor.format.italic-source"
+        },
+        {
+          "command": "editor.format.bold"
+        },
+        {
+          "command": "editor.format.typewriter"
+        },
+        {
+          "command": "editor.format.sans-serif"
+        },
+        {
+          "command": "editor.format.small-caps"
+        },
+        {
+          "submenu": "editor-mode-text-color",
+          "label": "Select a foreground color",
+          "icon": "tm_color",
+          "items": [
+            {
+              "provider": "editor-text-colors"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

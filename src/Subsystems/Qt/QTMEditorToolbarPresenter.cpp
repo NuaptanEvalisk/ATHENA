@@ -211,8 +211,34 @@ QTMEditorToolbarPresenter::refreshNode (
     return !item.dynamicActions.empty ();
 
   bool any= false;
-  for (const std::unique_ptr<node>& child: item.children)
-    if (child && refreshNode (*child, target)) any= true;
+  std::vector<bool> visible (item.children.size (), false);
+  for (std::size_t i= 0; i < item.children.size (); ++i) {
+    const std::unique_ptr<node>& child= item.children[i];
+    if (child && child->kind != QTMCommandMenuItem::Kind::Separator) {
+      visible[i]= refreshNode (*child, target);
+      if (visible[i]) any= true;
+    }
+  }
+  bool before= false;
+  for (std::size_t i= 0; i < item.children.size (); ++i) {
+    node* child= item.children[i].get ();
+    if (child == nullptr || child->action == nullptr) continue;
+    if (child->kind != QTMCommandMenuItem::Kind::Separator) {
+      if (visible[i]) before= true;
+      continue;
+    }
+    bool after= false;
+    for (std::size_t j= i + 1; j < item.children.size (); ++j) {
+      if (item.children[j] != nullptr &&
+          item.children[j]->kind != QTMCommandMenuItem::Kind::Separator &&
+          visible[j]) {
+        after= true;
+        break;
+      }
+    }
+    child->action->setVisible (before && after);
+    if (child->action->isVisible ()) before= false;
+  }
   item.action->setVisible (any);
   item.action->setEnabled (any);
   return any;
@@ -282,6 +308,29 @@ void
 QTMEditorToolbarPresenter::refresh () {
   if (!active_ || canvas_ == nullptr) return;
   QTMCommandContext target= context ();
-  for (const std::unique_ptr<node>& root: roots_)
-    if (root) (void) refreshNode (*root, target);
+  std::vector<bool> visible (roots_.size (), false);
+  for (std::size_t i= 0; i < roots_.size (); ++i)
+    if (roots_[i] != nullptr &&
+        roots_[i]->kind != QTMCommandMenuItem::Kind::Separator)
+      visible[i]= refreshNode (*roots_[i], target);
+  bool before= false;
+  for (std::size_t i= 0; i < roots_.size (); ++i) {
+    node* root= roots_[i].get ();
+    if (root == nullptr || root->action == nullptr) continue;
+    if (root->kind != QTMCommandMenuItem::Kind::Separator) {
+      if (visible[i]) before= true;
+      continue;
+    }
+    bool after= false;
+    for (std::size_t j= i + 1; j < roots_.size (); ++j) {
+      if (roots_[j] != nullptr &&
+          roots_[j]->kind != QTMCommandMenuItem::Kind::Separator &&
+          visible[j]) {
+        after= true;
+        break;
+      }
+    }
+    root->action->setVisible (before && after);
+    if (root->action->isVisible ()) before= false;
+  }
 }

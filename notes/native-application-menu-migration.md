@@ -267,3 +267,13 @@ poster/manual/letter/book/section/theorem/markup/list/float/fold/std style
 capabilities, presentation/screens mode, and non-small selection state.  Style
 capabilities are refreshed with the actor-owned menu/environment update rather
 than synchronously queried by Main for each toolbar button.
+
+Mode presentation is split into
+`ATHENA/misc/ui/editor-mode-toolbar.json` and merged into the same validated
+registry at startup.  The first migrated data slice contains the complete
+source-mode operation groups and the shared text/source formatting controls.
+Its `QTMEditorToolbarPresenter` is constructed per editor but deliberately
+inactive while text-block/insert, math and prog groups are still pending.
+Foreground color is already a native provider: standard/recent/saved colors and
+the native QColorDialog feed a validated `make-with color` actor action; no
+legacy `color-menu` expansion is used by the native surface.

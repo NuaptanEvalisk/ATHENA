@@ -692,7 +692,10 @@ QTMCommandRegistry::registerBuiltins () {
       qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
       if (proxy == nullptr) return out;
       actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
-      if (!snapshot.valid ()) return out;
+      if (!snapshot.valid () ||
+          (!snapshot.has (ACTOR_EDITOR_COMMAND_STATE_TEXT_MODE) &&
+           !snapshot.has (ACTOR_EDITOR_COMMAND_STATE_SOURCE_MODE)))
+        return out;
       const bool enabled= !snapshot.read_only ();
       QSet<QString> seen;
       auto addColor= [&] (const QString& color) {

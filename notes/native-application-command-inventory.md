@@ -162,7 +162,10 @@ native stage replaces them:
   and Node properties use BufferActor snapshots plus ID-only dispatch. The
   remaining Edit contents and the dynamic structured Focus hierarchy still need
   grouped migration before the shell menubar can replace the legacy one.
-- Editor main/mode/focus toolbars remain view-owned and Scheme-produced.
+- The editor main toolbar is view-owned and fully native; the legacy
+  `texmacs-main-icons` producer/transport/Qt replacement path is deleted.
+  Mode and focus toolbars remain on the legacy production path until their
+  grouped native inventories reach parity.
 - Shared worker/error status is still editor-footer-oriented and needs a
   shell-owned zero-buffer surface.
 - Plugin command contribution is still owned by the existing plugin UI/lifecycle
