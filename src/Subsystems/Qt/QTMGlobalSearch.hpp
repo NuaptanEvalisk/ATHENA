@@ -137,5 +137,6 @@ private:
 };
 
 void global_search_show ();
+void global_search_show_with_zoom (double previewZoom);
 
 #endif // QTMGLOBALSEARCH_HPP

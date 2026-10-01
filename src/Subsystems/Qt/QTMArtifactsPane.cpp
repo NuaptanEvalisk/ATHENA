@@ -7,10 +7,9 @@
 #include "QTMArtifactsPane.hpp"
 
 #include "QTMDelegationClient.hpp"
+#include "QTMDocumentIdentity.hpp"
 #include "QTMMainTabWindow.hpp"
-#include "QTMWidget.hpp"
 #include "ATHENA/Data/artifact_radioactive_links.hpp"
-#include "ATHENA/buffer_name_catalog.hpp"
 #include "ATHENA/Data/new_buffer.hpp"
 #include "ATHENA/Data/namespaces.hpp"
 #include "ATHENA/Data/vault.hpp"
@@ -18,7 +17,6 @@
 #include "convert.hpp"
 #include "scheme.hpp"
 #include "qt_utilities.hpp"
-#include "qt_actor_widget.hpp"
 
 #include <DockWidget.h>
 #include <QApplication>
@@ -335,27 +333,13 @@ QString
 QTMArtifactsPane::currentRelativePath () const {
   if (!vault_active ()) return {};
   QTMMainTabWindow* shell= QTMMainTabWindow::topTabWindow ();
-  QWidget* document=
-    shell == nullptr ? nullptr : shell->lastActiveDocumentWidget ();
-  if (document == nullptr) return {};
-  QTMWidget* canvas= qobject_cast<QTMWidget*> (document);
-  if (canvas == nullptr) canvas= document->findChild<QTMWidget*> ();
-  if (canvas == nullptr) return {};
-  auto* proxy= dynamic_cast<qt_actor_widget_rep*> (canvas->tm_widget ());
-  if (proxy == nullptr) return {};
-
-  std::string native_name;
-  const athena_actor_id actor= proxy->actor_id ();
-  for (const auto& entry: published_buffer_metadata ())
-    if (entry.second.actor_id == actor) {
-      native_name= entry.first;
-      break;
-    }
-  if (native_name.empty ()) return {};
+  QTMDocumentIdentity identity= qtm_last_active_document_identity (shell);
+  if (!identity.has_buffer_name ()) return {};
 
   fs::path root= active_root ();
   url published_name (string (
-    native_name.data (), static_cast<int> (native_name.size ())));
+    identity.native_url_name.data (),
+    static_cast<int> (identity.native_url_name.size ())));
   fs::path current (std_string (concretize (published_name)));
   std::error_code ec;
   fs::path rel= fs::relative (current, root, ec);

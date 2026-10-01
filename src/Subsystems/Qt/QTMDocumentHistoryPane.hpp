@@ -44,5 +44,6 @@ private:
 
 void document_history_pane_show ();
 void document_history_pane_show_document (url document);
+void document_history_pane_show_frozen (url document);
 
 #endif // QTMDOCUMENTHISTORYPANE_HPP

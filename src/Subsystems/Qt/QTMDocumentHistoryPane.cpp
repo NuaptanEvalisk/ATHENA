@@ -10,6 +10,7 @@
 
 #include "ATHENA/Data/document_history_store.hpp"
 #include "ATHENA/Data/new_buffer.hpp"
+#include "QTMDocumentIdentity.hpp"
 #include "QTMDocumentHistory.hpp"
 #include "QTMMainTabWindow.hpp"
 #include "file.hpp"
@@ -112,6 +113,16 @@ document_label (url document) {
   return to_qstring (as_string (tail (document)));
 }
 
+url
+last_active_document_url () {
+  QTMDocumentIdentity identity= qtm_last_active_document_identity (
+    QTMMainTabWindow::topTabWindow ());
+  if (!identity.has_buffer_name ()) return url_none ();
+  return url (string (
+    identity.native_url_name.data (),
+    static_cast<int> (identity.native_url_name.size ())));
+}
+
 } // namespace
 
 QTMDocumentHistoryPane::QTMDocumentHistoryPane (QWidget* parent)
@@ -175,8 +186,9 @@ QTMDocumentHistoryPane::setDocument (url document2, bool followCurrent2) {
 void
 QTMDocumentHistoryPane::followCurrentDocument () {
   if (!followCurrent) return;
-  url current= get_current_buffer_safe ();
+  url current= last_active_document_url ();
   if (!is_none (current)) document= current;
+  else document= url_none ();
 }
 
 void
@@ -273,12 +285,12 @@ QTMDocumentHistoryPane::showContextMenu (const QPoint& pos) {
   menu.exec (tree->viewport ()->mapToGlobal (pos));
 }
 
-void
-document_history_pane_show_document (url document) {
+static void
+document_history_pane_show_impl (url document, bool follow) {
   if (qApp != nullptr && QThread::currentThread () != qApp->thread ()) {
     string encoded= as_string (document);
-    qt_post_to_main_thread ([encoded= std::move (encoded)] {
-      document_history_pane_show_document (url (encoded));
+    qt_post_to_main_thread ([encoded= std::move (encoded), follow] {
+      document_history_pane_show_impl (url (encoded), follow);
     });
     return;
   }
@@ -290,8 +302,7 @@ document_history_pane_show_document (url document) {
     return;
   }
 
-  bool follow= is_none (document);
-  if (follow) document= get_current_buffer_safe ();
+  if (follow) document= last_active_document_url ();
 
   QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
   if (win == nullptr || win->dockManager () == nullptr) {
@@ -330,6 +341,16 @@ document_history_pane_show_document (url document) {
   document_history_dock->setWindowTitle (title);
   win->showAdsDockWidget (document_history_dock, ads::RightDockWidgetArea);
   document_history_widget->setFocus ();
+}
+
+void
+document_history_pane_show_document (url document) {
+  document_history_pane_show_impl (document, is_none (document));
+}
+
+void
+document_history_pane_show_frozen (url document) {
+  document_history_pane_show_impl (document, false);
 }
 
 void

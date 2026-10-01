@@ -20,9 +20,13 @@
 #include "QTMATHENADiff.hpp"
 #include "QTMAudmap.hpp"
 #include "QTMCustomStylesManager.hpp"
+#include "QTMDocumentHistoryPane.hpp"
+#include "QTMGlobalSearch.hpp"
 #include "QTMMaterialsManager.hpp"
+#include "QTMNeighborhoodsPane.hpp"
 #include "QTMNamespaceExport.hpp"
 #include "QTMNamespaceManager.hpp"
+#include "QTMOutlinePane.hpp"
 #include "QTMQuickSwitcher.hpp"
 #include "QTMWebsitesManager.hpp"
 #include "QTMGoogleTasksPane.hpp"
@@ -174,6 +178,13 @@ open_document_from_shell (const QTMCommandContext& context) {
   }
 }
 
+url
+frozen_document_url (const QTMCommandContext& context) {
+  if (!context.lastDocument.has_buffer_name ()) return url_none ();
+  const std::string& name= context.lastDocument.native_url_name;
+  return url (string (name.data (), static_cast<int> (name.size ())));
+}
+
 } // namespace
 
 QTMCommandRegistry&
@@ -250,6 +261,30 @@ QTMCommandRegistry::registerBuiltins () {
     "view.artifacts", QTMCommandScope::Workspace,
     [] (const QTMCommandContext&) {
       artifacts_pane_show ();
+      return true;
+    });
+  registerBehavior (
+    "view.outline", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      outline_pane_show ();
+      return true;
+    });
+  registerBehavior (
+    "view.neighborhoods", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      neighborhoods_pane_show ();
+      return true;
+    });
+  registerBehavior (
+    "view.document-history", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext& context) {
+      document_history_pane_show_frozen (frozen_document_url (context));
+      return true;
+    });
+  registerBehavior (
+    "workspace.global-search", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext& context) {
+      global_search_show_with_zoom (context.lastDocument.zoom_factor);
       return true;
     });
   registerBehavior (
@@ -552,7 +587,10 @@ QTMCommandRegistry::captureContext (QTMMainTabWindow* shell,
                                     QWidget* inputWidget) const {
   QTMCommandContext context;
   context.shell= shell;
-  if (shell != nullptr) context.workPane= shell->activeWorkPaneWidget ();
+  if (shell != nullptr) {
+    context.workPane= shell->activeWorkPaneWidget ();
+    context.lastDocument= qtm_last_active_document_identity (shell);
+  }
   context.inputWidget= inputWidget != nullptr ? inputWidget:
                        QApplication::focusWidget ();
   return context;

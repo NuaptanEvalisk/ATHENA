@@ -11,6 +11,7 @@
 #ifndef QTMCOMMANDREGISTRY_HPP
 #define QTMCOMMANDREGISTRY_HPP
 
+#include "QTMDocumentIdentity.hpp"
 #include "QTMMainTabWindow.hpp"
 
 #include <QHash>
@@ -40,6 +41,7 @@ struct QTMCommandContext {
   QPointer<QTMMainTabWindow> shell;
   QPointer<QWidget> workPane;
   QPointer<QWidget> inputWidget;
+  QTMDocumentIdentity lastDocument;
 };
 
 struct QTMCommandDefinition {

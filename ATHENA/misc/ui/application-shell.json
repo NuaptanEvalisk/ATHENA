@@ -62,6 +62,34 @@
       "help": "Show artifacts for the active vault"
     },
     {
+      "id": "view.outline",
+      "label": "Outline",
+      "category": "View",
+      "icon": "view-list-tree",
+      "help": "Show the outline for the last active document"
+    },
+    {
+      "id": "view.neighborhoods",
+      "label": "Neighborhoods",
+      "category": "View",
+      "icon": "view-list-icons",
+      "help": "Show neighborhoods for the last active vault document"
+    },
+    {
+      "id": "view.document-history",
+      "label": "Document History",
+      "category": "View",
+      "icon": "document-open-recent",
+      "help": "Show history for the document captured by the current context"
+    },
+    {
+      "id": "workspace.global-search",
+      "label": "Global search",
+      "category": "Edit",
+      "icon": "edit-find",
+      "help": "Search across the active vault"
+    },
+    {
       "id": "file.compare-files",
       "label": "Compare two files",
       "category": "File",
@@ -250,6 +278,8 @@
         { "command": "editor.cut" },
         { "command": "editor.paste" },
         { "separator": true },
+        { "command": "workspace.global-search" },
+        { "separator": true },
         { "command": "namespace.copy" },
         { "command": "namespace.paste" },
         { "separator": true },
@@ -271,6 +301,10 @@
       "id": "view",
       "label": "View",
       "items": [
+        { "command": "view.outline" },
+        { "command": "view.document-history" },
+        { "command": "view.neighborhoods" },
+        { "separator": true },
         { "command": "view.error-messages" },
         { "command": "view.artifacts" }
       ]

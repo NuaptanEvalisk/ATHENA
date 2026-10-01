@@ -10,6 +10,7 @@
 
 #include "QTMNeighborhoodsPane.hpp"
 
+#include "QTMDocumentIdentity.hpp"
 #include "QTMMainTabWindow.hpp"
 #include "QTMToast.hpp"
 #include "new_buffer.hpp"
@@ -118,7 +119,13 @@ QTMNeighborhoodsPane::buildUi () {
 
 void
 QTMNeighborhoodsPane::refreshFromCurrentBuffer (bool force) {
-  url current= get_current_buffer_safe ();
+  QTMDocumentIdentity identity= qtm_last_active_document_identity (
+    QTMMainTabWindow::topTabWindow ());
+  url current= url_none ();
+  if (identity.has_buffer_name ())
+    current= url (string (
+      identity.native_url_name.data (),
+      static_cast<int> (identity.native_url_name.size ())));
   QString currentSignature= qs (as_string (current));
   if (!force && currentSignature == lastCurrentPath) return;
 

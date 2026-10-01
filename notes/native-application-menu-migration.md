@@ -80,7 +80,7 @@ must not make their commands unreachable.
 | Paste | native | `editor.paste` with read-only actor state |
 | Clear | pending | editor actor command |
 | Search | pending | native search bar exists; register editor/view command |
-| Global search | pending | native global search UI exists; register application/workspace command |
+| Global search | native: `workspace.global-search`; preview zoom is frozen in the originating command context |
 | Replace | pending | native search/replace UI exists; register editor/view command |
 | Correct | provider | math-context correction provider |
 | AI | provider | selection-gated completion commands |
@@ -109,9 +109,9 @@ registered.  Error Messages and Artifacts now have native registry commands.
 | Current direct entry/branch | Disposition |
 | --- | --- |
 | Full screen / Presentation / Panorama / All slides | pending editor/view state |
-| Show outline | pending; native pane exists |
-| Vault Explorer / Namespace Explorer / Document History | partial; Namespace Explorer native, other native panes pending registration |
-| Neighborhoods | pending; current implementation still reads global current-buffer state |
+| Show outline | native: `view.outline`; actor/view target comes from explicit last-active document identity |
+| Vault Explorer / Namespace Explorer / Document History | partial; Namespace Explorer and Document History native, Vault Explorer pending |
+| Neighborhoods | native: `view.neighborhoods`; follows explicit published last-active document identity |
 | Error messages | native: `view.error-messages` |
 | Artifacts | native: `view.artifacts`; Current document filtering resolves the shell's explicit last-active document through actor ID + published buffer metadata instead of global current-buffer state |
 | Headings -> Unfold all | pending editor actor command |
@@ -183,12 +183,10 @@ manuals, and Shortcuts listing remain **pending application/help
 commands/providers**. Help availability comes from shipped resources rather
 than an editor.
 
-Global Search remains pending because its launcher still derives preview zoom
-from `get_current_view_safe()`. Vault Bugcheck remains pending because its
-implementation explicitly requires a BufferActor/view execution context. Vault
-Maintenance remains pending because its application-level status/error paths and
-final direct `get_server()->quit()` still need conversion to the shell's safe
-lifecycle contract.
+Vault Bugcheck remains pending because its implementation explicitly requires a
+BufferActor/view execution context. Vault Maintenance remains pending because
+its application-level status/error paths and final direct `get_server()->quit()`
+still need conversion to the shell's safe lifecycle contract.
 
 `test-menu`, `bookmarks-menu`, `texmacs-extra-menu`, converter lists,
 style/package lists and plugin contributions are **provider** work.  They must

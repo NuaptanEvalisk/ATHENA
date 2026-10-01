@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "QTMGlobalSearch.hpp"
+#include "QTMDocumentIdentity.hpp"
 #include "QTMMainTabWindow.hpp"
 #include "actor_ui_bridge.hpp"
 #if ATHENA_ENABLE_PERSON_SUBSYSTEM
@@ -63,6 +64,7 @@
 #include <QSizePolicy>
 #include <QSplitter>
 #include <QStringListModel>
+#include <QThread>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <algorithm>
@@ -1072,12 +1074,15 @@ QTMGlobalSearch::openCurrentResult () {
 void
 global_search_show () {
   if (qt_defer_to_main_thread (global_search_show)) return;
+  QTMDocumentIdentity identity= qtm_last_active_document_identity (
+    QTMMainTabWindow::topTabWindow ());
+  global_search_show_with_zoom (identity.zoom_factor);
+}
 
-  tm_view sourceView= concrete_view (get_current_view_safe ());
-  actor_ui_endpoint* sourceEndpoint= sourceView == nullptr ? nullptr :
-    find_actor_ui_endpoint (sourceView->runtime_id);
-  double previewZoom= sourceEndpoint == nullptr ? 1.0 :
-    sourceEndpoint->zoom_factor ();
+void
+global_search_show_with_zoom (double previewZoom) {
+  Q_ASSERT (qApp == nullptr || QThread::currentThread () == qApp->thread ());
+  if (!(previewZoom > 0.0)) previewZoom= 1.0;
 
   if (!vault_active ()) {
     QMessageBox::warning (QApplication::activeWindow (), "Global search",

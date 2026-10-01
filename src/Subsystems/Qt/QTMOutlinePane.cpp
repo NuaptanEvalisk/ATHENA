@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "QTMOutlinePane.hpp"
+#include "QTMDocumentIdentity.hpp"
 #include "QTMMainTabWindow.hpp"
 #include "buffer_actor.hpp"
 #include "new_view.hpp"
@@ -64,12 +65,22 @@ QTMOutlinePane::sizeHint () const {
 
 void
 QTMOutlinePane::refresh () {
-  tm_view view= concrete_view (get_current_view_safe ());
-  if (view == nullptr || view->buf == nullptr || view->buf->actor == nullptr)
+  QTMMainTabWindow* shell= QTMMainTabWindow::topTabWindow ();
+  QTMDocumentIdentity identity= qtm_last_active_document_identity (shell);
+  if (!identity.has_view ()) {
+    if (lastActorId != ATHENA_NO_ACTOR || lastViewId != ATHENA_NO_VIEW) {
+      lastActorId= ATHENA_NO_ACTOR;
+      lastViewId= ATHENA_NO_VIEW;
+      lastSignature= 0;
+      hasSignature= false;
+      entries.clear ();
+      tree->clear ();
+    }
     return;
+  }
 
-  athena_actor_id actorId= view->buf->actor->id ();
-  athena_view_id viewId= view->runtime_id;
+  athena_actor_id actorId= identity.actor;
+  athena_view_id viewId= identity.view;
   if (actorId != lastActorId || viewId != lastViewId) {
     lastActorId= actorId;
     lastViewId= viewId;
@@ -178,11 +189,7 @@ QTMOutlinePane::activateItem (QTreeWidgetItem* item) {
   int index= item->data (0, Qt::UserRole).toInt ();
   if (index < 0 || index >= entries.size ()) return;
 
-  tm_view view= concrete_view (get_current_view_safe ());
-  if (view == nullptr || view->runtime_id != lastViewId ||
-      view->buf == nullptr || view->buf->actor == nullptr ||
-      view->buf->actor->id () != lastActorId)
-    return;
+  if (lastActorId == ATHENA_NO_ACTOR || lastViewId == ATHENA_NO_VIEW) return;
 
   const QVector<int>& path= entries[index].treePath;
   std::size_t bytes= static_cast<std::size_t> (path.size ()) *

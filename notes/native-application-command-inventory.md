@@ -17,6 +17,10 @@ not be reported as native cutover.
 | `workspace.namespace-explorer` | application | `QTMNamespaceExplorer` launcher | native registry + JSON | native |
 | `view.error-messages` | application | `QTMErrorMessagesPane` | native registry + JSON | native |
 | `view.artifacts` | workspace | `QTMArtifactsPane` | native registry + JSON | native |
+| `view.outline` | application | `QTMOutlinePane` | explicit last-document actor/view identity | native |
+| `view.neighborhoods` | workspace | `QTMNeighborhoodsPane` | explicit last-document published buffer identity | native |
+| `view.document-history` | workspace | `QTMDocumentHistoryPane` | frozen document identity from command context | native |
+| `workspace.global-search` | workspace | `QTMGlobalSearch` | frozen last-document zoom + vault state | native |
 | `file.compare-files` | application | native ATHENA diff dialog | native registry + JSON | native |
 | `file.export-namespace` | workspace | native namespace export flow | native registry + JSON | native UI / existing export business operation |
 | `application.quick-switcher` | workspace | native vault quick switcher | native registry + JSON | native UI / existing recent-file adapter |
@@ -67,6 +71,13 @@ Menu presentation schema version 2 supports recursive JSON submenus. The
 inactive shell presenter builds those submenus recursively from registry data;
 submenu presentation inherits the originating top-level menu context instead of
 recapturing a target after focus has moved into the menu.
+
+`QTMCommandContext` now also freezes a `QTMDocumentIdentity`: weak document
+widget, actor/view IDs, published native buffer name and zoom snapshot. Tools
+that explicitly follow the last active document consume this identity instead
+of reading the legacy global current buffer/view. Stale actor/view IDs are
+validated naturally by mailbox submission; file-oriented tools use the copied
+published buffer name.
 
 The editor command declarations intentionally do not add Ctrl+Z/C/X/V shortcuts
 yet. Those keys still have their existing editor/input routes; adding a second
