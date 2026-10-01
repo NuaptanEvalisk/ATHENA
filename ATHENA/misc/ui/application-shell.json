@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "commands": [
     {
       "id": "application.new-document",
@@ -398,6 +398,59 @@
       "label": "Help",
       "items": [
         { "command": "help.about" }
+      ]
+    }
+  ],
+  "toolbars": [
+    {
+      "id": "editor-main",
+      "items": [
+        {
+          "submenu": "editor-main-new",
+          "label": "New",
+          "icon": "document-new",
+          "items": [
+            { "command": "application.new-document" }
+          ]
+        },
+        {
+          "submenu": "editor-main-open",
+          "label": "Open",
+          "icon": "document-open",
+          "items": [
+            { "command": "application.open" },
+            { "command": "editor.revert" }
+          ]
+        },
+        {
+          "submenu": "editor-main-save",
+          "label": "Save",
+          "icon": "document-save",
+          "items": [
+            { "command": "editor.save" }
+          ]
+        },
+        { "command": "editor.update-all" },
+        { "command": "application.preferences" },
+        {
+          "submenu": "editor-main-close",
+          "label": "Close",
+          "icon": "window-close",
+          "items": [
+            { "command": "editor.close-document" },
+            { "command": "application.quit" }
+          ]
+        },
+        { "separator": true },
+        { "command": "editor.cut" },
+        { "command": "editor.copy" },
+        { "command": "editor.paste" },
+        { "command": "editor.search" },
+        { "command": "editor.replace" },
+        { "command": "editor.undo" },
+        { "command": "editor.redo" },
+        { "separator": true },
+        { "command": "editor.revert" }
       ]
     }
   ]

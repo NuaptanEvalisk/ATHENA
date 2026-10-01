@@ -21,6 +21,7 @@
 #include "QTMWidget.hpp"
 #include "QTMScrollView.hpp"
 #include "QTMToolbar.hpp"
+#include <memory>
 
 #include <QMainWindow>
 #include <QStackedWidget>
@@ -32,6 +33,7 @@
 class QLabel; 
 class QAction;
 class QTMToolbarController;
+class QTMEditorToolbarPresenter;
 class QProgressBar;
 class QWidget;
 
@@ -78,6 +80,7 @@ class qt_tm_widget_rep: public qt_window_widget_rep {
   QDockWidget* bottomTools;
   QDockWidget*  extraTools;
   QTMToolbarController* toolbarController;
+  std::unique_ptr<QTMEditorToolbarPresenter> nativeMainToolbarPresenter;
 
 #ifdef Q_OS_MAC
   QToolBar*      dumbToolBar;

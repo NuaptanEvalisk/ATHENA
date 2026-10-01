@@ -206,3 +206,41 @@ after:
 5. Zero-buffer File/View/Workspace/Go/Help operations remain usable.
 6. The old Scheme menubar production path is removed in the same coherent
    milestone; it is not kept as a hidden fallback.
+
+## Toolbar production retirement map
+
+The native registry presentation resource is version 3 and now also carries
+validated toolbar inventories.  `QTMEditorToolbarPresenter` is view-owned and
+constructs QAction/QMenu presentation from those definitions while resolving
+state and execution through the same command registry as menus and the palette.
+The presenter is deliberately constructed but inactive until a toolbar group has
+complete command coverage.
+
+The legacy editor toolbar production chain is:
+
+`edit_main.cpp::rebuild_ui_chrome`
+-> `tm_frame_rep::menu_icons`
+-> Scheme lazy menu expansion / `make_menu_widget`
+-> `ui_menu_icons`
+-> `qt_actor_widget_rep::drain_external_effects`
+-> `set_main_icons/set_mode_icons/set_focus_icons/set_user_icons`
+-> `qt_tm_widget_rep` QAction replacement.
+
+Retirement is group-by-group, with no dual production for a migrated group:
+
+- Main toolbar: when `editor-main` reaches feature parity, activate its native
+  presenter and in the same commit remove `menu_icons(0, texmacs-main-icons)`,
+  the `texmacs-main-icons` Scheme definition/lazy registration, and the
+  main-icons-specific widget/action replacement path.
+- Mode toolbar: migrate the text/math/prog/source/dynamic mode providers, then
+  remove `texmacs-mode-icons` production and its corresponding icon-bar route.
+- Focus toolbar: migrate structured focus capability/value providers, then
+  remove `texmacs-focus-icons` production.
+- User/extension toolbar: replace `texmacs-extra-icons` with the native runtime
+  contribution model, then remove the last legacy `ui_menu_icons` producer and
+  consumer.  At that point `tm_frame/tm_window::menu_icons` production APIs and
+  the per-editor legacy toolbar widget caches can be deleted.
+
+Generic Scheme menu-widget machinery is not part of that deletion while it is
+still used by context popups, dialogs or bottom-tools.  Main menubar/toolbars
+must not survive as hidden consumers merely to justify retaining the old path.

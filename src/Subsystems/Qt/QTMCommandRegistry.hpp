@@ -65,12 +65,18 @@ struct QTMCommandMenuItem {
   QString commandId;
   QString submenuId;
   QString label;
+  QString icon;
   QVector<QTMCommandMenuItem> items;
 };
 
 struct QTMCommandMenuDefinition {
   QString id;
   QString label;
+  QVector<QTMCommandMenuItem> items;
+};
+
+struct QTMCommandToolbarDefinition {
+  QString id;
   QVector<QTMCommandMenuItem> items;
 };
 
@@ -91,7 +97,11 @@ public:
 
   const QVector<QTMCommandDefinition>& commands () const { return commands_; }
   const QVector<QTMCommandMenuDefinition>& menus () const { return menus_; }
+  const QVector<QTMCommandToolbarDefinition>& toolbars () const {
+    return toolbars_;
+  }
   const QTMCommandDefinition* command (const QString& id) const;
+  const QTMCommandToolbarDefinition* toolbar (const QString& id) const;
   const QTMCommandDefinition* commandForShortcut (
     const QKeySequence& shortcut) const;
 
@@ -122,6 +132,7 @@ private:
   QHash<QString, int> commandIndex_;
   QVector<QTMCommandDefinition> commands_;
   QVector<QTMCommandMenuDefinition> menus_;
+  QVector<QTMCommandToolbarDefinition> toolbars_;
 };
 
 #endif // QTMCOMMANDREGISTRY_HPP

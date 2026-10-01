@@ -447,6 +447,7 @@ QTMCommandRegistry::failPresentation (const QString& message) {
               << from_qstring (message) << LF;
   commands_.clear ();
   menus_.clear ();
+  toolbars_.clear ();
   commandIndex_.clear ();
   return false;
 }
@@ -468,12 +469,14 @@ QTMCommandRegistry::loadPresentation () {
       QString ("invalid JSON: %1").arg (parse.errorString ()));
 
   QJsonObject root= document.object ();
-  if (root.value ("version").toInt (-1) != 2)
+  if (root.value ("version").toInt (-1) != 3)
     return failPresentation ("unsupported or missing version");
   if (!root.value ("commands").isArray ())
     return failPresentation ("commands must be an array");
   if (!root.value ("menus").isArray ())
     return failPresentation ("menus must be an array");
+  if (!root.value ("toolbars").isArray ())
+    return failPresentation ("toolbars must be an array");
 
   QSet<QString> commandIds;
   QHash<QString, QString> shortcuts;
@@ -573,6 +576,7 @@ QTMCommandRegistry::loadPresentation () {
         item.kind= QTMCommandMenuItem::Kind::Submenu;
         item.submenuId= submenuId;
         item.label= label;
+        item.icon= itemObject.value ("icon").toString ().trimmed ();
         if (!parseMenuItems (
               submenuId, itemObject.value ("items").toArray (), item.items))
           return false;
@@ -604,6 +608,26 @@ QTMCommandRegistry::loadPresentation () {
     menus_.append (std::move (menu));
   }
 
+  for (const QJsonValue& value: root.value ("toolbars").toArray ()) {
+    if (!value.isObject ())
+      return failPresentation ("every toolbars entry must be an object");
+    QJsonObject object= value.toObject ();
+    QString id= object.value ("id").toString ().trimmed ();
+    if (id.isEmpty () || menuIds.contains (id))
+      return failPresentation (
+        QString ("invalid or duplicate toolbar id: %1").arg (id));
+    if (!object.value ("items").isArray ())
+      return failPresentation (
+        QString ("toolbar %1 has no items array").arg (id));
+    QTMCommandToolbarDefinition toolbar;
+    toolbar.id= id;
+    menuIds.insert (id);
+    if (!parseMenuItems (
+          id, object.value ("items").toArray (), toolbar.items))
+      return false;
+    toolbars_.append (std::move (toolbar));
+  }
+
   return true;
 }
 
@@ -614,6 +638,7 @@ QTMCommandRegistry::initialize () {
   commandIndex_.clear ();
   commands_.clear ();
   menus_.clear ();
+  toolbars_.clear ();
   registerBuiltins ();
   if (!loadPresentation ()) return false;
   initialized_= true;
@@ -627,6 +652,13 @@ QTMCommandRegistry::command (const QString& id) const {
   int index= it.value ();
   if (index < 0 || index >= commands_.size ()) return nullptr;
   return &commands_[index];
+}
+
+const QTMCommandToolbarDefinition*
+QTMCommandRegistry::toolbar (const QString& id) const {
+  for (const QTMCommandToolbarDefinition& definition: toolbars_)
+    if (definition.id == id) return &definition;
+  return nullptr;
 }
 
 const QTMCommandDefinition*

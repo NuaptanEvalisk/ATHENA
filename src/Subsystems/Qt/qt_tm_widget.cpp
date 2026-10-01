@@ -10,6 +10,7 @@
  ******************************************************************************/
 
 #include "QTMToolbar.hpp"
+#include "QTMEditorToolbarPresenter.hpp"
 #include "QTMPluginUi.hpp"
 #include <QToolButton>
 #include <QToolBar>
@@ -588,6 +589,9 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   QWidget* q = main_widget->as_qwidget(mw); // force creation of QWidget
   q->setParent (qwid); // q->layout()->removeWidget(q) will reset the parent to this
   bl->addWidget (q);
+  if (QTMWidget* editorCanvas= qobject_cast<QTMWidget*> (q))
+    nativeMainToolbarPresenter= std::make_unique<QTMEditorToolbarPresenter> (
+      editorCanvas, mainToolBar, QStringLiteral ("editor-main"));
   
   mw->setCentralWidget (cw);
 
