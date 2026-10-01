@@ -10,6 +10,7 @@
 
 #include "QTMCommandRegistry.hpp"
 
+#include "QTMAbout.hpp"
 #include "QTMCommandPalette.hpp"
 #include "QTMArtifactsPane.hpp"
 #include "QTMErrorMessagesPane.hpp"
@@ -252,6 +253,12 @@ QTMCommandRegistry::registerBuiltins () {
       return true;
     });
   registerBehavior (
+    "workspace.artifacts-build-vault", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      artifacts_build_entire_vault ();
+      return true;
+    });
+  registerBehavior (
     "file.compare-files", QTMCommandScope::Application,
     [] (const QTMCommandContext&) {
       athena_diff_show ();
@@ -303,6 +310,12 @@ QTMCommandRegistry::registerBuiltins () {
     "workspace.google-tasks", QTMCommandScope::Workspace,
     [] (const QTMCommandContext&) {
       google_tasks_show ();
+      return true;
+    });
+  registerBehavior (
+    "help.about", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      help_about_qt ();
       return true;
     });
 
@@ -363,7 +376,7 @@ QTMCommandRegistry::loadPresentation () {
       QString ("invalid JSON: %1").arg (parse.errorString ()));
 
   QJsonObject root= document.object ();
-  if (root.value ("version").toInt (-1) != 1)
+  if (root.value ("version").toInt (-1) != 2)
     return failPresentation ("unsupported or missing version");
   if (!root.value ("commands").isArray ())
     return failPresentation ("commands must be an array");
@@ -423,6 +436,59 @@ QTMCommandRegistry::loadPresentation () {
         QString ("native command has no presentation entry: %1").arg (it.key ()));
 
   QSet<QString> menuIds;
+  std::function<bool(
+    const QString&, const QJsonArray&, QVector<QTMCommandMenuItem>&)>
+  parseMenuItems;
+  parseMenuItems=
+    [&] (const QString& ownerId, const QJsonArray& values,
+         QVector<QTMCommandMenuItem>& out) -> bool {
+    for (const QJsonValue& itemValue: values) {
+      if (!itemValue.isObject ())
+        return failPresentation (
+          QString ("menu %1 contains a non-object item").arg (ownerId));
+      QJsonObject itemObject= itemValue.toObject ();
+      bool separator= itemObject.value ("separator").toBool (false);
+      QString commandId=
+        itemObject.value ("command").toString ().trimmed ();
+      QString submenuId=
+        itemObject.value ("submenu").toString ().trimmed ();
+      int kinds= (separator ? 1 : 0) + (!commandId.isEmpty () ? 1 : 0) +
+                 (!submenuId.isEmpty () ? 1 : 0);
+      if (kinds != 1)
+        return failPresentation (
+          QString ("menu %1 item requires one item kind").arg (ownerId));
+
+      QTMCommandMenuItem item;
+      if (separator)
+        item.kind= QTMCommandMenuItem::Kind::Separator;
+      else if (!commandId.isEmpty ()) {
+        if (!commandIndex_.contains (commandId))
+          return failPresentation (
+            QString ("menu %1 references unknown command: %2")
+              .arg (ownerId, commandId));
+        item.kind= QTMCommandMenuItem::Kind::Command;
+        item.commandId= commandId;
+      }
+      else {
+        QString label= itemObject.value ("label").toString ().trimmed ();
+        if (label.isEmpty () || !itemObject.value ("items").isArray ())
+          return failPresentation (
+            QString ("submenu %1 requires label and items").arg (submenuId));
+        if (menuIds.contains (submenuId))
+          return failPresentation (
+            QString ("duplicate menu/submenu id: %1").arg (submenuId));
+        menuIds.insert (submenuId);
+        item.kind= QTMCommandMenuItem::Kind::Submenu;
+        item.submenuId= submenuId;
+        item.label= label;
+        if (!parseMenuItems (
+              submenuId, itemObject.value ("items").toArray (), item.items))
+          return false;
+      }
+      out.append (std::move (item));
+    }
+    return true;
+  };
   for (const QJsonValue& value: root.value ("menus").toArray ()) {
     if (!value.isObject ())
       return failPresentation ("every menus entry must be an object");
@@ -439,25 +505,10 @@ QTMCommandRegistry::loadPresentation () {
     QTMCommandMenuDefinition menu;
     menu.id= id;
     menu.label= label;
-    for (const QJsonValue& itemValue: object.value ("items").toArray ()) {
-      if (!itemValue.isObject ())
-        return failPresentation (
-          QString ("menu %1 contains a non-object item").arg (id));
-      QJsonObject itemObject= itemValue.toObject ();
-      QTMCommandMenuItem item;
-      if (itemObject.value ("separator").toBool (false))
-        item.separator= true;
-      else {
-        item.commandId= itemObject.value ("command").toString ().trimmed ();
-        if (item.commandId.isEmpty () ||
-            !commandIndex_.contains (item.commandId))
-          return failPresentation (
-            QString ("menu %1 references unknown command: %2")
-              .arg (id, item.commandId));
-      }
-      menu.items.append (std::move (item));
-    }
     menuIds.insert (id);
+    if (!parseMenuItems (
+          id, object.value ("items").toArray (), menu.items))
+      return false;
     menus_.append (std::move (menu));
   }
 

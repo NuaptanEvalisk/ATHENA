@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "commands": [
     {
       "id": "application.new-document",
@@ -123,6 +123,20 @@
       "category": "Workspace",
       "icon": "view-task",
       "help": "Open the Google Tasks pane"
+    },
+    {
+      "id": "workspace.artifacts-build-vault",
+      "label": "Build entire vault",
+      "category": "Workspace",
+      "icon": "system-run",
+      "help": "Rebuild artifacts for the active vault"
+    },
+    {
+      "id": "help.about",
+      "label": "About ATHENA...",
+      "category": "Help",
+      "icon": "help-about",
+      "help": "Show ATHENA version and technical information"
     },
     {
       "id": "editor.undo",
@@ -267,9 +281,23 @@
       "items": [
         { "command": "workspace.namespace-explorer" },
         { "command": "workspace.namespace-manager" },
-        { "command": "workspace.websites-manager" },
-        { "command": "workspace.materials-manager" },
-        { "command": "workspace.custom-styles-manager" },
+        {
+          "submenu": "workspace-managers",
+          "label": "Managers",
+          "items": [
+            { "command": "workspace.websites-manager" },
+            { "command": "workspace.materials-manager" },
+            { "command": "workspace.custom-styles-manager" }
+          ]
+        },
+        {
+          "submenu": "workspace-artifacts",
+          "label": "Artifacts",
+          "items": [
+            { "command": "view.artifacts" },
+            { "command": "workspace.artifacts-build-vault" }
+          ]
+        },
         { "separator": true },
         { "command": "workspace.audmap-repl" },
         { "command": "workspace.google-tasks" }
@@ -281,6 +309,13 @@
       "items": [
         { "command": "application.command-palette" },
         { "command": "application.quick-switcher" }
+      ]
+    },
+    {
+      "id": "help",
+      "label": "Help",
+      "items": [
+        { "command": "help.about" }
       ]
     }
   ]

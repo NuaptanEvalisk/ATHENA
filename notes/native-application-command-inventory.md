@@ -26,6 +26,8 @@ not be reported as native cutover.
 | `workspace.custom-styles-manager` | workspace | `QTMCustomStylesManager` | native registry + JSON | native |
 | `workspace.audmap-repl` | workspace | native AUDMAP ADS pane | native registry + JSON | native |
 | `workspace.google-tasks` | workspace | native Google Tasks ADS pane | native registry + JSON | native |
+| `workspace.artifacts-build-vault` | workspace | vault-wide artifact build dialog | native registry + JSON | native |
+| `help.about` | application | `QTMAbout` | native registry + JSON | native |
 | `namespace.open` | pane | `QTMNamespaceExplorer` | pane provider state | native |
 | `namespace.copy` | pane | `QTMNamespaceExplorer` | pane provider state | native |
 | `namespace.paste` | pane | `QTMNamespaceExplorer` | pane provider state | native |
@@ -60,6 +62,11 @@ uses nonblocking `try_submit_to`, and recomputes availability on the actor
 before running the command under the existing menu-action transaction boundary.
 Standard Qt text inputs inside an editor pane suppress the editor Edit commands
 so their local selection/clipboard behavior is not redirected to the document.
+
+Menu presentation schema version 2 supports recursive JSON submenus. The
+inactive shell presenter builds those submenus recursively from registry data;
+submenu presentation inherits the originating top-level menu context instead of
+recapturing a target after focus has moved into the menu.
 
 The editor command declarations intentionally do not add Ctrl+Z/C/X/V shortcuts
 yet. Those keys still have their existing editor/input routes; adding a second

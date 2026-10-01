@@ -113,7 +113,7 @@ registered.  Error Messages and Artifacts now have native registry commands.
 | Vault Explorer / Namespace Explorer / Document History | partial; Namespace Explorer native, other native panes pending registration |
 | Neighborhoods | pending; current implementation still reads global current-buffer state |
 | Error messages | native: `view.error-messages` |
-| Artifacts | native: `view.artifacts` |
+| Artifacts | native: `view.artifacts`; Current document filtering resolves the shell's explicit last-active document through actor ID + published buffer metadata instead of global current-buffer state |
 | Headings -> Unfold all | pending editor actor command |
 | Fit to screen / width / persistent width | pending editor view snapshot/dispatch |
 | Typewriter mode | pending preference + editor state |
@@ -130,15 +130,15 @@ registered.  Error Messages and Artifacts now have native registry commands.
 | New floating window | pending explicit window command |
 | Configure Font for Vault | pending workspace/vault operation |
 | Run global transformation | pending workspace operation |
-| AUDMAP REPL | pending native pane registration |
+| AUDMAP REPL | native: `workspace.audmap-repl` |
 | Namespace Manager | native: `workspace.namespace-manager` |
 | Websites manager | native: `workspace.websites-manager` |
 | Materials manager | native: `workspace.materials-manager` |
 | Custom styles manager | native: `workspace.custom-styles-manager` |
-| Vault -> Bugcheck / Maintenance | pending workspace/vault commands |
-| Artifacts -> Build entire vault/current document | pending workspace/editor commands |
+| Vault -> Bugcheck / Maintenance | pending: Bugcheck requires actor/view context; Maintenance still has application lifecycle cleanup work |
+| Artifacts -> Build entire vault | native: `workspace.artifacts-build-vault` |
+| Artifacts -> Build current document | pending: business operation still uses global current-buffer state |
 | Google Tasks | native: `workspace.google-tasks` |
-| AUDMAP REPL | native: `workspace.audmap-repl` |
 | Refresh caches -> Styles | pending application/workspace command |
 | Clean cache | pending application command |
 | Namespace Explorer | native additive command: `workspace.namespace-explorer` |
@@ -177,10 +177,18 @@ pending until its state/dispatch provider is native.
 
 ## Help and runtime contributions
 
-About ATHENA, Welcome, Getting started, Configuration, Manual, Reference guide,
-Apropos, documentation/source/recent search, Full manuals, and Shortcuts listing
-are **pending application/help commands/providers**.  Help availability comes
-from shipped resources rather than an editor.
+About ATHENA is native as `help.about`. Welcome, Getting started, Configuration,
+Manual, Reference guide, Apropos, documentation/source/recent search, Full
+manuals, and Shortcuts listing remain **pending application/help
+commands/providers**. Help availability comes from shipped resources rather
+than an editor.
+
+Global Search remains pending because its launcher still derives preview zoom
+from `get_current_view_safe()`. Vault Bugcheck remains pending because its
+implementation explicitly requires a BufferActor/view execution context. Vault
+Maintenance remains pending because its application-level status/error paths and
+final direct `get_server()->quit()` still need conversion to the shell's safe
+lifecycle contract.
 
 `test-menu`, `bookmarks-menu`, `texmacs-extra-menu`, converter lists,
 style/package lists and plugin contributions are **provider** work.  They must

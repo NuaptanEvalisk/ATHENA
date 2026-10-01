@@ -38,7 +38,8 @@ private:
   struct menu_entry {
     QPointer<QAction> action;
     QString command_id;
-    bool separator= false;
+    QTMCommandMenuItem::Kind kind= QTMCommandMenuItem::Kind::Command;
+    int submenu_index= -1;
   };
 
   struct menu_state {
@@ -55,7 +56,9 @@ private:
 
   void remember_input_widget (QWidget* widget);
   void capture_presented_context ();
-  void refresh_menu (menu_state& menu);
+  int build_menu (QMenu* menu, const QVector<QTMCommandMenuItem>& items,
+                  bool root_menu);
+  bool refresh_menu (int index);
   bool execute (const QString& command_id);
 };
 

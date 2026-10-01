@@ -732,6 +732,13 @@ QTMMainTabWindow::activeWorkPaneWidget() const {
 }
 
 QWidget*
+QTMMainTabWindow::lastActiveDocumentWidget() const {
+  QWidget* document= mLastFocusedDocumentWidget.data ();
+  if (!isDocumentWidget (document)) return nullptr;
+  return documentWidgets ().contains (document) ? document : nullptr;
+}
+
+QWidget*
 QTMMainTabWindow::currentDocumentWidget() const {
   QWidget* current= nullptr;
   if (ads::CDockWidget* dockWidget= mDockManager->focusedDockWidget ())

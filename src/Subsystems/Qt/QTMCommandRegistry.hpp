@@ -53,8 +53,17 @@ struct QTMCommandDefinition {
 };
 
 struct QTMCommandMenuItem {
-  bool separator= false;
+  enum class Kind {
+    Command,
+    Separator,
+    Submenu
+  };
+
+  Kind kind= Kind::Command;
   QString commandId;
+  QString submenuId;
+  QString label;
+  QVector<QTMCommandMenuItem> items;
 };
 
 struct QTMCommandMenuDefinition {

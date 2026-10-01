@@ -60,35 +60,45 @@ QTMApplicationMenuPresenter::capture_presented_context () {
                                            QApplication::focusWidget ());
 }
 
-void
-QTMApplicationMenuPresenter::refresh_menu (menu_state& menu) {
-  if (menu.menu == nullptr) return;
+bool
+QTMApplicationMenuPresenter::refresh_menu (int index) {
+  if (index < 0 || index >= menus_.size ()) return false;
+  menu_state& menu= menus_[index];
+  if (menu.menu == nullptr) return false;
   QTMCommandRegistry& registry= QTMCommandRegistry::instance ();
 
   QVector<bool> command_visible (menu.entries.size (), false);
   for (int i= 0; i < menu.entries.size (); ++i) {
     menu_entry& entry= menu.entries[i];
-    if (entry.action == nullptr || entry.separator) continue;
-    QTMCommandState state=
-      registry.state (entry.command_id, presented_context_);
-    entry.action->setVisible (state.available);
-    entry.action->setEnabled (state.available && state.enabled);
-    entry.action->setCheckable (state.checkable);
-    if (state.checkable) entry.action->setChecked (state.checked);
-    command_visible[i]= state.available;
+    if (entry.action == nullptr) continue;
+    if (entry.kind == QTMCommandMenuItem::Kind::Command) {
+      QTMCommandState state=
+        registry.state (entry.command_id, presented_context_);
+      entry.action->setVisible (state.available);
+      entry.action->setEnabled (state.available && state.enabled);
+      entry.action->setCheckable (state.checkable);
+      if (state.checkable) entry.action->setChecked (state.checked);
+      command_visible[i]= state.available;
+    }
+    else if (entry.kind == QTMCommandMenuItem::Kind::Submenu) {
+      bool available= refresh_menu (entry.submenu_index);
+      entry.action->setVisible (available);
+      entry.action->setEnabled (available);
+      command_visible[i]= available;
+    }
   }
 
   bool visible_before= false;
   for (int i= 0; i < menu.entries.size (); ++i) {
     menu_entry& entry= menu.entries[i];
     if (entry.action == nullptr) continue;
-    if (!entry.separator) {
+    if (entry.kind != QTMCommandMenuItem::Kind::Separator) {
       if (command_visible[i]) visible_before= true;
       continue;
     }
     bool visible_after= false;
     for (int j= i + 1; j < menu.entries.size (); ++j) {
-      if (menu.entries[j].separator) continue;
+      if (menu.entries[j].kind == QTMCommandMenuItem::Kind::Separator) continue;
       if (command_visible[j]) {
         visible_after= true;
         break;
@@ -97,6 +107,61 @@ QTMApplicationMenuPresenter::refresh_menu (menu_state& menu) {
     entry.action->setVisible (visible_before && visible_after);
     if (entry.action->isVisible ()) visible_before= false;
   }
+  for (bool visible: command_visible)
+    if (visible) return true;
+  return false;
+}
+
+int
+QTMApplicationMenuPresenter::build_menu (
+  QMenu* menu, const QVector<QTMCommandMenuItem>& items, bool root_menu) {
+  if (menu == nullptr) return -1;
+
+  menu_state state;
+  state.menu= menu;
+  menus_.append (std::move (state));
+  const int index= menus_.size () - 1;
+  QTMCommandRegistry& registry= QTMCommandRegistry::instance ();
+
+  for (const QTMCommandMenuItem& item: items) {
+    menu_entry entry;
+    entry.kind= item.kind;
+    entry.command_id= item.commandId;
+    if (item.kind == QTMCommandMenuItem::Kind::Separator)
+      entry.action= menu->addSeparator ();
+    else if (item.kind == QTMCommandMenuItem::Kind::Submenu) {
+      QMenu* submenu= menu->addMenu (item.label);
+      entry.action= submenu == nullptr ? nullptr : submenu->menuAction ();
+      entry.submenu_index= build_menu (submenu, item.items, false);
+    }
+    else {
+      const QTMCommandDefinition* command= registry.command (item.commandId);
+      if (command == nullptr) continue;
+      QIcon icon= command->icon.isEmpty () ? QIcon ():
+                  QIcon::fromTheme (command->icon);
+      QAction* action=
+        new QAction (icon, menu_action_text (*command), menu);
+      action->setStatusTip (command->help);
+      action->setWhatsThis (command->help);
+      const QString command_id= command->id;
+      QObject::connect (action, &QAction::triggered, menu,
+                        [this, command_id] {
+        (void) execute (command_id);
+      });
+      menu->addAction (action);
+      entry.action= action;
+    }
+    menus_[index].entries.append (std::move (entry));
+  }
+
+  QObject::connect (
+    menu, &QMenu::aboutToShow, menu,
+    [this, index, root_menu] {
+      if (index < 0 || index >= menus_.size ()) return;
+      if (root_menu) capture_presented_context ();
+      (void) refresh_menu (index);
+    });
+  return index;
 }
 
 bool
@@ -122,45 +187,8 @@ QTMApplicationMenuPresenter::activate () {
   bar->setNativeMenuBar (false);
 
   for (const QTMCommandMenuDefinition& definition: registry.menus ()) {
-    menu_state state;
-    state.menu= bar->addMenu (definition.label);
-    if (state.menu == nullptr) continue;
-
-    for (const QTMCommandMenuItem& item: definition.items) {
-      menu_entry entry;
-      entry.separator= item.separator;
-      entry.command_id= item.commandId;
-      if (item.separator)
-        entry.action= state.menu->addSeparator ();
-      else {
-        const QTMCommandDefinition* command= registry.command (item.commandId);
-        if (command == nullptr) continue;
-        QIcon icon= command->icon.isEmpty () ? QIcon ():
-                    QIcon::fromTheme (command->icon);
-        QAction* action=
-          new QAction (icon, menu_action_text (*command), state.menu);
-        action->setStatusTip (command->help);
-        action->setWhatsThis (command->help);
-        const QString command_id= command->id;
-        QObject::connect (action, &QAction::triggered, state.menu,
-                          [this, command_id] {
-          (void) execute (command_id);
-        });
-        state.menu->addAction (action);
-        entry.action= action;
-      }
-      state.entries.append (std::move (entry));
-    }
-
-    menus_.append (std::move (state));
-    const int index= menus_.size () - 1;
-    QObject::connect (
-      menus_[index].menu, &QMenu::aboutToShow, menus_[index].menu,
-      [this, index] {
-        if (index < 0 || index >= menus_.size ()) return;
-        capture_presented_context ();
-        refresh_menu (menus_[index]);
-      });
+    QMenu* menu= bar->addMenu (definition.label);
+    if (menu != nullptr) (void) build_menu (menu, definition.items, true);
   }
 
   focus_connection_= QObject::connect (

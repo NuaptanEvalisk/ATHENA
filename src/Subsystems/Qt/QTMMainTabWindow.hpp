@@ -64,6 +64,7 @@ public:
   QList<QWidget*> documentWidgets() const;
   bool hasOpenAdsPanes() const;
   QWidget* activeWorkPaneWidget() const;
+  QWidget* lastActiveDocumentWidget() const;
   QWidget* currentDocumentWidget() const;
   QString documentWidgetTitle(QWidget* widget) const;
   void activateDocumentWidget(QWidget* widget);
