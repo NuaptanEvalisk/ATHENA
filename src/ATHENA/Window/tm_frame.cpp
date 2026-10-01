@@ -157,7 +157,7 @@ tm_frame_rep::menu_main (string menu) {
 
 void
 tm_frame_rep::menu_icons (int which, string menu) {
-  if ((which<0) || (which>3)) return;
+  if ((which<1) || (which>3)) return;
   if (editor_rep* editor= actor_frame_editor ()) {
     eval ("(lazy-initialize-force)");
     object expanded= eval ("'" * menu);

@@ -57,7 +57,8 @@ std::unordered_map<athena_actor_id, std::shared_ptr<actor_entry>> actor_registry
 
 bool
 run_native_editor_command (editor_rep* editor,
-                           native_editor_command_id command) {
+                           native_editor_command_id command,
+                           const string& argument= "") {
   if (editor == nullptr) return false;
   actor_editor_command_snapshot state= editor->editor_command_state_snapshot ();
   if (!state.valid ()) return false;
@@ -100,6 +101,9 @@ run_native_editor_command (editor_rep* editor,
   case native_editor_command_id::presentation_next_screen:
     if (!state.presentation_mode () || !state.screens_mode ()) return false;
     break;
+  case native_editor_command_id::export_selection_image:
+    if (!has_selection || N(argument) == 0) return false;
+    break;
   case native_editor_command_id::revert:
   case native_editor_command_id::close_document:
   case native_editor_command_id::save_as:
@@ -108,6 +112,11 @@ run_native_editor_command (editor_rep* editor,
   case native_editor_command_id::close_window:
   case native_editor_command_id::history_back:
   case native_editor_command_id::history_forward:
+  case native_editor_command_id::print_to_file:
+  case native_editor_command_id::print_page_selection:
+  case native_editor_command_id::print_page_selection_to_file:
+  case native_editor_command_id::export_pdf:
+  case native_editor_command_id::export_postscript:
     break;
   default:
     return false;
@@ -197,6 +206,25 @@ run_native_editor_command (editor_rep* editor,
       break;
     case native_editor_command_id::presentation_last:
       (void) call ("dynamic-operate-on-buffer", keyword_object ("last"));
+      break;
+    case native_editor_command_id::print_to_file:
+      (void) call ("native-print-to-file-dialog");
+      break;
+    case native_editor_command_id::print_page_selection:
+      (void) call ("native-print-page-selection-dialog");
+      break;
+    case native_editor_command_id::print_page_selection_to_file:
+      (void) call ("native-print-page-selection-to-file-dialog");
+      break;
+    case native_editor_command_id::export_pdf:
+      (void) call ("native-export-pdf-dialog");
+      break;
+    case native_editor_command_id::export_postscript:
+      (void) call ("native-export-postscript-dialog");
+      break;
+    case native_editor_command_id::export_selection_image:
+      (void) call ("native-export-selection-as-image-dialog",
+                   object (argument));
       break;
     default:
       editor->cancel_menu_action ();
@@ -936,13 +964,18 @@ buffer_actor::dispatch (actor_command_record& command) {
     else
       (void) actor_text_registry::instance ().discard (command.payload0);
     break;
-  case actor_command_kind::native_editor_command:
+  case actor_command_kind::native_editor_command: {
+    string argument;
+    if (command.payload0 != ATHENA_NO_BLOB)
+      argument= actor_text_registry::instance ().take (command.payload0);
     if (editor != nullptr)
       command.argument[0]= run_native_editor_command (
         editor,
-        static_cast<native_editor_command_id> (command.argument[0])) ? 1 : 0;
+        static_cast<native_editor_command_id> (command.argument[0]),
+        argument) ? 1 : 0;
     else command.argument[0]= 0;
     break;
+  }
   case actor_command_kind::keyboard_focus:
     if (editor != nullptr)
       editor->handle_keyboard_focus (

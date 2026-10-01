@@ -91,9 +91,10 @@
     <scm|insert-menu>, <scm|text-menu>, <scm|paragraph-menu>,
     <scm|document-menu> and <scm|help-menu> among others.
 
-    <item><scm|texmacs-main-icons>: contains the main toolbar, which
-    typically features buttons to open and save files, copy and paste text,
-    etc.
+    <item>The main file/edit/navigation toolbar is native and view-owned. It
+    is no longer produced by a <Scheme> menu named
+    <scm|texmacs-main-icons>. Commands and dynamic provider entries are
+    registered in the native application command system.
 
     <item><scm|texmacs-mode-icons>: contains the icons which depend on the
     current editing mode, that is: mathematics, text, code, etc.

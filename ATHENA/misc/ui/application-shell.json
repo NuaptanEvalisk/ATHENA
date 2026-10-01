@@ -279,6 +279,41 @@
       "help": "Print the active document"
     },
     {
+      "id": "editor.print-to-file",
+      "label": "Print buffer to file",
+      "category": "File",
+      "icon": "document-save",
+      "help": "Print the active document to a PDF file"
+    },
+    {
+      "id": "editor.print-page-selection",
+      "label": "Print page selection",
+      "category": "File",
+      "icon": "document-print",
+      "help": "Print a selected page range"
+    },
+    {
+      "id": "editor.print-page-selection-to-file",
+      "label": "Print page selection to file",
+      "category": "File",
+      "icon": "document-save",
+      "help": "Print a selected page range to a file"
+    },
+    {
+      "id": "editor.export-pdf",
+      "label": "Export as Pdf",
+      "category": "File",
+      "icon": "application-pdf",
+      "help": "Export the active document through the print pipeline as PDF"
+    },
+    {
+      "id": "editor.export-postscript",
+      "label": "Export as PostScript",
+      "category": "File",
+      "icon": "document-export",
+      "help": "Export the active document through the print pipeline as PostScript"
+    },
+    {
       "id": "editor.close-window",
       "label": "Close window",
       "category": "File",
@@ -567,7 +602,18 @@
             { "provider": "realtime-save-toggle" },
             { "command": "editor.save-as" },
             { "separator": true },
-            { "provider": "file-export-formats" }
+            { "provider": "file-export-formats" },
+            { "separator": true },
+            { "command": "editor.export-pdf" },
+            { "command": "editor.export-postscript" },
+            {
+              "submenu": "editor-main-selection-image",
+              "label": "Export selection as image",
+              "icon": "image-x-generic",
+              "items": [
+                { "provider": "selection-image-formats" }
+              ]
+            }
           ]
         },
         { "command": "editor.update-all" },
@@ -578,6 +624,9 @@
           "items": [
             { "command": "editor.preview" },
             { "command": "editor.print" },
+            { "command": "editor.print-page-selection" },
+            { "command": "editor.print-to-file" },
+            { "command": "editor.print-page-selection-to-file" },
             { "command": "application.page-setup" }
           ]
         },

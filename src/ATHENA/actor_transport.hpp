@@ -65,7 +65,13 @@ enum class native_editor_command_id: std::uint32_t {
   presentation_previous,
   presentation_next,
   presentation_next_screen,
-  presentation_last
+  presentation_last,
+  print_to_file,
+  print_page_selection,
+  print_page_selection_to_file,
+  export_pdf,
+  export_postscript,
+  export_selection_image
 };
 
 enum class actor_command_kind: std::uint32_t {

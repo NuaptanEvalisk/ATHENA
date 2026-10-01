@@ -69,6 +69,11 @@ not be reported as native cutover.
 | `editor.presentation-next` | editor | owning BufferActor -> presentation traversal | presentation-mode actor snapshot | native UI / Scheme business adapter |
 | `editor.presentation-next-screen` | editor | owning BufferActor -> screen traversal | presentation/screens actor snapshot | native UI / Scheme business adapter |
 | `editor.presentation-last` | editor | owning BufferActor -> presentation traversal | presentation-mode actor snapshot | native UI / Scheme business adapter |
+| `editor.print-to-file` | editor | owning BufferActor -> fixed print-to-file transaction | native print preference state | native UI / Scheme business adapter |
+| `editor.print-page-selection` | editor | owning BufferActor -> fixed page-range print transaction | native print preference/system state | native UI / Scheme business adapter |
+| `editor.print-page-selection-to-file` | editor | owning BufferActor -> fixed page-range file transaction | native print preference state | native UI / Scheme business adapter |
+| `editor.export-pdf` | editor | owning BufferActor -> fixed print/export transaction | editor presence | native UI / Scheme business adapter |
+| `editor.export-postscript` | editor | owning BufferActor -> fixed print/export transaction | editor presence | native UI / Scheme business adapter |
 
 ## Migrated dynamic presentation providers
 
@@ -81,6 +86,7 @@ Presentation JSON cannot name Scheme procedures or carry menu ASTs.
 | `file-import-formats` | application | converter registry via `native-import-format-provider-data` | native chooser -> fixed `import-buffer` route | native provider |
 | `file-export-formats` | editor | converter registry via `native-export-format-provider-data` | native chooser -> `buffer_export(frozen_document,...)` | native provider |
 | `realtime-save-toggle` | editor | explicit document persistence state | `athena_set_realtime_save_paused(frozen_document,...)` | native provider |
+| `selection-image-formats` | editor | converter/image format inventory + selection snapshot | fixed owning-actor image-export adapter | native provider |
 
 Application shortcuts currently declared in the JSON inventory are
 `Ctrl+N`, `Ctrl+O`, `Ctrl+Shift+P`, and `Ctrl+Q`. They are resolved by

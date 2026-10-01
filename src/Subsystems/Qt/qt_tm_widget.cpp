@@ -592,6 +592,8 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   if (QTMWidget* editorCanvas= qobject_cast<QTMWidget*> (q))
     nativeMainToolbarPresenter= std::make_unique<QTMEditorToolbarPresenter> (
       editorCanvas, mainToolBar, QStringLiteral ("editor-main"));
+  if (nativeMainToolbarPresenter)
+    (void) nativeMainToolbarPresenter->activate ();
   
   mw->setCentralWidget (cw);
 
@@ -715,6 +717,11 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   bottomTools->setVisible (false);
   extraTools->setVisible (false);
   mainwindow()->statusBar()->setVisible (true);
+  if (toolbarController != nullptr)
+    toolbarController->setRequestedVisibility (
+      visibility[1] && visibility[0], false, false, false);
+  else
+    mainToolBar->setVisible (visibility[1] && visibility[0]);
 #if !defined(Q_OS_MAC)
   if (!tmapp()->useNewToolbar())
     mainwindow()->menuBar()->setVisible (false);
@@ -734,7 +741,6 @@ qt_tm_widget_rep::~qt_tm_widget_rep () {
   waiting_widgets = remove(waiting_widgets, this);
   all_tm_widgets.remove (this);
   clear_main_menu_actions ();
-  retire_toolbar_actions (main_toolbar_actions);
   retire_toolbar_actions (mode_toolbar_actions);
   retire_toolbar_actions (focus_toolbar_actions);
   retire_toolbar_actions (user_toolbar_actions);
@@ -1580,23 +1586,6 @@ qt_tm_widget_rep::write (slot s, blackbox index, widget w) {
     }
       break;
       
-    case SLOT_MAIN_ICONS:
-      check_type_void (index, s);
-    {
-      main_icons_widget = concrete (w);
-      QList<QAction*>* list = main_icons_widget->get_qactionlist();
-      if (list) {
-#if !DISABLE_QTMTOOLBAR
-        mainToolBar->replaceButtons (list);
-#else
-        replaceButtons (mainToolBar, list, main_toolbar_actions);
-#endif
-        delete list;
-        update_visibility();
-      }
-    }
-      break;
-      
     case SLOT_MODE_ICONS:
       check_type_void (index, s);
     {
@@ -1896,7 +1885,6 @@ qt_tm_embedded_widget_rep::write (slot s, blackbox index, widget w) {
       break;
         /// FIXME: decide what to do with these for embedded widgets
     case SLOT_MAIN_MENU:
-    case SLOT_MAIN_ICONS:
     case SLOT_MODE_ICONS:
     case SLOT_FOCUS_ICONS:
     case SLOT_USER_ICONS:

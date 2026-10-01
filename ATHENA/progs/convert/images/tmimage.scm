@@ -237,6 +237,9 @@
   (:returns "nothing")
   (node-reference-with-export (lambda () (export-selection-as-graphics-ready myurl))))
 
+(tm-define (native-export-selection-as-image-dialog fm)
+  (choose-file export-selection-as-graphics "Export selection as image" fm))
+
 (define (export-selection-as-graphics-ready myurl)
   ;; for svg export, the texmacs code of the selection as well as
   ;; global document parameters such as style, fonts, etc. are

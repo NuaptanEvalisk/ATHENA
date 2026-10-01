@@ -39,6 +39,7 @@
 #include "new_window.hpp"
 #include "qt_utilities.hpp"
 #include "scheme.hpp"
+#include "sys_utils.hpp"
 #include "tm_ostream.hpp"
 
 #include <QApplication>
@@ -172,6 +173,16 @@ editor_command_id (const QString& id) {
     return native_editor_command_id::presentation_next_screen;
   if (id == "editor.presentation-last")
     return native_editor_command_id::presentation_last;
+  if (id == "editor.print-to-file")
+    return native_editor_command_id::print_to_file;
+  if (id == "editor.print-page-selection")
+    return native_editor_command_id::print_page_selection;
+  if (id == "editor.print-page-selection-to-file")
+    return native_editor_command_id::print_page_selection_to_file;
+  if (id == "editor.export-pdf")
+    return native_editor_command_id::export_pdf;
+  if (id == "editor.export-postscript")
+    return native_editor_command_id::export_postscript;
   return native_editor_command_id::none;
 }
 
@@ -225,7 +236,6 @@ native_editor_command_state (const QString& id,
   case native_editor_command_id::close_document:
   case native_editor_command_id::save_as:
   case native_editor_command_id::preview:
-  case native_editor_command_id::print:
   case native_editor_command_id::close_window:
   case native_editor_command_id::history_back:
   case native_editor_command_id::history_forward:
@@ -242,6 +252,33 @@ native_editor_command_state (const QString& id,
   case native_editor_command_id::presentation_next_screen:
     result.available= snapshot.presentation_mode () && snapshot.screens_mode ();
     result.enabled= result.available;
+    break;
+  case native_editor_command_id::print:
+    result.available= has_printing_cmd ();
+    result.enabled= result.available;
+    break;
+  case native_editor_command_id::print_to_file: {
+    bool useDialog=
+      get_user_preference ("gui:print dialogue", "on") == "on";
+    result.available= !useDialog || !has_printing_cmd ();
+    result.enabled= result.available;
+    break;
+  }
+  case native_editor_command_id::print_page_selection: {
+    bool useDialog=
+      get_user_preference ("gui:print dialogue", "on") == "on";
+    result.available= !useDialog && !has_printing_cmd ();
+    result.enabled= result.available;
+    break;
+  }
+  case native_editor_command_id::print_page_selection_to_file:
+    result.available=
+      get_user_preference ("gui:print dialogue", "on") != "on";
+    result.enabled= result.available;
+    break;
+  case native_editor_command_id::export_pdf:
+  case native_editor_command_id::export_postscript:
+    result.enabled= true;
     break;
   default:
     break;
@@ -504,6 +541,36 @@ QTMCommandRegistry::registerBuiltins () {
       return !failed;
     });
   registerProvider (
+    "selection-image-formats", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QVector<QTMCommandDynamicItem> out;
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return out;
+      actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
+      if (!snapshot.valid () ||
+          (!snapshot.selection_active () &&
+           !snapshot.graphics_selection_active ()))
+        return out;
+      try {
+        QVector<QString> data= scheme_string_vector (
+          call ("native-selection-image-format-provider-data"));
+        for (int i= 0; i + 2 < data.size (); i += 3) {
+          QTMCommandDynamicItem item= enabled_dynamic_item (
+            data[i], data[i + 1], data[i + 2]);
+          out.append (std::move (item));
+        }
+      }
+      catch (...) {}
+      return out;
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      return proxy != nullptr && !key.isEmpty () &&
+             proxy->submit_editor_command (
+               native_editor_command_id::export_selection_image,
+               from_qstring (key));
+    });
+  registerProvider (
     "realtime-save-toggle", QTMCommandScope::Editor,
     [] (const QTMCommandContext& context) {
       QVector<QTMCommandDynamicItem> out;
@@ -733,7 +800,12 @@ QTMCommandRegistry::registerBuiltins () {
     "editor.presentation-previous",
     "editor.presentation-next",
     "editor.presentation-next-screen",
-    "editor.presentation-last"
+    "editor.presentation-last",
+    "editor.print-to-file",
+    "editor.print-page-selection",
+    "editor.print-page-selection-to-file",
+    "editor.export-pdf",
+    "editor.export-postscript"
   };
   for (const QString& id: editorCommands)
     registerBehavior (

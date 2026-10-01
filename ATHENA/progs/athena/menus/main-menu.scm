@@ -160,49 +160,6 @@
   ("Flatten transclusions into new document" (vault-flatten-document)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; The main icon bar
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(menu-bind texmacs-main-icons
-  (=> (balloon (icon "tm_new") "Create a new document")
-      (link new-file-menu))
-  (=> (balloon (icon "tm_open") "Load a file") (link load-menu))
-  (=> (balloon (icon "tm_save") "Save this buffer") (link save-menu))
-  ((balloon (icon "tm_build") "Update this buffer")
-   (update-document "all"))
-  (=> (balloon (icon "tm_print") "Print") (link print-menu-inline))
-  ((balloon (icon "tm_preferences") "Change the TeXmacs preferences")
-   (open-preferences))
-  (=> (balloon (icon "tm_cancel") "Close") (link close-menu))
-  /
-  ((balloon (icon "tm_cut") "Cut text")
-   (kbd-cut))
-  ((balloon (icon "tm_copy") "Copy text")
-   (kbd-copy))
-  ((balloon (icon "tm_paste") "Paste text")
-   (kbd-paste))
-  ((balloon (icon "tm_find") "Find text")
-   (document-search-open))
-  ((balloon (icon "tm_replace") "Replace text")
-   (document-replace-open))
-  (if (in-math?)
-      (=> (balloon (icon "tm_spell") "Correct mathematical formulas")
-          (link math-correct-menu)))
-  ((balloon (icon "tm_undo") "Undo last changes") (undo 0))
-  ((balloon (icon "tm_redo") "Redo undone changes") (redo 0))
-  /
-  ((balloon (icon "tm_back") "Browse back")
-   (cursor-history-backward))
-  ((balloon (icon "tm_reload") "Reload")
-   (revert-buffer))
-  ((balloon (icon "tm_forward") "Browse forward")
-   (cursor-history-forward))
-  (if (in-presentation?)
-    /
-    (link dynamic-icons))
-)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; The mode dependent icon bar
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

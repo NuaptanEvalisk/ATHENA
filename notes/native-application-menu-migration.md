@@ -228,10 +228,11 @@ The legacy editor toolbar production chain is:
 
 Retirement is group-by-group, with no dual production for a migrated group:
 
-- Main toolbar: when `editor-main` reaches feature parity, activate its native
-  presenter and in the same commit remove `menu_icons(0, texmacs-main-icons)`,
-  the `texmacs-main-icons` Scheme definition/lazy registration, and the
-  main-icons-specific widget/action replacement path.
+- Main toolbar: **cut over**. `editor-main` is the production view-owned
+  toolbar. `menu_icons(0, texmacs-main-icons)`, the Scheme definition/lazy
+  registration, `SLOT_MAIN_ICONS`, and the Qt widget/action replacement cache
+  have been removed. `SLOT_MAIN_ICONS_VISIBILITY` remains only as the
+  visibility contract for the native toolbar.
 - Mode toolbar: migrate the text/math/prog/source/dynamic mode providers, then
   remove `texmacs-mode-icons` production and its corresponding icon-bar route.
 - Focus toolbar: migrate structured focus capability/value providers, then

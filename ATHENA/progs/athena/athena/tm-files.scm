@@ -190,6 +190,15 @@
            (list fm (format-get-name fm) (format-default-suffix fm)))
          (converters-from-special "texmacs-file" "-file" #f))))
 
+(tm-define (native-selection-image-format-provider-data)
+  (apply append
+    (map (lambda (fm)
+           (list fm (upcase-first fm) (format-default-suffix fm)))
+         (filter
+           (lambda (fm)
+             (file-converter-exists? "x.pdf" (string-append "y." fm)))
+           (image-formats)))))
+
 (define (buffer-notify-recent name)
   (when (not (autosave-file? name))
     (learn-interactive 'recent-buffer (list (cons "0" (url->unix name))))

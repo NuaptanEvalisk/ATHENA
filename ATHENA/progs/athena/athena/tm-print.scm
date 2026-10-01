@@ -264,5 +264,24 @@
   (:proposals last (list (number->string (get-page-count)) ""))
   (node-reference-with-export (lambda () (print-pages first last))))
 
+;; Finite business adapters for the native application-shell toolbar.  File
+;; and page-selection UI remains here until those dialogs are migrated, but the
+;; toolbar never expands or executes legacy Scheme menu ASTs.
+(tm-define (native-print-to-file-dialog)
+  (choose-file prepared-print-to-file "Print all to file"
+               (printer-file-format) "Print:"))
+
+(tm-define (native-print-page-selection-dialog)
+  (interactive prepared-print-pages))
+
+(tm-define (native-print-page-selection-to-file-dialog)
+  (interactive choose-file-and-print-page-selection))
+
+(tm-define (native-export-pdf-dialog)
+  (choose-file wrapped-print-to-file "Save pdf file" "pdf"))
+
+(tm-define (native-export-postscript-dialog)
+  (choose-file wrapped-print-to-file "Save postscript file" "postscript"))
+
 (register-preference-callback-procedures
   (list notify-paper-type notify-preview-command notify-printer-dpi notify-printing-command))

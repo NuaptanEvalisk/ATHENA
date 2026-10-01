@@ -153,6 +153,22 @@ qt_actor_widget_rep::submit_editor_command (native_editor_command_id command) {
 }
 
 bool
+qt_actor_widget_rep::submit_editor_command (
+  native_editor_command_id command, string argument) {
+  if (command == native_editor_command_id::none) return false;
+  athena_blob_id payload= actor_text_from_string (std::move (argument));
+  actor_command_ticket ticket= buffer_actor::try_submit_to (
+    actor_id_, actor_command_kind::native_editor_command, view_id_,
+    payload, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+    static_cast<std::uint64_t> (command));
+  if (!ticket) {
+    (void) actor_text_registry::instance ().discard (payload);
+    return false;
+  }
+  return true;
+}
+
+bool
 qt_actor_widget_rep::is_editor_widget () {
   return true;
 }
@@ -797,8 +813,7 @@ qt_actor_widget_rep::drain_external_effects () {
       tm_view view= concrete_runtime_view (view_id_);
       int which= static_cast<int> (record.argument[1]);
       if (is_nil (icons) || view == nullptr || view->win == nullptr) break;
-      if (which == 0) ::set_main_icons (view->win->wid, icons);
-      else if (which == 1) ::set_mode_icons (view->win->wid, icons);
+      if (which == 1) ::set_mode_icons (view->win->wid, icons);
       else if (which == 2) ::set_focus_icons (view->win->wid, icons);
       else if (which == 3) ::set_user_icons (view->win->wid, icons);
       break;

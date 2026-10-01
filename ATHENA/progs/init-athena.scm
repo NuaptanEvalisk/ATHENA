@@ -111,8 +111,7 @@
            bookmarks-menu test-menu help-icons
            athena-focus-menu texmacs-menu window-list-menu
            workspace-menu presentation-popup-menu texmacs-popup-menu
-           texmacs-alternative-popup-menu texmacs-main-icons
-           texmacs-mode-icons)
+           texmacs-alternative-popup-menu texmacs-mode-icons)
 (lazy-define (athena menus file-menu) recent-file-list recent-directory-list)
 (tm-define (notify-set-attachment name key val) (noop))
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
@@ -325,7 +324,8 @@
 (lazy-format (convert images init-images)
              postscript pdf xmgrace svg jpeg ppm gif png pnm)
 (lazy-define (convert images tmimage)
-             export-selection-as-graphics clipboard-copy-image)
+             export-selection-as-graphics clipboard-copy-image
+             native-export-selection-as-image-dialog)
 (lazy-define (convert rewrite init-rewrite) texmacs->code texmacs->verbatim)
 (lazy-define (convert html tmhtml) ext-tmhtml-eqnarray*)
 (define-secure-symbols ext-tmhtml-eqnarray*)
