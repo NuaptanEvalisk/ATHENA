@@ -322,8 +322,6 @@ remove_buffer (tm_buffer buf) {
       while (N(buf->vws) != 0)
         delete_view (abstract_view (buf->vws[0]));
       buf->actor->shutdown ();
-      if (n == 1 && is_server_started ())
-        get_server () -> quit ();
       for (int i=nr; i<n-1; i++)
         bufs[i]= bufs[i+1];
       bufs->resize (n-1);

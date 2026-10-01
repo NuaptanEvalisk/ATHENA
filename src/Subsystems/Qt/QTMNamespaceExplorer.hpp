@@ -11,6 +11,7 @@
 #ifndef QTMNAMESPACEEXPLORER_HPP
 #define QTMNAMESPACEEXPLORER_HPP
 
+#include "QTMCommandRegistry.hpp"
 #include "namespaces.hpp"
 
 #include <QMap>
@@ -26,7 +27,7 @@ class QTreeWidget;
 class QTreeWidgetItem;
 class QTimer;
 
-class QTMNamespaceExplorer : public QWidget {
+class QTMNamespaceExplorer : public QWidget, public QTMCommandProvider {
 public:
   QTMNamespaceExplorer (QWidget* parent = nullptr);
 
@@ -34,6 +35,9 @@ public:
   void refresh (bool invalidateCache= false);
   void setFloatingResizeGripVisible (bool visible);
   bool selectNamespace (const QString& name);
+  bool qtmSupportsCommand (const QString& commandId) const override;
+  QTMCommandState qtmCommandState (const QString& commandId) const override;
+  bool qtmInvokeCommand (const QString& commandId) override;
 
 private:
   QStringList directChildNames (const QString& name,

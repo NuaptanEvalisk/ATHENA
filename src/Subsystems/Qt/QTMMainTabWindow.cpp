@@ -686,6 +686,11 @@ void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
   showAfterContentReady(widget);
 }
 
+void
+QTMMainTabWindow::showShell() {
+  showAfterContentReady(nullptr);
+}
+
 QList<QWidget*>
 QTMMainTabWindow::documentWidgets() const {
   QList<QWidget*> out;
@@ -712,6 +717,14 @@ QTMMainTabWindow::hasOpenAdsPanes() const {
       return true;
   }
   return false;
+}
+
+QWidget*
+QTMMainTabWindow::activeWorkPaneWidget() const {
+  if (mDockManager == nullptr) return nullptr;
+  ads::CDockWidget* dock= mDockManager->focusedDockWidget ();
+  if (dock == nullptr || dock->isClosed ()) return nullptr;
+  return dock->widget ();
 }
 
 QWidget*
@@ -785,15 +798,6 @@ void QTMMainTabWindow::removeWidget(QWidget *widget) {
       break;
     }
     p = p->parentWidget();
-  }
-
-  if (nr_windows <= 1 && !hasOpenAdsPanes ()) {
-    if (is_server_started()) {
-      AthenaQtClosingGuard guard;
-      eval("(safely-quit-ATHENA)");
-    } else {
-      closeAndSetTopTabWindow();
-    }
   }
 }
 

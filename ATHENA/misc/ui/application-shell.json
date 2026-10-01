@@ -1,0 +1,140 @@
+{
+  "version": 1,
+  "commands": [
+    {
+      "id": "application.new-document",
+      "label": "New document",
+      "category": "File",
+      "icon": "document-new",
+      "help": "Create a new ATHENA document",
+      "shortcut": "Ctrl+N"
+    },
+    {
+      "id": "application.open",
+      "label": "Open document...",
+      "category": "File",
+      "icon": "document-open",
+      "help": "Open a document from disk",
+      "shortcut": "Ctrl+O"
+    },
+    {
+      "id": "application.preferences",
+      "label": "Preferences...",
+      "category": "File",
+      "icon": "preferences-system",
+      "help": "Open ATHENA preferences"
+    },
+    {
+      "id": "application.command-palette",
+      "label": "Command palette...",
+      "category": "View",
+      "icon": "system-search",
+      "help": "Search commands available in the current work context",
+      "shortcut": "Ctrl+Shift+P"
+    },
+    {
+      "id": "application.quit",
+      "label": "Quit",
+      "category": "File",
+      "icon": "application-exit",
+      "help": "Quit ATHENA safely",
+      "shortcut": "Ctrl+Q"
+    },
+    {
+      "id": "workspace.namespace-explorer",
+      "label": "Namespace Explorer",
+      "category": "Workspace",
+      "icon": "view-list-tree",
+      "help": "Show the Namespace Explorer pane"
+    },
+    {
+      "id": "namespace.open",
+      "label": "Open selected item",
+      "category": "Namespace Explorer",
+      "icon": "document-open",
+      "help": "Open the selected file or expand the selected namespace"
+    },
+    {
+      "id": "namespace.copy",
+      "label": "Copy selected file",
+      "category": "Namespace Explorer",
+      "icon": "edit-copy",
+      "help": "Copy the selected namespace file"
+    },
+    {
+      "id": "namespace.paste",
+      "label": "Paste near selection",
+      "category": "Namespace Explorer",
+      "icon": "edit-paste",
+      "help": "Paste the copied namespace file near the selection"
+    },
+    {
+      "id": "namespace.rename",
+      "label": "Rename selected file...",
+      "category": "Namespace Explorer",
+      "icon": "edit-rename",
+      "help": "Rename the selected namespace file"
+    },
+    {
+      "id": "namespace.delete",
+      "label": "Delete selected file...",
+      "category": "Namespace Explorer",
+      "icon": "edit-delete",
+      "help": "Delete or move the selected namespace file to Trash"
+    },
+    {
+      "id": "namespace.refresh",
+      "label": "Refresh Namespace Explorer",
+      "category": "Namespace Explorer",
+      "icon": "view-refresh",
+      "help": "Refresh namespace and file data"
+    }
+  ],
+  "menus": [
+    {
+      "id": "file",
+      "label": "&File",
+      "items": [
+        { "command": "application.new-document" },
+        { "command": "application.open" },
+        { "separator": true },
+        { "command": "application.preferences" },
+        { "separator": true },
+        { "command": "application.quit" }
+      ]
+    },
+    {
+      "id": "edit",
+      "label": "Edit",
+      "items": [
+        { "command": "namespace.copy" },
+        { "command": "namespace.paste" },
+        { "separator": true },
+        { "command": "namespace.rename" },
+        { "command": "namespace.delete" }
+      ]
+    },
+    {
+      "id": "focus",
+      "label": "Focus",
+      "items": [
+        { "command": "namespace.open" },
+        { "command": "namespace.refresh" }
+      ]
+    },
+    {
+      "id": "view",
+      "label": "View",
+      "items": [
+        { "command": "application.command-palette" }
+      ]
+    },
+    {
+      "id": "workspace",
+      "label": "Workspace",
+      "items": [
+        { "command": "workspace.namespace-explorer" }
+      ]
+    }
+  ]
+}

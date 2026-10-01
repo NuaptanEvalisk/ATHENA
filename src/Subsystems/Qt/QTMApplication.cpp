@@ -1,12 +1,12 @@
 #include "QTMApplication.hpp"
 #include "QTMCommandPalette.hpp"
+#include "QTMCommandRegistry.hpp"
 #include "QTMDocumentPersistence.hpp"
 #include "QTMDocumentHistory.hpp"
 #include "QTMProgressWindow.hpp"
 #include "QTMUpdateChecker.hpp"
 #include "QTMVaultBackupDispatcher.hpp"
 #include "qt_utilities.hpp"
-#include "scheme.hpp"
 #include "tm_timer.hpp"
 
 #include <QKeyEvent>
@@ -46,12 +46,53 @@ static bool gestureDebugEnabled () {
   return !value.isEmpty () && value != "0";
 }
 
-static bool quickSwitcherShortcut (const QKeyEvent* event) {
-  Qt::KeyboardModifiers modifiers= event->modifiers ();
-  return event->key () == Qt::Key_O &&
-         (modifiers & Qt::ControlModifier) != 0 &&
-         (modifiers & (Qt::ShiftModifier | Qt::AltModifier |
-                       Qt::MetaModifier)) == 0;
+static QKeySequence
+eventKeySequence (const QKeyEvent* event) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+  return QKeySequence (event->keyCombination ());
+#else
+  return QKeySequence (event->key () | int (event->modifiers ()));
+#endif
+}
+
+static const QTMCommandDefinition*
+nativeShortcutCommand (const QKeyEvent* event) {
+  if (QApplication::activeModalWidget () != nullptr) return nullptr;
+  QTMCommandRegistry& registry= QTMCommandRegistry::instance ();
+  if (!registry.initialize ()) return nullptr;
+  return registry.commandForShortcut (eventKeySequence (event));
+}
+
+static QTMCommandContext
+nativeShortcutContext (QObject* receiver) {
+  QTMCommandRegistry& registry= QTMCommandRegistry::instance ();
+  QTMMainTabWindow* shell= QTMMainTabWindow::topTabWindow ();
+  return registry.captureContext (shell, qobject_cast<QWidget*> (receiver));
+}
+
+static bool
+dispatchApplicationShortcut (QObject* receiver, QEvent* event) {
+  if (event == nullptr ||
+      (event->type () != QEvent::ShortcutOverride &&
+       event->type () != QEvent::KeyPress))
+    return false;
+
+  QKeyEvent* keyEvent= static_cast<QKeyEvent*> (event);
+  const QTMCommandDefinition* command= nativeShortcutCommand (keyEvent);
+  if (command == nullptr || command->scope != QTMCommandScope::Application)
+    return false;
+
+  QTMCommandRegistry& registry= QTMCommandRegistry::instance ();
+  QTMCommandContext context= nativeShortcutContext (receiver);
+  QTMCommandState state= registry.state (command->id, context);
+  if (!state.available || !state.enabled) return false;
+  if (event->type () == QEvent::ShortcutOverride) {
+    event->accept ();
+    return true;
+  }
+  (void) registry.execute (command->id, context);
+  event->accept ();
+  return true;
 }
 
 }
@@ -104,6 +145,9 @@ void QTMApplication::load() {
   bench_start ("construct qt tab shell");
   new QTMMainTabWindow();
   bench_cumul ("construct qt tab shell");
+  bench_start ("initialize native commands");
+  (void) QTMCommandRegistry::instance ().initialize ();
+  bench_cumul ("initialize native commands");
   bench_start ("initialize background services");
   qtm_document_persistence_initialize ();
   qtm_document_history_initialize ();
@@ -137,6 +181,9 @@ void QTMApplication::set_window_icon (string icon_path) {
 bool QTMApplication::notify (QObject* receiver, QEvent* event)
 {
   try {
+    // Application commands win before pane-specific input-owner exemptions.
+    // Modal dialogs remain an explicit boundary through nativeShortcutCommand.
+    if (dispatchApplicationShortcut (receiver, event)) return true;
     if (event && (event->type () == QEvent::KeyPress ||
                   event->type () == QEvent::KeyRelease ||
                   event->type () == QEvent::ShortcutOverride)) {
@@ -150,7 +197,11 @@ bool QTMApplication::notify (QObject* receiver, QEvent* event)
     if (receiver != NULL && event != NULL &&
         event->type () == QEvent::ShortcutOverride) {
       QKeyEvent* keyEvent= static_cast<QKeyEvent*> (event);
-      if (quickSwitcherShortcut (keyEvent)) {
+      const QTMCommandDefinition* command= nativeShortcutCommand (keyEvent);
+      if (command != nullptr) {
+        QTMCommandState state= QTMCommandRegistry::instance ().state (
+          command->id, nativeShortcutContext (receiver));
+        if (!state.available) return QApplication::notify (receiver, event);
         event->accept ();
         return true;
       }
@@ -170,18 +221,13 @@ bool QTMApplication::notify (QObject* receiver, QEvent* event)
         event->accept ();
         return true;
       }
-      bool commandPaletteShortcut=
-        keyEvent->key () == Qt::Key_P &&
-        (modifiers & Qt::ControlModifier) != 0 &&
-        (modifiers & Qt::ShiftModifier) != 0 &&
-        (modifiers & (Qt::AltModifier | Qt::MetaModifier)) == 0;
-      if (commandPaletteShortcut) {
-        command_palette_show ();
-        event->accept ();
-        return true;
-      }
-      if (quickSwitcherShortcut (keyEvent)) {
-        eval ("(open-quick-switcher)");
+      const QTMCommandDefinition* command= nativeShortcutCommand (keyEvent);
+      if (command != nullptr) {
+        QTMCommandRegistry& registry= QTMCommandRegistry::instance ();
+        QTMCommandContext context= nativeShortcutContext (receiver);
+        QTMCommandState state= registry.state (command->id, context);
+        if (!state.available) return QApplication::notify (receiver, event);
+        (void) registry.execute (command->id, context);
         event->accept ();
         return true;
       }

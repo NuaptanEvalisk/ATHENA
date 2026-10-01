@@ -1,6 +1,6 @@
 /******************************************************************************
 * MODULE     : QTMCommandPalette.cpp
-* DESCRIPTION: Qt command palette backed by the live menubar
+* DESCRIPTION: Qt command palette backed by the native command registry
 * COPYRIGHT  : (C) 2026 Felix
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
@@ -9,139 +9,95 @@
 ******************************************************************************/
 
 #include "QTMCommandPalette.hpp"
+#include "QTMCommandRegistry.hpp"
 #include "QTMMainTabWindow.hpp"
-#include "QTMMenuHelper.hpp"
 
 #ifdef USE_KF6
 #include <KCommandBar>
 #endif
 
-#include <QAction>
 #include <QAbstractItemView>
+#include <QAction>
 #include <QApplication>
 #include <QDialog>
+#include <QHash>
 #include <QIcon>
 #include <QLineEdit>
-#include <QList>
 #include <QListWidget>
 #include <QListWidgetItem>
-#include <QMainWindow>
-#include <QMenu>
-#include <QMenuBar>
-#include <QPointer>
-#include <QSet>
 #include <QString>
-#include <QToolBar>
-#include <QToolButton>
 #include <QVariant>
 #include <QVBoxLayout>
 #include <QVector>
-#include <QWidgetAction>
 
-static QString
-clean_action_text (const QString& raw) {
-  QString text= raw;
-  int tab= text.indexOf ('\t');
-  if (tab >= 0) text= text.left (tab);
+namespace {
 
-  QString out;
-  out.reserve (text.size ());
-  for (int i=0; i < text.size (); ++i) {
-    if (text[i] == '&') {
-      if (i + 1 < text.size () && text[i + 1] == '&') {
-        out.append ('&');
-        ++i;
-      }
-      continue;
-    }
-    out.append (text[i]);
-  }
-  return out.trimmed ();
-}
+struct PaletteGroup {
+  QString name;
+  QList<QAction*> actions;
+};
 
-static void
-force_lazy_menu_tree (QMenu* menu, QSet<QMenu*>& seen) {
-  if (menu == nullptr || seen.contains (menu)) return;
-  seen.insert (menu);
+QAction*
+make_palette_action (QObject* parent, const QTMCommandDefinition& definition,
+                     const QTMCommandContext& context) {
+  QTMCommandRegistry& registry= QTMCommandRegistry::instance ();
+  QTMCommandState state= registry.state (definition.id, context);
+  QIcon icon= definition.icon.isEmpty () ? QIcon ():
+              QIcon::fromTheme (definition.icon);
+  QAction* action= new QAction (icon, definition.label, parent);
+  action->setEnabled (state.available && state.enabled);
+  action->setCheckable (state.checkable);
+  action->setChecked (state.checkable && state.checked);
+  action->setShortcut (definition.shortcut);
+  QString path= definition.category + " -> " + definition.label;
+  action->setToolTip (path);
+  action->setStatusTip (definition.help.isEmpty () ? path: definition.help);
+  action->setWhatsThis (definition.help);
 
-  if (QTMLazyMenu* lazy= qobject_cast<QTMLazyMenu*> (menu))
-    lazy->force ();
-
-  QList<QAction*> actions= menu->actions ();
-  for (QAction* action : actions)
-    if (action != nullptr && action->menu () != nullptr)
-      force_lazy_menu_tree (action->menu (), seen);
-}
-
-static QAction*
-make_palette_action (QObject* palette, QAction* original,
-                     const QString& label, const QString& fullPath) {
-  QAction* copy= new QAction (original->icon (), label, palette);
-  copy->setEnabled (original->isEnabled ());
-  copy->setCheckable (original->isCheckable ());
-  copy->setChecked (original->isChecked ());
-  copy->setShortcut (original->shortcut ());
-  copy->setToolTip (fullPath);
-  copy->setStatusTip (original->statusTip ().isEmpty () ?
-                      fullPath : original->statusTip ());
-  copy->setWhatsThis (original->whatsThis ());
-
-  QPointer<QAction> target= original;
-  QObject::connect (copy, &QAction::triggered, copy, [target] () {
-    if (target != nullptr) target->trigger ();
+  QString id= definition.id;
+  QObject::connect (action, &QAction::triggered, action,
+                    [id, context] () {
+    (void) QTMCommandRegistry::instance ().execute (id, context);
   });
-  return copy;
+  return action;
 }
 
-static void
-collect_menu_actions (QMenu* menu, QObject* palette,
-                      const QString& groupName, const QStringList& parents,
-                      QList<QAction*>& out) {
-  if (menu == nullptr) return;
-
-  QList<QAction*> actions= menu->actions ();
-  for (QAction* action : actions) {
-    if (action == nullptr || action->isSeparator ()) continue;
-
-    QString name= clean_action_text (action->text ());
-    if (name.isEmpty () || name == "native menubar trick") continue;
-
-    QMenu* submenu= action->menu ();
-    if (submenu != nullptr) {
-      QStringList nextParents= parents;
-      nextParents << name;
-      collect_menu_actions (submenu, palette, groupName, nextParents, out);
-      continue;
+QVector<PaletteGroup>
+build_palette_groups (QObject* parent, const QTMCommandContext& context) {
+  QVector<PaletteGroup> groups;
+  QHash<QString, int> groupIndex;
+  const QVector<QTMCommandDefinition>& commands=
+    QTMCommandRegistry::instance ().commands ();
+  for (const QTMCommandDefinition& definition: commands) {
+    int index= groupIndex.value (definition.category, -1);
+    if (index < 0) {
+      index= groups.size ();
+      PaletteGroup group;
+      group.name= definition.category;
+      groups.append (std::move (group));
+      groupIndex.insert (definition.category, index);
     }
-
-    if (qobject_cast<QWidgetAction*> (action) != nullptr) continue;
-
-    QStringList commandPath= parents;
-    commandPath << name;
-    QString label= commandPath.join (" -> ");
-    QString fullPath= groupName;
-    if (!label.isEmpty ()) fullPath += " -> " + label;
-    out.append (make_palette_action (palette, action, label, fullPath));
+    groups[index].actions.append (
+      make_palette_action (parent, definition, context));
   }
+  return groups;
 }
-
-static QString menu_group_name (QAction* action);
 
 #ifndef USE_KF6
-static QAction*
+QAction*
 action_for_item (QListWidgetItem* item) {
   if (item == nullptr) return nullptr;
   quintptr ptr= item->data (Qt::UserRole).value<quintptr> ();
   return reinterpret_cast<QAction*> (ptr);
 }
 
-static void
+void
 select_first_visible (QListWidget* list) {
   if (list == nullptr) return;
-
-  for (int i=0; i < list->count (); ++i) {
+  for (int i= 0; i < list->count (); ++i) {
     QListWidgetItem* item= list->item (i);
-    if (item != nullptr && !item->isHidden ()) {
+    if (item != nullptr && !item->isHidden () &&
+        (item->flags () & Qt::ItemIsEnabled)) {
       list->setCurrentItem (item);
       return;
     }
@@ -149,8 +105,9 @@ select_first_visible (QListWidget* list) {
   list->setCurrentItem (nullptr);
 }
 
-static void
-show_qt_command_palette (QWidget* host, const QList<QAction*>& topActions) {
+void
+show_qt_command_palette (QWidget* host,
+                         const QTMCommandContext& context) {
   QDialog* palette= new QDialog (host);
   palette->setAttribute (Qt::WA_DeleteOnClose);
   palette->setWindowTitle (QObject::tr ("Command palette"));
@@ -163,28 +120,25 @@ show_qt_command_palette (QWidget* host, const QList<QAction*>& topActions) {
   layout->addWidget (filter);
   layout->addWidget (list);
 
-  for (QAction* action : topActions) {
-    if (action == nullptr || action->menu () == nullptr) continue;
-
-    QString groupName= menu_group_name (action);
-    if (groupName.isEmpty ()) continue;
-
-    QList<QAction*> entries;
-    collect_menu_actions (action->menu (), palette, groupName,
-                          QStringList (), entries);
-    for (QAction* entry : entries) {
+  QVector<PaletteGroup> groups= build_palette_groups (palette, context);
+  for (const PaletteGroup& group: groups)
+    for (QAction* action: group.actions) {
       QListWidgetItem* item=
-        new QListWidgetItem (entry->icon (), entry->text (), list);
-      item->setToolTip (entry->toolTip ());
+        new QListWidgetItem (action->icon (), action->text (), list);
+      QString tooltip= group.name + " -> " + action->text ();
+      if (!action->statusTip ().isEmpty ())
+        tooltip += "\n" + action->statusTip ();
+      item->setToolTip (tooltip);
       item->setData (Qt::UserRole,
                      QVariant::fromValue<quintptr> (
-                       reinterpret_cast<quintptr> (entry)));
+                       reinterpret_cast<quintptr> (action)));
+      if (!action->isEnabled ())
+        item->setFlags (item->flags () & ~Qt::ItemIsEnabled);
     }
-  }
 
   QObject::connect (filter, &QLineEdit::textChanged, list,
                     [list] (const QString& text) {
-    for (int i=0; i < list->count (); ++i) {
+    for (int i= 0; i < list->count (); ++i) {
       QListWidgetItem* item= list->item (i);
       if (item == nullptr) continue;
       bool matched= text.isEmpty () ||
@@ -197,7 +151,7 @@ show_qt_command_palette (QWidget* host, const QList<QAction*>& topActions) {
 
   auto trigger_current= [palette, list] () {
     QAction* action= action_for_item (list->currentItem ());
-    if (action != nullptr) {
+    if (action != nullptr && action->isEnabled ()) {
       action->trigger ();
       palette->close ();
     }
@@ -205,7 +159,7 @@ show_qt_command_palette (QWidget* host, const QList<QAction*>& topActions) {
   QObject::connect (list, &QListWidget::itemActivated, palette,
                     [palette] (QListWidgetItem* item) {
     QAction* action= action_for_item (item);
-    if (action != nullptr) {
+    if (action != nullptr && action->isEnabled ()) {
       action->trigger ();
       palette->close ();
     }
@@ -220,131 +174,34 @@ show_qt_command_palette (QWidget* host, const QList<QAction*>& topActions) {
 }
 #endif
 
-static void
-append_action_once (QList<QAction*>& result, QSet<QMenu*>& menus,
-                    QAction* action) {
-  if (action == nullptr || action->menu () == nullptr) return;
-  if (menus.contains (action->menu ())) return;
-  menus.insert (action->menu ());
-  result.append (action);
-}
-
-static QString
-menu_group_name (QAction* action) {
-  if (action == nullptr) return QString ();
-
-  QString name= clean_action_text (action->text ());
-  if (name.isEmpty () && action->menu () != nullptr)
-    name= clean_action_text (action->menu ()->title ());
-  if (name.isEmpty ()) {
-    for (QObject* object : action->associatedObjects ()) {
-      if (QToolButton* button= qobject_cast<QToolButton*> (object)) {
-        name= clean_action_text (button->text ());
-        if (!name.isEmpty ()) break;
-      }
-    }
-  }
-  return name;
-}
-
-static QList<QAction*>
-top_level_menu_actions (QMainWindow* win) {
-  QList<QAction*> result;
-  QSet<QMenu*> menus;
-  if (win == nullptr) return result;
-
-  if (win->menuBar () != nullptr) {
-    for (QAction* action : win->menuBar ()->actions ())
-      append_action_once (result, menus, action);
-  }
-
-  for (QToolBar* toolbar : win->findChildren<QToolBar*> ("menuToolBar")) {
-    for (QAction* action : toolbar->actions ())
-      append_action_once (result, menus, action);
-    for (QToolButton* button : toolbar->findChildren<QToolButton*> ())
-      append_action_once (result, menus, button->defaultAction ());
-  }
-
-  return result;
-}
-
-static void
-append_window_once (QList<QMainWindow*>& windows, QSet<QMainWindow*>& seen,
-                    QMainWindow* win) {
-  if (win == nullptr || seen.contains (win)) return;
-  seen.insert (win);
-  windows.append (win);
-}
-
-static void
-append_parent_main_windows (QList<QMainWindow*>& windows,
-                            QSet<QMainWindow*>& seen, QWidget* widget) {
-  while (widget != nullptr) {
-    append_window_once (windows, seen, qobject_cast<QMainWindow*> (widget));
-    widget= widget->parentWidget ();
-  }
-}
-
-static QList<QMainWindow*>
-candidate_menu_windows (QTMMainTabWindow* top) {
-  QList<QMainWindow*> windows;
-  QSet<QMainWindow*> seen;
-
-  append_parent_main_windows (windows, seen, QApplication::focusWidget ());
-  append_parent_main_windows (windows, seen, QApplication::activeWindow ());
-  append_window_once (windows, seen, top);
-  if (top != nullptr) {
-    for (QMainWindow* win : top->findChildren<QMainWindow*> ())
-      append_window_once (windows, seen, win);
-  }
-  for (QWidget* widget : QApplication::allWidgets ())
-    append_window_once (windows, seen, qobject_cast<QMainWindow*> (widget));
-
-  return windows;
-}
+} // namespace
 
 void
 command_palette_show () {
-  QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
-  if (win == nullptr) return;
+  QTMCommandRegistry& registry= QTMCommandRegistry::instance ();
+  if (!registry.initialize ()) return;
+
+  QTMMainTabWindow* shell= QTMMainTabWindow::topTabWindow ();
+  if (shell == nullptr) return;
+  QTMCommandContext context=
+    registry.captureContext (shell, QApplication::focusWidget ());
   QWidget* host= QApplication::activeWindow ();
-  if (host == nullptr) host= win;
-
-  QList<QAction*> topActions;
-  for (QMainWindow* candidate : candidate_menu_windows (win)) {
-    topActions= top_level_menu_actions (candidate);
-    if (!topActions.isEmpty ()) break;
-  }
-
-  QSet<QMenu*> seen;
-  for (QAction* action : topActions)
-    if (action != nullptr && action->menu () != nullptr)
-      force_lazy_menu_tree (action->menu (), seen);
+  if (host == nullptr) host= shell;
 
 #ifdef USE_KF6
   KCommandBar* palette= new KCommandBar (host);
   palette->setAttribute (Qt::WA_DeleteOnClose);
+  QVector<PaletteGroup> source= build_palette_groups (palette, context);
   QVector<KCommandBar::ActionGroup> groups;
-  for (QAction* action : topActions) {
-    if (action == nullptr || action->menu () == nullptr) continue;
-
-    QString groupName= menu_group_name (action);
-    if (groupName.isEmpty ()) continue;
-
-    QList<QAction*> entries;
-    collect_menu_actions (action->menu (), palette, groupName,
-                          QStringList (), entries);
-    if (!entries.isEmpty ()) {
-      KCommandBar::ActionGroup group;
-      group.name= groupName;
-      group.actions= entries;
-      groups.append (group);
-    }
+  for (const PaletteGroup& sourceGroup: source) {
+    KCommandBar::ActionGroup group;
+    group.name= sourceGroup.name;
+    group.actions= sourceGroup.actions;
+    groups.append (std::move (group));
   }
-
   palette->setActions (groups);
   palette->show ();
 #else
-  show_qt_command_palette (host, topActions);
+  show_qt_command_palette (host, context);
 #endif
 }

@@ -293,6 +293,50 @@ QTMNamespaceExplorer::sizeHint () const {
   return QSize (320, 600);
 }
 
+bool
+QTMNamespaceExplorer::qtmSupportsCommand (const QString& commandId) const {
+  return commandId == "namespace.open" ||
+         commandId == "namespace.copy" ||
+         commandId == "namespace.paste" ||
+         commandId == "namespace.rename" ||
+         commandId == "namespace.delete" ||
+         commandId == "namespace.refresh";
+}
+
+QTMCommandState
+QTMNamespaceExplorer::qtmCommandState (const QString& commandId) const {
+  QTMCommandState state;
+  if (!qtmSupportsCommand (commandId)) return state;
+  state.available= true;
+
+  QTreeWidgetItem* item= tree == nullptr ? nullptr : tree->currentItem ();
+  int type= item == nullptr ? PlaceholderItem:
+            item->data (0, TypeRole).toInt ();
+  bool fileSelected= item != nullptr && type == FileItem;
+  if (commandId == "namespace.refresh") state.enabled= true;
+  else if (commandId == "namespace.open") state.enabled= item != nullptr;
+  else if (commandId == "namespace.paste")
+    state.enabled= !namespace_explorer_clipboard_path.isEmpty () &&
+                   QFileInfo::exists (namespace_explorer_clipboard_path);
+  else state.enabled= fileSelected;
+  return state;
+}
+
+bool
+QTMNamespaceExplorer::qtmInvokeCommand (const QString& commandId) {
+  QTMCommandState state= qtmCommandState (commandId);
+  if (!state.available || !state.enabled) return false;
+
+  if (commandId == "namespace.open") loadItem (tree->currentItem ());
+  else if (commandId == "namespace.copy") copySelectedFile ();
+  else if (commandId == "namespace.paste") pasteNearSelected ();
+  else if (commandId == "namespace.rename") renameSelectedFile ();
+  else if (commandId == "namespace.delete") deleteSelectedFile ();
+  else if (commandId == "namespace.refresh") refresh (true);
+  else return false;
+  return true;
+}
+
 void
 QTMNamespaceExplorer::setFloatingResizeGripVisible (bool visible) {
   floatingSizeGrip->setVisible (visible);

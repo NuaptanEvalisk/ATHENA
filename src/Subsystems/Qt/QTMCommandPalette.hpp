@@ -1,6 +1,6 @@
 /******************************************************************************
 * MODULE     : QTMCommandPalette.hpp
-* DESCRIPTION: Qt command palette backed by the live menubar
+* DESCRIPTION: Qt command palette backed by the native command registry
 * COPYRIGHT  : (C) 2026 Felix
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.

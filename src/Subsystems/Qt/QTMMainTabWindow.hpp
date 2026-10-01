@@ -40,6 +40,7 @@ public:
   ~QTMMainTabWindow();
 
   void showWidget(QWidget *widget, bool isDocument = false);
+  void showShell();
   void removeWidget(QWidget *widget);
   void tabTitleChanged(QWidget *widget, QString title);
   void closeAndSetTopTabWindow();
@@ -59,6 +60,7 @@ public:
 
   QList<QWidget*> documentWidgets() const;
   bool hasOpenAdsPanes() const;
+  QWidget* activeWorkPaneWidget() const;
   QWidget* currentDocumentWidget() const;
   QString documentWidgetTitle(QWidget* widget) const;
   void activateDocumentWidget(QWidget* widget);

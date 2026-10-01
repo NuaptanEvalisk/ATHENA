@@ -1289,11 +1289,8 @@ TeXmacs_main (int argc, char** argv) {
       startup_process_events ();
     }
 
-    bool needs_initial_window= number_buffers () == 0;
-    if (needs_initial_window) {
-      extra_init_cmd << "(delayed (:idle 1) "
-                        "(begin "
-                        "(update-menus)))";
+    bool needs_startup_buffer_policy= number_buffers () == 0;
+    if (needs_startup_buffer_policy) {
       extra_init_cmd << "(delayed (:idle 0) "
                         "(exec-global "
                         "(lambda () (vault-startup-open-initial-buffer))))";
@@ -1306,18 +1303,14 @@ TeXmacs_main (int argc, char** argv) {
     // which may concurrently publish lazily loaded module definitions.
     object startup_commands;
     if (N (extra_init_cmd) > 0) startup_commands= scheme_cmd (extra_init_cmd);
-    if (needs_initial_window) {
-      if (DEBUG_STD) debug_boot << "Creating 'no name' buffer...\n";
-      startup_progress (94, "Building editor window");
-      bench_start ("build editor window");
+    if (!headless_mode) {
+      startup_progress (94, "Building application workspace");
+      bench_start ("show application shell");
       qt_wait_for_font_fallback_warmup ();
-      defer_next_editor_chrome_build ();
-      defer_next_view_initialization ();
-      open_initial_window ();
-      bench_cumul ("build editor window");
-      bench_cumul ("startup to editor shell");
-      startup_progress (96, "Editor window ready");
-      schedule_deferred_view_initialization ();
+      qtmapp->mainTabWindow ().showShell ();
+      bench_cumul ("show application shell");
+      bench_cumul ("startup to application shell");
+      startup_progress (96, "Application workspace ready");
       QTimer::singleShot (1000, [] () {
         cache_validate_font_directories ();
       });
@@ -1414,7 +1407,7 @@ TeXmacs_main (int argc, char** argv) {
     if (N(extra_init_cmd) > 0) exec_delayed (startup_commands);
     if (N(extra_init_cmd) > 0)
       startup_progress (97, "Scheduling startup tasks");
-    startup_progress (98, "Preparing editor");
+    startup_progress (98, "Preparing workspace");
 #ifdef QTTEXMACS
     google_tasks_schedule_background_refresh ();
     if (!headless_mode) athena_watchdog_start_qt_heartbeat ();

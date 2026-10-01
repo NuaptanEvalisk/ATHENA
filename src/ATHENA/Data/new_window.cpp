@@ -479,20 +479,14 @@ kill_window (url wname) {
     url win= view_to_window (vs[i]);
     if (!is_none (win) && win != wname) {
       if (get_current_window () == wname) switch_to_window (win);
-      delete_window (wname);
-      return;
+      break;
     }
   }
-  if (get_server () -> ads_open_panes ()) {
-    delete_window (wname);
-    return;
-  }
-  get_server () -> quit ();
+  delete_window (wname);
 }
 
 void
 kill_current_window_and_buffer () {
-  if (N(bufs) <= 1) get_server () -> quit();
   url name= get_current_buffer ();
   array<url> vs= buffer_to_views (get_current_buffer ());
   url win= get_current_window ();
