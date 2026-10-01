@@ -18,6 +18,27 @@
       "shortcut": "Ctrl+O"
     },
     {
+      "id": "application.new-tab",
+      "label": "New tab",
+      "category": "File",
+      "icon": "tab-new",
+      "help": "Create a new document view"
+    },
+    {
+      "id": "application.open-new-window",
+      "label": "Load in new window",
+      "category": "File",
+      "icon": "window-new",
+      "help": "Open a document in a new window"
+    },
+    {
+      "id": "application.page-setup",
+      "label": "Page setup",
+      "category": "File",
+      "icon": "document-properties",
+      "help": "Open the native page setup dialog"
+    },
+    {
       "id": "application.preferences",
       "label": "Preferences...",
       "category": "File",
@@ -237,6 +258,48 @@
       "help": "Close the active document with unsaved-change confirmation"
     },
     {
+      "id": "editor.save-as",
+      "label": "Save as",
+      "category": "File",
+      "icon": "document-save-as",
+      "help": "Save the active document under another name"
+    },
+    {
+      "id": "editor.preview",
+      "label": "Preview",
+      "category": "File",
+      "icon": "document-print-preview",
+      "help": "Preview the active document"
+    },
+    {
+      "id": "editor.print",
+      "label": "Print",
+      "category": "File",
+      "icon": "document-print",
+      "help": "Print the active document"
+    },
+    {
+      "id": "editor.close-window",
+      "label": "Close window",
+      "category": "File",
+      "icon": "window-close",
+      "help": "Close the active document window safely"
+    },
+    {
+      "id": "editor.history-back",
+      "label": "Back",
+      "category": "Go",
+      "icon": "go-previous",
+      "help": "Go to the previous cursor-history position"
+    },
+    {
+      "id": "editor.history-forward",
+      "label": "Forward",
+      "category": "Go",
+      "icon": "go-next",
+      "help": "Go to the next cursor-history position"
+    },
+    {
       "id": "editor.search",
       "label": "Search",
       "category": "Edit",
@@ -410,7 +473,8 @@
           "label": "New",
           "icon": "document-new",
           "items": [
-            { "command": "application.new-document" }
+            { "command": "application.new-document" },
+            { "command": "application.new-tab" }
           ]
         },
         {
@@ -419,7 +483,8 @@
           "icon": "document-open",
           "items": [
             { "command": "application.open" },
-            { "command": "editor.revert" }
+            { "command": "editor.revert" },
+            { "command": "application.open-new-window" }
           ]
         },
         {
@@ -427,10 +492,21 @@
           "label": "Save",
           "icon": "document-save",
           "items": [
-            { "command": "editor.save" }
+            { "command": "editor.save" },
+            { "command": "editor.save-as" }
           ]
         },
         { "command": "editor.update-all" },
+        {
+          "submenu": "editor-main-print",
+          "label": "Print",
+          "icon": "document-print",
+          "items": [
+            { "command": "editor.preview" },
+            { "command": "editor.print" },
+            { "command": "application.page-setup" }
+          ]
+        },
         { "command": "application.preferences" },
         {
           "submenu": "editor-main-close",
@@ -438,6 +514,7 @@
           "icon": "window-close",
           "items": [
             { "command": "editor.close-document" },
+            { "command": "editor.close-window" },
             { "command": "application.quit" }
           ]
         },
@@ -450,7 +527,9 @@
         { "command": "editor.undo" },
         { "command": "editor.redo" },
         { "separator": true },
-        { "command": "editor.revert" }
+        { "command": "editor.history-back" },
+        { "command": "editor.revert" },
+        { "command": "editor.history-forward" }
       ]
     }
   ]

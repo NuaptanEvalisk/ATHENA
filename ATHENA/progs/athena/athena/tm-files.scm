@@ -322,6 +322,9 @@
   (with opts (if (x-gui?) args (cons :overwrite args))
     (apply save-buffer-as-main (cons new-name opts))))
 
+(tm-define (save-buffer-as-dialog)
+  (choose-file save-buffer-as "Save ATHENA file" "texmacs"))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Exporting buffers
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

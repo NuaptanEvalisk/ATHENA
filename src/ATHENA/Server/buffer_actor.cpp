@@ -89,6 +89,12 @@ run_native_editor_command (editor_rep* editor,
     break;
   case native_editor_command_id::revert:
   case native_editor_command_id::close_document:
+  case native_editor_command_id::save_as:
+  case native_editor_command_id::preview:
+  case native_editor_command_id::print:
+  case native_editor_command_id::close_window:
+  case native_editor_command_id::history_back:
+  case native_editor_command_id::history_forward:
     break;
   default:
     return false;
@@ -139,6 +145,24 @@ run_native_editor_command (editor_rep* editor,
       break;
     case native_editor_command_id::close_document:
       (void) call ("safely-kill-buffer");
+      break;
+    case native_editor_command_id::save_as:
+      (void) call ("save-buffer-as-dialog");
+      break;
+    case native_editor_command_id::preview:
+      (void) call ("preview-buffer");
+      break;
+    case native_editor_command_id::print:
+      (void) call ("print-buffer");
+      break;
+    case native_editor_command_id::close_window:
+      (void) call ("safely-kill-window");
+      break;
+    case native_editor_command_id::history_back:
+      (void) call ("cursor-history-backward");
+      break;
+    case native_editor_command_id::history_forward:
+      (void) call ("cursor-history-forward");
       break;
     default:
       editor->cancel_menu_action ();

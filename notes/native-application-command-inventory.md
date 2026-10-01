@@ -50,6 +50,15 @@ not be reported as native cutover.
 | `editor.revert` | editor | owning BufferActor -> existing revert transaction | frozen editor target | native UI / Scheme business adapter |
 | `editor.update-all` | editor | owning BufferActor -> existing update-document operation | frozen editor target + read-only actor snapshot | native UI / Scheme business adapter |
 | `editor.close-document` | editor | owning BufferActor -> existing safely-kill-buffer transaction | frozen editor target | native UI / Scheme business adapter |
+| `application.new-tab` | application | native window/document creation | application registry | native |
+| `application.open-new-window` | application | native file chooser -> existing load-buffer-in-new-window transaction | application registry | native UI / Scheme business adapter |
+| `application.page-setup` | application | native page setup dialog | application registry | native |
+| `editor.save-as` | editor | owning BufferActor -> existing chooser/save-as transaction | frozen editor target | native UI / Scheme business adapter |
+| `editor.preview` | editor | owning BufferActor -> existing preview transaction | frozen editor target | native UI / Scheme business adapter |
+| `editor.print` | editor | owning BufferActor -> existing print transaction | frozen editor target | native UI / Scheme business adapter |
+| `editor.close-window` | editor | owning BufferActor -> existing safely-kill-window transaction | frozen editor target | native UI / Scheme business adapter |
+| `editor.history-back` | editor | owning BufferActor -> cursor history transaction | frozen editor target | native UI / Scheme business adapter |
+| `editor.history-forward` | editor | owning BufferActor -> cursor future transaction | frozen editor target | native UI / Scheme business adapter |
 
 Application shortcuts currently declared in the JSON inventory are
 `Ctrl+N`, `Ctrl+O`, `Ctrl+Shift+P`, and `Ctrl+Q`. They are resolved by

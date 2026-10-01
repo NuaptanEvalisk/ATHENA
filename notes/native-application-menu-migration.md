@@ -49,7 +49,7 @@ must not make their commands unreachable.
 | New | native | `application.new-document` |
 | New within namespace | pending | register existing namespace wizard operation |
 | Load | native/adapter | `application.open`; native file chooser -> existing load-buffer business operation |
-| Load in new window | pending | window/document identity must be explicit |
+| Load in new window | native/adapter | `application.open-new-window`; native chooser -> existing global load-buffer-in-new-window transaction |
 | Load Vault | pending | application/vault operation |
 | Unload Vault | pending | application/vault operation and stale-context invalidation |
 | Revert | native/adapter | `editor.revert` targets the owning BufferActor and preserves the existing revert transaction |
@@ -60,8 +60,8 @@ must not make their commands unreachable.
 | Recent Vaults | provider | vault recent-list provider + clear action |
 | Save | native/adapter | `editor.save` targets the owning BufferActor and preserves permissions/conflict/Save-As/post-hook logic |
 | Pause/Resume realtime save | pending | editor snapshot checked/state + actor dispatch |
-| Save as | pending | shell chooser + actor save-as transaction |
-| Print / Page setup | pending | document-scoped print providers |
+| Save as | native/adapter | `editor.save-as`; owning BufferActor opens the existing chooser/save-as transaction |
+| Print / Page setup | partial native | `editor.preview`, `editor.print`, and application `application.page-setup`; print-to-file/page-selection branches remain provider work |
 | Import | provider | converter inventory/provider; includes embedded-PDF adapter |
 | Export | provider | converter/print inventory/provider + selection state |
 | Export namespace | native/adapter | `file.export-namespace`; native flow with existing export business operation |
@@ -126,7 +126,7 @@ registered.  Error Messages and Artifacts now have native registry commands.
 
 | Current direct entry/branch | Disposition |
 | --- | --- |
-| New tab | native via `application.new-document` presentation reuse |
+| New tab | native: `application.new-tab` |
 | New floating window | pending explicit window command |
 | Configure Font for Vault | pending workspace/vault operation |
 | Run global transformation | pending workspace operation |
@@ -158,7 +158,7 @@ editor predicates.  The editor toolbar remains view-owned after menubar cutover.
 | Random document | pending vault provider |
 | Command palette | native: `application.command-palette` |
 | Quick switcher | native/adapter: `application.quick-switcher`; native UI with existing recent-file query adapter |
-| Back / Forward / Save position | pending editor navigation snapshot/dispatch |
+| Back / Forward / Save position | partial native | `editor.history-back` and `editor.history-forward` target the owning actor; Save position remains pending |
 | Buffer/window/hidden/linked/recent/bookmark lists | provider; explicit document/view identities required |
 
 ## Insert, Format, Document

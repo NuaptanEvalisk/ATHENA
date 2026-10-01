@@ -52,7 +52,13 @@ enum class native_editor_command_id: std::uint32_t {
   save,
   revert,
   update_all,
-  close_document
+  close_document,
+  save_as,
+  preview,
+  print,
+  close_window,
+  history_back,
+  history_forward
 };
 
 enum class actor_command_kind: std::uint32_t {

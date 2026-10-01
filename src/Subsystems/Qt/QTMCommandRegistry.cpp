@@ -108,6 +108,15 @@ editor_command_id (const QString& id) {
   if (id == "editor.update-all") return native_editor_command_id::update_all;
   if (id == "editor.close-document")
     return native_editor_command_id::close_document;
+  if (id == "editor.save-as") return native_editor_command_id::save_as;
+  if (id == "editor.preview") return native_editor_command_id::preview;
+  if (id == "editor.print") return native_editor_command_id::print;
+  if (id == "editor.close-window")
+    return native_editor_command_id::close_window;
+  if (id == "editor.history-back")
+    return native_editor_command_id::history_back;
+  if (id == "editor.history-forward")
+    return native_editor_command_id::history_forward;
   return native_editor_command_id::none;
 }
 
@@ -159,6 +168,12 @@ native_editor_command_state (const QString& id,
     break;
   case native_editor_command_id::revert:
   case native_editor_command_id::close_document:
+  case native_editor_command_id::save_as:
+  case native_editor_command_id::preview:
+  case native_editor_command_id::print:
+  case native_editor_command_id::close_window:
+  case native_editor_command_id::history_back:
+  case native_editor_command_id::history_forward:
     result.enabled= true;
     break;
   default:
@@ -191,7 +206,8 @@ native_editor_view_command_state (const QTMCommandContext& context,
 }
 
 bool
-open_document_from_shell (const QTMCommandContext& context) {
+open_document_from_shell (const QTMCommandContext& context,
+                          bool newWindow= false) {
   QWidget* parent= context.shell.data ();
   QString path= QFileDialog::getOpenFileName (
     parent, QObject::tr ("Open document"), QString (),
@@ -199,11 +215,15 @@ open_document_from_shell (const QTMCommandContext& context) {
   if (path.isEmpty ()) return true;
 
   try {
-    (void) call ("load-buffer", object (url_system (from_qstring (path))));
+    (void) call (newWindow ? "load-buffer-in-new-window" : "load-buffer",
+                 object (url_system (from_qstring (path))));
     return true;
   }
   catch (...) {
-    std_warning << "native command application.open could not load "
+    std_warning << "native command "
+                << (newWindow ? "application.open-new-window"
+                              : "application.open")
+                << " could not load "
                 << from_qstring (path) << LF;
     return false;
   }
@@ -248,6 +268,23 @@ QTMCommandRegistry::registerBuiltins () {
     "application.open", QTMCommandScope::Application,
     [] (const QTMCommandContext& context) {
       return open_document_from_shell (context);
+    });
+  registerBehavior (
+    "application.new-tab", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      open_document_window (false);
+      return true;
+    });
+  registerBehavior (
+    "application.open-new-window", QTMCommandScope::Application,
+    [] (const QTMCommandContext& context) {
+      return open_document_from_shell (context, true);
+    });
+  registerBehavior (
+    "application.page-setup", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      qtm_page_setup_dialog_show ();
+      return true;
     });
   registerBehavior (
     "application.preferences", QTMCommandScope::Application,
@@ -428,7 +465,13 @@ QTMCommandRegistry::registerBuiltins () {
     "editor.save",
     "editor.revert",
     "editor.update-all",
-    "editor.close-document"
+    "editor.close-document",
+    "editor.save-as",
+    "editor.preview",
+    "editor.print",
+    "editor.close-window",
+    "editor.history-back",
+    "editor.history-forward"
   };
   for (const QString& id: editorCommands)
     registerBehavior (
