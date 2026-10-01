@@ -48,7 +48,11 @@ enum class native_editor_command_id: std::uint32_t {
   copy,
   cut,
   paste,
-  node_properties
+  node_properties,
+  save,
+  revert,
+  update_all,
+  close_document
 };
 
 enum class actor_command_kind: std::uint32_t {

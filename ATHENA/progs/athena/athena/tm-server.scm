@@ -206,11 +206,10 @@
         (else (buffer-close (current-buffer)))))
 
 (define (close-buffer-after-window buf)
-  ;; Keep one passive buffer while ADS panes are the only remaining UI.
-  ;; Several core paths assume that TeXmacs never has zero buffers.
-  ;; A link may have reopened the document before delayed cleanup runs.
-  (when (and (null? (buffer->windows buf))
-             (or (> (windows-number) 0) (not (ads-open-panes?))))
+  ;; The application shell owns lifetime independently of documents.  A link
+  ;; may have reopened the document before delayed cleanup runs, but otherwise
+  ;; a buffer with no document windows is closed even when the shell is empty.
+  (when (null? (buffer->windows buf))
     (buffer-close buf)))
 
 (define (close-buffer-after-window-later buf)
@@ -248,9 +247,7 @@
                   mapped))
          (win-name* (url->string win))
          (buf-name* (url->string buf)))
-    (cond ((and (<= (windows-number) 1) (not (ads-open-panes?)))
-           (safely-quit-ATHENA))
-          ((buffer-needs-save-confirmation? buf)
+    (cond ((buffer-needs-save-confirmation? buf)
            (ask-unsaved-close
              (lambda (answer)
                (handle-close-window-choice win-name* buf-name* answer))))

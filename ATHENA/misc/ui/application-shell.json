@@ -209,6 +209,48 @@
       "help": "Inspect or edit properties of the focused structured node"
     },
     {
+      "id": "editor.save",
+      "label": "Save",
+      "category": "File",
+      "icon": "document-save",
+      "help": "Save the active document using the existing safe save transaction"
+    },
+    {
+      "id": "editor.revert",
+      "label": "Revert",
+      "category": "File",
+      "icon": "view-refresh",
+      "help": "Reload the active document from its source"
+    },
+    {
+      "id": "editor.update-all",
+      "label": "Update document",
+      "category": "Document",
+      "icon": "view-refresh",
+      "help": "Update generated document data"
+    },
+    {
+      "id": "editor.close-document",
+      "label": "Close document",
+      "category": "File",
+      "icon": "window-close",
+      "help": "Close the active document with unsaved-change confirmation"
+    },
+    {
+      "id": "editor.search",
+      "label": "Search",
+      "category": "Edit",
+      "icon": "edit-find",
+      "help": "Search in the active editor"
+    },
+    {
+      "id": "editor.replace",
+      "label": "Replace",
+      "category": "Edit",
+      "icon": "edit-find-replace",
+      "help": "Search and replace in the active editor"
+    },
+    {
       "id": "namespace.open",
       "label": "Open selected item",
       "category": "Namespace Explorer",
@@ -260,10 +302,14 @@
         { "command": "application.open" },
         { "command": "file.compare-files" },
         { "separator": true },
+        { "command": "editor.save" },
+        { "command": "editor.revert" },
+        { "separator": true },
         { "command": "file.export-namespace" },
         { "separator": true },
         { "command": "application.preferences" },
         { "separator": true },
+        { "command": "editor.close-document" },
         { "command": "application.quit" }
       ]
     },
@@ -278,6 +324,8 @@
         { "command": "editor.cut" },
         { "command": "editor.paste" },
         { "separator": true },
+        { "command": "editor.search" },
+        { "command": "editor.replace" },
         { "command": "workspace.global-search" },
         { "separator": true },
         { "command": "namespace.copy" },

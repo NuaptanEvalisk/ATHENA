@@ -21,6 +21,7 @@
 #include "QTMAudmap.hpp"
 #include "QTMCustomStylesManager.hpp"
 #include "QTMDocumentHistoryPane.hpp"
+#include "QTMDocumentSearchBar.hpp"
 #include "QTMGlobalSearch.hpp"
 #include "QTMMaterialsManager.hpp"
 #include "QTMNeighborhoodsPane.hpp"
@@ -102,6 +103,11 @@ editor_command_id (const QString& id) {
   if (id == "editor.paste") return native_editor_command_id::paste;
   if (id == "editor.node-properties")
     return native_editor_command_id::node_properties;
+  if (id == "editor.save") return native_editor_command_id::save;
+  if (id == "editor.revert") return native_editor_command_id::revert;
+  if (id == "editor.update-all") return native_editor_command_id::update_all;
+  if (id == "editor.close-document")
+    return native_editor_command_id::close_document;
   return native_editor_command_id::none;
 }
 
@@ -118,7 +124,11 @@ native_editor_command_state (const QString& id,
   if (command == native_editor_command_id::none) return result;
   result.available= true;
   const bool localEdit=
-    command != native_editor_command_id::node_properties &&
+    (command == native_editor_command_id::undo ||
+     command == native_editor_command_id::redo ||
+     command == native_editor_command_id::copy ||
+     command == native_editor_command_id::cut ||
+     command == native_editor_command_id::paste) &&
     local_text_input_owns_edit_command (context);
   if (localEdit) return result;
 
@@ -143,6 +153,14 @@ native_editor_command_state (const QString& id,
   case native_editor_command_id::node_properties:
     result.enabled= snapshot.focus_node_available ();
     break;
+  case native_editor_command_id::save:
+  case native_editor_command_id::update_all:
+    result.enabled= !snapshot.read_only ();
+    break;
+  case native_editor_command_id::revert:
+  case native_editor_command_id::close_document:
+    result.enabled= true;
+    break;
   default:
     break;
   }
@@ -151,12 +169,25 @@ native_editor_command_state (const QString& id,
 
 bool
 invoke_native_editor_command (const QString& id,
-                              const QTMCommandContext& context) {
+                               const QTMCommandContext& context) {
   qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
   if (proxy == nullptr) return false;
   native_editor_command_id command= editor_command_id (id);
   return command != native_editor_command_id::none &&
          proxy->submit_editor_command (command);
+}
+
+QTMCommandState
+native_editor_view_command_state (const QTMCommandContext& context,
+                                  bool writable) {
+  QTMCommandState result;
+  qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+  if (proxy == nullptr) return result;
+  actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
+  if (!snapshot.valid ()) return result;
+  result.available= true;
+  result.enabled= !writable || !snapshot.read_only ();
+  return result;
 }
 
 bool
@@ -353,6 +384,28 @@ QTMCommandRegistry::registerBuiltins () {
       help_about_qt ();
       return true;
     });
+  registerBehavior (
+    "editor.search", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QTMWidget* canvas= editor_canvas_for_context (context);
+      if (canvas == nullptr) return false;
+      QTMDocumentSearchBar::showForCanvas (canvas, false);
+      return true;
+    },
+    [] (const QTMCommandContext& context) {
+      return native_editor_view_command_state (context, false);
+    });
+  registerBehavior (
+    "editor.replace", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QTMWidget* canvas= editor_canvas_for_context (context);
+      if (canvas == nullptr) return false;
+      QTMDocumentSearchBar::showForCanvas (canvas, true);
+      return true;
+    },
+    [] (const QTMCommandContext& context) {
+      return native_editor_view_command_state (context, true);
+    });
 
   const QString paneCommands[]= {
     "namespace.open",
@@ -371,7 +424,11 @@ QTMCommandRegistry::registerBuiltins () {
     "editor.copy",
     "editor.cut",
     "editor.paste",
-    "editor.node-properties"
+    "editor.node-properties",
+    "editor.save",
+    "editor.revert",
+    "editor.update-all",
+    "editor.close-document"
   };
   for (const QString& id: editorCommands)
     registerBehavior (

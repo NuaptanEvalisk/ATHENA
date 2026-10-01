@@ -83,6 +83,13 @@ run_native_editor_command (editor_rep* editor,
   case native_editor_command_id::node_properties:
     if (!state.focus_node_available ()) return false;
     break;
+  case native_editor_command_id::save:
+  case native_editor_command_id::update_all:
+    if (state.read_only ()) return false;
+    break;
+  case native_editor_command_id::revert:
+  case native_editor_command_id::close_document:
+    break;
   default:
     return false;
   }
@@ -121,6 +128,18 @@ run_native_editor_command (editor_rep* editor,
 #endif
       break;
     }
+    case native_editor_command_id::save:
+      (void) call ("save-buffer-manual");
+      break;
+    case native_editor_command_id::revert:
+      (void) call ("revert-buffer");
+      break;
+    case native_editor_command_id::update_all:
+      (void) call ("update-document", object ("all"));
+      break;
+    case native_editor_command_id::close_document:
+      (void) call ("safely-kill-buffer");
+      break;
     default:
       editor->cancel_menu_action ();
       editor->publish_editor_command_state ();

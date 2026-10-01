@@ -52,20 +52,20 @@ must not make their commands unreachable.
 | Load in new window | pending | window/document identity must be explicit |
 | Load Vault | pending | application/vault operation |
 | Unload Vault | pending | application/vault operation and stale-context invalidation |
-| Revert | pending | editor actor command + dirty-state policy |
+| Revert | native/adapter | `editor.revert` targets the owning BufferActor and preserves the existing revert transaction |
 | Compare two files | native | `file.compare-files` |
 | Open in text editor | pending | current-file editor state + external launch adapter |
 | Open in file manager | pending | current-file editor state + external launch adapter |
 | Recent Files | provider | application recent-file provider + clear action |
 | Recent Vaults | provider | vault recent-list provider + clear action |
-| Save | pending | editor actor save command/state |
+| Save | native/adapter | `editor.save` targets the owning BufferActor and preserves permissions/conflict/Save-As/post-hook logic |
 | Pause/Resume realtime save | pending | editor snapshot checked/state + actor dispatch |
 | Save as | pending | shell chooser + actor save-as transaction |
 | Print / Page setup | pending | document-scoped print providers |
 | Import | provider | converter inventory/provider; includes embedded-PDF adapter |
 | Export | provider | converter/print inventory/provider + selection state |
 | Export namespace | native/adapter | `file.export-namespace`; native flow with existing export business operation |
-| Close document | pending | document-view target, not application Quit |
+| Close document | native/adapter | `editor.close-document` targets the owning BufferActor and preserves unsaved-change confirmation |
 | Restart ATHENA | adapter pending | preserve safe restart transaction |
 | Close ATHENA | native/adapter | `application.quit` -> existing safe-quit transaction |
 
@@ -79,9 +79,9 @@ must not make their commands unreachable.
 | Cut | native | `editor.cut` with read-only/selection actor state |
 | Paste | native | `editor.paste` with read-only actor state |
 | Clear | pending | editor actor command |
-| Search | pending | native search bar exists; register editor/view command |
+| Search | native | `editor.search`; opens the search bar on the frozen editor canvas |
 | Global search | native: `workspace.global-search`; preview zoom is frozen in the originating command context |
-| Replace | pending | native search/replace UI exists; register editor/view command |
+| Replace | native | `editor.replace`; frozen editor canvas + read-only snapshot |
 | Correct | provider | math-context correction provider |
 | AI | provider | selection-gated completion commands |
 | Copy to / Cut to / Paste from | provider | clipboard-format inventories and selection state |

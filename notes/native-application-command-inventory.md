@@ -44,6 +44,12 @@ not be reported as native cutover.
 | `editor.cut` | editor | owning BufferActor | atomic per-view editor snapshot | native |
 | `editor.paste` | editor | owning BufferActor | atomic per-view editor snapshot | native |
 | `editor.node-properties` | editor | owning BufferActor + native node-properties dialog | atomic per-view editor snapshot | native |
+| `editor.search` | editor | native per-view document search bar | frozen editor canvas + actor-backed search transport | native |
+| `editor.replace` | editor | native per-view document search bar | frozen editor canvas + read-only actor snapshot | native |
+| `editor.save` | editor | owning BufferActor -> existing save-buffer-manual transaction | frozen editor target + read-only actor snapshot | native UI / Scheme business adapter |
+| `editor.revert` | editor | owning BufferActor -> existing revert transaction | frozen editor target | native UI / Scheme business adapter |
+| `editor.update-all` | editor | owning BufferActor -> existing update-document operation | frozen editor target + read-only actor snapshot | native UI / Scheme business adapter |
+| `editor.close-document` | editor | owning BufferActor -> existing safely-kill-buffer transaction | frozen editor target | native UI / Scheme business adapter |
 
 Application shortcuts currently declared in the JSON inventory are
 `Ctrl+N`, `Ctrl+O`, `Ctrl+Shift+P`, and `Ctrl+Q`. They are resolved by

@@ -31,6 +31,7 @@ public:
   void closeSearch ();
   void navigate (bool forward, bool extreme= false);
 
+  static void showForCanvas (QTMWidget* canvas, bool replace= false);
   static void showForCurrentEditor (bool replace= false);
   static void navigateCurrent (bool forward);
   static void closeCurrent ();

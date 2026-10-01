@@ -347,10 +347,15 @@ QTMDocumentSearchBar::eventFilter (QObject* watched, QEvent* event) {
 }
 
 void
-QTMDocumentSearchBar::showForCurrentEditor (bool replace) {
-  QTMWidget* canvas= QTMWidget::getLastFocusedWidget ();
+QTMDocumentSearchBar::showForCanvas (QTMWidget* canvas, bool replace) {
   if (canvas == nullptr) return;
   barForCanvas (canvas, true)->open (replace);
+}
+
+void
+QTMDocumentSearchBar::showForCurrentEditor (bool replace) {
+  QTMWidget* canvas= QTMWidget::getLastFocusedWidget ();
+  showForCanvas (canvas, replace);
 }
 
 void
