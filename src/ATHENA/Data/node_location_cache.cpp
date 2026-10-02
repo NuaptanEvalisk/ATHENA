@@ -549,14 +549,30 @@ void worker_main (vault_context_handle vault, std::shared_ptr<store> index,
                   std::uint64_t epoch) {
   try {
     bool bootstrap= !index->bootstrap_complete ();
+    background::source_watch watch;
+    std::uint64_t scanned_revision= 0;
+    bool requested= true;
+    bool first= true;
     for (;;) {
       {
-        std::lock_guard<std::mutex> guard (manager.lock);
+        std::unique_lock<std::mutex> guard (manager.lock);
+        if (!first) {
+          manager.wake.wait_for (guard, idle_delay, [&] {
+            return manager.stopping.load (std::memory_order_acquire) ||
+                   epoch != manager.epoch || manager.wake_requested;
+          });
+          requested= manager.wake_requested;
+          manager.wake_requested= false;
+        }
+        first= false;
         if (manager.stopping.load (std::memory_order_acquire) ||
             epoch != manager.epoch ||
             !vault_context_is_current (vault)) return;
       }
-      auto files= background::inventory (vault->root, &manager.stopping);
+      const auto revision= watch.revision ();
+      if (!requested && revision == scanned_revision && !index->errors ()) continue;
+      auto files= background::inventory (vault->root, &manager.stopping, &watch);
+      scanned_revision= revision;
       if (bootstrap) {
         publish_status (persistent_phase::bootstrap, 0, files.size (), index);
         std::set<std::string> present;
@@ -610,14 +626,6 @@ void worker_main (vault_context_handle vault, std::shared_ptr<store> index,
                                          persistent_phase::idle, 0, 0, index);
       }
 
-      std::unique_lock<std::mutex> guard (manager.lock);
-      manager.wake.wait_for (guard, idle_delay, [&] {
-        return manager.stopping.load (std::memory_order_acquire) ||
-               epoch != manager.epoch || manager.wake_requested;
-      });
-      manager.wake_requested= false;
-      if (manager.stopping.load (std::memory_order_acquire) ||
-          epoch != manager.epoch) return;
     }
   }
   catch (const std::exception& e) {

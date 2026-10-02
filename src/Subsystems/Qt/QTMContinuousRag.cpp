@@ -313,6 +313,9 @@ private:
       completed_files_= total_files_= 0;
       failures_.clear ();
       context_= std::move (context);
+      source_watch_.reset ();
+      scanned_revision_= 0;
+      needs_sweep_= true;
       scan_configuration_= configuration;
       next_scan_= Clock::now ();
       stop_worker_for_reconfiguration ();
@@ -321,6 +324,7 @@ private:
     if (!latest_.empty () && !is_current (latest_.begin ()->second)) {
       auto job= latest_.begin ()->second;
       send_cancel (job);
+      needs_sweep_= true;
       finish_job (job);
     }
     advance ();
@@ -352,23 +356,47 @@ private:
       prepare (job);
       return;
     }
+    try {
+      if (!source_watch_)
+        source_watch_= std::make_shared<athena::background::source_watch> ();
+      const auto revision= source_watch_->revision ();
+      if (!needs_sweep_ && failures_.empty () && revision == scanned_revision_) return;
+      scanned_revision_= revision;
+      needs_sweep_= false;
+    }
+    catch (const std::exception& ex) {
+      failure ("", QString::fromUtf8 (ex.what ()));
+      next_scan_= Clock::now () + std::chrono::seconds (30);
+      return;
+    }
     auto active= std::make_shared<std::atomic<bool>> (true);
     inventory_= active;
     completed_files_= total_files_= 0;
     report ();
     auto context= context_;
     QPointer<ContinuousRagManager> self (this);
-    rag_index_pool ().start ([self, context, active] {
-      auto files= athena::rag::rag_document_files (context->root, [active, context] {
-        return active->load (std::memory_order_acquire) &&
-          vault_context_is_current (context);
-      });
+    auto watch= source_watch_;
+    rag_index_pool ().start ([self, context, active, watch] {
+      std::vector<fs::path> files;
+      QString error;
+      try {
+        files= athena::rag::rag_document_files (context->root, [active, context] {
+          return active->load (std::memory_order_acquire) &&
+            vault_context_is_current (context);
+        }, watch.get ());
+      }
+      catch (const std::exception& ex) { error= QString::fromUtf8 (ex.what ()); }
       if (!self || !active->load (std::memory_order_acquire)) return;
       QMetaObject::invokeMethod (self,
-        [self, context, active, files=std::move (files)] () mutable {
+        [self, context, active, error, files=std::move (files)] () mutable {
           if (!self || self->inventory_ != active ||
               !vault_context_is_current (context)) return;
           self->inventory_.reset ();
+          if (!error.isEmpty ()) {
+            self->failure ("", error);
+            self->next_scan_= Clock::now () + std::chrono::seconds (30);
+            return;
+          }
           self->files_= std::move (files);
           self->next_file_= 0;
           self->total_files_= self->files_.size ();
@@ -521,24 +549,29 @@ private:
           std_string (job->rel_path), std_string (job->storage_revision),
           athena::rag::bge_m3_embedding_space_id, *prepared);
       const std::string error= index.status ().last_error;
+      const bool superseded= index.status ().revision_superseded;
       if (!job->current.load (std::memory_order_acquire)) return;
       if (self == nullptr) return;
       QMetaObject::invokeMethod (
         self,
-        [self, job=std::move (job), prepared=std::move (prepared), ok,
+        [self, job=std::move (job), prepared=std::move (prepared), ok, superseded,
          error=QString::fromStdString (error)] () mutable {
           if (self != nullptr)
-            self->prepared (std::move (job), std::move (prepared), ok, error);
+            self->prepared (std::move (job), std::move (prepared), ok, superseded, error);
         }, Qt::QueuedConnection);
     });
   }
 
   void prepared (std::shared_ptr<RealtimeJob> job,
                  std::shared_ptr<athena::rag::RagPreparedDocument> prepared,
-                 bool ok, const QString& error) {
-    if (!is_current (job)) { finish_job (job); return; }
+                 bool ok, bool superseded, const QString& error) {
+    if (!is_current (job) || superseded) {
+      needs_sweep_= true;
+      finish_job (job);
+      return;
+    }
     if (!ok) {
-      failure (job->absolute_path, job->rel_path + ": " + error);
+      failure (job->absolute_path, error);
       athena_spdlog_warning (
         "continuous RAG: prepare failed for " + std_string (job->rel_path) +
         (error.isEmpty () ? std::string () : ": " + std_string (error)));
@@ -601,23 +634,28 @@ private:
               vault_context_is_current (job->context);
           });
         std::string error= index.status ().last_error;
+        const bool superseded= index.status ().revision_superseded;
         if (!job->current.load (std::memory_order_acquire)) return;
         if (self == nullptr) return;
         QMetaObject::invokeMethod (
-          self, [self, job=std::move (job), ok,
+          self, [self, job=std::move (job), ok, superseded,
                  error=QString::fromStdString (error)] {
-            if (self != nullptr) self->committed (job, ok, error);
+            if (self != nullptr) self->committed (job, ok, superseded, error);
           }, Qt::QueuedConnection);
       });
   }
 
-  void committed (const std::shared_ptr<RealtimeJob>& job, bool ok,
+  void committed (const std::shared_ptr<RealtimeJob>& job, bool ok, bool superseded,
                   const QString& error) {
-    if (!is_current (job)) { finish_job (job); return; }
+    if (!is_current (job) || superseded) {
+      needs_sweep_= true;
+      finish_job (job);
+      return;
+    }
     if (!ok) {
-      failure (job->absolute_path, job->rel_path + ": " + error);
+      failure (job->absolute_path, error);
       athena_spdlog_warning (
-        "continuous RAG: commit skipped or failed for " +
+        "continuous RAG: commit failed for " +
         std_string (job->rel_path) +
         (error.isEmpty () ? std::string () : ": " + std_string (error)));
       finish_job (job);
@@ -804,6 +842,9 @@ private:
   vault_context_handle context_;
   QString scan_configuration_;
   std::shared_ptr<std::atomic<bool>> inventory_;
+  std::shared_ptr<athena::background::source_watch> source_watch_;
+  std::uint64_t scanned_revision_= 0;
+  bool needs_sweep_= true;
   std::vector<fs::path> files_;
   std::size_t next_file_= 0;
   std::size_t completed_files_= 0, total_files_= 0;

@@ -183,6 +183,7 @@ ensure_schema (sqlite3* db, std::string& error) {
     error= "unsupported RAG database schema version " + value;
     return false;
   }
+  if (value == schema_version) return true;
   sqlite3_stmt* insert= nullptr;
   if (sqlite3_prepare_v2 (
         db, "INSERT INTO meta(key,value) VALUES('schema-version','3') "

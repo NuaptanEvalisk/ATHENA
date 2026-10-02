@@ -18,12 +18,14 @@
 #include <string>
 #include <vector>
 
+namespace athena::background { class source_watch; }
 namespace athena::rag {
 
 bool rag_text_requires_embedding (const std::string& text);
 std::vector<std::filesystem::path> rag_document_files (
   const std::filesystem::path& root,
-  const std::function<bool ()>& current= {});
+  const std::function<bool ()>& current= {},
+  background::source_watch* watch= nullptr);
 class RagEmbedder;
 
 struct RagConfig {
@@ -78,6 +80,7 @@ struct RagPreparedDocument {
 
 struct RagStatus {
   bool open= false;
+  bool revision_superseded= false;
   std::string vault_root;
   std::string db_path;
   std::string embedding_model;

@@ -11,6 +11,7 @@
 #include "confined_filesystem.hpp"
 #include <array>
 #include <atomic>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -36,6 +37,19 @@ struct disk_file {
   std::string path;
   filesystem::metadata revision;
 };
+// Watches source files/directories, never database sidecars or read accesses.
+// Register directories during inventory; compare revision before the next sweep.
+class source_watch {
+public:
+  source_watch ();
+  ~source_watch ();
+  std::uint64_t revision ();
+  void directory (const std::filesystem::path&);
+private:
+  struct impl;
+  std::unique_ptr<impl> data;
+};
 std::vector<disk_file> inventory (
-  const std::filesystem::path&, const std::atomic<bool>* cancelled= nullptr);
+  const std::filesystem::path&, const std::atomic<bool>* cancelled= nullptr,
+  source_watch* watch= nullptr);
 } // namespace athena::background

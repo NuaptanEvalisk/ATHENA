@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "rag_index.hpp"
+#include "ATHENA/Data/background_workers.hpp"
 #include "rag_embedding.hpp"
 #include "rag_storage.hpp"
 
@@ -311,8 +312,10 @@ shard_accepts (const std::string& rel, int shard_index, int shard_count) {
 
 std::vector<fs::path>
 scan_ath_files (const fs::path& root,
-                    const std::function<bool ()>& current) {
+                    const std::function<bool ()>& current,
+                    athena::background::source_watch* watch) {
   std::vector<fs::path> out;
+  if (watch) watch->directory (root);
   fs::path maintenance_root;
   AthenaVaultfileInfo info;
   std::string vault_error;
@@ -331,21 +334,29 @@ scan_ath_files (const fs::path& root,
   for (; !ec && it != end; it.increment (ec)) {
     if (current && !current ()) return {};
     fs::path p= it->path ();
-    if (it->is_symlink (ec)) {
+    const auto status= it->symlink_status (ec);
+    if (ec == std::errc::no_such_file_or_directory) {
+      ec.clear ();
+      continue;
+    }
+    if (ec) throw fs::filesystem_error ("Read RAG inventory entry", p, ec);
+    if (fs::is_symlink (status)) {
       it.disable_recursion_pending ();
       continue;
     }
-    if (it->is_directory (ec)) {
+    if (fs::is_directory (status)) {
       std::string name= p.filename ().string ();
       if (name == ".athena" || name == ".backup" || name == ".git" ||
           (!maintenance_root.empty () &&
            p.lexically_normal () == maintenance_root))
         it.disable_recursion_pending ();
+      else if (watch) watch->directory (p);
       continue;
     }
-    if (!it->is_regular_file (ec)) continue;
+    if (!fs::is_regular_file (status)) continue;
     if (p.extension () == ".ath") out.push_back (p);
   }
+  if (ec) throw fs::filesystem_error ("Read RAG inventory", root, ec);
   std::sort (out.begin (), out.end ());
   return out;
 }
@@ -686,8 +697,9 @@ dot (const std::vector<float>& a, const std::vector<float>& b) {
 
 std::vector<fs::path>
 rag_document_files (const fs::path& root,
-                    const std::function<bool ()>& current) {
-  return scan_ath_files (root, current);
+                    const std::function<bool ()>& current,
+                    athena::background::source_watch* watch) {
+  return scan_ath_files (root, current, watch);
 }
 
 bool
@@ -1147,7 +1159,9 @@ remember_file_check (sqlite3* db, const std::string& rel,
   Statement st (db, "INSERT INTO document_file_checks VALUES (?,?,?) "
                     "ON CONFLICT(rel_path) DO UPDATE SET "
                     "file_revision=excluded.file_revision, "
-                    "storage_revision=excluded.storage_revision");
+                    "storage_revision=excluded.storage_revision "
+                    "WHERE file_revision!=excluded.file_revision "
+                    "OR storage_revision!=excluded.storage_revision");
   if (!st.get ()) return false;
   bind_text (st.get (), 1, rel);
   bind_text (st.get (), 2, physical);
@@ -1161,6 +1175,8 @@ RagIndex::prepare_document (const std::string& rel_path,
                             const std::string& embedding_space,
                             RagPreparedDocument& prepared) {
   prepared= RagPreparedDocument ();
+  impl->status.last_error.clear ();
+  impl->status.revision_superseded= false;
   if (impl->db == nullptr || !valid_vault_relative_path (rel_path)) {
     impl->status.last_error= "invalid RAG document path";
     return false;
@@ -1193,8 +1209,10 @@ RagIndex::prepare_document (const std::string& rel_path,
       return true;
     }
     bytes= entry.read (athena::document::codec_limits ().input_bytes);
-    if (!athena::filesystem::same_revision (before, root.open (rel_path).stat ()))
-      throw std::runtime_error ("Source changed while reading");
+    if (!athena::filesystem::same_revision (before, root.open (rel_path).stat ())) {
+      impl->status.revision_superseded= true;
+      return false;
+    }
   }
   catch (const std::exception& error) {
     impl->status.last_error= "failed to read RAG document " + rel_path + ": " + error.what ();
@@ -1204,8 +1222,7 @@ RagIndex::prepare_document (const std::string& rel_path,
     athena::document::storage_bytes_fingerprint (bytes);
   if (!expected_storage_revision.empty () &&
       storage_revision != expected_storage_revision) {
-    impl->status.last_error= "RAG document revision was superseded before prepare: " +
-                             rel_path;
+    impl->status.revision_superseded= true;
     return false;
   }
 
@@ -1270,9 +1287,18 @@ RagIndex::commit_document (
   const RagPreparedDocument& prepared,
   const std::vector<std::vector<float>>& computed_embeddings,
   const std::function<bool ()>& generation_is_current) {
-  if (impl->db == nullptr) return false;
+  impl->status.last_error.clear ();
+  impl->status.revision_superseded= false;
+  auto superseded= [&] {
+    impl->status.revision_superseded= true;
+    return false;
+  };
+  if (impl->db == nullptr) {
+    impl->status.last_error= "RAG index is not open";
+    return false;
+  }
   if (prepared.unchanged) return true;
-  if (generation_is_current && !generation_is_current ()) return false;
+  if (generation_is_current && !generation_is_current ()) return superseded ();
   if (prepared.missing_embedding_indices.size () != computed_embeddings.size ()) {
     impl->status.last_error= "RAG computed embedding count does not match prepared work";
     return false;
@@ -1282,11 +1308,14 @@ RagIndex::commit_document (
   // write lock.  Long parsing and inference have already happened outside the
   // transaction; a superseded save must not publish stale document rows.
   std::string current_bytes;
-  if (!read_bytes (prepared.absolute_path, current_bytes) ||
-      athena::document::storage_bytes_fingerprint (current_bytes) !=
-        prepared.storage_revision)
+  if (!read_bytes (prepared.absolute_path, current_bytes)) {
+    impl->status.last_error= "Could not read RAG source before commit: " +
+                             prepared.absolute_path.string ();
     return false;
-  if (generation_is_current && !generation_is_current ()) return false;
+  }
+  if (athena::document::storage_bytes_fingerprint (current_bytes) !=
+      prepared.storage_revision) return superseded ();
+  if (generation_is_current && !generation_is_current ()) return superseded ();
 
   std::string error;
   if (!exec_sql (impl->db, "BEGIN IMMEDIATE", error)) {
@@ -1299,9 +1328,13 @@ RagIndex::commit_document (
     impl->status.last_error= message;
     return false;
   };
+  auto rollback_superseded= [&] {
+    rollback ("");
+    return superseded ();
+  };
 
   if (generation_is_current && !generation_is_current ())
-    return rollback ("RAG generation superseded before commit");
+    return rollback_superseded ();
 
   if (prepared.metadata_only) {
     if (!upsert_document (
@@ -1310,7 +1343,7 @@ RagIndex::commit_document (
           prepared.semantic_revision, "ok", ""))
       return rollback (sqlite3_errmsg (impl->db));
     if (generation_is_current && !generation_is_current ())
-      return rollback ("RAG generation superseded before metadata commit");
+      return rollback_superseded ();
     if (!exec_sql (impl->db, "COMMIT", error))
       return rollback (error);
     return true;
@@ -1363,7 +1396,7 @@ RagIndex::commit_document (
     return rollback (sqlite3_errmsg (impl->db));
 
   if (generation_is_current && !generation_is_current ())
-    return rollback ("RAG generation superseded before final commit");
+    return rollback_superseded ();
   if (!exec_sql (impl->db, "COMMIT", error))
     return rollback (error);
   return true;
