@@ -87,6 +87,8 @@ bool athena_artifact_radioactive_records_for_key (
 
 bool athena_artifact_resolve_name_key (
   const std::string& key, AthenaArtifactNameResolution& result);
+bool athena_artifact_radioactive_name_for_key (
+  const std::string& key, std::string& fragment, std::string& display);
 bool athena_artifact_resolve_name (
   const tree& query, AthenaArtifactNameResolution& result);
 

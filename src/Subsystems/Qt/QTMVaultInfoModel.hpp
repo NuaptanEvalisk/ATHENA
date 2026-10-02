@@ -52,8 +52,10 @@ bool    qtm_backup_dispatchers_read (QVector<QTMBackupDispatcher>& dispatchers,
 bool    qtm_backup_dispatchers_write (
   const QVector<QTMBackupDispatcher>& dispatchers, QString* error= nullptr);
 bool    qtm_artifact_title_filter_read (QStringList& entries,
-                                        QString* error= nullptr);
+                                        QString* error= nullptr,
+                                        QStringList* structured= nullptr);
 bool    qtm_artifact_title_filter_write (const QStringList& entries,
-                                         QString* error= nullptr);
+                                         QString* error= nullptr,
+                                         const QStringList* structured= nullptr);
 
 #endif

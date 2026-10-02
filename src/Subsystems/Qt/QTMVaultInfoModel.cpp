@@ -12,6 +12,7 @@
 
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "ATHENA/Data/artifact_title_filter.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
 #include "ATHENA/Data/vault_backup_dispatcher.hpp"
 #include "convert.hpp"
 #include "vault.hpp"
@@ -356,7 +357,8 @@ qtm_vaultfile_write (const QTMVaultfileInfo& info, QString* error) {
 }
 
 bool
-qtm_artifact_title_filter_read (QStringList& entries, QString* error) {
+qtm_artifact_title_filter_read (QStringList& entries, QString* error,
+                              QStringList* structured) {
   entries.clear ();
   if (!qtm_vault_info_available ()) {
     if (error != nullptr) *error= "No active vault.";
@@ -373,11 +375,17 @@ qtm_artifact_title_filter_read (QStringList& entries, QString* error) {
   }
   for (const std::string& entry: filter.entries)
     entries << QString::fromStdString (entry);
+  if (structured) {
+    structured->clear ();
+    for (const auto& entry: filter.structured_entries)
+      *structured << QString::fromStdString (entry);
+  }
   return true;
 }
 
 bool
-qtm_artifact_title_filter_write (const QStringList& entries, QString* error) {
+qtm_artifact_title_filter_write (const QStringList& entries, QString* error,
+                               const QStringList* structured) {
   if (!qtm_vault_info_available ()) {
     if (error != nullptr) *error= "No active vault.";
     return false;
@@ -387,6 +395,20 @@ qtm_artifact_title_filter_write (const QStringList& entries, QString* error) {
   for (const QString& entry: entries)
     values.push_back (qtm_utf8_std_string (entry));
   std::string write_error;
+  if (structured) {
+    auto filter= athena_artifact_title_filter_from_entries (values);
+    try {
+      for (const auto& entry: *structured)
+        athena_artifact_title_filter_add (filter, athena::document::read_xml (
+          entry.toStdString (), athena::document::xml_kind::fragment));
+      if (athena_artifact_title_filter_write (
+            std::filesystem::path (qtm_utf8_std_string (qtm_vault_root_path ())),
+            filter, write_error)) return true;
+    }
+    catch (const std::exception& e) { write_error= e.what (); }
+    if (error) *error= QString::fromStdString (write_error);
+    return false;
+  }
   if (!athena_artifact_title_filter_write (
         std::filesystem::path (
           qtm_utf8_std_string (qtm_vault_root_path ())), values,

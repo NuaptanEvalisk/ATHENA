@@ -1243,6 +1243,7 @@
         { "provider": "popup-presentation" },
         { "separator": true },
         { "provider": "popup-artifact" },
+        { "provider": "popup-reject-artifact" },
         { "separator": true },
         { "provider": "popup-formula-ast" },
         { "separator": true },
@@ -1255,6 +1256,7 @@
       "id": "editor-context-alternative",
       "items": [
         { "provider": "popup-artifact" },
+        { "provider": "popup-reject-artifact" },
         { "separator": true },
         { "menu": "file" },
         { "menu": "edit" },

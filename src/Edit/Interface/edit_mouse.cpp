@@ -23,6 +23,7 @@
 #include "scheme.hpp"
 #include "tree_select.hpp"
 #include "window.hpp"
+#include "vault.hpp"
 
   // These are tm-defined in graphics-utils.scm (looks like they shouldn't)
 #define ShiftMask     256
@@ -542,12 +543,25 @@ edit_interface_rep::mouse_paste (SI x, SI y) { (void) x; (void) y;
 void
 edit_interface_rep::mouse_adjust (SI x, SI y, int mods) {
   if (mouse_message ("adjust", x, y)) return;
+  actor_popup_menu_snapshot popup= popup_menu_state_snapshot ();
+  rectangles ignored;
+  tree hit= eb->message ("link-target", x, y, ignored);
+  if (is_tuple (hit, "link-target", 1) && is_atomic (hit[1])) {
+    const string prefix= "tmfs://artifact-disambiguation/";
+    string target= hit[1]->label;
+    auto vault= vault_capture_context ();
+    if (vault && starts (target, prefix)) {
+      string key= target (N(prefix), N(target));
+      popup.artifact_name_key.assign (key.data (), N(key));
+      popup.vault_incarnation= vault->incarnation;
+    }
+  }
   x= (SI) (x * magf);
   y= (SI) (y * magf);
   abs_round (x, y);
   if (!popup_open) {
     if (ui_endpoint != nullptr)
-      ui_endpoint->update_popup_menu_state (popup_menu_state_snapshot ());
+      ui_endpoint->update_popup_menu_state (std::move (popup));
     const bool alternative= (mods & (ShiftMask + ControlMask)) != 0;
     popup_open= publish_ui (
       actor_command_kind::ui_show_popup,

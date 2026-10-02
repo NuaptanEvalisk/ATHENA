@@ -10,18 +10,51 @@
 
 #include "ATHENA/Data/artifact_radioactive_links.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
+#include "node_metadata.hpp"
 
 #include <QCryptographicHash>
 #include <QByteArrayView>
 #include <QString>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QSaveFile>
 
 #include <algorithm>
 #include <fstream>
 #include <system_error>
+#include <mutex>
 
 namespace fs= std::filesystem;
 
 namespace {
+
+std::recursive_mutex filter_mutex;
+const char* format_header= "# ATHENA artifact title filter v2";
+
+tree name_content (const tree& value) {
+  tree result= athena::node::content_projection (value);
+  while ((is_func (result, DOCUMENT, 1) || is_func (result, CONCAT, 1)))
+    result= result[0];
+  return result;
+}
+
+bool text_name (const tree& value, std::string& text) {
+  if (is_atomic (value)) {
+    text.append (value->label.data (), N(value->label));
+    return true;
+  }
+  if (!is_func (value, CONCAT)) return false;
+  for (int i=0; i<N(value); ++i)
+    if (!text_name (value[i], text)) return false;
+  return true;
+}
+
+std::string structured_key (const tree& name) {
+  return athena::document::write_xml (
+    name_content (name), athena::document::xml_kind::fragment);
+}
 
 std::string
 utf8 (const QString& value) {
@@ -63,7 +96,7 @@ configured_path (const fs::path& root, const AthenaVaultfileInfo& info,
 }
 
 bool
-write_entries (const fs::path& path, const std::vector<std::string>& entries,
+write_entries (const fs::path& path, const AthenaArtifactTitleFilter& filter,
                std::string& error) {
   std::error_code ec;
   fs::create_directories (path.parent_path (), ec);
@@ -71,24 +104,18 @@ write_entries (const fs::path& path, const std::vector<std::string>& entries,
     error= "Could not create artifact title filter directory: " + ec.message ();
     return false;
   }
-  fs::path temporary= path;
-  temporary += ".tmp";
-  {
-    std::ofstream output (temporary, std::ios::binary | std::ios::trunc);
-    if (!output) {
-      error= "Could not write " + temporary.string ();
-      return false;
-    }
-    for (const std::string& entry: entries) output << entry << '\n';
-    if (!output) {
-      error= "Could not write " + temporary.string ();
-      return false;
-    }
-  }
-  fs::rename (temporary, path, ec);
-  if (ec) {
-    fs::remove (temporary);
-    error= "Could not replace " + path.string () + ": " + ec.message ();
+  QJsonArray text, structured;
+  for (const auto& entry: filter.entries)
+    text.append (QString::fromStdString (entry));
+  for (const auto& entry: filter.structured_entries)
+    structured.append (QString::fromStdString (entry));
+  QJsonObject data {{"version", 2}, {"text", text}, {"structured", structured}};
+  QByteArray bytes= QByteArray (format_header) + '\n' +
+    QJsonDocument (data).toJson (QJsonDocument::Indented);
+  QSaveFile output (QString::fromStdString (path.string ()));
+  if (!output.open (QIODevice::WriteOnly) ||
+      output.write (bytes) != bytes.size () || !output.commit ()) {
+    error= "Could not write artifact title filter: " + output.errorString ().toStdString ();
     return false;
   }
   return true;
@@ -134,16 +161,49 @@ athena_artifact_title_filter_contains (
   return filter.normalized.count (normalize_entry (candidate_utf8)) != 0;
 }
 
+bool athena_artifact_title_filter_contains (
+  const AthenaArtifactTitleFilter& filter, const tree& candidate) {
+  tree name= name_content (candidate);
+  std::string text;
+  if (text_name (name, text))
+    return athena_artifact_title_filter_contains (filter, text);
+  return !filter.structured.empty () && filter.structured.count (structured_key (name));
+}
+
+void athena_artifact_title_filter_add (
+  AthenaArtifactTitleFilter& filter, const tree& candidate) {
+  tree name= name_content (candidate);
+  std::string text;
+  if (text_name (name, text)) {
+    auto entries= filter.entries;
+    entries.push_back (text);
+    auto plain= athena_artifact_title_filter_from_entries (entries);
+    filter.entries= std::move (plain.entries);
+    filter.normalized= std::move (plain.normalized);
+  }
+  else {
+    auto key= structured_key (name);
+    if (filter.structured.insert (key).second)
+      filter.structured_entries.push_back (std::move (key));
+  }
+}
+
 std::string
 athena_artifact_title_filter_fingerprint (
   const AthenaArtifactTitleFilter& filter) {
   std::vector<std::string> normalized (filter.normalized.begin (),
                                        filter.normalized.end ());
   std::sort (normalized.begin (), normalized.end ());
+  std::vector<std::string> structured (filter.structured.begin (), filter.structured.end ());
+  std::sort (structured.begin (), structured.end ());
   QCryptographicHash hash (QCryptographicHash::Sha256);
   for (const std::string& entry: normalized) {
     hash.addData (QByteArrayView (entry.data (), (qsizetype) entry.size ()));
     hash.addData (QByteArrayView ("\n", 1));
+  }
+  for (const auto& entry: structured) {
+    hash.addData (QByteArrayView ("\0tree\0", 6));
+    hash.addData (QByteArrayView (entry.data (), entry.size ()));
   }
   return hash.result ().toHex ().toStdString ();
 }
@@ -152,13 +212,14 @@ bool
 athena_artifact_title_filter_read (
   const fs::path& vault_root, AthenaArtifactTitleFilter& filter,
   std::string& error) {
+  std::lock_guard<std::recursive_mutex> guard (filter_mutex);
   AthenaVaultfileInfo info;
   if (!athena_vaultfile_read (vault_root, info, error)) return false;
   fs::path path;
   if (!configured_path (vault_root, info, path, error)) return false;
   if (!fs::exists (path)) {
     filter= athena_artifact_title_filter_defaults ();
-    if (!write_entries (path, filter.entries, error)) return false;
+    if (!write_entries (path, filter, error)) return false;
     // Persist the default field for vaults created before this setting existed.
     return athena_vaultfile_write (vault_root, info, error);
   }
@@ -169,6 +230,35 @@ athena_artifact_title_filter_read (
   }
   std::vector<std::string> entries;
   std::string line;
+  std::getline (input, line);
+  if (!line.empty () && line.back () == '\r') line.pop_back ();
+  if (line == format_header) {
+    std::string bytes ((std::istreambuf_iterator<char> (input)), {});
+    QJsonParseError parse_error;
+    auto data= QJsonDocument::fromJson (QByteArray::fromStdString (bytes), &parse_error);
+    auto obj= data.object ();
+    if (parse_error.error != QJsonParseError::NoError || !data.isObject () ||
+        obj.value ("version").toInt () != 2 || !obj.value ("text").isArray () ||
+        !obj.value ("structured").isArray ()) {
+      error= "Invalid artifact title filter v2: " + path.string ();
+      return false;
+    }
+    try {
+      for (const auto& value: obj.value ("text").toArray ()) {
+        if (!value.isString ()) throw std::runtime_error ("Expected a text name");
+        entries.push_back (value.toString ().toStdString ());
+      }
+      filter= athena_artifact_title_filter_from_entries (entries);
+      for (const auto& value: obj.value ("structured").toArray ()) {
+        if (!value.isString ()) throw std::runtime_error ("Expected a name fragment");
+        athena_artifact_title_filter_add (filter, athena::document::read_xml (
+          value.toString ().toStdString (), athena::document::xml_kind::fragment));
+      }
+    }
+    catch (const std::exception& e) { error= e.what (); return false; }
+    return true;
+  }
+  entries.push_back (line);
   while (std::getline (input, line)) {
     if (!line.empty () && line.back () == '\r') line.pop_back ();
     entries.push_back (line);
@@ -183,16 +273,34 @@ athena_artifact_title_filter_read (
 
 bool
 athena_artifact_title_filter_write (
-  const fs::path& vault_root, const std::vector<std::string>& entries,
+  const fs::path& vault_root, const AthenaArtifactTitleFilter& filter,
   std::string& error) {
+  std::lock_guard<std::recursive_mutex> guard (filter_mutex);
   AthenaVaultfileInfo info;
   if (!athena_vaultfile_read (vault_root, info, error)) return false;
   fs::path path;
   if (!configured_path (vault_root, info, path, error)) return false;
-  AthenaArtifactTitleFilter filter=
-    athena_artifact_title_filter_from_entries (entries);
-  if (!write_entries (path, filter.entries, error)) return false;
-  if (!athena_vaultfile_write (vault_root, info, error)) return false;
+  if (!write_entries (path, filter, error)) return false;
   athena_artifact_radioactive_invalidate ();
   return true;
+}
+
+bool athena_artifact_title_filter_write (
+  const fs::path& root, const std::vector<std::string>& entries, std::string& error) {
+  std::lock_guard<std::recursive_mutex> guard (filter_mutex);
+  AthenaArtifactTitleFilter filter;
+  if (!athena_artifact_title_filter_read (root, filter, error)) return false;
+  auto plain= athena_artifact_title_filter_from_entries (entries);
+  filter.entries= std::move (plain.entries);
+  filter.normalized= std::move (plain.normalized);
+  return athena_artifact_title_filter_write (root, filter, error);
+}
+
+bool athena_artifact_title_filter_reject (
+  const fs::path& root, const tree& name, std::string& error) {
+  std::lock_guard<std::recursive_mutex> guard (filter_mutex);
+  AthenaArtifactTitleFilter filter;
+  if (!athena_artifact_title_filter_read (root, filter, error)) return false;
+  athena_artifact_title_filter_add (filter, name);
+  return athena_artifact_title_filter_write (root, filter, error);
 }

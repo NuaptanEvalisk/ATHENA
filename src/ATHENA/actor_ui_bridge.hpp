@@ -228,6 +228,8 @@ struct actor_document_menu_snapshot {
 
 struct actor_popup_menu_snapshot {
   bool ready= false;
+  std::string artifact_name_key;
+  std::string vault_incarnation;
   std::string spell_word;
   std::vector<std::string> spell_suggestions;
 };

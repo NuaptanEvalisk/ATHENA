@@ -35,6 +35,8 @@
 #include "tm_ostream.hpp"
 #include "qt_utilities.hpp"
 #include "vault.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
+#include "convert.hpp"
 
 #include <QApplication>
 #include <QAbstractItemView>
@@ -1539,8 +1541,8 @@ QTMPreferencesDialog::buildVaultCategories () {
   QFormLayout* af= add_section (artifacts, "Artifactization");
   QLabel* filterExplanation= new QLabel (
     "Complete candidate artifact names in this vault-specific list are "
-    "ignored. Double-click an entry to edit it. The backing .lst file stores "
-    "one entry per line.", artifacts);
+    "ignored. Double-click a text entry to edit it. Structured names added "
+    "from radioactive links retain their mathematical structure.", artifacts);
   filterExplanation->setWordWrap (true);
   af->addRow (filterExplanation);
   QListWidget* titleFilter= new QListWidget (artifacts);
@@ -1560,9 +1562,9 @@ QTMPreferencesDialog::buildVaultCategories () {
   af->addRow (filterButtons);
 
   auto reloadTitleFilter= [titleFilter, artifacts] () {
-    QStringList entries;
+    QStringList entries, structured;
     QString error;
-    if (!qtm_artifact_title_filter_read (entries, &error)) {
+    if (!qtm_artifact_title_filter_read (entries, &error, &structured)) {
       QMessageBox::warning (artifacts, "Artifactization", error);
       return false;
     }
@@ -1572,23 +1574,35 @@ QTMPreferencesDialog::buildVaultCategories () {
       QListWidgetItem* item= new QListWidgetItem (entry, titleFilter);
       item->setFlags (item->flags () | Qt::ItemIsEditable);
     }
+    for (const auto& fragment: structured) {
+      tree name= athena::document::read_xml (
+        fragment.toStdString (), athena::document::xml_kind::fragment);
+      string display= tree_to_scheme (name);
+      auto* item= new QListWidgetItem (
+        QString::fromUtf8 (display.data (), N(display)), titleFilter);
+      item->setData (Qt::UserRole, fragment);
+      item->setToolTip ("Structured artifact name");
+    }
     return true;
   };
   auto saveTitleFilter= [titleFilter, artifacts] () {
-    QStringList entries;
+    QStringList entries, structured;
     QSignalBlocker blocker (titleFilter);
     for (int row=0; row<titleFilter->count (); row++) {
+      auto fragment= titleFilter->item (row)->data (Qt::UserRole);
+      if (fragment.isValid ()) {
+        structured << fragment.toString ();
+        continue;
+      }
       QString entry= titleFilter->item (row)->text ().trimmed ();
       titleFilter->item (row)->setText (entry);
       if (!entry.isEmpty ()) entries << entry;
     }
     QString error;
-    if (!qtm_artifact_title_filter_write (entries, &error)) {
+    if (!qtm_artifact_title_filter_write (entries, &error, &structured)) {
       QMessageBox::warning (artifacts, "Artifactization", error);
       return false;
     }
-    try { (void) call ("update-current-buffer"); }
-    catch (...) {}
     return true;
   };
   if (qtm_vault_info_available ()) {

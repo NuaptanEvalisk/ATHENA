@@ -9,8 +9,13 @@
 #include "QTMCommandRegistry.hpp"
 #include "QTMCommandRegistryInternal.hpp"
 #include "vault.hpp"
+#include "ATHENA/Data/artifact_radioactive_links.hpp"
+#include "ATHENA/Data/artifact_title_filter.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
+#include "tm_ostream.hpp"
 
 #include <QJsonObject>
+#include <QMessageBox>
 
 using namespace qtm_command_registry_detail;
 
@@ -47,6 +52,55 @@ submit_business (
 
 void
 QTMCommandRegistry::registerPopupMenuCommands () {
+  registerProvider (
+    "popup-reject-artifact", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QVector<QTMCommandDynamicItem> out;
+      auto* proxy= editor_proxy_for_context (context);
+      if (!proxy) return out;
+      auto popup= proxy->popup_menu_state ();
+      auto vault= vault_capture_context ();
+      std::string fragment, display;
+      if (vault && vault->incarnation == popup.vault_incarnation &&
+          athena_artifact_radioactive_name_for_key (
+            popup.artifact_name_key, fragment, display))
+        out.append (popup_item (
+          qs (popup.artifact_name_key), QObject::tr ("Reject artifact name")));
+      return out;
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      auto* proxy= editor_proxy_for_context (context);
+      if (!proxy) return false;
+      auto popup= proxy->popup_menu_state ();
+      auto vault= vault_capture_context ();
+      if (!vault || vault->incarnation != popup.vault_incarnation ||
+          key != qs (popup.artifact_name_key)) return false;
+      std::string fragment, display, error;
+      if (!athena_artifact_radioactive_name_for_key (
+            popup.artifact_name_key, fragment, display)) return false;
+      try {
+        auto name= athena::document::read_xml (
+          fragment, athena::document::xml_kind::fragment);
+        if (athena_artifact_title_filter_reject (vault->root, name, error))
+          return true;
+      }
+      catch (const std::exception& e) { error= e.what (); }
+      std_error << "Could not reject artifact name: " << string (error.c_str ()) << LF;
+      QMessageBox::warning (nullptr, QObject::tr ("Artifactization"), qs (error));
+      return false;
+    },
+    [] (const QTMCommandContext& context) {
+      QTMCommandState state;
+      auto* proxy= editor_proxy_for_context (context);
+      auto vault= vault_capture_context ();
+      if (!proxy || !vault) return state;
+      auto popup= proxy->popup_menu_state ();
+      state.available= !popup.artifact_name_key.empty () &&
+        popup.vault_incarnation == vault->incarnation;
+      state.enabled= state.available;
+      return state;
+    });
+
   registerProvider (
     "popup-presentation", QTMCommandScope::Editor,
     [] (const QTMCommandContext& context) {

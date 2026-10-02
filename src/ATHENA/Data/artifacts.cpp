@@ -1114,7 +1114,7 @@ bool extract (const tree& document, const std::string& rel,
       if (collapse_spaces (display).empty () ||
           !has_name_bearing_text (display) ||
           athena_artifact_title_filter_contains (
-            title_filter, display)) continue;
+            title_filter, visible_body (keyword))) continue;
       std::string serialized= fragment_bytes (keyword);
       int occurrence= ++occurrences[serialized];
       std::vector<std::pair<int,std::string>> candidates;
@@ -1580,6 +1580,10 @@ bool extract_parallel (sqlite3* db, const std::vector<DocumentWork>& work,
       filtered_names.append (qstr (entry));
     QJsonObject manifest_root;
     manifest_root["title_filter"]= filtered_names;
+    QJsonArray structured_names;
+    for (const auto& entry: title_filter.structured_entries)
+      structured_names.append (qstr (entry));
+    manifest_root["structured_title_filter"]= structured_names;
     manifest_root["documents"]= documents;
     QByteArray bytes= QJsonDocument (manifest_root)
                         .toJson (QJsonDocument::Compact);
@@ -2485,6 +2489,9 @@ athena_artifacts_run_extract_worker (const fs::path& manifest,
     for (const QJsonValue& value: root.value ("title_filter").toArray ())
       entries.push_back (value.toString ().toStdString ());
     title_filter= athena_artifact_title_filter_from_entries (entries);
+    for (const auto& value: root.value ("structured_title_filter").toArray ())
+      athena_artifact_title_filter_add (title_filter,
+        fragment_tree (value.toString ().toStdString ()));
     requested_documents= root.value ("documents").toArray ();
   }
 

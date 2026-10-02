@@ -69,6 +69,7 @@ struct RadioactiveIndex {
   struct Name {
     std::vector<Token> tokens;
     std::string display;
+    std::string fragment;
   };
   std::unordered_map<std::string,Name> names;
   AthenaArtifactTitleFilter title_filter;
@@ -361,15 +362,22 @@ std::shared_ptr<const RadioactiveIndex> build_index (
     if (record.type == "completion") continue;
     for (size_t i=0; i<record.semantic_names.size (); ++i) {
       QString term= qstring_from_utf8 (record.semantic_names[i]).simplified ();
+      std::string fragment= i < record.semantic_name_trees.size () ?
+        record.semantic_name_trees[i] : std::string ();
+      tree name= fragment.empty () ? tree (string (record.semantic_names[i].c_str ())) :
+        athena::document::read_xml (fragment, athena::document::xml_kind::fragment);
       if (term.isEmpty () || term.size () > maximum_term_characters ||
-          (filter && athena_artifact_title_filter_contains (*filter, term.toStdString ())))
+          (filter && athena_artifact_title_filter_contains (*filter, name)))
         continue;
-      auto tokens= name_tokens (record, i);
+      auto tokens= tree_tokens (name);
       add_term (*index, tokens, record.uuid);
       for (const Token& token: tokens)
         if (token.key.startsWith (QChar (0))) index->has_structured_names= true;
       std::string key= token_key (tokens);
-      index->names.emplace (key, RadioactiveIndex::Name {std::move (tokens), term.toStdString ()});
+      if (fragment.empty ()) fragment= athena::document::write_xml (
+        name, athena::document::xml_kind::fragment);
+      index->names.emplace (key, RadioactiveIndex::Name {
+        std::move (tokens), term.toStdString (), std::move (fragment)});
       std::vector<std::string>& matches= index->records_by_key[key];
       if (std::find (matches.begin (), matches.end (), record.uuid) ==
           matches.end ())
@@ -680,6 +688,22 @@ athena_artifact_radioactive_name (const AthenaArtifactRecord& record) {
   return string (utf8.constData (), (int) utf8.size ());
 }
 
+bool athena_artifact_radioactive_name_for_key (
+  const std::string& key, std::string& fragment, std::string& display) {
+  auto index= active_index ();
+  if (!index) return false;
+  auto read= [&] (const RadioactiveIndex& layer) {
+    auto found= layer.names.find (key);
+    if (found == layer.names.end ()) return false;
+    fragment= found->second.fragment;
+    display= found->second.display;
+    return true;
+  };
+  for (const auto& entry: index->overlays)
+    if (read (*entry.second)) return true;
+  return read (*index) || (index->base && read (*index->base));
+}
+
 std::string
 athena_artifact_radioactive_key (const AthenaArtifactRecord& record) {
   return token_key (record.semantic_names.empty () ? std::vector<Token> ()
@@ -876,6 +900,18 @@ void athena_artifact_radioactive_refresh () {
   std::lock_guard<std::mutex> guard (index_build_mutex);
   if (epoch != saved_epoch || (vault && !vault_context_is_current (vault))) return;
   if (loaded_incarnation != incarnation) overlays.clear ();
+  const bool filter_changed= !disk_index || !disk_index->has_title_filter ||
+    disk_index->title_filter.normalized != filter.normalized ||
+    disk_index->title_filter.structured != filter.structured;
+  if (filter_changed) for (auto& entry: overlays) {
+    std::vector<AthenaArtifactRecord> live;
+    for (const auto& record: entry.second.index->records) live.push_back (record.second);
+    auto rebuilt= build_index (live, {}, &filter);
+    note_matching_changes (entry.second.index.get (), rebuilt.get ());
+    entry.second.index= std::move (rebuilt);
+  }
+  if (filter_changed) for (const auto& entry: saved_overlays)
+    note_matching_changes (entry.second.get (), index.get ());
   saved_overlays.clear ();
   loaded_incarnation= incarnation;
   loaded_revision= revision;
@@ -896,6 +932,9 @@ void athena_artifact_radioactive_overlay (
     overlays.clear (); saved_overlays.clear (); loaded_incarnation= incarnation; loaded_revision= 0;
     disk_index= build_index ({}, vault->root.string ());
   }
+  if (!current || current->base != disk_index)
+    index= build_index (records, {}, disk_index && disk_index->has_title_filter ?
+      &disk_index->title_filter : nullptr);
   for (auto i= overlays.begin (); i != overlays.end (); )
     if (i->second.owner == owner && i->first != relative_path) i= overlays.erase (i);
     else ++i;
@@ -990,6 +1029,9 @@ void athena_artifact_radioactive_saved_document (
   auto index= build_index (records, {}, current && current->has_title_filter ? &current->title_filter : nullptr);
   std::lock_guard<std::mutex> guard (index_build_mutex);
   if (!disk_index || fs::path (disk_index->vault_root) != root.lexically_normal ()) return;
+  if (!current || current->base != disk_index)
+    index= build_index (records, {}, disk_index->has_title_filter ?
+      &disk_index->title_filter : nullptr);
   ++saved_epoch;
   if (!overlays.count (relative_path)) {
     auto old= saved_overlays.find (relative_path);
