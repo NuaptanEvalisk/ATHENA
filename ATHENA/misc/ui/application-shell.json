@@ -46,6 +46,90 @@
       "help": "Open ATHENA preferences"
     },
     {
+      "id": "application.view-all-preferences",
+      "label": "View all preferences",
+      "category": "Edit",
+      "icon": "view-list-details",
+      "help": "Export and inspect all ATHENA preferences"
+    },
+    {
+      "id": "file.new-within-namespace",
+      "label": "New within namespace",
+      "category": "File",
+      "icon": "document-new",
+      "help": "Create a new document within a namespace"
+    },
+    {
+      "id": "file.load-vault",
+      "label": "Load Vault",
+      "category": "File",
+      "icon": "folder-open",
+      "help": "Open a Vault directory"
+    },
+    {
+      "id": "file.unload-vault",
+      "label": "Unload Vault",
+      "category": "File",
+      "icon": "window-close",
+      "help": "Close the active Vault"
+    },
+    {
+      "id": "file.clear-recent-files",
+      "label": "Clear recent files",
+      "category": "File",
+      "icon": "edit-clear-history",
+      "help": "Clear the recent-file history"
+    },
+    {
+      "id": "file.clear-recent-vaults",
+      "label": "Clear recent Vaults",
+      "category": "File",
+      "icon": "edit-clear-history",
+      "help": "Clear the recent-Vault history"
+    },
+    {
+      "id": "file.open-external",
+      "label": "Open in text editor",
+      "category": "File",
+      "icon": "document-open",
+      "help": "Open the active document with the operating-system handler"
+    },
+    {
+      "id": "file.open-folder",
+      "label": "Open in file manager",
+      "category": "File",
+      "icon": "folder-open",
+      "help": "Open the active document's folder in the file manager"
+    },
+    {
+      "id": "file.import-pdf-embedded",
+      "label": "PDF with embedded document",
+      "category": "File",
+      "icon": "application-pdf",
+      "help": "Import an ATHENA document embedded in a PDF"
+    },
+    {
+      "id": "editor.export-pdf-embedded",
+      "label": "PDF with embedded document",
+      "category": "File",
+      "icon": "application-pdf",
+      "help": "Export the active document as PDF with the ATHENA source embedded"
+    },
+    {
+      "id": "file.restart",
+      "label": "Restart ATHENA",
+      "category": "File",
+      "icon": "view-refresh",
+      "help": "Restart ATHENA through the existing safe restart transaction"
+    },
+    {
+      "id": "interface.show-keypresses",
+      "label": "Show key presses",
+      "category": "Interface",
+      "icon": "input-keyboard",
+      "help": "Show keyboard presses in the editor"
+    },
+    {
       "id": "application.command-palette",
       "label": "Command palette...",
       "category": "Go",
@@ -335,6 +419,58 @@
       "help": "Paste into the active editor"
     },
     {
+      "id": "editor.clear-selection",
+      "label": "Clear",
+      "category": "Edit",
+      "icon": "edit-clear",
+      "help": "Clear the current editor selection",
+      "editor_action": {"op":"business","id":"editor-clear-selection"}
+    },
+    {
+      "id": "editor.clear-undo-history",
+      "label": "Clear undo history",
+      "category": "Edit",
+      "icon": "edit-clear-history",
+      "help": "Discard the undo and redo history for the active document",
+      "editor_action": {"op":"business","id":"editor-clear-undo-history"}
+    },
+    {
+      "id": "editor.ai-completion",
+      "label": "AI completion",
+      "category": "Edit",
+      "icon": "system-run",
+      "help": "Continue the selected content with the configured Codex bridge",
+      "requires": ["selection"],
+      "forbids": ["read-only"],
+      "editor_action": {"op":"business","id":"editor-ai-completion"}
+    },
+    {
+      "id": "editor.ai-completion-new-buffer",
+      "label": "AI completion (new buffer)",
+      "category": "Edit",
+      "icon": "system-run",
+      "help": "Generate a continuation in a temporary buffer",
+      "requires": ["selection"],
+      "editor_action": {"op":"business","id":"editor-ai-completion-new-buffer"}
+    },
+    {
+      "id": "editor.ai-completion-custom",
+      "label": "AI completion (custom)",
+      "category": "Edit",
+      "icon": "system-run",
+      "help": "Choose custom AI completion options for the selection",
+      "requires": ["selection"],
+      "editor_action": {"op":"business","id":"editor-ai-completion-custom"}
+    },
+    {
+      "id": "interface.remote-control",
+      "label": "Remote control",
+      "category": "Interface",
+      "icon": "input-keyboard",
+      "help": "Toggle presentation remote-control mode for the active editor",
+      "editor_action": {"op":"business","id":"view-toggle-remote-control"}
+    },
+    {
       "id": "editor.node-properties",
       "label": "Node properties...",
       "category": "Focus",
@@ -577,14 +713,30 @@
       "items": [
         { "command": "application.new-document" },
         { "command": "application.new-tab" },
+        { "command": "file.new-within-namespace" },
         { "command": "application.open" },
         { "command": "application.open-new-window" },
+        { "command": "file.load-vault" },
+        { "command": "file.unload-vault" },
         { "command": "file.compare-files" },
+        { "command": "file.open-external" },
+        { "command": "file.open-folder" },
         {
           "submenu": "file-recent",
           "label": "Recent Files",
           "items": [
-            { "provider": "recent-files" }
+            { "provider": "recent-files" },
+            { "separator": true },
+            { "command": "file.clear-recent-files" }
+          ]
+        },
+        {
+          "submenu": "file-recent-vaults",
+          "label": "Recent Vaults",
+          "items": [
+            { "provider": "recent-vaults" },
+            { "separator": true },
+            { "command": "file.clear-recent-vaults" }
           ]
         },
         { "separator": true },
@@ -608,7 +760,9 @@
           "submenu": "file-import",
           "label": "Import",
           "items": [
-            { "provider": "file-import-formats" }
+            { "provider": "file-import-formats" },
+            { "separator": true },
+            { "command": "file.import-pdf-embedded" }
           ]
         },
         {
@@ -618,6 +772,7 @@
             { "provider": "file-export-formats" },
             { "separator": true },
             { "command": "editor.export-pdf" },
+            { "command": "editor.export-pdf-embedded" },
             { "command": "editor.export-postscript" },
             {
               "submenu": "file-export-selection-image",
@@ -634,6 +789,7 @@
         { "command": "application.preferences" },
         { "separator": true },
         { "command": "editor.close-document" },
+        { "command": "file.restart" },
         { "command": "application.quit" }
       ]
     },
@@ -642,15 +798,63 @@
       "label": "Edit",
       "items": [
         { "command": "editor.undo" },
-        { "command": "editor.redo" },
+        { "provider": "editor-redo-menu" },
         { "separator": true },
         { "command": "editor.copy" },
         { "command": "editor.cut" },
         { "command": "editor.paste" },
+        { "command": "editor.clear-selection" },
+        {
+          "submenu": "edit-copy-to",
+          "label": "Copy to",
+          "items": [
+            { "provider": "editor-selection-copy-to" }
+          ]
+        },
+        {
+          "submenu": "edit-cut-to",
+          "label": "Cut to",
+          "items": [
+            { "provider": "editor-selection-cut-to" }
+          ]
+        },
+        {
+          "submenu": "edit-paste-from",
+          "label": "Paste from",
+          "items": [
+            { "provider": "editor-selection-paste-from" }
+          ]
+        },
         { "separator": true },
         { "command": "editor.search" },
         { "command": "editor.replace" },
         { "command": "workspace.global-search" },
+        {
+          "submenu": "edit-ai",
+          "label": "AI",
+          "items": [
+            { "command": "editor.ai-completion" },
+            { "command": "editor.ai-completion-new-buffer" },
+            { "command": "editor.ai-completion-custom" }
+          ]
+        },
+        { "separator": true },
+        {
+          "submenu": "edit-import-selections-as",
+          "label": "Import selections as",
+          "items": [
+            { "provider": "editor-selection-import-preference" }
+          ]
+        },
+        {
+          "submenu": "edit-export-selections-as",
+          "label": "Export selections as",
+          "items": [
+            { "provider": "editor-selection-export-preference" }
+          ]
+        },
+        { "command": "editor.clear-undo-history" },
+        { "command": "application.view-all-preferences" },
         { "separator": true },
         { "command": "namespace.copy" },
         { "command": "namespace.paste" },
@@ -706,6 +910,7 @@
       "label": "Focus",
       "items": [
         { "command": "editor.node-properties" },
+        { "provider": "editor-focus-vault-context" },
         {
           "submenu": "focus-document-style",
           "label": "Document style",
@@ -931,7 +1136,10 @@
         { "command": "interface.status-bar" },
         { "separator": true },
         { "command": "interface.presentation-tool" },
-        { "command": "interface.source-tool" }
+        { "command": "interface.source-tool" },
+        { "separator": true },
+        { "command": "interface.show-keypresses" },
+        { "command": "interface.remote-control" }
       ]
     },
     {

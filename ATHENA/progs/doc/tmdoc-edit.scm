@@ -92,3 +92,11 @@
     (when (and t (== (tree-arity t) 2))
       (tree-go-to t 0 :end)
       (make 'explain-synopsis))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; UI-independent rules migrated from retired Scheme menu modules
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(tm-define (focus-can-move? t)
+  (:require (tree-in? t '(tmdoc-title tmdoc-copyright tmdoc-license)))
+  #f)

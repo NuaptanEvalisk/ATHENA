@@ -120,7 +120,7 @@
            (refs (map get-reference refl))
            (body (tree-copy (buffer-get-body buf))))
       (view-new u) ; needed by buffer-focus, used in with-buffer
-      (buffer-set-body u body) 
+      (buffer-set-body u body)
       (with-buffer u
         (set-style-list styles)
         (init-env "global-title" (buffer-get-metadata buf "title"))
@@ -189,6 +189,26 @@
     (map (lambda (fm)
            (list fm (format-get-name fm) (format-default-suffix fm)))
          (converters-from-special "texmacs-file" "-file" #f))))
+
+(tm-define (native-selection-export-format-provider-data)
+  (apply append
+    (map (lambda (fm) (list fm (format-get-name fm)))
+         (converters-from-special "texmacs-snippet" "-snippet" #t))))
+
+(tm-define (native-selection-import-format-provider-data)
+  (apply append
+    (map (lambda (fm) (list fm (format-get-name fm)))
+         (converters-to-special "texmacs-snippet" "-snippet" #t))))
+
+(tm-define (native-selection-export-preference-provider-data)
+  (apply append
+    (map (lambda (fm) (list fm (format-get-name fm)))
+         (converters-from-special "texmacs-file" "-file" #f))))
+
+(tm-define (native-selection-import-preference-provider-data)
+  (apply append
+    (map (lambda (fm) (list fm (format-get-name fm)))
+         (converters-to-special "texmacs-file" "-file" #f))))
 
 (tm-define (native-selection-image-format-provider-data)
   (apply append
@@ -954,3 +974,15 @@
 
 (register-preference-callback-procedures
   (list notify-autosave))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; UI-independent rules migrated from retired Scheme menu modules
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(tm-define (buffer-more-recent? b1 b2)
+  (>= (buffer-last-visited b1)
+      (buffer-last-visited b2)))
+
+(tm-define (buffer-sorted-list)
+  (with l (list-filter (buffer-list) buffer-in-menu?)
+    (list-sort l buffer-more-recent?)))

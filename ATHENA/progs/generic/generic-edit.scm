@@ -94,8 +94,8 @@
 (tm-define (make-thumbnails nr)
   (:argument nr "Number of pictures per row")
   (if (string? nr) (set! nr (min (string->number nr) 32)))
-  (user-url "Picture directory" "directory" 
-   (lambda (dir) 
+  (user-url "Picture directory" "directory"
+   (lambda (dir)
      (let* ((find (url-append dir (thumbnail-suffixes)))
                   (files (url->list (url-expand (url-complete find "r"))))
                   (base (buffer-master))
@@ -137,7 +137,7 @@
   (wrap-selection-any
     (make-insertion "float")
     (make 'algorithm)))
-   
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Routines for floats
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -234,3 +234,42 @@
 
 (tm-property (focus-open-search-tool t)
   (:interactive #t))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; UI-independent rules migrated from retired Scheme menu modules
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(tm-define (page-numbering-context? t)
+  (tree-in? t '(set-this-page-header set-this-page-footer
+                set-header set-footer
+                set-odd-page-header set-even-page-header
+                set-odd-page-footer set-even-page-footer
+                set-page-number set-page-number-macro)))
+
+(tm-define (notify-activated t)
+  (:require (page-numbering-context? t))
+  (refresh-window))
+
+(tm-define (notify-disactivated t)
+  (:require (page-numbering-context? t))
+  (refresh-window))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; UI-independent rules migrated from generic-menu.scm
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(tm-define (child-proposals t i)
+  (:require (== (tree-child-type t i) "duration"))
+  (list "0.25s" "0.5s" "1s" "1.5s" "2s" "2.5s" "3s" "4s" "5s" "10s" :other))
+
+(tm-define (parameter-show-in-menu? l)
+  (:require (in? l (list "the-label" "auto-nr" "current-part" "language"
+                         "page-nr" "page-the-page" "prog-language"
+                         "caption-summarized" "figure-width")))
+  #f)
+
+(tm-define (style-clear-cache)
+  (former)
+  (focus-parameters-cache-clear))
+
+(tm-property (search-start forward?) (:interactive #t))

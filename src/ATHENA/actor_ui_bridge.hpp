@@ -337,6 +337,9 @@ struct actor_focus_toolbar_snapshot {
   bool embedded_image_context= false;
   bool linked_image_context= false;
   std::string embedded_image_proposal;
+  bool transclusion_context= false;
+  bool referenced_materials_context= false;
+  std::string materials_reference_style;
 
   bool valid () const noexcept {
     return (flags & ACTOR_FOCUS_TOOLBAR_VALID) != 0;

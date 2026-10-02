@@ -1,6 +1,5 @@
 ;; Generic editor commands execute on the owning BufferActor.
 (import-from (generic generic-edit))
-(import-from (generic generic-menu))
 (import-from (generic generic-doc))
 (init-style "generic")
 

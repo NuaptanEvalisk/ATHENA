@@ -7,8 +7,7 @@
         (kernel athena tm-secure)
         (utils library cursor)
         (generic document-edit)
-        (link link-navigate)
-        (athena menus file-menu)))
+        (link link-navigate)))
 (import-from (kernel athena tm-preferences))
 
 
@@ -623,25 +622,19 @@
            (tree-go-to parent (- index 1) :end))
           (else (vault-go-outside-tree parent forwards?)))))
 
-(define (vault-go-before-transclusion)
+(tm-define (vault-go-before-transclusion)
   (and-with t (vault-focused-transclusion)
     (selection-cancel)
     (vault-go-outside-tree t #f)))
 
-(define (vault-go-after-transclusion)
+(tm-define (vault-go-after-transclusion)
   (and-with t (vault-focused-transclusion)
     (selection-cancel)
     (vault-go-outside-tree t #t)))
 
-(define (vault-select-transclusion)
+(tm-define (vault-select-transclusion)
   (and-with t (vault-focused-transclusion)
     (tree-select t)))
-
-(tm-menu (vault-transclusion-focus-menu)
-  ("Move before transclusion" (vault-go-before-transclusion))
-  ("Select transclusion" (vault-select-transclusion))
-  ("Move after transclusion" (vault-go-after-transclusion)))
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Fuzzy Search Logic

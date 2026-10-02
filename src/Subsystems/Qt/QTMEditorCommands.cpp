@@ -143,6 +143,141 @@ editor_provider_state (
   return state;
 }
 
+enum class selection_menu_kind {
+  copy,
+  cut,
+  paste,
+  import_preference,
+  export_preference
+};
+
+const char*
+selection_format_provider (selection_menu_kind kind) {
+  switch (kind) {
+  case selection_menu_kind::copy:
+  case selection_menu_kind::cut:
+    return "native-selection-export-format-provider-data";
+  case selection_menu_kind::paste:
+    return "native-selection-import-format-provider-data";
+  case selection_menu_kind::import_preference:
+    return "native-selection-import-preference-provider-data";
+  case selection_menu_kind::export_preference:
+    return "native-selection-export-preference-provider-data";
+  }
+  return "";
+}
+
+QTMCommandState
+selection_menu_state (
+  const QTMCommandContext& context, selection_menu_kind kind) {
+  const bool selection=
+    kind == selection_menu_kind::copy || kind == selection_menu_kind::cut;
+  const bool writable=
+    kind == selection_menu_kind::cut || kind == selection_menu_kind::paste;
+  return editor_provider_state (context, 0, writable, selection);
+}
+
+QVector<QTMCommandDynamicItem>
+selection_menu_items (
+  const QTMCommandContext& context, selection_menu_kind kind) {
+  QVector<QTMCommandDynamicItem> out;
+  QTMCommandState state= selection_menu_state (context, kind);
+  if (!state.available) return out;
+  try {
+    QVector<QString> values=
+      scheme_string_vector (call (selection_format_provider (kind)));
+    for (int i= 0; i + 1 < values.size (); i += 2) {
+      QTMCommandDynamicItem item=
+        enabled_dynamic_item (
+          QStringLiteral ("format/") + values[i], values[i + 1]);
+      item.group= QObject::tr ("Formats");
+      item.state.enabled= state.enabled;
+      out.append (std::move (item));
+    }
+  }
+  catch (...) {}
+  if (kind == selection_menu_kind::copy ||
+      kind == selection_menu_kind::cut ||
+      kind == selection_menu_kind::paste) {
+    if (kind == selection_menu_kind::copy) {
+      QTMCommandDynamicItem image=
+        enabled_dynamic_item (
+          QStringLiteral ("image"), QObject::tr ("Image"));
+      image.group= QObject::tr ("Formats");
+      image.state.enabled= state.enabled;
+      out.append (std::move (image));
+    }
+    for (const char* key: {"primary", "secondary", "ternary"}) {
+      QString qkey= QString::fromLatin1 (key);
+      QTMCommandDynamicItem item=
+        enabled_dynamic_item (
+          QStringLiteral ("named/") + qkey,
+          qkey.left (1).toUpper () + qkey.mid (1));
+      item.group= QObject::tr ("Clipboards");
+      item.state.enabled= state.enabled;
+      out.append (std::move (item));
+    }
+    QTMCommandDynamicItem other=
+      enabled_dynamic_item (
+        QStringLiteral ("named/__other__"), QObject::tr ("Other..."));
+    other.group= QObject::tr ("Clipboards");
+    other.state.enabled= state.enabled;
+    out.append (std::move (other));
+  }
+  return out;
+}
+
+bool
+execute_selection_menu_item (
+  const QTMCommandContext& context, selection_menu_kind kind,
+  const QString& key) {
+  QTMCommandState state= selection_menu_state (context, kind);
+  if (!state.available || !state.enabled) return false;
+
+  QJsonObject action;
+  if (kind == selection_menu_kind::copy && key == QStringLiteral ("image")) {
+    action.insert ("op", "business");
+    action.insert ("id", "editor-copy-image");
+    return submit_inline_editor_action (context, action);
+  }
+  if (kind == selection_menu_kind::import_preference ||
+      kind == selection_menu_kind::export_preference) {
+    if (!key.startsWith (QStringLiteral ("format/"))) return false;
+    action.insert ("op", "selection-format-default");
+    action.insert (
+      "direction",
+      kind == selection_menu_kind::import_preference ? "import" : "export");
+    action.insert ("format", key.mid (7));
+    return submit_inline_editor_action (context, action);
+  }
+
+  QString operation=
+    kind == selection_menu_kind::copy ? QStringLiteral ("copy") :
+    kind == selection_menu_kind::cut ? QStringLiteral ("cut") :
+                                       QStringLiteral ("paste");
+  QString clipboard= QStringLiteral ("primary");
+  if (key.startsWith (QStringLiteral ("named/"))) {
+    clipboard= key.mid (6);
+    if (clipboard == QStringLiteral ("__other__")) {
+      bool ok= false;
+      clipboard= QInputDialog::getText (
+        context.shell.data (), QObject::tr ("Clipboard"),
+        QObject::tr ("Clipboard name:"), QLineEdit::Normal,
+        QStringLiteral ("primary"), &ok).trimmed ();
+      if (!ok || clipboard.isEmpty ()) return true;
+    }
+  }
+  else if (!key.startsWith (QStringLiteral ("format/")))
+    return false;
+
+  action.insert ("op", "selection-clipboard");
+  action.insert ("operation", operation);
+  action.insert ("key", clipboard);
+  if (key.startsWith (QStringLiteral ("format/")))
+    action.insert ("format", key.mid (7));
+  return submit_inline_editor_action (context, action);
+}
+
 native_editor_command_id
 editor_command_id (const QString& id) {
   if (id == "editor.undo") return native_editor_command_id::undo;
@@ -899,6 +1034,94 @@ QTMCommandRegistry::registerEditorCommands () {
   registerMathToggle (
     "editor.math-preferences.semantic-correctness",
     "semantic correctness", "off", "on", "off");
+
+  registerBehavior (
+    "editor.export-pdf-embedded", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return false;
+      QString path= QFileDialog::getSaveFileName (
+        context.shell.data (),
+        QObject::tr ("Export PDF with embedded document"),
+        QString (), QObject::tr ("PDF documents (*.pdf)"));
+      if (path.isEmpty ()) return true;
+      if (!path.endsWith (QStringLiteral (".pdf"), Qt::CaseInsensitive))
+        path += QStringLiteral (".pdf");
+      QJsonObject action;
+      action.insert ("op", "export-pdf-embedded");
+      action.insert ("path", path);
+      return submit_inline_editor_action (context, action);
+    },
+    [] (const QTMCommandContext& context) {
+      return editor_provider_state (context);
+    });
+
+  const struct {
+    const char* id;
+    selection_menu_kind kind;
+  } selectionProviders[]= {
+    {"editor-selection-copy-to", selection_menu_kind::copy},
+    {"editor-selection-cut-to", selection_menu_kind::cut},
+    {"editor-selection-paste-from", selection_menu_kind::paste},
+    {"editor-selection-import-preference",
+     selection_menu_kind::import_preference},
+    {"editor-selection-export-preference",
+     selection_menu_kind::export_preference}
+  };
+  for (const auto& provider: selectionProviders) {
+    selection_menu_kind kind= provider.kind;
+    registerProvider (
+      QString::fromLatin1 (provider.id), QTMCommandScope::Editor,
+      [kind] (const QTMCommandContext& context) {
+        return selection_menu_items (context, kind);
+      },
+      [kind] (const QString& key, const QTMCommandContext& context) {
+        return execute_selection_menu_item (context, kind, key);
+      },
+      [kind] (const QTMCommandContext& context) {
+        return selection_menu_state (context, kind);
+      });
+  }
+  registerProvider (
+    "editor-redo-menu", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QVector<QTMCommandDynamicItem> out;
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return out;
+      actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
+      if (!snapshot.valid () || snapshot.redo_count == 0) return out;
+      for (int i= 0; i < snapshot.redo_count; ++i) {
+        QTMCommandDynamicItem item= enabled_dynamic_item (
+          QString::number (i),
+          snapshot.redo_count == 1 ?
+            QObject::tr ("Redo") :
+            QObject::tr ("Branch %1").arg (i + 1));
+        if (snapshot.redo_count > 1) item.group= QObject::tr ("Redo");
+        item.state.enabled= !snapshot.read_only ();
+        out.append (std::move (item));
+      }
+      return out;
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      bool ok= false;
+      int index= key.toInt (&ok);
+      if (!ok || index < 0) return false;
+      QJsonObject action;
+      action.insert ("op", "redo-branch");
+      action.insert ("index", index);
+      return submit_inline_editor_action (
+        context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
+    },
+    [] (const QTMCommandContext& context) {
+      QTMCommandState state;
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return state;
+      actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
+      if (!snapshot.valid () || snapshot.redo_count == 0) return state;
+      state.available= true;
+      state.enabled= !snapshot.read_only ();
+      return state;
+    });
 
   const QString editorCommands[]= {
     "editor.undo",

@@ -37,19 +37,24 @@
 #include "QTMVaultMaintenanceDialog.hpp"
 #include "QTMWebsitesManager.hpp"
 #include "boot.hpp"
+#include "editor.hpp"
 #include "file.hpp"
 #include "message.hpp"
 #include "new_buffer.hpp"
 #include "new_view.hpp"
 #include "new_window.hpp"
 #include "scheme.hpp"
+#include "Scheme/Scheme/native_interfaces.hpp"
 #include "server.hpp"
 #include "tm_window.hpp"
+#include "ATHENA/Data/vault.hpp"
 
+#include <QDesktopServices>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QInputDialog>
 #include <QLineEdit>
+#include <QUrl>
 
 using namespace qtm_command_registry_detail;
 
@@ -324,6 +329,26 @@ toggle_editor_chrome (
   return true;
 }
 
+QString
+context_local_file (const QTMCommandContext& context) {
+  if (!context.lastDocument.has_buffer_name ()) return QString ();
+  url source (string (
+    context.lastDocument.native_url_name.data (),
+    static_cast<int> (context.lastDocument.native_url_name.size ())));
+  if (!is_rooted (source, "default") && !is_rooted (source, "file"))
+    return QString ();
+  QString path= to_qstring (concretize (source));
+  return QFileInfo (path).exists () ? path : QString ();
+}
+
+QTMCommandState
+local_file_command_state (const QTMCommandContext& context) {
+  QTMCommandState state;
+  state.available= !context_local_file (context).isEmpty ();
+  state.enabled= state.available;
+  return state;
+}
+
 } // namespace
 
 void
@@ -361,6 +386,116 @@ QTMCommandRegistry::registerApplicationCommands () {
     [] (const QTMCommandContext&) {
       qtm_preferences_dialog_show ();
       return true;
+    });
+  registerBehavior (
+    "application.view-all-preferences", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      try {
+        (void) call ("view-all-preferences");
+        return true;
+      }
+      catch (...) {
+        return false;
+      }
+    });
+  registerBehavior (
+    "file.new-within-namespace", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      athena_namespace_new_file_within_wizard ();
+      return true;
+    });
+  registerBehavior (
+    "file.load-vault", QTMCommandScope::Application,
+    [] (const QTMCommandContext& context) {
+      QString directory= QFileDialog::getExistingDirectory (
+        context.shell.data (), QObject::tr ("Load Vault"));
+      if (directory.isEmpty ()) return true;
+      try {
+        (void) call (
+          "load-vault-dir", object (url_system (from_qstring (directory))));
+        return true;
+      }
+      catch (...) {
+        return false;
+      }
+    });
+  registerBehavior (
+    "file.unload-vault", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      try {
+        (void) call ("unload-vault");
+        return true;
+      }
+      catch (...) {
+        return false;
+      }
+    },
+    [] (const QTMCommandContext&) {
+      QTMCommandState state= enabled_application_command ();
+      state.enabled= vault_active ();
+      return state;
+    });
+  registerBehavior (
+    "file.clear-recent-files", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      try {
+        (void) call ("forget-interactive", object (string ("recent-buffer")));
+        return true;
+      }
+      catch (...) {
+        return false;
+      }
+    });
+  registerBehavior (
+    "file.clear-recent-vaults", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      vault_clear_recent ();
+      return true;
+    });
+  registerBehavior (
+    "file.restart", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      try {
+        (void) call ("safely-restart-ATHENA");
+        return true;
+      }
+      catch (...) {
+        return false;
+      }
+    });
+  registerBehavior (
+    "file.open-external", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QString path= context_local_file (context);
+      return !path.isEmpty () &&
+             QDesktopServices::openUrl (QUrl::fromLocalFile (path));
+    },
+    local_file_command_state);
+  registerBehavior (
+    "file.open-folder", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QString path= context_local_file (context);
+      if (path.isEmpty ()) return false;
+      return QDesktopServices::openUrl (
+        QUrl::fromLocalFile (QFileInfo (path).absolutePath ()));
+    },
+    local_file_command_state);
+  registerBehavior (
+    "file.import-pdf-embedded", QTMCommandScope::Application,
+    [] (const QTMCommandContext& context) {
+      QString path= QFileDialog::getOpenFileName (
+        context.shell.data (), QObject::tr ("Import PDF with embedded document"),
+        QString (), QObject::tr ("PDF documents (*.pdf)"));
+      if (path.isEmpty ()) return true;
+      try {
+        (void) call (
+          "wrapped-import-pdf-embeded-with-tm",
+          object (url_system (from_qstring (path))));
+        return true;
+      }
+      catch (...) {
+        return false;
+      }
     });
   registerBehavior (
     "application.command-palette", QTMCommandScope::Application,
@@ -405,6 +540,30 @@ QTMCommandRegistry::registerApplicationCommands () {
       if (key.isEmpty ()) return false;
       try {
         (void) call ("load-buffer", object (url (from_qstring (key))));
+        return true;
+      }
+      catch (...) {
+        return false;
+      }
+    });
+  registerProvider (
+    "recent-vaults", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      QVector<QTMCommandDynamicItem> out;
+      array<string> values= vault_get_recent ();
+      for (int i= 0; i<N(values); ++i) {
+        QString path= to_qstring (values[i]);
+        QString label= QFileInfo (path).fileName ();
+        if (label.isEmpty ()) label= path;
+        out.append (enabled_dynamic_item (path, label, path));
+      }
+      return out;
+    },
+    [] (const QString& key, const QTMCommandContext&) {
+      if (key.isEmpty ()) return false;
+      try {
+        (void) call (
+          "load-vault-dir", object (url_system (from_qstring (key))));
         return true;
       }
       catch (...) {
@@ -673,6 +832,18 @@ QTMCommandRegistry::registerApplicationCommands () {
       QTMCommandState state= enabled_application_command ();
       state.checkable= true;
       state.checked= get_user_preference ("source tool", "off") == "on";
+      return state;
+    });
+  registerBehavior (
+    "interface.show-keypresses", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      set_show_kbd (!get_show_kbd ());
+      return true;
+    },
+    [] (const QTMCommandContext&) {
+      QTMCommandState state= enabled_application_command ();
+      state.checkable= true;
+      state.checked= get_show_kbd ();
       return state;
     });
   const QString paneCommands[]= {

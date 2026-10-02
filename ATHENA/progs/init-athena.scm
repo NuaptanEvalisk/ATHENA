@@ -100,31 +100,20 @@
              toggle-persistent-fit-width toggle-typewriter-mode
              toggle-snap-to-pages schedule-persistent-fit-width)
 (lazy-define (athena athena tm-files)
-             buffer-missing-style? buffer-set-default-style command-line-convert)
-(lazy-menu (athena menus file-menu)
-           file-menu go-menu buffer-go-menu
-           new-file-menu load-menu save-menu
-           print-menu print-menu-inline close-menu)
-(lazy-menu (athena menus edit-menu) edit-menu)
-(lazy-menu (athena menus view-menu) view-menu)
-(lazy-menu (athena menus interface-menu) interface-menu)
-(lazy-menu (athena menus utility-menus)
-           athena-go-utilities-menu
-           athena-view-panes-menu
-           athena-workspace-utilities-menu
-           athena-file-utilities-menu
-           athena-document-utilities-menu
-           athena-edit-utilities-menu
-           athena-interface-utilities-menu
-           athena-help-utilities-menu)
+             buffer-missing-style? buffer-set-default-style command-line-convert
+             native-recent-file-provider-data
+             native-import-format-provider-data native-export-format-provider-data
+             native-selection-export-format-provider-data
+             native-selection-import-format-provider-data
+             native-selection-export-preference-provider-data
+             native-selection-import-preference-provider-data)
+(lazy-define (athena athena tm-codex)
+             codex-ai-completion codex-ai-completion-new-buffer
+             codex-ai-completion-custom)
+(lazy-define (kernel athena tm-preferences) view-all-preferences)
 (lazy-menu (athena menus preferences-widgets)
            preferences-open?
            open-preferences)
-(lazy-menu (athena menus main-menu)
-           bookmarks-menu test-menu
-           athena-focus-menu window-list-menu
-           workspace-menu)
-(lazy-define (athena menus file-menu) recent-file-list recent-directory-list)
 (tm-define (notify-set-attachment name key val) (noop))
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
@@ -138,38 +127,29 @@
 (import-from (source source-edit))
 (import-from (athena athena tm-files))
 (import-from (athena athena tm-print))
+(lazy-define (athena athena tm-print)
+             wrapped-import-pdf-embeded-with-tm
+             wrapped-print-to-pdf-embeded-with-tm)
 (import-from (athena athena tm-vault))
-(import-from (athena menus file-menu))
 (import-from (doc help-funcs))
 (generic-keyboard-load)
 (lazy-define (generic live-spell)
              spell-live-import-custom-dictionary-from-preferences)
-(lazy-menu (generic generic-menu) focus-menu)
-(lazy-menu (generic format-menu) format-menu
-           font-size-menu color-menu horizontal-space-menu
-           specific-menu
-           text-font-effects-menu text-effects-menu
-           vertical-space-menu indentation-menu line-break-menu
-           page-break-menu)
-(lazy-menu (generic document-menu) document-menu
-           document-style-menu)
 (lazy-define (generic document-style)
              native-document-background-pattern-dialog
              native-document-background-gradient-dialog
              native-document-background-picture-dialog)
-(lazy-menu (generic document-part)
-           preamble-menu)
 (lazy-define (generic document-part)
              buffer-has-preamble? in-preamble-mode? toggle-preamble-mode)
-(lazy-menu (generic insert-menu) insert-menu texmacs-insert-menu
-           insert-link-menu insert-image-menu)
 (lazy-define (generic document-edit) update-document set-document-language
              get-init-page-rendering init-page-rendering)
 (lazy-define (athena athena tm-tools)
              show-character-count show-word-count show-line-count
-             picture-gc toggle-save-aux)
+             picture-gc toggle-save-aux toggle-show-kbd)
 (lazy-define (athena athena tm-materials)
-             materials-update-current-document)
+             insert-material-citation insert-referenced-materials
+             materials-update-current-document materials-append-references
+             materials-set-reference-style)
 (lazy-define (generic generic-edit) notify-activated notify-disactivated
              wheel-capture?
              native-insert-include-dialog
@@ -246,8 +226,6 @@
 ;(display "Booting text mode\n")
 (lazy-keyboard (text text-edit) in-text?)
 (lazy-keyboard (native-keyboard text) in-text?)
-(lazy-menu (text text-menu) text-format-menu
-	   text-menu text-block-menu text-inline-menu)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 (lazy-define (text text-drd) tm-register-new-list-tag)
 (lazy-define (text text-edit)
@@ -264,13 +242,10 @@
 
 ;(display "Booting math mode\n")
 (lazy-keyboard (math math-sem-edit) in-sem-math?)
-(lazy-menu (math math-menu) math-format-menu
-	   math-menu math-insert-menu
-           math-correct-menu semantic-math-preferences-menu
-           context-preferences-menu insert-math-menu)
-(lazy-initialize (math math-menu) (in-math?))
 (lazy-define (math math-edit)
-             brackets-refresh sqrt-toggle script-context? script-only-script?)
+             brackets-refresh sqrt-toggle script-context? script-only-script?
+             open-latex-formula-dialog)
+(lazy-initialize (math math-edit) (in-math?))
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting programming modes\n")
@@ -284,18 +259,14 @@
 (lazy-keyboard (prog python-edit) in-prog?)
 (lazy-keyboard (prog fortran-edit) in-prog?)
 (lazy-keyboard (native-keyboard prog) in-prog?)
-(lazy-menu (prog prog-menu) prog-format-menu prog-menu)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting source mode\n")
 (lazy-keyboard (native-keyboard source) always?)
-(lazy-menu (source source-menu) source-macros-menu source-menu
-           source-transformational-menu source-executable-menu)
 (lazy-define (source macro-edit)
              has-macro-source? edit-macro-source edit-focus-macro-source
              native-personal-macro-provider-data)
 (lazy-define (source source-edit) extract-style-file)
-(lazy-menu (source macro-menu) insert-macro-menu)
 (lazy-define (source shortcut-edit) init-user-shortcuts has-user-shortcut?)
 (lazy-define (source shortcut-widgets) open-shortcuts-editor)
 (tm-property (open-shortcuts-editor . opt) (:interactive #t))
@@ -306,7 +277,6 @@
 ;(display "Booting table mode\n")
 (lazy-keyboard (table table-edit) in-table?)
 (lazy-keyboard (native-keyboard table) in-table?)
-(lazy-menu (table table-menu) insert-table-menu)
 (lazy-define (table table-edit) table-resize-notify
              native-insert-small-table native-insert-big-table
              table-test-parwidth? table-toggle-parwidth)
@@ -320,7 +290,6 @@
 (lazy-keyboard (graphics graphics-main) in-graphics?)
 (lazy-keyboard (graphics graphics-utils) in-graphics?)
 (lazy-keyboard (native-keyboard graphics) in-graphics?)
-(lazy-menu (graphics graphics-menu) graphics-menu)
 (lazy-define (graphics graphics-utils) make-graphics)
 (lazy-define (graphics graphics-main) graphics-update-proviso
              graphics-get-proviso graphics-set-proviso)
@@ -334,9 +303,6 @@
 ;(display "Booting dynamic features\n")
 (lazy-keyboard (dynamic fold-edit) always?)
 (lazy-keyboard (native-keyboard fold) always?)
-(lazy-menu (dynamic fold-menu) insert-fold-menu dynamic-menu
-           graphics-overlays-menu graphics-screens-menu
-           graphics-focus-overlays-menu)
 (lazy-define (dynamic fold-edit)
              screens-switch-to dynamic-make-slides overlays-context?
              overlay-context? overlays-current overlays-arity
@@ -349,12 +315,11 @@
 
 ;(display "Booting documentation\n")
 (lazy-keyboard (native-keyboard tmdoc) in-manual?)
-(lazy-menu (doc tmdoc-menu) tmdoc-menu)
+(lazy-initialize (doc tmdoc-edit) (in-manual?))
 (lazy-define (doc tmdoc-edit)
              tmdoc-make-branch tmdoc-insert-explain-synopsis
              tmdoc-propose-title? tmdoc-propose-copyright-and-license?
              tmdoc-insert-title tmdoc-insert-copyright-and-license)
-(lazy-menu (doc help-menu) help-menu)
 (lazy-define (doc tmdoc) tmdoc-expand-help tmdoc-expand-help-manual
              tmdoc-expand-this tmdoc-include)
 (lazy-define (doc docgrep) docgrep-in-doc docgrep-in-src
@@ -402,15 +367,12 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting editing modes for various special styles\n")
-(lazy-menu (various poster-menu) poster-block-menu)
-(lazy-menu (various theme-menu) basic-theme-menu)
 (lazy-define (various theme-edit) basic-themes current-basic-theme)
 (lazy-define (various poster-edit)
              poster-themes poster-title-styles
              current-poster-theme current-poster-title-style
              poster-block-context? titled-block-context? block-wide?
              block-toggle-titled block-toggle-wide make-poster-title)
-(lazy-define (various theme-menu) basic-theme-name)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 

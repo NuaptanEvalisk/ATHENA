@@ -948,3 +948,11 @@
   (if (== (object-get-property "doc-at-padding") "0spc")
       (object-set-property "doc-at-padding" "1spc")
       (object-set-property "doc-at-padding" "default")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; UI-independent rules migrated from graphics-menu.scm
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(tm-define (structured-horizontal? t)
+  (:require (graphical-text-at-context? t))
+  #f)

@@ -182,3 +182,11 @@
   (when (not shift?)
     (tree-go-to t :end)
     (insert-go-to '(framed-titled-block "" (document "")) '(0 0))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; UI-independent rules migrated from poster-menu.scm
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(tm-define (focus-can-insert-remove? t)
+  (:require (poster-block-context? t))
+  #t)

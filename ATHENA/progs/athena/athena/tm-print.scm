@@ -108,6 +108,25 @@
   (node-reference-with-export
     (lambda () (wrapped-print-to-pdf-embeded-with-tm-ready fname))))
 
+(tm-define (wrapped-import-pdf-embeded-with-tm tem-pdf)
+  (let* ((tem-dir (url-temp-dir))
+         (tem-tm (url-append tem-dir "tem.tm"))
+         (tem-tm2 (url-append tem-dir "extracted.tm")))
+    (if (extract-attachments tem-pdf)
+        (begin
+          (string-save
+            (serialize-texmacs
+              (pdf-replace-linked-path
+                (tree-import
+                  (url-relative tem-tm (pdf-get-attached-main-tm tem-pdf))
+                  "texmacs")
+                tem-pdf))
+            tem-tm2)
+          (load-buffer tem-tm2))
+        (begin
+          (notify-now "Can not extract attachments from PDF")
+          (texmacs-error "pdf" "Can not extract attachments from PDF")))))
+
 (define (wrapped-print-to-pdf-embeded-with-tm-ready fname)
     (unless (string=? (url-suffix fname) "pdf")
       (texmacs-error "Wrapped-print-to-pdf-embeded-with-tm" "fname is not a pdf"))

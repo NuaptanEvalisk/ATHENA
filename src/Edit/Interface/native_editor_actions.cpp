@@ -212,6 +212,18 @@ valid_business_id (const QString& id) {
     "popup-resolve-artifact",
     "popup-formula-ast",
     "popup-spell-add",
+    "editor-clear-selection",
+    "editor-clear-undo-history",
+    "editor-ai-completion",
+    "editor-ai-completion-new-buffer",
+    "editor-ai-completion-custom",
+    "editor-copy-image",
+    "document-flatten-transclusions",
+    "focus-transclusion-before",
+    "focus-transclusion-select",
+    "focus-transclusion-after",
+    "focus-materials-append",
+    "focus-materials-update",
     "letter-today",
     "tmdoc-explain-synopsis",
     "make-alter-colors"
@@ -448,6 +460,30 @@ execute_business_id (editor ed, const QString& id) {
   }
   else if (id == "popup-spell-add")
     popup_spell_add (ed);
+  else if (id == "editor-clear-selection")
+    ed->selection_clear ("primary");
+  else if (id == "editor-clear-undo-history")
+    ed->clear_undo_history ();
+  else if (id == "editor-ai-completion")
+    (void) call ("codex-ai-completion");
+  else if (id == "editor-ai-completion-new-buffer")
+    (void) call ("codex-ai-completion-new-buffer");
+  else if (id == "editor-ai-completion-custom")
+    (void) call ("codex-ai-completion-custom");
+  else if (id == "editor-copy-image")
+    (void) call ("clipboard-copy-image", object (string ("")));
+  else if (id == "document-flatten-transclusions")
+    (void) call ("vault-flatten-document");
+  else if (id == "focus-transclusion-before")
+    (void) call ("vault-go-before-transclusion");
+  else if (id == "focus-transclusion-select")
+    (void) call ("vault-select-transclusion");
+  else if (id == "focus-transclusion-after")
+    (void) call ("vault-go-after-transclusion");
+  else if (id == "focus-materials-append")
+    (void) call ("materials-append-references");
+  else if (id == "focus-materials-update")
+    (void) call ("materials-update-current-document");
   else if (id == "letter-today") {
     (void) call ("make-header", symbol_object ("letter-date"));
     (void) call ("make", symbol_object ("date"), object (0));
@@ -528,12 +564,45 @@ native_editor_action_validate (const QJsonObject& action, QString* error) {
   if (op == "document-install-style")
     return has_string (action, "path") ?
              true : fail_validation (error, "document-install-style requires path");
+  if (op == "export-pdf-embedded")
+    return has_string (action, "path") ?
+             true : fail_validation (
+               error, "export-pdf-embedded requires path");
   if (op == "document-default-theme")
     return true;
   if (op == "popup-spell-replace")
     return has_string (action, "replacement") ?
              true : fail_validation (
                error, "popup-spell-replace requires replacement");
+  if (op == "selection-clipboard") {
+    if (!has_string (action, "operation") || !has_string (action, "key"))
+      return fail_validation (
+        error, "selection-clipboard requires operation/key");
+    const QString operation= action.value ("operation").toString ();
+    if (!QSet<QString> {"copy", "cut", "paste"}.contains (operation))
+      return fail_validation (error, "invalid selection-clipboard operation");
+    return !action.contains ("format") || has_string (action, "format") ?
+             true : fail_validation (
+               error, "selection-clipboard format must be a string");
+  }
+  if (op == "selection-format-default") {
+    if (!has_string (action, "direction") || !has_string (action, "format"))
+      return fail_validation (
+        error, "selection-format-default requires direction/format");
+    return QSet<QString> {"import", "export"}.contains (
+             action.value ("direction").toString ()) ?
+             true : fail_validation (
+               error, "invalid selection-format-default direction");
+  }
+  if (op == "redo-branch")
+    return action.value ("index").isDouble () &&
+           action.value ("index").toInt (-1) >= 0 ?
+             true : fail_validation (
+               error, "redo-branch requires nonnegative index");
+  if (op == "focus-materials-style")
+    return has_string (action, "style") ?
+             true : fail_validation (
+               error, "focus-materials-style requires style");
   if (op == "document-citation-style") {
     if (!has_bool (action, "default"))
       return fail_validation (error, "document-citation-style requires default");
@@ -847,6 +916,10 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     if (document_install_custom_style (source))
       document_set_main_style (document_custom_style_file_name (source));
   }
+  else if (op == "export-pdf-embedded")
+    (void) call (
+      "wrapped-print-to-pdf-embeded-with-tm",
+      object (url_system (native_action_string (action.value ("path")))));
   else if (op == "document-default-theme") {
     actor_document_menu_snapshot state= ed->document_menu_state_snapshot ();
     if (!state.ready || state.document_theme_kind != "basic") return;
@@ -860,6 +933,50 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
   else if (op == "popup-spell-replace")
     popup_spell_replace (
       ed, native_action_string (action.value ("replacement")));
+  else if (op == "selection-clipboard") {
+    const QString operation= action.value ("operation").toString ();
+    const string key= native_action_string (action.value ("key"));
+    const bool hasFormat= action.contains ("format");
+    string previous;
+    if (hasFormat) {
+      const string format= native_action_string (action.value ("format"));
+      if (operation == "paste") {
+        previous= ed->selection_get_import ();
+        ed->selection_set_import (format);
+      }
+      else {
+        previous= ed->selection_get_export ();
+        ed->selection_set_export (format);
+      }
+    }
+    if (operation == "copy") ed->selection_copy (key);
+    else if (operation == "cut") ed->selection_cut (key);
+    else ed->selection_paste (key);
+    if (hasFormat) {
+      if (operation == "paste") ed->selection_set_import (previous);
+      else ed->selection_set_export (previous);
+    }
+  }
+  else if (op == "selection-format-default") {
+    const string format= native_action_string (action.value ("format"));
+    if (action.value ("direction").toString () == "import")
+      ed->selection_set_import (format);
+    else
+      ed->selection_set_export (format);
+  }
+  else if (op == "redo-branch") {
+    const int index= action.value ("index").toInt (-1);
+    if (index < 0 || index >= ed->redo_possibilities ()) return;
+    if (ed->editor_command_state_snapshot ().read_only ()) return;
+    ed->redo (index);
+  }
+  else if (op == "focus-materials-style") {
+    actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
+    if (!state.valid () || !state.referenced_materials_context) return;
+    (void) call (
+      "materials-set-reference-style",
+      object (native_action_string (action.value ("style"))));
+  }
   else if (op == "document-citation-style") {
     if (!ed->document_menu_state_snapshot ().ready) return;
     if (action.value ("default").toBool ())

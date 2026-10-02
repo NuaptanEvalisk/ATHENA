@@ -47,11 +47,3 @@
 
 (tm-property (buffer-make-preamble)
   (:synopsis "Create a preamble for the current document"))
-
-(menu-bind preamble-menu
-  (if (and (buffer-has-preamble?) (not (in-preamble-mode?)))
-      ("Show preamble" (toggle-preamble-mode)))
-  (if (not (buffer-has-preamble?))
-      ("Create preamble" (toggle-preamble-mode)))
-  (if (in-preamble-mode?)
-      ("Show main document" (toggle-preamble-mode))))

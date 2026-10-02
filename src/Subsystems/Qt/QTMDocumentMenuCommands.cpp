@@ -199,6 +199,10 @@ QTMCommandRegistry::registerDocumentMenuCommands () {
         document.has_preamble ? QObject::tr ("Show preamble"):
                                 QObject::tr ("Create preamble"),
         QString (), writable, true, document.preamble_mode);
+      append_item (
+        out, "vault/flatten",
+        QObject::tr ("Flatten transclusions into new document"),
+        QString (), writable);
 
       static const struct {
         const char* key;
@@ -457,6 +461,8 @@ QTMCommandRegistry::registerDocumentMenuCommands () {
         return submit_business (context, "document-toggle-source-mode");
       if (key == QStringLiteral ("preamble"))
         return submit_business (context, "document-toggle-preamble-mode");
+      if (key == QStringLiteral ("vault/flatten"))
+        return submit_business (context, "document-flatten-transclusions");
       if (key.startsWith (QStringLiteral ("update/")))
         return submit_business (
           context, QStringLiteral ("document-update-") + key.mid (7));

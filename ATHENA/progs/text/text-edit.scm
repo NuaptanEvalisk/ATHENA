@@ -1058,3 +1058,70 @@
 (tm-define (focus-label t)
   (:require (or (footnote-context? t) (figure-context? t)))
   (focus-list-search-label (tree-children t)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; UI-independent rules migrated from text-menu.scm
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(tm-define (marginal-note-context? t)
+  (tree-is? t 'marginal-note))
+
+(tm-define (focus-can-move? t)
+  (:require (doc-title-context? t))
+  #f)
+
+(tm-define (focus-has-preferences? t)
+  (:require (tree-in? t '(doc-note author-note)))
+  #f)
+
+(tm-define (focus-can-move? t)
+  (:require (doc-author-context? t))
+  #f)
+
+(tm-define (focus-can-move? t)
+  (:require (abstract-data-context? t))
+  #f)
+
+(tm-define (focus-tag-name l)
+  (:require (== l 'abstract))
+  "Abstract text")
+
+(tm-define (parameter-show-in-menu? l)
+  (:require (and (string-ends? l "-numbered")
+                 (in? (string->symbol (string-drop-right l 9))
+                      (section-tag-list))))
+  #f)
+
+(tm-define (parameter-show-in-menu? l)
+  (:require (== l "appendix-prefix"))
+  #f)
+
+(tm-define (standard-options l)
+  (:require (in? l (list-tag-list)))
+  (list "compact-list" "triangle-list" "prefix-enumerations"))
+
+(tm-define (standard-options l)
+  (:require (or (in? l (enunciation-tag-list))
+                (in? l (render-enunciation-tag-list))
+                (in? l '(proof render-proof
+                         proof-alternative render-proof-alternative
+                         proof-standard render-proof-standard))))
+  (append (list "number-europe" ;; "number-us"
+                "number-long-article"
+                "framed-theorems"
+                "hanging-theorems")))
+
+(tm-define (focus-tag-name l)
+  (:require (in? l (algorithm-tag-list)))
+  (with r (algorithm-root l)
+    (with s (upcase-first (tree-name (tree r)))
+      (string-replace s "-" " "))))
+
+(tm-define (standard-options l)
+  (:require (in? l (algorithm-tag-list)))
+  (list "centered-program" "framed-program"))
+
+(tm-define (standard-options l)
+  (:require (in? l (numbered-unnumbered-append
+                     (append (small-figure-tag-list) (big-figure-tag-list)))))
+  (list "captions-above"))

@@ -711,3 +711,104 @@
 	  (set-message "Only implemented for complete subtrees"
 		       "correct formula"))
       (math-correct-tree (buffer-tree))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; UI-independent rules migrated from math-menu.scm
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(tm-define (open-latex-formula-dialog)
+  (:interactive #t)
+  (with vals (native-latex-formula-dialog)
+    (when (>= (length vals) 2)
+      (let* ((mode (first vals))
+             (input (second vals)))
+        (cond ((== mode "inline")
+               (let* ((wrapped (string-append "$" input "$"))
+                      (t (latex->texmacs (parse-latex wrapped)))
+                      (c (if (and (tree-is? t 'document) (> (tree-arity t) 0))
+                             (tree-ref t 0)
+                             t))
+                      (body (if (and (tree-is? c 'with)
+                                     (>= (tree-arity c) 2)
+                                     (== (tree-ref c 0) "mode")
+                                     (== (tree-ref c 1) "math"))
+                                (tree-ref c (1- (tree-arity c)))
+                                c)))
+                 (insert `(math ,body))))
+              ((== mode "display")
+               (let ((t (latex->texmacs
+                          (parse-latex (string-append "\\[" input "\\]")))))
+                 (when (tree? t)
+                   (for (c (tree-children t)) (insert c)))))
+              (else
+               (let ((t (latex->texmacs (parse-latex input))))
+                 (when (tree? t)
+                   (for (c (tree-children t)) (insert c))))))))))
+
+(tm-define (standard-options l)
+  (:require (in? l '(math equation equation* eqnarray eqnarray*)))
+  (list :recurse "number-long-article" "math-check"))
+
+(tm-define (standard-options l)
+  (:require (== l 'math-colored))
+  (list "math-ss"))
+
+(tm-define (focus-tag-name l)
+  (:require (== l 'math))
+  "Inline formula")
+
+(tm-define (focus-tag-name l)
+  (:require (in? l '(equation equation*)))
+  "Displayed formula")
+
+(tm-define (focus-tag-name l)
+  (:require (in? l '(eqnarray eqnarray*)))
+  "Equations")
+
+(tm-define (focus-variants-of t)
+  (:require (tree-in? t '(math equation equation*)))
+  '(formula equation))
+
+(tm-define (focus-variants-of t)
+  (:require (tree-in? t '(eqnarray eqnarray*)))
+  '(eqnarray*))
+
+(tm-define (focus-can-insert-remove? t)
+  (:require (script-context? t))
+  #t)
+
+(tm-define (focus-variants-of t)
+  (:require (tree-in? t '(lsub lsup)))
+  '(lsub lsup))
+
+(tm-define (focus-variants-of t)
+  (:require (tree-in? t '(rsub rsup)))
+  '(rsub rsup))
+
+(tm-define (focus-can-insert-remove? t)
+  (:require (tree-is? t 'sqrt))
+  #f)
+
+(tm-define (focus-tag-name l)
+  (:require (in? l '(wide wide*)))
+  "Wide")
+
+(tm-define (focus-variants-of t)
+  (:require (tree-in? t '(wide wide*)))
+  '(wide))
+
+(tm-define (focus-has-preferences? t)
+  (:require (tree-in? t '(around around*)))
+  #t)
+
+(tm-define (standard-options l)
+  (:require (in? l '(around around*)))
+  (list "math-brackets"))
+
+(tm-define (focus-tag-name l)
+  (:require (in? l '(around around*)))
+  "Around")
+
+(tm-define (focus-variants-of t)
+  (:require (tree-in? t '(around around*)))
+  '(around))

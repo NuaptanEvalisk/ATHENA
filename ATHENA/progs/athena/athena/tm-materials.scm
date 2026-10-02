@@ -22,21 +22,6 @@
       (get-init "materials-csl-style")
       (get-preference "materials csl style")))
 
-(define materials-csl-style-cache #f)
-
-(define (materials-csl-style-entries)
-  (or materials-csl-style-cache
-      (with styles (materials-csl-styles)
-        (set! materials-csl-style-cache
-          (if (and (tree? styles) (tree-func? styles 'tuple))
-              (list-filter (tree-children styles)
-                (lambda (entry)
-                  (and (tree-func? entry 'tuple 2)
-                       (tree-atomic? (tree-ref entry 0))
-                       (tree-atomic? (tree-ref entry 1)))))
-              '()))
-        materials-csl-style-cache)))
-
 (tm-define (materials-set-document-citation-style style)
   (init-env "materials-csl-style" style)
   (if (vault-active?)
@@ -48,21 +33,6 @@
   (if (vault-active?)
       (materials-update-current-document)
       (set-message "Citation style follows Preferences" "Materials")))
-
-(tm-menu (materials-citation-style-menu)
-  (scrollable
-    ((check "Use Preferences default" "v"
-            (not (init-has? "materials-csl-style")))
-     (materials-use-default-citation-style))
-    ---
-    (for (entry (materials-csl-style-entries))
-      (let* ((name (tree->string (tree-ref entry 0)))
-             (title (tree->string (tree-ref entry 1)))
-             (menu-label `(verbatim ,(string-append title " (" name ")"))))
-        ((check (eval menu-label) "v"
-                (and (init-has? "materials-csl-style")
-                     (== name (materials-document-citation-style))))
-         (materials-set-document-citation-style name))))))
 
 (tm-define (insert-material-citation)
   (:interactive #t)
@@ -138,26 +108,6 @@
   (and-with node (materials-focused-reference-list)
     (tree-set! node 0 style)
     (materials-update-current-document)))
-
-(tm-menu (materials-reference-style-menu)
-  ((check "Use document Citation Style" "v"
-          (and-with node (materials-focused-reference-list)
-            (string-null? (tree->string (tree-ref node 0)))))
-   (materials-set-reference-style ""))
-  ---
-  (for (entry (materials-csl-style-entries))
-    (let* ((name (tree->string (tree-ref entry 0)))
-           (title (tree->string (tree-ref entry 1)))
-           (menu-label `(verbatim ,(string-append title " (" name ")"))))
-      ((check (eval menu-label) "v"
-              (and-with node (materials-focused-reference-list)
-                (== name (tree->string (tree-ref node 0)))))
-       (materials-set-reference-style name)))))
-
-(tm-menu (materials-focus-menu)
-  ("Add referenced Materials" (materials-append-references))
-  (-> "Citation style override" (link materials-reference-style-menu))
-  ("Update referenced Materials" (materials-update-current-document)))
 
 (tmfs-load-handler (material name)
   (tree->stree (material-info-page name)))

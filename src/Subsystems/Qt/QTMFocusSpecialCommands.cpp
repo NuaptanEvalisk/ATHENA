@@ -52,6 +52,16 @@ submit_focus_action (
     context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
 }
 
+bool
+submit_business_action (
+  const QTMCommandContext& context, const QString& id) {
+  QJsonObject action;
+  action.insert ("op", "business");
+  action.insert ("id", id);
+  return submit_inline_editor_action (
+    context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
+}
+
 QTMCommandState
 state_if (const QTMCommandContext& context, bool available) {
   QTMCommandState state;
@@ -69,6 +79,111 @@ state_if (const QTMCommandContext& context, bool available) {
 
 void
 QTMCommandRegistry::registerFocusSpecialCommands () {
+  registerProvider (
+    "editor-focus-vault-context", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QVector<QTMCommandDynamicItem> out;
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return out;
+      actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
+      actor_editor_command_snapshot editor= proxy->editor_command_state ();
+      if (!focus.valid () || !editor.valid ()) return out;
+      const bool enabled= !editor.read_only ();
+      auto append=
+        [&] (QString key, QString label, QString group,
+             bool checkable= false, bool checked= false) {
+          QTMCommandDynamicItem item=
+            enabled_dynamic_item (std::move (key), std::move (label));
+          item.group= std::move (group);
+          item.state.enabled= enabled;
+          item.state.checkable= checkable;
+          item.state.checked= checked;
+          out.append (std::move (item));
+        };
+
+      if (focus.transclusion_context) {
+        const QString group= QObject::tr ("Transclusion");
+        append ("transclusion/before", QObject::tr ("Move before transclusion"),
+                group);
+        append ("transclusion/select", QObject::tr ("Select transclusion"),
+                group);
+        append ("transclusion/after", QObject::tr ("Move after transclusion"),
+                group);
+      }
+
+      if (focus.referenced_materials_context) {
+        const QString materials= QObject::tr ("Referenced Materials");
+        append ("materials/append", QObject::tr ("Add referenced Materials"),
+                materials);
+        append ("materials/update", QObject::tr ("Update referenced Materials"),
+                materials);
+
+        const QString styles= QObject::tr ("Citation style override");
+        const QString current= qstring (focus.materials_reference_style);
+        append ("materials/style/default",
+                QObject::tr ("Use document Citation Style"), styles,
+                true, current.isEmpty ());
+        try {
+          object raw= call ("materials-csl-styles");
+          if (is_tree (raw)) {
+            tree values= as_tree (raw);
+            for (int i=0; i<N(values); ++i) {
+              tree entry= values[i];
+              if (!is_compound (entry, "tuple", 2) ||
+                  !is_atomic (entry[0]) || !is_atomic (entry[1]))
+                continue;
+              QString name= to_qstring (as_string (entry[0]));
+              QString title= to_qstring (as_string (entry[1]));
+              append (
+                QStringLiteral ("materials/style/") + name,
+                title + QStringLiteral (" (") + name + QStringLiteral (")"),
+                styles, true, current == name);
+            }
+          }
+        }
+        catch (...) {}
+      }
+      return out;
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      actor_focus_toolbar_snapshot focus;
+      if (!writable_focus (context, &focus)) return false;
+      if (key == QStringLiteral ("transclusion/before"))
+        return focus.transclusion_context &&
+               submit_business_action (context, "focus-transclusion-before");
+      if (key == QStringLiteral ("transclusion/select"))
+        return focus.transclusion_context &&
+               submit_business_action (context, "focus-transclusion-select");
+      if (key == QStringLiteral ("transclusion/after"))
+        return focus.transclusion_context &&
+               submit_business_action (context, "focus-transclusion-after");
+      if (key == QStringLiteral ("materials/append"))
+        return focus.referenced_materials_context &&
+               submit_business_action (context, "focus-materials-append");
+      if (key == QStringLiteral ("materials/update"))
+        return focus.referenced_materials_context &&
+               submit_business_action (context, "focus-materials-update");
+      if (key.startsWith (QStringLiteral ("materials/style/"))) {
+        if (!focus.referenced_materials_context) return false;
+        QString style= key.mid (16);
+        if (style == QStringLiteral ("default")) style.clear ();
+        QJsonObject action;
+        action.insert ("op", "focus-materials-style");
+        action.insert ("style", style);
+        return submit_inline_editor_action (
+          context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
+      }
+      return false;
+    },
+    [] (const QTMCommandContext& context) {
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return QTMCommandState {};
+      actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
+      return state_if (
+        context, focus.valid () &&
+        (focus.transclusion_context || focus.referenced_materials_context));
+    });
+
   registerProvider (
     "editor-focus-special-actions", QTMCommandScope::Editor,
     [] (const QTMCommandContext& context) {

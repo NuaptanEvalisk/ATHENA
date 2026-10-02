@@ -62,7 +62,7 @@
   (with t (buffer-tree)
     (and (tree-is? t 'document)
          (tree-is? t :last 'screens))))
-         
+
 (tm-define (slideshow-buffer?)
   (with t (buffer-tree)
     (and (tree-is? t 'document)
@@ -770,7 +770,7 @@
 	(when (qt6-or-later-gui?) ;crashes if showing otherwise
 	  (system-wait "Generating slides" "please wait"))
         ;; Insert fake screen at the end
-        (tree-insert! t (tree-arity t) 
+        (tree-insert! t (tree-arity t)
                       (list (tree 'hidden '(document ""))))
         (dynamic-operate-on-buffer :first)
         ;; Notice that we don't process the last (fake) screen
@@ -990,7 +990,7 @@
                    (in? list-tag (description-tag-list)))
     (wrap-selection-any
       (make list-tag)
-      (make-switch switch-tag)      
+      (make-switch switch-tag)
       (if flag? (insert '(item* "")) (make-item)))))
 
 (tm-define (kbd-enter t shift?)
@@ -1326,3 +1326,133 @@
       (set! t (tree-up t)))
     (when (not (overlays-context? t))
       (tree-set! t `(gr-overlays ,(if forwards? "2" "1") "2" ,t)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; UI-independent rules migrated from retired Scheme menu modules
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(tm-define (alternate-second-name t)
+  (:require (fold-context? t))
+  "Unfold")
+
+(tm-define (alternate-second-icon t)
+  (:require (fold-context? t))
+  "tm_alternate_both")
+
+(tm-define (make-screens)
+  (let* ((t (buffer-tree))
+         (l (tree-children t))
+         (p (cursor-inside? t)))
+    (if (and (tree-is? t 'document)
+             (tree-in? t 0 '(hide-preamble show-preamble)))
+        (begin
+          (tree-assign! t `(document ,(tree-ref t 0)
+                                     (screens (shown (document ,@(cdr l))))))
+          (if (and p (!= (car p) 0))
+              (apply tree-go-to `(,t 1 0 0 ,(- (car p) 1) ,@(cdr p)))))
+        (begin
+          (tree-assign! t `(document (screens (shown (document ,@l)))))
+          (if p (apply tree-go-to `(,t 0 0 0 ,@p)))))))
+
+(tm-define (remove-single-screens)
+  (let* ((t (buffer-tree))
+         (l (tree-children t)))
+    (when (tree-func? (cAr l) 'screens 1)
+      (when (tree-func? (tree-ref (cAr l) 0) 'shown 1)
+        (let* ((d (tree-ref (tree-ref (cAr l) 0) 0))
+               (b (tree->path t))
+               (p (cursor-inside? d)))
+          (when (tree-func? d 'document)
+            (with q (and (pair? p)
+                         (cons (+ (car p) (length (cDr l))) (cdr p)))
+              (tree-assign! t `(document ,@(cDr l) ,@(tree-children d)))
+              (if q (delayed (:idle 1) (go-to-path (append b q)))))))))))
+
+(tm-define (remove-single-slideshow)
+(let* ((t (buffer-tree))
+       (l (tree-children t)))
+  (when (tree-func? (cAr l) 'slideshow 1)
+    (when (tree-func? (tree-ref (cAr l) 0 0) 'slide 1)
+      (let* ((d (tree-ref (cAr l) 0 0 0))
+             (b (tree->path t))
+             (p (cursor-inside? d)))
+        (when (tree-func? d 'document)
+          (with q (and (pair? p)
+                         (cons (+ (car p) (length (cDr l))) (cdr p)))
+              (tree-assign! t `(document ,@(cDr l) ,@(tree-children d)))
+              (if q (delayed (:idle 1) (go-to-path (append b q)))))))))))
+
+(tm-define (document-propose-screens?)
+  (and (style-has? "beamer-style")
+       (not (screens-buffer?))))
+
+(tm-define (notify-new-style style)
+  (former style)
+  (cond ((style-has? "beamer-style")
+         (when (not (screens-buffer?))
+           (set-init-env "page-medium" "beamer")
+           (make-screens)))
+        ((screens-buffer?) (remove-single-screens))
+        ((slideshow-buffer?) (remove-single-slideshow))))
+
+(tm-define (standard-options l)
+  (:require (== l 'tit))
+  (list "framed-title" "title-bar"))
+
+(tm-define (parameter-show-in-menu? l)
+  (:require (== l "title-theme"))
+  #f)
+
+(tm-define (slide-propose-title? t)
+  (and-with u (slide-get-document t)
+    (not (tree-is? u 0 'tit))))
+
+(tm-define (slide-insert-title t)
+  (and-with u (slide-get-document t)
+    (tree-insert u 0 '((tit "")))
+    (tree-go-to u 0 0 0)))
+
+(tm-define (slide-propose-graphics? t)
+  (and-with u (slide-get-document t)
+    (or (tm-equal? u '(document ""))
+        (and (tree-func? u 'document 1)
+             (tree-is? u 0 'tit))
+        (and (tree-func? u 'document 2)
+             (tree-is? u 0 'tit)
+             (tm-equal? (tree-ref u 1) "")))))
+
+(tm-define (slide-insert-graphics t)
+  (and-with u (slide-get-document t)
+    (when (and (tree-func? u 'document 1)
+               (tree-is? u 0 'tit))
+      (tree-insert! u 1 (list "")))
+    (tree-set u :last `(gr-screen (document "")))
+    (tree-go-to u :last 0 0 0)
+    (make-graphics
+     "gr-mode" '(tuple "hand-edit" "penscript")
+     "gr-frame" `(tuple "scale" "1cm" (tuple "0gw" "1gh"))
+     "gr-geometry" `(tuple "geometry" "1gpar" "1gpag" "axis"))))
+
+(tm-define (open-page-format)
+  (:require (or (inside? 'screens) (inside? 'slideshow)))
+  (slide-properties-pane-show))
+
+(tm-define (focus-can-move? t)
+  (:require (screens-context? t))
+  #f)
+
+(tm-define (focus-can-insert-remove? t)
+  (:require (overlays-context? t))
+  #t)
+
+(tm-define (focus-can-insert? t)
+  (:require (overlays-context? t))
+  #t)
+
+(tm-define (focus-can-remove? t)
+  (:require (overlays-context? t))
+  #t)
+
+(tm-define (parameter-show-in-menu? l)
+  (:require (== l "overlay-nr"))
+  #f)

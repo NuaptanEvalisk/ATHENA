@@ -999,6 +999,22 @@ editor_rep::focus_toolbar_state_snapshot () {
   tree t= the_subtree (focus);
   snapshot.flags= ACTOR_FOCUS_TOOLBAR_VALID;
 
+  for (path p= focus; !is_nil (p); p= path_up (p)) {
+    if (!test_subtree (p)) continue;
+    tree node= the_subtree (p);
+    if (!snapshot.transclusion_context && is_compound (node, "transclude"))
+      snapshot.transclusion_context= true;
+    if (!snapshot.referenced_materials_context &&
+        is_compound (node, "referenced-materials", 3)) {
+      snapshot.referenced_materials_context= true;
+      if (is_atomic (node[0])) {
+        string style= as_string (node[0]);
+        snapshot.materials_reference_style.assign (
+          style.data (), static_cast<std::size_t> (N(style)));
+      }
+    }
+  }
+
   auto query= [&] (const char* procedure, bool fallback= false) {
     try {
       object value= call (procedure, object (t));

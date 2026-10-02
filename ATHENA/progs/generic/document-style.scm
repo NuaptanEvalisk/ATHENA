@@ -12,6 +12,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (texmacs-module (generic document-style))
+(import-from (kernel athena tm-preferences))
 
 (define (native-document-background-setter value)
   (init-env-tree "bg-color" value))
@@ -205,7 +206,7 @@
   ("framed-title"       "Put titles of slides in wide frames")
   ("title-bar"          "Put titles of slides in bar at extreme top of screen")
   ("math-ss"            "Use sans serif font for mathematical formulas")
-  
+
   ("a0-poster"          "A0 page size for posters")
   ("a1-poster"          "A1 page size for posters")
   ("a2-poster"          "A2 page size for posters")
@@ -213,7 +214,7 @@
   ("a4-poster"          "A4 page size for posters")
   ("landscape-poster"   "Landscape orientation for posters")
   ("portrait-poster"    "Portrait orientation for posters")
-  
+
   ("centered-program"   "Use a centered rendering style for algorithms")
   ("framed-program"     "Display algorithms inside frames and center")
   ("two-columns"        "Markup and adjustments for two column documents")
@@ -243,3 +244,13 @@
   ("invisible-apply"    "Use invisible space for function applications")
   ("narrow-apply"       "Use narrow space for function applications")
   ("regular-apply"      "Use regular space for function applications"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; UI-independent rules migrated from retired Scheme menu modules
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(tm-define (get-user-preferred-fonts)
+  (let ((p (get-preference "preferred fonts")))
+    (if (== p "") '()
+        (let ((obj (string->object p)))
+          (if (list? obj) obj '())))))
