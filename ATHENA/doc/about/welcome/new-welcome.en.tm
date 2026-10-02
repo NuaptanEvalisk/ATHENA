@@ -7,7 +7,9 @@
     Welcome to <ATHENA> version <texmacs-version>
   </tmdoc-title>
 
-  Thank you for using <ATHENA>.
+  Thank you for using <ATHENA>. Version 0.10 is a source-only release.
+
+  <hlink|Changes since 0.9 and upgrading an existing vault|release-0.10.en.tm>
 
   <ATHENA> stands for the <em|Advanced Typesetting and Hypertext Environment
   for Notes and Archives>. It is a mathematics-centered knowledge work
@@ -27,9 +29,11 @@
     <item*|Vaults, wikilinks, and transclusions>
 
     <ATHENA> vaults are self-contained mathematical knowledge bases. They
-    support UUID-backed wikilinks to files, anchors, and theorem-like blocks;
-    preview-backed wikilink insertion; self-repair of moved links; and
-    transclusions of enunciations or anchored document ranges.
+    support preview-backed wikilinks to persistent document nodes and
+    transclusions of ordered node selections. UUIDs live in the source
+    documents; the location index is a rebuildable cache, not the owner of
+    link identity. Generated anchor pairs and file recovery hints are no
+    longer required.
 
     <item*|Namespaces>
 
@@ -56,9 +60,10 @@
     <item*|Enunciations>
 
     Theorem-like environments are treated as first-class structure. <ATHENA>
-    supports many enunciation types, configurable colors, CJK line breaking,
-    automatic anchors, proper solution rendering, and corrected display-first
-    title layout.
+    uses a common enunciation node with a kind property for definitions,
+    theorems, proofs, solutions, and other categories. Persistent UUIDs and
+    structured name, attribution, year, and proof-target properties separate
+    identity and metadata from the rendered body.
 
     <item*|Materials and citations>
 
@@ -72,7 +77,9 @@
     <ATHENA> indexes enunciations and bold-text definitions as stable semantic
     Artifacts. Artifact names in ordinary prose can become automatic
     radioactive links with case, inflection, possessive, eponym, and
-    same-name disambiguation handling.
+    same-name disambiguation handling. Realtime document overlays make newly
+    edited objects available across the vault; structural background extraction
+    complements the full artifactization workflow and its range selection.
 
     <item*|Obsidian/AOFM conversion>
 
@@ -85,20 +92,23 @@
 
     Vault maintenance is now a modular pass pipeline. It can health-check
     documents, create zstd backups, purge old full backups and pre-save
-    histories, normalize referenced assets, collect orphan assets, anchor enunciations and
-    headings, update stale anchors while preserving UUID maps, run read-only
-    anchoring checks in parallel, and generate <ATHENA> maintenance summary
-    pages. Multiple backup dispatchers can mirror a vault after saves,
+    histories, normalize referenced assets, collect orphan assets, and generate
+    maintenance summary pages. Continuous Maintenance canonicalizes old
+    enunciation nodes. UUID, Maintenance, Artifacts, and NPU RAG workers share
+    one progress indicator. Multiple backup dispatchers can mirror a vault after saves,
     maintenance, or idle periods. Static websites are generated incrementally
     and may include per-document PDFs, redirects, and post-generation
-    deployment commands. PDF export can optionally generate temporary DataArt
+    deployment commands. Live SQLite databases are backed up through snapshots.
+    PDF export uses the native backend and can optionally generate temporary DataArt
     cover images.
 
     <item*|Google Tasks and continuous RAG>
 
     <ATHENA> can connect to Google Tasks, synchronize cloud todo lists in
     documents, show task updates through toast notifications, and expose a
-    headless continuous RAG MCP server for vault search and retrieval.
+    headless RAG MCP server for vault search and retrieval. Optional continuous
+    embedding runs in an isolated OpenVINO Intel NPU worker, processing the
+    active vault until it converges and revisiting changed sources.
 
     <item*|Native Qt interface>
 
@@ -106,7 +116,11 @@
     exploration, namespaces, global search, page properties, paragraph
     properties, metadata, error messages, custom styles, wikilinks,
     transclusions, Google Tasks, command palette, font selection, and color
-    selection. Preferences provides direct search across categories, tabs,
+    selection. The application owns the menubar, command palette, and global
+    shortcuts, even without an open buffer. Each document has its own tab and
+    editor toolbars; Focus commands follow the active work pane. Menus and
+    toolbars use native C++ behavior and JSON declarations.
+    Preferences provides direct search across categories, tabs,
     sections, and individual settings.
 
     <item*|Large documents>
@@ -131,9 +145,11 @@
 
     <ATHENA> is <strong|not> a conservative distribution of GNU <TeXmacs>. To
     support its knowledge-management features, <ATHENA> introduces
-    incompatible AST nodes and runtime behavior. <ATHENA> can often load
-    upstream <TeXmacs> documents, but documents that use <ATHENA> features are
-    not guaranteed to be readable by upstream <TeXmacs>.
+    native UTF-8 text, XML documents, node properties, and incompatible runtime
+    behavior. Legacy import remains available for supported content, but
+    compatibility with upstream <TeXmacs> is not guaranteed in either
+    direction. Back up old vaults and use the offline upgrade tools before
+    continuing work in the new document model.
 
     <item*|Development status>
 

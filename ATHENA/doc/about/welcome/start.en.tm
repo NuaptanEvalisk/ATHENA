@@ -63,8 +63,9 @@
 
   Useful aliases include <samp|\\def>, <samp|\\thm>, <samp|\\lem>,
   <samp|\\prop>, <samp|\\cor>, <samp|\\eg>, <samp|\\rem>, <samp|\\qsn>,
-  <samp|\\sln>, and <samp|\\pf>. Enunciations can be auto-anchored so they
-  become stable link and transclusion targets.
+  <samp|\\sln>, and <samp|\\pf>. These insert a common enunciation node
+  with a kind property and a persistent UUID. Its name, attribution, year,
+  and proof target can be structured metadata rather than text in the body.
 
   <section|Vaults>
 
@@ -89,11 +90,14 @@
 
   <ATHENA> links are designed for structured mathematical documents. Use the
   wikilink wizard to locate a file first or search for a target. The wizard
-  can preview rendered context and insert a stable link to a file or anchor.
+  can preview rendered context and insert a stable link to a document root
+  or identified source node. Source UUIDs are stored in documents, not owned
+  by the rebuildable location cache.
 
   Transclusions embed source content into the current document. They are
   useful for restating a definition, theorem, or proof fragment in another
-  context while preserving a link to the source.
+  context while preserving a link to the source. Multiple selected UUIDs name
+  an ordered set of objects, not a changing range between two anchors.
 
   <section|Namespaces>
 
@@ -123,7 +127,24 @@
 
   Vault Maintenance can create compressed backups, purge old backups and
   pre-save histories, normalize structurally referenced assets of any file
-  type, collect orphan assets, and anchor enunciations across the whole vault.
+  type, and collect orphan assets. Continuous Maintenance converts legacy
+  enunciation forms to the canonical node model. Background UUID indexing,
+  artifact extraction, and optional NPU RAG share status and progress.
+
+  Before using an older vault, read <hlink|Upgrading to 0.10|release-0.10.en.tm>.
+  Do not delete existing artifact databases as a migration shortcut.
+
+  <section|Workspace and saving>
+
+  The application remains open when all document buffers are closed. The
+  menubar, command palette, and application shortcuts also work from other
+  work panes. Each document has a tab and its own editor toolbars; Focus
+  commands follow the active pane.
+
+  Realtime save writes document changes to disk when enabled. Document history
+  and recovery are separate from vault backups. Backup dispatchers can run
+  after successful saves, including realtime saves, and snapshot live SQLite
+  databases rather than copying transient journal files.
 
   <section|Where to continue>
 

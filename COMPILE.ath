@@ -9,7 +9,9 @@
 
   <section|Introduction>
 
-  This document describes how to build <ATHENA> from source.
+  This document describes how to build <ATHENA> 0.10 from source. The
+  pre-rendered PDF may lag behind this source; use the commands here and in
+  README.md when they differ.
 
   The supported build target is x86_64 GNU/Linux with Qt 6 and Wayland. The
   reference development environment is openSUSE Tumbleweed snapshot 20260812,
@@ -46,7 +48,11 @@
   <subsection|Installing dependencies>
 
   Install the corresponding development packages for your distribution. On
-  current openSUSE Tumbleweed, the following is an example:
+  openSUSE Tumbleweed, the following is a baseline example. For 0.10, also
+  install the ICU development libraries (uc and i18n) and LMDB development
+  libraries. HarfBuzz and FreeType remain required; Pango is not used.
+  Optional Intel NPU RAG requires OpenVINO and a working Intel NPU driver,
+  together with compatible model and tokenizer files.
 
   <\code>
     sudo zypper install \\
@@ -195,10 +201,13 @@
   <verbatim|ATHENA_BUILD_JOBS> variable controls the private runtime builds;
   <verbatim|-j> controls the outer CMake build.
 
+  Always specify the <verbatim|ATHENA.bin> target for an application build.
+  Do not invoke the default ALL target as a substitute.
+
   <\code>
     source /opt/intel/oneapi/setvars.sh
 
-    JOBS=16
+    JOBS=20
 
     export ATHENA_BUILD_JOBS="$JOBS"
   </code>
@@ -214,7 +223,7 @@
 
     \ \ -DLLAMA_CPP_SOURCE_DIR=/path/to/llama.cpp
 
-    cmake --build build_qt6 -j"$JOBS"
+    cmake --build build_qt6 --target ATHENA.bin -j20
   </code>
 
   For a <verbatim|RelWithDebInfo> build in <verbatim|build_rel>:
@@ -228,7 +237,7 @@
 
     \ \ -DLLAMA_CPP_SOURCE_DIR=/path/to/llama.cpp
 
-    cmake --build build_rel -j"$JOBS"
+    cmake --build build_rel --target ATHENA.bin -j20
   </code>
 
   If libtcc was built in a non-system location, add the
@@ -261,7 +270,7 @@
 
     \ \ -DLLAMA_CPP_SOURCE_DIR=/path/to/llama.cpp
 
-    cmake --build build_tsan -j"$JOBS"
+    cmake --build build_tsan --target ATHENA.bin -j20
   </code>
 
   <label|remark:To build the test suite configure with DBUILDTESTSON Run it
