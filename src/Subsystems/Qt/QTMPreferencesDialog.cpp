@@ -135,6 +135,19 @@ from_qstring_pref (const QString& s) {
   return string (bytes.constData ());
 }
 
+static user_preference_ui_definition
+preference_ui (const char* key) {
+  user_preference_ui_definition definition;
+  if (!get_user_preference_ui_definition (string (key), definition))
+    qFatal ("Missing preference UI definition for %s", key);
+  return definition;
+}
+
+static QString
+preference_ui_label (const user_preference_ui_definition& definition) {
+  return to_qstring_pref (definition.label) + ":";
+}
+
 static QString
 pref (const char* key, const char* def= "default") {
   return to_qstring_pref (get_preference (string (key), string (def)));
@@ -424,38 +437,75 @@ label (const QString& text) {
 }
 
 static QCheckBox*
-add_toggle (QFormLayout* form, const QString& title, const char* key) {
+add_toggle (QFormLayout* form, const char* key) {
+  const user_preference_ui_definition definition= preference_ui (key);
+  if (definition.control != "toggle")
+    qFatal ("Preference %s is not declared as a toggle", key);
   QCheckBox* box= new QCheckBox;
   mark_preference_control (box, key);
   box->setChecked (pref_on (key));
   QObject::connect (box, &QCheckBox::toggled, [key] (bool on) {
     set_bool_pref (key, on);
   });
-  form->addRow (label (title), box);
+  form->addRow (label (preference_ui_label (definition)), box);
   return box;
 }
 
 static QLineEdit*
-add_line_edit (QFormLayout* form, const QString& title, const char* key,
-               const char* def= "", bool password= false) {
+add_line_edit (QFormLayout* form, const char* key) {
+  const user_preference_ui_definition definition= preference_ui (key);
+  if (definition.control != "text" && definition.control != "password")
+    qFatal ("Preference %s is not declared as a text control", key);
   QLineEdit* edit= new QLineEdit;
   mark_preference_control (edit, key);
-  edit->setText (pref (key, def));
-  if (password) edit->setEchoMode (QLineEdit::Password);
+  edit->setText (pref (key, ""));
+  if (definition.control == "password") edit->setEchoMode (QLineEdit::Password);
   QObject::connect (edit, &QLineEdit::editingFinished, [key, edit] () {
     set_pref (key, edit->text ());
   });
-  form->addRow (label (title), edit);
+  form->addRow (label (preference_ui_label (definition)), edit);
   return edit;
 }
 
 static QComboBox*
-add_combo (QFormLayout* form, const QString& title, const char* key,
-           const std::vector<Choice>& choices, const char* def= "default",
-           bool restart= false) {
+add_combo (QFormLayout* form, const char* key) {
+  const user_preference_ui_definition definition= preference_ui (key);
+  if (definition.control != "choice")
+    qFatal ("Preference %s is not declared as a choice control", key);
   QComboBox* combo= new QComboBox;
   mark_preference_control (combo, key);
-  QString cur= pref (key, def);
+  QString cur= pref (key, "");
+  int curIndex= -1;
+  for (size_t i=0; i<definition.choices.size (); i++) {
+    const QString value= to_qstring_pref (definition.choices[i].value);
+    combo->addItem (to_qstring_pref (definition.choices[i].label), value);
+    if (cur == value) curIndex= (int) i;
+  }
+  if (curIndex < 0 && !cur.isEmpty ()) {
+    combo->addItem (cur, cur);
+    curIndex= combo->count () - 1;
+  }
+  if (curIndex >= 0) combo->setCurrentIndex (curIndex);
+  QObject::connect (combo,
+                    static_cast<void (QComboBox::*) (int)> (
+                      &QComboBox::currentIndexChanged),
+                    [key, combo, definition] (int index) {
+    if (index >= 0) set_pref (key, combo->itemData (index).toString ());
+    if (definition.restart) notify_restart ();
+  });
+  form->addRow (label (preference_ui_label (definition)), combo);
+  return combo;
+}
+
+static QComboBox*
+add_dynamic_combo (QFormLayout* form, const char* key,
+                   const std::vector<Choice>& choices) {
+  const user_preference_ui_definition definition= preference_ui (key);
+  if (definition.control != "native" || definition.provider != "dynamic-choice")
+    qFatal ("Preference %s is not declared as a dynamic choice", key);
+  QComboBox* combo= new QComboBox;
+  mark_preference_control (combo, key);
+  QString cur= pref (key, "");
   int curIndex= -1;
   for (size_t i=0; i<choices.size (); i++) {
     combo->addItem (choices[i].label, QString (choices[i].value));
@@ -466,24 +516,26 @@ add_combo (QFormLayout* form, const QString& title, const char* key,
     curIndex= combo->count () - 1;
   }
   if (curIndex >= 0) combo->setCurrentIndex (curIndex);
-  QObject::connect (combo,
-                    static_cast<void (QComboBox::*) (int)> (
-                      &QComboBox::currentIndexChanged),
-                    [key, combo, restart] (int index) {
-    if (index >= 0) set_pref (key, combo->itemData (index).toString ());
-    if (restart) notify_restart ();
-  });
-  form->addRow (label (title), combo);
+  QObject::connect (
+    combo, qOverload<int> (&QComboBox::currentIndexChanged),
+    [key, combo, definition] (int index) {
+      if (index < 0) return;
+      set_pref (key, combo->itemData (index).toString ());
+      if (definition.restart) notify_restart ();
+    });
+  form->addRow (label (preference_ui_label (definition)), combo);
   return combo;
 }
 
 static QComboBox*
-add_qstring_combo (QFormLayout* form, const QString& title, const char* key,
-                   const std::vector<QStringChoice>& choices,
-                   const char* def= "default", bool restart= false) {
+add_dynamic_qstring_combo (QFormLayout* form, const char* key,
+                           const std::vector<QStringChoice>& choices) {
+  const user_preference_ui_definition definition= preference_ui (key);
+  if (definition.control != "native" || definition.provider != "dynamic-choice")
+    qFatal ("Preference %s is not declared as a dynamic choice", key);
   QComboBox* combo= new QComboBox;
   mark_preference_control (combo, key);
-  QString cur= pref (key, def);
+  QString cur= pref (key, "");
   int curIndex= -1;
   for (size_t i=0; i<choices.size (); i++) {
     combo->addItem (choices[i].second, choices[i].first);
@@ -497,18 +549,21 @@ add_qstring_combo (QFormLayout* form, const QString& title, const char* key,
   QObject::connect (combo,
                     static_cast<void (QComboBox::*) (int)> (
                       &QComboBox::currentIndexChanged),
-                    [key, combo, restart] (int index) {
+                    [key, combo, definition] (int index) {
     if (index < 0) return;
     set_pref (key, combo->itemData (index).toString ());
-    if (restart) notify_restart ();
+    if (definition.restart) notify_restart ();
   });
-  form->addRow (label (title), combo);
+  form->addRow (label (preference_ui_label (definition)), combo);
   return combo;
 }
 
 static QPushButton*
-add_color_button (QFormLayout* form, const QString& title, const char* key,
-                  bool optional) {
+add_color_button (QFormLayout* form, const char* key) {
+  const user_preference_ui_definition definition= preference_ui (key);
+  const bool optional= definition.control == "optional-color";
+  if (definition.control != "color" && !optional)
+    qFatal ("Preference %s is not declared as a color control", key);
   QPushButton* button= new QPushButton;
   button_set_color (button, pref (key, optional? "none": ""));
   QObject::connect (button, &QPushButton::clicked, [button, key, optional] () {
@@ -523,7 +578,7 @@ add_color_button (QFormLayout* form, const QString& title, const char* key,
 
   if (!optional) {
     mark_preference_control (button, key);
-    form->addRow (label (title), button);
+    form->addRow (label (preference_ui_label (definition)), button);
   }
   else {
     QWidget* row= new QWidget;
@@ -537,7 +592,7 @@ add_color_button (QFormLayout* form, const QString& title, const char* key,
     });
     layout->addWidget (none);
     mark_preference_control (row, key);
-    form->addRow (label (title), row);
+    form->addRow (label (preference_ui_label (definition)), row);
   }
   return button;
 }
@@ -860,47 +915,20 @@ QTMPreferencesDialog::addCategory (const QString& name, QWidget* page) {
 QStringList
 QTMPreferencesDialog::exportMetadata () const {
   QStringList result;
-  for (int categoryIndex= 0; categoryIndex < pageStack->count ();
-       ++categoryIndex) {
-    const QString category= categoryList->item (categoryIndex)->text ();
-    QTabWidget* tabs= qobject_cast<QTabWidget*> (
-      pageStack->widget (categoryIndex));
-    if (tabs == nullptr) continue;
-    for (int tabIndex= 0; tabIndex < tabs->count (); ++tabIndex) {
-      QScrollArea* scroll= qobject_cast<QScrollArea*> (
-        tabs->widget (tabIndex));
-      if (scroll == nullptr || scroll->widget () == nullptr) continue;
-      const QString tab= tabs->tabText (tabIndex);
-      const QList<QGroupBox*> groups=
-        scroll->widget ()->findChildren<QGroupBox*> (
-          QString (), Qt::FindDirectChildrenOnly);
-      for (QGroupBox* group: groups) {
-        const QString groupTitle= group->title ();
-        QFormLayout* form= qobject_cast<QFormLayout*> (group->layout ());
-        if (form == nullptr) {
-          const QString key=
-            group->property (preferenceKeyProperty).toString ();
-          if (!key.isEmpty ())
-            result << category << tab << groupTitle << groupTitle << key;
-          continue;
-        }
-        for (int row= 0; row < form->rowCount (); ++row) {
-          QLayoutItem* labelItem= form->itemAt (row, QFormLayout::LabelRole);
-          QLayoutItem* fieldItem= form->itemAt (row, QFormLayout::FieldRole);
-          QLabel* settingLabel= labelItem == nullptr? nullptr:
-            qobject_cast<QLabel*> (labelItem->widget ());
-          QWidget* field= fieldItem == nullptr? nullptr: fieldItem->widget ();
-          if (settingLabel == nullptr || field == nullptr) continue;
-          const QString key=
-            field->property (preferenceKeyProperty).toString ();
-          if (key.isEmpty ()) continue;
-          QString setting= settingLabel->text ().trimmed ();
-          setting.remove ('&');
-          if (setting.endsWith (':')) setting.chop (1);
-          result << category << tab << groupTitle << setting << key;
-        }
-      }
-    }
+  QSet<QString> present;
+  for (QWidget* widget: findChildren<QWidget*> ()) {
+    const QString key= widget->property (preferenceKeyProperty).toString ();
+    if (!key.isEmpty ()) present.insert (key);
+  }
+  for (const user_preference_ui_definition& definition:
+       get_user_preference_ui_definitions ()) {
+    const QString key= to_qstring_pref (definition.key);
+    if (!present.contains (key)) continue;
+    result << to_qstring_pref (definition.category)
+           << to_qstring_pref (definition.tab)
+           << to_qstring_pref (definition.section)
+           << to_qstring_pref (definition.label)
+           << key;
   }
   return result;
 }
@@ -926,8 +954,21 @@ QTMPreferencesDialog::rebuildSearchIndex () {
         const QString sectionTitle= section->title ();
         QFormLayout* form= qobject_cast<QFormLayout*> (section->layout ());
         if (form == nullptr) {
+          const QString key=
+            section->property (preferenceKeyProperty).toString ();
+          user_preference_ui_definition definition;
+          const bool catalogEntry= !key.isEmpty () &&
+            get_user_preference_ui_definition (
+              from_qstring_pref (key), definition);
+          const QString setting= catalogEntry?
+            to_qstring_pref (definition.label): sectionTitle;
+          const QString path= catalogEntry?
+            to_qstring_pref (definition.category) + " > " +
+              to_qstring_pref (definition.tab) + " > " +
+              to_qstring_pref (definition.section):
+            category + " > " + tab;
           QStandardItem* item= new QStandardItem (
-            sectionTitle + "  —  " + category + " > " + tab);
+            setting + "  —  " + path);
           item->setData (categoryIndex, preference_category_role);
           item->setData (tabIndex, preference_tab_role);
           item->setData (QVariant::fromValue<QObject*> (section),
@@ -943,15 +984,31 @@ QTMPreferencesDialog::rebuildSearchIndex () {
           QLabel* settingLabel= labelItem == nullptr? nullptr:
             qobject_cast<QLabel*> (labelItem->widget ());
           if (settingLabel == nullptr) continue;
-          QString setting= settingLabel->text ().trimmed ();
-          setting.remove ('&');
-          if (setting.endsWith (':')) setting.chop (1);
-          if (setting.isEmpty ()) continue;
           QWidget* target= fieldItem == nullptr? settingLabel:
             fieldItem->widget ();
           if (target == nullptr) target= settingLabel;
-          QString path= category + " > " + tab;
-          if (!sectionTitle.isEmpty ()) path += " > " + sectionTitle;
+          const QString key=
+            target->property (preferenceKeyProperty).toString ();
+          user_preference_ui_definition definition;
+          const bool catalogEntry= !key.isEmpty () &&
+            get_user_preference_ui_definition (
+              from_qstring_pref (key), definition);
+          QString setting= catalogEntry? to_qstring_pref (definition.label):
+            settingLabel->text ().trimmed ();
+          setting.remove ('&');
+          if (setting.endsWith (':')) setting.chop (1);
+          if (setting.isEmpty ()) continue;
+          QString path;
+          if (catalogEntry) {
+            path= to_qstring_pref (definition.category) + " > " +
+                  to_qstring_pref (definition.tab);
+            const QString declaredSection= to_qstring_pref (definition.section);
+            if (!declaredSection.isEmpty ()) path += " > " + declaredSection;
+          }
+          else {
+            path= category + " > " + tab;
+            if (!sectionTitle.isEmpty ()) path += " > " + sectionTitle;
+          }
           QStandardItem* item= new QStandardItem (
             setting + "  —  " + path);
           item->setToolTip (path);
@@ -1008,91 +1065,54 @@ QWidget*
 QTMPreferencesDialog::buildGeneralPage () {
   QWidget* basic= make_page ();
   QFormLayout* basicForm= add_section (basic, "Basic");
-  add_toggle (basicForm, "Check for updates on startup:",
-              "check for updates");
-  add_toggle (basicForm, "Remember panes layout:",
-              "remember ads panes layout");
+  add_toggle (basicForm, "check for updates");
+  add_toggle (basicForm, "remember ads panes layout");
   QCheckBox* middleClickAdsTabs=
-    add_toggle (basicForm, "Middle-click closes ADS tabs:",
-                "middle click closes ads tab");
+    add_toggle (basicForm, "middle click closes ads tab");
   QObject::connect (middleClickAdsTabs, &QCheckBox::toggled,
                     [] () { qtm_apply_ads_tab_close_preferences (); });
-  QComboBox* saveMode= add_combo (
-    basicForm, "Document saving:", "document save mode",
-    {{"realtime", "Realtime save"}, {"autosave", "Autosave"},
-     {"manual", "Manual save only"}},
-    "realtime");
-  QComboBox* realtimeInterval= add_combo (
-    basicForm, "Realtime save interval:", "realtime save interval",
-    {{"0.5", "500 ms"}, {"1", "1 sec"}, {"2", "2 sec"}, {"3", "3 sec"},
-     {"5", "5 sec"}, {"10", "10 sec"}},
-    "3");
+  QComboBox* saveMode= add_combo (basicForm, "document save mode");
+  QComboBox* realtimeInterval= add_combo (basicForm, "realtime save interval");
   QObject::connect (saveMode, qOverload<int> (&QComboBox::currentIndexChanged),
                     [] { qtm_document_persistence_preferences_changed (); });
   QObject::connect (realtimeInterval,
                     qOverload<int> (&QComboBox::currentIndexChanged),
                     [] { qtm_document_persistence_preferences_changed (); });
-  add_combo (basicForm, "Autosave interval:", "autosave",
-             {{"5", "5 sec"}, {"30", "30 sec"}, {"120", "120 sec"},
-              {"300", "300 sec"}},
-             "120");
-  add_toggle (basicForm, "Use case-insensitive search:",
-              "case-insensitive-match");
+  add_combo (basicForm, "autosave");
+  add_toggle (basicForm, "case-insensitive-match");
 
   QFormLayout* historyForm= add_section (basic, "Document history");
-  add_toggle (historyForm, "Capture on manual save:",
-              "document history manual save");
-  add_combo (historyForm, "Periodic capture:", "document history interval",
-             {{"0", "Disabled"}, {"60", "Every 1 minute"},
-              {"300", "Every 5 minutes"}, {"600", "Every 10 minutes"},
-              {"1800", "Every 30 minutes"}, {"3600", "Every 1 hour"}},
-             "600");
-  add_combo (historyForm, "Preservation:", "document history preservation",
-             {{"Unlimited", "Unlimited"}, {"1 hour", "1 hour"},
-              {"6 hours", "6 hours"}, {"1 day", "1 day"},
-              {"3 days", "3 days"}, {"1 week", "1 week"},
-              {"1 month", "1 month"}}, "1 week");
+  add_toggle (historyForm, "document history manual save");
+  add_combo (historyForm, "document history interval");
+  add_combo (historyForm, "document history preservation");
   finish_page (basic);
 
   QWidget* appearance= make_page ();
   QFormLayout* appearanceForm= add_section (appearance, "Appearance");
-  add_combo (appearanceForm, "Look and feel:", "look and feel",
-             {{"default", "Default"}, {"emacs", "Emacs"}, {"gnome", "Gnome"},
-              {"kde", "KDE"}, {"macos", "Mac OS"}, {"windows", "Windows"}},
-             "default", true);
-  add_toggle (appearanceForm, "Use text toolbars instead of icon toolbars:",
-              "text toolbar");
+  add_combo (appearanceForm, "look and feel");
+  add_toggle (appearanceForm, "text toolbar");
   QCheckBox* hideToolbars=
-    add_toggle (appearanceForm, "Hide toolbars when not using them:",
-                "hide toolbars when not using them");
+    add_toggle (appearanceForm, "hide toolbars when not using them");
   QObject::connect (hideToolbars, &QCheckBox::toggled,
                     [] () {
                       qt_tm_widget_rep::refreshAllToolbarPreferences ();
                     });
   QCheckBox* blinkingCursor=
-    add_toggle (appearanceForm, "Blink the editing cursor:",
-                "blinking cursor");
+    add_toggle (appearanceForm, "blinking cursor");
   QObject::connect (blinkingCursor, &QCheckBox::toggled,
                     [] () { QTMWidget::refreshAllCursorBlinking (); });
-  add_toggle (appearanceForm, "Use inertial scrolling:", "inertial scrolling");
-  add_line_edit (appearanceForm, "Inertial momentum (0.80-0.99):",
-                 "inertial scrolling friction", "0.95");
-  add_line_edit (appearanceForm, "Inertial sensitivity multiplier:",
-                 "inertial scrolling sensitivity", "1.0");
-  add_toggle (appearanceForm, "Use print dialogue:", "gui:print dialogue");
-  add_toggle (appearanceForm, "Disable window positioning:",
-              "disable texmacs window positioning");
-  add_toggle (appearanceForm, "Show live statistics in central footer:",
-              "gui:live-statistics");
-  add_line_edit (appearanceForm, "Live statistics format:",
-                 "gui:live-statistics-format",
-                 "Words: %w, Chars: %c, Lines: %l");
+  add_toggle (appearanceForm, "inertial scrolling");
+  add_line_edit (appearanceForm, "inertial scrolling friction");
+  add_line_edit (appearanceForm, "inertial scrolling sensitivity");
+  add_toggle (appearanceForm, "gui:print dialogue");
+  add_toggle (appearanceForm, "disable texmacs window positioning");
+  add_toggle (appearanceForm, "gui:live-statistics");
+  add_line_edit (appearanceForm, "gui:live-statistics-format");
   finish_page (appearance);
 
   QWidget* fonts= make_page ();
   QFormLayout* styling= add_section (fonts, "Styling");
-  add_toggle (styling, "Show warning for font substitution:",
-              "show font substitution warning");
+  add_toggle (styling, "show font substitution warning");
 
   QGroupBox* preferredBox= new QGroupBox ("Preferred fonts", fonts);
   mark_preference_control (preferredBox, "preferred fonts");
@@ -1157,24 +1177,10 @@ QWidget*
 QTMPreferencesDialog::buildKeyboardPage () {
   QWidget* input= make_page ();
   QFormLayout* form= add_section (input, "Input");
-  add_combo (form, "Space bar in text mode:", "text spacebar",
-             {{"default", "Default"},
-              {"no multiple spaces", "No multiple spaces"},
-              {"glue multiple spaces", "Glue multiple spaces"},
-              {"allow multiple spaces", "Allow multiple spaces"}});
-  add_combo (form, "Space bar in math mode:", "math spacebar",
-             {{"default", "Default"},
-              {"no spurious spaces", "No spurious spaces"},
-              {"avoid spurious spaces", "Avoid spurious spaces"},
-              {"allow spurious spaces", "Allow spurious spaces"}});
-  add_combo (form, "Automatic quotes:", "automatic quotes",
-             {{"default", "Default"}, {"none", "Disabled"},
-              {"dutch", "Dutch"}, {"english", "English"},
-              {"french", "French"}, {"german", "German"},
-              {"spanish", "Spanish"}, {"swiss", "Swiss"}});
-  add_combo (form, "Automatic brackets:", "automatic brackets",
-             {{"off", "Disabled"}, {"on", "Enabled"},
-              {"mathematics", "Inside mathematics"}});
+  add_combo (form, "text spacebar");
+  add_combo (form, "math spacebar");
+  add_combo (form, "automatic quotes");
+  add_combo (form, "automatic brackets");
   QPushButton* shortcuts= new QPushButton ("Edit keyboard shortcuts");
   QObject::connect (shortcuts, &QPushButton::clicked, [] () {
     (void) call ("open-shortcuts-editor", string (""), string (""));
@@ -1184,16 +1190,14 @@ QTMPreferencesDialog::buildKeyboardPage () {
 
   QWidget* remote= make_page ();
   QFormLayout* r= add_section (remote, "Remote Control");
-  add_combo (r, "Left:", "ir-left", {{"pageup", "pageup"}, {"", ""}}, "");
-  add_combo (r, "Right:", "ir-right", {{"pagedown", "pagedown"}, {"", ""}},
-             "");
-  add_combo (r, "Up:", "ir-up", {{"home", "home"}, {"", ""}}, "");
-  add_combo (r, "Down:", "ir-down", {{"end", "end"}, {"", ""}}, "");
-  add_combo (r, "Center:", "ir-center",
-             {{"return", "return"}, {"S-return", "S-return"}, {"", ""}}, "");
-  add_combo (r, "Play:", "ir-play", {{"F5", "F5"}, {"", ""}}, "");
-  add_combo (r, "Pause:", "ir-pause", {{"escape", "escape"}, {"", ""}}, "");
-  add_combo (r, "Menu:", "ir-menu", {{".", "."}, {"", ""}}, "");
+  add_combo (r, "ir-left");
+  add_combo (r, "ir-right");
+  add_combo (r, "ir-up");
+  add_combo (r, "ir-down");
+  add_combo (r, "ir-center");
+  add_combo (r, "ir-play");
+  add_combo (r, "ir-pause");
+  add_combo (r, "ir-menu");
   finish_page (remote);
 
   return tabbed ({{"Input", input}, {"Remote Control", remote}});
@@ -1203,10 +1207,9 @@ QWidget*
 QTMPreferencesDialog::buildEditingPage () {
   QWidget* math= make_page ();
   QFormLayout* mk= add_section (math, "Math keyboard");
-  add_toggle (mk, "Use spurious invisible operators:", "automatic invisible");
-  add_toggle (mk, "Use shortcuts for missing invisible operators:",
-              "manual insert missing invisible");
-  add_toggle (mk, "Homoglyph substitutions:", "manual homoglyph correct");
+  add_toggle (mk, "automatic invisible");
+  add_toggle (mk, "manual insert missing invisible");
+  add_toggle (mk, "manual homoglyph correct");
   QFormLayout* qs= add_section (math, "Quick symbol inserter");
   QPushButton* editEscSymbols= new QPushButton ("Edit symbols");
   QObject::connect (editEscSymbols, &QPushButton::clicked, [] () {
@@ -1214,39 +1217,28 @@ QTMPreferencesDialog::buildEditingPage () {
   });
   qs->addRow (label ("ESC quick inserter:"), editEscSymbols);
   QFormLayout* mh= add_section (math, "Math hints and semantics");
-  add_toggle (mh, "Semantic editing:", "semantic editing");
-  add_toggle (mh, "Semantic selections:", "semantic selections");
-  add_toggle (mh, "Semantic focus:", "semantic focus");
+  add_toggle (mh, "semantic editing");
+  add_toggle (mh, "semantic selections");
+  add_toggle (mh, "semantic focus");
   finish_page (math);
 
   QWidget* programming= make_page ();
   QFormLayout* p= add_section (programming, "Programming");
-  add_toggle (p, "Highlight matching brackets:", "prog:highlight brackets");
-  add_toggle (p, "Automatic program brackets:", "prog:automatic brackets");
-  add_toggle (p, "Use smart bracket selections:", "prog:select brackets");
+  add_toggle (p, "prog:highlight brackets");
+  add_toggle (p, "prog:automatic brackets");
+  add_toggle (p, "prog:select brackets");
   finish_page (programming);
 
   QWidget* text= make_page ();
   QFormLayout* t= add_section (text, "Text");
-  add_toggle (t, "Show heading word counts:", "heading word counts");
-  add_toggle (t, "Check spelling as you type:", "live spell checking");
-  add_toggle (t, "Show autocompletion while typing:",
-              "realtime text autocompletion");
-  add_combo (t, "Autocompletion order:", "text autocompletion sorting",
-             {{"frequency", "Frequency in buffer"},
-              {"alphabetical", "Alphabetical"}},
-             "alphabetical");
-  add_combo (t, "Accept autocompletion with:",
-             "text autocompletion accept key",
-             {{"enter", "Enter"}, {"tab", "Tab"}, {"both", "Both"}},
-             "both");
-  add_toggle (t, "Disable UNIX primary selection:",
-              "disable unix primary selection");
-  add_combo (t, "Document updates run:", "document update times",
-             {{"1", "Once"}, {"2", "Twice"}, {"3", "Three times"}});
-  add_qstring_combo (t, "Custom dictionary language:",
-                     "custom dictionary import language",
-                     document_language_choices ());
+  add_toggle (t, "heading word counts");
+  add_toggle (t, "live spell checking");
+  add_toggle (t, "realtime text autocompletion");
+  add_combo (t, "text autocompletion sorting");
+  add_combo (t, "text autocompletion accept key");
+  add_toggle (t, "disable unix primary selection");
+  add_combo (t, "document update times");
+  add_dynamic_qstring_combo (t, "custom dictionary import language", document_language_choices ());
   QPushButton* import= new QPushButton ("Import");
   QObject::connect (import, &QPushButton::clicked, [] () {
     (void) call ("spell-live-import-custom-dictionary-from-preferences");
@@ -1256,50 +1248,25 @@ QTMPreferencesDialog::buildEditingPage () {
 
   QWidget* source= make_page ();
   QFormLayout* s= add_section (source, "Source tree");
-  add_combo (s, "Presentation style:", "source tree style",
-             {{"angular", "Angular"}, {"scheme", "Scheme"},
-              {"functional", "Functional"}, {"latex", "LaTeX"}},
-             "angular");
-  add_combo (s, "Special rendering:", "source tree special rendering",
-             {{"raw", "None"}, {"format", "Formatting"},
-              {"normal", "Normal"}, {"maximal", "Maximal"}},
-             "normal");
-  add_combo (s, "Compactification:", "source tree compactification",
-             {{"none", "Minimal"}, {"inline", "Only inline tags"},
-              {"normal", "Normal"}, {"inline args", "Inline arguments"},
-              {"all", "Maximal"}},
-             "normal");
-  add_combo (s, "Closing style:", "source tree closing style",
-             {{"repeat", "Repeat"}, {"long", "Stretched"},
-              {"compact", "Compact"}, {"minimal", "Minimal"}},
-             "compact");
+  add_combo (s, "source tree style");
+  add_combo (s, "source tree special rendering");
+  add_combo (s, "source tree compactification");
+  add_combo (s, "source tree closing style");
   finish_page (source);
 
   QWidget* importer= make_page ();
   QFormLayout* i= add_section (importer, "Formula Importer");
-  add_toggle (i, "Recognize matrices and determinants disguised as arrays:",
-              "latex->texmacs:matrix-recognition");
-  add_toggle (i, "Treat 'align' as 'aligned':",
-              "latex->texmacs:align-to-aligned");
-  add_toggle (i, "Convert 'aligned' blocks into 'eqnarray' environments:",
-              "latex->texmacs:aligned-to-eqnarray");
-  add_toggle (i, "Parse operator d as differential d:",
-              "latex->texmacs:operator-d-is-differential");
-  add_toggle (i, "Parse Roman d as differential d:",
-              "latex->texmacs:roman-d-is-differential");
-  add_toggle (i, "Parse text d as differential d:",
-              "latex->texmacs:text-d-is-differential");
-  add_toggle (i, "Parse blackboard k as Bbbk:",
-              "latex->texmacs:parse-bbbk");
-  add_toggle (i, "Parse blackboard i as mathi:",
-              "latex->texmacs:parse-bbbi-as-mathi");
-  add_toggle (i, "Recognize operator names disguised as text:",
-              "latex->texmacs:text-operators");
-  add_toggle (i, "Run intelligent formula cleaner when importing LaTeX formulas:",
-              "latex->texmacs:intelligent-formula-cleaner");
-  add_line_edit (i, "Formula cleaner GGUF model:",
-                 "latex->texmacs:intelligent-formula-cleaner-model",
-                 "$ATHENA_PATH/tools/formula-cleaner/formula-cleaner.gguf");
+  add_toggle (i, "latex->texmacs:matrix-recognition");
+  add_toggle (i, "latex->texmacs:align-to-aligned");
+  add_toggle (i, "latex->texmacs:aligned-to-eqnarray");
+  add_toggle (i, "latex->texmacs:operator-d-is-differential");
+  add_toggle (i, "latex->texmacs:roman-d-is-differential");
+  add_toggle (i, "latex->texmacs:text-d-is-differential");
+  add_toggle (i, "latex->texmacs:parse-bbbk");
+  add_toggle (i, "latex->texmacs:parse-bbbi-as-mathi");
+  add_toggle (i, "latex->texmacs:text-operators");
+  add_toggle (i, "latex->texmacs:intelligent-formula-cleaner");
+  add_line_edit (i, "latex->texmacs:intelligent-formula-cleaner-model");
   finish_page (importer);
 
   return tabbed ({{"Maths", math}, {"Programming", programming},
@@ -1311,50 +1278,36 @@ QWidget*
 QTMPreferencesDialog::buildRenderingPage () {
   QWidget* components= make_page ();
   QFormLayout* c= add_section (components, "Components and Layout");
-  add_combo (c, "Labels display:", "vault labels mode",
-             {{"visible", "visible"}, {"small", "small"}, {"hidden", "hidden"}},
-             "visible");
-  add_toggle (c, "New style page breaking:", "new style page breaking");
-  add_toggle (c, "Render exercises in smaller font:",
-              "render solution in smaller font");
-  add_toggle (c, "Number solutions:", "number solutions");
+  add_combo (c, "vault labels mode");
+  add_toggle (c, "new style page breaking");
+  add_toggle (c, "render solution in smaller font");
+  add_toggle (c, "number solutions");
   finish_page (components);
 
   QWidget* documentColors= make_page ();
   QFormLayout* dc= add_section (documentColors, "Document Colors");
-  add_color_button (dc, "Cursor color:", "gui cursor color", false);
-  add_color_button (dc, "Selection color:", "gui selection color", false);
-  add_color_button (dc, "Focus box color:", "gui focus color", false);
-  add_combo (dc, "Focus box border:", "gui focus border width",
-             {{"1", "1"}, {"2", "2"}, {"3", "3"}, {"4", "4"}, {"5", "5"},
-              {"6", "6"}}, "1");
-  add_color_button (dc, "Unclicked link color:", "locus-color", false);
-  add_color_button (dc, "Clicked link color:", "visited-color", false);
-  add_toggle (dc, "Enable radioactive links:",
-              "enable radioactive links");
-  add_color_button (dc, "Radioactive link color:",
-                    "radioactive-link-color", false);
-  add_toggle (dc, "Override white background:",
-              "override white document background");
-  add_color_button (dc, "White background color:",
-                    "white document background override color", false);
-  add_color_button (dc, "Transclusion background:", "vault transclusion color",
-                    true);
-  add_toggle (dc, "Alpha transparency:", "experimental alpha");
+  add_color_button (dc, "gui cursor color");
+  add_color_button (dc, "gui selection color");
+  add_color_button (dc, "gui focus color");
+  add_combo (dc, "gui focus border width");
+  add_color_button (dc, "locus-color");
+  add_color_button (dc, "visited-color");
+  add_toggle (dc, "enable radioactive links");
+  add_color_button (dc, "radioactive-link-color");
+  add_toggle (dc, "override white document background");
+  add_color_button (dc, "white document background override color");
+  add_color_button (dc, "vault transclusion color");
+  add_toggle (dc, "experimental alpha");
   finish_page (documentColors);
 
   QWidget* misc= make_page ();
   QFormLayout* m= add_section (misc, "Misc");
-  add_combo (m, "Default CJK language:", "default cjk language",
-             {{"chinese", "Chinese"}, {"japanese", "Japanese"},
-              {"korean", "Korean"}, {"taiwanese", "Taiwanese"}});
-  add_toggle (m, "Persistent fit width:", "persistent fit width");
+  add_combo (m, "default cjk language");
+  add_toggle (m, "persistent fit width");
   QFormLayout* toc= add_section (misc, "Table of Contents");
-  add_toggle (toc, "Fold by default in Reflow:",
-              "fold table of contents in reflow");
+  add_toggle (toc, "fold table of contents in reflow");
   QFormLayout* graphs= add_section (misc, "Graphs");
-  QCheckBox* elasticGraphs= add_toggle (
-    graphs, "Use interactive elastic graphs:", "interactive elastic graphs");
+  QCheckBox* elasticGraphs= add_toggle (graphs, "interactive elastic graphs");
   QObject::connect (elasticGraphs, &QCheckBox::toggled, [] () {
     hierarchy_graph_interactivity_changed ();
   });
@@ -1388,37 +1341,34 @@ QTMPreferencesDialog::buildRenderingPage () {
   preset->addRow (label ("Preset:"), presetRow);
 
   QFormLayout* en= add_section (colors, "Enunciations");
-  add_color_button (en, "Theorem:", "vault theorem color", true);
-  add_color_button (en, "Lemma:", "vault lemma color", true);
-  add_color_button (en, "Corollary:", "vault corollary color", true);
-  add_color_button (en, "Proposition:", "vault proposition color", true);
-  add_color_button (en, "Axiom:", "vault axiom color", true);
-  add_color_button (en, "Definition:", "vault definition color", true);
-  add_color_button (en, "Notation:", "vault notation color", true);
-  add_color_button (en, "Convention:", "vault convention color", true);
-  add_color_button (en, "Conjecture:", "vault conjecture color", true);
-  add_color_button (en, "Law:", "vault law color", true);
+  add_color_button (en, "vault theorem color");
+  add_color_button (en, "vault lemma color");
+  add_color_button (en, "vault corollary color");
+  add_color_button (en, "vault proposition color");
+  add_color_button (en, "vault axiom color");
+  add_color_button (en, "vault definition color");
+  add_color_button (en, "vault notation color");
+  add_color_button (en, "vault convention color");
+  add_color_button (en, "vault conjecture color");
+  add_color_button (en, "vault law color");
 
   QFormLayout* rem= add_section (colors, "Remarks and notes");
-  add_color_button (rem, "Remark:", "vault remark color", true);
-  add_color_button (rem, "Note:", "vault note color", true);
-  add_color_button (rem, "Example:", "vault example color", true);
-  add_color_button (rem, "Warning:", "vault warning color", true);
-  add_color_button (rem, "Disambiguation:", "vault disambiguation color", true);
-  add_color_button (rem, "Acknowledgments:", "vault acknowledgments color",
-                    true);
+  add_color_button (rem, "vault remark color");
+  add_color_button (rem, "vault note color");
+  add_color_button (rem, "vault example color");
+  add_color_button (rem, "vault warning color");
+  add_color_button (rem, "vault disambiguation color");
+  add_color_button (rem, "vault acknowledgments color");
 
   QFormLayout* ex= add_section (colors, "Exercises and proofs");
-  add_color_button (ex, "Exercise:", "vault exercise color", true);
-  add_color_button (ex, "Problem:", "vault problem color", true);
-  add_color_button (ex, "Question:", "vault question color", true);
-  add_color_button (ex, "Solution:", "vault solution color", true);
-  add_color_button (ex, "Answer:", "vault answer color", true);
-  add_color_button (ex, "Proof:", "vault proof color", true);
-  add_color_button (ex, "Proof (Alternative):", "vault proof alternative color",
-                    true);
-  add_color_button (ex, "Proof (Standard):", "vault proof standard color",
-                    true);
+  add_color_button (ex, "vault exercise color");
+  add_color_button (ex, "vault problem color");
+  add_color_button (ex, "vault question color");
+  add_color_button (ex, "vault solution color");
+  add_color_button (ex, "vault answer color");
+  add_color_button (ex, "vault proof color");
+  add_color_button (ex, "vault proof alternative color");
+  add_color_button (ex, "vault proof standard color");
   finish_page (colors);
 
   return tabbed ({{"Components and Layout", components},
@@ -1431,12 +1381,9 @@ QWidget*
 QTMPreferencesDialog::buildConversionPage () {
   QWidget* html= make_page ();
   QFormLayout* h1= add_section (html, "ATHENA → HTML");
-  add_toggle (h1, "Use CSS for more advanced formatting:",
-              "texmacs->html:css");
-  QCheckBox* mathjax= add_toggle (h1, "Export mathematical formulas as MathJax:",
-                                  "texmacs->html:mathjax");
-  QCheckBox* images= add_toggle (h1, "Export mathematical formulas as images:",
-                                 "texmacs->html:images");
+  add_toggle (h1, "texmacs->html:css");
+  QCheckBox* mathjax= add_toggle (h1, "texmacs->html:mathjax");
+  QCheckBox* images= add_toggle (h1, "texmacs->html:images");
   auto exclusiveHtml= [mathjax, images] (QCheckBox* active,
                                          const char* key, bool on) {
     set_bool_pref (key, on);
@@ -1458,27 +1405,18 @@ QTMPreferencesDialog::buildConversionPage () {
                                                    "texmacs->html:images",
                                                    on); });
   QFormLayout* h2= add_section (html, "HTML → ATHENA");
-  add_toggle (h2, "Try to import formulas using LaTeX annotations:",
-              "mathml->texmacs:latex-annotations");
+  add_toggle (h2, "mathml->texmacs:latex-annotations");
   finish_page (html);
 
   QWidget* latex= make_page ();
   QFormLayout* l1= add_section (latex, "LaTeX → ATHENA");
-  add_toggle (l1, "Import sophisticated objects as pictures:",
-              "latex->texmacs:fallback-on-pictures");
+  add_toggle (l1, "latex->texmacs:fallback-on-pictures");
   QFormLayout* l2= add_section (latex, "ATHENA → LaTeX");
-  add_toggle (l2, "Replace ATHENA styles with no LaTeX equivalents:",
-              "texmacs->latex:replace-style");
-  add_toggle (l2, "Expand ATHENA macros with no LaTeX equivalents:",
-              "texmacs->latex:expand-macros");
-  add_toggle (l2, "Expand user-defined macros:",
-              "texmacs->latex:expand-user-macros");
-  add_toggle (l2, "Allow for macro definitions in preamble:",
-              "texmacs->latex:use-macros");
-  add_combo (l2, "Character encoding:", "texmacs->latex:encoding",
-             {{"utf-8", "UTF-8 with inputenc"},
-              {"cork", "Cork with catcodes"},
-              {"ascii", "Legacy ASCII (exports as UTF-8)"}});
+  add_toggle (l2, "texmacs->latex:replace-style");
+  add_toggle (l2, "texmacs->latex:expand-macros");
+  add_toggle (l2, "texmacs->latex:expand-user-macros");
+  add_toggle (l2, "texmacs->latex:use-macros");
+  add_combo (l2, "texmacs->latex:encoding");
   QFormLayout* l3= add_section (latex, "Conservative conversion options");
   QCheckBox* sourceTracking= new QCheckBox;
   mark_preference_control (sourceTracking,
@@ -1500,50 +1438,35 @@ QTMPreferencesDialog::buildConversionPage () {
   });
   l3->addRow (label ("Only convert changes with respect to tracked version:"),
               conservative);
-  add_toggle (l3, "Guarantee transparent source tracking:",
-              "latex->texmacs:transparent-source-tracking");
-  add_toggle (l3, "Store tracking information in LaTeX files:",
-              "texmacs->latex:attach-tracking-info");
+  add_toggle (l3, "latex->texmacs:transparent-source-tracking");
+  add_toggle (l3, "texmacs->latex:attach-tracking-info");
   finish_page (latex);
 
   QWidget* verbatim= make_page ();
   QFormLayout* v1= add_section (verbatim, "ATHENA → Verbatim");
-  add_toggle (v1, "Use line wrapping for lines longer than 80 characters:",
-              "texmacs->verbatim:wrap");
+  add_toggle (v1, "texmacs->verbatim:wrap");
   if (get_preference ("texmacs->verbatim:encoding") == "cork")
     set_preference ("texmacs->verbatim:encoding", "utf-8");
-  add_combo (v1, "Character encoding:", "texmacs->verbatim:encoding",
-              {{"auto", "Automatic"}, {"iso-8859-1", "Iso-8859-1"},
-               {"iso-8859-2", "Iso-8859-2"}, {"utf-8", "Utf-8"}});
+  add_combo (v1, "texmacs->verbatim:encoding");
   QFormLayout* v2= add_section (verbatim, "Verbatim → ATHENA");
-  add_toggle (v2, "Merge lines into paragraphs unless separated by blank lines:",
-              "verbatim->texmacs:wrap");
+  add_toggle (v2, "verbatim->texmacs:wrap");
   if (get_preference ("verbatim->texmacs:encoding") == "cork")
     set_preference ("verbatim->texmacs:encoding", "utf-8");
-  add_combo (v2, "Character encoding:", "verbatim->texmacs:encoding",
-              {{"auto", "Automatic"}, {"iso-8859-1", "Iso-8859-1"},
-               {"iso-8859-2", "Iso-8859-2"}, {"utf-8", "Utf-8"}});
+  add_combo (v2, "verbatim->texmacs:encoding");
   finish_page (verbatim);
 
   QWidget* pdf= make_page ();
   QFormLayout* pdfForm= add_section (pdf, "ATHENA → Pdf/Postscript");
-  add_toggle (pdfForm, "Expand beamer slides:",
-              "texmacs->pdf:expand slides");
-  add_toggle (pdfForm, "Generate DataArt cover image when exporting:",
-              "texmacs->pdf:data-art cover");
+  add_toggle (pdfForm, "texmacs->pdf:expand slides");
+  add_toggle (pdfForm, "texmacs->pdf:data-art cover");
   {
-    add_combo (pdfForm, "Pdf version number:", "texmacs->pdf:version",
-               {{"default", "default"}, {"1.4", "1.4"}, {"1.5", "1.5"},
-                {"1.6", "1.6"}, {"1.7", "1.7"}}, "default");
+    add_combo (pdfForm, "texmacs->pdf:version");
   }
   finish_page (pdf);
 
   QWidget* image= make_page ();
   QFormLayout* im1= add_section (image, "ATHENA → Image");
-  add_combo (im1, "Bitmap export resolution (dpi):",
-             "texmacs->image:raster-resolution",
-             {{"1200", "1200"}, {"600", "600"}, {"300", "300"},
-              {"150", "150"}, {"", ""}}, "300");
+  add_combo (im1, "texmacs->image:raster-resolution");
   std::vector<Choice> formats;
   if (file_converter_exists ("x.pdf", "x.svg")) formats.push_back ({"svg", "Svg"});
   if (file_converter_exists ("x.pdf", "x.eps")) formats.push_back ({"eps", "Eps"});
@@ -1552,13 +1475,10 @@ QTMPreferencesDialog::buildConversionPage () {
   if (file_converter_exists ("x.pdf", "x.jpg")) formats.push_back ({"jpg", "Jpeg"});
   if (file_converter_exists ("x.pdf", "x.pdf")) formats.push_back ({"pdf", "Pdf"});
   if (formats.empty ()) formats.push_back ({"png", "Png"});
-  add_combo (im1, "Clipboard image format:", "texmacs->image:format", formats,
-             "png");
+  add_dynamic_combo (im1, "texmacs->image:format", formats);
   QFormLayout* im2= add_section (image, "Image → ATHENA");
-  add_toggle (im2, "Auto remove image background:",
-              "image auto remove background");
-  add_toggle (im2, "Use Inkscape for conversion from SVG:",
-              "image->texmacs:svg-prefer-inkscape");
+  add_toggle (im2, "image auto remove background");
+  add_toggle (im2, "image->texmacs:svg-prefer-inkscape");
   finish_page (image);
 
   return tabbed ({{"Html", html}, {"LaTeX", latex},
@@ -1569,45 +1489,29 @@ std::vector<std::pair<QString, QWidget*> >
 QTMPreferencesDialog::buildVaultCategories () {
   QWidget* general= make_page ();
   QFormLayout* g= add_section (general, "General");
-  add_toggle (g, "Auto load last vault:", "vault auto load last");
-  add_toggle (g, "Report if last vault is unavailable:",
-              "vault report missing last");
-  add_toggle (g, "Show vault welcome page on startup:", "vault welcome page");
-  add_toggle (g, "Show vault explorer on startup:",
-              "vault explorer show on startup");
-  add_toggle (g, "Take preferences with vault:",
-              "vault take preferences with vault");
+  add_toggle (g, "vault auto load last");
+  add_toggle (g, "vault report missing last");
+  add_toggle (g, "vault welcome page");
+  add_toggle (g, "vault explorer show on startup");
+  add_toggle (g, "vault take preferences with vault");
   finish_page (general);
 
   QWidget* navigation= make_page ();
   QFormLayout* nav= add_section (navigation, "Navigation");
-  add_toggle (nav, "Track current file in vault explorer:",
-              "vault explorer track current file");
-  add_toggle (nav, "Use system trash for safe deletion:",
-              "vault explorer use system trash");
-  add_toggle (nav, "Global Search uses case-insensitive search:",
-              "vault global search case insensitive search");
-  add_toggle (nav, "Global Search uses fuzzy search:",
-              "vault global search fuzzy search");
-  add_combo (nav, "Preferred initial neighborhood:",
-             "vault preferred initial neighborhood",
-             {{"namespace", "First direct namespace-based neighborhood"},
-              {"path", "Path-based neighborhood"}},
-             "namespace");
+  add_toggle (nav, "vault explorer track current file");
+  add_toggle (nav, "vault explorer use system trash");
+  add_toggle (nav, "vault global search case insensitive search");
+  add_toggle (nav, "vault global search fuzzy search");
+  add_combo (nav, "vault preferred initial neighborhood");
   finish_page (navigation);
 
   QWidget* namespaces= make_page ();
   QFormLayout* n= add_section (namespaces, "Namespaces");
-  add_toggle (n, "Namespace explorer shows file matches only for leaf namespaces:",
-              "vault namespace explorer leaf matches only");
-  add_toggle (n, "Namespace explorer starts from root namespace:",
-              "vault namespace explorer from root namespace");
-  add_toggle (n, "Namespace explorer simplifies redundant child namespaces:",
-              "vault namespace explorer simplify hierarchy");
-  add_toggle (n, "Simplify hierarchy graphs:",
-              "vault simplify hierarchy graphs");
-  add_toggle (n, "Consume %s aggressively in sub-product naming template suggestion:",
-              "vault subproduct consume string aggressively");
+  add_toggle (n, "vault namespace explorer leaf matches only");
+  add_toggle (n, "vault namespace explorer from root namespace");
+  add_toggle (n, "vault namespace explorer simplify hierarchy");
+  add_toggle (n, "vault simplify hierarchy graphs");
+  add_toggle (n, "vault subproduct consume string aggressively");
   finish_page (namespaces);
 
   QWidget* wikilinks= make_page ();
@@ -1622,20 +1526,13 @@ QTMPreferencesDialog::buildVaultCategories () {
     set_pref ("vault link search workers", QString::number (count));
   });
   wt->addRow (label ("Search workers:"), searchWorkers);
-  add_toggle (wt, "Wikilink inserter uses case-insensitive search:",
-              "vault wikilink inserter case insensitive search");
-  add_toggle (wt, "Transclusion inserter uses case-insensitive search:",
-              "vault transclusion inserter case insensitive search");
-  add_toggle (wt, "Wikilink inserter uses fuzzy search:",
-              "vault wikilink inserter fuzzy search");
-  add_toggle (wt, "Transclusion inserter uses fuzzy search:",
-              "vault transclusion inserter fuzzy search");
-  add_line_edit (wt, "Wikilink default display text for files:",
-                 "vault wikilink display template file", "%f");
-  add_line_edit (wt, "Wikilink default display text for headings:",
-                 "vault wikilink display template heading", "%c");
-  add_line_edit (wt, "Wikilink default display text for anchors:",
-                 "vault wikilink display template anchor", "%c");
+  add_toggle (wt, "vault wikilink inserter case insensitive search");
+  add_toggle (wt, "vault transclusion inserter case insensitive search");
+  add_toggle (wt, "vault wikilink inserter fuzzy search");
+  add_toggle (wt, "vault transclusion inserter fuzzy search");
+  add_line_edit (wt, "vault wikilink display template file");
+  add_line_edit (wt, "vault wikilink display template heading");
+  add_line_edit (wt, "vault wikilink display template anchor");
   finish_page (wikilinks);
 
   QWidget* artifacts= make_page ();
@@ -1733,10 +1630,8 @@ QTMPreferencesDialog::buildVaultCategories () {
     "files are never uploaded.", materials);
   providerNotice->setWordWrap (true);
   mm->addRow (providerNotice);
-  add_line_edit (mm, "Local metadata extractor:",
-                 "materials local metadata extractor", "exiftool");
-  add_line_edit (mm, "Local PDF text extractor:",
-                 "materials local text extractor", "pdftotext");
+  add_line_edit (mm, "materials local metadata extractor");
+  add_line_edit (mm, "materials local text extractor");
   int logicalProcessors= std::max (1, QThread::idealThreadCount ());
   std::vector<QStringChoice> importParallelism;
   importParallelism.emplace_back (
@@ -1746,18 +1641,14 @@ QTMPreferencesDialog::buildVaultCategories () {
       QString::number (workers),
       workers == 1 ? QString ("1 worker")
                    : QString ("%1 workers").arg (workers));
-  add_qstring_combo (mm, "Directory import parallelism:",
-                     "materials import parallelism", importParallelism,
-                     "auto");
-  add_toggle (mm, "Query Crossref:", "materials provider crossref");
-  add_toggle (mm, "Query OpenAlex:", "materials provider openalex");
-  add_toggle (mm, "Query Open Library:",
-              "materials provider open library");
-  add_toggle (mm, "Query Google Books:", "materials provider google books");
-  add_toggle (mm, "Query arXiv:", "materials provider arxiv");
-  add_toggle (mm, "Query PubMed:", "materials provider pubmed");
-  add_line_edit (mm, "Provider contact email:",
-                 "materials provider contact email", "");
+  add_dynamic_qstring_combo (mm, "materials import parallelism", importParallelism);
+  add_toggle (mm, "materials provider crossref");
+  add_toggle (mm, "materials provider openalex");
+  add_toggle (mm, "materials provider open library");
+  add_toggle (mm, "materials provider google books");
+  add_toggle (mm, "materials provider arxiv");
+  add_toggle (mm, "materials provider pubmed");
+  add_line_edit (mm, "materials provider contact email");
   std::vector<MaterialCslStyle> cslStyles;
   std::string cslError;
   std::vector<QStringChoice> cslChoices;
@@ -1777,9 +1668,7 @@ QTMPreferencesDialog::buildVaultCategories () {
   }
   else cslChoices.emplace_back (
     "springer-mathphys", "Springer - MathPhys (numeric, brackets)");
-  QComboBox* cslCombo= add_qstring_combo (
-    mm, "Default CSL style:", "materials csl style", cslChoices,
-    "springer-mathphys");
+  QComboBox* cslCombo= add_dynamic_qstring_combo (mm, "materials csl style", cslChoices);
   cslCombo->setEditable (true);
   cslCombo->setInsertPolicy (QComboBox::NoInsert);
   cslCombo->setMaxVisibleItems (18);
@@ -1804,46 +1693,21 @@ QTMPreferencesDialog::buildVaultCategories () {
 #if ATHENA_ENABLE_PERSON_SUBSYSTEM
   QWidget* persons= make_page ();
   QFormLayout* pn= add_section (persons, "Persons");
-  add_toggle (pn, "Automatically tag recognized person names on save:",
-              "vault normalize person names on save");
+  add_toggle (pn, "vault normalize person names on save");
   finish_page (persons);
 #endif
 
   QWidget* maintenance= make_page ();
   QFormLayout* mt= add_section (maintenance, "Maintenance");
-  add_combo (mt, "Max allowed number of full backups:",
-             "vault max full backups",
-             {{"Unlimited", "Unlimited"}, {"1", "1"}, {"2", "2"}, {"3", "3"},
-              {"5", "5"}, {"10", "10"}, {"20", "20"}, {"50", "50"}},
-             "Unlimited");
-  add_combo (mt, "Maintenance worker processes:",
-             "vault maintenance worker processes",
-             {{"Unlimited", "Unlimited"}, {"1", "1"}, {"2", "2"},
-              {"4", "4"}, {"8", "8"}, {"12", "12"}, {"16", "16"},
-              {"20", "20"}},
-             "Unlimited");
-  add_toggle (mt, "Update all tables of contents during vault maintenance:",
-              "vault maintenance update table of contents");
-  add_toggle (mt,
-              "Remove redundant block wikilinks matched by radioactive links:",
-              "vault maintenance remove redundant block wikilinks");
-  add_toggle (mt, "Update Continuous RAG during vault maintenance:",
-              "vault maintenance continuous rag");
-  add_combo (mt, "If delegated RAG is unavailable:",
-             "vault maintenance rag delegation fallback",
-             {{"fail-maintenance", "Fail maintenance"},
-              {"continue", "Continue without RAG"},
-              {"local", "Run embedding locally"}},
-             "continue");
-  add_toggle (mt, "Collect orphan assets during vault maintenance:",
-              "vault collect orphan assets");
-  add_toggle (mt, "Generate summary page for maintenance:",
-              "vault generate maintenance summary page");
-  add_combo (mt, "Maintenance summaries to keep:",
-             "vault maintenance summaries to keep",
-             {{"All", "All"}, {"1", "1"}, {"2", "2"}, {"3", "3"},
-              {"5", "5"}, {"10", "10"}, {"20", "20"}, {"50", "50"}},
-             "All");
+  add_combo (mt, "vault max full backups");
+  add_combo (mt, "vault maintenance worker processes");
+  add_toggle (mt, "vault maintenance update table of contents");
+  add_toggle (mt, "vault maintenance remove redundant block wikilinks");
+  add_toggle (mt, "vault maintenance continuous rag");
+  add_combo (mt, "vault maintenance rag delegation fallback");
+  add_toggle (mt, "vault collect orphan assets");
+  add_toggle (mt, "vault generate maintenance summary page");
+  add_combo (mt, "vault maintenance summaries to keep");
   finish_page (maintenance);
 
   QWidget* backup= make_page ();
@@ -2006,14 +1870,9 @@ QTMPreferencesDialog::buildVaultCategories () {
 
   QWidget* anchors= make_page ();
   QFormLayout* a= add_section (anchors, "Images");
-  add_toggle (a, "Auto copy images to vault:",
-              "vault auto copy images to vault");
-  add_toggle (a, "Normalize image filename when inserting:",
-              "vault normalize image filename when inserting");
-  add_combo (a, "Pasted internet images:",
-             "pasted internet image handling",
-             {{"Keep remote link", "link"},
-              {"Download into vault", "download"}}, "link");
+  add_toggle (a, "vault auto copy images to vault");
+  add_toggle (a, "vault normalize image filename when inserting");
+  add_combo (a, "pasted internet image handling");
   finish_page (anchors);
 
   QWidget* info= make_page ();
@@ -2365,19 +2224,14 @@ QTMPreferencesDialog::buildOtherPage () {
 
   QWidget* debugging= make_page ();
   QFormLayout* debugGeneral= add_section (debugging, "General");
-  add_toggle (debugGeneral, "Include Guile backtraces in Scheme errors:",
-              "debug scheme backtraces");
+  add_toggle (debugGeneral, "debug scheme backtraces");
 
   QFormLayout* console= add_section (debugging, "Error Messages");
-  add_toggle (console, "Open Error messages automatically on errors:",
-              "open console on errors");
-  add_toggle (console, "Open Error messages automatically on warnings:",
-              "open console on warnings");
+  add_toggle (console, "open console on errors");
+  add_toggle (console, "open console on warnings");
 
   QFormLayout* performance= add_section (debugging, "Rendering Performance");
-  QCheckBox* performanceMonitor= add_toggle (
-    performance, "Show rendering FPS and editing latency HUD:",
-    "rendering performance monitor");
+  QCheckBox* performanceMonitor= add_toggle (performance, "rendering performance monitor");
   QObject::connect (performanceMonitor, &QCheckBox::toggled,
                     [] () {
                       QTMWidget::refreshAllPerformanceMonitors ();
@@ -2393,10 +2247,7 @@ QTMPreferencesDialog::buildOtherPage () {
 
   QWidget* security= make_page ();
   QFormLayout* s= add_section (security, "Security");
-  add_combo (s, "Script execution:", "security",
-             {{"accept no scripts", "Accept no scripts"},
-              {"prompt on scripts", "Prompt on scripts"},
-              {"accept all scripts", "Accept all scripts"}});
+  add_combo (s, "security");
 
   QFormLayout* rd= add_section (security, "ATHENA Delegation");
   QListWidget* ragServers= new QListWidget (security);
@@ -2586,11 +2437,8 @@ QTMPreferencesDialog::buildOtherPage () {
 
   QWidget* connectivity= make_page ();
   QFormLayout* google= add_section (connectivity, "Google Tasks");
-  QLineEdit* clientId= add_line_edit (
-    google, "OAuth desktop client ID:", "google oauth client id", "");
-  QLineEdit* clientSecret= add_line_edit (
-    google, "OAuth desktop client secret:", "google oauth client secret", "",
-    true);
+  QLineEdit* clientId= add_line_edit (google, "google oauth client id");
+  QLineEdit* clientSecret= add_line_edit (google, "google oauth client secret");
   QComboBox* cloudTodoList= new QComboBox (connectivity);
   mark_preference_control (cloudTodoList,
                            "google tasks cloud todo list id");
@@ -2683,18 +2531,15 @@ QTMPreferencesDialog::buildOtherPage () {
                               "collecting preference metadata.");
 
   QFormLayout* rag= add_section (connectivity, "Continuous RAG");
-  add_line_edit (rag, "MCP port:", "rag mcp port", "8765");
-  QCheckBox* delegationEnabled= add_toggle (
-    rag, "Enable RAG Delegation:", "rag delegation enabled");
+  add_line_edit (rag, "rag mcp port");
+  QCheckBox* delegationEnabled= add_toggle (rag, "rag delegation enabled");
   QObject::connect (delegationEnabled, &QCheckBox::toggled,
                     [refreshRagDelegationEnabled] () {
     refreshRagDelegationEnabled ();
   });
   QFormLayout* artifactDelegation= add_section (
     connectivity, "Artifact Generation");
-  QCheckBox* artifactDelegationEnabled= add_toggle (
-    artifactDelegation, "Enable Artifact Definition Span Delegation:",
-    "artifact definition span delegation enabled");
+  QCheckBox* artifactDelegationEnabled= add_toggle (artifactDelegation, "artifact definition span delegation enabled");
   QObject::connect (artifactDelegationEnabled, &QCheckBox::toggled,
                     [refreshRagDelegationEnabled] () {
     refreshRagDelegationEnabled ();
@@ -2719,11 +2564,8 @@ QTMPreferencesDialog::buildOtherPage () {
     embeddingModel->setText (selected);
     set_pref ("rag embedding model", selected);
   });
-  add_combo (rag, "Embedding device:", "rag embedding device",
-             {{"auto", "Auto"}, {"cpu", "CPU only"}}, "auto");
-  QCheckBox* realtimeNpu= add_toggle (
-    rag, "Continuous vault indexing with Intel NPU:",
-    "rag realtime npu enabled");
+  add_combo (rag, "rag embedding device");
+  QCheckBox* realtimeNpu= add_toggle (rag, "rag realtime npu enabled");
   QPushButton* chooseNpuModel= nullptr;
   QLineEdit* npuModel= add_path_chooser_row (
     rag, "NPU BGE-M3 OpenVINO model:", pref ("rag npu openvino model", ""),
@@ -2776,8 +2618,7 @@ QTMPreferencesDialog::buildOtherPage () {
     refreshRealtimeNpuControls ();
   });
   refreshRealtimeNpuControls ();
-  QLineEdit* bearerToken= add_line_edit (
-    rag, "MCP bearer token:", "rag mcp bearer token", "", false);
+  QLineEdit* bearerToken= add_line_edit (rag, "rag mcp bearer token");
   QWidget* tokenButtons= new QWidget (connectivity);
   QHBoxLayout* tokenLayout= new QHBoxLayout (tokenButtons);
   tokenLayout->setContentsMargins (0, 0, 0, 0);

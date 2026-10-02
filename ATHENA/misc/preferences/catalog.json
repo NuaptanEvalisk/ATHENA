@@ -1,0 +1,5330 @@
+{
+  "format": "athena-preference-catalog",
+  "version": 1,
+  "preferences": [
+    {
+      "key": "profile",
+      "type": "string",
+      "scope": "active",
+      "default": "beginner"
+    },
+    {
+      "key": "look and feel",
+      "type": "choice",
+      "scope": "active",
+      "default": "default",
+      "callback": "look-and-feel",
+      "ui": {
+        "category": "General",
+        "tab": "Appearance",
+        "section": "Appearance",
+        "order": 0,
+        "label": "Look and feel",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "default",
+            "label": "Default"
+          },
+          {
+            "value": "emacs",
+            "label": "Emacs"
+          },
+          {
+            "value": "gnome",
+            "label": "Gnome"
+          },
+          {
+            "value": "kde",
+            "label": "KDE"
+          },
+          {
+            "value": "macos",
+            "label": "Mac OS"
+          },
+          {
+            "value": "windows",
+            "label": "Windows"
+          }
+        ],
+        "restart": true,
+        "category_order": 0,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "case sensitive shortcuts",
+      "type": "string",
+      "scope": "active",
+      "default": "default"
+    },
+    {
+      "key": "new toolbar",
+      "type": "string",
+      "scope": "active",
+      "default": "on",
+      "callback": "restart"
+    },
+    {
+      "key": "disable texmacs window positioning",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "General",
+        "tab": "Appearance",
+        "section": "Appearance",
+        "order": 7,
+        "label": "Disable window positioning",
+        "control": "toggle",
+        "category_order": 0,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "default cjk language",
+      "type": "choice",
+      "scope": "active",
+      "default": "chinese",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Misc",
+        "section": "Misc",
+        "order": 0,
+        "label": "Default CJK language",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "chinese",
+            "label": "Chinese"
+          },
+          {
+            "value": "japanese",
+            "label": "Japanese"
+          },
+          {
+            "value": "korean",
+            "label": "Korean"
+          },
+          {
+            "value": "taiwanese",
+            "label": "Taiwanese"
+          }
+        ],
+        "category_order": 3,
+        "tab_order": 2,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "render solution in smaller font",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "callback": "enunciation-rendering",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Components and Layout",
+        "section": "Components and Layout",
+        "order": 2,
+        "label": "Render exercises in smaller font",
+        "control": "toggle",
+        "category_order": 3,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "number solutions",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "callback": "enunciation-rendering",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Components and Layout",
+        "section": "Components and Layout",
+        "order": 3,
+        "label": "Number solutions",
+        "control": "toggle",
+        "category_order": 3,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "text toolbar",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "callback": "toolbar-presentation",
+      "ui": {
+        "category": "General",
+        "tab": "Appearance",
+        "section": "Appearance",
+        "order": 1,
+        "label": "Use text toolbars instead of icon toolbars",
+        "control": "toggle",
+        "category_order": 0,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "page medium",
+      "type": "string",
+      "scope": "active",
+      "default": "paper"
+    },
+    {
+      "key": "show full context",
+      "type": "string",
+      "scope": "active",
+      "default": "on"
+    },
+    {
+      "key": "show table cells",
+      "type": "string",
+      "scope": "active",
+      "default": "on"
+    },
+    {
+      "key": "show focus",
+      "type": "string",
+      "scope": "active",
+      "default": "on"
+    },
+    {
+      "key": "show only semantic focus",
+      "type": "string",
+      "scope": "active",
+      "default": "on"
+    },
+    {
+      "key": "semantic editing",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Editing",
+        "tab": "Maths",
+        "section": "Math hints and semantics",
+        "order": 0,
+        "label": "Semantic editing",
+        "control": "toggle",
+        "category_order": 2,
+        "tab_order": 0,
+        "section_order": 2
+      }
+    },
+    {
+      "key": "semantic selections",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "ui": {
+        "category": "Editing",
+        "tab": "Maths",
+        "section": "Math hints and semantics",
+        "order": 1,
+        "label": "Semantic selections",
+        "control": "toggle",
+        "category_order": 2,
+        "tab_order": 0,
+        "section_order": 2
+      }
+    },
+    {
+      "key": "semantic correctness",
+      "type": "string",
+      "scope": "active",
+      "default": "off"
+    },
+    {
+      "key": "remove superfluous invisible",
+      "type": "string",
+      "scope": "active",
+      "default": "off"
+    },
+    {
+      "key": "insert missing invisible",
+      "type": "string",
+      "scope": "active",
+      "default": "off"
+    },
+    {
+      "key": "zealous invisible correct",
+      "type": "string",
+      "scope": "active",
+      "default": "off"
+    },
+    {
+      "key": "homoglyph correct",
+      "type": "string",
+      "scope": "active",
+      "default": "off"
+    },
+    {
+      "key": "manual remove superfluous invisible",
+      "type": "string",
+      "scope": "active",
+      "default": "on"
+    },
+    {
+      "key": "manual insert missing invisible",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "ui": {
+        "category": "Editing",
+        "tab": "Maths",
+        "section": "Math keyboard",
+        "order": 0,
+        "label": "Use shortcuts for missing invisible operators",
+        "control": "toggle",
+        "category_order": 2,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "manual zealous invisible correct",
+      "type": "string",
+      "scope": "active",
+      "default": "off"
+    },
+    {
+      "key": "manual homoglyph correct",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "ui": {
+        "category": "Editing",
+        "tab": "Maths",
+        "section": "Math keyboard",
+        "order": 1,
+        "label": "Homoglyph substitutions",
+        "control": "toggle",
+        "category_order": 2,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "security",
+      "type": "choice",
+      "scope": "active",
+      "default": "prompt on scripts",
+      "callback": "security",
+      "ui": {
+        "category": "Other",
+        "tab": "Security",
+        "section": "Security",
+        "order": 0,
+        "label": "Script execution",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "accept no scripts",
+            "label": "Accept no scripts"
+          },
+          {
+            "value": "prompt on scripts",
+            "label": "Prompt on scripts"
+          },
+          {
+            "value": "accept all scripts",
+            "label": "Accept all scripts"
+          }
+        ],
+        "category_order": 9,
+        "tab_order": 2,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "latex command",
+      "type": "string",
+      "scope": "active",
+      "default": "pdflatex",
+      "callback": "latex-command"
+    },
+    {
+      "key": "presentation tool",
+      "type": "string",
+      "scope": "active",
+      "default": "off",
+      "callback": "tool"
+    },
+    {
+      "key": "inertial scrolling",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "General",
+        "tab": "Appearance",
+        "section": "Appearance",
+        "order": 4,
+        "label": "Use inertial scrolling",
+        "control": "toggle",
+        "category_order": 0,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "inertial scrolling friction",
+      "type": "string",
+      "scope": "active",
+      "default": "0.95",
+      "ui": {
+        "category": "General",
+        "tab": "Appearance",
+        "section": "Appearance",
+        "order": 5,
+        "label": "Inertial momentum (0.80-0.99)",
+        "control": "text",
+        "category_order": 0,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "inertial scrolling sensitivity",
+      "type": "string",
+      "scope": "active",
+      "default": "2.0",
+      "ui": {
+        "category": "General",
+        "tab": "Appearance",
+        "section": "Appearance",
+        "order": 6,
+        "label": "Inertial sensitivity multiplier",
+        "control": "text",
+        "category_order": 0,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "source tool",
+      "type": "string",
+      "scope": "active",
+      "default": "off",
+      "callback": "tool"
+    },
+    {
+      "key": "experimental alpha",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "callback": "tool",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Document Colors",
+        "section": "Document Colors",
+        "order": 11,
+        "label": "Alpha transparency",
+        "control": "toggle",
+        "category_order": 3,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "bitmap effects",
+      "type": "string",
+      "scope": "active",
+      "default": "on",
+      "callback": "tool"
+    },
+    {
+      "key": "new style page breaking",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "callback": "new-page-breaking",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Components and Layout",
+        "section": "Components and Layout",
+        "order": 1,
+        "label": "New style page breaking",
+        "control": "toggle",
+        "category_order": 3,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "open console on errors",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "ui": {
+        "category": "Other",
+        "tab": "Debugging",
+        "section": "Error Messages",
+        "order": 0,
+        "label": "Open Error messages automatically on errors",
+        "control": "toggle",
+        "category_order": 9,
+        "tab_order": 3,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "open console on warnings",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "ui": {
+        "category": "Other",
+        "tab": "Debugging",
+        "section": "Error Messages",
+        "order": 1,
+        "label": "Open Error messages automatically on warnings",
+        "control": "toggle",
+        "category_order": 9,
+        "tab_order": 3,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "debug scheme backtraces",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "callback": "debug-backtrace",
+      "ui": {
+        "category": "Other",
+        "tab": "Debugging",
+        "section": "General",
+        "order": 0,
+        "label": "Include Guile backtraces in Scheme errors",
+        "control": "toggle",
+        "category_order": 9,
+        "tab_order": 3,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "gui:line-input:autocommit",
+      "type": "string",
+      "scope": "active",
+      "default": "on"
+    },
+    {
+      "key": "show font substitution warning",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "ui": {
+        "category": "General",
+        "tab": "Fonts",
+        "section": "Styling",
+        "order": 0,
+        "label": "Show warning for font substitution",
+        "control": "toggle",
+        "category_order": 0,
+        "tab_order": 2,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "check for updates",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "ui": {
+        "category": "General",
+        "tab": "Basic",
+        "section": "Basic",
+        "order": 0,
+        "label": "Check for updates on startup",
+        "control": "toggle",
+        "category_order": 0,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "use native menubar",
+      "type": "string",
+      "scope": "active",
+      "default": "off"
+    },
+    {
+      "key": "use unified toolbar",
+      "type": "string",
+      "scope": "active",
+      "default": "off"
+    },
+    {
+      "key": "hide toolbars when not using them",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "callback": "toolbar-presentation",
+      "ui": {
+        "category": "General",
+        "tab": "Appearance",
+        "section": "Appearance",
+        "order": 2,
+        "label": "Hide toolbars when not using them",
+        "control": "toggle",
+        "category_order": 0,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "remember ads panes layout",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "ui": {
+        "category": "General",
+        "tab": "Basic",
+        "section": "Basic",
+        "order": 1,
+        "label": "Remember panes layout",
+        "control": "toggle",
+        "category_order": 0,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "middle click closes ads tab",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "ui": {
+        "category": "General",
+        "tab": "Basic",
+        "section": "Basic",
+        "order": 2,
+        "label": "Middle-click closes ADS tabs",
+        "control": "toggle",
+        "category_order": 0,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "header",
+      "type": "string",
+      "scope": "active",
+      "default": "on",
+      "callback": "header"
+    },
+    {
+      "key": "main icon bar",
+      "type": "string",
+      "scope": "active",
+      "default": "on",
+      "callback": "icon-bar"
+    },
+    {
+      "key": "mode dependent icons",
+      "type": "string",
+      "scope": "active",
+      "default": "on",
+      "callback": "icon-bar"
+    },
+    {
+      "key": "focus dependent icons",
+      "type": "string",
+      "scope": "active",
+      "default": "on",
+      "callback": "icon-bar"
+    },
+    {
+      "key": "user provided icons",
+      "type": "string",
+      "scope": "active",
+      "default": "off",
+      "callback": "icon-bar"
+    },
+    {
+      "key": "status bar",
+      "type": "string",
+      "scope": "active",
+      "default": "on",
+      "callback": "status-bar"
+    },
+    {
+      "key": "zoom factor",
+      "type": "string",
+      "scope": "active",
+      "default": "1",
+      "callback": "zoom-factor"
+    },
+    {
+      "key": "snap to pages",
+      "type": "string",
+      "scope": "active",
+      "default": "off"
+    },
+    {
+      "key": "persistent fit width",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Misc",
+        "section": "Misc",
+        "order": 1,
+        "label": "Persistent fit width",
+        "control": "toggle",
+        "category_order": 3,
+        "tab_order": 2,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "typewriter mode",
+      "type": "string",
+      "scope": "active",
+      "default": "off"
+    },
+    {
+      "key": "ir-up",
+      "type": "choice",
+      "scope": "active",
+      "default": "home",
+      "callback": "remote-control",
+      "ui": {
+        "category": "Keyboard",
+        "tab": "Remote Control",
+        "section": "Remote Control",
+        "order": 2,
+        "label": "Up",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "home",
+            "label": "home"
+          },
+          {
+            "value": "",
+            "label": ""
+          }
+        ],
+        "category_order": 1,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "ir-down",
+      "type": "choice",
+      "scope": "active",
+      "default": "end",
+      "callback": "remote-control",
+      "ui": {
+        "category": "Keyboard",
+        "tab": "Remote Control",
+        "section": "Remote Control",
+        "order": 3,
+        "label": "Down",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "end",
+            "label": "end"
+          },
+          {
+            "value": "",
+            "label": ""
+          }
+        ],
+        "category_order": 1,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "ir-left",
+      "type": "choice",
+      "scope": "active",
+      "default": "pageup",
+      "callback": "remote-control",
+      "ui": {
+        "category": "Keyboard",
+        "tab": "Remote Control",
+        "section": "Remote Control",
+        "order": 0,
+        "label": "Left",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "pageup",
+            "label": "pageup"
+          },
+          {
+            "value": "",
+            "label": ""
+          }
+        ],
+        "category_order": 1,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "ir-right",
+      "type": "choice",
+      "scope": "active",
+      "default": "pagedown",
+      "callback": "remote-control",
+      "ui": {
+        "category": "Keyboard",
+        "tab": "Remote Control",
+        "section": "Remote Control",
+        "order": 1,
+        "label": "Right",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "pagedown",
+            "label": "pagedown"
+          },
+          {
+            "value": "",
+            "label": ""
+          }
+        ],
+        "category_order": 1,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "ir-center",
+      "type": "choice",
+      "scope": "active",
+      "default": "S-return",
+      "callback": "remote-control",
+      "ui": {
+        "category": "Keyboard",
+        "tab": "Remote Control",
+        "section": "Remote Control",
+        "order": 4,
+        "label": "Center",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "return",
+            "label": "return"
+          },
+          {
+            "value": "S-return",
+            "label": "S-return"
+          },
+          {
+            "value": "",
+            "label": ""
+          }
+        ],
+        "category_order": 1,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "ir-play",
+      "type": "choice",
+      "scope": "active",
+      "default": "F5",
+      "callback": "remote-control",
+      "ui": {
+        "category": "Keyboard",
+        "tab": "Remote Control",
+        "section": "Remote Control",
+        "order": 5,
+        "label": "Play",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "F5",
+            "label": "F5"
+          },
+          {
+            "value": "",
+            "label": ""
+          }
+        ],
+        "category_order": 1,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "ir-pause",
+      "type": "choice",
+      "scope": "active",
+      "default": "escape",
+      "callback": "remote-control",
+      "ui": {
+        "category": "Keyboard",
+        "tab": "Remote Control",
+        "section": "Remote Control",
+        "order": 6,
+        "label": "Pause",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "escape",
+            "label": "escape"
+          },
+          {
+            "value": "",
+            "label": ""
+          }
+        ],
+        "category_order": 1,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "ir-menu",
+      "type": "choice",
+      "scope": "active",
+      "default": ".",
+      "callback": "remote-control",
+      "ui": {
+        "category": "Keyboard",
+        "tab": "Remote Control",
+        "section": "Remote Control",
+        "order": 7,
+        "label": "Menu",
+        "control": "choice",
+        "choices": [
+          {
+            "value": ".",
+            "label": "."
+          },
+          {
+            "value": "",
+            "label": ""
+          }
+        ],
+        "category_order": 1,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "draw cursor",
+      "type": "string",
+      "scope": "active",
+      "default": "on"
+    },
+    {
+      "key": "blinking cursor",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "ui": {
+        "category": "General",
+        "tab": "Appearance",
+        "section": "Appearance",
+        "order": 3,
+        "label": "Blink the editing cursor",
+        "control": "toggle",
+        "category_order": 0,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "rendering performance monitor",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Other",
+        "tab": "Debugging",
+        "section": "Rendering Performance",
+        "order": 0,
+        "label": "Show rendering FPS and editing latency HUD",
+        "control": "toggle",
+        "category_order": 9,
+        "tab_order": 3,
+        "section_order": 2
+      }
+    },
+    {
+      "key": "texmacs->pdf:data-art cover",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Convert",
+        "tab": "Pdf",
+        "section": "ATHENA → Pdf/Postscript",
+        "order": 1,
+        "label": "Generate DataArt cover image when exporting",
+        "control": "toggle",
+        "category_order": 4,
+        "tab_order": 3,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "texmacs->pdf:expand slides",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Convert",
+        "tab": "Pdf",
+        "section": "ATHENA → Pdf/Postscript",
+        "order": 0,
+        "label": "Expand beamer slides",
+        "control": "toggle",
+        "category_order": 4,
+        "tab_order": 3,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "preview command",
+      "type": "string",
+      "scope": "active",
+      "default": "default",
+      "callback": "preview-command"
+    },
+    {
+      "key": "printing command",
+      "type": "string",
+      "scope": "active",
+      "default_provider": "printing-command",
+      "callback": "printing-command"
+    },
+    {
+      "key": "paper type",
+      "type": "string",
+      "scope": "active",
+      "default_provider": "paper-type",
+      "callback": "paper-type"
+    },
+    {
+      "key": "printer dpi",
+      "type": "string",
+      "scope": "active",
+      "default": "1200",
+      "callback": "printer-dpi"
+    },
+    {
+      "key": "document save mode",
+      "type": "choice",
+      "scope": "active",
+      "default": "realtime",
+      "callback": "autosave",
+      "ui": {
+        "category": "General",
+        "tab": "Basic",
+        "section": "Basic",
+        "order": 3,
+        "label": "Document saving",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "realtime",
+            "label": "Realtime save"
+          },
+          {
+            "value": "autosave",
+            "label": "Autosave"
+          },
+          {
+            "value": "manual",
+            "label": "Manual save only"
+          }
+        ],
+        "category_order": 0,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "realtime save interval",
+      "type": "choice",
+      "scope": "active",
+      "default": "3",
+      "ui": {
+        "category": "General",
+        "tab": "Basic",
+        "section": "Basic",
+        "order": 4,
+        "label": "Realtime save interval",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "0.5",
+            "label": "500 ms"
+          },
+          {
+            "value": "1",
+            "label": "1 sec"
+          },
+          {
+            "value": "2",
+            "label": "2 sec"
+          },
+          {
+            "value": "3",
+            "label": "3 sec"
+          },
+          {
+            "value": "5",
+            "label": "5 sec"
+          },
+          {
+            "value": "10",
+            "label": "10 sec"
+          }
+        ],
+        "category_order": 0,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "autosave",
+      "type": "choice",
+      "scope": "active",
+      "default": "120",
+      "callback": "autosave",
+      "ui": {
+        "category": "General",
+        "tab": "Basic",
+        "section": "Basic",
+        "order": 5,
+        "label": "Autosave interval",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "5",
+            "label": "5 sec"
+          },
+          {
+            "value": "30",
+            "label": "30 sec"
+          },
+          {
+            "value": "120",
+            "label": "120 sec"
+          },
+          {
+            "value": "300",
+            "label": "300 sec"
+          }
+        ],
+        "category_order": 0,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "document history manual save",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "ui": {
+        "category": "General",
+        "tab": "Basic",
+        "section": "Document history",
+        "order": 0,
+        "label": "Capture on manual save",
+        "control": "toggle",
+        "category_order": 0,
+        "tab_order": 0,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "document history interval",
+      "type": "choice",
+      "scope": "active",
+      "default": "600",
+      "ui": {
+        "category": "General",
+        "tab": "Basic",
+        "section": "Document history",
+        "order": 1,
+        "label": "Periodic capture",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "0",
+            "label": "Disabled"
+          },
+          {
+            "value": "60",
+            "label": "Every 1 minute"
+          },
+          {
+            "value": "300",
+            "label": "Every 5 minutes"
+          },
+          {
+            "value": "600",
+            "label": "Every 10 minutes"
+          },
+          {
+            "value": "1800",
+            "label": "Every 30 minutes"
+          },
+          {
+            "value": "3600",
+            "label": "Every 1 hour"
+          }
+        ],
+        "category_order": 0,
+        "tab_order": 0,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "document history preservation",
+      "type": "choice",
+      "scope": "active",
+      "default": "1 week",
+      "ui": {
+        "category": "General",
+        "tab": "Basic",
+        "section": "Document history",
+        "order": 2,
+        "label": "Preservation",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "Unlimited",
+            "label": "Unlimited"
+          },
+          {
+            "value": "1 hour",
+            "label": "1 hour"
+          },
+          {
+            "value": "6 hours",
+            "label": "6 hours"
+          },
+          {
+            "value": "1 day",
+            "label": "1 day"
+          },
+          {
+            "value": "3 days",
+            "label": "3 days"
+          },
+          {
+            "value": "1 week",
+            "label": "1 week"
+          },
+          {
+            "value": "1 month",
+            "label": "1 month"
+          }
+        ],
+        "category_order": 0,
+        "tab_order": 0,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "source tree style",
+      "type": "choice",
+      "scope": "active",
+      "default": "angular",
+      "ui": {
+        "category": "Editing",
+        "tab": "Source",
+        "section": "Source tree",
+        "order": 0,
+        "label": "Presentation style",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "angular",
+            "label": "Angular"
+          },
+          {
+            "value": "scheme",
+            "label": "Scheme"
+          },
+          {
+            "value": "functional",
+            "label": "Functional"
+          },
+          {
+            "value": "latex",
+            "label": "LaTeX"
+          }
+        ],
+        "category_order": 2,
+        "tab_order": 3,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "source tree special rendering",
+      "type": "choice",
+      "scope": "active",
+      "default": "normal",
+      "ui": {
+        "category": "Editing",
+        "tab": "Source",
+        "section": "Source tree",
+        "order": 1,
+        "label": "Special rendering",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "raw",
+            "label": "None"
+          },
+          {
+            "value": "format",
+            "label": "Formatting"
+          },
+          {
+            "value": "normal",
+            "label": "Normal"
+          },
+          {
+            "value": "maximal",
+            "label": "Maximal"
+          }
+        ],
+        "category_order": 2,
+        "tab_order": 3,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "source tree compactification",
+      "type": "choice",
+      "scope": "active",
+      "default": "normal",
+      "ui": {
+        "category": "Editing",
+        "tab": "Source",
+        "section": "Source tree",
+        "order": 2,
+        "label": "Compactification",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "none",
+            "label": "Minimal"
+          },
+          {
+            "value": "inline",
+            "label": "Only inline tags"
+          },
+          {
+            "value": "normal",
+            "label": "Normal"
+          },
+          {
+            "value": "inline args",
+            "label": "Inline arguments"
+          },
+          {
+            "value": "all",
+            "label": "Maximal"
+          }
+        ],
+        "category_order": 2,
+        "tab_order": 3,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "source tree closing style",
+      "type": "choice",
+      "scope": "active",
+      "default": "compact",
+      "ui": {
+        "category": "Editing",
+        "tab": "Source",
+        "section": "Source tree",
+        "order": 3,
+        "label": "Closing style",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "repeat",
+            "label": "Repeat"
+          },
+          {
+            "value": "long",
+            "label": "Stretched"
+          },
+          {
+            "value": "compact",
+            "label": "Compact"
+          },
+          {
+            "value": "minimal",
+            "label": "Minimal"
+          }
+        ],
+        "category_order": 2,
+        "tab_order": 3,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault fuzzy search limit",
+      "type": "string",
+      "scope": "active",
+      "default": "3"
+    },
+    {
+      "key": "vault transclusion color",
+      "type": "color",
+      "scope": "active",
+      "default": "#f8f8f8",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Document Colors",
+        "section": "Document Colors",
+        "order": 10,
+        "label": "Transclusion background",
+        "control": "optional-color",
+        "category_order": 3,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "recent text colors",
+      "type": "string",
+      "scope": "active",
+      "default": "()"
+    },
+    {
+      "key": "saved text colors",
+      "type": "string",
+      "scope": "active",
+      "default": "()"
+    },
+    {
+      "key": "gui cursor color",
+      "type": "color",
+      "scope": "active",
+      "default": "red",
+      "callback": "cursor-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Document Colors",
+        "section": "Document Colors",
+        "order": 0,
+        "label": "Cursor color",
+        "control": "color",
+        "category_order": 3,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "gui selection color",
+      "type": "color",
+      "scope": "active",
+      "default": "red",
+      "callback": "selection-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Document Colors",
+        "section": "Document Colors",
+        "order": 1,
+        "label": "Selection color",
+        "control": "color",
+        "category_order": 3,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "gui focus color",
+      "type": "color",
+      "scope": "active",
+      "default": "#0ff",
+      "callback": "focus-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Document Colors",
+        "section": "Document Colors",
+        "order": 2,
+        "label": "Focus box color",
+        "control": "color",
+        "category_order": 3,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "gui focus border width",
+      "type": "choice",
+      "scope": "active",
+      "default": "1",
+      "callback": "focus-border-width",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Document Colors",
+        "section": "Document Colors",
+        "order": 3,
+        "label": "Focus box border",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "1",
+            "label": "1"
+          },
+          {
+            "value": "2",
+            "label": "2"
+          },
+          {
+            "value": "3",
+            "label": "3"
+          },
+          {
+            "value": "4",
+            "label": "4"
+          },
+          {
+            "value": "5",
+            "label": "5"
+          },
+          {
+            "value": "6",
+            "label": "6"
+          }
+        ],
+        "category_order": 3,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "locus-color",
+      "type": "color",
+      "scope": "active",
+      "default": "#404080",
+      "callback": "link-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Document Colors",
+        "section": "Document Colors",
+        "order": 4,
+        "label": "Unclicked link color",
+        "control": "color",
+        "category_order": 3,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "visited-color",
+      "type": "color",
+      "scope": "active",
+      "default": "#702070",
+      "callback": "link-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Document Colors",
+        "section": "Document Colors",
+        "order": 5,
+        "label": "Clicked link color",
+        "control": "color",
+        "category_order": 3,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "enable radioactive links",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "callback": "link-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Document Colors",
+        "section": "Document Colors",
+        "order": 6,
+        "label": "Enable radioactive links",
+        "control": "toggle",
+        "category_order": 3,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "radioactive-link-color",
+      "type": "color",
+      "scope": "active",
+      "default": "#a04400",
+      "callback": "link-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Document Colors",
+        "section": "Document Colors",
+        "order": 7,
+        "label": "Radioactive link color",
+        "control": "color",
+        "category_order": 3,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "override white document background",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "callback": "document-background-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Document Colors",
+        "section": "Document Colors",
+        "order": 8,
+        "label": "Override white background",
+        "control": "toggle",
+        "category_order": 3,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "white document background override color",
+      "type": "color",
+      "scope": "active",
+      "default": "#f7f3e8",
+      "callback": "document-background-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Document Colors",
+        "section": "Document Colors",
+        "order": 9,
+        "label": "White background color",
+        "control": "color",
+        "category_order": 3,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault welcome page",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "ui": {
+        "category": "Vault",
+        "tab": "General",
+        "section": "General",
+        "order": 2,
+        "label": "Show vault welcome page on startup",
+        "control": "toggle",
+        "category_order": 5,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault take preferences with vault",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "callback": "vault-preferences-mode",
+      "ui": {
+        "category": "Vault",
+        "tab": "General",
+        "section": "General",
+        "order": 4,
+        "label": "Take preferences with vault",
+        "control": "toggle",
+        "category_order": 5,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault auto load last",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Vault",
+        "tab": "General",
+        "section": "General",
+        "order": 0,
+        "label": "Auto load last vault",
+        "control": "toggle",
+        "category_order": 5,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault report missing last",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Vault",
+        "tab": "General",
+        "section": "General",
+        "order": 1,
+        "label": "Report if last vault is unavailable",
+        "control": "toggle",
+        "category_order": 5,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault explorer show on startup",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "ui": {
+        "category": "Vault",
+        "tab": "General",
+        "section": "General",
+        "order": 3,
+        "label": "Show vault explorer on startup",
+        "control": "toggle",
+        "category_order": 5,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault explorer track current file",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "callback": "vault-explorer-track",
+      "ui": {
+        "category": "Knowledge",
+        "tab": "Navigation",
+        "section": "Navigation",
+        "order": 0,
+        "label": "Track current file in vault explorer",
+        "control": "toggle",
+        "category_order": 6,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault explorer use system trash",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Knowledge",
+        "tab": "Navigation",
+        "section": "Navigation",
+        "order": 1,
+        "label": "Use system trash for safe deletion",
+        "control": "toggle",
+        "category_order": 6,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault namespace explorer leaf matches only",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Knowledge",
+        "tab": "Namespaces",
+        "section": "Namespaces",
+        "order": 0,
+        "label": "Namespace explorer shows file matches only for leaf namespaces",
+        "control": "toggle",
+        "category_order": 6,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault namespace explorer from root namespace",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Knowledge",
+        "tab": "Namespaces",
+        "section": "Namespaces",
+        "order": 1,
+        "label": "Namespace explorer starts from root namespace",
+        "control": "toggle",
+        "category_order": 6,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault namespace explorer simplify hierarchy",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Knowledge",
+        "tab": "Namespaces",
+        "section": "Namespaces",
+        "order": 2,
+        "label": "Namespace explorer simplifies redundant child namespaces",
+        "control": "toggle",
+        "category_order": 6,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault simplify hierarchy graphs",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Knowledge",
+        "tab": "Namespaces",
+        "section": "Namespaces",
+        "order": 3,
+        "label": "Simplify hierarchy graphs",
+        "control": "toggle",
+        "category_order": 6,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "interactive elastic graphs",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Misc",
+        "section": "Graphs",
+        "order": 0,
+        "label": "Use interactive elastic graphs",
+        "control": "toggle",
+        "category_order": 3,
+        "tab_order": 2,
+        "section_order": 2
+      }
+    },
+    {
+      "key": "fold table of contents in reflow",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "callback": "fold-table-of-contents",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Misc",
+        "section": "Table of Contents",
+        "order": 0,
+        "label": "Fold by default in Reflow",
+        "control": "toggle",
+        "category_order": 3,
+        "tab_order": 2,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "vault preferred initial neighborhood",
+      "type": "choice",
+      "scope": "active",
+      "default": "namespace",
+      "ui": {
+        "category": "Knowledge",
+        "tab": "Navigation",
+        "section": "Navigation",
+        "order": 4,
+        "label": "Preferred initial neighborhood",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "namespace",
+            "label": "First direct namespace-based neighborhood"
+          },
+          {
+            "value": "path",
+            "label": "Path-based neighborhood"
+          }
+        ],
+        "category_order": 6,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault max full backups",
+      "type": "choice",
+      "scope": "active",
+      "default": "Unlimited",
+      "ui": {
+        "category": "Vault",
+        "tab": "Maintenance",
+        "section": "Maintenance",
+        "order": 0,
+        "label": "Max allowed number of full backups",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "Unlimited",
+            "label": "Unlimited"
+          },
+          {
+            "value": "1",
+            "label": "1"
+          },
+          {
+            "value": "2",
+            "label": "2"
+          },
+          {
+            "value": "3",
+            "label": "3"
+          },
+          {
+            "value": "5",
+            "label": "5"
+          },
+          {
+            "value": "10",
+            "label": "10"
+          },
+          {
+            "value": "20",
+            "label": "20"
+          },
+          {
+            "value": "50",
+            "label": "50"
+          }
+        ],
+        "category_order": 5,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault maintenance worker processes",
+      "type": "choice",
+      "scope": "active",
+      "default": "Unlimited",
+      "ui": {
+        "category": "Vault",
+        "tab": "Maintenance",
+        "section": "Maintenance",
+        "order": 1,
+        "label": "Maintenance worker processes",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "Unlimited",
+            "label": "Unlimited"
+          },
+          {
+            "value": "1",
+            "label": "1"
+          },
+          {
+            "value": "2",
+            "label": "2"
+          },
+          {
+            "value": "4",
+            "label": "4"
+          },
+          {
+            "value": "8",
+            "label": "8"
+          },
+          {
+            "value": "12",
+            "label": "12"
+          },
+          {
+            "value": "16",
+            "label": "16"
+          },
+          {
+            "value": "20",
+            "label": "20"
+          }
+        ],
+        "category_order": 5,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault maintenance update table of contents",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Vault",
+        "tab": "Maintenance",
+        "section": "Maintenance",
+        "order": 2,
+        "label": "Update all tables of contents during vault maintenance",
+        "control": "toggle",
+        "category_order": 5,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault maintenance continuous rag",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Vault",
+        "tab": "Maintenance",
+        "section": "Maintenance",
+        "order": 4,
+        "label": "Update Continuous RAG during vault maintenance",
+        "control": "toggle",
+        "category_order": 5,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault maintenance remove redundant block wikilinks",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Vault",
+        "tab": "Maintenance",
+        "section": "Maintenance",
+        "order": 3,
+        "label": "Remove redundant block wikilinks matched by radioactive links",
+        "control": "toggle",
+        "category_order": 5,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "delegation server",
+      "type": "string",
+      "scope": "active",
+      "default": "",
+      "ui": {
+        "category": "Other",
+        "tab": "Security",
+        "section": "ATHENA Delegation",
+        "order": 70,
+        "label": "Delegation server",
+        "control": "native",
+        "provider": "delegation-server-list",
+        "category_order": 9,
+        "tab_order": 2,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "vault maintenance rag delegation fallback",
+      "type": "choice",
+      "scope": "active",
+      "default": "continue",
+      "ui": {
+        "category": "Vault",
+        "tab": "Maintenance",
+        "section": "Maintenance",
+        "order": 5,
+        "label": "If delegated RAG is unavailable",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "fail-maintenance",
+            "label": "Fail maintenance"
+          },
+          {
+            "value": "continue",
+            "label": "Continue without RAG"
+          },
+          {
+            "value": "local",
+            "label": "Run embedding locally"
+          }
+        ],
+        "category_order": 5,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault collect orphan assets",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Vault",
+        "tab": "Maintenance",
+        "section": "Maintenance",
+        "order": 6,
+        "label": "Collect orphan assets during vault maintenance",
+        "control": "toggle",
+        "category_order": 5,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault generate maintenance summary page",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Vault",
+        "tab": "Maintenance",
+        "section": "Maintenance",
+        "order": 7,
+        "label": "Generate summary page for maintenance",
+        "control": "toggle",
+        "category_order": 5,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault maintenance summaries to keep",
+      "type": "choice",
+      "scope": "active",
+      "default": "All",
+      "ui": {
+        "category": "Vault",
+        "tab": "Maintenance",
+        "section": "Maintenance",
+        "order": 8,
+        "label": "Maintenance summaries to keep",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "All",
+            "label": "All"
+          },
+          {
+            "value": "1",
+            "label": "1"
+          },
+          {
+            "value": "2",
+            "label": "2"
+          },
+          {
+            "value": "3",
+            "label": "3"
+          },
+          {
+            "value": "5",
+            "label": "5"
+          },
+          {
+            "value": "10",
+            "label": "10"
+          },
+          {
+            "value": "20",
+            "label": "20"
+          },
+          {
+            "value": "50",
+            "label": "50"
+          }
+        ],
+        "category_order": 5,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault subproduct consume string aggressively",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "ui": {
+        "category": "Knowledge",
+        "tab": "Namespaces",
+        "section": "Namespaces",
+        "order": 4,
+        "label": "Consume %s aggressively in sub-product naming template suggestion",
+        "control": "toggle",
+        "category_order": 6,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault preferred font",
+      "type": "string",
+      "scope": "active",
+      "default": "",
+      "ui": {
+        "category": "Vault",
+        "tab": "Vault Info",
+        "section": "Vault Info",
+        "order": 70,
+        "label": "Global preferred font for vault",
+        "control": "native",
+        "provider": "font-profile",
+        "category_order": 5,
+        "tab_order": 3,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault labels mode",
+      "type": "choice",
+      "scope": "active",
+      "default": "visible",
+      "callback": "labels-mode",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Components and Layout",
+        "section": "Components and Layout",
+        "order": 0,
+        "label": "Labels display",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "visible",
+            "label": "visible"
+          },
+          {
+            "value": "small",
+            "label": "small"
+          },
+          {
+            "value": "hidden",
+            "label": "hidden"
+          }
+        ],
+        "category_order": 3,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "enunciation color preset",
+      "type": "string",
+      "scope": "active",
+      "default": "Solarized Light",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Enunciation Colors",
+        "section": "Presets",
+        "order": 70,
+        "label": "Preset",
+        "control": "native",
+        "provider": "enunciation-preset",
+        "category_order": 3,
+        "tab_order": 3,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault theorem color",
+      "type": "color",
+      "scope": "active",
+      "default": "none",
+      "callback": "enunciation-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Enunciation Colors",
+        "section": "Enunciations",
+        "order": 0,
+        "label": "Theorem",
+        "control": "optional-color",
+        "category_order": 3,
+        "tab_order": 3,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "vault lemma color",
+      "type": "color",
+      "scope": "active",
+      "default": "none",
+      "callback": "enunciation-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Enunciation Colors",
+        "section": "Enunciations",
+        "order": 1,
+        "label": "Lemma",
+        "control": "optional-color",
+        "category_order": 3,
+        "tab_order": 3,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "vault corollary color",
+      "type": "color",
+      "scope": "active",
+      "default": "none",
+      "callback": "enunciation-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Enunciation Colors",
+        "section": "Enunciations",
+        "order": 2,
+        "label": "Corollary",
+        "control": "optional-color",
+        "category_order": 3,
+        "tab_order": 3,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "vault proposition color",
+      "type": "color",
+      "scope": "active",
+      "default": "none",
+      "callback": "enunciation-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Enunciation Colors",
+        "section": "Enunciations",
+        "order": 3,
+        "label": "Proposition",
+        "control": "optional-color",
+        "category_order": 3,
+        "tab_order": 3,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "vault axiom color",
+      "type": "color",
+      "scope": "active",
+      "default": "none",
+      "callback": "enunciation-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Enunciation Colors",
+        "section": "Enunciations",
+        "order": 4,
+        "label": "Axiom",
+        "control": "optional-color",
+        "category_order": 3,
+        "tab_order": 3,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "vault definition color",
+      "type": "color",
+      "scope": "active",
+      "default": "none",
+      "callback": "enunciation-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Enunciation Colors",
+        "section": "Enunciations",
+        "order": 5,
+        "label": "Definition",
+        "control": "optional-color",
+        "category_order": 3,
+        "tab_order": 3,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "vault notation color",
+      "type": "color",
+      "scope": "active",
+      "default": "none",
+      "callback": "enunciation-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Enunciation Colors",
+        "section": "Enunciations",
+        "order": 6,
+        "label": "Notation",
+        "control": "optional-color",
+        "category_order": 3,
+        "tab_order": 3,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "vault convention color",
+      "type": "color",
+      "scope": "active",
+      "default": "none",
+      "callback": "enunciation-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Enunciation Colors",
+        "section": "Enunciations",
+        "order": 7,
+        "label": "Convention",
+        "control": "optional-color",
+        "category_order": 3,
+        "tab_order": 3,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "vault conjecture color",
+      "type": "color",
+      "scope": "active",
+      "default": "none",
+      "callback": "enunciation-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Enunciation Colors",
+        "section": "Enunciations",
+        "order": 8,
+        "label": "Conjecture",
+        "control": "optional-color",
+        "category_order": 3,
+        "tab_order": 3,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "vault law color",
+      "type": "color",
+      "scope": "active",
+      "default": "none",
+      "callback": "enunciation-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Enunciation Colors",
+        "section": "Enunciations",
+        "order": 9,
+        "label": "Law",
+        "control": "optional-color",
+        "category_order": 3,
+        "tab_order": 3,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "vault remark color",
+      "type": "color",
+      "scope": "active",
+      "default": "none",
+      "callback": "enunciation-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Enunciation Colors",
+        "section": "Remarks and notes",
+        "order": 0,
+        "label": "Remark",
+        "control": "optional-color",
+        "category_order": 3,
+        "tab_order": 3,
+        "section_order": 2
+      }
+    },
+    {
+      "key": "vault note color",
+      "type": "color",
+      "scope": "active",
+      "default": "none",
+      "callback": "enunciation-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Enunciation Colors",
+        "section": "Remarks and notes",
+        "order": 1,
+        "label": "Note",
+        "control": "optional-color",
+        "category_order": 3,
+        "tab_order": 3,
+        "section_order": 2
+      }
+    },
+    {
+      "key": "vault example color",
+      "type": "color",
+      "scope": "active",
+      "default": "none",
+      "callback": "enunciation-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Enunciation Colors",
+        "section": "Remarks and notes",
+        "order": 2,
+        "label": "Example",
+        "control": "optional-color",
+        "category_order": 3,
+        "tab_order": 3,
+        "section_order": 2
+      }
+    },
+    {
+      "key": "vault warning color",
+      "type": "color",
+      "scope": "active",
+      "default": "none",
+      "callback": "enunciation-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Enunciation Colors",
+        "section": "Remarks and notes",
+        "order": 3,
+        "label": "Warning",
+        "control": "optional-color",
+        "category_order": 3,
+        "tab_order": 3,
+        "section_order": 2
+      }
+    },
+    {
+      "key": "vault disambiguation color",
+      "type": "color",
+      "scope": "active",
+      "default": "none",
+      "callback": "enunciation-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Enunciation Colors",
+        "section": "Remarks and notes",
+        "order": 4,
+        "label": "Disambiguation",
+        "control": "optional-color",
+        "category_order": 3,
+        "tab_order": 3,
+        "section_order": 2
+      }
+    },
+    {
+      "key": "vault acknowledgments color",
+      "type": "color",
+      "scope": "active",
+      "default": "none",
+      "callback": "enunciation-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Enunciation Colors",
+        "section": "Remarks and notes",
+        "order": 5,
+        "label": "Acknowledgments",
+        "control": "optional-color",
+        "category_order": 3,
+        "tab_order": 3,
+        "section_order": 2
+      }
+    },
+    {
+      "key": "vault exercise color",
+      "type": "color",
+      "scope": "active",
+      "default": "none",
+      "callback": "enunciation-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Enunciation Colors",
+        "section": "Exercises and proofs",
+        "order": 0,
+        "label": "Exercise",
+        "control": "optional-color",
+        "category_order": 3,
+        "tab_order": 3,
+        "section_order": 3
+      }
+    },
+    {
+      "key": "vault problem color",
+      "type": "color",
+      "scope": "active",
+      "default": "none",
+      "callback": "enunciation-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Enunciation Colors",
+        "section": "Exercises and proofs",
+        "order": 1,
+        "label": "Problem",
+        "control": "optional-color",
+        "category_order": 3,
+        "tab_order": 3,
+        "section_order": 3
+      }
+    },
+    {
+      "key": "vault question color",
+      "type": "color",
+      "scope": "active",
+      "default": "none",
+      "callback": "enunciation-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Enunciation Colors",
+        "section": "Exercises and proofs",
+        "order": 2,
+        "label": "Question",
+        "control": "optional-color",
+        "category_order": 3,
+        "tab_order": 3,
+        "section_order": 3
+      }
+    },
+    {
+      "key": "vault solution color",
+      "type": "color",
+      "scope": "active",
+      "default": "none",
+      "callback": "enunciation-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Enunciation Colors",
+        "section": "Exercises and proofs",
+        "order": 3,
+        "label": "Solution",
+        "control": "optional-color",
+        "category_order": 3,
+        "tab_order": 3,
+        "section_order": 3
+      }
+    },
+    {
+      "key": "vault answer color",
+      "type": "color",
+      "scope": "active",
+      "default": "none",
+      "callback": "enunciation-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Enunciation Colors",
+        "section": "Exercises and proofs",
+        "order": 4,
+        "label": "Answer",
+        "control": "optional-color",
+        "category_order": 3,
+        "tab_order": 3,
+        "section_order": 3
+      }
+    },
+    {
+      "key": "vault proof color",
+      "type": "color",
+      "scope": "active",
+      "default": "none",
+      "callback": "enunciation-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Enunciation Colors",
+        "section": "Exercises and proofs",
+        "order": 5,
+        "label": "Proof",
+        "control": "optional-color",
+        "category_order": 3,
+        "tab_order": 3,
+        "section_order": 3
+      }
+    },
+    {
+      "key": "vault proof alternative color",
+      "type": "color",
+      "scope": "active",
+      "default": "none",
+      "callback": "enunciation-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Enunciation Colors",
+        "section": "Exercises and proofs",
+        "order": 6,
+        "label": "Proof (Alternative)",
+        "control": "optional-color",
+        "category_order": 3,
+        "tab_order": 3,
+        "section_order": 3
+      }
+    },
+    {
+      "key": "vault proof standard color",
+      "type": "color",
+      "scope": "active",
+      "default": "none",
+      "callback": "enunciation-color",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Enunciation Colors",
+        "section": "Exercises and proofs",
+        "order": 7,
+        "label": "Proof (Standard)",
+        "control": "optional-color",
+        "category_order": 3,
+        "tab_order": 3,
+        "section_order": 3
+      }
+    },
+    {
+      "key": "vault auto copy images to vault",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Knowledge",
+        "tab": "Anchors and Images",
+        "section": "Images",
+        "order": 0,
+        "label": "Auto copy images to vault",
+        "control": "toggle",
+        "category_order": 6,
+        "tab_order": 5,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault normalize image filename when inserting",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Knowledge",
+        "tab": "Anchors and Images",
+        "section": "Images",
+        "order": 1,
+        "label": "Normalize image filename when inserting",
+        "control": "toggle",
+        "category_order": 6,
+        "tab_order": 5,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "pasted internet image handling",
+      "type": "choice",
+      "scope": "active",
+      "default": "link",
+      "ui": {
+        "category": "Knowledge",
+        "tab": "Anchors and Images",
+        "section": "Images",
+        "order": 2,
+        "label": "Pasted internet images",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "link",
+            "label": "Keep remote link"
+          },
+          {
+            "value": "download",
+            "label": "Download into vault"
+          }
+        ],
+        "category_order": 6,
+        "tab_order": 5,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "bidirectional navigation",
+      "type": "string",
+      "scope": "active",
+      "default": "off",
+      "callback": "bidirectional-navigation"
+    },
+    {
+      "key": "external navigation",
+      "type": "string",
+      "scope": "active",
+      "default": "on",
+      "callback": "external-navigation"
+    },
+    {
+      "key": "link pages",
+      "type": "string",
+      "scope": "active",
+      "default": "on",
+      "callback": "link-pages"
+    },
+    {
+      "key": "document update times",
+      "type": "choice",
+      "scope": "active",
+      "default": "1",
+      "callback": "doc-update-times",
+      "ui": {
+        "category": "Editing",
+        "tab": "Text",
+        "section": "Text",
+        "order": 4,
+        "label": "Document updates run",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "1",
+            "label": "Once"
+          },
+          {
+            "value": "2",
+            "label": "Twice"
+          },
+          {
+            "value": "3",
+            "label": "Three times"
+          }
+        ],
+        "category_order": 2,
+        "tab_order": 2,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "live spell checking",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Editing",
+        "tab": "Text",
+        "section": "Text",
+        "order": 0,
+        "label": "Check spelling as you type",
+        "control": "toggle",
+        "category_order": 2,
+        "tab_order": 2,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "realtime text autocompletion",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "ui": {
+        "category": "Editing",
+        "tab": "Text",
+        "section": "Text",
+        "order": 1,
+        "label": "Show autocompletion while typing",
+        "control": "toggle",
+        "category_order": 2,
+        "tab_order": 2,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "text autocompletion sorting",
+      "type": "choice",
+      "scope": "active",
+      "default": "alphabetical",
+      "ui": {
+        "category": "Editing",
+        "tab": "Text",
+        "section": "Text",
+        "order": 2,
+        "label": "Autocompletion order",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "frequency",
+            "label": "Frequency in buffer"
+          },
+          {
+            "value": "alphabetical",
+            "label": "Alphabetical"
+          }
+        ],
+        "category_order": 2,
+        "tab_order": 2,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "text autocompletion accept key",
+      "type": "choice",
+      "scope": "active",
+      "default": "both",
+      "ui": {
+        "category": "Editing",
+        "tab": "Text",
+        "section": "Text",
+        "order": 3,
+        "label": "Accept autocompletion with",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "enter",
+            "label": "Enter"
+          },
+          {
+            "value": "tab",
+            "label": "Tab"
+          },
+          {
+            "value": "both",
+            "label": "Both"
+          }
+        ],
+        "category_order": 2,
+        "tab_order": 2,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "custom dictionary import language",
+      "type": "string",
+      "scope": "active",
+      "default": "english",
+      "ui": {
+        "category": "Editing",
+        "tab": "Text",
+        "section": "Text",
+        "order": 60,
+        "label": "Custom dictionary language",
+        "control": "native",
+        "provider": "dynamic-choice",
+        "category_order": 2,
+        "tab_order": 2,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "allow-blank-match",
+      "type": "string",
+      "scope": "active",
+      "default": "on"
+    },
+    {
+      "key": "allow-initial-match",
+      "type": "string",
+      "scope": "active",
+      "default": "on"
+    },
+    {
+      "key": "allow-partial-match",
+      "type": "string",
+      "scope": "active",
+      "default": "on"
+    },
+    {
+      "key": "allow-injective-match",
+      "type": "string",
+      "scope": "active",
+      "default": "on"
+    },
+    {
+      "key": "allow-cascaded-match",
+      "type": "string",
+      "scope": "active",
+      "default": "on"
+    },
+    {
+      "key": "case-insensitive-match",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "General",
+        "tab": "Basic",
+        "section": "Basic",
+        "order": 6,
+        "label": "Use case-insensitive search",
+        "control": "toggle",
+        "category_order": 0,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault wikilink inserter case insensitive search",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Knowledge",
+        "tab": "Wikilinks and Transclusion",
+        "section": "Wikilinks and Transclusion",
+        "order": 0,
+        "label": "Wikilink inserter uses case-insensitive search",
+        "control": "toggle",
+        "category_order": 6,
+        "tab_order": 2,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault transclusion inserter case insensitive search",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Knowledge",
+        "tab": "Wikilinks and Transclusion",
+        "section": "Wikilinks and Transclusion",
+        "order": 1,
+        "label": "Transclusion inserter uses case-insensitive search",
+        "control": "toggle",
+        "category_order": 6,
+        "tab_order": 2,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault wikilink inserter fuzzy search",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Knowledge",
+        "tab": "Wikilinks and Transclusion",
+        "section": "Wikilinks and Transclusion",
+        "order": 2,
+        "label": "Wikilink inserter uses fuzzy search",
+        "control": "toggle",
+        "category_order": 6,
+        "tab_order": 2,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault transclusion inserter fuzzy search",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Knowledge",
+        "tab": "Wikilinks and Transclusion",
+        "section": "Wikilinks and Transclusion",
+        "order": 3,
+        "label": "Transclusion inserter uses fuzzy search",
+        "control": "toggle",
+        "category_order": 6,
+        "tab_order": 2,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault link search workers",
+      "type": "string",
+      "scope": "active",
+      "default": "8",
+      "ui": {
+        "category": "Knowledge",
+        "tab": "Wikilinks and Transclusion",
+        "section": "Wikilinks and Transclusion",
+        "order": 70,
+        "label": "Search workers",
+        "control": "native",
+        "provider": "search-worker-count",
+        "category_order": 6,
+        "tab_order": 2,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault global search case insensitive search",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Knowledge",
+        "tab": "Navigation",
+        "section": "Navigation",
+        "order": 2,
+        "label": "Global Search uses case-insensitive search",
+        "control": "toggle",
+        "category_order": 6,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault global search fuzzy search",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Knowledge",
+        "tab": "Navigation",
+        "section": "Navigation",
+        "order": 3,
+        "label": "Global Search uses fuzzy search",
+        "control": "toggle",
+        "category_order": 6,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault wikilink display template file",
+      "type": "string",
+      "scope": "active",
+      "default": "%f",
+      "ui": {
+        "category": "Knowledge",
+        "tab": "Wikilinks and Transclusion",
+        "section": "Wikilinks and Transclusion",
+        "order": 4,
+        "label": "Wikilink default display text for files",
+        "control": "text",
+        "category_order": 6,
+        "tab_order": 2,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault wikilink display template heading",
+      "type": "string",
+      "scope": "active",
+      "default": "%c",
+      "ui": {
+        "category": "Knowledge",
+        "tab": "Wikilinks and Transclusion",
+        "section": "Wikilinks and Transclusion",
+        "order": 5,
+        "label": "Wikilink default display text for headings",
+        "control": "text",
+        "category_order": 6,
+        "tab_order": 2,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault wikilink display template anchor",
+      "type": "string",
+      "scope": "active",
+      "default": "%c",
+      "ui": {
+        "category": "Knowledge",
+        "tab": "Wikilinks and Transclusion",
+        "section": "Wikilinks and Transclusion",
+        "order": 6,
+        "label": "Wikilink default display text for anchors",
+        "control": "text",
+        "category_order": 6,
+        "tab_order": 2,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "materials provider crossref",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Materials",
+        "tab": "Sources and Citations",
+        "section": "Materials",
+        "order": 2,
+        "label": "Query Crossref",
+        "control": "toggle",
+        "category_order": 7,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "materials provider openalex",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Materials",
+        "tab": "Sources and Citations",
+        "section": "Materials",
+        "order": 3,
+        "label": "Query OpenAlex",
+        "control": "toggle",
+        "category_order": 7,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "materials provider open library",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "ui": {
+        "category": "Materials",
+        "tab": "Sources and Citations",
+        "section": "Materials",
+        "order": 4,
+        "label": "Query Open Library",
+        "control": "toggle",
+        "category_order": 7,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "materials provider google books",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Materials",
+        "tab": "Sources and Citations",
+        "section": "Materials",
+        "order": 5,
+        "label": "Query Google Books",
+        "control": "toggle",
+        "category_order": 7,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "materials provider arxiv",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Materials",
+        "tab": "Sources and Citations",
+        "section": "Materials",
+        "order": 6,
+        "label": "Query arXiv",
+        "control": "toggle",
+        "category_order": 7,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "materials provider pubmed",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Materials",
+        "tab": "Sources and Citations",
+        "section": "Materials",
+        "order": 7,
+        "label": "Query PubMed",
+        "control": "toggle",
+        "category_order": 7,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "materials provider contact email",
+      "type": "string",
+      "scope": "active",
+      "default": "",
+      "ui": {
+        "category": "Materials",
+        "tab": "Sources and Citations",
+        "section": "Materials",
+        "order": 8,
+        "label": "Provider contact email",
+        "control": "text",
+        "category_order": 7,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "materials local metadata extractor",
+      "type": "string",
+      "scope": "active",
+      "default": "exiftool",
+      "ui": {
+        "category": "Materials",
+        "tab": "Sources and Citations",
+        "section": "Materials",
+        "order": 0,
+        "label": "Local metadata extractor",
+        "control": "text",
+        "category_order": 7,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "materials local text extractor",
+      "type": "string",
+      "scope": "active",
+      "default": "pdftotext",
+      "ui": {
+        "category": "Materials",
+        "tab": "Sources and Citations",
+        "section": "Materials",
+        "order": 1,
+        "label": "Local PDF text extractor",
+        "control": "text",
+        "category_order": 7,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "materials import parallelism",
+      "type": "string",
+      "scope": "active",
+      "default": "auto",
+      "ui": {
+        "category": "Materials",
+        "tab": "Sources and Citations",
+        "section": "Materials",
+        "order": 60,
+        "label": "Directory import parallelism",
+        "control": "native",
+        "provider": "dynamic-choice",
+        "category_order": 7,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "materials csl style",
+      "type": "string",
+      "scope": "active",
+      "default": "springer-mathphys",
+      "ui": {
+        "category": "Materials",
+        "tab": "Sources and Citations",
+        "section": "Materials",
+        "order": 61,
+        "label": "Default CSL style",
+        "control": "native",
+        "provider": "dynamic-choice",
+        "category_order": 7,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "allow-blank-replace",
+      "type": "string",
+      "scope": "active",
+      "default": "off"
+    },
+    {
+      "key": "allow-initial-replace",
+      "type": "string",
+      "scope": "active",
+      "default": "off"
+    },
+    {
+      "key": "allow-partial-replace",
+      "type": "string",
+      "scope": "active",
+      "default": "off"
+    },
+    {
+      "key": "allow-injective-replace",
+      "type": "string",
+      "scope": "active",
+      "default": "off"
+    },
+    {
+      "key": "auto bib import",
+      "type": "string",
+      "scope": "active",
+      "default": "on"
+    },
+    {
+      "key": "manual style",
+      "type": "string",
+      "scope": "active",
+      "default": "tmmanual"
+    },
+    {
+      "key": "doc:collect-timestamp",
+      "type": "scheme-object",
+      "scope": "active",
+      "default": "0",
+      "callback": "doc-collect-preference"
+    },
+    {
+      "key": "doc:collect-languages",
+      "type": "scheme-object",
+      "scope": "active",
+      "default": "()",
+      "callback": "doc-collect-preference"
+    },
+    {
+      "key": "text spacebar",
+      "type": "choice",
+      "scope": "active",
+      "default": "default",
+      "ui": {
+        "category": "Keyboard",
+        "tab": "Input",
+        "section": "Input",
+        "order": 0,
+        "label": "Space bar in text mode",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "default",
+            "label": "Default"
+          },
+          {
+            "value": "no multiple spaces",
+            "label": "No multiple spaces"
+          },
+          {
+            "value": "glue multiple spaces",
+            "label": "Glue multiple spaces"
+          },
+          {
+            "value": "allow multiple spaces",
+            "label": "Allow multiple spaces"
+          }
+        ],
+        "category_order": 1,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "math spacebar",
+      "type": "choice",
+      "scope": "active",
+      "default": "default",
+      "ui": {
+        "category": "Keyboard",
+        "tab": "Input",
+        "section": "Input",
+        "order": 1,
+        "label": "Space bar in math mode",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "default",
+            "label": "Default"
+          },
+          {
+            "value": "no spurious spaces",
+            "label": "No spurious spaces"
+          },
+          {
+            "value": "avoid spurious spaces",
+            "label": "Avoid spurious spaces"
+          },
+          {
+            "value": "allow spurious spaces",
+            "label": "Allow spurious spaces"
+          }
+        ],
+        "category_order": 1,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "automatic quotes",
+      "type": "choice",
+      "scope": "active",
+      "default": "default",
+      "callback": "quoting-style",
+      "ui": {
+        "category": "Keyboard",
+        "tab": "Input",
+        "section": "Input",
+        "order": 2,
+        "label": "Automatic quotes",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "default",
+            "label": "Default"
+          },
+          {
+            "value": "none",
+            "label": "Disabled"
+          },
+          {
+            "value": "dutch",
+            "label": "Dutch"
+          },
+          {
+            "value": "english",
+            "label": "English"
+          },
+          {
+            "value": "french",
+            "label": "French"
+          },
+          {
+            "value": "german",
+            "label": "German"
+          },
+          {
+            "value": "spanish",
+            "label": "Spanish"
+          },
+          {
+            "value": "swiss",
+            "label": "Swiss"
+          }
+        ],
+        "category_order": 1,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "automatic brackets",
+      "type": "choice",
+      "scope": "active",
+      "default": "mathematics",
+      "callback": "auto-close-brackets",
+      "ui": {
+        "category": "Keyboard",
+        "tab": "Input",
+        "section": "Input",
+        "order": 3,
+        "label": "Automatic brackets",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "off",
+            "label": "Disabled"
+          },
+          {
+            "value": "on",
+            "label": "Enabled"
+          },
+          {
+            "value": "mathematics",
+            "label": "Inside mathematics"
+          }
+        ],
+        "category_order": 1,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "use large brackets",
+      "type": "string",
+      "scope": "active",
+      "default": "on"
+    },
+    {
+      "key": "prog:automatic brackets",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "callback": "prog-auto-close-brackets",
+      "ui": {
+        "category": "Editing",
+        "tab": "Programming",
+        "section": "Programming",
+        "order": 1,
+        "label": "Automatic program brackets",
+        "control": "toggle",
+        "category_order": 2,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "prog:highlight brackets",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "callback": "highlight-brackets",
+      "ui": {
+        "category": "Editing",
+        "tab": "Programming",
+        "section": "Programming",
+        "order": 0,
+        "label": "Highlight matching brackets",
+        "control": "toggle",
+        "category_order": 2,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "prog:select brackets",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "callback": "select-brackets",
+      "ui": {
+        "category": "Editing",
+        "tab": "Programming",
+        "section": "Programming",
+        "order": 2,
+        "label": "Use smart bracket selections",
+        "control": "toggle",
+        "category_order": 2,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "editor:verbatim:tabstop",
+      "type": "scheme-object",
+      "scope": "active",
+      "default": "4"
+    },
+    {
+      "key": "syntax:fortran:none",
+      "type": "string",
+      "scope": "active",
+      "default": "black",
+      "callback": "fortran-pref"
+    },
+    {
+      "key": "syntax:fortran:comment",
+      "type": "string",
+      "scope": "active",
+      "default": "dark grey",
+      "callback": "fortran-pref"
+    },
+    {
+      "key": "syntax:fortran:keyword",
+      "type": "string",
+      "scope": "active",
+      "default": "dark magenta",
+      "callback": "fortran-pref"
+    },
+    {
+      "key": "syntax:fortran:keyword_conditional",
+      "type": "string",
+      "scope": "active",
+      "default": "dark magenta",
+      "callback": "fortran-pref"
+    },
+    {
+      "key": "syntax:fortran:keyword_control",
+      "type": "string",
+      "scope": "active",
+      "default": "dark magenta",
+      "callback": "fortran-pref"
+    },
+    {
+      "key": "syntax:fortran:error",
+      "type": "string",
+      "scope": "active",
+      "default": "dark red",
+      "callback": "fortran-pref"
+    },
+    {
+      "key": "syntax:fortran:operator",
+      "type": "string",
+      "scope": "active",
+      "default": "dark red",
+      "callback": "fortran-pref"
+    },
+    {
+      "key": "syntax:fortran:operator_special",
+      "type": "string",
+      "scope": "active",
+      "default": "dark red",
+      "callback": "fortran-pref"
+    },
+    {
+      "key": "syntax:fortran:operator_openclose",
+      "type": "string",
+      "scope": "active",
+      "default": "dark red",
+      "callback": "fortran-pref"
+    },
+    {
+      "key": "syntax:fortran:operator_field",
+      "type": "string",
+      "scope": "active",
+      "default": "dark red",
+      "callback": "fortran-pref"
+    },
+    {
+      "key": "syntax:fortran:preprocessor",
+      "type": "string",
+      "scope": "active",
+      "default": "dark green",
+      "callback": "fortran-pref"
+    },
+    {
+      "key": "syntax:fortran:preprocessor_directive",
+      "type": "string",
+      "scope": "active",
+      "default": "dark brown",
+      "callback": "fortran-pref"
+    },
+    {
+      "key": "syntax:fortran:declare_type",
+      "type": "string",
+      "scope": "active",
+      "default": "#4040c0",
+      "callback": "fortran-pref"
+    },
+    {
+      "key": "syntax:fortran:declare_function",
+      "type": "string",
+      "scope": "active",
+      "default": "#4040c0",
+      "callback": "fortran-pref"
+    },
+    {
+      "key": "syntax:fortran:variable_function",
+      "type": "string",
+      "scope": "active",
+      "default": "#0000c0",
+      "callback": "fortran-pref"
+    },
+    {
+      "key": "syntax:fortran:variable_type",
+      "type": "string",
+      "scope": "active",
+      "default": "dark red",
+      "callback": "fortran-pref"
+    },
+    {
+      "key": "syntax:fortran:constant",
+      "type": "string",
+      "scope": "active",
+      "default": "#4040c0",
+      "callback": "fortran-pref"
+    },
+    {
+      "key": "syntax:fortran:constant_function",
+      "type": "string",
+      "scope": "active",
+      "default": "#0000c0",
+      "callback": "fortran-pref"
+    },
+    {
+      "key": "syntax:fortran:constant_type",
+      "type": "string",
+      "scope": "active",
+      "default": "#4040c0",
+      "callback": "fortran-pref"
+    },
+    {
+      "key": "syntax:fortran:constant_number",
+      "type": "string",
+      "scope": "active",
+      "default": "#4040c0",
+      "callback": "fortran-pref"
+    },
+    {
+      "key": "syntax:fortran:constant_string",
+      "type": "string",
+      "scope": "active",
+      "default": "dark red",
+      "callback": "fortran-pref"
+    },
+    {
+      "key": "syntax:scheme:none",
+      "type": "string",
+      "scope": "active",
+      "default": "red",
+      "callback": "scheme-syntax"
+    },
+    {
+      "key": "syntax:scheme:comment",
+      "type": "string",
+      "scope": "active",
+      "default": "brown",
+      "callback": "scheme-syntax"
+    },
+    {
+      "key": "syntax:scheme:keyword",
+      "type": "string",
+      "scope": "active",
+      "default": "#309090",
+      "callback": "scheme-syntax"
+    },
+    {
+      "key": "syntax:scheme:error",
+      "type": "string",
+      "scope": "active",
+      "default": "dark red",
+      "callback": "scheme-syntax"
+    },
+    {
+      "key": "syntax:scheme:constant_number",
+      "type": "string",
+      "scope": "active",
+      "default": "#4040c0",
+      "callback": "scheme-syntax"
+    },
+    {
+      "key": "syntax:scheme:constant_string",
+      "type": "string",
+      "scope": "active",
+      "default": "dark grey",
+      "callback": "scheme-syntax"
+    },
+    {
+      "key": "syntax:scheme:constant_char",
+      "type": "string",
+      "scope": "active",
+      "default": "#333333",
+      "callback": "scheme-syntax"
+    },
+    {
+      "key": "syntax:scheme:variable_identifier",
+      "type": "string",
+      "scope": "active",
+      "default": "#204080",
+      "callback": "scheme-syntax"
+    },
+    {
+      "key": "syntax:scheme:declare_category",
+      "type": "string",
+      "scope": "active",
+      "default": "#d030d0",
+      "callback": "scheme-syntax"
+    },
+    {
+      "key": "syntax:python:none",
+      "type": "string",
+      "scope": "active",
+      "default": "red",
+      "callback": "python-syntax"
+    },
+    {
+      "key": "syntax:python:comment",
+      "type": "string",
+      "scope": "active",
+      "default": "brown",
+      "callback": "python-syntax"
+    },
+    {
+      "key": "syntax:python:error",
+      "type": "string",
+      "scope": "active",
+      "default": "dark red",
+      "callback": "python-syntax"
+    },
+    {
+      "key": "syntax:python:constant",
+      "type": "string",
+      "scope": "active",
+      "default": "#4040c0",
+      "callback": "python-syntax"
+    },
+    {
+      "key": "syntax:python:constant_number",
+      "type": "string",
+      "scope": "active",
+      "default": "#4040c0",
+      "callback": "python-syntax"
+    },
+    {
+      "key": "syntax:python:constant_string",
+      "type": "string",
+      "scope": "active",
+      "default": "dark grey",
+      "callback": "python-syntax"
+    },
+    {
+      "key": "syntax:python:constant_char",
+      "type": "string",
+      "scope": "active",
+      "default": "#333333",
+      "callback": "python-syntax"
+    },
+    {
+      "key": "syntax:python:declare_function",
+      "type": "string",
+      "scope": "active",
+      "default": "#0000c0",
+      "callback": "python-syntax"
+    },
+    {
+      "key": "syntax:python:declare_type",
+      "type": "string",
+      "scope": "active",
+      "default": "#0000c0",
+      "callback": "python-syntax"
+    },
+    {
+      "key": "syntax:python:operator",
+      "type": "string",
+      "scope": "active",
+      "default": "#8b008b",
+      "callback": "python-syntax"
+    },
+    {
+      "key": "syntax:python:operator_openclose",
+      "type": "string",
+      "scope": "active",
+      "default": "#B02020",
+      "callback": "python-syntax"
+    },
+    {
+      "key": "syntax:python:operator_field",
+      "type": "string",
+      "scope": "active",
+      "default": "#88888",
+      "callback": "python-syntax"
+    },
+    {
+      "key": "syntax:python:operator_special",
+      "type": "string",
+      "scope": "active",
+      "default": "orange",
+      "callback": "python-syntax"
+    },
+    {
+      "key": "syntax:python:keyword",
+      "type": "string",
+      "scope": "active",
+      "default": "#309090",
+      "callback": "python-syntax"
+    },
+    {
+      "key": "syntax:python:keyword_conditional",
+      "type": "string",
+      "scope": "active",
+      "default": "#309090",
+      "callback": "python-syntax"
+    },
+    {
+      "key": "syntax:python:keyword_control",
+      "type": "string",
+      "scope": "active",
+      "default": "#309090",
+      "callback": "python-syntax"
+    },
+    {
+      "key": "syntax:cpp:none",
+      "type": "string",
+      "scope": "active",
+      "default": "black",
+      "callback": "cpp-pref"
+    },
+    {
+      "key": "syntax:cpp:comment",
+      "type": "string",
+      "scope": "active",
+      "default": "dark grey",
+      "callback": "cpp-pref"
+    },
+    {
+      "key": "syntax:cpp:keyword",
+      "type": "string",
+      "scope": "active",
+      "default": "dark magenta",
+      "callback": "cpp-pref"
+    },
+    {
+      "key": "syntax:cpp:error",
+      "type": "string",
+      "scope": "active",
+      "default": "dark red",
+      "callback": "cpp-pref"
+    },
+    {
+      "key": "syntax:cpp:preprocessor",
+      "type": "string",
+      "scope": "active",
+      "default": "dark brown",
+      "callback": "cpp-pref"
+    },
+    {
+      "key": "syntax:cpp:preprocessor_directive",
+      "type": "string",
+      "scope": "active",
+      "default": "dark green",
+      "callback": "cpp-pref"
+    },
+    {
+      "key": "syntax:cpp:constant_type",
+      "type": "string",
+      "scope": "active",
+      "default": "#4040c0",
+      "callback": "cpp-pref"
+    },
+    {
+      "key": "syntax:cpp:constant_number",
+      "type": "string",
+      "scope": "active",
+      "default": "#4040c0",
+      "callback": "cpp-pref"
+    },
+    {
+      "key": "syntax:cpp:constant_string",
+      "type": "string",
+      "scope": "active",
+      "default": "dark red",
+      "callback": "cpp-pref"
+    },
+    {
+      "key": "syntax:julia:none",
+      "type": "string",
+      "scope": "active",
+      "default": "red",
+      "callback": "julia-syntax"
+    },
+    {
+      "key": "syntax:julia:comment",
+      "type": "string",
+      "scope": "active",
+      "default": "brown",
+      "callback": "julia-syntax"
+    },
+    {
+      "key": "syntax:julia:error",
+      "type": "string",
+      "scope": "active",
+      "default": "dark red",
+      "callback": "julia-syntax"
+    },
+    {
+      "key": "syntax:julia:constant",
+      "type": "string",
+      "scope": "active",
+      "default": "#4040c0",
+      "callback": "julia-syntax"
+    },
+    {
+      "key": "syntax:julia:constant_number",
+      "type": "string",
+      "scope": "active",
+      "default": "#4040c0",
+      "callback": "julia-syntax"
+    },
+    {
+      "key": "syntax:julia:constant_string",
+      "type": "string",
+      "scope": "active",
+      "default": "dark grey",
+      "callback": "julia-syntax"
+    },
+    {
+      "key": "syntax:julia:constant_char",
+      "type": "string",
+      "scope": "active",
+      "default": "#333333",
+      "callback": "julia-syntax"
+    },
+    {
+      "key": "syntax:julia:declare_function",
+      "type": "string",
+      "scope": "active",
+      "default": "#0000c0",
+      "callback": "julia-syntax"
+    },
+    {
+      "key": "syntax:julia:declare_module",
+      "type": "string",
+      "scope": "active",
+      "default": "0000c0",
+      "callback": "julia-syntax"
+    },
+    {
+      "key": "syntax:julia:declare_type",
+      "type": "string",
+      "scope": "active",
+      "default": "0000c0",
+      "callback": "julia-syntax"
+    },
+    {
+      "key": "syntax:julia:operator",
+      "type": "string",
+      "scope": "active",
+      "default": "#8b008b",
+      "callback": "julia-syntax"
+    },
+    {
+      "key": "syntax:julia:operator_openclose",
+      "type": "string",
+      "scope": "active",
+      "default": "#B02020",
+      "callback": "julia-syntax"
+    },
+    {
+      "key": "syntax:julia:operator_field",
+      "type": "string",
+      "scope": "active",
+      "default": "#88888",
+      "callback": "julia-syntax"
+    },
+    {
+      "key": "syntax:julia:operator_special",
+      "type": "string",
+      "scope": "active",
+      "default": "orange",
+      "callback": "julia-syntax"
+    },
+    {
+      "key": "syntax:julia:keyword",
+      "type": "string",
+      "scope": "active",
+      "default": "#309090",
+      "callback": "julia-syntax"
+    },
+    {
+      "key": "syntax:julia:keyword_conditional",
+      "type": "string",
+      "scope": "active",
+      "default": "#309090",
+      "callback": "julia-syntax"
+    },
+    {
+      "key": "syntax:julia:keyword_control",
+      "type": "string",
+      "scope": "active",
+      "default": "#309090",
+      "callback": "julia-syntax"
+    },
+    {
+      "key": "codex home",
+      "type": "string",
+      "scope": "active",
+      "default": "",
+      "ui": {
+        "category": "Other",
+        "tab": "AI",
+        "section": "AI",
+        "order": 70,
+        "label": "Codex home",
+        "control": "native",
+        "provider": "directory-path",
+        "category_order": 9,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "codex completion remember choices",
+      "type": "string",
+      "scope": "active",
+      "default": "off"
+    },
+    {
+      "key": "codex completion model",
+      "type": "string",
+      "scope": "active",
+      "default": ""
+    },
+    {
+      "key": "codex completion effort",
+      "type": "string",
+      "scope": "active",
+      "default": ""
+    },
+    {
+      "key": "codex completion fast",
+      "type": "string",
+      "scope": "active",
+      "default": "off"
+    },
+    {
+      "key": "codex completion web search",
+      "type": "string",
+      "scope": "active",
+      "default": "off"
+    },
+    {
+      "key": "codex completion destination",
+      "type": "string",
+      "scope": "active",
+      "default": "document"
+    },
+    {
+      "key": "google tasks cloud todo list id",
+      "type": "string",
+      "scope": "active",
+      "default": "",
+      "ui": {
+        "category": "Other",
+        "tab": "Connectivity",
+        "section": "Google Tasks",
+        "order": 70,
+        "label": "Cloud todo task list",
+        "control": "native",
+        "provider": "remote-task-list",
+        "category_order": 9,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "rag mcp port",
+      "type": "string",
+      "scope": "active",
+      "default": "8765",
+      "ui": {
+        "category": "Other",
+        "tab": "Connectivity",
+        "section": "Continuous RAG",
+        "order": 0,
+        "label": "MCP port",
+        "control": "text",
+        "category_order": 9,
+        "tab_order": 1,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "rag embedding model",
+      "type": "string",
+      "scope": "active",
+      "default": "",
+      "ui": {
+        "category": "Other",
+        "tab": "Connectivity",
+        "section": "Continuous RAG",
+        "order": 70,
+        "label": "Embedding model path",
+        "control": "native",
+        "provider": "file-path",
+        "category_order": 9,
+        "tab_order": 1,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "rag embedding device",
+      "type": "choice",
+      "scope": "active",
+      "default": "auto",
+      "ui": {
+        "category": "Other",
+        "tab": "Connectivity",
+        "section": "Continuous RAG",
+        "order": 2,
+        "label": "Embedding device",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "auto",
+            "label": "Auto"
+          },
+          {
+            "value": "cpu",
+            "label": "CPU only"
+          }
+        ],
+        "category_order": 9,
+        "tab_order": 1,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "rag realtime npu enabled",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Other",
+        "tab": "Connectivity",
+        "section": "Continuous RAG",
+        "order": 3,
+        "label": "Continuous vault indexing with Intel NPU",
+        "control": "toggle",
+        "category_order": 9,
+        "tab_order": 1,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "rag npu openvino model",
+      "type": "string",
+      "scope": "active",
+      "default": "",
+      "ui": {
+        "category": "Other",
+        "tab": "Connectivity",
+        "section": "Continuous RAG",
+        "order": 70,
+        "label": "NPU BGE-M3 OpenVINO model",
+        "control": "native",
+        "provider": "file-path",
+        "category_order": 9,
+        "tab_order": 1,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "rag npu tokenizer gguf",
+      "type": "string",
+      "scope": "active",
+      "default": "",
+      "ui": {
+        "category": "Other",
+        "tab": "Connectivity",
+        "section": "Continuous RAG",
+        "order": 70,
+        "label": "NPU tokenizer GGUF",
+        "control": "native",
+        "provider": "file-path",
+        "category_order": 9,
+        "tab_order": 1,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "rag delegation enabled",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Other",
+        "tab": "Connectivity",
+        "section": "Continuous RAG",
+        "order": 1,
+        "label": "Enable RAG Delegation",
+        "control": "toggle",
+        "category_order": 9,
+        "tab_order": 1,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "artifact definition span delegation enabled",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Other",
+        "tab": "Connectivity",
+        "section": "Artifact Generation",
+        "order": 0,
+        "label": "Enable Artifact Definition Span Delegation",
+        "control": "toggle",
+        "category_order": 9,
+        "tab_order": 1,
+        "section_order": 2
+      }
+    },
+    {
+      "key": "rag mcp bearer token",
+      "type": "string",
+      "scope": "active",
+      "default": "",
+      "ui": {
+        "category": "Other",
+        "tab": "Connectivity",
+        "section": "Continuous RAG",
+        "order": 4,
+        "label": "MCP bearer token",
+        "control": "text",
+        "category_order": 9,
+        "tab_order": 1,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "w increase",
+      "type": "string",
+      "scope": "active",
+      "default": "0.05"
+    },
+    {
+      "key": "h increase",
+      "type": "string",
+      "scope": "active",
+      "default": "0.05"
+    },
+    {
+      "key": "em increase",
+      "type": "string",
+      "scope": "active",
+      "default": "0.1"
+    },
+    {
+      "key": "ex increase",
+      "type": "string",
+      "scope": "active",
+      "default": "0.1"
+    },
+    {
+      "key": "spc increase",
+      "type": "string",
+      "scope": "active",
+      "default": "0.2"
+    },
+    {
+      "key": "fn increase",
+      "type": "string",
+      "scope": "active",
+      "default": "0.5"
+    },
+    {
+      "key": "mm increase",
+      "type": "string",
+      "scope": "active",
+      "default": "0.5"
+    },
+    {
+      "key": "cm increase",
+      "type": "string",
+      "scope": "active",
+      "default": "0.1"
+    },
+    {
+      "key": "inch increase",
+      "type": "string",
+      "scope": "active",
+      "default": "0.05"
+    },
+    {
+      "key": "pt increase",
+      "type": "string",
+      "scope": "active",
+      "default": "10"
+    },
+    {
+      "key": "msec increase",
+      "type": "string",
+      "scope": "active",
+      "default": "50"
+    },
+    {
+      "key": "sec increase",
+      "type": "string",
+      "scope": "active",
+      "default": "1"
+    },
+    {
+      "key": "min increase",
+      "type": "string",
+      "scope": "active",
+      "default": "0.1"
+    },
+    {
+      "key": "% increase",
+      "type": "string",
+      "scope": "active",
+      "default": "5"
+    },
+    {
+      "key": "default unit",
+      "type": "string",
+      "scope": "active",
+      "default": "ex"
+    },
+    {
+      "key": "texmacs->latex:transparent-tracking",
+      "type": "string",
+      "scope": "active",
+      "default": "on"
+    },
+    {
+      "key": "texmacs->latex:source-tracking",
+      "type": "string",
+      "scope": "active",
+      "default": "off",
+      "callback": "converter-option"
+    },
+    {
+      "key": "texmacs->latex:conservative",
+      "type": "string",
+      "scope": "active",
+      "default": "on",
+      "callback": "converter-option"
+    },
+    {
+      "key": "texmacs->latex:transparent-source-tracking",
+      "type": "string",
+      "scope": "active",
+      "default": "on",
+      "callback": "converter-option"
+    },
+    {
+      "key": "texmacs->latex:attach-tracking-info",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "callback": "converter-option",
+      "ui": {
+        "category": "Convert",
+        "tab": "LaTeX",
+        "section": "Conservative conversion options",
+        "order": 0,
+        "label": "Store tracking information in LaTeX files",
+        "control": "toggle",
+        "category_order": 4,
+        "tab_order": 1,
+        "section_order": 2
+      }
+    },
+    {
+      "key": "texmacs->latex:replace-style",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "callback": "converter-option",
+      "ui": {
+        "category": "Convert",
+        "tab": "LaTeX",
+        "section": "ATHENA → LaTeX",
+        "order": 0,
+        "label": "Replace ATHENA styles with no LaTeX equivalents",
+        "control": "toggle",
+        "category_order": 4,
+        "tab_order": 1,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "texmacs->latex:expand-macros",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "callback": "converter-option",
+      "ui": {
+        "category": "Convert",
+        "tab": "LaTeX",
+        "section": "ATHENA → LaTeX",
+        "order": 1,
+        "label": "Expand ATHENA macros with no LaTeX equivalents",
+        "control": "toggle",
+        "category_order": 4,
+        "tab_order": 1,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "texmacs->latex:expand-user-macros",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "callback": "converter-option",
+      "ui": {
+        "category": "Convert",
+        "tab": "LaTeX",
+        "section": "ATHENA → LaTeX",
+        "order": 2,
+        "label": "Expand user-defined macros",
+        "control": "toggle",
+        "category_order": 4,
+        "tab_order": 1,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "texmacs->latex:use-macros",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "callback": "converter-option",
+      "ui": {
+        "category": "Convert",
+        "tab": "LaTeX",
+        "section": "ATHENA → LaTeX",
+        "order": 3,
+        "label": "Allow for macro definitions in preamble",
+        "control": "toggle",
+        "category_order": 4,
+        "tab_order": 1,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "texmacs->latex:encoding",
+      "type": "choice",
+      "scope": "active",
+      "default": "utf-8",
+      "callback": "converter-option",
+      "ui": {
+        "category": "Convert",
+        "tab": "LaTeX",
+        "section": "ATHENA → LaTeX",
+        "order": 4,
+        "label": "Character encoding",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "utf-8",
+            "label": "UTF-8 with inputenc"
+          },
+          {
+            "value": "cork",
+            "label": "Cork with catcodes"
+          },
+          {
+            "value": "ascii",
+            "label": "Legacy ASCII (exports as UTF-8)"
+          }
+        ],
+        "category_order": 4,
+        "tab_order": 1,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "latex->texmacs:matrix-recognition",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "ui": {
+        "category": "Editing",
+        "tab": "Formula Importer",
+        "section": "Formula Importer",
+        "order": 0,
+        "label": "Recognize matrices and determinants disguised as arrays",
+        "control": "toggle",
+        "category_order": 2,
+        "tab_order": 4,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "latex->texmacs:aligned-to-eqnarray",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "ui": {
+        "category": "Editing",
+        "tab": "Formula Importer",
+        "section": "Formula Importer",
+        "order": 2,
+        "label": "Convert 'aligned' blocks into 'eqnarray' environments",
+        "control": "toggle",
+        "category_order": 2,
+        "tab_order": 4,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "latex->texmacs:align-to-aligned",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "ui": {
+        "category": "Editing",
+        "tab": "Formula Importer",
+        "section": "Formula Importer",
+        "order": 1,
+        "label": "Treat 'align' as 'aligned'",
+        "control": "toggle",
+        "category_order": 2,
+        "tab_order": 4,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "latex->texmacs:operator-d-is-differential",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "ui": {
+        "category": "Editing",
+        "tab": "Formula Importer",
+        "section": "Formula Importer",
+        "order": 3,
+        "label": "Parse operator d as differential d",
+        "control": "toggle",
+        "category_order": 2,
+        "tab_order": 4,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "latex->texmacs:roman-d-is-differential",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "ui": {
+        "category": "Editing",
+        "tab": "Formula Importer",
+        "section": "Formula Importer",
+        "order": 4,
+        "label": "Parse Roman d as differential d",
+        "control": "toggle",
+        "category_order": 2,
+        "tab_order": 4,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "latex->texmacs:text-d-is-differential",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "ui": {
+        "category": "Editing",
+        "tab": "Formula Importer",
+        "section": "Formula Importer",
+        "order": 5,
+        "label": "Parse text d as differential d",
+        "control": "toggle",
+        "category_order": 2,
+        "tab_order": 4,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "latex->texmacs:parse-bbbk",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "ui": {
+        "category": "Editing",
+        "tab": "Formula Importer",
+        "section": "Formula Importer",
+        "order": 6,
+        "label": "Parse blackboard k as Bbbk",
+        "control": "toggle",
+        "category_order": 2,
+        "tab_order": 4,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "latex->texmacs:parse-bbbi-as-mathi",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "ui": {
+        "category": "Editing",
+        "tab": "Formula Importer",
+        "section": "Formula Importer",
+        "order": 7,
+        "label": "Parse blackboard i as mathi",
+        "control": "toggle",
+        "category_order": 2,
+        "tab_order": 4,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "latex->texmacs:text-operators",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "ui": {
+        "category": "Editing",
+        "tab": "Formula Importer",
+        "section": "Formula Importer",
+        "order": 8,
+        "label": "Recognize operator names disguised as text",
+        "control": "toggle",
+        "category_order": 2,
+        "tab_order": 4,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "latex->texmacs:intelligent-formula-cleaner",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Editing",
+        "tab": "Formula Importer",
+        "section": "Formula Importer",
+        "order": 9,
+        "label": "Run intelligent formula cleaner when importing LaTeX formulas",
+        "control": "toggle",
+        "category_order": 2,
+        "tab_order": 4,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "latex->texmacs:intelligent-formula-cleaner-model",
+      "type": "string",
+      "scope": "active",
+      "default": "$ATHENA_PATH/tools/formula-cleaner/formula-cleaner.gguf",
+      "ui": {
+        "category": "Editing",
+        "tab": "Formula Importer",
+        "section": "Formula Importer",
+        "order": 10,
+        "label": "Formula cleaner GGUF model",
+        "control": "text",
+        "category_order": 2,
+        "tab_order": 4,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "texmacs->verbatim:wrap",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "callback": "converter-option",
+      "ui": {
+        "category": "Convert",
+        "tab": "Verbatim",
+        "section": "ATHENA → Verbatim",
+        "order": 0,
+        "label": "Use line wrapping for lines longer than 80 characters",
+        "control": "toggle",
+        "category_order": 4,
+        "tab_order": 2,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "texmacs->verbatim:encoding",
+      "type": "choice",
+      "scope": "active",
+      "default": "auto",
+      "callback": "converter-option",
+      "ui": {
+        "category": "Convert",
+        "tab": "Verbatim",
+        "section": "ATHENA → Verbatim",
+        "order": 1,
+        "label": "Character encoding",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "auto",
+            "label": "Automatic"
+          },
+          {
+            "value": "iso-8859-1",
+            "label": "Iso-8859-1"
+          },
+          {
+            "value": "iso-8859-2",
+            "label": "Iso-8859-2"
+          },
+          {
+            "value": "utf-8",
+            "label": "Utf-8"
+          }
+        ],
+        "category_order": 4,
+        "tab_order": 2,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "verbatim->texmacs:wrap",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "callback": "converter-option",
+      "ui": {
+        "category": "Convert",
+        "tab": "Verbatim",
+        "section": "Verbatim → ATHENA",
+        "order": 0,
+        "label": "Merge lines into paragraphs unless separated by blank lines",
+        "control": "toggle",
+        "category_order": 4,
+        "tab_order": 2,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "verbatim->texmacs:encoding",
+      "type": "choice",
+      "scope": "active",
+      "default": "auto",
+      "callback": "converter-option",
+      "ui": {
+        "category": "Convert",
+        "tab": "Verbatim",
+        "section": "Verbatim → ATHENA",
+        "order": 1,
+        "label": "Character encoding",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "auto",
+            "label": "Automatic"
+          },
+          {
+            "value": "iso-8859-1",
+            "label": "Iso-8859-1"
+          },
+          {
+            "value": "iso-8859-2",
+            "label": "Iso-8859-2"
+          },
+          {
+            "value": "utf-8",
+            "label": "Utf-8"
+          }
+        ],
+        "category_order": 4,
+        "tab_order": 2,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "texmacs->image:raster-resolution",
+      "type": "choice",
+      "scope": "active",
+      "default": "300",
+      "ui": {
+        "category": "Convert",
+        "tab": "Image",
+        "section": "ATHENA → Image",
+        "order": 0,
+        "label": "Bitmap export resolution (dpi)",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "1200",
+            "label": "1200"
+          },
+          {
+            "value": "600",
+            "label": "600"
+          },
+          {
+            "value": "300",
+            "label": "300"
+          },
+          {
+            "value": "150",
+            "label": "150"
+          },
+          {
+            "value": "",
+            "label": ""
+          }
+        ],
+        "category_order": 4,
+        "tab_order": 4,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "texmacs->image:format",
+      "type": "choice",
+      "scope": "active",
+      "default": "pdf",
+      "ui": {
+        "category": "Convert",
+        "tab": "Image",
+        "section": "ATHENA → Image",
+        "order": 1,
+        "label": "Clipboard image format",
+        "control": "native",
+        "provider": "dynamic-choice",
+        "category_order": 4,
+        "tab_order": 4,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "image auto remove background",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Convert",
+        "tab": "Image",
+        "section": "Image → ATHENA",
+        "order": 0,
+        "label": "Auto remove image background",
+        "control": "toggle",
+        "category_order": 4,
+        "tab_order": 4,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "image->texmacs:svg-prefer-inkscape",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "callback": "converter-option",
+      "ui": {
+        "category": "Convert",
+        "tab": "Image",
+        "section": "Image → ATHENA",
+        "order": 1,
+        "label": "Use Inkscape for conversion from SVG",
+        "control": "toggle",
+        "category_order": 4,
+        "tab_order": 4,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "texmacs->html:css",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "callback": "converter-option",
+      "ui": {
+        "category": "Convert",
+        "tab": "Html",
+        "section": "ATHENA → HTML",
+        "order": 0,
+        "label": "Use CSS for more advanced formatting",
+        "control": "toggle",
+        "category_order": 4,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "texmacs->html:mathjax",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "callback": "converter-option",
+      "ui": {
+        "category": "Convert",
+        "tab": "Html",
+        "section": "ATHENA → HTML",
+        "order": 1,
+        "label": "Export mathematical formulas as MathJax",
+        "control": "toggle",
+        "category_order": 4,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "texmacs->html:images",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "callback": "converter-option",
+      "ui": {
+        "category": "Convert",
+        "tab": "Html",
+        "section": "ATHENA → HTML",
+        "order": 2,
+        "label": "Export mathematical formulas as images",
+        "control": "toggle",
+        "category_order": 4,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "texmacs->html:css-stylesheet",
+      "type": "string",
+      "scope": "active",
+      "default": "---",
+      "callback": "converter-option"
+    },
+    {
+      "key": "mathml->texmacs:latex-annotations",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "ui": {
+        "category": "Convert",
+        "tab": "Html",
+        "section": "HTML → ATHENA",
+        "order": 0,
+        "label": "Try to import formulas using LaTeX annotations",
+        "control": "toggle",
+        "category_order": 4,
+        "tab_order": 0,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "latex->texmacs:fallback-on-pictures",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "callback": "converter-option",
+      "ui": {
+        "category": "Convert",
+        "tab": "LaTeX",
+        "section": "LaTeX → ATHENA",
+        "order": 0,
+        "label": "Import sophisticated objects as pictures",
+        "control": "toggle",
+        "category_order": 4,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "gui:print dialogue",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "General",
+        "tab": "Appearance",
+        "section": "Appearance",
+        "order": 50,
+        "label": "Use print dialogue",
+        "control": "toggle",
+        "category_order": 0,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "gui:live-statistics",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "General",
+        "tab": "Appearance",
+        "section": "Appearance",
+        "order": 51,
+        "label": "Show live statistics in central footer",
+        "control": "toggle",
+        "category_order": 0,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "gui:live-statistics-format",
+      "type": "string",
+      "scope": "active",
+      "default": "Words: %w, Chars: %c, Lines: %l",
+      "ui": {
+        "category": "General",
+        "tab": "Appearance",
+        "section": "Appearance",
+        "order": 52,
+        "label": "Live statistics format",
+        "control": "text",
+        "category_order": 0,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "automatic invisible",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Editing",
+        "tab": "Maths",
+        "section": "Math keyboard",
+        "order": 50,
+        "label": "Use spurious invisible operators",
+        "control": "toggle",
+        "category_order": 2,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "semantic focus",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Editing",
+        "tab": "Maths",
+        "section": "Math hints and semantics",
+        "order": 50,
+        "label": "Semantic focus",
+        "control": "toggle",
+        "category_order": 2,
+        "tab_order": 0,
+        "section_order": 2
+      }
+    },
+    {
+      "key": "heading word counts",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Editing",
+        "tab": "Text",
+        "section": "Text",
+        "order": 50,
+        "label": "Show heading word counts",
+        "control": "toggle",
+        "category_order": 2,
+        "tab_order": 2,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "disable unix primary selection",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Editing",
+        "tab": "Text",
+        "section": "Text",
+        "order": 51,
+        "label": "Disable UNIX primary selection",
+        "control": "toggle",
+        "category_order": 2,
+        "tab_order": 2,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "latex->texmacs:transparent-source-tracking",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Convert",
+        "tab": "LaTeX",
+        "section": "LaTeX → ATHENA",
+        "order": 50,
+        "label": "Preserve transparent source tracking",
+        "control": "toggle",
+        "category_order": 4,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "vault normalize person names on save",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Knowledge",
+        "tab": "Persons",
+        "section": "Persons",
+        "order": 0,
+        "label": "Automatically tag recognized person names on save",
+        "control": "toggle",
+        "category_order": 6,
+        "tab_order": 4,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "google oauth client id",
+      "type": "string",
+      "scope": "active",
+      "default": "",
+      "ui": {
+        "category": "Other",
+        "tab": "Connectivity",
+        "section": "Google Tasks",
+        "order": 0,
+        "label": "OAuth desktop client ID",
+        "control": "text",
+        "category_order": 9,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "google oauth client secret",
+      "type": "string",
+      "scope": "active",
+      "default": "",
+      "ui": {
+        "category": "Other",
+        "tab": "Connectivity",
+        "section": "Google Tasks",
+        "order": 1,
+        "label": "OAuth desktop client secret",
+        "control": "password",
+        "category_order": 9,
+        "tab_order": 1,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "texmacs->pdf:version",
+      "type": "choice",
+      "scope": "active",
+      "default": "default",
+      "ui": {
+        "category": "Convert",
+        "tab": "Pdf",
+        "section": "ATHENA → Pdf/Postscript",
+        "order": 50,
+        "label": "Pdf version number",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "default",
+            "label": "default"
+          },
+          {
+            "value": "1.4",
+            "label": "1.4"
+          },
+          {
+            "value": "1.5",
+            "label": "1.5"
+          },
+          {
+            "value": "1.6",
+            "label": "1.6"
+          },
+          {
+            "value": "1.7",
+            "label": "1.7"
+          }
+        ],
+        "category_order": 4,
+        "tab_order": 3,
+        "section_order": 0
+      }
+    },
+    {
+      "key": "latex->texmacs:source-tracking",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Convert",
+        "tab": "LaTeX",
+        "section": "Conservative conversion options",
+        "order": 0,
+        "label": "Keep track of source code",
+        "control": "native",
+        "provider": "mirrored-toggle",
+        "category_order": 4,
+        "tab_order": 1,
+        "section_order": 2
+      }
+    },
+    {
+      "key": "latex->texmacs:conservative",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Convert",
+        "tab": "LaTeX",
+        "section": "Conservative conversion options",
+        "order": 1,
+        "label": "Only convert changes with respect to tracked version",
+        "control": "native",
+        "provider": "mirrored-toggle",
+        "category_order": 4,
+        "tab_order": 1,
+        "section_order": 2
+      }
+    },
+    {
+      "key": "preferred fonts",
+      "type": "string",
+      "scope": "active",
+      "default": "",
+      "ui": {
+        "category": "General",
+        "tab": "Fonts",
+        "section": "Preferred fonts",
+        "order": 0,
+        "label": "Preferred fonts",
+        "control": "native",
+        "provider": "preferred-fonts",
+        "category_order": 0,
+        "tab_order": 2,
+        "section_order": 1
+      }
+    }
+  ]
+}

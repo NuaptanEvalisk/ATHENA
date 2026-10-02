@@ -17,12 +17,15 @@
 #include "merge_sort.hpp"
 #include "iterator.hpp"
 
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
 #include <QJsonValue>
+#include <QSet>
 #include <QString>
 
+#include <algorithm>
 #include <mutex>
 #include <shared_mutex>
 
@@ -40,474 +43,7 @@ void notify_preference (string var);
 
 static std::shared_mutex user_preferences_mutex;
 static std::once_flag builtin_preferences_once;
-
-enum builtin_default_kind {
-  PREF_STATIC,
-  PREF_PRINTING_COMMAND,
-  PREF_PAPER_TYPE
-};
-
-struct builtin_preference {
-  const char* key;
-  const char* def;
-  bool string_def;
-  const char* callback;
-  builtin_default_kind kind;
-};
-
-static string
-default_paper_type () {
-  string psize= get_env ("PAPERSIZE");
-  if (psize != "") return psize;
-  return "a4";
-}
-
-static string
-builtin_default_value (const builtin_preference& pref) {
-  switch (pref.kind) {
-  case PREF_PRINTING_COMMAND:
-    return get_printing_default ();
-  case PREF_PAPER_TYPE:
-    return default_paper_type ();
-  case PREF_STATIC:
-  default:
-    return pref.def;
-  }
-}
-
-static void
-ensure_builtin_user_preferences () {
-  std::call_once (builtin_preferences_once, [] {
-  std::unique_lock<std::shared_mutex> guard (user_preferences_mutex);
-
-  static const builtin_preference prefs[]= {
-#define PREF(k, d, cb) {k, d, true, cb, PREF_STATIC}
-#define PREF_OBJ(k, d, cb) {k, d, false, cb, PREF_STATIC}
-#define PREF_KIND(k, d, cb, kind) {k, d, true, cb, kind}
-    PREF ("profile", "beginner", ""),
-    PREF ("look and feel", "default", "notify-look-and-feel"),
-    PREF ("case sensitive shortcuts", "default", ""),
-    PREF ("new toolbar", "on", "notify-restart"),
-    PREF ("disable texmacs window positioning", "off", ""),
-    PREF ("default cjk language", "chinese", ""),
-    PREF ("render solution in smaller font", "on",
-          "notify-enunciation-rendering"),
-    PREF ("number solutions", "on", "notify-enunciation-rendering"),
-    PREF ("text toolbar", "off", "notify-toolbar-presentation"),
-    PREF ("page medium", "paper", ""),
-    PREF ("show full context", "on", ""),
-    PREF ("show table cells", "on", ""),
-    PREF ("show focus", "on", ""),
-    PREF ("show only semantic focus", "on", ""),
-    PREF ("semantic editing", "off", ""),
-    PREF ("semantic selections", "on", ""),
-    PREF ("semantic correctness", "off", ""),
-    PREF ("remove superfluous invisible", "off", ""),
-    PREF ("insert missing invisible", "off", ""),
-    PREF ("zealous invisible correct", "off", ""),
-    PREF ("homoglyph correct", "off", ""),
-    PREF ("manual remove superfluous invisible", "on", ""),
-    PREF ("manual insert missing invisible", "on", ""),
-    PREF ("manual zealous invisible correct", "off", ""),
-    PREF ("manual homoglyph correct", "on", ""),
-    PREF ("security", "prompt on scripts", "notify-security"),
-    PREF ("latex command", "pdflatex", "notify-latex-command"),
-    PREF ("presentation tool", "off", "notify-tool"),
-    PREF ("inertial scrolling", "off", ""),
-    PREF ("inertial scrolling friction", "0.95", ""),
-    PREF ("inertial scrolling sensitivity", "2.0", ""),
-    PREF ("source tool", "off", "notify-tool"),
-    PREF ("experimental alpha", "on", "notify-tool"),
-    PREF ("bitmap effects", "on", "notify-tool"),
-    PREF ("new style page breaking", "on", "notify-new-page-breaking"),
-    PREF ("open console on errors", "on", ""),
-    PREF ("open console on warnings", "on", ""),
-    PREF ("debug scheme backtraces", "off", "notify-debug-backtrace"),
-    PREF ("gui:line-input:autocommit", "on", ""),
-    PREF ("show font substitution warning", "on", ""),
-    PREF ("check for updates", "on", ""),
-    PREF ("use native menubar", "off", ""),
-    PREF ("use unified toolbar", "off", ""),
-    PREF ("hide toolbars when not using them", "off",
-          "notify-toolbar-presentation"),
-    PREF ("remember ads panes layout", "on", ""),
-    PREF ("middle click closes ads tab", "on", ""),
-
-    PREF ("header", "on", "notify-header"),
-    PREF ("main icon bar", "on", "notify-icon-bar"),
-    PREF ("mode dependent icons", "on", "notify-icon-bar"),
-    PREF ("focus dependent icons", "on", "notify-icon-bar"),
-    PREF ("user provided icons", "off", "notify-icon-bar"),
-    PREF ("status bar", "on", "notify-status-bar"),
-    PREF ("zoom factor", "1", "notify-zoom-factor"),
-    PREF ("snap to pages", "off", ""),
-    PREF ("persistent fit width", "off", ""),
-    PREF ("typewriter mode", "off", ""),
-    PREF ("ir-up", "home", "notify-remote-control"),
-    PREF ("ir-down", "end", "notify-remote-control"),
-    PREF ("ir-left", "pageup", "notify-remote-control"),
-    PREF ("ir-right", "pagedown", "notify-remote-control"),
-    PREF ("ir-center", "S-return", "notify-remote-control"),
-    PREF ("ir-play", "F5", "notify-remote-control"),
-    PREF ("ir-pause", "escape", "notify-remote-control"),
-    PREF ("ir-menu", ".", "notify-remote-control"),
-    PREF ("draw cursor", "on", ""),
-    PREF ("blinking cursor", "on", ""),
-    PREF ("rendering performance monitor", "off", ""),
-
-    PREF ("texmacs->pdf:data-art cover", "off", ""),
-    PREF ("texmacs->pdf:expand slides", "off", ""),
-    PREF ("preview command", "default", "notify-preview-command"),
-    PREF_KIND ("printing command", "lpr", "notify-printing-command",
-               PREF_PRINTING_COMMAND),
-    PREF_KIND ("paper type", "a4", "notify-paper-type", PREF_PAPER_TYPE),
-    PREF ("printer dpi", "1200", "notify-printer-dpi"),
-
-    PREF ("document save mode", "realtime", "notify-autosave"),
-    PREF ("realtime save interval", "3", ""),
-    PREF ("autosave", "120", "notify-autosave"),
-    PREF ("document history manual save", "on", ""),
-    PREF ("document history interval", "600", ""),
-    PREF ("document history preservation", "1 week", ""),
-    PREF ("source tree style", "angular", ""),
-    PREF ("source tree special rendering", "normal", ""),
-    PREF ("source tree compactification", "normal", ""),
-    PREF ("source tree closing style", "compact", ""),
-
-    PREF ("vault fuzzy search limit", "3", ""),
-    PREF ("vault transclusion color", "#f8f8f8", ""),
-    PREF ("recent text colors", "()", ""),
-    PREF ("saved text colors", "()", ""),
-    PREF ("gui cursor color", "red", "notify-cursor-color"),
-    PREF ("gui selection color", "red", "notify-selection-color"),
-    PREF ("gui focus color", "#0ff", "notify-focus-color"),
-    PREF ("gui focus border width", "1", "notify-focus-border-width"),
-    PREF ("locus-color", "#404080", "notify-link-color"),
-    PREF ("visited-color", "#702070", "notify-link-color"),
-    PREF ("enable radioactive links", "on", "notify-link-color"),
-    PREF ("radioactive-link-color", "#a04400", "notify-link-color"),
-    PREF ("override white document background", "off",
-          "notify-document-background-color"),
-    PREF ("white document background override color", "#f7f3e8",
-          "notify-document-background-color"),
-    PREF ("vault welcome page", "on", ""),
-    PREF ("vault take preferences with vault", "off",
-          "notify-vault-preferences-mode"),
-    PREF ("vault auto load last", "off", ""),
-    PREF ("vault report missing last", "off", ""),
-    PREF ("vault explorer show on startup", "on", ""),
-    PREF ("vault explorer track current file", "off",
-          "notify-vault-explorer-track"),
-    PREF ("vault explorer use system trash", "off", ""),
-    PREF ("vault namespace explorer leaf matches only", "off", ""),
-    PREF ("vault namespace explorer from root namespace", "off", ""),
-    PREF ("vault namespace explorer simplify hierarchy", "off", ""),
-    PREF ("vault simplify hierarchy graphs", "off", ""),
-    PREF ("interactive elastic graphs", "on", ""),
-    PREF ("fold table of contents in reflow", "on",
-          "notify-fold-table-of-contents"),
-    PREF ("vault preferred initial neighborhood", "namespace", ""),
-    PREF ("vault max full backups", "Unlimited", ""),
-    PREF ("vault maintenance worker processes", "Unlimited", ""),
-    PREF ("vault maintenance update table of contents", "off", ""),
-    PREF ("vault maintenance continuous rag", "off", ""),
-    PREF ("vault maintenance remove redundant block wikilinks", "off", ""),
-    PREF ("delegation server", "", ""),
-    PREF ("vault maintenance rag delegation fallback", "continue", ""),
-    PREF ("vault collect orphan assets", "off", ""),
-    PREF ("vault generate maintenance summary page", "off", ""),
-    PREF ("vault maintenance summaries to keep", "All", ""),
-    PREF ("vault subproduct consume string aggressively", "on", ""),
-    PREF ("vault preferred font", "", ""),
-    PREF ("vault labels mode", "visible", "notify-labels-mode"),
-    PREF ("enunciation color preset", "Solarized Light", ""),
-    PREF ("vault theorem color", "none", "notify-enunciation-color"),
-    PREF ("vault lemma color", "none", "notify-enunciation-color"),
-    PREF ("vault corollary color", "none", "notify-enunciation-color"),
-    PREF ("vault proposition color", "none", "notify-enunciation-color"),
-    PREF ("vault axiom color", "none", "notify-enunciation-color"),
-    PREF ("vault definition color", "none", "notify-enunciation-color"),
-    PREF ("vault notation color", "none", "notify-enunciation-color"),
-    PREF ("vault convention color", "none", "notify-enunciation-color"),
-    PREF ("vault conjecture color", "none", "notify-enunciation-color"),
-    PREF ("vault law color", "none", "notify-enunciation-color"),
-    PREF ("vault remark color", "none", "notify-enunciation-color"),
-    PREF ("vault note color", "none", "notify-enunciation-color"),
-    PREF ("vault example color", "none", "notify-enunciation-color"),
-    PREF ("vault warning color", "none", "notify-enunciation-color"),
-    PREF ("vault disambiguation color", "none", "notify-enunciation-color"),
-    PREF ("vault acknowledgments color", "none", "notify-enunciation-color"),
-    PREF ("vault exercise color", "none", "notify-enunciation-color"),
-    PREF ("vault problem color", "none", "notify-enunciation-color"),
-    PREF ("vault question color", "none", "notify-enunciation-color"),
-    PREF ("vault solution color", "none", "notify-enunciation-color"),
-    PREF ("vault answer color", "none", "notify-enunciation-color"),
-    PREF ("vault proof color", "none", "notify-enunciation-color"),
-    PREF ("vault proof alternative color", "none", "notify-enunciation-color"),
-    PREF ("vault proof standard color", "none", "notify-enunciation-color"),
-    PREF ("vault auto copy images to vault", "off", ""),
-    PREF ("vault normalize image filename when inserting", "off", ""),
-    PREF ("pasted internet image handling", "link", ""),
-
-    PREF ("bidirectional navigation", "off",
-          "notify-bidirectional-navigation"),
-    PREF ("external navigation", "on", "notify-external-navigation"),
-    PREF ("link pages", "on", "notify-link-pages"),
-    PREF ("document update times", "1", "notify-doc-update-times"),
-    PREF ("live spell checking", "off", ""),
-    PREF ("realtime text autocompletion", "on", ""),
-    PREF ("text autocompletion sorting", "alphabetical", ""),
-    PREF ("text autocompletion accept key", "both", ""),
-    PREF ("custom dictionary import language", "english", ""),
-    PREF ("allow-blank-match", "on", ""),
-    PREF ("allow-initial-match", "on", ""),
-    PREF ("allow-partial-match", "on", ""),
-    PREF ("allow-injective-match", "on", ""),
-    PREF ("allow-cascaded-match", "on", ""),
-    PREF ("case-insensitive-match", "off", ""),
-    PREF ("vault wikilink inserter case insensitive search", "off", ""),
-    PREF ("vault transclusion inserter case insensitive search", "off", ""),
-    PREF ("vault wikilink inserter fuzzy search", "off", ""),
-    PREF ("vault transclusion inserter fuzzy search", "off", ""),
-    PREF ("vault link search workers", "8", ""),
-    PREF ("vault global search case insensitive search", "off", ""),
-    PREF ("vault global search fuzzy search", "off", ""),
-    PREF ("vault wikilink display template file", "%f", ""),
-    PREF ("vault wikilink display template heading", "%c", ""),
-    PREF ("vault wikilink display template anchor", "%c", ""),
-    PREF ("materials provider crossref", "off", ""),
-    PREF ("materials provider openalex", "off", ""),
-    PREF ("materials provider open library", "on", ""),
-    PREF ("materials provider google books", "off", ""),
-    PREF ("materials provider arxiv", "off", ""),
-    PREF ("materials provider pubmed", "off", ""),
-    PREF ("materials provider contact email", "", ""),
-    PREF ("materials local metadata extractor", "exiftool", ""),
-    PREF ("materials local text extractor", "pdftotext", ""),
-    PREF ("materials import parallelism", "auto", ""),
-    PREF ("materials csl style", "springer-mathphys", ""),
-    PREF ("allow-blank-replace", "off", ""),
-    PREF ("allow-initial-replace", "off", ""),
-    PREF ("allow-partial-replace", "off", ""),
-    PREF ("allow-injective-replace", "off", ""),
-    PREF ("auto bib import", "on", ""),
-    PREF ("manual style", "tmmanual", ""),
-    PREF_OBJ ("doc:collect-timestamp", "0", "notify-doc-collect-preference"),
-    PREF_OBJ ("doc:collect-languages", "()", "notify-doc-collect-preference"),
-
-    PREF ("text spacebar", "default", ""),
-    PREF ("math spacebar", "default", ""),
-    PREF ("automatic quotes", "default", "notify-quoting-style"),
-    PREF ("automatic brackets", "mathematics",
-          "notify-auto-close-brackets"),
-    PREF ("use large brackets", "on", ""),
-    PREF ("prog:automatic brackets", "off",
-          "notify-prog-auto-close-brackets"),
-    PREF ("prog:highlight brackets", "off", "notify-highlight-brackets"),
-    PREF ("prog:select brackets", "off", "notify-select-brackets"),
-    PREF_OBJ ("editor:verbatim:tabstop", "4", ""),
-    PREF ("syntax:fortran:none", "black", "notify-fortran-pref"),
-    PREF ("syntax:fortran:comment", "dark grey", "notify-fortran-pref"),
-    PREF ("syntax:fortran:keyword", "dark magenta", "notify-fortran-pref"),
-    PREF ("syntax:fortran:keyword_conditional", "dark magenta",
-          "notify-fortran-pref"),
-    PREF ("syntax:fortran:keyword_control", "dark magenta",
-          "notify-fortran-pref"),
-    PREF ("syntax:fortran:error", "dark red", "notify-fortran-pref"),
-    PREF ("syntax:fortran:operator", "dark red", "notify-fortran-pref"),
-    PREF ("syntax:fortran:operator_special", "dark red",
-          "notify-fortran-pref"),
-    PREF ("syntax:fortran:operator_openclose", "dark red",
-          "notify-fortran-pref"),
-    PREF ("syntax:fortran:operator_field", "dark red",
-          "notify-fortran-pref"),
-    PREF ("syntax:fortran:preprocessor", "dark green",
-          "notify-fortran-pref"),
-    PREF ("syntax:fortran:preprocessor_directive", "dark brown",
-          "notify-fortran-pref"),
-    PREF ("syntax:fortran:declare_type", "#4040c0", "notify-fortran-pref"),
-    PREF ("syntax:fortran:declare_function", "#4040c0",
-          "notify-fortran-pref"),
-    PREF ("syntax:fortran:variable_function", "#0000c0",
-          "notify-fortran-pref"),
-    PREF ("syntax:fortran:variable_type", "dark red",
-          "notify-fortran-pref"),
-    PREF ("syntax:fortran:constant", "#4040c0", "notify-fortran-pref"),
-    PREF ("syntax:fortran:constant_function", "#0000c0",
-          "notify-fortran-pref"),
-    PREF ("syntax:fortran:constant_type", "#4040c0",
-          "notify-fortran-pref"),
-    PREF ("syntax:fortran:constant_number", "#4040c0",
-          "notify-fortran-pref"),
-    PREF ("syntax:fortran:constant_string", "dark red",
-          "notify-fortran-pref"),
-    PREF ("syntax:scheme:none", "red", "notify-scheme-syntax"),
-    PREF ("syntax:scheme:comment", "brown", "notify-scheme-syntax"),
-    PREF ("syntax:scheme:keyword", "#309090", "notify-scheme-syntax"),
-    PREF ("syntax:scheme:error", "dark red", "notify-scheme-syntax"),
-    PREF ("syntax:scheme:constant_number", "#4040c0",
-          "notify-scheme-syntax"),
-    PREF ("syntax:scheme:constant_string", "dark grey",
-          "notify-scheme-syntax"),
-    PREF ("syntax:scheme:constant_char", "#333333",
-          "notify-scheme-syntax"),
-    PREF ("syntax:scheme:variable_identifier", "#204080",
-          "notify-scheme-syntax"),
-    PREF ("syntax:scheme:declare_category", "#d030d0",
-          "notify-scheme-syntax"),
-    PREF ("syntax:python:none", "red", "notify-python-syntax"),
-    PREF ("syntax:python:comment", "brown", "notify-python-syntax"),
-    PREF ("syntax:python:error", "dark red", "notify-python-syntax"),
-    PREF ("syntax:python:constant", "#4040c0", "notify-python-syntax"),
-    PREF ("syntax:python:constant_number", "#4040c0",
-          "notify-python-syntax"),
-    PREF ("syntax:python:constant_string", "dark grey",
-          "notify-python-syntax"),
-    PREF ("syntax:python:constant_char", "#333333",
-          "notify-python-syntax"),
-    PREF ("syntax:python:declare_function", "#0000c0",
-          "notify-python-syntax"),
-    PREF ("syntax:python:declare_type", "#0000c0",
-          "notify-python-syntax"),
-    PREF ("syntax:python:operator", "#8b008b", "notify-python-syntax"),
-    PREF ("syntax:python:operator_openclose", "#B02020",
-          "notify-python-syntax"),
-    PREF ("syntax:python:operator_field", "#88888",
-          "notify-python-syntax"),
-    PREF ("syntax:python:operator_special", "orange",
-          "notify-python-syntax"),
-    PREF ("syntax:python:keyword", "#309090", "notify-python-syntax"),
-    PREF ("syntax:python:keyword_conditional", "#309090",
-          "notify-python-syntax"),
-    PREF ("syntax:python:keyword_control", "#309090",
-          "notify-python-syntax"),
-    PREF ("syntax:cpp:none", "black", "notify-cpp-pref"),
-    PREF ("syntax:cpp:comment", "dark grey", "notify-cpp-pref"),
-    PREF ("syntax:cpp:keyword", "dark magenta", "notify-cpp-pref"),
-    PREF ("syntax:cpp:error", "dark red", "notify-cpp-pref"),
-    PREF ("syntax:cpp:preprocessor", "dark brown", "notify-cpp-pref"),
-    PREF ("syntax:cpp:preprocessor_directive", "dark green",
-          "notify-cpp-pref"),
-    PREF ("syntax:cpp:constant_type", "#4040c0", "notify-cpp-pref"),
-    PREF ("syntax:cpp:constant_number", "#4040c0", "notify-cpp-pref"),
-    PREF ("syntax:cpp:constant_string", "dark red", "notify-cpp-pref"),
-    PREF ("syntax:julia:none", "red", "notify-julia-syntax"),
-    PREF ("syntax:julia:comment", "brown", "notify-julia-syntax"),
-    PREF ("syntax:julia:error", "dark red", "notify-julia-syntax"),
-    PREF ("syntax:julia:constant", "#4040c0", "notify-julia-syntax"),
-    PREF ("syntax:julia:constant_number", "#4040c0",
-          "notify-julia-syntax"),
-    PREF ("syntax:julia:constant_string", "dark grey",
-          "notify-julia-syntax"),
-    PREF ("syntax:julia:constant_char", "#333333", "notify-julia-syntax"),
-    PREF ("syntax:julia:declare_function", "#0000c0",
-          "notify-julia-syntax"),
-    PREF ("syntax:julia:declare_module", "0000c0",
-          "notify-julia-syntax"),
-    PREF ("syntax:julia:declare_type", "0000c0", "notify-julia-syntax"),
-    PREF ("syntax:julia:operator", "#8b008b", "notify-julia-syntax"),
-    PREF ("syntax:julia:operator_openclose", "#B02020",
-          "notify-julia-syntax"),
-    PREF ("syntax:julia:operator_field", "#88888",
-          "notify-julia-syntax"),
-    PREF ("syntax:julia:operator_special", "orange",
-          "notify-julia-syntax"),
-    PREF ("syntax:julia:keyword", "#309090", "notify-julia-syntax"),
-    PREF ("syntax:julia:keyword_conditional", "#309090",
-          "notify-julia-syntax"),
-    PREF ("syntax:julia:keyword_control", "#309090",
-          "notify-julia-syntax"),
-
-    PREF ("codex home", "", ""),
-    PREF ("codex completion remember choices", "off", ""),
-    PREF ("codex completion model", "", ""),
-    PREF ("codex completion effort", "", ""),
-    PREF ("codex completion fast", "off", ""),
-    PREF ("codex completion web search", "off", ""),
-    PREF ("codex completion destination", "document", ""),
-    PREF ("google tasks cloud todo list id", "", ""),
-    PREF ("rag mcp port", "8765", ""),
-    PREF ("rag embedding model", "", ""),
-    PREF ("rag embedding device", "auto", ""),
-    PREF ("rag realtime npu enabled", "off", ""),
-    PREF ("rag npu openvino model", "", ""),
-    PREF ("rag npu tokenizer gguf", "", ""),
-    PREF ("rag delegation enabled", "off", ""),
-    PREF ("artifact definition span delegation enabled", "off", ""),
-    PREF ("rag mcp bearer token", "", ""),
-
-    PREF ("w increase", "0.05", ""),
-    PREF ("h increase", "0.05", ""),
-    PREF ("em increase", "0.1", ""),
-    PREF ("ex increase", "0.1", ""),
-    PREF ("spc increase", "0.2", ""),
-    PREF ("fn increase", "0.5", ""),
-    PREF ("mm increase", "0.5", ""),
-    PREF ("cm increase", "0.1", ""),
-    PREF ("inch increase", "0.05", ""),
-    PREF ("pt increase", "10", ""),
-    PREF ("msec increase", "50", ""),
-    PREF ("sec increase", "1", ""),
-    PREF ("min increase", "0.1", ""),
-    PREF ("% increase", "5", ""),
-    PREF ("default unit", "ex", ""),
-
-    PREF ("texmacs->latex:transparent-tracking", "on", ""),
-    PREF ("texmacs->latex:source-tracking", "off", "converter-set-option"),
-    PREF ("texmacs->latex:conservative", "on", "converter-set-option"),
-    PREF ("texmacs->latex:transparent-source-tracking", "on",
-          "converter-set-option"),
-    PREF ("texmacs->latex:attach-tracking-info", "on",
-          "converter-set-option"),
-    PREF ("texmacs->latex:replace-style", "on", "converter-set-option"),
-    PREF ("texmacs->latex:expand-macros", "on", "converter-set-option"),
-    PREF ("texmacs->latex:expand-user-macros", "off",
-          "converter-set-option"),
-    PREF ("texmacs->latex:use-macros", "on", "converter-set-option"),
-    PREF ("texmacs->latex:encoding", "utf-8", "converter-set-option"),
-    PREF ("latex->texmacs:matrix-recognition", "on", ""),
-    PREF ("latex->texmacs:aligned-to-eqnarray", "on", ""),
-    PREF ("latex->texmacs:align-to-aligned", "on", ""),
-    PREF ("latex->texmacs:operator-d-is-differential", "on", ""),
-    PREF ("latex->texmacs:roman-d-is-differential", "on", ""),
-    PREF ("latex->texmacs:text-d-is-differential", "on", ""),
-    PREF ("latex->texmacs:parse-bbbk", "on", ""),
-    PREF ("latex->texmacs:parse-bbbi-as-mathi", "on", ""),
-    PREF ("latex->texmacs:text-operators", "on", ""),
-    PREF ("latex->texmacs:intelligent-formula-cleaner", "off", ""),
-    PREF ("latex->texmacs:intelligent-formula-cleaner-model",
-          "$ATHENA_PATH/tools/formula-cleaner/formula-cleaner.gguf", ""),
-    PREF ("texmacs->verbatim:wrap", "off", "converter-set-option"),
-    PREF ("texmacs->verbatim:encoding", "auto", "converter-set-option"),
-    PREF ("verbatim->texmacs:wrap", "on", "converter-set-option"),
-    PREF ("verbatim->texmacs:encoding", "auto", "converter-set-option"),
-    PREF ("texmacs->image:raster-resolution", "300", ""),
-    PREF ("texmacs->image:format", "pdf", ""),
-    PREF ("image auto remove background", "off", ""),
-    PREF ("image->texmacs:svg-prefer-inkscape", "off",
-          "converter-set-option"),
-    PREF ("texmacs->html:css", "on", "converter-set-option"),
-    PREF ("texmacs->html:mathjax", "off", "converter-set-option"),
-    PREF ("texmacs->html:images", "on", "converter-set-option"),
-    PREF ("texmacs->html:css-stylesheet", "---", "converter-set-option"),
-    PREF ("mathml->texmacs:latex-annotations", "on", ""),
-    PREF ("latex->texmacs:fallback-on-pictures", "off",
-          "converter-set-option"),
-#undef PREF_KIND
-#undef PREF_OBJ
-#undef PREF
-  };
-
-  for (const builtin_preference& pref: prefs) {
-    if (!user_prefs_default->contains (pref.key)) {
-      user_prefs_default (pref.key)= builtin_default_value (pref);
-      user_prefs_string_default (pref.key)= pref.string_def;
-    }
-    if (pref.callback != nullptr && string (pref.callback) != "")
-      user_prefs_callback (pref.key)= pref.callback;
-  }
-  });
-}
+static std::vector<user_preference_ui_definition> builtin_preference_ui;
 
 static QString
 to_qstring (string s) {
@@ -518,6 +54,217 @@ static string
 from_qstring (const QString& s) {
   QByteArray bytes= s.toUtf8 ();
   return string (bytes.constData ());
+}
+
+static string
+default_paper_type () {
+  string psize= get_env ("PAPERSIZE");
+  if (psize != "") return psize;
+  return "a4";
+}
+
+static string
+preference_callback_name (const QString& id) {
+  struct callback_definition { const char* id; const char* procedure; };
+  static const callback_definition callbacks[]= {
+    {"auto-close-brackets", "notify-auto-close-brackets"},
+    {"autosave", "notify-autosave"},
+    {"bidirectional-navigation", "notify-bidirectional-navigation"},
+    {"converter-option", "converter-set-option"},
+    {"cpp-pref", "notify-cpp-pref"},
+    {"cursor-color", "notify-cursor-color"},
+    {"debug-backtrace", "notify-debug-backtrace"},
+    {"doc-collect-preference", "notify-doc-collect-preference"},
+    {"doc-update-times", "notify-doc-update-times"},
+    {"document-background-color", "notify-document-background-color"},
+    {"enunciation-color", "notify-enunciation-color"},
+    {"enunciation-rendering", "notify-enunciation-rendering"},
+    {"external-navigation", "notify-external-navigation"},
+    {"focus-border-width", "notify-focus-border-width"},
+    {"focus-color", "notify-focus-color"},
+    {"fold-table-of-contents", "notify-fold-table-of-contents"},
+    {"fortran-pref", "notify-fortran-pref"},
+    {"header", "notify-header"},
+    {"highlight-brackets", "notify-highlight-brackets"},
+    {"icon-bar", "notify-icon-bar"},
+    {"julia-syntax", "notify-julia-syntax"},
+    {"labels-mode", "notify-labels-mode"},
+    {"latex-command", "notify-latex-command"},
+    {"link-color", "notify-link-color"},
+    {"link-pages", "notify-link-pages"},
+    {"look-and-feel", "notify-look-and-feel"},
+    {"new-page-breaking", "notify-new-page-breaking"},
+    {"paper-type", "notify-paper-type"},
+    {"preview-command", "notify-preview-command"},
+    {"printer-dpi", "notify-printer-dpi"},
+    {"printing-command", "notify-printing-command"},
+    {"prog-auto-close-brackets", "notify-prog-auto-close-brackets"},
+    {"python-syntax", "notify-python-syntax"},
+    {"quoting-style", "notify-quoting-style"},
+    {"remote-control", "notify-remote-control"},
+    {"restart", "notify-restart"},
+    {"scheme-syntax", "notify-scheme-syntax"},
+    {"security", "notify-security"},
+    {"select-brackets", "notify-select-brackets"},
+    {"selection-color", "notify-selection-color"},
+    {"status-bar", "notify-status-bar"},
+    {"tool", "notify-tool"},
+    {"toolbar-presentation", "notify-toolbar-presentation"},
+    {"vault-explorer-track", "notify-vault-explorer-track"},
+    {"vault-preferences-mode", "notify-vault-preferences-mode"},
+    {"zoom-factor", "notify-zoom-factor"}
+  };
+  for (const auto& callback: callbacks)
+    if (id == callback.id) return callback.procedure;
+  return "";
+}
+
+static string
+preference_catalog_default (const QJsonObject& entry) {
+  const QString provider= entry.value ("default_provider").toString ();
+  if (provider == "printing-command") return get_printing_default ();
+  if (provider == "paper-type") return default_paper_type ();
+  return from_qstring (entry.value ("default").toString ());
+}
+
+static void
+invalid_preference_catalog (const QString& reason) {
+  failed_error << "Invalid ATHENA preference catalog: "
+               << from_qstring (reason) << LF;
+  FAILED ("invalid preference catalog");
+}
+
+static void
+ensure_builtin_user_preferences () {
+  std::call_once (builtin_preferences_once, [] {
+    string source;
+    const url catalog_path= "$ATHENA_PATH/misc/preferences/catalog.json";
+    if (load_string (catalog_path, source, false))
+      invalid_preference_catalog ("could not read " + to_qstring (as_string (catalog_path)));
+
+    QJsonParseError parse_error;
+    const QJsonDocument document= QJsonDocument::fromJson (
+      QByteArray (as_charp (source), N(source)), &parse_error);
+    if (parse_error.error != QJsonParseError::NoError || !document.isObject ())
+      invalid_preference_catalog (parse_error.errorString ());
+    const QJsonObject root= document.object ();
+    if (root.value ("format").toString () != "athena-preference-catalog" ||
+        root.value ("version").toInt () != 1 ||
+        !root.value ("preferences").isArray ())
+      invalid_preference_catalog ("unsupported format or version");
+
+    const QSet<QString> types {
+      "string", "scheme-object", "boolean", "choice", "color"};
+    const QSet<QString> controls {
+      "toggle", "text", "password", "choice", "color", "optional-color",
+      "native"};
+    const QSet<QString> native_providers {
+      "delegation-server-list", "directory-path", "dynamic-choice", "file-path",
+      "font-profile", "mirrored-toggle", "preferred-fonts", "remote-task-list",
+      "search-worker-count", "enunciation-preset"};
+    QSet<QString> keys;
+    std::vector<user_preference_ui_definition> ui;
+    std::unique_lock<std::shared_mutex> guard (user_preferences_mutex);
+    for (const QJsonValue& value: root.value ("preferences").toArray ()) {
+      if (!value.isObject ()) invalid_preference_catalog ("preference entry is not an object");
+      const QJsonObject entry= value.toObject ();
+      const QString key= entry.value ("key").toString ();
+      const QString type= entry.value ("type").toString ();
+      const QString scope= entry.value ("scope").toString ();
+      if (key.isEmpty () || keys.contains (key))
+        invalid_preference_catalog ("duplicate or empty key: " + key);
+      if (!types.contains (type) || scope != "active")
+        invalid_preference_catalog ("invalid type or scope for " + key);
+      const bool has_default= entry.value ("default").isString ();
+      const QString default_provider= entry.value ("default_provider").toString ();
+      if (has_default == !default_provider.isEmpty ())
+        invalid_preference_catalog ("invalid default declaration for " + key);
+      if (!default_provider.isEmpty () && default_provider != "printing-command" &&
+          default_provider != "paper-type")
+        invalid_preference_catalog ("unknown default provider for " + key);
+      if (type == "boolean" && has_default) {
+        const QString def= entry.value ("default").toString ();
+        if (def != "on" && def != "off")
+          invalid_preference_catalog ("invalid boolean default for " + key);
+      }
+
+      const QString callback_id= entry.value ("callback").toString ();
+      const string callback= callback_id.isEmpty ()? string (""):
+                             preference_callback_name (callback_id);
+      if (!callback_id.isEmpty () && callback == "")
+        invalid_preference_catalog ("unknown callback id for " + key);
+
+      const string native_key= from_qstring (key);
+      user_prefs_default (native_key)= preference_catalog_default (entry);
+      user_prefs_string_default (native_key)= type != "scheme-object";
+      if (callback != "") user_prefs_callback (native_key)= callback;
+      keys.insert (key);
+
+      if (!entry.value ("ui").isObject ()) continue;
+      const QJsonObject visual= entry.value ("ui").toObject ();
+      user_preference_ui_definition definition;
+      definition.key= native_key;
+      definition.type= from_qstring (type);
+      definition.scope= from_qstring (scope);
+      definition.category= from_qstring (visual.value ("category").toString ());
+      definition.tab= from_qstring (visual.value ("tab").toString ());
+      definition.section= from_qstring (visual.value ("section").toString ());
+      definition.label= from_qstring (visual.value ("label").toString ());
+      definition.control= from_qstring (visual.value ("control").toString ());
+      definition.provider= from_qstring (visual.value ("provider").toString ());
+      definition.help= from_qstring (visual.value ("help").toString ());
+      definition.unit= from_qstring (visual.value ("unit").toString ());
+      definition.category_order= visual.value ("category_order").toInt (-1);
+      definition.tab_order= visual.value ("tab_order").toInt (-1);
+      definition.section_order= visual.value ("section_order").toInt (-1);
+      definition.order= visual.value ("order").toInt (-1);
+      definition.restart= visual.value ("restart").toBool (false);
+      if (definition.category == "" || definition.tab == "" ||
+          definition.section == "" || definition.label == "" ||
+          !controls.contains (to_qstring (definition.control)))
+        invalid_preference_catalog ("invalid UI declaration for " + key);
+      if (definition.category_order < 0 || definition.tab_order < 0 ||
+          definition.section_order < 0 || definition.order < 0)
+        invalid_preference_catalog ("invalid UI order for " + key);
+      if (definition.control == "native" &&
+          !native_providers.contains (to_qstring (definition.provider)))
+        invalid_preference_catalog ("unknown native control provider for " + key);
+      if (visual.value ("choices").isArray ()) {
+        for (const QJsonValue& choice_value: visual.value ("choices").toArray ()) {
+          const QJsonObject choice= choice_value.toObject ();
+          const QString choice_value_string= choice.value ("value").toString ();
+          const QString choice_label= choice.value ("label").toString ();
+          if (choice_value_string.isNull () || choice_label.isNull ())
+            invalid_preference_catalog ("invalid choice for " + key);
+          definition.choices.push_back (
+            {from_qstring (choice_value_string), from_qstring (choice_label)});
+        }
+      }
+      if (definition.control == "choice" && definition.choices.empty ())
+        invalid_preference_catalog ("choice control has no choices for " + key);
+      if (definition.control == "choice" && has_default) {
+        const string def= from_qstring (entry.value ("default").toString ());
+        bool found= false;
+        for (const auto& choice: definition.choices)
+          if (choice.value == def) { found= true; break; }
+        if (!found) invalid_preference_catalog ("choice default is not offered for " + key);
+      }
+      ui.push_back (std::move (definition));
+    }
+    std::stable_sort (
+      ui.begin (), ui.end (),
+      [] (const user_preference_ui_definition& a,
+          const user_preference_ui_definition& b) {
+        if (a.category_order != b.category_order)
+          return a.category_order < b.category_order;
+        if (a.tab_order != b.tab_order) return a.tab_order < b.tab_order;
+        if (a.section_order != b.section_order)
+          return a.section_order < b.section_order;
+        if (a.order != b.order) return a.order < b.order;
+        return a.key < b.key;
+      });
+    builtin_preference_ui= std::move (ui);
+  });
 }
 
 static bool
@@ -565,6 +312,26 @@ user_preference_default_is_string (string var) {
   if (user_prefs_string_default->contains (var))
     return user_prefs_string_default[var];
   return true;
+}
+
+bool
+get_user_preference_ui_definition (
+  string var, user_preference_ui_definition& definition) {
+  ensure_builtin_user_preferences ();
+  std::shared_lock<std::shared_mutex> guard (user_preferences_mutex);
+  for (const auto& candidate: builtin_preference_ui)
+    if (candidate.key == var) {
+      definition= candidate;
+      return true;
+    }
+  return false;
+}
+
+std::vector<user_preference_ui_definition>
+get_user_preference_ui_definitions () {
+  ensure_builtin_user_preferences ();
+  std::shared_lock<std::shared_mutex> guard (user_preferences_mutex);
+  return builtin_preference_ui;
 }
 
 string
