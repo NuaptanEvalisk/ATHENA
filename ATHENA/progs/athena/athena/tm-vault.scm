@@ -476,6 +476,9 @@
                   (set-message "Invalid Vaultfile.json" "Error")))))
       (interactive-new-vault dir)))
 
+(tm-define (load-vault-dir-now dir)
+  (load-vault-dir-main dir))
+
 (tm-define (load-vault-dir dir)
   (exec-global (lambda () (load-vault-dir-main dir))))
 

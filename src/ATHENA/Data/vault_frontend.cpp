@@ -213,7 +213,7 @@ vault_show_explorer_and_track_native () {
 
 void
 vault_load_latest_action_native (string path) {
-  try { (void) call ("load-vault-dir", object (url (path))); }
+  try { (void) call ("load-vault-dir-now", object (url (path))); }
   catch (...) {}
 }
 

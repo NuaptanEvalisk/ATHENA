@@ -1278,9 +1278,6 @@ TeXmacs_main (int argc, char** argv) {
 
     bool needs_startup_buffer_policy= number_buffers () == 0;
     if (needs_startup_buffer_policy) {
-      extra_init_cmd << "(delayed (:idle 0) "
-                        "(exec-global "
-                        "(lambda () (vault-startup-open-initial-buffer))))";
       extra_init_cmd << "(kbd-start-inverse-warmup)";
     }
     extra_init_cmd << "(delayed (:idle 300) "
@@ -1390,7 +1387,15 @@ TeXmacs_main (int argc, char** argv) {
     signal (SIGTERM, clean_exit_on_sigterm);
     release_boot_lock ();
 
-    // inject scheme commands 
+    // Vault startup is process-global application work.  Do not put it in the
+    // ordinary ownerless delayed queue: that queue intentionally waits for a
+    // concrete BufferActor view, while this policy is responsible for creating
+    // the initial vault/welcome buffer in a zero-buffer shell.
+    if (needs_startup_buffer_policy)
+      exec_delayed_global (
+        scheme_cmd ("(vault-startup-open-initial-buffer)"));
+
+    // inject scheme commands
     if (N(extra_init_cmd) > 0) exec_delayed (startup_commands);
     if (N(extra_init_cmd) > 0)
       startup_progress (97, "Scheduling startup tasks");

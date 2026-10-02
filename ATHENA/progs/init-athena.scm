@@ -88,7 +88,7 @@
 
 ;(display "Booting main TeXmacs functionality\n")
 (import-from (athena athena tm-server))
-(lazy-define (athena athena tm-vault) load-vault-dir)
+(lazy-define (athena athena tm-vault) load-vault-dir load-vault-dir-now)
 (lazy-define (athena athena tm-global-transformation)
              run-global-transformation)
 (lazy-define (athena athena tm-tools) clean-athena-cache)
