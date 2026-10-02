@@ -369,7 +369,11 @@ native_editor_command_state (const QString& id,
     result.enabled= result.available && !snapshot.read_only ();
     break;
   case native_editor_command_id::focus_help:
-    result.available= genericFocus;
+    result.available=
+      genericFocus ||
+      (focus.valid () &&
+       (focus.has (ACTOR_FOCUS_TOOLBAR_BUFFER) ||
+        focus.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT)));
     result.enabled= result.available;
     break;
   default:

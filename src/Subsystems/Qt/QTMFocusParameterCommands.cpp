@@ -35,6 +35,13 @@ generic_focus_surface (const actor_focus_toolbar_snapshot& focus) {
          !focus.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT);
 }
 
+bool
+preferences_focus_surface (const actor_focus_toolbar_snapshot& focus) {
+  return generic_focus_surface (focus) ||
+         (focus.valid () &&
+          focus.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT));
+}
+
 const std::vector<actor_focus_parameter_snapshot>*
 parameter_vector (
   const actor_focus_toolbar_snapshot& focus, const QString& scope) {
@@ -245,7 +252,9 @@ parameter_provider_state (
   if (proxy == nullptr) return state;
   actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
   actor_editor_command_snapshot editorState= proxy->editor_command_state ();
-  if (!generic_focus_surface (focus) || !editorState.valid ()) return state;
+  const bool surface=
+    global ? preferences_focus_surface (focus) : generic_focus_surface (focus);
+  if (!surface || !editorState.valid ()) return state;
   const auto& parameters=
     global ? focus.global_parameters: focus.local_parameters;
   const bool hasStyleOptions= global && !focus.style_options.empty ();
@@ -267,7 +276,8 @@ QTMCommandRegistry::registerFocusParameterCommands () {
       if (proxy == nullptr) return out;
       actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
       actor_editor_command_snapshot editorState= proxy->editor_command_state ();
-      if (!generic_focus_surface (focus) || !editorState.valid ()) return out;
+      if (!preferences_focus_surface (focus) || !editorState.valid ())
+        return out;
       const bool enabled= !editorState.read_only ();
       for (std::size_t i=0; i<focus.style_options.size (); ++i) {
         const auto& option= focus.style_options[i];

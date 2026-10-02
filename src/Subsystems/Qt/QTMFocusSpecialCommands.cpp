@@ -77,7 +77,10 @@ QTMCommandRegistry::registerFocusSpecialCommands () {
       if (proxy == nullptr) return out;
       actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
       actor_editor_command_snapshot editor= proxy->editor_command_state ();
-      if (!focus.valid () || !editor.valid ()) return out;
+      if (!focus.valid () || !editor.valid () ||
+          focus.pure_alternate_context ||
+          focus.overlays_context || focus.overlay_context)
+        return out;
       const bool enabled= !editor.read_only ();
       auto append=
         [&] (const QString& key, const QString& label, const QString& icon,
@@ -91,6 +94,14 @@ QTMCommandRegistry::registerFocusSpecialCommands () {
         };
       if (focus.poster_block_context) {
         append (
+          QStringLiteral ("poster-insert-up"),
+          QObject::tr ("Insert similar block above"),
+          QStringLiteral ("tm_insert_up"));
+        append (
+          QStringLiteral ("poster-insert-down"),
+          QObject::tr ("Insert similar block below"),
+          QStringLiteral ("tm_insert_down"));
+        append (
           QStringLiteral ("poster-block-toggle-titled"),
           QObject::tr ("Toggle titled block"),
           QStringLiteral ("tm_small_textual"), true,
@@ -100,6 +111,16 @@ QTMCommandRegistry::registerFocusSpecialCommands () {
           QObject::tr ("Make block wide"),
           QStringLiteral ("tm_wide_float"), true, focus.poster_block_wide);
       }
+      if (focus.script_insert_up)
+        append (
+          QStringLiteral ("script-insert-up"),
+          QObject::tr ("Insert superscript"),
+          QStringLiteral ("tm_insert_up"));
+      if (focus.script_insert_down)
+        append (
+          QStringLiteral ("script-insert-down"),
+          QObject::tr ("Insert subscript"),
+          QStringLiteral ("tm_insert_down"));
       if (focus.sqrt_context)
         append (
           QStringLiteral ("sqrt-toggle"), QObject::tr ("Multiple root"),
@@ -142,7 +163,11 @@ QTMCommandRegistry::registerFocusSpecialCommands () {
         QStringLiteral ("poster-block-toggle-wide"),
         QStringLiteral ("sqrt-toggle"),
         QStringLiteral ("dueto-add"),
-        QStringLiteral ("table-toggle-parwidth")
+        QStringLiteral ("table-toggle-parwidth"),
+        QStringLiteral ("poster-insert-up"),
+        QStringLiteral ("poster-insert-down"),
+        QStringLiteral ("script-insert-up"),
+        QStringLiteral ("script-insert-down")
       };
       return allowed.contains (key) ?
         submit_focus_action (context, key) : false;
@@ -153,7 +178,8 @@ QTMCommandRegistry::registerFocusSpecialCommands () {
       actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
       const bool available=
         focus.valid () &&
-        (focus.poster_block_context || focus.sqrt_context ||
+        (focus.poster_block_context || focus.script_context ||
+         focus.sqrt_context ||
          focus.dueto_available ||
          focus.has (ACTOR_FOCUS_TOOLBAR_TABLE_CONTEXT) ||
          focus.automatic_section_context);
@@ -186,7 +212,10 @@ QTMCommandRegistry::registerFocusSpecialCommands () {
       int index= key.toInt (&indexOk);
       if (!indexOk) return false;
       actor_focus_toolbar_snapshot focus;
-      if (!writable_focus (context, &focus)) return false;
+      if (!writable_focus (context, &focus) ||
+          focus.pure_alternate_context ||
+          focus.overlays_context || focus.overlay_context)
+        return false;
       const actor_focus_hidden_field_snapshot* field= nullptr;
       for (const auto& candidate: focus.hidden_fields)
         if (candidate.index == index) {

@@ -56,6 +56,7 @@ private:
     QPointer<QMenu> providerMenu;
     std::vector<QPointer<QAction>> dynamicActions;
     std::vector<QPointer<QMenu>> dynamicMenus;
+    QString dynamicSignature;
     std::vector<std::unique_ptr<node>> children;
   };
 

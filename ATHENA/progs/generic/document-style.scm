@@ -13,6 +13,18 @@
 
 (texmacs-module (generic document-style))
 
+(define (native-document-background-setter value)
+  (init-env-tree "bg-color" value))
+
+(tm-define (native-document-background-pattern-dialog)
+  (open-pattern-selector native-document-background-setter "1cm"))
+
+(tm-define (native-document-background-gradient-dialog)
+  (open-gradient-selector native-document-background-setter))
+
+(tm-define (native-document-background-picture-dialog)
+  (open-background-picture-selector native-document-background-setter))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Relations between style files and packages
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -133,6 +133,51 @@ QTMCommandRegistry::registerFocusCommands () {
         context, ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT, false);
     });
   registerProvider (
+    "editor-focus-tag-label", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QVector<QTMCommandDynamicItem> out;
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return out;
+      actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
+      const bool screens=
+        focus.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT);
+      if (!focus.valid () ||
+          focus.has (ACTOR_FOCUS_TOOLBAR_BUFFER) ||
+          focus.has (ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT) ||
+          (!screens && focus.has (ACTOR_FOCUS_TOOLBAR_HAS_VARIANTS)))
+        return out;
+      QString label= QString::fromUtf8 (
+        focus.tag_name.data (), static_cast<int> (focus.tag_name.size ()));
+      if (label.isEmpty ())
+        label= QString::fromUtf8 (
+          focus.tag_label.data (), static_cast<int> (focus.tag_label.size ()));
+      if (label.isEmpty ()) return out;
+      QTMCommandDynamicItem item= enabled_dynamic_item (
+        QStringLiteral ("__label__"), label);
+      item.state.enabled= false;
+      out.append (std::move (item));
+      return out;
+    },
+    [] (const QString&, const QTMCommandContext&) {
+      return false;
+    },
+    [] (const QTMCommandContext& context) {
+      QTMCommandState state;
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return state;
+      actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
+      const bool screens=
+        focus.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT);
+      if (!focus.valid () ||
+          focus.has (ACTOR_FOCUS_TOOLBAR_BUFFER) ||
+          focus.has (ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT) ||
+          (!screens && focus.has (ACTOR_FOCUS_TOOLBAR_HAS_VARIANTS)))
+        return state;
+      state.available= !focus.tag_name.empty () || !focus.tag_label.empty ();
+      state.enabled= false;
+      return state;
+    });
+  registerProvider (
     "editor-focus-document-font-sizes", QTMCommandScope::Editor,
     [] (const QTMCommandContext& context) {
       QVector<QTMCommandDynamicItem> out;

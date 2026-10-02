@@ -98,6 +98,9 @@ valid_business_id (const QString& id) {
     "insert-floating-table",
     "insert-floating-algorithm",
     "open-document-font-selector",
+    "document-background-pattern",
+    "document-background-gradient",
+    "document-background-picture",
     "letter-today",
     "tmdoc-explain-synopsis",
     "make-alter-colors"
@@ -139,7 +142,11 @@ valid_focus_action_id (const QString& id) {
     "document-insert-abstract",
     "poster-insert-title",
     "tmdoc-insert-title",
-    "tmdoc-insert-copyright"
+    "tmdoc-insert-copyright",
+    "poster-insert-up",
+    "poster-insert-down",
+    "script-insert-up",
+    "script-insert-down"
   };
   return ids.contains (id);
 }
@@ -220,6 +227,12 @@ execute_business_id (const QString& id) {
     (void) call ("native-insert-floating-algorithm");
   else if (id == "open-document-font-selector")
     (void) call ("open-document-font-selector");
+  else if (id == "document-background-pattern")
+    (void) call ("native-document-background-pattern-dialog");
+  else if (id == "document-background-gradient")
+    (void) call ("native-document-background-gradient-dialog");
+  else if (id == "document-background-picture")
+    (void) call ("native-document-background-picture-dialog");
   else if (id == "letter-today") {
     (void) call ("make-header", symbol_object ("letter-date"));
     (void) call ("make", symbol_object ("date"), object (0));
@@ -760,11 +773,22 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
              state.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
              state.tmdoc_insert_copyright_available)
       (void) call ("tmdoc-insert-copyright-and-license");
+    else if (id == "poster-insert-up" && state.poster_block_context)
+      generic_structured_insert_up ();
+    else if (id == "poster-insert-down" && state.poster_block_context)
+      generic_structured_insert_down ();
+    else if (id == "script-insert-up" && state.script_insert_up)
+      generic_structured_insert_up ();
+    else if (id == "script-insert-down" && state.script_insert_down)
+      generic_structured_insert_down ();
   }
   else if (op == "focus-hidden-field") {
     actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
     path focus= ed->focus_get ();
-    if (!state.valid () || !ed->test_subtree (focus)) return;
+    if (!state.valid () || !ed->test_subtree (focus) ||
+        state.pure_alternate_context ||
+        state.overlays_context || state.overlay_context)
+      return;
     const int index= action.value ("index").toInt (-1);
     bool allowed= false;
     for (const auto& field: state.hidden_fields)

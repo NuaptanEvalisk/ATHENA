@@ -170,6 +170,28 @@ QTMEditorToolbarPresenter::repopulateProvider (
     return;
 
   QMenu* menu= item.providerMenu.data ();
+  QVector<QTMCommandDynamicItem> values=
+    QTMCommandRegistry::instance ().providerItems (item.providerId, target);
+  QString signature;
+  for (const QTMCommandDynamicItem& value: values) {
+    if (!value.state.available) continue;
+    signature += value.key;
+    signature += QChar (0x1f);
+    signature += value.group;
+    signature += QChar (0x1f);
+    signature += value.label;
+    signature += QChar (0x1f);
+    signature += value.help;
+    signature += QChar (0x1f);
+    signature += value.icon;
+    signature += QChar (value.state.enabled ? '1' : '0');
+    signature += QChar (value.state.checkable ? '1' : '0');
+    signature += QChar (value.state.checked ? '1' : '0');
+    signature += QChar (0x1e);
+  }
+  if (signature == item.dynamicSignature) return;
+  item.dynamicSignature= signature;
+
   for (const QPointer<QAction>& action: item.dynamicActions) {
     if (action == nullptr) continue;
     if (menu != nullptr) menu->removeAction (action);
@@ -181,8 +203,6 @@ QTMEditorToolbarPresenter::repopulateProvider (
     if (dynamicMenu != nullptr) dynamicMenu->deleteLater ();
   item.dynamicMenus.clear ();
 
-  QVector<QTMCommandDynamicItem> values=
-    QTMCommandRegistry::instance ().providerItems (item.providerId, target);
   QHash<QString, QMenu*> groups;
   for (const QTMCommandDynamicItem& value: values) {
     if (!value.state.available) continue;
@@ -281,6 +301,10 @@ QTMEditorToolbarPresenter::refreshNode (
   if (!presentationConditionSatisfied (item, target)) {
     item.action->setVisible (false);
     item.action->setEnabled (false);
+    for (const QPointer<QAction>& action: item.dynamicActions)
+      if (action != nullptr) action->setVisible (false);
+    for (const QPointer<QMenu>& menu: item.dynamicMenus)
+      if (menu != nullptr) menu->menuAction ()->setVisible (false);
     return false;
   }
   if (item.kind == QTMCommandMenuItem::Kind::Separator) return false;
@@ -307,6 +331,10 @@ QTMEditorToolbarPresenter::refreshNode (
         return false;
       }
       repopulateProvider (item, target);
+      for (const QPointer<QAction>& action: item.dynamicActions)
+        if (action != nullptr) action->setVisible (true);
+      for (const QPointer<QMenu>& menu: item.dynamicMenus)
+        if (menu != nullptr) menu->menuAction ()->setVisible (true);
       return !item.dynamicActions.empty ();
     }
     item.action->setVisible (state.available);

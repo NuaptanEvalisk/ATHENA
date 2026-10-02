@@ -154,7 +154,11 @@ run_native_editor_command (editor_rep* editor,
       return false;
     break;
   case native_editor_command_id::focus_help:
-    if (!genericFocus) return false;
+    if (!genericFocus &&
+        !(focus.valid () &&
+          (focus.has (ACTOR_FOCUS_TOOLBAR_BUFFER) ||
+           focus.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT))))
+      return false;
     break;
   case native_editor_command_id::revert:
   case native_editor_command_id::close_document:

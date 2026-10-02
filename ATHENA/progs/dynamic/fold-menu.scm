@@ -287,18 +287,6 @@
     (tree-insert u 0 '((tit "")))
     (tree-go-to u 0 0 0)))
 
-(tm-define (search-slide-name t*)
-  (with t (slide-get-document t*)
-    (if (and (tree-is? t 'document)
-             (tree-is? t 0 'tit))
-        (texmacs->code (verbatim-expand (tm-ref t 0 0)) "utf-8")
-        "")))
-
-(tm-define (get-slide-name t i)
-  (with s (search-slide-name t)
-    (string-append "Slide " (number->string (+ i 1))
-                   (if (== s "") "" (string-append ": " s)))))
-
 (tm-menu (focus-slides-menu t*)
   (with t (slide-get-switch t*)
     (for (i (.. 0 (tree-arity t)))

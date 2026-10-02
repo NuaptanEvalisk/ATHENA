@@ -17,7 +17,8 @@
         (dynamic dynamic-drd)
         (generic generic-edit)
         (generic document-edit)
-        (text text-edit)))
+        (text text-edit)
+        (text text-structure)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Style package rules for beamer
@@ -1076,6 +1077,18 @@
          (slide-get-document (tree-ref t :last)))
         ((tree-is? t 'document) t)
          (else #f)))
+
+(tm-define (search-slide-name t*)
+  (with t (slide-get-document t*)
+    (if (and (tree-is? t 'document)
+             (tree-is? t 0 'tit))
+        (texmacs->string (tm-ref t 0 0))
+        "")))
+
+(tm-define (get-slide-name t i)
+  (with s (search-slide-name t)
+    (string-append "Slide " (number->string (+ i 1))
+                   (if (== s "") "" (string-append ": " s)))))
 
 (tm-define (native-slide-insert-title t)
   (and-with u (slide-get-document t)

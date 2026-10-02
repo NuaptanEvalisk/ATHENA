@@ -142,6 +142,10 @@
            page-break-menu)
 (lazy-menu (generic document-menu) document-menu
            document-style-menu)
+(lazy-define (generic document-style)
+             native-document-background-pattern-dialog
+             native-document-background-gradient-dialog
+             native-document-background-picture-dialog)
 (lazy-menu (generic document-part)
            preamble-menu)
 (lazy-define (generic document-part)
@@ -322,7 +326,7 @@
              overlays-switch-to overlay-current overlay-arity overlay-visible?
              native-overlays-switch-parent
              beamer-themes current-beamer-theme
-             slide-get-switch slide-get-document
+             slide-get-switch slide-get-document get-slide-name
              native-slide-insert-title native-slide-insert-graphics)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 

@@ -890,6 +890,7 @@ editor_rep::focus_toolbar_state_snapshot () {
   const bool alternateSecond= query ("alternate-second?");
   snapshot.alternate_available= alternateFirst || alternateSecond;
   snapshot.alternate_checked= alternateSecond;
+  snapshot.pure_alternate_context= query ("pure-alternate-context?");
   if (snapshot.alternate_available) {
     try {
       object label= call ("alternate-second-name", object (t));
@@ -947,6 +948,15 @@ editor_rep::focus_toolbar_state_snapshot () {
     }
   }
   catch (...) {}
+  snapshot.script_context= query ("script-context?");
+  if (snapshot.script_context) {
+    const bool only= query ("script-only-script?");
+    if (only) {
+      string tag= as_string (L(t));
+      snapshot.script_insert_up= (tag == "lsub" || tag == "rsub");
+      snapshot.script_insert_down= (tag == "lsup" || tag == "rsup");
+    }
+  }
   snapshot.automatic_section_context= query ("automatic-section-context?");
   if (query ("dueto-supporting-context?"))
     snapshot.dueto_available= !query ("dueto-added?");
@@ -1495,9 +1505,17 @@ editor_rep::focus_toolbar_state_snapshot () {
         object rawSwitch= call ("slide-get-switch", object (t));
         if (is_tree (rawSwitch)) {
           tree sw= as_tree (rawSwitch);
-          for (int i=0; i<N(sw); ++i)
-            snapshot.slide_names.push_back (
-              "Slide " + std::to_string (i + 1));
+          for (int i=0; i<N(sw); ++i) {
+            string label= "Slide " * as_string (i + 1);
+            try {
+              object name= call (
+                "get-slide-name", object (sw[i]), object (i));
+              if (is_string (name)) label= as_string (name);
+            }
+            catch (...) {}
+            snapshot.slide_names.emplace_back (
+              label.data (), static_cast<std::size_t> (N(label)));
+          }
         }
       }
       catch (...) {}

@@ -225,6 +225,7 @@ struct actor_focus_toolbar_snapshot {
   bool alternate_checked= false;
   bool hidden_toggle_available= false;
   bool hidden_checked= false;
+  bool pure_alternate_context= false;
   bool algorithm_numbered= false;
   bool algorithm_named= false;
   bool algorithm_specified= false;
@@ -260,6 +261,9 @@ struct actor_focus_toolbar_snapshot {
   bool poster_block_context= false;
   bool poster_block_titled= false;
   bool poster_block_wide= false;
+  bool script_context= false;
+  bool script_insert_up= false;
+  bool script_insert_down= false;
   bool sqrt_context= false;
   bool sqrt_multiple= false;
   bool automatic_section_context= false;
