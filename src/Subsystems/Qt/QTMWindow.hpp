@@ -13,6 +13,7 @@
 #define QTMWINDOW_HPP
 
 #include <QMainWindow>
+#include <QPointer>
 
 #include "qt_tm_widget.hpp"
 
@@ -76,6 +77,8 @@ public:
     QString right;
     bool visible= true;
   } editorStatus;
+  QTMWidget* editorCanvas () const { return editorCanvas_.data (); }
+  void setEditorCanvas (QTMWidget* canvas) { editorCanvas_= canvas; }
   virtual ~QTMWindow () {
     if (DEBUG_QT) debug_qt << "Deleting QTMWindow" << LF;
   }
@@ -91,6 +94,7 @@ protected:
   virtual void resizeEvent (QResizeEvent* event) override;
 
 private:
+  QPointer<QTMWidget> editorCanvas_;
   bool suppress_wayland_menu_release= false;
 };
 

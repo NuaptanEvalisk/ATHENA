@@ -13,6 +13,7 @@
 
 #include "QTMCommandRegistry.hpp"
 #include "QTMWidget.hpp"
+#include "QTMWindow.hpp"
 #include "native_editor_actions.hpp"
 #include "qt_actor_widget.hpp"
 #include "file.hpp"
@@ -99,7 +100,9 @@ editor_canvas_for_context (const QTMCommandContext& context) {
   QWidget* pane= context.workPane.data ();
   if (pane == nullptr) return nullptr;
   if (QTMWidget* canvas= qobject_cast<QTMWidget*> (pane)) return canvas;
-  return pane->findChild<QTMWidget*> ();
+  if (QTMWindow* window= qobject_cast<QTMWindow*> (pane))
+    return window->editorCanvas ();
+  return nullptr;
 }
 
 inline qt_actor_widget_rep*

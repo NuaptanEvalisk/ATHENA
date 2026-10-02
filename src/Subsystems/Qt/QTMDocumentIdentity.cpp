@@ -12,6 +12,7 @@
 
 #include "QTMMainTabWindow.hpp"
 #include "QTMWidget.hpp"
+#include "QTMWindow.hpp"
 #include "actor_ui_bridge.hpp"
 #include "buffer_name_catalog.hpp"
 #include "qt_actor_widget.hpp"
@@ -22,7 +23,9 @@ qtm_document_identity (QWidget* document) {
   if (document == nullptr) return result;
 
   QTMWidget* canvas= qobject_cast<QTMWidget*> (document);
-  if (canvas == nullptr) canvas= document->findChild<QTMWidget*> ();
+  if (canvas == nullptr)
+    if (QTMWindow* window= qobject_cast<QTMWindow*> (document))
+      canvas= window->editorCanvas ();
   if (canvas == nullptr) return result;
   auto* proxy= dynamic_cast<qt_actor_widget_rep*> (canvas->tm_widget ());
   if (proxy == nullptr) return result;

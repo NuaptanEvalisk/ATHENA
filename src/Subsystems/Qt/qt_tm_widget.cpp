@@ -1218,6 +1218,7 @@ qt_tm_widget_rep::write (slot s, blackbox index, widget w) {
        the widget on which the layout is installed " */
       main_widget = concrete (w);
         // canvas() now returns the new QTMWidget (or 0)
+      static_cast<QTMWindow*> (mainwindow ())->setEditorCanvas (canvas ());
       nativeMainToolbarPresenter->setCanvas (canvas ());
       nativeModeToolbarPresenter->setCanvas (canvas ());
       nativeFocusToolbarPresenter->setCanvas (canvas ());

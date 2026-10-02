@@ -327,8 +327,8 @@ documentFocusTarget(QWidget* widget) {
   if (widget == nullptr) return nullptr;
   if (QTMWidget* tmWidget= qobject_cast<QTMWidget*> (widget))
     return tmWidget;
-  if (QTMWidget* tmWidget= widget->findChild<QTMWidget*> ())
-    return tmWidget;
+  if (QTMWindow* window= qobject_cast<QTMWindow*> (widget))
+    if (QTMWidget* tmWidget= window->editorCanvas ()) return tmWidget;
   return widget;
 }
 

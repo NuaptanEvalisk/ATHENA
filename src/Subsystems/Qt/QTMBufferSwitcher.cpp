@@ -11,6 +11,7 @@
 #include "QTMBufferSwitcher.hpp"
 #include "QTMMainTabWindow.hpp"
 #include "QTMWidget.hpp"
+#include "QTMWindow.hpp"
 #include "qt_utilities.hpp"
 #include "tm_ostream.hpp"
 
@@ -73,7 +74,9 @@ buffer_switcher_texmacs_widget (QWidget* widget) {
   if (widget == nullptr) return nullptr;
   if (QTMWidget* tmWidget= qobject_cast<QTMWidget*> (widget))
     return tmWidget;
-  return widget->findChild<QTMWidget*> ();
+  if (QTMWindow* window= qobject_cast<QTMWindow*> (widget))
+    return window->editorCanvas ();
+  return nullptr;
 }
 
 static std::vector<BufferSwitcherScrollSnapshot>
