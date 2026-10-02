@@ -156,6 +156,7 @@ private:
   void registerApplicationCommands ();
   void registerEditorCommands ();
   void registerFocusCommands ();
+  void registerFocusParameterCommands ();
   void registerBehavior (
     const QString& id, QTMCommandScope scope,
     std::function<bool(const QTMCommandContext&)> execute,

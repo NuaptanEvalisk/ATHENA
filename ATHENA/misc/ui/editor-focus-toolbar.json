@@ -24,7 +24,8 @@
     {"id":"editor.focus.metadata-properties","label":"Metadata properties","category":"Focus","icon":"tm_title","help":"Open document metadata properties","palette":false},
     {"id":"editor.focus.table-properties","label":"Table properties","category":"Focus","icon":"tm_set_properties","help":"Open table properties","palette":false},
     {"id":"editor.focus.cell-properties","label":"Cell properties","category":"Focus","icon":"tm_set_properties","help":"Open cell properties","palette":false},
-    {"id":"editor.focus.edit-label","label":"Label","category":"Focus","help":"Edit the label of the focused structure","palette":false}
+    {"id":"editor.focus.edit-label","label":"Label","category":"Focus","help":"Edit the label of the focused structure","palette":false},
+    {"id":"editor.focus.search","label":"Search in database","category":"Focus","icon":"tm_focus_search","help":"Search for the focused structure in the database","palette":false}
   ],
   "toolbars":[
     {"id":"editor-focus","items":[
@@ -64,6 +65,9 @@
       {"command":"editor.focus.exit-left","focus_forbids":["buffer","code-context","screens-context"]},
       {"command":"editor.focus.exit-right","focus_forbids":["buffer","code-context","screens-context"]},
       {"command":"editor.focus.remove-tag","focus_forbids":["buffer","code-context","screens-context"]},
+      {"submenu":"editor-focus-preferences","label":"Preferences for tag","icon":"tm_focus_prefs","focus_forbids":["buffer","code-context","screens-context"],"items":[{"provider":"editor-focus-preferences"}]},
+      {"submenu":"editor-focus-rendering","label":"Rendering options for tag","icon":"tm_theme","focus_forbids":["buffer","code-context","screens-context"],"items":[{"provider":"editor-focus-rendering"}]},
+      {"command":"editor.focus.search","focus_forbids":["buffer","code-context","screens-context"]},
       {"command":"editor.focus.help","focus_forbids":["buffer","code-context","screens-context"]}
     ]}
   ]

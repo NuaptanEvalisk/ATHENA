@@ -9,6 +9,7 @@
 #include "native_editor_actions.hpp"
 
 #include "document_commands.hpp"
+#include "document_style_commands.hpp"
 #include "format_commands.hpp"
 #include "generic_editor_commands.hpp"
 #include "scheme.hpp"
@@ -331,6 +332,25 @@ native_editor_action_validate (const QJsonObject& action, QString* error) {
   if (op == "focus-set-label")
     return has_string (action, "value") ?
              true : fail_validation (error, "focus-set-label requires value");
+  if (op == "focus-parameter") {
+    if (!has_string (action, "scope") || !has_string (action, "name"))
+      return fail_validation (
+        error, "focus-parameter requires scope/name");
+    const QString scope= action.value ("scope").toString ();
+    if (scope != "global" && scope != "local")
+      return fail_validation (error, "invalid focus parameter scope");
+    const bool reset= action.value ("reset").toBool (false);
+    if (!reset && !has_string (action, "value"))
+      return fail_validation (
+        error, "focus-parameter requires value unless reset");
+    return true;
+  }
+  if (op == "focus-style-option")
+    return has_string (action, "name") ?
+             true : fail_validation (
+               error, "focus-style-option requires name");
+  if (op == "focus-search")
+    return true;
   if (op == "make-section" || op == "make-unnamed-section" ||
       op == "make-header" || op == "tmdoc-branch" ||
       op == "make-equation-like" ||
@@ -589,6 +609,65 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     (void) generic_focus_set_label (
       ed->the_subtree (focus),
       native_action_string (action.value ("value")));
+  }
+  else if (op == "focus-parameter") {
+    actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
+    if (!state.valid ()) return;
+    const string scope= native_action_string (action.value ("scope"));
+    const string name= native_action_string (action.value ("name"));
+    const std::vector<actor_focus_parameter_snapshot>* parameters=
+      scope == "global" ? &state.global_parameters:
+      scope == "local" ? &state.local_parameters: nullptr;
+    if (parameters == nullptr) return;
+    const std::string nativeName (
+      name.data (), static_cast<std::size_t> (N(name)));
+    bool allowed= false;
+    for (const auto& parameter: *parameters)
+      if (parameter.name == nativeName) {
+        allowed= true;
+        break;
+      }
+    if (!allowed) return;
+
+    object mode;
+    if (scope == "global") mode= keyword_object ("global");
+    else {
+      path focus= ed->focus_get ();
+      if (!ed->test_subtree (focus)) return;
+      tree target= ed->the_subtree (focus);
+      array<object> items;
+      items << keyword_object ("local")
+            << symbol_object (as_string (L (target)));
+      mode= as_list_object (items);
+    }
+    if (action.value ("reset").toBool (false))
+      generic_parameter_reset (name, mode);
+    else
+      generic_parameter_set (
+        name, object (native_action_string (action.value ("value"))), mode);
+  }
+  else if (op == "focus-style-option") {
+    actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
+    if (!state.valid ()) return;
+    const string name= native_action_string (action.value ("name"));
+    const std::string nativeName (
+      name.data (), static_cast<std::size_t> (N(name)));
+    bool allowed= false;
+    for (const auto& option: state.style_options)
+      if (option.name == nativeName) {
+        allowed= true;
+        break;
+      }
+    if (allowed) document_toggle_style_package (name);
+  }
+  else if (op == "focus-search") {
+    actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
+    path focus= ed->focus_get ();
+    if (!state.valid () || !ed->test_subtree (focus) ||
+        (!state.has (ACTOR_FOCUS_TOOLBAR_HAS_SEARCH_MENU) &&
+         !state.has (ACTOR_FOCUS_TOOLBAR_CAN_SEARCH)))
+      return;
+    generic_focus_open_search_tool (ed->the_subtree (focus));
   }
   else if (op == "make-section")
     make_section (ed, native_action_string (action.value ("tag")));

@@ -169,6 +169,27 @@ enum actor_focus_toolbar_flag: std::uint32_t {
   ACTOR_FOCUS_TOOLBAR_FRAME_CONTEXT= 1U << 31
 };
 
+struct actor_focus_parameter_choice_snapshot {
+  std::string value;
+  std::string label;
+};
+
+struct actor_focus_parameter_snapshot {
+  std::string name;
+  std::string label;
+  std::string type;
+  std::string current;
+  bool is_default= false;
+  std::vector<actor_focus_parameter_choice_snapshot> choices;
+};
+
+struct actor_focus_style_option_snapshot {
+  std::string name;
+  std::string label;
+  std::string help;
+  bool checked= false;
+};
+
 struct actor_focus_toolbar_snapshot {
   std::uint32_t flags= 0;
   std::string tag_label;
@@ -206,6 +227,9 @@ struct actor_focus_toolbar_snapshot {
   std::string marginal_valign;
   std::string balloon_halign;
   std::string balloon_valign;
+  std::vector<actor_focus_parameter_snapshot> global_parameters;
+  std::vector<actor_focus_parameter_snapshot> local_parameters;
+  std::vector<actor_focus_style_option_snapshot> style_options;
 
   bool valid () const noexcept {
     return (flags & ACTOR_FOCUS_TOOLBAR_VALID) != 0;

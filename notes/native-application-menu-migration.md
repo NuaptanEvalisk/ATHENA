@@ -254,6 +254,10 @@ Retirement is group-by-group, with no dual production for a migrated group:
   toggles, editable focus labels, plus float/footnote/balloon wide/anchor/
   floating/position/alignment controls. These controls read only the actor
   focus snapshot and execute through the validated focus-action whitelist.
+  Generic tag Preferences and Rendering are now snapshot data too: global/local
+  style parameters, theme parameters, customizable values, defaults/choices
+  and style-option package toggles are rendered by a dedicated native provider;
+  Search is a finite owner-bound actor action.
   Remaining style/theme/slide-selector and less common node-focus contributors
   are still on the legacy path;
   `texmacs-focus-icons` is not removed until those reach parity.

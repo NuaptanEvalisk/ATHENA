@@ -163,7 +163,11 @@ state now covers metadata/table contexts, checked structured toggles, algorithm
 variants, labels and float/footnote/balloon state. Float positions and
 alignments dispatch directly to fixed `generic_*` editor APIs; wide/floating/
 anchor mutations remain finite actor-side business adapters with current-focus
-revalidation.
+revalidation. Global/local focus parameter records are also materialized in the
+actor snapshot (name, display label, type, current/default state and finite
+choices) and consumed by `QTMFocusParameterCommands.cpp`. Parameter writes,
+style-option toggles and focus search are typed actor actions that recompute the
+current focus and reject stale parameter/option IDs before mutation.
 
 ## Zero-buffer ownership now established
 

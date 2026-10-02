@@ -24,6 +24,8 @@
 #include "buffer_actor.hpp"
 #include "actor_ui_bridge.hpp"
 #include "document_commands.hpp"
+#include "document_style_commands.hpp"
+#include "format_commands.hpp"
 #include "generic_editor_commands.hpp"
 #include "structured_commands.hpp"
 #ifdef EXPERIMENTAL
@@ -1026,6 +1028,175 @@ editor_rep::focus_toolbar_state_snapshot () {
   }
   catch (...) {}
   set (ACTOR_FOCUS_TOOLBAR_HAS_VARIANTS, snapshot.variants.size () > 1);
+
+  auto append_parameter=
+    [&] (std::vector<actor_focus_parameter_snapshot>& target,
+         const string& parameter, const string& explicitLabel,
+         object mode) {
+      const std::string key (
+        parameter.data (), static_cast<std::size_t> (N(parameter)));
+      for (const auto& existing: target)
+        if (existing.name == key) return;
+
+      actor_focus_parameter_snapshot item;
+      item.name= key;
+      string label= explicitLabel;
+      if (N(label) == 0) {
+        try { label= generic_parameter_name (parameter); }
+        catch (...) { label= parameter; }
+      }
+      item.label.assign (
+        label.data (), static_cast<std::size_t> (N(label)));
+      try {
+        object type= call (
+          "tree-label-type", symbol_object (parameter));
+        if (is_string (type)) {
+          string value= as_string (type);
+          item.type.assign (
+            value.data (), static_cast<std::size_t> (N(value)));
+        }
+      }
+      catch (...) {}
+      try {
+        string current= generic_parameter_get_string (parameter, mode);
+        item.current.assign (
+          current.data (), static_cast<std::size_t> (N(current)));
+      }
+      catch (...) {}
+      try { item.is_default= generic_parameter_default (parameter, mode); }
+      catch (...) {}
+
+      try {
+        object choices= format_parameter_choices (parameter);
+        if (is_list (choices)) {
+          array<object> values= as_array_object (choices);
+          for (int i=0; i<N(values); ++i) {
+            actor_focus_parameter_choice_snapshot choice;
+            if (is_string (values[i])) {
+              string value= as_string (values[i]);
+              choice.value.assign (
+                value.data (), static_cast<std::size_t> (N(value)));
+              choice.label= choice.value;
+            }
+            else if (is_list (values[i])) {
+              array<object> pair= as_array_object (values[i]);
+              if (N(pair) != 2 ||
+                  !is_string (pair[0]) || !is_string (pair[1]))
+                continue;
+              string labelValue= as_string (pair[0]);
+              string value= as_string (pair[1]);
+              choice.label.assign (
+                labelValue.data (),
+                static_cast<std::size_t> (N(labelValue)));
+              choice.value.assign (
+                value.data (), static_cast<std::size_t> (N(value)));
+            }
+            else continue;
+            item.choices.push_back (std::move (choice));
+          }
+        }
+      }
+      catch (...) {}
+      target.push_back (std::move (item));
+    };
+
+  object globalMode= keyword_object ("global");
+  array<object> localModeItems;
+  localModeItems << keyword_object ("local")
+                 << symbol_object (as_string (L (t)));
+  object localMode= as_list_object (localModeItems);
+
+  auto append_parameter_list=
+    [&] (std::vector<actor_focus_parameter_snapshot>& target,
+         object mode) {
+      try {
+        object raw= generic_focus_parameters_list_memo (t, mode);
+        if (!is_list (raw)) return;
+        array<object> values= as_array_object (raw);
+        for (int i=0; i<N(values); ++i)
+          if (is_string (values[i]))
+            append_parameter (
+              target, as_string (values[i]), string (""), mode);
+      }
+      catch (...) {}
+    };
+  append_parameter_list (snapshot.global_parameters, globalMode);
+  append_parameter_list (snapshot.local_parameters, localMode);
+
+  try {
+    object raw= format_customizable_parameters_memo (t);
+    if (is_list (raw)) {
+      array<object> values= as_array_object (raw);
+      for (int i=0; i<N(values); ++i) {
+        if (!is_list (values[i])) continue;
+        array<object> pair= as_array_object (values[i]);
+        if (N(pair) < 1 || !is_string (pair[0])) continue;
+        string label= "";
+        if (N(pair) > 1 && is_string (pair[1])) label= as_string (pair[1]);
+        append_parameter (
+          snapshot.local_parameters, as_string (pair[0]), label, localMode);
+      }
+    }
+  }
+  catch (...) {}
+
+  try {
+    object themes= call ("search-tag-themes", object (t));
+    if (is_list (themes)) {
+      array<object> themeValues= as_array_object (themes);
+      for (int i=0; i<N(themeValues); ++i) {
+        string theme;
+        if (is_string (themeValues[i])) theme= as_string (themeValues[i]);
+        else if (is_symbol (themeValues[i])) theme= as_symbol (themeValues[i]);
+        else continue;
+        object members= call ("theme->members", object (theme));
+        if (!is_list (members)) continue;
+        array<object> memberValues= as_array_object (members);
+        for (int j=0; j<N(memberValues); ++j) {
+          string member;
+          if (is_string (memberValues[j]))
+            member= as_string (memberValues[j]);
+          else if (is_symbol (memberValues[j]))
+            member= as_symbol (memberValues[j]);
+          else continue;
+          string variable= theme * "-" * member;
+          append_parameter (
+            snapshot.global_parameters, variable, string (""), globalMode);
+          append_parameter (
+            snapshot.local_parameters, variable, string (""), localMode);
+        }
+      }
+    }
+  }
+  catch (...) {}
+
+  try {
+    object options= call ("search-tag-options", object (t));
+    if (is_list (options)) {
+      array<object> values= as_array_object (options);
+      for (int i=0; i<N(values); ++i) {
+        string option;
+        if (is_string (values[i])) option= as_string (values[i]);
+        else if (is_symbol (values[i])) option= as_symbol (values[i]);
+        else continue;
+        actor_focus_style_option_snapshot item;
+        item.name.assign (
+          option.data (), static_cast<std::size_t> (N(option)));
+        string label= document_style_get_menu_name (option);
+        item.label.assign (
+          label.data (), static_cast<std::size_t> (N(label)));
+        object help= document_style_get_documentation (object (option));
+        if (is_string (help)) {
+          string text= as_string (help);
+          item.help.assign (
+            text.data (), static_cast<std::size_t> (N(text)));
+        }
+        item.checked= document_has_style_package (option);
+        snapshot.style_options.push_back (std::move (item));
+      }
+    }
+  }
+  catch (...) {}
 
   if (snapshot.has (ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT)) {
     string language= get_env_string ("prog-language");
