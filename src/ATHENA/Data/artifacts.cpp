@@ -28,6 +28,7 @@
 #include "file.hpp"
 #include "scheme.hpp"
 #include "System/Boot/boot.hpp"
+#include "tm_ostream.hpp"
 
 #include <sqlite3.h>
 
@@ -49,7 +50,6 @@
 #include <future>
 #include <fstream>
 #include <iterator>
-#include <iostream>
 #include <map>
 #include <set>
 #include <sstream>
@@ -72,8 +72,10 @@ constexpr const char* source_locator_contract= "source-uuid-role-list-v2";
 
 bool freeze_paragraph_sources (const tree&, AthenaArtifactRecord&, std::string&);
 
-void artifact_log (const std::string& message) {
-  std::cout << "[artifacts] " << message << std::endl;
+void artifact_log (const AthenaArtifactsProgress& progress,
+                   const std::string& message) {
+  if (progress) return;
+  athena_spdlog_debug ("artifacts: " + message);
 }
 
 bool report_progress (const AthenaArtifactsProgress& progress,
@@ -1297,7 +1299,7 @@ bool extract_serial (const std::vector<DocumentWork>& work,
     if (!extract (document, work[i].rel, title_filter,
                   extracted[work[i].rel], error))
       return false;
-    artifact_log ("extracted " + work[i].rel + ": " +
+    artifact_log (progress, "extracted " + work[i].rel + ": " +
                   std::to_string (extracted[work[i].rel].records.size ()) +
                   " artifact candidate(s)");
   }
@@ -1356,7 +1358,7 @@ bool select_definition_ranges (
     }
   }
   size_t range_total= work.size ();
-  artifact_log ("definition-range phase: " + std::to_string (range_total) +
+  artifact_log (progress, "definition-range phase: " + std::to_string (range_total) +
                 " bold-text artifact(s) require semantic range selection");
   if (range_total == 0) {
     if (!report_progress (
@@ -1388,7 +1390,7 @@ bool select_definition_ranges (
       return false;
     if (found) { cached++; resolved[index]= true; }
     else missing.push_back (index);
-    artifact_log ("queued definition range " +
+    artifact_log (progress, "queued definition range " +
                   std::to_string (index + 1) + "/" +
                   std::to_string (range_total) + " in " + work[index].path +
                   ": \"" + work[index].record->display_text + "\" (" +
@@ -1396,7 +1398,7 @@ bool select_definition_ranges (
                   " candidate paragraph(s)" +
                   (found ? ", checkpoint hit)" : ")"));
   }
-  artifact_log ("definition-range incremental plan: " +
+  artifact_log (progress, "definition-range incremental plan: " +
                 std::to_string (cached) + " checkpoint hit(s), " +
                 std::to_string (missing.size ()) + " request(s) to evaluate");
 
@@ -1468,7 +1470,7 @@ bool select_definition_ranges (
                                selected[index]});
     }
     if (db && !store_range_checkpoints (db, checkpoints, error)) return false;
-    artifact_log ("definition-range checkpoint committed: completed=" +
+    artifact_log (progress, "definition-range checkpoint committed: completed=" +
                   std::to_string (cached + base + count) + "/" +
                   std::to_string (range_total));
   }
@@ -1486,14 +1488,14 @@ bool select_definition_ranges (
       if (i) offsets << ',';
       offsets << record.paragraph_offsets[i];
     }
-    artifact_log (std::string (resolved[index] ? "definition range selected for \"" :
+    artifact_log (progress, std::string (resolved[index] ? "definition range selected for \"" :
                                                "definition range pending for \"") + record.display_text +
                   "\" in " + work[index].path + ": [" + offsets.str () +
                   "]");
   }
   auto elapsed= std::chrono::duration_cast<std::chrono::milliseconds> (
     std::chrono::steady_clock::now () - started).count ();
-  artifact_log ("definition-range phase complete: " +
+  artifact_log (progress, "definition-range phase complete: " +
                 std::to_string (range_total) + " request(s) in " +
                 std::to_string (elapsed) + " ms using batch size " +
                 std::to_string (athena_artifact_range_batch_size ()));
@@ -1615,7 +1617,7 @@ bool extract_parallel (sqlite3* db, const std::vector<DocumentWork>& work,
       size_t record_count= result.records.size ();
       extracted[rel]= std::move (result);
       completed++;
-      artifact_log ("extracted " + rel + ": " +
+      artifact_log (progress, "extracted " + rel + ": " +
                     std::to_string (record_count) +
                     " artifact candidate(s)");
       if (!report_progress (progress, AthenaArtifactsBuildPhase::Extracting,
@@ -2960,7 +2962,7 @@ athena_artifacts_build (
   std::string& error, const AthenaArtifactsBuildOptions& options) {
   result= AthenaArtifactsBuildResult ();
   fs::path root= normalize_root (vault_root);
-  artifact_log ("build started: root=" + root.string () +
+  artifact_log (progress, "build started: root=" + root.string () +
                 (full_vault ? ", scope=entire vault" :
                               ", scope=requested document(s)"));
   if (!report_progress (progress, AthenaArtifactsBuildPhase::Preparing, 0, 0,
@@ -2979,7 +2981,7 @@ athena_artifacts_build (
     athena_artifact_title_filter_fingerprint (title_filter);
   const std::string extraction_contract= complete_contract +
     (options.structural_only ? ":structural" : "");
-  artifact_log ("databases: artifacts=" + (root / info.artifacts_path).string () +
+  artifact_log (progress, "databases: artifacts=" + (root / info.artifacts_path).string () +
                 ", enunciations=" +
                 (root / info.enunciations_path).string () +
                 ", bold-text=" + (root / info.bold_text_path).string ());
@@ -2996,7 +2998,7 @@ athena_artifacts_build (
       documents.end ());
   std::sort (documents.begin (), documents.end ());
   result.documents_seen= documents.size ();
-  artifact_log ("discovered " + std::to_string (documents.size ()) +
+  artifact_log (progress, "discovered " + std::to_string (documents.size ()) +
                 " .ath document(s)");
   std::vector<std::string> deleted;
   if (full_vault) {
@@ -3069,7 +3071,7 @@ athena_artifacts_build (
             semantic_hash,
             cached.extraction_contract, error))
         return false;
-      artifact_log (storage_same ?
+      artifact_log (progress, storage_same ?
         "storage revision already matches artifact content: " + rel :
         "storage rewrite preserved artifact content revision: " + rel);
       continue;
@@ -3077,7 +3079,7 @@ athena_artifacts_build (
     work.push_back ({path, rel, modified, size, storage_hash, content_hash,
                      semantic_hash, source_format});
   }
-  artifact_log ("incremental plan: rebuild " + std::to_string (work.size ()) +
+  artifact_log (progress, "incremental plan: rebuild " + std::to_string (work.size ()) +
                 " document(s), purge " + std::to_string (deleted.size ()) +
                 " deleted document(s)");
 
@@ -3148,7 +3150,7 @@ athena_artifacts_build (
     if (!delete_document (holder.db, rel, error)) { rollback (); return false; }
     result.documents_deleted++;
     written++;
-    artifact_log ("purged deleted document from artifact databases: " + rel);
+    artifact_log (progress, "purged deleted document from artifact databases: " + rel);
     if (!report_progress (progress,
                           AthenaArtifactsBuildPhase::WritingDatabase,
                           written, write_total, rel)) {
@@ -3176,7 +3178,7 @@ athena_artifacts_build (
       result.artifacts++;
     }
     written++;
-    artifact_log ("wrote " + item.rel + ": " +
+    artifact_log (progress, "wrote " + item.rel + ": " +
                   std::to_string (found->second.records.size ()) +
                   " artifact(s)");
     if (!report_progress (progress,
@@ -3203,7 +3205,7 @@ athena_artifacts_build (
   }
   else if (!work.empty () || !deleted.empty ()) athena_artifact_radioactive_invalidate ();
   report_progress (progress, AthenaArtifactsBuildPhase::Complete, 1, 1);
-  artifact_log ("build complete: " + std::to_string (result.artifacts) +
+  artifact_log (progress, "build complete: " + std::to_string (result.artifacts) +
                 " artifact(s), " + std::to_string (result.enunciations) +
                 " enunciation(s), " + std::to_string (result.bold_texts) +
                 " bold-text definition(s), " +
