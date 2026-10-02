@@ -264,12 +264,13 @@ athena_backup_dispatch_run (
       arguments << qstring (command.arguments[i]);
     // Sender-only hiding also lets --delete remove old destination sidecars.
     for (const char* pattern: {"*.sqlite", "*.db", "*.sqlite-wal", "*.sqlite-shm",
-                              "*.sqlite-journal", "*.db-wal", "*.db-shm", "*.db-journal"})
+                              "*.sqlite-journal", "*.sqlite-mj*",
+                              "*.db-wal", "*.db-shm", "*.db-journal", "*.db-mj*"})
       arguments << qstring (std::string ("--filter=H ") + pattern);
     bool have_snapshots= false;
     for (const fs::path& relative: databases) {
       std::string pattern= filter_path (relative);
-      for (const char* suffix: {"", "-wal", "-shm", "-journal"})
+      for (const char* suffix: {"", "-wal", "-shm", "-journal", "-mj*"})
         arguments << qstring ("--filter=H " + pattern + suffix);
       fs::path source= vault_root / relative;
       if (!fs::exists (source)) continue;

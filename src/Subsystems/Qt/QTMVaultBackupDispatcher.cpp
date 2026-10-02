@@ -17,7 +17,7 @@
 #include <QEvent>
 #include <QDir>
 #include <QFileInfo>
-#include <QProcess>
+#include <QThreadPool>
 #include <QQueue>
 #include <QSet>
 #include <QTimer>
@@ -46,24 +46,11 @@ public:
     connect (&idleTimer, &QTimer::timeout, this, [this] () {
       requestTrigger ("idle");
     });
-    process.setProcessChannelMode (QProcess::SeparateChannels);
-    connect (&process, qOverload<int,QProcess::ExitStatus> (&QProcess::finished),
-             this, [this] (int exitCode, QProcess::ExitStatus exitStatus) {
-      finishCurrent (exitCode, exitStatus);
-    });
-    connect (&process, &QProcess::errorOccurred, this,
-             [this] (QProcess::ProcessError error) {
-      if (error == QProcess::FailedToStart) {
-        std_error << "backup dispatcher: could not start rsync: "
-                  << process.errorString ().toStdString ().c_str () << "\n";
-        if (active)
-          QTimer::singleShot (0, this, [this] () {
-            finishCurrent (-1, QProcess::CrashExit);
-          });
-      }
-    });
+    worker.setMaxThreadCount (1);
     idleTimer.start ();
   }
+
+  ~BackupDispatcherManager () override { worker.waitForDone (); }
 
   void noteActivity (const QEvent* event) {
     if (event == nullptr || !event->spontaneous ()) return;
@@ -137,36 +124,29 @@ private:
     current= queue.dequeue ();
     queuedKeys.remove (current.key);
 
-    AthenaBackupDispatchCommand command;
-    std::string error;
-    if (!athena_backup_dispatch_prepare (
-          std::filesystem::path (utf8 (current.root)),
-          utf8 (current.destination), command, error)) {
-      std_error << "backup dispatcher: " << error.c_str () << "\n";
-      current= {};
-      QTimer::singleShot (0, this, [this] () { startNext (); });
-      return;
-    }
-    QStringList arguments;
-    for (const std::string& argument: command.arguments)
-      arguments << QString::fromStdString (argument);
     active= true;
     athena_spdlog_info (
       "backup dispatcher: synchronizing vault to " +
-      command.normalized_destination);
-    process.start (QString::fromStdString (command.program), arguments);
+      utf8 (current.destination));
+    const BackupTask task= current;
+    worker.start ([this, task] {
+      std::string error;
+      const bool ok= athena_backup_dispatch_run (
+        std::filesystem::path (utf8 (task.root)), utf8 (task.destination), error);
+      QMetaObject::invokeMethod (this, [this, ok, error] {
+        finishCurrent (ok, QString::fromStdString (error));
+      }, Qt::QueuedConnection);
+    });
   }
 
-  void finishCurrent (int exitCode, QProcess::ExitStatus exitStatus) {
+  void finishCurrent (bool ok, const QString& detail) {
     if (!active) return;
     QString finishedKey= current.key;
     BackupTask finishedTask= current;
-    if (exitStatus == QProcess::NormalExit && exitCode == 0)
+    if (ok)
       athena_spdlog_info (
         "backup dispatcher: synchronization completed");
     else {
-      QString detail= QString::fromUtf8 (
-        process.readAllStandardError ()).trimmed ();
       std_error << "backup dispatcher: synchronization failed";
       if (!detail.isEmpty ())
         std_error << ": " << detail.toStdString ().c_str ();
@@ -179,7 +159,7 @@ private:
   }
 
   QTimer idleTimer;
-  QProcess process;
+  QThreadPool worker;
   QQueue<BackupTask> queue;
   QSet<QString> queuedKeys;
   QSet<QString> rerun;
