@@ -38,13 +38,6 @@
 
 extern void (*env_next_prog)(void);
 
-static bool defer_editor_chrome_build= false;
-
-void
-defer_next_editor_chrome_build () {
-  defer_editor_chrome_build= true;
-}
-
 /*static*/ string
 MODE_LANGUAGE (string mode) {
   if (mode == "text") return LANGUAGE;
@@ -159,13 +152,6 @@ void
 edit_interface_rep::resume () {
   //cout << "Resume " << buf->name << LF;
   got_focus= true;
-  bool defer_chrome= defer_editor_chrome_build;
-  defer_editor_chrome_build= false;
-  if (!defer_chrome) {
-    bench_start ("build main menu");
-    rebuild_ui_chrome ();
-    bench_cumul ("build main menu");
-  }
   cur_sb= 2;
   bench_start ("initialize editor focus state");
   env_change= env_change & (~THE_FREEZE);
@@ -173,18 +159,16 @@ edit_interface_rep::resume () {
   bench_cumul ("initialize editor focus state");
   {
     with_borrowed_drd drd_scope (&drd);
-    if (!defer_chrome) {
-      bench_start ("make initial cursor accessible");
-      path new_tp= make_cursor_accessible (tp, true);
-      bench_cumul ("make initial cursor accessible");
-      if (new_tp != tp) {
-        notify_change (THE_CURSOR);
-        tp= new_tp;
-      }
+    bench_start ("make initial cursor accessible");
+    path new_tp= make_cursor_accessible (tp, true);
+    bench_cumul ("make initial cursor accessible");
+    if (new_tp != tp) {
+      notify_change (THE_CURSOR);
+      tp= new_tp;
     }
   }
   bench_start ("reset initial editor");
-  if (!headless_mode && !defer_chrome)
+  if (!headless_mode)
     (void) publish_ui (actor_command_kind::ui_invalidate_all);
   bench_cumul ("reset initial editor");
 }
@@ -724,7 +708,6 @@ edit_interface_rep::update_menus () {
   refresh_editor_style_command_flags ();
   publish_editor_command_state ();
   publish_focus_toolbar_state ();
-  rebuild_ui_chrome ();
   set_footer ();
   pending_idle_footer_update= false;
   (void) publish_ui (
@@ -873,6 +856,16 @@ editor_rep::document_menu_state_snapshot () {
   try {
     snapshot.beamer_style=
       as_bool (call ("style-has?", object (string ("beamer-style"))));
+  }
+  catch (...) {}
+  try {
+    snapshot.automate_style=
+      as_bool (call ("style-has?", object (string ("automate-dtd"))));
+  }
+  catch (...) {}
+  try {
+    snapshot.commutative_diagram=
+      as_bool (call ("in-commutative-diagram?"));
   }
   catch (...) {}
   const bool poster=

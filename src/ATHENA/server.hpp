@@ -57,7 +57,6 @@ public:
   virtual bool visible_icon_bar (int which) = 0;
   virtual bool visible_bottom_tools (int which) = 0;
   virtual void menu_widget (string menu, widget& w) = 0;
-  virtual void menu_main (string menu) = 0;
   virtual void bottom_tools (int which, string menu) = 0;
 
   virtual void set_window_zoom_factor (double zoom) = 0;

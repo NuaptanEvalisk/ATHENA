@@ -43,13 +43,3 @@
       ("String" (make-output-string))
       ("Inline content" (make-inline-output))
       ("Block content" (make-block-output))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Insert menu as extra top level menu
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(menu-bind texmacs-extra-menu
-  (former)
-  (if (style-has? "automate-dtd")
-      (=> "Automate"
-	  (link automate-menu))))

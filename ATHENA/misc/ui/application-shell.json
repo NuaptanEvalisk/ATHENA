@@ -695,6 +695,13 @@
       ]
     },
     {
+      "id": "automate",
+      "label": "Automate",
+      "items": [
+        { "provider": "automate-menu" }
+      ]
+    },
+    {
       "id": "focus",
       "label": "Focus",
       "items": [

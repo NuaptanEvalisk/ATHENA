@@ -135,13 +135,7 @@ int main (int argc, char** argv) {
     for (auto* widget: QApplication::topLevelWidgets ())
       require (!qobject_cast<QDialog*> (widget) || !widget->isVisible (), "Plugin IPC unexpectedly prompted for authorization");
     QWidget menuParent;
-    auto* help = new QAction ("&Help", &menuParent);
-    menuParent.addAction (help);
-    auto* menu = qtm_install_plugins_menu (&menuParent);
-    require (menuParent.actions ().size () == 2 &&
-             menuParent.actions ()[0] == menu->menuAction () &&
-             menuParent.actions ()[1] == help,
-             "Plugins menu was not inserted before Help");
+    auto* menu = qtm_plugins_menu (&menuParent);
     QMetaObject::invokeMethod (menu, "aboutToShow", Qt::DirectConnection);
     auto submenus = menu->findChildren<QMenu*> (QString (), Qt::FindDirectChildrenOnly);
     require (submenus.size () == 1 && submenus[0]->title () == "Fixture Plugin", "Plugin menu missing manifest entry");

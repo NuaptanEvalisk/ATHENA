@@ -55,7 +55,6 @@ enum slot_id {
   SLOT_CURSOR,
 
   SLOT_HEADER_VISIBILITY,
-  SLOT_MAIN_MENU,
   SLOT_MAIN_ICONS_VISIBILITY,
   SLOT_MODE_ICONS_VISIBILITY,
   SLOT_FOCUS_ICONS_VISIBILITY,
@@ -503,12 +502,6 @@ inline bool
 get_header_visibility (widget w) {
   // get visibility of header (menu and icon bars)
   return query<bool> (w, SLOT_HEADER_VISIBILITY);
-}
-
-inline void
-set_main_menu (widget w, widget bar) {
-  // set main menu bar
-  write (w, SLOT_MAIN_MENU, bar);
 }
 
 inline void

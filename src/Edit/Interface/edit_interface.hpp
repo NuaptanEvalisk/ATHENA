@@ -26,8 +26,6 @@
 #define INPUT_SPELL       3
 #define INPUT_COMPLETE    4
 
-void defer_next_editor_chrome_build ();
-
 string MODE_LANGUAGE (string mode);
 
 struct heading_cell_bracket {

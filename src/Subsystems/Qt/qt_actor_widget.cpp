@@ -867,13 +867,6 @@ qt_actor_widget_rep::drain_external_effects () {
         refresh_native_drawing_focus_actions (view->win->wid);
       break;
     }
-    case actor_command_kind::ui_menu_main: {
-      widget menu= actor_ui_take_widget (record.argument[0]);
-      tm_view view= concrete_runtime_view (view_id_);
-      if (!is_nil (menu) && view != nullptr && view->win != nullptr)
-        ::set_main_menu (view->win->wid, menu);
-      break;
-    }
     case actor_command_kind::ui_bottom_tools: {
       widget tools= actor_ui_take_widget (record.argument[0]);
       tm_view view= concrete_runtime_view (view_id_);

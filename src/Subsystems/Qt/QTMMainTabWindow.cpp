@@ -210,8 +210,8 @@ QTMMainTabWindow::QTMMainTabWindow()
   bench_start ("construct ads dock manager");
   mDockManager = new ads::CDockManager(this);
   setCentralWidget (mDockManager);
-  // Construct the application-shell presenter now so ownership is correct, but
-  // leave it inactive until command migration has complete production coverage.
+  // The application shell owns the menubar.  Editor actors publish command
+  // state only; they no longer construct or replace a Scheme menu widget.
   mNativeMenuPresenter= std::make_unique<QTMApplicationMenuPresenter> (this);
   bench_cumul ("construct ads dock manager");
   bench_start ("connect main window shell");
@@ -249,6 +249,8 @@ QTMMainTabWindow::QTMMainTabWindow()
   installEventFilter(this);
 
   gTopTabWindow = this;
+  if (!mNativeMenuPresenter->activate ())
+    qWarning ("Could not activate native ATHENA application menubar");
   bench_cumul ("connect main window shell");
 }
 

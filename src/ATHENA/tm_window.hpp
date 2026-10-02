@@ -52,7 +52,6 @@ public:
     return props [what]; }
 
   bool get_menu_widget (int which, string menu, widget& w);
-  void menu_main (string menu);
   void bottom_tools (int which, string tools);
   void set_header_flag (bool flag);
   void set_icon_bar_flag (int which, bool flag);

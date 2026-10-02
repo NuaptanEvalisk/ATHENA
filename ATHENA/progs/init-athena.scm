@@ -66,6 +66,12 @@
 (import-from (utils library cpp-wrap))
 (import-from (utils base environment))
 (lazy-define (utils library cursor) notify-cursor-moved cursor-history-add)
+(lazy-define (utils automate auto-edit)
+             make-block-if make-block-if-else make-block-for make-block-while
+             make-block-assign make-block-intersperse make-block-tag
+             make-inline-if make-inline-if-else make-inline-for make-inline-while
+             make-inline-assign make-inline-intersperse make-inline-tag
+             make-output-string make-inline-output make-block-output)
 (lazy-define (utils edit variants) make-inline-tag-list make-wrapped-tag-list)
 (lazy-define (utils cas cas-out) cas->stree)
 
@@ -114,9 +120,8 @@
            preferences-open?
            open-preferences)
 (lazy-menu (athena menus main-menu)
-           texmacs-extra-menu
            bookmarks-menu test-menu
-           athena-focus-menu texmacs-menu window-list-menu
+           athena-focus-menu window-list-menu
            workspace-menu presentation-popup-menu texmacs-popup-menu
            texmacs-alternative-popup-menu)
 (lazy-define (athena menus file-menu) recent-file-list recent-directory-list)

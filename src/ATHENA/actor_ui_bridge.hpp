@@ -223,6 +223,8 @@ struct actor_document_menu_snapshot {
   bool preamble_mode= false;
   bool save_aux= false;
   bool materials_citation_default= true;
+  bool automate_style= false;
+  bool commutative_diagram= false;
 };
 
 struct actor_focus_hidden_field_snapshot {

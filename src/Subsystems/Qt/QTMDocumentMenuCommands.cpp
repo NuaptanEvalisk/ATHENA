@@ -16,6 +16,7 @@
 #include <QJsonObject>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QSet>
 
 using namespace qtm_command_registry_detail;
 
@@ -585,5 +586,63 @@ QTMCommandRegistry::registerDocumentMenuCommands () {
     },
     [] (const QTMCommandContext& context) {
       return document_menu_state (context);
+    });
+
+  registerProvider (
+    "automate-menu", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QVector<QTMCommandDynamicItem> out;
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return out;
+      actor_document_menu_snapshot document= proxy->document_menu_state ();
+      actor_editor_command_snapshot editor= proxy->editor_command_state ();
+      if (!document.ready || !document.automate_style || !editor.valid ())
+        return out;
+      const bool enabled= !editor.read_only ();
+      auto add= [&] (const char* key, const char* label, const char* group) {
+        append_item (
+          out, QString::fromLatin1 (key), QObject::tr (label),
+          QObject::tr (group), enabled);
+      };
+      add ("block-if", "if", "Block");
+      add ("block-if-else", "if-else", "Block");
+      add ("block-for", "for", "Block");
+      add ("block-while", "while", "Block");
+      add ("block-assign", "assign", "Block");
+      add ("block-intersperse", "intersperse", "Block");
+      add ("block-tag", "tag", "Block");
+      add ("inline-if", "if", "Inline");
+      add ("inline-if-else", "if-else", "Inline");
+      add ("inline-for", "for", "Inline");
+      add ("inline-while", "while", "Inline");
+      add ("inline-assign", "assign", "Inline");
+      add ("inline-intersperse", "intersperse", "Inline");
+      add ("inline-tag", "tag", "Inline");
+      add ("output-string", "String", "Output");
+      add ("output-inline", "Inline content", "Output");
+      add ("output-block", "Block content", "Output");
+      return out;
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      static const QSet<QString> allowed {
+        "block-if", "block-if-else", "block-for", "block-while",
+        "block-assign", "block-intersperse", "block-tag",
+        "inline-if", "inline-if-else", "inline-for", "inline-while",
+        "inline-assign", "inline-intersperse", "inline-tag",
+        "output-string", "output-inline", "output-block"
+      };
+      if (!allowed.contains (key)) return false;
+      return submit_business (
+        context, QStringLiteral ("automate-") + key);
+    },
+    [] (const QTMCommandContext& context) {
+      QTMCommandState state= document_menu_state (context);
+      if (!state.available) return state;
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr || !proxy->document_menu_state ().automate_style) {
+        state.available= false;
+        state.enabled= false;
+      }
+      return state;
     });
 }

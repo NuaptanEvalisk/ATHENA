@@ -462,14 +462,6 @@ tm_window_rep::get_menu_widget (int which, string menu, widget& w) {
 }
 
 void
-tm_window_rep::menu_main (string menu) {
-  eval ("(lazy-initialize-force)");
-  widget w;
-  if (get_menu_widget (-1, menu, w))
-    ::set_main_menu (wid, w);
-}
-
-void
 tm_window_rep::bottom_tools (int which, string tools) {
   eval ("(lazy-initialize-force)");
   widget w;

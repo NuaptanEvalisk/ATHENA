@@ -66,7 +66,6 @@ class qt_tm_widget_rep: public qt_window_widget_rep {
    QWidget*      nodeCacheWidget;
    bool          nodeCacheBlink= false;
 #if !DISABLE_QTMTOOLBAR
-  QTMToolbar*    menuToolBar;
   QTMToolbar*    mainToolBar;
   QTMToolbar*    modeToolBar;
   QTMToolbar*   focusToolBar;
@@ -96,9 +95,6 @@ class qt_tm_widget_rep: public qt_window_widget_rep {
   bool full_screen;
   
   qt_widget main_widget;
-  qt_widget main_menu_widget;
-  qt_widget waiting_main_menu_widget;
-  QList<QAction*> main_menu_actions;
   qt_widget bottom_tools_widget;
   qt_widget extra_tools_widget;
   qt_widget dock_window_widget;   // trick to return correct widget position
@@ -118,8 +114,6 @@ public:
   void set_full_screen (bool flag);
   void update_visibility();
   static void refreshAllToolbarPreferences ();
-  void install_main_menu ();
-  void clear_main_menu_actions ();
   void append_native_drawing_mode_actions ();
   void append_native_drawing_focus_actions ();
   static void tweak_iconbar_size (QSize& sz);
@@ -144,12 +138,7 @@ protected:
 };
 
 
-//! List of widgets wanting to install their menu bar
-extern list<qt_tm_widget_rep*> waiting_widgets;
 void refresh_native_drawing_focus_actions (widget w);
-
-//! Positive means the menu is busy.
-extern int menu_count;
 
 
 /*! A simple texmacs input widget.

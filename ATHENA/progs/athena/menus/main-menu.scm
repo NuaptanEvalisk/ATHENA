@@ -15,13 +15,6 @@
   (:use (utils library cursor)
         (athena athena tm-vault)))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Main dynamic, extensible or user defined submenus
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(menu-bind texmacs-extra-menu)
-
-
 (tm-define (style-menu) (get-style-menu))
 (tm-define (add-package-menu) (get-add-package-menu))
 (tm-define (remove-package-menu) (get-remove-package-menu))
@@ -39,38 +32,6 @@
   (if (tree-innermost 'referenced-materials #t)
     ---
     (link materials-focus-menu)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; The TeXmacs main menu
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(menu-bind texmacs-menu
-  (=> "&File" (link file-menu))
-  (=> "Edit" (link edit-menu))
-  (assuming (and (in-graphics?) (not (in-commutative-diagram?)))
-    (=> "Insert" (link graphics-insert-menu))
-    (link texmacs-extra-menu)
-    (=> "Focus" (link graphics-focus-menu)))
-  (if (or (not (in-graphics?)) (in-commutative-diagram?))
-      (=> "Insert" (link insert-menu))
-      (if (in-manual?)
-          (=> "Manual" (link tmdoc-menu)))
-      (if (or (in-source?) (with-source-tool?))
-          (=> "Source" (link source-menu)))
-      (if (in-presentation?)
-          (=> "Dynamic" (link dynamic-menu)))
-
-      (link texmacs-extra-menu)
-      (=> "Focus" (link athena-focus-menu))
-      (=> "Format" (link format-menu)))
-  (=> "Document" (link document-menu))
-  (=> "Interface" (link interface-menu))
-  (=> "View" (link view-menu))
-  (=> "Workspace" (link workspace-menu))
-  (=> "Go" (link go-menu))
-  (if (nnull? (test-menu))
-      (=> "Test" (link test-menu)))
-  (=> "Help" (link help-menu)))
 
 (tm-menu (window-list-menu)
   (for (win (window-list))

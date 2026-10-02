@@ -105,11 +105,6 @@ editor_rep::publish_ui_text_pair (
                                     argument0, argument1, argument2, argument3);
 }
 
-void
-editor_rep::rebuild_ui_chrome () {
-  sv->menu_main ("(horizontal (link texmacs-menu))");
-}
-
 edit_main_rep::edit_main_rep (server_rep* sv, buffer_document_state* buf):
   editor_rep (sv, buf), props (UNKNOWN), ed_obs (edit_observer (this))
 {

@@ -19,6 +19,7 @@
 
 class QAction;
 class QMenu;
+class QTimer;
 class QTMMainTabWindow;
 
 class QTMApplicationMenuPresenter {
@@ -49,13 +50,16 @@ private:
   struct menu_state {
     QPointer<QMenu> menu;
     QVector<menu_entry> entries;
+    QString root_id;
   };
 
   QPointer<QTMMainTabWindow> shell_;
   QVector<menu_state> menus_;
   QTMCommandContext presented_context_;
   QPointer<QWidget> last_input_widget_;
+  QPointer<QTimer> root_refresh_timer_;
   QMetaObject::Connection focus_connection_;
+  QMetaObject::Connection refresh_connection_;
   bool active_= false;
 
   void remember_input_widget (QWidget* widget);
@@ -65,6 +69,7 @@ private:
   void repopulate_provider (menu_entry& entry, QMenu* menu);
   bool refresh_provider (menu_entry& entry, QMenu* menu);
   bool refresh_menu (int index);
+  void refresh_root_visibility ();
   bool execute (const QString& command_id);
 };
 

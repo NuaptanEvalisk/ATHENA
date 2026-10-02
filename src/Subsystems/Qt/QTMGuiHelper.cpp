@@ -56,34 +56,13 @@ void
 QTMGuiHelper::aboutToShowMainMenu() {
 BEGIN_SLOT
   gui->refresh_external_clipboard_cache ();
-  //cout << "Show :" << menu_count << LF;
-  menu_count++;
 END_SLOT
 }
 
 void 
 QTMGuiHelper::aboutToHideMainMenu() {
 BEGIN_SLOT
-  menu_count--;
-  //cout << "Hide :" << menu_count << " " << N(waiting_widgets) <<  LF;
-  if (menu_count <= 0) {
-    menu_count = 0;
-    QTimer::singleShot (0, the_gui->gui_helper, SLOT (doPopWaitingWidgets ()));
-    // get the active widget and process_keyboard_focus
-    QTMWidget::setFocusToLast();
-  }
-END_SLOT
-}
-
-void 
-QTMGuiHelper::doPopWaitingWidgets() {
-BEGIN_SLOT
-  if (!is_nil (waiting_widgets)) {
-    if (DEBUG_QT)
-      debug_qt << "Installing postponed menu" << LF;
-    waiting_widgets->item->install_main_menu();
-    waiting_widgets = waiting_widgets->next;
-  }
+  QTMWidget::setFocusToLast();
 END_SLOT
 }
 

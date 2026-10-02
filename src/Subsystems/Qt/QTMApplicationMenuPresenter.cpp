@@ -11,12 +11,17 @@
 #include "QTMApplicationMenuPresenter.hpp"
 
 #include "QTMMainTabWindow.hpp"
+#include "QTMCommandRegistryInternal.hpp"
+#include "QTMGuiHelper.hpp"
+#include "boot.hpp"
+#include "qt_gui.hpp"
 
 #include <QAction>
 #include <QApplication>
 #include <QIcon>
 #include <QMenu>
 #include <QMenuBar>
+#include <QTimer>
 
 namespace {
 
@@ -179,8 +184,11 @@ QTMApplicationMenuPresenter::repopulate_provider (
     const QString key= value.key;
     QObject::connect (action, &QAction::triggered, action,
                       [this, providerId, key] {
-      (void) QTMCommandRegistry::instance ().executeProviderItem (
-        providerId, key, presented_context_);
+      bool executed=
+        QTMCommandRegistry::instance ().executeProviderItem (
+          providerId, key, presented_context_);
+      if (executed && root_refresh_timer_ != nullptr)
+        root_refresh_timer_->start ();
     });
     if (target == menu) menu->insertAction (entry.action, action);
     else target->addAction (action);
@@ -272,16 +280,66 @@ QTMApplicationMenuPresenter::build_menu (
     menu, &QMenu::aboutToShow, menu,
     [this, index, root_menu] {
       if (index < 0 || index >= menus_.size ()) return;
-      if (root_menu) capture_presented_context ();
+      if (root_menu) {
+        if (the_gui->gui_helper != nullptr)
+          the_gui->gui_helper->aboutToShowMainMenu ();
+        capture_presented_context ();
+      }
       (void) refresh_menu (index);
     });
+  if (root_menu)
+    QObject::connect (
+      menu, &QMenu::aboutToHide, menu, [] {
+        if (the_gui->gui_helper != nullptr)
+          the_gui->gui_helper->aboutToHideMainMenu ();
+      });
   return index;
 }
 
 bool
 QTMApplicationMenuPresenter::execute (const QString& command_id) {
-  return QTMCommandRegistry::instance ().execute (
+  bool executed= QTMCommandRegistry::instance ().execute (
     command_id, presented_context_);
+  if (executed && root_refresh_timer_ != nullptr)
+    root_refresh_timer_->start ();
+  return executed;
+}
+
+void
+QTMApplicationMenuPresenter::refresh_root_visibility () {
+  capture_presented_context ();
+  actor_editor_command_snapshot snapshot;
+  actor_document_menu_snapshot document_snapshot;
+  if (qt_actor_widget_rep* proxy=
+        qtm_command_registry_detail::editor_proxy_for_context (
+          presented_context_)) {
+    snapshot= proxy->editor_command_state ();
+    document_snapshot= proxy->document_menu_state ();
+  }
+
+  for (menu_state& menu: menus_) {
+    if (menu.menu == nullptr || menu.root_id.isEmpty ()) continue;
+    bool visible= true;
+    const bool graphicsOnly=
+      snapshot.valid () &&
+      snapshot.has (ACTOR_EDITOR_COMMAND_STATE_GRAPHICS_MODE) &&
+      !document_snapshot.commutative_diagram;
+    if (menu.root_id == QStringLiteral ("manual"))
+      visible= !graphicsOnly && snapshot.valid () &&
+               snapshot.has (ACTOR_EDITOR_COMMAND_STATE_MANUAL_STYLE);
+    else if (menu.root_id == QStringLiteral ("source"))
+      visible= !graphicsOnly && snapshot.valid () &&
+        (snapshot.has (ACTOR_EDITOR_COMMAND_STATE_SOURCE_MODE) ||
+         get_user_preference ("source tool", "off") == "on");
+    else if (menu.root_id == QStringLiteral ("dynamic"))
+      visible= !graphicsOnly && snapshot.valid () &&
+               snapshot.presentation_mode ();
+    else if (menu.root_id == QStringLiteral ("format"))
+      visible= !graphicsOnly;
+    else if (menu.root_id == QStringLiteral ("automate"))
+      visible= document_snapshot.ready && document_snapshot.automate_style;
+    menu.menu->menuAction ()->setVisible (visible);
+  }
 }
 
 bool
@@ -302,15 +360,31 @@ QTMApplicationMenuPresenter::activate () {
 
   for (const QTMCommandMenuDefinition& definition: registry.menus ()) {
     QMenu* menu= bar->addMenu (definition.label);
-    if (menu != nullptr) (void) build_menu (menu, definition.items, true);
+    if (menu != nullptr) {
+      int index= build_menu (menu, definition.items, true);
+      if (index >= 0 && index < menus_.size ())
+        menus_[index].root_id= definition.id;
+    }
   }
 
+  root_refresh_timer_= new QTimer (shell_);
+  root_refresh_timer_->setSingleShot (true);
+  root_refresh_timer_->setInterval (0);
+  QObject::connect (
+    root_refresh_timer_, &QTimer::timeout, shell_,
+    [this] { refresh_root_visibility (); });
   focus_connection_= QObject::connect (
     qApp, &QApplication::focusChanged, shell_,
     [this] (QWidget*, QWidget* now) {
       remember_input_widget (now);
+      root_refresh_timer_->start ();
     });
+  if (the_gui->gui_helper != nullptr)
+    refresh_connection_= QObject::connect (
+      the_gui->gui_helper, &QTMGuiHelper::refresh, shell_,
+      [this] { root_refresh_timer_->start (); });
   remember_input_widget (QApplication::focusWidget ());
+  refresh_root_visibility ();
   return true;
 }
 
@@ -321,6 +395,14 @@ QTMApplicationMenuPresenter::deactivate () {
   if (focus_connection_)
     QObject::disconnect (focus_connection_);
   focus_connection_= {};
+  if (refresh_connection_)
+    QObject::disconnect (refresh_connection_);
+  refresh_connection_= {};
+  if (root_refresh_timer_ != nullptr) {
+    root_refresh_timer_->stop ();
+    root_refresh_timer_->deleteLater ();
+    root_refresh_timer_= nullptr;
+  }
   menus_.clear ();
   presented_context_= {};
   last_input_widget_= nullptr;

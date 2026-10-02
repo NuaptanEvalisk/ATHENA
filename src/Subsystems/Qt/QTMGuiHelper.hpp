@@ -33,7 +33,6 @@ public slots:
   
   void aboutToShowMainMenu ();
   void aboutToHideMainMenu ();
-  void doPopWaitingWidgets ();
  
   void emitTmSlotRefresh (string kind);
 

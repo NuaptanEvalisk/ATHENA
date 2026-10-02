@@ -44,7 +44,6 @@ public:
   bool visible_icon_bar (int which);
   bool visible_bottom_tools (int which);
   void menu_widget (string menu, widget& w);
-  void menu_main (string menu);
   void bottom_tools (int which, string menu);
 
   /* canvas */

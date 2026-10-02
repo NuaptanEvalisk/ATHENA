@@ -11,7 +11,6 @@
 
 #include "QTMToolbar.hpp"
 #include "QTMEditorToolbarPresenter.hpp"
-#include "QTMPluginUi.hpp"
 #include <QToolButton>
 #include <QToolBar>
 #include <QPushButton>
@@ -67,8 +66,6 @@
 
 #include <QSet>
 
-int menu_count = 0;  // zero if no menu is currently being displayed
-list<qt_tm_widget_rep*> waiting_widgets;
 static QSet<qt_tm_widget_rep*> all_tm_widgets;
 
 void
@@ -98,16 +95,6 @@ athena_toolbar_button_text (QToolButton* button, QAction* action) {
   if (text.isEmpty () && action) text= action->toolTip ();
   if (text.isEmpty () && button) text= button->text ();
   return text;
-}
-
-static void
-athena_install_plugins_menu (QWidget* dest) {
-  if (dest == nullptr) return;
-  QMenu* plugins= qtm_install_plugins_menu (dest);
-  QObject::connect (plugins, &QMenu::aboutToShow, the_gui->gui_helper,
-    &QTMGuiHelper::aboutToShowMainMenu, Qt::UniqueConnection);
-  QObject::connect (plugins, &QMenu::aboutToHide, the_gui->gui_helper,
-    &QTMGuiHelper::aboutToHideMainMenu, Qt::UniqueConnection);
 }
 
 #if DISABLE_QTMTOOLBAR
@@ -525,10 +512,6 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   mw->setStatusBar (bar);
  
 #if !DISABLE_QTMTOOLBAR
-  if (tmapp()->useNewToolbar() && !use_native_menubar) {
-    menuToolBar   = new QTMToolbar ("menu toolbar", QSize (), mw);
-  }
-
   mainToolBar   = new QTMToolbar ("main toolbar", QSize (26, 32), mw);
   modeToolBar   = new QTMToolbar ("mode toolbar", QSize (21, 24), mw);
   focusToolBar  = new QTMToolbar ("focus toolbar", QSize (16, 20), mw);
@@ -620,15 +603,6 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   userToolBar->setObjectName ("userToolBar");
   bottomTools->setObjectName ("bottomTools");
   extraTools->setObjectName ("extraTools");
-
-#if !DISABLE_QTMTOOLBAR
-  if (tmapp()->useNewToolbar() && !use_native_menubar) {
-    menuToolBar->setObjectName ("menuToolBar");
-    mw->addToolBar (menuToolBar);
-    mw->addToolBarBreak ();
-    menuToolBar->setMovable (false);
-  }
-#endif
 
 #ifdef UNIFIED_TOOLBAR
 
@@ -740,8 +714,7 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   else
     mainToolBar->setVisible (visibility[1] && visibility[0]);
 #if !defined(Q_OS_MAC)
-  if (!tmapp()->useNewToolbar())
-    mainwindow()->menuBar()->setVisible (false);
+  mainwindow()->menuBar()->setVisible (visibility[0]);
 #endif
   QPalette pal;
   QColor bgcol= to_qcolor (tm_background);
@@ -754,10 +727,7 @@ qt_tm_widget_rep::~qt_tm_widget_rep () {
     debug_widgets << "qt_tm_widget_rep::~qt_tm_widget_rep of widget "
                   << type_as_string() << LF;
   
-    // clear any residual waiting menu installation
-  waiting_widgets = remove(waiting_widgets, this);
   all_tm_widgets.remove (this);
-  clear_main_menu_actions ();
 }
 
 void
@@ -765,14 +735,6 @@ qt_tm_widget_rep::refreshAllToolbarPreferences () {
   for (qt_tm_widget_rep* widget: all_tm_widgets)
     if (widget != nullptr && widget->toolbarController != nullptr)
       widget->toolbarController->refreshPreference ();
-}
-
-void
-qt_tm_widget_rep::clear_main_menu_actions () {
-  while (!main_menu_actions.isEmpty ()) {
-    QAction* a= main_menu_actions.takeFirst ();
-    if (a != NULL) a->deleteLater ();
-  }
 }
 
 void
@@ -1156,13 +1118,10 @@ qt_tm_widget_rep::update_visibility () {
     mainwindow()->statusBar()->setVisible (new_statusVisibility);
 
 #if !defined(Q_OS_MAC)
-  if (!tmapp()->useNewToolbar()) {
-    bool old_menuVisibility = mainwindow()->menuBar()->isVisible();
-    bool new_menuVisibility = visibility[0];
-
-    if ( XOR(old_menuVisibility,  new_menuVisibility) )
-      mainwindow()->menuBar()->setVisible (new_menuVisibility);
-  }
+  bool old_menuVisibility = mainwindow()->menuBar()->isVisible();
+  bool new_menuVisibility = visibility[0];
+  if ( XOR(old_menuVisibility,  new_menuVisibility) )
+    mainwindow()->menuBar()->setVisible (new_menuVisibility);
 #endif
 
 #ifdef UNIFIED_TOOLBAR
@@ -1473,87 +1432,6 @@ qt_tm_widget_rep::query (slot s, int type_id) {
 }
 
 void
-qt_tm_widget_rep::install_main_menu () {
-#if !DISABLE_QTMTOOLBAR
-  if (!tmapp()->useNewToolbar() || use_native_menubar) {
-#endif
-
-    if (main_menu_widget == waiting_main_menu_widget) return;
-    main_menu_widget = waiting_main_menu_widget;
-    QList<QAction*>* src = main_menu_widget->get_fresh_qactionlist();
-    if (!src) return;
-    QMenuBar* dest = mainwindow()->menuBar();
-    if (QApplication::platformName ().startsWith (QStringLiteral ("wayland")))
-      dest->setFont (qApp->font ());
-    dest->clear();
-    clear_main_menu_actions ();
-    main_menu_actions= *src;
-    delete src;
-    for (int i = 0; i < main_menu_actions.count(); i++) {
-      QAction* a = main_menu_actions[i];
-      if (a->menu()) {
-        //TRICK: Mac native QMenuBar accepts only menus which are already populated
-        // this will cause a problem for us, since menus are lazy and populated only after triggering
-        // this is the reason we add a dummy action before inserting the menu
-        a->menu()->addAction("native menubar trick");
-        dest->addAction(a->menu()->menuAction());
-  #if DISABLE_QTMTOOLBAR
-        QObject::connect (a->menu(),         SIGNAL (aboutToShow()),
-                          the_gui->gui_helper, SLOT (aboutToShowMainMenu()));
-        QObject::connect (a->menu(),         SIGNAL (aboutToHide()),
-                          the_gui->gui_helper, SLOT (aboutToHideMainMenu()));
-  #else
-        QObject::connect (a->menu(), &QMenu::aboutToShow,
-                          the_gui->gui_helper, &QTMGuiHelper::aboutToShowMainMenu);
-        QObject::connect (a->menu(), &QMenu::aboutToHide,
-                          the_gui->gui_helper, &QTMGuiHelper::aboutToHideMainMenu);
-#endif
-      }
-    }
-    athena_install_plugins_menu (dest);
-
-#if !DISABLE_QTMTOOLBAR
-  } else {
-
-    if (main_menu_widget == waiting_main_menu_widget) return;
-    main_menu_widget = waiting_main_menu_widget;
-    QList<QAction*>* src = main_menu_widget->get_fresh_qactionlist();
-    if (!src) return;
-    QTMToolbar* dest = menuToolBar;
-
-    if (tm_style_sheet == "")
-      dest->setStyle (qtmstyle ());
-
-    dest->clear();
-    clear_main_menu_actions ();
-    main_menu_actions= *src;
-    delete src;
-    for (int i = 0; i < main_menu_actions.count(); i++) {
-      QAction* a = main_menu_actions[i];
-      if (a->menu()) {
-        dest->addAction(a->menu()->menuAction());
-  #if DISABLE_QTMTOOLBAR
-        QObject::connect (a->menu(),         SIGNAL (aboutToShow()),
-                          the_gui->gui_helper, SLOT (aboutToShowMainMenu()));
-        QObject::connect (a->menu(),         SIGNAL (aboutToHide()),
-                          the_gui->gui_helper, SLOT (aboutToHideMainMenu()));
-  #else
-        QObject::connect (a->menu(), &QMenu::aboutToShow,
-                          the_gui->gui_helper, &QTMGuiHelper::aboutToShowMainMenu);
-        QObject::connect (a->menu(), &QMenu::aboutToHide,
-                          the_gui->gui_helper, &QTMGuiHelper::aboutToHideMainMenu);
-#endif
-      }
-    }
-    athena_install_plugins_menu (dest);
-    dest->addRightSpacer();
-    
-  }
-#endif
-}
-
-
-void
 qt_tm_widget_rep::write (slot s, blackbox index, widget w) {
   if (DEBUG_QT_WIDGETS)
     debug_widgets << "qt_tm_widget_rep::write " << slot_name (s) << LF;
@@ -1585,18 +1463,6 @@ qt_tm_widget_rep::write (slot s, blackbox index, widget w) {
         scrollarea()->surface()->setSizePolicy (QSizePolicy::Fixed,
                                                 QSizePolicy::Fixed);
       send_keyboard_focus (abstract (main_widget));
-    }
-      break;
-      
-    case SLOT_MAIN_MENU:
-      check_type_void (index, s);
-    {
-      waiting_main_menu_widget = concrete (w);
-      if (menu_count <= 0)
-        install_main_menu();
-      else if (!contains (waiting_widgets, this))
-          // menu interaction ongoing, postpone new menu installation until done
-        waiting_widgets << this;
     }
       break;
       
@@ -1825,7 +1691,6 @@ qt_tm_embedded_widget_rep::write (slot s, blackbox index, widget w) {
     }
       break;
         /// FIXME: decide what to do with these for embedded widgets
-    case SLOT_MAIN_MENU:
     case SLOT_BOTTOM_TOOLS:
     case SLOT_EXTRA_TOOLS:
     default:

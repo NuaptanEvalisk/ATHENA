@@ -98,7 +98,6 @@ public:
   void publish_editor_command_state ();
   void publish_focus_toolbar_state ();
   void publish_document_menu_state ();
-  void rebuild_ui_chrome ();
 
 protected:
   buffer_document_state* buf; // actor-owned document state
