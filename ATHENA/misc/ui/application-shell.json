@@ -181,6 +181,55 @@
       "help": "Rebuild artifacts for the active vault"
     },
     {
+      "id": "workspace.new-floating-window",
+      "label": "New floating window",
+      "category": "Workspace",
+      "icon": "window-new",
+      "help": "Create a new floating document window"
+    },
+    {
+      "id": "workspace.vault-explorer",
+      "label": "Vault Explorer",
+      "category": "Workspace",
+      "icon": "folder",
+      "help": "Show the Vault Explorer pane"
+    },
+    {
+      "id": "workspace.configure-vault-font",
+      "label": "Configure Font for Vault",
+      "category": "Workspace",
+      "icon": "preferences-desktop-font",
+      "help": "Configure the font used by the active vault"
+    },
+    {
+      "id": "workspace.global-transformation",
+      "label": "Run global transformation",
+      "category": "Workspace",
+      "icon": "system-run",
+      "help": "Run a transformation across the active vault"
+    },
+    {
+      "id": "workspace.vault-maintenance",
+      "label": "Vault Maintenance",
+      "category": "Workspace",
+      "icon": "tools-wizard",
+      "help": "Open the configured vault maintenance workflow"
+    },
+    {
+      "id": "workspace.refresh-styles",
+      "label": "Refresh style cache",
+      "category": "Workspace",
+      "icon": "view-refresh",
+      "help": "Clear and refresh the document style cache"
+    },
+    {
+      "id": "workspace.clean-cache",
+      "label": "Clean cache",
+      "category": "Workspace",
+      "icon": "edit-clear",
+      "help": "Clean ATHENA cached data"
+    },
+    {
       "id": "help.about",
       "label": "About ATHENA...",
       "category": "Help",
@@ -633,6 +682,8 @@
       "id": "view",
       "label": "View",
       "items": [
+        { "command": "workspace.vault-explorer" },
+        { "command": "workspace.namespace-explorer" },
         { "command": "view.outline" },
         { "command": "view.document-history" },
         { "command": "view.neighborhoods" },
@@ -645,6 +696,12 @@
       "id": "workspace",
       "label": "Workspace",
       "items": [
+        { "command": "application.new-tab" },
+        { "command": "workspace.new-floating-window" },
+        { "command": "workspace.configure-vault-font" },
+        { "command": "workspace.global-transformation" },
+        { "separator": true },
+        { "command": "workspace.vault-explorer" },
         { "command": "workspace.namespace-explorer" },
         { "command": "workspace.namespace-manager" },
         {
@@ -666,7 +723,22 @@
         },
         { "separator": true },
         { "command": "workspace.audmap-repl" },
-        { "command": "workspace.google-tasks" }
+        { "command": "workspace.google-tasks" },
+        {
+          "submenu": "workspace-vault",
+          "label": "Vault",
+          "items": [
+            { "command": "workspace.vault-maintenance" }
+          ]
+        },
+        {
+          "submenu": "workspace-cache",
+          "label": "Caches",
+          "items": [
+            { "command": "workspace.refresh-styles" },
+            { "command": "workspace.clean-cache" }
+          ]
+        }
       ]
     },
     {
@@ -690,7 +762,9 @@
       "id": "help",
       "label": "Help",
       "items": [
-        { "command": "help.about" }
+        { "command": "help.about" },
+        { "separator": true },
+        { "provider": "help-resources" }
       ]
     }
   ],

@@ -32,16 +32,191 @@
 #include "QTMPreferencesDialog.hpp"
 #include "QTMPluginUi.hpp"
 #include "QTMQuickSwitcher.hpp"
+#include "QTMVaultExplorer.hpp"
+#include "QTMVaultFontConfigurator.hpp"
+#include "QTMVaultMaintenanceDialog.hpp"
 #include "QTMWebsitesManager.hpp"
 #include "file.hpp"
 #include "new_buffer.hpp"
 #include "new_window.hpp"
 #include "scheme.hpp"
+#include "server.hpp"
 
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QInputDialog>
+#include <QLineEdit>
 
 using namespace qtm_command_registry_detail;
+
+namespace {
+
+enum class help_action_kind {
+  article,
+  buffer,
+  book,
+  license,
+  search_documentation,
+  search_source,
+  search_recent,
+  shortcuts
+};
+
+struct help_action {
+  const char* key;
+  const char* label;
+  const char* group;
+  help_action_kind kind;
+  const char* target;
+};
+
+const help_action help_actions[]= {
+  {"welcome", "Welcome", "Getting started", help_action_kind::article,
+   "about/welcome/new-welcome"},
+  {"start", "Getting started", "Getting started", help_action_kind::article,
+   "about/welcome/start"},
+  {"config-browse", "Browse", "Configuration", help_action_kind::buffer,
+   "main/config/man-configuration"},
+  {"config-preferences", "Preferences", "Configuration",
+   help_action_kind::article, "main/config/man-preferences"},
+  {"config-keyboard", "Keyboard configuration", "Configuration",
+   help_action_kind::article, "main/config/man-config-keyboard"},
+  {"config-russian", "Users of Cyrillic languages", "Configuration",
+   help_action_kind::article, "main/config/man-russian"},
+  {"config-oriental", "Users of oriental languages", "Configuration",
+   help_action_kind::article, "main/config/man-oriental"},
+  {"manual-browse", "Browse", "Manual", help_action_kind::buffer,
+   "main/man-manual"},
+  {"manual-preferences", "Preferences", "Manual", help_action_kind::article,
+   "main/config/man-preferences"},
+  {"manual-getting-started", "Getting started", "Manual",
+   help_action_kind::article, "main/start/man-getting-started"},
+  {"manual-workflows", "ATHENA knowledge workflows", "Manual",
+   help_action_kind::article, "main/start/man-athena-workflows"},
+  {"manual-text", "Typing simple texts", "Manual", help_action_kind::article,
+   "main/text/man-text"},
+  {"manual-math", "Mathematical formulas", "Manual", help_action_kind::article,
+   "main/math/man-math"},
+  {"manual-table", "Tabular material", "Manual", help_action_kind::article,
+   "main/table/man-table"},
+  {"manual-links", "Automatic content generation", "Manual",
+   help_action_kind::article, "main/links/man-links"},
+  {"manual-namespaces", "Namespaces in ATHENA", "Manual",
+   help_action_kind::article, "main/links/man-namespaces"},
+  {"manual-graphics", "Creating technical pictures", "Manual",
+   help_action_kind::article, "main/graphics/man-graphics"},
+  {"manual-layout", "Advanced layout features", "Manual",
+   help_action_kind::article, "main/layout/man-layout"},
+  {"manual-editing", "Editing tools", "Manual", help_action_kind::article,
+   "main/editing/man-editing-tools"},
+  {"manual-beamer", "Laptop presentations", "Manual",
+   help_action_kind::article, "main/beamer/man-beamer"},
+  {"manual-interface", "ATHENA as an interface", "Manual",
+   help_action_kind::article, "main/interface/man-itf"},
+  {"manual-style", "Writing your own style files", "Manual",
+   help_action_kind::article, "devel/style/style"},
+  {"manual-scheme", "Customizing ATHENA", "Manual", help_action_kind::article,
+   "main/scheme/man-scheme"},
+  {"reference-browse", "Browse", "Reference guide", help_action_kind::buffer,
+   "main/man-reference"},
+  {"reference-format", "The ATHENA format", "Reference guide",
+   help_action_kind::article, "devel/format/basics/basics"},
+  {"reference-env", "Standard environment variables", "Reference guide",
+   help_action_kind::article, "devel/format/environment/environment"},
+  {"reference-primitives", "ATHENA primitives", "Reference guide",
+   help_action_kind::article, "devel/format/regular/regular"},
+  {"reference-stylesheet", "Stylesheet language", "Reference guide",
+   help_action_kind::article, "devel/format/stylesheet/stylesheet"},
+  {"reference-styles", "Standard ATHENA styles", "Reference guide",
+   help_action_kind::article, "main/styles/styles"},
+  {"reference-convert", "Compatibility with other formats", "Reference guide",
+   help_action_kind::article, "main/convert/man-convert"},
+  {"apropos-browse", "Browse", "Apropos", help_action_kind::buffer,
+   "about/about"},
+  {"apropos-summary", "Summary", "Apropos", help_action_kind::article,
+   "about/about-summary"},
+  {"apropos-license", "License", "Apropos", help_action_kind::license, ""},
+  {"apropos-philosophy", "Philosophy", "Apropos", help_action_kind::article,
+   "about/philosophy/philosophy"},
+  {"apropos-authors", "The ATHENA authors", "Apropos",
+   help_action_kind::article, "about/authors/authors"},
+  {"apropos-first", "Original welcome message", "Apropos",
+   help_action_kind::article, "about/welcome/first"},
+  {"search-doc", "Documentation", "Search",
+   help_action_kind::search_documentation, ""},
+  {"search-src", "Source code", "Search", help_action_kind::search_source, ""},
+  {"search-recent", "Recent documents", "Search",
+   help_action_kind::search_recent, ""},
+  {"full-user-manual", "User manual", "Full manuals", help_action_kind::book,
+   "main/man-user-manual"},
+  {"shortcuts", "Shortcuts listing", "Tools", help_action_kind::shortcuts, ""}
+};
+
+const help_action*
+find_help_action (const QString& key) {
+  for (const help_action& action: help_actions)
+    if (key == QString::fromLatin1 (action.key)) return &action;
+  return nullptr;
+}
+
+bool
+execute_help_action (const help_action& action, const QTMCommandContext& context) {
+  try {
+    switch (action.kind) {
+    case help_action_kind::article:
+      (void) call ("load-help-article", object (string (action.target)));
+      return true;
+    case help_action_kind::buffer:
+      (void) call ("load-help-buffer", object (string (action.target)));
+      return true;
+    case help_action_kind::book:
+      (void) call ("load-help-book", object (string (action.target)));
+      return true;
+    case help_action_kind::license:
+      (void) call ("load-document", object (string ("$ATHENA_PATH/LICENSE")));
+      return true;
+    case help_action_kind::search_documentation:
+    case help_action_kind::search_recent: {
+      bool ok= false;
+      QString query= QInputDialog::getText (
+        context.shell.data (), QObject::tr ("Search help"),
+        QObject::tr ("Search:"), QLineEdit::Normal, QString (), &ok).trimmed ();
+      if (!ok || query.isEmpty ()) return true;
+      (void) call (
+        action.kind == help_action_kind::search_documentation ?
+          "docgrep-in-doc" : "docgrep-in-recent",
+        object (from_qstring (query)));
+      return true;
+    }
+    case help_action_kind::search_source: {
+      bool ok= false;
+      QString query= QInputDialog::getText (
+        context.shell.data (), QObject::tr ("Search source code"),
+        QObject::tr ("Search:"), QLineEdit::Normal, QString (), &ok).trimmed ();
+      if (!ok || query.isEmpty ()) return true;
+      const QStringList locations {
+        QStringLiteral ("Scheme"), QStringLiteral ("Styles"),
+        QStringLiteral ("C++"), QStringLiteral ("All code")
+      };
+      QString where= QInputDialog::getItem (
+        context.shell.data (), QObject::tr ("Search source code"),
+        QObject::tr ("In:"), locations, 3, false, &ok);
+      if (!ok) return true;
+      (void) call (
+        "docgrep-in-src", object (from_qstring (query)),
+        object (from_qstring (where)));
+      return true;
+    }
+    case help_action_kind::shortcuts:
+      (void) call ("list-all-shortcuts");
+      return true;
+    }
+  }
+  catch (...) {}
+  return false;
+}
+
+} // namespace
 
 void
 QTMCommandRegistry::registerApplicationCommands () {
@@ -265,6 +440,58 @@ QTMCommandRegistry::registerApplicationCommands () {
       return true;
     });
   registerBehavior (
+    "workspace.new-floating-window", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      open_document_window (true);
+      return true;
+    });
+  registerBehavior (
+    "workspace.vault-explorer", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      vault_show_explorer ();
+      return true;
+    });
+  registerBehavior (
+    "workspace.configure-vault-font", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      qtm_configure_font_for_vault ();
+      return true;
+    });
+  registerBehavior (
+    "workspace.global-transformation", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      try {
+        (void) call ("run-global-transformation");
+        return true;
+      }
+      catch (...) {
+        return false;
+      }
+    });
+  registerBehavior (
+    "workspace.vault-maintenance", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      qtm_vault_maintenance_start ();
+      return true;
+    });
+  registerBehavior (
+    "workspace.refresh-styles", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      get_server ()->style_clear_cache ();
+      return true;
+    });
+  registerBehavior (
+    "workspace.clean-cache", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      try {
+        (void) call ("clean-athena-cache");
+        return true;
+      }
+      catch (...) {
+        return false;
+      }
+    });
+  registerBehavior (
     "help.about", QTMCommandScope::Application,
     [] (const QTMCommandContext&) {
       help_about_qt ();
@@ -275,6 +502,22 @@ QTMCommandRegistry::registerApplicationCommands () {
     [] (const QTMCommandContext& context) {
       qtm_manage_plugins (context.shell.data ());
       return true;
+    });
+  registerProvider (
+    "help-resources", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      QVector<QTMCommandDynamicItem> out;
+      for (const help_action& action: help_actions) {
+        QTMCommandDynamicItem item= enabled_dynamic_item (
+          QString::fromLatin1 (action.key), QObject::tr (action.label));
+        item.group= QObject::tr (action.group);
+        out.append (std::move (item));
+      }
+      return out;
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      const help_action* action= find_help_action (key);
+      return action != nullptr && execute_help_action (*action, context);
     });
   const QString paneCommands[]= {
     "namespace.open",

@@ -85,6 +85,7 @@
 (lazy-define (athena athena tm-vault) load-vault-dir)
 (lazy-define (athena athena tm-global-transformation)
              run-global-transformation)
+(lazy-define (athena athena tm-tools) clean-athena-cache)
 (lazy-define (athena athena tm-files)
              buffer-missing-style? buffer-set-default-style command-line-convert)
 (lazy-menu (athena menus file-menu)
@@ -342,6 +343,7 @@
              tmdoc-expand-this tmdoc-include)
 (lazy-define (doc docgrep) docgrep-in-doc docgrep-in-src
              docgrep-in-texts docgrep-in-recent)
+(lazy-define (athena tools shortcut-listing) list-all-shortcuts)
 (lazy-define (doc tmdoc-search) tmdoc-search-style tmdoc-search-tag
              tmdoc-search-parameter tmdoc-search-scheme)
 (lazy-define (doc apidoc) apidoc-all-modules apidoc-all-symbols)
