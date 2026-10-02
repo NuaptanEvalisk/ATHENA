@@ -1901,6 +1901,11 @@ QTMWidget::mouseReleaseEvent (QMouseEvent* event) {
 void
 QTMWidget::mouseMoveEvent (QMouseEvent* event) {
   if (is_nil (tmwid)) return;
+  if (event->buttons () == Qt::NoButton &&
+      !surface ()->rect ().contains (event->position ().toPoint ())) {
+    the_gui->process_mouse (tm_widget (), "peek-leave", 0, 0, 0, texmacs_time ());
+    return;
+  }
   QPointF localPoint= event->position ();
   QPoint point = event->pos() + origin();
   coord2 pt = from_qpoint(point);
@@ -2251,12 +2256,16 @@ QTMWidget::event (QEvent* event) {
     the_gui->process_mouse (tm_widget (), "peek-leave", 0, 0, 0, texmacs_time ());
   if ((event->type () == QEvent::KeyPress || event->type () == QEvent::KeyRelease) &&
       static_cast<QKeyEvent*> (event)->key () == Qt::Key_Shift && !is_nil (tmwid)) {
-    QPoint local= surface ()->mapFromGlobal (QCursor::pos ());
-    if (surface ()->rect ().contains (local)) {
+    const QPoint global= QCursor::pos ();
+    QPoint local= surface ()->mapFromGlobal (global);
+    if (QApplication::widgetAt (global) == surface () &&
+        surface ()->rect ().contains (local)) {
       coord2 point= from_qpoint (local+origin ());
       the_gui->process_mouse (tm_widget (), "peek-modifier", point.x1, point.x2,
         event->type () == QEvent::KeyPress ? 256 : 0, texmacs_time ());
     }
+    else
+      the_gui->process_mouse (tm_widget (), "peek-leave", 0, 0, 0, texmacs_time ());
   }
     // Catch Keypresses to avoid default handling of (Shift+)Tab keys
   if (event->type() == QEvent::KeyPress) {
