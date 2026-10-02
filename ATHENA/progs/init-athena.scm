@@ -304,7 +304,10 @@
            graphics-overlays-menu graphics-screens-menu
            graphics-focus-overlays-menu)
 (lazy-define (dynamic fold-edit)
-             screens-switch-to dynamic-make-slides overlays-context?)
+             screens-switch-to dynamic-make-slides overlays-context?
+             beamer-themes current-beamer-theme
+             slide-get-switch slide-get-document
+             native-slide-insert-title native-slide-insert-graphics)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting documentation\n")
@@ -361,7 +364,10 @@
 ;(display "Booting editing modes for various special styles\n")
 (lazy-menu (various poster-menu) poster-block-menu)
 (lazy-menu (various theme-menu) basic-theme-menu)
-(lazy-define (various theme-edit) current-basic-theme)
+(lazy-define (various theme-edit) basic-themes current-basic-theme)
+(lazy-define (various poster-edit)
+             poster-themes poster-title-styles
+             current-poster-theme current-poster-title-style)
 (lazy-define (various theme-menu) basic-theme-name)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 

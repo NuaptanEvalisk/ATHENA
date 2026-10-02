@@ -127,7 +127,9 @@ valid_focus_action_id (const QString& id) {
     "set-balloon-halign",
     "set-balloon-valign",
     "toggle-insertion-positioning",
-    "toggle-insertion-positioning-not"
+    "toggle-insertion-positioning-not",
+    "slide-insert-title",
+    "slide-insert-graphics"
   };
   return ids.contains (id);
 }
@@ -351,6 +353,29 @@ native_editor_action_validate (const QJsonObject& action, QString* error) {
                error, "focus-style-option requires name");
   if (op == "focus-search")
     return true;
+  if (op == "focus-document-package") {
+    if (!has_string (action, "action") || !has_string (action, "name"))
+      return fail_validation (
+        error, "focus-document-package requires action/name");
+    const QString kind= action.value ("action").toString ();
+    if (kind != "add" && kind != "remove" && kind != "edit")
+      return fail_validation (
+        error, "invalid focus document package action");
+    return true;
+  }
+  if (op == "focus-document-edit-style")
+    return true;
+  if (op == "focus-document-install-style")
+    return has_string (action, "path") ?
+             true : fail_validation (
+               error, "focus-document-install-style requires path");
+  if (op == "focus-document-default-theme")
+    return true;
+  if (op == "focus-slide-switch")
+    return action.value ("index").isDouble () &&
+           action.value ("index").toInt (-1) >= 0 ?
+             true : fail_validation (
+               error, "focus-slide-switch requires nonnegative index");
   if (op == "make-section" || op == "make-unnamed-section" ||
       op == "make-header" || op == "tmdoc-branch" ||
       op == "make-equation-like" ||
@@ -430,9 +455,8 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
   else if (op == "init-default")
     ed->init_default (native_action_string (action.value ("var")));
   else if (op == "set-main-style")
-    (void) call (
-      "set-main-style",
-      object (native_action_string (action.value ("style"))));
+    document_set_main_style (
+      native_action_string (action.value ("style")));
   else if (op == "set-document-language")
     document_set_language (
       native_action_string (action.value ("language")));
@@ -598,6 +622,14 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
               state.has (ACTOR_FOCUS_TOOLBAR_PHANTOM_FLOAT_CONTEXT)))
       generic_toggle_insertion_positioning_not (
         native_action_string (action.value ("value")));
+    else if (id == "slide-insert-title" &&
+             state.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT) &&
+             state.slide_propose_title)
+      (void) call ("native-slide-insert-title", object (target));
+    else if (id == "slide-insert-graphics" &&
+             state.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT) &&
+             state.slide_propose_graphics)
+      (void) call ("native-slide-insert-graphics", object (target));
   }
   else if (op == "focus-set-label") {
     actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
@@ -668,6 +700,77 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
          !state.has (ACTOR_FOCUS_TOOLBAR_CAN_SEARCH)))
       return;
     generic_focus_open_search_tool (ed->the_subtree (focus));
+  }
+  else if (op == "focus-document-package") {
+    actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
+    if (!state.valid () ||
+        (!state.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
+         !state.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT)))
+      return;
+    const string name= native_action_string (action.value ("name"));
+    const std::string nativeName (
+      name.data (), static_cast<std::size_t> (N(name)));
+    const QString kind= action.value ("action").toString ();
+    bool available= false;
+    for (const auto& package: state.document_packages)
+      if (package.value == nativeName) {
+        available= true;
+        break;
+      }
+    bool current= false;
+    for (const auto& package: state.current_packages)
+      if (package.value == nativeName) {
+        current= true;
+        break;
+      }
+    if (kind == "add" && available) {
+      if (!document_has_style_package (name))
+        document_add_style_package (name);
+    }
+    else if (kind == "remove" && current)
+      document_remove_style_package (name);
+    else if (kind == "edit" && current)
+      (void) call ("edit-package-source", object (name));
+  }
+  else if (op == "focus-document-edit-style") {
+    actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
+    if (!state.valid () ||
+        (!state.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
+         !state.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT)))
+      return;
+    (void) call ("edit-style-source");
+  }
+  else if (op == "focus-document-install-style") {
+    actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
+    if (!state.valid () ||
+        (!state.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
+         !state.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT)))
+      return;
+    url source= url_system (
+      native_action_string (action.value ("path")));
+    if (document_install_custom_style (source))
+      document_set_main_style (document_custom_style_file_name (source));
+  }
+  else if (op == "focus-document-default-theme") {
+    actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
+    if (!state.valid () || state.document_theme_kind != "basic") return;
+    for (const auto& theme: state.document_themes)
+      if (theme.checked) {
+        string name (
+          theme.value.data (), static_cast<int> (theme.value.size ()));
+        document_remove_style_package (name);
+      }
+  }
+  else if (op == "focus-slide-switch") {
+    actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
+    if (!state.valid () ||
+        !state.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT))
+      return;
+    const int index= action.value ("index").toInt (-1);
+    if (index < 0 ||
+        index >= static_cast<int> (state.slide_names.size ()))
+      return;
+    (void) call ("screens-switch-to", object (index));
   }
   else if (op == "make-section")
     make_section (ed, native_action_string (action.value ("tag")));

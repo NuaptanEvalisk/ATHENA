@@ -22,6 +22,7 @@
 #include <atomic>
 #include <cstdint>
 #include <filesystem>
+#include <limits>
 #include <mutex>
 
 /******************************************************************************
@@ -651,6 +652,56 @@ compute_style_menu (url u, int kind) {
     return "((verbatim \"" * l * "\") (" * cmd * " \"" * l * "\"))";
   }
   return "";
+}
+
+static void
+collect_style_names (url u, array<string>& out) {
+  if (is_or (u)) {
+    collect_style_names (u[1], out);
+    collect_style_names (u[2], out);
+    return;
+  }
+  if (is_concat (u)) {
+    string dir= upcase_first (as_string (u[1]));
+    if (ignore_dir (dir) || dir == "CVS" || dir == ".svn") return;
+    collect_style_names (u[2], out);
+    return;
+  }
+  if (!is_atomic (u)) return;
+  string name= as_string (u);
+  if (ends (name, ".ats")) name= name (0, N(name)-4);
+  else if (ends (name, ".ts")) name= name (0, N(name)-3);
+  else if (ends (name, ".hook")) name= name (0, N(name)-5);
+  else return;
+  for (int i=0; i<N(out); ++i)
+    if (out[i] == name) return;
+  out << name;
+}
+
+array<string>
+get_style_names () {
+  static std::uint64_t generation= std::numeric_limits<std::uint64_t>::max ();
+  static array<string> result;
+  const std::uint64_t current= style_cache_generation ();
+  if (generation != current) {
+    result= array<string> ();
+    collect_style_names (descendance ("$ATHENA_STYLE_ROOT"), result);
+    generation= current;
+  }
+  return result;
+}
+
+array<string>
+get_package_names () {
+  static std::uint64_t generation= std::numeric_limits<std::uint64_t>::max ();
+  static array<string> result;
+  const std::uint64_t current= style_cache_generation ();
+  if (generation != current) {
+    result= array<string> ();
+    collect_style_names (descendance ("$ATHENA_PACKAGE_ROOT"), result);
+    generation= current;
+  }
+  return result;
 }
 
 object

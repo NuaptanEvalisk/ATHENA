@@ -27,6 +27,7 @@
 #include "document_style_commands.hpp"
 #include "format_commands.hpp"
 #include "generic_editor_commands.hpp"
+#include "new_style.hpp"
 #include "structured_commands.hpp"
 #ifdef EXPERIMENTAL
 #include "../../Style/Evaluate/evaluate_main.hpp"
@@ -1232,6 +1233,125 @@ editor_rep::focus_toolbar_state_snapshot () {
       fontSize.data (), static_cast<std::size_t> (N(fontSize)));
     snapshot.document_language.assign (
       language.data (), static_cast<std::size_t> (N(language)));
+
+    auto display_name= [] (string name) {
+      return upcase_first (replace (name, "-", " "));
+    };
+    auto append_choice=
+      [&] (std::vector<actor_focus_choice_snapshot>& target,
+           string value, bool checked) {
+        actor_focus_choice_snapshot item;
+        item.value.assign (
+          value.data (), static_cast<std::size_t> (N(value)));
+        string label= display_name (value);
+        item.label.assign (
+          label.data (), static_cast<std::size_t> (N(label)));
+        item.checked= checked;
+        target.push_back (std::move (item));
+      };
+
+    array<string> styleNames= get_style_names ();
+    for (int i=0; i<N(styleNames); ++i)
+      append_choice (
+        snapshot.document_styles, styleNames[i],
+        document_has_main_style (styleNames[i]));
+    array<string> packageNames= get_package_names ();
+    for (int i=0; i<N(packageNames); ++i)
+      append_choice (
+        snapshot.document_packages, packageNames[i],
+        document_has_style_package (packageNames[i]));
+    try {
+      list<string> styles= as_list_string (document_get_style_list ());
+      if (!is_nil (styles)) {
+        styles= styles->next;
+        for (; !is_nil (styles); styles= styles->next)
+          if (!hidden_package (styles->item))
+            append_choice (
+              snapshot.current_packages, styles->item, true);
+      }
+    }
+    catch (...) {}
+
+    const string background= get_init_string ("bg-color");
+    snapshot.background_color.assign (
+      background.data (), static_cast<std::size_t> (N(background)));
+
+    try {
+      snapshot.beamer_style=
+        as_bool (call ("style-has?", object (string ("beamer-style"))));
+    }
+    catch (...) {}
+    const bool poster=
+      (editor_style_command_flags &
+       ACTOR_EDITOR_COMMAND_STATE_POSTER_STYLE) != 0;
+    string themeKind= poster ? string ("poster"):
+                       snapshot.beamer_style ? string ("beamer"):
+                       string ("basic");
+    snapshot.document_theme_kind.assign (
+      themeKind.data (), static_cast<std::size_t> (N(themeKind)));
+
+    auto append_theme_list=
+      [&] (const char* procedure,
+           std::vector<actor_focus_choice_snapshot>& target) {
+        try {
+          list<string> themes= as_list_string (call (procedure));
+          for (; !is_nil (themes); themes= themes->next)
+            append_choice (
+              target, themes->item,
+              document_has_style_package (themes->item));
+        }
+        catch (...) {}
+      };
+    if (poster) {
+      append_theme_list ("poster-themes", snapshot.document_themes);
+      append_theme_list (
+        "poster-title-styles", snapshot.document_title_themes);
+      snapshot.background_available= true;
+    }
+    else if (snapshot.beamer_style) {
+      append_theme_list ("beamer-themes", snapshot.document_themes);
+      snapshot.background_available= true;
+    }
+    else {
+      append_theme_list ("basic-themes", snapshot.document_themes);
+      try {
+        snapshot.background_available=
+          as_string (call ("current-basic-theme")) != "plain";
+      }
+      catch (...) {}
+    }
+
+    if (snapshot.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT)) {
+      try {
+        object rawSwitch= call ("slide-get-switch", object (t));
+        if (is_tree (rawSwitch)) {
+          tree sw= as_tree (rawSwitch);
+          for (int i=0; i<N(sw); ++i)
+            snapshot.slide_names.push_back (
+              "Slide " + std::to_string (i + 1));
+        }
+      }
+      catch (...) {}
+      try {
+        object rawDocument= call ("slide-get-document", object (t));
+        if (is_tree (rawDocument)) {
+          tree slide= as_tree (rawDocument);
+          const bool hasTitle=
+            N(slide) > 0 && is_compound (slide[0], "tit");
+          snapshot.slide_propose_title= !hasTitle;
+          const bool emptyDocument=
+            is_document (slide) && N(slide) == 1 && slide[0] == tree ("");
+          const bool titleOnly=
+            is_document (slide) && N(slide) == 1 && hasTitle;
+          const bool titleAndEmpty=
+            is_document (slide) && N(slide) == 2 && hasTitle &&
+            slide[1] == tree ("");
+          snapshot.slide_propose_graphics=
+            emptyDocument || titleOnly || titleAndEmpty;
+        }
+      }
+      catch (...) {}
+    }
   }
   return snapshot;
 }

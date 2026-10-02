@@ -45,6 +45,8 @@ drd_info get_document_drd (tree doc);
 drd_info get_offline_document_drd (tree doc, url source_name);
 
 object get_style_menu ();
+array<string> get_style_names ();
+array<string> get_package_names ();
 bool   hidden_package (string name);
 object get_add_package_menu ();
 object get_remove_package_menu ();

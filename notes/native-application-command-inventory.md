@@ -169,6 +169,13 @@ choices) and consumed by `QTMFocusParameterCommands.cpp`. Parameter writes,
 style-option toggles and focus search are typed actor actions that recompute the
 current focus and reject stale parameter/option IDs before mutation.
 
+Document/screens focus presentation lives in `QTMFocusDocumentCommands.cpp`.
+Available styles/packages are enumerated as cached C++ data from the style and
+package roots instead of parsing the legacy dynamic menu AST. Theme choices,
+background state and slide state are actor snapshot data; main-style/package,
+custom-style install, background and slide mutations are finite validated
+actions with current-focus revalidation.
+
 ## Zero-buffer ownership now established
 
 The outer `QTMMainTabWindow` is shown directly at startup and no longer needs

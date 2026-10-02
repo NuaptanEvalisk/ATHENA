@@ -31,6 +31,7 @@ object document_embedded_style_list (object extra_packages);
 bool document_has_no_style ();
 void document_set_no_style ();
 bool document_has_main_style (string style);
+void document_set_main_style (string style);
 void document_notify_new_style (string style);
 
 bool document_has_style_package (string package);

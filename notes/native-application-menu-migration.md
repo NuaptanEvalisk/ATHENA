@@ -257,9 +257,11 @@ Retirement is group-by-group, with no dual production for a migrated group:
   Generic tag Preferences and Rendering are now snapshot data too: global/local
   style parameters, theme parameters, customizable values, defaults/choices
   and style-option package toggles are rendered by a dedicated native provider;
-  Search is a finite owner-bound actor action.
-  Remaining style/theme/slide-selector and less common node-focus contributors
-  are still on the legacy path;
+  Search is a finite owner-bound actor action. Document/screens focus now also
+  owns Style, Packages, Theme, Background and slide selection/title/draw:
+  style/package names come from cached C++ file enumeration, theme/slide state
+  is published by the owning actor, and all mutations are fixed typed actions.
+  Remaining less common node-focus contributors are still on the legacy path;
   `texmacs-focus-icons` is not removed until those reach parity.
 - User/extension toolbar: replace `texmacs-extra-icons` with the native runtime
   contribution model, then remove the last legacy `ui_menu_icons` producer and

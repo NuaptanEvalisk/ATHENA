@@ -47,6 +47,7 @@ focus_surface_state (
 void
 QTMCommandRegistry::registerFocusCommands () {
   registerFocusParameterCommands ();
+  registerFocusDocumentCommands ();
   registerProvider (
     "editor-focus-variants", QTMCommandScope::Editor,
     [] (const QTMCommandContext& context) {

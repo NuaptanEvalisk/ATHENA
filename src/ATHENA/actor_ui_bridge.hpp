@@ -190,6 +190,13 @@ struct actor_focus_style_option_snapshot {
   bool checked= false;
 };
 
+struct actor_focus_choice_snapshot {
+  std::string value;
+  std::string label;
+  std::string help;
+  bool checked= false;
+};
+
 struct actor_focus_toolbar_snapshot {
   std::uint32_t flags= 0;
   std::string tag_label;
@@ -230,6 +237,18 @@ struct actor_focus_toolbar_snapshot {
   std::vector<actor_focus_parameter_snapshot> global_parameters;
   std::vector<actor_focus_parameter_snapshot> local_parameters;
   std::vector<actor_focus_style_option_snapshot> style_options;
+  std::vector<actor_focus_choice_snapshot> document_styles;
+  std::vector<actor_focus_choice_snapshot> document_packages;
+  std::vector<actor_focus_choice_snapshot> current_packages;
+  std::vector<actor_focus_choice_snapshot> document_themes;
+  std::vector<actor_focus_choice_snapshot> document_title_themes;
+  std::vector<std::string> slide_names;
+  std::string document_theme_kind;
+  std::string background_color;
+  bool background_available= false;
+  bool beamer_style= false;
+  bool slide_propose_title= false;
+  bool slide_propose_graphics= false;
 
   bool valid () const noexcept {
     return (flags & ACTOR_FOCUS_TOOLBAR_VALID) != 0;

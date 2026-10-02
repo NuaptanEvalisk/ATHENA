@@ -1069,7 +1069,25 @@
         ((tree-in? t '(with with-screen-color))
          (slide-get-document (tree-ref t :last)))
         ((tree-is? t 'document) t)
-        (else #f)))
+         (else #f)))
+
+(tm-define (native-slide-insert-title t)
+  (and-with u (slide-get-document t)
+    (when (not (tree-is? u 0 'tit))
+      (tree-insert u 0 '((tit "")))
+      (tree-go-to u 0 0 0))))
+
+(tm-define (native-slide-insert-graphics t)
+  (and-with u (slide-get-document t)
+    (when (and (tree-func? u 'document 1)
+               (tree-is? u 0 'tit))
+      (tree-insert! u 1 (list "")))
+    (tree-set u :last `(gr-screen (document "")))
+    (tree-go-to u :last 0 0 0)
+    (make-graphics
+      "gr-mode" '(tuple "hand-edit" "penscript")
+      "gr-frame" `(tuple "scale" "1cm" (tuple "0gw" "1gh"))
+      "gr-geometry" `(tuple "geometry" "1gpar" "1gpag" "axis"))))
 
 (define (slide-get-bg-color-bis t)
   (cond ((tree-is? t :up 'with)

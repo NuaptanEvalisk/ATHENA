@@ -279,6 +279,14 @@ document_has_main_style (string style) {
 }
 
 void
+document_set_main_style (string style) {
+  array<string> styles= current_style_strings ();
+  if (N(styles) == 0) styles << style;
+  else styles[0]= style;
+  set_style_strings (styles);
+}
+
+void
 document_notify_new_style (string) {
 }
 
