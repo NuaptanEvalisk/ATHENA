@@ -36,6 +36,7 @@ public:
     const QTMEditorToolbarPresenter&)= delete;
 
   bool activate ();
+  void setCanvas (QTMWidget* canvas);
   void deactivate ();
   bool active () const noexcept { return active_; }
   void refresh ();

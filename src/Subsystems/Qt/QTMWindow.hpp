@@ -69,6 +69,13 @@ class QTMWindow: public QMainWindow {
 public:
 
   QTMWindow (QWidget* parent);
+  // GUI-owned status values, presented by the application shell for its active pane.
+  struct EditorStatus {
+    QString left;
+    QString center;
+    QString right;
+    bool visible= true;
+  } editorStatus;
   virtual ~QTMWindow () {
     if (DEBUG_QT) debug_qt << "Deleting QTMWindow" << LF;
   }

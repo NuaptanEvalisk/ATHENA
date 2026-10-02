@@ -424,6 +424,16 @@ QTMEditorToolbarPresenter::activate () {
 }
 
 void
+QTMEditorToolbarPresenter::setCanvas (QTMWidget* canvas) {
+  canvas_= canvas;
+  toolbar_->setEnabled (canvas != nullptr);
+  if (canvas != nullptr) {
+    (void) activate ();
+    refresh ();
+  }
+}
+
+void
 QTMEditorToolbarPresenter::deactivate () {
   if (!active_) return;
   active_= false;

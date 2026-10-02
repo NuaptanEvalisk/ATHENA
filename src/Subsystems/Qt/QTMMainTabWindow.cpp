@@ -7,6 +7,7 @@
 #include "QTMErrorMessagesPane.hpp"
 #include "QTMGlobalSearch.hpp"
 #include "QTMWidget.hpp"
+#include "QTMWindow.hpp"
 #include "QTMOutlinePane.hpp"
 #include "QTMDocumentHistoryPane.hpp"
 #include "QTMVaultExplorer.hpp"
@@ -122,13 +123,41 @@ installApplicationBackgroundStatus (QTMMainTabWindow* shell) {
   layout->addWidget (progress);
   layout->addWidget (count);
   widget->setSizePolicy (QSizePolicy::Maximum, QSizePolicy::Preferred);
-  bar->addWidget (widget, 0);
+  QWidget* contents= new QWidget (bar);
+  contents->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Preferred);
+  auto* row= new QHBoxLayout (contents);
+  row->setContentsMargins (0, 0, 8, 0);
+  row->setSpacing (12);
+  QLabel* center= new QLabel (contents);
+  QLabel* right= new QLabel (contents);
+  center->setObjectName (QStringLiteral ("athenaStatusCenter"));
+  right->setObjectName (QStringLiteral ("athenaStatusRight"));
+  center->setAlignment (Qt::AlignCenter);
+  right->setAlignment (Qt::AlignRight | Qt::AlignVCenter);
+  center->setMinimumWidth (0);
+  right->setMinimumWidth (0);
+  center->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Preferred);
+  row->addWidget (widget);
+  row->addWidget (center, 1);
+  row->addWidget (right);
+  bar->addWidget (contents, 1);
+  bar->setMinimumWidth (2);
 
   auto* timer= new QTimer (widget);
   timer->setInterval (160);
   QObject::connect (
     timer, &QTimer::timeout, widget,
-    [widget, indicator, title, progress, count, tick=0u] () mutable {
+    [shell, contents, center, right, widget, indicator, title, progress, count, tick=0u] () mutable {
+      const auto* document= qobject_cast<QTMWindow*> (shell->activeWorkPaneWidget ());
+      const auto status= document && document->editorStatus.visible ?
+        document->editorStatus : QTMWindow::EditorStatus {};
+      center->setToolTip (status.center);
+      right->setToolTip (status.right);
+      right->setMaximumWidth (contents->width () / 3);
+      right->setText (right->fontMetrics ().elidedText (
+        status.right, Qt::ElideRight, right->maximumWidth ()));
+      center->setText (center->fontMetrics ().elidedText (
+        status.center, Qt::ElideRight, center->width ()));
       using athena::background::phase;
       const auto statuses= athena::background::snapshot ();
       const char* names[]= {"UUID", "NPU RAG", "Maintenance", "Artifacts"};

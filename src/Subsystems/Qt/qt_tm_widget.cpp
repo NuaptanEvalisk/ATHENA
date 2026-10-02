@@ -14,15 +14,11 @@
 #include <QToolButton>
 #include <QToolBar>
 #include <QPushButton>
-#include <QLabel>
-#include <QHBoxLayout>
-#include <QStackedLayout>
 #include <QApplication>
 #include <QActionGroup>
 #include <QColorDialog>
 #include <QDialog>
 #include <QComboBox>
-#include <QStatusBar>
 #include <QTimer>
 #include <algorithm>
 #include <climits>
@@ -344,87 +340,7 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   mw->setIconSize (athena_toolbar_icon_size ());
   mw->setFocusPolicy (Qt::NoFocus);
   
-  // status bar
-  
-  QStatusBar* bar= new QStatusBar(mw);
-  QWidget* statusContents= new QWidget (bar);
-  statusContents->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Preferred);
-
-  // Keep edge status and the logical center independent.  QStatusBar/QHBoxLayout
-  // stretch factors only divide the remaining space between siblings, so a
-  // nominal "center" widget drifts whenever the UUID progress or right status
-  // changes width.  Stack an edge layer and a true-center layer over the same
-  // geometry instead: the center label is always centered in the complete bar.
-  auto* statusStack= new QStackedLayout (statusContents);
-  statusStack->setContentsMargins (0, 0, 0, 0);
-  statusStack->setStackingMode (QStackedLayout::StackAll);
-  QWidget* edgeLayer= new QWidget (statusContents);
-  auto* edgeLayout= new QHBoxLayout (edgeLayer);
-  edgeLayout->setContentsMargins (0, 0, 0, 0);
-  edgeLayout->setSpacing (0);
-  QWidget* centerLayer= new QWidget (statusContents);
-  centerLayer->setAttribute (Qt::WA_TransparentForMouseEvents);
-  auto* centerLayout= new QHBoxLayout (centerLayer);
-  centerLayout->setContentsMargins (0, 0, 0, 0);
-  centerLayout->setSpacing (0);
-  statusStack->addWidget (edgeLayer);
-  statusStack->addWidget (centerLayer);
-  statusStack->setCurrentWidget (centerLayer);
-
-  leftLabel= new QLabel (QString (), mw);
-  centerLabel= new QLabel ("", centerLayer);
-  rightLabel= new QLabel (QStringLiteral ("Booting"), edgeLayer);
-  leftLabel->setFrameStyle (QFrame::NoFrame);
-  leftLabel->hide ();
-  centerLabel->setFrameStyle (QFrame::NoFrame);
-  rightLabel->setFrameStyle (QFrame::NoFrame);
-  leftLabel->setIndent (8);
-  leftLabel->setAlignment (Qt::AlignLeft | Qt::AlignVCenter);
-  centerLabel->setAlignment (Qt::AlignCenter);
-  rightLabel->setAlignment (Qt::AlignRight | Qt::AlignVCenter);
-  leftLabel->setMinimumWidth (0);
-  leftLabel->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Preferred);
-  centerLabel->setMinimumWidth (0);
-  centerLabel->setSizePolicy (QSizePolicy::Preferred, QSizePolicy::Preferred);
-  rightLabel->setMinimumWidth (0);
-  rightLabel->setSizePolicy (QSizePolicy::Maximum, QSizePolicy::Preferred);
-
-  // Keep the legacy left footer label alive for slot traffic, but do not
-  // display it. Shared background-worker status now belongs to the outer
-  // application shell and remains present when no document editor exists.
-  edgeLayout->addStretch (1);
-  edgeLayout->addWidget (rightLabel, 0, Qt::AlignRight | Qt::AlignVCenter);
-  centerLayout->addStretch (1);
-  centerLayout->addWidget (centerLabel, 0, Qt::AlignCenter);
-  centerLayout->addStretch (1);
-  bar->addWidget (statusContents, 1);
-  if (tm_style_sheet == "")
-    bar->setStyle (qtmstyle ());
-  
-  // NOTE (mg): the following setMinimumWidth command disable automatic 
-  // enlarging of the status bar and consequently of the main window due to 
-  // long messages in the left label. I found this strange solution here
-  // http://www.archivum.info/qt-interest@trolltech.com/2007-05/01453/Re:-QStatusBar-size.html
-  // The solution if due to Martin Petricek. He adds:
-  //    The docs says: If minimumSize() is set, the minimum size hint will be ignored.
-  //    Probably the minimum size hint was size of the lengthy message and
-  //    internal layout was enlarging the satusbar and the main window
-  //    Maybe the notice about QLayout that is at minimumSizeHint should be
-  //    also at minimumSize, didn't notice it first time and spend lot of time
-  //    trying to figure this out :)
-  
-  bar->setMinimumWidth (2);
-#ifdef Q_OS_LINUX
-  int min_h= (int) floor (28 * retina_scale);
-  bar->setMinimumHeight (min_h);
-#else
-  if (tm_style_sheet != "") {
-    int min_h= (int) floor (28 * retina_scale);
-    bar->setMinimumHeight (min_h);
-  }
-#endif
-
-  mw->setStatusBar (bar);
+  static_cast<QTMWindow*> (mw)->editorStatus.visible= visibility[5];
  
 #if !DISABLE_QTMTOOLBAR
   mainToolBar   = new QTMToolbar ("main toolbar", QSize (26, 32), mw);
@@ -482,7 +398,8 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   QWidget* q = main_widget->as_qwidget(mw); // force creation of QWidget
   q->setParent (qwid); // q->layout()->removeWidget(q) will reset the parent to this
   bl->addWidget (q);
-  if (QTMWidget* editorCanvas= qobject_cast<QTMWidget*> (q)) {
+  {
+    QTMWidget* editorCanvas= qobject_cast<QTMWidget*> (q);
     nativeMainToolbarPresenter= std::make_unique<QTMEditorToolbarPresenter> (
       editorCanvas, mainToolBar, QStringLiteral ("editor-main"));
     nativeModeToolbarPresenter= std::make_unique<QTMEditorToolbarPresenter> (
@@ -596,7 +513,6 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   modeToolBar->setVisible (false);
   focusToolBar->setVisible (false);
   userToolBar->setVisible (false);
-  mainwindow()->statusBar()->setVisible (true);
   if (toolbarController != nullptr)
     toolbarController->setRequestedVisibility (
       visibility[1] && visibility[0], false, false, false);
@@ -973,13 +889,12 @@ qt_tm_widget_rep::update_visibility () {
   bool old_modeVisibility = modeToolBar->isVisible();
   bool old_focusVisibility = focusToolBar->isVisible();
   bool old_userVisibility = userToolBar->isVisible();
-  bool old_statusVisibility = mainwindow()->statusBar()->isVisible();
 
   bool new_mainVisibility = visibility[1] && visibility[0];
   bool new_modeVisibility = visibility[2] && visibility[0];
   bool new_focusVisibility = visibility[3] && visibility[0];
   bool new_userVisibility = visibility[4] && visibility[0];
-  bool new_statusVisibility = visibility[5];
+  static_cast<QTMWindow*> (mainwindow ())->editorStatus.visible= visibility[5];
   
   if (toolbarController != nullptr)
     toolbarController->setRequestedVisibility (
@@ -995,8 +910,6 @@ qt_tm_widget_rep::update_visibility () {
     if ( XOR(old_userVisibility,  new_userVisibility) )
       userToolBar->setVisible (new_userVisibility);
   }
-  if ( XOR(old_statusVisibility,  new_statusVisibility) )
-    mainwindow()->statusBar()->setVisible (new_statusVisibility);
 
 #if !defined(Q_OS_MAC)
   bool old_menuVisibility = mainwindow()->menuBar()->isVisible();
@@ -1064,14 +977,6 @@ qt_tm_widget_rep::update_visibility () {
   }
 #endif // UNIFIED_TOOLBAR
 #undef XOR
-  if (tm_style_sheet == "" && use_mini_bars) {
-    QFont f = leftLabel->font();
-    int fs = as_int (get_preference ("gui:mini-fontsize", QTM_MINI_FONTSIZE));
-    qt_set_font_size (f, qt_zoom (fs > 0 ? fs : QTM_MINI_FONTSIZE));
-    leftLabel->setFont(f);
-    centerLabel->setFont(f);
-    rightLabel->setFont(f);
-  }
 }
 
 widget
@@ -1161,24 +1066,21 @@ qt_tm_widget_rep::send (slot s, blackbox val) {
     {
       check_type<string>(val, s);
       string msg = open_box<string> (val);
-      leftLabel->setText (to_qstring (msg));
-      leftLabel->update ();
+      static_cast<QTMWindow*> (mainwindow ())->editorStatus.left= to_qstring (msg);
     }
       break;
     case SLOT_CENTER_FOOTER:
     {
       check_type<string>(val, s);
       string msg = open_box<string> (val);
-      centerLabel->setText (to_qstring (msg));
-      centerLabel->update ();
+      static_cast<QTMWindow*> (mainwindow ())->editorStatus.center= to_qstring (msg);
     }
       break;
     case SLOT_RIGHT_FOOTER:
     {
       check_type<string>(val, s);
       string msg= open_box<string> (val);
-      rightLabel->setText (to_qstring (msg));
-      rightLabel->update ();
+      static_cast<QTMWindow*> (mainwindow ())->editorStatus.right= to_qstring (msg);
     }
       break;
     case SLOT_SCROLLBARS_VISIBILITY:
@@ -1316,6 +1218,13 @@ qt_tm_widget_rep::write (slot s, blackbox index, widget w) {
        the widget on which the layout is installed " */
       main_widget = concrete (w);
         // canvas() now returns the new QTMWidget (or 0)
+      nativeMainToolbarPresenter->setCanvas (canvas ());
+      nativeModeToolbarPresenter->setCanvas (canvas ());
+      nativeFocusToolbarPresenter->setCanvas (canvas ());
+      nativeUserToolbarPresenter->setCanvas (canvas ());
+      append_native_drawing_mode_actions ();
+      append_native_drawing_focus_actions ();
+      update_visibility ();
       
       if (scrollarea())   // Fix size to draw margins around.
         scrollarea()->surface()->setSizePolicy (QSizePolicy::Fixed,

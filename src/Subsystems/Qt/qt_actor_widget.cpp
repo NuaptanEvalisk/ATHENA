@@ -882,11 +882,13 @@ qt_actor_widget_rep::drain_external_effects () {
     case actor_command_kind::ui_footer_center:
     case actor_command_kind::ui_footer_right: {
       string text= actor_text_registry::instance ().take (record.payload0);
+      tm_view view= concrete_runtime_view (view_id_);
+      if (view == nullptr || view->win == nullptr) break;
       if (record.kind == actor_command_kind::ui_footer_left)
-        get_server ()->set_left_footer (text);
+        view->win->set_left_footer (text);
       else if (record.kind == actor_command_kind::ui_footer_center)
-        get_server ()->set_center_footer (text);
-      else get_server ()->set_right_footer (text);
+        view->win->set_center_footer (text);
+      else view->win->set_right_footer (text);
       break;
     }
     case actor_command_kind::ui_show_toast: {
