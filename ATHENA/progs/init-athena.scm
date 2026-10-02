@@ -133,7 +133,7 @@
 (lazy-menu (generic live-spell) spell-live-popup-menu)
 (lazy-define (generic live-spell)
              spell-live-import-custom-dictionary-from-preferences)
-(lazy-menu (generic generic-menu) focus-menu texmacs-focus-icons)
+(lazy-menu (generic generic-menu) focus-menu)
 (lazy-menu (generic format-menu) format-menu
            font-size-menu color-menu horizontal-space-menu
            specific-menu

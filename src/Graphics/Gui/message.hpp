@@ -59,7 +59,6 @@ enum slot_id {
   SLOT_MAIN_ICONS_VISIBILITY,
   SLOT_MODE_ICONS_VISIBILITY,
   SLOT_FOCUS_ICONS_VISIBILITY,
-  SLOT_FOCUS_ICONS,
   SLOT_USER_ICONS_VISIBILITY,
   SLOT_USER_ICONS,
   SLOT_BOTTOM_TOOLS_VISIBILITY,
@@ -547,12 +546,6 @@ inline bool
 get_focus_icons_visibility (widget w) {
   // get visibility of focus dependent icons bar
   return query<bool> (w, SLOT_FOCUS_ICONS_VISIBILITY);
-}
-
-inline void
-set_focus_icons (widget w, widget bar) {
-  // set focus dependent icons bar
-  write (w, SLOT_FOCUS_ICONS, bar);
 }
 
 inline void

@@ -85,14 +85,3 @@
 (tm-define (focus-can-move? t)
   (:require (tree-in? t '(tmdoc-title tmdoc-copyright tmdoc-license)))
   #f)
-
-(tm-menu (focus-document-extra-icons t)
-  (:require (tmdoc-propose-title?))
-  (minibar
-    ((balloon "Title" "Insert title") (tmdoc-insert-title))))
-
-(tm-menu (focus-document-extra-icons t)
-  (:require (tmdoc-propose-copyright-and-license?))
-  (minibar
-    ((balloon "Copyright" "Insert copyright and license information")
-     (tmdoc-insert-copyright-and-license))))

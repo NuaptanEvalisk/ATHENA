@@ -41,13 +41,3 @@
   (:require (linked-image-context? t))
   ("Remove background" (remove-image-background))
   (-> "Embed image" (link embedded-load-menu)))
-
-(tm-menu (focus-misc-icons t)
-  (:require (embedded-image-context? t))
-  (=> (balloon (icon "tm_focus_save") "Save image")
-      (link embedded-save-menu)))
-
-(tm-menu (focus-misc-icons t)
-  (:require (linked-image-context? t))
-  (=> (balloon (icon "tm_focus_load") "Embed image")
-      (link embedded-load-menu)))

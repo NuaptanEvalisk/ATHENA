@@ -532,18 +532,6 @@
       (and (tree-is? t 'with)
            (document-like? (tree-up t)))))
 
-(tm-menu (focus-tag-extra-icons t)
-  (:require (table-markup-context? t))
-  (if (document-like? (tree-up t))
-      ((check (balloon (icon "tm_table_parwidth")
-                       "Extend table to full paragraph width")
-              "v" (table-test-parwidth?))
-       (table-toggle-parwidth)))
-  (=> (balloon (icon "tm_set_properties") "Table properties")
-      (mini #f
-	(link table-menu)
-	---
-	("Table properties" (open-table-properties)))))
 
 (define (cell-halign-icon)
   (with h (cell-get-format "cell-halign")
@@ -553,85 +541,3 @@
 	  ((== h "L.") "tm_cell_dot")
 	  ((== h "L,") "tm_cell_dot")
 	  (else "tm_cell_left"))))
-
-(tm-menu (focus-extra-icons t)
-  (:require (table-markup-context? t))
-  (glue #f #f 10 0)
-  (minibar
-    (if (== (get-cell-mode) "cell")
-        (=> (balloon "Cell" "Change cell operation mode")
-            (mini #f
-              (link cell-mode-icons)
-	      ---
-	      ("Cell properties" (open-cell-properties)))))
-    (if (== (get-cell-mode) "row")
-        (=> (balloon "Row" "Change cell operation mode")
-            (mini #f
-              (link cell-mode-icons)
-	      ---
-	      ("Cell properties" (open-cell-properties)))))
-    (if (== (get-cell-mode) "column")
-        (=> (balloon "Column" "Change cell operation mode")
-            (mini #f
-              (link cell-mode-icons)
-	      ---
-	      ("Cell properties" (open-cell-properties)))))
-    (if (== (get-cell-mode) "table")
-        (=> (balloon "All cells" "Change cell operation mode")
-            (mini #f
-              (link cell-mode-icons)
-	      ---
-	      ("Cell properties" (open-cell-properties)))))
-    (=> (balloon (icon "tm_cell_size_var") "Modify cell size")
-        (mini #f
-          (group "Width")
-          (link cell-width-menu)
-          ---
-          (group "Height")
-          (link cell-height-menu)
-	  (when (and (== (get-cell-mode) "cell") (not (selection-active-any?)))
-	    ---
-	    (group "Span")
-	    (link cell-span-menu))))
-    (=> (balloon (icon "tm_cell_border") "Change border of cell")
-        (mini #f
-          (group "Border")
-          (link cell-alt-border-menu)
-          ---
-          (group "Pen width")
-          (link cell-compact-pen-width-menu)
-          ---
-          (group "Padding")
-          (link cell-padding-menu)))
-    (=> (balloon (icon (eval (cell-halign-icon))) "Modify cell alignment")
-        (mini #f
-          (group "Horizontal alignment")
-          (link cell-halign-menu)
-          ---
-          (group "Vertical alignment")
-          (link cell-valign-menu)))
-    (=> (balloon (icon "tm_cell_background")
-                 "Set background color of cell")
-        (mini #f
-          (link cell-color-menu)))
-    ((check (balloon (icon "tm_cell_wrap") "Line wrapping inside cell")
-            "v" (cell-test-wrap?))
-     (cell-toggle-wrap))
-    (if (and (not (cell-spans-more?))
-	     (not (selection-active-table?))
-	     (> (* (table-nr-rows) (table-nr-columns)) 1))
-	((balloon (icon "tm_cell_subtable")
-		  "Transform cell into subtable")
-	 (make-subtable)))
-    (if (and (cell-spans-more?)
-	     (not (selection-active-table?)))
-	((balloon (icon "tm_cell_var_subtable")
-		  "Transform cell into subtable")
-	 (make-subtable))
-	((balloon (icon "tm_cell_split")
-		  "Dissociate joined cells")
-	 (cell-reset-span)))
-    (if (selection-active-table?)
-	((balloon (icon "tm_cell_join")
-		  "Join selected cells")
-	 (cell-set-span-selection)))))

@@ -1238,16 +1238,6 @@
     (when (script-only-script? t)
       ("Insert subscript" (structured-insert-down)))))
 
-(tm-menu (focus-insert-icons t)
-  (:require (script-context? t))
-  (assuming (tree-in? t '(lsub rsub))
-    (when (script-only-script? t)
-      ((balloon (icon "tm_insert_up") "Insert superscript")
-       (structured-insert-up))))
-  (assuming (tree-in? t '(lsup rsup))
-    (when (script-only-script? t)
-      ((balloon (icon "tm_insert_down") "Insert subscript")
-       (structured-insert-down)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Root focus menus
@@ -1263,11 +1253,6 @@
           (== (tree-arity (focus-tree)) 2))
    (sqrt-toggle (focus-tree))))
 
-(tm-menu (focus-toggle-icons t)
-  (:require (tree-is? t 'sqrt))
-  ((check (balloon (icon "tm_root_index") "Multiple root") "v"
-          (== (tree-arity (focus-tree)) 2))
-   (sqrt-toggle (focus-tree))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Wide accent focus menus
@@ -1287,11 +1272,6 @@
           (alternate-second? (focus-tree)))
    (alternate-toggle (focus-tree))))
 
-(tm-menu (focus-toggle-icons t)
-  (:require (tree-in? t '(wide wide*)))
-  ((check (balloon (icon "tm_wide_under") "Accent below") "v"
-          (alternate-second? (focus-tree)))
-   (alternate-toggle (focus-tree))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Around focus menus
@@ -1325,17 +1305,3 @@
   ("Increase size" (geometry-up))
   ("Decrease size" (geometry-down))
   ("Default size" (geometry-reset)))
-
-(tm-menu (focus-toggle-icons t)
-  (:require (tree-in? t '(around around*)))
-  ((check (balloon (icon "tm_large_around") "Large brackets") "v"
-          (alternate-second? (focus-tree)))
-   (alternate-toggle (focus-tree)))
-  ;; TODO: create suitable icons
-  ;;((balloon (icon "tm_plus") "Increase bracket size")
-  ;; (geometry-up))
-  ;;((balloon (icon "tm_minus") "Decrease bracket size")
-  ;; (geometry-down))
-  ;;((balloon (icon "tm_reset") "Reset to default bracket size")
-  ;; (geometry-reset))
-  )

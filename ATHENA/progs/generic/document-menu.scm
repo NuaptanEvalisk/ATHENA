@@ -566,39 +566,6 @@
   ---
   ("Help" (focus-help)))
 
-(tm-menu (focus-document-extra-icons t))
-(tm-menu (focus-style-extra-icons t))
-
-(tm-menu (focus-style-extra-icons t)
-  (:require (not (or (in-beamer?) (in-poster?))))
-  (=> (balloon (eval (basic-theme-name (current-basic-theme))) "Web theme")
-      (link basic-theme-menu))
-  (assuming (!= (current-basic-theme) "plain")
-    (link focus-background-color-icons)))
-
-(tm-menu (focus-style-icons t)
-  (minibar
-    (let* ((st* (get-style-list))
-           (st (if (null? st*) (list "no style") st*)))
-      (=> (balloon (eval (upcase-first (car st))) "Document style")
-          (link style-menu)
-          ---
-          ("Edit style" (edit-style-source))
-          ("Enter style name..." (interactive set-main-style))
-          ("Install custom style..." (choose-and-install-custom-style)))
-      (dynamic (focus-style-extra-icons t))
-      (for (pack (list-filter (cdr st) (negate hidden-package?)))
-        (=> (eval pack)
-            ("Edit package" (edit-package-source pack))
-            ("Remove package" (remove-style-package pack)))))
-    (=> (balloon (icon "tm_add") "Add style package")
-        (link add-package-menu)
-        ---
-        ("Other package" (interactive add-style-package)))
-    (assuming (tree-is-buffer? t)
-      ((balloon (icon "tm_focus_help") "Describe tag")
-       (focus-help)))))
-
 (define (is-background-picture? bg*)
   (with bg (tm->stree bg*)
     (and (tm-is? bg 'pattern)
@@ -606,18 +573,6 @@
          (in? (tm-ref bg 1) '("100%" "100@"))
          (in? (tm-ref bg 2) '("100%" "100@")))))
 
-(tm-menu (focus-background-color-icons)
-  (with setter (lambda (col) (init-env-tree "bg-color" col))
-    (assuming (not (is-background-picture? (get-init-tree "bg-color")))
-      (dynamic (focus-customizable-icons-item
-                "bg-color" "Background color" :global)))
-    (assuming (is-background-picture? (get-init-tree "bg-color"))
-      (=> (balloon (icon "tm_camera") "Select background picture")
-          (when (init-has? "bg-color")
-            ("Restore default background" (init-default "bg-color")))
-          ("Select background picture"
-           (with bg (tree->stree (get-init-tree "bg-color"))
-             (open-background-picture-selector setter bg)))))))
 
 (tm-define (current-page-icon)
   (cond ((test-init? "page-orientation" "landscape")
@@ -628,35 +583,3 @@
          (cond ((test-init? "par-columns" "1") "tm_portrait_1col")
                ((test-init? "par-columns" "2") "tm_portrait_2col")
                (else "tm_portrait")))))
-
-(tm-menu (focus-document-icons t)
-  (minibar
-    (=> (balloon (eval (upcase-first (get-init "page-type")))
-                 "Paper size")
-        (link document-page-size-menu))
-    (=> (balloon (eval `(verbatim ,(document-font-display-name
-                                    (get-init "font"))))
-                 "Main document font")
-        (link document-short-font-menu))
-    (=> (balloon (eval (string-append (get-init "font-base-size") "pt"))
-                 "Font size")
-        (link document-font-base-size-menu))
-    (=> (balloon (icon (eval (current-page-icon))) "Page layout")
-        ("Portrait" (init-page-orientation "portrait"))
-        ("Landscape" (init-page-orientation "landscape"))
-        ---
-        (link document-columns-menu)
-        ---
-	(link page-rendering-menu)
-        ---
-        (link page-layout-menu))
-    (=> (balloon (icon (eval (current-language-icon))) "Document language")
-        (link document-language-menu))))
-
-(tm-menu (standard-focus-icons t)
-  (:require (tree-is-buffer? t))
-  (dynamic (focus-style-icons t))  
-  //
-  (dynamic (focus-document-icons t))  
-  //   
-  (dynamic (focus-document-extra-icons t)))

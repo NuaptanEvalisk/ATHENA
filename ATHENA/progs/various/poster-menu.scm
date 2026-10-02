@@ -50,13 +50,6 @@
   (-> "Title style"  (link poster-title-style-menu))
   (-> "Background color" (link document-background-color-menu)))
 
-(tm-menu (focus-style-extra-icons t)
-  (:require (in-poster?))
-  (=> (balloon (eval (theme-name (current-poster-theme))) "Poster theme")
-      (link poster-theme-menu))
-  (=> (balloon (eval (theme-name (current-poster-title-style))) "Title style")
-      (link poster-title-style-menu))
-  (link focus-background-color-icons))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Page sizes
@@ -99,11 +92,6 @@
   (:require (document-propose-title?))
   ("Title" (make-poster-title)))
 
-(tm-menu (focus-document-extra-icons t)
-  (:mode in-poster?)
-  (:require (document-propose-title?))
-  (minibar
-    ((balloon "Title" "Insert title") (make-poster-title))))
 
 (tm-menu (poster-block-menu)
   (group "Titled block")
@@ -125,24 +113,8 @@
   ("Insert similar above" (structured-insert-up))
   ("Insert similar below" (structured-insert-down)))
 
-(tm-menu (focus-insert-icons t)
-  (:require (poster-block-context? t))
-  ((balloon (icon "tm_insert_up") "Insert similar block above")
-   (structured-insert-up))
-  ((balloon (icon "tm_insert_down") "Insert similar block below")
-   (structured-insert-down)))
 
 (tm-menu (focus-toggle-menu t)
   (:require (poster-block-context? t))
   ("Wide block" (float-toggle-wide (focus-tree)))
   ("Titled block" (block-toggle-titled (focus-tree))))
-
-(tm-menu (focus-toggle-icons t)
-  (:require (poster-block-context? t))
-  ((check (balloon (icon "tm_small_textual") "Toggle titled") "v"
-          (titled-block-context? (focus-tree)))
-   (block-toggle-titled (focus-tree)))
-  ((check (balloon (icon "tm_wide_float") "Make block wide") "v"
-          (block-wide? (focus-tree)))
-   (block-toggle-wide (focus-tree))))
-  

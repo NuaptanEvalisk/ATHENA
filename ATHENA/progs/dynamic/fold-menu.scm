@@ -188,13 +188,6 @@
   (-> "Background color"
       (link document-background-color-menu)))
 
-(tm-menu (focus-style-extra-icons t)
-  (:require (style-has? "beamer-style"))
-  (=> (balloon (eval (upcase-first (current-beamer-theme))) "Beamer theme")
-      (for (theme (beamer-themes))
-        ((check (eval (upcase-first theme)) "v" (has-style-package? theme))
-         (add-style-package theme))))
-  (link focus-background-color-icons))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Propose insertion of 'screens' tag in beamer style
@@ -251,11 +244,6 @@
   (:require (document-propose-screens?))
   ("Screens" (make-screens)))
 
-(tm-menu (focus-document-extra-icons t)
-  (:require (document-propose-screens?))
-  (minibar
-    ((balloon "Screens" "Make a multi-slide presentation")
-     (make-screens))))
 
 (tm-define (notify-new-style style)
   (former style)
@@ -357,47 +345,7 @@
     ---
     ("Draw" (slide-insert-graphics t))))
 
-(tm-menu (focus-tag-icons t)
-  (:require (screens-context? t))
-  (mini #t (inert ((eval (focus-tag-name (tree-label t))) (noop))))
-  (=> (balloon (eval (upcase-first (get-init "page-type")))
-               "Paper size")
-      (link document-page-size-menu))
-  (=> (balloon (eval (document-font-display-name (get-init "font")))
-               "Main document font")
-      (link document-short-font-menu))
-  (=> (balloon (eval (string-append (get-init "font-base-size") "pt"))
-               "Font size")
-      (link document-font-base-size-menu))
-  (=> (balloon (icon (eval (current-page-icon))) "Page layout")
-      (link page-rendering-menu))
-  (assuming (focus-has-preferences? t)
-    (=> (balloon (icon "tm_focus_prefs") "Preferences for tag")
-	(dynamic (focus-preferences-menu t))))
-  ((balloon (icon "tm_focus_help") "Describe tag")
-   (focus-help)))
 
-(tm-menu (standard-focus-icons t)
-  (:require (screens-context? t))
-  (dynamic (focus-style-icons t))  
-  //
-  (minibar (dynamic (focus-insert-icons t)))
-  //
-  (minibar (dynamic (focus-tag-icons t)))
-  //
-  (with u (slide-get-switch t)
-    (with i (tree-index (tree-down u))
-      (mini #t
-        (=> (eval (get-slide-name (tree-ref u i) i))
-            (dynamic (focus-slides-menu t))))))
-  (assuming (slide-propose-title? t)
-    //
-    (minibar
-     ((balloon "Title" "Insert title") (slide-insert-title t))))
-  (assuming (slide-propose-graphics? t)
-    //
-    (minibar
-     ((balloon "Draw" "Draw graphics") (slide-insert-graphics t)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Menu customizations for overlays
@@ -436,12 +384,6 @@
   ---
   (dynamic (focus-overlays-menu t)))
 
-(tm-menu (focus-hidden-icons t)
-  (:require (overlays-context? t))
-  //
-  (mini #t
-    (=> (eval (get-overlays-menu-name "Overlay " t))
-        (dynamic (focus-overlays-menu t)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Menu customizations for overlay filters
@@ -452,22 +394,6 @@
              (string-append "[" (number->string i) "]")
              (number->string i)))
    (tree-set t 0 (number->string i))))
-
-(tm-menu (focus-overlay-icons t)
-  (for (i (.. 1 (or (+ (overlay-arity t) 1) 2)))
-    (if (overlay-visible? t i)
-        (bold (dynamic (focus-overlay-icon t i (== i (overlay-current t))))))
-    (if (not (overlay-visible? t i))
-        (grey (dynamic (focus-overlay-icon t i (== i (overlay-current t))))))))
-
-(tm-menu (focus-hidden-icons t)
-  (:require (overlay-context? t))
-  (with p (tree-search-upwards t overlays-context?)
-    (assuming p
-      (dynamic (focus-hidden-icons p))))
-  //
-  (mini #t
-    (dynamic (focus-overlay-icons t))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Overlays in graphics mode

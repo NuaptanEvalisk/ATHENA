@@ -603,6 +603,10 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
     (void) nativeModeToolbarPresenter->activate ();
     append_native_drawing_mode_actions ();
   }
+  if (nativeFocusToolbarPresenter) {
+    (void) nativeFocusToolbarPresenter->activate ();
+    append_native_drawing_focus_actions ();
+  }
   
   mw->setCentralWidget (cw);
 
@@ -750,7 +754,6 @@ qt_tm_widget_rep::~qt_tm_widget_rep () {
   waiting_widgets = remove(waiting_widgets, this);
   all_tm_widgets.remove (this);
   clear_main_menu_actions ();
-  retire_toolbar_actions (focus_toolbar_actions);
   retire_toolbar_actions (user_toolbar_actions);
 }
 
@@ -1594,44 +1597,6 @@ qt_tm_widget_rep::write (slot s, blackbox index, widget w) {
     }
       break;
       
-    case SLOT_FOCUS_ICONS:
-      check_type_void (index, s);
-    {
-      bool can_update = true;
-      // BUG:
-      // there is a problem with updateActions  which apparently
-      // reset a running input method.
-      //
-      // This is (probably) also relate to
-      // bug #47338 [CJK] input disappears immediately
-      // see http://lists.gnu.org/archive/html/texmacs-dev/2017-09/msg00000.html
-      
-      // HACK: we just disable the focus bar updating while preediting.
-      // This seems enough since the other toolbars are not usually updated
-      // while performing an input method keyboard sequence
-      if (canvas()) can_update = !canvas()->isPreediting();
-      if (can_update) {
-        focus_icons_widget = concrete (w);
-        QList<QAction*>* list = focus_icons_widget->get_qactionlist();
-        if (list) {
-          QList<QAction*> nativeEmpty;
-          bool nativeDrawing= canvas () != nullptr &&
-            canvas ()->tm_widget () != nullptr &&
-            canvas ()->tm_widget ()->handle_native_drawing_available ();
-          QList<QAction*>* installed= nativeDrawing ? &nativeEmpty : list;
-#if !DISABLE_QTMTOOLBAR
-          focusToolBar->replaceButtons (installed);
-#else
-          replaceButtons (focusToolBar, installed, focus_toolbar_actions);
-#endif
-          delete list;
-          append_native_drawing_focus_actions ();
-          update_visibility();
-        }
-      }
-    }
-      break;
-      
     case SLOT_USER_ICONS:
       check_type_void (index, s);
     {   
@@ -1875,7 +1840,6 @@ qt_tm_embedded_widget_rep::write (slot s, blackbox index, widget w) {
       break;
         /// FIXME: decide what to do with these for embedded widgets
     case SLOT_MAIN_MENU:
-    case SLOT_FOCUS_ICONS:
     case SLOT_USER_ICONS:
     case SLOT_BOTTOM_TOOLS:
     case SLOT_EXTRA_TOOLS:

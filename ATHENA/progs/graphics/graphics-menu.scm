@@ -646,39 +646,3 @@
   (-> "Horizontal alignment" (link text-at-halign-menu))
   (-> "Vertical alignment" (link doc-at-valign-menu))
   (-> "Text box style" (link doc-at-mode-menu)))
-
-(tm-menu (focus-hidden-icons t)
-  (:require (graphical-text-at-context? t))
-  /
-  (mini #t
-    (group "Alignment:")
-    (with s (object-get-property "text-at-halign")
-      (=> (eval s) (link text-at-halign-menu)))
-    (with s (object-get-property "text-at-valign")
-      (=> (eval s) (link text-at-valign-menu)))))
-
-(tm-menu (focus-hidden-icons t)
-  (:require (graphical-long-text-at-context? t))
-  /
-  (mini #t
-    (group "Fill color:")
-    (with col (object-get-property "fill-color")
-      (assuming (in? col (list "" "none" "default" "mixed"))
-        (=> (eval (if (== "mixed") col "none"))
-            (link doc-at-fill-color-menu)))
-      (assuming (nin? col (list "" "none" "default" "mixed"))
-        (=> (color col #f #f 25 17)
-            (link doc-at-fill-color-menu)))))
-  /
-  (mini #t
-    (group "Alignment:")
-    (with s (object-get-property "text-at-halign")
-      (=> (eval s) (link text-at-halign-menu)))
-    (with s (object-get-property "doc-at-valign")
-      (=> (eval s) (link doc-at-valign-menu))))
-  /
-  (mini #t
-    (group "Style:")
-    (let* ((w (object-get-property "doc-at-width"))
-           (m (object-get-property "doc-at-hmode")))
-      (=> (eval (doc-at-mode w m)) (link doc-at-mode-menu)))))

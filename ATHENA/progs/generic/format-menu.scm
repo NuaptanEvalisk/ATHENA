@@ -214,10 +214,6 @@
   (:require (pen-effect-context? t))
   (-> "Effect pen" (dynamic (select-effect-pen-menu t))))
 
-(tm-menu (focus-misc-icons t)
-  (:require (pen-effect-context? t))
-  (=> (balloon (icon (eval (effect-pen-icon t))) "Select pen")
-      (dynamic (select-effect-pen-menu t))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; The Paragraph menu and submenus

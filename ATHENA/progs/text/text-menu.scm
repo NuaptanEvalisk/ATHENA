@@ -500,19 +500,11 @@
   (:require (document-propose-title?))
   ("Title" (make-doc-data)))
 
-(tm-menu (focus-document-extra-icons t)
-  (:require (document-propose-title?))
-  (minibar
-    ((balloon "Title" "Insert title") (make-doc-data))))
 
 (tm-menu (focus-document-extra-menu t)
   (:require (document-propose-abstract?))
   ("Abstract" (make-abstract-data)))
 
-(tm-menu (focus-document-extra-icons t)
-  (:require (document-propose-abstract?))
-  (minibar
-    ((balloon "Abstract" "Insert abstract") (make-abstract-data))))
 
 (tm-define (focus-can-move? t)
   (:require (doc-title-context? t))
@@ -538,18 +530,6 @@
   ("Maximal clustering"
    (set-doc-title-clustering "cluster-all")))
 
-(tm-menu (focus-title-icons)
-  (assuming (doc-data-has-hidden?)
-    ((check (balloon (icon "tm_show_hidden") "Show hidden") "v"
-            (doc-data-deactivated?))
-     (doc-data-activate-toggle)))
-  (mini #t
-    (inert ("Title" (noop))))
-  (=> (balloon (icon "tm_add") "Add title information")
-      (link focus-title-menu)
-      (-> "Hidden" (link focus-title-hidden-menu)))
-  (=> (balloon (icon "tm_focus_prefs") "Title presentation options")
-      (link focus-title-option-menu)))
 
 (tm-menu (focus-ancestor-menu t)
   (:require (doc-title-context? t))
@@ -560,10 +540,6 @@
   (link focus-title-hidden-menu)
   ---)
 
-(tm-menu (focus-ancestor-icons t)
-  (:require (doc-title-context? t))
-  (minibar (dynamic (focus-title-icons)))
-  //)
 
 (tm-define (focus-has-preferences? t)
   (:require (tree-in? t '(doc-note author-note)))
@@ -591,11 +567,6 @@
   ("Miscellaneous" (make-author-data-element 'author-misc))
   ("Note" (make-author-data-element 'author-note)))
 
-(tm-menu (focus-author-icons)
-  (mini #t
-    (inert ("Author" (noop))))
-  (=> (balloon (icon "tm_add") "Add author information")
-      (link focus-author-menu)))
 
 (tm-menu (focus-ancestor-menu t)
   (:require (doc-author-context? t))
@@ -609,12 +580,6 @@
   (link focus-author-menu)
   ---)
 
-(tm-menu (focus-ancestor-icons t)
-  (:require (doc-author-context? t))
-  (minibar (dynamic (focus-title-icons)))
-  //
-  (minibar (dynamic (focus-author-icons)))
-  //)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Focus menus for abstract data
@@ -635,11 +600,6 @@
   (:require (== l 'abstract))
   "Abstract text")
 
-(tm-menu (focus-abstract-icons)
-  (mini #t
-    (inert ("Abstract" (noop))))
-  (=> (balloon (icon "tm_add") "Add abstract information")
-      (link focus-abstract-menu)))
 
 (tm-menu (focus-ancestor-menu t)
   (:require (abstract-data-context? t))
@@ -647,10 +607,6 @@
   (link focus-abstract-menu)
   ---)
 
-(tm-menu (focus-ancestor-icons t)
-  (:require (abstract-data-context? t))
-  (minibar (dynamic (focus-abstract-icons)))
-  //)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Focus menus for sections
@@ -679,11 +635,6 @@
   (:require (previous-section))
   (-> "Sections" (link focus-section-menu)))
 
-(tm-menu (focus-document-extra-icons t)
-  (:require (previous-section))
-  (mini #t
-    (=> (eval (get-verbatim-section-title (previous-section) #f))
-        (link focus-section-menu))))
 
 (tm-menu (focus-extra-menu t)
   (:require (section-context? t))
@@ -701,12 +652,6 @@
   ---
   ("Toggle cloud todo item" (cloud-todo-toggle-current)))
 
-(tm-menu (focus-extra-icons t)
-  (:require (section-context? t))
-  (mini #t
-    //
-    (=> (eval (get-verbatim-section-title t #f))
-        (link focus-section-menu))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Focus menu for lists
@@ -737,12 +682,6 @@
   (when (not (dueto-added? t))
     ("Due to" (dueto-add t))))
 
-(tm-menu (focus-extra-icons t)
-  (:require (dueto-supporting-context? t))
-  //
-  (when (not (dueto-added? t))
-    (mini #t
-      ("Due to" (dueto-add t)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Focus menus for algorithms
@@ -764,18 +703,6 @@
   ((check "Specified" "v" (algorithm-specified? (focus-tree)))
    (algorithm-toggle-specification t)))
 
-(tm-menu (focus-toggle-icons t)
-  (:require (algorithm-context? t))
-  (when (not (algorithm-named? (focus-tree)))
-    ((check (balloon (icon "tm_numbered") "Toggle numbering") "v"
-            (algorithm-numbered? (focus-tree)))
-     (algorithm-toggle-number (focus-tree))))
-  ((check (balloon (icon "tm_small_textual") "Toggle name") "v"
-          (algorithm-named? (focus-tree)))
-   (algorithm-toggle-name t))
-  ((check (balloon (icon "tm_specified") "Toggle specification") "v"
-          (algorithm-specified? (focus-tree)))
-   (algorithm-toggle-specification t)))
 
 (tm-define (standard-options l)
   (:require (in? l (algorithm-tag-list)))
@@ -784,57 +711,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Focus menus for floating objects
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-menu (focus-float-icons t)
-  (:require (marginal-note-context? t))
-  (=> (balloon (icon "tm_position_float")
-               "Position of marginal note")
-      (link position-marginal-note-menu)))
-
-(tm-menu (focus-float-icons t)
-  (:require (rich-float-context? t))
-  (if (in-multicol-style?)
-      ((check (balloon (icon "tm_wide_float") "Make float wide") "v"
-              (float-wide? (focus-tree)))
-       (float-toggle-wide (focus-tree))))
-  (=> (balloon (icon "tm_position_float")
-               "Allowed positions of floating object")
-      (link float-menu))
-  ((balloon (icon "tm_anchor")
-            "Go to anchor or float")
-   (cursor-toggle-anchor)))
-
-(tm-menu (focus-float-icons t)
-  (:require (phantom-float-context? t))
-  (=> (balloon (icon "tm_position_float")
-               "Allowed positions of floating object")
-      (link float-menu)))
-
-(tm-menu (focus-float-icons t)
-  (:require (floatable-context? t))
-  (if (in-multicol-style?)
-      ((check (balloon (icon "tm_wide_float") "Make wide") "v"
-              (floatable-wide? (focus-tree)))
-       (floatable-toggle-wide (focus-tree))))
-  ((balloon (icon "tm_position_float")
-            "Let the environment float")
-   (turn-floating (tree-innermost floatable-context?))))
-
-(tm-menu (focus-float-icons t)
-  (:require (footnote-context? t))
-  (if (in-multicol-style?)
-      ((check (balloon (icon "tm_wide_float") "Make footnote wide") "v"
-              (float-wide? (focus-tree)))
-       (float-toggle-wide (focus-tree))))
-  ((balloon (icon "tm_anchor")
-            "Go to anchor or footnote")
-   (cursor-toggle-anchor)))
-
-(tm-menu (focus-float-icons t)
-  (:require (balloon-context? t))
-  (=> (balloon (icon "tm_position_float")
-               "Alignment of balloon")
-      (link position-balloon-menu)))
 
 (tm-define (standard-options l)
   (:require (in? l (numbered-unnumbered-append
@@ -851,12 +727,6 @@
    (note-toggle-custom t))
   (dynamic (former t)))
 
-(tm-menu (focus-toggle-icons t)
-  (:require (detached-note-context? t))
-  ((check (balloon (icon "tm_small_textual") "Use custom note symbol") "v"
-          (custom-note-context? (focus-tree)))
-   (note-toggle-custom t))
-  (dynamic (former t)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Possibility to rename titled environments
@@ -871,16 +741,6 @@
      (titled-toggle-name t)))
   (dynamic (former t)))
 
-(tm-menu (focus-toggle-icons t)
-  (:require (titled-context? t))
-  (if (not (figure-context? t))
-    ((balloon (icon "tm_small_textual") "Properties")
-     (node-properties-show t)))
-  (if (figure-context? t)
-    ((check (balloon (icon "tm_small_textual") "Toggle name") "v"
-            (titled-named? (focus-tree)))
-     (titled-toggle-name t)))
-  (dynamic (former t)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Framed environments
@@ -892,12 +752,6 @@
    (frame-toggle-title t))
   (dynamic (former t)))
 
-(tm-menu (focus-toggle-icons t)
-  (:require (or (frame-context? t) (frame-titled-context? t)))
-  ((check (balloon (icon "tm_small_textual") "Toggle name") "v"
-          (frame-titled? (focus-tree)))
-   (frame-toggle-title t))
-  (dynamic (former t)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Renaming automatically generated sections
@@ -907,9 +761,3 @@
   (:require (automatic-section-context? t))
   (dynamic (former t))
   ("Rename" (interactive automatic-section-rename)))
-
-(tm-menu (focus-toggle-icons t)
-  (:require (automatic-section-context? t))
-  (dynamic (former t))
-  ((balloon (icon "tm_small_textual") "Rename section")
-   (interactive automatic-section-rename)))
