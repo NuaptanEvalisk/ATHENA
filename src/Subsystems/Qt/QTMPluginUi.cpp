@@ -385,7 +385,7 @@ public:
     delay->setEnabled (false); refresh ();
   }
 };
-void manage_plugins (QWidget* parent) {
+void manage_plugins_dialog (QWidget* parent) {
   auto* dialog = new QDialog (parent);
   dialog->setAttribute (Qt::WA_DeleteOnClose); dialog->setWindowTitle ("ATHENA Plugins"); dialog->resize (720, 800);
   auto* layout = new QVBoxLayout (dialog);
@@ -402,15 +402,18 @@ QWidget* qtm_plugin_preferences (QTMPluginManager* manager, QWidget* parent) {
   auto* error = new QLabel ("Plugin service is unavailable. See the ATHENA startup log."); error->setWordWrap (true);
   layout->addWidget (error); layout->addStretch (); return page;
 }
+void qtm_manage_plugins (QWidget* parent) {
+  manage_plugins_dialog (parent);
+}
 QMenu* qtm_plugins_menu (QWidget* parent) {
   auto* menu = parent->findChild<QMenu*> ("athena-plugins-menu", Qt::FindDirectChildrenOnly);
   if (menu) return menu;
   menu = new QMenu ("Plugins", parent); menu->setObjectName ("athena-plugins-menu");
-  menu->addAction ("Manage plugins...", menu, [menu] { manage_plugins (menu->parentWidget ()); });
+  menu->addAction ("Manage plugins...", menu, [menu] { qtm_manage_plugins (menu->parentWidget ()); });
   QObject::connect (menu, &QMenu::aboutToShow, menu, [menu] {
     qDeleteAll (menu->findChildren<QMenu*> (QString (), Qt::FindDirectChildrenOnly));
     menu->clear ();
-    menu->addAction ("Manage plugins...", menu, [menu] { manage_plugins (menu->parentWidget ()); });
+    menu->addAction ("Manage plugins...", menu, [menu] { qtm_manage_plugins (menu->parentWidget ()); });
     auto* manager = qtm_plugin_manager ();
     if (!manager) return;
     menu->addSeparator ();

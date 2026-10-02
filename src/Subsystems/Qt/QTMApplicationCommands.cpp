@@ -30,6 +30,7 @@
 #include "QTMNeighborhoodsPane.hpp"
 #include "QTMOutlinePane.hpp"
 #include "QTMPreferencesDialog.hpp"
+#include "QTMPluginUi.hpp"
 #include "QTMQuickSwitcher.hpp"
 #include "QTMWebsitesManager.hpp"
 #include "file.hpp"
@@ -267,6 +268,12 @@ QTMCommandRegistry::registerApplicationCommands () {
     "help.about", QTMCommandScope::Application,
     [] (const QTMCommandContext&) {
       help_about_qt ();
+      return true;
+    });
+  registerBehavior (
+    "plugins.manage", QTMCommandScope::Application,
+    [] (const QTMCommandContext& context) {
+      qtm_manage_plugins (context.shell.data ());
       return true;
     });
   const QString paneCommands[]= {

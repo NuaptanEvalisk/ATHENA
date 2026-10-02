@@ -83,6 +83,123 @@ QTMCommandRegistry::registerBuiltins () {
       state.enabled= state.available;
       return state;
     });
+  registerProvider (
+    "runtime-plugin-menu", QTMCommandScope::Application,
+    [this] (const QTMCommandContext& context) {
+      QVector<QTMCommandDynamicItem> out;
+      QTMPluginManager* manager=
+        qobject_cast<QTMPluginManager*> (pluginManager_.data ());
+      if (manager == nullptr) return out;
+      const bool busy= manager->busy ();
+      for (const QTMPluginInfo& plugin: manager->plugins ()) {
+        const QString pluginId= QString::fromStdString (plugin.manifest.id);
+        const QString group= QString::fromStdString (plugin.manifest.name);
+        const bool active=
+          plugin.running || plugin.state == QStringLiteral ("Scheduled");
+
+        QTMCommandDynamicItem toggle= enabled_dynamic_item (
+          (active ? QStringLiteral ("stop:") : QStringLiteral ("start:")) +
+            pluginId,
+          active ? QObject::tr ("Stop") : QObject::tr ("Start"));
+        toggle.group= group;
+        toggle.icon= active ? QStringLiteral ("media-playback-stop")
+                            : QStringLiteral ("media-playback-start");
+        toggle.state.enabled=
+          !busy && plugin.state != QStringLiteral ("Invalid");
+        out.append (std::move (toggle));
+
+        QTMCommandDynamicItem restart= enabled_dynamic_item (
+          QStringLiteral ("restart:") + pluginId, QObject::tr ("Restart"));
+        restart.group= group;
+        restart.icon= QStringLiteral ("view-refresh");
+        restart.state.enabled=
+          !busy && plugin.state != QStringLiteral ("Invalid");
+        out.append (std::move (restart));
+
+        QTMCommandDynamicItem force= enabled_dynamic_item (
+          QStringLiteral ("force:") + pluginId, QObject::tr ("Force quit"));
+        force.group= group;
+        force.icon= QStringLiteral ("process-stop");
+        force.state.enabled= plugin.running;
+        out.append (std::move (force));
+
+        for (const athena::plugins::plugin_command& command:
+             plugin.manifest.commands) {
+          const QString runtimeId=
+            QStringLiteral ("plugin.command/") + pluginId +
+            QStringLiteral ("/") + QString::fromStdString (command.id);
+          const QTMCommandDefinition* definition= this->command (runtimeId);
+          if (definition == nullptr) continue;
+          QTMCommandDynamicItem item;
+          item.key= QStringLiteral ("command:") + runtimeId;
+          item.group= group;
+          item.label= definition->label;
+          item.help= definition->help;
+          item.icon= definition->icon;
+          item.state= state (runtimeId, context);
+          out.append (std::move (item));
+        }
+      }
+      return out;
+    },
+    [this] (const QString& key, const QTMCommandContext& context) {
+      if (key.startsWith (QStringLiteral ("command:")))
+        return execute (key.mid (8), context);
+      QTMPluginManager* manager=
+        qobject_cast<QTMPluginManager*> (pluginManager_.data ());
+      if (manager == nullptr) return false;
+      const int colon= key.indexOf (QChar (':'));
+      if (colon <= 0 || colon + 1 >= key.size ()) return false;
+      const QString operation= key.left (colon);
+      const std::string pluginId= key.mid (colon + 1).toStdString ();
+      QTMPluginInfo current;
+      bool found= false;
+      for (const QTMPluginInfo& plugin: manager->plugins ())
+        if (plugin.manifest.id == pluginId) {
+          current= plugin;
+          found= true;
+          break;
+        }
+      if (!found) return false;
+      try {
+        if (operation == QStringLiteral ("start")) {
+          if (manager->busy () || current.state == QStringLiteral ("Invalid") ||
+              current.running || current.state == QStringLiteral ("Scheduled"))
+            return false;
+          manager->start (pluginId, true);
+          return true;
+        }
+        if (operation == QStringLiteral ("stop")) {
+          if (manager->busy () ||
+              (!current.running &&
+               current.state != QStringLiteral ("Scheduled")))
+            return false;
+          manager->stop (pluginId);
+          return true;
+        }
+        if (operation == QStringLiteral ("restart")) {
+          if (manager->busy () || current.state == QStringLiteral ("Invalid"))
+            return false;
+          manager->restart (pluginId, true);
+          return true;
+        }
+        if (operation == QStringLiteral ("force")) {
+          if (!current.running) return false;
+          manager->stop (pluginId, true);
+          return true;
+        }
+      }
+      catch (...) {
+        return false;
+      }
+      return false;
+    },
+    [this] (const QTMCommandContext&) {
+      QTMCommandState state;
+      state.available= pluginManager_ != nullptr;
+      state.enabled= state.available;
+      return state;
+    });
 }
 
 bool

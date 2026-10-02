@@ -38,8 +38,12 @@ private:
   struct menu_entry {
     QPointer<QAction> action;
     QString command_id;
+    QString provider_id;
     QTMCommandMenuItem::Kind kind= QTMCommandMenuItem::Kind::Command;
     int submenu_index= -1;
+    QVector<QPointer<QAction>> dynamic_actions;
+    QVector<QPointer<QMenu>> dynamic_menus;
+    QString dynamic_signature;
   };
 
   struct menu_state {
@@ -57,7 +61,9 @@ private:
   void remember_input_widget (QWidget* widget);
   void capture_presented_context ();
   int build_menu (QMenu* menu, const QVector<QTMCommandMenuItem>& items,
-                  bool root_menu);
+                   bool root_menu);
+  void repopulate_provider (menu_entry& entry, QMenu* menu);
+  bool refresh_provider (menu_entry& entry, QMenu* menu);
   bool refresh_menu (int index);
   bool execute (const QString& command_id);
 };

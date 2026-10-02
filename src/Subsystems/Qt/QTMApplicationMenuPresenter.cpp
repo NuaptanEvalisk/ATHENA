@@ -86,6 +86,8 @@ QTMApplicationMenuPresenter::refresh_menu (int index) {
       entry.action->setEnabled (available);
       command_visible[i]= available;
     }
+    else if (entry.kind == QTMCommandMenuItem::Kind::Provider)
+      command_visible[i]= refresh_provider (entry, menu.menu);
   }
 
   bool visible_before= false;
@@ -112,6 +114,110 @@ QTMApplicationMenuPresenter::refresh_menu (int index) {
   return false;
 }
 
+void
+QTMApplicationMenuPresenter::repopulate_provider (
+  menu_entry& entry, QMenu* menu) {
+  if (menu == nullptr || entry.action == nullptr || entry.provider_id.isEmpty ())
+    return;
+  QTMCommandRegistry& registry= QTMCommandRegistry::instance ();
+  QVector<QTMCommandDynamicItem> values=
+    registry.providerItems (entry.provider_id, presented_context_);
+
+  QString signature;
+  for (const QTMCommandDynamicItem& value: values) {
+    signature += value.key;
+    signature += QChar (0x1f);
+    signature += value.group;
+    signature += QChar (0x1f);
+    signature += value.label;
+    signature += QChar (0x1f);
+    signature += value.help;
+    signature += QChar (0x1f);
+    signature += value.icon;
+    signature += QChar (value.state.available ? '1' : '0');
+    signature += QChar (value.state.enabled ? '1' : '0');
+    signature += QChar (value.state.checkable ? '1' : '0');
+    signature += QChar (value.state.checked ? '1' : '0');
+    signature += QChar (0x1e);
+  }
+  if (signature == entry.dynamic_signature) return;
+  entry.dynamic_signature= signature;
+
+  for (const QPointer<QAction>& action: entry.dynamic_actions) {
+    if (action == nullptr) continue;
+    menu->removeAction (action);
+    action->deleteLater ();
+  }
+  entry.dynamic_actions.clear ();
+  for (const QPointer<QMenu>& dynamicMenu: entry.dynamic_menus)
+    if (dynamicMenu != nullptr) dynamicMenu->deleteLater ();
+  entry.dynamic_menus.clear ();
+
+  QHash<QString, QMenu*> groups;
+  for (const QTMCommandDynamicItem& value: values) {
+    if (!value.state.available) continue;
+    QMenu* target= menu;
+    if (!value.group.isEmpty ()) {
+      QMenu* group= groups.value (value.group, nullptr);
+      if (group == nullptr) {
+        group= new QMenu (value.group, menu);
+        menu->insertAction (entry.action, group->menuAction ());
+        groups.insert (value.group, group);
+        entry.dynamic_menus.append (group);
+      }
+      target= group;
+    }
+    QIcon icon= value.icon.isEmpty () ? QIcon () : QIcon::fromTheme (value.icon);
+    QAction* action= new QAction (icon, value.label, target);
+    action->setToolTip (value.help);
+    action->setStatusTip (value.help);
+    action->setWhatsThis (value.help);
+    action->setEnabled (value.state.enabled);
+    action->setCheckable (value.state.checkable);
+    if (value.state.checkable) action->setChecked (value.state.checked);
+    const QString providerId= entry.provider_id;
+    const QString key= value.key;
+    QObject::connect (action, &QAction::triggered, action,
+                      [this, providerId, key] {
+      (void) QTMCommandRegistry::instance ().executeProviderItem (
+        providerId, key, presented_context_);
+    });
+    if (target == menu) menu->insertAction (entry.action, action);
+    else target->addAction (action);
+    entry.dynamic_actions.append (action);
+  }
+}
+
+bool
+QTMApplicationMenuPresenter::refresh_provider (
+  menu_entry& entry, QMenu* menu) {
+  QTMCommandRegistry& registry= QTMCommandRegistry::instance ();
+  QTMCommandState state=
+    registry.providerState (entry.provider_id, presented_context_);
+  if (!state.available) {
+    for (const QPointer<QAction>& action: entry.dynamic_actions)
+      if (action != nullptr) action->setVisible (false);
+    for (const QPointer<QMenu>& dynamicMenu: entry.dynamic_menus)
+      if (dynamicMenu != nullptr)
+        dynamicMenu->menuAction ()->setVisible (false);
+    entry.action->setVisible (false);
+    return false;
+  }
+  repopulate_provider (entry, menu);
+  bool any= false;
+  for (const QPointer<QAction>& action: entry.dynamic_actions)
+    if (action != nullptr) {
+      action->setVisible (true);
+      any= true;
+    }
+  for (const QPointer<QMenu>& dynamicMenu: entry.dynamic_menus)
+    if (dynamicMenu != nullptr)
+      dynamicMenu->menuAction ()->setVisible (true);
+  entry.action->setVisible (false);
+  entry.action->setEnabled (false);
+  return any;
+}
+
 int
 QTMApplicationMenuPresenter::build_menu (
   QMenu* menu, const QVector<QTMCommandMenuItem>& items, bool root_menu) {
@@ -127,12 +233,20 @@ QTMApplicationMenuPresenter::build_menu (
     menu_entry entry;
     entry.kind= item.kind;
     entry.command_id= item.commandId;
+    entry.provider_id= item.providerId;
     if (item.kind == QTMCommandMenuItem::Kind::Separator)
       entry.action= menu->addSeparator ();
     else if (item.kind == QTMCommandMenuItem::Kind::Submenu) {
       QMenu* submenu= menu->addMenu (item.label);
       entry.action= submenu == nullptr ? nullptr : submenu->menuAction ();
       entry.submenu_index= build_menu (submenu, item.items, false);
+    }
+    else if (item.kind == QTMCommandMenuItem::Kind::Provider) {
+      QAction* anchor= new QAction (menu);
+      anchor->setVisible (false);
+      anchor->setEnabled (false);
+      menu->addAction (anchor);
+      entry.action= anchor;
     }
     else {
       const QTMCommandDefinition* command= registry.command (item.commandId);

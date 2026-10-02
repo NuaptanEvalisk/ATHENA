@@ -188,6 +188,13 @@
       "help": "Show ATHENA version and technical information"
     },
     {
+      "id": "plugins.manage",
+      "label": "Manage plugins...",
+      "category": "Plugins",
+      "icon": "preferences-plugin",
+      "help": "Install, configure, start, stop, and inspect ATHENA plugins"
+    },
+    {
       "id": "editor.undo",
       "label": "Undo",
       "category": "Edit",
@@ -464,11 +471,58 @@
       "label": "&File",
       "items": [
         { "command": "application.new-document" },
+        { "command": "application.new-tab" },
         { "command": "application.open" },
+        { "command": "application.open-new-window" },
         { "command": "file.compare-files" },
+        {
+          "submenu": "file-recent",
+          "label": "Recent Files",
+          "items": [
+            { "provider": "recent-files" }
+          ]
+        },
         { "separator": true },
         { "command": "editor.save" },
+        { "provider": "realtime-save-toggle" },
+        { "command": "editor.save-as" },
         { "command": "editor.revert" },
+        {
+          "submenu": "file-print",
+          "label": "Print",
+          "items": [
+            { "command": "editor.preview" },
+            { "command": "editor.print" },
+            { "command": "editor.print-page-selection" },
+            { "command": "editor.print-to-file" },
+            { "command": "editor.print-page-selection-to-file" },
+            { "command": "application.page-setup" }
+          ]
+        },
+        {
+          "submenu": "file-import",
+          "label": "Import",
+          "items": [
+            { "provider": "file-import-formats" }
+          ]
+        },
+        {
+          "submenu": "file-export",
+          "label": "Export",
+          "items": [
+            { "provider": "file-export-formats" },
+            { "separator": true },
+            { "command": "editor.export-pdf" },
+            { "command": "editor.export-postscript" },
+            {
+              "submenu": "file-export-selection-image",
+              "label": "Export selection as image",
+              "items": [
+                { "provider": "selection-image-formats" }
+              ]
+            }
+          ]
+        },
         { "separator": true },
         { "command": "file.export-namespace" },
         { "separator": true },
@@ -556,6 +610,15 @@
       "items": [
         { "command": "application.command-palette" },
         { "command": "application.quick-switcher" }
+      ]
+    },
+    {
+      "id": "plugins",
+      "label": "Plugins",
+      "items": [
+        { "command": "plugins.manage" },
+        { "separator": true },
+        { "provider": "runtime-plugin-menu" }
       ]
     },
     {
