@@ -321,6 +321,61 @@ QTMCommandRegistry::registerFocusParameterCommands () {
     });
 
   registerProvider (
+    "editor-focus-tag-edit", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QVector<QTMCommandDynamicItem> out;
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return out;
+      actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
+      if (!focus.valid () || !focus.tag_extension) return out;
+      if (focus.tag_macro_source_available)
+        out.append (enabled_dynamic_item (
+          QStringLiteral ("edit-source"), QObject::tr ("Edit source")));
+      QString command= qstring (focus.tag_shortcut_command);
+      if (!command.isEmpty ())
+        out.append (enabled_dynamic_item (
+          QStringLiteral ("shortcut"),
+          focus.tag_shortcut_exists ?
+            QObject::tr ("Edit shortcut"): QObject::tr ("Create shortcut")));
+      return out;
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return false;
+      actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
+      if (!focus.valid () || !focus.tag_extension) return false;
+      if (key == QStringLiteral ("edit-source")) {
+        if (!focus.tag_macro_source_available) return false;
+        QJsonObject action;
+        action.insert ("op", "focus-action");
+        action.insert ("id", "edit-focus-macro-source");
+        return submit_inline_editor_action (context, action);
+      }
+      if (key != QStringLiteral ("shortcut")) return false;
+      QString command= qstring (focus.tag_shortcut_command);
+      if (command.isEmpty ()) return false;
+      try {
+        (void) call (
+          "open-shortcuts-editor", object (string ("")),
+          object (from_qstring (command)));
+        return true;
+      }
+      catch (...) {
+        return false;
+      }
+    },
+    [] (const QTMCommandContext& context) {
+      QTMCommandState state;
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return state;
+      actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
+      if (!focus.valid () || !focus.tag_extension) return state;
+      state.available= true;
+      state.enabled= true;
+      return state;
+    });
+
+  registerProvider (
     "editor-focus-rendering", QTMCommandScope::Editor,
     [] (const QTMCommandContext& context) {
       QVector<QTMCommandDynamicItem> out;

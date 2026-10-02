@@ -48,7 +48,7 @@
       {"submenu":"editor-focus-slides","label":"Slides","icon":"tm_switch","focus_requires":["screens-context"],"items":[{"provider":"editor-focus-slides"}]},
       {"command":"editor.focus.slide-title","focus_requires":["screens-context"]},
       {"command":"editor.focus.slide-draw","focus_requires":["screens-context"]},
-      {"submenu":"editor-focus-screen-preferences","label":"Preferences for tag","icon":"tm_focus_prefs","focus_requires":["screens-context"],"items":[{"provider":"editor-focus-preferences"}]},
+      {"submenu":"editor-focus-screen-preferences","label":"Preferences for tag","icon":"tm_focus_prefs","focus_requires":["screens-context"],"items":[{"provider":"editor-focus-preferences"},{"separator":true},{"provider":"editor-focus-tag-edit"}]},
       {"command":"editor.focus.help","focus_requires":["screens-context"]},
       {"command":"editor.focus.help","focus_requires":["buffer"]},
       {"provider":"editor-focus-document-extras","focus_requires":["buffer"]},
@@ -90,7 +90,7 @@
       {"command":"editor.focus.exit-left","focus_forbids":["buffer","code-context","screens-context"]},
       {"command":"editor.focus.exit-right","focus_forbids":["buffer","code-context","screens-context"]},
       {"command":"editor.focus.remove-tag","focus_forbids":["buffer","code-context","screens-context"]},
-      {"submenu":"editor-focus-preferences","label":"Preferences for tag","icon":"tm_focus_prefs","focus_forbids":["buffer","code-context","screens-context"],"items":[{"provider":"editor-focus-preferences"}]},
+      {"submenu":"editor-focus-preferences","label":"Preferences for tag","icon":"tm_focus_prefs","focus_forbids":["buffer","code-context","screens-context"],"items":[{"provider":"editor-focus-preferences"},{"separator":true},{"provider":"editor-focus-tag-edit"}]},
       {"submenu":"editor-focus-rendering","label":"Rendering options for tag","icon":"tm_theme","focus_forbids":["buffer","code-context","screens-context"],"items":[{"provider":"editor-focus-rendering"}]},
       {"command":"editor.focus.search","focus_forbids":["buffer","code-context","screens-context"]},
       {"command":"editor.focus.help","focus_forbids":["buffer","code-context","screens-context"]}

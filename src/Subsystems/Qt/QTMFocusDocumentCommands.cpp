@@ -14,7 +14,10 @@
 #include <QColor>
 #include <QColorDialog>
 #include <QFileDialog>
+#include <QInputDialog>
 #include <QJsonObject>
+#include <QLineEdit>
+#include <QMessageBox>
 
 using namespace qtm_command_registry_detail;
 
@@ -77,9 +80,37 @@ QTMCommandRegistry::registerFocusDocumentCommands () {
         item.state.checked= choice.checked;
         out.append (std::move (item));
       }
+      QTMCommandDynamicItem other= enabled_dynamic_item (
+        QStringLiteral ("other"), QObject::tr ("Other style..."));
+      other.state.enabled= enabled;
+      out.append (std::move (other));
       return out;
     },
     [] (const QString& key, const QTMCommandContext& context) {
+      if (key == QStringLiteral ("other")) {
+        qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+        if (proxy == nullptr) return false;
+        actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
+        bool ok= false;
+        QString name= QInputDialog::getText (
+          context.shell.data (), QObject::tr ("Document style"),
+          QObject::tr ("Style name:"), QLineEdit::Normal, QString (), &ok)
+                         .trimmed ();
+        if (!ok || name.isEmpty ()) return true;
+        for (const auto& style: focus.document_styles)
+          if (qstring (style.value) == name) {
+            QJsonObject action;
+            action.insert ("op", "set-main-style");
+            action.insert ("style", name);
+            return submit_inline_editor_action (
+              context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
+          }
+        QMessageBox::warning (
+          context.shell.data (), QObject::tr ("Document style"),
+          QObject::tr ("No installed document style named '%1' was found.")
+            .arg (name));
+        return true;
+      }
       bool ok= false;
       int index= key.toInt (&ok);
       if (!ok) return false;
@@ -145,9 +176,39 @@ QTMCommandRegistry::registerFocusDocumentCommands () {
         item.state.checked= package.checked;
         out.append (std::move (item));
       }
+      QTMCommandDynamicItem other= enabled_dynamic_item (
+        QStringLiteral ("other"), QObject::tr ("Other package..."));
+      other.group= QObject::tr ("Add package");
+      other.state.enabled= enabled;
+      out.append (std::move (other));
       return out;
     },
     [] (const QString& key, const QTMCommandContext& context) {
+      if (key == QStringLiteral ("other")) {
+        qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+        if (proxy == nullptr) return false;
+        actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
+        bool ok= false;
+        QString name= QInputDialog::getText (
+          context.shell.data (), QObject::tr ("Add style package"),
+          QObject::tr ("Package name:"), QLineEdit::Normal, QString (), &ok)
+                         .trimmed ();
+        if (!ok || name.isEmpty ()) return true;
+        for (const auto& package: focus.document_packages)
+          if (qstring (package.value) == name) {
+            QJsonObject action;
+            action.insert ("op", "focus-document-package");
+            action.insert ("action", "add");
+            action.insert ("name", name);
+            return submit_inline_editor_action (
+              context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
+          }
+        QMessageBox::warning (
+          context.shell.data (), QObject::tr ("Add style package"),
+          QObject::tr ("No installed style package named '%1' was found.")
+            .arg (name));
+        return true;
+      }
       QStringList parts= key.split ('/');
       if (parts.size () != 2) return false;
       bool ok= false;
@@ -267,10 +328,15 @@ QTMCommandRegistry::registerFocusDocumentCommands () {
         return false;
       QJsonObject action;
       action.insert ("op", "focus-document-package");
-      action.insert ("action", "add");
+      const QString name=
+        qstring ((*choices)[static_cast<std::size_t> (index)].value);
       action.insert (
-        "name",
-        qstring ((*choices)[static_cast<std::size_t> (index)].value));
+        "action",
+        name == QStringLiteral ("alt-colors") ||
+        name == QStringLiteral ("framed-theorems") ?
+          QStringLiteral ("toggle"): QStringLiteral ("add"));
+      action.insert (
+        "name", name);
       return submit_inline_editor_action (
         context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
     },

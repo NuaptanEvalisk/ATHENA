@@ -146,7 +146,12 @@ valid_focus_action_id (const QString& id) {
     "poster-insert-up",
     "poster-insert-down",
     "script-insert-up",
-    "script-insert-down"
+    "script-insert-down",
+    "document-insert-screens",
+    "table-make-subtable",
+    "table-join-selected-cells",
+    "table-reset-cell-span",
+    "edit-focus-macro-source"
   };
   return ids.contains (id);
 }
@@ -466,7 +471,8 @@ native_editor_action_validate (const QJsonObject& action, QString* error) {
       return fail_validation (
         error, "focus-document-package requires action/name");
     const QString kind= action.value ("action").toString ();
-    if (kind != "add" && kind != "remove" && kind != "edit")
+    if (kind != "add" && kind != "remove" &&
+        kind != "edit" && kind != "toggle")
       return fail_validation (
         error, "invalid focus document package action");
     return true;
@@ -781,6 +787,36 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
       generic_structured_insert_up ();
     else if (id == "script-insert-down" && state.script_insert_down)
       generic_structured_insert_down ();
+    else if (id == "document-insert-screens" &&
+             state.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
+             state.document_insert_screens_available)
+      (void) call ("make-screens");
+    else if (id == "edit-focus-macro-source" &&
+             state.tag_extension && state.tag_macro_source_available)
+      (void) call ("edit-focus-macro-source");
+    else if (id == "table-make-subtable" &&
+             state.has (ACTOR_FOCUS_TOOLBAR_TABLE_CONTEXT) &&
+             state.table_subtable_available)
+      ed->make_subtable ();
+    else if (id == "table-join-selected-cells" &&
+             state.has (ACTOR_FOCUS_TOOLBAR_TABLE_CONTEXT) &&
+             state.table_join_cells_available) {
+      array<int> cells= ed->table_which_cells ();
+      if (N(cells) != 4 || cells[1] < cells[0] || cells[3] < cells[2])
+        return;
+      ed->table_go_to (cells[0], cells[2]);
+      ed->selection_cancel ();
+      ed->cell_set_format (
+        "cell-row-span", tree (as_string (cells[1] + 1 - cells[0])));
+      ed->cell_set_format (
+        "cell-col-span", tree (as_string (cells[3] + 1 - cells[2])));
+    }
+    else if (id == "table-reset-cell-span" &&
+             state.has (ACTOR_FOCUS_TOOLBAR_TABLE_CONTEXT) &&
+             state.table_reset_span_available) {
+      ed->cell_set_format ("cell-row-span", tree ("1"));
+      ed->cell_set_format ("cell-col-span", tree ("1"));
+    }
   }
   else if (op == "focus-hidden-field") {
     actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
@@ -1030,6 +1066,8 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
       if (!document_has_style_package (name))
         document_add_style_package (name);
     }
+    else if (kind == "toggle" && available)
+      document_toggle_style_package (name);
     else if (kind == "remove" && current)
       document_remove_style_package (name);
     else if (kind == "edit" && current)

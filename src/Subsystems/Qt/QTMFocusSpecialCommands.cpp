@@ -134,6 +134,23 @@ QTMCommandRegistry::registerFocusSpecialCommands () {
           QStringLiteral ("table-toggle-parwidth"),
           QObject::tr ("Extend table to full paragraph width"),
           QStringLiteral ("tm_table_parwidth"), true, focus.table_parwidth);
+      if (focus.table_subtable_available)
+        append (
+          QStringLiteral ("table-make-subtable"),
+          QObject::tr ("Transform cell into subtable"),
+          focus.table_subtable_spanned ?
+            QStringLiteral ("tm_cell_var_subtable"):
+            QStringLiteral ("tm_cell_subtable"));
+      if (focus.table_reset_span_available)
+        append (
+          QStringLiteral ("table-reset-cell-span"),
+          QObject::tr ("Dissociate joined cells"),
+          QStringLiteral ("tm_cell_split"));
+      if (focus.table_join_cells_available)
+        append (
+          QStringLiteral ("table-join-selected-cells"),
+          QObject::tr ("Join selected cells"),
+          QStringLiteral ("tm_cell_join"));
       if (focus.automatic_section_context)
         append (
           QStringLiteral ("automatic-section-rename"),
@@ -164,6 +181,9 @@ QTMCommandRegistry::registerFocusSpecialCommands () {
         QStringLiteral ("sqrt-toggle"),
         QStringLiteral ("dueto-add"),
         QStringLiteral ("table-toggle-parwidth"),
+        QStringLiteral ("table-make-subtable"),
+        QStringLiteral ("table-reset-cell-span"),
+        QStringLiteral ("table-join-selected-cells"),
         QStringLiteral ("poster-insert-up"),
         QStringLiteral ("poster-insert-down"),
         QStringLiteral ("script-insert-up"),
@@ -667,6 +687,10 @@ QTMCommandRegistry::registerFocusSpecialCommands () {
         append (
           QStringLiteral ("document-insert-abstract"),
           QObject::tr ("Abstract"));
+      if (focus.document_insert_screens_available)
+        append (
+          QStringLiteral ("document-insert-screens"),
+          QObject::tr ("Screens"));
       if (focus.tmdoc_insert_copyright_available)
         append (
           QStringLiteral ("tmdoc-insert-copyright"),
@@ -677,6 +701,7 @@ QTMCommandRegistry::registerFocusSpecialCommands () {
       static const QSet<QString> allowed {
         QStringLiteral ("document-insert-title"),
         QStringLiteral ("document-insert-abstract"),
+        QStringLiteral ("document-insert-screens"),
         QStringLiteral ("poster-insert-title"),
         QStringLiteral ("tmdoc-insert-title"),
         QStringLiteral ("tmdoc-insert-copyright")
@@ -692,6 +717,7 @@ QTMCommandRegistry::registerFocusSpecialCommands () {
         focus.valid () && focus.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
         (focus.document_insert_title_available ||
          focus.document_insert_abstract_available ||
+         focus.document_insert_screens_available ||
          focus.poster_insert_title_available ||
          focus.tmdoc_insert_title_available ||
          focus.tmdoc_insert_copyright_available);

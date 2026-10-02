@@ -208,6 +208,7 @@ struct actor_focus_toolbar_snapshot {
   std::uint32_t flags= 0;
   std::string tag_label;
   std::string tag_name;
+  std::string tag_shortcut_command;
   std::vector<std::string> variants;
   std::vector<std::string> variant_names;
   std::string code_language;
@@ -233,6 +234,9 @@ struct actor_focus_toolbar_snapshot {
   bool figure_context= false;
   bool titled_named= false;
   bool frame_titled= false;
+  bool tag_extension= false;
+  bool tag_macro_source_available= false;
+  bool tag_shortcut_exists= false;
   bool multicol_style= false;
   bool float_wide= false;
   bool floatable_wide= false;
@@ -271,6 +275,10 @@ struct actor_focus_toolbar_snapshot {
   bool dueto_available= false;
   bool table_parwidth= false;
   std::string table_cell_mode;
+  bool table_subtable_available= false;
+  bool table_subtable_spanned= false;
+  bool table_join_cells_available= false;
+  bool table_reset_span_available= false;
   bool pen_effect_context= false;
   std::string pen_effect;
   bool overlays_context= false;
@@ -281,6 +289,7 @@ struct actor_focus_toolbar_snapshot {
   std::vector<bool> overlay_visible;
   bool document_insert_title_available= false;
   bool document_insert_abstract_available= false;
+  bool document_insert_screens_available= false;
   bool poster_insert_title_available= false;
   bool tmdoc_insert_title_available= false;
   bool tmdoc_insert_copyright_available= false;

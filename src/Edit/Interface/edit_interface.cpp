@@ -909,6 +909,15 @@ editor_rep::focus_toolbar_state_snapshot () {
       }
     }
     catch (...) {}
+    const string focusTag= as_string (L(t));
+    if (focusTag == "wide" || focusTag == "wide*") {
+      snapshot.alternate_label= "Accent below";
+      snapshot.alternate_icon= "tm_wide_under";
+    }
+    else if (focusTag == "around" || focusTag == "around*") {
+      snapshot.alternate_label= "Large brackets";
+      snapshot.alternate_icon= "tm_large_around";
+    }
   }
   for (int i=0; i<N(t); ++i)
     if (!drd->is_accessible_child (t, i)) {
@@ -967,6 +976,17 @@ editor_rep::focus_toolbar_state_snapshot () {
       cellMode.data (), static_cast<std::size_t> (N(cellMode)));
     try { snapshot.table_parwidth= as_bool (call ("table-test-parwidth?")); }
     catch (...) {}
+    bool spansMore= false;
+    try { spansMore= as_bool (call ("cell-spans-more?")); }
+    catch (...) {}
+    const bool tableSelection= selection_active_table ();
+    snapshot.table_subtable_available=
+      cellMode == "cell" &&
+      !tableSelection &&
+      (spansMore || table_nr_rows () * table_nr_columns () > 1);
+    snapshot.table_subtable_spanned= spansMore;
+    snapshot.table_join_cells_available= tableSelection;
+    snapshot.table_reset_span_available= cellMode == "cell" && spansMore;
   }
 
   snapshot.pen_effect_context= format_pen_effect_context (t);
@@ -1018,6 +1038,11 @@ editor_rep::focus_toolbar_state_snapshot () {
     try {
       snapshot.document_insert_abstract_available=
         as_bool (call ("document-propose-abstract?"));
+    }
+    catch (...) {}
+    try {
+      snapshot.document_insert_screens_available=
+        as_bool (call ("document-propose-screens?"));
     }
     catch (...) {}
     try {
@@ -1173,6 +1198,26 @@ editor_rep::focus_toolbar_state_snapshot () {
 
   string tag= as_string (L (t));
   snapshot.tag_label.assign (tag.data (), static_cast<std::size_t> (N(tag)));
+  try {
+    snapshot.tag_extension=
+      as_bool (call ("tree-label-extension?", symbol_object (tag)));
+  }
+  catch (...) {}
+  if (snapshot.tag_extension) {
+    try {
+      snapshot.tag_macro_source_available=
+        as_bool (call ("has-macro-source?", symbol_object (tag)));
+    }
+    catch (...) {}
+    const string command= "(make '" * tag * ")";
+    snapshot.tag_shortcut_command.assign (
+      command.data (), static_cast<std::size_t> (N(command)));
+    try {
+      snapshot.tag_shortcut_exists=
+        as_bool (call ("has-user-shortcut?", object (command)));
+    }
+    catch (...) {}
+  }
   try {
     object name= call ("focus-tag-name", symbol_object (tag));
     if (is_string (name)) {
@@ -1493,6 +1538,19 @@ editor_rep::focus_toolbar_state_snapshot () {
     }
     else {
       append_theme_list ("basic-themes", snapshot.document_themes);
+      for (const char* extra: {"alt-colors", "framed-theorems"}) {
+        const string name (extra);
+        actor_focus_choice_snapshot item;
+        item.value.assign (
+          name.data (), static_cast<std::size_t> (N(name)));
+        const string label=
+          name == "alt-colors" ? string ("Alternative colors"):
+                                 string ("Framed theorems");
+        item.label.assign (
+          label.data (), static_cast<std::size_t> (N(label)));
+        item.checked= document_has_style_package (name);
+        snapshot.document_themes.push_back (std::move (item));
+      }
       try {
         snapshot.background_available=
           as_string (call ("current-basic-theme")) != "plain";
