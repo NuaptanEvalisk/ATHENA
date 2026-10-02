@@ -16,6 +16,7 @@
 	(utils edit variants)
 	(utils edit selections)
 	(text text-drd)
+	(text text-structure)
 	(generic format-drd) (generic generic-edit)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -294,6 +295,13 @@
 	 (with bp (list-drop (cursor-path) (length (tree->path bt)))
 	   (with sp (path-previous-section bt bp)
 	     (and (!= sp bp) (path->tree (append (tree->path bt) sp))))))))
+
+(tm-define (native-section-switch-to i)
+  (with secs (tree-search-sections (buffer-tree))
+    (when (and (integer? i) (>= i 0) (< i (length secs)))
+      (with s (list-ref secs i)
+        (when (and (tree? s) (tree->path s) (section-context? s))
+          (tree-go-to s 0 :end))))))
 
 (tm-define (go-to-section-title)
   (and-with s (previous-section)

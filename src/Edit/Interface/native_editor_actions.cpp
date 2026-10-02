@@ -398,6 +398,56 @@ native_editor_action_validate (const QJsonObject& action, QString* error) {
            action.value ("index").toInt (-1) >= 1 ?
              true : fail_validation (
                error, "focus-overlay-reference requires positive index");
+  if (op == "focus-text-data") {
+    if (!has_string (action, "kind"))
+      return fail_validation (error, "focus-text-data requires kind");
+    const QString kind= action.value ("kind").toString ();
+    if (kind == "title-hidden-toggle") return true;
+    if (!has_string (action, "value"))
+      return fail_validation (error, "focus-text-data requires value");
+    const QString value= action.value ("value").toString ();
+    if (kind == "title-element")
+      return QSet<QString> {
+        "doc-subtitle", "doc-author", "doc-date", "today",
+        "doc-misc", "doc-note", "doc-running-title", "doc-running-author"
+      }.contains (value) ? true :
+        fail_validation (error, "invalid title element");
+    if (kind == "author-element")
+      return QSet<QString> {
+        "author-affiliation", "author-email", "author-homepage",
+        "author-misc", "author-note"
+      }.contains (value) ? true :
+        fail_validation (error, "invalid author element");
+    if (kind == "abstract-element")
+      return QSet<QString> {
+        "abstract-arxiv", "abstract-acm", "abstract-msc",
+        "abstract-pacs", "abstract-keywords"
+      }.contains (value) ? true :
+        fail_validation (error, "invalid abstract element");
+    if (kind == "title-clustering")
+      return QSet<QString> {
+        "none", "affiliation", "all"
+      }.contains (value) ? true :
+        fail_validation (error, "invalid title clustering");
+    return fail_validation (error, "invalid focus-text-data kind");
+  }
+  if (op == "focus-section-switch")
+    return action.value ("index").isDouble () &&
+           action.value ("index").toInt (-1) >= 0 ?
+             true : fail_validation (
+               error, "focus-section-switch requires nonnegative index");
+  if (op == "focus-embedded-image") {
+    if (!has_string (action, "kind"))
+      return fail_validation (error, "focus-embedded-image requires kind");
+    const QString kind= action.value ("kind").toString ();
+    if (QSet<QString> {"save-all", "link-all", "embed-this", "embed-all"}
+          .contains (kind))
+      return true;
+    if (!QSet<QString> {"save-as", "link-as", "link-copies-as"}.contains (kind))
+      return fail_validation (error, "invalid embedded image action");
+    return has_string (action, "path") ?
+      true : fail_validation (error, "embedded image action requires path");
+  }
   if (op == "focus-document-package") {
     if (!has_string (action, "action") || !has_string (action, "name"))
       return fail_validation (
@@ -775,6 +825,90 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     tree target= ed->the_subtree (focus);
     if (N(target) == 0) return;
     (void) tree_set (target, 0, tree (as_string (index)));
+  }
+  else if (op == "focus-text-data") {
+    actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
+    if (!state.valid ()) return;
+    const QString kind= action.value ("kind").toString ();
+    const string value=
+      has_string (action, "value") ?
+        native_action_string (action.value ("value")) : string ("");
+    if (kind == "title-hidden-toggle") {
+      if ((state.has (ACTOR_FOCUS_TOOLBAR_DOC_TITLE_CONTEXT) ||
+           state.has (ACTOR_FOCUS_TOOLBAR_DOC_AUTHOR_CONTEXT)) &&
+          state.title_hidden_available)
+        (void) call ("doc-data-activate-toggle");
+      return;
+    }
+    if (kind == "title-element") {
+      if (!state.has (ACTOR_FOCUS_TOOLBAR_DOC_TITLE_CONTEXT) &&
+          !state.has (ACTOR_FOCUS_TOOLBAR_DOC_AUTHOR_CONTEXT))
+        return;
+      if (value == "today") {
+        (void) call ("make-doc-data-element", symbol_object ("doc-date"));
+        (void) call ("make", symbol_object ("date"), object (0));
+      }
+      else
+        (void) call ("make-doc-data-element", symbol_object (value));
+      return;
+    }
+    if (kind == "author-element") {
+      if (!state.has (ACTOR_FOCUS_TOOLBAR_DOC_AUTHOR_CONTEXT)) return;
+      (void) call ("make-author-data-element", symbol_object (value));
+      return;
+    }
+    if (kind == "abstract-element") {
+      if (!state.has (ACTOR_FOCUS_TOOLBAR_ABSTRACT_CONTEXT)) return;
+      (void) call ("make-abstract-data-element", symbol_object (value));
+      return;
+    }
+    if (kind == "title-clustering") {
+      if (!state.has (ACTOR_FOCUS_TOOLBAR_DOC_TITLE_CONTEXT) &&
+          !state.has (ACTOR_FOCUS_TOOLBAR_DOC_AUTHOR_CONTEXT))
+        return;
+      if (value == "none")
+        (void) call ("set-doc-title-clustering", object (false));
+      else if (value == "affiliation")
+        (void) call (
+          "set-doc-title-clustering",
+          object (string ("cluster-by-affiliation")));
+      else if (value == "all")
+        (void) call (
+          "set-doc-title-clustering", object (string ("cluster-all")));
+    }
+  }
+  else if (op == "focus-section-switch") {
+    actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
+    if (!state.valid () || !state.section_navigation_available) return;
+    const int index= action.value ("index").toInt (-1);
+    if (index < 0 ||
+        index >= static_cast<int> (state.section_names.size ()))
+      return;
+    (void) call ("native-section-switch-to", object (index));
+  }
+  else if (op == "focus-embedded-image") {
+    actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
+    path focus= ed->focus_get ();
+    if (!state.valid () || !ed->test_subtree (focus)) return;
+    tree target= ed->the_subtree (focus);
+    const QString kind= action.value ("kind").toString ();
+    if (kind == "save-as" && state.embedded_image_context)
+      generic_save_embedded_image (
+        target, url_system (native_action_string (action.value ("path"))));
+    else if (kind == "link-as" && state.embedded_image_context)
+      generic_link_embedded_image (
+        target, url_system (native_action_string (action.value ("path"))));
+    else if (kind == "link-copies-as" && state.embedded_image_context)
+      generic_link_embedded_image_copies (
+        target, url_system (native_action_string (action.value ("path"))));
+    else if (kind == "save-all" && state.embedded_image_context)
+      generic_save_all_embedded_images ();
+    else if (kind == "link-all" && state.embedded_image_context)
+      generic_link_all_embedded_images ();
+    else if (kind == "embed-this" && state.linked_image_context)
+      generic_embed_image (target);
+    else if (kind == "embed-all" && state.linked_image_context)
+      generic_embed_all_images ();
   }
   else if (op == "focus-set-label") {
     actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();

@@ -1042,6 +1042,67 @@ editor_rep::focus_toolbar_state_snapshot () {
   if (snapshot.has (ACTOR_FOCUS_TOOLBAR_FRAME_CONTEXT))
     snapshot.frame_titled= query ("frame-titled?");
 
+  if (snapshot.has (ACTOR_FOCUS_TOOLBAR_DOC_TITLE_CONTEXT) ||
+      snapshot.has (ACTOR_FOCUS_TOOLBAR_DOC_AUTHOR_CONTEXT)) {
+    try {
+      snapshot.title_hidden_available=
+        as_bool (call ("doc-data-has-hidden?"));
+      snapshot.title_hidden_checked=
+        snapshot.title_hidden_available &&
+        as_bool (call ("doc-data-deactivated?"));
+    }
+    catch (...) {}
+    try {
+      if (as_bool (
+            call ("test-doc-title-clustering?", object (string ("cluster-all")))))
+        snapshot.title_clustering= "all";
+      else if (as_bool (
+                 call ("test-doc-title-clustering?",
+                       object (string ("cluster-by-affiliation")))))
+        snapshot.title_clustering= "affiliation";
+      else
+        snapshot.title_clustering= "none";
+    }
+    catch (...) {}
+  }
+
+  bool sectionContext= query ("section-context?");
+  bool bufferHasPreviousSection= false;
+  if (snapshot.has (ACTOR_FOCUS_TOOLBAR_BUFFER)) {
+    try {
+      object previous= call ("previous-section");
+      bufferHasPreviousSection= is_tree (previous);
+    }
+    catch (...) {}
+  }
+  if (sectionContext || bufferHasPreviousSection) {
+    array<tree> sections= search_sections (the_buffer ());
+    for (int i=0; i<N(sections); ++i) {
+      string label= "Section " * as_string (i + 1);
+      try {
+        object name= call (
+          "tm/section-get-title-string",
+          object (sections[i]), object (true));
+        if (is_string (name)) label= as_string (name);
+      }
+      catch (...) {}
+      snapshot.section_names.emplace_back (
+        label.data (), static_cast<std::size_t> (N(label)));
+    }
+    snapshot.section_navigation_available= !snapshot.section_names.empty ();
+  }
+
+  snapshot.embedded_image_context= generic_embedded_image_context (t);
+  snapshot.linked_image_context= generic_linked_image_context (t);
+  if (snapshot.embedded_image_context) {
+    object proposal= generic_embedded_propose (t, 1);
+    if (is_string (proposal)) {
+      string value= as_string (proposal);
+      snapshot.embedded_image_proposal.assign (
+        value.data (), static_cast<std::size_t> (N(value)));
+    }
+  }
+
   if (snapshot.has (ACTOR_FOCUS_TOOLBAR_RICH_FLOAT_CONTEXT) ||
       snapshot.has (ACTOR_FOCUS_TOOLBAR_FLOATABLE_CONTEXT) ||
       snapshot.has (ACTOR_FOCUS_TOOLBAR_FOOTNOTE_CONTEXT)) {

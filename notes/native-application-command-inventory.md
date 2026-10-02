@@ -180,10 +180,13 @@ Specialized focus presentation lives in `QTMFocusSpecialCommands.cpp`.
 Its actor snapshot additions are plain booleans, finite values and hidden-field
 records, not menu ASTs. Native providers cover poster/sqrt/Due-to/table/effect
 pen/overlay/document-extra controls; hidden structural field writes reuse the
-native inputter encode/decode business layer and revalidate the field index at
-execution. Scheme edit modules needed by these finite business adapters are
-explicitly `lazy-define`d, so removing the legacy focus-menu registrations
-will not remove their loading path.
+  native inputter encode/decode business layer and revalidate the field index at
+  execution. Scheme edit modules needed by these finite business adapters are
+  explicitly `lazy-define`d, so removing the legacy focus-menu registrations
+  will not remove their loading path. Section navigation, structured
+  title/author/abstract field controls, and embedded/linked image save/link/embed
+  operations are also in this module; file choosers stay native and actor-side
+  execution revalidates the focused structure before mutation.
 
 ## Zero-buffer ownership now established
 

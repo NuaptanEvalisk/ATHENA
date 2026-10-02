@@ -267,8 +267,10 @@ Retirement is group-by-group, with no dual production for a migrated group:
   automatic-section rename, and document/poster/tmdoc title/abstract/copyright
   insertions. Required edit-layer procedures are explicitly lazy-exported so
   the native surface no longer relies on legacy focus-menu loading side effects.
-  Remaining title/author/abstract detail menus, section navigation, embedded
-  image actions and a final background/table parity audit are still pending;
+  Title/author/abstract detail menus, section navigation and embedded/linked
+  image save/link/embed actions are now native as well, with actor snapshot
+  data and typed current-focus revalidation. A final background/table parity
+  audit and a few uncommon node-specific contributors are still pending;
   `texmacs-focus-icons` is not removed until those reach parity.
 - User/extension toolbar: replace `texmacs-extra-icons` with the native runtime
   contribution model, then remove the last legacy `ui_menu_icons` producer and

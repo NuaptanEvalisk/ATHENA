@@ -280,6 +280,14 @@ struct actor_focus_toolbar_snapshot {
   bool poster_insert_title_available= false;
   bool tmdoc_insert_title_available= false;
   bool tmdoc_insert_copyright_available= false;
+  bool title_hidden_available= false;
+  bool title_hidden_checked= false;
+  std::string title_clustering;
+  bool section_navigation_available= false;
+  std::vector<std::string> section_names;
+  bool embedded_image_context= false;
+  bool linked_image_context= false;
+  std::string embedded_image_proposal;
 
   bool valid () const noexcept {
     return (flags & ACTOR_FOCUS_TOOLBAR_VALID) != 0;
