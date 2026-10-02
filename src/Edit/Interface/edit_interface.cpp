@@ -29,6 +29,7 @@
 #include "generic_editor_commands.hpp"
 #include "new_style.hpp"
 #include "structured_commands.hpp"
+#include "language.hpp"
 #ifdef EXPERIMENTAL
 #include "../../Style/Evaluate/evaluate_main.hpp"
 #endif
@@ -945,6 +946,46 @@ editor_rep::document_menu_state_snapshot () {
     if (!snapshot.materials_citation_default) break;
   }
   assign (snapshot.materials_citation_style, citationStyle);
+  return snapshot;
+}
+
+actor_popup_menu_snapshot
+editor_rep::popup_menu_state_snapshot () {
+  actor_popup_menu_snapshot snapshot;
+  snapshot.ready= true;
+
+  range_set ranges= get_alt_selection ("spell-live");
+  path cursor= the_path ();
+  path first;
+  path last;
+  bool found= false;
+  for (int i= 0; i + 1 < N(ranges); i += 2)
+    if (path_less_eq (ranges[i], cursor) &&
+        path_less (cursor, ranges[i + 1])) {
+      first= ranges[i];
+      last= ranges[i + 1];
+      found= true;
+      break;
+    }
+  if (!found) return snapshot;
+
+  tree selected= selection_compute (the_root (), first, last);
+  if (!is_atomic (selected) || N(selected->label) == 0) return snapshot;
+  string word= selected->label;
+  snapshot.spell_word.assign (
+    word.data (), static_cast<std::size_t> (N(word)));
+
+  tree language= get_env_value ("language", first);
+  string lan= is_atomic (language) ? as_string (language):
+                                    get_init_string ("language");
+  tree checked= spell_check (lan, word);
+  if (is_tuple (checked))
+    for (int i= 1; i < N(checked) && i <= 9; ++i)
+      if (is_atomic (checked[i])) {
+        string value= as_string (checked[i]);
+        snapshot.spell_suggestions.emplace_back (
+          value.data (), static_cast<std::size_t> (N(value)));
+      }
   return snapshot;
 }
 

@@ -325,6 +325,19 @@ actor_ui_endpoint::document_menu_state () const {
 }
 
 void
+actor_ui_endpoint::update_popup_menu_state (
+  actor_popup_menu_snapshot snapshot) noexcept {
+  std::lock_guard<std::mutex> lock (popup_menu_lock_);
+  popup_menu_state_= std::move (snapshot);
+}
+
+actor_popup_menu_snapshot
+actor_ui_endpoint::popup_menu_state () const {
+  std::lock_guard<std::mutex> lock (popup_menu_lock_);
+  return popup_menu_state_;
+}
+
+void
 actor_ui_endpoint::set_prominent_spacing_available (bool available) noexcept {
   prominent_spacing_available_.store (available, std::memory_order_release);
 }

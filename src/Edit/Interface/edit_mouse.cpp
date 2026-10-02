@@ -546,17 +546,13 @@ edit_interface_rep::mouse_adjust (SI x, SI y, int mods) {
   y= (SI) (y * magf);
   abs_round (x, y);
   if (!popup_open) {
-    string menu= "texmacs-popup-menu";
-    if ((mods & (ShiftMask + ControlMask)) != 0)
-      menu= "texmacs-alternative-popup-menu";
-    widget contents;
-    get_server ()->menu_widget ("(vertical (link " * menu * "))", contents);
-    athena_resource_id contents_id=
-      actor_ui_store_widget (std::move (contents));
+    if (ui_endpoint != nullptr)
+      ui_endpoint->update_popup_menu_state (popup_menu_state_snapshot ());
+    const bool alternative= (mods & (ShiftMask + ControlMask)) != 0;
     popup_open= publish_ui (
-      actor_command_kind::ui_show_popup, contents_id,
-      static_cast<std::uint64_t> (x), static_cast<std::uint64_t> (y));
-    if (!popup_open) (void) actor_ui_discard_widget (contents_id);
+      actor_command_kind::ui_show_popup,
+      static_cast<std::uint64_t> (x), static_cast<std::uint64_t> (y),
+      alternative ? 1U : 0U);
   }
 }
 

@@ -94,6 +94,7 @@ public:
   actor_editor_command_snapshot editor_command_state_snapshot ();
   actor_focus_toolbar_snapshot focus_toolbar_state_snapshot ();
   actor_document_menu_snapshot document_menu_state_snapshot ();
+  actor_popup_menu_snapshot popup_menu_state_snapshot ();
   void refresh_editor_style_command_flags ();
   void publish_editor_command_state ();
   void publish_focus_toolbar_state ();

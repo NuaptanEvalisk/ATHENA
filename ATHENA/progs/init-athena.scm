@@ -95,6 +95,7 @@
 (lazy-define (athena athena tm-view)
              toggle-full-screen-mode toggle-full-screen-edit-mode
              toggle-panorama-mode toggle-slideshow-mode
+             toggle-remote-control-mode
              fit-to-screen fit-to-screen-width
              toggle-persistent-fit-width toggle-typewriter-mode
              toggle-snap-to-pages schedule-persistent-fit-width)
@@ -122,8 +123,7 @@
 (lazy-menu (athena menus main-menu)
            bookmarks-menu test-menu
            athena-focus-menu window-list-menu
-           workspace-menu presentation-popup-menu texmacs-popup-menu
-           texmacs-alternative-popup-menu)
+           workspace-menu)
 (lazy-define (athena menus file-menu) recent-file-list recent-directory-list)
 (tm-define (notify-set-attachment name key val) (noop))
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
@@ -142,7 +142,6 @@
 (import-from (athena menus file-menu))
 (import-from (doc help-funcs))
 (generic-keyboard-load)
-(lazy-menu (generic live-spell) spell-live-popup-menu)
 (lazy-define (generic live-spell)
              spell-live-import-custom-dictionary-from-preferences)
 (lazy-menu (generic generic-menu) focus-menu)

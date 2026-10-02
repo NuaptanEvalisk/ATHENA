@@ -22,17 +22,6 @@
 (tm-property (spell-live-replace-current-word by) (:interactive #t))
 (tm-property (spell-live-insert-current-word) (:interactive #t))
 
-(tm-menu (spell-live-popup-menu)
-  (let* ((word (spell-live-current-word))
-         (suggestions (if word (spell-live-current-suggestions) (list))))
-    (assuming word
-      (for (s suggestions)
-        ((eval s) (spell-live-replace-current-word s)))
-      (if (nnull? suggestions) ---)
-      ((eval (string-append "Add '" word "' to dictionary"))
-       (spell-live-insert-current-word))
-      ---)))
-
 (define (spell-live-dictionary-lines port)
   (let loop ((out '()))
     (let ((line (read-line port)))

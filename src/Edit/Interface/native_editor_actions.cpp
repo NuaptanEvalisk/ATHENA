@@ -12,7 +12,10 @@
 #include "document_style_commands.hpp"
 #include "format_commands.hpp"
 #include "generic_editor_commands.hpp"
+#include "language.hpp"
 #include "scheme.hpp"
+#include "tree_select.hpp"
+#include "Subsystems/Qt/QTMFormulaAstViewer.hpp"
 #include "Scheme/Scheme/native_interfaces.hpp"
 #include "Subsystems/Qt/QTMReverseHierarchyGraph.hpp"
 
@@ -78,6 +81,62 @@ fail_validation (QString* error, const QString& message) {
 }
 
 bool
+popup_spell_range (editor ed, path& first, path& last, string* word= nullptr) {
+  if (is_nil (ed)) return false;
+  range_set ranges= ed->get_alt_selection ("spell-live");
+  path cursor= ed->the_path ();
+  for (int i= 0; i + 1 < N(ranges); i += 2) {
+    if (!path_less_eq (ranges[i], cursor) ||
+        !path_less (cursor, ranges[i + 1]))
+      continue;
+    first= ranges[i];
+    last= ranges[i + 1];
+    if (word != nullptr) {
+      tree selected= selection_compute (ed->the_root (), first, last);
+      if (!is_atomic (selected) || N(selected->label) == 0) return false;
+      *word= selected->label;
+    }
+    return true;
+  }
+  return false;
+}
+
+void
+popup_spell_replace (editor ed, string replacement) {
+  path first, last;
+  if (!popup_spell_range (ed, first, last)) {
+    ed->set_message ("No live spelling error at cursor", "spell check");
+    return;
+  }
+  ed->start_editing ();
+  range_set selected;
+  selected << first << last;
+  ed->selection_set_range_set (selected);
+  call ("clipboard-cut", object ("dummy"));
+  ed->var_insert_tree (tree (replacement), path (N(replacement)));
+  ed->end_editing ();
+  ed->set_message (
+    "Corrected spelling to '" * replacement * "'", "spell check");
+}
+
+void
+popup_spell_add (editor ed) {
+  path first, last;
+  string word;
+  if (!popup_spell_range (ed, first, last, &word)) {
+    ed->set_message ("No live spelling error at cursor", "spell check");
+    return;
+  }
+  tree language= ed->get_env_value ("language", first);
+  string lan= is_atomic (language) ? as_string (language):
+                                    ed->get_init_string ("language");
+  spell_insert (lan, word);
+  spell_done (lan);
+  ed->set_message (
+    "Added '" * word * "' to dictionary", "spell check");
+}
+
+bool
 valid_business_id (const QString& id) {
   static const QSet<QString> ids {
     "insert-wikilink",
@@ -125,6 +184,7 @@ valid_business_id (const QString& id) {
     "view-toggle-full-screen",
     "view-toggle-panorama",
     "view-toggle-slideshow",
+    "view-toggle-remote-control",
     "view-fit-screen",
     "view-fit-width",
     "view-toggle-persistent-fit-width",
@@ -149,6 +209,9 @@ valid_business_id (const QString& id) {
     "automate-output-string",
     "automate-output-inline",
     "automate-output-block",
+    "popup-resolve-artifact",
+    "popup-formula-ast",
+    "popup-spell-add",
     "letter-today",
     "tmdoc-explain-synopsis",
     "make-alter-colors"
@@ -332,6 +395,8 @@ execute_business_id (editor ed, const QString& id) {
     (void) call ("toggle-panorama-mode");
   else if (id == "view-toggle-slideshow")
     (void) call ("toggle-slideshow-mode");
+  else if (id == "view-toggle-remote-control")
+    (void) call ("toggle-remote-control-mode");
   else if (id == "view-fit-screen")
     (void) call ("fit-to-screen");
   else if (id == "view-fit-width")
@@ -368,6 +433,21 @@ execute_business_id (editor ed, const QString& id) {
   else if (id == "automate-output-string") (void) call ("make-output-string");
   else if (id == "automate-output-inline") (void) call ("make-inline-output");
   else if (id == "automate-output-block") (void) call ("make-block-output");
+  else if (id == "popup-resolve-artifact") {
+    if (!ed->selection_active_any ()) return;
+    (void) call ("resolve-selection-as-artifact-name");
+  }
+  else if (id == "popup-formula-ast") {
+    path root= ed->semantic_root (ed->the_path ());
+    if (!ed->test_subtree (root)) {
+      ed->set_message (
+        "The current formula could not be resolved.", "Formula AST");
+      return;
+    }
+    ast_viewer_show_tree (copy (ed->the_subtree (root)), "Formula AST");
+  }
+  else if (id == "popup-spell-add")
+    popup_spell_add (ed);
   else if (id == "letter-today") {
     (void) call ("make-header", symbol_object ("letter-date"));
     (void) call ("make", symbol_object ("date"), object (0));
@@ -450,6 +530,10 @@ native_editor_action_validate (const QJsonObject& action, QString* error) {
              true : fail_validation (error, "document-install-style requires path");
   if (op == "document-default-theme")
     return true;
+  if (op == "popup-spell-replace")
+    return has_string (action, "replacement") ?
+             true : fail_validation (
+               error, "popup-spell-replace requires replacement");
   if (op == "document-citation-style") {
     if (!has_bool (action, "default"))
       return fail_validation (error, "document-citation-style requires default");
@@ -773,6 +857,9 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
         document_remove_style_package (name);
       }
   }
+  else if (op == "popup-spell-replace")
+    popup_spell_replace (
+      ed, native_action_string (action.value ("replacement")));
   else if (op == "document-citation-style") {
     if (!ed->document_menu_state_snapshot ().ready) return;
     if (action.value ("default").toBool ())

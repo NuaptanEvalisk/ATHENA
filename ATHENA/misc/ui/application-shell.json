@@ -1028,6 +1028,45 @@
       ]
     }
   ],
+  "popups": [
+    {
+      "id": "editor-context",
+      "items": [
+        { "provider": "popup-presentation" },
+        { "separator": true },
+        { "provider": "popup-artifact" },
+        { "separator": true },
+        { "provider": "popup-formula-ast" },
+        { "separator": true },
+        { "provider": "popup-spell" },
+        { "separator": true },
+        { "menu": "focus", "flatten": true }
+      ]
+    },
+    {
+      "id": "editor-context-alternative",
+      "items": [
+        { "provider": "popup-artifact" },
+        { "separator": true },
+        { "menu": "file" },
+        { "menu": "edit" },
+        { "menu": "insert" },
+        { "menu": "manual" },
+        { "menu": "source" },
+        { "menu": "dynamic" },
+        { "menu": "automate" },
+        { "menu": "focus" },
+        { "menu": "format" },
+        { "menu": "document" },
+        { "menu": "interface" },
+        { "menu": "view" },
+        { "menu": "workspace" },
+        { "menu": "go" },
+        { "separator": true },
+        { "menu": "help" }
+      ]
+    }
+  ],
   "toolbars": [
     {
       "id": "editor-main",

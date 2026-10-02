@@ -17,6 +17,7 @@
 #include <QPointer>
 
 class QTMCompletionPopup;
+class QMenu;
 
 class qt_actor_widget_rep final: public qt_simple_widget_rep {
 public:
@@ -29,6 +30,7 @@ public:
   actor_editor_command_snapshot editor_command_state () const noexcept;
   actor_focus_toolbar_snapshot focus_toolbar_state () const;
   actor_document_menu_snapshot document_menu_state () const;
+  actor_popup_menu_snapshot popup_menu_state () const;
   actor_viewport_snapshot viewport_state () const noexcept;
   bool prominent_spacing_available () const noexcept;
   bool inside_table () const noexcept;
@@ -97,8 +99,7 @@ private:
   const athena_view_id view_id_;
   const bool embedded_;
   actor_ui_endpoint* const endpoint_;
-  widget popup_window_;
-  widget popup_content_;
+  QPointer<QMenu> popup_menu_;
   QPointer<QTMCompletionPopup> completion_popup_;
 
   void submit_text (actor_command_kind kind, string text,

@@ -100,6 +100,26 @@ struct QTMCommandToolbarDefinition {
   QVector<QTMCommandMenuItem> items;
 };
 
+struct QTMCommandPopupItem {
+  enum class Kind {
+    Command,
+    Separator,
+    Menu,
+    Provider
+  };
+
+  Kind kind= Kind::Command;
+  QString commandId;
+  QString menuId;
+  QString providerId;
+  bool flattenMenu= false;
+};
+
+struct QTMCommandPopupDefinition {
+  QString id;
+  QVector<QTMCommandPopupItem> items;
+};
+
 class QTMCommandProvider {
 public:
   virtual ~QTMCommandProvider ()= default;
@@ -122,8 +142,13 @@ public:
   const QVector<QTMCommandToolbarDefinition>& toolbars () const {
     return toolbars_;
   }
+  const QVector<QTMCommandPopupDefinition>& popups () const {
+    return popups_;
+  }
   const QTMCommandDefinition* command (const QString& id) const;
+  const QTMCommandMenuDefinition* menu (const QString& id) const;
   const QTMCommandToolbarDefinition* toolbar (const QString& id) const;
+  const QTMCommandPopupDefinition* popup (const QString& id) const;
   const QTMCommandDefinition* commandForShortcut (
     const QKeySequence& shortcut) const;
 
@@ -165,6 +190,7 @@ private:
   void registerDocumentMenuCommands ();
   void registerViewMenuCommands ();
   void registerGoMenuCommands ();
+  void registerPopupMenuCommands ();
   void registerBehavior (
     const QString& id, QTMCommandScope scope,
     std::function<bool(const QTMCommandContext&)> execute,
@@ -185,6 +211,7 @@ private:
   QVector<QTMCommandDefinition> commands_;
   QVector<QTMCommandMenuDefinition> menus_;
   QVector<QTMCommandToolbarDefinition> toolbars_;
+  QVector<QTMCommandPopupDefinition> popups_;
   QPointer<QObject> pluginManager_;
   QVector<QString> runtimePluginCommandIds_;
   QHash<QString, QString> runtimePluginGroups_;

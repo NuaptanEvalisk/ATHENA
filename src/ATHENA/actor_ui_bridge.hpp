@@ -227,6 +227,12 @@ struct actor_document_menu_snapshot {
   bool commutative_diagram= false;
 };
 
+struct actor_popup_menu_snapshot {
+  bool ready= false;
+  std::string spell_word;
+  std::vector<std::string> spell_suggestions;
+};
+
 struct actor_focus_hidden_field_snapshot {
   int index= -1;
   std::string name;
@@ -380,6 +386,9 @@ public:
   void update_document_menu_state (
     actor_document_menu_snapshot snapshot) noexcept;
   actor_document_menu_snapshot document_menu_state () const;
+  void update_popup_menu_state (
+    actor_popup_menu_snapshot snapshot) noexcept;
+  actor_popup_menu_snapshot popup_menu_state () const;
   void set_prominent_spacing_available (bool available) noexcept;
   bool prominent_spacing_available () const noexcept;
   void set_inside_table (bool inside) noexcept;
@@ -471,6 +480,8 @@ private:
   actor_focus_toolbar_snapshot focus_toolbar_state_;
   mutable std::mutex document_menu_lock_;
   actor_document_menu_snapshot document_menu_state_;
+  mutable std::mutex popup_menu_lock_;
+  actor_popup_menu_snapshot popup_menu_state_;
   std::atomic<bool> personal_macro_request_pending_ {false};
   std::atomic<bool> personal_macro_ready_ {false};
   mutable std::mutex personal_macro_lock_;

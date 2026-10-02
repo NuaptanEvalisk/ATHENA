@@ -59,6 +59,7 @@ QTMCommandRegistry::registerBuiltins () {
   registerDocumentMenuCommands ();
   registerViewMenuCommands ();
   registerGoMenuCommands ();
+  registerPopupMenuCommands ();
 
   using command_filter=
     std::function<bool(const QTMCommandDefinition&)>;
@@ -347,6 +348,7 @@ QTMCommandRegistry::initialize () {
   commands_.clear ();
   menus_.clear ();
   toolbars_.clear ();
+  popups_.clear ();
   registerBuiltins ();
   if (!loadPresentation ()) return false;
   initialized_= true;
@@ -362,9 +364,23 @@ QTMCommandRegistry::command (const QString& id) const {
   return &commands_[index];
 }
 
+const QTMCommandMenuDefinition*
+QTMCommandRegistry::menu (const QString& id) const {
+  for (const QTMCommandMenuDefinition& definition: menus_)
+    if (definition.id == id) return &definition;
+  return nullptr;
+}
+
 const QTMCommandToolbarDefinition*
 QTMCommandRegistry::toolbar (const QString& id) const {
   for (const QTMCommandToolbarDefinition& definition: toolbars_)
+    if (definition.id == id) return &definition;
+  return nullptr;
+}
+
+const QTMCommandPopupDefinition*
+QTMCommandRegistry::popup (const QString& id) const {
+  for (const QTMCommandPopupDefinition& definition: popups_)
     if (definition.id == id) return &definition;
   return nullptr;
 }

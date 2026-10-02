@@ -167,6 +167,7 @@ QTMCommandRegistry::failPresentation (const QString& message) {
   commands_.clear ();
   menus_.clear ();
   toolbars_.clear ();
+  popups_.clear ();
   commandIndex_.clear ();
   return false;
 }
@@ -196,10 +197,13 @@ QTMCommandRegistry::loadPresentation () {
     return failPresentation ("menus must be an array");
   if (!root.value ("toolbars").isArray ())
     return failPresentation ("toolbars must be an array");
+  if (root.contains ("popups") && !root.value ("popups").isArray ())
+    return failPresentation ("popups must be an array");
 
   QJsonArray commandValues= root.value ("commands").toArray ();
   QJsonArray menuValues= root.value ("menus").toArray ();
   QJsonArray toolbarValues= root.value ("toolbars").toArray ();
+  QJsonArray popupValues= root.value ("popups").toArray ();
   for (const char* extensionResource: {
          "$ATHENA_PATH/misc/ui/editor-mode-toolbar.json",
          "$ATHENA_PATH/misc/ui/editor-focus-toolbar.json",
@@ -470,6 +474,75 @@ QTMCommandRegistry::loadPresentation () {
           id, object.value ("items").toArray (), toolbar.items))
       return false;
     toolbars_.append (std::move (toolbar));
+  }
+
+  QSet<QString> popupIds;
+  for (const QJsonValue& value: popupValues) {
+    if (!value.isObject ())
+      return failPresentation ("every popups entry must be an object");
+    QJsonObject object= value.toObject ();
+    QString id= object.value ("id").toString ().trimmed ();
+    if (id.isEmpty () || popupIds.contains (id))
+      return failPresentation (
+        QString ("invalid or duplicate popup id: %1").arg (id));
+    if (!object.value ("items").isArray ())
+      return failPresentation (
+        QString ("popup %1 has no items array").arg (id));
+
+    QTMCommandPopupDefinition popup;
+    popup.id= id;
+    popupIds.insert (id);
+    for (const QJsonValue& itemValue: object.value ("items").toArray ()) {
+      if (!itemValue.isObject ())
+        return failPresentation (
+          QString ("popup %1 contains a non-object item").arg (id));
+      QJsonObject itemObject= itemValue.toObject ();
+      const bool separator= itemObject.value ("separator").toBool (false);
+      const QString commandId=
+        itemObject.value ("command").toString ().trimmed ();
+      const QString menuId=
+        itemObject.value ("menu").toString ().trimmed ();
+      const QString providerId=
+        itemObject.value ("provider").toString ().trimmed ();
+      const int kinds= (separator ? 1 : 0) +
+                       (!commandId.isEmpty () ? 1 : 0) +
+                       (!menuId.isEmpty () ? 1 : 0) +
+                       (!providerId.isEmpty () ? 1 : 0);
+      if (kinds != 1)
+        return failPresentation (
+          QString ("popup %1 item requires one item kind").arg (id));
+
+      QTMCommandPopupItem item;
+      if (separator)
+        item.kind= QTMCommandPopupItem::Kind::Separator;
+      else if (!commandId.isEmpty ()) {
+        if (!commandIndex_.contains (commandId))
+          return failPresentation (
+            QString ("popup %1 references unknown command: %2")
+              .arg (id, commandId));
+        item.kind= QTMCommandPopupItem::Kind::Command;
+        item.commandId= commandId;
+      }
+      else if (!menuId.isEmpty ()) {
+        if (menu (menuId) == nullptr)
+          return failPresentation (
+            QString ("popup %1 references unknown menu: %2")
+              .arg (id, menuId));
+        item.kind= QTMCommandPopupItem::Kind::Menu;
+        item.menuId= menuId;
+        item.flattenMenu= itemObject.value ("flatten").toBool (false);
+      }
+      else {
+        if (!providers_.contains (providerId))
+          return failPresentation (
+            QString ("popup %1 references unknown provider: %2")
+              .arg (id, providerId));
+        item.kind= QTMCommandPopupItem::Kind::Provider;
+        item.providerId= providerId;
+      }
+      popup.items.append (std::move (item));
+    }
+    popups_.append (std::move (popup));
   }
 
   return true;

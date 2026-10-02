@@ -25,6 +25,9 @@
 #include "QTMCompletionPopup.hpp"
 #include "QTMDocumentPersistence.hpp"
 #include "QTMDocumentHistory.hpp"
+#include "QTMDocumentIdentity.hpp"
+#include "QTMPopupMenuPresenter.hpp"
+#include "QTMMainTabWindow.hpp"
 #include "QTMCommutativeDiagramArrowPane.hpp"
 #include "QTMVaultBackupDispatcher.hpp"
 #include "QTMContinuousRag.hpp"
@@ -35,6 +38,8 @@
 #include "renderer.hpp"
 
 #include <QApplication>
+#include <QCursor>
+#include <QMenu>
 #include <QThreadPool>
 #include <QStyle>
 #include <QTimer>
@@ -119,10 +124,13 @@ discard_unsubmitted (athena_blob_id first, athena_blob_id second,
 qt_actor_widget_rep::qt_actor_widget_rep (
   athena_actor_id actor_id, athena_view_id view_id, bool embedded):
   actor_id_ (actor_id), view_id_ (view_id), embedded_ (embedded),
-  endpoint_ (register_actor_ui_endpoint (view_id)), popup_window_ (),
-  popup_content_ () {}
+  endpoint_ (register_actor_ui_endpoint (view_id)) {}
 
 qt_actor_widget_rep::~qt_actor_widget_rep () {
+  if (popup_menu_ != nullptr) {
+    popup_menu_->close ();
+    popup_menu_->deleteLater ();
+  }
   delete completion_popup_.data ();
   unregister_actor_ui_endpoint (view_id_);
 }
@@ -153,6 +161,12 @@ actor_document_menu_snapshot
 qt_actor_widget_rep::document_menu_state () const {
   return endpoint_ == nullptr ? actor_document_menu_snapshot {} :
          endpoint_->document_menu_state ();
+}
+
+actor_popup_menu_snapshot
+qt_actor_widget_rep::popup_menu_state () const {
+  return endpoint_ == nullptr ? actor_popup_menu_snapshot {} :
+         endpoint_->popup_menu_state ();
 }
 
 actor_viewport_snapshot
@@ -914,22 +928,34 @@ qt_actor_widget_rep::drain_external_effects () {
       break;
     }
     case actor_command_kind::ui_show_popup: {
-      if (!is_nil (popup_window_)) {
-        set_visibility (popup_window_, false);
-        destroy_window_widget (popup_window_);
+      if (popup_menu_ != nullptr) {
+        popup_menu_->close ();
+        popup_menu_->deleteLater ();
+        popup_menu_= nullptr;
       }
-      widget contents= actor_ui_take_widget (record.argument[0]);
-      if (is_nil (contents)) break;
-      popup_content_= ::popup_widget (contents);
-      popup_window_= ::popup_window_widget (popup_content_, "Popup menu");
-      SI x= static_cast<SI> (record.argument[1]);
-      SI y= static_cast<SI> (record.argument[2]);
-      SI px, py;
+      QTMWidget* owner= canvas ();
+      if (owner == nullptr) break;
+      QTMCommandContext context;
+      context.shell= QTMMainTabWindow::topTabWindow ();
+      context.workPane= owner;
+      context.inputWidget= owner;
+      context.lastDocument= qtm_document_identity (owner);
+      const bool alternative= record.argument[2] != 0;
+      popup_menu_= qtm_create_popup_menu (
+        alternative ? QStringLiteral ("editor-context-alternative"):
+                      QStringLiteral ("editor-context"),
+        context, owner);
+      if (popup_menu_ == nullptr) break;
+      QObject::connect (
+        popup_menu_, &QObject::destroyed, owner,
+        [this] { popup_menu_= nullptr; });
+      SI x= static_cast<SI> (record.argument[0]);
+      SI y= static_cast<SI> (record.argument[1]);
+      SI px= 0, py= 0;
+      QPoint global= QCursor::pos ();
       if (qt_widget_global_position (this, x, y, px, py))
-        set_position (popup_window_, px, py);
-      set_visibility (popup_window_, true);
-      send_keyboard_focus (widget (this));
-      send_mouse_grab (popup_content_, true);
+        global= to_qpoint (coord2 (px, py));
+      popup_menu_->popup (global);
       break;
     }
     case actor_command_kind::ui_show_completion: {
@@ -985,11 +1011,10 @@ qt_actor_widget_rep::drain_external_effects () {
       if (completion_popup_) completion_popup_->dismiss (record.argument[0]);
       break;
     case actor_command_kind::ui_close_popup:
-      if (!is_nil (popup_window_)) {
-        set_visibility (popup_window_, false);
-        destroy_window_widget (popup_window_);
-        popup_window_= widget ();
-        popup_content_= widget ();
+      if (popup_menu_ != nullptr) {
+        popup_menu_->close ();
+        popup_menu_->deleteLater ();
+        popup_menu_= nullptr;
       }
       break;
     case actor_command_kind::ui_set_scrollbars: {
