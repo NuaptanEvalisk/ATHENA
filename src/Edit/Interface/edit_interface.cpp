@@ -1165,11 +1165,10 @@ editor_rep::focus_toolbar_state_snapshot () {
     const string cellMode= get_cell_mode ();
     snapshot.table_cell_mode.assign (
       cellMode.data (), static_cast<std::size_t> (N(cellMode)));
-    try { snapshot.table_parwidth= as_bool (call ("table-test-parwidth?")); }
-    catch (...) {}
-    bool spansMore= false;
-    try { spansMore= as_bool (call ("cell-spans-more?")); }
-    catch (...) {}
+    snapshot.table_parwidth= table_get_format ("table-width") == "1par";
+    const bool spansMore=
+      cell_get_format ("cell-row-span") != "1" ||
+      cell_get_format ("cell-col-span") != "1";
     const bool tableSelection= selection_active_table ();
     snapshot.table_subtable_available=
       cellMode == "cell" &&
@@ -1221,34 +1220,49 @@ editor_rep::focus_toolbar_state_snapshot () {
   catch (...) {}
 
   if (snapshot.has (ACTOR_FOCUS_TOOLBAR_BUFFER)) {
-    try {
-      snapshot.document_insert_title_available=
-        as_bool (call ("document-propose-title?"));
-    }
-    catch (...) {}
-    try {
-      snapshot.document_insert_abstract_available=
-        as_bool (call ("document-propose-abstract?"));
-    }
-    catch (...) {}
-    try {
-      snapshot.document_insert_screens_available=
-        as_bool (call ("document-propose-screens?"));
-    }
-    catch (...) {}
+    tree buffer= the_buffer ();
+    tree root= the_root ();
+    path cursorParent= path_up (the_path ());
+    const bool cursorEmpty=
+      has_subtree (root, cursorParent) &&
+      subtree (root, cursorParent) == tree ("");
+    bool hasDocData= false;
+    bool hasAbstractData= false;
+    if (is_document (buffer))
+      for (int i=0; i<N(buffer); ++i) {
+        if (is_compound (buffer[i], "doc-data")) hasDocData= true;
+        if (is_compound (buffer[i], "abstract-data")) hasAbstractData= true;
+      }
+    snapshot.document_insert_title_available=
+      is_document (buffer) && N(buffer) > 0 && cursorEmpty &&
+      !hasDocData && !defined_at_init ("beamer-style");
+    snapshot.document_insert_abstract_available=
+      is_document (buffer) && N(buffer) > 0 && cursorEmpty &&
+      hasDocData && !hasAbstractData;
+    snapshot.document_insert_screens_available=
+      defined_at_init ("beamer-style") &&
+      !(is_document (buffer) && N(buffer) > 0 &&
+        is_compound (buffer[N(buffer)-1], "screens"));
     snapshot.poster_insert_title_available=
       defined_at_init ("poster-style") &&
       snapshot.document_insert_title_available;
-    try {
-      snapshot.tmdoc_insert_title_available=
-        as_bool (call ("tmdoc-propose-title?"));
-    }
-    catch (...) {}
-    try {
-      snapshot.tmdoc_insert_copyright_available=
-        as_bool (call ("tmdoc-propose-copyright-and-license?"));
-    }
-    catch (...) {}
+    const bool manualStyle=
+      defined_at_init ("tmdoc-style") && !is_rooted_tmfs (buf->name);
+    const path cursor= the_path ();
+    const bool hasPreviousSection=
+      previous_section (the_root (), cursor) != cursor;
+    const bool firstIsTmdocTitle=
+      is_document (buffer) && N(buffer) > 0 &&
+      is_compound (buffer[0], "tmdoc-title");
+    const bool lastIsTmdocLicense=
+      is_document (buffer) && N(buffer) > 0 &&
+      is_compound (buffer[N(buffer)-1], "tmdoc-license");
+    snapshot.tmdoc_insert_title_available=
+      manualStyle && is_document (buffer) && !hasPreviousSection &&
+      !firstIsTmdocTitle;
+    snapshot.tmdoc_insert_copyright_available=
+      manualStyle && is_document (buffer) && !hasPreviousSection &&
+      firstIsTmdocTitle && !lastIsTmdocLicense;
   }
 
   if (snapshot.has (ACTOR_FOCUS_TOOLBAR_ALGORITHM_CONTEXT)) {
@@ -1267,37 +1281,48 @@ editor_rep::focus_toolbar_state_snapshot () {
 
   if (snapshot.has (ACTOR_FOCUS_TOOLBAR_DOC_TITLE_CONTEXT) ||
       snapshot.has (ACTOR_FOCUS_TOOLBAR_DOC_AUTHOR_CONTEXT)) {
-    try {
-      snapshot.title_hidden_available=
-        as_bool (call ("doc-data-has-hidden?"));
-      snapshot.title_hidden_checked=
-        snapshot.title_hidden_available &&
-        as_bool (call ("doc-data-deactivated?"));
+    tree docData;
+    bool hasDocData= false;
+    for (path p= focus; !is_nil (p); p= path_up (p)) {
+      if (!test_subtree (p)) continue;
+      tree node= the_subtree (p);
+      if (is_compound (node, "doc-data")) {
+        docData= node;
+        hasDocData= true;
+        break;
+      }
     }
-    catch (...) {}
-    try {
-      if (as_bool (
-            call ("test-doc-title-clustering?", object (string ("cluster-all")))))
-        snapshot.title_clustering= "all";
-      else if (as_bool (
-                 call ("test-doc-title-clustering?",
-                       object (string ("cluster-by-affiliation")))))
-        snapshot.title_clustering= "affiliation";
-      else
-        snapshot.title_clustering= "none";
+    if (hasDocData) {
+      bool clusterAll= false;
+      bool clusterAffiliation= false;
+      for (int i=0; i<N(docData); ++i) {
+        tree child= docData[i];
+        if (is_compound (child, "doc-running-title") ||
+            is_compound (child, "doc-running-author") ||
+            is_compound (child, "doc-inactive"))
+          snapshot.title_hidden_available= true;
+        if (is_compound (child, "doc-inactive"))
+          snapshot.title_hidden_checked= true;
+        if (is_compound (child, "doc-title-options"))
+          for (int j=0; j<N(child); ++j)
+            if (is_atomic (child[j])) {
+              string option= as_string (child[j]);
+              if (option == "cluster-all") clusterAll= true;
+              if (option == "cluster-by-affiliation")
+                clusterAffiliation= true;
+            }
+      }
+      snapshot.title_clustering=
+        clusterAll ? "all" :
+        clusterAffiliation ? "affiliation" : "none";
     }
-    catch (...) {}
   }
 
   bool sectionContext= query ("section-context?");
   bool bufferHasPreviousSection= false;
-  if (snapshot.has (ACTOR_FOCUS_TOOLBAR_BUFFER)) {
-    try {
-      object previous= call ("previous-section");
-      bufferHasPreviousSection= is_tree (previous);
-    }
-    catch (...) {}
-  }
+  if (snapshot.has (ACTOR_FOCUS_TOOLBAR_BUFFER))
+    bufferHasPreviousSection=
+      previous_section (the_root (), the_path ()) != the_path ();
   if (sectionContext || bufferHasPreviousSection) {
     array<tree> sections= search_sections (the_buffer ());
     for (int i=0; i<N(sections); ++i) {
@@ -1329,10 +1354,7 @@ editor_rep::focus_toolbar_state_snapshot () {
   if (snapshot.has (ACTOR_FOCUS_TOOLBAR_RICH_FLOAT_CONTEXT) ||
       snapshot.has (ACTOR_FOCUS_TOOLBAR_FLOATABLE_CONTEXT) ||
       snapshot.has (ACTOR_FOCUS_TOOLBAR_FOOTNOTE_CONTEXT)) {
-    try {
-      snapshot.multicol_style= as_bool (call ("in-multicol-style?"));
-    }
-    catch (...) {}
+    snapshot.multicol_style= get_init_string ("par-columns") != "1";
   }
   if (snapshot.has (ACTOR_FOCUS_TOOLBAR_RICH_FLOAT_CONTEXT) ||
       snapshot.has (ACTOR_FOCUS_TOOLBAR_FOOTNOTE_CONTEXT)) {
@@ -1340,8 +1362,16 @@ editor_rep::focus_toolbar_state_snapshot () {
       inside ("float") || inside ("wide-float");
     try { snapshot.float_wide= as_bool (call ("float-wide?", object (t))); }
     catch (...) {}
-    try { snapshot.cursor_at_anchor= as_bool (call ("cursor-at-anchor?")); }
-    catch (...) {}
+    path cursorParent= path_up (the_path ());
+    tree root= the_root ();
+    if (has_subtree (root, cursorParent)) {
+      tree cursorNode= subtree (root, cursorParent);
+      snapshot.cursor_at_anchor=
+        is_compound (cursorNode, "float") ||
+        is_compound (cursorNode, "wide-float") ||
+        is_compound (cursorNode, "footnote") ||
+        is_compound (cursorNode, "wide-footnote");
+    }
   }
   if (snapshot.has (ACTOR_FOCUS_TOOLBAR_FLOATABLE_CONTEXT)) {
     try {
