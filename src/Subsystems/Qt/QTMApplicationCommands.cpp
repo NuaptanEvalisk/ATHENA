@@ -36,11 +36,15 @@
 #include "QTMVaultFontConfigurator.hpp"
 #include "QTMVaultMaintenanceDialog.hpp"
 #include "QTMWebsitesManager.hpp"
+#include "boot.hpp"
 #include "file.hpp"
+#include "message.hpp"
 #include "new_buffer.hpp"
+#include "new_view.hpp"
 #include "new_window.hpp"
 #include "scheme.hpp"
 #include "server.hpp"
+#include "tm_window.hpp"
 
 #include <QFileDialog>
 #include <QFileInfo>
@@ -214,6 +218,110 @@ execute_help_action (const help_action& action, const QTMCommandContext& context
   }
   catch (...) {}
   return false;
+}
+
+enum class editor_chrome_part {
+  header,
+  main_toolbar,
+  mode_toolbar,
+  focus_toolbar,
+  user_toolbar,
+  status_bar
+};
+
+tm_view
+editor_view_for_context (const QTMCommandContext& context) {
+  qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+  if (proxy == nullptr) return nullptr;
+  tm_view view= concrete_runtime_view (proxy->view_id ());
+  return view != nullptr && view->win != nullptr ? view : nullptr;
+}
+
+bool
+editor_chrome_visible (tm_view view, editor_chrome_part part) {
+  if (view == nullptr || view->win == nullptr) return false;
+  widget target= view->win->wid;
+  switch (part) {
+  case editor_chrome_part::header:
+    return get_header_visibility (target);
+  case editor_chrome_part::main_toolbar:
+    return get_main_icons_visibility (target);
+  case editor_chrome_part::mode_toolbar:
+    return get_mode_icons_visibility (target);
+  case editor_chrome_part::focus_toolbar:
+    return get_focus_icons_visibility (target);
+  case editor_chrome_part::user_toolbar:
+    return get_user_icons_visibility (target);
+  case editor_chrome_part::status_bar:
+    return get_footer_visibility (target);
+  }
+  return false;
+}
+
+void
+set_editor_chrome_visible (
+  tm_view view, editor_chrome_part part, bool visible) {
+  if (view == nullptr || view->win == nullptr) return;
+  widget target= view->win->wid;
+  switch (part) {
+  case editor_chrome_part::header:
+    set_header_visibility (target, visible);
+    return;
+  case editor_chrome_part::main_toolbar:
+    set_main_icons_visibility (target, visible);
+    return;
+  case editor_chrome_part::mode_toolbar:
+    set_mode_icons_visibility (target, visible);
+    return;
+  case editor_chrome_part::focus_toolbar:
+    set_focus_icons_visibility (target, visible);
+    return;
+  case editor_chrome_part::user_toolbar:
+    set_user_icons_visibility (target, visible);
+    return;
+  case editor_chrome_part::status_bar:
+    set_footer_visibility (target, visible);
+    return;
+  }
+}
+
+const char*
+editor_chrome_preference (editor_chrome_part part) {
+  switch (part) {
+  case editor_chrome_part::main_toolbar: return "main icon bar";
+  case editor_chrome_part::mode_toolbar: return "mode dependent icons";
+  case editor_chrome_part::focus_toolbar: return "focus dependent icons";
+  case editor_chrome_part::user_toolbar: return "user provided icons";
+  case editor_chrome_part::status_bar: return "status bar";
+  default: return nullptr;
+  }
+}
+
+QTMCommandState
+editor_chrome_state (
+  const QTMCommandContext& context, editor_chrome_part part) {
+  QTMCommandState state;
+  tm_view view= editor_view_for_context (context);
+  if (view == nullptr) return state;
+  state.available= true;
+  state.enabled= true;
+  state.checkable= true;
+  state.checked= editor_chrome_visible (view, part);
+  return state;
+}
+
+bool
+toggle_editor_chrome (
+  const QTMCommandContext& context, editor_chrome_part part) {
+  tm_view view= editor_view_for_context (context);
+  if (view == nullptr) return false;
+  bool visible= !editor_chrome_visible (view, part);
+  const char* preference= editor_chrome_preference (part);
+  if (preference != nullptr && get_nr_windows () == 1)
+    set_user_preference (
+      string (preference), visible ? string ("on") : string ("off"));
+  set_editor_chrome_visible (view, part, visible);
+  return true;
 }
 
 } // namespace
@@ -518,6 +626,54 @@ QTMCommandRegistry::registerApplicationCommands () {
     [] (const QString& key, const QTMCommandContext& context) {
       const help_action* action= find_help_action (key);
       return action != nullptr && execute_help_action (*action, context);
+    });
+  const struct {
+    const char* id;
+    editor_chrome_part part;
+  } chromeCommands[]= {
+    {"interface.header", editor_chrome_part::header},
+    {"interface.main-toolbar", editor_chrome_part::main_toolbar},
+    {"interface.mode-toolbar", editor_chrome_part::mode_toolbar},
+    {"interface.focus-toolbar", editor_chrome_part::focus_toolbar},
+    {"interface.user-toolbar", editor_chrome_part::user_toolbar},
+    {"interface.status-bar", editor_chrome_part::status_bar}
+  };
+  for (const auto& command: chromeCommands) {
+    editor_chrome_part part= command.part;
+    registerBehavior (
+      QString::fromLatin1 (command.id), QTMCommandScope::Editor,
+      [part] (const QTMCommandContext& context) {
+        return toggle_editor_chrome (context, part);
+      },
+      [part] (const QTMCommandContext& context) {
+        return editor_chrome_state (context, part);
+      });
+  }
+  registerBehavior (
+    "interface.presentation-tool", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      bool enabled= get_user_preference ("presentation tool", "off") == "on";
+      set_user_preference ("presentation tool", enabled ? "off" : "on");
+      return true;
+    },
+    [] (const QTMCommandContext&) {
+      QTMCommandState state= enabled_application_command ();
+      state.checkable= true;
+      state.checked= get_user_preference ("presentation tool", "off") == "on";
+      return state;
+    });
+  registerBehavior (
+    "interface.source-tool", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      bool enabled= get_user_preference ("source tool", "off") == "on";
+      set_user_preference ("source tool", enabled ? "off" : "on");
+      return true;
+    },
+    [] (const QTMCommandContext&) {
+      QTMCommandState state= enabled_application_command ();
+      state.checkable= true;
+      state.checked= get_user_preference ("source tool", "off") == "on";
+      return state;
     });
   const QString paneCommands[]= {
     "namespace.open",

@@ -230,6 +230,62 @@
       "help": "Clean ATHENA cached data"
     },
     {
+      "id": "interface.header",
+      "label": "Header bars",
+      "category": "Interface",
+      "icon": "view-list-text",
+      "help": "Show or hide the captured editor view header"
+    },
+    {
+      "id": "interface.main-toolbar",
+      "label": "Main icon bar",
+      "category": "Interface",
+      "icon": "view-toolbar",
+      "help": "Show or hide the captured editor view main toolbar"
+    },
+    {
+      "id": "interface.mode-toolbar",
+      "label": "Mode dependent icons",
+      "category": "Interface",
+      "icon": "view-toolbar",
+      "help": "Show or hide the captured editor view mode toolbar"
+    },
+    {
+      "id": "interface.focus-toolbar",
+      "label": "Focus dependent icons",
+      "category": "Interface",
+      "icon": "view-toolbar",
+      "help": "Show or hide the captured editor view focus toolbar"
+    },
+    {
+      "id": "interface.user-toolbar",
+      "label": "User provided icons",
+      "category": "Interface",
+      "icon": "view-toolbar",
+      "help": "Show or hide the captured editor view runtime plugin toolbar"
+    },
+    {
+      "id": "interface.status-bar",
+      "label": "Status bar",
+      "category": "Interface",
+      "icon": "view-list-text",
+      "help": "Show or hide the captured editor view status bar"
+    },
+    {
+      "id": "interface.presentation-tool",
+      "label": "Presentation tool",
+      "category": "Interface",
+      "icon": "video-display",
+      "help": "Enable or disable the presentation tool"
+    },
+    {
+      "id": "interface.source-tool",
+      "label": "Source macros tool",
+      "category": "Interface",
+      "icon": "code-context",
+      "help": "Enable or disable the source macros tool"
+    },
+    {
       "id": "help.about",
       "label": "About ATHENA...",
       "category": "Help",
@@ -676,6 +732,23 @@
         },
         { "provider": "editor-prominent-spacing" },
         { "provider": "editor-semantic-annotations" }
+      ]
+    },
+    {
+      "id": "interface",
+      "label": "Interface",
+      "items": [
+        { "command": "interface.header" },
+        { "separator": true },
+        { "command": "interface.main-toolbar" },
+        { "command": "interface.mode-toolbar" },
+        { "command": "interface.focus-toolbar" },
+        { "command": "interface.user-toolbar" },
+        { "separator": true },
+        { "command": "interface.status-bar" },
+        { "separator": true },
+        { "command": "interface.presentation-tool" },
+        { "command": "interface.source-tool" }
       ]
     },
     {
