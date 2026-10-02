@@ -36,18 +36,11 @@
     <arg type="int" />
     <arg type="bool" />
   </binding>
-  <binding name="show-bottom-tools" native="show_bottom_tools" returns="void">
-    <arg type="int" />
-    <arg type="bool" />
-  </binding>
   <binding name="show-footer" native="show_footer" returns="void">
     <arg type="bool" />
   </binding>
   <binding name="visible-header?" native="visible_header" returns="bool" />
   <binding name="visible-icon-bar?" native="visible_icon_bar" returns="bool">
-    <arg type="int" />
-  </binding>
-  <binding name="visible-bottom-tools?" native="visible_bottom_tools" returns="bool">
     <arg type="int" />
   </binding>
   <binding name="visible-footer?" native="visible_footer" returns="bool" />

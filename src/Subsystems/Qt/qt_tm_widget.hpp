@@ -71,8 +71,6 @@ class qt_tm_widget_rep: public qt_window_widget_rep {
   QToolBar*     focusToolBar;
   QToolBar*      userToolBar;
 #endif
-  QDockWidget* bottomTools;
-  QDockWidget*  extraTools;
   QTMToolbarController* toolbarController;
   std::unique_ptr<QTMEditorToolbarPresenter> nativeMainToolbarPresenter;
   std::unique_ptr<QTMEditorToolbarPresenter> nativeModeToolbarPresenter;
@@ -86,7 +84,7 @@ class qt_tm_widget_rep: public qt_window_widget_rep {
   QWidget*       rulerWidget;
 #endif
 
-  bool visibility[8];
+  bool visibility[6];
   bool full_screen;
   
   qt_widget main_widget;

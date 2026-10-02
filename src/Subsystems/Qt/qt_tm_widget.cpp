@@ -310,8 +310,6 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   visibility[3] = (mask & 8)   == 8;   // focus
   visibility[4] = (mask & 16)  == 16;  // user
   visibility[5] = (mask & 32)  == 32;  // footer
-  visibility[6] = (mask & 256) == 256; // bottom tools
-  visibility[7] = (mask & 512) == 512; // extra bottom tools
 
   // general setup for main window
 
@@ -440,9 +438,6 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   userToolBar   = new QToolBar ("user toolbar", mw);
 #endif
 
-  bottomTools   = new QDockWidget ("bottom tools", mw);
-  extraTools    = new QDockWidget ("extra tools", mw);
-  
   if (tm_style_sheet == "") {
     if (!tmapp()->useNewToolbar()) {
       mainToolBar->setStyle (qtmstyle ());
@@ -450,8 +445,6 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
       focusToolBar->setStyle (qtmstyle ());
       userToolBar->setStyle (qtmstyle ());
     }
-    bottomTools->setStyle (qtmstyle ());
-    extraTools->setStyle (qtmstyle ());
   }
     
   {
@@ -518,9 +511,6 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   modeToolBar->setObjectName ("modeToolBar");
   focusToolBar->setObjectName ("focusToolBar");
   userToolBar->setObjectName ("userToolBar");
-  bottomTools->setObjectName ("bottomTools");
-  extraTools->setObjectName ("extraTools");
-
 #ifdef UNIFIED_TOOLBAR
 
   if (use_unified_toolbar) {
@@ -597,22 +587,6 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
       mw, mainToolBar, modeToolBar, focusToolBar, userToolBar);
   all_tm_widgets.insert (this);
 
-  bottomTools->setAllowedAreas (Qt::BottomDockWidgetArea);
-  bottomTools->setFeatures (QDockWidget::NoDockWidgetFeatures);
-  bottomTools->setFloating (false);
-  bottomTools->setTitleBarWidget (new QWidget()); // Disables title bar
-  //bottomTools->setMinimumHeight (10);             // Avoids warning
-  bottomTools->setContentsMargins (3, 6, 3, -2);  // Hacks hacks hacks... :(
-  mw->addDockWidget (Qt::BottomDockWidgetArea, bottomTools);
-
-  extraTools->setAllowedAreas (Qt::BottomDockWidgetArea);
-  extraTools->setFeatures (QDockWidget::NoDockWidgetFeatures);
-  extraTools->setFloating (false);
-  extraTools->setTitleBarWidget (new QWidget()); // Disables title bar
-  //extraTools->setMinimumHeight (10);             // Avoids warning
-  extraTools->setContentsMargins (3, 6, 3, -2);  // Hacks hacks hacks... :(
-  mw->addDockWidget (Qt::BottomDockWidgetArea, extraTools);
-
   // handles visibility
   // at this point all the toolbars are empty so we avoid showing them
   // same for the menu bar if we are not on the Mac (where we do not have
@@ -622,8 +596,6 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   modeToolBar->setVisible (false);
   focusToolBar->setVisible (false);
   userToolBar->setVisible (false);
-  bottomTools->setVisible (false);
-  extraTools->setVisible (false);
   mainwindow()->statusBar()->setVisible (true);
   if (toolbarController != nullptr)
     toolbarController->setRequestedVisibility (
@@ -1001,8 +973,6 @@ qt_tm_widget_rep::update_visibility () {
   bool old_modeVisibility = modeToolBar->isVisible();
   bool old_focusVisibility = focusToolBar->isVisible();
   bool old_userVisibility = userToolBar->isVisible();
-  bool old_bottomVisibility = bottomTools->isVisible();
-  bool old_extraVisibility = extraTools->isVisible();
   bool old_statusVisibility = mainwindow()->statusBar()->isVisible();
 
   bool new_mainVisibility = visibility[1] && visibility[0];
@@ -1010,8 +980,6 @@ qt_tm_widget_rep::update_visibility () {
   bool new_focusVisibility = visibility[3] && visibility[0];
   bool new_userVisibility = visibility[4] && visibility[0];
   bool new_statusVisibility = visibility[5];
-  bool new_bottomVisibility = visibility[6];
-  bool new_extraVisibility = visibility[7];
   
   if (toolbarController != nullptr)
     toolbarController->setRequestedVisibility (
@@ -1027,10 +995,6 @@ qt_tm_widget_rep::update_visibility () {
     if ( XOR(old_userVisibility,  new_userVisibility) )
       userToolBar->setVisible (new_userVisibility);
   }
-  if ( XOR(old_bottomVisibility,  new_bottomVisibility) )
-    bottomTools->setVisible (new_bottomVisibility);
-  if ( XOR(old_extraVisibility,  new_extraVisibility) )
-    extraTools->setVisible (new_extraVisibility);
   if ( XOR(old_statusVisibility,  new_statusVisibility) )
     mainwindow()->statusBar()->setVisible (new_statusVisibility);
 
@@ -1193,21 +1157,6 @@ qt_tm_widget_rep::send (slot s, blackbox val) {
       update_visibility();
     }
       break;
-    case SLOT_BOTTOM_TOOLS_VISIBILITY:
-    {
-      check_type<bool>(val, s);
-      visibility[6] = open_box<bool> (val);
-      update_visibility();
-    }
-      break;
-    case SLOT_EXTRA_TOOLS_VISIBILITY:
-    {
-      check_type<bool>(val, s);
-      visibility[7] = open_box<bool> (val);
-      update_visibility();
-    }
-      break;
-
     case SLOT_LEFT_FOOTER:
     {
       check_type<string>(val, s);
@@ -1323,14 +1272,6 @@ qt_tm_widget_rep::query (slot s, int type_id) {
       check_type_id<bool> (type_id, s);
       return close_box<bool> (visibility[5]);
 
-    case SLOT_BOTTOM_TOOLS_VISIBILITY:
-      check_type_id<bool> (type_id, s);
-      return close_box<bool> (visibility[6]);
-      
-    case SLOT_EXTRA_TOOLS_VISIBILITY:
-      check_type_id<bool> (type_id, s);
-      return close_box<bool> (visibility[7]);
-      
     case SLOT_POSITION:
     {
       check_type_id<coord2> (type_id, s);
@@ -1468,8 +1409,6 @@ qt_tm_embedded_widget_rep::send (slot s, blackbox val) {
     case SLOT_FOCUS_ICONS_VISIBILITY:
     case SLOT_USER_ICONS_VISIBILITY:
     case SLOT_FOOTER_VISIBILITY:
-    case SLOT_BOTTOM_TOOLS_VISIBILITY:
-    case SLOT_EXTRA_TOOLS_VISIBILITY:
     case SLOT_LEFT_FOOTER:
     case SLOT_RIGHT_FOOTER:
     case SLOT_SCROLLBARS_VISIBILITY:
@@ -1526,8 +1465,6 @@ qt_tm_embedded_widget_rep::query (slot s, int type_id) {
     case SLOT_FOCUS_ICONS_VISIBILITY:
     case SLOT_USER_ICONS_VISIBILITY:
     case SLOT_FOOTER_VISIBILITY:
-    case SLOT_BOTTOM_TOOLS_VISIBILITY:
-    case SLOT_EXTRA_TOOLS_VISIBILITY:
       check_type_id<bool> (type_id, s);
       return close_box<bool> (false);
 

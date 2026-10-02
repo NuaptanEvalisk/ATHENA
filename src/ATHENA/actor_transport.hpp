@@ -201,7 +201,6 @@ enum class actor_command_kind: std::uint32_t {
   ui_set_scrollbars,
   ui_show_header,
   ui_show_icon_bar,
-  ui_show_bottom_tools,
   ui_show_footer,
   ui_set_modified,
   ui_mark_buffer_saved,

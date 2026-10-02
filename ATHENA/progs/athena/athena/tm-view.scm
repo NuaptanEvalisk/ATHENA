@@ -40,12 +40,6 @@
 (define (notify-status-bar var val)
   (show-footer (== val "on")))
 
-(define (notify-bottom-tools var val)
-  (cond ((== var "bottom tools")
-         (show-bottom-tools 0 (== val "on")))
-        ((== var "extra tools")
-         (show-bottom-tools 1 (== val "on")))))
-
 (define (notify-zoom-factor var val)
   (with z (string->number val)
     (set! z (max (min z 25.0) 0.04))
@@ -75,15 +69,6 @@
     (if (== (windows-number) 1)
         (set-boolean-preference "status bar" val)
         (show-footer val))))
-
-(tm-define (toggle-visible-bottom-tools n)
-  (:synopsis "Toggle the visibility of the bottom tools")
-  (:check-mark "v" visible-bottom-tools?)
-  (with val (not (visible-bottom-tools? n))
-    (with var (if (== n 0) "bottom tools" "extra tools")
-      (if (and (== (windows-number) 1) (in? n (list 0 1)))
-          (set-boolean-preference var val)
-          (show-bottom-tools n val)))))
 
 (tm-define (toggle-visible-icon-bar n)
   (:synopsis "Toggle the visibility of the @n-th icon bar")

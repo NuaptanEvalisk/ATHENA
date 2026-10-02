@@ -59,8 +59,6 @@ enum slot_id {
   SLOT_MODE_ICONS_VISIBILITY,
   SLOT_FOCUS_ICONS_VISIBILITY,
   SLOT_USER_ICONS_VISIBILITY,
-  SLOT_BOTTOM_TOOLS_VISIBILITY,
-  SLOT_EXTRA_TOOLS_VISIBILITY,
   SLOT_FOOTER_VISIBILITY,
   SLOT_LEFT_FOOTER,
   SLOT_CENTER_FOOTER,
@@ -548,30 +546,6 @@ inline bool
 get_user_icons_visibility (widget w) {
   // get visibility of user icons bar
   return query<bool> (w, SLOT_USER_ICONS_VISIBILITY);
-}
-
-inline void
-set_bottom_tools_visibility (widget w, bool visible) {
-  // set visibility of bottom tools
-  send<bool> (w, SLOT_BOTTOM_TOOLS_VISIBILITY, visible);
-}
-
-inline bool
-get_bottom_tools_visibility (widget w) {
-  // get visibility of bottom tools
-  return query<bool> (w, SLOT_BOTTOM_TOOLS_VISIBILITY);
-}
-
-inline void
-set_extra_tools_visibility (widget w, bool visible) {
-  // set visibility of extra tools
-  send<bool> (w, SLOT_EXTRA_TOOLS_VISIBILITY, visible);
-}
-
-inline bool
-get_extra_tools_visibility (widget w) {
-  // get visibility of extra tools
-  return query<bool> (w, SLOT_EXTRA_TOOLS_VISIBILITY);
 }
 
 inline void
