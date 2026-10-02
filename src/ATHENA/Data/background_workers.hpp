@@ -17,7 +17,7 @@
 
 namespace athena::background {
 enum class worker { uuid, rag, maintenance, artifacts };
-enum class phase { inactive, idle, working, error };
+enum class phase { inactive, idle, working, paused, error };
 struct progress {
   phase state= phase::inactive;
   std::size_t current= 0, total= 0, errors= 0;

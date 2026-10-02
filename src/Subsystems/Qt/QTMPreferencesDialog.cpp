@@ -2566,6 +2566,7 @@ QTMPreferencesDialog::buildOtherPage () {
   });
   add_combo (rag, "rag embedding device");
   QCheckBox* realtimeNpu= add_toggle (rag, "rag realtime npu enabled");
+  QComboBox* npuPowerPolicy= add_combo (rag, "rag realtime npu power policy");
   QPushButton* chooseNpuModel= nullptr;
   QLineEdit* npuModel= add_path_chooser_row (
     rag, "NPU BGE-M3 OpenVINO model:", pref ("rag npu openvino model", ""),
@@ -2606,8 +2607,10 @@ QTMPreferencesDialog::buildOtherPage () {
     set_pref ("rag npu tokenizer gguf", selected);
   });
   auto refreshRealtimeNpuControls=
-    [realtimeNpu, npuModel, chooseNpuModel, npuTokenizer, chooseNpuTokenizer] () {
+    [realtimeNpu, npuPowerPolicy, npuModel, chooseNpuModel,
+     npuTokenizer, chooseNpuTokenizer] () {
       const bool enabled= realtimeNpu->isChecked ();
+      npuPowerPolicy->setEnabled (enabled);
       npuModel->setEnabled (enabled);
       chooseNpuModel->setEnabled (enabled);
       npuTokenizer->setEnabled (enabled);

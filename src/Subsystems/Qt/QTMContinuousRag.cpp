@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "QTMContinuousRag.hpp"
+#include "QTMSystemPowerMonitor.hpp"
 
 #include "rag_index.hpp"
 #include "rag_embedding_contract.hpp"
@@ -146,7 +147,7 @@ struct RealtimeJob {
 
 class ContinuousRagManager: public QObject {
 public:
-  explicit ContinuousRagManager (QObject* parent): QObject (parent) {
+  explicit ContinuousRagManager (QObject* parent): QObject (parent), power_ (this) {
     process_.setParent (this);
     process_.setProcessChannelMode (QProcess::SeparateChannels);
     QObject::connect (&process_, &QProcess::readyReadStandardOutput,
@@ -174,23 +175,26 @@ public:
             entry.second->awaiting_worker= false;
             pending_dispatch_[entry.first]= entry.second;
           }
-        if (!restart_attempted_ && has_current_embedding_work ()) {
-          restart_attempted_= true;
-          QTimer::singleShot (500, this, [this] {
-            if (shutting_down_ || !has_current_embedding_work ()) return;
-            ensure_worker ();
-          });
-        }
-        else if (has_current_embedding_work ()) {
-          next_scan_= Clock::now () + std::chrono::seconds (60);
-          std::vector<std::shared_ptr<RealtimeJob>> failed;
-          failed.reserve (latest_.size ());
-          for (const auto& entry: latest_)
-            if (is_current (entry.second) &&
-                (entry.second->awaiting_worker ||
-                 pending_dispatch_.count (entry.first) != 0))
-              failed.push_back (entry.second);
-          for (const auto& job: failed) finish_job (job);
+        if (has_current_embedding_work () && compute_allowed ()) {
+          if (!restart_attempted_) {
+            restart_attempted_= true;
+            QTimer::singleShot (500, this, [this] {
+              if (shutting_down_ || !compute_allowed () ||
+                  !has_current_embedding_work ()) return;
+              ensure_worker ();
+            });
+          }
+          else {
+            next_scan_= Clock::now () + std::chrono::seconds (60);
+            std::vector<std::shared_ptr<RealtimeJob>> failed;
+            failed.reserve (latest_.size ());
+            for (const auto& entry: latest_)
+              if (is_current (entry.second) &&
+                  (entry.second->awaiting_worker ||
+                   pending_dispatch_.count (entry.first) != 0))
+                failed.push_back (entry.second);
+            for (const auto& job: failed) finish_job (job);
+          }
         }
       });
     QObject::connect (
@@ -207,7 +211,10 @@ public:
       });
     QObject::connect (qApp, &QCoreApplication::aboutToQuit,
                       this, [this] { shutdown (); });
+    QObject::connect (&power_, &QTMSystemPowerMonitor::stateChanged,
+                      this, [this] { power_state_changed (); });
     QObject::connect (&poll_, &QTimer::timeout, this, [this] { poll (); });
+    power_block_= power_block_reason ();
     poll_.start (1000);
   }
 
@@ -267,14 +274,73 @@ public:
 private:
   using Clock= std::chrono::steady_clock;
 
+  enum class PowerBlock {
+    None,
+    Preference,
+    Battery,
+    Unknown,
+    Saver
+  };
+
+  PowerBlock power_block_reason () const {
+    const QString policy= pref (
+      "rag realtime npu power policy", "ac-only").trimmed ();
+    if (policy == QStringLiteral ("paused")) return PowerBlock::Preference;
+    const QTMSystemPowerMonitor::State state= power_.state ();
+    if (state.powerSaverKnown && state.powerSaver) return PowerBlock::Saver;
+    if (policy == QStringLiteral ("always")) return PowerBlock::None;
+    if (state.supply == QTMSystemPowerMonitor::Supply::External)
+      return PowerBlock::None;
+    if (state.supply == QTMSystemPowerMonitor::Supply::Battery)
+      return PowerBlock::Battery;
+    return PowerBlock::Unknown;
+  }
+
+  bool compute_allowed () const {
+    return power_block_ == PowerBlock::None;
+  }
+
+  QString power_pause_detail () const {
+    switch (power_block_) {
+    case PowerBlock::Preference: return QStringLiteral ("Paused by preference");
+    case PowerBlock::Battery: return QStringLiteral ("Waiting for external power");
+    case PowerBlock::Unknown: return QStringLiteral ("Power state unavailable");
+    case PowerBlock::Saver: return QStringLiteral ("System power saver");
+    case PowerBlock::None: break;
+    }
+    return {};
+  }
+
+  void resume_pending_dispatch () {
+    if (!compute_allowed ()) return;
+    std::vector<std::shared_ptr<RealtimeJob>> pending;
+    pending.reserve (pending_dispatch_.size ());
+    for (const auto& entry: pending_dispatch_)
+      if (is_current (entry.second)) pending.push_back (entry.second);
+    for (const auto& job: pending) dispatch (job);
+    if (latest_.empty ()) advance ();
+  }
+
+  void power_state_changed () {
+    if (shutting_down_) return;
+    const PowerBlock next= power_block_reason ();
+    if (next == power_block_) return;
+    power_block_= next;
+    if (compute_allowed ()) resume_pending_dispatch ();
+    report ();
+  }
+
   void report () {
     namespace bg= athena::background;
     if (shutting_down_ || !context_) { bg::publish (bg::worker::rag, {}); return; }
     const bool busy= inventory_ || !latest_.empty () || next_file_ < files_.size ();
-    const auto phase= busy ? bg::phase::working :
-      (failures_.empty () ? bg::phase::idle : bg::phase::error);
-    std::string detail= inventory_ ? "Inventory" : "";
-    if (!latest_.empty ()) detail= std_string (latest_.begin ()->second->rel_path);
+    const auto phase= !failures_.empty () ? bg::phase::error :
+      !compute_allowed () ? bg::phase::paused :
+      busy ? bg::phase::working : bg::phase::idle;
+    std::string detail= !compute_allowed () ? std_string (power_pause_detail ()):
+      inventory_ ? "Inventory" : "";
+    if (compute_allowed () && !latest_.empty ())
+      detail= std_string (latest_.begin ()->second->rel_path);
     std::string error;
     if (!failures_.empty ())
       error= std_string (failures_.begin ()->first) + ": " +
@@ -298,6 +364,9 @@ private:
 
   void poll () {
     if (shutting_down_) return;
+    const PowerBlock next_power_block= power_block_reason ();
+    const bool power_changed= next_power_block != power_block_;
+    power_block_= next_power_block;
     auto context= vault_capture_context ();
     if (!pref_on ("rag realtime npu enabled")) context.reset ();
     QString configuration= config_key ();
@@ -327,14 +396,15 @@ private:
       needs_sweep_= true;
       finish_job (job);
     }
-    advance ();
+    if (power_changed && compute_allowed ()) resume_pending_dispatch ();
+    else advance ();
     report ();
   }
 
   void advance () {
     if (shutting_down_ || !context_ ||
         !vault_context_is_current (context_) || !latest_.empty () ||
-        inventory_ || Clock::now () < next_scan_) return;
+        inventory_ || !compute_allowed () || Clock::now () < next_scan_) return;
     if (configured_model ().isEmpty () || configured_tokenizer ().isEmpty ()) {
       ensure_worker ();
       return;
@@ -457,7 +527,7 @@ private:
   }
 
   void ensure_worker () {
-    if (shutting_down_) return;
+    if (shutting_down_ || !compute_allowed ()) return;
     const QString model= configured_model ();
     const QString tokenizer= configured_tokenizer ();
     if (model.isEmpty () || tokenizer.isEmpty ()) {
@@ -594,6 +664,12 @@ private:
 
   void dispatch (const std::shared_ptr<RealtimeJob>& job) {
     if (!is_current (job) || !job->prepared) return;
+    if (!compute_allowed ()) {
+      pending_dispatch_[job->key]= job;
+      job->awaiting_worker= false;
+      report ();
+      return;
+    }
     if (!worker_ready_) {
       pending_dispatch_[job->key]= job;
       ensure_worker ();
@@ -829,6 +905,8 @@ private:
     return false;
   }
 
+  QTMSystemPowerMonitor power_;
+  PowerBlock power_block_= PowerBlock::Unknown;
   QProcess process_;
   QByteArray stdout_buffer_;
   QByteArray stderr_buffer_;

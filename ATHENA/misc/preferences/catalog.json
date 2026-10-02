@@ -4238,6 +4238,38 @@
       }
     },
     {
+      "key": "rag realtime npu power policy",
+      "type": "choice",
+      "scope": "active",
+      "default": "ac-only",
+      "ui": {
+        "category": "Other",
+        "tab": "Connectivity",
+        "section": "Continuous RAG",
+        "order": 4,
+        "label": "Continuous NPU power policy",
+        "control": "choice",
+        "choices": [
+          {
+            "value": "always",
+            "label": "Always"
+          },
+          {
+            "value": "ac-only",
+            "label": "AC only"
+          },
+          {
+            "value": "paused",
+            "label": "Paused"
+          }
+        ],
+        "help": "System power saver pauses automatic NPU work for all policies.",
+        "category_order": 9,
+        "tab_order": 1,
+        "section_order": 1
+      }
+    },
+    {
       "key": "rag npu openvino model",
       "type": "string",
       "scope": "active",
@@ -4316,7 +4348,7 @@
         "category": "Other",
         "tab": "Connectivity",
         "section": "Continuous RAG",
-        "order": 4,
+        "order": 5,
         "label": "MCP bearer token",
         "control": "text",
         "category_order": 9,

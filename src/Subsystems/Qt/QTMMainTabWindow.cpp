@@ -174,8 +174,9 @@ installApplicationBackgroundStatus (QTMMainTabWindow* shell) {
         if (!tip.isEmpty ()) tip += QStringLiteral ("\n");
         tip += QString::fromLatin1 (names[i]) + QStringLiteral (": ") +
           (status.state == phase::working ? QStringLiteral ("Working") :
+           status.state == phase::paused ? QStringLiteral ("Paused") :
            status.state == phase::error ? QStringLiteral ("Error") :
-                                          QStringLiteral ("Idle"));
+                                           QStringLiteral ("Idle"));
         if (status.total)
           tip += QStringLiteral (" %1/%2")
                    .arg (qulonglong (status.current))
