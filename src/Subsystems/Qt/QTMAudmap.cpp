@@ -34,6 +34,7 @@
 #include <deque>
 #include <thread>
 #include "QTMPluginManager.hpp"
+#include "QTMCommandRegistry.hpp"
 #include "QTMToast.hpp"
 
 using namespace athena::interop;
@@ -297,6 +298,11 @@ struct QTMAudmap::impl: QObject {
           const QByteArray body= (plugin + ": " + error).toUtf8 ();
           qtm_show_toast (string (body.constData (), body.size ()), "Plugin Failed to Start");
         });
+      QObject::connect (plugins.get (), &QTMPluginManager::changed, this,
+        [this] {
+          QTMCommandRegistry::instance ().synchronizePluginCommands (plugins.get ());
+        });
+      QTMCommandRegistry::instance ().synchronizePluginCommands (plugins.get ());
     }
     catch (const std::exception& e) { qWarning ("ATHENA plugins unavailable: %s", e.what ()); }
     qInfo ("ATHENA AUDMAP endpoint: %s", server->discovery_file ().c_str ());
@@ -318,6 +324,7 @@ struct QTMAudmap::impl: QObject {
   }
   ~impl () override {
     shutting_down = true;
+    QTMCommandRegistry::instance ().synchronizePluginCommands (nullptr);
     plugins.reset ();
     server.reset ();
     pending.clear ();

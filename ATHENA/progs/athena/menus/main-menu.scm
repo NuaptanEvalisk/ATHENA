@@ -20,7 +20,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (menu-bind texmacs-extra-menu)
-(menu-bind texmacs-extra-icons)
 
 
 (tm-define (style-menu) (get-style-menu))

@@ -596,6 +596,8 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
       editorCanvas, modeToolBar, QStringLiteral ("editor-mode"), mainToolBar);
     nativeFocusToolbarPresenter= std::make_unique<QTMEditorToolbarPresenter> (
       editorCanvas, focusToolBar, QStringLiteral ("editor-focus"));
+    nativeUserToolbarPresenter= std::make_unique<QTMEditorToolbarPresenter> (
+      editorCanvas, userToolBar, QStringLiteral ("editor-user"));
   }
   if (nativeMainToolbarPresenter)
     (void) nativeMainToolbarPresenter->activate ();
@@ -607,6 +609,8 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
     (void) nativeFocusToolbarPresenter->activate ();
     append_native_drawing_focus_actions ();
   }
+  if (nativeUserToolbarPresenter)
+    (void) nativeUserToolbarPresenter->activate ();
   
   mw->setCentralWidget (cw);
 
@@ -754,7 +758,6 @@ qt_tm_widget_rep::~qt_tm_widget_rep () {
   waiting_widgets = remove(waiting_widgets, this);
   all_tm_widgets.remove (this);
   clear_main_menu_actions ();
-  retire_toolbar_actions (user_toolbar_actions);
 }
 
 void
@@ -1597,23 +1600,6 @@ qt_tm_widget_rep::write (slot s, blackbox index, widget w) {
     }
       break;
       
-    case SLOT_USER_ICONS:
-      check_type_void (index, s);
-    {   
-      user_icons_widget = concrete (w);
-      QList<QAction*>* list = user_icons_widget->get_qactionlist();
-      if (list) {
-#if !DISABLE_QTMTOOLBAR
-        userToolBar->replaceButtons (list);
-#else
-        replaceButtons (userToolBar, list, user_toolbar_actions);
-#endif
-        delete list;
-        update_visibility();
-      }
-    }
-      break;
-      
     case SLOT_BOTTOM_TOOLS:
       check_type_void (index, s);
     {
@@ -1840,7 +1826,6 @@ qt_tm_embedded_widget_rep::write (slot s, blackbox index, widget w) {
       break;
         /// FIXME: decide what to do with these for embedded widgets
     case SLOT_MAIN_MENU:
-    case SLOT_USER_ICONS:
     case SLOT_BOTTOM_TOOLS:
     case SLOT_EXTRA_TOOLS:
     default:

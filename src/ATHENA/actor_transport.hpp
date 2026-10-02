@@ -185,7 +185,6 @@ enum class actor_command_kind: std::uint32_t {
   ui_keyboard_focus_field,
   ui_mouse_grab,
   ui_menu_main,
-  ui_menu_icons,
   ui_bottom_tools,
   ui_footer_left,
   ui_footer_center,

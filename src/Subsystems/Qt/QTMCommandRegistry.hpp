@@ -108,6 +108,8 @@ public:
   virtual bool qtmInvokeCommand (const QString& commandId)= 0;
 };
 
+class QTMPluginManager;
+
 class QTMCommandRegistry {
 public:
   static QTMCommandRegistry& instance ();
@@ -135,7 +137,8 @@ public:
   QTMCommandState providerState (
     const QString& providerId, const QTMCommandContext& context) const;
   bool executeProviderItem (const QString& providerId, const QString& key,
-                            const QTMCommandContext& context) const;
+                             const QTMCommandContext& context) const;
+  void synchronizePluginCommands (QTMPluginManager* manager);
 
 private:
   struct Behavior {
@@ -179,6 +182,10 @@ private:
   QVector<QTMCommandDefinition> commands_;
   QVector<QTMCommandMenuDefinition> menus_;
   QVector<QTMCommandToolbarDefinition> toolbars_;
+  QPointer<QObject> pluginManager_;
+  QVector<QString> runtimePluginCommandIds_;
+  QHash<QString, QString> runtimePluginGroups_;
+  QHash<QString, bool> runtimePluginEnabled_;
 };
 
 #endif // QTMCOMMANDREGISTRY_HPP

@@ -156,21 +156,6 @@ tm_frame_rep::menu_main (string menu) {
 }
 
 void
-tm_frame_rep::menu_icons (int which, string menu) {
-  if ((which<1) || (which>3)) return;
-  if (editor_rep* editor= actor_frame_editor ()) {
-    eval ("(lazy-initialize-force)");
-    object expanded= eval ("'" * menu);
-    publish_actor_widget (
-      editor, actor_command_kind::ui_menu_icons, make_menu_widget (expanded),
-      static_cast<std::uint64_t> (which));
-    return;
-  }
-  if (!has_current_view ()) return;
-  concrete_window () -> menu_icons (which, menu);
-}
-
-void
 tm_frame_rep::bottom_tools (int which, string tools) {
   if ((which<0) || (which>1)) return;
   if (editor_rep* editor= actor_frame_editor ()) {

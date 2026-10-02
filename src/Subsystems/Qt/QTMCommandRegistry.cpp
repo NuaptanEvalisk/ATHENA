@@ -11,8 +11,10 @@
 
 #include "QTMCommandRegistry.hpp"
 #include "QTMCommandRegistryInternal.hpp"
+#include "QTMPluginManager.hpp"
 
 #include <QApplication>
+#include <QSet>
 
 using namespace qtm_command_registry_detail;
 
@@ -54,6 +56,33 @@ QTMCommandRegistry::registerBuiltins () {
   registerApplicationCommands ();
   registerEditorCommands ();
   registerFocusCommands ();
+  registerProvider (
+    "runtime-plugin-commands", QTMCommandScope::Application,
+    [this] (const QTMCommandContext& context) {
+      QVector<QTMCommandDynamicItem> out;
+      for (const QString& id: runtimePluginCommandIds_) {
+        const QTMCommandDefinition* definition= command (id);
+        if (definition == nullptr) continue;
+        QTMCommandDynamicItem item;
+        item.key= id;
+        item.group= runtimePluginGroups_.value (id);
+        item.label= definition->label;
+        item.help= definition->help;
+        item.icon= definition->icon;
+        item.state= state (id, context);
+        out.append (std::move (item));
+      }
+      return out;
+    },
+    [this] (const QString& key, const QTMCommandContext& context) {
+      return runtimePluginCommandIds_.contains (key) && execute (key, context);
+    },
+    [this] (const QTMCommandContext&) {
+      QTMCommandState state;
+      state.available= !runtimePluginCommandIds_.isEmpty ();
+      state.enabled= state.available;
+      return state;
+    });
 }
 
 bool
@@ -205,4 +234,86 @@ QTMCommandRegistry::executeProviderItem (
   auto found= providers_.constFind (providerId);
   return found != providers_.constEnd () && found->execute &&
          found->execute (key, context);
+}
+
+void
+QTMCommandRegistry::synchronizePluginCommands (QTMPluginManager* manager) {
+  if (!initialized_ && !initialize ()) return;
+  pluginManager_= manager;
+
+  QSet<QString> previous;
+  for (const QString& id: runtimePluginCommandIds_) {
+    previous.insert (id);
+    behaviors_.remove (id);
+  }
+  runtimePluginCommandIds_.clear ();
+  runtimePluginGroups_.clear ();
+  runtimePluginEnabled_.clear ();
+
+  if (!previous.isEmpty ()) {
+    QVector<QTMCommandDefinition> retained;
+    retained.reserve (commands_.size ());
+    commandIndex_.clear ();
+    for (const QTMCommandDefinition& definition: commands_) {
+      if (previous.contains (definition.id)) continue;
+      commandIndex_.insert (definition.id, retained.size ());
+      retained.append (definition);
+    }
+    commands_= std::move (retained);
+  }
+
+  if (manager == nullptr) return;
+  for (const QTMPluginInfo& plugin: manager->plugins ()) {
+    const QString pluginId= QString::fromStdString (plugin.manifest.id);
+    const QString pluginName= QString::fromStdString (plugin.manifest.name);
+    for (const athena::plugins::plugin_command& command: plugin.manifest.commands) {
+      const QString commandName= QString::fromStdString (command.id);
+      const QString id=
+        QStringLiteral ("plugin.command/") + pluginId +
+        QStringLiteral ("/") + commandName;
+      if (commandIndex_.contains (id) || behaviors_.contains (id)) {
+        qWarning ("Skipping colliding runtime plugin command: %s",
+                  qPrintable (id));
+        continue;
+      }
+      const bool enabled= plugin.running && plugin.state != QStringLiteral ("Stopping");
+      runtimePluginCommandIds_.append (id);
+      runtimePluginGroups_.insert (id, pluginName);
+      runtimePluginEnabled_.insert (id, enabled);
+
+      const std::string nativePluginId= plugin.manifest.id;
+      const std::string nativeCommandId= command.id;
+      registerBehavior (
+        id, QTMCommandScope::Application,
+        [this, nativePluginId, nativeCommandId] (const QTMCommandContext&) {
+          QTMPluginManager* current=
+            qobject_cast<QTMPluginManager*> (pluginManager_.data ());
+          if (current == nullptr) return false;
+          try {
+            (void) current->command (nativePluginId, nativeCommandId);
+            return true;
+          }
+          catch (...) {
+            return false;
+          }
+        },
+        [this, id] (const QTMCommandContext&) {
+          QTMCommandState state;
+          state.available= runtimePluginCommandIds_.contains (id);
+          state.enabled= state.available && runtimePluginEnabled_.value (id, false);
+          return state;
+        });
+
+      QTMCommandDefinition definition;
+      definition.id= id;
+      definition.label= QString::fromStdString (command.title);
+      definition.icon= QStringLiteral ("system-run");
+      definition.category= QStringLiteral ("Plugins");
+      definition.help= pluginName + QStringLiteral (" — ") + definition.label;
+      definition.scope= QTMCommandScope::Application;
+      definition.showInPalette= true;
+      commandIndex_.insert (id, commands_.size ());
+      commands_.append (std::move (definition));
+    }
+  }
 }

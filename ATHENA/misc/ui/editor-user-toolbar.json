@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "commands": [],
+  "toolbars": [
+    {
+      "id": "editor-user",
+      "items": [
+        {
+          "submenu": "editor-user-plugins",
+          "label": "Plugins",
+          "icon": "system-run",
+          "items": [
+            {"provider": "runtime-plugin-commands"}
+          ]
+        }
+      ]
+    }
+  ]
+}

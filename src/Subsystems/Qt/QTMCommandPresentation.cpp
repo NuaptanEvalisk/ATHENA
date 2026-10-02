@@ -202,7 +202,8 @@ QTMCommandRegistry::loadPresentation () {
   QJsonArray toolbarValues= root.value ("toolbars").toArray ();
   for (const char* extensionResource: {
          "$ATHENA_PATH/misc/ui/editor-mode-toolbar.json",
-         "$ATHENA_PATH/misc/ui/editor-focus-toolbar.json"}) {
+         "$ATHENA_PATH/misc/ui/editor-focus-toolbar.json",
+         "$ATHENA_PATH/misc/ui/editor-user-toolbar.json"}) {
     string extensionText;
     if (load_string (url (extensionResource), extensionText, false))
       return failPresentation (

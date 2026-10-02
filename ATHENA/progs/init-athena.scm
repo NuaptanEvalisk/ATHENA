@@ -107,7 +107,7 @@
            preferences-open?
            open-preferences)
 (lazy-menu (athena menus main-menu)
-           texmacs-extra-menu texmacs-extra-icons
+           texmacs-extra-menu
            bookmarks-menu test-menu
            athena-focus-menu texmacs-menu window-list-menu
            workspace-menu presentation-popup-menu texmacs-popup-menu

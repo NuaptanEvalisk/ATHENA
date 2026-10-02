@@ -470,14 +470,6 @@ tm_window_rep::menu_main (string menu) {
 }
 
 void
-tm_window_rep::menu_icons (int which, string menu) {
-  if (which != 3) return;
-  eval ("(lazy-initialize-force)");
-  widget w;
-  if (get_menu_widget (which, menu, w)) set_user_icons (wid, w);
-}
-
-void
 tm_window_rep::bottom_tools (int which, string tools) {
   eval ("(lazy-initialize-force)");
   widget w;
