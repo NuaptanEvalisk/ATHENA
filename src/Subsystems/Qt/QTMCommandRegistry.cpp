@@ -56,6 +56,139 @@ QTMCommandRegistry::registerBuiltins () {
   registerApplicationCommands ();
   registerEditorCommands ();
   registerFocusCommands ();
+
+  using command_filter=
+    std::function<bool(const QTMCommandDefinition&)>;
+  using command_group=
+    std::function<QString(const QTMCommandDefinition&)>;
+  auto registerCommandListProvider=
+    [this] (const QString& providerId, command_filter filter,
+            command_group group) {
+      registerProvider (
+        providerId, QTMCommandScope::Application,
+        [this, filter, group] (const QTMCommandContext& context) {
+          QVector<QTMCommandDynamicItem> out;
+          for (const QTMCommandDefinition& definition: commands_) {
+            if (!filter (definition)) continue;
+            QTMCommandState current= state (definition.id, context);
+            if (!current.available) continue;
+            QTMCommandDynamicItem item;
+            item.key= definition.id;
+            item.group= group (definition);
+            item.label= definition.label;
+            item.help= definition.help;
+            item.icon= definition.icon;
+            item.state= current;
+            out.append (std::move (item));
+          }
+          return out;
+        },
+        [this, filter] (const QString& key,
+                       const QTMCommandContext& context) {
+          const QTMCommandDefinition* definition= command (key);
+          return definition != nullptr && filter (*definition) &&
+                 execute (key, context);
+        },
+        [this, filter] (const QTMCommandContext& context) {
+          QTMCommandState result;
+          for (const QTMCommandDefinition& definition: commands_) {
+            if (!filter (definition)) continue;
+            QTMCommandState current= state (definition.id, context);
+            if (!current.available) continue;
+            result.available= true;
+            result.enabled= result.enabled || current.enabled;
+          }
+          return result;
+        });
+    };
+
+  registerCommandListProvider (
+    QStringLiteral ("menubar-insert-commands"),
+    [] (const QTMCommandDefinition& definition) {
+      return definition.id.startsWith (QStringLiteral ("editor.insert.")) ||
+             definition.id.startsWith (QStringLiteral ("editor.text.")) ||
+             (definition.id.startsWith (QStringLiteral ("editor.math.")) &&
+              !definition.id.startsWith (
+                QStringLiteral ("editor.math.static.")));
+    },
+    [] (const QTMCommandDefinition& definition) {
+      if (definition.id.startsWith (QStringLiteral ("editor.text.")))
+        return QObject::tr ("Text");
+      if (definition.id.startsWith (QStringLiteral ("editor.math.")) ||
+          definition.id.startsWith (QStringLiteral ("editor.insert.math.")))
+        return QObject::tr ("Mathematics");
+      if (definition.id.startsWith (QStringLiteral ("editor.insert.table.")))
+        return QObject::tr ("Tables");
+      if (definition.id.startsWith (QStringLiteral ("editor.insert.image.")))
+        return QObject::tr ("Images");
+      if (definition.id.startsWith (QStringLiteral ("editor.insert.link.")))
+        return QObject::tr ("Links");
+      if (definition.id.startsWith (QStringLiteral ("editor.insert.fold.")))
+        return QObject::tr ("Fold");
+      return QObject::tr ("Insert");
+    });
+
+  registerCommandListProvider (
+    QStringLiteral ("menubar-math-symbols"),
+    [] (const QTMCommandDefinition& definition) {
+      return definition.id.startsWith (
+        QStringLiteral ("editor.math.static."));
+    },
+    [] (const QTMCommandDefinition& definition) {
+      QString suffix= definition.id.mid (
+        QStringLiteral ("editor.math.static.").size ());
+      int dot= suffix.indexOf (QChar ('.'));
+      QString family= dot < 0 ? suffix : suffix.left (dot);
+      family.replace (QChar ('_'), QChar (' '));
+      if (!family.isEmpty ()) family[0]= family[0].toUpper ();
+      return family;
+    });
+
+  registerCommandListProvider (
+    QStringLiteral ("menubar-format-commands"),
+    [] (const QTMCommandDefinition& definition) {
+      return definition.id.startsWith (QStringLiteral ("editor.format.")) ||
+             definition.id.startsWith (QStringLiteral ("editor.prog."));
+    },
+    [] (const QTMCommandDefinition& definition) {
+      return definition.id.startsWith (QStringLiteral ("editor.prog.")) ?
+        QObject::tr ("Program") : QObject::tr ("Text");
+    });
+
+  registerCommandListProvider (
+    QStringLiteral ("menubar-source-commands"),
+    [] (const QTMCommandDefinition& definition) {
+      return definition.id.startsWith (QStringLiteral ("editor.source."));
+    },
+    [] (const QTMCommandDefinition&) { return QString (); });
+
+  registerCommandListProvider (
+    QStringLiteral ("menubar-manual-commands"),
+    [] (const QTMCommandDefinition& definition) {
+      return definition.id.startsWith (QStringLiteral ("editor.tmdoc."));
+    },
+    [] (const QTMCommandDefinition& definition) {
+      if (definition.id.contains (QStringLiteral (".gui")))
+        return QObject::tr ("GUI markup");
+      if (definition.id.contains (QStringLiteral (".annotate")))
+        return QObject::tr ("Annotations");
+      if (definition.id.contains (QStringLiteral (".explain")))
+        return QObject::tr ("Explanations");
+      return QObject::tr ("Manual");
+    });
+
+  registerCommandListProvider (
+    QStringLiteral ("menubar-dynamic-commands"),
+    [] (const QTMCommandDefinition& definition) {
+      return definition.category == QStringLiteral ("Fold") ||
+             definition.id.startsWith (
+               QStringLiteral ("editor.presentation-"));
+    },
+    [] (const QTMCommandDefinition& definition) {
+      return definition.category == QStringLiteral ("Fold") ?
+        QObject::tr ("Fold and overlays") : QObject::tr ("Navigation");
+    });
+
   registerProvider (
     "runtime-plugin-commands", QTMCommandScope::Application,
     [this] (const QTMCommandContext& context) {

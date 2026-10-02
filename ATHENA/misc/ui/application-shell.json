@@ -555,6 +555,41 @@
       ]
     },
     {
+      "id": "insert",
+      "label": "Insert",
+      "items": [
+        { "provider": "menubar-insert-commands" },
+        {
+          "submenu": "insert-math-symbols",
+          "label": "Math symbols",
+          "items": [
+            { "provider": "menubar-math-symbols" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "manual",
+      "label": "Manual",
+      "items": [
+        { "provider": "menubar-manual-commands" }
+      ]
+    },
+    {
+      "id": "source",
+      "label": "Source",
+      "items": [
+        { "provider": "menubar-source-commands" }
+      ]
+    },
+    {
+      "id": "dynamic",
+      "label": "Dynamic",
+      "items": [
+        { "provider": "menubar-dynamic-commands" }
+      ]
+    },
+    {
       "id": "focus",
       "label": "Focus",
       "items": [
@@ -562,6 +597,36 @@
         { "separator": true },
         { "command": "namespace.open" },
         { "command": "namespace.refresh" }
+      ]
+    },
+    {
+      "id": "format",
+      "label": "Format",
+      "items": [
+        { "provider": "menubar-format-commands" },
+        {
+          "submenu": "format-text-color",
+          "label": "Text color",
+          "items": [
+            { "provider": "editor-text-colors" }
+          ]
+        },
+        {
+          "submenu": "format-program-color",
+          "label": "Program color",
+          "items": [
+            { "provider": "editor-prog-colors" }
+          ]
+        },
+        {
+          "submenu": "format-math-color",
+          "label": "Math color",
+          "items": [
+            { "provider": "editor-math-colors" }
+          ]
+        },
+        { "provider": "editor-prominent-spacing" },
+        { "provider": "editor-semantic-annotations" }
       ]
     },
     {
