@@ -782,9 +782,16 @@ athena_artifact_radioactive_is_defining_occurrence (
   if (!index || index->vault_root.empty () || is_nil (source_path) ||
       is_none (current_file))
     return false;
+  // Defining occurrences can only live in files from the active vault.  In
+  // particular, do not materialize tmfs/web URLs here: concretizing a help
+  // tmfs URL calls back into Scheme's tmfs loader while that help document is
+  // being typeset, recursively re-entering document import.
+  if (!is_rooted (current_file, "default") &&
+      !is_rooted (current_file, "file"))
+    return false;
   fs::path root= fs::path (index->vault_root).lexically_normal ();
   fs::path file=
-    fs::path (to_std (concretize (current_file))).lexically_normal ();
+    fs::path (to_std (as_system_string (current_file))).lexically_normal ();
   fs::path relative= file.lexically_relative (root);
   if (relative.empty () || relative.string ().rfind ("..", 0) == 0)
     return false;
