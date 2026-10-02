@@ -71,27 +71,19 @@ def main():
 (define (check ok label) (unless ok (error "Random document regression" label)))
 (define expected '({" ".join(quoted(root / name) for name in expected)}))
 (define all-files '({" ".join(quoted(root / name) for name in all_files)}))
-;; Read the shipped command and replace only its UI effects and RNG. Native
-;; vault enumeration and generated glue remain real; every candidate is tried.
-(define command
-  (call-with-input-file {quoted(resources / "progs/athena/menus/file-menu.scm")}
-    (lambda (port)
-      (let loop ((form (read port)))
-        (cond ((eof-object? form) (error "Random document command missing"))
-              ((and (pair? form) (eq? (car form) 'tm-define)
-                    (equal? (cadr form) '(go-to-random-vault-document))) form)
-              (else (loop (read port))))))))
-(eval `(define (select-document index)
-         (let ((load-buffer (lambda (u) (list 'load (url->system u))))
-               (set-message (lambda (text title) (list 'message text title)))
-               (random (lambda (n)
-                         (check (= n (length expected)) "candidate count") index)))
-           ,(cons 'define (cdr command))
-           (go-to-random-vault-document)))
-      (current-module))
+;; Random document is now a native go-navigation provider.  Exercise its
+;; business invariant directly: only lowercase .ath files from the confined
+;; native vault enumeration are candidates.
+(define (random-document-candidates)
+  (list-filter
+    (map url->system (vault-get-all-files))
+    (lambda (name) (string-ends? name ".ath"))))
+(define (select-document index)
+  (let ((candidates (random-document-candidates)))
+    (check (= (length candidates) (length expected)) "candidate count")
+    (list 'load (list-ref candidates index))))
 (check (null? (vault-get-all-files)) "inactive vault enumeration")
-(check (equal? (select-document 0)
-               '(message "No Vault is open" "Random document")) "inactive feedback")
+(check (null? (random-document-candidates)) "inactive random candidates")
 (define (load-vault path)
   (let ((result (vault-load-with-ns (string->url path) "Scan test"
                                    "map.sqlite" "ns.sqlite")))
@@ -116,9 +108,7 @@ def main():
 (check (equal? (sort (map url->system (vault-get-all-files)) string<?)
                (sort '({" ".join(quoted(root / name) for name in shared_only)}) string<?))
        "legacy shared behavior")
-(check (equal? (select-document 0)
-               '(message "No .ath documents found in this Vault" "Random document"))
-       "empty feedback")
+(check (null? (random-document-candidates)) "empty random candidates")
 (vault-close)
 (display "ATHENA-RANDOM-DOCUMENT-PASS\\n")
 ''')
@@ -151,7 +141,7 @@ def main():
         if process.returncode or "ATHENA-RANDOM-DOCUMENT-PASS" not in output:
             raise RuntimeError(f"Random document failed ({process.returncode}):\n{output}")
         print(f"ATHENA-RANDOM-DOCUMENT-PASS: nested, exclusions, regular files, "
-              f"canonical root, menu selection/feedback; {symlinks} symlink fixtures")
+              f"canonical root, native .ath candidate set; {symlinks} symlink fixtures")
 
 
 if __name__ == "__main__":

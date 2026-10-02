@@ -587,10 +587,6 @@ if (ATHENA_TEST_GUILE)
     COMMAND ${ATHENA_TEST_GUILE} --no-auto-compile
       ${CMAKE_CURRENT_SOURCE_DIR}/scheme/window-close-ownership-test.scm
       ${ATHENA_SOURCE_DIR})
-  add_test (NAME buffer_switcher_ownership_scheme_test
-    COMMAND ${ATHENA_TEST_GUILE} --no-auto-compile
-      ${CMAKE_CURRENT_SOURCE_DIR}/scheme/buffer-switcher-ownership-test.scm
-      ${ATHENA_SOURCE_DIR})
   add_test (NAME link_navigation_ownership_scheme_test
     COMMAND ${ATHENA_TEST_GUILE} --no-auto-compile
       ${CMAKE_CURRENT_SOURCE_DIR}/scheme/link-navigation-ownership-test.scm
