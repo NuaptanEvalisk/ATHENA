@@ -200,12 +200,18 @@ namespace_map () {
 }
 
 static bool
-current_physical_file_path (QString& path) {
-  url name= get_current_buffer_safe ();
+physical_file_path_for_identity (const QString& identity, QString& path) {
+  if (identity.isEmpty ()) return false;
+  url name (from_qstring (identity));
   if (!is_rooted (name, "default") && !is_rooted (name, "file"))
     return false;
   path= to_qstring (concretize (name));
   return !path.isEmpty () && QFileInfo::exists (path);
+}
+
+static bool
+current_physical_file_path (QString& path) {
+  return physical_file_path_for_identity (current_buffer_identity (), path);
 }
 
 static QStringList
@@ -462,13 +468,13 @@ build_namespace_reverse_hierarchy_graph (
 }
 
 static bool
-build_current_reverse_hierarchy_graph (RHGraph& graph, QString& error) {
+build_reverse_hierarchy_graph_for_identity (
+  RHGraph& graph, const QString& identity, QString& error) {
   if (!vault_active ()) {
     error= "No active vault.";
     return false;
   }
 
-  QString identity= current_buffer_identity ();
   QMap<QString,athena_namespace_definition> all= namespace_map ();
   QStringList ns_path= parse_namespace_tmfs_path (identity);
   if (!ns_path.isEmpty ())
@@ -476,12 +482,18 @@ build_current_reverse_hierarchy_graph (RHGraph& graph, QString& error) {
       graph, all, identity, ns_path, error);
 
   QString path;
-  if (!current_physical_file_path (path)) {
+  if (!physical_file_path_for_identity (identity, path)) {
     error= "Reverse hierarchy applies to saved vault files and tmfs://ns/ namespace pages.";
     return false;
   }
 
   return build_file_reverse_hierarchy_graph (graph, all, identity, path, error);
+}
+
+static bool
+build_current_reverse_hierarchy_graph (RHGraph& graph, QString& error) {
+  return build_reverse_hierarchy_graph_for_identity (
+    graph, current_buffer_identity (), error);
 }
 
 static QString
@@ -501,10 +513,9 @@ canonical_or_clean_path (const QString& path) {
 }
 
 static bool
-namespace_for_current_homepage (
-  const QMap<QString,athena_namespace_definition>& all, QString& name) {
-  QString path;
-  if (!current_physical_file_path (path)) return false;
+namespace_for_homepage_path (
+  const QMap<QString,athena_namespace_definition>& all,
+  const QString& path, QString& name) {
   QString current= canonical_or_clean_path (path);
   for (auto it= all.constBegin (); it != all.constEnd (); ++it) {
     QString homepage= to_qstring (it.value ().homepage_path);
@@ -515,6 +526,14 @@ namespace_for_current_homepage (
     }
   }
   return false;
+}
+
+static bool
+namespace_for_current_homepage (
+  const QMap<QString,athena_namespace_definition>& all, QString& name) {
+  QString path;
+  if (!current_physical_file_path (path)) return false;
+  return namespace_for_homepage_path (all, path, name);
 }
 
 static bool
@@ -545,14 +564,13 @@ build_namespace_direct_hierarchy_graph (
 }
 
 static bool
-build_current_direct_hierarchy_graph (RHGraph& graph, bool simplify,
-                                      QString& error) {
+build_direct_hierarchy_graph_for_identity (
+  RHGraph& graph, const QString& identity, bool simplify, QString& error) {
   if (!vault_active ()) {
     error= "No active vault.";
     return false;
   }
 
-  QString identity= current_buffer_identity ();
   QMap<QString,athena_namespace_definition> all= namespace_map ();
   QStringList ns_path= parse_namespace_tmfs_path (identity);
   if (!ns_path.isEmpty ())
@@ -560,12 +578,21 @@ build_current_direct_hierarchy_graph (RHGraph& graph, bool simplify,
       graph, all, identity, ns_path.last (), simplify, error);
 
   QString homepageName;
-  if (namespace_for_current_homepage (all, homepageName))
+  QString path;
+  if (physical_file_path_for_identity (identity, path) &&
+      namespace_for_homepage_path (all, path, homepageName))
     return build_namespace_direct_hierarchy_graph (
       graph, all, identity, homepageName, simplify, error);
 
   error= "select a namespace to view direct hierarchy graph";
   return false;
+}
+
+static bool
+build_current_direct_hierarchy_graph (RHGraph& graph, bool simplify,
+                                       QString& error) {
+  return build_direct_hierarchy_graph_for_identity (
+    graph, current_buffer_identity (), simplify, error);
 }
 
 static bool
@@ -587,13 +614,14 @@ reference_absolute_path (const QString& vaultRoot, const QString& path) {
 }
 
 static bool
-current_reference_source (QString& absolute, QString& relative,
-                          QString& error) {
+reference_source_for_identity (
+  const QString& identity, QString& absolute, QString& relative,
+  QString& error) {
   if (!vault_active ()) {
     error= "No active vault.";
     return false;
   }
-  if (!current_physical_file_path (absolute) ||
+  if (!physical_file_path_for_identity (identity, absolute) ||
       QFileInfo (absolute).suffix ().compare ("ath", Qt::CaseInsensitive) != 0) {
     error= "Select a saved .ath note to view its reference graph.";
     return false;
@@ -625,13 +653,24 @@ current_reference_source (QString& absolute, QString& relative,
 }
 
 static bool
+current_reference_source (QString& absolute, QString& relative,
+                          QString& error) {
+  return reference_source_for_identity (
+    current_buffer_identity (), absolute, relative, error);
+}
+
+static bool
 build_reference_graph (
   RHGraph& graph, int maxDepth, bool localGraph,
-  const std::function<void(size_t,size_t)>& progress, QString& error)
+  const std::function<void(size_t,size_t)>& progress, QString& error,
+  const QString& identity= QString ())
 {
   QString currentAbsolute;
   QString currentRelative;
-  if (!current_reference_source (currentAbsolute, currentRelative, error))
+  if (!(identity.isEmpty () ?
+        current_reference_source (currentAbsolute, currentRelative, error):
+        reference_source_for_identity (
+          identity, currentAbsolute, currentRelative, error)))
     return false;
 
   std::vector<AthenaReferenceGraphEdge> cachedEdges;
@@ -1541,6 +1580,8 @@ private:
 };
 
 static bool build_layout_graph (RHGraph& graph, QString& error);
+static bool build_layout_graph_for_identity (
+  RHGraph& graph, const QString& identity, QString& error);
 
 class ReverseHierarchyGraphPane: public QWidget {
 public:
@@ -1626,9 +1667,14 @@ public:
   }
 
   bool refreshFromCurrentDocument (QString* errorOut = nullptr) {
+    return refreshFromDocumentIdentity (current_buffer_identity (), errorOut);
+  }
+
+  bool refreshFromDocumentIdentity (
+    const QString& identity, QString* errorOut = nullptr) {
     RHGraph graph;
     QString error;
-    if (!build_layout_graph (graph, error)) {
+    if (!build_layout_graph_for_identity (graph, identity, error)) {
       if (errorOut != nullptr) *errorOut= error;
       showMessageScene (error);
       return false;
@@ -1792,6 +1838,22 @@ public:
     fixedNamespace.clear ();
     fixedTitleOverride.clear ();
     return rebuildFromCurrentDocument (errorOut);
+  }
+
+  bool refreshFromDocumentIdentity (
+    const QString& identity, QString* errorOut = nullptr) {
+    fixedNamespace.clear ();
+    fixedTitleOverride.clear ();
+    RHGraph graph;
+    QString error;
+    if (!build_direct_hierarchy_graph_for_identity (
+          graph, identity, simplify (), error)) {
+      if (errorOut != nullptr) *errorOut= error;
+      showMessageScene (error);
+      return false;
+    }
+    setGraphScene (graph);
+    return true;
   }
 
   bool refreshFromNamespace (const QString& name,
@@ -2054,6 +2116,11 @@ public:
   }
 
   bool refreshFromCurrentDocument (QString* errorOut = nullptr) {
+    return refreshFromDocumentIdentity (QString (), errorOut);
+  }
+
+  bool refreshFromDocumentIdentity (
+    const QString& identity, QString* errorOut = nullptr) {
     if (refreshing) return false;
     refreshing= true;
     statusLabel->setText ("Checking reference cache...");
@@ -2071,12 +2138,13 @@ public:
           QString ("Indexing .ath notes: %1 / %2").arg (done).arg (total));
         if (done == total || done % 25 == 0)
           QApplication::processEvents (QEventLoop::ExcludeUserInputEvents);
-      }, error);
+      }, error, identity);
     if (built) built= layout_with_boost_force_directed (graph, error);
 
-    currentIdentity= current_buffer_identity ();
+    currentIdentity= identity.isEmpty () ? current_buffer_identity () : identity;
     QString currentPath;
-    currentModified= current_physical_file_path (currentPath) ?
+    currentModified=
+      physical_file_path_for_identity (currentIdentity, currentPath) ?
       QFileInfo (currentPath).lastModified () : QDateTime ();
     if (!built) {
       if (errorOut != nullptr) *errorOut= error;
@@ -2165,8 +2233,15 @@ private:
 
 static bool
 build_layout_graph (RHGraph& graph, QString& error) {
+  return build_layout_graph_for_identity (
+    graph, current_buffer_identity (), error);
+}
+
+static bool
+build_layout_graph_for_identity (
+  RHGraph& graph, const QString& identity, QString& error) {
   QString warning;
-  if (!build_current_reverse_hierarchy_graph (graph, warning)) {
+  if (!build_reverse_hierarchy_graph_for_identity (graph, identity, warning)) {
     error= warning;
     return false;
   }
@@ -2292,6 +2367,22 @@ reverse_hierarchy_graph_show () {
 
   QString error;
   if (!reverse_hierarchy_graph_widget->refreshFromCurrentDocument (&error))
+    show_error (error, "Reverse Hierarchy Graph");
+}
+
+void
+reverse_hierarchy_graph_show_document (string identity) {
+  if (qt_defer_to_main_thread (
+        reverse_hierarchy_graph_show_document, identity))
+    return;
+  // Reuse the pane lifecycle from the existing entry point, then immediately
+  // replace its content with the explicitly captured document.  The final
+  // graph never depends on whichever editor happens to be current on Main.
+  reverse_hierarchy_graph_show ();
+  if (reverse_hierarchy_graph_widget == nullptr) return;
+  QString error;
+  if (!reverse_hierarchy_graph_widget->refreshFromDocumentIdentity (
+        to_qstring (identity), &error))
     show_error (error, "Reverse Hierarchy Graph");
 }
 
@@ -2490,6 +2581,21 @@ direct_hierarchy_graph_show () {
 }
 
 void
+direct_hierarchy_graph_show_document (string identity) {
+  if (qt_defer_to_main_thread (
+        direct_hierarchy_graph_show_document, identity))
+    return;
+  QString error;
+  if (!ensure_direct_hierarchy_graph_pane (error)) {
+    show_error (error, "Direct Hierarchy Graph");
+    return;
+  }
+  if (!direct_hierarchy_graph_widget->refreshFromDocumentIdentity (
+        to_qstring (identity), &error))
+    show_error (error, "Direct Hierarchy Graph");
+}
+
+void
 direct_hierarchy_graph_show_namespace (string name) {
   if (qt_defer_to_main_thread (direct_hierarchy_graph_show_namespace, name))
     return;
@@ -2540,6 +2646,23 @@ local_reference_graph_show () {
 }
 
 void
+local_reference_graph_show_document (string identity) {
+  if (qt_defer_to_main_thread (
+        local_reference_graph_show_document, identity))
+    return;
+  QString error;
+  if (!ensure_reference_graph_pane (
+        false, local_reference_graph_dock, local_reference_graph_widget,
+        "Local Reference Graph", "athena-local-reference-graph", error)) {
+    show_error (error, "Local Reference Graph");
+    return;
+  }
+  if (!local_reference_graph_widget->refreshFromDocumentIdentity (
+        to_qstring (identity), &error))
+    show_error (error, "Local Reference Graph");
+}
+
+void
 reference_graph_show () {
   if (qt_defer_to_main_thread (reference_graph_show)) return;
   QString error;
@@ -2550,5 +2673,21 @@ reference_graph_show () {
     return;
   }
   if (!reference_graph_widget->refreshFromCurrentDocument (&error))
+    show_error (error, "Reference Graph");
+}
+
+void
+reference_graph_show_document (string identity) {
+  if (qt_defer_to_main_thread (reference_graph_show_document, identity))
+    return;
+  QString error;
+  if (!ensure_reference_graph_pane (
+        true, reference_graph_dock, reference_graph_widget,
+        "Reference Graph", "athena-reference-graph", error)) {
+    show_error (error, "Reference Graph");
+    return;
+  }
+  if (!reference_graph_widget->refreshFromDocumentIdentity (
+        to_qstring (identity), &error))
     show_error (error, "Reference Graph");
 }

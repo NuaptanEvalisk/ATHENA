@@ -49,6 +49,7 @@ struct actor_viewport_snapshot {
   bool attached= false;
   bool focused= false;
   bool full_screen= false;
+  bool full_screen_edit= false;
   bool invalid= false;
   bool header_visible= false;
   bool footer_visible= false;
@@ -441,6 +442,7 @@ private:
     std::atomic<bool> attached {false};
     std::atomic<bool> focused {false};
     std::atomic<bool> full_screen {false};
+    std::atomic<bool> full_screen_edit {false};
     std::atomic<bool> invalid {false};
     std::atomic<bool> header_visible {false};
     std::atomic<bool> footer_visible {false};

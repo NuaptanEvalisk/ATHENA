@@ -938,7 +938,9 @@
         { "command": "view.neighborhoods" },
         { "separator": true },
         { "command": "view.error-messages" },
-        { "command": "view.artifacts" }
+        { "command": "view.artifacts" },
+        { "separator": true },
+        { "provider": "view-controls" }
       ]
     },
     {

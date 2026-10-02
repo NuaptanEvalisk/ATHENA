@@ -155,6 +155,12 @@ qt_actor_widget_rep::document_menu_state () const {
          endpoint_->document_menu_state ();
 }
 
+actor_viewport_snapshot
+qt_actor_widget_rep::viewport_state () const noexcept {
+  return endpoint_ == nullptr ? actor_viewport_snapshot {} :
+         endpoint_->viewport ();
+}
+
 bool
 qt_actor_widget_rep::prominent_spacing_available () const noexcept {
   return endpoint_ != nullptr && endpoint_->prominent_spacing_available ();
@@ -681,6 +687,7 @@ qt_actor_widget_rep::refresh_viewport () {
   snapshot.attached= ::is_attached (widget (this));
   snapshot.focused= canvas () != nullptr && canvas ()->hasFocus ();
   snapshot.full_screen= get_server ()->in_full_screen_mode ();
+  snapshot.full_screen_edit= get_server ()->in_full_screen_edit_mode ();
   snapshot.invalid= is_invalid ();
   tm_view view= concrete_runtime_view (view_id_);
   if (view != nullptr && view->win != nullptr) {

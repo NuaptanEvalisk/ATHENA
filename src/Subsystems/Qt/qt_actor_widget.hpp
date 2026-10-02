@@ -29,6 +29,7 @@ public:
   actor_editor_command_snapshot editor_command_state () const noexcept;
   actor_focus_toolbar_snapshot focus_toolbar_state () const;
   actor_document_menu_snapshot document_menu_state () const;
+  actor_viewport_snapshot viewport_state () const noexcept;
   bool prominent_spacing_available () const noexcept;
   bool inside_table () const noexcept;
   actor_dynamic_menu_snapshot personal_macro_items () const;

@@ -15,13 +15,17 @@
 #include "tree.hpp"
 
 void reverse_hierarchy_graph_show ();
+void reverse_hierarchy_graph_show_document (string identity);
 void reverse_hierarchy_graph_insert ();
 tree reverse_hierarchy_graph_render (string size);
 void direct_hierarchy_graph_show ();
+void direct_hierarchy_graph_show_document (string identity);
 void direct_hierarchy_graph_show_namespace (string name);
 void global_hierarchy_graph_show ();
 void local_reference_graph_show ();
+void local_reference_graph_show_document (string identity);
 void reference_graph_show ();
+void reference_graph_show_document (string identity);
 void hierarchy_graph_interactivity_changed ();
 
 #endif // QTMREVERSEHIERARCHYGRAPH_HPP

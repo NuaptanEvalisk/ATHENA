@@ -65,7 +65,7 @@
 ;(display "Booting utilities\n")
 (import-from (utils library cpp-wrap))
 (import-from (utils base environment))
-(lazy-define (utils library cursor) notify-cursor-moved)
+(lazy-define (utils library cursor) notify-cursor-moved cursor-history-add)
 (lazy-define (utils edit variants) make-inline-tag-list make-wrapped-tag-list)
 (lazy-define (utils cas cas-out) cas->stree)
 
@@ -86,6 +86,12 @@
 (lazy-define (athena athena tm-global-transformation)
              run-global-transformation)
 (lazy-define (athena athena tm-tools) clean-athena-cache)
+(lazy-define (athena athena tm-view)
+             toggle-full-screen-mode toggle-full-screen-edit-mode
+             toggle-panorama-mode toggle-slideshow-mode
+             fit-to-screen fit-to-screen-width
+             toggle-persistent-fit-width toggle-typewriter-mode
+             toggle-snap-to-pages)
 (lazy-define (athena athena tm-files)
              buffer-missing-style? buffer-set-default-style command-line-convert)
 (lazy-menu (athena menus file-menu)

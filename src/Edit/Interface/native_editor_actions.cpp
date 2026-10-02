@@ -121,6 +121,17 @@ valid_business_id (const QString& id) {
     "open-document-paragraph-format",
     "open-document-page-format",
     "open-document-metadata",
+    "view-toggle-full-screen-edit",
+    "view-toggle-full-screen",
+    "view-toggle-panorama",
+    "view-toggle-slideshow",
+    "view-fit-screen",
+    "view-fit-width",
+    "view-toggle-persistent-fit-width",
+    "view-toggle-typewriter",
+    "view-toggle-snap-pages",
+    "view-heading-unfold-all",
+    "go-save-position",
     "letter-today",
     "tmdoc-explain-synopsis",
     "make-alter-colors"
@@ -218,7 +229,7 @@ valid_focus_action_value (const QJsonObject& action, QString* error) {
 }
 
 void
-execute_business_id (const QString& id) {
+execute_business_id (editor ed, const QString& id) {
   if (id == "insert-wikilink") (void) call ("insert-wikilink");
   else if (id == "insert-transclusion") (void) call ("insert-transclude");
   else if (id == "insert-material-citation")
@@ -296,6 +307,28 @@ execute_business_id (const QString& id) {
     (void) call ("open-document-page-format");
   else if (id == "open-document-metadata")
     (void) call ("open-document-metadata");
+  else if (id == "view-toggle-full-screen-edit")
+    (void) call ("toggle-full-screen-edit-mode");
+  else if (id == "view-toggle-full-screen")
+    (void) call ("toggle-full-screen-mode");
+  else if (id == "view-toggle-panorama")
+    (void) call ("toggle-panorama-mode");
+  else if (id == "view-toggle-slideshow")
+    (void) call ("toggle-slideshow-mode");
+  else if (id == "view-fit-screen")
+    (void) call ("fit-to-screen");
+  else if (id == "view-fit-width")
+    (void) call ("fit-to-screen-width");
+  else if (id == "view-toggle-persistent-fit-width")
+    (void) call ("toggle-persistent-fit-width");
+  else if (id == "view-toggle-typewriter")
+    (void) call ("toggle-typewriter-mode");
+  else if (id == "view-toggle-snap-pages")
+    (void) call ("toggle-snap-to-pages");
+  else if (id == "view-heading-unfold-all")
+    ed->heading_unfold_all ();
+  else if (id == "go-save-position")
+    (void) call ("cursor-history-add", object (ed->the_path ()));
   else if (id == "letter-today") {
     (void) call ("make-header", symbol_object ("letter-date"));
     (void) call ("make", symbol_object ("date"), object (0));
@@ -1333,7 +1366,7 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
   else if (op == "make-experimental-build-warning")
     generic_make_experimental_build_warning ();
   else if (op == "business")
-    execute_business_id (action.value ("id").toString ());
+    execute_business_id (ed, action.value ("id").toString ());
   else
     FAILED ("unhandled validated native editor action");
 }
