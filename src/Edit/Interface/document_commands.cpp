@@ -230,6 +230,11 @@ list<string> current_style_list () {
   return is_list (styles) ? as_list_string (styles) : list<string> ();
 }
 
+list<string> current_style_list (editor_rep* ed) {
+  object styles= document_get_style_list (ed);
+  return is_list (styles) ? as_list_string (styles) : list<string> ();
+}
+
 list<string> remove_document_languages (list<string> styles) {
   list<string> filtered;
   for (list<string> it= styles; !is_nil (it); it= it->next)
@@ -258,6 +263,14 @@ document_get_language () {
   for (list<string> it= current_style_list (); !is_nil (it); it= it->next)
     if (document_style_language (it->item)) return it->item;
   return get_current_editor ()->get_init_string ("language");
+}
+
+string
+document_get_language (editor_rep* ed) {
+  if (ed == nullptr) return string ("english");
+  for (list<string> it= current_style_list (ed); !is_nil (it); it= it->next)
+    if (document_style_language (it->item)) return it->item;
+  return ed->get_init_string ("language");
 }
 
 bool
@@ -400,6 +413,16 @@ string document_get_init_page_rendering () {
   object slideshow= call ("tree-innermost", symbol_object ("slideshow"));
   bool inside_slideshow= !(is_bool (slideshow) && !as_bool (slideshow));
   if (ed->get_init_string ("page-medium") == "paper" && !inside_slideshow)
+    return "slideshow";
+  return ed->get_init_string ("page-medium");
+}
+
+string document_get_init_page_rendering (editor_rep* ed) {
+  if (ed == nullptr) return string ("");
+  if (ed->get_init_string ("page-border") == "attached") return "book";
+  if (ed->get_init_string ("page-packet") != "1") return "panorama";
+  if (ed->get_init_string ("page-medium") == "paper" &&
+      !ed->inside ("slideshow"))
     return "slideshow";
   return ed->get_init_string ("page-medium");
 }

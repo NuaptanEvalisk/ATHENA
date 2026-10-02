@@ -1,8 +1,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;; MODULE      : print-widgets.scm
-;; DESCRIPTION : the print widgets
+;; MODULE      : tm-preferences-ui.scm
+;; DESCRIPTION : thin Scheme bridge for native C++ preferences
 ;; COPYRIGHT   : (C) 2013  Joris van der Hoeven
 ;;
 ;; This software falls under the GNU general public license version 3 or later.
@@ -11,12 +11,19 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(texmacs-module (athena menus print-widgets))
+(texmacs-module (athena athena tm-preferences-ui))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Native page setup entry point
+;; Native preferences entry points
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (open-page-setup)
+(tm-define (preferences-open?)
+  (native-preferences-open?))
+
+(tm-define (open-preferences-window)
   (:interactive #t)
-  (native-open-page-setup))
+  (native-open-preferences))
+
+(tm-define (open-preferences)
+  (:interactive #t)
+  (open-preferences-window))

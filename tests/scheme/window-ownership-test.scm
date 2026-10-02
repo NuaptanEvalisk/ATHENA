@@ -1,12 +1,13 @@
 (define (check ok message)
-  (unless ok (error "Window menu ownership regression" message)))
+  (unless ok (error "Window ownership regression" message)))
 
 ;; All of these queries run on one BufferActor, including queries about the
-;; other buffer. Merely evaluating workspace-menu does not expand its links.
+;; other buffer.  They verify that window/buffer ownership and reverse mappings
+;; remain actor-safe without relying on any Scheme menu expansion.
 (define windows
   (list-filter (window-list)
     (lambda (win)
-      (string-starts? (buffer-get-title (window-to-buffer win)) "Menu "))))
+      (string-starts? (buffer-get-title (window-to-buffer win)) "Window "))))
 (unless (= (length windows) 2)
   (error "two fixture windows were not found"
     (map (lambda (win)
@@ -21,13 +22,9 @@
     (check (not (url-none? name)) "window lost its buffer")
     (check (member win (buffer->windows name)) "reverse window mapping failed")
     (check (number? (buffer-last-visited name)) "visit metadata unavailable")
-    (check (string-starts? (buffer-get-title name) "Menu ") "title unavailable")
+    (check (string-starts? (buffer-get-title name) "Window ") "title unavailable")
     (check (boolean? (buffer-menu-modified? name)) "unsaved marker unavailable"))
   windows buffers)
-(lazy-menu-force-all)
-(menu-expand (workspace-menu))
-(menu-expand (window-list-menu))
-(menu-expand (go-menu))
 (init-env "page-medium" "paper")
 (update-current-buffer)
 (update-forced)

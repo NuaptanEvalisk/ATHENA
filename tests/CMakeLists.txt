@@ -239,15 +239,15 @@ add_test(NAME font_init_alias_editor_test
     --runtime ${ATHENA_GUILE_PREFIX}
     --resources ${ATHENA_SOURCE_DIR}/ATHENA)
 set_tests_properties(font_init_alias_editor_test PROPERTIES TIMEOUT 90)
-add_test(NAME window_menu_editor_test
+add_test(NAME window_ownership_editor_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/window-menu-setup.scm
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/window-menu-test.scm
+    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/window-ownership-setup.scm
+    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/window-ownership-test.scm
     --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
     --runtime ${ATHENA_GUILE_PREFIX}
     --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(window_menu_editor_test PROPERTIES TIMEOUT 90)
+set_tests_properties(window_ownership_editor_test PROPERTIES TIMEOUT 90)
 add_test(NAME document_tabs_editor_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
@@ -526,7 +526,7 @@ set(_athena_application_runtime_tests
   eqnarray_clipboard_editor_test
   proof_eqnarray_navigation_editor_test
   font_init_alias_editor_test
-  window_menu_editor_test
+  window_ownership_editor_test
   document_tabs_editor_test
   link_invalidation_editor_test
   completion_editor_test

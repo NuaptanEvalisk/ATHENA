@@ -14,6 +14,8 @@
 #include "scheme.hpp"
 #include "tree.hpp"
 
+class editor_rep;
+
 bool document_test_default (object variables);
 bool document_in_source_mode ();
 void document_toggle_source_mode ();
@@ -30,6 +32,7 @@ void document_init_font (string value, object options);
 bool document_test_default_language ();
 void document_set_default_language ();
 string document_get_language ();
+string document_get_language (editor_rep* ed);
 bool document_test_language (string value);
 void document_set_language (string value);
 bool document_test_default_page_medium ();
@@ -49,6 +52,7 @@ bool document_test_default_page_rendering ();
 void document_init_default_page_rendering ();
 int document_panorama_packets ();
 string document_get_init_page_rendering ();
+string document_get_init_page_rendering (editor_rep* ed);
 bool document_test_page_rendering (string value);
 void document_apply_page_rendering_state (string value);
 bool document_visible_header_and_footer ();

@@ -13,6 +13,8 @@
 
 #include "scheme.hpp"
 
+class editor_rep;
+
 object document_style_category (string style);
 bool document_style_category_overrides (object left, object right);
 bool document_style_category_precedes (object left, object right);
@@ -26,16 +28,20 @@ url document_url_resolve_package (string name);
 bool document_install_custom_style (url source);
 
 object document_get_style_list ();
+object document_get_style_list (editor_rep* ed);
 void document_set_style_list (object styles);
 object document_embedded_style_list (object extra_packages);
 bool document_has_no_style ();
 void document_set_no_style ();
 bool document_has_main_style (string style);
+bool document_has_main_style (editor_rep* ed, string style);
 void document_set_main_style (string style);
 void document_notify_new_style (string style);
 
 bool document_has_style_package (string package);
+bool document_has_style_package (editor_rep* ed, string package);
 bool document_not_has_style_package (string package);
+string document_current_basic_theme (editor_rep* ed);
 void document_add_style_package (string package);
 void document_remove_style_package (string package);
 void document_remove_style_package_star (string package);

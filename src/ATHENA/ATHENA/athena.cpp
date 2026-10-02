@@ -1276,19 +1276,6 @@ TeXmacs_main (int argc, char** argv) {
       exit (ok ? 0 : 1);
     }
 
-    if (!headless_mode) {
-      // Menu modules extend shared dispatch chains while they are loaded.
-      // Build that complete graph on the bootstrap owner before opening the
-      // first editor window starts BufferActors.  Historically lazy-menu used
-      // an idle callback for this preload, but delayed callbacks no longer have
-      // a stable global owner once a current view exists.
-      startup_progress (93, "Loading menus");
-      bench_start ("initialize menus");
-      eval ("(lazy-menu-force-all)");
-      bench_cumul ("initialize menus");
-      startup_process_events ();
-    }
-
     bool needs_startup_buffer_policy= number_buffers () == 0;
     if (needs_startup_buffer_policy) {
       extra_init_cmd << "(delayed (:idle 0) "

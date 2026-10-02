@@ -111,9 +111,8 @@
              codex-ai-completion codex-ai-completion-new-buffer
              codex-ai-completion-custom)
 (lazy-define (kernel athena tm-preferences) view-all-preferences)
-(lazy-menu (athena menus preferences-widgets)
-           preferences-open?
-           open-preferences)
+(lazy-define (athena athena tm-preferences-ui)
+             preferences-open? open-preferences)
 (tm-define (notify-set-attachment name key val) (noop))
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 

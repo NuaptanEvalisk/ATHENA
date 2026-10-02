@@ -17,8 +17,8 @@
 
 namespace {
 
-array<string> current_style_strings () {
-  tree style= get_current_editor ()->get_style ();
+array<string>
+style_strings_from_tree (tree style) {
   array<string> result;
   if (is_atomic (style)) {
     result << as_string (style);
@@ -28,6 +28,15 @@ array<string> current_style_strings () {
   for (int i= 0; i < N (style); ++i)
     if (is_atomic (style[i])) result << as_string (style[i]);
   return result;
+}
+
+array<string> current_style_strings () {
+  return style_strings_from_tree (get_current_editor ()->get_style ());
+}
+
+array<string> current_style_strings (editor_rep* ed) {
+  return ed == nullptr ? array<string> () :
+                         style_strings_from_tree (ed->get_style ());
 }
 
 object style_list_object (array<string> styles) {
@@ -143,6 +152,65 @@ bool contains_style (array<string> styles, string value) {
   return false;
 }
 
+bool
+owner_style_includes (string style, string included) {
+  if (style == "beamer")
+    return included == "title-bar" || included == "bluish";
+  if (style == "poster")
+    return included == "boring-white" || included == "framed-poster-title";
+  return false;
+}
+
+string
+owner_style_category (editor_rep* ed, string style) {
+  if (style == "centered-program" || style == "framed-program")
+    return "@program-theme";
+  if (style == "framed-theorems" || style == "hanging-theorems")
+    return "@theorem-decorations";
+  if (style == "title-bar" || style == "framed-title")
+    return "@beamer-title-theme";
+  if (style == "plain-poster-title" || style == "framed-poster-title" ||
+      style == "topless-poster-title")
+    return "@poster-title-style";
+
+  static const char* const themes[]= {
+    "bluish", "boring-white", "dark-vador", "granite", "ice",
+    "manila-paper", "metal", "pale-blue", "pine", "reddish",
+    "ridged-paper", "rough-paper", "xperiment"
+  };
+  bool theme= false;
+  for (const char* candidate: themes)
+    if (style == candidate) {
+      theme= true;
+      break;
+    }
+  if (theme) {
+    if (ed != nullptr && ed->defined_at_init ("poster-style"))
+      return "@poster-theme";
+    if (ed != nullptr && ed->defined_at_init ("beamer-style"))
+      return "@beamer-theme";
+    return "@basic-theme";
+  }
+  return style;
+}
+
+bool
+owner_style_overrides (editor_rep* ed, string left, string right) {
+  return owner_style_category (ed, left) == owner_style_category (ed, right);
+}
+
+bool
+basic_theme_name (string value) {
+  static const char* const themes[]= {
+    "bluish", "boring-white", "dark-vador", "granite", "ice",
+    "manila-paper", "metal", "pale-blue", "pine", "reddish",
+    "ridged-paper", "rough-paper", "xperiment"
+  };
+  for (const char* candidate: themes)
+    if (value == candidate) return true;
+  return false;
+}
+
 } // namespace
 
 object
@@ -241,6 +309,11 @@ document_get_style_list () {
   return style_list_object (current_style_strings ());
 }
 
+object
+document_get_style_list (editor_rep* ed) {
+  return style_list_object (current_style_strings (ed));
+}
+
 void
 document_set_style_list (object value) {
   array<string> styles;
@@ -278,6 +351,12 @@ document_has_main_style (string style) {
   return N (styles) > 0 && styles[0] == style;
 }
 
+bool
+document_has_main_style (editor_rep* ed, string style) {
+  array<string> styles= current_style_strings (ed);
+  return N (styles) > 0 && styles[0] == style;
+}
+
 void
 document_set_main_style (string style) {
   array<string> styles= current_style_strings ();
@@ -304,6 +383,28 @@ document_has_style_package (string package) {
       overridden= true;
   }
   return included && !overridden;
+}
+
+bool
+document_has_style_package (editor_rep* ed, string package) {
+  array<string> styles= current_style_strings (ed);
+  if (contains_style (styles, package)) return true;
+
+  bool included= false;
+  bool overridden= false;
+  for (int i= 0; i < N (styles); ++i) {
+    if (owner_style_includes (styles[i], package)) included= true;
+    if (owner_style_overrides (ed, styles[i], package)) overridden= true;
+  }
+  return included && !overridden;
+}
+
+string
+document_current_basic_theme (editor_rep* ed) {
+  array<string> styles= current_style_strings (ed);
+  for (int i= 0; i < N(styles); ++i)
+    if (basic_theme_name (styles[i])) return styles[i];
+  return "plain";
 }
 
 bool

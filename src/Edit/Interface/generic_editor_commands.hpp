@@ -35,6 +35,7 @@ void generic_search_previous ();
 void generic_focus_open_search_tool (tree t);
 bool generic_mini_flow_context (tree t);
 bool generic_in_main_flow ();
+bool generic_in_main_flow (editor_rep* ed);
 bool generic_balloon_context (tree t);
 bool generic_image_context (tree t);
 bool generic_embedded_image_context (tree t);

@@ -753,7 +753,7 @@ editor_rep::editor_command_state_snapshot () {
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_INSIDE_LETTER_HEADER;
   if (inside ("float") || inside ("footnote"))
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_INSIDE_FLOAT_OR_FOOTNOTE;
-  if (generic_in_main_flow ())
+  if (generic_in_main_flow (this))
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_MAIN_FLOW;
   if (inside ("traverse"))
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_TMDOC_TRAVERSE;
@@ -817,7 +817,7 @@ editor_rep::document_menu_state_snapshot () {
     };
 
   try {
-    list<string> styles= as_list_string (call ("get-style-list"));
+    list<string> styles= as_list_string (document_get_style_list (this));
     if (!is_nil (styles)) assign (snapshot.document_style, styles->item);
   }
   catch (...) {}
@@ -826,25 +826,25 @@ editor_rep::document_menu_state_snapshot () {
     snapshot.document_font,
     document_font_display_name (get_init_string ("font")));
   assign (snapshot.font_base_size, get_init_string ("font-base-size"));
-  assign (snapshot.document_language, document_get_language ());
+  assign (snapshot.document_language, document_get_language (this));
   assign (snapshot.magnification, get_init_string ("magnification"));
   assign (snapshot.foreground_color, get_init_string ("color"));
   assign (snapshot.info_flag, get_init_string ("info-flag"));
-  assign (snapshot.page_rendering, document_get_init_page_rendering ());
+  assign (snapshot.page_rendering, document_get_init_page_rendering (this));
   assign (snapshot.background_color, get_init_string ("bg-color"));
 
   array<string> styleNames= get_style_names ();
   for (int i=0; i<N(styleNames); ++i)
     append_choice (
       snapshot.document_styles, styleNames[i],
-      document_has_main_style (styleNames[i]));
+      document_has_main_style (this, styleNames[i]));
   array<string> packageNames= get_package_names ();
   for (int i=0; i<N(packageNames); ++i)
     append_choice (
       snapshot.document_packages, packageNames[i],
-      document_has_style_package (packageNames[i]));
+      document_has_style_package (this, packageNames[i]));
   try {
-    list<string> styles= as_list_string (document_get_style_list ());
+    list<string> styles= as_list_string (document_get_style_list (this));
     if (!is_nil (styles)) {
       styles= styles->next;
       for (; !is_nil (styles); styles= styles->next)
@@ -854,21 +854,20 @@ editor_rep::document_menu_state_snapshot () {
   }
   catch (...) {}
 
-  try {
-    snapshot.beamer_style=
-      as_bool (call ("style-has?", object (string ("beamer-style"))));
+  snapshot.beamer_style= defined_at_init ("beamer-style");
+  snapshot.automate_style= defined_at_init ("automate-dtd");
+  {
+    tree root= the_root ();
+    path p= the_path ();
+    while (!is_nil (p)) {
+      if (has_subtree (root, p) &&
+          is_compound (subtree (root, p), "commutative-diagram")) {
+        snapshot.commutative_diagram= true;
+        break;
+      }
+      p= path_up (p);
+    }
   }
-  catch (...) {}
-  try {
-    snapshot.automate_style=
-      as_bool (call ("style-has?", object (string ("automate-dtd"))));
-  }
-  catch (...) {}
-  try {
-    snapshot.commutative_diagram=
-      as_bool (call ("in-commutative-diagram?"));
-  }
-  catch (...) {}
   const bool poster=
     (editor_style_command_flags &
      ACTOR_EDITOR_COMMAND_STATE_POSTER_STYLE) != 0;
@@ -884,7 +883,7 @@ editor_rep::document_menu_state_snapshot () {
         for (; !is_nil (themes); themes= themes->next)
           append_choice (
             target, themes->item,
-            document_has_style_package (themes->item));
+            document_has_style_package (this, themes->item));
       }
       catch (...) {}
     };
@@ -908,24 +907,21 @@ editor_rep::document_menu_state_snapshot () {
         item.label,
         name == "alt-colors" ? string ("Alternative colors"):
                                string ("Framed theorems"));
-      item.checked= document_has_style_package (name);
+      item.checked= document_has_style_package (this, name);
       snapshot.document_themes.push_back (std::move (item));
     }
-    try {
-      snapshot.background_available=
-        as_string (call ("current-basic-theme")) != "plain";
-    }
-    catch (...) {}
+    snapshot.background_available=
+      document_current_basic_theme (this) != "plain";
   }
 
-  try { snapshot.has_preamble= as_bool (call ("buffer-has-preamble?")); }
-  catch (...) {}
-  try { snapshot.preamble_mode= as_bool (call ("in-preamble-mode?")); }
-  catch (...) {}
+  tree document= the_buffer ();
+  snapshot.has_preamble= document_has_preamble (document);
+  snapshot.preamble_mode=
+    snapshot.has_preamble && N(document) > 0 &&
+    is_compound (document[0], "show-preamble");
   snapshot.save_aux= get_init_string (SAVE_AUX) == "true";
   string citationStyle=
     get_user_preference ("materials csl style", "springer-mathphys");
-  tree document= the_buffer ();
   for (int i=0; i<N(document); ++i) {
     tree initial= document[i];
     if (!is_compound (initial, "initial", 1)) continue;
@@ -1240,12 +1236,9 @@ editor_rep::focus_toolbar_state_snapshot () {
         as_bool (call ("document-propose-screens?"));
     }
     catch (...) {}
-    try {
-      bool poster= as_bool (call ("style-has?", object (string ("poster-style"))));
-      snapshot.poster_insert_title_available=
-        poster && snapshot.document_insert_title_available;
-    }
-    catch (...) {}
+    snapshot.poster_insert_title_available=
+      defined_at_init ("poster-style") &&
+      snapshot.document_insert_title_available;
     try {
       snapshot.tmdoc_insert_title_available=
         as_bool (call ("tmdoc-propose-title?"));
@@ -1611,7 +1604,7 @@ editor_rep::focus_toolbar_state_snapshot () {
           item.help.assign (
             text.data (), static_cast<std::size_t> (N(text)));
         }
-        item.checked= document_has_style_package (option);
+        item.checked= document_has_style_package (this, option);
         snapshot.style_options.push_back (std::move (item));
       }
     }
@@ -1632,7 +1625,7 @@ editor_rep::focus_toolbar_state_snapshot () {
   if (snapshot.has (ACTOR_FOCUS_TOOLBAR_BUFFER) ||
       snapshot.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT)) {
     try {
-      list<string> styles= as_list_string (call ("get-style-list"));
+      list<string> styles= as_list_string (document_get_style_list (this));
       if (!is_nil (styles)) {
         const string style= styles->item;
         snapshot.document_style.assign (
@@ -1643,7 +1636,7 @@ editor_rep::focus_toolbar_state_snapshot () {
     const string pageType= get_init_string ("page-type");
     const string font= document_font_display_name (get_init_string ("font"));
     const string fontSize= get_init_string ("font-base-size");
-    const string language= document_get_language ();
+    const string language= document_get_language (this);
     snapshot.page_type.assign (
       pageType.data (), static_cast<std::size_t> (N(pageType)));
     snapshot.document_font.assign (
@@ -1673,14 +1666,14 @@ editor_rep::focus_toolbar_state_snapshot () {
     for (int i=0; i<N(styleNames); ++i)
       append_choice (
         snapshot.document_styles, styleNames[i],
-        document_has_main_style (styleNames[i]));
+        document_has_main_style (this, styleNames[i]));
     array<string> packageNames= get_package_names ();
     for (int i=0; i<N(packageNames); ++i)
       append_choice (
         snapshot.document_packages, packageNames[i],
-        document_has_style_package (packageNames[i]));
+        document_has_style_package (this, packageNames[i]));
     try {
-      list<string> styles= as_list_string (document_get_style_list ());
+      list<string> styles= as_list_string (document_get_style_list (this));
       if (!is_nil (styles)) {
         styles= styles->next;
         for (; !is_nil (styles); styles= styles->next)
@@ -1695,11 +1688,7 @@ editor_rep::focus_toolbar_state_snapshot () {
     snapshot.background_color.assign (
       background.data (), static_cast<std::size_t> (N(background)));
 
-    try {
-      snapshot.beamer_style=
-        as_bool (call ("style-has?", object (string ("beamer-style"))));
-    }
-    catch (...) {}
+    snapshot.beamer_style= defined_at_init ("beamer-style");
     const bool poster=
       (editor_style_command_flags &
        ACTOR_EDITOR_COMMAND_STATE_POSTER_STYLE) != 0;
@@ -1717,7 +1706,7 @@ editor_rep::focus_toolbar_state_snapshot () {
           for (; !is_nil (themes); themes= themes->next)
             append_choice (
               target, themes->item,
-              document_has_style_package (themes->item));
+              document_has_style_package (this, themes->item));
         }
         catch (...) {}
       };
@@ -1743,14 +1732,11 @@ editor_rep::focus_toolbar_state_snapshot () {
                                  string ("Framed theorems");
         item.label.assign (
           label.data (), static_cast<std::size_t> (N(label)));
-        item.checked= document_has_style_package (name);
+        item.checked= document_has_style_package (this, name);
         snapshot.document_themes.push_back (std::move (item));
       }
-      try {
-        snapshot.background_available=
-          as_string (call ("current-basic-theme")) != "plain";
-      }
-      catch (...) {}
+      snapshot.background_available=
+        document_current_basic_theme (this) != "plain";
     }
 
     if (snapshot.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT)) {
@@ -1801,13 +1787,8 @@ editor_rep::refresh_editor_style_command_flags () {
   if (editor_style_command_flags_valid) return;
   editor_style_command_flags= 0;
   if (buf == nullptr) return;
-  auto style_has= [] (const char* capability) {
-    try {
-      return as_bool (call ("style-has?", object (string (capability))));
-    }
-    catch (...) {
-      return false;
-    }
+  auto style_has= [this] (const char* capability) {
+    return defined_at_init (string (capability));
   };
   if (style_has ("poster-style"))
     editor_style_command_flags |= ACTOR_EDITOR_COMMAND_STATE_POSTER_STYLE;

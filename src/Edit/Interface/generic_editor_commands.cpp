@@ -644,6 +644,18 @@ generic_mini_flow_context (tree t) {
 }
 
 bool
+generic_in_main_flow (editor_rep* ed) {
+  if (ed == nullptr) return false;
+  path p= path_up (ed->the_path (), 2);
+  while (!is_nil (p)) {
+    if (ed->test_subtree (p) && generic_mini_flow_context (ed->the_subtree (p)))
+      return false;
+    p= path_up (p);
+  }
+  return true;
+}
+
+bool
 generic_in_main_flow () {
   editor ed= get_current_editor ();
   path p= path_up (ed->the_path (), 2);
