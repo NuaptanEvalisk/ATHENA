@@ -226,6 +226,18 @@ QTMApplicationMenuPresenter::refresh_provider (
   return any;
 }
 
+void
+QTMApplicationMenuPresenter::bind_gui_refresh_if_available () {
+  if (refresh_connection_ || shell_ == nullptr || the_gui == nullptr ||
+      the_gui->gui_helper == nullptr)
+    return;
+  refresh_connection_= QObject::connect (
+    the_gui->gui_helper, &QTMGuiHelper::refresh, shell_,
+    [this] {
+      if (root_refresh_timer_ != nullptr) root_refresh_timer_->start ();
+    });
+}
+
 int
 QTMApplicationMenuPresenter::build_menu (
   QMenu* menu, const QVector<QTMCommandMenuItem>& items, bool root_menu) {
@@ -281,7 +293,8 @@ QTMApplicationMenuPresenter::build_menu (
     [this, index, root_menu] {
       if (index < 0 || index >= menus_.size ()) return;
       if (root_menu) {
-        if (the_gui->gui_helper != nullptr)
+        bind_gui_refresh_if_available ();
+        if (the_gui != nullptr && the_gui->gui_helper != nullptr)
           the_gui->gui_helper->aboutToShowMainMenu ();
         capture_presented_context ();
       }
@@ -289,8 +302,9 @@ QTMApplicationMenuPresenter::build_menu (
     });
   if (root_menu)
     QObject::connect (
-      menu, &QMenu::aboutToHide, menu, [] {
-        if (the_gui->gui_helper != nullptr)
+      menu, &QMenu::aboutToHide, menu, [this] {
+        bind_gui_refresh_if_available ();
+        if (the_gui != nullptr && the_gui->gui_helper != nullptr)
           the_gui->gui_helper->aboutToHideMainMenu ();
       });
   return index;
@@ -307,6 +321,7 @@ QTMApplicationMenuPresenter::execute (const QString& command_id) {
 
 void
 QTMApplicationMenuPresenter::refresh_root_visibility () {
+  bind_gui_refresh_if_available ();
   capture_presented_context ();
   actor_editor_command_snapshot snapshot;
   actor_document_menu_snapshot document_snapshot;
@@ -379,10 +394,7 @@ QTMApplicationMenuPresenter::activate () {
       remember_input_widget (now);
       root_refresh_timer_->start ();
     });
-  if (the_gui->gui_helper != nullptr)
-    refresh_connection_= QObject::connect (
-      the_gui->gui_helper, &QTMGuiHelper::refresh, shell_,
-      [this] { root_refresh_timer_->start (); });
+  bind_gui_refresh_if_available ();
   remember_input_widget (QApplication::focusWidget ());
   refresh_root_visibility ();
   return true;

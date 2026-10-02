@@ -1174,7 +1174,9 @@ qt_gui_rep::update () {
   
   if (waiting_events.size() > 0) needing_update = true;
   if (interrupted)               needing_update = true;
-  if (!headless_mode && nr_windows == 0 && !athena_has_open_ads_panes ())
+  if (!headless_mode && nr_windows == 0 &&
+      QTMMainTabWindow::topTabWindow () == nullptr &&
+      !athena_has_open_ads_panes ())
     qApp->quit ();
   
   time_t delay = delayed_commands.lapse - texmacs_time();

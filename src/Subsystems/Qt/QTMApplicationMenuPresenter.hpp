@@ -64,6 +64,7 @@ private:
 
   void remember_input_widget (QWidget* widget);
   void capture_presented_context ();
+  void bind_gui_refresh_if_available ();
   int build_menu (QMenu* menu, const QVector<QTMCommandMenuItem>& items,
                    bool root_menu);
   void repopulate_provider (menu_entry& entry, QMenu* menu);
