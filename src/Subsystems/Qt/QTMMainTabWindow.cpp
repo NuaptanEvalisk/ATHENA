@@ -16,6 +16,7 @@
 #endif
 #include "QTMNeighborhoodsPane.hpp"
 #include "QTMHandwritingSymbolPane.hpp"
+#include "ATHENA/Data/background_workers.hpp"
 #include "qt_window_widget.hpp"
 #include "qt_utilities.hpp"
 #include "scheme.hpp"
@@ -31,14 +32,23 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QHBoxLayout>
+#include <QLabel>
 #include <QMap>
+#include <QProgressBar>
 #include <QShortcut>
 #include <QSaveFile>
+#include <QSizePolicy>
+#include <QStatusBar>
 #include <QTimer>
 #include <QStringList>
 #include <DockAreaWidget.h>
 #include <DockContainerWidget.h>
 #include <FloatingDockContainer.h>
+
+#include <algorithm>
+#include <climits>
+#include <vector>
 
 QTMMainTabWindow *QTMMainTabWindow::gTopTabWindow = nullptr;
 static bool gNextWidgetFloating = false;
@@ -79,6 +89,122 @@ public:
   }
 };
 static const int ATHENA_ADS_LAYOUT_VERSION = 1;
+
+static void
+installApplicationBackgroundStatus (QTMMainTabWindow* shell) {
+  if (shell == nullptr) return;
+  QStatusBar* bar= new QStatusBar (shell);
+  bar->setObjectName (QStringLiteral ("athenaApplicationStatus"));
+  bar->setSizeGripEnabled (false);
+  shell->setStatusBar (bar);
+
+  QWidget* widget= new QWidget (bar);
+  auto* layout= new QHBoxLayout (widget);
+  layout->setContentsMargins (8, 0, 8, 0);
+  layout->setSpacing (5);
+  QLabel* indicator= new QLabel (widget);
+  indicator->setFixedSize (10, 10);
+  QLabel* title= new QLabel (QStringLiteral ("Background"), widget);
+  title->setFixedWidth (
+    title->fontMetrics ().horizontalAdvance (QStringLiteral ("Maintenance")) +
+    8);
+  title->setSizePolicy (QSizePolicy::Fixed, QSizePolicy::Preferred);
+  QProgressBar* progress= new QProgressBar (widget);
+  progress->setTextVisible (false);
+  progress->setFixedWidth (105);
+  progress->setFixedHeight (8);
+  progress->hide ();
+  QLabel* count= new QLabel (widget);
+  count->setSizePolicy (QSizePolicy::Fixed, QSizePolicy::Preferred);
+  count->hide ();
+  layout->addWidget (indicator);
+  layout->addWidget (title);
+  layout->addWidget (progress);
+  layout->addWidget (count);
+  widget->setSizePolicy (QSizePolicy::Maximum, QSizePolicy::Preferred);
+  bar->addWidget (widget, 0);
+
+  auto* timer= new QTimer (widget);
+  timer->setInterval (160);
+  QObject::connect (
+    timer, &QTimer::timeout, widget,
+    [widget, indicator, title, progress, count, tick=0u] () mutable {
+      using athena::background::phase;
+      const auto statuses= athena::background::snapshot ();
+      const char* names[]= {"UUID", "NPU RAG", "Maintenance", "Artifacts"};
+      std::vector<std::size_t> busy;
+      bool active= false;
+      bool failed= false;
+      QString tip;
+      for (std::size_t i= 0; i < statuses.size (); ++i) {
+        const auto& status= statuses[i];
+        if (status.state == phase::inactive) continue;
+        active= true;
+        failed= failed || athena::background::failed (status);
+        if (status.state == phase::working) busy.push_back (i);
+        if (!tip.isEmpty ()) tip += QStringLiteral ("\n");
+        tip += QString::fromLatin1 (names[i]) + QStringLiteral (": ") +
+          (status.state == phase::working ? QStringLiteral ("Working") :
+           status.state == phase::error ? QStringLiteral ("Error") :
+                                          QStringLiteral ("Idle"));
+        if (status.total)
+          tip += QStringLiteral (" %1/%2")
+                   .arg (qulonglong (status.current))
+                   .arg (qulonglong (status.total));
+        if (status.errors)
+          tip += QStringLiteral ("; %1 errors")
+                   .arg (qulonglong (status.errors));
+        if (!status.detail.empty ())
+          tip += QStringLiteral ("\n") + QString::fromStdString (status.detail);
+        if (!status.error_detail.empty () &&
+            status.error_detail != status.detail)
+          tip += QStringLiteral ("\nError: ") +
+                 QString::fromStdString (status.error_detail);
+      }
+
+      const bool working= !busy.empty ();
+      const std::size_t activeIndex=
+        working ? busy[(tick / 19) % busy.size ()] : 0;
+      const auto current=
+        working ? statuses[activeIndex] : athena::background::progress {};
+      title->setText (
+        working ? QString::fromLatin1 (names[activeIndex]) :
+                  QStringLiteral ("Background"));
+      ++tick;
+
+      const QString color=
+        failed ? QStringLiteral ("#d94b4b") :
+        working ? QStringLiteral ("#2d7ff9") :
+        active ? QStringLiteral ("#36a852") :
+                 QStringLiteral ("#808080");
+      indicator->setStyleSheet (
+        QStringLiteral ("background:%1;border-radius:5px;").arg (color));
+      progress->setVisible (working);
+      count->setVisible (working && current.total != 0);
+      if (working) {
+        if (current.total == 0) progress->setRange (0, 0);
+        else {
+          progress->setRange (
+            0, int (std::min<std::size_t> (
+                 current.total, std::size_t (INT_MAX))));
+          progress->setValue (
+            int (std::min<std::size_t> (
+              current.current, std::size_t (INT_MAX))));
+          count->setText (
+            QStringLiteral ("%1/%2")
+              .arg (qulonglong (current.current))
+              .arg (qulonglong (current.total)));
+        }
+      }
+      if (failed)
+        tip.prepend (
+          QStringLiteral (
+            "A background worker reported an error. "
+            "The progress label rotates independently.\n\n"));
+      widget->setToolTip (tip);
+    });
+  timer->start ();
+}
 
 static bool
 isPersistentAdsPane (const QString& name) {
@@ -210,6 +336,7 @@ QTMMainTabWindow::QTMMainTabWindow()
   bench_start ("construct ads dock manager");
   mDockManager = new ads::CDockManager(this);
   setCentralWidget (mDockManager);
+  installApplicationBackgroundStatus (this);
   // The application shell owns the menubar.  Editor actors publish command
   // state only; they no longer construct or replace a Scheme menu widget.
   mNativeMenuPresenter= std::make_unique<QTMApplicationMenuPresenter> (this);
