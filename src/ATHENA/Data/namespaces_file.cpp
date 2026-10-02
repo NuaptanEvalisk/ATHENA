@@ -11,6 +11,8 @@
 #include "namespaces_private.hpp"
 
 #include "Data/Convert/Xml/document_file_codec.hpp"
+#include "document_node_model.hpp"
+#include "document_node_copy.hpp"
 #include "boot.hpp"
 #include "file.hpp"
 #include "new_style.hpp"
@@ -153,8 +155,28 @@ namespace_save_new_document (url target, tree doc, string& error) {
     error= "Cannot create temporary document: " * std_to_tm (temporary.errorString ().toStdString ());
     return false;
   }
-  const string contents= tree_to_texmacs (doc);
-  if (temporary.write (contents.data (), N(contents)) != N(contents) || !temporary.flush ()) {
+  std::string contents;
+  try {
+    // A template creates new source objects, not another copy of its UUIDs.
+    doc= athena::document_node::duplicate_source_nodes (doc);
+    auto identities= athena::document_node::assign_detached_source_ids (
+      extract (doc, "body"), get_document_drd (doc),
+      athena::document_node::standard_source_role,
+      [] (const athena::document_node::identity_request&) {
+        return athena::node::new_id ();
+      });
+    if (!identities.ok ()) {
+      error= std_to_tm (identities.diagnostics.front ().detail);
+      return false;
+    }
+    doc= change_doc_attr (doc, "body", std::move (*identities.body));
+    contents= athena::document::write_xml_v2 (doc);
+  }
+  catch (const std::exception& ex) {
+    error= std_to_tm (ex.what ());
+    return false;
+  }
+  if (temporary.write (contents.data (), contents.size ()) != (qint64) contents.size () || !temporary.flush ()) {
     error= "Could not write document.";
     return false;
   }
