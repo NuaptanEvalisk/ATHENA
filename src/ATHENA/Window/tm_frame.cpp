@@ -26,14 +26,6 @@ actor_frame_editor () noexcept {
   return context == nullptr ? nullptr : context->editor;
 }
 
-void
-publish_actor_widget (editor_rep* editor, actor_command_kind kind,
-                      widget value, std::uint64_t argument= 0) {
-  athena_resource_id id= actor_ui_store_widget (std::move (value));
-  if (!editor->publish_ui (kind, id, argument))
-    (void) actor_ui_discard_widget (id);
-}
-
 } // namespace
 
 /******************************************************************************
@@ -135,27 +127,6 @@ tm_frame_rep::get_string_window_property (string what) {
 /******************************************************************************
 * Interface
 ******************************************************************************/
-
-void
-tm_frame_rep::menu_widget (string menu, widget& w) {
-  object xmenu= eval ("'" * menu);
-  w= make_menu_widget (xmenu);
-}
-
-void
-tm_frame_rep::bottom_tools (int which, string tools) {
-  if ((which<0) || (which>1)) return;
-  if (editor_rep* editor= actor_frame_editor ()) {
-    eval ("(lazy-initialize-force)");
-    object expanded= eval ("'" * tools);
-    publish_actor_widget (
-      editor, actor_command_kind::ui_bottom_tools, make_menu_widget (expanded),
-      static_cast<std::uint64_t> (which));
-    return;
-  }
-  if (!has_current_view ()) return;
-  concrete_window () -> bottom_tools (which, tools);
-}
 
 void
 tm_frame_rep::show_header (bool flag) {

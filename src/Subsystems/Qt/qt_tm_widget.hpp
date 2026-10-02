@@ -90,8 +90,6 @@ class qt_tm_widget_rep: public qt_window_widget_rep {
   bool full_screen;
   
   qt_widget main_widget;
-  qt_widget bottom_tools_widget;
-  qt_widget extra_tools_widget;
   qt_widget dock_window_widget;   // trick to return correct widget position
 
   

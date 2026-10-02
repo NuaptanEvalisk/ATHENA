@@ -27,8 +27,6 @@ public:
   double             zoomf;       // the zoom factor
 
 protected:
-  hashmap<int,object>    menu_current;
-  hashmap<object,widget> menu_cache;
   string   cur_title; // current window title
   string   cur_doc_title; // current document title before window decoration
   url      cur_url;   // current document url
@@ -51,8 +49,6 @@ public:
   inline scheme_tree get_property (scheme_tree what) {
     return props [what]; }
 
-  bool get_menu_widget (int which, string menu, widget& w);
-  void bottom_tools (int which, string tools);
   void set_header_flag (bool flag);
   void set_icon_bar_flag (int which, bool flag);
   void set_bottom_tools_flag (int which, bool flag);

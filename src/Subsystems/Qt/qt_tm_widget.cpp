@@ -1383,42 +1383,6 @@ qt_tm_widget_rep::write (slot s, blackbox index, widget w) {
     }
       break;
       
-    case SLOT_BOTTOM_TOOLS:
-      check_type_void (index, s);
-    {
-      bottom_tools_widget = concrete (w);
-      QWidget* new_qwidget = bottom_tools_widget->as_qwidget(mainwindow());
-      QWidget* old_qwidget = bottomTools->widget();
-      if (old_qwidget) old_qwidget->deleteLater();
-      bottomTools->setWidget (new_qwidget);
-      update_visibility();
-      QList<QDockWidget*> l1;
-      l1.append ((QDockWidget*) extraTools);
-      QList<int> l2;
-      l2.append (1);
-      mainwindow()->resizeDocks (l1, l2, Qt::Vertical);
-      new_qwidget->show();
-    }
-      break;
-      
-    case SLOT_EXTRA_TOOLS:
-      check_type_void (index, s);
-    {
-      extra_tools_widget = concrete (w);
-      QWidget* new_qwidget = extra_tools_widget->as_qwidget(mainwindow());
-      QWidget* old_qwidget = extraTools->widget();
-      if (old_qwidget) old_qwidget->deleteLater();
-      extraTools->setWidget (new_qwidget);
-      update_visibility();
-      QList<QDockWidget*> l1;
-      l1.append ((QDockWidget*) extraTools);
-      QList<int> l2;
-      l2.append (1);
-      mainwindow()->resizeDocks (l1, l2, Qt::Vertical);
-      new_qwidget->show();
-    }
-      break;
-      
     default:
       qt_window_widget_rep::write (s, index, w);
   }
@@ -1607,9 +1571,6 @@ qt_tm_embedded_widget_rep::write (slot s, blackbox index, widget w) {
       main_widget = w;
     }
       break;
-        /// FIXME: decide what to do with these for embedded widgets
-    case SLOT_BOTTOM_TOOLS:
-    case SLOT_EXTRA_TOOLS:
     default:
       qt_widget_rep::write (s, index, w);
   }

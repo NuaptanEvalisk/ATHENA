@@ -43,8 +43,6 @@ public:
   bool visible_header ();
   bool visible_icon_bar (int which);
   bool visible_bottom_tools (int which);
-  void menu_widget (string menu, widget& w);
-  void bottom_tools (int which, string menu);
 
   /* canvas */
   void set_window_zoom_factor (double zoom);

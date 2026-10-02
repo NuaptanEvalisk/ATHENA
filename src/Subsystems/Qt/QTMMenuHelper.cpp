@@ -891,7 +891,7 @@ END_SLOT
  ******************************************************************************/
 
 widget make_menu_widget (object wid);
-extern bool menu_caching;
+static bool menu_caching= true;
 
 QTMRefreshWidget::QTMRefreshWidget (qt_widget _tmwid, string _strwid, string _kind)
 : QWidget (), strwid (_strwid), kind (_kind),

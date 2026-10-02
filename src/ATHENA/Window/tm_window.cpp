@@ -27,8 +27,6 @@ int geometry_w= 800, geometry_h= 600;
 int geometry_x= 0  , geometry_y= 0;
 
 widget texmacs_window_widget (widget wid, tree geom);
-widget make_menu_widget (object menu);
-widget make_menu_widget (object menu, int w, int h);
 void refresh_size (widget wid, bool exact);
 
 static int last_window_handle= 0;
@@ -149,7 +147,6 @@ tm_window_rep::tm_window_rep (widget wid2, tree geom):
   win (texmacs_window_widget (wid2, geom)),
   wid (wid2), id (create_window_id ()),
   serial (tm_window_serial++),
-  menu_current (object ()), menu_cache (widget ()),
   cur_url (url_none ())
 {
   zoomf= window_zoom_scale () * get_server () -> get_default_zoom_factor ();
@@ -173,7 +170,6 @@ tm_window_rep::tm_window_rep (tree doc, command quit):
   win (texmacs_widget (0, quit)),
   wid (win), id (url_none ()),
   serial (tm_window_serial++),
-  menu_current (object ()), menu_cache (widget ()),
   cur_url (url_none ())
 {
   zoomf= window_zoom_scale () * get_doc_zoom_factor (doc);
@@ -415,60 +411,6 @@ tm_window_rep::unmap () {
 
 void
 tm_window_rep::refresh () {
-  menu_cache= hashmap<object,widget> (widget ());
-}
-
-/******************************************************************************
-* Menus
-******************************************************************************/
-
-bool menu_caching= true;
-
-bool
-tm_window_rep::get_menu_widget (int which, string menu, widget& w) {
-  // Menu expansion runs in the UI Scheme context.  Buffer-bound predicates
-  // are supplied by actor snapshots; the UI thread never borrows actor DRD or
-  // document storage.
-  //cout << "expand " << menu << "\n";
-  object xmenu= call ("menu-expand", eval ("'" * menu));
-  //if (which == 10) cout << "xmenu= " << xmenu << "\n";
-  //cout << "xmenu= " << xmenu << "\n";
-  if (menu_cache->contains (xmenu)) {
-    //if (menu_current[which] == xmenu) cout << "Same " << menu << "\n";
-    //if (which == 10) cout << which << " -> cached? " << (menu_current[which] == xmenu? "yes": "no") << LF;
-    //cout << which << " -> cached? " << (menu_current[which] == xmenu) << LF;
-    if (menu_current[which] == xmenu) return false;
-    if (which < 10) {
-      menu_current (which)= xmenu;
-      //cout << "Cached " << menu << "\n";
-      w= menu_cache [xmenu];
-      return true;
-    }
-  }
-  //if (which == 10) cout << which << " -> compute" << LF;
-  //cout << which << " -> compute" << LF;
-  menu_current (which)= xmenu;
-  //cout << "Compute " << menu << "\n";
-  object umenu= eval ("'" * menu);
-  if (which == 10 || which == 11) w= make_menu_widget (umenu, 400, 1000);
-  else w= make_menu_widget (umenu);
-  if (menu_caching)
-    if (which >= 10 || as_bool (call ("cache-menu?", xmenu))) {
-      //if (which == 10) cout << which << " -> cached" << LF;
-      //cout << which << " -> cached" << LF;
-      menu_cache (xmenu)= w;
-    }
-  return true;
-}
-
-void
-tm_window_rep::bottom_tools (int which, string tools) {
-  eval ("(lazy-initialize-force)");
-  widget w;
-  if (get_menu_widget (20 + which, tools, w)) {
-    if      (which == 0) set_bottom_tools (wid, w);
-    else if (which == 1) set_extra_tools (wid, w);
-  }
 }
 
 void

@@ -881,15 +881,6 @@ qt_actor_widget_rep::drain_external_effects () {
         refresh_native_drawing_focus_actions (view->win->wid);
       break;
     }
-    case actor_command_kind::ui_bottom_tools: {
-      widget tools= actor_ui_take_widget (record.argument[0]);
-      tm_view view= concrete_runtime_view (view_id_);
-      int which= static_cast<int> (record.argument[1]);
-      if (is_nil (tools) || view == nullptr || view->win == nullptr) break;
-      if (which == 0) ::set_bottom_tools (view->win->wid, tools);
-      else if (which == 1) ::set_extra_tools (view->win->wid, tools);
-      break;
-    }
     case actor_command_kind::ui_footer_left:
     case actor_command_kind::ui_footer_center:
     case actor_command_kind::ui_footer_right: {
