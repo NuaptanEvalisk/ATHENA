@@ -197,6 +197,33 @@ struct actor_focus_choice_snapshot {
   bool checked= false;
 };
 
+struct actor_document_menu_snapshot {
+  bool ready= false;
+  std::string document_style;
+  std::string page_type;
+  std::string document_font;
+  std::string font_base_size;
+  std::string document_language;
+  std::string magnification;
+  std::string foreground_color;
+  std::string info_flag;
+  std::string page_rendering;
+  std::string materials_citation_style;
+  std::vector<actor_focus_choice_snapshot> document_styles;
+  std::vector<actor_focus_choice_snapshot> document_packages;
+  std::vector<actor_focus_choice_snapshot> current_packages;
+  std::vector<actor_focus_choice_snapshot> document_themes;
+  std::vector<actor_focus_choice_snapshot> document_title_themes;
+  std::string document_theme_kind;
+  std::string background_color;
+  bool background_available= false;
+  bool beamer_style= false;
+  bool has_preamble= false;
+  bool preamble_mode= false;
+  bool save_aux= false;
+  bool materials_citation_default= true;
+};
+
 struct actor_focus_hidden_field_snapshot {
   int index= -1;
   std::string name;
@@ -347,6 +374,9 @@ public:
   void update_focus_toolbar_state (
     actor_focus_toolbar_snapshot snapshot) noexcept;
   actor_focus_toolbar_snapshot focus_toolbar_state () const;
+  void update_document_menu_state (
+    actor_document_menu_snapshot snapshot) noexcept;
+  actor_document_menu_snapshot document_menu_state () const;
   void set_prominent_spacing_available (bool available) noexcept;
   bool prominent_spacing_available () const noexcept;
   void set_inside_table (bool inside) noexcept;
@@ -435,6 +465,8 @@ private:
   std::atomic<bool> inside_table_ {false};
   mutable std::mutex focus_toolbar_lock_;
   actor_focus_toolbar_snapshot focus_toolbar_state_;
+  mutable std::mutex document_menu_lock_;
+  actor_document_menu_snapshot document_menu_state_;
   std::atomic<bool> personal_macro_request_pending_ {false};
   std::atomic<bool> personal_macro_ready_ {false};
   mutable std::mutex personal_macro_lock_;

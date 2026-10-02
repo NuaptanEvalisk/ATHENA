@@ -810,6 +810,151 @@ editor_rep::editor_command_state_snapshot () {
   return snapshot;
 }
 
+actor_document_menu_snapshot
+editor_rep::document_menu_state_snapshot () {
+  actor_document_menu_snapshot snapshot;
+  if (buf == nullptr) return snapshot;
+  snapshot.ready= true;
+
+  auto assign= [] (std::string& target, string value) {
+    target.assign (value.data (), static_cast<std::size_t> (N(value)));
+  };
+  auto display_name= [] (string name) {
+    return upcase_first (replace (name, "-", " "));
+  };
+  auto append_choice=
+    [&] (std::vector<actor_focus_choice_snapshot>& target,
+         string value, bool checked) {
+      actor_focus_choice_snapshot item;
+      assign (item.value, value);
+      assign (item.label, display_name (value));
+      item.checked= checked;
+      target.push_back (std::move (item));
+    };
+
+  try {
+    list<string> styles= as_list_string (call ("get-style-list"));
+    if (!is_nil (styles)) assign (snapshot.document_style, styles->item);
+  }
+  catch (...) {}
+  assign (snapshot.page_type, get_init_string ("page-type"));
+  assign (
+    snapshot.document_font,
+    document_font_display_name (get_init_string ("font")));
+  assign (snapshot.font_base_size, get_init_string ("font-base-size"));
+  assign (snapshot.document_language, document_get_language ());
+  assign (snapshot.magnification, get_init_string ("magnification"));
+  assign (snapshot.foreground_color, get_init_string ("color"));
+  assign (snapshot.info_flag, get_init_string ("info-flag"));
+  assign (snapshot.page_rendering, document_get_init_page_rendering ());
+  assign (snapshot.background_color, get_init_string ("bg-color"));
+
+  array<string> styleNames= get_style_names ();
+  for (int i=0; i<N(styleNames); ++i)
+    append_choice (
+      snapshot.document_styles, styleNames[i],
+      document_has_main_style (styleNames[i]));
+  array<string> packageNames= get_package_names ();
+  for (int i=0; i<N(packageNames); ++i)
+    append_choice (
+      snapshot.document_packages, packageNames[i],
+      document_has_style_package (packageNames[i]));
+  try {
+    list<string> styles= as_list_string (document_get_style_list ());
+    if (!is_nil (styles)) {
+      styles= styles->next;
+      for (; !is_nil (styles); styles= styles->next)
+        if (!hidden_package (styles->item))
+          append_choice (snapshot.current_packages, styles->item, true);
+    }
+  }
+  catch (...) {}
+
+  try {
+    snapshot.beamer_style=
+      as_bool (call ("style-has?", object (string ("beamer-style"))));
+  }
+  catch (...) {}
+  const bool poster=
+    (editor_style_command_flags &
+     ACTOR_EDITOR_COMMAND_STATE_POSTER_STYLE) != 0;
+  string themeKind= poster ? string ("poster"):
+                     snapshot.beamer_style ? string ("beamer"):
+                                             string ("basic");
+  assign (snapshot.document_theme_kind, themeKind);
+  auto append_theme_list=
+    [&] (const char* procedure,
+         std::vector<actor_focus_choice_snapshot>& target) {
+      try {
+        list<string> themes= as_list_string (call (procedure));
+        for (; !is_nil (themes); themes= themes->next)
+          append_choice (
+            target, themes->item,
+            document_has_style_package (themes->item));
+      }
+      catch (...) {}
+    };
+  if (poster) {
+    append_theme_list ("poster-themes", snapshot.document_themes);
+    append_theme_list (
+      "poster-title-styles", snapshot.document_title_themes);
+    snapshot.background_available= true;
+  }
+  else if (snapshot.beamer_style) {
+    append_theme_list ("beamer-themes", snapshot.document_themes);
+    snapshot.background_available= true;
+  }
+  else {
+    append_theme_list ("basic-themes", snapshot.document_themes);
+    for (const char* extra: {"alt-colors", "framed-theorems"}) {
+      const string name (extra);
+      actor_focus_choice_snapshot item;
+      assign (item.value, name);
+      assign (
+        item.label,
+        name == "alt-colors" ? string ("Alternative colors"):
+                               string ("Framed theorems"));
+      item.checked= document_has_style_package (name);
+      snapshot.document_themes.push_back (std::move (item));
+    }
+    try {
+      snapshot.background_available=
+        as_string (call ("current-basic-theme")) != "plain";
+    }
+    catch (...) {}
+  }
+
+  try { snapshot.has_preamble= as_bool (call ("buffer-has-preamble?")); }
+  catch (...) {}
+  try { snapshot.preamble_mode= as_bool (call ("in-preamble-mode?")); }
+  catch (...) {}
+  snapshot.save_aux= get_init_string (SAVE_AUX) == "true";
+  string citationStyle=
+    get_user_preference ("materials csl style", "springer-mathphys");
+  tree document= the_buffer ();
+  for (int i=0; i<N(document); ++i) {
+    tree initial= document[i];
+    if (!is_compound (initial, "initial", 1)) continue;
+    tree attributes= initial[0];
+    if (!is_func (attributes, COLLECTION)) continue;
+    for (int j=0; j<N(attributes); ++j) {
+      tree entry= attributes[j];
+      if (!is_compound (entry, "associate", 2) ||
+          !is_atomic (entry[0]) || !is_atomic (entry[1]) ||
+          as_string (entry[0]) != "materials-csl-style")
+        continue;
+      string explicitStyle= as_string (entry[1]);
+      if (explicitStyle == "") continue;
+      citationStyle= explicitStyle;
+      snapshot.materials_citation_default= false;
+      break;
+    }
+    if (!snapshot.materials_citation_default) break;
+  }
+  assign (snapshot.materials_citation_style, citationStyle);
+  return snapshot;
+}
+
 actor_focus_toolbar_snapshot
 editor_rep::focus_toolbar_state_snapshot () {
   actor_focus_toolbar_snapshot snapshot;
@@ -1650,6 +1795,13 @@ editor_rep::publish_editor_command_state () {
   ui_endpoint->set_prominent_spacing_available (prominent_spacing);
   ui_endpoint->set_inside_table (inside ("table"));
   ui_endpoint->update_editor_command_state (editor_command_state_snapshot ());
+  publish_document_menu_state ();
+}
+
+void
+editor_rep::publish_document_menu_state () {
+  if (ui_endpoint == nullptr) return;
+  ui_endpoint->update_document_menu_state (document_menu_state_snapshot ());
 }
 
 void

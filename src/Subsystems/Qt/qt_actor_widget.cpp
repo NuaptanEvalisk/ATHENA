@@ -149,6 +149,12 @@ qt_actor_widget_rep::focus_toolbar_state () const {
          endpoint_->focus_toolbar_state ();
 }
 
+actor_document_menu_snapshot
+qt_actor_widget_rep::document_menu_state () const {
+  return endpoint_ == nullptr ? actor_document_menu_snapshot {} :
+         endpoint_->document_menu_state ();
+}
+
 bool
 qt_actor_widget_rep::prominent_spacing_available () const noexcept {
   return endpoint_ != nullptr && endpoint_->prominent_spacing_available ();

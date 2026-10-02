@@ -101,6 +101,26 @@ valid_business_id (const QString& id) {
     "document-background-pattern",
     "document-background-gradient",
     "document-background-picture",
+    "document-no-style",
+    "document-toggle-source-mode",
+    "document-toggle-preamble-mode",
+    "document-update-all",
+    "document-update-buffer",
+    "document-update-materials",
+    "document-update-table-of-contents",
+    "document-update-index",
+    "document-update-glossary",
+    "document-extract-style-file",
+    "document-extract-style-package",
+    "document-refresh-inclusions",
+    "document-refresh-pictures",
+    "document-character-count",
+    "document-word-count",
+    "document-line-count",
+    "document-toggle-save-aux",
+    "open-document-paragraph-format",
+    "open-document-page-format",
+    "open-document-metadata",
     "letter-today",
     "tmdoc-explain-synopsis",
     "make-alter-colors"
@@ -238,6 +258,44 @@ execute_business_id (const QString& id) {
     (void) call ("native-document-background-gradient-dialog");
   else if (id == "document-background-picture")
     (void) call ("native-document-background-picture-dialog");
+  else if (id == "document-no-style") document_set_no_style ();
+  else if (id == "document-toggle-source-mode") document_toggle_source_mode ();
+  else if (id == "document-toggle-preamble-mode")
+    document_toggle_preamble_mode ();
+  else if (id == "document-update-all")
+    (void) call ("update-document", object (string ("all")));
+  else if (id == "document-update-buffer")
+    (void) call ("update-document", object (string ("buffer")));
+  else if (id == "document-update-materials")
+    (void) call ("update-document", object (string ("materials")));
+  else if (id == "document-update-table-of-contents")
+    (void) call ("update-document", object (string ("table-of-contents")));
+  else if (id == "document-update-index")
+    (void) call ("update-document", object (string ("index")));
+  else if (id == "document-update-glossary")
+    (void) call ("update-document", object (string ("glossary")));
+  else if (id == "document-extract-style-file")
+    (void) call ("extract-style-file", object (true));
+  else if (id == "document-extract-style-package")
+    (void) call ("extract-style-file", object (false));
+  else if (id == "document-refresh-inclusions")
+    (void) call ("inclusions-gc");
+  else if (id == "document-refresh-pictures")
+    (void) call ("picture-gc");
+  else if (id == "document-character-count")
+    (void) call ("show-character-count");
+  else if (id == "document-word-count")
+    (void) call ("show-word-count");
+  else if (id == "document-line-count")
+    (void) call ("show-line-count");
+  else if (id == "document-toggle-save-aux")
+    (void) call ("toggle-save-aux");
+  else if (id == "open-document-paragraph-format")
+    (void) call ("open-document-paragraph-format");
+  else if (id == "open-document-page-format")
+    (void) call ("open-document-page-format");
+  else if (id == "open-document-metadata")
+    (void) call ("open-document-metadata");
   else if (id == "letter-today") {
     (void) call ("make-header", symbol_object ("letter-date"));
     (void) call ("make", symbol_object ("date"), object (0));
@@ -310,6 +368,23 @@ native_editor_action_validate (const QJsonObject& action, QString* error) {
                error, "set-document-language requires language");
   if (op == "set-default-document-language")
     return true;
+  if (op == "document-package")
+    return has_string (action, "action") && has_string (action, "name") ?
+             true : fail_validation (error, "document-package requires action/name");
+  if (op == "document-edit-style")
+    return true;
+  if (op == "document-install-style")
+    return has_string (action, "path") ?
+             true : fail_validation (error, "document-install-style requires path");
+  if (op == "document-default-theme")
+    return true;
+  if (op == "document-citation-style") {
+    if (!has_bool (action, "default"))
+      return fail_validation (error, "document-citation-style requires default");
+    return action.value ("default").toBool () || has_string (action, "style") ?
+             true : fail_validation (
+               error, "document-citation-style requires style when non-default");
+  }
   if (op == "interactive-line-with")
     return has_string (action, "var") ?
              true : fail_validation (error, "interactive-line-with requires var");
@@ -576,6 +651,66 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
       native_action_string (action.value ("language")));
   else if (op == "set-default-document-language")
     document_set_default_language ();
+  else if (op == "document-package") {
+    actor_document_menu_snapshot state= ed->document_menu_state_snapshot ();
+    if (!state.ready) return;
+    const string name= native_action_string (action.value ("name"));
+    const std::string nativeName (
+      name.data (), static_cast<std::size_t> (N(name)));
+    const QString kind= action.value ("action").toString ();
+    bool available= false;
+    for (const auto& package: state.document_packages)
+      if (package.value == nativeName) {
+        available= true;
+        break;
+      }
+    bool current= false;
+    for (const auto& package: state.current_packages)
+      if (package.value == nativeName) {
+        current= true;
+        break;
+      }
+    if (kind == "add" && available) {
+      if (!document_has_style_package (name))
+        document_add_style_package (name);
+    }
+    else if (kind == "toggle" && available)
+      document_toggle_style_package (name);
+    else if (kind == "remove" && current)
+      document_remove_style_package (name);
+    else if (kind == "edit" && current)
+      (void) call ("edit-package-source", object (name));
+  }
+  else if (op == "document-edit-style") {
+    if (!ed->document_menu_state_snapshot ().ready) return;
+    (void) call ("edit-style-source");
+  }
+  else if (op == "document-install-style") {
+    if (!ed->document_menu_state_snapshot ().ready) return;
+    url source= url_system (native_action_string (action.value ("path")));
+    if (document_install_custom_style (source))
+      document_set_main_style (document_custom_style_file_name (source));
+  }
+  else if (op == "document-default-theme") {
+    actor_document_menu_snapshot state= ed->document_menu_state_snapshot ();
+    if (!state.ready || state.document_theme_kind != "basic") return;
+    for (const auto& theme: state.document_themes)
+      if (theme.checked) {
+        string name (
+          theme.value.data (), static_cast<int> (theme.value.size ()));
+        document_remove_style_package (name);
+      }
+  }
+  else if (op == "document-citation-style") {
+    if (!ed->document_menu_state_snapshot ().ready) return;
+    if (action.value ("default").toBool ())
+      ed->init_default ("materials-csl-style");
+    else
+      ed->init_env (
+        "materials-csl-style",
+        tree (native_action_string (action.value ("style"))));
+    (void) call ("materials-update-current-document");
+  }
   else if (op == "make-line-with")
     format_make_line_with (
       native_action_string (action.value ("var")),

@@ -155,6 +155,11 @@
            insert-link-menu insert-image-menu)
 (lazy-define (generic document-edit) update-document set-document-language
              get-init-page-rendering init-page-rendering)
+(lazy-define (athena athena tm-tools)
+             show-character-count show-word-count show-line-count
+             picture-gc toggle-save-aux)
+(lazy-define (athena athena tm-materials)
+             materials-update-current-document)
 (lazy-define (generic generic-edit) notify-activated notify-disactivated
              wheel-capture?
              native-insert-include-dialog
@@ -279,6 +284,7 @@
 (lazy-define (source macro-edit)
              has-macro-source? edit-macro-source edit-focus-macro-source
              native-personal-macro-provider-data)
+(lazy-define (source source-edit) extract-style-file)
 (lazy-menu (source macro-menu) insert-macro-menu)
 (lazy-define (source shortcut-edit) init-user-shortcuts has-user-shortcut?)
 (lazy-define (source shortcut-widgets) open-shortcuts-editor)

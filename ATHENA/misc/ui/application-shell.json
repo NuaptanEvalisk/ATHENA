@@ -904,6 +904,13 @@
       ]
     },
     {
+      "id": "document",
+      "label": "Document",
+      "items": [
+        { "provider": "document-menu" }
+      ]
+    },
+    {
       "id": "interface",
       "label": "Interface",
       "items": [

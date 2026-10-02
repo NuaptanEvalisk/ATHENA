@@ -162,6 +162,7 @@ private:
   void registerFocusParameterCommands ();
   void registerFocusDocumentCommands ();
   void registerFocusSpecialCommands ();
+  void registerDocumentMenuCommands ();
   void registerBehavior (
     const QString& id, QTMCommandScope scope,
     std::function<bool(const QTMCommandContext&)> execute,
