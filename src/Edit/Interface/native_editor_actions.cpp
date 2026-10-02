@@ -129,7 +129,17 @@ valid_focus_action_id (const QString& id) {
     "toggle-insertion-positioning",
     "toggle-insertion-positioning-not",
     "slide-insert-title",
-    "slide-insert-graphics"
+    "slide-insert-graphics",
+    "poster-block-toggle-titled",
+    "poster-block-toggle-wide",
+    "table-toggle-parwidth",
+    "sqrt-toggle",
+    "dueto-add",
+    "document-insert-title",
+    "document-insert-abstract",
+    "poster-insert-title",
+    "tmdoc-insert-title",
+    "tmdoc-insert-copyright"
   };
   return ids.contains (id);
 }
@@ -353,6 +363,41 @@ native_editor_action_validate (const QJsonObject& action, QString* error) {
                error, "focus-style-option requires name");
   if (op == "focus-search")
     return true;
+  if (op == "focus-hidden-field")
+    return action.value ("index").isDouble () &&
+           action.value ("index").toInt (-1) >= 0 &&
+           has_string (action, "value") ?
+             true : fail_validation (
+               error, "focus-hidden-field requires index/value");
+  if (op == "focus-automatic-section-rename")
+    return has_string (action, "value") ?
+             true : fail_validation (
+               error, "focus-automatic-section-rename requires value");
+  if (op == "focus-set-cell-mode") {
+    if (!has_string (action, "mode"))
+      return fail_validation (error, "focus-set-cell-mode requires mode");
+    return QSet<QString> {"cell", "row", "column", "table"}.contains (
+             action.value ("mode").toString ()) ?
+             true : fail_validation (error, "invalid cell mode");
+  }
+  if (op == "focus-set-effect-pen") {
+    if (!has_string (action, "pen"))
+      return fail_validation (error, "focus-set-effect-pen requires pen");
+    return QSet<QString> {
+      "gaussian", "oval", "rectangular", "motion"
+    }.contains (action.value ("pen").toString ()) ?
+      true : fail_validation (error, "invalid effect pen");
+  }
+  if (op == "focus-overlay-switch")
+    return action.value ("index").isDouble () &&
+           action.value ("index").toInt (-1) >= 1 ?
+             true : fail_validation (
+               error, "focus-overlay-switch requires positive index");
+  if (op == "focus-overlay-reference")
+    return action.value ("index").isDouble () &&
+           action.value ("index").toInt (-1) >= 1 ?
+             true : fail_validation (
+               error, "focus-overlay-reference requires positive index");
   if (op == "focus-document-package") {
     if (!has_string (action, "action") || !has_string (action, "name"))
       return fail_validation (
@@ -630,6 +675,106 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
              state.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT) &&
              state.slide_propose_graphics)
       (void) call ("native-slide-insert-graphics", object (target));
+    else if (id == "poster-block-toggle-titled" &&
+             state.poster_block_context)
+      (void) call ("block-toggle-titled", object (target));
+    else if (id == "poster-block-toggle-wide" &&
+             state.poster_block_context)
+      (void) call ("block-toggle-wide", object (target));
+    else if (id == "table-toggle-parwidth" &&
+             state.has (ACTOR_FOCUS_TOOLBAR_TABLE_CONTEXT))
+      (void) call ("table-toggle-parwidth");
+    else if (id == "sqrt-toggle" && state.sqrt_context)
+      (void) call ("sqrt-toggle", object (target));
+    else if (id == "dueto-add" && state.dueto_available)
+      (void) call ("dueto-add", object (target));
+    else if (id == "document-insert-title" &&
+             state.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
+             state.document_insert_title_available &&
+             !state.poster_insert_title_available &&
+             !state.tmdoc_insert_title_available)
+      (void) call ("make-doc-data");
+    else if (id == "document-insert-abstract" &&
+             state.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
+             state.document_insert_abstract_available)
+      (void) call ("make-abstract-data");
+    else if (id == "poster-insert-title" &&
+             state.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
+             state.poster_insert_title_available)
+      (void) call ("make-poster-title");
+    else if (id == "tmdoc-insert-title" &&
+             state.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
+             state.tmdoc_insert_title_available)
+      (void) call ("tmdoc-insert-title");
+    else if (id == "tmdoc-insert-copyright" &&
+             state.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
+             state.tmdoc_insert_copyright_available)
+      (void) call ("tmdoc-insert-copyright-and-license");
+  }
+  else if (op == "focus-hidden-field") {
+    actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
+    path focus= ed->focus_get ();
+    if (!state.valid () || !ed->test_subtree (focus)) return;
+    const int index= action.value ("index").toInt (-1);
+    bool allowed= false;
+    for (const auto& field: state.hidden_fields)
+      if (field.index == index) {
+        allowed= true;
+        break;
+      }
+    if (!allowed) return;
+    (void) generic_focus_set_hidden_child (
+      ed->the_subtree (focus), index,
+      native_action_string (action.value ("value")));
+  }
+  else if (op == "focus-automatic-section-rename") {
+    actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
+    if (!state.valid () || !state.automatic_section_context) return;
+    (void) call (
+      "automatic-section-rename",
+      object (native_action_string (action.value ("value"))));
+  }
+  else if (op == "focus-set-cell-mode") {
+    actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
+    if (!state.valid () ||
+        !state.has (ACTOR_FOCUS_TOOLBAR_TABLE_CONTEXT))
+      return;
+    ed->set_cell_mode (
+      native_action_string (action.value ("mode")));
+  }
+  else if (op == "focus-set-effect-pen") {
+    actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
+    path focus= ed->focus_get ();
+    if (!state.valid () || !state.pen_effect_context ||
+        !ed->test_subtree (focus))
+      return;
+    format_set_effect_pen (
+      object (ed->the_subtree (focus)),
+      native_action_string (action.value ("pen")));
+  }
+  else if (op == "focus-overlay-switch") {
+    actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
+    path focus= ed->focus_get ();
+    if (!state.valid () || !ed->test_subtree (focus) ||
+        (!state.overlays_context && !state.overlay_context))
+      return;
+    const int index= action.value ("index").toInt (-1);
+    if (index < 1 || index > state.overlay_count) return;
+    tree target= ed->the_subtree (focus);
+    (void) call (
+      "native-overlays-switch-parent", object (target), object (index));
+  }
+  else if (op == "focus-overlay-reference") {
+    actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
+    path focus= ed->focus_get ();
+    if (!state.valid () || !state.overlay_context ||
+        !ed->test_subtree (focus))
+      return;
+    const int index= action.value ("index").toInt (-1);
+    if (index < 1 || index > state.overlay_count) return;
+    tree target= ed->the_subtree (focus);
+    if (N(target) == 0) return;
+    (void) tree_set (target, 0, tree (as_string (index)));
   }
   else if (op == "focus-set-label") {
     actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();

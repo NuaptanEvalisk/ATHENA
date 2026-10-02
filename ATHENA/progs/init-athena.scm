@@ -230,6 +230,14 @@
 	   text-menu text-block-menu text-inline-menu)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 (lazy-define (text text-drd) tm-register-new-list-tag)
+(lazy-define (text text-edit)
+             document-propose-title? document-propose-abstract?
+             automatic-section-context? automatic-section-rename
+             dueto-supporting-context? dueto-added? dueto-add
+             make-doc-data make-abstract-data
+             make-doc-data-element make-author-data-element
+             make-abstract-data-element doc-data-has-hidden?
+             doc-data-deactivated? doc-data-activate-toggle)
 
 ;(display "Booting math mode\n")
 (lazy-keyboard (math math-sem-edit) in-sem-math?)
@@ -238,7 +246,8 @@
            math-correct-menu semantic-math-preferences-menu
            context-preferences-menu insert-math-menu)
 (lazy-initialize (math math-menu) (in-math?))
-(lazy-define (math math-edit) brackets-refresh)
+(lazy-define (math math-edit)
+             brackets-refresh sqrt-toggle script-context? script-only-script?)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting programming modes\n")
@@ -275,7 +284,8 @@
 (lazy-keyboard (native-keyboard table) in-table?)
 (lazy-menu (table table-menu) insert-table-menu)
 (lazy-define (table table-edit) table-resize-notify
-             native-insert-small-table native-insert-big-table)
+             native-insert-small-table native-insert-big-table
+             table-test-parwidth? table-toggle-parwidth)
 (lazy-define (table table-widgets) open-cell-properties open-table-properties)
 (tm-property (open-cell-properties) (:interactive #t))
 (tm-property (open-table-properties) (:interactive #t))
@@ -305,6 +315,9 @@
            graphics-focus-overlays-menu)
 (lazy-define (dynamic fold-edit)
              screens-switch-to dynamic-make-slides overlays-context?
+             overlay-context? overlays-current overlays-arity
+             overlays-switch-to overlay-current overlay-arity overlay-visible?
+             native-overlays-switch-parent
              beamer-themes current-beamer-theme
              slide-get-switch slide-get-document
              native-slide-insert-title native-slide-insert-graphics)
@@ -314,7 +327,9 @@
 (lazy-keyboard (native-keyboard tmdoc) in-manual?)
 (lazy-menu (doc tmdoc-menu) tmdoc-menu)
 (lazy-define (doc tmdoc-edit)
-             tmdoc-make-branch tmdoc-insert-explain-synopsis)
+             tmdoc-make-branch tmdoc-insert-explain-synopsis
+             tmdoc-propose-title? tmdoc-propose-copyright-and-license?
+             tmdoc-insert-title tmdoc-insert-copyright-and-license)
 (lazy-menu (doc help-menu) help-menu)
 (lazy-define (doc tmdoc) tmdoc-expand-help tmdoc-expand-help-manual
              tmdoc-expand-this tmdoc-include)
@@ -367,7 +382,9 @@
 (lazy-define (various theme-edit) basic-themes current-basic-theme)
 (lazy-define (various poster-edit)
              poster-themes poster-title-styles
-             current-poster-theme current-poster-title-style)
+             current-poster-theme current-poster-title-style
+             poster-block-context? titled-block-context? block-wide?
+             block-toggle-titled block-toggle-wide make-poster-title)
 (lazy-define (various theme-menu) basic-theme-name)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 

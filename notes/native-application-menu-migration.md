@@ -261,7 +261,14 @@ Retirement is group-by-group, with no dual production for a migrated group:
   owns Style, Packages, Theme, Background and slide selection/title/draw:
   style/package names come from cached C++ file enumeration, theme/slide state
   is published by the owning actor, and all mutations are fixed typed actions.
-  Remaining less common node-focus contributors are still on the legacy path;
+  Specialized native focus coverage now also includes editable hidden
+  structural fields, poster-block/sqrt/Due-to toggles, table paragraph width
+  and operation mode, effect-pen choices, overlay switching/filter references,
+  automatic-section rename, and document/poster/tmdoc title/abstract/copyright
+  insertions. Required edit-layer procedures are explicitly lazy-exported so
+  the native surface no longer relies on legacy focus-menu loading side effects.
+  Remaining title/author/abstract detail menus, section navigation, embedded
+  image actions and a final background/table parity audit are still pending;
   `texmacs-focus-icons` is not removed until those reach parity.
 - User/extension toolbar: replace `texmacs-extra-icons` with the native runtime
   contribution model, then remove the last legacy `ui_menu_icons` producer and

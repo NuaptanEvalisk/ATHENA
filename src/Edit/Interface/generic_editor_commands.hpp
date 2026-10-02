@@ -103,6 +103,7 @@ string generic_type_to_width (string type);
 bool generic_inputter_active (tree t, string type);
 string generic_inputter_decode (tree t, string type);
 scheme_tree generic_inputter_encode (string value, string type);
+bool generic_focus_set_hidden_child (tree t, int i, string value);
 bool generic_parameter_test (string name, object value, object mode);
 void generic_parameter_set (string name, object value, object mode);
 object generic_parameter_get (string name, object mode);

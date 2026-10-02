@@ -197,6 +197,13 @@ struct actor_focus_choice_snapshot {
   bool checked= false;
 };
 
+struct actor_focus_hidden_field_snapshot {
+  int index= -1;
+  std::string name;
+  std::string type;
+  std::string value;
+};
+
 struct actor_focus_toolbar_snapshot {
   std::uint32_t flags= 0;
   std::string tag_label;
@@ -249,6 +256,30 @@ struct actor_focus_toolbar_snapshot {
   bool beamer_style= false;
   bool slide_propose_title= false;
   bool slide_propose_graphics= false;
+  std::vector<actor_focus_hidden_field_snapshot> hidden_fields;
+  bool poster_block_context= false;
+  bool poster_block_titled= false;
+  bool poster_block_wide= false;
+  bool sqrt_context= false;
+  bool sqrt_multiple= false;
+  bool automatic_section_context= false;
+  std::string automatic_section_name;
+  bool dueto_available= false;
+  bool table_parwidth= false;
+  std::string table_cell_mode;
+  bool pen_effect_context= false;
+  std::string pen_effect;
+  bool overlays_context= false;
+  bool overlay_context= false;
+  int overlay_current= 0;
+  int overlay_count= 0;
+  int overlay_reference= 0;
+  std::vector<bool> overlay_visible;
+  bool document_insert_title_available= false;
+  bool document_insert_abstract_available= false;
+  bool poster_insert_title_available= false;
+  bool tmdoc_insert_title_available= false;
+  bool tmdoc_insert_copyright_available= false;
 
   bool valid () const noexcept {
     return (flags & ACTOR_FOCUS_TOOLBAR_VALID) != 0;

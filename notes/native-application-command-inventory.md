@@ -176,6 +176,15 @@ background state and slide state are actor snapshot data; main-style/package,
 custom-style install, background and slide mutations are finite validated
 actions with current-focus revalidation.
 
+Specialized focus presentation lives in `QTMFocusSpecialCommands.cpp`.
+Its actor snapshot additions are plain booleans, finite values and hidden-field
+records, not menu ASTs. Native providers cover poster/sqrt/Due-to/table/effect
+pen/overlay/document-extra controls; hidden structural field writes reuse the
+native inputter encode/decode business layer and revalidate the field index at
+execution. Scheme edit modules needed by these finite business adapters are
+explicitly `lazy-define`d, so removing the legacy focus-menu registrations
+will not remove their loading path.
+
 ## Zero-buffer ownership now established
 
 The outer `QTMMainTabWindow` is shown directly at startup and no longer needs

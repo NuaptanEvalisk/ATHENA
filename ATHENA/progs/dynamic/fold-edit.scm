@@ -408,6 +408,12 @@
   (and-with p (tree-search-upwards t overlays-context?)
     (overlays-arity p)))
 
+(tm-define (native-overlays-switch-parent t i)
+  (if (overlays-context? t)
+      (overlays-switch-to t i)
+      (and-with p (tree-search-upwards t overlays-context?)
+        (overlays-switch-to p i))))
+
 (define (overlay-satisfies-proviso? t i pos)
   (cond ((>= pos (- (tree-arity t) 1)) #f)
         ((tm-equal? (tree-ref t pos) "proviso")

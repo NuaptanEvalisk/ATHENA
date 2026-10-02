@@ -920,6 +920,114 @@ editor_rep::focus_toolbar_state_snapshot () {
       snapshot.hidden_checked= is_compound (the_subtree (parentPath), "inactive");
   }
 
+  for (int i=0; i<N(t); ++i) {
+    if (!generic_hidden_child (t, i)) continue;
+    const string type= get_child_type (t, i);
+    if (!generic_inputter_active (t[i], type)) continue;
+    actor_focus_hidden_field_snapshot field;
+    field.index= i;
+    string name= generic_tree_child_name_star (t, i);
+    string value= generic_inputter_decode (t[i], type);
+    field.name.assign (name.data (), static_cast<std::size_t> (N(name)));
+    field.type.assign (type.data (), static_cast<std::size_t> (N(type)));
+    field.value.assign (value.data (), static_cast<std::size_t> (N(value)));
+    snapshot.hidden_fields.push_back (std::move (field));
+  }
+
+  snapshot.sqrt_context= is_compound (t, "sqrt");
+  snapshot.sqrt_multiple= snapshot.sqrt_context && N(t) == 2;
+  try {
+    snapshot.poster_block_context=
+      as_bool (call ("poster-block-context?", object (t)));
+    if (snapshot.poster_block_context) {
+      snapshot.poster_block_titled=
+        as_bool (call ("titled-block-context?", object (t)));
+      snapshot.poster_block_wide=
+        as_bool (call ("block-wide?", object (t)));
+    }
+  }
+  catch (...) {}
+  snapshot.automatic_section_context= query ("automatic-section-context?");
+  if (query ("dueto-supporting-context?"))
+    snapshot.dueto_available= !query ("dueto-added?");
+
+  if (snapshot.has (ACTOR_FOCUS_TOOLBAR_TABLE_CONTEXT)) {
+    const string cellMode= get_cell_mode ();
+    snapshot.table_cell_mode.assign (
+      cellMode.data (), static_cast<std::size_t> (N(cellMode)));
+    try { snapshot.table_parwidth= as_bool (call ("table-test-parwidth?")); }
+    catch (...) {}
+  }
+
+  snapshot.pen_effect_context= format_pen_effect_context (t);
+  if (snapshot.pen_effect_context) {
+    static const char* pens[]= {"gaussian", "oval", "rectangular", "motion"};
+    for (const char* pen: pens)
+      if (format_test_effect_pen (object (t), pen)) {
+        snapshot.pen_effect= pen;
+        break;
+      }
+  }
+
+  try {
+    snapshot.overlays_context= as_bool (call ("overlays-context?", object (t)));
+    snapshot.overlay_context= as_bool (call ("overlay-context?", object (t)));
+    if (snapshot.overlays_context || snapshot.overlay_context) {
+      object current= call (
+        snapshot.overlays_context ? "overlays-current" : "overlay-current",
+        object (t));
+      object count= call (
+        snapshot.overlays_context ? "overlays-arity" : "overlay-arity",
+        object (t));
+      if (is_int (current)) snapshot.overlay_current= as_int (current);
+      if (is_int (count)) snapshot.overlay_count= as_int (count);
+      if (snapshot.overlay_context && N(t) > 0 && is_atomic (t[0])) {
+        const string ref= as_string (t[0]);
+        snapshot.overlay_reference= as_int (ref);
+      }
+      if (snapshot.overlay_context && snapshot.overlay_count > 0)
+        for (int i=1; i<=snapshot.overlay_count; ++i) {
+          bool visible= false;
+          try {
+            visible= as_bool (
+              call ("overlay-visible?", object (t), object (i)));
+          }
+          catch (...) {}
+          snapshot.overlay_visible.push_back (visible);
+        }
+    }
+  }
+  catch (...) {}
+
+  if (snapshot.has (ACTOR_FOCUS_TOOLBAR_BUFFER)) {
+    try {
+      snapshot.document_insert_title_available=
+        as_bool (call ("document-propose-title?"));
+    }
+    catch (...) {}
+    try {
+      snapshot.document_insert_abstract_available=
+        as_bool (call ("document-propose-abstract?"));
+    }
+    catch (...) {}
+    try {
+      bool poster= as_bool (call ("style-has?", object (string ("poster-style"))));
+      snapshot.poster_insert_title_available=
+        poster && snapshot.document_insert_title_available;
+    }
+    catch (...) {}
+    try {
+      snapshot.tmdoc_insert_title_available=
+        as_bool (call ("tmdoc-propose-title?"));
+    }
+    catch (...) {}
+    try {
+      snapshot.tmdoc_insert_copyright_available=
+        as_bool (call ("tmdoc-propose-copyright-and-license?"));
+    }
+    catch (...) {}
+  }
+
   if (snapshot.has (ACTOR_FOCUS_TOOLBAR_ALGORITHM_CONTEXT)) {
     snapshot.algorithm_numbered= query ("algorithm-numbered?");
     snapshot.algorithm_named= query ("algorithm-named?");

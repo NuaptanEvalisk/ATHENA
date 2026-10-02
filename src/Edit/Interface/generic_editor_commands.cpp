@@ -10,6 +10,7 @@
 
 #include "generic_editor_commands.hpp"
 #include "analyze.hpp"
+#include "convert.hpp"
 #include "new_document.hpp"
 #include "editor.hpp"
 #include "file.hpp"
@@ -1189,6 +1190,18 @@ scheme_tree
 generic_inputter_encode (string value, string type) {
   if (type == "length") return geometry_parse_rich_length (value);
   return tree (scm_quote (value));
+}
+
+bool
+generic_focus_set_hidden_child (tree t, int i, string value) {
+  if (!generic_hidden_child (t, i)) return false;
+  string type= get_child_type (t, i);
+  if (!generic_inputter_active (t[i], type)) return false;
+  tree encoded= scheme_tree_to_tree (generic_inputter_encode (value, type));
+  (void) tree_set (t, i, encoded);
+  try { (void) call ("focus-tree-modified", object (t)); }
+  catch (...) {}
+  return true;
 }
 
 bool

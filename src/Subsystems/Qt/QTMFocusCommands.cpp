@@ -48,6 +48,7 @@ void
 QTMCommandRegistry::registerFocusCommands () {
   registerFocusParameterCommands ();
   registerFocusDocumentCommands ();
+  registerFocusSpecialCommands ();
   registerProvider (
     "editor-focus-variants", QTMCommandScope::Editor,
     [] (const QTMCommandContext& context) {
