@@ -699,6 +699,175 @@
       "label": "Focus",
       "items": [
         { "command": "editor.node-properties" },
+        {
+          "submenu": "focus-document-style",
+          "label": "Document style",
+          "items": [
+            { "provider": "editor-focus-document-styles" },
+            { "separator": true },
+            { "command": "editor.focus.document-edit-style" },
+            { "command": "editor.focus.document-install-style" }
+          ]
+        },
+        {
+          "submenu": "focus-document-theme",
+          "label": "Theme",
+          "items": [
+            { "provider": "editor-focus-document-themes" }
+          ]
+        },
+        {
+          "submenu": "focus-document-background",
+          "label": "Background",
+          "items": [
+            { "provider": "editor-focus-document-background" }
+          ]
+        },
+        {
+          "submenu": "focus-document-packages",
+          "label": "Packages",
+          "items": [
+            { "provider": "editor-focus-document-packages" }
+          ]
+        },
+        { "command": "editor.focus.document-font" },
+        {
+          "submenu": "focus-font-size",
+          "label": "Font size",
+          "items": [
+            { "provider": "editor-focus-document-font-sizes" }
+          ]
+        },
+        { "command": "editor.focus.page-properties" },
+        {
+          "submenu": "focus-language",
+          "label": "Document language",
+          "items": [
+            { "provider": "editor-focus-document-languages" }
+          ]
+        },
+        { "provider": "editor-focus-document-extras" },
+        {
+          "submenu": "focus-slides",
+          "label": "Slides",
+          "items": [
+            { "provider": "editor-focus-slides" }
+          ]
+        },
+        { "command": "editor.focus.slide-properties" },
+        { "command": "editor.focus.slide-title" },
+        { "command": "editor.focus.slide-draw" },
+        { "separator": true },
+        { "command": "editor.focus.metadata-properties" },
+        { "command": "editor.focus.table-properties" },
+        { "command": "editor.focus.cell-properties" },
+        {
+          "submenu": "focus-table-mode",
+          "label": "Cell operation mode",
+          "items": [
+            { "provider": "editor-focus-table-mode" }
+          ]
+        },
+        { "separator": true },
+        { "command": "editor.focus.first-similar" },
+        { "command": "editor.focus.previous-similar" },
+        { "command": "editor.focus.next-similar" },
+        { "command": "editor.focus.last-similar" },
+        { "separator": true },
+        { "command": "editor.focus.insert-up" },
+        { "command": "editor.focus.insert-left" },
+        { "command": "editor.focus.insert-right" },
+        { "command": "editor.focus.insert-down" },
+        { "command": "editor.focus.remove-up" },
+        { "command": "editor.focus.remove-left" },
+        { "command": "editor.focus.remove-right" },
+        { "command": "editor.focus.remove-down" },
+        { "separator": true },
+        { "provider": "editor-focus-code-label" },
+        { "provider": "editor-focus-tag-label" },
+        { "provider": "editor-focus-core-toggles" },
+        { "provider": "editor-focus-algorithm-toggles" },
+        { "provider": "editor-focus-tag-toggles" },
+        { "provider": "editor-focus-float-toggles" },
+        {
+          "submenu": "focus-position",
+          "label": "Position",
+          "items": [
+            { "provider": "editor-focus-float-positioning" }
+          ]
+        },
+        { "command": "editor.focus.edit-label" },
+        {
+          "submenu": "focus-sections",
+          "label": "Sections",
+          "items": [
+            { "provider": "editor-focus-sections" }
+          ]
+        },
+        {
+          "submenu": "focus-document-data",
+          "label": "Document data",
+          "items": [
+            { "provider": "editor-focus-text-data" }
+          ]
+        },
+        { "provider": "editor-focus-special-actions" },
+        {
+          "submenu": "focus-fields",
+          "label": "Fields",
+          "items": [
+            { "provider": "editor-focus-hidden-fields" }
+          ]
+        },
+        {
+          "submenu": "focus-effect-pen",
+          "label": "Effect pen",
+          "items": [
+            { "provider": "editor-focus-effect-pen" }
+          ]
+        },
+        {
+          "submenu": "focus-image",
+          "label": "Image",
+          "items": [
+            { "provider": "editor-focus-embedded-image" }
+          ]
+        },
+        {
+          "submenu": "focus-overlay",
+          "label": "Overlay",
+          "items": [
+            { "provider": "editor-focus-overlays" }
+          ]
+        },
+        {
+          "submenu": "focus-variant",
+          "label": "Structured variant",
+          "items": [
+            { "provider": "editor-focus-variants" }
+          ]
+        },
+        { "command": "editor.focus.exit-left" },
+        { "command": "editor.focus.exit-right" },
+        { "command": "editor.focus.remove-tag" },
+        {
+          "submenu": "focus-preferences",
+          "label": "Preferences for tag",
+          "items": [
+            { "provider": "editor-focus-preferences" },
+            { "separator": true },
+            { "provider": "editor-focus-tag-edit" }
+          ]
+        },
+        {
+          "submenu": "focus-rendering",
+          "label": "Rendering options for tag",
+          "items": [
+            { "provider": "editor-focus-rendering" }
+          ]
+        },
+        { "command": "editor.focus.search" },
+        { "command": "editor.focus.help" },
         { "separator": true },
         { "command": "namespace.open" },
         { "command": "namespace.refresh" }
