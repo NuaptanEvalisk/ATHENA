@@ -1914,12 +1914,16 @@ bool choose_and_persist_native_bindings (
   std::string current_storage;
   if (!read_document (
         work.path, document, error, &format, &current_storage)) return false;
+  if (!options.saved_sha256.empty () && current_storage != options.saved_sha256) {
+    error= "Deferred: saved artifact revision was superseded";
+    return false;
+  }
   if (format != athena::document::document_source_format::xml_v2) {
     error= "Artifact source changed persistence format during build: " + work.rel;
     return false;
   }
   if (current_storage != work.storage_hash) {
-    error= "Artifact source changed during build: " + work.rel;
+    error= "Deferred: artifact source changed during build: " + work.rel;
     return false;
   }
   if (artifact_content_fingerprint (document) != work.content_hash) {
@@ -1927,9 +1931,6 @@ bool choose_and_persist_native_bindings (
     return false;
   }
   if (!options.saved_sha256.empty ()) {
-    if (current_storage != options.saved_sha256) {
-      error= "Deferred: saved artifact revision was superseded"; return false;
-    }
     tree body= document_body (document);
     for (auto& record: extracted.records) {
       tree& source= source_at (body, record.source_path);
