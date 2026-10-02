@@ -997,7 +997,9 @@
       "label": "Go",
       "items": [
         { "command": "application.command-palette" },
-        { "command": "application.quick-switcher" }
+        { "command": "application.quick-switcher" },
+        { "separator": true },
+        { "provider": "go-navigation" }
       ]
     },
     {

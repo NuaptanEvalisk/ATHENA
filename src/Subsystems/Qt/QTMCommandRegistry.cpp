@@ -58,6 +58,7 @@ QTMCommandRegistry::registerBuiltins () {
   registerFocusCommands ();
   registerDocumentMenuCommands ();
   registerViewMenuCommands ();
+  registerGoMenuCommands ();
 
   using command_filter=
     std::function<bool(const QTMCommandDefinition&)>;

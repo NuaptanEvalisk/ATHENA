@@ -164,6 +164,7 @@ private:
   void registerFocusSpecialCommands ();
   void registerDocumentMenuCommands ();
   void registerViewMenuCommands ();
+  void registerGoMenuCommands ();
   void registerBehavior (
     const QString& id, QTMCommandScope scope,
     std::function<bool(const QTMCommandContext&)> execute,

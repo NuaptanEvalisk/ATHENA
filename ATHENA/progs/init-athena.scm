@@ -91,7 +91,7 @@
              toggle-panorama-mode toggle-slideshow-mode
              fit-to-screen fit-to-screen-width
              toggle-persistent-fit-width toggle-typewriter-mode
-             toggle-snap-to-pages)
+             toggle-snap-to-pages schedule-persistent-fit-width)
 (lazy-define (athena athena tm-files)
              buffer-missing-style? buffer-set-default-style command-line-convert)
 (lazy-menu (athena menus file-menu)
