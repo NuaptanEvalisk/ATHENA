@@ -76,8 +76,9 @@ size_t  vault_rewrite_anchor_references (string path, string renames);
 string  vault_generate_uuid ();
 
 /* Vault scanning */
-// Canonical regular .ath/.tm files; hidden entries and symlinks are excluded.
-array<url> vault_get_all_files ();
+// Indexers consume source documents; file browsers may also request AVD descriptors.
+// Hidden entries and symlinks are excluded in both cases.
+array<url> vault_get_all_files (bool include_compound= false);
 array<string>    vault_get_anchors (url u);
 int        vault_get_mtime (url u);
 

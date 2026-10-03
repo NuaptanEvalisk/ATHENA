@@ -767,6 +767,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
       filename_= target;
       cache_dirty_= cache_write_failed_= false;
       owner_.setWindowTitle (QFileInfo (target).fileName ());
+      (void) call ("buffer-notify-recent", object (source_url (target)));
       saveAll ();
     }
     catch (const std::exception& e) { reportFailure (tr ("Save Compound Document As"), QString::fromUtf8 (e.what ())); }
@@ -1610,7 +1611,9 @@ void compound_document_open (url filename) {
     for (auto* widget: QApplication::allWidgets ())
       if (auto* pane= dynamic_cast<QTMCompoundDocument*> (widget))
         if (QFileInfo (pane->filename ()).canonicalFilePath () == QFileInfo (path).canonicalFilePath ()) {
-          QTMMainTabWindow::topTabWindow ()->showWidget (pane, true); return;
+          QTMMainTabWindow::topTabWindow ()->showWidget (pane, true);
+          (void) call ("buffer-notify-recent", object (source_url (path)));
+          return;
         }
     auto context= vault_capture_context ();
     QThreadPool::globalInstance ()->start ([path, context] {
@@ -1629,7 +1632,9 @@ void compound_document_open (url filename) {
         for (auto* widget: QApplication::allWidgets ())
           if (auto* pane= dynamic_cast<QTMCompoundDocument*> (widget))
             if (QFileInfo (pane->filename ()).canonicalFilePath () == QFileInfo (path).canonicalFilePath ()) {
-              QTMMainTabWindow::topTabWindow ()->showWidget (pane, true); return;
+              QTMMainTabWindow::topTabWindow ()->showWidget (pane, true);
+              (void) call ("buffer-notify-recent", object (source_url (path)));
+              return;
             }
         if (result->error.isEmpty () && !vault_context_is_current (context))
           result->error= QStringLiteral ("The selected vault was closed while opening the compound document");
@@ -1644,6 +1649,7 @@ void compound_document_open (url filename) {
         auto* shell= QTMMainTabWindow::topTabWindow ();
         QObject::connect (pane, &QTMWindow::closed, pane, [pane] { pane->requestClose (); });
         shell->showWidget (pane, true);
+        (void) call ("buffer-notify-recent", object (source_url (path)));
       }, Qt::QueuedConnection);
     });
   }, Qt::QueuedConnection);

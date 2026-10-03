@@ -234,7 +234,7 @@ QTMQuickSwitcher::QTMQuickSwitcher (QWidget* parent,
   layout->addWidget (prompt);
 
   searchEdit = new QLineEdit (this);
-  searchEdit->setPlaceholderText ("Search .ath files");
+  searchEdit->setPlaceholderText ("Search documents");
   layout->addWidget (searchEdit);
 
   tabs= new QTabWidget (this);
@@ -284,21 +284,21 @@ QTMQuickSwitcher::showEvent (QShowEvent* event) {
 void
 QTMQuickSwitcher::loadFiles (const array<string>& recentFiles) {
   url root= vault_get_root ();
-  array<url> files= vault_get_all_files ();
+  array<url> files= vault_get_all_files (true);
   QHash<QString, int> entryByCanonicalPath;
 
   for (int i=0; i<N(files); i++) {
     url rel= delta (root * url (""), files[i]);
-    if (suffix (rel) != "ath") continue;
+    if (locase_all (suffix (rel)) != "ath" && locase_all (suffix (rel)) != "avd") continue;
     QString relPath= to_qstring (as_unix_string (rel));
     QString base= relPath.section ('/', -1);
-    if (base.endsWith (".ath")) base.chop (4);
+    base.chop (4);
 
     Entry e;
     e.relPath= relPath;
     e.baseName= base;
     QString searchPath= relPath;
-    if (searchPath.endsWith (".ath")) searchPath.chop (4);
+    searchPath.chop (4);
     e.searchPath= from_qstring (searchPath);
     e.searchBase= from_qstring (base);
     e.mtime= vault_get_mtime (files[i]);
@@ -760,7 +760,8 @@ QTMQuickSwitcher::completeFromSelection () {
 
   QString completion= item->data (QuickCompletionRole).toString ();
   if (completion.isEmpty ()) return;
-  if (completion.endsWith (".ath")) completion.chop (4);
+  if (completion.endsWith (".ath", Qt::CaseInsensitive) ||
+      completion.endsWith (".avd", Qt::CaseInsensitive)) completion.chop (4);
   searchEdit->setText (completion);
   searchEdit->setCursorPosition (completion.length ());
 }

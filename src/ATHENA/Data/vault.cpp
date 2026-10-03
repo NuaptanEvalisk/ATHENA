@@ -327,7 +327,7 @@ vault_has_node (string uuid) {
 }
 
 array<url>
-vault_get_all_files () {
+vault_get_all_files (bool include_compound) {
   namespace fs= std::filesystem;
   array<url> res;
   const auto context= vault_capture_context ();
@@ -359,7 +359,8 @@ vault_get_all_files () {
     if (!fs::is_regular_file (status)) continue;
     const url u= url_system (vault_tm_string (canonical.string ()));
     const string extension= suffix (u);
-    if (extension == "ath" || extension == "tm") res << u;
+    if (extension == "ath" || extension == "tm" ||
+        (include_compound && locase_all (extension) == "avd")) res << u;
   }
   return res;
 }

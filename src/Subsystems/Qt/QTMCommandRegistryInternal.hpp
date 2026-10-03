@@ -149,7 +149,7 @@ open_document_from_shell (
   QWidget* parent= context.shell.data ();
   QString path= QFileDialog::getOpenFileName (
     parent, QObject::tr ("Open document"), QString (),
-    QObject::tr ("ATHENA documents (*.ath *.tm);;All files (*)"));
+    QObject::tr ("ATHENA documents (*.ath *.avd *.tm);;Compound documents (*.avd);;All files (*)"));
   if (path.isEmpty ()) return true;
   try {
     (void) call (newWindow ? "load-buffer-in-new-window" : "load-buffer",

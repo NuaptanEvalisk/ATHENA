@@ -219,7 +219,7 @@
              (file-converter-exists? "x.pdf" (string-append "y." fm)))
            (image-formats)))))
 
-(define (buffer-notify-recent name)
+(tm-define (buffer-notify-recent name)
   (when (not (autosave-file? name))
     (learn-interactive 'recent-buffer (list (cons "0" (url->unix name))))
     (save-learned)))
@@ -747,7 +747,7 @@
       (if (current-buffer)
           (set! name (url-relative (current-buffer) name))
           (set! name (url-append (url-pwd) name))))
-  (if (== (url-suffix name) "avd")
+  (if (== (locase-all (url-suffix name)) "avd")
       (compound-document-open name)
       (load-buffer-check-autosave name opts)))
 
@@ -782,6 +782,8 @@
 (define (load-browse-buffer-main name . opt-after-open)
   (let ((after-open (and (pair? opt-after-open) (car opt-after-open))))
     (cond ((url-rooted-protocol? name "mailto") (load-external name))
+          ((== (locase-all (url-suffix name)) "avd")
+           (compound-document-open name))
           ((buffer-exists? name)
            (switch-to-buffer name)
            (linked-file-opened name after-open))
