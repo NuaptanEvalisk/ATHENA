@@ -121,9 +121,12 @@ Namespace support includes:
   with current-note alignment across neighborhoods.
 - Wayland and Windows gestures for switching to neighboring notes and cycling
   the selected neighborhood.
-- Custom C sorters compiled with libtcc.
+- Sandboxed custom Luau sorters with typed capture fields and exact int64 keys.
+- Offline explicit-mapping migration removes migrated legacy C sorter sources
+  after the namespace database commit; there is no C sorter fallback.
 - Built-in trivial sorting behavior.
-- Generated sub-product namespaces and product sorters.
+- Generated sub-product namespaces with structural restricted, lexicographic,
+  and constraint-union sorter compositions.
 - Reverse, direct, and global hierarchy graph panes using ATHENA's native graph
   renderer and Boost force-directed layouts rather than Graphviz.
 - Insertable reverse hierarchy diagrams and namespace export hierarchy

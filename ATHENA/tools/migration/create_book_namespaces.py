@@ -18,7 +18,6 @@ from pathlib import Path
 
 READING_REL = Path("Notes Root") / "Sources" / "Reading"
 DEFAULT_DB_NAME = "ns.sqlite"
-DEFAULT_SORTER_REL = Path("dependencies") / "reading-sorter.c"
 
 
 @dataclass(frozen=True)
@@ -199,8 +198,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--sorter",
         type=Path,
-        default=None,
-        help="sorter .c path; defaults to <vault-root>/dependencies/reading-sorter.c",
+        required=True,
+        help="user-supplied Luau sorter path (.luau)",
     )
     parser.add_argument(
         "--apply",
@@ -215,17 +214,16 @@ def main(argv: list[str]) -> int:
     vault_root = args.vault_root.resolve()
     reading_dir = vault_root / READING_REL
     db_path = args.db.resolve() if args.db is not None else vault_root / DEFAULT_DB_NAME
-    sorter_path = (
-        args.sorter.resolve()
-        if args.sorter is not None
-        else (vault_root / DEFAULT_SORTER_REL).resolve()
-    )
+    sorter_path = args.sorter.resolve()
 
     if not reading_dir.is_dir():
         print(f"error: reading directory not found: {reading_dir}", file=sys.stderr)
         return 2
     if not sorter_path.is_file():
         print(f"error: sorter not found: {sorter_path}", file=sys.stderr)
+        return 2
+    if sorter_path.suffix != ".luau":
+        print(f"error: sorter must be a .luau file: {sorter_path}", file=sys.stderr)
         return 2
 
     namespaces, warnings = book_namespaces(vault_root, sorter_path)

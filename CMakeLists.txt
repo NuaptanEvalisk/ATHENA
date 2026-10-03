@@ -321,13 +321,24 @@ if (NOT RESVGQT_INCLUDE_DIR OR NOT RESVG_LIBRARY)
     "Install resvg/ResvgQt development packages or provide "
     "RESVGQT_INCLUDE_DIR/RESVG_LIBRARY.")
 endif ()
-find_path (TCC_INCLUDE_DIR libtcc.h)
-find_library (TCC_LIBRARY NAMES tcc libtcc)
-if (NOT TCC_INCLUDE_DIR OR NOT TCC_LIBRARY)
-  message (FATAL_ERROR
-    "libtcc is required for ATHENA namespace sorters. "
-    "Install libtcc-devel or provide TCC_INCLUDE_DIR/TCC_LIBRARY.")
-endif ()
+include(FetchContent)
+### --------------------------------------------------------------------
+### Luau compiler and bytecode VM (namespace sorters; no native CodeGen/JIT)
+### --------------------------------------------------------------------
+# Official Luau 0.741 is MIT licensed. Its required notice is shipped at
+# ATHENA/misc/licenses/luau/LICENSE.txt. Only compiler + bytecode VM targets are
+# linked; ATHENA does not enable or link Luau.CodeGen.
+set(LUAU_BUILD_CLI OFF CACHE BOOL "" FORCE)
+set(LUAU_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(LUAU_BUILD_WEB OFF CACHE BOOL "" FORCE)
+set(LUAU_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(
+  luau
+  GIT_REPOSITORY https://github.com/luau-lang/luau.git
+  GIT_TAG        2d88f9b5facaa9e4ec91247b39ae8251bd49a244
+  GIT_SHALLOW    TRUE
+)
+FetchContent_MakeAvailable(luau)
 
 
 ### --------------------------------------------------------------------
@@ -662,7 +673,7 @@ endif (WIN32)
 set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs}
   ${ATHENA_GUILE_INCLUDE_DIR} ${FREETYPE_INCLUDE_DIRS}
   ${IMLIB2_INCLUDE_DIR} ${GMP_INCLUDES} ${GNUTLS_INCLUDE_DIRS}
-  ${TCC_INCLUDE_DIR} ${SQLITE3_INCLUDE_DIRS} ${ICONV_INCLUDE_DIR}
+  ${SQLITE3_INCLUDE_DIRS} ${ICONV_INCLUDE_DIR}
   ${ATHENA_LLAMA_INCLUDE_DIR} ${LLAMA_COMMON_INCLUDE_DIR}
   ${LLAMA_JSON_INCLUDE_DIR}
 )
@@ -754,7 +765,6 @@ set (ATHENA_Libraries
   ${LIBSODIUM_LIBRARIES}
   ${MAGICKWAND_LIBRARIES}
   ${ICONV_LIBRARIES}
-  ${TCC_LIBRARY}
   ${CMAKE_DL_LIBS}
   -lpthread
 )
@@ -876,7 +886,6 @@ if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt6")
   set (CONFIG_QT "Qt")
   message (STATUS "Enabling Qt port")
 
-  include(FetchContent)
   ### --------------------------------------------------------------------
   ### RapidFuzz C++
   ### --------------------------------------------------------------------

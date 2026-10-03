@@ -7,20 +7,22 @@ an active checklist.
 
 ## Sorter ownership
 
-Namespace product sorters are compiled through the linked `libtcc` API. The
-sorter cache is thread-local, so compiler state and generated executable storage
-are never shared implicitly between unrelated owner threads.
+Namespace script sorters are compiled with the pinned official Luau compiler and
+executed by its bytecode VM. The sorter cache is thread-local, so VM state and
+compiled generations are never shared implicitly between unrelated owner
+threads. Native CodeGen/JIT is not enabled.
 
 Each cache entry owns a compiled generation. A sort operation retains the
 generation it is executing even if the source changes and the cache entry is
-replaced. Recompilation therefore cannot free machine code that is still in use.
-Compiler error callbacks are detached before compiled state escapes the
-compilation call, and sorter execution checks its owning thread.
+replaced. Recompilation therefore cannot invalidate VM state that is still in
+use. Sorter execution and destruction check their owning thread.
 
-The generated C ABI borrows stable capture buffers prepared once per record.
-Comparator calls inspect those fields and reorder record indices; they do not
-allocate fresh C strings for every comparison. Fallback stem comparison follows
-the same borrowed-storage rule.
+Key sorters receive read-only typed capture tables once per member and C++ sorts
+the resulting immutable typed keys. Comparator sorters evaluate a complete
+relation for the current member set before record indices are reordered. Exact
+signed 64-bit captures use Luau's integer representation rather than doubles.
+Structural product and restricted sorters project fields with dynamic strings,
+so generated compositions have no fixed-size text buffer.
 
 ## Ontology snapshots
 
@@ -41,14 +43,14 @@ worker boundary.
 ## UI boundary
 
 Namespace manager, explorer, switcher and product-generation UI remain on the Qt
-main thread. Template derivation and generated C source construction are local
-to the calling thread.
+main thread. Template derivation and structural JSON composition construction
+are local to the calling thread.
 
-TCC compilation for a user-triggered product sorter is still synchronous, and a
-request for a not-yet-published ontology generation can still wait for indexing.
-Those are latency concerns, not ownership shortcuts: fixing them should move work
-behind an explicit asynchronous boundary rather than weakening the lifetime
-rules above.
+Luau compilation for a newly loaded script is synchronous, and a request for a
+not-yet-published ontology generation can still wait for indexing. Those are
+latency concerns, not ownership shortcuts: fixing them should move work behind
+an explicit asynchronous boundary rather than weakening the lifetime rules
+above.
 
 ## Regression coverage
 
@@ -58,12 +60,13 @@ rules above.
 - retaining old snapshots across refresh/restart;
 - retaining compiled generations across replacement and compile failure;
 - thread-local compiler state and cleanup;
-- stable payload addresses while sorting.
+- exact-int64, script-error/time-budget and atomic-failure contracts;
+- structural restricted/product projection and constraint-cycle reporting.
 
 `namespaces_template_test` covers the independent template path. Previous focused
-TSan runs found no host-side data race in these ownership paths; generated TCC
-machine code itself is not TSan-instrumented and must not be treated as certified
-arbitrary user code.
+TSan runs found no host-side data race in these ownership paths. Luau scripts are
+sandboxed and budgeted, but they remain user programs whose errors are reported
+instead of being treated as host invariants.
 
 ## Maintenance rule
 

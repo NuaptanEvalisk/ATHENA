@@ -97,31 +97,6 @@
   <label|remark:A system Guile installation is neither needed nor used CMake
   builds the vendored Guile 3 runtime aut }>
 
-  <label|H3 Compiling libtcc>
-
-  <subsubsection*|Compiling libtcc>
-
-  If no usable libtcc development package is available, build TinyCC from
-  source:
-
-  <\code>
-    git clone https://repo.or.cz/tinycc.git
-
-    cd tinycc
-
-    CC=icx ./configure
-
-    make -j16
-  </code>
-
-  Pass the resulting header and library to the <ATHENA> CMake configuration:
-
-  <\code>
-    -DTCC_INCLUDE_DIR=/path/to/tinycc \\
-
-    -DTCC_LIBRARY=/path/to/tinycc/libtcc.a
-  </code>
-
   <label|H3 Compiling llama.cpp>
 
   <subsubsection*|Compiling llama.cpp>
@@ -239,10 +214,6 @@
 
     cmake --build build_rel --target ATHENA.bin -j20
   </code>
-
-  If libtcc was built in a non-system location, add the
-  <verbatim|TCC_INCLUDE_DIR> and <verbatim|TCC_LIBRARY> arguments from 2.2 to
-  the CMake configuration.
 
   <label|remark:The first build may spend a substantial amount of time
   bootstrapping the vendored Guile runtime Thin {>
@@ -612,7 +583,6 @@
     <associate|H2 Setting up ATHENA Transmitter on a server|<tuple|5|?>>
     <associate|H2 Setting up Web-Accessible ATHENA on a server|<tuple|4.2|?>>
     <associate|H3 Compiling ATHENA with ThreadSanitizer enabled|<tuple|2|?>>
-    <associate|H3 Compiling libtcc|<tuple|1|?>>
     <associate|H3 Compiling llama.cpp|<tuple|1|?>>
     <associate|auto-1|<tuple|1|?>>
     <associate|auto-10|<tuple|2.5|?>>
@@ -673,10 +643,6 @@
       <with|par-left|<quote|1tab>|2.2<space|2spc>Installing dependencies
       <datoms|<macro|x|<repeat|<arg|x>|<with|font-series|medium|<with|font-size|1|<space|0.2fn>.<space|0.2fn>>>>>|<htab|5mm>>
       <no-break><pageref|auto-4>>
-
-      <with|par-left|<quote|2tab>|Compiling libtcc
-      <datoms|<macro|x|<repeat|<arg|x>|<with|font-series|medium|<with|font-size|1|<space|0.2fn>.<space|0.2fn>>>>>|<htab|5mm>>
-      <no-break><pageref|auto-5>>
 
       <with|par-left|<quote|2tab>|Compiling llama.cpp
       <datoms|<macro|x|<repeat|<arg|x>|<with|font-series|medium|<with|font-size|1|<space|0.2fn>.<space|0.2fn>>>>>|<htab|5mm>>

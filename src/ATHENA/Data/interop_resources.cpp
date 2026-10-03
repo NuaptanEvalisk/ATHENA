@@ -206,8 +206,17 @@ public:
         product.kind = first_semi || second_semi ? "semi-concrete" : "abstract";
         product.parents = {first->name, second->name};
         if (first_semi && second_semi) {
+          const std::string sort_mode= required_string (p, "sort_mode");
+          if (sort_mode != "lexicographic-first" &&
+              sort_mode != "lexicographic-second" &&
+              sort_mode != "constraint-union")
+            throw domain_error (
+              "INVALID_ARGUMENT",
+              "subproduct sort_mode must be lexicographic-first, "
+              "lexicographic-second, or constraint-union");
           if (!athena_namespace_generate_product_sorter (context, *first, *second,
-              product.templ, product.sorter_path, error)) throw domain_error ("ERROR", tm_to_std (error));
+              product.templ, std_to_tm (sort_mode), product.sorter_path, error))
+            throw domain_error ("ERROR", tm_to_std (error));
         }
         else if (first_semi || second_semi) {
           const auto& parent = first_semi ? first : second;

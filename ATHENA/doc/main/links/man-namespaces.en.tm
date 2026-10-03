@@ -73,20 +73,29 @@
   captured fields of filenames matching <math|T<rsub|N>>. Two different names
   may compare equal; a sorter is complete when this never happens.
 
-  Sorters are C files loaded through <verbatim|libtcc>. A sorter defines
-  <verbatim|athena_ns_compare>. <ATHENA> passes the captured fields as
-  <verbatim|AthenaNsField> values with text, field type, integer value, and Roman
-  value. The helper functions <verbatim|athena_ns_strcmp>,
-  <verbatim|athena_ns_strcasecmp>, <verbatim|athena_ns_cmp_int>,
-  <verbatim|athena_ns_cmp_roman>, and <verbatim|athena_ns_roman_value> are
-  available to sorter code. A trivial sorter is also available; it declares all
-  matches equal.
+  Sorters are <verbatim|.luau> modules compiled in-process with the official
+  Luau compiler and executed by its sandboxed bytecode VM. A version 1 module
+  defines exactly one of <verbatim|key(fields)> and <verbatim|compare(a,b)>.
+  Capture tables are one-based and read-only, with <verbatim|text> and
+  <verbatim|type> fields, exact signed 64-bit <verbatim|integer> values for
+  integer captures, and numeric <verbatim|roman> values for Roman captures.
+  String ordering is bytewise. Key sorters run once per member and are sorted
+  stably by C++; comparator sorters return exactly -1, 0, or 1 and are checked
+  against the current member set before any result is published. A trivial
+  sorter is also available; it declares all matches equal.
+
+  Vaults which still reference legacy C sorter paths must be migrated offline
+  with <verbatim|--upgrade-vault-sorters> and an explicit JSON-array mapping from
+  each old path to its replacement <verbatim|.luau> file. A successful migration
+  updates the namespace database transactionally and removes the migrated C
+  source files; no C sorter runtime or fallback remains in <ATHENA>.
 
   If <math|N'\<subset\>N>, then the child ordering should refine the parent
   ordering: whenever <math|S<rsub|N>(f,g)> is strict, the child sorter must not
-  reverse it. <ATHENA> can generate restricted and product sorters for common
-  namespace constructions, but the mathematical compatibility condition remains
-  the user's responsibility.
+  reverse it. <ATHENA> stores generated restricted and product sorters as
+  versioned structural JSON compositions. Product creation explicitly selects
+  lexicographic parent priority or a constraint union; constraint unions are
+  resolved by stable topological ordering and report precedence cycles.
 
   <subsection|Products and sub-products>
 
@@ -123,8 +132,9 @@
   To create a namespace, press <em|New namespace...>, choose whether it is
   abstract, semi-concrete, or concrete, then fill the relevant fields. Names
   must be non-empty and must not contain <verbatim|!>. For a semi-concrete or
-  concrete namespace, enter a filename template and either choose a sorter C
-  file or enable the trivial sorter. For a concrete namespace, also choose the
+  concrete namespace, enter a filename template and either choose a
+  <verbatim|.luau> sorter module or enable the trivial sorter. For a concrete
+  namespace, also choose the
   style and optional initial content used for new documents.
 
   The manager distinguishes explicit parents from derived parents. Explicit
@@ -136,8 +146,8 @@
 
   The <em|Generate sub-products> command constructs namespaces from selected
   parents. For two semi-concrete parents, <ATHENA> suggests a unified template,
-  asks you to confirm sorter compatibility, and writes a generated product
-  sorter under <verbatim|.athena/ns-sorters>. For one semi-concrete parent and
+  asks you to select explicit product ordering semantics, and writes a versioned
+  structural composition descriptor under <verbatim|.athena/ns-sorters>. For one semi-concrete parent and
   one abstract parent, <ATHENA> generates a restricted namespace. For abstract
   parents, it creates abstract sub-products.
 

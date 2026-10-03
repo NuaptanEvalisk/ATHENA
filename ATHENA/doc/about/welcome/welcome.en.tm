@@ -41,7 +41,7 @@
     folders. <ATHENA> supports abstract, semi-concrete, and concrete
     namespaces; namespace homepages; namespace summaries at
     <samp|tmfs://ns/!name>; namespace-aware quick switching; namespace-aware
-    search; namespace-aware file creation; custom C sorters; and generated
+    search; namespace-aware file creation; sandboxed Luau sorters; and generated
     sub-product namespaces.
 
     <item*|Search and navigation>

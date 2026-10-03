@@ -20,7 +20,6 @@ from pathlib import Path
 LECTURE_NOTES_REL = Path("Notes Root") / "Sources" / "Lecture Notes"
 DEFAULT_DB_NAME = "ns.sqlite"
 DEFAULT_PARENT = "Courses"
-DEFAULT_SORTER_REL = Path("dependencies") / "roman-sorter.c"
 DEFAULT_STYLE_REL = Path("dependencies") / "unnumbered-sections-generic.ats"
 
 
@@ -208,8 +207,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--sorter",
         type=Path,
-        default=None,
-        help="sorter .c path; defaults to <vault-root>/dependencies/roman-sorter.c",
+        required=True,
+        help="user-supplied Luau sorter path (.luau)",
     )
     parser.add_argument(
         "--style",
@@ -230,11 +229,7 @@ def main(argv: list[str]) -> int:
     vault_root = args.vault_root.resolve()
     lecture_notes = vault_root / LECTURE_NOTES_REL
     db_path = args.db.resolve() if args.db is not None else vault_root / DEFAULT_DB_NAME
-    sorter_path = (
-        args.sorter.resolve()
-        if args.sorter is not None
-        else (vault_root / DEFAULT_SORTER_REL).resolve()
-    )
+    sorter_path = args.sorter.resolve()
     style_path = (
         args.style.resolve()
         if args.style is not None
@@ -246,6 +241,9 @@ def main(argv: list[str]) -> int:
         return 2
     if not sorter_path.is_file():
         print(f"error: sorter not found: {sorter_path}", file=sys.stderr)
+        return 2
+    if sorter_path.suffix != ".luau":
+        print(f"error: sorter must be a .luau file: {sorter_path}", file=sys.stderr)
         return 2
     if not style_path.is_file():
         print(f"error: style not found: {style_path}", file=sys.stderr)

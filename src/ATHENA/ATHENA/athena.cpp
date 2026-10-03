@@ -29,6 +29,7 @@
 #include <fstream>
 #include <filesystem>
 #include <iomanip>
+#include <optional>
 #include <random>
 #include <sstream>
 #include <string>
@@ -63,6 +64,7 @@
 #include "ATHENA/Data/artifacts.hpp"
 #include "ATHENA/Data/artifact_range_llm.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
+#include "ATHENA/Data/namespace_sorter_migration.hpp"
 #include "ATHENA/Data/websites.hpp"
 #include "MCP/mcp_rag_server.hpp"
 #include "rag_delegation_crypto.hpp"
@@ -805,6 +807,7 @@ print_command_line_help () {
   cout << "  --vault-maintenance [dir]  Maintain an ATHENA vault headlessly\n";
   cout << "  --upgrade-vault-format [dir]  Offline transactional UTF-8/XML vault upgrade\n";
   cout << "  --upgrade-vault-node-model [dir]  Offline UTF-8 XML v1 -> node-model XML v2 vault migration\n";
+  cout << "  --upgrade-vault-sorters [dir] --sorter-map JSON  Offline explicit C-to-Luau namespace sorter migration\n";
   cout << "  --convert-style [source.ts] [dest.ats]  Convert a legacy style to native UTF-8 XML\n";
   cout << "  --rag-delegated-embedding [dir]  Run only delegated incremental embedding\n";
   cout << "  --vault-maintenance-toc-worker [file] [marker]  Internal ToC maintenance worker\n";
@@ -2001,6 +2004,55 @@ athena_refresh_stale_scheme_bytecode (int argc, char** argv) {
 
 int
 texmacs_entrypoint (int argc, char** argv) {
+  for (int i=1; i<argc; ++i) {
+    if (std::string (argv[i]) != "--upgrade-vault-sorters") continue;
+    if (i != 1) {
+      std::cerr << "--upgrade-vault-sorters must be the first option.\n";
+      return 1;
+    }
+    if (argc == 3 && std::string (argv[2]) == "--help") {
+      std::cerr
+        << "Usage: ATHENA.bin --upgrade-vault-sorters VAULT_DIRECTORY "
+           "(--sorter-map JSON | --sorter-map-file FILE) [--dry-run]\n"
+        << "The sorter map is a JSON array of explicit "
+           "{\"from\":\"old.c\",\"to\":\"new.luau\"} entries.\n";
+      return 0;
+    }
+    if (argc < 5) {
+      std::cerr
+        << "Usage: ATHENA.bin --upgrade-vault-sorters VAULT_DIRECTORY "
+           "(--sorter-map JSON | --sorter-map-file FILE) [--dry-run]\n";
+      return 1;
+    }
+    std::filesystem::path root (argv[2]);
+    std::optional<std::string> inline_map;
+    std::optional<std::filesystem::path> map_file;
+    bool dry_run= false;
+    for (int j=3; j<argc; ++j) {
+      std::string option= argv[j];
+      if (option == "--dry-run") {
+        if (dry_run) {
+          std::cerr << "--dry-run specified more than once.\n";
+          return 1;
+        }
+        dry_run= true;
+      }
+      else if (option == "--sorter-map" || option == "--sorter-map-file") {
+        if (j + 1 >= argc) {
+          std::cerr << option << " requires a value.\n";
+          return 1;
+        }
+        if (option == "--sorter-map") inline_map= std::string (argv[++j]);
+        else map_file= std::filesystem::path (argv[++j]);
+      }
+      else {
+        std::cerr << "Unknown --upgrade-vault-sorters option: " << option << "\n";
+        return 1;
+      }
+    }
+    return athena_upgrade_vault_sorters_cli (
+      root, inline_map, map_file, dry_run);
+  }
   for (int i=1; i<argc; ++i) {
     if (std::string (argv[i]) != "--upgrade-vault-node-model") continue;
     const bool help= argc == 3 && i == 1 && std::string (argv[2]) == "--help";

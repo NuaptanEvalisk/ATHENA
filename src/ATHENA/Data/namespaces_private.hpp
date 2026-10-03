@@ -115,26 +115,6 @@ struct derivation_result {
   std::vector<parent_field_expr> fields;
 };
 
-extern "C" {
-enum AthenaNsFieldType {
-  ATHENA_NS_STRING,
-  ATHENA_NS_WORD,
-  ATHENA_NS_CHAR,
-  ATHENA_NS_INT,
-  ATHENA_NS_POS_INT,
-  ATHENA_NS_ROMAN
-};
-
-typedef struct {
-  const char* text;
-  int         type;
-  long long   integer;
-  int         roman;
-} AthenaNsField;
-}
-
-typedef int (*ns_compare_fn) (int, const AthenaNsField*, const AthenaNsField*);
-
 const char* field_type_name (ns_field_type t);
 int parse_roman_value (std::string_view s);
 bool field_value_satisfies_type (ns_field_type type, const std::string& value);
@@ -166,8 +146,13 @@ bool subproduct_candidate_from_order (string first_template,
 struct compiled_sorter;
 using sorter_handle= std::shared_ptr<const compiled_sorter>;
 sorter_handle load_sorter (string sorter_path, string& error);
-void sort_namespace_members (const sorter_handle& sorter,
-                              namespace_records<athena_namespace_match>& members);
+bool sort_namespace_members (const sorter_handle& sorter,
+                             namespace_records<athena_namespace_match>& members,
+                             string& error);
+bool sort_namespace_members (const vault_context_handle& context,
+                             const athena_namespace_definition& ns,
+                             namespace_records<athena_namespace_match>& members,
+                             string& error);
 
 bool refresh_derived_parents_if_needed (bool force, bool& changed,
                                         string& error);

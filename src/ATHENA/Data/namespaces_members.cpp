@@ -118,6 +118,7 @@ athena_namespace_members (string name, string& error) {
     error= "No active vault.";
     return out;
   }
+  vault_context_handle context= vault_capture_context ();
   std::shared_ptr<const athena_namespace_definition> ns;
   bool cached= athena_namespace_ontology_members (name, out, error, &ns);
   if (!cached && !athena_namespace_get (name, ns)) {
@@ -135,19 +136,7 @@ athena_namespace_members (string name, string& error) {
     if (error != "") return out;
   }
 
-  if (ns->sorter_trivial) return out;
-  if (ns->sorter_path != "") {
-    string sort_error;
-    sorter_handle sorter= load_sorter (ns->sorter_path, sort_error);
-    if (sort_error != "") error= sort_error;
-    sort_namespace_members (sorter, out);
-  }
-  else {
-    out.stable_sort ([] (const athena_namespace_match& a,
-                        const athena_namespace_match& b) {
-      return std::strcmp (a.stem.c_str (), b.stem.c_str ()) < 0;
-    });
-  }
+  if (!sort_namespace_members (context, *ns, out, error)) return out;
   return out;
 }
 
@@ -202,17 +191,6 @@ athena_namespace_members (const vault_context_handle& context, string uuid,
   }
   catch (const std::exception& e) { error= std_to_tm (e.what ()); return {}; }
   namespace_records<athena_namespace_match> out (std::move (matches));
-  if (target->sorter_trivial) return out;
-  if (target->sorter_path != "") {
-    auto path= std::filesystem::path (tm_to_std (target->sorter_path));
-    if (path.is_relative ()) path= context->root / path;
-    auto sorter= load_sorter (std_to_tm (path.string ()), error);
-    if (error != "") return {};
-    sort_namespace_members (sorter, out);
-  }
-  else out.stable_sort ([] (const athena_namespace_match& a,
-                           const athena_namespace_match& b) {
-    return std::strcmp (a.stem.c_str (), b.stem.c_str ()) < 0;
-  });
+  if (!sort_namespace_members (context, *target, out, error)) return {};
   return out;
 }

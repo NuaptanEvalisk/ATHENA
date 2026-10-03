@@ -224,9 +224,10 @@ namespace style/initial content and atomically publishes a new `.ath` file insid
 the vault. Existing files are never replaced. `subproduct` requires `other_uuid`,
 `name` and `template`; an empty template requests inference (with explicit
 `aggressive_string` for two templated parents). It reuses native template
-derivation and TCC sorter generation. No wizard, file picker or arbitrary Scheme
-callback is invoked by a resource operation. Stored native sorters execute native
-code, so granting OPR access includes that existing namespace capability.
+derivation and structural sorter composition. No wizard, file picker or arbitrary
+Scheme callback is invoked by a resource operation. Stored script sorters execute
+inside the sandboxed Luau bytecode VM, so granting OPR access includes that
+existing namespace capability.
 
 ## Filesystem and documents
 

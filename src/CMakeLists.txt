@@ -91,6 +91,8 @@ function (athena_configure_body_target target_name)
     KF6::Completion
     athena_audmap_terminal
     athena_plugin_ui
+    Luau.Compiler
+    Luau.VM
     ${ATHENA_VTK_LIBRARIES}
   )
   vtk_module_autoinit (

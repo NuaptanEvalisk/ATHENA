@@ -96,23 +96,6 @@ sudo zypper install \textbackslash
 
 \INLINE_COMMENT{ATHENA-DATA cmd="object" val=("156", "PGxhYmVsfHJlbWFyazpBIHN5c3RlbSBHdWlsZSBpbnN0YWxsYXRpb24gaXMgbmVpdGhlciBuZWVkZWQgbm9yIHVzZWQgQ01ha2UKYnVpbGRzIHRoZSB2ZW5kb3JlZCBHdWlsZSAzIHJ1bnRpbWUgYXV0IH0+")}
 
-\INLINE_COMMENT{ATHENA-DATA cmd="object" val=("36", "PGxhYmVsfEgzIENvbXBpbGluZyBsaWJ0Y2M+")}
-
-\subsubsection*{Compiling libtcc}
-
-If no usable libtcc development package is available, build TinyCC from
-source:
-\begin{tmcode}
-git clone https://repo.or.cz/tinycc.git
-cd tinycc
-CC=icx ./configure
-make -j16
-\end{tmcode}
-Pass the resulting header and library to the {\ATHENA} CMake configuration:
-\begin{tmcode}
--DTCC_INCLUDE_DIR=/path/to/tinycc \textbackslash
--DTCC_LIBRARY=/path/to/tinycc/libtcc.a
-\end{tmcode}
 \INLINE_COMMENT{ATHENA-DATA cmd="object" val=("40", "PGxhYmVsfEgzIENvbXBpbGluZyBsbGFtYS5jcHA+")}
 
 \subsubsection*{Compiling llama.cpp}
@@ -185,10 +168,6 @@ CC=icx CXX=icpx cmake -S . -B build_rel -G Ninja \textbackslash
   -DLLAMA_CPP_SOURCE_DIR=/path/to/llama.cpp
 cmake --build build_rel --target ATHENA.bin -j20
 \end{tmcode}
-If libtcc was built in a non-system location, add the
-\tmverbatim{TCC\_INCLUDE\_DIR} and \tmverbatim{TCC\_LIBRARY} arguments from
-2.2 to the CMake configuration.
-
 \INLINE_COMMENT{ATHENA-DATA cmd="object" val=("156", "PGxhYmVsfHJlbWFyazpUaGUgZmlyc3QgYnVpbGQgbWF5IHNwZW5kIGEgc3Vic3RhbnRpYWwgYW1vdW50IG9mIHRpbWUKYm9vdHN0cmFwcGluZyB0aGUgdmVuZG9yZWQgR3VpbGUgcnVudGltZSBUaGluIHs+")}
 
 \begin{remark}

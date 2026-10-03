@@ -36,8 +36,6 @@ require_path "Qt6Config.cmake" "lib/cmake/Qt6/Qt6Config.cmake"
 require_path "mimalloc config" "lib/cmake/mimalloc*/mimalloc-config.cmake"
 require_path "ResvgQt.h" "include/ResvgQt.h"
 require_path "libresvg" "lib/libresvg*"
-require_path "libtcc.h" "include/libtcc.h"
-require_path "libtcc" "lib/libtcc*"
 require_path "llama common.h" "include/common.h"
 require_path "llama-common library" "lib/libllama-common*"
 

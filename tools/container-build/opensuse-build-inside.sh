@@ -134,25 +134,6 @@ ensure_qt () {
   fi
 }
 
-ensure_tcc () {
-  if [ -f "$prefix/include/libtcc.h" ] &&
-     { [ -f "$prefix/lib64/libtcc.a" ] || [ -f "$prefix/lib/libtcc.a" ]; }; then
-    return
-  fi
-
-  local tcc_src="$src_dir/tinycc"
-  if [ ! -d "$tcc_src/.git" ]; then
-    git_clone_retry "$tcc_src" --depth 1 \
-      "${TCC_REPO:-https://github.com/TinyCC/tinycc.git}"
-  fi
-
-  pushd "$tcc_src" >/dev/null
-  CC=gcc ./configure --prefix="$prefix" --libdir="$prefix/lib64"
-  make -j"$jobs"
-  make install
-  popd >/dev/null
-}
-
 ensure_resvg () {
   if [ -f "$prefix/lib64/libresvg.so.0.47.0" ] &&
      [ -f "$prefix/include/ResvgQt.h" ]; then
@@ -374,9 +355,7 @@ build_athena_flavor () {
     -DLLAMA_GGML_BASE_LIBRARY="$prefix/lib64/libggml-base.so" \
     -DLLAMA_GGML_CPU_LIBRARY="$prefix/lib64/libggml-cpu.so" \
     -DRESVGQT_INCLUDE_DIR="$prefix/include" \
-    -DRESVG_LIBRARY="$prefix/lib64/libresvg.so" \
-    -DTCC_INCLUDE_DIR="$prefix/include" \
-    -DTCC_LIBRARY="$prefix/lib64/libtcc.a"
+    -DRESVG_LIBRARY="$prefix/lib64/libresvg.so"
 
   cmake --build "$build_dir" -j"$jobs"
 
@@ -438,7 +417,6 @@ download_appimagetool () {
 }
 
 ensure_qt
-ensure_tcc
 ensure_resvg
 ensure_llama
 ensure_rapidfuzz

@@ -92,11 +92,14 @@ Then there are four fields, $x_1,x_2,x_3,x_4$ being the four fields respectively
 $$
 S:\left(\prod_{1\leq i\leq 4}X_i\right)^2\longrightarrow\left\{0,\pm1\right\}
 $$
-User will give ATHENA their sorting algorithm as a C function, and ATHENA will access it via `libtcc`. 
+Users provide a `.luau` module with version 1 and exactly one of `key(fields)` or
+`compare(a, b)`. Capture tables are read-only and expose typed text, exact int64
+values for integer fields, and Roman values. ATHENA compiles source with the
+official Luau compiler and executes bytecode in a sandboxed VM.
 
 As a starting point, we will implement
 - data structures for namespaces
 - infrastructure for sorting algorithms, including comparison helper functions for Roman numbers and lexicographic comparing for strings, which user's sorting algorithm can use
-- `libtcc` integration and loading of custom sorting algorithm
+- sandboxed Luau compiler/VM integration and loading of custom sorting algorithms
 - CRUD of namespaces' registration. Including a `Namespace Manager` pane.
 - First application of namespaces: their `tmfs` link will point to a `Namespace Info` page which currently only shows basic info of the pointed namespace.

@@ -78,13 +78,17 @@ namespace_syntax_repository () {
 }
 
 static void
-namespace_highlight_c_source (QPlainTextEdit* edit) {
+namespace_highlight_sorter_source (QPlainTextEdit* edit,
+                                   const athena_namespace_definition& ns) {
   KSyntaxHighlighting::Repository& repository= namespace_syntax_repository ();
   edit->ensurePolished ();
   KSyntaxHighlighting::SyntaxHighlighter* highlighter=
     new KSyntaxHighlighting::SyntaxHighlighter (edit->document ());
   highlighter->setTheme (repository.themeForPalette (edit->palette ()));
-  highlighter->setDefinition (repository.definitionForName ("C"));
+  highlighter->setDefinition (repository.definitionForName (
+    ns.sorter_path != "" &&
+    QFileInfo (to_qstring (ns.sorter_path)).suffix () == "json"
+      ? "JSON" : "Lua"));
 }
 #endif
 
@@ -357,7 +361,7 @@ public:
       parentList (new QListWidget (this)),
       parentCombo (new QComboBox (this)),
       templateLabel (new QLabel ("Template", this)),
-      sorterLabel (new QLabel ("Sorter .c path", this)),
+      sorterLabel (new QLabel ("Sorter .luau path", this)),
       styleLabel (new QLabel ("Style path", this)),
       initialContentLabel (new QLabel ("Initial content", this)) {
     setTitle ("Namespace Details");
@@ -426,7 +430,7 @@ public:
              [this] () { updateKindUi (); });
     connect (sorterBrowseButton, &QPushButton::clicked, this, [this] () {
       QString selected= namespace_choose_file (
-        this, sorterEdit, "Choose Namespace Sorter", "*.c|C source files");
+        this, sorterEdit, "Choose Namespace Sorter", "*.luau|Luau source files");
       if (!selected.isEmpty ()) sorterEdit->setText (selected);
     });
     connect (styleBrowseButton, &QPushButton::clicked, this, [this] () {
@@ -688,45 +692,62 @@ public:
                                  const QString& secondSource,
                                  QWidget* parent = nullptr)
     : QWizardPage (parent),
-      confirmCheck (new QCheckBox ("These sorters are compatible", this)) {
-    setTitle ("Sorter Compatibility");
-    setSubTitle ("Read both sorting algorithms and confirm that their orderings "
-                 "are compatible for a sub-product namespace.");
+      firstPriority (new QRadioButton (
+        "Lexicographic: first parent, then second on ties", this)),
+      secondPriority (new QRadioButton (
+        "Lexicographic: second parent, then first on ties", this)),
+      constraintUnion (new QRadioButton (
+        "Constraint union: preserve strict precedence from both parents", this)) {
+    setTitle ("Product Sorting Semantics");
+    setSubTitle ("Read both sorter definitions, then explicitly choose how the "
+                 "product combines their orderings. No mode is preselected.");
 
     QVBoxLayout* layout= new QVBoxLayout (this);
     QHBoxLayout* sources= new QHBoxLayout ();
-    auto add_source= [&] (const QString& title, const QString& source) {
+    auto add_source= [&] (const athena_namespace_definition& ns,
+                          const QString& source) {
       QWidget* pane= new QWidget (this);
       QVBoxLayout* paneLayout= new QVBoxLayout (pane);
       paneLayout->setContentsMargins (0, 0, 0, 0);
-      paneLayout->addWidget (new QLabel (title, pane));
+      paneLayout->addWidget (new QLabel (to_qstring (ns.name), pane));
       QPlainTextEdit* edit= new QPlainTextEdit (pane);
       edit->setReadOnly (true);
       edit->setLineWrapMode (QPlainTextEdit::NoWrap);
       edit->setFont (QFontDatabase::systemFont (QFontDatabase::FixedFont));
       edit->setPlainText (source);
 #ifdef USE_KF6_SYNTAX_HIGHLIGHTING
-      namespace_highlight_c_source (edit);
+      namespace_highlight_sorter_source (edit, ns);
 #endif
       edit->setMinimumSize (420, 280);
       paneLayout->addWidget (edit);
       sources->addWidget (pane);
     };
-    add_source (to_qstring (first.name), firstSource);
-    add_source (to_qstring (second.name), secondSource);
+    add_source (first, firstSource);
+    add_source (second, secondSource);
     layout->addLayout (sources);
-    layout->addWidget (confirmCheck);
+    layout->addWidget (firstPriority);
+    layout->addWidget (secondPriority);
+    layout->addWidget (constraintUnion);
+  }
+
+  string mode () const {
+    if (firstPriority->isChecked ()) return "lexicographic-first";
+    if (secondPriority->isChecked ()) return "lexicographic-second";
+    if (constraintUnion->isChecked ()) return "constraint-union";
+    return "";
   }
 
   bool validatePage () override {
-    if (confirmCheck->isChecked ()) return true;
+    if (mode () != "") return true;
     QMessageBox::warning (this, "Generate Sub-products",
-                          "Confirm sorter compatibility before continuing.");
+                           "Choose product sorting semantics before continuing.");
     return false;
   }
 
 private:
-  QCheckBox* confirmCheck;
+  QRadioButton* firstPriority;
+  QRadioButton* secondPriority;
+  QRadioButton* constraintUnion;
 };
 
 class SubproductNamesWizardPage : public QWizardPage {
@@ -1066,7 +1087,7 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
   sorterPathLayout->addWidget (sorterBrowseButton);
   sorterLayout->addLayout (sorterPathLayout);
   sorterLayout->addWidget (trivialSorterCheck);
-  definitionForm->addRow ("Sorter .c path", sorterWidget);
+  definitionForm->addRow ("Sorter .luau path", sorterWidget);
   definitionForm->addItem (new QSpacerItem (0, 0, QSizePolicy::Minimum,
                                              QSizePolicy::Expanding));
   definitionTab= scrollableTab (definitionContent);
@@ -1639,7 +1660,7 @@ QTMNamespaceManager::saveNamespace () {
   if (ns.kind != "abstract" && !ns.sorter_trivial && ns.sorter_path == "") {
     showValidationError (
       definitionTab, sorterEdit,
-      "Choose a sorter C file or enable the trivial sorting algorithm.");
+      "Choose a .luau sorter module or enable the trivial sorting algorithm.");
     return false;
   }
   QString targetName= to_qstring (ns.name);
@@ -1870,9 +1891,11 @@ QTMNamespaceManager::generateSubproducts () {
     wizard.setWindowTitle ("Generate Sub-products");
     wizard.setWizardStyle (QWizard::ModernStyle);
     wizard.resize (980, 680);
-    wizard.addPage (new SorterCompatibilityWizardPage (
+    SorterCompatibilityWizardPage* sorterModePage=
+      new SorterCompatibilityWizardPage (
       first, second, utf8_to_qstring (firstSource),
-      utf8_to_qstring (secondSource), &wizard));
+      utf8_to_qstring (secondSource), &wizard);
+    wizard.addPage (sorterModePage);
     SubproductNamesWizardPage* namesPage=
       new SubproductNamesWizardPage (names[0], names[1], &wizard);
     SubproductTemplateWizardPage* templatePage=
@@ -1888,7 +1911,8 @@ QTMNamespaceManager::generateSubproducts () {
     QString templ= templatePage->templ ();
     string sorterPath;
     if (!athena_namespace_generate_product_sorter (
-          first, second, from_qstring (templ), sorterPath, error)) {
+          first, second, from_qstring (templ), sorterModePage->mode (),
+          sorterPath, error)) {
       QMessageBox::warning (this, "Generate Sub-products", to_qstring (error));
       return;
     }
@@ -2033,7 +2057,7 @@ QTMNamespaceManager::setMaterialIds (const std::vector<std::string>& ids) {
 void
 QTMNamespaceManager::chooseSorterPath () {
   QString selected= namespace_choose_file (
-    this, sorterEdit, "Choose Namespace Sorter", "*.c|C source files");
+    this, sorterEdit, "Choose Namespace Sorter", "*.luau|Luau source files");
   if (!selected.isEmpty ()) sorterEdit->setText (selected);
 }
 
