@@ -1496,6 +1496,7 @@ QTMPreferencesDialog::buildVaultCategories () {
   add_toggle (g, "vault welcome page");
   add_toggle (g, "vault explorer show on startup");
   add_toggle (g, "vault take preferences with vault");
+  add_toggle (g, "vault canonical database positions");
   finish_page (general);
 
   QWidget* navigation= make_page ();

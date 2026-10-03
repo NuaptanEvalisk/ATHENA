@@ -1627,6 +1627,25 @@
       }
     },
     {
+      "key": "vault canonical database positions",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Vault",
+        "tab": "General",
+        "section": "General",
+        "order": 5,
+        "label": "Use canonical positions for databases",
+        "help": "On startup, move the automatically loaded vault's databases to canonical .athena/*.sqlite paths. Disabling does not move them back.",
+        "control": "toggle",
+        "restart": true,
+        "category_order": 5,
+        "tab_order": 0,
+        "section_order": 0
+      }
+    },
+    {
       "key": "vault welcome page",
       "type": "boolean",
       "scope": "active",

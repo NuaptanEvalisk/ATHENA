@@ -23,6 +23,7 @@
 #include "ATHENA/Data/artifact_radioactive_links.hpp"
 #include "ATHENA/Data/vault_map_sqlite.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
+#include "ATHENA/Data/vault_database_layout.hpp"
 #include "ATHENA/Data/vault_safe_rename.hpp"
 #include "vault_directory_lease.hpp"
 #include "ATHENA/Data/transclusion_cache.hpp"
@@ -208,6 +209,16 @@ vault_load (url root_dir, string name, string db_rel_path,
   std::filesystem::path root (vault_std_string (concretize (root_dir)));
   std::shared_ptr<athena::filesystem::vault_directory_lease> directory_lease;
   try {
+    // Also recover an interrupted startup migration on a subsequent manual open.
+    if (athena_vault_database_layout_pending (root)) {
+      std::string error;
+      AthenaVaultfileInfo info;
+      if (!athena_vault_canonicalize_databases (root, false, error) ||
+          !athena_vaultfile_read (root, info, error))
+        return vault_tm_string (error);
+      db_rel_path= vault_tm_string (info.map_path);
+      ns_db_rel_path= vault_tm_string (info.namespace_db_path);
+    }
     directory_lease= std::make_shared<athena::filesystem::vault_directory_lease> (root);
   }
   catch (const std::exception& e) { return vault_tm_string (e.what ()); }

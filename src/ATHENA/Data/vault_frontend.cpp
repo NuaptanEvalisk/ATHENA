@@ -8,6 +8,8 @@
 #include "ATHENA/Data/new_buffer.hpp"
 #include "ATHENA/Data/vault.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
+#include "ATHENA/Data/vault_database_layout.hpp"
+#include "ATHENA/Data/vault_safe_rename.hpp"
 #include "QTMVaultExplorer.hpp"
 #include "analyze.hpp"
 #include "scheme.hpp"
@@ -256,6 +258,27 @@ vault_startup_open_initial_buffer_native () {
   if (!athena_vaultfile_present (native_path (dir))) {
     if (preference_on ("vault report missing last"))
       show_message ("Last vault is unavailable:\n" * latest, "Vault unavailable");
+    return;
+  }
+  // Relocate before load-vault-dir opens databases or starts background workers.
+  try {
+    const auto root= native_path (dir);
+    const bool enabled= athena_vault_canonical_database_preference (root,
+      preference_on ("vault canonical database positions"),
+      preference_on ("vault take preferences with vault"));
+    std::string error;
+    if (enabled && !athena_vault_database_layout_pending (root)) {
+      AthenaVaultfileInfo info;
+      if (!athena_vaultfile_read (root, info, error) ||
+          !vault_safe_rename_recover (root, info.map_path, error))
+        throw std::runtime_error (error);
+    }
+    if (!athena_vault_canonicalize_databases (root, enabled, error))
+      throw std::runtime_error (error);
+  }
+  catch (const std::exception& e) {
+    std_error << "Vault database relocation failed: " << e.what () << LF;
+    show_message (string (e.what ()), "Vault database relocation failed");
     return;
   }
   vault_load_latest_action_native (latest);
