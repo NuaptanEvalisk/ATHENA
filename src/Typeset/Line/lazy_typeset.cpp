@@ -16,6 +16,7 @@
 #include "Boxes/construct.hpp"
 #include "analyze.hpp"
 #include "enunciation_surround.hpp"
+#include "program_presentation.hpp"
 #include "packrat.hpp"
 #include "radioactive_link_scope.hpp"
 #include "scheme.hpp"
@@ -375,7 +376,12 @@ make_lazy_compound (edit_env env, tree t, path ip) {
   int d;
   tree f;
   string macro_name;
-  if (athena::enunciation::is_enunciation (t)) {
+  if (athena::program::is_program (t)) {
+    d= 0;
+    macro_name= "program";
+    f= native_program_macro (t);
+  }
+  else if (athena::enunciation::is_enunciation (t)) {
     d= 0;
     macro_name= "enunciation";
     f= native_enunciation_macro (env.operator-> (), t);

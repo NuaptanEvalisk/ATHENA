@@ -876,6 +876,14 @@
       "items": [
         { "provider": "menubar-insert-commands" },
         {
+          "submenu": "insert-program",
+          "label": "Program",
+          "icon": "tm_program",
+          "items": [
+            { "provider": "editor-program-languages" }
+          ]
+        },
+        {
           "submenu": "insert-math-symbols",
           "label": "Math symbols",
           "items": [

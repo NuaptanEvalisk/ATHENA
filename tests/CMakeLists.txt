@@ -616,6 +616,9 @@ foreach (_test_file ${TEST_SRC_FILES})
   )
   # Match ATHENA.bin: the allocator must outlive SYCL's unload-time allocations.
   athena_link_full_test_runtime (${_test_name})
+  if (_test_name STREQUAL "program_model_test")
+    target_link_libraries (${_test_name} PRIVATE KF6::SyntaxHighlighting)
+  endif ()
   add_test (${_test_name} ${_test_name})
   if (_test_name STREQUAL "artifacts_test" OR
       _test_name STREQUAL "command_line_conversion_test" OR

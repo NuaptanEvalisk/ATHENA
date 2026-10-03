@@ -11,6 +11,7 @@
 
 #include "env.hpp"
 #include "enunciation_surround.hpp"
+#include "program_presentation.hpp"
 #include "convert.hpp"
 #include "file.hpp"
 #include "locale.hpp"
@@ -675,7 +676,11 @@ edit_env_rep::exec_compound (tree t) {
   if (athena_enunciation_layout_rewrite (edit_env (this), t, layout))
     return exec (layout);
   int d; tree f;
-  if (athena::enunciation::is_enunciation (t)) {
+  if (athena::program::is_program (t)) {
+    d= 0;
+    f= native_program_macro (t);
+  }
+  else if (athena::enunciation::is_enunciation (t)) {
     d= 0;
     f= native_enunciation_macro (this, t);
   }
@@ -2331,7 +2336,11 @@ edit_env_rep::exec_until_with (tree t, path p) {
 void
 edit_env_rep::exec_until_compound (tree t, path p) {
   int d; tree f;
-  if (athena::enunciation::is_enunciation (t)) {
+  if (athena::program::is_program (t)) {
+    d= 0;
+    f= native_program_macro (t);
+  }
+  else if (athena::enunciation::is_enunciation (t)) {
     d= 0;
     f= native_enunciation_macro (this, t);
   }
@@ -2614,7 +2623,11 @@ edit_env_rep::exec_until_compound (tree t, path p, string var, int level) {
   if (athena_enunciation_layout_rewrite (edit_env (this), t, layout))
     return exec_until (layout, p, var, level);
   int d; tree f;
-  if (athena::enunciation::is_enunciation (t)) {
+  if (athena::program::is_program (t)) {
+    d= 0;
+    f= native_program_macro (t);
+  }
+  else if (athena::enunciation::is_enunciation (t)) {
     d= 0;
     f= native_enunciation_macro (this, t);
   }

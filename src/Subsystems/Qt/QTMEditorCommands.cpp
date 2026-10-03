@@ -19,6 +19,8 @@
 #include "new_buffer.hpp"
 #include "sys_utils.hpp"
 
+#include <KSyntaxHighlighting/Definition>
+#include <KSyntaxHighlighting/Repository>
 #include <QColor>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -28,6 +30,8 @@
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QSet>
+
+#include <algorithm>
 
 using namespace qtm_command_registry_detail;
 
@@ -552,10 +556,152 @@ math_mode_command_state (const QTMCommandContext& context, bool writable) {
   return result;
 }
 
+KSyntaxHighlighting::Repository&
+program_syntax_repository () {
+  static KSyntaxHighlighting::Repository repository;
+  return repository;
+}
+
+KSyntaxHighlighting::Definition
+program_definition (QString input) {
+  input= input.trimmed ();
+  if (input.compare (QStringLiteral ("cpp"), Qt::CaseInsensitive) == 0)
+    input= QStringLiteral ("C++");
+  else if (input.compare (QStringLiteral ("shell"), Qt::CaseInsensitive) == 0)
+    input= QStringLiteral ("Bash");
+  else if (input.compare (QStringLiteral ("scm"), Qt::CaseInsensitive) == 0)
+    input= QStringLiteral ("Scheme");
+
+  auto& repository= program_syntax_repository ();
+  auto definition= repository.definitionForName (input);
+  if (definition.isValid ()) return definition;
+  for (const auto& candidate: repository.definitions ())
+    if (candidate.name ().compare (input, Qt::CaseInsensitive) == 0)
+      return candidate;
+  return repository.definitionForFileName (QStringLiteral ("source.") + input);
+}
+
+QTMCommandState
+program_insert_state (const QTMCommandContext& context) {
+  QTMCommandState state;
+  qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+  if (proxy == nullptr) return state;
+  actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
+  constexpr std::uint32_t required=
+    ACTOR_EDITOR_COMMAND_STATE_TEXT_MODE |
+    ACTOR_EDITOR_COMMAND_STATE_STD_MARKUP;
+  if (!snapshot.valid () || (snapshot.flags & required) != required) return state;
+  state.available= true;
+  state.enabled= !snapshot.read_only ();
+  return state;
+}
+
+QVector<QTMCommandDynamicItem>
+program_language_items (const QTMCommandContext& context) {
+  QVector<QTMCommandDynamicItem> out;
+  QTMCommandState state= program_insert_state (context);
+  if (!state.available) return out;
+
+  auto& repository= program_syntax_repository ();
+  QSet<QString> favorites;
+  const QString favoriteNames[]= {
+    QStringLiteral ("C++"), QStringLiteral ("Fortran"),
+    QStringLiteral ("Java"), QStringLiteral ("Python"),
+    QStringLiteral ("Scala"), QStringLiteral ("Scheme"),
+    QStringLiteral ("Bash")
+  };
+  for (const QString& name: favoriteNames) {
+    auto definition= repository.definitionForName (name);
+    if (!definition.isValid () || definition.isHidden ()) continue;
+    favorites.insert (definition.name ());
+    QTMCommandDynamicItem item= enabled_dynamic_item (
+      QStringLiteral ("language:") + definition.name (),
+      definition.translatedName (),
+      QObject::tr ("Insert a %1 program").arg (definition.translatedName ()));
+    item.state.enabled= state.enabled;
+    out.append (std::move (item));
+  }
+
+  QVector<KSyntaxHighlighting::Definition> definitions;
+  for (const auto& definition: repository.definitions ())
+    if (definition.isValid () && !definition.isHidden () &&
+        !favorites.contains (definition.name ()))
+      definitions.append (definition);
+  std::sort (
+    definitions.begin (), definitions.end (),
+    [] (const auto& a, const auto& b) {
+      int section= QString::localeAwareCompare (
+        a.translatedSection (), b.translatedSection ());
+      return section != 0 ? section < 0 :
+        QString::localeAwareCompare (a.translatedName (), b.translatedName ()) < 0;
+    });
+
+  for (const auto& definition: definitions) {
+    QTMCommandDynamicItem item= enabled_dynamic_item (
+      QStringLiteral ("language:") + definition.name (),
+      definition.translatedName (),
+      QObject::tr ("Insert a %1 program").arg (definition.translatedName ()));
+    item.group= definition.translatedSection ().trimmed ();
+    if (item.group.isEmpty ()) item.group= QObject::tr ("Other");
+    item.state.enabled= state.enabled;
+    out.append (std::move (item));
+  }
+
+  QTMCommandDynamicItem other= enabled_dynamic_item (
+    QStringLiteral ("__other__"), QObject::tr ("Other..."),
+    QObject::tr ("Enter another programming language"));
+  other.state.enabled= state.enabled;
+  out.append (std::move (other));
+  return out;
+}
+
+bool
+execute_program_language (const QString& key,
+                          const QTMCommandContext& context) {
+  QTMCommandState state= program_insert_state (context);
+  if (!state.available || !state.enabled) return false;
+
+  QString language;
+  if (key == QStringLiteral ("__other__")) {
+    bool ok= false;
+    language= QInputDialog::getText (
+      context.shell.data (), QObject::tr ("Insert program"),
+      QObject::tr ("Programming language:"), QLineEdit::Normal,
+      QString (), &ok).trimmed ();
+    if (!ok || language.isEmpty ()) return true;
+    const auto definition= program_definition (language);
+    if (definition.isValid ()) language= definition.name ();
+  }
+  else if (key.startsWith (QStringLiteral ("language:")))
+    language= key.mid (QStringLiteral ("language:").size ()).trimmed ();
+  else return false;
+
+  if (language.isEmpty ()) return false;
+  QJsonObject action;
+  action.insert ("op", "make-program");
+  action.insert ("language", language);
+  return submit_inline_editor_action (
+    context, action,
+    ACTOR_EDITOR_COMMAND_STATE_TEXT_MODE |
+      ACTOR_EDITOR_COMMAND_STATE_STD_MARKUP,
+    ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
+}
+
 } // namespace qtm_command_registry_detail
 
 void
 QTMCommandRegistry::registerEditorCommands () {
+  registerProvider (
+    "editor-program-languages", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      return program_language_items (context);
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      return execute_program_language (key, context);
+    },
+    [] (const QTMCommandContext& context) {
+      return program_insert_state (context);
+    });
   registerProvider (
     "file-export-formats", QTMCommandScope::Editor,
     [] (const QTMCommandContext& context) {

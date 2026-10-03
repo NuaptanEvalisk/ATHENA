@@ -12,6 +12,7 @@
 #include "ATHENA/Data/heading_word_count.hpp"
 #include "ATHENA/Data/document_node_copy.hpp"
 #include "ATHENA/Data/enunciation_model.hpp"
+#include "ATHENA/Data/program_model.hpp"
 #include "unicode_text.hpp"
 
 #include <algorithm>
@@ -484,25 +485,40 @@ public:
 
   std::vector<diagnostic> inspect (const tree& source) {
     const bool enunciation= canonical_enunciation (source);
+    const bool program= athena::program::is_program (source);
     if (enunciation && (N(source) != 1 || !is_func (source[0], DOCUMENT)))
       error (issue::invalid_body, "", "Canonical enunciation requires one DOCUMENT body");
+    if (program && (N(source) != 1 || !is_func (source[0], DOCUMENT)))
+      error (issue::invalid_body, "", "Canonical program requires one DOCUMENT body");
     const auto* metadata= node::get (source);
     if (metadata && !metadata->id.empty () && !node::valid_id (metadata->id))
       error (issue::invalid_id, "", "Invalid node ID");
-    const auto& schema= enunciation_property_schema ();
-    if (enunciation) {
-      for (const auto& rule: schema)
+    const std::vector<property_rule>* schema= enunciation ?
+      &enunciation_property_schema () :
+      (program ? &program_property_schema () : nullptr);
+    if (schema != nullptr) {
+      for (const auto& rule: *schema)
         if (rule.required && (!metadata || metadata->properties.count (rule.name) == 0))
-          error (issue::missing_property, rule.name, "Required enunciation property");
+          error (issue::missing_property, rule.name,
+                 enunciation ? "Required enunciation property" :
+                               "Required program property");
     }
     if (metadata) {
       for (const auto& entry: metadata->properties) {
-        const auto rule= std::find_if (schema.begin (), schema.end (), [&] (const property_rule& r) {
-          return enunciation && r.name == entry.first;
-        });
-        if (rule != schema.end ()) {
+        const auto rule= schema == nullptr ?
+          static_cast<const property_rule*> (nullptr) :
+          [&] () -> const property_rule* {
+            auto found= std::find_if (
+              schema->begin (), schema->end (), [&] (const property_rule& r) {
+                return r.name == entry.first;
+              });
+            return found == schema->end () ? nullptr : &*found;
+          } ();
+        if (rule != nullptr) {
           if (type_of (entry.second) != rule->type)
-            error (issue::wrong_property_type, entry.first, "Does not match enunciation property schema");
+            error (issue::wrong_property_type, entry.first,
+                   enunciation ? "Does not match enunciation property schema" :
+                                 "Does not match program property schema");
           if (rule->element_type) {
             if (const auto* list= std::get_if<node::property::list> (&entry.second.data))
               for (std::size_t i= 0; i < list->size (); ++i)
@@ -515,6 +531,13 @@ public:
             const auto* kind= std::get_if<std::string> (&entry.second.data);
             if (kind && (kind->empty () || kind->find ('\0') != std::string::npos))
               error (issue::invalid_property_value, entry.first, "Expected nonempty kind");
+          }
+          if (entry.first == "language") {
+            const auto* language= std::get_if<std::string> (&entry.second.data);
+            if (language && (language->empty () || language->size () > 1024 ||
+                             language->find ('\0') != std::string::npos))
+              error (issue::invalid_property_value, entry.first,
+                     "Expected nonempty language name of at most 1024 bytes");
           }
         }
         else if (entry.first == artifact_bindings_property) {
@@ -540,6 +563,9 @@ public:
 } // namespace
 
 std::optional<role_declaration> standard_source_role (const tree& source) {
+  if (athena::program::is_program (source))
+    return role_declaration {
+      semantic_role::content, "program", {child_role::body}};
   const auto& registry= enunciation::standard_registry ();
   const int body= registry.body_index (source);
   if (body >= 0) {
@@ -963,6 +989,13 @@ const std::vector<property_rule>& enunciation_property_schema () {
     {"target", property_type::reference, false},
     {"variant", property_type::string, false},
     {"legacy-tag", property_type::string, false}
+  };
+  return schema;
+}
+
+const std::vector<property_rule>& program_property_schema () {
+  static const std::vector<property_rule> schema {
+    {"language", property_type::string, true}
   };
   return schema;
 }

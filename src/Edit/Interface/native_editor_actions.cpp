@@ -8,6 +8,7 @@
 
 #include "native_editor_actions.hpp"
 
+#include "ATHENA/Data/program_model.hpp"
 #include "document_commands.hpp"
 #include "document_style_commands.hpp"
 #include "format_commands.hpp"
@@ -537,6 +538,10 @@ native_editor_action_validate (const QJsonObject& action, QString* error) {
     return has_string (action, "tag") &&
            (!action.contains ("arity") || action.value ("arity").isDouble ()) ?
              true : fail_validation (error, "make requires tag and optional arity");
+  if (op == "make-program")
+    return has_string (action, "language") &&
+           !action.value ("language").toString ().trimmed ().isEmpty () ?
+             true : fail_validation (error, "make-program requires language");
   if (op == "make-with" || op == "make-style-with" ||
       op == "make-line-with")
     return has_string (action, "var") && has_string (action, "value") ?
@@ -853,6 +858,16 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     const string tag= native_action_string (action.value ("tag"));
     if (arity < 0) (void) call ("make", symbol_object (tag));
     else (void) call ("make", symbol_object (tag), object (arity));
+  }
+  else if (op == "make-program") {
+    const string language= native_action_string (action.value ("language"));
+    const std::string native_language (
+      language.data (), static_cast<std::size_t> (N(language)));
+    tree selected= "";
+    if (ed->selection_active_normal ()) selected= ed->selection_get_cut ();
+    tree value= athena::program::create (native_language);
+    ed->insert_tree (value, path (0, 0, 0));
+    if (selected != "") ed->insert_tree (selected, end (selected));
   }
   else if (op == "make-with")
     (void) call (

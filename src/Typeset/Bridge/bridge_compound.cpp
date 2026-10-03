@@ -12,6 +12,7 @@
 #include "bridge.hpp"
 #include "drd_std.hpp"
 #include "enunciation_surround.hpp"
+#include "program_presentation.hpp"
 #include "radioactive_link_scope.hpp"
 #include "scheme.hpp"
 
@@ -411,7 +412,12 @@ bridge_compound_rep::my_typeset (int desired_status) {
   int d;
   tree f;
   string macro_name;
-  if (athena::enunciation::is_enunciation (st)) {
+  if (athena::program::is_program (st)) {
+    d= 0;
+    macro_name= "program";
+    f= native_program_macro (st);
+  }
+  else if (athena::enunciation::is_enunciation (st)) {
     d= 0;
     macro_name= "enunciation";
     f= native_enunciation_macro (env.operator-> (), st);

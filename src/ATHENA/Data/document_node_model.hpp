@@ -186,11 +186,15 @@ struct property_rule {
 // target:reference, variant:string and legacy-tag:string are also optional.
 // No author, attribution or year inference; stored values are not normalized.
 const std::vector<property_rule>& enunciation_property_schema ();
+// Canonical program nodes carry one required language:string property. The
+// language identifies syntax highlighting/presentation; it is never a tag.
+const std::vector<property_rule>& program_property_schema ();
 bool is_namespaced_extension (const std::string& name);
 
 // Read-only validation of this node's properties, not a migration. Canonical
-// enunciation shape is validated, including unknown kinds. Other node types may
-// carry namespaced extensions only. Unknown unnamespaced keys are diagnosed,
+// enunciation shape is validated, including unknown kinds, as is the canonical
+// program shape/language property. Other node types may carry namespaced
+// extensions only. Unknown unnamespaced keys are diagnosed,
 // never removed. All eight metadata types are allowed in extension values.
 // Rich text is stored source data: unknown tags need no DRD/renderer contract.
 // Validate structure, UTF-8, references and budgets, rejecting opaque runtime
