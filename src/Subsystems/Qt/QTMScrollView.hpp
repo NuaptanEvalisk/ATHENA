@@ -16,6 +16,7 @@
 #include <QRect>
 #include <QTimer>
 #include "QTMDelayedMethodCall.hpp"
+#include "QTMInertialScroll.hpp"
 
 class QPaintEvent;
 
@@ -41,18 +42,17 @@ class QTMScrollView : public QAbstractScrollArea {
   bool     p_internal_scroll_change;
   bool     p_pending_origin_after_extents;
   QPoint   p_pending_origin;
+  bool external_camera= false;
 
 public:
-  // Inertial scrolling state
-  QTimer* mInertiaTimer;
-  double mInertiaVelocityX;
-  double mInertiaVelocityY;
-  double mInertiaFriction;
+  QTMInertialScroll inertia;
 
   QTMScrollView (QWidget *_parent = NULL);
 
   QPoint  origin () { return p_origin; }
   void setOrigin (QPoint newOrigin);
+  void setExternalCamera (bool enabled) { external_camera= enabled; }
+  void setExternalOrigin (QPoint origin) { p_origin= origin; }
   
   QRect   extents () { return p_extents; }
   void setExtents (QRect newExtents);

@@ -14,6 +14,8 @@
 #include "QTMToolbarController.hpp"
 #include "QTMToolbar.hpp"
 #include "QTMStyle.hpp"
+#include "QTMInertialScroll.hpp"
+#include <QLayout>
 #include "ATHENA/Data/compound_document_edit.hpp"
 #include "ATHENA/Data/compound_edit_batch.hpp"
 #include "tree_cursor.hpp"
@@ -198,6 +200,9 @@ class QTMCompoundViewport: public QAbstractScrollArea {
   bool cache_dirty_= false;
   bool cache_write_failed_= false;
   bool arranging_= false;
+  QTMPerformanceMonitor performance_ {viewport ()};
+  QString performance_preference_;
+  bool forwarding_input_= false;
   std::size_t active_member_= std::numeric_limits<std::size_t>::max ();
   std::vector<athena::avd::source_range> selection_;
   std::shared_ptr<std::atomic<std::uint64_t>> selection_serial_=
@@ -224,6 +229,14 @@ class QTMCompoundViewport: public QAbstractScrollArea {
   bool drag_dirty_= false;
   bool drag_queued_= false;
   QTimer drag_timer_;
+  QPointer<QTMWidget> scroll_canvas_;
+  QTMInertialScroll inertia_ {this, [this] (int dx, int dy) {
+    if (dx != 0) {
+      auto* bar= horizontalScrollBar ();
+      bar->setValue (bar->value () - dx);
+    }
+    if (dy != 0) { updateRange (offset () - dy); arrange (); }
+  }};
   double scale_= 1;
 
   double offset () const { return verticalScrollBar ()->value () * scale_; }
@@ -235,10 +248,13 @@ class QTMCompoundViewport: public QAbstractScrollArea {
   }
 
   void activateMember (std::size_t i) {
+    if (active_member_ < views_.size () && active_member_ != i && views_[active_member_].canvas)
+      views_[active_member_].canvas->setPresentationFocus (false);
     if (const auto source= concrete_runtime_view (views_[i].runtime_id)) views_[i].view= abstract_view (source);
     active_member_= i;
     owner_.activateMember (views_[i].canvas);
     set_current_view (views_[i].view);
+    if (views_[i].canvas) views_[i].canvas->setPresentationFocus (hasFocus () || viewport ()->hasFocus ());
   }
 
   void updateRange (double desired) {
@@ -284,20 +300,25 @@ class QTMCompoundViewport: public QAbstractScrollArea {
     const auto view= concrete_view (item.view);
     item.canvas= qobject_cast<QTMWidget*> (concrete (view->canvas)->qwid.data ());
     if (!item.canvas) throw std::runtime_error ("Compound source has no editor canvas");
-    // Keep the native window/canvas ownership and coordinate hierarchy intact.
-    // The whole member container is clipped by the compound viewport.
-    item.canvas->setHorizontalScrollBarPolicy (Qt::ScrollBarAsNeeded);
+    // These are hidden input/render adapters. Only the compound viewport paints.
+    item.host->hide ();
+    item.canvas->setPresentationTarget (viewport ());
+    the_gui->process_keyboard_focus (item.canvas->tm_widget (), false, texmacs_time ());
+    item.canvas->setHorizontalScrollBarPolicy (Qt::ScrollBarAlwaysOff);
     item.canvas->setVerticalScrollBarPolicy (Qt::ScrollBarAlwaysOff);
     item.canvas->installEventFilter (this);
     item.canvas->viewport ()->installEventFilter (this);
     item.canvas->surface ()->installEventFilter (this);
+    connect (item.canvas, &QTMWidget::presentationChanged,
+             viewport (), QOverload<>::of (&QWidget::update));
     connect (item.canvas, &QTMScrollView::originRequested,
       this, [this, canvas= item.canvas] (QPoint position) {
         std::size_t i= 0;
         while (i < views_.size () && views_[i].canvas != canvas) ++i;
         if (i == views_.size ()) return;
         const auto& source= views_[i];
-        if (arranging_ || !source.visible || (compound_drag_ && mouse_down_)) return;
+        if (arranging_ || !source.visible || i != active_member_ ||
+            !canvas->editorHasFocus () || (compound_drag_ && mouse_down_)) return;
         updateRange (layout_.top (i) + member_heading_height + position.y () -
                      source.host->y ());
         arrange ();
@@ -429,7 +450,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
           self->updateDrag ();
           if (self->compound_drag_ && !self->mouse_down_ && !self->drag_dirty_ && !self->drag_queued_) {
             self->activateMember (self->drag_target_);
-            self->views_[self->drag_target_].canvas->setFocus (Qt::OtherFocusReason);
+            self->views_[self->drag_target_].canvas->focusEditor (Qt::OtherFocusReason);
           }
           if (from_cursor || to_cursor) {
             const auto target= from_cursor ? last_member : first_member;
@@ -438,7 +459,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
             self->arrange ();
             self->mount (target);
             self->activateMember (target);
-            self->views_[target].canvas->setFocus (Qt::OtherFocusReason);
+            self->views_[target].canvas->focusEditor (Qt::OtherFocusReason);
           }
           if (self->delete_when_ready_) self->eraseSelection ();
           if (!self->pending_selection_command_.isEmpty () && !self->drag_queued_ && !self->drag_dirty_) {
@@ -513,7 +534,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
             if (self->views_[i].runtime_id == first_view) {
               self->updateRange (self->layout_.top (i));
               self->arrange (); self->mount (i); self->activateMember (i);
-              self->views_[i].canvas->setFocus (Qt::OtherFocusReason);
+              self->views_[i].canvas->focusEditor (Qt::OtherFocusReason);
               self->submit (i, [] { current_scheme_execution_context ()->editor->go_to_here (); });
               break;
             }
@@ -892,7 +913,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
 
   void suspend (SourceView& item) {
     if (!item.canvas || !item.visible) return;
-    item.host->hide ();
+    item.canvas->setPresentationActive (false);
     const auto view= concrete_runtime_view (item.runtime_id);
     if (view) view->buf->actor->submit (actor_command_kind::suspend_view, view->runtime_id);
     item.visible= false;
@@ -916,18 +937,35 @@ class QTMCompoundViewport: public QAbstractScrollArea {
         counter_target_= i;
         mount (i);
         auto& item= views_[i];
-        item.host->setGeometry (0, top, viewport ()->width (), bottom - top);
+        const bool resized= item.canvas->surface ()->size () != viewport ()->size ();
+        const bool resumed= !item.visible;
+        // Stable render dimensions across boundaries: clipping is compositor-owned.
+        item.host->setGeometry (0, top, viewport ()->width (), viewport ()->height ());
+        item.host->layout ()->activate ();
+        item.canvas->setGeometry (QRect (QPoint (), viewport ()->size ()));
+        item.canvas->viewport ()->setGeometry (item.canvas->rect ());
+        item.canvas->surface ()->setGeometry (item.canvas->viewport ()->rect ());
         if (!item.visible) {
           const auto view= concrete_runtime_view (item.runtime_id);
           view->buf->actor->submit (actor_command_kind::resume_view, view->runtime_id);
           item.visible= true;
-          item.host->show ();
+          item.canvas->setPresentationActive (true);
+          // Resuming a render participant must not steal the composite's focus.
+          the_gui->process_keyboard_focus (item.canvas->tm_widget (),
+            item.canvas->editorHasFocus (), texmacs_time ());
         }
         if (active_member_ == std::numeric_limits<std::size_t>::max ())
           activateMember (i);
         auto origin= item.canvas->origin ();
+        origin.setX (horizontalScrollBar ()->value ());
         origin.setY (int (std::max (0.0, -source_top)));
-        item.canvas->setOrigin (origin);
+        const bool moved= origin != item.canvas->origin ();
+        item.canvas->setExternalOrigin (origin);
+        if (moved || resumed || resized) item.canvas->publishUserScroll ();
+        if (resized) {
+          const auto size= from_qsize (viewport ()->size ());
+          the_gui->process_resize (item.canvas->tm_widget (), size.x1, size.x2);
+        }
       }
       viewport ()->update ();
       scheduleCounters ();
@@ -941,6 +979,11 @@ class QTMCompoundViewport: public QAbstractScrollArea {
 
   void refreshGeometry () {
     if (arranging_) return;
+    const auto preference= to_qstring (get_preference ("rendering performance monitor", "off"));
+    if (preference != performance_preference_) {
+      performance_preference_= preference;
+      performance_.refresh ();
+    }
     if (!edit_pending_ && !io_pending_ && !selection_pending_ && !queued_selections_ && !drag_queued_ &&
         !mouse_down_ && active_member_ < views_.size () && views_[active_member_].canvas) {
       auto pending= std::move (deferred_inputs_);
@@ -962,15 +1005,19 @@ class QTMCompoundViewport: public QAbstractScrollArea {
     const bool at_end= verticalScrollBar ()->maximum () > 0 &&
       verticalScrollBar ()->value () == verticalScrollBar ()->maximum ();
     bool changed= false;
+    int width= viewport ()->width ();
     for (std::size_t i= 0; i < views_.size (); ++i) {
       const auto& item= views_[i];
       if (!item.canvas || !item.visible || item.canvas->extents ().height () <= 0) continue;
+      width= std::max (width, item.canvas->extents ().width ());
       const double height= item.canvas->extents ().height () + member_heading_height;
       if (height != layout_.height (i)) {
         layout_.set_height (i, height);
         changed= true;
       }
     }
+    horizontalScrollBar ()->setRange (0, width - viewport ()->width ());
+    horizontalScrollBar ()->setPageStep (viewport ()->width ());
     if (changed) {
       updateRange (at_end ? layout_.extent () :
         anchor < layout_.size () ? layout_.top (anchor) + within : 0);
@@ -980,6 +1027,9 @@ class QTMCompoundViewport: public QAbstractScrollArea {
 
   void releaseSource (SourceView& item) {
     if (item.canvas) {
+      item.canvas->setPresentationFocus (false);
+      item.canvas->setPresentationActive (false);
+      item.canvas->setPresentationTarget (nullptr);
       item.canvas->removeEventFilter (this);
       item.canvas->viewport ()->removeEventFilter (this);
       item.canvas->surface ()->removeEventFilter (this);
@@ -1079,6 +1129,71 @@ class QTMCompoundViewport: public QAbstractScrollArea {
 
 protected:
   bool eventFilter (QObject* watched, QEvent* event) override {
+    if (watched == verticalScrollBar () || watched == horizontalScrollBar ())
+      return QAbstractScrollArea::eventFilter (watched, event);
+    if ((watched == this || watched == viewport ()) && !forwarding_input_) {
+      if (event->type () == QEvent::FocusIn || event->type () == QEvent::FocusOut) {
+        if (active_member_ < views_.size () && views_[active_member_].canvas)
+          views_[active_member_].canvas->setPresentationFocus (event->type () == QEvent::FocusIn);
+      }
+      const bool mouse= event->type () == QEvent::MouseButtonPress ||
+        event->type () == QEvent::MouseButtonRelease || event->type () == QEvent::MouseButtonDblClick ||
+        event->type () == QEvent::MouseMove;
+      const bool wheel= event->type () == QEvent::Wheel;
+      const bool keyboard= event->type () == QEvent::KeyPress || event->type () == QEvent::KeyRelease ||
+        event->type () == QEvent::ShortcutOverride || event->type () == QEvent::InputMethod;
+      std::size_t member= active_member_;
+      if (mouse || wheel) {
+        const QPoint global= mouse ? static_cast<QMouseEvent*> (event)->globalPosition ().toPoint () :
+                                    static_cast<QWheelEvent*> (event)->globalPosition ().toPoint ();
+        member= layout_.member_at (offset () + viewport ()->mapFromGlobal (global).y ());
+        if (mouse_down_ && drag_anchor_.member < views_.size ()) member= drag_anchor_.member;
+      }
+      if (member < views_.size () && views_[member].canvas && (mouse || wheel || keyboard)) {
+        auto* canvas= views_[member].canvas.data ();
+        if (event->type () == QEvent::MouseButtonPress) {
+          activateMember (member);
+          viewport ()->setFocus (Qt::MouseFocusReason);
+        }
+        forwarding_input_= true;
+        if (mouse) {
+          auto* input= static_cast<QMouseEvent*> (event);
+          const QPointF local= canvas->surface ()->mapFromGlobal (input->globalPosition ().toPoint ());
+          QMouseEvent forwarded (input->type (), local, input->globalPosition (),
+            input->button (), input->buttons (), input->modifiers (), input->pointingDevice ());
+          QCoreApplication::sendEvent (canvas->surface (), &forwarded);
+        }
+        else if (wheel) {
+          auto* input= static_cast<QWheelEvent*> (event);
+          QWheelEvent forwarded (canvas->surface ()->mapFromGlobal (input->globalPosition ().toPoint ()),
+            input->globalPosition (), input->pixelDelta (), input->angleDelta (), input->buttons (),
+            input->modifiers (), input->phase (), input->inverted (), input->source (), input->pointingDevice ());
+          QCoreApplication::sendEvent (canvas->surface (), &forwarded);
+        }
+        else {
+          if (event->type () == QEvent::KeyPress || event->type () == QEvent::InputMethod)
+            performance_.recordEditingInput ();
+          QCoreApplication::sendEvent (canvas, event);
+        }
+        forwarding_input_= false;
+        viewport ()->setCursor (canvas->surface ()->cursor ());
+        event->accept ();
+        return true;
+      }
+      if (event->type () == QEvent::InputMethodQuery && member < views_.size () && views_[member].canvas) {
+        auto* query= static_cast<QInputMethodQueryEvent*> (event);
+        auto* canvas= views_[member].canvas.data ();
+        for (unsigned flag= 1; flag <= unsigned (Qt::ImInputItemClipRectangle); flag <<= 1) {
+          auto type= Qt::InputMethodQuery (flag);
+          if (!(query->queries () & type)) continue;
+          QVariant value= canvas->editorInputMethodQuery (type);
+          if (type == Qt::ImCursorRectangle || type == Qt::ImAnchorRectangle || type == Qt::ImInputItemClipRectangle)
+            value= value.toRectF ().translated (canvas->mapTo (viewport (), QPoint ()));
+          query->setValue (type, value);
+        }
+        return true;
+      }
+    }
     if ((edit_pending_ || io_pending_ || selection_pending_ || queued_selections_) &&
         (event->type () == QEvent::KeyPress || event->type () == QEvent::InputMethod)) {
       deferred_inputs_.emplace_back (event->clone ());
@@ -1233,10 +1348,24 @@ protected:
     if (event->type () == QEvent::Wheel) {
       auto* wheel= static_cast<QWheelEvent*> (event);
       if (!(wheel->modifiers () & Qt::ControlModifier)) {
-        const double delta= wheel->pixelDelta ().isNull () ?
-          wheel->angleDelta ().y () / 120.0 * 120.0 : wheel->pixelDelta ().y ();
-        updateRange (offset () - delta);
-        arrange ();
+        scroll_canvas_= nullptr;
+        for (const auto& source: views_)
+          if (source.canvas && (watched == source.canvas || watched == source.canvas->viewport () ||
+                                watched == source.canvas->surface ())) {
+            auto* widget= source.canvas->tm_widget ();
+            if (widget->handle_overlay_wheel_capture () || widget->handle_wheel_capture ()) {
+              inertia_.stop ();
+              return false;
+            }
+            scroll_canvas_= source.canvas;
+            break;
+          }
+        if (!inertia_.wheel (wheel)) {
+          const QPoint delta= wheel->pixelDelta ().isNull () ? wheel->angleDelta () : wheel->pixelDelta ();
+          if (scroll_canvas_ && std::abs (delta.x ()) > std::abs (delta.y ()))
+            QCoreApplication::sendEvent (horizontalScrollBar (), wheel);
+          else QAbstractScrollArea::wheelEvent (wheel);
+        }
         event->accept ();
         return true;
       }
@@ -1266,7 +1395,7 @@ protected:
     updateRange (offset ());
     arrange ();
   }
-  void paintEvent (QPaintEvent*) override {
+  void paintEvent (QPaintEvent* event) override {
     QPainter painter (viewport ());
     painter.fillRect (viewport ()->rect (), palette ().brush (QPalette::Base));
     if (members_.empty ()) {
@@ -1276,6 +1405,18 @@ protected:
       return;
     }
     const double start= offset ();
+    for (std::size_t i= layout_.member_at (start); i < views_.size () && layout_.top (i) < start + viewport ()->height (); ++i) {
+      const auto& source= views_[i];
+      if (!source.visible || !source.canvas) continue;
+      const int top= int (std::max (0.0, layout_.top (i) + member_heading_height - start));
+      const int bottom= int (std::min (double (viewport ()->height ()), layout_.top (i + 1) - start));
+      const QPoint position= source.canvas->surface ()->mapTo (viewport (), QPoint ());
+      painter.save ();
+      painter.setClipRect (QRect (0, top, viewport ()->width (), bottom - top));
+      painter.translate (position);
+      source.canvas->paintContent (painter, event->region ().translated (-position));
+      painter.restore ();
+    }
     for (auto i= layout_.member_at (start); i < members_.size (); ++i) {
       const int y= int (layout_.top (i) - start);
       if (y >= viewport ()->height ()) break;
@@ -1287,6 +1428,7 @@ protected:
         fontMetrics ().elidedText (members_[i].relative_filename, Qt::ElideMiddle,
                                   std::max (0, viewport ()->width () - 16)));
     }
+    performance_.finishPaint (event, painter);
   }
 
 public:
@@ -1349,7 +1491,14 @@ public:
     views_ (members_.size ()) {
     setVerticalScrollBar (new MemberScrollBar (layout_));
     viewport ()->installEventFilter (this);
-    setHorizontalScrollBarPolicy (Qt::ScrollBarAlwaysOff);
+    installEventFilter (this);
+    setFocusPolicy (Qt::StrongFocus);
+    setAttribute (Qt::WA_InputMethodEnabled);
+    viewport ()->setFocusPolicy (Qt::StrongFocus);
+    viewport ()->setAttribute (Qt::WA_InputMethodEnabled);
+    viewport ()->setMouseTracking (true);
+    viewport ()->setAcceptDrops (true);
+    setHorizontalScrollBarPolicy (Qt::ScrollBarAsNeeded);
     refresh_.setInterval (100);
     connect (&refresh_, &QTimer::timeout, this, [this] { refreshGeometry (); });
     refresh_.start ();
@@ -1384,7 +1533,7 @@ public:
     arrange ();
     mount (i);
     activateMember (i);
-    views_[i].canvas->setFocus (Qt::OtherFocusReason);
+    views_[i].canvas->focusEditor (Qt::OtherFocusReason);
     if (!submit (i, [at_end] {
           auto* editor= current_scheme_execution_context ()->editor;
           if (at_end) editor->go_to_end (editor->the_buffer_path ());

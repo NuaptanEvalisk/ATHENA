@@ -699,7 +699,7 @@ qt_actor_widget_rep::refresh_viewport () {
   snapshot.scrollbar_width=
     (qApp->style ()->pixelMetric (QStyle::PM_ScrollBarExtent) + 2) * PIXEL;
   snapshot.attached= ::is_attached (widget (this));
-  snapshot.focused= canvas () != nullptr && canvas ()->hasFocus ();
+  snapshot.focused= canvas () != nullptr && canvas ()->editorHasFocus ();
   snapshot.full_screen= get_server ()->in_full_screen_mode ();
   snapshot.full_screen_edit= get_server ()->in_full_screen_edit_mode ();
   snapshot.invalid= is_invalid ();
@@ -955,8 +955,8 @@ qt_actor_widget_rep::drain_external_effects () {
           view_id_, 0, 0, SCHEME_CAPABILITY_BUFFER, record.argument[0],
           static_cast<std::uint64_t> (-1));
       };
-      if (!canvas () || !canvas ()->isVisible () ||
-          !(canvas ()->hasFocus () || canvas ()->surface ()->hasFocus ())) {
+      if (!canvas () || !canvas ()->presentationVisible () ||
+          !(canvas ()->editorHasFocus () || canvas ()->surface ()->hasFocus ())) {
         reject ();
         break;
       }

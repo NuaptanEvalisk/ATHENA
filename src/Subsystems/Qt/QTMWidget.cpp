@@ -231,14 +231,14 @@ QTMWidget::QTMWidget (QWidget* _parent, qt_widget _tmwid)
   fractionalScrollSettleTimer.setInterval (80);
   fractionalScrollSettleTimer.setTimerType (Qt::CoarseTimer);
   connect (&fractionalScrollSettleTimer, &QTimer::timeout, this, [this] () {
-    if (athena_qt_is_closing () || is_nil (tmwid) || !isVisible ()) return;
+    if (athena_qt_is_closing () || is_nil (tmwid) || !presentationVisible ()) return;
     tm_widget ()->invalidate_all ();
     the_gui->need_update ();
   });
   cursorBlinkTimer.setTimerType (Qt::CoarseTimer);
   connect (&cursorBlinkTimer, &QTimer::timeout, this, [this] () {
     if (get_preference ("blinking cursor", "on") != "on" ||
-        !hasFocus () || is_nil (tmwid) || !tm_widget ()->is_editor_widget ()) {
+        !editorHasFocus () || is_nil (tmwid) || !tm_widget ()->is_editor_widget ()) {
       refreshCursorBlinking (false);
       return;
     }
@@ -282,7 +282,7 @@ QTMWidget::setCursorBlinkVisible (bool visible) {
 void
 QTMWidget::refreshCursorBlinking (bool restart) {
   bool enabled= get_preference ("blinking cursor", "on") == "on" &&
-                hasFocus () && !is_nil (tmwid) &&
+                editorHasFocus () && !is_nil (tmwid) &&
                 tm_widget ()->is_editor_widget ();
   QStyleHints* hints= QGuiApplication::styleHints ();
   int flashTime= hints == nullptr ? 0 : hints->cursorFlashTime ();
@@ -1056,8 +1056,15 @@ void
 QTMWidget::surfacePaintEvent (QPaintEvent *event, QWidget *surfaceWidget) {
   (void) surfaceWidget;
   if (checkDprChange()) return;
-  presentLatestRenderedFrame (false);
   QPainter p (surface());
+  paintContent (p, event->region ());
+  performanceMonitor.finishPaint (event, p);
+}
+
+void
+QTMWidget::paintContent (QPainter& p, const QRegion& region) {
+  if (externallyPresented () && checkDprChange ()) return;
+  presentLatestRenderedFrame (false);
   if ((viewPinchActive || viewPinchCommitPending) &&
       !viewPinchPreview.isNull()) {
     drawViewPinchPreview (p);
@@ -1067,7 +1074,7 @@ QTMWidget::surfacePaintEvent (QPaintEvent *event, QWidget *surfaceWidget) {
   }
   else {
     qreal pixel_ratio= lastPixelRatio;
-    QRegion reg= event->region();
+    QRegion reg= region;
     QRegion::const_iterator it;
     QRectF qr;
     for (it= reg.begin (); it != reg.end (); ++it) {
@@ -1082,7 +1089,42 @@ QTMWidget::surfacePaintEvent (QPaintEvent *event, QWidget *surfaceWidget) {
   drawNativeInkPreview (p);
   drawNativeDrawingInsertSpace (p);
   drawNativeDrawingSelection (p);
-  performanceMonitor.finishPaint (event, p);
+}
+
+void QTMWidget::setPresentationTarget (QWidget* target) {
+  presentationTarget= target;
+  setExternalCamera (target != nullptr);
+  performanceMonitor.refresh ();
+}
+
+void QTMWidget::setPresentationActive (bool active) {
+  presentationActive= active;
+}
+
+bool QTMWidget::presentationVisible () const {
+  return presentationTarget ? presentationActive && presentationTarget->isVisible () : isVisible ();
+}
+
+bool QTMWidget::editorHasFocus () const {
+  return presentationTarget ? presentationFocused : hasFocus ();
+}
+
+void QTMWidget::focusEditor (Qt::FocusReason reason) {
+  if (presentationTarget) presentationTarget->setFocus (reason);
+  else setFocus (reason);
+}
+
+void QTMWidget::setPresentationFocus (bool focused) {
+  if (presentationFocused == focused) return;
+  presentationFocused= focused;
+  QFocusEvent event (focused ? QEvent::FocusIn : QEvent::FocusOut);
+  if (focused) focusInEvent (&event);
+  else focusOutEvent (&event);
+}
+
+void QTMWidget::updatePresentation () {
+  if (presentationTarget) emit presentationChanged ();
+  else surface ()->update ();
 }
 
 void
@@ -1117,6 +1159,7 @@ QTMWidget::presentLatestRenderedFrame (bool requestPaint) {
         frameGeneration > nativeSelectionCommitFrameGeneration)))
     clearNativeDrawingSelectionTransform ();
   if (!requestPaint) return;
+  if (presentationTarget) { emit presentationChanged (); return; }
 
   double ratio= surface ()->devicePixelRatio ();
   int x1= static_cast<int> (std::floor (damage.x1 / ratio));
@@ -1615,7 +1658,7 @@ QTMWidget::setCursorPos (QPoint pos) {
 
 void
 QTMWidget::updateInputMethodCursorRectangle () const {
-  if (!hasFocus ()) return;
+  if (!editorHasFocus ()) return;
   QInputMethod* im= QApplication::inputMethod ();
   if (im == nullptr) return;
   im->update (Qt::ImCursorRectangle);
@@ -1798,7 +1841,7 @@ QTMWidget::mousePressEvent (QMouseEvent* event) {
   if (is_nil (tmwid)) return;
   refreshCursorBlinking (true);
   if (focusPolicy () != Qt::NoFocus) {
-    if (!hasFocus ()) setFocus (Qt::MouseFocusReason);
+    if (!editorHasFocus ()) focusEditor (Qt::MouseFocusReason);
   }
   if (handleNeighborhoodMiddleClick (event)) return;
   QPoint point = event->pos() + origin();
@@ -2329,7 +2372,7 @@ QTMWidget *QTMWidget::getLastFocusedWidget() {
 void QTMWidget::setFocusToLast() {
   if (!last_focused_widget) return;
 
-  last_focused_widget->setFocus();
+  last_focused_widget->focusEditor();
   
   if (is_nil (last_focused_widget->tmwid)) return;
 
@@ -2356,7 +2399,7 @@ QTMWidget::focusInEvent (QFocusEvent * event) {
   updateInputMethodCursorRectangle ();
   neighborhoods_pane_refresh ();
   // part 2/2 of the fix for bug 43373.
-  if (!isEmbedded ()) {
+  if (!isEmbedded () && !externallyPresented ()) {
     if (!isActiveWindow() && QApplication::platformName() != "wayland") activateWindow();
     if (isActiveWindow() && !hasFocus()) setFocus (Qt::OtherFocusReason);
     //=> this will send us back here...
@@ -2609,8 +2652,7 @@ void QTMWidget::applyScrollDelta (int dx, int dy) {
   qt_simple_widget_rep* widget= is_nil (tmwid) ? nullptr : tm_widget ();
   bool capture= widget != nullptr && widget->handle_overlay_wheel_capture ();
   if (capture != inertiaOverlay || widget == nullptr) {
-    mInertiaTimer->stop ();
-    mInertiaVelocityX= mInertiaVelocityY= 0;
+    inertia.stop ();
     return;
   }
   if (!inertiaOverlay) {
@@ -2627,36 +2669,14 @@ void QTMWidget::applyScrollDelta (int dx, int dy) {
 
 void QTMWidget::scrollWheel (QWheelEvent* event, bool overlay) {
     if (inertiaOverlay != overlay) {
-      mInertiaTimer->stop ();
-      mInertiaVelocityX= mInertiaVelocityY= 0;
+      inertia.stop ();
     }
     inertiaOverlay= overlay;
     if (overlay) {
       inertiaOverlayPosition= event->position ().toPoint () + origin ();
       inertiaOverlayModifiers= wheel_state (event);
     }
-    if (get_user_preference("inertial scrolling") == "on") {
-      QPoint numPixels = event->pixelDelta();
-      QPoint numDegrees = event->angleDelta() / 8;
-      double dx = 0, dy = 0;
-      if (!numPixels.isNull()) {
-        dx = numPixels.x();
-        dy = numPixels.y();
-      } else if (!numDegrees.isNull()) {
-        dx = numDegrees.x();
-        dy = numDegrees.y();
-      }
-      mInertiaFriction = as_double(get_user_preference("inertial scrolling friction", "0.90"));
-      double sensitivity = as_double(get_user_preference("inertial scrolling sensitivity", "1.0"));
-      mInertiaVelocityX += dx * 0.15 * sensitivity;
-      mInertiaVelocityY += dy * 0.15 * sensitivity;
-      if (!mInertiaTimer->isActive()) mInertiaTimer->start(16);
-      
-      applyScrollDelta (qRound (dx), qRound (dy));
-      event->accept();
-    } else {
-      mInertiaTimer->stop ();
-      mInertiaVelocityX= mInertiaVelocityY= 0;
+    if (!inertia.wheel (event)) {
       if (overlay) {
         QPoint delta= event->pixelDelta ();
         if (delta.isNull ()) delta= event->angleDelta () / 3;

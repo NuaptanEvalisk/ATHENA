@@ -86,30 +86,12 @@ QTMScrollView::QTMScrollView (QWidget *_parent):
   p_extents (QRect(0,0,0,0)),
   p_internal_scroll_change (false),
   p_pending_origin_after_extents (false),
-  mInertiaVelocityX(0),
-  mInertiaVelocityY(0),
-  mInertiaFriction(0.90)
+  inertia (this, [this] (int dx, int dy) { applyScrollDelta (dx, dy); })
 {
   QWidget *_viewport = QAbstractScrollArea::viewport();
   _viewport->setBackgroundRole(QPalette::Mid);
   _viewport->setAutoFillBackground(true);
   setFrameShape(QFrame::NoFrame);
-
-  mInertiaTimer = new QTimer(this);
-  mInertiaTimer->setTimerType (Qt::PreciseTimer);
-  connect(mInertiaTimer, &QTimer::timeout, this, [this]() {
-    if (std::abs(mInertiaVelocityX) < 1.0 && std::abs(mInertiaVelocityY) < 1.0) {
-      mInertiaTimer->stop();
-      mInertiaVelocityX = 0;
-      mInertiaVelocityY = 0;
-      return;
-    }
-    int dx= qRound (mInertiaVelocityX);
-    int dy= qRound (mInertiaVelocityY);
-    applyScrollDelta (dx, dy);
-    mInertiaVelocityX *= mInertiaFriction;
-    mInertiaVelocityY *= mInertiaFriction;
-  });
 
   p_surface = new QTMSurface (_viewport, this);
   p_surface->setAttribute(Qt::WA_NoSystemBackground);
@@ -140,6 +122,7 @@ QTMScrollView::applyScrollDelta (int dx, int dy) {
 
 void
 QTMScrollView::setOrigin ( QPoint newOrigin ) {
+  if (external_camera) { emit originRequested (newOrigin); return; }
   scoped_internal_scroll_change guard (p_internal_scroll_change);
   if (newOrigin.x() != p_origin.x())
     QAbstractScrollArea::horizontalScrollBar()->setSliderPosition(newOrigin.x());
@@ -209,6 +192,11 @@ QTMScrollView::ensureVisible ( int cx, int cy, int mx, int my ) {
 /*! Scrollbar stabilization */
 void 
 QTMScrollView::updateScrollBars (void) {
+  if (external_camera) {
+    surface ()->setMinimumSize (viewport ()->size ());
+    viewport ()->layout ()->activate ();
+    return;
+  }
   scoped_internal_scroll_change guard (p_internal_scroll_change);
   QWidget *_viewport = QAbstractScrollArea::viewport();
   QScrollBar *_hScrollBar = QAbstractScrollArea::horizontalScrollBar();

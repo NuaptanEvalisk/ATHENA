@@ -390,8 +390,8 @@ qt_simple_widget_rep::send (slot s, blackbox val) {
     {
       check_type<bool> (val, s);
       bool grab = open_box<bool>(val);
-      if (grab && canvas() && !canvas()->hasFocus())
-        canvas()->setFocus (Qt::MouseFocusReason);
+      if (grab && canvas() && !canvas()->editorHasFocus())
+        canvas()->focusEditor (Qt::MouseFocusReason);
     }
       break;
 
@@ -791,7 +791,8 @@ qt_simple_widget_rep::repaint_invalid_regions () {
   // propagate immediately the changes to the screen
   bool painted= !qrgn.isEmpty () && !repaint_interrupted;
   if (painted) {
-    canvas()->surface()->repaint (qrgn);
+    if (canvas ()->externallyPresented ()) canvas ()->updatePresentation ();
+    else canvas()->surface()->repaint (qrgn);
     backing_valid= true;
     canvas()->finishGestureZoomCommitPreview ();
   }
@@ -806,7 +807,7 @@ qt_simple_widget_rep::repaint_all () {
   while (i->busy()) {
     qt_simple_widget_rep *w = static_cast<qt_simple_widget_rep*>(i->next());
     w->drain_external_effects ();
-    if (w->canvas() && w->canvas()->isVisible()) {
+    if (w->canvas() && w->canvas()->presentationVisible()) {
       w->canvas()->presentLatestRenderedFrame (true);
       w->repaint_invalid_regions();
     }

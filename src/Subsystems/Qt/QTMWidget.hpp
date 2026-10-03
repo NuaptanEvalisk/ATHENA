@@ -66,6 +66,20 @@ public:
 
   void setCursorPos (QPoint pos);
   void presentLatestRenderedFrame (bool requestPaint);
+  // An external compositor owns presentation and focus, not the source adapter.
+  void setPresentationTarget (QWidget* target);
+  void setPresentationActive (bool active);
+  bool externallyPresented () const { return presentationTarget != nullptr; }
+  bool presentationVisible () const;
+  bool editorHasFocus () const;
+  void focusEditor (Qt::FocusReason reason= Qt::OtherFocusReason);
+  void setPresentationFocus (bool focused);
+  void paintContent (QPainter& painter, const QRegion& region);
+  void updatePresentation ();
+  void publishUserScroll () { notifyUserScroll (); }
+  QVariant editorInputMethodQuery (Qt::InputMethodQuery query) const {
+    return inputMethodQuery (query);
+  }
   QPoint cursorGlobalPos () const {
     QPoint p = contentsToViewport (cursor_pos);
     return viewport ()->mapToGlobal (p + QPoint (0, 22));
@@ -82,6 +96,7 @@ public:
 
 signals:
   void closed ();
+  void presentationChanged ();
 
 public:
   bool isPreediting () { return preediting; }
@@ -123,6 +138,9 @@ protected:
 
 private:
   friend class QTMPerformanceMonitor;
+  QPointer<QWidget> presentationTarget;
+  bool presentationActive= false;
+  bool presentationFocused= false;
 
   qreal lastPixelRatio = 0.0;
   QPointer<QScrollBar> tabletScrollBarTarget;

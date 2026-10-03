@@ -23,23 +23,29 @@
 #include <cmath>
 
 QTMPerformanceMonitor::QTMPerformanceMonitor (QTMWidget* owner2):
-  owner (owner2) {
+  QTMPerformanceMonitor (owner2->surface ()) {
+  owner= owner2;
+}
+
+QTMPerformanceMonitor::QTMPerformanceMonitor (QWidget* surface2):
+  surface (surface2) {
   clock.start ();
   hudTimer.setInterval (250);
   hudTimer.setTimerType (Qt::CoarseTimer);
-  QObject::connect (&hudTimer, &QTimer::timeout, owner, [this] () {
+  QObject::connect (&hudTimer, &QTimer::timeout, surface, [this] () {
     if (!enabled || !isDocumentCanvas ()) {
       refresh ();
       return;
     }
     hudRefreshPending= true;
-    owner->surface ()->update (hudRect ());
+    surface->update (hudRect ());
   });
 }
 
 bool
 QTMPerformanceMonitor::isDocumentCanvas () const {
-  if (owner == nullptr || !owner->isVisible () || is_nil (owner->tmwid))
+  if (owner == nullptr) return surface->isVisible ();
+  if (owner->externallyPresented () || !owner->isVisible () || is_nil (owner->tmwid))
     return false;
   qt_simple_widget_rep* widget= owner->tm_widget ();
   return widget != nullptr && widget->is_editor_widget () &&
@@ -49,14 +55,14 @@ QTMPerformanceMonitor::isDocumentCanvas () const {
 QRect
 QTMPerformanceMonitor::hudRect () const {
   QFont font= QFontDatabase::systemFont (QFontDatabase::FixedFont);
-  qreal appPointSize= owner->surface ()->font ().pointSizeF ();
+  qreal appPointSize= surface->font ().pointSizeF ();
   if (appPointSize > 0.0)
     font.setPointSizeF (std::max (8.0, appPointSize * 0.82));
   QFontMetrics metrics (font);
   int width= metrics.horizontalAdvance (
     QStringLiteral ("Edit: 9999.9 ms   p95: 9999.9 ms")) + 18;
   int height= metrics.height () * 2 + 14;
-  QRect bounds= owner->surface ()->rect ();
+  QRect bounds= surface->rect ();
   width= std::min (width, std::max (1, bounds.width () - 12));
   height= std::min (height, std::max (1, bounds.height () - 12));
   return QRect (6, std::max (6, bounds.height () - height - 6),
@@ -73,7 +79,7 @@ QTMPerformanceMonitor::refresh () {
     if (enabled && !hudTimer.isActive ()) hudTimer.start ();
     if (enabled) {
       hudRefreshPending= true;
-      owner->surface ()->update (oldRect);
+      surface->update (oldRect);
     }
     return;
   }
@@ -89,7 +95,7 @@ QTMPerformanceMonitor::refresh () {
     hudRefreshPending= true;
   }
   else hudTimer.stop ();
-  owner->surface ()->update (oldRect);
+  surface->update (oldRect);
 }
 
 void
@@ -139,7 +145,7 @@ QTMPerformanceMonitor::drawHud (QPainter& painter, qint64 nowNs) {
   }
 
   QFont font= QFontDatabase::systemFont (QFontDatabase::FixedFont);
-  qreal appPointSize= owner->surface ()->font ().pointSizeF ();
+  qreal appPointSize= surface->font ().pointSizeF ();
   if (appPointSize > 0.0)
     font.setPointSizeF (std::max (8.0, appPointSize * 0.82));
   font.setWeight (QFont::DemiBold);
@@ -165,7 +171,7 @@ QTMPerformanceMonitor::drawHud (QPainter& painter, qint64 nowNs) {
 void
 QTMPerformanceMonitor::finishPaint (QPaintEvent* event, QPainter& painter) {
   if (!enabled || !clock.isValid ()) return;
-  QRect hud= hudRect ().intersected (owner->surface ()->rect ());
+  QRect hud= hudRect ().intersected (surface->rect ());
   bool hudOnly= hudRefreshPending && event->region () == QRegion (hud);
   hudRefreshPending= false;
   qint64 nowNs= clock.nsecsElapsed ();

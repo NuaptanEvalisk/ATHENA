@@ -19,10 +19,12 @@
 class QPaintEvent;
 class QPainter;
 class QTMWidget;
+class QWidget;
 
 class QTMPerformanceMonitor {
 public:
   explicit QTMPerformanceMonitor (QTMWidget* owner);
+  explicit QTMPerformanceMonitor (QWidget* surface);
 
   void refresh ();
   void recordEditingInput ();
@@ -36,7 +38,8 @@ private:
     double milliseconds;
   };
 
-  QTMWidget* owner;
+  QTMWidget* owner= nullptr;
+  QWidget* surface;
   QElapsedTimer clock;
   QTimer hudTimer;
   QVector<qint64> frameTimes;
