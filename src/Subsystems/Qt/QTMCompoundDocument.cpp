@@ -18,6 +18,7 @@
 #include "ATHENA/Data/compound_edit_batch.hpp"
 #include "tree_cursor.hpp"
 #include "scheme.hpp"
+#include "qt_gui.hpp"
 #include "namespaces.hpp"
 #include "new_buffer.hpp"
 #include "new_view.hpp"
@@ -26,6 +27,7 @@
 #include "buffer_actor.hpp"
 #include "new_style.hpp"
 #include "Edit/Editor/edit_typeset.hpp"
+#include "qt_utilities.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
 #include <QAbstractScrollArea>
@@ -37,6 +39,7 @@
 #include <QInputDialog>
 #include <QMessageBox>
 #include <QKeyEvent>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QScrollBar>
 #include <QSignalBlocker>
@@ -52,6 +55,13 @@
 
 namespace {
 constexpr int member_heading_height= 28;
+
+class CompoundInputCommand: public command_rep {
+  std::function<void()> callback_;
+public:
+  explicit CompoundInputCommand (std::function<void()> callback): callback_ (std::move (callback)) {}
+  void apply () override { callback_ (); }
+};
 
 url source_url (const QString& filename) {
   const auto bytes= filename.toUtf8 ();
@@ -124,9 +134,29 @@ class QTMCompoundViewport: public QAbstractScrollArea {
   std::size_t selection_pending_= 0;
   bool delete_when_ready_= false;
   bool edit_pending_= false;
+  unsigned queued_selections_= 0;
+  struct MouseEndpoint {
+    std::size_t member;
+    QPoint position;
+    std::uint64_t epoch;
+  };
+  MouseEndpoint drag_anchor_ {};
+  std::size_t drag_target_= 0;
+  QPoint drag_global_;
+  bool mouse_down_= false;
+  bool compound_drag_= false;
+  bool drag_dirty_= false;
+  bool drag_queued_= false;
+  QTimer drag_timer_;
   double scale_= 1;
 
   double offset () const { return verticalScrollBar ()->value () * scale_; }
+
+  void queueInput (std::function<void(QTMCompoundViewport&)> action) {
+    QPointer<QTMCompoundViewport> self (this);
+    the_gui->process_command (command (tm_new<CompoundInputCommand> (
+      [self, action= std::move (action)] { if (self) action (*self); })));
+  }
 
   void activateMember (std::size_t i) {
     active_member_= i;
@@ -181,7 +211,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
     connect (item.canvas, &QTMScrollView::originRequested,
       this, [this, i] (QPoint position) {
         const auto& source= views_[i];
-        if (arranging_ || !source.visible) return;
+        if (arranging_ || !source.visible || (compound_drag_ && mouse_down_)) return;
         updateRange (layout_.top (i) + member_heading_height + position.y () -
                      source.host->y ());
         arrange ();
@@ -198,7 +228,13 @@ class QTMCompoundViewport: public QAbstractScrollArea {
     return false;
   }
 
-  void clearSelection () {
+  void clearSelection (bool keep_drag= false) {
+    if (!keep_drag) {
+      compound_drag_= false;
+      drag_dirty_= false;
+      drag_timer_.stop ();
+      if (QWidget::mouseGrabber () == viewport ()) viewport ()->releaseMouse ();
+    }
     ++*selection_serial_;
     selection_pending_= 0;
     delete_when_ready_= false;
@@ -215,30 +251,67 @@ class QTMCompoundViewport: public QAbstractScrollArea {
     selection_.clear ();
   }
 
-  void selectAll () {
+  void selectRange (std::size_t first_member, std::size_t last_member,
+                    bool from_cursor= false, bool to_cursor= false,
+                    std::shared_ptr<std::pair<MouseEndpoint, MouseEndpoint>> points= {}) {
     if (edit_pending_ || members_.empty ()) return;
-    clearSelection ();
+    const bool deferred_delete= points && delete_when_ready_;
+    clearSelection (bool (points));
+    delete_when_ready_= deferred_delete;
     const auto serial= selection_serial_->load ();
     const auto token= selection_serial_;
     QPointer<QTMCompoundViewport> self (this);
-    auto ranges= std::make_shared<std::vector<athena::avd::source_range>> (members_.size ());
+    const auto count= last_member - first_member + 1;
+    auto ranges= std::make_shared<std::vector<athena::avd::source_range>> (count);
     std::vector<athena::avd::edit_participant> participants;
     try {
-      for (std::size_t i= 0; i < members_.size (); ++i) {
-        const auto view= ensureView (i);
+      for (std::size_t i= 0; i < count; ++i) {
+        const auto view= ensureView (first_member + i);
         auto& range= (*ranges)[i];
         range.actor= view->buf->actor->id ();
         range.view= view->runtime_id;
         athena::avd::edit_participant member;
         member.actor= range.actor;
         member.view= range.view;
-        member.prepare= [token, serial] (editor_rep&) {
+        member.prepare= [token, serial, points, source= first_member + i] (editor_rep&) {
           if (token->load () != serial) throw std::runtime_error ("Selection was cancelled");
+          if (points) {
+            const auto epoch= current_scheme_execution_context ()->actor->source_epoch ();
+            for (const auto& endpoint: {points->first, points->second})
+              if (endpoint.member == source && endpoint.epoch != epoch)
+                throw std::runtime_error ("Source changed during compound selection");
+          }
         };
-        member.apply= [ranges, i] (editor_rep& editor) {
+        member.apply= [ranges, i, count, from_cursor, to_cursor, points,
+                      source= first_member + i] (editor_rep& editor) {
           const tree body= editor.the_buffer ();
           const path root= editor.the_buffer_path ();
-          editor.select (root * start (body), root * end (body));
+          path first= start (body), last= end (body);
+          if ((from_cursor && i == 0) || (to_cursor && i + 1 == count)) {
+            const path cursor= editor.the_path ();
+            if (!(root <= cursor)) throw std::runtime_error ("Cursor is outside the source body");
+            const path relative= cursor / root;
+            auto& destination= from_cursor ? (*ranges)[i].first : (*ranges)[i].last;
+            for (path p= relative; !is_nil (p); p= p->next) destination.push_back (p->item);
+            if (from_cursor) first= relative;
+            else last= relative;
+          }
+          if (from_cursor && i + 1 == count) editor.go_to (root * last);
+          if (to_cursor && i == 0) editor.go_to (root * first);
+          if (points) {
+            auto hit= [&] (const MouseEndpoint& endpoint) {
+              const auto point= from_qpoint (endpoint.position);
+              const path target= editor.document_position_at (point.x1, point.x2);
+              if (!(root <= target)) throw std::runtime_error ("Selection is outside the source body");
+              return target / root;
+            };
+            if (source == points->first.member) first= hit (points->first);
+            if (source == points->second.member) last= hit (points->second);
+            if (path_less (last, first)) std::swap (first, last);
+            for (path p= first; !is_nil (p); p= p->next) (*ranges)[i].first.push_back (p->item);
+            for (path p= last; !is_nil (p); p= p->next) (*ranges)[i].last.push_back (p->item);
+          }
+          editor.select (root * first, root * last);
           (*ranges)[i].epoch= current_scheme_execution_context ()->actor->source_epoch ();
         };
         member.rollback= [] (editor_rep& editor) { editor.selection_cancel (); };
@@ -254,8 +327,9 @@ class QTMCompoundViewport: public QAbstractScrollArea {
     selection_= *ranges;
     selection_pending_= 1;
     athena::avd::submit_edit_batch (std::move (participants),
-      [self, serial, ranges] (std::string error) {
-        QMetaObject::invokeMethod (qApp, [self, serial, ranges, error= std::move (error)] {
+      [self, serial, ranges, first_member, last_member, from_cursor, to_cursor] (std::string error) {
+        QMetaObject::invokeMethod (qApp, [self, serial, ranges, first_member, last_member,
+                                        from_cursor, to_cursor, error= std::move (error)] {
           if (!self || self->selection_serial_->load () != serial) return;
           if (!error.empty ()) {
             self->clearSelection ();
@@ -264,14 +338,72 @@ class QTMCompoundViewport: public QAbstractScrollArea {
           }
           self->selection_= *ranges;
           self->selection_pending_= 0;
+          self->updateDrag ();
+          if (self->compound_drag_ && !self->mouse_down_ && !self->drag_dirty_ && !self->drag_queued_) {
+            self->activateMember (self->drag_target_);
+            self->views_[self->drag_target_].canvas->setFocus (Qt::OtherFocusReason);
+          }
+          if (from_cursor || to_cursor) {
+            const auto target= from_cursor ? last_member : first_member;
+            self->updateRange (from_cursor ? self->layout_.top (target + 1) - self->viewport ()->height () :
+                                            self->layout_.top (target));
+            self->arrange ();
+            self->mount (target);
+            self->activateMember (target);
+            self->views_[target].canvas->setFocus (Qt::OtherFocusReason);
+          }
           if (self->delete_when_ready_) self->eraseSelection ();
         }, Qt::QueuedConnection);
       });
   }
 
+  void selectAll () {
+    if (!members_.empty ()) selectRange (0, members_.size () - 1);
+  }
+
+  MouseEndpoint mouseEndpoint (std::size_t member, QPoint global) {
+    mount (member);
+    const auto& canvas= views_[member].canvas;
+    const auto view= concrete_view (views_[member].view);
+    return {member, canvas->surface ()->mapFromGlobal (global) + canvas->origin (),
+            view->buf->actor->source_epoch ()};
+  }
+
+  void updateDrag () {
+    if (!compound_drag_ || edit_pending_) return;
+    QPoint local= viewport ()->mapFromGlobal (drag_global_);
+    if (mouse_down_) {
+      const int edge= 24;
+      const int delta= local.y () < edge ? local.y () - edge :
+        local.y () > viewport ()->height () - edge ? local.y () - viewport ()->height () + edge : 0;
+      if (delta != 0) {
+        updateRange (offset () + std::clamp (delta, -80, 80));
+        arrange ();
+        drag_dirty_= true;
+      }
+    }
+    if (!drag_dirty_ || drag_queued_ || selection_pending_ != 0) return;
+    local.setY (std::clamp (local.y (), 0, std::max (0, viewport ()->height () - 1)));
+    const auto member= layout_.member_at (offset () + local.y ());
+    if (member >= members_.size ()) return;
+    drag_target_= member;
+    auto endpoint= mouseEndpoint (member, viewport ()->mapToGlobal (local));
+    auto points= std::make_shared<std::pair<MouseEndpoint, MouseEndpoint>> (drag_anchor_, endpoint);
+    if (points->first.member > points->second.member) std::swap (points->first, points->second);
+    drag_dirty_= false;
+    drag_queued_= true;
+    ++queued_selections_;
+    queueInput ([points] (QTMCompoundViewport& self) {
+      self.drag_queued_= false;
+      --self.queued_selections_;
+      if (self.compound_drag_)
+        self.selectRange (points->first.member, points->second.member, false, false, points);
+    });
+  }
+
   void eraseSelection () {
     if (selection_.empty () || edit_pending_) return;
-    if (selection_pending_ != 0) { delete_when_ready_= true; return; }
+    if (selection_pending_ != 0 || drag_dirty_ || drag_queued_) { delete_when_ready_= true; return; }
     edit_pending_= true;
     delete_when_ready_= false;
     QPointer<QTMCompoundViewport> self (this);
@@ -513,30 +645,111 @@ protected:
       event->accept ();
       return true;
     }
+    if (event->type () == QEvent::MouseButtonPress || event->type () == QEvent::MouseMove ||
+        event->type () == QEvent::MouseButtonRelease) {
+      auto* mouse= static_cast<QMouseEvent*> (event);
+      if (event->type () == QEvent::MouseButtonPress && mouse->button () == Qt::LeftButton) {
+        drag_timer_.stop ();
+        compound_drag_= false;
+        drag_dirty_= false;
+        mouse_down_= false;
+        for (std::size_t i= 0; i < views_.size (); ++i) {
+          const auto& canvas= views_[i].canvas;
+          if (canvas && (watched == canvas || watched == canvas->viewport () || watched == canvas->surface ())) {
+            if (mouse->modifiers () == Qt::NoModifier) {
+              drag_global_= mouse->globalPosition ().toPoint ();
+              drag_anchor_= mouseEndpoint (i, drag_global_);
+              mouse_down_= true;
+            }
+            break;
+          }
+        }
+      }
+      else if (mouse_down_ && (event->type () == QEvent::MouseMove ||
+                              mouse->button () == Qt::LeftButton)) {
+        drag_global_= mouse->globalPosition ().toPoint ();
+        auto& origin= views_[drag_anchor_.member];
+        if (origin.canvas && origin.canvas->ownsNativePointerGesture ()) {
+          mouse_down_= false;
+        }
+        else {
+          const QPoint local= viewport ()->mapFromGlobal (drag_global_);
+          const auto target= layout_.member_at (offset () + std::clamp (local.y (), 0,
+                                                       std::max (0, viewport ()->height () - 1)));
+          const bool outside= local.y () < 0 || local.y () >= viewport ()->height ();
+          if (!compound_drag_ && target < members_.size () &&
+              (target != drag_anchor_.member || outside)) {
+            // Finish the member's native gesture before taking over its mouse grab.
+            const auto point= from_qpoint (drag_anchor_.position);
+            the_gui->process_mouse (origin.canvas->tm_widget (), "release-left",
+                                    point.x1, point.x2, 0, texmacs_time ());
+            compound_drag_= true;
+            viewport ()->grabMouse ();
+            drag_timer_.start ();
+          }
+          if (compound_drag_) {
+            drag_dirty_= true;
+            if (event->type () == QEvent::MouseButtonRelease) {
+              mouse_down_= false;
+              viewport ()->releaseMouse ();
+            }
+            updateDrag ();
+            event->accept ();
+            return true;
+          }
+        }
+        if (event->type () == QEvent::MouseButtonRelease) mouse_down_= false;
+      }
+    }
     if (event->type () == QEvent::ShortcutOverride || event->type () == QEvent::KeyPress) {
       auto* key= static_cast<QKeyEvent*> (event);
-      const bool select_all= key->modifiers () == Qt::ControlModifier && key->key () == Qt::Key_A;
-      const bool erase= !selection_.empty () && key->modifiers () == Qt::NoModifier &&
-        (key->key () == Qt::Key_Delete || key->key () == Qt::Key_Backspace);
-      const bool cancel= !selection_.empty () && key->key () == Qt::Key_Escape;
-      if (select_all || erase || cancel) {
+      const bool select_boundary= key->modifiers () == (Qt::ControlModifier | Qt::ShiftModifier) &&
+        (key->key () == Qt::Key_Home || key->key () == Qt::Key_End);
+      if (select_boundary && active_member_ < members_.size ()) {
         if (event->type () == QEvent::KeyPress) {
-          if (select_all) selectAll ();
-          else if (erase) eraseSelection ();
-          else clearSelection ();
+          const bool end= key->key () == Qt::Key_End;
+          const auto member= active_member_;
+          ++queued_selections_;
+          queueInput ([member, end] (QTMCompoundViewport& self) {
+            --self.queued_selections_;
+            self.selectRange (end ? member : 0,
+                              end ? self.members_.size () - 1 : member, end, !end);
+          });
         }
         event->accept ();
         return true;
       }
-      if (event->type () == QEvent::KeyPress && !selection_.empty () &&
+      const bool select_all= key->modifiers () == Qt::ControlModifier && key->key () == Qt::Key_A;
+      const bool has_selection= !selection_.empty () || queued_selections_ != 0;
+      const bool erase= has_selection && key->modifiers () == Qt::NoModifier &&
+        (key->key () == Qt::Key_Delete || key->key () == Qt::Key_Backspace);
+      const bool cancel= has_selection && key->key () == Qt::Key_Escape;
+      if (select_all || erase || cancel) {
+        if (event->type () == QEvent::KeyPress) {
+          if (select_all) {
+            ++queued_selections_;
+            queueInput ([] (QTMCompoundViewport& self) {
+              --self.queued_selections_;
+              self.selectAll ();
+            });
+          }
+          else if (erase) queueInput ([] (QTMCompoundViewport& self) { self.eraseSelection (); });
+          else queueInput ([] (QTMCompoundViewport& self) { self.clearSelection (); });
+        }
+        event->accept ();
+        return true;
+      }
+      if (event->type () == QEvent::KeyPress && has_selection &&
           key->key () != Qt::Key_Control && key->key () != Qt::Key_Shift &&
           key->key () != Qt::Key_Alt && key->key () != Qt::Key_Meta)
-        clearSelection ();
+        queueInput ([] (QTMCompoundViewport& self) { self.clearSelection (); });
       if (key->modifiers () == Qt::ControlModifier &&
           (key->key () == Qt::Key_Home || key->key () == Qt::Key_End)) {
         if (event->type () == QEvent::KeyPress && !members_.empty ()) {
           const bool at_end= key->key () == Qt::Key_End;
-          goToMember (at_end ? members_.size () - 1 : 0, at_end);
+          queueInput ([at_end] (QTMCompoundViewport& self) {
+            self.goToMember (at_end ? self.members_.size () - 1 : 0, at_end);
+          });
         }
         event->accept ();
         return true;
@@ -611,10 +824,17 @@ public:
     counters_ (members_, QByteArrayLiteral ("ATHENA counter executor 1"), descriptor_.value.checkpoints),
     views_ (members_.size ()) {
     setVerticalScrollBar (new MemberScrollBar (layout_));
+    viewport ()->installEventFilter (this);
     setHorizontalScrollBarPolicy (Qt::ScrollBarAlwaysOff);
     refresh_.setInterval (100);
     connect (&refresh_, &QTimer::timeout, this, [this] { refreshGeometry (); });
     refresh_.start ();
+    drag_timer_.setInterval (40);
+    connect (&drag_timer_, &QTimer::timeout, this, [this] {
+      updateDrag ();
+      if (!mouse_down_ && !drag_dirty_ && !drag_queued_ && selection_pending_ == 0)
+        drag_timer_.stop ();
+    });
     save_cache_.setSingleShot (true);
     save_cache_.setInterval (2000);
     connect (&save_cache_, &QTimer::timeout, this, [this] { saveCounterCache (); });

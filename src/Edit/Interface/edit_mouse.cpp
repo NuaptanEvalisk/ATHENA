@@ -1169,6 +1169,13 @@ delayed_call_mouse_event (string kind, SI x, SI y, SI m, time_t t,
   eval (cmd);
 }
 
+path
+edit_interface_rep::document_position_at (SI widget_x, SI widget_y) {
+  if (is_nil (eb) || (env_change & (THE_TREE + THE_ENVIRONMENT)) != 0)
+    apply_changes ();
+  return tree_path (path (), SI (widget_x / magf), SI (widget_y / magf), 0);
+}
+
 void
 edit_interface_rep::handle_mouse (string kind, SI x, SI y, int m, time_t t,
                                   array<double> data) {

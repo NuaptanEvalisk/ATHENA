@@ -76,6 +76,9 @@ public:
   void triggerNativeDrawingCanvasCommand (
     native_drawing_canvas_command command);
   void showCommutativeDiagramContextMenu (bool arrow);
+  bool ownsNativePointerGesture () const {
+    return nativeInkActive || nativeInsertSpaceActive || nativeSelectionTransformActive;
+  }
 
 signals:
   void closed ();

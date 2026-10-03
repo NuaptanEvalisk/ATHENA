@@ -298,6 +298,7 @@ public:
   virtual bool cursor_is_accessible () = 0;
   virtual void show_cursor_if_hidden () = 0;
   virtual void go_to (SI x, SI y, bool absolute= true) = 0;
+  virtual path document_position_at (SI widget_x, SI widget_y) = 0;
   virtual void go_left_physical () = 0;
   virtual void go_right_physical () = 0;
   virtual void go_left () = 0;
