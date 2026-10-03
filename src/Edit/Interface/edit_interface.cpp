@@ -2115,11 +2115,14 @@ edit_interface_rep::apply_changes () {
       if (medium == "automatic")
         ex2= ex1 + w;
     }
-    if (ey2 - ey1 <= h + 2*PIXEL) {
+    // A compound viewport stacks these extents as document content. Padding
+    // for a standalone editor must not become space between its members.
+    if (!extents_viewport.externally_presented && ey2 - ey1 <= h + 2*PIXEL) {
       if (medium == "papyrus" || medium == "automatic")
         ey1= ey2 - h;
     }
-    if (get_user_preference ("typewriter mode", "off") == "on" &&
+    if (!extents_viewport.externally_presented &&
+        get_user_preference ("typewriter mode", "off") == "on" &&
         (medium == "papyrus" || medium == "automatic") && h > 0)
       ey1 -= h >> 1;
     (void) publish_ui (

@@ -124,6 +124,8 @@ actor_ui_endpoint::update_viewport (
     snapshot.icon_bar_mask, std::memory_order_relaxed);
   viewport_.attached.store (snapshot.attached, std::memory_order_relaxed);
   viewport_.focused.store (snapshot.focused, std::memory_order_relaxed);
+  viewport_.externally_presented.store (
+    snapshot.externally_presented, std::memory_order_relaxed);
   viewport_.full_screen.store (
     snapshot.full_screen, std::memory_order_relaxed);
   viewport_.full_screen_edit.store (
@@ -175,6 +177,8 @@ actor_ui_endpoint::viewport () const noexcept {
       viewport_.icon_bar_mask.load (std::memory_order_relaxed);
     result.attached= viewport_.attached.load (std::memory_order_relaxed);
     result.focused= viewport_.focused.load (std::memory_order_relaxed);
+    result.externally_presented=
+      viewport_.externally_presented.load (std::memory_order_relaxed);
     result.full_screen= viewport_.full_screen.load (std::memory_order_relaxed);
     result.full_screen_edit=
       viewport_.full_screen_edit.load (std::memory_order_relaxed);

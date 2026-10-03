@@ -47,6 +47,7 @@ struct actor_viewport_snapshot {
   std::uint32_t icon_bar_mask= 0;
   bool attached= false;
   bool focused= false;
+  bool externally_presented= false;
   bool full_screen= false;
   bool full_screen_edit= false;
   bool invalid= false;
@@ -455,6 +456,7 @@ private:
     std::atomic<std::uint32_t> icon_bar_mask {0};
     std::atomic<bool> attached {false};
     std::atomic<bool> focused {false};
+    std::atomic<bool> externally_presented {false};
     std::atomic<bool> full_screen {false};
     std::atomic<bool> full_screen_edit {false};
     std::atomic<bool> invalid {false};
