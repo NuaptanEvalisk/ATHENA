@@ -1,0 +1,26 @@
+{
+  "schema": 2,
+  "id": "example.nikis-workflows",
+  "name": "nIKIS Workflows",
+  "version": "1.0.0",
+  "description": "Course notes, assignments and section numbering through AUDMAP.",
+  "executable": "plugin_exec",
+  "license": {"format": "text", "file": "LICENSE.txt"},
+  "commands": [
+    {"id": "new-note", "title": "New note for course", "parameters": {}},
+    {"id": "new-assignment", "title": "New assignment for course", "parameters": {}},
+    {"id": "new-section", "title": "New section", "parameters": {}},
+    {"id": "new-subsection", "title": "New subsection", "parameters": {}}
+  ],
+  "permissions": {
+    "jail": [{"permission": "desktop", "required": true}],
+    "audmap": [
+      {"resource": "vault", "actions": ["resolve", "get"], "required": true},
+      {"resource": "namespace", "actions": ["resolve", "get", "members"], "required": true},
+      {"resource": "directory", "actions": ["resolve", "create_document"], "required": true},
+      {"resource": "file", "actions": ["resolve", "open", "buffers"], "required": true},
+      {"resource": "document", "actions": ["resolve", "get"], "required": true},
+      {"resource": "buffer", "actions": ["resolve", "get", "context", "insert_at_cursor", "set_cursor"], "required": true}
+    ]
+  }
+}

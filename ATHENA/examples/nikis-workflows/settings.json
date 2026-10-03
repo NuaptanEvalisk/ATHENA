@@ -1,0 +1,9 @@
+{
+  "vault": "nIKIS",
+  "course_prefix": "Course - ",
+  "lecture_suffix": " - Lecture Notes",
+  "assignment_suffix": " - Assignments",
+  "style": "unnumbered-sections-generic",
+  "font": "pagella",
+  "page_medium": "automatic"
+}
