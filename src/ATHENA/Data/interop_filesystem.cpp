@@ -10,6 +10,12 @@
 #include "interop_filesystem.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
 #include "interop_document_source.hpp"
+#include "interop_document_codec.hpp"
+#include "document_node_model.hpp"
+#include "new_style.hpp"
+#include "scheme.hpp"
+#include <QCoreApplication>
+#include <QMetaObject>
 #include "../Interop/traversal.hpp"
 #include "convert.hpp"
 #include "buffer_name_catalog.hpp"
@@ -31,6 +37,36 @@ std::string error_status (const std::system_error& e) {
     case EAGAIN: return "CONFLICT";
     default: return "ERROR";
   }
+}
+
+std::string new_document_bytes (const value& encoded) {
+  auto* app= QCoreApplication::instance ();
+  if (!app) throw std::runtime_error ("Desktop is not available");
+  std::string bytes, error;
+  // Style DRD evaluation can enter Guile. Prepare this detached document on
+  // the registered GUI owner; only immutable JSON/bytes cross the boundary.
+  QMetaObject::invokeMethod (app, [&] {
+    try {
+      tree doc= document_node_from_value_v3 (encoded);
+      const auto problem= interop_document_source_error (doc);
+      if (!problem.empty ()) throw std::invalid_argument (problem);
+      if (!is_func (extract (doc, "body"), DOCUMENT))
+        throw std::invalid_argument ("New documents require a document body");
+      if (athena::node::contains_metadata (doc))
+        throw std::invalid_argument ("New documents must not import existing source identities");
+      auto identities= athena::document_node::assign_detached_source_ids (
+        extract (doc, "body"), get_document_drd (doc),
+        athena::document_node::standard_source_role,
+        [] (const athena::document_node::identity_request&) { return athena::node::new_id (); });
+      if (!identities.ok ()) throw std::invalid_argument (identities.diagnostics.front ().detail);
+      doc= change_doc_attr (doc, "body", std::move (*identities.body));
+      bytes= athena::document::write_xml_v2 (doc);
+    }
+    catch (const std::exception& e) { error= e.what (); }
+    catch (const string& e) { error= text (e); }
+  }, Qt::BlockingQueuedConnection);
+  if (!error.empty ()) throw std::invalid_argument (error);
+  return bytes;
 }
 }
 filesystem_resource::filesystem_resource (vault_context_handle context,
@@ -68,13 +104,46 @@ value filesystem_resource::inspect () const {
   if (type () == "file") commands["check"] = {{"parameters", value::object ()}};
   if (type () == "file" && relative.extension () == ".ath")
     commands["buffers"] = {{"parameters", value::object ()}};
+  if (type () == "file" && relative.extension () == ".ath")
+    commands["open"] = {{"parameters", value::object ()}};
+  if (type () == "directory")
+    commands["create_document"] = {{"parameters", {{"name", "new .ath basename"},
+      {"document", "document-model-v3 tree without metadata"}}}};
   return commands;
 }
 operation_result filesystem_resource::operate (const std::string& command, const value& p) const {
   try {
+    if (command == "create_document" && type () == "directory") {
+      if (!p.is_object () || p.size () != 2 || !p.contains ("name") || !p.contains ("document"))
+        return {"INVALID_ARGUMENT", "create_document requires name and document"};
+      const auto name= p.at ("name").get<std::string> ();
+      athena::filesystem::confined_root::validate_component (name);
+      if (fs::path (name).extension () != ".ath") return {"INVALID_ARGUMENT", "Expected an .ath filename"};
+      current ();
+      const auto bytes= new_document_bytes (p.at ("document"));
+      current ();
+      const auto created= root->create (relative / name, bytes);
+      return {"OK", {{"path", created.file.path ().string ()}, {"created", true},
+        {"directory_synced", created.directory_synced}}};
+    }
     if (!p.is_object () || !p.empty ()) return {"INVALID_ARGUMENT", "This command takes no parameters"};
     if (command == "inspect") return {"OK", inspect ()};
     if (command == "get") return {"OK", properties ()};
+    if (command == "open" && type () == "file" && relative.extension () == ".ath") {
+      const auto filename= current ().path ().string ();
+      auto* app= QCoreApplication::instance ();
+      if (!app) return {"ERROR", "Desktop is not available"};
+      operation_result result {"OK", {{"path", filename}}};
+      QMetaObject::invokeMethod (app, [&] {
+        try {
+          if (!vault_context_is_current (context)) throw std::runtime_error ("Vault changed before opening");
+          (void) call ("load-buffer", object (url_system (string (filename.c_str ()))));
+        }
+        catch (const std::exception& e) { result= {"ERROR", e.what ()}; }
+        catch (const string& e) { result= {"ERROR", text (e)}; }
+      }, Qt::BlockingQueuedConnection);
+      return result;
+    }
     if (command == "buffers" && type () == "file" && relative.extension () == ".ath") {
       const auto path= current ().path ().string ();
       return {"OK", published_file_buffers (text (as_string (url_system (string (path.c_str ())))))};

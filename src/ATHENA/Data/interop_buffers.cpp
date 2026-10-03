@@ -11,12 +11,88 @@
 #include "interop_document.hpp"
 #include "../Interop/traversal.hpp"
 #include "buffer_name_catalog.hpp"
+#include "buffer_actor.hpp"
+#include "buffer_state.hpp"
+#include "editor.hpp"
+#include "interop_document_codec.hpp"
+#include "node_metadata.hpp"
+#include "tree_cursor.hpp"
 #include <algorithm>
 #include <cerrno>
 #include <system_error>
 
 namespace athena::interop {
 namespace {
+value encode_path (path p) {
+  value result= value::array ();
+  while (!is_nil (p)) { result.push_back (p->item); p= p->next; }
+  return result;
+}
+
+operation_result editor_operation (std::uint64_t id, const std::string& command, const value& p) {
+  athena_view_id view= ATHENA_NO_VIEW;
+  for (const auto& entry: published_buffer_metadata ())
+    if (entry.second.actor_id == id) view= entry.second.source_view;
+  if (view == ATHENA_NO_VIEW) return {"STALE", "Buffer has no editor view"};
+  auto answer= std::make_shared<operation_result> ();
+  auto continuation= actor_continuation_registry::instance ().store ([answer, view, command, p] {
+    try {
+      auto* actor= current_scheme_execution_context ()->actor;
+      auto* editor= actor->current_editor (view);
+      if (!editor) { *answer= {"STALE", "Editor view has closed"}; return; }
+      const value cursor= encode_path (editor->the_path () / editor->the_buffer_path ());
+      if (command == "context") {
+        if (!p.is_object () || !p.empty ()) throw std::invalid_argument ("context takes no parameters");
+        tree body= editor->the_buffer ();
+        path paragraph= path_up (editor->the_path () / editor->the_buffer_path ());
+        while (!is_nil (paragraph) && !is_func (subtree (body, path_up (paragraph)), DOCUMENT))
+          paragraph= path_up (paragraph);
+        *answer= {"OK", {{"body", document_node_to_value_v3 (editor->the_buffer ())},
+          {"cursor", cursor}, {"epoch", actor->source_epoch ()}, {"view", view},
+          {"paragraph_start", is_nil (paragraph) ? value () : encode_path (start (body, paragraph))},
+          {"selection", editor->selection_active_any ()}}};
+        return;
+      }
+      const char* payload= command == "set_cursor" ? "path" : "tree";
+      if (!p.is_object () || p.size () != 4 || !p.contains (payload) || !p.contains ("epoch") ||
+          !p.contains ("cursor") || !p.contains ("view"))
+        throw std::invalid_argument ("Expected payload, epoch, cursor and view from context");
+      if (p.at ("epoch") != actor->source_epoch () || p.at ("cursor") != cursor || p.at ("view") != view) {
+        *answer= {"CONFLICT", "Document or cursor changed; invoke the command again"}; return;
+      }
+      if (command == "set_cursor") {
+        const auto indices= p.at ("path").get<std::vector<int>> ();
+        path destination;
+        for (auto i= indices.rbegin (); i != indices.rend (); ++i)
+          destination= path (*i, destination);
+        if (is_nil (destination) || !is_inside (editor->the_buffer (), destination))
+          throw std::invalid_argument ("Cursor path is outside the document body");
+        editor->go_to_correct (editor->the_buffer_path () * destination);
+        *answer= {"OK", {{"cursor", encode_path (editor->the_path () / editor->the_buffer_path ())}}};
+        return;
+      }
+      if (actor->current_state ()->read_only) { *answer= {"DENIED", "Document is read-only"}; return; }
+      if (editor->selection_active_any ()) { *answer= {"CONFLICT", "Clear the selection before inserting"}; return; }
+      tree content= document_node_from_value_v3 (p.at ("tree"));
+      if (athena::node::contains_metadata (content))
+        throw std::invalid_argument ("Insertion requires new content without source metadata");
+      editor->start_editing ();
+      try { editor->insert_tree (content); }
+      catch (...) { editor->end_editing (); throw; }
+      editor->end_editing ();
+      *answer= {"OK", {{"inserted", true}, {"saved", false}}};
+    }
+    catch (const std::exception& error) { *answer= {"ERROR", error.what ()}; }
+    catch (const string& error) { *answer= {"ERROR", std::string (error.data (), N (error))}; }
+  });
+  if (!buffer_actor::invoke_on (id, actor_command_kind::run_native_continuation, view,
+        ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER, continuation)) {
+    actor_continuation_registry::instance ().discard (continuation);
+    return {"STALE", "Buffer has closed"};
+  }
+  return *answer;
+}
+
 class buffer_resource final: public resource {
 public:
   const std::uint64_t id;
@@ -34,9 +110,16 @@ public:
   }
   value inspect () const override {
     return {{"get", {{"parameters", value::object ()}}},
+            {"context", {{"parameters", value::object ()}}},
+            {"set_cursor", {{"parameters", {{"path", "body-relative cursor path"},
+              {"epoch", "context epoch"}, {"cursor", "context cursor"}, {"view", "context view"}}}}},
+            {"insert_at_cursor", {{"parameters", {{"tree", "new document-model-v3 tree"},
+              {"epoch", "context epoch"}, {"cursor", "context cursor"}, {"view", "context view"}}}}},
             {"inspect", {{"parameters", value::object ()}}}};
   }
   operation_result operate (const std::string& command, const value& p) const override {
+    if (command == "context" || command == "insert_at_cursor" || command == "set_cursor")
+      return editor_operation (id, command, p);
     if (!p.is_object () || !p.empty ()) return {"INVALID_ARGUMENT", "This command takes no parameters"};
     try {
       auto props= properties ();
