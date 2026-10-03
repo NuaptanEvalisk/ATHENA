@@ -375,6 +375,7 @@ QTMMainTabWindow::QTMMainTabWindow()
   connect(mDockManager, &ads::CDockManager::focusedDockWidgetChanged,
           this, [this](ads::CDockWidget*, ads::CDockWidget* now) {
             if (now) {
+              mLastFocusedWorkPaneWidget= now->widget ();
               if (isDocumentWidget (now->widget ()))
                 mLastFocusedDocumentWidget= now->widget ();
               setMainTitle(now->windowTitle());
@@ -804,6 +805,7 @@ void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
   if (widget != nullptr)
     widget->setProperty (kAthenaDocumentWidgetProperty, isDocument);
   if (isDocument) mLastFocusedDocumentWidget= widget;
+  mLastFocusedWorkPaneWidget= widget;
   if (isDocument) widget->installEventFilter(this);
   if (isDocument) buffer_switcher_note_widget (widget);
   ads::CDockWidget* dockWidget = adsDockWidgetFor(widget);
@@ -837,6 +839,7 @@ void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
       mDockManager->addDockWidget(ads::CenterDockWidgetArea, dockWidget);
 
     scheduleAdsLayoutRestore();
+    mDockManager->setDockWidgetFocused (dockWidget);
     if (QWidget* focusTarget= documentFocusTarget(widget))
       focusTarget->setFocus(Qt::OtherFocusReason);
     setMainTitleFromWidget(widget);
@@ -886,6 +889,8 @@ QWidget*
 QTMMainTabWindow::activeWorkPaneWidget() const {
   if (mDockManager == nullptr) return nullptr;
   ads::CDockWidget* dock= mDockManager->focusedDockWidget ();
+  // Menus and modal dialogs can temporarily take focus away from ADS.
+  if (dock == nullptr) dock= adsDockWidgetFor (mLastFocusedWorkPaneWidget);
   if (dock == nullptr || dock->isClosed ()) return nullptr;
   return dock->widget ();
 }

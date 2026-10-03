@@ -95,6 +95,7 @@ private:
   static QTMMainTabWindow *gTopTabWindow;
 
   ads::CDockManager* mDockManager;
+  QPointer<QWidget> mLastFocusedWorkPaneWidget;
   QPointer<QWidget> mLastFocusedDocumentWidget;
   std::unique_ptr<QTMApplicationMenuPresenter> mNativeMenuPresenter;
   QList<QPair<QPointer<ads::CDockWidget>, ads::DockWidgetArea>>
