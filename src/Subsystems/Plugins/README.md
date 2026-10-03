@@ -104,7 +104,7 @@ Manifest command parameters are JSON objects. Schema 1 remains parseable for old
 packages but requests no new system/AUDMAP permissions; packages that need access
 should migrate to schema 2.
 
-Jail permission names currently are `network`, `filesystem.read`, and
+Jail permission names currently are `network`, `desktop`, `filesystem.read`, and
 `filesystem.write`. Filesystem permissions use only `root: "vault"` and a plain
 vault-relative path. Absolute paths, `.`, `..`, empty intermediate components,
 backslashes, tilde/environment expansion, URI-like paths and globs are not part of
@@ -115,6 +115,21 @@ resolves the relative target through the descriptor-backed confined filesystem
 (`openat2` with `RESOLVE_BENEATH`, no symlinks/magic links). The pinned descriptor
 is used to create the Landlock rule and is closed before plugin `execve`, so the
 plugin receives authority only to the inode(s) named by the effective grant.
+
+`desktop` permits a plugin-owned GUI. The host forwards allowlisted display,
+desktop-theme and Qt scaling variables, including its active Qt platform and
+rounding policy. Appearance files (`kdeglobals`, `kcmfonts`, and qt6ct settings
+and colors) are readable under the XDG configuration roots, but those roots
+are not generally exposed. HOME remains private; neither the session bus nor
+loader/plugin search paths are forwarded. This grants the current X11/Wayland
+endpoint and fonts, not network or vault filesystem access. On X11 this is broad
+display-server authority, including observing/controlling other applications,
+and the permission review states that explicitly. Without this grant no display
+credentials or display socket rules are supplied.
+
+`ATHENA/examples/nikis-workflows` demonstrates the standalone C++ SDK with Qt
+dialogs and generic namespace, directory, file and buffer operations. The
+Python SDK example remains in `ATHENA/examples/hello-world-plugin`.
 
 AUDMAP permissions list explicit resource types and actions. `resolve` controls
 resource visibility: a denied resource is not published as an occurrence or handle.

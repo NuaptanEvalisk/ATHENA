@@ -20,7 +20,7 @@ struct plugin_command {
   std::string id, title;
   interop::value parameters = interop::value::object ();
 };
-enum class jail_permission_kind { network, filesystem_read, filesystem_write };
+enum class jail_permission_kind { network, desktop, filesystem_read, filesystem_write };
 enum class filesystem_scope { file, tree };
 struct jail_permission {
   jail_permission_kind permission;

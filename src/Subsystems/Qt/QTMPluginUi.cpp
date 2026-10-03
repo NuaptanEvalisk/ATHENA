@@ -61,6 +61,8 @@ QString jail_label (const athena::plugins::jail_permission& permission) {
   using namespace athena::plugins;
   if (permission.permission == jail_permission_kind::network)
     return "Network (Internet, LAN and localhost)";
+  if (permission.permission == jail_permission_kind::desktop)
+    return "Desktop display (X11 access can observe and control other applications)";
   const QString path= permission.path.empty () ? QStringLiteral ("/") :
     QStringLiteral ("/") + qs (permission.path.generic_string ());
   const QString mode= permission.permission == jail_permission_kind::filesystem_read ?

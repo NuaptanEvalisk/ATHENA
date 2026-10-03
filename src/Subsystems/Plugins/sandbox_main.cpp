@@ -6,6 +6,7 @@
 
 #include "confined_filesystem.hpp"
 #include "value.hpp"
+#include "desktop_environment.hpp"
 #include "libminijail.h"
 
 #include <algorithm>
@@ -16,6 +17,7 @@
 #include <iostream>
 #include <memory>
 #include <poll.h>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -198,6 +200,32 @@ int run (const fs::path& policy_path) {
   allow_ro (jail.get (), audmap_socket.parent_path ());
   allow_rw (jail.get (), audmap_socket);
 
+  // Desktop access is opt-in and independent of Internet or vault grants.
+  // X11 has no per-window security boundary; the permission UI says so.
+  const value desktop= policy.value ("desktop", value::object ());
+  if (!desktop.empty ()) {
+    if (desktop.contains ("DISPLAY")) allow_rw (jail.get (), "/tmp/.X11-unix");
+    if (desktop.contains ("XAUTHORITY")) allow_ro (jail.get (), absolute_field (desktop, "XAUTHORITY"));
+    if (desktop.contains ("WAYLAND_DISPLAY")) {
+      const fs::path socket= desktop.at ("WAYLAND_DISPLAY").get<std::string> ();
+      allow_rw (jail.get (), socket.is_absolute () ? socket :
+        absolute_field (desktop, "XDG_RUNTIME_DIR") / socket);
+    }
+    allow_ro (jail.get (), "/etc/fonts");
+    // Keep HOME private. Qt may read only desktop appearance configuration,
+    // not arbitrary files below the real XDG configuration directories.
+    std::vector<fs::path> config_dirs;
+    if (desktop.contains ("XDG_CONFIG_HOME"))
+      config_dirs.push_back (absolute_field (desktop, "XDG_CONFIG_HOME"));
+    std::istringstream dirs (desktop.value ("XDG_CONFIG_DIRS", "/etc/xdg"));
+    std::string directory;
+    while (std::getline (dirs, directory, ':'))
+      if (fs::path (directory).is_absolute ()) config_dirs.emplace_back (directory);
+    for (const auto& directory: config_dirs)
+      for (const char* name: athena::plugins::desktop_config_files)
+        allow_ro (jail.get (), directory / name);
+  }
+
   descriptor_list vault_descriptors;
   if (policy.contains ("vault_access")) {
     if (!policy.at ("vault_access").is_array ()) throw std::invalid_argument ("vault_access must be an array");
@@ -266,6 +294,13 @@ int run (const fs::path& policy_path) {
   };
   if (policy.contains ("vault_root"))
     env_storage.push_back ("ATHENA_VAULT_ROOT=" + absolute_field (policy, "vault_root").string ());
+  for (const char* key: athena::plugins::desktop_environment_keys)
+    if (desktop.contains (key))
+      env_storage.push_back (std::string (key) + "=" + desktop.at (key).get<std::string> ());
+  if (!desktop.empty ()) {
+    env_storage.push_back ("QT_X11_NO_MITSHM=1");
+    env_storage.push_back ("QT_ACCESSIBILITY=0");
+  }
   auto envp= pointers (env_storage);
   fs::current_path (plugin);
   pid_t child= -1;

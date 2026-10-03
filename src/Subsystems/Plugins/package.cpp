@@ -270,6 +270,8 @@ std::string jail_permission_id (const jail_permission& p) {
   switch (p.permission) {
   case jail_permission_kind::network:
     return "network";
+  case jail_permission_kind::desktop:
+    return "desktop";
   case jail_permission_kind::filesystem_read:
   case jail_permission_kind::filesystem_write: {
     const char* kind= p.permission == jail_permission_kind::filesystem_read ?
@@ -354,11 +356,11 @@ manifest parse_manifest (const value& json) {
         const auto name= string_field (item, "permission", 64);
         jail_permission p;
         p.required= bool_field (item, "required");
-        if (name == "network") {
+        if (name == "network" || name == "desktop") {
           if (item.contains ("root") || item.contains ("path") || item.contains ("scope"))
-            throw std::invalid_argument ("network permission does not accept filesystem fields");
-          p.permission= jail_permission_kind::network;
-          if (!unique.insert (name).second) throw std::invalid_argument ("Duplicate network permission");
+            throw std::invalid_argument ("Desktop/network permissions do not accept filesystem fields");
+          p.permission= name == "desktop" ? jail_permission_kind::desktop : jail_permission_kind::network;
+          if (!unique.insert (name).second) throw std::invalid_argument ("Duplicate " + name + " permission");
         }
         else if (name == "filesystem.read" || name == "filesystem.write") {
           p.permission= name == "filesystem.read" ? jail_permission_kind::filesystem_read :

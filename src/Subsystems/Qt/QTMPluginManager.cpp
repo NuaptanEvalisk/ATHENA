@@ -10,7 +10,10 @@
 #include "QTMPluginManager.hpp"
 #include "identity.hpp"
 #include "subscription.hpp"
+#include "../Plugins/desktop_environment.hpp"
 #include <QCoreApplication>
+#include <QGuiApplication>
+#include <QMetaEnum>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -341,7 +344,8 @@ struct QTMPluginManager::impl {
   bool needs_vault (const manifest& m, const QTMPluginPolicy& p) const {
     return std::any_of (m.jail_permissions.begin (), m.jail_permissions.end (),
       [&] (const jail_permission& permission) {
-        return permission.permission != jail_permission_kind::network &&
+        return (permission.permission == jail_permission_kind::filesystem_read ||
+                permission.permission == jail_permission_kind::filesystem_write) &&
           (permission.required || p.jailGrants.count (jail_permission_id (permission)));
       });
   }
@@ -376,9 +380,11 @@ struct QTMPluginManager::impl {
   value sandbox_plan (entry& e, const fs::path& data, const fs::path& identity_file) const {
     value mounts= value::array ();
     bool network= false;
+    bool desktop= false;
     for (const auto& permission: e.info.manifest.jail_permissions) {
       if (!e.info.policy.jailGrants.count (jail_permission_id (permission))) continue;
       if (permission.permission == jail_permission_kind::network) { network= true; continue; }
+      if (permission.permission == jail_permission_kind::desktop) { desktop= true; continue; }
       mounts.push_back ({{"path", permission.path.generic_string ()},
         {"scope", permission.scope == filesystem_scope::file ? "file" : "tree"},
         {"writable", permission.permission == jail_permission_kind::filesystem_write}});
@@ -394,6 +400,26 @@ struct QTMPluginManager::impl {
       {"executable", e.info.manifest.executable.generic_string ()},
       {"arguments", std::move (arguments)}, {"network", network},
       {"vault_access", std::move (mounts)}};
+    if (desktop) {
+      value display= value::object ();
+      for (const char* key: desktop_environment_keys) {
+        const auto v= qgetenv (key);
+        if (!v.isEmpty ()) display[key]= v.toStdString ();
+      }
+      // Use the platform and rounding policy actually selected by ATHENA,
+      // including command-line selection and native Wayland normalization.
+      display["QT_QPA_PLATFORM"]= QGuiApplication::platformName ().toStdString ();
+      display["QT_SCALE_FACTOR_ROUNDING_POLICY"]= QMetaEnum::fromType<Qt::HighDpiScaleFactorRoundingPolicy> ()
+        .valueToKey (static_cast<int> (QGuiApplication::highDpiScaleFactorRoundingPolicy ()));
+      if (!display.contains ("XDG_CONFIG_HOME"))
+        display["XDG_CONFIG_HOME"]= QDir::home ().filePath (".config").toStdString ();
+      if (!display.contains ("XDG_CONFIG_DIRS")) display["XDG_CONFIG_DIRS"]= "/etc/xdg";
+      if (!display.contains ("XAUTHORITY")) {
+        const auto auth= QDir::home ().filePath (".Xauthority");
+        if (QFileInfo::exists (auth)) display["XAUTHORITY"]= auth.toStdString ();
+      }
+      plan["desktop"]= std::move (display);
+    }
     if (needs_vault (e.info.manifest, e.info.policy)) {
       const auto root= currentVaultRoot ? currentVaultRoot () : std::optional<fs::path> {};
       if (!root) throw std::runtime_error ("Current vault disappeared before plugin launch");
