@@ -1147,7 +1147,14 @@ protected:
       if (mouse || wheel) {
         const QPoint global= mouse ? static_cast<QMouseEvent*> (event)->globalPosition ().toPoint () :
                                     static_cast<QWheelEvent*> (event)->globalPosition ().toPoint ();
-        member= layout_.member_at (offset () + viewport ()->mapFromGlobal (global).y ());
+        const QPoint local= viewport ()->mapFromGlobal (global);
+        const bool continuing_drag= mouse_down_ &&
+          (event->type () == QEvent::MouseMove || event->type () == QEvent::MouseButtonRelease);
+        // Ignored scrollbar mouse events propagate to the scroll area, but
+        // belong to its chrome, not to the source editor beneath that height.
+        if (!viewport ()->rect ().contains (local) && !continuing_drag)
+          return QAbstractScrollArea::eventFilter (watched, event);
+        member= layout_.member_at (offset () + local.y ());
         if (mouse_down_ && drag_anchor_.member < views_.size ()) member= drag_anchor_.member;
       }
       if (member < views_.size () && views_[member].canvas && (mouse || wheel || keyboard)) {

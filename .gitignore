@@ -42,3 +42,11 @@ TeXmacs/progs/ice-9
 ATHENA/progs/prog/glue-symbols.scm
 /release/
 ATHENA/lib/
+
+# Local agent state and model weights.
+/.codex/
+/ATHENA/tools/artifacts/*.gguf
+/ATHENA/tools/formula-cleaner/*.gguf
+/misc/embedding/
+/misc/formula-cleaner-convert/*.gguf
+/misc/formula-cleaner-convert/formula-cleaner-merged-hf/
