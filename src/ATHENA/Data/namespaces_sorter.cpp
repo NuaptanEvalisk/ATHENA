@@ -436,6 +436,9 @@ struct order_relation {
   size_t size= 0;
   std::string signature;
   std::function<int(size_t,size_t)> compare;
+  bool weak_order= false;
+  std::vector<std::shared_ptr<const order_relation>> constraints;
+  std::vector<std::string> constraint_labels;
 };
 
 static int
@@ -732,71 +735,8 @@ validate_compare_matrix (const std::vector<int8_t>& matrix, size_t n,
         return false;
       }
   }
-  std::vector<size_t> parent (n);
-  std::iota (parent.begin (), parent.end (), 0);
-  std::function<size_t(size_t)> root= [&] (size_t value) -> size_t {
-    if (parent[value] != value) parent[value]= root (parent[value]);
-    return parent[value];
-  };
-  auto unite= [&] (size_t a, size_t b) {
-    a= root (a);
-    b= root (b);
-    if (a != b) parent[b]= a;
-  };
-  for (size_t i=0; i<n; ++i)
-    for (size_t j=i + 1; j<n; ++j)
-      if (at (i, j) == 0) unite (i, j);
-
-  std::map<size_t, std::vector<size_t>> by_root;
-  for (size_t i=0; i<n; ++i) by_root[root (i)].push_back (i);
-  std::vector<std::vector<size_t>> classes;
-  classes.reserve (by_root.size ());
-  for (auto& entry: by_root) classes.push_back (std::move (entry.second));
-
-  for (const auto& group: classes)
-    for (size_t a: group)
-      for (size_t b: group)
-        if (at (a, b) != 0) {
-          error= "compare equivalence (return 0) is not transitive on current members";
-          return false;
-        }
-
-  const size_t class_count= classes.size ();
-  std::vector<std::vector<size_t>> edges (class_count);
-  std::vector<size_t> indegree (class_count, 0);
-  for (size_t a=0; a<class_count; ++a)
-    for (size_t b=a + 1; b<class_count; ++b) {
-      int sign= at (classes[a].front (), classes[b].front ());
-      if (sign == 0) {
-        error= "compare equivalence classes are inconsistent on current members";
-        return false;
-      }
-      for (size_t ai: classes[a])
-        for (size_t bi: classes[b])
-          if (at (ai, bi) != sign) {
-            error= "compare-equivalent members disagree against another class";
-            return false;
-          }
-      size_t from= sign < 0 ? a : b;
-      size_t to= sign < 0 ? b : a;
-      edges[from].push_back (to);
-      ++indegree[to];
-    }
-  std::queue<size_t> ready;
-  for (size_t i=0; i<class_count; ++i)
-    if (indegree[i] == 0) ready.push (i);
-  size_t visited= 0;
-  while (!ready.empty ()) {
-    size_t current= ready.front ();
-    ready.pop ();
-    ++visited;
-    for (size_t next: edges[current])
-      if (--indegree[next] == 0) ready.push (next);
-  }
-  if (visited != class_count) {
-    error= "compare violates strict transitivity on the current member set";
-    return false;
-  }
+  // Zero supplies no precedence edge; it need not be transitive.
+  // Cycle detection happens when the constraints are ordered for publication.
   return true;
 }
 
@@ -816,6 +756,7 @@ evaluate_direct (const sorter_handle& sorter,
   relation->signature= sorter->revision + ":" + fingerprint;
   const auto sort_deadline= clock_type::now () + luau_sort_time_budget;
   if (sorter->key_ref != LUA_NOREF) {
+    relation->weak_order= true;
     if (members.size () > sorter_host_memory_budget / sizeof (sort_key)) {
       error= "Namespace sorter key cache exceeds the 64 MiB host memory budget.";
       return nullptr;
@@ -907,6 +848,12 @@ evaluate_direct (const sorter_handle& sorter,
   return relation;
 }
 
+static bool constraint_relation_order (
+  const std::vector<std::shared_ptr<const order_relation>>& parents,
+  const std::vector<std::string>& parent_labels,
+  const namespace_records<athena_namespace_match>& members,
+  std::vector<size_t>& output, string& error);
+
 static bool
 apply_relation (const order_relation& relation,
                 namespace_records<athena_namespace_match>& members,
@@ -917,9 +864,14 @@ apply_relation (const order_relation& relation,
   }
   std::vector<size_t> order (members.size ());
   std::iota (order.begin (), order.end (), 0);
-  std::stable_sort (order.begin (), order.end (), [&] (size_t a, size_t b) {
-    return relation.compare (a, b) < 0;
-  });
+  if (relation.weak_order) {
+    std::stable_sort (order.begin (), order.end (), [&] (size_t a, size_t b) {
+      return relation.compare (a, b) < 0;
+    });
+  }
+  else if (!constraint_relation_order (
+             {std::make_shared<const order_relation> (relation)},
+             {"sorter"}, members, order, error)) return false;
   members.reorder (order);
   return true;
 }
@@ -1195,6 +1147,7 @@ constant_relation (size_t size, const std::string& signature) {
   relation->size= size;
   relation->signature= signature;
   relation->compare= [] (size_t, size_t) { return 0; };
+  relation->weak_order= true;
   return relation;
 }
 
@@ -1210,6 +1163,7 @@ stem_relation (const namespace_records<athena_namespace_match>& members,
   relation->compare= [stems] (size_t a, size_t b) {
     return byte_compare ((*stems)[a], (*stems)[b]);
   };
+  relation->weak_order= true;
   return relation;
 }
 
@@ -1222,12 +1176,12 @@ stable_relation_order (const order_relation& relation, std::vector<size_t>& orde
   });
 }
 
-static std::shared_ptr<const order_relation>
-constraint_union_relation (
+static bool
+constraint_relation_order (
   const std::vector<std::shared_ptr<const order_relation>>& parents,
   const std::vector<std::string>& parent_labels,
   const namespace_records<athena_namespace_match>& members,
-  const std::string& signature, string& error) {
+  std::vector<size_t>& output, string& error) {
   const size_t n= members.size ();
   struct node { bool item= false; size_t item_index= 0; std::string label; };
   std::vector<node> nodes;
@@ -1247,10 +1201,24 @@ constraint_union_relation (
     ++indegree[to];
   };
 
-  for (size_t p=0; p<parents.size (); ++p) {
-    const auto& parent= *parents[p];
-    const std::string label= p < parent_labels.size ()
-      ? parent_labels[p] : "parent-" + std::to_string (p + 1);
+  std::function<void(const order_relation&, const std::string&)> append;
+  append= [&] (const order_relation& parent, const std::string& label) {
+    if (!parent.constraints.empty ()) {
+      for (size_t p=0; p<parent.constraints.size (); ++p)
+        append (*parent.constraints[p], parent.constraint_labels[p]);
+      return;
+    }
+    if (!parent.weak_order) {
+      for (size_t a=0; a<n; ++a)
+        for (size_t b=a + 1; b<n; ++b) {
+          int cmp= parent.compare (a, b);
+          if (cmp < 0) add_edge (a, b);
+          else if (cmp > 0) add_edge (b, a);
+        }
+      return;
+    }
+    // Only key/stem relations have transitive equality classes. Their edges
+    // can be represented by group barriers instead of quadratic pair lists.
     std::vector<size_t> order;
     stable_relation_order (parent, order);
     std::vector<std::vector<size_t>> groups;
@@ -1269,7 +1237,10 @@ constraint_union_relation (
       }
       before= after;
     }
-  }
+  };
+  for (size_t p=0; p<parents.size (); ++p)
+    append (*parents[p], p < parent_labels.size ()
+      ? parent_labels[p] : "parent-" + std::to_string (p + 1));
 
   std::priority_queue<size_t, std::vector<size_t>, std::greater<size_t>> ready_items;
   std::queue<size_t> ready_virtual;
@@ -1290,7 +1261,7 @@ constraint_union_relation (
     }
   };
   release_virtual ();
-  std::vector<size_t> output;
+  output.clear ();
   output.reserve (n);
   std::vector<bool> emitted (n, false);
   while (!ready_items.empty ()) {
@@ -1338,15 +1309,32 @@ constraint_union_relation (
       }
     }
     error= std_to_tm (message);
-    return nullptr;
+    return false;
   }
-  auto rank= std::make_shared<std::vector<size_t>> (n);
-  for (size_t i=0; i<n; ++i) (*rank)[output[i]]= i;
+  return true;
+}
+
+static std::shared_ptr<const order_relation>
+constraint_union_relation (
+  const std::vector<std::shared_ptr<const order_relation>>& parents,
+  const std::vector<std::string>& parent_labels,
+  const namespace_records<athena_namespace_match>& members,
+  const std::string& signature, string& error) {
+  std::vector<size_t> order;
+  if (!constraint_relation_order (parents, parent_labels, members, order, error))
+    return nullptr;
   auto relation= std::make_shared<order_relation> ();
-  relation->size= n;
+  relation->size= members.size ();
   relation->signature= signature;
-  relation->compare= [rank] (size_t a, size_t b) {
-    return ((*rank)[a] > (*rank)[b]) - ((*rank)[a] < (*rank)[b]);
+  relation->constraints= parents;
+  relation->constraint_labels= parent_labels;
+  // Keep the parent constraints, not the ranks of one linear extension.
+  relation->compare= [parents] (size_t a, size_t b) {
+    for (const auto& parent: parents) {
+      int cmp= parent->compare (a, b);
+      if (cmp != 0) return cmp;
+    }
+    return 0;
   };
   return relation;
 }
@@ -1419,6 +1407,8 @@ evaluate_composition (const vault_context_handle& context,
     auto relation= std::make_shared<order_relation> ();
     relation->size= members.size ();
     relation->signature= signature;
+    relation->weak_order= std::all_of (parents->begin (), parents->end (),
+      [] (const auto& parent) { return parent->weak_order; });
     relation->compare= [parents] (size_t a, size_t b) {
       for (const auto& parent: *parents) {
         int cmp= parent->compare (a, b);

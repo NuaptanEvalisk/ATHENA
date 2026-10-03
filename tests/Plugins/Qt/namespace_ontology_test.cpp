@@ -507,6 +507,19 @@ NamespaceOntologyTest::sorterContractsFailAtomically () {
   QCOMPARE (equivalent[1].stem, string ("a1"));
 
   write_source (
+    "return { version = 1, compare = function(a, b) "
+    "local x, y = a[1].text, b[1].text "
+    "if string.sub(x, 1, 1) ~= string.sub(y, 1, 1) then return 0 end "
+    "return athena.byte_compare(x, y) end }\n");
+  auto partial= load_sorter (path, error);
+  QVERIFY2 (partial != nullptr, as_charp (error));
+  auto incomparable= records ({"a2", "b1", "a1"}, "string");
+  QVERIFY2 (sort_namespace_members (partial, incomparable, error), as_charp (error));
+  QCOMPARE (incomparable[0].stem, string ("b1"));
+  QCOMPARE (incomparable[1].stem, string ("a1"));
+  QCOMPARE (incomparable[2].stem, string ("a2"));
+
+  write_source (
     "return { version = 1, key = function(fields) "
     "if fields[1].text == 'a' then return { 'same' } end "
     "return { 'same', 1 } end }\n");
@@ -653,6 +666,52 @@ NamespaceOntologyTest::structuralSorterCompositions () {
   QVERIFY2 (sort_namespace_members (
               context, product, invalidated, error), as_charp (error));
   QCOMPARE (invalidated[0].stem, string ("b"));
+
+  // A union of two unconstrained parents must not freeze the input order into
+  // precedence edges when another product uses it as a parent.
+  athena_namespace_definition unconstrained_first= *saved_first;
+  athena_namespace_definition unconstrained_second= *saved_second;
+  unconstrained_first.sorter_trivial= true;
+  unconstrained_second.sorter_trivial= true;
+  QVERIFY2 (athena_namespace_save (context, unconstrained_first, error),
+            as_charp (error));
+  QVERIFY2 (athena_namespace_save (context, unconstrained_second, error),
+            as_charp (error));
+  product.sorter_path= union_path;
+  product.uuid= "";
+  QVERIFY2 (athena_namespace_save (context, product, error), as_charp (error));
+  std::shared_ptr<const athena_namespace_definition> saved_product;
+  QCOMPARE (athena_namespace_get (context, product.name, saved_product, error),
+            namespace_query_status::ok);
+  product= *saved_product;
+  athena_namespace_definition ascending= *saved_second;
+  ascending.uuid= "";
+  ascending.name= "Ascending";
+  ascending.sorter_path= "ascending.luau";
+  {
+    std::ofstream source (root / "ascending.luau");
+    source << "return { version = 1, key = function(f) return { f[1].text } end }\n";
+  }
+  QVERIFY2 (athena_namespace_save (context, ascending, error), as_charp (error));
+  std::shared_ptr<const athena_namespace_definition> saved_ascending;
+  QCOMPARE (athena_namespace_get (context, ascending.name, saved_ascending, error),
+            namespace_query_status::ok);
+  ascending= *saved_ascending;
+  string nested_path;
+  QVERIFY2 (athena_namespace_generate_product_sorter (
+              context, product, ascending, "%s", "constraint-union",
+              nested_path, error), as_charp (error));
+  athena_namespace_definition nested= product;
+  nested.uuid= "test-nested-product";
+  nested.name= "Nested product";
+  nested.sorter_path= nested_path;
+  auto nested_members= members ();
+  QVERIFY2 (sort_namespace_members (context, nested, nested_members, error),
+            as_charp (error));
+  QCOMPARE (nested_members[0].stem, string ("a"));
+  QVERIFY2 (athena_namespace_save (context, *saved_first, error), as_charp (error));
+  QVERIFY2 (athena_namespace_save (context, *saved_second, error), as_charp (error));
+  product.sorter_path= first_path;
 
   athena_namespace_definition recursive= *saved_first;
   recursive.sorter_path= first_path;

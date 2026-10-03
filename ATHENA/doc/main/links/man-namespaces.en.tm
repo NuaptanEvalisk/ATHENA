@@ -71,7 +71,10 @@
 
   The sorting algorithm <math|S<rsub|N>> is a deterministic comparison on the
   captured fields of filenames matching <math|T<rsub|N>>. Two different names
-  may compare equal; a sorter is complete when this never happens.
+  may return zero, meaning that the sorter does not prescribe their relative
+  order. Zero is not required to be transitive and does not merge files into
+  equivalence classes. A sorter is complete when every distinct pair has a
+  prescribed order.
 
   Sorters are <verbatim|.luau> modules compiled in-process with the official
   Luau compiler and executed by its sandboxed bytecode VM. A version 1 module
@@ -80,9 +83,13 @@
   <verbatim|type> fields, exact signed 64-bit <verbatim|integer> values for
   integer captures, and numeric <verbatim|roman> values for Roman captures.
   String ordering is bytewise. Key sorters run once per member and are sorted
-  stably by C++; comparator sorters return exactly -1, 0, or 1 and are checked
-  against the current member set before any result is published. A trivial
-  sorter is also available; it declares all matches equal.
+  stably by C++; comparator sorters return exactly -1, 0, or 1. Nonzero results
+  supply precedence constraints, while zero supplies none. The runtime checks
+  self-comparison, opposite signs for reversed arguments, and absence of
+  precedence cycles, then produces a topological ordering. Among currently
+  eligible files it prefers their input order. A trivial sorter supplies no
+  constraints. An output position is not itself a constraint inherited by
+  child namespaces.
 
   Vaults which still reference legacy C sorter paths must be migrated offline
   with <verbatim|--upgrade-vault-sorters> and an explicit JSON-array mapping from
