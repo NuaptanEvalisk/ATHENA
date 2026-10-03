@@ -17,6 +17,7 @@
 #include "path.hpp"
 
 #include <condition_variable>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <mutex>
@@ -121,6 +122,14 @@ public:
   bool is_owner_thread () const noexcept;
   std::thread::id owner_thread () const noexcept;
   std::uint64_t completed_commands () const noexcept;
+  // Source edits, not cursor, rendering or mailbox activity. GUI consumers may
+  // use the epoch to invalidate detached derived state without reading a tree.
+  std::uint64_t source_epoch () const noexcept {
+    return source_epoch_.load (std::memory_order_acquire);
+  }
+  void source_changed () noexcept {
+    source_epoch_.fetch_add (1, std::memory_order_release);
+  }
 
   // Actor-thread accessors used by Scheme compatibility glue.
   url current_buffer_url () const;
@@ -139,6 +148,7 @@ public:
 
 private:
   const athena_actor_id id_;
+  std::atomic<std::uint64_t> source_epoch_ {1};
   athena_blob_id initial_name_;
   athena_blob_id initial_master_;
   athena_blob_id initial_title_;

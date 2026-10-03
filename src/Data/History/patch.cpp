@@ -10,6 +10,8 @@
 ******************************************************************************/
 
 #include "patch.hpp"
+#include <atomic>
+#include <cstdint>
 
 int insert_length (tree t);
 
@@ -159,20 +161,19 @@ branches (patch p, int i, int j) {
 * Author management
 ******************************************************************************/
 
-static double current_author= 0.0;
+// Each BufferActor owns its edit context; identities remain process-unique.
+static thread_local double current_author= 0.0;
 
 double
 new_author () {
-  static double next_author= 0.0;
-  next_author += 1.0;
-  return next_author;
+  static std::atomic<std::uint64_t> next_author {1};
+  return double (next_author.fetch_add (1, std::memory_order_relaxed));
 }
 
 double
 new_marker () {
-  static double next_marker= 0.5;
-  next_marker += 1.0;
-  return next_marker;
+  static std::atomic<std::uint64_t> next_marker {1};
+  return double (next_marker.fetch_add (1, std::memory_order_relaxed)) + 0.5;
 }
 
 void

@@ -49,6 +49,7 @@
 #include "QTMNamespaceExplorer.hpp"
 #include "QTMNeighborhoodsPane.hpp"
 #include "QTMNamespaceExport.hpp"
+#include "QTMCompoundDocument.hpp"
 #include "QTMWebsitesManager.hpp"
 #include "QTMReverseHierarchyGraph.hpp"
 #include "QTMFormulaAstViewer.hpp"

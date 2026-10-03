@@ -127,6 +127,7 @@ void
 edit_modify_rep::post_notify (path p) {
   // cout << "Post notify\n";
   if (!(rp <= p)) return;
+  if (buf && buf->actor) buf->actor->source_changed ();
   athena::node_reference::source_changed ();
   selection_cancel ();
   cancel_alt_selections ();
@@ -758,6 +759,7 @@ edit_modify_rep::redo (int i) {
 
 void
 edit_modify_rep::require_save () {
+  if (buf && buf->actor) buf->actor->source_changed ();
   arch->require_autosave ();
   arch->require_save ();
 }

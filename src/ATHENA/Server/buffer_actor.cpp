@@ -840,6 +840,7 @@ buffer_actor::current_source (athena_view_id view_id) {
 
 void
 buffer_actor::commit_current_source (athena_view_id view_id) {
+  source_changed ();
   ASSERT (is_owner_thread (), "document source committed outside its actor");
   auto& state= impl_->state;
   ASSERT (!state.read_only, "read-only document source cannot be committed");
@@ -1493,6 +1494,7 @@ buffer_actor::dispatch (actor_command_record& command) {
   case actor_command_kind::rename_buffer: {
     string name= actor_text_registry::instance ().take (command.payload0);
     if (N (name) != 0) {
+      source_changed ();
       impl_->state.name= url (std::move (name));
       impl_->state.master= impl_->state.name;
       impl_->state.storage.reset ();
@@ -1564,6 +1566,7 @@ buffer_actor::dispatch (actor_command_record& command) {
       if (!identities) break;
     }
     impl_->state.source_envelope= document;
+    source_changed ();
     impl_->state.artifacts.reset ();
     athena::artifact::close (id_);
     tree body= detach_data (document, impl_->state.data);
@@ -1596,6 +1599,7 @@ buffer_actor::dispatch (actor_command_record& command) {
     }
     assign (subtree (impl_->state.document, impl_->state.root_path),
             std::move (body));
+    source_changed ();
     if (identities) impl_->state.node_identities= std::move (identities);
     impl_->state.artifacts.reset ();
     athena::artifact::close (id_);

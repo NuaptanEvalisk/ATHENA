@@ -65,6 +65,10 @@ public:
     // Viewport/contents position converters.
   QPoint viewportToContents (QPoint const& pos) const { return pos + p_origin; }
   QPoint contentsToViewport (QPoint const& pos) const { return pos - p_origin; }
+
+signals:
+  // Explicit navigation, unlike scrollbar clamping during extent changes.
+  void originRequested (QPoint origin);
   
 protected:
   virtual void applyScrollDelta (int dx, int dy);

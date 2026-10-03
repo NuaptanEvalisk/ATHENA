@@ -145,6 +145,7 @@ QTMScrollView::setOrigin ( QPoint newOrigin ) {
     QAbstractScrollArea::horizontalScrollBar()->setSliderPosition(newOrigin.x());
   if (newOrigin.y() != p_origin.y())
     QAbstractScrollArea::verticalScrollBar()->setSliderPosition(newOrigin.y());
+  emit originRequested (p_origin);
 }
 
 void 

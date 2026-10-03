@@ -21,6 +21,7 @@
 #include "new_style.hpp"
 #include "iterator.hpp"
 #include "merge_sort.hpp"
+#include "Typeset/Env/compound_counters.hpp"
 #include "scheme.hpp"
 #ifdef EXPERIMENTAL
 #include "../../Style/Environment/std_environment.hpp"
@@ -318,6 +319,8 @@ edit_typeset_rep::typeset_preamble () {
   env->update ();
   env->read_env (pre);
   drd->heuristic_init (pre);
+  if (compound_counter_view)
+    compound_counter_variables= athena::avd::counter_variables (env);
 }
 
 void
@@ -327,7 +330,58 @@ edit_typeset_rep::typeset_prepare () {
   env->write_default_env ();
   env->patch_env (pre);
   env->style_init_env ();
+  if (compound_counter_view)
+    athena::avd::apply_counter_state (
+      env, compound_counter_variables, compound_incoming_counters);
   env->update ();
+}
+
+void
+edit_typeset_rep::set_compound_counters (const tree& state) {
+  athena::avd::validate_counter_state (state);
+  if (compound_counter_view && compound_incoming_counters == state) return;
+  compound_incoming_counters= copy (state);
+  compound_counter_view= true;
+  typeset_invalidate_env ();
+  typeset_invalidate_all ();
+}
+
+void
+edit_typeset_rep::clear_compound_counters () {
+  if (!compound_counter_view) return;
+  compound_counter_view= false;
+  compound_incoming_counters= tree (COLLECTION);
+  compound_counter_variables= hashset<string> ();
+  typeset_invalidate_env ();
+  typeset_invalidate_all ();
+}
+
+tree
+edit_typeset_rep::compound_counter_environment () {
+  typeset_preamble ();
+  return (tree) pre;
+}
+
+tree
+edit_typeset_rep::evaluate_compound_counters (const tree& incoming) {
+  athena::avd::validate_counter_state (incoming);
+  if (N (pre) == 0) typeset_preamble ();
+  // Semantic execution has its own environment and reference/auxiliary maps.
+  // It neither builds boxes nor changes this view's live typesetter state.
+  drd_info local_drd= drd_info ("compound-counter-evaluation", drd);
+  hashmap<string,tree> refs= copy (buf->data->ref);
+  hashmap<string,tree> global_refs= copy (grefs);
+  hashmap<string,tree> aux= copy (buf->data->aux);
+  hashmap<string,tree> attachments= copy (buf->data->att);
+  edit_env evaluation (local_drd, buf->master, refs, global_refs,
+                       aux, aux, attachments, attachments);
+  evaluation->patch_env (pre);
+  evaluation->style_init_env ();
+  evaluation->update ();
+  athena::avd::apply_counter_state (
+    evaluation, athena::avd::counter_variables (evaluation), incoming);
+  (void) evaluation->exec (subtree (et, rp));
+  return athena::avd::capture_counter_state (evaluation, incoming);
 }
 
 void

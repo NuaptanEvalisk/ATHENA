@@ -320,6 +320,7 @@ get_recent_view (url name, bool same, bool other, bool active, bool passive) {
   for (i= 0; i < N(view_history); i++) {
     tm_view vw= concrete_view (view_history[i]);
     if (vw != NULL) {
+      if (vw->compound_member) continue;
       if (same && vw->buf->buf->name != name) continue;
       if (other && vw->buf->buf->name == name) continue;
       if (active && vw->win == NULL) continue;
@@ -415,7 +416,7 @@ get_passive_view (url name) {
   array<url> vs= buffer_to_views (name);
   for (int i=0; i<N(vs); i++) {
     url win= view_to_window (vs[i]);
-    if (is_none (win)) return vs[i];
+    if (is_none (win) && !concrete_view (vs[i])->compound_member) return vs[i];
   }
   return get_new_view (buf->buf->name);
 }
@@ -427,12 +428,14 @@ get_recent_view (url name) {
   array<url> vs= buffer_to_views (name);
   if (N(vs) == 0) return get_new_view (name);
   url u= get_current_view ();
-  if (view_to_buffer (u) == name) return u;
+  if (view_to_buffer (u) == name && !concrete_view (u)->compound_member) return u;
   url r= get_recent_view (name, true, false, true, false);
   if (!is_none (r)) return r;
   r= get_recent_view (name, true, false, false, false);
   if (!is_none (r)) return r;
-  return vs[0];
+  for (int i= 0; i < N (vs); ++i)
+    if (!concrete_view (vs[i])->compound_member) return vs[i];
+  return get_new_view (name);
 }
 
 /******************************************************************************
@@ -584,7 +587,8 @@ focus_on_buffer (url name) {
   if (is_none (r)) r= get_recent_view (name, true, false, false, false);
   if (is_none (r)) {
     array<url> vws= buffer_to_views (name);
-    if (N(vws) > 0) r= vws[0];
+    for (int i= 0; i < N(vws); ++i)
+      if (!concrete_view (vws[i])->compound_member) { r= vws[i]; break; }
   }
   if (is_none (r)) return false;
   set_current_view (r);
@@ -598,7 +602,8 @@ var_focus_on_buffer (url name) {
   if (is_none (r)) r= get_recent_view (name, true, false, false, false);
   if (is_none (r)) {
     array<url> vws= buffer_to_views (name);
-    if (N(vws) > 0) r= vws[0];
+    for (int i= 0; i < N(vws); ++i)
+      if (!concrete_view (vws[i])->compound_member) { r= vws[i]; break; }
   }
   if (is_none (r)) return false;
   if (the_view != nullptr) {

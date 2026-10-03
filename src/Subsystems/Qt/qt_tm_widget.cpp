@@ -1209,6 +1209,9 @@ qt_tm_widget_rep::write (slot s, blackbox index, widget w) {
       q->hide();
       QLayout* l = centralwidget()->layout();
       l->removeWidget(q);
+      // A detached source view still owns its canvas. The old window must not
+      // destroy it when the view is retained for later reuse and undo history.
+      q->setParent(nullptr);
 
       q = concrete(w)->as_qwidget(mainwindow());   // force creation of the new QWidget
       l->addWidget(q);

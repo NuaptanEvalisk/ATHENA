@@ -1,5 +1,9 @@
 <?xml version='1.0' encoding='utf-8'?>
 <glue version="1" prefix="" initializer="initialize_glue_basic">
+  <binding name="compound-document-open" native="compound_document_open" returns="void">
+    <arg type="url" />
+  </binding>
+  <binding name="compound-document-create" native="compound_document_create" returns="void" dispatch="ui" />
   <binding name="texmacs-version-release" native="texmacs_version" returns="string">
     <arg type="string" />
   </binding>

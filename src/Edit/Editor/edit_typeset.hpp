@@ -27,6 +27,9 @@ protected:
   hashmap<string,tree> init;              // environment changes w.r.t. style
   hashmap<string,tree> fin;               // environment changes w.r.t. doc
   hashmap<string,tree> grefs;             // global references
+  bool compound_counter_view= false;
+  tree compound_incoming_counters= tree (COLLECTION);
+  hashset<string> compound_counter_variables;
   hashset<string> folded_headings;         // screen-only folded heading paths
   hashset<string> folded_tocs;             // explicit screen-only ToC states
   hashset<string> unfolded_tocs;
@@ -63,6 +66,12 @@ public:
   void clear_local_info ();
   void set_data (new_data data);
   void get_data (new_data& data);
+
+  // Owner-actor operations. This overlay belongs to one view, never buffer init.
+  void set_compound_counters (const tree& state);
+  void clear_compound_counters ();
+  tree evaluate_compound_counters (const tree& incoming);
+  tree compound_counter_environment ();
 
   SI       as_length (string l);
   string   add_lengths (string l1, string l2);

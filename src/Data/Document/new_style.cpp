@@ -24,6 +24,8 @@
 #include <filesystem>
 #include <limits>
 #include <mutex>
+#include <string>
+#include <vector>
 
 /******************************************************************************
 * Global data
@@ -678,30 +680,57 @@ collect_style_names (url u, array<string>& out) {
   out << name;
 }
 
+namespace {
+struct style_name_catalog {
+  std::mutex mutex;
+  std::uint64_t generation= std::numeric_limits<std::uint64_t>::max ();
+  std::vector<std::string> names;
+};
+
+struct local_style_names {
+  std::uint64_t generation= std::numeric_limits<std::uint64_t>::max ();
+  array<string> names;
+};
+
+array<string>
+cached_style_names (const char* root, style_name_catalog& catalog,
+                    local_style_names& local) {
+  const std::uint64_t current= style_cache_generation ();
+  if (local.generation != current) {
+    std::lock_guard<std::mutex> lock (catalog.mutex);
+    if (catalog.generation != current) {
+      array<string> collected;
+      collect_style_names (descendance (root), collected);
+      std::vector<std::string> names;
+      names.reserve (N (collected));
+      for (int i= 0; i < N (collected); ++i)
+        names.emplace_back (collected[i].data (), N (collected[i]));
+      catalog.names= std::move (names);
+      catalog.generation= current;
+    }
+    // Native containers have non-atomic reference counts. Keep the returned
+    // array and all its strings local to the consuming actor thread.
+    local.names= array<string> ();
+    for (const auto& name: catalog.names)
+      local.names << string (name.data (), int (name.size ()));
+    local.generation= current;
+  }
+  return local.names;
+}
+}
+
 array<string>
 get_style_names () {
-  static std::uint64_t generation= std::numeric_limits<std::uint64_t>::max ();
-  static array<string> result;
-  const std::uint64_t current= style_cache_generation ();
-  if (generation != current) {
-    result= array<string> ();
-    collect_style_names (descendance ("$ATHENA_STYLE_ROOT"), result);
-    generation= current;
-  }
-  return result;
+  static style_name_catalog catalog;
+  static thread_local local_style_names local;
+  return cached_style_names ("$ATHENA_STYLE_ROOT", catalog, local);
 }
 
 array<string>
 get_package_names () {
-  static std::uint64_t generation= std::numeric_limits<std::uint64_t>::max ();
-  static array<string> result;
-  const std::uint64_t current= style_cache_generation ();
-  if (generation != current) {
-    result= array<string> ();
-    collect_style_names (descendance ("$ATHENA_PACKAGE_ROOT"), result);
-    generation= current;
-  }
-  return result;
+  static style_name_catalog catalog;
+  static thread_local local_style_names local;
+  return cached_style_names ("$ATHENA_PACKAGE_ROOT", catalog, local);
 }
 
 object

@@ -27,6 +27,8 @@ void window_focus (url win);
 void switch_to_window (url win);
 
 url  create_buffer ();
+url  new_window (bool map_flag= true, tree geom= "");
+void delete_window (url win);
 void new_document_buffer ();
 url  open_window (tree geom= "");
 void open_initial_window ();

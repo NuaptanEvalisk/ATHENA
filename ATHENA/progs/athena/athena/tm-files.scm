@@ -747,7 +747,9 @@
       (if (current-buffer)
           (set! name (url-relative (current-buffer) name))
           (set! name (url-append (url-pwd) name))))
-  (load-buffer-check-autosave name opts))
+  (if (== (url-suffix name) "avd")
+      (compound-document-open name)
+      (load-buffer-check-autosave name opts)))
 
 (tm-define (load-buffer name . opts)
   (:argument name smart-file "File name")

@@ -986,6 +986,8 @@ void QTMMainTabWindow::tabTitleChanged(QWidget *widget, QString title) {
   QWidget* p = widget->parentWidget();
   while (p) {
     if (ads::CDockWidget* dockWidget = qobject_cast<ads::CDockWidget*>(p)) {
+      // Nested source windows do not own the containing compound-document tab.
+      if (dockWidget->widget () != widget) return;
       dockWidget->setWindowTitle(title);
       if (widgetOrChildHasFocus(widget)) setMainTitle(title);
       break;

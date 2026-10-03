@@ -25,6 +25,7 @@
 #include "QTMMaterialsManager.hpp"
 #include "QTMNamespaceExplorer.hpp"
 #include "QTMNamespaceExport.hpp"
+#include "QTMCompoundDocument.hpp"
 #include "QTMNamespaceManager.hpp"
 #include "QTMNativeDialogs.hpp"
 #include "QTMNeighborhoodsPane.hpp"
@@ -662,6 +663,12 @@ QTMCommandRegistry::registerApplicationCommands () {
     "file.export-namespace", QTMCommandScope::Workspace,
     [] (const QTMCommandContext&) {
       namespace_export_show ();
+      return true;
+    });
+  registerBehavior (
+    "workspace.new-compound-document", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      compound_document_create ();
       return true;
     });
   registerBehavior (

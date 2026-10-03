@@ -2,6 +2,13 @@
   "version": 3,
   "commands": [
     {
+      "id": "workspace.new-compound-document",
+      "label": "New compound document...",
+      "category": "Workspace",
+      "icon": "document-new",
+      "help": "Create a compound view of a namespace"
+    },
+    {
       "id": "application.new-document",
       "label": "New document",
       "category": "File",
@@ -1163,6 +1170,7 @@
       "label": "Workspace",
       "items": [
         { "command": "application.new-tab" },
+        { "command": "workspace.new-compound-document" },
         { "command": "workspace.new-floating-window" },
         { "command": "workspace.configure-vault-font" },
         { "command": "workspace.global-transformation" },

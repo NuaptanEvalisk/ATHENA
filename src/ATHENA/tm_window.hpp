@@ -78,6 +78,7 @@ public:
   tm_view   master_view;
   int       nr;
   athena_view_id runtime_id;
+  bool compound_member= false; // dedicated view; not reusable by ordinary tabs
   tm_view_rep (tm_buffer buf2);
 };
 
