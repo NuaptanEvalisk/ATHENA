@@ -39,5 +39,8 @@ struct edit_participant {
 // Reservations cover source actors, including their other views.
 void submit_edit_batch (std::vector<edit_participant>,
                        std::function<void(std::string)> completion);
+void submit_source_task (athena_actor_id, athena_view_id,
+                         std::function<void(editor_rep&)>,
+                         std::function<void(std::string)> completion);
 
 } // namespace athena::avd

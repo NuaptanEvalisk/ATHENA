@@ -13,6 +13,11 @@
 #include <optional>
 #include <set>
 
+class editor_rep;
+// Called on an owner actor; completion may run on that actor or the GUI.
+void athena_node_reference_with_native_export (
+  std::function<void(editor_rep&)>, std::function<void(std::string)>);
+
 namespace athena::node_reference {
 struct selection {
   std::vector<std::string> ids, ancestry;

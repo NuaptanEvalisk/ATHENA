@@ -20,16 +20,33 @@
 #include "scheme.hpp"
 #include "qt_gui.hpp"
 #include "namespaces.hpp"
+#include "namespace_ontology.hpp"
 #include "new_buffer.hpp"
 #include "new_view.hpp"
 #include "new_window.hpp"
 #include "tm_window.hpp"
 #include "buffer_actor.hpp"
+#include "buffer_state.hpp"
+#include "QTMDocumentHistory.hpp"
+#include "QTMVaultBackupDispatcher.hpp"
 #include "new_style.hpp"
 #include "Edit/Editor/edit_typeset.hpp"
+#include "Edit/Editor/edit_main.hpp"
 #include "qt_utilities.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
+#include "Data/Convert/Xml/clipboard_xml.hpp"
+#include "convert.hpp"
+#include "ATHENA/Data/node_reference_export.hpp"
+#include "Subsystems/Pdf/PDFWriter/PDFWriter.h"
+#include <QAbstractButton>
+#include <QTemporaryDir>
+#include <QSaveFile>
+#include <QProgressDialog>
+#include <QDesktopServices>
+#include <QUrl>
+#include <QDateTime>
+#include <QInputMethodEvent>
 #include <QAbstractScrollArea>
 #include <QApplication>
 #include <QDir>
@@ -79,6 +96,53 @@ tree counter_tree (const QByteArray& bytes) {
     athena::document::xml_kind::fragment);
 }
 
+QByteArray file_revision (const QString& filename) {
+  QFile file (filename);
+  if (!file.exists ()) return {};
+  if (!file.open (QIODevice::ReadOnly)) throw std::runtime_error (file.errorString ().toStdString ());
+  QCryptographicHash digest (QCryptographicHash::Sha256);
+  if (!digest.addData (&file)) throw std::runtime_error ("Could not fingerprint export destination");
+  return digest.result ();
+}
+
+struct CompoundPdfJob {
+  QTemporaryDir directory;
+  QString destination;
+  QByteArray original, counters;
+  std::vector<std::uint64_t> epochs;
+  QPointer<QProgressDialog> progress;
+  std::atomic<bool> cancelled {false};
+  bool preview= false;
+  int next_page= -1;
+};
+
+void merge_compound_pdf (const std::shared_ptr<CompoundPdfJob>& job, std::size_t count) {
+  const QString merged= job->directory.filePath ("compound.pdf");
+  PDFWriter writer;
+  if (writer.StartPDF (merged.toStdString (), ePDFVersion17) != PDFHummus::eSuccess)
+    throw std::runtime_error ("Could not create compound PDF");
+  for (std::size_t i= 0; i < count; ++i) {
+    if (job->cancelled) throw std::runtime_error ("PDF export cancelled");
+    if (writer.AppendPDFPagesFromPDF (job->directory.filePath (QString::number (i) + ".pdf").toStdString (),
+                                     PDFPageRange ()).first != PDFHummus::eSuccess)
+      throw std::runtime_error ("Could not append source PDF pages");
+  }
+  if (writer.EndPDF () != PDFHummus::eSuccess) throw std::runtime_error ("Could not finish compound PDF");
+  QFile input (merged);
+  QSaveFile output (job->destination);
+  output.setDirectWriteFallback (false);
+  if (!input.open (QIODevice::ReadOnly) || !output.open (QIODevice::WriteOnly))
+    throw std::runtime_error ("Could not publish compound PDF");
+  while (!input.atEnd ()) {
+    const auto bytes= input.read (4 * 1024 * 1024);
+    if (input.error () != QFileDevice::NoError || output.write (bytes) != bytes.size ())
+      throw std::runtime_error ("Could not write compound PDF");
+  }
+  if (job->cancelled || file_revision (job->destination) != job->original)
+    throw std::runtime_error ("Export cancelled or destination changed externally");
+  if (!output.commit ()) throw std::runtime_error (output.errorString ().toStdString ());
+}
+
 class MemberScrollBar: public QScrollBar {
   const athena::avd::layout_index& layout_;
 public:
@@ -103,6 +167,7 @@ protected:
 class QTMCompoundViewport: public QAbstractScrollArea {
   struct SourceView {
     url view= url_none ();
+    athena_view_id runtime_id= ATHENA_NO_VIEW;
     url window= url_none ();
     QPointer<QTMWidget> canvas;
     QPointer<QWidget> host;
@@ -118,6 +183,12 @@ class QTMCompoundViewport: public QAbstractScrollArea {
   std::vector<SourceView> views_;
   QTimer refresh_;
   QTimer save_cache_;
+  QTimer membership_timer_;
+  vault_context_handle vault_= vault_capture_context ();
+  std::uint64_t membership_revision_= 0;
+  QString sorter_filename_;
+  qint64 sorter_stamp_= 0;
+  bool membership_pending_= false;
   std::size_t counter_next_= 0;
   std::size_t counter_target_= 0;
   std::uint64_t counter_job_= 0;
@@ -134,6 +205,11 @@ class QTMCompoundViewport: public QAbstractScrollArea {
   std::size_t selection_pending_= 0;
   bool delete_when_ready_= false;
   bool edit_pending_= false;
+  bool io_pending_= false;
+  std::vector<std::unique_ptr<QEvent>> deferred_inputs_;
+  std::shared_ptr<CompoundPdfJob> pdf_job_;
+  QString pending_selection_command_;
+  QString pending_input_;
   unsigned queued_selections_= 0;
   struct MouseEndpoint {
     std::size_t member;
@@ -159,6 +235,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
   }
 
   void activateMember (std::size_t i) {
+    if (const auto source= concrete_runtime_view (views_[i].runtime_id)) views_[i].view= abstract_view (source);
     active_member_= i;
     owner_.activateMember (views_[i].canvas);
     set_current_view (views_[i].view);
@@ -176,6 +253,11 @@ class QTMCompoundViewport: public QAbstractScrollArea {
 
   tm_view ensureView (std::size_t i) {
     auto& item= views_[i];
+    if (item.runtime_id != ATHENA_NO_VIEW)
+      if (auto view= concrete_runtime_view (item.runtime_id)) {
+        item.view= abstract_view (view);
+        return view;
+      }
     if (!is_none (item.view))
       if (auto view= concrete_view (item.view)) return view;
     const url source= source_url (members_[i].filename);
@@ -183,6 +265,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
       throw std::runtime_error ("Could not open compound source: " + members_[i].filename.toStdString ());
     item.view= get_new_view (source);
     const auto view= concrete_view (item.view);
+    item.runtime_id= view->runtime_id;
     view->compound_member= true;
     return view;
   }
@@ -209,7 +292,10 @@ class QTMCompoundViewport: public QAbstractScrollArea {
     item.canvas->viewport ()->installEventFilter (this);
     item.canvas->surface ()->installEventFilter (this);
     connect (item.canvas, &QTMScrollView::originRequested,
-      this, [this, i] (QPoint position) {
+      this, [this, canvas= item.canvas] (QPoint position) {
+        std::size_t i= 0;
+        while (i < views_.size () && views_[i].canvas != canvas) ++i;
+        if (i == views_.size ()) return;
         const auto& source= views_[i];
         if (arranging_ || !source.visible || (compound_drag_ && mouse_down_)) return;
         updateRange (layout_.top (i) + member_heading_height + position.y () -
@@ -230,6 +316,8 @@ class QTMCompoundViewport: public QAbstractScrollArea {
 
   void clearSelection (bool keep_drag= false) {
     if (!keep_drag) {
+      pending_selection_command_.clear ();
+      pending_input_.clear ();
       compound_drag_= false;
       drag_dirty_= false;
       drag_timer_.stop ();
@@ -353,6 +441,11 @@ class QTMCompoundViewport: public QAbstractScrollArea {
             self->views_[target].canvas->setFocus (Qt::OtherFocusReason);
           }
           if (self->delete_when_ready_) self->eraseSelection ();
+          if (!self->pending_selection_command_.isEmpty () && !self->drag_queued_ && !self->drag_dirty_) {
+            const auto id= self->pending_selection_command_, input= self->pending_input_;
+            self->pending_selection_command_.clear ();
+            self->selectionCommand (id, input);
+          }
         }, Qt::QueuedConnection);
       });
   }
@@ -364,7 +457,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
   MouseEndpoint mouseEndpoint (std::size_t member, QPoint global) {
     mount (member);
     const auto& canvas= views_[member].canvas;
-    const auto view= concrete_view (views_[member].view);
+    const auto view= concrete_runtime_view (views_[member].runtime_id);
     return {member, canvas->surface ()->mapFromGlobal (global) + canvas->origin (),
             view->buf->actor->source_epoch ()};
   }
@@ -401,21 +494,261 @@ class QTMCompoundViewport: public QAbstractScrollArea {
     });
   }
 
-  void eraseSelection () {
+  void eraseSelection (std::string replacement= {}) {
     if (selection_.empty () || edit_pending_) return;
     if (selection_pending_ != 0 || drag_dirty_ || drag_queued_) { delete_when_ready_= true; return; }
     edit_pending_= true;
     delete_when_ready_= false;
     QPointer<QTMCompoundViewport> self (this);
-    athena::avd::erase_ranges (selection_, [self] (std::string error) {
-      QMetaObject::invokeMethod (qApp, [self, error= std::move (error)] {
+    const auto first_view= selection_.front ().view;
+    athena::avd::replace_ranges (selection_, std::move (replacement), [self, first_view] (std::string error) {
+      QMetaObject::invokeMethod (qApp, [self, first_view, error= std::move (error)] {
         if (!error.empty ())
           std_warning << "Compound deletion: " << string (error.c_str ()) << LF;
         if (!self) return;
         self->edit_pending_= false;
-        if (error.empty ()) self->clearSelection ();
+        if (error.empty ()) {
+          self->clearSelection ();
+          for (std::size_t i= 0; i < self->views_.size (); ++i)
+            if (self->views_[i].runtime_id == first_view) {
+              self->updateRange (self->layout_.top (i));
+              self->arrange (); self->mount (i); self->activateMember (i);
+              self->views_[i].canvas->setFocus (Qt::OtherFocusReason);
+              self->submit (i, [] { current_scheme_execution_context ()->editor->go_to_here (); });
+              break;
+            }
+        }
       }, Qt::QueuedConnection);
     });
+  }
+
+  void selectionCommand (QString id, QString input= {}) {
+    if (edit_pending_) return;
+    if (selection_pending_ || drag_dirty_ || drag_queued_) {
+      pending_selection_command_= id; pending_input_= input;
+      return;
+    }
+    if (id == "editor.paste" || id == "avd.input") {
+      tree value; string bytes;
+      if (id == "avd.input") value= tuple ("texmacs",
+        input == "\r" || input == "\n" ? tree (DOCUMENT, "", "") : tree (from_qstring_utf8 (input)), "text", "english");
+      else if (!::get_selection ("primary", value, bytes, "default")) return;
+      eraseSelection (athena::document::write_clipboard_xml (value));
+      return;
+    }
+    if (id == "editor.delete") { eraseSelection (); return; }
+    if (id != "editor.copy" && id != "editor.cut") return;
+    edit_pending_= true;
+    QPointer<QTMCompoundViewport> self (this);
+    const auto serial= selection_serial_->load ();
+    athena::avd::copy_ranges (selection_, [self, id, serial] (std::string error, std::vector<std::string> pieces) {
+      QMetaObject::invokeMethod (qApp, [self, id, serial, error= std::move (error), pieces= std::move (pieces)] {
+        if (!self) return;
+        self->edit_pending_= false;
+        if (!error.empty ()) { std_warning << "Compound clipboard: " << string (error.c_str ()) << LF; return; }
+        if (self->selection_serial_->load () != serial) return;
+        tree body (DOCUMENT);
+        for (const auto& bytes: pieces) {
+          const tree envelope= athena::document::read_clipboard_xml (bytes);
+          tree content= envelope[1];
+          if (envelope[2] == "math") content= compound ("math", content);
+          if (is_document (content)) for (int i= 0; i < N(content); ++i) body << content[i];
+          else body << content;
+        }
+        const tree envelope= tuple ("texmacs", body, "text", "english");
+        const auto bytes= athena::document::write_clipboard_xml (envelope);
+        if (!::set_selection ("primary", envelope, string (bytes.data (), int (bytes.size ())),
+                              tree_to_verbatim (body, false, "utf-8"), "", "default")) return;
+        if (id == "editor.cut") self->eraseSelection ();
+      }, Qt::QueuedConnection);
+    });
+  }
+
+  void reportFailure (const QString& operation, const QString& error) {
+    std_error << "Compound document " << from_qstring_utf8 (operation) << ": "
+              << from_qstring_utf8 (error) << LF;
+    QMessageBox::warning (&owner_, operation, error);
+  }
+
+  void inspectModified (std::function<void(std::vector<std::size_t>)> completion) {
+    auto dirty= std::make_shared<std::vector<unsigned char>> (members_.size (), 0);
+    std::vector<athena::avd::edit_participant> participants;
+    for (std::size_t i= 0; i < members_.size (); ++i) {
+      if (is_nil (concrete_buffer (source_url (members_[i].filename)))) continue;
+      const auto view= ensureView (i);
+      athena::avd::edit_participant member;
+      member.actor= view->buf->actor->id (); member.view= view->runtime_id;
+      member.prepare= [dirty, i] (editor_rep& editor) {
+        (*dirty)[i]= editor.need_save () || current_scheme_execution_context ()->actor->current_state ()->source_modified;
+      };
+      member.apply= member.rollback= member.commit= [] (editor_rep&) {};
+      participants.push_back (std::move (member));
+    }
+    if (participants.empty ()) { completion ({}); return; }
+    io_pending_= true;
+    QPointer<QTMCompoundViewport> self (this);
+    athena::avd::submit_edit_batch (std::move (participants),
+      [self, dirty, completion= std::move (completion)] (std::string error) {
+        QMetaObject::invokeMethod (qApp, [self, dirty, completion, error= std::move (error)] {
+          if (!self) return;
+          self->io_pending_= false;
+          if (!error.empty ()) { self->reportFailure (tr ("Inspect Compound Documents"), QString::fromStdString (error)); return; }
+          std::vector<std::size_t> result;
+          for (std::size_t i= 0; i < dirty->size (); ++i) if ((*dirty)[i]) result.push_back (i);
+          completion (std::move (result));
+        }, Qt::QueuedConnection);
+      });
+  }
+
+  void saveSources (std::shared_ptr<std::vector<std::size_t>> indices,
+                    std::size_t next, bool close_after) {
+    if (next == indices->size ()) {
+      io_pending_= false;
+      saveCounterCache ();
+      if (close_after) requestClose ();
+      return;
+    }
+    const auto i= (*indices)[next];
+    const auto view= ensureView (i);
+    qtm_document_history_manual_request (view->buf);
+    io_pending_= true;
+    QPointer<QTMCompoundViewport> self (this);
+    const auto filename= members_[i].filename;
+    athena::avd::submit_source_task (view->buf->actor->id (), view->runtime_id,
+      [] (editor_rep& editor) {
+        auto* state= current_scheme_execution_context ()->actor->current_state ();
+        if (!state->source_modified && !editor.need_save ()) return;
+        if (state->read_only) throw std::runtime_error ("Source is read-only");
+        if (buffer_save (state->name)) throw std::runtime_error ("Could not save source document; original file retained");
+      }, [self, indices, next, close_after, filename] (std::string error) {
+        QMetaObject::invokeMethod (qApp, [self, indices, next, close_after, filename, error= std::move (error)] {
+          if (!self) return;
+          if (!error.empty ()) {
+            self->io_pending_= false;
+            self->reportFailure (tr ("Save Compound Documents"), filename + ": " + QString::fromStdString (error));
+            return;
+          }
+          qtm_vault_backup_dispatch_realtime (filename);
+          self->saveSources (indices, next + 1, close_after);
+        }, Qt::QueuedConnection);
+      });
+  }
+
+  void saveAll (bool close_after= false) {
+    if (edit_pending_ || io_pending_) return;
+    inspectModified ([this, close_after] (std::vector<std::size_t> dirty) {
+      saveSources (std::make_shared<std::vector<std::size_t>> (std::move (dirty)), 0, close_after);
+    });
+  }
+
+  void finishClose () {
+    auto* shell= QTMMainTabWindow::topTabWindow ();
+    shell->removeWidget (&owner_);
+    owner_.deleteLater ();
+  }
+
+  void finishPdf (const std::shared_ptr<CompoundPdfJob>& job, const QString& error) {
+    if (job->progress) job->progress->deleteLater ();
+    io_pending_= false;
+    pdf_job_.reset ();
+    invalidateCounters (0);
+    if (!error.isEmpty () && !job->cancelled) reportFailure (tr ("Export Compound PDF"), error);
+    else if (error.isEmpty () && job->preview)
+      QDesktopServices::openUrl (QUrl::fromLocalFile (job->destination));
+  }
+
+  void exportMember (const std::shared_ptr<CompoundPdfJob>& job, std::size_t index) {
+    if (job->cancelled) { finishPdf (job, tr ("Cancelled")); return; }
+    if (index == members_.size ()) {
+      for (std::size_t i= 0; i < members_.size (); ++i) {
+        const auto source= concrete_runtime_view (views_[i].runtime_id);
+        if (!source || source->buf->actor->source_epoch () != job->epochs[i]) {
+          finishPdf (job, tr ("A source changed during export; please export again.")); return;
+        }
+      }
+      QPointer<QTMCompoundViewport> self (this);
+      QThreadPool::globalInstance ()->start ([self, job, count= members_.size ()] {
+        QString error;
+        try { merge_compound_pdf (job, count); }
+        catch (const std::exception& e) { error= QString::fromUtf8 (e.what ()); }
+        QMetaObject::invokeMethod (qApp, [self, job, error] { if (self) self->finishPdf (job, error); }, Qt::QueuedConnection);
+      });
+      return;
+    }
+    job->progress->setValue (int (index));
+    job->progress->setLabelText (members_[index].relative_filename);
+    tm_view view;
+    try { view= ensureView (index); }
+    catch (const std::exception& error) { finishPdf (job, QString::fromUtf8 (error.what ())); return; }
+    catch (const string& error) { finishPdf (job, to_qstring (error)); return; }
+    const auto incoming= job->counters;
+    QPointer<QTMCompoundViewport> self (this);
+    const auto finish= [self, job, index] (std::string error) {
+      QMetaObject::invokeMethod (qApp, [self, job, index, error= std::move (error)] {
+        if (!self) return;
+        if (!error.empty ()) self->finishPdf (job, QString::fromStdString (error));
+        else self->exportMember (job, index + 1);
+      }, Qt::QueuedConnection);
+    };
+    athena::avd::submit_source_task (view->buf->actor->id (), view->runtime_id,
+      [job, index, incoming, finish] (editor_rep& editor) {
+        auto& typesetter= dynamic_cast<edit_typeset_rep&> (editor);
+        typesetter.set_compound_counters (incoming.isEmpty () ? tree (COLLECTION) : counter_tree (incoming));
+        athena_node_reference_with_native_export ([job, index, incoming] (editor_rep& source) {
+          if (job->cancelled) throw std::runtime_error ("PDF export cancelled");
+          auto& typesetter= dynamic_cast<edit_typeset_rep&> (source);
+          job->counters= counter_bytes (typesetter.evaluate_compound_counters (
+            incoming.isEmpty () ? tree (COLLECTION) : counter_tree (incoming)));
+          job->next_page= dynamic_cast<edit_main_rep&> (source).print_doc_numbered (
+            source_url (job->directory.filePath (QString::number (index) + ".pdf")), job->next_page);
+          job->epochs[index]= current_scheme_execution_context ()->actor->source_epoch ();
+        }, finish);
+      }, [finish] (std::string error) { if (!error.empty ()) finish (std::move (error)); });
+  }
+
+  void exportPdf (bool preview) {
+    if (io_pending_ || edit_pending_ || members_.empty ()) return;
+    const auto target= QFileDialog::getSaveFileName (&owner_, tr ("Export Compound PDF"),
+      QFileInfo (filename_).absolutePath () + "/" + QFileInfo (filename_).completeBaseName () + ".pdf",
+      tr ("PDF documents (*.pdf)"));
+    if (target.isEmpty ()) return;
+    auto job= std::make_shared<CompoundPdfJob> ();
+    if (!job->directory.isValid ()) { reportFailure (tr ("Export Compound PDF"), tr ("Could not create temporary directory")); return; }
+    job->destination= target;
+    try { job->original= file_revision (target); }
+    catch (const std::exception& e) { reportFailure (tr ("Export Compound PDF"), QString::fromUtf8 (e.what ())); return; }
+    job->preview= preview;
+    job->epochs.resize (members_.size ());
+    job->progress= new QProgressDialog (tr ("Preparing compound PDF"), tr ("Cancel"), 0, int (members_.size ()), &owner_);
+    job->progress->setAutoClose (false);
+    connect (job->progress, &QProgressDialog::canceled, this, [weak= std::weak_ptr<CompoundPdfJob> (job)] {
+      if (auto job= weak.lock ()) job->cancelled= true;
+    });
+    job->progress->show ();
+    io_pending_= true;
+    pdf_job_= job;
+    ++counter_job_;
+    exportMember (job, 0);
+  }
+
+  void saveAs () {
+    if (io_pending_ || edit_pending_) return;
+    QString target= QFileDialog::getSaveFileName (&owner_, tr ("Save Compound Document As"), filename_, tr ("Compound documents (*.avd)"));
+    if (target.isEmpty ()) return;
+    if (!target.endsWith (".avd", Qt::CaseInsensitive)) target += ".avd";
+    auto value= descriptor_.value;
+    const auto vault= QDir (QFileInfo (filename_).absolutePath ()).absoluteFilePath (value.vault_directory);
+    value.vault_directory= QDir (QFileInfo (target).absolutePath ()).relativeFilePath (vault);
+    value.checkpoints= counters_.persistent_checkpoints ();
+    try {
+      descriptor_.revision= athena::avd::save_descriptor (target, value, file_revision (target));
+      descriptor_.value= std::move (value);
+      filename_= target;
+      cache_dirty_= cache_write_failed_= false;
+      owner_.setWindowTitle (QFileInfo (target).fileName ());
+      saveAll ();
+    }
+    catch (const std::exception& e) { reportFailure (tr ("Save Compound Document As"), QString::fromUtf8 (e.what ())); }
   }
 
   void invalidateCounters (std::size_t first) {
@@ -438,7 +771,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
     }
     for (std::size_t i= 0; i < views_.size (); ++i) {
       if (views_[i].source_epoch == 0) continue;
-      const auto view= concrete_view (views_[i].view);
+      const auto view= concrete_runtime_view (views_[i].runtime_id);
       if (!view || view->buf->actor->source_epoch () != views_[i].source_epoch) {
         invalidateCounters (i);
         return;
@@ -499,6 +832,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
   }
 
   void scheduleCounters () {
+    if (io_pending_) return;
     if (counter_pending_ || counter_failed_ || counter_next_ >= members_.size () ||
         counter_next_ > counter_target_) return;
     const std::size_t i= counter_next_;
@@ -528,7 +862,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
           guard->checkCounterChanges ();
           if (job != guard->counter_job_) return;
           if (!result->error.isEmpty ()) { guard->counterError (result->error); return; }
-          const auto view= concrete_view (guard->views_[i].view);
+          const auto view= concrete_runtime_view (guard->views_[i].runtime_id);
           if (!view || view->buf->actor->source_epoch () != result->epoch) {
             guard->invalidateCounters (i);
             return;
@@ -559,7 +893,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
   void suspend (SourceView& item) {
     if (!item.canvas || !item.visible) return;
     item.host->hide ();
-    const auto view= concrete_view (item.view);
+    const auto view= concrete_runtime_view (item.runtime_id);
     if (view) view->buf->actor->submit (actor_command_kind::suspend_view, view->runtime_id);
     item.visible= false;
   }
@@ -584,7 +918,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
         auto& item= views_[i];
         item.host->setGeometry (0, top, viewport ()->width (), bottom - top);
         if (!item.visible) {
-          const auto view= concrete_view (item.view);
+          const auto view= concrete_runtime_view (item.runtime_id);
           view->buf->actor->submit (actor_command_kind::resume_view, view->runtime_id);
           item.visible= true;
           item.host->show ();
@@ -607,6 +941,12 @@ class QTMCompoundViewport: public QAbstractScrollArea {
 
   void refreshGeometry () {
     if (arranging_) return;
+    if (!edit_pending_ && !io_pending_ && !selection_pending_ && !queued_selections_ && !drag_queued_ &&
+        !mouse_down_ && active_member_ < views_.size () && views_[active_member_].canvas) {
+      auto pending= std::move (deferred_inputs_);
+      deferred_inputs_.clear ();
+      for (auto& event: pending) QCoreApplication::postEvent (views_[active_member_].canvas, event.release ());
+    }
     owner_.refreshToolbars ();
     if (active_member_ < views_.size ()) {
       if (auto* host= qobject_cast<QTMWindow*> (views_[active_member_].host.data ())) {
@@ -638,12 +978,122 @@ class QTMCompoundViewport: public QAbstractScrollArea {
     }
   }
 
+  void releaseSource (SourceView& item) {
+    if (item.canvas) {
+      item.canvas->removeEventFilter (this);
+      item.canvas->viewport ()->removeEventFilter (this);
+      item.canvas->surface ()->removeEventFilter (this);
+      disconnect (item.canvas, nullptr, this, nullptr);
+    }
+    if (item.host) { item.host->hide (); item.host->setParent (nullptr); }
+    if (!is_none (item.window)) delete_window (item.window);
+    if (const auto view= concrete_runtime_view (item.runtime_id)) {
+      const auto view_id= item.runtime_id;
+      athena::avd::submit_source_task (view->buf->actor->id (), view->runtime_id,
+        [] (editor_rep& editor) { dynamic_cast<edit_typeset_rep&> (editor).clear_compound_counters (); },
+        [view_id] (std::string error) {
+          QMetaObject::invokeMethod (qApp, [view_id, error= std::move (error)] {
+            if (!error.empty ()) std_warning << "Compound source detach: " << string (error.c_str ()) << LF;
+            else if (const auto source= concrete_runtime_view (view_id)) source->compound_member= false;
+          }, Qt::QueuedConnection);
+        });
+    }
+  }
+
+  void refreshMembers () {
+    const auto revision= athena_namespace_ontology_revision ();
+    const auto sorter_stamp= sorter_filename_.isEmpty () ? 0 : QFileInfo (sorter_filename_).lastModified ().toMSecsSinceEpoch ();
+    if (membership_pending_ || (revision == membership_revision_ && sorter_stamp == sorter_stamp_) || io_pending_ || edit_pending_ ||
+        mouse_down_ || selection_pending_ || !selection_.empty () || !vault_context_is_current (vault_)) return;
+    membership_pending_= true;
+    QPointer<QTMCompoundViewport> self (this);
+    const auto filename= filename_;
+    const auto descriptor= descriptor_.value;
+    const auto vault= vault_;
+    QThreadPool::globalInstance ()->start ([self, filename, descriptor, vault, revision] {
+      std::vector<athena::avd::member> members;
+      QString error, sorter;
+      try {
+        members= athena::avd::resolve_members (filename, descriptor, vault);
+        std::shared_ptr<const athena_namespace_definition> definition;
+        string diagnostic;
+        if (athena_namespace_get_by_uuid (vault, from_qstring_utf8 (descriptor.namespace_uuid), definition, diagnostic) == namespace_query_status::ok &&
+            !definition->sorter_trivial && definition->sorter_path != "")
+          sorter= QDir (QString::fromStdString (vault->root.string ())).absoluteFilePath (to_qstring (definition->sorter_path));
+      }
+      catch (const std::exception& e) { error= QString::fromUtf8 (e.what ()); }
+      QMetaObject::invokeMethod (qApp, [self, members= std::move (members), revision, error, sorter] () mutable {
+        if (!self) return;
+        self->membership_pending_= false;
+        if (self->io_pending_ || self->edit_pending_ || self->mouse_down_ || !self->selection_.empty ()) return;
+        self->membership_revision_= revision;
+        if (!sorter.isEmpty ()) self->sorter_filename_= sorter;
+        self->sorter_stamp_= QFileInfo (self->sorter_filename_).lastModified ().toMSecsSinceEpoch ();
+        if (!error.isEmpty ()) {
+          std_warning << "Compound namespace refresh: " << from_qstring_utf8 (error) << LF; return;
+        }
+        bool same= members.size () == self->members_.size ();
+        for (std::size_t i= 0; same && i < members.size (); ++i)
+          same= members[i].filename == self->members_[i].filename;
+        if (same) return;
+        const auto anchor= self->layout_.member_at (self->offset ());
+        QString anchor_name= anchor < self->members_.size () ? self->members_[anchor].filename : QString ();
+        if (anchor < self->views_.size ())
+          if (const auto source= concrete_runtime_view (self->views_[anchor].runtime_id))
+            anchor_name= to_qstring (as_string (view_to_buffer (abstract_view (source)), URL_SYSTEM));
+        const double within= anchor < self->views_.size () ? self->offset () - self->layout_.top (anchor) : 0;
+        const auto active= self->active_member_ < self->views_.size () ? self->views_[self->active_member_].runtime_id : ATHENA_NO_VIEW;
+        self->owner_.activateMember (nullptr);
+        self->clearSelection ();
+        std::vector<SourceView> views (members.size ());
+        athena::avd::layout_index layout (members.size (), 1200);
+        double desired= 0;
+        self->active_member_= std::numeric_limits<std::size_t>::max ();
+        for (std::size_t i= 0; i < members.size (); ++i) {
+          for (std::size_t old= 0; old < self->members_.size (); ++old) {
+            QString actual= self->members_[old].filename;
+            if (const auto source= concrete_runtime_view (self->views_[old].runtime_id))
+              actual= to_qstring (as_string (view_to_buffer (abstract_view (source)), URL_SYSTEM));
+            if (actual != members[i].filename) continue;
+            views[i]= self->views_[old];
+            if (const auto source= concrete_runtime_view (views[i].runtime_id)) views[i].view= abstract_view (source);
+            self->views_[old]= SourceView {};
+            layout.set_height (i, self->layout_.height (old));
+            if (active != ATHENA_NO_VIEW && views[i].runtime_id == active) self->active_member_= i;
+            break;
+          }
+          if (members[i].filename == anchor_name) desired= layout.top (i) + within;
+        }
+        for (auto& removed: self->views_) self->releaseSource (removed);
+        self->members_= std::move (members);
+        self->views_= std::move (views);
+        self->layout_= std::move (layout);
+        self->counters_= athena::avd::counter_cache (self->members_, QByteArrayLiteral ("ATHENA counter executor 1"));
+        self->invalidateCounters (0);
+        self->updateRange (desired);
+        self->arrange ();
+        if (self->active_member_ < self->views_.size ()) self->activateMember (self->active_member_);
+      }, Qt::QueuedConnection);
+    });
+  }
+
 protected:
   bool eventFilter (QObject* watched, QEvent* event) override {
-    if (edit_pending_ && (event->type () == QEvent::KeyPress ||
+    if ((edit_pending_ || io_pending_ || selection_pending_ || queued_selections_) &&
+        (event->type () == QEvent::KeyPress || event->type () == QEvent::InputMethod)) {
+      deferred_inputs_.emplace_back (event->clone ());
+      event->accept (); return true;
+    }
+    if ((edit_pending_ || io_pending_) && (event->type () == QEvent::KeyPress ||
         event->type () == QEvent::MouseButtonPress || event->type () == QEvent::InputMethod)) {
       event->accept ();
       return true;
+    }
+    if (event->type () == QEvent::InputMethod && !selection_.empty ()) {
+      const auto* input= static_cast<QInputMethodEvent*> (event);
+      if (!input->commitString ().isEmpty ())
+        queueInput ([text= input->commitString ()] (QTMCompoundViewport& self) { self.selectionCommand ("avd.input", text); });
+      event->accept (); return true;
     }
     if (event->type () == QEvent::MouseButtonPress || event->type () == QEvent::MouseMove ||
         event->type () == QEvent::MouseButtonRelease) {
@@ -703,6 +1153,14 @@ protected:
     }
     if (event->type () == QEvent::ShortcutOverride || event->type () == QEvent::KeyPress) {
       auto* key= static_cast<QKeyEvent*> (event);
+      if (key->modifiers () == Qt::ControlModifier && (key->key () == Qt::Key_S || key->key () == Qt::Key_W || key->key () == Qt::Key_P)) {
+        if (event->type () == QEvent::KeyPress) {
+          if (key->key () == Qt::Key_S) queueInput ([] (QTMCompoundViewport& self) { self.saveAll (); });
+          else if (key->key () == Qt::Key_W) queueInput ([] (QTMCompoundViewport& self) { self.requestClose (); });
+          else queueInput ([] (QTMCompoundViewport& self) { self.exportPdf (true); });
+        }
+        event->accept (); return true;
+      }
       const bool select_boundary= key->modifiers () == (Qt::ControlModifier | Qt::ShiftModifier) &&
         (key->key () == Qt::Key_Home || key->key () == Qt::Key_End);
       if (select_boundary && active_member_ < members_.size ()) {
@@ -721,6 +1179,23 @@ protected:
       }
       const bool select_all= key->modifiers () == Qt::ControlModifier && key->key () == Qt::Key_A;
       const bool has_selection= !selection_.empty () || queued_selections_ != 0;
+      QString selection_command;
+      if (has_selection && key->modifiers () == Qt::ControlModifier) {
+        if (key->key () == Qt::Key_C) selection_command= "editor.copy";
+        if (key->key () == Qt::Key_X) selection_command= "editor.cut";
+        if (key->key () == Qt::Key_V) selection_command= "editor.paste";
+      }
+      const bool text_input= has_selection && !key->text ().isEmpty () &&
+        !(key->modifiers () & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) &&
+        key->key () != Qt::Key_Backspace && key->key () != Qt::Key_Delete && key->key () != Qt::Key_Escape;
+      if (text_input) selection_command= "avd.input";
+      if (!selection_command.isEmpty ()) {
+        if (event->type () == QEvent::KeyPress)
+          queueInput ([selection_command, text= key->text ()] (QTMCompoundViewport& self) {
+            self.selectionCommand (selection_command, text);
+          });
+        event->accept (); return true;
+      }
       const bool erase= has_selection && key->modifiers () == Qt::NoModifier &&
         (key->key () == Qt::Key_Delete || key->key () == Qt::Key_Backspace);
       const bool cancel= has_selection && key->key () == Qt::Key_Escape;
@@ -815,6 +1290,55 @@ protected:
   }
 
 public:
+  bool commandsEnabled (const QString& id) const {
+    // These operations require a single persistent document, not an AVD view.
+    if (id == "editor.export-pdf-embedded" || id == "editor.export-postscript" ||
+        id == "editor.print-page-selection" || id == "editor.print-page-selection-to-file" ||
+        id == "editor.revert") return false;
+    return !edit_pending_ && !io_pending_;
+  }
+  bool ownsCommand (const QString& id) const {
+    if (id == "editor.export-pdf-embedded" || id == "editor.export-postscript" ||
+        id == "editor.print-page-selection" || id == "editor.print-page-selection-to-file" ||
+        id == "editor.revert") return true;
+    if (id == "editor.select-all" || id == "editor.save" || id == "editor.save-as" || id == "editor.close-document" || id == "editor.close-window" ||
+        id == "editor.export-pdf" || id == "editor.print-to-file" || id == "editor.print" || id == "editor.preview") return true;
+    return (!selection_.empty () || queued_selections_ != 0) &&
+      (id == "editor.copy" || id == "editor.cut" || id == "editor.paste" || id == "editor.clear-selection");
+  }
+  void requestClose () {
+    if (io_pending_ || edit_pending_) return;
+    inspectModified ([this] (std::vector<std::size_t> dirty) {
+      if (dirty.empty ()) { finishClose (); return; }
+      QMessageBox question (QMessageBox::Question, tr ("Close Compound Document"),
+        tr ("Save changes in %1 source documents? Unsaved sources can remain open as separate tabs.").arg (dirty.size ()),
+        QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel, &owner_);
+      question.button (QMessageBox::Discard)->setText (tr ("Keep sources open"));
+      const int answer= question.exec ();
+      if (answer == QMessageBox::Save)
+        saveSources (std::make_shared<std::vector<std::size_t>> (std::move (dirty)), 0, true);
+      else if (answer == QMessageBox::Discard) {
+        for (auto i: dirty) switch_to_buffer (source_url (members_[i].filename));
+        finishClose ();
+      }
+    });
+  }
+  bool invokeCommand (const QString& id) {
+    if (id == "editor.save-as") { saveAs (); return true; }
+    if (id == "editor.clear-selection" && !selection_.empty ()) {
+      queueInput ([] (QTMCompoundViewport& self) { self.selectionCommand ("editor.delete"); }); return true;
+    }
+    if (id == "editor.export-pdf" || id == "editor.print-to-file" || id == "editor.print" || id == "editor.preview") {
+      exportPdf (id == "editor.print" || id == "editor.preview"); return true;
+    }
+    if (id == "editor.save") { saveAll (); return true; }
+    if (id == "editor.close-document" || id == "editor.close-window") { requestClose (); return true; }
+    if (id == "editor.select-all") { queueInput ([] (QTMCompoundViewport& self) { self.selectAll (); }); return true; }
+    if (selection_.empty () && queued_selections_ == 0) return false;
+    if (id != "editor.copy" && id != "editor.cut" && id != "editor.paste" && id != "editor.delete") return false;
+    queueInput ([id] (QTMCompoundViewport& self) { self.selectionCommand (id); });
+    return true;
+  }
   QTMCompoundViewport (QTMCompoundDocument& owner, QString filename,
                        athena::avd::descriptor_file descriptor,
                        std::vector<athena::avd::member> members):
@@ -829,6 +1353,9 @@ public:
     refresh_.setInterval (100);
     connect (&refresh_, &QTimer::timeout, this, [this] { refreshGeometry (); });
     refresh_.start ();
+    membership_timer_.setInterval (1000);
+    connect (&membership_timer_, &QTimer::timeout, this, [this] { refreshMembers (); });
+    membership_timer_.start ();
     drag_timer_.setInterval (40);
     connect (&drag_timer_, &QTimer::timeout, this, [this] {
       updateDrag ();
@@ -841,42 +1368,13 @@ public:
   }
 
   ~QTMCompoundViewport () override {
+    if (pdf_job_) pdf_job_->cancelled= true;
     clearSelection ();
     refresh_.stop ();
     save_cache_.stop ();
     saveCounterCache ();
     owner_.activateMember (nullptr);
-    for (auto& item: views_) {
-      if (item.canvas) {
-        item.canvas->removeEventFilter (this);
-        item.canvas->viewport ()->removeEventFilter (this);
-        item.canvas->surface ()->removeEventFilter (this);
-      }
-      if (item.host) {
-        item.host->hide ();
-        item.host->setParent (nullptr);
-      }
-      if (!is_none (item.window)) delete_window (item.window);
-      const auto view= concrete_view (item.view);
-      if (view) {
-        const url view_url= item.view;
-        const auto continuation= actor_continuation_registry::instance ().store (
-          [view_url] {
-            const auto* context= current_scheme_execution_context ();
-            auto* editor= dynamic_cast<edit_typeset_rep*> (context->editor);
-            editor->clear_compound_counters ();
-            QMetaObject::invokeMethod (qApp, [view_url] {
-              if (const auto source= concrete_view (view_url))
-                source->compound_member= false;
-            }, Qt::QueuedConnection);
-          });
-        view->buf->actor->submit (actor_command_kind::run_native_continuation,
-          view->runtime_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB,
-          SCHEME_CAPABILITY_BUFFER, continuation);
-      }
-      // Keep the passive source view and its undo history. Closing an AVD is
-      // not permission to discard unsaved source documents.
-    }
+    for (auto& item: views_) releaseSource (item);
   }
 
   const QString& filename () const { return filename_; }
@@ -951,10 +1449,20 @@ void QTMCompoundDocument::refreshToolbars () {
     enabled && get_preference ("user provided icons") == "on");
 }
 
+bool QTMCompoundDocument::invokeCommand (const QString& id) { return viewport_->invokeCommand (id); }
+void QTMCompoundDocument::requestClose () { viewport_->requestClose (); }
+bool QTMCompoundDocument::ownsCommand (const QString& id) const { return viewport_->ownsCommand (id); }
+bool QTMCompoundDocument::commandsEnabled (const QString& id) const { return viewport_->commandsEnabled (id); }
+
 void compound_document_open (url filename) {
   const string native= as_string (filename, URL_SYSTEM);
   const QString path= QString::fromUtf8 (native.c_str (), N (native));
   QMetaObject::invokeMethod (qApp, [path] {
+    for (auto* widget: QApplication::allWidgets ())
+      if (auto* pane= dynamic_cast<QTMCompoundDocument*> (widget))
+        if (QFileInfo (pane->filename ()).canonicalFilePath () == QFileInfo (path).canonicalFilePath ()) {
+          QTMMainTabWindow::topTabWindow ()->showWidget (pane, true); return;
+        }
     auto context= vault_capture_context ();
     QThreadPool::globalInstance ()->start ([path, context] {
       struct Loaded {
@@ -969,6 +1477,11 @@ void compound_document_open (url filename) {
       }
       catch (const std::exception& error) { result->error= QString::fromUtf8 (error.what ()); }
       QMetaObject::invokeMethod (qApp, [path, context, result] {
+        for (auto* widget: QApplication::allWidgets ())
+          if (auto* pane= dynamic_cast<QTMCompoundDocument*> (widget))
+            if (QFileInfo (pane->filename ()).canonicalFilePath () == QFileInfo (path).canonicalFilePath ()) {
+              QTMMainTabWindow::topTabWindow ()->showWidget (pane, true); return;
+            }
         if (result->error.isEmpty () && !vault_context_is_current (context))
           result->error= QStringLiteral ("The selected vault was closed while opening the compound document");
         if (!result->error.isEmpty ()) {
@@ -980,10 +1493,7 @@ void compound_document_open (url filename) {
         }
         auto* pane= new QTMCompoundDocument (path, std::move (result->descriptor), std::move (result->members));
         auto* shell= QTMMainTabWindow::topTabWindow ();
-        QObject::connect (pane, &QTMWindow::closed, pane, [pane, shell] {
-          shell->removeWidget (pane);
-          pane->deleteLater ();
-        });
+        QObject::connect (pane, &QTMWindow::closed, pane, [pane] { pane->requestClose (); });
         shell->showWidget (pane, true);
       }, Qt::QueuedConnection);
     });

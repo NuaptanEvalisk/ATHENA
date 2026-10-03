@@ -10,6 +10,7 @@
 
 
 #include "QTMCommandRegistry.hpp"
+#include "QTMCompoundDocument.hpp"
 #include "QTMCommandRegistryInternal.hpp"
 #include "QTMPluginManager.hpp"
 
@@ -412,6 +413,13 @@ QTMCommandRegistry::captureContext (QTMMainTabWindow* shell,
 QTMCommandState
 QTMCommandRegistry::state (const QString& id,
                            const QTMCommandContext& context) const {
+  for (QWidget* pane= context.workPane; pane; pane= pane->parentWidget ())
+    if (auto* compound= dynamic_cast<QTMCompoundDocument*> (pane))
+      if (compound->ownsCommand (id)) {
+        QTMCommandState result;
+        result.available= true; result.enabled= compound->commandsEnabled (id);
+        return result;
+      }
   auto it= behaviors_.constFind (id);
   if (it == behaviors_.constEnd ()) return {};
   const Behavior& behavior= it.value ();
@@ -446,6 +454,9 @@ QTMCommandRegistry::execute (const QString& id,
   if (it == behaviors_.constEnd ()) return false;
   QTMCommandState current= state (id, context);
   if (!current.available || !current.enabled) return false;
+  for (QWidget* pane= context.workPane; pane; pane= pane->parentWidget ())
+    if (auto* compound= dynamic_cast<QTMCompoundDocument*> (pane))
+      if (compound->ownsCommand (id)) return compound->invokeCommand (id);
 
   const Behavior& behavior= it.value ();
   if (behavior.scope == QTMCommandScope::Application ||

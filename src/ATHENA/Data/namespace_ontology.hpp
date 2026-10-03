@@ -12,6 +12,9 @@
 #define ATHENA_NAMESPACE_ONTOLOGY_HPP
 
 #include "namespaces.hpp"
+#include <cstdint>
+
+std::uint64_t athena_namespace_ontology_revision ();
 
 enum athena_namespace_ontology_status {
   athena_namespace_ontology_inactive,

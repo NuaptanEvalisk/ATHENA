@@ -264,7 +264,7 @@ edit_main_rep::nr_pages () {
 }
 
 box
-edit_main_rep::layout_print_document (bool& conform) {
+edit_main_rep::layout_print_document (bool& conform, int first_page) {
   string medium = env->get_string (PAGE_MEDIUM);
   if (conform && (medium != "paper")) conform= false;
     // FIXME: better command for conform printing
@@ -276,6 +276,10 @@ edit_main_rep::layout_print_document (bool& conform) {
   // Set environment variables for printing
 
   typeset_prepare ();
+  if (first_page >= 0) {
+    env->write (PAGE_FIRST, as_string (first_page));
+    env->style_init_env ();
+  }
   env->write (DPI, printing_dpi);
   env->write (PAGE_SHOW_HF, "true");
   env->write (PAGE_SCREEN_MARGIN, "false");
@@ -325,6 +329,24 @@ edit_main_rep::print_doc (url name, bool conform, int first, int last) {
   box the_box= layout_print_document (conform);
 
   references.require_ready ();
+
+  print_box (name, the_box, conform, first, last);
+}
+
+int
+edit_main_rep::print_doc_numbered (url name, int first_page) {
+  athena::node_reference::verify_export_origin ();
+  athena::node_reference::export_reference_scope references;
+  bool conform= false;
+  box pages= layout_print_document (conform, first_page);
+  references.require_ready ();
+  const int next_page= as_int (env->read (PAGE_NR)) + 1;
+  print_box (name, pages, conform, 1, N (pages[0]));
+  return next_page;
+}
+
+void
+edit_main_rep::print_box (url name, box the_box, bool conform, int first, int last) {
 
   // Determine parameters for printer
 

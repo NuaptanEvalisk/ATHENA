@@ -24,6 +24,10 @@ struct source_range {
 };
 
 void erase_ranges (std::vector<source_range>, std::function<void(std::string)>);
+void replace_ranges (std::vector<source_range>, std::string clipboard_xml,
+                     std::function<void(std::string)>);
+void copy_ranges (std::vector<source_range>,
+                  std::function<void(std::string, std::vector<std::string>)>);
 // Owner-actor only. Returns true when the request belongs to compound history,
 // including a refused/conflicting request. Never waits for another actor.
 bool coordinate_compound_history (bool redo, int branch= 0);

@@ -8,6 +8,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include "ATHENA/Data/node_reference_export.hpp"
+#include "ATHENA/Data/compound_edit_batch.hpp"
 #include "ATHENA/Data/vault_node_location.hpp"
 #include "buffer_actor.hpp"
 #include "buffer_name_catalog.hpp"
@@ -33,6 +34,8 @@ struct request {
   bool selected= false;
   vault_context_handle vault;
   athena_scheme_handle_id action= ATHENA_NO_SCHEME_HANDLE;
+  std::function<void(editor_rep&)> native_action;
+  std::function<void(std::string)> completion;
   std::unique_ptr<ref::export_preparation> preparation;
   ref::prepared_snapshot ready;
   std::shared_ptr<athena::node_location::service> locator;
@@ -69,11 +72,18 @@ void perform (const std::shared_ptr<request>& job) {
       resume_preparation (job, std::move (missing));
       return;
     }
-    (void) call_scheme (scheme_command_handle_value (job->action));
+    if (job->native_action) job->native_action (*editor);
+    else (void) call_scheme (scheme_command_handle_value (job->action));
     frozen.require_ready ();
+    if (job->completion) job->completion ({});
   }
   catch (const std::exception& e) {
     context->editor->set_message ("Export failed", tree (e.what ()), true);
+    if (job->completion) job->completion (e.what ());
+  }
+  catch (const string& e) {
+    if (job->completion) job->completion (text (e));
+    else throw;
   }
 }
 
@@ -114,10 +124,22 @@ public:
     for (const auto& pair: published_buffer_metadata ()) alive.insert (pair.second.actor_id);
     for (auto it= pending.begin (); it != pending.end (); ) {
       const auto job= *it;
-      if (!alive.count (job->actor)) { it= pending.erase (it); continue; }
+      if (!alive.count (job->actor)) {
+        if (job->completion) job->completion ("Export source was closed");
+        it= pending.erase (it); continue;
+      }
       if (!job->ready && (!vault_context_is_current (job->vault) || ref::source_epoch () != job->epoch))
         job->preparation->cancel ();
       if (!job->ready) { ++it; continue; }
+      if (job->native_action) {
+        athena::avd::submit_source_task (job->actor, job->view,
+          [job] (editor_rep&) { perform (job); },
+          [job] (std::string error) {
+            if (!error.empty ()) job->completion (std::move (error));
+          });
+        it= pending.erase (it);
+        continue;
+      }
       auto continuation= actor_continuation_registry::instance ().store ([job] { perform (job); });
       if (buffer_actor::try_submit_to (job->actor, actor_command_kind::run_native_continuation,
           job->view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, job->capabilities, continuation))
@@ -181,4 +203,25 @@ bool athena_node_reference_with_export (object action) {
     controller ()->add (job, std::move (seeds));
   });
   return true;
+}
+
+void athena_node_reference_with_native_export (
+  std::function<void(editor_rep&)> action, std::function<void(std::string)> completion) {
+  const auto* context= current_scheme_execution_context ();
+  auto job= std::make_shared<request> ();
+  job->actor= context->actor_id; job->view= context->view_id;
+  job->capabilities= context->capabilities; job->epoch= ref::source_epoch ();
+  job->source= text (as_string (context->actor->current_buffer_url ()));
+  job->cursor= indices (context->editor->the_path ());
+  job->selected= context->editor->selection_active_any ();
+  if (job->selected) {
+    job->selection_start= indices (context->editor->selection_get_start ());
+    job->selection_end= indices (context->editor->selection_get_end ());
+  }
+  job->vault= vault_capture_context ();
+  job->locator= athena::node_location::for_vault (job->vault);
+  job->native_action= std::move (action);
+  job->completion= std::move (completion);
+  auto seeds= ref::export_selections (context->actor->current_source (context->view_id));
+  resume_preparation (job, std::move (seeds));
 }

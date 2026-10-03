@@ -14,6 +14,7 @@
 #include "editor.hpp"
 #include "patch.hpp"
 #include "tree_cursor.hpp"
+#include "Data/Convert/Xml/clipboard_xml.hpp"
 #include <map>
 #include <memory>
 #include <mutex>
@@ -59,6 +60,39 @@ void report_history_result (const std::string& error) {
 
 void erase_ranges (std::vector<source_range> ranges,
                    std::function<void(std::string)> completion) {
+  replace_ranges (std::move (ranges), {}, std::move (completion));
+}
+
+void copy_ranges (std::vector<source_range> ranges,
+                  std::function<void(std::string, std::vector<std::string>)> completion) {
+  auto pieces= std::make_shared<std::vector<std::string>> (ranges.size ());
+  std::vector<edit_participant> participants;
+  for (std::size_t i= 0; i < ranges.size (); ++i) {
+    const auto range= ranges[i];
+    edit_participant member;
+    member.actor= range.actor; member.view= range.view;
+    member.prepare= [range] (editor_rep& editor) {
+      if (current_scheme_execution_context ()->actor->source_epoch () != range.epoch)
+        throw std::runtime_error ("Source changed after compound selection");
+      (void) range_positions (editor, range);
+    };
+    member.apply= [range, pieces, i] (editor_rep& editor) {
+      const auto positions= range_positions (editor, range);
+      editor.select (positions.first, positions.second);
+      (*pieces)[i]= athena::document::write_clipboard_xml (
+        tuple ("texmacs", editor.selection_get (), editor.selection_get_env_value ("mode"),
+               editor.selection_get_env_value ("language")));
+    };
+    member.rollback= member.commit= [] (editor_rep&) {};
+    participants.push_back (std::move (member));
+  }
+  submit_edit_batch (std::move (participants), [pieces, completion= std::move (completion)] (std::string error) {
+    completion (std::move (error), std::move (*pieces));
+  });
+}
+
+void replace_ranges (std::vector<source_range> ranges, std::string clipboard_xml,
+                     std::function<void(std::string)> completion) {
   auto history= std::make_shared<history_entry> ();
   history->marker= new_marker ();
   history->sources= ranges;
@@ -74,13 +108,21 @@ void erase_ranges (std::vector<source_range> ranges,
         throw std::runtime_error ("A source changed after the compound selection was made");
       (void) range_positions (editor, range);
     };
-    member.apply= [range, marker] (editor_rep& editor) {
+    const bool insert= range.actor == ranges.front ().actor && !clipboard_xml.empty ();
+    member.apply= [range, marker, insert, clipboard_xml] (editor_rep& editor) {
       const auto positions= range_positions (editor, range);
       editor.start_editing ();
       editor.archive_state ();
       editor.start_slave (marker);
       editor.select (positions.first, positions.second);
       editor.selection_cut ("none");
+      if (insert) {
+        const string key= "avd-replacement-" * as_string (marker);
+        editor.selection_raw_set (key, athena::document::read_clipboard_xml (clipboard_xml));
+        try { editor.selection_paste (key); }
+        catch (...) { editor.selection_clear (key); throw; }
+        editor.selection_clear (key);
+      }
       if (!editor.finish_node_identities ())
         throw std::runtime_error ("Compound deletion could not preserve source identities");
     };

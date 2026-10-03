@@ -16,6 +16,7 @@
 #include <sqlite3.h>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
@@ -31,6 +32,7 @@
 namespace fs= std::filesystem;
 
 namespace {
+std::atomic<std::uint64_t> ontology_revision {1};
 
 struct CachedDirectory {
   std::string parent;
@@ -1461,6 +1463,7 @@ private:
         std::lock_guard<std::mutex> lock (mutex_);
         handled_generation= target_generation;
         if (ok) {
+          if (snapshot_ != next) ontology_revision.fetch_add (1, std::memory_order_release);
           snapshot_= std::move (next);
           snapshot_ready_= true;
           published_generation_= target_generation;
@@ -1597,6 +1600,10 @@ service () {
 }
 
 } // namespace
+
+std::uint64_t athena_namespace_ontology_revision () {
+  return ontology_revision.load (std::memory_order_acquire);
+}
 
 void
 athena_namespace_ontology_start (url vault_root, url namespace_db) {

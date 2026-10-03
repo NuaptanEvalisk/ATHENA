@@ -248,4 +248,20 @@ void submit_edit_batch (std::vector<edit_participant> members,
   }
   group->changed.notify_all ();
 }
+void submit_source_task (athena_actor_id actor, athena_view_id view,
+                         std::function<void(editor_rep&)> action,
+                         std::function<void(std::string)> completion) {
+  const auto continuation= actor_continuation_registry::instance ().store (
+    [action= std::move (action), completion] {
+      std::string error;
+      try { call (action, *current_scheme_execution_context ()->editor); }
+      catch (...) { error= exception_message (); }
+      completion (std::move (error));
+    });
+  if (!buffer_actor::try_submit_to (actor, actor_command_kind::run_native_continuation,
+        view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, continuation)) {
+    actor_continuation_registry::instance ().discard (continuation);
+    completion ("Source buffer is unavailable or busy");
+  }
+}
 } // namespace athena::avd

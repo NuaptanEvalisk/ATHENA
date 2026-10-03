@@ -66,8 +66,10 @@ public:
 
   string get_metadata (string kind);
   int  nr_pages ();
-  box layout_print_document (bool& conform);
+  box layout_print_document (bool& conform, int first_page= -1);
   void probe_print_references ();
+  void print_box (url name, box pages, bool conform, int first, int last);
+  int print_doc_numbered (url name, int first_page);
   void print_doc (url ps_name, bool to_file, int first, int last);
   void print_to_file (url ps_name, string first="1", string last="1000000");
   void print_buffer (string first="1", string last="1000000");

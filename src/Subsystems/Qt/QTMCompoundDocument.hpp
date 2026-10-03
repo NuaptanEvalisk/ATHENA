@@ -33,4 +33,8 @@ public:
   void goToMember (std::size_t index, bool atEnd= false);
   void activateMember (QTMWidget* canvas);
   void refreshToolbars ();
+  bool invokeCommand (const QString& id);
+  void requestClose ();
+  bool ownsCommand (const QString& id) const;
+  bool commandsEnabled (const QString& id) const;
 };
