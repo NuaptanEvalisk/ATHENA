@@ -465,7 +465,7 @@ public:
   virtual void source_move_paste_pending (string token, double marker) = 0;
   virtual bool source_move_cut_marker_present (double marker) = 0;
   virtual double source_move_undo_marker () = 0;
-  virtual double source_move_redo_marker () = 0;
+  virtual double source_move_redo_marker (int branch= 0) = 0;
   virtual bool source_move_redo_available (double marker) = 0;
   virtual bool source_move_undo_local (double marker) = 0;
   virtual bool source_move_redo_local (double marker) = 0;

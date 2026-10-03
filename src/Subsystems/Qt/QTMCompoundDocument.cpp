@@ -14,6 +14,9 @@
 #include "QTMToolbarController.hpp"
 #include "QTMToolbar.hpp"
 #include "QTMStyle.hpp"
+#include "ATHENA/Data/compound_document_edit.hpp"
+#include "ATHENA/Data/compound_edit_batch.hpp"
+#include "tree_cursor.hpp"
 #include "scheme.hpp"
 #include "namespaces.hpp"
 #include "new_buffer.hpp"
@@ -115,6 +118,12 @@ class QTMCompoundViewport: public QAbstractScrollArea {
   bool cache_write_failed_= false;
   bool arranging_= false;
   std::size_t active_member_= std::numeric_limits<std::size_t>::max ();
+  std::vector<athena::avd::source_range> selection_;
+  std::shared_ptr<std::atomic<std::uint64_t>> selection_serial_=
+    std::make_shared<std::atomic<std::uint64_t>> (0);
+  std::size_t selection_pending_= 0;
+  bool delete_when_ready_= false;
+  bool edit_pending_= false;
   double scale_= 1;
 
   double offset () const { return verticalScrollBar ()->value () * scale_; }
@@ -187,6 +196,94 @@ class QTMCompoundViewport: public QAbstractScrollArea {
         ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, continuation)) return true;
     actor_continuation_registry::instance ().discard (continuation);
     return false;
+  }
+
+  void clearSelection () {
+    ++*selection_serial_;
+    selection_pending_= 0;
+    delete_when_ready_= false;
+    for (const auto& range: selection_) {
+      const auto continuation= actor_continuation_registry::instance ().store ([] {
+        if (auto* editor= current_scheme_execution_context ()->editor)
+          editor->selection_cancel ();
+      });
+      if (!buffer_actor::try_submit_to (range.actor,
+            actor_command_kind::run_native_continuation, range.view,
+            ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, continuation))
+        actor_continuation_registry::instance ().discard (continuation);
+    }
+    selection_.clear ();
+  }
+
+  void selectAll () {
+    if (edit_pending_ || members_.empty ()) return;
+    clearSelection ();
+    const auto serial= selection_serial_->load ();
+    const auto token= selection_serial_;
+    QPointer<QTMCompoundViewport> self (this);
+    auto ranges= std::make_shared<std::vector<athena::avd::source_range>> (members_.size ());
+    std::vector<athena::avd::edit_participant> participants;
+    try {
+      for (std::size_t i= 0; i < members_.size (); ++i) {
+        const auto view= ensureView (i);
+        auto& range= (*ranges)[i];
+        range.actor= view->buf->actor->id ();
+        range.view= view->runtime_id;
+        athena::avd::edit_participant member;
+        member.actor= range.actor;
+        member.view= range.view;
+        member.prepare= [token, serial] (editor_rep&) {
+          if (token->load () != serial) throw std::runtime_error ("Selection was cancelled");
+        };
+        member.apply= [ranges, i] (editor_rep& editor) {
+          const tree body= editor.the_buffer ();
+          const path root= editor.the_buffer_path ();
+          editor.select (root * start (body), root * end (body));
+          (*ranges)[i].epoch= current_scheme_execution_context ()->actor->source_epoch ();
+        };
+        member.rollback= [] (editor_rep& editor) { editor.selection_cancel (); };
+        member.commit= [] (editor_rep&) {};
+        participants.push_back (std::move (member));
+      }
+    }
+    catch (const std::exception& error) {
+      std_warning << "Compound selection: " << string (error.what ()) << LF;
+      return;
+    }
+    catch (const string& error) { std_warning << "Compound selection: " << error << LF; return; }
+    selection_= *ranges;
+    selection_pending_= 1;
+    athena::avd::submit_edit_batch (std::move (participants),
+      [self, serial, ranges] (std::string error) {
+        QMetaObject::invokeMethod (qApp, [self, serial, ranges, error= std::move (error)] {
+          if (!self || self->selection_serial_->load () != serial) return;
+          if (!error.empty ()) {
+            self->clearSelection ();
+            std_warning << "Compound selection: " << string (error.c_str ()) << LF;
+            return;
+          }
+          self->selection_= *ranges;
+          self->selection_pending_= 0;
+          if (self->delete_when_ready_) self->eraseSelection ();
+        }, Qt::QueuedConnection);
+      });
+  }
+
+  void eraseSelection () {
+    if (selection_.empty () || edit_pending_) return;
+    if (selection_pending_ != 0) { delete_when_ready_= true; return; }
+    edit_pending_= true;
+    delete_when_ready_= false;
+    QPointer<QTMCompoundViewport> self (this);
+    athena::avd::erase_ranges (selection_, [self] (std::string error) {
+      QMetaObject::invokeMethod (qApp, [self, error= std::move (error)] {
+        if (!error.empty ())
+          std_warning << "Compound deletion: " << string (error.c_str ()) << LF;
+        if (!self) return;
+        self->edit_pending_= false;
+        if (error.empty ()) self->clearSelection ();
+      }, Qt::QueuedConnection);
+    });
   }
 
   void invalidateCounters (std::size_t first) {
@@ -411,8 +508,30 @@ class QTMCompoundViewport: public QAbstractScrollArea {
 
 protected:
   bool eventFilter (QObject* watched, QEvent* event) override {
+    if (edit_pending_ && (event->type () == QEvent::KeyPress ||
+        event->type () == QEvent::MouseButtonPress || event->type () == QEvent::InputMethod)) {
+      event->accept ();
+      return true;
+    }
     if (event->type () == QEvent::ShortcutOverride || event->type () == QEvent::KeyPress) {
       auto* key= static_cast<QKeyEvent*> (event);
+      const bool select_all= key->modifiers () == Qt::ControlModifier && key->key () == Qt::Key_A;
+      const bool erase= !selection_.empty () && key->modifiers () == Qt::NoModifier &&
+        (key->key () == Qt::Key_Delete || key->key () == Qt::Key_Backspace);
+      const bool cancel= !selection_.empty () && key->key () == Qt::Key_Escape;
+      if (select_all || erase || cancel) {
+        if (event->type () == QEvent::KeyPress) {
+          if (select_all) selectAll ();
+          else if (erase) eraseSelection ();
+          else clearSelection ();
+        }
+        event->accept ();
+        return true;
+      }
+      if (event->type () == QEvent::KeyPress && !selection_.empty () &&
+          key->key () != Qt::Key_Control && key->key () != Qt::Key_Shift &&
+          key->key () != Qt::Key_Alt && key->key () != Qt::Key_Meta)
+        clearSelection ();
       if (key->modifiers () == Qt::ControlModifier &&
           (key->key () == Qt::Key_Home || key->key () == Qt::Key_End)) {
         if (event->type () == QEvent::KeyPress && !members_.empty ()) {
@@ -435,6 +554,7 @@ protected:
       }
     }
     if (event->type () == QEvent::FocusIn || event->type () == QEvent::MouseButtonPress) {
+      if (event->type () == QEvent::MouseButtonPress && !selection_.empty ()) clearSelection ();
       for (std::size_t i= 0; i < views_.size (); ++i) {
         auto& item= views_[i];
         if (item.canvas && (watched == item.canvas || watched == item.canvas->viewport () ||
@@ -501,6 +621,7 @@ public:
   }
 
   ~QTMCompoundViewport () override {
+    clearSelection ();
     refresh_.stop ();
     save_cache_.stop ();
     saveCounterCache ();

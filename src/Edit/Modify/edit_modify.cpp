@@ -11,6 +11,7 @@
 
 #include "modification.hpp"
 #include "edit_modify.hpp"
+#include "ATHENA/Data/compound_document_edit.hpp"
 #include "tm_window.hpp"
 #include "scheme.hpp"
 #include "node_metadata.hpp"
@@ -494,8 +495,8 @@ edit_modify_rep::source_move_undo_marker () {
 }
 
 double
-edit_modify_rep::source_move_redo_marker () {
-  return arch->redo_move_marker ();
+edit_modify_rep::source_move_redo_marker (int branch) {
+  return arch->redo_move_marker (branch);
 }
 
 bool
@@ -702,6 +703,7 @@ edit_modify_rep::undo (bool redoable) {
     return;
   }
   arch->forget_cursor ();
+  if (redoable && athena::avd::coordinate_compound_history (false)) return;
   bool in_graphics= inside_graphics ();
   bool native_graphics_history=
     in_graphics && native_graphics_owns_history ();
@@ -743,6 +745,7 @@ edit_modify_rep::redo (int i) {
     return;
   }
   arch->forget_cursor ();
+  if (athena::avd::coordinate_compound_history (true, i)) return;
   bool in_graphics= inside_graphics ();
   bool native_graphics_history=
     in_graphics && native_graphics_owns_history ();

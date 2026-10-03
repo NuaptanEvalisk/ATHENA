@@ -52,7 +52,7 @@ public:
   void source_move_paste_pending (string token, double marker);
   bool source_move_cut_marker_present (double marker);
   double source_move_undo_marker ();
-  double source_move_redo_marker ();
+  double source_move_redo_marker (int branch= 0);
   bool source_move_redo_available (double marker);
   bool source_move_undo_local (double marker);
   bool source_move_redo_local (double marker);
