@@ -328,7 +328,7 @@ qt_ui_element_rep::get_payload (qt_widget qtw, types check_type) {
     case enum_widget:       case choice_widget:    case filtered_choice_widget:
     case scrollable_widget: case hsplit_widget:    case vsplit_widget:
     case tabs_widget:       case icon_tabs_widget: case resize_widget:
-    case refresh_widget:    case refreshable_widget:  case balloon_widget:
+    case balloon_widget:
     case glue_widget:       case division_widget:
     {
       qt_ui_element_rep* rep = static_cast<qt_ui_element_rep*> (qtw.rep);
@@ -416,25 +416,6 @@ qt_ui_element_rep::requires_menu_scrolling () const {
     if (!is_nil (arr[i]) && concrete (arr[i])->requires_menu_scrolling ())
       return true;
   return false;
-}
-
-/*! For the refresh_widget
- * FIXME? Is this really used?
- */
-qt_ui_element_rep::operator tree () {
-  if (type == refresh_widget) {
-    typedef pair<string, string> T;
-    T x= open_box<T> (load);
-    return tree (TUPLE, "refresh", x.x1, x.x2);
-  }
-  else if (type == refreshable_widget) {
-    typedef pair<object, string> T;
-    T x= open_box<T> (load);
-    return tree (TUPLE, "refreshable", x.x2);
-  }
-  else {
-    return tree();
-  }
 }
 
 QAction* 
@@ -836,8 +817,6 @@ qt_ui_element_rep::as_qlayoutitem (QWidget* parent_widget) {
     case tabs_widget:
     case icon_tabs_widget:
     case resize_widget:
-    case refresh_widget:
-    case refreshable_widget:
     case balloon_widget:
     case division_widget:
     {
@@ -882,10 +861,6 @@ qt_ui_element_rep::as_qwidget (QWidget* parent_widget) {
   if (DEBUG_QT_WIDGETS)
     debug_widgets << "as_qwidget: " << type_as_string() << LF;
 
-    // Don't return the cached widget, this only happens for refresh_widgets
-    // and then we crash.
-//  if (qwid) return qwid;
-  
   switch (type) {
     case horizontal_menu:
     case vertical_menu:
@@ -1331,22 +1306,6 @@ qt_ui_element_rep::as_qwidget (QWidget* parent_widget) {
       if (i>0) tw->resizeOthers(0);   // Force the automatic resizing
 
       qwid = tw;
-    }
-      break;
-      
-    case refresh_widget:
-    {
-      typedef pair<string, string> T;
-      T  x = open_box<T> (load);
-      qwid = new QTMRefreshWidget (this, x.x1, x.x2);
-    }
-      break;
-            
-    case refreshable_widget:
-    {
-      typedef pair<object, string> T;
-      T  x = open_box<T> (load);
-      qwid = new QTMRefreshableWidget (this, x.x1, x.x2);
     }
       break;
       

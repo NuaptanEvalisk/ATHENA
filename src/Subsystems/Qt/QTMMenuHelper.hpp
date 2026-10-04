@@ -295,51 +295,6 @@ public slots:
 };
 
 
-/*! A container widget which redraws the widgets it owns. */
-class QTMRefreshWidget : public QWidget {
-  Q_OBJECT
-  
-  string strwid;
-  string   kind;
-  object curobj;
-  widget    cur;
-  qt_widget tmwid;
-  QWidget*   qwid;
-  hashmap<object,widget> cache;
-  
-public:
-  QTMRefreshWidget (qt_widget _tmwid, string _strwid, string _kind);
-
-  bool recompute (string what);
-    //static void deleteLayout (QLayout*);
-
-public slots:
-  void doRefresh (string kind);
-};
-
-
-/*! A container widget which redraws the widgets it owns. */
-class QTMRefreshableWidget : public QWidget {
-  Q_OBJECT
-  
-  object     prom;
-  string     kind;
-  object   curobj;
-  widget      cur;
-  qt_widget tmwid;
-  QWidget*   qwid;
-  
-public:
-  QTMRefreshableWidget (qt_widget _tmwid, object _prom, string _kind);
-
-  bool recompute (string what);
-    //static void deleteLayout (QLayout*);
-
-public slots:
-  void doRefresh (string kind);
-};
-
-
 /*! A mutilated QComboBox which fixes its size using texmacs lengths.
  
  To use just create the QWidget and call addItemsAndResize().

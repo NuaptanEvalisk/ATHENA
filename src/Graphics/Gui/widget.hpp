@@ -252,17 +252,6 @@ widget ink_widget (command cb);
   // widget for inking a sketch. The input may later be passed to
   // an external program for handwriting recognition,
   // using the callback routine
-widget refresh_widget (string tmwid, string kind= "any");
-  // a widget which is automatically constructed from the a dynamic
-  // scheme widget tmwid. When receiving the send_refresh event,
-  // the contents should also be updated dynamically by reevaluating
-  // the scheme widget (in case of matching kind)
-widget refreshable_widget (object prom, string kind= "any");
-  // a widget which is automatically constructed from the a dynamic
-  // scheme widget promise. When receiving the send_refresh event,
-  // the contents should also be updated dynamically by reevaluating
-  // the scheme widget promise (in case of matching kind)
-
 /******************************************************************************
 * Besides the widget constructors, any GUI implementation should also provide
 * a simple_widget_rep class with the following virtual methods:

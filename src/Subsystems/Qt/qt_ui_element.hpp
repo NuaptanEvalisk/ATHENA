@@ -45,8 +45,8 @@ void qt_drain_action_retirements ();
  
  A UI element is first created using the factory methods create(), these store
  the parameters for the widget until they are needed upon creation. as_*()
- is typically called by another instance of qt_ui_element_rep or sometimes
- qt_plain_window_widget_rep and qt_refresh_widget_rep, who then gets ownership
+  is typically called by another instance of qt_ui_element_rep or sometimes
+  qt_plain_window_widget_rep, which then gets ownership
  of the QObjects returned.
  
  See the documentation of qt_widget_rep for the rationale behind the four
@@ -74,8 +74,6 @@ public:
   virtual QList<QAction*>* get_qactionlist();
   virtual QList<QAction*>* get_fresh_qactionlist();
   virtual bool             requires_menu_scrolling () const;
-
-  operator tree ();
 
   template<class X1> static qt_widget create (types _type, X1 x1) {
     return tm_new <qt_ui_element_rep> (_type, close_box<X1>(x1));

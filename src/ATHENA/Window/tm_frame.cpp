@@ -40,30 +40,6 @@ tm_frame_rep::~tm_frame_rep () {}
 * Subroutines
 ******************************************************************************/
 
-widget
-make_menu_widget (object menu) {
-  widget w= take_widget (call ("make-menu-widget", menu, 0));
-  //string s= "(make-menu-widget '" * menu * " 0)";
-  //widget w= as_widget (eval (s));
-  if (is_nil (w)) {
-    array<widget> a (0);
-    return horizontal_menu (a);
-  }
-  return w;
-}
-
-widget
-make_menu_widget (object menu, int ww, int wh) {
-  widget w= take_widget (call ("make-menu-widget*", menu, 0, ww, wh));
-  //string s= "(make-menu-widget '" * menu * " 0)";
-  //widget w= as_widget (eval (s));
-  if (is_nil (w)) {
-    array<widget> a (0);
-    return horizontal_menu (a);
-  }
-  return w;
-}
-
 string
 icon_bar_name (int which) {
   if (which == 0) return "main";

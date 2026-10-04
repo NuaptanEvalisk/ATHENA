@@ -552,20 +552,6 @@ widget vsplit_widget (widget t, widget b) {
   wid->add_children (array<widget> (t, b));
   return abstract (wid);
 }
-widget refresh_widget (string tmwid, string kind) {
-  if (headless_mode) return headless_widget ();
-  qt_widget wid = qt_ui_element_rep::create (qt_widget_rep::refresh_widget,
-                                             tmwid, kind);
-    // FIXME: decide what to do with children in QTMRefresh::recompute()
-  return abstract (wid);
-}
-widget refreshable_widget (object promise, string kind) {
-  if (headless_mode) return headless_widget ();
-  qt_widget wid = qt_ui_element_rep::create (qt_widget_rep::refreshable_widget,
-                                             promise, kind);
-    // FIXME: decide what to do with children in QTMRefreshable::recompute()
-  return abstract (wid);
-}
 widget glue_widget (bool hx, bool vx, SI w, SI h) {
   if (headless_mode) return headless_widget ();
   qt_widget wid = qt_ui_element_rep::create (qt_ui_element_rep::glue_widget,
