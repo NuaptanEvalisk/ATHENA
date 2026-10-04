@@ -7,6 +7,7 @@
 #include "modification.hpp"
 #include "patch.hpp"
 #include "ATHENA/Data/data_art.hpp"
+#include "Edit/Interface/auto_close.hpp"
 #include "Edit/Interface/format_geometry.hpp"
 #include "Edit/Interface/format_commands.hpp"
 #include "Edit/Interface/structured_commands.hpp"

@@ -118,7 +118,6 @@
 
 ;(display "Booting generic mode\n")
 (import-from (utils edit variants))
-(import-from (utils edit auto-close))
 (import-from (utils library cursor))
 (import-from (generic document-edit))
 (import-from (generic generic-edit))

@@ -25,6 +25,24 @@
   <binding name="generic-keyboard-condition?" native="generic_keyboard_condition" returns="bool">
     <arg type="int" />
   </binding>
+  <binding name="insert-quote" native="native_insert_quote" returns="void" />
+  <binding name="insert-apostrophe" native="native_insert_apostrophe" returns="void">
+    <arg type="bool" />
+  </binding>
+  <binding name="make-bracket-open" native="native_make_bracket_open" returns="void">
+    <arg type="string" /><arg type="string" /><arg type="object" rest="true" />
+  </binding>
+  <binding name="make-separator" native="native_make_separator" returns="void">
+    <arg type="string" /><arg type="object" rest="true" />
+  </binding>
+  <binding name="make-bracket-close" native="native_make_bracket_close" returns="void">
+    <arg type="string" /><arg type="string" /><arg type="object" rest="true" />
+  </binding>
+  <binding name="test-matching-brackets?" native="native_test_matching_brackets" returns="bool" />
+  <binding name="toggle-matching-brackets" native="native_toggle_matching_brackets" returns="void" />
+  <binding name="make-big-operator" native="native_make_big_operator" returns="void">
+    <arg type="string" />
+  </binding>
   <binding name="escape-symbol-insert" native="generic_escape_symbol_insert" returns="void">
     <arg type="string" />
   </binding>

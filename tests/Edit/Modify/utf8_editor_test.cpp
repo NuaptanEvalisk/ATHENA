@@ -17,6 +17,7 @@
 
 #include "ATHENA/server.hpp"
 #include "Editor/edit_main.hpp"
+#include "Edit/Interface/auto_close.hpp"
 #include "Edit/Interface/native_math_keyboard.hpp"
 #include "Edit/Interface/native_latex_commands.hpp"
 #include "Graphics/Gui/gui.hpp"
@@ -43,6 +44,7 @@
 #include "math_token.hpp"
 #include "math_font.hpp"
 #include "ATHENA/Data/new_buffer.hpp"
+#include "Kernel/Types/node_metadata.hpp"
 #include "convert.hpp"
 #include "file.hpp"
 #include "web_files.hpp"
@@ -75,6 +77,15 @@ public:
     anchors.push_back ({target, x1, y1, x2, y2});
   }
 };
+
+static int
+count_node_identity (const tree& source, const std::string& identity) {
+  int count= athena::node::id (source) == identity ? 1 : 0;
+  if (is_compound (source))
+    for (int i= 0; i < N(source); ++i)
+      count += count_node_identity (source[i], identity);
+  return count;
+}
 
 class Utf8TestEditor: public edit_main_rep {
 public:
@@ -1685,6 +1696,101 @@ private slots:
     QVERIFY (editor->redo_possibilities () > 0);
     editor->redo (0);
     QVERIFY (subtree (current_document_tree (), atom) == tree (expected));
+  }
+  void autoCloseQuoteRules () {
+    using namespace athena::auto_close;
+    quote_style french= quote_style_for_language ("french");
+    QCOMPARE (french.open, string ("«"));
+    QCOMPARE (french.close, string ("»"));
+    QCOMPARE (french.open_suffix, string (" "));
+    QCOMPARE (french.close_prefix, string (" "));
+    QVERIFY (french.apostrophe_opens);
+
+    quote_style german= quote_style_for_language ("german");
+    QCOMPARE (german.open, string ("„"));
+    QCOMPARE (german.close, string ("“"));
+    QVERIFY (!quote_style_for_language ("english").apostrophe_opens);
+    QVERIFY (!quote_style_for_language ("none").paired);
+
+    tree multibyte (DOCUMENT, string (u8"é"));
+    QVERIFY (quote_should_close (multibyte, path (0, 2), "english"));
+    tree after_space (DOCUMENT, string (u8"é "));
+    QVERIFY (!quote_should_close (after_space, path (0, 3), "english"));
+    tree after_apostrophe (DOCUMENT, "'");
+    QVERIFY (quote_should_close (after_apostrophe, path (0, 1), "english"));
+    QVERIFY (!quote_should_close (after_apostrophe, path (0, 1), "french"));
+
+    tree open_across_concat (
+      DOCUMENT, tree (CONCAT, "‘alpha", compound ("strong", "x"), "omega"));
+    QVERIFY (has_opening_single_quote (
+      open_across_concat, path (0, 2, N(string ("omega")))));
+    tree closed_across_concat (
+      DOCUMENT, tree (CONCAT, "‘alpha", "’", "omega"));
+    QVERIFY (!has_opening_single_quote (
+      closed_across_concat, path (0, 2, N(string ("omega")))));
+  }
+  void autoCloseEditingPreservesMetadataAndUndo () {
+    using namespace athena::auto_close;
+    const string old_brackets= get_preference ("automatic brackets", "mathematics");
+    const string old_quotes= get_preference ("automatic quotes", "default");
+    set_preference ("automatic brackets", "on");
+    set_preference ("automatic quotes", "french");
+
+    const path atom= buffer->root_path * 0;
+    editor->go_to (atom * 0);
+    editor->archive_state ();
+    editor->start_editing ();
+    insert_quote (editor);
+    editor->end_editing ();
+    QCOMPARE (subtree (current_document_tree (), atom), tree ("«  »"));
+    QCOMPARE (editor->the_path (), atom * N(string ("« ")));
+    editor->undo (0);
+    QCOMPARE (subtree (current_document_tree (), atom), tree (""));
+
+    editor->go_to (atom * 0);
+    editor->archive_state ();
+    editor->start_editing ();
+    make_big_operator (editor, "sum");
+    editor->end_editing ();
+    tree big_pair= subtree (current_document_tree (), buffer->root_path);
+    QVERIFY (is_func (big_pair, DOCUMENT, 1));
+    QVERIFY (is_func (big_pair[0], CONCAT));
+    QCOMPARE (big_pair[0], tree (CONCAT, tree (BIG, "sum"), tree (BIG, ".")));
+    editor->undo (0);
+    QCOMPARE (subtree (current_document_tree (), atom), tree (""));
+
+    const std::string identity= "123e4567-e89b-12d3-a456-426614174000";
+    tree marked= compound ("strong", "X");
+    athena::node::set (marked, {identity, {}});
+    tree source (DOCUMENT, tree (CONCAT, "a", marked, "b"));
+    editor->go_to (atom * 0);
+    editor->archive_state ();
+    editor->start_editing ();
+    editor->insert_tree (source[0]);
+    editor->end_editing ();
+    QCOMPARE (subtree (current_document_tree (), buffer->root_path), source);
+    const path marked_atom= buffer->root_path * path (0, 1, 0);
+    editor->selection_set_paths (marked_atom * 0, marked_atom * 1);
+    QVERIFY (editor->selection_active_normal ());
+    QCOMPARE (count_node_identity (editor->selection_get (), identity), 1);
+
+    editor->archive_state ();
+    editor->start_editing ();
+    make_bracket_open (editor, "(", ")");
+    editor->end_editing ();
+    tree wrapped= subtree (current_document_tree (), buffer->root_path);
+    QCOMPARE (count_node_identity (wrapped, identity), 1);
+    QVERIFY (editor->undo_possibilities () > 0);
+    editor->undo (0);
+    tree restored= subtree (current_document_tree (), buffer->root_path);
+    QCOMPARE (count_node_identity (restored, identity), 1);
+    QCOMPARE (restored, source);
+    editor->redo (0);
+    QCOMPARE (count_node_identity (
+      subtree (current_document_tree (), buffer->root_path), identity), 1);
+
+    set_preference ("automatic brackets", old_brackets);
+    set_preference ("automatic quotes", old_quotes);
   }
 private:
   buffer_document_state* buffer= nullptr;

@@ -14,7 +14,6 @@
 (texmacs-module (math math-edit)
   (:use (utils library tree)
 	(utils library cursor)
-	(utils edit auto-close)
 	(math math-drd)
         (math math-stats)
         (convert tools tmconcat)))

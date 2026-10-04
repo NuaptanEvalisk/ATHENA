@@ -67,7 +67,6 @@ static string
 preference_callback_name (const QString& id) {
   struct callback_definition { const char* id; const char* procedure; };
   static const callback_definition callbacks[]= {
-    {"auto-close-brackets", "notify-auto-close-brackets"},
     {"autosave", "notify-autosave"},
     {"bidirectional-navigation", "notify-bidirectional-navigation"},
     {"converter-option", "converter-set-option"},
@@ -100,7 +99,6 @@ preference_callback_name (const QString& id) {
     {"printing-command", "notify-printing-command"},
     {"prog-auto-close-brackets", "notify-prog-auto-close-brackets"},
     {"python-syntax", "notify-python-syntax"},
-    {"quoting-style", "notify-quoting-style"},
     {"remote-control", "notify-remote-control"},
     {"restart", "notify-restart"},
     {"scheme-syntax", "notify-scheme-syntax"},

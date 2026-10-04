@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "open_after": [" ", "(", "[", "{", "-", "/", "\\"],
+  "default": {
+    "open": "“",
+    "close": "”",
+    "open_suffix": "",
+    "close_prefix": "",
+    "apostrophe_opens": true,
+    "paired": true
+  },
+  "styles": {
+    "none": {
+      "open": "\"",
+      "close": "\"",
+      "paired": false
+    },
+    "danish": {
+      "open": "”",
+      "close": "”"
+    },
+    "dutch": {
+      "open": "„",
+      "close": "”"
+    },
+    "german": {
+      "open": "„",
+      "close": "“"
+    },
+    "polish": {
+      "open": "„",
+      "close": "”"
+    },
+    "french": {
+      "open": "«",
+      "close": "»",
+      "open_suffix": " ",
+      "close_prefix": " "
+    },
+    "spanish": {
+      "open": "«",
+      "close": "»"
+    },
+    "swiss": {
+      "open": "»",
+      "close": "«"
+    },
+    "english": {
+      "apostrophe_opens": false
+    },
+    "british": {
+      "apostrophe_opens": false
+    }
+  }
+}

@@ -3456,7 +3456,6 @@
       "type": "choice",
       "scope": "active",
       "default": "default",
-      "callback": "quoting-style",
       "ui": {
         "category": "Keyboard",
         "tab": "Input",
@@ -3508,7 +3507,6 @@
       "type": "choice",
       "scope": "active",
       "default": "mathematics",
-      "callback": "auto-close-brackets",
       "ui": {
         "category": "Keyboard",
         "tab": "Input",
