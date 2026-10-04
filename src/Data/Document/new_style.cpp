@@ -623,39 +623,6 @@ hidden_package (string name) {
   return hidden_packages [name];
 }
 
-static string
-compute_style_menu (url u, int kind) {
-  if (is_or (u)) {
-    string sep= "\n";
-    if (is_atomic (u[1]) &&
-	((is_concat (u[2]) && (u[2][1] != "CVS") && (u[2][1] != ".svn")) ||
-	 (is_or (u[2]) && is_concat (u[2][1]))))
-      sep= "\n---\n";
-    return
-      compute_style_menu (u[1], kind) * sep *
-      compute_style_menu (u[2], kind);
-  }
-  if (is_concat (u)) {
-    string dir= upcase_first (as_string (u[1]));
-    string sub= compute_style_menu (u[2], kind);
-    if (ignore_dir (dir) || dir == "CVS" || dir == ".svn") return "";
-    return "(-> \"" * dir * "\" " * sub * ")";
-  }
-  if (is_atomic (u)) {
-    string l  = as_string (u);
-    if (ends (l, ".ats")) l= l (0, N(l)-4);
-    else if (ends (l, ".ts")) l= l (0, N(l)-3);
-    else if (ends (l, ".hook")) l= l (0, N(l)-5);
-    else return "";
-    string cmd ("set-main-style");
-    if (kind == 1) cmd= "add-style-package";
-    if (kind == 2) cmd= "remove-style-package";
-    if (kind == 3) cmd= "toggle-style-package";
-    return "((verbatim \"" * l * "\") (" * cmd * " \"" * l * "\"))";
-  }
-  return "";
-}
-
 static void
 collect_style_names (url u, array<string>& out) {
   if (is_or (u)) {
@@ -731,32 +698,4 @@ get_package_names () {
   static style_name_catalog catalog;
   static thread_local local_style_names local;
   return cached_style_names ("$ATHENA_PACKAGE_ROOT", catalog, local);
-}
-
-object
-get_style_menu () {
-  url sty_u= descendance ("$ATHENA_STYLE_ROOT");
-  string sty= compute_style_menu (sty_u, 0);
-  return eval ("(menu-dynamic " * sty * ")");
-}
-
-object
-get_add_package_menu () {
-  url pck_u= descendance ("$ATHENA_PACKAGE_ROOT");
-  string pck= compute_style_menu (pck_u, 1);
-  return eval ("(menu-dynamic " * pck * ")");
-}
-
-object
-get_remove_package_menu () {
-  url pck_u= descendance ("$ATHENA_PACKAGE_ROOT");
-  string pck= compute_style_menu (pck_u, 2);
-  return eval ("(menu-dynamic " * pck * ")");
-}
-
-object
-get_toggle_package_menu () {
-  url pck_u= descendance ("$ATHENA_PACKAGE_ROOT");
-  string pck= compute_style_menu (pck_u, 3);
-  return eval ("(menu-dynamic " * pck * ")");
 }

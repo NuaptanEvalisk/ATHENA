@@ -14,6 +14,7 @@
 
 #include "message.hpp"
 #include "scheme.hpp"
+#include "boot.hpp"
 
 #include <QColorDialog>
 #include <QHBoxLayout>
@@ -84,20 +85,17 @@ qt_color_picker_widget_rep::showDialog() {
     for (int i=0; i<N(_proposals); ++i)
       if (is_atomic (_proposals[i]))
         addRecent (_proposals[i]->label);
-    list<string> recentNames=
-      as_list_string (call ("color-picker-recent-colors"));
-    for (list<string> it= recentNames; !is_nil (it); it= it->next)
-      addRecent (it->item);
+    array<string> recentNames= color_picker_recent_colors ();
+    for (int i= 0; i < N (recentNames); ++i) addRecent (recentNames[i]);
 
-    list<string> savedNames=
-      as_list_string (call ("color-picker-saved-colors"));
+    array<string> savedNames= color_picker_saved_colors ();
     for (int i=0; i<QColorDialog::customCount (); ++i)
       QColorDialog::setCustomColor (i, Qt::transparent);
     int customIndex= 0;
-    for (list<string> it= savedNames;
-         !is_nil (it) && customIndex < QColorDialog::customCount ();
-         it= it->next) {
-      QColor color= to_qcolor (it->item);
+    for (int i= 0;
+         i < N (savedNames) && customIndex < QColorDialog::customCount ();
+         ++i) {
+      QColor color= to_qcolor (savedNames[i]);
       if (color.isValid ())
         QColorDialog::setCustomColor (customIndex++, color);
     }
@@ -146,12 +144,15 @@ qt_color_picker_widget_rep::showDialog() {
         savedSeen.insert (canonical);
       }
     }
-    call ("color-picker-set-saved-colors", object (saved));
+    array<string> savedArray;
+    for (list<string> it= saved; !is_nil (it); it= it->next)
+      savedArray << it->item;
+    color_picker_set_saved_colors (savedArray);
 
     QColor selected= dialog.selectedColor ();
     if (result == QDialog::Accepted && selected.isValid ()) {
       string name= from_qcolor (selected);
-      call ("color-picker-remember-color", object (name));
+      color_picker_remember_color (name);
       _commandAfterExecution (list_object (object (tree (name))));
     }
   }

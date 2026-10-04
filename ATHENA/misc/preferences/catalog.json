@@ -1412,13 +1412,13 @@
       "key": "recent text colors",
       "type": "string",
       "scope": "active",
-      "default": "()"
+      "default": "[]"
     },
     {
       "key": "saved text colors",
       "type": "string",
       "scope": "active",
-      "default": "()"
+      "default": "[]"
     },
     {
       "key": "gui cursor color",

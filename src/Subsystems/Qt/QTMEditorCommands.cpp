@@ -71,15 +71,12 @@ editor_color_items (const QTMCommandContext& context,
     "#bf9000", "#38761d"
   };
   for (const char* color: standard) addColor (QString::fromLatin1 (color));
-  try {
-    for (const QString& color:
-         scheme_string_vector (call ("color-picker-recent-colors")))
-      addColor (color);
-    for (const QString& color:
-         scheme_string_vector (call ("color-picker-saved-colors")))
-      addColor (color);
-  }
-  catch (...) {}
+  array<string> recentColors= color_picker_recent_colors ();
+  for (int i= 0; i < N (recentColors); ++i)
+    addColor (to_qstring (recentColors[i]));
+  array<string> savedColors= color_picker_saved_colors ();
+  for (int i= 0; i < N (savedColors); ++i)
+    addColor (to_qstring (savedColors[i]));
   QTMCommandDynamicItem other= enabled_dynamic_item (
     QStringLiteral ("__other__"), QObject::tr ("Other color..."));
   other.state.enabled= enabled;
@@ -94,32 +91,21 @@ execute_editor_color (const QString& key,
   if (proxy == nullptr || key.isEmpty ()) return false;
   QString color= key;
   if (key == QStringLiteral ("__other__")) {
-    array<string> recent, saved;
-    try {
-      recent= scheme_string_array (call ("color-picker-recent-colors"));
-      saved= scheme_string_array (call ("color-picker-saved-colors"));
-    }
-    catch (...) {}
+    array<string> recent= color_picker_recent_colors ();
+    array<string> saved= color_picker_saved_colors ();
     array<string> selected= qtm_color_dialog ("Choose color", recent, saved);
     if (N(selected) == 0) return true;
     color= to_qstring (selected[0]);
     if (N(selected) > 1) {
-      try {
-        (void) call (
-          "color-picker-set-saved-colors",
-          object (array_string_list (selected, 1)));
-      }
-      catch (...) {}
+      array<string> updatedSaved;
+      for (int i= 1; i < N (selected); ++i) updatedSaved << selected[i];
+      color_picker_set_saved_colors (updatedSaved);
     }
   }
   QColor qcolor (color);
   if (!qcolor.isValid ()) return false;
   color= qcolor.name ();
-  try {
-    (void) call (
-      "color-picker-remember-color", object (from_qstring (color)));
-  }
-  catch (...) {}
+  color_picker_remember_color (from_qstring (color));
   QJsonObject action;
   action.insert ("op", "make-with");
   action.insert ("var", "color");

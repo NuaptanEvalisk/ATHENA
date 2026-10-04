@@ -415,6 +415,126 @@ get_user_preference (string var, string val) {
   else return val;
 }
 
+namespace {
+
+array<string>
+parse_color_preference (string raw) {
+  array<string> out;
+  QByteArray bytes (as_charp (raw), N (raw));
+  QJsonParseError error;
+  QJsonDocument doc= QJsonDocument::fromJson (bytes, &error);
+  if (error.error == QJsonParseError::NoError && doc.isArray ()) {
+    QSet<QString> seen;
+    for (const QJsonValue& value: doc.array ()) {
+      if (!value.isString ()) continue;
+      QString text= value.toString ();
+      if (text.isEmpty () || seen.contains (text)) continue;
+      seen.insert (text);
+      out << from_qstring (text);
+      if (N (out) >= 8) break;
+    }
+    return out;
+  }
+
+  // Compatibility for preferences written by the former Scheme list
+  // serializer. Color history contains strings only, so reject every other
+  // datum instead of invoking the Scheme reader from native UI code.
+  std::string legacy (bytes.constData (), static_cast<std::size_t> (bytes.size ()));
+  std::size_t i= 0;
+  auto skip_space= [&] {
+    while (i < legacy.size () &&
+           (legacy[i] == ' ' || legacy[i] == '\t' ||
+            legacy[i] == '\r' || legacy[i] == '\n')) ++i;
+  };
+  skip_space ();
+  if (i >= legacy.size () || legacy[i++] != '(') return out;
+  QSet<QString> seen;
+  for (;;) {
+    skip_space ();
+    if (i >= legacy.size ()) return array<string> ();
+    if (legacy[i] == ')') {
+      ++i;
+      skip_space ();
+      return i == legacy.size () ? out : array<string> ();
+    }
+    if (legacy[i++] != '"') return array<string> ();
+    std::string value;
+    bool closed= false;
+    while (i < legacy.size ()) {
+      char c= legacy[i++];
+      if (c == '"') {
+        closed= true;
+        break;
+      }
+      if (c != '\\') {
+        value.push_back (c);
+        continue;
+      }
+      if (i >= legacy.size ()) return array<string> ();
+      char escaped= legacy[i++];
+      if (escaped == 'n') value.push_back ('\n');
+      else if (escaped == 'r') value.push_back ('\r');
+      else if (escaped == 't') value.push_back ('\t');
+      else value.push_back (escaped);
+    }
+    if (!closed) return array<string> ();
+    QString text= QString::fromUtf8 (value.data (), static_cast<int> (value.size ()));
+    if (!text.isEmpty () && !seen.contains (text)) {
+      seen.insert (text);
+      out << from_qstring (text);
+      if (N (out) >= 8) return out;
+    }
+  }
+}
+
+string
+serialize_color_preference (const array<string>& colors) {
+  QJsonArray values;
+  QSet<QString> seen;
+  for (int i= 0; i < N (colors) && values.size () < 8; ++i) {
+    QString text= to_qstring (colors[i]);
+    if (text.isEmpty () || seen.contains (text)) continue;
+    seen.insert (text);
+    values.append (text);
+  }
+  QByteArray bytes= QJsonDocument (values).toJson (QJsonDocument::Compact);
+  return string (bytes.constData (), bytes.size ());
+}
+
+void
+store_color_preference (string key, const array<string>& colors) {
+  set_user_preference (key, serialize_color_preference (colors));
+  save_user_preferences ();
+}
+
+} // namespace
+
+array<string>
+color_picker_recent_colors () {
+  return parse_color_preference (get_user_preference ("recent text colors", "[]"));
+}
+
+array<string>
+color_picker_saved_colors () {
+  return parse_color_preference (get_user_preference ("saved text colors", "[]"));
+}
+
+void
+color_picker_remember_color (string color) {
+  if (color == "") return;
+  array<string> current= color_picker_recent_colors ();
+  array<string> next;
+  next << color;
+  for (int i= 0; i < N (current) && N (next) < 8; ++i)
+    if (current[i] != color) next << current[i];
+  store_color_preference ("recent text colors", next);
+}
+
+void
+color_picker_set_saved_colors (array<string> colors) {
+  store_color_preference ("saved text colors", colors);
+}
+
 /******************************************************************************
 * Loading and saving user preferences
 ******************************************************************************/

@@ -30,6 +30,39 @@ object old_value (object options) {
   return N (values) == 0 ? object (false) : values[0];
 }
 
+string pattern_delta_unix (url target) {
+  url base= get_master_buffer (get_current_buffer_safe ());
+  if (is_rooted (target) && !is_none (base)) target= delta (base, target);
+  return as_unix_string (target);
+}
+
+string native_pattern_source (string source) {
+  string pattern_dir= as_unix_string (url ("$ATHENA_PATH/misc/patterns"));
+  if (starts (source, pattern_dir) ||
+      starts (source, "$ATHENA_PATH/misc/patterns") ||
+      starts (source, "$ATHENA_PATTERN_PATH"))
+    return source;
+
+  url source_url= url_unix (source);
+  if (!is_rooted (source_url)) {
+    url pattern_url= url ("$ATHENA_PATTERN_PATH") * source_url;
+    if (exists (pattern_url)) return as_unix_string (pattern_url);
+  }
+
+  string relative_source= pattern_delta_unix (source_url);
+  if (starts (relative_source, "../")) return source;
+  return relative_source;
+}
+
+object native_pattern_value (object value) {
+  tree pattern= content_to_tree (value);
+  if (!is_compound (pattern, "pattern") || N (pattern) == 0 ||
+      !is_atomic (pattern[0]))
+    return value;
+  pattern[0]= native_pattern_source (pattern[0]->label);
+  return tree_to_stree (pattern);
+}
+
 void open_selector (string mode, object callback, object old, string width) {
   // The existing native dialog dispatches Qt work to the GUI thread. Only
   // value strings cross that boundary; the callback runs back on its caller.
@@ -37,9 +70,7 @@ void open_selector (string mode, object callback, object old, string width) {
     mode, generic_background_initial (mode, old, width));
   object result= generic_background_result (mode, values);
   if (is_bool (result) && !as_bool (result)) return;
-  array<object> terms= as_array_object (result), args;
-  for (int i= 1; i < N (terms); ++i) args << terms[i];
-  call (callback, call ("tm-pattern", args));
+  call (callback, native_pattern_value (result));
 }
 
 } // namespace

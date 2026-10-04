@@ -2556,13 +2556,9 @@
     <arg type="int" />
     <arg type="int" />
   </binding>
-  <binding name="get-style-menu" native="get_style_menu" returns="object" />
   <binding name="hidden-package?" native="hidden_package" returns="bool">
     <arg type="string" />
   </binding>
-  <binding name="get-add-package-menu" native="get_add_package_menu" returns="object" />
-  <binding name="get-remove-package-menu" native="get_remove_package_menu" returns="object" />
-  <binding name="get-toggle-package-menu" native="get_toggle_package_menu" returns="object" />
   <binding name="refresh-now" native="windows_refresh" returns="void">
     <arg type="string" />
   </binding>
