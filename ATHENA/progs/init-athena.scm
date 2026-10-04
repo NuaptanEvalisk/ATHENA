@@ -131,8 +131,6 @@
 (import-from (athena athena tm-vault))
 (import-from (doc help-funcs))
 (generic-keyboard-load)
-(lazy-define (generic live-spell)
-             spell-live-import-custom-dictionary-from-preferences)
 (lazy-define (generic document-style)
              native-document-background-pattern-dialog
              native-document-background-gradient-dialog

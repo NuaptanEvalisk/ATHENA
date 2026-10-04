@@ -30,6 +30,7 @@
 #include "boot.hpp"
 #include "font.hpp"
 #include "file.hpp"
+#include "language.hpp"
 #include "namespaces.hpp"
 #include "scheme.hpp"
 #include "tm_ostream.hpp"
@@ -49,6 +50,7 @@
 #include <QCoreApplication>
 #include <QDialogButtonBox>
 #include <QDir>
+#include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFontDatabase>
@@ -195,6 +197,50 @@ notify_restart () {
     parent, QObject::tr ("Restart ATHENA"),
     QObject::tr ("Restart ATHENA in order to let the new setting take "
                  "effect."));
+}
+
+static void
+import_custom_dictionary (QWidget* parent) {
+  QString language= pref ("custom dictionary import language", "english").trimmed ();
+  if (language.isEmpty ()) language= QStringLiteral ("english");
+  QString path= QFileDialog::getOpenFileName (
+    parent, QObject::tr ("Import custom dictionary"), QString (),
+    QObject::tr ("Dictionary files (*);;Text files (*.txt);;All files (*)"));
+  if (path.isEmpty ()) return;
+
+  QFile file (path);
+  if (!file.open (QIODevice::ReadOnly | QIODevice::Text)) {
+    QMessageBox::warning (
+      parent, QObject::tr ("Import custom dictionary"),
+      QObject::tr ("Could not open the selected dictionary file."));
+    return;
+  }
+
+  const string native_language= from_qstring_pref (language);
+  string start_result= spell_start (native_language);
+  if (start_result != "ok") {
+    QMessageBox::warning (
+      parent, QObject::tr ("Import custom dictionary"),
+      to_qstring_pref (start_result));
+    return;
+  }
+
+  QSet<QString> seen;
+  int imported= 0;
+  while (!file.atEnd ()) {
+    QByteArray raw= file.readLine ();
+    QString word= QString::fromUtf8 (raw).trimmed ();
+    if (word.isEmpty () || seen.contains (word)) continue;
+    seen.insert (word);
+    spell_insert (native_language, from_qstring_pref (word));
+    ++imported;
+  }
+  spell_done (native_language);
+
+  QMessageBox::information (
+    parent, QObject::tr ("Import custom dictionary"),
+    QObject::tr ("Imported %1 words into the %2 dictionary.")
+      .arg (imported).arg (language));
 }
 
 static QString
@@ -1242,8 +1288,8 @@ QTMPreferencesDialog::buildEditingPage () {
   add_combo (t, "document update times");
   add_dynamic_qstring_combo (t, "custom dictionary import language", document_language_choices ());
   QPushButton* import= new QPushButton ("Import");
-  QObject::connect (import, &QPushButton::clicked, [] () {
-    (void) call ("spell-live-import-custom-dictionary-from-preferences");
+  QObject::connect (import, &QPushButton::clicked, [import] () {
+    import_custom_dictionary (import->window ());
   });
   t->addRow (label ("Custom dictionary:"), import);
   finish_page (text);
