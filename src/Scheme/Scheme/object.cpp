@@ -136,6 +136,12 @@ bool is_widget (object obj) { return tmscm_is_widget (object_to_tmscm (obj)); }
 bool is_patch (object obj) { return tmscm_is_patch (object_to_tmscm (obj)); }
 bool is_modification (object obj) {
   return tmscm_is_modification (object_to_tmscm (obj)); }
+bool is_procedure (object obj) {
+  return SCM_NFALSEP (scm_procedure_p (object_to_tmscm (obj))); }
+object procedure_source (object obj) {
+  if (!is_procedure (obj)) return object (false);
+  return tmscm_to_object (scm_procedure_source (object_to_tmscm (obj)));
+}
 
 /******************************************************************************
 * Basic conversions

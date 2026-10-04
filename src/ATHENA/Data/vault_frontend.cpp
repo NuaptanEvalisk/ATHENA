@@ -11,6 +11,7 @@
 #include "ATHENA/Data/vault_database_layout.hpp"
 #include "ATHENA/Data/vault_safe_rename.hpp"
 #include "QTMVaultExplorer.hpp"
+#include "QTMNativeDialogs.hpp"
 #include "analyze.hpp"
 #include "scheme.hpp"
 #include "tm_configure.hpp"
@@ -34,8 +35,7 @@ preference_on (string name) {
 
 void
 show_message (string message, string title) {
-  try { (void) call ("show-message", object (message), object (title)); }
-  catch (...) {}
+  qtm_info_dialog (message, title);
 }
 
 void

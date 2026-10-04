@@ -343,15 +343,6 @@
                   (widget-menu-button l command check short style))
       (if bal? but (add-menu-entry-balloon but style action label)))))
 
-(define-public (promise-source action)
-  "Helper routines for menu-widget and kbd-define"
-  (and (procedure? action)
-       (with source (procedure-source action)
-         (and (== (car source) 'lambda)
-              (== (cadr source) '())
-              (null? (cdddr source))
-              (caddr source)))))
-
 (define (make-menu-entry-shortcut label action opt-key)
   (cond (opt-key (kbd-system opt-key #t))
         ((pair? label) "")
@@ -1073,10 +1064,6 @@
   (set! global-resize #f)
   (make-menu-widget p style))
 
-(tm-define (interactive-print done u)
-  (:interactive #t)
-  (native-print-file-dialog u))
-
 (define (dialog-color-string x)
   (cond ((string? x) x)
         ((tree? x) (tree->string x))
@@ -1105,24 +1092,6 @@
   (cond ((string? x) x)
         ((tree? x) (tree->string x))
         (else (object->string x))))
-
-(tm-define (show-message msg title)
-  (:interactive #t)
-  (native-info-dialog (native-dialog-string msg)
-                      (native-dialog-string title)))
-
-(tm-define (restart-message)
-  (:interactive #t)
-  (show-message "Restart ATHENA in order to let changes take effect"
-                "Notification"))
-
-(tm-define (notify-now message)
-  (delayed
-    (:idle 1)
-    (native-info-dialog (native-dialog-string message) "Notification")))
-
-(tm-define (notify-restart . args)
-  (notify-now "Restart ATHENA in order to let changes take effect"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Widgets that have to be defined early on

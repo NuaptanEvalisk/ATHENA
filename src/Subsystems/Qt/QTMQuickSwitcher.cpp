@@ -17,6 +17,7 @@
 #include "vault.hpp"
 #include "new_buffer.hpp"
 #include "QTMNamespaceNewFile.hpp"
+#include "QTMNativeDialogs.hpp"
 #include "qt_utilities.hpp"
 #include <QApplication>
 #include <QCoreApplication>
@@ -85,8 +86,7 @@ tree runQuickSwitcher (const array<string>& recentFiles);
 
 void
 showQuickSwitcherMessage (string message) {
-  try { (void) call ("show-message", object (message), object ("Quick switcher")); }
-  catch (...) {}
+  qtm_info_dialog (message, "Quick switcher");
 }
 
 void

@@ -960,7 +960,7 @@
   (with file (url-append (url-temp-dir)
                          (string-append "tmpprint." (printer-file-suffix)))
     (print-to-file file)
-    (interactive-print '() file)))
+    (native-print-file-dialog file)))
 
 (tm-define (print-buffer)
   (:synopsis "Print the current buffer")

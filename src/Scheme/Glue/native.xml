@@ -1173,6 +1173,20 @@
     <arg type="string" />
     <arg type="string" />
   </binding>
+  <binding name="promise-source" native="athena_promise_source" returns="object">
+    <arg type="object" />
+  </binding>
+  <binding name="show-message" native="athena_show_message" returns="void">
+    <arg type="object" />
+    <arg type="object" />
+  </binding>
+  <binding name="restart-message" native="athena_restart_message" returns="void" />
+  <binding name="notify-now" native="athena_notify_now" returns="void">
+    <arg type="object" />
+  </binding>
+  <binding name="notify-restart" native="athena_notify_restart" returns="void">
+    <arg type="object" rest="true" />
+  </binding>
   <binding name="native-linked-file-choice" native="athena_native_linked_file_choice" returns="string">
     <arg type="string" />
     <arg type="array_string" />

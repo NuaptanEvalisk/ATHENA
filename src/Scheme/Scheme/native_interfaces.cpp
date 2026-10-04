@@ -110,6 +110,7 @@
 #include <QPushButton>
 #include <QSizePolicy>
 #include <QSpacerItem>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
 #include <QThread>
@@ -640,6 +641,68 @@ void
 athena_native_info_dialog (string arg1, string arg2) {
   if (headless_mode) return;
   qtm_info_dialog (arg1, arg2);
+}
+
+namespace {
+
+string
+native_dialog_text (object value) {
+  if (is_string (value)) return as_string (value);
+  if (is_tree (value)) return coerce_tree_string (as_tree (value));
+  return object_to_string (value);
+}
+
+void
+queue_native_notification (string message) {
+  if (headless_mode) return;
+  std::string stable (message.data (), static_cast<std::size_t> (N (message)));
+  auto* app= QCoreApplication::instance ();
+  if (app == nullptr) return;
+  QMetaObject::invokeMethod (
+    app,
+    [stable= std::move (stable)] {
+      qtm_info_dialog (string (stable.data (), static_cast<int> (stable.size ())),
+                       "Notification");
+    },
+    Qt::QueuedConnection);
+}
+
+} // namespace
+
+object
+athena_promise_source (object action) {
+  if (!is_procedure (action)) return object (false);
+  object source= procedure_source (action);
+  if (!is_list (source)) return object (false);
+  array<object> terms= as_array_object (source);
+  if (N (terms) != 3 || !is_symbol (terms[0]) ||
+      as_symbol (terms[0]) != "lambda" || !is_null (terms[1]))
+    return object (false);
+  return terms[2];
+}
+
+void
+athena_show_message (object message, object title) {
+  athena_native_info_dialog (native_dialog_text (message),
+                             native_dialog_text (title));
+}
+
+void
+athena_restart_message () {
+  athena_native_info_dialog (
+    "Restart ATHENA in order to let changes take effect", "Notification");
+}
+
+void
+athena_notify_now (object message) {
+  queue_native_notification (native_dialog_text (message));
+}
+
+void
+athena_notify_restart (object ignored) {
+  (void) ignored;
+  queue_native_notification (
+    "Restart ATHENA in order to let changes take effect");
 }
 
 string
