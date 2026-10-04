@@ -12,6 +12,7 @@
 #include "Interface/edit_interface.hpp"
 #include "Interface/selection_autoscroll.hpp"
 #include "ATHENA/Data/heading_word_count.hpp"
+#include "table_commands.hpp"
 #include "file.hpp"
 #include "convert.hpp"
 #include "server.hpp"
@@ -1071,9 +1072,16 @@ editor_rep::focus_toolbar_state_snapshot () {
   }
   catch (...) {}
 
-  snapshot.numbered_available= query ("numbered-context?");
-  if (snapshot.numbered_available)
-    snapshot.numbered_checked= query ("numbered-numbered?");
+  if (is_compound (t, "eqnarray") || is_compound (t, "eqnarray*")) {
+    snapshot.numbered_available= true;
+    snapshot.numbered_checked=
+      athena::table_commands::eqnarray_numbered (this, t);
+  }
+  else {
+    snapshot.numbered_available= query ("numbered-context?");
+    if (snapshot.numbered_available)
+      snapshot.numbered_checked= query ("numbered-numbered?");
+  }
   const bool alternateFirst= query ("alternate-first?");
   const bool alternateSecond= query ("alternate-second?");
   snapshot.alternate_available= alternateFirst || alternateSecond;

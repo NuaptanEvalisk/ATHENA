@@ -1404,9 +1404,7 @@ edit_table_rep::table_correct_block_content () {
 
 void
 edit_table_rep::table_resize_notify () {
-  path p= search_table ();
-  if (!is_nil (p))
-    call ("table-resize-notify", object (subtree (et, p)));
+  // Native table editing owns resize state; the retired Scheme hook was a no-op.
 }
 
 void

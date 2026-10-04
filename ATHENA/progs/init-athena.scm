@@ -270,11 +270,7 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting table mode\n")
-(lazy-keyboard (table table-edit) in-table?)
 (lazy-keyboard (native-keyboard table) in-table?)
-(lazy-define (table table-edit) table-resize-notify
-             native-insert-small-table native-insert-big-table
-             table-test-parwidth? table-toggle-parwidth)
 (lazy-define (table table-widgets) open-cell-properties open-table-properties)
 (tm-property (open-cell-properties) (:interactive #t))
 (tm-property (open-table-properties) (:interactive #t))

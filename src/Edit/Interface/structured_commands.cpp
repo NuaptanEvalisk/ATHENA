@@ -12,9 +12,38 @@
 #include "editor.hpp"
 #include "native_interfaces.hpp"
 #include "new_view.hpp"
+#include "table_commands.hpp"
 #include "tree_traverse.hpp"
 
 namespace {
+
+bool
+table_move (editor ed, int drow, int dcol) {
+  if (is_nil (ed)) return false;
+  const int row= ed->table_which_row ();
+  const int col= ed->table_which_column ();
+  array<int> extents= ed->table_get_extents ();
+  if (row <= 0 || col <= 0 || N(extents) != 2) return false;
+  const int next_row= row + drow;
+  const int next_col= col + dcol;
+  if (next_row < 1 || next_row > extents[0] ||
+      next_col < 1 || next_col > extents[1])
+    return false;
+  ed->table_go_to (next_row, next_col);
+  return true;
+}
+
+bool
+table_cell_extremal (editor ed, bool forwards) {
+  if (is_nil (ed)) return false;
+  const int row= ed->table_which_row ();
+  const int col= ed->table_which_column ();
+  path cell= ed->table_search_cell (row, col);
+  if (is_nil (cell) || !has_subtree (ed->the_root (), cell)) return false;
+  ed->go_to (forwards ? end (ed->the_root (), cell)
+                      : start (ed->the_root (), cell));
+  return true;
+}
 
 bool parent_tree (tree t, tree& parent) {
   if (admits_edit_observer (t)) return false;
@@ -298,6 +327,9 @@ void generic_traverse_horizontal (tree, bool forwards) {
 }
 
 void generic_traverse_vertical (tree t, bool downwards) {
+  if (generic_table_markup_context (t) &&
+      table_move (get_current_editor (), downwards ? 1 : -1, 0))
+    return;
   if (is_func (t, DOCUMENT)) {
     call (downwards ? "go-to-next-tag" : "go-to-previous-tag",
           symbol_object ("document"));
@@ -339,10 +371,26 @@ void generic_traverse_previous_section_title () {
 }
 
 void generic_swipe_horizontal (tree t, bool forwards) {
+  if (generic_table_markup_context (t)) {
+    editor ed= get_current_editor ();
+    if (!is_nil (ed)) {
+      if (forwards) athena::table_commands::cell_halign_right (ed.operator-> ());
+      else athena::table_commands::cell_halign_left (ed.operator-> ());
+    }
+    return;
+  }
   outward (t, "swipe-horizontal", forwards);
 }
 
 void generic_swipe_vertical (tree t, bool downwards) {
+  if (generic_table_markup_context (t)) {
+    editor ed= get_current_editor ();
+    if (!is_nil (ed)) {
+      if (downwards) athena::table_commands::cell_valign_down (ed.operator-> ());
+      else athena::table_commands::cell_valign_up (ed.operator-> ());
+    }
+    return;
+  }
   outward (t, "swipe-vertical", downwards);
 }
 
@@ -458,6 +506,10 @@ bool generic_structured_vertical_context (tree t) {
 }
 
 void generic_structured_insert_horizontal (tree t, bool forwards) {
+  if (generic_table_markup_context (t)) {
+    get_current_editor ()->table_insert_column (forwards);
+    return;
+  }
   if (is_tree_branch (t)) { tree_insert_horizontal (t, forwards); return; }
   if (scheme_predicate ("structured-horizontal?", t)) {
     tree child;
@@ -469,11 +521,19 @@ void generic_structured_insert_horizontal (tree t, bool forwards) {
 }
 
 void generic_structured_insert_vertical (tree t, bool downwards) {
+  if (generic_table_markup_context (t)) {
+    get_current_editor ()->table_insert_row (downwards);
+    return;
+  }
   if (is_tree_branch (t)) { tree_insert_vertical (t, downwards); return; }
   outward (t, "structured-insert-vertical", downwards);
 }
 
 void generic_structured_remove_horizontal (tree t, bool forwards) {
+  if (generic_table_markup_context (t)) {
+    get_current_editor ()->table_remove_column (forwards);
+    return;
+  }
   if (is_tree_branch (t)) { tree_remove_horizontal (t, forwards); return; }
   if (scheme_predicate ("structured-horizontal?", t)) {
     tree child;
@@ -485,6 +545,10 @@ void generic_structured_remove_horizontal (tree t, bool forwards) {
 }
 
 void generic_structured_remove_vertical (tree t, bool downwards) {
+  if (generic_table_markup_context (t)) {
+    get_current_editor ()->table_remove_row (downwards);
+    return;
+  }
   outward (t, "structured-remove-vertical", downwards);
 }
 
@@ -499,14 +563,26 @@ void generic_structured_insert_incremental (tree t, bool downwards) {
 }
 
 void generic_structured_horizontal (tree t, bool forwards) {
+  if (generic_table_markup_context (t)) {
+    (void) table_move (get_current_editor (), 0, forwards ? 1 : -1);
+    return;
+  }
   generic_horizontal_once (t, forwards);
 }
 
 void generic_structured_vertical (tree t, bool downwards) {
+  if (generic_table_markup_context (t)) {
+    (void) table_move (get_current_editor (), downwards ? 1 : -1, 0);
+    return;
+  }
   generic_vertical_once (t, downwards);
 }
 
 void generic_structured_inner_extremal (tree t, bool forwards) {
+  if (generic_table_markup_context (t)) {
+    (void) table_cell_extremal (get_current_editor (), forwards);
+    return;
+  }
   if (!scheme_predicate ("structured-horizontal?", t)) {
     outward (t, "structured-inner-extremal", forwards);
     return;

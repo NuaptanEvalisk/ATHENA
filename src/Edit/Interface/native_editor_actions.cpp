@@ -9,6 +9,7 @@
 #include "native_editor_actions.hpp"
 
 #include "ATHENA/Data/program_model.hpp"
+#include "table_commands.hpp"
 #include "document_commands.hpp"
 #include "document_style_commands.hpp"
 #include "format_commands.hpp"
@@ -341,9 +342,11 @@ execute_business_id (editor ed, const QString& id) {
     (void) call ("native-insert-thumbnails-dialog");
   else if (id == "make-graphics") (void) call ("make-graphics");
   else if (id == "insert-small-table")
-    (void) call ("native-insert-small-table");
+    athena::table_commands::insert_small_table (
+      is_nil (ed) ? nullptr : ed.operator-> ());
   else if (id == "insert-big-table")
-    (void) call ("native-insert-big-table");
+    athena::table_commands::insert_big_table (
+      is_nil (ed) ? nullptr : ed.operator-> ());
   else if (id == "insert-small-figure")
     (void) call ("native-insert-small-figure");
   else if (id == "insert-big-figure")
@@ -1087,8 +1090,11 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     if (!state.valid () || !ed->test_subtree (focus)) return;
     tree target= ed->the_subtree (focus);
     const QString id= action.value ("id").toString ();
-    if (id == "numbered-toggle" && state.numbered_available)
-      (void) call ("numbered-toggle", object (target));
+    if (id == "numbered-toggle" && state.numbered_available) {
+      if (!athena::table_commands::eqnarray_toggle_numbering (
+            ed.operator-> (), target))
+        (void) call ("numbered-toggle", object (target));
+    }
     else if (id == "alternate-toggle" && state.alternate_available)
       (void) call ("alternate-toggle", object (target));
     else if (id == "inactive-toggle" && state.hidden_toggle_available)
@@ -1177,8 +1183,8 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
              state.poster_block_context)
       (void) call ("block-toggle-wide", object (target));
     else if (id == "table-toggle-parwidth" &&
-             state.has (ACTOR_FOCUS_TOOLBAR_TABLE_CONTEXT))
-      (void) call ("table-toggle-parwidth");
+              state.has (ACTOR_FOCUS_TOOLBAR_TABLE_CONTEXT))
+      athena::table_commands::table_toggle_parwidth (ed.operator-> ());
     else if (id == "sqrt-toggle" && state.sqrt_context)
       (void) call ("sqrt-toggle", object (target));
     else if (id == "dueto-add" && state.dueto_available)

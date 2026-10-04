@@ -9,6 +9,8 @@
 ******************************************************************************/
 
 #include "format_geometry.hpp"
+#include "structured_commands.hpp"
+#include "table_commands.hpp"
 #include "editor.hpp"
 #include "new_view.hpp"
 #include "native_interfaces.hpp"
@@ -247,10 +249,26 @@ void insert_wrapper (tree t, string message, string context) {
 void geometry_speed (tree t, bool forward) { adjust (t, adjustment::speed, forward, "geometry-speed"); }
 void geometry_variant (tree t, bool forward) { adjust (t, adjustment::variant, forward, "geometry-variant"); }
 void geometry_horizontal (tree t, bool forward) {
+  if (generic_table_markup_context (t)) {
+    editor ed= get_current_editor ();
+    if (!is_nil (ed)) {
+      if (forward) athena::table_commands::cell_halign_right (ed.operator-> ());
+      else athena::table_commands::cell_halign_left (ed.operator-> ());
+    }
+    return;
+  }
   if (graphical_text_context (t)) { graphical_text_horizontal (t, forward); return; }
   adjust (t, adjustment::horizontal, forward, "geometry-horizontal");
 }
 void geometry_vertical (tree t, bool down) {
+  if (generic_table_markup_context (t)) {
+    editor ed= get_current_editor ();
+    if (!is_nil (ed)) {
+      if (down) athena::table_commands::cell_valign_down (ed.operator-> ());
+      else athena::table_commands::cell_valign_up (ed.operator-> ());
+    }
+    return;
+  }
   if (graphical_text_context (t)) { graphical_text_vertical (t, down); return; }
   if (active_graphics_context ()) {
     (void) call ("graphics-change-geo-valign", object (down));
@@ -274,6 +292,11 @@ void geometry_incremental (tree t, bool down) {
   adjust (t, adjustment::incremental, down, "geometry-incremental");
 }
 void geometry_default (tree t) {
+  if (generic_table_markup_context (t)) {
+    editor ed= get_current_editor ();
+    if (!is_nil (ed)) ed->cell_del_format ("");
+    return;
+  }
   tree parent;
   if (parent_tree (t, parent)) call ("geometry-default", object (parent));
 }

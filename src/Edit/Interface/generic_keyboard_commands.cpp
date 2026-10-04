@@ -13,6 +13,7 @@
 #include "file.hpp"
 #include "hashset.hpp"
 #include "native_latex_commands.hpp"
+#include "structured_commands.hpp"
 #include "new_view.hpp"
 #include "scheme.hpp"
 #include "Subsystems/Qt/QTMESCSymbolPicker.hpp"
@@ -181,6 +182,21 @@ bool parent_tree (tree t, tree& parent) {
   tree root= get_current_editor ()->the_root ();
   parent= subtree (root, reverse (ip->next));
   return true;
+}
+
+bool
+table_enter_inside_document (editor ed) {
+  if (is_nil (ed)) return false;
+  tree root= ed->the_root ();
+  path p= path_up (ed->the_path ());
+  while (!is_nil (p)) {
+    if (!has_subtree (root, p)) break;
+    tree current= subtree (root, p);
+    if (is_func (current, DOCUMENT)) return true;
+    if (is_func (current, TABLE)) return false;
+    p= path_up (p);
+  }
+  return false;
 }
 
 void outward (tree t, const char* command, bool flag) {
@@ -441,6 +457,18 @@ void generic_kbd_space_bar (tree t, bool shift) {
 }
 
 void generic_kbd_enter (tree t, bool shift) {
+  if (generic_table_markup_context (t)) {
+    (void) shift;
+    editor ed= get_current_editor ();
+    if (is_nil (ed)) return;
+    if (table_enter_inside_document (ed))
+      (void) ed->insert_return ();
+    else {
+      ed->table_insert_row (true);
+      ed->table_go_to (ed->table_which_row (), 1);
+    }
+    return;
+  }
   (void) shift;
   if (!admits_edit_observer (t)) { outward (t, "kbd-enter", shift); return; }
   (void) get_current_editor ()->insert_return ();

@@ -365,9 +365,6 @@ edit_interface_rep::table_resize_update (SI x, SI y) {
                       table_resize_row + 1, -1, CELL_VMODE, tree ("exact"));
   }
 
-  path table= search_table (fp);
-  if (!is_nil (table))
-    call ("table-resize-notify", object (subtree (et, table)));
   notify_change (THE_TREE + THE_ENVIRONMENT);
   return true;
 }

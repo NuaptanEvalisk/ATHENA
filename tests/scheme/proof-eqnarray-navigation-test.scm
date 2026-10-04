@@ -1,4 +1,4 @@
-(import-from (text text-edit) (generic generic-edit) (table table-edit))
+(import-from (text text-edit) (generic generic-edit))
 (init-style "generic")
 
 (define (check condition message)

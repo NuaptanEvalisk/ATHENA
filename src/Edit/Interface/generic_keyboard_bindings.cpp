@@ -10,6 +10,7 @@
 
 #include "generic_keyboard_commands.hpp"
 #include "auto_close.hpp"
+#include "table_commands.hpp"
 #include "file.hpp"
 #include "native_keyboard_prefixes.hpp"
 
@@ -205,6 +206,8 @@ object expression (QJsonValue value, bool source) {
     if (source) return cons (symbol_object (name), as_list_object (args));
     object native_result;
     if (athena::auto_close::keyboard_call (name, args, native_result))
+      return native_result;
+    if (athena::table_commands::keyboard_call (name, args, native_result))
       return native_result;
     return call (name, args);
   }

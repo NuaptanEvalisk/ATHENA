@@ -46,6 +46,147 @@
   <binding name="native-text-projection" native="athena_plain_text_projection" returns="string">
     <arg type="tree" />
   </binding>
+  <binding name="cell-set-format*" native="native_cell_set_format_star" returns="void">
+    <arg type="string" /><arg type="string" />
+  </binding>
+  <binding name="table-set-format*" native="native_table_set_format_star" returns="void">
+    <arg type="string" /><arg type="string" />
+  </binding>
+  <binding name="table-set-automatic-width" native="native_table_set_automatic_width" returns="void" />
+  <binding name="table-set-minimal-width" native="native_table_set_minimal_width" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="table-set-exact-width" native="native_table_set_exact_width" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="table-set-maximal-width" native="native_table_set_maximal_width" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="table-set-automatic-height" native="native_table_set_automatic_height" returns="void" />
+  <binding name="table-set-minimal-height" native="native_table_set_minimal_height" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="table-set-exact-height" native="native_table_set_exact_height" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="table-set-maximal-height" native="native_table_set_maximal_height" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="table-test-parwidth?" native="native_table_test_parwidth" returns="bool" />
+  <binding name="table-toggle-parwidth" native="native_table_toggle_parwidth" returns="void" />
+  <binding name="table-set-padding" native="native_table_set_padding" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="table-set-border" native="native_table_set_border" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="table-set-halign" native="native_table_set_halign" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="table-set-valign" native="native_table_set_valign" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="cell-set-automatic-width" native="native_cell_set_automatic_width" returns="void" />
+  <binding name="cell-set-minimal-width" native="native_cell_set_minimal_width" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="cell-set-exact-width" native="native_cell_set_exact_width" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="cell-set-maximal-width" native="native_cell_set_maximal_width" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="cell-set-automatic-height" native="native_cell_set_automatic_height" returns="void" />
+  <binding name="cell-set-minimal-height" native="native_cell_set_minimal_height" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="cell-set-exact-height" native="native_cell_set_exact_height" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="cell-set-maximal-height" native="native_cell_set_maximal_height" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="cell-set-padding" native="native_cell_set_padding" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="cell-set-hpadding" native="native_cell_set_hpadding" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="cell-set-vpadding" native="native_cell_set_vpadding" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="cell-set-span" native="native_cell_set_span" returns="void">
+    <arg type="string" /><arg type="string" />
+  </binding>
+  <binding name="cell-set-span-selection" native="native_cell_set_span_selection" returns="void" />
+  <binding name="cell-set-halign" native="native_cell_set_halign" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="cell-set-valign" native="native_cell_set_valign" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="cell-set-background" native="native_cell_set_background" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="cell-set-vcorrect" native="native_cell_set_vcorrect" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="cell-set-hyphen" native="native_cell_set_hyphen" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="cell-set-block" native="native_cell_set_block" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="cell-toggle-wrap" native="native_cell_toggle_wrap" returns="void" />
+  <binding name="cell-halign-left" native="native_cell_halign_left" returns="void" />
+  <binding name="cell-halign-right" native="native_cell_halign_right" returns="void" />
+  <binding name="cell-valign-down" native="native_cell_valign_down" returns="void" />
+  <binding name="cell-valign-up" native="native_cell_valign_up" returns="void" />
+  <binding name="table-select-cells" native="native_table_select_cells" returns="void">
+    <arg type="int" /><arg type="int" /><arg type="int" /><arg type="int" />
+  </binding>
+  <binding name="cell-set-border" native="native_cell_set_border" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="cell-set-hborder" native="native_cell_set_hborder" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="cell-set-vborder" native="native_cell_set_vborder" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="cell-set-lborder" native="native_cell_set_lborder" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="cell-set-rborder" native="native_cell_set_rborder" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="cell-set-bborder" native="native_cell_set_bborder" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="cell-set-tborder" native="native_cell_set_tborder" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="table-set-height-value" native="native_table_set_height_value" returns="void"><arg type="string" /></binding>
+  <binding name="table-set-lsep-value" native="native_table_set_lsep_value" returns="void"><arg type="string" /></binding>
+  <binding name="table-set-rsep-value" native="native_table_set_rsep_value" returns="void"><arg type="string" /></binding>
+  <binding name="table-set-bsep-value" native="native_table_set_bsep_value" returns="void"><arg type="string" /></binding>
+  <binding name="table-set-tsep-value" native="native_table_set_tsep_value" returns="void"><arg type="string" /></binding>
+  <binding name="table-set-lborder-value" native="native_table_set_lborder_value" returns="void"><arg type="string" /></binding>
+  <binding name="table-set-rborder-value" native="native_table_set_rborder_value" returns="void"><arg type="string" /></binding>
+  <binding name="table-set-bborder-value" native="native_table_set_bborder_value" returns="void"><arg type="string" /></binding>
+  <binding name="table-set-tborder-value" native="native_table_set_tborder_value" returns="void"><arg type="string" /></binding>
+  <binding name="table-set-row-origin-value" native="native_table_set_row_origin_value" returns="void"><arg type="string" /></binding>
+  <binding name="table-set-col-origin-value" native="native_table_set_col_origin_value" returns="void"><arg type="string" /></binding>
+  <binding name="table-set-min-rows-value" native="native_table_set_min_rows_value" returns="void"><arg type="string" /></binding>
+  <binding name="table-set-min-cols-value" native="native_table_set_min_cols_value" returns="void"><arg type="string" /></binding>
+  <binding name="table-set-max-rows-value" native="native_table_set_max_rows_value" returns="void"><arg type="string" /></binding>
+  <binding name="table-set-max-cols-value" native="native_table_set_max_cols_value" returns="void"><arg type="string" /></binding>
+  <binding name="cell-set-hpart-value" native="native_cell_set_hpart_value" returns="void"><arg type="string" /></binding>
+  <binding name="cell-set-vpart-value" native="native_cell_set_vpart_value" returns="void"><arg type="string" /></binding>
+  <binding name="cell-set-lsep-value" native="native_cell_set_lsep_value" returns="void"><arg type="string" /></binding>
+  <binding name="cell-set-rsep-value" native="native_cell_set_rsep_value" returns="void"><arg type="string" /></binding>
+  <binding name="cell-set-bsep-value" native="native_cell_set_bsep_value" returns="void"><arg type="string" /></binding>
+  <binding name="cell-set-tsep-value" native="native_cell_set_tsep_value" returns="void"><arg type="string" /></binding>
   <binding name="escape-symbol-insert" native="generic_escape_symbol_insert" returns="void">
     <arg type="string" />
   </binding>

@@ -9,6 +9,7 @@
 #include "ATHENA/Data/data_art.hpp"
 #include "ATHENA/Data/heading_word_count.hpp"
 #include "Edit/Interface/auto_close.hpp"
+#include "Edit/Interface/table_commands.hpp"
 #include "Edit/Interface/format_geometry.hpp"
 #include "Edit/Interface/format_commands.hpp"
 #include "Edit/Interface/structured_commands.hpp"

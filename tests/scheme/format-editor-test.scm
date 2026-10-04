@@ -1,5 +1,5 @@
 ;; Native formatting commands execute on an actual BufferActor-owned document.
-(import-from (generic format-drd) (generic generic-edit) (table table-edit) (source macro-search))
+(import-from (generic format-drd) (generic generic-edit) (source macro-search))
 (init-style "generic")
 (define (body) (tree->stree (buffer-tree)))
 (define (node) (tree-ref (buffer-tree) 0))
