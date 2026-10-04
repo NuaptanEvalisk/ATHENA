@@ -34,8 +34,8 @@
 ;; Menu names of style files and packages, and balloon help
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(comment "Style names, descriptions and category relationships live in
-ATHENA/misc/styles/catalog.json and are queried by native C++.")
+;; Style names, descriptions and category relationships live in
+;; ATHENA/misc/styles/catalog.json and are queried by native C++.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Getting and setting the list of style packages
