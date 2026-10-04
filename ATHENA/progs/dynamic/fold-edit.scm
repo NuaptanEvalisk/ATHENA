@@ -20,44 +20,6 @@
         (text text-edit)
         (text text-structure)))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Style package rules for beamer
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (beamer-themes)
-  (list "bluish" "boring-white" "dark-vador" "granite"
-        "ice" "manila-paper" "metal" "pale-blue"
-        "pine" "reddish" "ridged-paper" "rough-paper"
-        "xperiment"))
-
-(tm-define (current-beamer-theme)
-  (with l (get-style-list)
-    (or (list-find l (cut in? <> (beamer-themes)))
-        "bluish")))
-
-(tm-define (style-category p)
-  (:require (and (in-beamer?) (in? p (beamer-themes))))
-  :beamer-theme)
-
-(tm-define (style-category p)
-  (:require (in? p (list "title-bar" "framed-title")))
-  :beamer-title-theme)
-
-(tm-define (style-category-precedes? x y)
-  (:require (and (== x "alt-colors") (== y :beamer-theme)))
-  #t)
-
-(tm-define (style-category-precedes? x y)
-  (:require (and (== x :beamer-theme)
-                 (in? y (list :beamer-title-theme
-                              :theorem-decorations))))
-  #t)
-
-(tm-define (style-includes? x y)
-  (:require (and (== x "beamer")
-                 (in? y (list "title-bar" "bluish"))))
-  #t)
-
 (tm-define (screens-buffer?)
   (with t (buffer-tree)
     (and (tree-is? t 'document)

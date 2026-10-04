@@ -34,8 +34,8 @@
 ;; Menu names of style files and packages, and balloon help
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define-table style-synopsis)
-(define-table style-menu-name)
+(comment "Style names, descriptions and category relationships live in
+ATHENA/misc/styles/catalog.json and are queried by native C++.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Getting and setting the list of style packages
@@ -121,129 +121,6 @@
 	(delayed
 	  (:idle 1)
 	  (make l)))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Table with menu names for style packages which are used as style options
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define-table style-menu-name
-  ("framed-title"         "Framed titles")
-  ("title-bar"            "Title bars")
-  ("math-ss"              "Sans serif formulas")
-
-  ("centered-program"     "Centered programs")
-  ("framed-program"       "Framed programs")
-  ("compact-list"         "Compact lists")
-  ("triangle-list"        "Triangular list items")
-  ("prefix-enumerations"  "Prefix nested numbers")
-  ("math-brackets"        "Color according to nesting level")
-  ("math-check"           "Highlight errors")
-  ("framed-theorems"      "Framed theorems")
-  ("hanging-theorems"     "Hanging theorems")
-  ("number-europe"        "European numbering style")
-  ("number-us"            "US numbering style")
-  ("number-long-article"  "Prefix by section number")
-  ("captions-above"       "Captions above")
-
-  ("normal-spacing"       "Default spacing")
-  ("wide-spacing"         "Wide spacing")
-  ("invisible-multiply"   "Invisible multiplications")
-  ("narrow-multiply"      "Narrow multiplications")
-  ("regular-multiply"     "Regular multiplications")
-  ("invisible-apply"      "Invisible function applications")
-  ("narrow-apply"         "Narrow function applications")
-  ("regular-apply"        "Regular function applications"))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Table with brief descriptions for common styles and style packages
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define-table style-synopsis
-  ("article"        "Default style for writing articles")
-  ("beamer"         "Style for laptop presentations")
-  ("book"           "Default style for writing books")
-  ("generic"        "Default document style")
-  ("letter"         "Default style for writing letters")
-  ("poster"         "Style for posters")
-  ("seminar"        "Style for presentations using an overhead projector")
-  ("source"         "Style for editing style files and packages")
-
-  ("acmart"         "ACM article style")
-  ("acmsmall"       "Small ACM journal style")
-  ("acmlarge"       "Large ACM journal style")
-  ("acmtog"         "Two column ACM journal style")
-  ("sigconf"        "ACM SIGSAM conference style")
-  ("sigchi"         "ACM SIGSAM abstract style")
-  ("sigplan"        "ACM SIGSAM proceedings style")
-  ("amsart"         "AMS article style")
-  ("elsarticle"     "Elsevier article style")
-  ("ifac"           "IFAC article style")
-  ("ieeeconf"       "IEEE conference style")
-  ("ieeetran"       "Style for transactions by the IEEE")
-  ("aip"            "REVTeX meta-style (American Institute of Physics)")
-  ("aps"            "REVTeX meta-style (American Physical Society)")
-  ("llncs"          "Style for Springer Lecture Notes in Computer Science")
-  ("svjour"         "Article style for Springer journals")
-  ("tmarticle"      "TeXmacs alternative article style")
-
-  ("svmono"         "Style for Springer monographs")
-  ("tmbook"         "TeXmacs alternative book style")
-
-  ("manual"         "Style for writing technical manuals")
-  ("tmdoc"          "Style for writing TeXmacs documentation")
-  ("tmmanual"       "Style for writing TeXmacs manuals"))
-
-(define-table style-synopsis
-  ("alt-colors"         "Color formulas and several other basic tags")
-  ("framed-envs"        "Display various environments inside wide frames")
-  ("ornaments"          "Tags for various fancy ornaments")
-  ("presentation"       "Base package for laptop presentations")
-  ("bluish"             "Bluish beamer theme")
-  ("ice"                "Ice beamer theme")
-  ("metal"              "Metallic beamer theme")
-  ("reddish"            "Reddish beamer theme")
-  ("ridged-paper"       "Ridged paper beamer theme")
-  ("framed-title"       "Put titles of slides in wide frames")
-  ("title-bar"          "Put titles of slides in bar at extreme top of screen")
-  ("math-ss"            "Use sans serif font for mathematical formulas")
-
-  ("a0-poster"          "A0 page size for posters")
-  ("a1-poster"          "A1 page size for posters")
-  ("a2-poster"          "A2 page size for posters")
-  ("a3-poster"          "A3 page size for posters")
-  ("a4-poster"          "A4 page size for posters")
-  ("landscape-poster"   "Landscape orientation for posters")
-  ("portrait-poster"    "Portrait orientation for posters")
-
-  ("centered-program"   "Use a centered rendering style for algorithms")
-  ("framed-program"     "Display algorithms inside frames and center")
-  ("two-columns"        "Markup and adjustments for two column documents")
-  ("compact-list"       "Less indentation and vertical spacing for lists")
-  ("triangle-list"      "Use triangular lists items")
-  ("prefix-enumerations" "Prefix numbers of nested enumerations")
-  ("math-brackets"      "Indicate bracket nesting level using colors")
-  ("math-check"         "Highlight mathematical formulas with syntax errors")
-  ("framed-theorems"    "Display enunciations inside wide frames")
-  ("hanging-theorems"   "Use hanging frames for enunciation titles")
-  ("number-europe"      "Individual counters for theorems, propositions, etc.")
-  ("number-long-article" "Prefix numbered environments by section number")
-  ("number-us"          "Shared counter for theorems, propositions, etc.")
-  ("captions-above"     "Place captions above figures and tables")
-
-  ("doc"                "Rich collection of markup for writing documentation")
-
-  ("bpr"                "Example macro package for Basu/Pollack/Roy book")
-  ("structured-list"    "Making item bodies part of item tags")
-  ("structured-section" "Making section bodies part of section tags")
-
-  ("normal-spacing"     "Default spacing")
-  ("wide-spacing"       "Wide spacing")
-  ("invisible-multiply" "Use invisible space for multiplications")
-  ("narrow-multiply"    "Use narrow space for multiplications")
-  ("regular-multiply"   "Use regular space for multiplications")
-  ("invisible-apply"    "Use invisible space for function applications")
-  ("narrow-apply"       "Use narrow space for function applications")
-  ("regular-apply"      "Use regular space for function applications"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; UI-independent rules migrated from retired Scheme menu modules

@@ -876,29 +876,25 @@ editor_rep::document_menu_state_snapshot () {
                                              string ("basic");
   assign (snapshot.document_theme_kind, themeKind);
   auto append_theme_list=
-    [&] (const char* procedure,
+    [&] (array<string> themes,
          std::vector<actor_focus_choice_snapshot>& target) {
-      try {
-        list<string> themes= as_list_string (call (procedure));
-        for (; !is_nil (themes); themes= themes->next)
-          append_choice (
-            target, themes->item,
-            document_has_style_package (this, themes->item));
-      }
-      catch (...) {}
+      for (int i= 0; i < N(themes); ++i)
+        append_choice (
+          target, themes[i],
+          document_has_style_package (this, themes[i]));
     };
   if (poster) {
-    append_theme_list ("poster-themes", snapshot.document_themes);
+    append_theme_list (document_theme_names (), snapshot.document_themes);
     append_theme_list (
-      "poster-title-styles", snapshot.document_title_themes);
+      document_poster_title_styles (), snapshot.document_title_themes);
     snapshot.background_available= true;
   }
   else if (snapshot.beamer_style) {
-    append_theme_list ("beamer-themes", snapshot.document_themes);
+    append_theme_list (document_theme_names (), snapshot.document_themes);
     snapshot.background_available= true;
   }
   else {
-    append_theme_list ("basic-themes", snapshot.document_themes);
+    append_theme_list (document_theme_names (), snapshot.document_themes);
     for (const char* extra: {"alt-colors", "framed-theorems"}) {
       const string name (extra);
       actor_focus_choice_snapshot item;
@@ -1729,29 +1725,25 @@ editor_rep::focus_toolbar_state_snapshot () {
       themeKind.data (), static_cast<std::size_t> (N(themeKind)));
 
     auto append_theme_list=
-      [&] (const char* procedure,
+      [&] (array<string> themes,
            std::vector<actor_focus_choice_snapshot>& target) {
-        try {
-          list<string> themes= as_list_string (call (procedure));
-          for (; !is_nil (themes); themes= themes->next)
-            append_choice (
-              target, themes->item,
-              document_has_style_package (this, themes->item));
-        }
-        catch (...) {}
+        for (int i= 0; i < N(themes); ++i)
+          append_choice (
+            target, themes[i],
+            document_has_style_package (this, themes[i]));
       };
     if (poster) {
-      append_theme_list ("poster-themes", snapshot.document_themes);
+      append_theme_list (document_theme_names (), snapshot.document_themes);
       append_theme_list (
-        "poster-title-styles", snapshot.document_title_themes);
+        document_poster_title_styles (), snapshot.document_title_themes);
       snapshot.background_available= true;
     }
     else if (snapshot.beamer_style) {
-      append_theme_list ("beamer-themes", snapshot.document_themes);
+      append_theme_list (document_theme_names (), snapshot.document_themes);
       snapshot.background_available= true;
     }
     else {
-      append_theme_list ("basic-themes", snapshot.document_themes);
+      append_theme_list (document_theme_names (), snapshot.document_themes);
       for (const char* extra: {"alt-colors", "framed-theorems"}) {
         const string name (extra);
         actor_focus_choice_snapshot item;

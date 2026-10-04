@@ -16,51 +16,6 @@
         (generic document-edit)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Style package rules for poster
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (poster-themes)
-  (list "bluish" "boring-white" "dark-vador" "granite"
-        "ice" "manila-paper" "metal" "pale-blue"
-        "pine" "reddish" "ridged-paper" "rough-paper"
-        "xperiment"))
-
-(tm-define (poster-title-styles)
-  (list "plain-poster-title" "framed-poster-title" "topless-poster-title"))
-
-(tm-define (current-poster-theme)
-  (with l (get-style-list)
-    (or (list-find l (cut in? <> (poster-themes))) "boring-white")))
-
-(tm-define (current-poster-title-style)
-  (with l (get-style-list)
-    (or (list-find l (cut in? <> (poster-title-styles)))
-        "framed-poster-title")))
-
-(tm-define (style-category p)
-  (:require (and (in-poster?) (in? p (poster-themes))))
-  :poster-theme)
-
-(tm-define (style-category p)
-  (:require (in? p (poster-title-styles)))
-  :poster-title-style)
-
-(tm-define (style-category-precedes? x y)
-  (:require (and (== x "alt-colors") (== y :poster-theme)))
-  #t)
-
-(tm-define (style-category-precedes? x y)
-  (:require (and (== x :poster-theme)
-                 (in? y (list :poster-title-style
-                              :theorem-decorations))))
-  #t)
-
-(tm-define (style-includes? x y)
-  (:require (and (== x "poster")
-                 (in? y (list "boring-white" "framed-poster-title"))))
-  #t)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Page size and orientation
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

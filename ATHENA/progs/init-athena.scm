@@ -304,7 +304,6 @@
              overlay-context? overlays-current overlays-arity
              overlays-switch-to overlay-current overlay-arity overlay-visible?
              native-overlays-switch-parent
-             beamer-themes current-beamer-theme
              slide-get-switch slide-get-document get-slide-name
              native-slide-insert-title native-slide-insert-graphics)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
@@ -363,10 +362,7 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting editing modes for various special styles\n")
-(lazy-define (various theme-edit) basic-themes current-basic-theme)
 (lazy-define (various poster-edit)
-             poster-themes poster-title-styles
-             current-poster-theme current-poster-title-style
              poster-block-context? titled-block-context? block-wide?
              block-toggle-titled block-toggle-wide make-poster-title)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")

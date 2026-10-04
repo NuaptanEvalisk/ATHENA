@@ -20,14 +20,6 @@
 	(generic format-drd) (generic generic-edit)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Style package rules
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (style-category p)
-  (:require (in? p (list "centered-program" "framed-program")))
-  :program-theme)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Inserting a title and an abstract
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -643,10 +635,6 @@
 
 (tm-define (enunciation-context? t)
   (tree-in? t (enunciation-tag-list)))
-
-(tm-define (style-category p)
-  (:require (in? p (list "framed-theorems" "hanging-theorems")))
-  :theorem-decorations)
 
 (tm-define (dueto-supporting-context? t)
   (or (tree-in? t (numbered-unnumbered-append (enunciation-tag-list)))
