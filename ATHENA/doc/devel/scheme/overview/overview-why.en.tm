@@ -25,29 +25,13 @@
 
   The first two features are very particular important for extension
   languages. Indeed, one major use of extension languages is to store data
-  for the application (like keyboard shortcuts and menus) in an intelligent
+  for the application (like keyboard shortcuts) in an intelligent
   way. Furthermore, the application usually provides some very typical
   features, which may need to be reflected at the level of the extension
   language.
 
   For the first two features, the simplicity of the parenthesized notation
-  used by <value|scheme> is also an advantage. Indeed, consider the
-  following fragment of the definition of the <menu|File> menu:
-
-  <\scheme-fragment>
-    (menu-bind file-menu
-
-    \ \ ("New" (new-buffer))
-
-    \ \ ("Load" (choose-file load-buffer "Load file" ""))
-
-    \ \ ("Save" (save-buffer))
-
-    \ \ ...)
-  </scheme-fragment>
-
-  The entries of the menu (the data) and the corresponding actions (the
-  programs) are very readable using the bracket notation. Similarly, when
+  used by <value|scheme> is also an advantage. Similarly, when
   defining a new language primitive, the systematic use of the bracket
   notation relieves the user from the burden of making the corresponding
   changes in the parser.

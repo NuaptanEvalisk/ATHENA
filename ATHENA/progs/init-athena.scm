@@ -57,7 +57,6 @@
                  (kernel athena tm-language) (kernel athena tm-file-system)
                  (kernel athena tm-states))
 (inherit-modules (kernel gui gui-markup)
-                 (kernel gui menu-define) (kernel gui menu-widget)
                  (kernel gui kbd-define)
                  (kernel gui kbd-handlers))
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")

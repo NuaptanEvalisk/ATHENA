@@ -77,8 +77,8 @@
   </scm-code>
 
   Besides <scm|tm-define>, several other added language primitives support
-  the contextual overloading mechanism. For instance, <scm|kbd-map> and
-  <scm|menu-bind> support overloading on mode. The <scm|tm-define-macro> and
+  the contextual overloading mechanism. For instance, <scm|kbd-map> supports
+  overloading on mode. The <scm|tm-define-macro> and
   <scm|tm-property> primitives are analogous to <scm|tm-define>.
 
   <tmdoc-copyright|2005|Joris van der Hoeven>

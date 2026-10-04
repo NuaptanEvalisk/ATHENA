@@ -104,7 +104,7 @@
 (define module-exported-cache (make-ahash-table))
 
 (define apidoc-def-keywords
-  '(define-public provide-public tm-define tm-menu menu-bind
+  '(define-public provide-public tm-define
     define-macro define-public-macro tm-define-macro))
 
 ; HACK: we use read (copying what's done in init-athena.scm) until the

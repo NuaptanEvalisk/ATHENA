@@ -10,7 +10,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (texmacs-module (kernel gui ui-text)
-  (:use (kernel gui gui-markup)))
+  (:use (kernel athena tm-define)))
 
 (define (reformat-arg val)
   (cond ((string? val) val)

@@ -55,9 +55,6 @@ score_computer::score_computer (string fm2):
     multiplier ("define-public-macro") = 10;
     multiplier ("tm-define") = 10;
     multiplier ("tm-define-macro") = 10;
-    multiplier ("define-menu") = 10;
-    multiplier ("tm-menu") = 10;
-    multiplier ("menu-bind") = 10;
     multiplier ("smart-table") = 10;
   }
   initialize_acceptable (start_list, first);
