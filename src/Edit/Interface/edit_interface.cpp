@@ -11,6 +11,7 @@
 
 #include "Interface/edit_interface.hpp"
 #include "Interface/selection_autoscroll.hpp"
+#include "ATHENA/Data/heading_word_count.hpp"
 #include "file.hpp"
 #include "convert.hpp"
 #include "server.hpp"
@@ -1322,14 +1323,10 @@ editor_rep::focus_toolbar_state_snapshot () {
   if (sectionContext || bufferHasPreviousSection) {
     array<tree> sections= search_sections (the_buffer ());
     for (int i=0; i<N(sections); ++i) {
-      string label= "Section " * as_string (i + 1);
-      try {
-        object name= call (
-          "tm/section-get-title-string",
-          object (sections[i]), object (true));
-        if (is_string (name)) label= as_string (name);
-      }
-      catch (...) {}
+      string label= athena_section_title (
+        sections[i], true,
+        get_init_value ("sectional-short-style") != tree (MACRO, "false"));
+      if (label == "no title") label= "Section " * as_string (i + 1);
       snapshot.section_names.emplace_back (
         label.data (), static_cast<std::size_t> (N(label)));
     }

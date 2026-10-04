@@ -17,8 +17,7 @@
         (dynamic dynamic-drd)
         (generic generic-edit)
         (generic document-edit)
-        (text text-edit)
-        (text text-structure)))
+        (text text-edit)))
 
 (tm-define (screens-buffer?)
   (with t (buffer-tree)
@@ -1044,7 +1043,7 @@
   (with t (slide-get-document t*)
     (if (and (tree-is? t 'document)
              (tree-is? t 0 'tit))
-        (texmacs->string (tm-ref t 0 0))
+        (native-text-projection (tm-ref t 0 0))
         "")))
 
 (tm-define (get-slide-name t i)

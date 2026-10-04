@@ -234,7 +234,6 @@
              doc-data-deactivated? doc-data-activate-toggle
              test-doc-title-clustering? set-doc-title-clustering
              previous-section section-context? native-section-switch-to)
-(lazy-define (text text-structure) tm/section-get-title-string)
 
 ;(display "Booting math mode\n")
 (lazy-keyboard (math math-sem-edit) in-sem-math?)

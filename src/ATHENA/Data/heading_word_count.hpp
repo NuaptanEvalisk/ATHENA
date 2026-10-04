@@ -41,6 +41,14 @@ int   athena_enunciation_word_count_at (tree doc, path p);
 string athena_expand_statistics_format (string format,
   athena_document_statistics stats, int heading_words, int block_words);
 string athena_heading_title (tree t);
+// Native text projection shared by headings, outline labels and slide names.
+// The result is UTF-8 text with non-content nodes skipped; math letter
+// downgrading is deliberately a separate title concern.
+string athena_plain_text_projection (tree t);
+// Mirrors the former text-structure.scm section title presentation, including
+// special/automatic sections and optional hierarchy indentation.
+string athena_section_title (tree t, bool indent=false,
+                             bool short_style=false);
 array<heading_word_count_entry> athena_heading_word_count_entries (
   tree doc, path root_path= path ());
 

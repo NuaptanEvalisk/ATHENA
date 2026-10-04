@@ -113,10 +113,81 @@ athena_append_plain_text (tree t, string& out) {
   for (int i=0; i<N(t); i++) athena_append_plain_text (t[i], out);
 }
 
+string
+athena_plain_text_projection (tree t) {
+  string result;
+  athena_append_plain_text (t, result);
+  return result;
+}
+
+namespace {
+
+bool
+athena_section_heading_tag (string tag) {
+  if (ends (tag, "*")) tag= tag (0, N(tag) - 1);
+  return tag == "part" || tag == "chapter" || tag == "appendix" ||
+         tag == "section" || tag == "subsection" ||
+         tag == "subsubsection" || tag == "paragraph" ||
+         tag == "subparagraph";
+}
+
+string
+athena_section_indent (string tag, bool short_style) {
+  if (ends (tag, "*")) tag= tag (0, N(tag) - 1);
+  int spaces= 0;
+  if (tag == "section") spaces= 3;
+  else if (tag == "subsection") spaces= 6;
+  else if (tag == "subsubsection" || tag == "paragraph" ||
+           tag == "subparagraph") spaces= 9;
+  if (short_style && spaces >= 3) spaces-= 3;
+  string result;
+  for (int i=0; i<spaces; ++i) result << " ";
+  return result;
+}
+
+bool
+athena_automatic_section_tag (string tag) {
+  return tag == "table-of-contents" || tag == "the-index" ||
+         tag == "the-glossary" || tag == "list-of-figures" ||
+         tag == "list-of-tables";
+}
+
+string
+athena_automatic_section_title (string tag) {
+  if (tag == "the-index") return "Index";
+  if (tag == "the-glossary") return "Glossary";
+  return upcase_first (replace (tag, "-", " "));
+}
+
+} // namespace
+
+string
+athena_section_title (tree t, bool indent, bool short_style) {
+  if (is_atomic (t) || !is_compound (t)) return "no title";
+  string tag= as_string (L(t));
+  if (athena_section_heading_tag (tag) && N(t) > 0) {
+    string title= downgrade_math_letters (athena_plain_text_projection (t[0]));
+    return (indent ? athena_section_indent (tag, short_style) : string ("")) *
+           title;
+  }
+  if (tag == "prologue" || tag == "epilogue" ||
+      athena_automatic_section_tag (tag))
+    return athena_automatic_section_title (tag);
+  if (is_func (t, CONCAT)) {
+    for (int i=0; i<N(t); ++i) {
+      string title= athena_section_title (t[i], indent, short_style);
+      if (title != "no title") return title;
+    }
+    return "no title";
+  }
+  if (tag == "shared" && N(t) == 3 && is_func (t[2], DOCUMENT) && N(t[2]) > 0)
+    return athena_section_title (t[2][0], indent, short_style);
+  return "no title";
+}
+
 int
 athena_word_count_tree (tree t) {
-  string text;
-  athena_append_plain_text (t, text);
+  string text= athena_plain_text_projection (t);
   return athena_word_count_text (text);
 }
 

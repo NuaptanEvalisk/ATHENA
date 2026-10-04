@@ -16,7 +16,6 @@
 	(utils edit variants)
 	(utils edit selections)
 	(text text-drd)
-	(text text-structure)
 	(generic format-drd) (generic generic-edit)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
