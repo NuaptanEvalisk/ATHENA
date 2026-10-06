@@ -42,6 +42,7 @@
 #endif
 
 #include "tm_ostream.hpp"
+#include "athena_platform.hpp"
 #include "font.hpp"
 #include "boot.hpp"
 #include "file.hpp"
@@ -146,6 +147,7 @@ string extra_init_cmd;
 bool exec_exit= true;
 static std::string athena_to_std_string (const string& s);
 
+#if ATHENA_ENABLE_CLI
 static bool
 athena_compile_scheme_file (const std::filesystem::path& source,
                             const std::filesystem::path& output) {
@@ -271,6 +273,7 @@ athena_compile_scheme_manifest () {
   }
   return completed != 0;
 }
+#endif
 
 #ifdef OS_MINGW
 #ifndef CP_UTF8
@@ -429,6 +432,9 @@ supported_qt_platform (string value) {
          platform == "xcb"
 #if defined (Q_OS_MAC)
          || platform == "cocoa"
+#endif
+#if ATHENA_PLATFORM_IPADOS
+         || platform == "ios"
 #endif
 #if defined (Q_OS_WIN)
          || platform == "windows"
@@ -668,11 +674,15 @@ void ATHENA_init_font() {
 void
 ATHENA_init_paths (int& argc, char** argv) {
   (void) argc; (void) argv;
+#if ATHENA_PLATFORM_IPADOS
+  // ios_entrypoint resolves the bundle and container before entering ATHENA.
+  return;
+#else
   url exedir = texmacs_get_application_directory();
 
   string current_athena_path = get_env ("ATHENA_PATH");
 
-#ifdef Q_OS_MAC 
+#if defined(Q_OS_MACOS)
   // the following line can inibith external plugin loading
   // QCoreApplication::setLibraryPaths(QStringList());
   // ideally we would like to control the external plugins
@@ -766,6 +776,7 @@ ATHENA_init_paths (int& argc, char** argv) {
          << ") does not exists" << LF;
     exit(1);
   }
+#endif
 }
 
 /******************************************************************************
@@ -775,6 +786,7 @@ ATHENA_init_paths (int& argc, char** argv) {
 string the_default_font;
 string where= "";
 
+#if ATHENA_ENABLE_CLI
 static void
 print_version () {
   cout << "\n";
@@ -865,9 +877,12 @@ process_query_options (int argc, char** argv) {
   }
 }
 
+#endif
+
 void 
 set_global_options  (int argc, char** argv)  {
 
+#if ATHENA_ENABLE_CLI
   // parse command line options
   bool flag= true;
   string conversion_continuations= "";
@@ -1121,6 +1136,7 @@ set_global_options  (int argc, char** argv)  {
   // End options via environment variables
 
   // Further user preferences
+#endif
   string native= "off";
   string unify = "off";
   string mini  = (os_macos ()? string ("off"): string ("on"));
@@ -1146,6 +1162,7 @@ TeXmacs_main (int argc, char** argv) {
   startup_progress (82, "Configuring session");
   set_global_options (argc, argv);
 
+#if ATHENA_ENABLE_CLI
   if (scheme_bytecode_output_dir != "") {
     init_system_state ();
     gui_open (argc, argv);
@@ -1166,6 +1183,7 @@ TeXmacs_main (int argc, char** argv) {
     release_boot_lock ();
     exit (ok ? 0 : 1);
   }
+#endif
 
   if (DEBUG_STD) debug_boot << "Initializing system state...\n";
   startup_progress (84, "Initializing system state");
@@ -1204,6 +1222,7 @@ TeXmacs_main (int argc, char** argv) {
       extra_init_cmd << cmd;
     }
 
+#if ATHENA_ENABLE_CLI
     if (rag_server_dir != "") {
       athena::mcp::RagServerOptions options;
       options.vault_root= std::filesystem::path (
@@ -1279,6 +1298,7 @@ TeXmacs_main (int argc, char** argv) {
       exit (ok ? 0 : 1);
     }
 
+#endif
     bool needs_startup_buffer_policy= number_buffers () == 0;
     if (needs_startup_buffer_policy) {
       extra_init_cmd << "(kbd-start-inverse-warmup)";
@@ -1303,6 +1323,7 @@ TeXmacs_main (int argc, char** argv) {
       });
     }
 
+#if ATHENA_ENABLE_CLI
     if (!aofm_convert_file.empty ()) {
       eval ("(lazy-initialize-force)");
       aofm_enable_converter_mode (true);
@@ -1377,6 +1398,7 @@ TeXmacs_main (int argc, char** argv) {
       exit (ok ? 0 : 1);
     }
 
+#endif
     bench_print ();
     bench_reset ("initialize texmacs");
     bench_reset ("initialize TeX resources");
@@ -1474,6 +1496,7 @@ immediate_options (int argc, char** argv) {
     set_env ("ATHENA_HOME_PATH", get_env ("HOME") * "/.ATHENA");
 #endif
   if (get_env ("ATHENA_HOME_PATH") == "") return;
+#if ATHENA_ENABLE_CLI
   for (int i=1; i<argc; i++) {
     string s= argv[i];
     if ((N(s)>=2) && (s(0,2)=="--")) s= s (1, N(s));
@@ -1523,10 +1546,13 @@ immediate_options (int argc, char** argv) {
       cerr.redirect (logf);
     }
   }
+#endif
 }
 
+#if ATHENA_ENABLE_RUNTIME_SCHEME_REFRESH
 static const char* source_fingerprint_cache_name=
   "source_fingerprint.txt";
+#endif
 
 static std::string
 athena_to_std_string (const string& s) {
@@ -1578,6 +1604,7 @@ handle_rag_server_keypair_generation () {
   if (rag_server_dir == "") exit (0);
 }
 
+#if ATHENA_ENABLE_RUNTIME_SCHEME_REFRESH
 static void
 athena_fingerprint_feed (uint64_t& hash, const std::string& text) {
   for (size_t i=0; i<text.size (); i++) {
@@ -2002,8 +2029,11 @@ athena_refresh_stale_scheme_bytecode (int argc, char** argv) {
 #endif
 }
 
+#endif // ATHENA_ENABLE_RUNTIME_SCHEME_REFRESH
+
 int
 texmacs_entrypoint (int argc, char** argv) {
+#if ATHENA_ENABLE_CLI
   for (int i=1; i<argc; ++i) {
     if (std::string (argv[i]) != "--upgrade-vault-sorters") continue;
     if (i != 1) {
@@ -2116,8 +2146,10 @@ texmacs_entrypoint (int argc, char** argv) {
     return 0;
   }
   athena_watchdog_configure_from_argv (argc, argv);
+#endif
   athena_crash_register_thread (AthenaCrashThreadRole::Main);
   bench_start ("startup to editor shell");
+#if ATHENA_ENABLE_CLI
   for (int i=1; i<argc; i++) {
     string s= argv[i];
     if ((N(s)>=2) && (s(0,2)=="--")) s= s (1, N(s));
@@ -2321,7 +2353,9 @@ texmacs_entrypoint (int argc, char** argv) {
     if (s == "-headless" || s == "-H" || s == "-C")
       headless_mode= true;
   }
+#endif
   ATHENA_init_paths (argc, argv);
+#if ATHENA_ENABLE_CLI
   process_query_options (argc, argv);
   // Headless services do not necessarily call vault_load(), but must also
   // exclude whole-directory upgrades for their entire synchronous lifetime.
@@ -2353,6 +2387,7 @@ texmacs_entrypoint (int argc, char** argv) {
     return ok ? 0 : 1;
   }
   handle_rag_server_keypair_generation ();
+#endif
 #ifdef QTTEXMACS
   bench_start ("create qt application");
   reject_unsupported_qt_platforms (argc, argv);
@@ -2387,6 +2422,7 @@ texmacs_entrypoint (int argc, char** argv) {
   startup_progress (10, "Startup options loaded");
   startup_progress (12, "Checking caches");
   bench_start ("check startup caches");
+#if ATHENA_ENABLE_RUNTIME_SCHEME_REFRESH
   bool refreshed_scheme_bytecode= false;
   if (scheme_bytecode_output_dir == "") {
     refreshed_scheme_bytecode=
@@ -2396,6 +2432,7 @@ texmacs_entrypoint (int argc, char** argv) {
       athena_restart_after_startup_refresh (
         argc, argv, "Scheme bytecode compilation");
   }
+#endif
   bench_cumul ("check startup caches");
   startup_progress (20, "Caches ready");
 #ifdef STACK_SIZE

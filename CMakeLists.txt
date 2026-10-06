@@ -46,10 +46,17 @@ endif (CCACHE_FOUND)
 ### Project name
 ### --------------------------------------------------------------------
 
+if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
+  set (CMAKE_OSX_DEPLOYMENT_TARGET "27.0" CACHE STRING "Minimum iPadOS version")
+  set (CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "iPadOS target architecture")
+endif ()
 project (ATHENA CXX C) # check for C/C++ compiler
 
 set (PACKAGE ATHENA)
 set (CMAKE_MODULE_PATH ${ATHENA_SOURCE_DIR}/cmake)
+include (AthenaPlatform)
+configure_file (src/System/athena_platform.hpp.cmake
+                src/System/athena_platform.hpp @ONLY)
 
 set (ATHENA_APP_VERSION "0.10")
 set (ATHENA_VERSION ${ATHENA_APP_VERSION})
@@ -89,23 +96,6 @@ option (QTPIPES "use Qt pipes" ON)
 option (ATHENA_ENABLE_TSAN
   "Instrument ATHENA and its private Guile runtime with ThreadSanitizer" OFF)
 
-set (ATHENA_CPU_TARGET "native" CACHE STRING
-  "CPU ISA target: native, x86-64-v3, x86-64-v2, or x86-64")
-set_property (CACHE ATHENA_CPU_TARGET PROPERTY STRINGS
-  native x86-64-v3 x86-64-v2 x86-64)
-if (ATHENA_CPU_TARGET STREQUAL "native")
-  set (ATHENA_CPU_COMPILE_FLAGS "-march=native -mavx2")
-elseif (ATHENA_CPU_TARGET MATCHES "^x86-64(-v[23])?$")
-  set (ATHENA_CPU_COMPILE_FLAGS
-    "-march=${ATHENA_CPU_TARGET} -mtune=generic")
-else ()
-  message (FATAL_ERROR
-    "Unsupported ATHENA_CPU_TARGET='${ATHENA_CPU_TARGET}'. "
-    "Use native, x86-64-v3, x86-64-v2, or x86-64.")
-endif ()
-message (STATUS
-  "ATHENA CPU target: ${ATHENA_CPU_TARGET} (${ATHENA_CPU_COMPILE_FLAGS})")
-
 function (athena_write_build_fingerprint path content)
   set (previous "")
   if (EXISTS "${path}")
@@ -123,6 +113,9 @@ set (ATHENA_CODEX_BINARY "" CACHE FILEPATH
 set (ATHENA_CODEX_LICENSE_FILE "" CACHE FILEPATH
   "Codex license file to bundle when ATHENA_BUNDLE_CODEX is enabled")
 if (ATHENA_BUNDLE_CODEX)
+  if (NOT ATHENA_ENABLE_CODEX_BRIDGE)
+    message (FATAL_ERROR "Codex is not available in the iPadOS target")
+  endif ()
   if (NOT EXISTS "${ATHENA_CODEX_BINARY}")
     message (FATAL_ERROR
       "ATHENA_BUNDLE_CODEX requires ATHENA_CODEX_BINARY")
@@ -180,11 +173,11 @@ else (WIN32)
   option (OS_MINGW "Using OS MINGW" OFF)
 endif (WIN32)
 
-if (APPLE)
+if (ATHENA_PLATFORM_MACOS)
   set (MACOSX_EXTENSIONS 1)
   set (OS_MACOS 1)
   option (MACOS_QT_MENU "Disable MacOS native menu" OFF)
-endif (APPLE)
+endif ()
 
 
 ### --------------------------------------------------------------------
@@ -752,7 +745,7 @@ set (ATHENA_MacOS_SRCS
 ### Determine ATHENA_Libraries
 ### --------------------------------------------------------------------
 
-if (APPLE AND EXISTS /opt/homebrew/lib)
+if (ATHENA_PLATFORM_MACOS AND EXISTS /opt/homebrew/lib)
   link_directories (/opt/homebrew/lib)
 endif ()
 
@@ -798,7 +791,12 @@ find_package (KF6Completion REQUIRED)
 
 if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt6")
   find_package (Qt6 COMPONENTS Core Gui Widgets PrintSupport Svg Network Core5Compat REQUIRED)
-  find_package (qtermwidget6 REQUIRED CONFIG)
+  if (ATHENA_PLATFORM_IPADOS AND Qt6_VERSION VERSION_LESS "6.11")
+    message (FATAL_ERROR "ATHENA scenes require Qt 6.11 or later with the UIWindowScene QPA implementation")
+  endif ()
+  if (ATHENA_ENABLE_AUDMAP_REPL)
+    find_package (qtermwidget6 REQUIRED CONFIG)
+  endif ()
   set (QT_LIBRARIES Qt6::Core Qt6::Gui Qt6::Widgets Qt6::PrintSupport Qt6::Svg Qt6::Network Qt6::Core5Compat)
 
   if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -969,11 +967,15 @@ if (WIN32)
   endif ()
 else (WIN32)
   file (GLOB_RECURSE ATHENA_System_SRCS "${ATHENA_SOURCE_DIR}/src/Subsystems/Unix/*.cpp")
+  if (ATHENA_PLATFORM_IPADOS)
+    list (REMOVE_ITEM ATHENA_System_SRCS "${ATHENA_SOURCE_DIR}/src/Subsystems/Unix/unix_entrypoint.cpp")
+    list (APPEND ATHENA_System_SRCS "${ATHENA_SOURCE_DIR}/src/Subsystems/iOS/ios_entrypoint.cpp")
+  endif ()
 endif (WIN32)
 
 set (ATHENA_All_SRCS ${ATHENA_All_SRCS} ${ATHENA_System_SRCS})
 
-if (APPLE)
+if (ATHENA_PLATFORM_MACOS)
   set (ATHENA_Libraries
     ${ATHENA_Libraries}
     "-framework ApplicationServices"
@@ -994,8 +996,11 @@ if (APPLE)
   set (GUI_TYPE MACOSX_BUNDLE)
   set (NO_FAST_ALLOC 1)
   message (STATUS "Enabling macOS Qt integration")
-else (APPLE)
-endif (APPLE)
+elseif (ATHENA_PLATFORM_IPADOS)
+  list (APPEND ATHENA_Libraries
+    "-framework UIKit" "-framework Foundation" "-framework Security"
+    "-framework CoreGraphics" "-framework CoreText" "-framework ImageIO")
+endif ()
 
 include_directories (${ATHENA_Include_Dirs})
 include_directories (${ZSTD_INCLUDE_DIRS})
@@ -1027,7 +1032,9 @@ if (BUILD_TESTS)
 endif ()
 
 add_subdirectory (src)
-add_subdirectory (tools/codex-bridge)
+if (ATHENA_ENABLE_CODEX_BRIDGE)
+  add_subdirectory (tools/codex-bridge)
+endif ()
 add_subdirectory (tools/materials-engine)
 if (UNIX AND NOT APPLE)
   add_subdirectory (tools/athena-transmitter)
@@ -1078,7 +1085,7 @@ if (BUILD_TESTS)
       "GUILE_AUTO_COMPILE=0"
       ${ATHENA_GUILE_PREFIX}/bin/guile --no-auto-compile
       ${CMAKE_SOURCE_DIR}/tests/scheme/native-runtime/native-runtime-test.scm)
-  if (NOT WIN32)
+  if (NOT WIN32 AND ATHENA_ENABLE_CODEX_BRIDGE)
     add_test(NAME codex_bridge_protocol
       COMMAND ${Python3_EXECUTABLE}
               ${CMAKE_SOURCE_DIR}/tools/codex-bridge/tests/test_bridge.py

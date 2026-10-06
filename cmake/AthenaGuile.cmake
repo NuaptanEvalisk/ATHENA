@@ -23,12 +23,33 @@ set(ATHENA_GUILE_SOURCE_DIR
   "${ATHENA_SOURCE_DIR}/3rdparty/athena-guile")
 set(ATHENA_GUILE_RUNTIME_ID "athena-guile-3.0.10-native"
   CACHE INTERNAL "ATHENA private Guile runtime identity" FORCE)
+if(ATHENA_PLATFORM_IPADOS)
+  set(ATHENA_GUILE_RUNTIME_ID "athena-guile-3.0.10-ipados-arm64-nojit"
+    CACHE INTERNAL "ATHENA private Guile runtime identity" FORCE)
+endif()
 set(ATHENA_GUILE_BUILD_DIR
   "${ATHENA_BINARY_DIR}/athena-guile-build")
 set(ATHENA_GUILE_PREFIX
   "${ATHENA_BINARY_DIR}/athena-guile-runtime")
 set(ATHENA_GUILE_PREBUILT_PREFIX "" CACHE PATH
   "Explicitly reuse an existing private ATHENA Guile/GC runtime instead of rebuilding it")
+if(ATHENA_PLATFORM_IPADOS)
+  # Do not invoke the desktop bootstrap compiler during cross compilation.
+  # The target runtime and matching .go files are supplied by the packaging job.
+  set(ATHENA_GUILE_PREBUILT_CONFIG_HEADER "" CACHE FILEPATH
+    "config.h from the packaged iPadOS Guile build (must disable JIT)")
+  if(NOT ATHENA_GUILE_PREBUILT_PREFIX OR
+     NOT EXISTS "${ATHENA_GUILE_PREBUILT_CONFIG_HEADER}")
+    message(FATAL_ERROR
+      "iPadOS requires a target-built ATHENA_GUILE_PREBUILT_PREFIX and its "
+      "ATHENA_GUILE_PREBUILT_CONFIG_HEADER; desktop Guile bootstrap is not supported")
+  endif()
+  file(STRINGS "${ATHENA_GUILE_PREBUILT_CONFIG_HEADER}" no_jit
+    REGEX "^#define ENABLE_JIT 0$")
+  if(NOT no_jit)
+    message(FATAL_ERROR "The iPadOS Guile runtime must be built with --disable-jit")
+  endif()
+endif()
 if(ATHENA_GUILE_PREBUILT_PREFIX)
   get_filename_component(ATHENA_GUILE_PREFIX
     "${ATHENA_GUILE_PREBUILT_PREFIX}" ABSOLUTE)
@@ -49,7 +70,11 @@ if(ATHENA_GUILE_PREBUILT_PREFIX)
       message(FATAL_ERROR "Incomplete prebuilt ATHENA Guile runtime: ${required}")
     endif()
   endforeach()
-  execute_process(COMMAND "${CMAKE_NM}" -D "${ATHENA_GUILE_LIBRARY}"
+  set(ATHENA_GUILE_NM_OPTION -D)
+  if(APPLE)
+    set(ATHENA_GUILE_NM_OPTION -g)
+  endif()
+  execute_process(COMMAND "${CMAKE_NM}" ${ATHENA_GUILE_NM_OPTION} "${ATHENA_GUILE_LIBRARY}"
     RESULT_VARIABLE runtime_symbols_status OUTPUT_VARIABLE runtime_symbols
     ERROR_VARIABLE runtime_symbols_error)
   if(NOT runtime_symbols_status EQUAL 0 OR
@@ -65,6 +90,11 @@ if(ATHENA_GUILE_PREBUILT_PREFIX)
 else()
 find_program(ATHENA_GUILE_AUTORECONF_EXECUTABLE NAMES autoreconf REQUIRED)
 include(AthenaBdwgc)
+if(ATHENA_ENABLE_GUILE_JIT)
+  set(ATHENA_GUILE_JIT_OPTION --enable-jit=yes)
+else()
+  set(ATHENA_GUILE_JIT_OPTION --disable-jit)
+endif()
 
 if(ATHENA_ENABLE_TSAN)
   set(ATHENA_GUILE_C_FLAGS
@@ -140,7 +170,7 @@ ExternalProject_Add(athena_guile_runtime
         --libdir=<INSTALL_DIR>/lib
         --enable-shared
         --disable-static
-        --enable-jit=yes
+        ${ATHENA_GUILE_JIT_OPTION}
         --disable-nls
         --enable-lto=thin
   BUILD_COMMAND ${ATHENA_GUILE_BUILD_COMMAND}

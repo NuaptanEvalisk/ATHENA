@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2024"
 license = "GPL-3.0-or-later"
 
+[lib]
+name = "athena_materials"
+crate-type = ["staticlib", "rlib"]
+
 [dependencies]
 hayagriva = { git = "https://github.com/typst/hayagriva.git", rev = "e51299ecd1a9f62b2f069af2f554ae4e84d50527", features = ["biblatex", "archive"] }
 serde = { version = "1.0", features = ["derive"] }

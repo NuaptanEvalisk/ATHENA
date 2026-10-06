@@ -9,6 +9,9 @@
 ******************************************************************************/
 
 #include "latex_formula_cleaner.hpp"
+#include "athena_platform.hpp"
+
+#if ATHENA_ENABLE_FORMULA_CLEANER
 
 #include "ATHENA/Data/llama_runtime.hpp"
 #include "boot.hpp"
@@ -299,3 +302,6 @@ clean_latex_formula_with_llama (string latex) {
   std::string output= cleaner ().clean (input);
   return std_to_tm_string (output);
 }
+#else
+string clean_latex_formula_with_llama (string latex) { return latex; }
+#endif

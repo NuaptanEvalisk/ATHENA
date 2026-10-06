@@ -9,11 +9,17 @@
 #ifndef QTMDOCUMENTPERSISTENCE_HPP
 #define QTMDOCUMENTPERSISTENCE_HPP
 
+#include <functional>
+
 class tm_buffer_rep;
 using tm_buffer= tm_buffer_rep*;
 
 void qtm_document_persistence_initialize ();
 void qtm_document_persistence_preferences_changed ();
+// GUI entry/callback; actor waits run off the UI thread. Manual-save documents
+// are not written by a scene lifecycle event.
+void qtm_document_persistence_flush_realtime_async (
+  std::function<void(bool)> completed);
 
 // UI-thread projection of actor-owned realtime state.
 void qtm_document_persistence_realtime_state (

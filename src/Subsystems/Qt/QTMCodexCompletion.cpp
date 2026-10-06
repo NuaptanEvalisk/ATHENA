@@ -1,4 +1,7 @@
 #include "QTMCodexCompletion.hpp"
+#include "athena_platform.hpp"
+
+#if ATHENA_ENABLE_CODEX_BRIDGE
 
 #include "actor_transport.hpp"
 #include "boot.hpp"
@@ -470,3 +473,17 @@ qtm_codex_run_completion_async (
   if (!QMetaObject::invokeMethod (app, std::move (launch), Qt::QueuedConnection))
     (*completion) ();
 }
+#else
+#include "tm_ostream.hpp"
+
+void qtm_codex_initialize_models (string, string) {}
+array<string> qtm_codex_completion_options (const string&, const string&) {
+  return {};
+}
+void qtm_codex_run_completion_async (
+    string, string, string, string, string, string, string, string,
+    array<string>, command callback) {
+  std_warning << "Codex completion is not available on this platform" << LF;
+  callback ();
+}
+#endif

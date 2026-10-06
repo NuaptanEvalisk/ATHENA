@@ -23,9 +23,11 @@ add_library (athena_unicode STATIC Data/String/unicode_text.cpp)
 set_target_properties (athena_unicode PROPERTIES AUTOMOC OFF)
 target_include_directories (athena_unicode PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/Data/String")
 target_link_libraries (athena_unicode PUBLIC ICU::uc ICU::i18n)
-add_library (athena_audmap_terminal STATIC Subsystems/Qt/QTMAudmapTerminal.cpp)
-target_compile_features (athena_audmap_terminal PRIVATE cxx_std_17)
-target_link_libraries (athena_audmap_terminal PUBLIC Qt6::Widgets PRIVATE qtermwidget6)
+if (ATHENA_ENABLE_AUDMAP_REPL)
+  add_library (athena_audmap_terminal STATIC Subsystems/Qt/QTMAudmapTerminal.cpp)
+  target_compile_features (athena_audmap_terminal PRIVATE cxx_std_17)
+  target_link_libraries (athena_audmap_terminal PUBLIC Qt6::Widgets PRIVATE qtermwidget6)
+endif ()
 include(AthenaGlue)
 add_subdirectory(ATHENA/Interop)
 add_subdirectory(Subsystems/Plugins)
@@ -67,7 +69,9 @@ set_source_files_properties(Scheme/Scheme/glue.cpp PROPERTIES
 
 function (athena_configure_body_target target_name)
   add_library (${target_name} STATIC ${ATHENA_All_SRCS})
-  target_sources (${target_name} PRIVATE ./ATHENA/Watchdog/watchdog_client.cpp)
+  if (ATHENA_ENABLE_WATCHDOG)
+    target_sources (${target_name} PRIVATE ./ATHENA/Watchdog/watchdog_client.cpp)
+  endif ()
   add_dependencies (${target_name} athena_build_info athena_guile_runtime athena_glue)
   target_compile_definitions (${target_name} PRIVATE
     ATHENA_GUILE_BUILD_RUNTIME_ROOT="${ATHENA_GUILE_PREFIX}"
@@ -89,12 +93,14 @@ function (athena_configure_body_target target_name)
     ncnn
     KF6::SyntaxHighlighting
     KF6::Completion
-    athena_audmap_terminal
     athena_plugin_ui
     Luau.Compiler
     Luau.VM
     ${ATHENA_VTK_LIBRARIES}
   )
+  if (ATHENA_ENABLE_AUDMAP_REPL)
+    target_link_libraries (${target_name} PRIVATE athena_audmap_terminal)
+  endif ()
   vtk_module_autoinit (
     TARGETS ${target_name}
     MODULES ${ATHENA_VTK_LIBRARIES})
@@ -172,7 +178,7 @@ if (NOT APPLE AND NOT WIN32)
     VERBATIM)
 endif ()
 
-if (NOT WIN32)
+if (NOT WIN32 AND NOT ATHENA_PLATFORM_IPADOS)
   set (ATHENA_SCHEME_COMPILE_JOBS "20" CACHE STRING
        "Parallel workers used to precompile ATHENA Scheme modules")
   file (GLOB_RECURSE ATHENA_SCHEME_SOURCES CONFIGURE_DEPENDS
@@ -303,6 +309,13 @@ if (NOT WIN32)
   endif ()
 endif ()
 
+if (ATHENA_PLATFORM_IPADOS)
+  include (AthenaPackagedScheme)
+  athena_package_scheme_bytecode (${ATHENA_binary_name})
+  set_target_properties (${ATHENA_binary_name} PROPERTIES
+    XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "2")
+endif ()
+
 if (APPLE)
   set(MACOSX_BUNDLE_DISPLAY_NAME ATHENA)
   set_target_properties (${ATHENA_binary_name}
@@ -323,3 +336,7 @@ else (APPLE)
     endif ()
   endif ()
 endif (APPLE)
+
+if (ATHENA_PLATFORM_IPADOS)
+  include (AthenaIOS)
+endif ()

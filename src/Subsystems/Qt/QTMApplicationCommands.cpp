@@ -32,6 +32,11 @@
 #include "QTMOutlinePane.hpp"
 #include "QTMPreferencesDialog.hpp"
 #include "QTMPluginUi.hpp"
+#include "athena_platform.hpp"
+#if ATHENA_PLATFORM_IPADOS
+#include "Subsystems/iOS/athena_ios.hpp"
+#include <DockWidget.h>
+#endif
 #include "QTMQuickSwitcher.hpp"
 #include "QTMVaultExplorer.hpp"
 #include "QTMVaultFontConfigurator.hpp"
@@ -408,8 +413,12 @@ QTMCommandRegistry::registerApplicationCommands () {
   registerBehavior (
     "file.load-vault", QTMCommandScope::Application,
     [] (const QTMCommandContext& context) {
+      QString initialDirectory;
+#if ATHENA_PLATFORM_IPADOS
+      initialDirectory= qEnvironmentVariable ("ATHENA_VAULTS_PATH");
+#endif
       QString directory= QFileDialog::getExistingDirectory (
-        context.shell.data (), QObject::tr ("Load Vault"));
+        context.shell.data (), QObject::tr ("Load Vault"), initialDirectory);
       if (directory.isEmpty ()) return true;
       try {
         (void) call (
@@ -683,12 +692,14 @@ QTMCommandRegistry::registerApplicationCommands () {
       namespace_manager_show ();
       return true;
     });
+#if ATHENA_ENABLE_WEBSITE_EXPORT
   registerBehavior (
     "workspace.websites-manager", QTMCommandScope::Workspace,
     [] (const QTMCommandContext&) {
       websites_manager_show ();
       return true;
     });
+#endif
   registerBehavior (
     "workspace.materials-manager", QTMCommandScope::Workspace,
     [] (const QTMCommandContext&) {
@@ -701,24 +712,54 @@ QTMCommandRegistry::registerApplicationCommands () {
       custom_styles_manager_show ();
       return true;
     });
+#if ATHENA_ENABLE_AUDMAP_REPL
   registerBehavior (
     "workspace.audmap-repl", QTMCommandScope::Workspace,
     [] (const QTMCommandContext&) {
       audmap_repl_show ();
       return true;
     });
+#endif
   registerBehavior (
     "workspace.google-tasks", QTMCommandScope::Workspace,
     [] (const QTMCommandContext&) {
       google_tasks_show ();
       return true;
     });
+#if ATHENA_PLATFORM_IPADOS
+  registerBehavior (
+    "workspace.new-system-window", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext& context) {
+      return athena_ios_new_scene (context.shell);
+    });
+  registerBehavior (
+    "workspace.pane-to-window", QTMCommandScope::Pane,
+    [] (const QTMCommandContext& context) {
+      if (!context.shell) return false;
+      for (auto* pane: context.shell->dockManager ()->dockWidgetsMap ())
+        if (pane->widget () == context.workPane)
+          return athena_ios_new_scene (context.shell, pane);
+      return false;
+    }, [] (const QTMCommandContext& context) {
+      bool enabled= context.shell && context.workPane;
+      return QTMCommandState {true, enabled};
+    });
+  registerBehavior (
+    "workspace.return-pane", QTMCommandScope::Pane,
+    [] (const QTMCommandContext& context) {
+      return athena_ios_return_pane (context.shell, context.workPane);
+    }, [] (const QTMCommandContext& context) {
+      return QTMCommandState {true, context.shell && context.workPane &&
+        athena_ios_can_return_pane (context.shell)};
+    });
+#else
   registerBehavior (
     "workspace.new-floating-window", QTMCommandScope::Workspace,
     [] (const QTMCommandContext&) {
       open_document_window (true);
       return true;
     });
+#endif
   registerBehavior (
     "workspace.vault-explorer", QTMCommandScope::Workspace,
     [] (const QTMCommandContext&) {
@@ -771,12 +812,14 @@ QTMCommandRegistry::registerApplicationCommands () {
       help_about_qt ();
       return true;
     });
+#if ATHENA_ENABLE_PLUGINS
   registerBehavior (
     "plugins.manage", QTMCommandScope::Application,
     [] (const QTMCommandContext& context) {
       qtm_manage_plugins (context.shell.data ());
       return true;
     });
+#endif
   registerProvider (
     "help-resources", QTMCommandScope::Application,
     [] (const QTMCommandContext&) {

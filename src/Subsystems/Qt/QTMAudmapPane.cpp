@@ -8,6 +8,8 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include "QTMAudmap.hpp"
+#include "athena_platform.hpp"
+#if ATHENA_ENABLE_AUDMAP_REPL
 #include "QTMAudmapTerminal.hpp"
 #include "QTMMainTabWindow.hpp"
 #include <DockWidget.h>
@@ -39,3 +41,6 @@ void audmap_repl_show () {
   window->showAdsDockWidget (dock, ads::BottomDockWidgetArea);
   dock->widget ()->setFocus ();
 }
+#else
+void audmap_repl_show () {}
+#endif

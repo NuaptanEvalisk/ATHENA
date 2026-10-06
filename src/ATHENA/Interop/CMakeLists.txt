@@ -20,6 +20,7 @@ target_include_directories(athena_audmap PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/../../Subsystems/AUDMAP)
 target_link_libraries(athena_audmap PUBLIC athena_interop athena_audmap_wire PRIVATE cppzmq)
 
+if(ATHENA_ENABLE_CLI OR ATHENA_ENABLE_AUDMAP_REPL)
 add_library(athena_audmap_client STATIC
   ${ATHENA_SOURCE_DIR}/tools/interop/connection.cpp
   ${ATHENA_SOURCE_DIR}/tools/interop/repl_session.cpp)
@@ -30,12 +31,15 @@ target_link_libraries(athena_audmap_client PUBLIC athena_audmap_wire cppzmq PRIV
 add_executable(athena-audmap ${ATHENA_SOURCE_DIR}/tools/interop/client.cpp)
 set_target_properties(athena-audmap PROPERTIES AUTOMOC OFF)
 target_link_libraries(athena-audmap PRIVATE athena_audmap_client)
+endif()
 
 # GNU Readline supplies maintained line editing, Unicode terminal handling and
 # callback-mode input; its GPL-3.0-or-later license matches ATHENA.
+if(ATHENA_ENABLE_AUDMAP_REPL)
 find_path(READLINE_INCLUDE_DIR readline/readline.h REQUIRED)
 find_library(READLINE_LIBRARY NAMES readline REQUIRED)
 add_executable(athena-audmap-repl ${ATHENA_SOURCE_DIR}/tools/interop/repl.cpp)
 set_target_properties(athena-audmap-repl PROPERTIES AUTOMOC OFF)
 target_include_directories(athena-audmap-repl PRIVATE ${READLINE_INCLUDE_DIR})
 target_link_libraries(athena-audmap-repl PRIVATE athena_audmap_client ${READLINE_LIBRARY})
+endif()

@@ -34,6 +34,7 @@ public:
   bool activate ();
   void deactivate ();
   bool active () const noexcept { return active_; }
+  void prepareNativeMenus ();
 
 private:
   struct menu_entry {

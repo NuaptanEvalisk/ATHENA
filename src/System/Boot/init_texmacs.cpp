@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "boot.hpp"
+#include "athena_platform.hpp"
 #include "file.hpp"
 #include "sys_utils.hpp"
 #include "analyze.hpp"
@@ -291,7 +292,13 @@ init_guile () {
   url bundled_bytecode= url ("$ATHENA_PATH/lib/athena-scheme") *
                          url (ATHENA_GUILE_RUNTIME_ID);
   url bundled_stamp= bundled_bytecode * ".complete";
+#if ATHENA_ENABLE_RUNTIME_SCHEME_REFRESH
   bool compiling_bytecode= get_env ("ATHENA_SCHEME_COMPILE") == "1";
+#else
+  const bool compiling_bytecode= false;
+  if (!exists (bundled_stamp))
+    FAILED ("ATHENA requires its packaged Scheme bytecode on this platform");
+#endif
   set_env_path ("ATHENA_GUILE_SOURCE_ROOT", scheme_source);
 
   // Build workers write into the bundled bytecode directory concurrently.
@@ -304,6 +311,7 @@ init_guile () {
                   (bundled_bytecode | existing));
   }
 
+#if ATHENA_ENABLE_RUNTIME_SCHEME_REFRESH
   if (get_env ("ATHENA_GUILE_CACHE_PATH") == "") {
     if (exists (bundled_stamp))
       set_env_path ("ATHENA_GUILE_CACHE_PATH", bundled_bytecode);
@@ -316,6 +324,10 @@ init_guile () {
   }
   if (get_env ("GUILE_AUTO_COMPILE") == "")
     set_env ("GUILE_AUTO_COMPILE", exists (bundled_stamp) ? "0" : "1");
+#else
+  set_env_path ("ATHENA_GUILE_CACHE_PATH", bundled_bytecode);
+  set_env ("GUILE_AUTO_COMPILE", "0");
+#endif
 
   url guile_path= "$ATHENA_PATH/progs:$GUILE_LOAD_PATH";
   if (!exists (guile_path * "init-athena.scm")) {

@@ -20,6 +20,9 @@
 #include <QApplication>
 #include <QObject>
 #include <QTimer>
+#include <QThread>
+#include <memory>
+#include <vector>
 
 namespace {
 
@@ -160,6 +163,52 @@ manager (bool create) {
 void
 qtm_document_persistence_initialize () {
   (void) manager (true);
+}
+
+void
+qtm_document_persistence_flush_realtime_async (std::function<void(bool)> completed) {
+  Q_ASSERT (QThread::currentThread () == qApp->thread ());
+  static std::vector<std::function<void(bool)>> callbacks;
+  const bool running= !callbacks.empty ();
+  callbacks.push_back (std::move (completed));
+  if (running) return;
+  struct Save {
+    athena_actor_id actor;
+    athena_view_id view;
+    athena_blob_id vault;
+  };
+  std::vector<Save> jobs;
+  if (athena_current_document_save_mode () == athena_document_save_mode::realtime) {
+    array<url> names= get_all_buffers ();
+    for (int i= 0; i < N(names); ++i) {
+      tm_buffer buffer= concrete_buffer (names[i]);
+      if (buffer && buffer->actor && athena_realtime_save_active (names[i]))
+        jobs.push_back ({buffer->actor->id (), first_view (buffer), vault_payload ()});
+    }
+  }
+  auto saved= std::make_shared<bool> (true);
+  QThread* worker= QThread::create ([jobs= std::move (jobs), saved] {
+    for (const Save& job: jobs) {
+      actor_command_record result;
+      bool invoked= false;
+      try {
+        invoked= buffer_actor::invoke_on (job.actor,
+          actor_command_kind::realtime_save_buffer, job.view, job.vault,
+          ATHENA_NO_BLOB, &result, SCHEME_CAPABILITY_BUFFER);
+      }
+      catch (...) { *saved= false; }
+      if (!invoked && job.vault != ATHENA_NO_BLOB)
+        (void) actor_text_registry::instance ().discard (job.vault);
+      if (!invoked || result.argument[0] != 0) *saved= false;
+    }
+  });
+  QObject::connect (worker, &QThread::finished, qApp, [saved] {
+    auto waiting= std::move (callbacks);
+    callbacks.clear ();
+    for (auto& callback: waiting) callback (*saved);
+  });
+  QObject::connect (worker, &QThread::finished, worker, &QObject::deleteLater);
+  worker->start ();
 }
 
 void

@@ -57,6 +57,4 @@ bool athena_materials_render (
   const std::string& csl_style, MaterialRenderedDocument& rendered,
   std::string& error);
 
-std::filesystem::path athena_materials_engine_path ();
-
 #endif // ATHENA_MATERIALS_ENGINE_HPP

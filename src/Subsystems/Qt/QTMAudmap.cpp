@@ -8,6 +8,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include "QTMAudmap.hpp"
+#include "athena_platform.hpp"
 #include "../AUDMAP/audmap_server.hpp"
 #include "../AUDMAP/identity.hpp"
 #include "../../ATHENA/Interop/resources.hpp"
@@ -285,6 +286,7 @@ struct QTMAudmap::impl: QObject {
     const auto count = std::max (1u, std::min (8u, std::thread::hardware_concurrency ()));
     auto registry = native_resolvers ();
     server = std::make_unique<local_server> (registry, std::move (ui), count);
+#if ATHENA_ENABLE_PLUGINS
     try {
       auto home = qEnvironmentVariable ("ATHENA_HOME_PATH");
       if (home.isEmpty ()) home = QDir::home ().filePath (".ATHENA");
@@ -305,6 +307,7 @@ struct QTMAudmap::impl: QObject {
       QTMCommandRegistry::instance ().synchronizePluginCommands (plugins.get ());
     }
     catch (const std::exception& e) { qWarning ("ATHENA plugins unavailable: %s", e.what ()); }
+#endif
     qInfo ("ATHENA AUDMAP endpoint: %s", server->discovery_file ().c_str ());
   }
   QDialog* create (const std::string& id, const char* title) {
@@ -344,8 +347,10 @@ std::unique_ptr<QTMAudmap> desktop_interop;
 }
 
 void qt_audmap_start () {
+#if ATHENA_ENABLE_AUDMAP_LISTENER
   Q_ASSERT (QThread::currentThread () == qApp->thread ());
   if (!desktop_interop) desktop_interop = std::make_unique<QTMAudmap> ();
+#endif
 }
 
 void qt_audmap_stop () {

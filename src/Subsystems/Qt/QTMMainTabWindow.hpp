@@ -72,6 +72,8 @@ public:
 
   void detachWidget(QWidget* widget);
   void setNextWidgetFloating();
+  void prepareNativeMenus ();
+  void adoptPane (ads::CDockWidget* pane);
 
 protected:
   void closeEvent (QCloseEvent* event) override;

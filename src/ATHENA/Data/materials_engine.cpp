@@ -6,19 +6,24 @@
 
 #include "ATHENA/Data/materials_engine.hpp"
 
-#include <QCoreApplication>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QProcess>
-#include <QTemporaryDir>
 
 #include <algorithm>
-#include <cstdlib>
+#include <cstdint>
+#include <memory>
 #include <set>
 
 namespace fs= std::filesystem;
+
+extern "C" {
+int athena_materials_call (uint32_t operation,
+  const unsigned char* source, size_t source_size,
+  const unsigned char* request, size_t request_size, char** output, char** error);
+void athena_materials_free (char* value);
+}
 
 namespace {
 
@@ -34,33 +39,23 @@ qstr (const std::string& value) {
 }
 
 bool
-run_engine (const QStringList& arguments, QByteArray& output,
-            std::string& error) {
+run_engine (uint32_t operation, const QByteArray& source,
+            const QByteArray& request, QByteArray& output, std::string& error) {
   error.clear ();
-  QProcess process;
-  process.setProgram (QString::fromUtf8 (
-    athena_materials_engine_path ().u8string ().c_str ()));
-  process.setArguments (arguments);
-  process.setProcessChannelMode (QProcess::SeparateChannels);
-  process.start ();
-  if (!process.waitForStarted (10000)) {
-    error= "could not start athena-materials-engine: " +
-           utf8 (process.errorString ());
+  char* result= nullptr;
+  char* diagnostic= nullptr;
+  int status= athena_materials_call (operation,
+    reinterpret_cast<const unsigned char*> (source.constData ()), source.size (),
+    reinterpret_cast<const unsigned char*> (request.constData ()), request.size (),
+    &result, &diagnostic);
+  std::unique_ptr<char, decltype (&athena_materials_free)>
+    result_owner (result, athena_materials_free),
+    diagnostic_owner (diagnostic, athena_materials_free);
+  if (status != 0) {
+    error= diagnostic ? diagnostic : "Materials engine failed";
     return false;
   }
-  if (!process.waitForFinished (120000)) {
-    process.kill ();
-    process.waitForFinished ();
-    error= "athena-materials-engine timed out";
-    return false;
-  }
-  output= process.readAllStandardOutput ();
-  QByteArray diagnostics= process.readAllStandardError ();
-  if (process.exitStatus () != QProcess::NormalExit || process.exitCode () != 0) {
-    error= utf8 (QString::fromUtf8 (diagnostics).trimmed ());
-    if (error.empty ()) error= "athena-materials-engine failed";
-    return false;
-  }
+  output= QByteArray (result);
   return true;
 }
 
@@ -229,38 +224,14 @@ records_to_biblatex (const std::vector<MaterialRecord>& records) {
   return output;
 }
 
-bool
-write_file (const QString& path, const QByteArray& data, std::string& error) {
-  QFile file (path);
-  if (!file.open (QIODevice::WriteOnly) || file.write (data) != data.size ()) {
-    error= "could not write temporary Materials engine input";
-    return false;
-  }
-  return true;
-}
-
 } // namespace
-
-fs::path
-athena_materials_engine_path () {
-  if (const char* athena_path= std::getenv ("ATHENA_PATH")) {
-    fs::path bundled= fs::u8path (athena_path) / "bin/athena-materials-engine";
-    if (fs::exists (bundled)) return bundled;
-  }
-  fs::path executable= fs::u8path (
-    QCoreApplication::applicationDirPath ().toUtf8 ().constData ());
-  fs::path sibling= executable / "athena-materials-engine";
-  if (fs::exists (sibling)) return sibling;
-  return executable.parent_path () /
-         "materials-engine-cargo/release/athena-materials-engine";
-}
 
 bool
 athena_materials_list_csl_styles (std::vector<MaterialCslStyle>& styles,
                                   std::string& error) {
   styles.clear ();
   QByteArray output;
-  if (!run_engine ({"list-styles"}, output, error)) return false;
+  if (!run_engine (0, {}, {}, output, error)) return false;
   QJsonParseError parse_error;
   QJsonDocument document= QJsonDocument::fromJson (output, &parse_error);
   if (parse_error.error != QJsonParseError::NoError || !document.isArray ()) {
@@ -292,8 +263,17 @@ athena_materials_import_bibtex (const fs::path& path,
                                 std::string& error) {
   records.clear ();
   QByteArray output;
-  if (!run_engine ({"import-bib", QString::fromUtf8 (path.u8string ().c_str ())},
-                   output, error)) return false;
+  QFile input (QString::fromUtf8 (path.u8string ().c_str ()));
+  if (!input.open (QIODevice::ReadOnly)) {
+    error= utf8 (input.errorString ());
+    return false;
+  }
+  QByteArray source= input.readAll ();
+  if (input.error () != QFile::NoError) {
+    error= utf8 (input.errorString ());
+    return false;
+  }
+  if (!run_engine (1, source, {}, output, error)) return false;
   QJsonParseError parse_error;
   QJsonDocument document= QJsonDocument::fromJson (output, &parse_error);
   if (parse_error.error != QJsonParseError::NoError || !document.isObject ()) {
@@ -352,12 +332,7 @@ athena_materials_render (
   const std::string& csl_style, MaterialRenderedDocument& rendered,
   std::string& error) {
   rendered= {};
-  QTemporaryDir temporary;
-  if (!temporary.isValid ()) { error= "could not create Materials render workspace"; return false; }
-  QString bib_path= temporary.filePath ("materials.bib");
-  QString request_path= temporary.filePath ("request.json");
-  if (!write_file (bib_path, QByteArray::fromStdString (records_to_biblatex (records)), error))
-    return false;
+  QByteArray source= QByteArray::fromStdString (records_to_biblatex (records));
   QJsonObject request;
   request["style"]= qstr (csl_style.empty () ? "springer-mathphys"
                                               : csl_style);
@@ -375,10 +350,9 @@ athena_materials_render (
   QJsonArray only;
   for (const std::string& uuid: bibliography_only) only.append (qstr (uuid));
   request["bibliography_only"]= only;
-  if (!write_file (request_path, QJsonDocument (request).toJson (QJsonDocument::Compact), error))
-    return false;
   QByteArray output;
-  if (!run_engine ({"render", bib_path, request_path}, output, error)) return false;
+  if (!run_engine (2, source, QJsonDocument (request).toJson (QJsonDocument::Compact),
+                   output, error)) return false;
   QJsonParseError parse_error;
   QJsonDocument response= QJsonDocument::fromJson (output, &parse_error);
   if (parse_error.error != QJsonParseError::NoError || !response.isObject ()) {

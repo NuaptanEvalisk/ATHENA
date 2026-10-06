@@ -17,6 +17,7 @@
   //#include "Glue/glue.hpp"
 
 #include "guile_tm.hpp"
+#include "athena_platform.hpp"
 #include "blackbox.hpp"
 #include "file.hpp"
 #include "../Scheme/glue.hpp"
@@ -368,7 +369,9 @@ start_scheme (int argc, char** argv, void (*call_back) (int, char**),
   guile_argv = argv;
   old_call_back= call_back;
   old_compile_callback= compile_callback;
+#if ATHENA_ENABLE_RUNTIME_SCHEME_REFRESH
   scm_athena_set_auto_compile_callback (athena_auto_compile_callback, nullptr);
+#endif
   scm_boot_guile (argc, argv, new_call_back, 0);
   scm_athena_set_auto_compile_callback (nullptr, nullptr);
   old_compile_callback= nullptr;

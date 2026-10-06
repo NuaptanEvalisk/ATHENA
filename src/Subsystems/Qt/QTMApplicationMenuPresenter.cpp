@@ -15,6 +15,10 @@
 #include "QTMGuiHelper.hpp"
 #include "boot.hpp"
 #include "qt_gui.hpp"
+#include "athena_platform.hpp"
+#if ATHENA_PLATFORM_IPADOS
+#include "Subsystems/iOS/athena_ios.hpp"
+#endif
 
 #include <QAction>
 #include <QApplication>
@@ -277,6 +281,7 @@ QTMApplicationMenuPresenter::build_menu (
         new QAction (icon, menu_action_text (*command), menu);
       action->setStatusTip (command->help);
       action->setWhatsThis (command->help);
+      action->setProperty ("athena.shortcut", command->shortcut);
       const QString command_id= command->id;
       QObject::connect (action, &QAction::triggered, menu,
                         [this, command_id] {
@@ -355,6 +360,15 @@ QTMApplicationMenuPresenter::refresh_root_visibility () {
       visible= document_snapshot.ready && document_snapshot.automate_style;
     menu.menu->menuAction ()->setVisible (visible);
   }
+#if ATHENA_PLATFORM_IPADOS
+  athena_ios_menus_changed (shell_);
+#endif
+}
+
+void QTMApplicationMenuPresenter::prepareNativeMenus () {
+  capture_presented_context ();
+  for (int i= 0; i < menus_.size (); ++i)
+    if (!menus_[i].root_id.isEmpty ()) (void) refresh_menu (i);
 }
 
 bool
@@ -376,6 +390,7 @@ QTMApplicationMenuPresenter::activate () {
   for (const QTMCommandMenuDefinition& definition: registry.menus ()) {
     QMenu* menu= bar->addMenu (definition.label);
     if (menu != nullptr) {
+      menu->setProperty ("athena.menuId", definition.id);
       int index= build_menu (menu, definition.items, true);
       if (index >= 0 && index < menus_.size ())
         menus_[index].root_id= definition.id;
@@ -397,6 +412,9 @@ QTMApplicationMenuPresenter::activate () {
   bind_gui_refresh_if_available ();
   remember_input_widget (QApplication::focusWidget ());
   refresh_root_visibility ();
+#if ATHENA_PLATFORM_IPADOS
+  bar->hide ();
+#endif
   return true;
 }
 

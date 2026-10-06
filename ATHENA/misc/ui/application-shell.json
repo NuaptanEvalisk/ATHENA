@@ -272,6 +272,27 @@
       "help": "Rebuild artifacts for the active vault"
     },
     {
+      "id": "workspace.new-system-window",
+      "label": "New Window",
+      "category": "Workspace",
+      "icon": "window-new",
+      "help": "Open a new system workspace window"
+    },
+    {
+      "id": "workspace.pane-to-window",
+      "label": "Move Pane to New Window",
+      "category": "Workspace",
+      "icon": "window-new",
+      "help": "Move the focused pane into a system window"
+    },
+    {
+      "id": "workspace.return-pane",
+      "label": "Return Pane to Workspace",
+      "category": "Workspace",
+      "icon": "window-restore",
+      "help": "Return the focused pane to another workspace window"
+    },
+    {
       "id": "workspace.new-floating-window",
       "label": "New floating window",
       "category": "Workspace",
@@ -1180,6 +1201,9 @@
         { "command": "application.new-tab" },
         { "command": "workspace.new-compound-document" },
         { "command": "workspace.new-floating-window" },
+        { "command": "workspace.new-system-window" },
+        { "command": "workspace.pane-to-window" },
+        { "command": "workspace.return-pane" },
         { "command": "workspace.configure-vault-font" },
         { "command": "workspace.global-transformation" },
         { "separator": true },

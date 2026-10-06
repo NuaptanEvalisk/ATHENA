@@ -1,4 +1,8 @@
 #include "QTMMainTabWindow.hpp"
+#include "athena_platform.hpp"
+#if ATHENA_PLATFORM_IPADOS
+#include "Subsystems/iOS/athena_ios.hpp"
+#endif
 #include "ATHENA/Features/athena_features.hpp"
 #include "QTMApplicationMenuPresenter.hpp"
 #include "QTMApplication.hpp"
@@ -365,6 +369,12 @@ QTMMainTabWindow::QTMMainTabWindow()
   }
   bench_start ("construct ads dock manager");
   mDockManager = new ads::CDockManager(this);
+#if ATHENA_PLATFORM_IPADOS
+  connect (mDockManager, &ads::CDockManager::dockWidgetAdded, this,
+    [] (ads::CDockWidget* dock) {
+      dock->setFeature (ads::CDockWidget::DockWidgetFloatable, false);
+    });
+#endif
   setCentralWidget (mDockManager);
   installApplicationBackgroundStatus (this);
   // The application shell owns the menubar.  Editor actors publish command
@@ -397,7 +407,11 @@ QTMMainTabWindow::QTMMainTabWindow()
            [this] { cycleActiveAdsTab (-1); });
 
   // todo : keep the tab window size and position in the user preferences
+#if ATHENA_PLATFORM_IPADOS
+  setMinimumSize (320, 240);
+#else
   setMinimumSize(800, 600);
+#endif
 
   setAttribute(Qt::WA_DeleteOnClose);
 
@@ -409,6 +423,9 @@ QTMMainTabWindow::QTMMainTabWindow()
   gTopTabWindow = this;
   if (!mNativeMenuPresenter->activate ())
     qWarning ("Could not activate native ATHENA application menubar");
+#if ATHENA_PLATFORM_IPADOS
+  athena_ios_register_shell (this);
+#endif
   bench_cumul ("connect main window shell");
 }
 
@@ -419,6 +436,11 @@ QTMMainTabWindow::~QTMMainTabWindow() {
 }
 
 void QTMMainTabWindow::closeEvent(QCloseEvent *event) {
+#if ATHENA_PLATFORM_IPADOS
+  event->ignore ();
+  athena_ios_close_scene (this);
+  return;
+#endif
   saveAdsLayoutState();
   if (is_server_started()) {
     event->ignore();
@@ -462,8 +484,10 @@ void QTMMainTabWindow::setMainTitleFromWidget(QWidget* widget) {
 void QTMMainTabWindow::showAfterContentReady(QWidget* focusWidget) {
   if (!isVisible()) {
     show();
+#if !ATHENA_PLATFORM_IPADOS
     QRect screenGeometry = QApplication::screens().at(0)->geometry();
     move(screenGeometry.center() - rect().center());
+#endif
     raise();
     activateWindow();
   }
@@ -477,13 +501,17 @@ bool QTMMainTabWindow::adsLayoutPersistenceEnabled() const {
 QString QTMMainTabWindow::adsLayoutStatePath() const {
   QString home= to_qstring (get_env ("ATHENA_HOME_PATH"));
   if (home.isEmpty()) return QString ();
-  return QDir (home).filePath ("system/ads-layout-state.bin");
+  QString key= property ("athena.layoutKey").toString ();
+  return QDir (home).filePath (key.isEmpty () ? "system/ads-layout-state.bin" :
+    "system/ads-layout-" + key + ".bin");
 }
 
 QString QTMMainTabWindow::adsVisiblePanesStatePath() const {
   QString home= to_qstring (get_env ("ATHENA_HOME_PATH"));
   if (home.isEmpty()) return QString ();
-  return QDir (home).filePath ("system/ads-visible-panes.txt");
+  QString key= property ("athena.layoutKey").toString ();
+  return QDir (home).filePath (key.isEmpty () ? "system/ads-visible-panes.txt" :
+    "system/ads-visible-panes-" + key + ".txt");
 }
 
 void QTMMainTabWindow::showAdsDockWidget(ads::CDockWidget* dock,
@@ -749,9 +777,13 @@ void QTMMainTabWindow::scheduleAdsLayoutRestore(
       if (dock == nullptr) continue;
       if (dock->dockAreaWidget () == nullptr ||
           dock->dockContainer () == nullptr) {
-        if (reveal.second == ads::NoDockWidgetArea)
+        if (reveal.second == ads::NoDockWidgetArea) {
+#if ATHENA_PLATFORM_IPADOS
+          mDockManager->addDockWidget (ads::CenterDockWidgetArea, dock);
+#else
           mDockManager->addDockWidgetFloating (dock);
-        else
+#endif
+        } else
           mDockManager->addDockWidget (reveal.second, dock);
       }
       dock->toggleView (true);
@@ -791,6 +823,15 @@ bool QTMMainTabWindow::eventFilter(QObject *obj, QEvent *event) {
 }
 
 void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
+  if (ads::CDockWidget* dock= adsDockWidgetFor (widget)) {
+    if (dock->dockManager () != mDockManager) {
+      auto* owner= qobject_cast<QTMMainTabWindow*> (dock->dockManager ()->parentWidget ());
+      if (owner) {
+        owner->showWidget (widget, isDocument);
+        return;
+      }
+    }
+  }
   QPointer<ads::CDockAreaWidget> documentArea;
   if (isDocument) {
     if (ads::CDockWidget* current= adsDockWidgetFor (currentDocumentWidget ()))
@@ -831,7 +872,12 @@ void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
     });
 
     if (gNextWidgetFloating) {
+#if ATHENA_PLATFORM_IPADOS
+      mDockManager->addDockWidget (ads::CenterDockWidgetArea, dockWidget);
+      athena_ios_new_scene (this, dockWidget);
+#else
       mDockManager->addDockWidgetFloating(dockWidget);
+#endif
       gNextWidgetFloating = false;
     } else if (documentArea != nullptr)
       mDockManager->addDockWidgetTabToArea (dockWidget, documentArea);
@@ -968,7 +1014,7 @@ void QTMMainTabWindow::removeWidget(QWidget *widget) {
   QWidget* p = widget->parentWidget();
   while (p) {
     if (ads::CDockWidget* dockWidget = qobject_cast<ads::CDockWidget*>(p)) {
-      mDockManager->removeDockWidget(dockWidget);
+      dockWidget->dockManager()->removeDockWidget(dockWidget);
       dockWidget->deleteLater();
       break;
     }
@@ -980,11 +1026,41 @@ void QTMMainTabWindow::detachWidget(QWidget* widget) {
   QWidget* p = widget->parentWidget();
   while (p) {
     if (ads::CDockWidget* dockWidget = qobject_cast<ads::CDockWidget*>(p)) {
+#if ATHENA_PLATFORM_IPADOS
+      athena_ios_new_scene (this, dockWidget);
+#else
       mDockManager->addDockWidgetFloating(dockWidget);
+#endif
       break;
     }
     p = p->parentWidget();
   }
+}
+
+void QTMMainTabWindow::prepareNativeMenus () {
+  if (mNativeMenuPresenter) mNativeMenuPresenter->prepareNativeMenus ();
+}
+
+void QTMMainTabWindow::adoptPane (ads::CDockWidget* pane) {
+  if (!pane || pane->dockManager () == mDockManager) return;
+  QWidget* widget= pane->widget ();
+  QTMMainTabWindow* previous= qobject_cast<QTMMainTabWindow*> (pane->dockManager ()->parentWidget ());
+  if (previous && widget) {
+    widget->removeEventFilter (previous);
+    if (previous->mLastFocusedDocumentWidget == widget)
+      previous->mLastFocusedDocumentWidget= nullptr;
+    if (previous->mLastFocusedWorkPaneWidget == widget)
+      previous->mLastFocusedWorkPaneWidget= nullptr;
+  }
+  pane->dockManager ()->removeDockWidget (pane);
+  mDockManager->addDockWidget (ads::CenterDockWidgetArea, pane);
+  if (isDocumentWidget (widget)) {
+    widget->installEventFilter (this);
+    mLastFocusedDocumentWidget= widget;
+  }
+  mLastFocusedWorkPaneWidget= widget;
+  pane->toggleView (true);
+  mDockManager->setDockWidgetFocused (pane);
 }
 
 void QTMMainTabWindow::tabTitleChanged(QWidget *widget, QString title) {
