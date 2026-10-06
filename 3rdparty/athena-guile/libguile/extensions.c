@@ -23,11 +23,17 @@
 
 #include <string.h>
 
+#if defined(__APPLE__)
+# include <TargetConditionals.h>
+#endif
+
 #include "dynl.h"
 #include "dynwind.h"
+#include "error.h"
 #include "gc.h"
 #include "gsubr.h"
 #include "foreign.h"
+#include "list.h"
 #include "strings.h"
 #include "threads.h"
 
@@ -112,8 +118,14 @@ load_extension (SCM lib, SCM init)
         return;
     }
 
-  /* Dynamically link the library. */
-#if HAVE_MODULES
+  /* On iOS all Guile extensions used by ATHENA are part of the signed static
+     runtime and register their init functions above.  A registry miss must
+     never fall through to loading arbitrary code from a dylib. */
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+  scm_misc_error ("load-extension",
+                  "extension ~S:~S is not statically registered; dynamic loading is unavailable on iOS",
+                  scm_list_2 (lib, init));
+#elif HAVE_MODULES
   SCM pointer = scm_dynamic_pointer (init, scm_dynamic_link (lib));
   void (*f)(void) = scm_to_pointer (pointer);
   f ();

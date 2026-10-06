@@ -67,7 +67,7 @@ static inline void
 transcoders_not_implemented (void)
 {
   fprintf (stderr, "%s: warning: transcoders not implemented\n",
-	   PACKAGE_NAME);
+	   SCM_PACKAGE_NAME);
 }
 
 

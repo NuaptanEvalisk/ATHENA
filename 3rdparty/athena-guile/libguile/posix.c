@@ -36,6 +36,16 @@
 #include <unistd.h>
 #include <spawn.h>
 
+#if defined(__APPLE__)
+# include <TargetConditionals.h>
+#endif
+
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+# define ATHENA_GUILE_TARGET_IOS 1
+#else
+# define ATHENA_GUILE_TARGET_IOS 0
+#endif
+
 #ifdef HAVE_SCHED_H
 # include <sched.h>
 #endif
@@ -60,6 +70,7 @@
 #include "bitvectors.h"
 #include "dynwind.h"
 #include "extensions.h"
+#include "error.h"
 #include "feature.h"
 #include "finalizers.h"
 #include "fports.h"
@@ -87,6 +98,15 @@
 #endif
 
 #include "posix.h"
+
+#if ATHENA_GUILE_TARGET_IOS
+static SCM
+athena_ios_process_unavailable (const char *name)
+{
+  scm_misc_error (name, "process creation is unavailable on iOS", SCM_EOL);
+  return SCM_UNSPECIFIED;
+}
+#endif
 
 #if HAVE_SYS_WAIT_H
 # include <sys/wait.h>
@@ -1177,6 +1197,11 @@ SCM_DEFINE (scm_execl, "execl", 1, 0, 1,
 	    "call, but we call it @code{execl} because of its Scheme calling interface.")
 #define FUNC_NAME s_scm_execl
 {
+#if ATHENA_GUILE_TARGET_IOS
+  (void) filename;
+  (void) args;
+  return athena_ios_process_unavailable (FUNC_NAME);
+#else
   char *exec_file;
   char **exec_argv;
 
@@ -1193,6 +1218,7 @@ SCM_DEFINE (scm_execl, "execl", 1, 0, 1,
   /* not reached.  */
   scm_dynwind_end ();
   return SCM_BOOL_F;
+#endif
 }
 #undef FUNC_NAME
 
@@ -1206,6 +1232,11 @@ SCM_DEFINE (scm_execlp, "execlp", 1, 0, 1,
 	    "call, but we call it @code{execlp} because of its Scheme calling interface.")
 #define FUNC_NAME s_scm_execlp
 {
+#if ATHENA_GUILE_TARGET_IOS
+  (void) filename;
+  (void) args;
+  return athena_ios_process_unavailable (FUNC_NAME);
+#else
   char *exec_file;
   char **exec_argv;
 
@@ -1222,6 +1253,7 @@ SCM_DEFINE (scm_execlp, "execlp", 1, 0, 1,
   /* not reached.  */
   scm_dynwind_end ();
   return SCM_BOOL_F;
+#endif
 }
 #undef FUNC_NAME
 
@@ -1238,6 +1270,12 @@ SCM_DEFINE (scm_execle, "execle", 2, 0, 1,
 	    "call, but we call it @code{execle} because of its Scheme calling interface.")
 #define FUNC_NAME s_scm_execle
 {
+#if ATHENA_GUILE_TARGET_IOS
+  (void) filename;
+  (void) env;
+  (void) args;
+  return athena_ios_process_unavailable (FUNC_NAME);
+#else
   char **exec_argv;
   char **exec_env;
   char *exec_file;
@@ -1256,6 +1294,7 @@ SCM_DEFINE (scm_execle, "execle", 2, 0, 1,
   /* not reached.  */
   scm_dynwind_end ();
   return SCM_BOOL_F;
+#endif
 }
 #undef FUNC_NAME
 
@@ -1294,6 +1333,9 @@ SCM_DEFINE (scm_fork, "primitive-fork", 0, 0, 0,
 	    "with the scsh fork.")
 #define FUNC_NAME s_scm_fork
 {
+#if ATHENA_GUILE_TARGET_IOS
+  return athena_ios_process_unavailable (FUNC_NAME);
+#else
   int pid;
 
   scm_i_finalizer_pre_fork ();
@@ -1324,6 +1366,7 @@ SCM_DEFINE (scm_fork, "primitive-fork", 0, 0, 0,
   scm_i_signals_post_fork ();
 
   return scm_from_int (pid);
+#endif
 }
 #undef FUNC_NAME
 #endif /* HAVE_FORK */
@@ -1457,6 +1500,12 @@ SCM_DEFINE (scm_spawn_process, "spawn", 2, 0, 1,
             "from the parent process.\n")
 #define FUNC_NAME s_scm_spawn_process
 {
+#if ATHENA_GUILE_TARGET_IOS
+  (void) program;
+  (void) arguments;
+  (void) keyword_args;
+  return athena_ios_process_unavailable (FUNC_NAME);
+#else
   SCM env, in_scm, out_scm, err_scm, use_path;
   int pid = -1;
   char *exec_file, **exec_argv, **exec_env;
@@ -1527,6 +1576,7 @@ SCM_DEFINE (scm_spawn_process, "spawn", 2, 0, 1,
   scm_dynwind_end ();
 
   return scm_from_int (pid);
+#endif
 }
 #undef FUNC_NAME
 
@@ -1623,6 +1673,13 @@ static SCM
 scm_piped_process (SCM prog, SCM args, SCM from, SCM to)
 #define FUNC_NAME "piped-process"
 {
+#if ATHENA_GUILE_TARGET_IOS
+  (void) prog;
+  (void) args;
+  (void) from;
+  (void) to;
+  return athena_ios_process_unavailable (FUNC_NAME);
+#else
   pid_t pid;
 
   (void) piped_process (&pid, prog, args, from, to);
@@ -1639,6 +1696,7 @@ scm_piped_process (SCM prog, SCM args, SCM from, SCM to)
     }
 
   return scm_from_int (pid);
+#endif
 }
 #undef FUNC_NAME
 
@@ -1662,6 +1720,10 @@ SCM_DEFINE (scm_system_star, "system*", 0, 0, 1,
 "Example: (system* \"echo\" \"foo\" \"bar\")")
 #define FUNC_NAME s_scm_system_star
 {
+#if ATHENA_GUILE_TARGET_IOS
+  (void) args;
+  return athena_ios_process_unavailable (FUNC_NAME);
+#else
   SCM prog;
   pid_t pid;
   int err, status, wait_result;
@@ -1689,6 +1751,7 @@ SCM_DEFINE (scm_system_star, "system*", 0, 0, 1,
     }
 
   return scm_from_int (status);
+#endif
 }
 #undef FUNC_NAME
 #endif /* HAVE_FORK */

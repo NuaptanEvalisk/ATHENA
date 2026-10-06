@@ -44,7 +44,9 @@ iPad binary to generate bytecode. The future packaging build supplies:
 
 - `ATHENA_GUILE_PREBUILT_PREFIX`: the target-built private Guile/GC runtime.
 - `ATHENA_GUILE_PREBUILT_CONFIG_HEADER`: that same runtime build's `config.h`,
-  with `ENABLE_JIT` set to zero (`--disable-jit`).
+  produced with `--disable-jit`.  Autoconf may represent that as either
+  `#define ENABLE_JIT 0` or `/* #undef ENABLE_JIT */`; both mean JIT is disabled
+  because the runtime guards JIT code with `#if ENABLE_JIT`.
 - `ATHENA_PACKAGED_SCHEME_DIR`: the precompiled application `.go` tree,
   preserving paths relative to `ATHENA/progs`.
 

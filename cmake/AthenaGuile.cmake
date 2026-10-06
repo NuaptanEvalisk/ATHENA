@@ -33,6 +33,7 @@ set(ATHENA_GUILE_PREFIX
   "${ATHENA_BINARY_DIR}/athena-guile-runtime")
 set(ATHENA_GUILE_PREBUILT_PREFIX "" CACHE PATH
   "Explicitly reuse an existing private ATHENA Guile/GC runtime instead of rebuilding it")
+set(ATHENA_GUILE_IMPORTED_TYPE SHARED)
 if(ATHENA_PLATFORM_IPADOS)
   # Do not invoke the desktop bootstrap compiler during cross compilation.
   # The target runtime and matching .go files are supplied by the packaging job.
@@ -45,8 +46,10 @@ if(ATHENA_PLATFORM_IPADOS)
       "ATHENA_GUILE_PREBUILT_CONFIG_HEADER; desktop Guile bootstrap is not supported")
   endif()
   file(STRINGS "${ATHENA_GUILE_PREBUILT_CONFIG_HEADER}" no_jit
-    REGEX "^#define ENABLE_JIT 0$")
-  if(NOT no_jit)
+    REGEX "^(#define ENABLE_JIT 0|/\\* #undef ENABLE_JIT \\*/)$")
+  file(STRINGS "${ATHENA_GUILE_PREBUILT_CONFIG_HEADER}" jit_enabled
+    REGEX "^#define ENABLE_JIT 1$")
+  if(NOT no_jit OR jit_enabled)
     message(FATAL_ERROR "The iPadOS Guile runtime must be built with --disable-jit")
   endif()
 endif()
@@ -56,8 +59,23 @@ if(ATHENA_GUILE_PREBUILT_PREFIX)
 endif()
 set(ATHENA_GUILE_INCLUDE_DIR
   "${ATHENA_GUILE_PREFIX}/include/guile/3.0")
-set(ATHENA_GUILE_LIBRARY
-  "${ATHENA_GUILE_PREFIX}/lib/libathena-guile${CMAKE_SHARED_LIBRARY_SUFFIX}")
+if(ATHENA_PLATFORM_IPADOS AND ATHENA_GUILE_PREBUILT_PREFIX)
+  find_library(ATHENA_GUILE_COREFOUNDATION_FRAMEWORK CoreFoundation REQUIRED)
+  # iPadOS packages the private runtime into the application binary instead of
+  # leaving a loose dylib in the bundle.  Guile's Scheme sources and matching
+  # target .go files remain signed bundle resources.
+  set(ATHENA_GUILE_IMPORTED_TYPE STATIC)
+  set(ATHENA_GUILE_LIBRARY
+    "${ATHENA_GUILE_PREFIX}/lib/libathena-guile${CMAKE_STATIC_LIBRARY_SUFFIX}")
+  set(ATHENA_GUILE_STATIC_DEPENDENCIES
+    "${ATHENA_GUILE_PREFIX}/lib/libgc${CMAKE_STATIC_LIBRARY_SUFFIX}"
+    "${ATHENA_GUILE_PREFIX}/lib/libgmp${CMAKE_STATIC_LIBRARY_SUFFIX}"
+    "${ATHENA_GUILE_PREFIX}/lib/libunistring${CMAKE_STATIC_LIBRARY_SUFFIX}"
+    "${ATHENA_GUILE_PREFIX}/lib/libffi${CMAKE_STATIC_LIBRARY_SUFFIX}")
+else()
+  set(ATHENA_GUILE_LIBRARY
+    "${ATHENA_GUILE_PREFIX}/lib/libathena-guile${CMAKE_SHARED_LIBRARY_SUFFIX}")
+endif()
 
 if(ATHENA_GUILE_PREBUILT_PREFIX)
   foreach(required
@@ -70,6 +88,14 @@ if(ATHENA_GUILE_PREBUILT_PREFIX)
       message(FATAL_ERROR "Incomplete prebuilt ATHENA Guile runtime: ${required}")
     endif()
   endforeach()
+  if(ATHENA_PLATFORM_IPADOS)
+    foreach(required IN LISTS ATHENA_GUILE_STATIC_DEPENDENCIES)
+      if(NOT EXISTS "${required}")
+        message(FATAL_ERROR
+          "Incomplete static iPadOS Guile dependency closure: ${required}")
+      endif()
+    endforeach()
+  endif()
   set(ATHENA_GUILE_NM_OPTION -D)
   if(APPLE)
     set(ATHENA_GUILE_NM_OPTION -g)
@@ -205,10 +231,14 @@ ExternalProject_Add_Step(athena_guile_runtime source_changes
   COMMENT "Checking the modified ATHENA Guile runtime sources")
 endif()
 
-add_library(ATHENA::Guile SHARED IMPORTED GLOBAL)
+add_library(ATHENA::Guile ${ATHENA_GUILE_IMPORTED_TYPE} IMPORTED GLOBAL)
 set_target_properties(ATHENA::Guile PROPERTIES
   IMPORTED_LOCATION "${ATHENA_GUILE_LIBRARY}"
   INTERFACE_INCLUDE_DIRECTORIES "${ATHENA_GUILE_INCLUDE_DIR}")
+if(ATHENA_PLATFORM_IPADOS AND ATHENA_GUILE_PREBUILT_PREFIX)
+  set_property(TARGET ATHENA::Guile PROPERTY INTERFACE_LINK_LIBRARIES
+    "${ATHENA_GUILE_STATIC_DEPENDENCIES};iconv;${ATHENA_GUILE_COREFOUNDATION_FRAMEWORK}")
+endif()
 add_dependencies(ATHENA::Guile athena_guile_runtime)
 
 set(ATHENA_GUILE_STANDARD_LIBRARY

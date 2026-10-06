@@ -17,6 +17,7 @@ ads_runtime="$8"
 resvg_runtime="$9"
 jobs="${10}"
 runtime_id="${11}"
+scheme_target="${ATHENA_SCHEME_TARGET:-}"
 
 if ! [[ "$jobs" =~ ^[1-9][0-9]*$ ]]; then
   echo "ATHENA Scheme bytecode: invalid worker count: $jobs" >&2
@@ -118,6 +119,7 @@ for input in "${toolchain_inputs[@]}"; do
 done
 toolchain_hash="$({
   printf '%s\n' "$runtime_id"
+  printf '%s\n' "$scheme_target"
   sha256sum -- "${toolchain_inputs[@]}"
 } | sha256sum)"
 toolchain_hash="${toolchain_hash%% *}"

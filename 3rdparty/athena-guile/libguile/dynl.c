@@ -38,8 +38,13 @@
 #include <dlfcn.h>
 #endif
 
+#if defined(__APPLE__)
+# include <TargetConditionals.h>
+#endif
+
 #include "boolean.h"
 #include "deprecation.h"
+#include "error.h"
 #include "eval.h"
 #include "extensions.h"
 #include "foreign.h"
@@ -69,6 +74,13 @@ SCM_DEFINE_STATIC (scm_dlopen, "dlopen", 2, 0, 0, (SCM name, SCM flags), "")
 {
   void *handle;
   int c_flags = scm_to_int (flags);
+
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+  if (scm_is_true (name))
+    scm_misc_error (FUNC_NAME,
+                    "loading external dynamic libraries is unavailable on iOS",
+                    scm_list_1 (name));
+#endif
 
   if (scm_is_false (name))
     handle = dlopen (NULL, c_flags);

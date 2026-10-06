@@ -89,6 +89,13 @@ if (NOT (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt6"))
 endif ()
 
 find_package (mimalloc REQUIRED)
+if (ATHENA_PLATFORM_IPADOS AND TARGET mimalloc-static AND NOT TARGET mimalloc)
+  # mimalloc's static-only install exports `mimalloc-static`, while ATHENA's
+  # existing desktop graph links the package's shared `mimalloc` target.
+  # Keep the consumer target stable and adapt only the iPadOS package shape.
+  add_library (mimalloc INTERFACE)
+  target_link_libraries (mimalloc INTERFACE mimalloc-static)
+endif ()
 find_package (Boost REQUIRED)
 
 option (QTPIPES "use Qt pipes" ON)
@@ -494,11 +501,18 @@ set (guile_str_size_t size_t)
 ### --------------------------------------------------------------------
 set (DEBUG_ASSERT 1)
 
-set (USE_GS 1)
-find_program (GS_EXECUTABLE NAMES gs gswin64c gswin32c REQUIRED)
-set (GS_EXE ${GS_EXECUTABLE})
-set (GS_FONTS ../share/ghostscript/fonts:/usr/share/fonts:)
-set (GS_LIB ../share/ghostscript/9.06/lib:)
+if (ATHENA_PLATFORM_IPADOS)
+  # Ghostscript support is implemented through an external process and is used
+  # only for PostScript/EPS import.  iPadOS does not permit that subprocess
+  # model; native PDF export is independent of USE_GS.
+  set (USE_GS 0)
+else ()
+  set (USE_GS 1)
+  find_program (GS_EXECUTABLE NAMES gs gswin64c gswin32c REQUIRED)
+  set (GS_EXE ${GS_EXECUTABLE})
+  set (GS_FONTS ../share/ghostscript/fonts:/usr/share/fonts:)
+  set (GS_LIB ../share/ghostscript/9.06/lib:)
+endif ()
 
 set (GUILE_NUM 1)
 set (SIZEOF_VOID_P 8)
@@ -790,14 +804,14 @@ find_package (KF6SyntaxHighlighting REQUIRED)
 find_package (KF6Completion REQUIRED)
 
 if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt6")
-  find_package (Qt6 COMPONENTS Core Gui Widgets PrintSupport Svg Network Core5Compat REQUIRED)
+  find_package (Qt6 COMPONENTS Core Gui Widgets PrintSupport Svg Network REQUIRED)
   if (ATHENA_PLATFORM_IPADOS AND Qt6_VERSION VERSION_LESS "6.11")
     message (FATAL_ERROR "ATHENA scenes require Qt 6.11 or later with the UIWindowScene QPA implementation")
   endif ()
   if (ATHENA_ENABLE_AUDMAP_REPL)
     find_package (qtermwidget6 REQUIRED CONFIG)
   endif ()
-  set (QT_LIBRARIES Qt6::Core Qt6::Gui Qt6::Widgets Qt6::PrintSupport Qt6::Svg Qt6::Network Qt6::Core5Compat)
+  set (QT_LIBRARIES Qt6::Core Qt6::Gui Qt6::Widgets Qt6::PrintSupport Qt6::Svg Qt6::Network)
 
   if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     find_package (Qt6 COMPONENTS DBus REQUIRED)
@@ -812,7 +826,6 @@ if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt6")
     ${Qt6PrintSupport_INCLUDE_DIRS}
     ${Qt6Svg_INCLUDE_DIRS}
     ${Qt6Network_INCLUDE_DIRS}
-    ${Qt6Core5Compat_INCLUDE_DIRS}
   )
   if (Qt6_POSITION_INDEPENDENT_CODE)
     set (CMAKE_POSITION_INDEPENDENT_CODE ON)

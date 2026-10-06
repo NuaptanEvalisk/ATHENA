@@ -175,6 +175,12 @@ athena_compile_scheme_file (const std::filesystem::path& source,
     scm_quote (string (output.generic_string ().c_str ())) *
     " #:env (current-module) #:optimization-level " * optimization *
     " #:warning-level 0)";
+  string target= get_env ("ATHENA_SCHEME_TARGET");
+  if (target != "") {
+    eval ("(use-modules (system base target))");
+    command= "(with-target " * scm_quote (target) *
+      " (lambda () " * command * "))";
+  }
   object result= eval (command);
   if (is_list (result) || !fs::exists (output)) {
     std::cerr << "ATHENA Scheme bytecode: compilation failed for "

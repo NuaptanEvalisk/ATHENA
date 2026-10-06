@@ -78,7 +78,7 @@ SCM_DEFINE (scm_micro_version, "micro-version", 0, 0, 0,
 
 /* Return a Scheme string containing Guile's complete version.  */
 
-SCM_DEFINE (scm_version, "version", 0, 0, 0, 
+SCM_DEFINE (scm_version, "version", 0, 0, 0,
             (),
 	    "@deffnx {Scheme Procedure} major-version\n"
 	    "@deffnx {Scheme Procedure} minor-version\n"
@@ -93,7 +93,7 @@ SCM_DEFINE (scm_version, "version", 0, 0, 0,
 	    "@end lisp")
 #define FUNC_NAME s_scm_version
 {
-  return scm_from_locale_string (PACKAGE_VERSION);
+  return scm_from_locale_string (SCM_VERSION_STRING);
 }
 #undef FUNC_NAME
 

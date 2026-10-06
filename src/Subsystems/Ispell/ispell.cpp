@@ -18,7 +18,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QSaveFile>
-#include <QTextCodec>
+#include <unicode/ucnv.h>
 #include <atomic>
 #include <map>
 #include <memory>
@@ -104,11 +104,36 @@ QString dictionary_base (const std::string& locale) {
 struct dictionary {
   std::string locale;
   std::unique_ptr<Hunspell> engine;
-  QTextCodec* codec= nullptr;
+  std::unique_ptr<UConverter, decltype (&ucnv_close)> codec {nullptr, ucnv_close};
   std::set<std::string> accepted;
   std::set<std::string> personal_words;
   unsigned long revision= 0;
   string error;
+
+  std::optional<std::string> convert_encoding (const std::string& input,
+                                               bool to_dictionary) const {
+    if (!codec) return std::nullopt;
+    UErrorCode status= U_ZERO_ERROR;
+    if (to_dictionary) ucnv_resetFromUnicode (codec.get ());
+    else ucnv_resetToUnicode (codec.get ());
+    auto convert= [&] (char* output, int32_t capacity) {
+      return to_dictionary ?
+        ucnv_fromAlgorithmic (codec.get (), UCNV_UTF8, output, capacity,
+                              input.data (), int32_t (input.size ()), &status) :
+        ucnv_toAlgorithmic (UCNV_UTF8, codec.get (), output, capacity,
+                            input.data (), int32_t (input.size ()), &status);
+    };
+    int32_t length= convert (nullptr, 0);
+    if (status != U_BUFFER_OVERFLOW_ERROR && U_FAILURE (status))
+      return std::nullopt;
+    status= U_ZERO_ERROR;
+    if (to_dictionary) ucnv_resetFromUnicode (codec.get ());
+    else ucnv_resetToUnicode (codec.get ());
+    std::string output (std::size_t (length), '\0');
+    convert (output.data (), length);
+    if (U_FAILURE (status)) return std::nullopt;
+    return output;
+  }
 
   explicit dictionary (string lan) {
     locale= bytes (language_to_locale (lan));
@@ -124,20 +149,32 @@ struct dictionary {
     engine= std::make_unique<Hunspell> (
       QFile::encodeName (base + ".aff").constData (),
       QFile::encodeName (base + ".dic").constData ());
-    codec= QTextCodec::codecForName (engine->get_dic_encoding ());
-    if (!codec) {
+    UErrorCode status= U_ZERO_ERROR;
+    codec.reset (ucnv_open (engine->get_dic_encoding (), &status));
+    if (U_FAILURE (status) || !codec) {
       error= "Error: unsupported Hunspell dictionary encoding";
       engine.reset ();
+      codec.reset ();
+      return;
+    }
+    ucnv_setToUCallBack (codec.get (), UCNV_TO_U_CALLBACK_STOP,
+                         nullptr, nullptr, nullptr, &status);
+    ucnv_setFromUCallBack (codec.get (), UCNV_FROM_U_CALLBACK_STOP,
+                           nullptr, nullptr, nullptr, &status);
+    if (U_FAILURE (status)) {
+      error= "Error: unsupported Hunspell dictionary encoding";
+      engine.reset ();
+      codec.reset ();
     }
   }
 
   std::optional<std::string> encode (const std::string& utf8) const {
     if (!valid_personal_word (utf8)) return std::nullopt;
-    const QString text= QString::fromUtf8 (utf8.data (), int (utf8.size ()));
-    QTextCodec::ConverterState state (QTextCodec::IgnoreHeader);
-    QByteArray encoded= codec->fromUnicode (text.constData (), text.size (), &state);
-    if (state.invalidChars || codec->toUnicode (encoded) != text) return std::nullopt;
-    return encoded.toStdString ();
+    auto encoded= convert_encoding (utf8, true);
+    if (!encoded) return std::nullopt;
+    auto roundtrip= convert_encoding (*encoded, false);
+    if (!roundtrip || *roundtrip != utf8) return std::nullopt;
+    return encoded;
   }
 
   void sync () {
@@ -194,11 +231,9 @@ ispell_check (string lan, string word) {
   auto encoded= d.encode (utf8);
   if (!encoded) return result;
   for (const auto& suggestion: d.engine->suggest (*encoded)) {
-    QTextCodec::ConverterState state (QTextCodec::IgnoreHeader);
-    QByteArray decoded= d.codec->toUnicode (suggestion.data (),
-                                           (int) suggestion.size (), &state).toUtf8 ();
-    if (!state.invalidChars)
-      result << string (decoded.constData (), decoded.size ());
+    auto decoded= d.convert_encoding (suggestion, false);
+    if (decoded && athena::text::valid_utf8 (*decoded))
+      result << string (decoded->data (), decoded->size ());
   }
   result[0]= as_string (N(result) - 1);
   return result;

@@ -6,6 +6,9 @@
 bin/
 build
 build*/
+!3rdparty/athena-guile/build-aux/
+3rdparty/athena-guile/build-aux/*
+!3rdparty/athena-guile/build-aux/git-version-gen
 build_windows/
 container_build/
 CMakeFiles/

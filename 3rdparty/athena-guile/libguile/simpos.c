@@ -26,8 +26,12 @@
 #include <errno.h>
 #include <stdlib.h>  /* for getenv, system, exit, free */
 #include <unistd.h>  /* for _exit */
+#if defined(__APPLE__)
+# include <TargetConditionals.h>
+#endif
 
 #include "boolean.h"
+#include "error.h"
 #include "gsubr.h"
 #include "numbers.h"
 #include "strings.h"
@@ -48,6 +52,15 @@ SCM_DEFINE (scm_system, "system", 0, 1, 0,
 	    "indicating whether the command processor is available.")
 #define FUNC_NAME s_scm_system
 {
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+  if (SCM_UNBNDP (cmd))
+    return SCM_BOOL_F;
+  SCM_VALIDATE_STRING (1, cmd);
+  scm_misc_error (FUNC_NAME,
+                  "operating-system command execution is unavailable on iOS",
+                  SCM_EOL);
+  return SCM_UNSPECIFIED;
+#else
   int rv, eno;
   char *c_cmd;
   
@@ -64,6 +77,7 @@ SCM_DEFINE (scm_system, "system", 0, 1, 0,
   if (rv == -1 || (rv == 127 && errno != 0))
     SCM_SYSERROR;
   return scm_from_int (rv);
+#endif
 }
 #undef FUNC_NAME
 

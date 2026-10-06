@@ -69,7 +69,7 @@ gen_scmconfig_SOURCES = gen-scmconfig.c
 gen-scmconfig.$(OBJEXT): gen-scmconfig.c
 	$(AM_V_GEN) \
 	if [ "$(cross_compiling)" = "yes" ]; then \
-		$(CC_FOR_BUILD) $(DEFS) $(DEFAULT_INCLUDES) -I$(top_builddir) \
+		$(CC_FOR_BUILD) $(DEFS) -DHAVE_C_BOOL=1 $(DEFAULT_INCLUDES) -I$(top_builddir) \
 		   -I. -c -o $@ $<; \
 	else \
 		$(COMPILE) -c -o $@ $<; \
