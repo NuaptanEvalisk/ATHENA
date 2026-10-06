@@ -231,6 +231,7 @@
     },
     {
       "id": "workspace.websites-manager",
+      "build_feature": "website-export",
       "label": "Websites manager",
       "category": "Workspace",
       "icon": "applications-internet",
@@ -252,6 +253,7 @@
     },
     {
       "id": "workspace.audmap-repl",
+      "build_feature": "audmap-repl",
       "label": "AUDMAP REPL",
       "category": "Workspace",
       "icon": "utilities-terminal",
@@ -273,6 +275,7 @@
     },
     {
       "id": "workspace.new-system-window",
+      "build_feature": "system-windows",
       "label": "New Window",
       "category": "Workspace",
       "icon": "window-new",
@@ -280,6 +283,7 @@
     },
     {
       "id": "workspace.pane-to-window",
+      "build_feature": "system-windows",
       "label": "Move Pane to New Window",
       "category": "Workspace",
       "icon": "window-new",
@@ -287,6 +291,7 @@
     },
     {
       "id": "workspace.return-pane",
+      "build_feature": "system-windows",
       "label": "Return Pane to Workspace",
       "category": "Workspace",
       "icon": "window-restore",
@@ -294,6 +299,7 @@
     },
     {
       "id": "workspace.new-floating-window",
+      "build_feature": "floating-windows",
       "label": "New floating window",
       "category": "Workspace",
       "icon": "window-new",
@@ -406,6 +412,7 @@
     },
     {
       "id": "plugins.manage",
+      "build_feature": "plugins",
       "label": "Manage plugins...",
       "category": "Plugins",
       "icon": "preferences-plugin",

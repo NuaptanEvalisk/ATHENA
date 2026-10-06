@@ -12,6 +12,7 @@
 #include "QTMCommandRegistry.hpp"
 #include "QTMCommandRegistryInternal.hpp"
 
+#include "athena_platform.hpp"
 #include "file.hpp"
 #include "scheme.hpp"
 #include "tm_ostream.hpp"
@@ -26,6 +27,26 @@
 using namespace qtm_command_registry_detail;
 
 namespace {
+bool
+command_build_enabled (const QJsonValue& value, bool& enabled, QString& error) {
+  static const QHash<QString, bool> features {
+    {"system-windows", ATHENA_PLATFORM_IPADOS != 0},
+    {"floating-windows", ATHENA_PLATFORM_IPADOS == 0},
+    {"website-export", ATHENA_ENABLE_WEBSITE_EXPORT != 0},
+    {"audmap-repl", ATHENA_ENABLE_AUDMAP_REPL != 0},
+    {"plugins", ATHENA_ENABLE_PLUGINS != 0}
+  };
+  enabled= true;
+  if (value.isUndefined ()) return true;
+  auto found= features.constFind (value.toString ());
+  if (!value.isString () || found == features.constEnd ()) {
+    error= "unknown or invalid build_feature";
+    return false;
+  }
+  enabled= found.value ();
+  return true;
+}
+
 bool
 editor_capability_bit (const QString& name, std::uint32_t& bit) {
   static const QHash<QString, std::uint32_t> bits {
@@ -239,6 +260,7 @@ QTMCommandRegistry::loadPresentation () {
   }
 
   QSet<QString> commandIds;
+  QSet<QString> excludedCommandIds;
   QHash<QString, QString> shortcuts;
   for (const QJsonValue& value: commandValues) {
     if (!value.isObject ())
@@ -250,8 +272,18 @@ QTMCommandRegistry::loadPresentation () {
     if (id.isEmpty () || label.isEmpty () || category.isEmpty ())
       return failPresentation (
         "every command requires non-empty id, label, and category");
-    if (commandIds.contains (id))
+    if (commandIds.contains (id) || excludedCommandIds.contains (id))
       return failPresentation (QString ("duplicate command id: %1").arg (id));
+    bool buildEnabled;
+    QString buildError;
+    if (!command_build_enabled (
+          object.value ("build_feature"), buildEnabled, buildError))
+      return failPresentation (
+        QString ("command %1: %2").arg (id, buildError));
+    if (!buildEnabled) {
+      excludedCommandIds.insert (id);
+      continue;
+    }
     if (!behaviors_.contains (id)) {
       if (!object.value ("editor_action").isObject ())
         return failPresentation (
@@ -397,6 +429,7 @@ QTMCommandRegistry::loadPresentation () {
       if (separator)
         item.kind= QTMCommandMenuItem::Kind::Separator;
       else if (!commandId.isEmpty ()) {
+        if (excludedCommandIds.contains (commandId)) continue;
         if (!commandIndex_.contains (commandId))
           return failPresentation (
             QString ("menu %1 references unknown command: %2")
@@ -516,6 +549,7 @@ QTMCommandRegistry::loadPresentation () {
       if (separator)
         item.kind= QTMCommandPopupItem::Kind::Separator;
       else if (!commandId.isEmpty ()) {
+        if (excludedCommandIds.contains (commandId)) continue;
         if (!commandIndex_.contains (commandId))
           return failPresentation (
             QString ("popup %1 references unknown command: %2")
