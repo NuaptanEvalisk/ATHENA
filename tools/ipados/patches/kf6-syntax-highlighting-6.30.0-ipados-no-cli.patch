@@ -1,0 +1,14 @@
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -1,7 +1,9 @@
+ add_subdirectory(indexer)
+ if(TARGET Qt6::Gui)
+     add_subdirectory(lib)
+-    add_subdirectory(cli)
++    if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
++        add_subdirectory(cli)
++    endif()
+ endif()
+ if(TARGET Qt6::Quick)
+     add_subdirectory(quick)

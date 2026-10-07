@@ -6,7 +6,7 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ssh_target="${ATHENA_IPADOS_SSH_TARGET:-felix@127.0.0.1}"
 ssh_port="${ATHENA_IPADOS_SSH_PORT:-2222}"
 remote_developer_root="${ATHENA_IPADOS_REMOTE_DEVELOPER_ROOT:-/Users/felix/Developer}"
-jobs="${ATHENA_IPADOS_JOBS:-20}"
+jobs="${ATHENA_IPADOS_JOBS:-8}"
 
 "${script_dir}/configure-athena.sh"
 

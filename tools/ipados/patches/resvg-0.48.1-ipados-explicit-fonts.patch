@@ -1,0 +1,29 @@
+diff --git a/crates/c-api/lib.rs b/crates/c-api/lib.rs
+--- a/crates/c-api/lib.rs
++++ b/crates/c-api/lib.rs
+@@ -442,10 +442,12 @@ pub extern "C" fn resvg_options_load_font_file(
+             None => return resvg_error::NOT_AN_UTF8_STR as i32,
+         };
+ 
+-        if cast_opt(opt).fontdb_mut().load_font_file(file_path).is_ok() {
+-            resvg_error::OK as i32
+-        } else {
+-            resvg_error::FILE_OPEN_FAILED as i32
++        match std::fs::read(file_path) {
++            Ok(data) => {
++                cast_opt(opt).fontdb_mut().load_font_data(data);
++                resvg_error::OK as i32
++            }
++            Err(_) => resvg_error::FILE_OPEN_FAILED as i32,
+         }
+     }
+ 
+@@ -471,7 +473,7 @@ pub extern "C" fn resvg_options_load_font_file(
+ #[unsafe(no_mangle)]
+ #[allow(unused_variables)]
+ pub extern "C" fn resvg_options_load_system_fonts(opt: *mut resvg_options) {
+-    #[cfg(feature = "text")]
++    #[cfg(all(feature = "text", feature = "system-fonts"))]
+     {
+         cast_opt(opt).fontdb_mut().load_system_fonts();
+     }

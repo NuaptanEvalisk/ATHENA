@@ -80,6 +80,17 @@ scheme_runtime_id=$(sed -n '1p' "$scheme_dir/.complete")
 
 mkdir -p "$build_dir" "$deps_prefix"
 
+sdk=$(xcrun --sdk iphoneos --show-sdk-path)
+opengles="$sdk/System/Library/Frameworks/OpenGLES.framework"
+test -f "$opengles/OpenGLES.tbd" || {
+  echo "iPhoneOS SDK is missing OpenGLES.tbd: $opengles" >&2
+  exit 1
+}
+test -f "$opengles/Headers/ES3/gl.h" || {
+  echo "iPhoneOS SDK is missing OpenGLES ES3 headers: $opengles" >&2
+  exit 1
+}
+
 # pkg-config itself is a host executable, but every package result must come
 # from an arm64 iPhoneOS prefix.  Never allow /opt/local pkg-config metadata to
 # leak host macOS libraries into the target graph.
@@ -102,9 +113,18 @@ cmake -S "$source_root" -B "$build_dir" -G Xcode \
   -DATHENA_IPADOS_TARGET_PREFIX="$runtime_prefix" \
   -DATHENA_IPADOS_TARGET_PREFIXES="$runtime_prefix;$deps_prefix" \
   -DQT_ADDITIONAL_PACKAGES_PREFIX_PATH="$deps_prefix" \
+  -DKF6SyntaxHighlighting_DIR="$deps_prefix/lib/cmake/KF6SyntaxHighlighting" \
   -DATHENA_GUILE_PREBUILT_PREFIX="$runtime_prefix" \
   -DATHENA_GUILE_PREBUILT_CONFIG_HEADER="$guile_config" \
   -DATHENA_PACKAGED_SCHEME_DIR="$scheme_dir" \
+  -DOPENGL_GLES3_INCLUDE_DIR="$opengles/Headers" \
+  -DOPENGL_gles3_LIBRARY="$opengles/OpenGLES.tbd" \
+  -DOPENGL_INCLUDE_DIR="$opengles/Headers" \
+  -DOPENGL_gl_LIBRARY="$opengles/OpenGLES.tbd" \
+  -DICU_ROOT="$deps_prefix" \
+  -DICU_INCLUDE_DIR="$deps_prefix/include" \
+  -DICU_UC_LIBRARY_RELEASE="$deps_prefix/lib/libicuuc.a" \
+  -DICU_I18N_LIBRARY_RELEASE="$deps_prefix/lib/libicui18n.a" \
   -DATHENA_CPU_TARGET=arm64 \
   -DATHENA_GUI=Qt6 \
   -DCMAKE_OSX_ARCHITECTURES=arm64 \

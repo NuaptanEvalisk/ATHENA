@@ -1,0 +1,45 @@
+diff --git a/ThirdParty/glad/vtk_glad.h.in b/ThirdParty/glad/vtk_glad.h.in
+index 9d50fa1..2f54030 100644
+--- a/ThirdParty/glad/vtk_glad.h.in
++++ b/ThirdParty/glad/vtk_glad.h.in
+@@ -4,10 +4,14 @@
+ #define vtk_glad_h
+ 
+ /* Mobile device support. */
++#if defined(__APPLE__)
++#include <TargetConditionals.h>
++#endif
++
+ #cmakedefine01 VTK_MODULE_vtkglad_GLES3
+ 
+-#if VTK_MODULE_vtkglad_GLES3
+-#include <GLES3/gl3.h>
+-#elif TARGET_OS_IPHONE || TARGET_IPHONE_SIMULATOR
++#if defined(__APPLE__) && (TARGET_OS_IPHONE || TARGET_IPHONE_SIMULATOR)
+ #include <OpenGLES/ES3/gl.h>
++#elif VTK_MODULE_vtkglad_GLES3
++#include <GLES3/gl3.h>
+ #else
+ #include <vtkglad/include/glad/gl.h>
+ #endif
+diff --git a/Rendering/OpenGL2/vtkIOSRenderWindow.mm b/Rendering/OpenGL2/vtkIOSRenderWindow.mm
+--- a/Rendering/OpenGL2/vtkIOSRenderWindow.mm
++++ b/Rendering/OpenGL2/vtkIOSRenderWindow.mm
+@@ -496,7 +496,7 @@ void vtkIOSRenderWindow::SetWindowInfo(const char* info)
+ {
+   // The parameter is an ASCII string of a decimal number representing
+   // a pointer to the window. Convert it back to a pointer.
+-  uptrdiff_t tmp = 0;
++  uintptr_t tmp = 0;
+   if (info)
+   {
+     vtk::from_chars(info, tmp);
+@@ -510,7 +510,7 @@ void vtkIOSRenderWindow::SetParentInfo(const char* info)
+ {
+   // The parameter is an ASCII string of a decimal number representing
+   // a pointer to the window. Convert it back to a pointer.
+-  uptrdiff_t tmp = 0;
++  uintptr_t tmp = 0;
+   if (info)
+   {
+     vtk::from_chars(info, tmp);
