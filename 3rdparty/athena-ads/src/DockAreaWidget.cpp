@@ -59,7 +59,7 @@
 
 namespace ads
 {
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
 static bool
 athenaUseWaylandSingleFloatingTabBar()
 {
@@ -875,7 +875,7 @@ void CDockAreaWidget::updateTitleBarVisibility()
     if (!CDockManager::testConfigFlag(CDockManager::AlwaysShowTabs))
     {
 		bool ForceWaylandFloatingTitleBar = false;
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
 		ForceWaylandFloatingTitleBar =
 			Container->isFloating() && athenaUseWaylandSingleFloatingTabBar();
 #endif

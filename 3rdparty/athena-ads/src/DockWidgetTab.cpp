@@ -57,7 +57,7 @@
 
 namespace ads
 {
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
 static bool
 athenaUseWaylandToplevelDragForInitialFloating()
 {
@@ -263,7 +263,7 @@ void DockWidgetTabPrivate::createLayout()
 	}
 	TitleLabel->setText(DockWidget->windowTitle());
 	TitleLabel->setObjectName("dockWidgetTabLabel");
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
 	if (QApplication::platformName().startsWith(QStringLiteral("wayland")))
 	{
 		TitleLabel->setFont(qApp->font());
@@ -329,7 +329,7 @@ bool DockWidgetTabPrivate::startFloating(eDragState DraggingState)
 	 && (dockContainer->visibleDockAreaCount() == 1)
 	 && (DockWidget->dockAreaWidget()->dockWidgetsCount() == 1))
 	{
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
 		if (athenaUseWaylandToplevelDragForInitialFloating())
 		{
 			if (auto* FloatingContainer = dockContainer->floatingWidget())
@@ -348,7 +348,7 @@ bool DockWidgetTabPrivate::startFloating(eDragState DraggingState)
 	DragState = DraggingState;
 	IFloatingWidget* FloatingWidget = nullptr;
 	bool CreateContainer = (DraggingFloatingWidget != DraggingState);
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
 	bool UseWaylandToplevelDrag = false;
 	if (!CreateContainer && athenaUseWaylandToplevelDragForInitialFloating())
 	{
@@ -532,7 +532,7 @@ void CDockWidgetTab::mouseMoveEvent(QMouseEvent* ev)
 		 && d->DockArea->openDockWidgetsCount() == 1
 		 && d->DockArea->dockContainer()->visibleDockAreaCount() == 1)
 		{
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
 			if (athenaUseWaylandToplevelDragForInitialFloating())
 			{
 				if (auto* FloatingContainer = d->DockArea->dockContainer()->floatingWidget())

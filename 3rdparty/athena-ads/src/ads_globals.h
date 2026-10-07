@@ -40,7 +40,7 @@
 
 #include <iostream>
 
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
 #include <xcb/xcb.h>
 #endif
 
@@ -171,7 +171,7 @@ static const char* const LocationProperty = "Location";
 extern const int FloatingWidgetDragStartEvent;
 extern const int DockedWidgetDragStartEvent;
 
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
 // Utils to directly communicate with the X server
 /**
  * Get atom from cache or request it from the XServer.

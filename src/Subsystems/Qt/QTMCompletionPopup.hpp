@@ -9,11 +9,19 @@
 #ifndef QTM_COMPLETION_POPUP_HPP
 #define QTM_COMPLETION_POPUP_HPP
 
+#include "athena_platform.hpp"
+
+#if ATHENA_PLATFORM_IPADOS
+#include <QListWidget>
+using QTMCompletionPopupBase= QListWidget;
+#else
 #include <KCompletionBox>
+using QTMCompletionPopupBase= KCompletionBox;
+#endif
 #include <cstdint>
 #include <functional>
 
-class QTMCompletionPopup final: public KCompletionBox {
+class QTMCompletionPopup final: public QTMCompletionPopupBase {
 public:
   using Choice= std::function<void(std::uint64_t, int)>;
   QTMCompletionPopup (QWidget* editor, Choice choice);
@@ -26,7 +34,9 @@ public:
 protected:
   bool eventFilter (QObject* object, QEvent* event) override;
   void hideEvent (QHideEvent* event) override;
+#if !ATHENA_PLATFORM_IPADOS
   QPoint globalPositionHint () const override;
+#endif
 
 private:
   QWidget* editor_;
@@ -34,6 +44,9 @@ private:
   std::uint64_t session_= 0;
   QPoint anchor_;
   void finish (int row);
+#if ATHENA_PLATFORM_IPADOS
+  void move_selection (int delta, bool wrap);
+#endif
 };
 
 #endif

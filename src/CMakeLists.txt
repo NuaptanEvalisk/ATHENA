@@ -15,10 +15,28 @@ list (REMOVE_ITEM ATHENA_All_SRCS
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Plugins/subscription.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Plugins/package.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/RAG/rag_npu_worker.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Subsystems/RAG/rag_embedding_stub.cpp"
+  "${ATHENA_SOURCE_DIR}/src/ATHENA/Data/artifact_range_llm_stub.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPluginManager.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPluginUi.cpp"
   "${ATHENA_SOURCE_DIR}/src/System/Misc/tsan_mimalloc_shim.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMAudmapTerminal.cpp")
+  "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMAudmapTerminal.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMAudmap_stub.cpp")
+if (NOT ATHENA_ENABLE_AUDMAP_LISTENER)
+  list (REMOVE_ITEM ATHENA_All_SRCS
+    "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMAudmap.cpp")
+  list (APPEND ATHENA_All_SRCS
+    "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMAudmap_stub.cpp")
+endif ()
+if (NOT ATHENA_ENABLE_LOCAL_INFERENCE)
+  list (REMOVE_ITEM ATHENA_All_SRCS
+    "${ATHENA_SOURCE_DIR}/src/Subsystems/RAG/rag_embedding.cpp"
+    "${ATHENA_SOURCE_DIR}/src/ATHENA/Data/artifact_range_llm.cpp"
+    "${ATHENA_SOURCE_DIR}/src/ATHENA/Data/llama_runtime.cpp")
+  list (APPEND ATHENA_All_SRCS
+    "${ATHENA_SOURCE_DIR}/src/Subsystems/RAG/rag_embedding_stub.cpp"
+    "${ATHENA_SOURCE_DIR}/src/ATHENA/Data/artifact_range_llm_stub.cpp")
+endif ()
 add_library (athena_unicode STATIC Data/String/unicode_text.cpp)
 set_target_properties (athena_unicode PROPERTIES AUTOMOC OFF)
 target_include_directories (athena_unicode PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/Data/String")
@@ -30,7 +48,9 @@ if (ATHENA_ENABLE_AUDMAP_REPL)
 endif ()
 include(AthenaGlue)
 add_subdirectory(ATHENA/Interop)
-add_subdirectory(Subsystems/Plugins)
+if(ATHENA_ENABLE_PLUGINS)
+  add_subdirectory(Subsystems/Plugins)
+endif()
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   add_executable(athena-plugin-sandbox
     Subsystems/Plugins/sandbox_main.cpp
@@ -54,16 +74,18 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
       Threads::Threads)
   endif()
 endif()
-add_library(athena_plugin_runtime STATIC Subsystems/Qt/QTMPluginManager.cpp Subsystems/Qt/QTMPluginManager.hpp)
-set_target_properties(athena_plugin_runtime PROPERTIES AUTOMOC ON)
-target_include_directories(athena_plugin_runtime PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/Subsystems/Qt")
-target_link_libraries(athena_plugin_runtime PUBLIC athena_plugins athena_audmap Qt6::Core)
-add_library(athena_plugin_ui STATIC Subsystems/Qt/QTMPluginUi.cpp)
-set_target_properties(athena_plugin_ui PROPERTIES AUTOMOC OFF)
-target_include_directories(athena_plugin_ui PRIVATE
-  "${CMAKE_CURRENT_SOURCE_DIR}/Data/Convert/Xml"
-  "${CMAKE_CURRENT_SOURCE_DIR}/Data/String")
-target_link_libraries(athena_plugin_ui PUBLIC athena_plugin_runtime Qt6::Widgets)
+if(ATHENA_ENABLE_PLUGINS)
+  add_library(athena_plugin_runtime STATIC Subsystems/Qt/QTMPluginManager.cpp Subsystems/Qt/QTMPluginManager.hpp)
+  set_target_properties(athena_plugin_runtime PROPERTIES AUTOMOC ON)
+  target_include_directories(athena_plugin_runtime PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/Subsystems/Qt")
+  target_link_libraries(athena_plugin_runtime PUBLIC athena_plugins athena_audmap Qt6::Core)
+  add_library(athena_plugin_ui STATIC Subsystems/Qt/QTMPluginUi.cpp)
+  set_target_properties(athena_plugin_ui PROPERTIES AUTOMOC OFF)
+  target_include_directories(athena_plugin_ui PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/Data/Convert/Xml"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Data/String")
+  target_link_libraries(athena_plugin_ui PUBLIC athena_plugin_runtime Qt6::Widgets)
+endif()
 set_source_files_properties(Scheme/Scheme/glue.cpp PROPERTIES
   INCLUDE_DIRECTORIES "${ATHENA_BINARY_DIR}/generated")
 
@@ -86,18 +108,21 @@ function (athena_configure_body_target target_name)
     PkgConfig::LMDB
     ${ATHENA_LLAMA_LIBRARIES}
     PRIVATE
+    mimalloc
     PkgConfig::HUNSPELL
     ${ADS_LIBRARIES}
     rapidfuzz::rapidfuzz
     athena_snowball_english
     ncnn
     KF6::SyntaxHighlighting
-    KF6::Completion
-    athena_plugin_ui
+    ${ATHENA_KF_COMPLETION_LIBRARY}
     Luau.Compiler
     Luau.VM
     ${ATHENA_VTK_LIBRARIES}
   )
+  if (ATHENA_ENABLE_PLUGINS)
+    target_link_libraries (${target_name} PRIVATE athena_plugin_ui)
+  endif ()
   if (ATHENA_ENABLE_AUDMAP_REPL)
     target_link_libraries (${target_name} PRIVATE athena_audmap_terminal)
   endif ()
@@ -146,7 +171,7 @@ if (ATHENA_ENABLE_TSAN)
   target_sources (${ATHENA_binary_name} PRIVATE
     ./System/Misc/tsan_mimalloc_shim.cpp)
 else ()
-  target_link_libraries (${ATHENA_binary_name} mimalloc)
+  target_link_libraries (${ATHENA_binary_name} PRIVATE mimalloc)
 endif ()
 target_compile_definitions(${ATHENA_binary_name} PRIVATE
   MI_OVERRIDE=1
@@ -155,6 +180,7 @@ target_compile_definitions(${ATHENA_binary_name} PRIVATE
   $<$<CONFIG:Debug>:ATHENA_DEBUG_BUILD=1>
 )
 target_link_libraries (${ATHENA_binary_name}
+  PRIVATE
   athena_body
   PkgConfig::SPDLOG
   ${ATHENA_LLAMA_LIBRARIES}

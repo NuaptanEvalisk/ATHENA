@@ -15,6 +15,11 @@
 #include "list.hpp"
 #include "locale.hpp"
 #include "string.hpp"
+#include "athena_platform.hpp"
+
+#if ATHENA_PLATFORM_IPADOS
+#include "iOS/ios_tls_trust.hpp"
+#endif
 
 #ifdef USE_GNUTLS
 #include "scheme.hpp"
@@ -114,8 +119,10 @@ tm_initialize_tls () {
   // X509 client
   CHECK_GNUTLS_INIT (ret,
     gnutls_certificate_allocate_credentials (&tm_x509_client_credentials));
+#if !ATHENA_PLATFORM_IPADOS
   CHECK_GNUTLS_INIT (ret,
     gnutls_certificate_set_x509_system_trust (tm_x509_client_credentials));
+#endif
 
   url trusted_path (tm_x509_trusted_cas_path);
   if (exists (trusted_path)) {
@@ -992,7 +999,8 @@ private:
 
 tls_client_contact_rep::tls_client_contact_rep (string host, array<array<string> > creds):
   tm_contact_rep (creds), io (-1), ptr (NULL),
-  error_number (GNUTLS_E_SUCCESS), handshake_in_progress (false), host (as_charp (host))
+  error_number (GNUTLS_E_SUCCESS), cert_verif_status (0),
+  handshake_in_progress (false), host (as_charp (host))
 {
   tls_ensure_initialization ();
   type= SOCKET_CLIENT;
@@ -1001,6 +1009,29 @@ tls_client_contact_rep::tls_client_contact_rep (string host, array<array<string>
 tls_client_contact_rep::~tls_client_contact_rep () {
   stop ();
 }
+
+#if ATHENA_PLATFORM_IPADOS
+static int
+athena_ios_gnutls_verify_peer (gnutls_session_t session) {
+  auto* contact= static_cast<tls_client_contact_rep*> (
+    gnutls_session_get_ptr (session));
+  if (contact == nullptr)
+    return GNUTLS_E_CERTIFICATE_VERIFICATION_ERROR;
+
+  unsigned int status= 0;
+  int ret= gnutls_certificate_verify_peers3 (session, contact->host, &status);
+  contact->cert_verif_status= status;
+  if (ret == GNUTLS_E_SUCCESS && status == 0) return 0;
+
+  if (athena_ios_verify_server_trust (session, contact->host)) {
+    contact->cert_verif_status= 0;
+    return 0;
+  }
+
+  if (ret < 0) return ret;
+  return GNUTLS_E_CERTIFICATE_VERIFICATION_ERROR;
+}
+#endif
 
 int
 tls_client_contact_rep::handshake (gnutls_session_t s) {
@@ -1022,8 +1053,16 @@ tls_client_contact_rep::handshake (gnutls_session_t s) {
   }
 
   if (ret == GNUTLS_E_CERTIFICATE_VERIFICATION_ERROR &&
-      gnutls_session_get_verify_cert_status (s) != 0) {
+      (
+#if ATHENA_PLATFORM_IPADOS
+       cert_verif_status != 0
+#else
+       gnutls_session_get_verify_cert_status (s) != 0
+#endif
+      )) {
+#if !ATHENA_PLATFORM_IPADOS
     cert_verif_status= gnutls_session_get_verify_cert_status (s);
+#endif
     GNUTLS_LOGW (string("got verify cert status for session: ") * as_string (cert_verif_status));
 
     gnutls_datum_t txt;
@@ -1115,8 +1154,14 @@ tls_client_contact_rep::start (int io2) {
      * gnutls_session_set_verify_cert (s, host, cert_verify_flags);
      */
 
-    gnutls_session_set_verify_cert (s, NULL, cert_verify_flags);
     gnutls_session_set_verify_output_function (s, cert_out_callback);
+#if ATHENA_PLATFORM_IPADOS
+    cert_verif_status= 0;
+    gnutls_session_set_ptr (s, this);
+    gnutls_session_set_verify_function (s, athena_ios_gnutls_verify_peer);
+#else
+    gnutls_session_set_verify_cert (s, NULL, cert_verify_flags);
+#endif
 
     ret = gnutls_credentials_set (s, GNUTLS_CRD_CERTIFICATE,
         tm_x509_client_credentials);

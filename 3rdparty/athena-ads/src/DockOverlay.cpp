@@ -224,7 +224,7 @@ struct DockOverlayCrossPrivate
      */
     qreal dropIndicatiorWidth(QLabel* l) const
     {
-    #if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+    #if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
         Q_UNUSED(l)
         return 40;
     #else
@@ -469,7 +469,7 @@ CDockOverlay::CDockOverlay(QWidget* parent, eMode Mode) :
 {
 	d->Mode = Mode;
 	d->Cross = new CDockOverlayCross(this);
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
 	setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::X11BypassWindowManagerHint);
 #else
 	setWindowFlags(Qt::Tool | Qt::FramelessWindowHint);
@@ -810,7 +810,7 @@ CDockOverlayCross::CDockOverlayCross(CDockOverlay* overlay) :
 	d(new DockOverlayCrossPrivate(this))
 {
 	d->DockOverlay = overlay;
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
 	setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::X11BypassWindowManagerHint);
 #else
 	setWindowFlags(Qt::Tool | Qt::FramelessWindowHint);

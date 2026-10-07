@@ -13,6 +13,8 @@
 #include "analyze.hpp"
 #include "image_files.hpp"
 #include "qt_utilities.hpp"
+#include "qt_resvg_fonts.hpp"
+#include "font_domain.hpp"
 #include "file.hpp"
 #include "image_files.hpp"
 #include "scheme.hpp"
@@ -28,6 +30,7 @@
 #include <QPaintDevice>
 #include <QPixmap>
 #include <QFileInfo>
+#include <memory>
 #include <mutex>
 #ifdef USE_RESVGQT
 #include <ResvgQt.h>
@@ -245,19 +248,25 @@ may_transform (url file_name, const QImage& pm) {
 #ifdef USE_RESVGQT
 static std::mutex resvg_render_lock;
 
+struct resvg_owner_options_cache {
+  std::uint64_t generation= 0;
+  std::unique_ptr<ResvgOptions> options;
+};
+
 static ResvgOptions&
 resvg_options_for (const QString& file_path) {
-  static bool fonts_loaded= false;
-  static ResvgOptions opt;
-  if (!fonts_loaded) {
-    opt.loadSystemFonts ();
-    fonts_loaded= true;
+  auto& cache= font_domain_local<resvg_owner_options_cache> ();
+  const std::uint64_t generation= athena_resvg_font_generation ();
+  if (!cache.options || cache.generation != generation) {
+    cache.options= std::make_unique<ResvgOptions> ();
+    athena_configure_resvg_fonts (*cache.options);
+    cache.generation= generation;
   }
 
   QFileInfo info (file_path);
   if (info.exists ())
-    opt.setResourcesDir (info.absolutePath ());
-  return opt;
+    cache.options->setResourcesDir (info.absolutePath ());
+  return *cache.options;
 }
 
 static QImage*

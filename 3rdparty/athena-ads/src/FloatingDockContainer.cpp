@@ -66,7 +66,7 @@
 #pragma comment(lib, "User32.lib")
 #endif
 #endif
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
 #include "linux/FloatingWidgetTitleBar.h"
 #include <xcb/xcb.h>
 #endif
@@ -76,7 +76,7 @@ namespace ads
 static QWidget*
 athenaFloatingContainerParent(CDockManager* dockManager)
 {
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
 	if (QApplication::platformName().startsWith(QStringLiteral("wayland")))
 	{
 		return nullptr;
@@ -85,7 +85,7 @@ athenaFloatingContainerParent(CDockManager* dockManager)
 	return dockManager;
 }
 
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
 static void
 athenaSnapFloatingContainerToScreenEdge(QWidget* widget)
 {
@@ -425,7 +425,7 @@ static const char* windowsMessageString(int MessageId)
 #endif
 
 
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
 static const char* const AthenaAdsFloatingDockMime = "application/x-athena-ads-floating-dock";
 static const char* const AthenaQtMainWindowDragWindowMime = "application/x-qt-mainwindowdrag-window";
 static const char* const AthenaQtMainWindowDragPositionMime = "application/x-qt-mainwindowdrag-position";
@@ -937,7 +937,7 @@ struct FloatingDockContainerPrivate
 	QPoint DragStartPos;
 	bool Hiding = false;
 	bool AutoHideChildren = true;
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
     QWidget* MouseEventHandler = nullptr;
     CFloatingWidgetTitleBar* TitleBar = nullptr;
 	bool IsResizing = false;
@@ -988,7 +988,7 @@ struct FloatingDockContainerPrivate
 
 	void setWindowTitle(const QString &Text)
 	{
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
 		if (TitleBar)
 		{
 			TitleBar->setTitle(Text);
@@ -1108,7 +1108,7 @@ void FloatingDockContainerPrivate::updateDropOverlays(const QPoint &GlobalPos)
 		return;
 	}
 
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
 	// Prevent display of drop overlays and docking as long as a model dialog
 	// is active
     if (qApp->activeModalWidget())
@@ -1223,7 +1223,7 @@ CFloatingDockContainer::CFloatingDockContainer(CDockManager *DockManager) :
 	connect(d->DockContainer, SIGNAL(dockAreasRemoved()), this,
 	    SLOT(onDockAreasAddedOrRemoved()));
 
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
 	QDockWidget::setWidget(d->DockContainer);
 	QDockWidget::setFeatures(QDockWidget::DockWidgetClosable
 		| QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
@@ -1371,7 +1371,7 @@ void CFloatingDockContainer::changeEvent(QEvent *event)
 			ADS_PRINT("FloatingWidget::changeEvent QEvent::ActivationChange ");
 			d->zOrderIndex = ++zOrderCounterFloating;
 
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
 			if (d->DraggingState == DraggingFloatingWidget
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
 			    && !athenaIsNativeWaylandPlatform()
@@ -1549,7 +1549,7 @@ void CFloatingDockContainer::hideEvent(QHideEvent *event)
 void CFloatingDockContainer::showEvent(QShowEvent *event)
 {
 	Super::showEvent(event);
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
     if (CDockManager::testConfigFlag(CDockManager::FocusHighlighting))
     {
         this->window()->activateWindow();
@@ -1561,7 +1561,7 @@ void CFloatingDockContainer::showEvent(QShowEvent *event)
 //============================================================================
 bool CFloatingDockContainer::athenaWaylandDockDragActive() const
 {
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
 	return AthenaActiveWaylandDockDrag == this;
 #else
 	return false;
@@ -1570,7 +1570,7 @@ bool CFloatingDockContainer::athenaWaylandDockDragActive() const
 
 bool CFloatingDockContainer::athenaWaylandDockDragStarted() const
 {
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
 	return d->AthenaWaylandDockDragStarted;
 #else
 	return false;
@@ -1579,7 +1579,7 @@ bool CFloatingDockContainer::athenaWaylandDockDragStarted() const
 
 bool CFloatingDockContainer::athenaTryStartWaylandDockDrag(const QPoint& hotSpot, QWidget* sourceWidget)
 {
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
 	d->AthenaWaylandDockDragStarted = false;
 	if (!athenaIsNativeWaylandPlatform())
 	{
@@ -1709,7 +1709,7 @@ bool CFloatingDockContainer::athenaTryStartWaylandDockDrag(const QPoint& hotSpot
 
 void CFloatingDockContainer::athenaUpdateWaylandDockDrag(const QPoint& globalPos)
 {
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
 	if (athenaWaylandDockDragActive())
 	{
 		d->AthenaWaylandLastGlobalPos = globalPos;
@@ -1751,7 +1751,7 @@ void CFloatingDockContainer::athenaUpdateWaylandDockDrag(const QPoint& globalPos
 
 bool CFloatingDockContainer::athenaHasWaylandDockTarget() const
 {
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
 	if (!d->DockManager || d->DropContainer == nullptr)
 	{
 		return false;
@@ -1765,7 +1765,7 @@ bool CFloatingDockContainer::athenaHasWaylandDockTarget() const
 
 bool CFloatingDockContainer::athenaFinishWaylandDockDrag(bool dropped)
 {
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
 	if (!athenaWaylandDockDragActive())
 	{
 		return false;
@@ -1845,7 +1845,7 @@ bool CFloatingDockContainer::athenaFinishWaylandDockDrag(bool dropped)
 
 void CFloatingDockContainer::athenaHideWaylandDockOverlays()
 {
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
 	if (d->DockManager)
 	{
 		d->DockManager->containerOverlay()->hideOverlay();
@@ -1860,7 +1860,7 @@ void CFloatingDockContainer::athenaHideWaylandDockOverlays()
 void CFloatingDockContainer::startFloating(const QPoint &DragStartMousePos,
     const QSize &Size, eDragState DragState, QWidget *MouseEventHandler)
 {
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
     if (!isMaximized())
     {
 		resize(Size);
@@ -2006,7 +2006,7 @@ bool CFloatingDockContainer::restoreState(CDockingStateReader &Stream,
 		return false;
 	}
 	onDockAreasAddedOrRemoved();
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
 	if(d->TitleBar)
 	{
 		d->TitleBar->setMaximizedIcon(windowState() == Qt::WindowMaximized);
@@ -2060,7 +2060,7 @@ void CFloatingDockContainer::finishDropOperation()
 void CFloatingDockContainer::finishDragging()
 {
 	ADS_PRINT("CFloatingDockContainer::finishDragging");
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
 	setWindowOpacity(1);
 	activateWindow();
 	if (d->MouseEventHandler)
@@ -2074,7 +2074,7 @@ void CFloatingDockContainer::finishDragging()
 	}
 #endif
 	d->titleMouseReleaseEvent();
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
 	athenaSnapFloatingContainerToScreenEdge(this);
 #endif
 }
@@ -2182,7 +2182,7 @@ void CFloatingDockContainer::moveEvent(QMoveEvent *event)
 #endif
 
 
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
 //============================================================================
 void CFloatingDockContainer::onMaximizeRequest()
 {

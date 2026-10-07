@@ -44,6 +44,7 @@
 #include "Qt/qt_utilities.hpp"
 #ifdef USE_RESVGQT
 #include <ResvgQt.h>
+#include "Qt/qt_resvg_fonts.hpp"
 #endif
 #endif
 
@@ -287,7 +288,7 @@ void
 svg_image_size (url image, int& w, int& h) {
 #ifdef USE_RESVGQT
   ResvgOptions opt;
-  opt.loadSystemFonts ();
+  athena_configure_resvg_fonts (opt);
   string file_name= concretize (image);
   string dir_name= as_string (head (url (file_name)));
   if (dir_name != "") opt.setResourcesDir (utf8_to_qstring (dir_name));

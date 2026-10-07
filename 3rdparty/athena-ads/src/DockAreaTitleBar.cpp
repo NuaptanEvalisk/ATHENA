@@ -60,7 +60,7 @@
 
 namespace ads
 {
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
 static bool
 athenaUseWaylandToplevelDragForInitialFloating()
 {
@@ -290,7 +290,7 @@ IFloatingWidget* DockAreaTitleBarPrivate::makeAreaFloating(const QPoint& Offset,
 	QSize Size = DockArea->size();
 	this->DragState = DragState;
 	bool CreateFloatingDockContainer = (DraggingFloatingWidget != DragState);
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
 	bool UseWaylandToplevelDrag = false;
 	if (!CreateFloatingDockContainer && athenaUseWaylandToplevelDragForInitialFloating())
 	{
@@ -718,7 +718,7 @@ void CDockAreaTitleBar::mouseMoveEvent(QMouseEvent* ev)
 	 && d->DockArea->dockContainer()->visibleDockAreaCount() == 1
      && !d->DockArea->isAutoHide())
 	{
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
 		if (athenaUseWaylandToplevelDragForInitialFloating())
 		{
 			if (auto* FloatingContainer = d->DockArea->dockContainer()->floatingWidget())

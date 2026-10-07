@@ -198,11 +198,25 @@ include (CheckTypeSize)
 include (FindPkgConfig)
 include (CheckCSourceCompiles)
 
+if (ATHENA_PLATFORM_IPADOS)
+  pkg_check_modules (GNUTLS_IPADOS REQUIRED gnutls)
+  add_library (athena_gnutls_ipados INTERFACE)
+  target_include_directories (athena_gnutls_ipados INTERFACE
+    ${GNUTLS_IPADOS_INCLUDE_DIRS})
+  target_link_directories (athena_gnutls_ipados INTERFACE
+    ${GNUTLS_IPADOS_STATIC_LIBRARY_DIRS})
+  target_link_libraries (athena_gnutls_ipados INTERFACE
+    ${GNUTLS_IPADOS_STATIC_LINK_LIBRARIES})
+  target_link_options (athena_gnutls_ipados INTERFACE
+    ${GNUTLS_IPADOS_STATIC_LDFLAGS_OTHER})
+endif ()
+
 pkg_check_modules (SPDLOG REQUIRED IMPORTED_TARGET spdlog)
 pkg_check_modules (HARFBUZZ REQUIRED IMPORTED_TARGET harfbuzz)
 pkg_check_modules (HUNSPELL REQUIRED IMPORTED_TARGET hunspell>=1.7)
 pkg_check_modules (LMDB REQUIRED IMPORTED_TARGET lmdb)
 find_package (ICU REQUIRED COMPONENTS uc i18n)
+find_path (NLOHMANN_JSON_INCLUDE_DIR nlohmann/json.hpp REQUIRED)
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
   find_path (ATHENA_OPENVINO_INCLUDE_DIR openvino/openvino.hpp)
   find_library (ATHENA_OPENVINO_RUNTIME_LIBRARY NAMES openvino)
@@ -212,6 +226,7 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set (ATHENA_OPENVINO_RUNTIME_FOUND FALSE)
   endif ()
 endif ()
+if (ATHENA_ENABLE_LOCAL_INFERENCE)
 pkg_check_modules (LLAMA QUIET IMPORTED_TARGET llama)
 if (UNIX AND NOT APPLE)
   pkg_check_modules (FONTCONFIG REQUIRED IMPORTED_TARGET fontconfig)
@@ -311,6 +326,13 @@ if (NOT LLAMA_JSON_INCLUDE_DIR)
   message (FATAL_ERROR
     "llama.cpp chat templates require its vendored nlohmann JSON headers. "
     "Configure LLAMA_CPP_SOURCE_DIR to the matching llama.cpp source tree.")
+endif ()
+else ()
+  set (ATHENA_LLAMA_LIBRARIES "")
+  set (ATHENA_LLAMA_INCLUDE_DIR "")
+  set (LLAMA_COMMON_INCLUDE_DIR "")
+  set (LLAMA_JSON_INCLUDE_DIR "")
+  message (STATUS "ATHENA local inference disabled for this target")
 endif ()
 
 find_path (RESVGQT_INCLUDE_DIR ResvgQt.h)
@@ -483,8 +505,10 @@ find_package (ZLIB REQUIRED)
 find_package (JPEG REQUIRED)
 pkg_check_modules (ZSTD REQUIRED libzstd)
 pkg_check_modules (LIBSODIUM REQUIRED libsodium)
-pkg_check_modules (MAGICKWAND REQUIRED MagickWand)
-add_definitions (${MAGICKWAND_CFLAGS_OTHER})
+if (NOT ATHENA_PLATFORM_IPADOS)
+  pkg_check_modules (MAGICKWAND REQUIRED MagickWand)
+  add_definitions (${MAGICKWAND_CFLAGS_OTHER})
+endif ()
 ### --------------------------------------------------------------------
 ### ATHENA's private Guile 3 runtime
 ### --------------------------------------------------------------------
@@ -681,8 +705,8 @@ set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs}
   ${ATHENA_GUILE_INCLUDE_DIR} ${FREETYPE_INCLUDE_DIRS}
   ${IMLIB2_INCLUDE_DIR} ${GMP_INCLUDES} ${GNUTLS_INCLUDE_DIRS}
   ${SQLITE3_INCLUDE_DIRS} ${ICONV_INCLUDE_DIR}
+  ${NLOHMANN_JSON_INCLUDE_DIR}
   ${ATHENA_LLAMA_INCLUDE_DIR} ${LLAMA_COMMON_INCLUDE_DIR}
-  ${LLAMA_JSON_INCLUDE_DIR}
 )
 
 ### --------------------------------------------------------------------
@@ -770,11 +794,13 @@ set (ATHENA_Libraries
   ${PNG_LIBRARIES}
   ${ZSTD_LIBRARIES}
   ${LIBSODIUM_LIBRARIES}
-  ${MAGICKWAND_LIBRARIES}
   ${ICONV_LIBRARIES}
   ${CMAKE_DL_LIBS}
   -lpthread
 )
+if (NOT ATHENA_PLATFORM_IPADOS)
+  list (APPEND ATHENA_Libraries ${MAGICKWAND_LIBRARIES})
+endif ()
 
 if (LINKED_SQLITE3)
   set (ATHENA_Libraries ${ATHENA_Libraries} ${SQLITE3_LIBRARIES})
@@ -792,7 +818,11 @@ set (ATHENA_Libraries ${ATHENA_Libraries} ${GMP_LIBRARIES})
 set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs} ${Boost_INCLUDE_DIRS})
 
 if (LINKED_GNUTLS)
-  set (ATHENA_Libraries ${ATHENA_Libraries} ${GNUTLS_LIBRARIES})
+  if (ATHENA_PLATFORM_IPADOS)
+    set (ATHENA_Libraries ${ATHENA_Libraries} athena_gnutls_ipados)
+  else ()
+    set (ATHENA_Libraries ${ATHENA_Libraries} ${GNUTLS_LIBRARIES})
+  endif ()
 endif (LINKED_GNUTLS)
 
 ### --------------------------------------------------------------------
@@ -801,7 +831,12 @@ endif (LINKED_GNUTLS)
 
 set (GUI_TYPE) # nothing or WIN32, MACOSX bundles are treated independetly
 find_package (KF6SyntaxHighlighting REQUIRED)
-find_package (KF6Completion REQUIRED)
+if (ATHENA_PLATFORM_IPADOS)
+  set (ATHENA_KF_COMPLETION_LIBRARY "")
+else ()
+  find_package (KF6Completion REQUIRED)
+  set (ATHENA_KF_COMPLETION_LIBRARY KF6::Completion)
+endif ()
 
 if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt6")
   find_package (Qt6 COMPONENTS Core Gui Widgets PrintSupport Svg Network REQUIRED)
@@ -943,6 +978,14 @@ if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt6")
   # additional OpenMP parallel region into that mixed-runtime process.
   set(NCNN_OPENMP OFF CACHE BOOL "" FORCE)
   set(NCNN_SHARED_LIB OFF CACHE BOOL "" FORCE)
+  if (ATHENA_PLATFORM_IPADOS)
+    # ncnn defaults both options to ON for iOS and exports the resulting
+    # -fno-rtti/-fno-exceptions flags as PUBLIC usage requirements.  ATHENA's
+    # core allocator and other C++ code require exceptions (and may use RTTI),
+    # so keep those language features enabled at the ncnn boundary.
+    set(NCNN_DISABLE_RTTI OFF CACHE BOOL "" FORCE)
+    set(NCNN_DISABLE_EXCEPTION OFF CACHE BOOL "" FORCE)
+  endif ()
   set(NCNN_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
   set(NCNN_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
   set(NCNN_BUILD_BENCHMARK OFF CACHE BOOL "" FORCE)
@@ -954,6 +997,12 @@ if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt6")
   ### Qt Advanced Docking System
   ### --------------------------------------------------------------------
   set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+  if (ATHENA_PLATFORM_IPADOS)
+    # Keep ADS inside the application image on iPadOS.  A standalone dylib
+    # would need separate bundle embedding/signing and causes static Qt plugin
+    # imports to be resolved at the intermediate ADS link instead of the app.
+    set(BUILD_STATIC ON CACHE BOOL "Build ADS as a static library" FORCE)
+  endif ()
   add_subdirectory(3rdparty/athena-ads)
   set(ADS_LIBRARIES qt6advanceddocking)
   if (NOT APPLE AND NOT WIN32)
@@ -1012,14 +1061,17 @@ if (ATHENA_PLATFORM_MACOS)
 elseif (ATHENA_PLATFORM_IPADOS)
   list (APPEND ATHENA_Libraries
     "-framework UIKit" "-framework Foundation" "-framework Security"
-    "-framework CoreGraphics" "-framework CoreText" "-framework ImageIO")
+    "-framework CoreFoundation" "-framework CoreGraphics"
+    "-framework CoreText" "-framework ImageIO")
 endif ()
 
 include_directories (${ATHENA_Include_Dirs})
 include_directories (${ZSTD_INCLUDE_DIRS})
 include_directories (${LIBSODIUM_INCLUDE_DIRS})
-include_directories (${MAGICKWAND_INCLUDE_DIRS})
-link_directories (${MAGICKWAND_LIBRARY_DIRS})
+if (NOT ATHENA_PLATFORM_IPADOS)
+  include_directories (${MAGICKWAND_INCLUDE_DIRS})
+  link_directories (${MAGICKWAND_LIBRARY_DIRS})
+endif ()
 
 ### --------------------------------------------------------------------
 ### Debugging options

@@ -38,7 +38,7 @@
 #include "IconProvider.h"
 #include "ads_globals.h"
 
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
 #include <QSettings>
 #include <QFile>
 #include <QApplication>
@@ -52,7 +52,7 @@ namespace internal
 {
 const int FloatingWidgetDragStartEvent = QEvent::registerEventType();
 const int DockedWidgetDragStartEvent = QEvent::registerEventType();
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
 static QString _window_manager;
 static QHash<QString, xcb_atom_t> _xcb_atom_cache;
 
@@ -412,7 +412,7 @@ void setButtonIcon(QAbstractButton* Button, QStyle::StandardPixmap StandarPixmap
 		return;
 	}
 
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
 	Button->setIcon(Button->style()->standardIcon(StandarPixmap));
 #else
 	// The standard icons does not look good on high DPI screens so we create

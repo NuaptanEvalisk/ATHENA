@@ -60,7 +60,7 @@
 #include "DockFocusController.h"
 #include "DockSplitter.h"
 
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
 #include "linux/FloatingWidgetTitleBar.h"
 #endif
 
@@ -202,7 +202,7 @@ void DockManagerPrivate::loadStylesheet()
 	QString FileName = ":ads/stylesheets/";
 	FileName += CDockManager::testConfigFlag(CDockManager::FocusHighlighting)
 		? "focus_highlighting" : "default";
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
     FileName += "_linux";
 #endif
     FileName += ".css";
@@ -524,7 +524,7 @@ CDockManager::CDockManager(QWidget *parent) :
 
 	window()->installEventFilter(this);
 
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
     connect(qApp, &QApplication::focusWindowChanged, [](QWindow* focusWindow)
     {
         // bring modal dialogs to foreground to ensure that they are in front of any
@@ -580,7 +580,7 @@ CDockManager::~CDockManager()
 }
 
 //============================================================================
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
 bool CDockManager::eventFilter(QObject *obj, QEvent *e)
 {
 	// Emulate Qt:Tool behaviour.
