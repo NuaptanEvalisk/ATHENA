@@ -12,7 +12,10 @@
 #include "QTMCommandRegistry.hpp"
 #include "QTMCompoundDocument.hpp"
 #include "QTMCommandRegistryInternal.hpp"
+#include "athena_platform.hpp"
+#if ATHENA_ENABLE_PLUGINS
 #include "QTMPluginManager.hpp"
+#endif
 
 #include <QApplication>
 #include <QSet>
@@ -223,6 +226,7 @@ QTMCommandRegistry::registerBuiltins () {
     });
   registerProvider (
     "runtime-plugin-menu", QTMCommandScope::Application,
+#if ATHENA_ENABLE_PLUGINS
     [this] (const QTMCommandContext& context) {
       QVector<QTMCommandDynamicItem> out;
       QTMPluginManager* manager=
@@ -337,7 +341,15 @@ QTMCommandRegistry::registerBuiltins () {
       state.available= pluginManager_ != nullptr;
       state.enabled= state.available;
       return state;
-    });
+    }
+#else
+    [] (const QTMCommandContext&) {
+      return QVector<QTMCommandDynamicItem> {};
+    },
+    [] (const QString&, const QTMCommandContext&) { return false; },
+    [] (const QTMCommandContext&) { return QTMCommandState {}; }
+#endif
+    );
 }
 
 bool
@@ -519,7 +531,12 @@ QTMCommandRegistry::executeProviderItem (
 void
 QTMCommandRegistry::synchronizePluginCommands (QTMPluginManager* manager) {
   if (!initialized_ && !initialize ()) return;
+#if ATHENA_ENABLE_PLUGINS
   pluginManager_= manager;
+#else
+  (void) manager;
+  pluginManager_.clear ();
+#endif
 
   QSet<QString> previous;
   for (const QString& id: runtimePluginCommandIds_) {
@@ -543,6 +560,7 @@ QTMCommandRegistry::synchronizePluginCommands (QTMPluginManager* manager) {
   }
 
   if (manager == nullptr) return;
+#if ATHENA_ENABLE_PLUGINS
   for (const QTMPluginInfo& plugin: manager->plugins ()) {
     const QString pluginId= QString::fromStdString (plugin.manifest.id);
     const QString pluginName= QString::fromStdString (plugin.manifest.name);
@@ -596,4 +614,5 @@ QTMCommandRegistry::synchronizePluginCommands (QTMPluginManager* manager) {
       commands_.append (std::move (definition));
     }
   }
+#endif
 }
