@@ -9,9 +9,11 @@
 ******************************************************************************/
 
 #include "QTMPreferencesDialog.hpp"
-#include "QTMPluginUi.hpp"
-#include "QTMAudmap.hpp"
 #include "athena_platform.hpp"
+#if ATHENA_ENABLE_PLUGINS
+#include "QTMPluginUi.hpp"
+#endif
+#include "QTMAudmap.hpp"
 #include "ATHENA/Features/athena_features.hpp"
 #include "ATHENA/Data/materials_engine.hpp"
 #include "QTMESCSymbolPicker.hpp"
@@ -948,7 +950,9 @@ QTMPreferencesDialog::QTMPreferencesDialog (QWidget* parent)
   addCategory ("Convert", buildConversionPage ());
   for (const auto& category: buildVaultCategories ())
     addCategory (category.first, category.second);
+#if ATHENA_ENABLE_PLUGINS
   addCategory ("Plugins", tabbed ({{"Installed", qtm_plugin_preferences (qtm_plugin_manager ())}}));
+#endif
   addCategory ("Other", buildOtherPage ());
   rebuildSearchIndex ();
 
