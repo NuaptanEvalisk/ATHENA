@@ -13,7 +13,9 @@ configure_file ("${ATHENA_SOURCE_DIR}/src/Subsystems/iOS/Info.plist.in"
   "${ATHENA_BINARY_DIR}/ATHENA-Info.plist.in" @ONLY)
 set_target_properties (${ATHENA_binary_name} PROPERTIES
   MACOSX_BUNDLE_INFO_PLIST "${ATHENA_BINARY_DIR}/ATHENA-Info.plist.in"
-  XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "org.athena.editor")
+  XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "org.athena.editor"
+  XCODE_ATTRIBUTE_PRODUCT_NAME "ATHENA"
+  XCODE_ATTRIBUTE_EXECUTABLE_NAME "ATHENA.bin")
 
 function (athena_ios_resources root destination)
   file (GLOB_RECURSE resources LIST_DIRECTORIES false "${root}/*")

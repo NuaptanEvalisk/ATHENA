@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
   <key>CFBundleIdentifier</key><string>org.athena.editor</string>
-  <key>CFBundleExecutable</key><string>${MACOSX_BUNDLE_EXECUTABLE_NAME}</string>
+  <key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string>
   <key>CFBundleName</key><string>ATHENA</string>
   <key>CFBundleDisplayName</key><string>ATHENA</string>
   <key>CFBundlePackageType</key><string>APPL</string>

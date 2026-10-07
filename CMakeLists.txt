@@ -203,15 +203,34 @@ include (CheckCSourceCompiles)
 
 if (ATHENA_PLATFORM_IPADOS)
   pkg_check_modules (GNUTLS_IPADOS REQUIRED gnutls)
+  find_library (ATHENA_FREETYPE_BZIP2_LIBRARY bz2 REQUIRED)
+  find_library (ATHENA_FREETYPE_BROTLI_DEC_LIBRARY brotlidec REQUIRED)
+  find_library (ATHENA_FREETYPE_BROTLI_COMMON_LIBRARY brotlicommon REQUIRED)
+  find_library (ATHENA_ICU_DATA_LIBRARY icudata REQUIRED)
+  find_library (ATHENA_GNUTLS_SECURITY_FRAMEWORK Security REQUIRED)
+  find_library (ATHENA_GNUTLS_COREFOUNDATION_FRAMEWORK CoreFoundation REQUIRED)
+  set (ATHENA_GNUTLS_IPADOS_LINK_OPTIONS
+    ${GNUTLS_IPADOS_STATIC_LDFLAGS_OTHER})
+  list (REMOVE_ITEM ATHENA_GNUTLS_IPADOS_LINK_OPTIONS
+    "-framework" "Security" "CoreFoundation")
+  list (FIND ATHENA_GNUTLS_IPADOS_LINK_OPTIONS "-framework"
+    ATHENA_GNUTLS_IPADOS_UNHANDLED_FRAMEWORK)
+  if (NOT ATHENA_GNUTLS_IPADOS_UNHANDLED_FRAMEWORK EQUAL -1)
+    message (FATAL_ERROR
+      "Unhandled framework flag in static iPadOS GnuTLS linker options: "
+      "${GNUTLS_IPADOS_STATIC_LDFLAGS_OTHER}")
+  endif ()
   add_library (athena_gnutls_ipados INTERFACE)
   target_include_directories (athena_gnutls_ipados INTERFACE
     ${GNUTLS_IPADOS_INCLUDE_DIRS})
   target_link_directories (athena_gnutls_ipados INTERFACE
     ${GNUTLS_IPADOS_STATIC_LIBRARY_DIRS})
   target_link_libraries (athena_gnutls_ipados INTERFACE
-    ${GNUTLS_IPADOS_STATIC_LINK_LIBRARIES})
+    ${GNUTLS_IPADOS_STATIC_LIBRARIES}
+    ${ATHENA_GNUTLS_SECURITY_FRAMEWORK}
+    ${ATHENA_GNUTLS_COREFOUNDATION_FRAMEWORK})
   target_link_options (athena_gnutls_ipados INTERFACE
-    ${GNUTLS_IPADOS_STATIC_LDFLAGS_OTHER})
+    ${ATHENA_GNUTLS_IPADOS_LINK_OPTIONS})
 endif ()
 
 pkg_check_modules (SPDLOG REQUIRED IMPORTED_TARGET spdlog)
@@ -810,6 +829,12 @@ if (LINKED_SQLITE3)
 endif (LINKED_SQLITE3)
 
 set (ATHENA_Libraries ${ATHENA_Libraries} ${FREETYPE_LIBRARIES})
+if (ATHENA_PLATFORM_IPADOS)
+  list (APPEND ATHENA_Libraries
+    ${ATHENA_FREETYPE_BZIP2_LIBRARY}
+    ${ATHENA_FREETYPE_BROTLI_DEC_LIBRARY}
+    ${ATHENA_FREETYPE_BROTLI_COMMON_LIBRARY})
+endif ()
 set (ATHENA_Libraries ${ATHENA_Libraries} PkgConfig::HARFBUZZ)
 
 if (UNIX AND NOT APPLE)
