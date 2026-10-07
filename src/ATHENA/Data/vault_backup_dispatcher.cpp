@@ -10,11 +10,14 @@
 
 #include "ATHENA/Data/vault_backup_dispatcher.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
+#include "athena_platform.hpp"
 
 #include <QDir>
 #include <QFileInfo>
+#if !ATHENA_PLATFORM_IPADOS
 #include <QProcess>
 #include <QStandardPaths>
+#endif
 #include <QTemporaryDir>
 #include <sqlite3.h>
 #include <fstream>
@@ -126,7 +129,13 @@ snapshot_database (const fs::path& source, const fs::path& destination) {
 
 bool
 run_rsync (const std::string& program, const QStringList& arguments,
-           std::string& error) {
+            std::string& error) {
+#if ATHENA_PLATFORM_IPADOS
+  (void) program;
+  (void) arguments;
+  error= "rsync backup dispatch is unavailable on iPadOS";
+  return false;
+#else
   QProcess process;
   process.setProcessChannelMode (QProcess::SeparateChannels);
   process.start (qstring (program), arguments);
@@ -142,6 +151,7 @@ run_rsync (const std::string& program, const QStringList& arguments,
     return false;
   }
   return true;
+#endif
 }
 
 } // namespace
@@ -189,6 +199,13 @@ bool
 athena_backup_dispatch_prepare (
   const fs::path& vault_root, const std::string& destination_text,
   AthenaBackupDispatchCommand& command, std::string& error) {
+#if ATHENA_PLATFORM_IPADOS
+  (void) vault_root;
+  (void) destination_text;
+  (void) command;
+  error= "rsync backup dispatch is unavailable on iPadOS";
+  return false;
+#else
   std::string normalized_destination;
   if (!athena_backup_dispatch_validate_destination (
         vault_root, destination_text, normalized_destination, error))
@@ -218,6 +235,7 @@ athena_backup_dispatch_prepare (
     "--exclude=/.backup/", "--exclude=/.athena/rag-backup-*",
     utf8 (source), utf8 (final_destination)};
   return true;
+#endif
 }
 
 bool

@@ -8,9 +8,12 @@
 
 #include "QTMNativeDialogs.hpp"
 
+#include "athena_platform.hpp"
 #include "QTMMenuHelper.hpp"
+#if !ATHENA_PLATFORM_IPADOS
 #include "QTMPrintDialog.hpp"
 #include "QTMPrinterSettings.hpp"
+#endif
 #include "tm_window.hpp"
 #include "qt_sys_utils.hpp"
 #include "qt_utilities.hpp"
@@ -62,6 +65,7 @@ struct TooltipRequest {
   int y= 0;
 };
 
+#if !ATHENA_PLATFORM_IPADOS
 QTMPrinterSettings*&
 printer_settings () {
   static QTMPrinterSettings* settings= nullptr;
@@ -70,6 +74,7 @@ printer_settings () {
 #endif
   return settings;
 }
+#endif
 
 QString
 qs (string s) {
@@ -961,6 +966,13 @@ qtm_color_dialog (string title, array<string> recent_values,
 
 void
 qtm_print_file_dialog (url file) {
+#if ATHENA_PLATFORM_IPADOS
+  (void) file;
+  invoke_gui_blocking ([] () {
+    QMessageBox::warning (nullptr, QObject::tr ("Print"),
+      QObject::tr ("Direct printing is unavailable on this platform. Export to PDF and print it with the system print workflow."));
+  });
+#else
   QString fileName= qs (as_string (file));
   invoke_gui_blocking ([fileName] () {
     QTMPrinterSettings*& settings= printer_settings ();
@@ -974,6 +986,7 @@ qtm_print_file_dialog (url file) {
     if (dialog.exec () != QDialog::Accepted) return;
     qt_system (tm_string (settings->toSystemCommand ()));
   });
+#endif
 }
 
 array<SI>

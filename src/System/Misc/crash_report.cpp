@@ -7,20 +7,21 @@
 ******************************************************************************/
 
 #include "crash_report.hpp"
+#include "athena_platform.hpp"
 #include <atomic>
 #include <cstddef>
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !ATHENA_PLATFORM_IPADOS
 #include <cerrno>
 #include <csignal>
 #include <fcntl.h>
 #include <pthread.h>
 #include <unistd.h>
-#include <ucontext.h>
 #ifdef __linux__
+#include <ucontext.h>
 #include <sys/syscall.h>
 #endif
 #endif
@@ -83,7 +84,7 @@ void append_context (Report& report) noexcept {
   report.text ("\n");
 }
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !ATHENA_PLATFORM_IPADOS
 static_assert (std::atomic<int>::is_always_lock_free,
                "Signal descriptors must be lock-free");
 std::atomic<int> report_fd {-1}, diagnostic_fd {-1};
@@ -146,7 +147,7 @@ void athena_crash_register_thread (AthenaCrashThreadRole role,
                                    std::uint64_t owner_actor) noexcept {
   thread_role.store (static_cast<unsigned> (role), std::memory_order_relaxed);
   thread_actor.store (owner_actor, std::memory_order_relaxed);
-#ifndef _WIN32
+#if !defined(_WIN32) && !ATHENA_PLATFORM_IPADOS
   stack_t previous {};
   if (sigaltstack (nullptr, &previous) == 0 && (previous.ss_flags & SS_DISABLE)) {
     stack_t stack {};
@@ -175,7 +176,7 @@ std::string athena_crash_execution_report () {
 }
 
 [[noreturn]] void athena_crash_abort (const char* reason) noexcept {
-#ifndef _WIN32
+#if !defined(_WIN32) && !ATHENA_PLATFORM_IPADOS
   Report report;
   report.text ("ATHENA fatal error: ");
   report.text (reason ? reason : "unknown");
@@ -189,7 +190,7 @@ std::string athena_crash_execution_report () {
 }
 
 bool athena_install_crash_handlers (const char* directory) noexcept {
-#ifndef _WIN32
+#if !defined(_WIN32) && !ATHENA_PLATFORM_IPADOS
 #ifdef __linux__
   // Open before the report file, which could otherwise reuse a closed fd 2.
   // A separate file description does not change the application's stderr flags.

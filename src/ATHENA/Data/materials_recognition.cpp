@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "ATHENA/Data/materials_recognition.hpp"
+#include "athena_platform.hpp"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -23,7 +24,9 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#if !ATHENA_PLATFORM_IPADOS
 #include <QProcess>
+#endif
 #include <QRegularExpression>
 #include <QTimer>
 #include <QTemporaryDir>
@@ -221,6 +224,16 @@ bool
 run_process (const std::string& executable, const QStringList& arguments,
              int timeout_ms, QByteArray& output, std::string& diagnostic,
              const std::function<bool ()>& cancelled) {
+#if ATHENA_PLATFORM_IPADOS
+  (void) arguments;
+  (void) timeout_ms;
+  (void) cancelled;
+  output.clear ();
+  diagnostic= executable.empty ()
+    ? "External material helper is unavailable on iPadOS"
+    : executable + " is unavailable on iPadOS";
+  return false;
+#else
   if (executable.empty ()) return false;
   QProcess process;
   process.setProgram (qs (executable));
@@ -264,6 +277,7 @@ run_process (const std::string& executable, const QStringList& arguments,
     diagnostic= executable + ": " +
                 ss (QString::fromUtf8 (stderr_data).trimmed ());
   return true;
+#endif
 }
 
 QString

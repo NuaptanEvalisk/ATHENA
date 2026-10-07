@@ -9,6 +9,7 @@
 #include "QTMVaultMaintenanceDialog.hpp"
 
 #include "ATHENA/Data/vault_maintenance.hpp"
+#include "athena_platform.hpp"
 #include "ATHENA/Data/new_buffer.hpp"
 #include "ATHENA/Data/vault.hpp"
 #include "qt_utilities.hpp"
@@ -26,8 +27,10 @@
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
+#if ATHENA_ENABLE_CLI
 #include <QProcess>
 #include <QProcessEnvironment>
+#endif
 #include <QTableWidget>
 #include <QThread>
 #include <QVBoxLayout>
@@ -62,6 +65,12 @@ saveModifiedMaintenanceBuffers () {
 
 void
 runVaultMaintenanceInteractive () {
+#if !ATHENA_ENABLE_CLI
+  set_message (
+    "Vault maintenance requires an exclusive maintenance process and is unavailable in this build",
+    "Vault maintenance");
+  return;
+#else
   if (!vault_active ()) {
     set_message ("No active vault to maintain", "Vault maintenance");
     return;
@@ -106,6 +115,7 @@ runVaultMaintenanceInteractive () {
     return;
   }
   get_server ()->quit ();
+#endif
 }
 
 class VaultMaintenanceSetupDialog: public QDialog {

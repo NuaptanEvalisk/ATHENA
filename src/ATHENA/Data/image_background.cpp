@@ -146,23 +146,23 @@ image_remove_white_background_png (url image, string& error) {
 #if ATHENA_PLATFORM_IPADOS
   QString filename= QString::fromUtf8 (path.string ().c_str ());
   QImageReader reader (filename, "PNG");
-  QImage image= reader.read ();
-  if (image.isNull ()) {
+  QImage bitmap= reader.read ();
+  if (bitmap.isNull ()) {
     error= to_tm (reader.errorString ().toStdString ());
     return false;
   }
-  if (!has_white_corner (image)) return true;
+  if (!has_white_corner (bitmap)) return true;
 
-  image= image.convertToFormat (QImage::Format_ARGB32);
-  for (int y= 0; y < image.height (); ++y) {
-    QRgb* row= reinterpret_cast<QRgb*> (image.scanLine (y));
-    for (int x= 0; x < image.width (); ++x)
+  bitmap= bitmap.convertToFormat (QImage::Format_ARGB32);
+  for (int y= 0; y < bitmap.height (); ++y) {
+    QRgb* row= reinterpret_cast<QRgb*> (bitmap.scanLine (y));
+    for (int x= 0; x < bitmap.width (); ++x)
       if (near_white (row[x])) row[x]= qRgba (qRed (row[x]), qGreen (row[x]),
                                                qBlue (row[x]), 0);
   }
 
   QImageWriter writer (filename, "PNG");
-  if (!writer.write (image)) {
+  if (!writer.write (bitmap)) {
     error= to_tm (writer.errorString ().toStdString ());
     return false;
   }

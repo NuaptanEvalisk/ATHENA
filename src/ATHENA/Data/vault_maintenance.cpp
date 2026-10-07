@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "ATHENA/Data/vault_maintenance.hpp"
+#include "athena_platform.hpp"
 #include "ATHENA/Features/athena_features.hpp"
 #include "ATHENA/Data/vault_maintenance_internal.hpp"
 #include "ATHENA/Data/vault_maintenance_passes.hpp"
@@ -54,7 +55,12 @@ toc_update_enabled (const VaultMaintenanceContext& ctx) {
 
 bool
 continuous_rag_enabled (const VaultMaintenanceContext& ctx) {
+#if ATHENA_ENABLE_LOCAL_INFERENCE
   return ctx.summary.rag_update_enabled;
+#else
+  (void) ctx;
+  return false;
+#endif
 }
 
 bool
@@ -76,6 +82,10 @@ maintenance_websites_enabled (const VaultMaintenanceContext& ctx) {
 
 bool
 maintenance_dispatchers_enabled (const VaultMaintenanceContext& ctx) {
+#if ATHENA_PLATFORM_IPADOS
+  (void) ctx;
+  return false;
+#else
   AthenaVaultfileInfo info;
   std::string error;
   if (!athena_vaultfile_read (ctx.root, info, error)) return true;
@@ -84,6 +94,7 @@ maintenance_dispatchers_enabled (const VaultMaintenanceContext& ctx) {
     [] (const auto& dispatcher) {
       return dispatcher.trigger == "maintenance";
     });
+#endif
 }
 
 const std::vector<RegisteredVaultMaintenancePass>&

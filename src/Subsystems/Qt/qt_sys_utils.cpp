@@ -10,11 +10,36 @@
 ******************************************************************************/
 
 #include "qt_sys_utils.hpp"
+#include "athena_platform.hpp"
 #include "basic.hpp"
 #include "string.hpp"
 
+#if !ATHENA_PLATFORM_IPADOS
 #include <QProcess>
+#endif
 #include <QString>
+
+#if ATHENA_PLATFORM_IPADOS
+
+int
+qt_system (string) {
+  return -1;
+}
+
+int
+qt_system (string, string& result) {
+  result= "";
+  return -1;
+}
+
+int
+qt_system (string, string& result, string& error) {
+  result= "";
+  error= "External processes are unavailable on iPadOS";
+  return -1;
+}
+
+#else
 
 static void
 ReadOutputs(QProcess& p, string& o, string& e) {
@@ -73,3 +98,5 @@ qt_system (string cmd, string& result) {
   proc.setProcessChannelMode (QProcess::MergedChannels);
   return qt_system (proc, cmd, result, dummy);
 }
+
+#endif // ATHENA_PLATFORM_IPADOS

@@ -99,6 +99,9 @@ endif ()
 find_package (Boost REQUIRED)
 
 option (QTPIPES "use Qt pipes" ON)
+if (ATHENA_PLATFORM_IPADOS)
+  set (QTPIPES OFF CACHE BOOL "Qt pipe/process links are unavailable on iPadOS" FORCE)
+endif ()
 
 option (ATHENA_ENABLE_TSAN
   "Instrument ATHENA and its private Guile runtime with ThreadSanitizer" OFF)

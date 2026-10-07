@@ -165,7 +165,8 @@ file_signature (const fs::path& path) {
   if (ec) return "missing";
   auto modified= fs::last_write_time (path, ec);
   if (ec) return "missing";
-  return std::to_string (modified.time_since_epoch ().count ()) + ":" +
+  return std::to_string (static_cast<long long> (
+           modified.time_since_epoch ().count ())) + ":" +
          std::to_string (size);
 }
 
@@ -494,7 +495,8 @@ refresh_documents (sqlite3* db, const fs::path& root,
     auto modifiedTime= fs::last_write_time (absolute, ec);
     if (ec) continue;
     std::string modified=
-      std::to_string (modifiedTime.time_since_epoch ().count ());
+      std::to_string (static_cast<long long> (
+        modifiedTime.time_since_epoch ().count ()));
     std::string cachedModified;
     std::string cachedSemantic;
     uintmax_t cachedSize= 0;

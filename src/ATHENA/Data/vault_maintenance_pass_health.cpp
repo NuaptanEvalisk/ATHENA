@@ -10,6 +10,7 @@
 
 #include "ATHENA/Data/vault_maintenance_internal.hpp"
 
+#include "athena_platform.hpp"
 #include "QTMDelegationClient.hpp"
 #include "boot.hpp"
 #include "convert.hpp"
@@ -28,7 +29,7 @@
 #include <utility>
 #include <vector>
 
-#if defined(__unix__) || defined(__APPLE__)
+#if ATHENA_ENABLE_CLI && (defined(__unix__) || defined(__APPLE__))
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -118,7 +119,7 @@ toc_worker_jobs (size_t file_count, int requested) {
   return (int) std::max (1u, std::min (jobs, (unsigned) file_count));
 }
 
-#if defined(__unix__) || defined(__APPLE__)
+#if ATHENA_ENABLE_CLI && (defined(__unix__) || defined(__APPLE__))
 struct TocWorker {
   fs::path document;
   fs::path marker;
@@ -260,7 +261,7 @@ vault_maintenance_pass_update_tables_of_contents (VaultMaintenanceContext& ctx) 
   if (docs.empty ())
     return VaultMaintenancePassResult::success ("no tables of contents found");
 
-#if defined(__unix__) || defined(__APPLE__)
+#if ATHENA_ENABLE_CLI && (defined(__unix__) || defined(__APPLE__))
   if (run_toc_workers (docs, ctx.summary))
     return VaultMaintenancePassResult::success (
       "updated " + std::to_string (ctx.summary.toc_files_updated) + " of " +

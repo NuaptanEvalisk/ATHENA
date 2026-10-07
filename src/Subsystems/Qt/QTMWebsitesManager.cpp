@@ -11,6 +11,7 @@
 #include "QTMWebsitesManager.hpp"
 
 #include "ATHENA/Data/websites.hpp"
+#include "athena_platform.hpp"
 #include "QTMMainTabWindow.hpp"
 #include "namespaces.hpp"
 #include "qt_utilities.hpp"
@@ -35,7 +36,9 @@
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPlainTextEdit>
+#if ATHENA_ENABLE_WEBSITE_EXPORT
 #include <QProcess>
+#endif
 #include <QProgressBar>
 #include <QPushButton>
 #include <QRadioButton>
@@ -1069,6 +1072,13 @@ private:
   }
 
   void showGenerationPane (const athena_website_entry& website) {
+#if !ATHENA_ENABLE_WEBSITE_EXPORT
+    (void) website;
+    QMessageBox::information (
+      this, "Generate website",
+      "Website export is unavailable in this build.");
+    return;
+#else
     QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
     if (win == nullptr || win->dockManager () == nullptr) return;
 
@@ -1175,6 +1185,7 @@ private:
       process->start ();
     });
     process->start ();
+#endif
   }
 };
 

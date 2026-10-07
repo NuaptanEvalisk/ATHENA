@@ -10,6 +10,7 @@
 #include "athena_ios.hpp"
 #include "Subsystems/Qt/QTMMainTabWindow.hpp"
 #include "Subsystems/Qt/QTMDocumentPersistence.hpp"
+#include "string.hpp"
 #include "tm_ostream.hpp"
 #include <QAction>
 #include <QApplication>

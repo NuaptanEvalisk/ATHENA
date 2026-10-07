@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "unix_sys_utils.hpp"
+#include "athena_platform.hpp"
 #include "file.hpp"
 #include "tm_timer.hpp"
 #include <stdlib.h>
@@ -19,6 +20,36 @@
 #include <string.h>
 #include <sys/wait.h>
 #include <pthread.h>
+
+#if ATHENA_PLATFORM_IPADOS
+
+int
+unix_system (string) {
+  return -1;
+}
+
+int
+unix_system (string, string& result) {
+  result= "";
+  return -1;
+}
+
+int
+unix_system (string, string& result, string& error) {
+  result= "";
+  error= "External processes are unavailable on iPadOS";
+  return -1;
+}
+
+int
+unix_system (array<string>, array<int>, array<string>,
+             array<int>, array<string*> str_out) {
+  for (int i= 0; i < N(str_out); ++i)
+    if (str_out[i] != nullptr) *(str_out[i])= "";
+  return -1;
+}
+
+#else
 
 int
 unix_system (string s) {
@@ -340,3 +371,5 @@ unix_system (array<string> arg,
 }
 
 #endif
+
+#endif // ATHENA_PLATFORM_IPADOS

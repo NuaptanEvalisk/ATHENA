@@ -246,7 +246,14 @@ destination_for (const fs::path& root, const athena_website_entry& website) {
 
 bool
 run_post_command (const athena_website_entry& website, const fs::path& root,
-                  const fs::path& dest, std::string& error) {
+                   const fs::path& dest, std::string& error) {
+#if !ATHENA_ENABLE_WEBSITE_EXPORT
+  (void) website;
+  (void) root;
+  (void) dest;
+  error= "Website export is unavailable in this build.";
+  return false;
+#else
   if (!website.post_command.enabled || website.post_command.program.empty ())
     return true;
   QString program = qs (website.post_command.program);
@@ -266,6 +273,7 @@ run_post_command (const athena_website_entry& website, const fs::path& root,
   }
   std::cout << std::endl << "ATHENA_WEBSITE_POST_STATUS complete" << std::endl;
   return true;
+#endif
 }
 
 bool

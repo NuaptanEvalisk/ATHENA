@@ -473,7 +473,7 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
     bl->insertWidget(5, r2);
 
     //mw->setContentsMargins (-2, -2, -2, -2);  // Why this?
-    bar->setContentsMargins (0, 1, 0, 1);
+    bl->setContentsMargins (0, 1, 0, 1);
   }
   else {
     mw->addToolBar (mainToolBar);

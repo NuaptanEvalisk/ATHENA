@@ -70,8 +70,9 @@ source_signature (const fs::path& path) {
   if (ec) return "missing";
   fs::file_time_type modified= fs::last_write_time (path, ec);
   if (ec) return "missing";
-  return to_tm (std::to_string (modified.time_since_epoch ().count ()) + ":" +
-                std::to_string (size));
+  return to_tm (std::to_string (static_cast<long long> (
+                    modified.time_since_epoch ().count ())) + ":" +
+                 std::to_string (size));
 }
 
 void

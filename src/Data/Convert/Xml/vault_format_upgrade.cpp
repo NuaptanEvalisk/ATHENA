@@ -29,8 +29,10 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#ifdef __linux__
 #include <QProcess>
 #include <QStandardPaths>
+#endif
 #include <QUrl>
 #include <QUuid>
 #include <algorithm>
@@ -84,11 +86,26 @@ using inventory= std::map<fs::path,record>;
 bool same_time (timespec a, timespec b) {
   return a.tv_sec == b.tv_sec && a.tv_nsec == b.tv_nsec;
 }
+timespec modification_time (const struct stat& info) {
+#if defined(__APPLE__)
+  return info.st_mtimespec;
+#else
+  return info.st_mtim;
+#endif
+}
+timespec change_time (const struct stat& info) {
+#if defined(__APPLE__)
+  return info.st_ctimespec;
+#else
+  return info.st_ctim;
+#endif
+}
 bool same_revision (const struct stat& a, const struct stat& b) {
   return a.st_dev == b.st_dev && a.st_ino == b.st_ino &&
     a.st_mode == b.st_mode && a.st_uid == b.st_uid && a.st_gid == b.st_gid &&
     a.st_size == b.st_size && a.st_nlink == b.st_nlink &&
-    same_time (a.st_mtim, b.st_mtim) && same_time (a.st_ctim, b.st_ctim);
+    same_time (modification_time (a), modification_time (b)) &&
+    same_time (change_time (a), change_time (b));
 }
 record inspect (const fs::path& path, bool flush= false, bool hash_content= true,
                 const std::atomic<bool>* stop= nullptr) {
@@ -194,7 +211,8 @@ void compare (const inventory& expected, const inventory& actual, bool original)
     require (before.digest == after.digest && before.link == after.link &&
       before.info.st_mode == after.info.st_mode && before.info.st_uid == after.info.st_uid &&
       before.info.st_gid == after.info.st_gid &&
-      (S_ISDIR (before.info.st_mode) || same_time (before.info.st_mtim, after.info.st_mtim)) &&
+      (S_ISDIR (before.info.st_mode) ||
+       same_time (modification_time (before.info), modification_time (after.info))) &&
       (!original || same_revision (before.info, after.info)),
       "Snapshot mismatch or external modification: " + path.string ());
   }
@@ -221,6 +239,13 @@ legacy_import_limits limits () {
 }
 void clone (const fs::path& source, const fs::path& target,
              const vault_upgrade_progress& progress) {
+#ifndef __linux__
+  (void) source;
+  (void) target;
+  (void) progress;
+  throw std::runtime_error (
+    "Vault format snapshot cloning is unavailable without Linux renameat2 support");
+#else
   const auto cp= QStandardPaths::findExecutable ("cp");
   require (!cp.isEmpty (), "GNU coreutils cp is required for metadata-preserving vault snapshots");
   QProcess process;
@@ -240,6 +265,7 @@ void clone (const fs::path& source, const fs::path& target,
   diagnostics += process.readAll ();
   require (process.exitStatus () == QProcess::NormalExit && process.exitCode () == 0,
            "Snapshot copy failed: " + diagnostics.right (8192).toStdString ());
+#endif
 }
 
 using node_path= athena::document_node::source_path;

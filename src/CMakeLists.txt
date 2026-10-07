@@ -21,7 +21,9 @@ list (REMOVE_ITEM ATHENA_All_SRCS
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPluginUi.cpp"
   "${ATHENA_SOURCE_DIR}/src/System/Misc/tsan_mimalloc_shim.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMAudmapTerminal.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMAudmap_stub.cpp")
+  "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMAudmap_stub.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMContinuousRag_stub.cpp"
+  "${ATHENA_SOURCE_DIR}/src/System/Link/pipe_link_stub.cpp")
 if (NOT ATHENA_ENABLE_AUDMAP_LISTENER)
   list (REMOVE_ITEM ATHENA_All_SRCS
     "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMAudmap.cpp")
@@ -32,10 +34,25 @@ if (NOT ATHENA_ENABLE_LOCAL_INFERENCE)
   list (REMOVE_ITEM ATHENA_All_SRCS
     "${ATHENA_SOURCE_DIR}/src/Subsystems/RAG/rag_embedding.cpp"
     "${ATHENA_SOURCE_DIR}/src/ATHENA/Data/artifact_range_llm.cpp"
-    "${ATHENA_SOURCE_DIR}/src/ATHENA/Data/llama_runtime.cpp")
+    "${ATHENA_SOURCE_DIR}/src/ATHENA/Data/llama_runtime.cpp"
+    "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMContinuousRag.cpp")
   list (APPEND ATHENA_All_SRCS
     "${ATHENA_SOURCE_DIR}/src/Subsystems/RAG/rag_embedding_stub.cpp"
-    "${ATHENA_SOURCE_DIR}/src/ATHENA/Data/artifact_range_llm_stub.cpp")
+    "${ATHENA_SOURCE_DIR}/src/ATHENA/Data/artifact_range_llm_stub.cpp"
+    "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMContinuousRag_stub.cpp")
+endif ()
+if (ATHENA_PLATFORM_IPADOS)
+  list (REMOVE_ITEM ATHENA_All_SRCS
+    "${ATHENA_SOURCE_DIR}/src/System/Link/pipe_link.cpp"
+    "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/qt_pipe_link.cpp"
+    "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPipeLink.cpp"
+    "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPipeLink.hpp"
+    "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPrintDialog.cpp"
+    "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPrintDialog.hpp"
+    "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPrinterSettings.cpp"
+    "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPrinterSettings.hpp")
+  list (APPEND ATHENA_All_SRCS
+    "${ATHENA_SOURCE_DIR}/src/System/Link/pipe_link_stub.cpp")
 endif ()
 add_library (athena_unicode STATIC Data/String/unicode_text.cpp)
 set_target_properties (athena_unicode PROPERTIES AUTOMOC OFF)

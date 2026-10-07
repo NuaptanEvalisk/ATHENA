@@ -90,7 +90,8 @@ cd_default_arrow_options () {
 string
 cd_new_id (string prefix) {
   std::uint64_t serial= id_counter.fetch_add (1, std::memory_order_relaxed);
-  return prefix * "-" * as_string (texmacs_time ()) * "-" * as_string (serial);
+  return prefix * "-" * as_string (texmacs_time ()) * "-" *
+         as_string (static_cast<long long> (serial));
 }
 
 tree

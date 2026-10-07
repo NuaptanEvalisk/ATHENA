@@ -12,6 +12,7 @@
 #define ATHENA_WEBSITES_INTERNAL_HPP
 
 #include "ATHENA/Data/websites.hpp"
+#include "athena_platform.hpp"
 
 #include "ATHENA/Data/new_buffer.hpp"
 #include "ATHENA/Data/vault_maintenance_internal.hpp"
@@ -33,7 +34,9 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
+#if ATHENA_ENABLE_WEBSITE_EXPORT
 #include <QProcess>
+#endif
 #include <QUrl>
 
 #include <algorithm>

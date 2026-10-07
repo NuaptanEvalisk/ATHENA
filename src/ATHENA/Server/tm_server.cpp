@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "config.h"
+#include "athena_platform.hpp"
 #include "boot.hpp"
 #include "tm_server.hpp"
 #include "ATHENA/Data/document_persistence.hpp"
@@ -30,7 +31,9 @@
 #include <QCoreApplication>
 #include <QApplication>
 #include <QDir>
+#if !ATHENA_PLATFORM_IPADOS
 #include <QProcess>
+#endif
 #include "QTMAudmap.hpp"
 #include <QThread>
 #include "QTMApplication.hpp"
@@ -411,7 +414,9 @@ tm_server_rep::is_yes (string s) {
 
 bool
 tm_server_rep::restart () {
-#ifdef QTTEXMACS
+#if ATHENA_PLATFORM_IPADOS
+  return false;
+#elif defined(QTTEXMACS)
   auto watchdog_restart= athena_watchdog_request_restart ();
   if (watchdog_restart == AthenaWatchdogRestartResult::Failed) return false;
   if (watchdog_restart == AthenaWatchdogRestartResult::Requested) {

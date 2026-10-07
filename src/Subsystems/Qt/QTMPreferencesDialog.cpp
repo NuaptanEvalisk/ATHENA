@@ -11,6 +11,7 @@
 #include "QTMPreferencesDialog.hpp"
 #include "QTMPluginUi.hpp"
 #include "QTMAudmap.hpp"
+#include "athena_platform.hpp"
 #include "ATHENA/Features/athena_features.hpp"
 #include "ATHENA/Data/materials_engine.hpp"
 #include "QTMESCSymbolPicker.hpp"
@@ -70,7 +71,10 @@
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPointer>
+#if ATHENA_ENABLE_CODEX_BRIDGE
 #include <QProcess>
+#include <QProcessEnvironment>
+#endif
 #include <QPushButton>
 #include <QRandomGenerator>
 #include <QScrollArea>
@@ -266,16 +270,26 @@ codex_executable () {
   return QStandardPaths::findExecutable (name);
 }
 
+#if ATHENA_ENABLE_CODEX_BRIDGE
 static QProcessEnvironment
 codex_environment (const QString& home) {
   QProcessEnvironment env= QProcessEnvironment::systemEnvironment ();
   env.insert ("CODEX_HOME", home);
   return env;
 }
+#endif
 
 static void
 show_codex_login (QWidget* parent, const QString& home,
-                  const std::function<void ()>& finished) {
+                   const std::function<void ()>& finished) {
+#if !ATHENA_ENABLE_CODEX_BRIDGE
+  (void) home;
+  (void) finished;
+  QMessageBox::information (
+    parent, QObject::tr ("OpenAI Codex login"),
+    QObject::tr ("The Codex bridge is unavailable in this build."));
+  return;
+#else
   const QString executable= codex_executable ();
   if (executable.isEmpty ()) {
     QMessageBox::warning (parent, QObject::tr ("OpenAI Codex login"),
@@ -327,6 +341,7 @@ show_codex_login (QWidget* parent, const QString& home,
     });
   process->start (executable, {"login"});
   dialog->show ();
+#endif
 }
 
 static QString
@@ -2226,11 +2241,15 @@ QTMPreferencesDialog::buildOtherPage () {
   QLabel* codexStatus= new QLabel (ai);
   codexStatus->setWordWrap (true);
   auto refreshCodexStatus= [codexStatus] () {
+#if ATHENA_ENABLE_CODEX_BRIDGE
     QString executable= codex_executable ();
     codexStatus->setText (
       executable.isEmpty ()?
         "Codex executable not found. Install Codex or use a build that bundles it.":
         QString ("Codex executable: %1").arg (executable));
+#else
+    codexStatus->setText ("Codex bridge unavailable in this build.");
+#endif
   };
   refreshCodexStatus ();
   a->addRow (label ("Status:"), codexStatus);
@@ -2240,6 +2259,12 @@ QTMPreferencesDialog::buildOtherPage () {
   codexButtonLayout->setContentsMargins (0, 0, 0, 0);
   QPushButton* codexLogin= new QPushButton ("OpenAI Codex login", ai);
   QPushButton* codexLoginStatus= new QPushButton ("Check login status", ai);
+#if !ATHENA_ENABLE_CODEX_BRIDGE
+  codexHome->setEnabled (false);
+  chooseCodexHome->setEnabled (false);
+  codexLogin->setEnabled (false);
+  codexLoginStatus->setEnabled (false);
+#endif
   codexButtonLayout->addWidget (codexLogin);
   codexButtonLayout->addWidget (codexLoginStatus);
   codexButtonLayout->addStretch (1);
@@ -2262,6 +2287,7 @@ QTMPreferencesDialog::buildOtherPage () {
     show_codex_login (ai, codexHome->text (), refreshCodexStatus);
   });
   QObject::connect (codexLoginStatus, &QPushButton::clicked, [=] () {
+#if ATHENA_ENABLE_CODEX_BRIDGE
     QString executable= codex_executable ();
     if (executable.isEmpty ()) {
       codexStatus->setText ("Codex executable not found.");
@@ -2280,6 +2306,9 @@ QTMPreferencesDialog::buildOtherPage () {
     codexStatus->setText (result.isEmpty ()?
       QString ("Codex login status exited with code %1.")
         .arg (process.exitCode ()): result);
+#else
+    codexStatus->setText ("Codex bridge unavailable in this build.");
+#endif
   });
   finish_page (ai);
 
