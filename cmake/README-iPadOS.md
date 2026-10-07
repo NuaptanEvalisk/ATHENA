@@ -57,6 +57,14 @@ those files to the bundle resources. This check is not a bytecode ABI or
 source-freshness validator: the packaging job must produce matching target
 bytecode. Never relabel Linux bytecode by editing its stamp.
 
+The target Guile is built with `ATHENA_GUILE_BUNDLED_ONLY=1`. Its immutable
+bundle ignores source/bytecode mtimes, which Xcode copying and IPA installation
+do not preserve as compilation ordering. Missing or invalid bytecode is an
+error, not a request to interpret or compile source. This also applies to
+`primitive-load` startup entries: bundled source paths map to the corresponding
+application or standard-library `.go` files. ELF/VM compatibility validation
+remains enabled. Linux retains its existing freshness and development behavior.
+
 Application resources, precompiled application bytecode and Guile's standard
 library are collected into the bundle by `AthenaIOS.cmake` and
 `AthenaPackagedScheme.cmake`. Guile runtime library/framework packaging and

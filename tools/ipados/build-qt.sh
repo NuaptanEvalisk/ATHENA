@@ -7,7 +7,8 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ssh_target="${ATHENA_IPADOS_SSH_TARGET:-felix@127.0.0.1}"
 ssh_port="${ATHENA_IPADOS_SSH_PORT:-2222}"
 remote_developer_root="${ATHENA_IPADOS_REMOTE_DEVELOPER_ROOT:-/Users/felix/Developer}"
-jobs="${ATHENA_IPADOS_JOBS:-8}"
+remote_source="${ATHENA_IPADOS_REMOTE_SOURCE:-${remote_developer_root}/ATHENA}"
+jobs="${ATHENA_IPADOS_JOBS:-15}"
 phase="${1:-all}"
 
 case "${phase}" in
@@ -18,15 +19,16 @@ case "${phase}" in
     ;;
 esac
 
-"${script_dir}/bootstrap-vm.sh" --quiet
+"${script_dir}/sync-source-to-vm.sh"
 
 ssh -o BatchMode=yes -o ConnectTimeout=10 -p "${ssh_port}" \
-  "${ssh_target}" sh -s -- "${remote_developer_root}" "${jobs}" "${phase}" <<'REMOTE'
+  "${ssh_target}" sh -s -- "${remote_developer_root}" "${jobs}" "${phase}" "${remote_source}" <<'REMOTE'
 set -eu
 
 developer_root=$1
 jobs=$2
 phase=$3
+source_root=$4
 
 export PATH="/Users/felix/.cargo/bin:/opt/local/bin:/opt/local/sbin:$PATH"
 export LC_ALL=C
@@ -58,7 +60,7 @@ require_tool () {
   }
 }
 
-for tool in cmake ninja curl shasum tar xcrun clang python3; do
+for tool in cmake ninja curl shasum tar xcrun clang python3 git; do
   require_tool "$tool"
 done
 
@@ -91,6 +93,13 @@ download_qt () {
     echo "Qt configure script not found after extraction: $source_dir/configure" >&2
     exit 1
   }
+  for fix in "$source_root"/tools/ipados/patches/qt-*.patch; do
+    if git -C "$source_dir" apply --reverse --check "$fix" 2>/dev/null; then
+      continue
+    fi
+    git -C "$source_dir" apply --check "$fix"
+    git -C "$source_dir" apply "$fix"
+  done
 }
 
 configure_host () {

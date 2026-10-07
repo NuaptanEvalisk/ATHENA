@@ -1,0 +1,25 @@
+diff --git a/qtbase/src/plugins/platforms/ios/qiosplatformaccessibility.mm b/qtbase/src/plugins/platforms/ios/qiosplatformaccessibility.mm
+--- a/qtbase/src/plugins/platforms/ios/qiosplatformaccessibility.mm
++++ b/qtbase/src/plugins/platforms/ios/qiosplatformaccessibility.mm
+@@ -89,7 +89,6 @@ void QIOSPlatformAccessibility::notifyAccessibilityUpdate(QAccessibleEvent *event)
+     case QAccessible::ObjectCreated:
+     case QAccessible::ObjectShow:
+     case QAccessible::ObjectHide:
+-    case QAccessible::ObjectDestroyed:
+         invalidateCache(accessibleInterface);
+         switch (accessibleInterface->role()) {
+         case QAccessible::Window:
+@@ -102,6 +101,13 @@ void QIOSPlatformAccessibility::notifyAccessibilityUpdate(QAccessibleEvent *event)
+             UIAccessibilityPostNotification(UIAccessibilityLayoutChangedNotification, nil);
+         }
+         break;
++    case QAccessible::ObjectDestroyed:
++        // QWidget emits this after the derived widget destructor has run.
++        // Its cached accessibility interface must not query derived state
++        // (for example QAccessibleToolButton::role() calls QToolButton::menu()).
++        invalidateCache(accessibleInterface);
++        UIAccessibilityPostNotification(UIAccessibilityLayoutChangedNotification, nil);
++        break;
+     default:
+         break;
+     }

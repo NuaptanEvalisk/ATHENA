@@ -9,7 +9,7 @@ ssh_target="${ATHENA_IPADOS_SSH_TARGET:-felix@127.0.0.1}"
 ssh_port="${ATHENA_IPADOS_SSH_PORT:-2222}"
 remote_developer_root="${ATHENA_IPADOS_REMOTE_DEVELOPER_ROOT:-/Users/felix/Developer}"
 remote_source="${ATHENA_IPADOS_REMOTE_SOURCE:-${remote_developer_root}/ATHENA}"
-jobs="${ATHENA_IPADOS_JOBS:-8}"
+jobs="${ATHENA_IPADOS_JOBS:-15}"
 
 "${script_dir}/prepare-guile-bootstrap.sh"
 bootstrap_local="${repo_root}/build_qt6/ipados-guile-bootstrap/x86_64-unknown-linux-gnu"

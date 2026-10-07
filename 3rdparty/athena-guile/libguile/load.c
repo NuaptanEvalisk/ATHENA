@@ -30,6 +30,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <time.h>
 
 #ifdef HAVE_PWD_H
 #include <pwd.h>
@@ -78,6 +79,30 @@ static SCM *scm_loc_load_hook;
 
 /* The current reader (a fluid).  */
 static SCM the_reader = SCM_BOOL_F;
+#ifdef ATHENA_GUILE_BUNDLED_ONLY
+static SCM athena_load_bundled_file (SCM filename);
+#endif
+
+/* Temporary, opt-in startup diagnostics; timings include nested loads. */
+static double
+athena_load_clock (void)
+{
+  struct timespec now;
+  clock_gettime (CLOCK_MONOTONIC, &now);
+  return now.tv_sec * 1000.0 + now.tv_nsec / 1000000.0;
+}
+
+static void
+athena_load_trace (const char *event, SCM filename, double start)
+{
+  if (getenv ("ATHENA_GUILE_LOAD_TRACE") == NULL)
+    return;
+  char *name = scm_to_utf8_string (filename);
+  double now = athena_load_clock ();
+  fprintf (stderr, "ATHENA-LOAD %.3f %s %.3f %s\n",
+           now, event, start ? now - start : 0.0, name);
+  free (name);
+}
 
 
 SCM_DEFINE (scm_primitive_load, "primitive-load", 1, 0, 0, 
@@ -95,6 +120,11 @@ SCM_DEFINE (scm_primitive_load, "primitive-load", 1, 0, 0,
   SCM ret = SCM_UNSPECIFIED;
 
   SCM_VALIDATE_STRING (1, filename);
+#ifdef ATHENA_GUILE_BUNDLED_ONLY
+  return athena_load_bundled_file (filename);
+#endif
+  double source_start = athena_load_clock ();
+  athena_load_trace ("source-begin", filename, 0);
   if (scm_is_true (hook) && scm_is_false (scm_procedure_p (hook)))
     SCM_MISC_ERROR ("value of %load-hook is neither a procedure nor #f",
 		    SCM_EOL);
@@ -134,6 +164,7 @@ SCM_DEFINE (scm_primitive_load, "primitive-load", 1, 0, 0,
     scm_dynwind_end ();
     scm_close_port (port);
   }
+  athena_load_trace ("source-end", filename, source_start);
   return ret;
 }
 #undef FUNC_NAME
@@ -560,6 +591,11 @@ static int
 compiled_is_fresh (SCM full_filename, SCM compiled_filename,
                    struct stat *stat_source, struct stat *stat_compiled)
 {
+#ifdef ATHENA_GUILE_BUNDLED_ONLY
+  /* Immutable application resources are versioned together. Copy/sign/install
+     timestamps do not express source revisions. ELF validation still applies. */
+  return 1;
+#endif
   int compiled_is_newer;
   struct timespec source_mtime, compiled_mtime;
 
@@ -573,6 +609,7 @@ compiled_is_fresh (SCM full_filename, SCM compiled_filename,
   else
     {
       compiled_is_newer = 0;
+      athena_load_trace ("bytecode-stale", compiled_filename, 0);
       scm_puts (";;; note: source file ", scm_current_warning_port ());
       scm_display (full_filename, scm_current_warning_port ());
       scm_puts ("\n;;;       newer than compiled ", scm_current_warning_port ());
@@ -621,12 +658,17 @@ load_thunk_from_file_catch_handler (void *data, SCM tag, SCM throw_args)
 static SCM
 try_load_thunk_from_file (SCM filename)
 {
-  return scm_c_catch (SCM_BOOL_T,
+  double start = athena_load_clock ();
+  athena_load_trace ("bytecode-open", filename, 0);
+  SCM result = scm_c_catch (SCM_BOOL_T,
                       do_load_thunk_from_file,
                       SCM_UNPACK_POINTER (filename),
                       load_thunk_from_file_catch_handler,
                       SCM_UNPACK_POINTER (filename),
                       NULL, NULL);
+  athena_load_trace (scm_is_false (result) ? "bytecode-rejected" : "bytecode-ready",
+                     filename, start);
+  return result;
 }
 
 /* Search the %load-compiled-path for a directory containing a file
@@ -1287,6 +1329,48 @@ canonical_suffix (SCM fname)
   return canon;
 }
 
+#ifdef ATHENA_GUILE_BUNDLED_ONLY
+static SCM
+athena_load_bundled_file (SCM filename)
+{
+  const char *sources[] = { getenv ("ATHENA_GUILE_SOURCE_ROOT"),
+                            getenv ("GUILE_SYSTEM_PATH") };
+  const char *compiled[] = { getenv ("ATHENA_GUILE_CACHE_PATH"),
+                             getenv ("GUILE_SYSTEM_COMPILED_PATH") };
+  SCM canon = scm_canonicalize_path (filename);
+  for (size_t i = 0; i < 2; ++i)
+    {
+      size_t root_len;
+      if (!sources[i] || !compiled[i])
+        continue;
+      SCM root = scm_canonicalize_path (scm_from_utf8_string (sources[i]));
+      if (!athena_path_below_root_p (canon, root, &root_len))
+        continue;
+      size_t end = scm_c_string_length (canon);
+      char *chars = scm_to_utf8_string (canon);
+      size_t bytes = strlen (chars);
+      if (bytes >= 4 && strcmp (chars + bytes - 4, ".scm") == 0)
+        end -= 4;
+      free (chars);
+      SCM file = scm_string_append (scm_list_3 (
+        scm_from_utf8_string (compiled[i]), scm_c_substring (canon, root_len, end),
+        scm_from_utf8_string (".go")));
+      double start = athena_load_clock ();
+      athena_load_trace ("bundled-entry-begin", file, 0);
+      SCM thunk = scm_load_thunk_from_file (file);
+      SCM hook = *scm_loc_load_hook;
+      if (scm_is_true (hook))
+        scm_call_1 (hook, filename);
+      SCM result = scm_call_0 (thunk);
+      athena_load_trace ("bundled-entry-end", file, start);
+      return result;
+    }
+  scm_misc_error ("primitive-load", "No bundled bytecode mapping for ~S",
+                  scm_list_1 (filename));
+  return SCM_UNSPECIFIED;
+}
+#endif
+
 SCM_DEFINE (scm_primitive_load_path, "primitive-load-path", 0, 0, 1,
 	    (SCM args),
 	    "Search @var{%load-path} for the file named @var{filename} and\n"
@@ -1334,6 +1418,9 @@ SCM_DEFINE (scm_primitive_load_path, "primitive-load-path", 0, 0, 1,
 
   if (SCM_UNBNDP (exception_on_not_found))
     exception_on_not_found = SCM_BOOL_T;
+
+  double lookup_start = athena_load_clock ();
+  athena_load_trace ("lookup-begin", filename, 0);
 
   full_filename = search_path (*scm_loc_load_path, filename,
                                *scm_loc_load_extensions, SCM_BOOL_F,
@@ -1388,10 +1475,22 @@ SCM_DEFINE (scm_primitive_load_path, "primitive-load-path", 0, 0, 1,
   if (!scm_is_false (hook))
     scm_call_1 (hook, full_filename);
 
+  athena_load_trace ("lookup-end", filename, lookup_start);
   if (scm_is_true (compiled_thunk))
-    return scm_call_0 (compiled_thunk);
+    {
+      double start = athena_load_clock ();
+      athena_load_trace ("bytecode-execute-begin", filename, 0);
+      SCM result = scm_call_0 (compiled_thunk);
+      athena_load_trace ("bytecode-execute-end", filename, start);
+      return result;
+    }
   else
     {
+#ifdef ATHENA_GUILE_BUNDLED_ONLY
+      scm_misc_error ("primitive-load-path",
+                      "Required bundled bytecode is missing or invalid: ~S",
+                      scm_list_1 (filename));
+#endif
       SCM freshly_compiled = scm_try_auto_compile (full_filename);
 
       if (scm_is_true (freshly_compiled))
@@ -1437,9 +1536,14 @@ scm_init_eval_in_scheme (void)
   if (scm_is_true (eval_thunk))
     scm_call_0 (eval_thunk);
   else
+#ifdef ATHENA_GUILE_BUNDLED_ONLY
+    scm_misc_error ("Guile startup", "Required bundled ice-9/eval.go is unavailable",
+                    SCM_EOL);
+#else
     /* If we have no eval.go, we shouldn't load any compiled code at all
        because we can't guarantee that tail calls will work.  */
     *scm_loc_load_compiled_path = SCM_EOL;
+#endif
 }
 
 
@@ -1485,6 +1589,11 @@ init_build_info ()
 void
 scm_init_load ()
 {
+#ifdef ATHENA_GUILE_BUNDLED_ONLY
+  scm_c_define ("%athena-bundled-bytecode-only?", SCM_BOOL_T);
+#else
+  scm_c_define ("%athena-bundled-bytecode-only?", SCM_BOOL_F);
+#endif
   athena_deferred_auto_compilations = SCM_EOL;
   scm_gc_protect_object (athena_deferred_auto_compilations);
   scm_listofnullstr = scm_list_1 (scm_nullstr);
@@ -1524,6 +1633,11 @@ scm_init_load ()
 void
 scm_init_load_should_auto_compile ()
 {
+#ifdef ATHENA_GUILE_BUNDLED_ONLY
+  *scm_loc_load_should_auto_compile = SCM_BOOL_F;
+  *scm_loc_fresh_auto_compile = SCM_BOOL_F;
+  return;
+#endif
   char *auto_compile = getenv ("GUILE_AUTO_COMPILE");
 
   if (auto_compile && strcmp (auto_compile, "0") == 0)

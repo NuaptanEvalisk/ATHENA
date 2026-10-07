@@ -4242,7 +4242,8 @@ when none is available, reading FILE-NAME with READER."
 
   (define (more-recent? stat1 stat2)
     ;; Return #t when STAT1 has an mtime greater than that of STAT2.
-    (or (> (stat:mtime stat1) (stat:mtime stat2))
+    (or %athena-bundled-bytecode-only?
+        (> (stat:mtime stat1) (stat:mtime stat2))
         (and (= (stat:mtime stat1) (stat:mtime stat2))
              (>= (stat:mtimensec stat1)
                  (stat:mtimensec stat2)))))

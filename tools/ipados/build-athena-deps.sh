@@ -8,7 +8,7 @@ ssh_target="${ATHENA_IPADOS_SSH_TARGET:-felix@127.0.0.1}"
 ssh_port="${ATHENA_IPADOS_SSH_PORT:-2222}"
 remote_developer_root="${ATHENA_IPADOS_REMOTE_DEVELOPER_ROOT:-/Users/felix/Developer}"
 remote_source="${ATHENA_IPADOS_REMOTE_SOURCE:-${remote_developer_root}/ATHENA}"
-jobs="${ATHENA_IPADOS_JOBS:-8}"
+jobs="${ATHENA_IPADOS_JOBS:-15}"
 phase="${1:-mimalloc}"
 
 case "$phase" in
@@ -227,7 +227,7 @@ EOF
     -DATHENA_IPADOS_TARGET_PREFIX="$prefix" \
     -DCMAKE_PREFIX_PATH="$prefix" \
     -DCMAKE_BUILD_TYPE=Release
-  cmake --build "$probe/build" --parallel 4 --verbose
+  cmake --build "$probe/build" --parallel "$jobs" --verbose
 
   printf '%s\n' "$prefix" > \
     "$developer_root/athena-artifacts/athena-deps-ipados-prefix.path"
@@ -312,7 +312,7 @@ EOF
     -DBOOST_ROOT="$prefix" \
     -DBoost_NO_SYSTEM_PATHS=ON \
     -DCMAKE_BUILD_TYPE=Release
-  cmake --build "$probe/build" --parallel 4 --verbose
+  cmake --build "$probe/build" --parallel "$jobs" --verbose
 
   printf '%s\n' "$prefix" > \
     "$developer_root/athena-artifacts/athena-deps-ipados-prefix.path"
@@ -328,6 +328,14 @@ build_vtk () {
   driver_prefix="$build_root/vtk-$version-driver-prefix"
   build="$build_root/vtk-$version-device-arm64"
   patch_file="$source_root/tools/ipados/patches/vtk-9.7.0-ipados-gles-header.patch"
+
+  # Share ATHENA's physical font and image libraries, not VTK's bundled copies.
+  for dependency in freetype png16 jpeg z; do
+    test -f "$prefix/lib/lib${dependency}.a" || {
+      echo "Build the iPadOS font-stack and jpeg phases before vtk: missing lib${dependency}.a" >&2
+      exit 1
+    }
+  done
 
   if [ ! -d "$src/.git" ]; then
     banner "Cloning VTK $tag with progress"
@@ -394,12 +402,29 @@ build_vtk () {
   }
 
   banner "Configuring VTK $version static arm64 iPadOS 27 target"
+  # VTK's finder first tries lowercase freetype-config.cmake. That export
+  # omits dependency discovery; use its FindFreetype module branch instead.
   cmake -S "$src" -B "$build" -G Ninja \
     -DCMAKE_TOOLCHAIN_FILE="$vtk_toolchain" \
     -DCMAKE_CROSSCOMPILING=ON \
     -DCMAKE_SYSTEM_PROCESSOR=arm64 \
     -DVTKCompileTools_DIR="$driver/CompileTools" \
     -DCMAKE_INSTALL_PREFIX="$prefix" \
+    -DCMAKE_PREFIX_PATH="$prefix" \
+    -DVTK_MODULE_USE_EXTERNAL_VTK_freetype=ON \
+    -DVTK_MODULE_USE_EXTERNAL_VTK_png=ON \
+    -DVTK_MODULE_USE_EXTERNAL_VTK_jpeg=ON \
+    -DVTK_MODULE_USE_EXTERNAL_VTK_zlib=ON \
+    -DCMAKE_DISABLE_FIND_PACKAGE_freetype=ON \
+    -DFREETYPE_INCLUDE_DIR_ft2build="$prefix/include/freetype2" \
+    -DFREETYPE_INCLUDE_DIR_freetype2="$prefix/include/freetype2" \
+    -DFREETYPE_LIBRARY_RELEASE="$prefix/lib/libfreetype.a" \
+    -DPNG_PNG_INCLUDE_DIR="$prefix/include" \
+    -DPNG_LIBRARY_RELEASE="$prefix/lib/libpng16.a" \
+    -DJPEG_INCLUDE_DIR="$prefix/include" \
+    -DJPEG_LIBRARY_RELEASE="$prefix/lib/libjpeg.a" \
+    -DZLIB_INCLUDE_DIR="$prefix/include" \
+    -DZLIB_LIBRARY_RELEASE="$prefix/lib/libz.a" \
     -DCMAKE_INSTALL_LIBDIR=lib \
     -DCMAKE_BUILD_TYPE=Release \
     -DBUILD_SHARED_LIBS=OFF \
@@ -490,7 +515,7 @@ EOF
     -DOPENGL_INCLUDE_DIR="$opengles/Headers" \
     -DOPENGL_gl_LIBRARY="$opengles/OpenGLES.tbd" \
     -DCMAKE_BUILD_TYPE=Release
-  cmake --build "$probe/build" --parallel 4 --verbose
+  cmake --build "$probe/build" --parallel "$jobs" --verbose
 
   printf '%s\n' "$prefix" > \
     "$developer_root/athena-artifacts/vtk-ipados-prefix.path"
@@ -612,7 +637,7 @@ EOF
       -DATHENA_IPADOS_TARGET_PREFIX="$prefix" \
       -DCMAKE_PREFIX_PATH="$prefix" \
       -DCMAKE_BUILD_TYPE=Release
-  cmake --build "$probe/build" --parallel 4 --verbose
+  cmake --build "$probe/build" --parallel "$jobs" --verbose
   echo "zstd $version iPadOS dependency ready: $prefix"
 }
 
@@ -729,7 +754,7 @@ EOF
     -DATHENA_IPADOS_TARGET_PREFIX="$prefix" \
     -DCMAKE_PREFIX_PATH="$prefix" \
     -DCMAKE_BUILD_TYPE=Release
-  cmake --build "$probe/build" --parallel 4 --verbose
+  cmake --build "$probe/build" --parallel "$jobs" --verbose
   echo "libpng $version iPadOS dependency ready: $prefix"
 }
 
@@ -811,7 +836,7 @@ EOF
     -DJPEG_INCLUDE_DIR="$prefix/include" \
     -DJPEG_LIBRARY="$prefix/lib/libjpeg.a" \
     -DCMAKE_BUILD_TYPE=Release
-  cmake --build "$probe/build" --parallel 4 --verbose
+  cmake --build "$probe/build" --parallel "$jobs" --verbose
   echo "libjpeg-turbo $version iPadOS dependency ready: $prefix"
 }
 
@@ -939,7 +964,7 @@ EOF
     -DATHENA_IPADOS_TARGET_PREFIX="$prefix" \
     -DCMAKE_PREFIX_PATH="$prefix" \
     -DCMAKE_BUILD_TYPE=Release
-  cmake --build "$probe/build" --parallel 4 --verbose
+  cmake --build "$probe/build" --parallel "$jobs" --verbose
   echo "FreeType $version iPadOS dependency ready: $prefix"
 }
 
@@ -1037,7 +1062,7 @@ EOF
       -DATHENA_IPADOS_TARGET_PREFIX="$prefix" \
       -DCMAKE_PREFIX_PATH="$prefix" \
       -DCMAKE_BUILD_TYPE=Release
-  cmake --build "$probe/build" --parallel 4 --verbose
+  cmake --build "$probe/build" --parallel "$jobs" --verbose
   echo "HarfBuzz $version iPadOS dependency ready: $prefix"
 }
 
@@ -1156,7 +1181,7 @@ build_kf6_syntax () {
     -DBUILD_HTML_DOCS=OFF \
     -DBUILD_MAN_DOCS=OFF \
     -DBUILD_QTHELP_DOCS=OFF
-  cmake --build "$ecm_build" --parallel 4 --verbose
+  cmake --build "$ecm_build" --parallel "$jobs" --verbose
   cmake --install "$ecm_build" --verbose
   ecm_dir="$ecm_prefix/share/ECM/cmake"
   test -f "$ecm_dir/ECMConfig.cmake" || {
@@ -1183,7 +1208,7 @@ EOF
     -DQt6_DIR="$host_qt/lib/cmake/Qt6" \
     -DCMAKE_PREFIX_PATH="$host_qt" \
     -DCMAKE_BUILD_TYPE=Release
-  cmake --build "$indexer_root/build" --parallel 4 --verbose
+  cmake --build "$indexer_root/build" --parallel "$jobs" --verbose
   test -x "$indexer" || {
     echo "Native katehighlightingindexer was not produced" >&2
     exit 1
@@ -1246,7 +1271,7 @@ EOF
     -DCMAKE_PREFIX_PATH="$prefix" \
     -DKF6SyntaxHighlighting_DIR="$prefix/lib/cmake/KF6SyntaxHighlighting" \
     -DCMAKE_BUILD_TYPE=Release
-  cmake --build "$probe/build" --parallel 4 --verbose
+  cmake --build "$probe/build" --parallel "$jobs" --verbose
   echo "KF6 SyntaxHighlighting $version iPadOS dependency ready: $prefix"
 }
 
@@ -1369,7 +1394,7 @@ EOF
     -Dpegtl_DIR="$prefix/share/pegtl/cmake" \
     -Dmsgpack-cxx_DIR="$prefix/lib/cmake/msgpack-cxx" \
     -DCMAKE_BUILD_TYPE=Release
-  cmake --build "$probe/build" --parallel 4 --verbose
+  cmake --build "$probe/build" --parallel "$jobs" --verbose
 }
 
 build_spdlog () {
@@ -1448,7 +1473,7 @@ EOF
       -DATHENA_IPADOS_TARGET_PREFIX="$prefix" \
       -DCMAKE_PREFIX_PATH="$prefix" \
       -DCMAKE_BUILD_TYPE=Release
-  cmake --build "$probe/build" --parallel 4 --verbose
+  cmake --build "$probe/build" --parallel "$jobs" --verbose
   echo "spdlog $version iPadOS dependency ready: $prefix"
 }
 
@@ -1542,7 +1567,7 @@ EOF
       -DATHENA_IPADOS_TARGET_PREFIX="$prefix" \
       -DCMAKE_PREFIX_PATH="$prefix" \
       -DCMAKE_BUILD_TYPE=Release
-  cmake --build "$probe/build" --parallel 4 --verbose
+  cmake --build "$probe/build" --parallel "$jobs" --verbose
   echo "Hunspell $version iPadOS dependency ready: $prefix"
 }
 
@@ -1653,7 +1678,7 @@ EOF
       -DATHENA_IPADOS_TARGET_PREFIX="$prefix" \
       -DCMAKE_PREFIX_PATH="$prefix" \
       -DCMAKE_BUILD_TYPE=Release
-  cmake --build "$probe/build" --parallel 4 --verbose
+  cmake --build "$probe/build" --parallel "$jobs" --verbose
   echo "LMDB $version + lmdbxx $lmdbxx_version iPadOS dependency ready: $prefix"
 }
 
@@ -2022,7 +2047,7 @@ EOF
     -DICU_UC_LIBRARY_RELEASE="$prefix/lib/libicuuc.a" \
     -DICU_I18N_LIBRARY_RELEASE="$prefix/lib/libicui18n.a" \
     -DCMAKE_BUILD_TYPE=Release
-  cmake --build "$probe/build" --parallel 4 --verbose
+  cmake --build "$probe/build" --parallel "$jobs" --verbose
   file "$probe/build/probe"
   build_version=$(xcrun vtool -show-build "$probe/build/probe")
   printf '%s\n' "$build_version"

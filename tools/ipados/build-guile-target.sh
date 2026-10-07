@@ -8,7 +8,7 @@ ssh_target="${ATHENA_IPADOS_SSH_TARGET:-felix@127.0.0.1}"
 ssh_port="${ATHENA_IPADOS_SSH_PORT:-2222}"
 remote_developer_root="${ATHENA_IPADOS_REMOTE_DEVELOPER_ROOT:-/Users/felix/Developer}"
 remote_source="${ATHENA_IPADOS_REMOTE_SOURCE:-${remote_developer_root}/ATHENA}"
-jobs="${ATHENA_IPADOS_JOBS:-8}"
+jobs="${ATHENA_IPADOS_JOBS:-15}"
 
 "${script_dir}/bootstrap-vm.sh" --quiet
 "${script_dir}/sync-source-to-vm.sh"
@@ -192,7 +192,7 @@ export NM="$nm"
 export STRIP="$strip"
 export CFLAGS="$target_flags -O2 -g -std=gnu17 -fPIC -fno-omit-frame-pointer"
 export CXXFLAGS="$target_flags -O2 -g -fPIC -fno-omit-frame-pointer"
-export CPPFLAGS="-isysroot $sdk -I$target_prefix/include"
+export CPPFLAGS="-DATHENA_GUILE_BUNDLED_ONLY=1 -isysroot $sdk -I$target_prefix/include"
 export LDFLAGS="$target_flags -L$target_prefix/lib"
 export LIBS='-liconv -framework CoreFoundation'
 export PKG_CONFIG_LIBDIR="$target_prefix/lib/pkgconfig:$target_prefix/share/pkgconfig"
@@ -200,7 +200,7 @@ export PKG_CONFIG_PATH=
 export GUILE_FOR_BUILD="$host_guile"
 export DYLD_LIBRARY_PATH="$host_prefix/lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
 
-config_signature="build=$build_triplet|host=$target_triplet|sdk=$sdk|min=27.0|source=$source_digest|static|nojit|nolto|libs=iconv+CoreFoundation"
+config_signature="build=$build_triplet|host=$target_triplet|sdk=$sdk|min=27.0|source=$source_digest|static|nojit|nolto|bundled-bytecode-only|libs=iconv+CoreFoundation"
 config_stamp="$target_build/.athena-target-config"
 configured=0
 if [ -f "$target_build/Makefile" ] && \

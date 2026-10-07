@@ -113,6 +113,7 @@ cmake -S "$source_root" -B "$build_dir" -G Xcode \
   -DATHENA_IPADOS_TARGET_PREFIX="$runtime_prefix" \
   -DATHENA_IPADOS_TARGET_PREFIXES="$runtime_prefix;$deps_prefix" \
   -DQT_ADDITIONAL_PACKAGES_PREFIX_PATH="$deps_prefix" \
+  -DCMAKE_DISABLE_FIND_PACKAGE_freetype=ON \
   -DKF6SyntaxHighlighting_DIR="$deps_prefix/lib/cmake/KF6SyntaxHighlighting" \
   -DATHENA_GUILE_PREBUILT_PREFIX="$runtime_prefix" \
   -DATHENA_GUILE_PREBUILT_CONFIG_HEADER="$guile_config" \
@@ -138,4 +139,3 @@ cmake -LA -N "$build_dir" | grep -E \
   '^(ATHENA_|CMAKE_OSX_|CMAKE_SYSTEM_NAME|Qt6_DIR|CMAKE_TOOLCHAIN_FILE)' \
   | sort
 REMOTE
-

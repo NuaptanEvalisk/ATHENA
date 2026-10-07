@@ -23,6 +23,7 @@
 #include <QTimer>
 #include <QUuid>
 #include <QWindow>
+#include <cstdio>
 #include <DockWidget.h>
 #import <UIKit/UIKit.h>
 
@@ -37,7 +38,7 @@ struct PendingPane {
   QPointer<ads::CDockWidget> pane;
 };
 QHash<QString, PendingPane> pending;
-NSMutableDictionary<NSString*, Class>* sceneDelegateClasses;
+id<UIApplicationDelegate> qt_application_delegate ();
 UIBackgroundTaskIdentifier backgroundTask= UIBackgroundTaskInvalid;
 
 void checkpoint () {
@@ -76,30 +77,11 @@ QString actionTitle (QAction* action) {
 
 // Keep Qt's delegate and view controller implementations in charge of QPA,
 // input and the run loop. Forward rather than copying or swizzling Qt internals.
-@interface ATHENASceneHost : UIViewController {
-@public
-  QPointer<QTMMainTabWindow> shell;
-}
-@end
-
-@implementation ATHENASceneHost
-- (void)viewDidLayoutSubviews {
-  [super viewDidLayoutSubviews];
-  if (shell) {
-    CGRect bounds= self.view.bounds;
-    shell->resize (qRound (bounds.size.width), qRound (bounds.size.height));
-    UIView* view= native_view (shell->winId ());
-    view.frame= bounds;
-  }
-}
-@end
-
 @interface ATHENASceneDelegate : NSObject<UIWindowSceneDelegate> {
 @public
   QPointer<QTMMainTabWindow> shell;
 }
 @property(nonatomic, strong) id<UIWindowSceneDelegate> downstream;
-@property(nonatomic, strong) ATHENASceneHost* host;
 @end
 
 @implementation ATHENASceneDelegate
@@ -112,8 +94,14 @@ QString actionTitle (QAction* action) {
 - (UIWindow*)window { return self.downstream.window; }
 - (void)setWindow:(UIWindow*)window { self.downstream.window= window; }
 - (void)scene:(UIScene*)scene willConnectToSession:(UISceneSession*)session options:(UISceneConnectionOptions*)options {
-  Class delegateClass= sceneDelegateClasses[session.persistentIdentifier];
-  [sceneDelegateClasses removeObjectForKey:session.persistentIdentifier];
+  // UIKit may restore a persisted scene delegate without asking the app for a
+  // new configuration. Resolve Qt's delegate here, not from a transient map
+  // populated only by configurationForConnectingSceneSession.
+  UISceneConfiguration* config= [qt_application_delegate ()
+    application:UIApplication.sharedApplication
+    configurationForConnectingSceneSession:session options:options];
+  Class delegateClass= config.delegateClass;
+  config.delegateClass= ATHENASceneDelegate.class;
   self.downstream= [[delegateClass alloc] init];
   [self.downstream scene:scene willConnectToSession:session options:options];
   if (![scene isKindOfClass:UIWindowScene.class] || !self.window) return;
@@ -138,17 +126,12 @@ QString actionTitle (QAction* action) {
   if (move.pane) shell->adoptPane (move.pane);
 
   UIViewController* root= self.window.rootViewController;
-  self.host= [ATHENASceneHost new];
-  self.host->shell= shell;
-  [root addChildViewController:self.host];
-  self.host.view.frame= root.view.bounds;
-  self.host.view.autoresizingMask= UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-  [root.view addSubview:self.host.view];
-  [self.host didMoveToParentViewController:root];
+  // QUIView resolves its Qt controller through the native responder chain.
+  // An intermediate UIViewController breaks that lookup and Qt's root layout.
   UIView* qtView= native_view (shell->winId ());
-  [self.host.view addSubview:qtView];
-  shell->showShell ();
-  [self.host.view setNeedsLayout];
+  [root.view addSubview:qtView];
+  shell->showMaximized ();
+  [root.view setNeedsLayout];
   [self.window makeKeyAndVisible];
 }
 - (void)sceneDidBecomeActive:(UIScene*)scene {
@@ -174,10 +157,6 @@ QString actionTitle (QAction* action) {
     shell->hide ();
     [native_view (shell->winId ()) removeFromSuperview];
   }
-  [self.host willMoveToParentViewController:nil];
-  [self.host.view removeFromSuperview];
-  [self.host removeFromParentViewController];
-  self.host= nil;
   checkpoint ();
   if ([self.downstream respondsToSelector:_cmd]) [self.downstream sceneDidDisconnect:scene];
 }
@@ -200,7 +179,6 @@ QString actionTitle (QAction* action) {
   UISceneConfiguration* config= [self.downstream application:application
     configurationForConnectingSceneSession:session options:options];
   if ([session.role isEqualToString:UIWindowSceneSessionRoleApplication]) {
-    sceneDelegateClasses[session.persistentIdentifier]= config.delegateClass;
     config.delegateClass= ATHENASceneDelegate.class;
   }
   return config;
@@ -318,6 +296,10 @@ QString actionTitle (QAction* action) {
 namespace {
 ATHENAApplicationDelegate* applicationDelegate;
 
+id<UIApplicationDelegate> qt_application_delegate () {
+  return applicationDelegate.downstream;
+}
+
 class ScenePopupRouter: public QObject {
 public:
   using QObject::QObject;
@@ -341,7 +323,6 @@ public:
 }
 
 void athena_ios_install_application_bridge () {
-  sceneDelegateClasses= [NSMutableDictionary new];
   applicationDelegate= [ATHENAApplicationDelegate new];
   applicationDelegate.downstream= UIApplication.sharedApplication.delegate;
   UIApplication.sharedApplication.delegate= applicationDelegate;
@@ -349,6 +330,31 @@ void athena_ios_install_application_bridge () {
 
 void athena_ios_register_shell (QTMMainTabWindow* shell) {
   if (!primary) primary= shell;
+  // Temporary snapshot after startup, without changing the native hierarchy.
+  QTimer::singleShot (5000, shell, [shell] {
+    UIView* view= native_view (shell->winId ());
+    std::fprintf (stderr, "ATHENA-WINDOW shell=%p visible=%d size=%dx%d native=%p window=%p frame=%s\n",
+      static_cast<void*> (shell), shell->isVisible (), shell->width (), shell->height (),
+      (__bridge void*) view, (__bridge void*) view.window,
+      NSStringFromCGRect (view.frame).UTF8String);
+    for (UIScene* scene in UIApplication.sharedApplication.connectedScenes) {
+      std::fprintf (stderr, "ATHENA-SCENE class=%s delegate=%s state=%ld\n",
+        NSStringFromClass (scene.class).UTF8String,
+        NSStringFromClass ([scene.delegate class]).UTF8String,
+        (long) scene.activationState);
+      if (![scene isKindOfClass:UIWindowScene.class]) continue;
+      for (UIWindow* window in ((UIWindowScene*) scene).windows) {
+        std::fprintf (stderr, "ATHENA-UIWINDOW %p class=%s hidden=%d key=%d frame=%s root=%s\n",
+          (__bridge void*) window, NSStringFromClass (window.class).UTF8String,
+          window.hidden, window.isKeyWindow, NSStringFromCGRect (window.frame).UTF8String,
+          NSStringFromClass (window.rootViewController.class).UTF8String);
+        for (UIView* child in window.rootViewController.view.subviews)
+          std::fprintf (stderr, "ATHENA-UIVIEW %p class=%s hidden=%d frame=%s\n",
+            (__bridge void*) child, NSStringFromClass (child.class).UTF8String,
+            child.hidden, NSStringFromCGRect (child.frame).UTF8String);
+      }
+    }
+  });
   static bool routingInstalled= false;
   if (!routingInstalled) {
     routingInstalled= true;

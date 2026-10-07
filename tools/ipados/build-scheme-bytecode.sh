@@ -6,7 +6,7 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd -- "${script_dir}/../.." && pwd)"
 
 build_root="${ATHENA_LINUX_BUILD_ROOT:-${repo_root}/build_qt6}"
-jobs="${ATHENA_IPADOS_JOBS:-8}"
+jobs="${ATHENA_LINUX_JOBS:-20}"
 runtime_id="athena-guile-3.0.10-ipados-arm64-nojit"
 scheme_target="aarch64-apple-darwin"
 output="${build_root}/ipados-scheme/${runtime_id}"

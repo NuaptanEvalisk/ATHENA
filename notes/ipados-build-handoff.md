@@ -205,8 +205,10 @@ valid, its explicit application build has this shape:
 
 ```sh
 cmake --build /Users/felix/Developer/athena-build/ipados \
-  --config Debug --target ATHENA -j20
+  --config Debug --target ATHENA -j15
 ```
+
+The 16-vCPU macOS VM uses `-j15`; Linux native builds use `-j20`.
 
 This is not a ready-to-run configure recipe. Supply real target prefixes and
 the Qt iOS toolchain first. Dependency/bootstrap jobs also need explicit targets
@@ -330,7 +332,7 @@ separate and unchanged.
 ### 4. Compile ATHENA And Correct Real Platform Failures
 
 Configure the isolated device target with the real dependency prefixes and
-`BUILD_TESTS=OFF`; build the explicit application target with `-j20`. Work through
+`BUILD_TESTS=OFF`; build the explicit application target with `-j15`. Work through
 real configuration, compilation and linkage failures by fixing their owning
 layer. Do not weaken ownership assertions, discard functionality, or add a web
 replacement merely to obtain a binary.

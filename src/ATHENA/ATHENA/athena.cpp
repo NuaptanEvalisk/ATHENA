@@ -78,6 +78,9 @@
 #include "QTMAudmap.hpp"
 #include "Qt/qt_utilities.hpp"
 #include <QApplication>
+#if ATHENA_PLATFORM_IPADOS
+#include <QDebug>
+#endif
 #include <QDir>
 #include <QTimer>
 #endif
@@ -580,6 +583,10 @@ static QTMCoreApplication* qtmcoreapp= NULL;
 
 static void
 startup_progress (int progress, string message) {
+#if ATHENA_PLATFORM_IPADOS
+  qInfo ("ATHENA startup %d: %s", progress,
+         athena_to_std_string (message).c_str ());
+#endif
   if (!headless_mode && qtmapp != NULL && !no_splash_screen)
     qtmapp->set_splash_progress (progress, message);
 }
