@@ -143,7 +143,10 @@ void QTMApplication::load() {
   bench_cumul ("initialize qt theme");
 
   bench_start ("construct qt tab shell");
-  new QTMMainTabWindow();
+  // UIKit can connect the first Scene while startup processes splash events.
+  // Reuse that Scene's shell instead of covering it with a second window.
+  if (QTMMainTabWindow::topTabWindow () == nullptr)
+    new QTMMainTabWindow ();
   bench_cumul ("construct qt tab shell");
   bench_start ("initialize native commands");
   (void) QTMCommandRegistry::instance ().initialize ();

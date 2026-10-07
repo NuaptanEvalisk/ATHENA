@@ -347,7 +347,8 @@ athenaMainWindowBaseTitle() {
 }
 
 QTMMainTabWindow::QTMMainTabWindow()
-  : mLastFocusedDocumentWidget (nullptr), mAdsLayoutRestoreScheduled (false) {
+  : mLastFocusedDocumentWidget (nullptr), mAdsLayoutRestoreScheduled (false),
+    mAdsLayoutRestoreAttempted (false) {
   bench_start ("construct main window base widgets");
   setWindowTitle (athenaMainWindowBaseTitle());
   bench_cumul ("construct main window base widgets");
@@ -678,6 +679,12 @@ void QTMMainTabWindow::saveAdsLayoutState() {
 
 void QTMMainTabWindow::restoreAdsLayoutState() {
   if (!adsLayoutPersistenceEnabled() || mDockManager == nullptr) return;
+  if (mAdsLayoutRestoreAttempted) return;
+  mAdsLayoutRestoreAttempted= true;
+
+  // This cache contains tool panes only. ADS closes and unassigns every dock
+  // absent from it, so it must never be restored over live document panes.
+  if (!documentWidgets ().isEmpty ()) return;
 
   QString path= adsLayoutStatePath();
   if (path.isEmpty()) return;
@@ -832,6 +839,7 @@ void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
       }
     }
   }
+  if (isDocument) restoreAdsLayoutState ();
   QPointer<ads::CDockAreaWidget> documentArea;
   if (isDocument) {
     if (ads::CDockWidget* current= adsDockWidgetFor (currentDocumentWidget ()))
@@ -884,7 +892,6 @@ void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
     else
       mDockManager->addDockWidget(ads::CenterDockWidgetArea, dockWidget);
 
-    scheduleAdsLayoutRestore();
     mDockManager->setDockWidgetFocused (dockWidget);
     if (QWidget* focusTarget= documentFocusTarget(widget))
       focusTarget->setFocus(Qt::OtherFocusReason);

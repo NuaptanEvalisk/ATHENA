@@ -237,7 +237,7 @@ tt_platform_characteristics (FcPattern* pattern) {
                "mono=yes": "mono=no");
   int weight= FC_WEIGHT_REGULAR;
   if (FcPatternGetInteger (pattern, FC_WEIGHT, 0, &weight) == FcResultMatch)
-    result << (string ("weight=") * as_string (weight));
+    result << (string ("weight=") * as_string (FcWeightToOpenType (weight)));
   int width= FC_WIDTH_NORMAL;
   if (FcPatternGetInteger (pattern, FC_WIDTH, 0, &width) == FcResultMatch)
     result << (string ("width=") * as_string (width));

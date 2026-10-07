@@ -103,6 +103,7 @@ private:
   QList<QPair<QPointer<ads::CDockWidget>, ads::DockWidgetArea>>
     mAdsDocksToReveal;
   bool mAdsLayoutRestoreScheduled;
+  bool mAdsLayoutRestoreAttempted;
 };
 
 #endif // QTMMAINTABWINDOW_HPP

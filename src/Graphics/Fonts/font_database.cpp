@@ -45,7 +45,7 @@ font_database_is_tt_file (string name) {
 #define GLOBAL_SUBSTITUTIONS "$ATHENA_PATH/fonts/font-substitutions.scm"
 #define CHARACTERISTICS_CACHE \
   "$ATHENA_HOME_PATH/system/cache/font-characteristics.json"
-#define CHARACTERISTICS_CACHE_VERSION 1
+#define CHARACTERISTICS_CACHE_VERSION 2
 
 static string
 font_database_cache_stamp (url u) {
@@ -58,7 +58,7 @@ string
 font_database_cache_signature () {
   array<url> files;
   files << url (GLOBAL_SUBSTITUTIONS);
-  string r= "4;catalog=" * tt_font_catalog_signature ();
+  string r= "5;catalog=" * tt_font_catalog_signature ();
   for (int i=0; i<N(files); i++)
     r << ";" << font_database_cache_stamp (files[i]);
   return r;
@@ -242,10 +242,10 @@ font_database_make_native_view (
   }
   const auto style_class= [] (const font_database_face& face) {
     const unsigned weight=
-      face.weight < 50 ? 0U :
-      face.weight < 90 ? 1U :
-      face.weight < 140 ? 2U :
-      face.weight < 180 ? 3U : 4U;
+      face.weight <= 200 ? 0U :
+      face.weight <= 300 ? 1U :
+      face.weight <= 500 ? 2U :
+      face.weight < 900 ? 3U : 4U;
     const unsigned width= face.width < 90 ? 0U : face.width > 110 ? 2U : 1U;
     const unsigned slant= static_cast<unsigned> (
       std::clamp (face.slant, 0, 2));

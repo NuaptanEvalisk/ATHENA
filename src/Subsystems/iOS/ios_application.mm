@@ -20,10 +20,8 @@
 #include <QKeySequence>
 #include <QMenu>
 #include <QMenuBar>
-#include <QTimer>
 #include <QUuid>
 #include <QWindow>
-#include <cstdio>
 #include <DockWidget.h>
 #import <UIKit/UIKit.h>
 
@@ -330,31 +328,6 @@ void athena_ios_install_application_bridge () {
 
 void athena_ios_register_shell (QTMMainTabWindow* shell) {
   if (!primary) primary= shell;
-  // Temporary snapshot after startup, without changing the native hierarchy.
-  QTimer::singleShot (5000, shell, [shell] {
-    UIView* view= native_view (shell->winId ());
-    std::fprintf (stderr, "ATHENA-WINDOW shell=%p visible=%d size=%dx%d native=%p window=%p frame=%s\n",
-      static_cast<void*> (shell), shell->isVisible (), shell->width (), shell->height (),
-      (__bridge void*) view, (__bridge void*) view.window,
-      NSStringFromCGRect (view.frame).UTF8String);
-    for (UIScene* scene in UIApplication.sharedApplication.connectedScenes) {
-      std::fprintf (stderr, "ATHENA-SCENE class=%s delegate=%s state=%ld\n",
-        NSStringFromClass (scene.class).UTF8String,
-        NSStringFromClass ([scene.delegate class]).UTF8String,
-        (long) scene.activationState);
-      if (![scene isKindOfClass:UIWindowScene.class]) continue;
-      for (UIWindow* window in ((UIWindowScene*) scene).windows) {
-        std::fprintf (stderr, "ATHENA-UIWINDOW %p class=%s hidden=%d key=%d frame=%s root=%s\n",
-          (__bridge void*) window, NSStringFromClass (window.class).UTF8String,
-          window.hidden, window.isKeyWindow, NSStringFromCGRect (window.frame).UTF8String,
-          NSStringFromClass (window.rootViewController.class).UTF8String);
-        for (UIView* child in window.rootViewController.view.subviews)
-          std::fprintf (stderr, "ATHENA-UIVIEW %p class=%s hidden=%d frame=%s\n",
-            (__bridge void*) child, NSStringFromClass (child.class).UTF8String,
-            child.hidden, NSStringFromCGRect (child.frame).UTF8String);
-      }
-    }
-  });
   static bool routingInstalled= false;
   if (!routingInstalled) {
     routingInstalled= true;

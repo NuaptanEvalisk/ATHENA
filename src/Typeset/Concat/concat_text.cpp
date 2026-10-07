@@ -149,7 +149,8 @@ public:
     slot (current), previous (current) {
     athena::text::native_text_source source;
     if (!fn->native_text_source (source))
-      throw std::runtime_error ("Text font has no native Unicode shaping source");
+      throw std::runtime_error ("Text font has no native Unicode shaping source: " +
+        std::string (fn->res_name.data (), N(fn->res_name)));
     auto request= athena::text::font_request_from_source (source.physical);
     request.fallback= std::move (source.fallback);
     request.features= std::move (source.features);

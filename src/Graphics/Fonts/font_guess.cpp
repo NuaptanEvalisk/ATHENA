@@ -76,10 +76,11 @@ guessed_features (string family, string style) {
   }
   else if (weight != "") {
     int w= as_int (weight);
-    if (w >= 210) r << string ("black");
-    else if (w >= 180) r << string ("bold");
-    else if (w <= 40) r << string ("thin");
-    else if (w <= 55) r << string ("light");
+    // Catalogs expose OpenType weight classes, independently of the platform.
+    if (w >= 900) r << string ("black");
+    else if (w >= 600) r << string ("bold");
+    else if (w <= 200) r << string ("thin");
+    else if (w <= 300) r << string ("light");
   }
 
   if (lasprat != "" && pasprat != "" && lvw != "") {

@@ -28,6 +28,234 @@
     "tm_wide_under"
   ],
   "icons": {
+    "application-exit": {
+      "theme": ["application-exit"],
+      "libreoffice": ["cmd/32/quit.svg"]
+    },
+    "application-pdf": {
+      "theme": ["application-pdf"],
+      "libreoffice": ["cmd/32/exportdirecttopdf.svg"]
+    },
+    "applications-internet": {
+      "theme": ["applications-internet"],
+      "libreoffice": ["cmd/32/browseview.svg"]
+    },
+    "code-context": {
+      "theme": ["code-context"],
+      "libreoffice": ["cmd/32/scriptorganizer.svg"]
+    },
+    "dialog-error": {
+      "theme": ["dialog-error"],
+      "libreoffice": ["cmd/32/showerrors.svg"]
+    },
+    "document-compare": {
+      "theme": ["document-compare"],
+      "libreoffice": ["cmd/32/comparedocuments.svg"]
+    },
+    "document-export": {
+      "theme": ["document-export"],
+      "libreoffice": ["cmd/32/exportdialog.svg"]
+    },
+    "document-new": {
+      "theme": ["document-new"],
+      "libreoffice": ["cmd/32/newdoc.svg"]
+    },
+    "document-open": {
+      "theme": ["document-open"],
+      "libreoffice": ["cmd/32/open.svg"]
+    },
+    "document-open-recent": {
+      "theme": ["document-open-recent"],
+      "libreoffice": ["cmd/32/recentfilelist.svg"]
+    },
+    "document-print": {
+      "theme": ["document-print"],
+      "libreoffice": ["cmd/32/print.svg"]
+    },
+    "document-print-preview": {
+      "theme": ["document-print-preview"],
+      "libreoffice": ["cmd/32/printpreview.svg"]
+    },
+    "document-properties": {
+      "theme": ["document-properties"],
+      "libreoffice": ["cmd/32/setdocumentproperties.svg"]
+    },
+    "document-save": {
+      "theme": ["document-save"],
+      "libreoffice": ["cmd/32/save.svg"]
+    },
+    "document-save-as": {
+      "theme": ["document-save-as"],
+      "libreoffice": ["cmd/32/saveas.svg"]
+    },
+    "edit-clear": {
+      "theme": ["edit-clear"],
+      "libreoffice": ["cmd/32/delete.svg"]
+    },
+    "edit-clear-history": {
+      "theme": ["edit-clear-history"],
+      "libreoffice": ["cmd/32/cleararrows.svg"]
+    },
+    "edit-copy": {
+      "theme": ["edit-copy"],
+      "libreoffice": ["cmd/32/copy.svg"]
+    },
+    "edit-cut": {
+      "theme": ["edit-cut"],
+      "libreoffice": ["cmd/32/cut.svg"]
+    },
+    "edit-delete": {
+      "theme": ["edit-delete"],
+      "libreoffice": ["cmd/32/delete.svg"]
+    },
+    "edit-find": {
+      "theme": ["edit-find"],
+      "libreoffice": ["cmd/32/searchdialog.svg"]
+    },
+    "edit-find-replace": {
+      "theme": ["edit-find-replace"],
+      "libreoffice": ["cmd/32/searchdialog.svg"]
+    },
+    "edit-paste": {
+      "theme": ["edit-paste"],
+      "libreoffice": ["cmd/32/paste.svg"]
+    },
+    "edit-redo": {
+      "theme": ["edit-redo"],
+      "libreoffice": ["cmd/32/redo.svg"]
+    },
+    "edit-rename": {
+      "theme": ["edit-rename"],
+      "libreoffice": ["cmd/32/renameobject.svg"]
+    },
+    "edit-undo": {
+      "theme": ["edit-undo"],
+      "libreoffice": ["cmd/32/undo.svg"]
+    },
+    "folder": {
+      "theme": ["folder"],
+      "libreoffice": ["cmd/32/open.svg"]
+    },
+    "folder-documents": {
+      "theme": ["folder-documents"],
+      "libreoffice": ["cmd/32/open.svg"]
+    },
+    "folder-open": {
+      "theme": ["folder-open"],
+      "libreoffice": ["cmd/32/open.svg"]
+    },
+    "go-first": {
+      "theme": ["go-first"],
+      "libreoffice": ["cmd/32/firstrecord.svg"]
+    },
+    "go-last": {
+      "theme": ["go-last"],
+      "libreoffice": ["cmd/32/lastrecord.svg"]
+    },
+    "go-next": {
+      "theme": ["go-next"],
+      "libreoffice": ["cmd/32/arrowshapes.right-arrow.svg"]
+    },
+    "go-previous": {
+      "theme": ["go-previous"],
+      "libreoffice": ["cmd/32/arrowshapes.left-arrow.svg"]
+    },
+    "help-about": {
+      "theme": ["help-about"],
+      "libreoffice": ["cmd/32/helpindex.svg"]
+    },
+    "image-x-generic": {
+      "theme": ["image-x-generic"],
+      "libreoffice": ["cmd/32/insertgraphic.svg"]
+    },
+    "input-keyboard": {
+      "theme": ["input-keyboard"],
+      "libreoffice": ["cmd/32/configuredialog.svg"]
+    },
+    "preferences-desktop-font": {
+      "theme": ["preferences-desktop-font"],
+      "libreoffice": ["cmd/32/fontdialog.svg"]
+    },
+    "preferences-desktop-theme": {
+      "theme": ["preferences-desktop-theme"],
+      "libreoffice": ["cmd/32/color.svg"]
+    },
+    "preferences-plugin": {
+      "theme": ["preferences-plugin"],
+      "libreoffice": ["cmd/32/additionsdialog.svg"]
+    },
+    "preferences-system": {
+      "theme": ["preferences-system"],
+      "libreoffice": ["cmd/32/optionstreedialog.svg"]
+    },
+    "system-run": {
+      "theme": ["system-run"],
+      "libreoffice": ["cmd/32/calculate.svg"]
+    },
+    "system-search": {
+      "theme": ["system-search"],
+      "libreoffice": ["cmd/32/searchdialog.svg"]
+    },
+    "tab-new": {
+      "theme": ["tab-new"],
+      "libreoffice": ["cmd/32/newwindow.svg"]
+    },
+    "tools-check-spelling": {
+      "theme": ["tools-check-spelling"],
+      "libreoffice": ["cmd/32/spelling.svg"]
+    },
+    "tools-wizard": {
+      "theme": ["tools-wizard"],
+      "libreoffice": ["cmd/32/autopilotmenu.svg"]
+    },
+    "utilities-terminal": {
+      "theme": ["utilities-terminal"],
+      "libreoffice": ["cmd/32/shell3d.svg"]
+    },
+    "video-display": {
+      "theme": ["video-display"],
+      "libreoffice": ["cmd/32/fullscreen.svg"]
+    },
+    "view-list-details": {
+      "theme": ["view-list-details"],
+      "libreoffice": ["cmd/32/viewformasgrid.svg"]
+    },
+    "view-list-icons": {
+      "theme": ["view-list-icons"],
+      "libreoffice": ["cmd/32/gallery.svg"]
+    },
+    "view-list-text": {
+      "theme": ["view-list-text"],
+      "libreoffice": ["cmd/32/text.svg"]
+    },
+    "view-list-tree": {
+      "theme": ["view-list-tree"],
+      "libreoffice": ["cmd/32/switchcontroldesignmode.svg"]
+    },
+    "view-refresh": {
+      "theme": ["view-refresh"],
+      "libreoffice": ["cmd/32/calculate.svg"]
+    },
+    "view-task": {
+      "theme": ["view-task"],
+      "libreoffice": ["cmd/32/sidebar.svg"]
+    },
+    "view-toolbar": {
+      "theme": ["view-toolbar"],
+      "libreoffice": ["cmd/32/showtoolbar.svg"]
+    },
+    "window-close": {
+      "theme": ["window-close"],
+      "libreoffice": ["cmd/32/closedoc.svg"]
+    },
+    "window-new": {
+      "theme": ["window-new"],
+      "libreoffice": ["cmd/32/newwindow.svg"]
+    },
+    "window-restore": {
+      "theme": ["window-restore"],
+      "libreoffice": ["cmd/32/stackwindow.svg"]
+    },
     "tm_new": {
       "theme": [
         "document-new"

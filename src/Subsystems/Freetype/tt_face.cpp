@@ -83,15 +83,23 @@ void tt_face_rep::open_file (bool unicode_only) {
     athena_spdlog_info ("debug-fonts, Can't read font " + source.file_utf8);
     return;
   }
-  if (ft_new_memory_face (current_ft_library (), font_data->data (),
-      font_data->size (), source.face_index, &ft_face)) {
+  const FT_Error open_error= ft_new_memory_face (
+    current_ft_library (), font_data->data (), font_data->size (),
+    source.face_index, &ft_face);
+  if (open_error) {
     athena_spdlog_info ("debug-fonts, Can't load font " + source.file_utf8 +
-                        " (face " + std::to_string (source.face_index) + ")");
+                        " (face " + std::to_string (source.face_index) +
+                        ", FreeType error " + std::to_string (open_error) + ")");
     return;
   }
   if (unicode_only) {
     if (ft_face->face_index != source.face_index) return;
-    if (ft_select_charmap (ft_face, FT_ENCODING_UNICODE)) return;
+    const FT_Error charmap_error= ft_select_charmap (ft_face, FT_ENCODING_UNICODE);
+    if (charmap_error) {
+      athena_spdlog_info ("debug-fonts, Can't select Unicode charmap for " +
+        source.file_utf8 + " (FreeType error " + std::to_string (charmap_error) + ")");
+      return;
+    }
     if (!source.design_coords.empty ()) {
       FT_MM_Var* axes= nullptr;
       if (FT_Get_MM_Var (ft_face, &axes)) return;

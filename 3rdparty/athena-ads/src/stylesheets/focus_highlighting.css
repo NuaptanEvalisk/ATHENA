@@ -88,11 +88,11 @@ ads--CDockWidgetTab[activeTab="true"] {
 }
 
 ads--CDockWidgetTab QLabel {
-	color: palette(dark);
+	color: palette(window-text);
 }
 
 ads--CDockWidgetTab[activeTab="true"] QLabel {
-	color: palette(foreground);
+	color: palette(window-text);
 }
 
 
@@ -134,7 +134,7 @@ ads--CDockWidgetTab[focused="true"] > #tabCloseButton:pressed {
 }
 
 ads--CDockWidgetTab[focused="true"] QLabel {
-	color: palette(light);
+	color: palette(highlighted-text);
 }
 
 
@@ -318,7 +318,7 @@ ads--CAutoHideDockContainer ads--CDockAreaWidget[focused="true"] ads--CDockAreaT
 
 #autoHideTitleLabel {
 	padding-left: 4px;
-	color: palette(light);
+	color: palette(highlighted-text);
 }
 
 
