@@ -18,6 +18,7 @@ authority_client::authority_client (QUrl origin, authority_pin pin,
   member_ (std::move (member)), store_ (database, pin_),
   http_ (new control_http (origin_, this)), refresh_timer_ (new QTimer (this)) {
   state_= store_.current ();
+  index_members ();
   // Cached state is useful for status, never for authorizing a restarted client.
   refresh_timer_->setSingleShot (true);
   connect (refresh_timer_, &QTimer::timeout, this, [this] {
@@ -90,6 +91,7 @@ void authority_client::refresh (completion completed) {
         auto validated= verify_validation (pin_, response, nonce, member_, device_.public_key);
         auto envelope= json::parse (response).at ("state").dump ();
         state_= store_.accept (envelope);
+        index_members ();
         lease_.renew (validated.lifetime, sent_, sent_wall_);
         if (!authorized ()) {
           finish ({control_failure::invalid_state, "Hodarium validation lease is no longer fresh"});
@@ -112,8 +114,19 @@ bool authority_client::peer_allowed (const std::string& member,
   const std::string& public_key, const std::string& epoch) {
   owner ();
   if (!authorized () || !state_ || state_->epoch != epoch) return false;
-  return std::any_of (state_->members.begin (), state_->members.end (),
-    [&] (const member_identity& m) { return m.id == member && m.public_key == public_key; });
+  auto found= members_.find (member);
+  return found != members_.end () && found->second == public_key;
+}
+void authority_client::index_members () {
+  std::unordered_map<std::string, std::string> next;
+  if (state_) for (const auto& member: state_->members) next.emplace (member.id, member.public_key);
+  members_.swap (next);
+}
+bool authority_client::context_current (const std::string& group,
+  const std::string& generation, const std::string& epoch) {
+  owner ();
+  return authorized () && state_ && state_->group == group &&
+    state_->generation == generation && state_->epoch == epoch;
 }
 std::optional<membership_state> authority_client::current () const {
   owner (); return state_;

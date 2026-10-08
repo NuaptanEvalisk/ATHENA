@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-webauthn/webauthn/protocol"
@@ -19,11 +20,13 @@ import (
 )
 
 type API struct {
-	store    *Store
-	passkeys *webauthn.WebAuthn
-	origin   string
-	mux      *http.ServeMux
-	slots    chan struct{}
+	store      *Store
+	passkeys   *webauthn.WebAuthn
+	origin     string
+	mux        *http.ServeMux
+	slots      chan struct{}
+	presenceMu sync.Mutex
+	presence   map[string]Presence
 }
 
 func NewAPI(store *Store, origin string) (*API, error) {
@@ -39,13 +42,14 @@ func NewAPI(store *Store, origin string) (*API, error) {
 	if err != nil {
 		return nil, err
 	}
-	a := &API{store: store, passkeys: wa, origin: origin, mux: http.NewServeMux(), slots: make(chan struct{}, 32)}
+	a := &API{store: store, passkeys: wa, origin: origin, mux: http.NewServeMux(), slots: make(chan struct{}, 32), presence: make(map[string]Presence)}
 	a.mux.HandleFunc("GET /api/info", a.info)
 	a.mux.HandleFunc("POST /api/device/challenge", a.challenge)
 	a.mux.HandleFunc("POST /api/device/join", a.join)
 	a.mux.HandleFunc("POST /api/device/poll", a.poll)
 	a.mux.HandleFunc("POST /api/device/validate", a.validate)
 	a.mux.HandleFunc("POST /api/device/resolve", a.resolveDevice)
+	a.mux.HandleFunc("POST /api/device/rendezvous", a.rendezvous)
 	a.mux.HandleFunc("POST /api/recovery/complete", a.recoverAuthority)
 	a.mux.HandleFunc("POST /api/auth/register/start", a.registerStart)
 	a.mux.HandleFunc("POST /api/auth/register/finish", a.registerFinish)

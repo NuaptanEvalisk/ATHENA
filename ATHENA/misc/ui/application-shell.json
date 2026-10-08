@@ -195,6 +195,12 @@
       "help": "Show history for the document captured by the current context"
     },
     {
+      "id": "application.hodarium",
+      "label": "Hodarium",
+      "category": "View",
+      "help": "Manage device membership in ATHENA Hodarium"
+    },
+    {
       "id": "workspace.global-search",
       "label": "Global search",
       "category": "Edit",
@@ -1194,6 +1200,7 @@
         { "command": "workspace.namespace-explorer" },
         { "command": "view.outline" },
         { "command": "view.document-history" },
+        { "command": "application.hodarium" },
         { "command": "view.neighborhoods" },
         { "separator": true },
         { "command": "view.error-messages" },

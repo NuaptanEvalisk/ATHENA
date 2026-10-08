@@ -31,11 +31,12 @@ void control_http::cancel () {
   }
 }
 void control_http::request (const QString& path, const QByteArray& body,
-  std::function<void (control_response)> completed, bool get) {
+  std::function<void (control_response)> completed, bool get, const QByteArray& bearer_token) {
   if (QThread::currentThread () != thread () || pending_)
     throw std::logic_error ("Hodarium HTTP owner or request state violation");
   QUrl address= origin_; address.setPath (path);
   QNetworkRequest request (address);
+  if (!bearer_token.isEmpty ()) request.setRawHeader ("Authorization", "Bearer " + bearer_token);
   request.setHeader (QNetworkRequest::ContentTypeHeader, "application/json");
   request.setAttribute (QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
   request.setAttribute (QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);

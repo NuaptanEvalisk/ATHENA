@@ -21,6 +21,7 @@
 #include "QTMDocumentHistoryPane.hpp"
 #include "QTMErrorMessagesPane.hpp"
 #include "QTMGlobalSearch.hpp"
+#include "QTMHodarium.hpp"
 #include "QTMGoogleTasksPane.hpp"
 #include "QTMMaterialsManager.hpp"
 #include "QTMNamespaceExplorer.hpp"
@@ -626,6 +627,9 @@ QTMCommandRegistry::registerApplicationCommands () {
       error_messages_show ();
       return true;
     });
+  registerBehavior (
+    "application.hodarium", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) { qtm_hodarium_show (); return true; });
   registerBehavior (
     "view.artifacts", QTMCommandScope::Workspace,
     [] (const QTMCommandContext&) {

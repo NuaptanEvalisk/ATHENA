@@ -2,6 +2,7 @@
 #pragma once
 #include "client_settings.hpp"
 #include "enrollment.hpp"
+#include "peer_tls.hpp"
 #include <QTimer>
 
 namespace athena::hodarium {
@@ -33,6 +34,9 @@ public:
                      const std::string& epoch);
   profile_status status () const;
   std::optional<membership_state> membership () const;
+  std::optional<peer_context> context_for_peer (const std::string& member,
+                                               const std::string& public_key);
+  bool context_allowed (const peer_context& context, const std::string& public_key);
 private:
   client_settings& settings_;
   client_profile profile_;

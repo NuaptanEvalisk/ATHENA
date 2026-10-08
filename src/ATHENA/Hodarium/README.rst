@@ -69,6 +69,10 @@ Construct this client on its owning worker, not on the application thread.
 ``enrollment`` now implements the native join/proof/poll flow and returns the
 rotating display code to its future UI owner. Enrollment and refresh share
 ``control_http`` for TLS policy, deadlines, cancellation and resource budgets.
+The same transport discovers the HTTPS authority's protocol, group, signing key,
+recovery key and generation through ``/api/info``. Discovery rejects malformed
+identities, duplicate JSON fields and unsupported protocols; it never updates
+stored trust or grants a membership lease.
 The owner must persist the protected identity handle and initial authority pin
 before joining. Pending retrieval credentials stay in memory. A restarted
 enrollment can resolve its active member ID by fresh private-key proof, without
@@ -103,14 +107,20 @@ file, not inside Vaults or disposable caches. Linux logind sleep notifications
 and iPad application state transitions suspend/revalidate the sessions. Shutdown
 cancels blocking key-store work before stopping and joining the worker. Diagnostic
 events are queued to ATHENA's standard error/warning channel on the UI thread.
-The enrollment/settings UI and peer data plane remain unconnected.
+The application-owned View / Hodarium dialog requests admission, displays the
+rotating admission code and membership status, opens the authority's admin
+panel and pauses/resumes configured profiles. HTTPS discovery and protected
+identity creation run on the worker; the pending profile is durable before the
+join request. Existing group pins are never overwritten by another discovery.
+The dialog creates device-local settings on explicit opening, and does not
+require an editor buffer. Peer data transport remains unconnected.
 
 The real C++/Go HTTPS exchange was exercised with a separately trusted temporary
 TLS certificate and an isolated system keyring. The native client requests
 admission, the test approves through the real administrative Admit path, and
 the client polls, retrieves its member ID, recovers that ID from a fresh
 enrollment object, commits device settings, reopens those settings, then validates
-membership. The production enrollment UI remains to be completed. Reproduce with::
+membership. The native dialog has not yet been exercised on iPad. Reproduce with::
 
   cmake --build build_qt6 --target hodarium_authority_client_test -j20
   GOPATH="$(go env GOPATH)" GOCACHE="$(go env GOCACHE)" \
@@ -125,6 +135,72 @@ These descriptors and IDs are private peer protocol data: never publish them
 to the authority or relay, where predictable content could be disclosed.
 Signatures and authenticated sessions are separate from integrity hashing.
 
+``peer_tls`` implements inner, nonblocking GnuTLS TLS 1.3 with mutual raw Ed25519
+public-key authentication and mandatory ``athena-hodarium-peer-v1`` ALPN.
+It pins both device keys directly, rather than trusting a relay certificate as
+peer identity. GnuTLS's external-key callback signs through the protected
+identity service; no device private key is exported into the transport.
+Session tickets and early-data use are not enabled. The byte transport callbacks
+can later wrap a direct socket or an opaque relay stream, and must return
+EAGAIN rather than block on network I/O.
+
+Before ``handshake()`` completes, both peers exchange an encrypted, exact JSON
+array binding the protocol, group, recovery generation, epoch, ordered client
+and server member instances, sender role and RFC 9266 TLS exporter. All IDs
+have validated fixed lengths; the locally computed expected frame bounds the
+receive buffer without accepting a peer-supplied length. No application record
+API is available before this comparison succeeds. A required owner callback
+checks authorization at handshake and each record read/write; it must validate
+both identities and the exact context against a fresh membership lease.
+Any failed handshake becomes terminal. The eventual connection coordinator must
+also bound handshake time and cancel sockets immediately on suspension/expiry.
+``profile_session`` produces peer contexts from verified membership and provides
+the matching authorization predicate. Per-record authorization checks do not
+copy or scan the membership list: the authority client builds a member-key index
+when accepting a publication, and checks its current context and lease in place.
+
+The protected-key smoke test exercises a real bidirectional GnuTLS handshake
+over in-memory byte queues, matching exporters, encrypted record receipt,
+wrong-device rejection, epoch mismatch and revocation before a record write.
+This is not yet a relay/client integration test and does not enable document
+traffic. Peer discovery, socket ownership and the transfer coordinator remain
+to be connected.
+
+``peer_connection`` now drives the inner TLS primitive over a shared byte-transport
+interface, implemented by owned QTcpSocket and Qt WebSockets connections
+on a Qt network worker. It admits application writes only after mutual device
+and membership-context authentication. It bounds pending plaintext to 1 MiB,
+socket buffers to 256 KiB and work per pump; a writable callback
+allows the transfer layer to resume after backpressure. Read callbacks expose a
+byte stream rather than assuming TCP/TLS record boundaries are document frames.
+Handshake is bounded to 30 seconds, record inactivity to 90 seconds, and a
+one-second membership timer closes an idle connection after authorization loss.
+Explicit suspension must also close the connection immediately. Closure aborts
+the socket and drops unsent data; revision resume belongs above the transport.
+The isolated keyring test now sends 700 KiB across actual loopback TCP, checks
+queue refusal above budget and revokes authorization after receiving the exact
+payload. Automatic listening/discovery is still pending; this is not an enabled
+Vault synchronization service.
+
+The relay adapter requires Qt WebSockets, now part of the native dependencies
+and the iPad Qt build recipe. It validates normal outer TLS, negotiates the relay
+subprotocol and passes only ciphertext from the same inner TLS connection used
+by direct peers. Ticket allocation uses the bounded control HTTP transport,
+with access tokens in an Authorization header, never in URLs. Incoming frames
+and messages are capped at 64 KiB, pending receive bytes at 256 KiB. Binary
+messages drive the TLS consumer immediately with reentrancy protection, so Qt's
+burst delivery does not enqueue an entire transfer before consuming it.
+Text frames and oversized queues terminate the connection.
+
+A separate Go TLS relay process and native C++ client passed an isolated
+700 KiB encrypted roundtrip with device-key and membership-context handshakes.
+The test trusts a temporary test certificate, without bypassing TLS verification.
+Use ``tests/hodarium/relay-smoke.sh`` with the isolated-keyring launcher and the
+``hodarium_identity_test`` binary. Production relay configuration, capability
+exchange, automatic route selection and secure persistence of relay resource
+credentials remain to be integrated. The new Qt module has not yet been built
+in the iPad VM.
+
 The caller owns the store on one worker thread. The database pathname is local
 configuration, never supplied by a peer. ``record_applied`` is bookkeeping,
 not a filesystem replacement API: only a future durable application coordinator
@@ -133,14 +209,15 @@ may call it after history protection and the application commit boundary.
 Remaining integration (not enabled)
 ----------------------------------
 
-* Add production enrollment/settings UI and terminate future peer sessions after
-  expiry or expulsion; wire Vault selection and application status presentation.
+* Terminate future peer sessions after expiry or expulsion; wire Vault selection
+  and synchronization status presentation, and verify the enrollment UI on iPad.
 * Verify the Apple backend and complete explicit recovery trust transitions.
-* Independent relay executable; client recovery trust, conflict decisions,
-  discovery, operational deployment and notifications. Extend the existing
+* Integrate the working native relay transport into application route management;
+  complete client recovery trust, conflict decisions, native rendezvous discovery, deployment
+  and notifications. Extend the existing
   authority/panel rather than replacing their WebAuthn implementation.
-* Authenticated E2E transport, rendezvous, bounded transfers, automatic measured
-  route selection, reconnection and iPad suspension/resumption.
+* Connect socket/relay sessions to rendezvous, revision transfers, automatic measured route selection,
+  reconnection and iPad suspension/resumption.
 * Save/discovery integration, stable source object mapping and logical database
   adapters; no raw SQLite/LMDB replication.
 * Durable history barriers, protected retention, application intents/recovery,
@@ -173,6 +250,8 @@ References:
 * https://doc.libsodium.org/public-key_cryptography/public-key_signatures
 * https://www.sqlite.org/pragma.html#pragma_synchronous
 * https://www.gnutls.org/manual/gnutls.html
+* https://www.gnutls.org/manual/html_node/Raw-public_002dkey-credentials.html
+* https://www.gnutls.org/manual/html_node/Channel-Bindings.html
 * https://gnome.pages.gitlab.gnome.org/libsecret/
 * https://gnome.pages.gitlab.gnome.org/libsecret/method.Service.search_sync.html
 * https://developer.apple.com/documentation/security/ksecattraccessiblewhenunlockedthisdeviceonly

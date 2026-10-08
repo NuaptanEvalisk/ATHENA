@@ -1,4 +1,7 @@
-.PHONY: server panel test clean
+.PHONY: server relay panel test clean
+
+relay:
+	go build -p 20 -trimpath -o bin/athena-hodarium-relay ./cmd/athena-hodarium-relay
 
 server: panel
 	go build -p 20 -trimpath -o bin/athena-hodarium-server ./cmd/athena-hodarium-server

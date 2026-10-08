@@ -3,6 +3,7 @@
 #include "enrollment.hpp"
 #include "client_settings.hpp"
 #include "profile_session.hpp"
+#include "control_http.hpp"
 #include <QCoreApplication>
 #include <QSslCertificate>
 #include <QSslConfiguration>
@@ -133,10 +134,19 @@ int main (int argc, char** argv) {
         });
       });
     };
-    joining.join ("Isolated native client", [&] (control_result result, enrollment_status status) {
+    control_http discovery (origin, nullptr);
+    discover_authority (discovery, [&] (control_result result, authority_description description) {
       if (failure (result)) return;
-      if (status.code.size () != 8 || status.request.empty ()) { app.exit (1); return; }
-      poll ();
+      if (!description.initialized || description.pin.group != pin.group ||
+          description.pin.public_key != pin.public_key || description.pin.generation != pin.generation ||
+          description.recovery_public_key != config.at ("recovery_public_key")) {
+        std::cerr << "Discovered authority does not match isolated server\n"; app.exit (1); return;
+      }
+      joining.join ("Isolated native client", [&] (control_result result, enrollment_status status) {
+        if (failure (result)) return;
+        if (status.code.size () != 8 || status.request.empty ()) { app.exit (1); return; }
+        poll ();
+      });
     });
     return app.exec ();
   }

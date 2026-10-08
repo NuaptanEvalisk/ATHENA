@@ -145,4 +145,23 @@ profile_status profile_session::status () const { owner (); return status_; }
 std::optional<membership_state> profile_session::membership () const {
   owner (); return client_ ? client_->current () : std::nullopt;
 }
+std::optional<peer_context> profile_session::context_for_peer (
+  const std::string& member, const std::string& public_key) {
+  owner ();
+  auto state= membership ();
+  if (!state) return std::nullopt;
+  peer_context context{state->group, state->generation, state->epoch, profile_.member, member};
+  if (!context_allowed (context, public_key)) return std::nullopt;
+  return context;
+}
+bool profile_session::context_allowed (const peer_context& context, const std::string& public_key) {
+  owner ();
+  return client_ && !paused_ && profile_.enabled &&
+    context.group == profile_.pin.group && context.generation == profile_.pin.generation &&
+    client_->context_current (context.group, context.generation, context.epoch) &&
+    context.local_member == profile_.member &&
+    context.remote_member != context.local_member && public_key != profile_.device.public_key &&
+    peer_allowed (context.local_member, profile_.device.public_key, context.epoch) &&
+    peer_allowed (context.remote_member, public_key, context.epoch);
+}
 } // namespace athena::hodarium

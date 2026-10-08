@@ -23,7 +23,8 @@ public:
   control_http (QUrl origin, QObject* parent);
   ~control_http () override;
   void request (const QString& path, const QByteArray& body,
-    std::function<void (control_response)> completed, bool get= false);
+    std::function<void (control_response)> completed, bool get= false,
+    const QByteArray& bearer_token= {});
   void cancel ();
 private:
   QUrl origin_;

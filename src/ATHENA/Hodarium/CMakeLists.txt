@@ -1,11 +1,19 @@
 add_library(athena_hodarium STATIC revisions.cpp membership.cpp device_identity.cpp
-  authority_client.cpp control_http.cpp enrollment.cpp client_settings.cpp profile_session.cpp)
+  authority_client.cpp control_http.cpp enrollment.cpp client_settings.cpp profile_session.cpp
+  peer_tls.cpp peer_connection.cpp peer_transport.cpp)
 set_target_properties(athena_hodarium PROPERTIES AUTOMOC OFF)
 target_compile_features(athena_hodarium PUBLIC cxx_std_17)
 target_include_directories(athena_hodarium PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
   PRIVATE ${NLOHMANN_JSON_INCLUDE_DIR} ${LIBSODIUM_INCLUDE_DIRS} ${SQLITE3_INCLUDE_DIRS})
 target_link_libraries(athena_hodarium PRIVATE ${SQLITE3_LIBRARIES} ${LIBSODIUM_LIBRARIES})
-target_link_libraries(athena_hodarium PUBLIC Qt6::Core Qt6::Network)
+find_package(Qt6 COMPONENTS WebSockets REQUIRED)
+target_link_libraries(athena_hodarium PUBLIC Qt6::Core Qt6::Network PRIVATE Qt6::WebSockets)
+if(TARGET athena_gnutls_ipados)
+  target_link_libraries(athena_hodarium PUBLIC athena_gnutls_ipados)
+else()
+  target_include_directories(athena_hodarium PUBLIC ${GNUTLS_INCLUDE_DIRS})
+  target_link_libraries(athena_hodarium PUBLIC ${GNUTLS_LIBRARIES})
+endif()
 if(APPLE)
   find_library(ATHENA_HODARIUM_SECURITY Security REQUIRED)
   find_library(ATHENA_HODARIUM_COREFOUNDATION CoreFoundation REQUIRED)

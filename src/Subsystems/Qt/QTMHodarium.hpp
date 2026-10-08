@@ -2,3 +2,4 @@
 #pragma once
 void qtm_hodarium_initialize ();
 void qtm_hodarium_reload ();
+void qtm_hodarium_show ();

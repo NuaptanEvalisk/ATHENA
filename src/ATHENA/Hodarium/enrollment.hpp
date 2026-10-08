@@ -1,8 +1,19 @@
 /* Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later. */
 #pragma once
 #include "authority_client.hpp"
+#include <QByteArray>
 
 namespace athena::hodarium {
+struct authority_description {
+  authority_pin pin;
+  std::string recovery_public_key;
+  bool initialized= false;
+};
+// Discovery authenticates the HTTPS endpoint, not group membership. The caller
+// must explicitly persist initial trust; this never replaces an existing pin.
+authority_description parse_authority_description (const QByteArray& bytes);
+void discover_authority (control_http& http,
+  std::function<void (control_result, authority_description)> completed);
 struct enrollment_status {
   std::string request, code, member;
   std::int64_t code_expires= 0;

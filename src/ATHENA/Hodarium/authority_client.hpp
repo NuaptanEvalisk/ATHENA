@@ -6,6 +6,7 @@
 #include <QUrl>
 #include <functional>
 #include <memory>
+#include <unordered_map>
 
 class QTimer;
 
@@ -32,6 +33,8 @@ public:
   bool peer_allowed (const std::string& member, const std::string& public_key,
                      const std::string& epoch);
   std::optional<membership_state> current () const;
+  bool context_current (const std::string& group, const std::string& generation,
+                        const std::string& epoch);
 
 private:
   QUrl origin_;
@@ -41,6 +44,7 @@ private:
   membership_store store_;
   membership_lease lease_;
   std::optional<membership_state> state_;
+  std::unordered_map<std::string, std::string> members_;
   control_http* http_;
   QTimer* refresh_timer_;
   completion completion_;
@@ -49,6 +53,7 @@ private:
   membership_lease::wall::time_point sent_wall_;
 
   void owner () const;
+  void index_members ();
   void finish (control_result result);
   void post (const QString& path, const QByteArray& body,
              std::function<void (QByteArray)> success);

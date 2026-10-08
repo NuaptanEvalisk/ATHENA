@@ -315,7 +315,7 @@ func (s *Store) IssueChallenge(purpose, subject string) (string, error) {
 		if _, err := publicKey(subject[:43]); err != nil {
 			return "", err
 		}
-	case "poll", "control":
+	case "poll", "control", "rendezvous":
 		if len(subject) != 43 {
 			return "", ErrDenied
 		}

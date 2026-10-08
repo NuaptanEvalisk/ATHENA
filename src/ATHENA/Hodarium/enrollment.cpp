@@ -5,6 +5,8 @@
 #include <nlohmann/json.hpp>
 #include <sodium.h>
 #include <stdexcept>
+#include <set>
+#include <vector>
 
 namespace athena::hodarium {
 namespace {
@@ -17,6 +19,50 @@ json parse (const QByteArray& bytes) {
       return true;
     });
 }
+}
+authority_description parse_authority_description (const QByteArray& bytes) {
+  if (bytes.size () > 16384)
+    throw std::invalid_argument ("Hodarium authority description exceeds budget");
+  std::vector<std::set<std::string>> keys;
+  auto value= json::parse (bytes.constData (), bytes.constData () + bytes.size (),
+    [&] (int depth, json::parse_event_t event, json& item) {
+      if (depth > 8) throw std::invalid_argument ("Hodarium authority description exceeds depth budget");
+      if (event == json::parse_event_t::object_start) keys.emplace_back ();
+      else if (event == json::parse_event_t::object_end) keys.pop_back ();
+      else if (event == json::parse_event_t::key && !keys.back ().insert (item.get<std::string> ()).second)
+        throw std::invalid_argument ("Duplicate Hodarium authority description field");
+      return true;
+    });
+  if (!value.at ("protocol").is_number_integer () || value.at ("protocol") != 1)
+    throw std::invalid_argument ("Unsupported Hodarium authority protocol");
+  auto identifier= [&] (const char* name) {
+    auto encoded= value.at (name).get<std::string> ();
+    unsigned char decoded[32]; std::size_t size= 0;
+    if (encoded.size () != 43 || sodium_base642bin (decoded, sizeof decoded,
+        encoded.data (), encoded.size (), nullptr, &size, nullptr,
+        sodium_base64_VARIANT_URLSAFE_NO_PADDING) != 0 || size != sizeof decoded)
+      throw std::invalid_argument (std::string ("Invalid Hodarium authority field: ") + name);
+    return encoded;
+  };
+  return {{identifier ("group"), identifier ("authority_key"), identifier ("generation")},
+    identifier ("recovery_public_key"), value.at ("initialized").get<bool> ()};
+}
+void discover_authority (control_http& http,
+  std::function<void (control_result, authority_description)> completed) {
+  if (!completed) throw std::invalid_argument ("Authority discovery requires completion");
+  http.request ("/api/info", {}, [completed= std::move (completed)] (control_response response) {
+    if (!response.error.empty ()) {
+      completed ({response.oversized ? control_failure::invalid_state : control_failure::transport,
+        std::move (response.error)}, {});
+      return;
+    }
+    authority_description description;
+    try { description= parse_authority_description (response.body); }
+    catch (const std::exception& e) {
+      completed ({control_failure::invalid_state, e.what ()}, {}); return;
+    }
+    completed ({}, std::move (description));
+  }, true);
 }
 enrollment::enrollment (QUrl origin, authority_pin pin, device_identity device):
   pin_ (std::move (pin)), device_ (std::move (device)),

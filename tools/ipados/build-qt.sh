@@ -158,7 +158,7 @@ configure_target () {
         -prefix "$target_prefix" \
         -nomake tests \
         -nomake examples \
-        -submodules qtbase,qtsvg \
+        -submodules qtbase,qtsvg,qtwebsockets \
         -- \
         -DCMAKE_OSX_ARCHITECTURES=arm64 \
         -DCMAKE_OSX_DEPLOYMENT_TARGET=27.0 \
@@ -168,6 +168,7 @@ configure_target () {
     touch "$target_configured"
   else
     banner "Qt iphoneos build is already configured"
+    cmake -S "$source_dir" -B "$target_build" -DBUILD_qtwebsockets=ON
   fi
 }
 
@@ -175,7 +176,7 @@ build_target () {
   configure_target
   banner "Building ATHENA-required Qt ${qt_version} iphoneos targets with ${jobs} jobs (verbose)"
   cmake --build "$target_build" \
-    --target Core Gui Widgets Network PrintSupport Svg QIOSIntegrationPlugin \
+    --target Core Gui Widgets Network WebSockets PrintSupport Svg QIOSIntegrationPlugin \
     --parallel "$jobs" \
     --verbose
 

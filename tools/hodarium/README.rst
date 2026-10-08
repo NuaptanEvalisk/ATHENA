@@ -3,7 +3,7 @@ Hodarium services
 
 This is an in-progress implementation of ``notes/athena-hodarium.tex``.
 Do not enroll a production Vault yet. Membership administration is implemented;
-peer content transport, client enrollment, client recovery acceptance, conflict decisions,
+peer content transport, client recovery acceptance, conflict decisions,
 notifications and durable remote application are not yet connected.
 
 The authority is a standalone Go binary. Its React/Mantine administrative panel
@@ -20,6 +20,89 @@ FIDO2 verifier (BSD-3-Clause), modernc SQLite supplies the control store
 (BSD-3-Clause), and Mantine supplies the forms and components (MIT).
 ATHENA additions are GPL-3.0-or-later. Do not replace these with a custom
 WebAuthn verifier or hand-authored component framework.
+
+Independent relay
+-----------------
+
+Build ``make -C tools/hodarium relay`` to produce
+``tools/hodarium/bin/athena-hodarium-relay`` without building the web panel.
+The relay uses coder/websocket 1.8.15 (ISC), including its maintained streaming
+``net.Conn`` adapter; no custom WebSocket implementation is used.
+References: https://github.com/coder/websocket and its ``LICENSE.txt``.
+
+Run with a normal TLS certificate and a private relay resource credential::
+
+  athena-hodarium-relay --listen :9444 --tls-cert relay.pem --tls-key relay-key.pem \
+    --access-token-file /private/path/relay-token
+
+The token file must be a private regular file containing 32 cryptographically
+random bytes encoded as unpadded base64url. It is independent of all Hodarium
+authority, recovery and device keys. This initial service uses one deployment
+credential for resource access; restarting with another revokes it. The TLS
+certificate identifies the relay. Do not expose it behind plaintext transport.
+
+``POST /v1/tickets`` with ``Authorization: Bearer <relay-token>`` allocates two
+different one-use endpoint capabilities, returned as ``endpoints`` and an
+``expires`` Unix timestamp. Share the opposite endpoint through the future
+authenticated rendezvous channel, not a URL or public log. Each peer connects
+to ``GET /v1/stream`` using the same relay access header plus its own
+``X-Hodarium-Ticket`` header and WebSocket subprotocol
+``athena-hodarium-stream-v1``. Browser Origin headers and query strings are
+rejected. Only binary messages are accepted, up to 64 KiB each. Message
+boundaries are not preserved: this is a byte stream, not a message protocol.
+
+Reservations expire after two minutes. Defaults bound reserved/active sessions
+to 256, each direction to 1 GiB, session duration to one hour and each read/write
+idle interval to 90 seconds. ``--max-sessions`` and ``--max-bytes`` configure
+the first two limits. Backpressure uses a 32 KiB forwarding buffer per direction;
+no Vault data, membership state or rendezvous records are written to disk.
+Disconnect, expiry and shutdown cancel both ends and discard their capabilities.
+Peers will need encrypted keepalives and resumable transfer above this layer.
+
+The relay does not establish end-to-end encryption itself. Native clients must
+establish authenticated inner TLS before sending any document data. The native
+Qt adapter now passes an isolated 700 KiB roundtrip through that inner session.
+Production configuration, authority rendezvous and automatic route selection
+remain unconnected. TLS on the two outer connections alone is not sufficient.
+
+Focused relay verification::
+
+  cd tools/hodarium
+  go test -race ./internal/relay
+
+Authority administration
+------------------------
+
+Member rendezvous
+~~~~~~~~~~~~~~~~~
+
+``POST /api/device/rendezvous`` publishes, lists or withdraws ephemeral online
+presence. Requests contain ``payload`` (base64url of the exact UTF-8 JSON bytes),
+``challenge`` and ``signature``. Request a device challenge with purpose
+``rendezvous`` and subject equal to base64url(SHA-256(payload bytes)), then sign
+the normal group-bound proof. Changing the operation, addresses, member or epoch
+invalidates that proof. Neither Passkey cookies nor a relay credential authorize
+this endpoint.
+
+The decoded request fields are ``operation`` (publish/list/withdraw), ``member``,
+``generation`` and ``epoch``. Publication accepts at most eight ``direct`` IP:port
+addresses and eight HTTPS ``relays`` origins. It excludes paths, credentials,
+query strings, scoped/multicast/unspecified/loopback direct addresses. Relay
+origins carry no resource secret. Listing optionally takes an ``after`` member
+cursor and returns up to 64 entries plus ``next``; each page carries its current
+generation and epoch. The caller must restart discovery after an epoch change.
+
+Presence lasts 90 seconds, lives only in the authority process, and is discarded
+on restart. Only an active member in the current generation/epoch may publish or
+query; old-epoch requests return conflict, expelled devices are denied, and old
+publications are filtered before listing. The authority never contacts these
+addresses. Presence is a reachability hint, not peer authorization: the client
+must still apply its route policy and complete inner mutual TLS and membership
+context verification. Native publication/polling, ticket exchange and automatic
+route selection are not yet wired to this endpoint.
+
+Initialization
+~~~~~~~~~~~~~~
 
 Local initialization, using a new directory::
 
