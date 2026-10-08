@@ -353,6 +353,18 @@ init_guile () {
 ******************************************************************************/
 
 void
+init_athena_pixmap_path () {
+  (void) get_env_path ("ATHENA_PIXMAP_PATH",
+                       url ("$ATHENA_PATH/misc/pixmaps") |
+                       url ("$ATHENA_HOME_PATH/misc/pixmaps") |
+                       url ("$ATHENA_PATH/misc/pixmaps/modern/32x32/settings") |
+                       url ("$ATHENA_PATH/misc/pixmaps/modern/32x32/table") |
+                       url ("$ATHENA_PATH/misc/pixmaps/modern/24x24/main") |
+                       url ("$ATHENA_PATH/misc/pixmaps/modern/20x20/mode") |
+                       url ("$ATHENA_PATH/misc/pixmaps/modern/16x16/focus"));
+}
+
+void
 init_athena_resource_paths () {
   // Set the application binary and resource paths
   url bin_path= get_env_path ("PATH");
@@ -390,14 +402,7 @@ init_athena_resource_paths () {
                        "$ATHENA_HOME_PATH/misc/patterns" |
                        url ("$ATHENA_PATH/misc/patterns") |
                        url ("$ATHENA_PATH/misc/pictures"));
-  (void) get_env_path ("ATHENA_PIXMAP_PATH",
-		       url ("$ATHENA_PATH/misc/pixmaps") |
-                       url ("$ATHENA_HOME_PATH/misc/pixmaps") |
-                       url ("$ATHENA_PATH/misc/pixmaps/modern/32x32/settings") |
-                       url ("$ATHENA_PATH/misc/pixmaps/modern/32x32/table") |
-                       url ("$ATHENA_PATH/misc/pixmaps/modern/24x24/main") |
-                       url ("$ATHENA_PATH/misc/pixmaps/modern/20x20/mode") |
-                       url ("$ATHENA_PATH/misc/pixmaps/modern/16x16/focus"));
+  init_athena_pixmap_path ();
   (void) get_env_path ("ATHENA_DOCUMENT_LOCALE_PATH",
                        url ("$ATHENA_PATH/langs/document"));
   (void) get_env_path ("ATHENA_THEME_PATH",

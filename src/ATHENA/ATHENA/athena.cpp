@@ -659,9 +659,12 @@ test_routines () {
 
 static void
 install_crash_reporting () {
+#if !ATHENA_PLATFORM_IPADOS
+  // iPadOS owns crash reporting; this target does not install signal handlers.
   string directory= concretize (url ("$ATHENA_HOME_PATH/system/crash"));
   if (!athena_install_crash_handlers (as_charp (directory)))
     std_warning << "Fatal crash reporting could not open its report file or install all handlers" << LF;
+#endif
 }
 
 void
@@ -689,6 +692,8 @@ ATHENA_init_paths (int& argc, char** argv) {
   (void) argc; (void) argv;
 #if ATHENA_PLATFORM_IPADOS
   // ios_entrypoint resolves the bundle and container before entering ATHENA.
+  // UIKit may create the Scene and its menus during the first splash event.
+  init_athena_pixmap_path ();
   return;
 #else
   url exedir = texmacs_get_application_directory();
@@ -789,6 +794,9 @@ ATHENA_init_paths (int& argc, char** argv) {
          << ") does not exists" << LF;
     exit(1);
   }
+  // Native menus are constructed before init_athena() initializes the rest
+  // of the resource paths, and already need the bundled icon search path.
+  init_athena_pixmap_path ();
 #endif
 }
 

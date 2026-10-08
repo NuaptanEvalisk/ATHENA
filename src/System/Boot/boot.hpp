@@ -25,6 +25,7 @@ bool   is_headless ();
 string get_setting (string var, string def= "");
 void   set_setting (string var, string val);
 void   init_athena ();
+void   init_athena_pixmap_path ();
 void   init_athena_resource_paths ();
 void   init_system_state ();
 void   setup_athena ();
