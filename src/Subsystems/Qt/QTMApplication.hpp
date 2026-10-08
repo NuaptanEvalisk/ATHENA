@@ -54,10 +54,6 @@ public:
     return mKeyboard;
   }
 
-  inline bool useNewToolbar() {
-    return mUseNewToolbar;
-  }
-
   inline QTMMainTabWindow &mainTabWindow() {
     if (QTMMainTabWindow::topTabWindow() == nullptr) {
       if (is_server_started ()) new QTMMainTabWindow();
@@ -76,7 +72,6 @@ private:
   bool mPixmapManagerInitialized;
   QTMIconManager mIconManager;
   QTMKeyboard mKeyboard;
-  bool mUseNewToolbar;
 };
 
 inline QTMApplication *tmapp() {

@@ -60,13 +60,6 @@
       "default": "default"
     },
     {
-      "key": "new toolbar",
-      "type": "string",
-      "scope": "active",
-      "default": "on",
-      "callback": "restart"
-    },
-    {
       "key": "disable texmacs window positioning",
       "type": "boolean",
       "scope": "active",

@@ -20,15 +20,13 @@
 
 #include "QTMWidget.hpp"
 #include "QTMScrollView.hpp"
-#include "QTMToolbar.hpp"
+#include <QToolBar>
 #include <memory>
 
 #include <QMainWindow>
 #include <QStackedWidget>
 #include <QLayout>
 #include <QList>
-
-#define DISABLE_QTMTOOLBAR 1
 
 class QLabel; 
 class QAction;
@@ -57,17 +55,10 @@ class qt_tm_widget_rep: public qt_window_widget_rep {
    extra_tools_visibility   = 512
    } visibility_t;
    */
-#if !DISABLE_QTMTOOLBAR
-  QTMToolbar*    mainToolBar;
-  QTMToolbar*    modeToolBar;
-  QTMToolbar*   focusToolBar;
-  QTMToolbar*    userToolBar;
-#else
   QToolBar*      mainToolBar;
   QToolBar*      modeToolBar;
   QToolBar*     focusToolBar;
   QToolBar*      userToolBar;
-#endif
   QTMToolbarController* toolbarController;
   std::unique_ptr<QTMEditorToolbarPresenter> nativeMainToolbarPresenter;
   std::unique_ptr<QTMEditorToolbarPresenter> nativeModeToolbarPresenter;

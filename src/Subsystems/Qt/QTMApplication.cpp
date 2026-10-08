@@ -134,7 +134,6 @@ void QTMApplication::hide_splash () {
 }
 
 void QTMApplication::load() {
-  mUseNewToolbar = get_user_preference ("new toolbar") != "off";
 
   mPixmapManagerInitialized = false;
 

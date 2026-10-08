@@ -9,7 +9,6 @@
  * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
  ******************************************************************************/
 
-#include "QTMToolbar.hpp"
 #include "QTMEditorToolbarPresenter.hpp"
 #include <QToolButton>
 #include <QToolBar>
@@ -97,7 +96,6 @@ athena_toolbar_button_text (QToolButton* button, QAction* action) {
   return text;
 }
 
-#if DISABLE_QTMTOOLBAR
 static void
 athena_configure_toolbar (QToolBar* toolbar, const QSize& iconSize) {
   if (!toolbar || !iconSize.isValid ()) return;
@@ -290,7 +288,6 @@ replaceButtons (QToolBar* dest, QList<QAction*>* src,
   if (visible) dest->show(); //TRICK: see above
   dest->setUpdatesEnabled (true);
 }
-#endif
 
 /******************************************************************************
 * qt_tm_widget_rep
@@ -318,25 +315,6 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   QMainWindow* mw= mainwindow ();
   if (tm_style_sheet == "") {
     mw->setStyle (qtmstyle ());
-    if (!tmapp()->useNewToolbar())
-      mw->menuBar()->setStyle (qtmstyle ());
-  }
-
-  if (!tmapp()->useNewToolbar()) {
-#ifdef Q_OS_MAC
-    if (!use_native_menubar) {
-      mw->menuBar()->setNativeMenuBar(false);
-      if (tm_style_sheet != "") {
-        int min_h= (int) floor (28 * retina_scale);
-        mw->menuBar()->setMinimumHeight (min_h);
-      }
-    }
-#else
-    if (tm_style_sheet != "") {
-      int min_h= (int) floor (28 * retina_scale);
-      mw->menuBar()->setMinimumHeight (min_h);
-    }
-#endif
   }
 
 #if !defined(OS_MACOS)
@@ -348,17 +326,10 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   
   static_cast<QTMWindow*> (mw)->editorStatus.visible= visibility[5];
  
-#if !DISABLE_QTMTOOLBAR
-  mainToolBar   = new QTMToolbar ("main toolbar", QSize (26, 32), mw);
-  modeToolBar   = new QTMToolbar ("mode toolbar", QSize (21, 24), mw);
-  focusToolBar  = new QTMToolbar ("focus toolbar", QSize (16, 20), mw);
-  userToolBar   = new QTMToolbar ("user toolbar", QSize(), mw);
-#else
   mainToolBar   = new QToolBar ("main toolbar", mw);
   modeToolBar   = new QToolBar ("mode toolbar", mw);
   focusToolBar  = new QToolBar ("focus toolbar", mw);
   userToolBar   = new QToolBar ("user toolbar", mw);
-#endif
 
 #if ATHENA_PLATFORM_IPADOS
   for (QToolBar* bar: {mainToolBar, modeToolBar, focusToolBar, userToolBar}) {
@@ -368,14 +339,6 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   }
 #endif
 
-  if (tm_style_sheet == "") {
-    if (!tmapp()->useNewToolbar()) {
-      mainToolBar->setStyle (qtmstyle ());
-      modeToolBar->setStyle (qtmstyle ());
-      focusToolBar->setStyle (qtmstyle ());
-      userToolBar->setStyle (qtmstyle ());
-    }
-  }
     
   {
     // Toolbar icon size is a UI metric, not an input-pixmap metric.
@@ -981,13 +944,6 @@ qt_tm_widget_rep::update_visibility () {
         dumbToolBar->removeAction(modeToolBarAction);
       }
     }
-  }
-  else if (!tmapp()->useNewToolbar()) {
-    bool old_menuVisibility = mainwindow()->menuBar()->isVisible();
-    bool new_menuVisibility = visibility[0];
-
-    if ( XOR(old_menuVisibility,  new_menuVisibility) )
-      mainwindow()->menuBar()->setVisible (new_menuVisibility);
   }
 #endif // UNIFIED_TOOLBAR
 #undef XOR

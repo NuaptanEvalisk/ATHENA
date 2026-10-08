@@ -14,7 +14,6 @@
 #include "QTMApplication.hpp"
 #include "QTMDocumentIdentity.hpp"
 #include "QTMMainTabWindow.hpp"
-#include "QTMToolbar.hpp"
 #include "QTMWidget.hpp"
 #include "qt_utilities.hpp"
 #include "qt_actor_widget.hpp"
@@ -357,10 +356,7 @@ QTMEditorToolbarPresenter::refreshNode (
 void
 QTMEditorToolbarPresenter::addToolbarAction (QAction* action) {
   if (toolbar_ == nullptr || action == nullptr) return;
-  if (QTMToolbar* custom= qobject_cast<QTMToolbar*> (toolbar_.data ()))
-    custom->addAction (action);
-  else
-    toolbar_->addAction (action);
+  toolbar_->addAction (action);
 #if ATHENA_PLATFORM_IPADOS
   if (auto* button= qobject_cast<QToolButton*> (toolbar_->widgetForAction (action))) {
     button->setFocusPolicy (Qt::NoFocus);
@@ -372,10 +368,7 @@ QTMEditorToolbarPresenter::addToolbarAction (QAction* action) {
 void
 QTMEditorToolbarPresenter::clearToolbar () {
   if (toolbar_ == nullptr) return;
-  if (QTMToolbar* custom= qobject_cast<QTMToolbar*> (toolbar_.data ()))
-    custom->clear ();
-  else
-    toolbar_->clear ();
+  toolbar_->clear ();
 }
 
 bool

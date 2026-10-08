@@ -8,11 +8,12 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include "QTMCompoundDocument.hpp"
+#include "athena_platform.hpp"
 #include "QTMWidget.hpp"
 #include "QTMMainTabWindow.hpp"
 #include "QTMEditorToolbarPresenter.hpp"
 #include "QTMToolbarController.hpp"
-#include "QTMToolbar.hpp"
+#include <QToolBar>
 #include "QTMStyle.hpp"
 #include "QTMInertialScroll.hpp"
 #include <QLayout>
@@ -1600,13 +1601,18 @@ QTMCompoundDocument::QTMCompoundDocument (
     QStringLiteral ("mainToolBar"), QStringLiteral ("modeToolBar"),
     QStringLiteral ("focusToolBar"), QStringLiteral ("userToolBar")};
   for (std::size_t i= 0; i < toolbars_.size (); ++i) {
-    auto* bar= new QTMToolbar (definitions[i], QSize (32, 32), this);
+    auto* bar= new QToolBar (definitions[i], this);
     bar->setObjectName (names[i]);
-    bar->setFixedHeight (32);
+    bar->setIconSize (QSize (32, 32));
+    bar->setFixedHeight (ATHENA_PLATFORM_IPADOS ? 48 : 32);
+    bar->setContentsMargins (0, 0, 0, 0);
+    bar->layout ()->setContentsMargins (0, 0, 0, 0);
+    bar->layout ()->setSpacing (0);
+#if ATHENA_PLATFORM_IPADOS
+    bar->setProperty ("athenaTouchUi", true);
+#endif
     bar->setToolButtonStyle (get_preference ("text toolbar", "off") == "on" ?
                             Qt::ToolButtonTextOnly : Qt::ToolButtonIconOnly);
-    if (tm_style_sheet == "" && !tmapp ()->useNewToolbar ())
-      bar->setStyle (qtmstyle ());
     bar->setMovable (false);
     bar->setFocusPolicy (Qt::NoFocus);
     toolbars_[i]= bar;
