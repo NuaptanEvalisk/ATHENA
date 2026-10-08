@@ -44,6 +44,10 @@
 #include "QTMContinuousMaintenance.hpp"
 #include "QTMStructuralArtifacts.hpp"
 #include "QTMToast.hpp"
+#include "athena_platform.hpp"
+#if ATHENA_PLATFORM_IPADOS
+#include "Subsystems/iOS/athena_ios.hpp"
+#endif
 
 
 #include <QDialog>
@@ -735,6 +739,9 @@ qt_gui_rep::event_loop () {
   else
     app = QApplication::instance ();
   gui_event_loop_started= true;
+#if ATHENA_PLATFORM_IPADOS
+  if (!headless_mode) athena_ios_application_ready ();
+#endif
   if (!headless_mode) tmapp()->set_splash_progress (98, "Preparing editor");
   update();
   startup_splash_hide_allowed= true;

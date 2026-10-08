@@ -38,6 +38,7 @@ struct PendingPane {
 QHash<QString, PendingPane> pending;
 id<UIApplicationDelegate> qt_application_delegate ();
 UIBackgroundTaskIdentifier backgroundTask= UIBackgroundTaskInvalid;
+bool applicationReady= false;
 
 void checkpoint () {
   if (!qApp || backgroundTask != UIBackgroundTaskInvalid) return;
@@ -268,7 +269,9 @@ QString actionTitle (QAction* action) {
   return result;
 }
 - (void)buildMenuWithBuilder:(id<UIMenuBuilder>)builder {
-  if (builder.system != UIMenuSystem.mainSystem) return;
+  // UIKit builds menus while splash events run, before Guile and the command
+  // providers have bootstrapped. Publish them only after application startup.
+  if (!applicationReady || builder.system != UIMenuSystem.mainSystem) return;
   QTMMainTabWindow* shell= QTMMainTabWindow::topTabWindow ();
   if (!shell) return;
   shell->prepareNativeMenus ();
@@ -324,6 +327,11 @@ void athena_ios_install_application_bridge () {
   applicationDelegate= [ATHENAApplicationDelegate new];
   applicationDelegate.downstream= UIApplication.sharedApplication.delegate;
   UIApplication.sharedApplication.delegate= applicationDelegate;
+}
+
+void athena_ios_application_ready () {
+  applicationReady= true;
+  [UIMenuSystem.mainSystem setNeedsRebuild];
 }
 
 void athena_ios_register_shell (QTMMainTabWindow* shell) {
