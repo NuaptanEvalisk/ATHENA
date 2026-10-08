@@ -97,6 +97,7 @@ private:
   static QTMMainTabWindow *gTopTabWindow;
 
   ads::CDockManager* mDockManager;
+  QString mAdsBaseStyleSheet;
   QPointer<QWidget> mLastFocusedWorkPaneWidget;
   QPointer<QWidget> mLastFocusedDocumentWidget;
   std::unique_ptr<QTMApplicationMenuPresenter> mNativeMenuPresenter;

@@ -370,6 +370,7 @@ QTMMainTabWindow::QTMMainTabWindow()
   }
   bench_start ("construct ads dock manager");
   mDockManager = new ads::CDockManager(this);
+  mAdsBaseStyleSheet= mDockManager->styleSheet ();
 #if ATHENA_PLATFORM_IPADOS
   connect (mDockManager, &ads::CDockManager::dockWidgetAdded, this,
     [] (ads::CDockWidget* dock) {
@@ -807,6 +808,11 @@ void QTMMainTabWindow::setNextWidgetFloating() {
 
 bool QTMMainTabWindow::eventFilterWindow(QObject *obj, QEvent *event) {
   (void) obj;
+  if ((event->type () == QEvent::PaletteChange ||
+       event->type () == QEvent::ApplicationPaletteChange) &&
+      mDockManager->property ("athenaDarkMode").toBool () !=
+        QTMIconManager::is_dark_mode ())
+    setDefaultStyle ();
   if (event->type() == QEvent::WindowActivate) {
     if (DEBUG_QT_WIDGETS) cout << "TabWindow: WindowActivated" << LF;
     onWindowActivated();
@@ -1097,30 +1103,15 @@ void QTMMainTabWindow::closeAndSetTopTabWindow() {
 }
 
 void QTMMainTabWindow::setDefaultStyle() {
-  QString adsStyle =
-    "ads--CDockAreaTitleBar { "
-    "   min-height: 26px !important; "
-    "   max-height: 26px !important; "
-    "} "
-    "ads--CDockWidgetTab { "
-    "   min-height: 26px !important; "
-    "   max-height: 26px !important; "
-    "   padding: 0 8px !important; "
-    "} "
-    "ads--CTitleBarButton, "
-    "ads--CDockAreaTitleBar QToolButton, "
-    "#tabsMenuButton, #dockAreaCloseButton, #detachGroupButton, "
-    "#tabCloseButton, #floatingTitleCloseButton, #floatingTitleMaximizeButton { "
-    "   qproperty-iconSize: 16px 16px !important; "
-    "   min-width: 22px !important; "
-    "   min-height: 22px !important; "
-    "   max-width: 22px !important; "
-    "   max-height: 22px !important; "
-    "   width: 22px !important; "
-    "   height: 22px !important; "
-    "   padding: 0px !important; "
-    "   margin: 0px !important; "
-    "} ";
-
-  this->setStyleSheet(adsStyle);
+  mDockManager->setProperty ("athenaDarkMode", QTMIconManager::is_dark_mode ());
+  mDockManager->setProperty ("athenaTouchUi", bool (ATHENA_PLATFORM_IPADOS));
+  QFile file (QDir (to_qstring (get_env ("ATHENA_PATH"))).filePath (
+    "misc/themes/ads.css"));
+  if (!file.open (QIODevice::ReadOnly)) {
+    std_warning << "Could not load ATHENA ADS theme: "
+                << from_qstring (file.errorString ()) << LF;
+    return;
+  }
+  mDockManager->setStyleSheet (
+    mAdsBaseStyleSheet + '\n' + QString::fromUtf8 (file.readAll ()));
 }

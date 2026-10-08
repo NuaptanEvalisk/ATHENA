@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "QTMEditorToolbarPresenter.hpp"
+#include "athena_platform.hpp"
 
 #include "QTMApplication.hpp"
 #include "QTMDocumentIdentity.hpp"
@@ -19,34 +20,11 @@
 #include "qt_actor_widget.hpp"
 
 #include <QAction>
-#include <QColor>
 #include <QIcon>
 #include <QMenu>
-#include <QPixmap>
 #include <QTimer>
 #include <QToolBar>
-
-namespace {
-
-QIcon
-presentation_icon (const QString& value) {
-  if (value.isEmpty ()) return QIcon ();
-  if (value.startsWith ('#')) {
-    QColor color (value);
-    if (color.isValid ()) {
-      QPixmap pixmap (16, 16);
-      pixmap.fill (color);
-      return QIcon (pixmap);
-    }
-  }
-  QIcon themed= QIcon::fromTheme (value);
-  if (!themed.isNull ()) return themed;
-  if (tmapp () != nullptr)
-    return tmapp ()->icon_manager ().getIcon (url (from_qstring (value)));
-  return QIcon ();
-}
-
-} // namespace
+#include <QToolButton>
 
 QTMEditorToolbarPresenter::QTMEditorToolbarPresenter (
   QTMWidget* canvas, QToolBar* toolbar, QString definitionId,
@@ -74,7 +52,7 @@ QTMEditorToolbarPresenter::makeCommandAction (
   const QTMCommandDefinition* command=
     QTMCommandRegistry::instance ().command (commandId);
   if (command == nullptr) return nullptr;
-  QIcon icon= presentation_icon (command->icon);
+  QIcon icon= tmapp ()->icon_manager ().getPresentationIcon (command->icon);
   QAction* action= new QAction (icon, command->label, parent);
   action->setToolTip (command->help);
   action->setStatusTip (command->help);
@@ -132,7 +110,7 @@ QTMEditorToolbarPresenter::buildItem (
     return result;
   }
 
-  QIcon icon= presentation_icon (item.icon);
+  QIcon icon= tmapp ()->icon_manager ().getPresentationIcon (item.icon);
   QAction* action= new QAction (icon, item.label, toolbar_);
   QMenu* menu= new QMenu (item.label, toolbar_);
   action->setMenu (menu);
@@ -217,7 +195,7 @@ QTMEditorToolbarPresenter::repopulateProvider (
       }
       targetMenu= groupMenu;
     }
-    QIcon icon= presentation_icon (value.icon);
+    QIcon icon= tmapp ()->icon_manager ().getPresentationIcon (value.icon);
     QObject* parent= targetMenu != nullptr ?
       static_cast<QObject*> (targetMenu):
       static_cast<QObject*> (toolbar_.data ());
@@ -383,6 +361,12 @@ QTMEditorToolbarPresenter::addToolbarAction (QAction* action) {
     custom->addAction (action);
   else
     toolbar_->addAction (action);
+#if ATHENA_PLATFORM_IPADOS
+  if (auto* button= qobject_cast<QToolButton*> (toolbar_->widgetForAction (action))) {
+    button->setFocusPolicy (Qt::NoFocus);
+    if (action->menu ()) button->setPopupMode (QToolButton::InstantPopup);
+  }
+#endif
 }
 
 void

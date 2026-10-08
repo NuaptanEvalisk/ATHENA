@@ -22,8 +22,76 @@
 #include <QJsonParseError>
 #include <QJsonValue>
 #include <QPixmap>
+#include <QIconEngine>
+#include <QPainter>
+#include <QPixmapCache>
 
 bool may_transform (url file_name, const QImage& pm);
+
+bool
+QTMIconManager::is_dark_mode () {
+  if (occurs ("dark", tm_style_sheet)) return true;
+  if (tm_style_sheet != "" && !occurs ("native", tm_style_sheet)) return false;
+  const QPalette palette= QApplication::palette ();
+  return palette.color (QPalette::WindowText).lightness () >
+         palette.color (QPalette::Window).lightness ();
+}
+
+namespace {
+
+// Select the asset at paint time, including for actions created before the
+// system appearance changes. Reuse the existing fallback color transform.
+class PaletteIconEngine final: public QIconEngine {
+  QIcon light_, dark_;
+  bool transform_;
+public:
+  PaletteIconEngine (QIcon light, QIcon dark, bool transform):
+    light_ (std::move (light)), dark_ (std::move (dark)),
+    transform_ (transform) {}
+  QIconEngine* clone () const override { return new PaletteIconEngine (*this); }
+  bool isNull () override { return light_.isNull (); }
+  QSize actualSize (const QSize& size, QIcon::Mode mode,
+                    QIcon::State state) override {
+    const QIcon& source= QTMIconManager::is_dark_mode () && !dark_.isNull () ?
+      dark_ : light_;
+    return source.actualSize (size, mode, state);
+  }
+  QPixmap pixmap (const QSize& size, QIcon::Mode mode,
+                  QIcon::State state) override {
+    return scaledPixmap (size, mode, state, 1.0);
+  }
+  QPixmap scaledPixmap (const QSize& size, QIcon::Mode mode,
+                        QIcon::State state, qreal scale) override {
+    if (!QTMIconManager::is_dark_mode ())
+      return light_.pixmap (size, scale, mode, state);
+    if (!dark_.isNull ()) return dark_.pixmap (size, scale, mode, state);
+    if (!transform_) return light_.pixmap (size, scale, mode, state);
+    const QString key= QStringLiteral ("athena-dark-icon:%1:%2:%3:%4:%5:%6")
+      .arg (light_.cacheKey ()).arg (size.width ()).arg (size.height ())
+      .arg (scale).arg (int (mode)).arg (int (state));
+    QPixmap result;
+    if (QPixmapCache::find (key, &result)) return result;
+    QImage image= light_.pixmap (size, scale, mode, state).toImage ();
+    invert_colors (image);
+    saturate (image);
+    result= QPixmap::fromImage (image);
+    QPixmapCache::insert (key, result);
+    return result;
+  }
+  void paint (QPainter* painter, const QRect& rect,
+              QIcon::Mode mode, QIcon::State state) override {
+    const QPixmap pm= scaledPixmap (
+      rect.size (), mode, state, painter->device ()->devicePixelRatioF ());
+    painter->drawPixmap (rect, pm);
+  }
+};
+
+QIcon adaptive_icon (url name, QIcon light, QIcon dark= QIcon ()) {
+  return QIcon (new PaletteIconEngine (
+    std::move (light), std::move (dark), may_transform (name, QImage ())));
+}
+
+} // namespace
 
 static QString
 icon_key (url file_name) {
@@ -119,38 +187,29 @@ load_libreoffice_icon (const QString& rel_path, QIcon& icon) {
   if (rel_path.isEmpty ()) return false;
   string path= string ("$ATHENA_PATH/misc/icons/libreoffice/colibre/") *
                string (rel_path.toUtf8 ().constData ());
-  return load_icon_file (url (path), icon);
+  if (!load_icon_file (url (path), icon)) return false;
+  icon= adaptive_icon (url (path), icon);
+  return true;
 }
 
 static bool
 load_svg (url file_name, QIcon& icon) {
-  url sub= QTMIconManager::is_dark_mode () ?
-    url ("dark") : url ("light");
   url res= file_name;
+  QIcon dark;
   if (!is_rooted (file_name)) {
-    res= resolve (url ("$ATHENA_PIXMAP_PATH") * sub * file_name |
+    res= resolve (url ("$ATHENA_PIXMAP_PATH") * url ("light") * file_name |
 		  url ("$ATHENA_PIXMAP_PATH") * file_name);
     if (is_none (res)) return false;
+    load_icon_file (url ("$ATHENA_PIXMAP_PATH") * url ("dark") * file_name, dark);
   }
-  icon= QIcon (to_qstring (concretize (res)));
-  if (QTMIconManager::is_dark_mode () &&
-      tail (head (res)) != url (sub)) {
-    QImage image= icon.pixmap (512).toImage ();
-    if (may_transform (file_name, image)) {
-      invert_colors (image);
-      saturate (image);
-      QPixmap pixmap= QPixmap::fromImage (image);
-      icon= QIcon (pixmap);
-    }
-  }
+  icon= adaptive_icon (file_name, QIcon (to_qstring (concretize (res))), dark);
   return !icon.isNull ();
 }
 
 static bool
 load_pixmap (url file_name, QIcon& icon, double dpr) {
-  url sub= QTMIconManager::is_dark_mode () ?
-    url ("dark") : url ("light");
   url res= file_name;
+  url dark_res= url_none ();
   int possible_dpr= ceil (dpr);
   if (!is_rooted (file_name)) {
     string tag= "";
@@ -159,22 +218,20 @@ load_pixmap (url file_name, QIcon& icon, double dpr) {
     if (possible_dpr == 2 || possible_dpr == 4)
       tag= "_x" * as_string (possible_dpr);
     url name_png= glue (name, tag * ".png");
-    res= resolve (url ("$ATHENA_PIXMAP_PATH") * sub * name_png |
+    res= resolve (url ("$ATHENA_PIXMAP_PATH") * url ("light") * name_png |
 		  url ("$ATHENA_PIXMAP_PATH") * name_png);
     if (is_none (res)) return false;
+    dark_res= resolve (url ("$ATHENA_PIXMAP_PATH") * url ("dark") * name_png);
   }
   QPixmap pm= QPixmap (to_qstring (concretize (res)));
   pm.setDevicePixelRatio (possible_dpr);
-  if (QTMIconManager::is_dark_mode () &&
-      tail (head (res)) != url (sub)) {
-    QImage image= pm.toImage();
-    if (may_transform (file_name, image)) {
-      invert_colors (image);
-      saturate (image);
-      pm= QPixmap::fromImage (image);
-    }
+  QIcon dark;
+  if (!is_none (dark_res)) {
+    QPixmap dark_pm (to_qstring (concretize (dark_res)));
+    dark_pm.setDevicePixelRatio (possible_dpr);
+    dark= QIcon (dark_pm);
   }
-  icon= QIcon (pm);
+  icon= adaptive_icon (file_name, QIcon (pm), dark);
   return !icon.isNull ();
 }
 
@@ -192,6 +249,20 @@ load_bundled_icon (url file_name, const QString& key, QIcon& icon) {
   url name= N(suf) == 0 ? file_name : unglue (file_name, N(suf)+1);
   return load_svg (glue (name, ".svg"), icon) ||
          load_pixmap (file_name, icon);
+}
+
+QIcon
+QTMIconManager::getPresentationIcon (const QString& value) {
+  if (value.isEmpty ()) return QIcon ();
+  if (value.startsWith ('#')) {
+    QColor color (value);
+    if (color.isValid ()) {
+      QPixmap pixmap (16, 16);
+      pixmap.fill (color);
+      return QIcon (pixmap);
+    }
+  }
+  return getIcon (url (from_qstring (value)));
 }
 
 QIcon

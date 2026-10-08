@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "QTMCommandPalette.hpp"
+#include "QTMApplication.hpp"
 #include "QTMCommandRegistry.hpp"
 #include "QTMMainTabWindow.hpp"
 
@@ -42,8 +43,7 @@ make_palette_action (QObject* parent, const QTMCommandDefinition& definition,
                      const QTMCommandContext& context) {
   QTMCommandRegistry& registry= QTMCommandRegistry::instance ();
   QTMCommandState state= registry.state (definition.id, context);
-  QIcon icon= definition.icon.isEmpty () ? QIcon ():
-              QIcon::fromTheme (definition.icon);
+  QIcon icon= tmapp ()->icon_manager ().getPresentationIcon (definition.icon);
   QAction* action= new QAction (icon, definition.label, parent);
   action->setEnabled (state.available && state.enabled);
   action->setCheckable (state.checkable);

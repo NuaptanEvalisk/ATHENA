@@ -13,32 +13,12 @@
 #include "boot.hpp"
 
 #include <QAction>
-#include <QColor>
 #include <QIcon>
 #include <QMenu>
-#include <QPixmap>
 
 using namespace qtm_command_registry_detail;
 
 namespace {
-
-QIcon
-popup_icon (const QString& value) {
-  if (value.isEmpty ()) return QIcon ();
-  if (value.startsWith ('#')) {
-    QColor color (value);
-    if (color.isValid ()) {
-      QPixmap pixmap (16, 16);
-      pixmap.fill (color);
-      return QIcon (pixmap);
-    }
-  }
-  QIcon themed= QIcon::fromTheme (value);
-  if (!themed.isNull ()) return themed;
-  if (tmapp () != nullptr)
-    return tmapp ()->icon_manager ().getIcon (url (from_qstring (value)));
-  return QIcon ();
-}
 
 QString
 command_text (const QTMCommandDefinition& command) {
@@ -158,7 +138,7 @@ add_provider (
       target= group;
     }
     QAction* action= target->addAction (
-      popup_icon (value.icon), value.label);
+      tmapp ()->icon_manager ().getPresentationIcon (value.icon), value.label);
     action->setToolTip (value.help);
     action->setStatusTip (value.help);
     action->setWhatsThis (value.help);
@@ -193,7 +173,7 @@ add_menu_items (
       QTMCommandState state= registry.state (item.commandId, context);
       if (!state.available) continue;
       QAction* action= menu->addAction (
-        popup_icon (command->icon), command_text (*command));
+        tmapp ()->icon_manager ().getPresentationIcon (command->icon), command_text (*command));
       action->setToolTip (command->help);
       action->setStatusTip (command->help);
       action->setWhatsThis (command->help);
@@ -214,7 +194,7 @@ add_menu_items (
       continue;
     }
     QMenu* submenu= new QMenu (item.label, menu);
-    submenu->setIcon (popup_icon (item.icon));
+    submenu->setIcon (tmapp ()->icon_manager ().getPresentationIcon (item.icon));
     (void) add_menu_items (submenu, item.items, context);
     normalize_separators (submenu);
     if (menu_has_content (submenu)) menu->addMenu (submenu);
@@ -250,7 +230,7 @@ qtm_create_popup_menu (
       QTMCommandState state= registry.state (item.commandId, context);
       if (!state.available) continue;
       QAction* action= root->addAction (
-        popup_icon (command->icon), command_text (*command));
+        tmapp ()->icon_manager ().getPresentationIcon (command->icon), command_text (*command));
       action->setEnabled (state.enabled);
       action->setCheckable (state.checkable);
       if (state.checkable) action->setChecked (state.checked);

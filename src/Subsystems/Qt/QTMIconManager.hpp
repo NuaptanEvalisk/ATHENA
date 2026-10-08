@@ -32,9 +32,9 @@ public:
   QTMIconManager () {};
   
   QIcon getIcon (url file_name);
+  QIcon getPresentationIcon (const QString& value);
 
-  static inline bool is_dark_mode () {
-    return occurs ("dark", tm_style_sheet); }
+  static bool is_dark_mode ();
 
 private:
   QMap<QString, QIcon> icon_table, dark_icon_table;

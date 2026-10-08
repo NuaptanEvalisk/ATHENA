@@ -42,6 +42,7 @@
 #include "scheme.hpp"
 
 #include "qt_tm_widget.hpp"
+#include "athena_platform.hpp"
 #include "qt_utilities.hpp"
 #include "qt_renderer.hpp"
 #include "qt_gui.hpp"
@@ -78,6 +79,11 @@ athena_toolbar_icon_size () {
   return QSize (32, 32);
 }
 
+static int
+athena_toolbar_height () {
+  return ATHENA_PLATFORM_IPADOS ? 48 : athena_toolbar_icon_size ().height ();
+}
+
 static bool
 athena_text_toolbar_enabled () {
   return get_preference ("text toolbar", "off") == "on";
@@ -102,8 +108,7 @@ athena_configure_toolbar (QToolBar* toolbar, const QSize& iconSize) {
                                Qt::ToolButtonTextOnly :
                                Qt::ToolButtonIconOnly);
   toolbar->setContentsMargins (0, 0, 0, 0);
-  toolbar->setMinimumHeight (iconSize.height ());
-  toolbar->setMaximumHeight (iconSize.height ());
+  toolbar->setFixedHeight (athena_toolbar_height ());
   if (QLayout* layout= toolbar->layout ()) {
     layout->setContentsMargins (0, 0, 0, 0);
     layout->setSpacing (0);
@@ -157,8 +162,9 @@ athena_configure_toolbar_button (QToolBar* toolbar, QToolButton* button,
     button->setContentsMargins (4, 0, 4, 0);
     button->setIconSize (iconSize);
     button->setSizePolicy (QSizePolicy::Minimum, QSizePolicy::Fixed);
-    button->setMinimumSize (0, iconSize.height ());
-    button->setMaximumSize (QWIDGETSIZE_MAX, iconSize.height ());
+    const int height= ATHENA_PLATFORM_IPADOS ? 44 : iconSize.height ();
+    button->setMinimumSize (0, height);
+    button->setMaximumSize (QWIDGETSIZE_MAX, height);
     button->updateGeometry ();
   }
 
@@ -174,7 +180,7 @@ athena_configure_toolbar_button (QToolBar* toolbar, QToolButton* button,
     button->setContentsMargins (0, 0, 0, 0);
     button->setIconSize (iconSize);
     button->setSizePolicy (QSizePolicy::Fixed, QSizePolicy::Fixed);
-    button->setFixedSize (iconSize);
+    button->setFixedSize (ATHENA_PLATFORM_IPADOS ? QSize (44, 44) : iconSize);
     button->updateGeometry ();
   }
 
@@ -354,6 +360,14 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   userToolBar   = new QToolBar ("user toolbar", mw);
 #endif
 
+#if ATHENA_PLATFORM_IPADOS
+  for (QToolBar* bar: {mainToolBar, modeToolBar, focusToolBar, userToolBar}) {
+    bar->setProperty ("athenaTouchUi", true);
+    bar->setMovable (false);
+    bar->setFocusPolicy (Qt::NoFocus);
+  }
+#endif
+
   if (tm_style_sheet == "") {
     if (!tmapp()->useNewToolbar()) {
       mainToolBar->setStyle (qtmstyle ());
@@ -380,7 +394,7 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   //
   // NOTICE: setFixedHeight must be after setIconSize
   // TODO: the size of the toolbar should be calculated dynamically
-  int toolbarHeight= athena_toolbar_icon_size ().height ();
+  int toolbarHeight= athena_toolbar_height ();
   mainToolBar->setFixedHeight (toolbarHeight);
   modeToolBar->setFixedHeight (toolbarHeight);
   focusToolBar->setFixedHeight (toolbarHeight);

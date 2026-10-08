@@ -249,3 +249,21 @@ QMenuBar {
     margin: 0px;
     width: 1px;
 }
+
+/* Touch targets use logical pixels, independently of icon raster size. */
+QToolBar[athenaTouchUi="true"] QToolButton {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0px 2px;
+    color: palette(button-text);
+    background: transparent;
+}
+
+QToolBar[athenaTouchUi="true"] QToolButton:pressed,
+QToolBar[athenaTouchUi="true"] QToolButton:checked {
+    background: palette(mid);
+}
+
+QToolBar[athenaTouchUi="true"] QToolButton:disabled {
+    color: palette(mid);
+}

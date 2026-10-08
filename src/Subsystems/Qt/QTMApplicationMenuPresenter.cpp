@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "QTMApplicationMenuPresenter.hpp"
+#include "QTMApplication.hpp"
 
 #include "QTMMainTabWindow.hpp"
 #include "QTMCommandRegistryInternal.hpp"
@@ -176,7 +177,7 @@ QTMApplicationMenuPresenter::repopulate_provider (
       }
       target= group;
     }
-    QIcon icon= value.icon.isEmpty () ? QIcon () : QIcon::fromTheme (value.icon);
+    QIcon icon= tmapp ()->icon_manager ().getPresentationIcon (value.icon);
     QAction* action= new QAction (icon, value.label, target);
     action->setToolTip (value.help);
     action->setStatusTip (value.help);
@@ -275,8 +276,7 @@ QTMApplicationMenuPresenter::build_menu (
     else {
       const QTMCommandDefinition* command= registry.command (item.commandId);
       if (command == nullptr) continue;
-      QIcon icon= command->icon.isEmpty () ? QIcon ():
-                  QIcon::fromTheme (command->icon);
+      QIcon icon= tmapp ()->icon_manager ().getPresentationIcon (command->icon);
       QAction* action=
         new QAction (icon, menu_action_text (*command), menu);
       action->setStatusTip (command->help);
