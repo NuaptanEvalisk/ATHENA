@@ -681,7 +681,7 @@ QTMCommandRegistry::registerApplicationCommands () {
       return true;
     });
   registerBehavior (
-    "application.quick-switcher", QTMCommandScope::Workspace,
+    "application.quick-switcher", QTMCommandScope::Application,
     [] (const QTMCommandContext&) {
       open_vault_quick_switcher ();
       return true;

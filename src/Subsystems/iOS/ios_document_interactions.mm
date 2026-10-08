@@ -9,6 +9,9 @@
 #include "Subsystems/Qt/QTMWidget.hpp"
 #include "Subsystems/Qt/QTMCompoundDocument.hpp"
 #include <QEvent>
+#include <QAbstractItemView>
+#include <QApplication>
+#include <QContextMenuEvent>
 #include <QPointer>
 #import <UIKit/UIKit.h>
 #import <UIKit/UIGestureRecognizerSubclass.h>
@@ -28,12 +31,25 @@ QTMWidget* canvas_at (QWidget* shell, CGPoint point, bool activate= false) {
   }
   return nullptr;
 }
+
+QAbstractItemView* item_view_at (QWidget* shell, CGPoint point) {
+  if (!shell) return nullptr;
+  QWidget* hit= shell->childAt (QPoint (qRound (point.x), qRound (point.y)));
+  // Inline editors, headers and scrollbars keep their own input gestures.
+  if (hit) {
+    auto* view= qobject_cast<QAbstractItemView*> (hit->parentWidget ());
+    if (view && hit == view->viewport () &&
+        view->contextMenuPolicy () == Qt::CustomContextMenu) return view;
+  }
+  return nullptr;
+}
 }
 
 @interface ATHENADocumentHold : UILongPressGestureRecognizer <UIGestureRecognizerDelegate> {
 @public
   QPointer<QWidget> shell;
   QPointer<QTMWidget> candidate;
+  QPointer<QAbstractItemView> itemView;
   CGPoint initialPoint;
 }
 @end
@@ -58,7 +74,8 @@ QTMWidget* canvas_at (QWidget* shell, CGPoint point, bool activate= false) {
   if (candidate) candidate->cancelTouchContextMenu ();
   initialPoint= [touch locationInView:self.view];
   candidate= canvas_at (shell, initialPoint);
-  return candidate != nullptr;
+  itemView= item_view_at (shell, initialPoint);
+  return candidate != nullptr || itemView != nullptr;
 }
 - (void)touchesBegan:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
   if (event.allTouches.count > 1) {
@@ -69,7 +86,20 @@ QTMWidget* canvas_at (QWidget* shell, CGPoint point, bool activate= false) {
   [super touchesBegan:touches withEvent:event];
 }
 - (void)held:(UILongPressGestureRecognizer*)gesture {
-  if (!candidate || !shell) return;
+  if (!shell) return;
+  if (itemView && gesture.state == UIGestureRecognizerStateBegan) {
+    if (item_view_at (shell, initialPoint) != itemView) return;
+    const QPoint global= shell->mapToGlobal (QPoint (qRound (initialPoint.x), qRound (initialPoint.y)));
+    QWidget* viewport= itemView->viewport ();
+    const QPoint local= viewport->mapFromGlobal (global);
+    const QModelIndex index= itemView->indexAt (local);
+    itemView->setFocus (Qt::OtherFocusReason);
+    if (index.isValid ()) itemView->setCurrentIndex (index);
+    QContextMenuEvent event (QContextMenuEvent::Mouse, local, global);
+    QApplication::sendEvent (viewport, &event);
+    return;
+  }
+  if (!candidate) return;
   if (gesture.state == UIGestureRecognizerStateBegan) {
     if (canvas_at (shell, initialPoint, true) != candidate) return;
     candidate->showTouchContextMenu (shell->mapToGlobal (

@@ -218,6 +218,7 @@
     {
       "id": "application.quick-switcher",
       "label": "Quick switcher",
+      "shortcut": "Ctrl+Shift+O",
       "category": "Go",
       "icon": "system-search",
       "help": "Switch quickly among vault documents"

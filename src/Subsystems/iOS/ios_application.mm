@@ -244,8 +244,9 @@ QString actionTitle (QAction* action) {
       QKeyCombination key= shortcut[0];
       Qt::KeyboardModifiers mods= key.keyboardModifiers ();
       UIKeyModifierFlags flags= 0;
-      if (mods & Qt::ControlModifier) flags |= UIKeyModifierControl;
-      if (mods & Qt::MetaModifier) flags |= UIKeyModifierCommand;
+      // Qt's Apple key sequences use Control for Command and Meta for Control.
+      if (mods & Qt::ControlModifier) flags |= UIKeyModifierCommand;
+      if (mods & Qt::MetaModifier) flags |= UIKeyModifierControl;
       if (mods & Qt::AltModifier) flags |= UIKeyModifierAlternate;
       if (mods & Qt::ShiftModifier) flags |= UIKeyModifierShift;
       QString input= QKeySequence (key.key ()).toString (QKeySequence::PortableText).toLower ();

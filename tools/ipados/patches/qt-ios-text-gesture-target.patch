@@ -1,0 +1,17 @@
+diff --git a/qtbase/src/plugins/platforms/ios/qiostextinputoverlay.mm b/qtbase/src/plugins/platforms/ios/qiostextinputoverlay.mm
+--- a/qtbase/src/plugins/platforms/ios/qiostextinputoverlay.mm
++++ b/qtbase/src/plugins/platforms/ios/qiostextinputoverlay.mm
+@@ -1065,6 +1065,13 @@ void QIOSTextInputOverlay::updateFocusObject()
+     if (hints & Qt::ImhNoTextHandles)
+         return;
+ 
++    // Item views accept IM input for searching without exposing a text cursor.
++    // Do not compare invalid cursor queries as zero and open an edit menu on
++    // every tap, or install text-selection gestures over these views.
++    if (!QGuiApplication::inputMethod()->queryFocusObject(
++            Qt::ImCursorPosition, QVariant()).isValid())
++        return;
++
+     // The focus object can emit selection updates (e.g from mouse drag), and
+     // accept modifying it through IM when dragging on the handles, even if it
+     // doesn't accept text input and IM in general (and hence return false from

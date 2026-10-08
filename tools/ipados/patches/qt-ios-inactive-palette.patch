@@ -1,0 +1,17 @@
+diff --git a/qtbase/src/plugins/platforms/ios/qiostheme.mm b/qtbase/src/plugins/platforms/ios/qiostheme.mm
+--- a/qtbase/src/plugins/platforms/ios/qiostheme.mm
++++ b/qtbase/src/plugins/platforms/ios/qiostheme.mm
+@@ -73,6 +73,13 @@ void QIOSTheme::initializeSystemPalette()
+     s_systemPalette.setBrush(QPalette::Active, QPalette::Link, qt_mac_toQBrush(UIColor.linkColor.CGColor));
+     s_systemPalette.setBrush(QPalette::Active, QPalette::LinkVisited, qt_mac_toQBrush(UIColor.linkColor.CGColor));
+ 
++    // Background roles apply to every group. Inactive text must follow the
++    // same UIKit appearance, not retain Fusion's black-on-light defaults.
++    for (auto role : { QPalette::WindowText, QPalette::Text, QPalette::ButtonText,
++                       QPalette::BrightText, QPalette::PlaceholderText,
++                       QPalette::Link, QPalette::LinkVisited })
++        s_systemPalette.setBrush(QPalette::Inactive, role, s_systemPalette.brush(QPalette::Active, role));
++
+     s_systemPalette.setBrush(QPalette::Highlight, QColor(11, 70, 150, 60));
+     s_systemPalette.setBrush(QPalette::HighlightedText, qt_mac_toQBrush(UIColor.labelColor.CGColor));
+ 
