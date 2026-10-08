@@ -24,6 +24,8 @@
     </dict>
   </dict>
   <key>LSRequiresIPhoneOS</key><true/>
+  <key>UIFileSharingEnabled</key><true/>
+  <key>LSSupportsOpeningDocumentsInPlace</key><true/>
   <key>UIDeviceFamily</key><array><integer>2</integer></array>
   <key>UIRequiredDeviceCapabilities</key><array><string>arm64</string></array>
   <key>UISupportedInterfaceOrientations~ipad</key>

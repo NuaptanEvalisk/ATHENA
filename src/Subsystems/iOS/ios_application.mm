@@ -276,20 +276,29 @@ QString actionTitle (QAction* action) {
   if (!shell) return;
   shell->prepareNativeMenus ();
   actions.clear ();
-  // Keep Apple's application/window/help integration; replace only the roots
-  // actually supplied by ATHENA's existing presentation registry.
+  // Replace owned roots by identifier, including hidden ones. Keep UIKit's
+  // application and Window menus, but use the registry's order for our roots.
+  NSMutableArray<UIMenu*>* menus= [NSMutableArray new];
   for (QAction* root: shell->menuBar ()->actions ()) {
-    if (!root->isVisible () || !root->menu ()) continue;
+    if (!root->menu ()) continue;
     QString key= root->menu ()->property ("athena.menuId").toString ();
     NSString* identifier= ns ("org.athena.menu." + key);
     if (key == "file") identifier= UIMenuFile;
     else if (key == "edit") identifier= UIMenuEdit;
+    else if (key == "format") identifier= UIMenuFormat;
     else if (key == "view") identifier= UIMenuView;
     else if (key == "help") identifier= UIMenuHelp;
+    if ([builder menuForIdentifier:identifier]) [builder removeMenuForIdentifier:identifier];
+    if (!root->isVisible ()) continue;
     UIMenu* menu= [UIMenu menuWithTitle:ns (actionTitle (root)) image:nil identifier:identifier
       options:0 children:[self elementsForActions:root->menu ()->actions ()]];
-    if ([builder menuForIdentifier:identifier]) [builder replaceMenuForIdentifier:identifier withMenu:menu];
-    else [builder insertChildMenu:menu atEndOfMenuForIdentifier:UIMenuRoot];
+    [menus addObject:menu];
+  }
+  for (UIMenu* menu in menus) {
+    if (![menu.identifier isEqualToString:UIMenuHelp] && [builder menuForIdentifier:UIMenuWindow])
+      [builder insertSiblingMenu:menu beforeMenuForIdentifier:UIMenuWindow];
+    else
+      [builder insertChildMenu:menu atEndOfMenuForIdentifier:UIMenuRoot];
   }
 }
 @end
