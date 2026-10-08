@@ -360,7 +360,7 @@ replacement_node_identities (const tree& document, const tree& body) {
 }
 
 std::unique_ptr<athena::document_node::source_identity_state>
-replacement_node_identities_for_edit (const tree& document, tree& body) {
+prepare_replacement_node_identities (const tree& document, tree& body) {
   const drd_info drd= get_document_drd (document);
   const auto assigned= athena::document_node::assign_detached_source_ids (
     body, drd, athena::document_node::standard_source_role,
@@ -1562,9 +1562,12 @@ buffer_actor::dispatch (actor_command_record& command) {
     std::unique_ptr<athena::document_node::source_identity_state> identities;
     if (source_v2 || (!supplied_format && impl_->state.node_identities)) {
       new_data projected;
-      const tree body= detach_data (document, projected);
-      identities= replacement_node_identities (document, body);
+      tree body= detach_data (document, projected);
+      // XML v2 permits anonymous source nodes. Complete their identities on
+      // the detached baseline, retaining all persisted IDs and properties.
+      identities= prepare_replacement_node_identities (document, body);
       if (!identities) break;
+      document= change_doc_attr (document, "body", std::move (body));
     }
     impl_->state.source_envelope= document;
     source_changed ();
@@ -1594,7 +1597,7 @@ buffer_actor::dispatch (actor_command_record& command) {
     tree body= actor_tree_registry::instance ().take (command.payload0);
     std::unique_ptr<athena::document_node::source_identity_state> identities;
     if (impl_->state.node_identities) {
-      identities= replacement_node_identities_for_edit (
+      identities= prepare_replacement_node_identities (
         attach_data (body, impl_->state.data), body);
       if (!identities) break;
     }
