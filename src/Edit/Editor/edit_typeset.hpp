@@ -150,6 +150,7 @@ public:
   void     typeset_exec_until (path p);
   void     typeset_invalidate (path p);
   void     typeset_invalidate_all ();
+  void     typeset_refresh_radioactive_links ();
   bool     heading_fold_toggle ();
   bool     heading_fold_current ();
   bool     heading_unfold_current ();

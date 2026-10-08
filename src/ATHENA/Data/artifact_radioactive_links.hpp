@@ -113,9 +113,24 @@ void athena_artifact_radioactive_merge (
 bool athena_artifact_radioactive_baseline (
   const std::string& incarnation, const std::string& relative_path,
   std::vector<AthenaArtifactRecord>& records);
-// Called on the actor which performed matching; only changes to names queried
-// by this actor require retypesetting its existing boxes.
-bool athena_artifact_radioactive_refresh_needed ();
+struct AthenaArtifactRadioactiveDependencies;
+
+// A source block owns its dependencies for as long as its cached boxes live.
+// Nested temporary typesetters contribute to the enclosing block's queries.
+class AthenaArtifactRadioactiveScope {
+  std::shared_ptr<AthenaArtifactRadioactiveDependencies>* previous;
+  const void* previous_owner;
+public:
+  AthenaArtifactRadioactiveScope (
+    std::shared_ptr<AthenaArtifactRadioactiveDependencies>& dependencies,
+    const void* owner, bool enabled);
+  ~AthenaArtifactRadioactiveScope ();
+  AthenaArtifactRadioactiveScope (const AthenaArtifactRadioactiveScope&)= delete;
+  AthenaArtifactRadioactiveScope& operator= (const AthenaArtifactRadioactiveScope&)= delete;
+};
+
+bool athena_artifact_radioactive_changed (
+  const std::shared_ptr<AthenaArtifactRadioactiveDependencies>& dependencies);
 void athena_artifact_radioactive_saved_document (
   const std::filesystem::path& root, const std::string& relative_path,
   const std::vector<AthenaArtifactRecord>& records);

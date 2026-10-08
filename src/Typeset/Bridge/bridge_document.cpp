@@ -40,6 +40,7 @@ public:
   void notify_remove (path p, int nr);
   bool notify_macro  (int type, string var, int l, path p, tree u);
   void notify_change ();
+  bool refresh_radioactive_links ();
 
   void my_exec_until (path p);
   bool my_typeset_will_be_complete ();
@@ -202,6 +203,24 @@ bridge_document_rep::notify_change () {
   if (N(brs)>1) brs[N(brs)-1]->notify_change ();
 }
 
+bool
+bridge_document_rep::refresh_radioactive_links () {
+  if (bridge_rep::refresh_radioactive_links ()) return true;
+  bool changed= false;
+  for (int i=0; i<N(brs); ++i)
+    if (athena_artifact_radioactive_changed (brs[i]->radioactive_dependencies)) {
+      // The name index changes presentation, not source or counter state.
+      // Rebuild this source unit, preserving all unrelated bridge caches.
+      replace_bridge (brs[i], st[i], descend (ip, i));
+      changed= true;
+    }
+  if (changed) {
+    status= CORRUPTED;
+    if (!is_nil (acc)) acc->notify_change ();
+  }
+  return changed;
+}
+
 /******************************************************************************
 * Typesetting
 ******************************************************************************/
@@ -304,7 +323,7 @@ bridge_document_rep::my_typeset (int desired_status) {
                    desired_status & WANTED_MASK: WANTED_PARAGRAPH);
       ttt->a= (i==first_visible  ? a: array<line_item> ());
       ttt->b= (!progressive && i==last_visible? b: array<line_item> ());
-      brs[i]->typeset (PROCESSED+ wanted);
+      brs[i]->typeset (PROCESSED+ wanted, root_document);
       end= i + 1;
       if (progressive && end >= minimum &&
           (!ttt->progressive_advance ||

@@ -1465,3 +1465,8 @@ edit_typeset_rep::typeset_invalidate_all () {
   typeset_preamble ();
   ttt->br->notify_assign (path (), subtree (et, rp));
 }
+
+void
+edit_typeset_rep::typeset_refresh_radioactive_links () {
+  if (refresh_radioactive_links (ttt)) notify_change (THE_TREE);
+}

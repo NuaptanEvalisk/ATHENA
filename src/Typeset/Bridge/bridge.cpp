@@ -340,6 +340,14 @@ bridge_rep::my_clean_links () {
   link_env= link_repository (true);
 }
 
+bool
+bridge_rep::refresh_radioactive_links () {
+  if (!athena_artifact_radioactive_changed (radioactive_dependencies)) return false;
+  radioactive_dependencies.reset ();
+  notify_assign (path (), st);
+  return true;
+}
+
 void
 bridge_rep::my_exec_until (path p) {
   env->exec_until (st, p);
@@ -382,7 +390,7 @@ bridge_rep::exec_until (path p, bool skip_flag) {
 }
 
 void
-bridge_rep::typeset (int desired_status) {
+bridge_rep::typeset (int desired_status, bool track_radioactive_links) {
   // FIXME: this dirty hack ensures a perfect coherence between
   // the bridge and the edit tree at the typesetting stage.
   // This should not be necessary, but we use because the ip_observers
@@ -402,6 +410,9 @@ bridge_rep::typeset (int desired_status) {
     // cout << "changes       = " << changes << LF;
   }
   else {
+    AthenaArtifactRadioactiveScope radioactive_scope (
+      radioactive_dependencies, ttt,
+      track_radioactive_links || ttt->br.operator-> () == this);
     // cout << "Typesetting " << st << ", " << desired_status << LF << INDENT;
     //cout << "recomputing" << LF;
     hashmap<string,tree> prev_back (UNINIT);

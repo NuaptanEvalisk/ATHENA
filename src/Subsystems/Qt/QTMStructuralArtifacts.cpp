@@ -69,7 +69,7 @@ class StructuralArtifacts final: public QObject {
             catch (...) { editor->cancel_editing (); state->artifacts.reset (); throw; }
             editor->end_editing ();
           }
-          if (athena_artifact_radioactive_refresh_needed ()) editor->typeset_invalidate_all ();
+          editor->typeset_refresh_radioactive_links ();
         }
         catch (const std::exception& e) {
           athena_spdlog_warning (std::string ("structural artifacts: live extraction: ") + e.what ());

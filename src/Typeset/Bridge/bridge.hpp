@@ -18,6 +18,7 @@
 #include "Page/vpenalty.hpp"
 #include "Page/skeleton.hpp"
 #include "Page/pager.hpp"
+#include "ATHENA/Data/artifact_radioactive_links.hpp"
 
 #define VALID_MASK        1
 #define CORRUPTED         0
@@ -44,6 +45,7 @@ public:
   array<page_item>     l;        // the typesetted lines of st
   stack_border         sb;       // border properties of l
   link_repository      link_env; // loci and links declared inside bridge
+  std::shared_ptr<AthenaArtifactRadioactiveDependencies> radioactive_dependencies;
 
 public:
   bridge_rep (typesetter ttt, tree st, path ip);
@@ -56,13 +58,14 @@ public:
   virtual void notify_join   (path p);
   virtual bool notify_macro  (int type, string var, int l, path p, tree u) = 0;
   virtual void notify_change () = 0;
+  virtual bool refresh_radioactive_links ();
 
   virtual void my_clean_links ();
   virtual void my_exec_until (path p);
   virtual bool my_typeset_will_be_complete ();
   virtual void my_typeset (int desired_status);
   virtual void exec_until (path p, bool skip_flag= false);
-  void typeset (int desired_status);
+  void typeset (int desired_status, bool track_radioactive_links= false);
 };
 
 class bridge {

@@ -41,6 +41,11 @@ delete_typesetter (typesetter ttt) {
   tm_delete (ttt);
 }
 
+bool
+refresh_radioactive_links (typesetter ttt) {
+  return ttt->br->refresh_radioactive_links ();
+}
+
 /******************************************************************************
 * Output flux
 ******************************************************************************/

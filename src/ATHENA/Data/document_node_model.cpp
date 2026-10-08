@@ -1197,10 +1197,13 @@ prepared_property_edit prepare_artifact_binding (
     result.diagnostics= validate_node_properties (candidate, budget);
     for (auto& problem: result.diagnostics) problem.where= where;
     if (!result.ok ()) return result;
+    result.id= metadata.id;
+    // A no-op binding cannot introduce an identity conflict elsewhere. Keep
+    // local validation, but do not audit the whole document on each keystroke.
+    if (node::equal_metadata (target, candidate)) return result;
     const auto mod= mod_set_metadata (location, candidate);
     identity_audit (budget).inspect (clean_apply (scope, mod));
-    result.id= metadata.id;
-    if (!node::equal_metadata (target, candidate)) result.change= mod;
+    result.change= mod;
   }
   catch (const failure& problem) { result.diagnostics.push_back (problem.value); }
   catch (const std::exception& error) {

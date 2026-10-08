@@ -31,6 +31,7 @@ void notify_assign_node (typesetter ttt, path p, tree_label op);
 void notify_insert_node (typesetter ttt, path p, tree t);
 void notify_remove_node (typesetter ttt, path p);
 void exec_until         (typesetter ttt, path p);
+bool refresh_radioactive_links (typesetter ttt);
 box  typeset            (typesetter ttt, SI& x1, SI& y1, SI& x2, SI& y2);
 
 box        typeset_as_concat (edit_env env, tree t, path ip);
