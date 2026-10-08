@@ -399,7 +399,7 @@ edit_interface_rep::cursor_visible () {
       selection_active_any () || selection_active_enlarging ();
     bool typewriter=
       get_user_preference ("typewriter mode", "off") == "on" &&
-      (medium == "papyrus" || medium == "automatic") &&
+      (medium == "papyrus" || medium == "automatic" || ui_viewport ().externally_presented) &&
       !selection_scrolling;
     if (typewriter && typewriter_manual_scroll_time != 0) {
       if (tp == typewriter_manual_scroll_path)

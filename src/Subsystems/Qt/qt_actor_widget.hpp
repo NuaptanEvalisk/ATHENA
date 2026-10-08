@@ -91,6 +91,8 @@ public:
   bool handle_activate_owning_view () override;
   void handle_repaint (renderer renderer, SI x1, SI y1, SI x2, SI y2) override;
   void drain_external_effects () override;
+  // Publish a compositor camera change without marking it as user scrolling.
+  void refresh_viewport ();
   void handle_render_connection_ready (
     athena_resource_id connection_id) override;
 
@@ -104,7 +106,6 @@ private:
 
   void submit_text (actor_command_kind kind, string text,
                     std::uint64_t argument0= 0);
-  void refresh_viewport ();
 };
 
 widget actor_editor_widget (athena_actor_id actor_id,

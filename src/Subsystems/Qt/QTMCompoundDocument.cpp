@@ -21,6 +21,8 @@
 #include "tree_cursor.hpp"
 #include "scheme.hpp"
 #include "qt_gui.hpp"
+#include "qt_actor_widget.hpp"
+#include "node_metadata.hpp"
 #include "namespaces.hpp"
 #include "namespace_ontology.hpp"
 #include "new_buffer.hpp"
@@ -88,8 +90,10 @@ url source_url (const QString& filename) {
 }
 
 QByteArray counter_bytes (const tree& state) {
+  // Evaluated environments and counters may reuse source subtrees. They are
+  // values, not new source objects; keep properties, not persistent identities.
   return QByteArray::fromStdString (athena::document::write_xml_v2 (
-    state, athena::document::xml_kind::fragment));
+    athena::node::content_projection (state), athena::document::xml_kind::fragment));
 }
 
 tree counter_tree (const QByteArray& bytes) {
@@ -235,9 +239,10 @@ class QTMCompoundViewport: public QAbstractScrollArea {
       auto* bar= horizontalScrollBar ();
       bar->setValue (bar->value () - dx);
     }
-    if (dy != 0) { updateRange (offset () - dy); arrange (); }
+    if (dy != 0) { updateRange (offset () - dy); arrange (true); }
   }};
   double scale_= 1;
+  bool typewriter_mode_= false;
 
   double offset () const { return verticalScrollBar ()->value () * scale_; }
 
@@ -258,7 +263,9 @@ class QTMCompoundViewport: public QAbstractScrollArea {
   }
 
   void updateRange (double desired) {
-    const double maximum= std::max (0.0, layout_.extent () - viewport ()->height ());
+    typewriter_mode_= get_preference ("typewriter mode", "off") == "on";
+    const double tail= typewriter_mode_ && !members_.empty () ? viewport ()->height () / 2.0 : 0;
+    const double maximum= std::max (0.0, layout_.extent () + tail - viewport ()->height ());
     scale_= std::max (1.0, maximum / (std::numeric_limits<int>::max () - 1.0));
     QSignalBlocker blocked (verticalScrollBar ());
     verticalScrollBar ()->setRange (0, int (std::ceil (maximum / scale_)));
@@ -319,8 +326,10 @@ class QTMCompoundViewport: public QAbstractScrollArea {
         const auto& source= views_[i];
         if (arranging_ || !source.visible || i != active_member_ ||
             !canvas->editorHasFocus () || (compound_drag_ && mouse_down_)) return;
-        updateRange (layout_.top (i) + member_heading_height + position.y () -
-                     source.host->y ());
+        inertia_.stop ();
+        QSignalBlocker horizontal (horizontalScrollBar ());
+        horizontalScrollBar ()->setValue (position.x ());
+        updateRange (layout_.top (i) + member_heading_height + position.y ());
         arrange ();
       });
   }
@@ -492,7 +501,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
         local.y () > viewport ()->height () - edge ? local.y () - viewport ()->height () + edge : 0;
       if (delta != 0) {
         updateRange (offset () + std::clamp (delta, -80, 80));
-        arrange ();
+        arrange (true);
         drag_dirty_= true;
       }
     }
@@ -872,8 +881,11 @@ class QTMCompoundViewport: public QAbstractScrollArea {
           const auto* context= current_scheme_execution_context ();
           auto* editor= dynamic_cast<edit_typeset_rep*> (context->editor);
           result->epoch= context->actor->source_epoch ();
-          result->content= QByteArray::fromStdString (athena::document::semantic_document_fingerprint (
-            context->actor->current_source (context->view_id)));
+          // current_source also contains evaluated references/auxiliary data,
+          // which may repeat source nodes after export. Fingerprint values,
+          // not their source identities, just as for the environment below.
+          result->content= QCryptographicHash::hash (
+            counter_bytes (context->actor->current_source (context->view_id)), QCryptographicHash::Sha256);
           result->environment= QCryptographicHash::hash (
             counter_bytes (editor->compound_counter_environment ()), QCryptographicHash::Sha256);
         }
@@ -920,7 +932,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
     item.visible= false;
   }
 
-  void arrange () {
+  void arrange (bool user_scroll= false) {
     if (arranging_ || !isVisible ()) return;
     arranging_= true;
     try {
@@ -941,7 +953,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
         const bool resized= item.canvas->surface ()->size () != viewport ()->size ();
         const bool resumed= !item.visible;
         // Stable render dimensions across boundaries: clipping is compositor-owned.
-        item.host->setGeometry (0, top, viewport ()->width (), viewport ()->height ());
+        item.host->setGeometry (viewport ()->rect ());
         item.host->layout ()->activate ();
         item.canvas->setGeometry (QRect (QPoint (), viewport ()->size ()));
         item.canvas->viewport ()->setGeometry (item.canvas->rect ());
@@ -959,10 +971,16 @@ class QTMCompoundViewport: public QAbstractScrollArea {
           activateMember (i);
         auto origin= item.canvas->origin ();
         origin.setX (horizontalScrollBar ()->value ());
-        origin.setY (int (std::max (0.0, -source_top)));
+        // Every adapter sees the same complete compound viewport in its own
+        // document coordinates, including the area above its source's start.
+        origin.setY (int (std::round (-source_top)));
         const bool moved= origin != item.canvas->origin ();
         item.canvas->setExternalOrigin (origin);
-        if (moved || resumed || resized) item.canvas->publishUserScroll ();
+        if (moved || resumed || resized) {
+          if (user_scroll) item.canvas->publishUserScroll ();
+          else if (auto* proxy= dynamic_cast<qt_actor_widget_rep*> (item.canvas->tm_widget ()))
+            proxy->refresh_viewport ();
+        }
         if (resized) {
           const auto size= from_qsize (viewport ()->size ());
           the_gui->process_resize (item.canvas->tm_widget (), size.x1, size.x2);
@@ -1005,7 +1023,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
     const double within= anchor < layout_.size () ? old_offset - layout_.top (anchor) : 0;
     const bool at_end= verticalScrollBar ()->maximum () > 0 &&
       verticalScrollBar ()->value () == verticalScrollBar ()->maximum ();
-    bool changed= false;
+    bool changed= typewriter_mode_ != (get_preference ("typewriter mode", "off") == "on");
     int width= viewport ()->width ();
     for (std::size_t i= 0; i < views_.size (); ++i) {
       const auto& item= views_[i];
@@ -1017,8 +1035,13 @@ class QTMCompoundViewport: public QAbstractScrollArea {
         changed= true;
       }
     }
-    horizontalScrollBar ()->setRange (0, width - viewport ()->width ());
-    horizontalScrollBar ()->setPageStep (viewport ()->width ());
+    {
+      QSignalBlocker horizontal (horizontalScrollBar ());
+      const int old_x= horizontalScrollBar ()->value ();
+      horizontalScrollBar ()->setRange (0, width - viewport ()->width ());
+      horizontalScrollBar ()->setPageStep (viewport ()->width ());
+      changed= changed || old_x != horizontalScrollBar ()->value ();
+    }
     if (changed) {
       updateRange (at_end ? layout_.extent () :
         anchor < layout_.size () ? layout_.top (anchor) + within : 0);
@@ -1119,7 +1142,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
         self->members_= std::move (members);
         self->views_= std::move (views);
         self->layout_= std::move (layout);
-        self->counters_= athena::avd::counter_cache (self->members_, QByteArrayLiteral ("ATHENA counter executor 1"));
+        self->counters_= athena::avd::counter_cache (self->members_, QByteArrayLiteral ("ATHENA counter executor 2"));
         self->invalidateCounters (0);
         self->updateRange (desired);
         self->arrange ();
@@ -1392,7 +1415,7 @@ protected:
     return QAbstractScrollArea::eventFilter (watched, event);
   }
 
-  void scrollContentsBy (int, int) override { arrange (); }
+  void scrollContentsBy (int, int) override { arrange (true); }
   void resizeEvent (QResizeEvent* event) override {
     QAbstractScrollArea::resizeEvent (event);
     updateRange (offset ());
@@ -1417,7 +1440,10 @@ protected:
       const auto& source= views_[i];
       if (!source.visible || !source.canvas) continue;
       const int top= int (std::max (0.0, layout_.top (i) + member_heading_height - start));
-      const int bottom= int (std::min (double (viewport ()->height ()), layout_.top (i + 1) - start));
+      // The final source renderer also owns the trailing background, including
+      // typewriter padding; it already applies the document color preferences.
+      const int bottom= i + 1 == views_.size () ? viewport ()->height () :
+        int (std::min (double (viewport ()->height ()), layout_.top (i + 1) - start));
       const QPoint position= source.canvas->surface ()->mapTo (viewport (), QPoint ());
       painter.save ();
       painter.setClipRect (QRect (0, top, viewport ()->width (), bottom - top));
@@ -1452,6 +1478,7 @@ public:
     if (!viewport ()->rect ().contains (local)) return nullptr;
     const auto member= layout_.member_at (offset () + local.y ());
     if (member >= views_.size () || !views_[member].canvas) return nullptr;
+    if (offset () + local.y () < layout_.top (member) + member_heading_height) return nullptr;
     auto* canvas= views_[member].canvas.data ();
     if (!canvas->surface ()->rect ().contains (canvas->surface ()->mapFromGlobal (position)))
       return nullptr;
@@ -1506,7 +1533,7 @@ public:
     QAbstractScrollArea (&owner), owner_ (owner), filename_ (std::move (filename)),
     descriptor_ (std::move (descriptor)), members_ (std::move (members)),
     layout_ (members_.size (), 1200),
-    counters_ (members_, QByteArrayLiteral ("ATHENA counter executor 1"), descriptor_.value.checkpoints),
+    counters_ (members_, QByteArrayLiteral ("ATHENA counter executor 2"), descriptor_.value.checkpoints),
     views_ (members_.size ()) {
     setVerticalScrollBar (new MemberScrollBar (layout_));
     viewport ()->installEventFilter (this);
