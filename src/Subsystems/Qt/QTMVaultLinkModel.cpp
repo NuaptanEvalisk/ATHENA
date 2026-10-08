@@ -18,6 +18,10 @@
 #include "ATHENA/Data/enunciation_model.hpp"
 #include "ATHENA/Data/heading_word_count.hpp"
 #include "node_metadata.hpp"
+#include "convert.hpp"
+#include "named_symbol.hpp"
+#include "drd_mode.hpp"
+#include "utf8_edit.hpp"
 #include "ATHENA/Data/node_reference.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
 #include <QTimer>
@@ -96,15 +100,38 @@ vault_link_source_body (url file) {
   return import_body (file);
 }
 
+// Display-only leaves for the standard DRD-aware verbatim converter. Never
+// expose symbol identities or image resource parameters as visible text.
+static tree source_excerpt_tree (const tree& value) {
+  if (is_atomic (value)) return value;
+  if (is_func (value, NAMED_SYMBOL, 1)) {
+    if (is_atomic (value[0])) {
+      const string& identity= value[0]->label;
+      const auto* symbol= athena::text::standard_named_symbols ().lookup (
+        std::string_view (identity.data (), N(identity)));
+      if (symbol && !symbol->glyph_utf8.empty ())
+        return tree (string (symbol->glyph_utf8.c_str ()));
+    }
+    return tree ("[symbol]");
+  }
+  if (is_func (value, IMAGE)) return tree ("[image]");
+  tree result (L(value), N(value));
+  for (int i=0; i<N(value); ++i) result[i]= source_excerpt_tree (value[i]);
+  return result;
+}
+
 static QString source_excerpt (const tree& value) {
-  QString text;
-  std::function<void (const tree&)> visit= [&] (const tree& part) {
-    if (text.size () >= 120) return;
-    if (is_atomic (part)) text += to_qstring (part->label).left (120-text.size ()) + " ";
-    else for (int i=0; i<N(part) && text.size () < 120; ++i) visit (part[i]);
-  };
-  visit (value);
-  return text.simplified ();
+  struct access_scope {
+    int previous= set_access_mode (DRD_ACCESS_NORMAL);
+    ~access_scope () { set_access_mode (previous); }
+  } scope;
+  QString text= to_qstring (tree_to_verbatim (source_excerpt_tree (value), false,
+                                            "UTF-8")).simplified ();
+  const auto characters= utf8_graphemes (from_qstring (text));
+  if (N(characters) <= 120) return text;
+  string prefix;
+  for (int i=0; i<117; ++i) prefix << characters[i];
+  return to_qstring (prefix) + "...";
 }
 
 std::vector<VaultSourceTarget>
@@ -121,19 +148,20 @@ vault_source_targets (const tree& body) {
         const auto* metadata= athena::node::get (value);
         const auto name= metadata->properties.find ("name");
         if (name != metadata->properties.end ())
-          if (const auto* rich= std::get_if<athena::node::rich_text> (&name->second.data))
-            title += ": " + source_excerpt (rich->content);
+          if (const auto* rich= std::get_if<athena::node::rich_text> (&name->second.data)) {
+            const QString text= source_excerpt (rich->content);
+            if (!text.isEmpty ()) title += ": " + text;
+          }
       }
       else if (athena_heading_level (value) > 0) {
         kind= "heading";
-        title= to_qstring (athena_heading_title (value));
+        title= source_excerpt (value);
       }
       else if (is_nil (where)) title= "Whole document";
       if (title.isEmpty ()) title= is_atomic (value) ? "Paragraph" :
         to_qstring (as_string (L(value)));
       QString excerpt= source_excerpt (value);
-      if (excerpt.size () > 120) excerpt= excerpt.left (117) + "...";
-      if (!excerpt.isEmpty ()) title += ": " + excerpt;
+      if (!excerpt.isEmpty () && excerpt != title) title += ": " + excerpt;
       result.push_back ({QString::fromStdString (id), title, kind, where});
     }
     if (is_compound (value))
