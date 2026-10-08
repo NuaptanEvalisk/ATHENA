@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "node_location_cache.hpp"
+#include "athena_platform.hpp"
 #include "background_workers.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
 #include "System/Files/confined_filesystem.hpp"
@@ -40,9 +41,13 @@ namespace {
 constexpr std::uint32_t schema_version= 1;
 constexpr std::size_t hot_limit= 65536;
 // LMDB map size is virtual address space, not preallocated resident memory.
-// Keep it deliberately large so an interactive vault never stops for a map
-// resize while the writer is publishing locations.
+// iPadOS caps an application's virtual address space even on high-RAM devices.
+// Keep desktop headroom without reserving 16 GiB in the iPad process.
+#if ATHENA_PLATFORM_IPADOS
+constexpr std::size_t map_size= std::size_t (512) << 20;
+#else
 constexpr std::size_t map_size= std::size_t (16) << 30;
+#endif
 constexpr auto idle_delay= std::chrono::seconds (3);
 
 void append_u32 (std::string& out, std::uint32_t n) {

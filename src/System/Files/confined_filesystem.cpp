@@ -12,18 +12,21 @@
 #include <algorithm>
 #include <array>
 #include <cerrno>
+#include <cstdlib>
 #include <fcntl.h>
 #include <stdexcept>
 #include <system_error>
 #include <utility>
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
 #include <dirent.h>
-#include <linux/openat2.h>
 #include <sys/stat.h>
 #include <sys/file.h>
+#include <unistd.h>
+#endif
+#ifdef __linux__
+#include <linux/openat2.h>
 #include <sys/random.h>
 #include <sys/syscall.h>
-#include <unistd.h>
 #endif
 
 namespace athena::filesystem {
@@ -31,7 +34,14 @@ namespace {
 [[noreturn]] void fail (const char* operation) {
   throw std::system_error (errno, std::generic_category (), operation);
 }
+#if defined(__linux__) || defined(__APPLE__)
 #ifdef __linux__
+constexpr int path_open_flags= O_PATH;
+#else
+// Darwin has no O_PATH. Nonblocking opens let information() reject devices
+// and FIFOs without waiting for a peer before checking the descriptor.
+constexpr int path_open_flags= O_RDONLY | O_NONBLOCK;
+#endif
 struct descriptor {
   int fd;
   explicit descriptor (int fd): fd (fd) { if (fd < 0) fail ("Open confined filesystem entry"); }
@@ -39,6 +49,7 @@ struct descriptor {
   descriptor (const descriptor&) = delete;
 };
 int beneath (int root, const std::filesystem::path& path, int flags) {
+#ifdef __linux__
   struct open_how how {};
   how.flags = flags | O_CLOEXEC;
   // canonical() resolves user symlinks first; this second, kernel-enforced
@@ -48,8 +59,15 @@ int beneath (int root, const std::filesystem::path& path, int flags) {
   do { fd = static_cast<int> (::syscall (SYS_openat2, root, path.c_str (), &how, sizeof how)); }
   while (fd < 0 && errno == EINTR);
   return fd;
+#else
+  int fd;
+  do { fd= ::openat (root, path.c_str (), flags | O_CLOEXEC | O_NOFOLLOW_ANY | O_RESOLVE_BENEATH); }
+  while (fd < 0 && errno == EINTR);
+  return fd;
+#endif
 }
 metadata information (int fd) {
+#ifdef __linux__
   struct statx s {};
   if (::statx (fd, "", AT_EMPTY_PATH, STATX_BASIC_STATS | STATX_BTIME, &s) < 0)
     fail ("Inspect confined filesystem entry");
@@ -61,12 +79,30 @@ metadata information (int fd) {
     {s.stx_ctime.tv_sec, s.stx_ctime.tv_nsec}, {}};
   if (s.stx_mask & STATX_BTIME) result.created = timestamp {s.stx_btime.tv_sec, s.stx_btime.tv_nsec};
   return result;
+#else
+  struct stat s {};
+  if (::fstat (fd, &s) < 0) fail ("Inspect confined filesystem entry");
+  if (!S_ISREG (s.st_mode) && !S_ISDIR (s.st_mode))
+    throw std::system_error (ENOTSUP, std::generic_category (), "Only regular files and directories are accessible");
+  const auto time= [] (const timespec& t) {
+    return timestamp {t.tv_sec, static_cast<std::uint32_t> (t.tv_nsec)};
+  };
+  return {S_ISDIR (s.st_mode), static_cast<std::uint64_t> (s.st_dev),
+    s.st_ino, static_cast<std::uint64_t> (s.st_size),
+    time (s.st_mtimespec), time (s.st_atimespec), time (s.st_ctimespec), time (s.st_birthtimespec)};
+#endif
 }
 descriptor readable (int fd, bool directory) {
+#ifdef __linux__
   // fd is our own pinned O_PATH descriptor, already checked as a regular file
   // or directory. Reopening it never follows an untrusted pathname.
   const auto path = "/proc/self/fd/" + std::to_string (fd);
   return descriptor (::open (path.c_str (), O_RDONLY | O_CLOEXEC | (directory ? O_DIRECTORY : O_NONBLOCK)));
+#else
+  // Directory streams need independent offsets. File reads use pread below.
+  return descriptor (directory ? beneath (fd, ".", O_RDONLY | O_DIRECTORY) :
+    ::fcntl (fd, F_DUPFD_CLOEXEC, 0));
+#endif
 }
 void sync_file (int fd) {
   int result;
@@ -75,6 +111,7 @@ void sync_file (int fd) {
 }
 std::string temporary_name () {
   std::array<unsigned char, 16> bytes;
+#ifdef __linux__
   std::size_t offset= 0;
   while (offset < bytes.size ()) {
     const auto n= ::getrandom (bytes.data () + offset, bytes.size () - offset, 0);
@@ -82,11 +119,45 @@ std::string temporary_name () {
     if (!n) throw std::runtime_error ("No random bytes for confined temporary document");
     offset+= n;
   }
+#else
+  ::arc4random_buf (bytes.data (), bytes.size ());
+#endif
   std::string name= ".athena-audm-";
   constexpr char hex[]= "0123456789abcdef";
   for (auto c: bytes) { name+= hex[c >> 4]; name+= hex[c & 15]; }
   return name;
 }
+
+// Linux stages an anonymous inode. Darwin stages an exclusive private name
+// under the pinned parent, with the same no-clobber link/atomic rename contract.
+struct staged_file {
+  int parent;
+  std::string name;
+  descriptor file;
+  explicit staged_file (int parent): parent (parent), file (create ()) {}
+  ~staged_file () { if (!name.empty ()) ::unlinkat (parent, name.c_str (), 0); }
+  int create () {
+#ifdef __linux__
+    return ::openat (parent, ".", O_TMPFILE | O_RDWR | O_CLOEXEC, 0600);
+#else
+    for (unsigned attempt= 0; attempt != 16; ++attempt) {
+      name= temporary_name ();
+      int fd= ::openat (parent, name.c_str (),
+        O_CREAT | O_EXCL | O_RDWR | O_CLOEXEC | O_NOFOLLOW_ANY | O_RESOLVE_BENEATH, 0600);
+      if (fd >= 0 || errno != EEXIST) return fd;
+    }
+    return -1;
+#endif
+  }
+  int link (const std::filesystem::path& destination) const {
+#ifdef __linux__
+    const auto source= "/proc/self/fd/" + std::to_string (file.fd);
+    return ::linkat (AT_FDCWD, source.c_str (), parent, destination.c_str (), AT_SYMLINK_FOLLOW);
+#else
+    return ::linkat (parent, name.c_str (), parent, destination.c_str (), 0);
+#endif
+  }
+};
 #endif
 }
 
@@ -98,41 +169,41 @@ bool same_revision (const metadata& a, const metadata& b) {
 }
 
 struct entry::impl {
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
   descriptor descriptor_;
   const std::filesystem::path canonical_path;
   impl (int fd, std::filesystem::path path): descriptor_ (fd), canonical_path (std::move (path)) {}
 #endif
 };
 struct confined_root::impl {
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
   const std::filesystem::path canonical_path;
   descriptor descriptor_;
   const metadata identity;
   explicit impl (const std::filesystem::path& path):
     canonical_path (std::filesystem::canonical (path)),
-    descriptor_ (::open (canonical_path.c_str (), O_PATH | O_DIRECTORY | O_CLOEXEC)),
+    descriptor_ (::open (canonical_path.c_str (), path_open_flags | O_DIRECTORY | O_CLOEXEC)),
     identity (information (descriptor_.fd)) {}
 #endif
 };
 
 entry::entry (std::shared_ptr<const impl> p): implementation (std::move (p)) {}
 confined_root::confined_root (const std::filesystem::path& root) {
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
   implementation = std::make_shared<impl> (root);
 #else
-  throw std::runtime_error ("Confined filesystem access requires Linux openat2");
+  throw std::runtime_error ("Confined filesystem access is unavailable on this platform");
 #endif
 }
 const std::filesystem::path& confined_root::path () const {
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
   return implementation->canonical_path;
 #else
   throw std::runtime_error ("Confined filesystem access is unavailable");
 #endif
 }
 const std::filesystem::path& entry::path () const {
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
   return implementation->canonical_path;
 #else
   throw std::runtime_error ("Confined filesystem access is unavailable");
@@ -145,11 +216,11 @@ void confined_root::validate_component (const std::string& name) {
 }
 
 entry confined_root::open (const std::filesystem::path& relative) const {
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
   if (relative.is_absolute ()) throw std::invalid_argument ("Expected a vault-relative path");
   if (relative != ".") for (const auto& part: relative) validate_component (part.string ());
   const auto& root = *implementation;
-  descriptor current (::open (root.canonical_path.c_str (), O_PATH | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
+  descriptor current (::open (root.canonical_path.c_str (), path_open_flags | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
   const auto current_identity = information (current.fd);
   if (current_identity.device != root.identity.device || current_identity.inode != root.identity.inode)
     throw std::system_error (ESTALE, std::generic_category (), "Vault root was replaced");
@@ -157,7 +228,7 @@ entry confined_root::open (const std::filesystem::path& relative) const {
   const auto normalized = target.lexically_relative (root.canonical_path);
   if (normalized.empty () || normalized.is_absolute () || *normalized.begin () == "..")
     throw std::system_error (EACCES, std::generic_category (), "Filesystem target escapes vault root");
-  auto p = std::make_shared<entry::impl> (beneath (root.descriptor_.fd, normalized, O_PATH), target);
+  auto p = std::make_shared<entry::impl> (beneath (root.descriptor_.fd, normalized, path_open_flags), target);
   information (p->descriptor_.fd);
   return entry (std::move (p));
 #else
@@ -168,7 +239,7 @@ entry confined_root::open (const std::filesystem::path& relative) const {
 replacement confined_root::replace (const std::filesystem::path& relative,
     const entry& expected, const metadata& revision, std::string_view bytes,
     const std::function<void()>& before_commit) const {
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
   auto original= open (relative);
   if (!original.same_object (expected))
     throw std::system_error (ESTALE, std::generic_category (), "Document file was replaced");
@@ -176,8 +247,16 @@ replacement confined_root::replace (const std::filesystem::path& relative,
     throw std::invalid_argument ("Cannot replace a directory with document data");
   // Replacing a directory entry must not bypass the original file's write
   // permissions. Open our pinned regular file for writing, without truncation.
+#ifdef __linux__
   const auto lock_path= "/proc/self/fd/" + std::to_string (original.implementation->descriptor_.fd);
   descriptor locked (::open (lock_path.c_str (), O_RDWR | O_CLOEXEC | O_NONBLOCK));
+#else
+  descriptor locked (beneath (implementation->descriptor_.fd,
+    original.path ().lexically_relative (path ()), O_RDWR | O_NONBLOCK));
+  const auto locked_identity= information (locked.fd), original_identity= original.stat ();
+  if (locked_identity.device != original_identity.device || locked_identity.inode != original_identity.inode)
+    throw std::system_error (ESTALE, std::generic_category (), "Document file was replaced before locking");
+#endif
   int locked_result;
   do { locked_result= ::flock (locked.fd, LOCK_EX | LOCK_NB); } while (locked_result < 0 && errno == EINTR);
   if (locked_result < 0) fail ("Lock confined document for replacement");
@@ -195,9 +274,8 @@ replacement confined_root::replace (const std::filesystem::path& relative,
   descriptor parent (beneath (implementation->descriptor_.fd, parent_path, O_RDONLY | O_DIRECTORY));
   struct stat previous {};
   if (::fstat (locked.fd, &previous) < 0) fail ("Read document permissions");
-  // QSaveFile works with pathnames and can follow a changed destination link.
-  // O_TMPFILE keeps this write tied to the already-confined parent directory.
-  descriptor temporary (::openat (parent.fd, ".", O_TMPFILE | O_RDWR | O_CLOEXEC, 0600));
+  staged_file staged (parent.fd);
+  const auto& temporary= staged.file;
   std::size_t offset= 0;
   while (offset < bytes.size ()) {
     const auto n= ::write (temporary.fd, bytes.data () + offset,
@@ -209,10 +287,9 @@ replacement confined_root::replace (const std::filesystem::path& relative,
   if (::fchmod (temporary.fd, previous.st_mode & 0777) < 0) fail ("Set replacement document permissions");
   sync_file (temporary.fd);
   std::string name;
-  const auto temporary_fd= "/proc/self/fd/" + std::to_string (temporary.fd);
   for (unsigned attempt= 0; attempt != 16; ++attempt) {
     name= temporary_name ();
-    if (::linkat (AT_FDCWD, temporary_fd.c_str (), parent.fd, name.c_str (), AT_SYMLINK_FOLLOW) == 0) break;
+    if (staged.link (name) == 0) break;
     if (errno != EEXIST || attempt == 15) fail ("Link confined document replacement");
   }
   struct cleanup {
@@ -222,12 +299,12 @@ replacement confined_root::replace (const std::filesystem::path& relative,
     ~cleanup () { if (linked) ::unlinkat (parent, name.c_str (), 0); }
   } cleanup_ {parent.fd, name};
   auto new_entry= std::make_shared<entry::impl> (
-    beneath (parent.fd, name, O_PATH), original.path ());
+    beneath (parent.fd, name, path_open_flags), original.path ());
   // A caller can acquire a publication lease after expensive writes/fsync,
   // without blocking document opening throughout staging.
   if (before_commit) before_commit ();
   check_revision ();
-  descriptor current_parent (beneath (implementation->descriptor_.fd, parent_path, O_PATH | O_DIRECTORY));
+  descriptor current_parent (beneath (implementation->descriptor_.fd, parent_path, path_open_flags | O_DIRECTORY));
   const auto before= information (parent.fd), now= information (current_parent.fd);
   if (before.device != now.device || before.inode != now.inode)
     throw std::system_error (ESTALE, std::generic_category (), "Document parent directory moved");
@@ -246,7 +323,7 @@ replacement confined_root::replace (const std::filesystem::path& relative,
 
 replacement confined_root::create (const std::filesystem::path& relative,
                                     std::string_view bytes) const {
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
   if (relative.empty () || relative.is_absolute ())
     throw std::invalid_argument ("Expected a relative document path");
   for (const auto& part: relative) validate_component (part.string ());
@@ -255,8 +332,8 @@ replacement confined_root::create (const std::filesystem::path& relative,
   if (parent_path.empty ()) parent_path= ".";
   descriptor parent (beneath (
     implementation->descriptor_.fd, parent_path, O_RDONLY | O_DIRECTORY));
-  descriptor temporary (::openat (
-    parent.fd, ".", O_TMPFILE | O_RDWR | O_CLOEXEC, 0600));
+  staged_file staged (parent.fd);
+  const auto& temporary= staged.file;
   std::size_t offset= 0;
   while (offset < bytes.size ()) {
     const auto n= ::write (temporary.fd, bytes.data () + offset,
@@ -272,17 +349,15 @@ replacement confined_root::create (const std::filesystem::path& relative,
     fail ("Set created document permissions");
   sync_file (temporary.fd);
   descriptor current_parent (beneath (
-    implementation->descriptor_.fd, parent_path, O_PATH | O_DIRECTORY));
+    implementation->descriptor_.fd, parent_path, path_open_flags | O_DIRECTORY));
   const auto before= information (parent.fd), now= information (current_parent.fd);
   if (before.device != now.device || before.inode != now.inode)
     throw std::system_error (ESTALE, std::generic_category (),
                              "Document parent directory moved");
-  const auto temporary_fd= "/proc/self/fd/" + std::to_string (temporary.fd);
-  if (::linkat (AT_FDCWD, temporary_fd.c_str (), parent.fd,
-                relative.filename ().c_str (), AT_SYMLINK_FOLLOW) < 0)
+  if (staged.link (relative.filename ()) < 0)
     fail ("Commit confined document creation");
   auto created= std::make_shared<entry::impl> (
-    beneath (parent.fd, relative.filename (), O_PATH), path () / relative);
+    beneath (parent.fd, relative.filename (), path_open_flags), path () / relative);
   int synced;
   do { synced= ::fsync (parent.fd); } while (synced < 0 && errno == EINTR);
   return {entry (std::move (created)), synced == 0};
@@ -293,7 +368,7 @@ replacement confined_root::create (const std::filesystem::path& relative,
 
 entry confined_root::preserve (const std::filesystem::path& relative,
                               std::string_view bytes) const {
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
   if (relative.empty () || relative.is_absolute ())
     throw std::invalid_argument ("Expected a relative backup file path");
   for (const auto& part: relative) validate_component (part.string ());
@@ -310,7 +385,8 @@ entry confined_root::preserve (const std::filesystem::path& relative,
       beneath (parent, part, O_RDONLY | O_DIRECTORY)));
   }
   const int parent= parents.back ()->fd;
-  descriptor temporary (::openat (parent, ".", O_TMPFILE | O_RDWR | O_CLOEXEC, 0600));
+  staged_file staged (parent);
+  const auto& temporary= staged.file;
   std::size_t offset= 0;
   while (offset < bytes.size ()) {
     const auto n= ::write (temporary.fd, bytes.data () + offset,
@@ -323,16 +399,14 @@ entry confined_root::preserve (const std::filesystem::path& relative,
   sync_file (temporary.fd);
   (void) open (".");
   const auto parent_path= relative.has_parent_path () ? relative.parent_path () : std::filesystem::path (".");
-  descriptor current_parent (beneath (implementation->descriptor_.fd, parent_path, O_PATH | O_DIRECTORY));
+  descriptor current_parent (beneath (implementation->descriptor_.fd, parent_path, path_open_flags | O_DIRECTORY));
   const auto previous= information (parent), current= information (current_parent.fd);
   if (previous.device != current.device || previous.inode != current.inode)
     throw std::system_error (ESTALE, std::generic_category (), "Backup parent directory moved");
-  const auto temporary_fd= "/proc/self/fd/" + std::to_string (temporary.fd);
-  if (::linkat (AT_FDCWD, temporary_fd.c_str (), parent, relative.filename ().c_str (), AT_SYMLINK_FOLLOW) < 0 &&
-      errno != EEXIST)
+  if (staged.link (relative.filename ()) < 0 && errno != EEXIST)
     fail ("Commit original document backup");
   entry result (std::make_shared<entry::impl> (
-    beneath (implementation->descriptor_.fd, relative, O_PATH), path () / relative));
+    beneath (implementation->descriptor_.fd, relative, path_open_flags), path () / relative));
   if (result.read (bytes.size ()) != bytes)
     throw std::runtime_error ("Existing backup does not match the original document");
   // A previous attempt may have linked the file but failed during fsync.
@@ -345,7 +419,7 @@ entry confined_root::preserve (const std::filesystem::path& relative,
 #endif
 }
 metadata entry::stat () const {
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
   return information (implementation->descriptor_.fd);
 #else
   throw std::runtime_error ("Confined filesystem access is unavailable");
@@ -356,7 +430,7 @@ bool entry::same_object (const entry& other) const {
   return a.device == b.device && a.inode == b.inode;
 }
 std::string entry::read (std::size_t limit) const {
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
   const auto before = stat ();
   if (before.directory) throw std::invalid_argument ("Cannot read a directory as a document");
   if (before.size > limit) throw std::length_error ("File exceeds the document read limit");
@@ -365,7 +439,7 @@ std::string entry::read (std::size_t limit) const {
   result.reserve (static_cast<std::size_t> (before.size));
   std::array<char, 65536> bytes;
   for (;;) {
-    const auto n = ::read (fd.fd, bytes.data (), bytes.size ());
+    const auto n = ::pread (fd.fd, bytes.data (), bytes.size (), static_cast<off_t> (result.size ()));
     if (n < 0) { if (errno == EINTR) continue; fail ("Read confined filesystem entry"); }
     if (!n) break;
     if (std::size_t (n) > limit - result.size ()) throw std::length_error ("File exceeds the document read limit");
@@ -380,7 +454,7 @@ std::string entry::read (std::size_t limit) const {
 #endif
 }
 int entry::duplicate_descriptor () const {
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
   int result;
   do { result= ::fcntl (implementation->descriptor_.fd, F_DUPFD_CLOEXEC, 3); }
   while (result < 0 && errno == EINTR);
@@ -391,7 +465,7 @@ int entry::duplicate_descriptor () const {
 #endif
 }
 std::vector<std::string> entry::names () const {
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
   if (!stat ().directory) throw std::invalid_argument ("Only directories have filesystem children");
   auto fd = readable (implementation->descriptor_.fd, true);
   const int duplicate = ::fcntl (fd.fd, F_DUPFD_CLOEXEC, 0);
