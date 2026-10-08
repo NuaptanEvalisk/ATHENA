@@ -1,5 +1,12 @@
 file (GLOB_RECURSE TEST_SRC_FILES CONFIGURE_DEPENDS "*.cpp")
 
+list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/hodarium/revisions_test\\.cpp$")
+add_executable(hodarium_revisions_test hodarium/revisions_test.cpp)
+set_target_properties(hodarium_revisions_test PROPERTIES AUTOMOC OFF)
+target_link_libraries(hodarium_revisions_test PRIVATE athena_hodarium)
+add_test(NAME hodarium_revisions_test COMMAND hodarium_revisions_test)
+set_tests_properties(hodarium_revisions_test PROPERTIES TIMEOUT 15)
+
 function (athena_link_full_test_runtime target)
   # Keep special test executables on the same production-runtime link closure
   # as the automatically registered C++ tests below.  Hand-maintained subsets

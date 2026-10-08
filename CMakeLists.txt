@@ -1124,6 +1124,8 @@ if (BUILD_TESTS)
   enable_testing ()
 endif ()
 
+add_subdirectory (src/ATHENA/Hodarium)
+list (APPEND ATHENA_Libraries athena_hodarium)
 add_subdirectory (src)
 if (ATHENA_ENABLE_CODEX_BRIDGE)
   add_subdirectory (tools/codex-bridge)
