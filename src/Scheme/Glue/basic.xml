@@ -1,5 +1,10 @@
 <?xml version='1.0' encoding='utf-8'?>
 <glue version="1" prefix="" initializer="initialize_glue_basic">
+  <binding name="open-auxiliary-document" native="athena_open_auxiliary_document" returns="void">
+    <arg type="string" />
+    <arg type="content" />
+    <arg type="url" />
+  </binding>
   <binding name="compound-document-open" native="compound_document_open" returns="void">
     <arg type="url" />
   </binding>

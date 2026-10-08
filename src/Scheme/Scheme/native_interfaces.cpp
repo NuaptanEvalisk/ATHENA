@@ -635,6 +635,22 @@ athena_dispatch_ui (void (*function) ()) {
   function ();
 }
 
+void
+athena_open_auxiliary_document (string name, tree document, url master) {
+  const auto* context= current_scheme_execution_context ();
+  if (context != nullptr) {
+    const auto payload= actor_tree_registry::instance ().store (
+      copy (tree (TUPLE, name, document, as_string (master))));
+    if (!context->editor->publish_ui (
+          actor_command_kind::ui_open_auxiliary_document, payload))
+      (void) actor_tree_registry::instance ().discard (payload);
+    return;
+  }
+  (void) call ("aux-set-document", object (name), object (document));
+  (void) call ("aux-set-master", object (name), object (master));
+  (void) call ("switch-document", call ("aux-name", object (name)));
+}
+
 
 
 void

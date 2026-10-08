@@ -806,6 +806,15 @@ qt_actor_widget_rep::drain_external_effects () {
       (void) create_buffer ();
       break;
     }
+    case actor_command_kind::ui_open_auxiliary_document: {
+      tree request= actor_tree_registry::instance ().take (record.argument[0]);
+      tm_view view= concrete_runtime_view (view_id_);
+      if (view == nullptr) break;
+      set_current_view (abstract_view (view));
+      (void) call ("open-auxiliary-document", object (request[0]->label),
+                   object (request[1]), object (url (request[2]->label)));
+      break;
+    }
     case actor_command_kind::ui_open_document_window: {
       tm_view view= concrete_runtime_view (view_id_);
       if (view != nullptr) set_current_view (abstract_view (view));

@@ -93,11 +93,8 @@
   (:interactive #t))
 
 (tm-define (open-auxiliary aux body . opt-master)
-  (let* ((name (aux-name aux))
-         (master (if (null? opt-master) (buffer-master) (car opt-master))))
-    (aux-set-document aux body)
-    (aux-set-master aux master)
-    (switch-document name)))
+  (open-auxiliary-document
+    aux body (if (null? opt-master) (buffer-master) (car opt-master))))
 
 (define-public-macro (with-aux u . prg)
   `(let* ((u ,u)
