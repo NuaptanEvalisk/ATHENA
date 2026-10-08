@@ -17,6 +17,67 @@
 #include "actor_ui_bridge.hpp"
 #include <cmath>
 #include <QUrl>
+#include "Subsystems/Qt/qt_picture.hpp"
+
+void edit_interface_rep::mouse_touch_context (SI x, SI y,
+                                               std::uint64_t request) {
+  clear_link_peek ();
+  bool in_selection= false;
+  if (selection_active_any ()) {
+    selection selected;
+    selection_get (selected);
+    for (rectangles rs= selected->rs; !is_nil (rs); rs= rs->next) {
+      rectangle r= rs->item;
+      if (x >= r->x1 && x <= r->x2 && y >= r->y1 && y <= r->y2) {
+        in_selection= true;
+        break;
+      }
+    }
+  }
+  string target= in_selection ? string () : link_peek_hit (-1, x, y);
+  if (!in_selection) {
+    go_to (x, y);
+    select (tp, tp);
+  }
+  actor_popup_menu_snapshot popup= popup_menu_state_snapshot ();
+  popup.touch_request= request;
+  popup.touch_target.assign (target.data (), N(target));
+  SI width= min (560*pixel, vx2-vx1-40*pixel);
+  if (athena_link_peek_target (target) && width > 40*pixel) {
+    link_peek_layer peek;
+    peek.target= target;
+    if (prepare_link_peek (peek, width)) {
+      // Rasterize on the owning actor; Qt receives immutable pixels, never
+      // a live tree/box or a request to typeset on the UI thread.
+      SI pad= 10*pixel;
+      SI height= min (peek.content->h ()+2*pad,
+                      min (400*pixel, (vy2-vy1)/2));
+      double dpr= ui_viewport ().render_pixel_ratio;
+      int w= (int) std::ceil (width*dpr/pixel);
+      int h= (int) std::ceil (height*dpr/pixel);
+      if (w > 0 && h > 0) {
+        picture image= qt_picture (QImage (w, h, QImage::Format_ARGB32_Premultiplied), 0, 0);
+        renderer ren= picture_renderer (image, std_shrinkf*PIXEL*dpr/pixel);
+        ren->set_background (rgb_color (248, 250, 252));
+        ren->clear (0, -height, width, 0);
+        ren->clip (pad, -height+pad, width-pad, -pad);
+        rectangles painted;
+        peek.content->redraw (ren, path (), painted,
+                              pad-peek.content->x1, -pad-peek.content->y2);
+        ren->unclip ();
+        tm_delete (ren);
+        QImage rendered= static_cast<qt_picture_rep*> (image->get_handle ())->pict;
+        rendered.setDevicePixelRatio (dpr);
+        popup.touch_preview= std::make_shared<const QImage> (std::move (rendered));
+      }
+    }
+  }
+  if (popup_open) {
+    (void) publish_ui (actor_command_kind::ui_close_popup);
+    popup_open= false;
+  }
+  publish_context_menu (x, y, 0, std::move (popup));
+}
 
 void edit_interface_rep::refresh_node_references () {
   // A derived-reference refresh is not a source edit and must neither enter
@@ -102,6 +163,17 @@ string edit_interface_rep::link_peek_hit (int layer, SI x, SI y) {
 
 bool edit_interface_rep::mouse_link_peek (string type, SI x, SI y, int modifiers,
                                          array<double> data) {
+  if (type == "touch-context") {
+    if (N(data) == 1) mouse_touch_context (x, y, (std::uint64_t) data[0]);
+    return true;
+  }
+  if (type == "touch-open") {
+    auto popup= ui_endpoint->popup_menu_state ();
+    if (N(data) == 1 && popup.touch_request == (std::uint64_t) data[0] &&
+        !popup.touch_target.empty ())
+      call ("go-to-url", object (string (popup.touch_target.data (), popup.touch_target.size ())));
+    return true;
+  }
   if (type == "move" && !(modifiers & 1)) {
     link_peek_pressed= false;
     link_peek_pressed_target= "";
@@ -157,8 +229,13 @@ void edit_interface_rep::update_link_peek (SI x, SI y, int modifiers) {
     return;
   }
   // The halo also bridges the short gap from the initiating link to its peek.
-  if (link_peek_at (x, y, 24*pixel) < 0)
+  if (link_peek_at (x, y, 24*pixel) < 0) {
+    // Remaining on the initiating link must not typeset the same preview on
+    // every Pencil/mouse hover sample.
+    if (!link_peeks.empty () && (modifiers & 256) && !(modifiers & 31) &&
+        link_peek_hit (-1, x, y) == link_peeks.front ().target) return;
     clear_link_peek ();
+  }
   if (!(modifiers & 256) || (modifiers & 31)) return;
   int parent= link_peek_at (x, y);
   string target= link_peek_hit (parent, x, y);

@@ -90,6 +90,13 @@ public:
   void triggerNativeDrawingCanvasCommand (
     native_drawing_canvas_command command);
   void showCommutativeDiagramContextMenu (bool arrow);
+  void showTouchContextMenu (const QPoint& globalPosition);
+  void cancelTouchContextMenu () { ++touchContextRequest; }
+  bool acceptsTouchContextMenu (std::uint64_t request) const {
+    return request == touchContextRequest && presentationVisible ();
+  }
+  void endPencilHover ();
+  void pencilHover (const QPoint& globalPosition);
   bool ownsNativePointerGesture () const {
     return nativeInkActive || nativeInsertSpaceActive || nativeSelectionTransformActive;
   }
@@ -139,6 +146,7 @@ protected:
 private:
   friend class QTMPerformanceMonitor;
   QPointer<QWidget> presentationTarget;
+  std::uint64_t touchContextRequest= 0;
   bool presentationActive= false;
   bool presentationFocused= false;
 

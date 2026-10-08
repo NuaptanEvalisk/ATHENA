@@ -17,6 +17,7 @@ namespace ads { class CDockWidget; }
 bool athena_ios_initialize_paths (std::string& error);
 void athena_ios_install_application_bridge ();
 void athena_ios_register_shell (QTMMainTabWindow* shell);
+void athena_ios_install_document_interactions (QWidget* shell);
 void athena_ios_menus_changed (QTMMainTabWindow* shell);
 bool athena_ios_new_scene (QTMMainTabWindow* origin, ads::CDockWidget* pane= nullptr);
 bool athena_ios_return_pane (QTMMainTabWindow* shell, QWidget* pane);

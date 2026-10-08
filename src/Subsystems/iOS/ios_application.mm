@@ -327,6 +327,7 @@ void athena_ios_install_application_bridge () {
 }
 
 void athena_ios_register_shell (QTMMainTabWindow* shell) {
+  athena_ios_install_document_interactions (shell);
   if (!primary) primary= shell;
   static bool routingInstalled= false;
   if (!routingInstalled) {

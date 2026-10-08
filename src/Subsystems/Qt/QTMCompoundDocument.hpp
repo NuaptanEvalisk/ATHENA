@@ -32,6 +32,7 @@ public:
   const QString& filename () const;
   void goToMember (std::size_t index, bool atEnd= false);
   void activateMember (QTMWidget* canvas);
+  QTMWidget* canvasAtGlobalPosition (const QPoint& position, bool activate= false);
   void refreshToolbars ();
   bool invokeCommand (const QString& id);
   void requestClose ();

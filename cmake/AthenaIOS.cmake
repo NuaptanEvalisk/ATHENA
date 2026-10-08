@@ -3,6 +3,7 @@ enable_language (OBJCXX)
 set (ATHENA_IOS_SOURCES
   "${ATHENA_SOURCE_DIR}/src/Subsystems/iOS/ios_paths.mm"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/iOS/ios_application.mm"
+  "${ATHENA_SOURCE_DIR}/src/Subsystems/iOS/ios_document_interactions.mm"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/iOS/ios_tls_trust.mm")
 set_source_files_properties (${ATHENA_IOS_SOURCES} PROPERTIES
   COMPILE_OPTIONS "-fobjc-arc")

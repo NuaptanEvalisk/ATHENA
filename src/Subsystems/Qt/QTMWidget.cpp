@@ -365,6 +365,7 @@ QTMWidget::refreshEmbeddedBackingStore () {
 
 void
 QTMWidget::notifyUserScroll () {
+  cancelTouchContextMenu ();
   if (athena_qt_is_closing ()) return;
   if (is_nil (tmwid)) return;
   tm_widget ()->handle_user_scroll (texmacs_time ());
@@ -1853,7 +1854,44 @@ QTMWidget::inputMethodQuery (Qt::InputMethodQuery query) const {
 }
 
 void
+QTMWidget::showTouchContextMenu (const QPoint& globalPosition) {
+  if (is_nil (tmwid)) return;
+  focusEditor (Qt::OtherFocusReason);
+  const QPoint local= surface ()->mapFromGlobal (globalPosition);
+  const coord2 point= from_qpoint (local + origin ());
+  native_ink_preview_style style;
+  if (tm_widget ()->handle_native_ink_hit (point.x1, point.x2, style)) {
+    showNativeDrawingContextMenu (globalPosition);
+    return;
+  }
+  array<double> data;
+  data << static_cast<double> (++touchContextRequest);
+  the_gui->process_mouse (tm_widget (), "touch-context", point.x1, point.x2,
+                          0, texmacs_time (), data);
+}
+
+void
+QTMWidget::endPencilHover () {
+  if (!is_nil (tmwid))
+    the_gui->process_mouse (tm_widget (), "peek-leave", 0, 0, 0, texmacs_time ());
+}
+
+void
+QTMWidget::pencilHover (const QPoint& globalPosition) {
+  if (is_nil (tmwid)) return;
+  const coord2 point= from_qpoint (surface ()->mapFromGlobal (globalPosition) + origin ());
+  native_ink_preview_style style;
+  if (tm_widget ()->handle_native_ink_hit (point.x1, point.x2, style)) {
+    endPencilHover ();
+    return;
+  }
+  the_gui->process_mouse (tm_widget (), "peek-modifier", point.x1, point.x2,
+                          256, texmacs_time ());
+}
+
+void
 QTMWidget::mousePressEvent (QMouseEvent* event) {
+  cancelTouchContextMenu ();
   if (is_nil (tmwid)) return;
   refreshCursorBlinking (true);
   if (focusPolicy () != Qt::NoFocus) {
@@ -2097,6 +2135,7 @@ QTMWidget::forwardTabletEventToScrollBar (QTabletEvent* event) {
 
 void
 QTMWidget::tabletEvent (QTabletEvent* event) {
+  if (event->type () == QEvent::TabletPress) endPencilHover ();
   // for testing purposes
   // cout << "tablet name= " << from_qstring(event->pointingDevice ()->name ()) << "\n";
   if (forwardTabletEventToScrollBar (event)) return;
@@ -2170,6 +2209,14 @@ QTMWidget::tabletEvent (QTabletEvent* event) {
     if (event->pressure () == 0) s= "release-" * mouse_decode (mstate);
     else s= "press-" * mouse_decode (mstate);
   }
+#ifdef Q_OS_IOS
+  // UIKit's hover recognizer owns peek enter/move/exit. Qt also synthesizes
+  // pressure-free moves (including on exit), but loses the hover phase.
+  if (event->type () == QEvent::TabletMove && event->buttons () == Qt::NoButton) {
+    event->accept ();
+    return;
+  }
+#endif
   if ((mstate & 4) == 0 || s == "press-right") {
     array<double> data;
     data << ((double) event->pressure())

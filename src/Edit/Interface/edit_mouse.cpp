@@ -540,7 +540,12 @@ edit_interface_rep::mouse_paste (SI x, SI y) { (void) x; (void) y;
 void
 edit_interface_rep::mouse_adjust (SI x, SI y, int mods) {
   if (mouse_message ("adjust", x, y)) return;
-  actor_popup_menu_snapshot popup= popup_menu_state_snapshot ();
+  publish_context_menu (x, y, mods, popup_menu_state_snapshot ());
+}
+
+void
+edit_interface_rep::publish_context_menu (
+  SI x, SI y, int mods, actor_popup_menu_snapshot popup) {
   rectangles ignored;
   tree hit= eb->message ("link-target", x, y, ignored);
   if (is_tuple (hit, "link-target", 1) && is_atomic (hit[1])) {
@@ -557,13 +562,14 @@ edit_interface_rep::mouse_adjust (SI x, SI y, int mods) {
   y= (SI) (y * magf);
   abs_round (x, y);
   if (!popup_open) {
+    const auto request= popup.touch_request;
     if (ui_endpoint != nullptr)
       ui_endpoint->update_popup_menu_state (std::move (popup));
     const bool alternative= (mods & (ShiftMask + ControlMask)) != 0;
     popup_open= publish_ui (
       actor_command_kind::ui_show_popup,
       static_cast<std::uint64_t> (x), static_cast<std::uint64_t> (y),
-      alternative ? 1U : 0U);
+      alternative ? 1U : 0U, request);
   }
 }
 

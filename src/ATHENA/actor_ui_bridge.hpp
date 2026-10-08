@@ -18,10 +18,12 @@
 #include <atomic>
 #include <cstdint>
 #include <mutex>
+#include <memory>
 #include <string>
 #include <vector>
 
 class widget;
+class QImage;
 
 struct actor_viewport_snapshot {
   SI visible_x1= 0;
@@ -229,6 +231,9 @@ struct actor_document_menu_snapshot {
 
 struct actor_popup_menu_snapshot {
   bool ready= false;
+  std::uint64_t touch_request= 0;
+  std::string touch_target;
+  std::shared_ptr<const QImage> touch_preview;
   std::string artifact_name_key;
   std::string vault_incarnation;
   std::string spell_word;

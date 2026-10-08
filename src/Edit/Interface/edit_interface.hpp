@@ -270,6 +270,9 @@ public:
   void mouse_select (SI x, SI y, int mods, bool drag);
   void mouse_paste (SI x, SI y);
   void mouse_adjust (SI x, SI y, int mods);
+  void mouse_touch_context (SI x, SI y, std::uint64_t request);
+  void publish_context_menu (SI x, SI y, int mods,
+                             actor_popup_menu_snapshot popup);
   void mouse_adjust_selection (SI x, SI y, int mods);
   void mouse_scroll (SI x, SI y, bool up);
   bool selected_image_path (path& p);

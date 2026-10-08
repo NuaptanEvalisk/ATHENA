@@ -40,6 +40,8 @@
 #include <QApplication>
 #include <QCursor>
 #include <QMenu>
+#include <QLabel>
+#include <QWidgetAction>
 #include <QThreadPool>
 #include <QStyle>
 #include <QTimer>
@@ -325,15 +327,18 @@ qt_actor_widget_rep::handle_user_scroll (time_t time) {
   if (completion_popup_) completion_popup_->cancel ();
   endpoint_->mark_user_scroll ();
   refresh_viewport ();
-  (void) buffer_actor::submit_to (
+  // The endpoint already contains the latest viewport. Never wait for a
+  // preview's typesetting work merely to notify the actor of another scroll.
+  (void) buffer_actor::try_submit_coalesced_to (
     actor_id_, actor_command_kind::user_scroll, view_id_,
-    ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
     static_cast<std::uint64_t> (time));
 }
 
 void
 qt_actor_widget_rep::handle_mouse (
   string kind, SI x, SI y, int modifiers, time_t time, array<double> data) {
+  const bool preview= starts (kind, "touch-") || starts (kind, "peek-") ||
+    (kind == "move" && !(modifiers & 31));
   athena_blob_id kind_payload= actor_text_from_string (std::move (kind));
   athena_blob_id data_payload= ATHENA_NO_BLOB;
   if (N (data) != 0) {
@@ -343,13 +348,13 @@ qt_actor_widget_rep::handle_mouse (
     std::memcpy (reservation.data (), A (data), bytes);
     data_payload= reservation.publish ();
   }
-  actor_command_ticket ticket= buffer_actor::submit_to (
+  actor_command_ticket ticket= (preview ? buffer_actor::try_submit_to : buffer_actor::submit_to) (
     actor_id_, actor_command_kind::mouse, view_id_, kind_payload,
     data_payload, SCHEME_CAPABILITY_BUFFER,
     static_cast<std::uint64_t> (x), static_cast<std::uint64_t> (y),
     static_cast<std::uint64_t> (modifiers),
     static_cast<std::uint64_t> (time),
-    static_cast<std::uint64_t> (N (data)));
+    static_cast<std::uint64_t> (N (data)), 0, 0, 0);
   discard_unsubmitted (kind_payload, data_payload, ticket);
 }
 
@@ -920,13 +925,15 @@ qt_actor_widget_rep::drain_external_effects () {
       break;
     }
     case actor_command_kind::ui_show_popup: {
+      QTMWidget* owner= canvas ();
+      if (owner == nullptr) break;
+      const auto request= record.argument[3];
+      if (request && !owner->acceptsTouchContextMenu (request)) break;
       if (popup_menu_ != nullptr) {
         popup_menu_->close ();
         popup_menu_->deleteLater ();
         popup_menu_= nullptr;
       }
-      QTMWidget* owner= canvas ();
-      if (owner == nullptr) break;
       QTMCommandContext context;
       context.shell= QTMMainTabWindow::topTabWindow ();
       context.workPane= owner;
@@ -938,6 +945,30 @@ qt_actor_widget_rep::drain_external_effects () {
                       QStringLiteral ("editor-context"),
         context, owner);
       if (popup_menu_ == nullptr) break;
+      if (request) {
+        const auto snapshot= endpoint_->popup_menu_state ();
+        QAction* first= popup_menu_->actions ().isEmpty () ? nullptr : popup_menu_->actions ().first ();
+        if (snapshot.touch_request == request) {
+          if (snapshot.touch_preview) {
+            auto* preview= new QLabel (popup_menu_);
+            preview->setPixmap (QPixmap::fromImage (*snapshot.touch_preview));
+            preview->setFixedSize (snapshot.touch_preview->deviceIndependentSize ().toSize ());
+            auto* action= new QWidgetAction (popup_menu_);
+            action->setDefaultWidget (preview);
+            popup_menu_->insertAction (first, action);
+          }
+          if (!snapshot.touch_target.empty ()) {
+            auto* open= new QAction (QObject::tr ("Open target"), popup_menu_);
+            QObject::connect (open, &QAction::triggered, owner, [this, request] {
+              array<double> data;
+              data << static_cast<double> (request);
+              handle_mouse ("touch-open", 0, 0, 0, texmacs_time (), data);
+            });
+            popup_menu_->insertAction (first, open);
+            popup_menu_->insertSeparator (first);
+          }
+        }
+      }
       QObject::connect (
         popup_menu_, &QObject::destroyed, owner,
         [this] { popup_menu_= nullptr; });

@@ -1447,6 +1447,17 @@ public:
         id == "editor.revert") return false;
     return !edit_pending_ && !io_pending_;
   }
+  QTMWidget* canvasAtGlobalPosition (const QPoint& position, bool activate) {
+    const QPoint local= viewport ()->mapFromGlobal (position);
+    if (!viewport ()->rect ().contains (local)) return nullptr;
+    const auto member= layout_.member_at (offset () + local.y ());
+    if (member >= views_.size () || !views_[member].canvas) return nullptr;
+    auto* canvas= views_[member].canvas.data ();
+    if (!canvas->surface ()->rect ().contains (canvas->surface ()->mapFromGlobal (position)))
+      return nullptr;
+    if (activate) activateMember (member);
+    return canvas;
+  }
   bool ownsCommand (const QString& id) const {
     if (id == "editor.export-pdf-embedded" || id == "editor.export-postscript" ||
         id == "editor.print-page-selection" || id == "editor.print-page-selection-to-file" ||
@@ -1595,6 +1606,10 @@ void QTMCompoundDocument::activateMember (QTMWidget* canvas) {
   setEditorCanvas (canvas);
   for (auto& presenter: toolbar_presenters_) presenter->setCanvas (canvas);
   refreshToolbars ();
+}
+
+QTMWidget* QTMCompoundDocument::canvasAtGlobalPosition (const QPoint& position, bool activate) {
+  return viewport_->canvasAtGlobalPosition (position, activate);
 }
 
 void QTMCompoundDocument::refreshToolbars () {
