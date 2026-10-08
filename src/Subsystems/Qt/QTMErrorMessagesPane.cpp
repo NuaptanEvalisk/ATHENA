@@ -24,8 +24,11 @@
 #include <QAbstractItemView>
 #include <QApplication>
 #include <QCheckBox>
+#include <QClipboard>
+#include <QShortcut>
 #include <QComboBox>
 #include <QHeaderView>
+#include <QHash>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMessageBox>
@@ -97,6 +100,15 @@ is_warning_channel (const QString& channel) {
   return channel.endsWith ("-warning");
 }
 
+static QString
+clipboard_message (const tree& message) {
+  QString result= "[" + utf8_to_qstring (message[0]->label) + "] " +
+                  utf8_to_qstring (message[1]->label);
+  const QString details= debug_tree_text (message[2]);
+  if (!details.isEmpty ()) result += "\n" + details;
+  return result;
+}
+
 QTMErrorMessagesPane::QTMErrorMessagesPane (QWidget* parent)
   : QWidget (parent),
     categoryBox (new QComboBox (this)),
@@ -134,6 +146,10 @@ QTMErrorMessagesPane::QTMErrorMessagesPane (QWidget* parent)
   controls->addWidget (limitBox);
   controls->addWidget (detailsCheck);
   controls->addStretch ();
+  auto* copySelected= new QPushButton ("Copy selected", this);
+  auto* copyAll= new QPushButton ("Copy all", this);
+  controls->addWidget (copySelected);
+  controls->addWidget (copyAll);
   controls->addWidget (refreshButton);
   controls->addWidget (clearButton);
 
@@ -160,6 +176,19 @@ QTMErrorMessagesPane::QTMErrorMessagesPane (QWidget* parent)
            this, [this] () { refresh (); });
   connect (clearButton, &QPushButton::clicked,
            this, [this] () { clearMessages (); });
+  connect (copySelected, &QPushButton::clicked,
+           this, [this] () { copyMessages (true); });
+  connect (copyAll, &QPushButton::clicked,
+           this, [this] () { copyMessages (false); });
+  copySelected->setEnabled (false);
+  connect (messageTree, &QTreeWidget::itemSelectionChanged, this,
+           [this, copySelected] () {
+             copySelected->setEnabled (!messageTree->selectedItems ().isEmpty ());
+           });
+  auto* copyShortcut= new QShortcut (QKeySequence::Copy, messageTree);
+  copyShortcut->setContext (Qt::WidgetWithChildrenShortcut);
+  connect (copyShortcut, &QShortcut::activated,
+           this, [this] () { copyMessages (true); });
   connect (refreshTimer, &QTimer::timeout,
            this, [this] () { refresh (); });
 
@@ -220,7 +249,12 @@ QTMErrorMessagesPane::refresh () {
   QString category= selectedCategory ();
   tree messages= get_debug_messages ("Error messages", messageLimit ());
 
+  // Refreshes must not erase the user's selection before they can copy it.
+  QSet<QString> selected;
+  for (auto* item: messageTree->selectedItems ())
+    selected.insert (item->data (0, Qt::UserRole).toString ());
   messageTree->clear ();
+  QHash<QString, int> occurrences;
   int shown= 0;
   for (int i=0; i<N(messages); i++) {
     tree m= messages[i];
@@ -236,7 +270,12 @@ QTMErrorMessagesPane::refresh () {
       continue;
 
     QString text= utf8_to_qstring (m[1]->label);
+    const QString clipboardText= clipboard_message (m);
+    const QString key= QString::number (occurrences[clipboardText]++) + ":" + clipboardText;
     QTreeWidgetItem* item= new QTreeWidgetItem (messageTree);
+    item->setData (0, Qt::UserRole, key);
+    item->setData (0, Qt::UserRole + 1, clipboardText);
+    item->setSelected (selected.contains (key));
     item->setText (0, type);
     item->setText (1, channel);
     item->setText (2, text);
@@ -248,6 +287,7 @@ QTMErrorMessagesPane::refresh () {
     bool hasDetails= !(is_atomic (m[2]) && m[2]->label == "");
     if (detailsCheck->isChecked () && hasDetails) {
       QTreeWidgetItem* detail= new QTreeWidgetItem (item);
+      detail->setData (0, Qt::UserRole, key);
       detail->setText (2, debug_tree_text (m[2]));
       item->setExpanded (true);
     }
@@ -261,6 +301,27 @@ QTMErrorMessagesPane::refresh () {
   statusLabel->setText (QString ("%1 message%2 shown")
                         .arg (shown)
                         .arg (shown == 1 ? "" : "s"));
+}
+
+void
+QTMErrorMessagesPane::copyMessages (bool selectedOnly) {
+  QStringList messages;
+  if (selectedOnly) {
+    for (int i=0; i<messageTree->topLevelItemCount (); ++i) {
+      auto* item= messageTree->topLevelItem (i);
+      bool selected= item->isSelected ();
+      for (int j=0; j<item->childCount (); ++j)
+        selected= selected || item->child (j)->isSelected ();
+      if (selected) messages << item->data (0, Qt::UserRole + 1).toString ();
+    }
+  }
+  else {
+    const tree all= get_debug_messages ("Error messages", 1000000);
+    for (int i=0; i<N(all); ++i)
+      if (is_func (all[i], TUPLE, 3) && is_atomic (all[i][0]) && is_atomic (all[i][1]))
+        messages << clipboard_message (all[i]);
+  }
+  if (!messages.isEmpty ()) QApplication::clipboard ()->setText (messages.join ("\n"));
 }
 
 void

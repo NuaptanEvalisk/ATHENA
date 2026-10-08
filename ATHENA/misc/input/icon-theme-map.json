@@ -172,6 +172,18 @@
       "theme": ["input-keyboard"],
       "libreoffice": ["cmd/32/configuredialog.svg"]
     },
+    "media-playback-start": {
+      "theme": ["media-playback-start"],
+      "libreoffice": ["cmd/32/runbasic.svg"]
+    },
+    "media-playback-stop": {
+      "theme": ["media-playback-stop"],
+      "libreoffice": ["cmd/32/basicstop.svg"]
+    },
+    "process-stop": {
+      "theme": ["process-stop"],
+      "libreoffice": ["cmd/32/cancel.svg"]
+    },
     "preferences-desktop-font": {
       "theme": ["preferences-desktop-font"],
       "libreoffice": ["cmd/32/fontdialog.svg"]

@@ -18,6 +18,7 @@
 #include "ATHENA/Data/enunciation_model.hpp"
 #include "ATHENA/Data/heading_word_count.hpp"
 #include "node_metadata.hpp"
+#include "compound_virtual_document.hpp"
 #include "convert.hpp"
 #include "named_symbol.hpp"
 #include "drd_mode.hpp"
@@ -93,6 +94,18 @@ tree vault_source_preview (const athena::node_location::result& result) {
 
 tree
 vault_link_source_body (url file) {
+  if (suffix (file) == "avd") {
+    const QString filename= to_qstring (as_string (file, URL_SYSTEM));
+    const auto descriptor= athena::avd::read_descriptor (filename);
+    const auto members= athena::avd::resolve_members (
+      filename, descriptor.value, vault_capture_context ());
+    tree body (DOCUMENT);
+    for (const auto& member: members) {
+      const url source= url_system (from_qstring (member.filename));
+      body << rebase_preview_images (vault_link_source_body (source), head (source));
+    }
+    return body;
+  }
   const auto buffers= get_all_buffers ();
   for (int i=0; i<N(buffers); ++i)
     if (concretize (buffers[i]) == concretize (file))
@@ -205,7 +218,7 @@ vault_source_selection (const tree& body, const QStringList& requested,
 
 QString
 strip_known_extension (QString s) {
-  if (s.endsWith (".ath")) s.chop (4);
+  if (s.endsWith (".ath") || s.endsWith (".avd")) s.chop (4);
   else if (s.endsWith (".tm")) s.chop (3);
   return s;
 }
@@ -225,7 +238,7 @@ current_vault_relative_document () {
   if (!descends (current, root)) return QString ();
 
   string suf= suffix (current);
-  if (suf != "ath" && suf != "tm") return QString ();
+  if (suf != "ath" && suf != "tm" && suf != "avd") return QString ();
   QString relPath= to_qstring (
     as_unix_string (delta (root * url (""), current)));
   if (is_autosave_document_path (relPath)) return QString ();
@@ -242,10 +255,11 @@ load_vault_link_files () {
   std::vector<WikilinkFileEntry> files;
   url root= vault_get_root ();
   QString currentRelPath= current_vault_relative_document ();
-  array<url> all= vault_get_all_files ();
+  array<url> all= vault_get_all_files (true);
   for (int i=0; i<N(all); i++) {
     string suf= suffix (all[i]);
-    if (suf != "ath" && suf != "tm") continue;
+    if (suf != "ath" && suf != "tm" &&
+        !(suf == "avd" && vault_get_node_model_version () >= 1)) continue;
     url rel= delta (root * url (""), all[i]);
     QString relPath= to_qstring (as_unix_string (rel));
     if (is_autosave_document_path (relPath)) continue;

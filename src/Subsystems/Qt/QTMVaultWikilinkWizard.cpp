@@ -478,7 +478,7 @@ WikilinkFilePage::WikilinkFilePage (QWidget* parent)
                "selected result, and Enter again continues.");
 
   searchEdit= new QLineEdit (this);
-  searchEdit->setPlaceholderText ("Search .ath and .tm files");
+  searchEdit->setPlaceholderText ("Search .ath, .avd and .tm files");
   fileList= new QListWidget (this);
   fileList->setAlternatingRowColors (true);
 
@@ -752,6 +752,8 @@ WikilinkAnchorPage::updateList () {
 
   if (vault_get_node_model_version () >= 1) {
     whole->setData (WikilinkPayloadRole, QString::fromStdString (athena::node::id (fileBody)));
+    // An AVD is a view over source objects, not a new object with its own UUID.
+    if (athena::node::id (fileBody).empty ()) delete whole;
     for (int i=0; i<(int) sourceTargets.size (); ++i) {
       const auto& target= sourceTargets[i];
       if (is_nil (target.where) || list_filter_score (target.title, query,

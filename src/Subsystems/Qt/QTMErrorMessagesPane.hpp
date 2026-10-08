@@ -33,6 +33,7 @@ public:
 private:
   void rebuildCategories ();
   void clearMessages ();
+  void copyMessages (bool selectedOnly);
   QString selectedCategory () const;
   int messageLimit () const;
 

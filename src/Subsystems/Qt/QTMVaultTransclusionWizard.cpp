@@ -339,7 +339,7 @@ TransclusionFilePage::TransclusionFilePage (QWidget* parent)
                "selected result, and Enter again continues.");
 
   searchEdit= new QLineEdit (this);
-  searchEdit->setPlaceholderText ("Search .ath and .tm files");
+  searchEdit->setPlaceholderText ("Search .ath, .avd and .tm files");
   fileList= new QListWidget (this);
   fileList->setAlternatingRowColors (true);
 
