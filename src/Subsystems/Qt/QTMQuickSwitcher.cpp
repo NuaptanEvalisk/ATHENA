@@ -203,7 +203,13 @@ executeQuickRequest (athena_resource_id id) {
     quickRequests.erase (found);
   }
   tree result= runQuickSwitcher (request->recentFiles);
-  if (result == UNINIT || request->actorId == ATHENA_NO_ACTOR) return;
+  if (result == UNINIT) return;
+  // Application commands have no originating buffer actor. Complete them on
+  // the Qt thread, like the application's Open Document command.
+  if (request->actorId == ATHENA_NO_ACTOR) {
+    completeQuickSwitcherResult (std::move (result));
+    return;
+  }
 
   athena_continuation_id continuationId=
     actor_continuation_registry::instance ().store (
