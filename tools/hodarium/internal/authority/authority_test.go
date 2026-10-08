@@ -259,11 +259,23 @@ func TestAdmissionEpochExpulsion(t *testing.T) {
 	if state.Revision != 2 || len(state.Members) != 1 || state.Members[0].ID != member {
 		t.Fatal("wrong signed membership")
 	}
+	nonce, sig = proof(t, s, key, "resolve", p.PublicKey)
+	resolved, err := s.ResolveDevice(p.PublicKey, nonce, sig)
+	if err != nil || resolved.ID != member {
+		t.Fatalf("interrupted admission recovery: %v", err)
+	}
+	if _, err = s.ResolveDevice(p.PublicKey, nonce, sig); !errors.Is(err, ErrDenied) {
+		t.Fatalf("resolve replay: %v", err)
+	}
 	if err = s.Expel(member, tokenHash(session), 1); !errors.Is(err, ErrConflict) {
 		t.Fatalf("stale expulsion: %v", err)
 	}
 	if err = s.Expel(member, tokenHash(session), 2); err != nil {
 		t.Fatal(err)
+	}
+	nonce, sig = proof(t, s, key, "resolve", p.PublicKey)
+	if _, err = s.ResolveDevice(p.PublicKey, nonce, sig); !errors.Is(err, ErrDenied) {
+		t.Fatalf("expelled member resolved: %v", err)
 	}
 	nonce, sig = proof(t, s, key, "control", member)
 	if _, err = s.ValidateMember(context.Background(), member, nonce, sig); !errors.Is(err, ErrDenied) {

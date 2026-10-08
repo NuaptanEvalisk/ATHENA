@@ -45,6 +45,7 @@ func NewAPI(store *Store, origin string) (*API, error) {
 	a.mux.HandleFunc("POST /api/device/join", a.join)
 	a.mux.HandleFunc("POST /api/device/poll", a.poll)
 	a.mux.HandleFunc("POST /api/device/validate", a.validate)
+	a.mux.HandleFunc("POST /api/device/resolve", a.resolveDevice)
 	a.mux.HandleFunc("POST /api/recovery/complete", a.recoverAuthority)
 	a.mux.HandleFunc("POST /api/auth/register/start", a.registerStart)
 	a.mux.HandleFunc("POST /api/auth/register/finish", a.registerFinish)
@@ -178,11 +179,12 @@ func setSession(w http.ResponseWriter, token string) {
 }
 func (a *API) info(w http.ResponseWriter, r *http.Request) {
 	var count int
-	if err := a.store.db.QueryRow("SELECT count(*) FROM credentials").Scan(&count); err != nil {
+	var generation string
+	if err := a.store.db.QueryRow("SELECT (SELECT count(*) FROM credentials),generation FROM authority").Scan(&count, &generation); err != nil {
 		a.fail(w, err)
 		return
 	}
-	respond(w, map[string]any{"protocol": 1, "group": a.store.Group, "authority_key": a.store.PublicKey(), "recovery_public_key": encoding.EncodeToString(a.store.RecoveryPublic), "initialized": count != 0})
+	respond(w, map[string]any{"protocol": 1, "group": a.store.Group, "generation": generation, "authority_key": a.store.PublicKey(), "recovery_public_key": encoding.EncodeToString(a.store.RecoveryPublic), "initialized": count != 0})
 }
 
 func (a *API) recoverAuthority(w http.ResponseWriter, r *http.Request) {
@@ -340,6 +342,23 @@ func (a *API) validate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out, err := a.store.ValidateMember(r.Context(), in.Member, in.Challenge, in.Signature)
+	if err != nil {
+		a.fail(w, err)
+		return
+	}
+	respond(w, out)
+}
+func (a *API) resolveDevice(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		PublicKey string `json:"public_key"`
+		Challenge string `json:"challenge"`
+		Signature string `json:"signature"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		a.fail(w, err)
+		return
+	}
+	out, err := a.store.ResolveDevice(in.PublicKey, in.Challenge, in.Signature)
 	if err != nil {
 		a.fail(w, err)
 		return

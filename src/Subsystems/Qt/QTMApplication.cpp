@@ -6,6 +6,7 @@
 #include "QTMProgressWindow.hpp"
 #include "QTMUpdateChecker.hpp"
 #include "QTMVaultBackupDispatcher.hpp"
+#include "QTMHodarium.hpp"
 #include "qt_utilities.hpp"
 #include "tm_timer.hpp"
 
@@ -154,6 +155,7 @@ void QTMApplication::load() {
   qtm_document_persistence_initialize ();
   qtm_document_history_initialize ();
   qtm_vault_backup_dispatcher_initialize ();
+  qtm_hodarium_initialize ();
   qtm_schedule_update_check ();
   bench_cumul ("initialize background services");
 }

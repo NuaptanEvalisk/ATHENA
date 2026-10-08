@@ -1,6 +1,25 @@
 file (GLOB_RECURSE TEST_SRC_FILES CONFIGURE_DEPENDS "*.cpp")
 
-list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/hodarium/revisions_test\\.cpp$")
+list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/hodarium/.*_test\\.cpp$")
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  add_executable(hodarium_authority_client_test EXCLUDE_FROM_ALL hodarium/authority_client_test.cpp)
+  set_target_properties(hodarium_authority_client_test PROPERTIES AUTOMOC OFF)
+  target_include_directories(hodarium_authority_client_test PRIVATE ${NLOHMANN_JSON_INCLUDE_DIR})
+  target_link_libraries(hodarium_authority_client_test PRIVATE athena_hodarium)
+  # Explicit-only: the launcher provisions an isolated D-Bus/keyring session.
+  add_executable(hodarium_identity_test EXCLUDE_FROM_ALL hodarium/identity_test.cpp)
+  set_target_properties(hodarium_identity_test PROPERTIES AUTOMOC OFF)
+  target_include_directories(hodarium_identity_test PRIVATE ${LIBSODIUM_INCLUDE_DIRS})
+  target_link_libraries(hodarium_identity_test PRIVATE athena_hodarium
+    PkgConfig::HODARIUM_SECRET ${LIBSODIUM_LIBRARIES})
+endif()
+add_executable(hodarium_membership_test hodarium/membership_test.cpp)
+set_target_properties(hodarium_membership_test PROPERTIES AUTOMOC OFF)
+target_include_directories(hodarium_membership_test PRIVATE ${NLOHMANN_JSON_INCLUDE_DIR})
+target_link_libraries(hodarium_membership_test PRIVATE athena_hodarium)
+add_test(NAME hodarium_membership_test COMMAND hodarium_membership_test
+  ${CMAKE_CURRENT_SOURCE_DIR}/hodarium/membership-wire.json)
+set_tests_properties(hodarium_membership_test PROPERTIES TIMEOUT 15)
 add_executable(hodarium_revisions_test hodarium/revisions_test.cpp)
 set_target_properties(hodarium_revisions_test PROPERTIES AUTOMOC OFF)
 target_link_libraries(hodarium_revisions_test PRIVATE athena_hodarium)

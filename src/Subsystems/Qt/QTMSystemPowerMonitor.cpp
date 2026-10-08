@@ -40,6 +40,10 @@ QTMSystemPowerMonitor::QTMSystemPowerMonitor (QObject* parent): QObject (parent)
 #if defined(Q_OS_LINUX)
   QDBusConnection bus= QDBusConnection::systemBus ();
   if (bus.isConnected ()) {
+    (void) bus.connect (
+      QStringLiteral ("org.freedesktop.login1"), QStringLiteral ("/org/freedesktop/login1"),
+      QStringLiteral ("org.freedesktop.login1.Manager"), QStringLiteral ("PrepareForSleep"),
+      this, SLOT (prepareForSleep(bool)));
     const QString upower= QStringLiteral ("org.freedesktop.UPower");
     const QString profiles= QStringLiteral ("org.freedesktop.UPower.PowerProfiles");
     const QString legacyProfiles= QStringLiteral ("net.hadess.PowerProfiles");
@@ -75,6 +79,11 @@ QTMSystemPowerMonitor::QTMSystemPowerMonitor (QObject* parent): QObject (parent)
   }
 #endif
   refresh ();
+}
+
+void
+QTMSystemPowerMonitor::prepareForSleep (bool sleeping) {
+  emit sleepChanged (sleeping);
 }
 
 void

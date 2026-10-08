@@ -1,6 +1,21 @@
-add_library(athena_hodarium STATIC revisions.cpp)
+add_library(athena_hodarium STATIC revisions.cpp membership.cpp device_identity.cpp
+  authority_client.cpp control_http.cpp enrollment.cpp client_settings.cpp profile_session.cpp)
 set_target_properties(athena_hodarium PROPERTIES AUTOMOC OFF)
 target_compile_features(athena_hodarium PUBLIC cxx_std_17)
 target_include_directories(athena_hodarium PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
   PRIVATE ${NLOHMANN_JSON_INCLUDE_DIR} ${LIBSODIUM_INCLUDE_DIRS} ${SQLITE3_INCLUDE_DIRS})
 target_link_libraries(athena_hodarium PRIVATE ${SQLITE3_LIBRARIES} ${LIBSODIUM_LIBRARIES})
+target_link_libraries(athena_hodarium PUBLIC Qt6::Core Qt6::Network)
+if(APPLE)
+  find_library(ATHENA_HODARIUM_SECURITY Security REQUIRED)
+  find_library(ATHENA_HODARIUM_COREFOUNDATION CoreFoundation REQUIRED)
+  target_sources(athena_hodarium PRIVATE device_key_apple.cpp)
+  target_link_libraries(athena_hodarium PRIVATE
+    ${ATHENA_HODARIUM_SECURITY} ${ATHENA_HODARIUM_COREFOUNDATION})
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  pkg_check_modules(HODARIUM_SECRET REQUIRED IMPORTED_TARGET GLOBAL libsecret-1)
+  target_sources(athena_hodarium PRIVATE device_key_linux.cpp)
+  target_link_libraries(athena_hodarium PRIVATE PkgConfig::HODARIUM_SECRET)
+else()
+  message(FATAL_ERROR "Hodarium requires a supported protected device key store")
+endif()

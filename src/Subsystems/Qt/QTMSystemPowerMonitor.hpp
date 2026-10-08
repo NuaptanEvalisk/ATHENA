@@ -36,8 +36,10 @@ public:
 
 signals:
   void stateChanged ();
+  void sleepChanged (bool sleeping);
 
 private slots:
+  void prepareForSleep (bool sleeping);
   void propertiesChanged (const QString& interface,
                           const QVariantMap& changed,
                           const QStringList& invalidated);

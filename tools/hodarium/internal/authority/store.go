@@ -304,7 +304,7 @@ func ProofMessage(group, purpose, subject, challenge string) []byte {
 // IssueChallenge must sit behind bounded HTTP admission and rate limiting.
 func (s *Store) IssueChallenge(purpose, subject string) (string, error) {
 	switch purpose {
-	case "join":
+	case "join", "resolve":
 		if _, err := publicKey(subject); err != nil {
 			return "", err
 		}
@@ -466,6 +466,13 @@ func (s *Store) Admit(id, approvedKey, actor string, expectedRevision int64) (st
 	if revision != expectedRevision {
 		return "", ErrConflict
 	}
+	var memberCount int
+	if err = tx.QueryRow("SELECT count(*) FROM members WHERE expelled IS NULL").Scan(&memberCount); err != nil {
+		return "", err
+	}
+	if memberCount >= 4096 {
+		return "", ErrCapacity
+	}
 	var active int
 	if err = tx.QueryRow("SELECT count(*) FROM members WHERE public_key=? AND expelled IS NULL", key).Scan(&active); err != nil {
 		return "", err
@@ -560,6 +567,25 @@ type Validation struct {
 	Member            string      `json:"member"`
 	MaxOfflineSeconds int         `json:"max_offline_seconds"`
 	Signature         string      `json:"signature"`
+}
+
+// ResolveDevice recovers the result of an interrupted admission without
+// reusing its one-shot retrieval credential or creating another member.
+// It grants no offline lease; the device must still validate the returned ID.
+func (s *Store) ResolveDevice(key, challenge, signature string) (Member, error) {
+	if _, err := publicKey(key); err != nil {
+		return Member{}, err
+	}
+	if err := s.prove("resolve", key, challenge, signature, key); err != nil {
+		return Member{}, err
+	}
+	var member Member
+	err := s.db.QueryRow("SELECT id,name,public_key FROM members WHERE public_key=? AND expelled IS NULL", key).
+		Scan(&member.ID, &member.Name, &member.PublicKey)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Member{}, ErrDenied
+	}
+	return member, err
 }
 
 func (s *Store) ValidateMember(ctx context.Context, member, challenge, signature string) (Validation, error) {

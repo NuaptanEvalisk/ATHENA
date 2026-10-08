@@ -20,7 +20,10 @@ import (
 
 func run() error {
 	if len(os.Args) < 2 {
-		return errors.New("usage: athena-hodarium-server init|serve [options]")
+		return errors.New("usage: athena-hodarium-server init|serve|recover [options]")
+	}
+	if os.Args[1] == "recover" {
+		return recoverAuthority(os.Args[2:])
 	}
 	flags := flag.NewFlagSet(os.Args[1], flag.ContinueOnError)
 	directory := flags.String("data", "", "private authority state directory")
@@ -82,7 +85,7 @@ func run() error {
 			return nil
 		}
 	default:
-		return errors.New("unknown command; expected init or serve")
+		return errors.New("unknown command; expected init, serve or recover")
 	}
 }
 func main() {
