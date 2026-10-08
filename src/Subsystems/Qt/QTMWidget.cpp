@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "QTMWidget.hpp"
+#include "athena_platform.hpp"
 #include "QTMRenderService.hpp"
 #include "QTMDocumentSearchBar.hpp"
 #include "qt_gui.hpp"
@@ -218,6 +219,7 @@ QTMWidget::QTMWidget (QWidget* _parent, qt_widget _tmwid)
   setObjectName (to_qstring ("QTMWidget" * as_string (QTMWcounter++)));// What is this for? (maybe only debugging?)
   setFocusPolicy (Qt::StrongFocus);
   setAttribute (Qt::WA_InputMethodEnabled);
+  setInputMethodHints (Qt::ImhMultiLine);
   surface ()->setMouseTracking (true);
   surface ()->setAcceptDrops (true);
   setAttribute (Qt::WA_AcceptTouchEvents);
@@ -1757,6 +1759,18 @@ QTMWidget::inputMethodEvent (QInputMethodEvent* event) {
   
   if (!commit_string.isEmpty()) {
     bool done= false;
+#if ATHENA_PLATFORM_IPADOS
+    // UIKit sends ordinary soft-key presses as IM commits. Preserve command
+    // semantics without interpreting composed words or replacements as keys.
+    if (!preediting && preedit_string.isEmpty () &&
+        event->replacementStart () == 0 && event->replacementLength () == 0 &&
+        commit_string.size () == 1 && commit_string[0].unicode () >= 32 &&
+        commit_string[0].unicode () < 127) {
+      kbdEvent (commit_string[0].toUpper ().unicode (), Qt::NoModifier,
+                commit_string);
+      done= true;
+    }
+#endif
     if (!done) {
       if (DEBUG_QT)
         debug_qt << "IM committing: " << commit_string.toUtf8().data() << LF;
@@ -1827,6 +1841,8 @@ QTMWidget::inputMethodQuery (Qt::InputMethodQuery query) const {
     case Qt::ImEnabled : {
       return QVariant (true);
     }
+    case Qt::ImEnterKeyType:
+      return QVariant (int (Qt::EnterKeyReturn));
     case Qt::ImCursorRectangle : {
       const QPoint &topleft= cursor_pos - tm_widget()->backing_pos + surface()->geometry().topLeft();
       return QVariant (QRect (topleft, QSize (5, 5)));

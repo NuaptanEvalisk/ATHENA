@@ -17,6 +17,15 @@ set_target_properties (${ATHENA_binary_name} PROPERTIES
   XCODE_ATTRIBUTE_PRODUCT_NAME "ATHENA"
   XCODE_ATTRIBUTE_EXECUTABLE_NAME "ATHENA.bin")
 
+# Explicit bundle icons keep device-only builds independent of the simulator
+# runtime required by actool. Info.plist owns the icon declarations.
+foreach (size 20 29 40 76 83.5)
+  set (icon "${ATHENA_SOURCE_DIR}/src/Subsystems/iOS/Icons/AppIcon${size}x${size}@2x.png")
+  set_source_files_properties ("${icon}" PROPERTIES
+    MACOSX_PACKAGE_LOCATION Resources)
+  target_sources (${ATHENA_binary_name} PRIVATE "${icon}")
+endforeach ()
+
 function (athena_ios_resources root destination)
   file (GLOB_RECURSE resources LIST_DIRECTORIES false "${root}/*")
   foreach (resource IN LISTS resources)
