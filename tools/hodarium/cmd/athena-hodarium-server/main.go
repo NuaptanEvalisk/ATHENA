@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -31,6 +32,7 @@ func run() error {
 	origin := flags.String("origin", "", "stable HTTPS origin for Passkeys")
 	cert := flags.String("tls-cert", "", "TLS certificate PEM")
 	key := flags.String("tls-key", "", "TLS private key PEM")
+	notifications := flags.String("notifications-config", "", "optional private JSON file for Resend security notifications")
 	if err := flags.Parse(os.Args[2:]); err != nil {
 		return err
 	}
@@ -66,6 +68,15 @@ func run() error {
 			MaxHeaderBytes: 16 * 1024, TLSConfig: &tls.Config{MinVersion: tls.VersionTLS13}}
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
+		if *notifications != "" {
+			stopNotifications, err := s.StartNotifications(ctx, *notifications, filepath.Join(*directory, "notifications.sqlite"))
+			if err != nil {
+				// Never log provider/config errors, which may contain credentials.
+				slog.Warn("Hodarium notifications unavailable; check private configuration and queue; authentication remains available")
+			} else {
+				defer stopNotifications()
+			}
+		}
 		done := make(chan error, 1)
 		go func() { done <- server.ListenAndServeTLS(*cert, *key) }()
 		slog.Info("Hodarium authority starting", "listen", *listen, "origin", *origin, "group", s.Group)
