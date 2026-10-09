@@ -9,6 +9,7 @@
 #include <QtTest/QtTest>
 
 #include "athena_diff.hpp"
+#include "node_metadata.hpp"
 
 class TestAthenaDiff: public QObject {
   Q_OBJECT
@@ -17,6 +18,7 @@ private slots:
   void alignsInsertedDocumentNodes ();
   void comparesAtomicTextWithinMatchedStructure ();
   void marksStructurallyDifferentNodesOnBothSides ();
+  void detectsSourceMetadataChanges ();
 };
 
 void
@@ -63,6 +65,37 @@ TestAthenaDiff::marksStructurallyDifferentNodesOnBothSides () {
   QVERIFY (diff.left[1] == path (0) * 1);
   QVERIFY (diff.right[0] == path (0) * 0);
   QVERIFY (diff.right[1] == path (0) * 1);
+}
+
+void
+TestAthenaDiff::detectsSourceMetadataChanges () {
+  namespace node= athena::node;
+  tree left ("same text"), right ("same text");
+  node::metadata first, second;
+  first.id= "00000000-0000-4000-8000-000000000001";
+  second.id= "00000000-0000-4000-8000-000000000002";
+  node::set (left, first); node::set (right, second);
+  auto diff= athena_diff_trees (left, right);
+  QCOMPARE (diff.hunks, size_t (1));
+  QCOMPARE (N(diff.left), 2);
+  QCOMPARE (N(diff.right), 2);
+
+  left= tree (make_tree_label ("enunciation"), tree (DOCUMENT, "unchanged"));
+  right= copy (left);
+  first.properties["kind"]= node::property (std::string ("theorem"));
+  second= first;
+  second.properties["kind"]= node::property (std::string ("lemma"));
+  node::set (left, first); node::set (right, second);
+  diff= athena_diff_trees (tree (DOCUMENT, left), tree (DOCUMENT, right));
+  QVERIFY (diff.hunks > 0);
+  QCOMPARE (N(diff.left), 2);
+  QCOMPARE (N(diff.right), 2);
+
+  left= tree (""); right= tree ("");
+  node::set (left, first); node::set (right, second);
+  QCOMPARE (athena_diff_trees (left, right).hunks, size_t (1));
+  node::set (right, first);
+  QCOMPARE (athena_diff_trees (left, right).hunks, size_t (0));
 }
 
 QTEST_MAIN(TestAthenaDiff)

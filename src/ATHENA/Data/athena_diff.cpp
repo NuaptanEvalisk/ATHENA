@@ -10,6 +10,7 @@
 
 #include "analyze.hpp"
 #include "tree_cursor.hpp"
+#include "node_metadata.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -39,6 +40,10 @@ public:
   void compare (tree left, tree right, path leftPath= path (),
                 path rightPath= path ()) {
     if (left == right) return;
+    if (!athena::node::equal_metadata (left, right)) {
+      markSubtrees (left, right, leftPath, rightPath);
+      return;
+    }
     if (is_atomic (left) && is_atomic (right)) {
       compareText (left->label, right->label, leftPath, rightPath);
       return;
