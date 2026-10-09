@@ -41,6 +41,7 @@ public:
                 path rightPath= path ()) {
     if (left == right) return;
     if (!athena::node::equal_metadata (left, right)) {
+      result.metadata.emplace_back (leftPath, rightPath);
       markSubtrees (left, right, leftPath, rightPath);
       return;
     }

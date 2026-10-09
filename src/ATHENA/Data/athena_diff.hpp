@@ -13,11 +13,14 @@
 #include "tree_select.hpp"
 
 #include <cstddef>
+#include <vector>
+#include <utility>
 
 struct AthenaTreeDiff {
   range_set left;
   range_set right;
   size_t hunks= 0;
+  std::vector<std::pair<path,path>> metadata;
 };
 
 AthenaTreeDiff athena_diff_trees (tree left, tree right);

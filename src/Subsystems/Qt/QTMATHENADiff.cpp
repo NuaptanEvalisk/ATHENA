@@ -7,6 +7,10 @@
 *******************************************************************************/
 
 #include "QTMATHENADiff.hpp"
+#include "QTMNodePropertiesDialog.hpp"
+#include "ATHENA/Data/document_node_model.hpp"
+#include "ATHENA/Data/enunciation_model.hpp"
+#include "Data/Convert/Xml/athena_document_xml.hpp"
 
 #include "ATHENA/Data/athena_diff.hpp"
 #include "QTMMainTabWindow.hpp"
@@ -30,6 +34,12 @@
 #include <QMessageBox>
 #include <QStringList>
 #include <QWidget>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QTreeWidget>
+#include <QHeaderView>
+#include <QVBoxLayout>
+#include <QPushButton>
 
 namespace {
 
@@ -67,6 +77,47 @@ athenaDiffEditorRanges (editor target, const range_set& relativeRanges) {
   for (int i=0; i<N(relativeRanges); ++i)
     result << root * relativeRanges[i];
   return result;
+}
+
+void showMetadataDifferences (tree left, tree right, const AthenaTreeDiff& diff, QWidget* host) {
+  if (diff.metadata.empty ()) return;
+  auto* dialog= new QDialog (host);
+  dialog->setAttribute (Qt::WA_DeleteOnClose);
+  dialog->setWindowTitle (QObject::tr ("Revision property differences")); dialog->resize (650, 380);
+  auto* layout= new QVBoxLayout (dialog);
+  auto* entries= new QTreeWidget (dialog);
+  entries->setHeaderLabels ({QObject::tr ("Left node"), QObject::tr ("Right node")});
+  entries->header ()->setSectionResizeMode (QHeaderView::ResizeToContents);
+  layout->addWidget (entries);
+  auto describe= [] (path p) {
+    QString text= "/";
+    for (int i= 0; i < N(p); ++i) { if (i) text+= '/'; text+= QString::number (p[i]); }
+    return text;
+  };
+  for (const auto& positions: diff.metadata)
+    new QTreeWidgetItem (entries, {describe (positions.first), describe (positions.second)});
+  auto* buttons= new QDialogButtonBox (QDialogButtonBox::Close, dialog);
+  auto* inspect= buttons->addButton (QObject::tr ("Inspect both nodes"), QDialogButtonBox::ActionRole);
+  inspect->setEnabled (false); layout->addWidget (buttons);
+  QObject::connect (entries, &QTreeWidget::itemSelectionChanged, dialog, [entries, inspect] {
+    inspect->setEnabled (entries->currentItem () != nullptr);
+  });
+  auto positions= diff.metadata;
+  QObject::connect (inspect, &QPushButton::clicked, dialog, [entries, dialog, left, right, positions] {
+    const int index= entries->indexOfTopLevelItem (entries->currentItem ());
+    if (index < 0) return;
+    auto open= [dialog] (tree t, path p, const QString& title) {
+      for (int i= 0; i < N(p); ++i) t= t[p[i]];
+      auto header= athena::document_node::property_header (t);
+      auto* inspector= make_node_properties_dialog (athena::document::write_xml_v2 (
+        header, athena::document::xml_kind::fragment), athena::enunciation::is_enunciation (t), false, {}, dialog);
+      inspector->setAttribute (Qt::WA_DeleteOnClose); inspector->setWindowTitle (title); inspector->show ();
+    };
+    open (left, positions[index].first, QObject::tr ("Left revision properties"));
+    open (right, positions[index].second, QObject::tr ("Right revision properties"));
+  });
+  QObject::connect (buttons, &QDialogButtonBox::rejected, dialog, &QDialog::close);
+  dialog->show ();
 }
 
 } // namespace
@@ -135,6 +186,7 @@ athena_diff_show_snapshots (tree left, tree right, url left_source,
   if (!left_widget || !right_widget || !host->placeDocumentWidgetsSideBySide (left_widget, right_widget))
     throw std::runtime_error ("Cannot arrange Hodarium comparison views");
   host->activateDocumentWidget (left_widget);
+  showMetadataDifferences (left, right, diff, host);
   if (diff.hunks == 0) QMessageBox::information (host, QObject::tr ("Compare revisions"),
     QObject::tr ("The revisions have identical document trees."));
 }
