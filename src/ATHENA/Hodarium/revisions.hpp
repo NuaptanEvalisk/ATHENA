@@ -112,6 +112,18 @@ public:
   // Metadata only, ordered by object identity; receipt-only heads are excluded.
   std::vector<revision> applied_page (const std::string& vault,
     const std::string& after_object= {}, std::uint32_t limit= 64) const;
+  // Explicit recovery only, after readmission supplies a NEW member identity.
+  // Both journals must be quiescent on this owner thread and physically distinct.
+  // Rebase completed old deletion baselines as independent local roots in this
+  // journal; never import old parents/approvals or alter files/applied pointers.
+  // Run before enabling application/replication, and complete the fresh local
+  // inventory before enabling application. Reappeared objects then remain
+  // independent roots conflicting with the deletion, not implicit restorations.
+  // Page by the last returned object's identity. Empty page means done; repeated
+  // pages with the same new_member are idempotent. Returned payloads are empty.
+  std::vector<revision> recover_applied_deletions (const revision_store& previous,
+    const std::string& vault, const std::string& new_member,
+    const std::string& after_object= {}, std::uint32_t limit= 64);
   // Single current heads not yet applied, excluding objects with pending
   // recovery. Callers must recheck the head and source at the commit boundary.
   std::vector<revision> application_candidates (const std::string& vault,
