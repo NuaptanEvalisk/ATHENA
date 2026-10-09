@@ -89,6 +89,7 @@ void decision_client::request (std::string epoch, decision_request request,
   auto payload= encode (value);
   auto subject= base64 (QCryptographicHash::hash (payload, QCryptographicHash::Sha256));
   epoch_= std::move (epoch); request_= std::move (request);
+  evidence_= {};
   authorized_= std::move (authorized); completed_= std::move (completed);
   deadline_->start (30000);
   post ("/api/device/challenge", encode ({{"purpose", "decision"}, {"subject", subject}}),
@@ -106,6 +107,7 @@ void decision_client::request (std::string epoch, decision_request request,
             (result->version == request_.expected+1 && (result->request != request_.request_id ||
               result->resolution != request_.resolution || result->member != member_))))
           throw std::invalid_argument ("Hodarium decision receipt does not acknowledge the operation");
+        evidence_= {bytes.toStdString (), epoch_, nonce, subject};
         finish ({}, std::move (result));
       });
     });

@@ -140,7 +140,8 @@ void check_vault_exchange (revision base) {
   require (!target.applied (base.vault, base.object), "Discovery applied document content");
   vault_revision_sender next (source, base.vault, grant, first.completed_through ());
   run (next, next.begin ());
-  require (target.heads (base.vault, base.object) == std::vector<std::string>{merged.id}, "Merge failed to converge");
+  require (target.contains (base.vault, merged.id) && target.heads (base.vault, base.object).size () == 2,
+           "Receipt silently authorized a merge");
   vault_revision_sender unchanged (source, base.vault, grant, next.completed_through ());
   require (run (unchanged, unchanged.begin ()) == 0, "Unchanged session sent inventory again");
   vault_revision_sender reconnect (source, base.vault, grant);
@@ -276,7 +277,7 @@ void check_application_queue (revision base) {
   require (store.application_candidates (base.vault).empty (), "Concurrent heads were automatically queued");
   auto merge= a; merge.parents= {a.id,b.id}; merge= seal_revision (merge); store.receive (merge);
   candidates= store.application_candidates (base.vault);
-  require (candidates.size () == 1 && candidates[0].id == merge.id, "Resolved head did not enter application queue");
+  require (candidates.empty () && !store.eligible (merge.id), "Unapproved merge entered application queue");
   require (store.application_candidates (base.vault, base.object).empty () &&
            store.application_candidates ("another-vault").empty (), "Application queue escaped its cursor or Vault");
 }
@@ -327,10 +328,13 @@ int main () {
     store.receive (merged);
     require (merged.parents.size () == 2, "Parents not canonicalized");
     require (store.compare (b.id, merged.id) == ancestry::ancestor, "Merge lost parent");
-    require (store.record_applied (merged.id, a.id), "Merge apply failed");
-    require (store.heads (base.vault, base.object) ==
-      std::vector<std::string>{merged.id}, "Merge did not converge");
-    require (store.conflicts (base.vault).empty (), "Resolved object remained a conflict");
+    rejects ([&] { store.record_applied (merged.id, a.id); });
+    require (store.heads (base.vault, base.object).size () == 2 &&
+      store.conflicts (base.vault).size () == 1, "Unapproved merge hid the conflict");
+    auto waiting= merged; waiting.parents= {merged.id}; waiting.payload= "unapproved descendant";
+    waiting= seal_revision (waiting); store.receive (waiting);
+    require (!store.eligible (waiting.id) && store.heads (base.vault, base.object).size () == 2,
+             "Unapproved merge descendant bypassed decision verification");
 
     auto alternate= merged;
     alternate.origin_member= "member-C";
@@ -350,12 +354,12 @@ int main () {
     rejects ([&] { store.receive (missing); });
     require (!store.get (missing.id), "Failed receipt was partially stored");
 
-    initial.parents= {merged.id}; initial.deleted= true;
+    initial.parents= {a.id}; initial.deleted= true;
     rejects ([&] { seal_revision (initial); });
     initial.payload.clear ();
     auto deleted= seal_revision (initial);
     store.receive (deleted);
-    require (store.record_applied (deleted.id, merged.id), "Delete apply failed");
+    require (store.record_applied (deleted.id, a.id), "Delete apply failed");
     initial.deleted= false; initial.payload= base.payload; initial.parents= {deleted.id};
     auto restored= seal_revision (initial);
     store.receive (restored);

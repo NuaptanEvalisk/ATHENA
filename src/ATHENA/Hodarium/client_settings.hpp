@@ -6,6 +6,7 @@
 #include <QUrl>
 
 namespace athena::hodarium {
+class recovery_candidate;
 struct client_profile {
   QUrl origin;
   authority_pin pin;
@@ -19,6 +20,12 @@ struct vault_binding {
   std::string group, vault;
   std::filesystem::path root;
   bool enabled= true;
+  bool allow_code_resources= false;
+};
+struct relay_binding {
+  std::string group;
+  QUrl origin;
+  std::string credential_handle;
 };
 
 // Device-local settings, outside any synchronized Vault. No private key,
@@ -34,13 +41,30 @@ public:
   // Commit the protected key's handle before the first admission request.
   // Existing trust is never overwritten implicitly by a repeated enrollment.
   void add_pending (const client_profile& profile);
+  // Pass the enrollment operation's captured generation. The legacy empty
+  // argument is accepted only for profiles that have never accepted recovery.
   void complete_admission (const std::string& group, const std::string& handle,
-                           const std::string& public_key, const std::string& member);
+                           const std::string& public_key, const std::string& member,
+                           const std::string& generation= "");
   void set_enabled (const std::string& group, bool enabled);
+  // Explicit approval only, after stopping the old profile session. Revokes
+  // local admission without deleting bindings, source files or old trust data.
+  client_profile accept_recovery (recovery_candidate&& candidate);
+  std::filesystem::path trust_database_path (const std::filesystem::path& directory,
+    const std::string& group) const;
+  // Recovery generations never replay old merge certificates with new secrets.
+  // The caller must settle old apply intents before accepting recovery, retain
+  // the old journal, and seed the new journal from reconciled saved state.
+  std::filesystem::path revision_database_path (const std::filesystem::path& directory,
+    const std::string& group) const;
+  std::vector<relay_binding> relays (const std::string& group) const;
+  void set_relay (const relay_binding& binding);
+  void remove_relay (const std::string& group, const QUrl& origin);
   std::vector<vault_binding> vaults (const std::string& group) const;
   // Explicit local action only. Never derive this path from peer messages.
   void bind_vault (const vault_binding& binding);
   void set_vault_enabled (const std::string& group, const std::string& vault, bool enabled);
+  void set_vault_code_resources (const std::string& group, const std::string& vault, bool allowed);
   void unbind_vault (const std::string& group, const std::string& vault);
   // Identity-worker only: verifies key-store possession before recording the
   // descriptor. This records availability, not canonical-secret authority.
@@ -55,6 +79,8 @@ public:
     const std::string& vault, const std::string& response, const std::string& epoch,
     const std::string& nonce, const std::string& subject);
 private:
+  std::filesystem::path generation_database_path (const std::filesystem::path& directory,
+    const std::string& group, const char* kind) const;
   sqlite3* db_= nullptr;
 };
 } // namespace athena::hodarium

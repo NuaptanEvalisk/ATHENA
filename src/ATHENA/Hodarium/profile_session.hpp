@@ -7,6 +7,9 @@
 #include "peer_network.hpp"
 #include "peer_replication.hpp"
 #include "vault_registration.hpp"
+#include "peer_secrets.hpp"
+#include "conflict_store.hpp"
+#include "decision_feed.hpp"
 #include <set>
 #include <QTimer>
 
@@ -22,6 +25,8 @@ struct profile_status {
   std::int64_t code_expires= 0;
   std::string discovery_diagnostic;
   std::size_t discovered_devices= 0;
+  std::string decision_diagnostic;
+  std::vector<peer_route_status> routes;
 };
 
 // One session per group, all on the same owner as the device settings store.
@@ -47,7 +52,32 @@ public:
   presence_snapshot discovered_peers () const;
   void set_presence_routes (std::vector<std::string> direct, std::vector<std::string> relays);
   void configure_revisions (revision_store& store, std::vector<std::string> vaults);
+  std::string prepare_resolution (revision result);
+  std::vector<conflict_proposal_summary> proposals (const std::string& vault, const std::string& after= {});
+  std::optional<conflict_proposal> proposal (const std::string& operation);
+  void configure_relays ();
+  void set_energy_constrained (bool constrained);
 private:
+  bool energy_constrained_= false;
+  std::unique_ptr<conflict_store> conflicts_;
+  conflict_store& conflict_journal ();
+  std::unique_ptr<decision_client> decisions_;
+  std::unique_ptr<decision_feed_store> decision_feed_;
+  std::unique_ptr<decision_feed_client> feed_client_;
+  bool fetching_decisions_= false;
+  membership_lease::steady::time_point next_feed_{};
+  std::string waiting_cursor_;
+  std::string waiting_object_, waiting_source_vault_;
+  std::size_t waiting_vault_= 0;
+  void refresh_decisions ();
+  void inspect_waiting_result ();
+  bool deciding_= false;
+  std::string proposal_cursor_, resolution_cursor_;
+  std::size_t resolution_vault_= 0;
+  membership_lease::steady::time_point next_decision_{};
+  std::optional<vault_secret> selected_secret (const std::string& vault) const;
+  void decide_next ();
+  void submit_proposal (const std::string& operation, bool write);
   client_settings& settings_;
   client_profile profile_;
   std::filesystem::path trust_database_;
@@ -58,6 +88,7 @@ private:
   std::unique_ptr<presence_directory> directory_;
   std::unique_ptr<peer_network> network_;
   std::unique_ptr<peer_replication> replication_;
+  std::unique_ptr<peer_secret_exchange> peer_secrets_;
   std::unique_ptr<vault_registration_client> secret_registration_;
   std::set<std::string> registered_vaults_;
   bool registering_secret_= false;

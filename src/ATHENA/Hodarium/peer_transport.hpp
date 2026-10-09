@@ -24,11 +24,15 @@ public:
 };
 std::unique_ptr<peer_transport> tcp_peer_transport (QTcpSocket* socket);
 std::unique_ptr<peer_transport> relay_peer_transport (QUrl https_origin,
-  std::string access_token, std::string endpoint_ticket);
+  const std::string& access_token, const std::string& endpoint_ticket);
+void validate_relay_access_token (const std::string& token);
 struct relay_ticket {
   std::array<std::string, 2> endpoints;
   std::int64_t expires= 0;
 };
 void allocate_relay_ticket (control_http& http, const std::string& access_token,
   std::function<void (control_result, relay_ticket)> completed);
+void join_relay (control_http& http, const std::string& access_token,
+  const std::string& room, int side,
+  std::function<void (control_result, std::string)> completed);
 } // namespace athena::hodarium

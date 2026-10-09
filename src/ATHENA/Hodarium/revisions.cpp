@@ -105,6 +105,13 @@ void insert_parents (sqlite3* db, const revision& r) {
     edge.text (1, r.id); edge.text (2, parent); edge.row ();
   }
 }
+void admit_revision (sqlite3* db, const std::string& id) {
+  statement st (db, "INSERT OR IGNORE INTO eligible SELECT id FROM revisions r WHERE id=? "
+    "AND ((SELECT COUNT(*) FROM parents WHERE child=r.id)<2 OR EXISTS("
+    "SELECT 1 FROM resolution_approvals WHERE revision=r.id)) AND NOT EXISTS("
+    "SELECT 1 FROM parents p LEFT JOIN eligible e ON e.id=p.parent WHERE p.child=r.id AND e.id IS NULL)");
+  st.text (1, id); st.row ();
+}
 json intent_descriptor (const apply_intent& value) {
   return {{"revision", value.revision_id},
     {"expected", value.expected_revision ? json (*value.expected_revision) : json (nullptr)},
@@ -141,7 +148,7 @@ revision_store::revision_store (const std::filesystem::path& database) {
     check (db_, sqlite3_busy_timeout (db_, 5000));
     {
       statement version (db_, "PRAGMA user_version");
-      if (!version.row () || sqlite3_column_int (version.value, 0) > 4)
+      if (!version.row () || sqlite3_column_int (version.value, 0) > 5)
         throw std::runtime_error ("Unsupported Hodarium revision store version");
     }
     sql (db_, "PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL;"
@@ -171,7 +178,18 @@ revision_store::revision_store (const std::filesystem::path& database) {
       "completed INTEGER NOT NULL CHECK(completed IN(0,1)));"
       "CREATE UNIQUE INDEX IF NOT EXISTS apply_intents_pending ON apply_intents(vault,object) WHERE completed=0;"
       "CREATE INDEX IF NOT EXISTS apply_intents_recovery ON apply_intents(vault,completed,operation);"
-      "PRAGMA user_version=4;");
+      "CREATE TABLE IF NOT EXISTS resolution_approvals("
+      "revision TEXT PRIMARY KEY REFERENCES revisions(id),envelope TEXT NOT NULL);"
+      "CREATE TABLE IF NOT EXISTS eligible(id TEXT PRIMARY KEY REFERENCES revisions(id));");
+    {
+      statement version (db_, "PRAGMA user_version"); version.row ();
+      if (sqlite3_column_int (version.value, 0) < 5) {
+        // Receipt order is topological: parents must exist before their child.
+        statement entries (db_, "SELECT id FROM revisions ORDER BY rowid");
+        while (entries.row ()) admit_revision (db_, entries.bytes (0));
+      }
+    }
+    sql (db_, "PRAGMA user_version=5;");
     tx.commit ();
   }
   catch (...) { sqlite3_close (db_); db_= nullptr; throw; }
@@ -246,6 +264,7 @@ bool revision_store::receive (const revision& r) {
   insert.text (4, descriptor (r).dump ()); insert.blob (5, r.payload);
   insert.row ();
   insert_parents (db_, r);
+  admit_revision (db_, r.id);
   cache_fingerprint (db_, r.id, raw_fingerprint (r.payload));
   tx.commit ();
   return true;
@@ -267,6 +286,7 @@ std::optional<std::string> revision_store::capture_saved (revision snapshot,
     if (pending.row ()) throw std::invalid_argument ("Saved object has an unfinished remote application");
   }
   if (expected) {
+    if (!eligible (*expected)) throw std::invalid_argument ("Saved base requires an authoritative conflict decision");
     auto prior= offer (*expected);
     if (predecessor_fingerprint) {
       if (prior->metadata.deleted) { tx.commit (); return std::nullopt; }
@@ -288,6 +308,7 @@ std::optional<std::string> revision_store::capture_saved (revision snapshot,
     st.text (1, snapshot.id); st.text (2, snapshot.vault); st.text (3, snapshot.object);
     st.text (4, descriptor (snapshot).dump ()); st.blob (5, snapshot.payload); st.row ();
     insert_parents (db_, snapshot);
+    admit_revision (db_, snapshot.id);
     cache_fingerprint (db_, snapshot.id, raw_fingerprint (snapshot.payload));
   }
   statement st (db_, "INSERT INTO applied VALUES(?,?,?) "
@@ -395,7 +416,8 @@ bool revision_store::finish_receive (const std::string& id) {
   statement insert (db_, "INSERT INTO revisions SELECT id,?,?,descriptor,payload FROM incoming WHERE id=?");
   insert.text (1, metadata.vault); insert.text (2, metadata.object); insert.text (3, id); insert.row ();
   cache_fingerprint (db_, id, hash_finish (raw));
-  insert_parents (db_, metadata); discard_receive (id); tx.commit (); return true;
+  insert_parents (db_, metadata); admit_revision (db_, id);
+  discard_receive (id); tx.commit (); return true;
 }
 void revision_store::discard_receive (const std::string& id) {
   statement st (db_, "DELETE FROM incoming WHERE id=?"); st.text (1, id); st.row ();
@@ -427,11 +449,53 @@ std::string revision_store::payload_chunk (const std::string& id, std::uint64_t 
 std::vector<std::string> revision_store::heads (
     const std::string& vault, const std::string& object) const {
   statement st (db_, "SELECT id FROM revisions WHERE vault=? AND object=? "
-    "AND NOT EXISTS(SELECT 1 FROM parents WHERE parent=revisions.id) ORDER BY id");
+    "AND id IN(SELECT id FROM eligible) AND NOT EXISTS(SELECT 1 FROM parents "
+    "JOIN eligible e ON e.id=parents.child WHERE parent=revisions.id) ORDER BY id");
   st.text (1, vault); st.text (2, object);
   std::vector<std::string> result;
   while (st.row ()) result.push_back (st.bytes (0));
   return result;
+}
+
+bool revision_store::eligible (const std::string& id) const {
+  statement st (db_, "SELECT 1 FROM eligible WHERE id=?"); st.text (1, id); return st.row ();
+}
+std::vector<revision> revision_store::pending_resolutions (const std::string& vault,
+    const std::string& after, std::uint32_t limit) const {
+  if (limit == 0 || limit > 256) throw std::invalid_argument ("Invalid resolution page budget");
+  statement st (db_, "SELECT r.id,r.descriptor FROM revisions r WHERE r.vault=? AND r.id>? "
+    "AND (SELECT COUNT(*) FROM parents WHERE child=r.id)>1 AND NOT EXISTS("
+    "SELECT 1 FROM resolution_approvals WHERE revision=r.id) "
+    "AND NOT EXISTS(SELECT 1 FROM parents p LEFT JOIN eligible e ON e.id=p.parent "
+    "WHERE p.child=r.id AND e.id IS NULL) ORDER BY r.id LIMIT ?");
+  st.text (1, vault); st.text (2, after); check (db_, sqlite3_bind_int (st.value, 3, limit));
+  std::vector<revision> result;
+  while (st.row ()) result.push_back (from_descriptor (st.bytes (0), st.bytes (1)));
+  return result;
+}
+bool revision_store::accept_resolution (const std::string& id, const authority_pin& pin,
+    const vault_secret& secret, const decision_evidence& evidence) {
+  auto value= offer (id);
+  if (!value || value->metadata.parents.size () < 2 || secret.group != pin.group ||
+      secret.vault != value->metadata.vault)
+    throw std::invalid_argument ("Resolution does not match its protected Vault scope");
+  const auto& r= value->metadata;
+  auto tokens= derive_conflict_tokens (secret, r.object, r.parents, r.id);
+  auto decision= verify_decision (pin, evidence.envelope, evidence.epoch, evidence.nonce,
+                                 evidence.subject, tokens.vault, tokens.conflict);
+  if (!decision || decision->branches != tokens.branches || decision->resolution != tokens.resolution ||
+      decision->member != r.origin_member) return false;
+  transaction tx (db_);
+  statement insert (db_, "INSERT OR IGNORE INTO resolution_approvals VALUES(?,?)");
+  insert.text (1, id); insert.text (2, evidence.envelope); insert.row ();
+  // A waiting descendant may already have arrived over another peer. Only
+  // reconsider this object's descendants, in their topological receipt order.
+  statement descendants (db_, "WITH RECURSIVE descendants(id) AS (VALUES(?) UNION "
+    "SELECT child FROM parents JOIN descendants ON parent=descendants.id) "
+    "SELECT r.id FROM revisions r JOIN descendants d ON d.id=r.id ORDER BY r.rowid");
+  descendants.text (1, id);
+  while (descendants.row ()) admit_revision (db_, descendants.bytes (0));
+  tx.commit (); return true;
 }
 
 bool revision_store::ancestor_of (const std::string& first,
@@ -501,7 +565,8 @@ std::vector<revision> revision_store::application_candidates (const std::string&
   if (limit == 0 || limit > 256)
     throw std::invalid_argument ("Invalid application inventory budget");
   statement st (db_, "WITH heads AS (SELECT r.id,r.object FROM revisions r WHERE r.vault=? "
-    "AND r.object>? AND NOT EXISTS(SELECT 1 FROM parents WHERE parent=r.id)),"
+    "AND r.object>? AND r.id IN(SELECT id FROM eligible) AND NOT EXISTS(SELECT 1 FROM parents "
+    "JOIN eligible e ON e.id=parents.child WHERE parent=r.id)),"
     "single AS (SELECT object,MIN(id) AS id FROM heads GROUP BY object HAVING COUNT(*)=1) "
     "SELECT r.id,r.descriptor FROM single s JOIN revisions r ON r.id=s.id "
     "LEFT JOIN applied a ON a.vault=r.vault AND a.object=r.object "
@@ -520,7 +585,8 @@ std::vector<revision_conflict> revision_store::conflicts (const std::string& vau
   if (limit == 0 || limit > 256)
     throw std::invalid_argument ("Invalid Hodarium conflict page size");
   statement st (db_, "WITH heads AS (SELECT r.id,r.object FROM revisions r WHERE r.vault=? "
-    "AND r.object>? AND NOT EXISTS(SELECT 1 FROM parents WHERE parent=r.id)),"
+    "AND r.object>? AND r.id IN(SELECT id FROM eligible) AND NOT EXISTS(SELECT 1 FROM parents "
+    "JOIN eligible e ON e.id=parents.child WHERE parent=r.id)),"
     "conflicts AS (SELECT object,MIN(id) AS id,COUNT(*) AS count FROM heads GROUP BY object HAVING COUNT(*)>1) "
     "SELECT c.object,r.descriptor,c.count FROM conflicts c JOIN revisions r ON r.id=c.id "
     "ORDER BY c.object LIMIT ?");
@@ -532,9 +598,36 @@ std::vector<revision_conflict> revision_store::conflicts (const std::string& vau
   return result;
 }
 
+std::vector<revision_path_collision> revision_store::path_collisions (
+    const std::string& vault, const std::string& after, std::uint32_t limit) const {
+  if (limit == 0 || limit > 256)
+    throw std::invalid_argument ("Invalid Hodarium path collision page size");
+  statement st (db_, "WITH heads AS (SELECT r.id,r.object,r.descriptor,"
+    "json_extract(r.descriptor,'$.path') AS path FROM revisions r "
+    "JOIN eligible e ON e.id=r.id WHERE r.vault=? "
+    "AND json_extract(r.descriptor,'$.deleted')=0 "
+    "AND json_extract(r.descriptor,'$.format') IN ('ath-xml-v2','ath-resource-avd-v1',"
+    "'ath-resource-blob-v1','ath-resource-style-v1','ath-resource-sorter-v1') "
+    "AND NOT EXISTS(SELECT 1 FROM parents p JOIN eligible child ON child.id=p.child WHERE p.parent=r.id)),"
+    "collisions AS (SELECT path FROM heads WHERE path>? GROUP BY path "
+    "HAVING COUNT(DISTINCT object)>1 ORDER BY path LIMIT ?) "
+    "SELECT h.path,h.id,h.descriptor FROM collisions c JOIN heads h ON h.path=c.path "
+    "ORDER BY h.path,h.object,h.id");
+  st.text (1, vault); st.text (2, after);
+  check (db_, sqlite3_bind_int (st.value, 3, int (limit)));
+  std::vector<revision_path_collision> result;
+  while (st.row ()) {
+    auto path= st.bytes (0);
+    if (result.empty () || result.back ().path != path) result.push_back ({path, {}});
+    result.back ().heads.push_back (from_descriptor (st.bytes (1), st.bytes (2)));
+  }
+  return result;
+}
+
 bool revision_store::record_applied (
     const std::string& id, const std::optional<std::string>& expected) {
   transaction tx (db_);
+  if (!eligible (id)) throw std::invalid_argument ("Revision requires an authoritative conflict decision");
   statement object (db_, "SELECT vault,object FROM revisions WHERE id=?");
   object.text (1, id);
   if (!object.row ()) throw std::invalid_argument ("Unknown applied revision");
@@ -578,6 +671,7 @@ bool revision_store::prepare_apply (const apply_intent& intent) {
   }
   auto target= offer (intent.revision_id);
   if (!target) throw std::invalid_argument ("Unknown application target revision");
+  if (!eligible (intent.revision_id)) throw std::invalid_argument ("Application requires an authoritative conflict decision");
   const auto& r= target->metadata;
   if (applied (r.vault, r.object) != intent.expected_revision)
     throw std::invalid_argument ("Application base revision changed");
@@ -628,6 +722,7 @@ bool revision_store::finish_apply (const std::string& operation,
   if (intent->completed) { tx.commit (); return false; }
   auto target= offer (intent->revision_id);
   if (!target) throw std::invalid_argument ("Unknown application target");
+  if (!eligible (intent->revision_id)) throw std::invalid_argument ("Application target lacks an authoritative conflict decision");
   const auto& r= target->metadata;
   if (applied (r.vault, r.object) != intent->expected_revision)
     throw std::invalid_argument ("Application base changed before completion");

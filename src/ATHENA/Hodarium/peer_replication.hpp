@@ -5,11 +5,13 @@
 #include <set>
 
 namespace athena::hodarium {
+class peer_secret_exchange;
 // Owner-thread replication of immutable journals only; never applies files.
 class peer_replication: public QObject {
 public:
   peer_replication (peer_network& network, revision_store& store,
-    std::vector<std::string> vaults, std::function<void(std::string)> error);
+    std::vector<std::string> vaults, std::function<void(std::string)> error,
+    peer_secret_exchange* secrets= nullptr);
   void receive (const std::string& member, const QByteArray& message);
 private:
   using clock= std::chrono::steady_clock;
@@ -25,6 +27,7 @@ private:
   revision_store& store_;
   std::vector<std::string> vaults_;
   std::function<void(std::string)> error_;
+  peer_secret_exchange* secrets_;
   std::map<std::string, peer> peers_;
   QByteArray announcement_;
   QTimer timer_;

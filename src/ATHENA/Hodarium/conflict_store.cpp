@@ -53,7 +53,7 @@ conflict_store::conflict_store (const std::filesystem::path& path, authority_pin
     check (db_, sqlite3_busy_timeout (db_, 5000));
     {
       statement version (db_, "PRAGMA user_version");
-      if (!version.row () || sqlite3_column_int (version.value, 0) > 1)
+      if (!version.row () || sqlite3_column_int (version.value, 0) > 2)
         throw std::invalid_argument ("Unsupported Hodarium conflict store version");
     }
     sql (db_, "PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;");
@@ -62,7 +62,8 @@ conflict_store::conflict_store (const std::filesystem::path& path, authority_pin
       "CREATE TABLE IF NOT EXISTS proposals(operation TEXT PRIMARY KEY,descriptor TEXT NOT NULL,payload BLOB NOT NULL,"
       "settled INTEGER NOT NULL CHECK(settled IN(0,1)));"
       "CREATE TABLE IF NOT EXISTS decisions(vault TEXT NOT NULL,conflict TEXT NOT NULL,version INTEGER NOT NULL,"
-      "record TEXT NOT NULL,envelope TEXT NOT NULL,PRIMARY KEY(vault,conflict)); PRAGMA user_version=1;");
+      "record TEXT NOT NULL,envelope TEXT NOT NULL,PRIMARY KEY(vault,conflict));"
+      "CREATE TABLE IF NOT EXISTS publications(operation TEXT PRIMARY KEY); PRAGMA user_version=2;");
     auto binding= json::array ({pin_.group, pin_.generation, pin_.public_key}).dump ();
     statement existing (db_, "SELECT pin FROM trust WHERE singleton=1");
     if (existing.row ()) {
@@ -108,10 +109,42 @@ std::optional<conflict_proposal> conflict_store::proposal (const std::string& op
 }
 std::vector<std::string> conflict_store::pending (const std::string& after, std::uint32_t limit) const {
   if (limit == 0 || limit > 256) throw std::invalid_argument ("Invalid Hodarium proposal page size");
-  statement st (db_, "SELECT operation FROM proposals WHERE settled=0 AND operation>? ORDER BY operation LIMIT ?");
+  statement st (db_, "SELECT operation FROM proposals p WHERE operation>? "
+    "AND NOT EXISTS(SELECT 1 FROM publications WHERE operation=p.operation) "
+    "AND (settled=0 OR operation IN(SELECT json_extract(record,'$.request_id') FROM decisions)) "
+    "ORDER BY operation LIMIT ?");
   st.text (1, after); check (db_, sqlite3_bind_int (st.value, 2, limit));
   std::vector<std::string> result;
   while (st.row ()) result.push_back (st.bytes (0));
+  return result;
+}
+void conflict_store::published (const std::string& operation) {
+  auto value= proposal (operation);
+  if (!value) throw std::invalid_argument ("Unknown conflict publication");
+  auto decision= latest (value->request.vault, value->request.conflict);
+  if (!decision || decision->request != operation)
+    throw std::invalid_argument ("Cannot publish a losing conflict proposal");
+  statement st (db_, "INSERT OR IGNORE INTO publications VALUES(?)"); st.text (1, operation); st.row ();
+}
+std::vector<conflict_proposal_summary> conflict_store::proposals (
+  const std::string& vault, const std::string& after, std::uint32_t limit) const {
+  if (limit == 0 || limit > 256) throw std::invalid_argument ("Invalid Hodarium proposal page size");
+  statement st (db_, "SELECT p.operation,json_extract(p.descriptor,'$.revision.path'),"
+    "json_extract(p.descriptor,'$.revision.format'),json_extract(p.descriptor,'$.revision.deleted'),"
+    "CASE WHEN published.operation IS NOT NULL THEN 1 "
+    "WHEN d.version>json_extract(p.descriptor,'$.request.expected') THEN "
+    "CASE WHEN json_extract(d.record,'$.request_id')=p.operation THEN 1 ELSE 2 END "
+    "ELSE 0 END FROM proposals p "
+    "LEFT JOIN publications published ON published.operation=p.operation "
+    "LEFT JOIN decisions d ON d.vault=json_extract(p.descriptor,'$.request.vault') "
+    "AND d.conflict=json_extract(p.descriptor,'$.request.conflict') "
+    "WHERE p.operation>? AND json_extract(p.descriptor,'$.revision.vault')=? "
+    "ORDER BY p.operation LIMIT ?");
+  st.text (1, after); st.text (2, vault); check (db_, sqlite3_bind_int (st.value, 3, limit));
+  std::vector<conflict_proposal_summary> result;
+  while (st.row ()) result.push_back ({st.bytes (0), st.bytes (1), st.bytes (2),
+    sqlite3_column_int (st.value, 3) != 0,
+    static_cast<conflict_proposal_state> (sqlite3_column_int (st.value, 4))});
   return result;
 }
 std::optional<conflict_decision> conflict_store::latest (const std::string& vault, const std::string& conflict) const {

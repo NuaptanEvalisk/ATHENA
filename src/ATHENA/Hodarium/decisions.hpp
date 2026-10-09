@@ -10,6 +10,9 @@ struct decision_request {
   std::string request_id, branches, resolution;
   std::int64_t expected= 0;
 };
+struct decision_evidence {
+  std::string envelope, epoch, nonce, subject;
+};
 
 class decision_client: public QObject {
 public:
@@ -21,7 +24,9 @@ public:
   void request (std::string epoch, decision_request request,
                 authorization authorized, completion completed);
   void cancel ();
+  const decision_evidence& evidence () const { return evidence_; }
 private:
+  decision_evidence evidence_;
   authority_pin pin_;
   device_identity device_;
   std::string member_, epoch_;

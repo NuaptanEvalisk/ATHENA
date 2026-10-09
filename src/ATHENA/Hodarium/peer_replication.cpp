@@ -1,15 +1,16 @@
 /* Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later. */
 #include "peer_replication.hpp"
+#include "peer_secrets.hpp"
 #include <QCborArray>
 #include <QCborValue>
 #include <algorithm>
 #include <stdexcept>
 
 namespace athena::hodarium {
-namespace { const QString domain= QStringLiteral ("ATHENA-HODARIUM-VAULTS-v1"); }
+namespace { const QString domain= QStringLiteral ("ATHENA-HODARIUM-VAULTS-v2"); }
 peer_replication::peer_replication (peer_network& network, revision_store& store,
-  std::vector<std::string> vaults, std::function<void(std::string)> error):
-  network_ (network), store_ (store), vaults_ (std::move (vaults)), error_ (std::move (error)) {
+  std::vector<std::string> vaults, std::function<void(std::string)> error, peer_secret_exchange* secrets):
+  network_ (network), store_ (store), vaults_ (std::move (vaults)), error_ (std::move (error)), secrets_ (secrets) {
   std::sort (vaults_.begin (), vaults_.end ());
   vaults_.erase (std::unique (vaults_.begin (), vaults_.end ()), vaults_.end ());
   if (vaults_.size () > 256) throw std::invalid_argument ("Too many replication Vaults");
@@ -54,7 +55,7 @@ void peer_replication::receive (const std::string& member, const QByteArray& mes
     });
     state.received= true;
   }
-  else state.exchange->accept (message);
+  else if (!secrets_ || !secrets_->receive (member, route->session, state.common, message)) state.exchange->accept (message);
   state.deadline= clock::now () + std::chrono::seconds (60);
   pump (member, state);
 }
@@ -64,6 +65,7 @@ void peer_replication::pump (const std::string& member, peer& state) {
     state.announced= true;
   }
   if (!state.received) return;
+  if (secrets_) secrets_->pump (member, state.session, state.common);
   auto& exchange= *state.exchange;
   // Bound synchronous work even when a series of empty Vaults needs no I/O.
   if (!exchange.busy () && exchange.outgoing ().isEmpty () && !state.common.empty () && clock::now () >= state.cycle) {
@@ -90,10 +92,14 @@ void peer_replication::tick () {
     }
     catch (const std::exception& e) {
       network_.disconnect_peer (route.member); peers_.erase (route.member);
+      if (secrets_) secrets_->forget (route.member);
       if (error_) error_ (e.what ());
     }
   }
   for (auto it= peers_.begin (); it != peers_.end ();)
-    if (!live.count (it->first)) it= peers_.erase (it); else ++it;
+    if (!live.count (it->first)) {
+      if (secrets_) secrets_->forget (it->first);
+      it= peers_.erase (it);
+    } else ++it;
 }
 }

@@ -2,6 +2,8 @@
 #include "device_identity.hpp"
 #include "device_key_internal.hpp"
 #include "vault_secret.hpp"
+#include "relay_credentials.hpp"
+#include "control_http.hpp"
 #include <nlohmann/json.hpp>
 #include <sodium.h>
 #include <algorithm>
@@ -87,7 +89,8 @@ std::string sign_device_proof (const device_identity& device,
   const std::string& subject, const std::string& nonce) {
   validate_handle (group); validate_handle (nonce);
   if (purpose != "join" && purpose != "poll" && purpose != "control" &&
-      purpose != "resolve" && purpose != "rendezvous" && purpose != "decision" && purpose != "vault-secret")
+      purpose != "resolve" && purpose != "rendezvous" && purpose != "decision" &&
+      purpose != "decision-feed" && purpose != "vault-secret")
     throw std::invalid_argument ("Unsupported Hodarium device proof purpose");
   validate_handle (subject);
   return sign_device_message (device, nlohmann::json::array ({
@@ -284,5 +287,43 @@ std::string seal_vault_secret (const vault_secret& secret, const device_identity
     json::array ({binding, transfer_subject (request), encode (cipher, sizeof cipher)}));
   authorize_secret (context, authorized);
   return result;
+}
+std::string canonical_relay_origin (QUrl origin) {
+  if (origin.path () == "/") origin.setPath ({});
+  if (origin.port () == 443) origin.setPort (-1);
+  validate_authority_origin (origin);
+  auto result= origin.toString (QUrl::FullyEncoded).toStdString ();
+  if (result.size () > 2048) throw std::invalid_argument ("Relay origin exceeds budget");
+  return result;
+}
+namespace {
+std::string relay_account (const QUrl& origin, const std::string& handle) {
+  validate_handle (handle);
+  auto scoped= nlohmann::json::array ({"ATHENA-HODARIUM-RELAY-CREDENTIAL-v1",
+    canonical_relay_origin (origin), handle}).dump ();
+  unsigned char hash[crypto_hash_sha256_BYTES];
+  crypto_hash_sha256 (hash, reinterpret_cast<const unsigned char*> (scoped.data ()), scoped.size ());
+  return encode (hash, sizeof hash);
+}
+}
+std::string store_relay_token (const QUrl& origin, const std::string& token) {
+  secret_bytes bytes (32); std::size_t size= 0;
+  if (token.size () != 43 || sodium_base642bin (bytes.value, 32, token.data (), token.size (),
+      nullptr, &size, nullptr, sodium_base64_VARIANT_URLSAFE_NO_PADDING) != 0 || size != 32 ||
+      encode (bytes.value, 32) != token)
+    throw std::invalid_argument ("Invalid Relay access token");
+  unsigned char id[32]; randombytes_buf (id, sizeof id);
+  auto handle= encode (id, sizeof id);
+  detail::store_protected_seed (relay_account (origin, handle), bytes.value, detail::secret_kind::relay);
+  return handle;
+}
+std::string load_relay_token (const QUrl& origin, const std::string& handle) {
+  secret_bytes bytes (32);
+  detail::load_protected_seed (relay_account (origin, handle), bytes.value, detail::secret_kind::relay);
+  return encode (bytes.value, 32);
+}
+void delete_relay_token (const QUrl& origin, const std::string& handle) {
+  initialize ();
+  detail::delete_protected_seed (relay_account (origin, handle), detail::secret_kind::relay);
 }
 } // namespace athena::hodarium

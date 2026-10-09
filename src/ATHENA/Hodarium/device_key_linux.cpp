@@ -16,6 +16,24 @@ const SecretSchema schema= {"org.athena.Hodarium.Device", SECRET_SCHEMA_NONE,
   {{"handle", SECRET_SCHEMA_ATTRIBUTE_STRING}, {nullptr, SECRET_SCHEMA_ATTRIBUTE_STRING}}};
 const SecretSchema vault_schema= {"org.athena.Hodarium.Vault", SECRET_SCHEMA_NONE,
   {{"handle", SECRET_SCHEMA_ATTRIBUTE_STRING}, {nullptr, SECRET_SCHEMA_ATTRIBUTE_STRING}}};
+const SecretSchema relay_schema= {"org.athena.Hodarium.Relay", SECRET_SCHEMA_NONE,
+  {{"handle", SECRET_SCHEMA_ATTRIBUTE_STRING}, {nullptr, SECRET_SCHEMA_ATTRIBUTE_STRING}}};
+const SecretSchema* secret_schema (secret_kind kind) {
+  switch (kind) {
+    case secret_kind::device: return &schema;
+    case secret_kind::vault: return &vault_schema;
+    case secret_kind::relay: return &relay_schema;
+  }
+  throw std::invalid_argument ("Unknown protected secret kind");
+}
+const char* secret_label (secret_kind kind) {
+  switch (kind) {
+    case secret_kind::device: return "ATHENA Hodarium device identity";
+    case secret_kind::vault: return "ATHENA Hodarium Vault secret";
+    case secret_kind::relay: return "ATHENA Hodarium Relay access";
+  }
+  throw std::invalid_argument ("Unknown protected secret kind");
+}
 struct object_free { void operator() (gpointer p) const { if (p) g_object_unref (p); } };
 template<typename T> using object= std::unique_ptr<T, object_free>;
 std::mutex calls_mutex;
@@ -72,7 +90,7 @@ std::unique_ptr<GHashTable, hash_free> attributes (const std::string& handle, co
 }
 
 void store_protected_seed (const std::string& handle, const unsigned char* seed, secret_kind kind) {
-  const auto* selected= kind == secret_kind::device ? &schema : &vault_schema;
+  const auto* selected= secret_schema (kind);
   call_budget budget;
   auto connection= service (budget.cancel.get ());
   error e;
@@ -89,14 +107,14 @@ void store_protected_seed (const std::string& handle, const unsigned char* seed,
   std::unique_ptr<SecretValue, value_free> value (secret_value_new (
     reinterpret_cast<const char*> (seed), 32, "application/octet-stream"));
   object<SecretItem> item (secret_item_create_sync (collection.get (), selected,
-    attrs.get (), kind == secret_kind::device ? "ATHENA Hodarium device identity" : "ATHENA Hodarium Vault secret", value.get (),
+    attrs.get (), secret_label (kind), value.get (),
     SECRET_ITEM_CREATE_NONE, budget.cancel.get (), &e.value));
   e.check ();
   if (!item) throw key_store_error (key_store_failure::unavailable,
     "Could not store Hodarium identity in the system secret collection");
 }
 void load_protected_seed (const std::string& handle, unsigned char* seed, secret_kind kind) {
-  const auto* selected= kind == secret_kind::device ? &schema : &vault_schema;
+  const auto* selected= secret_schema (kind);
   call_budget budget;
   auto connection= service (budget.cancel.get ());
   auto attrs= attributes (handle, selected);
@@ -124,6 +142,15 @@ void load_protected_seed (const std::string& handle, unsigned char* seed, secret
   if (size != 32) throw key_store_error (key_store_failure::corrupt,
     "Invalid protected Hodarium identity");
   std::memcpy (seed, bytes, size);
+}
+void delete_protected_seed (const std::string& handle, secret_kind kind) {
+  const auto* selected= secret_schema (kind);
+  call_budget budget;
+  auto connection= service (budget.cancel.get ());
+  auto attrs= attributes (handle, selected);
+  error e;
+  secret_service_clear_sync (connection.get (), selected, attrs.get (), budget.cancel.get (), &e.value);
+  e.check ();
 }
 } // namespace athena::hodarium::detail
 

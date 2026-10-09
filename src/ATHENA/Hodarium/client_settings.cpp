@@ -2,6 +2,7 @@
 #include "client_settings.hpp"
 #include "control_http.hpp"
 #include "vault_registration.hpp"
+#include "recovery.hpp"
 #include "sqlite_internal.hpp"
 #include <sodium.h>
 #include <stdexcept>
@@ -48,7 +49,7 @@ client_settings::client_settings (const std::filesystem::path& database) {
     check (db_, sqlite3_busy_timeout (db_, 5000));
     int version;
     { statement st (db_, "PRAGMA user_version"); st.row (); version= sqlite3_column_int (st.value, 0); }
-    if (version > 4) throw std::runtime_error ("Unsupported Hodarium settings version");
+    if (version > 5) throw std::runtime_error ("Unsupported Hodarium settings version");
     sql (db_, "PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;");
     if (version == 0) {
       transaction tx (db_);
@@ -86,6 +87,20 @@ client_settings::client_settings (const std::filesystem::path& database) {
         "PRIMARY KEY(hodarium,generation,vault)); PRAGMA user_version=4;");
       tx.commit ();
     }
+    if (version < 5) {
+      transaction tx (db_);
+      sql (db_, "CREATE TABLE accepted_generations("
+        "hodarium TEXT NOT NULL REFERENCES profiles(hodarium),generation TEXT NOT NULL,"
+        "authority TEXT NOT NULL,legacy_path INTEGER NOT NULL,receipt TEXT NOT NULL,"
+        "PRIMARY KEY(hodarium,generation));"
+        "INSERT INTO accepted_generations SELECT hodarium,generation,authority,1,'' FROM profiles;"
+        "CREATE TABLE relay_bindings("
+        "hodarium TEXT NOT NULL REFERENCES profiles(hodarium),origin TEXT NOT NULL,"
+        "credential_handle TEXT NOT NULL,PRIMARY KEY(hodarium,origin));"
+        "ALTER TABLE vault_bindings ADD COLUMN allow_code_resources INTEGER NOT NULL DEFAULT 0 CHECK(allow_code_resources IN(0,1));"
+        "PRAGMA user_version=5;");
+      tx.commit ();
+    }
   }
   catch (...) { sqlite3_close (db_); db_= nullptr; throw; }
 }
@@ -114,13 +129,110 @@ void client_settings::add_pending (const client_profile& p) {
   st.text (2, p.pin.group); st.text (3, p.pin.public_key); st.text (4, p.pin.generation);
   st.text (5, p.recovery_public_key); st.text (6, p.device.handle);
   st.text (7, p.device.public_key); st.text (8, p.name); st.row ();
+  statement generation (db_, "INSERT INTO accepted_generations VALUES(?,?,?,1,'')");
+  generation.text (1, p.pin.group); generation.text (2, p.pin.generation);
+  generation.text (3, p.pin.public_key); generation.row ();
   tx.commit ();
 }
+
+client_profile client_settings::accept_recovery (recovery_candidate&& candidate) {
+  using namespace detail;
+  if (candidate.consumed_ || std::chrono::steady_clock::now () >= candidate.deadline_)
+    throw std::invalid_argument ("Recovery approval expired or was already consumed");
+  transaction tx (db_);
+  const auto& before= candidate.previous_;
+  auto current= find (before.pin.group);
+  if (!current || current->origin != before.origin || current->pin.public_key != before.pin.public_key ||
+      current->pin.generation != before.pin.generation || current->recovery_public_key != before.recovery_public_key ||
+      current->device.handle != before.device.handle || current->device.public_key != before.device.public_key)
+    throw std::invalid_argument ("Recovery approval no longer matches local trust");
+  auto next= verify_current_recovery (current->pin, current->recovery_public_key, candidate.envelope_, candidate.nonce_);
+  statement known (db_, "SELECT 1 FROM accepted_generations WHERE hodarium=? AND generation=?");
+  known.text (1, next.group); known.text (2, next.generation);
+  if (known.row ()) throw std::invalid_argument ("Recovery cannot return to a previously accepted generation");
+  statement record (db_, "INSERT INTO accepted_generations VALUES(?,?,?,0,?)");
+  record.text (1, next.group); record.text (2, next.generation); record.text (3, next.public_key);
+  record.text (4, candidate.envelope_.toStdString ()); record.row ();
+  statement update (db_, "UPDATE profiles SET authority=?,generation=?,member='',enabled=0 WHERE hodarium=?");
+  update.text (1, next.public_key); update.text (2, next.generation); update.text (3, next.group); update.row ();
+  tx.commit ();
+  candidate.consumed_= true;
+  current->pin= std::move (next); current->member.clear (); current->enabled= false;
+  return *current;
+}
+
+std::filesystem::path client_settings::generation_database_path (const std::filesystem::path& directory,
+  const std::string& group, const char* kind) const {
+  auto profile= find (group);
+  if (!profile) throw std::invalid_argument ("Unknown Hodarium profile");
+  detail::statement st (db_, "SELECT legacy_path FROM accepted_generations WHERE hodarium=? AND generation=? AND authority=?");
+  st.text (1, group); st.text (2, profile->pin.generation); st.text (3, profile->pin.public_key);
+  if (!st.row ()) throw std::invalid_argument ("Missing accepted Hodarium generation");
+  const bool legacy= sqlite3_column_int (st.value, 0) != 0;
+  return directory / (std::string (kind) + "-" + group + (legacy ? "" : "-" + profile->pin.generation) + ".sqlite");
+}
+
+std::filesystem::path client_settings::trust_database_path (const std::filesystem::path& directory,
+  const std::string& group) const {
+  return generation_database_path (directory, group, "membership");
+}
+
+std::filesystem::path client_settings::revision_database_path (const std::filesystem::path& directory,
+  const std::string& group) const {
+  return generation_database_path (directory, group, "revisions");
+}
+
+namespace {
+std::string relay_origin (QUrl origin) {
+  validate_authority_origin (origin);
+  // Default TLS port denotes the same origin, not a ninth route or credential.
+  if (origin.port () == 443) origin.setPort (-1);
+  return origin.toString (QUrl::FullyEncoded).toStdString ();
+}
+}
+std::vector<relay_binding> client_settings::relays (const std::string& group) const {
+  detail::statement st (db_, "SELECT origin,credential_handle FROM relay_bindings WHERE hodarium=? ORDER BY origin");
+  st.text (1, group);
+  std::vector<relay_binding> result;
+  while (st.row ()) result.push_back ({group, QUrl (QString::fromStdString (st.bytes (0))), st.bytes (1)});
+  return result;
+}
+void client_settings::set_relay (const relay_binding& binding) {
+  using namespace detail;
+  auto origin= relay_origin (binding.origin);
+  identifier (binding.credential_handle);
+  transaction tx (db_);
+  if (!find (binding.group)) throw std::invalid_argument ("Relay requires an existing Hodarium profile");
+  statement count (db_, "SELECT count(*) FROM relay_bindings WHERE hodarium=? AND origin<>?");
+  count.text (1, binding.group); count.text (2, origin); count.row ();
+  if (sqlite3_column_int (count.value, 0) >= 8)
+    throw std::invalid_argument ("A Hodarium profile supports at most eight Relays");
+  statement st (db_, "INSERT INTO relay_bindings VALUES(?,?,?) ON CONFLICT(hodarium,origin) "
+    "DO UPDATE SET credential_handle=excluded.credential_handle");
+  st.text (1, binding.group); st.text (2, origin); st.text (3, binding.credential_handle); st.row ();
+  tx.commit ();
+}
+void client_settings::remove_relay (const std::string& group, const QUrl& origin) {
+  detail::statement st (db_, "DELETE FROM relay_bindings WHERE hodarium=? AND origin=?");
+  st.text (1, group); st.text (2, relay_origin (origin)); st.row ();
+}
 void client_settings::complete_admission (const std::string& group,
-  const std::string& handle, const std::string& public_key, const std::string& member) {
+  const std::string& handle, const std::string& public_key, const std::string& member,
+  const std::string& generation) {
   using namespace detail;
   identifier (member);
   transaction tx (db_);
+  auto profile= find (group);
+  if (!profile) throw std::invalid_argument ("Unknown Hodarium admission profile");
+  if (generation.empty ()) {
+    // Old callers are valid only before any recovery. A delayed pre-recovery
+    // admission callback must not restore an expelled member afterward.
+    statement initial (db_, "SELECT 1 FROM accepted_generations WHERE hodarium=? AND generation=? AND legacy_path=1");
+    initial.text (1, group); initial.text (2, profile->pin.generation);
+    if (!initial.row ()) throw std::invalid_argument ("Recovered admission requires its explicit authority generation");
+  }
+  else if (generation != profile->pin.generation)
+    throw std::invalid_argument ("Admission belongs to a previous authority generation");
   statement st (db_, "UPDATE profiles SET member=? WHERE hodarium=? AND key_handle=? "
     "AND device_key=? AND (member='' OR member=?)");
   st.text (1, member); st.text (2, group); st.text (3, handle);
@@ -140,11 +252,11 @@ void client_settings::set_enabled (const std::string& group, bool enabled) {
   tx.commit ();
 }
 std::vector<vault_binding> client_settings::vaults (const std::string& group) const {
-  detail::statement st (db_, "SELECT vault,root,enabled FROM vault_bindings WHERE hodarium=? ORDER BY vault");
+  detail::statement st (db_, "SELECT vault,root,enabled,allow_code_resources FROM vault_bindings WHERE hodarium=? ORDER BY vault");
   st.text (1, group);
   std::vector<vault_binding> result;
   while (st.row ()) result.push_back ({group, st.bytes (0), std::filesystem::u8path (st.bytes (1)),
-    sqlite3_column_int (st.value, 2) != 0});
+    sqlite3_column_int (st.value, 2) != 0, sqlite3_column_int (st.value, 3) != 0});
   return result;
 }
 void client_settings::bind_vault (const vault_binding& binding) {
@@ -165,9 +277,18 @@ void client_settings::bind_vault (const vault_binding& binding) {
     if (a == root.end () || b == path.end ())
       throw std::invalid_argument ("Vault binding overlaps an existing local binding");
   }
-  statement st (db_, "INSERT INTO vault_bindings VALUES(?,?,?,?)");
+  statement st (db_, "INSERT INTO vault_bindings(hodarium,vault,root,enabled,allow_code_resources) VALUES(?,?,?,?,?)");
   st.text (1, binding.group); st.text (2, binding.vault); st.text (3, root.u8string ());
-  check (db_, sqlite3_bind_int (st.value, 4, binding.enabled)); st.row (); tx.commit ();
+  check (db_, sqlite3_bind_int (st.value, 4, binding.enabled));
+  check (db_, sqlite3_bind_int (st.value, 5, binding.allow_code_resources)); st.row (); tx.commit ();
+}
+void client_settings::set_vault_code_resources (const std::string& group, const std::string& vault, bool allowed) {
+  using namespace detail;
+  transaction tx (db_);
+  statement st (db_, "UPDATE vault_bindings SET allow_code_resources=? WHERE hodarium=? AND vault=?");
+  check (db_, sqlite3_bind_int (st.value, 1, allowed)); st.text (2, group); st.text (3, vault); st.row ();
+  if (sqlite3_changes (db_) != 1) throw std::invalid_argument ("Unknown Vault binding");
+  tx.commit ();
 }
 void client_settings::set_vault_enabled (const std::string& group, const std::string& vault, bool enabled) {
   using namespace detail;

@@ -133,7 +133,8 @@ public:
 std::unique_ptr<peer_transport> tcp_peer_transport (QTcpSocket* socket) {
   return std::make_unique<tcp_transport> (socket);
 }
-std::unique_ptr<peer_transport> relay_peer_transport (QUrl origin, std::string access, std::string ticket) {
+void validate_relay_access_token (const std::string& token) { capability (token); }
+std::unique_ptr<peer_transport> relay_peer_transport (QUrl origin, const std::string& access, const std::string& ticket) {
   return std::make_unique<relay_transport> (std::move (origin), access, ticket);
 }
 void allocate_relay_ticket (control_http& http, const std::string& access,
@@ -163,5 +164,35 @@ void allocate_relay_ticket (control_http& http, const std::string& access,
     catch (const std::exception& e) { completed ({control_failure::invalid_state, e.what ()}, {}); return; }
     completed ({}, std::move (ticket));
   }, false, QByteArray::fromStdString (access));
+}
+void join_relay (control_http& http, const std::string& access,
+  const std::string& room, int side,
+  std::function<void (control_result, std::string)> completed) {
+  capability (access); capability (room);
+  if (side < 0 || side > 1 || !completed)
+    throw std::invalid_argument ("Invalid relay rendezvous operation");
+  auto body= nlohmann::json{{"room", room}, {"side", side}}.dump ();
+  http.request ("/v1/join", QByteArray::fromStdString (body),
+    [completed= std::move (completed)] (control_response response) {
+      if (!response.error.empty ()) {
+        completed ({control_failure::transport, std::move (response.error)}, {}); return;
+      }
+      std::string ticket;
+      try {
+        if (response.body.size () > 1024) throw std::invalid_argument ("Relay rendezvous exceeds budget");
+        auto value= nlohmann::json::parse (response.body.constData (), response.body.constData () + response.body.size (),
+          [] (int depth, nlohmann::json::parse_event_t, nlohmann::json&) {
+            if (depth > 2) throw std::invalid_argument ("Relay rendezvous exceeds depth budget");
+            return true;
+          });
+        ticket= value.at ("ticket").get<std::string> (); capability (ticket);
+        auto expires= value.at ("expires").get<std::int64_t> ();
+        auto now= QDateTime::currentSecsSinceEpoch ();
+        if (expires <= now || expires > now + 300)
+          throw std::invalid_argument ("Invalid relay rendezvous expiry");
+      }
+      catch (const std::exception& e) { completed ({control_failure::invalid_state, e.what ()}, {}); return; }
+      completed ({}, std::move (ticket));
+    }, false, QByteArray::fromStdString (access));
 }
 } // namespace athena::hodarium

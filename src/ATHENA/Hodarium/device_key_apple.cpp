@@ -7,6 +7,22 @@
 
 namespace athena::hodarium::detail {
 namespace {
+CFStringRef secret_service (secret_kind kind) {
+  switch (kind) {
+    case secret_kind::device: return CFSTR ("org.athena.Hodarium.Device");
+    case secret_kind::vault: return CFSTR ("org.athena.Hodarium.Vault");
+    case secret_kind::relay: return CFSTR ("org.athena.Hodarium.Relay");
+  }
+  throw std::invalid_argument ("Unknown protected secret kind");
+}
+CFStringRef secret_label (secret_kind kind) {
+  switch (kind) {
+    case secret_kind::device: return CFSTR ("ATHENA Hodarium device identity");
+    case secret_kind::vault: return CFSTR ("ATHENA Hodarium Vault secret");
+    case secret_kind::relay: return CFSTR ("ATHENA Hodarium Relay access");
+  }
+  throw std::invalid_argument ("Unknown protected secret kind");
+}
 template<typename T> struct cf_owned {
   T value;
   explicit cf_owned (T p): value (p) {
@@ -34,7 +50,7 @@ struct query {
     nullptr, reinterpret_cast<const UInt8*> (handle.data ()), handle.size (),
     kCFStringEncodingUTF8, false)) {
     set (kSecClass, kSecClassGenericPassword);
-    set (kSecAttrService, kind == secret_kind::device ? CFSTR ("org.athena.Hodarium.Device") : CFSTR ("org.athena.Hodarium.Vault"));
+    set (kSecAttrService, secret_service (kind));
     set (kSecAttrAccount, account.value);
     set (kSecAttrSynchronizable, kCFBooleanFalse);
   }
@@ -48,7 +64,7 @@ void store_protected_seed (const std::string& handle, const unsigned char* seed,
   cf_owned<CFDataRef> data (CFDataCreate (nullptr, seed, 32));
   q.set (kSecValueData, data.value);
   q.set (kSecAttrAccessible, kSecAttrAccessibleWhenUnlockedThisDeviceOnly);
-  q.set (kSecAttrLabel, kind == secret_kind::device ? CFSTR ("ATHENA Hodarium device identity") : CFSTR ("ATHENA Hodarium Vault secret"));
+  q.set (kSecAttrLabel, secret_label (kind));
   check (SecItemAdd (q.values.value, nullptr));
 }
 void load_protected_seed (const std::string& handle, unsigned char* seed, secret_kind kind) {
@@ -63,6 +79,12 @@ void load_protected_seed (const std::string& handle, unsigned char* seed, secret
       CFDataGetLength (static_cast<CFDataRef> (result)) != 32)
     throw key_store_error (key_store_failure::corrupt, "Invalid protected Hodarium identity");
   std::memcpy (seed, CFDataGetBytePtr (static_cast<CFDataRef> (result)), 32);
+}
+void delete_protected_seed (const std::string& handle, secret_kind kind) {
+  query q (handle, kind);
+  q.set (kSecUseAuthenticationUI, kSecUseAuthenticationUIFail);
+  const auto status= SecItemDelete (q.values.value);
+  if (status != errSecItemNotFound) check (status);
 }
 } // namespace athena::hodarium::detail
 

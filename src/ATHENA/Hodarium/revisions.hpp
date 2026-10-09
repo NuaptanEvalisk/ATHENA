@@ -6,6 +6,8 @@
 #include <optional>
 #include <string>
 #include <vector>
+#include "decisions.hpp"
+#include "vault_secret.hpp"
 
 struct sqlite3;
 
@@ -40,6 +42,12 @@ struct revision_head {
 struct revision_conflict {
   std::string object, representative_path;
   std::int64_t heads= 0;
+};
+struct revision_path_collision {
+  std::string path;
+  // Current eligible physical-file heads, ordered by object then revision ID.
+  // Payloads are empty; separate objects must never be merged into one identity.
+  std::vector<revision> heads;
 };
 struct apply_intent {
   std::string operation, revision_id;
@@ -83,6 +91,13 @@ public:
   std::vector<std::string> heads (const std::string& vault,
                                  const std::string& object) const;
   bool contains (const std::string& vault, const std::string& id) const;
+  // Receipt is not permission to consume concurrent branches. Approval is
+  // checked against both the scoped Vault secret and the authority signature.
+  bool eligible (const std::string& id) const;
+  bool accept_resolution (const std::string& id, const authority_pin& pin,
+    const vault_secret& secret, const decision_evidence& evidence);
+  std::vector<revision> pending_resolutions (const std::string& vault,
+    const std::string& after= {}, std::uint32_t limit= 64) const;
   // Connection-local cursors over append-only receipt order. Parents always
   // precede children. Restart discovery from zero after reconnect or DB restore.
   std::int64_t inventory_tip (const std::string& vault) const;
@@ -104,6 +119,10 @@ public:
   // Metadata-only discovery for manual resolution; never chooses a branch.
   std::vector<revision_conflict> conflicts (const std::string& vault,
     const std::string& after_object= {}, std::uint32_t limit= 64) const;
+  // Lexical path cursor, limit counts paths (not individual heads). Includes
+  // only surviving native-document/resource heads; excludes logical records.
+  std::vector<revision_path_collision> path_collisions (const std::string& vault,
+    const std::string& after= {}, std::uint32_t limit= 64) const;
   // Called only by the durable apply coordinator, after its history/apply barrier.
   bool record_applied (const std::string& id,
                        const std::optional<std::string>& expected);

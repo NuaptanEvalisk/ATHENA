@@ -8,6 +8,8 @@
 #include "peer_network.hpp"
 #include "revision_transfer.hpp"
 #include "peer_replication.hpp"
+#include "peer_secrets.hpp"
+#include "vault_registration.hpp"
 #include "control_http.hpp"
 #include <QCoreApplication>
 #include <QTemporaryDir>
@@ -155,7 +157,7 @@ void check_peer_network (const device_identity& a, const device_identity& b) {
   QEventLoop loop; QTimer poll, deadline;
   revision_store source (":memory:"), target (":memory:");
   revision value;
-  value.vault= "isolated-vault"; value.object= "isolated-object";
+  value.vault= "10000000-0000-4000-8000-000000000002"; value.object= "isolated-object";
   value.origin_member= a.handle; value.format= "ath-xml-v2";
   value.relative_path= "Notes/example.ath"; value.payload= std::string (700*1024, 'n');
   value.payload[17]= '\0'; value.payload[600000]= char (255);
@@ -167,7 +169,7 @@ void check_peer_network (const device_identity& a, const device_identity& b) {
   auto private_revision= base; private_revision.vault= "local-only";
   private_revision= seal_revision (private_revision); source.receive (private_revision);
   std::unique_ptr<peer_replication> outgoing, incoming;
-  bool sent= false, measured= false;
+  bool sent= false, measured= false, secret_received= false;
   peer_network first (a, allowed, [&] (const std::string& member, QByteArray bytes) {
     require (member == b.handle, "Revision acknowledgement came from wrong peer");
     outgoing->receive (member, bytes);
@@ -177,8 +179,39 @@ void check_peer_network (const device_identity& a, const device_identity& b) {
     incoming->receive (member, bytes);
   });
   auto error= [] (std::string message) { throw std::runtime_error (message); };
-  outgoing= std::make_unique<peer_replication> (first, source, std::vector<std::string>{value.vault, "local-only"}, error);
-  incoming= std::make_unique<peer_replication> (second, target, std::vector<std::string>{value.vault}, error);
+  QTemporaryDir temporary;
+  require (temporary.isValid (), "Cannot create isolated peer settings");
+  auto root= std::filesystem::path (temporary.path ().toStdString ());
+  client_settings first_settings (root / "a.sqlite"), second_settings (root / "b.sqlite");
+  auto profile= [&] (const device_identity& device, const char* name, client_settings& settings) {
+    client_profile result{QUrl ("https://authority.invalid"), {state.group, a.public_key, state.generation},
+      b.public_key, device, name, {}, false};
+    settings.add_pending (result);
+    settings.complete_admission (state.group, device.handle, device.public_key, device.handle);
+    result.member= device.handle;
+    std::filesystem::create_directory (root / name);
+    settings.bind_vault ({state.group, value.vault, root / name, true});
+    return result;
+  };
+  auto ap= profile (a, "A", first_settings), bp= profile (b, "B", second_settings);
+  auto shared_secret= create_vault_secret (state.group, value.vault);
+  first_settings.remember_vault_secret (state.generation, shared_secret);
+  auto payload= nlohmann::json{{"protocol", 1}, {"group", state.group}, {"generation", state.generation},
+    {"epoch", state.epoch}, {"challenge", a.handle}, {"subject", b.handle},
+    {"slot", vault_registration_slot (state.group, value.vault)},
+    {"registration", {{"commitment", shared_secret.commitment}, {"member", a.handle}, {"created", 1}}}}.dump ();
+  std::string domain= "ATHENA-HODARIUM-VAULT-SECRET-v1"; domain += '\0';
+  auto receipt= nlohmann::json{{"payload", QByteArray::fromStdString (payload).toBase64 (
+    QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals).toStdString ()},
+    {"signature", sign_device_message (a, domain + payload)}}.dump ();
+  for (auto* settings: {&first_settings, &second_settings})
+    settings->accept_vault_registration (state.group, value.vault, receipt, state.epoch, a.handle, b.handle);
+  auto members= [&] { return std::optional<membership_state> (state); };
+  auto authorized= [&] (const std::string& epoch) { return epoch == state.epoch; };
+  peer_secret_exchange first_keys (first, first_settings, ap, members, authorized);
+  peer_secret_exchange second_keys (second, second_settings, bp, members, authorized);
+  outgoing= std::make_unique<peer_replication> (first, source, std::vector<std::string>{value.vault, "local-only"}, error, &first_keys);
+  incoming= std::make_unique<peer_replication> (second, target, std::vector<std::string>{value.vault}, error, &second_keys);
   first.start (state, a.handle); second.start (state, b.handle);
   auto aa= first.addresses (), ba= second.addresses ();
   require (!aa.empty () && !ba.empty (), "Isolated network check needs a local unicast interface");
@@ -190,12 +223,14 @@ void check_peer_network (const device_identity& a, const device_identity& b) {
     if (routes.size () != 1 || !routes[0].established) return;
     sent= source.contains (other.vault, other.id) && target.contains (value.vault, value.id);
     measured= routes[0].roundtrip_ms > 0;
-    if (sent && measured) loop.quit ();
+    secret_received= bool (second_settings.find_vault_secret (state.group, state.generation, value.vault, shared_secret.commitment));
+    if (sent && measured && secret_received) loop.quit ();
   });
   QObject::connect (&deadline, &QTimer::timeout, &loop, &QEventLoop::quit);
   poll.start (50); deadline.setSingleShot (true); deadline.start (10000); loop.exec ();
-  require (sent && measured,
-           "Automatic peer dialing, heartbeat or bidirectional revision exchange failed");
+  require (sent && measured && secret_received,
+           "Automatic peer dialing, secret delivery or bidirectional revision exchange failed");
+  verify_vault_secret (*second_settings.find_vault_secret (state.group, state.generation, value.vault, shared_secret.commitment));
   require (target.get (value.id) && target.get (value.id)->payload == value.payload,
            "Peer revision transfer changed content");
   require (!target.applied (value.vault, value.object), "Peer transfer applied a document");
@@ -206,6 +241,31 @@ void check_peer_network (const device_identity& a, const device_identity& b) {
            "Bidirectional exchange lost a concurrent head");
   first.stop (); second.stop ();
   require (first.status ().empty () && first.addresses ().empty (), "Stopped peer network retained live routes");
+  auto merge= value; merge.parents= {value.id, other.id}; merge.payload= "user merge";
+  merge= seal_revision (merge); target.receive (merge);
+  auto descendant= merge; descendant.parents= {merge.id}; descendant.payload= "later edit";
+  descendant= seal_revision (descendant); target.receive (descendant);
+  require (!target.eligible (merge.id) && !target.eligible (descendant.id) &&
+           target.heads (value.vault, value.object).size () == 2, "Unauthorised merge consumed concurrent branches");
+  const auto tokens= derive_conflict_tokens (shared_secret, merge.object, merge.parents, merge.id);
+  auto decision_payload= nlohmann::json{{"protocol", 1}, {"group", state.group}, {"generation", state.generation},
+    {"epoch", state.epoch}, {"challenge", a.handle}, {"subject", b.handle},
+    {"decision", {{"vault", tokens.vault}, {"conflict", tokens.conflict}, {"branches", tokens.branches},
+      {"resolution", tokens.resolution}, {"request_id", a.handle}, {"member", a.handle},
+      {"generation", state.generation}, {"epoch", state.epoch}, {"version", 1}, {"created", 1}}}}.dump ();
+  std::string decision_domain= "ATHENA-HODARIUM-DECISION-v1"; decision_domain+= '\0';
+  decision_evidence evidence{nlohmann::json{{"payload", QByteArray::fromStdString (decision_payload).toBase64 (
+    QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals).toStdString ()},
+    {"signature", sign_device_message (a, decision_domain + decision_payload)}}.dump (), state.epoch, a.handle, b.handle};
+  auto recipient_secret= *second_settings.find_vault_secret (state.group, state.generation, value.vault, shared_secret.commitment);
+  auto wrong= evidence; wrong.subject= a.handle;
+  bool rejected= false;
+  try { target.accept_resolution (merge.id, ap.pin, recipient_secret, wrong); }
+  catch (const std::exception&) { rejected= true; }
+  require (rejected && !target.eligible (merge.id), "Unbound resolution receipt was accepted");
+  require (target.accept_resolution (merge.id, ap.pin, recipient_secret, evidence) &&
+           target.eligible (descendant.id) && target.heads (value.vault, value.object) == std::vector<std::string>{descendant.id},
+           "Verified resolution failed to admit its waiting descendants");
 }
 void check_relay_peer (const device_identity& a, const device_identity& b, const char* directory) {
   const auto root= std::filesystem::path (directory);
@@ -250,6 +310,47 @@ void check_relay_peer (const device_identity& a, const device_identity& b, const
   QObject::connect (&deadline, &QTimer::timeout, &loop, [&] { error= "Native relay timed out"; loop.quit (); });
   deadline.start (20000); loop.exec ();
   require (error.empty (), error.c_str ()); require (transferred, "Relay transfer incomplete");
+  client.reset (); server.reset ();
+
+  // No direct hints and no manually shared tickets: both devices independently
+  // rendezvous at the configured Relay, authenticate, and negotiate a data route.
+  membership_state state{a.public_key, b.public_key, a.handle, 1,
+    {{a.handle, "A", a.public_key}, {b.handle, "B", b.public_key}}};
+  auto allowed= [&] (const peer_context& c, const std::string& key) {
+    return c.group == state.group && c.generation == state.generation && c.epoch == state.epoch &&
+      ((c.local_member == a.handle && c.remote_member == b.handle && key == b.public_key) ||
+       (c.local_member == b.handle && c.remote_member == a.handle && key == a.public_key));
+  };
+  QEventLoop automatic; QTimer poll, limit;
+  QByteArray forward (128*1024, 'a'), backward (96*1024, 'b'), got_forward, got_backward;
+  forward[100]= '\0'; backward[1000]= char (255);
+  peer_network first (a, allowed, [&] (const std::string& member, QByteArray bytes) {
+    require (member == b.handle, "Automatic Relay changed peer identity"); got_backward+= bytes;
+  });
+  peer_network second (b, allowed, [&] (const std::string& member, QByteArray bytes) {
+    require (member == a.handle, "Automatic Relay changed peer identity"); got_forward+= bytes;
+  });
+  first.set_relays ({{origin, token}}); second.set_relays ({{origin, token}});
+  first.start (state, a.handle); second.start (state, b.handle);
+  const auto routes= first.relay_origins ();
+  require (routes.size () == 1 && second.relay_origins () == routes, "Relay origins changed during configuration");
+  const auto expires= QDateTime::currentSecsSinceEpoch () + 60;
+  first.discover ({{{b.handle, {}, routes, expires}}, {}});
+  second.discover ({{{a.handle, {}, routes, expires}}, {}});
+  bool forward_sent= false, backward_sent= false, routed= false;
+  QObject::connect (&poll, &QTimer::timeout, &automatic, [&] {
+    const auto x= first.status (), y= second.status ();
+    if (x.size () != 1 || y.size () != 1 || !x[0].established || !y[0].established) return;
+    require (x[0].route == routes[0] && y[0].route == routes[0], "Relay-only peers selected a different route");
+    if (x[0].roundtrip_ms <= 0 || y[0].roundtrip_ms <= 0) return;
+    if (!forward_sent) forward_sent= first.send (b.handle, forward);
+    if (!backward_sent) backward_sent= second.send (a.handle, backward);
+    if (got_forward == forward && got_backward == backward) { routed= true; automatic.quit (); }
+  });
+  QObject::connect (&limit, &QTimer::timeout, &automatic, &QEventLoop::quit);
+  poll.start (25); limit.setSingleShot (true); limit.start (12000); automatic.exec ();
+  first.stop (); second.stop ();
+  require (routed, "Automatic Relay-only route failed to exchange authenticated data");
   std::ofstream (root / "done") << "passed\n";
 }
 int main (int argc, char** argv) {

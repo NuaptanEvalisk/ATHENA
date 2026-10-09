@@ -131,13 +131,15 @@ int main (int argc, char** argv) {
         drafts.pending ().size () == 1, "Restart lost prepared resolution");
       drafts.accept (proposal.request.request_id, decision_response, result.state.epoch,
         decision_nonce, decision_subject);
-      require (drafts.pending ().empty () && drafts.latest (vault, conflict)->version == 1 &&
+      require (drafts.pending ().size () == 1 && drafts.latest (vault, conflict)->version == 1 &&
         !revisions.get (proposal.resolution.id), "Receipt published a draft or lost the decision");
     }
     {
       conflict_store drafts (conflict_path, pin);
-      require (drafts.pending ().empty () && drafts.latest (vault, conflict)->request == proposal.request.request_id,
-        "Restart lost durable conflict decision");
+      require (drafts.pending ().size () == 1 && drafts.latest (vault, conflict)->request == proposal.request.request_id,
+        "Restart lost a committed but unpublished conflict decision");
+      drafts.published (proposal.request.request_id);
+      require (drafts.pending ().empty (), "Published decision remained in the outbox");
     }
     rejects ([&] { conflict_store drafts (conflict_path, wrong_pin); });
     auto database= temporary.directory / "membership.sqlite";
