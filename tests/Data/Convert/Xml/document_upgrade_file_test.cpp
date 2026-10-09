@@ -10,6 +10,8 @@
 #include <QtTest/QtTest>
 #include <QTemporaryDir>
 #include "Xml/document_upgrade_file.hpp"
+#include "ATHENA/Data/hodarium_inventory.hpp"
+#include "node_metadata.hpp"
 #include <fstream>
 #include <future>
 #include <sys/stat.h>
@@ -40,6 +42,36 @@ class TestDocumentUpgrade: public QObject {
   Q_OBJECT
 private slots:
   void initTestCase () { make_tree_label (DOCUMENT, "document"); }
+  void hodariumInventory () {
+    QTemporaryDir temporary;
+    QVERIFY (temporary.isValid ());
+    fs::path root (temporary.path ().toStdString ());
+    fs::create_directory (root / ".athena");
+    tree body (DOCUMENT, "saved source");
+    athena::node::set (body, {"10000000-0000-4000-8000-000000000001", {}});
+    tree source (DOCUMENT, compound ("body", body));
+    auto bytes= write_xml_v2 (source);
+    put (root / "one.ath", bytes);
+    put (root / ".athena/ignored.ath", bytes);
+    std::atomic<bool> cancelled {false};
+    auto initial= athena::hodarium::inventory_sources (root, cancelled);
+    QCOMPARE (initial.documents.size (), std::size_t (1));
+    QVERIFY (initial.errors.empty ());
+    QCOMPARE (*initial.documents[0].bytes, bytes);
+    QCOMPARE (athena::hodarium::inventory_sources (root, cancelled, initial.cache).documents.size (), std::size_t (1));
+    initial.cache.at ("one.ath").published= true;
+    auto unchanged= athena::hodarium::inventory_sources (root, cancelled, initial.cache);
+    QVERIFY (unchanged.documents.empty ());
+    QCOMPARE (unchanged.cache.size (), std::size_t (1));
+    put (root / "copy.ath", bytes);
+    auto duplicate= athena::hodarium::inventory_sources (root, cancelled, unchanged.cache);
+    QVERIFY (duplicate.documents.empty ());
+    QCOMPARE (duplicate.errors.size (), std::size_t (1));
+    QVERIFY (!duplicate.cache.at ("one.ath").published);
+    QCOMPARE (get (root / "one.ath"), bytes);
+    cancelled.store (true);
+    QVERIFY (athena::hodarium::inventory_sources (root, cancelled).documents.empty ());
+  }
   void persistentXmlStorage () {
     QTemporaryDir temporary;
     QVERIFY (temporary.isValid ());
@@ -77,6 +109,8 @@ private slots:
     QVERIFY (storage.legacy ());
     QCOMPARE (storage.source_sha256 (), storage_bytes_fingerprint (legacy));
     auto upgraded= storage.save (migrated ());
+    QVERIFY (upgraded.committed_bytes);
+    QCOMPARE (*upgraded.committed_bytes, get (file));
     QVERIFY (upgraded.upgraded_legacy);
     QVERIFY (upgraded.backup.has_value ());
     QCOMPARE (get (*upgraded.backup), legacy);
@@ -85,6 +119,10 @@ private slots:
     QCOMPARE (storage.source_sha256 (), storage_bytes_fingerprint (get (file)));
     tree second (DOCUMENT, "second");
     auto saved= storage.save (second);
+    QVERIFY (saved.committed_bytes);
+    QCOMPARE (*saved.committed_bytes, get (file));
+    QVERIFY (*saved.committed_bytes != *upgraded.committed_bytes);
+    QCOMPARE (storage_bytes_fingerprint (*upgraded.committed_bytes), upgraded.xml_sha256);
     QVERIFY (!saved.upgraded_legacy);
     QCOMPARE (read_xml (get (file)), second);
     QCOMPARE (get (*upgraded.backup), legacy);

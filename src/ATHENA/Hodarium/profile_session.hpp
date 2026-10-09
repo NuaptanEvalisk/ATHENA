@@ -5,6 +5,7 @@
 #include "peer_tls.hpp"
 #include "rendezvous.hpp"
 #include "peer_network.hpp"
+#include "peer_replication.hpp"
 #include <QTimer>
 
 namespace athena::hodarium {
@@ -43,6 +44,7 @@ public:
   bool context_allowed (const peer_context& context, const std::string& public_key);
   presence_snapshot discovered_peers () const;
   void set_presence_routes (std::vector<std::string> direct, std::vector<std::string> relays);
+  void configure_revisions (revision_store& store, std::vector<std::string> vaults);
 private:
   client_settings& settings_;
   client_profile profile_;
@@ -53,6 +55,9 @@ private:
   std::unique_ptr<enrollment> enrollment_;
   std::unique_ptr<presence_directory> directory_;
   std::unique_ptr<peer_network> network_;
+  std::unique_ptr<peer_replication> replication_;
+  revision_store* revisions_= nullptr;
+  std::vector<std::string> vaults_;
   QTimer timer_;
   bool paused_= false, busy_= false, pending_= false;
   membership_lease::steady::time_point next_{};

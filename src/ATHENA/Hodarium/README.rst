@@ -33,7 +33,7 @@ requires explicit revocation on platform suspension. Reading a stored member
 list does not renew freshness. The future network owner must consume each
 pending validation request once, persist its accepted state, then renew the
 lease from the request's send time. The native authority client below now owns
-that sequence; document synchronization remains unconnected.
+that sequence; remote document application remains unconnected.
 
 ``device_identity`` creates a random local key handle and Ed25519 identity,
 stores its seed through the platform backend, and reloads it for each signing
@@ -113,7 +113,8 @@ panel and pauses/resumes configured profiles. HTTPS discovery and protected
 identity creation run on the worker; the pending profile is durable before the
 join request. Existing group pins are never overwritten by another discovery.
 The dialog creates device-local settings on explicit opening, and does not
-require an editor buffer. Document transfer remains unconnected.
+require an editor buffer. Selected Vault journals now exchange revisions over
+authenticated direct connections; remote document application is still pending.
 
 The real C++/Go HTTPS exchange was exercised with a separately trusted temporary
 TLS certificate and an isolated system keyring. The native client requests
@@ -162,9 +163,8 @@ when accepting a publication, and checks its current context and lease in place.
 The protected-key smoke test exercises a real bidirectional GnuTLS handshake
 over in-memory byte queues, matching exporters, encrypted record receipt,
 wrong-device rejection, epoch mismatch and revocation before a record write.
-This is not yet a relay/client integration test and does not enable document
-traffic. Peer discovery, socket ownership and the transfer coordinator remain
-to be connected.
+This primitive check is distinct from the socket, relay and journal replication
+checks described below; it does not itself prove document application.
 
 ``peer_connection`` now drives the inner TLS primitive over a shared byte-transport
 interface, implemented by owned QTcpSocket and Qt WebSockets connections
@@ -235,8 +235,97 @@ configuration, never supplied by a peer. ``record_applied`` is bookkeeping,
 not a filesystem replacement API: only a future durable application coordinator
 may call it after history protection and the application commit boundary.
 
-Remaining integration (not enabled)
-----------------------------------
+Journal integration and remaining application work
+-------------------------------------------------
+
+``revision_store::capture_saved`` atomically records a successful local save and
+its applied pointer. Its input has no caller-selected revision ID or parents;
+only the expected applied revision becomes its parent. Received remote heads
+are not silently merged. A stale expected base publishes nothing, and a pending
+remote apply intent blocks capture until the owner resolves that operation.
+Unchanged storage content returns the previous revision without inserting a
+new one, including when the saving device differs. The comparison hashes the
+new bytes against the old descriptor without loading the old payload. Renames
+and tombstones remain real revisions. The caller must supply exact bytes from
+a completed durable save.
+
+Save notifications can additionally bind the storage fingerprint preceding the
+save. With an existing applied revision, a differing predecessor rejects the
+capture without publishing a new revision. The actor notification supplies
+that fingerprint, captured before its storage transaction, rather than
+assuming the worker's latest applied pointer was the actor's editing base.
+Revision schema v4 caches raw payload SHA-256 separately from descriptor-bound
+revision IDs. New receipts and saves populate it atomically; old records are
+backfilled on first use. The pre-apply completion check shares this cache, so
+neither check repeatedly reads an immutable large payload.
+
+The native document save result now carries ``committed_bytes``, an immutable
+shared pointer to the exact serialized bytes supplied to the atomic writer.
+Creation, ordinary XML saves and legacy upgrades all propagate it. Allocation
+occurs before publication, and retaining the result across subsequent saves
+does not change its bytes. A Hodarium save notification can therefore retain
+this snapshot without reparsing an actor tree or reopening a path that might
+already contain a later save. The result's durability still controls whether
+the bytes represent a successful save; a replaced-but-not-durable result must
+not be published as one.
+
+Device settings schema v2 stores explicit Vault UUID-to-local-directory bindings
+outside synchronized data. Membership remains device-wide; selection is local.
+The native Hodarium manager can bind an existing Vault (validating its Vaultfile
+without rewriting it), reuse a supplied UUID for another replica, pause its
+selection and unbind it. A newly generated UUID identifies a new synchronized
+Vault; replicas must use the same UUID, not independently generate one each.
+Binding requires an admitted profile, canonicalizes the selected directory and
+rejects duplicate or nested roots across local bindings. Unbinding never removes
+Vault files.
+
+Selected Vaults now capture successful native XML v2 BufferActor saves into a
+device-local per-Hodarium revision journal. Ordinary and realtime saves share
+the durable-success branch. Source body UUIDs identify objects; the snapshot
+contains exact committed bytes and the predecessor storage fingerprint. The
+actor queues immutable bytes without accessing GUI registries or opening the
+journal. The control worker owns settings and journal access. Network pause
+does not discard local save history. Internal .athena/.backup/.git paths are
+excluded; unselected and outside-Vault documents are ignored by the worker.
+When a known object's saved path changes, the previous path is checked through
+the confined filesystem. If it still exists, capture reports a source-UUID
+conflict instead of interpreting an external copy as a rename. Permission and
+other read failures are not treated as absence. Initial inventory also excludes
+every readable file involved in a duplicate source-body UUID, rather than
+arbitrarily retaining the first one.
+
+The pending byte handoff is bounded to 1 GiB and shutdown drains queued saves
+before closing journals. Overflow or capture failure uses standard diagnostics
+without converting an already durable editor save into a failed save. Durable
+outbox recovery remains incomplete: a crash before
+the worker's transaction, a rejected notification or edits while ATHENA is
+closed must be reconciled from saved files. No peer can apply files yet, and
+received revisions remain separate from the document's applied state. Selection
+therefore does not yet provide end-to-end document synchronization.
+
+Startup and Vault-selection changes schedule read-only initial inventories on
+an independent native task. Existing confined inventory excludes internal trees;
+the XML v2 reader validates source envelopes and requires a persistent body UUID.
+Only bytes, IDs and stat revisions cross back to the control worker. The worker
+revalidates each file before publishing in bounded event-loop slices; changed
+snapshots schedule another inventory. Aggregate held snapshots have a 4 GiB
+budget and normal codec limits still apply per file. Cancellation never mutates
+source documents. Identical imported replicas use the deterministic origin
+``saved-source-baseline-v1`` for genesis; subsequent editor saves retain their
+actual member provenance. Offline edits to known objects continue the local
+applied branch. Source watches now trigger subsequent inventories. Linux polls
+the existing inotify source-event stream without walking an unchanged Vault;
+other platforms use its 30-second periodic fallback. A per-binding in-memory
+cache skips XML reads and hashing when stat identity/revision is unchanged and
+publication previously succeeded. All cached IDs still participate in duplicate
+detection. Failed/unpublished rows are not considered complete, and failures
+retry after 30 seconds. Changes during a scan remain observable for another
+round. Scan-time deletions, persistent scan cursors and a durable local outbox
+are not yet implemented.
+
+The settings layer accepts only explicit local paths, never routing hints or
+peer-provided paths. The eventual runtime must reopen and validate the binding
+before access, and handle unavailable/moved roots and iPad container relocation.
 
 ``document_history_store::protect`` supplies a synchronous pre-apply history
 barrier in the existing File History database (schema v2). It switches its
@@ -249,10 +338,17 @@ be pruned. Rename updates the displayed history path without changing the
 original operation binding.
 
 This is the durable backup primitive, not yet the remote-apply coordinator.
-The owner still must record an application intent, check live/disk revisions,
+The owner still must use the application-intent API, check live/disk revisions,
 perform the conditional replacement and recover interrupted application before
 advancing the applied revision. It must not infer that invoking an asynchronous
 ordinary history capture has provided this barrier.
+
+Revision schema v3 records operation-bound application intents, their expected
+applied revision, protected History version and source fingerprint. Pending
+intents block bypass through ``record_applied``. Completion verifies the target
+fingerprint (or absence for deletion), then advances ``applied`` and completes
+the intent in one transaction. These APIs do not themselves inspect the
+filesystem, verify the separate History store or coordinate a BufferActor.
 
 The revision store's schema v2 adds durable incoming transfers, without changing
 existing revision identities or applied pointers. ``begin_receive`` accepts a
@@ -288,9 +384,55 @@ The isolated native peer-network check transfers a 700 KiB binary revision over
 automatic direct dialing and real mutual TLS, including per-chunk durable
 acknowledgements and content verification. Separate revision checks exercise
 lost acknowledgements, controller reconstruction, resume offsets and revoked
-Vault grants. Revision scheduling, ancestor discovery, live Vault bindings and
-save/apply hooks remain unconnected; these tests do not enable production
-document synchronization.
+Vault grants.
+
+``vault_revision_sender`` supplies one direction of causal discovery and
+transfer. It captures an append-only receipt-order ceiling, pages through heads
+as of that ceiling, and probes the receiver before traversing missing ancestry.
+Known heads prune their entire ancestry; missing parents are transferred before
+children using the existing resumable protocol. Concurrent heads and tombstones
+are preserved. New receipts beyond the ceiling belong to the next round.
+Inventory queries use indexed metadata only, never document payloads. Traversal
+is iterative and bounded; discovery and transfer recheck Vault authorization.
+
+The completed cursor is connection-local: subsequent rounds on the same peer
+store inspect only newly received revisions; reconnect or database restoration
+requires rediscovery from zero. Do not persist this cursor as evidence that a
+different or restored peer still has data. A fresh exchange against an unchanged
+peer probes just its heads. Both directions must run to exchange concurrent
+work; successful receipt still does not apply content to the user's Vault.
+Focused checks cover multi-page discovery, concurrent branches, a merge received
+during discovery, incremental rounds, known-head pruning and revoked grants.
+
+``revision_exchange`` multiplexes two independent directions on one authenticated
+connection. Its versioned CBOR envelope binds each request/response to a Vault
+and a directional sequence. Unsolicited, replayed, mismatched and pipelined
+requests are rejected. At most one outgoing request and one incoming response
+are queued, with transport backpressure handled by separate ``outgoing`` and
+``sent`` operations. Only transport acceptance removes a queued message, and
+authorization is rechecked before queued bytes can be sent. Inner descriptors
+must agree with the envelope's Vault. A new connection gets a new exchange;
+session-local discovery cursors must not survive its peer connection.
+
+The native automatic-dialing TLS check now uses two exchanges concurrently:
+each peer starts with a different child of a shared revision, sends both ways,
+and converges on the same two heads without applying either branch. One branch
+contains a 700 KiB binary payload. It runs under an isolated temporary keyring,
+not the user's device identities or production Vault.
+
+``peer_replication`` now connects selected local journals to authenticated direct
+sessions in the application worker. Peers announce only their selected Vault
+IDs inside the encrypted channel and exchange the intersection. No local paths
+appear in this announcement. A monotonically assigned connection incarnation
+resets discovery state on reconnect or membership-context replacement. Changing
+the local Vault selection closes old sessions before using new grants.
+The scheduler respects transport backpressure, runs one outgoing Vault round
+per peer at a time, and checks for new journal revisions every two seconds.
+Unresponsive discovery/active exchanges time out; errors use the profile's
+standard diagnostic path. The native TLS check uses this scheduler with
+different selections on the peers and verifies that an unshared Vault does not
+transfer. Remote file application, deletion reconciliation, Relay route selection
+and logical database adapters remain pending.
 
 ``rendezvous_client`` now publishes, queries one bounded page and withdraws
 presence through the Go authority. Each request signs the SHA-256 digest of
@@ -375,10 +517,10 @@ References:
 * https://github.com/coder/websocket
 * https://github.com/mantinedev/mantine
 
-The existing document history connection uses synchronous=NORMAL and ordinary
-retention pruning. Calling its asynchronous capture queue is not yet a valid
-pre-replacement durability/retention barrier. This must be addressed before
-any remote application is enabled.
+Ordinary document history capture starts with synchronous=NORMAL and ordinary
+retention pruning. Its asynchronous capture queue is not a pre-replacement
+durability/retention barrier: remote application must use the synchronous
+``protect`` operation described above before publishing a replacement.
 
 Save integration starts at the successful durable-save branch in
 ``src/ATHENA/Server/buffer_actor.cpp``. Realtime saves bypass Scheme's

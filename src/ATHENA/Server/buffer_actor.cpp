@@ -37,6 +37,8 @@
 
 #ifdef QTTEXMACS
 #include "QTMNodePropertiesDialog.hpp"
+#include "QTMHodarium.hpp"
+#include "node_metadata.hpp"
 #include "QTMRenderService.hpp"
 #include "qt_renderer.hpp"
 #include <QJsonDocument>
@@ -1910,8 +1912,11 @@ buffer_actor::dispatch (actor_command_record& command) {
       std::filesystem::path path (
         std::string (native.data (), (std::size_t) N(native)));
       athena::document::document_save_result saved;
-      if (impl_->state.storage)
+      std::optional<std::string> saved_predecessor;
+      if (impl_->state.storage) {
+        saved_predecessor= impl_->state.storage->source_sha256 ();
         saved= impl_->state.storage->save (document);
+      }
       else {
         if (impl_->state.storage_capture_failed)
           throw std::runtime_error (
@@ -1926,6 +1931,7 @@ buffer_actor::dispatch (actor_command_record& command) {
             throw std::runtime_error (
               "Save target uses a different ATHENA XML persistence version");
           impl_->state.storage= std::move (storage);
+          saved_predecessor= impl_->state.storage->source_sha256 ();
           saved= impl_->state.storage->save (document);
         }
         else
@@ -1934,6 +1940,18 @@ buffer_actor::dispatch (actor_command_record& command) {
       }
       if (saved.durability == athena::document::upgrade_durability::durable)
       {
+#ifdef QTTEXMACS
+        if (impl_->state.storage_version == athena::document::xml_storage_version::v2) {
+          try {
+            qtm_hodarium_saved (path,
+              athena::node::id (subtree (impl_->state.document, impl_->state.root_path)),
+              saved_predecessor, saved.committed_bytes);
+          }
+          catch (const std::exception& e) {
+            std_warning << "Hodarium saved revision capture failed: " << string (e.what ()) << LF;
+          }
+        }
+#endif
         athena::artifact::saved (path, saved.xml_sha256);
         command.argument[0]= 0;
         if (realtime) {

@@ -10,6 +10,7 @@ struct peer_route_status {
   std::string member;
   bool established= false;
   double roundtrip_ms= 0;
+  std::uint64_t session= 0;
 };
 // Owns authenticated direct sessions, not document application. Relay routes
 // will share the same framed channel and authorization predicate.
@@ -25,6 +26,7 @@ public:
   std::vector<std::string> addresses () const;
   std::vector<peer_route_status> status () const;
   bool send (const std::string& member, QByteArray bytes);
+  void disconnect_peer (const std::string& member);
 private:
   using clock= std::chrono::steady_clock;
   struct link {
@@ -33,6 +35,7 @@ private:
     clock::time_point next_ping{}, sent{};
     bool outgoing= false;
     double rtt= 0;
+    std::uint64_t session= 0;
   };
   device_identity device_;
   authorization authorized_;
@@ -47,6 +50,7 @@ private:
   std::map<std::string, std::size_t> address_index_;
   presence_snapshot candidates_;
   bool active_= false;
+  std::uint64_t next_session_= 1;
   peer_context context (const std::string& peer) const;
   void attach (std::unique_ptr<peer_transport> transport, peer_context context,
                std::string key, bool outgoing);

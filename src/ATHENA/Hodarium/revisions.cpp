@@ -63,6 +63,15 @@ std::string identity (const revision& r) {
     reinterpret_cast<const unsigned char*> (r.payload.data ()), r.payload.size ());
   return hash_finish (hash);
 }
+std::string raw_fingerprint (std::string_view bytes) {
+  crypto_hash_sha256_state hash; crypto_hash_sha256_init (&hash);
+  crypto_hash_sha256_update (&hash, reinterpret_cast<const unsigned char*> (bytes.data ()), bytes.size ());
+  return hash_finish (hash);
+}
+void cache_fingerprint (sqlite3* db, const std::string& id, const std::string& hash) {
+  statement st (db, "INSERT OR IGNORE INTO payload_fingerprints VALUES(?,?)");
+  st.text (1, id); st.text (2, hash); st.row ();
+}
 revision from_descriptor (const std::string& id, const std::string& bytes) {
   auto d= json::parse (bytes);
   revision r;
@@ -132,7 +141,7 @@ revision_store::revision_store (const std::filesystem::path& database) {
     check (db_, sqlite3_busy_timeout (db_, 5000));
     {
       statement version (db_, "PRAGMA user_version");
-      if (!version.row () || sqlite3_column_int (version.value, 0) > 3)
+      if (!version.row () || sqlite3_column_int (version.value, 0) > 4)
         throw std::runtime_error ("Unsupported Hodarium revision store version");
     }
     sql (db_, "PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL;"
@@ -147,6 +156,9 @@ revision_store::revision_store (const std::filesystem::path& database) {
       "parent TEXT NOT NULL REFERENCES revisions(id),PRIMARY KEY(child,parent));"
       "CREATE INDEX IF NOT EXISTS parents_reverse ON parents(parent);"
       "CREATE INDEX IF NOT EXISTS revisions_object ON revisions(vault,object);"
+      "CREATE INDEX IF NOT EXISTS revisions_vault ON revisions(vault);"
+      "CREATE TABLE IF NOT EXISTS payload_fingerprints("
+      "revision TEXT PRIMARY KEY REFERENCES revisions(id),hash TEXT NOT NULL);"
       "CREATE TABLE IF NOT EXISTS applied("
       "vault TEXT NOT NULL,object TEXT NOT NULL,"
       "revision TEXT NOT NULL REFERENCES revisions(id),PRIMARY KEY(vault,object));"
@@ -159,12 +171,55 @@ revision_store::revision_store (const std::filesystem::path& database) {
       "completed INTEGER NOT NULL CHECK(completed IN(0,1)));"
       "CREATE UNIQUE INDEX IF NOT EXISTS apply_intents_pending ON apply_intents(vault,object) WHERE completed=0;"
       "CREATE INDEX IF NOT EXISTS apply_intents_recovery ON apply_intents(vault,completed,operation);"
-      "PRAGMA user_version=3;");
+      "PRAGMA user_version=4;");
     tx.commit ();
   }
   catch (...) { sqlite3_close (db_); db_= nullptr; throw; }
 }
 revision_store::~revision_store () { sqlite3_close (db_); }
+
+std::string revision_store::payload_fingerprint (const std::string& id) {
+  {
+    statement st (db_, "SELECT hash FROM payload_fingerprints WHERE revision=?");
+    st.text (1, id); if (st.row ()) return st.bytes (0);
+  }
+  auto value= offer (id);
+  if (!value) throw std::invalid_argument ("Unknown revision fingerprint");
+  crypto_hash_sha256_state hash; crypto_hash_sha256_init (&hash);
+  for (std::uint64_t offset= 0; offset < value->size;) {
+    auto bytes= payload_chunk (id, offset, 64*1024);
+    crypto_hash_sha256_update (&hash, reinterpret_cast<const unsigned char*> (bytes.data ()), bytes.size ());
+    offset+= bytes.size ();
+  }
+  auto result= hash_finish (hash); cache_fingerprint (db_, id, result); return result;
+}
+
+bool revision_store::contains (const std::string& vault, const std::string& id) const {
+  if (!digest_id (id)) throw std::invalid_argument ("Invalid revision ID");
+  statement st (db_, "SELECT 1 FROM revisions WHERE vault=? AND id=?");
+  st.text (1, vault); st.text (2, id); return st.row ();
+}
+std::int64_t revision_store::inventory_tip (const std::string& vault) const {
+  statement st (db_, "SELECT COALESCE(MAX(rowid),0) FROM revisions WHERE vault=?");
+  st.text (1, vault); st.row (); return sqlite3_column_int64 (st.value, 0);
+}
+std::vector<revision_head> revision_store::inventory_heads (const std::string& vault,
+  std::int64_t after, std::int64_t through, std::uint32_t limit) const {
+  if (after < 0 || through < after || limit == 0 || limit > 256)
+    throw std::invalid_argument ("Invalid revision inventory cursor");
+  statement st (db_, "SELECT r.rowid,r.id FROM revisions r WHERE r.vault=? "
+    "AND r.rowid>? AND r.rowid<=? AND NOT EXISTS("
+    "SELECT 1 FROM parents p JOIN revisions c ON c.id=p.child "
+    "WHERE p.parent=r.id AND c.rowid<=?) ORDER BY r.rowid LIMIT ?");
+  st.text (1, vault);
+  check (db_, sqlite3_bind_int64 (st.value, 2, after));
+  check (db_, sqlite3_bind_int64 (st.value, 3, through));
+  check (db_, sqlite3_bind_int64 (st.value, 4, through));
+  check (db_, sqlite3_bind_int (st.value, 5, int (limit)));
+  std::vector<revision_head> result;
+  while (st.row ()) result.push_back ({sqlite3_column_int64 (st.value, 0), st.bytes (1)});
+  return result;
+}
 
 std::optional<revision> revision_store::get (const std::string& id) const {
   statement st (db_, "SELECT descriptor,payload FROM revisions WHERE id=?");
@@ -191,8 +246,54 @@ bool revision_store::receive (const revision& r) {
   insert.text (4, descriptor (r).dump ()); insert.blob (5, r.payload);
   insert.row ();
   insert_parents (db_, r);
+  cache_fingerprint (db_, r.id, raw_fingerprint (r.payload));
   tx.commit ();
   return true;
+}
+
+std::optional<std::string> revision_store::capture_saved (revision snapshot,
+  const std::optional<std::string>& expected,
+  const std::optional<std::string>& predecessor_fingerprint) {
+  if (!snapshot.id.empty () || !snapshot.parents.empty ())
+    throw std::invalid_argument ("Saved snapshot must not supply a revision ID or parents");
+  validate (snapshot);
+  if (predecessor_fingerprint && !digest_id (*predecessor_fingerprint))
+    throw std::invalid_argument ("Invalid saved predecessor fingerprint");
+  transaction tx (db_);
+  if (applied (snapshot.vault, snapshot.object) != expected) { tx.commit (); return std::nullopt; }
+  {
+    statement pending (db_, "SELECT 1 FROM apply_intents WHERE vault=? AND object=? AND completed=0");
+    pending.text (1, snapshot.vault); pending.text (2, snapshot.object);
+    if (pending.row ()) throw std::invalid_argument ("Saved object has an unfinished remote application");
+  }
+  if (expected) {
+    auto prior= offer (*expected);
+    if (predecessor_fingerprint) {
+      if (prior->metadata.deleted) { tx.commit (); return std::nullopt; }
+      if (payload_fingerprint (*expected) != *predecessor_fingerprint) { tx.commit (); return std::nullopt; }
+    }
+    // Compare storage content without loading the previous payload or treating
+    // the saving device and new causal edge as document modifications.
+    auto origin= snapshot.origin_member;
+    snapshot.origin_member= prior->metadata.origin_member;
+    snapshot.parents= prior->metadata.parents;
+    bool unchanged= identity (snapshot) == *expected;
+    snapshot.origin_member= std::move (origin);
+    if (unchanged) { tx.commit (); return expected; }
+    snapshot.parents= {*expected};
+  }
+  snapshot.id= identity (snapshot);
+  if (!contains (snapshot.vault, snapshot.id)) {
+    statement st (db_, "INSERT INTO revisions VALUES(?,?,?,?,?)");
+    st.text (1, snapshot.id); st.text (2, snapshot.vault); st.text (3, snapshot.object);
+    st.text (4, descriptor (snapshot).dump ()); st.blob (5, snapshot.payload); st.row ();
+    insert_parents (db_, snapshot);
+    cache_fingerprint (db_, snapshot.id, raw_fingerprint (snapshot.payload));
+  }
+  statement st (db_, "INSERT INTO applied VALUES(?,?,?) "
+    "ON CONFLICT(vault,object) DO UPDATE SET revision=excluded.revision");
+  st.text (1, snapshot.vault); st.text (2, snapshot.object); st.text (3, snapshot.id); st.row ();
+  tx.commit (); return snapshot.id;
 }
 
 std::uint64_t revision_store::begin_receive (const revision& metadata, std::uint64_t size) {
@@ -279,19 +380,21 @@ bool revision_store::finish_receive (const std::string& id) {
     metadata= from_descriptor (id, pending.bytes (1));
   }
   validate_parents (db_, metadata);
-  crypto_hash_sha256_state hash; hash_header (hash, metadata);
+  crypto_hash_sha256_state hash, raw; hash_header (hash, metadata); crypto_hash_sha256_init (&raw);
   {
     revision_blob blob (db_, row, false);
     std::array<unsigned char, 64*1024> bytes;
     for (sqlite3_int64 offset= 0; offset < total;) {
       auto count= int (std::min<sqlite3_int64> (bytes.size (), total - offset));
       check (db_, sqlite3_blob_read (blob.value, bytes.data (), count, int (offset)));
-      crypto_hash_sha256_update (&hash, bytes.data (), count); offset+= count;
+      crypto_hash_sha256_update (&hash, bytes.data (), count);
+      crypto_hash_sha256_update (&raw, bytes.data (), count); offset+= count;
     }
   }
   if (hash_finish (hash) != id) throw std::invalid_argument ("Incoming revision content hash mismatch");
   statement insert (db_, "INSERT INTO revisions SELECT id,?,?,descriptor,payload FROM incoming WHERE id=?");
   insert.text (1, metadata.vault); insert.text (2, metadata.object); insert.text (3, id); insert.row ();
+  cache_fingerprint (db_, id, hash_finish (raw));
   insert_parents (db_, metadata); discard_receive (id); tx.commit (); return true;
 }
 void revision_store::discard_receive (const std::string& id) {
@@ -472,13 +575,7 @@ bool revision_store::finish_apply (const std::string& operation,
   else {
     if (!observed_fingerprint || !digest_id (*observed_fingerprint))
       throw std::invalid_argument ("Application target fingerprint is missing");
-    crypto_hash_sha256_state hash; crypto_hash_sha256_init (&hash);
-    for (std::uint64_t offset= 0; offset < target->size;) {
-      auto bytes= payload_chunk (r.id, offset, 64*1024);
-      crypto_hash_sha256_update (&hash, reinterpret_cast<const unsigned char*> (bytes.data ()), bytes.size ());
-      offset+= bytes.size ();
-    }
-    if (hash_finish (hash) != *observed_fingerprint)
+    if (payload_fingerprint (r.id) != *observed_fingerprint)
       throw std::invalid_argument ("Application target fingerprint does not match received content");
   }
   statement applied (db_, "INSERT INTO applied VALUES(?,?,?) "

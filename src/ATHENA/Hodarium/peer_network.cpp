@@ -76,7 +76,7 @@ std::vector<std::string> peer_network::addresses () const {
 std::vector<peer_route_status> peer_network::status () const {
   std::vector<peer_route_status> result;
   for (const auto& [member, peer]: links_)
-    result.push_back ({member, peer.connection->established (), peer.rtt});
+    result.push_back ({member, peer.connection->established (), peer.rtt, peer.session});
   return result;
 }
 void peer_network::discover (const presence_snapshot& presence) {
@@ -95,6 +95,10 @@ bool peer_network::send (const std::string& member, QByteArray bytes) {
   if (found == links_.end () || bytes.size () > frame_limit - 32) return false;
   return found->second.connection->enqueue (frame (2, bytes));
 }
+void peer_network::disconnect_peer (const std::string& member) {
+  auto found= links_.find (member);
+  if (found != links_.end ()) found->second.connection->close ();
+}
 void peer_network::attach (std::unique_ptr<peer_transport> transport, peer_context c,
   std::string key, bool outgoing) {
   auto member= c.remote_member;
@@ -105,6 +109,7 @@ void peer_network::attach (std::unique_ptr<peer_transport> transport, peer_conte
   // The slot is reserved before constructing TLS, preventing authenticated
   // routing hints from opening an unbounded number of handshakes.
   auto& slot= links_[member]; slot.outgoing= outgoing;
+  slot.session= next_session_++;
   auto identity= std::make_shared<QPointer<peer_connection>> ();
   peer_events events;
   events.closed= [this, member, identity] (std::string) {

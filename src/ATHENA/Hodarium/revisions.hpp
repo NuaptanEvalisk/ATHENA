@@ -33,6 +33,10 @@ struct revision_offer {
   revision metadata;
   std::uint64_t size= 0;
 };
+struct revision_head {
+  std::int64_t sequence;
+  std::string id;
+};
 struct apply_intent {
   std::string operation, revision_id;
   std::optional<std::string> expected_revision;
@@ -53,6 +57,13 @@ public:
 
   // Parents must already be present. Receipt never changes the applied revision.
   bool receive (const revision& value);
+  // Call only with bytes from a successful durable local save. The caller
+  // supplies no ID/parents: a save continues only its expected applied branch,
+  // never all received heads. Null means a stale base; unchanged saves return
+  // the existing ID. Publishing the revision and applied pointer is atomic.
+  std::optional<std::string> capture_saved (revision snapshot,
+    const std::optional<std::string>& expected,
+    const std::optional<std::string>& predecessor_fingerprint= {});
   // Metadata carries no payload. A durable offset acknowledges committed bytes,
   // not document application; callers must authorize the Vault before staging.
   std::uint64_t begin_receive (const revision& metadata, std::uint64_t size);
@@ -61,11 +72,18 @@ public:
   bool finish_receive (const std::string& id);
   void discard_receive (const std::string& id);
   std::optional<revision_offer> offer (const std::string& id) const;
+  std::string payload_fingerprint (const std::string& id);
   std::string payload_chunk (const std::string& id, std::uint64_t offset,
                              std::uint32_t limit= 256*1024) const;
   std::optional<revision> get (const std::string& id) const;
   std::vector<std::string> heads (const std::string& vault,
                                  const std::string& object) const;
+  bool contains (const std::string& vault, const std::string& id) const;
+  // Connection-local cursors over append-only receipt order. Parents always
+  // precede children. Restart discovery from zero after reconnect or DB restore.
+  std::int64_t inventory_tip (const std::string& vault) const;
+  std::vector<revision_head> inventory_heads (const std::string& vault,
+    std::int64_t after, std::int64_t through, std::uint32_t limit= 64) const;
   ancestry compare (const std::string& first, const std::string& second) const;
   // Multiple bases are possible; the merge UI must not invent a unique base.
   std::vector<std::string> merge_bases (const std::string& first,

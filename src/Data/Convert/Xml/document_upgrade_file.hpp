@@ -11,6 +11,7 @@
 #include "athena_document_xml.hpp"
 #include "confined_filesystem.hpp"
 #include <optional>
+#include <memory>
 
 namespace athena::document {
 std::string storage_bytes_fingerprint (std::string_view);
@@ -26,6 +27,7 @@ struct upgrade_result {
   // not report success, retry with the old revision, or claim nothing changed.
   upgrade_durability durability;
   std::vector<int> root_child_map;
+  std::shared_ptr<const std::string> committed_bytes;
 };
 
 // This is a storage transaction, not a text converter. Capture at load time;
@@ -55,6 +57,7 @@ public:
 struct xml_save_result {
   std::string xml_sha256;
   upgrade_durability durability;
+  std::shared_ptr<const std::string> committed_bytes;
 };
 
 class xml_file {
@@ -84,6 +87,9 @@ struct document_save_result {
   std::string xml_sha256;
   upgrade_durability durability= upgrade_durability::durable;
   bool upgraded_legacy= false;
+  // Exact bytes given to the atomic writer, safe to hand to a background
+  // consumer. Only a durable result is a successful-save notification.
+  std::shared_ptr<const std::string> committed_bytes;
 };
 
 class document_file {

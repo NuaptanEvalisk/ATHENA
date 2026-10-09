@@ -14,6 +14,11 @@ struct client_profile {
   std::string member;
   bool enabled= false;
 };
+struct vault_binding {
+  std::string group, vault;
+  std::filesystem::path root;
+  bool enabled= true;
+};
 
 // Device-local settings, outside any synchronized Vault. No private key,
 // retrieval credential, lease deadline or local path from a peer is stored here.
@@ -31,6 +36,11 @@ public:
   void complete_admission (const std::string& group, const std::string& handle,
                            const std::string& public_key, const std::string& member);
   void set_enabled (const std::string& group, bool enabled);
+  std::vector<vault_binding> vaults (const std::string& group) const;
+  // Explicit local action only. Never derive this path from peer messages.
+  void bind_vault (const vault_binding& binding);
+  void set_vault_enabled (const std::string& group, const std::string& vault, bool enabled);
+  void unbind_vault (const std::string& group, const std::string& vault);
 private:
   sqlite3* db_= nullptr;
 };

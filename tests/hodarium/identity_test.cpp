@@ -5,6 +5,7 @@
 #include "peer_connection.hpp"
 #include "peer_network.hpp"
 #include "revision_transfer.hpp"
+#include "peer_replication.hpp"
 #include "control_http.hpp"
 #include <QCoreApplication>
 #include <QTcpServer>
@@ -155,21 +156,26 @@ void check_peer_network (const device_identity& a, const device_identity& b) {
   value.origin_member= a.handle; value.format= "ath-xml-v2";
   value.relative_path= "Notes/example.ath"; value.payload= std::string (700*1024, 'n');
   value.payload[17]= '\0'; value.payload[600000]= char (255);
-  value= seal_revision (value); source.receive (value);
-  revision_sender sender (source, value.vault, value.id,
-    [&] (const std::string& vault) { return vault == value.vault; });
-  revision_receiver receiver (target, [&] (const std::string& vault) { return vault == value.vault; });
-  auto initial= sender.begin ();
+  auto base= value; base.payload= "common ancestor"; base= seal_revision (base);
+  source.receive (base); target.receive (base);
+  value.parents= {base.id}; value= seal_revision (value); source.receive (value);
+  auto other= base; other.parents= {base.id}; other.origin_member= b.handle;
+  other.payload= "concurrent edit"; other= seal_revision (other); target.receive (other);
+  auto private_revision= base; private_revision.vault= "local-only";
+  private_revision= seal_revision (private_revision); source.receive (private_revision);
+  std::unique_ptr<peer_replication> outgoing, incoming;
   bool sent= false, measured= false;
   peer_network first (a, allowed, [&] (const std::string& member, QByteArray bytes) {
     require (member == b.handle, "Revision acknowledgement came from wrong peer");
-    auto next= sender.acknowledge (bytes);
-    if (!next.isEmpty ()) require (first.send (member, std::move (next)), "Revision sender exceeded channel budget");
+    outgoing->receive (member, bytes);
   });
   peer_network second (b, allowed, [&] (const std::string& member, QByteArray bytes) {
     require (member == a.handle, "Revision message came from wrong peer");
-    require (second.send (member, receiver.accept (bytes)), "Revision acknowledgement exceeded channel budget");
+    incoming->receive (member, bytes);
   });
+  auto error= [] (std::string message) { throw std::runtime_error (message); };
+  outgoing= std::make_unique<peer_replication> (first, source, std::vector<std::string>{value.vault, "local-only"}, error);
+  incoming= std::make_unique<peer_replication> (second, target, std::vector<std::string>{value.vault}, error);
   first.start (state, a.handle); second.start (state, b.handle);
   auto aa= first.addresses (), ba= second.addresses ();
   require (!aa.empty () && !ba.empty (), "Isolated network check needs a local unicast interface");
@@ -179,16 +185,22 @@ void check_peer_network (const device_identity& a, const device_identity& b) {
   QObject::connect (&poll, &QTimer::timeout, &loop, [&] {
     auto routes= first.status ();
     if (routes.size () != 1 || !routes[0].established) return;
-    if (!sent) sent= first.send (b.handle, initial);
+    sent= source.contains (other.vault, other.id) && target.contains (value.vault, value.id);
     measured= routes[0].roundtrip_ms > 0;
-    if (sent && measured && sender.complete ()) loop.quit ();
+    if (sent && measured) loop.quit ();
   });
   QObject::connect (&deadline, &QTimer::timeout, &loop, &QEventLoop::quit);
   poll.start (50); deadline.setSingleShot (true); deadline.start (10000); loop.exec ();
-  require (sent && measured && sender.complete (), "Automatic peer dialing, heartbeat or revision transfer failed");
+  require (sent && measured,
+           "Automatic peer dialing, heartbeat or bidirectional revision exchange failed");
   require (target.get (value.id) && target.get (value.id)->payload == value.payload,
            "Peer revision transfer changed content");
   require (!target.applied (value.vault, value.object), "Peer transfer applied a document");
+  require (!target.contains (private_revision.vault, private_revision.id), "Non-shared Vault was replicated");
+  require (source.contains (other.vault, other.id) &&
+           source.heads (value.vault, value.object) == target.heads (value.vault, value.object) &&
+           source.heads (value.vault, value.object).size () == 2,
+           "Bidirectional exchange lost a concurrent head");
   first.stop (); second.stop ();
   require (first.status ().empty () && first.addresses ().empty (), "Stopped peer network retained live routes");
 }

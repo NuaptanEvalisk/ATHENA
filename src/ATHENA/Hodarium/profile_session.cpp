@@ -17,6 +17,7 @@ profile_session::~profile_session () {
   paused_= true;
   timer_.stop ();
   changed_= {};
+  replication_.reset ();
   if (directory_) directory_->stop ();
   if (network_) network_->stop ();
   if (client_) client_->suspend ();
@@ -63,8 +64,15 @@ void profile_session::refresh () {
       auto state= client_->current ();
       try {
         if (!network_) network_= std::make_unique<peer_network> (profile_.device,
-          [this] (const peer_context& c, const std::string& key) { return context_allowed (c, key); });
+          [this] (const peer_context& c, const std::string& key) { return context_allowed (c, key); },
+          [this] (const std::string& member, QByteArray message) {
+            if (!replication_) throw std::invalid_argument ("Revision replication is unavailable");
+            try { replication_->receive (member, message); }
+            catch (const std::exception& e) { publish (profile_phase::error, e.what ()); throw; }
+          });
         network_->start (*state, profile_.member);
+        if (revisions_ && !replication_) replication_= std::make_unique<peer_replication> (
+          *network_, *revisions_, vaults_, [this] (std::string error) { publish (profile_phase::error, std::move (error)); });
       }
       catch (const std::exception& e) { publish (profile_phase::error, e.what ()); return; }
       if (!directory_) directory_= std::make_unique<presence_directory> (profile_.origin, profile_.device,
@@ -93,7 +101,7 @@ void profile_session::refresh () {
 void profile_session::tick () {
   if (paused_) return;
   try {
-    if (client_ && !client_->authorized () && network_) network_->stop ();
+    if (client_ && !client_->authorized () && network_) { replication_.reset (); network_->stop (); }
     if (client_ && (status_.phase == profile_phase::authorized ||
         status_.phase == profile_phase::offline_valid) && !client_->authorized ())
       publish (profile_phase::expired, "Hodarium membership validation expired");
@@ -153,6 +161,7 @@ void profile_session::enroll_result (control_result result, enrollment_status st
 }
 void profile_session::suspend () {
   owner (); paused_= true; timer_.stop ();
+  replication_.reset ();
   if (directory_) directory_->stop ();
   if (network_) network_->stop ();
   if (client_) client_->suspend ();
@@ -203,5 +212,13 @@ void profile_session::set_presence_routes (std::vector<std::string> direct,
   owner ();
   if (!directory_) throw std::logic_error ("Hodarium discovery requires validated membership");
   directory_->set_routes (std::move (direct), std::move (relays));
+}
+void profile_session::configure_revisions (revision_store& store, std::vector<std::string> vaults) {
+  owner ();
+  replication_.reset ();
+  if (network_) network_->stop ();
+  if (directory_) directory_->stop ();
+  revisions_= &store; vaults_= std::move (vaults);
+  refresh ();
 }
 } // namespace athena::hodarium

@@ -103,7 +103,8 @@ upgrade_result legacy_file::commit (const tree& utf8_document, codec_limits limi
     throw std::system_error (ESTALE, std::generic_category (), "Legacy document changed since it was opened");
   std::vector<int> root_child_map;
   const auto document= strip_legacy_document_version (utf8_document, &root_child_map);
-  const auto xml= write_xml (document, xml_kind::document, limits);
+  const auto bytes= std::make_shared<const std::string> (write_xml (document, xml_kind::document, limits));
+  const auto& xml= *bytes;
   // Never produce a document which the configured reader cannot load.
   if (read_xml (xml, xml_kind::document, limits) != document)
     throw codec_exception (codec_error::invalid_structure, "XML upgrade round-trip verification failed");
@@ -117,7 +118,7 @@ upgrade_result legacy_file::commit (const tree& utf8_document, codec_limits limi
   const auto replaced= root_.replace (relative_, file_, revision_, xml);
   return {std::move (backup_path), std::move (original_digest), std::move (xml_digest), replaced.file,
     replaced.directory_synced ? upgrade_durability::durable : upgrade_durability::replaced_not_durable,
-    std::move (root_child_map)};
+    std::move (root_child_map), bytes};
 }
 
 xml_file::xml_file (filesystem::confined_root root,
@@ -153,7 +154,8 @@ xml_file::create (const std::filesystem::path& source, const tree& document,
   filesystem::confined_root root (parent);
   const auto relative= source.filename ();
   const auto clean= strip_legacy_document_version (document);
-  const auto xml= serialize_xml (clean, version, limits);
+  const auto bytes= std::make_shared<const std::string> (serialize_xml (clean, version, limits));
+  const auto& xml= *bytes;
   if (parse_xml (xml, version, limits) != clean)
     throw codec_exception (codec_error::invalid_structure,
                            "XML create round-trip verification failed");
@@ -164,7 +166,7 @@ xml_file::create (const std::filesystem::path& source, const tree& document,
                              "New XML document changed before capture");
   const auto revision= file.stat ();
   result= {sha256 (xml), created.directory_synced ? upgrade_durability::durable :
-                                                  upgrade_durability::replaced_not_durable};
+                                                  upgrade_durability::replaced_not_durable, bytes};
   return xml_file (
     std::move (root), relative, std::move (file), revision, result.xml_sha256,
     version);
@@ -178,7 +180,8 @@ xml_file::commit (const tree& document, codec_limits limits) {
     throw std::system_error (ESTALE, std::generic_category (),
                              "XML document changed since it was opened");
   const auto clean= strip_legacy_document_version (document);
-  const auto xml= serialize_xml (clean, version_, limits);
+  const auto bytes= std::make_shared<const std::string> (serialize_xml (clean, version_, limits));
+  const auto& xml= *bytes;
   if (parse_xml (xml, version_, limits) != clean)
     throw codec_exception (codec_error::invalid_structure,
                            "XML save round-trip verification failed");
@@ -187,7 +190,7 @@ xml_file::commit (const tree& document, codec_limits limits) {
   revision_= file_.stat ();
   digest_= sha256 (xml);
   return {digest_, replaced.directory_synced ? upgrade_durability::durable :
-                                              upgrade_durability::replaced_not_durable};
+                                              upgrade_durability::replaced_not_durable, bytes};
 }
 
 document_file
@@ -215,7 +218,7 @@ document_file::create (const std::filesystem::path& source,
                        xml_storage_version version, codec_limits limits) {
   xml_save_result saved;
   document_file file (xml_file::create (source, document, saved, version, limits));
-  result= {{}, std::move (saved.xml_sha256), saved.durability, false};
+  result= {{}, std::move (saved.xml_sha256), saved.durability, false, std::move (saved.committed_bytes)};
   return file;
 }
 
@@ -228,11 +231,11 @@ document_file::save (const tree& document, codec_limits limits) {
       upgraded.xml_sha256, xml_storage_version::v1);
     legacy_.reset ();
     xml_= std::move (next);
-    return {upgraded.backup, upgraded.xml_sha256, upgraded.durability, true};
+    return {upgraded.backup, upgraded.xml_sha256, upgraded.durability, true, std::move (upgraded.committed_bytes)};
   }
   if (!xml_)
     throw std::logic_error ("Document file has no captured storage state");
   auto saved= xml_->commit (document, limits);
-  return {{}, std::move (saved.xml_sha256), saved.durability, false};
+  return {{}, std::move (saved.xml_sha256), saved.durability, false, std::move (saved.committed_bytes)};
 }
 } // namespace athena::document
