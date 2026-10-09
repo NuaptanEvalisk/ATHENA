@@ -17,6 +17,9 @@
 #include "convert.hpp"
 #include "drd_std.hpp"
 #include <stdexcept>
+#include <atomic>
+#include <thread>
+#include <vector>
 
 
 class TestQtUtilities: public QObject {
@@ -29,6 +32,7 @@ private slots:
   void text_lists ();
   void clipboard_fragment ();
   void plain_text ();
+  void parallel_plain_text ();
   void test_qt_supports();
   void test_png_to_pdf();
 };
@@ -91,6 +95,26 @@ void TestQtUtilities::plain_text () {
   QVERIFY (verbatim_to_tree (u8"e\u0301\b!", false, "utf-8") == "!");
   QVERIFY (verbatim_to_tree (u8"\U0001f469\u200d\U0001f4bb\b!", false, "utf-8") == "!");
   QVERIFY (verbatim_to_tree (u8"\u4e2d\t!", false, "utf-8") == tree (u8"\u4e2d       !"));
+}
+
+void TestQtUtilities::parallel_plain_text () {
+  std::atomic<int> ready{0};
+  std::atomic<bool> correct{true};
+  std::vector<std::thread> workers;
+  for (int i=0; i<8; ++i) workers.emplace_back ([&] {
+    // Each search worker owns its tree and DRD, including on pooled-thread reuse.
+    standard_drd_for_thread ();
+    tree content (DOCUMENT, tree (WITH, "font-series", "bold", "Body"));
+    ++ready;
+    while (ready.load () != 8) std::this_thread::yield ();
+    try {
+      for (int j=0; j<2000; ++j)
+        if (tree_to_verbatim (content, false, "UTF-8") != "Body") correct= false;
+    }
+    catch (...) { correct= false; }
+  });
+  for (auto& worker: workers) worker.join ();
+  QVERIFY (correct.load ());
 }
 
 void TestQtUtilities::test_qt_supports () {

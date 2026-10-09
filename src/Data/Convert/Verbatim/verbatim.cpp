@@ -157,7 +157,9 @@ print_verbatim (string& buf, tree t, bool wrap) {
               if (wrap && N(buf)>0 && buf[N(buf)-1] != '\n') buf << "\n";
               buf << "\n";
             }
-            tree w= std_drd->get_env_child (t, i, tree (ATTR));
+            // Standard tag_info has non-atomic ownership; converters also run
+            // in parallel Vault search workers, so use its thread-local clone.
+            tree w= standard_drd_for_thread ()->get_env_child (t, i, tree (ATTR));
             if (drd_env_read (w, MODE, "text") == "prog" ||
                 drd_env_read (w, FONT_FAMILY, "rm") == "tt")
               print_verbatim (buf, t[i], false);
