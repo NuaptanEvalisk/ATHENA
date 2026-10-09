@@ -703,11 +703,9 @@ buffer_actor::wait (actor_command_ticket ticket,
 }
 
 bool
-buffer_actor::apply_saved_document (const std::string& expected_storage,
-    const std::string& target_storage, tree source,
-    const std::function<std::unique_ptr<athena::document::document_file>()>& publish) {
+buffer_actor::can_apply_saved_document (const std::string& expected_storage) const {
   ASSERT (is_owner_thread (), "remote source replacement outside its actor");
-  auto& state= impl_->state;
+  const auto& state= impl_->state;
   if (!state.storage || state.storage_capture_failed ||
       state.storage_version != athena::document::xml_storage_version::v2 ||
       state.storage->source_sha256 () != expected_storage ||
@@ -716,6 +714,38 @@ buffer_actor::apply_saved_document (const std::string& expected_storage,
   for (auto& view: impl_->views)
     if (view.second.instance->need_save (true) || view.second.instance->get_input_mode () != 0)
       return false;
+  return true;
+}
+
+bool
+buffer_actor::retire_saved_document (const std::string& expected_storage,
+    const std::function<bool()>& publish) {
+  if (!can_apply_saved_document (expected_storage)) return false;
+  auto& state= impl_->state;
+  const bool was_read_only= state.read_only;
+  // GUI closure is asynchronous. Reject subsequently queued edits before it
+  // can run; otherwise an input event could recreate the deleted document.
+  state.read_only= true;
+  if (!publish ()) { state.read_only= was_read_only; return false; }
+  state.storage.reset ();
+  state.artifacts.reset ();
+  athena::artifact::close (id_);
+  source_changed ();
+  athena::node_reference::source_changed ();
+  for (auto& view: impl_->views) {
+    view.second.instance->notify_change (THE_ENVIRONMENT);
+    if (view.second.instance->publish_ui (actor_command_kind::ui_close_buffer, id_))
+      break;
+  }
+  return true;
+}
+
+bool
+buffer_actor::apply_saved_document (const std::string& expected_storage,
+    const std::string& target_storage, tree source,
+    const std::function<std::unique_ptr<athena::document::document_file>()>& publish) {
+  if (!can_apply_saved_document (expected_storage)) return false;
+  auto& state= impl_->state;
 
   // Unlike a normal import, synchronization must not invent identities that
   // differ from the exact source bytes installed on the other devices.

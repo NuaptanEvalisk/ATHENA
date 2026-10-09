@@ -149,6 +149,11 @@ public:
   bool apply_saved_document (const std::string& expected_storage,
     const std::string& target_storage, tree source,
     const std::function<std::unique_ptr<athena::document::document_file>()>& publish);
+  // Publish a protected remote deletion/move only while still clean. Freeze input
+  // before publication, then close through the existing GUI-owned buffer path.
+  // A failed destructive publication stays frozen until its intent is retried.
+  bool retire_saved_document (const std::string& expected_storage,
+    const std::function<bool()>& publish);
   void invalidate_typesetting (path p);
 
   // Fixed dispatch is public only for the Guile C trampoline.  Callers submit
@@ -156,6 +161,7 @@ public:
   void dispatch (actor_command_record& command);
 
 private:
+  bool can_apply_saved_document (const std::string& expected_storage) const;
   const athena_actor_id id_;
   std::atomic<std::uint64_t> source_epoch_ {1};
   athena_blob_id initial_name_;

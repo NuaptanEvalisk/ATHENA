@@ -17,10 +17,12 @@
 #include "url.hpp"
 
 #include <cstdint>
+#include <string>
 
 class QPoint;
 class QTreeWidget;
 class QTreeWidgetItem;
+class QComboBox;
 
 class QTMDocumentHistoryPane : public QWidget {
 public:
@@ -30,14 +32,20 @@ public:
   QSize sizeHint () const override;
 
 private:
-  void refresh ();
+  void refresh (bool older= false);
   std::int64_t selectedVersionId () const;
   void openSelectedVersion ();
   void restoreSelectedVersion ();
+  void exportSelectedVersion ();
+  url selectedDocument () const;
+  bool readSelectedVersion (std::string& bytes);
   void showContextMenu (const QPoint& pos);
   void followCurrentDocument ();
 
   QTreeWidget* tree;
+  QComboBox* scope;
+  QString historyRoot;
+  std::int64_t pageCursor= 0;
   url          document;
   bool         followCurrent;
 };

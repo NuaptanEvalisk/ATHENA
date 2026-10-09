@@ -7,6 +7,10 @@
 #include "Data/Convert/Xml/document_upgrade_file.hpp"
 #include "interop_document_source.hpp"
 #include "node_metadata.hpp"
+#include "artifacts.hpp"
+#include "vault.hpp"
+#include "vault_node_location.hpp"
+#include "namespace_ontology.hpp"
 #include <stdexcept>
 #include <condition_variable>
 #include <chrono>
@@ -62,7 +66,7 @@ struct live_source {};
 static bool apply_document_on_disk (const std::filesystem::path& path,
     revision_store& journal, history::document_history_store& history,
     const std::string& revision_id, const std::function<bool()>& permitted,
-    std::uint64_t owning_actor= 0) {
+    const document_rename_records& records, std::uint64_t owning_actor= 0) {
   if (permitted && !permitted ()) return false;
   auto target= journal.get (revision_id);
   if (!target) throw std::invalid_argument ("Unknown Hodarium application revision");
@@ -77,9 +81,14 @@ static bool apply_document_on_disk (const std::filesystem::path& path,
   if (!intent && expected == target->id) return true;
   auto previous= expected ? journal.offer (*expected) : std::optional<revision_offer> ();
   const auto source_path= previous ? previous->metadata.relative_path : target->relative_path;
+  const bool renamed= source_path != target->relative_path;
   validate_path (source_path);
-  if (target->deleted && source_path != target->relative_path)
+  if (target->deleted && renamed)
     throw std::invalid_argument ("Hodarium tombstone changes the source path");
+  if (renamed && (!records.prepare || !records.commit))
+    throw std::invalid_argument ("Hodarium rename requires a durable logical-record coordinator");
+  const document_path_change path_change {
+    root.path (), operation, target->object, source_path, target->relative_path};
   const auto ensure_closed= [&] {
     if (permitted && !permitted ()) throw live_source {};
     for (const auto& file: {source_path, target->relative_path}) {
@@ -112,6 +121,7 @@ static bool apply_document_on_disk (const std::filesystem::path& path,
     }
     if (journal.applied (target->vault, target->object) != intent->expected_revision)
       throw std::runtime_error ("Hodarium application base changed");
+    if (renamed) records.prepare (path_change);
     if (intent->source_fingerprint) {
       std::string protected_bytes, error;
       if (!history.reconstruct (intent->protected_history_version, protected_bytes, error))
@@ -126,7 +136,6 @@ static bool apply_document_on_disk (const std::filesystem::path& path,
     };
     auto source= observe (root, source_path);
     const auto target_hash= journal.payload_fingerprint (target->id);
-    const bool renamed= source_path != target->relative_path;
     auto renamed_destination= renamed ? observe (root, target->relative_path) : std::optional<observed_file> ();
     const auto& destination= renamed ? renamed_destination : source;
     const bool installed= !target->deleted && destination && destination->hash == target_hash;
@@ -137,19 +146,18 @@ static bool apply_document_on_disk (const std::filesystem::path& path,
       throw std::runtime_error ("Hodarium preimage disappeared before installation");
     if (!target->deleted && !installed) {
       if (renamed && destination) throw std::runtime_error ("Hodarium rename destination is occupied");
+      root.ensure_parents (target->relative_path, gate);
       const auto written= source && !renamed ?
         root.replace (source_path, source->file, source->revision, target->payload, gate) :
         root.create (target->relative_path, target->payload, gate);
       published= true;
       if (!written.directory_synced) throw std::runtime_error ("Hodarium document directory sync failed");
-      publication.unlock ();
     }
     if ((target->deleted || renamed) && source) {
       const auto durable= root.remove (source_path, source->file, source->revision, gate);
       published= true;
       if (!durable)
         throw std::runtime_error ("Hodarium deletion directory sync failed");
-      publication.unlock ();
     }
     gate ();
     if (!renamed || intent->source_fingerprint) root.sync_parent (source_path);
@@ -160,6 +168,21 @@ static bool apply_document_on_disk (const std::filesystem::path& path,
     const auto fingerprint= final ? std::optional<std::string> (final->hash) : std::nullopt;
     if (target->deleted ? bool (fingerprint) : (!fingerprint || *fingerprint != target_hash))
       throw std::runtime_error ("Hodarium installed file differs from its target revision");
+    if (renamed) {
+      records.commit (path_change);
+      std::string error;
+      if (!athena_artifacts_apply_path_rename (
+            root.path (), source_path, target->relative_path, false, error) ||
+          !history.rename_path (source_path, target->relative_path, false, error))
+        throw std::runtime_error (error);
+    }
+    if (renamed || target->deleted) {
+      auto context= vault_capture_context ();
+      if (context && context->root == root.path ()) {
+        if (auto locator= node_location::for_vault (context)) locator->clear_cache ();
+        athena_namespace_ontology_invalidate (true);
+      }
+    }
     if (!owning_actor) journal.finish_apply (operation, fingerprint);
     return true;
   }
@@ -171,18 +194,21 @@ static bool apply_document_on_disk (const std::filesystem::path& path,
 
 bool apply_closed_document (const std::filesystem::path& root,
     revision_store& journal, history::document_history_store& history,
-    const std::string& revision_id, const std::function<bool()>& permitted) {
-  return apply_document_on_disk (root, journal, history, revision_id, permitted);
+    const std::string& revision_id, const std::function<bool()>& permitted,
+    const document_rename_records& records) {
+  return apply_document_on_disk (root, journal, history, revision_id, permitted, records);
 }
 
 bool apply_open_document (const std::filesystem::path& root,
     const std::filesystem::path& database, const std::string& revision_id,
-    const std::function<bool()>& permitted) {
+    const std::function<bool()>& permitted, const document_rename_records& records) {
   if (permitted && !permitted ()) return false;
   revision_store journal (database);
   auto target= journal.offer (revision_id);
-  if (!target || target->metadata.deleted) return false;
-  const auto name= (root / target->metadata.relative_path).generic_string ();
+  if (!target) return false;
+  const auto prior_id= journal.applied (target->metadata.vault, target->metadata.object);
+  const auto prior= prior_id ? journal.offer (*prior_id) : std::optional<revision_offer> ();
+  const auto name= (root / (prior ? prior->metadata.relative_path : target->metadata.relative_path)).generic_string ();
   const auto owner= published_buffer_source (name);
   if (!owner.first) return false;
   struct reply {
@@ -193,7 +219,7 @@ bool apply_open_document (const std::filesystem::path& root,
   };
   auto response= std::make_shared<reply> ();
   const auto continuation= actor_continuation_registry::instance ().store (
-    [root, database, revision_id, name, owner, permitted, response] {
+    [root, database, revision_id, name, owner, permitted, records, response] {
       {
         std::lock_guard<std::mutex> lock (response->mutex);
         if (response->cancelled) return;
@@ -210,28 +236,40 @@ bool apply_open_document (const std::filesystem::path& root,
           if (std::string (actual.data (), N(actual)) == name && state->storage) {
             revision_store journal (database);
             auto target= journal.get (revision_id);
+            if (!target) throw std::runtime_error ("Hodarium live revision disappeared");
             validate_source (*target);
             const auto operation= "hodarium-apply-" + revision_id;
             auto intent= journal.application (operation);
             auto base= intent ? intent->expected_revision : journal.applied (target->vault, target->object);
             auto previous= base ? journal.offer (*base) : std::optional<revision_offer> ();
-            if (previous && !target->deleted && previous->metadata.relative_path == target->relative_path) {
+            if (previous) {
               const auto target_hash= journal.payload_fingerprint (revision_id);
               const auto expected= journal.payload_fingerprint (*base);
               const auto captured= state->storage->source_sha256 ();
               if (!intent && *base == revision_id) applied= captured == target_hash;
               else if (captured == expected || (intent && captured == target_hash)) {
-                auto source= document::read_xml_v2 (target->payload);
                 history::document_history_store history;
                 std::string message;
                 if (!history.open (root, message)) throw std::runtime_error (message);
-                applied= actor->apply_saved_document (captured, target_hash, std::move (source), [&] {
-                  if (!apply_document_on_disk (root, journal, history, revision_id, permitted, owner.first))
-                    return std::unique_ptr<document::document_file> ();
-                  return std::make_unique<document::document_file> (
-                    document::document_file::capture (root / target->relative_path, root));
-                });
-                if (applied) journal.finish_apply (operation, target_hash);
+                if (target->deleted || previous->metadata.relative_path != target->relative_path) {
+                  applied= actor->retire_saved_document (captured, [&] {
+                    if (!apply_document_on_disk (root, journal, history, revision_id,
+                          permitted, records, owner.first)) return false;
+                    journal.finish_apply (operation, target->deleted ?
+                      std::nullopt : std::optional<std::string> (target_hash));
+                    return true;
+                  });
+                }
+                else {
+                  auto source= document::read_xml_v2 (target->payload);
+                  applied= actor->apply_saved_document (captured, target_hash, std::move (source), [&] {
+                    if (!apply_document_on_disk (root, journal, history, revision_id, permitted, records, owner.first))
+                      return std::unique_ptr<document::document_file> ();
+                    return std::make_unique<document::document_file> (
+                      document::document_file::capture (root / target->relative_path, root));
+                  });
+                  if (applied) journal.finish_apply (operation, target_hash);
+                }
               }
             }
           }

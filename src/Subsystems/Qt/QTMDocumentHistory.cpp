@@ -25,10 +25,18 @@
 #include "scheme_execution_context.hpp"
 #include "tm_ostream.hpp"
 #include "vault.hpp"
+#include "vaultfile_json.hpp"
+#include "buffer_name_catalog.hpp"
+#include "confined_filesystem.hpp"
+#include "hodarium_logical_database.hpp"
+#include "hodarium_logical_sync.hpp"
+#include "hodarium_resources.hpp"
+#include "namespace_ontology.hpp"
 
 #include <QApplication>
 #include <QDateTime>
 #include <QTimer>
+#include <QUuid>
 
 #include <algorithm>
 #include <condition_variable>
@@ -363,6 +371,11 @@ decode_history_version (url document, std::int64_t version_id,
   }
   athena::history::document_history_store store;
   if (!store.open (location->root, error)) return false;
+  athena::history::version_entry version;
+  if (!store.get (version_id, version, error)) return false;
+  if (version.relative_path != location->relative) {
+    error= "The history version belongs to a different source"; return false;
+  }
   std::string bytes;
   if (!store.reconstruct (version_id, bytes, error)) return false;
   try {
@@ -478,4 +491,110 @@ qtm_document_history_restore_version (url document, std::int64_t version_id) {
       !athena_flush_realtime_buffer (document))
     return false;
   return true;
+}
+
+bool
+qtm_document_history_restore_protected (const fs::path& vault_root,
+                                         std::int64_t version_id,
+                                         std::string* diagnostic) {
+  using namespace athena;
+  if (diagnostic) diagnostic->clear ();
+  try {
+    const auto context= vault_capture_context ();
+    if (!context || context->root != vault_root)
+      throw std::runtime_error ("The recovery Vault is no longer active");
+    history::document_history_store history;
+    history::version_entry version;
+    std::string bytes, error;
+    if (!history.open (vault_root, error) || !history.get (version_id, version, error) ||
+        !history.reconstruct (version_id, bytes, error)) throw std::runtime_error (error);
+    if (!version.protected_snapshot) throw std::runtime_error ("Not a protected recovery snapshot");
+    const auto current= [context] { return vault_context_is_current (context); };
+    const auto operation= "history-restore-" + QUuid::createUuid ().toString (QUuid::WithoutBraces).toStdString ();
+    std::optional<history::logical_snapshot_identity> identity;
+    if (!history.protected_metadata (version_id, identity, error)) throw std::runtime_error (error);
+    const bool legacy_logical_path= version.relative_path.rfind ("logical/", 0) == 0 ||
+      version.relative_path.rfind ("Hodarium logical records/", 0) == 0;
+    if (!identity && legacy_logical_path)
+      throw std::runtime_error ("This old logical snapshot has no typed identity. Export a copy; automatic logical restoration is unavailable.");
+    if (identity) {
+      hodarium::logical_database_object object {identity->object_key, identity->format, bytes};
+      if (!hodarium::logical_revision_format (object.format) ||
+          hodarium::derived_logical_revision_format (object.format))
+        throw std::runtime_error ("This logical history format is not an authoritative recoverable record");
+      hodarium::validate_logical_object (object);
+      hodarium::logical_database_change change {object.key, {}, bytes};
+      const bool rejection= object.key == "artifact-rejections";
+      const bool material= hodarium::material_logical_format (object.format);
+      if (rejection) change.expected= hodarium::export_artifact_rejections (vault_root).payload;
+      else {
+        const auto records= material ? hodarium::export_material_objects (vault_root) :
+          hodarium::export_namespace_objects (context->namespace_db, vault_root);
+        for (const auto& existing: records)
+          if (existing.key == object.key) change.expected= existing.payload;
+      }
+      if (change.expected == change.replacement) return true;
+      if (change.expected) {
+        std::int64_t protected_id;
+        if (!history.protect_logical (version.relative_path, *change.expected, operation,
+              object.format, object.key, protected_id, error))
+          throw std::runtime_error (error);
+      }
+      const auto result= rejection ? hodarium::apply_artifact_rejections (vault_root, change, current) :
+        material ? hodarium::apply_material_object (vault_root, change, current) :
+        hodarium::apply_namespace_objects (context->namespace_db, vault_root, {change}, current);
+      if (result != hodarium::logical_apply_result::applied && result != hodarium::logical_apply_result::unchanged)
+        throw std::runtime_error (result == hodarium::logical_apply_result::dependency_missing ?
+          "Restore the referenced logical dependencies first" : "Logical record changed while restoring; refresh and retry");
+      if (current ()) athena_namespace_ontology_invalidate (true);
+      return true;
+    }
+    filesystem::confined_root directory (vault_root);
+    const auto destination= directory.path () / version.relative_path;
+    if (!history::valid_relative_document_path (version.relative_path))
+      throw std::runtime_error ("Protected history contains an invalid destination");
+    if (destination.extension () == ".ath") {
+      if (fs::exists (destination) || published_buffer_actor_id (destination.generic_string ()))
+        return qtm_document_history_restore_version (
+          url_system (string (destination.string ().c_str ())), version_id);
+      (void) document::decode_document_bytes (bytes, destination);
+    }
+    else if (!hodarium::resource_path_kind (version.relative_path))
+      throw std::runtime_error ("This history payload can only be recovered with Export copy");
+    std::optional<filesystem::entry> existing;
+    try { existing= directory.open (version.relative_path); }
+    catch (const std::system_error& e) {
+      if (e.code () != std::errc::no_such_file_or_directory) throw;
+    }
+    std::optional<filesystem::metadata> observed;
+    if (existing) {
+      observed= existing->stat ();
+      const auto before= existing->read (std::numeric_limits<int>::max ());
+      if (!filesystem::same_revision (*observed, existing->stat ()))
+        throw std::runtime_error ("Recovery destination changed while reading");
+      if (before == bytes) return true;
+      std::int64_t protected_id;
+      if (!history.protect (version.relative_path, before, operation, protected_id, error))
+        throw std::runtime_error (error);
+    }
+    std::unique_lock<std::recursive_mutex> publication (document_publication_mutex ());
+    const auto gate= [&] {
+      if (!current ()) throw std::runtime_error ("Recovery Vault changed");
+      if (!published_file_buffers (destination.generic_string ()).empty ())
+        throw std::runtime_error ("Close the open resource before restoring it");
+    };
+    gate ();
+    directory.ensure_parents (version.relative_path, gate);
+    const auto written= existing ? directory.replace (version.relative_path, *existing, *observed, bytes, gate) :
+      directory.create (version.relative_path, bytes, gate);
+    if (!written.directory_synced) throw std::runtime_error ("Restored file was written but directory synchronization failed");
+    publication.unlock ();
+    if (current ()) athena_namespace_ontology_invalidate (true);
+    return true;
+  }
+  catch (const std::exception& e) {
+    if (diagnostic) *diagnostic= e.what ();
+    std_warning << "Could not restore protected File History: " << string (e.what ()) << LF;
+    return false;
+  }
 }

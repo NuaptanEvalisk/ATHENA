@@ -13,6 +13,7 @@
 #include "url.hpp"
 
 #include <cstdint>
+#include <filesystem>
 
 class tm_buffer_rep;
 using tm_buffer= tm_buffer_rep*;
@@ -27,5 +28,11 @@ void qtm_document_history_snapshot_received (
 void qtm_document_history_show (url document= url_none ());
 bool qtm_document_history_open_version (url document, std::int64_t version_id);
 bool qtm_document_history_restore_version (url document, std::int64_t version_id);
+// GUI-owner entry for protected deleted files/resources and logical records.
+// Logical restore uses a current-value CAS and creates a new local state, not
+// a rollback of synchronization ancestry or a raw database replacement.
+bool qtm_document_history_restore_protected (
+  const std::filesystem::path& vault_root, std::int64_t version_id,
+  std::string* diagnostic= nullptr);
 
 #endif // QTMDOCUMENTHISTORY_HPP
