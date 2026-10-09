@@ -123,6 +123,13 @@ vault_secret create_vault_secret (const std::string& group, const std::string& v
   detail::store_protected_seed (result.handle, key.value, detail::secret_kind::vault);
   return result;
 }
+void verify_vault_secret (const vault_secret& secret) {
+  validate_scope (secret.group, secret.vault); validate_handle (secret.handle);
+  secret_bytes key (32);
+  detail::load_protected_seed (secret.handle, key.value, detail::secret_kind::vault);
+  if (secret.commitment != vault_token (key.value, secret.group, secret.vault, "commitment", nullptr))
+    throw key_store_error (key_store_failure::corrupt, "Protected Hodarium secret does not match its Vault scope");
+}
 conflict_tokens derive_conflict_tokens (const vault_secret& secret,
   const std::string& object, std::vector<std::string> parents, const std::string& resolution_id) {
   validate_scope (secret.group, secret.vault); validate_handle (secret.handle);

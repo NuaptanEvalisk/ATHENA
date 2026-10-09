@@ -16,6 +16,8 @@ struct conflict_tokens {
   std::string vault, conflict, branches, resolution;
 };
 vault_secret create_vault_secret (const std::string& group, const std::string& vault);
+// Blocking check of the actual protected bytes against the public descriptor.
+void verify_vault_secret (const vault_secret& secret);
 // Blocking key-store access: identity worker only. No replacement on failure.
 conflict_tokens derive_conflict_tokens (const vault_secret& secret,
   const std::string& object, std::vector<std::string> parents,

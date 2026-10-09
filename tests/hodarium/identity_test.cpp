@@ -2,6 +2,7 @@
 #include <libsecret/secret.h>
 #include "device_identity.hpp"
 #include "vault_secret.hpp"
+#include "client_settings.hpp"
 #include "peer_tls.hpp"
 #include "peer_connection.hpp"
 #include "peer_network.hpp"
@@ -9,6 +10,7 @@
 #include "peer_replication.hpp"
 #include "control_http.hpp"
 #include <QCoreApplication>
+#include <QTemporaryDir>
 #include <QTcpServer>
 #include <QDateTime>
 #include <QTcpSocket>
@@ -279,7 +281,7 @@ int main (int argc, char** argv) {
     try { device_public_key (std::string (43, 'A')); }
     catch (const key_store_error& e) { missing= e.reason == key_store_failure::missing; }
     require (missing, "Missing identity silently replaced");
-    auto vault_key= create_vault_secret (identity.public_key, "isolated-vault");
+    auto vault_key= create_vault_secret (identity.public_key, "10000000-0000-4000-8000-000000000001");
     auto tokens= derive_conflict_tokens (vault_key, "document", {std::string (64, 'a'), std::string (64, 'b')},
                                         std::string (64, 'c'));
     auto reordered= derive_conflict_tokens (vault_key, "document", {std::string (64, 'b'), std::string (64, 'a')},
@@ -333,6 +335,38 @@ int main (int argc, char** argv) {
       shared.branches == tokens.branches && shared.resolution == tokens.resolution,
       "Protected transfer did not preserve shared opaque identities");
     rejected ([&] { recipient.receive (capsule); });
+    QTemporaryDir settings_directory;
+    require (settings_directory.isValid (), "Cannot create isolated settings directory");
+    auto settings_root= std::filesystem::path (settings_directory.path ().toStdString ());
+    std::filesystem::create_directory (settings_root / "vault");
+    {
+      client_settings settings (settings_root / "settings.sqlite");
+      client_profile profile;
+      profile.origin= QUrl ("https://authority.invalid");
+      profile.pin= {vault_key.group, identity.public_key, exchange.generation};
+      profile.recovery_public_key= peer.public_key;
+      profile.device= identity; profile.name= "isolated";
+      settings.add_pending (profile);
+      rejected ([&] { settings.remember_vault_secret (exchange.generation, vault_key); });
+      settings.complete_admission (vault_key.group, identity.handle, identity.public_key, peer.handle);
+      rejected ([&] { settings.remember_vault_secret (exchange.generation, vault_key); });
+      settings.bind_vault ({vault_key.group, vault_key.vault, settings_root / "vault", true});
+      settings.remember_vault_secret (exchange.generation, vault_key);
+      settings.remember_vault_secret (exchange.generation, vault_key);
+      rejected ([&] { settings.remember_vault_secret (peer.handle, vault_key); });
+      rejected ([&] { settings.remember_vault_secret (exchange.generation, imported); });
+      auto corrupt= vault_key; corrupt.commitment= peer.public_key;
+      rejected ([&] { settings.remember_vault_secret (exchange.generation, corrupt); });
+      settings.unbind_vault (vault_key.group, vault_key.vault);
+    }
+    {
+      client_settings reopened (settings_root / "settings.sqlite");
+      auto saved= reopened.find_vault_secret (vault_key.group, exchange.generation, vault_key.vault, vault_key.commitment);
+      require (saved && saved->handle == vault_key.handle, "Unbind or restart lost protected secret descriptor");
+      verify_vault_secret (*saved);
+      require (!reopened.find_vault_secret (vault_key.group, peer.handle, vault_key.vault, vault_key.commitment),
+               "Secret lookup crossed authority generations");
+    }
     check_peer_tls (identity, peer, false);
     bool peer_rejected= false;
     try { check_peer_tls (identity, peer, true); }

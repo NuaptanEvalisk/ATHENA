@@ -269,7 +269,7 @@ already contain a later save. The result's durability still controls whether
 the bytes represent a successful save; a replaced-but-not-durable result must
 not be published as one.
 
-Device settings schema v2 stores explicit Vault UUID-to-local-directory bindings
+Device settings schema v3 stores explicit Vault UUID-to-local-directory bindings
 outside synchronized data. Membership remains device-wide; selection is local.
 The native Hodarium manager can bind an existing Vault (validating its Vaultfile
 without rewriting it), reuse a supplied UUID for another replica, pause its
@@ -278,6 +278,16 @@ Vault; replicas must use the same UUID, not independently generate one each.
 Binding requires an admitted profile, canonicalizes the selected directory and
 rejects duplicate or nested roots across local bindings. Unbinding never removes
 Vault files.
+
+Protected-secret descriptors are stored separately from the path bindings,
+keyed by group, authority generation, Vault and commitment. Recording a descriptor
+requires an admitted profile, an explicit local binding and verification of the
+actual system-key-store secret. Repeated identical registration is idempotent;
+another handle cannot silently replace it. Unbinding a directory retains the
+descriptor and protected secret so reattachment does not invent a new identity.
+Only public descriptors enter SQLite. This registry records local possession,
+not canonical-secret selection; automatic distribution still needs authority
+coordination before consuming these records.
 
 Selected Vaults now capture successful native XML v2 BufferActor saves into a
 device-local per-Hodarium revision journal. Ordinary and realtime saves share

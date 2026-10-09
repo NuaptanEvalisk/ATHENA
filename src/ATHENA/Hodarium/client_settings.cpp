@@ -47,7 +47,7 @@ client_settings::client_settings (const std::filesystem::path& database) {
     check (db_, sqlite3_busy_timeout (db_, 5000));
     int version;
     { statement st (db_, "PRAGMA user_version"); st.row (); version= sqlite3_column_int (st.value, 0); }
-    if (version > 2) throw std::runtime_error ("Unsupported Hodarium settings version");
+    if (version > 3) throw std::runtime_error ("Unsupported Hodarium settings version");
     sql (db_, "PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;");
     if (version == 0) {
       transaction tx (db_);
@@ -66,6 +66,15 @@ client_settings::client_settings (const std::filesystem::path& database) {
         "vault TEXT NOT NULL,root TEXT NOT NULL UNIQUE,"
         "enabled INTEGER NOT NULL CHECK(enabled IN(0,1)),PRIMARY KEY(hodarium,vault));"
         "PRAGMA user_version=2;");
+      tx.commit ();
+    }
+    if (version < 3) {
+      transaction tx (db_);
+      sql (db_, "CREATE TABLE vault_secrets("
+        "hodarium TEXT NOT NULL REFERENCES profiles(hodarium),generation TEXT NOT NULL,"
+        "vault TEXT NOT NULL,commitment TEXT NOT NULL,key_handle TEXT NOT NULL UNIQUE,"
+        "PRIMARY KEY(hodarium,generation,vault,commitment));"
+        "PRAGMA user_version=3;");
       tx.commit ();
     }
   }
@@ -163,5 +172,37 @@ void client_settings::unbind_vault (const std::string& group, const std::string&
   detail::transaction tx (db_);
   detail::statement st (db_, "DELETE FROM vault_bindings WHERE hodarium=? AND vault=?");
   st.text (1, group); st.text (2, vault); st.row (); tx.commit ();
+}
+std::optional<vault_secret> client_settings::find_vault_secret (const std::string& group,
+  const std::string& generation, const std::string& vault, const std::string& commitment) const {
+  detail::statement st (db_, "SELECT key_handle FROM vault_secrets WHERE hodarium=? AND generation=? AND vault=? AND commitment=?");
+  st.text (1, group); st.text (2, generation); st.text (3, vault); st.text (4, commitment);
+  if (!st.row ()) return std::nullopt;
+  return vault_secret{st.bytes (0), group, vault, commitment};
+}
+void client_settings::remember_vault_secret (const std::string& generation, const vault_secret& secret) {
+  using namespace detail;
+  identifier (generation); identifier (secret.commitment);
+  // Secret Service may block: do not hold a SQLite write transaction while
+  // waiting for it. Recheck the local enrollment and binding afterward.
+  verify_vault_secret (secret);
+  transaction tx (db_);
+  auto profile= find (secret.group);
+  if (!profile || profile->member.empty () || profile->pin.generation != generation)
+    throw std::invalid_argument ("Vault secret does not match the enrolled authority generation");
+  statement binding (db_, "SELECT 1 FROM vault_bindings WHERE hodarium=? AND vault=?");
+  binding.text (1, secret.group); binding.text (2, secret.vault);
+  if (!binding.row ()) throw std::invalid_argument ("Vault secret requires an explicit local Vault binding");
+  auto previous= find_vault_secret (secret.group, generation, secret.vault, secret.commitment);
+  if (previous) {
+    if (previous->handle != secret.handle)
+      throw std::invalid_argument ("Protected Vault secret handle cannot be replaced implicitly");
+  }
+  else {
+    statement st (db_, "INSERT INTO vault_secrets VALUES(?,?,?,?,?)");
+    st.text (1, secret.group); st.text (2, generation); st.text (3, secret.vault);
+    st.text (4, secret.commitment); st.text (5, secret.handle); st.row ();
+  }
+  tx.commit ();
 }
 } // namespace athena::hodarium

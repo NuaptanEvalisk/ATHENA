@@ -2,6 +2,7 @@
 #pragma once
 #include "device_identity.hpp"
 #include "membership.hpp"
+#include "vault_secret.hpp"
 #include <QUrl>
 
 namespace athena::hodarium {
@@ -41,6 +42,11 @@ public:
   void bind_vault (const vault_binding& binding);
   void set_vault_enabled (const std::string& group, const std::string& vault, bool enabled);
   void unbind_vault (const std::string& group, const std::string& vault);
+  // Identity-worker only: verifies key-store possession before recording the
+  // descriptor. This records availability, not canonical-secret authority.
+  void remember_vault_secret (const std::string& generation, const vault_secret& secret);
+  std::optional<vault_secret> find_vault_secret (const std::string& group,
+    const std::string& generation, const std::string& vault, const std::string& commitment) const;
 private:
   sqlite3* db_= nullptr;
 };
