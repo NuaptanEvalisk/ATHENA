@@ -578,6 +578,7 @@ QTMCommandRegistry::registerFocusSpecialCommands () {
           QObject::tr ("Link all embedded images"));
       }
       else if (focus.linked_image_context) {
+        append (QStringLiteral ("remove-background"), QObject::tr ("Remove background"));
         append (QStringLiteral ("embed-this"), QObject::tr ("Embed this image"));
         append (
           QStringLiteral ("embed-all"),
@@ -596,7 +597,7 @@ QTMCommandRegistry::registerFocusSpecialCommands () {
         QStringLiteral ("save-as"), QStringLiteral ("link-as"),
         QStringLiteral ("link-copies-as"), QStringLiteral ("save-all"),
         QStringLiteral ("link-all"), QStringLiteral ("embed-this"),
-        QStringLiteral ("embed-all")
+        QStringLiteral ("embed-all"), QStringLiteral ("remove-background")
       };
       if (!allActions.contains (key)) return false;
       QJsonObject action;

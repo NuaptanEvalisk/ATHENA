@@ -9,6 +9,10 @@
 #include "native_editor_actions.hpp"
 
 #include "ATHENA/Data/program_model.hpp"
+#include "ATHENA/Data/image_background.hpp"
+#include "picture.hpp"
+#include "server.hpp"
+#include "tm_ostream.hpp"
 #include "table_commands.hpp"
 #include "document_commands.hpp"
 #include "document_style_commands.hpp"
@@ -22,6 +26,7 @@
 #include "Subsystems/Qt/QTMReverseHierarchyGraph.hpp"
 
 #include <QJsonArray>
+#include <QCoreApplication>
 #include <QJsonValue>
 #include <QSet>
 
@@ -766,7 +771,7 @@ native_editor_action_validate (const QJsonObject& action, QString* error) {
     if (!has_string (action, "kind"))
       return fail_validation (error, "focus-embedded-image requires kind");
     const QString kind= action.value ("kind").toString ();
-    if (QSet<QString> {"save-all", "link-all", "embed-this", "embed-all"}
+    if (QSet<QString> {"save-all", "link-all", "embed-this", "embed-all", "remove-background"}
           .contains (kind))
       return true;
     if (!QSet<QString> {"save-as", "link-as", "link-copies-as"}.contains (kind))
@@ -1401,6 +1406,26 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
       generic_embed_image (target);
     else if (kind == "embed-all" && state.linked_image_context)
       generic_embed_all_images ();
+    else if (kind == "remove-background" && state.linked_image_context) {
+      string error;
+      if (!is_atomic (target[0]))
+        error= "Remove background requires a literal linked PNG image path.";
+      else {
+        const url image= relative (ed->get_name (), url_unix (as_string (target[0])));
+        (void) image_remove_white_background_png (image, error);
+      }
+      if (error != "") {
+        std_warning << "Remove background: " << error << LF;
+        ed->set_message (error, "Remove background");
+        return;
+      }
+      // Picture caches and the view registry are refreshed on their GUI owner.
+      QMetaObject::invokeMethod (QCoreApplication::instance (), [] {
+        picture_cache_reset ();
+        get_server ()->typeset_update_all ();
+      }, Qt::QueuedConnection);
+      ed->set_message ("Removed image background", "Remove background");
+    }
   }
   else if (op == "focus-set-label") {
     actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
