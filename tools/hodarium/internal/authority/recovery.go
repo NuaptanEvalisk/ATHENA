@@ -4,9 +4,55 @@ package authority
 import (
 	"crypto/ed25519"
 	"database/sql"
+	"encoding/json"
 	"errors"
+	"net/http"
 	"time"
 )
+
+// CurrentRecovery binds the offline authorization to a fresh caller nonce and
+// to the *current* generation, never to an arbitrary historical event.
+func (s *Store) CurrentRecovery(nonce string) (SignedState, error) {
+	if _, err := publicKey(nonce); err != nil {
+		return SignedState{}, ErrDenied
+	}
+	var request RecoveryRequest
+	var authority string
+	err := s.db.QueryRow(`SELECT e.generation,e.challenge,e.signature,e.authority_key
+		FROM authority a JOIN recovery_events e ON e.generation=a.generation
+		WHERE a.singleton=1`).Scan(&request.Generation, &request.Challenge, &request.Signature, &authority)
+	if errors.Is(err, sql.ErrNoRows) {
+		return SignedState{}, ErrConflict
+	}
+	if err != nil {
+		return SignedState{}, err
+	}
+	if authority != s.PublicKey() || !VerifyRecovery(s.Group, authority, s.RecoveryPublic, request) {
+		return SignedState{}, ErrDenied
+	}
+	payload, err := json.Marshal(struct {
+		Protocol   int             `json:"protocol"`
+		Group      string          `json:"group"`
+		Authority  string          `json:"authority"`
+		Generation string          `json:"generation"`
+		Nonce      string          `json:"nonce"`
+		Recovery   RecoveryRequest `json:"recovery"`
+	}{1, s.Group, authority, request.Generation, nonce, request})
+	if err != nil {
+		return SignedState{}, err
+	}
+	signature := ed25519.Sign(s.key, append([]byte("ATHENA-HODARIUM-RECOVERY-CURRENT-v1\x00"), payload...))
+	return SignedState{encoding.EncodeToString(payload), encoding.EncodeToString(signature)}, nil
+}
+
+func (a *API) currentRecovery(w http.ResponseWriter, r *http.Request) {
+	out, err := a.store.CurrentRecovery(r.PathValue("nonce"))
+	if err != nil {
+		a.fail(w, err)
+		return
+	}
+	respond(w, out)
+}
 
 type RecoveryRequest struct {
 	Generation string `json:"generation"`

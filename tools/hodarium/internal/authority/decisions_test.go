@@ -90,7 +90,7 @@ func TestDecisionCASAndAuthorization(t *testing.T) {
 	if _, err := call(competitor, keys[0]); !errors.Is(err, ErrDenied) {
 		t.Fatalf("wrong device key accepted: %v", err)
 	}
-	// Both requests observe version 1 before either enters its transaction.
+	// Knowing version 1 does not permit either member to replace its winner.
 	other := competitor
 	other.Member, other.RequestID, other.Resolution = members[0], opaque("operation3"), opaque("resolution3")
 	type operation struct {
@@ -121,14 +121,14 @@ func TestDecisionCASAndAuthorization(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if succeeded != 1 || conflicted != 1 {
+	if succeeded != 0 || conflicted != 2 {
 		t.Fatalf("CAS results: success=%d conflict=%d", succeeded, conflicted)
 	}
-	if receipt, err := call(request, keys[0]); err != nil || receipt.Decision.Version != 2 {
+	if receipt, err := call(request, keys[0]); err != nil || receipt.Decision.Version != 1 {
 		t.Fatalf("old operation retry returned a stale decision: %+v, %v", receipt, err)
 	}
 	var count int
-	if err := s.db.QueryRow("SELECT COUNT(*) FROM conflict_decisions").Scan(&count); err != nil || count != 2 {
+	if err := s.db.QueryRow("SELECT COUNT(*) FROM conflict_decisions").Scan(&count); err != nil || count != 1 {
 		t.Fatalf("unexpected decision log: count=%d err=%v", count, err)
 	}
 	if current := latestState(t, s); current.Epoch != state.Epoch || current.Revision != state.Revision {

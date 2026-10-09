@@ -136,6 +136,9 @@ func (s *Store) decide(ctx context.Context, payload []byte, challenge, signature
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return SignedState{}, err
 	}
+	if latest != nil && latest.Version != 1 {
+		return SignedState{}, ErrConflict
+	}
 	if in.Operation == "decide" {
 		var replay []byte
 		err = tx.QueryRow("SELECT payload FROM conflict_decisions WHERE operation=?", in.RequestID).Scan(&replay)
@@ -151,14 +154,9 @@ func (s *Store) decide(ctx context.Context, payload []byte, challenge, signature
 			}
 			// A retry returns the current decision, not a superseded old version.
 		} else if errors.Is(err, sql.ErrNoRows) {
-			version := int64(0)
-			if latest != nil {
-				version = latest.Version
-				if latest.Branches != in.Branches {
-					return SignedState{}, ErrConflict
-				}
-			}
-			if in.Expected != version {
+			// An exact branch set is decided once. Subsequent user changes are
+			// descendants of the accepted result, not replacement adjudications.
+			if latest != nil || in.Expected != 0 {
 				return SignedState{}, ErrConflict
 			}
 			var count int
@@ -168,7 +166,7 @@ func (s *Store) decide(ctx context.Context, payload []byte, challenge, signature
 			if count >= 100000 {
 				return SignedState{}, ErrCapacity
 			}
-			latest = &Decision{in.Vault, in.Conflict, version + 1, in.RequestID, in.Branches, in.Resolution, in.Member, state.Generation, state.Epoch, s.clock().Unix()}
+			latest = &Decision{in.Vault, in.Conflict, 1, in.RequestID, in.Branches, in.Resolution, in.Member, state.Generation, state.Epoch, s.clock().Unix()}
 			encoded, err := json.Marshal(latest)
 			if err != nil {
 				return SignedState{}, err

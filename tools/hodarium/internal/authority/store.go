@@ -173,7 +173,7 @@ func openDatabase(directory string) (*sql.DB, error) {
 		db.Close()
 		return nil, err
 	}
-	if version > 4 {
+	if version > 5 {
 		db.Close()
 		return nil, errors.New("unsupported Hodarium control database version")
 	}
@@ -228,6 +228,22 @@ func openDatabase(directory string) (*sql.DB, error) {
 		 commitment TEXT NOT NULL,member TEXT NOT NULL,created INTEGER NOT NULL,
 		 PRIMARY KEY(generation,slot));
 		PRAGMA user_version=4; COMMIT;`)
+		if err != nil {
+			db.Close()
+			return nil, err
+		}
+	}
+	if version < 5 {
+		_, err = db.Exec(`BEGIN IMMEDIATE;
+		CREATE TABLE decision_events(sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+		 vault TEXT NOT NULL,conflict TEXT NOT NULL,payload BLOB NOT NULL);
+		CREATE INDEX decision_events_scope ON decision_events(vault,conflict,sequence);
+		INSERT INTO decision_events(vault,conflict,payload)
+		 SELECT vault,conflict,payload FROM conflict_decisions ORDER BY rowid;
+		CREATE TRIGGER conflict_decision_event AFTER INSERT ON conflict_decisions BEGIN
+		 INSERT INTO decision_events(vault,conflict,payload) VALUES(NEW.vault,NEW.conflict,NEW.payload);
+		END;
+		PRAGMA user_version=5; COMMIT;`)
 		if err != nil {
 			db.Close()
 			return nil, err
@@ -337,7 +353,7 @@ func (s *Store) IssueChallenge(purpose, subject string) (string, error) {
 		if _, err := publicKey(subject[:43]); err != nil {
 			return "", err
 		}
-	case "poll", "control", "rendezvous", "decision", "vault-secret":
+	case "poll", "control", "rendezvous", "decision", "decision-feed", "vault-secret":
 		if len(subject) != 43 {
 			return "", ErrDenied
 		}

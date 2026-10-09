@@ -5,7 +5,10 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"testing"
 )
@@ -21,6 +24,9 @@ func TestRecoveryRevokesOldTrust(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Close()
+	if _, err := s.CurrentRecovery(randomToken()); !errors.Is(err, ErrConflict) {
+		t.Fatalf("initial generation exposed recovery proof: %v", err)
+	}
 	api, _, session := enrollAdmin(t, s, bootstrap)
 	_, device, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
@@ -50,6 +56,46 @@ func TestRecoveryRevokesOldTrust(t *testing.T) {
 	result, err := s.Recover(request)
 	if err != nil {
 		t.Fatal(err)
+	}
+	queryNonce := randomToken()
+	currentReceipt, err := s.CurrentRecovery(queryNonce)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, err := encoding.DecodeString(currentReceipt.Payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	currentSignature, err := encoding.DecodeString(currentReceipt.Signature)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ed25519.Verify(s.key.Public().(ed25519.PublicKey), append([]byte("ATHENA-HODARIUM-RECOVERY-CURRENT-v1\x00"), payload...), currentSignature) {
+		t.Fatal("current proof is not authority-signed")
+	}
+	var currentProof struct {
+		Group      string          `json:"group"`
+		Authority  string          `json:"authority"`
+		Generation string          `json:"generation"`
+		Nonce      string          `json:"nonce"`
+		Recovery   RecoveryRequest `json:"recovery"`
+	}
+	if err := json.Unmarshal(payload, &currentProof); err != nil {
+		t.Fatal(err)
+	}
+	if currentProof.Group != s.Group || currentProof.Authority != s.PublicKey() || currentProof.Generation != generation ||
+		currentProof.Nonce != queryNonce || !VerifyRecovery(s.Group, s.PublicKey(), s.RecoveryPublic, currentProof.Recovery) {
+		t.Fatal("current proof lost nonce, scope or offline authorization")
+	}
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/recovery/current/"+queryNonce, nil)
+	req.RemoteAddr = "127.0.0.1:1234"
+	api.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("public recovery GET: %d %s", w.Code, w.Body.String())
+	}
+	if _, err := s.CurrentRecovery("invalid"); !errors.Is(err, ErrDenied) {
+		t.Fatal("invalid nonce accepted")
 	}
 	if result.Generation != generation || result.Bootstrap == bootstrap {
 		t.Fatal("recovery did not rotate credentials")

@@ -43,6 +43,9 @@ type room struct {
 	connections [2]net.Conn
 	timer       *time.Timer
 	closed      bool
+	name        string
+	expires     int64
+	issued      [2]bool
 }
 type Relay struct {
 	config Config
@@ -50,6 +53,7 @@ type Relay struct {
 	mu     sync.Mutex
 	rooms  map[*room]struct{}
 	tokens map[[32]byte]endpoint
+	joined map[string]*room
 	closed bool
 }
 
@@ -59,7 +63,7 @@ func New(c Config) (*Relay, error) {
 		c.TicketLifetime <= 0 || c.SessionLifetime <= 0 || c.IdleTimeout <= 0 {
 		return nil, errors.New("invalid relay credentials or resource limits")
 	}
-	r := &Relay{config: c, access: sha256.Sum256([]byte(c.AccessToken)), rooms: make(map[*room]struct{}), tokens: make(map[[32]byte]endpoint)}
+	r := &Relay{config: c, access: sha256.Sum256([]byte(c.AccessToken)), rooms: make(map[*room]struct{}), tokens: make(map[[32]byte]endpoint), joined: make(map[string]*room)}
 	r.config.AccessToken = ""
 	return r, nil
 }
@@ -77,6 +81,8 @@ func (r *Relay) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	switch {
 	case req.Method == "POST" && req.URL.Path == "/v1/tickets":
 		r.allocate(w, req)
+	case req.Method == "POST" && req.URL.Path == "/v1/join":
+		r.join(w, req)
 	case req.Method == "GET" && req.URL.Path == "/v1/stream":
 		r.connect(w, req)
 	default:
@@ -122,6 +128,9 @@ func (r *Relay) finish(p *room) {
 		p.timer.Stop()
 	}
 	delete(r.rooms, p)
+	if p.name != "" && r.joined[p.name] == p {
+		delete(r.joined, p.name)
+	}
 	for _, hash := range p.tokens {
 		delete(r.tokens, hash)
 	}
