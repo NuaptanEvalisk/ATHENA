@@ -560,6 +560,56 @@ std::vector<revision> revision_store::applied_page (const std::string& vault,
   return result;
 }
 
+std::vector<revision> revision_store::recover_applied_deletions (const revision_store& previous,
+    const std::string& vault, const std::string& new_member,
+    const std::string& after_object, std::uint32_t limit) {
+  if (this == &previous || vault.empty () || limit == 0 || limit > 256)
+    throw std::invalid_argument ("Invalid recovery deletion baseline request");
+  const auto* source_name= sqlite3_db_filename (previous.db_, "main");
+  const auto* destination_name= sqlite3_db_filename (db_, "main");
+  if (source_name && destination_name && *source_name && *destination_name &&
+      std::filesystem::equivalent (source_name, destination_name))
+    throw std::invalid_argument ("Recovery deletion baseline requires a distinct new journal");
+  unsigned char member_bytes[32]; std::size_t member_size= 0;
+  if (new_member.size () != 43 || sodium_base642bin (member_bytes, sizeof member_bytes,
+      new_member.data (), new_member.size (), nullptr, &member_size, nullptr,
+      sodium_base64_VARIANT_URLSAFE_NO_PADDING) != 0 || member_size != 32)
+    throw std::invalid_argument ("Recovery deletion baseline requires a readmitted member identity");
+  std::vector<revision> roots;
+  {
+    statement source (previous.db_, "SELECT r.id,r.descriptor,a.object,EXISTS(SELECT 1 FROM apply_intents i "
+      "WHERE i.vault=a.vault AND i.object=a.object AND i.completed=0) FROM applied a "
+      "JOIN revisions r ON r.id=a.revision WHERE a.vault=? AND a.object>? "
+      "AND json_extract(r.descriptor,'$.deleted')=1 ORDER BY a.object LIMIT ?");
+    source.text (1, vault); source.text (2, after_object);
+    check (previous.db_, sqlite3_bind_int (source.value, 3, int (limit)));
+    while (source.row ()) {
+      auto value= from_descriptor (source.bytes (0), source.bytes (1));
+      if (sqlite3_column_int (source.value, 3) != 0)
+        throw std::invalid_argument ("Settle the previous journal's unfinished deletion application before recovery");
+      if (!value.deleted || value.vault != vault || value.object != source.bytes (2) ||
+          seal_revision (value).id != value.id)
+        throw std::invalid_argument ("Corrupt applied deletion baseline in previous journal");
+      value.id.clear (); value.parents.clear (); value.origin_member= new_member;
+      roots.push_back (seal_revision (std::move (value)));
+    }
+  }
+  transaction tx (db_);
+  for (const auto& root: roots) {
+    if (contains (vault, root.id)) continue;
+    statement pending (db_, "SELECT 1 FROM apply_intents WHERE vault=? AND object=? AND completed=0");
+    pending.text (1, vault); pending.text (2, root.object);
+    if (pending.row ()) throw std::invalid_argument ("Pause new journal applications before importing recovery baselines");
+    statement insert (db_, "INSERT INTO revisions VALUES(?,?,?,?,?)");
+    insert.text (1, root.id); insert.text (2, root.vault); insert.text (3, root.object);
+    insert.text (4, descriptor (root).dump ()); insert.blob (5, root.payload); insert.row ();
+    admit_revision (db_, root.id);
+    cache_fingerprint (db_, root.id, raw_fingerprint (root.payload));
+  }
+  tx.commit ();
+  return roots;
+}
+
 std::vector<revision> revision_store::application_candidates (const std::string& vault,
     const std::string& after_object, std::uint32_t limit) const {
   if (limit == 0 || limit > 256)

@@ -49,7 +49,7 @@ client_settings::client_settings (const std::filesystem::path& database) {
     check (db_, sqlite3_busy_timeout (db_, 5000));
     int version;
     { statement st (db_, "PRAGMA user_version"); st.row (); version= sqlite3_column_int (st.value, 0); }
-    if (version > 5) throw std::runtime_error ("Unsupported Hodarium settings version");
+    if (version > 6) throw std::runtime_error ("Unsupported Hodarium settings version");
     sql (db_, "PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;");
     if (version == 0) {
       transaction tx (db_);
@@ -101,6 +101,12 @@ client_settings::client_settings (const std::filesystem::path& database) {
         "PRAGMA user_version=5;");
       tx.commit ();
     }
+    if (version < 6) {
+      transaction tx (db_);
+      sql (db_, "ALTER TABLE accepted_generations ADD COLUMN previous_generation TEXT NOT NULL DEFAULT '';"
+        "PRAGMA user_version=6;");
+      tx.commit ();
+    }
   }
   catch (...) { sqlite3_close (db_); db_= nullptr; throw; }
 }
@@ -129,7 +135,7 @@ void client_settings::add_pending (const client_profile& p) {
   st.text (2, p.pin.group); st.text (3, p.pin.public_key); st.text (4, p.pin.generation);
   st.text (5, p.recovery_public_key); st.text (6, p.device.handle);
   st.text (7, p.device.public_key); st.text (8, p.name); st.row ();
-  statement generation (db_, "INSERT INTO accepted_generations VALUES(?,?,?,1,'')");
+  statement generation (db_, "INSERT INTO accepted_generations(hodarium,generation,authority,legacy_path,receipt) VALUES(?,?,?,1,'')");
   generation.text (1, p.pin.group); generation.text (2, p.pin.generation);
   generation.text (3, p.pin.public_key); generation.row ();
   tx.commit ();
@@ -150,9 +156,10 @@ client_profile client_settings::accept_recovery (recovery_candidate&& candidate)
   statement known (db_, "SELECT 1 FROM accepted_generations WHERE hodarium=? AND generation=?");
   known.text (1, next.group); known.text (2, next.generation);
   if (known.row ()) throw std::invalid_argument ("Recovery cannot return to a previously accepted generation");
-  statement record (db_, "INSERT INTO accepted_generations VALUES(?,?,?,0,?)");
+  statement record (db_, "INSERT INTO accepted_generations(hodarium,generation,authority,legacy_path,receipt,previous_generation) VALUES(?,?,?,0,?,?)");
   record.text (1, next.group); record.text (2, next.generation); record.text (3, next.public_key);
-  record.text (4, candidate.envelope_.toStdString ()); record.row ();
+  record.text (4, candidate.envelope_.toStdString ());
+  record.text (5, before.pin.generation); record.row ();
   statement update (db_, "UPDATE profiles SET authority=?,generation=?,member='',enabled=0 WHERE hodarium=?");
   update.text (1, next.public_key); update.text (2, next.generation); update.text (3, next.group); update.row ();
   tx.commit ();
@@ -180,6 +187,28 @@ std::filesystem::path client_settings::trust_database_path (const std::filesyste
 std::filesystem::path client_settings::revision_database_path (const std::filesystem::path& directory,
   const std::string& group) const {
   return generation_database_path (directory, group, "revisions");
+}
+
+std::optional<std::filesystem::path> client_settings::previous_revision_database_path (
+  const std::filesystem::path& directory, const std::string& group) const {
+  auto profile= find (group);
+  if (!profile) throw std::invalid_argument ("Unknown Hodarium profile");
+  detail::statement current (db_, "SELECT previous_generation,legacy_path FROM accepted_generations "
+    "WHERE hodarium=? AND generation=? AND authority=?");
+  current.text (1, group); current.text (2, profile->pin.generation);
+  current.text (3, profile->pin.public_key);
+  if (!current.row ()) throw std::invalid_argument ("Missing accepted Hodarium generation");
+  auto previous= current.bytes (0);
+  if (previous.empty ()) {
+    if (sqlite3_column_int (current.value, 1) != 0) return std::nullopt;
+    throw std::runtime_error ("Recovered Hodarium generation has no recorded predecessor");
+  }
+  identifier (previous);
+  detail::statement predecessor (db_, "SELECT legacy_path FROM accepted_generations WHERE hodarium=? AND generation=?");
+  predecessor.text (1, group); predecessor.text (2, previous);
+  if (!predecessor.row ()) throw std::runtime_error ("Missing predecessor Hodarium generation");
+  const bool legacy= sqlite3_column_int (predecessor.value, 0) != 0;
+  return directory / ("revisions-" + group + (legacy ? "" : "-" + previous) + ".sqlite");
 }
 
 namespace {

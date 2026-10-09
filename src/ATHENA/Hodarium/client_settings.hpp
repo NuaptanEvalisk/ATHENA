@@ -57,6 +57,10 @@ public:
   // the old journal, and seed the new journal from reconciled saved state.
   std::filesystem::path revision_database_path (const std::filesystem::path& directory,
     const std::string& group) const;
+  // Initial generation has no predecessor. Missing lineage for an older
+  // recovered profile is an error, never a guessed journal selection.
+  std::optional<std::filesystem::path> previous_revision_database_path (
+    const std::filesystem::path& directory, const std::string& group) const;
   std::vector<relay_binding> relays (const std::string& group) const;
   void set_relay (const relay_binding& binding);
   void remove_relay (const std::string& group, const QUrl& origin);
