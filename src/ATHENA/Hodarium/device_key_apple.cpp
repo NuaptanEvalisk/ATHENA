@@ -19,7 +19,7 @@ template<typename T> struct cf_owned {
 void check (OSStatus status) {
   if (status == errSecSuccess) return;
   if (status == errSecItemNotFound) throw key_store_error (key_store_failure::missing,
-    "Hodarium device key is missing; re-enrollment is required");
+    "Protected Hodarium secret is missing; explicit recovery is required");
   if (status == errSecInteractionNotAllowed || status == errSecAuthFailed)
     throw key_store_error (key_store_failure::locked,
       "Unlock this device to use the Hodarium Keychain identity");
@@ -30,11 +30,11 @@ struct query {
   cf_owned<CFMutableDictionaryRef> values {CFDictionaryCreateMutable (
     nullptr, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks)};
   cf_owned<CFStringRef> account;
-  explicit query (const std::string& handle): account (CFStringCreateWithBytes (
+  query (const std::string& handle, secret_kind kind): account (CFStringCreateWithBytes (
     nullptr, reinterpret_cast<const UInt8*> (handle.data ()), handle.size (),
     kCFStringEncodingUTF8, false)) {
     set (kSecClass, kSecClassGenericPassword);
-    set (kSecAttrService, CFSTR ("org.athena.Hodarium.Device"));
+    set (kSecAttrService, kind == secret_kind::device ? CFSTR ("org.athena.Hodarium.Device") : CFSTR ("org.athena.Hodarium.Vault"));
     set (kSecAttrAccount, account.value);
     set (kSecAttrSynchronizable, kCFBooleanFalse);
   }
@@ -43,16 +43,16 @@ struct query {
   }
 };
 }
-void store_device_seed (const std::string& handle, const unsigned char* seed) {
-  query q (handle);
+void store_protected_seed (const std::string& handle, const unsigned char* seed, secret_kind kind) {
+  query q (handle, kind);
   cf_owned<CFDataRef> data (CFDataCreate (nullptr, seed, 32));
   q.set (kSecValueData, data.value);
   q.set (kSecAttrAccessible, kSecAttrAccessibleWhenUnlockedThisDeviceOnly);
-  q.set (kSecAttrLabel, CFSTR ("ATHENA Hodarium device identity"));
+  q.set (kSecAttrLabel, kind == secret_kind::device ? CFSTR ("ATHENA Hodarium device identity") : CFSTR ("ATHENA Hodarium Vault secret"));
   check (SecItemAdd (q.values.value, nullptr));
 }
-void load_device_seed (const std::string& handle, unsigned char* seed) {
-  query q (handle);
+void load_protected_seed (const std::string& handle, unsigned char* seed, secret_kind kind) {
+  query q (handle, kind);
   q.set (kSecReturnData, kCFBooleanTrue);
   q.set (kSecMatchLimit, kSecMatchLimitOne);
   q.set (kSecUseAuthenticationUI, kSecUseAuthenticationUIFail);

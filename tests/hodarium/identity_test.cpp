@@ -1,6 +1,7 @@
 /* Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later. */
 #include <libsecret/secret.h>
 #include "device_identity.hpp"
+#include "vault_secret.hpp"
 #include "peer_tls.hpp"
 #include "peer_connection.hpp"
 #include "peer_network.hpp"
@@ -278,7 +279,60 @@ int main (int argc, char** argv) {
     try { device_public_key (std::string (43, 'A')); }
     catch (const key_store_error& e) { missing= e.reason == key_store_failure::missing; }
     require (missing, "Missing identity silently replaced");
+    auto vault_key= create_vault_secret (identity.public_key, "isolated-vault");
+    auto tokens= derive_conflict_tokens (vault_key, "document", {std::string (64, 'a'), std::string (64, 'b')},
+                                        std::string (64, 'c'));
+    auto reordered= derive_conflict_tokens (vault_key, "document", {std::string (64, 'b'), std::string (64, 'a')},
+                                           std::string (64, 'c'));
+    require (tokens.vault.size () == 43 && tokens.conflict == reordered.conflict &&
+      tokens.branches == reordered.branches && tokens.resolution == reordered.resolution &&
+      tokens.conflict != tokens.branches && tokens.vault != vault_key.commitment,
+      "Opaque conflict identities lost determinism or domain separation");
+    auto other_object= derive_conflict_tokens (vault_key, "different-document",
+      {std::string (64, 'a'), std::string (64, 'b')}, std::string (64, 'c'));
+    require (other_object.vault == tokens.vault && other_object.conflict != tokens.conflict &&
+      other_object.resolution != tokens.resolution, "Opaque identities conflate source objects");
+    bool separated= false;
+    try { device_public_key (vault_key.handle); }
+    catch (const key_store_error& e) { separated= e.reason == key_store_failure::missing; }
+    require (separated, "Vault secret can be used as a device signing seed");
+    auto rebound= vault_key; rebound.vault= "different-vault";
+    bool rejected_scope= false;
+    try { derive_conflict_tokens (rebound, "document", {std::string (64, 'a'), std::string (64, 'b')}, std::string (64, 'c')); }
+    catch (const key_store_error& e) { rejected_scope= e.reason == key_store_failure::corrupt; }
+    require (rejected_scope, "Vault secret was silently rebound to another scope");
     auto peer= create_device_identity ();
+    vault_secret_context exchange{vault_key.group, identity.handle, peer.handle, vault_key.vault,
+      vault_key.commitment, identity.public_key, peer.public_key};
+    bool exchange_allowed= true;
+    auto authorize= [&] (const vault_secret_context& context) {
+      return exchange_allowed && context.group == exchange.group && context.generation == exchange.generation &&
+        context.epoch == exchange.epoch && context.vault == exchange.vault && context.commitment == exchange.commitment &&
+        context.sender_public_key == identity.public_key && context.recipient_public_key == peer.public_key;
+    };
+    auto rejected= [&] (auto operation) {
+      bool failed= false;
+      try { operation (); } catch (const std::exception&) { failed= true; }
+      require (failed, "Invalid protected Vault secret transfer accepted");
+    };
+    vault_secret_receiver recipient (peer, exchange, authorize);
+    vault_secret_receiver other_request (peer, exchange, authorize);
+    auto capsule= seal_vault_secret (vault_key, identity, exchange, recipient.request (), authorize);
+    rejected ([&] { other_request.receive (capsule); });
+    auto damaged= capsule; damaged[damaged.size () / 2]= '!';
+    rejected ([&] { recipient.receive (damaged); });
+    exchange_allowed= false;
+    rejected ([&] { recipient.receive (capsule); });
+    rejected ([&] { seal_vault_secret (vault_key, identity, exchange, recipient.request (), authorize); });
+    exchange_allowed= true;
+    auto imported= recipient.receive (capsule);
+    auto shared= derive_conflict_tokens (imported, "document", {std::string (64, 'a'), std::string (64, 'b')},
+                                        std::string (64, 'c'));
+    require (imported.handle != vault_key.handle && imported.commitment == vault_key.commitment &&
+      shared.vault == tokens.vault && shared.conflict == tokens.conflict &&
+      shared.branches == tokens.branches && shared.resolution == tokens.resolution,
+      "Protected transfer did not preserve shared opaque identities");
+    rejected ([&] { recipient.receive (capsule); });
     check_peer_tls (identity, peer, false);
     bool peer_rejected= false;
     try { check_peer_tls (identity, peer, true); }

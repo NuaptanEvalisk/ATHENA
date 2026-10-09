@@ -596,8 +596,30 @@ single-use challenge and device proof. The challenge purpose is ``decision``;
 its subject is the SHA-256 digest of the exact request payload bytes. Requests
 carry the member, current generation/epoch, and opaque 32-byte Vault/conflict
 tokens. They must not expose file names, source UUIDs or raw content hashes.
-Native secret-derived token construction and durable decision consumption are
-not yet implemented.
+``vault_secret`` now supplies explicit protected secret creation and native
+opaque-token derivation. Its public descriptor holds only a local handle,
+group/Vault scope and keyed commitment. The random 32-byte secret lives in a
+separate ``org.athena.Hodarium.Vault`` Secret Service schema or Apple Keychain
+service, not the device-signing namespace or a Vault file. Existing enrolled
+device identities retain their original key-store namespace. Memory holding
+loaded secrets uses libsodium secure allocation and is cleared when released.
+
+Tokens use libsodium keyed BLAKE2b over a domain-separated CBOR tuple binding
+the group, Vault, role and inputs. Conflict/branch tokens bind an object and
+canonical distinct parent set; resolution tokens bind the object and revision
+identity. No file name, source UUID or raw revision digest is sent directly.
+Loading checks the descriptor's scoped commitment and never replaces missing
+or locked secrets. The isolated keyring check covers deterministic parent
+ordering, domain/object separation, key-purpose isolation and scope mismatch.
+Authenticated secret transfer uses recipient-signed requests containing fresh
+ephemeral X25519 keys and sender-signed libsodium sealed-box grants. Each exchange
+binds the group, generation, epoch, Vault, commitment and both device identities;
+the receiver checks authorization, request identity, expiry and single use before
+storing the decrypted secret in its own system key store. The isolated check
+covers transfer, tampering, mismatched requests, revoked authorization and replay.
+Canonical secret selection, automatic peer distribution and recovery are
+still unconnected: creating a local secret does not make it authoritative and
+must not silently establish a different namespace on each replica.
 
 ``get`` retrieves the latest decision or null. ``decide`` additionally supplies
 the expected decision version, a unique request ID, a branch-set token and a
@@ -678,6 +700,10 @@ receipt signatures and that content decisions do not advance membership.
 The Go-generated native wire fixture also contains a real decision receipt;
 the C++ membership verifier checks it and rejects changed epoch, challenge,
 subject and conflict bindings.
+The isolated native HTTPS check also submits and retries a decision using a
+real Secret Service-backed device signature. This covers the native proof
+purpose dispatch as well as challenge acquisition, transport, receipt validation
+and idempotency; signed-fixture verification alone does not exercise that path.
 
 References:
 

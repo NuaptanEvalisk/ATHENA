@@ -5,6 +5,7 @@
 #include "profile_session.hpp"
 #include "control_http.hpp"
 #include "rendezvous.hpp"
+#include "decisions.hpp"
 #include <QCoreApplication>
 #include <QSslCertificate>
 #include <QSslConfiguration>
@@ -55,6 +56,7 @@ int main (int argc, char** argv) {
     std::unique_ptr<enrollment> resumed;
     std::unique_ptr<authority_client> client;
     std::unique_ptr<rendezvous_client> presence;
+    std::unique_ptr<decision_client> decisions;
     std::unique_ptr<client_settings> service_settings;
     std::unique_ptr<profile_session> service;
     int authorizations= 0;
@@ -144,6 +146,28 @@ int main (int argc, char** argv) {
               });
             service->start ();
             };
+            auto decide_then_continue= [&, continue_session, epoch= state->epoch] {
+              decisions= std::make_unique<decision_client> (origin, pin, identity, member);
+              auto permitted= [&] (const std::string& current_epoch) {
+                return client->context_current (pin.group, pin.generation, current_epoch);
+              };
+              decision_request request{identity.handle, pin.group, identity.public_key, member, pin.generation, 0};
+              decisions->request (epoch, request, permitted,
+                [&, epoch, request, permitted, continue_session] (control_result result, std::optional<conflict_decision> decision) {
+                  if (failure (result)) return;
+                  if (!decision || decision->version != 1 || decision->request != request.request_id) {
+                    std::cerr << "Native decision submission was not acknowledged\n"; app.exit (1); return;
+                  }
+                  decisions->request (epoch, request, permitted,
+                    [&, request, continue_session] (control_result result, std::optional<conflict_decision> repeated) {
+                      if (failure (result)) return;
+                      if (!repeated || repeated->version != 1 || repeated->resolution != request.resolution) {
+                        std::cerr << "Native decision retry was not idempotent\n"; app.exit (1); return;
+                      }
+                      continue_session ();
+                    });
+                });
+            };
             presence= std::make_unique<rendezvous_client> (origin, identity);
             presence_context context{pin.group, member, pin.generation, state->epoch};
             auto allowed= [&] (const presence_context& c) {
@@ -155,10 +179,10 @@ int main (int argc, char** argv) {
             publish.direct= {"192.168.1.2:12345", "[fd00::2]:12345"};
             publish.relays= {"https://relay.example.invalid"};
             presence->request (context, publish, allowed,
-              [&, context, allowed, continue_session] (control_result result, presence_page) {
+              [&, context, allowed, decide_then_continue] (control_result result, presence_page) {
                 if (failure (result)) return;
                 presence->request (context, {}, allowed,
-                  [&, context, allowed, continue_session] (control_result result, presence_page page) {
+                  [&, context, allowed, decide_then_continue] (control_result result, presence_page page) {
                     if (failure (result)) return;
                     if (page.entries.size () != 1 || !page.next.empty () ||
                         page.entries[0].member != config.at ("peer") ||
@@ -168,8 +192,8 @@ int main (int argc, char** argv) {
                     }
                     presence_request withdraw; withdraw.operation= presence_operation::withdraw;
                     presence->request (context, withdraw, allowed,
-                      [&, continue_session] (control_result result, presence_page) {
-                        if (!failure (result)) continue_session ();
+                      [&, decide_then_continue] (control_result result, presence_page) {
+                        if (!failure (result)) decide_then_continue ();
                       });
                   });
               });

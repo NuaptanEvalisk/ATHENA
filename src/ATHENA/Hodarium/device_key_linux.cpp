@@ -14,6 +14,8 @@ namespace athena::hodarium::detail {
 namespace {
 const SecretSchema schema= {"org.athena.Hodarium.Device", SECRET_SCHEMA_NONE,
   {{"handle", SECRET_SCHEMA_ATTRIBUTE_STRING}, {nullptr, SECRET_SCHEMA_ATTRIBUTE_STRING}}};
+const SecretSchema vault_schema= {"org.athena.Hodarium.Vault", SECRET_SCHEMA_NONE,
+  {{"handle", SECRET_SCHEMA_ATTRIBUTE_STRING}, {nullptr, SECRET_SCHEMA_ATTRIBUTE_STRING}}};
 struct object_free { void operator() (gpointer p) const { if (p) g_object_unref (p); } };
 template<typename T> using object= std::unique_ptr<T, object_free>;
 std::mutex calls_mutex;
@@ -63,13 +65,14 @@ object<SecretService> service (GCancellable* cancel) {
     "No system Secret Service is available for Hodarium");
   return result;
 }
-std::unique_ptr<GHashTable, hash_free> attributes (const std::string& handle) {
+std::unique_ptr<GHashTable, hash_free> attributes (const std::string& handle, const SecretSchema* selected) {
   return std::unique_ptr<GHashTable, hash_free> (
-    secret_attributes_build (&schema, "handle", handle.c_str (), nullptr));
+    secret_attributes_build (selected, "handle", handle.c_str (), nullptr));
 }
 }
 
-void store_device_seed (const std::string& handle, const unsigned char* seed) {
+void store_protected_seed (const std::string& handle, const unsigned char* seed, secret_kind kind) {
+  const auto* selected= kind == secret_kind::device ? &schema : &vault_schema;
   call_budget budget;
   auto connection= service (budget.cancel.get ());
   error e;
@@ -82,27 +85,28 @@ void store_device_seed (const std::string& handle, const unsigned char* seed) {
   if (secret_collection_get_locked (collection.get ()))
     throw key_store_error (key_store_failure::locked,
       "Unlock the system secret collection before enabling Hodarium");
-  auto attrs= attributes (handle);
+  auto attrs= attributes (handle, selected);
   std::unique_ptr<SecretValue, value_free> value (secret_value_new (
     reinterpret_cast<const char*> (seed), 32, "application/octet-stream"));
-  object<SecretItem> item (secret_item_create_sync (collection.get (), &schema,
-    attrs.get (), "ATHENA Hodarium device identity", value.get (),
+  object<SecretItem> item (secret_item_create_sync (collection.get (), selected,
+    attrs.get (), kind == secret_kind::device ? "ATHENA Hodarium device identity" : "ATHENA Hodarium Vault secret", value.get (),
     SECRET_ITEM_CREATE_NONE, budget.cancel.get (), &e.value));
   e.check ();
   if (!item) throw key_store_error (key_store_failure::unavailable,
     "Could not store Hodarium identity in the system secret collection");
 }
-void load_device_seed (const std::string& handle, unsigned char* seed) {
+void load_protected_seed (const std::string& handle, unsigned char* seed, secret_kind kind) {
+  const auto* selected= kind == secret_kind::device ? &schema : &vault_schema;
   call_budget budget;
   auto connection= service (budget.cancel.get ());
-  auto attrs= attributes (handle);
+  auto attrs= attributes (handle, selected);
   error e;
   // Include locked matches but neither prompt nor automatically unlock them.
   std::unique_ptr<GList, list_free> items (secret_service_search_sync (
-    connection.get (), &schema, attrs.get (), SECRET_SEARCH_ALL, budget.cancel.get (), &e.value));
+    connection.get (), selected, attrs.get (), SECRET_SEARCH_ALL, budget.cancel.get (), &e.value));
   e.check ();
   if (!items) throw key_store_error (key_store_failure::missing,
-    "Hodarium device key is missing; re-enrollment is required");
+    "Protected Hodarium secret is missing; explicit recovery is required");
   if (items->next) throw key_store_error (key_store_failure::corrupt,
     "Multiple system secrets match this Hodarium identity");
   auto* item= SECRET_ITEM (items->data);
