@@ -6,6 +6,8 @@
 #include "rendezvous.hpp"
 #include "peer_network.hpp"
 #include "peer_replication.hpp"
+#include "vault_registration.hpp"
+#include <set>
 #include <QTimer>
 
 namespace athena::hodarium {
@@ -56,6 +58,10 @@ private:
   std::unique_ptr<presence_directory> directory_;
   std::unique_ptr<peer_network> network_;
   std::unique_ptr<peer_replication> replication_;
+  std::unique_ptr<vault_registration_client> secret_registration_;
+  std::set<std::string> registered_vaults_;
+  bool registering_secret_= false;
+  membership_lease::steady::time_point next_secret_registration_{};
   revision_store* revisions_= nullptr;
   std::vector<std::string> vaults_;
   QTimer timer_;
@@ -66,6 +72,7 @@ private:
                 std::string code= {}, std::int64_t code_expires= 0);
   void tick ();
   void refresh ();
+  void register_next_vault ();
   void enroll_result (control_result result, enrollment_status status);
 };
 } // namespace athena::hodarium

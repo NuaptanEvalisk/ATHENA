@@ -169,6 +169,31 @@ std::optional<conflict_decision> verify_decision (const authority_pin& pin,
   return result;
 }
 
+std::optional<vault_secret_registration> verify_vault_registration (const authority_pin& pin,
+  const std::string& response, const std::string& epoch, const std::string& nonce,
+  const std::string& subject, const std::string& slot) {
+  identity (epoch); identity (nonce); identity (subject); identity (slot);
+  require (response.size () <= 16384, "Hodarium Vault registration exceeds budget");
+  auto envelope= parse (response);
+  auto payload= decode (envelope.at ("payload").get<std::string> ());
+  constexpr char domain[]= "ATHENA-HODARIUM-VAULT-SECRET-v1";
+  verify (pin, std::string (domain, sizeof domain) + payload, envelope.at ("signature"));
+  auto value= parse (payload);
+  require (value.at ("protocol") == 1 && value.at ("group") == pin.group &&
+    value.at ("generation") == pin.generation && value.at ("epoch") == epoch &&
+    value.at ("challenge") == nonce && value.at ("subject") == subject && value.at ("slot") == slot,
+    "Hodarium Vault registration does not match current request and membership");
+  const auto& record= value.at ("registration");
+  if (record.is_null ()) return std::nullopt;
+  vault_secret_registration result{record.at ("commitment"), record.at ("member"), 0};
+  identity (result.commitment); identity (result.member);
+  const auto& created= record.at ("created");
+  require (created.is_number_integer () && created > 0 && created <= INT64_MAX,
+    "Invalid Hodarium Vault registration timestamp");
+  result.created= created.get<std::int64_t> ();
+  return result;
+}
+
 membership_store::membership_store (const std::filesystem::path& database,
   authority_pin pin): pin_ (std::move (pin)) {
   using namespace detail;

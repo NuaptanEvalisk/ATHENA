@@ -40,6 +40,13 @@ struct conflict_decision {
   std::string vault, conflict, request, branches, resolution, member, generation, epoch;
   std::int64_t version= 0, created= 0;
 };
+struct vault_secret_registration {
+  std::string commitment, member;
+  std::int64_t created= 0;
+};
+std::optional<vault_secret_registration> verify_vault_registration (const authority_pin& pin,
+  const std::string& response, const std::string& epoch, const std::string& nonce,
+  const std::string& subject, const std::string& slot);
 // Verifies a nonce-bound current authority statement, not permission to apply
 // its resolution. The owner must still validate the causal branches and lease.
 std::optional<conflict_decision> verify_decision (const authority_pin& pin,

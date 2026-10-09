@@ -1,6 +1,7 @@
 /* Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later. */
 #include "client_settings.hpp"
 #include "control_http.hpp"
+#include "vault_registration.hpp"
 #include "sqlite_internal.hpp"
 #include <sodium.h>
 #include <stdexcept>
@@ -47,7 +48,7 @@ client_settings::client_settings (const std::filesystem::path& database) {
     check (db_, sqlite3_busy_timeout (db_, 5000));
     int version;
     { statement st (db_, "PRAGMA user_version"); st.row (); version= sqlite3_column_int (st.value, 0); }
-    if (version > 3) throw std::runtime_error ("Unsupported Hodarium settings version");
+    if (version > 4) throw std::runtime_error ("Unsupported Hodarium settings version");
     sql (db_, "PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;");
     if (version == 0) {
       transaction tx (db_);
@@ -75,6 +76,14 @@ client_settings::client_settings (const std::filesystem::path& database) {
         "vault TEXT NOT NULL,commitment TEXT NOT NULL,key_handle TEXT NOT NULL UNIQUE,"
         "PRIMARY KEY(hodarium,generation,vault,commitment));"
         "PRAGMA user_version=3;");
+      tx.commit ();
+    }
+    if (version < 4) {
+      transaction tx (db_);
+      sql (db_, "CREATE TABLE vault_secret_authority("
+        "hodarium TEXT NOT NULL REFERENCES profiles(hodarium),generation TEXT NOT NULL,"
+        "vault TEXT NOT NULL,commitment TEXT NOT NULL,authority TEXT NOT NULL,receipt TEXT NOT NULL,"
+        "PRIMARY KEY(hodarium,generation,vault)); PRAGMA user_version=4;");
       tx.commit ();
     }
   }
@@ -204,5 +213,44 @@ void client_settings::remember_vault_secret (const std::string& generation, cons
     st.text (4, secret.commitment); st.text (5, secret.handle); st.row ();
   }
   tx.commit ();
+}
+std::optional<vault_secret> client_settings::vault_secret_candidate (const std::string& group,
+  const std::string& generation, const std::string& vault) const {
+  detail::statement st (db_, "SELECT commitment,key_handle FROM vault_secrets WHERE hodarium=? AND generation=? AND vault=? ORDER BY commitment LIMIT 1");
+  st.text (1, group); st.text (2, generation); st.text (3, vault);
+  if (!st.row ()) return std::nullopt;
+  return vault_secret{st.bytes (1), group, vault, st.bytes (0)};
+}
+std::optional<std::string> client_settings::vault_secret_commitment (const std::string& group,
+  const std::string& generation, const std::string& vault) const {
+  detail::statement st (db_, "SELECT commitment,authority FROM vault_secret_authority WHERE hodarium=? AND generation=? AND vault=?");
+  st.text (1, group); st.text (2, generation); st.text (3, vault);
+  if (!st.row ()) return std::nullopt;
+  auto profile= find (group);
+  if (!profile || profile->pin.generation != generation || profile->pin.public_key != st.bytes (1))
+    throw std::invalid_argument ("Stored Vault registration requires explicit trust re-establishment");
+  return st.bytes (0);
+}
+std::optional<vault_secret_registration> client_settings::accept_vault_registration (
+  const std::string& group, const std::string& vault, const std::string& response,
+  const std::string& epoch, const std::string& nonce, const std::string& subject) {
+  using namespace detail;
+  transaction tx (db_);
+  auto profile= find (group);
+  if (!profile || profile->member.empty ()) throw std::invalid_argument ("Vault registration requires admitted identity");
+  statement binding (db_, "SELECT 1 FROM vault_bindings WHERE hodarium=? AND vault=? AND enabled=1");
+  binding.text (1, group); binding.text (2, vault);
+  if (!binding.row ()) throw std::invalid_argument ("Vault registration requires an enabled local binding");
+  auto result= verify_vault_registration (profile->pin, response, epoch, nonce, subject, vault_registration_slot (group, vault));
+  auto previous= vault_secret_commitment (group, profile->pin.generation, vault);
+  if (previous && (!result || result->commitment != *previous))
+    throw std::invalid_argument ("Authority rolled back or replaced the canonical Vault secret");
+  if (result && !previous) {
+    statement st (db_, "INSERT INTO vault_secret_authority VALUES(?,?,?,?,?,?)");
+    st.text (1, group); st.text (2, profile->pin.generation); st.text (3, vault);
+    st.text (4, result->commitment); st.text (5, profile->pin.public_key); st.text (6, response); st.row ();
+  }
+  tx.commit ();
+  return result;
 }
 } // namespace athena::hodarium

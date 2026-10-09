@@ -57,6 +57,8 @@ int main (int argc, char** argv) {
     std::unique_ptr<authority_client> client;
     std::unique_ptr<rendezvous_client> presence;
     std::unique_ptr<decision_client> decisions;
+    std::unique_ptr<client_settings> registration_settings;
+    std::unique_ptr<vault_registration_client> registration;
     std::unique_ptr<client_settings> service_settings;
     std::unique_ptr<profile_session> service;
     int authorizations= 0;
@@ -146,25 +148,52 @@ int main (int argc, char** argv) {
               });
             service->start ();
             };
-            auto decide_then_continue= [&, continue_session, epoch= state->epoch] {
+            auto register_then_continue= [&, continue_session, epoch= state->epoch] {
+              const std::string vault= "10000000-0000-4000-8000-000000000001";
+              std::filesystem::create_directory (root / "vault");
+              registration_settings= std::make_unique<client_settings> (root / "settings.sqlite");
+              registration_settings->bind_vault ({pin.group, vault, root / "vault", true});
+              registration= std::make_unique<vault_registration_client> (*registration_settings,
+                *registration_settings->find (pin.group));
+              auto allowed= [&] (const std::string& value) { return client->context_current (pin.group, pin.generation, value); };
+              registration->ensure (vault, epoch, allowed,
+                [&, vault, epoch, allowed, continue_session] (control_result result, std::optional<vault_secret_registration> first) {
+                  if (failure (result)) return;
+                  client_settings reopened (root / "settings.sqlite");
+                  auto commitment= reopened.vault_secret_commitment (pin.group, pin.generation, vault);
+                  if (!first || !commitment || *commitment != first->commitment) { app.exit (1); return; }
+                  auto key= reopened.find_vault_secret (pin.group, pin.generation, vault, *commitment);
+                  if (!key) { app.exit (1); return; }
+                  verify_vault_secret (*key);
+                  registration->ensure (vault, epoch, allowed,
+                    [&, first, continue_session] (control_result result, std::optional<vault_secret_registration> again) {
+                      if (failure (result)) return;
+                      if (!again || first->commitment != again->commitment || first->created != again->created) {
+                        std::cerr << "Native Vault registration changed on retry\n"; app.exit (1); return;
+                      }
+                      continue_session ();
+                    });
+                });
+            };
+            auto decide_then_continue= [&, register_then_continue, epoch= state->epoch] {
               decisions= std::make_unique<decision_client> (origin, pin, identity, member);
               auto permitted= [&] (const std::string& current_epoch) {
                 return client->context_current (pin.group, pin.generation, current_epoch);
               };
               decision_request request{identity.handle, pin.group, identity.public_key, member, pin.generation, 0};
               decisions->request (epoch, request, permitted,
-                [&, epoch, request, permitted, continue_session] (control_result result, std::optional<conflict_decision> decision) {
+                [&, epoch, request, permitted, register_then_continue] (control_result result, std::optional<conflict_decision> decision) {
                   if (failure (result)) return;
                   if (!decision || decision->version != 1 || decision->request != request.request_id) {
                     std::cerr << "Native decision submission was not acknowledged\n"; app.exit (1); return;
                   }
                   decisions->request (epoch, request, permitted,
-                    [&, request, continue_session] (control_result result, std::optional<conflict_decision> repeated) {
+                    [&, request, register_then_continue] (control_result result, std::optional<conflict_decision> repeated) {
                       if (failure (result)) return;
                       if (!repeated || repeated->version != 1 || repeated->resolution != request.resolution) {
                         std::cerr << "Native decision retry was not idempotent\n"; app.exit (1); return;
                       }
-                      continue_session ();
+                      register_then_continue ();
                     });
                 });
             };

@@ -269,7 +269,7 @@ already contain a later save. The result's durability still controls whether
 the bytes represent a successful save; a replaced-but-not-durable result must
 not be published as one.
 
-Device settings schema v3 stores explicit Vault UUID-to-local-directory bindings
+Device settings schema v4 stores explicit Vault UUID-to-local-directory bindings
 outside synchronized data. Membership remains device-wide; selection is local.
 The native Hodarium manager can bind an existing Vault (validating its Vaultfile
 without rewriting it), reuse a supplied UUID for another replica, pause its
@@ -286,8 +286,9 @@ actual system-key-store secret. Repeated identical registration is idempotent;
 another handle cannot silently replace it. Unbinding a directory retains the
 descriptor and protected secret so reattachment does not invent a new identity.
 Only public descriptors enter SQLite. This registry records local possession,
-not canonical-secret selection; automatic distribution still needs authority
-coordination before consuming these records.
+not canonical-secret selection. A separate authority-registration table retains
+the verified winner and its signed receipt, rejecting disappearance or changes
+within the same authority generation.
 
 Selected Vaults now capture successful native XML v2 BufferActor saves into a
 device-local per-Hodarium revision journal. Ordinary and realtime saves share
@@ -627,9 +628,33 @@ binds the group, generation, epoch, Vault, commitment and both device identities
 the receiver checks authorization, request identity, expiry and single use before
 storing the decrypted secret in its own system key store. The isolated check
 covers transfer, tampering, mismatched requests, revoked authorization and replay.
-Canonical secret selection, automatic peer distribution and recovery are
-still unconnected: creating a local secret does not make it authoritative and
-must not silently establish a different namespace on each replica.
+Canonical selection uses ``POST /api/device/vault-secret``. The slot is SHA-256
+of the compact JSON array ``["ATHENA-HODARIUM-VAULT-SLOT-v1",group,vault_uuid]``
+(base64url without padding), independent of the candidate secret. The authority
+schema v4 records the first commitment per generation/slot in the same transaction
+as its audit entry. Competing registrations and retries return that winner;
+ordinary epoch changes do not rotate it. Reads and writes require a single-use
+``vault-secret`` device proof, current membership and exact generation/epoch.
+Receipts sign the original payload bytes with domain
+``ATHENA-HODARIUM-VAULT-SECRET-v1`` followed by NUL, binding the request hash,
+challenge, slot and current authority context. The server never receives key bytes.
+
+The native profile session registers selected Vaults on its control worker.
+The controller first queries the slot; only a verified empty result allows it to
+create a candidate, persist its protected handle, and register the commitment.
+It reuses persisted candidates on retry and records signed winners before use.
+Owner cancellation, suspension and membership expiry prevent continued requests;
+failed operations retry after a bounded delay. A different winning commitment is
+accepted as the authority result, not replaced with the local candidate. Lack of
+the winning secret is explicitly reported as requiring encrypted peer delivery.
+Automatic peer delivery and recovery remain unconnected; registration is not
+proof that all selected Vaults can already resolve conflicts.
+
+Focused verification covers concurrent first-registration races, proof replay,
+wrong signing devices, stale epochs and expelled members. The Go-generated wire
+fixture is verified by C++ with changed epoch/nonce/subject/slot and signature
+rejected. The isolated native HTTPS flow exercises query/create/register, key-store
+possession, settings reopen and retry against the real authority implementation.
 
 ``get`` retrieves the latest decision or null. ``decide`` additionally supplies
 the expected decision version, a unique request ID, a branch-set token and a

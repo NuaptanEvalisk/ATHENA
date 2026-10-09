@@ -73,6 +73,20 @@ func TestNativeWireFixture(t *testing.T) {
 	}
 	fixture["decision_request"], fixture["decision_receipt"] = decision, decisionReceipt
 	fixture["decision_nonce"], fixture["decision_subject"] = decisionNonce, decisionSubject
+	registration := VaultSecretRequest{Operation: "register", Member: member, Generation: state.Generation,
+		Epoch: state.Epoch, Slot: randomToken(), Commitment: randomToken()}
+	registrationPayload, err := json.Marshal(registration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registrationSubject := VaultSecretSubject(registrationPayload)
+	registrationNonce, registrationSignature := proof(t, s, key, "vault-secret", registrationSubject)
+	registrationReceipt, err := s.registerVaultSecret(context.Background(), registrationPayload, registrationNonce, registrationSignature)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixture["vault_registration_request"], fixture["vault_registration_receipt"] = registration, registrationReceipt
+	fixture["vault_registration_nonce"], fixture["vault_registration_subject"] = registrationNonce, registrationSubject
 	data, err := json.MarshalIndent(fixture, "", "  ")
 	if err != nil {
 		t.Fatal(err)

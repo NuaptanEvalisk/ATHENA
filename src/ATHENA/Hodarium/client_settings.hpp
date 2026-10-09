@@ -47,6 +47,13 @@ public:
   void remember_vault_secret (const std::string& generation, const vault_secret& secret);
   std::optional<vault_secret> find_vault_secret (const std::string& group,
     const std::string& generation, const std::string& vault, const std::string& commitment) const;
+  std::optional<vault_secret> vault_secret_candidate (const std::string& group,
+    const std::string& generation, const std::string& vault) const;
+  std::optional<std::string> vault_secret_commitment (const std::string& group,
+    const std::string& generation, const std::string& vault) const;
+  std::optional<vault_secret_registration> accept_vault_registration (const std::string& group,
+    const std::string& vault, const std::string& response, const std::string& epoch,
+    const std::string& nonce, const std::string& subject);
 private:
   sqlite3* db_= nullptr;
 };

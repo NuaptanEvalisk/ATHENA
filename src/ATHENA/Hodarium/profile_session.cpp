@@ -17,6 +17,7 @@ profile_session::~profile_session () {
   paused_= true;
   timer_.stop ();
   changed_= {};
+  secret_registration_.reset ();
   replication_.reset ();
   if (directory_) directory_->stop ();
   if (network_) network_->stop ();
@@ -101,6 +102,8 @@ void profile_session::refresh () {
 void profile_session::tick () {
   if (paused_) return;
   try {
+    if (registering_secret_ && client_ && !client_->authorized ()) secret_registration_->cancel ();
+    register_next_vault ();
     if (client_ && !client_->authorized () && network_) { replication_.reset (); network_->stop (); }
     if (client_ && (status_.phase == profile_phase::authorized ||
         status_.phase == profile_phase::offline_valid) && !client_->authorized ())
@@ -161,6 +164,7 @@ void profile_session::enroll_result (control_result result, enrollment_status st
 }
 void profile_session::suspend () {
   owner (); paused_= true; timer_.stop ();
+  if (secret_registration_) secret_registration_->cancel ();
   replication_.reset ();
   if (directory_) directory_->stop ();
   if (network_) network_->stop ();
@@ -218,7 +222,40 @@ void profile_session::configure_revisions (revision_store& store, std::vector<st
   replication_.reset ();
   if (network_) network_->stop ();
   if (directory_) directory_->stop ();
+  if (secret_registration_) secret_registration_->cancel ();
+  registered_vaults_.clear ();
+  next_secret_registration_= {};
   revisions_= &store; vaults_= std::move (vaults);
   refresh ();
+}
+void profile_session::register_next_vault () {
+  if (paused_ || !profile_.enabled || !client_ || !client_->authorized () ||
+      registering_secret_ || clock::now () < next_secret_registration_) return;
+  for (const auto& vault: vaults_) {
+    if (registered_vaults_.count (vault)) continue;
+    auto state= client_->current ();
+    if (!state) return;
+    if (!secret_registration_) secret_registration_= std::make_unique<vault_registration_client> (settings_, profile_);
+    registering_secret_= true;
+    secret_registration_->ensure (vault, state->epoch,
+      [this] (const std::string& epoch) {
+        return !paused_ && profile_.enabled && client_ &&
+          client_->context_current (profile_.pin.group, profile_.pin.generation, epoch);
+      }, [this, vault] (control_result result, std::optional<vault_secret_registration> registration) {
+        registering_secret_= false;
+        if (paused_ || result.failure == control_failure::cancelled) return;
+        if (result.failure != control_failure::none) {
+          next_secret_registration_= clock::now () + std::chrono::seconds (60);
+          publish (profile_phase::error, result.diagnostic); return;
+        }
+        registered_vaults_.insert (vault);
+        // Registration is not proof of possession. A competing device must
+        // obtain the winner over the encrypted peer channel, never replace it.
+        if (registration && !settings_.find_vault_secret (profile_.pin.group,
+              profile_.pin.generation, vault, registration->commitment))
+          publish (profile_phase::authorized, "Vault secret registered; encrypted peer delivery is required");
+      });
+    return;
+  }
 }
 } // namespace athena::hodarium

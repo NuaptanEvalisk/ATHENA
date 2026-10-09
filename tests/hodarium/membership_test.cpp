@@ -64,6 +64,26 @@ int main (int argc, char** argv) {
     rejects ([&] { verify_decision (pin, decision_response, result.state.epoch,
       decision_nonce, decision_subject, conflict, vault); });
     rejects ([&] { verify_validation (pin, response.dump (), member, member, key); });
+    const auto& registration_request= fixture.at ("vault_registration_request");
+    auto registration_response= fixture.at ("vault_registration_receipt").dump ();
+    const std::string registration_nonce= fixture.at ("vault_registration_nonce"),
+      registration_subject= fixture.at ("vault_registration_subject"), slot= registration_request.at ("slot");
+    auto registration= verify_vault_registration (pin, registration_response, result.state.epoch,
+      registration_nonce, registration_subject, slot);
+    require (registration && registration->member == member &&
+      registration->commitment == registration_request.at ("commitment"), "Wrong Go Vault registration receipt");
+    rejects ([&] { verify_vault_registration (pin, registration_response, nonce,
+      registration_nonce, registration_subject, slot); });
+    rejects ([&] { verify_vault_registration (pin, registration_response, result.state.epoch,
+      nonce, registration_subject, slot); });
+    rejects ([&] { verify_vault_registration (pin, registration_response, result.state.epoch,
+      registration_nonce, nonce, slot); });
+    rejects ([&] { verify_vault_registration (pin, registration_response, result.state.epoch,
+      registration_nonce, registration_subject, nonce); });
+    auto damaged_registration= fixture.at ("vault_registration_receipt");
+    damaged_registration["signature"]= fixture.at ("decision_receipt").at ("signature");
+    rejects ([&] { verify_vault_registration (pin, damaged_registration.dump (), result.state.epoch,
+      registration_nonce, registration_subject, slot); });
     rejects ([&] { verify_validation (pin, response.dump (), nonce, member, pin.public_key); });
     auto wrong_pin= pin; wrong_pin.generation= nonce;
     rejects ([&] { verify_membership (wrong_pin, response.at ("state").dump ()); });
