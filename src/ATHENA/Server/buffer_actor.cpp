@@ -703,6 +703,57 @@ buffer_actor::wait (actor_command_ticket ticket,
 }
 
 bool
+buffer_actor::apply_saved_document (const std::string& expected_storage,
+    const std::string& target_storage, tree source,
+    const std::function<std::unique_ptr<athena::document::document_file>()>& publish) {
+  ASSERT (is_owner_thread (), "remote source replacement outside its actor");
+  auto& state= impl_->state;
+  if (!state.storage || state.storage_capture_failed ||
+      state.storage_version != athena::document::xml_storage_version::v2 ||
+      state.storage->source_sha256 () != expected_storage ||
+      state.source_modified || state.source_autosave_modified ||
+      !state.node_identities || state.node_identities->pending ()) return false;
+  for (auto& view: impl_->views)
+    if (view.second.instance->need_save (true) || view.second.instance->get_input_mode () != 0)
+      return false;
+
+  // Unlike a normal import, synchronization must not invent identities that
+  // differ from the exact source bytes installed on the other devices.
+  new_data data;
+  tree body= detach_data (source, data);
+  if (athena::node::id (body) !=
+      athena::node::id (subtree (state.document, state.root_path))) return false;
+  auto identities= replacement_node_identities (source, body);
+  if (!identities) return false;
+  auto storage= publish ();
+  if (!storage) return false;
+  if (storage->version () != athena::document::xml_storage_version::v2 ||
+      storage->source_sha256 () != target_storage)
+    throw std::runtime_error ("Remote document publication returned a different storage revision");
+
+  state.source_envelope= std::move (source);
+  state.data= std::move (data);
+  state.artifacts.reset ();
+  athena::artifact::close (id_);
+  set_document (state.document, state.root_path, std::move (body));
+  state.node_identities= std::move (identities);
+  state.storage= std::move (*storage);
+  state.storage_capture_failed= false;
+  source_changed ();
+  state.last_save= last_modified (state.name);
+  for (auto& view: impl_->views) {
+    view.second.instance->set_data (state.data);
+    view.second.instance->init_update ();
+    view.second.instance->notify_save ();
+    (void) view.second.instance->publish_ui (actor_command_kind::ui_mark_buffer_saved,
+      static_cast<std::uint64_t> (state.last_save));
+  }
+  state.source_modified= state.source_autosave_modified= false;
+  athena::node_reference::source_changed ();
+  return true;
+}
+
+bool
 buffer_actor::invoke (
   actor_command_kind kind, athena_view_id view_id,
   athena_blob_id payload0, athena_blob_id payload1,

@@ -118,6 +118,35 @@ int main () {
     for (const auto& name: filesystem.open (".").names ())
       require (name.rfind (".athena-audm-", 0) != 0);
 
+    rejects ([&] { filesystem.create ("sub/remove.ath", "not published", [] {
+      throw std::runtime_error ("Publication lease refused");
+    }); });
+    require (!fs::exists (root / "sub/remove.ath"));
+    auto removable= filesystem.create ("sub/remove.ath", "delete me").file;
+    auto removal_revision= removable.stat ();
+    rejects ([&] { filesystem.remove ("sub/remove.ath", removable, removal_revision, [] {
+      throw std::runtime_error ("History protection failed");
+    }); });
+    require (filesystem.open ("sub/remove.ath").read (100) == "delete me");
+    rejects ([&] { filesystem.remove ("sub/remove.ath", removable, removal_revision, [&] {
+      std::ofstream f (root / "sub/remove.ath"); f << "new outside edit";
+    }); });
+    require (filesystem.open ("sub/remove.ath").read (100) == "new outside edit");
+    rejects ([&] { filesystem.remove ("sub/remove.ath", removable, removal_revision); });
+    removal_revision= removable.stat ();
+    const int delete_lock= ::open ((root / "sub/remove.ath").c_str (), O_RDONLY | O_CLOEXEC);
+    require (delete_lock >= 0 && ::flock (delete_lock, LOCK_EX | LOCK_NB) == 0);
+    rejects ([&] { filesystem.remove ("sub/remove.ath", removable, removal_revision); });
+    ::close (delete_lock);
+    rejects ([&] { filesystem.remove ("../outside.ath", removable, removal_revision); });
+    rejects ([&] { filesystem.remove ("sub", filesystem.open ("sub"), filesystem.open ("sub").stat ()); });
+    require (filesystem.remove ("sub/remove.ath", removable, removal_revision));
+    require (!fs::exists (root / "sub/remove.ath"));
+    require (removable.read (100) == "new outside edit");
+    filesystem.sync_parent ("sub/remove.ath");
+    rejects ([&] { filesystem.sync_parent ("../outside.ath"); });
+    rejects ([&] { filesystem.sync_parent ("external/child.ath"); });
+
     const std::string original ("old\0\xff", 5);
     auto backup= filesystem.preserve ("backups/format/original", original);
     require (backup.read (5) == original);

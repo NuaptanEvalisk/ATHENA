@@ -482,6 +482,39 @@ std::optional<std::string> revision_store::applied (
   return st.bytes (0);
 }
 
+std::vector<revision> revision_store::applied_page (const std::string& vault,
+    const std::string& after_object, std::uint32_t limit) const {
+  if (limit == 0 || limit > 256)
+    throw std::invalid_argument ("Invalid applied inventory budget");
+  statement st (db_, "SELECT r.id,r.descriptor FROM applied a "
+    "JOIN revisions r ON r.id=a.revision WHERE a.vault=? AND a.object>? "
+    "ORDER BY a.object LIMIT ?");
+  st.text (1, vault); st.text (2, after_object);
+  check (db_, sqlite3_bind_int (st.value, 3, int (limit)));
+  std::vector<revision> result;
+  while (st.row ()) result.push_back (from_descriptor (st.bytes (0), st.bytes (1)));
+  return result;
+}
+
+std::vector<revision> revision_store::application_candidates (const std::string& vault,
+    const std::string& after_object, std::uint32_t limit) const {
+  if (limit == 0 || limit > 256)
+    throw std::invalid_argument ("Invalid application inventory budget");
+  statement st (db_, "WITH heads AS (SELECT r.id,r.object FROM revisions r WHERE r.vault=? "
+    "AND r.object>? AND NOT EXISTS(SELECT 1 FROM parents WHERE parent=r.id)),"
+    "single AS (SELECT object,MIN(id) AS id FROM heads GROUP BY object HAVING COUNT(*)=1) "
+    "SELECT r.id,r.descriptor FROM single s JOIN revisions r ON r.id=s.id "
+    "LEFT JOIN applied a ON a.vault=r.vault AND a.object=r.object "
+    "WHERE (a.revision IS NULL OR a.revision<>r.id) AND NOT EXISTS("
+    "SELECT 1 FROM apply_intents i WHERE i.vault=r.vault AND i.object=r.object AND i.completed=0) "
+    "ORDER BY s.object LIMIT ?");
+  st.text (1, vault); st.text (2, after_object);
+  check (db_, sqlite3_bind_int (st.value, 3, int (limit)));
+  std::vector<revision> result;
+  while (st.row ()) result.push_back (from_descriptor (st.bytes (0), st.bytes (1)));
+  return result;
+}
+
 bool revision_store::record_applied (
     const std::string& id, const std::optional<std::string>& expected) {
   transaction tx (db_);
@@ -548,6 +581,18 @@ bool revision_store::prepare_apply (const apply_intent& intent) {
   st.text (1, intent.operation); st.text (2, r.vault); st.text (3, r.object);
   st.text (4, r.id); st.text (5, descriptor); st.row (); tx.commit (); return true;
 }
+bool revision_store::abandon_unpublished_apply (const std::string& operation) {
+  transaction tx (db_);
+  auto intent= application (operation);
+  if (!intent) { tx.commit (); return false; }
+  if (intent->completed) throw std::invalid_argument ("Cannot abandon a completed application");
+  auto target= offer (intent->revision_id);
+  if (applied (target->metadata.vault, target->metadata.object) != intent->expected_revision)
+    throw std::invalid_argument ("Cannot abandon application after its base changed");
+  statement remove (db_, "DELETE FROM apply_intents WHERE operation=?");
+  remove.text (1, operation); remove.row (); tx.commit (); return true;
+}
+
 std::vector<apply_intent> revision_store::pending_applications (
     const std::string& vault, const std::string& after, std::uint32_t limit) const {
   if (limit == 0 || limit > 256) throw std::invalid_argument ("Invalid application recovery page size");

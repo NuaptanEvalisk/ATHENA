@@ -236,6 +236,49 @@ void check_saved_capture (revision snapshot) {
   snapshot.parents.clear (); snapshot.deleted= true; snapshot.payload.clear ();
   auto deleted= store.capture_saved (snapshot, renamed);
   require (deleted && store.get (*deleted)->deleted, "Durable deletion did not create a tombstone");
+  auto page= store.applied_page (snapshot.vault, {}, 1);
+  require (page.size () == 1 && page[0].id == deleted && page[0].deleted && page[0].payload.empty (),
+           "Applied inventory did not return the local tombstone metadata");
+  require (store.applied_page (snapshot.vault, page[0].object).empty () &&
+           store.applied_page ("another-vault").empty (), "Applied inventory escaped its cursor or Vault");
+  auto second= snapshot; second.deleted= false; second.payload= "second object";
+  second.object+= "-second";
+  auto second_id= store.capture_saved (second, std::nullopt);
+  page= store.applied_page (snapshot.vault, snapshot.object, 1);
+  require (page.size () == 1 && page[0].id == second_id && page[0].payload.empty (),
+           "Applied inventory loaded payloads or skipped the next object");
+  auto unseen= second; unseen.object+= "-received";
+  store.receive (seal_revision (unseen));
+  require (store.applied_page (snapshot.vault).size () == 2,
+           "Applied inventory included a receipt-only object");
+  rejects ([&] { store.applied_page (snapshot.vault, {}, 0); });
+}
+
+void check_application_queue (revision base) {
+  revision_store store (":memory:");
+  store.receive (base);
+  auto candidates= store.application_candidates (base.vault);
+  require (candidates.size () == 1 && candidates[0].id == base.id && candidates[0].payload.empty (),
+           "Initial application candidate missing or loaded payload");
+  apply_intent pending;
+  pending.operation= "not-published"; pending.revision_id= base.id;
+  pending.source_path= base.relative_path;
+  require (store.prepare_apply (pending), "Could not prepare initial application");
+  require (store.application_candidates (base.vault).empty (), "Recovery object entered ordinary application queue");
+  auto saved= base; saved.id.clear (); saved.parents.clear ();
+  rejects ([&] { store.capture_saved (saved, std::nullopt); });
+  require (store.abandon_unpublished_apply (pending.operation), "Could not cancel an unpublished intent");
+  require (!store.abandon_unpublished_apply (pending.operation), "Repeated cancellation was not idempotent");
+  require (store.capture_saved (saved, std::nullopt).has_value (), "Cancellation still blocked a local save");
+  require (store.application_candidates (base.vault).empty (), "Applied head was queued again");
+  auto a= base; a.parents= {base.id}; a.payload= "branch a"; a= seal_revision (a); store.receive (a);
+  auto b= base; b.parents= {base.id}; b.payload= "branch b"; b= seal_revision (b); store.receive (b);
+  require (store.application_candidates (base.vault).empty (), "Concurrent heads were automatically queued");
+  auto merge= a; merge.parents= {a.id,b.id}; merge= seal_revision (merge); store.receive (merge);
+  candidates= store.application_candidates (base.vault);
+  require (candidates.size () == 1 && candidates[0].id == merge.id, "Resolved head did not enter application queue");
+  require (store.application_candidates (base.vault, base.object).empty () &&
+           store.application_candidates ("another-vault").empty (), "Application queue escaped its cursor or Vault");
 }
 
 int main () {
@@ -248,6 +291,7 @@ int main () {
     initial.relative_path= "Notes/example.ath";
     initial.payload= std::string ("body\0bytes", 10);
     auto base= seal_revision (initial);
+    check_application_queue (base);
     check_saved_capture (base);
     check_resumable_receipt (base);
     check_transfer_protocol (base);

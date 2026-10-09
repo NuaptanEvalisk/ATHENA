@@ -70,7 +70,17 @@ public:
   // Atomically create a new regular document. The destination must not exist;
   // parent directories must already exist inside the confined root.
   replacement create (const std::filesystem::path& relative,
-                      std::string_view bytes) const;
+                      std::string_view bytes,
+                      const std::function<void()>& before_commit= {}) const;
+  // Delete the resolved regular file only at the expected revision. As with
+  // replace, cooperating writers are locked; outside writers are optimistic.
+  // False means unlink committed but directory fsync failed, not an abort.
+  bool remove (const std::filesystem::path& relative, const entry& expected,
+               const metadata& revision,
+               const std::function<void()>& before_commit= {}) const;
+  // Re-establish parent-directory durability when recovering a committed
+  // creation/replacement/deletion. The target itself need not exist.
+  void sync_parent (const std::filesystem::path& relative) const;
   // Durable, create-only backup. Parent directories are created privately;
   // symlinks are refused. An existing file must contain exactly these bytes.
   // Failure never replaces an existing file; retrying is safe after interruption.

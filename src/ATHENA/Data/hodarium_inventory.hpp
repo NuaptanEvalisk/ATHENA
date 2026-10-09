@@ -11,6 +11,7 @@ struct inventoried_document {
   std::shared_ptr<const std::string> bytes;
 };
 struct source_inventory {
+  std::optional<filesystem::metadata> root_revision;
   std::vector<inventoried_document> documents;
   std::vector<std::string> errors;
   struct cached_source { filesystem::metadata revision; std::string object; bool published= false; };

@@ -18,6 +18,8 @@
 #include "ATHENA/Data/interop_document_codec.hpp"
 #include "ATHENA/Data/new_buffer.hpp"
 #include "ATHENA/Data/vault.hpp"
+#include "ATHENA/Data/hodarium_application.hpp"
+#include "node_metadata.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
 #include "ATHENA/Interop/resources.hpp"
 #include "vaultfile_json.hpp"
@@ -71,7 +73,65 @@ private slots:
   void sourceCommitPreservesBorrowedMetadata ();
   void normalSaveUpgradesLegacyAndPinsXmlRevision ();
   void mismatchedOpenFingerprintBlocksSave ();
+  void hodariumAppliesOnlyCleanSource ();
 };
+
+void
+TestBufferActor::hodariumAppliesOnlyCleanSource () {
+  using namespace athena::hodarium;
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  const std::filesystem::path root (temporary.path ().toStdString ());
+  const auto file= root / "live.ath", database= root / "journal.sqlite";
+  const std::string object= "10000000-0000-4000-8000-000000000001";
+  const auto bytes= [&] (const char* text) {
+    tree paragraph (text);
+    athena::node::set (paragraph, {"10000000-0000-4000-8000-000000000002", {}});
+    tree body (DOCUMENT, paragraph);
+    athena::node::set (body, {object, {}});
+    return athena::document::write_xml_v2 (tree (DOCUMENT, compound ("body", body)));
+  };
+  const auto first= bytes ("original"), second= bytes ("remote update");
+  { std::ofstream out (file); out << first; }
+  url name= url_system (string (file.string ().c_str ()));
+  auto cleanup= qScopeGuard ([&] { remove_buffer (name); });
+  QVERIFY (!buffer_import (name, name, "texmacs"));
+  auto buffer= concrete_buffer (name);
+  QVERIFY (!is_nil (buffer));
+  QVERIFY (buffer->actor->invoke (actor_command_kind::mark_saved));
+  auto command= [&] (std::function<void()> action) {
+    const auto id= actor_continuation_registry::instance ().store (std::move (action));
+    return buffer->actor->invoke (actor_command_kind::run_native_continuation,
+      ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER, id);
+  };
+  revision_store journal (database);
+  revision value;
+  value.vault= "vault"; value.object= object; value.relative_path= "live.ath";
+  value.origin_member= "remote"; value.format= "ath-xml-v2"; value.semantic_version= 3;
+  value.payload= first;
+  const auto base= seal_revision (value);
+  journal.receive (base); QVERIFY (journal.record_applied (base.id, {}));
+  value.parents= {base.id}; value.payload= second;
+  const auto target= seal_revision (value); journal.receive (target);
+  QVERIFY (command ([] { current_scheme_execution_context ()->actor->current_state ()->source_modified= true; }));
+  QVERIFY (!apply_open_document (root, database, target.id, [] { return true; }));
+  QCOMPARE (journal.applied ("vault", object).value (), base.id);
+  QVERIFY (journal.pending_applications ("vault").empty ());
+  QVERIFY (buffer->actor->invoke (actor_command_kind::mark_saved));
+  QVERIFY (apply_open_document (root, database, target.id, [] { return true; }));
+  QCOMPARE (journal.applied ("vault", object).value (), target.id);
+  const auto fingerprint= journal.payload_fingerprint (target.id);
+  bool adopted= false;
+  QVERIFY (command ([&] {
+    auto* actor= current_scheme_execution_context ()->actor;
+    adopted= contains_text (actor->current_source (), "remote update") &&
+      actor->current_state ()->storage->source_sha256 () == fingerprint &&
+      !actor->current_state ()->source_modified;
+  }));
+  QVERIFY (adopted);
+  std::ifstream in (file);
+  QCOMPARE (std::string ((std::istreambuf_iterator<char> (in)), {}), second);
+}
 
 void
 TestBufferActor::mismatchedOpenFingerprintBlocksSave () {

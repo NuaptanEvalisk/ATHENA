@@ -22,12 +22,14 @@
 #include <cstdint>
 #include <mutex>
 #include <memory>
+#include <functional>
 #include <thread>
 #include <unordered_map>
 
 class editor_rep;
 class tm_buffer_rep;
 struct buffer_document_state;
+namespace athena::document { class document_file; }
 
 struct actor_command_ticket {
   std::uint64_t command_id= 0;
@@ -140,6 +142,13 @@ public:
   // and current auxiliary/environment data without export-time filtering.
   tree& current_source (athena_view_id view_id= ATHENA_NO_VIEW);
   void commit_current_source (athena_view_id view_id= ATHENA_NO_VIEW);
+  // Owner-thread only. One command checks the clean saved base, preflights an
+  // exact identity-complete source, commits through publish, and adopts its
+  // captured storage baseline. The callback must protect history and retain
+  // a recovery intent across any durable filesystem publication.
+  bool apply_saved_document (const std::string& expected_storage,
+    const std::string& target_storage, tree source,
+    const std::function<std::unique_ptr<athena::document::document_file>()>& publish);
   void invalidate_typesetting (path p);
 
   // Fixed dispatch is public only for the Guile C trampoline.  Callers submit

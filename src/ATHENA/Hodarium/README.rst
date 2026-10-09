@@ -33,7 +33,7 @@ requires explicit revocation on platform suspension. Reading a stored member
 list does not renew freshness. The future network owner must consume each
 pending validation request once, persist its accepted state, then renew the
 lease from the request's send time. The native authority client below now owns
-that sequence; remote document application remains unconnected.
+that sequence; selected Vaults now schedule closed-document application below.
 
 ``device_identity`` creates a random local key handle and Ed25519 identity,
 stores its seed through the platform backend, and reloads it for each signing
@@ -114,7 +114,7 @@ identity creation run on the worker; the pending profile is durable before the
 join request. Existing group pins are never overwritten by another discovery.
 The dialog creates device-local settings on explicit opening, and does not
 require an editor buffer. Selected Vault journals now exchange revisions over
-authenticated direct connections; remote document application is still pending.
+authenticated direct connections and apply eligible closed native documents.
 
 The real C++/Go HTTPS exchange was exercised with a separately trusted temporary
 TLS certificate and an isolated system keyring. The native client requests
@@ -299,9 +299,10 @@ before closing journals. Overflow or capture failure uses standard diagnostics
 without converting an already durable editor save into a failed save. Durable
 outbox recovery remains incomplete: a crash before
 the worker's transaction, a rejected notification or edits while ATHENA is
-closed must be reconciled from saved files. No peer can apply files yet, and
-received revisions remain separate from the document's applied state. Selection
-therefore does not yet provide end-to-end document synchronization.
+closed must be reconciled from saved files. Receipt remains separate from
+application. The background coordinator below can now advance eligible closed
+documents and clean live-document updates; conflicts and logical Vault records
+remain incomplete.
 
 Startup and Vault-selection changes schedule read-only initial inventories on
 an independent native task. Existing confined inventory excludes internal trees;
@@ -320,8 +321,15 @@ cache skips XML reads and hashing when stat identity/revision is unchanged and
 publication previously succeeded. All cached IDs still participate in duplicate
 detection. Failed/unpublished rows are not considered complete, and failures
 retry after 30 seconds. Changes during a scan remain observable for another
-round. Scan-time deletions, persistent scan cursors and a durable local outbox
-are not yet implemented.
+round. After a complete successful inventory, applied object metadata is paged
+to find missing native sources. Open buffers are deferred, and only ENOENT
+under the same available Vault root establishes absence. Linux source events
+that overtake the inventory defer reconciliation to another scan. Before a
+local tombstone is recorded, the previous journal payload is durably protected
+in File History with a retry-stable operation ID. A final source/open-buffer
+check and applied-revision CAS precede publication. Unreadable sources and
+failed or incomplete inventories never publish deletions. Persistent scan
+cursors and a durable local outbox are not yet implemented.
 
 The settings layer accepts only explicit local paths, never routing hints or
 peer-provided paths. The eventual runtime must reopen and validate the binding
@@ -337,11 +345,79 @@ marks them as protected. The snapshot has no Fossil-delta dependency that could
 be pruned. Rename updates the displayed history path without changing the
 original operation binding.
 
-This is the durable backup primitive, not yet the remote-apply coordinator.
-The owner still must use the application-intent API, check live/disk revisions,
-perform the conditional replacement and recover interrupted application before
-advancing the applied revision. It must not infer that invoking an asynchronous
-ordinary history capture has provided this barrier.
+This is the durable backup primitive used by the closed-document application
+coordinator below.
+The confined filesystem now also provides conditional regular-file removal:
+the expected inode and stat revision are rechecked under a cooperating-writer
+lock, after the caller's pre-commit barrier. It refuses directories and escapes.
+As with replacement, directory-sync failure is returned as a committed but
+not-yet-durable result, not an aborted mutation. ``sync_parent`` lets interrupted
+application recovery re-establish parent durability even when the target was
+already deleted. These filesystem primitives do not authorize a peer or replace
+the history and application-intent barriers.
+``Data/hodarium_application`` now implements the native closed-document disk
+transition. It validates XML v2 source identity and model version, confines
+both paths outside internal Vault trees, requires a single causal head, checks
+the current preimage against applied storage, protects it synchronously, then
+persists the application intent. Creation and replacement stage their bytes
+before taking the buffer-publication gate; open source/destination buffers defer
+to the actor application path below. Local external edits are never overwritten
+by treating them as the known preimage.
+
+An incomplete intent resumes against the protected preimage and observed file
+state. Already-installed bytes are not rewritten. A rename installs its target
+without clobbering another file before conditionally removing the old path;
+interruption between those steps leaves an explicit recoverable intent. Parent
+durability and final storage hashes are checked before completing the intent
+and advancing the applied pointer. History reconstruction must still match the
+recorded preimage fingerprint on recovery. The isolated XML-file test exercises
+creation, protected replacement, interrupted rename, deletion, idempotent replay
+and refusal of an outside edit. Cancellation checks cover task entry and each
+publication gate; focused checks also cover revocation before publication.
+
+The application worker schedules selected Vaults only under authorized or
+offline-valid membership, with unfinished intents ahead of ordinary candidates.
+New candidates require a successful local source inventory. File work runs in
+one independent native task with its own journal and History connections;
+transport and membership timers remain on the control thread. Pausing,
+unselecting/reconfiguring a Vault, authority expiry and shutdown cancel the task
+before further publication. Source inventory is paused during file application
+and refreshed after success, so received bytes are not captured as a new local
+edit. Open-buffer deferrals and errors retry with delay; repeated identical
+diagnostics are suppressed. Vault root identity is rechecked against inventory.
+
+The running application now automatically creates, updates and deletes eligible
+closed native documents. Automatic renames explicitly wait for logical-record
+coordination instead of silently leaving namespace paths behind; the underlying
+filesystem rename/recovery transition is exercised in isolation. Live-document
+deletions, logical database adapters and user-visible conflict decisions remain
+unfinished. This is not yet complete Vault synchronization.
+
+``buffer_actor::apply_saved_document`` provides the owner-thread transaction
+boundary for live-document updates. It checks the saved storage
+fingerprint, source dirty flags, every view's save/input state and outstanding
+identity edits. The incoming root identity must agree, and the exact detached
+source must already have a complete identity baseline; unlike ordinary import,
+this path never allocates replacement UUIDs. Only then is the publication
+callback invoked. It must return captured durable storage matching the target
+fingerprint before the actor installs the source, invalidates derived artifacts
+and references, updates all views and marks the new saved baseline. The caller
+still owns History and recovery intent coordination.
+
+The scheduler now falls through to ``apply_open_document`` when closed-document
+application defers. It submits immutable native request fields to the published
+owning actor with a nonblocking continuation. The actor opens its own journal
+and History connections; no SQLite handle or mutable tree crosses threads.
+Dirty/input-active sources defer unchanged. Clean content updates use the owner
+transaction above, allowing only that actor through the filesystem publication
+gate. The applied pointer is completed after adopting the matching in-memory
+storage baseline, not merely after writing the file. A five-second queue timeout
+invalidates work that has not started, preventing unexpected late publication;
+started work is awaited to keep recovery and subsequent scans serialized.
+Cancellation continues to be checked at publication boundaries. The isolated
+real BufferActor test verifies dirty-state refusal and clean adoption of disk
+bytes, source content, storage fingerprint and journal pointer. Live deletions
+and path changes still require separate lifecycle/record coordination.
 
 Revision schema v3 records operation-bound application intents, their expected
 applied revision, protected History version and source fingerprint. Pending
@@ -431,8 +507,20 @@ per peer at a time, and checks for new journal revisions every two seconds.
 Unresponsive discovery/active exchanges time out; errors use the profile's
 standard diagnostic path. The native TLS check uses this scheduler with
 different selections on the peers and verifies that an unshared Vault does not
-transfer. Remote file application, deletion reconciliation, Relay route selection
-and logical database adapters remain pending.
+transfer. Live-document deletions, Relay route selection and logical database
+adapters remain pending.
+
+``application_candidates`` enumerates metadata-only, single current heads that
+are not already applied. Concurrent heads require explicit resolution and are
+excluded, as are objects with incomplete application intents; recovery must
+run separately before ordinary application. Pagination is by stable object ID
+and callers still recheck current heads and local preconditions before writing.
+When a newly prepared closed-document application encounters an open buffer or
+a busy publication gate before any filesystem mutation, it abandons that new
+intent without deleting its protected History snapshot. This releases the local
+save-capture barrier. Once publication has occurred, or when resuming an older
+intent whose prior side effects cannot be assumed absent, deferral retains the
+intent for recovery instead of silently cancelling a partial transition.
 
 ``rendezvous_client`` now publishes, queries one bounded page and withdraws
 presence through the Go authority. Each request signs the SHA-256 digest of

@@ -11,6 +11,7 @@
 #include <QTemporaryDir>
 #include "Xml/document_upgrade_file.hpp"
 #include "ATHENA/Data/hodarium_inventory.hpp"
+#include "ATHENA/Data/hodarium_application.hpp"
 #include "node_metadata.hpp"
 #include <fstream>
 #include <future>
@@ -42,6 +43,73 @@ class TestDocumentUpgrade: public QObject {
   Q_OBJECT
 private slots:
   void initTestCase () { make_tree_label (DOCUMENT, "document"); }
+  void hodariumApplication () {
+    using namespace athena::hodarium;
+    QTemporaryDir temporary;
+    QVERIFY (temporary.isValid ());
+    const fs::path root (temporary.path ().toStdString ());
+    athena::history::document_history_store history;
+    std::string error;
+    QVERIFY2 (history.open (root, error), error.c_str ());
+    revision_store journal (":memory:");
+    tree body (DOCUMENT, "first content");
+    const std::string object= "10000000-0000-4000-8000-000000000001";
+    athena::node::set (body, {object, {}});
+    const auto payload= [&] { return write_xml_v2 (tree (DOCUMENT, compound ("body", body))); };
+    revision value;
+    value.vault= "vault"; value.object= object; value.origin_member= "remote";
+    value.format= "ath-xml-v2"; value.semantic_version= 3;
+    value.relative_path= "one.ath"; value.payload= payload ();
+    auto first= seal_revision (value); journal.receive (first);
+    QVERIFY (!apply_closed_document (root, journal, history, first.id, [] { return false; }));
+    QVERIFY (!fs::exists (root / "one.ath"));
+    QVERIFY (journal.pending_applications ("vault").empty ());
+    QVERIFY (apply_closed_document (root, journal, history, first.id));
+    QCOMPARE (get (root / "one.ath"), first.payload);
+    QCOMPARE (journal.applied ("vault", object).value (), first.id);
+    value.parents= {first.id}; body[0]= "second content"; value.payload= payload ();
+    auto second= seal_revision (value); journal.receive (second);
+    int authorization_checks= 0;
+    QVERIFY (!apply_closed_document (root, journal, history, second.id,
+      [&] { return ++authorization_checks <= 2; }));
+    QCOMPARE (get (root / "one.ath"), first.payload);
+    QVERIFY (journal.pending_applications ("vault").empty ());
+    QVERIFY (apply_closed_document (root, journal, history, second.id));
+    auto intent= journal.application ("hodarium-apply-" + second.id);
+    QVERIFY (intent && intent->completed && intent->protected_history_version > 0);
+    std::string old;
+    QVERIFY (history.reconstruct (intent->protected_history_version, old, error));
+    QCOMPARE (old, first.payload);
+
+    value.parents= {second.id}; value.relative_path= "renamed.ath";
+    auto renamed= seal_revision (value); journal.receive (renamed);
+    apply_intent interrupted;
+    interrupted.operation= "hodarium-apply-" + renamed.id;
+    interrupted.revision_id= renamed.id; interrupted.expected_revision= second.id;
+    interrupted.source_path= "one.ath";
+    interrupted.source_fingerprint= journal.payload_fingerprint (second.id);
+    QVERIFY (history.protect ("one.ath", second.payload, interrupted.operation,
+      interrupted.protected_history_version, error));
+    QVERIFY (journal.prepare_apply (interrupted));
+    // Simulate interruption after installing the new name, before removing old.
+    put (root / "renamed.ath", renamed.payload);
+    QVERIFY (apply_closed_document (root, journal, history, renamed.id));
+    QVERIFY (!fs::exists (root / "one.ath"));
+    QCOMPARE (get (root / "renamed.ath"), renamed.payload);
+    QVERIFY (journal.pending_applications ("vault").empty ());
+
+    value.parents= {renamed.id}; value.deleted= true; value.payload.clear ();
+    auto deleted= seal_revision (value); journal.receive (deleted);
+    put (root / "renamed.ath", "outside edit");
+    QVERIFY_EXCEPTION_THROWN (apply_closed_document (root, journal, history, deleted.id), std::runtime_error);
+    QCOMPARE (get (root / "renamed.ath"), std::string ("outside edit"));
+    QVERIFY (!journal.application ("hodarium-apply-" + deleted.id));
+    put (root / "renamed.ath", renamed.payload);
+    QVERIFY (apply_closed_document (root, journal, history, deleted.id));
+    QVERIFY (!fs::exists (root / "renamed.ath"));
+    QCOMPARE (journal.applied ("vault", object).value (), deleted.id);
+    QVERIFY (apply_closed_document (root, journal, history, deleted.id));
+  }
   void hodariumInventory () {
     QTemporaryDir temporary;
     QVERIFY (temporary.isValid ());

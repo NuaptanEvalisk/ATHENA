@@ -322,7 +322,7 @@ replacement confined_root::replace (const std::filesystem::path& relative,
 }
 
 replacement confined_root::create (const std::filesystem::path& relative,
-                                    std::string_view bytes) const {
+    std::string_view bytes, const std::function<void()>& before_commit) const {
 #if defined(__linux__) || defined(__APPLE__)
   if (relative.empty () || relative.is_absolute ())
     throw std::invalid_argument ("Expected a relative document path");
@@ -348,6 +348,8 @@ replacement confined_root::create (const std::filesystem::path& relative,
   if (::fchmod (temporary.fd, 0600) < 0)
     fail ("Set created document permissions");
   sync_file (temporary.fd);
+  if (before_commit) before_commit ();
+  (void) open (".");
   descriptor current_parent (beneath (
     implementation->descriptor_.fd, parent_path, path_open_flags | O_DIRECTORY));
   const auto before= information (parent.fd), now= information (current_parent.fd);
@@ -361,6 +363,62 @@ replacement confined_root::create (const std::filesystem::path& relative,
   int synced;
   do { synced= ::fsync (parent.fd); } while (synced < 0 && errno == EINTR);
   return {entry (std::move (created)), synced == 0};
+#else
+  throw std::runtime_error ("Confined filesystem access is unavailable");
+#endif
+}
+
+bool confined_root::remove (const std::filesystem::path& relative,
+    const entry& expected, const metadata& revision,
+    const std::function<void()>& before_commit) const {
+#if defined(__linux__) || defined(__APPLE__)
+  auto original= open (relative);
+  if (!original.same_object (expected))
+    throw std::system_error (ESTALE, std::generic_category (), "Document file was replaced");
+  if (revision.directory || original.stat ().directory)
+    throw std::invalid_argument ("Cannot remove a directory as a document");
+  const auto destination= original.path ().lexically_relative (path ());
+  descriptor locked (beneath (implementation->descriptor_.fd, destination, O_RDWR | O_NONBLOCK));
+  if (!same_revision (information (locked.fd), revision))
+    throw std::system_error (EAGAIN, std::generic_category (), "Document changed before removal");
+  int acquired;
+  do { acquired= ::flock (locked.fd, LOCK_EX | LOCK_NB); } while (acquired < 0 && errno == EINTR);
+  if (acquired < 0) fail ("Lock confined document for removal");
+  auto parent_path= destination.parent_path ();
+  if (parent_path.empty ()) parent_path= ".";
+  descriptor parent (beneath (implementation->descriptor_.fd, parent_path, O_RDONLY | O_DIRECTORY));
+  if (before_commit) before_commit ();
+  const auto current= open (relative);
+  if (!current.same_object (expected) || !same_revision (current.stat (), revision))
+    throw std::system_error (EAGAIN, std::generic_category (), "Document changed before removal");
+  descriptor current_parent (beneath (implementation->descriptor_.fd, parent_path, path_open_flags | O_DIRECTORY));
+  const auto before= information (parent.fd), now= information (current_parent.fd);
+  if (before.device != now.device || before.inode != now.inode)
+    throw std::system_error (ESTALE, std::generic_category (), "Document parent directory moved");
+  if (::unlinkat (parent.fd, destination.filename ().c_str (), 0) < 0)
+    fail ("Commit confined document removal");
+  int synced;
+  do { synced= ::fsync (parent.fd); } while (synced < 0 && errno == EINTR);
+  return synced == 0;
+#else
+  throw std::runtime_error ("Confined filesystem access is unavailable");
+#endif
+}
+
+void confined_root::sync_parent (const std::filesystem::path& relative) const {
+#if defined(__linux__) || defined(__APPLE__)
+  if (relative.empty () || relative.is_absolute ())
+    throw std::invalid_argument ("Expected a relative document path");
+  for (const auto& part: relative) validate_component (part.string ());
+  (void) open (".");
+  const auto parent_path= relative.has_parent_path () ? relative.parent_path () : std::filesystem::path (".");
+  descriptor parent (beneath (implementation->descriptor_.fd, parent_path, O_RDONLY | O_DIRECTORY));
+  sync_file (parent.fd);
+  (void) open (".");
+  descriptor current_parent (beneath (implementation->descriptor_.fd, parent_path, path_open_flags | O_DIRECTORY));
+  const auto before= information (parent.fd), now= information (current_parent.fd);
+  if (before.device != now.device || before.inode != now.inode)
+    throw std::system_error (ESTALE, std::generic_category (), "Document parent directory moved");
 #else
   throw std::runtime_error ("Confined filesystem access is unavailable");
 #endif

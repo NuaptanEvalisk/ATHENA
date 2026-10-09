@@ -13,9 +13,11 @@ source_inventory inventory_sources (const std::filesystem::path& root,
   const std::atomic<bool>& cancelled,
   const std::map<std::string, source_inventory::cached_source>& previous,
   background::source_watch* watch) {
-  auto files= background::inventory (root, &cancelled, watch);
   filesystem::confined_root directory (root);
   source_inventory result;
+  result.root_revision= directory.open (".").stat ();
+  auto files= background::inventory (root, &cancelled, watch);
+  (void) directory.open (".");
   std::map<std::string, std::string> identities;
   std::set<std::string> duplicates;
   std::set<std::string> paths;

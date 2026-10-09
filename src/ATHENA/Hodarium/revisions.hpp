@@ -90,12 +90,22 @@ public:
                                        const std::string& second) const;
   std::optional<std::string> applied (const std::string& vault,
                                       const std::string& object) const;
+  // Metadata only, ordered by object identity; receipt-only heads are excluded.
+  std::vector<revision> applied_page (const std::string& vault,
+    const std::string& after_object= {}, std::uint32_t limit= 64) const;
+  // Single current heads not yet applied, excluding objects with pending
+  // recovery. Callers must recheck the head and source at the commit boundary.
+  std::vector<revision> application_candidates (const std::string& vault,
+    const std::string& after_object= {}, std::uint32_t limit= 64) const;
   // Called only by the durable apply coordinator, after its history/apply barrier.
   bool record_applied (const std::string& id,
                        const std::optional<std::string>& expected);
   // The coordinator must first obtain a durable File History protection for
   // existing source bytes. These APIs never inspect or mutate document files.
   bool prepare_apply (const apply_intent& intent);
+  // Only the apply owner may call this, before any filesystem mutation. History
+  // protection is retained; the intent no longer blocks subsequent local saves.
+  bool abandon_unpublished_apply (const std::string& operation);
   std::optional<apply_intent> application (const std::string& operation) const;
   std::vector<apply_intent> pending_applications (const std::string& vault,
     const std::string& after= {}, std::uint32_t limit= 64) const;

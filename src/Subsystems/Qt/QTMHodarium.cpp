@@ -6,6 +6,9 @@
 #include "ATHENA/Hodarium/revisions.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "ATHENA/Data/hodarium_inventory.hpp"
+#include "ATHENA/Data/hodarium_application.hpp"
+#include "ATHENA/Data/document_history_store.hpp"
+#include "buffer_name_catalog.hpp"
 #include "confined_filesystem.hpp"
 #include "qt_utilities.hpp"
 #include "tm_ostream.hpp"
@@ -35,6 +38,7 @@
 #include <algorithm>
 #include <future>
 #include <deque>
+#include <set>
 #include <QElapsedTimer>
 
 namespace {
@@ -64,19 +68,110 @@ public:
     athena::background::source_watch watch;
     std::map<std::string, source_inventory::cached_source> cache;
     std::uint64_t observed= 0;
+    bool inventoried= false;
+    std::optional<athena::filesystem::metadata> root_revision;
+    std::string recovery_cursor, application_cursor, application_error;
+    std::chrono::steady_clock::time_point next_application{};
     std::chrono::steady_clock::time_point poll{}, retry= std::chrono::steady_clock::time_point::max ();
   };
   std::map<std::pair<std::string,std::string>, std::shared_ptr<inventory_tracking>> inventories;
   std::shared_ptr<inventory_tracking> active_inventory;
   std::size_t scan_position= 0;
+  std::string deletion_cursor;
+  std::set<std::string> present_objects;
+  bool deletion_started= false, deletion_deferred= false;
+  std::unique_ptr<athena::history::document_history_store> deletion_history;
   std::shared_ptr<std::atomic<bool>> scan_cancel= std::make_shared<std::atomic<bool>> (false);
   QTimer* scan_timer= nullptr;
+  struct application_result { bool completed= false; std::string error; };
+  std::future<application_result> application_future;
+  std::shared_ptr<std::atomic<bool>> application_current;
+  std::shared_ptr<inventory_tracking> applying;
+  bool paused= false;
+  bool application_allowed (const vault_binding& binding) {
+    if (paused || !selected (binding)) return false;
+    auto session= sessions.find (binding.group);
+    if (session == sessions.end ()) return false;
+    auto phase= session->second->status ().phase;
+    return phase == profile_phase::authorized || phase == profile_phase::offline_valid;
+  }
+  bool application_step () {
+    if (application_future.valid ()) {
+      if (!application_allowed (applying->binding)) application_current->store (false);
+      if (application_future.wait_for (std::chrono::seconds (0)) != std::future_status::ready) return true;
+      auto result= application_future.get ();
+      applying->next_application= std::chrono::steady_clock::now () +
+        std::chrono::seconds (result.completed ? 0 : 5);
+      if (!result.error.empty () && result.error != applying->application_error)
+        report ({applying->binding.group, profile_phase::error, result.error, "", 0});
+      applying->application_error= result.error;
+      // A partial rename can leave two paths. Recovery remains ahead of scans.
+      if (result.completed) schedule_inventory (applying->binding);
+      applying.reset (); application_current.reset ();
+      return false;
+    }
+    if (scan_future.valid () || scanning || paused) return false;
+    for (const auto& [key, track]: inventories) {
+      if (!application_allowed (track->binding) ||
+          std::chrono::steady_clock::now () < track->next_application) continue;
+      auto& journal= *journals.at (track->binding.group);
+      auto pending= journal.pending_applications (track->binding.vault, track->recovery_cursor, 1);
+      std::string id;
+      if (!pending.empty ()) {
+        track->recovery_cursor= pending.front ().operation;
+        id= pending.front ().revision_id;
+      }
+      else {
+        track->recovery_cursor.clear ();
+        if (!track->inventoried) continue;
+        auto candidates= journal.application_candidates (track->binding.vault, track->application_cursor, 1);
+        if (candidates.empty ()) {
+          track->application_cursor.clear ();
+          track->next_application= std::chrono::steady_clock::now () + std::chrono::seconds (2);
+          continue;
+        }
+        track->application_cursor= candidates.front ().object; id= candidates.front ().id;
+      }
+      applying= track;
+      application_current= std::make_shared<std::atomic<bool>> (true);
+      const auto database= root / ("revisions-" + track->binding.group + ".sqlite");
+      application_future= std::async (std::launch::async,
+        [binding= track->binding, expected_root= track->root_revision, database, id, current= application_current] {
+          application_result result;
+          try {
+            if (!current->load ()) return result;
+            athena::filesystem::confined_root directory (binding.root);
+            const auto actual= directory.open (".").stat ();
+            if (expected_root && (actual.device != expected_root->device || actual.inode != expected_root->inode))
+              throw std::runtime_error ("Hodarium application Vault root changed");
+            revision_store journal (database);
+            const auto target= journal.offer (id);
+            const auto applied= journal.applied (binding.vault, target->metadata.object);
+            if (applied && journal.offer (*applied)->metadata.relative_path != target->metadata.relative_path)
+              throw std::runtime_error ("Hodarium rename is waiting for logical Vault record coordination");
+            athena::history::document_history_store history;
+            std::string error;
+            if (!history.open (binding.root, error)) throw std::runtime_error (error);
+            result.completed= apply_closed_document (binding.root, journal, history, id,
+              [current] { return current->load (); });
+            if (!result.completed && current->load ())
+              result.completed= apply_open_document (binding.root, database, id,
+                [current] { return current->load (); });
+          }
+          catch (const std::exception& e) { result.error= binding.root.string () + ": " + e.what (); }
+          return result;
+        });
+      return true;
+    }
+    return false;
+  }
   void schedule_inventory (const vault_binding& binding) {
     if (!binding.enabled) return;
     auto& track= inventories[{binding.group, binding.vault}];
     if (!track || track->binding.root != binding.root) {
       track= std::make_shared<inventory_tracking> (); track->binding= binding;
     }
+    track->inventoried= false;
     for (const auto& pending: scan_queue)
       if (pending.group == binding.group && pending.vault == binding.vault && pending.root == binding.root) return;
     scan_queue.push_back (binding);
@@ -86,10 +181,82 @@ public:
       if (current.vault == binding.vault && current.root == binding.root && current.enabled) return true;
     return false;
   }
+  bool missing_source (const revision& previous) {
+    const auto absolute= (scanning->root / previous.relative_path).generic_string ();
+    if (published_buffer_actor_id (absolute) != 0) return false;
+    athena::filesystem::confined_root directory (scanning->root);
+    const auto current_root= directory.open (".").stat ();
+    if (!scanned.root_revision || current_root.device != scanned.root_revision->device ||
+        current_root.inode != scanned.root_revision->inode)
+      throw std::runtime_error ("Vault root changed after Hodarium inventory");
+    try { (void) directory.open (previous.relative_path); }
+    catch (const std::system_error& e) {
+      if (e.code () != std::errc::no_such_file_or_directory) throw;
+      // A missing/unmounted root is not evidence of document deletion.
+      (void) directory.open (".");
+      return true;
+    }
+    return false;
+  }
+  bool reconcile_deletions (QElapsedTimer& budget) {
+    if (!deletion_started) {
+      deletion_started= true;
+      for (const auto& [path, entry]: scanned.cache) present_objects.insert (entry.object);
+    }
+#ifdef __linux__
+    // Do not infer absence from an inventory overtaken by a rename/save.
+    if (active_inventory->watch.revision () != active_inventory->observed) {
+      deletion_deferred= true; schedule_inventory (*scanning); return true;
+    }
+#endif
+    auto profile= settings->find (scanning->group);
+    if (!profile || profile->member.empty ()) return true;
+    auto& journal= *journals.at (scanning->group);
+    while (budget.elapsed () < 10) {
+      auto page= journal.applied_page (scanning->vault, deletion_cursor, 1);
+      if (page.empty ()) return true;
+      const auto& previous= page.front (); deletion_cursor= previous.object;
+      if (previous.deleted || previous.format != "ath-xml-v2" || present_objects.count (previous.object)) continue;
+      try {
+        if (!missing_source (previous)) { deletion_deferred= true; continue; }
+        if (!deletion_history) {
+          auto history= std::make_unique<athena::history::document_history_store> ();
+          std::string error;
+          if (!history->open (scanning->root, error)) throw std::runtime_error (error);
+          deletion_history= std::move (history);
+        }
+        auto old= journal.get (previous.id);
+        std::int64_t version= 0; std::string error;
+        if (!deletion_history->protect (previous.relative_path, old->payload,
+            "hodarium-local-delete-" + previous.id, version, error)) throw std::runtime_error (error);
+        // Serialize only the final check and journal publication with buffer
+        // opening. History protection must not hold the GUI publication gate.
+        std::lock_guard<std::recursive_mutex> publication (document_publication_mutex ());
+#ifdef __linux__
+        if (active_inventory->watch.revision () != active_inventory->observed) {
+          deletion_deferred= true; schedule_inventory (*scanning); return true;
+        }
+#endif
+        if (!missing_source (previous)) { deletion_deferred= true; continue; }
+        revision removed= previous;
+        removed.id.clear (); removed.parents.clear (); removed.payload.clear ();
+        removed.deleted= true; removed.origin_member= profile->member;
+        if (!journal.capture_saved (std::move (removed), previous.id)) deletion_deferred= true;
+      }
+      catch (const std::exception& e) {
+        deletion_deferred= true;
+        report ({scanning->group, profile_phase::error, previous.relative_path + ": " + e.what (), "", 0});
+      }
+    }
+    return false;
+  }
   void inventory_step () {
+    if (application_step ()) return;
     if (scan_future.valid ()) {
       if (scan_future.wait_for (std::chrono::seconds (0)) != std::future_status::ready) return;
       scanned= scan_future.get (); scan_position= 0;
+      deletion_cursor.clear (); present_objects.clear (); deletion_history.reset ();
+      deletion_started= false; deletion_deferred= false;
       for (const auto& error: scanned.errors) report ({scanning->group, profile_phase::error, error, "", 0});
     }
     if (scanning) {
@@ -111,12 +278,16 @@ public:
           }
         }
         if (scan_position != scanned.documents.size ()) return;
+        bool retry= !scanned.root_revision || !scanned.errors.empty ();
+        for (const auto& [path, entry]: scanned.cache) retry= retry || !entry.published;
+        if (!retry && !reconcile_deletions (budget)) return;
+        retry= retry || deletion_deferred;
+        active_inventory->inventoried= !retry;
+        active_inventory->root_revision= scanned.root_revision;
         active_inventory->cache= std::move (scanned.cache);
-        bool retry= !scanned.errors.empty ();
-        for (const auto& [path, entry]: active_inventory->cache) retry= retry || !entry.published;
         active_inventory->retry= retry ? std::chrono::steady_clock::now () + std::chrono::seconds (30) :
           std::chrono::steady_clock::time_point::max ();
-        scanned= {}; scanning.reset ();
+        scanned= {}; scanning.reset (); deletion_history.reset ();
       }
     }
     const auto now= std::chrono::steady_clock::now ();
@@ -148,6 +319,7 @@ public:
     }
   }
   void configure_replication (const std::string& group) {
+    if (application_current) application_current->store (false);
     auto& journal= journals[group];
     if (!journal) journal= std::make_unique<revision_store> (root / ("revisions-" + group + ".sqlite"));
     std::vector<std::string> vaults;
@@ -215,7 +387,12 @@ public:
   void add_session (const client_profile& profile) {
     auto group= profile.pin.group;
     auto session= std::make_unique<profile_session> (*settings, profile,
-      root / ("membership-" + group + ".sqlite"), report);
+      root / ("membership-" + group + ".sqlite"), [this, group] (profile_status state) {
+        if (applying && applying->binding.group == group &&
+            state.phase != profile_phase::authorized && state.phase != profile_phase::offline_valid)
+          application_current->store (false);
+        report (std::move (state));
+      });
     auto* active= session.get ();
     sessions.emplace (group, std::move (session));
     configure_replication (group);
@@ -277,6 +454,8 @@ public:
     }
   }
   void suspended (bool value) {
+    paused= value;
+    if (value && application_current) application_current->store (false);
     if (value) discovery.reset ();
     for (const auto& entry: sessions) {
       try {
@@ -289,10 +468,12 @@ public:
     }
   }
   void stop () {
+    if (application_current) application_current->store (false);
+    if (application_future.valid ()) application_future.wait ();
     scan_cancel->store (true);
     if (scan_timer) scan_timer->stop ();
     if (scan_future.valid ()) scan_future.wait ();
-    scanned= {}; scan_queue.clear (); scanning.reset ();
+    scanned= {}; scan_queue.clear (); scanning.reset (); deletion_history.reset ();
     active_inventory.reset (); inventories.clear ();
     discovery.reset (); sessions.clear (); journals.clear (); settings.reset ();
   }
