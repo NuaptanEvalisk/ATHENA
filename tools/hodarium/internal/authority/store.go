@@ -173,7 +173,7 @@ func openDatabase(directory string) (*sql.DB, error) {
 		db.Close()
 		return nil, err
 	}
-	if version > 3 {
+	if version > 4 {
 		db.Close()
 		return nil, errors.New("unsupported Hodarium control database version")
 	}
@@ -217,6 +217,17 @@ func openDatabase(directory string) (*sql.DB, error) {
 		 version INTEGER NOT NULL,operation TEXT NOT NULL UNIQUE,payload BLOB NOT NULL,
 		 PRIMARY KEY(vault,conflict,version));
 		PRAGMA user_version=3; COMMIT;`)
+		if err != nil {
+			db.Close()
+			return nil, err
+		}
+	}
+	if version < 4 {
+		_, err = db.Exec(`BEGIN IMMEDIATE;
+		CREATE TABLE vault_secrets(generation TEXT NOT NULL,slot TEXT NOT NULL,
+		 commitment TEXT NOT NULL,member TEXT NOT NULL,created INTEGER NOT NULL,
+		 PRIMARY KEY(generation,slot));
+		PRAGMA user_version=4; COMMIT;`)
 		if err != nil {
 			db.Close()
 			return nil, err
@@ -326,7 +337,7 @@ func (s *Store) IssueChallenge(purpose, subject string) (string, error) {
 		if _, err := publicKey(subject[:43]); err != nil {
 			return "", err
 		}
-	case "poll", "control", "rendezvous", "decision":
+	case "poll", "control", "rendezvous", "decision", "vault-secret":
 		if len(subject) != 43 {
 			return "", ErrDenied
 		}
