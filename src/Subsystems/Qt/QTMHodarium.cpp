@@ -1,6 +1,10 @@
 /* Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later. */
 #include "QTMHodarium.hpp"
 #include "QTMSystemPowerMonitor.hpp"
+#include "QTMATHENADiff.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
+#include "interop_document_source.hpp"
+#include "node_metadata.hpp"
 #include "ATHENA/Hodarium/profile_session.hpp"
 #include "ATHENA/Hodarium/control_http.hpp"
 #include "ATHENA/Hodarium/revisions.hpp"
@@ -24,6 +28,7 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QTableWidget>
+#include <QTreeWidget>
 #include <QVBoxLayout>
 #include <QDateTime>
 #include <QSysInfo>
@@ -550,6 +555,33 @@ public:
       w->suspended (value);
     }, Qt::QueuedConnection);
   }
+  template<typename Result>
+  void inspect_journal (QObject* context, const vault_binding& binding,
+    std::function<Result (revision_store&)> query,
+    std::function<void (Result, QString)> completed) {
+    if (stopping_) { completed ({}, tr ("Hodarium is stopping")); return; }
+    QPointer<QObject> receiver= context;
+    QMetaObject::invokeMethod (worker_, [this, receiver, binding, query, completed] {
+      Result result; QString error;
+      try {
+        if (!worker_->settings) throw std::runtime_error ("Hodarium settings unavailable");
+        auto bindings= worker_->settings->vaults (binding.group);
+        if (std::none_of (bindings.begin (), bindings.end (), [&] (const vault_binding& v) {
+            return v.vault == binding.vault && v.root == binding.root;
+          })) throw std::runtime_error ("Hodarium Vault binding changed");
+        auto journal= worker_->journals.find (binding.group);
+        if (journal == worker_->journals.end ()) throw std::runtime_error ("Hodarium journal unavailable");
+        result= query (*journal->second);
+      }
+      catch (const std::exception& e) {
+        error= QString::fromUtf8 (e.what ());
+        worker_->report ({binding.group, profile_phase::error, e.what (), "", 0});
+      }
+      QMetaObject::invokeMethod (this, [receiver, completed, result= std::move (result), error] {
+        if (receiver) completed (std::move (result), error);
+      }, Qt::QueuedConnection);
+    }, Qt::QueuedConnection);
+  }
   void stop () {
     if (stopping_) return;
     stopping_= true;
@@ -574,6 +606,158 @@ QString phase_name (profile_phase phase) {
   }
   return {};
 }
+class conflicts_dialog: public QDialog {
+  QPointer<service> service_;
+  vault_binding binding_;
+  QTreeWidget* tree_;
+  QPushButton* more_;
+  QPushButton* refresh_;
+  QPushButton* compare_;
+  QLabel* status_;
+  std::string cursor_;
+  std::uint64_t generation_= 0;
+  void page (bool reset) {
+    if (!service_) return;
+    if (reset) { ++generation_; cursor_.clear (); tree_->clear (); }
+    const auto generation= generation_;
+    more_->setEnabled (false); refresh_->setEnabled (false); status_->clear ();
+    service_->inspect_journal<std::vector<revision_conflict>> (this, binding_,
+      [vault= binding_.vault, after= cursor_] (revision_store& journal) { return journal.conflicts (vault, after); },
+      [this, generation] (std::vector<revision_conflict> entries, QString error) {
+        if (generation != generation_) return;
+        refresh_->setEnabled (true);
+        if (!error.isEmpty ()) { status_->setText (error); return; }
+        for (const auto& entry: entries) {
+          auto* item= new QTreeWidgetItem (tree_, {QString::fromStdString (entry.representative_path),
+            tr ("%1 branches").arg (entry.heads), QString::fromStdString (entry.object)});
+          item->setData (0, Qt::UserRole, QString::fromStdString (entry.object));
+          item->setChildIndicatorPolicy (QTreeWidgetItem::ShowIndicator);
+          cursor_= entry.object;
+        }
+        more_->setEnabled (entries.size () == 64);
+        if (tree_->topLevelItemCount () == 0) status_->setText (tr ("No concurrent revisions"));
+      });
+  }
+  void expand (QTreeWidgetItem* item) {
+    if (!service_ || item->parent () || item->data (0, Qt::UserRole+1).toBool ()) return;
+    item->setData (0, Qt::UserRole+1, true);
+    const auto object= item->data (0, Qt::UserRole).toString ().toStdString ();
+    const auto generation= generation_;
+    service_->inspect_journal<std::vector<revision>> (this, binding_,
+      [vault= binding_.vault, object] (revision_store& journal) {
+        auto heads= journal.heads (vault, object);
+        if (heads.size () > 256) throw std::runtime_error ("Conflict has more than 256 branches");
+        std::vector<revision> result;
+        for (const auto& id: heads) {
+          auto entry= journal.offer (id);
+          if (entry) result.push_back (std::move (entry->metadata));
+        }
+        return result;
+      }, [this, generation, item] (std::vector<revision> branches, QString error) {
+        if (generation != generation_) return;
+        if (!error.isEmpty ()) { item->setData (0, Qt::UserRole+1, false); status_->setText (error); return; }
+        item->setText (1, tr ("%1 branches").arg (branches.size ()));
+        for (const auto& branch: branches) {
+          auto* child= new QTreeWidgetItem (item, {QString::fromStdString (branch.relative_path),
+            branch.deleted ? tr ("Deleted") : tr ("Document"), QString::fromStdString (branch.id)});
+          child->setToolTip (1, tr ("Origin: %1").arg (QString::fromStdString (branch.origin_member)));
+          child->setData (0, Qt::UserRole, QString::fromStdString (branch.id));
+          child->setData (0, Qt::UserRole+1, branch.deleted);
+        }
+      });
+  }
+  void compare () {
+    auto selected= tree_->selectedItems ();
+    if (!service_ || selected.size () != 2 || !selected[0]->parent () ||
+        selected[0]->parent () != selected[1]->parent ()) return;
+    const auto object= selected[0]->parent ()->data (0, Qt::UserRole).toString ().toStdString ();
+    std::vector<std::string> ids;
+    for (auto* item: selected) ids.push_back (item->data (0, Qt::UserRole).toString ().toStdString ());
+    const auto generation= generation_;
+    compare_->setEnabled (false);
+    service_->inspect_journal<std::vector<revision>> (this, binding_,
+      [vault= binding_.vault, object, ids] (revision_store& journal) {
+        std::vector<revision> result;
+        for (const auto& id: ids) {
+          auto value= journal.offer (id);
+          if (!value || value->metadata.vault != vault || value->metadata.object != object ||
+              value->metadata.deleted || value->metadata.format != "ath-xml-v2" || value->metadata.semantic_version != 3 ||
+              value->size > athena::document::codec_limits ().input_bytes)
+            throw std::invalid_argument ("Revision cannot be compared as a native document");
+          result.push_back (std::move (*journal.get (id)));
+        }
+        return result;
+      }, [this, generation] (std::vector<revision> revisions, QString error) {
+        if (generation != generation_) return;
+        compare_->setEnabled (true);
+        if (!error.isEmpty ()) { status_->setText (error); return; }
+        try {
+          auto decode= [&] (const revision& value) {
+            if (!athena::history::valid_relative_document_path (value.relative_path))
+              throw std::invalid_argument ("Invalid Hodarium comparison source path");
+            auto source= athena::document::read_xml_v2 (value.payload);
+            auto diagnostic= interop_document_source_error (source);
+            if (!diagnostic.empty ()) throw std::invalid_argument (diagnostic);
+            std::string identity;
+            for (int i= 0; i < N(source); ++i)
+              if (is_compound (source[i], "body", 1)) identity= athena::node::id (source[i][0]);
+            if (identity != value.object) throw std::invalid_argument ("Revision source identity mismatch");
+            return source;
+          };
+          auto left= decode (revisions.at (0)), right= decode (revisions.at (1));
+          auto source_url= [&] (const revision& value) {
+            auto path= (binding_.root / std::filesystem::u8path (value.relative_path)).u8string ();
+            return url_system (string (path.data (), path.size ()));
+          };
+          auto title= [&] (const revision& value) {
+            auto text= value.relative_path + " @ " + value.id.substr (0, 12);
+            return string (text.data (), text.size ());
+          };
+          athena_diff_show_snapshots (left, right, source_url (revisions[0]), source_url (revisions[1]),
+                                     title (revisions[0]), title (revisions[1]));
+        }
+        catch (const std::exception& e) {
+          status_->setText (QString::fromUtf8 (e.what ()));
+          std_error << "Hodarium comparison: " << string (e.what ()) << LF;
+        }
+        catch (const string& error) {
+          status_->setText (to_qstring (error)); std_error << "Hodarium comparison: " << error << LF;
+        }
+      });
+  }
+public:
+  conflicts_dialog (service* controller, vault_binding binding, QWidget* parent):
+    QDialog (parent), service_ (controller), binding_ (std::move (binding)) {
+    setAttribute (Qt::WA_DeleteOnClose); setWindowTitle (tr ("Hodarium conflicts")); resize (950, 500);
+    auto* layout= new QVBoxLayout (this);
+    tree_= new QTreeWidget (this); tree_->setColumnCount (3);
+    tree_->setHeaderLabels ({tr ("Path"), tr ("State"), tr ("Identity")});
+    tree_->header ()->setSectionResizeMode (0, QHeaderView::Stretch);
+    tree_->header ()->setSectionResizeMode (1, QHeaderView::ResizeToContents);
+    tree_->setEditTriggers (QAbstractItemView::NoEditTriggers);
+    tree_->setSelectionMode (QAbstractItemView::ExtendedSelection);
+    layout->addWidget (tree_);
+    status_= new QLabel (this); status_->setWordWrap (true); layout->addWidget (status_);
+    auto* buttons= new QDialogButtonBox (QDialogButtonBox::Close, this);
+    refresh_= buttons->addButton (tr ("Refresh"), QDialogButtonBox::ActionRole);
+    compare_= buttons->addButton (tr ("Compare revisions"), QDialogButtonBox::ActionRole);
+    compare_->setEnabled (false);
+    more_= buttons->addButton (tr ("More"), QDialogButtonBox::ActionRole); layout->addWidget (buttons);
+    connect (buttons, &QDialogButtonBox::rejected, this, &QDialog::close);
+    connect (refresh_, &QPushButton::clicked, this, [this] { page (true); });
+    connect (more_, &QPushButton::clicked, this, [this] { page (false); });
+    connect (compare_, &QPushButton::clicked, this, [this] { compare (); });
+    connect (tree_, &QTreeWidget::itemSelectionChanged, this, [this] {
+      auto selected= tree_->selectedItems ();
+      compare_->setEnabled (selected.size () == 2 && selected[0]->parent () &&
+        selected[0]->parent () == selected[1]->parent () &&
+        !selected[0]->data (0, Qt::UserRole+1).toBool () && !selected[1]->data (0, Qt::UserRole+1).toBool ());
+    });
+    connect (tree_, &QTreeWidget::itemExpanded, this, [this] (QTreeWidgetItem* item) { expand (item); });
+    page (true);
+  }
+};
+
 class manager: public QDialog {
   QPointer<service> service_;
   QTableWidget* table_;
@@ -583,6 +767,7 @@ class manager: public QDialog {
   QPushButton* admin_;
   QPushButton* bind_;
   QPushButton* unbind_;
+  QPushButton* conflicts_;
   QTableWidget* vaults_;
   rows rows_;
   bool inspecting_= false;
@@ -637,6 +822,7 @@ class manager: public QDialog {
       if (QString::fromStdString (v.vault) == selected) vaults_->selectRow (j);
     }
     unbind_->setEnabled (vaults_->currentRow () >= 0);
+    conflicts_->setEnabled (vaults_->currentRow () >= 0);
   }
   void action (bool enable) {
     int i= table_->currentRow ();
@@ -686,6 +872,7 @@ public:
     admin_= buttons->addButton (tr ("Administration"), QDialogButtonBox::ActionRole);
     bind_= buttons->addButton (tr ("Bind Vault"), QDialogButtonBox::ActionRole);
     unbind_= buttons->addButton (tr ("Unbind Vault"), QDialogButtonBox::ActionRole);
+    conflicts_= buttons->addButton (tr ("Conflicts"), QDialogButtonBox::ActionRole);
     layout->addWidget (buttons);
     connect (buttons, &QDialogButtonBox::rejected, this, &QDialog::close);
     connect (table_, &QTableWidget::itemSelectionChanged, this, [this] { selection (); });
@@ -713,6 +900,12 @@ public:
     });
     connect (vaults_, &QTableWidget::itemSelectionChanged, this, [this] {
       unbind_->setEnabled (vaults_->currentRow () >= 0);
+      conflicts_->setEnabled (vaults_->currentRow () >= 0);
+    });
+    connect (conflicts_, &QPushButton::clicked, this, [this] {
+      int i= table_->currentRow (), j= vaults_->currentRow ();
+      if (!service_ || i < 0 || i >= int (rows_.size ()) || j < 0 || j >= int (rows_[i].vaults.size ())) return;
+      (new conflicts_dialog (service_, rows_[i].vaults[j], this))->show ();
     });
     connect (vaults_, &QTableWidget::itemChanged, this, [this] (QTableWidgetItem* item) {
       int i= table_->currentRow (), j= item->row ();

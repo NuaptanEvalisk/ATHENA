@@ -36,6 +36,17 @@ membership_validation verify_validation (const authority_pin& pin,
   const std::string& response, const std::string& nonce,
   const std::string& member, const std::string& public_key);
 
+struct conflict_decision {
+  std::string vault, conflict, request, branches, resolution, member, generation, epoch;
+  std::int64_t version= 0, created= 0;
+};
+// Verifies a nonce-bound current authority statement, not permission to apply
+// its resolution. The owner must still validate the causal branches and lease.
+std::optional<conflict_decision> verify_decision (const authority_pin& pin,
+  const std::string& response, const std::string& epoch,
+  const std::string& nonce, const std::string& subject,
+  const std::string& vault, const std::string& conflict);
+
 // A separate device-local public trust database. Opening with a different pin
 // fails; enrollment/recovery must never replace trust implicitly on startup.
 class membership_store {

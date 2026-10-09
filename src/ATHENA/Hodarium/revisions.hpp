@@ -37,6 +37,10 @@ struct revision_head {
   std::int64_t sequence;
   std::string id;
 };
+struct revision_conflict {
+  std::string object, representative_path;
+  std::int64_t heads= 0;
+};
 struct apply_intent {
   std::string operation, revision_id;
   std::optional<std::string> expected_revision;
@@ -96,6 +100,9 @@ public:
   // Single current heads not yet applied, excluding objects with pending
   // recovery. Callers must recheck the head and source at the commit boundary.
   std::vector<revision> application_candidates (const std::string& vault,
+    const std::string& after_object= {}, std::uint32_t limit= 64) const;
+  // Metadata-only discovery for manual resolution; never chooses a branch.
+  std::vector<revision_conflict> conflicts (const std::string& vault,
     const std::string& after_object= {}, std::uint32_t limit= 64) const;
   // Called only by the durable apply coordinator, after its history/apply barrier.
   bool record_applied (const std::string& id,

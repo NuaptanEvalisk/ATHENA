@@ -130,6 +130,45 @@ membership_validation verify_validation (const authority_pin& pin,
   return {std::move (state), std::chrono::seconds (seconds.get<int> ())};
 }
 
+std::optional<conflict_decision> verify_decision (const authority_pin& pin,
+  const std::string& response, const std::string& epoch,
+  const std::string& nonce, const std::string& subject,
+  const std::string& vault, const std::string& conflict) {
+  identity (epoch); identity (nonce); identity (subject);
+  identity (vault); identity (conflict);
+  require (response.size () <= 16384, "Hodarium decision exceeds budget");
+  auto envelope= parse (response);
+  auto payload= decode (envelope.at ("payload").get<std::string> ());
+  constexpr char domain[]= "ATHENA-HODARIUM-DECISION-v1";
+  verify (pin, std::string (domain, sizeof domain) + payload,
+          envelope.at ("signature").get<std::string> ());
+  auto value= parse (payload);
+  require (value.at ("protocol") == 1 && value.at ("group") == pin.group &&
+    value.at ("generation") == pin.generation && value.at ("epoch") == epoch &&
+    value.at ("challenge") == nonce && value.at ("subject") == subject,
+    "Hodarium decision does not match current request and membership");
+  const auto& record= value.at ("decision");
+  if (record.is_null ()) return std::nullopt;
+  conflict_decision result;
+  result.vault= record.at ("vault"); result.conflict= record.at ("conflict");
+  result.request= record.at ("request_id"); result.branches= record.at ("branches");
+  result.resolution= record.at ("resolution"); result.member= record.at ("member");
+  result.generation= record.at ("generation"); result.epoch= record.at ("epoch");
+  for (const auto* id: {&result.vault, &result.conflict, &result.request,
+      &result.branches, &result.resolution, &result.member, &result.generation, &result.epoch})
+    identity (*id);
+  require (result.vault == vault && result.conflict == conflict,
+    "Hodarium decision refers to a different conflict");
+  for (const auto* field: {"version", "created"})
+    require (record.at (field).is_number_integer () && record.at (field) > 0 &&
+      record.at (field) <= INT64_MAX, "Invalid Hodarium decision counter or timestamp");
+  result.version= record.at ("version").get<std::int64_t> ();
+  result.created= record.at ("created").get<std::int64_t> ();
+  // Record provenance may predate the current epoch or explicit recovery.
+  // Freshness is attested by the enclosing challenge-bound statement.
+  return result;
+}
+
 membership_store::membership_store (const std::filesystem::path& database,
   authority_pin pin): pin_ (std::move (pin)) {
   using namespace detail;

@@ -58,6 +58,21 @@ func TestNativeWireFixture(t *testing.T) {
 		"generation": state.Generation, "member": member,
 		"public_key": joined.Pending.PublicKey, "nonce": nonce, "validation": validation,
 		"initial": initial, "conflicting_state": signState(conflict), "reused_epoch": signState(reusedEpoch)}
+	decision := DecisionRequest{Operation: "decide", Member: member, Generation: state.Generation,
+		Epoch: state.Epoch, Vault: randomToken(), Conflict: randomToken(), RequestID: randomToken(),
+		Branches: randomToken(), Resolution: randomToken()}
+	decisionPayload, err := json.Marshal(decision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decisionSubject := DecisionSubject(decisionPayload)
+	decisionNonce, decisionSignature := proof(t, s, key, "decision", decisionSubject)
+	decisionReceipt, err := s.decide(context.Background(), decisionPayload, decisionNonce, decisionSignature)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixture["decision_request"], fixture["decision_receipt"] = decision, decisionReceipt
+	fixture["decision_nonce"], fixture["decision_subject"] = decisionNonce, decisionSubject
 	data, err := json.MarshalIndent(fixture, "", "  ")
 	if err != nil {
 		t.Fatal(err)

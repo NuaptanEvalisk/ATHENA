@@ -515,6 +515,23 @@ std::vector<revision> revision_store::application_candidates (const std::string&
   return result;
 }
 
+std::vector<revision_conflict> revision_store::conflicts (const std::string& vault,
+    const std::string& after_object, std::uint32_t limit) const {
+  if (limit == 0 || limit > 256)
+    throw std::invalid_argument ("Invalid Hodarium conflict page size");
+  statement st (db_, "WITH heads AS (SELECT r.id,r.object FROM revisions r WHERE r.vault=? "
+    "AND r.object>? AND NOT EXISTS(SELECT 1 FROM parents WHERE parent=r.id)),"
+    "conflicts AS (SELECT object,MIN(id) AS id,COUNT(*) AS count FROM heads GROUP BY object HAVING COUNT(*)>1) "
+    "SELECT c.object,r.descriptor,c.count FROM conflicts c JOIN revisions r ON r.id=c.id "
+    "ORDER BY c.object LIMIT ?");
+  st.text (1, vault); st.text (2, after_object);
+  check (db_, sqlite3_bind_int (st.value, 3, int (limit)));
+  std::vector<revision_conflict> result;
+  while (st.row ()) result.push_back ({st.bytes (0), from_descriptor ({}, st.bytes (1)).relative_path,
+                                      sqlite3_column_int64 (st.value, 2)});
+  return result;
+}
+
 bool revision_store::record_applied (
     const std::string& id, const std::optional<std::string>& expected) {
   transaction tx (db_);

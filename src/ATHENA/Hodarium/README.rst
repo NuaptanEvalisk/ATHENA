@@ -588,6 +588,97 @@ GnuTLS's client-side custom transport callbacks can carry inner peer TLS
 through these streams. Pin versions and verify wire interoperability before
 shipping; do not hand-write WebAuthn verification or TLS.
 
+Opaque conflict decisions
+-------------------------
+
+The authority provides ``POST /api/device/decision`` with a base64url payload,
+single-use challenge and device proof. The challenge purpose is ``decision``;
+its subject is the SHA-256 digest of the exact request payload bytes. Requests
+carry the member, current generation/epoch, and opaque 32-byte Vault/conflict
+tokens. They must not expose file names, source UUIDs or raw content hashes.
+Native secret-derived token construction and durable decision consumption are
+not yet implemented.
+
+``get`` retrieves the latest decision or null. ``decide`` additionally supplies
+the expected decision version, a unique request ID, a branch-set token and a
+resolution token. A transaction rechecks membership and epoch, requires the
+expected version and preserves the original branch-set token for that conflict.
+The append-only control schema v3 records the decision and audit entry together.
+An identical operation retry does not append a row: it returns the current
+decision, including a newer decision if the original has been superseded.
+Conflicting reuse of a request ID is rejected. The explicit 100,000-row capacity
+limit refuses new decisions rather than pruning accepted history silently.
+
+Responses sign the original receipt bytes with the
+``ATHENA-HODARIUM-DECISION-v1`` domain followed by a NUL byte. Receipts bind the
+group, current generation/epoch, challenge and request subject. Decision records
+retain their creation membership provenance; their existence neither renews a
+membership lease nor changes its epoch. Clients must verify these bindings and
+the exact conflict branches, validate the resolution revision's causal parents,
+and use the protected application transaction. A server token alone never
+authorizes document replacement. ``verify_decision`` implements native signature
+verification against the pinned authority, with strict base64, duplicate-field
+and resource checks and exact request/epoch/conflict binding. A historical
+record's provenance is not mistaken for the enclosing current statement.
+
+``decision_client`` performs authenticated reads and CAS submissions on its
+owning network thread using the existing HTTPS transport and protected device
+signer. Authorization is checked before and after each network exchange. Write
+receipts must acknowledge the submitted version/operation or explicitly return
+a superseding version of the same branch set. Cancellation and timeout do not
+claim that an already-submitted write was rolled back: the caller must durably
+retain its operation ID and query or retry it.
+
+``conflict_store`` supplies the device-local durable proposal outbox, separately
+from the revision DAG. Preparation binds the immutable operation and opaque
+request tokens to the exact sealed resolution bytes and current parent heads.
+Reusing an operation with different content fails; retrying its original bytes
+after restart preserves the original operation. A draft never becomes a
+transferable or applicable revision merely because the user prepared it.
+The store pins its authority identity and generation explicitly. Receipt
+acceptance verifies the signed context and maintains a durable decision-version
+high-water mark, rejecting rollback and same-version equivocation. A winning or
+superseding decision settles the outbox entry but retains the proposal and exact
+signed receipt. It does not publish a revision or mutate source files.
+
+The native fixture checks restart recovery of proposals and accepted decisions,
+operation-reuse rejection and isolation from revision heads. Worker/UI wiring,
+secret-derived token distribution, accepted-resolution publication and the
+manual structural conflict UI remain unfinished.
+
+The Hodarium manager now exposes ``Conflicts`` for a bound Vault. Discovery
+pages concurrent objects by stable object identity and reads only revision
+descriptors and head counts, never payloads. Expanding an object loads its
+current branch descriptors on demand, including each branch path, revision ID,
+origin and deletion state. Queries run on the control worker with its existing
+SQLite connection and revalidate the Vault binding; only native metadata crosses
+back to Qt. Closing or refreshing the dialog invalidates its pending UI results.
+The first displayed path is one branch's path, not a claim that all branches
+agree on location. Two non-deleted branches of the same object can be selected
+for ``Compare revisions``. The worker loads their immutable native payloads on
+demand and validates the Vault/object/model/budget binding. The GUI validates
+their XML source identities and opens complete sources as isolated read-only
+scratch buffers, preserving style and initial environment, with realtime saving
+paused. Source master paths retain relative resource resolution. Full source
+trees feed the existing structural differ; body ranges are sent as native
+integer coordinates to the respective actors for highlighting. Neither live
+source buffers nor production files are modified. Side-by-side arrangement
+uses the existing ADS document host. Editing and submitting a resolution, and
+presenting non-body metadata differences in detail, remain unfinished.
+The shared structural differ now checks each node's source metadata before
+descending into text or child content. UUID-only and property-only changes,
+including metadata on empty atoms, therefore cannot be reported as identical.
+This fixes the comparison primitive used by both the existing file comparison
+UI and the immutable Hodarium revision comparison.
+
+The focused authority check exercises real admitted-device proofs, concurrent
+CAS writers, idempotent retries after supersession, wrong branch sets, wrong
+keys, replayed challenges, stale epochs and expelled members. It also verifies
+receipt signatures and that content decisions do not advance membership.
+The Go-generated native wire fixture also contains a real decision receipt;
+the C++ membership verifier checks it and rejects changed epoch, challenge,
+subject and conflict bindings.
+
 References:
 
 * https://doc.libsodium.org/public-key_cryptography/public-key_signatures

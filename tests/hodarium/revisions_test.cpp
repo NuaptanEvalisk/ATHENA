@@ -311,6 +311,10 @@ int main () {
     require (store.compare (base.id, a.id) == ancestry::ancestor, "Wrong ancestry");
     require (store.compare (a.id, base.id) == ancestry::descendant, "Wrong descendant");
     require (store.heads (base.vault, base.object).size () == 2, "Wrong heads");
+    auto conflicts= store.conflicts (base.vault, {}, 1);
+    require (conflicts.size () == 1 && conflicts[0].object == base.object &&
+      conflicts[0].heads == 2 && store.conflicts (base.vault, base.object).empty () &&
+      store.conflicts ("another-vault").empty (), "Conflict discovery or cursor is incorrect");
     require (store.merge_bases (a.id, b.id) == std::vector<std::string>{base.id},
              "Wrong merge base");
     require (store.record_applied (a.id, base.id), "Descendant apply failed");
@@ -326,6 +330,7 @@ int main () {
     require (store.record_applied (merged.id, a.id), "Merge apply failed");
     require (store.heads (base.vault, base.object) ==
       std::vector<std::string>{merged.id}, "Merge did not converge");
+    require (store.conflicts (base.vault).empty (), "Resolved object remained a conflict");
 
     auto alternate= merged;
     alternate.origin_member= "member-C";

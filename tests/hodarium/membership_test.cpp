@@ -1,5 +1,6 @@
 /* Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later. */
 #include "membership.hpp"
+#include "conflict_store.hpp"
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <cstdlib>
@@ -42,6 +43,26 @@ int main (int argc, char** argv) {
     auto result= verify_validation (pin, response.dump (), nonce, member, key);
     require (result.state.revision == 2 && result.state.members.size () == 1 &&
       result.lifetime == std::chrono::hours (24), "Wrong Go authority validation");
+    const auto& decision_request= fixture.at ("decision_request");
+    auto decision_response= fixture.at ("decision_receipt").dump ();
+    const std::string decision_nonce= fixture.at ("decision_nonce"),
+      decision_subject= fixture.at ("decision_subject"),
+      vault= decision_request.at ("vault"), conflict= decision_request.at ("conflict");
+    auto decision= verify_decision (pin, decision_response, result.state.epoch,
+      decision_nonce, decision_subject, vault, conflict);
+    require (decision && decision->version == 1 && decision->member == member &&
+      decision->request == decision_request.at ("request_id") &&
+      decision->branches == decision_request.at ("branches") &&
+      decision->resolution == decision_request.at ("resolution"),
+      "Wrong Go authority conflict decision");
+    rejects ([&] { verify_decision (pin, decision_response, nonce,
+      decision_nonce, decision_subject, vault, conflict); });
+    rejects ([&] { verify_decision (pin, decision_response, result.state.epoch,
+      nonce, decision_subject, vault, conflict); });
+    rejects ([&] { verify_decision (pin, decision_response, result.state.epoch,
+      decision_nonce, nonce, vault, conflict); });
+    rejects ([&] { verify_decision (pin, decision_response, result.state.epoch,
+      decision_nonce, decision_subject, conflict, vault); });
     rejects ([&] { verify_validation (pin, response.dump (), member, member, key); });
     rejects ([&] { verify_validation (pin, response.dump (), nonce, member, pin.public_key); });
     auto wrong_pin= pin; wrong_pin.generation= nonce;
@@ -58,6 +79,47 @@ int main (int argc, char** argv) {
     duplicated.insert (1, "\"member\":\"duplicate\",");
     rejects ([&] { verify_validation (pin, duplicated, nonce, member, key); });
     temporary_store temporary;
+    revision_store revisions (temporary.directory / "revisions.sqlite");
+    revision base;
+    base.vault= "local-vault"; base.object= "document"; base.origin_member= member;
+    base.format= "test"; base.relative_path= "note.ath"; base.payload= "base";
+    base= seal_revision (base); revisions.receive (base);
+    auto left= base; left.parents= {base.id}; left.payload= "left"; left= seal_revision (left);
+    auto right= left; right.payload= "right"; right= seal_revision (right);
+    revisions.receive (left); revisions.receive (right);
+    auto branches= revisions.heads (base.vault, base.object);
+    conflict_proposal proposal;
+    proposal.request= {vault, conflict, decision_request.at ("request_id"),
+      decision_request.at ("branches"), decision_request.at ("resolution"), 0};
+    proposal.resolution= left; proposal.resolution.parents= branches;
+    proposal.resolution.payload= "manually merged";
+    proposal.resolution= seal_revision (proposal.resolution);
+    auto conflict_path= temporary.directory / "conflicts.sqlite";
+    {
+      conflict_store drafts (conflict_path, pin);
+      drafts.prepare (proposal, revisions); drafts.prepare (proposal, revisions);
+      auto changed= proposal; changed.resolution.payload+= "changed";
+      changed.resolution= seal_revision (changed.resolution);
+      rejects ([&] { drafts.prepare (changed, revisions); });
+      require (drafts.pending ().size () == 1 && !revisions.get (proposal.resolution.id) &&
+        revisions.heads (base.vault, base.object) == branches,
+        "Unaccepted draft changed revision heads");
+    }
+    {
+      conflict_store drafts (conflict_path, pin);
+      require (drafts.proposal (proposal.request.request_id)->resolution.payload == "manually merged" &&
+        drafts.pending ().size () == 1, "Restart lost prepared resolution");
+      drafts.accept (proposal.request.request_id, decision_response, result.state.epoch,
+        decision_nonce, decision_subject);
+      require (drafts.pending ().empty () && drafts.latest (vault, conflict)->version == 1 &&
+        !revisions.get (proposal.resolution.id), "Receipt published a draft or lost the decision");
+    }
+    {
+      conflict_store drafts (conflict_path, pin);
+      require (drafts.pending ().empty () && drafts.latest (vault, conflict)->request == proposal.request.request_id,
+        "Restart lost durable conflict decision");
+    }
+    rejects ([&] { conflict_store drafts (conflict_path, wrong_pin); });
     auto database= temporary.directory / "membership.sqlite";
     {
       membership_store store (database, pin);
