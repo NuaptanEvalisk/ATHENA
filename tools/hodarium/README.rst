@@ -98,8 +98,13 @@ query; old-epoch requests return conflict, expelled devices are denied, and old
 publications are filtered before listing. The authority never contacts these
 addresses. Presence is a reachability hint, not peer authorization: the client
 must still apply its route policy and complete inner mutual TLS and membership
-context verification. Native publication/polling, ticket exchange and automatic
-route selection are not yet wired to this endpoint.
+context verification. The native client supports signed publication, one-page
+queries and withdrawal, verified against this server with isolated device keys.
+Validated application profiles now periodically publish presence and aggregate
+discovery pages; suspension and authorization expiry invalidate local candidates.
+Profiles publish real direct-listener interface addresses and automatically dial
+discovered direct peers with inner TLS. Relay ticket exchange and measured route
+selection remain unconnected.
 
 Initialization
 ~~~~~~~~~~~~~~

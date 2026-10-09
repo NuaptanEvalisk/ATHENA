@@ -226,7 +226,7 @@ QTMDocumentHistoryPane::refresh () {
     item->setText (3, display_size (version.stored_size));
     item->setText (4, version.delta ?
                       QString ("Fossil delta (%1)").arg (version.chain_depth) :
-                      QString ("Full"));
+                      (version.protected_snapshot ? tr ("Full (protected)") : QString ("Full")));
     item->setData (0, Qt::UserRole, QVariant::fromValue<qlonglong> (version.id));
     tree->addTopLevelItem (item);
   }

@@ -31,6 +31,7 @@ struct version_entry {
   std::int64_t stored_size= 0;
   std::string content_hash;
   int chain_depth= 0;
+  bool protected_snapshot= false;
 };
 
 class document_history_store {
@@ -46,6 +47,12 @@ public:
                 const std::string& trigger,
                 std::optional<std::int64_t> retention_seconds,
                 bool& inserted, std::int64_t& version_id,
+                std::string& error);
+
+  // Synchronous pre-apply barrier. An operation ID is permanently bound to one
+  // source path and byte snapshot. Ordinary retention never removes this row.
+  bool protect (const std::string& relative_path, std::string_view content,
+                const std::string& operation_id, std::int64_t& version_id,
                 std::string& error);
 
   bool list (const std::string& relative_path,

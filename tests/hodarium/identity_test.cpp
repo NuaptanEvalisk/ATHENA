@@ -3,9 +3,12 @@
 #include "device_identity.hpp"
 #include "peer_tls.hpp"
 #include "peer_connection.hpp"
+#include "peer_network.hpp"
+#include "revision_transfer.hpp"
 #include "control_http.hpp"
 #include <QCoreApplication>
 #include <QTcpServer>
+#include <QDateTime>
 #include <QTcpSocket>
 #include <QEventLoop>
 #include <QSslCertificate>
@@ -69,8 +72,6 @@ void check_peer_tls (const device_identity& a, const device_identity& b, bool wr
   require (rejected, "Expired membership still transmitted records");
 }
 void check_tcp_peer (const device_identity& a, const device_identity& b) {
-  QTcpServer listener;
-  require (listener.listen (QHostAddress::LocalHost, 0), "Cannot listen for isolated peer connection");
   QEventLoop loop;
   QTimer deadline; deadline.setSingleShot (true);
   bool authorized= true, transferred= false, revoked= false;
@@ -85,7 +86,12 @@ void check_tcp_peer (const device_identity& a, const device_identity& b) {
     else revoked= true;
     loop.quit ();
   };
-  QObject::connect (&listener, &QTcpServer::newConnection, &loop, [&] {
+  direct_peer_listener listener ([&] (const peer_context& context) -> std::optional<std::string> {
+    if (context.group != bc.group || context.generation != bc.generation || context.epoch != bc.epoch ||
+        context.local_member != bc.local_member || context.remote_member != bc.remote_member)
+      return std::nullopt;
+    return a.public_key;
+  }, [&] (std::unique_ptr<peer_transport> transport, peer_context context, std::string key) {
     peer_events events;
     events.closed= ended;
     events.received= [&] (QByteArray bytes) {
@@ -96,11 +102,10 @@ void check_tcp_peer (const device_identity& a, const device_identity& b) {
         authorized= false;
       }
     };
-    server= std::make_unique<peer_connection> (listener.nextPendingConnection (), b, a.public_key,
-      true, bc, [&] { return authorized; }, std::move (events));
+    server= std::make_unique<peer_connection> (std::move (transport), b, std::move (key),
+      true, std::move (context), [&] { return authorized; }, std::move (events));
   });
-  auto* socket= new QTcpSocket;
-  socket->connectToHost (QHostAddress::LocalHost, listener.serverPort ());
+  require (listener.listen (QHostAddress::LocalHost, 0), "Cannot listen for isolated peer connection");
   std::unique_ptr<peer_connection> client;
   peer_events events;
   events.closed= ended;
@@ -109,12 +114,83 @@ void check_tcp_peer (const device_identity& a, const device_identity& b) {
     if (!client->enqueue (payload)) { error= "TCP peer refused bounded transfer"; loop.quit (); }
     if (client->enqueue (payload)) { error= "TCP peer exceeded send queue budget"; loop.quit (); }
   };
-  client= std::make_unique<peer_connection> (socket, a, b.public_key, false, ac,
+  client= std::make_unique<peer_connection> (connect_direct_peer (QHostAddress::LocalHost, listener.port (), ac),
+    a, b.public_key, false, ac,
     [&] { return authorized; }, std::move (events));
   QObject::connect (&deadline, &QTimer::timeout, &loop, [&] { error= "TCP peer timed out"; loop.quit (); });
   deadline.start (20000); loop.exec ();
   require (error.empty (), error.c_str ());
   require (transferred && revoked, "TCP peer transfer or authorization shutdown failed");
+}
+void check_direct_rejection (const device_identity& a, const device_identity& b) {
+  QEventLoop loop; QTimer deadline; deadline.setSingleShot (true);
+  bool rejected= false, delivered= false;
+  direct_peer_listener listener ([] (const peer_context&) -> std::optional<std::string> {
+    return std::nullopt;
+  }, [&] (std::unique_ptr<peer_transport>, peer_context, std::string) {
+    delivered= true; loop.quit ();
+  });
+  require (listener.listen (QHostAddress::LocalHost, 0), "Cannot listen for routing rejection");
+  peer_context context{a.public_key, b.public_key, a.handle, a.handle, b.handle};
+  auto transport= connect_direct_peer (QHostAddress::LocalHost, listener.port (), context);
+  transport->activity= [&] {
+    if (transport->state () == transport_state::closed) { rejected= true; loop.quit (); }
+  };
+  QObject::connect (&deadline, &QTimer::timeout, &loop, &QEventLoop::quit);
+  deadline.start (3000); loop.exec ();
+  require (rejected && !delivered, "Unrecognized routing identity reached peer transport consumer");
+}
+void check_peer_network (const device_identity& a, const device_identity& b) {
+  membership_state state{a.public_key, b.public_key, a.handle, 1,
+    {{a.handle, "A", a.public_key}, {b.handle, "B", b.public_key}}};
+  auto allowed= [&] (const peer_context& c, const std::string& key) {
+    return c.group == state.group && c.generation == state.generation && c.epoch == state.epoch &&
+      ((c.local_member == a.handle && c.remote_member == b.handle && key == b.public_key) ||
+       (c.local_member == b.handle && c.remote_member == a.handle && key == a.public_key));
+  };
+  QEventLoop loop; QTimer poll, deadline;
+  revision_store source (":memory:"), target (":memory:");
+  revision value;
+  value.vault= "isolated-vault"; value.object= "isolated-object";
+  value.origin_member= a.handle; value.format= "ath-xml-v2";
+  value.relative_path= "Notes/example.ath"; value.payload= std::string (700*1024, 'n');
+  value.payload[17]= '\0'; value.payload[600000]= char (255);
+  value= seal_revision (value); source.receive (value);
+  revision_sender sender (source, value.vault, value.id,
+    [&] (const std::string& vault) { return vault == value.vault; });
+  revision_receiver receiver (target, [&] (const std::string& vault) { return vault == value.vault; });
+  auto initial= sender.begin ();
+  bool sent= false, measured= false;
+  peer_network first (a, allowed, [&] (const std::string& member, QByteArray bytes) {
+    require (member == b.handle, "Revision acknowledgement came from wrong peer");
+    auto next= sender.acknowledge (bytes);
+    if (!next.isEmpty ()) require (first.send (member, std::move (next)), "Revision sender exceeded channel budget");
+  });
+  peer_network second (b, allowed, [&] (const std::string& member, QByteArray bytes) {
+    require (member == a.handle, "Revision message came from wrong peer");
+    require (second.send (member, receiver.accept (bytes)), "Revision acknowledgement exceeded channel budget");
+  });
+  first.start (state, a.handle); second.start (state, b.handle);
+  auto aa= first.addresses (), ba= second.addresses ();
+  require (!aa.empty () && !ba.empty (), "Isolated network check needs a local unicast interface");
+  auto expires= QDateTime::currentSecsSinceEpoch () + 90;
+  first.discover ({{{b.handle, ba, {}, expires}}, {}});
+  second.discover ({{{a.handle, aa, {}, expires}}, {}});
+  QObject::connect (&poll, &QTimer::timeout, &loop, [&] {
+    auto routes= first.status ();
+    if (routes.size () != 1 || !routes[0].established) return;
+    if (!sent) sent= first.send (b.handle, initial);
+    measured= routes[0].roundtrip_ms > 0;
+    if (sent && measured && sender.complete ()) loop.quit ();
+  });
+  QObject::connect (&deadline, &QTimer::timeout, &loop, &QEventLoop::quit);
+  poll.start (50); deadline.setSingleShot (true); deadline.start (10000); loop.exec ();
+  require (sent && measured && sender.complete (), "Automatic peer dialing, heartbeat or revision transfer failed");
+  require (target.get (value.id) && target.get (value.id)->payload == value.payload,
+           "Peer revision transfer changed content");
+  require (!target.applied (value.vault, value.object), "Peer transfer applied a document");
+  first.stop (); second.stop ();
+  require (first.status ().empty () && first.addresses ().empty (), "Stopped peer network retained live routes");
 }
 void check_relay_peer (const device_identity& a, const device_identity& b, const char* directory) {
   const auto root= std::filesystem::path (directory);
@@ -203,6 +279,8 @@ int main (int argc, char** argv) {
     }
     require (epoch_rejected, "Peer TLS accepted a different epoch");
     check_tcp_peer (identity, peer);
+    check_direct_rejection (identity, peer);
+    check_peer_network (identity, peer);
     if (const char* relay= std::getenv ("ATHENA_HODARIUM_NATIVE_RELAY")) check_relay_peer (identity, peer, relay);
     GError* error= nullptr;
     auto* service= secret_service_get_sync (SECRET_SERVICE_NONE, nullptr, &error);

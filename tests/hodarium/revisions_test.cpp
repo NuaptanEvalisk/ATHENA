@@ -1,7 +1,9 @@
 /* Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later. */
 #include "revisions.hpp"
+#include "revision_transfer.hpp"
 #include <iostream>
 #include <stdexcept>
+#include <QTemporaryDir>
 
 using namespace athena::hodarium;
 
@@ -13,6 +15,99 @@ template<typename F> void rejects (F f) {
   try { f (); } catch (const std::invalid_argument&) { rejected= true; }
   require (rejected, "Invalid revision accepted");
 }
+void check_resumable_receipt (const revision& base) {
+  QTemporaryDir directory;
+  require (directory.isValid (), "Cannot create isolated revision directory");
+  auto path= std::filesystem::path (directory.path ().toStdString ()) / "revisions.sqlite";
+  auto next= base; next.parents= {base.id}; next.payload= std::string (700*1024, 'r');
+  next.payload[17]= '\0'; next.payload[600000]= char (255); next= seal_revision (next);
+  auto metadata= next; metadata.payload.clear ();
+  {
+    revision_store target (path);
+    target.receive (base); target.record_applied (base.id, std::nullopt);
+    require (target.begin_receive (metadata, next.payload.size ()) == 0, "New transfer has bytes");
+    require (target.receive_chunk (next.id, 0, next.payload.substr (0, 128*1024)) == 128*1024,
+             "First chunk was not acknowledged");
+    rejects ([&] { target.receive_chunk (next.id, 0, "replay"); });
+    rejects ([&] { target.finish_receive (next.id); });
+    require (!target.get (next.id), "Partial transfer entered immutable revisions");
+  }
+  {
+    revision_store target (path);
+    auto offset= target.begin_receive (metadata, next.payload.size ());
+    require (offset == 128*1024, "Restart lost durable transfer offset");
+    auto conflicting= metadata; conflicting.relative_path+= "wrong";
+    rejects ([&] { target.begin_receive (conflicting, next.payload.size ()); });
+    while (offset < next.payload.size ())
+      offset= target.receive_chunk (next.id, offset, next.payload.substr (offset, 128*1024));
+    require (target.finish_receive (next.id), "Complete transfer was not committed");
+    require (target.get (next.id)->payload == next.payload, "Transferred binary payload changed");
+    require (target.applied (base.vault, base.object) == base.id, "Receipt changed the applied revision");
+    require (target.begin_receive (metadata, next.payload.size ()) == next.payload.size (), "Known transfer not recognized");
+    require (!target.finish_receive (next.id), "Known revision was published twice");
+    auto offered= target.offer (next.id);
+    require (offered && offered->metadata.payload.empty () && offered->size == next.payload.size (),
+             "Offer loaded or changed payload");
+    std::string streamed;
+    while (streamed.size () < offered->size) streamed+= target.payload_chunk (next.id, streamed.size ());
+    require (streamed == next.payload, "Incremental outgoing payload changed");
+    auto corrupt= next; corrupt.payload= "expected"; corrupt= seal_revision (corrupt);
+    auto header= corrupt; header.payload.clear ();
+    target.begin_receive (header, corrupt.payload.size ());
+    target.receive_chunk (corrupt.id, 0, "tampered");
+    rejects ([&] { target.finish_receive (corrupt.id); });
+    require (!target.get (corrupt.id), "Hash failure published a revision");
+    target.discard_receive (corrupt.id);
+    require (target.begin_receive (header, corrupt.payload.size ()) == 0, "Discard retained corrupt bytes");
+    target.discard_receive (corrupt.id);
+    auto tombstone= next; tombstone.parents= {next.id}; tombstone.deleted= true;
+    tombstone.payload.clear (); tombstone= seal_revision (tombstone);
+    target.begin_receive (tombstone, 0);
+    require (target.finish_receive (tombstone.id), "Empty tombstone transfer failed");
+  }
+}
+void check_transfer_protocol (revision value) {
+  value.payload= std::string (800*1024, 'p'); value= seal_revision (value);
+  revision_store source (":memory:"), target (":memory:"); source.receive (value);
+  bool permitted= true;
+  auto allowed= [&] (const std::string& vault) { return permitted && vault == value.vault; };
+  {
+    revision_sender sender (source, value.vault, value.id, allowed);
+    revision_receiver receiver (target, allowed);
+    auto chunk= sender.acknowledge (receiver.accept (sender.begin ()));
+    auto acknowledged= receiver.accept (chunk);
+    // Simulate losing the acknowledgement and both per-connection controllers.
+    require (!acknowledged.isEmpty () && !target.get (value.id), "Partial wire transfer was published");
+  }
+  {
+    revision_sender sender (source, value.vault, value.id, allowed);
+    revision_receiver receiver (target, allowed);
+    auto message= sender.begin ();
+    int messages= 0;
+    while (!sender.complete ()) {
+      require (++messages <= 8, "Revision resume did not converge");
+      message= sender.acknowledge (receiver.accept (message));
+    }
+    require (messages == 5, "Wire transfer did not resume after its committed first chunk");
+    require (target.get (value.id)->payload == value.payload, "Wire transfer changed content");
+    require (!target.applied (value.vault, value.object), "Wire transfer applied content");
+  }
+  {
+    revision_sender sender (source, value.vault, value.id, allowed);
+    revision_receiver receiver (target, allowed);
+    auto message= sender.begin ();
+    permitted= false;
+    rejects ([&] { receiver.accept (message); });
+    permitted= true;
+    auto acknowledgement= receiver.accept (message);
+    permitted= false;
+    rejects ([&] { sender.acknowledge (acknowledgement); });
+    permitted= true;
+    auto finish= sender.acknowledge (acknowledgement);
+    permitted= false;
+    rejects ([&] { receiver.accept (finish); });
+  }
+}
 
 int main () {
   try {
@@ -23,6 +118,8 @@ int main () {
     initial.relative_path= "Notes/example.ath";
     initial.payload= std::string ("body\0bytes", 10);
     auto base= seal_revision (initial);
+    check_resumable_receipt (base);
+    check_transfer_protocol (base);
     require (store.receive (base), "Initial receipt failed");
     require (!store.receive (base), "Duplicate receipt not idempotent");
     require (!store.applied (base.vault, base.object), "Receipt applied content");

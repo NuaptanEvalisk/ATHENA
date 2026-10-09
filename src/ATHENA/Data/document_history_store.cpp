@@ -130,15 +130,16 @@ document_history_store::open (const std::filesystem::path& vault_root,
   statement version;
   if (!prepare (db_, version, "PRAGMA user_version;", error)) return false;
   if (sqlite3_step (version.value) != SQLITE_ROW ||
-      sqlite3_column_int (version.value, 0) > 1) {
+      sqlite3_column_int (version.value, 0) > 2) {
     error= "Unsupported document history database version";
     return false;
   }
   sqlite3_finalize (version.value); version.value= nullptr;
-  return sql (db_,
+  if (!sql (db_,
     "PRAGMA foreign_keys=ON;"
     "PRAGMA journal_mode=WAL;"
     "PRAGMA synchronous=NORMAL;"
+    "BEGIN IMMEDIATE;"
     "CREATE TABLE IF NOT EXISTS versions("
       "id INTEGER PRIMARY KEY AUTOINCREMENT,"
       "path TEXT NOT NULL,"
@@ -151,7 +152,14 @@ document_history_store::open (const std::filesystem::path& vault_root,
       "content_hash TEXT NOT NULL,"
       "chain_depth INTEGER NOT NULL);"
     "CREATE INDEX IF NOT EXISTS versions_path_id ON versions(path,id DESC);"
-    "PRAGMA user_version=1;", error);
+    "CREATE TABLE IF NOT EXISTS protected_versions("
+      "operation TEXT PRIMARY KEY,source_path TEXT NOT NULL,"
+      "version_id INTEGER NOT NULL UNIQUE REFERENCES versions(id));"
+    "PRAGMA user_version=2; COMMIT;", error)) {
+    std::string ignored; (void) sql (db_, "ROLLBACK;", ignored);
+    return false;
+  }
+  return true;
 }
 
 bool
@@ -327,6 +335,66 @@ document_history_store::capture (
 }
 
 bool
+document_history_store::protect (
+    const std::string& relative_path, std::string_view content,
+    const std::string& operation_id, std::int64_t& version_id, std::string& error) {
+  version_id= 0; error.clear ();
+  if (db_ == nullptr || !valid_relative_document_path (relative_path) ||
+      operation_id.empty () || operation_id.size () > 256 ||
+      operation_id.find ('\0') != std::string::npos ||
+      content.size () > std::size_t (std::numeric_limits<int>::max ())) {
+    error= "Invalid protected document history snapshot"; return false;
+  }
+  const auto path= normalize_relative (relative_path);
+  const auto hash= athena::document::storage_bytes_fingerprint (content);
+  // FULL is connection-local. The sync owner keeps it for all later commits;
+  // ordinary history connections retain their existing asynchronous policy.
+  if (!sql (db_, "PRAGMA synchronous=FULL; BEGIN IMMEDIATE;", error)) return false;
+  auto fail= [&] {
+    if (error.empty ()) error= sqlite3_errmsg (db_);
+    std::string ignored; (void) sql (db_, "ROLLBACK;", ignored);
+    return false;
+  };
+  std::int64_t id= 0;
+  {
+    statement existing;
+    if (!prepare (db_, existing,
+          "SELECT p.source_path,v.id,v.content_hash,v.content_size "
+          "FROM protected_versions p JOIN versions v ON v.id=p.version_id WHERE p.operation=?1;", error) ||
+        !bind_text (existing.value, 1, operation_id)) return fail ();
+    int rc= sqlite3_step (existing.value);
+    if (rc == SQLITE_ROW) {
+      if (column_text (existing.value, 0) != path || column_text (existing.value, 2) != hash ||
+          sqlite3_column_int64 (existing.value, 3) != static_cast<sqlite3_int64> (content.size ())) {
+        error= "Protected history operation is bound to different source bytes"; return fail ();
+      }
+      id= sqlite3_column_int64 (existing.value, 1);
+    }
+    else if (rc != SQLITE_DONE) return fail ();
+  }
+  if (id == 0) {
+    statement insert;
+    if (!prepare (db_, insert,
+          "INSERT INTO versions(path,created_at_ms,trigger,base_id,encoding,payload,"
+          "content_size,content_hash,chain_depth) VALUES(?1,?2,'hodarium-pre-apply',NULL,0,?3,?4,?5,0);", error) ||
+        !bind_text (insert.value, 1, path) ||
+        sqlite3_bind_int64 (insert.value, 2, now_ms ()) != SQLITE_OK ||
+        sqlite3_bind_blob (insert.value, 3, content.empty () ? "" : content.data (),
+                          static_cast<int> (content.size ()), SQLITE_TRANSIENT) != SQLITE_OK ||
+        sqlite3_bind_int64 (insert.value, 4, static_cast<sqlite3_int64> (content.size ())) != SQLITE_OK ||
+        !bind_text (insert.value, 5, hash) || sqlite3_step (insert.value) != SQLITE_DONE) return fail ();
+    id= sqlite3_last_insert_rowid (db_);
+    statement pin;
+    if (!prepare (db_, pin, "INSERT INTO protected_versions VALUES(?1,?2,?3);", error) ||
+        !bind_text (pin.value, 1, operation_id) || !bind_text (pin.value, 2, path) ||
+        sqlite3_bind_int64 (pin.value, 3, id) != SQLITE_OK ||
+        sqlite3_step (pin.value) != SQLITE_DONE) return fail ();
+  }
+  if (!sql (db_, "COMMIT;", error)) return fail ();
+  version_id= id; return true;
+}
+
+bool
 document_history_store::list (
     const std::string& relative_path, std::vector<version_entry>& versions,
     std::string& error) const {
@@ -339,7 +407,8 @@ document_history_store::list (
   statement query;
   if (!prepare (db_, query,
         "SELECT id,path,created_at_ms,trigger,COALESCE(base_id,0),encoding,"
-        "content_size,length(payload),content_hash,chain_depth FROM versions "
+        "content_size,length(payload),content_hash,chain_depth,"
+        "EXISTS(SELECT 1 FROM protected_versions WHERE version_id=versions.id) FROM versions "
         "WHERE path=?1 ORDER BY id DESC;", error) ||
       !bind_text (query.value, 1, path))
     return false;
@@ -352,7 +421,7 @@ document_history_store::list (
       sqlite3_column_int (query.value, 5) == 1,
       sqlite3_column_int64 (query.value, 6),
       sqlite3_column_int64 (query.value, 7), column_text (query.value, 8),
-      sqlite3_column_int (query.value, 9)});
+      sqlite3_column_int (query.value, 9), sqlite3_column_int (query.value, 10) != 0});
   }
   if (rc == SQLITE_DONE) return true;
   error= sqlite3_errmsg (db_);
@@ -404,7 +473,8 @@ document_history_store::prune (
   }
   statement remove_old;
   if (!prepare (db_, remove_old,
-        "DELETE FROM versions WHERE path=?1 AND id<?2;", error) ||
+        "DELETE FROM versions WHERE path=?1 AND id<?2 "
+        "AND NOT EXISTS(SELECT 1 FROM protected_versions WHERE version_id=versions.id);", error) ||
       !bind_text (remove_old.value, 1, relative_path) ||
       sqlite3_bind_int64 (remove_old.value, 2, anchor) != SQLITE_OK ||
       sqlite3_step (remove_old.value) != SQLITE_DONE) {

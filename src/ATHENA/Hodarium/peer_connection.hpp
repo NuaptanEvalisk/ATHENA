@@ -6,7 +6,11 @@
 #include <QByteArray>
 #include <QTimer>
 #include <deque>
+#include <QHostAddress>
+#include <QSet>
+#include <optional>
 class QTcpSocket;
+class QTcpServer;
 namespace athena::hodarium {
 struct peer_events {
   std::function<void ()> established;
@@ -46,4 +50,28 @@ private:
   static ssize_t pull (void*, void*, std::size_t) noexcept;
   static ssize_t push (void*, const void*, std::size_t) noexcept;
 };
+
+// Routing hints precede inner TLS and are never authentication. The resolver
+// must check current membership and return the exact expected physical key.
+class direct_peer_listener: public QObject {
+public:
+  using resolver= std::function<std::optional<std::string> (const peer_context&)>;
+  using receiver= std::function<void (std::unique_ptr<peer_transport>, peer_context, std::string)>;
+  direct_peer_listener (resolver resolve, receiver accepted);
+  ~direct_peer_listener () override;
+  bool listen (const QHostAddress& address= QHostAddress::Any, quint16 port= 0);
+  quint16 port () const;
+  std::string error () const;
+  void close ();
+private:
+  QTcpServer* server_;
+  QSet<QTcpSocket*> pending_;
+  resolver resolve_;
+  receiver accepted_;
+  void accept ();
+  void inspect (QTcpSocket* socket);
+  void discard (QTcpSocket* socket);
+};
+std::unique_ptr<peer_transport> connect_direct_peer (const QHostAddress& address,
+  quint16 port, const peer_context& context);
 } // namespace athena::hodarium

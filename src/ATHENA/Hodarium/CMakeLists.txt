@@ -1,6 +1,7 @@
 add_library(athena_hodarium STATIC revisions.cpp membership.cpp device_identity.cpp
   authority_client.cpp control_http.cpp enrollment.cpp client_settings.cpp profile_session.cpp
-  peer_tls.cpp peer_connection.cpp peer_transport.cpp)
+  peer_tls.cpp peer_connection.cpp peer_transport.cpp rendezvous.cpp peer_network.cpp
+  revision_transfer.cpp)
 set_target_properties(athena_hodarium PROPERTIES AUTOMOC OFF)
 target_compile_features(athena_hodarium PUBLIC cxx_std_17)
 target_include_directories(athena_hodarium PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}

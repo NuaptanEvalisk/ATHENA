@@ -17,6 +17,8 @@ profile_session::~profile_session () {
   paused_= true;
   timer_.stop ();
   changed_= {};
+  if (directory_) directory_->stop ();
+  if (network_) network_->stop ();
   if (client_) client_->suspend ();
   if (enrollment_) enrollment_->cancel ();
 }
@@ -27,6 +29,8 @@ void profile_session::owner () const {
 void profile_session::publish (profile_phase phase, std::string diagnostic,
   std::string code, std::int64_t code_expires) {
   profile_status next{profile_.pin.group, phase, std::move (diagnostic), std::move (code), code_expires};
+  next.discovery_diagnostic= status_.discovery_diagnostic;
+  next.discovered_devices= status_.discovered_devices;
   if (next.phase == status_.phase && next.diagnostic == status_.diagnostic &&
       next.code == status_.code && next.code_expires == status_.code_expires) return;
   status_= std::move (next);
@@ -55,7 +59,31 @@ void profile_session::refresh () {
   client_->refresh ([this] (control_result result) {
     busy_= false; next_= clock::now () + std::chrono::seconds (60);
     if (paused_) return;
-    if (result.failure == control_failure::none) publish (profile_phase::authorized);
+    if (result.failure == control_failure::none) {
+      auto state= client_->current ();
+      try {
+        if (!network_) network_= std::make_unique<peer_network> (profile_.device,
+          [this] (const peer_context& c, const std::string& key) { return context_allowed (c, key); });
+        network_->start (*state, profile_.member);
+      }
+      catch (const std::exception& e) { publish (profile_phase::error, e.what ()); return; }
+      if (!directory_) directory_= std::make_unique<presence_directory> (profile_.origin, profile_.device,
+        [this] (const presence_context& c) {
+          return !paused_ && profile_.enabled && client_ && c.member == profile_.member &&
+            client_->context_current (c.group, c.generation, c.epoch) &&
+            client_->peer_allowed (c.member, profile_.device.public_key, c.epoch);
+        }, [this] (const presence_snapshot& snapshot) {
+          if (network_) network_->discover (snapshot);
+          if (status_.discovery_diagnostic == snapshot.diagnostic &&
+              status_.discovered_devices == snapshot.peers.size ()) return;
+          status_.discovery_diagnostic= snapshot.diagnostic;
+          status_.discovered_devices= snapshot.peers.size ();
+          if (changed_) changed_ (status_);
+        });
+      directory_->set_routes (network_->addresses (), {});
+      directory_->start ({state->group, profile_.member, state->generation, state->epoch});
+      publish (profile_phase::authorized);
+    }
     else if (result.failure == control_failure::denied) publish (profile_phase::denied, result.diagnostic);
     else if (result.failure == control_failure::transport && client_->authorized ())
       publish (profile_phase::offline_valid, result.diagnostic);
@@ -65,6 +93,7 @@ void profile_session::refresh () {
 void profile_session::tick () {
   if (paused_) return;
   try {
+    if (client_ && !client_->authorized () && network_) network_->stop ();
     if (client_ && (status_.phase == profile_phase::authorized ||
         status_.phase == profile_phase::offline_valid) && !client_->authorized ())
       publish (profile_phase::expired, "Hodarium membership validation expired");
@@ -124,6 +153,8 @@ void profile_session::enroll_result (control_result result, enrollment_status st
 }
 void profile_session::suspend () {
   owner (); paused_= true; timer_.stop ();
+  if (directory_) directory_->stop ();
+  if (network_) network_->stop ();
   if (client_) client_->suspend ();
   if (enrollment_) enrollment_->cancel ();
   busy_= false;
@@ -163,5 +194,14 @@ bool profile_session::context_allowed (const peer_context& context, const std::s
     context.remote_member != context.local_member && public_key != profile_.device.public_key &&
     peer_allowed (context.local_member, profile_.device.public_key, context.epoch) &&
     peer_allowed (context.remote_member, public_key, context.epoch);
+}
+presence_snapshot profile_session::discovered_peers () const {
+  owner (); return directory_ ? directory_->snapshot () : presence_snapshot{};
+}
+void profile_session::set_presence_routes (std::vector<std::string> direct,
+  std::vector<std::string> relays) {
+  owner ();
+  if (!directory_) throw std::logic_error ("Hodarium discovery requires validated membership");
+  directory_->set_routes (std::move (direct), std::move (relays));
 }
 } // namespace athena::hodarium

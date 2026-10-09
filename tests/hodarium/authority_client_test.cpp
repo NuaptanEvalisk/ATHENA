@@ -4,6 +4,7 @@
 #include "client_settings.hpp"
 #include "profile_session.hpp"
 #include "control_http.hpp"
+#include "rendezvous.hpp"
 #include <QCoreApplication>
 #include <QSslCertificate>
 #include <QSslConfiguration>
@@ -53,6 +54,7 @@ int main (int argc, char** argv) {
     enrollment joining (origin, pin, identity);
     std::unique_ptr<enrollment> resumed;
     std::unique_ptr<authority_client> client;
+    std::unique_ptr<rendezvous_client> presence;
     std::unique_ptr<client_settings> service_settings;
     std::unique_ptr<profile_session> service;
     int authorizations= 0;
@@ -103,6 +105,7 @@ int main (int argc, char** argv) {
               std::cerr << "Fresh authority validation did not authorize member\n";
               app.exit (1); return;
             }
+            auto continue_session= [&] {
             client->suspend ();
             if (client->authorized ()) { app.exit (1); return; }
             service_settings= std::make_unique<client_settings> (root / "settings.sqlite");
@@ -112,24 +115,64 @@ int main (int argc, char** argv) {
                 if (status.phase == profile_phase::error || status.phase == profile_phase::denied) {
                   std::cerr << status.diagnostic << '\n'; app.exit (1); return;
                 }
-                if (status.phase != profile_phase::authorized) return;
+                if (!status.discovery_diagnostic.empty ()) {
+                  std::cerr << status.discovery_diagnostic << '\n'; app.exit (1); return;
+                }
+                if (status.phase != profile_phase::authorized || status.discovered_devices != 1) return;
                 ++authorizations;
                 QTimer::singleShot (0, &app, [&] {
                   auto membership= service->membership ();
+                  auto discovered= service->discovered_peers ();
+                  if (discovered.peers.size () != 1 || discovered.peers[0].member != config.at ("peer")) {
+                    std::cerr << "Automatic discovery did not return peer\n"; app.exit (1); return;
+                  }
                   if (!membership || !service->peer_allowed (member, identity.public_key, membership->epoch)) {
                     app.exit (1); return;
                   }
                   service->suspend ();
+                  if (!service->discovered_peers ().peers.empty ()) {
+                    std::cerr << "Suspension retained discovery candidates\n"; app.exit (1); return;
+                  }
                   if (service->peer_allowed (member, identity.public_key, membership->epoch)) {
                     app.exit (1); return;
                   }
                   if (authorizations == 1) { service->resume (); return; }
                   std::ofstream done (root / "done"); done << "passed\n"; done.close ();
-                  std::cout << "Native enrollment, recovery, persistence and suspend/resume validation passed\n";
+                  std::cout << "Native enrollment, presence discovery, persistence and suspend/resume validation passed\n";
                   app.exit (0);
                 });
               });
             service->start ();
+            };
+            presence= std::make_unique<rendezvous_client> (origin, identity);
+            presence_context context{pin.group, member, pin.generation, state->epoch};
+            auto allowed= [&] (const presence_context& c) {
+              return client->context_current (c.group, c.generation, c.epoch) &&
+                client->peer_allowed (c.member, identity.public_key, c.epoch);
+            };
+            presence_request publish;
+            publish.operation= presence_operation::publish;
+            publish.direct= {"192.168.1.2:12345", "[fd00::2]:12345"};
+            publish.relays= {"https://relay.example.invalid"};
+            presence->request (context, publish, allowed,
+              [&, context, allowed, continue_session] (control_result result, presence_page) {
+                if (failure (result)) return;
+                presence->request (context, {}, allowed,
+                  [&, context, allowed, continue_session] (control_result result, presence_page page) {
+                    if (failure (result)) return;
+                    if (page.entries.size () != 1 || !page.next.empty () ||
+                        page.entries[0].member != config.at ("peer") ||
+                        page.entries[0].direct != std::vector<std::string>{"192.168.1.3:9445"} ||
+                        page.entries[0].relays != std::vector<std::string>{"https://relay.example.invalid"}) {
+                      std::cerr << "Presence did not return the expected remote device\n"; app.exit (1); return;
+                    }
+                    presence_request withdraw; withdraw.operation= presence_operation::withdraw;
+                    presence->request (context, withdraw, allowed,
+                      [&, continue_session] (control_result result, presence_page) {
+                        if (!failure (result)) continue_session ();
+                      });
+                  });
+              });
           });
         });
       });

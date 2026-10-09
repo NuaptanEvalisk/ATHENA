@@ -2,6 +2,9 @@
 package authority
 
 import (
+	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/tls"
 	"database/sql"
 	"encoding/json"
@@ -21,6 +24,15 @@ func TestNativeClientServer(t *testing.T) {
 	}
 	s, bootstrap := testStore(t)
 	_, _, session := enrollAdmin(t, s, bootstrap)
+	_, peerKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	peerJoin := joinDevice(t, s, peerKey)
+	peer, err := s.Admit(peerJoin.Pending.ID, peerJoin.Pending.PublicKey, tokenHash(session), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
 	data, err := os.ReadFile(filepath.Join(directory, "device.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -49,7 +61,7 @@ func TestNativeClientServer(t *testing.T) {
 	certificate := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw})
 	ready, err := json.Marshal(map[string]any{"origin": server.URL, "certificate": string(certificate),
 		"group": s.Group, "authority": s.PublicKey(), "generation": generation,
-		"recovery_public_key": encoding.EncodeToString(s.RecoveryPublic)})
+		"recovery_public_key": encoding.EncodeToString(s.RecoveryPublic), "peer": peer})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +83,15 @@ func TestNativeClientServer(t *testing.T) {
 				var id string
 				err = s.db.QueryRow("SELECT id FROM pending WHERE public_key=? AND member_id IS NULL", device.PublicKey).Scan(&id)
 				if err == nil {
-					if _, err = s.Admit(id, device.PublicKey, tokenHash(session), 1); err != nil {
+					if _, err = s.Admit(id, device.PublicKey, tokenHash(session), 2); err != nil {
+						t.Fatal(err)
+					}
+					state := latestState(t, s)
+					payload, _ := json.Marshal(PresenceRequest{Operation: "publish", Member: peer,
+						Generation: state.Generation, Epoch: state.Epoch,
+						Direct: []string{"192.168.1.3:9445"}, Relays: []string{"https://relay.example.invalid"}})
+					nonce, signature := proof(t, s, peerKey, "rendezvous", RendezvousSubject(payload))
+					if _, err := api.updatePresence(context.Background(), payload, nonce, signature); err != nil {
 						t.Fatal(err)
 					}
 					approved = true

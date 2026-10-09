@@ -118,7 +118,10 @@ public:
     worker_->moveToThread (&thread_);
     worker_->report= [this] (profile_status status) {
       QMetaObject::invokeMethod (this, [this, status= std::move (status)] {
-        if (observer && changed) changed (QString::fromStdString (status.diagnostic));
+        if (observer && changed) changed (QString::fromStdString (
+          status.diagnostic.empty () ? status.discovery_diagnostic : status.diagnostic));
+        if (!stopping_ && !suspended_ && !status.discovery_diagnostic.empty ())
+          std_warning << "Hodarium discovery: " << string (status.discovery_diagnostic.c_str ()) << LF;
         if (stopping_ || suspended_ || status.diagnostic.empty ()) return;
         if (status.phase == profile_phase::error || status.phase == profile_phase::denied)
           std_error << "Hodarium: " << string (status.diagnostic.c_str ()) << LF;

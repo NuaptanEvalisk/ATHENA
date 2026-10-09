@@ -84,7 +84,8 @@ std::string sign_device_proof (const device_identity& device,
   const std::string& group, const std::string& purpose,
   const std::string& subject, const std::string& nonce) {
   validate_handle (group); validate_handle (nonce);
-  if (purpose != "join" && purpose != "poll" && purpose != "control" && purpose != "resolve")
+  if (purpose != "join" && purpose != "poll" && purpose != "control" &&
+      purpose != "resolve" && purpose != "rendezvous")
     throw std::invalid_argument ("Unsupported Hodarium device proof purpose");
   validate_handle (subject);
   return sign_device_message (device, nlohmann::json::array ({

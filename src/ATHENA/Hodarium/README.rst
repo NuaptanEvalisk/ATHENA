@@ -33,7 +33,7 @@ requires explicit revocation on platform suspension. Reading a stored member
 list does not renew freshness. The future network owner must consume each
 pending validation request once, persist its accepted state, then renew the
 lease from the request's send time. The native authority client below now owns
-that sequence; peer transport and document synchronization remain unconnected.
+that sequence; document synchronization remains unconnected.
 
 ``device_identity`` creates a random local key handle and Ed25519 identity,
 stores its seed through the platform backend, and reloads it for each signing
@@ -113,7 +113,7 @@ panel and pauses/resumes configured profiles. HTTPS discovery and protected
 identity creation run on the worker; the pending profile is durable before the
 join request. Existing group pins are never overwritten by another discovery.
 The dialog creates device-local settings on explicit opening, and does not
-require an editor buffer. Peer data transport remains unconnected.
+require an editor buffer. Document transfer remains unconnected.
 
 The real C++/Go HTTPS exchange was exercised with a separately trusted temporary
 TLS certificate and an isolated system keyring. The native client requests
@@ -179,8 +179,37 @@ Explicit suspension must also close the connection immediately. Closure aborts
 the socket and drops unsent data; revision resume belongs above the transport.
 The isolated keyring test now sends 700 KiB across actual loopback TCP, checks
 queue refusal above budget and revokes authorization after receiving the exact
-payload. Automatic listening/discovery is still pending; this is not an enabled
-Vault synchronization service.
+payload. This is not yet an enabled Vault synchronization service.
+
+``direct_peer_listener`` supplies the bounded incoming routing boundary. A
+fixed-size versioned prelude identifies the group, generation, epoch and both
+member instances. An owner resolver checks that context and chooses the expected
+device key before handing the socket to inner TLS; the prelude is never treated
+as proof of identity. Unrecognized contexts are disconnected. At most 16 sockets
+may await a prelude, each with a five-second timeout and a header-sized read
+buffer. The receiver owns accepted sockets and must separately limit concurrent
+TLS sessions. ``connect_direct_peer`` queues the matching prelude before the
+TLS ClientHello. The loopback check now uses this actual routing boundary,
+including a rejected unknown context.
+
+``peer_network`` now owns the direct listener in each validated application
+profile, publishes up to eight active unicast interface addresses and consumes
+the presence directory to dial peers. It caps live/handshaking links at 16 and
+simultaneous outgoing attempts at four. Failed attempts rotate through advertised
+addresses with a 30-second retry delay. Direct sockets explicitly bypass system
+proxies; relays remain a separate transport. Simultaneous dialing converges by a
+stable member-ID tie-break, without forbidding either endpoint from initiating
+an otherwise absent connection. Epoch changes and suspension close all links.
+
+The encrypted channel carries length-bounded CBOR frames, decoded by Qt CBOR,
+with 512 KiB per-frame limits. Random-nonce heartbeats measure actual peer RTT
+and maintain idle sessions; failure to answer within 30 seconds closes the link.
+Application payloads have a separate frame kind and require an installed
+consumer. The application currently installs no document consumer: receiving
+document data is rejected, never applied. The isolated two-device check exercises
+automatic simultaneous dialing, authenticated channels, heartbeat RTT, 700 KiB
+revision transfer and network shutdown. Relay integration, throughput probing and
+measured route switching are still pending.
 
 The relay adapter requires Qt WebSockets, now part of the native dependencies
 and the iPad Qt build recipe. It validates normal outer TLS, negotiates the relay
@@ -209,11 +238,95 @@ may call it after history protection and the application commit boundary.
 Remaining integration (not enabled)
 ----------------------------------
 
-* Terminate future peer sessions after expiry or expulsion; wire Vault selection
-  and synchronization status presentation, and verify the enrollment UI on iPad.
+``document_history_store::protect`` supplies a synchronous pre-apply history
+barrier in the existing File History database (schema v2). It switches its
+connection to FULL synchronization and commits a standalone full snapshot and
+operation binding in one transaction. Retrying an operation with the same
+original path and bytes returns its existing version; different source bytes
+are rejected. Ordinary retention excludes protected rows, and the History pane
+marks them as protected. The snapshot has no Fossil-delta dependency that could
+be pruned. Rename updates the displayed history path without changing the
+original operation binding.
+
+This is the durable backup primitive, not yet the remote-apply coordinator.
+The owner still must record an application intent, check live/disk revisions,
+perform the conditional replacement and recover interrupted application before
+advancing the applied revision. It must not infer that invoking an asynchronous
+ordinary history capture has provided this barrier.
+
+The revision store's schema v2 adds durable incoming transfers, without changing
+existing revision identities or applied pointers. ``begin_receive`` accepts a
+payload-free descriptor and total byte count; matching retries return the last
+committed offset. ``receive_chunk`` writes at that exact offset with SQLite's
+incremental BLOB API, committing bytes and offset in the same FULL-synchronous
+transaction. Chunks are capped at 256 KiB, individual staged payloads at 512 MiB,
+and pending transfers at 32 / 2 GiB total. The protocol owner must authorize the
+Vault before accepting a descriptor; the store is not an authorization service.
+
+``finish_receive`` requires every byte and all same-object parents, hashes the
+descriptor and content in 64 KiB blocks, then atomically publishes the immutable
+revision and removes staging. It never changes ``applied`` or a document file.
+Conflicting descriptors, wrong offsets and bad hashes fail without publishing;
+explicit discard removes only an incomplete transfer. Metadata-only offers and
+bounded outgoing BLOB reads avoid materializing entire documents for transport.
+The focused revision test checks binary-content receipt across database reopen,
+idempotence, corrupt content rejection, empty tombstones and unchanged applied
+state.
+
+``revision_sender`` and ``revision_receiver`` implement versioned CBOR offer,
+chunk, finish and acknowledgement messages using Qt's CBOR codec. Each sender
+has one outstanding request, advances only after the matching durable offset
+acknowledgement and finishes only after the immutable revision is committed.
+A fresh sender/receiver pair resumes by reoffering the same descriptor. Vault
+authorization is mandatory on both sides and is checked again for every
+outbound step and incoming chunk/completion. A peer cannot send a chunk for an
+ID it has not offered on that connection. Receipt controllers hold at most 32
+accepted offers; protocol messages are bounded to 512 KiB and payload chunks
+remain within the store's 256 KiB limit.
+
+The isolated native peer-network check transfers a 700 KiB binary revision over
+automatic direct dialing and real mutual TLS, including per-chunk durable
+acknowledgements and content verification. Separate revision checks exercise
+lost acknowledgements, controller reconstruction, resume offsets and revoked
+Vault grants. Revision scheduling, ancestor discovery, live Vault bindings and
+save/apply hooks remain unconnected; these tests do not enable production
+document synchronization.
+
+``rendezvous_client`` now publishes, queries one bounded page and withdraws
+presence through the Go authority. Each request signs the SHA-256 digest of
+its exact JSON payload using a fresh challenge and the protected device key.
+An owner-supplied membership predicate checks the exact group/member/generation/
+epoch before sending and after each response. Cancellation discards pending
+HTTP work; the whole challenge/request operation has a 30-second deadline.
+Response parsing rejects duplicate fields, excessive depth, mismatched contexts,
+invalid route addresses and nonmonotonic pagination. Presence is only a routing
+hint and does not renew a lease or authorize a peer connection.
+
+``presence_directory`` is attached to each validated application profile. It
+publishes configured reachability and atomically replaces its candidate list
+after traversing ordered pages (at most 4096 members). A cycle is bounded to
+60 seconds; refresh and retry run every 30 seconds. Candidate expiry uses both
+the advertised wall-clock timestamp and a 90-second monotonic ceiling measured
+from the cycle's start. Epoch changes, suspension, disable and membership expiry
+discard old candidates and cancel in-flight discovery. Suspension never waits
+for withdrawal: server presence expires independently. These records are memory
+only and do not read or write a Vault. Unconfigured profiles advertise no direct
+or relay addresses. Application profiles supply the actual direct listener's
+interface addresses after membership validation; no relay route is invented.
+
+Discovery diagnostics are distinct from membership authorization and are
+reported through ATHENA's standard warning channel. The native/Go authority
+check publishes native presence, discovers a second admitted device's direct
+and relay addresses, withdraws and exercises automatic profile discovery across
+suspension/resumption. Measured route selection and Relay connection
+establishment are still pending. Direct connections are
+now managed by ``peer_network`` as described above.
+
+* Wire Vault selection and synchronization status presentation, and verify the
+  enrollment UI on iPad.
 * Verify the Apple backend and complete explicit recovery trust transitions.
 * Integrate the working native relay transport into application route management;
-  complete client recovery trust, conflict decisions, native rendezvous discovery, deployment
+  complete client recovery trust, conflict decisions, deployment
   and notifications. Extend the existing
   authority/panel rather than replacing their WebAuthn implementation.
 * Connect socket/relay sessions to rendezvous, revision transfers, automatic measured route selection,
@@ -249,6 +362,8 @@ References:
 
 * https://doc.libsodium.org/public-key_cryptography/public-key_signatures
 * https://www.sqlite.org/pragma.html#pragma_synchronous
+* https://www.sqlite.org/c3ref/blob_open.html
+* https://www.sqlite.org/c3ref/blob_write.html
 * https://www.gnutls.org/manual/gnutls.html
 * https://www.gnutls.org/manual/html_node/Raw-public_002dkey-credentials.html
 * https://www.gnutls.org/manual/html_node/Channel-Bindings.html

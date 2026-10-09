@@ -1,6 +1,9 @@
 /* Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later. */
 #include "peer_connection.hpp"
 #include <QTcpSocket>
+#include <QTcpServer>
+#include <QNetworkProxy>
+#include <sodium.h>
 #include <QPointer>
 #include <QThread>
 #include <QScopeGuard>
@@ -12,6 +15,16 @@ namespace athena::hodarium {
 namespace {
 constexpr std::size_t queue_budget= 1024*1024;
 constexpr std::size_t record_budget= 16*1024;
+const QByteArray direct_magic= "ATHENA-HODARIUM-DIRECT-v1\n";
+constexpr qsizetype identity_size= 43;
+qsizetype routing_size () { return direct_magic.size () + 5*identity_size; }
+void route_identity (const std::string& id) {
+  unsigned char bytes[32]; std::size_t size= 0;
+  if (id.size () != identity_size || sodium_base642bin (bytes, sizeof bytes,
+      id.data (), id.size (), nullptr, &size, nullptr,
+      sodium_base64_VARIANT_URLSAFE_NO_PADDING) != 0 || size != sizeof bytes)
+    throw std::invalid_argument ("Invalid Hodarium direct routing identity");
+}
 }
 peer_connection::peer_connection (QTcpSocket* socket, device_identity local,
   std::string peer_key, bool server, peer_context context,
@@ -136,5 +149,92 @@ void peer_connection::pump () {
     schedule ();
   }
   catch (const std::exception& e) { if (alive) fail (e.what ()); }
+}
+
+direct_peer_listener::direct_peer_listener (resolver resolve, receiver accepted):
+  server_ (new QTcpServer (this)), resolve_ (std::move (resolve)), accepted_ (std::move (accepted)) {
+  if (!resolve_ || !accepted_) throw std::invalid_argument ("Direct listener requires routing callbacks");
+  server_->setProxy (QNetworkProxy::NoProxy);
+  server_->setMaxPendingConnections (16);
+  connect (server_, &QTcpServer::newConnection, this, [this] { accept (); });
+}
+direct_peer_listener::~direct_peer_listener () { close (); }
+bool direct_peer_listener::listen (const QHostAddress& address, quint16 port) {
+  return server_->listen (address, port);
+}
+quint16 direct_peer_listener::port () const { return server_->serverPort (); }
+std::string direct_peer_listener::error () const { return server_->errorString ().toStdString (); }
+void direct_peer_listener::close () {
+  server_->close ();
+  const auto pending= pending_;
+  for (auto* socket: pending) discard (socket);
+  while (server_->hasPendingConnections ()) {
+    auto* socket= server_->nextPendingConnection ();
+    socket->abort (); socket->deleteLater ();
+  }
+}
+void direct_peer_listener::discard (QTcpSocket* socket) {
+  if (!pending_.remove (socket)) return;
+  disconnect (socket, nullptr, this, nullptr);
+  socket->abort (); socket->deleteLater ();
+}
+void direct_peer_listener::accept () {
+  while (server_->hasPendingConnections ()) {
+    auto* socket= server_->nextPendingConnection ();
+    if (pending_.size () >= 16) { socket->abort (); socket->deleteLater (); continue; }
+    pending_.insert (socket);
+    socket->setReadBufferSize (routing_size ());
+    connect (socket, &QTcpSocket::readyRead, this, [this, socket] { inspect (socket); });
+    connect (socket, &QTcpSocket::disconnected, this, [this, socket] { discard (socket); });
+    // Context-bound timer cannot touch an already-deleted accepted connection.
+    QTimer::singleShot (5000, socket, [this, socket, alive= QPointer<direct_peer_listener> (this)] {
+      if (alive) discard (socket);
+    });
+    inspect (socket);
+  }
+}
+void direct_peer_listener::inspect (QTcpSocket* socket) {
+  if (!pending_.contains (socket) || socket->bytesAvailable () < routing_size ()) return;
+  auto bytes= socket->read (routing_size ());
+  if (!bytes.startsWith (direct_magic)) { discard (socket); return; }
+  peer_context context;
+  std::optional<std::string> key;
+  try {
+    auto at= direct_magic.size ();
+    auto field= [&] {
+      auto value= bytes.mid (at, identity_size).toStdString (); at+= identity_size;
+      route_identity (value); return value;
+    };
+    context.group= field (); context.generation= field (); context.epoch= field ();
+    context.remote_member= field (); context.local_member= field ();
+    key= resolve_ (context);
+    if (key) route_identity (*key);
+  }
+  catch (const std::exception&) { discard (socket); return; }
+  if (!key) { discard (socket); return; }
+  pending_.remove (socket); disconnect (socket, nullptr, this, nullptr);
+  socket->setParent (nullptr);
+  // Transport ownership crosses here; all following authentication remains TLS.
+  auto transport= tcp_peer_transport (socket);
+  accepted_ (std::move (transport), std::move (context), std::move (*key));
+}
+std::unique_ptr<peer_transport> connect_direct_peer (const QHostAddress& address,
+  quint16 port, const peer_context& context) {
+  if (address.isNull () || port == 0) throw std::invalid_argument ("Invalid direct peer endpoint");
+  QByteArray header= direct_magic;
+  for (const auto* id: {&context.group, &context.generation, &context.epoch,
+                       &context.local_member, &context.remote_member}) {
+    route_identity (*id); header+= QByteArray::fromStdString (*id);
+  }
+  auto socket= std::make_unique<QTcpSocket> ();
+  socket->setProxy (QNetworkProxy::NoProxy);
+  // Register before the transport's connected callback: the routing bytes must
+  // be queued before its TLS ClientHello on the same TCP stream.
+  QObject::connect (socket.get (), &QTcpSocket::connected, socket.get (),
+    [socket= socket.get (), header] {
+      if (socket->write (header) != header.size ()) socket->abort ();
+    });
+  socket->connectToHost (address, port);
+  return tcp_peer_transport (socket.release ());
 }
 } // namespace athena::hodarium
