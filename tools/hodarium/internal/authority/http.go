@@ -50,6 +50,7 @@ func NewAPI(store *Store, origin string) (*API, error) {
 	a.mux.HandleFunc("POST /api/device/validate", a.validate)
 	a.mux.HandleFunc("POST /api/device/resolve", a.resolveDevice)
 	a.mux.HandleFunc("POST /api/device/rendezvous", a.rendezvous)
+	a.mux.HandleFunc("POST /api/device/decision", a.decision)
 	a.mux.HandleFunc("POST /api/recovery/complete", a.recoverAuthority)
 	a.mux.HandleFunc("POST /api/auth/register/start", a.registerStart)
 	a.mux.HandleFunc("POST /api/auth/register/finish", a.registerFinish)
