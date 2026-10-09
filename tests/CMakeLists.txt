@@ -26,6 +26,46 @@ target_link_libraries(hodarium_revisions_test PRIVATE athena_hodarium)
 add_test(NAME hodarium_revisions_test COMMAND hodarium_revisions_test)
 set_tests_properties(hodarium_revisions_test PROPERTIES TIMEOUT 15)
 
+add_executable(hodarium_decision_feed_test hodarium/decision_feed_test.cpp)
+set_target_properties(hodarium_decision_feed_test PROPERTIES AUTOMOC OFF)
+target_include_directories(hodarium_decision_feed_test PRIVATE
+  ${NLOHMANN_JSON_INCLUDE_DIR} ${LIBSODIUM_INCLUDE_DIRS})
+target_link_libraries(hodarium_decision_feed_test PRIVATE athena_hodarium ${LIBSODIUM_LIBRARIES})
+add_test(NAME hodarium_decision_feed_test COMMAND hodarium_decision_feed_test)
+set_tests_properties(hodarium_decision_feed_test PROPERTIES TIMEOUT 15)
+
+add_executable(hodarium_path_collisions_test hodarium/path_collisions_test.cpp)
+set_target_properties(hodarium_path_collisions_test PROPERTIES AUTOMOC OFF)
+target_link_libraries(hodarium_path_collisions_test PRIVATE athena_hodarium)
+add_test(NAME hodarium_path_collisions_test COMMAND hodarium_path_collisions_test)
+set_tests_properties(hodarium_path_collisions_test PROPERTIES TIMEOUT 15)
+
+# Run through the isolated Go TestNativeRecovery harness, which supplies a
+# temporary HTTPS authority and fixture via ATHENA_HODARIUM_NATIVE_RECOVERY.
+add_executable(hodarium_recovery_test EXCLUDE_FROM_ALL hodarium/recovery_test.cpp)
+set_target_properties(hodarium_recovery_test PROPERTIES AUTOMOC OFF)
+target_include_directories(hodarium_recovery_test PRIVATE ${NLOHMANN_JSON_INCLUDE_DIR})
+target_link_libraries(hodarium_recovery_test PRIVATE athena_hodarium)
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" OR APPLE)
+  add_executable(hodarium_resources_test EXCLUDE_FROM_ALL
+    hodarium/resources_test.cpp
+    ${ATHENA_SOURCE_DIR}/src/ATHENA/Data/hodarium_resources.cpp
+    ${ATHENA_SOURCE_DIR}/src/ATHENA/Data/background_workers.cpp
+    ${ATHENA_SOURCE_DIR}/src/ATHENA/Data/document_history_store.cpp
+    ${ATHENA_SOURCE_DIR}/src/ATHENA/Data/fossil_delta.cpp
+    ${ATHENA_SOURCE_DIR}/src/System/Files/confined_filesystem.cpp)
+  set_target_properties(hodarium_resources_test PROPERTIES AUTOMOC OFF)
+  target_include_directories(hodarium_resources_test PRIVATE
+    ${ATHENA_SOURCE_DIR}/src ${ATHENA_SOURCE_DIR}/src/ATHENA
+    ${ATHENA_SOURCE_DIR}/src/ATHENA/Data ${ATHENA_SOURCE_DIR}/src/System/Files
+    ${NLOHMANN_JSON_INCLUDE_DIR} ${SQLITE3_INCLUDE_DIRS})
+  target_link_libraries(hodarium_resources_test PRIVATE athena_hodarium
+    ${SQLITE3_LIBRARIES} Threads::Threads)
+  add_test(NAME hodarium_resources_test COMMAND hodarium_resources_test)
+  set_tests_properties(hodarium_resources_test PROPERTIES TIMEOUT 30)
+endif()
+
 function (athena_link_full_test_runtime target)
   # Keep special test executables on the same production-runtime link closure
   # as the automatically registered C++ tests below.  Hand-maintained subsets

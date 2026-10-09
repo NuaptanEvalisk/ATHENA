@@ -61,6 +61,10 @@ public:
   explicit confined_root (const std::filesystem::path& root);
   const std::filesystem::path& path () const;
   entry open (const std::filesystem::path& relative) const;
+  // Create/fsync missing parent directories through captured descriptors.
+  // No symlinks; retry is safe. This does not create the target file itself.
+  void ensure_parents (const std::filesystem::path& relative,
+                       const std::function<void()>& before_create= {}) const;
   // Atomically replace an existing regular file, never create through a stale
   // accessor. Cooperating writers are serialized; revision checks also detect
   // outside writes before commit, but are not a CAS against uncooperative code.

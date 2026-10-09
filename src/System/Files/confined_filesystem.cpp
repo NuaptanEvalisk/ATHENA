@@ -424,12 +424,43 @@ void confined_root::sync_parent (const std::filesystem::path& relative) const {
 #endif
 }
 
+void confined_root::ensure_parents (const std::filesystem::path& relative,
+                                    const std::function<void()>& gate) const {
+#if defined(__linux__) || defined(__APPLE__)
+  if (relative.empty () || relative.is_absolute ())
+    throw std::invalid_argument ("Expected a relative target file path");
+  for (const auto& part: relative) validate_component (part.string ());
+  std::filesystem::path prefix;
+  for (const auto& part: relative.parent_path ()) {
+    (void) open (".");
+    const auto parent_path= prefix.empty () ? std::filesystem::path (".") : prefix;
+    descriptor parent (beneath (implementation->descriptor_.fd, parent_path, O_RDONLY | O_DIRECTORY));
+    const auto expected= information (parent.fd);
+    if (gate) gate ();
+    auto current= open (parent_path).stat ();
+    if (expected.device != current.device || expected.inode != current.inode)
+      throw std::system_error (ESTALE, std::generic_category (), "Parent directory moved before creation");
+    if (::mkdirat (parent.fd, part.c_str (), 0700) < 0 && errno != EEXIST)
+      fail ("Create confined parent directory");
+    prefix /= part;
+    descriptor child (beneath (implementation->descriptor_.fd, prefix, O_RDONLY | O_DIRECTORY));
+    current= open (parent_path).stat ();
+    if (expected.device != current.device || expected.inode != current.inode)
+      throw std::system_error (ESTALE, std::generic_category (), "Parent directory moved during creation");
+    sync_file (child.fd); sync_file (parent.fd);
+  }
+#else
+  throw std::runtime_error ("Confined filesystem access is unavailable");
+#endif
+}
+
 entry confined_root::preserve (const std::filesystem::path& relative,
                               std::string_view bytes) const {
 #if defined(__linux__) || defined(__APPLE__)
   if (relative.empty () || relative.is_absolute ())
     throw std::invalid_argument ("Expected a relative backup file path");
   for (const auto& part: relative) validate_component (part.string ());
+  ensure_parents (relative);
   // Verify the captured root before using its descriptor, including retries.
   (void) open (".");
   std::vector<std::unique_ptr<descriptor>> parents;
@@ -437,8 +468,6 @@ entry confined_root::preserve (const std::filesystem::path& relative,
     beneath (implementation->descriptor_.fd, ".", O_RDONLY | O_DIRECTORY)));
   for (const auto& part: relative.parent_path ()) {
     const int parent= parents.back ()->fd;
-    if (::mkdirat (parent, part.c_str (), 0700) < 0 && errno != EEXIST)
-      fail ("Create backup directory");
     parents.push_back (std::make_unique<descriptor> (
       beneath (parent, part, O_RDONLY | O_DIRECTORY)));
   }

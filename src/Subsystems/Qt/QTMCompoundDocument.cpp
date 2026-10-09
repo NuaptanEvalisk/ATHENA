@@ -19,6 +19,7 @@
 #include <QLayout>
 #include "ATHENA/Data/compound_document_edit.hpp"
 #include "ATHENA/Data/compound_edit_batch.hpp"
+#include "ATHENA/Data/hodarium_resources.hpp"
 #include "tree_cursor.hpp"
 #include "scheme.hpp"
 #include "qt_gui.hpp"
@@ -1676,9 +1677,12 @@ void compound_document_open (url filename) {
         athena::avd::descriptor_file descriptor;
         std::vector<athena::avd::member> members;
         QString error;
+        std::shared_ptr<void> resource_lease;
       };
       auto result= std::make_shared<Loaded> ();
       try {
+        result->resource_lease= athena::hodarium::hold_resource_view (
+          std::filesystem::path (path.toStdString ()));
         result->descriptor= athena::avd::read_descriptor (path);
         result->members= athena::avd::resolve_members (path, result->descriptor.value, context);
       }
@@ -1701,6 +1705,8 @@ void compound_document_open (url filename) {
           return;
         }
         auto* pane= new QTMCompoundDocument (path, std::move (result->descriptor), std::move (result->members));
+        QObject::connect (pane, &QObject::destroyed,
+          [lease= result->resource_lease] { (void) lease; });
         auto* shell= QTMMainTabWindow::topTabWindow ();
         QObject::connect (pane, &QTMWindow::closed, pane, [pane] { pane->requestClose (); });
         shell->showWidget (pane, true);

@@ -12,6 +12,7 @@
 #include <array>
 #include <atomic>
 #include <memory>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -39,9 +40,15 @@ struct disk_file {
 };
 // Watches source files/directories, never database sidecars or read accesses.
 // Register directories during inventory; compare revision before the next sweep.
+// revision() is a change token, never a polling tick. Linux uses inotify; Apple
+// uses nonblocking kqueue directory and selected-file vnode watches. Other
+// platforms compare selected metadata snapshots; callers choose poll intervals.
 class source_watch {
 public:
-  source_watch ();
+  // Predicate receives an event's basename. Omission preserves the ordinary
+  // .ath source watcher. Directory/lifetime/overflow events always invalidate.
+  using file_predicate= std::function<bool(const std::filesystem::path&)>;
+  explicit source_watch (file_predicate accepts= {});
   ~source_watch ();
   std::uint64_t revision ();
   void directory (const std::filesystem::path&);
