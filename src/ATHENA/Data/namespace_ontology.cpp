@@ -1080,7 +1080,8 @@ refresh_native_derived_parents (sqlite3* db, bool& changed,
       db,
       "INSERT INTO relation_decisions(parent, child, decision, source) "
       "VALUES(?, ?, 'allow', 'derived') ON CONFLICT(parent, child) DO UPDATE "
-      "SET decision=excluded.decision, source=excluded.source;",
+      "SET decision=excluded.decision, source=excluded.source "
+      "WHERE relation_decisions.source='derived';",
       &relation_statement, error);
 
     for (const NativeNamespace& child: namespaces) {

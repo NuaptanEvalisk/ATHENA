@@ -16,6 +16,8 @@
 
 #include <llama.h>
 #include <chat.h>
+#include <QCryptographicHash>
+#include <QFile>
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -26,6 +28,7 @@
 #include <regex>
 #include <set>
 #include <sstream>
+#include <stdexcept>
 #include <thread>
 
 namespace {
@@ -801,23 +804,40 @@ std::string
 athena_artifact_definition_range_cache_contract (
   const std::string& model_path) {
   namespace fs= std::filesystem;
+  // Paths and timestamps identify the local memoized read, not the model's
+  // transferable identity. Equal model bytes must yield equal input contracts.
+  static std::mutex fingerprint_mutex;
+  static std::string cached_path, cached_fingerprint;
+  static std::uintmax_t cached_size= 0;
+  static fs::file_time_type cached_modified;
+  std::string fingerprint= "no-local-model";
+  std::error_code error;
+  if (fs::is_regular_file (fs::u8path (model_path),error)) {
+    std::lock_guard<std::mutex> lock (fingerprint_mutex);
+    const auto size= fs::file_size (fs::u8path (model_path));
+    const auto modified= fs::last_write_time (fs::u8path (model_path));
+    if (cached_path!=model_path || cached_size!=size || cached_modified!=modified || cached_fingerprint.empty ()) {
+      QFile file (QString::fromUtf8 (model_path.data (),qsizetype (model_path.size ())));
+      QCryptographicHash hash (QCryptographicHash::Sha256);
+      if (!file.open (QIODevice::ReadOnly) || !hash.addData (&file))
+        throw std::runtime_error ("Could not fingerprint artifact range model");
+      if (fs::file_size (fs::u8path (model_path))!=size ||
+          fs::last_write_time (fs::u8path (model_path))!=modified)
+        throw std::runtime_error ("Artifact range model changed during fingerprinting");
+      cached_fingerprint= "sha256:"+hash.result ().toHex ().toStdString ();
+      cached_path= model_path; cached_size= size; cached_modified= modified;
+    }
+    fingerprint= cached_fingerprint;
+  }
   AthenaArtifactRangeRequest format_example {
     "<KEYWORD>", {{-1, "<PREVIOUS>"}, {0, "<FOCUS>"}, {1, "<NEXT>"}}
   };
   std::ostringstream out;
-  out << definition_range_prompt () << "\nDYNAMIC REQUEST\n"
+  out << "athena-artifact-range/portable-model-contract/v2\n"
+      << definition_range_prompt () << "\nDYNAMIC REQUEST\n"
       << make_context_prefix (format_example)
       << make_keyword_tail (format_example)
-      << "\nMODEL\n" << model_path << '\n';
-  std::error_code error;
-  fs::path path (model_path);
-  if (fs::is_regular_file (path, error)) {
-    auto size= fs::file_size (path, error);
-    if (!error) out << size << '\n';
-    error.clear ();
-    auto modified= fs::last_write_time (path, error);
-    if (!error) out << modified.time_since_epoch ().count () << '\n';
-  }
+      << "\nMODEL\n" << fingerprint << '\n';
   return out.str ();
 }
 

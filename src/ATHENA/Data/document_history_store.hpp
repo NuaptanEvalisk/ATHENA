@@ -20,6 +20,11 @@ struct sqlite3;
 
 namespace athena::history {
 
+struct logical_snapshot_identity {
+  std::string format;
+  std::string object_key;
+};
+
 struct version_entry {
   std::int64_t id= 0;
   std::string relative_path;
@@ -55,9 +60,29 @@ public:
                 const std::string& operation_id, std::int64_t& version_id,
                 std::string& error);
 
+  // Payload bytes stay unchanged. Both the protected snapshot and its immutable
+  // logical identity must be durable before the caller may mutate source data.
+  bool protect_logical (const std::string& relative_path, std::string_view content,
+    const std::string& operation_id, const std::string& format,
+    const std::string& object_key, std::int64_t& version_id, std::string& error);
+  bool set_protected_metadata (std::int64_t version_id, const std::string& format,
+    const std::string& object_key, std::string& error);
+  // Empty identity denotes an untyped historical snapshot, never permission to
+  // infer a logical format from JSON structure or the filename.
+  bool protected_metadata (std::int64_t version_id,
+    std::optional<logical_snapshot_identity>& identity, std::string& error) const;
+
   bool list (const std::string& relative_path,
              std::vector<version_entry>& versions,
              std::string& error) const;
+
+  // Vault-wide recovery does not require a surviving file or an open buffer.
+  // Descending, keyset-paginated protected snapshots; before_id=0 starts newest.
+  bool list_protected (std::int64_t before_id, unsigned limit,
+                       std::vector<version_entry>& versions,
+                       std::string& error) const;
+  bool get (std::int64_t version_id, version_entry& version,
+            std::string& error) const;
 
   bool reconstruct (std::int64_t version_id, std::string& content,
                     std::string& error) const;

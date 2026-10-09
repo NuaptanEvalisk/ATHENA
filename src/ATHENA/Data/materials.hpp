@@ -12,6 +12,7 @@
 #define ATHENA_MATERIALS_HPP
 
 #include "ATHENA/Data/vaultfile_json.hpp"
+#include "ATHENA/Data/hodarium_logical_database.hpp"
 
 #include <cstdint>
 #include <filesystem>
@@ -161,6 +162,13 @@ public:
                std::string& error);
   std::optional<MaterialRecord> get (const std::string& uuid,
                                      std::string& error) const;
+  // Immutable logical snapshots omit local timestamps, revision counters,
+  // search caches, jobs and machine-local provenance. Synchronization changes
+  // are compared and applied under this store's native write transaction.
+  std::vector<athena::hodarium::logical_database_object> logical_objects () const;
+  athena::hodarium::logical_apply_result apply_logical_change (
+    const athena::hodarium::logical_database_change& change,
+    const std::function<bool()>& permitted= {});
   std::vector<MaterialSearchHit> search (const std::string& query, int limit,
                                          std::string& error) const;
   std::vector<MaterialSearchHit> list (int limit, int offset,

@@ -7,6 +7,7 @@
 ******************************************************************************/
 
 #include "ATHENA/Data/artifacts.hpp"
+#include "ATHENA/Data/hodarium_artifact_database.hpp"
 #include "ATHENA/Data/enunciation_model.hpp"
 
 #include "ATHENA/Data/artifact_identity.hpp"
@@ -3651,5 +3652,102 @@ athena_artifact_query_uuid (const fs::path& vault_root,
         return item.uuid == uuid;
       })) return true;
   found= true;
+  return true;
+}
+
+bool athena_artifacts_export_range_results (
+  const fs::path& root, const std::string& after, unsigned limit,
+  std::vector<HodariumArtifactRangeResult>& results, std::string& error) {
+  results.clear (); error.clear ();
+  if (limit == 0 || limit > 256) { error= "Invalid artifact result page size"; return false; }
+  SqliteDb holder; AthenaVaultfileInfo info;
+  if (!open_databases (root, holder, info, error, true)) return false;
+  if (!holder.db) return true;
+  Statement query;
+  if (!prepare (holder.db,
+    "SELECT a.uuid,a.source_uuid,a.source_role,a.input_hash,a.range_structure_hash,"
+    "d.content_hash,b.paragraph_offsets FROM artifacts a "
+    "JOIN documents d ON d.path=a.path JOIN bold_text.entries b ON b.uuid=a.content_uuid "
+    "WHERE a.uuid>?1 AND a.origin='bold-text' AND a.range_state='resolved' "
+    "AND a.source_uuid<>'' AND a.source_role<>'' AND a.input_hash<>'' "
+    "AND a.range_structure_hash<>'' AND d.content_hash<>'' ORDER BY a.uuid LIMIT ?2",
+    query, error)) return false;
+  bind_text (query.st, 1, after); sqlite3_bind_int (query.st, 2, int (limit));
+  int rc;
+  while ((rc= sqlite3_step (query.st)) == SQLITE_ROW) {
+    HodariumArtifactRangeResult result;
+    result.artifact_uuid= column_text (query.st, 0);
+    result.source_uuid= column_text (query.st, 1);
+    result.source_role= column_text (query.st, 2);
+    result.input_hash= column_text (query.st, 3);
+    result.structure_hash= column_text (query.st, 4);
+    result.content_hash= column_text (query.st, 5);
+    result.offsets= parse_offsets (column_text (query.st, 6));
+    results.push_back (std::move (result));
+  }
+  if (rc != SQLITE_DONE) { error= sqlite3_errmsg (holder.db); return false; }
+  return true;
+}
+
+bool athena_artifacts_import_range_result (
+  const fs::path& root, const HodariumArtifactRangeResult& result,
+  bool& applicable, bool& changed, std::string& error,
+  const std::function<bool()>& permitted) {
+  applicable= false; changed= false; error.clear ();
+  if (!athena::node::valid_id (result.artifact_uuid) ||
+      !athena::node::valid_id (result.source_uuid) || result.source_role.empty () ||
+      result.input_hash.empty () || result.structure_hash.empty () || result.content_hash.empty () ||
+      result.offsets.empty () || result.offsets.size () > 11 ||
+      result.offsets.front () < -5 || result.offsets.back () > 5 ||
+      std::find (result.offsets.begin (), result.offsets.end (), 0) == result.offsets.end ()) {
+    error= "Invalid reusable artifact range result"; return false;
+  }
+  for (size_t i=1; i<result.offsets.size (); ++i)
+    if (result.offsets[i] != result.offsets[i-1] + 1) {
+      error= "Noncontiguous reusable artifact range"; return false;
+    }
+  SqliteDb holder; AthenaVaultfileInfo info;
+  if (!open_databases (root, holder, info, error)) return false;
+  if (!exec_sql (holder.db, "BEGIN IMMEDIATE;", error)) return false;
+  // The connection's destructor rolls back every early return. We deliberately
+  // install only a checkpoint: the extractor rederives the model/input hash and
+  // validates offsets before assigning a range to source nodes. No remote result
+  // can overwrite an existing manual/resolved range or invent source identity.
+  Statement source;
+  if (!prepare (holder.db,
+    "SELECT a.path,d.mtime_ns,d.size FROM artifacts a JOIN documents d ON d.path=a.path "
+    "WHERE a.uuid=?1 AND a.source_uuid=?2 AND a.source_role=?3 "
+    "AND a.origin='bold-text' AND a.range_structure_hash=?4 AND d.content_hash=?5",
+    source, error)) return false;
+  bind_text (source.st, 1, result.artifact_uuid); bind_text (source.st, 2, result.source_uuid);
+  bind_text (source.st, 3, result.source_role); bind_text (source.st, 4, result.structure_hash);
+  bind_text (source.st, 5, result.content_hash);
+  int rc= sqlite3_step (source.st);
+  if (rc == SQLITE_DONE) return true;
+  if (rc != SQLITE_ROW) { error= sqlite3_errmsg (holder.db); return false; }
+  const std::string relative= column_text (source.st, 0);
+  const auto modified= sqlite3_column_int64 (source.st, 1);
+  const auto size= sqlite3_column_int64 (source.st, 2);
+  sqlite3_reset (source.st);
+  Statement existing;
+  if (!prepare (holder.db, "SELECT 1 FROM artifact_range_cache WHERE path=?1 "
+    "AND COALESCE(NULLIF(input_hash,''),request_hash)=?2 LIMIT 1", existing, error)) return false;
+  bind_text (existing.st, 1, relative); bind_text (existing.st, 2, result.input_hash);
+  rc= sqlite3_step (existing.st);
+  if (rc == SQLITE_ROW) { applicable= true; return true; }
+  if (rc != SQLITE_DONE) { error= sqlite3_errmsg (holder.db); return false; }
+  Statement insert;
+  if (!prepare (holder.db, "INSERT INTO artifact_range_cache(path,mtime_ns,size,"
+    "semantic_hash,input_hash,request_hash,paragraph_offsets,updated_at) "
+    "VALUES(?1,?2,?3,?4,?5,?5,?6,?7)", insert, error)) return false;
+  bind_text (insert.st, 1, relative); sqlite3_bind_int64 (insert.st, 2, modified);
+  sqlite3_bind_int64 (insert.st, 3, size); bind_text (insert.st, 4, result.content_hash);
+  bind_text (insert.st, 5, result.input_hash); bind_text (insert.st, 6, offsets_text (result.offsets));
+  sqlite3_bind_int64 (insert.st, 7, std::chrono::duration_cast<std::chrono::seconds> (
+    std::chrono::system_clock::now ().time_since_epoch ()).count ());
+  if (sqlite3_step (insert.st) != SQLITE_DONE) { error= sqlite3_errmsg (holder.db); return false; }
+  if (permitted && !permitted ()) return true;
+  if (!exec_sql (holder.db, "COMMIT;", error)) return false;
+  applicable= true; changed= true;
   return true;
 }

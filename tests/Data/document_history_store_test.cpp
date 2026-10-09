@@ -71,6 +71,24 @@ int main () {
     assert (reopened.reconstruct (protected_id, rebuilt, error) && rebuilt == a);
   }
 
+  std::optional<athena::history::logical_snapshot_identity> identity;
+  assert (store.protected_metadata (protected_id, identity, error) && !identity);
+  std::int64_t logical_id= 0;
+  const std::string logical_payload= "[1,\"unchanged raw payload\"]";
+  assert (store.protect_logical ("logical/namespace/test.json", logical_payload,
+    "isolated-logical-apply", "athena-namespace-v1", "namespace/test", logical_id, error));
+  assert (store.reconstruct (logical_id, rebuilt, error) && rebuilt == logical_payload);
+  assert (store.set_protected_metadata (logical_id, "athena-namespace-v1", "namespace/test", error));
+  assert (!store.set_protected_metadata (logical_id, "athena-material-v1", "material/test", error));
+  assert (!store.set_protected_metadata (second, "athena-namespace-v1", "namespace/unprotected", error));
+  {
+    athena::history::document_history_store reopened;
+    assert (reopened.open (root, error));
+    assert (reopened.protected_metadata (logical_id, identity, error) && identity);
+    assert (identity->format == "athena-namespace-v1" && identity->object_key == "namespace/test");
+    assert (reopened.reconstruct (logical_id, rebuilt, error) && rebuilt == logical_payload);
+  }
+
   fs::remove_all (root);
   std::cout << "document_history_store_test passed\n";
 }

@@ -130,7 +130,7 @@ document_history_store::open (const std::filesystem::path& vault_root,
   statement version;
   if (!prepare (db_, version, "PRAGMA user_version;", error)) return false;
   if (sqlite3_step (version.value) != SQLITE_ROW ||
-      sqlite3_column_int (version.value, 0) > 2) {
+      sqlite3_column_int (version.value, 0) > 3) {
     error= "Unsupported document history database version";
     return false;
   }
@@ -155,7 +155,10 @@ document_history_store::open (const std::filesystem::path& vault_root,
     "CREATE TABLE IF NOT EXISTS protected_versions("
       "operation TEXT PRIMARY KEY,source_path TEXT NOT NULL,"
       "version_id INTEGER NOT NULL UNIQUE REFERENCES versions(id));"
-    "PRAGMA user_version=2; COMMIT;", error)) {
+    "CREATE TABLE IF NOT EXISTS protected_metadata("
+      "version_id INTEGER PRIMARY KEY REFERENCES protected_versions(version_id),"
+      "format TEXT NOT NULL,object_key TEXT NOT NULL);"
+    "PRAGMA user_version=3; COMMIT;", error)) {
     std::string ignored; (void) sql (db_, "ROLLBACK;", ignored);
     return false;
   }
@@ -395,6 +398,64 @@ document_history_store::protect (
 }
 
 bool
+document_history_store::set_protected_metadata (
+    std::int64_t id, const std::string& format, const std::string& object_key,
+    std::string& error) {
+  error.clear ();
+  if (!db_ || id <= 0 || format.empty () || format.size () > 128 ||
+      object_key.empty () || object_key.size () > 4096 ||
+      format.find ('\0') != std::string::npos || object_key.find ('\0') != std::string::npos) {
+    error= "Invalid protected logical identity"; return false;
+  }
+  if (!sql (db_, "PRAGMA synchronous=FULL; BEGIN IMMEDIATE;", error)) return false;
+  const auto fail= [&] {
+    if (error.empty ()) error= sqlite3_errmsg (db_);
+    std::string ignored; (void) sql (db_, "ROLLBACK;", ignored); return false;
+  };
+  statement insert;
+  if (!prepare (db_, insert, "INSERT INTO protected_metadata(version_id,format,object_key) "
+      "VALUES(?1,?2,?3) ON CONFLICT(version_id) DO NOTHING;", error) ||
+      sqlite3_bind_int64 (insert.value, 1, id) != SQLITE_OK ||
+      !bind_text (insert.value, 2, format) || !bind_text (insert.value, 3, object_key) ||
+      sqlite3_step (insert.value) != SQLITE_DONE) return fail ();
+  std::optional<logical_snapshot_identity> identity;
+  if (!protected_metadata (id, identity, error)) return fail ();
+  if (!identity || identity->format != format || identity->object_key != object_key) {
+    error= "Protected logical snapshot identity is already bound to another object";
+    return fail ();
+  }
+  if (!sql (db_, "COMMIT;", error)) return fail ();
+  return true;
+}
+
+bool
+document_history_store::protected_metadata (
+    std::int64_t id, std::optional<logical_snapshot_identity>& identity,
+    std::string& error) const {
+  identity.reset (); error.clear ();
+  if (!db_ || id <= 0) { error= "Invalid protected history version"; return false; }
+  statement query;
+  if (!prepare (db_, query, "SELECT format,object_key FROM protected_metadata WHERE version_id=?1;", error) ||
+      sqlite3_bind_int64 (query.value, 1, id) != SQLITE_OK) return false;
+  const int rc= sqlite3_step (query.value);
+  if (rc == SQLITE_ROW) {
+    identity= logical_snapshot_identity {column_text (query.value, 0), column_text (query.value, 1)};
+    return true;
+  }
+  if (rc == SQLITE_DONE) return true;
+  error= sqlite3_errmsg (db_); return false;
+}
+
+bool
+document_history_store::protect_logical (
+    const std::string& relative_path, std::string_view content,
+    const std::string& operation_id, const std::string& format,
+    const std::string& object_key, std::int64_t& id, std::string& error) {
+  return protect (relative_path, content, operation_id, id, error) &&
+         set_protected_metadata (id, format, object_key, error);
+}
+
+bool
 document_history_store::list (
     const std::string& relative_path, std::vector<version_entry>& versions,
     std::string& error) const {
@@ -426,6 +487,58 @@ document_history_store::list (
   if (rc == SQLITE_DONE) return true;
   error= sqlite3_errmsg (db_);
   return false;
+}
+
+bool
+document_history_store::list_protected (
+    std::int64_t before_id, unsigned limit, std::vector<version_entry>& versions,
+    std::string& error) const {
+  versions.clear ();
+  if (!db_ || before_id < 0 || limit == 0 || limit > 1000) {
+    error= "Invalid protected history page"; return false;
+  }
+  statement query;
+  if (!prepare (db_, query,
+      "SELECT id,path,created_at_ms,trigger,COALESCE(base_id,0),encoding,"
+      "content_size,length(payload),content_hash,chain_depth FROM versions "
+      "WHERE (?1=0 OR id<?1) AND EXISTS(SELECT 1 FROM protected_versions WHERE version_id=versions.id) "
+      "ORDER BY id DESC LIMIT ?2;", error) ||
+      sqlite3_bind_int64 (query.value, 1, before_id) != SQLITE_OK ||
+      sqlite3_bind_int (query.value, 2, int (limit)) != SQLITE_OK) return false;
+  int rc;
+  while ((rc= sqlite3_step (query.value)) == SQLITE_ROW)
+    versions.push_back ({sqlite3_column_int64 (query.value, 0), column_text (query.value, 1),
+      sqlite3_column_int64 (query.value, 2), column_text (query.value, 3),
+      sqlite3_column_int64 (query.value, 4), sqlite3_column_int (query.value, 5) == 1,
+      sqlite3_column_int64 (query.value, 6), sqlite3_column_int64 (query.value, 7),
+      column_text (query.value, 8), sqlite3_column_int (query.value, 9), true});
+  if (rc == SQLITE_DONE) return true;
+  error= sqlite3_errmsg (db_); return false;
+}
+
+bool
+document_history_store::get (std::int64_t id, version_entry& version,
+                             std::string& error) const {
+  if (!db_ || id <= 0) { error= "Invalid history version"; return false; }
+  statement query;
+  if (!prepare (db_, query,
+      "SELECT id,path,created_at_ms,trigger,COALESCE(base_id,0),encoding,"
+      "content_size,length(payload),content_hash,chain_depth,"
+      "EXISTS(SELECT 1 FROM protected_versions WHERE version_id=versions.id) "
+      "FROM versions WHERE id=?1;", error) ||
+      sqlite3_bind_int64 (query.value, 1, id) != SQLITE_OK) return false;
+  const auto rc= sqlite3_step (query.value);
+  if (rc != SQLITE_ROW) {
+    error= rc == SQLITE_DONE ? "History version no longer exists" : sqlite3_errmsg (db_);
+    return false;
+  }
+  version= {sqlite3_column_int64 (query.value, 0), column_text (query.value, 1),
+    sqlite3_column_int64 (query.value, 2), column_text (query.value, 3),
+    sqlite3_column_int64 (query.value, 4), sqlite3_column_int (query.value, 5) == 1,
+    sqlite3_column_int64 (query.value, 6), sqlite3_column_int64 (query.value, 7),
+    column_text (query.value, 8), sqlite3_column_int (query.value, 9),
+    sqlite3_column_int (query.value, 10) != 0};
+  return true;
 }
 
 bool

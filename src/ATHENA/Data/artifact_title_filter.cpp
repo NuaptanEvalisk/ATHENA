@@ -211,7 +211,7 @@ athena_artifact_title_filter_fingerprint (
 bool
 athena_artifact_title_filter_read (
   const fs::path& vault_root, AthenaArtifactTitleFilter& filter,
-  std::string& error) {
+  std::string& error, bool create_defaults) {
   std::lock_guard<std::recursive_mutex> guard (filter_mutex);
   AthenaVaultfileInfo info;
   if (!athena_vaultfile_read (vault_root, info, error)) return false;
@@ -219,6 +219,7 @@ athena_artifact_title_filter_read (
   if (!configured_path (vault_root, info, path, error)) return false;
   if (!fs::exists (path)) {
     filter= athena_artifact_title_filter_defaults ();
+    if (!create_defaults) return true;
     if (!write_entries (path, filter, error)) return false;
     // Persist the default field for vaults created before this setting existed.
     return athena_vaultfile_write (vault_root, info, error);
@@ -303,4 +304,23 @@ bool athena_artifact_title_filter_reject (
   if (!athena_artifact_title_filter_read (root, filter, error)) return false;
   athena_artifact_title_filter_add (filter, name);
   return athena_artifact_title_filter_write (root, filter, error);
+}
+
+bool athena_artifact_title_filter_replace_if_current (
+  const fs::path& root, const AthenaArtifactTitleFilter& expected,
+  const AthenaArtifactTitleFilter& replacement, bool& matched, std::string& error,
+  const std::function<bool()>& permitted) {
+  std::lock_guard<std::recursive_mutex> guard (filter_mutex);
+  matched= false;
+  AthenaArtifactTitleFilter current;
+  if (!athena_artifact_title_filter_read (root, current, error, false)) return false;
+  auto sorted= [] (std::vector<std::string> values) {
+    std::sort (values.begin (), values.end ()); return values;
+  };
+  if (sorted (current.entries) != sorted (expected.entries) ||
+      sorted (current.structured_entries) != sorted (expected.structured_entries)) return true;
+  if (permitted && !permitted ()) return true;
+  if (!athena_artifact_title_filter_write (root, replacement, error)) return false;
+  matched= true;
+  return true;
 }

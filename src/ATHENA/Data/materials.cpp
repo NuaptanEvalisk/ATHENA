@@ -9,6 +9,8 @@
 ******************************************************************************/
 
 #include "ATHENA/Data/materials.hpp"
+#include "ATHENA/Data/hodarium_materials_database.hpp"
+#include "confined_filesystem.hpp"
 
 #include <QCryptographicHash>
 #include <QFile>
@@ -31,8 +33,12 @@
 #include <regex>
 #include <set>
 #include <sstream>
+#include <stdexcept>
 #include <system_error>
 #include <utility>
+#if defined(__linux__) || defined(__APPLE__)
+#include <unistd.h>
+#endif
 
 namespace fs= std::filesystem;
 
@@ -680,6 +686,218 @@ struct MaterialsStore::Impl {
   fs::path db_path;
   fs::path files_path;
 };
+
+std::vector<athena::hodarium::logical_database_object>
+MaterialsStore::logical_objects () const {
+  using namespace athena::hodarium;
+  if (!is_open ()) throw std::runtime_error ("Materials database is not open");
+  const bool owned= sqlite3_get_autocommit (impl->db) != 0;
+  std::string error;
+  if (owned && !exec_sql (impl->db, "BEGIN", error)) throw std::runtime_error (error);
+  struct read_scope {
+    sqlite3* db; bool owned;
+    ~read_scope () { if (owned) sqlite3_exec (db,"ROLLBACK",nullptr,nullptr,nullptr); }
+  } scope {impl->db, owned};
+  std::vector<logical_database_object> result;
+  size_t bytes= 0;
+  auto append= [&] (logical_database_object object) {
+    bytes+= object.payload.size ();
+    if (result.size () >= 100000 || bytes > 256u*1024u*1024u)
+      throw std::runtime_error ("Materials logical snapshot exceeds budget");
+    validate_logical_object (object);
+    result.push_back (std::move (object));
+  };
+  auto rows= [&] (const char* sql, const auto& consume) {
+    Statement query (impl->db,sql);
+    if (!query) throw std::runtime_error (sqlite3_errmsg (impl->db));
+    int rc;
+    while ((rc= sqlite3_step (query.get ())) == SQLITE_ROW) consume (query.get ());
+    if (rc != SQLITE_DONE) throw std::runtime_error (sqlite3_errmsg (impl->db));
+  };
+  rows ("SELECT uuid FROM materials ORDER BY uuid", [&] (sqlite3_stmt* row) {
+    MaterialRecord record;
+    if (!load_record (impl->db,text_column (row,0),record,error)) throw std::runtime_error (error);
+    append (encode_material_record (record));
+  });
+  rows ("SELECT uuid,material_uuid,role,stored_path,original_name,canonical_name,"
+        "mime_type,sha256,byte_size,is_primary FROM material_attachments ORDER BY uuid",
+    [&] (sqlite3_stmt* row) {
+      MaterialAttachment a;
+      a.uuid= text_column (row,0); a.material_uuid= text_column (row,1);
+      a.role= text_column (row,2); a.stored_path= text_column (row,3);
+      a.original_name= text_column (row,4); a.canonical_name= text_column (row,5);
+      a.mime_type= text_column (row,6); a.sha256= text_column (row,7);
+      a.byte_size= sqlite3_column_int64 (row,8); a.primary= sqlite3_column_int (row,9)!=0;
+      append (encode_material_attachment (a));
+    });
+  rows ("SELECT subject_uuid,relation,object_uuid FROM material_relations "
+        "ORDER BY subject_uuid,relation,object_uuid", [&] (sqlite3_stmt* row) {
+    append (encode_material_relation ({text_column (row,0),text_column (row,1),text_column (row,2)}));
+  });
+  rows ("SELECT alias_uuid,canonical_uuid FROM material_aliases ORDER BY alias_uuid",
+    [&] (sqlite3_stmt* row) {
+      append (encode_material_alias (text_column (row,0),text_column (row,1)));
+    });
+  std::sort (result.begin (),result.end (),[] (const auto& a,const auto& b) {return a.key<b.key;});
+  return result;
+}
+
+athena::hodarium::logical_apply_result
+MaterialsStore::apply_logical_change (
+  const athena::hodarium::logical_database_change& change,
+  const std::function<bool()>& permitted) {
+  using namespace athena::hodarium;
+  if (!is_open ()) throw std::runtime_error ("Materials database is not open");
+  if (permitted && !permitted ()) return logical_apply_result::stale;
+  std::string format;
+  if (change.key.rfind ("material/",0)==0) format= "athena-material-v1";
+  else if (change.key.rfind ("material-attachment/",0)==0) format= "athena-material-attachment-v1";
+  else if (change.key.rfind ("material-relation/",0)==0) format= "athena-material-relation-v1";
+  else if (change.key.rfind ("material-alias/",0)==0) format= "athena-material-alias-v1";
+  else throw std::invalid_argument ("Unknown Materials logical key");
+  if (change.expected) validate_logical_object ({change.key,format,*change.expected});
+  if (change.replacement) validate_logical_object ({change.key,format,*change.replacement});
+  std::string error;
+  if (!exec_sql (impl->db,"PRAGMA synchronous=FULL",error) ||
+      !begin_transaction (impl->db,error)) throw std::runtime_error (error);
+  struct write_scope {
+    sqlite3* db;
+    ~write_scope () { sqlite3_exec (db,"ROLLBACK",nullptr,nullptr,nullptr); }
+  } scope {impl->db};
+  auto observe= [&] () -> std::optional<std::string> {
+    for (const auto& object: logical_objects ()) if (object.key==change.key) return object.payload;
+    return {};
+  };
+  auto current= observe ();
+  if (current!=change.expected) return logical_apply_result::stale;
+  if (current==change.replacement) return logical_apply_result::unchanged;
+  auto value= decode_material_object ({change.key,format,change.replacement ? *change.replacement : *current});
+  auto run= [&] (const std::string& sql, const std::vector<std::string>& args) {
+    Statement statement (impl->db,sql.c_str ());
+    if (!statement) throw std::runtime_error (sqlite3_errmsg (impl->db));
+    for (size_t i=0;i<args.size ();++i) bind_text (statement.get (),int(i+1),args[i]);
+    const int rc= sqlite3_step (statement.get ());
+    if (rc!=SQLITE_ROW && rc!=SQLITE_DONE) throw std::runtime_error (sqlite3_errmsg (impl->db));
+    return rc==SQLITE_ROW;
+  };
+  auto exists= [&] (const std::string& uuid) {
+    return run ("SELECT 1 FROM materials WHERE uuid=?",{uuid});
+  };
+  const bool remove= !change.replacement;
+  if (value.kind==material_object_kind::record) {
+    auto& record= value.record;
+    if (remove) {
+      if (run ("SELECT 1 FROM material_attachments WHERE material_uuid=? UNION ALL "
+               "SELECT 1 FROM material_relations WHERE subject_uuid=? OR object_uuid=? UNION ALL "
+               "SELECT 1 FROM material_aliases WHERE canonical_uuid=? LIMIT 1",
+               {record.uuid,record.uuid,record.uuid,record.uuid}))
+        return logical_apply_result::dependency_missing;
+      run ("DELETE FROM materials_fts WHERE uuid=?",{record.uuid});
+      run ("DELETE FROM materials WHERE uuid=?",{record.uuid});
+    }
+    else {
+      if (run ("SELECT 1 FROM material_aliases WHERE alias_uuid=?",{record.uuid}))
+        return logical_apply_result::dependency_missing;
+      if (current) {
+        MaterialRecord local;
+        if (!load_record (impl->db,record.uuid,local,error)) throw std::runtime_error (error);
+        for (const auto& p: local.provenance)
+          if (local_material_provenance (p)) record.provenance.push_back (p);
+        const auto local_zotero= QJsonDocument::fromJson (QByteArray::fromStdString (local.extra_json))
+          .object ().value ("zotero").toObject ();
+        if (local_zotero.contains ("localServerId")) {
+          auto extra= QJsonDocument::fromJson (QByteArray::fromStdString (record.extra_json)).object ();
+          auto zotero= extra.value ("zotero").toObject ();
+          zotero.insert ("localServerId",local_zotero.value ("localServerId"));
+          extra.insert ("zotero",zotero);
+          record.extra_json= QJsonDocument (extra).toJson (QJsonDocument::Compact).toStdString ();
+        }
+      }
+      run ("INSERT INTO materials(uuid,item_type,review_state,extra_json,revision,created_at,updated_at) "
+           "VALUES(?,?,?,?,1,?,?) ON CONFLICT(uuid) DO UPDATE SET item_type=excluded.item_type,"
+           "review_state=excluded.review_state,extra_json=excluded.extra_json,"
+           "revision=materials.revision+1,updated_at=excluded.updated_at",
+           {record.uuid,record.item_type,record.review_state,record.extra_json,
+            std::to_string (now_seconds ()),std::to_string (now_seconds ())});
+      for (const char* table: {"material_fields","material_creators","material_identifiers",
+                               "material_tags","material_provenance"})
+        run (std::string("DELETE FROM ")+table+" WHERE material_uuid=?",{record.uuid});
+      if (!insert_record_children (impl->db,record,error) || !rebuild_search_row (impl->db,record,error))
+        throw std::runtime_error (error);
+    }
+  }
+  else if (value.kind==material_object_kind::attachment) {
+    const auto& a= value.attachment;
+    if (remove) run ("DELETE FROM material_attachments WHERE uuid=?",{a.uuid});
+    else {
+      if (!exists (a.material_uuid)) return logical_apply_result::dependency_missing;
+      if (a.primary && run ("SELECT 1 FROM material_attachments WHERE material_uuid=? AND is_primary=1 AND uuid<>?",
+                            {a.material_uuid,a.uuid})) return logical_apply_result::dependency_missing;
+      athena::filesystem::confined_root root (impl->root);
+      try {
+        auto file= root.open (fs::u8path (a.stored_path));
+        const auto before= file.stat ();
+        if (before.directory || before.size!=std::uint64_t(a.byte_size)) return logical_apply_result::dependency_missing;
+        // Hash the pinned object, never reopen an attacker-replaceable path.
+        struct pinned_descriptor {
+          int fd;
+          ~pinned_descriptor () {
+#if defined(__linux__) || defined(__APPLE__)
+            ::close (fd);
+#endif
+          }
+        } pinned {file.duplicate_descriptor ()};
+        QFile input;
+#ifdef __linux__
+        input.setFileName (QString ("/proc/self/fd/%1").arg (pinned.fd));
+        const bool opened= input.open (QIODevice::ReadOnly);
+#else
+        const bool opened= input.open (pinned.fd,QIODevice::ReadOnly,QFileDevice::DontCloseHandle);
+#endif
+        QCryptographicHash digest (QCryptographicHash::Sha256);
+        if (!opened || !digest.addData (&input)) throw std::runtime_error ("Could not hash Material attachment");
+        const auto hash= digest.result ().toHex ().toStdString ();
+        if (hash!=a.sha256 || !athena::filesystem::same_revision (before,file.stat ()) ||
+            !file.same_object (root.open (fs::u8path (a.stored_path))))
+          return logical_apply_result::dependency_missing;
+      }
+      catch (const std::system_error& e) {
+        if (e.code ()==std::errc::no_such_file_or_directory) return logical_apply_result::dependency_missing;
+        throw;
+      }
+      run ("INSERT INTO material_attachments(uuid,material_uuid,role,stored_path,original_name,canonical_name,"
+           "mime_type,sha256,byte_size,is_primary,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?) "
+           "ON CONFLICT(uuid) DO UPDATE SET material_uuid=excluded.material_uuid,role=excluded.role,"
+           "stored_path=excluded.stored_path,original_name=excluded.original_name,canonical_name=excluded.canonical_name,"
+           "mime_type=excluded.mime_type,sha256=excluded.sha256,byte_size=excluded.byte_size,is_primary=excluded.is_primary",
+           {a.uuid,a.material_uuid,a.role,a.stored_path,a.original_name,a.canonical_name,a.mime_type,a.sha256,
+            std::to_string(a.byte_size),a.primary?"1":"0",std::to_string(now_seconds())});
+    }
+  }
+  else if (value.kind==material_object_kind::relation) {
+    const auto& r= value.relation;
+    if (remove) run ("DELETE FROM material_relations WHERE subject_uuid=? AND relation=? AND object_uuid=?",
+                    {r.subject_uuid,r.relation,r.object_uuid});
+    else {
+      if (!exists (r.subject_uuid) || !exists (r.object_uuid)) return logical_apply_result::dependency_missing;
+      run ("INSERT INTO material_relations(subject_uuid,relation,object_uuid) VALUES(?,?,?)",
+           {r.subject_uuid,r.relation,r.object_uuid});
+    }
+  }
+  else {
+    if (remove) run ("DELETE FROM material_aliases WHERE alias_uuid=?",{value.alias});
+    else {
+      if (!exists (value.canonical) || exists (value.alias)) return logical_apply_result::dependency_missing;
+      run ("INSERT INTO material_aliases(alias_uuid,canonical_uuid,created_at) VALUES(?,?,?) "
+           "ON CONFLICT(alias_uuid) DO UPDATE SET canonical_uuid=excluded.canonical_uuid",
+           {value.alias,value.canonical,std::to_string(now_seconds())});
+    }
+  }
+  if (observe ()!=change.replacement) throw std::runtime_error ("Materials logical publication changed payload");
+  if (permitted && !permitted ()) return logical_apply_result::stale;
+  if (!commit_transaction (impl->db,error)) throw std::runtime_error (error);
+  return logical_apply_result::applied;
+}
 
 std::string
 MaterialRecord::field (const std::string& name) const {

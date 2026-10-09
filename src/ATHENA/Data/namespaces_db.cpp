@@ -211,7 +211,8 @@ upsert_relation_decision (sqlite3* db, string parent, string child,
     "INSERT INTO relation_decisions(parent, child, decision, source) "
     "VALUES(?, ?, ?, ?) "
     "ON CONFLICT(parent, child) DO UPDATE SET "
-    "  decision=excluded.decision, source=excluded.source;",
+    "  decision=excluded.decision, source=excluded.source "
+    "WHERE excluded.source<>'derived' OR relation_decisions.source='derived';",
     { parent, child, decision, source == "" ? "user" : source },
     error);
 }
