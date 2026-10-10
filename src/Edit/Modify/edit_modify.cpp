@@ -139,6 +139,7 @@ edit_modify_rep::post_notify (path p) {
   athena::node_reference::source_changed ();
   selection_cancel ();
   cancel_alt_selections ();
+  publish_live_spelling ();
   notify_change (THE_TREE);
   tp= position_get (cur_pos);
   position_delete (cur_pos);
@@ -230,6 +231,7 @@ edit_set_cursor (editor_rep* ed, path pp, tree data) {
 
 void
 edit_announce (editor_rep* ed, modification mod) {
+  if (mod->k != MOD_SET_CURSOR) ed->live_spelling_announce (mod);
   // Bridges reconstruct structural edits independently. Use an exact preview
   // when those reconstructions would discard source metadata or replay labels.
   path p= root (mod);

@@ -300,6 +300,186 @@ incremental_spell::selections (path cursor) const {
   return result;
 }
 
+namespace {
+// Rebase retained marks through the same elementary operations as the source
+// tree. Deleted content has no mark; surviving content keeps its presentation.
+bool spell_rebase (path& pos, tree before, modification mod, bool end) {
+  path p= root (mod);
+  if (!(p <= pos)) return true;
+  path q= pos / p;
+  tree t= subtree (before, p);
+  int i= is_nil (q)? 0: q->item;
+  int at= (mod->k == MOD_ASSIGN || mod->k == MOD_ASSIGN_NODE ||
+           mod->k == MOD_SET_METADATA)? 0:
+          mod->k == MOD_INSERT_NODE? last_item (mod->p): index (mod);
+  switch (mod->k) {
+  case MOD_ASSIGN:
+    if (!is_atomic (t) || !is_atomic (mod->t)) return false;
+    {
+      string a= t->label, b= mod->t->label;
+      int left= 0, right= 0;
+      while (left < N(a) && left < N(b) && a[left] == b[left]) ++left;
+      while (left > 0 && !athena::text::scalar_boundary (
+               {a.data (), std::size_t (N(a))}, left)) --left;
+      while (right < N(a)-left && right < N(b)-left &&
+             a[N(a)-right-1] == b[N(b)-right-1]) ++right;
+      while (right > 0 && !athena::text::scalar_boundary (
+               {a.data (), std::size_t (N(a))}, N(a)-right)) --right;
+      if (i > left || (!end && i == left))
+        i= i >= N(a)-right? i + N(b)-N(a): end? N(b)-right: left;
+      q= path (i);
+    }
+    break;
+  case MOD_INSERT:
+    if (i > at || (i == at && (!end || !is_atomic (t))))
+      q= path (i + (is_atomic (mod->t)? N(mod->t->label): N(mod->t)), q->next);
+    break;
+  case MOD_REMOVE:
+    if (is_atomic (t)) q= path (i < at? i: max (at, i-argument (mod)), q->next);
+    else if (i >= at && i < at+argument (mod)) return false;
+    else if (i >= at+argument (mod)) q= path (i-argument (mod), q->next);
+    break;
+  case MOD_SPLIT:
+    if (i > at) q= path (i+1, q->next);
+    else if (i == at && !is_nil (q->next) &&
+             (q->next->item > argument (mod) ||
+              (q->next->item == argument (mod) && !end)))
+      q= path (i+1, path (q->next->item-argument (mod), q->next->next));
+    break;
+  case MOD_JOIN:
+    if (i > at+1) q= path (i-1, q->next);
+    else if (i == at+1 && !is_nil (q->next)) {
+      int length= is_atomic (t[at])? N(t[at]->label): N(t[at]);
+      q= path (at, path (q->next->item+length, q->next->next));
+    }
+    break;
+  case MOD_INSERT_NODE: q= path (at, q); break;
+  case MOD_REMOVE_NODE:
+    if (is_nil (q) || i != at) return false;
+    q= q->next;
+    break;
+  default: break;
+  }
+  pos= p * q;
+  return true;
+}
+}
+
+bool incremental_spell_cache::path_order::operator () (path a, path b) const {
+  // These keys include subtree prefixes, not just editor cursor positions.
+  while (!is_nil (a) && !is_nil (b)) {
+    if (a->item != b->item) return a->item < b->item;
+    a= a->next;
+    b= b->next;
+  }
+  return is_nil (a) && !is_nil (b);
+}
+
+void incremental_spell_cache::reset () {
+  jobs.clear ();
+  errors.clear ();
+  rebuild= true;
+  initialized= false;
+}
+
+void incremental_spell_cache::invalidate () {
+  jobs.clear ();
+  rebuild= true;
+}
+
+void incremental_spell_cache::change (tree before, modification mod) {
+  if (!initialized) return;
+  path p= root (mod);
+  std::map<path, path, path_order> retained;
+  auto first= errors.lower_bound (p), last= first;
+  while (last != errors.end () && p <= last->first) ++last;
+  for (auto it= first; it != last; ++it) {
+    path a= it->first, b= it->second;
+    if (spell_rebase (a, before, mod, false) &&
+        spell_rebase (b, before, mod, true) &&
+        path_up (a) == path_up (b) && path_less (a, b))
+      retained.emplace (a, b);
+  }
+  errors.erase (first, last);
+  errors.insert (retained.begin (), retained.end ());
+  if (!is_nil (p)) {
+    jobs[p->item]= job ();
+    return;
+  }
+  // Root child edits only change neighbouring blocks and their indices.
+  if (mod->k == MOD_INSERT || mod->k == MOD_REMOVE ||
+      mod->k == MOD_SPLIT || mod->k == MOD_JOIN) {
+    int at= index (mod), removed= 0, added= 0;
+    if (mod->k == MOD_INSERT) added= N(mod->t);
+    if (mod->k == MOD_REMOVE) removed= argument (mod);
+    if (mod->k == MOD_SPLIT) { removed= 1; added= 2; }
+    if (mod->k == MOD_JOIN) { removed= 2; added= 1; }
+    std::map<int, job> moved;
+    for (auto& item: jobs) {
+      int i= item.first;
+      if (i < at) moved.emplace (i, std::move (item.second));
+      else if (i >= at+removed)
+        moved.emplace (i+added-removed, std::move (item.second));
+    }
+    for (int i=0; i<added; ++i) moved.emplace (at+i, job ());
+    jobs.swap (moved);
+  }
+  else invalidate ();
+}
+
+bool incremental_spell_cache::step (tree body, tree mode, tree language, path focus) {
+  if (rebuild) {
+    jobs.clear ();
+    for (int i=0; i<N(body); ++i) jobs.emplace (i, job ());
+    rebuild= false;
+    initialized= true;
+  }
+  auto deadline= std::chrono::steady_clock::now () + std::chrono::milliseconds (4);
+  bool changed= false;
+  int pivot= is_nil (focus)? 0: focus->item;
+  while (std::chrono::steady_clock::now () < deadline) {
+    auto chosen= jobs.lower_bound (pivot);
+    if (chosen != jobs.begin ()) {
+      auto previous= chosen;
+      --previous;
+      if (chosen == jobs.end () || pivot-previous->first < chosen->first-pivot)
+        chosen= previous;
+    }
+    if (chosen == jobs.end ()) break;
+    int i= chosen->first;
+    job& work= chosen->second;
+    bool accessible= is_accessible_for_spell (body, i);
+    if (accessible && !work.scan.initialized) {
+      tree child_mode= the_drd->get_env_child (body, i, MODE, mode);
+      tree child_language= the_drd->get_env_child (body, i, LANGUAGE, language);
+      work.scan.start (body[i], child_mode, child_language, path (),
+        !is_nil (focus) && i == pivot? focus->next: path ());
+    }
+    if (accessible) {
+      work.scan.step ();
+      if (!work.scan.done ()) break;
+    }
+    // Publish a complete replacement, never an empty intermediate result.
+    auto first= errors.lower_bound (path (i));
+    auto last= errors.lower_bound (path (i+1));
+    errors.erase (first, last);
+    if (accessible) {
+      range_set result= work.scan.selections (path ());
+      for (int n=0; n+1<N(result); n+=2)
+        errors.emplace (path (i, result[n]), path (i, result[n+1]));
+    }
+    jobs.erase (chosen);
+    changed= true;
+  }
+  return changed;
+}
+
+range_set incremental_spell_cache::selections (path root) const {
+  range_set result;
+  for (const auto& hit: errors) result << root * hit.first << root * hit.second;
+  return result;
+}
+
 range_set
 spell (string lan, tree t, path p, int limit) {
   spell_initialize ();

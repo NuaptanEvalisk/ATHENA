@@ -673,15 +673,13 @@ edit_interface_rep::notify_change (int env_set, int env_unset) {
                  THE_FOCUS))
     pending_idle_footer_update= true;
   if (env_set & (THE_TREE | THE_ENVIRONMENT)) {
-    live_spelling.reset ();
-    live_spelling_dirty= true;
+    if (env_set & THE_ENVIRONMENT) live_spelling_dirty= true;
     live_spelling_next= texmacs_time () + 450;
     if (ui_endpoint != nullptr)
       ui_endpoint->invalidate_personal_macro_items ();
   }
   if (env_set & THE_ENVIRONMENT)
     editor_style_command_flags_valid= false;
-  if (env_set & THE_TREE) live_spelling_edit_cursor= copy (tp);
   if (env_set & (THE_TREE | THE_ENVIRONMENT | THE_EXTENTS | THE_CURSOR | THE_SELECTION))
     clear_link_peek ();
   env_change= (env_change | env_set) & (~env_unset);

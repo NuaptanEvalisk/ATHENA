@@ -14,6 +14,17 @@
 #include "vars.hpp"
 
 void
+edit_interface_rep::live_spelling_announce (modification mod) {
+  live_spelling.change (subtree (et, rp), mod / rp);
+}
+
+void
+edit_interface_rep::publish_live_spelling () {
+  if (live_spelling.initialized)
+    set_alt_selection ("spell-live", live_spelling.selections (rp));
+}
+
+void
 edit_interface_rep::update_live_spelling () {
   if (get_preference ("live spell checking") != "on") {
     if (live_spelling.initialized) {
@@ -33,24 +44,13 @@ edit_interface_rep::update_live_spelling () {
   if (is_nil (eb) || !ui_viewport ().attached || input_mode != INPUT_NORMAL ||
       texmacs_time () < live_spelling_next) return;
   live_spelling_next= texmacs_time () + 50;
-  if (!live_spelling.done () &&
-      (live_spelling_x != vx1 || live_spelling_y != vy2))
-    live_spelling_dirty= true;
   if (live_spelling_dirty || !live_spelling.initialized) {
-    live_spelling_x= vx1;
-    live_spelling_y= vy2;
-    path focus= tree_path (path (), vx1, vy2, 0);
-    if (!(rp <= focus)) focus= tp;
-    live_spelling.start (subtree (et, rp), get_init_string (MODE),
-                         get_init_string (LANGUAGE), rp, focus / rp);
+    live_spelling.invalidate ();
     live_spelling_dirty= false;
-    cancel_alt_selection ("spell-live");
   }
-  bool changed= live_spelling.step ();
-  if (tp != live_spelling_edit_cursor) live_spelling_edit_cursor= path ();
-  if (changed || tp != live_spelling_cursor) {
-    live_spelling_cursor= copy (tp);
-    set_alt_selection ("spell-live",
-                       live_spelling.selections (live_spelling_edit_cursor));
-  }
+  path focus= tree_path (path (), vx1, vy2, 0);
+  if (!(rp <= focus)) focus= tp;
+  if (live_spelling.step (subtree (et, rp), get_init_string (MODE),
+                         get_init_string (LANGUAGE), focus / rp))
+    publish_live_spelling ();
 }

@@ -47,13 +47,10 @@ struct heading_cell_bracket {
 
 class edit_interface_rep: virtual public editor_rep {
 protected:
-  incremental_spell live_spelling;
+  incremental_spell_cache live_spelling;
   bool live_spelling_dirty= true;
   time_t live_spelling_next= 0;
   unsigned long live_spelling_dictionary_revision= 0;
-  path live_spelling_cursor;
-  path live_spelling_edit_cursor;
-  SI live_spelling_x= 0, live_spelling_y= 0;
   void update_live_spelling ();
   int           env_change;    // which things have been changed ?
   time_t        last_change;   // time of last processed change
@@ -224,6 +221,8 @@ public:
   /* handle changes */
   void notify_change (int env_set, int env_unset = 0);
   void source_indexes_changed (path p, bool text_only) override;
+  void live_spelling_announce (modification mod) override;
+  void publish_live_spelling () override;
   bool has_changed (int question);
   int  idle_time (int event_type= ANY_EVENT);
   int  change_time ();

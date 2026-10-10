@@ -12,6 +12,7 @@
 #define TREE_SPELL_H
 #include "tree_search.hpp"
 #include "unicode_text.hpp"
+#include "modification.hpp"
 #include <map>
 #include <vector>
 
@@ -37,6 +38,27 @@ public:
   bool step (int word_budget= 64, int node_budget= 256, int milliseconds= 4);
   bool done () const { return stack.empty (); }
   range_set selections (path cursor) const;
+};
+
+// Committed marks survive rescans. Each source block has an independent scan;
+// changing one block never discards the work or results of its siblings.
+class incremental_spell_cache {
+  struct job {
+    incremental_spell scan;
+  };
+  struct path_order {
+    bool operator () (path a, path b) const;
+  };
+  std::map<int, job> jobs;
+  std::map<path, path, path_order> errors;
+  bool rebuild= true;
+public:
+  bool initialized= false;
+  void reset ();
+  void invalidate ();
+  void change (tree before, modification mod);
+  bool step (tree body, tree mode, tree language, path focus);
+  range_set selections (path root) const;
 };
 
 #endif

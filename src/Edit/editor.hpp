@@ -447,6 +447,8 @@ public:
 
   /* public routines from edit_modify */
   virtual void source_indexes_changed (path p, bool text_only) = 0;
+  virtual void live_spelling_announce (modification mod) = 0;
+  virtual void publish_live_spelling () = 0;
   virtual void notify_assign (path p, tree u) = 0;
   virtual void notify_insert (path p, tree u) = 0;
   virtual void notify_remove (path p, int nr) = 0;
