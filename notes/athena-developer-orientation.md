@@ -1,6 +1,6 @@
 # ATHENA: Orientation For A New Development Session
 
-Updated 2026-09-25. This is project background, not a task assignment.
+Updated 2026-10-10. This is project background, not a task assignment.
 The user will supply the bug or feature to work on.
 
 The UTF-8/XML migration is complete. Do not treat old reports, migration
@@ -25,19 +25,29 @@ The user uses it for real mathematical notes and research. Important concepts:
 - A **vault** is a managed collection of documents, settings and databases.
 - **Namespaces** organize knowledge and can expose generated document pages,
   such as `tmfs://ns/Universe`. Such a page is not necessarily a disk file.
-- **Enunciations** include structured definitions, theorems, proofs and similar
-  environments. Anchored ranges can be selected for linking and transclusion.
+- **Enunciations** are unified `enunciation` nodes with a `kind` property for
+  definitions, theorems, proofs and similar environments. Node UUIDs, not
+  generated anchors, supply their persistent source identity.
 - **Wikilinks** navigate to document content; **transclusions** embed referenced
   content. Preview/inserter UI uses the document rendering machinery too.
 - **Artifacts** are indexed knowledge objects. Radioactive links use that index
   to connect document terms to artifacts, including disambiguation when needed.
 - **Materials** support reference management and citations.
+- **AVD** (`.avd`) is an ATHENA Compound Virtual Document: namespace members in
+  sorter order, one continuous editable scrolling surface, per-file environments
+  and shared counters. It is not a sequence of unrelated editor windows.
+- **Hodarium** is ATHENA's multi-device synchronization system. Its authority
+  server and transport Relays are separate services. See the current subsystem
+  documentation and `notes/athena-hodarium.tex`; do not infer its implementation
+  from earlier Groupoid discussions.
 - AI completion, search/indexing, artifactization and remote delegation are
   separate application services, not interchangeable names for one subsystem.
 
-Vault databases contain persistent identities, relationships, model decisions
-and embeddings. They are not disposable caches. Rebuilding them can be expensive
-and can involve remote hardware.
+Artifact databases contain persistent identities, relationships, model decisions
+and embeddings. Do not delete them as a repair strategy. Node location indexes,
+by contrast, are rebuildable caches: the source UUIDs live in documents. Use
+Vaultfile configuration for actual database locations; do not assume historical
+root-level filenames are still canonical.
 
 ## Local Environment
 
@@ -136,6 +146,20 @@ argument order, empty values and explicit binary payloads. Legacy imports are
 separate boundaries; runtime text must not guess Cork encoding or interpret
 literal `<...>` strings as old font tokens. Non-Unicode symbol identities use
 `named-symbol`, not the node for unfinished symbol input.
+
+The current node model uses XML v2 and optional metadata on both atomic and
+compound nodes: dedicated UUIDs and typed named properties, not wrapper nodes.
+Paragraphs can be atomic and still have identity. Source identities must survive
+normalization, editing and undo; copying as new objects is distinct from copying
+a snapshot. Full storage equality and content/model-input equality are different
+operations. Do not round-trip source edits through metadata-losing Scheme strees.
+
+Wikilinks and transclusions resolve source UUIDs through native location services
+and tmfs. Do not restore file/anchor hints or generated identity-anchor production.
+Artifact identities are bound to source nodes, not guessed anew on each edit.
+Continuous Maintenance normalizes legacy enunciations; new insertion commands
+must produce the modern model directly. Read current node-model documentation
+for the detailed edit, migration and identity contracts, not as a pending todo.
 
 Use the shared document IO/transaction interfaces rather than writing a new
 parser or directly calling a legacy writer. Do not run format migration on the
@@ -239,6 +263,113 @@ An already running process still uses its old executable. Report deployment
 accurately and let the user restart for acceptance; do not imply hot replacement.
 Normal Debug is the usual first step. Do not automatically build TSan or run a
 large GUI suite for every local fix.
+
+These commands are for Linux. The macOS VM has 16 vCPUs: use **`-j15` there**,
+never `-j20`. iPadOS already has a functioning native app build; do not restart
+that port from scratch. Read `notes/ipados-build-handoff.md` and verify current
+VM/build scripts before iPad work. iPad ships precompiled Guile bytecode, without
+JIT or runtime source recompilation. A Linux build does not update an IPA.
+
+## Current Handoff: Editing Performance And Live Spelling
+
+The most recent task is complete, built and deployed on Linux. No new task is
+being assigned by this document. The user will report acceptance or the next
+problem. Do not automatically rerun tests, benchmark production Notes, or resume
+Hodarium's deferred joint validation.
+
+Recent commits, in chronological order:
+
+- `23619630b`: restore image background removal in native menus.
+- `786cf3d87`: fix Unicode completion and avoid per-keystroke full-tree scans.
+- `e408c9a31`: make live spelling incremental and retain underline presentation.
+
+The reported slow document was
+`/home/felix/data/Notes/Notes Root/Splash Think/Splash Think 2026.ath`.
+Investigation used an isolated copy, not edits to that production file. It has
+about 798 top-level body children, many inline/display formulas and enunciations.
+An isolated runtime trace caught completion splitting a multibyte UTF-8 sequence;
+the old completion path also traversed the full tree repeatedly. Native ink
+region discovery was another unnecessary whole-tree traversal on text edits.
+
+The completion fix uses ICU word boundaries, per-source-block word-frequency
+caches and prefix lookup over the aggregate index. Source edit notifications
+invalidate affected blocks. Ordinary text edits no longer invalidate ink region
+discovery unless they affect graphics structure. A first cold completion index
+build can still cost more than subsequent keystrokes; do not confuse cold and
+steady-state measurements.
+
+### Live Spelling: Exact Change And Ownership
+
+Previously `post_notify()` cleared alternative selections, `THE_TREE` reset the
+spell scanner, and the next scan cleared `spell-live` before rebuilding it.
+Even viewport movement could restart an unfinished scan. The old implementation
+was time-sliced, not edit-incremental. This explained disappearing/reappearing
+underlines after typing.
+
+The new implementation is actor-owned and lives in:
+
+- `src/Data/Tree/tree_spell.{hpp,cpp}`: `incremental_spell_cache` wraps the
+  existing bounded subtree scanner. It stores pending jobs by top-level body
+  child and committed error ranges relative to the body.
+- `src/Edit/Modify/edit_modify.cpp`: `edit_announce` passes the actual edit to
+  `live_spelling_announce` before mutation; `post_notify` republishes rebased
+  ranges immediately after the generic alternative-selection cancellation.
+- `src/Edit/Interface/edit_live_spell.cpp`: schedules affected-block work and
+  publishes completed results. Dictionary/environment invalidation retains old
+  marks until replacement results are ready.
+- `src/Edit/Interface/edit_interface.{hpp,cpp}` and `src/Edit/editor.hpp`:
+  editor integration and removal of unconditional tree-change resets.
+
+Existing marks track insert/remove/split/join/wrap/unwrap edits. Atomic ASSIGN
+uses a UTF-8-safe common prefix/suffix to relocate endpoints. A composite subtree
+replacement removes marks belonging to the replaced content. Completed block
+results replace the previous block results in one publication; partial scans do
+not publish an empty intermediate selection. Scrolling reprioritizes pending
+work without resetting it. The normal 450 ms typing debounce remains.
+
+Granularity is a **top-level source block**, not a word: editing inside a
+top-level enunciation rechecks that enunciation, not the whole document.
+Initial scans and dictionary/global-environment changes still require broader
+work. Publishing selections still visits the committed mark list; do not claim
+every operation is constant-time or that all repainting has been eliminated.
+
+Important implementation trap: TeXmacs `path_less` is a cursor-order relation,
+not a general lexicographic prefix comparator. It has special `(0)`/`(1)`
+semantics. The cache deliberately uses its own lexicographic comparator for
+`lower_bound(path(i))` block ranges. Replacing it with `path_less` caused invalid
+map range erasure during development. Also, `MOD_INSERT_NODE` obtains its index
+from `last_item(mod->p)`; generic `index(mod)` does not support that operation.
+
+### Verification Already Done
+
+- Normal Linux application build succeeded; `git diff --check` passed.
+- Built executable was compared and atomically deployed to
+  `ATHENA/bin/ATHENA.bin`. The user's running instance was not restarted and
+  therefore may still be using an older executable.
+- A three-paragraph isolated fixture verified `spell-live` ranges immediately
+  after typing, after the debounce, after splitting, and after undo. Marks never
+  became an empty intermediate set; following paragraphs shifted correctly.
+- These are range/state checks, not a claim that a human has visually accepted
+  every rendering case. No full test suite was run.
+
+Temporary evidence, if still present, is under `/tmp/athena-splash-profile/`:
+`spell-init.scm`, `document/spell.ath`, `marks-*`, `spell-check.log`, and
+`spell-final-build.log`. Older `spell-gdb.log` captures the comparator failure
+that was subsequently fixed; do not mistake it for a current failure.
+
+For a necessary isolated runtime investigation, set `ATHENA_HOME_PATH` to a
+temporary profile and `ATHENA_PATH` to the repository's `ATHENA/` resource tree.
+Directly launching `build_qt6/src/ATHENA.bin` may additionally require
+`LD_LIBRARY_PATH` pointing at `ATHENA/lib` for bundled dependencies. Target the
+fixture's actor explicitly (`exec-buffer` in an `exec-global` dispatch) rather
+than relying on whichever editor happens to be focused. Temporary profiles may
+need copies of user styles such as `unnumbered-sections-generic`; a missing style
+is not evidence of the original bug. Do not copy credentials unnecessarily.
+
+Hodarium's final combined multi-device validation was explicitly deferred by the
+user. Recent implementation and documentation commits exist, but build success
+does not establish production synchronization acceptance. Do not start servers,
+pair devices or synchronize Notes merely because a handoff mentions Hodarium.
 
 ## Debugging And Working With The User
 
