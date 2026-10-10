@@ -665,6 +665,10 @@ edit_interface_rep::compute_env_rects (path p, rectangles& rs, bool recurse,
 
 void
 edit_interface_rep::notify_change (int env_set, int env_unset) {
+  if (env_set & THE_ENVIRONMENT) {
+    completion_index_valid= false;
+    mark_native_ink_interaction_dirty ();
+  }
   if (env_set & (THE_TREE | THE_ENVIRONMENT | THE_CURSOR | THE_SELECTION |
                  THE_FOCUS))
     pending_idle_footer_update= true;
@@ -2061,7 +2065,6 @@ edit_interface_rep::apply_changes () {
       invalidate (eb->x2 - heading_strip_width, vy1,
                   eb->x2 + 2 * pixel, vy2);
     invalidate (x1- 2*pixel, y1- 2*pixel, x2+ 2*pixel, y2+ 2*pixel);
-    mark_native_ink_interaction_dirty ();
     refresh_native_ink_interaction ();
     (void) publish_ui (actor_command_kind::ui_native_drawing_focus_refresh);
     // check_data_integrety ();

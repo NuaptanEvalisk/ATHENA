@@ -20,6 +20,9 @@
 #include "tm_timer.hpp"
 #include "widget.hpp"
 #include <vector>
+#include <map>
+#include <set>
+#include <string>
 
 #define INPUT_NORMAL      0
 #define INPUT_SEARCH      1
@@ -115,6 +118,11 @@ protected:
   std::uint64_t completion_session= 0;
   path          completion_cursor;
   string        completion_original;
+  bool completion_index_valid= false;
+  std::map<int, std::map<std::string, int>> completion_chunks;
+  std::map<std::string, int> completion_words;
+  std::set<int> completion_dirty_chunks;
+  array<string> indexed_completions (string prefix);
   struct link_peek_layer {
     string target;
     url source;
@@ -215,6 +223,7 @@ public:
 
   /* handle changes */
   void notify_change (int env_set, int env_unset = 0);
+  void source_indexes_changed (path p, bool text_only) override;
   bool has_changed (int question);
   int  idle_time (int event_type= ANY_EVENT);
   int  change_time ();

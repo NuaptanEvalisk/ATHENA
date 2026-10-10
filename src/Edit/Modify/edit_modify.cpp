@@ -39,8 +39,8 @@ edit_modify_rep::~edit_modify_rep () {}
 
 void
 edit_modify_rep::notify_assign (path p, tree u) {
-  (void) u;
   if (!(rp <= p)) return;
+  source_indexes_changed (p, is_atomic (u) && is_atomic (subtree (et, p)));
   cur_pos= position_new (tp);
   ::notify_assign (get_typesetter (), p / rp, u);
 }
@@ -48,6 +48,7 @@ edit_modify_rep::notify_assign (path p, tree u) {
 void
 edit_modify_rep::notify_insert (path p, tree u) {
   if (!(rp <= p)) return;
+  source_indexes_changed (path_up (p), is_atomic (subtree (et, path_up (p))));
   cur_pos= position_new (tp);
   ::notify_insert (get_typesetter (), p / rp, u);
 }
@@ -55,6 +56,7 @@ edit_modify_rep::notify_insert (path p, tree u) {
 void
 edit_modify_rep::notify_remove (path p, int nr) {
   if (!(rp <= p)) return;
+  source_indexes_changed (path_up (p), is_atomic (subtree (et, path_up (p))));
   cur_pos= position_new (tp);
   ::notify_remove (get_typesetter (), p / rp, nr);
 }
@@ -62,6 +64,7 @@ edit_modify_rep::notify_remove (path p, int nr) {
 void
 edit_modify_rep::notify_split (path p) {
   if (!(rp <= p)) return;
+  source_indexes_changed (path_up (p, 2), false);
   cur_pos= position_new (tp);
   ::notify_split (get_typesetter (), p / rp);
 }
@@ -69,6 +72,7 @@ edit_modify_rep::notify_split (path p) {
 void
 edit_modify_rep::notify_join (path p) {
   if (!(rp <= p)) return;
+  source_indexes_changed (path_up (p), false);
   cur_pos= position_new (tp);
   ::notify_join (get_typesetter (), p / rp);
 }
@@ -76,6 +80,7 @@ edit_modify_rep::notify_join (path p) {
 void
 edit_modify_rep::notify_assign_node (path p, tree_label op) {
   if (!(rp <= p)) return;
+  source_indexes_changed (p, false);
   cur_pos= position_new (tp);
   ::notify_assign_node (get_typesetter (), p / rp, op);
 }
@@ -83,6 +88,7 @@ edit_modify_rep::notify_assign_node (path p, tree_label op) {
 void
 edit_modify_rep::notify_insert_node (path p, tree t) {
   if (!(rp <= p)) return;
+  source_indexes_changed (p, false);
   cur_pos= position_new (tp);
   ::notify_insert_node (get_typesetter (), p / rp, t);
 }
@@ -90,6 +96,7 @@ edit_modify_rep::notify_insert_node (path p, tree t) {
 void
 edit_modify_rep::notify_remove_node (path p) {
   if (!(rp <= p)) return;
+  source_indexes_changed (p, false);
   cur_pos= position_new (tp);
   ::notify_remove_node (get_typesetter (), p / rp);
 }

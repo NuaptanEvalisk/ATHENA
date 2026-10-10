@@ -18,6 +18,7 @@
 #include "unicode_text.hpp"
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <algorithm>
 
 /******************************************************************************
 * Finding completions in text
@@ -25,57 +26,90 @@
 
 static void
 find_completions (
-  drd_info drd, tree t, hashset<string>& h, hashmap<string,int>& frequencies,
-  string prefix= "")
+  drd_info drd, tree t, std::map<std::string, int>& words)
 {
   if (is_atomic (t)) {
     string s= t->label;
-    int i= 0, n= N(s);
-    while (i<n) {
-      if (is_iso_alpha (s[i])) {
-        int start= i;
-        while ((i<n) && (is_iso_alpha (s[i]))) i++;
-        string r= s (start, i);
-        if (starts (r, prefix) && (r != prefix)) {
-          h->insert (r);
-          frequencies (r)= frequencies[r] + 1;
-        }
-      }
-      else skip_symbol (s, i);
-    }
+    std::string_view text (s.data (), N(s));
+    for (const auto& span: athena::text::word_segments (text))
+      if (span.lexical)
+        ++words[std::string (text.substr (span.begin, span.end - span.begin))];
   }
   else {
     int i, n= N(t);
     for (i=0; i<n; i++)
       if (drd->is_accessible_child (t, i))
-        find_completions (drd, t[i], h, frequencies, prefix);
+        find_completions (drd, t[i], words);
   }
 }
 
-static array<string>
-find_completions (drd_info drd, tree t, string prefix= "") {
-  hashset<string> h;
-  hashmap<string,int> frequencies (0);
-  find_completions (drd, t, h, frequencies, prefix);
-  array<string> words= as_completions (h);
-  if (get_preference ("text autocompletion sorting", "alphabetical") ==
-      "frequency") {
-    // words is initially alphabetical. Stable insertion by descending count
-    // therefore keeps alphabetical order for equal-frequency candidates.
-    for (int i= 1; i < N(words); ++i) {
-      string word= words[i];
-      int count= frequencies[word];
-      int j= i;
-      while (j > 0 && frequencies[words[j - 1]] < count) {
-        words[j]= words[j - 1];
-        --j;
-      }
-      words[j]= word;
-    }
+void
+edit_interface_rep::source_indexes_changed (path p, bool text_only) {
+  path relative= p / rp;
+  if (is_nil (relative)) completion_index_valid= false;
+  else if (completion_index_valid) completion_dirty_chunks.insert (relative->item);
+
+  // Text edits do not move graphics paths. Graphics properties may still change
+  // the set of active pen regions, so invalidate those explicitly.
+  while (text_only && rp <= p) {
+    tree t= subtree (et, p);
+    if (is_func (t, GRAPHICS)) text_only= false;
+    if (is_func (t, WITH))
+      for (int i=0; i+1<N(t); i+=2)
+        if (t[i] == GR_MODE) text_only= false;
+    if (p == rp) break;
+    p= path_up (p);
   }
-  for (int i= 0; i < N(words); ++i)
-    words[i]= words[i] (N(prefix), N(words[i]));
-  return words;
+  if (!text_only) mark_native_ink_interaction_dirty ();
+}
+
+array<string>
+edit_interface_rep::indexed_completions (string prefix) {
+  tree body= subtree (et, rp);
+  if (!completion_index_valid) {
+    completion_chunks.clear ();
+    completion_words.clear ();
+    completion_dirty_chunks.clear ();
+    for (int i=0; i<N(body); ++i) completion_dirty_chunks.insert (i);
+    completion_index_valid= true;
+  }
+  for (int i: completion_dirty_chunks) {
+    auto& chunk= completion_chunks[i];
+    for (const auto& word: chunk) {
+      auto found= completion_words.find (word.first);
+      found->second-= word.second;
+      if (found->second == 0) completion_words.erase (found);
+    }
+    chunk.clear ();
+    if (i < N(body) && drd->is_accessible_child (body, i))
+      find_completions (drd, body[i], chunk);
+    for (const auto& word: chunk) completion_words[word.first]+= word.second;
+  }
+  completion_dirty_chunks.clear ();
+  std::string key (prefix.data (), N(prefix));
+  std::vector<std::pair<std::string, int>> matches;
+  for (auto it= completion_words.lower_bound (key);
+       it != completion_words.end () && it->first.compare (0, key.size (), key) == 0;
+       ++it)
+    if (it->first != key) matches.push_back (*it);
+  if (get_preference ("text autocompletion sorting", "alphabetical") == "frequency")
+    std::stable_sort (matches.begin (), matches.end (),
+      [] (const auto& a, const auto& b) { return a.second > b.second; });
+  array<string> result;
+  for (const auto& word: matches) {
+    std::string suffix= word.first.substr (key.size ());
+    result << string (suffix.data (), suffix.size ());
+  }
+  return result;
+}
+
+static string
+completion_word_prefix (string s, int end) {
+  std::string_view text (s.data (), N(s));
+  for (const auto& span: athena::text::word_segments (text))
+    if (span.lexical && span.end == static_cast<std::size_t> (end))
+      return s (span.begin, span.end);
+  return "";
 }
 
 /******************************************************************************
@@ -101,12 +135,9 @@ edit_interface_rep::complete_try () {
         a << string (t[i]->label (N(s), N(t[i]->label)));
   }
   else {
-    if ((end==0) || (!is_iso_alpha (s[end-1])) ||
-        ((end!=N(s)) && is_iso_alpha (s[end]))) return false;
-    int start= end-1;
-    while ((start>0) && is_iso_alpha (s[start-1])) start--;
-    ss= s (start, end);
-    a= find_completions (drd, et, ss);
+    ss= completion_word_prefix (s, end);
+    if (ss == "") return false;
+    a= indexed_completions (ss);
   }
   if (N(a) == 0) return false;
   complete_start (ss, a);
@@ -123,10 +154,11 @@ edit_interface_rep::complete_try_realtime () {
   if (is_compound (st)) return false;
   string s= st->label;
   int end= last_item (tp);
-  if (end < 2 || end > N(s) || !is_iso_alpha (s[end - 1])) return false;
-  int start= end - 1;
-  while (start > 0 && is_iso_alpha (s[start - 1])) start--;
-  if (end - start < 2) return false;
+  if (end == 0 || end > N(s)) return false;
+  string prefix= completion_word_prefix (s, end);
+  std::string_view text (prefix.data (), N(prefix));
+  if (prefix == "" || athena::text::next_scalar (text, 0) == text.size ())
+    return false;
   return complete_try ();
 }
 
@@ -140,6 +172,14 @@ edit_interface_rep::complete_start (string prefix, array<string> compls) {
   if ((end<N(prefix)) || (s (end-N(prefix), end) != prefix)) return;
 
   if (N(compls) == 0) return;
+  QJsonArray choices;
+  for (int i=0; i<N(compls); ++i) {
+    string utf8= prefix * compls[i];
+    athena::text::require_utf8 (
+      std::string_view (utf8.data (), static_cast<std::size_t> (N(utf8))));
+    choices.append (QString::fromUtf8 (as_charp (utf8), N(utf8)));
+  }
+  QByteArray encoded= QJsonDocument (choices).toJson (QJsonDocument::Compact);
   set_input_normal ();
   completion_prefix= copy (prefix);
   completions= copy (compls);
@@ -148,14 +188,6 @@ edit_interface_rep::complete_start (string prefix, array<string> compls) {
   completion_original= copy (s);
   ++completion_session;
   set_input_mode (INPUT_COMPLETE);
-  QJsonArray choices;
-  for (int i=0; i<N(completions); ++i) {
-    string utf8= completion_prefix * completions[i];
-    athena::text::require_utf8 (
-      std::string_view (utf8.data (), static_cast<std::size_t> (N(utf8))));
-    choices.append (QString::fromUtf8 (as_charp (utf8), N(utf8)));
-  }
-  QByteArray encoded= QJsonDocument (choices).toJson (QJsonDocument::Compact);
   cursor cu= get_cursor ();
   if (!publish_ui_text (actor_command_kind::ui_show_completion,
         string (encoded.constData (), encoded.size ()), completion_session,
