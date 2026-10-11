@@ -133,6 +133,7 @@ public:
   rows snapshot ();
   athena::background::progress background_progress ();
   std::map<std::string, std::string> background_errors;
+  std::map<std::pair<std::string, std::string>, athena::background::progress> vault_progress;
   std::map<std::string, std::chrono::steady_clock::time_point> background_transport_failures;
   void join (QUrl origin, std::string name);
 

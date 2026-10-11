@@ -197,8 +197,9 @@
     {
       "id": "application.hodarium",
       "label": "Hodarium",
-      "category": "View",
-      "help": "Manage device membership in ATHENA Hodarium"
+      "category": "Workspace",
+      "icon": "folder-sync",
+      "help": "Manage vault synchronization, devices and connections in ATHENA Hodarium"
     },
     {
       "id": "workspace.global-search",
@@ -1200,7 +1201,6 @@
         { "command": "workspace.namespace-explorer" },
         { "command": "view.outline" },
         { "command": "view.document-history" },
-        { "command": "application.hodarium" },
         { "command": "view.neighborhoods" },
         { "separator": true },
         { "command": "view.error-messages" },
@@ -1225,6 +1225,7 @@
         { "command": "workspace.vault-explorer" },
         { "command": "workspace.namespace-explorer" },
         { "command": "workspace.namespace-manager" },
+        { "command": "application.hodarium" },
         {
           "submenu": "workspace-managers",
           "label": "Managers",

@@ -646,6 +646,7 @@ rows sync_worker::snapshot () {
 athena::background::progress sync_worker::background_progress () {
   using athena::background::phase;
   athena::background::progress result;
+  vault_progress.clear ();
   if (!settings) {
     if (const auto error= background_errors.find (""); error != background_errors.end ()) {
       result.state= phase::error; result.caption= "Sync failed"; result.error_detail= error->second;
@@ -787,6 +788,7 @@ athena::background::progress sync_worker::background_progress () {
       }
       if (!status.discovery_diagnostic.empty ()) value.detail+= "\n" + status.discovery_diagnostic;
       if (status.refreshing_membership) value.detail+= "\nRefreshing membership";
+      vault_progress[{group, binding.vault}]= value;
       merge (std::move (value));
     }
   }

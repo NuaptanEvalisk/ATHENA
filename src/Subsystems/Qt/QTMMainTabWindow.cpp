@@ -296,7 +296,7 @@ isPersistentAdsPane (const QString& name) {
          name == "athena-handwritten-symbol" ||
          name == "athena-global-search" ||
          name == "athena-document-history" ||
-         name == "athena-error-messages";
+         name == "athena-error-messages" || name == "athena-hodarium";
 }
 
 static QByteArray
@@ -798,6 +798,8 @@ void QTMMainTabWindow::restoreAdsVisiblePanes() {
       error_messages_show ();
     else if (name == "athena-custom-styles-manager")
       custom_styles_manager_show ();
+    else if (name == "athena-hodarium")
+      qtm_hodarium_show ();
   }
 
   scheduleAdsLayoutRestore();

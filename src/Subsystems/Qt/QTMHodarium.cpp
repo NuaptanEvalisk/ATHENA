@@ -1,5 +1,16 @@
 /* Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later. */
 #include "QTMHodarium.hpp"
+#include "QTMMainTabWindow.hpp"
+#include <DockWidget.h>
+#include <QWizard>
+#include <QWizardPage>
+#include <QComboBox>
+#include <QCheckBox>
+#include <QTabWidget>
+#include <QStackedWidget>
+#include <QGridLayout>
+#include <QToolButton>
+#include <QMenu>
 #include "ATHENA/Data/hodarium_worker.hpp"
 #include "QTMSystemPowerMonitor.hpp"
 #include "QTMATHENADiff.hpp"
@@ -72,10 +83,19 @@ std::mutex save_gate;
 worker* save_worker= nullptr;
 bool capture_enabled= false;
 std::size_t queued_save_bytes= 0;
-
-
+struct vault_panel_state {
+  QString name, error;
+  athena::background::progress progress;
+  std::vector<source_inventory::identity_conflict> duplicates;
+};
+struct panel_state {
+  rows profiles;
+  std::map<std::pair<std::string, std::string>, vault_panel_state> vaults;
+  std::map<std::pair<std::string, std::string>, std::string> devices;
+};
 
 class service: public QObject {
+  Q_OBJECT
   QThread thread_;
   worker* worker_;
   QTMSystemPowerMonitor power_;
@@ -148,9 +168,9 @@ class service: public QObject {
     });
     dialog->setWindowModality (Qt::ApplicationModal); dialog->open ();
   }
+signals:
+  void statusChanged (QString group, QString diagnostic);
 public:
-  QPointer<QObject> observer;
-  std::function<void (QString)> changed;
   explicit service (const std::filesystem::path& root): QObject (qApp),
     worker_ (new worker) {
     worker_->application_hooks= live_document_application_hooks ();
@@ -184,7 +204,7 @@ public:
       else if (status.phase == profile_phase::authorized && status.diagnostic.empty ())
         worker_->background_errors.erase (status.group);
       QMetaObject::invokeMethod (this, [this, status= std::move (status)] {
-        if (observer && changed) changed (QString::fromStdString (
+        emit statusChanged (QString::fromStdString (status.group), QString::fromStdString (
           status.diagnostic.empty () ? status.discovery_diagnostic : status.diagnostic));
         if (!stopping_ && !suspended_ && !status.discovery_diagnostic.empty ())
           std_warning << "Hodarium discovery: " << string (status.discovery_diagnostic.c_str ()) << LF;
@@ -257,6 +277,64 @@ public:
     QMetaObject::invokeMethod (worker_, [w= worker_, operation= std::move (operation)] {
       try { operation (*w); }
       catch (const std::exception& e) { w->report ({"", profile_phase::error, e.what (), "", 0}); }
+    }, Qt::QueuedConnection);
+  }
+  void perform (QObject* context, std::function<void (worker&)> operation,
+                std::function<void (QString)> completed) {
+    if (stopping_ || suspended_) { completed (tr ("Hodarium is suspended")); return; }
+    QPointer<QObject> receiver= context;
+    QMetaObject::invokeMethod (worker_, [this, receiver, operation, completed] {
+      QString error;
+      try { operation (*worker_); }
+      catch (const std::exception& e) {
+        error= QString::fromUtf8 (e.what ());
+        worker_->report ({"", profile_phase::error, e.what (), "", 0});
+      }
+      QMetaObject::invokeMethod (this, [receiver, completed, error] {
+        if (receiver) completed (error);
+      }, Qt::QueuedConnection);
+    }, Qt::QueuedConnection);
+  }
+  void review_identity (const vault_binding& binding, const source_inventory::identity_conflict& conflict) {
+    identity_notices_.emplace_back (binding, conflict);
+    show_identity_conflict ();
+  }
+  void inspect_panel (QObject* context, std::function<void (panel_state)> completed) {
+    if (stopping_) { completed ({}); return; }
+    QPointer<QObject> receiver= context;
+    QMetaObject::invokeMethod (worker_, [this, receiver, completed] {
+      panel_state state;
+      try {
+        worker_->background_progress ();
+        state.profiles= worker_->snapshot ();
+        for (const auto& row: state.profiles) {
+          const auto group= row.profile.pin.group;
+          if (auto members= worker_->sessions.at (group)->membership ())
+            for (const auto& member: members->members) state.devices[{group, member.id}]= member.name;
+          for (const auto& binding: row.vaults) {
+            auto& view= state.vaults[{group, binding.vault}];
+            AthenaVaultfileInfo info;
+            std::string error;
+            view.name= athena_vaultfile_read (binding.root, info, error) ?
+              QString::fromStdString (info.name) : QString::fromStdString (binding.root.filename ().u8string ());
+            view.error= QString::fromStdString (error);
+            if (auto progress= worker_->vault_progress.find ({group, binding.vault}); progress != worker_->vault_progress.end ())
+              view.progress= progress->second;
+            auto track= worker_->inventories.find ({group, binding.vault});
+            if (track != worker_->inventories.end ()) {
+              std::map<std::string, std::vector<std::string>> paths;
+              for (const auto& source: track->second->cache)
+                if (!source.second.object.empty ()) paths[source.second.object].push_back (source.first);
+              for (auto& entry: paths) if (entry.second.size () > 1)
+                view.duplicates.push_back ({entry.first, std::move (entry.second)});
+            }
+          }
+        }
+      }
+      catch (const std::exception& e) { worker_->report ({"", profile_phase::error, e.what (), "", 0}); }
+      QMetaObject::invokeMethod (this, [receiver, completed, state= std::move (state)] {
+        if (receiver) completed (state);
+      }, Qt::QueuedConnection);
     }, Qt::QueuedConnection);
   }
   void inspect (QObject* context, std::function<void (rows)> completed) {
@@ -465,7 +543,7 @@ QString phase_name (profile_phase phase) {
   }
   return {};
 }
-class conflicts_dialog: public QDialog {
+class conflicts_pane: public QWidget {
   QPointer<service> service_;
   vault_binding binding_;
   QTreeWidget* tree_;
@@ -907,9 +985,8 @@ class conflicts_dialog: public QDialog {
     load (); dialog.exec ();
   }
 public:
-  conflicts_dialog (service* controller, vault_binding binding, QWidget* parent):
-    QDialog (parent), service_ (controller), binding_ (std::move (binding)) {
-    setAttribute (Qt::WA_DeleteOnClose); setWindowTitle (tr ("Hodarium conflicts")); resize (950, 500);
+  conflicts_pane (service* controller, vault_binding binding, QWidget* parent):
+    QWidget (parent), service_ (controller), binding_ (std::move (binding)) {
     auto* layout= new QVBoxLayout (this);
     tree_= new QTreeWidget (this); tree_->setColumnCount (3);
     tree_->setHeaderLabels ({tr ("Path"), tr ("State"), tr ("Identity")});
@@ -921,22 +998,24 @@ public:
     status_= new QLabel (this); status_->setWordWrap (true); layout->addWidget (status_);
     resolution_status_= new QLabel (this); resolution_status_->setWordWrap (true);
     layout->addWidget (resolution_status_);
-    auto* buttons= new QDialogButtonBox (QDialogButtonBox::Close, this);
+    auto* buttons= new QDialogButtonBox (this);
     refresh_= buttons->addButton (tr ("Refresh"), QDialogButtonBox::ActionRole);
     auto* drafts= buttons->addButton (tr ("Saved drafts"), QDialogButtonBox::ActionRole);
     auto* paths= buttons->addButton (tr ("File paths"), QDialogButtonBox::ActionRole);
     compare_= buttons->addButton (tr ("Compare revisions"), QDialogButtonBox::ActionRole);
     compare_->setEnabled (false);
-    auto* actions= new QDialogButtonBox (this); layout->addWidget (actions);
-    ancestor_= actions->addButton (tr ("Compare ancestor"), QDialogButtonBox::ActionRole);
-    adopt_= actions->addButton (tr ("Adopt branch"), QDialogButtonBox::ActionRole);
-    edit_= actions->addButton (tr ("Edit merge"), QDialogButtonBox::ActionRole);
-    duplicate_= actions->addButton (tr ("Duplicate branch"), QDialogButtonBox::ActionRole);
-    export_= actions->addButton (tr ("Export resource"), QDialogButtonBox::ActionRole);
-    submit_= actions->addButton (tr ("Submit merge"), QDialogButtonBox::ActionRole);
-    for (auto* button: {ancestor_, adopt_, edit_, duplicate_, export_, submit_}) button->setEnabled (false);
+    auto* actions= new QGridLayout; layout->addLayout (actions);
+    ancestor_= new QPushButton (tr ("Compare ancestor"), this);
+    adopt_= new QPushButton (tr ("Adopt branch"), this);
+    edit_= new QPushButton (tr ("Edit merge"), this);
+    duplicate_= new QPushButton (tr ("Duplicate branch"), this);
+    export_= new QPushButton (tr ("Export resource"), this);
+    submit_= new QPushButton (tr ("Submit merge"), this);
+    int position= 0;
+    for (auto* button: {ancestor_, adopt_, edit_, duplicate_, export_, submit_}) {
+      button->setEnabled (false); actions->addWidget (button, position / 3, position % 3); ++position;
+    }
     more_= buttons->addButton (tr ("More"), QDialogButtonBox::ActionRole); layout->addWidget (buttons);
-    connect (buttons, &QDialogButtonBox::rejected, this, &QDialog::close);
     connect (refresh_, &QPushButton::clicked, this, [this] { page (true); });
     connect (drafts, &QPushButton::clicked, this, [this] { saved_drafts (); });
     connect (paths, &QPushButton::clicked, this, [this] { path_collisions (); });
@@ -973,8 +1052,27 @@ public:
   }
 };
 
-class manager: public QDialog {
+class admission_page: public QWizardPage {
+public:
+  bool admitted= false;
+  bool isComplete () const override { return admitted; }
+  void setAdmitted (bool value) { if (admitted != value) { admitted= value; emit completeChanged (); } }
+};
+
+class manager: public QWidget {
   QPointer<service> service_;
+  QTabWidget* tabs_;
+  QVBoxLayout* connections_;
+  QVBoxLayout* issues_;
+  QStackedWidget* issues_stack_;
+  QPointer<QWidget> conflict_page_;
+  QPointer<QWidget> relay_editor_;
+  std::string relay_group_;
+  std::string selected_group_;
+  std::optional<vault_binding> pending_conflict_;
+  QListWidget* attention_;
+  QPointer<conflicts_pane> conflict_view_;
+  panel_state panel_;
   QTableWidget* table_;
   QLabel* diagnostic_;
   QLabel* decision_status_;
@@ -986,28 +1084,68 @@ class manager: public QDialog {
   QPushButton* unbind_;
   QPushButton* conflicts_;
   QPushButton* relays_;
-  QPushButton* recover_;
+  QAction* recover_;
+  QLineEdit* vault_identity_;
   QTableWidget* vaults_;
   rows rows_;
   bool inspecting_= false;
   bool refresh_pending_= false;
+  void add_vault (const std::string& group, QWidget* parent) {
+    QDialog dialog (parent); dialog.setWindowTitle (tr ("Add Vault"));
+    auto* layout= new QVBoxLayout (&dialog);
+    auto* form= new QFormLayout; layout->addLayout (form);
+    auto* directory= new QLineEdit (&dialog);
+    auto* browse= new QPushButton (tr ("Choose directory…"), &dialog);
+    form->addRow (tr ("Local directory"), directory); form->addRow ({}, browse);
+    auto* mode= new QComboBox (&dialog);
+    mode->addItems ({tr ("Sync an existing shared Vault"), tr ("Share a new Vault")});
+    form->addRow (tr ("Vault"), mode);
+    auto* identity= new QLineEdit (&dialog);
+    form->addRow (tr ("Shared Vault UUID"), identity);
+    connect (mode, qOverload<int> (&QComboBox::currentIndexChanged), &dialog, [identity] (int index) { identity->setEnabled (index == 0); });
+    connect (browse, &QPushButton::clicked, &dialog, [&dialog, directory] {
+      const auto path= QFileDialog::getExistingDirectory (&dialog, tr ("Choose local Vault"));
+      if (!path.isEmpty ()) directory->setText (path);
+    });
+    auto* error= new QLabel (&dialog); error->setWordWrap (true); layout->addWidget (error);
+    auto* buttons= new QDialogButtonBox (QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    buttons->button (QDialogButtonBox::Ok)->setText (tr ("Start syncing")); layout->addWidget (buttons);
+    connect (buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    connect (buttons, &QDialogButtonBox::accepted, &dialog, [this, &dialog, directory, identity, mode, buttons, error, group] {
+      const auto path= directory->text ().trimmed ();
+      auto id= mode->currentIndex () == 0 ? QUuid (identity->text ().trimmed ()) : QUuid::createUuid ();
+      if (path.isEmpty () || id.isNull ()) { error->setText (tr ("Choose a local Vault and provide its shared UUID, or select Share a new Vault.")); return; }
+      vault_binding binding{group, id.toString (QUuid::WithoutBraces).toStdString (), std::filesystem::u8path (path.toStdString ()), true};
+      buttons->button (QDialogButtonBox::Ok)->setEnabled (false);
+      service_->perform (&dialog, [binding] (worker& w) {
+        AthenaVaultfileInfo info; std::string error;
+        if (!athena_vaultfile_read (binding.root, info, error)) throw std::invalid_argument (error);
+        w.settings->bind_vault (binding); w.update_capture (); w.configure_replication (binding.group);
+        w.report (w.sessions.at (binding.group)->status ());
+      }, [&dialog, error, buttons] (QString message) {
+        if (message.isEmpty ()) dialog.accept ();
+        else { error->setText (message); buttons->button (QDialogButtonBox::Ok)->setEnabled (true); }
+      });
+    });
+    dialog.exec (); refresh ();
+  }
   void refresh () {
     if (!service_) return;
     if (inspecting_) { refresh_pending_= true; return; }
     inspecting_= true;
-    service_->inspect (this, [this] (rows state) {
+    service_->inspect_panel (this, [this] (panel_state state) {
       inspecting_= false;
       std::string selected;
       int row= table_->currentRow ();
       if (row >= 0 && row < int (rows_.size ())) selected= rows_[row].profile.pin.group;
-      rows_= std::move (state);
+      panel_= std::move (state);
+      rows_= panel_.profiles;
+      QSignalBlocker table_block (table_);
       table_->setRowCount (int (rows_.size ()));
       for (int i= 0; i < int (rows_.size ()); ++i) {
         const auto& r= rows_[i];
-        QString code= QString::fromStdString (r.status.code);
-        if (r.status.code_expires <= QDateTime::currentSecsSinceEpoch ()) code.clear ();
         QStringList cells{r.profile.origin.toString (), QString::fromStdString (r.profile.name),
-          phase_name (r.status.phase), code};
+          phase_name (r.status.phase)};
         for (int j= 0; j < cells.size (); ++j) {
           auto* item= new QTableWidgetItem (cells[j]);
           item->setToolTip (QString::fromStdString (r.status.diagnostic));
@@ -1017,26 +1155,60 @@ class manager: public QDialog {
       }
       if (selected.empty () && !rows_.empty ()) table_->selectRow (0);
       selection ();
+      if (pending_conflict_) {
+        for (const auto& row: rows_) if (row.profile.pin.group == pending_conflict_->group) {
+          auto binding= *pending_conflict_; pending_conflict_.reset (); show_conflicts (binding); break;
+        }
+      }
       if (refresh_pending_) { refresh_pending_= false; refresh (); }
     });
   }
   void selection () {
     int i= table_->currentRow ();
     bool valid= i >= 0 && i < int (rows_.size ());
+    const auto group= valid ? rows_[i].profile.pin.group : std::string ();
+    if (selected_group_ != group) {
+      selected_group_= group;
+      delete conflict_page_.data ();
+    }
+    if (relay_group_ != group) {
+      relay_group_= group;
+      delete relay_editor_.data ();
+      if (valid) edit_relays ();
+    }
     decision_status_->setText (valid ? QString::fromStdString (rows_[i].status.decision_diagnostic) : QString ());
     QStringList links;
     if (valid) for (const auto& route: rows_[i].status.routes) if (route.established)
-      links << tr ("%1 via %2: %3 ms, %4 KiB/s").arg (QString::fromStdString (route.member.substr (0, 12)),
+      links << tr ("%1 via %2: %3 ms, %4 KiB/s").arg (QString::fromStdString (panel_.devices.count ({rows_[i].profile.pin.group, route.member}) ? panel_.devices.at ({rows_[i].profile.pin.group, route.member}) : route.member),
         QString::fromStdString (route.route)).arg (route.roundtrip_ms, 0, 'f', 1)
         .arg (route.transfer_bytes_per_second/1024.0, 0, 'f', 1);
     link_status_->setText (valid ? (links.empty () ? tr ("No online peers") : links.join ("\n")) : QString ());
     resume_->setEnabled (valid); admin_->setEnabled (valid);
+    resume_->setText (valid && rows_[i].profile.member.empty () ? tr ("Continue setup") :
+      valid && !rows_[i].profile.enabled ? tr ("Resume sync") : tr ("Retry"));
     relays_->setEnabled (valid); recover_->setEnabled (valid);
     pause_->setEnabled (valid && rows_[i].profile.enabled);
+    attention_->clear ();
+    if (valid) for (const auto& v: rows_[i].vaults) {
+      const auto found= panel_.vaults.find ({v.group, v.vault});
+      if (found == panel_.vaults.end ()) continue;
+      const auto& view= found->second;
+      if (view.progress.conflicts) {
+        auto* item= new QListWidgetItem (tr ("%1: Resolve synchronization conflicts").arg (view.name), attention_);
+        item->setData (Qt::UserRole, QString::fromStdString (v.vault));
+      }
+      if (!view.error.isEmpty ()) attention_->addItem (view.name + ": " + view.error);
+      if (!view.progress.error_detail.empty ()) attention_->addItem (view.name + ": " + QString::fromStdString (view.progress.error_detail));
+      for (const auto& duplicate: view.duplicates) {
+        auto* item= new QListWidgetItem (tr ("Duplicate documents: %1").arg (QString::fromStdString (duplicate.paths.front ())), attention_);
+        item->setData (Qt::UserRole, QString::fromStdString (v.vault));
+        item->setData (Qt::UserRole + 1, QString::fromStdString (duplicate.object));
+      }
+    }
     bind_->setEnabled (valid && !rows_[i].profile.member.empty ());
     QSignalBlocker block (vaults_);
     QString selected;
-    if (vaults_->currentRow () >= 0) selected= vaults_->item (vaults_->currentRow (), 1)->text ();
+    if (vaults_->currentRow () >= 0) selected= vaults_->item (vaults_->currentRow (), 1)->data (Qt::UserRole).toString ();
     vaults_->setRowCount (valid ? int (rows_[i].vaults.size ()) : 0);
     if (valid) for (int j= 0; j < int (rows_[i].vaults.size ()); ++j) {
       const auto& v= rows_[i].vaults[j];
@@ -1044,21 +1216,28 @@ class manager: public QDialog {
       enabled->setFlags (Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsUserCheckable);
       enabled->setCheckState (v.enabled ? Qt::Checked : Qt::Unchecked);
       vaults_->setItem (j, 0, enabled);
-      vaults_->setItem (j, 1, new QTableWidgetItem (QString::fromStdString (v.vault)));
+      const auto detail= panel_.vaults.find ({v.group, v.vault});
+      auto* title= new QTableWidgetItem (detail == panel_.vaults.end () ? QString::fromStdString (v.root.filename ().string ()) : detail->second.name);
+      title->setData (Qt::UserRole, QString::fromStdString (v.vault));
+      title->setToolTip (tr ("Vault UUID: %1").arg (QString::fromStdString (v.vault)));
+      vaults_->setItem (j, 1, title);
       vaults_->setItem (j, 2, new QTableWidgetItem (QString::fromStdString (v.root.u8string ())));
       auto* code= new QTableWidgetItem;
       code->setFlags (Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsUserCheckable);
       code->setCheckState (v.allow_code_resources ? Qt::Checked : Qt::Unchecked);
       vaults_->setItem (j, 3, code);
+      vaults_->setItem (j, 4, new QTableWidgetItem (!v.enabled ? tr ("Paused") : detail == panel_.vaults.end () ? QString () : QString::fromStdString (detail->second.progress.caption)));
       if (QString::fromStdString (v.vault) == selected) vaults_->selectRow (j);
     }
     unbind_->setEnabled (vaults_->currentRow () >= 0);
     conflicts_->setEnabled (vaults_->currentRow () >= 0);
+    vault_identity_->setText (vaults_->currentRow () >= 0 ? vaults_->item (vaults_->currentRow (), 1)->data (Qt::UserRole).toString () : QString ());
   }
   void action (bool enable) {
     int i= table_->currentRow ();
     if (!service_ || i < 0 || i >= int (rows_.size ())) return;
     auto profile= rows_[i].profile;
+    if (enable && profile.member.empty ()) { join (profile); return; }
     service_->perform ([profile, enable] (worker& w) {
       auto& session= *w.sessions.at (profile.pin.group);
       if (enable && profile.member.empty ()) session.join ();
@@ -1069,27 +1248,30 @@ class manager: public QDialog {
     int i= table_->currentRow ();
     if (!service_ || i < 0 || i >= int (rows_.size ())) return;
     const auto row= rows_[i];
-    QDialog dialog (this); dialog.setWindowTitle (tr ("Hodarium Relays")); dialog.resize (600, 300);
-    auto* layout= new QVBoxLayout (&dialog);
-    auto* list= new QListWidget (&dialog); layout->addWidget (list);
+    delete relay_editor_.data ();
+    auto* dialog= new QWidget (this); relay_editor_= dialog;
+    connections_->addWidget (dialog);
+    auto* layout= new QVBoxLayout (dialog);
+    auto* list= new QListWidget (dialog); layout->addWidget (list);
     for (const auto& relay: row.relays) list->addItem (relay.origin.toString ());
     auto* form= new QFormLayout;
-    auto* origin= new QLineEdit (&dialog); origin->setPlaceholderText ("https://");
-    auto* token= new QLineEdit (&dialog); token->setEchoMode (QLineEdit::Password);
+    auto* origin= new QLineEdit (dialog); origin->setPlaceholderText ("https://");
+    auto* token= new QLineEdit (dialog); token->setEchoMode (QLineEdit::Password);
+    token->setPlaceholderText (tr ("New access token"));
     form->addRow (tr ("Relay"), origin); form->addRow (tr ("Access token"), token); layout->addLayout (form);
-    auto* buttons= new QDialogButtonBox (QDialogButtonBox::Close, &dialog);
-    auto* save= buttons->addButton (tr ("Add / replace"), QDialogButtonBox::ActionRole);
+    auto* buttons= new QDialogButtonBox (dialog);
+    auto* save= buttons->addButton (tr ("Save Relay"), QDialogButtonBox::ActionRole);
     auto* remove= buttons->addButton (tr ("Remove"), QDialogButtonBox::ActionRole);
-    layout->addWidget (buttons); remove->setEnabled (false);
-    connect (buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    connect (list, &QListWidget::currentRowChanged, &dialog, [list, origin, remove] (int selected) {
+    layout->addWidget (buttons); remove->setEnabled (false); save->setEnabled (false);
+    connect (token, &QLineEdit::textChanged, dialog, [save] (const QString& value) { save->setEnabled (!value.trimmed ().isEmpty ()); });
+    connect (list, &QListWidget::currentRowChanged, dialog, [list, origin, remove] (int selected) {
       remove->setEnabled (selected >= 0);
       if (selected >= 0) origin->setText (list->item (selected)->text ());
     });
-    connect (save, &QPushButton::clicked, &dialog, [&, group= row.profile.pin.group] {
+    connect (save, &QPushButton::clicked, dialog, [this, origin, token, group= row.profile.pin.group] {
       QUrl endpoint (origin->text ().trimmed ());
       auto credential= token->text ().toStdString (); token->clear ();
-      service_->perform ([group, endpoint, credential= std::move (credential)] (worker& w) {
+      service_->perform (this, [group, endpoint, credential= std::move (credential)] (worker& w) {
         const auto canonical= canonical_relay_origin (endpoint);
         const auto previous= w.settings->relays (group);
         auto handle= store_relay_token (endpoint, credential);
@@ -1105,14 +1287,17 @@ class manager: public QDialog {
           if (!referenced) delete_relay_token (old.origin, old.credential_handle);
         }
         w.report (w.sessions.at (group)->status ());
+      }, [this, group] (QString error) {
+        diagnostic_->setText (error);
+        if (error.isEmpty () && relay_group_ == group) relay_group_.clear ();
+        refresh ();
       });
-      dialog.accept ();
     });
-    connect (remove, &QPushButton::clicked, &dialog, [&, group= row.profile.pin.group] {
+    connect (remove, &QPushButton::clicked, dialog, [this, list, row, group= row.profile.pin.group] {
       const int selected= list->currentRow ();
       if (selected < 0) return;
       auto relay= row.relays[selected];
-      service_->perform ([group, relay] (worker& w) {
+      service_->perform (this, [group, relay] (worker& w) {
         w.settings->remove_relay (group, relay.origin);
         w.sessions.at (group)->configure_relays ();
         bool referenced= false;
@@ -1121,10 +1306,12 @@ class manager: public QDialog {
             referenced= referenced || other.credential_handle == relay.credential_handle;
         if (!referenced) delete_relay_token (relay.origin, relay.credential_handle);
         w.report (w.sessions.at (group)->status ());
+      }, [this, group] (QString error) {
+        diagnostic_->setText (error);
+        if (error.isEmpty () && relay_group_ == group) relay_group_.clear ();
+        refresh ();
       });
-      dialog.accept ();
     });
-    dialog.exec ();
   }
   void recover () {
     int i= table_->currentRow ();
@@ -1143,92 +1330,199 @@ class manager: public QDialog {
         if (service_) service_->accept_recovery (profile.pin.group, ticket);
       });
   }
-public:
-  explicit manager (service* controller): service_ (controller) {
-    setAttribute (Qt::WA_DeleteOnClose);
-    setWindowTitle (tr ("ATHENA Hodarium")); resize (850, 450);
-    auto* layout= new QVBoxLayout (this);
-    auto* form= new QFormLayout;
-    auto* origin= new QLineEdit (this);
-    origin->setPlaceholderText ("https://");
-    auto* name= new QLineEdit (QSysInfo::machineHostName (), this);
+  void join (std::optional<client_profile> pending= {}) {
+    auto* wizard= new QWizard (this);
+    wizard->setAttribute (Qt::WA_DeleteOnClose);
+    wizard->setWindowTitle (tr ("Join ATHENA Hodarium"));
+    auto* setup= new admission_page;
+    setup->setTitle (tr ("Server and device"));
+    auto* form= new QFormLayout (setup);
+    auto* origin= new QLineEdit (pending ? pending->origin.toString () : "https://");
+    auto* name= new QLineEdit (pending ? QString::fromStdString (pending->name) : QSysInfo::machineHostName ());
     form->addRow (tr ("Server"), origin); form->addRow (tr ("Device name"), name);
-    layout->addLayout (form);
-    auto* join= new QPushButton (tr ("Request admission"), this);
-    layout->addWidget (join, 0, Qt::AlignLeft);
-    table_= new QTableWidget (0, 4, this);
-    table_->setHorizontalHeaderLabels ({tr ("Server"), tr ("Device"), tr ("Membership"), tr ("Admission code")});
+    auto validate= [setup, origin, name] {
+      const QUrl url (origin->text ().trimmed (), QUrl::StrictMode);
+      const auto bytes= name->text ().trimmed ().toUtf8 ();
+      setup->setAdmitted (url.isValid () && url.scheme () == "https" && !url.host ().isEmpty () &&
+        url.userInfo ().isEmpty () && !bytes.isEmpty () && bytes.size () <= 128);
+    };
+    connect (origin, &QLineEdit::textChanged, setup, validate);
+    connect (name, &QLineEdit::textChanged, setup, validate); validate ();
+    wizard->addPage (setup);
+    auto* approval= new admission_page;
+    approval->setTitle (tr ("Approve this device"));
+    auto* layout= new QVBoxLayout (approval);
+    auto* status= new QLabel; status->setWordWrap (true);
+    status->setTextInteractionFlags (Qt::TextSelectableByMouse);
+    layout->addWidget (status);
+    auto* open= new QPushButton (tr ("Open management page")); layout->addWidget (open);
+    auto* retry= new QPushButton (tr ("Retry admission")); layout->addWidget (retry);
+    connect (open, &QPushButton::clicked, wizard, [origin] { QDesktopServices::openUrl (QUrl (origin->text ().trimmed ())); });
+    wizard->addPage (approval);
+    auto* done= new QWizardPage; done->setTitle (tr ("Device admitted"));
+    auto* done_layout= new QVBoxLayout (done);
+    auto* add= new QPushButton (tr ("Add Vault…")); done_layout->addWidget (add);
+    auto admitted_group= std::make_shared<std::string> ();
+    connect (add, &QPushButton::clicked, wizard, [this, wizard, admitted_group] { if (!admitted_group->empty ()) add_vault (*admitted_group, wizard); });
+    wizard->addPage (done);
+    auto requested= std::make_shared<bool> (pending.has_value ());
+    connect (retry, &QPushButton::clicked, wizard, [this, wizard, origin, name, status] {
+      if (!service_) return;
+      service_->perform (wizard, [address= QUrl (origin->text ().trimmed ()), device= name->text ().trimmed ().toStdString ()] (worker& w) {
+        for (const auto& row: w.snapshot ()) if (row.profile.origin.adjusted (QUrl::StripTrailingSlash) == address.adjusted (QUrl::StripTrailingSlash)) {
+          w.sessions.at (row.profile.pin.group)->join (); return;
+        }
+        w.join (address, device);
+      }, [status] (QString error) { if (!error.isEmpty ()) status->setText (error); });
+    });
+    connect (wizard, &QWizard::currentIdChanged, wizard, [this, wizard, origin, name, status, requested] (int page) {
+      if (page == 0) { *requested= false; origin->setReadOnly (false); name->setReadOnly (false); }
+      if (page != 1 || *requested || !service_) return;
+      *requested= true;
+      origin->setReadOnly (true); name->setReadOnly (true);
+      status->setText (tr ("Requesting admission…"));
+      service_->perform (wizard, [address= QUrl (origin->text ().trimmed ()), device= name->text ().trimmed ().toStdString ()] (worker& w) {
+        for (const auto& row: w.snapshot ()) if (row.profile.origin.adjusted (QUrl::StripTrailingSlash) == address.adjusted (QUrl::StripTrailingSlash)) {
+          if (row.profile.member.empty ()) w.sessions.at (row.profile.pin.group)->join ();
+          return;
+        }
+        w.join (address, device);
+      }, [status] (QString error) { if (!error.isEmpty ()) status->setText (error); });
+    });
+    connect (service_, &service::statusChanged, wizard, [status] (QString, QString message) {
+      if (!message.isEmpty ()) status->setText (message);
+    });
+    auto* timer= new QTimer (wizard);
+    auto busy= std::make_shared<bool> (false);
+    connect (timer, &QTimer::timeout, wizard, [this, wizard, origin, approval, status, busy, admitted_group] {
+      if (!service_ || *busy) return;
+      *busy= true;
+      service_->inspect (wizard, [this, origin, approval, status, busy, admitted_group] (rows values) {
+        *busy= false;
+        for (const auto& row: values) if (row.profile.origin.adjusted (QUrl::StripTrailingSlash) == QUrl (origin->text ().trimmed ()).adjusted (QUrl::StripTrailingSlash)) {
+          const bool admitted= !row.profile.member.empty () &&
+            (row.status.phase == profile_phase::authorized || row.status.phase == profile_phase::offline_valid);
+          approval->setAdmitted (admitted);
+          if (admitted) *admitted_group= row.profile.pin.group;
+          const auto seconds= row.status.code_expires - QDateTime::currentSecsSinceEpoch ();
+          status->setText (admitted ? tr ("Device admitted") : seconds > 0 ?
+            tr ("Admission code: %1\nExpires in %2 seconds").arg (QString::fromStdString (row.status.code)).arg (seconds) :
+            phase_name (row.status.phase) + "\n" + QString::fromStdString (row.status.diagnostic));
+          if (admitted) refresh ();
+          break;
+        }
+      });
+    });
+    timer->start (1000);
+    if (pending) wizard->setStartId (1);
+    wizard->open ();
+  }
+public:
+  void show_conflicts (const vault_binding& binding) {
+    auto profile= std::find_if (rows_.begin (), rows_.end (), [&binding] (const profile_row& row) {
+      return row.profile.pin.group == binding.group;
+    });
+    if (profile == rows_.end ()) { pending_conflict_= binding; refresh (); return; }
+    table_->selectRow (int (profile - rows_.begin ()));
+    selection ();
+    delete conflict_page_.data ();
+    conflict_page_= new QWidget (this);
+    auto* layout= new QVBoxLayout (conflict_page_);
+    auto* back= new QPushButton (tr ("Back to issues"), conflict_page_);
+    layout->addWidget (back, 0, Qt::AlignLeft);
+    connect (back, &QPushButton::clicked, this, [this] { issues_stack_->setCurrentIndex (0); });
+    conflict_view_= new conflicts_pane (service_, binding, conflict_page_);
+    layout->addWidget (conflict_view_);
+    issues_stack_->addWidget (conflict_page_);
+    issues_stack_->setCurrentWidget (conflict_page_);
+    tabs_->setCurrentIndex (2);
+  }
+  explicit manager (service* controller): service_ (controller) {
+    auto* layout= new QVBoxLayout (this);
+    auto* join_button= new QPushButton (tr ("Join Hodarium…"), this);
+    layout->addWidget (join_button, 0, Qt::AlignLeft);
+    table_= new QTableWidget (0, 3, this);
+    table_->setHorizontalHeaderLabels ({tr ("Server"), tr ("This device"), tr ("Membership")});
     table_->horizontalHeader ()->setSectionResizeMode (QHeaderView::ResizeToContents);
     table_->horizontalHeader ()->setStretchLastSection (true);
     table_->setSelectionBehavior (QAbstractItemView::SelectRows);
     table_->setSelectionMode (QAbstractItemView::SingleSelection);
     table_->setEditTriggers (QAbstractItemView::NoEditTriggers);
     layout->addWidget (table_);
-    vaults_= new QTableWidget (0, 4, this);
-    vaults_->setHorizontalHeaderLabels ({tr ("Selected"), tr ("Vault ID"), tr ("Local directory"), tr ("Allow styles / sorters")});
+    table_->setMaximumHeight (120);
+    tabs_= new QTabWidget (this); layout->addWidget (tabs_);
+    auto* sync= new QWidget; auto* sync_layout= new QVBoxLayout (sync); tabs_->addTab (sync, tr ("Sync"));
+    auto* connections= new QWidget; connections_= new QVBoxLayout (connections); tabs_->addTab (connections, tr ("Connections"));
+    issues_stack_= new QStackedWidget (this); tabs_->addTab (issues_stack_, tr ("Needs attention"));
+    auto* issues= new QWidget; issues_= new QVBoxLayout (issues); issues_stack_->addWidget (issues);
+    attention_= new QListWidget (issues); issues_->addWidget (attention_);
+    connect (attention_, &QListWidget::itemActivated, this, [this] (QListWidgetItem* item) {
+      int i= table_->currentRow ();
+      if (i < 0 || i >= int (rows_.size ())) return;
+      for (const auto& binding: rows_[i].vaults) if (QString::fromStdString (binding.vault) == item->data (Qt::UserRole).toString ()) {
+        if (item->data (Qt::UserRole + 1).toString ().isEmpty ()) { show_conflicts (binding); return; }
+        const auto& state= panel_.vaults.at ({binding.group, binding.vault});
+        for (const auto& duplicate: state.duplicates) if (QString::fromStdString (duplicate.object) == item->data (Qt::UserRole + 1).toString ()) service_->review_identity (binding, duplicate);
+      }
+    });
+    vaults_= new QTableWidget (0, 5, this);
+    vaults_->setHorizontalHeaderLabels ({tr ("Sync"), tr ("Vault"), tr ("Local directory"), tr ("Allow styles / sorters"), tr ("Status")});
     vaults_->horizontalHeader ()->setSectionResizeMode (QHeaderView::ResizeToContents);
     vaults_->horizontalHeader ()->setStretchLastSection (true);
     vaults_->setSelectionBehavior (QAbstractItemView::SelectRows);
     vaults_->setSelectionMode (QAbstractItemView::SingleSelection);
     vaults_->setEditTriggers (QAbstractItemView::NoEditTriggers);
-    layout->addWidget (vaults_);
+    sync_layout->addWidget (vaults_);
+    auto* vault_detail= new QFormLayout;
+    vault_identity_= new QLineEdit (this); vault_identity_->setReadOnly (true);
+    vault_detail->addRow (tr ("Vault UUID"), vault_identity_); sync_layout->addLayout (vault_detail);
     diagnostic_= new QLabel (this); diagnostic_->setWordWrap (true);
     diagnostic_->setTextInteractionFlags (Qt::TextSelectableByMouse);
-    layout->addWidget (diagnostic_);
+    issues_->addWidget (diagnostic_);
     decision_status_= new QLabel (this); decision_status_->setWordWrap (true);
-    decision_status_->setTextInteractionFlags (Qt::TextSelectableByMouse); layout->addWidget (decision_status_);
+    decision_status_->setTextInteractionFlags (Qt::TextSelectableByMouse); issues_->addWidget (decision_status_);
     link_status_= new QLabel (this); link_status_->setWordWrap (true);
-    link_status_->setTextInteractionFlags (Qt::TextSelectableByMouse); layout->addWidget (link_status_);
+    link_status_->setTextInteractionFlags (Qt::TextSelectableByMouse); connections_->addWidget (link_status_);
     auto* membership_buttons= new QDialogButtonBox (this);
     layout->addWidget (membership_buttons);
-    auto* buttons= new QDialogButtonBox (QDialogButtonBox::Close, this);
+    auto* buttons= new QDialogButtonBox (this);
     resume_= membership_buttons->addButton (tr ("Resume / retry"), QDialogButtonBox::ActionRole);
     pause_= membership_buttons->addButton (tr ("Pause"), QDialogButtonBox::ActionRole);
-    admin_= membership_buttons->addButton (tr ("Administration"), QDialogButtonBox::ActionRole);
-    relays_= membership_buttons->addButton (tr ("Relays"), QDialogButtonBox::ActionRole);
-    recover_= membership_buttons->addButton (tr ("Recover membership"), QDialogButtonBox::ActionRole);
-    bind_= buttons->addButton (tr ("Bind Vault"), QDialogButtonBox::ActionRole);
-    unbind_= buttons->addButton (tr ("Unbind Vault"), QDialogButtonBox::ActionRole);
+    admin_= membership_buttons->addButton (tr ("Open management page"), QDialogButtonBox::ActionRole);
+    connections_->addWidget (new QLabel (tr ("Relays"), this));
+    relays_= new QPushButton (tr ("Reload Relays"), this); connections_->addWidget (relays_, 0, Qt::AlignLeft);
+    auto* advanced= new QToolButton (this); advanced->setText (tr ("Advanced"));
+    advanced->setPopupMode (QToolButton::InstantPopup);
+    auto* advanced_menu= new QMenu (advanced);
+    recover_= advanced_menu->addAction (tr ("Recover server trust…"));
+    advanced->setMenu (advanced_menu); membership_buttons->addButton (advanced, QDialogButtonBox::ActionRole);
+    bind_= buttons->addButton (tr ("Add Vault…"), QDialogButtonBox::ActionRole);
+    unbind_= buttons->addButton (tr ("Stop syncing this Vault"), QDialogButtonBox::ActionRole);
     conflicts_= buttons->addButton (tr ("Conflicts"), QDialogButtonBox::ActionRole);
-    auto* identities= buttons->addButton (tr ("Document identities"), QDialogButtonBox::ActionRole);
+    auto* identities= new QPushButton (tr ("Review duplicate documents"), this); issues_->addWidget (identities);
     connect (identities, &QPushButton::clicked, this, [this] {
       if (service_) service_->review_identities ();
     });
-    layout->addWidget (buttons);
-    connect (buttons, &QDialogButtonBox::rejected, this, &QDialog::close);
+    sync_layout->addWidget (buttons);
     connect (table_, &QTableWidget::itemSelectionChanged, this, [this] { selection (); });
     connect (resume_, &QPushButton::clicked, this, [this] { action (true); });
     connect (pause_, &QPushButton::clicked, this, [this] { action (false); });
     connect (relays_, &QPushButton::clicked, this, [this] { edit_relays (); });
-    connect (recover_, &QPushButton::clicked, this, [this] { recover (); });
+    connect (recover_, &QAction::triggered, this, [this] { recover (); });
     connect (bind_, &QPushButton::clicked, this, [this] {
       int i= table_->currentRow ();
       if (!service_ || i < 0 || i >= int (rows_.size ())) return;
-      auto group= rows_[i].profile.pin.group;
-      auto directory= QFileDialog::getExistingDirectory (this, tr ("Bind local Vault"));
-      if (directory.isEmpty ()) return;
-      bool accepted= false;
-      auto id= QInputDialog::getText (this, tr ("Vault identity"), tr ("Vault ID"),
-        QLineEdit::Normal, QUuid::createUuid ().toString (QUuid::WithoutBraces), &accepted).trimmed ();
-      if (!accepted) return;
-      vault_binding binding{group, id.toStdString (), std::filesystem::u8path (directory.toUtf8 ().toStdString ()), true};
-      service_->perform ([binding] (worker& w) {
-        AthenaVaultfileInfo info; std::string error;
-        if (!athena_vaultfile_read (binding.root, info, error)) throw std::invalid_argument (error);
-        w.settings->bind_vault (binding);
-        w.update_capture ();
-        w.configure_replication (binding.group);
-        w.report (w.sessions.at (binding.group)->status ());
-      });
+      add_vault (rows_[i].profile.pin.group, this);
     });
     connect (vaults_, &QTableWidget::itemSelectionChanged, this, [this] {
       unbind_->setEnabled (vaults_->currentRow () >= 0);
       conflicts_->setEnabled (vaults_->currentRow () >= 0);
+      vault_identity_->setText (vaults_->currentRow () >= 0 ? vaults_->item (vaults_->currentRow (), 1)->data (Qt::UserRole).toString () : QString ());
     });
     connect (conflicts_, &QPushButton::clicked, this, [this] {
       int i= table_->currentRow (), j= vaults_->currentRow ();
       if (!service_ || i < 0 || i >= int (rows_.size ()) || j < 0 || j >= int (rows_[i].vaults.size ())) return;
-      (new conflicts_dialog (service_, rows_[i].vaults[j], this))->show ();
+      show_conflicts (rows_[i].vaults[j]);
     });
     connect (vaults_, &QTableWidget::itemChanged, this, [this] (QTableWidgetItem* item) {
       int i= table_->currentRow (), j= item->row ();
@@ -1247,6 +1541,7 @@ public:
       int i= table_->currentRow (), j= vaults_->currentRow ();
       if (!service_ || i < 0 || i >= int (rows_.size ()) || j < 0 || j >= int (rows_[i].vaults.size ())) return;
       auto binding= rows_[i].vaults[j];
+      if (QMessageBox::question (this, tr ("Stop syncing this Vault"), tr ("Stop synchronizing this local Vault? Its files and history will remain on this device.")) != QMessageBox::Yes) return;
       service_->perform ([binding] (worker& w) {
         w.settings->unbind_vault (binding.group, binding.vault);
         w.update_capture ();
@@ -1258,30 +1553,20 @@ public:
       int i= table_->currentRow ();
       if (i >= 0 && i < int (rows_.size ())) QDesktopServices::openUrl (rows_[i].profile.origin);
     });
-    connect (join, &QPushButton::clicked, this, [this, origin, name] {
-      if (!service_) return;
-      auto address= QUrl (origin->text ().trimmed (), QUrl::StrictMode);
-      if (address.path () == "/") address.setPath ({});
-      auto device= name->text ().trimmed ().toUtf8 ().toStdString ();
-      diagnostic_->clear ();
-      service_->perform ([address, device] (worker& w) { w.join (address, device); });
-    });
-    controller->observer= this;
-    controller->changed= [this] (QString diagnostic) {
+    connect (join_button, &QPushButton::clicked, this, [this] { join (); });
+    connect (controller, &service::statusChanged, this, [this] (QString, QString diagnostic) {
       diagnostic_->setText (diagnostic);
-      refresh ();
-    };
+      if (isVisible ()) refresh ();
+    });
     auto* timer= new QTimer (this); timer->setInterval (2000);
     connect (timer, &QTimer::timeout, this, [this] {
-      for (int i= 0; i < int (rows_.size ()); ++i)
-        if (rows_[i].status.code_expires <= QDateTime::currentSecsSinceEpoch ())
-          table_->item (i, 3)->setText ({});
-      refresh ();
+      if (isVisible ()) refresh ();
     });
     timer->start (); selection (); refresh ();
   }
 };
 QPointer<manager> active_manager;
+QPointer<ads::CDockWidget> hodarium_dock;
 }
 
 void qtm_hodarium_initialize () {
@@ -1294,19 +1579,26 @@ void qtm_hodarium_initialize () {
   active_service= new service (std::filesystem::path (root.toUtf8 ().constData ()));
 }
 void qtm_hodarium_reload () {
-  delete active_manager.data ();
+  delete hodarium_dock.data ();
   delete active_service.data ();
   qtm_hodarium_initialize ();
 }
 void qtm_hodarium_show () {
-  if (active_manager) { active_manager->show (); active_manager->raise (); active_manager->activateWindow (); return; }
+  auto* window= QTMMainTabWindow::topTabWindow ();
+  if (!window || !window->dockManager ()) return;
   if (!active_service) {
     const QString home= qEnvironmentVariable ("ATHENA_HOME_PATH");
     if (home.isEmpty ()) { std_error << "Hodarium: application storage is unavailable" << LF; return; }
     active_service= new service (std::filesystem::path ((home + "/system/hodarium").toUtf8 ().constData ()));
   }
-  active_manager= new manager (active_service);
-  active_manager->show ();
+  if (!hodarium_dock) {
+    active_manager= new manager (active_service);
+    hodarium_dock= new ads::CDockWidget ("ATHENA Hodarium");
+    hodarium_dock->setObjectName ("athena-hodarium");
+    hodarium_dock->setWidget (active_manager);
+    hodarium_dock->setFeature (ads::CDockWidget::DockWidgetDeleteOnClose, false);
+  }
+  window->showAdsDockWidget (hodarium_dock, ads::BottomDockWidgetArea);
 }
 
 void qtm_hodarium_show_conflicts () {
@@ -1321,11 +1613,13 @@ void qtm_hodarium_show_conflicts () {
     }
     QMetaObject::invokeMethod (controller, [controller, target] {
       if (!controller) return;
-      if (target) (new conflicts_dialog (controller, *target, QApplication::activeWindow ()))->show ();
-      else qtm_hodarium_show ();
+      qtm_hodarium_show ();
+      if (target && active_manager) active_manager->show_conflicts (*target);
     }, Qt::QueuedConnection);
   });
 }
+
+#include "QTMHodarium.moc"
 
 void qtm_hodarium_saved (const std::filesystem::path& path, std::string object,
   std::optional<std::string> predecessor, std::shared_ptr<const std::string> bytes) {

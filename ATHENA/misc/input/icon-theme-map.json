@@ -244,6 +244,10 @@
       "theme": ["view-list-tree"],
       "libreoffice": ["cmd/32/switchcontroldesignmode.svg"]
     },
+    "folder-sync": {
+      "theme": ["folder-sync", "view-refresh"],
+      "libreoffice": ["cmd/32/reload.svg"]
+    },
     "view-refresh": {
       "theme": ["view-refresh"],
       "libreoffice": ["cmd/32/calculate.svg"]
