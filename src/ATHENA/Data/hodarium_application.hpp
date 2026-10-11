@@ -2,6 +2,7 @@
 #pragma once
 #include "ATHENA/Hodarium/revisions.hpp"
 #include "document_history_store.hpp"
+#include "hodarium_application_hooks.hpp"
 #include <functional>
 
 namespace athena::hodarium {
@@ -19,6 +20,24 @@ struct document_rename_records {
   std::function<void(const document_path_change&)> prepare;
   std::function<void(const document_path_change&)> commit;
 };
+// Shared disk entry point. Explicit hooks distinguish an exclusively owned
+// headless Vault from desktop catalog coordination. Incomplete hooks fail closed.
+bool apply_closed_document (const std::filesystem::path& root,
+  revision_store& journal, history::document_history_store& history,
+  const std::string& revision_id, const std::function<bool()>& permitted,
+  const document_rename_records& records, const document_application_hooks& hooks);
+
+namespace detail {
+void validate_document_application_source (const revision& target);
+// Nonzero owning_actor is reserved for the live adapter, which finishes the
+// intent only after the actor's in-memory state has been published or retired.
+bool apply_document_on_disk (const std::filesystem::path& root,
+  revision_store& journal, history::document_history_store& history,
+  const std::string& revision_id, const std::function<bool()>& permitted,
+  const document_rename_records& records, const document_application_hooks& hooks,
+  std::uint64_t owning_actor= 0);
+}
+// Desktop compatibility overload, implemented only by the live adapter.
 // Owner-thread operation on an explicitly selected local Vault. Validates native
 // source payloads and resumes a durable intent before advancing applied state.
 // False defers to the live BufferActor; no live document is mutated here.

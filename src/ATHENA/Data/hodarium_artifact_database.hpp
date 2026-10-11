@@ -5,6 +5,12 @@
 #include <string>
 #include <vector>
 
+// Notify local observers only after commit. Desktop observers invalidate the
+// live artifact cache; headless callers require no editor services.
+bool athena_artifacts_apply_path_rename (
+  const std::filesystem::path& vault_root, const std::string& old_path,
+  const std::string& new_path, bool is_directory, std::string& error);
+
 // Native artifact-owner boundary. The source UUID and role are authoritative
 // document bindings; this record contains only a reusable model result. Its
 // model/input hash is recomputed by the existing extractor before consumption.

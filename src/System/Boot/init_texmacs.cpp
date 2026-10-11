@@ -18,6 +18,7 @@
 #include "merge_sort.hpp"
 #include "drd_std.hpp"
 #include "language.hpp"
+#include "ATHENA/Data/desktop_data_notifications.hpp"
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
@@ -537,6 +538,7 @@ setup_athena () {
 
 void
 init_athena () {
+  athena_install_desktop_data_notifications ();
   //cout << "Initialize -- Main paths\n";
   init_main_paths ();
   //cout << "Initialize -- User dirs\n";

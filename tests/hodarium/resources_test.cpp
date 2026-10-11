@@ -1,5 +1,5 @@
 /* Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later. */
-// Standalone adapter test: link hodarium_resources, confined_filesystem,
+// Standalone adapter test: link hodarium_resources (+ its live adapter), confined_filesystem,
 // document_history_store (+ its existing delta dependencies) and athena_hodarium.
 // The two UI-publication stubs below are intentionally local to this executable.
 #include "ATHENA/Data/hodarium_resources.hpp"
@@ -14,7 +14,8 @@
 
 bool headless_mode= true;
 void athena_spdlog_error (const std::string& message) { std::cerr << message << '\n'; }
-std::uint64_t published_buffer_actor_id (const std::string&) { return 0; }
+std::uint64_t test_resource_owner= 0;
+std::uint64_t published_buffer_actor_id (const std::string&) { return test_resource_owner; }
 std::recursive_mutex& document_publication_mutex () {
   static std::recursive_mutex value; return value;
 }
@@ -135,6 +136,17 @@ void exercise () {
   require (history.open (right, error), "Cannot open isolated history");
   auto permitted= [] (resource_kind, const std::string&) { return true; };
   target.receive (first);
+  document_application_hooks hooks;
+  rejects ([&] { apply_closed_resource (right, target, history, first.id, permitted, {}, hooks); });
+  std::recursive_mutex exclusive_publication;
+  hooks.publication_mutex= &exclusive_publication;
+  rejects ([&] { apply_closed_resource (right, target, history, first.id, permitted, {}, hooks); });
+  hooks.published_owner= published_buffer_actor_id;
+  rejects ([&] { apply_closed_resource (right, target, history, first.id, permitted, {}, hooks); });
+  hooks.published_owner= {};
+  hooks.mode= document_application_hooks::ownership::exclusive_vault;
+  require (apply_closed_resource (right, target, history, first.id, permitted, {}, hooks),
+    "Exclusive Vault resource application failed");
   require (apply_closed_resource (right, target, history, first.id, permitted), "Initial AVD apply failed");
   // A local disposable cache must not become a source edit or block the next
   // definition update. History nevertheless retains those exact original bytes.
@@ -155,10 +167,20 @@ void exercise () {
     "Different initial replicas did not become branches of the same resource");
   validate_resource_revision (right, changed);
   target.receive (changed);
+  test_resource_owner= 7;
+  require (!apply_closed_resource (right, target, history, changed.id, permitted),
+    "Resource replacement ignored its live buffer owner");
+  test_resource_owner= 0;
   auto lease= hold_resource_view (right / avd_file.path);
+  auto second_lease= hold_resource_view (right / avd_file.path);
   require (!apply_closed_resource (right, target, history, changed.id, permitted),
     "Resource replacement ignored a live AVD view");
   lease.reset ();
+  require (resource_view_open (right / avd_file.path) &&
+    !apply_closed_resource (right, target, history, changed.id, permitted),
+    "Releasing one resource lease retired another active view");
+  second_lease.reset ();
+  require (!resource_view_open (right / avd_file.path), "Resource lease remained after its last view closed");
   require (apply_closed_resource (right, target, history, changed.id, permitted), "AVD update failed");
   std::vector<athena::history::version_entry> versions;
   require (history.list (avd_file.path, versions, error) && versions.size () == 1 &&

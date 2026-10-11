@@ -156,6 +156,8 @@ inline tree_label SUP (bool right) { return right? RSUP: LSUP; }
 ******************************************************************************/
 
 void make_tree_label (tree_label l, string s);
+// Register the desktop's exact standard tag/variable names without DRD state.
+void init_standard_tree_labels ();
 tree_label make_tree_label (string s); // for extensions
 string as_string (tree_label l);
 tree_label as_tree_label (string s);

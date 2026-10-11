@@ -4,6 +4,7 @@
 #include "ATHENA/Hodarium/revisions.hpp"
 #include "confined_filesystem.hpp"
 #include "document_history_store.hpp"
+#include "hodarium_application_hooks.hpp"
 #include <atomic>
 #include <functional>
 #include <map>
@@ -82,6 +83,7 @@ std::string resource_payload (const std::filesystem::path& root,
 void validate_resource_revision (const std::filesystem::path& root, const revision&,
   const resource_attachment_paths& declared= {});
 
+// Desktop-only leases, implemented by the live adapter.
 // Held from before asynchronous descriptor loading until the AVD pane dies.
 // Publication shares the filesystem commit gate; no GUI widget is read from a
 // worker. Multiple views can hold the same resource independently.
@@ -101,4 +103,12 @@ bool apply_closed_resource (const std::filesystem::path& root,
   const std::string& revision_id,
   const std::function<bool(resource_kind, const std::string&)>& permitted,
   const resource_attachment_paths& declared= {});
+// Shared entry point. Exclusive Vault ownership uses the caller's publication
+// gate; desktop additionally requires both owner and active-view lookups.
+// The overload above is a backward-compatible desktop-only wrapper.
+bool apply_closed_resource (const std::filesystem::path& root,
+  revision_store&, history::document_history_store&,
+  const std::string& revision_id,
+  const std::function<bool(resource_kind, const std::string&)>& permitted,
+  const resource_attachment_paths& declared, const document_application_hooks& hooks);
 }

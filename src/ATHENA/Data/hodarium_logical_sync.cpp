@@ -3,8 +3,7 @@
 #include "hodarium_logical_database.hpp"
 #include "hodarium_artifact_database.hpp"
 #include "vaultfile_json.hpp"
-#include "vault.hpp"
-#include "namespace_ontology.hpp"
+#include "hodarium_local_notifications.hpp"
 #include "confined_filesystem.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
 
@@ -363,10 +362,7 @@ bool apply_logical_revision (const std::filesystem::path& root, revision_store& 
   auto observed= observe (files, *target);
   if (observed != replacement) return false;
   journal.finish_apply (operation, observed ? std::optional<std::string> (fingerprint (*observed)) : std::nullopt);
-  if (namespace_format (target->format)) {
-    const auto context= vault_capture_context ();
-    if (context && context->root == files.root.path ()) athena_namespace_ontology_invalidate (false);
-  }
+  if (namespace_format (target->format)) notify_local_change (files.root.path (), false);
   return true;
 }
 } // namespace athena::hodarium

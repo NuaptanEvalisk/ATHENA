@@ -3,8 +3,7 @@
 #include "hodarium_logical_database.hpp"
 #include "vaultfile_json.hpp"
 #include "confined_filesystem.hpp"
-#include "namespace_ontology.hpp"
-#include "vault.hpp"
+#include "hodarium_local_notifications.hpp"
 #include <sqlite3.h>
 #include <map>
 #include <set>
@@ -240,8 +239,7 @@ void commit (const fs::path& root, const document_path_change& change) {
     done.text (1, change.operation); done.row ();
   }
   tx.commit ();
-  const auto context= vault_capture_context ();
-  if (context && context->root == root) athena_namespace_ontology_invalidate (true);
+  notify_local_change (root, true);
 }
 }
 document_rename_records make_document_rename_records (const fs::path& path) {

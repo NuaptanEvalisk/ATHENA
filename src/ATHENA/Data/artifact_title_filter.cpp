@@ -8,7 +8,7 @@
 
 #include "ATHENA/Data/artifact_title_filter.hpp"
 
-#include "ATHENA/Data/artifact_radioactive_links.hpp"
+#include "ATHENA/Data/hodarium_local_notifications.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
 #include "node_metadata.hpp"
@@ -282,7 +282,7 @@ athena_artifact_title_filter_write (
   fs::path path;
   if (!configured_path (vault_root, info, path, error)) return false;
   if (!write_entries (path, filter, error)) return false;
-  athena_artifact_radioactive_invalidate ();
+  athena::hodarium::notify_local_change (vault_root, false);
   return true;
 }
 

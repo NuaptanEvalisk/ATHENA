@@ -1,6 +1,5 @@
 /* Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later. */
 #include "hodarium_resources.hpp"
-#include "buffer_name_catalog.hpp"
 #include "background_workers.hpp"
 #include <QCryptographicHash>
 #include <QUuid>
@@ -87,10 +86,6 @@ std::string portable_vault (const std::string& path) {
   return result.empty () ? "." : result.generic_string ();
 }
 struct deferred {};
-std::map<std::string, std::size_t>& resource_views () {
-  static auto* views= new std::map<std::string, std::size_t>;
-  return *views;
-}
 bool operational_name (const std::string& name) {
   if (name == "Vaultfile.json" || name == "lock.mdb" || name == "data.mdb") return true;
   for (const auto* suffix: {".sqlite", ".sqlite3", ".db", ".mdb"}) {
@@ -101,22 +96,6 @@ bool operational_name (const std::string& name) {
   }
   return false;
 }
-}
-
-std::shared_ptr<void> hold_resource_view (const std::filesystem::path& path) {
-  std::lock_guard<std::recursive_mutex> lock (document_publication_mutex ());
-  const auto canonical= std::filesystem::canonical (path).generic_string ();
-  auto token= std::make_shared<std::string> (canonical);
-  ++resource_views ()[canonical];
-  return std::shared_ptr<void> (token.get (), [token] (void*) {
-    std::lock_guard<std::recursive_mutex> release (document_publication_mutex ());
-    auto it= resource_views ().find (*token);
-    if (--it->second == 0) resource_views ().erase (it);
-  });
-}
-bool resource_view_open (const std::filesystem::path& path) {
-  std::lock_guard<std::recursive_mutex> lock (document_publication_mutex ());
-  return resource_views ().count (path.lexically_normal ().generic_string ()) != 0;
 }
 
 std::string initial_resource_identity (const std::string& vault, const std::string& path,
@@ -351,7 +330,11 @@ bool apply_closed_resource (const std::filesystem::path& path,
     revision_store& journal, history::document_history_store& history,
     const std::string& revision_id,
     const std::function<bool(resource_kind, const std::string&)>& permitted,
-    const resource_attachment_paths& declared) {
+    const resource_attachment_paths& declared, const document_application_hooks& hooks) {
+  if (!hooks.publication_mutex ||
+      (hooks.mode == document_application_hooks::ownership::live_catalog &&
+       (!hooks.published_owner || !hooks.resource_view_open)))
+    throw std::invalid_argument ("Incomplete Hodarium resource ownership hooks");
   auto target= journal.get (revision_id);
   if (!target) throw std::invalid_argument ("Unknown Hodarium resource revision");
   const auto kind= validate_revision (*target, declared);
@@ -372,10 +355,13 @@ bool apply_closed_resource (const std::filesystem::path& path,
   if (target->deleted && source_path != target->relative_path)
     throw std::invalid_argument ("Resource deletion cannot also rename its target");
   const auto allowed= [&] {
-    for (const auto& name: {source_path, target->relative_path})
-      if (!permitted (kind, name) || published_buffer_actor_id ((root.path () / name).generic_string ()) ||
-          resource_view_open (root.path () / name))
+    for (const auto& name: {source_path, target->relative_path}) {
+      if (!permitted (kind, name)) throw deferred {};
+      if (hooks.mode == document_application_hooks::ownership::live_catalog &&
+          (hooks.published_owner ((root.path () / name).generic_string ()) ||
+           hooks.resource_view_open (root.path () / name)))
         throw deferred {};
+    }
   };
   bool prepared_here= false, published= false;
   try {
@@ -410,7 +396,7 @@ bool apply_closed_resource (const std::filesystem::path& path,
       if (fingerprint (preimage) != *intent->source_fingerprint)
         throw std::runtime_error ("Resource protected history does not match its intent");
     }
-    std::unique_lock<std::recursive_mutex> publication (document_publication_mutex (), std::defer_lock);
+    std::unique_lock<std::recursive_mutex> publication (*hooks.publication_mutex, std::defer_lock);
     const auto gate= [&] {
       if (!publication.owns_lock () && !publication.try_lock ()) throw deferred {};
       allowed ();

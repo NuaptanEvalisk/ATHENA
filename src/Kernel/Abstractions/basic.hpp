@@ -104,6 +104,10 @@ void tm_failure (const char* msg);
 #ifdef USE_EXCEPTIONS
 extern thread_local string the_exception;
 void tm_throw (const char* msg);
+using tm_exception_reporter= void (*) (const char*);
+// Desktop reporting installs its crash-report/dialog policy; native callers
+// retain the same exception type with a stderr diagnostic by default.
+void set_tm_exception_reporter (tm_exception_reporter reporter);
 void handle_exceptions ();
 #define ASSERT(cond,msg) { if (!(cond)) tm_throw (msg); }
 #define FAILED(msg) { tm_throw (msg); }
