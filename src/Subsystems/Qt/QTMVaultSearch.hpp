@@ -21,6 +21,9 @@
 #include <vector>
 
 struct WikilinkSearchResult {
+  bool semantic= false;
+  double semanticScore= 0, relevance= 0;
+  QString identityKey;
   QString sourceUuid;
   QString relPath;
   url     file;
@@ -34,6 +37,9 @@ struct WikilinkSearchResult {
 };
 
 struct TransclusionSearchResult {
+  bool semantic= false;
+  double semanticScore= 0, relevance= 0;
+  QString identityKey;
   QString sourceUuid;
   QString relPath;
   url     file;
@@ -54,6 +60,9 @@ struct VaultContentMatch {
   bool   exact;
   double score;
   int    titleMatchScore= -1;
+  bool semantic= false;
+  double semanticScore= 0;
+  QString sourceUuid;
 };
 
 struct VaultFileMatch {

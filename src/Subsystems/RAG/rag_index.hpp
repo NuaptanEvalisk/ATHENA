@@ -15,12 +15,16 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 
+class tree;
 namespace athena::background { class source_watch; }
 namespace athena::rag {
 
+// Uses exactly the text projection used for indexed chunk embedding inputs.
+std::string rag_query_text (const tree& query);
 bool rag_text_requires_embedding (const std::string& text);
 std::vector<std::filesystem::path> rag_document_files (
   const std::filesystem::path& root,
@@ -41,6 +45,8 @@ struct RagConfig {
   int shard_count= 1;
   bool progress= true;
   int progress_fd= -1;
+  // Opens an existing compatible index only; never initializes storage or models.
+  bool read_only_query= false;
 };
 
 struct RagChunk {
@@ -54,6 +60,11 @@ struct RagChunk {
   std::string text;
   std::string source;
   double score= 0.0;
+  // Vector-query hits carry the indexed raw-byte fingerprint. Verify it against
+  // current source bytes before resolving tree_path; anchor is not a node UUID.
+  std::string storage_revision;
+  std::string semantic_revision;
+  double vector_similarity= 0.0;
 };
 
 struct RagPreparedChunk {
@@ -114,6 +125,14 @@ public:
   RagStatus status () const;
 
   std::vector<RagChunk> search (const std::string& query, int limit);
+  // Exact cosine retrieval without FTS or model inference. The allowlist is
+  // mandatory (empty means no files), and is applied before ranking. limit=0
+  // returns all candidates for caller-side structural filtering. Errors and
+  // cancellation return no partial results and set status().last_error.
+  std::vector<RagChunk> search_vector (
+    const std::vector<float>& query_vector, const std::string& embedding_space,
+    const std::set<std::string>& allowed_rel_paths, std::size_t limit= 0,
+    const std::function<bool ()>& cancelled= {});
   std::optional<RagChunk> read_chunk (const std::string& chunk_id) const;
   std::string read_document (const std::string& rel_path) const;
   std::vector<RagChunk> related (const std::string& chunk_id, int limit) const;

@@ -11,6 +11,13 @@
 #include "QTMVaultSearch.hpp"
 #include "ATHENA/Data/enunciation_model.hpp"
 #include "QTMVaultSearchWorker.hpp"
+#include "QTMContinuousRag.hpp"
+#include "rag_index.hpp"
+#include "rag_embedding.hpp"
+#include "buffer_actor.hpp"
+#include "buffer_name_catalog.hpp"
+#include "node_metadata.hpp"
+#include "tree_cursor.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
 #include "convert.hpp"
 #include "boot.hpp"
@@ -28,6 +35,9 @@
 #include <QFile>
 #include <QThread>
 #include <QRegularExpression>
+#include <QDir>
+#include <QPointer>
+#include <QDateTime>
 #include <rapidfuzz/distance/Levenshtein.hpp>
 #include <rapidfuzz/fuzz.hpp>
 #include <algorithm>
@@ -95,6 +105,7 @@ vault_search_candidate_files (url origin, string namespace_name,
 }
 
 static thread_local const std::atomic<bool>* search_cancel_flag= nullptr;
+static thread_local std::string search_source_revision;
 
 VaultSearchCancellationScope::VaultSearchCancellationScope (
   const std::atomic<bool>* flag): previous (search_cancel_flag) {
@@ -130,7 +141,20 @@ QThreadPool& vault_search_workers () {
   return pool;
 }
 
-tree vault_search_read_body (const QString& file) {
+tree vault_search_read_body (const QString& file, bool semantic) {
+  search_source_revision.clear ();
+  const auto source= published_buffer_source (file.toStdString ());
+  if (source.first != ATHENA_NO_ACTOR) {
+    actor_command_record response;
+    if (!buffer_actor::invoke_on (source.first, semantic ? actor_command_kind::snapshot_document : actor_command_kind::snapshot_body,
+          source.second, ATHENA_NO_BLOB, ATHENA_NO_BLOB, &response))
+      throw std::runtime_error ("Could not read live search source");
+    tree document= actor_tree_registry::instance ().take (response.payload0);
+    if (!semantic) return document;
+    search_source_revision= athena::document::semantic_document_fingerprint (document);
+    tree body= extract (document, "body");
+    return is_empty (body) ? document : body;
+  }
   QFile input (file);
   if (!input.open (QIODevice::ReadOnly)) throw std::runtime_error ("Cannot read search file");
   QByteArray bytes;
@@ -147,8 +171,165 @@ tree vault_search_read_body (const QString& file) {
   tree doc= athena::document::decode_document_bytes (
     std::string_view (bytes.constData (), (std::size_t) bytes.size ()),
     std::filesystem::path (file.toStdString ())).document;
+  if (semantic) search_source_revision= athena::document::semantic_document_fingerprint (doc);
   tree body= extract (doc, "body");
   return is_empty (body) ? doc : body;
+}
+
+bool vault_search_has_live_source (const QString& file) {
+  return published_buffer_source (file.toStdString ()).first != ATHENA_NO_ACTOR;
+}
+
+QString vault_search_node_uuid (tree body, path position) {
+  auto id= athena::node::id (body);
+  while (!is_nil (position) && is_compound (body) && position->item >= 0 && position->item < N(body)) {
+    body= body[position->item]; position= position->next;
+    const auto nested= athena::node::id (body);
+    if (!nested.empty ()) id= nested;
+  }
+  return QString::fromStdString (id);
+}
+
+QString vault_search_identity (tree body, url file, path position) {
+  auto id= vault_search_node_uuid (body, position);
+  if (!id.isEmpty ()) return id;
+  QString result= to_qstring (concretize (file));
+  for (; !is_nil (position); position= position->next) result+= "/" + QString::number (position->item);
+  return result;
+}
+
+void vault_search_semantic_matches (tree body, url file,
+    const VaultSearchOptions& options, std::vector<VaultContentMatch>& matches) {
+  if (!options.semanticCandidates) return;
+  const auto found= options.semanticCandidates->find (to_qstring (concretize (file)));
+  if (found == options.semanticCandidates->end ()) return;
+  for (const auto& hit: found->second) {
+    if (vault_search_cancelled ()) return;
+    if (hit.semanticRevision.empty () || hit.semanticRevision != search_source_revision) {
+      options.staleCandidates->fetch_add (1); continue;
+    }
+    tree node= body;
+    path where;
+    bool valid= true, kindMatches= options.enunciation.isEmpty ();
+    const auto& registry= athena::enunciation::standard_registry ();
+    auto matchKind= [&] {
+      if (options.enunciation == "__athena_paragraph__")
+        return is_atomic (node) || is_func (node, PARA);
+      return registry.matches_filter (node, options.enunciation.toStdString ());
+    };
+    if (!kindMatches) kindMatches= matchKind ();
+    if (!hit.treePath.empty ()) for (const auto& part: QString::fromStdString (hit.treePath).split ('.')) {
+      bool ok= false; int index= part.toInt (&ok);
+      if (!ok || !is_compound (node) || index < 0 || index >= N(node)) { valid= false; break; }
+      node= node[index]; where= where * index;
+      if (!kindMatches) kindMatches= matchKind ();
+    }
+    if (!valid || !kindMatches) continue;
+    VaultContentMatch match;
+    match.start= start (body, where); match.end= end (body, where);
+    match.exact= false; match.score= 0; match.semantic= true; match.semanticScore= hit.score;
+    match.sourceUuid= vault_search_node_uuid (body, where);
+    matches.push_back (std::move (match));
+  }
+}
+
+static QThreadPool& semantic_search_workers () {
+  static QThreadPool pool;
+  static const bool initialized= [] { pool.setMaxThreadCount (1); pool.setExpiryTimeout (-1); return true; } ();
+  (void) initialized;
+  return pool;
+}
+
+void vault_search_semantic_candidates (QObject* owner,
+    const std::vector<std::string>& files, const VaultSearchOptions& options,
+    std::shared_ptr<VaultSearchControl> control,
+    std::function<void(std::shared_ptr<const VaultSemanticCandidates>, QString)> complete) {
+  const QPointer<QObject> receiver= owner;
+  QString queryText= options.query;
+  if (!options.serializedQuery.empty ()) {
+    try {
+      queryText= QString::fromStdString (athena::rag::rag_query_text (
+        athena::document::read_xml_v2 (options.serializedQuery, athena::document::xml_kind::fragment)));
+    }
+    catch (const std::exception& error) { complete ({}, QString::fromUtf8 (error.what ())); return; }
+  }
+  if (queryText.trimmed ().isEmpty ()) { complete ({}, "The query has no text for semantic retrieval."); return; }
+  const QString model= to_qstring (get_user_preference ("rag embedding model", ""));
+  const QString device= to_qstring (get_user_preference ("rag embedding device", "auto"));
+  const QString npuModel= to_qstring (get_user_preference ("rag npu openvino model", "")).trimmed ();
+  const bool useNpu= !npuModel.isEmpty ();
+  const QString tokenizer= to_qstring (get_user_preference ("rag npu tokenizer gguf", ""));
+  auto modelRevision= [] (const QString& path) {
+    const QFileInfo info (path);
+    return path + '\n' + QString::number (info.size ()) + '\n' + QString::number (info.lastModified ().toMSecsSinceEpoch ());
+  };
+  // GUI-owned, bounded query cache; never mixes model revisions or devices.
+  struct CachedQuery { std::vector<float> vector; std::string space; };
+  static std::map<QString, CachedQuery> queryCache;
+  const QString cacheKey= modelRevision (model) + '\n' + device + '\n' + modelRevision (npuModel) + '\n' + modelRevision (tokenizer) + '\n' + queryText;
+  auto retrieve= [receiver, files, options, control, complete, cacheKey] (std::vector<float> vector, std::string space, QString error) {
+    if (!receiver || control->cancelled) return;
+    if (!error.isEmpty ()) { complete ({}, error); return; }
+    if (queryCache.size () >= 64) queryCache.erase (queryCache.begin ());
+    queryCache[cacheKey]= {vector, space};
+    semantic_search_workers ().start ([receiver, files, options, control, complete, vector= std::move (vector), space= std::move (space)] {
+      auto candidates= std::make_shared<VaultSemanticCandidates> ();
+      QString error;
+      try {
+        athena::rag::RagConfig config;
+        config.vault_root= options.root.toStdString ();
+        config.db_path= athena::rag::rag_default_db_path (config.vault_root);
+        config.read_only_query= true; config.load_embedding_model= false; config.progress= false;
+        athena::rag::RagIndex index;
+        if (!index.open (config)) throw std::runtime_error (index.status ().last_error);
+        std::set<std::string> allowed;
+        const QDir root (options.root);
+        for (const auto& file: files) allowed.insert (root.relativeFilePath (QString::fromStdString (file)).toStdString ());
+        const auto hits= index.search_vector (vector, space, allowed, 0, [control] { return control->cancelled.load (); });
+        if (!index.status ().last_error.empty ()) throw std::runtime_error (index.status ().last_error);
+        for (const auto& hit: hits)
+          (*candidates)[root.absoluteFilePath (QString::fromStdString (hit.rel_path))].push_back (
+            {hit.tree_path, hit.semantic_revision, hit.vector_similarity});
+        if (hits.empty ()) error= "No indexed semantic candidates in the selected scope.";
+      }
+      catch (const std::exception& e) { error= QString::fromUtf8 (e.what ()); }
+      if (receiver) QMetaObject::invokeMethod (receiver, [receiver, control, candidates, complete, error] {
+        if (receiver && !control->cancelled) complete (candidates, error);
+      }, Qt::QueuedConnection);
+    });
+  };
+  if (const auto cached= queryCache.find (cacheKey); cached != queryCache.end ()) {
+    retrieve (cached->second.vector, cached->second.space, {}); return;
+  }
+  if (useNpu) {
+    auto cancel= qtm_rag_embed_query (owner, queryText, retrieve);
+    QObject::connect (owner, &QObject::destroyed, std::move (cancel));
+  }
+  else {
+    semantic_search_workers ().start ([receiver, control, model, device, query= queryText, retrieve] {
+      std::vector<float> vector;
+      std::string space;
+      QString error;
+      try {
+        if (control->cancelled) return;
+        if (model.isEmpty ()) throw std::runtime_error ("Configure a RAG embedding model to use semantic search.");
+        static thread_local athena::rag::RagEmbedder embedder;
+        static thread_local QString runtime;
+        const QFileInfo info (model);
+        const QString key= model + '\n' + device + '\n' + QString::number (info.size ()) + '\n' + QString::number (info.lastModified ().toMSecsSinceEpoch ());
+        if (runtime != key || !embedder.available ()) {
+          if (!embedder.open (model.toStdString (), device.toStdString ())) throw std::runtime_error ("Could not load the RAG query embedding model.");
+          runtime= key;
+        }
+        vector= embedder.embed (query.toStdString ()); space= embedder.space_id ();
+        if (vector.empty ()) throw std::runtime_error ("RAG query embedding failed.");
+      }
+      catch (const std::exception& e) { error= QString::fromUtf8 (e.what ()); }
+      if (receiver) QMetaObject::invokeMethod (receiver, [receiver, control, retrieve, vector= std::move (vector), space, error] () mutable {
+        if (receiver && !control->cancelled) retrieve (std::move (vector), space, error);
+      }, Qt::QueuedConnection);
+    });
+  }
 }
 
 static QByteArray

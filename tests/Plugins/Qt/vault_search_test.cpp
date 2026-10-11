@@ -27,6 +27,8 @@
 #include "ATHENA/Data/node_reference.hpp"
 #include "utf8_edit.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
+#include "Data/Convert/Xml/document_upgrade_file.hpp"
+#include "Subsystems/RAG/rag_index.hpp"
 #include "node_metadata.hpp"
 #include "boxes.hpp"
 #include <QSemaphore>
@@ -39,6 +41,7 @@
 #include <filesystem>
 #include <fstream>
 #include <set>
+#include <algorithm>
 #include <atomic>
 #include <thread>
 
@@ -58,6 +61,7 @@ class TestVaultSearch: public QObject {
 
 private slots:
   void initTestCase ();
+  void semanticVectorsUseReadOnlyIndex ();
   void sourceSelectionsUsePersistentObjects ();
   void sourcePreviewsKeepPropertiesNotIdentities ();
   void sourceLookupFollowsExternalRenameAndCancellation ();
@@ -413,6 +417,81 @@ void TestVaultSearch::availableEnunciationsKeepUnsavedSourceAndCancel () {
 void
 TestVaultSearch::initTestCase () {
   init_std_drd ();
+}
+
+void
+TestVaultSearch::semanticVectorsUseReadOnlyIndex () {
+  using namespace athena::rag;
+  namespace fs= std::filesystem;
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  const fs::path root (temporary.path ().toStdString ());
+  const auto source= currentDocumentBytes ("A geometric proof about triangles and angles.");
+  {
+    std::ofstream file (root / "Geometry.ath", std::ios::binary);
+    file.write (source.constData (), source.size ());
+    QVERIFY (file.good ());
+  }
+  RagConfig config;
+  config.vault_root= root;
+  config.db_path= root / "rag.sqlite";
+  config.load_embedding_model= false;
+  config.progress= false;
+  RagPreparedDocument prepared;
+  {
+    RagIndex writer;
+    QVERIFY2 (writer.open (config), writer.status ().last_error.c_str ());
+    QVERIFY2 (writer.prepare_document ("Geometry.ath", "", "test-space", prepared),
+              writer.status ().last_error.c_str ());
+    QVERIFY (!prepared.missing_embedding_indices.empty ());
+    std::vector<std::vector<float>> vectors (
+      prepared.missing_embedding_indices.size (), std::vector<float>{1.0f, 0.0f});
+    QVERIFY2 (writer.commit_document (prepared, vectors), writer.status ().last_error.c_str ());
+  }
+  QFile database (QString::fromStdString (config.db_path.string ()));
+  QVERIFY (database.open (QIODevice::ReadOnly));
+  const auto before= database.readAll ();
+  database.close ();
+  const auto modified= fs::last_write_time (config.db_path);
+  config.read_only_query= true;
+  config.force_reindex= true; // Read-only opening must ignore writer-only flags.
+  config.load_embedding_model= true;
+  config.embedding_model= root / "must-not-load.gguf";
+  {
+    RagIndex reader;
+    QVERIFY2 (reader.open (config), reader.status ().last_error.c_str ());
+    QVERIFY (!reader.status ().embeddings_enabled);
+    QVERIFY (reader.status ().embedding_warning.empty ());
+    // The external query embedding can match even with no lexical candidates.
+    QVERIFY (reader.search ("nonlexicalquery", 10).empty ());
+    const auto hits= reader.search_vector ({2.0f, 0.0f}, "test-space", {"Geometry.ath"});
+    QVERIFY2 (!hits.empty (), reader.status ().last_error.c_str ());
+    QCOMPARE (hits.size (), prepared.missing_embedding_indices.size ());
+    const std::string revision= athena::document::storage_bytes_fingerprint (
+      std::string (source.constData (), std::size_t (source.size ())));
+    for (const auto& hit: hits) {
+      QCOMPARE (hit.rel_path, std::string ("Geometry.ath"));
+      QCOMPARE (hit.storage_revision, revision);
+      QCOMPARE (hit.vector_similarity, 1.0);
+      QCOMPARE (hit.score, hit.vector_similarity);
+      const auto original= std::find_if (prepared.chunks.begin (), prepared.chunks.end (),
+        [&] (const RagPreparedChunk& chunk) { return chunk.chunk.chunk_id == hit.chunk_id; });
+      QVERIFY (original != prepared.chunks.end ());
+      QCOMPARE (hit.tree_path, original->chunk.tree_path);
+    }
+    QVERIFY (reader.search_vector ({1.0f, 0.0f}, "test-space", {"Excluded.ath"}).empty ());
+    QVERIFY (reader.search_vector ({1.0f, 0.0f}, "incompatible-space", {"Geometry.ath"}).empty ());
+    QVERIFY (reader.status ().last_error.find ("embedding space") != std::string::npos);
+    QVERIFY (!reader.delete_document ("Geometry.ath"));
+  }
+  QVERIFY (database.open (QIODevice::ReadOnly));
+  QCOMPARE (database.readAll (), before);
+  QVERIFY (fs::last_write_time (config.db_path) == modified);
+  config.db_path= root / "missing" / "rag.sqlite";
+  RagIndex missing;
+  QVERIFY (!missing.open (config));
+  QVERIFY (!missing.status ().last_error.empty ());
+  QVERIFY (!fs::exists (config.db_path.parent_path ()));
 }
 
 void

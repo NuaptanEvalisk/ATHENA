@@ -17,8 +17,11 @@
 #include "ATHENA/Data/person_names.hpp"
 #endif
 #include "QTMVaultSearch.hpp"
+#include "QTMVaultSearchWorker.hpp"
+#include "QTMVaultLinkModel.hpp"
 #include "QTMVaultAnchorModel.hpp"
 #include "QTMWidget.hpp"
+#include "Data/Convert/Xml/athena_document_xml.hpp"
 #include "convert.hpp"
 #include "converter.hpp"
 #include "drd_mode.hpp"
@@ -44,6 +47,7 @@
 #include <DockWidget.h>
 #include <QAbstractScrollArea>
 #include <QApplication>
+#include <QClipboard>
 #include <QCompleter>
 #include <QCheckBox>
 #include <QComboBox>
@@ -55,6 +59,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMessageBox>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QProgressBar>
 #include <QPushButton>
@@ -66,6 +71,7 @@
 #include <QStringListModel>
 #include <QThread>
 #include <QTimer>
+#include <QUrl>
 #include <QVBoxLayout>
 #include <algorithm>
 #include <set>
@@ -79,6 +85,8 @@ static constexpr const char* global_search_case_insensitive_pref=
   "vault global search case insensitive search";
 static constexpr const char* global_search_fuzzy_pref=
   "vault global search fuzzy search";
+static constexpr const char* global_search_mode_pref=
+  "vault global search mode";
 
 class qt_adopted_qwidget_rep : public qt_widget_rep {
   QPointer<QWidget> adopted;
@@ -214,7 +222,7 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
   : QWidget (parent),
     queryUrl (url ("tmfs://aux/global-search")),
     previewBody (tree (DOCUMENT, "")),
-    scanIndex (0),
+    searchGeneration (0),
     matchedFiles (0),
     previewZoomFactor (1.0),
     previewWidth (0),
@@ -244,11 +252,16 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
 
   resultList= new QListWidget (this);
   resultList->setAlternatingRowColors (true);
+  resultList->setSelectionMode (QAbstractItemView::SingleSelection);
+  resultList->setContextMenuPolicy (Qt::CustomContextMenu);
   resultList->setMinimumWidth (480);
   resultList->setMinimumHeight (320);
   resultList->installEventFilter (this);
 
   previewTitle= new QLabel ("Select a result to preview it.", this);
+  previewTitle->setWordWrap (true);
+  openButton= new QPushButton ("Open and locate", this);
+  openButton->setEnabled (false);
   QWidget* preview= createPreviewWidget ();
   preview->setMinimumHeight (220);
 
@@ -278,6 +291,10 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
 
   caseInsensitiveCheck= new QCheckBox ("Case-insensitive", this);
   fuzzyCheck= new QCheckBox ("Fuzzy", this);
+  modeCombo= new QComboBox (this);
+  modeCombo->addItem ("Content matching", (int) VaultSearchMode::Content);
+  modeCombo->addItem ("Semantic search", (int) VaultSearchMode::Semantic);
+  modeCombo->addItem ("Hybrid search", (int) VaultSearchMode::Hybrid);
   refreshSearchOptions ();
 
   QWidget* leftPane= new QWidget (this);
@@ -290,6 +307,7 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
   QVBoxLayout* rightLayout= new QVBoxLayout (rightPane);
   rightLayout->setContentsMargins (0, 0, 0, 0);
   rightLayout->addWidget (previewTitle);
+  rightLayout->addWidget (openButton, 0, Qt::AlignLeft);
   rightLayout->addWidget (preview, 1);
 
   splitter= new QSplitter (Qt::Horizontal, this);
@@ -298,9 +316,6 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
   splitter->setStretchFactor (0, 0);
   splitter->setStretchFactor (1, 1);
   splitter->setSizes (QList<int> () << 520 << 820);
-
-  scanTimer= new QTimer (this);
-  scanTimer->setInterval (0);
 
   QHBoxLayout* buttons= new QHBoxLayout ();
   buttons->addWidget (new QLabel ("Namespace:", this));
@@ -314,12 +329,15 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
   buttons->addWidget (personCombo);
   buttons->addSpacing (12);
 #endif
-  buttons->addWidget (caseInsensitiveCheck);
-  buttons->addWidget (fuzzyCheck);
-  buttons->addSpacing (12);
-  buttons->addWidget (searchButton);
-  buttons->addWidget (cancelButton);
   buttons->addStretch ();
+
+  QHBoxLayout* searchActions= new QHBoxLayout ();
+  searchActions->addWidget (modeCombo);
+  searchActions->addWidget (caseInsensitiveCheck);
+  searchActions->addWidget (fuzzyCheck);
+  searchActions->addStretch ();
+  searchActions->addWidget (searchButton);
+  searchActions->addWidget (cancelButton);
 
   floatingSizeGrip->hide ();
   QHBoxLayout* gripRow= new QHBoxLayout ();
@@ -332,6 +350,7 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
   layout->addWidget (prompt);
   layout->addWidget (query);
   layout->addLayout (buttons);
+  layout->addLayout (searchActions);
   layout->addWidget (progress);
   layout->addWidget (status);
   layout->addWidget (splitter, 1);
@@ -351,12 +370,37 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
              set_preference (global_search_fuzzy_pref,
                              checked ? "on" : "off");
            });
-  connect (scanTimer, &QTimer::timeout,
-           this, [this] () { scanChunk (); });
+  connect (modeCombo, QOverload<int>::of (&QComboBox::currentIndexChanged),
+           this, [this] (int) {
+    auto mode= static_cast<VaultSearchMode> (modeCombo->currentData ().toInt ());
+    set_preference (global_search_mode_pref,
+      mode == VaultSearchMode::Semantic ? "semantic" :
+      mode == VaultSearchMode::Hybrid ? "hybrid" : "content");
+    caseInsensitiveCheck->setEnabled (mode != VaultSearchMode::Semantic);
+    fuzzyCheck->setEnabled (mode != VaultSearchMode::Semantic);
+  });
+  connect (openButton, &QPushButton::clicked,
+           this, [this] () { openCurrentResult (); });
   connect (resultList, &QListWidget::itemDoubleClicked,
            this, [this] (QListWidgetItem* item) { openResult (item); });
-  connect (resultList, &QListWidget::itemActivated,
-           this, [this] (QListWidgetItem* item) { openResult (item); });
+  connect (resultList, &QWidget::customContextMenuRequested,
+           this, [this] (const QPoint& position) {
+    QListWidgetItem* item= resultList->itemAt (position);
+    if (item == nullptr) return;
+    resultList->setCurrentItem (item);
+    int index= item->data (Qt::UserRole).toInt ();
+    if (index < 0 || index >= (int) results.size ()) return;
+    const QString source= QUrl::fromLocalFile (
+      to_qstring (as_system_string (results[index].file))).toString ();
+    const auto generation= searchGeneration;
+    QMenu menu (this);
+    QAction* open= menu.addAction ("Open and locate");
+    QAction* copy= menu.addAction ("Copy source file URL");
+    QAction* action= menu.exec (resultList->viewport ()->mapToGlobal (position));
+    if (action == copy) QApplication::clipboard ()->setText (source);
+    else if (action == open && generation == searchGeneration)
+      openResult (resultList->item (index));
+  });
   connect (resultList, &QListWidget::currentItemChanged,
            this, [this] (QListWidgetItem* current, QListWidgetItem*) {
              updatePreview (current);
@@ -367,7 +411,8 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
 }
 
 QTMGlobalSearch::~QTMGlobalSearch () {
-  scanTimer->stop ();
+  if (searchTask) searchTask->cancelled= true;
+  delete previewRequest.data ();
   if (!is_nil (queryWidget)) send_destroy (queryWidget);
   destroyPreviewWidget ();
 }
@@ -391,6 +436,10 @@ QTMGlobalSearch::setFloatingResizeGripVisible (bool visible) {
 
 void
 QTMGlobalSearch::refreshSearchOptions () {
+  string mode= get_preference (global_search_mode_pref, "content");
+  modeCombo->setCurrentIndex (mode == "semantic" ? 1 : mode == "hybrid" ? 2 : 0);
+  caseInsensitiveCheck->setEnabled (mode != "semantic");
+  fuzzyCheck->setEnabled (mode != "semantic");
   if (caseInsensitiveCheck != nullptr)
     caseInsensitiveCheck->setChecked (
       get_preference (global_search_case_insensitive_pref, "off") == "on");
@@ -432,7 +481,7 @@ QTMGlobalSearch::eventFilter (QObject* watched, QEvent* event) {
   if (watched == resultList && event->type () == QEvent::KeyPress) {
     QKeyEvent* key= static_cast<QKeyEvent*> (event);
     if (key->key () == Qt::Key_Return || key->key () == Qt::Key_Enter) {
-      openCurrentResult ();
+      if (!key->isAutoRepeat ()) openCurrentResult ();
       return true;
     }
   }
@@ -770,15 +819,15 @@ QTMGlobalSearch::startSearch () {
     return;
   }
 
-  if (scanTimer->isActive ()) scanTimer->stop ();
+  cancelSearch ();
+  const auto generation= ++searchGeneration;
   resultList->clear ();
   clearPreview ();
   results.clear ();
   scanFiles.clear ();
-  scanIndex= 0;
   matchedFiles= 0;
 
-  queryTree= currentQuery ();
+  const tree queryTree= currentQuery ();
   if (is_empty (queryTree)) {
     status->setText ("Enter a non-empty query.");
     progress->setRange (0, 1);
@@ -823,7 +872,7 @@ QTMGlobalSearch::startSearch () {
                return relativePath (a) < relativePath (b);
              });
 
-  debug_qt << "Global search: deferred scan starting, "
+  debug_qt << "Global search: parallel scan starting, "
            << (int) scanFiles.size () << " files";
   if (!ns.isEmpty ())
     debug_qt << " in namespace " << from_qstring (ns);
@@ -831,33 +880,88 @@ QTMGlobalSearch::startSearch () {
   if (!enunciation.isEmpty ())
     debug_qt << ", enunciation " << from_qstring (enunciation);
   debug_qt << LF;
+  VaultSearchOptions options;
+  options.mode= static_cast<VaultSearchMode> (modeCombo->currentData ().toInt ());
+  options.root= to_qstring (as_system_string (vault_get_root ()));
+  options.enunciation= selectedEnunciation ();
+#if ATHENA_ENABLE_PERSON_SUBSYSTEM
+  options.person= selectedPerson ();
+#endif
+  options.caseInsensitive= caseInsensitiveCheck->isChecked ();
+  options.fuzzy= fuzzyCheck->isChecked ();
+  // Only serialized bytes cross to workers, never the live query tree.
+  try {
+    if (!is_atomic (queryTree))
+      options.serializedQuery= athena::document::write_xml_v2 (
+        queryTree, athena::document::xml_kind::fragment);
+  }
+  catch (const athena::document::codec_exception& error) {
+    status->setText (QString ("Cannot snapshot search query: %1")
+      .arg (QString::fromUtf8 (error.what ())));
+    progress->setRange (0, 1);
+    progress->setValue (0);
+    return;
+  }
+  options.query= is_atomic (queryTree) ? to_qstring (queryTree->label) :
+    to_qstring (tree_as_string (queryTree));
+  std::vector<std::string> files;
+  files.reserve (scanFiles.size ());
+  for (const url& file: scanFiles)
+    files.push_back (to_qstring (as_system_string (file)).toStdString ());
   setRunningStatus ();
   searchButton->setEnabled (false);
   cancelButton->setEnabled (true);
-  scanTimer->start ();
+  searchTask= start_vault_ranked_search<Result> (
+    this, std::move (files), options, &QTMGlobalSearch::searchFile,
+    [this, generation] (const VaultSearchProgress& state) {
+      if (generation != searchGeneration) return;
+      if (state.semanticPending) {
+        progress->setRange (0, 0);
+        status->setText (state.diagnostic.isEmpty () ?
+          QString ("Searching semantic index...") : state.diagnostic);
+        return;
+      }
+      progress->setRange (0, std::max (1, state.total));
+      progress->setValue (state.completed);
+      QString message=
+        QString ("%1 %2/%3 files; %4 occurrence(s) in %5 file(s).")
+          .arg (state.inspecting ? "Searching" : "Filtering")
+          .arg (state.completed).arg (state.total)
+          .arg (state.hits).arg (state.matchedFiles);
+      if (!state.diagnostic.isEmpty ()) message += "\n" + state.diagnostic;
+      status->setText (message);
+    },
+    [this, generation] (std::vector<Result> hits,
+                        const VaultSearchProgress& state, bool cancelled) {
+      if (generation != searchGeneration) return;
+      searchTask.reset ();
+      matchedFiles= state.matchedFiles;
+      for (const Result& hit: hits) addResult (hit);
+      finishSearch ();
+      if (cancelled) status->setText ("Search cancelled.");
+      if (!state.diagnostic.isEmpty ())
+        status->setText (status->text () + "\n" + state.diagnostic);
+    });
 }
 
 void
 QTMGlobalSearch::cancelSearch () {
-  if (!scanTimer->isActive ()) return;
-  scanTimer->stop ();
-  status->setText (QString ("Search cancelled after %1/%2 files; %3 occurrence(s) in %4 file(s).")
-                   .arg (scanIndex)
-                   .arg ((int) scanFiles.size ())
-                   .arg ((int) results.size ())
-                   .arg (matchedFiles));
+  if (!searchTask) return;
+  searchTask->cancelled= true;
+  searchTask.reset ();
+  ++searchGeneration;
+  status->setText ("Search cancelled.");
   searchButton->setEnabled (true);
   cancelButton->setEnabled (false);
 }
 
 int
-QTMGlobalSearch::searchFile (url u, std::vector<Result>& hits) const {
+QTMGlobalSearch::searchFile (tree body, url u, const tree& query,
+                           const VaultSearchOptions& options,
+                           std::vector<Result>& hits) {
   try {
-    tree t= import_tree (u, "texmacs");
-    tree body= extract (t, "body");
-    if (is_empty (body)) body= t;
 #if ATHENA_ENABLE_PERSON_SUBSYSTEM
-    QString person= selectedPerson ();
+    QString person= options.person;
     if (!person.isEmpty () &&
         !athena_tree_contains_person_text (body, from_qstring (person)))
       return 0;
@@ -866,17 +970,20 @@ QTMGlobalSearch::searchFile (url u, std::vector<Result>& hits) const {
     int oldMode= set_access_mode (DRD_ACCESS_SOURCE);
     std::vector<VaultContentMatch> matches;
     try {
-      QString enunciation= selectedEnunciation ();
-      bool caseInsensitive= caseInsensitiveCheck != nullptr &&
-                            caseInsensitiveCheck->isChecked ();
-      bool fuzzy= fuzzyCheck != nullptr && fuzzyCheck->isChecked ();
-      if (enunciation.isEmpty ())
-        append_content_matches (matches, body, queryTree, path (), 200,
-                                caseInsensitive, fuzzy);
-      else
-        collect_enunciation_matches (matches, body, queryTree,
-                                     from_qstring (enunciation), path (), 200,
-                                     caseInsensitive, fuzzy);
+      QString enunciation= options.enunciation;
+      bool caseInsensitive= options.caseInsensitive;
+      bool fuzzy= options.fuzzy;
+      if (options.mode != VaultSearchMode::Semantic) {
+        if (enunciation.isEmpty ())
+          append_content_matches (matches, body, query, path (), 200,
+                                  caseInsensitive, fuzzy);
+        else
+          collect_enunciation_matches (matches, body, query,
+                                       from_qstring (enunciation), path (), 200,
+                                       caseInsensitive, fuzzy);
+      }
+      if (options.mode != VaultSearchMode::Content)
+        vault_search_semantic_matches (body, u, options, matches);
     }
     catch (...) {
       set_access_mode (oldMode);
@@ -884,7 +991,7 @@ QTMGlobalSearch::searchFile (url u, std::vector<Result>& hits) const {
     }
     set_access_mode (oldMode);
 
-    std::stable_sort (
+    if (options.mode == VaultSearchMode::Content) std::stable_sort (
       matches.begin (), matches.end (),
       [] (const VaultContentMatch& a, const VaultContentMatch& b) {
         if (a.exact != b.exact) return a.exact;
@@ -895,7 +1002,8 @@ QTMGlobalSearch::searchFile (url u, std::vector<Result>& hits) const {
     int hitCount= (int) matches.size ();
     if (hitCount <= 0) return 0;
 
-    QString rel= relativePath (u);
+    url root= url_system (from_qstring (options.root));
+    QString rel= to_qstring (as_unix_string (delta (root * url (""), u)));
     int occurrence= 1;
     for (const VaultContentMatch& match: matches) {
       Result result;
@@ -907,6 +1015,13 @@ QTMGlobalSearch::searchFile (url u, std::vector<Result>& hits) const {
       result.hitEnd= match.end;
       result.exact= match.exact;
       result.score= match.score;
+      result.semantic= match.semantic;
+      // Fusion may add semantic ranking without replacing the lexical range.
+      result.occurrenceAvailable= !match.semantic;
+      result.semanticScore= match.semanticScore;
+      result.sourceUuid= match.semantic ? match.sourceUuid :
+        vault_search_node_uuid (body, match.start);
+      result.identityKey= vault_search_identity (body, u, match.start);
       hits.push_back (result);
     }
     return hitCount;
@@ -968,7 +1083,10 @@ QTMGlobalSearch::addResult (const Result& result) {
       .arg (result.occurrence)
       .arg (result.fileHits)
       .arg (qstring_from_tm (as_string (result.hitStart)));
-  if (!result.exact)
+  if (result.semantic)
+    tooltip += QString ("\nSemantic relevance: %1")
+      .arg (result.semanticScore, 0, 'f', 3);
+  else if (!result.exact)
     tooltip += QString ("\nFuzzy match: %1%").arg (result.score, 0, 'f', 1);
   item->setToolTip (tooltip);
   item->setData (Qt::UserRole, (int) results.size () - 1);
@@ -978,6 +1096,8 @@ QTMGlobalSearch::addResult (const Result& result) {
 
 void
 QTMGlobalSearch::updatePreview (QListWidgetItem* current) {
+  delete previewRequest.data ();
+  const auto generation= ++previewGeneration;
   if (current == nullptr) {
     clearPreview ();
     return;
@@ -990,11 +1110,46 @@ QTMGlobalSearch::updatePreview (QListWidgetItem* current) {
   }
 
   const Result& result= results[index];
+  openButton->setEnabled (true);
   previewTitle->setText (
     QString ("%1  (%2 of %3)")
       .arg (result.relPath)
       .arg (result.occurrence)
       .arg (result.fileHits));
+  if (!result.occurrenceAvailable) {
+    openButton->setEnabled (false);
+    previewBody= tree (DOCUMENT, "");
+    recreatePreviewWidget ();
+    refreshPreviewLayout ();
+    if (result.sourceUuid.isEmpty ()) {
+      previewTitle->setText (
+        "Source identity unavailable. Run the search again.");
+      return;
+    }
+    previewTitle->setText ("Locating current source...");
+    previewRequest= vault_resolve_source_ids (this, {result.sourceUuid},
+      [this, generation] (auto answer, QString error) {
+        if (generation != previewGeneration) return;
+        if (!error.isEmpty () || !answer || answer->items.empty ()) {
+          previewTitle->setText (error.isEmpty () ?
+            QString ("Source no longer available. Run the search again.") : error);
+          return;
+        }
+        try {
+          previewBody= vault_source_preview (*answer);
+          previewTitle->setText ("Current source");
+          openButton->setEnabled (true);
+        }
+        catch (...) {
+          previewBody= tree (DOCUMENT, "");
+          previewTitle->setText (
+            "Current source preview unavailable. Run the search again.");
+        }
+        recreatePreviewWidget ();
+        refreshPreviewLayout ();
+      });
+    return;
+  }
   previewBody= buildPreview (result);
   recreatePreviewWidget ();
   refreshPreviewLayout ();
@@ -1002,6 +1157,9 @@ QTMGlobalSearch::updatePreview (QListWidgetItem* current) {
 
 void
 QTMGlobalSearch::clearPreview () {
+  delete previewRequest.data ();
+  ++previewGeneration;
+  openButton->setEnabled (false);
   if (previewTitle != nullptr)
     previewTitle->setText ("Select a result to preview it.");
   previewBody= tree (DOCUMENT, "");
@@ -1010,33 +1168,9 @@ QTMGlobalSearch::clearPreview () {
 }
 
 void
-QTMGlobalSearch::scanChunk () {
-  const int chunkSize= 8;
-  int end= std::min (scanIndex + chunkSize, (int) scanFiles.size ());
-  for (; scanIndex < end; scanIndex++) {
-    std::vector<Result> hits;
-    if (searchFile (scanFiles[scanIndex], hits) > 0) {
-      matchedFiles++;
-      for (const Result& result : hits)
-        addResult (result);
-    }
-  }
-
-  progress->setValue (scanIndex);
-  status->setText (
-    QString ("Searching %1/%2 files; %3 occurrence(s) in %4 file(s).")
-      .arg (scanIndex)
-      .arg ((int) scanFiles.size ())
-      .arg ((int) results.size ())
-      .arg (matchedFiles));
-
-  if (scanIndex >= (int) scanFiles.size ())
-    finishSearch ();
-}
-
-void
 QTMGlobalSearch::finishSearch () {
-  scanTimer->stop ();
+  progress->setRange (0, 1);
+  progress->setValue (1);
   searchButton->setEnabled (true);
   cancelButton->setEnabled (false);
   status->setText (
@@ -1044,7 +1178,7 @@ QTMGlobalSearch::finishSearch () {
       .arg ((int) results.size ())
       .arg (matchedFiles)
       .arg ((int) scanFiles.size ()));
-  debug_qt << "Global search: deferred scan finished with "
+  debug_qt << "Global search: parallel scan finished with "
            << (int) results.size () << " occurrences in "
            << matchedFiles << " files" << LF;
 }
@@ -1056,6 +1190,16 @@ QTMGlobalSearch::openResult (QListWidgetItem* item) {
   if (index < 0 || index >= (int) results.size ()) return;
 
   const Result result= results[index];
+  if (!result.occurrenceAvailable && !result.sourceUuid.isEmpty ()) {
+    const url target (from_qstring ("tmfs://wikilink/" + result.sourceUuid));
+    exec_delayed (scheme_cmd (list_object (symbol_object ("go-to-url"),
+                                          object (target))));
+    return;
+  }
+  if (!result.occurrenceAvailable) {
+    status->setText ("Source identity unavailable. Run the search again.");
+    return;
+  }
   array<object> cmd;
   cmd << symbol_object ("global-search-open-occurrence");
   cmd << object (result.file);

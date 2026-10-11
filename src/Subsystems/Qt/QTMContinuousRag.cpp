@@ -33,6 +33,7 @@
 #include <QProcessEnvironment>
 #include <QStandardPaths>
 #include <QThreadPool>
+#include <QThread>
 #include <QTimer>
 
 #include <algorithm>
@@ -146,6 +147,17 @@ struct RealtimeJob {
 };
 
 class ContinuousRagManager: public QObject {
+  struct Query {
+    QPointer<QObject> owner;
+    QtmRagQueryCallback callback;
+    std::shared_ptr<bool> cancelled;
+    QString text;
+    std::uint64_t generation;
+    bool admitted= false;
+    bool sent= false;
+    QMetaObject::Connection destroyed;
+    QTimer* timeout= nullptr;
+  };
 public:
   explicit ContinuousRagManager (QObject* parent): QObject (parent), power_ (this) {
     process_.setParent (this);
@@ -164,8 +176,10 @@ public:
         if (shutting_down_) return;
         if (expected_worker_stop_) {
           expected_worker_stop_= false;
+          if (has_current_embedding_work ()) ensure_worker ();
           return;
         }
+        fail_queries (QStringLiteral ("NPU worker exited: ") + QString::number (code));
         athena_spdlog_warning (
           "continuous RAG: NPU worker exited code=" + std::to_string (code) +
           (status == QProcess::CrashExit ? " (crash)" : ""));
@@ -201,6 +215,7 @@ public:
       &process_, &QProcess::errorOccurred, this,
       [this] (QProcess::ProcessError error) {
         if (shutting_down_) return;
+        fail_queries (process_.errorString ());
         if (error == QProcess::FailedToStart) {
           athena_spdlog_warning (
             "continuous RAG: could not start NPU worker: " +
@@ -216,6 +231,41 @@ public:
     QObject::connect (&poll_, &QTimer::timeout, this, [this] { poll (); });
     power_block_= power_block_reason ();
     poll_.start (1000);
+  }
+
+  QtmRagQueryCancel embed_query (QObject* owner, QString text, QtmRagQueryCallback callback) {
+    auto cancelled= std::make_shared<bool> (false);
+    const auto generation= ++next_generation_;
+    const QString key= QStringLiteral ("interactive-query:") +
+      QString::number (generation).rightJustified (20, QChar ('0'));
+    Query query {owner, std::move (callback), cancelled, std::move (text), generation};
+    query.timeout= new QTimer (this);
+    query.timeout->setSingleShot (true);
+    query.destroyed= QObject::connect (owner, &QObject::destroyed, this,
+      [this, key, cancelled] { *cancelled= true; cancel_query (key); });
+    QObject::connect (query.timeout, &QTimer::timeout, this, [this, key] {
+      complete_query (key, {}, {}, QStringLiteral ("NPU query timed out"), true);
+    });
+    query.timeout->start (120000);
+    queries_.emplace (key, std::move (query));
+    QPointer<ContinuousRagManager> self (this);
+    QTimer::singleShot (0, this, [this, key] {
+      auto found= queries_.find (key);
+      if (found == queries_.end ()) return;
+      QString error= interactive_error ();
+      if (found->second.text.trimmed ().isEmpty ()) error= QStringLiteral ("Query is empty");
+      if (found->second.text.size () > 1024 * 1024) error= QStringLiteral ("Query is too large");
+      if (queries_.size () > 64) error= QStringLiteral ("NPU query queue is full");
+      if (!error.isEmpty ()) { complete_query (key, {}, {}, error); return; }
+      found->second.admitted= true;
+      ensure_worker ();
+      dispatch_queries ();
+    });
+    return [self, key, cancelled] {
+      Q_ASSERT (!self || QThread::currentThread () == self->thread ());
+      *cancelled= true;
+      if (self) self->cancel_query (key);
+    };
   }
 
   void saved (const QString& saved_file, const QString& vault_root,
@@ -247,6 +297,7 @@ public:
   void shutdown () {
     if (shutting_down_) return;
     shutting_down_= true;
+    fail_queries (QStringLiteral ("NPU worker is shutting down"));
     poll_.stop ();
     if (inventory_) inventory_->store (false, std::memory_order_release);
     for (auto& entry: latest_)
@@ -260,19 +311,82 @@ public:
       QJsonObject message;
       message["op"]= QStringLiteral ("shutdown");
       write_worker (message);
-      process_.waitForBytesWritten (10);
-      if (!process_.waitForFinished (100)) {
-        process_.terminate ();
-        if (!process_.waitForFinished (100)) {
-          process_.kill ();
-          (void) process_.waitForFinished (100);
-        }
-      }
+      process_.kill ();
     }
   }
 
 private:
   using Clock= std::chrono::steady_clock;
+
+  QString interactive_error () const {
+    if (shutting_down_) return QStringLiteral ("NPU worker is shutting down");
+    if (pref ("rag realtime npu power policy", "ac-only").trimmed () == QStringLiteral ("paused"))
+      return QStringLiteral ("NPU computation is paused by preference");
+    const auto state= power_.state ();
+    if (state.powerSaverKnown && state.powerSaver)
+      return QStringLiteral ("NPU queries are unavailable in system power saver");
+    if (configured_model ().isEmpty () || configured_tokenizer ().isEmpty ())
+      return QStringLiteral ("NPU model or tokenizer is not configured");
+    return {};
+  }
+
+  void complete_query (QString key, std::vector<float> vector,
+      std::string space, QString error, bool cancel_worker= false) {
+    auto found= queries_.find (key);
+    if (found == queries_.end ()) return;
+    Query query= std::move (found->second);
+    queries_.erase (found);
+    QObject::disconnect (query.destroyed);
+    query.timeout->stop ();
+    query.timeout->deleteLater ();
+    if (cancel_worker && query.sent) {
+      QJsonObject message;
+      message["op"]= QStringLiteral ("cancel");
+      message["key"]= key;
+      message["interactive"]= true;
+      message["generation"]= QString::number (query.generation);
+      write_worker (message);
+    }
+    if (query.owner && !*query.cancelled && query.callback)
+      QTimer::singleShot (0, query.owner,
+        [callback= std::move (query.callback), cancelled= query.cancelled,
+         vector= std::move (vector), space= std::move (space), error= std::move (error)] () mutable {
+          if (!*cancelled) callback (std::move (vector), std::move (space), std::move (error));
+        });
+  }
+
+  void cancel_query (const QString& key) { complete_query (key, {}, {}, {}, true); }
+
+  void fail_queries (const QString& error) {
+    while (!queries_.empty ()) complete_query (queries_.begin ()->first, {}, {}, error, true);
+  }
+
+  void dispatch_queries () {
+    if (queries_.empty ()) return;
+    const QString error= interactive_error ();
+    if (!error.isEmpty ()) { fail_queries (error); return; }
+    if (!worker_ready_ || expected_worker_stop_) return;
+    if (worker_config_key_ != config_key ()) {
+      stop_worker_for_reconfiguration ();
+      return;
+    }
+    std::vector<QString> keys;
+    for (const auto& entry: queries_) keys.push_back (entry.first);
+    for (const auto& key: keys) {
+      auto found= queries_.find (key);
+      if (found == queries_.end ()) continue;
+      auto& query= found->second;
+      if (!query.admitted || query.sent) continue;
+      QJsonObject message;
+      message["op"]= QStringLiteral ("embed");
+      message["key"]= key;
+      message["generation"]= QString::number (query.generation);
+      message["interactive"]= true;
+      message["texts"]= QJsonArray {query.text};
+      query.sent= true;
+      write_worker (message);
+    }
+  }
 
   enum class PowerBlock {
     None,
@@ -323,6 +437,7 @@ private:
 
   void power_state_changed () {
     if (shutting_down_) return;
+    dispatch_queries ();
     const PowerBlock next= power_block_reason ();
     if (next == power_block_) return;
     power_block_= next;
@@ -364,17 +479,21 @@ private:
 
   void poll () {
     if (shutting_down_) return;
+    dispatch_queries ();
     const PowerBlock next_power_block= power_block_reason ();
     const bool power_changed= next_power_block != power_block_;
     power_block_= next_power_block;
     auto context= vault_capture_context ();
     if (!pref_on ("rag realtime npu enabled")) context.reset ();
     QString configuration= config_key ();
-    if (context != context_ || configuration != scan_configuration_) {
+    const bool configuration_changed= configuration != scan_configuration_;
+    if (context != context_ || configuration_changed) {
       if (inventory_) inventory_->store (false, std::memory_order_release);
       inventory_.reset ();
-      for (auto& entry: latest_)
+      for (auto& entry: latest_) {
+        send_cancel (entry.second);
         entry.second->current.store (false, std::memory_order_release);
+      }
       latest_.clear ();
       pending_dispatch_.clear ();
       files_.clear ();
@@ -387,7 +506,8 @@ private:
       needs_sweep_= true;
       scan_configuration_= configuration;
       next_scan_= Clock::now ();
-      stop_worker_for_reconfiguration ();
+      if (configuration_changed && !worker_config_key_.isEmpty () &&
+          worker_config_key_ != configuration) stop_worker_for_reconfiguration ();
     }
     // The actor updates the registry before posting its GUI save notification.
     if (!latest_.empty () && !is_current (latest_.begin ()->second)) {
@@ -527,11 +647,13 @@ private:
   }
 
   void ensure_worker () {
-    if (shutting_down_ || !compute_allowed ()) return;
+    if (shutting_down_ || expected_worker_stop_ ||
+        (!compute_allowed () && queries_.empty ())) return;
     const QString model= configured_model ();
     const QString tokenizer= configured_tokenizer ();
     if (model.isEmpty () || tokenizer.isEmpty ()) {
       failure ("", "OpenVINO model or tokenizer GGUF is not configured");
+      fail_queries (QStringLiteral ("OpenVINO model or tokenizer GGUF is not configured"));
       if (!configuration_warning_shown_) {
         configuration_warning_shown_= true;
         athena_spdlog_warning (
@@ -546,11 +668,13 @@ private:
     if (process_.state () != QProcess::NotRunning) {
       if (worker_config_key_ == desired) return;
       stop_worker_for_reconfiguration ();
+      return;
     }
 
     const QString program= worker_program ();
     if (!QFileInfo (program).isExecutable ()) {
       failure ("", "NPU worker is not executable: " + program);
+      fail_queries (QStringLiteral ("NPU worker is not executable: ") + program);
       athena_spdlog_warning (
         "continuous RAG: NPU worker is not executable: " + std_string (program));
       fail_pending ();
@@ -574,16 +698,20 @@ private:
 
   void stop_worker_for_reconfiguration () {
     worker_ready_= false;
+    fail_queries (QStringLiteral ("NPU worker configuration changed"));
+    for (auto& entry: latest_)
+      if (is_current (entry.second) && entry.second->awaiting_worker) {
+        entry.second->awaiting_worker= false;
+        pending_dispatch_[entry.first]= entry.second;
+      }
     if (process_.state () == QProcess::NotRunning) return;
     expected_worker_stop_= true;
     QJsonObject message;
     message["op"]= QStringLiteral ("shutdown");
     write_worker (message);
-    process_.waitForBytesWritten (10);
-    if (!process_.waitForFinished (100)) {
-      process_.kill ();
-      (void) process_.waitForFinished (100);
-    }
+    QTimer::singleShot (200, this, [this] {
+      if (expected_worker_stop_ && process_.state () != QProcess::NotRunning) process_.kill ();
+    });
   }
 
   void write_worker (const QJsonObject& object) {
@@ -664,6 +792,7 @@ private:
 
   void dispatch (const std::shared_ptr<RealtimeJob>& job) {
     if (!is_current (job) || !job->prepared) return;
+    dispatch_queries ();
     if (!compute_allowed ()) {
       pending_dispatch_[job->key]= job;
       job->awaiting_worker= false;
@@ -757,6 +886,7 @@ private:
       QJsonParseError parse;
       QJsonDocument doc= QJsonDocument::fromJson (line, &parse);
       if (parse.error != QJsonParseError::NoError || !doc.isObject ()) {
+        fail_queries (QStringLiteral ("Invalid NPU worker response"));
         failure ("", "Invalid NPU worker response");
         athena_spdlog_warning ("continuous RAG: invalid NPU worker response");
         continue;
@@ -788,6 +918,10 @@ private:
 
   void handle_worker_message (const QJsonObject& message) {
     const QString type= message.value ("type").toString ();
+    if (type == QStringLiteral ("protocol-error")) {
+      fail_queries (message.value ("error").toString ("NPU protocol error"));
+      return;
+    }
     if (type == QStringLiteral ("log")) {
       const QString level= message.value ("level").toString ();
       const std::string prefix= "continuous RAG NPU " +
@@ -804,6 +938,7 @@ private:
     }
     if (type == QStringLiteral ("fatal") &&
         message.value ("key").toString ().isEmpty ()) {
+      fail_queries (message.value ("error").toString ("NPU worker startup failed"));
       failure ("", message.value ("error").toString ("NPU worker startup failed"));
       athena_spdlog_warning (
         "continuous RAG: NPU worker startup failed: " +
@@ -816,7 +951,8 @@ private:
           message.value ("space_id").toString () !=
             QString::fromLatin1 (athena::rag::bge_m3_embedding_space_id) ||
           message.value ("dimension").toInt () !=
-            athena::rag::bge_m3_embedding_dimension) {
+            athena::rag::bge_m3_embedding_dimension ||
+          message.value ("device").toString () != QStringLiteral ("NPU")) {
         athena_spdlog_warning (
           "continuous RAG: NPU worker embedding contract mismatch");
         stop_worker_for_reconfiguration ();
@@ -824,6 +960,7 @@ private:
         return;
       }
       worker_ready_= true;
+      dispatch_queries ();
       failures_.erase ("");
       athena_spdlog_info (
         "continuous RAG: NPU worker ready (BGE-M3, 1024 dimensions)");
@@ -835,6 +972,31 @@ private:
 
     const QString key= message.value ("key").toString ();
     const std::uint64_t generation= generation_value (message.value ("generation"));
+    auto query= queries_.find (key);
+    if (query != queries_.end () && query->second.generation == generation) {
+      if (type != QStringLiteral ("result")) {
+        complete_query (key, {}, {}, message.value ("error").toString ("NPU query was dropped"));
+        return;
+      }
+      const auto outer= message.value ("vectors").toArray ();
+      const auto inner= outer.size () == 1 ? outer[0].toArray () : QJsonArray ();
+      std::vector<float> vector;
+      double norm= 0;
+      bool valid= message.value ("space_id").toString () ==
+          QString::fromLatin1 (athena::rag::bge_m3_embedding_space_id) &&
+        message.value ("dimension").toInt () == athena::rag::bge_m3_embedding_dimension &&
+        inner.size () == athena::rag::bge_m3_embedding_dimension;
+      for (const auto& scalar: inner) {
+        const float value= static_cast<float> (scalar.toDouble ());
+        valid= valid && scalar.isDouble () && std::isfinite (value);
+        norm += double (value) * double (value);
+        vector.push_back (value);
+      }
+      if (!valid || !std::isfinite (norm) || norm <= 0)
+        complete_query (key, {}, {}, QStringLiteral ("Invalid NPU query embedding"));
+      else complete_query (key, std::move (vector), athena::rag::bge_m3_embedding_space_id, {});
+      return;
+    }
     auto found= latest_.find (key);
     if (found == latest_.end () || found->second->generation != generation ||
         !is_current (found->second)) return;
@@ -896,6 +1058,7 @@ private:
   }
 
   bool has_current_embedding_work () const {
+    if (!queries_.empty ()) return true;
     for (const auto& entry: pending_dispatch_)
       if (entry.second->current.load (std::memory_order_acquire)) return true;
     for (const auto& entry: latest_)
@@ -931,6 +1094,7 @@ private:
   Clock::time_point next_scan_ {};
   std::unordered_map<QString,std::shared_ptr<RealtimeJob>> latest_;
   std::unordered_map<QString,std::shared_ptr<RealtimeJob>> pending_dispatch_;
+  std::map<QString,Query> queries_;
 };
 
 ContinuousRagManager*
@@ -942,6 +1106,15 @@ manager (bool create) {
 }
 
 } // namespace
+
+QtmRagQueryCancel
+qtm_rag_embed_query (QObject* owner, QString text, QtmRagQueryCallback callback) {
+  Q_ASSERT (qApp && QThread::currentThread () == qApp->thread ());
+  Q_ASSERT (owner && owner->thread () == qApp->thread ());
+  if (!qApp || !owner || QThread::currentThread () != qApp->thread () ||
+      owner->thread () != qApp->thread ()) return {};
+  return manager (true)->embed_query (owner, std::move (text), std::move (callback));
+}
 
 void
 qtm_continuous_rag_start () {

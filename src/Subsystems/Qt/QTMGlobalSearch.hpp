@@ -19,9 +19,15 @@
 #include "widget.hpp"
 
 #include <QSize>
+#include <QPointer>
 #include <QString>
 #include <QWidget>
+#include <cstdint>
+#include <memory>
 #include <vector>
+
+struct VaultSearchControl;
+struct VaultSearchOptions;
 
 class QLabel;
 class QEvent;
@@ -35,7 +41,6 @@ class QSizeGrip;
 class QProgressBar;
 class QStringListModel;
 class QSplitter;
-class QTimer;
 class QTMWidget;
 
 class QTMGlobalSearch : public QWidget {
@@ -61,6 +66,12 @@ private:
     path    hitEnd;
     bool    exact;
     double  score;
+    bool    semantic= false;
+    bool    occurrenceAvailable= true;
+    double  semanticScore= 0;
+    double  relevance= 0;
+    QString sourceUuid;
+    QString identityKey;
   };
 
   QWidget* createQueryWidget ();
@@ -76,8 +87,9 @@ private:
 #endif
   void     startSearch ();
   void     cancelSearch ();
-  void     scanChunk ();
-  int      searchFile (url u, std::vector<Result>& hits) const;
+  static int searchFile (tree body, url u, const tree& query,
+                         const VaultSearchOptions& options,
+                         std::vector<Result>& hits);
   QString  relativePath (url u) const;
   tree     buildPreview (const Result& result) const;
   tree     buildPreviewFromBody (tree body, path hitStart) const;
@@ -101,10 +113,12 @@ private:
   widget              queryWidget;
   widget              previewWidget;
   url                 queryUrl;
-  tree                queryTree;
   tree                previewBody;
   std::vector<url>    scanFiles;
-  int                 scanIndex;
+  std::shared_ptr<VaultSearchControl> searchTask;
+  std::uint64_t       searchGeneration;
+  std::uint64_t       previewGeneration= 0;
+  QPointer<QObject>   previewRequest;
   int                 matchedFiles;
   double              previewZoomFactor;
   SI                  previewWidth;
@@ -116,6 +130,7 @@ private:
   QLabel*       status;
   QLabel*       previewTitle;
   QComboBox*    enunciationCombo;
+  QComboBox*    modeCombo;
 #if ATHENA_ENABLE_PERSON_SUBSYSTEM
   QComboBox*    personCombo;
 #endif
@@ -125,6 +140,7 @@ private:
   QStringListModel* namespaceModel;
   QPushButton*  searchButton;
   QPushButton*  cancelButton;
+  QPushButton*  openButton;
   QSizeGrip*    floatingSizeGrip;
   QProgressBar* progress;
   QListWidget*  resultList;
@@ -133,7 +149,6 @@ private:
   QWidget*      previewQtWidget;
   QTMWidget*    previewTexmacsWidget;
   QSplitter*    splitter;
-  QTimer*       scanTimer;
 };
 
 void global_search_show ();

@@ -3033,6 +3033,57 @@
       }
     },
     {
+      "key": "vault wikilink inserter search mode",
+      "type": "choice",
+      "scope": "active",
+      "default": "content",
+      "ui": {
+        "category": "Knowledge", "tab": "Wikilinks and Transclusion",
+        "section": "Wikilinks and Transclusion", "order": 4,
+        "label": "Wikilink search mode", "control": "choice",
+        "choices": [
+          { "value": "content", "label": "Content matching" },
+          { "value": "semantic", "label": "Semantic search" },
+          { "value": "hybrid", "label": "Hybrid search" }
+        ],
+        "category_order": 6, "tab_order": 2, "section_order": 0
+      }
+    },
+    {
+      "key": "vault transclusion inserter search mode",
+      "type": "choice",
+      "scope": "active",
+      "default": "content",
+      "ui": {
+        "category": "Knowledge", "tab": "Wikilinks and Transclusion",
+        "section": "Wikilinks and Transclusion", "order": 5,
+        "label": "Transclusion search mode", "control": "choice",
+        "choices": [
+          { "value": "content", "label": "Content matching" },
+          { "value": "semantic", "label": "Semantic search" },
+          { "value": "hybrid", "label": "Hybrid search" }
+        ],
+        "category_order": 6, "tab_order": 2, "section_order": 0
+      }
+    },
+    {
+      "key": "vault global search mode",
+      "type": "choice",
+      "scope": "active",
+      "default": "content",
+      "ui": {
+        "category": "Knowledge", "tab": "Navigation",
+        "section": "Navigation", "order": 4,
+        "label": "Global Search mode", "control": "choice",
+        "choices": [
+          { "value": "content", "label": "Content matching" },
+          { "value": "semantic", "label": "Semantic search" },
+          { "value": "hybrid", "label": "Hybrid search" }
+        ],
+        "category_order": 6, "tab_order": 0, "section_order": 0
+      }
+    },
+    {
       "key": "vault link search workers",
       "type": "string",
       "scope": "active",

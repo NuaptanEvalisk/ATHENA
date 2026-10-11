@@ -458,6 +458,7 @@ struct Task {
   std::string key;
   std::uint64_t generation= 0;
   std::vector<std::string> texts;
+  bool interactive= false;
 };
 
 class Worker {
@@ -489,7 +490,7 @@ public:
       std::lock_guard<std::mutex> guard (mutex_);
       auto& latest= latest_[task.key];
       if (task.generation <= latest.generation) return;
-      latest= {task.generation, false};
+      latest= {task.generation, false, task.interactive};
       queue_.erase (
         std::remove_if (queue_.begin (), queue_.end (),
           [&] (const Task& queued) { return queued.key == task.key; }),
@@ -497,7 +498,12 @@ public:
       if (active_request_ && active_key_ == task.key &&
           active_generation_ < task.generation)
         cancel= *active_request_;
-      queue_.push_back (std::move (task));
+      if (task.interactive) {
+        auto position= std::find_if (queue_.begin (), queue_.end (),
+          [] (const Task& queued) { return !queued.interactive; });
+        queue_.insert (position, std::move (task));
+      }
+      else queue_.push_back (std::move (task));
     }
     if (cancel) {
       try { cancel->cancel (); }
@@ -506,12 +512,16 @@ public:
     condition_.notify_one ();
   }
 
-  void cancel (const std::string& key, std::uint64_t generation) {
+  void cancel (const std::string& key, std::uint64_t generation, bool interactive= false) {
     std::optional<ov::InferRequest> request;
     {
       std::lock_guard<std::mutex> guard (mutex_);
+      // A query result may already have retired its generation before the
+      // owner's cancellation arrives. Do not retain a tombstone for that key.
+      if (interactive && latest_.find (key) == latest_.end ()) return;
       auto& latest= latest_[key];
-      if (latest.generation <= generation) latest= {generation, true};
+      const bool forget= latest.interactive && latest.generation <= generation;
+      if (latest.generation <= generation) latest= {generation, true, latest.interactive};
       queue_.erase (
         std::remove_if (queue_.begin (), queue_.end (),
           [&] (const Task& task) {
@@ -520,6 +530,7 @@ public:
       if (active_request_ && active_key_ == key &&
           active_generation_ <= generation)
         request= *active_request_;
+      if (forget) latest_.erase (key);
     }
     if (request) {
       try { request->cancel (); }
@@ -540,6 +551,14 @@ public:
   }
 
 private:
+  void forget_query (const Task& task) {
+    if (!task.interactive) return;
+    std::lock_guard<std::mutex> guard (mutex_);
+    auto found= latest_.find (task.key);
+    if (found != latest_.end () && found->second.generation == task.generation)
+      latest_.erase (found);
+  }
+
   bool current (const Task& task) const {
     std::lock_guard<std::mutex> guard (mutex_);
     auto found= latest_.find (task.key);
@@ -574,6 +593,7 @@ private:
       if (!current (task)) {
         write_message ({{"type", "dropped"}, {"key", task.key},
                         {"generation", task.generation}});
+        forget_query (task);
         continue;
       }
 
@@ -606,6 +626,7 @@ private:
         if (!current (task) || completed != task.texts.size ()) {
           write_message ({{"type", "dropped"}, {"key", task.key},
                           {"generation", task.generation}});
+          forget_query (task);
           continue;
         }
         write_message ({{"type", "result"}, {"key", task.key},
@@ -628,6 +649,7 @@ private:
           fast_exit (1);
         }
       }
+      forget_query (task);
     }
   }
 
@@ -638,6 +660,7 @@ private:
   struct Generation {
     std::uint64_t generation= 0;
     bool cancelled= false;
+    bool interactive= false;
   };
   std::unordered_map<std::string,Generation> latest_;
   std::optional<ov::InferRequest> active_request_;
@@ -656,6 +679,9 @@ parse_task (const json& message) {
     ? static_cast<std::uint64_t> (std::stoull (generation.get<std::string> ()))
     : generation.get<std::uint64_t> ();
   task.texts= message.at ("texts").get<std::vector<std::string>> ();
+  task.interactive= message.value ("interactive", false);
+  if (task.interactive && task.texts.size () != 1)
+    throw std::runtime_error ("interactive embedding requires one text");
   if (task.key.empty () || task.generation == 0)
     throw std::runtime_error ("invalid embedding task identity");
   if (task.texts.size () > 4096)
@@ -694,7 +720,8 @@ main (int argc, char** argv) {
             ? static_cast<std::uint64_t> (
                 std::stoull (generation.get<std::string> ()))
             : generation.get<std::uint64_t> ();
-          worker.cancel (message.at ("key").get<std::string> (), value);
+          worker.cancel (message.at ("key").get<std::string> (), value,
+                         message.value ("interactive", false));
         }
         else if (op == "shutdown") {
           worker.cancel_active ();

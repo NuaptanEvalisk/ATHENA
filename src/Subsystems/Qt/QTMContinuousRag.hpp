@@ -13,6 +13,21 @@
 
 #include <QString>
 #include <cstdint>
+#include <functional>
+#include <string>
+#include <vector>
+
+class QObject;
+using QtmRagQueryCallback=
+  std::function<void(std::vector<float>, std::string, QString)>;
+using QtmRagQueryCancel= std::function<void()>;
+// GUI-thread API (including cancellation). Completion is queued on owner and
+// suppressed after cancellation/owner destruction. Discarding the cancel handle
+// does not cancel. An error has an empty vector/space; no CPU fallback occurs.
+// Interactive work bypasses the indexing toggle and AC-only background policy,
+// but respects explicit pause and system power saver. Owner must be non-null.
+QtmRagQueryCancel qtm_rag_embed_query (
+  QObject* owner, QString text, QtmRagQueryCallback callback);
 
 void qtm_continuous_rag_start ();
 void qtm_continuous_rag_saved (const QString& saved_file,

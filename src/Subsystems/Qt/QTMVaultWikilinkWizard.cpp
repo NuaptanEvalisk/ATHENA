@@ -67,6 +67,8 @@ namespace {
 
 static constexpr const char* wikilink_search_case_pref=
   "vault wikilink inserter case insensitive search";
+static constexpr const char* wikilink_search_mode_pref=
+  "vault wikilink inserter search mode";
 static constexpr const char* wikilink_search_fuzzy_pref=
   "vault wikilink inserter fuzzy search";
 static constexpr const char* wikilink_display_template_file_pref=
@@ -370,6 +372,7 @@ public:
     stopButton->setEnabled (false);
     searchButton->setEnabled (true);
     neighborhoodsCheck->setEnabled (true);
+    modeCombo->setEnabled (true);
   }
   static int searchFile (tree body, url u, const tree& query,
                          const VaultSearchOptions& options,
@@ -380,6 +383,7 @@ public:
   bool chooseAnchorItem (QListWidgetItem* item);
   void acceptAnchorItem (QListWidgetItem* item);
 
+  QComboBox*   modeCombo;
   QLineEdit*   queryEdit;
   QComboBox*   namespaceCombo;
   QComboBox*   enunciationCombo;
@@ -935,6 +939,28 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   fuzzyCheck->setChecked (
     get_preference (wikilink_search_fuzzy_pref, "off") == "on");
 
+  modeCombo= new QComboBox (this);
+  modeCombo->setObjectName ("searchMode");
+  modeCombo->addItem ("Content matching", int (VaultSearchMode::Content));
+  modeCombo->addItem ("Semantic search", int (VaultSearchMode::Semantic));
+  modeCombo->addItem ("Hybrid search", int (VaultSearchMode::Hybrid));
+  const string savedMode= get_preference (wikilink_search_mode_pref, "content");
+  modeCombo->setCurrentIndex (savedMode == "semantic" ? 1 : savedMode == "hybrid" ? 2 : 0);
+  auto updateMatching= [this] () {
+    const bool lexical= modeCombo->currentData ().toInt () != int (VaultSearchMode::Semantic);
+    caseInsensitiveCheck->setEnabled (lexical);
+    fuzzyCheck->setEnabled (lexical);
+  };
+  updateMatching ();
+  connect (modeCombo, qOverload<int> (&QComboBox::currentIndexChanged),
+           this, [this, updateMatching] (int) {
+             const auto mode= static_cast<VaultSearchMode> (modeCombo->currentData ().toInt ());
+             set_preference (wikilink_search_mode_pref,
+               mode == VaultSearchMode::Semantic ? "semantic" :
+               mode == VaultSearchMode::Hybrid ? "hybrid" : "content");
+             updateMatching ();
+           });
+
   searchButton= new QPushButton ("Search", this);
   neighborhoodsCheck= new QCheckBox ("Search in neighborhoods only", this);
   neighborhoodsCheck->setObjectName ("searchNeighborhoodsOnly");
@@ -947,6 +973,8 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   stopButton= new QPushButton ("Stop", this);
   stopButton->setEnabled (false);
   statusLabel= new QLabel (this);
+  statusLabel->setTextFormat (Qt::PlainText);
+  statusLabel->setWordWrap (true);
   progress= new QProgressBar (this);
   progress->setRange (0, 1);
   progress->setValue (0);
@@ -967,6 +995,10 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   previewHostLayout->setContentsMargins (0, 0, 0, 0);
 
   QHBoxLayout* searchRow= new QHBoxLayout ();
+  QLabel* modeLabel= new QLabel ("Mode:", this);
+  modeLabel->setBuddy (modeCombo);
+  searchRow->addWidget (modeLabel);
+  searchRow->addWidget (modeCombo);
   searchRow->addWidget (queryEdit, 1);
   searchRow->addWidget (searchButton);
   searchRow->addWidget (stopButton);
@@ -1024,6 +1056,7 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   layout->addWidget (statusLabel);
   layout->addWidget (progress);
   layout->addWidget (splitter, 1);
+  setTabOrder (modeCombo, queryEdit);
   setTabOrder (queryEdit, searchButton);
   setTabOrder (searchButton, namespaceCombo);
   setTabOrder (namespaceCombo, enunciationCombo);
@@ -1110,6 +1143,8 @@ WikilinkSearchPage::initializePage () {
     get_preference (wikilink_search_case_pref, "off") == "on");
   fuzzyCheck->setChecked (
     get_preference (wikilink_search_fuzzy_pref, "off") == "on");
+  const string savedMode= get_preference (wikilink_search_mode_pref, "content");
+  modeCombo->setCurrentIndex (savedMode == "semantic" ? 1 : savedMode == "hybrid" ? 2 : 0);
   queryEdit->setFocus ();
 }
 
@@ -1199,7 +1234,9 @@ WikilinkSearchPage::searchFile (
       QString enunciation= options.enunciation;
       bool caseInsensitive= options.caseInsensitive;
       bool fuzzy= options.fuzzy;
-      if (enunciation.isEmpty ()) {
+      if (options.mode == VaultSearchMode::Semantic)
+        vault_search_semantic_matches (body, u, options, matches);
+      else if (enunciation.isEmpty ()) {
         append_content_matches (matches, body, query, path (), 200,
                                 caseInsensitive, fuzzy);
         append_heading_matches (matches, body, query, path (),
@@ -1213,8 +1250,9 @@ WikilinkSearchPage::searchFile (
         collect_enunciation_matches (matches, body, query,
                                      from_qstring (enunciation), path (), 200,
                                      caseInsensitive, fuzzy);
-      score_search_match_titles (body, query, path (), matches,
-                                 caseInsensitive, fuzzy);
+      if (options.mode != VaultSearchMode::Semantic)
+        score_search_match_titles (body, query, path (), matches,
+                                   caseInsensitive, fuzzy);
     }
     catch (...) {
       set_access_mode (oldMode);
@@ -1230,7 +1268,9 @@ WikilinkSearchPage::searchFile (
     int occurrence= 1;
     for (const VaultContentMatch& match: matches) {
       WikilinkSearchResult result;
-      if (options.nodeModel) {
+      if (match.semantic && !match.sourceUuid.isEmpty ())
+        result.sourceUuid= match.sourceUuid;
+      else if (options.nodeModel) {
         tree current= body;
         path remaining= match.start;
         result.sourceUuid= QString::fromStdString (athena::node::id (current));
@@ -1251,6 +1291,9 @@ WikilinkSearchPage::searchFile (
       result.exact= match.exact;
       result.score= match.score;
       result.titleMatchScore= match.titleMatchScore;
+      result.semantic= match.semantic;
+      result.semanticScore= match.semanticScore;
+      result.identityKey= vault_search_identity (body, u, match.start);
       hits.push_back (result);
     }
     return hitCount;
@@ -1264,12 +1307,14 @@ void
 WikilinkSearchPage::startSearch () {
   if (!searchButton->isEnabled ()) return;
   neighborhoodsCheck->setEnabled (false);
+  modeCombo->setEnabled (false);
   searchButton->setEnabled (false);
   stopButton->setEnabled (true);
   auto finishSearch= [this] () {
     stopButton->setEnabled (false);
     searchButton->setEnabled (true);
     neighborhoodsCheck->setEnabled (true);
+    modeCombo->setEnabled (true);
   };
   results.clear ();
   currentAnchors.clear ();
@@ -1305,7 +1350,9 @@ WikilinkSearchPage::startSearch () {
     return;
   }
 
+  const auto searchMode= static_cast<VaultSearchMode> (modeCombo->currentData ().toInt ());
   VaultSearchOptions options;
+  options.mode= searchMode;
   options.nodeModel= vault_get_node_model_version () >= 1;
   options.query= queryText;
   options.root= to_qstring (as_system_string (vault_get_root ()));
@@ -1321,27 +1368,35 @@ WikilinkSearchPage::startSearch () {
     paths.push_back (to_qstring (concretize (file)).toStdString ());
   if (searchTask) searchTask->cancelled= true;
   const auto generation= ++searchGeneration;
-  searchTask= start_vault_search<WikilinkSearchResult> (
+  statusLabel->setText (searchMode == VaultSearchMode::Content ?
+    "Searching content..." : "Semantic search pending...");
+  searchTask= start_vault_ranked_search<WikilinkSearchResult> (
     this, std::move (paths), std::move (options), &WikilinkSearchPage::searchFile,
     [this, generation] (const VaultSearchProgress& p) {
       if (generation != searchGeneration) return;
       progress->setRange (0, p.total);
       progress->setValue (p.completed);
-      statusLabel->setText (p.inspecting ?
+      QString status= p.inspecting ?
         QString ("Inspecting %1/%2 candidate files; %3 occurrence(s) in %4 file(s).")
           .arg (p.completed).arg (p.total).arg (p.hits).arg (p.matchedFiles) :
         QString ("Prefiltering source %1/%2; %3 candidate file(s).")
-          .arg (p.completed).arg (p.total).arg (p.candidates));
+          .arg (p.completed).arg (p.total).arg (p.candidates);
+      if (p.semanticPending) status += "\nSemantic search pending...";
+      if (!p.diagnostic.isEmpty ()) status += "\n" + p.diagnostic;
+      statusLabel->setText (status);
     },
-    [this, finishSearch, generation] (std::vector<WikilinkSearchResult> collected,
+    [this, finishSearch, generation, searchMode] (std::vector<WikilinkSearchResult> collected,
                           const VaultSearchProgress& p, bool stopped) {
       if (generation != searchGeneration) return;
-      statusLabel->setText (stopped ?
+      QString status= stopped ?
         QString ("Search stopped after %1/%2 files; %3 occurrence(s) in %4 file(s).")
           .arg (p.completed).arg (p.total).arg (p.hits).arg (p.matchedFiles) :
         QString ("%1 occurrence(s) in %2 file(s); structurally inspected %3 files.")
-          .arg (p.hits).arg (p.matchedFiles).arg (p.completed));
-      std::stable_sort (
+          .arg (p.hits).arg (p.matchedFiles).arg (p.completed);
+      if (p.semanticPending) status += "\nSemantic search pending...";
+      if (!p.diagnostic.isEmpty ()) status += "\n" + p.diagnostic;
+      statusLabel->setText (status);
+      if (searchMode == VaultSearchMode::Content) std::stable_sort (
         collected.begin (), collected.end (),
         [] (const WikilinkSearchResult& a, const WikilinkSearchResult& b) {
           if (a.titleMatchScore != b.titleMatchScore)
@@ -1374,7 +1429,9 @@ WikilinkSearchPage::addResult (const WikilinkSearchResult& result) {
       .arg (result.relPath)
       .arg (result.occurrence)
       .arg (result.fileHits);
-  if (!result.exact)
+  if (result.semantic)
+    tooltip += QString ("\nSemantic similarity: %1").arg (result.semanticScore, 0, 'f', 3);
+  else if (!result.exact)
     tooltip += QString ("\nFuzzy match: %1%").arg (result.score, 0, 'f', 1);
   item->setToolTip (tooltip);
   resultList->addItem (item);

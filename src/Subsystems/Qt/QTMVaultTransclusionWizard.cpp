@@ -66,6 +66,8 @@ namespace {
 
 static constexpr const char* transclusion_search_case_pref=
   "vault transclusion inserter case insensitive search";
+static constexpr const char* transclusion_search_mode_pref=
+  "vault transclusion inserter search mode";
 static constexpr const char* transclusion_search_fuzzy_pref=
   "vault transclusion inserter fuzzy search";
 
@@ -236,6 +238,7 @@ public:
     stopButton->setEnabled (false);
     searchButton->setEnabled (true);
     neighborhoodsCheck->setEnabled (true);
+    modeCombo->setEnabled (true);
   }
   static int searchFile (tree body, url u, const tree& query,
                          const VaultSearchOptions& options,
@@ -244,6 +247,7 @@ public:
   void updatePreview (QListWidgetItem* current);
   bool acceptCurrentResult ();
 
+  QComboBox*   modeCombo;
   QLineEdit*   queryEdit;
   QComboBox*   namespaceCombo;
   QComboBox*   enunciationCombo;
@@ -1209,6 +1213,28 @@ TransclusionSearchPage::TransclusionSearchPage (QWidget* parent)
   fuzzyCheck->setChecked (
     get_preference (transclusion_search_fuzzy_pref, "off") == "on");
 
+  modeCombo= new QComboBox (this);
+  modeCombo->setObjectName ("searchMode");
+  modeCombo->addItem ("Content matching", int (VaultSearchMode::Content));
+  modeCombo->addItem ("Semantic search", int (VaultSearchMode::Semantic));
+  modeCombo->addItem ("Hybrid search", int (VaultSearchMode::Hybrid));
+  const string savedMode= get_preference (transclusion_search_mode_pref, "content");
+  modeCombo->setCurrentIndex (savedMode == "semantic" ? 1 : savedMode == "hybrid" ? 2 : 0);
+  auto updateMatching= [this] () {
+    const bool lexical= modeCombo->currentData ().toInt () != int (VaultSearchMode::Semantic);
+    caseInsensitiveCheck->setEnabled (lexical);
+    fuzzyCheck->setEnabled (lexical);
+  };
+  updateMatching ();
+  connect (modeCombo, qOverload<int> (&QComboBox::currentIndexChanged),
+           this, [this, updateMatching] (int) {
+             const auto mode= static_cast<VaultSearchMode> (modeCombo->currentData ().toInt ());
+             set_preference (transclusion_search_mode_pref,
+               mode == VaultSearchMode::Semantic ? "semantic" :
+               mode == VaultSearchMode::Hybrid ? "hybrid" : "content");
+             updateMatching ();
+           });
+
   searchButton= new QPushButton ("Search", this);
   neighborhoodsCheck= new QCheckBox ("Search in neighborhoods only", this);
   neighborhoodsCheck->setObjectName ("searchNeighborhoodsOnly");
@@ -1221,6 +1247,8 @@ TransclusionSearchPage::TransclusionSearchPage (QWidget* parent)
   stopButton= new QPushButton ("Stop", this);
   stopButton->setEnabled (false);
   statusLabel= new QLabel (this);
+  statusLabel->setTextFormat (Qt::PlainText);
+  statusLabel->setWordWrap (true);
   progress= new QProgressBar (this);
   progress->setRange (0, 1);
   progress->setValue (0);
@@ -1235,6 +1263,10 @@ TransclusionSearchPage::TransclusionSearchPage (QWidget* parent)
   previewHostLayout->setContentsMargins (0, 0, 0, 0);
 
   QHBoxLayout* searchRow= new QHBoxLayout ();
+  QLabel* modeLabel= new QLabel ("Mode:", this);
+  modeLabel->setBuddy (modeCombo);
+  searchRow->addWidget (modeLabel);
+  searchRow->addWidget (modeCombo);
   searchRow->addWidget (queryEdit, 1);
   searchRow->addWidget (searchButton);
   searchRow->addWidget (stopButton);
@@ -1286,6 +1318,7 @@ TransclusionSearchPage::TransclusionSearchPage (QWidget* parent)
   layout->addWidget (statusLabel);
   layout->addWidget (progress);
   layout->addWidget (splitter, 1);
+  setTabOrder (modeCombo, queryEdit);
   setTabOrder (queryEdit, searchButton);
   setTabOrder (searchButton, namespaceCombo);
   setTabOrder (namespaceCombo, enunciationCombo);
@@ -1369,6 +1402,8 @@ TransclusionSearchPage::initializePage () {
     get_preference (transclusion_search_case_pref, "off") == "on");
   fuzzyCheck->setChecked (
     get_preference (transclusion_search_fuzzy_pref, "off") == "on");
+  const string savedMode= get_preference (transclusion_search_mode_pref, "content");
+  modeCombo->setCurrentIndex (savedMode == "semantic" ? 1 : savedMode == "hybrid" ? 2 : 0);
   queryEdit->setFocus ();
 }
 
@@ -1487,31 +1522,50 @@ TransclusionSearchPage::searchFile (
     try {
       bool caseInsensitive= options.caseInsensitive;
       bool fuzzy= options.fuzzy;
+      std::vector<VaultContentMatch> semanticMatches;
+      if (options.mode == VaultSearchMode::Semantic)
+        vault_search_semantic_matches (body, u, options, semanticMatches);
       for (size_t index=0; index<pairs.size (); ++index) {
         const auto& pair= pairs[index];
         if (vault_search_cancelled ()) break;
         if (!options.nodeModel && !tag.isEmpty () &&
             !anchor_pair_matches_enunciation (pair, tag))
           continue;
-        tree range= options.nodeModel ? subtree (body, pair.upperWhere) :
-          build_preview_from_anchor_range (
-            body, pair.upperWhere, pair.lowerWhere, nullptr, nullptr, false);
         std::vector<VaultContentMatch> matches;
-        constexpr int matchLimit= 200;
-        append_content_matches (matches, range, query, path (), matchLimit,
-                                caseInsensitive, fuzzy);
-        if (options.nodeModel && matches.empty ())
-          append_content_matches (matches, tree (from_qstring (pair.upper)), query,
-                                  path (), matchLimit, caseInsensitive, fuzzy);
-        if (tag.isEmpty () && (int) matches.size () < matchLimit)
-          append_heading_matches (matches, range, query, path (),
-                                  matchLimit - (int) matches.size (),
+        if (options.mode == VaultSearchMode::Semantic) {
+          // Semantic positions belong to the full body, not a rendered range.
+          // Only existing canonical source targets can supply the reference ID.
+          if (!options.nodeModel) continue;
+          for (const auto& match: semanticMatches) {
+            if (vault_search_cancelled ()) break;
+            if (common (pair.upperWhere, match.start) != pair.upperWhere) continue;
+            if (matches.empty ()) matches.push_back (match);
+            else if (match.semanticScore > matches.front ().semanticScore)
+              matches.front ()= match;
+          }
+        }
+        else {
+          tree range= options.nodeModel ? subtree (body, pair.upperWhere) :
+            build_preview_from_anchor_range (
+              body, pair.upperWhere, pair.lowerWhere, nullptr, nullptr, false);
+          constexpr int matchLimit= 200;
+          append_content_matches (matches, range, query, path (), matchLimit,
                                   caseInsensitive, fuzzy);
+          if (options.nodeModel && matches.empty ())
+            append_content_matches (matches, tree (from_qstring (pair.upper)), query,
+                                    path (), matchLimit, caseInsensitive, fuzzy);
+          if (tag.isEmpty () && (int) matches.size () < matchLimit)
+            append_heading_matches (matches, range, query, path (),
+                                    matchLimit - (int) matches.size (),
+                                    caseInsensitive, fuzzy);
+          if (matches.empty ()) continue;
+          score_search_match_titles (range, query, path (), matches,
+                                     caseInsensitive, fuzzy);
+          std::stable_sort (matches.begin (), matches.end (),
+                            vault_search_match_precedes);
+        }
+        if (vault_search_cancelled ()) break;
         if (matches.empty ()) continue;
-        score_search_match_titles (range, query, path (), matches,
-                                   caseInsensitive, fuzzy);
-        std::stable_sort (matches.begin (), matches.end (),
-                          vault_search_match_precedes);
 
         TransclusionSearchResult result;
         if (options.nodeModel) result.sourceUuid= sourceIds[index];
@@ -1523,6 +1577,9 @@ TransclusionSearchPage::searchFile (
         result.exact= matches[0].exact;
         result.score= matches[0].score;
         result.titleMatchScore= matches[0].titleMatchScore;
+        result.semantic= matches[0].semantic;
+        result.semanticScore= matches[0].semanticScore;
+        result.identityKey= vault_search_identity (body, u, pair.upperWhere);
         hits.push_back (result);
         matched++;
       }
@@ -1552,12 +1609,14 @@ void
 TransclusionSearchPage::startSearch () {
   if (!searchButton->isEnabled ()) return;
   neighborhoodsCheck->setEnabled (false);
+  modeCombo->setEnabled (false);
   searchButton->setEnabled (false);
   stopButton->setEnabled (true);
   auto finishSearch= [this] () {
     stopButton->setEnabled (false);
     searchButton->setEnabled (true);
     neighborhoodsCheck->setEnabled (true);
+    modeCombo->setEnabled (true);
   };
   results.clear ();
   resultList->clear ();
@@ -1589,7 +1648,9 @@ TransclusionSearchPage::startSearch () {
     return;
   }
 
+  const auto searchMode= static_cast<VaultSearchMode> (modeCombo->currentData ().toInt ());
   VaultSearchOptions options;
+  options.mode= searchMode;
   options.nodeModel= vault_get_node_model_version () >= 1;
   options.query= queryText;
   options.root= to_qstring (as_system_string (vault_get_root ()));
@@ -1605,27 +1666,35 @@ TransclusionSearchPage::startSearch () {
     paths.push_back (to_qstring (concretize (file)).toStdString ());
   if (searchTask) searchTask->cancelled= true;
   const auto generation= ++searchGeneration;
-  searchTask= start_vault_search<TransclusionSearchResult> (
+  statusLabel->setText (searchMode == VaultSearchMode::Content ?
+    "Searching content..." : "Semantic search pending...");
+  searchTask= start_vault_ranked_search<TransclusionSearchResult> (
     this, std::move (paths), std::move (options), &TransclusionSearchPage::searchFile,
     [this, generation] (const VaultSearchProgress& p) {
       if (generation != searchGeneration) return;
       progress->setRange (0, p.total);
       progress->setValue (p.completed);
-      statusLabel->setText (p.inspecting ?
+      QString status= p.inspecting ?
         QString ("Inspecting %1/%2 candidate files; %3 range(s) in %4 file(s).")
           .arg (p.completed).arg (p.total).arg (p.hits).arg (p.matchedFiles) :
         QString ("Prefiltering source %1/%2; %3 candidate file(s).")
-          .arg (p.completed).arg (p.total).arg (p.candidates));
+          .arg (p.completed).arg (p.total).arg (p.candidates);
+      if (p.semanticPending) status += "\nSemantic search pending...";
+      if (!p.diagnostic.isEmpty ()) status += "\n" + p.diagnostic;
+      statusLabel->setText (status);
     },
-    [this, finishSearch, generation] (std::vector<TransclusionSearchResult> collected,
+    [this, finishSearch, generation, searchMode] (std::vector<TransclusionSearchResult> collected,
                           const VaultSearchProgress& p, bool stopped) {
       if (generation != searchGeneration) return;
-      statusLabel->setText (stopped ?
+      QString status= stopped ?
         QString ("Search stopped after %1/%2 files; %3 range(s) in %4 file(s).")
           .arg (p.completed).arg (p.total).arg (p.hits).arg (p.matchedFiles) :
         QString ("%1 range(s) in %2 file(s); structurally inspected %3 files.")
-          .arg (p.hits).arg (p.matchedFiles).arg (p.completed));
-      std::stable_sort (
+          .arg (p.hits).arg (p.matchedFiles).arg (p.completed);
+      if (p.semanticPending) status += "\nSemantic search pending...";
+      if (!p.diagnostic.isEmpty ()) status += "\n" + p.diagnostic;
+      statusLabel->setText (status);
+      if (searchMode == VaultSearchMode::Content) std::stable_sort (
         collected.begin (), collected.end (),
         [] (const TransclusionSearchResult& a,
             const TransclusionSearchResult& b) {
@@ -1664,7 +1733,9 @@ TransclusionSearchPage::addResult (const TransclusionSearchResult& result) {
       .arg (result.fileHits)
       .arg (result.upper)
       .arg (result.lower);
-  if (!result.exact)
+  if (result.semantic)
+    tooltip += QString ("\nSemantic similarity: %1").arg (result.semanticScore, 0, 'f', 3);
+  else if (!result.exact)
     tooltip += QString ("\nFuzzy match: %1%").arg (result.score, 0, 'f', 1);
   item->setToolTip (tooltip);
   resultList->addItem (item);

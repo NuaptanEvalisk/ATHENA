@@ -24,12 +24,15 @@
 #include <algorithm>
 #include <chrono>
 #include <cctype>
+#include <cmath>
+#include <cstring>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <map>
+#include <limits>
 #include <set>
 #include <sstream>
 #include <thread>
@@ -679,10 +682,12 @@ static std::vector<float>
 blob_to_vector (sqlite3_stmt* st, int col, int dim) {
   const void* blob= sqlite3_column_blob (st, col);
   int bytes= sqlite3_column_bytes (st, col);
-  if (blob == nullptr || dim <= 0 || bytes != dim * int (sizeof (float)))
+  if (blob == nullptr || dim <= 0 ||
+      std::size_t (bytes) != std::size_t (dim) * sizeof (float))
     return {};
-  const float* ptr= reinterpret_cast<const float*> (blob);
-  return std::vector<float> (ptr, ptr + dim);
+  std::vector<float> result (std::size_t (dim), 0.0f);
+  std::memcpy (result.data (), blob, std::size_t (bytes));
+  return result;
 }
 
 static double
@@ -707,12 +712,25 @@ rag_text_requires_embedding (const std::string& text) {
   return should_embed_text (text);
 }
 
+std::string
+rag_query_text (const tree& query) {
+  return plain_text (query);
+}
+
 struct RagIndex::Impl {
   RagConfig config;
   sqlite3* db= nullptr;
   RagEmbedder owned_embedder;
   std::shared_ptr<RagEmbedder> shared_embedder;
   RagStatus status;
+
+  bool writable () {
+    if (config.read_only_query) {
+      status.last_error= "RAG index was opened for read-only queries";
+      return false;
+    }
+    return true;
+  }
 
   RagEmbedder& embedder () {
     return shared_embedder ? *shared_embedder : owned_embedder;
@@ -750,12 +768,57 @@ rag_default_db_path (const fs::path& vault_root) {
 
 bool
 RagIndex::open (const RagConfig& config) {
+  if (impl->db != nullptr) {
+    sqlite3_close (impl->db);
+    impl->db= nullptr;
+  }
   impl->config= config;
-  impl->shared_embedder= config.embedding_runtime;
+  impl->shared_embedder= config.read_only_query ? nullptr : config.embedding_runtime;
   impl->status= RagStatus ();
   impl->status.vault_root= config.vault_root.generic_string ();
   impl->status.db_path= config.db_path.generic_string ();
   impl->status.embedding_model= config.embedding_model.generic_string ();
+
+  if (config.read_only_query) {
+    auto fail= [&] (const std::string& error) {
+      impl->status.last_error= error;
+      if (impl->db != nullptr) sqlite3_close (impl->db);
+      impl->db= nullptr;
+      return false;
+    };
+    std::error_code ec;
+    if (!fs::is_regular_file (config.db_path, ec))
+      return fail ("RAG query index is missing or unavailable: " +
+        config.db_path.string () + (ec ? ": " + ec.message () : ""));
+    if (sqlite3_open_v2 (config.db_path.string ().c_str (), &impl->db,
+                        SQLITE_OPEN_READONLY, nullptr) != SQLITE_OK)
+      return fail ("RAG query index is unavailable: " + std::string (sqlite3_errmsg (impl->db)));
+    std::string error;
+    {
+      Statement version (impl->db, "SELECT value FROM meta WHERE key='schema-version'");
+      if (!version.get () || sqlite3_step (version.get ()) != SQLITE_ROW)
+        error= "RAG query index has no readable schema version";
+      else {
+        const auto* value= sqlite3_column_text (version.get (), 0);
+        if (!value || std::string (reinterpret_cast<const char*> (value)) != storage::schema_version)
+          error= "RAG query index has an incompatible schema version; reindex with a writer";
+      }
+      if (error.empty ()) {
+        Statement layout (impl->db,
+          "SELECT c.chunk_id,c.rel_path,c.kind,c.tree_path,c.anchor,c.title,c.heading_path,"
+          "c.text,c.source,c.embedding_input_hash,c.embedding_space,d.storage_revision,"
+          "d.semantic_revision,d.status,e.embedding,e.embedding_dim,s.dimension "
+          "FROM chunks c JOIN documents d ON d.rel_path=c.rel_path "
+          "JOIN embeddings e ON e.space_id=c.embedding_space AND e.input_hash=c.embedding_input_hash "
+          "JOIN embedding_spaces s ON s.space_id=e.space_id LIMIT 0");
+        if (!layout.get () || sqlite3_step (layout.get ()) != SQLITE_DONE)
+          error= "RAG query index has an incompatible layout: " + std::string (sqlite3_errmsg (impl->db));
+      }
+    }
+    if (!error.empty ()) return fail (error);
+    impl->status.open= true;
+    return true;
+  }
 
   std::error_code ec;
   fs::create_directories (config.db_path.parent_path (), ec);
@@ -1176,6 +1239,7 @@ RagIndex::prepare_document (const std::string& rel_path,
                             RagPreparedDocument& prepared) {
   prepared= RagPreparedDocument ();
   impl->status.last_error.clear ();
+  if (!impl->writable ()) return false;
   impl->status.revision_superseded= false;
   if (impl->db == nullptr || !valid_vault_relative_path (rel_path)) {
     impl->status.last_error= "invalid RAG document path";
@@ -1288,6 +1352,7 @@ RagIndex::commit_document (
   const std::vector<std::vector<float>>& computed_embeddings,
   const std::function<bool ()>& generation_is_current) {
   impl->status.last_error.clear ();
+  if (!impl->writable ()) return false;
   impl->status.revision_superseded= false;
   auto superseded= [&] {
     impl->status.revision_superseded= true;
@@ -1404,6 +1469,7 @@ RagIndex::commit_document (
 
 bool
 RagIndex::delete_document (const std::string& rel_path) {
+  if (!impl->writable ()) return false;
   if (impl->db == nullptr || !valid_vault_relative_path (rel_path)) return false;
   std::string error;
   if (!exec_sql (impl->db, "BEGIN IMMEDIATE", error)) return false;
@@ -1424,6 +1490,7 @@ RagIndex::delete_document (const std::string& rel_path) {
 
 bool
 RagIndex::scan_once () {
+  if (!impl->writable ()) return false;
   if (impl->db == nullptr) return false;
   std::vector<fs::path> files= rag_document_files (impl->config.vault_root);
   std::vector<fs::path> work_files;
@@ -1532,6 +1599,7 @@ RagIndex::scan_once () {
 
 bool
 RagIndex::parallel_reindex (int jobs) {
+  if (!impl->writable ()) return false;
   if (impl->db == nullptr) return false;
   if (jobs <= 1) return scan_once ();
 
@@ -1808,12 +1876,136 @@ RagIndex::list_chunks (int limit) const {
 }
 
 std::vector<RagChunk>
+RagIndex::search_vector (
+  const std::vector<float>& query_vector, const std::string& embedding_space,
+  const std::set<std::string>& allowed_rel_paths, std::size_t limit,
+  const std::function<bool ()>& cancelled) {
+  impl->status.last_error.clear ();
+  auto fail= [&] (const std::string& error) -> std::vector<RagChunk> {
+    impl->status.last_error= error;
+    return {};
+  };
+  if (!impl->db || !impl->status.open) return fail ("RAG query index is not open");
+  if (embedding_space.empty ()) return fail ("RAG vector query requires an exact embedding space");
+  if (query_vector.empty () || query_vector.size () > std::size_t (std::numeric_limits<int>::max ()))
+    return fail ("RAG query vector has an invalid dimension");
+  for (float value: query_vector)
+    if (!std::isfinite (value)) return fail ("RAG query vector contains non-finite values");
+  const double query_norm= std::sqrt (dot (query_vector, query_vector));
+  if (!(query_norm > 0.0) || !std::isfinite (query_norm))
+    return fail ("RAG query vector has zero or invalid norm");
+  for (const auto& path: allowed_rel_paths)
+    if (!valid_vault_relative_path (path) || path.find ('\0') != std::string::npos ||
+        fs::path (path).lexically_normal ().generic_string () != path)
+      return fail ("RAG query allowlist contains an invalid relative file path: " + path);
+
+  // This connection is private to the index. The read transaction keeps space
+  // metadata, vectors, source locations and source revisions in one snapshot.
+  struct query_scope {
+    sqlite3* db;
+    const std::function<bool ()>& predicate;
+    bool stopped= false, predicate_failed= false, transaction= false;
+    bool check () {
+      if (!stopped && predicate) {
+        try { stopped= predicate (); }
+        catch (...) { stopped= true; predicate_failed= true; }
+      }
+      return stopped;
+    }
+    static int progress (void* data) {
+      return static_cast<query_scope*> (data)->check () ? 1 : 0;
+    }
+    ~query_scope () {
+      sqlite3_progress_handler (db, 0, nullptr, nullptr);
+      if (transaction) sqlite3_exec (db, "ROLLBACK", nullptr, nullptr, nullptr);
+    }
+  } scope{impl->db, cancelled};
+  auto stopped= [&] {
+    return scope.predicate_failed ? "RAG vector query cancellation predicate failed" :
+                                    "RAG vector query cancelled";
+  };
+  if (scope.check ()) return fail (stopped ());
+  sqlite3_progress_handler (impl->db, 1000, query_scope::progress, &scope);
+  std::string error;
+  if (!exec_sql (impl->db, "BEGIN", error))
+    return fail (scope.check () ? stopped () : "RAG query snapshot unavailable: " + error);
+  scope.transaction= true;
+  Statement space (impl->db, "SELECT dimension FROM embedding_spaces WHERE space_id=?");
+  if (!space.get ())
+    return fail ("RAG embedding-space metadata unavailable: " + std::string (sqlite3_errmsg (impl->db)));
+  bind_text (space.get (), 1, embedding_space);
+  const int space_result= sqlite3_step (space.get ());
+  if (scope.check ()) return fail (stopped ());
+  if (space_result == SQLITE_DONE)
+    return fail ("RAG index has no compatible embedding space: " + embedding_space);
+  if (space_result != SQLITE_ROW)
+    return fail ("RAG embedding-space metadata unavailable: " + std::string (sqlite3_errmsg (impl->db)));
+  const auto dimension= sqlite3_column_int64 (space.get (), 0);
+  if (dimension <= 0)
+    return fail ("RAG embedding space has no indexed vector dimension: " + embedding_space);
+  if (dimension != static_cast<sqlite3_int64> (query_vector.size ()))
+    return fail ("RAG query vector dimension is incompatible with embedding space " + embedding_space);
+  if (allowed_rel_paths.empty ()) return {};
+
+  Statement candidates (impl->db,
+    "SELECT c.chunk_id,c.rel_path,c.kind,c.tree_path,c.anchor,c.title,"
+    "c.heading_path,c.text,c.source,d.storage_revision,d.semantic_revision,"
+    "e.embedding,e.embedding_dim "
+    "FROM chunks c JOIN documents d ON d.rel_path=c.rel_path "
+    "JOIN embeddings e ON e.space_id=c.embedding_space AND e.input_hash=c.embedding_input_hash "
+    "WHERE c.rel_path=? AND c.embedding_space=? AND d.status='ok'");
+  if (!candidates.get ())
+    return fail ("RAG vector index unavailable or incompatible: " + std::string (sqlite3_errmsg (impl->db)));
+  std::vector<RagChunk> out;
+  for (const auto& path: allowed_rel_paths) {
+    if (scope.check ()) return fail (stopped ());
+    sqlite3_reset (candidates.get ());
+    bind_text (candidates.get (), 1, path);
+    bind_text (candidates.get (), 2, embedding_space);
+    int result;
+    while ((result= sqlite3_step (candidates.get ())) == SQLITE_ROW) {
+      if (scope.check ()) return fail (stopped ());
+      if (sqlite3_column_int64 (candidates.get (), 12) != dimension)
+        return fail ("RAG stored vector dimension is incompatible with embedding space " + embedding_space);
+      const auto vector= blob_to_vector (candidates.get (), 11, int (dimension));
+      if (vector.empty ()) return fail ("RAG index contains an invalid vector payload for " + path);
+      for (float value: vector)
+        if (!std::isfinite (value)) return fail ("RAG index contains a non-finite vector for " + path);
+      const double norm= std::sqrt (dot (vector, vector));
+      if (!(norm > 0.0) || !std::isfinite (norm))
+        return fail ("RAG index contains a zero or invalid vector norm for " + path);
+      RagChunk chunk= chunk_from_stmt (candidates.get ());
+      const auto* storage= sqlite3_column_text (candidates.get (), 9);
+      const auto* semantic= sqlite3_column_text (candidates.get (), 10);
+      if (!storage || !*storage)
+        return fail ("RAG indexed source revision is unavailable for " + path);
+      chunk.storage_revision= reinterpret_cast<const char*> (storage);
+      if (semantic) chunk.semantic_revision= reinterpret_cast<const char*> (semantic);
+      chunk.vector_similarity= std::clamp (dot (query_vector, vector) / query_norm / norm, -1.0, 1.0);
+      chunk.score= chunk.vector_similarity;
+      out.push_back (std::move (chunk));
+    }
+    if (scope.check ()) return fail (stopped ());
+    if (result != SQLITE_DONE)
+      return fail ("RAG vector query failed: " + std::string (sqlite3_errmsg (impl->db)));
+  }
+  std::sort (out.begin (), out.end (), [] (const RagChunk& a, const RagChunk& b) {
+    if (a.score != b.score) return a.score > b.score;
+    return a.chunk_id < b.chunk_id;
+  });
+  if (scope.check ()) return fail (stopped ());
+  if (limit != 0 && out.size () > limit) out.resize (limit);
+  return out;
+}
+
+std::vector<RagChunk>
 RagIndex::search (const std::string& query, int limit) {
   if (impl->db == nullptr) return {};
   limit= std::max (1, std::min (limit, 50));
   std::string q= fts_query (query);
   std::vector<float> qemb;
-  if (impl->embedder ().available ()) qemb= impl->embedder ().embed (query);
+  if (!impl->config.read_only_query && impl->embedder ().available ())
+    qemb= impl->embedder ().embed (query);
 
   std::vector<RagChunk> out;
   if (!q.empty ()) {
