@@ -1,0 +1,6 @@
+[Unit]
+Description=Renew ATHENA Hodarium Tailnet origin certificate
+After=tailscaled.service network-online.target
+[Service]
+Type=oneshot
+ExecStart=/opt/athena-hodarium/renew-tls.sh

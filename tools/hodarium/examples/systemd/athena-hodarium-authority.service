@@ -1,0 +1,26 @@
+[Unit]
+Description=ATHENA Hodarium authority
+Wants=network-online.target
+After=network-online.target tailscaled.service
+[Service]
+User=hodarium
+Group=hodarium
+ExecStart=/opt/athena-hodarium/bin/athena-hodarium-server serve --data /var/lib/athena-hodarium --origin https://hodarium.example.org --listen 127.0.0.1:17443 --tls-cert %d/tls.crt --tls-key %d/tls.key
+LoadCredential=tls.crt:/etc/athena-hodarium/tls/server.crt
+LoadCredential=tls.key:/etc/athena-hodarium/tls/server.key
+StateDirectory=athena-hodarium
+StateDirectoryMode=0700
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+RestrictSUIDSGID=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+[Install]
+WantedBy=multi-user.target

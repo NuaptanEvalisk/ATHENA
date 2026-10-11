@@ -1,0 +1,24 @@
+[Unit]
+Description=ATHENA Hodarium relay-public
+Wants=network-online.target
+After=network-online.target tailscaled.service
+[Service]
+User=hodarium
+Group=hodarium
+ExecStart=/opt/athena-hodarium/bin/athena-hodarium-relay --listen 127.0.0.1:18443 --access-token-file /etc/athena-hodarium/relay-public.token --tls-cert %d/tls.crt --tls-key %d/tls.key
+LoadCredential=tls.crt:/etc/athena-hodarium/tls/server.crt
+LoadCredential=tls.key:/etc/athena-hodarium/tls/server.key
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+RestrictSUIDSGID=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+[Install]
+WantedBy=multi-user.target

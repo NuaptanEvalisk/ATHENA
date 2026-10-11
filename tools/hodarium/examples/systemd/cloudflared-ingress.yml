@@ -1,0 +1,11 @@
+# Merge these routes BEFORE the existing catch-all; do not replace other routes.
+ingress:
+  - hostname: hodarium.example.org
+    service: https://127.0.0.1:17443
+    originRequest:
+      originServerName: host.example-tailnet.ts.net
+  - hostname: horelay.example.org
+    service: https://127.0.0.1:18443
+    originRequest:
+      originServerName: host.example-tailnet.ts.net
+  - service: http_status:404

@@ -16,6 +16,10 @@ should not be mistaken for complete production or iPad acceptance.
 Build and Server deployment
 ---------------------------
 
+Complete Linux service, certificate-renewal and Tunnel ingress examples are in
+``examples/systemd/README.rst``. They deploy one authority and two independent
+Relays without including production credentials.
+
 Use Go 1.26 or later and a Node version supported by Vite 8::
 
   make -C tools/hodarium server
