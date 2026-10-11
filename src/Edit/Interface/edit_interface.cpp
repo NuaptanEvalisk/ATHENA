@@ -2361,6 +2361,11 @@ edit_interface_rep::apply_changes () {
   // cout << "Handling menus\n";
   if (env_change & THE_MENUS)
     update_menus ();
+  else if (env_change & (THE_TREE | THE_ENVIRONMENT)) {
+    // Typing skips menu refreshes, but realtime save consumes this dirty signal.
+    (void) publish_ui (
+      actor_command_kind::ui_set_modified, need_save () ? 1 : 0);
+  }
 
   // cout << "Applied changes\n";
   // time_t t2= texmacs_time ();
