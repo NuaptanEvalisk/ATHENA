@@ -113,7 +113,7 @@ qstring_from_tm (string s) {
 }
 
 static tree
-apply_vault_preferred_font_to_preview (tree body) {
+apply_vault_preferred_font (tree body) {
   string font= get_preference ("vault preferred font", "");
   if (font == "") return body;
   return tree (WITH, "font", font, body);
@@ -492,7 +492,8 @@ QWidget*
 QTMGlobalSearch::createQueryWidget () {
   tree doc (DOCUMENT, "");
   tree style= compound ("style", tuple ("generic"));
-  queryWidget= texmacs_input_widget (doc, style, queryUrl);
+  queryWidget= texmacs_input_widget (
+    apply_vault_preferred_font (doc), style, queryUrl);
   QWidget* qwid= concrete (queryWidget)->as_qwidget (this);
   queryTexmacsWidget= qobject_cast<QTMWidget*> (qwid);
   if (queryTexmacsWidget == nullptr)
@@ -558,7 +559,7 @@ QTMGlobalSearch::recreatePreviewWidget () {
   previewZoom= currentPreviewZoom ();
   try {
     previewWidget= texmacs_output_widget (
-      apply_vault_preferred_font_to_preview (previewBody), style, previewWidth,
+      apply_vault_preferred_font (previewBody), style, previewWidth,
       previewZoom);
     QWidget* qwid= concrete (previewWidget)->as_qwidget (previewHostWidget);
     previewQtWidget= qwid;
