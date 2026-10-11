@@ -52,13 +52,21 @@ if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
 endif ()
 project (ATHENA CXX C) # check for C/C++ compiler
 
+set (ATHENA_APP_VERSION "0.10")
+
+option (ATHENA_BUILD_HODARIUM_NODE_ONLY
+  "Build the headless Hodarium node without the desktop runtime" OFF)
+if (ATHENA_BUILD_HODARIUM_NODE_ONLY)
+  include ("${CMAKE_CURRENT_SOURCE_DIR}/cmake/HodariumNode.cmake")
+  return ()
+endif ()
+
 set (PACKAGE ATHENA)
 set (CMAKE_MODULE_PATH ${ATHENA_SOURCE_DIR}/cmake)
 include (AthenaPlatform)
 configure_file (src/System/athena_platform.hpp.cmake
                 src/System/athena_platform.hpp @ONLY)
 
-set (ATHENA_APP_VERSION "0.10")
 set (ATHENA_VERSION ${ATHENA_APP_VERSION})
 
 set (DEVEL_VERSION ${ATHENA_VERSION})

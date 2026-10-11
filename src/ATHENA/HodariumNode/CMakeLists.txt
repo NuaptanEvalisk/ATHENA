@@ -1,0 +1,5 @@
+add_executable(athena-hodarium-node main.cpp)
+target_compile_definitions(athena-hodarium-node PRIVATE ATHENA_APP_VERSION="${ATHENA_APP_VERSION}")
+target_link_libraries(athena-hodarium-node PRIVATE athena_hodarium_node_core)
+target_include_directories(athena-hodarium-node PRIVATE ${NLOHMANN_JSON_INCLUDE_DIR})
+install(TARGETS athena-hodarium-node RUNTIME DESTINATION bin)

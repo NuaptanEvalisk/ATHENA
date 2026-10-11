@@ -1,0 +1,22 @@
+#ifndef ATHENA_HODARIUM_NODE_CONFIG_H
+#define ATHENA_HODARIUM_NODE_CONFIG_H
+
+/* Deliberately independent of the desktop config and Guile ABI. */
+#define SIZEOF_VOID_P @CMAKE_SIZEOF_VOID_P@
+#define HAVE_INTTYPES_H 1
+#define HAVE_STDINT_H 1
+#define HAVE_INTPTR_T 1
+#define HAVE_SNPRINTF 1
+#define STDC_HEADERS 1
+#define USE_SQLITE3 1
+#define LINKED_SQLITE3 1
+#define USE_GNUTLS 1
+#define MAX_FAST 264
+#define WORD_LENGTH @CMAKE_SIZEOF_VOID_P@
+#define WORD_LENGTH_INC @HODARIUM_WORD_LENGTH_INC@
+#define WORD_MASK (~(WORD_LENGTH - 1))
+#define ALIGNOF_VOID_P @CMAKE_SIZEOF_VOID_P@
+#cmakedefine OS_GNU_LINUX 1
+#cmakedefine OS_MACOS 1
+
+#endif
