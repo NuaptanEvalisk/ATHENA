@@ -11,9 +11,11 @@ struct inventoried_document {
   std::shared_ptr<const std::string> bytes;
 };
 struct source_inventory {
+  struct identity_conflict { std::string object; std::vector<std::string> paths; };
   std::optional<filesystem::metadata> root_revision;
   std::vector<inventoried_document> documents;
   std::vector<std::string> errors;
+  std::vector<identity_conflict> conflicts;
   struct cached_source { filesystem::metadata revision; std::string object; bool published= false; };
   std::map<std::string, cached_source> cache;
 };

@@ -67,6 +67,12 @@ source_inventory inventory_sources (const std::filesystem::path& root,
   result.documents.erase (std::remove_if (result.documents.begin (), result.documents.end (),
     [&] (const auto& entry) { return duplicates.count (entry.object); }), result.documents.end ());
   for (auto& [path, entry]: result.cache) if (duplicates.count (entry.object)) entry.published= false;
+  for (const auto& id: duplicates) {
+    source_inventory::identity_conflict conflict{id, {}};
+    for (const auto& [path, entry]: result.cache)
+      if (entry.object == id) conflict.paths.push_back (path);
+    result.conflicts.push_back (std::move (conflict));
+  }
   return result;
 }
 }

@@ -150,6 +150,21 @@ file observations. Unchanged stored content does not create another revision.
 Incomplete/error scans do not manufacture deletions. Source UUIDs identify
 documents across paths; duplicates are errors, not arbitrarily chosen replicas.
 
+The first discovery of each duplicate-root group in an application session opens
+a dialog with ``These are different documents`` and ``Ignore``. The former asks
+which document retains the original identity and renews only the other body-root
+UUIDs, not child identities or content. Existing references to the original UUID
+continue to identify the retained document. This does not repair duplicated child
+UUIDs. Ignore suppresses repeated dialogs for that group during the session; it
+does not authorize ambiguous synchronization. ``Document identities`` in the
+Hodarium manager explicitly rescans and offers ignored conflicts again.
+
+Repair protects the saved preimage in File History. Closed sources use confined
+conditional atomic replacement; open sources receive an undoable actor-owned
+metadata edit and must be saved (or realtime-saved) before disk synchronization
+can resume. External changes and busy/read-only actors are reported, not
+overwritten. No source document is changed merely by discovering a conflict.
+
 Application validates authorization, current heads, expected revision, source
 preimage and root identity. It synchronously protects destructive preimages in
 File History, persists application intents and resumes unfinished operations

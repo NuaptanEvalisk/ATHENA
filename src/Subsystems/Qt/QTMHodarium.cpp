@@ -13,6 +13,7 @@
 #include "ATHENA/Hodarium/relay_credentials.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "ATHENA/Data/hodarium_inventory.hpp"
+#include "ATHENA/Data/source_identity_repair.hpp"
 #include "ATHENA/Data/hodarium_application.hpp"
 #include "ATHENA/Data/hodarium_resources.hpp"
 #include "ATHENA/Data/hodarium_logical_sync.hpp"
@@ -130,6 +131,7 @@ public:
   std::unique_ptr<client_settings> settings;
   std::map<std::string, std::unique_ptr<profile_session>> sessions;
   std::function<void (profile_status)> report;
+  std::function<void (vault_binding, source_inventory::identity_conflict)> identity_conflict;
   std::filesystem::path root;
   std::unique_ptr<control_http> discovery;
   std::map<std::string, std::pair<std::string, recovery_candidate>> recoveries;
@@ -504,6 +506,8 @@ public:
       deletion_cursor.clear (); present_objects.clear (); deletion_history.reset ();
       deletion_started= false; deletion_deferred= false;
       for (const auto& error: scanned.errors) report ({scanning->group, profile_phase::error, error, "", 0});
+      for (const auto& conflict: scanned.conflicts)
+        if (identity_conflict) identity_conflict (*scanning, conflict);
     }
     if (scanning) {
       if (!selected (*scanning)) { scanned= {}; scanning.reset (); }
@@ -825,12 +829,87 @@ class service: public QObject {
   QTMSystemPowerMonitor power_;
   bool stopping_= false;
   bool suspended_= false;
+  using identity_notice= std::pair<vault_binding, source_inventory::identity_conflict>;
+  std::deque<identity_notice> identity_notices_;
+  std::set<std::string> reported_identities_;
+  bool identity_dialog_= false;
+
+  void show_identity_conflict () {
+    if (identity_dialog_ || identity_notices_.empty () || stopping_ || suspended_) return;
+    identity_dialog_= true;
+    auto notice= std::move (identity_notices_.front ()); identity_notices_.pop_front ();
+    auto* dialog= new QDialog (QApplication::activeWindow ());
+    dialog->setAttribute (Qt::WA_DeleteOnClose);
+    dialog->setWindowTitle (tr ("Duplicate document identity"));
+    auto* layout= new QVBoxLayout (dialog);
+    auto* description= new QLabel (tr ("These documents share the same identity. Synchronization of these documents is blocked."), dialog);
+    description->setWordWrap (true); layout->addWidget (description);
+    auto* files= new QListWidget (dialog);
+    for (const auto& path: notice.second.paths) files->addItem (QString::fromStdString (path));
+    layout->addWidget (files);
+    auto* buttons= new QDialogButtonBox (dialog);
+    auto* different= buttons->addButton (tr ("These are different documents"), QDialogButtonBox::AcceptRole);
+    auto* ignore= buttons->addButton (tr ("Ignore"), QDialogButtonBox::RejectRole);
+    ignore->setDefault (true); different->setAutoDefault (false);
+    layout->addWidget (buttons); dialog->resize (760, 300);
+    connect (ignore, &QPushButton::clicked, dialog, &QDialog::reject);
+    connect (different, &QPushButton::clicked, dialog, [this, dialog, notice] {
+      QStringList paths;
+      for (const auto& path: notice.second.paths) paths << QString::fromStdString (path);
+      bool accepted= false;
+      auto retained= QInputDialog::getItem (dialog, tr ("Keep original identity"),
+        tr ("Document that keeps its identity. Other documents receive new root identities; their contents and child identities are unchanged."),
+        paths, 0, false, &accepted);
+      if (!accepted) return;
+      QPointer<service> receiver= this;
+      for (const auto& path: notice.second.paths) {
+        if (QString::fromStdString (path) == retained) continue;
+        perform ([receiver, binding= notice.first, path, id= notice.second.object] (worker& w) {
+          const auto bindings= w.settings->vaults (binding.group);
+          if (std::none_of (bindings.begin (), bindings.end (), [&] (const vault_binding& b) {
+                return b.root == binding.root && b.vault == binding.vault;
+              })) throw std::runtime_error ("Vault binding changed before identity repair");
+          athena::document_node::repair_source_identity (binding.root, path, id,
+            [receiver, path] (bool live, std::string error) {
+              if (!receiver) return;
+              QMetaObject::invokeMethod (receiver, [receiver, path, live, error= std::move (error)] {
+                if (!receiver || receiver->stopping_) return;
+                if (!error.empty ()) {
+                  std_error << "Document identity repair: " << string (path.c_str ()) << ": " << string (error.c_str ()) << LF;
+                  QMessageBox::warning (QApplication::activeWindow (), tr ("Identity repair failed"),
+                    QString::fromStdString (path + "\n" + error));
+                }
+                else if (live) QMessageBox::information (QApplication::activeWindow (), tr ("Document identity updated"),
+                  tr ("%1\n\nThe open document has been updated. Save it to persist the new identity; realtime save follows your normal settings.")
+                    .arg (QString::fromStdString (path)));
+              }, Qt::QueuedConnection);
+            });
+        });
+      }
+      dialog->accept ();
+    });
+    connect (dialog, &QDialog::finished, this, [this] {
+      identity_dialog_= false;
+      QMetaObject::invokeMethod (this, [this] { show_identity_conflict (); }, Qt::QueuedConnection);
+    });
+    dialog->setWindowModality (Qt::ApplicationModal); dialog->open ();
+  }
 public:
   QPointer<QObject> observer;
   std::function<void (QString)> changed;
   explicit service (const std::filesystem::path& root): QObject (qApp),
     worker_ (new worker) {
     worker_->moveToThread (&thread_);
+    worker_->identity_conflict= [this] (vault_binding binding, source_inventory::identity_conflict conflict) {
+      QMetaObject::invokeMethod (this, [this, binding= std::move (binding), conflict= std::move (conflict)] {
+        if (stopping_) return;
+        std::string key= binding.root.generic_string () + "\n" + conflict.object;
+        for (const auto& path: conflict.paths) key+= "\n" + path;
+        if (!reported_identities_.insert (key).second) return;
+        identity_notices_.emplace_back (binding, conflict);
+        show_identity_conflict ();
+      }, Qt::QueuedConnection);
+    };
     { std::lock_guard<std::mutex> lock (save_gate); save_worker= worker_; capture_enabled= false; }
     worker_->report= [this] (profile_status status) {
       QMetaObject::invokeMethod (this, [this, status= std::move (status)] {
@@ -873,6 +952,14 @@ public:
     thread_.start ();
   }
   ~service () override { stop (); }
+  void review_identities () {
+    reported_identities_.clear ();
+    perform ([] (worker& w) {
+      for (const auto& profile: w.settings->profiles ())
+        for (const auto& binding: w.settings->vaults (profile.pin.group))
+          if (binding.enabled) w.schedule_inventory (binding);
+    });
+  }
   void perform (std::function<void (worker&)> operation) {
     if (stopping_ || suspended_) return;
     QMetaObject::invokeMethod (worker_, [w= worker_, operation= std::move (operation)] {
@@ -895,6 +982,7 @@ public:
   void suspended (bool value) {
     if (stopping_ || suspended_ == value) return;
     suspended_= value;
+    if (!value) show_identity_conflict ();
     if (value) cancel_device_key_operations ();
     QMetaObject::invokeMethod (worker_, [w= worker_, value] {
       w->suspended (value);
@@ -1762,6 +1850,10 @@ public:
     bind_= buttons->addButton (tr ("Bind Vault"), QDialogButtonBox::ActionRole);
     unbind_= buttons->addButton (tr ("Unbind Vault"), QDialogButtonBox::ActionRole);
     conflicts_= buttons->addButton (tr ("Conflicts"), QDialogButtonBox::ActionRole);
+    auto* identities= buttons->addButton (tr ("Document identities"), QDialogButtonBox::ActionRole);
+    connect (identities, &QPushButton::clicked, this, [this] {
+      if (service_) service_->review_identities ();
+    });
     layout->addWidget (buttons);
     connect (buttons, &QDialogButtonBox::rejected, this, &QDialog::close);
     connect (table_, &QTableWidget::itemSelectionChanged, this, [this] { selection (); });
