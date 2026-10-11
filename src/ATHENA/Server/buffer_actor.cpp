@@ -762,7 +762,14 @@ buffer_actor::apply_saved_document (const std::string& expected_storage,
     throw std::runtime_error ("Remote document publication returned a different storage revision");
 
   state.source_envelope= std::move (source);
-  state.data= std::move (data);
+  // Live typesetting environments hold references to these map members.
+  // Replace their values without destroying the owning new_data_rep.
+  state.data->style= std::move (data->style);
+  state.data->init= std::move (data->init);
+  state.data->fin= std::move (data->fin);
+  state.data->ref= std::move (data->ref);
+  state.data->aux= std::move (data->aux);
+  state.data->att= std::move (data->att);
   state.artifacts.reset ();
   athena::artifact::close (id_);
   set_document (state.document, state.root_path, std::move (body));
