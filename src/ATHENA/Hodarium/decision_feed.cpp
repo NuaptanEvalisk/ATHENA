@@ -212,7 +212,8 @@ void decision_feed_client::post (const QString& path,const QByteArray& bytes,std
   http_->request (path,bytes,[this,success= std::move (success)] (control_response response) {
     if (!response.error.empty ()) {
       auto failure= response.status == 401 || response.status == 403 ? control_failure::denied :
-        response.status == 409 || response.oversized ? control_failure::invalid_state : control_failure::transport;
+        response.oversized ? control_failure::invalid_state :
+        response.status == 409 ? control_failure::conflict : control_failure::transport;
       finish ({failure,std::move (response.error)});return;
     }
     try {

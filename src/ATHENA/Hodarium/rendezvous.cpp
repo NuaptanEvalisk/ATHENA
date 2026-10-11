@@ -91,7 +91,8 @@ void rendezvous_client::post (const QString& path, const QByteArray& bytes,
   http_->request (path, bytes, [this, success= std::move (success)] (control_response response) {
     if (!response.error.empty ()) {
       auto failure= response.status == 401 || response.status == 403 ? control_failure::denied :
-        response.status == 409 || response.oversized ? control_failure::invalid_state : control_failure::transport;
+        response.oversized ? control_failure::invalid_state :
+        response.status == 409 ? control_failure::conflict : control_failure::transport;
       finish ({failure, std::move (response.error)}); return;
     }
     try {
@@ -168,17 +169,18 @@ presence_directory::presence_directory (QUrl origin, device_identity device,
 presence_directory::~presence_directory () { changed_= {}; stop (); }
 void presence_directory::notify () { if (changed_) changed_ (snapshot_); }
 presence_snapshot presence_directory::snapshot () const { return snapshot_; }
-void presence_directory::stop () {
+void presence_directory::stop (bool preserve_diagnostic) {
   active_= false; ++serial_; timer_->stop (); client_.cancel (); busy_= false;
   collecting_.clear ();
   bool changed= !snapshot_.peers.empty () || !snapshot_.diagnostic.empty ();
-  snapshot_= {};
+  snapshot_.peers.clear (); snapshot_.failure= control_failure::none;
+  if (!preserve_diagnostic) snapshot_.diagnostic.clear ();
   if (changed) notify ();
 }
 void presence_directory::start (presence_context context) {
   if (active_ && context.group == context_.group && context.member == context_.member &&
       context.generation == context_.generation && context.epoch == context_.epoch) return;
-  stop (); context_= std::move (context);
+  stop (true); context_= std::move (context);
   if (!authorized_ (context_)) return;
   active_= true; next_= {}; timer_->start ();
   QTimer::singleShot (0, this, [this] { tick (); });
@@ -192,9 +194,12 @@ void presence_directory::set_routes (std::vector<std::string> direct, std::vecto
 void presence_directory::failed (control_result result) {
   busy_= false; collecting_.clear (); next_= clock::now () + std::chrono::seconds (30);
   auto previous= snapshot_.peers.size ();
-  if (result.failure == control_failure::denied || result.failure == control_failure::invalid_state)
+  if (result.failure == control_failure::denied || result.failure == control_failure::invalid_state ||
+      result.failure == control_failure::conflict)
     snapshot_.peers.clear ();
-  if (snapshot_.diagnostic != result.diagnostic || previous != snapshot_.peers.size ()) {
+  if (snapshot_.diagnostic != result.diagnostic || previous != snapshot_.peers.size () ||
+      snapshot_.failure != result.failure || result.failure == control_failure::conflict) {
+    snapshot_.failure= result.failure;
     snapshot_.diagnostic= std::move (result.diagnostic); notify ();
   }
 }
@@ -240,6 +245,7 @@ void presence_directory::page (std::string after) {
       collecting_.erase (std::remove_if (collecting_.begin (), collecting_.end (),
         [wall] (const peer_presence& peer) { return peer.expires <= wall; }), collecting_.end ());
       snapshot_.peers= std::move (collecting_); snapshot_.diagnostic.clear ();
+      snapshot_.failure= control_failure::none;
       received_= cycle_started_; busy_= false;
       next_= clock::now () + std::chrono::seconds (30);
       notify ();

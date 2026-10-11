@@ -98,9 +98,15 @@ private:
   QTimer timer_;
   bool paused_= false, busy_= false, pending_= false;
   membership_lease::steady::time_point next_{};
+  membership_lease::steady::time_point next_conflict_refresh_{};
+  enum class diagnostic_source { general, membership, feed, decision };
+  diagnostic_source diagnostic_source_= diagnostic_source::general;
   void owner () const;
   void publish (profile_phase phase, std::string diagnostic= {},
-                std::string code= {}, std::int64_t code_expires= 0);
+                std::string code= {}, std::int64_t code_expires= 0,
+                diagnostic_source source= diagnostic_source::general);
+  void recovered (diagnostic_source source);
+  void refresh_after_conflict ();
   void tick ();
   void refresh ();
   void register_next_vault ();

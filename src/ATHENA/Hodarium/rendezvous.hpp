@@ -50,6 +50,7 @@ private:
 struct presence_snapshot {
   std::vector<peer_presence> peers;
   std::string diagnostic;
+  control_failure failure= control_failure::none;
 };
 // Ephemeral discovery only. Never infer membership from a directory record.
 class presence_directory: public QObject {
@@ -60,7 +61,7 @@ public:
     authorization authorized, observer changed);
   ~presence_directory () override;
   void start (presence_context context);
-  void stop ();
+  void stop (bool preserve_diagnostic= false);
   void set_routes (std::vector<std::string> direct, std::vector<std::string> relays);
   presence_snapshot snapshot () const;
 private:

@@ -12,7 +12,8 @@ class QTimer;
 
 namespace athena::hodarium {
 class control_http;
-enum class control_failure { none, transport, denied, invalid_state, key_store, cancelled };
+// Conflict is a revalidation hint, not proof that the membership epoch changed.
+enum class control_failure { none, transport, denied, invalid_state, key_store, cancelled, conflict };
 struct control_result {
   control_failure failure= control_failure::none;
   std::string diagnostic;

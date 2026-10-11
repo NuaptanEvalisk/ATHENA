@@ -35,7 +35,8 @@ void profile_session::owner () const {
     throw std::logic_error ("Hodarium profile session accessed outside its worker");
 }
 void profile_session::publish (profile_phase phase, std::string diagnostic,
-  std::string code, std::int64_t code_expires) {
+  std::string code, std::int64_t code_expires, diagnostic_source source) {
+  diagnostic_source_= source;
   profile_status next{profile_.pin.group, phase, std::move (diagnostic), std::move (code), code_expires};
   next.discovery_diagnostic= status_.discovery_diagnostic;
   next.discovered_devices= status_.discovered_devices;
@@ -44,6 +45,18 @@ void profile_session::publish (profile_phase phase, std::string diagnostic,
       next.code == status_.code && next.code_expires == status_.code_expires) return;
   status_= std::move (next);
   if (changed_) changed_ (status_);
+}
+void profile_session::recovered (diagnostic_source source) {
+  if (diagnostic_source_ == source && client_ && client_->authorized ())
+    publish (profile_phase::authorized);
+}
+void profile_session::refresh_after_conflict () {
+  if (paused_ || !profile_.enabled || !client_ || busy_ ||
+      clock::now () < next_conflict_refresh_) return;
+  // A 409 also covers cursor/write conflicts. It is only a refresh hint,
+  // never membership evidence, and cannot drive an unbounded refresh loop.
+  next_conflict_refresh_= clock::now () + std::chrono::seconds (30);
+  refresh ();
 }
 void profile_session::start () {
   owner ();
@@ -64,12 +77,18 @@ void profile_session::start () {
 void profile_session::refresh () {
   if (busy_ || paused_ || !client_ || !profile_.enabled) return;
   busy_= true;
-  if (!client_->authorized ()) publish (profile_phase::validating);
-  client_->refresh ([this] (control_result result) {
+  const auto previous= client_->current ();
+  if (!client_->authorized ()) publish (profile_phase::validating, {}, {}, 0, diagnostic_source::membership);
+  client_->refresh ([this, previous] (control_result result) {
     busy_= false; next_= clock::now () + std::chrono::seconds (60);
     if (paused_) return;
     if (result.failure == control_failure::none) {
       auto state= client_->current ();
+      if (!previous || previous->epoch != state->epoch) {
+        if (feed_client_) feed_client_->cancel ();
+        if (decisions_) decisions_->cancel ();
+        next_feed_= {}; next_decision_= {};
+      }
       try {
         const bool new_network= !network_;
         if (!network_) network_= std::make_unique<peer_network> (profile_.device,
@@ -97,6 +116,7 @@ void profile_session::refresh () {
             client_->peer_allowed (c.member, profile_.device.public_key, c.epoch);
         }, [this] (const presence_snapshot& snapshot) {
           if (network_) network_->discover (snapshot);
+          if (snapshot.failure == control_failure::conflict) refresh_after_conflict ();
           if (status_.discovery_diagnostic == snapshot.diagnostic &&
               status_.discovered_devices == snapshot.peers.size ()) return;
           status_.discovery_diagnostic= snapshot.diagnostic;
@@ -105,12 +125,15 @@ void profile_session::refresh () {
         });
       directory_->set_routes (network_->addresses (), network_->relay_origins ());
       directory_->start ({state->group, profile_.member, state->generation, state->epoch});
-      publish (profile_phase::authorized);
+      if (status_.diagnostic.empty () || diagnostic_source_ == diagnostic_source::membership)
+        publish (profile_phase::authorized);
+      else publish (profile_phase::authorized, status_.diagnostic, {}, 0, diagnostic_source_);
     }
-    else if (result.failure == control_failure::denied) publish (profile_phase::denied, result.diagnostic);
+    else if (result.failure == control_failure::denied)
+      publish (profile_phase::denied, result.diagnostic, {}, 0, diagnostic_source::membership);
     else if (result.failure == control_failure::transport && client_->authorized ())
-      publish (profile_phase::offline_valid, result.diagnostic);
-    else publish (profile_phase::error, result.diagnostic);
+      publish (profile_phase::offline_valid, result.diagnostic, {}, 0, diagnostic_source::membership);
+    else publish (profile_phase::error, result.diagnostic, {}, 0, diagnostic_source::membership);
   });
 }
 void profile_session::tick () {
@@ -335,11 +358,14 @@ void profile_session::submit_proposal (const std::string& operation, bool write)
     if (result.failure == control_failure::cancelled) return;
     if (result.failure != control_failure::none) {
       next_decision_= clock::now () + std::chrono::seconds (30);
-      publish (profile_phase::error, result.diagnostic); return;
+      publish (profile_phase::error, result.diagnostic, {}, 0, diagnostic_source::decision);
+      if (result.failure == control_failure::conflict) refresh_after_conflict ();
+      return;
     }
     try {
       const auto evidence= decisions_->evidence ();
       auto decision= conflicts_->accept (operation, evidence.envelope, evidence.epoch, evidence.nonce, evidence.subject);
+      recovered (diagnostic_source::decision);
       auto proposal= conflicts_->proposal (operation);
       if (!decision || decision->version <= proposal->request.expected) {
         if (write) throw std::runtime_error ("Conflict write did not advance its expected version");
@@ -366,7 +392,7 @@ void profile_session::submit_proposal (const std::string& operation, bool write)
 
 void profile_session::refresh_decisions () {
   if (paused_ || !profile_.enabled || !client_ || !client_->authorized () ||
-      fetching_decisions_ || clock::now () < next_feed_) return;
+      busy_ || fetching_decisions_ || clock::now () < next_feed_) return;
   if (!decision_feed_) decision_feed_= std::make_unique<decision_feed_store> (trust_database_.parent_path () /
     ("decisions-" + profile_.pin.group + "-" + profile_.pin.generation + ".sqlite"), profile_.pin);
   if (!feed_client_) feed_client_= std::make_unique<decision_feed_client> (
@@ -382,8 +408,10 @@ void profile_session::refresh_decisions () {
     next_feed_= clock::now () + std::chrono::seconds (more ? 0 : 15);
     if (result.failure != control_failure::none && result.failure != control_failure::cancelled) {
       next_feed_= clock::now () + std::chrono::seconds (30);
-      publish (profile_phase::error, result.diagnostic);
+      publish (profile_phase::error, result.diagnostic, {}, 0, diagnostic_source::feed);
+      if (result.failure == control_failure::conflict) refresh_after_conflict ();
     }
+    else if (result.failure == control_failure::none) recovered (diagnostic_source::feed);
   });
 }
 void profile_session::inspect_waiting_result () {
@@ -416,7 +444,7 @@ void profile_session::inspect_waiting_result () {
 }
 void profile_session::decide_next () {
   if (paused_ || !profile_.enabled || !client_ || !client_->authorized () || !revisions_ ||
-      deciding_ || clock::now () < next_decision_) return;
+      busy_ || deciding_ || clock::now () < next_decision_) return;
   conflict_journal ();
   if (!decisions_) decisions_= std::make_unique<decision_client> (profile_.origin, profile_.pin,
                                                                profile_.device, profile_.member);
@@ -462,10 +490,13 @@ void profile_session::decide_next () {
       if (result.failure == control_failure::cancelled) return;
       if (result.failure != control_failure::none) {
         next_decision_= clock::now () + std::chrono::seconds (30);
-        publish (profile_phase::error, result.diagnostic); return;
+        publish (profile_phase::error, result.diagnostic, {}, 0, diagnostic_source::decision);
+        if (result.failure == control_failure::conflict) refresh_after_conflict ();
+        return;
       }
       try {
         if (decision) revisions_->accept_resolution (id, profile_.pin, secret, decisions_->evidence ());
+        recovered (diagnostic_source::decision);
       }
       catch (const std::exception& e) { publish (profile_phase::error, e.what ()); }
     });

@@ -1836,7 +1836,7 @@ public:
     });
     controller->observer= this;
     controller->changed= [this] (QString diagnostic) {
-      if (!diagnostic.isEmpty ()) diagnostic_->setText (diagnostic);
+      diagnostic_->setText (diagnostic);
       refresh ();
     };
     auto* timer= new QTimer (this); timer->setInterval (2000);
