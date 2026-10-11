@@ -6,6 +6,11 @@
 
 namespace athena::hodarium {
 class peer_secret_exchange;
+struct replication_progress {
+  transfer_progress sending, receiving;
+  bool checking= false, pending= false, connected= false;
+  std::int64_t last_synchronized= 0;
+};
 // Owner-thread replication of immutable journals only; never applies files.
 class peer_replication: public QObject {
 public:
@@ -13,6 +18,7 @@ public:
     std::vector<std::string> vaults, std::function<void(std::string)> error,
     peer_secret_exchange* secrets= nullptr);
   void receive (const std::string& member, const QByteArray& message);
+  replication_progress progress (const std::string& vault) const;
 private:
   using clock= std::chrono::steady_clock;
   struct peer {
@@ -31,6 +37,8 @@ private:
   std::map<std::string, peer> peers_;
   QByteArray announcement_;
   QTimer timer_;
+  // Acknowledged journal tips survive disconnection, but not process restart.
+  std::map<std::string, std::int64_t> acknowledged_, synchronized_;
   peer& current (const peer_route_status& route);
   void tick ();
   void pump (const std::string& member, peer& state);

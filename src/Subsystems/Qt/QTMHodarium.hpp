@@ -7,6 +7,7 @@
 void qtm_hodarium_initialize ();
 void qtm_hodarium_reload ();
 void qtm_hodarium_show ();
+void qtm_hodarium_show_conflicts ();
 // Actor-safe, nonblocking handoff of successful durable saves only.
 void qtm_hodarium_saved (const std::filesystem::path& path, std::string object,
   std::optional<std::string> predecessor, std::shared_ptr<const std::string> bytes);

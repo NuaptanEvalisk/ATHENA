@@ -13,6 +13,7 @@ struct conflict_proposal_summary {
   std::string operation, path, format;
   bool deleted= false;
   conflict_proposal_state state= conflict_proposal_state::pending;
+  std::string vault, object, resolution;
 };
 
 // Device-local durable outbox. Drafts are deliberately not revision DAG heads.
@@ -25,6 +26,7 @@ public:
   conflict_store& operator= (const conflict_store&)= delete;
   void prepare (const conflict_proposal& proposal, const revision_store& revisions);
   std::optional<conflict_proposal> proposal (const std::string& operation) const;
+  std::optional<conflict_proposal_summary> proposal_summary (const std::string& operation) const;
   std::vector<std::string> pending (const std::string& after= {}, std::uint32_t limit= 64) const;
   // Vault is the source Vault UUID, not the authority's opaque Vault token.
   // Lexical operation cursor; metadata only, never reads proposal payloads.

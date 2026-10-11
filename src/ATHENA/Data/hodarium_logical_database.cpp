@@ -628,22 +628,29 @@ AthenaArtifactTitleFilter parse_filter (const std::string& payload) {
 }
 }
 
-logical_database_object export_artifact_rejections (const std::filesystem::path& root) {
+std::optional<logical_database_object> export_artifact_rejections (const std::filesystem::path& root) {
   AthenaArtifactTitleFilter filter;
   std::string error;
-  if (!athena_artifact_title_filter_read (root, filter, error, false))
+  bool persisted= false;
+  if (!athena_artifact_title_filter_read (root, filter, error, false, &persisted))
     throw std::runtime_error (error);
-  return {"artifact-rejections", "athena-artifact-rejections-v1", filter_payload (filter)};
+  if (!persisted) return std::nullopt;
+  return logical_database_object {"artifact-rejections", "athena-artifact-rejections-v1", filter_payload (filter)};
+}
+
+bool default_artifact_rejections_payload (const std::string& payload) {
+  return payload == filter_payload (athena_artifact_title_filter_defaults ());
 }
 
 logical_apply_result apply_artifact_rejections (
   const std::filesystem::path& root, const logical_database_change& change,
   const std::function<bool()>& permitted) {
-  require (change.key == "artifact-rejections" && change.expected.has_value () &&
+  require (change.key == "artifact-rejections" &&
            change.replacement.has_value (), "Artifact rejections require explicit lists");
-  auto expected= parse_filter (*change.expected);
+  std::optional<AthenaArtifactTitleFilter> expected;
+  if (change.expected) expected= parse_filter (*change.expected);
   auto replacement= parse_filter (*change.replacement);
-  if (*change.expected == *change.replacement) return logical_apply_result::unchanged;
+  if (change.expected == change.replacement) return logical_apply_result::unchanged;
   bool matched= false;
   std::string error;
   if (!athena_artifact_title_filter_replace_if_current (

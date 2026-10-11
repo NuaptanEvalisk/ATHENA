@@ -20,6 +20,7 @@
 #include "QTMPersonsExplorer.hpp"
 #endif
 #include "QTMNeighborhoodsPane.hpp"
+#include "QTMHodarium.hpp"
 #include "QTMHandwritingSymbolPane.hpp"
 #include "ATHENA/Data/background_workers.hpp"
 #include "qt_window_widget.hpp"
@@ -39,6 +40,8 @@
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QLocale>
+#include <QMenu>
 #include <QMap>
 #include <QProgressBar>
 #include <QShortcut>
@@ -109,10 +112,39 @@ installApplicationBackgroundStatus (QTMMainTabWindow* shell) {
   layout->setSpacing (5);
   QLabel* indicator= new QLabel (widget);
   indicator->setFixedSize (10, 10);
-  QLabel* title= new QLabel (QStringLiteral ("Background"), widget);
-  title->setFixedWidth (
-    title->fontMetrics ().horizontalAdvance (QStringLiteral ("Maintenance")) +
-    8);
+  auto* title= new QToolButton (widget);
+  title->setText (QStringLiteral ("Background"));
+  title->setAutoRaise (true);
+  title->setToolButtonStyle (Qt::ToolButtonTextOnly);
+  title->setMinimumWidth (title->fontMetrics ().horizontalAdvance (QStringLiteral ("Maintenance")) + 8);
+  title->setAccessibleName (QObject::tr ("Background workers"));
+  auto* workersMenu= new QMenu (title);
+  title->setMenu (workersMenu);
+  title->setPopupMode (QToolButton::MenuButtonPopup);
+  QObject::connect (title, &QToolButton::clicked, widget, [title, workersMenu] {
+    if (title->property ("hodarium").toBool ()) {
+      const auto value= athena::background::snapshot ()[std::size_t (athena::background::worker::hodarium)];
+      if (value.conflicts) qtm_hodarium_show_conflicts (); else qtm_hodarium_show ();
+    }
+    else workersMenu->popup (title->mapToGlobal (QPoint (0, title->height ())));
+  });
+  QObject::connect (workersMenu, &QMenu::aboutToShow, widget, [workersMenu] {
+    workersMenu->clear ();
+    const auto states= athena::background::snapshot ();
+    for (std::size_t i= 0; i < states.size (); ++i) {
+      const auto& state= states[i];
+      if (state.state == athena::background::phase::inactive) continue;
+      auto* item= workersMenu->addAction (QString::fromLatin1 (
+        athena::background::worker_name (athena::background::worker (i))) +
+        (state.caption.empty () ? QString () : QStringLiteral (": ") + QString::fromStdString (state.caption)));
+      item->setToolTip (QString::fromStdString (state.detail));
+      if (i == std::size_t (athena::background::worker::hodarium))
+        QObject::connect (item, &QAction::triggered, workersMenu, [conflicts= state.conflicts] {
+          if (conflicts) qtm_hodarium_show_conflicts (); else qtm_hodarium_show ();
+        });
+      else item->setEnabled (false);
+    }
+  });
   title->setSizePolicy (QSizePolicy::Fixed, QSizePolicy::Preferred);
   QProgressBar* progress= new QProgressBar (widget);
   progress->setTextVisible (false);
@@ -164,21 +196,30 @@ installApplicationBackgroundStatus (QTMMainTabWindow* shell) {
         status.center, Qt::ElideRight, center->width ()));
       using athena::background::phase;
       const auto statuses= athena::background::snapshot ();
-      const char* names[]= {"UUID", "NPU RAG", "Maintenance", "Artifacts"};
+      auto name= [] (std::size_t i) { return QString::fromLatin1 (
+        athena::background::worker_name (athena::background::worker (i))); };
       std::vector<std::size_t> busy;
       bool active= false;
       bool failed= false;
+      bool waiting= false;
+      std::size_t notable= statuses.size ();
       QString tip;
       for (std::size_t i= 0; i < statuses.size (); ++i) {
         const auto& status= statuses[i];
         if (status.state == phase::inactive) continue;
-        active= true;
+        active= active || status.state == phase::idle;
         failed= failed || athena::background::failed (status);
+        waiting= waiting || status.state == phase::waiting;
+        if (athena::background::failed (status) ||
+            (notable == statuses.size () && status.state == phase::waiting)) notable= i;
         if (status.state == phase::working) busy.push_back (i);
         if (!tip.isEmpty ()) tip += QStringLiteral ("\n");
-        tip += QString::fromLatin1 (names[i]) + QStringLiteral (": ") +
-          (status.state == phase::working ? QStringLiteral ("Working") :
+        tip += name (i) + QStringLiteral (": ") +
+          (!status.caption.empty () ? QString::fromStdString (status.caption) :
+           status.state == phase::working ? QStringLiteral ("Working") :
            status.state == phase::paused ? QStringLiteral ("Paused") :
+           status.state == phase::waiting ? QStringLiteral ("Waiting") :
+           status.state == phase::disconnected ? QStringLiteral ("Disconnected") :
            status.state == phase::error ? QStringLiteral ("Error") :
                                            QStringLiteral ("Idle"));
         if (status.total)
@@ -198,38 +239,41 @@ installApplicationBackgroundStatus (QTMMainTabWindow* shell) {
 
       const bool working= !busy.empty ();
       const std::size_t activeIndex=
-        working ? busy[(tick / 19) % busy.size ()] : 0;
+        working ? busy[(tick / 19) % busy.size ()] : notable;
+      const bool selected= activeIndex < statuses.size ();
       const auto current=
-        working ? statuses[activeIndex] : athena::background::progress {};
+        selected ? statuses[activeIndex] : athena::background::progress {};
       title->setText (
-        working ? QString::fromLatin1 (names[activeIndex]) :
+        selected ? name (activeIndex) :
                   QStringLiteral ("Background"));
+      title->setProperty ("hodarium", selected && activeIndex == std::size_t (athena::background::worker::hodarium));
       ++tick;
 
       const QString color=
         failed ? QStringLiteral ("#d94b4b") :
+        waiting ? QStringLiteral ("#c58a12") :
         working ? QStringLiteral ("#2d7ff9") :
         active ? QStringLiteral ("#36a852") :
                  QStringLiteral ("#808080");
       indicator->setStyleSheet (
         QStringLiteral ("background:%1;border-radius:5px;").arg (color));
       progress->setVisible (working);
-      count->setVisible (working && current.total != 0);
+      count->setVisible (selected && (!current.caption.empty () || current.total != 0));
+      QString caption= QString::fromStdString (current.caption);
       if (working) {
         if (current.total == 0) progress->setRange (0, 0);
         else {
-          progress->setRange (
-            0, int (std::min<std::size_t> (
-                 current.total, std::size_t (INT_MAX))));
-          progress->setValue (
-            int (std::min<std::size_t> (
-              current.current, std::size_t (INT_MAX))));
-          count->setText (
-            QStringLiteral ("%1/%2")
+          progress->setRange (0, 10000);
+          progress->setValue (int (10000.0 * double (std::min (current.current, current.total)) / double (current.total)));
+          caption+= (caption.isEmpty () ? QString () : QStringLiteral (" ")) +
+            (current.bytes ? QLocale ().formattedDataSize (qint64 (current.current)) + QStringLiteral ("/") +
+                             QLocale ().formattedDataSize (qint64 (current.total)) : QStringLiteral ("%1/%2")
               .arg (qulonglong (current.current))
               .arg (qulonglong (current.total)));
         }
       }
+      count->setMaximumWidth (std::min (360, shell->width () / 3));
+      count->setText (count->fontMetrics ().elidedText (caption, Qt::ElideRight, count->maximumWidth ()));
       if (failed)
         tip.prepend (
           QStringLiteral (

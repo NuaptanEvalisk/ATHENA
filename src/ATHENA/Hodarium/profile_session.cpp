@@ -234,6 +234,14 @@ profile_status profile_session::status () const {
   owner ();
   auto result= status_;
   if (network_) result.routes= network_->status ();
+  result.refreshing_membership= feed_conflict_retry_;
+  return result;
+}
+replication_progress profile_session::progress (const std::string& vault) const {
+  owner ();
+  if (replication_) return replication_->progress (vault);
+  replication_progress result;
+  result.pending= revisions_ && revisions_->inventory_tip (vault) > 0;
   return result;
 }
 std::optional<membership_state> profile_session::membership () const {
@@ -318,6 +326,24 @@ std::vector<conflict_proposal_summary> profile_session::proposals (const std::st
 }
 std::optional<conflict_proposal> profile_session::proposal (const std::string& operation) {
   return conflict_journal ().proposal (operation);
+}
+resolution_progress profile_session::resolution_status (const std::string& operation) {
+  auto value= conflict_journal ().proposal_summary (operation);
+  if (!value) throw std::runtime_error ("Merge submission is unavailable");
+  if (value->state == conflict_proposal_state::retained)
+    return {resolution_phase::retained, {}};
+  if (value->state == conflict_proposal_state::accepted) {
+    if (revisions_ && revisions_->offer (value->resolution)) {
+      if (auto applied= revisions_->applied (value->vault, value->object)) {
+        const auto relation= revisions_->compare (value->resolution, *applied);
+        if (relation == ancestry::same || relation == ancestry::ancestor)
+          return {resolution_phase::applied, {}};
+      }
+    }
+    return {resolution_phase::accepted, status_.decision_diagnostic};
+  }
+  return {resolution_phase::pending, !status_.decision_diagnostic.empty () ?
+    status_.decision_diagnostic : status_.diagnostic};
 }
 std::string profile_session::prepare_resolution (revision result) {
   owner ();
@@ -408,10 +434,18 @@ void profile_session::refresh_decisions () {
     next_feed_= clock::now () + std::chrono::seconds (more ? 0 : 15);
     if (result.failure != control_failure::none && result.failure != control_failure::cancelled) {
       next_feed_= clock::now () + std::chrono::seconds (30);
+      if (result.failure == control_failure::conflict && !feed_conflict_retry_) {
+        feed_conflict_retry_= true;
+        refresh_after_conflict ();
+        return;
+      }
       publish (profile_phase::error, result.diagnostic, {}, 0, diagnostic_source::feed);
       if (result.failure == control_failure::conflict) refresh_after_conflict ();
     }
-    else if (result.failure == control_failure::none) recovered (diagnostic_source::feed);
+    else if (result.failure == control_failure::none) {
+      feed_conflict_retry_= false;
+      recovered (diagnostic_source::feed);
+    }
   });
 }
 void profile_session::inspect_waiting_result () {

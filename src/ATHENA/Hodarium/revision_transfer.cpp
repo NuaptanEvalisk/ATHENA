@@ -84,6 +84,7 @@ QByteArray revision_receiver::accept (const QByteArray& message) {
       throw std::invalid_argument ("Too many active revision transfers");
     auto offset= store_.begin_receive (offer.metadata, offer.size);
     auto id= offer.metadata.id; active_[id]= std::move (offer);
+    offsets_[id]= offset;
     return ack (id, offset, false);
   }
   auto id= string (value[2]);
@@ -92,20 +93,31 @@ QByteArray revision_receiver::accept (const QByteArray& message) {
   const auto& offer= found->second;
   if (!authorized_ (offer.metadata.vault)) {
     active_.erase (found);
+    offsets_.erase (id);
     throw std::invalid_argument ("Revision Vault authorization expired");
   }
   if (operation == QStringLiteral ("chunk")) {
     if (value.size () != 5 || !value[4].isByteArray ()) throw std::invalid_argument ("Invalid revision chunk");
     auto offset= store_.receive_chunk (id, integer (value[3]), value[4].toByteArray ().toStdString ());
+    offsets_[id]= offset;
     return ack (id, offset, false);
   }
   if (operation == QStringLiteral ("finish")) {
     if (value.size () != 3) throw std::invalid_argument ("Invalid revision completion");
     store_.finish_receive (id);
     auto size= offer.size; active_.erase (found);
+    offsets_.erase (id);
     return ack (id, size, true);
   }
   throw std::invalid_argument ("Unknown revision transfer operation");
+}
+transfer_progress revision_receiver::progress (const std::string& vault) const {
+  transfer_progress result;
+  for (const auto& [id, offer]: active_) {
+    if (offer.metadata.vault != vault) continue;
+    result.active= true; result.total+= offer.size; result.current+= offsets_.at (id);
+  }
+  return result;
 }
 revision_sender::revision_sender (revision_store& store, std::string vault, std::string id,
   revision_receiver::authorization authorized): store_ (store), authorized_ (std::move (authorized)) {
@@ -145,6 +157,7 @@ QByteArray revision_sender::acknowledge (const QByteArray& message) {
       (phase_ == phase::finish && (!complete || offset != offer_.size)) ||
       (phase_ != phase::finish && complete))
     throw std::invalid_argument ("Revision acknowledgement does not match the outstanding request");
+  acknowledged_= offset;
   if (phase_ == phase::finish) { phase_= phase::complete; return {}; }
   return next (offset);
 }
@@ -230,6 +243,10 @@ revision_exchange::revision_exchange (revision_store& store, revision_receiver::
   if (!authorized_) throw std::invalid_argument ("Revision exchange requires Vault authorization");
 }
 bool revision_exchange::busy () const { return sender_ && !sender_->complete (); }
+std::int64_t revision_exchange::acknowledged_through (const std::string& vault) const {
+  auto found= cursors_.find (vault);
+  return found == cursors_.end () ? -1 : found->second;
+}
 bool revision_exchange::start (const std::string& vault) {
   if (busy ()) return false;
   if (vault.empty () || vault.size () > 1024 || !authorized_ (vault))

@@ -76,7 +76,12 @@ void check_transfer_protocol (revision value) {
     revision_sender sender (source, value.vault, value.id, allowed);
     revision_receiver receiver (target, allowed);
     auto chunk= sender.acknowledge (receiver.accept (sender.begin ()));
+    require (sender.progress ().active && sender.progress ().current == 0 &&
+      sender.progress ().total == value.payload.size (), "Queued bytes counted as acknowledged");
     auto acknowledged= receiver.accept (chunk);
+    require (receiver.progress (value.vault).current > 0 &&
+      receiver.progress (value.vault).total == value.payload.size (), "Receipt progress lost durable bytes");
+    require (!receiver.progress ("other-vault").active, "Receipt progress crossed Vaults");
     // Simulate losing the acknowledgement and both per-connection controllers.
     require (!acknowledged.isEmpty () && !target.get (value.id), "Partial wire transfer was published");
   }
@@ -90,6 +95,8 @@ void check_transfer_protocol (revision value) {
       message= sender.acknowledge (receiver.accept (message));
     }
     require (messages == 5, "Wire transfer did not resume after its committed first chunk");
+    require (!sender.progress ().active && sender.progress ().current == value.payload.size () &&
+      !receiver.progress (value.vault).active, "Completed transfer is still working");
     require (target.get (value.id)->payload == value.payload, "Wire transfer changed content");
     require (!target.applied (value.vault, value.object), "Wire transfer applied content");
   }

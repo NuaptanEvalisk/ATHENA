@@ -4,6 +4,7 @@
 #include <QJsonDocument>
 #include <QTemporaryDir>
 #include "ATHENA/Data/hodarium_logical_database.hpp"
+#include "ATHENA/Data/artifact_title_filter.hpp"
 #include "ATHENA/Data/hodarium_logical_sync.hpp"
 #include "ATHENA/Data/hodarium_materials_database.hpp"
 #include "ATHENA/Data/namespaces_schema.hpp"
@@ -42,6 +43,60 @@ std::filesystem::path setup (const QTemporaryDir& dir) {
 class TestHodariumLogicalDatabase: public QObject {
   Q_OBJECT
 private slots:
+  void rejectionFirstSync () {
+    QTemporaryDir da, db;
+    auto a= setup (da), b= setup (db);
+    std::string error;
+    AthenaArtifactTitleFilter defaults;
+    bool persisted= true;
+    QVERIFY2 (athena_artifact_title_filter_read (b, defaults, error, false, &persisted), error.c_str ());
+    QVERIFY (!persisted);
+    QVERIFY (!defaults.entries.empty ());
+    QVERIFY2 (athena_artifact_title_filter_read (b, defaults, error), error.c_str ());
+    QVERIFY (!h::export_artifact_rejections (b));
+    h::revision_store ja (a / "journal.sqlite"), jb (b / "journal.sqlite");
+    QVERIFY (h::capture_logical_databases (b, jb, "vault", "member-B").complete);
+    QVERIFY (jb.heads ("vault", "artifact-rejections").empty ());
+
+    auto custom= athena_artifact_title_filter_from_entries ({"however", "notice"});
+    QVERIFY2 (athena_artifact_title_filter_write (a, custom, error), error.c_str ());
+    QVERIFY (h::capture_logical_databases (a, ja, "vault", "member-A").complete);
+    auto id= ja.applied ("vault", "artifact-rejections");
+    QVERIFY (id.has_value ());
+    QVERIFY (jb.receive (*ja.get (*id)));
+    athena::history::document_history_store history;
+    QVERIFY2 (history.open (b, error), error.c_str ());
+    QVERIFY (h::apply_logical_revision (b, jb, history, *id));
+    QVERIFY (h::apply_logical_revision (b, jb, history, *id));
+    auto record= h::export_artifact_rejections (b);
+    QVERIFY (record.has_value ());
+    QCOMPARE (record->payload, h::export_artifact_rejections (a)->payload);
+    QCOMPARE (h::capture_logical_databases (b, jb, "vault", "member-B").captured, size_t (0));
+    QCOMPARE (jb.heads ("vault", "artifact-rejections"), std::vector<std::string> {*id});
+
+    const auto empty= encoded (QJsonArray {1, QJsonArray {}, QJsonArray {}});
+    QCOMPARE (h::apply_artifact_rejections (b, {record->key, {}, empty}), h::logical_apply_result::stale);
+    QCOMPARE (h::apply_artifact_rejections (b, {record->key, record->payload, empty}), h::logical_apply_result::applied);
+    QCOMPARE (h::export_artifact_rejections (b)->payload, empty);
+
+    // An old node may already have captured the implicit default genesis.
+    QTemporaryDir dc;
+    auto c= setup (dc);
+    h::revision_store jc (c / "journal.sqlite");
+    QVERIFY2 (athena_artifact_title_filter_write (c, defaults, error), error.c_str ());
+    QVERIFY (h::capture_logical_databases (c, jc, "vault", "old-member").complete);
+    auto baseline= jc.get (*jc.applied ("vault", "artifact-rejections"));
+    QVERIFY (std::filesystem::remove (c / "artifact-title-filter.lst"));
+    auto next= *baseline;
+    next.parents= {baseline->id}; next.payload= record->payload;
+    next.origin_member= "member-A"; next= h::seal_revision (next);
+    QVERIFY (jc.receive (next));
+    athena::history::document_history_store old_history;
+    QVERIFY2 (old_history.open (c, error), error.c_str ());
+    QVERIFY (h::apply_logical_revision (c, jc, old_history, next.id));
+    QCOMPARE (h::export_artifact_rejections (c)->payload, record->payload);
+  }
+
   void materialAuthoritativeRecords () {
     QTemporaryDir dir;
     auto root= setup (dir);

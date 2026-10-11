@@ -141,6 +141,12 @@ revision seal_revision (revision value) {
   return value;
 }
 
+std::pair<std::int64_t, std::int64_t> revision_store::change_token () const {
+  statement st (db_, "PRAGMA data_version");
+  st.row ();
+  return {sqlite3_total_changes64 (db_), sqlite3_column_int64 (st.value, 0)};
+}
+
 revision_store::revision_store (const std::filesystem::path& database) {
   try {
     check (db_, sqlite3_open_v2 (database.string ().c_str (), &db_,

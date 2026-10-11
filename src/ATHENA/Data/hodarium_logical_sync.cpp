@@ -65,7 +65,8 @@ std::optional<std::string> observe (vault_databases& files, const revision& targ
   }
   if (target.format == "athena-artifact-rejections-v1") {
     if (target.object != "artifact-rejections") throw std::invalid_argument ("Invalid rejection object identity");
-    return export_artifact_rejections (files.root.path ()).payload;
+    auto record= export_artifact_rejections (files.root.path ());
+    return record ? std::optional<std::string> (record->payload) : std::nullopt;
   }
   throw std::invalid_argument ("Unsupported authoritative logical object");
 }
@@ -104,7 +105,8 @@ logical_sync_result capture_logical_databases (
   vault_databases files (root);
   auto authoritative= export_namespace_objects (
     files.path (files.info.namespace_db_path, true), files.root.path ());
-  authoritative.push_back (export_artifact_rejections (files.root.path ()));
+  if (auto record= export_artifact_rejections (files.root.path ()))
+    authoritative.push_back (std::move (*record));
   const bool materials_present= !files.path (files.info.materials_db_path,false).empty ();
   if (materials_present) {
     auto materials= export_material_objects (files.root.path ());
@@ -317,6 +319,12 @@ bool apply_logical_revision (const std::filesystem::path& root, revision_store& 
   const std::optional<std::string> replacement= target->deleted ? std::nullopt :
     std::optional<std::string> (target->payload);
   auto current= observe (files, *target);
+  // Older nodes recorded a default genesis without ever creating the file.
+  // Keep that DAG/history, but CAS against the actual absent local preimage.
+  if (!current && previous && !previous->deleted &&
+      previous->format == "athena-artifact-rejections-v1" &&
+      previous->origin_member == "logical-source-baseline-v1" && previous->parents.empty () &&
+      default_artifact_rejections_payload (previous->payload)) preimage.reset ();
   if (!intent) {
     if (journal.heads (target->vault, target->object) != std::vector<std::string> {id} ||
         current != preimage) return false;

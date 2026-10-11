@@ -118,6 +118,11 @@ int main (int argc, char** argv) {
     {
       conflict_store drafts (conflict_path, pin);
       drafts.prepare (proposal, revisions); drafts.prepare (proposal, revisions);
+      auto summary= drafts.proposal_summary (proposal.request.request_id);
+      require (summary && summary->state == conflict_proposal_state::pending &&
+        summary->resolution == proposal.resolution.id && summary->vault == base.vault &&
+        summary->object == base.object, "Prepared proposal status is incorrect");
+      require (!drafts.proposal_summary ("missing"), "Unknown proposal has a status");
       auto changed= proposal; changed.resolution.payload+= "changed";
       changed.resolution= seal_revision (changed.resolution);
       rejects ([&] { drafts.prepare (changed, revisions); });
@@ -131,6 +136,9 @@ int main (int argc, char** argv) {
         drafts.pending ().size () == 1, "Restart lost prepared resolution");
       drafts.accept (proposal.request.request_id, decision_response, result.state.epoch,
         decision_nonce, decision_subject);
+      require (drafts.proposal_summary (proposal.request.request_id)->state == conflict_proposal_state::accepted &&
+        drafts.proposals (base.vault).front ().state == conflict_proposal_state::accepted,
+        "Accepted proposal metadata remained pending");
       require (drafts.pending ().size () == 1 && drafts.latest (vault, conflict)->version == 1 &&
         !revisions.get (proposal.resolution.id), "Receipt published a draft or lost the decision");
     }
@@ -139,6 +147,8 @@ int main (int argc, char** argv) {
       require (drafts.pending ().size () == 1 && drafts.latest (vault, conflict)->request == proposal.request.request_id,
         "Restart lost a committed but unpublished conflict decision");
       drafts.published (proposal.request.request_id);
+      require (drafts.proposal_summary (proposal.request.request_id)->state == conflict_proposal_state::accepted,
+        "Published proposal lost its accepted status");
       require (drafts.pending ().empty (), "Published decision remained in the outbox");
     }
     rejects ([&] { conflict_store drafts (conflict_path, wrong_pin); });

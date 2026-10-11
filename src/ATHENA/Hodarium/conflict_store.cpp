@@ -9,6 +9,22 @@ namespace athena::hodarium {
 namespace {
 using json= nlohmann::json;
 using namespace detail;
+const std::string proposal_summary_query=
+  "SELECT p.operation,json_extract(p.descriptor,'$.revision.path'),"
+  "json_extract(p.descriptor,'$.revision.format'),json_extract(p.descriptor,'$.revision.deleted'),"
+  "CASE WHEN published.operation IS NOT NULL THEN 1 "
+  "WHEN d.version>json_extract(p.descriptor,'$.request.expected') THEN "
+  "CASE WHEN json_extract(d.record,'$.request_id')=p.operation THEN 1 ELSE 2 END "
+  "ELSE 0 END,json_extract(p.descriptor,'$.revision.vault'),"
+  "json_extract(p.descriptor,'$.revision.object'),json_extract(p.descriptor,'$.revision.id') "
+  "FROM proposals p LEFT JOIN publications published ON published.operation=p.operation "
+  "LEFT JOIN decisions d ON d.vault=json_extract(p.descriptor,'$.request.vault') "
+  "AND d.conflict=json_extract(p.descriptor,'$.request.conflict') ";
+conflict_proposal_summary read_summary (statement& st) {
+  return {st.bytes (0), st.bytes (1), st.bytes (2), sqlite3_column_int (st.value, 3) != 0,
+    static_cast<conflict_proposal_state> (sqlite3_column_int (st.value, 4)),
+    st.bytes (5), st.bytes (6), st.bytes (7)};
+}
 void token (const std::string& value) {
   unsigned char bytes[32]; std::size_t size= 0;
   if (value.size () != 43 || sodium_base642bin (bytes, sizeof bytes, value.data (),
@@ -107,6 +123,12 @@ std::optional<conflict_proposal> conflict_store::proposal (const std::string& op
   if (!st.row ()) return std::nullopt;
   return read_proposal (st.bytes (0), st.bytes (1));
 }
+std::optional<conflict_proposal_summary> conflict_store::proposal_summary (const std::string& operation) const {
+  statement st (db_, (proposal_summary_query + "WHERE p.operation=?").c_str ());
+  st.text (1, operation);
+  if (!st.row ()) return std::nullopt;
+  return read_summary (st);
+}
 std::vector<std::string> conflict_store::pending (const std::string& after, std::uint32_t limit) const {
   if (limit == 0 || limit > 256) throw std::invalid_argument ("Invalid Hodarium proposal page size");
   statement st (db_, "SELECT operation FROM proposals p WHERE operation>? "
@@ -129,22 +151,12 @@ void conflict_store::published (const std::string& operation) {
 std::vector<conflict_proposal_summary> conflict_store::proposals (
   const std::string& vault, const std::string& after, std::uint32_t limit) const {
   if (limit == 0 || limit > 256) throw std::invalid_argument ("Invalid Hodarium proposal page size");
-  statement st (db_, "SELECT p.operation,json_extract(p.descriptor,'$.revision.path'),"
-    "json_extract(p.descriptor,'$.revision.format'),json_extract(p.descriptor,'$.revision.deleted'),"
-    "CASE WHEN published.operation IS NOT NULL THEN 1 "
-    "WHEN d.version>json_extract(p.descriptor,'$.request.expected') THEN "
-    "CASE WHEN json_extract(d.record,'$.request_id')=p.operation THEN 1 ELSE 2 END "
-    "ELSE 0 END FROM proposals p "
-    "LEFT JOIN publications published ON published.operation=p.operation "
-    "LEFT JOIN decisions d ON d.vault=json_extract(p.descriptor,'$.request.vault') "
-    "AND d.conflict=json_extract(p.descriptor,'$.request.conflict') "
+  statement st (db_, (proposal_summary_query +
     "WHERE p.operation>? AND json_extract(p.descriptor,'$.revision.vault')=? "
-    "ORDER BY p.operation LIMIT ?");
+    "ORDER BY p.operation LIMIT ?").c_str ());
   st.text (1, after); st.text (2, vault); check (db_, sqlite3_bind_int (st.value, 3, limit));
   std::vector<conflict_proposal_summary> result;
-  while (st.row ()) result.push_back ({st.bytes (0), st.bytes (1), st.bytes (2),
-    sqlite3_column_int (st.value, 3) != 0,
-    static_cast<conflict_proposal_state> (sqlite3_column_int (st.value, 4))});
+  while (st.row ()) result.push_back (read_summary (st));
   return result;
 }
 std::optional<conflict_decision> conflict_store::latest (const std::string& vault, const std::string& conflict) const {

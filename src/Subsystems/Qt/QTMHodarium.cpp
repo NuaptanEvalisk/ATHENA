@@ -85,6 +85,8 @@ class service: public QObject {
   std::deque<identity_notice> identity_notices_;
   std::set<std::string> reported_identities_;
   bool identity_dialog_= false;
+  QTimer* progress_timer_= nullptr;
+  bool progress_pending_= false;
 
   void show_identity_conflict () {
     if (identity_dialog_ || identity_notices_.empty () || stopping_ || suspended_) return;
@@ -177,15 +179,18 @@ public:
     };
     { std::lock_guard<std::mutex> lock (save_gate); save_worker= worker_; capture_enabled= false; }
     worker_->report= [this] (profile_status status) {
+      if (status.phase == profile_phase::error && !status.diagnostic.empty ())
+        worker_->background_errors[status.group]= status.diagnostic;
+      else if (status.phase == profile_phase::authorized && status.diagnostic.empty ())
+        worker_->background_errors.erase (status.group);
       QMetaObject::invokeMethod (this, [this, status= std::move (status)] {
         if (observer && changed) changed (QString::fromStdString (
           status.diagnostic.empty () ? status.discovery_diagnostic : status.diagnostic));
         if (!stopping_ && !suspended_ && !status.discovery_diagnostic.empty ())
           std_warning << "Hodarium discovery: " << string (status.discovery_diagnostic.c_str ()) << LF;
         if (stopping_ || suspended_ || status.diagnostic.empty ()) return;
-        if (status.phase == profile_phase::error || status.phase == profile_phase::denied)
-          std_error << "Hodarium: " << string (status.diagnostic.c_str ()) << LF;
-        else if (status.phase == profile_phase::expired || status.phase == profile_phase::offline_valid)
+        // The shared registry owns error-console and toast deduplication.
+        if (status.phase == profile_phase::offline_valid)
           std_warning << "Hodarium: " << string (status.diagnostic.c_str ()) << LF;
       }, Qt::QueuedConnection);
     };
@@ -215,8 +220,30 @@ public:
       power_.state ().supply != QTMSystemPowerMonitor::Supply::External;
     thread_.setObjectName ("Hodarium control");
     thread_.start ();
+    progress_timer_= new QTimer (this);
+    progress_timer_->setInterval (1000);
+    connect (progress_timer_, &QTimer::timeout, this, [this] {
+      if (stopping_ || progress_pending_) return;
+      progress_pending_= true;
+      QMetaObject::invokeMethod (worker_, [this] {
+        athena::background::progress progress;
+        try { progress= worker_->background_progress (); }
+        catch (const std::exception& e) {
+          progress.state= athena::background::phase::error;
+          progress.caption= "Sync failed"; progress.error_detail= e.what ();
+        }
+        QMetaObject::invokeMethod (this, [this, progress= std::move (progress)] {
+          progress_pending_= false;
+          if (!stopping_) athena::background::publish (athena::background::worker::hodarium, progress);
+        }, Qt::QueuedConnection);
+      }, Qt::QueuedConnection);
+    });
+    progress_timer_->start ();
   }
-  ~service () override { stop (); }
+  ~service () override {
+    stop ();
+    athena::background::publish (athena::background::worker::hodarium, {});
+  }
   void review_identities () {
     reported_identities_.clear ();
     perform ([] (worker& w) {
@@ -307,11 +334,12 @@ public:
     }, Qt::QueuedConnection);
   }
   void prepare_resolution (QObject* context, const vault_binding& binding, revision result,
-                          std::function<void (QString)> completed) {
-    if (stopping_ || suspended_) { completed (tr ("Hodarium is suspended")); return; }
+                          std::function<void (std::string, QString)> completed) {
+    if (stopping_ || suspended_) { completed ({}, tr ("Hodarium is suspended")); return; }
     QPointer<QObject> receiver= context;
     QMetaObject::invokeMethod (worker_, [this, receiver, binding, result= std::move (result), completed] () mutable {
       QString error;
+      std::string operation;
       try {
         if (!worker_->selected (binding)) throw std::runtime_error ("Hodarium Vault binding changed");
         auto session= worker_->sessions.find (binding.group);
@@ -320,10 +348,12 @@ public:
           revision_store journal (worker_->settings->revision_database_path (worker_->root, binding.group));
           validate_resource_revision (binding.root, result, material_resource_paths (binding.root, journal, binding.vault));
         }
-        session->second->prepare_resolution (std::move (result));
+        operation= session->second->prepare_resolution (std::move (result));
       }
       catch (const std::exception& e) { error= QString::fromUtf8 (e.what ()); }
-      QMetaObject::invokeMethod (this, [receiver, completed, error] { if (receiver) completed (error); }, Qt::QueuedConnection);
+      QMetaObject::invokeMethod (this, [receiver, completed, operation, error] {
+        if (receiver) completed (operation, error);
+      }, Qt::QueuedConnection);
     }, Qt::QueuedConnection);
   }
   void resolve_path (QObject* context, const vault_binding& binding, std::string id, std::string path,
@@ -451,8 +481,43 @@ class conflicts_dialog: public QDialog {
   std::optional<revision> draft_;
   url draft_buffer_;
   QLabel* status_;
+  QLabel* resolution_status_;
+  std::string resolution_operation_;
+  resolution_phase resolution_phase_= resolution_phase::pending;
+  bool inspecting_resolution_= false;
   std::string cursor_;
   std::uint64_t generation_= 0;
+  void refresh_resolution () {
+    if (!service_ || resolution_operation_.empty () || inspecting_resolution_) return;
+    inspecting_resolution_= true;
+    const auto operation= resolution_operation_;
+    service_->inspect_proposals<resolution_progress> (this, binding_,
+      [operation] (profile_session& session) { return session.resolution_status (operation); },
+      [this, operation] (resolution_progress progress, QString error) {
+        inspecting_resolution_= false;
+        if (operation != resolution_operation_) return;
+        if (!error.isEmpty ()) { resolution_status_->setText (error); return; }
+        QString message;
+        switch (progress.phase) {
+          case resolution_phase::pending:
+            message= tr ("Merge submitted. Waiting for automatic server confirmation."); break;
+          case resolution_phase::accepted:
+            message= tr ("Server confirmed the merge. Waiting for protected local application."); break;
+          case resolution_phase::applied:
+            message= tr ("Merge confirmed and applied locally."); break;
+          case resolution_phase::retained:
+            message= tr ("Another merge was accepted. Your draft remains in Saved drafts."); break;
+        }
+        if (!progress.diagnostic.empty ()) message+= "\n" + QString::fromStdString (progress.diagnostic);
+        resolution_status_->setText (message);
+        if (progress.phase != resolution_phase_) {
+          resolution_phase_= progress.phase;
+          page (true);
+        }
+        if (progress.phase == resolution_phase::applied || progress.phase == resolution_phase::retained)
+          resolution_operation_.clear ();
+      });
+  }
   void page (bool reset) {
     if (!service_) return;
     if (reset) { ++generation_; cursor_.clear (); tree_->clear (); }
@@ -593,10 +658,14 @@ class conflicts_dialog: public QDialog {
     else if (result.format != "ath-xml-v2" || result.semantic_version != 3)
       throw std::runtime_error ("Unsupported conflict result format");
     submit_->setEnabled (false);
-    service_->prepare_resolution (this, binding_, std::move (result), [this] (QString error) {
+    service_->prepare_resolution (this, binding_, std::move (result), [this] (std::string operation, QString error) {
       submit_->setEnabled (draft_.has_value ());
       if (!error.isEmpty ()) { status_->setText (error); return; }
-      status_->setText (tr ("Merge draft saved. Waiting for the server decision and protected application."));
+      status_->clear ();
+      resolution_operation_= std::move (operation);
+      resolution_phase_= resolution_phase::pending;
+      resolution_status_->setText (tr ("Merge submitted. Waiting for automatic server confirmation."));
+      refresh_resolution ();
     });
   }
   void export_resource_copy (const revision& result, QWidget* parent) {
@@ -850,6 +919,8 @@ public:
     tree_->setSelectionMode (QAbstractItemView::ExtendedSelection);
     layout->addWidget (tree_);
     status_= new QLabel (this); status_->setWordWrap (true); layout->addWidget (status_);
+    resolution_status_= new QLabel (this); resolution_status_->setWordWrap (true);
+    layout->addWidget (resolution_status_);
     auto* buttons= new QDialogButtonBox (QDialogButtonBox::Close, this);
     refresh_= buttons->addButton (tr ("Refresh"), QDialogButtonBox::ActionRole);
     auto* drafts= buttons->addButton (tr ("Saved drafts"), QDialogButtonBox::ActionRole);
@@ -894,6 +965,10 @@ public:
       export_->setEnabled (surviving && resource_revision_format (format));
     });
     connect (tree_, &QTreeWidget::itemExpanded, this, [this] (QTreeWidgetItem* item) { expand (item); });
+    auto* timer= new QTimer (this);
+    timer->setInterval (1000);
+    connect (timer, &QTimer::timeout, this, [this] { refresh_resolution (); });
+    timer->start ();
     page (true);
   }
 };
@@ -1232,6 +1307,24 @@ void qtm_hodarium_show () {
   }
   active_manager= new manager (active_service);
   active_manager->show ();
+}
+
+void qtm_hodarium_show_conflicts () {
+  if (!active_service) { qtm_hodarium_show (); return; }
+  QPointer<service> controller= active_service;
+  controller->perform ([controller] (worker& w) {
+    std::optional<vault_binding> target;
+    for (const auto& row: w.snapshot ()) for (const auto& binding: row.vaults) {
+      auto journal= w.journals.find (binding.group);
+      if (!target && row.profile.enabled && binding.enabled && journal != w.journals.end () &&
+          !journal->second->conflicts (binding.vault, {}, 1).empty ()) target= binding;
+    }
+    QMetaObject::invokeMethod (controller, [controller, target] {
+      if (!controller) return;
+      if (target) (new conflicts_dialog (controller, *target, QApplication::activeWindow ()))->show ();
+      else qtm_hodarium_show ();
+    }, Qt::QueuedConnection);
+  });
 }
 
 void qtm_hodarium_saved (const std::filesystem::path& path, std::string object,

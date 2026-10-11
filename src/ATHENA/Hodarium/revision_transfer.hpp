@@ -8,6 +8,10 @@
 #include <deque>
 
 namespace athena::hodarium {
+struct transfer_progress {
+  std::uint64_t current= 0, total= 0;
+  bool active= false;
+};
 // Messages must travel inside an authenticated peer channel. The owner binds
 // Vault grants to that peer and rechecks them for each call, including retries.
 class revision_receiver {
@@ -15,10 +19,12 @@ public:
   using authorization= std::function<bool (const std::string& vault)>;
   revision_receiver (revision_store& store, authorization authorized);
   QByteArray accept (const QByteArray& message);
+  transfer_progress progress (const std::string& vault) const;
 private:
   revision_store& store_;
   authorization authorized_;
   std::map<std::string, revision_offer> active_;
+  std::map<std::string, std::uint64_t> offsets_;
 };
 // One outstanding message: only advance after its durable acknowledgement.
 // After disconnect, create a new sender; the receiver supplies the resume offset.
@@ -29,12 +35,14 @@ public:
   QByteArray begin ();
   QByteArray acknowledge (const QByteArray& message);
   bool complete () const;
+  transfer_progress progress () const { return {acknowledged_, offer_.size, !complete ()}; }
 private:
   revision_store& store_;
   revision_offer offer_;
   revision_receiver::authorization authorized_;
   enum class phase { initial, offer, chunk, finish, complete } phase_= phase::initial;
   std::uint64_t expected_= 0;
+  std::uint64_t acknowledged_= 0;
   QByteArray next (std::uint64_t offset);
 };
 // One direction of a Vault exchange. Probe heads, then send only missing causal
@@ -48,6 +56,7 @@ public:
   QByteArray acknowledge (const QByteArray& message);
   bool complete () const;
   std::int64_t completed_through () const;
+  transfer_progress progress () const { return transfer_ ? transfer_->progress () : transfer_progress{}; }
 private:
   revision_store& store_;
   std::string vault_;
@@ -74,6 +83,11 @@ public:
   QByteArray outgoing () const;
   void sent ();
   void accept (const QByteArray& message);
+  transfer_progress sending (const std::string& vault) const {
+    return sender_ && sending_vault_ == vault ? sender_->progress () : transfer_progress{};
+  }
+  transfer_progress receiving (const std::string& vault) const { return receiver_.progress (vault); }
+  std::int64_t acknowledged_through (const std::string& vault) const;
 private:
   revision_store& store_;
   revision_receiver::authorization authorized_;

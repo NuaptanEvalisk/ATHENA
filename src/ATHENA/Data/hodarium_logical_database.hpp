@@ -71,8 +71,9 @@ logical_apply_result apply_artifact_object (
 // Explicit rejected names, including structured math, are authoritative. This
 // small ordered-settings object has its own revision/conflict, separate from
 // machine-local preferences and the rebuildable artifact database.
-logical_database_object export_artifact_rejections (
+std::optional<logical_database_object> export_artifact_rejections (
   const std::filesystem::path& vault_root);
+bool default_artifact_rejections_payload (const std::string& payload);
 logical_apply_result apply_artifact_rejections (
   const std::filesystem::path& vault_root, const logical_database_change& change,
   const std::function<bool()>& permitted= {});

@@ -84,6 +84,8 @@ public:
     bool recovery_baseline_pending= false;
     std::optional<athena::filesystem::metadata> root_revision;
     std::string recovery_cursor, application_cursor, application_error;
+    std::optional<std::pair<std::int64_t,std::int64_t>> progress_token;
+    bool progress_pending= false, progress_conflicts= false;
     std::chrono::steady_clock::time_point next_application{};
     std::chrono::steady_clock::time_point poll{}, retry= std::chrono::steady_clock::time_point::max ();
   };
@@ -129,6 +131,9 @@ public:
 
   void add_session (const client_profile& profile);
   rows snapshot ();
+  athena::background::progress background_progress ();
+  std::map<std::string, std::string> background_errors;
+  std::map<std::string, std::chrono::steady_clock::time_point> background_transport_failures;
   void join (QUrl origin, std::string name);
 
   void start (const std::filesystem::path& root);

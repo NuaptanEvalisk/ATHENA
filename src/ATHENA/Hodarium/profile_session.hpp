@@ -27,6 +27,12 @@ struct profile_status {
   std::size_t discovered_devices= 0;
   std::string decision_diagnostic;
   std::vector<peer_route_status> routes;
+  bool refreshing_membership= false;
+};
+enum class resolution_phase { pending, accepted, applied, retained };
+struct resolution_progress {
+  resolution_phase phase= resolution_phase::pending;
+  std::string diagnostic;
 };
 
 // One session per group, all on the same owner as the device settings store.
@@ -45,6 +51,7 @@ public:
   bool peer_allowed (const std::string& member, const std::string& public_key,
                      const std::string& epoch);
   profile_status status () const;
+  replication_progress progress (const std::string& vault) const;
   std::optional<membership_state> membership () const;
   std::optional<peer_context> context_for_peer (const std::string& member,
                                                const std::string& public_key);
@@ -55,6 +62,7 @@ public:
   std::string prepare_resolution (revision result);
   std::vector<conflict_proposal_summary> proposals (const std::string& vault, const std::string& after= {});
   std::optional<conflict_proposal> proposal (const std::string& operation);
+  resolution_progress resolution_status (const std::string& operation);
   void configure_relays ();
   void set_energy_constrained (bool constrained);
 private:
@@ -65,6 +73,7 @@ private:
   std::unique_ptr<decision_feed_store> decision_feed_;
   std::unique_ptr<decision_feed_client> feed_client_;
   bool fetching_decisions_= false;
+  bool feed_conflict_retry_= false;
   membership_lease::steady::time_point next_feed_{};
   std::string waiting_cursor_;
   std::string waiting_object_, waiting_source_vault_;

@@ -283,9 +283,9 @@ std::uint64_t source_watch::revision () {
 namespace {
 struct registry {
   std::mutex lock;
-  std::array<progress, 4> statuses;
-  std::array<std::set<std::string>, 4> reported;
-  std::array<std::string, 4> pending;
+  std::array<progress, worker_count> statuses;
+  std::array<std::set<std::string>, worker_count> reported;
+  std::array<std::string, worker_count> pending;
   std::vector<std::string> console_messages;
 };
 registry& state () {
@@ -295,7 +295,7 @@ registry& state () {
 }
 }
 const char* worker_name (worker id) {
-  const char* names[]= {"UUID", "NPU RAG", "Maintenance", "Artifacts"};
+  const char* names[]= {"UUID", "NPU RAG", "Maintenance", "Artifacts", "Hodarium"};
   return names[std::size_t (id)];
 }
 bool failed (const progress& value) {
@@ -334,7 +334,7 @@ void publish (worker id, progress value) {
   if (headless_mode && !notification.empty ())
     athena_spdlog_error ("background worker: " + notification);
 }
-std::array<progress, 4> snapshot () {
+std::array<progress, worker_count> snapshot () {
   std::lock_guard<std::mutex> lock (state ().lock);
   return state ().statuses;
 }

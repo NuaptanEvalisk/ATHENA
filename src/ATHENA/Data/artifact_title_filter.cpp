@@ -211,8 +211,9 @@ athena_artifact_title_filter_fingerprint (
 bool
 athena_artifact_title_filter_read (
   const fs::path& vault_root, AthenaArtifactTitleFilter& filter,
-  std::string& error, bool create_defaults) {
+  std::string& error, bool create_defaults, bool* persisted) {
   std::lock_guard<std::recursive_mutex> guard (filter_mutex);
+  if (persisted) *persisted= false;
   AthenaVaultfileInfo info;
   if (!athena_vaultfile_read (vault_root, info, error)) return false;
   fs::path path;
@@ -221,6 +222,7 @@ athena_artifact_title_filter_read (
     filter= athena_artifact_title_filter_defaults ();
     if (!create_defaults) return true;
     if (!write_entries (path, filter, error)) return false;
+    if (persisted) *persisted= true;
     // Persist the default field for vaults created before this setting existed.
     return athena_vaultfile_write (vault_root, info, error);
   }
@@ -229,6 +231,7 @@ athena_artifact_title_filter_read (
     error= "Could not read " + path.string ();
     return false;
   }
+  if (persisted) *persisted= true;
   std::vector<std::string> entries;
   std::string line;
   std::getline (input, line);
@@ -307,18 +310,20 @@ bool athena_artifact_title_filter_reject (
 }
 
 bool athena_artifact_title_filter_replace_if_current (
-  const fs::path& root, const AthenaArtifactTitleFilter& expected,
+  const fs::path& root, const std::optional<AthenaArtifactTitleFilter>& expected,
   const AthenaArtifactTitleFilter& replacement, bool& matched, std::string& error,
   const std::function<bool()>& permitted) {
   std::lock_guard<std::recursive_mutex> guard (filter_mutex);
   matched= false;
   AthenaArtifactTitleFilter current;
-  if (!athena_artifact_title_filter_read (root, current, error, false)) return false;
+  bool persisted= false;
+  if (!athena_artifact_title_filter_read (root, current, error, false, &persisted)) return false;
+  if (persisted != expected.has_value ()) return true;
   auto sorted= [] (std::vector<std::string> values) {
     std::sort (values.begin (), values.end ()); return values;
   };
-  if (sorted (current.entries) != sorted (expected.entries) ||
-      sorted (current.structured_entries) != sorted (expected.structured_entries)) return true;
+  if (expected && (sorted (current.entries) != sorted (expected->entries) ||
+      sorted (current.structured_entries) != sorted (expected->structured_entries))) return true;
   if (permitted && !permitted ()) return true;
   if (!athena_artifact_title_filter_write (root, replacement, error)) return false;
   matched= true;

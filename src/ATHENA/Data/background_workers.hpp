@@ -17,19 +17,23 @@
 #include <vector>
 
 namespace athena::background {
-enum class worker { uuid, rag, maintenance, artifacts };
-enum class phase { inactive, idle, working, paused, error };
+enum class worker { uuid, rag, maintenance, artifacts, hodarium, count };
+constexpr std::size_t worker_count= std::size_t (worker::count);
+enum class phase { inactive, idle, working, paused, error, waiting, disconnected };
 struct progress {
   phase state= phase::inactive;
   std::size_t current= 0, total= 0, errors= 0;
   std::string detail;
   // Kept separate from the currently processed file/progress description.
   std::string error_detail;
+  std::string caption;
+  bool bytes= false;
+  bool conflicts= false;
 };
 const char* worker_name (worker);
 bool failed (const progress&);
 void publish (worker, progress);
-std::array<progress, 4> snapshot ();
+std::array<progress, worker_count> snapshot ();
 // Coalesced once per worker, consumed by the GUI rather than each status bar.
 std::vector<std::string> take_error_notifications ();
 // Full diagnostics for the main-thread standard error console, not coalesced.

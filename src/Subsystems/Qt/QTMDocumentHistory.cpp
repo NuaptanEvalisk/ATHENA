@@ -526,7 +526,10 @@ qtm_document_history_restore_protected (const fs::path& vault_root,
       hodarium::logical_database_change change {object.key, {}, bytes};
       const bool rejection= object.key == "artifact-rejections";
       const bool material= hodarium::material_logical_format (object.format);
-      if (rejection) change.expected= hodarium::export_artifact_rejections (vault_root).payload;
+      if (rejection) {
+        if (auto current= hodarium::export_artifact_rejections (vault_root))
+          change.expected= current->payload;
+      }
       else {
         const auto records= material ? hodarium::export_material_objects (vault_root) :
           hodarium::export_namespace_objects (context->namespace_db, vault_root);

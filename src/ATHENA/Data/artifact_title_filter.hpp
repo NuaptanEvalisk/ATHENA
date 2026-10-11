@@ -11,6 +11,7 @@
 
 #include <filesystem>
 #include <functional>
+#include <optional>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -37,11 +38,11 @@ std::string athena_artifact_title_filter_fingerprint (
   const AthenaArtifactTitleFilter& filter);
 bool athena_artifact_title_filter_read (
   const std::filesystem::path& vault_root, AthenaArtifactTitleFilter& filter,
-  std::string& error, bool create_defaults= true);
+  std::string& error, bool create_defaults= false, bool* persisted= nullptr);
 // Atomic with local preference/context-menu edits. Comparison includes display
 // spelling and structured names, not a filesystem mtime or only case folding.
 bool athena_artifact_title_filter_replace_if_current (
-  const std::filesystem::path& vault_root, const AthenaArtifactTitleFilter& expected,
+  const std::filesystem::path& vault_root, const std::optional<AthenaArtifactTitleFilter>& expected,
   const AthenaArtifactTitleFilter& replacement, bool& matched, std::string& error,
   const std::function<bool()>& permitted= {});
 bool athena_artifact_title_filter_write (

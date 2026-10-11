@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <stdexcept>
 #include <system_error>
+#include <QDateTime>
 
 namespace athena::hodarium {
 resource_attachment_paths material_resource_paths (const std::filesystem::path& path,
@@ -420,6 +421,7 @@ void sync_worker::inventory_step () {
       if (!retry && !reconcile_deletions (budget)) return;
       retry= retry || deletion_deferred;
       active_inventory->inventoried= !retry;
+      if (!retry) background_errors.erase (scanning->group);
       active_inventory->root_revision= scanned.root_revision;
       active_inventory->cache= std::move (scanned.cache);
       active_inventory->retry= retry ? std::chrono::steady_clock::now () + std::chrono::seconds (30) :
@@ -637,6 +639,159 @@ rows sync_worker::snapshot () {
     auto session= sessions.find (profile.pin.group);
     if (session != sessions.end ()) result.push_back ({profile, session->second->status (),
       settings->vaults (profile.pin.group), settings->relays (profile.pin.group)});
+  }
+  return result;
+}
+
+athena::background::progress sync_worker::background_progress () {
+  using athena::background::phase;
+  athena::background::progress result;
+  if (!settings) {
+    if (const auto error= background_errors.find (""); error != background_errors.end ()) {
+      result.state= phase::error; result.caption= "Sync failed"; result.error_detail= error->second;
+    }
+    return result;
+  }
+  if (paused) { result.state= phase::paused; result.caption= "Suspended"; return result; }
+  auto rank= [] (phase value) {
+    switch (value) {
+      case phase::error: return 5;
+      case phase::waiting: return 4;
+      case phase::working: return 3;
+      case phase::idle: return 2;
+      default: return 1;
+    }
+  };
+  auto merge= [&] (athena::background::progress value) {
+    std::string detail= result.detail;
+    if (!detail.empty ()) detail+= "\n\n";
+    detail+= value.detail;
+    std::string error= result.error_detail;
+    if (!value.error_detail.empty ()) {
+      if (!error.empty ()) error+= "\n";
+      error+= value.error_detail;
+    }
+    const bool conflicts= result.conflicts || value.conflicts;
+    if (result.state == phase::inactive || rank (value.state) > rank (result.state)) result= value;
+    result.detail= std::move (detail); result.error_detail= std::move (error);
+    result.conflicts= conflicts;
+  };
+  for (const auto& row: snapshot ()) {
+    const auto& status= row.status;
+    const auto transport_error= !status.discovery_diagnostic.empty () ? status.discovery_diagnostic :
+      status.phase == profile_phase::offline_valid ? status.diagnostic : std::string{};
+    bool transport_failed= false;
+    if (row.profile.enabled && !transport_error.empty ()) {
+      auto since= background_transport_failures.emplace (row.profile.pin.group, std::chrono::steady_clock::now ());
+      transport_failed= std::chrono::steady_clock::now () - since.first->second >= std::chrono::seconds (60);
+    }
+    else background_transport_failures.erase (row.profile.pin.group);
+    if (std::none_of (row.vaults.begin (), row.vaults.end (), [] (const auto& b) { return b.enabled; })) {
+      athena::background::progress value;
+      value.state= phase::disconnected; value.caption= "No Vault selected";
+      if (status.phase == profile_phase::pending) { value.state= phase::waiting; value.caption= "Awaiting admission"; }
+      if (status.phase == profile_phase::validating) { value.state= phase::working; value.caption= "Validating membership"; }
+      if (status.phase == profile_phase::error || status.phase == profile_phase::denied || status.phase == profile_phase::expired) {
+        value.state= phase::error; value.caption= "Membership unavailable"; value.error_detail= status.diagnostic;
+      }
+      if (transport_failed) { value.state= phase::error; value.caption= "Connection failed"; value.error_detail= transport_error; }
+      if (!row.profile.enabled && status.phase != profile_phase::pending) {
+        value.state= phase::paused; value.caption= "Paused"; value.error_detail.clear ();
+      }
+      value.detail= row.profile.name + ": " + value.caption;
+      merge (std::move (value));
+    }
+    for (const auto& binding: row.vaults) {
+      if (!binding.enabled) continue;
+      athena::background::progress value;
+      value.state= phase::disconnected; value.caption= "No peers online";
+      const auto group= binding.group;
+      const auto traffic= sessions.at (group)->progress (binding.vault);
+      auto track= inventories.find ({group, binding.vault});
+      auto journal= journals.find (group);
+      if (journal != journals.end () && track != inventories.end ()) {
+        const auto token= journal->second->change_token ();
+        auto& cached= *track->second;
+        if (!cached.progress_token || *cached.progress_token != token) {
+          cached.progress_pending= !journal->second->pending_applications (binding.vault, {}, 1).empty () ||
+            !journal->second->application_candidates (binding.vault, {}, 1).empty ();
+          cached.progress_conflicts= !journal->second->conflicts (binding.vault, {}, 1).empty ();
+          cached.progress_token= token;
+        }
+      }
+      const bool pending_application= track != inventories.end () && track->second->progress_pending;
+      const bool conflict= track != inventories.end () && track->second->progress_conflicts;
+      if (traffic.connected) {
+        value.state= phase::idle; value.caption= "Up to date with connected peers";
+      }
+      if (traffic.pending && !traffic.connected) {
+        value.state= phase::waiting; value.caption= "Waiting for peers; changes pending";
+      }
+      if (traffic.checking || status.phase == profile_phase::validating) {
+        value.state= phase::working; value.caption= "Checking synchronization";
+      }
+      if (status.refreshing_membership) {
+        value.state= phase::working; value.caption= "Refreshing membership";
+      }
+      if (traffic.sending.active || traffic.receiving.active) {
+        value.state= phase::working; value.bytes= true;
+        value.caption= traffic.sending.active && traffic.receiving.active ? "Syncing" :
+          traffic.sending.active ? "Sending" : "Receiving";
+        value.current= traffic.sending.current + traffic.receiving.current;
+        value.total= traffic.sending.total + traffic.receiving.total;
+      }
+      if (pending_application) {
+        value.state= phase::working; value.caption= "Applying changes";
+        value.current= value.total= 0; value.bytes= false;
+      }
+      if (extra_track && extra_track->binding.group == group && extra_track->binding.vault == binding.vault) {
+        value.state= phase::working; value.caption= "Indexing resources";
+        value.current= value.total= 0; value.bytes= false;
+      }
+      if (track == inventories.end () || !track->second->inventoried ||
+          (scanning && scanning->group == group && scanning->vault == binding.vault)) {
+        value.state= phase::working; value.caption= "Scanning sources";
+        value.current= value.total= 0; value.bytes= false;
+        if (scanning && scanning->group == group && scanning->vault == binding.vault && !scan_future.valid ()) {
+          value.current= scan_position; value.total= scanned.documents.size ();
+        }
+      }
+      if (conflict) { value.state= phase::waiting; value.caption= "Conflicts need attention"; value.conflicts= true; }
+      if (status.phase == profile_phase::pending) { value.state= phase::waiting; value.caption= "Awaiting admission"; }
+      if (!status.diagnostic.empty () && (status.phase == profile_phase::error ||
+          status.phase == profile_phase::denied || status.phase == profile_phase::expired))
+        value.error_detail= status.diagnostic;
+      if (transport_failed) value.error_detail= transport_error;
+      const auto error= background_errors.find (group);
+      if (error != background_errors.end () && value.error_detail != error->second) value.error_detail+=
+        (value.error_detail.empty () ? "" : "\n") + error->second;
+      if (track != inventories.end () && !track->second->application_error.empty ())
+        value.error_detail+= (value.error_detail.empty () ? "" : "\n") + track->second->application_error;
+      if (!value.error_detail.empty ()) { value.state= phase::error; value.caption= "Sync failed"; }
+      if ((!row.profile.enabled && status.phase != profile_phase::pending) ||
+          status.phase == profile_phase::disabled || status.phase == profile_phase::suspended) {
+        value.state= phase::paused; value.caption= "Paused"; value.error_detail.clear ();
+      }
+      value.detail= binding.root.filename ().u8string () + " (" + binding.vault + "): " + value.caption;
+      if (traffic.sending.active || traffic.receiving.active)
+        value.detail+= "\nCurrent transfers (bytes): sending " + std::to_string (traffic.sending.current) + "/" +
+          std::to_string (traffic.sending.total) + ", receiving " + std::to_string (traffic.receiving.current) + "/" +
+          std::to_string (traffic.receiving.total);
+      if (traffic.last_synchronized)
+        value.detail+= "\nLast acknowledged exchange: " + QDateTime::fromSecsSinceEpoch (traffic.last_synchronized).toLocalTime ().toString (Qt::ISODate).toStdString ();
+      const auto membership= sessions.at (group)->membership ();
+      for (const auto& route: status.routes) if (route.established) {
+        std::string name= route.member;
+        if (membership) for (const auto& member: membership->members) if (member.id == route.member) name= member.name;
+        value.detail+= "\n" + name + ": " + (route.route == "p2p" ? "P2P" : route.route);
+      }
+      if (!status.discovery_diagnostic.empty ()) value.detail+= "\n" + status.discovery_diagnostic;
+      if (status.refreshing_membership) value.detail+= "\nRefreshing membership";
+      merge (std::move (value));
+    }
+  }
+  if (const auto error= background_errors.find (""); error != background_errors.end ()) {
+    result.state= phase::error; result.caption= "Sync failed"; result.error_detail= error->second;
   }
   return result;
 }

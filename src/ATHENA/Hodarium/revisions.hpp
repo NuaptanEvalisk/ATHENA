@@ -6,6 +6,7 @@
 #include <optional>
 #include <string>
 #include <vector>
+#include <utility>
 #include "decisions.hpp"
 #include "vault_secret.hpp"
 
@@ -63,6 +64,8 @@ struct apply_intent {
 class revision_store {
 public:
   explicit revision_store (const std::filesystem::path& database);
+  // Connection-local and external-connection changes, for read-only UI caches.
+  std::pair<std::int64_t, std::int64_t> change_token () const;
   ~revision_store ();
   revision_store (const revision_store&)= delete;
   revision_store& operator= (const revision_store&)= delete;
