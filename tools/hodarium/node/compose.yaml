@@ -1,0 +1,31 @@
+services:
+  node:
+    image: athena-hodarium-node:dev
+    pull_policy: never
+    user: "10001:10001"
+    command: ["serve", "--state", "/var/lib/athena-hodarium-node"]
+    network_mode: host
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    stop_grace_period: 30s
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777
+    volumes:
+      - state:/var/lib/athena-hodarium-node
+      - vault:/vault
+    healthcheck:
+      test: ["CMD", "athena-hodarium-node", "status", "--state", "/var/lib/athena-hodarium-node"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+volumes:
+  state:
+  vault:
