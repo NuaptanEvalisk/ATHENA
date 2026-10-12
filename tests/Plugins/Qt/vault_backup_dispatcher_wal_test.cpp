@@ -55,6 +55,11 @@ int main (int argc, char** argv) {
     std::ofstream (target / (info.rag_index_path + "-wal")) << "stale wal";
     std::ofstream (root / "ordinary.db") << "not SQLite";
     std::ofstream (target / "removed.sqlite") << "obsolete database";
+    for (const auto& base: {root, target}) {
+      fs::create_directories (base / ".athena/node-locations");
+      std::ofstream (base / ".athena/node-locations/data.mdb") << "cache";
+      std::ofstream (base / ".athena/node-locations/lock.mdb") << "lock";
+    }
 
     std::atomic<bool> stop {false}, writer_failed {false};
     std::thread writer ([&] {
@@ -70,6 +75,8 @@ int main (int argc, char** argv) {
     sqlite3_close (db);
     require (ok, error);
     require (!writer_failed, "backup blocked writer");
+    require (!fs::exists (target / ".athena/node-locations"), "UUID cache retained");
+    require (fs::exists (root / ".athena/node-locations/data.mdb"), "source cache removed");
     require (!fs::exists (target / "removed.sqlite"), "stale database retained");
     require (fs::file_size (target / "ordinary.db") == 10, "non-SQLite .db lost");
     for (const char* suffix: {"-shm", "-wal", "-journal"})
@@ -87,7 +94,36 @@ int main (int argc, char** argv) {
              "backup integrity");
     sqlite3_finalize (statement);
     sqlite3_close (db);
-    std::cout << "PASS: concurrent WAL, custom path, sidecar cleanup, stale deletion, integrity\n";
+
+    // Settle the final writer commit, then prove another snapshot is a no-op.
+    require (athena_backup_dispatch_run (root, target.string (), error), error);
+    const auto old_time= fs::file_time_type::clock::now () - std::chrono::hours (24);
+    fs::last_write_time (target / info.rag_index_path, old_time);
+    fs::last_write_time (target / "ordinary.db", old_time);
+    require (athena_backup_dispatch_run (root, target.string (), error), error);
+    require (fs::last_write_time (target / info.rag_index_path) == old_time,
+             "unchanged SQLite snapshot changed target mtime");
+    require (fs::last_write_time (target / "ordinary.db") == old_time,
+             "unchanged non-SQLite .db changed target mtime");
+
+    require (sqlite3_open (source.c_str (), &db) == SQLITE_OK, "reopen source");
+    sql (db, "PRAGMA wal_autocheckpoint=0");
+    const auto source_time= fs::last_write_time (source);
+    sql (db, "UPDATE data SET value=54321 WHERE value=12345");
+    require (fs::last_write_time (source) == source_time, "expected WAL-only update");
+    ok= athena_backup_dispatch_run (root, target.string (), error);
+    sqlite3_close (db);
+    require (ok, error);
+    require (fs::last_write_time (target / info.rag_index_path) != old_time,
+             "changed snapshot did not update target mtime");
+    require (sqlite3_open_v2 ((target / info.rag_index_path).c_str (), &db,
+                             SQLITE_OPEN_READONLY, nullptr) == SQLITE_OK, "reopen backup");
+    require (sqlite3_prepare_v2 (db, "SELECT value FROM data WHERE value=54321", -1,
+                                 &statement, nullptr) == SQLITE_OK, "prepare updated backup");
+    require (sqlite3_step (statement) == SQLITE_ROW, "WAL-only update missing");
+    sqlite3_finalize (statement);
+    sqlite3_close (db);
+    std::cout << "PASS: concurrent WAL, stable mtimes, WAL-only update, cache exclusion, integrity\n";
   }
   catch (const std::exception& ex) {
     std::cerr << ex.what () << '\n';

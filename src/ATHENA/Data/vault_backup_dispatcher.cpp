@@ -233,6 +233,9 @@ athena_backup_dispatch_prepare (
   command.arguments= {
     "-a", "--delete-delay", "--delay-updates", "--protect-args",
     "--exclude=/.backup/", "--exclude=/.athena/rag-backup-*",
+    // UUID locations are rebuildable; never copy a live LMDB or its locks.
+    // Sender-only hiding also removes cache copies from older backups.
+    "--filter=H /.athena/node-locations/",
     utf8 (source), utf8 (final_destination)};
   return true;
 #endif
@@ -269,7 +272,7 @@ athena_backup_dispatch_run (
     for (fs::recursive_directory_iterator it (vault_root), end; it != end; ++it) {
       fs::path relative= it->path ().lexically_relative (vault_root);
       if (it->is_directory ()) {
-        if (relative == ".backup" ||
+        if (relative == ".backup" || relative == ".athena/node-locations" ||
             (relative.parent_path () == ".athena" &&
              relative.filename ().string ().rfind ("rag-backup-", 0) == 0))
           it.disable_recursion_pending ();
@@ -308,8 +311,10 @@ athena_backup_dispatch_run (
     arguments << qstring (command.arguments[command.arguments.size () - 2])
               << qstring (command.normalized_destination);
     if (!run_rsync (command.program, arguments, error)) return false;
+    // Snapshot mtimes describe this backup run, not a database revision.
+    // Keep unchanged targets untouched; changed files receive a fresh mtime.
     if (have_snapshots && !run_rsync (command.program,
-          {"-a", "--checksum", "--delay-updates", "--protect-args",
+          {"-a", "--no-times", "--checksum", "--delay-updates", "--protect-args",
            "--no-implied-dirs", "--from0", qstring ("--files-from=" + manifest_path.string ()),
            qstring (staging.string () + '/'), qstring (command.normalized_destination)}, error))
       return false;
