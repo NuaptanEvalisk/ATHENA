@@ -105,9 +105,38 @@ private slots:
     env->exec_until (t, path (0, 0, 0));
     QCOMPARE (env->exec (compound ("the-theorem")), tree ("2"));
     QCOMPARE (env->read (FONT_SHAPE), tree ("italic"));
+    QCOMPARE (env->read (FONT_SERIES), tree ("bold"));
     env->exec (source ("theorem", false));
     QCOMPARE (env->exec (compound ("the-theorem")), tree ("2"));
     QCOMPARE (t, before);
+  }
+
+  void selectiveBoldBodyCursorEnvironment () {
+    struct Case { const char* kind; const char* series; };
+    const Case cases[]= {
+      {"theorem", "bold"}, {"proposition", "bold"},
+      {"corollary", "bold"}, {"lemma", "bold"},
+      {"axiom", "medium"}, {"conjecture", "medium"},
+      {"proof", "medium"}, {"definition", "medium"}
+    };
+    for (const auto& item: cases)
+      for (bool legacy: {false, true}) {
+        Environment context;
+        edit_env env= context.env;
+        env->write (FONT_SERIES, "medium");
+        tree t= source (item.kind, false);
+        if (legacy) {
+          auto converted= en::convert_detached_source (
+            compound (item.kind, tree (DOCUMENT, "BodyToken")));
+          QVERIFY (converted.diagnostics.empty ());
+          QVERIFY (en::is_canonical (converted.source));
+          t= converted.source;
+        }
+        env->exec_until (t, path (0, 0, 0));
+        QVERIFY2 (env->read (FONT_SERIES) == tree (item.series),
+                  qPrintable (QString ("%1 (%2)").arg (item.kind,
+                    legacy ? "converted legacy" : "native")));
+      }
   }
 
   void titlePropertiesAreInert () {
@@ -198,7 +227,7 @@ private slots:
       compound ("render-theorem", "Exact original title", tree (DOCUMENT, "BodyToken")));
     tree macro= native_enunciation_macro (env.operator-> (), converted.source);
     QVERIFY (macro[1] == tree (DOCUMENT,
-      compound ("render-theorem", "Exact original title", tree (ARG, "body"))));
+      compound ("render-bold-theorem", "Exact original title", tree (ARG, "body"))));
     tree reference= native_enunciation_rich_text (tree (REFERENCE, "old-label"));
     QVERIFY (is_func (reference, HLINK, 2));
     QVERIFY (has_tag (reference, GET_BINDING));

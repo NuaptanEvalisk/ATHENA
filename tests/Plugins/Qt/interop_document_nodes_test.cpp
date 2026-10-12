@@ -25,6 +25,129 @@ class TestDocumentNodes: public QObject {
 private slots:
   void initTestCase () { init_std_drd (); }
 
+  void clearFormattingRetainsDescendantIdentities () {
+    tree body (CONCAT, "content", " remains");
+    athena::node::metadata child_metadata;
+    child_metadata.id= athena::node::new_id ();
+    child_metadata.properties.emplace ("note", athena::node::property (std::string ("child")));
+    athena::node::set (body, child_metadata);
+    tree source (DOCUMENT, tree (WITH, "font-series", "medium", "color", "red",
+                                "font-series", "bold", body));
+    athena::node::metadata wrapper_metadata;
+    wrapper_metadata.id= athena::node::new_id ();
+    wrapper_metadata.properties.emplace ("note", athena::node::property (std::string ("wrapper")));
+    athena::node::set (source[0], wrapper_metadata);
+    const auto body_before= document_node_to_value_v3 (body);
+    tree wrapper_before= copy (source[0]);
+    document_nodes registry;
+    auto wrapper= registry.track (source, {0});
+    auto child= registry.track (source, {0, 6});
+    auto leaf= registry.track (source, {0, 6, 0});
+    auto color= registry.track (source, {0, 3});
+    QVERIFY (registry.clear_formatting (source, wrapper, "with", value::array ({
+      value {{"name", "font-series"}, {"value", {{"text", "bold"}}}}})));
+    QVERIFY (is_func (source[0], WITH, 3));
+    QCOMPARE (source[0][0], tree ("color"));
+    QCOMPARE (source[0][1], tree ("red"));
+    QVERIFY ((registry.locate (source, child) == document_node_path {0, 2}));
+    QVERIFY ((registry.locate (source, leaf) == document_node_path {0, 2, 0}));
+    QVERIFY ((registry.locate (source, color) == document_node_path {0, 1}));
+    QVERIFY (inside (source[0][2]) == inside (body));
+    QVERIFY (document_node_to_value_v3 (source[0][2]) == body_before);
+    QVERIFY (athena::node::equal_metadata (source[0], wrapper_before));
+    QVERIFY (registry.clear_formatting (source, wrapper, "with", value::array ({
+      value {{"name", "color"}, {"value", {{"text", "red"}}}}})));
+    QVERIFY (is_func (source[0], WITH, 1));
+    QCOMPARE (registry.track (source, {0}), wrapper);
+    QCOMPARE (registry.track (source, {0, 0}), child);
+    QCOMPARE (registry.track (source, {0, 0, 0}), leaf);
+    QVERIFY (document_node_to_value_v3 (source[0][0]) == body_before);
+    QVERIFY (athena::node::equal_metadata (source[0], wrapper_before));
+    QVERIFY (!registry.clear_formatting (source, wrapper, "with", value::array ()));
+  }
+
+  void clearFormattingUnwrapsOnlyMetadataSafely () {
+    for (bool annotate_child: {false, true}) {
+      tree source (DOCUMENT, compound ("strong", tree (CONCAT, "body")));
+      athena::node::metadata metadata;
+      metadata.id= athena::node::new_id ();
+      metadata.properties.emplace ("note", athena::node::property (std::string ("preserved")));
+      athena::node::set (source[0], metadata);
+      if (annotate_child) {
+        metadata.id= athena::node::new_id ();
+        athena::node::set (source[0][0], metadata);
+      }
+      tree wrapper_before= copy (source[0]);
+      tree body= source[0][0];
+      tree child_before= copy (body);
+      document_nodes registry;
+      auto wrapper= registry.track (source, {0});
+      auto child= registry.track (source, {0, 0});
+      auto leaf= registry.track (source, {0, 0, 0});
+      QVERIFY (registry.clear_formatting (source, wrapper, "strong", value::array ()));
+      if (annotate_child) {
+        QVERIFY (is_func (source[0], WITH, 1));
+        QCOMPARE (registry.track (source, {0}), wrapper);
+        QCOMPARE (registry.track (source, {0, 0}), child);
+        QVERIFY (athena::node::equal_metadata (source[0], wrapper_before));
+        QVERIFY (athena::node::equal_metadata (source[0][0], child_before));
+        QVERIFY (inside (source[0][0]) == inside (body));
+      }
+      else {
+        QVERIFY (is_func (source[0], CONCAT, 1));
+        QVERIFY (inside (source[0]) == inside (body));
+        QVERIFY (athena::node::equal_metadata (source[0], wrapper_before));
+        QCOMPARE (registry.track (source, {0}), child);
+        QCOMPARE (registry.track (source, {0, 0}), leaf);
+        QVERIFY_THROWS_EXCEPTION (std::runtime_error, registry.read (source, wrapper));
+      }
+    }
+    tree source (DOCUMENT, compound ("strong", "plain"));
+    document_nodes registry;
+    auto wrapper= registry.track (source, {0});
+    auto child= registry.track (source, {0, 0});
+    QVERIFY (registry.clear_formatting (source, wrapper, "strong", value::array ()));
+    QCOMPARE (source[0], tree ("plain"));
+    QCOMPARE (registry.track (source, {0}), child);
+  }
+
+  void clearFormattingRejectsBeforeMutation () {
+    tree source (DOCUMENT, tree (WITH, "font-series", "bold", "color", "red", "body"));
+    document_nodes registry;
+    auto wrapper= registry.track (source, {0});
+    const auto before= document_node_to_value_v3 (source);
+    for (const auto& bindings: std::vector<value> {
+      value::array ({value {{"name", "font-series"}, {"value", {{"text", "bold"}}}},
+                    value {{"name", "color"}, {"value", {{"text", "blue"}}}}}),
+      value::array ({value {{"name", "missing"}, {"value", {{"text", "bold"}}}}}),
+      value::array ({value {{"name", "font-series"}, {"value", {{"text", "bold"}}}},
+                    value {{"name", "font-series"}, {"value", {{"text", "bold"}}}}})
+    }) {
+      QVERIFY_THROWS_EXCEPTION (std::invalid_argument,
+        registry.clear_formatting (source, wrapper, "with", bindings));
+      QVERIFY (document_node_to_value_v3 (source) == before);
+    }
+    QVERIFY_THROWS_EXCEPTION (std::invalid_argument,
+      registry.clear_formatting (source, wrapper, "strong", value::array ()));
+    for (int annotated: {0, 1}) {
+      athena::node::metadata metadata;
+      metadata.id= athena::node::new_id ();
+      athena::node::set (source[0][annotated], metadata);
+      const auto protected_before= document_node_to_value_v3 (source);
+      QVERIFY_THROWS_EXCEPTION (std::invalid_argument,
+        registry.clear_formatting (source, wrapper, "with", value::array ({
+          value {{"name", "font-series"}, {"value", {{"text", "bold"}}}}})));
+      QVERIFY (document_node_to_value_v3 (source) == protected_before);
+      athena::node::set (source[0][annotated], athena::node::metadata {});
+    }
+    tree multi (DOCUMENT, compound ("strong", "first", "second"));
+    auto many= registry.track (multi, {0});
+    const auto multi_before= document_node_to_value_v3 (multi);
+    QVERIFY_THROWS_EXCEPTION (std::invalid_argument,
+      registry.clear_formatting (multi, many, "strong", value::array ()));
+    QVERIFY (document_node_to_value_v3 (multi) == multi_before);
+  }
+
   void structuredValuesRoundTrip () {
     tree source (DOCUMENT,
       compound ("TeXmacs", "2.1.4"),

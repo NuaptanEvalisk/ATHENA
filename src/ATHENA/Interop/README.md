@@ -327,6 +327,21 @@ Document and node operations:
   supplied by the client. Root nodes have no siblings; stale targets are rejected.
 - `erase {}`: remove this node; removing the full document root is forbidden.
 - `set_tag {"tag": "name"}`: change a compound node's tag.
+- `clear_formatting {"expected_tag": "with", "bindings": [{"name": "font-series", "value": {"text": "bold"}}]}`:
+  atomically check the current tag and each named binding's effective local value
+  (the last occurrence), then remove every occurrence of those variables. This
+  prevents shadowed values from becoming active again; other bindings are kept.
+  Values use the existing encoded-node format without metadata. Duplicate names,
+  absent variables, mismatched values, malformed WITH nodes, and removals that
+  would discard metadata on binding keys/values are rejected before mutation.
+  `clear_formatting {"expected_tag": "strong", "bindings": []}` instead clears
+  an explicitly named unary wrapper. Non-WITH targets must have exactly one
+  child and empty bindings; the command never selects a child by deleting siblings.
+  A resulting one-child wrapper is removed only when native `can_remove_node`
+  permits metadata-safe collapse. Otherwise its tag becomes an inert `with`,
+  retaining both wrapper and child UUIDs/properties. Surviving descendants are
+  neither copied nor recreated. A collapsed wrapper's AUDMAP handle becomes
+  stale; retained descendant handles remain valid. The result includes `changed`.
 - `assign_id {}`: assign a server-generated persistent UUID only when the target
   has none; repeating it returns the same UUID. No arbitrary UUID setter exists.
 - `update_properties {"set": PROPERTY_ENTRIES, "remove": [NAME,...]}`: atomically

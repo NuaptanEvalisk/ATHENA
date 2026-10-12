@@ -90,6 +90,7 @@ value metadata_snapshot (tree& source, document_nodes& nodes,
 
 value edit_node (tree& source, document_nodes& nodes, const document_node& node,
                  const std::string& command, const value& parameters) {
+  bool changed= true;
   if (command == "set") {
     require_parameters (parameters, {"tree"});
     nodes.replace (source, node, parameters.at ("tree"));
@@ -114,6 +115,11 @@ value edit_node (tree& source, document_nodes& nodes, const document_node& node,
     require_parameters (parameters, {"tag"});
     nodes.set_tag (source, node, parameters.at ("tag"));
   }
+  else if (command == "clear_formatting") {
+    require_parameters (parameters, {"expected_tag", "bindings"});
+    changed= nodes.clear_formatting (source, node,
+      parameters.at ("expected_tag"), parameters.at ("bindings"));
+  }
   else if (command == "update_properties" || command == "assign_id") {
     athena::document_node::property_edit edit;
     if (command == "update_properties") {
@@ -137,14 +143,15 @@ value edit_node (tree& source, document_nodes& nodes, const document_node& node,
   }
   else throw std::invalid_argument ("Unknown document edit command");
   validate_document (source);
-  return {{"changed", true}};
+  return {{"changed", changed}};
 }
 
-void complete_v2_identities (tree& source) {
+void complete_v2_identities (tree& source, const std::string& filename) {
   new_data data;
   tree body= detach_data (source, data);
   auto result= athena::document_node::assign_detached_source_ids (
-    body, get_document_drd (source), athena::document_node::standard_source_role,
+    body, get_offline_document_drd (source, url_system (string (filename.c_str ()))),
+    athena::document_node::standard_source_role,
     [] (const athena::document_node::identity_request&) {
       return athena::node::new_id ();
     });
@@ -451,7 +458,7 @@ public:
     value result= edit_node (
       source, nodes, node ? node : nodes.track (source, {}), command, parameters);
     if (source_format == athena::document::document_source_format::xml_v2)
-      complete_v2_identities (source);
+      complete_v2_identities (source, filename);
     auto next= nodes.export_nodes (source);
     std::string serialized;
     if (source_format == athena::document::document_source_format::xml_v1)
@@ -602,6 +609,9 @@ public:
       commands["insert_after"]= {{"parameters", {{"siblings", "encoded node array"}}}};
       commands["erase"]= {{"parameters", value::object ()}};
       commands["set_tag"]= {{"parameters", {{"tag", "UTF-8 node tag"}}}};
+      commands["clear_formatting"]= {{"parameters", {
+        {"expected_tag", "current UTF-8 node tag"},
+        {"bindings", "WITH: array of {name, value: encoded node}; unary wrapper: []"}}}};
     }
     if (source->metadata_writable ()) {
       commands["update_properties"]= { {"parameters",
@@ -623,6 +633,7 @@ public:
         return {"OK", inspect ()};
       }
       if (command == "set" || command == "insert" || command == "erase" || command == "set_tag" ||
+          command == "clear_formatting" ||
           command == "insert_before" || command == "insert_after") {
         if (!source->writable ()) return {"UNSUPPORTED", "Editing this source is not available"};
         return {"OK", source->edit (node, command, parameters)};

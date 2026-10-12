@@ -29,7 +29,7 @@
   "kinds": [
     {
       "kind": "theorem", "display_name": "Theorem", "role": "statement", "category": "provable",
-      "render": {"style": "render-theorem", "counter": "theorem-env", "title_mode": "parenthesized", "qed": false},
+      "render": {"style": "render-bold-theorem", "counter": "theorem-env", "title_mode": "parenthesized", "qed": false},
       "legacy": [
         {"tag": "theorem", "numbered": true, "starred_tag": "theorem*", "artifact_base": "theorem"},
         {"tag": "render-theorem", "numbered": false, "layout": "title-body", "artifact_base": "theorem"}
@@ -37,17 +37,17 @@
     },
     {
       "kind": "proposition", "display_name": "Proposition", "role": "statement", "category": "provable",
-      "render": {"style": "render-theorem", "counter": "theorem-env", "title_mode": "parenthesized", "qed": false},
+      "render": {"style": "render-bold-theorem", "counter": "theorem-env", "title_mode": "parenthesized", "qed": false},
       "legacy": [{"tag": "proposition", "numbered": true, "starred_tag": "proposition*", "artifact_base": "proposition"}]
     },
     {
       "kind": "lemma", "display_name": "Lemma", "role": "statement", "category": "provable",
-      "render": {"style": "render-theorem", "counter": "theorem-env", "title_mode": "parenthesized", "qed": false},
+      "render": {"style": "render-bold-theorem", "counter": "theorem-env", "title_mode": "parenthesized", "qed": false},
       "legacy": [{"tag": "lemma", "numbered": true, "starred_tag": "lemma*", "artifact_base": "lemma"}]
     },
     {
       "kind": "corollary", "display_name": "Corollary", "role": "statement", "category": "provable",
-      "render": {"style": "render-theorem", "counter": "theorem-env", "title_mode": "parenthesized", "qed": false},
+      "render": {"style": "render-bold-theorem", "counter": "theorem-env", "title_mode": "parenthesized", "qed": false},
       "legacy": [{"tag": "corollary", "numbered": true, "starred_tag": "corollary*", "artifact_base": "corollary"}]
     },
     {

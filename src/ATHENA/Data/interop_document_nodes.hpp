@@ -68,6 +68,10 @@ public:
                         bool after, const value& siblings);
   void erase (tree& root, const document_node& node);
   void set_tag (tree& root, const document_node& node, const value& tag);
+  // Compare local formatting expectations before removing selected bindings
+  // or a unary wrapper. Descendants are retained, never decoded/recreated.
+  bool clear_formatting (tree& root, const document_node& node,
+                         const value& expected_tag, const value& bindings);
   void collect ();
 
   // The caller serializes the source transition: freeze the old owner until

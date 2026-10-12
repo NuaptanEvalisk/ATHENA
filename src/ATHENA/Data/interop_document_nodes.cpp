@@ -10,10 +10,12 @@
 #include "interop_document_nodes.hpp"
 #include "interop_document_codec.hpp"
 #include "node_metadata.hpp"
+#include "modification.hpp"
 #include "tree.hpp"
 #include <algorithm>
 #include <atomic>
 #include <limits>
+#include <set>
 #include <stdexcept>
 #include <thread>
 #include <unordered_map>
@@ -366,6 +368,78 @@ void document_nodes::set_tag (tree& root, const document_node& node, const value
   tree decoded= document_node_from_value_v3 (
     value {{"tag", tag}, {"children", value::array ()}});
   assign_node (target, L (decoded));
+}
+
+bool document_nodes::clear_formatting (tree& root, const document_node& node,
+                                      const value& expected_tag, const value& bindings) {
+  const auto location= locate (root, node);
+  tree target= at (root, location);
+  tree expected= document_node_from_value_v3 (
+    value {{"tag", expected_tag}, {"children", value::array ()}});
+  if (!is_compound (target) || L (target) != L (expected))
+    throw std::invalid_argument ("clear_formatting expected_tag does not match the current node");
+  if (!bindings.is_array ())
+    throw std::invalid_argument ("clear_formatting bindings must be an array");
+
+  std::vector<int> removals;
+  if (is_func (target, WITH)) {
+    if (N (target) < 1 || N (target) % 2 != 1)
+      throw std::invalid_argument ("clear_formatting requires well-formed WITH bindings");
+    for (int i= 0; i + 1 < N (target); i+= 2)
+      if (!is_atomic (target[i]) || N (target[i]->label) == 0)
+        throw std::invalid_argument ("clear_formatting requires literal WITH variable names");
+    value encoded= value::array ();
+    std::set<std::string> names;
+    for (const auto& binding: bindings) {
+      if (!binding.is_object () || binding.size () != 2 ||
+          !binding.contains ("name") || !binding.contains ("value") ||
+          !binding.at ("name").is_string ())
+        throw std::invalid_argument ("clear_formatting bindings require name and encoded value");
+      const auto name= binding.at ("name").get<std::string> ();
+      if (name.empty () || !names.insert (name).second)
+        throw std::invalid_argument ("clear_formatting binding names must be nonempty and unique");
+      encoded.push_back (value {{"text", name}});
+      encoded.push_back (binding.at ("value"));
+    }
+    // Decode expectations together under the codec's shared size/depth budget.
+    tree wanted= document_node_from_value_v3 (
+      value {{"tag", "tuple"}, {"children", encoded}});
+    if (athena::node::contains_metadata (wanted))
+      throw std::invalid_argument ("clear_formatting expectations cannot contain metadata");
+    for (int j= 0; j < N (wanted); j+= 2) {
+      int effective= -1;
+      for (int i= 0; i + 1 < N (target); i+= 2) {
+        if (target[i] != wanted[j]) continue;
+        if (athena::node::contains_metadata (target[i]) ||
+            athena::node::contains_metadata (target[i + 1]))
+          throw std::invalid_argument ("clear_formatting cannot discard binding metadata");
+        effective= i;
+        removals.push_back (i);
+      }
+      if (effective < 0 || !athena::node::content_equal (target[effective + 1], wanted[j + 1]))
+        throw std::invalid_argument ("clear_formatting expected binding value does not match");
+    }
+  }
+  else if (N (target) != 1 || !bindings.empty ())
+    throw std::invalid_argument ("clear_formatting requires a unary wrapper and empty bindings");
+
+  // All guards precede native notifications. Remove backwards so only selected
+  // binding pairs disappear; retain the existing body and its observers.
+  std::sort (removals.rbegin (), removals.rend ());
+  for (int index: removals) remove (target, index, 2);
+  if (N (target) != 1) return !removals.empty ();
+  if (is_applicable (target, mod_remove_node (path (), 0))) {
+    remove_node (at (root, location), 0);
+    collect ();
+    return true;
+  }
+  // Both wrapper and child carry metadata. Preserve both as an inert WITH,
+  // following the formatting simplifier's identity-preserving representation.
+  if (L (target) != WITH) {
+    assign_node (target, WITH);
+    return true;
+  }
+  return !removals.empty ();
 }
 
 void document_nodes::move (tree& root, const document_node& node,
