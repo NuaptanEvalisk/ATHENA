@@ -228,7 +228,9 @@ QTMCommandRegistry::loadPresentation () {
   for (const char* extensionResource: {
          "$ATHENA_PATH/misc/ui/editor-mode-toolbar.json",
          "$ATHENA_PATH/misc/ui/editor-focus-toolbar.json",
-         "$ATHENA_PATH/misc/ui/editor-user-toolbar.json"}) {
+         "$ATHENA_PATH/misc/ui/editor-user-toolbar.json",
+         "$ATHENA_PATH/misc/ui/editor-document-insert.json",
+         "$ATHENA_PATH/misc/ui/editor-format-commands.json"}) {
     string extensionText;
     if (load_string (url (extensionResource), extensionText, false))
       return failPresentation (
@@ -311,6 +313,7 @@ QTMCommandRegistry::loadPresentation () {
             .arg (id));
       QString encoded= QString::fromUtf8 (
         QJsonDocument (action).toJson (QJsonDocument::Compact));
+      const QString nativeOp= action.value ("op").toString ();
       registerBehavior (
         id, QTMCommandScope::Editor,
         [encoded, required, forbidden, any] (const QTMCommandContext& context) {
@@ -319,7 +322,7 @@ QTMCommandRegistry::loadPresentation () {
                  proxy->submit_editor_action (
                    encoded, required, forbidden, any);
         },
-        [required, forbidden, any] (const QTMCommandContext& context) {
+        [required, forbidden, any, nativeOp] (const QTMCommandContext& context) {
           QTMCommandState state;
           if (local_text_input_owns_edit_command (context)) return state;
           qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
@@ -327,9 +330,20 @@ QTMCommandRegistry::loadPresentation () {
           actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
           if (!snapshot.valid ()) return state;
           state.available=
-            (snapshot.flags & required) == required &&
-            (snapshot.flags & forbidden) == 0 &&
-            (any == 0 || (snapshot.flags & any) != 0);
+             (snapshot.flags & required) == required &&
+             (snapshot.flags & forbidden) == 0 &&
+             (any == 0 || (snapshot.flags & any) != 0);
+           if (state.available &&
+               (nativeOp == "make-doc-data" ||
+                nativeOp == "make-abstract-data")) {
+             actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
+             state.available= focus.valid () &&
+               (nativeOp == "make-doc-data" ?
+                  focus.document_insert_title_available &&
+                  !focus.poster_insert_title_available &&
+                  !focus.tmdoc_insert_title_available :
+                  focus.document_insert_abstract_available);
+           }
           state.enabled= state.available;
           return state;
         });

@@ -17,6 +17,7 @@
 #include "QTMWidget.hpp"
 #include "qt_utilities.hpp"
 #include "qt_actor_widget.hpp"
+#include "QTMCommandRegistryInternal.hpp"
 
 #include <QAction>
 #include <QIcon>
@@ -241,34 +242,12 @@ QTMEditorToolbarPresenter::presentationConditionSatisfied (
       (visibilityReference_ == nullptr || visibilityReference_->isVisible ()))
     return false;
 
-  if (item.requiredFlags == 0 &&
-      item.forbiddenFlags == 0 &&
-      item.anyFlags == 0 &&
-      item.focusRequiredFlags == 0 &&
-      item.focusForbiddenFlags == 0 &&
-      item.focusAnyFlags == 0)
-    return true;
-  if (canvas_ == nullptr || canvas_->tm_widget () == nullptr) return false;
-  qt_actor_widget_rep* proxy=
-    dynamic_cast<qt_actor_widget_rep*> (canvas_->tm_widget ());
-  if (proxy == nullptr) return false;
-  actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
-  if (!snapshot.valid ()) return false;
-  bool editorOk=
-    (snapshot.flags & item.requiredFlags) == item.requiredFlags &&
-         (snapshot.flags & item.forbiddenFlags) == 0 &&
-         (item.anyFlags == 0 || (snapshot.flags & item.anyFlags) != 0);
-  if (!editorOk) return false;
-  if (item.focusRequiredFlags == 0 &&
-      item.focusForbiddenFlags == 0 &&
-      item.focusAnyFlags == 0)
-    return true;
-  actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
-  if (!focus.valid ()) return false;
-  return (focus.flags & item.focusRequiredFlags) == item.focusRequiredFlags &&
-         (focus.flags & item.focusForbiddenFlags) == 0 &&
-         (item.focusAnyFlags == 0 ||
-          (focus.flags & item.focusAnyFlags) != 0);
+  qt_actor_widget_rep* proxy= canvas_ != nullptr &&
+      canvas_->tm_widget () != nullptr ?
+      dynamic_cast<qt_actor_widget_rep*> (canvas_->tm_widget ()) : nullptr;
+  return qtm_command_registry_detail::presentation_flags_satisfied (
+    proxy, item.requiredFlags, item.forbiddenFlags, item.anyFlags,
+    item.focusRequiredFlags, item.focusForbiddenFlags, item.focusAnyFlags);
 }
 
 bool

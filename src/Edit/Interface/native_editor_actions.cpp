@@ -17,6 +17,7 @@
 #include "document_commands.hpp"
 #include "document_style_commands.hpp"
 #include "format_commands.hpp"
+#include "format_geometry.hpp"
 #include "generic_editor_commands.hpp"
 #include "language.hpp"
 #include "scheme.hpp"
@@ -554,6 +555,74 @@ native_editor_action_validate (const QJsonObject& action, QString* error) {
       op == "make-line-with")
     return has_string (action, "var") && has_string (action, "value") ?
              true : fail_validation (error, op + " requires var/value");
+  if (op == "format-interactive-with" || op == "format-interactive-opacity")
+    return op == "format-interactive-opacity" || has_string (action, "var") ?
+      true : fail_validation (error, "format-interactive-with requires var");
+  if (op == "format-hyphenate") return true;
+  if (op == "format-interactive-box") return true;
+  if (op == "format-interactive-space")
+    return has_string (action, "kind") &&
+           QSet<QString> {"hspace", "space", "tab", "vspace-before",
+                          "vspace-after"}.contains (
+             action.value ("kind").toString ()) ?
+      true : fail_validation (error, "invalid interactive space kind");
+  if (op == "format-template") {
+    const QJsonValue value= action.value ("value");
+    if (!value.isArray ())
+      return fail_validation (error, "format-template requires an array");
+    const QJsonArray fields= value.toArray ();
+    if (fields.isEmpty () || !fields[0].isString ())
+      return fail_validation (error, "format-template requires a tag");
+    const QString tag= fields[0].toString ();
+    const QHash<QString, int> arities {
+      {"with-opacity", 2}, {"rotate", 2}, {"dilate", 3},
+      {"skew", 2}, {"linear-2d", 5}
+    };
+    if (!arities.contains (tag) || fields.size () != arities.value (tag) + 1)
+      return fail_validation (error, "unsupported format-template tag or arity");
+    for (int i= 1; i < fields.size (); ++i)
+      if (!fields[i].isString ())
+        return fail_validation (error, "format-template values must be text");
+    return true;
+  }
+  if (op == "format-geometry")
+    return has_string (action, "kind") &&
+           QSet<QString> {"move", "shift", "resize", "extend", "clip",
+                          "reduce"}.contains (action.value ("kind").toString ()) ?
+      true : fail_validation (error, "invalid format geometry kind");
+  if (op == "make-rigid") return true;
+  if (op == "format-specific")
+    return has_string (action, "kind") &&
+           QSet<QString> {"texmacs", "latex", "html", "screen", "printer",
+                          "image", "even", "odd"}.contains (
+                            action.value ("kind").toString ()) ?
+      true : fail_validation (error, "invalid specific output kind");
+  if (op == "format-hspace" || op == "format-htab" ||
+      op == "format-vspace-before" || op == "format-vspace-after")
+    return has_string (action, "value") ?
+      true : fail_validation (error, op + " requires value");
+  if (op == "format-page-after")
+    return has_string (action, "kind") &&
+           QSet<QString> {"new-page", "new-dpage", "page-break"}.contains (
+             action.value ("kind").toString ()) ?
+      true : fail_validation (error, "invalid page break kind");
+  if (op == "dynamic-buffer") {
+    const QString kind= action.value ("kind").toString ();
+    const QString operation= action.value ("operation").toString ();
+    const bool operate= operation == "operate" &&
+      QSet<QString> {"fold", "unfold", "compress", "var-compress",
+                     "expand", "var-expand"}.contains (kind);
+    const bool filter= operation == "filter" &&
+      QSet<QString> {"remove-folded", "remove-unfolded",
+                     "keep-folded", "keep-unfolded"}.contains (kind);
+    return operate || filter ? true :
+      fail_validation (error, "invalid dynamic-buffer operation");
+  }
+  if (op == "focus-link-display")
+    return has_string (action, "kind") &&
+           QSet<QString> {"card", "link"}.contains (
+             action.value ("kind").toString ()) ?
+      true : fail_validation (error, "invalid focus link display kind");
   if (op == "init-env")
     return has_string (action, "var") && has_string (action, "value") ?
              true : fail_validation (error, "init-env requires var/value");
@@ -882,6 +951,62 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
       "make-with",
       object (native_action_string (action.value ("var"))),
       object (native_action_string (action.value ("value"))));
+  else if (op == "format-interactive-with")
+    format_make_interactive_with (
+      native_action_string (action.value ("var")));
+  else if (op == "format-interactive-opacity")
+    format_make_interactive_with_opacity ();
+  else if (op == "format-hyphenate") format_hyphenate_selection ();
+  else if (op == "format-interactive-box")
+    format_make_interactive_box ();
+  else if (op == "format-interactive-space")
+    format_make_interactive_space (
+      native_action_string (action.value ("kind")));
+  else if (op == "format-template")
+    format_make_with_like (native_action_tree (action.value ("value")));
+  else if (op == "format-geometry") {
+    const QString kind= action.value ("kind").toString ();
+    if (kind == "move") geometry_make_move ("", "");
+    else if (kind == "shift") geometry_make_shift ("", "");
+    else if (kind == "resize") geometry_make_resize ("", "", "", "");
+    else if (kind == "extend") geometry_make_extend ("", "", "", "");
+    else if (kind == "clip") geometry_make_clipped ("", "", "", "");
+    else geometry_make_reduce_by ("0.5ex");
+  }
+  else if (op == "make-rigid") ed->make_rigid ();
+  else if (op == "format-specific")
+    generic_make_specific (native_action_string (action.value ("kind")));
+  else if (op == "format-hspace")
+    ed->make_hspace (native_action_string (action.value ("value")));
+  else if (op == "format-htab")
+    ed->make_htab (native_action_string (action.value ("value")));
+  else if (op == "format-vspace-before")
+    ed->make_vspace_before (native_action_string (action.value ("value")));
+  else if (op == "format-vspace-after")
+    ed->make_vspace_after (native_action_string (action.value ("value")));
+  else if (op == "format-page-after") {
+    const QString kind= action.value ("kind").toString ();
+    if (kind == "new-page") format_make_new_page ();
+    else if (kind == "new-dpage") format_make_new_dpage ();
+    else format_make_page_break ();
+  }
+  else if (op == "dynamic-buffer") {
+    const QString operation= action.value ("operation").toString ();
+    (void) call (operation == "operate" ? "dynamic-operate-on-buffer" :
+                                          "dynamic-filter-buffer",
+                 keyword_object (native_action_string (action.value ("kind"))));
+  }
+  else if (op == "focus-link-display") {
+    const path focus= ed->focus_get ();
+    if (!ed->test_subtree (focus)) return;
+    tree target= ed->the_subtree (focus);
+    if (action.value ("kind").toString () == "card" &&
+        is_compound (target, "hlink", 2))
+      (void) generic_display_link_as_card (target);
+    else if (action.value ("kind").toString () == "link" &&
+             is_compound (target, "cardlink", 2))
+      (void) generic_display_card_as_link (target);
+  }
   else if (op == "make-style-with")
     ed->make_style_with (native_action_string (action.value ("var")),
                          native_action_string (action.value ("value")));
@@ -1627,12 +1752,18 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
   else if (op == "make-note-wide") generic_make_note_wide ();
   else if (op == "make-note-footnote") generic_make_note_footnote ();
   else if (op == "make-doc-data") {
+    actor_focus_toolbar_snapshot focus= ed->focus_toolbar_state_snapshot ();
+    if (!focus.valid () || !focus.document_insert_title_available ||
+        focus.poster_insert_title_available ||
+        focus.tmdoc_insert_title_available) return;
     tree value (
       as_tree_label ("doc-data"),
       tree (as_tree_label ("doc-title"), tree ("")));
     ed->insert_tree (value, path (0, 0, 0));
   }
   else if (op == "make-abstract-data") {
+    actor_focus_toolbar_snapshot focus= ed->focus_toolbar_state_snapshot ();
+    if (!focus.valid () || !focus.document_insert_abstract_available) return;
     tree value (
       as_tree_label ("abstract-data"),
       tree (as_tree_label ("abstract"), tree ("")));

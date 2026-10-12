@@ -76,11 +76,20 @@ QTMApplicationMenuPresenter::refresh_menu (int index) {
   menu_state& menu= menus_[index];
   if (menu.menu == nullptr) return false;
   QTMCommandRegistry& registry= QTMCommandRegistry::instance ();
+  qt_actor_widget_rep* proxy=
+    qtm_command_registry_detail::editor_proxy_for_context (presented_context_);
 
   QVector<bool> command_visible (menu.entries.size (), false);
   for (int i= 0; i < menu.entries.size (); ++i) {
     menu_entry& entry= menu.entries[i];
     if (entry.action == nullptr) continue;
+    if (!qtm_command_registry_detail::presentation_flags_satisfied (
+          proxy, entry.required_flags, entry.forbidden_flags, entry.any_flags,
+          entry.focus_required_flags, entry.focus_forbidden_flags,
+          entry.focus_any_flags)) {
+      hide_entry (entry);
+      continue;
+    }
     if (entry.kind == QTMCommandMenuItem::Kind::Command) {
       QTMCommandState state=
         registry.state (entry.command_id, presented_context_);
@@ -122,6 +131,23 @@ QTMApplicationMenuPresenter::refresh_menu (int index) {
   for (bool visible: command_visible)
     if (visible) return true;
   return false;
+}
+
+void
+QTMApplicationMenuPresenter::hide_entry (menu_entry& entry) {
+  if (entry.action != nullptr) {
+    entry.action->setVisible (false);
+    entry.action->setEnabled (false);
+  }
+  if (entry.kind == QTMCommandMenuItem::Kind::Submenu &&
+      entry.submenu_index >= 0 && entry.submenu_index < menus_.size ()) {
+    for (menu_entry& child: menus_[entry.submenu_index].entries)
+      hide_entry (child);
+  }
+  for (const QPointer<QAction>& action: entry.dynamic_actions)
+    if (action != nullptr) action->setVisible (false);
+  for (const QPointer<QMenu>& menu: entry.dynamic_menus)
+    if (menu != nullptr) menu->menuAction ()->setVisible (false);
 }
 
 void
@@ -259,10 +285,17 @@ QTMApplicationMenuPresenter::build_menu (
     entry.kind= item.kind;
     entry.command_id= item.commandId;
     entry.provider_id= item.providerId;
+    entry.required_flags= item.requiredFlags;
+    entry.forbidden_flags= item.forbiddenFlags;
+    entry.any_flags= item.anyFlags;
+    entry.focus_required_flags= item.focusRequiredFlags;
+    entry.focus_forbidden_flags= item.focusForbiddenFlags;
+    entry.focus_any_flags= item.focusAnyFlags;
     if (item.kind == QTMCommandMenuItem::Kind::Separator)
       entry.action= menu->addSeparator ();
     else if (item.kind == QTMCommandMenuItem::Kind::Submenu) {
-      QMenu* submenu= menu->addMenu (item.label);
+      QMenu* submenu= menu->addMenu (
+        tmapp ()->icon_manager ().getPresentationIcon (item.icon), item.label);
       entry.action= submenu == nullptr ? nullptr : submenu->menuAction ();
       entry.submenu_index= build_menu (submenu, item.items, false);
     }

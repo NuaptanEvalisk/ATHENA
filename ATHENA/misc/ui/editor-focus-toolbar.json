@@ -81,6 +81,7 @@
       {"command":"editor.focus.edit-label","focus_requires":["has-label"],"focus_forbids":["buffer","code-context","screens-context"]},
       {"submenu":"editor-focus-sections","label":"Sections","icon":"tm_section","items":[{"provider":"editor-focus-sections"}]},
       {"submenu":"editor-focus-text-data","label":"Document data","icon":"tm_add","focus_requires_any":["doc-title-context","doc-author-context","abstract-context"],"items":[{"provider":"editor-focus-text-data"}]},
+      {"provider":"editor-focus-link-display"},
       {"provider":"editor-focus-special-actions","focus_forbids":["buffer","code-context","screens-context"]},
       {"submenu":"editor-focus-hidden-fields","label":"Fields","icon":"tm_set_properties","focus_forbids":["buffer","code-context","screens-context"],"items":[{"provider":"editor-focus-hidden-fields"}]},
       {"submenu":"editor-focus-effect-pen","label":"Effect pen","icon":"tm_customized","focus_forbids":["buffer","code-context","screens-context"],"items":[{"provider":"editor-focus-effect-pen"}]},

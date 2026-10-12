@@ -910,11 +910,510 @@
       "id": "insert",
       "label": "Insert",
       "items": [
-        { "provider": "menubar-insert-commands" },
+        {
+          "submenu": "insert-document-data",
+          "label": "Document header",
+          "items": [
+            { "command": "editor.insert.title" },
+            { "command": "editor.insert.abstract" }
+          ],
+          "requires": ["text-mode"],
+          "forbids": ["read-only"]
+        },
+        { "provider": "editor-personal-macros" },
+        { "command": "editor.insert.text" },
+        { "separator": true },
+        {
+          "submenu": "insert-text-structures",
+          "label": "Text structures",
+          "items": [
+            {
+              "submenu": "menubar-text-letter",
+              "label": "Make a letter environment",
+              "items": [
+                { "command": "editor.text.letter.header" },
+                { "command": "editor.text.letter.address" },
+                { "command": "editor.text.letter.date" },
+                { "command": "editor.text.letter.today" },
+                { "command": "editor.text.letter.destination" },
+                { "separator": true },
+                { "command": "editor.text.letter.opening" },
+                { "command": "editor.text.letter.closing" },
+                { "command": "editor.text.letter.signature" },
+                { "separator": true },
+                { "command": "editor.text.letter.cc" },
+                { "command": "editor.text.letter.encl" }
+              ],
+              "icon": "tm_title"
+            },
+            {
+              "submenu": "menubar-text-chapter",
+              "label": "Start a new chapter",
+              "items": [
+                { "command": "editor.text.chapter.part" },
+                { "command": "editor.text.chapter.chapter" },
+                { "command": "editor.text.chapter.appendix" },
+                { "command": "editor.text.chapter.prologue" },
+                { "command": "editor.text.chapter.epilogue" }
+              ],
+              "icon": "tm_chapter"
+            },
+            {
+              "submenu": "menubar-text-section",
+              "label": "Start a new section",
+              "items": [
+                { "command": "editor.text.section.section" },
+                { "command": "editor.text.section.subsection" },
+                { "command": "editor.text.section.subsubsection" },
+                { "separator": true },
+                { "command": "editor.text.section.paragraph" },
+                { "command": "editor.text.section.subparagraph" }
+              ],
+              "icon": "tm_section"
+            },
+            {
+              "submenu": "menubar-text-poster-block",
+              "label": "Insert a section block",
+              "items": [
+                { "command": "editor.text.poster.plain-titled" },
+                { "command": "editor.text.poster.framed-titled" },
+                { "command": "editor.text.poster.alternate-titled" },
+                { "separator": true },
+                { "command": "editor.text.poster.plain" },
+                { "command": "editor.text.poster.framed" },
+                { "command": "editor.text.poster.alternate" }
+              ],
+              "icon": "tm_block"
+            },
+            {
+              "submenu": "menubar-text-enunciation",
+              "label": "Insert an enunciation",
+              "items": [
+                { "command": "editor.text.enunciation.theorem" },
+                { "command": "editor.text.enunciation.proposition" },
+                { "command": "editor.text.enunciation.lemma" },
+                { "command": "editor.text.enunciation.corollary" },
+                { "command": "editor.text.enunciation.proof" },
+                { "command": "editor.text.enunciation.proof-alt" },
+                { "command": "editor.text.enunciation.proof-std" },
+                { "command": "editor.text.enunciation.axiom" },
+                { "command": "editor.text.enunciation.definition" },
+                { "command": "editor.text.enunciation.notation" },
+                { "command": "editor.text.enunciation.law" },
+                { "command": "editor.text.enunciation.convention" },
+                { "command": "editor.text.enunciation.remark" },
+                { "command": "editor.text.enunciation.note" },
+                { "command": "editor.text.enunciation.example" },
+                { "command": "editor.text.enunciation.warning" },
+                { "command": "editor.text.enunciation.disambiguation" },
+                { "command": "editor.text.enunciation.ack" },
+                { "command": "editor.text.enunciation.exercise" },
+                { "command": "editor.text.enunciation.problem" },
+                { "command": "editor.text.enunciation.question" },
+                { "command": "editor.text.enunciation.solution" },
+                { "command": "editor.text.enunciation.answer" }
+              ],
+              "icon": "tm_theorem"
+            },
+            {
+              "submenu": "menubar-text-prominent",
+              "label": "Insert a prominent piece of text",
+              "items": [
+                { "provider": "editor-prominent-spacing" },
+                { "command": "editor.text.prominent.quote" },
+                { "command": "editor.text.prominent.quotation" },
+                { "command": "editor.text.prominent.verse" },
+                { "separator": true },
+                { "command": "editor.text.prominent.indent" },
+                { "command": "editor.text.prominent.jump-in" },
+                { "command": "editor.text.prominent.center" },
+                { "command": "editor.text.prominent.left" },
+                { "command": "editor.text.prominent.right" },
+                { "separator": true },
+                { "command": "editor.text.prominent.padded" },
+                { "command": "editor.text.prominent.overlined" },
+                { "command": "editor.text.prominent.underlined" },
+                { "command": "editor.text.prominent.bothlined" },
+                { "command": "editor.text.prominent.leftlined" },
+                { "command": "editor.text.prominent.framed" },
+                { "command": "editor.text.prominent.ornamented" },
+                { "separator": true },
+                {
+                  "submenu": "menubar-text-prominent-19-editor-mode-text-prominent-material",
+                  "label": "Material",
+                  "items": [
+                    { "command": "editor.text.prominent.manila" },
+                    { "command": "editor.text.prominent.rough" },
+                    { "command": "editor.text.prominent.ridged" },
+                    { "command": "editor.text.prominent.pine" },
+                    { "command": "editor.text.prominent.granite" },
+                    { "command": "editor.text.prominent.metal" }
+                  ]
+                }
+              ],
+              "icon": "tm_prominent"
+            },
+            {
+              "submenu": "menubar-text-code",
+              "label": "Insert a computer program",
+              "items": [
+                { "command": "editor.text.code.algorithm" },
+                { "command": "editor.text.code.pseudo" },
+                { "command": "editor.text.code.indent" },
+                { "command": "editor.text.code.tabbed" },
+                { "separator": true },
+                { "provider": "editor-program-languages" }
+              ],
+              "icon": "tm_program"
+            },
+            {
+              "submenu": "menubar-text-list",
+              "label": "Insert a list",
+              "items": [
+                { "command": "editor.text.list.itemize" },
+                { "command": "editor.text.list.itemize-dot" },
+                { "command": "editor.text.list.itemize-minus" },
+                { "command": "editor.text.list.itemize-arrow" },
+                { "command": "editor.text.list.todo" },
+                { "command": "editor.text.list.cloud-todo" },
+                { "command": "editor.text.list.enumerate" },
+                { "command": "editor.text.list.enum-num" },
+                { "command": "editor.text.list.enum-roman" },
+                { "command": "editor.text.list.enum-Roman" },
+                { "command": "editor.text.list.enum-alpha" },
+                { "command": "editor.text.list.enum-Alpha" },
+                { "command": "editor.text.list.description" },
+                { "command": "editor.text.list.desc-compact" },
+                { "command": "editor.text.list.desc-aligned" },
+                { "command": "editor.text.list.desc-dash" },
+                { "command": "editor.text.list.desc-long" },
+                { "command": "editor.text.list.desc-par" }
+              ],
+              "icon": "tm_list"
+            },
+            {
+              "submenu": "menubar-text-note",
+              "label": "Insert a note or a floating object",
+              "items": [
+                { "command": "editor.text.note.footnote" },
+                { "command": "editor.text.note.marginal" },
+                { "command": "editor.text.note.balloon" },
+                { "separator": true },
+                { "command": "editor.text.note.float" },
+                { "command": "editor.text.note.phantom" },
+                { "command": "editor.text.note.figure" },
+                { "command": "editor.text.note.table" },
+                { "command": "editor.text.note.algorithm" }
+              ],
+              "icon": "tm_pageins"
+            },
+            {
+              "submenu": "menubar-text-automatic",
+              "label": "Insert automatically generated content",
+              "items": [
+                { "command": "editor.text.automatic.toc" },
+                { "command": "editor.text.automatic.index" },
+                { "command": "editor.text.automatic.glossary" },
+                { "command": "editor.text.automatic.figures" },
+                { "command": "editor.text.automatic.tables" }
+              ],
+              "icon": "tm_index"
+            }
+          ],
+          "requires": ["text-mode"]
+        },
+        {
+          "submenu": "insert-math-structures",
+          "label": "Mathematics",
+          "items": [
+            {
+              "submenu": "menubar-math-fraction",
+              "label": "Insert a fraction",
+              "items": [
+                { "command": "editor.math.fraction.standard" },
+                { "command": "editor.math.fraction.tfrac" },
+                { "command": "editor.math.fraction.dfrac" },
+                { "command": "editor.math.fraction.frac-star" },
+                { "command": "editor.math.fraction.cfrac" }
+              ],
+              "icon": "tm_fraction"
+            },
+            {
+              "submenu": "menubar-math-root",
+              "label": "Insert a root",
+              "items": [
+                { "command": "editor.math.root.square" },
+                { "command": "editor.math.root.multiple" }
+              ],
+              "icon": "tm_root"
+            },
+            {
+              "submenu": "menubar-math-script",
+              "label": "Insert a script",
+              "items": [
+                { "command": "editor.math.script.sub" },
+                { "command": "editor.math.script.sup" },
+                { "command": "editor.math.script.left-sub" },
+                { "command": "editor.math.script.left-sup" },
+                { "command": "editor.math.script.below" },
+                { "command": "editor.math.script.above" }
+              ],
+              "icon": "tm_subsup"
+            },
+            {
+              "submenu": "menubar-math-accent",
+              "label": "Insert an accent",
+              "items": [
+                { "command": "editor.math.accent.hat" },
+                { "command": "editor.math.accent.tilde" },
+                { "command": "editor.math.accent.bar" },
+                { "command": "editor.math.accent.vector" },
+                { "command": "editor.math.accent.check" },
+                { "command": "editor.math.accent.breve" },
+                { "command": "editor.math.accent.invbreve" },
+                { "command": "editor.math.accent.dot" },
+                { "command": "editor.math.accent.ddot" },
+                { "command": "editor.math.accent.acute" },
+                { "command": "editor.math.accent.grave" }
+              ],
+              "icon": "tm_wide"
+            },
+            {
+              "submenu": "menubar-math-textop",
+              "label": "Insert a textual operator",
+              "items": [
+                { "command": "editor.math.textop.up" },
+                { "command": "editor.math.textop.italic" },
+                { "command": "editor.math.textop.bold" },
+                { "command": "editor.math.textop.typewriter" },
+                { "command": "editor.math.textop.sans" },
+                { "command": "editor.math.textop.slanted" }
+              ],
+              "icon": "tm_op"
+            }
+          ],
+          "requires": ["math-mode"]
+        },
+        {
+          "submenu": "menubar-insert-math",
+          "label": "Insert mathematics",
+          "items": [
+            { "command": "editor.insert.math.inline" },
+            { "command": "editor.insert.math.display" },
+            { "command": "editor.insert.math.equations" },
+            { "command": "editor.insert.math.cd" },
+            { "separator": true },
+            { "command": "editor.insert.math.latex" }
+          ],
+          "icon": "tm_math"
+        },
+        {
+          "submenu": "menubar-insert-table",
+          "label": "Insert a table",
+          "items": [
+            { "command": "editor.insert.table.small" },
+            { "command": "editor.insert.table.big" },
+            { "separator": true },
+            { "command": "editor.insert.table.wide-tabular" },
+            { "command": "editor.insert.table.plain-tabular" },
+            { "command": "editor.insert.table.centered-tabular" },
+            { "command": "editor.insert.table.wide-block" },
+            { "command": "editor.insert.table.plain-block" },
+            { "command": "editor.insert.table.centered-block" },
+            { "separator": true },
+            { "command": "editor.insert.table.matrix" },
+            { "command": "editor.insert.table.determinant" },
+            { "command": "editor.insert.table.choice" },
+            { "command": "editor.insert.table.stack" }
+          ],
+          "icon": "tm_table"
+        },
+        {
+          "submenu": "menubar-insert-image",
+          "label": "Insert a picture",
+          "items": [
+            { "command": "editor.insert.image.small" },
+            { "command": "editor.insert.image.big" },
+            { "separator": true },
+            { "command": "editor.insert.image.link" },
+            { "command": "editor.insert.image.inline" },
+            { "command": "editor.insert.image.thumbnails" },
+            { "separator": true },
+            { "command": "editor.insert.image.draw" }
+          ],
+          "icon": "tm_image"
+        },
+        {
+          "submenu": "menubar-insert-link",
+          "label": "Insert a link",
+          "items": [
+            { "command": "editor.insert.link.wikilink" },
+            { "command": "editor.insert.link.transclusion" },
+            { "separator": true },
+            { "command": "editor.insert.link.label" },
+            { "command": "editor.insert.link.reference" },
+            { "command": "editor.insert.link.pageref" },
+            { "separator": true },
+            { "command": "editor.insert.link.include" },
+            { "command": "editor.insert.link.slink" },
+            { "command": "editor.insert.link.hlink" },
+            { "command": "editor.insert.link.cardlink" },
+            { "command": "editor.insert.link.action" },
+            { "separator": true },
+            {
+              "submenu": "menubar-insert-link-13-editor-mode-insert-index",
+              "label": "Index entry",
+              "items": [
+                { "command": "editor.insert.link.index" },
+                { "command": "editor.insert.link.subindex" },
+                { "command": "editor.insert.link.subsubindex" },
+                { "command": "editor.insert.link.index-complex" },
+                { "command": "editor.insert.link.index-line" }
+              ]
+            },
+            {
+              "submenu": "menubar-insert-link-14-editor-mode-insert-glossary",
+              "label": "Glossary entry",
+              "items": [
+                { "command": "editor.insert.link.glossary" },
+                { "command": "editor.insert.link.glossary-explain" },
+                { "command": "editor.insert.link.glossary-dup" },
+                { "command": "editor.insert.link.glossary-line" }
+              ]
+            },
+            {
+              "submenu": "menubar-insert-link-15-editor-mode-insert-alternate",
+              "label": "Alternate",
+              "items": [
+                { "command": "editor.insert.link.alt-toc-nontext" },
+                { "command": "editor.insert.link.alt-toc-text" },
+                { "command": "editor.insert.link.alt-index-nontext" },
+                { "command": "editor.insert.link.alt-index-text" },
+                { "command": "editor.insert.link.alt-glossary-nontext" },
+                { "command": "editor.insert.link.alt-glossary-text" },
+                { "command": "editor.insert.link.alt-figures-nontext" },
+                { "command": "editor.insert.link.alt-figures-text" },
+                { "command": "editor.insert.link.alt-tables-nontext" },
+                { "command": "editor.insert.link.alt-tables-text" }
+              ]
+            },
+            { "command": "editor.insert.link.note-ref-nontext" },
+            { "command": "editor.insert.link.note-ref-text" },
+            {
+              "submenu": "menubar-insert-link-18-editor-mode-insert-note-text",
+              "label": "Text for note",
+              "items": [
+                { "command": "editor.insert.link.note-inline-nontext" },
+                { "command": "editor.insert.link.note-inline-text" },
+                { "command": "editor.insert.link.note-wide-nontext" },
+                { "command": "editor.insert.link.note-wide-text" },
+                { "command": "editor.insert.link.note-footnote-nontext" },
+                { "command": "editor.insert.link.note-footnote-text" }
+              ]
+            }
+          ],
+          "icon": "tm_link"
+        },
+        {
+          "submenu": "menubar-insert-fold",
+          "label": "Switching and folding",
+          "items": [
+            {
+              "submenu": "menubar-insert-fold-0-editor-mode-fold-folded",
+              "label": "Folded",
+              "items": [
+                { "command": "editor.insert.fold.folded" },
+                { "command": "editor.insert.fold.folded-plain" },
+                { "command": "editor.insert.fold.folded-std" },
+                { "command": "editor.insert.fold.folded-env" },
+                { "command": "editor.insert.fold.folded-documentation" },
+                { "command": "editor.insert.fold.folded-grouped" }
+              ]
+            },
+            {
+              "submenu": "menubar-insert-fold-1-editor-mode-fold-summarized",
+              "label": "Summarized",
+              "items": [
+                { "command": "editor.insert.fold.summarized" },
+                { "command": "editor.insert.fold.summarized-plain" },
+                { "command": "editor.insert.fold.summarized-std" },
+                { "command": "editor.insert.fold.summarized-env" },
+                { "command": "editor.insert.fold.summarized-documentation" },
+                { "command": "editor.insert.fold.summarized-grouped" }
+              ]
+            },
+            {
+              "submenu": "menubar-insert-fold-2-editor-mode-fold-switch",
+              "label": "Switch",
+              "items": [
+                { "command": "editor.insert.fold.switch" },
+                { "command": "editor.insert.fold.screens" },
+                { "command": "editor.insert.fold.tiny-switch" }
+              ]
+            },
+            {
+              "submenu": "menubar-insert-fold-3-editor-mode-fold-unroll",
+              "label": "Unroll",
+              "items": [
+                { "command": "editor.insert.fold.unroll" },
+                { "command": "editor.insert.fold.unroll-compressed" },
+                { "command": "editor.insert.fold.unroll-phantoms" },
+                { "command": "editor.insert.fold.unroll-greyed" },
+                { "separator": true },
+                { "command": "editor.insert.fold.unroll-itemize" },
+                { "command": "editor.insert.fold.unroll-enumerate" },
+                { "command": "editor.insert.fold.unroll-description" }
+              ]
+            },
+            {
+              "submenu": "menubar-insert-fold-4-editor-mode-fold-expanded",
+              "label": "Expanded",
+              "items": [
+                { "command": "editor.insert.fold.expanded" },
+                { "command": "editor.insert.fold.slides" }
+              ]
+            },
+            {
+              "submenu": "menubar-insert-fold-5-editor-mode-fold-overlays",
+              "label": "Overlays",
+              "items": [
+                { "command": "editor.insert.fold.overlays" },
+                { "command": "editor.insert.fold.overlays-compressed" },
+                { "command": "editor.insert.fold.overlays-phantoms" },
+                { "command": "editor.insert.fold.overlays-greyed" }
+              ]
+            },
+            {
+              "submenu": "menubar-insert-fold-6-editor-mode-fold-overlay",
+              "label": "Overlay",
+              "items": [
+                { "command": "editor.insert.fold.alter-colors" },
+                { "separator": true },
+                { "command": "editor.insert.fold.overlay-from" },
+                { "command": "editor.insert.fold.overlay-until" },
+                { "command": "editor.insert.fold.overlay-this" },
+                { "command": "editor.insert.fold.overlay-other" },
+                { "separator": true },
+                { "command": "editor.insert.fold.alternate-from" },
+                { "command": "editor.insert.fold.alternate-until" },
+                { "command": "editor.insert.fold.alternate-this" },
+                { "command": "editor.insert.fold.alternate-other" }
+              ]
+            },
+            {
+              "submenu": "menubar-insert-fold-7-editor-mode-fold-traversal",
+              "label": "Traversal",
+              "items": [
+                { "command": "editor.insert.fold.fold-back" },
+                { "command": "editor.insert.fold.keep-unfolded" }
+              ]
+            }
+          ],
+          "icon": "tm_switch"
+        },
         {
           "submenu": "insert-program",
           "label": "Program",
-          "icon": "tm_program",
           "items": [
             { "provider": "editor-program-languages" }
           ]
@@ -939,14 +1438,293 @@
       "id": "source",
       "label": "Source",
       "items": [
-        { "provider": "menubar-source-commands" }
+        {
+          "submenu": "menubar-source-definition",
+          "label": "Set or get environment variables",
+          "items": [
+            { "command": "editor.source.assign" },
+            { "command": "editor.source.with" },
+            { "command": "editor.source.value" }
+          ],
+          "icon": "tm_assign"
+        },
+        {
+          "submenu": "menubar-source-macro",
+          "label": "Write a macro",
+          "items": [
+            { "command": "editor.source.macro" },
+            { "command": "editor.source.argument" },
+            { "command": "editor.source.compound" },
+            { "command": "editor.source.extern" },
+            { "separator": true },
+            { "command": "editor.source.long-macro" },
+            { "command": "editor.source.get-label" },
+            { "command": "editor.source.get-arity" },
+            { "command": "editor.source.map-arguments" }
+          ],
+          "icon": "tm_lambda"
+        },
+        {
+          "submenu": "menubar-source-evaluation",
+          "label": "Control the evaluation of expressions",
+          "items": [
+            { "command": "editor.source.evaluate" },
+            { "separator": true },
+            { "command": "editor.source.quote" },
+            { "command": "editor.source.quasi" },
+            { "command": "editor.source.quasiquote" },
+            { "command": "editor.source.unquote" },
+            { "separator": true },
+            { "command": "editor.source.quote-value" },
+            { "command": "editor.source.quote-argument" }
+          ],
+          "icon": "tm_prime"
+        },
+        {
+          "submenu": "menubar-source-flow",
+          "label": "Insert a control flow instruction",
+          "items": [
+            { "command": "editor.source.if" },
+            { "command": "editor.source.case" },
+            { "command": "editor.source.while" },
+            { "command": "editor.source.for-each" }
+          ],
+          "icon": "tm_ctrl_flow"
+        },
+        {
+          "submenu": "menubar-source-arithmetic",
+          "label": "Insert a numerical operation",
+          "items": [
+            { "command": "editor.source.plus" },
+            { "command": "editor.source.minus" },
+            { "command": "editor.source.times" },
+            { "command": "editor.source.over" },
+            { "command": "editor.source.div" },
+            { "command": "editor.source.mod" }
+          ],
+          "icon": "tm_three"
+        },
+        {
+          "submenu": "menubar-source-text",
+          "label": "Insert a textual operation",
+          "items": [
+            { "command": "editor.source.merge" },
+            { "command": "editor.source.length" },
+            { "command": "editor.source.range" },
+            { "command": "editor.source.number" },
+            { "command": "editor.source.today" },
+            { "command": "editor.source.date" },
+            { "command": "editor.source.translate" },
+            { "command": "editor.source.find-file" }
+          ],
+          "icon": "tm_textual"
+        },
+        {
+          "submenu": "menubar-source-tuple",
+          "label": "Insert an operation on tuples",
+          "items": [
+            { "command": "editor.source.is-tuple" },
+            { "command": "editor.source.merge" },
+            { "command": "editor.source.length" },
+            { "command": "editor.source.range" },
+            { "command": "editor.source.look-up" }
+          ],
+          "icon": "tm_tuple"
+        },
+        {
+          "submenu": "menubar-source-condition",
+          "label": "Insert a condition",
+          "items": [
+            { "command": "editor.source.not" },
+            { "command": "editor.source.and" },
+            { "command": "editor.source.or" },
+            { "command": "editor.source.xor" },
+            { "separator": true },
+            { "command": "editor.source.equal" },
+            { "command": "editor.source.unequal" },
+            { "command": "editor.source.less" },
+            { "command": "editor.source.lesseq" },
+            { "command": "editor.source.greater" },
+            { "command": "editor.source.greatereq" }
+          ],
+          "icon": "tm_equal"
+        },
+        { "separator": true },
+        {
+          "submenu": "source-activation",
+          "label": "Activation",
+          "items": [
+            { "command": "editor.source.active" },
+            { "command": "editor.source.inactive*" },
+            { "command": "editor.source.inactive" },
+            { "command": "editor.source.style-only*" },
+            { "command": "editor.source.style-only" }
+          ]
+        },
+        { "command": "editor.source.activate" },
+        { "command": "editor.source.stretch" },
+        { "command": "editor.source.compact" }
       ]
     },
     {
       "id": "dynamic",
       "label": "Dynamic",
       "items": [
-        { "provider": "menubar-dynamic-commands" }
+        {
+          "submenu": "dynamic-navigation",
+          "label": "Navigation",
+          "items": [
+            { "command": "editor.presentation-first" },
+            { "command": "editor.presentation-previous-screen" },
+            { "command": "editor.presentation-previous" },
+            { "command": "editor.presentation-next" },
+            { "command": "editor.presentation-next-screen" },
+            { "command": "editor.presentation-last" }
+          ]
+        },
+        {
+          "submenu": "dynamic-fold",
+          "label": "Fold",
+          "items": [
+            { "command": "editor.dynamic.fold" }
+          ]
+        },
+        {
+          "submenu": "dynamic-unfold",
+          "label": "Unfold",
+          "items": [
+            { "command": "editor.dynamic.unfold" }
+          ]
+        },
+        {
+          "submenu": "dynamic-compress",
+          "label": "Compress",
+          "items": [
+            { "command": "editor.dynamic.compress" },
+            { "command": "editor.dynamic.var-compress" }
+          ]
+        },
+        {
+          "submenu": "dynamic-expand",
+          "label": "Expand",
+          "items": [
+            { "command": "editor.dynamic.expand" },
+            { "command": "editor.dynamic.var-expand" }
+          ]
+        },
+        {
+          "submenu": "dynamic-filter",
+          "label": "Filter",
+          "items": [
+            { "command": "editor.dynamic.remove-folded" },
+            { "command": "editor.dynamic.remove-unfolded" },
+            { "command": "editor.dynamic.keep-folded" },
+            { "command": "editor.dynamic.keep-unfolded" }
+          ]
+        },
+        {
+          "submenu": "dynamic-insert-folds",
+          "label": "Insert folding constructs",
+          "items": [
+            {
+              "submenu": "dynamic-insert-fold-submenu",
+              "label": "Switching and folding",
+              "items": [
+                {
+                  "submenu": "dynamic-insert-fold-submenu-0-editor-mode-fold-folded",
+                  "label": "Folded",
+                  "items": [
+                    { "command": "editor.insert.fold.folded" },
+                    { "command": "editor.insert.fold.folded-plain" },
+                    { "command": "editor.insert.fold.folded-std" },
+                    { "command": "editor.insert.fold.folded-env" },
+                    { "command": "editor.insert.fold.folded-documentation" },
+                    { "command": "editor.insert.fold.folded-grouped" }
+                  ]
+                },
+                {
+                  "submenu": "dynamic-insert-fold-submenu-1-editor-mode-fold-summarized",
+                  "label": "Summarized",
+                  "items": [
+                    { "command": "editor.insert.fold.summarized" },
+                    { "command": "editor.insert.fold.summarized-plain" },
+                    { "command": "editor.insert.fold.summarized-std" },
+                    { "command": "editor.insert.fold.summarized-env" },
+                    { "command": "editor.insert.fold.summarized-documentation" },
+                    { "command": "editor.insert.fold.summarized-grouped" }
+                  ]
+                },
+                {
+                  "submenu": "dynamic-insert-fold-submenu-2-editor-mode-fold-switch",
+                  "label": "Switch",
+                  "items": [
+                    { "command": "editor.insert.fold.switch" },
+                    { "command": "editor.insert.fold.screens" },
+                    { "command": "editor.insert.fold.tiny-switch" }
+                  ]
+                },
+                {
+                  "submenu": "dynamic-insert-fold-submenu-3-editor-mode-fold-unroll",
+                  "label": "Unroll",
+                  "items": [
+                    { "command": "editor.insert.fold.unroll" },
+                    { "command": "editor.insert.fold.unroll-compressed" },
+                    { "command": "editor.insert.fold.unroll-phantoms" },
+                    { "command": "editor.insert.fold.unroll-greyed" },
+                    { "separator": true },
+                    { "command": "editor.insert.fold.unroll-itemize" },
+                    { "command": "editor.insert.fold.unroll-enumerate" },
+                    { "command": "editor.insert.fold.unroll-description" }
+                  ]
+                },
+                {
+                  "submenu": "dynamic-insert-fold-submenu-4-editor-mode-fold-expanded",
+                  "label": "Expanded",
+                  "items": [
+                    { "command": "editor.insert.fold.expanded" },
+                    { "command": "editor.insert.fold.slides" }
+                  ]
+                },
+                {
+                  "submenu": "dynamic-insert-fold-submenu-5-editor-mode-fold-overlays",
+                  "label": "Overlays",
+                  "items": [
+                    { "command": "editor.insert.fold.overlays" },
+                    { "command": "editor.insert.fold.overlays-compressed" },
+                    { "command": "editor.insert.fold.overlays-phantoms" },
+                    { "command": "editor.insert.fold.overlays-greyed" }
+                  ]
+                },
+                {
+                  "submenu": "dynamic-insert-fold-submenu-6-editor-mode-fold-overlay",
+                  "label": "Overlay",
+                  "items": [
+                    { "command": "editor.insert.fold.alter-colors" },
+                    { "separator": true },
+                    { "command": "editor.insert.fold.overlay-from" },
+                    { "command": "editor.insert.fold.overlay-until" },
+                    { "command": "editor.insert.fold.overlay-this" },
+                    { "command": "editor.insert.fold.overlay-other" },
+                    { "separator": true },
+                    { "command": "editor.insert.fold.alternate-from" },
+                    { "command": "editor.insert.fold.alternate-until" },
+                    { "command": "editor.insert.fold.alternate-this" },
+                    { "command": "editor.insert.fold.alternate-other" }
+                  ]
+                },
+                {
+                  "submenu": "dynamic-insert-fold-submenu-7-editor-mode-fold-traversal",
+                  "label": "Traversal",
+                  "items": [
+                    { "command": "editor.insert.fold.fold-back" },
+                    { "command": "editor.insert.fold.keep-unfolded" }
+                  ]
+                }
+              ],
+              "icon": "tm_switch"
+            }
+          ]
+        }
       ]
     },
     {
@@ -1074,6 +1852,7 @@
             { "provider": "editor-focus-text-data" }
           ]
         },
+        { "provider": "editor-focus-link-display" },
         { "provider": "editor-focus-special-actions" },
         {
           "submenu": "focus-fields",
@@ -1140,7 +1919,186 @@
       "id": "format",
       "label": "Format",
       "items": [
-        { "provider": "menubar-format-commands" },
+        {
+          "submenu": "format-paragraph",
+          "label": "Paragraph",
+          "items": [
+            {
+              "submenu": "menubar-paragraph-mode",
+              "label": "Set paragraph mode",
+              "items": [
+                { "command": "editor.format.par-left" },
+                { "command": "editor.format.par-center" },
+                { "command": "editor.format.par-right" },
+                { "command": "editor.format.par-justify" }
+              ],
+              "icon": "tm_parstyle"
+            },
+            {
+              "submenu": "menubar-paragraph-margins",
+              "label": "Set paragraph margins",
+              "items": [
+                { "command": "editor.format.left-margin" },
+                { "command": "editor.format.right-margin" },
+                { "command": "editor.format.first-indent" }
+              ],
+              "icon": "tm_parindent"
+            }
+          ],
+          "requires": ["text-mode"]
+        },
+        {
+          "submenu": "format-text",
+          "label": "Text style",
+          "items": [
+            { "command": "editor.format.em" },
+            { "command": "editor.format.strong" },
+            { "command": "editor.format.verbatim" },
+            { "command": "editor.format.sample" },
+            { "command": "editor.format.name" },
+            { "command": "editor.format.italic-text" },
+            { "command": "editor.format.bold" },
+            { "command": "editor.format.typewriter" },
+            { "command": "editor.format.sans-serif" },
+            { "command": "editor.format.small-caps" },
+            { "command": "editor.format.hyphenate-selection" }
+          ],
+          "requires_any": ["text-mode","source-mode"]
+        },
+        {
+          "submenu": "format-program",
+          "label": "Program style",
+          "items": [
+            { "command": "editor.prog.italic" },
+            { "command": "editor.prog.bold" },
+            { "command": "editor.prog.sans-serif" }
+          ],
+          "requires": ["prog-mode"]
+        },
+        {
+          "submenu": "format-math-style",
+          "label": "Mathematical style",
+          "items": [
+            { "command": "editor.math.format.inline" },
+            { "command": "editor.math.format.display" },
+            { "command": "editor.math.format.level0" },
+            { "command": "editor.math.format.level1" },
+            { "command": "editor.math.format.level2" },
+            { "command": "editor.math.format.spacing-normal" },
+            { "command": "editor.math.format.spacing-condensed" }
+          ],
+          "requires": ["math-mode"]
+        },
+        {
+          "submenu": "format-fonts",
+          "label": "Font",
+          "items": [
+            { "command": "editor.focus.document-font" },
+            {
+              "submenu": "format-font-sizes",
+              "label": "Size",
+              "items": [
+                { "command": "editor.format.font-size.5" },
+                { "command": "editor.format.font-size.6" },
+                { "command": "editor.format.font-size.7" },
+                { "command": "editor.format.font-size.8" },
+                { "command": "editor.format.font-size.9" },
+                { "command": "editor.format.font-size.10" },
+                { "command": "editor.format.font-size.11" },
+                { "command": "editor.format.font-size.12" },
+                { "command": "editor.format.font-size.14" },
+                { "command": "editor.format.font-size.17" },
+                { "command": "editor.format.font-size.20" },
+                { "command": "editor.format.font-size.24" },
+                { "command": "editor.format.font-size.custom" }
+              ]
+            }
+          ]
+        },
+        { "command": "editor.focus.page-properties" },
+        { "command": "editor.focus.table-properties" },
+        { "command": "editor.focus.cell-properties" },
+        { "separator": true },
+        {
+          "submenu": "format-space",
+          "label": "Whitespace",
+          "items": [
+            { "command": "editor.format.space.stretch" },
+            { "command": "editor.format.space.rigid" },
+            { "command": "editor.format.space.rigid-box" },
+            { "command": "editor.format.space.tab" },
+            { "command": "editor.format.space.custom-tab" },
+            {
+              "submenu": "format-space-before",
+              "label": "Vertical space before",
+              "items": [
+                { "command": "editor.format.space.before.small" },
+                { "command": "editor.format.space.before.medium" },
+                { "command": "editor.format.space.before.big" },
+                { "command": "editor.format.space.before.custom" }
+              ]
+            },
+            {
+              "submenu": "format-space-after",
+              "label": "Vertical space after",
+              "items": [
+                { "command": "editor.format.space.after.small" },
+                { "command": "editor.format.space.after.medium" },
+                { "command": "editor.format.space.after.big" },
+                { "command": "editor.format.space.after.custom" }
+              ]
+            }
+          ]
+        },
+        {
+          "submenu": "format-indent",
+          "label": "Indentation",
+          "items": [
+            { "command": "editor.format.indent.no-before" },
+            { "command": "editor.format.indent.yes-before" },
+            { "command": "editor.format.indent.no-after" },
+            { "command": "editor.format.indent.yes-after" }
+          ]
+        },
+        {
+          "submenu": "format-breaks",
+          "label": "Break",
+          "items": [
+            { "command": "editor.format.break.next-line" },
+            { "command": "editor.format.break.line-break" },
+            { "command": "editor.format.break.no-break" },
+            { "command": "editor.format.break.new-line" },
+            { "command": "editor.format.break.before.new" },
+            { "command": "editor.format.break.after.new" },
+            { "command": "editor.format.break.before.double" },
+            { "command": "editor.format.break.after.double" },
+            { "command": "editor.format.break.before.break" },
+            { "command": "editor.format.break.after.break" },
+            { "command": "editor.format.break.before.no" },
+            { "command": "editor.format.break.after.no" },
+            { "command": "editor.format.break.hgroup" },
+            { "command": "editor.format.break.vgroup" }
+          ]
+        },
+        { "separator": true },
+        {
+          "submenu": "format-opacity",
+          "label": "Opacity",
+          "items": [
+            { "command": "editor.format.opacity.0" },
+            { "command": "editor.format.opacity.10" },
+            { "command": "editor.format.opacity.20" },
+            { "command": "editor.format.opacity.30" },
+            { "command": "editor.format.opacity.40" },
+            { "command": "editor.format.opacity.50" },
+            { "command": "editor.format.opacity.60" },
+            { "command": "editor.format.opacity.70" },
+            { "command": "editor.format.opacity.80" },
+            { "command": "editor.format.opacity.90" },
+            { "command": "editor.format.opacity.100" },
+            { "command": "editor.format.opacity.custom" }
+          ]
+        },
         {
           "submenu": "format-text-color",
           "label": "Text color",
@@ -1160,6 +2118,96 @@
           "label": "Math color",
           "items": [
             { "provider": "editor-math-colors" }
+          ]
+        },
+        { "separator": true },
+        {
+          "submenu": "format-adjust",
+          "label": "Adjust",
+          "items": [
+            { "command": "editor.format.adjust.move" },
+            { "command": "editor.format.adjust.shift" },
+            { "command": "editor.format.adjust.resize" },
+            { "command": "editor.format.adjust.extend" },
+            { "command": "editor.format.adjust.clip" },
+            { "command": "editor.format.adjust.smash" },
+            { "command": "editor.format.adjust.reduce" },
+            { "command": "editor.format.adjust.inflate" }
+          ]
+        },
+        {
+          "submenu": "format-transform",
+          "label": "Transform",
+          "items": [
+            { "command": "editor.format.transform.rotate" },
+            { "command": "editor.format.transform.dilate" },
+            { "command": "editor.format.transform.skew" },
+            { "command": "editor.format.transform.linear" }
+          ]
+        },
+        {
+          "submenu": "format-specific",
+          "label": "Specific output",
+          "items": [
+            { "command": "editor.format.specific.texmacs" },
+            { "command": "editor.format.specific.latex" },
+            { "command": "editor.format.specific.html" },
+            { "command": "editor.format.specific.screen" },
+            { "command": "editor.format.specific.printer" },
+            { "command": "editor.format.specific.image" },
+            { "command": "editor.format.specific.even" },
+            { "command": "editor.format.specific.odd" }
+          ]
+        },
+        {
+          "submenu": "format-special",
+          "label": "Special",
+          "items": [
+            { "command": "editor.format.special.rigid" },
+            { "command": "editor.format.special.phantom" },
+            { "command": "editor.format.special.superpose" },
+            { "command": "editor.format.special.repeat" },
+            { "command": "editor.format.special.datoms" }
+          ]
+        },
+        {
+          "submenu": "format-font-effects",
+          "label": "Font effects",
+          "items": [
+            { "command": "editor.format.font-effect.embold" },
+            { "command": "editor.format.font-effect.embbb" },
+            { "command": "editor.format.font-effect.slanted" },
+            { "command": "editor.format.font-effect.hmagnified" },
+            { "command": "editor.format.font-effect.vmagnified" },
+            { "command": "editor.format.font-effect.condensed" },
+            { "command": "editor.format.font-effect.extended" },
+            { "command": "editor.format.font-effect.monospaced" },
+            { "command": "editor.format.font-effect.degraded" },
+            { "command": "editor.format.font-effect.distorted" },
+            { "command": "editor.format.font-effect.gnawed" }
+          ]
+        },
+        {
+          "submenu": "format-graphic-effects",
+          "label": "Graphical effects",
+          "items": [
+            { "command": "editor.format.graphic-effect.blur" },
+            { "command": "editor.format.graphic-effect.outline" },
+            { "command": "editor.format.graphic-effect.thicken" },
+            { "command": "editor.format.graphic-effect.erode" },
+            { "command": "editor.format.graphic-effect.shadow" },
+            { "command": "editor.format.graphic-effect.engrave" },
+            { "command": "editor.format.graphic-effect.emboss" },
+            { "command": "editor.format.graphic-effect.shadowed-raise" },
+            { "command": "editor.format.graphic-effect.outlined-engrave" },
+            { "command": "editor.format.graphic-effect.outlined-emboss" },
+            { "command": "editor.format.graphic-effect.degrade" },
+            { "command": "editor.format.graphic-effect.distort" },
+            { "command": "editor.format.graphic-effect.gnaw" },
+            { "command": "editor.format.graphic-effect.make-transparent" },
+            { "command": "editor.format.graphic-effect.make-opaque" },
+            { "command": "editor.format.graphic-effect.recolor" },
+            { "command": "editor.format.graphic-effect.skin" }
           ]
         },
         { "provider": "editor-prominent-spacing" },

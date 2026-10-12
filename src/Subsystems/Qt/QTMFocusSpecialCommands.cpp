@@ -80,6 +80,40 @@ state_if (const QTMCommandContext& context, bool available) {
 void
 QTMCommandRegistry::registerFocusSpecialCommands () {
   registerProvider (
+    "editor-focus-link-display", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QVector<QTMCommandDynamicItem> out;
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return out;
+      actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
+      if (!focus.valid ()) return out;
+      if (focus.hlink_context)
+        out.append (enabled_dynamic_item (
+          "card", QObject::tr ("Display link as card")));
+      if (focus.cardlink_context)
+        out.append (enabled_dynamic_item (
+          "link", QObject::tr ("Display card as link")));
+      actor_editor_command_snapshot state= proxy->editor_command_state ();
+      for (QTMCommandDynamicItem& item: out)
+        item.state.enabled= state.valid () && !state.read_only ();
+      return out;
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      if (key != "card" && key != "link") return false;
+      QJsonObject action;
+      action.insert ("op", "focus-link-display");
+      action.insert ("kind", key);
+      return submit_inline_editor_action (
+        context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
+    },
+    [] (const QTMCommandContext& context) {
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return QTMCommandState {};
+      actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
+      return state_if (context,
+        focus.valid () && (focus.hlink_context || focus.cardlink_context));
+    });
+  registerProvider (
     "editor-focus-vault-context", QTMCommandScope::Editor,
     [] (const QTMCommandContext& context) {
       QVector<QTMCommandDynamicItem> out;

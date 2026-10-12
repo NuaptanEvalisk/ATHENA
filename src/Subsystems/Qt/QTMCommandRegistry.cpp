@@ -111,32 +111,6 @@ QTMCommandRegistry::registerBuiltins () {
     };
 
   registerCommandListProvider (
-    QStringLiteral ("menubar-insert-commands"),
-    [] (const QTMCommandDefinition& definition) {
-      return definition.id.startsWith (QStringLiteral ("editor.insert.")) ||
-             definition.id.startsWith (QStringLiteral ("editor.text.")) ||
-             (definition.id.startsWith (QStringLiteral ("editor.math.")) &&
-              !definition.id.startsWith (
-                QStringLiteral ("editor.math.static.")));
-    },
-    [] (const QTMCommandDefinition& definition) {
-      if (definition.id.startsWith (QStringLiteral ("editor.text.")))
-        return QObject::tr ("Text");
-      if (definition.id.startsWith (QStringLiteral ("editor.math.")) ||
-          definition.id.startsWith (QStringLiteral ("editor.insert.math.")))
-        return QObject::tr ("Mathematics");
-      if (definition.id.startsWith (QStringLiteral ("editor.insert.table.")))
-        return QObject::tr ("Tables");
-      if (definition.id.startsWith (QStringLiteral ("editor.insert.image.")))
-        return QObject::tr ("Images");
-      if (definition.id.startsWith (QStringLiteral ("editor.insert.link.")))
-        return QObject::tr ("Links");
-      if (definition.id.startsWith (QStringLiteral ("editor.insert.fold.")))
-        return QObject::tr ("Fold");
-      return QObject::tr ("Insert");
-    });
-
-  registerCommandListProvider (
     QStringLiteral ("menubar-math-symbols"),
     [] (const QTMCommandDefinition& definition) {
       return definition.id.startsWith (
@@ -153,24 +127,6 @@ QTMCommandRegistry::registerBuiltins () {
     });
 
   registerCommandListProvider (
-    QStringLiteral ("menubar-format-commands"),
-    [] (const QTMCommandDefinition& definition) {
-      return definition.id.startsWith (QStringLiteral ("editor.format.")) ||
-             definition.id.startsWith (QStringLiteral ("editor.prog."));
-    },
-    [] (const QTMCommandDefinition& definition) {
-      return definition.id.startsWith (QStringLiteral ("editor.prog.")) ?
-        QObject::tr ("Program") : QObject::tr ("Text");
-    });
-
-  registerCommandListProvider (
-    QStringLiteral ("menubar-source-commands"),
-    [] (const QTMCommandDefinition& definition) {
-      return definition.id.startsWith (QStringLiteral ("editor.source."));
-    },
-    [] (const QTMCommandDefinition&) { return QString (); });
-
-  registerCommandListProvider (
     QStringLiteral ("menubar-manual-commands"),
     [] (const QTMCommandDefinition& definition) {
       return definition.id.startsWith (QStringLiteral ("editor.tmdoc."));
@@ -183,18 +139,6 @@ QTMCommandRegistry::registerBuiltins () {
       if (definition.id.contains (QStringLiteral (".explain")))
         return QObject::tr ("Explanations");
       return QObject::tr ("Manual");
-    });
-
-  registerCommandListProvider (
-    QStringLiteral ("menubar-dynamic-commands"),
-    [] (const QTMCommandDefinition& definition) {
-      return definition.category == QStringLiteral ("Fold") ||
-             definition.id.startsWith (
-               QStringLiteral ("editor.presentation-"));
-    },
-    [] (const QTMCommandDefinition& definition) {
-      return definition.category == QStringLiteral ("Fold") ?
-        QObject::tr ("Fold and overlays") : QObject::tr ("Navigation");
     });
 
   registerProvider (

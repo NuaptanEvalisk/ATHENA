@@ -272,7 +272,10 @@ void restore_cells_after_command (array<int> cells) {
   });
 }
 
-enum class format_prompt_action { inline_with, line_with, wrapper };
+enum class format_prompt_action {
+  inline_with, line_with, wrapper, hspace, rigid_space, tab,
+  vspace_before, vspace_after, hyphenate
+};
 
 void format_prompt (string prompt, object proposal,
                     format_prompt_action action, string variable,
@@ -311,6 +314,31 @@ void format_prompt (string prompt, object proposal,
           case format_prompt_action::wrapper:
             format_make_with_like (tree (tag, value, ""));
             break;
+          case format_prompt_action::hspace:
+            get_current_editor ()->make_hspace (value);
+            break;
+          case format_prompt_action::rigid_space:
+            get_current_editor ()->make_space (value);
+            break;
+          case format_prompt_action::tab:
+            get_current_editor ()->make_htab (value);
+            break;
+          case format_prompt_action::vspace_before:
+            get_current_editor ()->make_vspace_before (value);
+            break;
+          case format_prompt_action::vspace_after:
+            get_current_editor ()->make_vspace_after (value);
+            break;
+          case format_prompt_action::hyphenate: {
+            editor ed= get_current_editor ();
+            if (!ed->selection_active_small ()) break;
+            tree selected= ed->selection_get ();
+            if (!is_atomic (selected)) break;
+            tree content= ed->selection_get_cut ();
+            ed->insert_tree (tree (as_tree_label ("hyphenate-as"),
+                                   tree (value), content));
+            break;
+          }
           }
         });
       if (!buffer_actor::submit_to (actor, actor_command_kind::run_native_continuation,
@@ -340,6 +368,69 @@ void format_make_interactive_line_with (string variable) {
 void format_make_interactive_with_opacity () {
   format_prompt ("opacity", null_object (), format_prompt_action::wrapper,
                  "", as_tree_label ("with-opacity"));
+}
+
+void format_make_interactive_space (string kind) {
+  format_prompt_action action;
+  string proposal= "1em";
+  if (kind == "hspace") action= format_prompt_action::hspace;
+  else if (kind == "space") action= format_prompt_action::rigid_space;
+  else if (kind == "tab") action= format_prompt_action::tab;
+  else if (kind == "vspace-before") {
+    action= format_prompt_action::vspace_before;
+    proposal= "1fn";
+  }
+  else if (kind == "vspace-after") {
+    action= format_prompt_action::vspace_after;
+    proposal= "1fn";
+  }
+  else FAILED ("invalid interactive spacing kind");
+  format_prompt ("Length", object (proposal), action, "");
+}
+
+void format_make_interactive_box () {
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  ASSERT (context != nullptr && context->actor_id != ATHENA_NO_ACTOR,
+          "interactive rigid box requires a BufferActor");
+  const auto actor= context->actor_id;
+  const auto view= context->view_id;
+  const auto capabilities= context->capabilities;
+  QTMInteractiveField width, above, below;
+  width.prompt= "Width";
+  above.prompt= "Height above baseline";
+  below.prompt= "Depth below baseline";
+  width.type= above.type= below.type= "string";
+  width.proposals << string ("1em");
+  above.proposals << string ("0ex");
+  below.proposals << string ("0ex");
+  qtm_interactive_form_async (
+    "Rigid box", {width, above, below},
+    [actor, view, capabilities] (std::vector<std::string> answers) {
+      if (answers.size () != 3) return;
+      auto id= actor_continuation_registry::instance ().store (
+        [values= std::move (answers)] {
+          const SchemeExecutionContext* context= current_scheme_execution_context ();
+          if (context == nullptr || context->editor == nullptr) return;
+          auto from= [] (const std::string& value) {
+            return string (value.data (), static_cast<int> (value.size ()));
+          };
+          get_current_editor ()->make_space (
+            from (values[0]), from (values[1]), from (values[2]));
+        });
+      if (!buffer_actor::submit_to (
+            actor, actor_command_kind::run_native_continuation,
+            view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, capabilities, id))
+        actor_continuation_registry::instance ().discard (id);
+    });
+}
+
+void format_hyphenate_selection () {
+  editor ed= get_current_editor ();
+  if (!ed->selection_active_small ()) return;
+  tree selected= ed->selection_get ();
+  if (!is_atomic (selected)) return;
+  format_prompt ("Hyphenate as", object (selected->label),
+                 format_prompt_action::hyphenate, "");
 }
 
 void format_make_alternate (string prompt, object proposal, tree_label tag) {

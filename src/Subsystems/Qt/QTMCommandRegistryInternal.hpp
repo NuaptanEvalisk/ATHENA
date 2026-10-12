@@ -112,6 +112,29 @@ editor_proxy_for_context (const QTMCommandContext& context) {
   return dynamic_cast<qt_actor_widget_rep*> (canvas->tm_widget ());
 }
 
+// Presentation gating belongs to the editor/actor snapshots, not to a menu
+// widget's focus or to the current GUI thread's mutable editor state.
+inline bool
+presentation_flags_satisfied (
+  qt_actor_widget_rep* proxy, std::uint32_t required,
+  std::uint32_t forbidden, std::uint32_t any,
+  std::uint32_t focusRequired, std::uint32_t focusForbidden,
+  std::uint32_t focusAny) {
+  if (!(required | forbidden | any | focusRequired | focusForbidden | focusAny))
+    return true;
+  if (proxy == nullptr) return false;
+  actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
+  if (!snapshot.valid () || (snapshot.flags & required) != required ||
+      (snapshot.flags & forbidden) != 0 ||
+      (any && !(snapshot.flags & any))) return false;
+  if (!(focusRequired | focusForbidden | focusAny)) return true;
+  actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
+  return focus.valid () &&
+         (focus.flags & focusRequired) == focusRequired &&
+         (focus.flags & focusForbidden) == 0 &&
+         (!focusAny || (focus.flags & focusAny));
+}
+
 inline bool
 submit_inline_editor_action (
   const QTMCommandContext& context, const QJsonObject& action,

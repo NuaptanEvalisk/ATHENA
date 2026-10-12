@@ -342,6 +342,8 @@ struct actor_focus_toolbar_snapshot {
   bool section_navigation_available= false;
   std::vector<std::string> section_names;
   bool embedded_image_context= false;
+  bool hlink_context= false;
+  bool cardlink_context= false;
   bool linked_image_context= false;
   std::string embedded_image_proposal;
   bool transclusion_context= false;

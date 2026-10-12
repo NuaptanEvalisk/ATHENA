@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "commands": [
+    {
+      "id": "editor.insert.title",
+      "label": "Insert title",
+      "category": "Insert",
+      "help": "Insert document title data",
+      "editor_action": {
+        "op": "make-doc-data"
+      },
+      "requires": [
+        "text-mode"
+      ],
+      "forbids": [
+        "read-only",
+        "non-small-selection"
+      ]
+    },
+    {
+      "id": "editor.insert.abstract",
+      "label": "Abstract",
+      "category": "Insert",
+      "help": "Insert document abstract data",
+      "editor_action": {
+        "op": "make-abstract-data"
+      },
+      "requires": [
+        "text-mode"
+      ],
+      "forbids": [
+        "read-only"
+      ]
+    }
+  ],
+  "toolbars": []
+}

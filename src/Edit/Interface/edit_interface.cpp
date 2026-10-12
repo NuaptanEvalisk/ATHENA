@@ -1143,6 +1143,8 @@ editor_rep::focus_toolbar_state_snapshot () {
   }
 
   snapshot.sqrt_context= is_compound (t, "sqrt");
+  snapshot.hlink_context= is_compound (t, "hlink", 2);
+  snapshot.cardlink_context= is_compound (t, "cardlink", 2);
   snapshot.sqrt_multiple= snapshot.sqrt_context && N(t) == 2;
   try {
     snapshot.poster_block_context=
@@ -1232,7 +1234,7 @@ editor_rep::focus_toolbar_state_snapshot () {
     path cursorParent= path_up (the_path ());
     const bool cursorEmpty=
       has_subtree (root, cursorParent) &&
-      subtree (root, cursorParent) == tree ("");
+      subtree (root, cursorParent) == "";
     bool hasDocData= false;
     bool hasAbstractData= false;
     if (is_document (buffer))
@@ -1795,12 +1797,12 @@ editor_rep::focus_toolbar_state_snapshot () {
             N(slide) > 0 && is_compound (slide[0], "tit");
           snapshot.slide_propose_title= !hasTitle;
           const bool emptyDocument=
-            is_document (slide) && N(slide) == 1 && slide[0] == tree ("");
+            is_document (slide) && N(slide) == 1 && slide[0] == "";
           const bool titleOnly=
             is_document (slide) && N(slide) == 1 && hasTitle;
           const bool titleAndEmpty=
             is_document (slide) && N(slide) == 2 && hasTitle &&
-            slide[1] == tree ("");
+            slide[1] == "";
           snapshot.slide_propose_graphics=
             emptyDocument || titleOnly || titleAndEmpty;
         }

@@ -42,6 +42,12 @@ private:
     QString command_id;
     QString provider_id;
     QTMCommandMenuItem::Kind kind= QTMCommandMenuItem::Kind::Command;
+    std::uint32_t required_flags= 0;
+    std::uint32_t forbidden_flags= 0;
+    std::uint32_t any_flags= 0;
+    std::uint32_t focus_required_flags= 0;
+    std::uint32_t focus_forbidden_flags= 0;
+    std::uint32_t focus_any_flags= 0;
     int submenu_index= -1;
     QVector<QPointer<QAction>> dynamic_actions;
     QVector<QPointer<QMenu>> dynamic_menus;
@@ -71,6 +77,7 @@ private:
   void repopulate_provider (menu_entry& entry, QMenu* menu);
   bool refresh_provider (menu_entry& entry, QMenu* menu);
   bool refresh_menu (int index);
+  void hide_entry (menu_entry& entry);
   void refresh_root_visibility ();
   bool execute (const QString& command_id);
 };
