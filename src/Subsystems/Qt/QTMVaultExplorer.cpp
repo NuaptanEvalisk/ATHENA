@@ -18,6 +18,7 @@
 #include "scheme.hpp"
 #include "qt_utilities.hpp"
 #include "vault.hpp"
+#include "namespaces.hpp"
 
 #include <DockAreaWidget.h>
 #include <DockSplitter.h>
@@ -41,7 +42,6 @@
 #include <QSize>
 #include <QSizeGrip>
 #include <QStyle>
-#include <QTextStream>
 #include <QThread>
 #include <QTimer>
 #include <QToolBar>
@@ -280,21 +280,21 @@ QTMVaultExplorer::loadIndex (const QModelIndex& index) {
 }
 
 bool
-QTMVaultExplorer::writeNewFile (const QString& path) {
+QTMVaultExplorer::writeNewFile (const QString& path, QString& error) {
   QFileInfo info (path);
   QDir ().mkpath (info.absolutePath ());
-  QFile file (path);
-  if (!file.open (QIODevice::WriteOnly | QIODevice::NewOnly | QIODevice::Text))
-    return false;
-
   QString suffix= info.suffix ().toLower ();
   if (suffix == "ath" || suffix == "tm") {
-    QTextStream out (&file);
-    out << "<TeXmacs|2.1.4>\n\n"
-        << "<style|generic>\n\n"
-        << "<\\body>\n"
-        << "  \n"
-        << "</body>\n";
+    string detail;
+    bool created= athena_namespace_create_plain_file (
+      url_system (from_qstring (path)), detail);
+    error= to_qstring (detail);
+    return created;
+  }
+  QFile file (path);
+  if (!file.open (QIODevice::WriteOnly | QIODevice::NewOnly)) {
+    error= file.errorString ();
+    return false;
   }
   return true;
 }
@@ -316,7 +316,8 @@ QTMVaultExplorer::newFile () {
     showError ("Cannot create file at this location.");
     return;
   }
-  if (!writeNewFile (path)) showError ("Could not create file.");
+  QString error;
+  if (!writeNewFile (path, error)) showError (error);
 }
 
 void

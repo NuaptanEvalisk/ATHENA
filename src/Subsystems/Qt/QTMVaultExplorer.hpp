@@ -50,7 +50,7 @@ private:
   void    deleteSelected ();
   void    openInFileManager ();
   void    showContextMenu (const QPoint& pos);
-  bool    writeNewFile (const QString& path);
+  bool    writeNewFile (const QString& path, QString& error);
 
   QFileSystemModel* model;
   QTreeView*        tree;
