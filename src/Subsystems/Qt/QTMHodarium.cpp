@@ -206,12 +206,9 @@ public:
       QMetaObject::invokeMethod (this, [this, status= std::move (status)] {
         emit statusChanged (QString::fromStdString (status.group), QString::fromStdString (
           status.diagnostic.empty () ? status.discovery_diagnostic : status.diagnostic));
-        if (!stopping_ && !suspended_ && !status.discovery_diagnostic.empty ())
-          std_warning << "Hodarium discovery: " << string (status.discovery_diagnostic.c_str ()) << LF;
-        if (stopping_ || suspended_ || status.diagnostic.empty ()) return;
-        // The shared registry owns error-console and toast deduplication.
-        if (status.phase == profile_phase::offline_valid)
-          std_warning << "Hodarium: " << string (status.diagnostic.c_str ()) << LF;
+        // The shared indicator applies the transport outage grace period and
+        // owns error-console/toast deduplication. Status updates also occur for
+        // peer counts, so logging here would repeat an unchanged failure.
       }, Qt::QueuedConnection);
     };
     connect (&thread_, &QThread::finished, worker_, &QObject::deleteLater);

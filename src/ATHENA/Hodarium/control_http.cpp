@@ -43,13 +43,16 @@ void control_http::request (const QString& path, const QByteArray& body,
   request.setAttribute (QNetworkRequest::CacheSaveControlAttribute, false);
   auto tls= QSslConfiguration::defaultConfiguration ();
   tls.setProtocol (QSsl::TlsV1_3OrLater); tls.setPeerVerifyMode (QSslSocket::VerifyPeer);
-  request.setSslConfiguration (tls); request.setTransferTimeout (15000);
+  request.setSslConfiguration (tls);
   auto* reply= get ? network_->get (request) : network_->post (request, body);
   pending_= reply;
   const auto serial= ++serial_;
   auto response= std::make_shared<control_response> ();
   auto* deadline= new QTimer (reply); deadline->setSingleShot (true);
-  connect (deadline, &QTimer::timeout, reply, &QNetworkReply::abort);
+  connect (deadline, &QTimer::timeout, reply, [reply, response] {
+    response->timed_out= true;
+    reply->abort ();
+  });
   deadline->start (15000);
   reply->setReadBufferSize (64*1024);
   connect (reply, &QNetworkReply::readyRead, this, [reply, response] {
@@ -59,12 +62,14 @@ void control_http::request (const QString& path, const QByteArray& body,
     }
   });
   connect (reply, &QNetworkReply::finished, this,
-    [this, reply, response, deadline, serial, completed= std::move (completed)] () mutable {
+    [this, reply, response, deadline, serial, path, completed= std::move (completed)] () mutable {
       deadline->stop (); reply->deleteLater ();
       if (serial != serial_) return;
       pending_.clear ();
       response->status= reply->attribute (QNetworkRequest::HttpStatusCodeAttribute).toInt ();
       if (response->oversized) response->error= "Hodarium control response exceeds budget";
+      else if (response->timed_out || reply->error () == QNetworkReply::TimeoutError)
+        response->error= "Hodarium HTTPS request timed out after 15 seconds: " + path.toStdString ();
       else if (reply->error () != QNetworkReply::NoError || response->status != 200)
         response->error= "Hodarium HTTPS request failed (HTTP " + std::to_string (response->status) +
           "): " + reply->errorString ().toStdString ();

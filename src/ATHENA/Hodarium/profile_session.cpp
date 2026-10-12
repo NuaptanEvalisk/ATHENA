@@ -50,6 +50,14 @@ void profile_session::recovered (diagnostic_source source) {
   if (diagnostic_source_ == source && client_ && client_->authorized ())
     publish (profile_phase::authorized);
 }
+void profile_session::control_failed (const control_result& result, diagnostic_source source) {
+  if (result.failure == control_failure::cancelled) return;
+  // Retried transport failures use the shared indicator's outage grace period.
+  // Authorization still depends on the signed membership lease, not this state.
+  const auto phase= result.failure == control_failure::transport && client_ && client_->authorized () ?
+    profile_phase::offline_valid : profile_phase::error;
+  publish (phase, result.diagnostic, {}, 0, source);
+}
 void profile_session::refresh_after_conflict () {
   if (paused_ || !profile_.enabled || !client_ || busy_ ||
       clock::now () < next_conflict_refresh_) return;
@@ -127,7 +135,7 @@ void profile_session::refresh () {
       directory_->start ({state->group, profile_.member, state->generation, state->epoch});
       if (status_.diagnostic.empty () || diagnostic_source_ == diagnostic_source::membership)
         publish (profile_phase::authorized);
-      else publish (profile_phase::authorized, status_.diagnostic, {}, 0, diagnostic_source_);
+      else publish (status_.phase, status_.diagnostic, {}, 0, diagnostic_source_);
     }
     else if (result.failure == control_failure::denied)
       publish (profile_phase::denied, result.diagnostic, {}, 0, diagnostic_source::membership);
@@ -384,7 +392,7 @@ void profile_session::submit_proposal (const std::string& operation, bool write)
     if (result.failure == control_failure::cancelled) return;
     if (result.failure != control_failure::none) {
       next_decision_= clock::now () + std::chrono::seconds (30);
-      publish (profile_phase::error, result.diagnostic, {}, 0, diagnostic_source::decision);
+      control_failed (result, diagnostic_source::decision);
       if (result.failure == control_failure::conflict) refresh_after_conflict ();
       return;
     }
@@ -439,7 +447,7 @@ void profile_session::refresh_decisions () {
         refresh_after_conflict ();
         return;
       }
-      publish (profile_phase::error, result.diagnostic, {}, 0, diagnostic_source::feed);
+      control_failed (result, diagnostic_source::feed);
       if (result.failure == control_failure::conflict) refresh_after_conflict ();
     }
     else if (result.failure == control_failure::none) {
@@ -524,7 +532,7 @@ void profile_session::decide_next () {
       if (result.failure == control_failure::cancelled) return;
       if (result.failure != control_failure::none) {
         next_decision_= clock::now () + std::chrono::seconds (30);
-        publish (profile_phase::error, result.diagnostic, {}, 0, diagnostic_source::decision);
+        control_failed (result, diagnostic_source::decision);
         if (result.failure == control_failure::conflict) refresh_after_conflict ();
         return;
       }
@@ -553,9 +561,10 @@ void profile_session::register_next_vault () {
         if (paused_ || result.failure == control_failure::cancelled) return;
         if (result.failure != control_failure::none) {
           next_secret_registration_= clock::now () + std::chrono::seconds (60);
-          publish (profile_phase::error, result.diagnostic); return;
+          control_failed (result, diagnostic_source::registration); return;
         }
         registered_vaults_.insert (vault);
+        recovered (diagnostic_source::registration);
         // Registration is not proof of possession. A competing device must
         // obtain the winner over the encrypted peer channel, never replace it.
         if (registration && !settings_.find_vault_secret (profile_.pin.group,

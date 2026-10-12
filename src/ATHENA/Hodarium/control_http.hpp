@@ -16,6 +16,7 @@ struct control_response {
   QByteArray body;
   std::string error;
   bool oversized= false;
+  bool timed_out= false;
 };
 // Shared bounded HTTPS transport for enrollment and enrolled-device control.
 class control_http: public QObject {
