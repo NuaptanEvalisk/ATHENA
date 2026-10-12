@@ -1562,6 +1562,11 @@ QTMPreferencesDialog::buildVaultCategories () {
   add_toggle (g, "vault explorer show on startup");
   add_toggle (g, "vault take preferences with vault");
   add_toggle (g, "vault canonical database positions");
+  const char* suppressNetworkErrors= "hodarium suppress background network errors";
+  const auto hodariumPreference= preference_ui (suppressNetworkErrors);
+  QFormLayout* hodarium= add_section (general, to_qstring_pref (hodariumPreference.section));
+  add_toggle (hodarium, suppressNetworkErrors)->setToolTip (
+    to_qstring_pref (hodariumPreference.help));
   finish_page (general);
 
   QWidget* navigation= make_page ();
