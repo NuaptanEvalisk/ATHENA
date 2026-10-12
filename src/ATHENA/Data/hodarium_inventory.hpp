@@ -16,6 +16,7 @@ struct source_inventory {
   std::vector<inventoried_document> documents;
   std::vector<std::string> errors;
   std::vector<identity_conflict> conflicts;
+  bool retry= false;
   struct cached_source { filesystem::metadata revision; std::string object; bool published= false; };
   std::map<std::string, cached_source> cache;
 };

@@ -132,7 +132,8 @@ public:
   void add_session (const client_profile& profile);
   rows snapshot ();
   athena::background::progress background_progress ();
-  std::map<std::string, std::string> background_errors;
+  bool suppress_background_network_errors= false;
+  std::map<std::string, control_result> background_errors;
   std::map<std::pair<std::string, std::string>, athena::background::progress> vault_progress;
   std::map<std::string, std::chrono::steady_clock::time_point> background_transport_failures;
   void join (QUrl origin, std::string name);

@@ -1639,6 +1639,24 @@
       }
     },
     {
+      "key": "hodarium suppress background network errors",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Vault",
+        "tab": "General",
+        "section": "Hodarium",
+        "order": 0,
+        "label": "Suppress background network errors",
+        "help": "Keep retrying without error notifications for background connection failures. Diagnostics remain visible in Hodarium. Authentication, document and conflict errors are not suppressed.",
+        "control": "toggle",
+        "category_order": 5,
+        "tab_order": 0,
+        "section_order": 1
+      }
+    },
+    {
       "key": "vault welcome page",
       "type": "boolean",
       "scope": "active",

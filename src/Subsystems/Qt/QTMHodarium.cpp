@@ -37,6 +37,7 @@
 #include "confined_filesystem.hpp"
 #include "qt_utilities.hpp"
 #include "tm_ostream.hpp"
+#include "scheme.hpp"
 #include "new_buffer.hpp"
 #include "new_window.hpp"
 #include "tm_buffer.hpp"
@@ -200,7 +201,7 @@ public:
     { std::lock_guard<std::mutex> lock (save_gate); save_worker= worker_; capture_enabled= false; }
     worker_->report= [this] (profile_status status) {
       if (status.phase == profile_phase::error && !status.diagnostic.empty ())
-        worker_->background_errors[status.group]= status.diagnostic;
+        worker_->background_errors[status.group]= {status.failure, status.diagnostic};
       else if (status.phase == profile_phase::authorized && status.diagnostic.empty ())
         worker_->background_errors.erase (status.group);
       QMetaObject::invokeMethod (this, [this, status= std::move (status)] {
@@ -242,7 +243,10 @@ public:
     connect (progress_timer_, &QTimer::timeout, this, [this] {
       if (stopping_ || progress_pending_) return;
       progress_pending_= true;
-      QMetaObject::invokeMethod (worker_, [this] {
+      const bool suppress_network_errors=
+        get_preference ("hodarium suppress background network errors", "off") == "on";
+      QMetaObject::invokeMethod (worker_, [this, suppress_network_errors] {
+        worker_->suppress_background_network_errors= suppress_network_errors;
         athena::background::progress progress;
         try { progress= worker_->background_progress (); }
         catch (const std::exception& e) {

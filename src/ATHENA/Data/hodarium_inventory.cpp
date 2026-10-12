@@ -7,6 +7,7 @@
 #include <set>
 #include <algorithm>
 #include <stdexcept>
+#include <system_error>
 
 namespace athena::hodarium {
 source_inventory inventory_sources (const std::filesystem::path& root,
@@ -28,8 +29,9 @@ source_inventory inventory_sources (const std::filesystem::path& root,
     try {
       auto entry= directory.open (file.path);
       auto before= entry.stat ();
-      if (!filesystem::same_revision (before, file.revision))
-        throw std::runtime_error ("Source changed during inventory");
+      if (!filesystem::same_revision (before, file.revision)) {
+        result.retry= true; continue;
+      }
       auto cached= previous.find (file.path);
       if (cached != previous.end () && cached->second.published &&
           filesystem::same_revision (before, cached->second.revision)) {
@@ -44,8 +46,9 @@ source_inventory inventory_sources (const std::filesystem::path& root,
       if (before.size > 4ULL*1024*1024*1024 - bytes_held)
         throw std::length_error ("Hodarium source snapshot exceeds 4 GiB budget");
       auto bytes= std::make_shared<const std::string> (entry.read (document::codec_limits ().input_bytes));
-      if (!filesystem::same_revision (before, entry.stat ()))
-        throw std::runtime_error ("Source changed while reading");
+      if (!filesystem::same_revision (before, entry.stat ())) {
+        result.retry= true; continue;
+      }
       auto source= document::read_xml_v2 (*bytes);
       auto error= interop_document_source_error (source);
       if (!error.empty ()) throw std::runtime_error (error);
@@ -61,6 +64,11 @@ source_inventory inventory_sources (const std::filesystem::path& root,
       bytes_held+= bytes->size ();
       result.cache.emplace (file.path, source_inventory::cached_source{before, id, false});
       result.documents.push_back ({file.path, std::move (id), before, std::move (bytes)});
+    }
+    catch (const std::system_error& e) {
+      if (e.code () == std::errc::resource_unavailable_try_again ||
+          e.code () == std::errc::no_such_file_or_directory) result.retry= true;
+      else result.errors.push_back (file.path + ": " + e.what ());
     }
     catch (const std::exception& e) { result.errors.push_back (file.path + ": " + e.what ()); }
   }

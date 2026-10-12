@@ -28,6 +28,8 @@ struct profile_status {
   std::string decision_diagnostic;
   std::vector<peer_route_status> routes;
   bool refreshing_membership= false;
+  control_failure failure= control_failure::none;
+  control_failure discovery_failure= control_failure::none;
 };
 enum class resolution_phase { pending, accepted, applied, retained };
 struct resolution_progress {
@@ -113,7 +115,8 @@ private:
   void owner () const;
   void publish (profile_phase phase, std::string diagnostic= {},
                 std::string code= {}, std::int64_t code_expires= 0,
-                diagnostic_source source= diagnostic_source::general);
+                diagnostic_source source= diagnostic_source::general,
+                control_failure failure= control_failure::none);
   void recovered (diagnostic_source source);
   void control_failed (const control_result& result, diagnostic_source source);
   void refresh_after_conflict ();

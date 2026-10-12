@@ -35,14 +35,18 @@ void profile_session::owner () const {
     throw std::logic_error ("Hodarium profile session accessed outside its worker");
 }
 void profile_session::publish (profile_phase phase, std::string diagnostic,
-  std::string code, std::int64_t code_expires, diagnostic_source source) {
+  std::string code, std::int64_t code_expires, diagnostic_source source,
+  control_failure failure) {
   diagnostic_source_= source;
   profile_status next{profile_.pin.group, phase, std::move (diagnostic), std::move (code), code_expires};
   next.discovery_diagnostic= status_.discovery_diagnostic;
+  next.discovery_failure= status_.discovery_failure;
+  next.failure= failure;
   next.discovered_devices= status_.discovered_devices;
   next.decision_diagnostic= status_.decision_diagnostic;
   if (next.phase == status_.phase && next.diagnostic == status_.diagnostic &&
-      next.code == status_.code && next.code_expires == status_.code_expires) return;
+      next.code == status_.code && next.code_expires == status_.code_expires &&
+      next.failure == status_.failure) return;
   status_= std::move (next);
   if (changed_) changed_ (status_);
 }
@@ -56,7 +60,7 @@ void profile_session::control_failed (const control_result& result, diagnostic_s
   // Authorization still depends on the signed membership lease, not this state.
   const auto phase= result.failure == control_failure::transport && client_ && client_->authorized () ?
     profile_phase::offline_valid : profile_phase::error;
-  publish (phase, result.diagnostic, {}, 0, source);
+  publish (phase, result.diagnostic, {}, 0, source, result.failure);
 }
 void profile_session::refresh_after_conflict () {
   if (paused_ || !profile_.enabled || !client_ || busy_ ||
@@ -126,8 +130,10 @@ void profile_session::refresh () {
           if (network_) network_->discover (snapshot);
           if (snapshot.failure == control_failure::conflict) refresh_after_conflict ();
           if (status_.discovery_diagnostic == snapshot.diagnostic &&
+              status_.discovery_failure == snapshot.failure &&
               status_.discovered_devices == snapshot.peers.size ()) return;
           status_.discovery_diagnostic= snapshot.diagnostic;
+          status_.discovery_failure= snapshot.failure;
           status_.discovered_devices= snapshot.peers.size ();
           if (changed_) changed_ (status_);
         });
@@ -135,13 +141,11 @@ void profile_session::refresh () {
       directory_->start ({state->group, profile_.member, state->generation, state->epoch});
       if (status_.diagnostic.empty () || diagnostic_source_ == diagnostic_source::membership)
         publish (profile_phase::authorized);
-      else publish (status_.phase, status_.diagnostic, {}, 0, diagnostic_source_);
+      else publish (status_.phase, status_.diagnostic, {}, 0, diagnostic_source_, status_.failure);
     }
     else if (result.failure == control_failure::denied)
-      publish (profile_phase::denied, result.diagnostic, {}, 0, diagnostic_source::membership);
-    else if (result.failure == control_failure::transport && client_->authorized ())
-      publish (profile_phase::offline_valid, result.diagnostic, {}, 0, diagnostic_source::membership);
-    else publish (profile_phase::error, result.diagnostic, {}, 0, diagnostic_source::membership);
+      publish (profile_phase::denied, result.diagnostic, {}, 0, diagnostic_source::membership, result.failure);
+    else control_failed (result, diagnostic_source::membership);
   });
 }
 void profile_session::tick () {
@@ -194,7 +198,8 @@ void profile_session::enroll_result (control_result result, enrollment_status st
   if (paused_) return;
   if (result.failure != control_failure::none) {
     if (result.failure != control_failure::transport) pending_= false;
-    publish (profile_phase::error, result.diagnostic); return;
+    publish (profile_phase::error, result.diagnostic, {}, 0,
+      diagnostic_source::general, result.failure); return;
   }
   try {
     if (status.member.empty ()) {

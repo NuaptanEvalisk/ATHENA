@@ -405,8 +405,14 @@ void sync_worker::inventory_step () {
         const auto& source= scanned.documents[scan_position++];
         try {
           athena::filesystem::confined_root root (scanning->root);
-          if (!athena::filesystem::same_revision (root.open (source.path).stat (), source.revision)) {
-            schedule_inventory (*scanning); continue;
+          try {
+            if (!athena::filesystem::same_revision (root.open (source.path).stat (), source.revision)) {
+              scanned.retry= true; schedule_inventory (*scanning); continue;
+            }
+          }
+          catch (const std::system_error& e) {
+            if (e.code () != std::errc::no_such_file_or_directory) throw;
+            scanned.retry= true; continue;
           }
           saved (scanning->root / source.path, source.object, {}, *source.bytes, true);
           scanned.cache.at (source.path).published= true;
@@ -416,7 +422,7 @@ void sync_worker::inventory_step () {
         }
       }
       if (scan_position != scanned.documents.size ()) return;
-      bool retry= !scanned.root_revision || !scanned.errors.empty ();
+      bool retry= scanned.retry || !scanned.root_revision || !scanned.errors.empty ();
       for (const auto& [path, entry]: scanned.cache) retry= retry || !entry.published;
       if (!retry && !reconcile_deletions (budget)) return;
       retry= retry || deletion_deferred;
@@ -647,9 +653,12 @@ athena::background::progress sync_worker::background_progress () {
   using athena::background::phase;
   athena::background::progress result;
   vault_progress.clear ();
+  auto suppressed= [this] (control_failure failure) {
+    return suppress_background_network_errors && failure == control_failure::transport;
+  };
   if (!settings) {
-    if (const auto error= background_errors.find (""); error != background_errors.end ()) {
-      result.state= phase::error; result.caption= "Sync failed"; result.error_detail= error->second;
+    if (const auto error= background_errors.find (""); error != background_errors.end () && !suppressed (error->second.failure)) {
+      result.state= phase::error; result.caption= "Sync failed"; result.error_detail= error->second.diagnostic;
     }
     return result;
   }
@@ -679,8 +688,9 @@ athena::background::progress sync_worker::background_progress () {
   };
   for (const auto& row: snapshot ()) {
     const auto& status= row.status;
-    const auto transport_error= !status.discovery_diagnostic.empty () ? status.discovery_diagnostic :
-      status.phase == profile_phase::offline_valid ? status.diagnostic : std::string{};
+    const auto transport_error= !suppressed (status.discovery_failure) && !status.discovery_diagnostic.empty () ? status.discovery_diagnostic :
+      status.phase == profile_phase::offline_valid && !suppressed (status.failure) ? status.diagnostic : std::string{};
+    const bool quiet_network= suppressed (status.failure) || suppressed (status.discovery_failure);
     bool transport_failed= false;
     if (row.profile.enabled && !transport_error.empty ()) {
       auto since= background_transport_failures.emplace (row.profile.pin.group, std::chrono::steady_clock::now ());
@@ -692,7 +702,9 @@ athena::background::progress sync_worker::background_progress () {
       value.state= phase::disconnected; value.caption= "No Vault selected";
       if (status.phase == profile_phase::pending) { value.state= phase::waiting; value.caption= "Awaiting admission"; }
       if (status.phase == profile_phase::validating) { value.state= phase::working; value.caption= "Validating membership"; }
-      if (status.phase == profile_phase::error || status.phase == profile_phase::denied || status.phase == profile_phase::expired) {
+      if (quiet_network) value.caption= "Connection unavailable; retrying";
+      if (!suppressed (status.failure) && (status.phase == profile_phase::error ||
+          status.phase == profile_phase::denied || status.phase == profile_phase::expired)) {
         value.state= phase::error; value.caption= "Membership unavailable"; value.error_detail= status.diagnostic;
       }
       if (transport_failed) { value.state= phase::error; value.caption= "Connection failed"; value.error_detail= transport_error; }
@@ -700,6 +712,7 @@ athena::background::progress sync_worker::background_progress () {
         value.state= phase::paused; value.caption= "Paused"; value.error_detail.clear ();
       }
       value.detail= row.profile.name + ": " + value.caption;
+      if (quiet_network) value.detail+= "\n" + status.diagnostic + "\n" + status.discovery_diagnostic;
       merge (std::move (value));
     }
     for (const auto& binding: row.vaults) {
@@ -759,13 +772,18 @@ athena::background::progress sync_worker::background_progress () {
       }
       if (conflict) { value.state= phase::waiting; value.caption= "Conflicts need attention"; value.conflicts= true; }
       if (status.phase == profile_phase::pending) { value.state= phase::waiting; value.caption= "Awaiting admission"; }
-      if (!status.diagnostic.empty () && (status.phase == profile_phase::error ||
+      if (quiet_network && !traffic.connected &&
+          (value.state == phase::disconnected || (value.state == phase::waiting && !conflict))) {
+        value.state= phase::disconnected; value.caption= "Connection unavailable; retrying";
+      }
+      if (!suppressed (status.failure) && !status.diagnostic.empty () && (status.phase == profile_phase::error ||
           status.phase == profile_phase::denied || status.phase == profile_phase::expired))
         value.error_detail= status.diagnostic;
       if (transport_failed) value.error_detail= transport_error;
       const auto error= background_errors.find (group);
-      if (error != background_errors.end () && value.error_detail != error->second) value.error_detail+=
-        (value.error_detail.empty () ? "" : "\n") + error->second;
+      if (error != background_errors.end () && !suppressed (error->second.failure) &&
+          value.error_detail != error->second.diagnostic) value.error_detail+=
+        (value.error_detail.empty () ? "" : "\n") + error->second.diagnostic;
       if (track != inventories.end () && !track->second->application_error.empty ())
         value.error_detail+= (value.error_detail.empty () ? "" : "\n") + track->second->application_error;
       if (!value.error_detail.empty ()) { value.state= phase::error; value.caption= "Sync failed"; }
@@ -787,13 +805,14 @@ athena::background::progress sync_worker::background_progress () {
         value.detail+= "\n" + name + ": " + (route.route == "p2p" ? "P2P" : route.route);
       }
       if (!status.discovery_diagnostic.empty ()) value.detail+= "\n" + status.discovery_diagnostic;
+      if (suppressed (status.failure) && !status.diagnostic.empty ()) value.detail+= "\n" + status.diagnostic;
       if (status.refreshing_membership) value.detail+= "\nRefreshing membership";
       vault_progress[{group, binding.vault}]= value;
       merge (std::move (value));
     }
   }
-  if (const auto error= background_errors.find (""); error != background_errors.end ()) {
-    result.state= phase::error; result.caption= "Sync failed"; result.error_detail= error->second;
+  if (const auto error= background_errors.find (""); error != background_errors.end () && !suppressed (error->second.failure)) {
+    result.state= phase::error; result.caption= "Sync failed"; result.error_detail= error->second.diagnostic;
   }
   return result;
 }
