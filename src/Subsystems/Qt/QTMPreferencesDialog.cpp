@@ -1332,8 +1332,6 @@ QTMPreferencesDialog::buildEditingPage () {
   add_toggle (i, "latex->texmacs:parse-bbbk");
   add_toggle (i, "latex->texmacs:parse-bbbi-as-mathi");
   add_toggle (i, "latex->texmacs:text-operators");
-  add_toggle (i, "latex->texmacs:intelligent-formula-cleaner");
-  add_line_edit (i, "latex->texmacs:intelligent-formula-cleaner-model");
   finish_page (importer);
 
   return tabbed ({{"Maths", math}, {"Programming", programming},

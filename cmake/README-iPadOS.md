@@ -28,8 +28,8 @@ Implemented boundaries:
   conversion, server and website generation modes.
 - Hide the website manager command. Its backend has not yet been removed
   from the shared source list.
-- Exclude formula cleaner inference and Codex subprocess completion;
-  ordinary LaTeX import remains available without formula cleaning.
+- Exclude Codex subprocess completion; ordinary LaTeX import uses the shared
+  deterministic parser.
 - Exclude startup source-fingerprint refresh/re-execution and ATHENA's
   Scheme bytecode compilation entry points.
 - Force Guile auto-compilation off, require packaged application bytecode,

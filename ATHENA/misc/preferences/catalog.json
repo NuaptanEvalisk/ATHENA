@@ -4828,40 +4828,6 @@
       }
     },
     {
-      "key": "latex->texmacs:intelligent-formula-cleaner",
-      "type": "boolean",
-      "scope": "active",
-      "default": "off",
-      "ui": {
-        "category": "Editing",
-        "tab": "Formula Importer",
-        "section": "Formula Importer",
-        "order": 9,
-        "label": "Run intelligent formula cleaner when importing LaTeX formulas",
-        "control": "toggle",
-        "category_order": 2,
-        "tab_order": 4,
-        "section_order": 0
-      }
-    },
-    {
-      "key": "latex->texmacs:intelligent-formula-cleaner-model",
-      "type": "string",
-      "scope": "active",
-      "default": "$ATHENA_PATH/tools/formula-cleaner/formula-cleaner.gguf",
-      "ui": {
-        "category": "Editing",
-        "tab": "Formula Importer",
-        "section": "Formula Importer",
-        "order": 10,
-        "label": "Formula cleaner GGUF model",
-        "control": "text",
-        "category_order": 2,
-        "tab_order": 4,
-        "section_order": 0
-      }
-    },
-    {
       "key": "texmacs->verbatim:wrap",
       "type": "boolean",
       "scope": "active",

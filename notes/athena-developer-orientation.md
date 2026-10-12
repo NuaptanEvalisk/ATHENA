@@ -68,7 +68,7 @@ written; this orientation deliberately does not pin development to a recorded
 HEAD.
 
 There are intentional untracked assets, including `.codex/`, large models under
-`ATHENA/tools/`, `misc/embedding/`, and `misc/formula-cleaner-convert/`. Do not
+`ATHENA/tools/` and `misc/embedding/`. Do not
 clean or stage them as part of routine fixes. Preserve unrelated changes.
 
 ## Code Map

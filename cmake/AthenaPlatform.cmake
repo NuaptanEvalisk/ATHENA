@@ -14,7 +14,6 @@ set (ATHENA_ENABLE_CODEX_BRIDGE ON)
 set (ATHENA_ENABLE_AUDMAP_REPL ON)
 set (ATHENA_ENABLE_AUDMAP_LISTENER ON)
 set (ATHENA_ENABLE_PLUGINS ON)
-set (ATHENA_ENABLE_FORMULA_CLEANER ON)
 set (ATHENA_ENABLE_LOCAL_INFERENCE ON)
 set (ATHENA_ENABLE_WEBSITE_EXPORT ON)
 set (ATHENA_ENABLE_WATCHDOG OFF)
@@ -31,7 +30,6 @@ if (ATHENA_PLATFORM_IPADOS)
   # Keep the protocol/resource libraries; no local listener or plugin launch.
   set (ATHENA_ENABLE_AUDMAP_LISTENER OFF)
   set (ATHENA_ENABLE_PLUGINS OFF)
-  set (ATHENA_ENABLE_FORMULA_CLEANER OFF)
   # First iPad release has no local llama.cpp/OpenVINO inference backend.
   # Preserve the RAG/artifact APIs with unavailable/fallback implementations.
   set (ATHENA_ENABLE_LOCAL_INFERENCE OFF)

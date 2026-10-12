@@ -99,8 +99,8 @@ fully portable bundle: libraries already present in `ATHENA/lib` are copied, and
 other libraries may still be resolved from the target system unless you package
 them separately.
 
-The release driver deliberately excludes formula cleaner, embedding, artifact
-classification, and other model weights from all primary packages. It also
+The release driver deliberately excludes embedding, artifact-classification,
+and other model weights from all primary packages. It also
 excludes virtual environments and generated Python caches. Do not replace this
 step with a raw copy of `ATHENA/`; use:
 

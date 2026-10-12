@@ -301,11 +301,6 @@
     <item*|Recognize operator names disguised as text>Converts text fragments
     that are actually operator names into operator structures.
 
-    <item*|Run intelligent formula cleaner when importing LaTeX formulas>Runs
-    the GGUF-based formula cleaner after LaTeX formula import.
-
-    <item*|Formula cleaner GGUF model>Path to the GGUF model used by the
-    intelligent formula cleaner.
   </description>
 
   <section|Rendering>

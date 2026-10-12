@@ -158,7 +158,7 @@ installer or filesystem whenever the screen stops changing.
 - No JIT on iPad, including Guile and any other dependency. Ship compatible `.go`
   bytecode; no on-device compilation, source-fingerprint rebuild/re-exec, or
   writable fallback bytecode cache. Luau must not enable its native JIT/codegen.
-- First iPad release excludes formula cleaner inference, Watchdog, ATHENA CLI
+- First iPad release excludes Watchdog, ATHENA CLI
   modes, AOFM vault importer, website exporter, external plugins, Codex bridge,
   AUDMAP REPL and the local AUDMAP/plugin listener.
 - Preserve ordinary editing, local vaults, namespace/AVD functionality, Materials,

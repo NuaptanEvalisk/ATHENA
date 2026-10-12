@@ -10,7 +10,6 @@
 ******************************************************************************/
 
 #include "Tex/convert_tex.hpp"
-#include "Tex/latex_formula_cleaner.hpp"
 #include "converter.hpp"
 #include "wencoding.hpp"
 #include "Scheme/scheme.hpp"
@@ -83,7 +82,6 @@ latex_unwrap_single_row_aligned (const std::string& str) {
 
 static string
 preprocess_latex_formula (string latex) {
-  latex = clean_latex_formula_with_llama (latex);
   std::string str = as_charp (latex);
 
   if (get_preference ("latex->texmacs:align-to-aligned", "on") == "on") {

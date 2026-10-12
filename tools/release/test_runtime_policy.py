@@ -32,7 +32,7 @@ class RuntimePolicyTest(unittest.TestCase):
             (source / "bin").mkdir(parents=True)
             (source / "lib").mkdir()
             (source / "tools/artifacts").mkdir(parents=True)
-            (source / "tools/formula-cleaner/.venv").mkdir(parents=True)
+            (source / "tools/sample-training/.venv").mkdir(parents=True)
             (source / "progs").mkdir()
 
             (source / "bin/ATHENA.bin").write_text("development binary")
@@ -42,10 +42,10 @@ class RuntimePolicyTest(unittest.TestCase):
             (source / "tools/artifacts/model.onnx").write_text("model")
             (source / "tools/artifacts/pytorch_model.bin").write_text("model")
             (source / "tools/artifacts/README.md").write_text("instructions")
-            (source / "tools/formula-cleaner/model.safetensors").write_text(
+            (source / "tools/sample-training/model.safetensors").write_text(
                 "model"
             )
-            (source / "tools/formula-cleaner/.venv/python").write_text("cache")
+            (source / "tools/sample-training/.venv/python").write_text("cache")
             (source / "progs/runtime.scm").write_text("(display \"runtime\")")
 
             copy_runtime(source, destination)
@@ -63,10 +63,10 @@ class RuntimePolicyTest(unittest.TestCase):
                 (destination / "tools/artifacts/pytorch_model.bin").exists()
             )
             self.assertFalse(
-                (destination / "tools/formula-cleaner/model.safetensors").exists()
+                (destination / "tools/sample-training/model.safetensors").exists()
             )
             self.assertFalse(
-                (destination / "tools/formula-cleaner/.venv").exists()
+                (destination / "tools/sample-training/.venv").exists()
             )
             verify_runtime(destination)
 

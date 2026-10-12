@@ -195,8 +195,6 @@ ATHENA heavily customizes the math typing experience.
 - ESC aliases for Greek letters, blackboard symbols, operators, arrows,
   brackets, norm bars, math fonts, limits, group names, and common snippets.
 - Additional backslash aliases for theorem-like environments.
-- Optional local llama.cpp formula-cleaner hook for LaTeX formula import when a
-  suitable GGUF model is installed.
 - Extended textual math operators, including algebra/category/geometry names
   such as `Hom`, `Aut`, `Spec`, `coker`, `rank`, `trdeg`, and `rel`.
 - Correct support for symbols such as `varinjlim`, `varprojlim`, degree,
