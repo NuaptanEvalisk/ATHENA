@@ -626,7 +626,7 @@ static tree nearby_context (const tree& source, const address& where) {
     if (preview_context_item ((*document_parent)[i])) before.push_back (i);
   std::reverse (before.begin (), before.end ());
   for (int i: before) context << copy ((*document_parent)[i]);
-  context << tree (WITH, "color", "#808080", "… transcluded content …");
+  context << copy ((*document_parent)[int (focus)]);
   for (int i=int (focus)+1; i<N(*document_parent) && N(context) < int (before.size ()) + 3; ++i)
     if (preview_context_item ((*document_parent)[i])) context << copy ((*document_parent)[i]);
   return context;

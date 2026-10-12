@@ -352,7 +352,8 @@ private slots:
     tree context= nearby[2][0][1][2];
     QCOMPARE (N(context), 3);
     QCOMPARE (context[0], tree ("Before context"));
-    QVERIFY (is_func (context[1], WITH, 3));
+    QCOMPARE (context[1], tree ("Selected text"));
+    QVERIFY (loc::collect (nearby).empty ());
     QCOMPARE (context[2], tree ("After context"));
     QVERIFY (context[0] != tree ("Selected text") && context[2] != tree ("Selected text"));
 

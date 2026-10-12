@@ -444,6 +444,7 @@ QTMCommandRegistry::loadPresentation () {
               .arg (ownerId, providerId));
         item.kind= QTMCommandMenuItem::Kind::Provider;
         item.providerId= providerId;
+        item.showInPalette= itemObject.value ("palette").toBool (false);
       }
       else {
         QString label= itemObject.value ("label").toString ().trimmed ();

@@ -81,6 +81,41 @@ build_palette_groups (QObject* parent, const QTMCommandContext& context) {
     groups[index].actions.append (
       make_palette_action (parent, definition, context));
   }
+  QTMCommandRegistry& registry= QTMCommandRegistry::instance ();
+  std::function<void(const QVector<QTMCommandMenuItem>&, const QString&)> appendProviders;
+  appendProviders= [&] (const QVector<QTMCommandMenuItem>& items, const QString& path) {
+    for (const auto& item: items) {
+      if (item.kind == QTMCommandMenuItem::Kind::Submenu) {
+        appendProviders (item.items, path + " -> " + item.label);
+        continue;
+      }
+      if (item.kind != QTMCommandMenuItem::Kind::Provider || !item.showInPalette)
+        continue;
+      PaletteGroup group;
+      group.name= path.section (" -> ", 0, 0);
+      const QString prefix= path.section (" -> ", 1);
+      for (const auto& entry: registry.providerItems (item.providerId, context)) {
+        if (!entry.state.available) continue;
+        QAction* action= new QAction (
+          tmapp ()->icon_manager ().getPresentationIcon (entry.icon),
+          prefix.isEmpty () ? entry.label : prefix + " -> " + entry.label, parent);
+        action->setEnabled (entry.state.enabled);
+        action->setCheckable (entry.state.checkable);
+        action->setChecked (entry.state.checkable && entry.state.checked);
+        action->setToolTip (path + " -> " + entry.label);
+        action->setStatusTip (entry.help);
+        QObject::connect (action, &QAction::triggered, action,
+                          [provider= item.providerId, key= entry.key, context] () {
+          (void) QTMCommandRegistry::instance ().executeProviderItem (
+            provider, key, context);
+        });
+        group.actions.append (action);
+      }
+      if (!group.actions.isEmpty ()) groups.append (std::move (group));
+    }
+  };
+  for (const auto& menu: registry.menus ())
+    appendProviders (menu.items, menu.label);
   return groups;
 }
 

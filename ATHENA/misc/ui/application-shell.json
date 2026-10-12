@@ -865,7 +865,7 @@
           "submenu": "edit-paste-from",
           "label": "Paste from",
           "items": [
-            { "provider": "editor-selection-paste-from" }
+            { "provider": "editor-selection-paste-from", "palette": true }
           ]
         },
         { "separator": true },

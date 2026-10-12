@@ -70,6 +70,7 @@ struct QTMCommandMenuItem {
   QString providerId;
   QString label;
   QString icon;
+  bool showInPalette= false;
   std::uint32_t requiredFlags= 0;
   std::uint32_t forbiddenFlags= 0;
   std::uint32_t anyFlags= 0;
