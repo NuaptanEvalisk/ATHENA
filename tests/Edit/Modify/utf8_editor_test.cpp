@@ -911,6 +911,25 @@ private slots:
     QVERIFY (!probe.anchors.empty ());
   }
 
+  void canonicalProofContinuation () {
+    tree equation= compound ("eqnarray*", tree (DOCUMENT,
+      tree (TFORMAT, tree (TABLE,
+        tree (ROW, tree (CELL, "x"), tree (CELL, "="), tree (CELL, "y"))))));
+    tree proof= compound ("enunciation", tree (DOCUMENT, equation));
+    athena::node::metadata metadata;
+    metadata.properties["kind"]= athena::node::property (std::string ("proof"));
+    athena::node::set (proof, metadata);
+    set_document (buffer->document, buffer->root_path,
+                  tree (DOCUMENT, proof, "outside"));
+    editor->go_to (buffer->root_path * path (0, 0, 0, 0) *
+                   path (0, 0, 0, 2) * path (0, 1));
+    editor->ensure_trailing_proof_paragraph ();
+    QCOMPARE (N(editor->the_subtree (buffer->root_path * path (0, 0))), 2);
+    editor->ensure_trailing_proof_paragraph ();
+    QCOMPARE (N(editor->the_subtree (buffer->root_path * path (0, 0))), 2);
+    QCOMPARE (editor->the_subtree (buffer->root_path * path (0, 0, 1)), tree (""));
+  }
+
   void structuralNavigationSelections () {
     drd_info drd ("utf8-structural-navigation", std_drd);
     {

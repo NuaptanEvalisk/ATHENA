@@ -695,8 +695,13 @@ void
 edit_dynamic_rep::ensure_trailing_proof_paragraph () {
   // A display equation at the end of a proof needs a following paragraph so
   // editing can continue inside the proof after the display.
-  path p = search_upwards ("proof");
-  if (is_nil (p) || (N(tp) < N(p)+2)) return;
+  const auto& registry= athena::enunciation::standard_registry ();
+  path p= path_up (tp);
+  while (registry.kind_name (subtree (et, p)) != "proof") {
+    if (p == rp) return;
+    p= path_up (p);
+  }
+  if (N(tp) < N(p)+2) return;
   path q = head (tp, N(p)+2);
   tree st= subtree (et, path_up (q));
   if ((!is_document (st)) || (last_item (q) != (N(st)-1))) return;
