@@ -231,6 +231,15 @@ void check_saved_capture (revision snapshot) {
            store.compare (*local, remote.id) == ancestry::concurrent,
            "Local save silently merged a received remote head");
   tip= store.inventory_tip (snapshot.vault);
+  require (store.capture_saved (snapshot, local, store.payload_fingerprint (*first)) == local &&
+           store.inventory_tip (snapshot.vault) == tip,
+           "Inventory capture rejected the delayed notification for the same saved bytes");
+  auto changed= snapshot;
+  changed.relative_path= "Notes/different.ath";
+  require (!store.capture_saved (changed, local, store.payload_fingerprint (*first)) &&
+           store.applied (snapshot.vault, snapshot.object) == local &&
+           store.inventory_tip (snapshot.vault) == tip,
+           "Unchanged bytes bypassed predecessor validation for a different path");
   snapshot.payload= "stale save notification";
   require (!store.capture_saved (snapshot, first) && store.inventory_tip (snapshot.vault) == tip,
            "Stale save published a revision");

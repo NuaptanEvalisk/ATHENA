@@ -294,10 +294,6 @@ std::optional<std::string> revision_store::capture_saved (revision snapshot,
   if (expected) {
     if (!eligible (*expected)) throw std::invalid_argument ("Saved base requires an authoritative conflict decision");
     auto prior= offer (*expected);
-    if (predecessor_fingerprint) {
-      if (prior->metadata.deleted) { tx.commit (); return std::nullopt; }
-      if (payload_fingerprint (*expected) != *predecessor_fingerprint) { tx.commit (); return std::nullopt; }
-    }
     // Compare storage content without loading the previous payload or treating
     // the saving device and new causal edge as document modifications.
     auto origin= snapshot.origin_member;
@@ -305,7 +301,13 @@ std::optional<std::string> revision_store::capture_saved (revision snapshot,
     snapshot.parents= prior->metadata.parents;
     bool unchanged= identity (snapshot) == *expected;
     snapshot.origin_member= std::move (origin);
+    // Inventory may already have captured this durable save before its queued
+    // notification arrives. Only a new revision needs its predecessor checked.
     if (unchanged) { tx.commit (); return expected; }
+    if (predecessor_fingerprint) {
+      if (prior->metadata.deleted) { tx.commit (); return std::nullopt; }
+      if (payload_fingerprint (*expected) != *predecessor_fingerprint) { tx.commit (); return std::nullopt; }
+    }
     snapshot.parents= {*expected};
   }
   snapshot.id= identity (snapshot);

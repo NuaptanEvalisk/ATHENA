@@ -398,6 +398,9 @@ QTMMainTabWindow::QTMMainTabWindow()
   bench_cumul ("construct main window base widgets");
 
   qtm_apply_ads_tab_close_preferences ();
+  // ADS creates its focus controller only with this flag. Shell status,
+  // document commands and Outline all consume that controller's active dock.
+  ads::CDockManager::setConfigFlag (ads::CDockManager::FocusHighlighting, true);
   if (QApplication::platformName().startsWith(QStringLiteral("wayland"))) {
     // Keep Wayland floating docks as normal desktop windows. Redocking is
     // started from app-owned ADS tabs/title bars via xdg-toplevel-drag, not
