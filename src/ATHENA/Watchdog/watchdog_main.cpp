@@ -541,6 +541,12 @@ static int supervise_child (const Options& options, bool& restart_requested) {
     auto watchdog_gap= std::chrono::duration_cast<Milliseconds> (now - last_loop);
     last_loop= now;
 
+    // If the supervisor was not scheduled either, the silence does not prove
+    // a UI stall. Allow a full heartbeat window after resume before attaching
+    // GDB, which would otherwise turn a wake-up race into a real UI freeze.
+    if (!incident && watchdog_gap >= Milliseconds (options.heartbeat_timeout_ms))
+      last_seen= now;
+
     DrainResult drained;
     if (supervisor_fd >= 0) drained= drain_packets (supervisor_fd);
     if (drained.received) {

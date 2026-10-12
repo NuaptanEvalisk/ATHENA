@@ -2,6 +2,7 @@
 #include "ATHENA/Watchdog/watchdog_client.hpp"
 
 #include <chrono>
+#include <csignal>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -88,6 +89,16 @@ int main (int argc, char** argv) {
   send_packet (fd, athena_watchdog::PacketType::Ready);
   if (selected == "healthy") {
     heartbeats (fd, 450);
+  }
+  else if (selected == "resume" || selected == "resume-stall") {
+    heartbeats (fd, 120);
+    // Simulate the supervisor resuming before the UI can send a heartbeat.
+    if (kill (getppid (), SIGSTOP) != 0) return 8;
+    std::this_thread::sleep_for (std::chrono::milliseconds (450));
+    if (kill (getppid (), SIGCONT) != 0) return 9;
+    std::this_thread::sleep_for (std::chrono::milliseconds (80));
+    if (selected == "resume") heartbeats (fd, 300);
+    else std::this_thread::sleep_for (std::chrono::milliseconds (450));
   }
   else if (selected == "recover") {
     heartbeats (fd, 100);

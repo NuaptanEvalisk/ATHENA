@@ -31,6 +31,16 @@ with tempfile.TemporaryDirectory(prefix="athena-watchdog-") as temporary:
     healthy, healthy_log = run("healthy")
     assert not list(healthy.glob("*")), (healthy_log, list(healthy.glob("*")))
 
+    resumed, resumed_log = run("resume")
+    assert not list(resumed.glob("*")), (resumed_log, list(resumed.glob("*")))
+
+    resume_stall, resume_stall_log = run("resume-stall")
+    resume_incidents = list(resume_stall.glob("*/meta.json"))
+    assert len(resume_incidents) == 1, (resume_stall_log, resume_incidents)
+    metadata = json.loads(resume_incidents[0].read_text())
+    assert metadata["watchdog_scheduling_gap_ms"] < 200, metadata
+    assert (resume_incidents[0].parent / "terminated.json").exists()
+
     recovered, recovered_log = run("recover")
     recovered_incidents = [p for p in recovered.glob("*") if p.is_dir()]
     assert len(recovered_incidents) == 1, (recovered_log, recovered_incidents)
@@ -74,4 +84,4 @@ with tempfile.TemporaryDirectory(prefix="athena-watchdog-") as temporary:
         assert metadata["heartbeat_timeout_ms"] == 200, metadata
         assert (incidents[0].parent / "proc-000.txt").exists()
 
-print("PASS: watchdog detects stalls, records recovery and supervises restarts")
+print("PASS: watchdog tolerates resume gaps, detects stalls, records recovery and supervises restarts")
