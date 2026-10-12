@@ -10,6 +10,7 @@
 
 #include "generic_editor_commands.hpp"
 #include "native_interfaces.hpp"
+#include "editor.hpp"
 
 namespace {
 
@@ -133,4 +134,21 @@ void generic_open_gradient_selector (object callback, object options) {
 
 void generic_open_background_picture_selector (object callback, object options) {
   open_selector ("picture", callback, old_value (options), "100%");
+}
+
+void generic_document_background_select (string mode) {
+  if (mode != "pattern" && mode != "gradient" && mode != "picture") return;
+  editor ed= get_current_editor ();
+  if (is_nil (ed)) return;
+  // This replaces the Scheme native-document-background-setter callback.
+  array<string> values= athena_native_background_selector (
+    mode, generic_background_initial (
+            mode, object (false), mode == "pattern" ? "1cm" : "100%"));
+  object result= generic_background_result (mode, values);
+  if (is_bool (result) && !as_bool (result)) return;
+  tree pattern= content_to_tree (result);
+  if (!is_compound (pattern, "pattern") || N(pattern) == 0 ||
+      !is_atomic (pattern[0])) return;
+  pattern[0]= native_pattern_source (pattern[0]->label);
+  ed->init_env ("bg-color", pattern);
 }

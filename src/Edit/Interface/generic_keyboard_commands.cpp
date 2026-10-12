@@ -15,6 +15,7 @@
 #include "native_latex_commands.hpp"
 #include "structured_commands.hpp"
 #include "new_view.hpp"
+#include "server.hpp"
 #include "scheme.hpp"
 #include "Subsystems/Qt/QTMESCSymbolPicker.hpp"
 
@@ -235,7 +236,7 @@ bool generic_context_at_cursor () {
   if (is_nil (p)) return false;
   p= path_up (p);
   if (!ed->test_subtree (p)) return false;
-  return as_bool (call ("generic-context?", object (ed->the_subtree (p))));
+  return generic_context (ed->the_subtree (p));
 }
 
 bool graphical_text_context (tree t) {
@@ -502,7 +503,7 @@ void generic_kbd_variant (tree t, bool forwards) {
   if (!ed->complete_try () && forwards) {
     object binding= call ("kbd-find-inv-binding",
                           list_object (symbol_object ("kbd-alternate-tab")));
-    string shortcut= as_string (call ("kbd-system-rewrite", binding));
+    tree shortcut= get_server ()->kbd_system_rewrite (as_string (binding));
     ed->set_message (
       tree (CONCAT, "Use ", shortcut, " in order to insert a tab"), "tab");
   }
@@ -728,7 +729,7 @@ generic_handwriting_symbol_insert (string command) {
     (void) call (procedure);
     return;
   }
-  (void) call ("set-message",
-               object ("Unsupported symbol command: " * command),
-               object ("Handwritten Symbol"));
+  get_current_editor ()->set_message (
+    tree ("Unsupported symbol command: " * command),
+    tree ("Handwritten Symbol"));
 }

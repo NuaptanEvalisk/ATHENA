@@ -269,7 +269,7 @@
   #f)
 
 (tm-define (style-clear-cache)
-  (former)
+  (cpp-style-clear-cache)
   (focus-parameters-cache-clear))
 
 (tm-property (search-start forward?) (:interactive #t))

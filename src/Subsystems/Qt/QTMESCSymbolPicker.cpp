@@ -17,6 +17,7 @@
 #include "qt_utilities.hpp"
 #include "scheme.hpp"
 #include "scheme_execution_context.hpp"
+#include "Edit/Interface/generic_keyboard_commands.hpp"
 
 #include <QApplication>
 #include <QAbstractItemView>
@@ -645,7 +646,7 @@ escape_symbol_picker_dialog () {
           [action= std::move (action)] () mutable {
             const auto* context= current_scheme_execution_context ();
             if (context != nullptr && context->editor != nullptr)
-              (void) call ("escape-symbol-insert", object (std::move (action)));
+              generic_escape_symbol_insert (std::move (action));
           });
       if (!buffer_actor::submit_to (
             actor, actor_command_kind::run_native_continuation, view,

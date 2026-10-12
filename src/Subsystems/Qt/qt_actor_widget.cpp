@@ -34,6 +34,7 @@
 #include "QTMVaultExplorer.hpp"
 #include "ATHENA/Math/native_shape_recognizer.hpp"
 #include "qt_utilities.hpp"
+#include "Scheme/Scheme/native_interfaces.hpp"
 #include "qt_tm_widget.hpp"
 #include "renderer.hpp"
 
@@ -811,8 +812,8 @@ qt_actor_widget_rep::drain_external_effects () {
       tm_view view= concrete_runtime_view (view_id_);
       if (view == nullptr) break;
       set_current_view (abstract_view (view));
-      (void) call ("open-auxiliary-document", object (request[0]->label),
-                   object (request[1]), object (url (request[2]->label)));
+      athena_open_auxiliary_document (
+        request[0]->label, request[1], url (request[2]->label));
       break;
     }
     case actor_command_kind::ui_open_document_window: {

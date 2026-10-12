@@ -93,11 +93,8 @@
 (tm-define (make-script r? sup?) (cpp-make-script r? sup?))
 (tm-define (make-fraction) (cpp-make-fraction))
 (tm-define (make-sqrt) (cpp-make-sqrt))
-(tm-define (make-var-sqrt) (cpp-make-var-sqrt))
 (tm-define (make-wide s) (cpp-make-wide s))
-(tm-define (make-wide-stretched s) (cpp-make-wide-stretched s #t))
 (tm-define (make-wide-under s) (cpp-make-wide-under s))
-(tm-define (make-wide-under-stretched s) (cpp-make-wide-under-stretched s #t))
 (tm-define (make-neg) (cpp-make-neg))
 (tm-define (make-tree) (cpp-make-tree))
 
@@ -106,5 +103,3 @@
 (tm-define (clipboard-paste cb) (cpp-clipboard-paste cb))
 
 (tm-define (nr-pages) (cpp-nr-pages))
-
-(tm-define (style-clear-cache) (cpp-style-clear-cache))

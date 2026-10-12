@@ -198,7 +198,7 @@ void set_graphical_attribute (tree t, string name, string value) {
 bool active_graphics_context () {
   editor ed= get_current_editor ();
   return !is_nil (ed) && ed->inside_graphics (false) &&
-         !as_bool (call ("in-commutative-diagram?")) &&
+         !athena_in_commutative_diagramP () &&
          ed->get_env_string (PREAMBLE) == "false";
 }
 
@@ -271,7 +271,7 @@ void geometry_vertical (tree t, bool down) {
   }
   if (graphical_text_context (t)) { graphical_text_vertical (t, down); return; }
   if (active_graphics_context ()) {
-    (void) call ("graphics-change-geo-valign", object (down));
+    athena_graphics_change_geo_valign (down);
     return;
   }
   adjust (t, adjustment::vertical, down, "geometry-vertical");
@@ -307,7 +307,7 @@ void geometry_scale (tree t, double factor) {
   if (!(geometry_var_space_context (t) || geometry_hspace_context (t) ||
         geometry_vspace_context (t) || is_func (t, IMAGE, 5))) {
     tree parent;
-    if (parent_tree (t, parent)) call ("geometry-scale", object (parent), object (factor));
+    if (parent_tree (t, parent)) geometry_scale (parent, factor);
     else ed->geometry_pinch_scale= factor;
     return;
   }
@@ -337,7 +337,7 @@ void geometry_scale (tree t, double factor) {
 void geometry_rotate (tree t, double angle) {
   if (!std::isfinite (angle)) return;
   tree parent;
-  if (parent_tree (t, parent)) call ("geometry-rotate", object (parent), object (angle));
+  if (parent_tree (t, parent)) geometry_rotate (parent, angle);
   else get_current_editor ()->geometry_pinch_angle= angle;
 }
 
@@ -367,8 +367,8 @@ void geometry_pinch_end () {
   else if (scale < 0.95) call ("structured-minimize", object (focus_tree ()));
   geometry_pinch_clear ();
 }
-void geometry_pinch_scale (double factor) { call ("geometry-scale", object (focus_tree ()), object (factor)); }
-void geometry_pinch_rotate (double angle) { call ("geometry-rotate", object (focus_tree ()), object (angle)); }
+void geometry_pinch_scale (double factor) { geometry_scale (focus_tree (), factor); }
+void geometry_pinch_rotate (double angle) { geometry_rotate (focus_tree (), angle); }
 
 void geometry_make_move (tree h, tree v) { insert_wrapper (tree (MOVE, "", h, v), "Adjust position", "move"); }
 void geometry_make_shift (tree h, tree v) { insert_wrapper (tree (SHIFT, "", h, v), "Adjust position", "shift"); }

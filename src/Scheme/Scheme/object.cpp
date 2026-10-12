@@ -11,6 +11,7 @@
 
 #include "object.hpp"
 #include "glue.hpp"
+#include "convert.hpp"
 
 #include "config.h"
 #include "array.hpp"
@@ -298,12 +299,13 @@ take_widget (object obj) {
 
 object
 tree_to_stree (scheme_tree t) {
-  return call ("tree->stree", t);
+  return tmscm_to_object (
+    scheme_tree_to_tmscm (tree_to_scheme_tree (t)));
 }
 
 tree
 stree_to_tree (object obj) {
-  return as_tree (call ("stree->tree", obj));
+  return scheme_tree_to_tree (as_scheme_tree (obj));
 }
 
 tree

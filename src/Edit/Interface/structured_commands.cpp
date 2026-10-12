@@ -352,7 +352,7 @@ void generic_traverse_extremal (tree t, bool forwards) {
     move_to_similar_tag (labels, forwards);
     if (ed->the_path () == before) break;
   }
-  call ("structured-inner-extremal", object (t), object (forwards));
+  generic_structured_inner_extremal (t, forwards);
   refocus_similar (labels);
 }
 
@@ -420,7 +420,7 @@ bool generic_focus_can_move (tree) { return true; }
 bool generic_focus_can_insert_remove (tree t) {
   bool structured=
     as_bool (call ("structured-horizontal?", object (t))) ||
-    as_bool (call ("structured-vertical?", object (t)));
+    generic_structured_vertical_context (t);
   return structured && as_bool (call ("cursor-inside?", object (t)));
 }
 
@@ -605,7 +605,7 @@ void generic_structured_extremal (tree t, bool forwards) {
     call ("structured-horizontal", object (t), object (forwards));
     if (ed->the_path () == before) break;
   }
-  call ("structured-inner-extremal", object (t), object (forwards));
+  generic_structured_inner_extremal (t, forwards);
 }
 
 void generic_structured_incremental (tree t, bool downwards) {
@@ -624,11 +624,11 @@ void generic_structured_incremental (tree t, bool downwards) {
     call ("structured-vertical", object (t), object (downwards));
     if (ed->the_path () == before) break;
   }
-  call ("structured-inner-extremal", object (t), object (downwards));
+  generic_structured_inner_extremal (t, downwards);
 }
 
 void generic_structured_exit (tree t, bool forwards) {
-  if (!as_bool (call ("complex-context?", object (t)))) return;
+  if (!generic_complex_context (t)) return;
   path p;
   if (!attached_path (t, p)) return;
   editor ed= get_current_editor ();

@@ -80,6 +80,8 @@ object generic_background_result (string mode, array<string> values);
 void generic_open_pattern_selector (object callback, string width);
 void generic_open_gradient_selector (object callback, object options);
 void generic_open_background_picture_selector (object callback, object options);
+// Background selector for native editor commands: no Scheme procedure callback.
+void generic_document_background_select (string mode);
 void generic_make_note_ref ();
 void generic_make_note_inline ();
 void generic_make_note_wide ();

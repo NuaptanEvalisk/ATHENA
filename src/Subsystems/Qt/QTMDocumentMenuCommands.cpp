@@ -8,6 +8,7 @@
 
 #include "QTMCommandRegistry.hpp"
 #include "QTMCommandRegistryInternal.hpp"
+#include "Scheme/Scheme/native_interfaces.hpp"
 
 #include <QColor>
 #include <QColorDialog>
@@ -145,7 +146,7 @@ QTMCommandRegistry::registerDocumentMenuCommands () {
         QObject::tr ("Citation Style"), writable, true,
         document.materials_citation_default);
       try {
-        object raw= call ("materials-csl-styles");
+        object raw= athena_materials_csl_styles ();
         if (is_tree (raw)) {
           tree styles= as_tree (raw);
           for (int i=0; i<N(styles); ++i) {

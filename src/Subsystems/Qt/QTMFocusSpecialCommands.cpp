@@ -10,6 +10,7 @@
 
 #include "QTMCommandRegistry.hpp"
 #include "QTMCommandRegistryInternal.hpp"
+#include "Scheme/Scheme/native_interfaces.hpp"
 
 #include <QColor>
 #include <QColorDialog>
@@ -158,7 +159,7 @@ QTMCommandRegistry::registerFocusSpecialCommands () {
                 QObject::tr ("Use document Citation Style"), styles,
                 true, current.isEmpty ());
         try {
-          object raw= call ("materials-csl-styles");
+          object raw= athena_materials_csl_styles ();
           if (is_tree (raw)) {
             tree values= as_tree (raw);
             for (int i=0; i<N(values); ++i) {

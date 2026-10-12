@@ -9,6 +9,7 @@
 *******************************************************************************/
 
 #include "document_commands.hpp"
+#include "document_style_commands.hpp"
 #include "editor.hpp"
 #include "new_view.hpp"
 #include "native_interfaces.hpp"
@@ -95,11 +96,11 @@ document_init_multi (object values) {
     string variable= as_string (items[i]);
     object value= items[i + 1];
     if (variable == "font" && value == default_keyword) {
-      call ("remove-font-packages");
+      document_remove_font_packages ();
       init_default_current_view ("font");
     }
-    else if (variable == "font")
-      call ("init-font", value);
+    else if (variable == "font" && is_string (value))
+      document_init_font (as_string (value), as_list_object (array<object> ()));
     else if (value == default_keyword)
       init_default_current_view (variable);
     else if (is_string (value))
@@ -159,13 +160,13 @@ document_test_init_font (string value, object) {
 
 void
 document_remove_font_packages () {
-  object styles= call ("get-style-list");
+  object styles= document_get_style_list ();
   if (!is_list (styles)) return;
   list<string> current= as_list_string (styles);
   list<string> filtered;
   for (list<string> it= current; !is_nil (it); it= it->next)
     if (!ends (it->item, "-font")) filtered << it->item;
-  call ("set-style-list", object (filtered));
+  document_set_style_list (object (filtered));
 }
 
 void
@@ -174,23 +175,23 @@ document_init_font (string value, object options) {
   array<object> opts= is_list (options) ? as_array_object (options) : array<object> ();
 
   if (value == "TeXmacs Computer Modern") {
-    call ("init-font", object ("roman"), object ("roman"));
+    document_init_font ("roman", list_object (object ("roman")));
     return;
   }
   if (value == "roman" &&
       !(N (opts) == 1 && is_string (opts[0]) && as_string (opts[0]) == "roman")) {
-    call ("init-font", object ("roman"), object ("roman"));
+    document_init_font ("roman", list_object (object ("roman")));
     return;
   }
   if (tex_gyre_document_font (value)) {
     ed->init_env ("font", tree (tex_gyre_document_profile (value)));
     init_default_current_view ("math-font");
     ed->init_env ("font-family", tree ("rm"));
-    call ("remove-font-packages");
+    document_remove_font_packages ();
     return;
   }
   if (starts (value, "Stix")) {
-    call ("init-font", object ("stix"), object ("math-stix"));
+    document_init_font ("stix", list_object (object ("math-stix")));
     return;
   }
 
@@ -198,15 +199,15 @@ document_init_font (string value, object options) {
   if (N (opts) > 0 && is_string (opts[0]))
     ed->init_env ("math-font", tree (as_string (opts[0])));
   ed->init_env ("font-family", tree ("rm"));
-  call ("remove-font-packages");
+  document_remove_font_packages ();
 
   string package= font_package_name (value);
-  object file= call ("url-append", object ("$ATHENA_PATH/packages/customize/fonts"),
-                     object (package * ".ats"));
-  if (as_bool (call ("url-exists?", file))) {
+  url file= url_concat (url ("$ATHENA_PATH/packages/customize/fonts"),
+                        url (package * ".ats"));
+  if (exists (file)) {
     init_default_current_view ("font");
     init_default_current_view ("font-family");
-    call ("add-style-package", object (package));
+    document_add_style_package (package);
   }
 }
 
@@ -226,7 +227,7 @@ bool document_style_language (string value) {
 }
 
 list<string> current_style_list () {
-  object styles= call ("get-style-list");
+  object styles= document_get_style_list ();
   return is_list (styles) ? as_list_string (styles) : list<string> ();
 }
 
@@ -255,7 +256,7 @@ void
 document_set_default_language () {
   list<string> old= current_style_list ();
   list<string> next= remove_document_languages (old);
-  if (next != old) call ("set-style-list", object (next));
+  if (next != old) document_set_style_list (object (next));
 }
 
 string
@@ -283,12 +284,12 @@ document_set_language (string value) {
   list<string> old= current_style_list ();
   list<string> next= remove_document_languages (old);
   if (value != "english") next << value;
-  if (next != old) call ("set-style-list", object (next));
+  if (next != old) document_set_style_list (object (next));
 }
 
 namespace {
 
-void notify_page_change () { (void) call ("notify-page-change"); }
+void notify_page_change () { get_current_editor ()->notify_page_change (); }
 
 bool defaults_absent (std::initializer_list<const char*> variables) {
   editor ed= get_current_editor ();
@@ -492,15 +493,15 @@ void document_toggle_page_screen_margin () {
 namespace {
 
 bool has_style_package (string name) {
-  return as_bool (call ("has-style-package?", object (name)));
+  return document_has_style_package (name);
 }
 
 void add_style_package (string name) {
-  (void) call ("add-style-package", object (name));
+  document_add_style_package (name);
 }
 
 void remove_style_package (string name) {
-  (void) call ("remove-style-package", object (name));
+  document_remove_style_package (name);
 }
 
 } // namespace

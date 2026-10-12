@@ -111,7 +111,7 @@
              codex-ai-completion-custom)
 (lazy-define (kernel athena tm-preferences) view-all-preferences)
 (lazy-define (athena athena tm-preferences-ui)
-             preferences-open? open-preferences)
+             open-preferences)
 (tm-define (notify-set-attachment name key val) (noop))
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
@@ -130,10 +130,6 @@
 (import-from (athena athena tm-vault))
 (import-from (doc help-funcs))
 (generic-keyboard-load)
-(lazy-define (generic document-style)
-             native-document-background-pattern-dialog
-             native-document-background-gradient-dialog
-             native-document-background-picture-dialog)
 (lazy-define (generic document-part)
              buffer-has-preamble? in-preamble-mode? toggle-preamble-mode)
 (lazy-define (generic document-edit) update-document set-document-language
@@ -160,9 +156,6 @@
 (lazy-define (generic global-search) open-global-search
              global-search-open-result global-search-open-occurrence)
 (lazy-define (generic format-widgets) open-paragraph-format open-page-format)
-(lazy-define (generic document-widgets)
-             open-document-paragraph-format open-document-page-format
-             open-document-metadata)
 (tm-property (open-replace) (:interactive #t))
 (tm-property (make-with var val) (:check-mark "o" test-env?))
 (tm-property (make-line-with var val)
@@ -210,9 +203,6 @@
 (tm-property (open-paragraph-format) (:interactive #t))
 (tm-property (open-page-format) (:interactive #t)
                                 (:applicable (not (selection-active?))))
-(tm-property (open-document-paragraph-format) (:interactive #t))
-(tm-property (open-document-page-format) (:interactive #t))
-(tm-property (open-document-metadata) (:interactive #t))
 (tm-property (open-pattern-selector cmd w) (:interactive #t))
 (tm-property (open-gradient-selector cmd) (:interactive #t))
 (tm-property (open-background-picture-selector cmd) (:interactive #t))
@@ -270,9 +260,6 @@
 
 ;(display "Booting table mode\n")
 (lazy-keyboard (native-keyboard table) in-table?)
-(lazy-define (table table-widgets) open-cell-properties open-table-properties)
-(tm-property (open-cell-properties) (:interactive #t))
-(tm-property (open-table-properties) (:interactive #t))
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting graphics mode\n")

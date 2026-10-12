@@ -296,8 +296,6 @@
                 (and (tree-ref t :next)
                      (script-context? (tree-ref t :next)))))))
 
-(tm-define (math-jump-out)
-  (structured-exit-right))
 
 (tm-define (math-evaluation-bar)
   (:synopsis "Evaluate the preceding or selected expression at a limit")

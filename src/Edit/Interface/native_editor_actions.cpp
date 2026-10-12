@@ -18,12 +18,16 @@
 #include "document_style_commands.hpp"
 #include "format_commands.hpp"
 #include "format_geometry.hpp"
+#include "native_dynamic_commands.hpp"
 #include "generic_editor_commands.hpp"
 #include "language.hpp"
 #include "scheme.hpp"
 #include "tree_select.hpp"
 #include "Subsystems/Qt/QTMFormulaAstViewer.hpp"
 #include "Scheme/Scheme/native_interfaces.hpp"
+#include "Subsystems/Qt/QTMParagraphPropertiesPane.hpp"
+#include "Subsystems/Qt/QTMPagePropertiesPane.hpp"
+#include "Subsystems/Qt/QTMMetadataPropertiesPane.hpp"
 #include "Subsystems/Qt/QTMReverseHierarchyGraph.hpp"
 
 #include <QJsonArray>
@@ -120,7 +124,7 @@ popup_spell_replace (editor ed, string replacement) {
   range_set selected;
   selected << first << last;
   ed->selection_set_range_set (selected);
-  call ("clipboard-cut", object ("dummy"));
+  ed->selection_cut ("dummy");
   ed->var_insert_tree (tree (replacement), path (N(replacement)));
   ed->end_editing ();
   ed->set_message (
@@ -366,11 +370,11 @@ execute_business_id (editor ed, const QString& id) {
   else if (id == "open-document-font-selector")
     (void) call ("open-document-font-selector");
   else if (id == "document-background-pattern")
-    (void) call ("native-document-background-pattern-dialog");
+    generic_document_background_select ("pattern");
   else if (id == "document-background-gradient")
-    (void) call ("native-document-background-gradient-dialog");
+    generic_document_background_select ("gradient");
   else if (id == "document-background-picture")
-    (void) call ("native-document-background-picture-dialog");
+    generic_document_background_select ("picture");
   else if (id == "document-no-style") document_set_no_style ();
   else if (id == "document-toggle-source-mode") document_toggle_source_mode ();
   else if (id == "document-toggle-preamble-mode")
@@ -392,7 +396,7 @@ execute_business_id (editor ed, const QString& id) {
   else if (id == "document-extract-style-package")
     (void) call ("extract-style-file", object (false));
   else if (id == "document-refresh-inclusions")
-    (void) call ("inclusions-gc");
+    get_server ()->inclusions_gc ();
   else if (id == "document-refresh-pictures")
     (void) call ("picture-gc");
   else if (id == "document-character-count")
@@ -404,11 +408,11 @@ execute_business_id (editor ed, const QString& id) {
   else if (id == "document-toggle-save-aux")
     (void) call ("toggle-save-aux");
   else if (id == "open-document-paragraph-format")
-    (void) call ("open-document-paragraph-format");
+    athena_dispatch_ui (paragraph_properties_pane_show);
   else if (id == "open-document-page-format")
-    (void) call ("open-document-page-format");
+    athena_dispatch_ui (page_properties_pane_show);
   else if (id == "open-document-metadata")
-    (void) call ("open-document-metadata");
+    athena_dispatch_ui (metadata_properties_pane_show);
   else if (id == "view-toggle-full-screen-edit")
     (void) call ("toggle-full-screen-edit-mode");
   else if (id == "view-toggle-full-screen")
@@ -933,7 +937,16 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     int arity= action.contains ("arity") ?
       action.value ("arity").toInt (-1) : -1;
     const string tag= native_action_string (action.value ("tag"));
-    if (arity < 0) (void) call ("make", symbol_object (tag));
+    const bool semantic_math= ed->get_env_string (MODE) == "math" &&
+      get_preference ("semantic correctness") == "on";
+    if (!ed->selection_active_any () && !semantic_math) {
+      // The ordinary constructor already handles the canonical node model,
+      // DRD arities, inactive arguments and caret placement.  Keep Scheme's
+      // large-selection wrapping and semantic-math correctness dispatch until
+      // their separate editing contracts have native implementations.
+      ed->make_compound (as_tree_label (tag), arity);
+    }
+    else if (arity < 0) (void) call ("make", symbol_object (tag));
     else (void) call ("make", symbol_object (tag), object (arity));
   }
   else if (op == "make-program") {
@@ -946,11 +959,16 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     ed->insert_tree (value, path (0, 0, 0));
     if (selected != "") ed->insert_tree (selected, end (selected));
   }
-  else if (op == "make-with")
-    (void) call (
-      "make-with",
-      object (native_action_string (action.value ("var"))),
-      object (native_action_string (action.value ("value"))));
+  else if (op == "make-with") {
+    const string variable= native_action_string (action.value ("var"));
+    const string value= native_action_string (action.value ("value"));
+    // This JSON action always carries text.  Keep make-with's table-selection
+    // branch, but do not round-trip text values through Scheme.
+    if (ed->selection_active_table ())
+      ed->cell_set_format (variable, tree (value));
+    else
+      ed->make_with (variable, value);
+  }
   else if (op == "format-interactive-with")
     format_make_interactive_with (
       native_action_string (action.value ("var")));
@@ -992,9 +1010,9 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
   }
   else if (op == "dynamic-buffer") {
     const QString operation= action.value ("operation").toString ();
-    (void) call (operation == "operate" ? "dynamic-operate-on-buffer" :
-                                          "dynamic-filter-buffer",
-                 keyword_object (native_action_string (action.value ("kind"))));
+    native_dynamic_buffer_command (
+      ed, native_action_string (QJsonValue (operation)),
+      native_action_string (action.value ("kind")));
   }
   else if (op == "focus-link-display") {
     const path focus= ed->focus_get ();
@@ -1140,9 +1158,8 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
       native_action_string (action.value ("var")),
       tree (native_action_string (action.value ("value"))));
   else if (op == "interactive-line-with")
-    (void) call (
-      "make-interactive-line-with",
-      object (native_action_string (action.value ("var"))));
+    format_make_interactive_line_with (
+      native_action_string (action.value ("var")));
   else if (op == "make-mod-active")
     ed->make_mod_active (
       as_tree_label (native_action_string (action.value ("tag"))));

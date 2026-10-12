@@ -2,7 +2,7 @@
 /******************************************************************************
 * MODULE     : edit_dynamic.cpp
 * DESCRIPTION: editing dynamic content
-* COPYRIGHT  : (C) 1999  Joris van der Hoeven
+* COPYRIGHT  : (C) 1999  Joris van der Hoeven, 2026 Nuaptan Felix Evalisk
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
 * It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
@@ -12,6 +12,11 @@
 #include "edit_dynamic.hpp"
 #include "tree_analyze.hpp"
 #include "ATHENA/Data/enunciation_model.hpp"
+#include "format_commands.hpp"
+#include "native_dynamic_commands.hpp"
+#include "native_interfaces.hpp"
+
+#include <algorithm>
 
 /******************************************************************************
 * Constructors and destructors
@@ -133,7 +138,7 @@ edit_dynamic_rep::make_compound (tree_label l, int n= -1) {
       break;
   if (acc<n) p->item= acc;
   if (n == 0) insert_tree (t, 1);
-  else if (is_with_like (t) && as_bool (call ("with-like-check-insert", t)));
+  else if (is_with_like (t) && format_with_like_check_insert (t));
   else {
     string s= as_string (l);
     tree f= get_env_value (s);
@@ -706,4 +711,221 @@ edit_dynamic_rep::ensure_trailing_proof_paragraph () {
   tree st= subtree (et, path_up (q));
   if ((!is_document (st)) || (last_item (q) != (N(st)-1))) return;
   insert (path_inc (q), tree (DOCUMENT, ""));
+}
+
+/******************************************************************************
+* Native whole-buffer folding and filtering.
+* Observer-aware operations on the BufferActor's attached document tree.
+******************************************************************************/
+
+namespace {
+
+struct dynamic_toggle_pair { const char* first; const char* second; };
+
+// The persisted source tag pairs currently registered in dynamic-drd.scm.
+const dynamic_toggle_pair dynamic_toggle_pairs[] = {
+  {"picture-mixed", "source-mixed"},
+  {"folded-reverse", "unfolded-reverse"},
+  {"folded", "unfolded"},
+  {"folded-plain", "unfolded-plain"},
+  {"folded-std", "unfolded-std"},
+  {"folded-explain", "unfolded-explain"},
+  {"folded-env", "unfolded-env"},
+  {"folded-documentation", "unfolded-documentation"},
+  {"folded-grouped", "unfolded-grouped"},
+  {"summarized", "detailed"},
+  {"summarized-plain", "detailed-plain"},
+  {"summarized-std", "detailed-std"},
+  {"summarized-env", "detailed-env"},
+  {"summarized-documentation", "detailed-documentation"},
+  {"summarized-grouped", "detailed-grouped"},
+  {"summarized-raw", "detailed-raw"},
+  {"summarized-tiny", "detailed-tiny"},
+  {"summarized-algorithm", "detailed-algorithm"}
+};
+
+string
+dynamic_tag (tree t) {
+  return is_atomic (t) ? string ("") : as_string (L(t));
+}
+
+int
+dynamic_toggle_side (tree t) {
+  string tag= dynamic_tag (t);
+  for (const auto& pair: dynamic_toggle_pairs) {
+    if (tag == pair.first) return 1;
+    if (tag == pair.second) return 2;
+  }
+  return 0;
+}
+
+void
+dynamic_toggle (tree t) {
+  const string tag= dynamic_tag (t);
+  for (const auto& pair: dynamic_toggle_pairs) {
+    if (tag == pair.first) {
+      (void) tree_assign_node (t, as_tree_label (string (pair.second)));
+      return;
+    }
+    if (tag == pair.second) {
+      (void) tree_assign_node (t, as_tree_label (string (pair.first)));
+      return;
+    }
+  }
+}
+
+bool dynamic_alternative (string tag) {
+  return tag == "switch" || tag == "screens" || tag == "tiny-switch";
+}
+bool dynamic_unroll (string tag) {
+  return tag == "unroll" || tag == "unroll-compressed" ||
+         tag == "unroll-phantoms" || tag == "unroll-greyed";
+}
+bool dynamic_expanded (string tag) {
+  return tag == "expanded" || tag == "slides";
+}
+bool dynamic_switch (string tag) {
+  return dynamic_alternative (tag) || dynamic_unroll (tag) ||
+         dynamic_expanded (tag);
+}
+bool dynamic_hidden (tree t) {
+  const string tag= dynamic_tag (t);
+  return tag == "hidden" || tag == "hidden*" ||
+         tag == "hidden-deleted" || tag == "hidden-invisible" ||
+         tag == "hidden-greyed";
+}
+
+void
+dynamic_switch_set (tree t, int i, bool show) {
+  if (i < 0 || i >= N(t)) return;
+  tree child= t[i];
+  const bool hidden= dynamic_hidden (child);
+  const string hide= dynamic_unroll (dynamic_tag (t)) ? "hidden*" : "hidden";
+  if (show && hidden)
+    (void) tree_assign_node (child, as_tree_label ("shown"));
+  else if (!show && dynamic_tag (child) == "shown")
+    (void) tree_assign_node (child, as_tree_label (hide));
+  else if (show && dynamic_tag (child) != "shown")
+    (void) tree_insert_node (child, 0, tree (as_tree_label ("shown")));
+  else if (!show && !hidden)
+    (void) tree_insert_node (child, 0, tree (as_tree_label (hide)));
+}
+
+void
+dynamic_switch_range (tree t, int first, int last, bool show) {
+  for (int i= std::max (0, first); i < std::min (last, N(t)); ++i)
+    dynamic_switch_set (t, i, show);
+}
+
+int
+dynamic_switch_last_visible (tree t) {
+  for (int i= N(t)-1; i >= 0; --i)
+    if (!dynamic_hidden (t[i])) return i;
+  return -1;
+}
+
+void
+dynamic_operate_tree (tree t, const string& mode) {
+  if (is_atomic (t)) return;
+  const string tag= dynamic_tag (t);
+  if (tag == "traversed") {
+    if (N(t) == 0) return;
+    dynamic_operate_tree (t[0], mode);
+    if (mode == "unfold" || mode == "expand" || mode == "var-expand")
+      (void) tree_remove_node (t, 0);
+    return;
+  }
+  if (tag == "fold-back" || tag == "keep-folded") {
+    if (N(t) != 0) dynamic_operate_tree (t[0], mode);
+    return;
+  }
+
+  // Match the original post-order traversal: descendants before their wrapper.
+  for (int i= 0; i < N(t); ++i)
+    dynamic_operate_tree (t[i], mode);
+
+  const int side= dynamic_toggle_side (t);
+  if ((side == 1 && (mode == "unfold" || mode == "expand" ||
+                     mode == "var-expand")) ||
+      (side == 2 && (mode == "fold" || mode == "compress" ||
+                     mode == "var-compress"))) {
+    dynamic_toggle (t);
+    return;
+  }
+  const string current= dynamic_tag (t);
+  if (!dynamic_switch (current)) return;
+
+  if (mode == "expand")
+    dynamic_switch_range (t, 0, N(t), true);
+  else if (mode == "compress") {
+    dynamic_switch_set (t, 0, true);
+    dynamic_switch_range (t, 1, N(t), false);
+  }
+  else if (mode == "var-expand") {
+    if (dynamic_alternative (current))
+      (void) tree_assign_node (t, as_tree_label ("expanded"));
+    if (dynamic_alternative (current) || dynamic_unroll (current))
+      dynamic_switch_range (t, 0, N(t), true);
+  }
+  else if (mode == "var-compress") {
+    if (dynamic_expanded (current))
+      (void) tree_assign_node (t, as_tree_label ("switch"));
+    if (dynamic_expanded (current) || dynamic_unroll (current)) {
+      dynamic_switch_set (t, 0, true);
+      dynamic_switch_range (t, 1, N(t), false);
+    }
+  }
+}
+
+bool
+dynamic_filter_removes (tree t, const string& mode) {
+  const int side= dynamic_toggle_side (t);
+  if (side == 1) return mode == "remove-folded" || mode == "keep-unfolded";
+  if (side == 2) return mode == "remove-unfolded" || mode == "keep-folded";
+  if (dynamic_switch (dynamic_tag (t))) {
+    const bool folded= dynamic_switch_last_visible (t) == 0;
+    return folded ? (mode == "remove-folded" || mode == "keep-unfolded") :
+                    (mode == "remove-unfolded" || mode == "keep-folded");
+  }
+  return mode == "keep-folded" || mode == "keep-unfolded";
+}
+
+void
+dynamic_filter_tree (tree t, const string& mode, bool parent_is_document) {
+  if (is_atomic (t)) return;
+  // A retained immediate child of a document is not recursively filtered
+  // by a "keep" operation; remove modes still descend into it.
+  if (parent_is_document &&
+      (mode == "keep-folded" || mode == "keep-unfolded")) return;
+  const bool is_doc= is_document (t);
+  for (int i= 0; i < N(t); ) {
+    tree child= t[i];
+    if (is_doc && dynamic_filter_removes (child, mode)) {
+      if (N(t) == 1) {
+        (void) tree_assign (child, tree (""));
+        ++i;
+      }
+      else
+        (void) tree_remove (t, i, 1);
+    }
+    else {
+      dynamic_filter_tree (child, mode, is_doc);
+      ++i;
+    }
+  }
+}
+
+} // namespace
+
+void
+native_dynamic_buffer_command (editor ed, string operation, string mode) {
+  if (is_nil (ed)) return;
+  tree body= ed->the_buffer ();
+  if (is_atomic (body)) return;
+  ed->start_editing ();
+  if (operation == "operate")
+    dynamic_operate_tree (body, mode);
+  else if (operation == "filter")
+    dynamic_filter_tree (body, mode, false);
+  ed->end_editing ();
 }

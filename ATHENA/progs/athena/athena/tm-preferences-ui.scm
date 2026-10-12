@@ -17,9 +17,6 @@
 ;; Native preferences entry points
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (preferences-open?)
-  (native-preferences-open?))
-
 (tm-define (open-preferences-window)
   (:interactive #t)
   (native-open-preferences))

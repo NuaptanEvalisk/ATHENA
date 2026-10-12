@@ -1422,8 +1422,7 @@ editor_rep::focus_toolbar_state_snapshot () {
   string tag= as_string (L (t));
   snapshot.tag_label.assign (tag.data (), static_cast<std::size_t> (N(tag)));
   try {
-    snapshot.tag_extension=
-      as_bool (call ("tree-label-extension?", symbol_object (tag)));
+    snapshot.tag_extension= is_extension (tree (as_tree_label (tag)));
   }
   catch (...) {}
   if (snapshot.tag_extension) {
@@ -1496,13 +1495,9 @@ editor_rep::focus_toolbar_state_snapshot () {
       item.label.assign (
         label.data (), static_cast<std::size_t> (N(label)));
       try {
-        object type= call (
-          "tree-label-type", symbol_object (parameter));
-        if (is_string (type)) {
-          string value= as_string (type);
-          item.type.assign (
-            value.data (), static_cast<std::size_t> (N(value)));
-        }
+        string value= get_tag_type (as_tree_label (parameter));
+        item.type.assign (
+          value.data (), static_cast<std::size_t> (N(value)));
       }
       catch (...) {}
       try {

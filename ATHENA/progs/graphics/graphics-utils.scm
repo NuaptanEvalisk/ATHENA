@@ -464,9 +464,6 @@
   (with p (graphics-active-path)
     (if p (tm->stree (path->tree p)) #f)))
 
-(tm-define (get-default-tree-val var)
-  (get-init-tree var))
-
 (tm-define (get-default-val var)
   (tm->stree (get-init-tree var)))
 

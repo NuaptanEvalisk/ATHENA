@@ -235,7 +235,7 @@ bool innermost_balloon (tree& result) {
   while (!is_nil (p)) {
     if (ed->test_subtree (p)) {
       tree t= ed->the_subtree (p);
-      if (as_bool (call ("balloon-context?", object (t)))) {
+      if (generic_balloon_context (t)) {
         result= t;
         return true;
       }
@@ -385,8 +385,7 @@ void replace_matching_embedded_source (tree t, tree source, string replacement) 
 
 string cardlink_destination_string (tree destination) {
   if (is_atomic (destination)) return as_string (destination);
-  object converted= call ("tree->string", object (destination));
-  return is_string (converted) ? as_string (converted) : string ("");
+  return coerce_tree_string (destination);
 }
 
 bool cardlink_extension_in (string value, const char* const* extensions, int count) {
@@ -949,7 +948,10 @@ void generic_kill_paragraph () {
   ed->selection_set_start ();
   ed->go_end_paragraph ();
   ed->selection_set_end ();
-  call ("clipboard-cut", object ("primary"));
+  // Slideshow range selections have a separate Scheme clipboard contract.
+  if (ed->inside ("slideshow"))
+    call ("clipboard-cut", object ("primary"));
+  else ed->selection_cut ("primary");
 }
 
 void generic_yank_paragraph () {
@@ -957,18 +959,24 @@ void generic_yank_paragraph () {
   ed->selection_set_start ();
   ed->go_end_paragraph ();
   ed->selection_set_end ();
-  call ("clipboard-copy", object ("primary"));
+  ed->selection_copy ("primary");
 }
 
 void generic_make_balloon () {
   editor ed= get_current_editor ();
   bool wrap= ed->selection_active_small ();
-  if (wrap) call ("clipboard-cut", object ("wrapbuf"));
+  if (wrap) {
+    if (ed->inside ("slideshow")) call ("clipboard-cut", object ("wrapbuf"));
+    else ed->selection_cut ("wrapbuf");
+  }
   else ed->selection_cancel ();
   ed->var_insert_tree (
     compound ("inactive", compound ("hover-balloon", "", "", "left", "Bottom")),
     path (0, 0, 0));
-  if (wrap) call ("clipboard-paste", object ("wrapbuf"));
+  if (wrap) {
+    if (ed->inside ("slideshow")) call ("clipboard-paste", object ("wrapbuf"));
+    else ed->selection_paste ("wrapbuf");
+  }
 }
 
 void generic_spell_live_replace_current_word (string replacement) {
@@ -982,7 +990,7 @@ void generic_spell_live_replace_current_word (string replacement) {
   range_set selected;
   selected << first << last;
   ed->selection_set_range_set (selected);
-  call ("clipboard-cut", object ("dummy"));
+  ed->selection_cut ("dummy");
   ed->var_insert_tree (tree (replacement), path (N (replacement)));
   ed->end_editing ();
   ed->set_message ("Corrected spelling to '" * replacement * "'", "spell check");
@@ -1342,9 +1350,8 @@ generic_focus_doc_arg_names (tree t, int start, object previous_names) {
 
 string
 generic_parameter_name (string name) {
-  object tree_name= call ("tree-name", list_object (symbol_object (name)));
-  if (!is_string (tree_name)) return "";
-  object display= call ("focus-tag-name", symbol_object (as_string (tree_name)));
+  const string tree_name= get_name (tree (as_tree_label (name)));
+  object display= call ("focus-tag-name", symbol_object (tree_name));
   return is_string (display) ? as_string (display) : string ("");
 }
 
@@ -1388,12 +1395,8 @@ generic_focus_tag_name (object label) {
     return is_string (nested) ? as_string (nested) : string ("");
   }
 
-  object tree_name= call ("tree-name", object (tree (as_tree_label (name))));
-  if (!is_string (tree_name)) return "";
-  object upper= call ("upcase-first", tree_name);
-  if (!is_string (upper)) return "";
-  object display= call ("string-replace", upper, object ("-"), object (" "));
-  return is_string (display) ? as_string (display) : string ("");
+  string tree_name= get_name (tree (as_tree_label (name)));
+  return replace (upcase_first (tree_name), "-", " ");
 }
 
 object

@@ -883,7 +883,7 @@ edit_typeset_rep::exec_latex (tree t, path p) {
   object l= null_object ();
   iterator<string> it= iterate (H);
   while (it->busy ()) l= cons (object (it->next ()), l);
-  tree patch= as_tree (call ("stree->tree", call ("tmtex-env-patch", t, l)));
+  tree patch= scheme_tree_to_tree (latex_compat_tmtex_env_patch (t, l));
   hashmap<string,tree> P (UNINIT, patch);
   H->join (P);
   prefix_specific (H, "tmlatex-");
