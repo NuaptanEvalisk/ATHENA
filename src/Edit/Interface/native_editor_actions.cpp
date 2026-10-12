@@ -464,7 +464,7 @@ execute_business_id (editor ed, const QString& id) {
     (void) call ("resolve-selection-as-artifact-name");
   }
   else if (id == "popup-formula-ast") {
-    path root= ed->semantic_root (ed->the_path ());
+    path root= ed->formula_root (ed->the_path ());
     if (!ed->test_subtree (root)) {
       ed->set_message (
         "The current formula could not be resolved.", "Formula AST");
@@ -937,13 +937,10 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     int arity= action.contains ("arity") ?
       action.value ("arity").toInt (-1) : -1;
     const string tag= native_action_string (action.value ("tag"));
-    const bool semantic_math= ed->get_env_string (MODE) == "math" &&
-      get_preference ("semantic correctness") == "on";
-    if (!ed->selection_active_any () && !semantic_math) {
+    if (!ed->selection_active_any ()) {
       // The ordinary constructor already handles the canonical node model,
       // DRD arities, inactive arguments and caret placement.  Keep Scheme's
-      // large-selection wrapping and semantic-math correctness dispatch until
-      // their separate editing contracts have native implementations.
+      // large-selection wrapping until its contract has a native implementation.
       ed->make_compound (as_tree_label (tag), arity);
     }
     else if (arity < 0) (void) call ("make", symbol_object (tag));

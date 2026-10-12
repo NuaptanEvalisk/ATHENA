@@ -13,16 +13,9 @@
   typing of mathematical symbols. For instance, typing <key|- \<gtr\>>
   inserts the arrow <math|\<rightarrow\>>.
 
-  Starting with version 1.0.7.10, <TeXmacs> also incorporates several
-  features for the ``semantic'' editing of mathematical formulas, which will
-  be described at the end of this section. When used appropriately, this
-  allows you to write documents in which all formulas are at least correct
-  from a syntactical point of view. A ``syntax corrector'' is included to
-  assist you with this task. Documents with more semantics are for instance
-  useful when using formulas as inputs for a computer algebra system. Such
-  documents are also less likely to contain ``typos''. Other interesting
-  features, such as semantic search and replace, should be developed in the
-  future.
+  Mathematical input provides structured fractions, scripts, delimiters and
+  symbols. The editor also offers optional, explicit formula correction
+  commands; ordinary typing does not enforce grammatical validity.
 
   <\traverse>
     <branch|Incorporating mathematical formulas into
@@ -40,13 +33,10 @@
 
     <branch|Commutative diagrams|man-commutative-diagrams.en.tm>
 
-    <branch|Semantic editing facilities|semantics/man-semantics.en.tm>
-
     <branch|Common errors and syntax correction|semantics/man-syntax-correction.en.tm>
 
     <branch|Semantics of mathematical symbols|semantics/man-semantics-symbols.en.tm>
 
-    <branch|Customized mathematical semantics|semantics/man-customized-semantics.en.tm>
   </traverse>
 
   <tmdoc-copyright|1998--2011|Joris van der Hoeven>

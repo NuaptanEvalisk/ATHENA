@@ -91,8 +91,7 @@
         {"key": "math:right", "text": "", "help": "Insert a large right delimiter"},
         {"key": "math:symbol", "text": "", "help": "Insert a mathematical symbol"},
         {"key": "math:symbol:circled", "text": "", "help": "Insert a big circled operator"},
-        {"key": "math:symbol:limits", "text": "", "help": "Insert a mathematical symbol with limits"},
-        {"key": "math:syntax", "text": "", "help": "Specify an alternative semantics"}
+        {"key": "math:symbol:limits", "text": "", "help": "Insert a mathematical symbol with limits"}
       ]
     },
     {

@@ -1272,32 +1272,12 @@ QTMPreferencesDialog::buildKeyboardPage () {
 
 QWidget*
 QTMPreferencesDialog::buildEditingPage () {
-  QWidget* math= make_page ();
-  QFormLayout* mk= add_section (math, "Math keyboard");
-  add_toggle (mk, "automatic invisible");
-  add_toggle (mk, "manual insert missing invisible");
-  add_toggle (mk, "manual homoglyph correct");
-  QFormLayout* qs= add_section (math, "Quick symbol inserter");
-  QPushButton* editEscSymbols= new QPushButton ("Edit symbols");
-  QObject::connect (editEscSymbols, &QPushButton::clicked, [] () {
-    escape_symbol_configurator_show ();
-  });
-  qs->addRow (label ("ESC quick inserter:"), editEscSymbols);
-  QFormLayout* mh= add_section (math, "Math hints and semantics");
-  add_toggle (mh, "semantic editing");
-  add_toggle (mh, "semantic selections");
-  add_toggle (mh, "semantic focus");
-  finish_page (math);
-
-  QWidget* programming= make_page ();
-  QFormLayout* p= add_section (programming, "Programming");
-  add_toggle (p, "prog:highlight brackets");
-  add_toggle (p, "prog:automatic brackets");
-  add_toggle (p, "prog:select brackets");
-  finish_page (programming);
-
-  QWidget* text= make_page ();
-  QFormLayout* t= add_section (text, "Text");
+  QWidget* genericText= make_page ();
+  QFormLayout* display= add_section (genericText, "Editor focus and context");
+  add_toggle (display, "show full context");
+  add_toggle (display, "show focus");
+  add_toggle (display, "show table cells");
+  QFormLayout* t= add_section (genericText, "Text");
   add_toggle (t, "heading word counts");
   add_toggle (t, "live spell checking");
   add_toggle (t, "realtime text autocompletion");
@@ -1311,7 +1291,25 @@ QTMPreferencesDialog::buildEditingPage () {
     import_custom_dictionary (import->window ());
   });
   t->addRow (label ("Custom dictionary:"), import);
-  finish_page (text);
+  finish_page (genericText);
+
+  QWidget* math= make_page ();
+  QFormLayout* mk= add_section (math, "Math keyboard");
+  add_toggle (mk, "automatic invisible");
+  add_toggle (mk, "manual insert missing invisible");
+  add_toggle (mk, "manual homoglyph correct");
+  add_toggle (mk, "use large brackets");
+  QFormLayout* qs= add_section (math, "Quick symbol inserter");
+  QPushButton* editEscSymbols= new QPushButton ("Edit symbols");
+  QObject::connect (editEscSymbols, &QPushButton::clicked, [] () {
+    escape_symbol_configurator_show ();
+  });
+  qs->addRow (label ("ESC quick inserter:"), editEscSymbols);
+  QFormLayout* p= add_section (math, "Programming");
+  add_toggle (p, "prog:highlight brackets");
+  add_toggle (p, "prog:automatic brackets");
+  add_toggle (p, "prog:select brackets");
+  finish_page (math);
 
   QWidget* source= make_page ();
   QFormLayout* s= add_section (source, "Source tree");
@@ -1334,8 +1332,8 @@ QTMPreferencesDialog::buildEditingPage () {
   add_toggle (i, "latex->texmacs:text-operators");
   finish_page (importer);
 
-  return tabbed ({{"Maths", math}, {"Programming", programming},
-                  {"Text", text}, {"Source", source},
+  return tabbed ({{"Generic and Text", genericText},
+                  {"Maths and Programming", math}, {"Source", source},
                   {"Formula Importer", importer}});
 }
 

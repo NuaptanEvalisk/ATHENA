@@ -1164,16 +1164,7 @@
     {"id":"editor.insert.link.note-wide-nontext","label":"Wide","category":"Insert","help":"Wide","editor_action":{"op":"make-note-wide"},"forbids":["read-only"],"requires_any":["math-mode","prog-mode"],"palette":false},
     {"id":"editor.insert.link.note-wide-text","label":"Wide","category":"Insert","help":"Wide","editor_action":{"op":"make-note-wide"},"requires":["text-mode"],"forbids":["read-only","std-dtd"],"palette":false},
     {"id":"editor.insert.link.note-footnote-nontext","label":"Footnote","category":"Insert","help":"Footnote","editor_action":{"op":"make-note-footnote"},"requires":["main-flow"],"forbids":["read-only"],"requires_any":["math-mode","prog-mode"],"palette":false},
-    {"id":"editor.insert.link.note-footnote-text","label":"Footnote","category":"Insert","help":"Footnote","editor_action":{"op":"make-note-footnote"},"requires":["text-mode","main-flow"],"forbids":["read-only","std-dtd"],"palette":false},
-    {"id":"editor.math-preferences.match-brackets","label":"Enforce brackets to match","category":"Math","help":"Enforce brackets to match","palette":false},
-    {"id":"editor.math-preferences.large-brackets","label":"Use extensible brackets","category":"Math","help":"Use extensible brackets","palette":false},
-    {"id":"editor.math-preferences.full-context","label":"Show full context","category":"Math","help":"Show full context","palette":false},
-    {"id":"editor.math-preferences.table-cells","label":"Show table cells","category":"Math","help":"Show table cells","palette":false},
-    {"id":"editor.math-preferences.focus","label":"Show current focus","category":"Math","help":"Show current focus","palette":false},
-    {"id":"editor.math-preferences.semantic-focus-only","label":"Only show semantic focus","category":"Math","help":"Only show semantic focus","palette":false},
-    {"id":"editor.math-preferences.semantic-editing","label":"Semantic editing","category":"Math","help":"Semantic editing","palette":false},
-    {"id":"editor.math-preferences.semantic-selections","label":"Semantic selections","category":"Math","help":"Semantic selections","palette":false},
-    {"id":"editor.math-preferences.semantic-correctness","label":"Semantic correctness","category":"Math","help":"Semantic correctness","palette":false}
+    {"id":"editor.insert.link.note-footnote-text","label":"Footnote","category":"Insert","help":"Footnote","editor_action":{"op":"make-note-footnote"},"requires":["text-mode","main-flow"],"forbids":["read-only","std-dtd"],"palette":false}
   ],
   "toolbars":[
     {"id":"editor-mode","items":[
@@ -1259,8 +1250,6 @@
       {"submenu":"editor-mode-tmdoc-explain","label":"Insert explanatory item","icon":"tm_explain","items":[{"command":"editor.tmdoc.explain"},{"command":"editor.tmdoc.explain-macro"},{"command":"editor.tmdoc.explain-var"},{"command":"editor.tmdoc.synopsis"}]},
       {"submenu":"editor-mode-tmdoc-gui","label":"Insert user interface related markup","icon":"tm_gui","items":[{"command":"editor.tmdoc.gui-shortcut"},{"command":"editor.tmdoc.gui-key"},{"command":"editor.tmdoc.gui-menu"},{"command":"editor.tmdoc.gui-submenu"},{"command":"editor.tmdoc.gui-subsubmenu"},{"command":"editor.tmdoc.gui-subsubsubmenu"},{"command":"editor.tmdoc.gui-subsubsubsubmenu"},{"command":"editor.tmdoc.gui-icon"},{"command":"editor.tmdoc.gui-screenshot"}]},
       {"submenu":"editor-mode-tmdoc-annotate","label":"Insert annotation","icon":"tm_tmdoc_annotate","items":[{"command":"editor.tmdoc.annotate-markup"},{"command":"editor.tmdoc.annotate-arg"},{"command":"editor.tmdoc.annotate-var"},{"command":"editor.tmdoc.annotate-length"},{"command":"editor.tmdoc.annotate-style"},{"command":"editor.tmdoc.annotate-package"},{"command":"editor.tmdoc.annotate-dtd"}]},
-      {"submenu":"editor-mode-math-preferences","label":"Preferences for editing mathematical formulas","icon":"tm_math_preferences","items":[{"command":"editor.math-preferences.match-brackets"},{"command":"editor.math-preferences.large-brackets"},{"separator":true},{"command":"editor.math-preferences.full-context"},{"command":"editor.math-preferences.table-cells"},{"command":"editor.math-preferences.focus"},{"command":"editor.math-preferences.semantic-focus-only"},{"separator":true},{"command":"editor.math-preferences.semantic-editing"},{"command":"editor.math-preferences.semantic-selections"},{"command":"editor.math-preferences.semantic-correctness"}]},
-      {"submenu":"editor-mode-math-semantics","label":"Specify semantics of a symbol or formula","icon":"tm_math_syntax","items":[{"provider":"editor-semantic-annotations"}]},
       {"separator":true},
       {"command":"editor.presentation-first","requires_any":["text-mode","math-mode","prog-mode"],"when_main_toolbar_hidden":true},
       {"command":"editor.presentation-previous-screen","requires_any":["text-mode","math-mode","prog-mode"],"when_main_toolbar_hidden":true},

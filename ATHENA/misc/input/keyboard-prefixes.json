@@ -147,8 +147,7 @@
     {"key": "math:small", "replacement": "math", "left": true},
     {"key": "math:left", "replacement": "math l", "left": true},
     {"key": "math:middle", "replacement": "math m", "left": true},
-    {"key": "math:right", "replacement": "math r", "left": true},
-    {"key": "math:syntax", "replacement": "math x", "left": true}
+    {"key": "math:right", "replacement": "math r", "left": true}
   ],
   "post": [
     {"key": "S-C-", "replacement": "C-S-", "left": true},

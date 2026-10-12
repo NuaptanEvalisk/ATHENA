@@ -175,65 +175,52 @@
       "key": "show full context",
       "type": "string",
       "scope": "active",
-      "default": "on"
+      "default": "on",
+      "ui": {
+        "category": "Editing",
+        "tab": "Generic and Text",
+        "section": "Editor focus and context",
+        "order": 0,
+        "label": "Show full context",
+        "control": "toggle",
+        "category_order": 2,
+        "tab_order": 0,
+        "section_order": 0
+      }
     },
     {
       "key": "show table cells",
       "type": "string",
       "scope": "active",
-      "default": "on"
+      "default": "on",
+      "ui": {
+        "category": "Editing",
+        "tab": "Generic and Text",
+        "section": "Editor focus and context",
+        "order": 2,
+        "label": "Show table cells",
+        "control": "toggle",
+        "category_order": 2,
+        "tab_order": 0,
+        "section_order": 0
+      }
     },
     {
       "key": "show focus",
       "type": "string",
       "scope": "active",
-      "default": "on"
-    },
-    {
-      "key": "show only semantic focus",
-      "type": "string",
-      "scope": "active",
-      "default": "on"
-    },
-    {
-      "key": "semantic editing",
-      "type": "boolean",
-      "scope": "active",
-      "default": "off",
-      "ui": {
-        "category": "Editing",
-        "tab": "Maths",
-        "section": "Math hints and semantics",
-        "order": 0,
-        "label": "Semantic editing",
-        "control": "toggle",
-        "category_order": 2,
-        "tab_order": 0,
-        "section_order": 2
-      }
-    },
-    {
-      "key": "semantic selections",
-      "type": "boolean",
-      "scope": "active",
       "default": "on",
       "ui": {
         "category": "Editing",
-        "tab": "Maths",
-        "section": "Math hints and semantics",
+        "tab": "Generic and Text",
+        "section": "Editor focus and context",
         "order": 1,
-        "label": "Semantic selections",
+        "label": "Show current focus",
         "control": "toggle",
         "category_order": 2,
         "tab_order": 0,
-        "section_order": 2
+        "section_order": 0
       }
-    },
-    {
-      "key": "semantic correctness",
-      "type": "string",
-      "scope": "active",
-      "default": "off"
     },
     {
       "key": "remove superfluous invisible",
@@ -272,13 +259,13 @@
       "default": "on",
       "ui": {
         "category": "Editing",
-        "tab": "Maths",
+        "tab": "Maths and Programming",
         "section": "Math keyboard",
         "order": 0,
         "label": "Use shortcuts for missing invisible operators",
         "control": "toggle",
         "category_order": 2,
-        "tab_order": 0,
+        "tab_order": 1,
         "section_order": 0
       }
     },
@@ -295,13 +282,13 @@
       "default": "on",
       "ui": {
         "category": "Editing",
-        "tab": "Maths",
+        "tab": "Maths and Programming",
         "section": "Math keyboard",
         "order": 1,
         "label": "Homoglyph substitutions",
         "control": "toggle",
         "category_order": 2,
-        "tab_order": 0,
+        "tab_order": 1,
         "section_order": 0
       }
     },
@@ -1265,7 +1252,7 @@
           }
         ],
         "category_order": 2,
-        "tab_order": 3,
+        "tab_order": 2,
         "section_order": 0
       }
     },
@@ -1300,7 +1287,7 @@
           }
         ],
         "category_order": 2,
-        "tab_order": 3,
+        "tab_order": 2,
         "section_order": 0
       }
     },
@@ -1339,7 +1326,7 @@
           }
         ],
         "category_order": 2,
-        "tab_order": 3,
+        "tab_order": 2,
         "section_order": 0
       }
     },
@@ -1374,7 +1361,7 @@
           }
         ],
         "category_order": 2,
-        "tab_order": 3,
+        "tab_order": 2,
         "section_order": 0
       }
     },
@@ -2801,7 +2788,7 @@
       "callback": "doc-update-times",
       "ui": {
         "category": "Editing",
-        "tab": "Text",
+        "tab": "Generic and Text",
         "section": "Text",
         "order": 4,
         "label": "Document updates run",
@@ -2821,8 +2808,8 @@
           }
         ],
         "category_order": 2,
-        "tab_order": 2,
-        "section_order": 0
+        "tab_order": 0,
+        "section_order": 1
       }
     },
     {
@@ -2832,14 +2819,14 @@
       "default": "off",
       "ui": {
         "category": "Editing",
-        "tab": "Text",
+        "tab": "Generic and Text",
         "section": "Text",
         "order": 0,
         "label": "Check spelling as you type",
         "control": "toggle",
         "category_order": 2,
-        "tab_order": 2,
-        "section_order": 0
+        "tab_order": 0,
+        "section_order": 1
       }
     },
     {
@@ -2849,14 +2836,14 @@
       "default": "on",
       "ui": {
         "category": "Editing",
-        "tab": "Text",
+        "tab": "Generic and Text",
         "section": "Text",
         "order": 1,
         "label": "Show autocompletion while typing",
         "control": "toggle",
         "category_order": 2,
-        "tab_order": 2,
-        "section_order": 0
+        "tab_order": 0,
+        "section_order": 1
       }
     },
     {
@@ -2866,7 +2853,7 @@
       "default": "alphabetical",
       "ui": {
         "category": "Editing",
-        "tab": "Text",
+        "tab": "Generic and Text",
         "section": "Text",
         "order": 2,
         "label": "Autocompletion order",
@@ -2882,8 +2869,8 @@
           }
         ],
         "category_order": 2,
-        "tab_order": 2,
-        "section_order": 0
+        "tab_order": 0,
+        "section_order": 1
       }
     },
     {
@@ -2893,7 +2880,7 @@
       "default": "both",
       "ui": {
         "category": "Editing",
-        "tab": "Text",
+        "tab": "Generic and Text",
         "section": "Text",
         "order": 3,
         "label": "Accept autocompletion with",
@@ -2913,8 +2900,8 @@
           }
         ],
         "category_order": 2,
-        "tab_order": 2,
-        "section_order": 0
+        "tab_order": 0,
+        "section_order": 1
       }
     },
     {
@@ -2924,15 +2911,15 @@
       "default": "english",
       "ui": {
         "category": "Editing",
-        "tab": "Text",
+        "tab": "Generic and Text",
         "section": "Text",
         "order": 60,
         "label": "Custom dictionary language",
         "control": "native",
         "provider": "dynamic-choice",
         "category_order": 2,
-        "tab_order": 2,
-        "section_order": 0
+        "tab_order": 0,
+        "section_order": 1
       }
     },
     {
@@ -3599,7 +3586,18 @@
       "key": "use large brackets",
       "type": "string",
       "scope": "active",
-      "default": "on"
+      "default": "on",
+      "ui": {
+        "category": "Editing",
+        "tab": "Maths and Programming",
+        "section": "Math keyboard",
+        "order": 2,
+        "label": "Use scalable brackets by default",
+        "control": "toggle",
+        "category_order": 2,
+        "tab_order": 1,
+        "section_order": 0
+      }
     },
     {
       "key": "prog:automatic brackets",
@@ -3609,14 +3607,14 @@
       "callback": "prog-auto-close-brackets",
       "ui": {
         "category": "Editing",
-        "tab": "Programming",
+        "tab": "Maths and Programming",
         "section": "Programming",
         "order": 1,
         "label": "Automatic program brackets",
         "control": "toggle",
         "category_order": 2,
         "tab_order": 1,
-        "section_order": 0
+        "section_order": 1
       }
     },
     {
@@ -3627,14 +3625,14 @@
       "callback": "highlight-brackets",
       "ui": {
         "category": "Editing",
-        "tab": "Programming",
+        "tab": "Maths and Programming",
         "section": "Programming",
         "order": 0,
         "label": "Highlight matching brackets",
         "control": "toggle",
         "category_order": 2,
         "tab_order": 1,
-        "section_order": 0
+        "section_order": 1
       }
     },
     {
@@ -3645,14 +3643,14 @@
       "callback": "select-brackets",
       "ui": {
         "category": "Editing",
-        "tab": "Programming",
+        "tab": "Maths and Programming",
         "section": "Programming",
         "order": 2,
         "label": "Use smart bracket selections",
         "control": "toggle",
         "category_order": 2,
         "tab_order": 1,
-        "section_order": 0
+        "section_order": 1
       }
     },
     {
@@ -4687,7 +4685,7 @@
         "label": "Recognize matrices and determinants disguised as arrays",
         "control": "toggle",
         "category_order": 2,
-        "tab_order": 4,
+        "tab_order": 3,
         "section_order": 0
       }
     },
@@ -4704,7 +4702,7 @@
         "label": "Convert 'aligned' blocks into 'eqnarray' environments",
         "control": "toggle",
         "category_order": 2,
-        "tab_order": 4,
+        "tab_order": 3,
         "section_order": 0
       }
     },
@@ -4721,7 +4719,7 @@
         "label": "Treat 'align' as 'aligned'",
         "control": "toggle",
         "category_order": 2,
-        "tab_order": 4,
+        "tab_order": 3,
         "section_order": 0
       }
     },
@@ -4738,7 +4736,7 @@
         "label": "Parse operator d as differential d",
         "control": "toggle",
         "category_order": 2,
-        "tab_order": 4,
+        "tab_order": 3,
         "section_order": 0
       }
     },
@@ -4755,7 +4753,7 @@
         "label": "Parse Roman d as differential d",
         "control": "toggle",
         "category_order": 2,
-        "tab_order": 4,
+        "tab_order": 3,
         "section_order": 0
       }
     },
@@ -4772,7 +4770,7 @@
         "label": "Parse text d as differential d",
         "control": "toggle",
         "category_order": 2,
-        "tab_order": 4,
+        "tab_order": 3,
         "section_order": 0
       }
     },
@@ -4789,7 +4787,7 @@
         "label": "Parse blackboard k as Bbbk",
         "control": "toggle",
         "category_order": 2,
-        "tab_order": 4,
+        "tab_order": 3,
         "section_order": 0
       }
     },
@@ -4806,7 +4804,7 @@
         "label": "Parse blackboard i as mathi",
         "control": "toggle",
         "category_order": 2,
-        "tab_order": 4,
+        "tab_order": 3,
         "section_order": 0
       }
     },
@@ -4823,7 +4821,7 @@
         "label": "Recognize operator names disguised as text",
         "control": "toggle",
         "category_order": 2,
-        "tab_order": 4,
+        "tab_order": 3,
         "section_order": 0
       }
     },
@@ -5181,31 +5179,14 @@
       "default": "off",
       "ui": {
         "category": "Editing",
-        "tab": "Maths",
+        "tab": "Maths and Programming",
         "section": "Math keyboard",
         "order": 50,
         "label": "Use spurious invisible operators",
         "control": "toggle",
         "category_order": 2,
-        "tab_order": 0,
+        "tab_order": 1,
         "section_order": 0
-      }
-    },
-    {
-      "key": "semantic focus",
-      "type": "boolean",
-      "scope": "active",
-      "default": "off",
-      "ui": {
-        "category": "Editing",
-        "tab": "Maths",
-        "section": "Math hints and semantics",
-        "order": 50,
-        "label": "Semantic focus",
-        "control": "toggle",
-        "category_order": 2,
-        "tab_order": 0,
-        "section_order": 2
       }
     },
     {
@@ -5215,14 +5196,14 @@
       "default": "off",
       "ui": {
         "category": "Editing",
-        "tab": "Text",
+        "tab": "Generic and Text",
         "section": "Text",
         "order": 50,
         "label": "Show heading word counts",
         "control": "toggle",
         "category_order": 2,
-        "tab_order": 2,
-        "section_order": 0
+        "tab_order": 0,
+        "section_order": 1
       }
     },
     {
@@ -5232,14 +5213,14 @@
       "default": "off",
       "ui": {
         "category": "Editing",
-        "tab": "Text",
+        "tab": "Generic and Text",
         "section": "Text",
         "order": 51,
         "label": "Disable UNIX primary selection",
         "control": "toggle",
         "category_order": 2,
-        "tab_order": 2,
-        "section_order": 0
+        "tab_order": 0,
+        "section_order": 1
       }
     },
     {

@@ -12,7 +12,6 @@
 #include "Replace/edit_select.hpp"
 #include "Interface/edit_interface.hpp"
 #include "convert.hpp"
-#include "packrat.hpp"
 #include "tree_select.hpp"
 #include "drd_mode.hpp"
 #include "tm_buffer.hpp"
@@ -37,11 +36,11 @@ edit_select_rep::edit_select_rep ():
 edit_select_rep::~edit_select_rep () {}
 
 /******************************************************************************
-* Semantic selections
+* Finding a formula root for the Formula AST Viewer
 ******************************************************************************/
 
 path
-edit_select_rep::semantic_root (path p) {
+edit_select_rep::formula_root (path p) {
   while (p != rp) {
     tree st= subtree (et, path_up (p));
     if (path_up (p) != rp && is_func (st, DOCUMENT, 1))
@@ -58,42 +57,6 @@ edit_select_rep::semantic_root (path p) {
     p= path_up (p);
   }
   return p;
-}
-
-bool
-edit_select_rep::semantic_active (path q) {
-  if (as_string (eval ("(get-preference \"semantic editing\")")) == "on") {
-    path p= semantic_root (q);
-    //cout << subtree (et, p) << ", " << p << " -> " << end (et, p) << "\n";
-    tree mt= get_env_value (MODE, end (et, p));
-    tree lt= get_env_value (MODE_LANGUAGE (mt->label), end (et, p));
-    string lan= (is_atomic (lt)? lt->label: string ("std-math"));
-    if (mt == "math" || (mt == "prog" && lan == "minimal"))
-      return packrat_available_path (lan, subtree (et, p), q / p);
-  }
-  return false;
-}
-
-bool
-edit_select_rep::semantic_select (path p, path& q1, path& q2, int mode) {
-  if (!semantic_active (p)) return false;
-  if (mode < 2 && get_preference ("semantic selections") != "on") return false;
-  p= semantic_root (p);
-  while (p != rp && !(p <= q1 && p <= q2))
-    p= semantic_root (path_up (p));
-  tree mt= get_env_value (MODE, end (et, p));
-  tree lt= get_env_value (MODE_LANGUAGE (mt->label), end (et, p));
-  string lan= (is_atomic (lt)? lt->label: string ("std-math"));
-  path p1= q1 / p, p2= q2 / p;
-  path cp= (p <= tp? tp / p: path ());
-  tree st= subtree (et, p);
-  bool ret= packrat_select (lan, "Main", st, cp, p1, p2, mode);
-  p1= correct_right_most_inside (p1, st);
-  if (ret) {
-    q1= p * p1;
-    q2= p * p2;
-  }
-  return ret;
 }
 
 /******************************************************************************
@@ -175,10 +138,6 @@ edit_select_rep::select (path p1, path p2) {
         }
       }
     }
-    path cp= common (p1, p2);
-    tree st= subtree (et, cp);
-    if (!is_func (st, TABLE) && !is_func (st, ROW))
-      (void) semantic_select (cp, p1, p2, 0);
   }
   if (path_less (p1, p2))
     cur_sel= simple_range (p1, p2);
@@ -328,17 +287,8 @@ edit_select_rep::select_enlarge () {
     }
     sq= path_up (sp);
   }
-  path pp= sp, p1= start (cur_sel), p2= end (cur_sel);
-  if (start (cur_sel) == pp * 0 &&
-      end   (cur_sel) == pp * right_index (subtree (et, pp)))
-    if (!is_nil (pp)) pp= path_up (pp);
-  if (is_func (subtree (et, pp), TFORMAT)) pp= path_up (pp);
-  if (semantic_select (pp, p1, p2, 1))
-    select (p1, p2);
-  else {
-    if (is_atomic (subtree (et, sp))) select_enlarge_text ();
-    else select (sq * 0, sq * 1);
-  }
+  if (is_atomic (subtree (et, sp))) select_enlarge_text ();
+  else select (sq * 0, sq * 1);
 
   path p = common (cur_sel);
   tree st= subtree (et, p);

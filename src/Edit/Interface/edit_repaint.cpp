@@ -143,17 +143,6 @@ edit_interface_rep::draw_env (renderer ren) {
       ren->set_pencil (pencil (col, focus_border_width (ren)));
       ren->draw_rectangles (foc_rects);
     }
-    if (!is_nil (sem_rects)) {
-      if (sem_correct) {
-        color col= get_env_color (CORRECT_COLOR);
-        ren->set_pencil (pencil (col, ren->pixel));
-      }
-      else {
-        color col= get_env_color (INCORRECT_COLOR);
-        ren->set_pencil (pencil (col, ren->pixel));
-      }
-      ren->draw_rectangles (sem_rects);
-    }
   }
 }
 

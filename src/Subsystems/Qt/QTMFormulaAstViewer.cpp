@@ -449,7 +449,7 @@ formula_ast_show () {
     return;
   }
   const path cursor= ed->the_path ();
-  const path root= ed->semantic_root (cursor);
+  const path root= ed->formula_root (cursor);
   if (!ed->test_subtree (root)) {
     qt_post_to_main_thread ([] {
       showError ("The current formula could not be resolved.");

@@ -160,23 +160,3 @@
 (tm-define-macro (lazy-language-force lan)
   (:synopsis "Execute promise to define the language @lan")
   `(lazy-language-force-impl ',lan))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Semantic routines based on current language
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define-macro (semantic-end lan gr in)
-  (:synopsis "Get rightmost path until where @x can be parsed in @lan")
-  `(let* ((lan2 (symbol->string ',lan))
-          (gr2 (symbol->string ',gr))
-          (in2 ,in))
-     (packrat-parse lan2 gr2 in2)))
-
-(tm-define-macro (semantic-context lan gr in pos)
-  (:synopsis "Get semantic selections englobing @in at @pos")
-  `(let* ((lan2 (symbol->string ',lan))
-          (gr2 (symbol->string ',gr))
-          (in2 ,in)
-          (pos1 ,pos)
-          (pos2 (if (number? pos1) (list pos1) pos1)))
-     (packrat-context lan2 gr2 in2 pos2)))

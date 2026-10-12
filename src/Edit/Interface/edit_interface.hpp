@@ -105,8 +105,6 @@ protected:
   rectangle     last_visible;
   rectangles    env_rects;
   rectangles    foc_rects;
-  rectangles    sem_rects;
-  bool          sem_correct;
   cursor        oc;
   bool          temp_invalid_cursor;
   array<string> completions;

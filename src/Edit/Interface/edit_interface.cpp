@@ -2166,12 +2166,9 @@ edit_interface_rep::apply_changes () {
       static_cast<std::uint64_t> ((SI) floor (cu->ox * magf)),
       static_cast<std::uint64_t> ((SI) floor (cu->oy * magf)));
 
-    path sp= selection_get_cursor_path ();
-    bool semantic_flag= semantic_active (path_up (sp));
     bool full_context= (get_preference ("show full context") == "on");
     bool table_cells= (get_preference ("show table cells") == "on");
     bool show_focus= (get_preference ("show focus") == "on");
-    bool semantic_only= (get_preference ("show only semantic focus") == "on");
     rectangles old_env_rects= env_rects;
     rectangles old_foc_rects= foc_rects;
     env_rects= rectangles ();
@@ -2182,7 +2179,7 @@ edit_interface_rep::apply_changes () {
     else pp= path_up (pp);
     if (full_context || table_cells)
       compute_env_rects (pp, env_rects, true, pixel);
-    if (show_focus && (!semantic_flag || !semantic_only))
+    if (show_focus)
       compute_env_rects (pp, foc_rects, false, focus_outline_width (pixel));
     if (env_rects != old_env_rects) {
       invalidate (old_env_rects);
@@ -2194,31 +2191,6 @@ edit_interface_rep::apply_changes () {
       invalidate (foc_rects);
     }
     else if (env_change & THE_FOCUS) invalidate (foc_rects);
-    
-    rectangles old_sem_rects= sem_rects;
-    bool old_sem_correct= sem_correct;
-    sem_rects= rectangles ();
-    sem_correct= true;
-    if (semantic_flag && show_focus) {
-      path sp= selection_get_cursor_path ();
-      path p1= tp, p2= tp;
-      if (selection_active_any ()) selection_get (p1, p2);
-      sem_correct= semantic_select (path_up (sp), p1, p2, 2);
-      if (!sem_correct) {
-        path sr= semantic_root (path_up (sp));
-        p1= start (et, sr);
-        p2= end (et, sr);
-      }
-      path q1, q2;
-      selection_correct (p1, p2, q1, q2);
-      selection sel= eb->find_check_selection (q1, q2);
-      sem_rects << outlines (sel->rs, pixel);
-    }
-    if (sem_rects != old_sem_rects || sem_correct != old_sem_correct) {
-      invalidate (old_sem_rects);
-      invalidate (sem_rects);
-    }
-    else if (env_change & THE_FOCUS) invalidate (sem_rects);
     
   }
   

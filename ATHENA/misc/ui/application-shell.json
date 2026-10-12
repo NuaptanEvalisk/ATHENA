@@ -2210,8 +2210,7 @@
             { "command": "editor.format.graphic-effect.skin" }
           ]
         },
-        { "provider": "editor-prominent-spacing" },
-        { "provider": "editor-semantic-annotations" }
+        { "provider": "editor-prominent-spacing" }
       ]
     },
     {

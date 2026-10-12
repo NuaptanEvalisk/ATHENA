@@ -225,7 +225,6 @@
              previous-section section-context? native-section-switch-to)
 
 ;(display "Booting math mode\n")
-(lazy-keyboard (math math-sem-edit) in-sem-math?)
 (lazy-define (math math-edit)
              brackets-refresh sqrt-toggle script-context? script-only-script?
              open-latex-formula-dialog)
