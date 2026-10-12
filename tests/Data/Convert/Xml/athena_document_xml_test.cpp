@@ -22,8 +22,23 @@ class TestDocumentXml: public QObject {
   Q_OBJECT
 private slots:
   void initTestCase () {
-    make_tree_label (DOCUMENT, "document");
-    make_tree_label (RAW_DATA, "raw-data");
+    // Mirror application startup without constructing the editor or its DRD.
+    init_standard_tree_labels ();
+    const auto error= std::async (std::launch::async, [] () -> std::string {
+      try {
+        auto document= read_xml_v2 (
+          "<athena-document version='2' text-model='utf-8'>"
+          "<node tag='document'><node tag='body'><node tag='document' "
+          "id='11111111-1111-4111-8111-111111111111'/></node></node></athena-document>");
+        if (L (document) != DOCUMENT || L (document[0][0]) != DOCUMENT)
+          return "Cold worker decoded a nonstandard document label";
+        if (as_tree_label ("raw-data") != RAW_DATA)
+          return "Cold worker did not initialize standard labels";
+        return {};
+      }
+      catch (const std::exception& e) { return e.what (); }
+    }).get ();
+    QVERIFY2 (error.empty (), error.c_str ());
   }
   void roundtrip () {
     tree source (DOCUMENT);

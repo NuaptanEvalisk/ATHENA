@@ -2054,6 +2054,9 @@ athena_refresh_stale_scheme_bytecode (int argc, char** argv) {
 
 int
 texmacs_entrypoint (int argc, char** argv) {
+  // Background services start with the Qt shell, before init_athena's DRD.
+  // Persisted tree tags must already have their standard numeric identities.
+  init_standard_tree_labels ();
 #if ATHENA_ENABLE_CLI
   for (int i=1; i<argc; ++i) {
     if (std::string (argv[i]) != "--upgrade-vault-sorters") continue;
