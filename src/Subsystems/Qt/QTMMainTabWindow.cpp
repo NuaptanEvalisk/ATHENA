@@ -108,7 +108,7 @@ installApplicationBackgroundStatus (QTMMainTabWindow* shell) {
 
   QWidget* widget= new QWidget (bar);
   auto* layout= new QHBoxLayout (widget);
-  layout->setContentsMargins (8, 0, 8, 0);
+  layout->setContentsMargins (0, 0, 0, 0);
   layout->setSpacing (5);
   QLabel* indicator= new QLabel (widget);
   indicator->setFixedSize (10, 10);
@@ -152,17 +152,18 @@ installApplicationBackgroundStatus (QTMMainTabWindow* shell) {
   progress->setFixedHeight (8);
   progress->hide ();
   QLabel* count= new QLabel (widget);
-  count->setSizePolicy (QSizePolicy::Fixed, QSizePolicy::Preferred);
-  count->hide ();
+  count->setMinimumWidth (0);
+  count->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Preferred);
   layout->addWidget (indicator);
   layout->addWidget (title);
   layout->addWidget (progress);
-  layout->addWidget (count);
-  widget->setSizePolicy (QSizePolicy::Maximum, QSizePolicy::Preferred);
+  layout->addWidget (count, 1);
+  widget->setMinimumWidth (0);
+  widget->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Preferred);
   QWidget* contents= new QWidget (bar);
   contents->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Preferred);
   auto* row= new QHBoxLayout (contents);
-  row->setContentsMargins (0, 0, 8, 0);
+  row->setContentsMargins (8, 0, 8, 0);
   row->setSpacing (12);
   QLabel* center= new QLabel (contents);
   QLabel* right= new QLabel (contents);
@@ -173,9 +174,12 @@ installApplicationBackgroundStatus (QTMMainTabWindow* shell) {
   center->setMinimumWidth (0);
   right->setMinimumWidth (0);
   center->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Preferred);
-  row->addWidget (widget);
+  right->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Preferred);
+  // Equal, content-independent columns keep the document status centered
+  // across worker rotation, progress visibility and changing cursor details.
+  row->addWidget (widget, 1);
   row->addWidget (center, 1);
-  row->addWidget (right);
+  row->addWidget (right, 1);
   bar->addWidget (contents, 1);
   bar->setMinimumWidth (2);
 
@@ -183,15 +187,14 @@ installApplicationBackgroundStatus (QTMMainTabWindow* shell) {
   timer->setInterval (160);
   QObject::connect (
     timer, &QTimer::timeout, widget,
-    [shell, contents, center, right, widget, indicator, title, progress, count, tick=0u] () mutable {
+    [shell, center, right, widget, layout, indicator, title, progress, count, tick=0u] () mutable {
       const auto* document= qobject_cast<QTMWindow*> (shell->activeWorkPaneWidget ());
       const auto status= document && document->editorStatus.visible ?
         document->editorStatus : QTMWindow::EditorStatus {};
       center->setToolTip (status.center);
       right->setToolTip (status.right);
-      right->setMaximumWidth (contents->width () / 3);
       right->setText (right->fontMetrics ().elidedText (
-        status.right, Qt::ElideRight, right->maximumWidth ()));
+        status.right, Qt::ElideRight, right->width ()));
       center->setText (center->fontMetrics ().elidedText (
         status.center, Qt::ElideRight, center->width ()));
       using athena::background::phase;
@@ -257,8 +260,9 @@ installApplicationBackgroundStatus (QTMMainTabWindow* shell) {
                  QStringLiteral ("#808080");
       indicator->setStyleSheet (
         QStringLiteral ("background:%1;border-radius:5px;").arg (color));
-      progress->setVisible (working);
-      count->setVisible (selected && (!current.caption.empty () || current.total != 0));
+      const int progressWidth= indicator->width () + title->sizeHint ().width () +
+        progress->width () + 3 * layout->spacing ();
+      progress->setVisible (working && widget->width () >= progressWidth);
       QString caption= QString::fromStdString (current.caption);
       if (working) {
         if (current.total == 0) progress->setRange (0, 0);
@@ -272,8 +276,8 @@ installApplicationBackgroundStatus (QTMMainTabWindow* shell) {
               .arg (qulonglong (current.total)));
         }
       }
-      count->setMaximumWidth (std::min (360, shell->width () / 3));
-      count->setText (count->fontMetrics ().elidedText (caption, Qt::ElideRight, count->maximumWidth ()));
+      layout->activate ();
+      count->setText (count->fontMetrics ().elidedText (caption, Qt::ElideRight, count->width ()));
       if (failed)
         tip.prepend (
           QStringLiteral (
