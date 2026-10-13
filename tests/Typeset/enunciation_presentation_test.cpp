@@ -24,6 +24,8 @@
 #include "enunciation_presentation.hpp"
 #include "formatter.hpp"
 #include "Format/format.hpp"
+#include "ATHENA/Data/vault.hpp"
+#include "ATHENA/Data/vaultfile_json.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }
@@ -82,6 +84,32 @@ box lazy_box (edit_env env, tree body) {
   lazy lines= content->produce (LAZY_VSTREAM,
     make_format_vstream (env->as_length ("25em"), 0, 0));
   return (box) lines->produce (LAZY_BOX, make_format_none ());
+}
+
+box text_box_containing (box b, string token) {
+  // Linked Unicode lines are mapped leaves, not TEXT_BOX instances.
+  if (N(b) == 0) {
+    tree text= (tree) b;
+    if (is_atomic (text) && occurs (token, text->label)) return b;
+  }
+  for (int i=0; i<N(b); ++i) {
+    box found= text_box_containing (b[i], token);
+    if (!is_nil (found)) return found;
+  }
+  return box ();
+}
+
+bool has_link_target (box b, const AthenaArtifactRecord& record) {
+  AthenaArtifactRadioactiveMatch match;
+  match.uuids= {record.uuid};
+  match.disambiguation_key= athena_artifact_radioactive_key (record);
+  string destination (athena_artifact_radioactive_destination (match).c_str ());
+  for (SI x= b->x1; x < b->x2; x+= PIXEL) {
+    rectangles rs;
+    if (b->message ("link-target", x, (b->y1 + b->y2) / 2, rs) ==
+        tree (TUPLE, "link-target", destination)) return true;
+  }
+  return false;
 }
 } // namespace
 
@@ -208,6 +236,103 @@ private slots:
     QVERIFY (found);
     QCOMPARE (second->find_tree_path (cursor), source_position);
     QCOMPARE (node::id (changed), node::id (t));
+  }
+
+  void radioactiveDictionaryChangesPreserveNestedParagraphs () {
+    QTemporaryDir directory;
+    QVERIFY (directory.isValid ());
+    std::filesystem::path root (directory.path ().toStdString ());
+    AthenaVaultfileInfo info;
+    std::string error;
+    QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+    AthenaArtifactsBuildResult built;
+    QVERIFY2 (athena_artifacts_build (root, {}, true, {}, built, error),
+              error.c_str ());
+    QCOMPARE (vault_load (url_system (root.string ().c_str ()), "test", "vault.sqlite"),
+              string (""));
+    struct CloseVault { ~CloseVault () { vault_close (); } } close;
+    auto vault= vault_capture_context ();
+    QVERIFY (vault != nullptr);
+    auto record= [] (const char* id, const char* name) {
+      AthenaArtifactRecord result;
+      result.uuid= id;
+      result.type= "definition";
+      result.relative_path= "dictionary.ath";
+      result.display_text= name;
+      result.semantic_names= {name};
+      return result;
+    };
+    std::vector<AthenaArtifactRecord> records {
+      record ("spectral-theorem", "spectral theorem")};
+    auto publish= [&] {
+      athena_artifact_radioactive_overlay (
+        vault->incarnation, "dictionary.ath", 7301, records);
+    };
+    publish ();
+
+    Environment context;
+    edit_env env= context.env;
+    env->write ("athena-radioactive-links-suppressed", "false");
+    env->write ("athena-radioactive-links-in-transclusion", "true");
+    env->write (RADIOACTIVE_LINK_COLOR, "preserve");
+    env->update ();
+    tree theorem= source ("theorem", false);
+    theorem[0]= tree (DOCUMENT, "AffectedToken spectral lemma",
+                     "StableToken quiescent invariant");
+    tree document (DOCUMENT, theorem);
+    tree original= copy (document);
+    typesetter ts= new_typesetter (env, document, path (0));
+    ts->screen_tree= true;
+    struct Delete { typesetter ts; ~Delete () { delete_typesetter (ts); } } cleanup {ts};
+    SI x1= 0, y1= 0, x2= 0, y2= 0;
+    auto render= [&] { return typeset (ts, x1, y1, x2, y2); };
+    box first= render ();
+    box affected= text_box_containing (first, "AffectedToken");
+    box stable= text_box_containing (first, "StableToken");
+    QVERIFY (!is_nil (affected));
+    QVERIFY (!is_nil (stable));
+
+    // The same queried first word is insufficient to invalidate cached boxes.
+    records.push_back (record ("spectral-proposition", "spectral proposition"));
+    publish ();
+    QVERIFY (!refresh_radioactive_links (ts));
+    QCOMPARE (ts->br->status & VALID_MASK, PROCESSED);
+    box nonmatching= render ();
+    box same_affected= text_box_containing (nonmatching, "AffectedToken");
+    box same_stable= text_box_containing (nonmatching, "StableToken");
+    QVERIFY (!is_nil (same_affected));
+    QVERIFY (!is_nil (same_stable));
+    QVERIFY (same_affected.operator-> () == affected.operator-> ());
+    QVERIFY (same_stable.operator-> () == stable.operator-> ());
+
+    records.push_back (record ("spectral-lemma", "spectral lemma"));
+    publish ();
+    QVERIFY (refresh_radioactive_links (ts));
+    box changed= render ();
+    box new_affected= text_box_containing (changed, "AffectedToken");
+    box retained_stable= text_box_containing (changed, "StableToken");
+    QVERIFY (!is_nil (new_affected));
+    QVERIFY (!is_nil (retained_stable));
+    QVERIFY (new_affected.operator-> () != affected.operator-> ());
+    QVERIFY (retained_stable.operator-> () == stable.operator-> ());
+    QVERIFY (has_link_target (new_affected, records[2]));
+    QVERIFY (!refresh_radioactive_links (ts));
+
+    // A later hit proves the untouched paragraph retained its dependencies.
+    records.push_back (record ("quiescent-invariant", "quiescent invariant"));
+    publish ();
+    QVERIFY (refresh_radioactive_links (ts));
+    box later= render ();
+    box retained_affected= text_box_containing (later, "AffectedToken");
+    box new_stable= text_box_containing (later, "StableToken");
+    QVERIFY (!is_nil (retained_affected));
+    QVERIFY (!is_nil (new_stable));
+    QVERIFY (retained_affected.operator-> () == new_affected.operator-> ());
+    QVERIFY (new_stable.operator-> () != stable.operator-> ());
+    QVERIFY (has_link_target (retained_affected, records[2]));
+    QVERIFY (has_link_target (new_stable, records[3]));
+    QVERIFY (!refresh_radioactive_links (ts));
+    QCOMPARE (ts->br->st, original);
   }
 
   void legacyTitlesProofsAndQuotes () {

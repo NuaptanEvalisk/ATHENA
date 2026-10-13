@@ -43,7 +43,12 @@ delete_typesetter (typesetter ttt) {
 
 bool
 refresh_radioactive_links (typesetter ttt) {
-  return ttt->br->refresh_radioactive_links ();
+  const std::uint64_t revision= athena_artifact_radioactive_revision ();
+  if (ttt->radioactive_refresh_revision == revision) return false;
+  const bool changed= ttt->br->refresh_radioactive_links ();
+  // Do not acknowledge a newer index published during the traversal.
+  ttt->radioactive_refresh_revision= revision;
+  return changed;
 }
 
 /******************************************************************************

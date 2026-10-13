@@ -70,10 +70,10 @@ std::string athena_artifact_radioactive_key (
   const AthenaArtifactRecord& record);
 
 std::vector<AthenaArtifactRadioactiveMatch>
-athena_artifact_radioactive_matches (string text);
+athena_artifact_radioactive_matches (string text, path source= path ());
 
 std::vector<AthenaArtifactRadioactiveTreeMatch>
-athena_artifact_radioactive_matches_tree (const tree& text);
+athena_artifact_radioactive_matches_tree (const tree& text, path source= path ());
 
 std::vector<AthenaArtifactRadioactiveMatch>
 athena_artifact_radioactive_matches_for_records (
@@ -115,22 +115,37 @@ bool athena_artifact_radioactive_baseline (
   std::vector<AthenaArtifactRecord>& records);
 struct AthenaArtifactRadioactiveDependencies;
 
+struct AthenaArtifactRadioactiveWork {
+  std::size_t tokenized_characters= 0;
+  std::size_t matched_positions= 0;
+};
+AthenaArtifactRadioactiveWork athena_artifact_radioactive_work (
+  const std::shared_ptr<AthenaArtifactRadioactiveDependencies>& dependencies);
+
 // A source block owns its dependencies for as long as its cached boxes live.
 // Nested temporary typesetters contribute to the enclosing block's queries.
 class AthenaArtifactRadioactiveScope {
   std::shared_ptr<AthenaArtifactRadioactiveDependencies>* previous;
+  std::shared_ptr<AthenaArtifactRadioactiveDependencies>* current= nullptr;
   const void* previous_owner;
+  bool completed= false;
 public:
   AthenaArtifactRadioactiveScope (
     std::shared_ptr<AthenaArtifactRadioactiveDependencies>& dependencies,
     const void* owner, bool enabled);
   ~AthenaArtifactRadioactiveScope ();
+  void complete () { completed= true; }
   AthenaArtifactRadioactiveScope (const AthenaArtifactRadioactiveScope&)= delete;
   AthenaArtifactRadioactiveScope& operator= (const AthenaArtifactRadioactiveScope&)= delete;
 };
 
 bool athena_artifact_radioactive_changed (
   const std::shared_ptr<AthenaArtifactRadioactiveDependencies>& dependencies);
+std::uint64_t athena_artifact_radioactive_generation (
+  const std::shared_ptr<AthenaArtifactRadioactiveDependencies>& dependencies);
+std::uint64_t athena_artifact_radioactive_revision ();
+// Cached inline decorations still own their previously queried matches.
+void athena_artifact_radioactive_reuse_queries ();
 void athena_artifact_radioactive_saved_document (
   const std::filesystem::path& root, const std::string& relative_path,
   const std::vector<AthenaArtifactRecord>& records);

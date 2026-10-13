@@ -26,6 +26,7 @@
 #include "ATHENA/Data/artifact_document.hpp"
 #include "ATHENA/Data/link_peek.hpp"
 #include "ATHENA/Data/artifact_title_filter.hpp"
+#include "ATHENA/Data/artifact_radioactive_links.hpp"
 #include "ATHENA/Data/vault.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "ATHENA/Data/vault_map_sqlite.hpp"
@@ -58,6 +59,105 @@ static void text_positions (box b, SI x, SI y, tree& positions) {
 class StructuredRadioactiveTest: public QObject {
   Q_OBJECT
 private slots:
+  void incrementalMatching () {
+    QTemporaryDir directory;
+    QVERIFY (directory.isValid ());
+    std::filesystem::path root (directory.path ().toStdString ());
+    AthenaVaultfileInfo info;
+    std::string error;
+    QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+    QCOMPARE (vault_load (url_system (root.string ().c_str ()), "test", "vault.sqlite"), string (""));
+    struct CloseVault { ~CloseVault () { vault_close (); } } close;
+    athena_artifact_radioactive_refresh ();
+    auto vault= vault_capture_context ();
+    auto record= [] (const char* id, const char* name) {
+      AthenaArtifactRecord result;
+      result.uuid= id; result.type= "definition"; result.relative_path= "names.ath";
+      result.semantic_names= {name};
+      return result;
+    };
+    std::vector<AthenaArtifactRecord> records {
+      record ("finite", "finite groups"), record ("group", "groups"),
+      record ("repeat", "red red"), record ("join", "finitegroups")};
+    auto publish= [&] {
+      athena_artifact_radioactive_overlay (vault->incarnation, "names.ath", 123, records);
+    };
+    publish ();
+    std::shared_ptr<AthenaArtifactRadioactiveDependencies> dependencies;
+    auto cached= [&] (const std::string& text) {
+      AthenaArtifactRadioactiveScope scope (dependencies, &dependencies, true);
+      auto result= athena_artifact_radioactive_matches (string (text.c_str ()), path (1));
+      scope.complete ();
+      return result;
+    };
+    auto verify= [&] (const std::string& text) {
+      auto actual= cached (text);
+      AthenaArtifactRadioactiveMatcher reference (records, athena_artifact_title_filter_defaults ());
+      auto expected= reference.matches (string (text.c_str ()));
+      QCOMPARE (actual.size (), expected.size ());
+      for (size_t i=0; i<actual.size (); ++i) {
+        QCOMPARE (actual[i].start, expected[i].start);
+        QCOMPARE (actual[i].end, expected[i].end);
+        QCOMPARE (actual[i].uuids, expected[i].uuids);
+        QCOMPARE (actual[i].disambiguation_key, expected[i].disambiguation_key);
+      }
+    };
+    std::string text;
+    for (int i=0; i<100; ++i) text += "finite groups are useful. ";
+    verify (text);
+    auto before= athena_artifact_radioactive_work (dependencies);
+    verify (text);
+    auto after= athena_artifact_radioactive_work (dependencies);
+    QCOMPARE (after.matched_positions, before.matched_positions);
+    QCOMPARE (after.tokenized_characters, before.tokenized_characters);
+    text.insert (text.size ()/2, "other ");
+    verify (text);
+    after= athena_artifact_radioactive_work (dependencies);
+    QVERIFY (after.matched_positions - before.matched_positions < 25);
+    QVERIFY (after.tokenized_characters - before.tokenized_characters < 100);
+    for (const auto* value: {"finite groups", "finitegroups", "finite  groups",
+        "finite\tgroups", "groups' finite groups", "groups\xe2\x80\x99 finite groups",
+        "\xf0\x9f\x8c\x8d finite groups", "red red red red red", "red red red red",
+        "red red red", "red red", "red", "", "groups"}) verify (value);
+
+    verify ("finite groups and unrelated words");
+    QVERIFY (!athena_artifact_radioactive_changed (dependencies));
+    records.push_back (record ("galaxy", "finite galaxy"));
+    publish ();
+    // Same first word, but no actual link changed: do not invalidate boxes.
+    QVERIFY (!athena_artifact_radioactive_changed (dependencies));
+    records.erase (records.begin ());
+    publish ();
+    QVERIFY (athena_artifact_radioactive_changed (dependencies));
+    verify ("finite groups and unrelated words");
+    QVERIFY (!athena_artifact_radioactive_changed (dependencies));
+    // Deleted queries must not remain dependencies of a rebuilt source unit.
+    { AthenaArtifactRadioactiveScope scope (dependencies, &dependencies, true); scope.complete (); }
+    records.push_back (record ("replacement", "finite groups"));
+    publish ();
+    QVERIFY (!athena_artifact_radioactive_changed (dependencies));
+
+    tree math= compound ("math", "x");
+    auto structured= record ("structured", "x-algebra");
+    structured.semantic_name_trees= {athena::document::write_xml (
+      tree (CONCAT, math, "-algebra"), athena::document::xml_kind::fragment)};
+    records.push_back (structured); publish ();
+    for (const auto* prefix: {"An ", "Another ", "\xc3\xa9 ", ""}) {
+      tree content (CONCAT, prefix, math, "-algebra and finite groups");
+      std::vector<AthenaArtifactRadioactiveTreeMatch> actual;
+      { AthenaArtifactRadioactiveScope scope (dependencies, &dependencies, true);
+        actual= athena_artifact_radioactive_matches_tree (content, path (2));
+        scope.complete (); }
+      AthenaArtifactRadioactiveMatcher reference (records, athena_artifact_title_filter_defaults ());
+      auto expected= reference.matches_tree (content);
+      QCOMPARE (actual.size (), expected.size ());
+      QVERIFY (!actual.empty ());
+      QCOMPARE (actual[0].start, expected[0].start);
+      QCOMPARE (actual[0].end, expected[0].end);
+      QCOMPARE (actual[0].link.uuids, expected[0].link.uuids);
+    }
+  }
+
   void linkedScriptsRetainGeometry_data () {
     QTest::addColumn<int> ("scriptKind");
     QTest::newRow ("subscript") << 0;

@@ -26,6 +26,9 @@ public:
   void notify_assign (path p, tree u);
   bool notify_macro  (int type, string var, int level, path p, tree u);
   void notify_change ();
+  bool refresh_radioactive_children () override {
+    return !is_nil (body) && body->refresh_radioactive_links ();
+  }
 
   bool my_typeset_will_be_complete ();
   void my_typeset (int desired_status);

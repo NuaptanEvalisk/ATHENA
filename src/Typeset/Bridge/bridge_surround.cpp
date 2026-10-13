@@ -29,6 +29,9 @@ public:
   void notify_remove (path p, int nr);
   bool notify_macro  (int type, string var, int level, path p, tree u);
   void notify_change ();
+  bool refresh_radioactive_children () override {
+    return !is_nil (body) && body->refresh_radioactive_links ();
+  }
 
   void my_clean_links ();
   void my_exec_until (path p);
@@ -72,7 +75,7 @@ bridge_surround_rep::notify_assign (path p, tree u) {
   else {
     // bool mp_flag= is_multi_paragraph (st);
     if (is_atom (p)) {
-      body= make_bridge (ttt, u, descend (ip, 2));
+      replace_bridge (body, u, descend (ip, 2));
       st= substitute (st, 2, body->st);
     }
     else {
@@ -174,7 +177,10 @@ bridge_surround_rep::my_typeset (int desired_status) {
     env->local_end (prev_back);
     corrupted= false;
   }
-  else env->monitored_patch_env (changes_before);
+  else {
+    athena_artifact_radioactive_reuse_queries ();
+    env->monitored_patch_env (changes_before);
+  }
 
   ttt->insert_marker (st, ip);
   ttt->insert_surround (a, b);

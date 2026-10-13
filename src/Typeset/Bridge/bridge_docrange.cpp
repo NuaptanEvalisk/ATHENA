@@ -50,6 +50,7 @@ public:
   void notify_remove (path p, int nr);
   bool notify_macro  (int type, string var, int l, path p, tree u);
   void notify_change ();
+  bool refresh_radioactive_children () override;
 
   void my_exec_until (path p);
   bool my_typeset_will_be_complete ();
@@ -219,6 +220,18 @@ bridge_docrange_rep::notify_change () {
     acc[0]->notify_change ();
     if (N(acc)>1) acc[N(acc)-1]->notify_change ();
   }
+}
+
+bool
+bridge_docrange_rep::refresh_radioactive_children () {
+  bool changed= false;
+  if (divide)
+    for (int i=0; i<N(acc); ++i)
+      changed= acc[i]->refresh_radioactive_links () || changed;
+  else
+    for (int i=begin; i<end; ++i)
+      changed= brs[i]->refresh_radioactive_links () || changed;
+  return changed;
 }
 
 /******************************************************************************

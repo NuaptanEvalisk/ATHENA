@@ -234,7 +234,7 @@ concater_rep::typeset_text_string (tree t, path ip, int pos, int end) {
       athena_artifact_is_inside_definition (source_document, source_path))
     allow_links= false;
   if (allow_links) {
-    auto matches= athena_artifact_radioactive_matches (s);
+    auto matches= athena_artifact_radioactive_matches (s, ip);
     links.reserve (matches.size ());
     for (const AthenaArtifactRadioactiveMatch& match: matches) {
       if (match.start < pos || match.end > end || match.start >= match.end)
@@ -459,7 +459,7 @@ concater_rep::typeset_concat (tree t, path ip) {
     }
   }
   if (allow) {
-    for (const auto& match: athena_artifact_radioactive_matches_tree (t)) {
+    for (const auto& match: athena_artifact_radioactive_matches_tree (t, ip)) {
       if (!is_nil (source_path) &&
           athena_artifact_radioactive_is_defining_occurrence (
             match.link, env->cur_file_name, source_document, source_path)) continue;

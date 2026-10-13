@@ -38,6 +38,7 @@ public:
   int  progressive_budget_ms;
   time_t progressive_deadline_ms;
   int  progressive_pending_generation;
+  std::uint64_t radioactive_refresh_revision= 0;
 
 public:
   typesetter_rep (edit_env& env, tree et, path ip);

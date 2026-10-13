@@ -43,11 +43,6 @@ extern "C" {
 
 namespace fs= std::filesystem;
 
-struct AthenaArtifactRadioactiveDependencies {
-  QSet<QString> heads;
-  std::uint64_t revision= 0;
-};
-
 namespace {
 
 constexpr int maximum_term_tokens= 12;
@@ -69,9 +64,11 @@ struct RadioactiveIndex {
   std::uint64_t matching_revision= 0;
   std::string vault_root;
   std::vector<TrieNode> nodes= {TrieNode ()};
+  std::vector<int> free_nodes;
   std::unordered_map<std::string,AthenaArtifactRecord> records;
   std::unordered_map<std::string,std::vector<std::string>> records_by_path;
   std::unordered_map<std::string,std::vector<std::string>> records_by_key;
+  std::unordered_map<std::string,std::vector<std::string>> record_keys;
   struct Name {
     std::vector<Token> tokens;
     std::string display;
@@ -92,6 +89,41 @@ struct TextProjection {
   QVector<int> source_boundary;
 };
 
+struct MatchChoice {
+  int length= 0;
+  std::vector<std::string> uuids;
+  std::string key;
+};
+
+struct MatchPart {
+  std::string source;
+  TextProjection projection;
+  std::vector<Token> tokens;
+  QString structure;
+};
+
+struct MatchQuery {
+  bool initialized= false, structured= false, visited= false;
+  std::uint64_t revision= 0;
+  QString text;
+  std::vector<Token> tokens;
+  std::vector<std::pair<path,path>> positions;
+  QSet<QString> heads;
+  std::vector<std::shared_ptr<const MatchChoice>> choices;
+  std::vector<AthenaArtifactRadioactiveMatch> selected;
+  std::vector<MatchPart> parts;
+};
+}
+
+struct AthenaArtifactRadioactiveDependencies {
+  std::unordered_map<std::string, MatchQuery> queries;
+  std::uint64_t revision= 0;
+  std::uint64_t generation= 0;
+  AthenaArtifactRadioactiveWork work;
+};
+
+namespace {
+
 std::shared_ptr<const RadioactiveIndex> cached_index;
 std::mutex index_build_mutex;
 std::atomic<std::uint64_t> requested_revision {1};
@@ -109,17 +141,6 @@ std::atomic<std::uint64_t> matching_revision {0};
 std::deque<std::pair<std::uint64_t, QSet<QString>>> matching_changes;
 thread_local std::shared_ptr<AthenaArtifactRadioactiveDependencies>* queried_block= nullptr;
 thread_local const void* queried_owner= nullptr;
-
-void remember_queries (const std::vector<Token>& tokens, std::uint64_t revision) {
-  if (!queried_block || tokens.empty ()) return;
-  if (!*queried_block) {
-    *queried_block= std::make_shared<AthenaArtifactRadioactiveDependencies> ();
-    (*queried_block)->revision= revision;
-  }
-  // Retain queries from cached descendants during incremental typesetting.
-  // Replacing the owning bridge discards these together with its cached boxes.
-  for (const auto& token: tokens) (*queried_block)->heads.insert (token.key);
-}
 
 void note_matching_changes (const RadioactiveIndex* before, const RadioactiveIndex* after) {
   QSet<QString> heads;
@@ -307,9 +328,16 @@ void add_term (RadioactiveIndex& index, const std::vector<Token>& tokens,
   for (const Token& token: tokens) {
     auto child= index.nodes[(size_t) node].children.constFind (token.key);
     if (child == index.nodes[(size_t) node].children.constEnd ()) {
-      int next= (int) index.nodes.size ();
+      int next;
+      if (index.free_nodes.empty ()) {
+        next= int (index.nodes.size ());
+        index.nodes.emplace_back ();
+      }
+      else {
+        next= index.free_nodes.back ();
+        index.free_nodes.pop_back ();
+      }
       index.nodes[(size_t) node].children.insert (token.key, next);
-      index.nodes.emplace_back ();
       node= next;
     }
     else node= child.value ();
@@ -363,20 +391,11 @@ std::vector<Token> name_tokens (const AthenaArtifactRecord& record, size_t i) {
   return tree_tokens (athena::document::read_xml (bytes, athena::document::xml_kind::fragment));
 }
 
-std::shared_ptr<const RadioactiveIndex> build_index (
-  const std::vector<AthenaArtifactRecord>& records,
-  const std::string& vault_root= {},
-  const AthenaArtifactTitleFilter* filter= nullptr) {
-  auto index= std::make_shared<RadioactiveIndex> ();
-  index->vault_root= vault_root;
-  if (filter != nullptr) {
-    index->title_filter= *filter;
-    index->has_title_filter= true;
-  }
-  for (const AthenaArtifactRecord& record: records) {
+void add_record (RadioactiveIndex* index, const AthenaArtifactRecord& record,
+                 const AthenaArtifactTitleFilter* filter) {
     index->records.emplace (record.uuid, record);
     index->records_by_path[record.relative_path].push_back (record.uuid);
-    if (record.type == "completion") continue;
+    if (record.type == "completion") return;
     for (size_t i=0; i<record.semantic_names.size (); ++i) {
       QString term= qstring_from_utf8 (record.semantic_names[i]).simplified ();
       std::string fragment= i < record.semantic_name_trees.size () ?
@@ -391,6 +410,7 @@ std::shared_ptr<const RadioactiveIndex> build_index (
       for (const Token& token: tokens)
         if (token.key.startsWith (QChar (0))) index->has_structured_names= true;
       std::string key= token_key (tokens);
+      index->record_keys[record.uuid].push_back (key);
       if (fragment.empty ()) fragment= athena::document::write_xml (
         name, athena::document::xml_kind::fragment);
       index->names.emplace (key, RadioactiveIndex::Name {
@@ -400,6 +420,82 @@ std::shared_ptr<const RadioactiveIndex> build_index (
           matches.end ())
         matches.push_back (record.uuid);
     }
+}
+
+void remove_record (RadioactiveIndex& index, const AthenaArtifactRecord& record) {
+  auto erase_id= [&] (auto& ids) {
+    ids.erase (std::remove (ids.begin (), ids.end (), record.uuid), ids.end ());
+  };
+  erase_id (index.records_by_path[record.relative_path]);
+  if (index.records_by_path[record.relative_path].empty ())
+    index.records_by_path.erase (record.relative_path);
+  for (const auto& key: index.record_keys[record.uuid]) {
+    auto name= index.names.find (key);
+    if (name == index.names.end ()) continue;
+    int node= 0;
+    std::vector<std::pair<int, QString>> trail;
+    for (const auto& token: name->second.tokens) {
+      auto child= index.nodes[node].children.constFind (token.key);
+      if (child == index.nodes[node].children.constEnd ()) { node= -1; break; }
+      trail.push_back ({node, token.key});
+      node= child.value ();
+    }
+    if (node >= 0) {
+      erase_id (index.nodes[node].uuids);
+      for (auto step= trail.rbegin (); step != trail.rend (); ++step) {
+        if (!index.nodes[node].uuids.empty () || !index.nodes[node].children.empty ()) break;
+        index.nodes[node]= TrieNode ();
+        index.free_nodes.push_back (node);
+        index.nodes[step->first].children.remove (step->second);
+        node= step->first;
+      }
+    }
+    auto& ids= index.records_by_key[key];
+    erase_id (ids);
+    if (ids.empty ()) {
+      index.records_by_key.erase (key);
+      index.names.erase (key);
+    }
+  }
+  index.record_keys.erase (record.uuid);
+  index.records.erase (record.uuid);
+}
+
+std::shared_ptr<const RadioactiveIndex> build_index (
+  const std::vector<AthenaArtifactRecord>& records,
+  const std::string& vault_root= {},
+  const AthenaArtifactTitleFilter* filter= nullptr,
+  const RadioactiveIndex* previous= nullptr) {
+  const bool reusable= previous && previous->has_title_filter == (filter != nullptr) &&
+    (!filter || (previous->title_filter.normalized == filter->normalized &&
+                 previous->title_filter.structured == filter->structured));
+  auto index= reusable ? std::make_shared<RadioactiveIndex> (*previous) :
+                        std::make_shared<RadioactiveIndex> ();
+  index->vault_root= vault_root;
+  if (filter != nullptr) {
+    index->title_filter= *filter;
+    index->has_title_filter= true;
+  }
+  if (reusable) {
+    std::unordered_set<std::string> present;
+    for (const auto& record: records) present.insert (record.uuid);
+    for (const auto& entry: previous->records)
+      if (!present.count (entry.first)) remove_record (*index, entry.second);
+  }
+  for (const auto& record: records) {
+    auto old= index->records.find (record.uuid);
+    if (old != index->records.end ()) {
+      if (old->second.type == record.type &&
+          old->second.relative_path == record.relative_path &&
+          old->second.semantic_names == record.semantic_names &&
+          old->second.semantic_name_trees == record.semantic_name_trees) {
+        old->second= record;
+        continue;
+      }
+      const auto removed= old->second;
+      remove_record (*index, removed);
+    }
+    add_record (index.get (), record, filter);
   }
   return index;
 }
@@ -535,12 +631,9 @@ QString tree_display_text (const tree& value) {
   return result.simplified ();
 }
 
-std::vector<AthenaArtifactRadioactiveMatch> match_tokens (
+std::shared_ptr<const MatchChoice> match_at (
   const RadioactiveIndex& index, const std::vector<Token>& tokens,
-  const QString& text, bool track= false) {
-  std::vector<AthenaArtifactRadioactiveMatch> result;
-  if (track) remember_queries (tokens, index.matching_revision);
-  for (size_t start=0; start<tokens.size (); ) {
+  const QString& text, size_t start) {
     int best_end= -1;
     std::vector<std::string> best_uuids;
     std::string best_key;
@@ -587,19 +680,32 @@ std::vector<AthenaArtifactRadioactiveMatch> match_tokens (
         for (const auto* layer: heads.value ()) search (*layer, false);
     }
     else search (index, false);
-    if (best_end < 0) { start++; continue; }
-    result.push_back ({(int) start, best_end+1, best_uuids, best_key});
-    start= (size_t) best_end + 1;
+    if (best_end < 0) return {};
+    std::sort (best_uuids.begin (), best_uuids.end ());
+    return std::make_shared<const MatchChoice> (MatchChoice {
+      best_end - int (start) + 1, std::move (best_uuids), std::move (best_key)});
+}
+
+std::vector<AthenaArtifactRadioactiveMatch> match_tokens (
+  const RadioactiveIndex& index, const std::vector<Token>& tokens,
+  const QString& text) {
+  std::vector<AthenaArtifactRadioactiveMatch> result;
+  for (size_t start=0; start<tokens.size (); ) {
+    auto choice= match_at (index, tokens, text, start);
+    if (!choice) { ++start; continue; }
+    result.push_back ({int (start), int (start) + choice->length,
+                      choice->uuids, choice->key});
+    start += choice->length;
   }
   return result;
 }
 
 std::vector<AthenaArtifactRadioactiveMatch> match_index (
-  const RadioactiveIndex& index, string source, bool track= false) {
+  const RadioactiveIndex& index, string source) {
   if (N(source) == 0) return {};
   TextProjection projection= project_text (source);
   auto tokens= tokenize (projection.text);
-  auto result= match_tokens (index, tokens, projection.text, track);
+  auto result= match_tokens (index, tokens, projection.text);
   for (auto& match: result) {
     match.start= projection.source_boundary[tokens[match.start].start];
     match.end= projection.source_boundary[tokens[match.end-1].end];
@@ -608,8 +714,8 @@ std::vector<AthenaArtifactRadioactiveMatch> match_index (
 }
 
 std::vector<AthenaArtifactRadioactiveTreeMatch> match_tree (
-  const RadioactiveIndex& index, const tree& source, bool track= false) {
-  if ((!index.has_structured_names && !track) || !is_func (source, CONCAT)) return {};
+  const RadioactiveIndex& index, const tree& source) {
+  if (!index.has_structured_names || !is_func (source, CONCAT)) return {};
   std::vector<Token> tokens;
   std::vector<std::pair<path,path>> positions;
   QString text;
@@ -633,11 +739,7 @@ std::vector<AthenaArtifactRadioactiveTreeMatch> match_tree (
     }
   }
   std::vector<AthenaArtifactRadioactiveTreeMatch> result;
-  if (!index.has_structured_names) {
-    if (track) remember_queries (tokens, index.matching_revision);
-    return result;
-  }
-  for (const auto& match: match_tokens (index, tokens, text, track)) {
+  for (const auto& match: match_tokens (index, tokens, text)) {
     bool structured= false;
     for (int i=match.start; i<match.end; ++i)
       structured |= tokens[i].key.startsWith (QChar (0));
@@ -645,6 +747,202 @@ std::vector<AthenaArtifactRadioactiveTreeMatch> match_tree (
       result.push_back ({positions[match.start].first,
                         positions[match.end-1].second, match});
   }
+  return result;
+}
+
+std::vector<Token> update_tokens (const QString& before,
+    const std::vector<Token>& previous, const QString& text,
+    AthenaArtifactRadioactiveWork& work) {
+  if (before == text) return previous;
+  int first= 0, old_end= before.size (), new_end= text.size ();
+  while (first < old_end && first < new_end && before[first] == text[first]) ++first;
+  while (old_end > first && new_end > first && before[old_end-1] == text[new_end-1]) {
+    --old_end; --new_end;
+  }
+  // Tokens cannot cross whitespace. Expand to those boundaries so apostrophes,
+  // punctuation runs and UTF-16 surrogate pairs use the unchanged tokenizer.
+  while (first > 0 && !before[first-1].isSpace ()) --first;
+  const int delta= text.size () - before.size ();
+  while (old_end < before.size () && !before[old_end].isSpace ()) ++old_end;
+  new_end= old_end + delta;
+  std::vector<Token> result;
+  for (const auto& token: previous)
+    if (token.end <= first) result.push_back (token);
+  work.tokenized_characters += new_end - first;
+  for (auto token: tokenize (text.mid (first, new_end-first))) {
+    token.start += first; token.end += first;
+    result.push_back (std::move (token));
+  }
+  for (auto token: previous)
+    if (token.start >= old_end) {
+      token.start += delta; token.end += delta;
+      result.push_back (std::move (token));
+    }
+  return result;
+}
+
+QSet<QString> changed_heads (std::uint64_t before, std::uint64_t after) {
+  QSet<QString> result;
+  if (before == after) return result;
+  std::lock_guard<std::mutex> guard (index_build_mutex);
+  if (before > after || matching_changes.empty () || before + 1 < matching_changes.front ().first)
+    result.insert (QString ()); // The bounded journal no longer covers this view.
+  for (const auto& change: matching_changes)
+    if (change.first > before && change.first <= after) result.unite (change.second);
+  return result;
+}
+
+bool same_matches (const std::vector<AthenaArtifactRadioactiveMatch>& a,
+                   const std::vector<AthenaArtifactRadioactiveMatch>& b) {
+  if (a.size () != b.size ()) return false;
+  for (size_t i=0; i<a.size (); ++i)
+    if (a[i].start != b[i].start || a[i].end != b[i].end ||
+        a[i].uuids != b[i].uuids || a[i].disambiguation_key != b[i].disambiguation_key)
+      return false;
+  return true;
+}
+
+bool update_query (MatchQuery& query, const RadioactiveIndex& index,
+    QString text, std::vector<Token> tokens, AthenaArtifactRadioactiveWork& work) {
+  const auto heads= changed_heads (query.revision, index.matching_revision);
+  const int old_count= query.tokens.size (), count= tokens.size ();
+  int first= 0, suffix= 0;
+  // Include surface text and gaps: blacklists apply to surface forms, not only
+  // stems. A whitespace-only edit may change a filtered multiword candidate.
+  while (first < old_count && first < count) {
+    int old_start= first ? query.tokens[first-1].end : 0;
+    int new_start= first ? tokens[first-1].end : 0;
+    if (query.tokens[first].key != tokens[first].key ||
+        query.text.mid (old_start, query.tokens[first].end-old_start) !=
+        text.mid (new_start, tokens[first].end-new_start)) break;
+    ++first;
+  }
+  while (suffix < old_count-first && suffix < count-first) {
+    int oi= old_count-suffix-1, ni= count-suffix-1;
+    int oe= suffix ? query.tokens[oi+1].start : query.text.size ();
+    int ne= suffix ? tokens[ni+1].start : text.size ();
+    if (query.tokens[oi].key != tokens[ni].key ||
+        query.text.mid (query.tokens[oi].start, oe-query.tokens[oi].start) !=
+        text.mid (tokens[ni].start, ne-tokens[ni].start)) break;
+    ++suffix;
+  }
+  const bool edited= !query.initialized || first != count || first != old_count;
+  std::vector<std::shared_ptr<const MatchChoice>> choices (count);
+  for (int i=0; i<first; ++i) choices[i]= query.choices[i];
+  for (int i=0; i<suffix; ++i) choices[count-i-1]= query.choices[old_count-i-1];
+  const int dirty_start= std::max (0, first-maximum_term_tokens+1);
+  bool recomputed= false;
+  for (int i=0; i<count; ++i)
+    if (!query.initialized || (edited && i >= dirty_start && i < count-suffix) ||
+        heads.contains (QString ()) || heads.contains (tokens[i].key)) {
+      choices[i]= match_at (index, tokens, text, size_t (i));
+      ++work.matched_positions;
+      recomputed= true;
+    }
+  query.tokens= std::move (tokens);
+  if (edited) {
+    query.heads.clear ();
+    for (const auto& token: query.tokens) query.heads.insert (token.key);
+  }
+  query.text= std::move (text);
+  query.choices= std::move (choices);
+  query.revision= index.matching_revision;
+  query.initialized= true;
+  if (!edited && !recomputed) return false;
+  std::vector<AthenaArtifactRadioactiveMatch> selected;
+  for (int i=0; i<count; ) {
+    const auto& choice= query.choices[i];
+    if (!choice) { ++i; continue; }
+    bool include= !query.structured;
+    for (int j=i; !include && j<i+choice->length; ++j)
+      include= query.tokens[j].key.startsWith (QChar (0));
+    if (include) selected.push_back ({i, i+choice->length, choice->uuids, choice->key});
+    i += choice->length;
+  }
+  const bool changed= !same_matches (query.selected, selected);
+  query.selected= std::move (selected);
+  return changed;
+}
+
+AthenaArtifactRadioactiveDependencies& query_dependencies () {
+  if (!*queried_block)
+    *queried_block= std::make_shared<AthenaArtifactRadioactiveDependencies> ();
+  return **queried_block;
+}
+
+MatchQuery& source_query (AthenaArtifactRadioactiveDependencies& dependencies,
+                         path source, bool structured) {
+  std::string key= structured ? "tree:" : "text:";
+  for (; !is_nil (source); source= source->next)
+    key += std::to_string (source->item) + "/";
+  auto& query= dependencies.queries[key];
+  query.structured= structured;
+  query.visited= true;
+  return query;
+}
+
+bool update_part (MatchPart& part, string source, AthenaArtifactRadioactiveWork& work) {
+  if (part.structure.isEmpty () && part.source == to_std (source)) return false;
+  auto projection= project_text (source);
+  part.tokens= update_tokens (part.projection.text, part.tokens, projection.text, work);
+  part.projection= std::move (projection);
+  part.source= to_std (source);
+  part.structure.clear ();
+  return true;
+}
+
+std::vector<AthenaArtifactRadioactiveMatch> cached_text_matches (
+    const RadioactiveIndex& index, string text, path source) {
+  auto& dependencies= query_dependencies ();
+  auto& query= source_query (dependencies, source, false);
+  query.parts.resize (1);
+  auto& part= query.parts[0];
+  const bool edited= update_part (part, text, dependencies.work);
+  if (edited || !query.initialized || query.revision != index.matching_revision)
+    update_query (query, index, part.projection.text, part.tokens, dependencies.work);
+  auto result= query.selected;
+  for (auto& match: result) {
+    match.start= part.projection.source_boundary[query.tokens[match.start].start];
+    match.end= part.projection.source_boundary[query.tokens[match.end-1].end];
+  }
+  return result;
+}
+
+std::vector<AthenaArtifactRadioactiveTreeMatch> cached_tree_matches (
+    const RadioactiveIndex& index, const tree& text, path source) {
+  if (!is_func (text, CONCAT)) return {};
+  auto& dependencies= query_dependencies ();
+  auto& query= source_query (dependencies, source, true);
+  query.parts.resize (N(text));
+  std::vector<Token> tokens;
+  QString surface;
+  query.positions.clear ();
+  for (int i=0; i<N(text); ++i) {
+    auto& part= query.parts[i];
+    int offset= surface.size ();
+    if (is_atomic (text[i])) {
+      update_part (part, text[i]->label, dependencies.work);
+      for (auto token: part.tokens) {
+        query.positions.push_back ({path (i, part.projection.source_boundary[token.start]),
+                                    path (i, part.projection.source_boundary[token.end])});
+        token.start += offset; token.end += offset;
+        tokens.push_back (std::move (token));
+      }
+      surface += part.projection.text;
+    }
+    else {
+      part= MatchPart ();
+      part.structure= structure_key (text[i]);
+      tokens.push_back ({part.structure, offset, offset+1});
+      query.positions.push_back ({path (i, 0), path (i, 1)});
+      surface += QChar (0xfffc);
+    }
+  }
+  update_query (query, index, std::move (surface), std::move (tokens), dependencies.work);
+  std::vector<AthenaArtifactRadioactiveTreeMatch> result;
+  for (const auto& match: query.selected)
+    result.push_back ({query.positions[match.start].first,
+                      query.positions[match.end-1].second, match});
   return result;
 }
 
@@ -661,12 +959,26 @@ AthenaArtifactRadioactiveScope::AthenaArtifactRadioactiveScope (
   if (enabled && (!queried_block || queried_owner == owner)) {
     queried_block= &dependencies;
     queried_owner= owner;
+    current= &dependencies;
+    if (dependencies)
+      for (auto& entry: dependencies->queries) entry.second.visited= false;
   }
 }
 
 AthenaArtifactRadioactiveScope::~AthenaArtifactRadioactiveScope () {
+  if (completed && current && *current) {
+    auto& queries= (*current)->queries;
+    for (auto i= queries.begin (); i != queries.end (); )
+      if (!i->second.visited) i= queries.erase (i);
+      else ++i;
+  }
   queried_block= previous;
   queried_owner= previous_owner;
+}
+
+void athena_artifact_radioactive_reuse_queries () {
+  if (queried_block && *queried_block)
+    for (auto& entry: (*queried_block)->queries) entry.second.visited= true;
 }
 
 struct AthenaArtifactRadioactiveMatcher::Impl {
@@ -747,20 +1059,22 @@ athena_artifact_radioactive_key (const AthenaArtifactRecord& record) {
 }
 
 std::vector<AthenaArtifactRadioactiveMatch>
-athena_artifact_radioactive_matches (string text) {
+athena_artifact_radioactive_matches (string text, path source) {
   auto index= active_index ();
   // Remember negative queries even before the first background publication.
   // Otherwise a buffer initially typeset against an empty index never learns
   // that a newly created name now matches its existing text.
   static const RadioactiveIndex empty;
-  return match_index (index ? *index : empty, text, true);
+  return queried_block ? cached_text_matches (index ? *index : empty, text, source) :
+                         match_index (index ? *index : empty, text);
 }
 
 std::vector<AthenaArtifactRadioactiveTreeMatch>
-athena_artifact_radioactive_matches_tree (const tree& text) {
+athena_artifact_radioactive_matches_tree (const tree& text, path source) {
   auto index= active_index ();
   static const RadioactiveIndex empty;
-  return match_tree (index ? *index : empty, text, true);
+  return queried_block ? cached_tree_matches (index ? *index : empty, text, source) :
+                         match_tree (index ? *index : empty, text);
 }
 
 std::vector<AthenaArtifactRadioactiveMatch>
@@ -907,8 +1221,7 @@ athena_artifact_radioactive_invalidate () {
     for (const auto& entry: overlays) note_matching_changes (entry.second.index.get (), nullptr);
     overlays.clear (); saved_overlays.clear (); disk_index.reset (); loaded_revision= 0;
     loaded_incarnation.clear ();
-    std::atomic_store_explicit (&cached_index, std::shared_ptr<const RadioactiveIndex> (),
-      std::memory_order_release);
+    publish_index ();
   }
 }
 
@@ -938,6 +1251,10 @@ void athena_artifact_radioactive_refresh () {
   const bool filter_changed= !disk_index || !disk_index->has_title_filter ||
     disk_index->title_filter.normalized != filter.normalized ||
     disk_index->title_filter.structured != filter.structured;
+  if (filter_changed) {
+    matching_changes.emplace_back (++matching_revision, QSet<QString> {QString ()});
+    if (matching_changes.size () > 128) matching_changes.pop_front ();
+  }
   if (filter_changed) for (auto& entry: overlays) {
     std::vector<AthenaArtifactRecord> live;
     for (const auto& record: entry.second.index->records) live.push_back (record.second);
@@ -959,7 +1276,13 @@ void athena_artifact_radioactive_overlay (
   const std::string& incarnation, const std::string& relative_path,
   std::uint64_t owner, const std::vector<AthenaArtifactRecord>& records) {
   const auto current= active_index ();
-  auto index= build_index (records, {}, current && current->has_title_filter ? &current->title_filter : nullptr);
+  std::shared_ptr<const RadioactiveIndex> previous_index;
+  if (current) {
+    auto found= current->overlays.find (relative_path);
+    if (found != current->overlays.end ()) previous_index= found->second;
+  }
+  auto index= build_index (records, {}, current && current->has_title_filter ? &current->title_filter : nullptr,
+                          previous_index.get ());
   const auto vault= vault_capture_context ();
   if (!vault || vault->incarnation != incarnation) return;
   std::lock_guard<std::mutex> guard (index_build_mutex);
@@ -1043,19 +1366,40 @@ bool athena_artifact_radioactive_baseline (
 
 bool athena_artifact_radioactive_changed (
     const std::shared_ptr<AthenaArtifactRadioactiveDependencies>& dependencies) {
-  if (!dependencies || dependencies->revision ==
-      matching_revision.load (std::memory_order_acquire)) return false;
-  std::lock_guard<std::mutex> guard (index_build_mutex);
-  bool affected= !matching_changes.empty () &&
-    dependencies->revision + 1 < matching_changes.front ().first;
-  for (const auto& change: matching_changes)
-    if (change.first > dependencies->revision)
-      for (const auto& head: change.second)
-        if (dependencies->heads.contains (head)) {
-          affected= true; break;
-        }
-  dependencies->revision= matching_revision.load (std::memory_order_relaxed);
+  if (!dependencies) return false;
+  auto index= active_index ();
+  static const RadioactiveIndex empty;
+  const auto& current= index ? *index : empty;
+  if (dependencies->revision == current.matching_revision) return false;
+  const auto heads= changed_heads (dependencies->revision, current.matching_revision);
+  bool affected= false;
+  for (auto& entry: dependencies->queries) {
+    auto& query= entry.second;
+    if (query.revision == current.matching_revision) continue;
+    if (!heads.contains (QString ()) && !heads.intersects (query.heads)) {
+      query.revision= current.matching_revision;
+      continue;
+    }
+    affected= update_query (query, current, query.text, query.tokens, dependencies->work) || affected;
+  }
+  dependencies->revision= current.matching_revision;
+  if (affected) ++dependencies->generation;
   return affected;
+}
+
+std::uint64_t athena_artifact_radioactive_generation (
+    const std::shared_ptr<AthenaArtifactRadioactiveDependencies>& dependencies) {
+  return dependencies ? dependencies->generation : 0;
+}
+
+std::uint64_t athena_artifact_radioactive_revision () {
+  auto index= active_index ();
+  return index ? index->matching_revision : 0;
+}
+
+AthenaArtifactRadioactiveWork athena_artifact_radioactive_work (
+    const std::shared_ptr<AthenaArtifactRadioactiveDependencies>& dependencies) {
+  return dependencies ? dependencies->work : AthenaArtifactRadioactiveWork ();
 }
 
 void athena_artifact_radioactive_saved_document (

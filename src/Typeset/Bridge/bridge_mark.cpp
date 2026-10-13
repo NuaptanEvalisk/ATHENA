@@ -24,6 +24,9 @@ public:
   void notify_remove (path p, int nr);
   bool notify_macro  (int type, string var, int level, path p, tree u);
   void notify_change ();
+  bool refresh_radioactive_children () override {
+    return !is_nil (body) && body->refresh_radioactive_links ();
+  }
 
   void my_exec_until (path p);
   bool my_typeset_will_be_complete ();
@@ -62,7 +65,7 @@ bridge_mark_rep::notify_assign (path p, tree u) {
   else {
     // bool mp_flag= is_multi_paragraph (st);
     if (is_atom (p)) {
-      body= make_bridge (ttt, u, descend (ip, 1));
+      replace_bridge (body, u, descend (ip, 1));
       st= substitute (st, 1, body->st);
     }
     else {

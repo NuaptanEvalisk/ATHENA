@@ -212,6 +212,12 @@ void
 replace_bridge (bridge& br, tree st, path ip) {
   bridge new_br= make_bridge (br->ttt, st, ip);
   new_br->changes= br->changes;
+  // Assignment keeps the logical source slot; insertion uses make_bridge.
+  // Query caches compare their source text, so edits can reuse token state.
+  if (L(br->st) == L(st) && br->ip == ip) {
+    new_br->radioactive_dependencies= br->radioactive_dependencies;
+    new_br->radioactive_generation= br->radioactive_generation;
+  }
   br= new_br;
 }
 
@@ -342,10 +348,19 @@ bridge_rep::my_clean_links () {
 
 bool
 bridge_rep::refresh_radioactive_links () {
-  if (!athena_artifact_radioactive_changed (radioactive_dependencies)) return false;
-  radioactive_dependencies.reset ();
-  notify_assign (path (), st);
-  return true;
+  bool own_changed= athena_artifact_radioactive_changed (radioactive_dependencies);
+  // A shared cache may already have been refreshed by a different owner.
+  own_changed= own_changed || radioactive_generation !=
+    athena_artifact_radioactive_generation (radioactive_dependencies);
+  bool child_changed= refresh_radioactive_children ();
+  if (own_changed) notify_change ();
+  else if (child_changed) status= CORRUPTED;
+  return own_changed || child_changed;
+}
+
+bool
+bridge_rep::refresh_radioactive_children () {
+  return false;
 }
 
 void
@@ -390,7 +405,7 @@ bridge_rep::exec_until (path p, bool skip_flag) {
 }
 
 void
-bridge_rep::typeset (int desired_status, bool track_radioactive_links) {
+bridge_rep::typeset (int desired_status) {
   // FIXME: this dirty hack ensures a perfect coherence between
   // the bridge and the edit tree at the typesetting stage.
   // This should not be necessary, but we use because the ip_observers
@@ -411,8 +426,7 @@ bridge_rep::typeset (int desired_status, bool track_radioactive_links) {
   }
   else {
     AthenaArtifactRadioactiveScope radioactive_scope (
-      radioactive_dependencies, ttt,
-      track_radioactive_links || ttt->br.operator-> () == this);
+      radioactive_dependencies, ttt, true);
     // cout << "Typesetting " << st << ", " << desired_status << LF << INDENT;
     //cout << "recomputing" << LF;
     hashmap<string,tree> prev_back (UNINIT);
@@ -431,6 +445,9 @@ bridge_rep::typeset (int desired_status, bool track_radioactive_links) {
     ttt->local_end (l, sb);
     env->link_env= old_link_env;
     status= progressively_pending? CORRUPTED: desired_status;
+    radioactive_scope.complete ();
+    radioactive_generation=
+      athena_artifact_radioactive_generation (radioactive_dependencies);
     // cout << "old_patch     = " << ttt->old_patch << LF;
     // cout << "changes       = " << changes << LF;
     // cout << UNINDENT << "Typesetted " << st << ", " << desired_status << LF;

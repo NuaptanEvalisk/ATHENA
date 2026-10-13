@@ -26,6 +26,9 @@ public:
   void notify_assign (path p, tree u);
   bool notify_macro  (int type, string var, int l, path p, tree u);
   void notify_change ();
+  bool refresh_radioactive_children () override {
+    return !is_nil (body) && body->refresh_radioactive_links ();
+  }
 
   void my_typeset (int desired_status);
 };
@@ -36,7 +39,12 @@ bridge_rewrite_rep::bridge_rewrite_rep (typesetter ttt, tree st, path ip):
 void
 bridge_rewrite_rep::initialize (tree body_t) {
   if (is_nil (body)) body= make_bridge (ttt, attach_right (body_t, ip));
-  else replace_bridge (body, attach_right (body_t, ip));
+  else {
+    path next_ip= decorate_right (ip);
+    tree next= attach_dip (body_t, next_ip);
+    if (body->st != next || body->ip != next_ip)
+      replace_bridge (body, next, next_ip);
+  }
 }
 
 bridge

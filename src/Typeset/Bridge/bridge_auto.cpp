@@ -30,6 +30,9 @@ public:
   void notify_remove (path p, int nr);
   bool notify_macro  (int type, string var, int level, path p, tree u);
   void notify_change ();
+  bool refresh_radioactive_children () override {
+    return !is_nil (body) && body->refresh_radioactive_links ();
+  }
 
   void my_exec_until (path p);
   void exec_until (path p, bool skip_flag);

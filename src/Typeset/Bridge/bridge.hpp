@@ -19,6 +19,7 @@
 #include "Page/skeleton.hpp"
 #include "Page/pager.hpp"
 #include "ATHENA/Data/artifact_radioactive_links.hpp"
+#include <cstdint>
 
 #define VALID_MASK        1
 #define CORRUPTED         0
@@ -46,6 +47,7 @@ public:
   stack_border         sb;       // border properties of l
   link_repository      link_env; // loci and links declared inside bridge
   std::shared_ptr<AthenaArtifactRadioactiveDependencies> radioactive_dependencies;
+  std::uint64_t radioactive_generation= 0;
 
 public:
   bridge_rep (typesetter ttt, tree st, path ip);
@@ -59,13 +61,14 @@ public:
   virtual bool notify_macro  (int type, string var, int l, path p, tree u) = 0;
   virtual void notify_change () = 0;
   virtual bool refresh_radioactive_links ();
+  virtual bool refresh_radioactive_children ();
 
   virtual void my_clean_links ();
   virtual void my_exec_until (path p);
   virtual bool my_typeset_will_be_complete ();
   virtual void my_typeset (int desired_status);
   virtual void exec_until (path p, bool skip_flag= false);
-  void typeset (int desired_status, bool track_radioactive_links= false);
+  void typeset (int desired_status);
 };
 
 class bridge {
