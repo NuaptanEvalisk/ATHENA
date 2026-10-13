@@ -89,6 +89,9 @@ TestVaultBackupDispatcher::mirrorsIncrementallyAndHonorsExclusions () {
   write_text (root / ".athena/rag-backup-123/patch.sqlite", "excluded");
   write_text (root / ".athena/kept.json", "kept");
   write_text (destination / "stale.txt", "stale");
+  write_text (root / "nested/.athena-audm-pending", "partial source");
+  write_text (root / "nested/.athena-new-pending", "partial source");
+  write_text (destination / "nested/.athena-audm-old", "stale temporary");
 
   std::string error;
   QVERIFY2 (athena_backup_dispatch_run (
@@ -99,6 +102,9 @@ TestVaultBackupDispatcher::mirrorsIncrementallyAndHonorsExclusions () {
   QVERIFY (!fs::exists (destination / ".backup"));
   QVERIFY (!fs::exists (destination / ".athena/rag-backup-123"));
   QVERIFY (!fs::exists (destination / "stale.txt"));
+  QVERIFY (!fs::exists (destination / "nested/.athena-audm-pending"));
+  QVERIFY (!fs::exists (destination / "nested/.athena-new-pending"));
+  QVERIFY (!fs::exists (destination / "nested/.athena-audm-old"));
 
   write_text (root / "Note.ath", "second");
   write_text (root / "new.txt", "new");

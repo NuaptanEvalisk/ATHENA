@@ -233,6 +233,8 @@ athena_backup_dispatch_prepare (
   command.arguments= {
     "-a", "--delete-delay", "--delay-updates", "--protect-args",
     "--exclude=/.backup/", "--exclude=/.athena/rag-backup-*",
+    // Atomic source writes are published by rename, not backed up mid-write.
+    "--filter=H .athena-audm-*", "--filter=H .athena-new-*",
     // UUID locations are rebuildable; never copy a live LMDB or its locks.
     // Sender-only hiding also removes cache copies from older backups.
     "--filter=H /.athena/node-locations/",
@@ -271,6 +273,12 @@ athena_backup_dispatch_run (
     }
     for (fs::recursive_directory_iterator it (vault_root), end; it != end; ++it) {
       fs::path relative= it->path ().lexically_relative (vault_root);
+      const std::string name= relative.filename ().string ();
+      if (name.rfind (".athena-audm-", 0) == 0 ||
+          name.rfind (".athena-new-", 0) == 0) {
+        it.disable_recursion_pending ();
+        continue;
+      }
       if (it->is_directory ()) {
         if (relative == ".backup" || relative == ".athena/node-locations" ||
             (relative.parent_path () == ".athena" &&
