@@ -22,10 +22,13 @@
 #include <string>
 #include <vector>
 
+#include "ATHENA/viewport_follow.hpp"
+
 class widget;
 class QImage;
 
 struct actor_viewport_snapshot {
+  std::shared_ptr<viewport_follow_state> cursor_follow;
   SI visible_x1= 0;
   SI visible_y1= 0;
   SI visible_x2= 0;
@@ -440,6 +443,7 @@ public:
 
 private:
   struct atomic_viewport {
+    std::shared_ptr<viewport_follow_state> cursor_follow;
     std::atomic<SI> visible_x1 {0};
     std::atomic<SI> visible_y1 {0};
     std::atomic<SI> visible_x2 {0};

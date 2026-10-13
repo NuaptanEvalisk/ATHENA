@@ -336,7 +336,7 @@
 (tm-define (toggle-typewriter-mode)
   (:synopsis "Keep the editing line near the vertical center in scroll view")
   (:check-mark "v" typewriter-mode?)
-  (toggle-preference "typewriter mode"))
+  (set-preference "typewriter mode" (if (typewriter-mode?) "off" "on")))
 
 (tm-define (window-resize-notifier name)
   (schedule-persistent-fit-width))

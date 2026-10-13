@@ -386,6 +386,8 @@ edit_interface_rep::cursor_visible () {
       return;
   }
   if (is_nil (sp)) {
+    const std::uint64_t user_scroll_generation=
+      ui_endpoint ? ui_endpoint->user_scroll_generation () : 0;
     update_visible ();
     cu->y1 -= 2*pixel; cu->y2 += 2*pixel;
     bool must_update=
@@ -397,25 +399,41 @@ edit_interface_rep::cursor_visible () {
     string medium= as_string (get_init_value (PAGE_MEDIUM));
     bool selection_scrolling=
       selection_active_any () || selection_active_enlarging ();
-    bool typewriter=
-      get_user_preference ("typewriter mode", "off") == "on" &&
-      (medium == "papyrus" || medium == "automatic" || ui_viewport ().externally_presented) &&
+    const auto viewport= ui_viewport ();
+    const string follow_preference= get_user_preference ("typewriter mode", "off");
+    const bool hanging= follow_preference == "hanging";
+    const auto follow= viewport.cursor_follow;
+    if (follow && viewport.focused)
+      follow->configure (hanging ? viewport_follow_mode::hanging :
+        follow_preference == "on" ? viewport_follow_mode::typewriter :
+                                    viewport_follow_mode::normal);
+    bool following=
+      (follow_preference == "on" || hanging) &&
+      (medium == "papyrus" || medium == "automatic" || viewport.externally_presented) &&
+      viewport.focused &&
       !selection_scrolling;
-    if (typewriter && typewriter_manual_scroll_time != 0) {
-      if (tp == typewriter_manual_scroll_path)
+    if (following && typewriter_manual_scroll_time != 0) {
+      if (tp == typewriter_manual_scroll_path &&
+          !(hanging && (env_change & THE_TREE)))
         return;
       typewriter_manual_scroll_time= 0;
     }
-    if (typewriter && (vx2 - vx1 > 80*pixel) && (vy2 - vy1 > 80*pixel)) {
-      SI cy= cu->oy + ((cu->y1 + cu->y2) >> 1);
+    if (following && (vx2 - vx1 > 80*pixel) && (vy2 - vy1 > 80*pixel)) {
+      // Hanging follows the baseline, so changing formula height does not
+      // move the line's anchor. Typewriter retains its existing cursor center.
+      SI cy= hanging ? cu->oy : cu->oy + ((cu->y1 + cu->y2) >> 1);
       SI vc= (vy1 + vy2) >> 1;
-      SI slack= max (40 * pixel, (vy2 - vy1) / 20);
+      const double fraction= follow ? follow->anchor () : -1;
+      SI target= hanging ? vy2 - (SI) ((fraction < 0 ? 0.5 : fraction) * (vy2 - vy1)) : vc;
+      SI slack= hanging ? pixel : max (40 * pixel, (vy2 - vy1) / 20);
       SI cx1= cu->ox + ((SI) (cu->y1 * cu->slope));
       SI cx2= cu->ox + ((SI) (cu->y2 * cu->slope));
-      bool vertical  = absval (cy - vc) > slack;
+      bool vertical  = absval (cy - target) > slack;
       bool horizontal= cx1 < vx1 || cx2 >= vx2;
       if (vertical || horizontal) {
-        scroll_to (horizontal ? cu->ox : ((vx1 + vx2) >> 1), cy);
+        scroll_to_if_user_unchanged (
+          horizontal ? cu->ox : ((vx1 + vx2) >> 1),
+          vc + cy - target, user_scroll_generation);
         invalidate_all ();
         return;
       }
@@ -2078,6 +2096,23 @@ edit_interface_rep::apply_changes () {
   }
 #endif
   
+  // Capture before publishing extents: changing the anchor also changes the
+  // leading/trailing space needed to keep the first and last lines suspended.
+  const auto follow_viewport= ui_viewport ();
+  if (follow_viewport.cursor_follow && follow_viewport.focused) {
+    const string mode= get_user_preference ("typewriter mode", "off");
+    const auto follow= follow_viewport.cursor_follow;
+    follow->configure (mode == "hanging" ? viewport_follow_mode::hanging :
+      mode == "on" ? viewport_follow_mode::typewriter : viewport_follow_mode::normal);
+    if (mode == "hanging" && (follow->anchor () < 0 || hanging_reanchor_pending)) {
+      update_visible ();
+      if (vy2 > vy1 && follow->capture (
+            double (vy2 - get_cursor ()->oy) / (vy2 - vy1)))
+        notify_change (THE_EXTENTS);
+    }
+    hanging_reanchor_pending= false;
+  }
+
   // cout << "Handling extents\n";
   if (env_change & (THE_TREE+THE_ENVIRONMENT+THE_EXTENTS)) {
     string medium= get_init_string (PAGE_MEDIUM);
@@ -2117,9 +2152,17 @@ edit_interface_rep::apply_changes () {
         ey1= ey2 - h;
     }
     if (!extents_viewport.externally_presented &&
-        get_user_preference ("typewriter mode", "off") == "on" &&
-        (medium == "papyrus" || medium == "automatic") && h > 0)
-      ey1 -= h >> 1;
+        (medium == "papyrus" || medium == "automatic") && h > 0) {
+      const string mode= get_user_preference ("typewriter mode", "off");
+      if (mode == "on") ey1 -= h >> 1;
+      else if (mode == "hanging") {
+        const auto follow= extents_viewport.cursor_follow;
+        const double anchor= follow ? follow->anchor () : -1;
+        const double fraction= anchor < 0 ? 0.5 : anchor;
+        ey2 += (SI) (h * fraction);
+        ey1 -= (SI) (h * (1 - fraction));
+      }
+    }
     (void) publish_ui (
       actor_command_kind::ui_set_extents,
       static_cast<std::uint64_t> (ex1),
@@ -2435,6 +2478,15 @@ edit_interface_rep::handle_user_scroll (time_t t) {
   resize_viewport_restore.cancel ();
   typewriter_manual_scroll_time= t;
   typewriter_manual_scroll_path= copy (tp);
+  const auto viewport= ui_viewport ();
+  if (get_user_preference ("typewriter mode", "off") == "hanging" &&
+      viewport.focused && viewport.cursor_follow) {
+    viewport.cursor_follow->configure (viewport_follow_mode::hanging);
+    update_visible ();
+    if (vy2 > vy1 && viewport.cursor_follow->capture (
+          double (vy2 - get_cursor ()->oy) / (vy2 - vy1)))
+      notify_change (THE_EXTENTS);
+  }
 }
 
 void

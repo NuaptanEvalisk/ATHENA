@@ -708,6 +708,7 @@ qt_actor_widget_rep::refresh_viewport () {
   snapshot.focused= canvas () != nullptr && canvas ()->editorHasFocus ();
   snapshot.externally_presented=
     canvas () != nullptr && canvas ()->externallyPresented ();
+  if (canvas ()) snapshot.cursor_follow= canvas ()->cursorFollow;
   snapshot.full_screen= get_server ()->in_full_screen_mode ();
   snapshot.full_screen_edit= get_server ()->in_full_screen_edit_mode ();
   snapshot.invalid= is_invalid ();

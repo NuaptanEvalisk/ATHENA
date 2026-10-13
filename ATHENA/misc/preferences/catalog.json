@@ -669,9 +669,26 @@
     },
     {
       "key": "typewriter mode",
-      "type": "string",
+      "type": "choice",
       "scope": "active",
-      "default": "off"
+      "default": "off",
+      "callback": "viewport-follow",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Misc",
+        "section": "Misc",
+        "order": 2,
+        "label": "Viewport following",
+        "control": "choice",
+        "choices": [
+          {"value": "off", "label": "Normal"},
+          {"value": "on", "label": "Typewriter"},
+          {"value": "hanging", "label": "Hanging"}
+        ],
+        "category_order": 3,
+        "tab_order": 2,
+        "section_order": 0
+      }
     },
     {
       "key": "ir-up",

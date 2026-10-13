@@ -223,10 +223,12 @@ QTMScrollView::updateScrollBars (void) {
   _hScrollBar->setSingleStep((w >> 4) + 1);
   _hScrollBar->setPageStep(w);
   
-  int ch = (xh > h ? xh - h : 0);
+  // Source coordinates may include leading space for a hanging cursor.
+  const int ymin= std::min (0, p_extents.top ());
+  int ch = std::max (0, p_extents.top () + xh - h);
   if (_vScrollBar->sliderPosition() > ch)
     _vScrollBar->setSliderPosition(ch);
-  _vScrollBar->setRange(0, ch);
+  _vScrollBar->setRange(ymin, ch);
   _vScrollBar->setSingleStep((h >> 4) + 1);
   _vScrollBar->setPageStep(h);
   

@@ -28,6 +28,7 @@
 #include "buffer_actor.hpp"
 #include "guile_tm.hpp"
 #include "scheme_execution_context.hpp"
+#include "new_view.hpp"
 
 /******************************************************************************
 * The object representation class
@@ -655,7 +656,12 @@ set_preference (string var, string val) {
 
 void
 notify_preference (string var) {
-  if (preferences_ok) (void) call ("notify-preference", var);
+  if (!preferences_ok) return;
+  if (get_user_preference_callback (var) == "notify-viewport-follow") {
+    notify_viewport_follow ();
+    return;
+  }
+  (void) call ("notify-preference", var);
 }
 
 string

@@ -110,6 +110,7 @@ preference_callback_name (const QString& id) {
     {"toolbar-presentation", "notify-toolbar-presentation"},
     {"vault-explorer-track", "notify-vault-explorer-track"},
     {"vault-preferences-mode", "notify-vault-preferences-mode"},
+    {"viewport-follow", "notify-viewport-follow"},
     {"zoom-factor", "notify-zoom-factor"}
   };
   for (const auto& callback: callbacks)

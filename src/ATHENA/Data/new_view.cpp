@@ -22,8 +22,12 @@
 #include "scheme_execution_context.hpp"
 #include "buffer_actor.hpp"
 #include "editor.hpp"
+#include "actor_ui_bridge.hpp"
 
 #ifdef QTTEXMACS
+#include <QCoreApplication>
+#include <QMetaObject>
+#include <QThread>
 #include <QTimer>
 #include "Qt/qt_actor_widget.hpp"
 #endif
@@ -129,6 +133,41 @@ concrete_runtime_view (athena_view_id view_id) {
 /******************************************************************************
 * Views associated to editor, window, or buffer
 ******************************************************************************/
+
+void
+notify_viewport_follow () {
+#ifdef QTTEXMACS
+  QCoreApplication* app= QCoreApplication::instance ();
+  if (app != nullptr && QThread::currentThread () != app->thread ()) {
+    QMetaObject::invokeMethod (app, [] { notify_viewport_follow (); },
+                              Qt::QueuedConnection);
+    return;
+  }
+#endif
+  // The GUI owns the view registry; editors are touched only on their actors.
+  array<url> views= get_all_views ();
+  for (int i=0; i<N(views); ++i) {
+    tm_view view= concrete_view (views[i]);
+    if (view == nullptr) continue;
+    actor_ui_endpoint* endpoint= find_actor_ui_endpoint (view->runtime_id);
+    if (endpoint == nullptr || !endpoint->viewport ().attached) continue;
+    athena_continuation_id continuation=
+      actor_continuation_registry::instance ().store ([] {
+        const SchemeExecutionContext* context=
+          current_scheme_execution_context ();
+        if (context == nullptr || context->editor == nullptr ||
+            context->editor->ui_endpoint == nullptr ||
+            !context->editor->ui_endpoint->viewport ().attached) return;
+        // Manual-scroll inhibition remains enforced by cursor following itself.
+        context->editor->notify_change (THE_EXTENTS | THE_CURSOR, THE_FREEZE);
+      });
+    if (!view->buf->actor->submit (
+          actor_command_kind::run_native_continuation, view->runtime_id,
+          ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+          continuation))
+      (void) actor_continuation_registry::instance ().discard (continuation);
+  }
+}
 
 tm_view the_view= NULL;
 

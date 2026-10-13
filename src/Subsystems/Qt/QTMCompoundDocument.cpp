@@ -153,9 +153,16 @@ void merge_compound_pdf (const std::shared_ptr<CompoundPdfJob>& job, std::size_t
 
 class MemberScrollBar: public QScrollBar {
   const athena::avd::layout_index& layout_;
+  double leading_= 0, trailing_= 0;
 public:
   explicit MemberScrollBar (const athena::avd::layout_index& layout):
     QScrollBar (Qt::Vertical), layout_ (layout) {}
+  void setPadding (double leading, double trailing) {
+    if (leading_ == leading && trailing_ == trailing) return;
+    leading_= leading;
+    trailing_= trailing;
+    update ();
+  }
 protected:
   void paintEvent (QPaintEvent* event) override {
     QScrollBar::paintEvent (event);
@@ -165,7 +172,8 @@ protected:
     const int margin= style ()->pixelMetric (QStyle::PM_ScrollBarExtent, nullptr, this);
     const int span= std::max (0, height () - 2 * margin);
     for (std::size_t i= 1; i < layout_.size (); ++i) {
-      const int y= margin + int (span * layout_.top (i) / layout_.extent ());
+      const int y= margin + int (span * (leading_ + layout_.top (i)) /
+        (leading_ + layout_.extent () + trailing_));
       painter.drawLine (0, y, std::min (5, width ()), y);
     }
   }
@@ -244,7 +252,10 @@ class QTMCompoundViewport: public QAbstractScrollArea {
     if (dy != 0) { updateRange (offset () - dy); arrange (true); }
   }};
   double scale_= 1;
-  bool typewriter_mode_= false;
+  string follow_mode_= "off";
+  double follow_anchor_= -1;
+  std::shared_ptr<viewport_follow_state> cursor_follow_=
+    std::make_shared<viewport_follow_state> ();
 
   double offset () const { return verticalScrollBar ()->value () * scale_; }
 
@@ -265,15 +276,25 @@ class QTMCompoundViewport: public QAbstractScrollArea {
   }
 
   void updateRange (double desired) {
-    typewriter_mode_= get_preference ("typewriter mode", "off") == "on";
-    const double tail= typewriter_mode_ && !members_.empty () ? viewport ()->height () / 2.0 : 0;
+    follow_mode_= get_preference ("typewriter mode", "off");
+    const bool hanging= follow_mode_ == "hanging";
+    cursor_follow_->configure (hanging ? viewport_follow_mode::hanging :
+      follow_mode_ == "on" ? viewport_follow_mode::typewriter :
+                            viewport_follow_mode::normal);
+    follow_anchor_= cursor_follow_->anchor ();
+    const double fraction= follow_anchor_ < 0 ? 0.5 : follow_anchor_;
+    const double head= hanging && !members_.empty () ? viewport ()->height () * fraction : 0;
+    const double tail= members_.empty () ? 0 : hanging ? viewport ()->height () * (1 - fraction) :
+      follow_mode_ == "on" ? viewport ()->height () / 2.0 : 0;
+    const double minimum= -head;
+    static_cast<MemberScrollBar*> (verticalScrollBar ())->setPadding (head, tail);
     const double maximum= std::max (0.0, layout_.extent () + tail - viewport ()->height ());
-    scale_= std::max (1.0, maximum / (std::numeric_limits<int>::max () - 1.0));
+    scale_= std::max (1.0, (maximum - minimum) / (std::numeric_limits<int>::max () - 1.0));
     QSignalBlocker blocked (verticalScrollBar ());
-    verticalScrollBar ()->setRange (0, int (std::ceil (maximum / scale_)));
+    verticalScrollBar ()->setRange (int (std::floor (minimum / scale_)), int (std::ceil (maximum / scale_)));
     verticalScrollBar ()->setPageStep (std::max (1, int (viewport ()->height () / scale_)));
     verticalScrollBar ()->setSingleStep (std::max (1, int (40 / scale_)));
-    verticalScrollBar ()->setValue (int (std::round (std::clamp (desired, 0.0, maximum) / scale_)));
+    verticalScrollBar ()->setValue (int (std::round (std::clamp (desired, minimum, maximum) / scale_)));
   }
 
   tm_view ensureView (std::size_t i) {
@@ -312,6 +333,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
     // These are hidden input/render adapters. Only the compound viewport paints.
     item.host->hide ();
     item.canvas->setPresentationTarget (viewport ());
+    item.canvas->cursorFollow= cursor_follow_;
     the_gui->process_keyboard_focus (item.canvas->tm_widget (), false, texmacs_time ());
     item.canvas->setHorizontalScrollBarPolicy (Qt::ScrollBarAlwaysOff);
     item.canvas->setVerticalScrollBarPolicy (Qt::ScrollBarAlwaysOff);
@@ -331,6 +353,10 @@ class QTMCompoundViewport: public QAbstractScrollArea {
         inertia_.stop ();
         QSignalBlocker horizontal (horizontalScrollBar ());
         horizontalScrollBar ()->setValue (position.x ());
+        // Extents arrive before the actor's scroll request, but the periodic
+        // layout refresh may still hold the lazy member's estimated height.
+        if (canvas->extents ().height () > 0)
+          layout_.set_height (i, canvas->extents ().height () + member_heading_height);
         updateRange (layout_.top (i) + member_heading_height + position.y ());
         arrange ();
       });
@@ -979,13 +1005,21 @@ class QTMCompoundViewport: public QAbstractScrollArea {
         const bool moved= origin != item.canvas->origin ();
         item.canvas->setExternalOrigin (origin);
         if (moved || resumed || resized) {
-          if (user_scroll) item.canvas->publishUserScroll ();
+          if (user_scroll && i == active_member_) item.canvas->publishUserScroll ();
           else if (auto* proxy= dynamic_cast<qt_actor_widget_rep*> (item.canvas->tm_widget ()))
             proxy->refresh_viewport ();
         }
         if (resized) {
           const auto size= from_qsize (viewport ()->size ());
           the_gui->process_resize (item.canvas->tm_widget (), size.x1, size.x2);
+        }
+      }
+      if (user_scroll && active_member_ < views_.size ()) {
+        auto& active= views_[active_member_];
+        if (active.canvas && !active.visible) {
+          active.canvas->setExternalOrigin (QPoint (horizontalScrollBar ()->value (),
+            int (std::round (start - layout_.top (active_member_) - member_heading_height))));
+          active.canvas->publishUserScroll ();
         }
       }
       viewport ()->update ();
@@ -1025,7 +1059,8 @@ class QTMCompoundViewport: public QAbstractScrollArea {
     const double within= anchor < layout_.size () ? old_offset - layout_.top (anchor) : 0;
     const bool at_end= verticalScrollBar ()->maximum () > 0 &&
       verticalScrollBar ()->value () == verticalScrollBar ()->maximum ();
-    bool changed= typewriter_mode_ != (get_preference ("typewriter mode", "off") == "on");
+    bool changed= follow_mode_ != get_preference ("typewriter mode", "off") ||
+                  follow_anchor_ != cursor_follow_->anchor ();
     int width= viewport ()->width ();
     for (std::size_t i= 0; i < views_.size (); ++i) {
       const auto& item= views_[i];
@@ -1045,7 +1080,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
       changed= changed || old_x != horizontalScrollBar ()->value ();
     }
     if (changed) {
-      updateRange (at_end ? layout_.extent () :
+      updateRange (at_end && follow_mode_ != "hanging" ? layout_.extent () :
         anchor < layout_.size () ? layout_.top (anchor) + within : 0);
       arrange ();
     }
@@ -1184,6 +1219,16 @@ protected:
       }
       if (member < views_.size () && views_[member].canvas && (mouse || wheel || keyboard)) {
         auto* canvas= views_[member].canvas.data ();
+        if ((event->type () == QEvent::KeyPress || event->type () == QEvent::InputMethod) &&
+            follow_mode_ == "hanging" && !views_[member].visible) {
+          // Manual scrolling may leave the insertion point in a suspended
+          // member. Resume it before the key so its follow request can return
+          // the compound camera to the retained anchor.
+          views_[member].visible= true;
+          canvas->setPresentationActive (true);
+          const auto view= concrete_runtime_view (views_[member].runtime_id);
+          view->buf->actor->submit (actor_command_kind::resume_view, view->runtime_id);
+        }
         if (event->type () == QEvent::MouseButtonPress) {
           activateMember (member);
           viewport ()->setFocus (Qt::MouseFocusReason);
@@ -1441,7 +1486,8 @@ protected:
     for (std::size_t i= layout_.member_at (start); i < views_.size () && layout_.top (i) < start + viewport ()->height (); ++i) {
       const auto& source= views_[i];
       if (!source.visible || !source.canvas) continue;
-      const int top= int (std::max (0.0, layout_.top (i) + member_heading_height - start));
+      const int top= i == 0 ? 0 :
+        int (std::max (0.0, layout_.top (i) + member_heading_height - start));
       // The final source renderer also owns the trailing background, including
       // typewriter padding; it already applies the document color preferences.
       const int bottom= i + 1 == views_.size () ? viewport ()->height () :
@@ -1582,12 +1628,17 @@ public:
     mount (i);
     activateMember (i);
     views_[i].canvas->focusEditor (Qt::OtherFocusReason);
-    if (!submit (i, [at_end] {
-          auto* editor= current_scheme_execution_context ()->editor;
-          if (at_end) editor->go_to_end (editor->the_buffer_path ());
-          else editor->go_to_start (editor->the_buffer_path ());
-        }))
-      std_warning << "Compound document: navigation could not be queued" << LF;
+    // Submit after the mount/focus events in the GUI input queue. Otherwise
+    // their later resize/focus freeze suppresses this navigation's scrolling.
+    queueInput ([i, at_end] (QTMCompoundViewport& self) {
+      if (!self.submit (i, [at_end] {
+            auto* editor= current_scheme_execution_context ()->editor;
+            if (at_end) editor->go_to_end (editor->the_buffer_path ());
+            else editor->go_to_start (editor->the_buffer_path ());
+            editor->notify_change (THE_CURSOR, THE_FREEZE);
+          }))
+        std_warning << "Compound document: navigation could not be queued" << LF;
+    });
   }
 };
 

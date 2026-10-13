@@ -146,6 +146,7 @@ protected:
   bool          external_center_message_active;
   time_t        typewriter_manual_scroll_time;
   path          typewriter_manual_scroll_path;
+  bool          hanging_reanchor_pending= false;
   resize_viewport_restore_state resize_viewport_restore;
   std::uint64_t programmatic_scroll_generation;
   int           live_statistics_cache_hash;

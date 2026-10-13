@@ -110,10 +110,17 @@ QTMCommandRegistry::registerViewMenuCommands () {
         out, "persistent-fit-width", QObject::tr ("Persistent fit width"),
         QObject::tr ("Viewport"), persistentApplicable, true,
         persistentApplicable && preference_on ("persistent fit width"));
+      const string following= get_user_preference ("typewriter mode", "off");
       append_item (
-        out, "typewriter", QObject::tr ("Typewriter mode"),
+        out, "viewport-normal", QObject::tr ("Normal"),
         QObject::tr ("Viewport"), true, true,
-        preference_on ("typewriter mode"));
+        following != "on" && following != "hanging");
+      append_item (
+        out, "viewport-typewriter", QObject::tr ("Typewriter"),
+        QObject::tr ("Viewport"), true, true, following == "on");
+      append_item (
+        out, "viewport-hanging", QObject::tr ("Hanging"),
+        QObject::tr ("Viewport"), true, true, following == "hanging");
       append_item (
         out, "snap-pages", QObject::tr ("Snap to pages"),
         QObject::tr ("Viewport"), true, true,
@@ -190,8 +197,12 @@ QTMCommandRegistry::registerViewMenuCommands () {
       if (key == QStringLiteral ("persistent-fit-width"))
         return submit_view_business (
           context, "view-toggle-persistent-fit-width");
-      if (key == QStringLiteral ("typewriter"))
-        return submit_view_business (context, "view-toggle-typewriter");
+      if (key == QStringLiteral ("viewport-normal"))
+        return submit_view_business (context, "view-viewport-normal");
+      if (key == QStringLiteral ("viewport-typewriter"))
+        return submit_view_business (context, "view-viewport-typewriter");
+      if (key == QStringLiteral ("viewport-hanging"))
+        return submit_view_business (context, "view-viewport-hanging");
       if (key == QStringLiteral ("snap-pages"))
         return submit_view_business (context, "view-toggle-snap-pages");
 

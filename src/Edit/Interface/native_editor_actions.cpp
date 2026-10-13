@@ -201,6 +201,9 @@ valid_business_id (const QString& id) {
     "view-fit-width",
     "view-toggle-persistent-fit-width",
     "view-toggle-typewriter",
+    "view-viewport-normal",
+    "view-viewport-typewriter",
+    "view-viewport-hanging",
     "view-toggle-snap-pages",
     "view-heading-unfold-all",
     "go-save-position",
@@ -431,6 +434,14 @@ execute_business_id (editor ed, const QString& id) {
     (void) call ("toggle-persistent-fit-width");
   else if (id == "view-toggle-typewriter")
     (void) call ("toggle-typewriter-mode");
+  else if (id == "view-viewport-normal" ||
+           id == "view-viewport-typewriter" ||
+           id == "view-viewport-hanging") {
+    const string mode= id == "view-viewport-typewriter" ? "on" :
+                       id == "view-viewport-hanging" ? "hanging" : "off";
+    (void) call ("set-preference", object (string ("typewriter mode")),
+                object (mode));
+  }
   else if (id == "view-toggle-snap-pages")
     (void) call ("toggle-snap-to-pages");
   else if (id == "view-heading-unfold-all")

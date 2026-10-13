@@ -16,6 +16,7 @@
 #include "QTMScrollView.hpp"
 #include "QTMPerformanceMonitor.hpp"
 #include "ATHENA/native_ink.hpp"
+#include "ATHENA/viewport_follow.hpp"
 #include "native_drawing_ui.hpp"
 #include <QLabel>
 #include <QGesture>
@@ -27,6 +28,7 @@
 #include <QImage>
 #include <QTimer>
 #include <vector>
+#include <memory>
 
 class qt_simple_widget_rep;
 #include "QTMRenderService.hpp"
@@ -55,6 +57,9 @@ class QTMWidget: public QTMScrollView {
   void applyScrollDelta (int dx, int dy) override;
 
 public:
+
+  std::shared_ptr<viewport_follow_state> cursorFollow=
+    std::make_shared<viewport_follow_state> ();
 
   
   QTMWidget (QWidget* _parent=0, qt_widget _tmwid=0);

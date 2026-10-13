@@ -17,6 +17,7 @@
 class editor;
 
 array<url> get_all_views ();
+void notify_viewport_follow ();
 array<url> buffer_to_views (url name);
 editor get_current_editor ();
 editor view_to_editor (url u);

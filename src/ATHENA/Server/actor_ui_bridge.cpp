@@ -93,6 +93,7 @@ actor_ui_endpoint::update_viewport (
   std::uint64_t sequence=
     viewport_sequence_.load (std::memory_order_relaxed);
   viewport_sequence_.store (sequence + 1, std::memory_order_release);
+  std::atomic_store (&viewport_.cursor_follow, snapshot.cursor_follow);
   viewport_.visible_x1.store (snapshot.visible_x1, std::memory_order_relaxed);
   viewport_.visible_y1.store (snapshot.visible_y1, std::memory_order_relaxed);
   viewport_.visible_x2.store (snapshot.visible_x2, std::memory_order_relaxed);
@@ -146,6 +147,7 @@ actor_ui_endpoint::viewport () const noexcept {
     std::uint64_t before=
       viewport_sequence_.load (std::memory_order_acquire);
     if ((before & 1U) != 0) continue;
+    result.cursor_follow= std::atomic_load (&viewport_.cursor_follow);
     result.visible_x1= viewport_.visible_x1.load (std::memory_order_relaxed);
     result.visible_y1= viewport_.visible_y1.load (std::memory_order_relaxed);
     result.visible_x2= viewport_.visible_x2.load (std::memory_order_relaxed);

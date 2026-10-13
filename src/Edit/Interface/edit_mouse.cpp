@@ -1203,6 +1203,8 @@ edit_interface_rep::handle_mouse (string kind, SI x, SI y, int m, time_t t,
     end_editing ();
     return;
   }
+  if (kind == "press-left" || kind == "release-left" || kind == "touch-open")
+    hanging_reanchor_pending= true;
   //cout << kind << " (" << x << ", " << y << "; " << m << ", " << data << ")"
   //     << " at " << t << "\n";
 

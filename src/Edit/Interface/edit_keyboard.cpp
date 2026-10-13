@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "edit_interface.hpp"
+#include "boot.hpp"
 #include "analyze.hpp"
 #include "tm_buffer.hpp"
 #include "archiver.hpp"
@@ -290,6 +291,10 @@ edit_interface_rep::kbd_shortcut (string cmd) {
 void
 edit_interface_rep::handle_keypress (string key, time_t t) {
   if (buf == nullptr) return;
+  if (get_user_preference ("typewriter mode", "off") == "hanging") {
+    typewriter_manual_scroll_time= 0;
+    notify_change (THE_CURSOR);
+  }
   if (t > last_event) last_event= t;
   if ((key == "escape" || key == "S-escape") && dismiss_link_peek ()) return;
   bool started= false;
@@ -356,6 +361,10 @@ edit_interface_rep::handle_keypress (string key, time_t t) {
 void
 edit_interface_rep::handle_text_input (string text, time_t t) {
   if (buf == nullptr || text == "") return;
+  if (get_user_preference ("typewriter mode", "off") == "hanging") {
+    typewriter_manual_scroll_time= 0;
+    notify_change (THE_CURSOR);
+  }
   if (t > last_event) last_event= t;
   bool started= false;
 #ifdef USE_EXCEPTIONS
