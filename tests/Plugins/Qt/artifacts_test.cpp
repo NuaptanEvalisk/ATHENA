@@ -35,6 +35,7 @@
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <memory>
 #include <atomic>
 #include <thread>
 
@@ -95,6 +96,8 @@ private slots:
   void resumesDefinitionRangeSelectionFromCheckpoint ();
   void preservesArtifactsAcrossStorageFormatRewrite ();
   void migratesArtifactSchemaWithoutRebuildingSemanticData ();
+  void concurrentWriterDoesNotBlockReadWriteArtifactQuery ();
+  void restoresMissingAttachedArtifactSchema ();
   void delegatedFailureLeavesDatabaseUnchanged ();
   void persistsNativeSourceBindingsAndReusesExactModelInput ();
 };
@@ -2315,6 +2318,63 @@ TestArtifacts::preservesArtifactsAcrossStorageFormatRewrite () {
               root / info.artifacts_path,
               "SELECT COUNT(*) FROM artifact_identity_history;", error),
             history_before);
+}
+
+void
+TestArtifacts::concurrentWriterDoesNotBlockReadWriteArtifactQuery () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  const fs::path root (temporary.path ().toStdString ());
+  AthenaVaultfileInfo info;
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+
+  // Bootstrap the schema once. A subsequent ordinary query is read-only in
+  // effect, even though it opens the connection in read/write mode.
+  std::vector<AthenaArtifactRecord> records;
+  QVERIFY2 (athena_artifacts_query (root, records, error, false, false),
+            error.c_str ());
+
+  sqlite3* raw= nullptr;
+  QCOMPARE (sqlite3_open_v2 ((root / info.artifacts_path).string ().c_str (),
+                             &raw, SQLITE_OPEN_READWRITE, nullptr), SQLITE_OK);
+  std::unique_ptr<sqlite3, decltype (&sqlite3_close)> writer (raw, &sqlite3_close);
+  QCOMPARE (sqlite3_exec (writer.get (), "BEGIN IMMEDIATE;", nullptr, nullptr,
+                          nullptr), SQLITE_OK);
+
+  // This RESERVED writer lock permits concurrent reads under SQLite rollback
+  // journaling. The old open_databases() tried a schema UPSERT and timed out.
+  error.clear ();
+  QVERIFY2 (athena_artifacts_query (root, records, error, false, false),
+            error.c_str ());
+  QVERIFY (records.empty ());
+  QCOMPARE (sqlite3_exec (writer.get (), "ROLLBACK;", nullptr, nullptr,
+                          nullptr), SQLITE_OK);
+}
+
+void
+TestArtifacts::restoresMissingAttachedArtifactSchema () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  const fs::path root (temporary.path ().toStdString ());
+  AthenaVaultfileInfo info;
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+  std::vector<AthenaArtifactRecord> records;
+  QVERIFY2 (athena_artifacts_query (root, records, error, false, false),
+            error.c_str ());
+
+  // Attached DB files can be missing independently of artifacts.db. Version
+  // 5 in the primary DB must not bypass creation of their tables and indexes.
+  std::error_code ec;
+  QVERIFY (fs::remove (root / info.bold_text_path, ec));
+  QVERIFY (!ec);
+  error.clear ();
+  QVERIFY2 (athena_artifacts_query (root, records, error, false, false),
+            error.c_str ());
+  QCOMPARE (query_test_int (root / info.bold_text_path,
+              "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND "
+              "name='entries';", error), 1);
 }
 
 void

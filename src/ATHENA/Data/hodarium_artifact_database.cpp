@@ -10,7 +10,9 @@
 
 #include <algorithm>
 #include <chrono>
+#include <mutex>
 #include <sstream>
+#include <tuple>
 
 namespace fs= std::filesystem;
 
@@ -78,6 +80,87 @@ bool ensure_column (sqlite3* db, const char* table, const char* column,
   std::string alter= std::string ("ALTER TABLE ") + table +
                      " ADD COLUMN " + column + " " + declaration + ";";
   return exec_sql (db, alter, error);
+}
+
+// A current artifact index must never execute schema DDL or migration writes
+// just because another task opens a read/write connection. Such writes compete
+// with the structural worker and Hodarium even when no indexing is required.
+bool schema_current (sqlite3* db, bool& current, std::string& error) {
+  current= false;
+  Statement table;
+  if (!prepare (db, "SELECT 1 FROM sqlite_master WHERE type='table' "
+                    "AND name='artifact_metadata';", table, error)) return false;
+  int rc= sqlite3_step (table.st);
+  if (rc == SQLITE_DONE) return true;
+  if (rc != SQLITE_ROW) { error= sqlite3_errmsg (db); return false; }
+  sqlite3_reset (table.st);
+  Statement version;
+  if (!prepare (db, "SELECT value FROM artifact_metadata WHERE "
+                    "key='schema-version';", version, error)) return false;
+  rc= sqlite3_step (version.st);
+  if (rc == SQLITE_DONE) return true;
+  if (rc != SQLITE_ROW) { error= sqlite3_errmsg (db); return false; }
+  if (column_text (version.st, 0) != "5") return true;
+  sqlite3_reset (version.st);
+
+  // The attached indexes are separate files: one can be absent/recreated
+  // while artifacts.db still advertises the current schema version. Preserve
+  // the old automatic recovery of missing tables and indexes.
+  using SchemaObject= std::tuple<const char*, const char*, const char*>;
+  for (const auto& required: {
+      SchemaObject {"main", "table", "documents"},
+      SchemaObject {"main", "table", "artifacts"},
+      SchemaObject {"main", "table", "artifact_names"},
+      SchemaObject {"main", "table", "artifact_range_cache"},
+      SchemaObject {"main", "table", "artifact_identity_history"},
+      SchemaObject {"bold_text", "table", "entries"},
+      SchemaObject {"bold_text", "table", "bold_text_metadata"},
+      SchemaObject {"enunciations", "table", "entries"},
+      SchemaObject {"main", "index", "artifacts_path_idx"},
+      SchemaObject {"main", "index", "artifacts_search_idx"},
+      SchemaObject {"main", "index", "artifact_names_name_idx"},
+      SchemaObject {"main", "index", "artifact_range_cache_path_idx"},
+      SchemaObject {"main", "index", "artifact_identity_history_path_idx"},
+      SchemaObject {"main", "index", "artifacts_source_binding_idx"},
+      SchemaObject {"bold_text", "index", "entries_path_idx"},
+      SchemaObject {"enunciations", "index", "entries_path_idx"}}) {
+    const std::string sql= "SELECT 1 FROM " + std::string (std::get<0> (required)) +
+                           ".sqlite_master WHERE type=?1 AND name=?2;";
+    Statement object;
+    if (!prepare (db, sql.c_str (), object, error)) return false;
+    bind_text (object.st, 1, std::get<1> (required));
+    bind_text (object.st, 2, std::get<2> (required));
+    rc= sqlite3_step (object.st);
+    if (rc == SQLITE_DONE) return true;
+    if (rc != SQLITE_ROW) { error= sqlite3_errmsg (db); return false; }
+  }
+
+  // An old, partially upgraded database may already advertise version 5.
+  // Continue repairing it, as required by historical index migrations.
+  for (const auto& required: {
+      std::make_pair ("documents", "locator_contract"),
+      std::make_pair ("documents", "semantic_hash"),
+      std::make_pair ("documents", "storage_hash"),
+      std::make_pair ("documents", "content_hash"),
+      std::make_pair ("artifact_range_cache", "semantic_hash"),
+      std::make_pair ("artifact_range_cache", "input_hash"),
+      std::make_pair ("artifacts", "source_uuid"),
+      std::make_pair ("artifacts", "source_role"),
+      std::make_pair ("artifacts", "input_hash"),
+      std::make_pair ("artifacts", "source_nodes"),
+      std::make_pair ("artifacts", "range_state"),
+      std::make_pair ("artifacts", "range_structure_hash")}) {
+    const std::string sql= std::string ("SELECT 1 FROM pragma_table_info('") +
+                            required.first + "') WHERE name=?1;";
+    Statement column;
+    if (!prepare (db, sql.c_str (), column, error)) return false;
+    bind_text (column.st, 1, required.second);
+    rc= sqlite3_step (column.st);
+    if (rc == SQLITE_DONE) return true;
+    if (rc != SQLITE_ROW) { error= sqlite3_errmsg (db); return false; }
+  }
+  current= true;
+  return true;
 }
 
 bool safe_relative_database (const std::string& value) {
@@ -158,6 +241,19 @@ bool open_databases (const fs::path& root, SqliteDb& holder,
     " AS enunciations; ATTACH DATABASE " +
     sql_quote (holder.db, root / info.bold_text_path) + " AS bold_text;";
   if (!exec_sql (holder.db, attach, error)) return false;
+  // Only actual initialization/migration needs a write transaction. Keep the
+  // gate local to schema setup; never hold it while extracting a document or
+  // waiting for its actor to publish source bindings.
+  static std::mutex schema_mutex;
+  std::lock_guard<std::mutex> schema_guard (schema_mutex);
+  bool current= false;
+  if (!schema_current (holder.db, current, error)) return false;
+  if (!exec_sql (holder.db, "PRAGMA foreign_keys=ON;", error)) return false;
+  if (current) return true;
+  if (!exec_sql (holder.db, "BEGIN IMMEDIATE;", error)) return false;
+  // Another process may have migrated while we were waiting for the lock.
+  if (!schema_current (holder.db, current, error)) return false;
+  if (current) return exec_sql (holder.db, "COMMIT;", error);
   const char* schema=
     "PRAGMA foreign_keys=ON;"
     "CREATE TABLE IF NOT EXISTS artifact_metadata("
@@ -286,7 +382,8 @@ bool open_databases (const fs::path& root, SqliteDb& holder,
         "INSERT INTO artifact_metadata(key,value) VALUES('schema-version','5') "
         "ON CONFLICT(key) DO UPDATE SET value='5';", error))
     return false;
-  return true;
+  sqlite3_reset (version.st);
+  return exec_sql (holder.db, "COMMIT;", error);
 }
 
 

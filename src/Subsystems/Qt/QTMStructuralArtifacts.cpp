@@ -28,6 +28,16 @@ namespace {
 namespace bg= athena::background;
 namespace ar= athena::artifact;
 
+// SQLite's 5-second busy timeout is a bounded wait, not a reason to mark a
+// source as broken. Retry short lock conflicts, but surface persistent ones.
+bool sqlite_lock_contention (const std::string& error) {
+  return error == "database is locked" ||
+         error.rfind ("database table is locked", 0) == 0 ||
+         error.rfind ("database schema is locked", 0) == 0;
+}
+
+constexpr unsigned transient_lock_retries= 3;
+
 class StructuralArtifacts final: public QObject {
   QTimer timer;
   std::shared_ptr<std::atomic<bool>> stopping= std::make_shared<std::atomic<bool>> (false);
@@ -130,6 +140,7 @@ class StructuralArtifacts final: public QObject {
     bool have_inventory= false;
     std::size_t current= 0, deferred= 0;
     std::map<std::string, std::string> failures;
+    std::map<std::string, unsigned> lock_retries;
     bool save_failed= false;
     std::map<std::string, ar::saved_revision> saves;
     auto retry_after= std::chrono::steady_clock::now ();
@@ -143,14 +154,21 @@ class StructuralArtifacts final: public QObject {
           save_failed= false;
           for (auto i= saves.begin (); i != saves.end (); ) {
             const auto& job= i->second;
+            const auto retry_key= "saved:" + job.file.string ();
             std::string error;
             const bool ok= build (job.vault, job.file, job.sha256, &error);
             if (ok || error == "Deferred: saved artifact revision was superseded") {
+              lock_retries.erase (retry_key);
               if (ok && job.vault == previous)
                 failures.erase (job.file.lexically_relative (job.vault->root).generic_string ());
               i= saves.erase (i);
             }
             else {
+              if (sqlite_lock_contention (error) &&
+                  ++lock_retries[retry_key] <= transient_lock_retries) {
+                ++i;
+                continue;
+              }
               const bool failed= error.find ("Deferred:") == std::string::npos;
               if (failed || !save_failed) shutdown_error= job.file.string () + ": " + error;
               save_failed= save_failed || failed;
@@ -167,7 +185,7 @@ class StructuralArtifacts final: public QObject {
         const auto vault= vault_capture_context ();
         if (vault != previous) {
           previous= vault; checked.clear (); files.clear (); current= deferred= 0;
-          failures.clear ();
+          failures.clear (); lock_retries.clear ();
           inventory_paths.clear (); have_inventory= false;
           next_inventory= std::chrono::steady_clock::now ();
         }
@@ -199,6 +217,7 @@ class StructuralArtifacts final: public QObject {
           const auto known= checked.find (file.path);
           if ((known == checked.end () || !athena::filesystem::same_revision (known->second, file.revision)) &&
               published_buffer_source (path.string ()).first == ATHENA_NO_ACTOR) {
+            const auto retry_key= "disk:" + file.path;
             bg::publish (bg::worker::artifacts,
               {bg::phase::working, current-1, files.size (), failures.size () + save_failed, file.path,
                save_failed ? shutdown_error : failures.empty () ? "" : failures.begin ()->second});
@@ -207,8 +226,11 @@ class StructuralArtifacts final: public QObject {
               athena::filesystem::confined_root root (vault->root);
               checked[file.path]= root.open (file.path).stat ();
               failures.erase (file.path);
+              lock_retries.erase (retry_key);
             }
             else if (error.find ("Deferred:") != std::string::npos) ++deferred;
+            else if (sqlite_lock_contention (error) &&
+                     ++lock_retries[retry_key] <= transient_lock_retries) ++deferred;
             else if (error != "Artifact build cancelled") {
               failures[file.path]= file.path + ": " + error;
               bg::publish (bg::worker::artifacts,
