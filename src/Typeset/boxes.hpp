@@ -304,6 +304,8 @@ SI   get_delta (SI x, SI x1, SI x2);
 bool outside (SI x, SI delta, SI x1, SI x2);
 void make_eps (url dest, box b, int dpi= 600);
 void make_raster_image (url dest, box b, double zoom);
+// Exact image leaf only; failure leaves outputs unchanged. May populate cache.
+bool get_image_box_picture (box b, picture& pict, int& alpha);
 path find_innermost_scroll (box b, path p);
 path find_scrolled_tree_path (box b, path sp, SI x, SI y, SI delta);
 path find_scrolled_box_path (box b, path sp, SI x, SI y, SI delta);

@@ -291,6 +291,10 @@ edit_interface_rep::kbd_shortcut (string cmd) {
 void
 edit_interface_rep::handle_keypress (string key, time_t t) {
   if (buf == nullptr) return;
+  if (image_resize_active) {
+    image_resize_finish ();
+    if (key == "escape" || key == "S-escape") return;
+  }
   if (get_user_preference ("typewriter mode", "off") == "hanging") {
     typewriter_manual_scroll_time= 0;
     notify_change (THE_CURSOR);
@@ -418,6 +422,7 @@ void drag_right_reset ();
 void
 edit_interface_rep::handle_keyboard_focus (bool has_focus, time_t t) {
   if (!has_focus) clear_link_peek ();
+  if (!has_focus) image_resize_finish ();
   if (buf == nullptr) return;
   if (has_focus && !ui_viewport ().attached) {
     // Qt may deliver either the synthetic constructor FocusIn or a real mouse

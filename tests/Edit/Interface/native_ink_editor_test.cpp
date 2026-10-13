@@ -8,6 +8,8 @@
 
 #include <QApplication>
 #include <QtTest/QtTest>
+#include <QImage>
+#include <QTemporaryDir>
 #include <array>
 #include <cstdlib>
 #include <unistd.h>
@@ -21,6 +23,7 @@
 #include "convert.hpp"
 #include "data_cache.hpp"
 #include "observer.hpp"
+#include "node_metadata.hpp"
 #include "scheme.hpp"
 #include "sys_utils.hpp"
 
@@ -36,6 +39,11 @@ public:
 
   inline void* derived_this () override { return (NativeInkTestEditorRep*) this; }
   path cursor_path_for_test () const { return copy (tp); }
+  using edit_interface_rep::image_bounds;
+  using edit_interface_rep::image_resize_start;
+  using edit_interface_rep::image_resize_update;
+  using edit_interface_rep::image_resize_finish;
+  using edit_select_rep::set_selection;
 };
 
 static int
@@ -104,6 +112,7 @@ class TestNativeInkEditor: public QObject {
 private slots:
   void init ();
   void cleanup ();
+  void imageResizePreviewsThenCommitsOnce ();
   void strokePersistsAndUndoesAsOneTransaction ();
   void highlighterPersistsTransparentWideStroke ();
   void objectEraserRemovesWholeStroke ();
@@ -143,6 +152,55 @@ private:
   NativeInkTestEditorRep* editor= nullptr;
   actor_ui_endpoint* endpoint= nullptr;
 };
+
+void
+TestNativeInkEditor::imageResizePreviewsThenCommitsOnce () {
+  QTemporaryDir directory;
+  QVERIFY (directory.isValid ());
+  QImage pixels (320, 160, QImage::Format_ARGB32);
+  pixels.fill (Qt::red);
+  QString file= directory.filePath ("image.png");
+  QVERIFY (pixels.save (file));
+  tree image (IMAGE, string (file.toUtf8 ().constData ()), "160px", "80px", "", "");
+  athena::node::metadata metadata;
+  metadata.id= "11111111-1111-4111-8111-111111111111";
+  metadata.properties["test:caption"]= athena::node::property (std::string ("kept"));
+  athena::node::set (image, metadata);
+  editor->start_editing ();
+  assign (buffer->root_path, tree (DOCUMENT, image));
+  editor->end_editing ();
+  path p= buffer->root_path * 0;
+  editor->go_to (p * 0);
+  editor->set_selection (p * 0, p * 1);
+  SI x1=0, y1=0, x2=0, y2=0;
+  editor->typeset (x1, y1, x2, y2);
+  rectangle bounds;
+  QVERIFY (editor->image_bounds (p, bounds));
+  const tree original= copy (subtree (current_document_tree (), p));
+  const SI x= bounds->x2, y= (bounds->y1+bounds->y2)/2;
+  QVERIFY (editor->image_resize_start (x, y));
+  for (int step=1; step<=20; ++step) {
+    QVERIFY (editor->image_resize_update (x+step*(bounds->x2-bounds->x1)/20, y));
+    QCOMPARE (subtree (current_document_tree (), p), original);
+  }
+  editor->image_resize_finish ();
+  QCOMPARE (subtree (current_document_tree (), p), original);
+  QVERIFY (!endpoint->image_resize_active ());
+
+  QVERIFY (editor->image_resize_start (x, y));
+  QVERIFY (editor->image_resize_update (x+bounds->x2-bounds->x1, y));
+  editor->start_editing ();
+  editor->image_resize_finish (true);
+  editor->end_editing ();
+  tree resized= subtree (current_document_tree (), p);
+  QVERIFY (resized[1] != original[1]);
+  QCOMPARE (resized[2], tree ("160px"));
+  QCOMPARE (athena::node::id (resized), metadata.id);
+  QVERIFY (athena::node::equal_metadata (resized, original));
+  QCOMPARE (resized[0], original[0]);
+  editor->undo (0);
+  QCOMPARE (subtree (current_document_tree (), p), original);
+}
 
 void
 TestNativeInkEditor::init () {

@@ -33,10 +33,18 @@ class renderer_rep;
 typedef renderer_rep* renderer;
 class x_drawable_rep;
 class qt_renderer_rep;
+class box_rep;
 class rectangle;
 class frame;
 typedef list<rectangle> rectangles;
 extern int std_shrinkf;
+
+struct image_box_preview {
+  const box_rep* box;
+  picture raster;
+  SI width, height;
+  int alpha;
+};
 
 class renderer_rep {
 public:
@@ -53,6 +61,8 @@ public:
   renderer master;          // master renderer in case of shadow renderers
   rectangles clip_stack;    // stack with clipping regions
   int cur_page;             // current page number
+  // Borrowed context; the caller retains it and its box throughout a repaint.
+  const image_box_preview* image_preview= nullptr;
 
 public:
   renderer_rep (bool screen_flag, double pixel_ratio= 1);

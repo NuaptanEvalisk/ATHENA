@@ -20,6 +20,7 @@
 
 url scalable_rep::get_name () { return url_none (); }
 tree scalable_rep::get_effect () { return tree (""); }
+picture scalable_rep::get_picture () { return picture (); }
 
 /******************************************************************************
 * The abstract scalable class
@@ -42,6 +43,11 @@ public:
   void* get_handle () { return (void*) this; }
   url get_name () { return u; }
   tree get_effect () { return eff; }
+
+  picture get_picture () override {
+    if (px <= 0 || w/px <= 0 || h/px <= 0) return picture ();
+    return cached_load_picture (u, w/px, h/px, eff, px, false);
+  }
 
   void init_extents () {
     array<rectangle> input_rs;

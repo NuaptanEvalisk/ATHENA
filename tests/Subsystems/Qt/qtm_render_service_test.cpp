@@ -15,9 +15,12 @@
 #include "qt_renderer.hpp"
 #include "qt_simple_widget.hpp"
 #include "QTMWidget.hpp"
+#include "Typeset/Boxes/construct.hpp"
 
+#include <QFile>
 #include <QFontDatabase>
 #include <QPainter>
+#include <QTemporaryDir>
 #include <condition_variable>
 #include <mutex>
 #include <thread>
@@ -29,6 +32,7 @@ class TestQTMRenderService: public QObject {
 
 private slots:
   void rendersDisplayListOffTheProducerThread ();
+  void replacesOnlySelectedImageWithinAncestorClip ();
   void preservesOpenPolylineMode ();
   void emojiFontUsesUprightCaretMetrics ();
   void rendersColorEmojiWithoutOutlinePath ();
@@ -43,6 +47,79 @@ private slots:
   void nativeInsertSpaceCommandsAreOneShotGestures ();
   void nativeTrimCommandCommitsOnce ();
 };
+
+void
+TestQTMRenderService::replacesOnlySelectedImageWithinAncestorClip () {
+  QTemporaryDir directory;
+  QVERIFY (directory.isValid ());
+  QString filename= directory.filePath ("preview.png");
+  QImage source (8, 8, QImage::Format_ARGB32);
+  source.fill (Qt::transparent);
+  for (int y= 0; y < 8; ++y)
+    for (int x= 0; x < 4; ++x) source.setPixelColor (x, y, Qt::red);
+  QVERIFY (source.save (filename));
+  url image= url_system (filename.toUtf8 ().constData ());
+  path source_path (2, 3);
+  box selected= image_box (reverse (source_path), image,
+                          8 * PIXEL, 8 * PIXEL, 255, PIXEL);
+  // The same resource in another box must not receive the preview.
+  box other= image_box (path (4), image, 8 * PIXEL, 8 * PIXEL, 255, PIXEL);
+  QCOMPARE (selected->ip, reverse (source_path));
+  picture captured;
+  int alpha= 0;
+  QVERIFY (get_image_box_picture (selected, captured, alpha));
+  QCOMPARE (alpha, 255);
+  QCOMPARE (captured->get_width (), 8);
+  QCOMPARE (captured->get_height (), 8);
+  QVERIFY (QFile::remove (filename));
+
+  const QColor background (20, 130, 70);
+  QImage canvas (64, 32, QImage::Format_ARGB32_Premultiplied);
+  canvas.fill (background);
+  QPainter painter (&canvas);
+  qt_renderer_rep ren (&painter, 1.0, 64, 32);
+  ren.pixel= PIXEL;
+  image_box_preview preview {selected.operator-> (), captured,
+                             16 * PIXEL, 16 * PIXEL, alpha};
+  ren.image_preview= &preview;
+  ren.set_origin (4 * PIXEL, -11 * PIXEL);
+  selected->display (&ren);
+  ren.set_origin (20 * PIXEL, -11 * PIXEL);
+  other->display (&ren);
+  QCOMPARE (canvas.pixelColor (9, 6), QColor (Qt::red));
+  QCOMPARE (canvas.pixelColor (17, 6), background);
+  QCOMPARE (canvas.pixelColor (21, 5), QColor (Qt::red));
+  QCOMPARE (canvas.pixelColor (25, 5), background);
+
+  // Use a real ancestor clip, including its normal restoration of painter state.
+  qt_renderer_rep parent (&painter, 1.0, 64, 32);
+  parent.image_preview= &preview;
+  ren.image_preview= nullptr;
+  ren.master= &parent;
+  box clipped= clip_box (path (0), selected, 0, 0, 4 * PIXEL, 8 * PIXEL);
+  ren.set_origin (36 * PIXEL, -11 * PIXEL);
+  ren.set_clipping (-36 * PIXEL, -21 * PIXEL, 28 * PIXEL, 11 * PIXEL);
+  renderer active= &ren;
+  clipped->pre_display (active);
+  selected->display (active);
+  clipped->post_display (active);
+  QCOMPARE (canvas.pixelColor (37, 6), QColor (Qt::red));
+  QCOMPARE (canvas.pixelColor (41, 6), background);
+  QCOMPARE (canvas.pixelColor (37, 14), background);
+  QCOMPARE (captured->get_width (), 8);
+  QCOMPARE (selected->w (), SI (8 * PIXEL));
+  QCOMPARE (selected->h (), SI (8 * PIXEL));
+
+  // Clearing the repaint-local override restores normal image painting.
+  parent.image_preview= nullptr;
+  ren.master= nullptr;
+  painter.fillRect (canvas.rect (), background);
+  ren.set_origin (4 * PIXEL, -11 * PIXEL);
+  selected->display (&ren);
+  painter.end ();
+  QCOMPARE (canvas.pixelColor (5, 5), QColor (Qt::red));
+  QCOMPARE (canvas.pixelColor (9, 6), background);
+}
 
 void
 TestQTMRenderService::rendersDisplayListOffTheProducerThread () {

@@ -127,6 +127,15 @@ edit_interface_rep::draw_text (renderer ren, rectangles& l) {
   bool tp_found= false;
   tree bg= effective_document_background (get_init_value (BG_COLOR));
   ren->set_background (bg);
+  image_box_preview preview {image_resize_box.operator-> (), image_resize_picture,
+                            image_resize_width, image_resize_height,
+                            image_resize_alpha};
+  struct RestoreImage {
+    renderer ren;
+    const image_box_preview* previous;
+    ~RestoreImage () { ren->image_preview= previous; }
+  } restore {ren, ren->image_preview};
+  if (image_resize_active) ren->image_preview= &preview;
   eb->redraw (ren, eb->find_box_path (tp, tp_found), l);
 }
 
@@ -212,8 +221,8 @@ edit_interface_rep::draw_image_resize_handles (renderer ren, rectangle r) {
   path p;
   rectangle img_r;
   if (image_resize_active) {
-    p= image_resize_path;
-    if (!image_bounds (p, img_r)) return;
+    img_r= rectangle (image_resize_x1, image_resize_y2-image_resize_height,
+                      image_resize_x1+image_resize_width, image_resize_y2);
   }
   else if (!selected_image_path (p) || !image_bounds (p, img_r)) return;
 
@@ -244,7 +253,7 @@ edit_interface_rep::draw_selection (renderer ren, rectangle r) {
     ren->set_pencil (pencil (rgb_color (220, 0, 0), 2 * ren->pixel));
     draw_spell_underlines (ren, spell_selection_rects[i] & visible);
   }
-  if (!is_nil (selection_rects)) {
+  if (!image_resize_active && !is_nil (selection_rects)) {
     color col= gui_selection_color;
     // if (table_selection) col= get_env_color (TABLE_SELECTION_COLOR);
     ren->set_pencil (pencil (col, ren->pixel));

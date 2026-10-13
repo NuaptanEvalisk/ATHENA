@@ -386,6 +386,12 @@ public:
     return overlay_wheel_capture_.load (std::memory_order_acquire);
   }
   bool wheel_capture () const noexcept;
+  void set_image_resize_active (bool active) noexcept {
+    image_resize_active_.store (active, std::memory_order_release);
+  }
+  bool image_resize_active () const noexcept {
+    return image_resize_active_.load (std::memory_order_acquire);
+  }
   void set_zoom_factor (double zoom) noexcept;
   double zoom_factor () const noexcept;
   void mark_programmatic_scroll_applied (std::uint64_t generation) noexcept;
@@ -485,6 +491,7 @@ private:
   mutable std::mutex native_drawing_properties_lock_;
   native_drawing_properties_snapshot native_drawing_properties_;
   std::atomic<bool> wheel_capture_ {false};
+  std::atomic<bool> image_resize_active_ {false};
   std::atomic<bool> overlay_wheel_capture_ {false};
   std::atomic<std::uint64_t> zoom_factor_bits_ {0};
   std::atomic<std::uint64_t> applied_programmatic_scroll_generation_ {0};

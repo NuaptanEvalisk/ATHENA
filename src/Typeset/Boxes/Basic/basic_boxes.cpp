@@ -194,7 +194,27 @@ image_box_rep::image_box_rep (path ip, scalable im2, int alpha2):
 
 void
 image_box_rep::display (renderer ren) {
+  for (renderer r= ren; r != nullptr; r= r->master) {
+    const image_box_preview* preview= r->image_preview;
+    if (preview != nullptr && preview->box == this) {
+      ren->draw_picture_scaled (preview->raster, x1, y2-preview->height,
+                                preview->width, preview->height, preview->alpha);
+      return;
+    }
+  }
   ren->draw_scalable (im, 0, 0, alpha);
+}
+
+bool
+get_image_box_picture (box b, picture& pict, int& alpha) {
+  if (is_nil (b)) return false;
+  auto* image= dynamic_cast<image_box_rep*> (b.operator-> ());
+  if (image == nullptr) return false;
+  picture captured= image->im->get_picture ();
+  if (is_nil (captured)) return false;
+  pict= captured;
+  alpha= image->alpha;
+  return true;
 }
 
 /******************************************************************************

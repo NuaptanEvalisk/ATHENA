@@ -1261,6 +1261,16 @@ buffer_actor::dispatch (actor_command_record& command) {
       editor->handle_user_scroll (static_cast<time_t> (command.argument[0]));
     break;
   case actor_command_kind::mouse:
+  {
+    struct CompleteResizeMotion {
+      editor_rep* editor;
+      bool notify;
+      ~CompleteResizeMotion () {
+        if (notify && editor != nullptr && editor->ui_endpoint != nullptr)
+          editor->ui_endpoint->publish (
+            actor_command_kind::ui_image_resize_motion_complete);
+      }
+    } complete {editor, command.argument[5] != 0};
     if (editor != nullptr) {
       string kind= actor_text_registry::instance ().take (command.payload0);
       owned_actor_blob payload=
@@ -1282,6 +1292,7 @@ buffer_actor::dispatch (actor_command_record& command) {
       (void) actor_blob_registry::instance ().discard (command.payload1);
     }
     break;
+  }
   case actor_command_kind::set_native_drawing_tool:
     if (editor != nullptr)
       editor->set_native_drawing_tool (

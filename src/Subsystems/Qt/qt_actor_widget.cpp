@@ -295,12 +295,14 @@ qt_actor_widget_rep::handle_notify_resize (SI width, SI height) {
 
 void
 qt_actor_widget_rep::handle_keypress (string key, time_t time) {
+  pending_resize_motion_.reset ();
   submit_text (actor_command_kind::key_press, std::move (key),
                static_cast<std::uint64_t> (time));
 }
 
 void
 qt_actor_widget_rep::handle_text_input (string text, time_t time) {
+  pending_resize_motion_.reset ();
   if (completion_popup_) completion_popup_->cancel ();
   submit_text (actor_command_kind::text_input, std::move (text),
                static_cast<std::uint64_t> (time));
@@ -308,6 +310,7 @@ qt_actor_widget_rep::handle_text_input (string text, time_t time) {
 
 void
 qt_actor_widget_rep::handle_keyboard_focus (bool focused, time_t time) {
+  pending_resize_motion_.reset ();
   if (!focused && completion_popup_) completion_popup_->cancel ();
   refresh_viewport ();
   (void) buffer_actor::submit_to (
@@ -325,6 +328,7 @@ qt_actor_widget_rep::handle_cursor_blink (bool visible) {
 
 void
 qt_actor_widget_rep::handle_user_scroll (time_t time) {
+  flush_resize_motion ();
   if (completion_popup_) completion_popup_->cancel ();
   endpoint_->mark_user_scroll ();
   refresh_viewport ();
@@ -338,6 +342,31 @@ qt_actor_widget_rep::handle_user_scroll (time_t time) {
 void
 qt_actor_widget_rep::handle_mouse (
   string kind, SI x, SI y, int modifiers, time_t time, array<double> data) {
+  if (kind == "move" && (modifiers & 1) && endpoint_->image_resize_active ()) {
+    pending_resize_motion_= resize_motion {x, y, modifiers, time, std::move (data)};
+    if (resize_motions_in_flight_ == 0) flush_resize_motion ();
+    return;
+  }
+  // Release carries the final coordinates. Other events are ordering barriers.
+  if (kind == "release-left") pending_resize_motion_.reset ();
+  else flush_resize_motion ();
+  (void) submit_mouse (std::move (kind), x, y, modifiers, time, std::move (data));
+}
+
+void
+qt_actor_widget_rep::flush_resize_motion () {
+  if (!pending_resize_motion_) return;
+  auto motion= std::move (*pending_resize_motion_);
+  pending_resize_motion_.reset ();
+  if (submit_mouse ("move", motion.x, motion.y, motion.modifiers,
+                    motion.time, std::move (motion.data), true))
+    ++resize_motions_in_flight_;
+}
+
+bool
+qt_actor_widget_rep::submit_mouse (
+  string kind, SI x, SI y, int modifiers, time_t time, array<double> data,
+  bool resize_motion) {
   const bool preview= starts (kind, "touch-") || starts (kind, "peek-") ||
     (kind == "move" && !(modifiers & 31));
   athena_blob_id kind_payload= actor_text_from_string (std::move (kind));
@@ -355,8 +384,9 @@ qt_actor_widget_rep::handle_mouse (
     static_cast<std::uint64_t> (x), static_cast<std::uint64_t> (y),
     static_cast<std::uint64_t> (modifiers),
     static_cast<std::uint64_t> (time),
-    static_cast<std::uint64_t> (N (data)), 0, 0, 0);
+    static_cast<std::uint64_t> (N (data)), resize_motion ? 1 : 0, 0, 0);
   discard_unsubmitted (kind_payload, data_payload, ticket);
+  return static_cast<bool> (ticket);
 }
 
 bool
@@ -889,6 +919,10 @@ qt_actor_widget_rep::drain_external_effects () {
     }
     case actor_command_kind::ui_mouse_grab:
       ::send_mouse_grab (widget (this), record.argument[0] != 0);
+      break;
+    case actor_command_kind::ui_image_resize_motion_complete:
+      if (resize_motions_in_flight_ != 0) --resize_motions_in_flight_;
+      if (resize_motions_in_flight_ == 0) flush_resize_motion ();
       break;
     case actor_command_kind::ui_native_drawing_focus_refresh: {
       tm_view view= concrete_runtime_view (view_id_);

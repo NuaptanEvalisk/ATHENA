@@ -15,6 +15,7 @@
 #include "actor_ui_bridge.hpp"
 #include "qt_simple_widget.hpp"
 #include <QPointer>
+#include <optional>
 
 class QTMCompletionPopup;
 class QMenu;
@@ -103,6 +104,17 @@ private:
   actor_ui_endpoint* const endpoint_;
   QPointer<QMenu> popup_menu_;
   QPointer<QTMCompletionPopup> completion_popup_;
+  struct resize_motion {
+    SI x, y;
+    int modifiers;
+    time_t time;
+    array<double> data;
+  };
+  std::optional<resize_motion> pending_resize_motion_;
+  unsigned resize_motions_in_flight_= 0;
+  bool submit_mouse (string kind, SI x, SI y, int modifiers, time_t time,
+                     array<double> data, bool resize_motion= false);
+  void flush_resize_motion ();
 
   void submit_text (actor_command_kind kind, string text,
                     std::uint64_t argument0= 0);

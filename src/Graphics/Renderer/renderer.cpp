@@ -584,6 +584,11 @@ renderer_rep::shadow (picture& pic, SI x1, SI y1, SI x2, SI y2) {
   y2= min (y1, y2);
   pic= native_picture (x2-x1, y1-y2, x0 - x1, (y1 - y2 - 1) - (y0 - y2));
   renderer ren= picture_renderer (pic, zoomf);
+  for (renderer r= this; r != nullptr; r= r->master)
+    if (r->image_preview != nullptr) {
+      ren->image_preview= r->image_preview;
+      break;
+    }
 
   ren->ox = ox;
   ren->oy = oy;

@@ -93,6 +93,11 @@ protected:
   SI            image_resize_x1, image_resize_y1;
   SI            image_resize_x2, image_resize_y2;
   rectangles    image_resize_rects;
+  box           image_resize_box;
+  picture       image_resize_picture;
+  int           image_resize_alpha= 255;
+  SI            image_resize_width= 0, image_resize_height= 0;
+  string        image_resize_value;
   bool          table_resize_active;
   int           table_resize_handle;
   path          table_resize_format_path;
@@ -288,7 +293,7 @@ public:
   int  image_resize_handle_at (SI x, SI y, rectangle& r, path& p);
   bool image_resize_start (SI x, SI y);
   bool image_resize_update (SI x, SI y);
-  void image_resize_finish ();
+  void image_resize_finish (bool commit= false);
   void draw_image_resize_handles (renderer ren, rectangle r);
   bool table_cell_bounds (path fp, int row, int column, rectangle& r);
   int  table_resize_handle_at (SI x, SI y, path& fp, int& row,

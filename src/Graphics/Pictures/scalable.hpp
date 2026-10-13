@@ -13,6 +13,7 @@
 #define SCALABLE_H
 #include "url.hpp"
 #include "rectangles.hpp"
+#include "picture.hpp"
 
 class renderer_rep;
 typedef renderer_rep* renderer;
@@ -40,6 +41,8 @@ public:
   virtual void* get_handle () = 0;
   virtual url get_name ();
   virtual tree get_effect ();
+  // Raster at the current display resolution, independent of a preview size.
+  virtual picture get_picture ();
 
   virtual rectangle get_logical_extents () = 0;
   virtual rectangle get_physical_extents () = 0;

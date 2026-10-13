@@ -142,19 +142,41 @@ edit_interface_rep::image_resize_handle_at (SI x, SI y,
 
 bool
 edit_interface_rep::image_resize_start (SI x, SI y) {
+  if (image_resize_active) return true;
   if (inside_graphics ()) return false;
   rectangle r;
   path p;
   int handle= image_resize_handle_at (x, y, r, p);
   if (handle == IMAGE_RESIZE_NONE) return false;
 
+  const path source= reverse (p);
+  auto find_image= [&] (auto&& self, box b, SI ox, SI oy) -> box {
+    if (b->ip == source &&
+        get_image_box_picture (b, image_resize_picture, image_resize_alpha)) {
+      // Selection rectangles may be clipped; the raster describes the full box.
+      r= rectangle (ox+b->x1, oy+b->y1, ox+b->x2, oy+b->y2);
+      return b;
+    }
+    for (int i=0; i<N(b); ++i) {
+      box found= self (self, b[i], ox+b->sx(i), oy+b->sy(i));
+      if (!is_nil (found)) return found;
+    }
+    return box ();
+  };
+  image_resize_box= find_image (find_image, eb, 0, 0);
+  if (is_nil (image_resize_box)) return false;
+
   image_resize_active= true;
+  if (ui_endpoint) ui_endpoint->set_image_resize_active (true);
   image_resize_handle= handle;
   image_resize_path  = p;
   image_resize_start_x= x;
   image_resize_start_y= y;
   image_resize_x1= r->x1; image_resize_y1= r->y1;
   image_resize_x2= r->x2; image_resize_y2= r->y2;
+  image_resize_width= r->x2 - r->x1;
+  image_resize_height= r->y2 - r->y1;
+  image_resize_value= "";
   image_resize_rects= image_resize_handles (r);
   (void) publish_ui (actor_command_kind::ui_mouse_grab, 1);
   return true;
@@ -169,22 +191,18 @@ edit_interface_rep::image_resize_update (SI x, SI y) {
     return true;
   }
 
-  if (!is_nil (image_resize_rects)) invalidate (image_resize_rects);
-
   SI min_w= max (as_length ("8px"), (SI) 1);
   SI max_w= max (as_length ("4096px"), min_w);
   SI old_w= max (abs_si (image_resize_x2 - image_resize_x1), (SI) 1);
   SI old_h= max (abs_si (image_resize_y2 - image_resize_y1), (SI) 1);
-  SI left = min (image_resize_x1, image_resize_x2);
-  SI top  = max (image_resize_y1, image_resize_y2);
   SI new_w= old_w;
   SI new_h= old_h;
   if (image_resize_handle == IMAGE_RESIZE_RIGHT ||
       image_resize_handle == IMAGE_RESIZE_CORNER)
-    new_w= max (abs_si (x - left), min_w);
+    new_w= max (old_w + x - image_resize_start_x, min_w);
   if (image_resize_handle == IMAGE_RESIZE_BOTTOM ||
       image_resize_handle == IMAGE_RESIZE_CORNER)
-    new_h= max (abs_si (top - y), min_w);
+    new_h= max (old_h + image_resize_start_y - y, min_w);
 
   double sx= ((double) new_w) / ((double) old_w);
   double sy= ((double) new_h) / ((double) old_h);
@@ -201,25 +219,51 @@ edit_interface_rep::image_resize_update (SI x, SI y) {
   int width_px= (int) max ((SI) 1, (SI) tm_round (((double) final_w) /
                                                    ((double) px_len)));
   string width= as_string (width_px) * "px";
+  if (image_resize_value == width ||
+      (image_resize_value == "" && x == image_resize_start_x &&
+       y == image_resize_start_y)) return true;
 
-  tree t= subtree (et, p);
-  tree nt= tree (IMAGE, copy (t[0]), tree (width), tree (""),
-                 copy (t[3]), copy (t[4]));
-  assign (p, nt);
-  set_selection (start (et, p), end (et, p));
-
-  rectangle r;
-  if (image_bounds (p, r)) image_resize_rects= image_resize_handles (r);
-  else image_resize_rects= rectangles ();
+  invalidate (thicken (rectangle (image_resize_x1,
+    image_resize_y2 - image_resize_height,
+    image_resize_x1 + image_resize_width, image_resize_y2), 8*pixel, 8*pixel));
+  image_resize_value= width;
+  image_resize_width= width_px * px_len;
+  image_resize_height= (SI) tm_round (double (old_h) * image_resize_width / old_w);
+  rectangle r (image_resize_x1, image_resize_y2 - image_resize_height,
+               image_resize_x1 + image_resize_width, image_resize_y2);
+  invalidate (thicken (r, 8*pixel, 8*pixel));
+  image_resize_rects= image_resize_handles (r);
   if (!is_nil (image_resize_rects)) invalidate (image_resize_rects);
-  notify_change (THE_SELECTION + THE_DECORATIONS);
+  notify_change (THE_DECORATIONS);
   return true;
 }
 
 void
-edit_interface_rep::image_resize_finish () {
+edit_interface_rep::image_resize_finish (bool commit) {
   if (!image_resize_active) return;
+  invalidate (thicken (rectangle (image_resize_x1,
+    image_resize_y2 - max (image_resize_height, image_resize_y2-image_resize_y1),
+    image_resize_x1 + max (image_resize_width, image_resize_x2-image_resize_x1),
+    image_resize_y2), 8*pixel, 8*pixel));
   image_resize_active= false;
+  if (ui_endpoint) ui_endpoint->set_image_resize_active (false);
+  path p= image_resize_path;
+  if (commit && image_resize_value != "" && rp <= p &&
+      has_subtree (et, p) && is_image_tree (subtree (et, p))) {
+    // Keep the image, its embedded data and metadata; resize is one edit.
+    if (subtree (et, p)[1] != image_resize_value)
+      assign (p * 1, image_resize_value);
+    if (subtree (et, p)[2] != "") {
+      const double px_len= max (double (as_length ("1px")) * zoomf, 1.0);
+      const string height= as_string (max (1, (int) tm_round (
+        image_resize_height / px_len))) * "px";
+      if (subtree (et, p)[2] != height) assign (p * 2, height);
+    }
+    set_selection (start (et, p), end (et, p));
+  }
+  image_resize_box= box ();
+  image_resize_picture= picture ();
+  image_resize_value= "";
   image_resize_handle= IMAGE_RESIZE_NONE;
   if (!is_nil (image_resize_rects)) invalidate (image_resize_rects);
   image_resize_rects= rectangles ();
@@ -1062,7 +1106,7 @@ edit_interface_rep::mouse_any (string type, SI x, SI y, int mods, time_t t,
   if ((type == "release-left" || type == "end-drag-left")) {
     if (image_resize_active) {
       image_resize_update (x, y);
-      image_resize_finish ();
+      image_resize_finish (true);
       return;
     }
     if (table_resize_active) {
