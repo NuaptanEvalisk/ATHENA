@@ -65,8 +65,10 @@ bridge_rewrite_rep::notify_assign (path p, tree u) {
 
 bool
 bridge_rewrite_rep::notify_macro (int tp, string v, int l, path p, tree u) {
-  (void) tp; (void) p; (void) u;
   bool flag= env->depends (st, v, l);
+  // An unchanged rewrite may still contain ARG references to edited input.
+  if (!is_nil (body))
+    flag= body->notify_macro (tp, v, l, p, u) || flag;
   if (flag) status= CORRUPTED;
   return flag;
 }
@@ -74,6 +76,7 @@ bridge_rewrite_rep::notify_macro (int tp, string v, int l, path p, tree u) {
 void
 bridge_rewrite_rep::notify_change () {
   status= CORRUPTED;
+  if (!is_nil (body)) body->notify_change ();
 }
 
 /******************************************************************************

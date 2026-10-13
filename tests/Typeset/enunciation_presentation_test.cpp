@@ -116,6 +116,34 @@ bool has_link_target (box b, const AthenaArtifactRecord& record) {
 class EnunciationPresentationTest: public QObject {
   Q_OBJECT
 private slots:
+  void hybridInputRefreshesReferencedText () {
+    Environment context;
+    tree document (DOCUMENT, tree (INACTIVE, tree (HYBRID, "")));
+    typesetter ts= new_typesetter (context.env, document, path (0));
+    ts->screen_tree= true;
+    struct Delete { typesetter ts; ~Delete () { delete_typesetter (ts); } } cleanup {ts};
+    SI x1= 0, y1= 0, x2= 0, y2= 0;
+    auto render= [&] { return typeset (ts, x1, y1, x2, y2); };
+    render ();
+    notify_insert (ts, path (0, 0, 0, 0), tree ("the"));
+    QCOMPARE (ts->br->st[0][0][0], tree ("the"));
+    QVERIFY (occurs ("the", visible_text (render ())));
+    notify_insert (ts, path (0, 0, 0, 3), tree ("orem"));
+    box typed= render ();
+    QVERIFY (occurs ("theorem", visible_text (typed)));
+    bool found= false;
+    path position (0, 0, 0, path (0, 7));
+    path cursor= typed->find_box_path (position, found);
+    QVERIFY (found);
+    QCOMPARE (typed->find_tree_path (cursor), position);
+    notify_remove (ts, path (0, 0, 0, 3), 4);
+    box erased= render ();
+    QVERIFY (occurs ("the", visible_text (erased)));
+    QVERIFY (!occurs ("theorem", visible_text (erased)));
+    notify_remove (ts, path (0, 0, 0, 0), 3);
+    QVERIFY (!occurs ("the", visible_text (render ())));
+  }
+
   void executionAndCursorEnvironment () {
     Environment context;
     edit_env env= context.env;
