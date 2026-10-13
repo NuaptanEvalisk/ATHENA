@@ -9,6 +9,8 @@
 ******************************************************************************/
 #include "node_reference_export.hpp"
 #include "node_metadata.hpp"
+#include "Boxes/construct.hpp"
+#include "analyze.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
 #include <QCryptographicHash>
 #include <mutex>
@@ -16,6 +18,35 @@
 #include <tuple>
 
 namespace athena::node_reference {
+namespace {
+thread_local unsigned destination_scopes= 0;
+string node_destination (const std::string& id) {
+  return "athena-node-" * string (id.data (), int (id.size ()));
+}
+}
+export_node_destination_scope::export_node_destination_scope () { ++destination_scopes; }
+export_node_destination_scope::~export_node_destination_scope () { --destination_scopes; }
+bool export_node_destinations_active () { return destination_scopes != 0; }
+string export_node_destination (const tree& source) {
+  if (!export_node_destinations_active ()) return "";
+  const auto id= node::id (source);
+  return id.empty () ? string () : node_destination (id);
+}
+box decorate_export_node (const tree& source, box body) {
+  const auto destination= export_node_destination (source);
+  if (destination == "" || is_nil (body)) return body;
+  return locus_box (body->ip, body, list<string> (), PIXEL, "", destination, true);
+}
+string export_node_link (string target, hashmap<string,tree> destinations) {
+  const auto id= target_id (target);
+  if (id.empty ()) {
+    if (starts (target, "tmfs://")) return "";
+    return target;
+  }
+  const auto destination= node_destination (id);
+  return destinations->contains (destination) ? "#" * destination : string ();
+}
+
 std::string export_source_revision (const tree& source) {
   const auto xml= document::write_xml_v2 (source, document::xml_kind::fragment);
   return QCryptographicHash::hash (QByteArrayView (xml.data (), xml.size ()),

@@ -17,6 +17,8 @@
 #include "Format/line_item.hpp"
 #include "Boxes/construct.hpp"
 #include "font_selection.hpp"
+#include <utility>
+#include <vector>
 
 #define MODE_JUSTIFY   0
 #define MODE_LEFT      1
@@ -26,6 +28,7 @@
 class concater_rep {
   edit_env              env;        // the environment
   array<line_item>      a;          // the line items
+  std::vector<std::pair<line_item, tree>> export_items;
   bool                  rigid;      // when surely not wrappable
   std::shared_ptr<athena::text::font_paragraph> text_paragraph;
 
@@ -187,6 +190,8 @@ class concater_rep {
   void handle_matching (int start, int end);
   void handle_brackets ();
   void kill_spaces ();
+  void typeset_impl (tree t, path ip);
+  void finish_export_destinations ();
 
 public:
   concater_rep (edit_env env, bool rigid= false);

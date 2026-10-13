@@ -9,6 +9,7 @@
 #include "ATHENA/Data/artifact_radioactive_links.hpp"
 
 #include "ATHENA/Data/artifact_title_filter.hpp"
+#include "ATHENA/Data/node_reference_export.hpp"
 #include "ATHENA/Data/vault.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "analyze.hpp"
@@ -1189,11 +1190,12 @@ suppress_definitions (const tree& value) {
   // Semantic properties (notably canonical enunciation kind/name/numbering)
   // are required by the renderer.  Rebuilding the tree without metadata turns
   // a valid enunciation into "Malformed enunciation".  This is a presentation
-  // copy, though, so never propagate persistent source identity or producer
-  // bindings even if the caller supplied an identified tree.
+  // copy: only a detached print layout retains source identity for destination
+  // placement. Producer bindings never belong to the rendered copy.
   if (const auto* metadata= athena::node::get (value)) {
     auto presented= *metadata;
-    presented.id.clear ();
+    if (!athena::node_reference::export_node_destinations_active ())
+      presented.id.clear ();
     presented.properties.erase ("athena:artifact-bindings");
     athena::node::set (result, presented);
   }

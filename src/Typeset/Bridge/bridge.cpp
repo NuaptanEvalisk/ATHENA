@@ -14,6 +14,7 @@
 #include "Boxes/construct.hpp"
 #include "scheme.hpp"
 #include "new_document.hpp"
+#include "ATHENA/Data/node_reference_export.hpp"
 
 static box
 apply_block_backgrounds (path ip, box b, array<brush> bg) {
@@ -454,15 +455,32 @@ bridge_rep::typeset (int desired_status) {
   }
   //cout << UNINDENT << "Typesetted " << st << ", " << desired_status << LF;
 
+  array<page_item> output= l;
+  if (athena::node_reference::export_node_destinations_active () &&
+      athena::node_reference::export_node_destination (st) != "") {
+    for (int i= 0; i < N(l); ++i)
+      // Controls contribute empty boxes to PAGE_LINE_ITEM paragraphs too.
+      // Their ink bounds are empty even when the line has font height.
+      if (l[i]->type == PAGE_LINE_ITEM &&
+          l[i]->b->x3 < l[i]->b->x4 && l[i]->b->y3 < l[i]->b->y4) {
+        output= array<page_item> (N(l));
+        for (int j= 0; j < N(l); ++j) output[j]= l[j];
+        output[i]= copy (l[i]);
+        output[i]->b= athena::node_reference::decorate_export_node (
+          st, output[i]->b);
+        break;
+      }
+  }
+
   // ttt->insert_stack (l, sb);
   //if (N(l) == 0); else
-  if (ttt->paper || (N(l) <= 1)) ttt->insert_stack (l, sb);
+  if (ttt->paper || (N(output) <= 1)) ttt->insert_stack (output, sb);
   else {
     bool flag= false;
-    int i, n= N(l);
+    int i, n= N(output);
     for (i=0; i<n; i++)
-      flag= flag || (N (l[i]->fl) != 0) || (l[i]->nr_cols > 1);
-    if (flag) ttt->insert_stack (l, sb);
+      flag= flag || (N (output[i]->fl) != 0) || (output[i]->nr_cols > 1);
+    if (flag) ttt->insert_stack (output, sb);
     else {
       int first=-1, last=-1;
       array<box> bs;
@@ -470,24 +488,24 @@ bridge_rep::typeset (int desired_status) {
       array<brush> bg;
       array<page_item> special_l;
       for (i=0; i<n; i++)
-	if (l[i]->type != PAGE_CONTROL_ITEM) {
-	  if (first == -1 && l[i]->type == PAGE_LINE_ITEM) first= N(bs);
-	  bs  << l[i]->b;
-	  spc << l[i]->spc->def;
-	  bg  << l[i]->block_bg;
+	if (output[i]->type != PAGE_CONTROL_ITEM) {
+	  if (first == -1 && output[i]->type == PAGE_LINE_ITEM) first= N(bs);
+	  bs  << output[i]->b;
+	  spc << output[i]->spc->def;
+	  bg  << output[i]->block_bg;
 	  last= i;
 	}
-        else if (is_tuple (l[i]->t, "env_page") &&
-                 (l[i]->t[1] == PAGE_THIS_TOP ||
-                  l[i]->t[1] == PAGE_THIS_BOT ||
-                  l[i]->t[1] == PAGE_THIS_BG_COLOR))
-          special_l << l[i];
+        else if (is_tuple (output[i]->t, "env_page") &&
+                 (output[i]->t[1] == PAGE_THIS_TOP ||
+                  output[i]->t[1] == PAGE_THIS_BOT ||
+                  output[i]->t[1] == PAGE_THIS_BG_COLOR))
+          special_l << output[i];
       box lb= stack_box (path (ip), bs, spc);
       lb= apply_block_backgrounds (path (ip), lb, bg);
       if (first != -1) lb= move_box (path (ip), lb, 0, bs[first]->y2);
       array<page_item> new_l (1);
       new_l[0]= page_item (lb);
-      new_l[0]->spc= l[last]->spc;
+      new_l[0]->spc= output[last]->spc;
       new_l << special_l;
       ttt->insert_stack (new_l, sb);
     }

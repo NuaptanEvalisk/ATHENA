@@ -12,6 +12,7 @@
 #include <map>
 #include <optional>
 #include <set>
+#include "boxes.hpp"
 
 class editor_rep;
 // Called on an owner actor; completion may run on that actor or the GUI.
@@ -19,6 +20,20 @@ void athena_node_reference_with_native_export (
   std::function<void(editor_rep&)>, std::function<void(std::string)>);
 
 namespace athena::node_reference {
+// Detached print layouts expose source identities as destinations, without
+// adding labels or changing metadata in the editable document.
+class export_node_destination_scope {
+public:
+  export_node_destination_scope ();
+  ~export_node_destination_scope ();
+  export_node_destination_scope (const export_node_destination_scope&)= delete;
+  export_node_destination_scope& operator = (const export_node_destination_scope&)= delete;
+};
+bool export_node_destinations_active ();
+string export_node_destination (const tree&);
+box decorate_export_node (const tree&, box);
+string export_node_link (string target, hashmap<string,tree> destinations);
+
 struct selection {
   std::vector<std::string> ids, ancestry;
   bool operator < (const selection&) const;

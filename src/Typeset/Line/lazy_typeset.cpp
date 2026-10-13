@@ -21,6 +21,7 @@
 #include "radioactive_link_scope.hpp"
 #include "scheme.hpp"
 #include "tree_label.hpp"
+#include "ATHENA/Data/node_reference_export.hpp"
 
 array<line_item> typeset_marker (edit_env env, path ip);
 array<line_item> typeset_concat (edit_env, tree t, path ip);
@@ -731,8 +732,8 @@ static tree var_inactive_m
   (MACRO, "x",
    tree (REWRITE_INACTIVE, tree (ARG, "x", "0"), "recurse*"));
 
-lazy
-make_lazy (edit_env env, tree t, path ip) {
+static lazy
+make_lazy_impl (edit_env env, tree t, path ip) {
   /*
   if (is_accessible (ip)) {
     if (obtain_ip (t) != ip)
@@ -815,6 +816,44 @@ make_lazy (edit_env env, tree t, path ip) {
     if (L(t) < START_EXTENSIONS) return make_lazy_paragraph (env, t, ip);
     else return make_lazy_compound (env, t, ip);
   }
+}
+
+struct lazy_export_node_rep: public lazy_surround_rep {
+  tree source;
+
+  lazy_export_node_rep (tree source2, lazy body, path ip):
+    lazy_surround_rep (array<line_item> (), array<line_item> (), body, ip),
+    source (source2) {}
+
+  lazy produce (lazy_type request, format fm) override {
+    lazy result= lazy_surround_rep::produce (request, fm);
+    if (request != LAZY_VSTREAM ||
+        athena::node_reference::export_node_destination (source) == "")
+      return result;
+    lazy_vstream stream= (lazy_vstream) result;
+    for (int i= 0; i < N(stream->l); ++i)
+      if (stream->l[i]->type == PAGE_LINE_ITEM &&
+          stream->l[i]->b->x3 < stream->l[i]->b->x4 &&
+          stream->l[i]->b->y3 < stream->l[i]->b->y4) {
+        array<page_item> lines (N(stream->l));
+        for (int j= 0; j < N(lines); ++j) lines[j]= stream->l[j];
+        lines[i]= copy (lines[i]);
+        lines[i]->b= athena::node_reference::decorate_export_node (
+          source, lines[i]->b);
+        return lazy_vstream (ip, stream->channel, lines, stream->sb);
+      }
+    return result;
+  }
+};
+
+lazy
+make_lazy (edit_env env, tree t, path ip) {
+  lazy result= make_lazy_impl (env, t, ip);
+  if (!athena::node_reference::export_node_destinations_active () ||
+      athena::node_reference::export_node_destination (t) == "" ||
+      result->type == LAZY_PARAGRAPH || result->type == LAZY_HIDDEN)
+    return result;
+  return tm_new<lazy_export_node_rep> (t, result, ip);
 }
 
 /*

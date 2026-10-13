@@ -15,6 +15,7 @@
 #include "concater.hpp"
 #include "scheme.hpp"
 #include "Boxes/utf8_line.hpp"
+#include "ATHENA/Data/node_reference_export.hpp"
 
 /******************************************************************************
 
@@ -150,6 +151,46 @@ concater_rep::with_limits (int status) {
 
 void
 concater_rep::typeset (tree t, path ip) {
+  if (!athena::node_reference::export_node_destinations_active ()) {
+    typeset_impl (t, ip);
+    return;
+  }
+  const int first= N(a);
+  typeset_impl (t, ip);
+  if (athena::node_reference::export_node_destination (t) == "") return;
+  for (int i= first; i < N(a); ++i) {
+    if (a[i]->type == CONTROL_ITEM || a[i]->type == MARKER_ITEM ||
+        a[i]->type == OBSOLETE_ITEM) continue;
+    if (a[i]->type == STD_ITEM && env->mode != 2 &&
+        is_utf8_inline_box (a[i]->b)) {
+      export_items.emplace_back (a[i], t);
+    }
+    else {
+      // Legacy hyphenation rebuilds STRING_ITEM boxes and math gluing inspects
+      // box types. Keep their boxes intact and attach a nonbreaking marker.
+      box anchor= athena::node_reference::decorate_export_node (
+        t, empty_box (decorate (ip), 0, 0, 0, 0));
+      array<line_item> items;
+      for (int j= 0; j < i; ++j) items << a[j];
+      items << line_item (MARKER_ITEM, OP_SKIP, anchor, HYPH_INVALID);
+      for (int j= i; j < N(a); ++j) items << a[j];
+      a= items;
+    }
+    break;
+  }
+}
+
+void
+concater_rep::finish_export_destinations () {
+  // Loci are transparent to Unicode shaping, but not to italic correction.
+  // Attach them after finish(), before the paragraph shaper consumes the items.
+  for (auto& item: export_items)
+    item.first->b= athena::node_reference::decorate_export_node (
+      item.second, item.first->b);
+}
+
+void
+concater_rep::typeset_impl (tree t, path ip) {
   // cout << "Typeset " << t << "\n";
   // cout << "Typeset " << t << ", " << ip << ", " << obtain_ip (t) << "\n";
 
@@ -883,6 +924,7 @@ typeset_concat (edit_env env, tree t, path ip) {
   concater ccc= tm_new<concater_rep> (env);
   ccc->typeset (t, ip);
   ccc->finish ();
+  ccc->finish_export_destinations ();
   array<line_item> a= ccc->a;
   prepare_utf8_paragraph (ip, a);
   tm_delete (ccc);
@@ -937,6 +979,7 @@ typeset_as_concat (edit_env env, tree t, path ip) {
   concater ccc= tm_new<concater_rep> (env, true);
   ccc->typeset (t, ip);
   ccc->finish ();
+  ccc->finish_export_destinations ();
   array<line_item> a= ccc->a;
   tm_delete (ccc);
 
@@ -948,6 +991,7 @@ typeset_as_concat (edit_env env, tree t, path ip, array<line_item>& a) {
   concater ccc= tm_new<concater_rep> (env, true);
   ccc->typeset (t, ip);
   ccc->finish ();
+  ccc->finish_export_destinations ();
   a= ccc->a;
   tm_delete (ccc);
 

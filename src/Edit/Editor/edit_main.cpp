@@ -14,6 +14,7 @@
 #include "file.hpp"
 #include "sys_utils.hpp"
 #include "printer.hpp"
+#include "Pdf/pdf_hummus_renderer.hpp"
 #include "convert.hpp"
 #include "typesetter.hpp"
 #include "drd_std.hpp"
@@ -265,6 +266,7 @@ edit_main_rep::nr_pages () {
 
 box
 edit_main_rep::layout_print_document (bool& conform, int first_page) {
+  athena::node_reference::export_node_destination_scope destinations;
   string medium = env->get_string (PAGE_MEDIUM);
   if (conform && (medium != "paper")) conform= false;
     // FIXME: better command for conform printing
@@ -334,19 +336,24 @@ edit_main_rep::print_doc (url name, bool conform, int first, int last) {
 }
 
 int
-edit_main_rep::print_doc_numbered (url name, int first_page) {
+edit_main_rep::print_doc_numbered (url name, int first_page,
+  std::function<void(string, int, double, double)> destination_observer,
+  bool defer_node_links) {
   athena::node_reference::verify_export_origin ();
   athena::node_reference::export_reference_scope references;
   bool conform= false;
   box pages= layout_print_document (conform, first_page);
   references.require_ready ();
   const int next_page= as_int (env->read (PAGE_NR)) + 1;
-  print_box (name, pages, conform, 1, N (pages[0]));
+  print_box (name, pages, conform, 1, N (pages[0]),
+             std::move (destination_observer), defer_node_links);
   return next_page;
 }
 
 void
-edit_main_rep::print_box (url name, box the_box, bool conform, int first, int last) {
+edit_main_rep::print_box (url name, box the_box, bool conform, int first, int last,
+  std::function<void(string, int, double, double)> destination_observer,
+  bool defer_node_links) {
 
   // Determine parameters for printer
 
@@ -371,6 +378,15 @@ edit_main_rep::print_box (url name, box the_box, bool conform, int first, int la
 
   // Print pages
   renderer ren= printer (name, dpi, pages, page_type, landsc, w/cm, h/cm);
+  if (!defer_node_links) {
+    hashmap<string,tree> destinations (UNINIT);
+    for (int i=start; i<end; ++i)
+      the_box[0][i]->collect_page_numbers (destinations, "?");
+    pdf_hummus_set_link_resolver (ren, [destinations] (string target) {
+      return athena::node_reference::export_node_link (target, destinations);
+    });
+  }
+  pdf_hummus_set_destination_observer (ren, std::move (destination_observer));
 
   if (ren->is_started ()) {
     int i;
@@ -430,6 +446,7 @@ array<SI>
 edit_main_rep::print_snippet (url name, tree t, bool conserve_preamble) {
   athena::node_reference::verify_export_origin ();
   athena::node_reference::export_reference_scope references;
+  athena::node_reference::export_node_destination_scope destinations_scope;
   tree buft= subtree (et, rp);
   if (conserve_preamble)
     if (is_document (buft) && is_compound (buft[0], "hide-preamble"))
@@ -456,12 +473,17 @@ edit_main_rep::print_snippet (url name, tree t, bool conserve_preamble) {
   env->update ();
 
   references.require_ready ();
+  hashmap<string,tree> destinations (UNINIT);
+  b->collect_page_numbers (destinations, "?");
+  auto resolve_link= [destinations] (string target) {
+    return athena::node_reference::export_node_link (target, destinations);
+  };
   if (b->x4 - b->x3 >= 5*PIXEL && b->y4 - b->y3 >= 5*PIXEL) {
     if (bitmap) make_raster_image (name, b, 5.0);
-    else if (ps) make_eps (name, b, dpi);
+    else if (ps) make_eps (name, b, dpi, resolve_link);
     else {
       url temp= url_temp (".pdf");
-      make_eps (temp, b, dpi);
+      make_eps (temp, b, dpi, resolve_link);
       ::remove (name);
       if (!call_scm_converter (temp, name)) {
         call_imagemagick_convert (temp, name);

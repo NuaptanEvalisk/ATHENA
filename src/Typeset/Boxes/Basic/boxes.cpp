@@ -17,6 +17,7 @@
 #include "merge_sort.hpp"
 #include "new_document.hpp"
 #include "node_metadata.hpp"
+#include "Pdf/pdf_hummus_renderer.hpp"
 
 /******************************************************************************
 * Default settings for virtual routines
@@ -888,7 +889,7 @@ attach_dip (tree ref, path dip) {
 ******************************************************************************/
 
 void
-make_eps (url name, box b, int dpi) {
+make_eps (url name, box b, int dpi, std::function<string(string)> resolve_link) {
   //cout << "Make eps " << name << ", " << dpi << ", " << ((tree) b) << "\n";
   //cout << "  Extents " << b->w() / PIXEL << ", " << b->h() / PIXEL << "\n";
   double inch= ((double) dpi * PIXEL);
@@ -898,6 +899,7 @@ make_eps (url name, box b, int dpi) {
   b->x0= -b->x3;
   b->y0= -b->y4;
   renderer ren= printer (name, dpi, 1, "user", false, w/cm, h/cm);
+  pdf_hummus_set_link_resolver (ren, std::move (resolve_link));
   ren->set_background (white);
   ren->set_pencil (black);
   rectangles rs;

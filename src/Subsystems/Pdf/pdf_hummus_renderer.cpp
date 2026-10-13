@@ -72,6 +72,9 @@ class t3font;
 class pdf_pattern;
 
 class pdf_hummus_renderer_rep : public renderer_rep {
+  friend void pdf_hummus_set_link_resolver (renderer, std::function<string(string)>);
+  friend void pdf_hummus_set_destination_observer (
+    renderer, std::function<void(string, int, double, double)>);
   EPDFVersion ePDFVersion= ePDFVersion14;
   bool shaped_actual_text= false;
   ObjectIDType bitmap_text_font= 0;
@@ -121,9 +124,12 @@ class pdf_hummus_renderer_rep : public renderer_rep {
   hashmap<string,t3font> t3font_list;
   
   // link annotation support
+  std::function<string(string)> link_resolver;
+  std::function<void(string, int, double, double)> destination_observer;
   hashmap<ObjectIDType,string> annot_list;
   hashmap<ObjectIDType,string> annot_dest_name;
-  list<dest_data> dests;
+  std::vector<dest_data> dests;
+  hashset<string> recorded_anchors;
   ObjectIDType destId;
   hashmap<string,string> direct_dest_by_name;
   hashmap<string,int> label_id;
@@ -2263,12 +2269,20 @@ pdf_hummus_renderer_rep::anchor (string label, SI x1, SI y1, SI x2, SI y2)
 {
   (void) x2; (void) y1;
   string l = prepare_text (label);
-  dests << dest_data(l, page_num, to_x(x1), to_y(y2+20*pixel));
+  if (recorded_anchors->contains (l)) return;
+  recorded_anchors->insert (l);
+  dests.emplace_back (l, page_num, to_x(x1), to_y(y2+20*pixel));
+  if (destination_observer)
+    destination_observer (label, page_num,
+      ((double) default_dpi / dpi) * to_x (x1),
+      ((double) default_dpi / dpi) * to_y (y2 + 20*pixel));
 }
 
 void
 pdf_hummus_renderer_rep::href (string label, SI x1, SI y1, SI x2, SI y2)
 {
+  if (link_resolver) label= link_resolver (label);
+  if (label == "") return;
   bool preserve= (get_locus_rendering ("locus-on-paper") == "preserve");
   ObjectIDType annotId = pdfWriter.GetObjectsContext().GetInDirectObjectsRegistry().AllocateNewObjectID();
   pdfWriter.GetDocumentContext().RegisterAnnotationReferenceForNextPageWrite(annotId);
@@ -2297,26 +2311,35 @@ pdf_hummus_renderer_rep::href (string label, SI x1, SI y1, SI x2, SI y2)
   annot_list (annotId) = dict;
 }
 
+void pdf_hummus_set_link_resolver (renderer ren, std::function<string(string)> resolver) {
+  if (auto* pdf= dynamic_cast<pdf_hummus_renderer_rep*> (ren))
+    pdf->link_resolver= std::move (resolver);
+}
+
+void pdf_hummus_set_destination_observer (
+  renderer ren, std::function<void(string, int, double, double)> observer) {
+  if (auto* pdf= dynamic_cast<pdf_hummus_renderer_rep*> (ren))
+    pdf->destination_observer= std::move (observer);
+}
+
 
 void
 pdf_hummus_renderer_rep::flush_dests()
 {
-  if (is_nil(dests)) return;
+  if (dests.empty ()) return;
 
   // flush destinations
   
   string dict;
   dict << "<<\r\n";
-  list<dest_data> it = dests;
-  while (!is_nil(it)) {
-    string label = it->item.x1;
-    int dest_page = it->item.x2;
-    int dest_x = it->item.x3;
-    int dest_y = it->item.x4;
+  for (const auto& destination: dests) {
+    string label = destination.x1;
+    int dest_page = destination.x2;
+    int dest_x = destination.x3;
+    int dest_y = destination.x4;
     {
       string pdfDest= get_pdf_dest_name (label);
       if (emitted_dest_names->contains (pdfDest)) {
-        it = it->next;
         continue;
       }
       emitted_dest_names->insert (pdfDest);
@@ -2328,7 +2351,6 @@ pdf_hummus_renderer_rep::flush_dests()
       direct_dest_by_name (pdfDest)= direct;
       dict << "\t\t" << pdfDest << " " << direct << "\r\n";
     }
-    it = it->next;
   }
   dict << ">>\r\n";
   {

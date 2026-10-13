@@ -9,6 +9,11 @@
 ******************************************************************************/
 
 #include <QApplication>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QProcess>
+#include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QtTest/QtTest>
 #include "boot.hpp"
@@ -26,6 +31,11 @@
 #include "Format/format.hpp"
 #include "ATHENA/Data/vault.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
+#include "Xml/athena_document_xml.hpp"
+#include "ATHENA/Data/node_reference_export.hpp"
+#include "Line/lazy_vstream.hpp"
+#include "Pdf/pdf_hummus_renderer.hpp"
+#include "printer.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }
@@ -33,6 +43,14 @@ bool is_headless () { return true; }
 namespace {
 namespace node= athena::node;
 namespace en= athena::enunciation;
+namespace nr= athena::node_reference;
+
+void identify (tree& t, const char* id) {
+  node::metadata metadata;
+  if (node::get (t)) metadata= *node::get (t);
+  metadata.id= id;
+  node::set (t, metadata);
+}
 
 struct Environment {
   drd_info drd {"enunciation-presentation", std_drd};
@@ -70,6 +88,7 @@ bool has_tag (const tree& t, tree_label tag) {
 }
 
 string visible_text (box b) {
+  if (b->w () == 0 && b->h () == 0) return string ();
   if (N(b) == 0) {
     tree description= (tree) b;
     return is_atomic (description) ? description->label : string ();
@@ -84,6 +103,24 @@ box lazy_box (edit_env env, tree body) {
   lazy lines= content->produce (LAZY_VSTREAM,
     make_format_vstream (env->as_length ("25em"), 0, 0));
   return (box) lines->produce (LAZY_BOX, make_format_none ());
+}
+
+box render_destination_fixture (tree t, int route) {
+  Environment context;
+  if (route == 0) return typeset_as_concat (context.env, t, path (0));
+  if (route == 1) return lazy_box (context.env, t);
+  typesetter ts= new_typesetter (context.env, t, path (0));
+  ts->screen_tree= true;
+  struct Delete { typesetter ts; ~Delete () { delete_typesetter (ts); } } cleanup {ts};
+  SI x1= 0, y1= 0, x2= 0, y2= 0;
+  return typeset (ts, x1, y1, x2, y2);
+}
+
+bool same_extents (box a, box b) {
+  return a->x1 == b->x1 && a->y1 == b->y1 &&
+         a->x2 == b->x2 && a->y2 == b->y2 &&
+         a->x3 == b->x3 && a->y3 == b->y3 &&
+         a->x4 == b->x4 && a->y4 == b->y4;
 }
 
 box text_box_containing (box b, string token) {
@@ -116,6 +153,239 @@ bool has_link_target (box b, const AthenaArtifactRecord& record) {
 class EnunciationPresentationTest: public QObject {
   Q_OBJECT
 private slots:
+  void exportDestinationsPreservePresentation () {
+    tree atom ("office affinity AV Token");
+    identify (atom, "22222222-2222-4222-8222-222222222222");
+    tree formatted (WITH, FONT_SHAPE, "italic", atom);
+    identify (formatted, "33333333-3333-4333-8333-333333333333");
+    tree paragraph (CONCAT, "Prefix ", formatted, " suffix");
+    identify (paragraph, "44444444-4444-4444-8444-444444444444");
+    tree theorem= source ("theorem", false);
+    theorem[0]= tree (DOCUMENT, paragraph);
+    identify (theorem[0], "55555555-5555-4555-8555-555555555555");
+    tree document (DOCUMENT, theorem);
+    identify (document, "66666666-6666-4666-8666-666666666666");
+    const std::string revision= nr::export_source_revision (document);
+
+    for (int route: {0, 1, 2}) {
+      // Automatic bridge pages own their "?" page number; bare boxes use
+      // the sentinel supplied to collect_page_numbers below.
+      const tree expected_page= route == 2? tree ("?"): tree ("page");
+      box screen= render_destination_fixture (document, route);
+      hashmap<string,tree> screen_pages (UNINIT), exported_pages (UNINIT);
+      screen->collect_page_numbers (screen_pages, "page");
+      box exported;
+      {
+        nr::export_node_destination_scope scope;
+        exported= render_destination_fixture (document, route);
+        exported->collect_page_numbers (exported_pages, "page");
+        for (tree target: {atom, formatted, paragraph, theorem[0], theorem, document}) {
+          string label= nr::export_node_destination (target);
+          QVERIFY (label != "");
+          QCOMPARE (screen_pages[label], tree (UNINIT));
+          QVERIFY2 (exported_pages[label] == expected_page,
+            qPrintable (QString ("route=%1 destination=%2 actual=%3").arg (route)
+              .arg (QString::fromUtf8 (as_charp (label)))
+              .arg (QString::fromUtf8 (as_charp (tree_to_scheme (exported_pages[label]))))));
+        }
+      }
+      QVERIFY (!nr::export_node_destinations_active ());
+      QCOMPARE (nr::export_node_destination (document), string ());
+      QCOMPARE (visible_text (exported), visible_text (screen));
+      QVERIFY (same_extents (screen, exported));
+      QVERIFY (nr::export_source_revision (document) == revision);
+    }
+  }
+
+  void exportDestinationsPreserveAdjacentTextShaping () {
+    tree first ("of"), second ("fice AV affinity");
+    identify (first, "22222222-2222-4222-8222-222222222222");
+    identify (second, "33333333-3333-4333-8333-333333333333");
+    tree document (DOCUMENT, tree (CONCAT, first, second));
+    for (int route: {0, 1, 2}) {
+      const tree expected_page= route == 2? tree ("?"): tree ("page");
+      box screen= render_destination_fixture (document, route);
+      nr::export_node_destination_scope scope;
+      box exported= render_destination_fixture (document, route);
+      QCOMPARE (visible_text (exported), visible_text (screen));
+      QVERIFY (same_extents (screen, exported));
+      hashmap<string,tree> pages (UNINIT);
+      exported->collect_page_numbers (pages, "page");
+      for (tree target: {first, second}) {
+        string label= nr::export_node_destination (target);
+        QVERIFY2 (pages[label] == expected_page,
+          qPrintable (QString ("route=%1 destination=%2 actual=%3").arg (route)
+            .arg (QString::fromUtf8 (as_charp (label)))
+            .arg (QString::fromUtf8 (as_charp (tree_to_scheme (pages[label]))))));
+      }
+    }
+  }
+
+  void exportDestinationsSkipHiddenAndUnselectedContent () {
+    tree hidden_text ("HiddenToken"), omitted ("OmittedToken");
+    identify (hidden_text, "22222222-2222-4222-8222-222222222222");
+    identify (omitted, "33333333-3333-4333-8333-333333333333");
+    tree hidden (HIDDEN, hidden_text);
+    identify (hidden, "44444444-4444-4444-8444-444444444444");
+    tree setting (ASSIGN, "destination-test-setting", "value");
+    identify (setting, "55555555-5555-4555-8555-555555555555");
+    tree document (DOCUMENT, hidden, setting,
+                   tree (IF, "false", omitted, "VisibleToken"));
+    const std::string revision= nr::export_source_revision (document);
+    for (int route: {0, 1, 2}) {
+      box screen= render_destination_fixture (document, route);
+      nr::export_node_destination_scope scope;
+      box exported= render_destination_fixture (document, route);
+      hashmap<string,tree> pages (UNINIT);
+      exported->collect_page_numbers (pages, "page");
+      for (tree target: {hidden_text, hidden, omitted, setting})
+        QCOMPARE (pages[nr::export_node_destination (target)], tree (UNINIT));
+      QVERIFY (occurs ("VisibleToken", visible_text (exported)));
+      QCOMPARE (visible_text (exported), visible_text (screen));
+      QVERIFY (same_extents (screen, exported));
+      QVERIFY (nr::export_source_revision (document) == revision);
+    }
+  }
+
+  void exportDestinationsBelongToFirstLazyLine () {
+    Environment context;
+    tree paragraph ("A long paragraph with enough words to wrap onto several lines "
+                    "while keeping its destination on the first rendered line only.");
+    identify (paragraph, "22222222-2222-4222-8222-222222222222");
+    tree document (DOCUMENT, paragraph, "Later paragraph");
+    identify (document, "33333333-3333-4333-8333-333333333333");
+    nr::export_node_destination_scope scope;
+    lazy content= make_lazy (context.env, document, path (0));
+    lazy produced= content->produce (LAZY_VSTREAM,
+      make_format_vstream (context.env->as_length ("8em"), 0, 0));
+    lazy_vstream stream= (lazy_vstream) produced;
+    int first= -1, rendered= 0;
+    hashmap<string,tree> pages (UNINIT);
+    for (int i= 0; i < N(stream->l); ++i)
+      if (stream->l[i]->type == PAGE_LINE_ITEM) {
+        if (first == -1) first= i;
+        ++rendered;
+        stream->l[i]->b->collect_page_numbers (pages, as_string (i));
+      }
+    QVERIFY (rendered > 1);
+    QCOMPARE (pages[nr::export_node_destination (paragraph)], tree (as_string (first)));
+    QCOMPARE (pages[nr::export_node_destination (document)], tree (as_string (first)));
+  }
+
+  void exportTranscludedDestinationsStayOutOfScreenCache () {
+    tree target= source ("theorem", false);
+    const auto id= node::id (target);
+    auto snapshot= std::make_shared<athena::node_location::result> ();
+    snapshot->state= athena::node_location::status::resolved;
+    athena::node_location::item item;
+    item.id= id;
+    item.state= athena::node_location::status::resolved;
+    item.fragment_xml= athena::document::write_xml_v2 (
+      target, athena::document::xml_kind::fragment);
+    snapshot->items.push_back (item);
+    nr::view view {snapshot, 1};
+    auto present= [&] {
+      return athena_artifact_radioactive_suppress_definitions (nr::display (view));
+    };
+    tree screen= present ();
+    string label;
+    {
+      nr::export_node_destination_scope scope;
+      label= nr::export_node_destination (target);
+      tree printed= present ();
+      box body= render_destination_fixture (printed, 1);
+      hashmap<string,tree> pages (UNINIT);
+      body->collect_page_numbers (pages, "page");
+      QCOMPARE (pages[label], tree ("page"));
+    }
+    QCOMPARE (present (), screen);
+    QVERIFY (!occurs (label, visible_text (render_destination_fixture (screen, 1))));
+  }
+
+  void exportDestinationsResolvePdfLinks () {
+    QVERIFY (!QStandardPaths::findExecutable ("qpdf").isEmpty ());
+    QVERIFY (!QStandardPaths::findExecutable ("pdftotext").isEmpty ());
+    QTemporaryDir directory;
+    QVERIFY (directory.isValid ());
+    const QString requested= qEnvironmentVariable ("ATHENA_NODE_PDF_TEST_OUTPUT");
+    const QString filename= requested.isEmpty ()?
+      directory.filePath ("node-destinations.pdf"): requested;
+    tree target ("TargetToken");
+    identify (target, "22222222-2222-4222-8222-222222222222");
+    const string local= "tmfs://wikilink/22222222-2222-4222-8222-222222222222";
+    const string outside= "tmfs://wikilink/33333333-3333-4333-8333-333333333333";
+    const string missing= "tmfs://transclude/44444444-4444-4444-8444-444444444444";
+    tree links (CONCAT);
+    links << tree (HLINK, tree (WITH, COLOR, "red", "LocalToken"), local)
+          << tree (" ") << tree (HLINK, "OutsideToken", outside)
+          << tree (" ") << tree (HLINK, "MissingToken", missing)
+          << tree (" ") << tree (HLINK, "WebToken", "https://example.invalid/target");
+    tree document (DOCUMENT, links, target);
+    const std::string revision= nr::export_source_revision (document);
+    {
+      Environment context;
+      context.env->write (PAGE_PRINTED, "true");
+      context.env->update ();
+      nr::export_node_destination_scope scope;
+      box body= lazy_box (context.env, document);
+      hashmap<string,tree> labels (UNINIT);
+      body->collect_page_numbers (labels, "1");
+      QCOMPARE (labels[nr::export_node_destination (target)], tree ("1"));
+      QVERIFY (nr::export_node_link (local, labels) != "");
+      QCOMPARE (nr::export_node_link (outside, labels), string ());
+      QCOMPARE (nr::export_node_link (missing, labels), string ());
+      renderer pdf= printer (url_system (string (filename.toUtf8 ().constData ())),
+        600, 1, "a4", false, 21.0, 29.7);
+      struct Delete { renderer pdf; ~Delete () { tm_delete (pdf); } } cleanup {pdf};
+      QVERIFY (pdf->is_started ());
+      pdf_hummus_set_link_resolver (pdf, [labels] (string uri) {
+        return nr::export_node_link (uri, labels);
+      });
+      pdf->move_origin (400 * PIXEL, -600 * PIXEL);
+      rectangles damage;
+      body->redraw (pdf, path (0), damage);
+    }
+    auto run= [] (QString program, QStringList arguments, QByteArray& output) {
+      QProcess process;
+      process.start (program, arguments);
+      if (!process.waitForStarted () || !process.waitForFinished (30000)) return false;
+      output= process.readAllStandardOutput ();
+      return process.exitStatus () == QProcess::NormalExit && process.exitCode () == 0;
+    };
+    QByteArray output;
+    QVERIFY (run ("qpdf", {"--check", filename}, output));
+    QVERIFY (run ("pdftotext", {"-raw", "-nopgbrk", "-enc", "UTF-8", filename, "-"}, output));
+    for (const char* token: {"LocalToken", "OutsideToken", "MissingToken", "WebToken", "TargetToken"})
+      QVERIFY2 (output.contains (token), token);
+    QVERIFY (run ("qpdf", {"--json", "--json-key=qpdf", filename}, output));
+    QVERIFY (!output.contains ("tmfs://"));
+    const QJsonDocument json= QJsonDocument::fromJson (output);
+    QVERIFY (json.isObject ());
+    const QJsonArray sections= json.object ().value ("qpdf").toArray ();
+    QCOMPARE (sections.size (), 2);
+    const QJsonObject objects= sections[1].toObject ();
+    int internal= 0, external= 0;
+    for (auto it= objects.begin (); it != objects.end (); ++it) {
+      const QJsonObject value= it.value ().toObject ().value ("value").toObject ();
+      if (value.value ("/Subtype").toString () != "/Link") continue;
+      if (value.contains ("/Dest")) {
+        QVERIFY (value.value ("/Dest").isArray ());
+        QVERIFY (!value.value ("/Dest").toArray ().isEmpty ());
+        ++internal;
+      }
+      else {
+        const QJsonObject action= value.value ("/A").toObject ();
+        QCOMPARE (action.value ("/S").toString (), QString ("/URI"));
+        QCOMPARE (action.value ("/URI").toString (),
+                  QString ("u:https://example.invalid/target"));
+        ++external;
+      }
+    }
+    QCOMPARE (internal, 1);
+    QCOMPARE (external, 1);
+    QVERIFY (nr::export_source_revision (document) == revision);
+  }
+
   void hybridInputRefreshesReferencedText () {
     Environment context;
     tree document (DOCUMENT, tree (INACTIVE, tree (HYBRID, "")));

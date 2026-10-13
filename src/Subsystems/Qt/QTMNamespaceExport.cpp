@@ -24,6 +24,7 @@
 #include "new_buffer.hpp"
 #include "new_style.hpp"
 #include "new_window.hpp"
+#include "node_metadata.hpp"
 #include "qt_utilities.hpp"
 #include "scheme.hpp"
 #include "server.hpp"
@@ -62,7 +63,6 @@
 #include <QScrollBar>
 #include <QSet>
 #include <QTimer>
-#include <QUrl>
 #include <QVBoxLayout>
 #include <QWheelEvent>
 
@@ -134,7 +134,6 @@ struct ExportOptions {
 
 struct ExportLabelMap {
   int next= 1;
-  int nextLink= 1;
   QMap<QString,QString> firstByOriginal;
 };
 
@@ -975,7 +974,7 @@ fresh_export_label (ExportLabelMap& labels, url file,
   else
     warn_export ("Duplicate exported label occurrence for " +
                  file_key (file) + "#" + originalLabel +
-                 "; wikilinks will target the first exported copy.");
+                 "; assigning a distinct legacy export label.");
   return generated;
 }
 
@@ -989,68 +988,18 @@ static tree
 rewrite_export_labels (tree t, url file, ExportLabelMap& labels) {
   if (is_atomic (t)) return copy (t);
   tree r (L(t));
+  athena::node::copy_metadata (t, r);
   if (is_func (t, LABEL, 1)) {
     QString original= atomic_tree_qstring (t[0]);
-    r << tm_text (fresh_export_label (labels, file, original));
+    tree label= tm_text (fresh_export_label (labels, file, original));
+    athena::node::copy_metadata (t[0], label);
+    r << label;
     for (int i=1; i<N(t); i++)
       r << rewrite_export_labels (t[i], file, labels);
     return r;
   }
   for (int i=0; i<N(t); i++)
     r << rewrite_export_labels (t[i], file, labels);
-  return r;
-}
-
-static QString
-wikilink_uuid_from_destination (const QString& destination) {
-  QString prefix= "tmfs://wikilink/";
-  if (!destination.startsWith (prefix, Qt::CaseInsensitive)) return "";
-  QString rest= destination.mid (prefix.size ());
-  QString encoded= rest.section ('/', 0, 0);
-  return QUrl::fromPercentEncoding (encoded.toUtf8 ());
-}
-
-static QString
-export_label_for_wikilink (const QString& destination,
-                           const ExportLabelMap& labels) {
-  QString uuid= wikilink_uuid_from_destination (destination);
-  if (uuid.isEmpty ()) return "";
-
-  tree node= vault_get_node (from_qstring (uuid));
-  if (!is_func (node, TUPLE) || N(node) < 3) return "";
-  QString relPath= atomic_tree_qstring (node[0]);
-  QString anchorEnd= atomic_tree_qstring (node[2]);
-  QString anchorBegin= atomic_tree_qstring (node[1]);
-  QString targetAnchor= !anchorEnd.isEmpty () ? anchorEnd : anchorBegin;
-  if (relPath.isEmpty () || targetAnchor.isEmpty ()) return "";
-
-  url targetFile= vault_get_root () * url_unix (from_qstring (relPath));
-  return labels.firstByOriginal.value (
-    export_label_key (targetFile, targetAnchor));
-}
-
-static tree
-export_internal_link (tree body, const QString& exportLabel,
-                      ExportLabelMap& labels) {
-  tree id= tm_text ("export-link-" + QString::number (labels.nextLink++));
-  tree linkId (ID, tree (HARD_ID, copy (id)));
-  tree dest (URL, tm_text ("#" + exportLabel));
-  tree link (LINK, "hyperlink", copy (linkId), dest);
-  return tree (LOCUS, copy (linkId), link, copy (body));
-}
-
-static tree
-rewrite_export_wikilinks (tree t, ExportLabelMap& labels) {
-  if (is_atomic (t)) return copy (t);
-  tree r (L(t));
-  for (int i=0; i<N(t); i++)
-    r << rewrite_export_wikilinks (t[i], labels);
-  if (is_func (r, HLINK, 2) && is_atomic (r[1])) {
-    QString destination= to_qstring (r[1]->label);
-    QString exportLabel= export_label_for_wikilink (destination, labels);
-    if (!exportLabel.isEmpty ())
-      return export_internal_link (r[0], exportLabel, labels);
-  }
   return r;
 }
 
@@ -1071,9 +1020,13 @@ static tree
 rebase_images (tree t, url sourceDir) {
   if (is_atomic (t)) return copy (t);
   tree r (L(t));
+  athena::node::copy_metadata (t, r);
   for (int i=0; i<N(t); i++) {
-    if (i == 0 && is_func (t, IMAGE) && is_atomic (t[i]))
-      r << tree (rebase_image_path (t[i]->label, sourceDir));
+    if (i == 0 && is_func (t, IMAGE) && is_atomic (t[i])) {
+      tree imagePath (rebase_image_path (t[i]->label, sourceDir));
+      athena::node::copy_metadata (t[i], imagePath);
+      r << imagePath;
+    }
     else
       r << rebase_images (t[i], sourceDir);
   }
@@ -1081,8 +1034,7 @@ rebase_images (tree t, url sourceDir) {
 }
 
 static tree
-import_body (url file) {
-  tree t= import_tree (file, "texmacs");
+import_body (tree t) {
   tree body= extract (t, "body");
   return is_empty (body) ? t : body;
 }
@@ -1099,27 +1051,38 @@ plain_tree_text (tree t) {
 }
 
 static bool
-extract_title_rec (tree t, QString& title) {
+extract_title_rec (tree t, tree& title, bool dropped= false) {
   if (is_atomic (t)) return false;
+  dropped= dropped || is_compound (t, "doc-data");
   if ((is_compound (t, "doc-title", 1) ||
        is_compound (t, "title", 1) ||
        is_compound (t, "tmdoc-title", 1)) && N(t) >= 1) {
-    title= plain_tree_text (t[0]);
-    return !title.isEmpty ();
+    QString text= plain_tree_text (t[0]);
+    if (text.isEmpty ()) return false;
+    // Removed title markup keeps its targets on the rendered heading text.
+    // Titles retained in the body must not acquire a second copy of their IDs.
+    title= dropped ? tree (CONCAT, copy (t[0])) : tm_text (text);
+    if (dropped) athena::node::copy_metadata (t, title);
+    return true;
   }
-  for (int i=0; i<N(t); i++)
-    if (extract_title_rec (t[i], title)) return true;
+  for (int i=0; i<N(t); i++) {
+    if (!extract_title_rec (t[i], title, dropped)) continue;
+    if (dropped && athena::node::get (t)) {
+      tree wrapper (CONCAT, title);
+      athena::node::copy_metadata (t, wrapper);
+      title= wrapper;
+    }
+    return true;
+  }
   return false;
 }
 
-static QString
-document_title_for_file (url file, tree body) {
-  tree full= import_tree (file, "texmacs");
-  QString title;
+static tree
+document_title_for_file (url file, tree full) {
+  tree title;
   if (extract_title_rec (full, title)) return title;
-  if (extract_title_rec (body, title)) return title;
   warn_export ("No document title found; using filename stem: " + file_key (file));
-  return file_stem (file);
+  return tm_text (file_stem (file));
 }
 
 static QString
@@ -1152,16 +1115,17 @@ copy_demote_body (tree t) {
   QString tag= to_qstring (as_string (L(t)));
   QString demoted= demoted_tag (tag);
   tree r= compound (from_qstring (demoted));
+  athena::node::copy_metadata (t, r);
   for (int i=0; i<N(t); i++)
     r << copy_demote_body (t[i]);
   return r;
 }
 
 static tree
-source_body_for_export (url file) {
-  tree body= rebase_images (import_body (file), head (file));
+source_body_for_export (tree body) {
   if (!is_func (body, DOCUMENT)) return copy_demote_body (body);
   tree out (DOCUMENT);
+  athena::node::copy_metadata (body, out);
   for (int i=0; i<N(body); i++) {
     if (drop_source_top_level (body[i])) continue;
     out << copy_demote_body (body[i]);
@@ -1205,10 +1169,15 @@ append_export_subtree (tree& body, const ExportContext& cx,
   if (node_is_terminal (node)) {
     const std::vector<FileMatch>& files= cx.terminalFiles.value (node);
     for (const FileMatch& fm: files) {
-      tree source= rewrite_export_labels (source_body_for_export (fm.file),
-                                          fm.file, labels);
-      QString title= document_title_for_file (fm.file, source);
-      body << compound ("section", tm_text (title));
+      tree full= rebase_images (import_tree (fm.file, "texmacs"), head (fm.file));
+      tree source= rewrite_export_labels (
+        source_body_for_export (import_body (full)), fm.file, labels);
+      tree title= document_title_for_file (fm.file, full);
+      tree heading= compound ("section", title);
+      // Flattening removes the source root; its heading is the rendered target.
+      if (is_func (source, DOCUMENT))
+        athena::node::copy_metadata (source, heading);
+      body << heading;
       if (is_func (source, DOCUMENT)) {
         for (int i=0; i<N(source); i++) body << copy (source[i]);
       }
@@ -1335,7 +1304,7 @@ build_export_document (const ExportContext& cx,
   QMap<QString,QStringList> sorted= selected_children_sorted (selectedChildren);
   ExportLabelMap labels;
   append_export_subtree (body, cx, sorted, cx.root, 0, labels);
-  body= rewrite_export_wikilinks (body, labels);
+  // Canonical UUID links are resolved against rendered destinations by PDF print.
 
   tree doc (DOCUMENT);
   doc << compound ("style", tuple ("namespace-export-book"));

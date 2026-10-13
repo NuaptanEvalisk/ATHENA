@@ -8,6 +8,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include "node_reference.hpp"
+#include "node_reference_export.hpp"
 #include "node_metadata.hpp"
 #include "transclusion_cache.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
@@ -26,10 +27,11 @@ tree presentation (const tree& source, const url& base) {
   tree out= is_atomic (source) ? tree (source->label) : tree (L(source), N(source));
   if (is_compound (source))
     for (int i=0; i<N(source); ++i) out[i]= presentation (source[i], base);
-  // Render copies retain semantic attributes, never persistent source IDs or
-  // artifact bindings. Relative image paths belong to the source document.
+  // Print snapshots retain source identity solely for destination placement;
+  // interactive render copies do not own persistent IDs or artifact bindings.
   if (const auto* m= node::get (source)) {
-    auto props= *m; props.id.clear ();
+    auto props= *m;
+    if (!export_node_destinations_active ()) props.id.clear ();
     props.properties.erase ("athena:artifact-bindings");
     node::set (out, props);
   }
@@ -108,7 +110,8 @@ static tree compute_display (const view& current) {
         for (int i=0; i<N(node); ++i) if (is_compound (node[i], "body", 1)) {
           node= node[i][0]; break;
         }
-      node= presentation (node::content_projection (node), target.source_directory.empty () ?
+      node= presentation (export_node_destinations_active () ? node : node::content_projection (node),
+        target.source_directory.empty () ?
         url_none () : url_system (native (target.source_directory)));
       tree content= is_document (node) ? node : tree (DOCUMENT, node);
       const string source= native ("tmfs://transclude/" + target.id);
@@ -124,6 +127,7 @@ static tree compute_display (const view& current) {
       tree item (DOCUMENT);
       item << tree (WITH, "font-size", "0.8", "color", "blue", source_line)
            << A(content);
+      if (export_node_destinations_active ()) node::copy_metadata (content, item);
       out << tree (WITH, ancestry_variable, lineage, item);
       has_resolved= true;
     }
@@ -138,6 +142,7 @@ static tree compute_display (const view& current) {
 }
 
 tree display (const view& current) {
+  if (export_node_destinations_active ()) return compute_display (current);
   if (!current.snapshot) return compute_display (current);
   struct cached {
     node_location::snapshot source;

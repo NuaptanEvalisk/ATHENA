@@ -44,7 +44,7 @@
 #include "Data/Convert/Xml/clipboard_xml.hpp"
 #include "convert.hpp"
 #include "ATHENA/Data/node_reference_export.hpp"
-#include "Subsystems/Pdf/PDFWriter/PDFWriter.h"
+#include "Subsystems/Pdf/pdf_merge.hpp"
 #include <QAbstractButton>
 #include <QTemporaryDir>
 #include <QSaveFile>
@@ -118,6 +118,7 @@ struct CompoundPdfJob {
   QString destination;
   QByteArray original, counters;
   std::vector<std::uint64_t> epochs;
+  std::vector<athena::pdf::merge_member> pdf_members;
   QPointer<QProgressDialog> progress;
   std::atomic<bool> cancelled {false};
   bool preview= false;
@@ -126,16 +127,18 @@ struct CompoundPdfJob {
 
 void merge_compound_pdf (const std::shared_ptr<CompoundPdfJob>& job, std::size_t count) {
   const QString merged= job->directory.filePath ("compound.pdf");
-  PDFWriter writer;
-  if (writer.StartPDF (merged.toStdString (), ePDFVersion17) != PDFHummus::eSuccess)
-    throw std::runtime_error ("Could not create compound PDF");
-  for (std::size_t i= 0; i < count; ++i) {
-    if (job->cancelled) throw std::runtime_error ("PDF export cancelled");
-    if (writer.AppendPDFPagesFromPDF (job->directory.filePath (QString::number (i) + ".pdf").toStdString (),
-                                     PDFPageRange ()).first != PDFHummus::eSuccess)
-      throw std::runtime_error ("Could not append source PDF pages");
-  }
-  if (writer.EndPDF () != PDFHummus::eSuccess) throw std::runtime_error ("Could not finish compound PDF");
+  if (job->pdf_members.size () != count)
+    throw std::runtime_error ("Incomplete compound PDF export");
+  hashmap<string,tree> destinations;
+  for (const auto& member: job->pdf_members)
+    for (const auto& destination: member.destinations)
+      destinations (string (destination.label.c_str ()))= tree ("");
+  athena::pdf::merge_documents (job->pdf_members, merged.toStdString (),
+    [&destinations] (const std::string& uri) {
+      const string resolved= athena::node_reference::export_node_link (
+        string (uri.c_str ()), destinations);
+      return std::string (as_charp (resolved), N (resolved));
+    }, [job] { return job->cancelled.load (); });
   QFile input (merged);
   QSaveFile output (job->destination);
   output.setDirectWriteFallback (false);
@@ -757,8 +760,16 @@ class QTMCompoundViewport: public QAbstractScrollArea {
           auto& typesetter= dynamic_cast<edit_typeset_rep&> (source);
           job->counters= counter_bytes (typesetter.evaluate_compound_counters (
             incoming.isEmpty () ? tree (COLLECTION) : counter_tree (incoming)));
+          auto& member= job->pdf_members[index];
+          member.filename= job->directory.filePath (QString::number (index) + ".pdf").toStdString ();
+          member.destinations.clear ();
           job->next_page= dynamic_cast<edit_main_rep&> (source).print_doc_numbered (
-            source_url (job->directory.filePath (QString::number (index) + ".pdf")), job->next_page);
+            source_url (QString::fromStdString (member.filename)), job->next_page,
+            [&member] (string label, int page, double x, double y) {
+              if (page < 0) throw std::runtime_error ("Invalid PDF destination page");
+              member.destinations.push_back ({std::string (as_charp (label), N (label)),
+                static_cast<unsigned long> (page), x, y});
+            }, true);
           job->epochs[index]= current_scheme_execution_context ()->actor->source_epoch ();
         }, finish);
       }, [finish] (std::string error) { if (!error.empty ()) finish (std::move (error)); });
@@ -777,6 +788,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
     catch (const std::exception& e) { reportFailure (tr ("Export Compound PDF"), QString::fromUtf8 (e.what ())); return; }
     job->preview= preview;
     job->epochs.resize (members_.size ());
+    job->pdf_members.resize (members_.size ());
     job->progress= new QProgressDialog (tr ("Preparing compound PDF"), tr ("Cancel"), 0, int (members_.size ()), &owner_);
     job->progress->setAutoClose (false);
     connect (job->progress, &QProgressDialog::canceled, this, [weak= std::weak_ptr<CompoundPdfJob> (job)] {
