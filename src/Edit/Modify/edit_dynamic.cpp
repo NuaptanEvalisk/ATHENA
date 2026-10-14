@@ -745,6 +745,11 @@ edit_dynamic_rep::hybrid_keypress (string key) {
 
 bool
 edit_dynamic_rep::activate_latex () {
+  return activate_latex (true);
+}
+
+bool
+edit_dynamic_rep::activate_latex (bool report_error) {
   path p= search_upwards (LATEX);
   if (is_nil (p)) p= search_upwards (HYBRID);
   if (is_nil (p)) return false;
@@ -760,8 +765,9 @@ edit_dynamic_rep::activate_latex () {
       if (N(st) == 2) insert_tree (copy (st[1]));
       return true;
     }
-    set_message ("Error: not a command name",
-                 "activate latex command");
+    if (report_error)
+      set_message ("Error: not a command name",
+                   "activate latex command");
   }
   return false;
 }
@@ -811,7 +817,7 @@ edit_dynamic_rep::activate_hybrid (bool with_args_hint) {
       return;
     }
   }
-  if (activate_latex ()) { finish_hybrid (true); return; }
+  if (activate_latex (false)) { finish_hybrid (true); return; }
   set_message ("", "");
   path p= search_upwards (HYBRID);
   if (is_nil (p)) return;

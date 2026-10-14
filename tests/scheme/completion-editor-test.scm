@@ -200,6 +200,15 @@
 (unless (equal? (body) '(document (test-input-pair "" "kept")))
   (error "Explicit selection placement failed" (body)))
 
+;; A zero-argument environment macro is not a LaTeX command alias.
+(init-env-tree "c++" '(macro (name "C++")))
+(reset '(""))
+(make-hybrid)
+(insert "c++")
+(keyboard-press "return" 0)
+(unless (equal? (body) '(document (c++)))
+  (error "Zero-argument environment macro did not activate" (body)))
+
 (init-env "page-medium" "paper")
 (update-current-buffer)
 (update-forced)

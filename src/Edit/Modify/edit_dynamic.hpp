@@ -57,6 +57,7 @@ public:
   bool hybrid_keypress (string key);
   bool prepare_hybrid ();
   bool activate_latex ();
+  bool activate_latex (bool report_error);
   void activate_hybrid (bool with_args_hint);
   void activate_symbol ();
 
