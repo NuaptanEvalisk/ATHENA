@@ -17,6 +17,7 @@
 #include <QList>
 #include <QPair>
 #include <QPointer>
+#include <QHash>
 #include <DockManager.h>
 #include <memory>
 
@@ -63,8 +64,8 @@ public:
 
   QList<QWidget*> documentWidgets() const;
   bool hasOpenAdsPanes() const;
-  QWidget* activeWorkPaneWidget() const;
-  QWidget* lastActiveDocumentWidget() const;
+  QWidget* activeWorkPaneWidget(QWidget* window= nullptr) const;
+  QWidget* lastActiveDocumentWidget(QWidget* window= nullptr) const;
   QWidget* currentDocumentWidget() const;
   QString documentWidgetTitle(QWidget* widget) const;
   void activateDocumentWidget(QWidget* widget);
@@ -100,6 +101,8 @@ private:
   QString mAdsBaseStyleSheet;
   QPointer<QWidget> mLastFocusedWorkPaneWidget;
   QPointer<QWidget> mLastFocusedDocumentWidget;
+  QHash<QWidget*, QPointer<QWidget>> mWindowWorkPanes;
+  QHash<QWidget*, QPointer<QWidget>> mWindowDocuments;
   std::unique_ptr<QTMApplicationMenuPresenter> mNativeMenuPresenter;
   QList<QPair<QPointer<ads::CDockWidget>, ads::DockWidgetArea>>
     mAdsDocksToReveal;

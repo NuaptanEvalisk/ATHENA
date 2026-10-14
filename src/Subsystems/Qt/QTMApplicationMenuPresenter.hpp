@@ -19,12 +19,14 @@
 
 class QAction;
 class QMenu;
+class QMainWindow;
 class QTimer;
 class QTMMainTabWindow;
 
 class QTMApplicationMenuPresenter {
 public:
-  explicit QTMApplicationMenuPresenter (QTMMainTabWindow* shell);
+  explicit QTMApplicationMenuPresenter (QTMMainTabWindow* shell,
+                                        QMainWindow* host= nullptr);
   ~QTMApplicationMenuPresenter ();
 
   QTMApplicationMenuPresenter (const QTMApplicationMenuPresenter&)= delete;
@@ -61,6 +63,7 @@ private:
   };
 
   QPointer<QTMMainTabWindow> shell_;
+  QPointer<QMainWindow> host_;
   QVector<menu_state> menus_;
   QTMCommandContext presented_context_;
   QPointer<QWidget> last_input_widget_;

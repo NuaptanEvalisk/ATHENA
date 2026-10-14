@@ -99,12 +99,19 @@ public:
 static const int ATHENA_ADS_LAYOUT_VERSION = 1;
 
 static void
-installApplicationBackgroundStatus (QTMMainTabWindow* shell) {
+applyAdsTheme (QWidget* root, const QString& styleSheet) {
+  root->setProperty ("athenaDarkMode", QTMIconManager::is_dark_mode ());
+  root->setProperty ("athenaTouchUi", bool (ATHENA_PLATFORM_IPADOS));
+  root->setStyleSheet (styleSheet);
+}
+
+static void
+installApplicationBackgroundStatus (QTMMainTabWindow* shell, QMainWindow* host) {
   if (shell == nullptr) return;
-  QStatusBar* bar= new QStatusBar (shell);
+  QStatusBar* bar= new QStatusBar (host);
   bar->setObjectName (QStringLiteral ("athenaApplicationStatus"));
   bar->setSizeGripEnabled (false);
-  shell->setStatusBar (bar);
+  host->setStatusBar (bar);
 
   QWidget* widget= new QWidget (bar);
   auto* layout= new QHBoxLayout (widget);
@@ -187,8 +194,9 @@ installApplicationBackgroundStatus (QTMMainTabWindow* shell) {
   timer->setInterval (160);
   QObject::connect (
     timer, &QTimer::timeout, widget,
-    [shell, center, right, widget, layout, indicator, title, progress, count, tick=0u] () mutable {
-      const auto* document= qobject_cast<QTMWindow*> (shell->activeWorkPaneWidget ());
+    [shell, host, center, right, widget, layout, indicator, title, progress, count, tick=0u] () mutable {
+      const auto* document= qobject_cast<QTMWindow*> (
+        shell->activeWorkPaneWidget (host->window ()));
       const auto status= document && document->editorStatus.visible ?
         document->editorStatus : QTMWindow::EditorStatus {};
       center->setToolTip (status.center);
@@ -287,6 +295,23 @@ installApplicationBackgroundStatus (QTMMainTabWindow* shell) {
     });
   timer->start ();
 }
+
+// ADS retains ownership of docking and window movement. Each floating window
+// hosts the same application chrome as the main shell, around its container.
+class QTMFloatingWindowChrome final: public QMainWindow {
+  std::unique_ptr<QTMApplicationMenuPresenter> presenter;
+public:
+  QTMFloatingWindowChrome (QTMMainTabWindow* shell,
+                          ads::CFloatingDockContainer* floating):
+    QMainWindow (floating) {
+    setWindowFlags (Qt::Widget);
+    setCentralWidget (floating->dockContainer ());
+    installApplicationBackgroundStatus (shell, this);
+    presenter= std::make_unique<QTMApplicationMenuPresenter> (shell, this);
+    if (!presenter->activate ())
+      qWarning ("Could not activate floating ATHENA application menubar");
+  }
+};
 
 static bool
 isPersistentAdsPane (const QString& name) {
@@ -421,6 +446,23 @@ QTMMainTabWindow::QTMMainTabWindow()
   }
   bench_start ("construct ads dock manager");
   mDockManager = new ads::CDockManager(this);
+  connect (mDockManager, &ads::CDockManager::floatingWidgetCreated, this,
+    [this] (ads::CFloatingDockContainer* floating) {
+      // Wayland floating windows deliberately have no QObject parent, so
+      // their ADS theme cannot be inherited from the dock manager.
+      applyAdsTheme (floating, mDockManager->styleSheet ());
+      auto* chrome= new QTMFloatingWindowChrome (this, floating);
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && !defined(Q_OS_IOS)
+      floating->setWidget (chrome);
+#else
+      floating->layout ()->addWidget (chrome);
+#endif
+      floating->installEventFilter (this);
+      connect (floating, &QObject::destroyed, this, [this, floating] {
+        mWindowWorkPanes.remove (floating);
+        mWindowDocuments.remove (floating);
+      });
+    });
   mAdsBaseStyleSheet= mDockManager->styleSheet ();
 #if ATHENA_PLATFORM_IPADOS
   connect (mDockManager, &ads::CDockManager::dockWidgetAdded, this,
@@ -429,7 +471,7 @@ QTMMainTabWindow::QTMMainTabWindow()
     });
 #endif
   setCentralWidget (mDockManager);
-  installApplicationBackgroundStatus (this);
+  installApplicationBackgroundStatus (this, this);
   // The application shell owns the menubar.  Editor actors publish command
   // state only; they no longer construct or replace a Scheme menu widget.
   mNativeMenuPresenter= std::make_unique<QTMApplicationMenuPresenter> (this);
@@ -439,8 +481,11 @@ QTMMainTabWindow::QTMMainTabWindow()
           this, [this](ads::CDockWidget*, ads::CDockWidget* now) {
             if (now) {
               mLastFocusedWorkPaneWidget= now->widget ();
-              if (isDocumentWidget (now->widget ()))
+              mWindowWorkPanes[now->window ()]= now->widget ();
+              if (isDocumentWidget (now->widget ())) {
                 mLastFocusedDocumentWidget= now->widget ();
+                mWindowDocuments[now->window ()]= now->widget ();
+              }
               setMainTitle(now->windowTitle());
             }
             else setMainTitle("");
@@ -483,6 +528,11 @@ QTMMainTabWindow::QTMMainTabWindow()
 }
 
 QTMMainTabWindow::~QTMMainTabWindow() {
+  // Floating-window destruction notifies the per-window focus maps. Tear down
+  // ADS while those members still exist, before QWidget deletes its children.
+  mNativeMenuPresenter.reset ();
+  delete mDockManager;
+  mDockManager= nullptr;
   if (gTopTabWindow == this) {
     gTopTabWindow = nullptr;
   }
@@ -884,7 +934,8 @@ bool QTMMainTabWindow::eventFilter(QObject *obj, QEvent *event) {
       setMainTitleFromWidget(widget);
   }
 
-  if (obj == this) return eventFilterWindow(obj, event);
+  if (obj == this || qobject_cast<ads::CFloatingDockContainer*> (obj))
+    return eventFilterWindow(obj, event);
   return QMainWindow::eventFilter(obj, event);
 }
 
@@ -998,9 +1049,22 @@ QTMMainTabWindow::hasOpenAdsPanes() const {
 }
 
 QWidget*
-QTMMainTabWindow::activeWorkPaneWidget() const {
+QTMMainTabWindow::activeWorkPaneWidget(QWidget* window) const {
   if (mDockManager == nullptr) return nullptr;
   ads::CDockWidget* dock= mDockManager->focusedDockWidget ();
+  if (window != nullptr) {
+    if (dock == nullptr || dock->window () != window || dock->isClosed ())
+      dock= adsDockWidgetFor (mWindowWorkPanes.value (window));
+    if (dock != nullptr && dock->window () == window && !dock->isClosed ())
+      return dock->widget ();
+    // A newly created or restored window may not have received focus yet.
+    for (auto* candidate: mDockManager->dockWidgetsMap ())
+      if (candidate->window () == window && !candidate->isClosed () &&
+          candidate->dockAreaWidget () &&
+          candidate->dockAreaWidget ()->currentDockWidget () == candidate)
+        return candidate->widget ();
+    return nullptr;
+  }
   // Menus and modal dialogs can temporarily take focus away from ADS.
   if (dock == nullptr) dock= adsDockWidgetFor (mLastFocusedWorkPaneWidget);
   if (dock == nullptr || dock->isClosed ()) return nullptr;
@@ -1008,7 +1072,17 @@ QTMMainTabWindow::activeWorkPaneWidget() const {
 }
 
 QWidget*
-QTMMainTabWindow::lastActiveDocumentWidget() const {
+QTMMainTabWindow::lastActiveDocumentWidget(QWidget* window) const {
+  if (window != nullptr) {
+    QWidget* document= mWindowDocuments.value (window);
+    if (isDocumentWidget (document) && document->window () == window &&
+        documentWidgets ().contains (document)) return document;
+    document= activeWorkPaneWidget (window);
+    if (isDocumentWidget (document)) return document;
+    for (auto* candidate: documentWidgets ())
+      if (candidate->window () == window) return candidate;
+    return nullptr;
+  }
   QWidget* document= mLastFocusedDocumentWidget.data ();
   if (!isDocumentWidget (document)) return nullptr;
   return documentWidgets ().contains (document) ? document : nullptr;
@@ -1156,8 +1230,6 @@ void QTMMainTabWindow::closeAndSetTopTabWindow() {
 }
 
 void QTMMainTabWindow::setDefaultStyle() {
-  mDockManager->setProperty ("athenaDarkMode", QTMIconManager::is_dark_mode ());
-  mDockManager->setProperty ("athenaTouchUi", bool (ATHENA_PLATFORM_IPADOS));
   QFile file (QDir (to_qstring (get_env ("ATHENA_PATH"))).filePath (
     "misc/themes/ads.css"));
   if (!file.open (QIODevice::ReadOnly)) {
@@ -1165,6 +1237,9 @@ void QTMMainTabWindow::setDefaultStyle() {
                 << from_qstring (file.errorString ()) << LF;
     return;
   }
-  mDockManager->setStyleSheet (
-    mAdsBaseStyleSheet + '\n' + QString::fromUtf8 (file.readAll ()));
+  const QString styleSheet=
+    mAdsBaseStyleSheet + '\n' + QString::fromUtf8 (file.readAll ());
+  applyAdsTheme (mDockManager, styleSheet);
+  for (auto* floating: mDockManager->floatingWidgets ())
+    applyAdsTheme (floating, styleSheet);
 }

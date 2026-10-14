@@ -47,7 +47,8 @@ menu_action_text (const QTMCommandDefinition& command) {
 } // namespace
 
 QTMApplicationMenuPresenter::QTMApplicationMenuPresenter (
-  QTMMainTabWindow* shell): shell_ (shell) {}
+  QTMMainTabWindow* shell, QMainWindow* host):
+  shell_ (shell), host_ (host ? host : shell) {}
 
 QTMApplicationMenuPresenter::~QTMApplicationMenuPresenter () {
   deactivate ();
@@ -55,19 +56,25 @@ QTMApplicationMenuPresenter::~QTMApplicationMenuPresenter () {
 
 void
 QTMApplicationMenuPresenter::remember_input_widget (QWidget* widget) {
-  if (!active_ || shell_ == nullptr || widget == nullptr) return;
-  QWidget* work= shell_->activeWorkPaneWidget ();
+  if (!active_ || shell_ == nullptr || host_ == nullptr || widget == nullptr)
+    return;
+  QWidget* work= shell_->activeWorkPaneWidget (host_->window ());
   if (belongs_to (widget, work)) last_input_widget_= widget;
 }
 
 void
 QTMApplicationMenuPresenter::capture_presented_context () {
   presented_context_= {};
-  if (shell_ == nullptr) return;
+  if (shell_ == nullptr || host_ == nullptr) return;
   QTMCommandRegistry& registry= QTMCommandRegistry::instance ();
   presented_context_= registry.captureContext (
     shell_, last_input_widget_ != nullptr ? last_input_widget_.data ():
                                            QApplication::focusWidget ());
+  presented_context_.workPane= shell_->activeWorkPaneWidget (host_->window ());
+  presented_context_.lastDocument= qtm_document_identity (
+    shell_->lastActiveDocumentWidget (host_->window ()));
+  if (!belongs_to (presented_context_.inputWidget, presented_context_.workPane))
+    presented_context_.inputWidget= presented_context_.workPane;
 }
 
 bool
@@ -412,7 +419,7 @@ QTMApplicationMenuPresenter::activate () {
   QTMCommandRegistry& registry= QTMCommandRegistry::instance ();
   if (!registry.initialize ()) return false;
 
-  QMenuBar* bar= shell_->menuBar ();
+  QMenuBar* bar= host_->menuBar ();
   if (bar == nullptr) return false;
 
   active_= true;
@@ -469,6 +476,6 @@ QTMApplicationMenuPresenter::deactivate () {
   menus_.clear ();
   presented_context_= {};
   last_input_widget_= nullptr;
-  if (shell_ != nullptr && shell_->menuBar () != nullptr)
-    shell_->menuBar ()->clear ();
+  if (host_ != nullptr && host_->menuBar () != nullptr)
+    host_->menuBar ()->clear ();
 }

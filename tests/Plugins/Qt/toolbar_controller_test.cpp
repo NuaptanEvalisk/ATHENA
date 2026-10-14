@@ -9,11 +9,27 @@
 #include <QtTest/QtTest>
 
 #include "Qt/QTMToolbarController.hpp"
+#include "Qt/QTMMainTabWindow.hpp"
+#include "Qt/QTMApplication.hpp"
 #include "boot.hpp"
+#include "data_cache.hpp"
+#include "gui.hpp"
+#include "scheme.hpp"
+#include "server.hpp"
 
+#include <DockAreaWidget.h>
+#include <DockWidgetTab.h>
+#include <FloatingDockContainer.h>
+#include <QLabel>
 #include <QMainWindow>
+#include <QMenuBar>
+#include <QStatusBar>
+#include <QTemporaryDir>
 #include <QToolBar>
 #include <QWidget>
+
+bool headless_mode= false;
+bool is_headless () { return false; }
 
 class TestToolbarController: public QObject {
   Q_OBJECT
@@ -25,6 +41,7 @@ private slots:
   void overlayReplacesRevealBarWithoutMovingViewport ();
   void disablingAutoHideRestoresNativeToolbars ();
   void reloadsAutoHidePreference ();
+  void floatingWindowsRetainApplicationChrome ();
 };
 
 static void
@@ -177,5 +194,86 @@ TestToolbarController::reloadsAutoHidePreference () {
     reset_user_preference ("hide toolbars when not using them");
 }
 
-QTEST_MAIN(TestToolbarController)
+void
+TestToolbarController::floatingWindowsRetainApplicationChrome () {
+  {
+    QTMMainTabWindow shell;
+    auto makePane= [] (const QString& title) {
+      auto* pane= new QLabel (title);
+      pane->setFocusPolicy (Qt::StrongFocus);
+      pane->setProperty ("athena-document-widget", true);
+      auto* dock= new ads::CDockWidget (title);
+      dock->setWidget (pane);
+      return dock;
+    };
+    auto* first= makePane ("First");
+    auto* second= makePane ("Second");
+    auto* area= shell.dockManager ()->addDockWidget (
+      ads::CenterDockWidgetArea, first);
+    auto* floating= shell.dockManager ()->addDockWidgetFloating (second);
+    // Exercise the parentless topology used by native Wayland windows.
+    floating->setParent (nullptr, floating->windowFlags ());
+    shell.show ();
+    floating->show ();
+    QCOMPARE (floating->styleSheet (), shell.dockManager ()->styleSheet ());
+    QCOMPARE (floating->property ("athenaDarkMode"),
+              shell.dockManager ()->property ("athenaDarkMode"));
+    auto* chrome= floating->findChild<QMainWindow*> ();
+    QVERIFY (chrome != nullptr);
+    QVERIFY (!chrome->menuBar ()->actions ().isEmpty ());
+    QCOMPARE (chrome->menuBar ()->actions ().size (),
+              shell.menuBar ()->actions ().size ());
+    QVERIFY (chrome->menuBar ()->isVisible ());
+    QVERIFY (chrome->statusBar ()->isVisible ());
+    QVERIFY (chrome->findChild<QLabel*> ("athenaStatusCenter") != nullptr);
+    QCOMPARE (floating->dockContainer ()->floatingWidget (), floating);
+    shell.dockManager ()->setDockWidgetFocused (second);
+    QCOMPARE (shell.activeWorkPaneWidget (&shell), first->widget ());
+    QCOMPARE (shell.activeWorkPaneWidget (floating), second->widget ());
+    QCOMPARE (shell.lastActiveDocumentWidget (floating), second->widget ());
+    shell.dockManager ()->setDockWidgetFocused (first);
+    QVERIFY (!second->tabWidget ()->property ("focused").toBool ());
+    for (auto* dock: {first, second}) {
+      auto* tab= dock->tabWidget ();
+      QVERIFY (tab->isActiveTab ());
+      const QImage image= tab->grab ().toImage ();
+      const QColor highlight= tab->palette ().color (QPalette::Highlight);
+      int highlighted= 0;
+      for (int y= 0; y < image.height (); ++y)
+        for (int x= 0; x < image.width (); ++x)
+          if (image.pixelColor (x, y) == highlight) ++highlighted;
+      QVERIFY2 (highlighted > image.width () * image.height () / 4,
+                qPrintable (dock->windowTitle ()));
+    }
+    shell.dockManager ()->addDockWidgetTabToArea (second, area);
+    QCOMPARE (second->window (), static_cast<QWidget*> (&shell));
+    QCOMPARE (shell.findChildren<QStatusBar*> (
+      QString (), Qt::FindDirectChildrenOnly).size (), 1);
+  }
+}
+
+static void run_tests (int argc, char** argv) {
+  init_system_state ();
+  gui_open (argc, argv);
+  int result;
+  {
+    server sv;
+    TestToolbarController test;
+    result= QTest::qExec (&test, argc, argv);
+  }
+  gui_close ();
+  release_boot_lock ();
+  std::exit (result);
+}
+
+int main (int argc, char** argv) {
+  QTMApplication app (argc, argv);
+  QTemporaryDir profile;
+  if (!profile.isValid ()) return 1;
+  qputenv ("ATHENA_HOME_PATH", profile.path ().toUtf8 ());
+  cache_initialize ();
+  init_athena ();
+  start_scheme (argc, argv, run_tests);
+  return 1;
+}
 #include "toolbar_controller_test.moc"
