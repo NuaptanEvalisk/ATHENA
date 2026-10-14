@@ -630,8 +630,8 @@ edit_interface_rep::compute_env_rects (path p, rectangles& rs, bool recurse,
             rectangles rbis= copy (thicken (bis->rs, 0, 2 * pixel));
             correct_adjacent (rsel, rbis);
           }
-          rectangles selp= thicken (rsel,  pixel/2,  pixel/2);
-          rectangles selm= thicken (rsel, -pixel/2, -pixel/2);
+          rectangles selp= thicken (rsel,  pixel,  pixel);
+          rectangles selm= thicken (rsel, -pixel, -pixel);
           rl << simplify (::correct (selp - selm));
         }
     }
