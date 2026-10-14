@@ -270,6 +270,21 @@ add_test(NAME html5_export_editor_test
     --runtime ${ATHENA_GUILE_PREFIX}
     --resources ${ATHENA_SOURCE_DIR}/ATHENA)
 set_tests_properties(html5_export_editor_test PROPERTIES TIMEOUT 90)
+add_test(NAME headless_html_export_test
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/runtime-test.py
+    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/headless-html-export-test.scm
+    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
+    --runtime ${ATHENA_GUILE_PREFIX}
+    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
+set_tests_properties(headless_html_export_test PROPERTIES TIMEOUT 120)
+add_test(NAME website_export_test
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/website-export-test.py
+    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
+    --runtime ${ATHENA_GUILE_PREFIX}
+    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
+set_tests_properties(website_export_test PROPERTIES TIMEOUT 150)
 add_test(NAME commutative_diagram_editor_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/commutative-diagram-render-test.py

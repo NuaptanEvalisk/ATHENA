@@ -109,8 +109,9 @@
 	(set! output-space-flag #f))))
 
 (define (output-sub s i)
-  (with pos (string-search-forwards " " i s)
-    (if (>= pos i)
+  ;; substring uses character offsets, not the native search's UTF-8 bytes.
+  (with pos (string-index s #\space i)
+    (if pos
 	(begin
 	  (output-prepared (substring s i pos))
 	  (set! output-space-flag #t)

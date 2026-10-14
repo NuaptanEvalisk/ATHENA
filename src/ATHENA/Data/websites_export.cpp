@@ -12,7 +12,9 @@
 #include "ATHENA/Data/transclusion_cache.hpp"
 #include "ATHENA/Data/data_art.hpp"
 #include "ATHENA/Data/new_window.hpp"
+#include "ATHENA/Data/new_view.hpp"
 #include "ATHENA/Data/node_reference_export.hpp"
+#include "Data/Convert/Xml/athena_document_xml.hpp"
 #include "buffer_name_catalog.hpp"
 #include "Qt/qt_utilities.hpp"
 
@@ -826,23 +828,34 @@ export_document_html (tree doc, const fs::path& source,
   }
 
   fs::path temp_source = fs::path (ss (temp_dir.path ())) / "document.ath";
-  if (export_tree (doc, url_system (std_to_tm (temp_source.string ())),
-                   "texmacs")) {
+  // This is a native document snapshot, not a legacy TeXmacs interchange
+  // export. UTF-8 text (including literal '<') must round-trip unchanged.
+  const std::string serialized= athena::document::write_xml_v2 (doc);
+  if (save_string (url_system (std_to_tm (temp_source.string ())),
+                   std_to_tm (serialized))) {
     error = "Could not prepare temporary TeXmacs source for " +
             source.string ();
     return false;
   }
 
   fs::remove (target, ec);
-  std::string command =
-    "(begin "
-    "(load-buffer (string->url " + scheme_quote (temp_source.string ()) +
-    ") :strict) "
-    "(export-buffer (string->url " + scheme_quote (target.string ()) + ")) "
-    "(buffer-close (current-buffer)))";
-  eval (std_to_tm (command));
+  url source_buffer= url_system (std_to_tm (temp_source.string ()));
+  if (buffer_load (source_buffer)) {
+    error= "Could not load temporary HTML export source for " + source.string ();
+    return false;
+  }
+  bool failed;
+  try {
+    failed= buffer_export (
+      source_buffer, url_system (std_to_tm (target.string ())), "html");
+  }
+  catch (...) {
+    kill_buffer (source_buffer);
+    throw;
+  }
+  kill_buffer (source_buffer);
 
-  if (!fs::is_regular_file (target, ec)) {
+  if (failed || !fs::is_regular_file (target, ec)) {
     error = "HTML export failed for " + source.string ();
     return false;
   }
@@ -872,13 +885,16 @@ export_document_pdf (const fs::path& source, const fs::path& target,
   fs::remove (target, ec);
   url source_buffer= url_system (std_to_tm (source.string ()));
   bool transient_buffer= concrete_buffer (source_buffer) == nullptr;
-  std::string command=
-    "(load-buffer (system->url " + scheme_quote (source.string ()) +
-    ") :strict)";
-  eval (std_to_tm (command));
+  if (transient_buffer && buffer_load (source_buffer)) {
+    error= "Could not load PDF export source " + source.string ();
+    return false;
+  }
 
   bool dispatched= false;
   try {
+    // Loading a buffer does not create its editor view. Reference probing and
+    // all subsequent print commands must use an initialized export view.
+    (void) get_recent_view (source_buffer);
     const string source_name= as_string (source_buffer);
     const auto owner= published_buffer_source (std::string (source_name.data (), N(source_name)));
     athena::node_reference::export_reference_scope references (

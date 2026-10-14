@@ -466,8 +466,9 @@ get_recent_view (url name) {
   // the current buffer or another view attached to a window
   array<url> vs= buffer_to_views (name);
   if (N(vs) == 0) return get_new_view (name);
-  url u= get_current_view ();
-  if (view_to_buffer (u) == name && !concrete_view (u)->compound_member) return u;
+  url u= get_current_view_safe ();
+  if (!is_none (u) && view_to_buffer (u) == name &&
+      !concrete_view (u)->compound_member) return u;
   url r= get_recent_view (name, true, false, true, false);
   if (!is_none (r)) return r;
   r= get_recent_view (name, true, false, false, false);
