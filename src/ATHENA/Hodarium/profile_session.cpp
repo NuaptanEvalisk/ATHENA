@@ -160,8 +160,14 @@ void profile_session::tick () {
     inspect_waiting_result ();
     if (client_ && !client_->authorized () && network_) { replication_.reset (); peer_secrets_.reset (); network_->stop (); }
     if (client_ && (status_.phase == profile_phase::authorized ||
-        status_.phase == profile_phase::offline_valid) && !client_->authorized ())
-      publish (profile_phase::expired, "Hodarium membership validation expired");
+        status_.phase == profile_phase::offline_valid) && !client_->authorized ()) {
+      if (directory_) directory_->stop ();
+      // Wake-up invalidates the offline lease, not membership itself. Restart
+      // an in-flight validation too: its pre-suspend timestamps are stale.
+      if (busy_) client_->suspend ();
+      publish (profile_phase::validating, {}, {}, 0, diagnostic_source::membership);
+      next_= {};
+    }
     if (busy_ || clock::now () < next_) return;
     if (pending_ && enrollment_) {
       busy_= true;

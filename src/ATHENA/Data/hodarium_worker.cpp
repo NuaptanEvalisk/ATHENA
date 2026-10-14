@@ -776,6 +776,10 @@ athena::background::progress sync_worker::background_progress () {
           (value.state == phase::disconnected || (value.state == phase::waiting && !conflict))) {
         value.state= phase::disconnected; value.caption= "Connection unavailable; retrying";
       }
+      if (status.phase == profile_phase::validating) {
+        value.state= phase::working; value.caption= "Validating membership";
+        value.current= value.total= 0; value.bytes= false;
+      }
       if (!suppressed (status.failure) && !status.diagnostic.empty () && (status.phase == profile_phase::error ||
           status.phase == profile_phase::denied || status.phase == profile_phase::expired))
         value.error_detail= status.diagnostic;

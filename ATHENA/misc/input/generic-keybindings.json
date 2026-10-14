@@ -11,6 +11,8 @@
         {"key": "C-S-o", "commands": [{"call": "open-quick-switcher", "args": []}]},
         {"key": "C-S-O", "commands": [{"call": "open-quick-switcher", "args": []}]},
         {"key": "C-S-tab", "commands": [{"call": "visual-buffer-switcher-show", "args": []}]},
+        {"key": "C-+", "commands": [{"if": {"call": "in-text?", "args": []}, "then": {"call": "insert-transclude", "args": []}, "else": false}]},
+        {"key": "C-=", "commands": [{"if": {"call": "in-text?", "args": []}, "then": {"call": "insert-wikilink", "args": []}, "else": false}]},
         {"key": "escape", "commands": [{"call": "open-escape-symbol-picker", "args": []}]},
         {"key": "<", "text": "<"},
         {"key": ">", "text": ">"},
