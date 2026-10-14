@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "QTMNamespaceExplorer.hpp"
+#include "QTMApplication.hpp"
 #include "QTMVaultSafeRename.hpp"
 
 #include "QTMMainTabWindow.hpp"
@@ -568,8 +569,10 @@ QTMNamespaceExplorer::addFileItem (QTreeWidgetItem* parent,
                                    const QString& tooltip) {
   QTreeWidgetItem* item= new QTreeWidgetItem (parent);
   item->setText (0, display);
-  item->setIcon (0, namespace_explorer_icon ("text-x-generic",
-                                             QStyle::SP_FileIcon));
+  QIcon icon= tmapp ()->icon_manager ().getDocumentIcon (path);
+  if (icon.isNull ())
+    icon= namespace_explorer_icon ("text-x-generic", QStyle::SP_FileIcon);
+  item->setIcon (0, icon);
   item->setData (0, TypeRole, FileItem);
   item->setData (0, FilePathRole, path);
   item->setToolTip (0, tooltip);

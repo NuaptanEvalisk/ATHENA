@@ -25,6 +25,7 @@
 #include <QIconEngine>
 #include <QPainter>
 #include <QPixmapCache>
+#include <QFileInfo>
 
 bool may_transform (url file_name, const QImage& pm);
 
@@ -266,6 +267,24 @@ QTMIconManager::getPresentationIcon (const QString& value) {
 }
 
 QIcon
+QTMIconManager::getDocumentIcon (const QString& filename) {
+  const QString extension= QFileInfo (filename).suffix ().toLower ();
+  QString name;
+  if (extension == "ath") name= "text-x-athena";
+  else if (extension == "ats") name= "text-x-athena-style";
+  else if (extension == "avd") name= "application-x-athena-avd";
+  else return QIcon ();
+  const QString key= "document:" + name;
+  if (!icon_table.contains (key)) {
+    QIcon icon;
+    load_icon_file (url ("$ATHENA_PATH/misc/images/" *
+                        from_qstring (name) * ".svg"), icon);
+    icon_table.insert (key, icon);
+  }
+  return icon_table.value (key);
+}
+
+QIcon
 QTMIconManager::getIcon (url file_name) {
   QIcon icon;
   QString cache_key= to_qstring (as_string (file_name));
@@ -273,7 +292,7 @@ QTMIconManager::getIcon (url file_name) {
     return icon_cache ()[cache_key];
 
   if (file_name == url ("ATHENA") &&
-      load_icon_file (url ("$ATHENA_PATH/misc/images/ATHENA-512.png"), icon)) {
+      load_icon_file (url ("$ATHENA_PATH/misc/images/ATHENA.svg"), icon)) {
     icon_cache ()[cache_key]= icon;
     return icon;
   }

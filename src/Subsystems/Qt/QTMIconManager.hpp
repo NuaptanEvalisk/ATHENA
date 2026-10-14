@@ -33,6 +33,7 @@ public:
   
   QIcon getIcon (url file_name);
   QIcon getPresentationIcon (const QString& value);
+  QIcon getDocumentIcon (const QString& filename);
 
   static bool is_dark_mode ();
 

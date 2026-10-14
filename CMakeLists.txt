@@ -1155,9 +1155,13 @@ file (COPY "${CMAKE_SOURCE_DIR}/ATHENA/misc/materials"
 ### --------------------------------------------------------------------
 
 install (FILES ATHENA/misc/mime/ATHENA.desktop DESTINATION share/applications)
-install (FILES ATHENA/misc/images/athena.svg RENAME ATHENA.svg
+install (FILES ATHENA/misc/images/ATHENA.svg
   DESTINATION share/icons/hicolor/scalable/apps)
-install (FILES ATHENA/misc/images/text-x-athena.svg
+install (FILES ATHENA/misc/images/text-x-athena.svg RENAME org.athena.document.svg
+  DESTINATION share/icons/hicolor/scalable/mimetypes)
+install (FILES ATHENA/misc/images/text-x-athena-style.svg RENAME org.athena.style.svg
+  DESTINATION share/icons/hicolor/scalable/mimetypes)
+install (FILES ATHENA/misc/images/application-x-athena-avd.svg RENAME org.athena.avd.svg
   DESTINATION share/icons/hicolor/scalable/mimetypes)
 install (FILES ATHENA/misc/mime/athena.xml DESTINATION share/mime/packages)
 install (DIRECTORY "${ATHENA_GUILE_PREFIX}/share/guile/3.0"
@@ -1169,7 +1173,7 @@ install (DIRECTORY "${ATHENA_GUILE_PREFIX}/lib/"
   FILES_MATCHING PATTERN "libathena-guile.so*")
 foreach (size IN ITEMS 16 22 24 32 48 64 128 256 512)
   message (STATUS ${size})
-  install (FILES ATHENA/misc/images/athena-${size}.png RENAME ATHENA.png
+  install (FILES ATHENA/misc/images/ATHENA-${size}.png RENAME ATHENA.png
     DESTINATION share/icons/hicolor/${size}x${size}/apps/)
 endforeach ()
 

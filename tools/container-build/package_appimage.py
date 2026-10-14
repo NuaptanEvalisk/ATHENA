@@ -261,17 +261,16 @@ exec "$athena_dir/bin/ATHENA.bin" "${platform_args[@]}" "$@"
 
 def write_desktop_and_icon(appdir: Path, runtime: Path):
     desktop = appdir / "ATHENA.desktop"
-    desktop.write_text("""[Desktop Entry]
-Type=Application
-Name=ATHENA
-GenericName=Advanced Typesetting and Hypertext Environment for Notes and Archives
-Comment=A structured WYSIWYG scientific editing platform
-Exec=ATHENA %f
-Icon=ATHENA
-Terminal=false
-Categories=Education;Science;Office;
-MimeType=application/x-athena;text/x-texmacs.doc;text/x-texmacs.sty;text/plain;text/x-tex;
-""")
+    copy_file(runtime / "misc/mime/ATHENA.desktop", desktop)
+    copy_file(runtime / "misc/mime/athena.xml",
+              appdir / "usr/share/mime/packages/athena.xml")
+    copy_file(runtime / "misc/images/ATHENA.svg",
+              appdir / "usr/share/icons/hicolor/scalable/apps/ATHENA.svg")
+    for name, installed in (("text-x-athena", "org.athena.document"),
+                            ("text-x-athena-style", "org.athena.style"),
+                            ("application-x-athena-avd", "org.athena.avd")):
+        copy_file(runtime / f"misc/images/{name}.svg",
+                  appdir / f"usr/share/icons/hicolor/scalable/mimetypes/{installed}.svg")
     icon_src = runtime / "misc/images/ATHENA-512.png"
     if icon_src.exists():
         copy_file(icon_src, appdir / "ATHENA.png")

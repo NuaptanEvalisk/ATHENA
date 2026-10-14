@@ -45,8 +45,8 @@
 		<comment xml:lang="zh_CN">ATHENA 样式表</comment>
 		<comment xml:lang="zh_TW">ATHENA 樣式表</comment>
 		<glob weight="90" pattern="*.ats"/>
-  	<icon name="text-x-athena"/>
-  	<generic-icon name="text-x-athena"/>
+		<icon name="org.athena.style"/>
+		<generic-icon name="org.athena.document"/>
 	</mime-type>
 	<mime-type type="text/x-athena.doc">
 		<comment>ATHENA document</comment>
@@ -87,8 +87,14 @@
 		<comment xml:lang="vi">Tài liệu ATHENA</comment>
 		<comment xml:lang="zh_CN">ATHENA 文档</comment>
 		<comment xml:lang="zh_TW">ATHENA 文件</comment>
-		<glob weight="90" pattern="*.ath"/><glob weight="90" pattern="*.tm"/>
-	  <icon name="text-x-athena"/>
-  	<generic-icon name="text-x-athena"/>
+		<glob weight="90" pattern="*.ath"/>
+		<icon name="org.athena.document"/>
+		<generic-icon name="org.athena.document"/>
+	</mime-type>
+	<mime-type type="application/x-athena-avd">
+		<comment>ATHENA compound virtual document</comment>
+		<glob weight="90" pattern="*.avd"/>
+		<icon name="org.athena.avd"/>
+		<generic-icon name="org.athena.document"/>
 	</mime-type>
 </mime-info>

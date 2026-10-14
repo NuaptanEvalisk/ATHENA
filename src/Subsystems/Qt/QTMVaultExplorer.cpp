@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "QTMVaultExplorer.hpp"
+#include "QTMApplication.hpp"
 #include "QTMVaultSafeRename.hpp"
 #include "QTMDocumentHistory.hpp"
 #include "QTMMainTabWindow.hpp"
@@ -52,6 +53,19 @@
 static QString vault_explorer_clipboard_path;
 static QTMVaultExplorer* vault_explorer_widget= nullptr;
 static ads::CDockWidget* vault_explorer_dock= nullptr;
+
+class VaultFileSystemModel: public QFileSystemModel {
+public:
+  using QFileSystemModel::QFileSystemModel;
+
+  QVariant data (const QModelIndex& index, int role= Qt::DisplayRole) const override {
+    if (role == Qt::DecorationRole && index.column () == 0 && !isDir (index)) {
+      QIcon icon= tmapp ()->icon_manager ().getDocumentIcon (fileName (index));
+      if (!icon.isNull ()) return icon;
+    }
+    return QFileSystemModel::data (index, role);
+  }
+};
 
 static bool
 vault_explorer_use_system_trash () {
@@ -111,7 +125,7 @@ set_vault_explorer_area_width (ads::CDockManager* manager,
 }
 
 QTMVaultExplorer::QTMVaultExplorer (QWidget* parent)
-  : QWidget (parent), model (new QFileSystemModel (this)),
+  : QWidget (parent), model (new VaultFileSystemModel (this)),
     tree (new QTreeView (this)),
     floatingSizeGrip (new QSizeGrip (this)) {
   model->setReadOnly (false);
