@@ -35,7 +35,12 @@ string export_node_destination (const tree& source) {
 box decorate_export_node (const tree& source, box body) {
   const auto destination= export_node_destination (source);
   if (destination == "" || is_nil (body)) return body;
-  return locus_box (body->ip, body, list<string> (), PIXEL, "", destination, true);
+  // Inline loci left-justify their contents; a block destination must preserve
+  // the existing layout, including negative frame offsets and indentation.
+  SI left= body->x1;
+  box anchored= locus_box (
+    body->ip, body, list<string> (), PIXEL, "", destination, true);
+  return left == 0 ? anchored : move_box (body->ip, anchored, left, 0, true);
 }
 string export_node_link (string target, hashmap<string,tree> destinations) {
   const auto id= target_id (target);
