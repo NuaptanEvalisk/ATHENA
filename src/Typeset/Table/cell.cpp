@@ -28,6 +28,10 @@ cell_rep::typeset (tree fm, tree t, path iq) {
     iq= descend (iq, 0);
     t = t[0];
   }
+  // A rewritten cell body may have a presentation-only wrapper. Keep the
+  // cell's own source boundary, but honor the body's explicit source mapping.
+  path body_ip= obtain_ip (t);
+  if (body_ip != path (DETACHED)) iq= body_ip;
 
   cell_local_begin (fm);
   if (is_func (t, SUBTABLE, 1)) {

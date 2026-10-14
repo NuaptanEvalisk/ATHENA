@@ -239,7 +239,10 @@ static inline tree
 athena_append_inline_qed (tree t, tree qed) {
   tree out (CONCAT);
   out << t << qed;
-  return out;
+  // This wrapper is presentation, not an extra child in the source cell.
+  path ip= obtain_ip (t);
+  return ip == path (DETACHED)? out:
+    attach_dip (out, decorate (descend (ip, right_index (t))));
 }
 
 static inline bool

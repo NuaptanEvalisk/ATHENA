@@ -17,6 +17,7 @@
 
 class bridge_rewrite_rep: public bridge_rep {
 protected:
+  tree   bt;
   bridge body;
 
 public:
@@ -42,9 +43,13 @@ bridge_rewrite_rep::initialize (tree body_t) {
   else {
     path next_ip= decorate_right (ip);
     tree next= attach_dip (body_t, next_ip);
-    if (body->st != next || body->ip != next_ip)
+    if (body->ip != next_ip)
       replace_bridge (body, next, next_ip);
+    else replace_bridge (body, path (), bt, next, next_ip);
   }
+  // Rewrites can share mutable source nodes; compare with the last expansion,
+  // not body->st, which may already contain the edit while its boxes are stale.
+  bt= copy (body_t);
 }
 
 bridge
