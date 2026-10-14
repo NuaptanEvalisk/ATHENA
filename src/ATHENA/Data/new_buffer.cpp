@@ -851,9 +851,10 @@ buffer_modified (url name) {
 bool
 buffer_menu_modified (url name) {
   athena_view_id view_id= ATHENA_NO_VIEW;
-  if (current_scheme_execution_context () == nullptr ||
-      current_buffer_actor (name, view_id) != nullptr)
+  if (current_buffer_actor (name, view_id) != nullptr)
     return buffer_modified (name);
+  // Menus must not wait for an actor that may be busy typesetting. The GUI
+  // publishes this presentation state when it receives ui_set_modified.
   buffer_name_catalog::metadata entry;
   return published_buffer_names.lookup (catalog_text (as_string (name)), entry)
          && entry.modified;

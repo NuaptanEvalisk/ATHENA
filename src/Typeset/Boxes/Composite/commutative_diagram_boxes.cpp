@@ -11,15 +11,19 @@
 #include "Boxes/composite.hpp"
 #include "Boxes/construct.hpp"
 #include "frame.hpp"
+#include "colors.hpp"
+#include <cmath>
 
 struct commutative_diagram_box_rep: public composite_box_rep {
   frame fr;
+  SI grid_width, grid_height;
   SI old_clip_x1, old_clip_y1, old_clip_x2, old_clip_y2;
 
   commutative_diagram_box_rep (path ip, array<box> bs,
                                array<SI> x, array<SI> y,
                                frame fr, SI width, SI height):
-    composite_box_rep (ip, bs, x, y), fr (fr)
+    composite_box_rep (ip, bs, x, y), fr (fr),
+    grid_width (width), grid_height (height)
   {
     SI child_x1= min (x1, x3), child_x2= max (x2, x4);
     SI child_y1= min (y1, y3), child_y2= max (y2, y4);
@@ -52,6 +56,22 @@ struct commutative_diagram_box_rep: public composite_box_rep {
     ren->get_clipping (old_clip_x1, old_clip_y1,
                        old_clip_x2, old_clip_y2);
     ren->extra_clipping (x1, y1, x2, y2);
+    // Editing guides are not document ink, even when printing a live box tree.
+    if (ren->is_screen && ren->editing_diagram == this) {
+      point lo= fr [point (0.0, -(grid_height >> 1))];
+      point hi= fr [point (grid_width, grid_height-(grid_height >> 1))];
+      pencil saved= ren->get_pencil ();
+      ren->set_pencil (pencil (named_color ("#d8ddff"), ren->pixel));
+      for (double x= std::ceil (lo[0]*2.0)/2.0; x<=hi[0]; x+=0.5) {
+        point a= fr (point (x, lo[1])), b= fr (point (x, hi[1]));
+        ren->line ((SI) a[0], (SI) a[1], (SI) b[0], (SI) b[1]);
+      }
+      for (double y= std::ceil (lo[1]*2.0)/2.0; y<=hi[1]; y+=0.5) {
+        point a= fr (point (lo[0], y)), b= fr (point (hi[0], y));
+        ren->line ((SI) a[0], (SI) a[1], (SI) b[0], (SI) b[1]);
+      }
+      ren->set_pencil (saved);
+    }
   }
 
   void post_display (renderer& ren) {

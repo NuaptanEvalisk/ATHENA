@@ -136,7 +136,27 @@ edit_interface_rep::draw_text (renderer ren, rectangles& l) {
     ~RestoreImage () { ren->image_preview= previous; }
   } restore {ren, ren->image_preview};
   if (image_resize_active) ren->image_preview= &preview;
-  eb->redraw (ren, eb->find_box_path (tp, tp_found), l);
+  path cursor_box= eb->find_box_path (tp, tp_found);
+  struct RestoreDiagram {
+    renderer ren;
+    const box_rep* previous;
+    ~RestoreDiagram () { ren->editing_diagram= previous; }
+  } restore_diagram {ren, ren->editing_diagram};
+  ren->editing_diagram= nullptr;
+  if (tp_found && !is_nil (commutative_diagram_body_path ())) {
+    // Walk box children, not the leaf's cursor suffix (byte and affinity for
+    // shaped text). Stop at the enclosing diagram before reaching that suffix.
+    box b= eb;
+    for (path p= cursor_box; ; p= p->next) {
+      if (!is_nil (b->get_frame ()) && (tree) b == tree ("commutative-diagram")) {
+        ren->editing_diagram= b.operator-> ();
+        break;
+      }
+      if (is_nil (p) || b->subnr () == 0) break;
+      b= b[p->item];
+    }
+  }
+  eb->redraw (ren, cursor_box, l);
 }
 
 void

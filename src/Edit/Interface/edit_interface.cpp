@@ -2181,6 +2181,11 @@ edit_interface_rep::apply_changes () {
     int THE_CURSOR_BAK= env_change & THE_CURSOR;
     go_to_here ();
     env_change= (env_change & (~THE_CURSOR)) | THE_CURSOR_BAK;
+    path diagram_body= commutative_diagram_body_path ();
+    if (diagram_body != commutative_diagram_grid_path_) {
+      commutative_diagram_grid_path_= copy (diagram_body);
+      invalidate_all ();
+    }
     if ((env_change & (THE_TREE+THE_ENVIRONMENT+
                        THE_CURSOR+THE_SELECTION+THE_FOCUS)) != 0)
       if (!inside_active_graphics ())

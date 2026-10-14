@@ -85,6 +85,7 @@ protected:
   pointer_shake_detector shake_detector;
   bool          table_selection;
   commutative_diagram_session_ptr commutative_diagram_session_;
+  path commutative_diagram_grid_path_;
   int           mouse_adjusting;  // mask with active key modifiers upon click
   bool          image_resize_active;
   int           image_resize_handle;
@@ -264,6 +265,7 @@ public:
   tree kbd_shortcut (string s);
   void key_press (string key);
   bool commutative_diagram_keypress (string key);
+  path commutative_diagram_body_path ();
   void emulate_keyboard (string keys, string action= "");
   bool complete_try ();
   bool complete_try_realtime ();

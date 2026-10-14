@@ -127,6 +127,11 @@ cd_navigation_score (cd_point origin, cd_point candidate, cd_point direction) {
 
 } // namespace
 
+path
+edit_interface_rep::commutative_diagram_body_path () {
+  return cd_body_path_from_cursor (et, tp);
+}
+
 void
 edit_interface_rep::commutative_diagram_action (
   native_cd_action action, string first, string second) {
@@ -149,7 +154,7 @@ edit_interface_rep::commutative_diagram_action (
   auto session= commutative_diagram_session_;
 
   auto refresh= [&] {
-    typeset_invalidate (path_up (body_path));
+    typeset_invalidate_presentation (path_up (body_path));
     invalidate_all ();
     (void) publish_ui_text (
       actor_command_kind::ui_commutative_diagram_arrow_state,
@@ -387,12 +392,14 @@ edit_interface_rep::commutative_diagram_pointer_event (
   if (!has_subtree (et, body_path)) return false;
   tree body= subtree (et, body_path);
   if (!is_compound (body, "cd-body")) return false;
+  auto previous_session= cd_lookup_session (body);
+  bool halos_were_visible= previous_session && previous_session->halos_visible;
   commutative_diagram_session_= cd_begin_session (body, body_path);
   auto session= commutative_diagram_session_;
   cd_point point (x, y);
 
   auto refresh= [&] {
-    typeset_invalidate (path_up (body_path));
+    typeset_invalidate_presentation (path_up (body_path));
     invalidate_all ();
   };
   auto publish_arrow_state= [&] {
@@ -590,19 +597,29 @@ edit_interface_rep::commutative_diagram_pointer_event (
   if (message == "move" || message == "enter") {
     session->halos_visible= true;
     cd_hit hit= cd_hit_test (body, session, point);
+    string old_kind= session->hover_kind;
+    string old_id= session->hover_id;
     if (hit.kind == "arrow" || hit.kind == "handle")
       cd_set_hover (session, "arrow", hit.id);
     else if (hit.kind == "vertex-content" || hit.kind == "vertex-move")
       cd_set_hover (session, "vertex", hit.id);
     else cd_set_hover (session, "", "");
-    refresh ();
+    if (!halos_were_visible || old_kind != session->hover_kind ||
+        old_id != session->hover_id) {
+      refresh ();
+      notify_change (THE_FREEZE);
+    }
     return true;
   }
 
   if (message == "leave") {
+    bool had_hover= session->hover_kind != "";
     session->halos_visible= false;
     cd_set_hover (session, "", "");
-    refresh ();
+    if (halos_were_visible || had_hover) {
+      refresh ();
+      notify_change (THE_FREEZE);
+    }
     return true;
   }
 

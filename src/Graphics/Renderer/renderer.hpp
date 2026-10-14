@@ -63,6 +63,7 @@ public:
   int cur_page;             // current page number
   // Borrowed context; the caller retains it and its box throughout a repaint.
   const image_box_preview* image_preview= nullptr;
+  const box_rep* editing_diagram= nullptr;
 
 public:
   renderer_rep (bool screen_flag, double pixel_ratio= 1);

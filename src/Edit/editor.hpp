@@ -434,6 +434,7 @@ public:
   virtual array<string> list_atts (bool global= false) = 0;
   virtual void     typeset_forced () = 0;
   virtual void     typeset_invalidate (path p) = 0;
+  virtual void     typeset_invalidate_presentation (path p) = 0;
   virtual void     typeset_invalidate_all () = 0;
   virtual void     typeset_refresh_radioactive_links () = 0;
   virtual bool     heading_fold_toggle () = 0;

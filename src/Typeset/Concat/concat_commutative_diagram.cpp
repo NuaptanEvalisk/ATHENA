@@ -502,19 +502,6 @@ concater_rep::typeset_commutative_diagram (tree t, path ip) {
   }
   double vertex_padding=
     ((double) max (builder.line_unit, env->as_length ("0.05cm"))) / unit;
-  double xmin= -width / 2.0, xmax= width / 2.0;
-  double ymin= -height / 2.0, ymax= height / 2.0;
-  string grid_color= "#d8ddff";
-  SI grid_width= max ((SI) 1, builder.line_unit >> 1);
-  for (double x= std::floor (xmin * 2.0) / 2.0;
-       x <= xmax + 1.0e-9; x+=0.5)
-    builder.line (cd_point (x, ymin), cd_point (x, ymax),
-                  grid_color, grid_width);
-  for (double y= std::floor (ymin * 2.0) / 2.0;
-       y <= ymax + 1.0e-9; y+=0.5)
-    builder.line (cd_point (xmin, y), cd_point (xmax, y),
-                  grid_color, grid_width);
-
   // Keep every selection halo behind every arrow, including at crossings.
   for (int i=0; i<N(arrows); i++) {
     cd_geometry geometry;

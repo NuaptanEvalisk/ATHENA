@@ -1452,6 +1452,17 @@ edit_typeset_rep::typeset_invalidate (path p) {
 }
 
 void
+edit_typeset_rep::typeset_invalidate_presentation (path p) {
+  if (!(rp <= p)) return;
+  path q= p / rp;
+  // Interaction decorations change layout, not the source or its folded view.
+  // Refresh the displayed subtree without discarding unrelated bridge caches.
+  if (!has_subtree (ttt->br->st, q)) return;
+  ::notify_assign (ttt, q, subtree (ttt->br->st, q));
+  notify_change (THE_TREE);
+}
+
+void
 edit_typeset_rep::typeset_invalidate_all () {
   //cout << "Invalidate all\n";
   heading_word_count_cache_hash= INT_MIN;
