@@ -219,7 +219,9 @@ static inline tree
 athena_shallow_copy (tree t) {
   tree out (t, N(t));
   for (int i=0; i<N(t); i++) out[i]= t[i];
-  return out;
+  // Rebuilt presentation ancestors still delimit the original source cells.
+  path ip= obtain_ip (t);
+  return ip == path (DETACHED)? out: attach_dip (out, ip);
 }
 
 static inline tree

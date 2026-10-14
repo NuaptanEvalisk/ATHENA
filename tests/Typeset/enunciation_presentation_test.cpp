@@ -153,6 +153,46 @@ bool has_link_target (box b, const AthenaArtifactRecord& record) {
 class EnunciationPresentationTest: public QObject {
   Q_OBJECT
 private slots:
+  void proofEquationArrayCellSelections () {
+    for (const char* tag: {"eqnarray", "eqnarray*"})
+    for (int proof: {0, 1, 2}) {
+      tree table (TABLE,
+        tree (ROW, tree (CELL, "u"), tree (CELL, "="), tree (CELL, "A(t)")),
+        tree (ROW, tree (CELL, "v"), tree (CELL, "="), tree (CELL, "B(t)")));
+      tree equation= compound (tag, tree (DOCUMENT, tree (TFORMAT, table)));
+      tree document (DOCUMENT, equation);
+      path table_path= path (0, 0, 0) * 0 * 0;
+      if (proof) {
+        tree statement= proof == 1? source ("proof", false):
+                                   compound ("proof", "");
+        statement[0]= tree (DOCUMENT, "Define", equation);
+        document= tree (DOCUMENT, statement);
+        table_path= path (0, 0, 0) * 1 * 0 * 0 * 0;
+      }
+      box rendered= render_destination_fixture (document, 2);
+      for (int row= 0; row < 2; ++row) {
+        SI previous_right= 0;
+        SI bottom= 0, top= 0;
+        for (int column= 0; column < 3; ++column) {
+          path cell= table_path * row * column;
+          selection selected= rendered->find_check_selection (cell * 0, cell * 1);
+          QVERIFY (selected->valid);
+          QCOMPARE (N(selected->rs), 1);
+          rectangle bounds= selected->rs->item;
+          QVERIFY (bounds->x2 > bounds->x1);
+          if (column) {
+            QCOMPARE (bounds->x1, previous_right);
+            QCOMPARE (bounds->y1, bottom);
+            QCOMPARE (bounds->y2, top);
+          }
+          bottom= bounds->y1;
+          top= bounds->y2;
+          previous_right= bounds->x2;
+        }
+      }
+    }
+  }
+
   void exportDestinationsPreservePresentation () {
     tree atom ("office affinity AV Token");
     identify (atom, "22222222-2222-4222-8222-222222222222");
