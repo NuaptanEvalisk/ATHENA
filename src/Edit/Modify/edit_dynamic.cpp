@@ -547,17 +547,200 @@ edit_dynamic_rep::make_style_with (string var, string val) {
 
 void
 edit_dynamic_rep::make_hybrid () {
+  interrupt_shortcut ();
+  finish_hybrid ();
+  hybrid_selection_start= selection_active_normal ()? selection_get_start (): tp;
+  hybrid_selection_end= selection_active_normal ()? selection_get_end (): tp;
+  hybrid_mark= new_marker ();
+  mark_start (hybrid_mark);
   tree t (HYBRID, "");
-  if (selection_active_small ())
-    t[0]= selection_get_cut ();
-  if (is_func (t, HYBRID, 1) && (t[0] != "") &&
-      (!(is_atomic (t[0]) && drd->contains (t[0]->label))))
-    t= tree (HYBRID, "", t[0]);
+  if (selection_active_normal ()) t << selection_get_cut ();
   path p= end (t, path (0));
   if (in_source ()) insert_tree (t, p);
   else insert_tree (tree (INACTIVE, t), path (0, p));
+  hybrid_owner= subtree (et, search_upwards (HYBRID));
+  hybrid_drafts.push_back ({hybrid_owner, N(t) == 2? copy (t[1]): tree ("")});
   set_status_hint (concat (kbd ("return"), ": activate symbol or macro"),
                    "hybrid");
+}
+
+void
+edit_dynamic_rep::finish_hybrid (bool accepted) {
+  if (hybrid_mark != 0) {
+    interrupt_shortcut ();
+    // Include identity/artifact metadata in the same completed input gesture.
+    if (accepted) add_undo_mark ();
+    mark_end (hybrid_mark);
+    hybrid_mark= 0;
+  }
+  if (accepted)
+    hybrid_drafts.erase (std::remove_if (hybrid_drafts.begin (), hybrid_drafts.end (),
+      [&] (const hybrid_draft& draft) { return draft.input.operator-> () == hybrid_owner.operator-> (); }),
+      hybrid_drafts.end ());
+  hybrid_drafts.erase (std::remove_if (hybrid_drafts.begin (), hybrid_drafts.end (),
+    [&] (const hybrid_draft& draft) {
+      tree input= draft.input;
+      path ip= obtain_ip (input);
+      if (!is_accessible (ip)) return true;
+      path p= reverse (ip);
+      return !has_subtree (et, p) ||
+             subtree (et, p).operator-> () != draft.input.operator-> ();
+    }), hybrid_drafts.end ());
+  hybrid_owner= tree ("");
+}
+
+bool
+edit_dynamic_rep::hybrid_name_context () {
+  path p= search_upwards (HYBRID);
+  return !is_nil (p) && p * 0 <= tp;
+}
+
+bool
+edit_dynamic_rep::prepare_hybrid () {
+  path p= search_upwards (HYBRID);
+  if (is_nil (p)) return false;
+  tree st= subtree (et, p);
+  if (N(st) == 3 && is_tuple (st[1])) return true;
+  if (!is_atomic (st[0]) || st[0] == "") return false;
+  string name= st[0]->label;
+  tree f= get_env_value (name);
+  drd_update ();
+  tree_label tag= make_tree_label (name);
+  int arity= 0;
+  if (is_func (f, MACRO)) arity= N(f)-1;
+  else if (drd->contains (name)) {
+    for (; arity < 100 && !drd->correct_arity (tag, arity); ++arity) {}
+    if (arity == 100) return false;
+  }
+  else return false;
+  if (arity == 0 && is_func (f, XMACRO)) arity= 1;
+  if (arity == 0) return false;
+  tree args (TUPLE, arity);
+  if (arity == 1 && is_func (f, MACRO) && is_multi_paragraph_macro (f, true))
+    args[0]= tree (DOCUMENT, "");
+  tree selected= N(st) == 2? st[1]: tree ("");
+  int body= -1;
+  tree prototype (tag, arity);
+  for (int i=0; i<arity; ++i) {
+    string label= is_func (f, MACRO) && is_atomic (f[i])?
+                    f[i]->label: drd->get_child_name (prototype, i);
+    if (label == "body") {
+      if (body >= 0) { body= -1; break; }
+      body= i;
+    }
+  }
+  if (body < 0 && arity == 1 && drd->is_accessible_child (prototype, 0)) body= 0;
+  if (selected != "" && body >= 0) {
+    args[body]= selected;
+    selected= "";
+  }
+  assign (p, tree (HYBRID, st[0], args, selected));
+  tree prepared= subtree (et, p);
+  for (auto& draft: hybrid_drafts)
+    if (draft.input.operator-> () == st.operator-> ()) draft.input= prepared;
+  if (hybrid_owner.operator-> () == st.operator-> ()) hybrid_owner= prepared;
+  go_to (start (et, p * 1 * 0));
+  if (selected != "")
+    set_status_hint ("Select an argument and press Enter to place the selection", name);
+  return true;
+}
+
+bool
+edit_dynamic_rep::hybrid_keypress (string key) {
+  path p= search_upwards (HYBRID);
+  if (is_nil (p)) { finish_hybrid (); return false; }
+  tree st= subtree (et, p);
+  if (hybrid_owner.operator-> () != st.operator-> ()) {
+    finish_hybrid ();
+    hybrid_owner= st;
+  }
+  bool name= hybrid_name_context ();
+  bool prepared= N(st) == 3 && is_tuple (st[1]);
+  if (key == "escape" || (key == "backspace" && name && st[0] == "")) {
+    interrupt_shortcut ();
+    if (hybrid_mark != 0) {
+      double mark= hybrid_mark;
+      hybrid_mark= 0;
+      if (mark_cancel (mark)) {
+        go_to (hybrid_selection_end);
+        if (hybrid_selection_start != hybrid_selection_end)
+          select (hybrid_selection_start, hybrid_selection_end);
+        finish_hybrid (true);
+      }
+      else set_message ("Could not roll back macro input; its draft is retained", "Macro input");
+    }
+    else {
+      tree selected= N(st) == 2? st[1]: prepared? st[2]: tree ("");
+      auto draft= std::find_if (hybrid_drafts.begin (), hybrid_drafts.end (),
+        [&] (const hybrid_draft& item) { return item.input.operator-> () == st.operator-> (); });
+      if (draft != hybrid_drafts.end ()) selected= copy (draft->selection);
+      else if (prepared) {
+        set_message ("This saved macro draft has no cancellation snapshot", "Macro input");
+        return true;
+      }
+      if (is_func (subtree (et, path_up (p)), INACTIVE)) p= path_up (p);
+      assign (p, selected);
+      go_to (end (et, p));
+      if (selected != "") select (start (et, p), end (et, p));
+      correct (path_up (p));
+      finish_hybrid (true);
+    }
+    return true;
+  }
+  if (key == "tab" || key == "S-tab") {
+    if (name && !prepared) { (void) prepare_hybrid (); return true; }
+    if (!prepared) return false;
+    int index= name || !(p * 1 <= tp)? -1: (tp / (p * 1))->item;
+    index+= key == "S-tab"? -1: 1;
+    if (index < 0 || index >= N(st[1])) go_to (end (et, p * 0));
+    else go_to (start (et, p * 1 * index));
+    return true;
+  }
+  if (prepared && (key == "A-right" || key == "A-left")) {
+    tree_label tag= make_tree_label (st[0]->label);
+    int n= N(st[1]);
+    if (key == "A-right") {
+      int next= n+1;
+      while (next < 100 && !drd->correct_arity (tag, next)) ++next;
+      int at= n;
+      while (at >= 0 && !drd->insert_point (tag, at, n)) --at;
+      if (next < 100 && at >= 0) {
+        insert (p * 1 * at, tree (TUPLE, next-n));
+        go_to (start (et, p * 1 * at));
+      }
+    }
+    else {
+      int previous= n-1;
+      while (previous >= 0 && !drd->correct_arity (tag, previous)) --previous;
+      int at= previous;
+      while (at >= 0 && !drd->insert_point (tag, at, previous)) --at;
+      bool empty= at >= 0;
+      for (int i= std::max (0, at); empty && i<at+n-previous; ++i)
+        empty= is_empty (st[1][i]);
+      if (empty) {
+        remove (p * 1 * at, n-previous);
+        go_to (end (et, p * 0));
+      }
+    }
+    return true;
+  }
+  if (key == "return" || key == "enter") {
+    if (prepared && st[2] != "") {
+      if (name || !(p * 1 <= tp)) return true;
+      int index= (tp / (p * 1))->item;
+      if (st[1][index] != "") {
+        set_message ("Choose an empty argument for the selection", "Macro input");
+        return true;
+      }
+      tree selected= st[2];
+      assign (p * 2, "");
+      assign (p * 1 * index, selected);
+      go_to (end (et, p * 1 * index));
+    }
+    else activate_hybrid (false);
+    return true;
+  }
+  return false;
 }
 
 bool
@@ -586,7 +769,49 @@ edit_dynamic_rep::activate_latex () {
 void
 edit_dynamic_rep::activate_hybrid (bool with_args_hint) {
   // WARNING: update edit_interface_rep::set_hybrid_footer when updating this
-  if (activate_latex ()) return;
+  path hp= search_upwards (HYBRID);
+  if (!is_nil (hp)) {
+    tree input= subtree (et, hp);
+    if (hybrid_owner.operator-> () != input.operator-> ()) {
+      finish_hybrid ();
+      hybrid_owner= input;
+    }
+    if (N(input) == 3 && is_tuple (input[1])) {
+      if (input[2] != "") return;
+      tree_label label= make_tree_label (input[0]->label);
+      tree f= get_env_value (input[0]->label);
+      if ((!is_func (f, MACRO) && !is_func (f, XMACRO) &&
+           !drd->contains (input[0]->label)) ||
+          (is_func (f, MACRO) && N(input[1]) != N(f)-1) ||
+          (!is_func (f, MACRO) && !drd->correct_arity (label, N(input[1])))) {
+        set_message ("Invalid macro arguments", "Macro input");
+        return;
+      }
+      tree result (label, A(input[1]));
+      const auto* declaration= athena::enunciation::standard_registry ().legacy (
+        std::string (input[0]->label.data (), N(input[0]->label)));
+      if (declaration && !in_source ()) {
+        athena::enunciation::conversion_options options;
+        if (!declaration->numbering_preference.empty ())
+          options.numbering_preferences[declaration->numbering_preference]=
+            get_preference (string (declaration->numbering_preference.c_str ())) == "on";
+        auto converted= athena::enunciation::convert_detached_source (result, options);
+        if (converted.diagnostics.empty ()) result= converted.source;
+      }
+      if (is_func (subtree (et, path_up (hp)), INACTIVE)) hp= path_up (hp);
+      assign (hp, result);
+      go_to (start (et, hp));
+      correct (path_up (hp));
+      finish_hybrid (true);
+      return;
+    }
+    if (N(input) == 2 && prepare_hybrid ()) {
+      input= subtree (et, hp);
+      if (input[2] == "") activate_hybrid (with_args_hint);
+      return;
+    }
+  }
+  if (activate_latex ()) { finish_hybrid (true); return; }
   set_message ("", "");
   path p= search_upwards (HYBRID);
   if (is_nil (p)) return;
@@ -604,9 +829,14 @@ edit_dynamic_rep::activate_hybrid (bool with_args_hint) {
     int i, n= N(mt)-1;
     for (i=0; i<n; i++)
       if (mt[i] == name) {
+        if (N(st) == 2) {
+          set_message ("This macro argument cannot wrap the selection", "Macro input");
+          return;
+        }
         assign (p, tree (ARG, copy (name)));
         go_to (end (et, p));
         correct (path_up (p));
+        finish_hybrid (true);
         return;
       }
   }
@@ -622,6 +852,11 @@ edit_dynamic_rep::activate_hybrid (bool with_args_hint) {
     if (N(st) == 2) insert_tree (st[1]);
   }
   else if (f != UNINIT) {
+    if (N(st) == 2) {
+      env_locked= old_locked;
+      set_message ("This value cannot wrap the selection", "Macro input");
+      return;
+    }
     assign (p, tree (VALUE, copy (name)));
     go_to (end (et, p));
     correct (path_up (p));
@@ -635,6 +870,7 @@ edit_dynamic_rep::activate_hybrid (bool with_args_hint) {
   else set_message ("Error: unknown command",
                     "activate hybrid command");
   env_locked= old_locked;
+  if (f != UNINIT || drd->contains (name) || in_source ()) finish_hybrid (true);
 }
 
 /******************************************************************************

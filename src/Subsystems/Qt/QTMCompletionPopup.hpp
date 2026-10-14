@@ -23,10 +23,10 @@ using QTMCompletionPopupBase= KCompletionBox;
 
 class QTMCompletionPopup final: public QTMCompletionPopupBase {
 public:
-  using Choice= std::function<void(std::uint64_t, int)>;
+  using Choice= std::function<void(std::uint64_t, int, bool)>;
   QTMCompletionPopup (QWidget* editor, Choice choice);
   void present (std::uint64_t session, const QStringList& items,
-                QPoint anchor, int selected);
+                QPoint anchor, int selected, bool macro= false);
   void select (std::uint64_t session, int row);
   void dismiss (std::uint64_t session);
   void cancel ();
@@ -43,7 +43,8 @@ private:
   Choice choice_;
   std::uint64_t session_= 0;
   QPoint anchor_;
-  void finish (int row);
+  bool macro_= false;
+  void finish (int row, bool activate= false);
 #if ATHENA_PLATFORM_IPADOS
   void move_selection (int delta, bool wrap);
 #endif

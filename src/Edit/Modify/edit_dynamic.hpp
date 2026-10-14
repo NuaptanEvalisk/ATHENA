@@ -12,8 +12,15 @@
 #ifndef EDIT_DYNAMIC_H
 #define EDIT_DYNAMIC_H
 #include "editor.hpp"
+#include <vector>
 
 class edit_dynamic_rep: virtual public editor_rep {
+  double hybrid_mark= 0;
+  path hybrid_selection_start, hybrid_selection_end;
+  tree hybrid_owner;
+  struct hybrid_draft { tree input, selection; };
+  std::vector<hybrid_draft> hybrid_drafts;
+  void finish_hybrid (bool accepted= false);
 public:
   edit_dynamic_rep ();
   ~edit_dynamic_rep ();
@@ -46,6 +53,9 @@ public:
   void make_style_with (string var, string val);
 
   void make_hybrid ();
+  bool hybrid_name_context ();
+  bool hybrid_keypress (string key);
+  bool prepare_hybrid ();
   bool activate_latex ();
   void activate_hybrid (bool with_args_hint);
   void activate_symbol ();

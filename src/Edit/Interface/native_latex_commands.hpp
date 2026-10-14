@@ -8,8 +8,10 @@
 
 #include "command.hpp"
 #include "string.hpp"
+#include "tree.hpp"
 
 bool native_latex_get_command (string which, string& help, command& cmd);
 int native_latex_command_count ();
+tree native_latex_command_catalog ();
 
 #endif

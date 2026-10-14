@@ -26,8 +26,7 @@
   (error "Realtime completion did not refresh while typing"))
 (key-press-complete "escape")
 
-;; Backslash macro entry uses an inactive HYBRID node.  Its command spelling
-;; must not trigger ordinary document-word autocompletion.
+;; Macro entry has its own command candidates, not document-word completion.
 (buffer-set-body (current-buffer)
                  (stree->tree
                    '(document "alpha" "alpine" (inactive (hybrid "a")))))
@@ -38,8 +37,9 @@
 (unless (equal? (body)
                 '(document "alpha" "alpine" (inactive (hybrid "al"))))
   (error "Typing in backslash macro input changed the document unexpectedly"))
-(unless (= (get-input-mode) initial-mode)
-  (error "Realtime completion opened inside backslash macro input"))
+(when (= (get-input-mode) initial-mode)
+  (error "Macro name completion did not open"))
+(key-press-complete "escape")
 
 (set-boolean-preference "realtime text autocompletion" #f)
 (reset '("alpha" "alpine" "a"))
@@ -130,6 +130,75 @@
 (key-press-complete "return")
 (unless (equal? (body) '(document "alpha" "alpha"))
   (error "Enter failed"))
+
+;; Structured arguments, explicit body placement, cancellation, and activation.
+(init-env-tree "test-input-macro"
+               '(macro "title" "body" (concat (arg "title") (arg "body"))))
+(reset '("selected"))
+(selection-set (tree->path (tree-ref (buffer-tree) 0) :start)
+               (tree->path (tree-ref (buffer-tree) 0) :end))
+(make-hybrid)
+(insert "test-input-macro")
+(unless (hybrid-name-context?) (error "Generated hybrid context binding missing"))
+(keyboard-press "tab" 0)
+(unless (equal? (body)
+                '(document (inactive (hybrid "test-input-macro"
+                                      (tuple "" "selected") ""))))
+  (error "Selection was not placed in the declared body argument" (body)))
+(insert "Title")
+(keyboard-press "return" 0)
+(unless (equal? (body) '(document (test-input-macro "Title" "selected")))
+  (error "Macro arguments were not committed" (body)))
+(commit-changes)
+(unless (> (undo-possibilities) 0) (error "Macro input has no undo history"))
+(undo 0)
+(unless (equal? (body) '(document "selected"))
+  (error "Macro insertion was not one undo step" (body)))
+
+(reset '("restore"))
+(selection-set (tree->path (tree-ref (buffer-tree) 0) :start)
+               (tree->path (tree-ref (buffer-tree) 0) :end))
+(make-hybrid)
+(insert "test-input-macro")
+(keyboard-press "tab" 0)
+(keyboard-press "escape" 0)
+(unless (and (equal? (body) '(document "restore")) (selection-active-any?))
+  (error "Cancel did not restore the selected source" (body)))
+(selection-cancel)
+
+(reset '(""))
+(make-hybrid)
+(insert "test-input-macr")
+(start)
+(key-press-complete "tab")
+(unless (equal? (body)
+                '(document (inactive (hybrid "test-input-macro" (tuple "" "") ""))))
+  (error "Macro completion did not prepare argument slots" (body)))
+(insert '(math (frac "a" "b")))
+(keyboard-press "tab" 0)
+(insert "Body")
+(keyboard-press "return" 0)
+(unless (equal? (body)
+                '(document (test-input-macro (math (frac "a" "b")) "Body")))
+  (error "Structured arguments lost their tree representation" (body)))
+
+;; Without a declared body, keep the selection until an argument is chosen.
+(init-env-tree "test-input-pair"
+               '(macro "left" "right" (concat (arg "left") (arg "right"))))
+(reset '("kept"))
+(selection-set (tree->path (tree-ref (buffer-tree) 0) :start)
+               (tree->path (tree-ref (buffer-tree) 0) :end))
+(make-hybrid)
+(insert "test-input-pair")
+(keyboard-press "tab" 0)
+(unless (equal? (body)
+                '(document (inactive (hybrid "test-input-pair" (tuple "" "") "kept"))))
+  (error "Ambiguous selection was assigned without a choice" (body)))
+(keyboard-press "tab" 0)
+(keyboard-press "return" 0)
+(keyboard-press "return" 0)
+(unless (equal? (body) '(document (test-input-pair "" "kept")))
+  (error "Explicit selection placement failed" (body)))
 
 (init-env "page-medium" "paper")
 (update-current-buffer)

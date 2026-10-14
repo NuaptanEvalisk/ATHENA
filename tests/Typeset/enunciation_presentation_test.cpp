@@ -454,6 +454,33 @@ private slots:
     QVERIFY (!occurs ("the", visible_text (render ())));
   }
 
+  void hybridArgumentFieldsPreserveSourcePaths () {
+    Environment context;
+    context.env->write ("macro-input-test",
+      tree (MACRO, "title", "body", tree (CONCAT, tree (ARG, "title"), tree (ARG, "body"))));
+    tree argument= compound ("math", tree (FRAC, "a", "b"));
+    tree input (HYBRID, "macro-input-test", tree (TUPLE, "Title", argument), "");
+    tree document (DOCUMENT, tree (INACTIVE, input));
+    typesetter ts= new_typesetter (context.env, document, path (0));
+    ts->screen_tree= true;
+    struct Delete { typesetter ts; ~Delete () { delete_typesetter (ts); } } cleanup {ts};
+    SI x1= 0, y1= 0, x2= 0, y2= 0;
+    box rendered= typeset (ts, x1, y1, x2, y2);
+    QVERIFY (occurs ("Title", visible_text (rendered)));
+    QVERIFY (occurs ("body", visible_text (rendered)));
+    for (path position: {path (0, 0, 0) * 0 * 3,
+                         path (0, 0, 0) * 1 * 0 * 2,
+                         path (0, 0, 0) * 1 * 1 * 0 * 0 * 1}) {
+      bool found= false;
+      path box_path= rendered->find_box_path (position, found);
+      QVERIFY (found);
+      QCOMPARE (rendered->find_tree_path (box_path), position);
+    }
+    QByteArray screenshot= qgetenv ("ATHENA_MACRO_INPUT_SCREENSHOT");
+    if (!screenshot.isEmpty ())
+      make_raster_image (url (screenshot.constData ()), rendered, 1.5);
+  }
+
   void executionAndCursorEnvironment () {
     Environment context;
     edit_env env= context.env;

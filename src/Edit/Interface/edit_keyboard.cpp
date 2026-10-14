@@ -212,12 +212,22 @@ edit_interface_rep::key_press (string gkey) {
     interrupt_shortcut ();
     return;
   }
+  if (hybrid_keypress (key)) {
+    interrupt_shortcut ();
+    return;
+  }
   
   string new_sh= N(sh_s)==0? key: sh_s * " " * key;
-  if (try_shortcut (new_sh)) return;
+  if (try_shortcut (new_sh)) {
+    if (hybrid_name_context ()) (void) complete_try_realtime ();
+    return;
+  }
   if (new_sh != key) {
     interrupt_shortcut ();
-    if (try_shortcut (key)) return;
+    if (try_shortcut (key)) {
+      if (hybrid_name_context ()) (void) complete_try_realtime ();
+      return;
+    }
   }
 
   string rew= sv->kbd_post_rewrite (key);

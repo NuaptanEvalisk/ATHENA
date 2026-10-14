@@ -13,6 +13,10 @@
 #include "analyze.hpp"
 #include "gui_text.hpp"
 #include "native_latex_commands.hpp"
+#include <mutex>
+
+// The GUI and buffer actors share these non-atomic reference-counted maps.
+static std::mutex keyboard_wildcard_mutex;
 
 #ifdef Q_OS_MAC
 #include "Subsystems/Qt/QTMApplication.hpp"
@@ -77,6 +81,7 @@ void
 tm_config_rep::insert_kbd_wildcard (
   string key, string im, bool post, bool l, bool r)
 {
+  std::lock_guard<std::mutex> lock (keyboard_wildcard_mutex);
   //cout << "Wildcard " << key << " -> " << im << "\n";
   tree t= tuple (im,
 		 l? string ("*"): string (""),
@@ -132,12 +137,14 @@ tm_config_rep::find_key_binding (string key) {
 
 string
 tm_config_rep::kbd_pre_rewrite (string s) {
+  std::lock_guard<std::mutex> lock (keyboard_wildcard_mutex);
   return apply_wildcards (s, pre_kbd_wildcards);
 }
 
 string
 tm_config_rep::kbd_post_rewrite (string s, bool var_flag) {
   if (var_flag) variant_simplification (s);
+  std::lock_guard<std::mutex> lock (keyboard_wildcard_mutex);
   return apply_wildcards (s, post_kbd_wildcards);
 }
 

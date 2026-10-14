@@ -223,3 +223,10 @@ bool native_latex_get_command (string which, string& help, command& cmd) {
 int native_latex_command_count () {
   return (int) registry ().bindings.size ();
 }
+
+tree native_latex_command_catalog () {
+  tree result (TUPLE);
+  for (const auto& binding: registry ().bindings)
+    result << tree (TUPLE, copy (binding.name), copy (binding.help));
+  return result;
+}

@@ -144,7 +144,7 @@ bool context_active (const string& context) {
   if (is_nil (ed)) return false;
   const string mode= ed->get_env_string (MODE);
   const bool math= mode == "math" && !ed->inside_graphics ();
-  const bool hybrid= ed->inside (HYBRID);
+  const bool hybrid= ed->hybrid_name_context ();
   if (context == "math") return math;
   if (context == "math-or-hybrid") return math || hybrid;
   if (context == "math-not-hybrid") return math && !hybrid;

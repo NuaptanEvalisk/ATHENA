@@ -1369,8 +1369,8 @@ int char_clip = 0;
 
 void
 beep () {
-    // Issue a beep
-  QApplication::beep();
+  if (headless_mode) return;
+  QMetaObject::invokeMethod (qApp, [] { QApplication::beep (); }, Qt::AutoConnection);
 }
 
 bool

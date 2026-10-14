@@ -118,6 +118,9 @@ protected:
   std::uint64_t completion_session= 0;
   path          completion_cursor;
   string        completion_original;
+  bool          completion_hybrid= false;
+  array<string> hybrid_completion_labels;
+  bool complete_hybrid ();
   bool completion_index_valid= false;
   std::map<int, std::map<std::string, int>> completion_chunks;
   std::map<std::string, int> completion_words;
@@ -265,7 +268,7 @@ public:
   bool complete_try ();
   bool complete_try_realtime ();
   void complete_start (string prefix, array<string> compls);
-  void complete_choose (std::uint64_t session, int index);
+  void complete_choose (std::uint64_t session, int index, bool activate= false);
   bool complete_keypress (string key);
 
   /* mouse handling */

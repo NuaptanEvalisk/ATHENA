@@ -1250,7 +1250,8 @@ buffer_actor::dispatch (actor_command_record& command) {
   case actor_command_kind::completion_choice:
     if (editor != nullptr)
       editor->complete_choose (command.argument[0],
-        static_cast<int> (static_cast<std::int64_t> (command.argument[1])));
+        static_cast<int> (static_cast<std::int64_t> (command.argument[1])),
+        command.argument[2] != 0);
     break;
   case actor_command_kind::cursor_blink:
     if (editor != nullptr)

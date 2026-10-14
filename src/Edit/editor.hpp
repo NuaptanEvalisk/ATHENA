@@ -242,7 +242,7 @@ public:
   virtual void emulate_keyboard (string keys, string action= "") = 0;
   virtual bool complete_try () = 0;
   virtual void complete_start (string prefix, array<string> compls) = 0;
-  virtual void complete_choose (std::uint64_t session, int index) = 0;
+  virtual void complete_choose (std::uint64_t session, int index, bool activate= false) = 0;
   virtual bool complete_keypress (string key) = 0;
   virtual void mouse_any (string s, SI x, SI y, int m, time_t t,
                           array<double> d) = 0;
@@ -594,6 +594,9 @@ public:
   virtual void make_mod_active (tree_label l) = 0;
   virtual void make_style_with (string var, string val) = 0;
   virtual void make_hybrid () = 0;
+  virtual bool hybrid_name_context () = 0;
+  virtual bool hybrid_keypress (string key) = 0;
+  virtual bool prepare_hybrid () = 0;
   virtual bool activate_latex () = 0;
   virtual void activate_hybrid (bool with_args_hint) = 0;
   virtual void activate_symbol () = 0;

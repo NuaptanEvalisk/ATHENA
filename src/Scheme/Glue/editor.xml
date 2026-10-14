@@ -91,6 +91,7 @@
     <arg type="string" />
   </binding>
   <binding name="cpp-make-hybrid" native="make_hybrid" returns="void" />
+  <binding name="hybrid-name-context?" native="hybrid_name_context" returns="bool" />
   <binding name="activate-latex" native="activate_latex" returns="void" />
   <binding name="activate-hybrid" native="activate_hybrid" returns="void">
     <arg type="bool" />

@@ -412,7 +412,7 @@
         fixed (1) ->
         code (0) -> name (0, "command") -> locals (0, "mode", "src"));
   init (HYBRID, "hybrid",
-        options (1, 1, BIFORM) ->
+        options (1, 2, BIFORM) ->
         variable (0) -> name (0, "command") -> locals (0, "mode", "src") ->
         accessible (1));
 

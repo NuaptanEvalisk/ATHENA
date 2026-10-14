@@ -1052,14 +1052,14 @@ qt_actor_widget_rep::drain_external_effects () {
         auto actor= actor_id_;
         auto view= view_id_;
         completion_popup_= new QTMCompletionPopup (canvas (),
-          [actor, view] (std::uint64_t session, int index) {
+          [actor, view] (std::uint64_t session, int index, bool activate) {
             (void) buffer_actor::submit_to (actor, actor_command_kind::completion_choice,
               view, 0, 0, SCHEME_CAPABILITY_BUFFER, session,
-              static_cast<std::uint64_t> (index));
+              static_cast<std::uint64_t> (index), activate);
           });
       }
       completion_popup_->present (record.argument[0], items,
-        to_qpoint (coord2 (gx, gy)), static_cast<int> (record.argument[3]));
+        to_qpoint (coord2 (gx, gy)), 0, record.argument[3] != 0);
       break;
     }
     case actor_command_kind::ui_commutative_diagram_popup:

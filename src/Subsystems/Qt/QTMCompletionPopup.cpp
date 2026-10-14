@@ -37,10 +37,11 @@ QTMCompletionPopup::QTMCompletionPopup (QWidget* editor, Choice choice):
 }
 
 void QTMCompletionPopup::present (
-  std::uint64_t session, const QStringList& items, QPoint anchor, int selected) {
+  std::uint64_t session, const QStringList& items, QPoint anchor, int selected, bool macro) {
   cancel ();
   if (items.isEmpty ()) return;
   session_= session;
+  macro_= macro;
   anchor_= anchor;
 #if ATHENA_PLATFORM_IPADOS
   clear ();
@@ -79,11 +80,11 @@ void QTMCompletionPopup::dismiss (std::uint64_t session) {
 
 void QTMCompletionPopup::cancel () { finish (-1); }
 
-void QTMCompletionPopup::finish (int row) {
+void QTMCompletionPopup::finish (int row, bool activate) {
   std::uint64_t session= session_;
   session_= 0;
   hide ();
-  if (session) choice_ (session, row);
+  if (session) choice_ (session, row, activate);
 }
 
 #if !ATHENA_PLATFORM_IPADOS
@@ -144,6 +145,8 @@ bool QTMCompletionPopup::eventFilter (QObject* object, QEvent* event) {
       case Qt::Key_PageDown: pageDown (); break;
 #endif
       case Qt::Key_Escape: cancel (); break;
+      case Qt::Key_Return: case Qt::Key_Enter:
+        finish (std::max (0, currentRow ()), macro_); break;
       default: finish (std::max (0, currentRow ())); break;
       }
       return true;

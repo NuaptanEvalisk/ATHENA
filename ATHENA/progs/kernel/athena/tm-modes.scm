@@ -103,7 +103,7 @@
   (in-text% (and (== (get-env "mode") "text") (not (in-graphics?))))
   (in-math% (and (== (get-env "mode") "math") (not (in-graphics?))))
   (in-prog% (and (== (get-env "mode") "prog") (not (in-graphics?))))
-  (in-hybrid% (inside? 'hybrid))
+  (in-hybrid% (hybrid-name-context?))
   (in-hybrid-math% #t in-hybrid% in-math%)
   (in-math-not-hybrid% (not (inside? 'hybrid)) in-math%)
   (in-math-or-hybrid% (or (in-math?) (inside? 'hybrid)))

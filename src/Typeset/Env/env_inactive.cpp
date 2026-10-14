@@ -338,13 +338,73 @@ tree
 edit_env_rep::rewrite_inactive_hybrid (
   tree t, tree var, bool block, bool flush)
 {
-  if (is_atomic (t[0]) && (src_special >= SPECIAL_NORMAL)) {
-    int i, n= N(t);
-    tree r (INLINE_TAG, n);
-    r[0]= tree (CONCAT, "\\",
-		highlight (subvar (var, 0), t[0], TYPE_VARIABLE));
-    for (i=1; i<n; i++)
-      r[i]= rewrite_inactive_arg (t, var, i, false, false);
+  if (N(t) > 0 && is_atomic (t[0]) &&
+      (src_special >= SPECIAL_NORMAL)) {
+    auto ornament= [] (tree content, bool badge, bool compact= false) {
+      tree style (WITH);
+      style << ORNAMENT_SHAPE << "classic"
+            << ORNAMENT_CORNER << "0%"
+            << ORNAMENT_SWELL << "0"
+            << ORNAMENT_BORDER << "0.5ln"
+            << ORNAMENT_HPADDING << (badge ? "0fn" : "0.35fn")
+            << ORNAMENT_VPADDING << (badge || compact ? "0fn" : "0.12fn")
+            << ORNAMENT_COLOR << (badge ? "#c45aec" : "#f4f4f5")
+            << ORNAMENT_SUNNY_COLOR << (badge ? "#c45aec" : "#d4d4d8")
+            << ORNAMENT_SHADOW_COLOR << (badge ? "#c45aec" : "#d4d4d8")
+            << tree (ORNAMENT, content);
+      return style;
+    };
+    auto text_style= [] (tree content, string color) {
+      tree style (WITH);
+      style << MODE << "text" << FONT_FAMILY << "tt"
+            << FONT_SERIES << "medium" << FONT_SHAPE << "right"
+            << COLOR << color << content;
+      return style;
+    };
+    auto field= [&] (string label, tree reference) {
+      tree content (CONCAT);
+      if (label != "")
+        content << text_style (tree (label * ": "), "#606068");
+      // Keep editable content at its source path, not an inactive/string copy.
+      content << tree (MARK, reference, reference);
+      return ornament (tree (WITH, COLOR, "#27272a", content), false);
+    };
+
+    tree glyph= text_style (tree ("\\"), "white");
+    tree badge (RESIZE, glyph,
+                tree (MINUS, "0.5w", "0.6fn"), "-0.25fn",
+                tree (PLUS, "0.5w", "0.6fn"), "0.95fn");
+    tree r (CONCAT, ornament (badge, true));
+    tree name= subvar (var, 0);
+    tree name_box (RESIZE, text_style (tree (MARK, name, name), "#27272a"),
+                   "", "-0.25fn", "", "0.95fn");
+    r << ornament (name_box, false, true);
+
+    const bool staged= N(t) == 3 && is_func (t[1], TUPLE);
+    if (staged) {
+      string macro_name= t[0]->label;
+      tree definition= provides (macro_name) ? read (macro_name) : tree ("");
+      const bool known_signature= drd->contains (macro_name);
+      tree signature= known_signature ? compound (macro_name) : tree (TUPLE);
+      for (int i=0; i<N(t[1]); ++i) signature << t[1][i];
+      tree arguments= subvar (var, 1);
+      for (int i=0; i<N(t[1]); ++i) {
+        string label;
+        if (is_func (definition, MACRO) && i < N(definition)-1 &&
+            is_atomic (definition[i]))
+          label= definition[i]->label;
+        if (label == "" && known_signature)
+          label= drd->get_child_name (signature, i);
+        if (label == "") label= "arg" * as_string (i+1);
+        r << tree (SPACE, "0.3fn") << field (label, subvar (arguments, i));
+      }
+      if (!is_empty (t[2]))
+        r << tree (SPACE, "0.3fn") << field ("Selection", subvar (var, 2));
+    }
+    else {
+      for (int i=1; i<N(t); ++i)
+        r << tree (SPACE, "0.3fn") << field ("Selection", subvar (var, i));
+    }
     return tree (MARK, var, r);
   }
   return rewrite_inactive_default (t, var, block, flush);

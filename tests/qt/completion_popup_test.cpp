@@ -16,8 +16,10 @@ private slots:
     editor->setFocus ();
     QVERIFY (QTest::qWaitForWindowExposed (&window));
     QVector<QPair<std::uint64_t, int>> choices;
-    QTMCompletionPopup popup (editor, [&] (auto session, int row) {
+    bool activated= false;
+    QTMCompletionPopup popup (editor, [&] (auto session, int row, bool activate) {
       choices.append ({session, row});
+      activated= activate;
     });
     QStringList candidates {"alpha", "alpine", "algebra"};
     auto show= [&] (std::uint64_t session) {
@@ -64,6 +66,12 @@ private slots:
     popup.hide ();
     QCoreApplication::processEvents ();
     QCOMPARE (choices.back ().second, -1);
+    popup.present (7, candidates, editor->mapToGlobal (QPoint (0, editor->height ())), 0, true);
+    QTest::keyClick (editor, Qt::Key_Tab);
+    QVERIFY (!activated);
+    popup.present (8, candidates, editor->mapToGlobal (QPoint (0, editor->height ())), 0, true);
+    QTest::keyClick (editor, Qt::Key_Return);
+    QVERIFY (activated);
   }
 };
 
