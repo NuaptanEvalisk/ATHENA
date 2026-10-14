@@ -39,10 +39,11 @@ struct heading_cell_bracket {
   SI   y1;
   SI   y2;
   bool folded;
+  bool table_of_contents;
 
   heading_cell_bracket ():
     level (0), heading_path (), selection_start (), selection_end (),
-    y1 (0), y2 (0), folded (false) {}
+    y1 (0), y2 (0), folded (false), table_of_contents (false) {}
 };
 
 class edit_interface_rep: virtual public editor_rep {

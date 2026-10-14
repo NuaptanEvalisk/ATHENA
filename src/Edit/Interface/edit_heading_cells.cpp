@@ -51,14 +51,17 @@ edit_interface_rep::heading_cell_brackets () {
     bracket.y1             = bounds->y1;
     bracket.y2             = bounds->y2;
     bracket.folded         = ranges[i].folded;
+    bracket.table_of_contents= ranges[i].table_of_contents;
     heading_cell_cache << bracket;
   }
 
   for (int i=0; i<N(heading_cell_cache); i++) {
-    if (heading_cell_cache[i].folded) continue;
+    if (heading_cell_cache[i].folded ||
+        heading_cell_cache[i].table_of_contents) continue;
     SI bottom= eb->y1;
     for (int j=i+1; j<N(heading_cell_cache); j++)
-      if (heading_cell_cache[j].level <= heading_cell_cache[i].level) {
+      if (!heading_cell_cache[j].table_of_contents &&
+          heading_cell_cache[j].level <= heading_cell_cache[i].level) {
         bottom= heading_cell_cache[j].y2;
         break;
       }

@@ -993,14 +993,19 @@ heading_fold_container (tree t) {
 }
 
 static void
-heading_collect_paths (tree t, path p, array<path>& paths) {
+heading_collect_paths (tree t, path p, array<path>& paths,
+                       bool include_toc= false) {
   if (is_atomic (t)) return;
+  if (toc_fold_node (t)) {
+    if (include_toc) paths << p;
+    return;
+  }
   if (heading_level (t) != 0) {
     paths << p;
     return;
   }
   for (int i=0; i<N(t); i++)
-    heading_collect_paths (t[i], p * i, paths);
+    heading_collect_paths (t[i], p * i, paths, include_toc);
 }
 
 static bool
@@ -1129,6 +1134,13 @@ bool
 edit_typeset_rep::heading_fold_toggle_at (string p) {
   path hp= as_path (p);
   tree doc= subtree (et, rp);
+  if (has_subtree (doc, hp) && toc_fold_node (subtree (doc, hp))) {
+    bool folded= folded_tocs->contains (p) ||
+      (!unfolded_tocs->contains (p) &&
+       get_init_string (PAGE_MEDIUM) == "automatic" &&
+       get_preference ("fold table of contents in reflow", "on") == "on");
+    return toc_fold_set_at (rp * hp, !folded);
+  }
   if (!has_subtree (doc, hp) || heading_level (subtree (doc, hp)) == 0) {
     set_message ("No heading at path", p);
     return false;
@@ -1162,11 +1174,36 @@ edit_typeset_rep::heading_cell_ranges () {
   array<heading_cell_range> ranges;
   tree doc= subtree (et, rp);
   array<path> headings;
-  heading_collect_paths (doc, path (), headings);
+  heading_collect_paths (doc, path (), headings, true);
+  int minimum_level= INT_MAX;
+  for (int i=0; i<N(headings); i++) {
+    int level= heading_level (subtree (doc, headings[i]));
+    if (level > 0) minimum_level= min (minimum_level, level);
+  }
+  if (minimum_level == INT_MAX) minimum_level= 1;
 
   int hidden_level= 0;
   for (int i=0; i<N(headings); i++) {
     path hp= headings[i];
+    if (toc_fold_node (subtree (doc, hp))) {
+      if (hidden_level != 0) continue;
+      string key= as_string (hp);
+      heading_cell_range range;
+      range.level= minimum_level;
+      range.heading_path= hp;
+      range.selection_start= start (et, rp * hp);
+      range.selection_end= end (et, rp * hp);
+      range.heading_end= range.selection_end;
+      range.visual_start= range.selection_start;
+      range.visual_end= range.selection_end;
+      range.folded= folded_tocs->contains (key) ||
+        (!unfolded_tocs->contains (key) &&
+         get_init_string (PAGE_MEDIUM) == "automatic" &&
+         get_preference ("fold table of contents in reflow", "on") == "on");
+      range.table_of_contents= true;
+      ranges << range;
+      continue;
+    }
     int level= heading_level (subtree (doc, hp));
     if (hidden_level != 0) {
       if (level <= hidden_level) hidden_level= 0;
@@ -1176,7 +1213,8 @@ edit_typeset_rep::heading_cell_ranges () {
     bool folded_here= folded_headings->contains (as_string (hp));
     int next= i + 1;
     while (next < N(headings) &&
-           heading_level (subtree (doc, headings[next])) > level)
+           (toc_fold_node (subtree (doc, headings[next])) ||
+            heading_level (subtree (doc, headings[next])) > level))
       next++;
 
     path absolute= rp * hp;

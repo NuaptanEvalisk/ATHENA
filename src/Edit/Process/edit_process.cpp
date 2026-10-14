@@ -422,7 +422,10 @@ edit_process_rep::generate_aux_recursively (string which, tree st, path p) {
         if ((is_compound (t, "table-of-contents") ||
              is_compound (t, "table-of-contents*")) &&
             ((which == "") || (which == "table-of-contents")))
-          generate_table_of_contents (as_string (t[0]));
+          {
+            generate_table_of_contents (as_string (t[0]));
+            toc_fold_set_at (p * i, false);
+          }
         if ((is_compound (t, "the-index") || is_compound (t, "the-index*")) &&
             ((which == "") || (which == "the-index")))
           generate_index (as_string (t[0]));

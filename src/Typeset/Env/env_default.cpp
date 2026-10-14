@@ -390,7 +390,12 @@ initialize_default_env () {
   tree tagflag (FLAG, tree (ARG, "Id"), "blue", "Id");
   tree reftxt (GET_BINDING, tree (ARG, "Id"));
   tree prefval (GET_BINDING, tree (ARG, "Id"), "1");
-  tree preftxt (IF, tree (EQUAL, copy (prefval), "?"), "Go", copy (prefval));
+  tree reflow_screen (AND,
+                      tree (EQUAL, tree (VALUE, PAGE_MEDIUM), "automatic"),
+                      tree (UNEQUAL, tree (VALUE, PAGE_PRINTED), "true"));
+  tree preftxt (IF,
+                tree (OR, reflow_screen, tree (EQUAL, copy (prefval), "?")),
+                "Go", copy (prefval));
   tree card_id (ID, tree (HARD_ID, tree (ARG, "destination")));
   tree card_ln (LINK, "cardlink", copy (card_id), copy (dest_url));
   tree act_id (ID, tree (HARD_ID, tree (ARG, "args", "0")));

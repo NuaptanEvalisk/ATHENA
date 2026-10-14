@@ -53,10 +53,12 @@ struct heading_cell_range {
   path visual_start;
   path visual_end;
   bool folded;
+  bool table_of_contents;
 
   heading_cell_range ():
     level (0), heading_path (), selection_start (), selection_end (),
-    heading_end (), visual_start (), visual_end (), folded (false) {}
+    heading_end (), visual_start (), visual_end (), folded (false),
+    table_of_contents (false) {}
 };
 
 class editor_rep: public simple_widget_rep {
