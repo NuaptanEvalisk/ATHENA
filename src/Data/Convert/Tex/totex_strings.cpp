@@ -9,6 +9,9 @@
 #include "totex_internal.hpp"
 #include "converter.hpp"
 #include "analyze.hpp"
+#include "unicode_text.hpp"
+
+#include <string_view>
 
 namespace {
 
@@ -119,6 +122,11 @@ token_piece
 latex_token_piece (string name, bool group, bool math_mode) {
   string special;
   if (special_token_text (name, special)) return token_piece (special);
+  // Native mathematics may supply glyph identities in UTF-8. The frozen
+  // legacy registry only includes their TeX command spellings.
+  if (name == "⟨") name= "langle";
+  else if (name == "⟩") name= "rangle";
+  else if (name == "∞") name= "infty";
   scheme_tree fixed= special_token_tree (name);
   if (!(is_atomic (fixed) && fixed->label == "#f")) return token_piece (fixed);
 
@@ -245,16 +253,14 @@ scheme_tree
 latex_text_string_native (string s) {
   scheme_tree out (TUPLE);
   string run;
+  const std::string_view bytes (s.data (), static_cast<std::size_t> (N(s)));
+  const bool utf8= athena::text::valid_utf8 (bytes);
   for (int i=0; i<N(s); ) {
     char c= s[i];
-    if (c == '<') {
-      int j= i + 1;
-      while (j < N(s) && s[j] != '>') ++j;
-      string name= s (i+1, j);
-      token_piece piece= latex_token_piece (name, true, false);
-      if (piece.plain) run << piece.text;
-      else { flush_text_run (out, run); out << piece.node; }
-      i= j < N(s) ? j + 1 : N(s);
+    if (utf8 && (unsigned char) c >= 0x80) {
+      const auto end= athena::text::next_scalar (bytes, (std::size_t) i);
+      run << s (i, (int) end);
+      i= (int) end;
       continue;
     }
     if (c == ' ') {
@@ -316,19 +322,15 @@ latex_math_string_native (string s) {
   scheme_tree out (TUPLE);
   string run;
   bool start_alpha= false, start_numeric= false;
+  const std::string_view bytes (s.data (), static_cast<std::size_t> (N(s)));
+  const bool utf8= athena::text::valid_utf8 (bytes);
   for (int i=0; i<N(s); ) {
     char c= s[i];
-    if (c == '<') {
-      flush_text_run (out, run); start_alpha= start_numeric= false;
-      int j= i + 1;
-      while (j < N(s) && s[j] != '>') ++j;
-      string name= s (i+1, j);
-      token_piece piece= latex_token_piece (name, false, true);
-      if (piece.plain)
-        append_math_plain (out, run, start_alpha, start_numeric,
-                           N(piece.text) == 1 ? piece.text[0] : c, piece.text);
-      else out << piece.node;
-      i= j < N(s) ? j + 1 : N(s);
+    if (utf8 && (unsigned char) c >= 0x80) {
+      const auto end= athena::text::next_scalar (bytes, (std::size_t) i);
+      append_math_plain (out, run, start_alpha, start_numeric, '\0',
+                         s (i, (int) end));
+      i= (int) end;
       continue;
     }
     if (search_forwards (string (c), 0, "#$%&_{}") >= 0) {
@@ -382,28 +384,27 @@ convert_cork_chars_to_utf8 (string s) {
 
 scheme_tree
 latex_verb_string_native (string s) {
-  string plain;
-  for (int i=0; i<N(s); ) {
-    if (s[i] == '<') {
-      int j= i + 1;
-      while (j < N(s) && s[j] != '>') ++j;
-      token_piece piece= latex_token_piece (s (i+1, j), true, false);
-      if (piece.plain) plain << piece.text;
-      i= j < N(s) ? j + 1 : N(s);
-      continue;
-    }
-    plain << string (s[i]);
-    ++i;
-  }
-
+  // Verbatim input is literal UTF-8 text, never a legacy <symbol> stream.
+  const string& plain= s;
   scheme_tree parts (TUPLE);
   if (!export_math_mode ()) parts << stree_string (plain);
   else {
     string run;
     bool start_alpha= false, start_numeric= false;
-    for (int i=0; i<N(plain); ++i)
+    const std::string_view bytes (plain.data (), (std::size_t) N(plain));
+    const bool utf8= athena::text::valid_utf8 (bytes);
+    for (int i=0; i<N(plain); ) {
+      if (utf8 && (unsigned char) plain[i] >= 0x80) {
+        const auto end= athena::text::next_scalar (bytes, (std::size_t) i);
+        append_math_plain (parts, run, start_alpha, start_numeric, '\0',
+                           plain (i, (int) end));
+        i= (int) end;
+        continue;
+      }
       append_math_plain (parts, run, start_alpha, start_numeric,
                          plain[i], string (plain[i]));
+      ++i;
+    }
     flush_text_run (parts, run);
   }
 
@@ -411,12 +412,10 @@ latex_verb_string_native (string s) {
   for (int i=0; i<N(parts); ++i) {
     if (!string_atom (parts[i])) { converted << parts[i]; continue; }
     string value= atom_text (parts[i]);
-    if (latex_export_use_unicode () || latex_export_use_ascii ())
+    if ((latex_export_use_unicode () || latex_export_use_ascii ()) &&
+        !athena::text::valid_utf8 (std::string_view (
+          value.data (), (std::size_t) N(value))))
       value= convert_cork_chars_to_utf8 (value);
-    else {
-      value= replace (value, "<less>", "<");
-      value= replace (value, "<gtr>", ">");
-    }
     converted << stree_string (value);
   }
   return latex_tex_concat (converted);

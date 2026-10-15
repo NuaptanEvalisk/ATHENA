@@ -548,6 +548,18 @@ big_decode (scheme_tree value) {
     "iint", "iiint", "iiiint", "idotsint", "oiint", "oiiint"
   };
   if (one_of (s, direct, 12)) return s;
+  // ATHENA's native XML documents store actual Unicode operator glyphs,
+  // whereas the older TeXmacs representation used ASCII operator names.
+  // Never emit \big followed by a Unicode glyph: MathJax parses \big as a
+  // delimiter-size command rather than a large mathematical operator.
+  if (s == "∑") return "sum";
+  if (s == "∏") return "prod";
+  if (s == "∫") return "int";
+  if (s == "∐") return "coprod";
+  if (s == "∮") return "oint";
+  if (s == "∬") return "iint";
+  if (s == "∭") return "iiint";
+  if (s == "⨌") return "iiiint";
   if (s == "amalg") return "coprod";
   if (s == "pluscup") return "uplus";
   if (s == ".") return "bignone";

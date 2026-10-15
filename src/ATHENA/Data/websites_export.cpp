@@ -14,7 +14,9 @@
 #include "ATHENA/Data/new_window.hpp"
 #include "ATHENA/Data/new_view.hpp"
 #include "ATHENA/Data/node_reference_export.hpp"
+#include "ATHENA/Data/enunciation_model.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
+#include "Kernel/Types/node_metadata.hpp"
 #include "buffer_name_catalog.hpp"
 #include "Qt/qt_utilities.hpp"
 
@@ -620,7 +622,9 @@ rewrite_link_like (tree t, const std::string& source_rel,
   }
 
   (void) force_plain_hlink;
-  return compound ("hlink", body, tree (std_to_tm (next)));
+  tree rewritten= compound ("hlink", body, tree (std_to_tm (next)));
+  athena::node::copy_metadata (t, rewritten);
+  return rewritten;
 }
 
 std::string
@@ -654,6 +658,59 @@ rewrite_static_links (tree t, const std::string& source_rel,
     return rewrite_link_like (t, source_rel, output_rel, cx, true);
   if (is_compound (t, "transclude") && N(t) >= 4)
     return resolve_transclusion (t, source_rel, output_rel, cx);
+  if (athena::enunciation::is_enunciation (t) && N(t) == 1) {
+    // The legacy HTML converter cannot see typed native node properties and
+    // drops the canonical enunciation tag, including all its child equations.
+    // Project into a declared legacy source environment for this *temporary*
+    // export snapshot. HTML-only primitives here fail the native DRD check.
+    const auto& registry= athena::enunciation::standard_registry ();
+    const auto* meta= athena::node::get (t);
+    std::string kind= registry.kind_name (t);
+    bool numbered= false;
+    tree name ("");
+    if (meta) {
+      auto n= meta->properties.find ("numbered");
+      if (n != meta->properties.end ())
+        if (const auto* value= std::get_if<bool> (&n->second.data)) numbered= *value;
+      auto found= meta->properties.find ("name");
+      if (found != meta->properties.end ())
+        if (const auto* rich= std::get_if<athena::node::rich_text> (&found->second.data))
+          name= rewrite_static_links (rich->content, source_rel, output_rel, cx);
+    }
+    tree body= rewrite_static_links (t[0], source_rel, output_rel, cx);
+    if (!(is_atomic (name) && name->label == "")) {
+      tree headline (CONCAT);
+      headline << tree ("(") << name << tree (")");
+      tree emphasized (WITH, tree ("font-series"), tree ("bold"), headline);
+      tree named (DOCUMENT);
+      named << emphasized;
+      if (is_func (body, DOCUMENT)) {
+        for (int i=0; i<N(body); ++i) named << body[i];
+      }
+      else named << body;
+      athena::node::copy_metadata (body, named);
+      body= named;
+    }
+
+    const auto* alias= static_cast<const athena::enunciation::legacy_definition*> (nullptr);
+    for (const auto& candidate: registry.legacy_tags ())
+      if (candidate.second.kind == kind &&
+          candidate.second.numbered == numbered &&
+          candidate.second.layout == athena::enunciation::legacy_layout::body &&
+          candidate.second.variant == registry.variant_name (t)) {
+        alias= &candidate.second;
+        break;
+      }
+    // Unknown/custom kinds remain visible as ordinary body content.
+    if (!alias) return body;
+    tree result (make_tree_label (std_to_tm (alias->tag)), body);
+    if (meta && !meta->id.empty ()) {
+      athena::node::metadata identity;
+      identity.id= meta->id;
+      athena::node::set (result, identity);
+    }
+    return result;
+  }
   if (is_func (t, IMAGE) && N(t) > 0 && is_atomic (t[0])) {
     std::string href;
     if (copy_static_image (tree_string (t[0]), source_rel, output_rel, cx,
@@ -662,6 +719,7 @@ rewrite_static_links (tree t, const std::string& source_rel,
       r << tree (std_to_tm (href));
       for (int i=1; i<N(t); i++)
         r << rewrite_static_links (t[i], source_rel, output_rel, cx);
+      athena::node::copy_metadata (t, r);
       return r;
     }
   }
@@ -669,6 +727,7 @@ rewrite_static_links (tree t, const std::string& source_rel,
   tree r (L(t));
   for (int i=0; i<N(t); i++)
     r << rewrite_static_links (t[i], source_rel, output_rel, cx);
+  athena::node::copy_metadata (t, r);
   return r;
 }
 

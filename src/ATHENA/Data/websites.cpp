@@ -20,7 +20,9 @@ namespace athena_websites {
 namespace {
 
 constexpr int website_source_manifest_version= 1;
-constexpr int website_document_export_revision= 3;
+// Bump when HTML semantics change: unchanged .ath sources must not keep a
+// cached page missing enunciations or containing malformed MathJax tokens.
+constexpr int website_document_export_revision= 5;
 constexpr const char* website_source_manifest_name=
   ".athena-source-hashes.json";
 
@@ -37,6 +39,7 @@ struct WebsiteSourceEntry {
 struct WebsiteSourceManifest {
   bool valid= false;
   bool generate_pdfs= false;
+  int document_export_revision= 0;
   std::set<std::string> selected_files;
   std::map<std::string,WebsiteSourceEntry> sources;
 };
@@ -100,10 +103,9 @@ load_source_manifest (const fs::path& destination) {
   if (parse_error.error != QJsonParseError::NoError || !document.isObject ())
     return out;
   QJsonObject root= document.object ();
-  if (root.value ("version").toInt () != website_source_manifest_version ||
-      root.value ("documentExportRevision").toInt () !=
-        website_document_export_revision)
+  if (root.value ("version").toInt () != website_source_manifest_version)
     return out;
+  out.document_export_revision= root.value ("documentExportRevision").toInt ();
   out.generate_pdfs= root.value ("generatePdfs").toBool (false);
 
   QJsonArray selected= root.value ("selectedFiles").toArray ();
@@ -349,6 +351,7 @@ generate_website_entry (const fs::path& root,
       (!old->second.has_transclusion ||
        old->second.vault_hash == vault_source_hash);
     bool html_cached= source_cached && same_pdf_configuration &&
+      old_manifest.document_export_revision == website_document_export_revision &&
       old->second.html == cx.html_paths.at (rel) && fs::is_regular_file (target);
     bool pdf_cached= website.generate_pdfs && source_cached &&
       old->second.pdf == cx.pdf_paths.at (rel) &&
