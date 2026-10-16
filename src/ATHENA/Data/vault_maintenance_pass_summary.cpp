@@ -8,6 +8,7 @@
 #include "ATHENA/Features/athena_features.hpp"
 
 #include "ATHENA/Data/vaultfile_json.hpp"
+#include "ATHENA/Data/source_document_creation.hpp"
 #include "boot.hpp"
 #include "scheme.hpp"
 
@@ -45,72 +46,54 @@ safe_summary_name (const std::string& name) {
   return out.empty () ? std::string ("Vault") : out;
 }
 
-static std::string
-tm_escape_text (const std::string& text) {
-  std::string out;
-  out.reserve (text.size ());
-  for (char c : text) {
-    if (c == '\\' || c == '<' || c == '>' || c == '|') out.push_back ('\\');
-    out.push_back (c);
-  }
-  return out;
-}
-
-static std::string
+static tree
 tm_text (const std::string& text) {
-  return tm_escape_text (text);
+  return tree (string (text.data (), (int) text.size ()));
 }
 
-static std::string
+static tree
 tm_verbatim (const std::string& text) {
-  return "<verbatim|" + tm_escape_text (text) + ">";
+  return compound ("verbatim", tm_text (text));
 }
 
-static std::string
+static tree
 tm_strong (const std::string& text) {
-  return "<strong|" + tm_escape_text (text) + ">";
+  return compound ("strong", tm_text (text));
 }
 
-static std::string
+static tree
 tm_hlink (const std::string& label, const std::string& target) {
-  return "<hlink|" + tm_escape_text (label) + "|" + tm_escape_text (target) + ">";
+  return tree (HLINK, tm_text (label), tm_text (target));
 }
 
-static std::string
-tm_colored (const std::string& color, const std::string& body) {
-  return "<with|color|" + color + "|" + body + ">";
+static tree
+tm_colored (const std::string& color, tree body) {
+  return tree (WITH, "color", tm_text (color), body);
 }
 
-static std::string
-tm_cell (const std::string& body) {
-  return "<cell|" + body + ">";
-}
-
-static std::string
-tm_row (std::initializer_list<std::string> cells) {
-  std::string out = "<row";
-  for (const std::string& cell : cells)
-    out += "|" + tm_cell (cell);
-  out += ">";
+static tree
+tm_row (std::initializer_list<tree> cells) {
+  tree out (ROW);
+  for (const tree& cell: cells) out << tree (CELL, cell);
   return out;
 }
 
-static std::string
-tm_table (const std::vector<std::string>& rows) {
-  std::string out =
-    "<tabular|<tformat|<twith|table-width|1par>|"
-    "<twith|table-hmode|min>|"
-    "<cwith|1|1|1|-1|cell-background|#ececec>|"
-    "<cwith|1|1|1|-1|cell-bborder|1ln>|"
-    "<cwith|1|-1|1|-1|cell-hyphen|t>|"
-    "<cwith|1|-1|1|-1|cell-lsep|0.6em>|"
-    "<cwith|1|-1|1|-1|cell-rsep|0.6em>|"
-    "<cwith|1|-1|1|-1|cell-tsep|0.35em>|"
-    "<cwith|1|-1|1|-1|cell-bsep|0.35em>|<table";
-  for (const std::string& row : rows)
-    out += "|" + row;
-  out += ">>>";
-  return out;
+static tree
+tm_table (const std::vector<tree>& rows) {
+  tree table (TABLE);
+  for (const tree& row: rows) table << row;
+  tree format (TFORMAT);
+  format << tree (TWITH, "table-width", "1par")
+         << tree (TWITH, "table-hmode", "min")
+         << tree (CWITH, "1", "1", "1", "-1", "cell-background", "#ececec")
+         << tree (CWITH, "1", "1", "1", "-1", "cell-bborder", "1ln")
+         << tree (CWITH, "1", "-1", "1", "-1", "cell-hyphen", "t")
+         << tree (CWITH, "1", "-1", "1", "-1", "cell-lsep", "0.6em")
+         << tree (CWITH, "1", "-1", "1", "-1", "cell-rsep", "0.6em")
+         << tree (CWITH, "1", "-1", "1", "-1", "cell-tsep", "0.35em")
+         << tree (CWITH, "1", "-1", "1", "-1", "cell-bsep", "0.35em")
+         << table;
+  return compound ("tabular", format);
 }
 
 static std::string
@@ -276,7 +259,7 @@ purge_old_summary_files (VaultMaintenanceContext& ctx, const fs::path& dir,
   return true;
 }
 
-static std::string
+static tree
 status_label (const VaultMaintenancePassRecord& record) {
   if (record.status == "not-run")
     return tm_colored ("#cc6600", tm_strong ("Did not run"));
@@ -287,12 +270,12 @@ status_label (const VaultMaintenancePassRecord& record) {
   return tm_colored ("#008000", tm_strong ("Success"));
 }
 
-static std::string
-summary_document_text (VaultMaintenanceContext& ctx, bool success,
+static tree
+summary_document_tree (VaultMaintenanceContext& ctx, bool success,
                        const std::string& failure_pass,
                        const std::string& failure_message) {
   VaultMaintenanceSummary& summary = ctx.summary;
-  std::vector<std::string> overview_rows = {
+  std::vector<tree> overview_rows = {
     tm_row ({tm_strong ("Field"), tm_strong ("Value")}),
     tm_row ({tm_text ("Vault"), tm_verbatim (ctx.vault_name)}),
     tm_row ({tm_text ("Root"), tm_verbatim (ctx.root.string ())}),
@@ -314,7 +297,7 @@ summary_document_text (VaultMaintenanceContext& ctx, bool success,
       tm_row ({tm_text ("Failure"), tm_text (failure_message)}));
   }
 
-  std::vector<std::string> pass_rows = {
+  std::vector<tree> pass_rows = {
     tm_row ({tm_strong ("Pass"), tm_strong ("Description"),
              tm_strong ("Status"), tm_strong ("Message")})
   };
@@ -327,7 +310,7 @@ summary_document_text (VaultMaintenanceContext& ctx, bool success,
                  : tm_text (record.message)}));
   }
 
-  std::vector<std::string> work_rows = {
+  std::vector<tree> work_rows = {
     tm_row ({tm_strong ("Area"), tm_strong ("Result")}),
     tm_row ({tm_text ("Backup archive"),
              tm_verbatim (summary.backup_archive.string ())}),
@@ -463,15 +446,15 @@ summary_document_text (VaultMaintenanceContext& ctx, bool success,
   if (summary.orphan_collection_enabled)
     work_rows.push_back (
       tm_row ({tm_text ("Orphan assets"),
-               tm_text ("collected " +
+               tree (CONCAT, tm_text ("collected " +
                         std::to_string (summary.orphan_assets_collected) +
-                        " asset(s) into ") +
-                 tm_verbatim (summary.orphan_dir.string ())}));
+                        " asset(s) into "),
+                 tm_verbatim (summary.orphan_dir.string ()))}));
   else
     work_rows.push_back (
       tm_row ({tm_text ("Orphan assets"), tm_text ("collection disabled")}));
 
-  std::vector<std::string> orphan_rows;
+  std::vector<tree> orphan_rows;
   if (!summary.collected_orphans.empty ()) {
     orphan_rows.push_back (
       tm_row ({tm_strong ("Collected orphan"), tm_strong ("Original path")}));
@@ -485,7 +468,7 @@ summary_document_text (VaultMaintenanceContext& ctx, bool success,
     }
   }
 
-  std::vector<std::string> missing_image_rows;
+  std::vector<tree> missing_image_rows;
   if (!summary.missing_images.empty ()) {
     missing_image_rows.push_back (
       tm_row ({tm_strong ("Document"), tm_strong ("Image reference"),
@@ -506,7 +489,7 @@ summary_document_text (VaultMaintenanceContext& ctx, bool success,
     }
   }
 
-  std::vector<std::string> missing_material_rows;
+  std::vector<tree> missing_material_rows;
   if (!summary.missing_material_attachments.empty ()) {
     missing_material_rows.push_back (
       tm_row ({tm_strong ("Missing Material attachment")}));
@@ -518,57 +501,41 @@ summary_document_text (VaultMaintenanceContext& ctx, bool success,
   std::string startup_label;
   std::string startup_target = vault_startup_page_target (ctx, startup_label);
 
-  std::ostringstream body;
-  body << "  <section|Overview>\n\n";
-  body << "  " << tm_table (overview_rows) << "\n\n";
+  tree body (DOCUMENT);
+  body << compound ("section", "Overview") << tm_table (overview_rows);
 
   if (!ctx.warnings.empty ()) {
-    std::vector<std::string> warning_rows = {
+    std::vector<tree> warning_rows = {
       tm_row ({tm_strong ("Warnings")})
     };
     for (const std::string& warning : ctx.warnings)
       warning_rows.push_back (
         tm_row ({tm_colored ("#b58900", tm_text (warning))}));
-    body << "  <section|Warnings>\n\n";
-    body << "  " << tm_table (warning_rows) << "\n\n";
+    body << compound ("section", "Warnings") << tm_table (warning_rows);
   }
 
-  body << "  <section|Passes>\n\n";
-  body << "  " << tm_table (pass_rows) << "\n\n";
-  body << "  <section|Work Performed>\n\n";
-  body << "  " << tm_table (work_rows) << "\n\n";
+  body << compound ("section", "Passes") << tm_table (pass_rows);
+  body << compound ("section", "Work Performed") << tm_table (work_rows);
   if (!orphan_rows.empty ()) {
-    body << "  <section|Collected Orphans>\n\n";
-    body << "  " << tm_table (orphan_rows) << "\n\n";
+    body << compound ("section", "Collected Orphans") << tm_table (orphan_rows);
   }
   if (!missing_image_rows.empty ()) {
-    body << "  <section|Missing Images>\n\n";
-    body << "  " << tm_table (missing_image_rows) << "\n\n";
+    body << compound ("section", "Missing Images") << tm_table (missing_image_rows);
   }
   if (!missing_material_rows.empty ()) {
-    body << "  <section|Missing Material Attachments>\n\n";
-    body << "  " << tm_table (missing_material_rows) << "\n\n";
+    body << compound ("section", "Missing Material Attachments") << tm_table (missing_material_rows);
   }
-  body << "  <section|Next Step>\n\n";
-  body << "  <cardlink|" << tm_escape_text (startup_label)
-       << "|" << tm_escape_text (startup_target) << ">\n\n";
+  body << compound ("section", "Next Step")
+       << compound ("cardlink", tm_text (startup_label), tm_text (startup_target));
 
   std::string font = trim_copy (
     tm_to_std (get_preference ("vault preferred font", "")));
 
-  std::ostringstream out;
-  out << "<TeXmacs|2.1.4>\n\n";
-  out << "<style|generic>\n\n";
-  out << "<\\body>\n";
-  out << "<doc-data|<doc-title|Vault Maintenance Summary>>\n\n";
-  if (!font.empty ()) {
-    out << "<\\with|font|" << tm_escape_text (font) << ">\n";
-    out << body.str ();
-    out << "</with>\n";
-  }
-  else out << body.str ();
-  out << "</body>\n";
-  return out.str ();
+  if (!font.empty ()) body= tree (DOCUMENT, tree (WITH, "font", tm_text (font), body));
+  tree content (DOCUMENT);
+  content << compound ("doc-data", compound ("doc-title", "Vault Maintenance Summary"));
+  for (int i=0; i<N(body); ++i) content << body[i];
+  return tree (DOCUMENT, compound ("style", tuple ("generic")), compound ("body", content));
 }
 
 bool
@@ -591,14 +558,25 @@ vault_maintenance_write_summary_page (VaultMaintenanceContext& ctx,
     return false;
   }
 
-  if (!purge_old_summary_files (ctx, dir, prefix)) return false;
   ctx.summary.summary_file = unique_summary_file (dir, prefix);
-
-  std::string text = summary_document_text (ctx, success, failure_pass,
-                                            failure_message);
-  if (!write_file_bytes (ctx.summary.summary_file, text)) {
-    log_error ("summary: failed to write summary page " +
-               compact_log_path (ctx.summary.summary_file));
+  try {
+    using namespace athena::document;
+    const auto version= new_source_version_for_target (ctx.summary.summary_file);
+    // Preflight the target codec before retention can remove existing pages.
+    tree document= summary_document_tree (ctx, success, failure_pass, failure_message);
+    auto text= encode_native_xml_bytes (document, version);
+    if (decode_native_xml_bytes (text).document != document)
+      throw std::runtime_error ("Summary failed XML roundtrip");
+    if (!purge_old_summary_files (ctx, dir, prefix)) return false;
+    document= summary_document_tree (ctx, success, failure_pass, failure_message);
+    text= encode_native_xml_bytes (document, version);
+    athena::filesystem::confined_root root (dir);
+    const auto result= root.create (ctx.summary.summary_file.filename (), text);
+    if (!result.directory_synced)
+      throw std::runtime_error ("Summary published but directory fsync failed");
+  }
+  catch (const std::exception& e) {
+    log_error ("summary: " + std::string (e.what ()));
     return false;
   }
   log_info ("summary: wrote page " +

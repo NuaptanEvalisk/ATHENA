@@ -19,6 +19,7 @@
 	(convert tools sxml)
 	(convert tools sxhtml)
 	(convert tools css)
+	(convert latex init-latex)
 	(convert html htmlout)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -35,6 +36,12 @@
 (define tmhtml-image-root-string "image")
 (define tmhtml-site-version #f)
 (define tmhtml-web-formats (list "gif" "jpg" "jpeg" "png" "bmp" "svg"))
+
+(define (tmhtml-prepare-source x mathjax?)
+  (let ((source (if (tree? x) (latex-export-prepare-v3-source x) x)))
+    (when (and (latex-native-v3-math? source) (not mathjax?))
+      (error "Unsupported XML v3 HTML export: texmacs->html:mathjax=on is required; image fallback is disabled"))
+    source))
 
 (tm-define (tmhtml-initialize opts)
   (set! tmhtml-env (make-ahash-table))
@@ -318,8 +325,10 @@
 	(let* ((site "https://cdn.jsdelivr.net/")
                (loc "npm/mathjax@3/es5/tex-mml-chtml.js")
                (src (string-append site loc))
+	       (config `(h:script
+                          "window.MathJax = window.MathJax || {}; window.MathJax.tex = window.MathJax.tex || {}; window.MathJax.tex.tags = 'ams';"))
 	       (script `(h:script (@ (src ,src)))))
-	  (set! xhead (append xhead (list script)))))
+	  (set! xhead (append xhead (list config script)))))
     (if (or (in? "tmdoc" styles)
             (in? "max-web" styles) (in? "node-web" styles))
 	(set! body (tmhtml-tmdoc-post body)))
@@ -1113,7 +1122,7 @@
 	(if (not (url-exists? u)) '()
 	    (with-global current-save-source u
 	      (with t (tree-inclusion u)
-		(tmhtml (tm->stree t))))))))
+		(tmhtml (tmhtml-prepare-source t tmhtml-mathjax?))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Source code
@@ -1368,6 +1377,8 @@
 
 (define (tmhtml-png y)
   ;; converts generic markup that can be displayed on screen to png format
+  (when (latex-native-v3-math? y)
+    (error "Unsupported XML v3 HTML export: raster fallback would discard native mathematics"))
   (let* ((mag (ahash-ref tmhtml-env :mag))
 	 (x (if (or tmhtml-css? (nstring? mag) (== mag "1")) y
                 (with nmag `(times (value "magnification") ,mag)
@@ -1664,7 +1675,7 @@
 (define (tmhtml-mathjax-formula* x)
   ;;(display* "x= " x "\n")
   (let* ((opts (list (cons "texmacs->latex:mathjax" "on")))
-         (s (serialize-latex (texmacs->latex x opts)))
+         (s (serialize-latex (texmacs->latex-checked x opts)))
          (display? (ahash-ref tmhtml-env :math-display))
          (style (if display? "\\displaystyle " ""))
          (mj (if display?
@@ -1686,6 +1697,37 @@
          (ahash-with tmhtml-env :math-display #t
            (tmhtml-mathjax-formula (cadddr x))))
         (else (tmhtml-mathjax-formula* x))))
+
+;; XML v3 mathematics reaches this exporter via the metadata-aware tree
+;; preparation entrypoint, not by manufacturing old equation/around/rsup
+;; nodes. MathBlock itself owns the numbering and display environment, so do
+;; not wrap its TeX \begin{equation} inside a second \[ ... \] display.
+(define (tmhtml-native-v3-math-block l)
+  (if (not tmhtml-mathjax?)
+      (error "XML v3 MathBlock HTML export requires MathJax")
+      (let* ((opts (list (cons "texmacs->latex:mathjax" "on")))
+             (formula `(math-block ,@l))
+             (snippet (serialize-latex (texmacs->latex-checked formula opts))))
+        `((h:div (@ (class "athena-math-block")) ,snippet)))))
+
+(define (tmhtml-native-v3-inline tag l)
+  (if (not tmhtml-mathjax?)
+      (error "XML v3 mathematical HTML export requires MathJax")
+      (ahash-with tmhtml-env :math-display #f
+        (tmhtml-mathjax-formula* `(math (,tag ,@l))))))
+
+;; logic-dispatcher accepts named procedure references, not inline lambdas.
+;; Preserve the original v3 tag while sharing the MathJax renderer.
+(define (tmhtml-v3-grid l) (tmhtml-native-v3-inline 'math-grid l))
+(define (tmhtml-v3-scripts l) (tmhtml-native-v3-inline 'scripts l))
+(define (tmhtml-v3-accent l) (tmhtml-native-v3-inline 'math-accent l))
+(define (tmhtml-v3-annotation l) (tmhtml-native-v3-inline 'math-annotation l))
+(define (tmhtml-v3-arrow l) (tmhtml-native-v3-inline 'math-long-arrow l))
+(define (tmhtml-v3-middle l) (tmhtml-native-v3-inline 'math-middle l))
+(define (tmhtml-v3-symbol l) (tmhtml-native-v3-inline 'math-symbol l))
+(define (tmhtml-v3-variant l) (tmhtml-native-v3-inline 'math-variant l))
+(define (tmhtml-v3-delimited l) (tmhtml-native-v3-inline 'delimited l))
+(define (tmhtml-v3-big-operator l) (tmhtml-native-v3-inline 'big-operator l))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Equation arrays
@@ -1997,9 +2039,13 @@
   (or (tmhtml-dispatch 'tmhtml-stdmarkup% l)
       (and (!= tmhtml-site-version "2")
            (tmhtml-dispatch 'tmhtml-tmdocmarkup% l))
+      (and (latex-native-v3-math? l)
+           (error "Unsupported XML v3 HTML export: unknown enclosing markup"
+                  (car l)))
       '()))
 
 (tm-define (tmhtml-root x)
+  (set! x (tmhtml-prepare-source x tmhtml-mathjax?))
   (ahash-with tmhtml-env :mag "1"
     (ahash-with tmhtml-env :math #f
       (ahash-with tmhtml-env :math-upright #f
@@ -2013,7 +2059,9 @@
   ;; Main conversion function.
   ;; Takes a TeXmacs tree in Scheme notation and produce a SXML node-set.
   ;; All handler functions have a similar prototype.
-  (cond ((and tmhtml-mathjax? (ahash-ref tmhtml-env :math))
+  (cond ((func? x 'math-block)
+         (tmhtml-native-v3-math-block (cdr x)))
+        ((and tmhtml-mathjax? (ahash-ref tmhtml-env :math))
          (tmhtml-mathjax-formula x))
 	((and tmhtml-images? (ahash-ref tmhtml-env :math)
               (!= tmhtml-image-root-string "image"))
@@ -2114,6 +2162,19 @@
   (tformat tmhtml-tformat)
   ((:or twith cwith tmarker row cell sub-table) tmhtml-noop)
   (math tmhtml-inline-math)
+  ;; Every native v3 math primitive is explicit. Generic HTML compound
+  ;; fallback would silently discard the typed structure and its metadata.
+  (math-block tmhtml-native-v3-math-block)
+  (math-grid tmhtml-v3-grid)
+  (scripts tmhtml-v3-scripts)
+  (math-accent tmhtml-v3-accent)
+  (math-annotation tmhtml-v3-annotation)
+  (math-long-arrow tmhtml-v3-arrow)
+  (math-middle tmhtml-v3-middle)
+  (math-symbol tmhtml-v3-symbol)
+  (math-variant tmhtml-v3-variant)
+  (delimited tmhtml-v3-delimited)
+  (big-operator tmhtml-v3-big-operator)
 
   (assign tmhtml-noop)
   (with tmhtml-with)
@@ -2420,6 +2481,10 @@
       "font-family" font-family)))
 
 (tm-define (texmacs->html x opts)
+  ;; Check before math/image dispatch and before stripping document wrappers.
+  ;; A stree caller may already have prepared the metadata-bearing source.
+  (set! x (tmhtml-prepare-source x
+            (== (assoc-ref opts "texmacs->html:mathjax") "on")))
   (if (tmfile? x)
       (let* ((body (tmfile-extract x 'body))
 	     (style* (tmfile-extract x 'style))

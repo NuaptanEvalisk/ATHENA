@@ -67,6 +67,7 @@ if (ATHENA_ENABLE_AUDMAP_REPL)
   target_link_libraries (athena_audmap_terminal PUBLIC Qt6::Widgets PRIVATE qtermwidget6)
 endif ()
 include(AthenaGlue)
+include(AthenaShippedMacroLabels)
 add_subdirectory(ATHENA/Interop)
 if(ATHENA_ENABLE_PLUGINS)
   add_subdirectory(Subsystems/Plugins)
@@ -111,6 +112,7 @@ set_source_files_properties(Scheme/Scheme/glue.cpp PROPERTIES
 
 function (athena_configure_body_target target_name)
   add_library (${target_name} STATIC ${ATHENA_All_SRCS})
+  athena_use_shipped_macro_labels (${target_name})
   if (ATHENA_ENABLE_WATCHDOG)
     target_sources (${target_name} PRIVATE ./ATHENA/Watchdog/watchdog_client.cpp)
   endif ()
@@ -191,7 +193,7 @@ if (ATHENA_ENABLE_TSAN)
   target_sources (${ATHENA_binary_name} PRIVATE
     ./System/Misc/tsan_mimalloc_shim.cpp)
 else ()
-  target_link_libraries (${ATHENA_binary_name} PRIVATE mimalloc)
+  athena_link_allocator (${ATHENA_binary_name})
 endif ()
 target_compile_definitions(${ATHENA_binary_name} PRIVATE
   MI_OVERRIDE=1

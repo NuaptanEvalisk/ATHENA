@@ -10,6 +10,7 @@
 #include <QApplication>
 #include <QTemporaryDir>
 #include <QtTest/QtTest>
+#include <functional>
 #include "boot.hpp"
 #include "converter.hpp"
 #include "data_cache.hpp"
@@ -24,6 +25,9 @@
 #include "Freetype/tt_file.hpp"
 #include "named_symbol.hpp"
 #include "math_font.hpp"
+#include "Concat/concater.hpp"
+#include "math_tree_v3.hpp"
+#include "node_metadata.hpp"
 #include "Boxes/construct.hpp"
 
 bool headless_mode= true;
@@ -43,6 +47,406 @@ letter_font (box b) {
 class PreviewMathFontTest: public QObject {
   Q_OBJECT
 private slots:
+  void nativeV3MiddleStretchMatchesLegacyUnicodeMiddle () {
+    drd_info drd ("native-v3-math-middle-stretch", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write (MODE, "math");
+    env->update ();
+
+    // A native middle separator must produce exactly the same final line
+    // items as the legacy Unicode MID: the same spacing, glyph and stretching
+    // geometry, without building a legacy MID adapter in the native path.
+    for (const string glyph: {string ("|"), string ("‖")}) {
+      auto legacy= typeset_concat (env, tree (MID, glyph), path (0));
+      auto native= typeset_concat (env, tree (MATH_MIDDLE, glyph), path (0));
+      QCOMPARE (N (legacy), N (native));
+      QVERIFY (N (native) >= 1);
+      for (int i=0; i<N (native); ++i) {
+        QCOMPARE (native[i]->type, legacy[i]->type);
+        QCOMPARE (native[i]->op_type, legacy[i]->op_type);
+        // The matching stage replaces a text glyph by a composite
+        // move_delimiter: get_leaf_string() is not valid on that box.
+        QVERIFY (tree (native[i]->b) == tree (legacy[i]->b));
+        QCOMPARE (native[i]->b->w (), legacy[i]->b->w ());
+        QCOMPARE (native[i]->b->y1, legacy[i]->b->y1);
+        QCOMPARE (native[i]->b->y2, legacy[i]->b->y2);
+      }
+    }
+
+    const tree tall (FRAC, tree ("1"),
+      tree (FRAC, tree ("1"), tree ("x+1")));
+    const tree old_expression (CONCAT, tree ("x"), tree (MID, "|"), tall,
+                               tree ("+y"));
+    const tree new_expression (CONCAT, tree ("x"),
+      tree (MATH_MIDDLE, "|"), tall, tree ("+y"));
+    box old_box= typeset_as_concat (env, old_expression, path (0));
+    box new_box= typeset_as_concat (env, new_expression, path (0));
+    QVERIFY (old_box->w () > 0);
+    QCOMPARE (new_box->w (), old_box->w ());
+    QCOMPARE (new_box->y1, old_box->y1);
+    QCOMPARE (new_box->y2, old_box->y2);
+    QCOMPARE (new_box->x1, old_box->x1);
+    QCOMPARE (new_box->x2, old_box->x2);
+  }
+
+  void nativeV3DelimitedAutoMatchesLegacyGeometry () {
+    drd_info drd ("native-v3-delimited-geometry", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write (MODE, "math");
+    env->write (MATH_DISPLAY, "true");
+    env->update ();
+    for (const auto& delimiters:
+         {std::pair<string,string> {"(", ")"}, {"⟨", "⟩"},
+          {"", "|"}, {"|", "|"}}) {
+      for (const tree body:
+           {tree ("x"), tree (FRAC, "1", tree (FRAC, "1", "x+1"))}) {
+        tree legacy (VAR_AROUND,
+          delimiters.first == "" ? tree (".") : tree (delimiters.first),
+          body, tree (delimiters.second));
+        tree native= athena::math_v3::delimited (
+          delimiters.first, delimiters.second, 'a', body);
+        box old_box= typeset_as_concat (env, legacy, path (0));
+        box new_box= typeset_as_concat (env, native, path (0));
+        QVERIFY (new_box->w () > 0);
+        QVERIFY (new_box->h () > 0);
+        QCOMPARE (new_box->w (), old_box->w ());
+        QCOMPARE (new_box->x1, old_box->x1);
+        QCOMPARE (new_box->x2, old_box->x2);
+        QCOMPARE (new_box->y1, old_box->y1);
+        QCOMPARE (new_box->y2, old_box->y2);
+      }
+    }
+  }
+
+  void nativeV3DelimitedFixedAndManualSize () {
+    drd_info drd ("native-v3-delimited-manual", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write (MODE, "math");
+    env->update ();
+    const tree body ("x");
+    box natural= typeset_as_concat (env,
+      athena::math_v3::delimited ("⌈", "⌋", 'f', body), path (0));
+    box manual= typeset_as_concat (env,
+      athena::math_v3::delimited ("⌈", "⌋", 'm', body, "5", "1"), path (0));
+    box reversed= typeset_as_concat (env,
+      athena::math_v3::delimited ("⌈", "⌋", 'm', body, "1", "5"), path (0));
+    QVERIFY (natural->w () > 0);
+    QVERIFY (manual->w () > 0);
+    QVERIFY (reversed->w () > 0);
+    QVERIFY (manual->h () > natural->h ());
+    QVERIFY (reversed->h () > natural->h ());
+  }
+
+  void nativeV3ScriptsMatchLegacyUnicodeGeometry () {
+    drd_info drd ("native-v3-math-scripts", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write (MODE, "math");
+    env->write (MATH_DISPLAY, "true");
+    env->update ();
+
+    const tree empty ("");
+    const tree legacy_script (CONCAT, tree ("x"),
+      tree (RSUB, "i"), tree (RSUP, "2"));
+    const tree modern_script= athena::math_v3::scripts (
+      tree ("x"), empty, empty, tree ("i"), tree ("2"));
+
+    const tree legacy_nucleus (CONCAT, tree (LSUB, "p"),
+      tree (LSUP, "q"), tree ("π"), tree (RSUB, "i"), tree (RSUP, "n"));
+    const tree modern_nucleus= athena::math_v3::scripts (
+      tree ("π"), tree ("p"), tree ("q"), tree ("i"), tree ("n"));
+
+    const tree legacy_big_unicode (CONCAT, tree (BIG, "∑"),
+      tree (RSUB, "i=1"), tree (RSUP, "n"), tree ("a"));
+    const tree modern_big (CONCAT,
+      athena::math_v3::scripts (athena::math_v3::big_operator ("∑"),
+        empty, empty, tree ("i=1"), tree ("n")), tree ("a"));
+    const tree legacy_integral (CONCAT, tree (BIG, "∫"),
+      tree (RSUB, "0"), tree (RSUP, "1"), tree ("f"));
+    const tree native_integral (CONCAT,
+      athena::math_v3::scripts (athena::math_v3::big_operator ("∫"),
+        empty, empty, tree ("0"), tree ("1")), tree ("f"));
+    const tree legacy_upright (CONCAT,
+      tree (BIG, tree (WITH, "math-big-upright", "true", "∫")),
+      tree (RSUB, "0"), tree (RSUP, "1"), tree ("f"));
+    const tree native_upright (CONCAT,
+      athena::math_v3::scripts (athena::math_v3::big_operator ("∫", true),
+        empty, empty, tree ("0"), tree ("1")), tree ("f"));
+
+    // Same Unicode operator, same size/style and same script fields must
+    // yield the same geometry. The historical big("sum") font recipe uses
+    // a different glyph from canonical Unicode ∑, so it is intentionally
+    // not a pixel-identical reference for the native operator.
+    for (const char* display: {"true", "false"}) {
+      env->write (MATH_DISPLAY, display);
+      env->update ();
+      for (auto pair: {std::pair<tree,tree> {legacy_script,modern_script},
+                       {legacy_nucleus,modern_nucleus},
+                       {legacy_big_unicode,modern_big},
+                       {legacy_integral,native_integral},
+                       {legacy_upright,native_upright}}) {
+        box old_box= typeset_as_concat (env, pair.first, path (0));
+        box new_box= typeset_as_concat (env, pair.second, path (0));
+        QVERIFY (old_box->w () > 0 && new_box->w () > 0);
+        QCOMPARE (new_box->w (), old_box->w ());
+        QCOMPARE (new_box->x1, old_box->x1);
+        QCOMPARE (new_box->x2, old_box->x2);
+        QCOMPARE (new_box->y1, old_box->y1);
+        QCOMPARE (new_box->y2, old_box->y2);
+      }
+    }
+  }
+
+  void nativeV3LeftScriptsRespectRightLimitsPolicy () {
+    drd_info drd ("native-v3-combined-scripts-limits", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write (MODE, "math");
+    env->update ();
+
+    const auto contains_box_marker= [] (const tree& structure,
+                                         const string& value) {
+      std::function<bool(const tree&)> visit= [&] (const tree& node) {
+        if (is_atomic (node)) return node->label == value;
+        for (int i=0; i<N (node); ++i)
+          if (visit (node[i])) return true;
+        return false;
+      };
+      return visit (structure);
+    };
+    tree big= athena::math_v3::big_operator ("∑");
+    const tree empty ("");
+    for (const char* display: {"true", "false"}) {
+      env->write (MATH_DISPLAY, display);
+      env->update ();
+      for (char placement: {'a', 'o', 'r', 'd'}) {
+        tree source= athena::math_v3::scripts (big, "p", "q", "i=1", "n",
+                                               placement);
+        box result= typeset_as_concat (env, source, path (0));
+        QVERIFY (result->w () > 0);
+        tree shape= tree (result);
+        QVERIFY (contains_box_marker (shape, "side"));
+        const bool should_have_limits= placement == 'o' ||
+          ((placement == 'a' || placement == 'd') &&
+           std::string (display) == "true");
+        QCOMPARE (contains_box_marker (shape, "lim"), should_have_limits);
+      }
+    }
+  }
+
+  void nativeV3MathGridAndUnnumberedBlockLayout () {
+    drd_info drd ("native-v3-math-grid-display", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write (MODE, "math");
+    env->update ();
+
+    tree grid (MATH_GRID,
+      tree (ROW, tree (CELL, "x"), tree (CELL, "="), tree (CELL, "y")),
+      tree (ROW, tree (CELL, "u"), tree (CELL, "="), tree (CELL, "v")));
+    athena::node::metadata grid_meta;
+    grid_meta.properties["math:grid-kind"]= athena::node::property (
+      std::string ("eqnarray"));
+    athena::node::set (grid, grid_meta);
+    QVERIFY (athena::math_v3::valid_native_math (grid));
+    box layout= typeset_as_concat (env, grid, path (0));
+    QVERIFY (layout->w () > 0);
+    QVERIFY (layout->h () > 0);
+
+    tree display (MATH_BLOCK, grid);
+    athena::node::metadata meta;
+    meta.properties["math:block-numbered"]= athena::node::property (false);
+    athena::node::set (display, meta);
+    QVERIFY (athena::math_v3::valid_native_math (display));
+    box full= typeset_as_concat (env, display, path (0));
+    QVERIFY (full->w () > 0);
+    QVERIFY (full->h () > 0);
+  }
+
+  void nativeV3SingleEquationNumberUsesStyleCounterAndBinding () {
+    drd_info drd ("native-v3-numbered-math-block", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write (MODE, "text"); // MathBlock itself must establish math mode.
+    env->write ("test-equation-counter", "0");
+    env->write ("next-equation",
+      tree (MACRO, tree (ASSIGN, "test-equation-counter", "7")));
+    env->write ("the-equation",
+      tree (MACRO, tree (VALUE, "test-equation-counter")));
+    env->write ("the-tags", tree (TUPLE, "eq:my-formula"));
+    env->update ();
+
+    tree numbered (MATH_BLOCK, tree (FRAC, "1", "2"));
+    athena::node::metadata meta;
+    meta.properties["math:block-numbered"]= athena::node::property (true);
+    athena::node::set (numbered, meta);
+    QVERIFY (athena::math_v3::valid_native_math (numbered));
+    box result= typeset_as_concat (env, numbered, path (0));
+    QVERIFY (result->w () > 0);
+    QCOMPARE (env->read ("test-equation-counter"), tree ("7"));
+    QCOMPARE (env->read ("the-label"), tree ("7"));
+    QCOMPARE (env->read ("the-tags"), tree (TUPLE));
+    QVERIFY (is_func (env->local_ref["eq:my-formula"], TUPLE));
+    QCOMPARE (env->local_ref["eq:my-formula"][0], tree ("7"));
+    QCOMPARE (env->read (MODE), tree ("text"));
+    QCOMPARE (env->read (MATH_DISPLAY), tree ("false"));
+
+    // A numbered multi-row grid cannot silently receive only one number.
+    // Reject before touching the counter or the document reference store.
+    tree grid (MATH_GRID,
+      tree (ROW, tree (CELL, "a")), tree (ROW, tree (CELL, "b")));
+    athena::node::metadata grid_meta;
+    grid_meta.properties["math:grid-kind"]=
+      athena::node::property (std::string ("eqnarray"));
+    athena::node::set (grid, grid_meta);
+    tree multi (MATH_BLOCK, grid);
+    athena::node::set (multi, meta);
+    const tree previous= copy (env->read ("test-equation-counter"));
+    (void) typeset_as_concat (env, multi, path (0));
+    QCOMPARE (env->read ("test-equation-counter"), previous);
+  }
+
+  void nativeV3AnnotationAndLongArrowMatchLegacyUnicodeGeometry () {
+    drd_info drd ("native-v3-annotation-layout", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write (MODE, "math");
+    env->update ();
+    const tree empty ("");
+
+    const tree native_above (MATH_ANNOTATION, tree ("x"),
+                             empty, tree ("i=1"));
+    const tree native_below (MATH_ANNOTATION, tree ("x"),
+                             tree ("i=1"), empty);
+    const tree native_arrow (MATH_LONG_ARROW, tree ("→"),
+                             tree ("x"), tree ("f"));
+    const tree native_above_arrow (MATH_LONG_ARROW, tree ("→"),
+                                   empty, tree ("f"));
+    for (const char* display: {"true", "false"}) {
+      env->write (MATH_DISPLAY, display);
+      env->update ();
+      for (const auto& pair: {
+           std::pair<tree,tree> {tree (ABOVE, "x", "i=1"), native_above},
+           {tree (BELOW, "x", "i=1"), native_below},
+           {tree (LONG_ARROW, "→", "f", "x"), native_arrow},
+           {tree (LONG_ARROW, "→", "f"), native_above_arrow}}) {
+        box before= typeset_as_concat (env, pair.first, path (0));
+        box after= typeset_as_concat (env, pair.second, path (0));
+        QVERIFY (before->w () > 0 && after->w () > 0);
+        QCOMPARE (after->w (), before->w ());
+        QCOMPARE (after->x1, before->x1);
+        QCOMPARE (after->x2, before->x2);
+        QCOMPARE (after->y1, before->y1);
+        QCOMPARE (after->y2, before->y2);
+      }
+    }
+  }
+
+  void nativeV3AccentMatchesLegacyUnicodeGeometry () {
+    drd_info drd ("native-v3-accent-variant", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write (MODE, "math");
+    env->update ();
+    for (auto spec: {std::pair<string,string> {"̃", "x"},
+                     {"̅", "xy"}, {"̂", "f"}, {"⃗", "v"}}) {
+      for (bool above: {true, false}) {
+        tree before (above ? WIDE : VAR_WIDE, tree (spec.second),
+                     tree (spec.first));
+        tree after (MATH_ACCENT, tree (spec.first),
+                    tree (above ? "o" : "u"), tree (spec.second));
+        athena::node::metadata meta;
+        meta.properties["math:accent-stretch"]= athena::node::property (false);
+        athena::node::set (after, meta);
+        box old_box= typeset_as_concat (env, before, path (0));
+        box new_box= typeset_as_concat (env, after, path (0));
+        QVERIFY (new_box->w () > 0);
+        QCOMPARE (new_box->w (), old_box->w ());
+        QCOMPARE (new_box->x1, old_box->x1);
+        QCOMPARE (new_box->x2, old_box->x2);
+        QCOMPARE (new_box->y1, old_box->y1);
+        QCOMPARE (new_box->y2, old_box->y2);
+      }
+    }
+  }
+
+  void nativeV3MathVariantMatchesExpandedStyleSemantics () {
+    drd_info drd ("native-v3-math-variants", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write (MODE, "math");
+    env->update ();
+    // The std-math macros are not loaded in a standalone typesetting test;
+    // directly typesetting compound("math-bf",...) prints the literal tag.
+    // Compare the native variant with the macro's *expanded* environment
+    // semantics, not with an unexpanded historical macro name.
+    for (const string kind: {string ("bb"), string ("cal"),
+                             string ("rm"), string ("bf"),
+                             string ("it"), string ("sl"),
+                             string ("ss"), string ("tt")}) {
+      const tree base ("R");
+      tree expected;
+      if (kind == "bb" || kind == "cal")
+        expected= tree (WITH, MATH_FONT_SHAPE,
+          kind == "bb" ? "bbb" : "cal", base);
+      else {
+        const string family= kind == "ss" ? "ss" :
+                             kind == "tt" ? "tt" : "rm";
+        const string shape= kind == "it" ? "italic" :
+                            kind == "sl" ? "slanted" : "right";
+        expected= tree (WITH);
+        expected << tree (MODE) << tree ("text")
+                 << tree (FONT_FAMILY) << tree (family)
+                 << tree (FONT_SHAPE) << tree (shape);
+        if (kind == "bf")
+          expected << tree (FONT_SERIES) << tree ("bold");
+        expected << base;
+      }
+      const tree source (MATH_VARIANT, tree (kind), base);
+      box before= typeset_as_concat (env, expected, path (0));
+      box after= typeset_as_concat (env, source, path (0));
+      QVERIFY2 (after->w () > 0, as_charp (kind));
+      QCOMPARE (after->w (), before->w ());
+      QCOMPARE (after->x1, before->x1);
+      QCOMPARE (after->x2, before->x2);
+      QCOMPARE (after->y1, before->y1);
+      QCOMPARE (after->y2, before->y2);
+    }
+  }
+
   void legacyColonVariantsUseModernUnicodeMapping () {
     QCOMPARE (strict_cork_to_utf8 ("<of>"), string (":"));
     QCOMPARE (strict_cork_to_utf8 ("<over>"), string (":"));

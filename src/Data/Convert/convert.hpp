@@ -202,6 +202,11 @@ string latex_tmtex_big_decode (scheme_tree t);
 scheme_tree latex_tmtex_decode_long_arrow (scheme_tree t);
 scheme_tree latex_export_core_dispatch (string key, scheme_tree args);
 scheme_tree latex_export_convert_node (scheme_tree value);
+// Convert a native source tree to the LaTeX exporter input while retaining
+// typed v3 math properties. Unlike the historical tree->stree conversion,
+// this must run before the source's MathScripts/MathBlock/MathGrid metadata
+// is erased by the scheme-tree boundary.
+scheme_tree latex_export_prepare_v3_source (tree value);
 scheme_tree latex_export_generic_function (string key, scheme_tree args);
 scheme_tree latex_export_string (string value);
 scheme_tree latex_export_named_symbol (string identity, bool math_mode);
@@ -289,6 +294,8 @@ tree   clean_html (tree t);
 tree   upgrade_mathml (tree t);
 string serialize_xml (scheme_tree t);
 tree   mathml_to_tree (scheme_tree t);
+// Explicit strict Presentation MathML -> native v3 AST entry; no v2 normalization.
+tree   mathml_to_tree_v3 (scheme_tree t);
 tree   retrieve_mathjax (int id);
 
 tree   find_first_element_by_name (tree t, string name);

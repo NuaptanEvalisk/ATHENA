@@ -90,6 +90,10 @@ widget texmacs_output_widget (tree doc, tree style);
 widget texmacs_output_widget (tree doc, tree style, SI width);
 widget texmacs_output_widget (tree doc, tree style, SI width, double zoom);
 widget texmacs_input_widget (tree doc, tree style, url wname);
+// The explicit version initializes a new query/editor buffer only. Reusing a
+// name retains its existing content and version, including after Vault changes.
+widget texmacs_input_widget (tree doc, tree style, url wname,
+                             athena::document::xml_format_version version);
 bool is_embedded_buffer (url name);
 array<SI> get_texmacs_widget_size (widget wid);
 

@@ -13,9 +13,12 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_set>
 #include <vector>
 #include "tree.hpp"
+
+namespace athena::document { enum class xml_format_version; }
 
 struct AthenaArtifactTitleFilter {
   std::vector<std::string> entries;
@@ -34,6 +37,14 @@ bool athena_artifact_title_filter_contains (
   const AthenaArtifactTitleFilter& filter, const tree& candidate);
 void athena_artifact_title_filter_add (
   AthenaArtifactTitleFilter& filter, const tree& name);
+void athena_artifact_title_filter_add (
+  AthenaArtifactTitleFilter& filter, const tree& name,
+  athena::document::xml_format_version version);
+// Encoded fragments retain their explicit format; these APIs do not migrate.
+void athena_artifact_title_filter_add_fragment (
+  AthenaArtifactTitleFilter& filter, std::string_view encoded);
+AthenaArtifactTitleFilter athena_artifact_title_filter_parse (std::string_view bytes);
+std::string athena_artifact_title_filter_serialize (const AthenaArtifactTitleFilter& filter);
 std::string athena_artifact_title_filter_fingerprint (
   const AthenaArtifactTitleFilter& filter);
 bool athena_artifact_title_filter_read (

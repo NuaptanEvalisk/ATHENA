@@ -1123,13 +1123,18 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
         ed->selection_set_export (format);
       }
     }
-    if (operation == "copy") ed->selection_copy (key);
-    else if (operation == "cut") ed->selection_cut (key);
-    else ed->selection_paste (key);
-    if (hasFormat) {
+    const auto restore_format= [&] {
+      if (!hasFormat) return;
       if (operation == "paste") ed->selection_set_import (previous);
       else ed->selection_set_export (previous);
+    };
+    try {
+      if (operation == "copy") ed->selection_copy (key);
+      else if (operation == "cut") ed->selection_cut (key);
+      else ed->selection_paste (key);
     }
+    catch (...) { restore_format (); throw; }
+    restore_format ();
   }
   else if (op == "selection-format-default") {
     const string format= native_action_string (action.value ("format"));

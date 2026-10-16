@@ -399,8 +399,7 @@ qtm_artifact_title_filter_write (const QStringList& entries, QString* error,
     auto filter= athena_artifact_title_filter_from_entries (values);
     try {
       for (const auto& entry: *structured)
-        athena_artifact_title_filter_add (filter, athena::document::read_xml (
-          entry.toStdString (), athena::document::xml_kind::fragment));
+        athena_artifact_title_filter_add_fragment (filter, entry.toStdString ());
       if (athena_artifact_title_filter_write (
             std::filesystem::path (qtm_utf8_std_string (qtm_vault_root_path ())),
             filter, write_error)) return true;

@@ -23,6 +23,7 @@
 #include "scheme_execution_context.hpp"
 
 #include <filesystem>
+#include <stdexcept>
 
 /******************************************************************************
 * Constructor and destructor
@@ -477,7 +478,22 @@ edit_select_rep::selection_get (path& p1, path& p2) {
     p1= fp * 0;
     p2= fp * 1;
   }
-  else selection_correct (start (cur_sel), end (cur_sel), p1, p2);
+  else {
+    selection_correct (start (cur_sel), end (cur_sel), p1, p2);
+    if (!in_source () && p1 != p2) {
+      const path grid= common (p1, p2);
+      if (grid != rp && !is_nil (grid) && has_subtree (et, grid) &&
+          is_func (subtree (et, grid), MATH_GRID) &&
+          is_func (subtree (et, path_up (grid)), MATH_BLOCK, 1) &&
+          ((p1 == grid * 0 && p2 == grid * 1) ||
+           (p1 == ::start (et, grid) && p2 == ::end (et, grid)))) {
+        // A whole display grid carries the MathBlock numbering context. Move
+        // the real enclosing object, not a synthetic wrapper with copied IDs.
+        p1= path_up (grid) * 0;
+        p2= path_up (grid) * 1;
+      }
+    }
+  }
   /*
   selection sel; selection_get (sel);
   p1= sel->start;
@@ -515,8 +531,10 @@ selection_compute_without_source_root_identity (
   if (!is_nil (root) && has_subtree (document, root) &&
       p1 == start (document, root) && p2 == end (document, root)) {
     tree source= copy (subtree (document, root));
-    if (athena::node::get (source)) {
-      athena::node::clear (source);
+    if (const auto* header= athena::node::get (source)) {
+      auto metadata= *header;
+      metadata.id.clear ();
+      athena::node::set (source, metadata);
       return selection_compute (source, start (source), end (source));
     }
   }
@@ -630,7 +648,9 @@ source_move_token (const tree& selection) {
 tree
 plain_clipboard_envelope (const tree& selection) {
   if (!is_tuple (selection, "texmacs", 4)) return selection;
-  return tuple ("texmacs", selection[1], selection[2], selection[3]);
+  tree plain= tuple ("texmacs", selection[1], selection[2], selection[3]);
+  athena::node::copy_metadata (selection, plain);
+  return plain;
 }
 
 path
@@ -652,7 +672,13 @@ complete_identified_selection_path (tree document, path p1, path p2, path root) 
 
 void
 edit_select_rep::selection_raw_set (string key, tree t) {
-  (void) ::set_selection (key, t, "", "", "", "texmacs");
+  if ((is_tuple (t, "texmacs", 3) || is_tuple (t, "texmacs", 4)) &&
+      !athena::document::clipboard_version (t)) {
+    if (!buf) throw std::runtime_error ("Clipboard source has no storage version");
+    t= athena::document::clipboard_with_version (t, buf->storage_version);
+  }
+  if (!::set_selection (key, t, "", "", "", "texmacs"))
+    throw std::runtime_error ("Cannot publish clipboard selection");
 }
 
 tree
@@ -697,12 +723,18 @@ edit_select_rep::selection_set (
     string key, tree t, bool persistant, string move_token) {
   selecting= shift_selecting= false;
   string mode= as_string (selection_get_env_value (MODE));
-  if (mode != "src" && is_equation_array (t)) mode= "text";
+  if (mode != "src" && (is_equation_array (t) || is_func (t, MATH_BLOCK)))
+    mode= "text";
   string lan = as_string (selection_get_env_value (MODE_LANGUAGE (mode)));
   tree sel= move_token == "" ?
     tuple ("texmacs", t, mode, lan) :
     tuple ("texmacs", t, mode, lan,
            tuple ("athena-move-v1", move_token));
+  if (!buf) throw std::runtime_error ("Clipboard source has no storage version");
+  sel= athena::document::clipboard_with_version (sel, buf->storage_version);
+  // Validate named and exported selections too: their in-process fast path
+  // still contains native source, regardless of the external export format.
+  const auto native_bytes= athena::document::write_clipboard_xml (sel);
   /* TODO: add mode="graphics" somewhere in the context of the <graphics>
      tag. To be done when implementing the different embeddings for
      nicely copying graphics into text, text into graphics, etc. */
@@ -723,8 +755,7 @@ edit_select_rep::selection_set (
     else if (selection_export != "default")
       s= tree_to_generic (t, selection_export * "-snippet");
     else {
-      std::string xml= athena::document::write_clipboard_xml (sel);
-      s= string (xml.data (), static_cast<int> (xml.size ()));
+      s= string (native_bytes.data (), static_cast<int> (native_bytes.size ()));
 #ifdef QTTEXMACS
       tree tmp;
       tmp= exec_verbatim (t, tp);
@@ -734,8 +765,9 @@ edit_select_rep::selection_set (
 #endif
     }
   }
-  if (::set_selection (key, sel, s, sv, sh, selection_export) && !persistant)
-    selection_cancel ();
+  if (!::set_selection (key, sel, s, sv, sh, selection_export))
+    throw std::runtime_error ("Cannot publish clipboard selection");
+  if (!persistant) selection_cancel ();
 }
 
 void
@@ -772,7 +804,20 @@ edit_select_rep::selection_get (string key) {
 }
 
 void
+edit_select_rep::selection_validate_paste (tree selection) {
+  if (!buf) throw std::runtime_error ("Paste target has no storage version");
+  if (buf->read_only) throw std::runtime_error ("This view is read-only");
+  athena::document::validate_clipboard_paste (selection, buf->storage_version);
+  const tree content= selection[1];
+  if (!inside_active_graphics () && get_env_string (MODE) == "math" &&
+      selection[2] == "text" &&
+      !(is_compound (content, "math", 1) && !athena::node::get (content)))
+    throw std::invalid_argument ("Cannot paste text into a formula");
+}
+
+void
 edit_select_rep::selection_paste (string key) {
+  if (!buf) throw std::runtime_error ("Paste target has no storage version");
   bool read_only= buf != nullptr && buf->read_only;
   if (read_only) {
     set_message ("This view is read-only", "paste");
@@ -780,7 +825,14 @@ edit_select_rep::selection_paste (string key) {
   }
 
   tree t; string s;
-  (void) ::get_selection (key, t, s, selection_import);
+  if (!::get_selection (key, t, s, selection_import)) return;
+  if (is_tuple (t, "texmacs", 3) || is_tuple (t, "texmacs", 4))
+    selection_validate_paste (t);
+  const auto validate_import= [&] (const tree& content) {
+    const tree envelope= athena::document::clipboard_with_version (
+      tuple ("texmacs", content, "text", "english"), buf->storage_version);
+    athena::document::validate_clipboard_paste (envelope, buf->storage_version);
+  };
   const std::string move_token= source_move_token (t);
   auto discard_move= [&] {
     if (!move_token.empty ())
@@ -801,6 +853,7 @@ edit_select_rep::selection_paste (string key) {
       get_preference ("verbatim->texmacs:wrap", "off") == "on";
     tree doc= verbatim_to_tree (as_string (t[1]), wrap, "utf-8");
     if (is_func (doc, DOCUMENT, 1)) doc= doc[0];
+    validate_import (doc);
     if (!is_empty (doc)) insert_tree (doc);
     return;
   }
@@ -824,6 +877,7 @@ edit_select_rep::selection_paste (string key) {
     tree doc= generic_to_tree (s, fm);
     if (is_func (doc, DOCUMENT, 1)) doc= doc[0]; // temporary fix
     if (mode == "math" && is_compound (doc, "math", 1)) doc= doc[0];
+    validate_import (doc);
     if (!is_empty (doc)) insert_tree (doc);
   }
   if (is_tuple (t, "texmacs", 3)) {
@@ -1073,8 +1127,9 @@ void
 edit_select_rep::selection_cut (string key) {
   if (inside_active_graphics ()) {
     if (key != "none") {
-      tree t= native_graphics_cut_selection ();
+      tree t= native_graphics_copy_selection ();
       selection_set (key, t);
+      (void) native_graphics_cut_selection ();
     }
     else (void) native_graphics_cut_selection ();
   }
@@ -1107,7 +1162,6 @@ edit_select_rep::selection_cut (string key) {
       // a half-open range of complete children, however, that boundary is
       // deleted and may reattach to the wrong side of an adjacent math
       // operator.  Its right boundary belongs to the first surviving child.
-      observer pos= position_new (stable_right_boundary? p2: p1);
       const path complete_object=
         complete_identified_selection_path (et, p1, p2, rp);
       if (key != "none") {
@@ -1121,13 +1175,21 @@ edit_select_rep::selection_cut (string key) {
           move= athena::document_node::issue_source_move (
             clipboard, vault_key,
             {buf->actor->id (), runtime_view_id});
-          if (!move.token.empty ()) start_slave (move.marker);
         }
-        selection_set (
-          key, clipboard, false,
-          move.token.empty () ? string () :
-            string (move.token.data (), (int) move.token.size ()));
+        try {
+          selection_set (
+            key, clipboard, false,
+            move.token.empty () ? string () :
+              string (move.token.data (), (int) move.token.size ()));
+        }
+        catch (...) {
+          if (!move.token.empty ())
+            athena::document_node::invalidate_source_move (move.token);
+          throw;
+        }
+        if (!move.token.empty ()) start_slave (move.marker);
       }
+      observer pos= position_new (stable_right_boundary? p2: p1);
       if (!is_nil (complete_object)) {
         const path parent_path= path_up (complete_object);
         remove (complete_object, 1);

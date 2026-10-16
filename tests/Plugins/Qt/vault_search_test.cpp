@@ -27,6 +27,7 @@
 #include "ATHENA/Data/node_reference.hpp"
 #include "utf8_edit.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
 #include "Data/Convert/Xml/document_upgrade_file.hpp"
 #include "Subsystems/RAG/rag_index.hpp"
 #include "node_metadata.hpp"
@@ -62,9 +63,15 @@ class TestVaultSearch: public QObject {
 private slots:
   void initTestCase ();
   void semanticVectorsUseReadOnlyIndex ();
+  void semanticSearchUsesStoredVersion ();
+  void structuredQueryNativeRoundTrip ();
+  void structuredQueryRejectsInvalidTransport ();
+  void mixedStructuredQueriesStayIndependent ();
   void sourceSelectionsUsePersistentObjects ();
   void sourcePreviewsKeepPropertiesNotIdentities ();
+  void sourcePreviewsDispatchNativeFragments ();
   void sourceLookupFollowsExternalRenameAndCancellation ();
+  void availableSourceEnunciationsFollowUuidSelections_data ();
   void availableSourceEnunciationsFollowUuidSelections ();
   void findsStructuredMathematicalExpressions ();
   void filtersCanonicalAndLegacyEnunciations ();
@@ -196,8 +203,65 @@ void TestVaultSearch::sourceLookupFollowsExternalRenameAndCancellation () {
   QVERIFY (!diagnostic.isEmpty ());
 }
 
+void TestVaultSearch::sourcePreviewsDispatchNativeFragments () {
+  using namespace athena;
+  node_location::result located;
+  for (auto version: {document::xml_format_version::v2, document::xml_format_version::v3}) {
+    tree fragment= version == document::xml_format_version::v3 ?
+      tree (MATH_SCRIPTS, "x", "", "", "i", "2") : tree (FRAC, "x", "y");
+    node::metadata meta;
+    meta.id= node::new_id ();
+    meta.properties["test:enabled"]= node::property (true);
+    if (version == document::xml_format_version::v3)
+      meta.properties["math:scripts-policy"]= node::property (std::string ("r"));
+    node::set (fragment, meta);
+    node_location::item item;
+    item.state= node_location::status::resolved;
+    item.source_directory= "/tmp";
+    item.fragment_xml= document::encode_native_xml_bytes (fragment, version, document::xml_kind::fragment);
+    located.items.push_back (item);
+  }
+  const tree preview= vault_source_preview (located);
+  QCOMPARE (N(preview), 2);
+  for (int i=0; i<2; ++i) {
+    const auto decoded= document::decode_native_xml_bytes (
+      located.items[i].fragment_xml, document::xml_kind::fragment);
+    QCOMPARE (document::encode_native_xml_bytes (preview[i], decoded.version, document::xml_kind::fragment),
+              located.items[i].fragment_xml);
+  }
+  const std::vector<std::string> invalid {
+    "<a v=\"3\" k=\"t\"><n", "<a v=\"99\" k=\"t\"><t>x</t></a>",
+    document::write_xml_v3 (tree (DOCUMENT, compound ("body", tree (DOCUMENT, "x"))))};
+  for (const auto& bytes: invalid) {
+    located.items[1].fragment_xml= bytes;
+    QVERIFY_EXCEPTION_THROWN (vault_source_preview (located), document::codec_exception);
+    std::atomic<bool> cancelled {false};
+    auto resolve= [] (const std::vector<std::string>&, const std::vector<std::string>&) {
+      return node_location::snapshot ();
+    };
+    const auto available= collect_available_source_enunciations (
+      std::make_shared<const std::string> (bytes), "invalid.ath", resolve, cancelled);
+    QVERIFY (available.entries.empty ());
+    QCOMPARE (available.warnings.size (), qsizetype (1));
+    QVERIFY (available.warnings[0].startsWith ("invalid.ath: "));
+  }
+}
+
+void TestVaultSearch::availableSourceEnunciationsFollowUuidSelections_data () {
+  QTest::addColumn<int> ("sourceVersion");
+  QTest::addColumn<int> ("remoteVersion");
+  QTest::newRow ("v2-v2") << 2 << 2;
+  QTest::newRow ("v2-v3") << 2 << 3;
+  QTest::newRow ("v3-v2") << 3 << 2;
+  QTest::newRow ("v3-v3") << 3 << 3;
+}
+
 void TestVaultSearch::availableSourceEnunciationsFollowUuidSelections () {
   using namespace athena;
+  QFETCH (int, sourceVersion);
+  QFETCH (int, remoteVersion);
+  const auto source_format= sourceVersion == 3 ? document::xml_format_version::v3 : document::xml_format_version::v2;
+  const auto remote_format= remoteVersion == 3 ? document::xml_format_version::v3 : document::xml_format_version::v2;
   const std::string local_id= node::new_id (), remote_id= node::new_id (),
                     missing_id= node::new_id ();
   auto enunciation= [] (const std::string& id, const char* text) {
@@ -215,9 +279,16 @@ void TestVaultSearch::availableSourceEnunciationsFollowUuidSelections () {
   tree local= enunciation (local_id, "Unsaved local theorem");
   tree remote= enunciation (remote_id, "Remote theorem");
   remote[0] << reference (remote_id);
+  if (remoteVersion == 3) {
+    tree scripts (MATH_SCRIPTS, "x", "", "", "i", "2");
+    node::metadata meta;
+    meta.properties["math:scripts-policy"]= node::property (std::string ("r"));
+    node::set (scripts, meta);
+    remote[0] << scripts;
+  }
   tree body (DOCUMENT, local, reference (remote_id), reference (missing_id));
   auto snapshot= std::make_shared<const std::string> (
-    document::write_xml_v2 (body, document::xml_kind::fragment));
+    document::encode_native_xml_bytes (body, source_format, document::xml_kind::fragment));
   int calls= 0;
   auto resolve= [&] (const std::vector<std::string>& ids,
                      const std::vector<std::string>& ancestry) -> node_location::snapshot {
@@ -233,7 +304,7 @@ void TestVaultSearch::availableSourceEnunciationsFollowUuidSelections () {
         item.state= node_location::status::resolved;
         node_location::location location; location.file= "Remote.ath";
         item.candidates.push_back (location);
-        item.fragment_xml= document::write_xml_v2 (remote, document::xml_kind::fragment);
+        item.fragment_xml= document::encode_native_xml_bytes (remote, remote_format, document::xml_kind::fragment);
       }
       else { item.state= node_location::status::missing; item.diagnostic= "missing"; }
       answer->items.push_back (std::move (item));
@@ -246,6 +317,12 @@ void TestVaultSearch::availableSourceEnunciationsFollowUuidSelections () {
   QCOMPARE (found.entries.size (), std::size_t (2));
   QCOMPARE (found.entries[0].source_uuid, QString::fromStdString (local_id));
   QCOMPARE (found.entries[1].source_uuid, QString::fromStdString (remote_id));
+  QCOMPARE (document::inspect_xml_version (*found.entries[0].source_body), source_format);
+  QCOMPARE (document::inspect_xml_version (*found.entries[1].source_body), remote_format);
+  const auto retained= document::decode_native_xml_bytes (
+    *found.entries[1].source_body, document::xml_kind::fragment);
+  QCOMPARE (document::encode_native_xml_bytes (retained.document, retained.version, document::xml_kind::fragment),
+            document::encode_native_xml_bytes (remote, remote_format, document::xml_kind::fragment));
   QVERIFY (found.entries[0].title.contains ("Unsaved local theorem"));
   QCOMPARE (found.warnings.size (), qsizetype (2));
   QCOMPARE (calls, 3);
@@ -336,9 +413,10 @@ void TestVaultSearch::availablePreviewHasAnEmbeddingLayout () {
 }
 
 namespace {
-std::shared_ptr<const std::string> availableSnapshot (tree body) {
-  return std::make_shared<const std::string> (athena::document::write_xml_v2 (
-    body, athena::document::xml_kind::fragment));
+std::shared_ptr<const std::string> availableSnapshot (tree body,
+    athena::document::xml_format_version version= athena::document::xml_format_version::v2) {
+  return std::make_shared<const std::string> (athena::document::encode_native_xml_bytes (
+    body, version, athena::document::xml_kind::fragment));
 }
 tree enunciationBody (string name, tree content) {
   return tree (DOCUMENT, tree (LABEL, name * " {"),
@@ -356,7 +434,8 @@ void TestVaultSearch::availableEnunciationsFollowOnlyReferencedRanges () {
   b << enunciationBody ("theorem:Excluded", "Not part of the selected range");
   tree c= enunciationBody ("lemma:Nested", tree (CONCAT, "nested", transclusionTo ("b")));
   std::map<QString, std::shared_ptr<const std::string>> files {
-    {"B.ath", availableSnapshot (b)}, {"C.ath", availableSnapshot (c)}};
+    {"B.ath", availableSnapshot (b)},
+    {"C.ath", availableSnapshot (c, athena::document::xml_format_version::v3)}};
   std::map<QString, int> reads;
   auto locate= [] (const std::string& uuid, AthenaVaultMapNode& target) {
     if (uuid == "b") target= {uuid, "B.ath", "theorem:Included {", "theorem:Included }"};
@@ -367,7 +446,7 @@ void TestVaultSearch::availableEnunciationsFollowOnlyReferencedRanges () {
   auto load= [&] (const QString& file) {
     ++reads[file];
     const auto& bytes= files.at (file);
-    return athena::document::read_xml_v2 (*bytes, athena::document::xml_kind::fragment);
+    return athena::document::decode_native_xml_bytes (*bytes, athena::document::xml_kind::fragment);
   };
   std::atomic<bool> cancelled {false};
   auto result= collect_available_enunciations (availableSnapshot (local), "A.ath", locate, load, cancelled);
@@ -379,8 +458,10 @@ void TestVaultSearch::availableEnunciationsFollowOnlyReferencedRanges () {
   QCOMPARE (nested.relative_path, QString ("C.ath"));
   QCOMPARE (nested.upper, QString ("lemma:Nested {"));
   QVERIFY (nested.title != "theorem:Excluded");
-  tree source= athena::document::read_xml_v2 (*nested.source_body,
+  const auto decoded= athena::document::decode_native_xml_bytes (*nested.source_body,
     athena::document::xml_kind::fragment);
+  QCOMPARE (decoded.version, athena::document::xml_format_version::v3);
+  tree source= decoded.document;
   tree range= athena_transclusion_source_range (source, from_qstring (nested.upper), from_qstring (nested.lower));
   QVERIFY (range != UNINIT);
   std::vector<WikilinkAnchorEntry> anchors;
@@ -397,7 +478,11 @@ void TestVaultSearch::availableEnunciationsKeepUnsavedSourceAndCancel () {
     target= {uuid, "A.ath", "", ""}; return true;
   };
   int reads= 0;
-  auto load= [&] (const QString&) { ++reads; return tree (DOCUMENT, "old disk content"); };
+  auto load= [&] (const QString&) {
+    ++reads;
+    return athena::document::native_xml_read_result {
+      athena::document::xml_format_version::v2, tree (DOCUMENT, "old disk content")};
+  };
   std::atomic<bool> cancelled {false};
   auto result= collect_available_enunciations (bytes, "A.ath", locate, load, cancelled);
   QCOMPARE (result.entries.size (), std::size_t (1));
@@ -417,6 +502,214 @@ void TestVaultSearch::availableEnunciationsKeepUnsavedSourceAndCancel () {
 void
 TestVaultSearch::initTestCase () {
   init_std_drd ();
+}
+
+void
+TestVaultSearch::structuredQueryNativeRoundTrip () {
+  using namespace athena::document;
+  for (const auto version: {xml_format_version::v2, xml_format_version::v3}) {
+    tree query= version == xml_format_version::v3 ?
+      tree (MATH_SCRIPTS, "x", "", "", "i", "2") :
+      tree (CONCAT, "x", tree (RSUP, "2"));
+    athena::node::metadata meta;
+    meta.id= athena::node::new_id ();
+    meta.properties["test:enabled"]= athena::node::property (true);
+    meta.properties["test:title"]= athena::node::property (
+      athena::node::rich_text {tree (CONCAT, "typed", " title")});
+    if (version == xml_format_version::v3)
+      meta.properties["math:scripts-policy"]= athena::node::property (std::string ("r"));
+    athena::node::set (query, meta);
+    VaultSearchOptions options;
+    vault_search_set_query (options, query, version);
+    QVERIFY (options.queryFormat.has_value ());
+    QCOMPARE (*options.queryFormat, version);
+    QCOMPARE (inspect_xml_version (options.serializedQuery), version);
+    const auto decoded= vault_search_decode_query (options);
+    QCOMPARE (encode_native_xml_bytes (decoded, version, xml_kind::fragment),
+              options.serializedQuery);
+    const auto* preserved= athena::node::get (decoded);
+    QVERIFY (preserved != nullptr);
+    QCOMPARE (preserved->id, meta.id);
+    QVERIFY (std::get<bool> (preserved->properties.at ("test:enabled").data));
+    QVERIFY (std::get<athena::node::rich_text> (
+      preserved->properties.at ("test:title").data).content == tree (CONCAT, "typed", " title"));
+
+    tree atom ("typed text");
+    // Keep only general properties on a text node.
+    meta.properties.erase ("math:scripts-policy");
+    athena::node::set (atom, meta);
+    vault_search_set_query (options, atom, version);
+    QVERIFY (!options.serializedQuery.empty ());
+    QCOMPARE (encode_native_xml_bytes (vault_search_decode_query (options), version,
+                                      xml_kind::fragment), options.serializedQuery);
+    const auto before= options.serializedQuery;
+    QVERIFY_EXCEPTION_THROWN (vault_search_set_query (options, atom, xml_format_version::v1),
+                              codec_exception);
+    QCOMPARE (options.serializedQuery, before);
+    QCOMPARE (*options.queryFormat, version);
+
+    vault_search_set_query (options, tree ("plain text"), version);
+    QVERIFY (options.serializedQuery.empty ());
+    QVERIFY (!options.queryFormat);
+    QVERIFY (vault_search_decode_query (options) == tree ("plain text"));
+  }
+}
+
+void
+TestVaultSearch::structuredQueryRejectsInvalidTransport () {
+  using namespace athena::document;
+  VaultSearchOptions good;
+  vault_search_set_query (good, tree (FRAC, "x", "y"), xml_format_version::v3);
+  std::vector<VaultSearchOptions> rejected;
+  auto malformed= good;
+  malformed.serializedQuery.resize (malformed.serializedQuery.size () / 2);
+  rejected.push_back (malformed);
+  auto mismatch= good;
+  mismatch.queryFormat= xml_format_version::v2;
+  rejected.push_back (mismatch);
+  auto missing_format= good;
+  missing_format.queryFormat.reset ();
+  rejected.push_back (missing_format);
+  auto missing_payload= good;
+  missing_payload.serializedQuery.clear ();
+  rejected.push_back (missing_payload);
+  auto document= good;
+  document.serializedQuery= write_xml_v3 (tree (DOCUMENT, compound ("body", tree (DOCUMENT, "x"))));
+  rejected.push_back (document);
+  auto old_fragment= good;
+  old_fragment.serializedQuery= write_xml_v2 (tree (FRAC, "x", "y"), xml_kind::fragment);
+  rejected.push_back (old_fragment);
+  auto unsupported= good;
+  unsupported.serializedQuery= "<a v=\"99\" k=\"t\"><t>x</t></a>";
+  rejected.push_back (unsupported);
+  for (auto options: rejected) {
+    options.query= "must not fall back to this text";
+    std::string reason;
+    try { (void) vault_search_decode_query (options); }
+    catch (const codec_exception& error) { reason= error.what (); }
+    QVERIFY (!reason.empty ());
+    if (options.serializedQuery == mismatch.serializedQuery &&
+        options.queryFormat == mismatch.queryFormat)
+      QCOMPARE (reason, std::string ("Search query fragment version does not match its source format"));
+
+    QObject owner;
+    bool semantic_done= false;
+    vault_search_semantic_candidates (&owner, {}, options,
+      std::make_shared<VaultSearchControl> (),
+      [&] (std::shared_ptr<const VaultSemanticCandidates> candidates, QString error) {
+        QVERIFY (!candidates);
+        QCOMPARE (error, QString::fromStdString (reason));
+        semantic_done= true;
+      });
+    QVERIFY (semantic_done);
+
+    bool done= false;
+    std::atomic<int> scans {0};
+    auto control= start_vault_search<int> (&owner, {}, options,
+      [&] (tree, url, const tree&, const VaultSearchOptions&, std::vector<int>&) {
+        ++scans;
+      }, [] (const VaultSearchProgress&) {},
+      [&] (std::vector<int> hits, const VaultSearchProgress& progress, bool cancelled) {
+        QVERIFY (cancelled);
+        QVERIFY (hits.empty ());
+        QCOMPARE (progress.diagnostic, QString::fromStdString (reason));
+        done= true;
+      });
+    QTRY_VERIFY_WITH_TIMEOUT (done, 5000);
+    QCOMPARE (scans.load (), 0);
+    QVERIFY (control->cancelled.load ());
+  }
+}
+
+void
+TestVaultSearch::mixedStructuredQueriesStayIndependent () {
+  using namespace athena::document;
+  QTemporaryFile source;
+  QVERIFY (source.open ());
+  const auto bytes= currentDocumentBytes ("search source");
+  QCOMPARE (source.write (bytes), qint64 (bytes.size ()));
+  QVERIFY (source.flush ());
+  QObject owner;
+  int completed= 0;
+  std::vector<std::shared_ptr<VaultSearchControl>> controls;
+  for (int i=0; i<4; ++i) {
+    const auto version= i % 2 ? xml_format_version::v3 : xml_format_version::v2;
+    tree query (FRAC, "x", as_string (i));
+    athena::node::metadata meta;
+    meta.properties["test:enabled"]= athena::node::property (i % 2 == 0);
+    athena::node::set (query, std::move (meta));
+    VaultSearchOptions options;
+    vault_search_set_query (options, query, version);
+    const auto expected= options.serializedQuery;
+    controls.push_back (start_vault_search<std::string> (&owner,
+      {source.fileName ().toStdString ()}, options,
+      [] (tree, url, const tree& query, const VaultSearchOptions& options,
+          std::vector<std::string>& out) {
+        out.push_back (encode_native_xml_bytes (query, *options.queryFormat, xml_kind::fragment));
+      }, [] (const VaultSearchProgress&) {},
+      [&, expected] (std::vector<std::string> hits, const VaultSearchProgress& progress, bool cancelled) {
+        QVERIFY (!cancelled);
+        QVERIFY (progress.diagnostic.isEmpty ());
+        QCOMPARE (hits.size (), std::size_t (1));
+        QCOMPARE (hits[0], expected);
+        ++completed;
+      }));
+  }
+  QTRY_COMPARE_WITH_TIMEOUT (completed, 4, 5000);
+}
+
+void
+TestVaultSearch::semanticSearchUsesStoredVersion () {
+  using namespace athena::document;
+  for (int fixture= 0; fixture<4; ++fixture) {
+    const auto version= fixture == 0 ? xml_format_version::v1 :
+      fixture == 1 ? xml_format_version::v2 : xml_format_version::v3;
+    tree content ("snapshot");
+    if (fixture == 3) {
+      content= tree (MATH_SCRIPTS, "x", "", "", "i", "2");
+      athena::node::metadata meta;
+      meta.properties["math:scripts-policy"]= athena::node::property (std::string ("r"));
+      athena::node::set (content, std::move (meta));
+    }
+    const tree document (DOCUMENT, compound ("body", tree (DOCUMENT, content)));
+    const auto bytes= encode_native_xml_bytes (document, version);
+    QTemporaryFile source;
+    QVERIFY (source.open ());
+    QCOMPARE (source.write (bytes.data (), qint64 (bytes.size ())), qint64 (bytes.size ()));
+    QVERIFY (source.flush ());
+    const url file= url_system (from_qstring (source.fileName ()));
+    const auto revision= semantic_document_fingerprint (document, version);
+    auto candidates= std::make_shared<VaultSemanticCandidates> ();
+    (*candidates)[source.fileName ()].push_back ({"0", revision, 1.0});
+    VaultSearchOptions options;
+    options.semanticCandidates= candidates;
+    xml_format_version actual_version;
+    const tree body= vault_search_read_body (source.fileName (), true, &actual_version);
+    QCOMPARE (actual_version, version);
+    QVERIFY (body == tree (DOCUMENT, content));
+    if (fixture == 3) {
+      const auto* meta= athena::node::get (body[0]);
+      QVERIFY (meta != nullptr);
+      QCOMPARE (std::get<std::string> (meta->properties.at ("math:scripts-policy").data),
+                std::string ("r"));
+    }
+    std::vector<VaultContentMatch> matches;
+    vault_search_semantic_matches (body, file, options, matches);
+    QCOMPARE (matches.size (), std::size_t (1));
+    QCOMPARE (options.staleCandidates->load (), 0);
+
+    // A metadata-free v3 tree is indistinguishable by shape, but not by revision.
+    if (fixture == 2) {
+      const auto old_revision= semantic_document_fingerprint (document, xml_format_version::v2);
+      QVERIFY (revision != old_revision);
+      (*candidates)[source.fileName ()][0].semanticRevision= old_revision;
+    }
+    else (*candidates)[source.fileName ()][0].semanticRevision= "stale";
+    matches.clear ();
+    vault_search_semantic_matches (body, file, options, matches);
+    QVERIFY (matches.empty ());
+    QCOMPARE (options.staleCandidates->load (), 1);
+  }
 }
 
 void

@@ -207,6 +207,18 @@ string
 vault_load (url root_dir, string name, string db_rel_path,
             string ns_db_rel_path) {
   std::filesystem::path root (vault_std_string (concretize (root_dir)));
+  // A disconnected XML v3 candidate is a different native AST, not a v2
+  // document collection with shorter XML labels. Refuse it *before* startup
+  // database canonicalization, which may otherwise mutate the candidate.
+  // Remove this gate only once the complete v3 editor, Typesetter, exporters,
+  // Artifact indices and Hodarium wire protocol have passed cutover tests.
+  AthenaVaultfileInfo requested_model;
+  std::string requested_error;
+  if (!athena_vaultfile_read (root, requested_model, requested_error))
+    return vault_tm_string (requested_error);
+  if (requested_model.node_model_version >= 2)
+    return "XML v3 Vaults cannot yet be opened by the normal ATHENA runtime; "
+           "this is a disconnected migration candidate. Do not edit or resave it.";
   std::shared_ptr<athena::filesystem::vault_directory_lease> directory_lease;
   try {
     // Also recover an interrupted startup migration on a subsequent manual open.

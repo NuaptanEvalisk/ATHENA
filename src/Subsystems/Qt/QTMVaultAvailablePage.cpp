@@ -154,10 +154,21 @@ void QTMVaultAvailablePage::initializePage () {
     status->setText ("No originating document in an open vault.");
     return;
   }
-  tree body= get_buffer_body (source);
-  const bool native= vault_get_node_model_version () >= 1;
-  auto bytes= std::make_shared<const std::string> (athena::document::write_xml_v2 (
-    body, athena::document::xml_kind::fragment));
+  std::shared_ptr<const std::string> bytes;
+  try {
+    const auto snapshot= vault_search_buffer_snapshot (source);
+    bytes= std::make_shared<const std::string> (athena::document::encode_native_xml_bytes (
+      snapshot.document, snapshot.version, athena::document::xml_kind::fragment));
+  }
+  catch (const std::exception& error) {
+    task->error= QString::fromUtf8 (error.what ());
+    task->done= true;
+    status->setText (task->error);
+    progress->setRange (0, 1); progress->setValue (0);
+    emit completeChanged ();
+    return;
+  }
+  const bool native= context->node_model_version >= 1;
   auto locator= native ? athena::node_location::for_vault (context) : nullptr;
   preview.ensureCreated (previewHost);
   auto job= task;
@@ -187,7 +198,9 @@ void QTMVaultAvailablePage::initializePage () {
         if (root.isEmpty () || file.isEmpty () || QDir::isAbsolutePath (relative) ||
             local == ".." || local.startsWith ("../") || QDir::isAbsolutePath (local))
           throw std::runtime_error ("Transclusion source is missing or outside the vault");
-        return vault_search_read_body (file);
+        athena::document::native_xml_read_result loaded;
+        loaded.document= vault_search_read_body (file, false, &loaded.version);
+        return loaded;
       };
       if (locator) {
         auto resolve= [&] (const std::vector<std::string>& ids,
@@ -242,37 +255,43 @@ void QTMVaultAvailablePage::filter () {
 }
 
 void QTMVaultAvailablePage::showPreview () {
+  previewError.clear ();
   auto* item= list->currentItem ();
   if (!item) { preview.setBody (tree (DOCUMENT, "")); emit completeChanged (); return; }
-  const auto& entry= entries.at (item->data (Qt::UserRole).toULongLong ());
-  tree range;
-  if (!entry.source_uuid.isEmpty ()) {
-    tree body= athena::document::read_xml_v2 (*entry.source_body,
-      athena::document::xml_kind::fragment);
-    std::vector<VaultSourceTarget> selected;
-    QString error;
-    if (!vault_source_selection (body, {entry.source_uuid}, selected, error)) {
-      previewTitle->setText (error);
-      return;
+  try {
+    const auto& entry= entries.at (item->data (Qt::UserRole).toULongLong ());
+    tree body= athena::document::decode_native_xml_bytes (*entry.source_body,
+      athena::document::xml_kind::fragment).document;
+    tree range;
+    if (!entry.source_uuid.isEmpty ()) {
+      std::vector<VaultSourceTarget> selected;
+      QString error;
+      if (!vault_source_selection (body, {entry.source_uuid}, selected, error))
+        throw std::runtime_error (error.toStdString ());
+      range= is_nil (selected[0].where) ? body : subtree (body, selected[0].where);
     }
-    range= is_nil (selected[0].where) ? body : subtree (body, selected[0].where);
+    else {
+      range= athena_transclusion_source_range (body, from_qstring (entry.upper), from_qstring (entry.lower));
+      if (range == UNINIT) throw std::runtime_error ("Transclusion anchors not found");
+    }
+    previewTitle->setText (entry.relative_path);
+    range= rebase_preview_images (range, head (url_system (
+      from_qstring_utf8 (QDir (QString::fromStdString (context->root.string ())).filePath (entry.relative_path)))));
+    preview.setBody (apply_vault_preferred_font_to_preview (range));
+    display->setText (entry.title);
   }
-  else {
-    tree body= athena::document::read_xml_v2 (*entry.source_body,
-      athena::document::xml_kind::fragment);
-    range= athena_transclusion_source_range (body, from_qstring (entry.upper), from_qstring (entry.lower));
+  catch (const std::exception& error) {
+    previewError= QString::fromUtf8 (error.what ());
+    previewTitle->setText (previewError);
+    display->clear ();
+    preview.setBody (tree (DOCUMENT, ""));
   }
-  previewTitle->setText (entry.relative_path);
-  range= rebase_preview_images (range, head (url_system (
-    from_qstring_utf8 (QDir (QString::fromStdString (context->root.string ())).filePath (entry.relative_path)))));
-  preview.setBody (apply_vault_preferred_font_to_preview (range));
-  display->setText (entry.title);
   emit completeChanged ();
 }
 
 bool QTMVaultAvailablePage::isComplete () const {
   return task && task->done.load (std::memory_order_acquire) && task->error.isEmpty () &&
-    list->currentItem () && vault_context_is_current (context);
+    list->currentItem () && previewError.isEmpty () && vault_context_is_current (context);
 }
 
 bool QTMVaultAvailablePage::validatePage () {

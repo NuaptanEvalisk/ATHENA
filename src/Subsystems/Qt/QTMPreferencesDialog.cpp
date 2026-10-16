@@ -1642,8 +1642,8 @@ QTMPreferencesDialog::buildVaultCategories () {
       item->setFlags (item->flags () | Qt::ItemIsEditable);
     }
     for (const auto& fragment: structured) {
-      tree name= athena::document::read_xml (
-        fragment.toStdString (), athena::document::xml_kind::fragment);
+      tree name= athena::document::decode_native_xml_bytes (
+        fragment.toStdString (), athena::document::xml_kind::fragment).document;
       string display= tree_to_scheme (name);
       auto* item= new QListWidgetItem (
         QString::fromUtf8 (display.data (), N(display)), titleFilter);

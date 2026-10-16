@@ -119,7 +119,8 @@ std::string document_title (tree t, const std::string& fallback);
 tree rewrite_static_links (tree t, const std::string& source_rel,
                            const std::string& output_rel,
                            const GenerationContext& cx);
-bool export_document_html (tree doc, const fs::path& source,
+bool export_document_html (const MaintenanceDocument& snapshot, tree doc,
+                           const fs::path& source,
                            const fs::path& target,
                            const std::string& output_rel,
                            const std::string& title,

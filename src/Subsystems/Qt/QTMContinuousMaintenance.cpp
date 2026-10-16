@@ -10,6 +10,7 @@
 #include "QTMContinuousMaintenance.hpp"
 #include "ATHENA/Data/background_workers.hpp"
 #include "ATHENA/Data/enunciation_model.hpp"
+#include "ATHENA/Data/vault_maintenance_internal.hpp"
 #include "ATHENA/Data/node_location_cache.hpp"
 #include "ATHENA/Data/node_reference.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
@@ -62,22 +63,6 @@ void check_conversion (const en::conversion_result& result) {
   if (!result.diagnostics.empty ())
     throw std::runtime_error (result.diagnostics.front ().tag + ": " +
                               result.diagnostics.front ().detail);
-}
-
-// Only the newly introduced body wrapper can lack its source identity in an
-// otherwise identity-complete v2 file. Existing IDs/bindings are never renewed.
-void identify_new_bodies (tree& value) {
-  if (is_atomic (value)) return;
-  if (is_func (value, MACRO) || is_func (value, XMACRO) ||
-      is_func (value, QUOTE) || is_func (value, QUASI) ||
-      is_func (value, QUASIQUOTE)) return;
-  if (en::is_canonical (value) && athena::node::id (value[0]).empty ()) {
-    athena::node::metadata header;
-    if (auto* old= athena::node::get (value[0])) header= *old;
-    header.id= athena::node::new_id ();
-    athena::node::set (value[0], header);
-  }
-  for (int i=0; i<N(value); ++i) identify_new_bodies (value[i]);
 }
 
 // Scheduling/lifecycle contention is unfinished work, not a conversion error.
@@ -240,13 +225,8 @@ class Maintenance final: public QObject {
             auto entry= root.open (file.path);
             const auto revision= entry.stat ();
             const auto bytes= entry.read (xml::codec_limits ().input_bytes);
-            auto result= enunciation_pass (xml::read_xml_v2 (bytes), numbered);
-            check_conversion (result);
-            if (result.converted) {
-              identify_new_bodies (result.source);
-              const auto output= xml::write_xml_v2 (result.source);
-              if (xml::read_xml_v2 (output) != result.source)
-                throw std::runtime_error ("Enunciation conversion failed XML roundtrip");
+            const auto output= maintenance_enunciation_bytes (bytes, numbered);
+            if (output != bytes) {
               if (!current (vault) || published_buffer_source (absolute).first != ATHENA_NO_ACTOR) {
                 ++count; continue;
               }

@@ -12,6 +12,8 @@
 #include "buffer_actor.hpp"
 #include "buffer_state.hpp"
 #include "editor.hpp"
+#include "Edit/Interface/edit_interface.hpp"
+#include "node_metadata.hpp"
 #include "patch.hpp"
 #include "tree_cursor.hpp"
 #include "Data/Convert/Xml/clipboard_xml.hpp"
@@ -53,10 +55,76 @@ void require_writable () {
     throw std::runtime_error ("A compound source is read-only");
 }
 
+void require_clipboard_grid_context (editor_rep& editor, tree content, path first, path last) {
+  if (!is_func (content, MATH_GRID) && !is_func (content, ROW) &&
+      !is_func (content, CELL)) return;
+  const path root= editor.the_buffer_path ();
+  for (path p= common (first, last); root <= p; p= path_up (p)) {
+    if (editor.test_subtree (p)) {
+      const tree ancestor= editor.the_subtree (p);
+      if (is_func (ancestor, MATH_GRID)) {
+        if (!is_func (content, MATH_GRID))
+          throw std::runtime_error ("Copy the native grid or MathBlock to preserve row numbering and cell context");
+        if (p != root) {
+          const tree parent= editor.the_subtree (path_up (p));
+          if (is_func (parent, MATH_BLOCK, 1))
+            throw std::runtime_error ("Native display grid selection must include its MathBlock context");
+        }
+        return;
+      }
+    }
+    if (p == root || is_nil (p)) break;
+  }
+}
+
 void report_history_result (const std::string& error) {
   if (!error.empty ()) std_warning << "Compound document history: " << string (error.c_str ()) << LF;
 }
 } // namespace
+
+tree merge_clipboard_pieces (const std::vector<std::string>& pieces) {
+  using namespace athena::document;
+  if (pieces.empty ()) throw std::runtime_error ("Compound clipboard has no source pieces");
+  std::vector<tree> selections;
+  auto version= xml_format_version::v1;
+  for (const auto& bytes: pieces) {
+    tree selection= read_clipboard_xml (bytes);
+    const auto origin= *clipboard_version (selection);
+    if (origin == xml_format_version::v3 ||
+        (origin == xml_format_version::v2 && version == xml_format_version::v1))
+      version= origin;
+    selections.push_back (selection);
+  }
+  if (selections.size () == 1) return selections.front ();
+
+  tree body (DOCUMENT);
+  for (const auto& selection: selections) {
+    validate_clipboard_paste (selection, version);
+    if (N(selection) != 4)
+      throw std::runtime_error ("Cannot combine clipboard pieces with source-move provenance");
+    const string mode= selection[2]->label;
+    if (mode != "text" && mode != "math" && mode != "prog")
+      throw std::runtime_error ("Cannot combine clipboard pieces from this source mode");
+    const tree content= selection[1];
+    const auto append= [&] (tree paragraph) {
+      if (mode == "math" && !is_func (paragraph, MATH_BLOCK) &&
+          !is_compound (paragraph, "math", 1))
+        paragraph= compound ("math", paragraph);
+      else if (mode == "prog")
+        paragraph= tree (WITH, "mode", "prog", paragraph);
+      // The merged selection is text, but each piece keeps its source language.
+      if (mode != "text" || selection[3] != "english")
+        paragraph= tree (WITH, MODE_LANGUAGE (mode), selection[3], paragraph);
+      body << paragraph;
+    };
+    if (is_document (content) && !athena::node::get (content))
+      for (int i=0; i<N(content); ++i) append (content[i]);
+    else append (content);
+  }
+  const tree merged= clipboard_with_version (tuple ("texmacs", body, "text", "english"), version);
+  // Strict encoding also catches cross-piece duplicate UUIDs before any cut.
+  return read_clipboard_xml (write_clipboard_xml (merged, version));
+}
 
 void erase_ranges (std::vector<source_range> ranges,
                    std::function<void(std::string)> completion) {
@@ -79,9 +147,16 @@ void copy_ranges (std::vector<source_range> ranges,
     member.apply= [range, pieces, i] (editor_rep& editor) {
       const auto positions= range_positions (editor, range);
       editor.select (positions.first, positions.second);
+      path first, last;
+      editor.selection_get (first, last);
+      const tree content= editor.selection_get ();
+      tree mode= editor.selection_get_env_value ("mode");
+      if (mode != "src") require_clipboard_grid_context (editor, content, first, last);
+      if (mode != "src" && is_func (content, MATH_BLOCK)) mode= "text";
+      const auto version= current_scheme_execution_context ()->actor->current_state ()->storage_version;
       (*pieces)[i]= athena::document::write_clipboard_xml (
-        tuple ("texmacs", editor.selection_get (), editor.selection_get_env_value ("mode"),
-               editor.selection_get_env_value ("language")));
+        tuple ("texmacs", content, mode,
+               editor.selection_get_env_value (MODE_LANGUAGE (as_string (mode)))), version);
     };
     member.rollback= member.commit= [] (editor_rep&) {};
     participants.push_back (std::move (member));
@@ -102,24 +177,45 @@ void replace_ranges (std::vector<source_range> ranges, std::string clipboard_xml
     edit_participant member;
     member.actor= range.actor;
     member.view= range.view;
-    member.prepare= [range] (editor_rep& editor) {
+    const bool insert= range.actor == ranges.front ().actor && !clipboard_xml.empty ();
+    auto replacement= std::make_shared<tree> ();
+    auto effective= std::make_shared<std::pair<path, path>> ();
+    member.prepare= [range, insert, clipboard_xml, replacement, effective] (editor_rep& editor) {
       require_writable ();
+      if (editor.inside_active_graphics ())
+        throw std::runtime_error ("Compound range editing does not support an active graphics selection");
       if (current_scheme_execution_context ()->actor->source_epoch () != range.epoch)
         throw std::runtime_error ("A source changed after the compound selection was made");
-      (void) range_positions (editor, range);
-    };
-    const bool insert= range.actor == ranges.front ().actor && !clipboard_xml.empty ();
-    member.apply= [range, marker, insert, clipboard_xml] (editor_rep& editor) {
       const auto positions= range_positions (editor, range);
+      editor.select (positions.first, positions.second);
+      editor.selection_get (effective->first, effective->second);
+      if (insert) {
+        *replacement= athena::document::read_clipboard_xml (clipboard_xml);
+        const path cursor= editor.the_path ();
+        editor.go_to (effective->first);
+        try {
+          if (editor.inside_active_graphics ())
+            throw std::runtime_error ("Compound replacement does not support a graphics destination");
+          editor.selection_validate_paste (*replacement);
+        }
+        catch (...) { editor.go_to (cursor); throw; }
+        editor.go_to (cursor);
+      }
+    };
+    member.apply= [marker, insert, replacement, effective] (editor_rep& editor) {
       editor.start_editing ();
       editor.archive_state ();
       editor.start_slave (marker);
-      editor.select (positions.first, positions.second);
+      editor.select (effective->first, effective->second);
       editor.selection_cut ("none");
       if (insert) {
         const string key= "avd-replacement-" * as_string (marker);
-        editor.selection_raw_set (key, athena::document::read_clipboard_xml (clipboard_xml));
-        try { editor.selection_paste (key); }
+        editor.selection_raw_set (key, *replacement);
+        try {
+          if (editor.selection_raw_get (key) != *replacement)
+            throw std::runtime_error ("Could not install compound replacement clipboard");
+          editor.selection_paste (key);
+        }
         catch (...) { editor.selection_clear (key); throw; }
         editor.selection_clear (key);
       }

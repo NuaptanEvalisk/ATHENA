@@ -1633,13 +1633,13 @@ buffer_actor::dispatch (actor_command_record& command) {
           EAGAIN, std::generic_category (),
           "Document changed between import and storage capture");
       const auto version= storage.version ();
-      if (version == athena::document::xml_storage_version::v2 &&
+      if (version != athena::document::xml_storage_version::v1 &&
           !impl_->state.node_identities) {
         auto identities= replacement_node_identities (
           impl_->state.source_envelope,
           subtree (impl_->state.document, impl_->state.root_path));
         if (!identities)
-          throw std::invalid_argument ("XML v2 source does not have a complete identity baseline");
+          throw std::invalid_argument ("Node-model source does not have a complete identity baseline");
         impl_->state.node_identities= std::move (identities);
       }
       impl_->state.storage_version= version;
@@ -1661,11 +1661,12 @@ buffer_actor::dispatch (actor_command_record& command) {
     // Preflight before touching the old envelope, body, editor data or index.
     const bool supplied_format= command.argument[1] != 0;
     const bool source_v2= command.argument[1] == 2;
+    const bool source_v3= command.argument[1] == 3;
     std::unique_ptr<athena::document_node::source_identity_state> identities;
-    if (source_v2 || (!supplied_format && impl_->state.node_identities)) {
+    if (source_v2 || source_v3 || (!supplied_format && impl_->state.node_identities)) {
       new_data projected;
       tree body= detach_data (document, projected);
-      // XML v2 permits anonymous source nodes. Complete their identities on
+      // Node-model XML permits anonymous source nodes. Complete their identities on
       // the detached baseline, retaining all persisted IDs and properties.
       identities= prepare_replacement_node_identities (document, body);
       if (!identities) break;
@@ -1679,7 +1680,8 @@ buffer_actor::dispatch (actor_command_record& command) {
     set_document (
       impl_->state.document, impl_->state.root_path, std::move (body));
     if (supplied_format) {
-      impl_->state.storage_version= source_v2 ?
+      impl_->state.storage_version= source_v3 ?
+        athena::document::xml_storage_version::v3 : source_v2 ?
         athena::document::xml_storage_version::v2 :
         athena::document::xml_storage_version::v1;
       impl_->state.node_identities= std::move (identities);
@@ -1740,6 +1742,12 @@ buffer_actor::dispatch (actor_command_record& command) {
       actor_text_registry::instance ().take (command.payload0);
     break;
   case actor_command_kind::snapshot_document: {
+    switch (impl_->state.storage_version) {
+    case athena::document::xml_storage_version::v1: command.argument[0]= 1; break;
+    case athena::document::xml_storage_version::v2: command.argument[0]= 2; break;
+    case athena::document::xml_storage_version::v3: command.argument[0]= 3; break;
+    default: throw std::runtime_error ("Unknown document snapshot storage version");
+    }
     bool no_aux= false;
     if (editor != nullptr) {
       editor->get_data (impl_->state.data);
@@ -1765,11 +1773,11 @@ buffer_actor::dispatch (actor_command_record& command) {
       editor_rep* snapshot_editor= current_editor (command.view_id);
       if (snapshot_editor == nullptr && !impl_->views.empty ())
         snapshot_editor= impl_->views.begin ()->second.instance.operator -> ();
-      if (impl_->state.storage_version ==
-            athena::document::xml_storage_version::v2 &&
+      if (impl_->state.storage_version !=
+            athena::document::xml_storage_version::v1 &&
           !impl_->state.node_identities)
         throw std::runtime_error (
-          "XML v2 document has no active source identity index");
+          "Node-model document has no active source identity index");
       if (impl_->state.node_identities && impl_->state.node_identities->pending ()) {
         if (snapshot_editor == nullptr ||
             !snapshot_editor->finish_node_identities ())
@@ -1790,6 +1798,8 @@ buffer_actor::dispatch (actor_command_record& command) {
         if (N(links) != 0) document << compound ("links", links);
       }
       std::string serialized=
+        impl_->state.storage_version == athena::document::xml_storage_version::v3 ?
+          athena::document::write_xml_v3 (document) :
         impl_->state.storage_version == athena::document::xml_storage_version::v2 ?
           athena::document::write_xml_v2 (document) :
           athena::document::write_xml (document);
@@ -1977,9 +1987,9 @@ buffer_actor::dispatch (actor_command_record& command) {
       }
     }
     try {
-      if (impl_->state.storage_version == athena::document::xml_storage_version::v2 &&
+      if (impl_->state.storage_version != athena::document::xml_storage_version::v1 &&
           !impl_->state.node_identities)
-        throw std::runtime_error ("XML v2 document has no active source identity index");
+        throw std::runtime_error ("Node-model document has no active source identity index");
       if (save_editor && impl_->state.node_identities &&
           !impl_->state.artifacts.ready (impl_->state)) {
         tree body= save_editor->the_buffer ();
@@ -2140,7 +2150,7 @@ buffer_actor::dispatch (actor_command_record& command) {
       failed= new_stamp <= old_stamp;
     }
     else if (!failed && format == "texmacs" &&
-             impl_->state.storage_version == athena::document::xml_storage_version::v2) {
+             impl_->state.storage_version != athena::document::xml_storage_version::v1) {
       if (!impl_->state.node_identities ||
           (impl_->state.node_identities->pending () &&
            !export_editor->finish_node_identities ())) {
@@ -2157,7 +2167,10 @@ buffer_actor::dispatch (actor_command_record& command) {
         document= remove_doc_attr (document, "links");
         if (N(links) != 0) document << compound ("links", links);
         document= athena::document::strip_legacy_document_version (document);
-        const std::string xml= athena::document::write_xml_v2 (document);
+        const std::string xml=
+          impl_->state.storage_version == athena::document::xml_storage_version::v3 ?
+            athena::document::write_xml_v3 (document) :
+            athena::document::write_xml_v2 (document);
         string serialized (xml.data (), static_cast<int> (xml.size ()));
         failed= ends (as_string (dest), "~") ?
           save_autosave_string (dest, serialized) :

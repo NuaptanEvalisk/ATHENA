@@ -25,6 +25,7 @@
 #include <fstream>
 #include <system_error>
 #include <mutex>
+#include <sstream>
 
 namespace fs= std::filesystem;
 
@@ -51,9 +52,10 @@ bool text_name (const tree& value, std::string& text) {
   return true;
 }
 
-std::string structured_key (const tree& name) {
-  return athena::document::write_xml (
-    name_content (name), athena::document::xml_kind::fragment);
+std::string structured_key (const tree& name,
+                            athena::document::xml_format_version version) {
+  return athena::document::encode_native_xml_bytes (
+    name_content (name), version, athena::document::xml_kind::fragment);
 }
 
 std::string
@@ -98,20 +100,16 @@ configured_path (const fs::path& root, const AthenaVaultfileInfo& info,
 bool
 write_entries (const fs::path& path, const AthenaArtifactTitleFilter& filter,
                std::string& error) {
+  std::string serialized;
+  try { serialized= athena_artifact_title_filter_serialize (filter); }
+  catch (const std::exception& e) { error= e.what (); return false; }
   std::error_code ec;
   fs::create_directories (path.parent_path (), ec);
   if (ec) {
     error= "Could not create artifact title filter directory: " + ec.message ();
     return false;
   }
-  QJsonArray text, structured;
-  for (const auto& entry: filter.entries)
-    text.append (QString::fromStdString (entry));
-  for (const auto& entry: filter.structured_entries)
-    structured.append (QString::fromStdString (entry));
-  QJsonObject data {{"version", 2}, {"text", text}, {"structured", structured}};
-  QByteArray bytes= QByteArray (format_header) + '\n' +
-    QJsonDocument (data).toJson (QJsonDocument::Indented);
+  const QByteArray bytes (serialized.data (), qsizetype (serialized.size ()));
   QSaveFile output (QString::fromStdString (path.string ()));
   if (!output.open (QIODevice::WriteOnly) ||
       output.write (bytes) != bytes.size () || !output.commit ()) {
@@ -167,11 +165,25 @@ bool athena_artifact_title_filter_contains (
   std::string text;
   if (text_name (name, text))
     return athena_artifact_title_filter_contains (filter, text);
-  return !filter.structured.empty () && filter.structured.count (structured_key (name));
+  // Lookup must not serialize a native candidate through the legacy filter
+  // writer: v3 math policy metadata is part of its meaning, not an error.
+  using namespace athena::document;
+  for (const auto& encoded: filter.structured) {
+    const tree stored= decode_native_xml_bytes (encoded, xml_kind::fragment).document;
+    if (athena::node::content_equal (name, name_content (stored))) return true;
+  }
+  return false;
 }
 
 void athena_artifact_title_filter_add (
   AthenaArtifactTitleFilter& filter, const tree& candidate) {
+  athena_artifact_title_filter_add (
+    filter, candidate, athena::document::xml_format_version::v1);
+}
+
+void athena_artifact_title_filter_add (
+  AthenaArtifactTitleFilter& filter, const tree& candidate,
+  athena::document::xml_format_version version) {
   tree name= name_content (candidate);
   std::string text;
   if (text_name (name, text)) {
@@ -182,10 +194,67 @@ void athena_artifact_title_filter_add (
     filter.normalized= std::move (plain.normalized);
   }
   else {
-    auto key= structured_key (name);
+    auto key= structured_key (name, version);
     if (filter.structured.insert (key).second)
       filter.structured_entries.push_back (std::move (key));
   }
+}
+
+void athena_artifact_title_filter_add_fragment (
+  AthenaArtifactTitleFilter& filter, std::string_view encoded) {
+  const auto decoded= athena::document::decode_native_xml_bytes (
+    encoded, athena::document::xml_kind::fragment);
+  athena_artifact_title_filter_add (filter, decoded.document, decoded.version);
+}
+
+std::string athena_artifact_title_filter_serialize (const AthenaArtifactTitleFilter& filter) {
+  QJsonArray text, structured;
+  for (const auto& entry: filter.entries)
+    text.append (QString::fromStdString (entry));
+  for (const auto& entry: filter.structured_entries) {
+    const auto decoded= athena::document::decode_native_xml_bytes (
+      entry, athena::document::xml_kind::fragment);
+    if (structured_key (decoded.document, decoded.version) != entry)
+      throw std::runtime_error ("Noncanonical artifact rejection fragment");
+    structured.append (QString::fromStdString (entry));
+  }
+  const QJsonObject data {{"version", 2}, {"text", text}, {"structured", structured}};
+  return (QByteArray (format_header) + '\n' +
+    QJsonDocument (data).toJson (QJsonDocument::Indented)).toStdString ();
+}
+
+AthenaArtifactTitleFilter athena_artifact_title_filter_parse (std::string_view bytes) {
+  std::istringstream input {std::string (bytes)};
+  std::string line;
+  std::getline (input, line);
+  if (!line.empty () && line.back () == '\r') line.pop_back ();
+  std::vector<std::string> entries;
+  if (line != format_header) {
+    entries.push_back (line);
+    while (std::getline (input, line)) {
+      if (!line.empty () && line.back () == '\r') line.pop_back ();
+      entries.push_back (line);
+    }
+    return athena_artifact_title_filter_from_entries (entries);
+  }
+  const std::string json ((std::istreambuf_iterator<char> (input)), {});
+  QJsonParseError parse_error;
+  const auto data= QJsonDocument::fromJson (QByteArray::fromStdString (json), &parse_error);
+  const auto obj= data.object ();
+  if (parse_error.error != QJsonParseError::NoError || !data.isObject () ||
+      obj.value ("version").toInt () != 2 || !obj.value ("text").isArray () ||
+      !obj.value ("structured").isArray ())
+    throw std::runtime_error ("Invalid artifact title filter v2");
+  for (const auto& value: obj.value ("text").toArray ()) {
+    if (!value.isString ()) throw std::runtime_error ("Expected a text name");
+    entries.push_back (value.toString ().toStdString ());
+  }
+  auto filter= athena_artifact_title_filter_from_entries (entries);
+  for (const auto& value: obj.value ("structured").toArray ()) {
+    if (!value.isString ()) throw std::runtime_error ("Expected a name fragment");
+    athena_artifact_title_filter_add_fragment (filter, value.toString ().toStdString ());
+  }
+  return filter;
 }
 
 std::string
@@ -231,47 +300,14 @@ athena_artifact_title_filter_read (
     error= "Could not read " + path.string ();
     return false;
   }
-  if (persisted) *persisted= true;
-  std::vector<std::string> entries;
-  std::string line;
-  std::getline (input, line);
-  if (!line.empty () && line.back () == '\r') line.pop_back ();
-  if (line == format_header) {
-    std::string bytes ((std::istreambuf_iterator<char> (input)), {});
-    QJsonParseError parse_error;
-    auto data= QJsonDocument::fromJson (QByteArray::fromStdString (bytes), &parse_error);
-    auto obj= data.object ();
-    if (parse_error.error != QJsonParseError::NoError || !data.isObject () ||
-        obj.value ("version").toInt () != 2 || !obj.value ("text").isArray () ||
-        !obj.value ("structured").isArray ()) {
-      error= "Invalid artifact title filter v2: " + path.string ();
-      return false;
-    }
-    try {
-      for (const auto& value: obj.value ("text").toArray ()) {
-        if (!value.isString ()) throw std::runtime_error ("Expected a text name");
-        entries.push_back (value.toString ().toStdString ());
-      }
-      filter= athena_artifact_title_filter_from_entries (entries);
-      for (const auto& value: obj.value ("structured").toArray ()) {
-        if (!value.isString ()) throw std::runtime_error ("Expected a name fragment");
-        athena_artifact_title_filter_add (filter, athena::document::read_xml (
-          value.toString ().toStdString (), athena::document::xml_kind::fragment));
-      }
-    }
-    catch (const std::exception& e) { error= e.what (); return false; }
-    return true;
-  }
-  entries.push_back (line);
-  while (std::getline (input, line)) {
-    if (!line.empty () && line.back () == '\r') line.pop_back ();
-    entries.push_back (line);
-  }
+  const std::string bytes ((std::istreambuf_iterator<char> (input)), {});
   if (!input.good () && !input.eof ()) {
     error= "Could not read " + path.string ();
     return false;
   }
-  filter= athena_artifact_title_filter_from_entries (entries);
+  try { filter= athena_artifact_title_filter_parse (bytes); }
+  catch (const std::exception& e) { error= e.what (); return false; }
+  if (persisted) *persisted= true;
   return true;
 }
 
@@ -305,7 +341,18 @@ bool athena_artifact_title_filter_reject (
   std::lock_guard<std::recursive_mutex> guard (filter_mutex);
   AthenaArtifactTitleFilter filter;
   if (!athena_artifact_title_filter_read (root, filter, error)) return false;
-  athena_artifact_title_filter_add (filter, name);
+  AthenaVaultfileInfo info;
+  if (!athena_vaultfile_read (root, info, error)) return false;
+  try {
+    using athena::document::xml_format_version;
+    if (info.node_model_version < 0 || info.node_model_version > 2)
+      throw std::runtime_error ("Unsupported Vault node model for artifact rejection");
+    // Older filters use identity-free v1 fragments; preserve their fingerprints.
+    const auto version= info.node_model_version == 2 ?
+      xml_format_version::v3 : xml_format_version::v1;
+    athena_artifact_title_filter_add (filter, name, version);
+  }
+  catch (const std::exception& e) { error= e.what (); return false; }
   return athena_artifact_title_filter_write (root, filter, error);
 }
 

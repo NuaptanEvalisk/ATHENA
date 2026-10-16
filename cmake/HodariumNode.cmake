@@ -5,6 +5,7 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 set(CMAKE_AUTOMOC OFF)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+include("${CMAKE_CURRENT_LIST_DIR}/AthenaShippedMacroLabels.cmake")
 find_package(Threads REQUIRED)
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Network WebSockets)
 find_package(SQLite3 REQUIRED)
@@ -72,6 +73,7 @@ add_library(athena_hodarium_node_core STATIC
   src/ATHENA/Data/artifact_title_filter.cpp
   src/ATHENA/Data/interop_document_validation.cpp)
 target_compile_features(athena_hodarium_node_core PUBLIC cxx_std_17)
+athena_use_shipped_macro_labels(athena_hodarium_node_core)
 target_include_directories(athena_hodarium_node_core PUBLIC
   "${HODARIUM_CONFIG_DIR}"
   "${ATHENA_SOURCE_DIR}/src")

@@ -12,5 +12,7 @@ init_standard_tree_labels () {
 #include "standard_tree_labels.inc"
 #undef init_var
 #undef init
+    // Declarations come from trusted shipped style sources, never input XML.
+#include "shipped_macro_labels.inc"
   });
 }

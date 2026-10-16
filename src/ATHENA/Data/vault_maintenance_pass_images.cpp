@@ -24,7 +24,7 @@ namespace {
 
 struct ParsedDocument {
   fs::path path;
-  tree document;
+  MaintenanceDocument source;
 };
 
 struct DocumentRewrite {
@@ -33,6 +33,7 @@ struct DocumentRewrite {
   fs::path backup;
   std::string serialized;
   size_t replacements= 0;
+  const MaintenanceDocument* source= nullptr;
 };
 
 bool
@@ -63,15 +64,15 @@ parse_documents (const fs::path& root, std::vector<ParsedDocument>& documents,
   for (size_t i=0; i<paths.size (); ++i) {
     print_progress (i + 1, paths.size (), "Scanning asset references",
                     paths[i].filename ().string ());
-    tree document;
+    MaintenanceDocument document;
     std::string error;
-    if (!read_document_file (paths[i], document, error)) {
+    if (!read_maintenance_document (paths[i], document, error)) {
       finish_progress ();
       log_error ("failed to parse document while collecting assets: " +
                  paths[i].string () + (error.empty () ? "" : " (" + error + ")"));
       return false;
     }
-    athena_vault_collect_file_references (document, paths[i], references);
+    athena_vault_collect_file_references (document.document, paths[i], references);
     documents.push_back ({paths[i], document});
   }
   finish_progress ();
@@ -139,19 +140,15 @@ prepare_rewrites (const std::vector<ParsedDocument>& documents,
   for (const ParsedDocument& parsed: documents) {
     size_t count= 0;
     tree rewritten= athena_vault_rewrite_file_reference_map (
-      parsed.document, parsed.path, parsed.path, rename_map, count);
+      parsed.source.document, parsed.path, parsed.path, rename_map, count);
     if (count == 0) continue;
-    string serialized_tm= tree_to_texmacs (rewritten);
-    std::string serialized (as_charp (serialized_tm), (size_t) N(serialized_tm));
-    tree validation;
-    try { validation= texmacs_document_to_tree (serialized_tm); }
-    catch (...) { validation= tree (_ERROR, "parse failed"); }
-    if (is_func (validation, _ERROR)) {
+    std::string serialized, error;
+    if (!serialize_maintenance_document (parsed.source, rewritten, serialized, error)) {
       log_error ("refusing malformed document after asset reference rewrite: " +
-                 parsed.path.string ());
+                 error);
       return false;
     }
-    rewrites.push_back ({parsed.path, {}, {}, serialized, count});
+    rewrites.push_back ({parsed.path, {}, {}, serialized, count, &parsed.source});
     replacements += count;
   }
   return true;
@@ -176,6 +173,7 @@ rollback_assets (const std::vector<RenamePlan>& plans, size_t renamed) {
 
 bool
 commit_transaction (const std::vector<RenamePlan>& plans,
+                    const std::vector<ParsedDocument>& documents,
                     std::vector<DocumentRewrite>& rewrites) {
   std::string id= generate_uuid_v4 ();
   for (DocumentRewrite& rewrite: rewrites) {
@@ -190,6 +188,15 @@ commit_transaction (const std::vector<RenamePlan>& plans,
     }
   }
 
+  // Include unchanged documents: a new reference invalidates the rename plan.
+  for (const auto& document: documents) {
+    std::string error;
+    if (!maintenance_document_current (document.source, error)) {
+      log_error (error);
+      remove_stages (rewrites);
+      return false;
+    }
+  }
   size_t renamed= 0;
   for (; renamed<plans.size (); ++renamed) {
     print_progress (renamed + 1, plans.size (), "Renaming assets",
@@ -211,7 +218,12 @@ commit_transaction (const std::vector<RenamePlan>& plans,
   for (; installed<rewrites.size (); ++installed) {
     DocumentRewrite& rewrite= rewrites[installed];
     std::error_code ec;
-    fs::rename (rewrite.path, rewrite.backup, ec);
+    std::string error;
+    if (!maintenance_document_current (*rewrite.source, error)) {
+      log_error (error);
+      ec= std::make_error_code (std::errc::state_not_recoverable);
+    }
+    else fs::rename (rewrite.path, rewrite.backup, ec);
     if (!ec) fs::rename (rewrite.stage, rewrite.path, ec);
     if (!ec) continue;
 
@@ -264,7 +276,7 @@ vault_maintenance_pass_normalize_assets (VaultMaintenanceContext& ctx) {
   size_t replacements= 0;
   if (!prepare_rewrites (documents, plans, rewrites, replacements))
     return VaultMaintenancePassResult::failure ("asset reference rewrite failed");
-  if (!commit_transaction (plans, rewrites))
+  if (!commit_transaction (plans, documents, rewrites))
     return VaultMaintenancePassResult::failure ("asset transaction failed");
 
   ctx.summary.asset_renames= plans.size ();

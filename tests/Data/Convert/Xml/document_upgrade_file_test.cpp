@@ -10,8 +10,10 @@
 #include <QtTest/QtTest>
 #include <QTemporaryDir>
 #include "Xml/document_upgrade_file.hpp"
+#include "Xml/document_file_codec.hpp"
 #include "ATHENA/Data/hodarium_inventory.hpp"
 #include "ATHENA/Data/hodarium_application.hpp"
+#include "ATHENA/Data/hodarium_rename_records.hpp"
 #include "node_metadata.hpp"
 #include <fstream>
 #include <future>
@@ -48,6 +50,7 @@ private slots:
     QTemporaryDir temporary;
     QVERIFY (temporary.isValid ());
     const fs::path root (temporary.path ().toStdString ());
+    put (root / "Vaultfile.json", "{\"name\":\"Application test\",\"node_model_version\":1}");
     athena::history::document_history_store history;
     std::string error;
     QVERIFY2 (history.open (root, error), error.c_str ());
@@ -93,7 +96,10 @@ private slots:
     QVERIFY (journal.prepare_apply (interrupted));
     // Simulate interruption after installing the new name, before removing old.
     put (root / "renamed.ath", renamed.payload);
-    QVERIFY (apply_closed_document (root, journal, history, renamed.id));
+    QVERIFY_THROWS_EXCEPTION (std::invalid_argument,
+      apply_closed_document (root, journal, history, renamed.id));
+    const auto rename_records= make_document_rename_records (root);
+    QVERIFY (apply_closed_document (root, journal, history, renamed.id, {}, rename_records));
     QVERIFY (!fs::exists (root / "one.ath"));
     QCOMPARE (get (root / "renamed.ath"), renamed.payload);
     QVERIFY (journal.pending_applications ("vault").empty ());
@@ -166,6 +172,58 @@ private slots:
     document_save_result overwrite;
     QVERIFY_THROWS_EXCEPTION (std::system_error,
       document_file::create (file, tree (DOCUMENT, "overwrite"), overwrite));
+  }
+  void persistentV3Storage () {
+    QTemporaryDir temporary;
+    QVERIFY (temporary.isValid ());
+    const fs::path file= fs::path (temporary.path ().toStdString ()) / "v3.ath";
+    // No native math node is required to retain the file's version.
+    tree source= migrated ();
+    athena::node::set (source, {"10000000-0000-4000-8000-000000000002", {}});
+    document_save_result created;
+    auto storage= document_file::create (
+      file, source, created, xml_storage_version::v3);
+    QCOMPARE (storage.version (), xml_storage_version::v3);
+    QCOMPARE (read_xml_v3 (get (file)), source);
+    const auto decoded= decode_document_bytes (get (file));
+    QCOMPARE (decoded.format, document_source_format::xml_v3);
+    QCOMPARE (decoded.document, source);
+    auto reopened= document_file::capture (file);
+    QCOMPARE (reopened.version (), xml_storage_version::v3);
+    tree second= copy (source);
+    second[0]= "changed";
+    auto saved= reopened.save (second);
+    QVERIFY (saved.committed_bytes);
+    QCOMPARE (read_xml_v3 (*saved.committed_bytes), second);
+    QCOMPARE (athena::node::id (read_xml_v3 (get (file))), athena::node::id (source));
+    QCOMPARE (inspect_xml_version (get (file)), xml_format_version::v3);
+    const auto external= write_xml_v3 (tree (DOCUMENT, "external"));
+    put (file, external);
+    QVERIFY_THROWS_EXCEPTION (std::system_error, reopened.save (source));
+    QCOMPARE (get (file), external);
+  }
+  void strictV3EnvelopeDispatch () {
+    QCOMPARE (inspect_xml_version (write_xml (tree ("x"), xml_kind::fragment)),
+              xml_format_version::v1);
+    QCOMPARE (inspect_xml_version (write_xml_v2 (tree ("x"), xml_kind::fragment)),
+              xml_format_version::v2);
+    QCOMPARE (inspect_xml_version (write_xml_v3 (tree ("x"), xml_kind::fragment)),
+              xml_format_version::v3);
+    const std::string plain= "<a v=\"3\" k=\"d\"><n t=\"document\"><t><v>x</v></t></n></a>";
+    for (const auto& prefix: {std::string (), std::string ("\xef\xbb\xbf"), std::string (" \n")}) {
+      const auto decoded= decode_document_bytes (prefix + plain);
+      QCOMPARE (decoded.format, document_source_format::xml_v3);
+      QCOMPARE (decoded.document, tree (DOCUMENT, "x"));
+    }
+    QVERIFY_THROWS_EXCEPTION (codec_exception,
+      decode_document_bytes ("<a v=\"3\" k=\"d\"><n t=\"document\"><t>x</t></n></a>"));
+    QVERIFY_THROWS_EXCEPTION (codec_exception,
+      decode_document_bytes ("<a v=\"4\" k=\"d\"><n t=\"document\"/></a>"));
+    QVERIFY_THROWS_EXCEPTION (codec_exception,
+      decode_document_bytes ("<!DOCTYPE a [<!ENTITY x 'value'>]>" + plain));
+    legacy_import_limits limits;
+    limits.codec.input_bytes= 8;
+    QVERIFY_THROWS_EXCEPTION (codec_exception, decode_document_bytes (plain, limits));
   }
   void legacyStorageTransitionsToPinnedXml () {
     QTemporaryDir temporary;

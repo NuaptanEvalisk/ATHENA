@@ -19,8 +19,11 @@
 #include "file.hpp"
 #include "new_view.hpp"
 #include "unicode_text.hpp"
+#include "math_tree_v3.hpp"
+#include "node_metadata.hpp"
 #include "Scheme/Scheme/glue.hpp"
 #include "Scheme/Scheme/object.hpp"
+#include <stdexcept>
 
 namespace {
 
@@ -58,6 +61,8 @@ struct LatexExportContext {
   int athena_data_serial;
   int placeholder_serial;
   int export_depth;
+  int native_v3_delimiter_depth;
+  int native_v3_block_numbered;
   bool appendices;
   bool mathjax;
   bool replace_style;
@@ -75,7 +80,9 @@ struct LatexExportContext {
     latex_language ("english"), latex_style ("generic"),
     latex_texmacs_style ("generic"), serial (0),
     ref_count (1), auto_produce (0), auto_consume (0), athena_data_serial (0),
-    placeholder_serial (0), export_depth (0), appendices (false),
+    placeholder_serial (0), export_depth (0), native_v3_delimiter_depth (0),
+    native_v3_block_numbered (-1),
+    appendices (false),
     mathjax (false), replace_style (true), portable (false),
     cjk_document (false), use_catcodes (false), use_unicode (false),
     use_ascii (false), use_macros (false) {
@@ -93,6 +100,8 @@ struct LatexExportContext {
     ref_count= 1;
     auto_produce= 0;
     auto_consume= 0;
+    native_v3_delimiter_depth= 0;
+    native_v3_block_numbered= -1;
     athena_data_serial= 0;
     appendices= false;
     mathjax= false;
@@ -1442,7 +1451,8 @@ convert_nonfile_native (scheme_tree value, object options) {
 
 scheme_tree
 latex_id_native (scheme_tree value) {
-  return tmtex_convert (string_atom (value) ? value : stree_string (""));
+  // A reference key is not mathematical prose, even inside an equation.
+  return convert_in_mode (string_atom (value) ? value : stree_string (""), "text");
 }
 
 bool
@@ -2503,9 +2513,639 @@ compound_output (scheme_tree args) {
   return preserve_object (source_apply ("compound", args));
 }
 
+bool false_stree (scheme_tree value);
+
+// XML v3 primitives are decoded as native mathematical nodes here, not as
+// historical TeXmacs AROUND/BIG/RSUP or macro-expansion adapter trees. The
+// canonical l/r/s fields remain independent: pairing is never inferred from
+// the glyph. LaTeX delimiter *commands*, unlike XML, require glyph-specific
+// names (e.g. \lceil), so translate that alphabet at the TeX boundary only.
+bool
+native_v3_tex_delimiter (string glyph, string& result) {
+  if (glyph == "") { result= "."; return true; }
+  static const std::pair<const char*,const char*> names[]= {
+    {"(", "("}, {")", ")"}, {"[", "["}, {"]", "]"},
+    {"{", "\\{"}, {"}", "\\}"}, {"|", "|"}, {"‖", "\\|"},
+    {"/", "/"}, {"\\", "\\backslash"},
+    {"⟨", "\\langle"}, {"⟩", "\\rangle"},
+    {"⌈", "\\lceil"}, {"⌉", "\\rceil"},
+    {"⌊", "\\lfloor"}, {"⌋", "\\rfloor"},
+    {"⟦", "\\llbracket"}, {"⟧", "\\rrbracket"},
+    {"↑", "\\uparrow"}, {"↓", "\\downarrow"},
+    {"↕", "\\updownarrow"}, {"⇑", "\\Uparrow"},
+    {"⇓", "\\Downarrow"}, {"⇕", "\\Updownarrow"},
+    {"⎰", "\\lmoustache"}, {"⎱", "\\rmoustache"}
+  };
+  for (const auto& entry: names)
+    if (glyph == entry.first) { result= entry.second; return true; }
+  return false;
+}
+
+scheme_tree
+native_v3_tex_delimiter_command (string role, string glyph, int manual_size) {
+  // A null endpoint is TeX's dot only after \left/\right. At natural or
+  // manual size it contributes no glyph (and no artificial null space).
+  if (manual_size >= 0 && glyph == "") return stree_string ("");
+  if (latex_export_mathjax () && (glyph == "⟦" || glyph == "⟧"))
+    throw std::runtime_error ("MathJax cannot export stmaryrd delimiters");
+  if (glyph == "⟦" || glyph == "⟧")
+    latex_export_add_latex_extra_package ("stmaryrd");
+  string latex_glyph;
+  if (!native_v3_tex_delimiter (glyph, latex_glyph)) return tree ("#f");
+  if (manual_size < 0) return stree_apply (role * latex_glyph);
+  if (manual_size == 0) {
+    scheme_tree token= starts (latex_glyph, "\\") ?
+      stree_apply (latex_glyph (1, N (latex_glyph))) : stree_string (latex_glyph);
+    scheme_tree classified= stree_apply (
+      role == "left" ? "mathopen" : role == "right" ? "mathclose" : "mathrel");
+    classified << token;
+    return classified;
+  }
+  static const char* prefix[]= {"", "big", "Big", "bigg", "Bigg"};
+  if (manual_size > 4)
+    throw std::runtime_error ("LaTeX manual delimiter sizes above 4 are unsupported");
+  const string side= role == "left" ? "l" : role == "right" ? "r" : "m";
+  return stree_apply (string (prefix[manual_size]) * side * latex_glyph);
+}
+
+bool
+native_v3_failed_symbol (scheme_tree value) {
+  if (head_is (value, "nonconverted") ||
+      head_is (value, "!athena-data-inline")) return true;
+  if (is_compound (value))
+    for (int i=0; i<N(value); ++i)
+      if (native_v3_failed_symbol (value[i])) return true;
+  return false;
+}
+
+void
+native_v3_check_mathjax_symbol (scheme_tree value) {
+  if (!is_compound (value) || N(value) == 0) return;
+  if (is_atomic (value[0]) && !string_atom (value[0])) {
+    const auto packages= latex_export_internal::registry_command_needs (
+      value[0]->label);
+    for (int i=0; i<N(packages); ++i)
+      if (packages[i] != "amsmath" && packages[i] != "amsfonts" &&
+          packages[i] != "amssymb")
+        throw std::runtime_error (
+          "Native mathematical symbol requires a LaTeX-only package: " +
+          std::string (packages[i].data (), std::size_t (N(packages[i]))));
+  }
+  for (int i=0; i<N(value); ++i) native_v3_check_mathjax_symbol (value[i]);
+}
+
+scheme_tree
+native_v3_cell (scheme_tree cell, string& alignment, string& color) {
+  alignment= color= "";
+  if (func_is (cell, "cell", 1)) return cell[1];
+  if (!func_is (cell, "cell", 2) ||
+      !head_is (cell[1], "!math-cell-format") || N(cell[1]) % 2 != 1)
+    throw std::runtime_error ("Malformed prepared MathGrid cell");
+  for (int i=1; i<N(cell[1]); i+=2) {
+    if (!string_atom (cell[1][i]) || !string_atom (cell[1][i+1]))
+      throw std::runtime_error ("Malformed prepared MathGrid cell property");
+    const string name= atom_text (cell[1][i]);
+    const string value= atom_text (cell[1][i+1]);
+    if (name == "align" && (value == "l" || value == "c" || value == "r"))
+      alignment= value;
+    else if (name == "color") {
+      bool hex= N(value) == 7 && value[0] == '#';
+      for (int j=1; hex && j<N(value); ++j)
+        hex= (value[j] >= '0' && value[j] <= '9') ||
+             (value[j] >= 'a' && value[j] <= 'f') ||
+             (value[j] >= 'A' && value[j] <= 'F');
+      if (!hex && named_color_to_xcolormap (value) != "xcolor")
+        throw std::runtime_error ("Unsupported MathGrid foreground color");
+      color= value;
+    }
+    else throw std::runtime_error ("Unsupported MathGrid cell formatting");
+  }
+  return cell[2];
+}
+
+scheme_tree
+native_v3_row_policy (scheme_tree row, int& first_cell) {
+  if (!head_is (row, "row"))
+    throw std::runtime_error ("Malformed prepared MathGrid row");
+  first_cell= 1;
+  if (N(row) > 1 && head_is (row[1], "!math-row-policy")) {
+    if (N(row[1]) != 4 || !string_atom (row[1][1]) ||
+        !string_atom (row[1][3]) ||
+        (!empty_string_stree (row[1][2]) &&
+         !func_is (row[1][2], "!math-row-tag", 1)))
+      throw std::runtime_error ("Malformed prepared MathGrid row policy");
+    const string policy= atom_text (row[1][1]);
+    if (policy != "inherit" && policy != "numbered" && policy != "unnumbered")
+      throw std::runtime_error ("Unknown MathGrid row numbering policy");
+    first_cell= 2;
+    return row[1];
+  }
+  scheme_tree inherited= stree_apply ("!math-row-policy");
+  inherited << stree_string ("inherit") << stree_string ("") << stree_string ("");
+  return inherited;
+}
+
+bool
+native_v3_row_has_label (scheme_tree source) {
+  if (is_atomic (source)) return false;
+  if (head_is (source, "label")) return true;
+  if (head_is (source, "math-grid") || head_is (source, "math-block"))
+    return false;
+  for (int i=1; i<N(source); ++i)
+    if (native_v3_row_has_label (source[i])) return true;
+  return false;
+}
+
+scheme_tree
+native_v3_tex_math (string key, scheme_tree args) {
+  const scheme_tree original= source_apply (key, args);
+  if (key == "delimited") {
+    if (N(args) != 6 || !string_atom (args[0]) ||
+        !string_atom (args[1]) || !string_atom (args[2]) ||
+        !string_atom (args[3]) || !string_atom (args[4]))
+      return preserve_object (original);
+    const string sizing= atom_text (args[2]);
+    if (sizing != "a" && sizing != "f" && sizing != "m")
+      return preserve_object (original);
+    int left_size= -1, right_size= -1;
+    if (sizing == "f") left_size= right_size= 0;
+    if (sizing == "m") {
+      const string l= atom_text (args[3]);
+      const string r= atom_text (args[4]);
+      if (!athena::math_v3::size_level (l) ||
+          !athena::math_v3::size_level (r)) return preserve_object (original);
+      left_size= as_int (l);
+      right_size= as_int (r);
+    }
+    else if (!empty_string_stree (args[3]) || !empty_string_stree (args[4]))
+      return preserve_object (original);
+    scheme_tree left= native_v3_tex_delimiter_command (
+      "left", atom_text (args[0]), left_size);
+    scheme_tree right= native_v3_tex_delimiter_command (
+      "right", atom_text (args[1]), right_size);
+    if (false_stree (left) || false_stree (right))
+      return preserve_object (original);
+    // The innermost delimiter owns its sizing semantics. In particular,
+    // a fixed/manual pair nested inside an automatic pair must NOT inherit
+    // the outer pair's \middle policy: that would stretch its middle glyph
+    // against unrelated outside material. Conversely, an automatic inner
+    // pair must enable \middle even inside a fixed/manual outer pair.
+    const int previous_depth= latex_export_context.native_v3_delimiter_depth;
+    latex_export_context.native_v3_delimiter_depth=
+      sizing == "a" ? previous_depth + 1 : 0;
+    scheme_tree body;
+    try { body= tmtex_convert (args[5]); }
+    catch (...) {
+      latex_export_context.native_v3_delimiter_depth= previous_depth;
+      throw;
+    }
+    latex_export_context.native_v3_delimiter_depth= previous_depth;
+    scheme_tree fragments (TUPLE);
+    fragments << left << body << right;
+    return latex_tex_concat (fragments);
+  }
+  if (key == "math-middle") {
+    if (N(args) != 1 || !string_atom (args[0]))
+      return preserve_object (original);
+    const string glyph= atom_text (args[0]);
+    if (latex_export_context.native_v3_delimiter_depth > 0) {
+      const auto sized= native_v3_tex_delimiter_command ("middle", glyph, -1);
+      return false_stree (sized) ? preserve_object (original) : sized;
+    }
+    // A lone \middle is invalid TeX. Standalone mathematical bars are
+    // relation-class separators, not an unmatched pair of delimiters.
+    if (glyph == "|") return stree_apply ("mid");
+    if (glyph == "‖") return stree_apply ("parallel");
+    return preserve_object (original);
+  }
+  if (key == "big-operator") {
+    if (N(args) != 2 || !string_atom (args[0]) ||
+        !string_atom (args[1]) ||
+        (atom_text (args[1]) != "0" && atom_text (args[1]) != "1"))
+      return preserve_object (original);
+    // Upright integral rendering is font-specific. Never silently flatten it
+    // to a slanted LaTeX integral when the source explicitly requests upright.
+    if (atom_text (args[1]) == "1") return preserve_object (original);
+    static const std::pair<const char*,const char*> operators[]= {
+      {"∑", "sum"}, {"∏", "prod"}, {"∐", "coprod"},
+      {"∫", "int"}, {"∬", "iint"}, {"∭", "iiint"}, {"⨌", "iiiint"},
+      {"∮", "oint"}, {"∯", "oiint"}, {"∰", "oiiint"}, {"⨍", "fint"},
+      {"⋃", "bigcup"}, {"⋂", "bigcap"}, {"⋁", "bigvee"},
+      {"⋀", "bigwedge"}, {"⨁", "bigoplus"}, {"⨂", "bigotimes"},
+      {"⨀", "bigodot"}, {"⨄", "biguplus"}, {"⨆", "bigsqcup"},
+      {"⨅", "bigsqcap"}
+    };
+    string command;
+    for (const auto& entry: operators)
+      if (atom_text (args[0]) == entry.first) { command= entry.second; break; }
+    if (command == "") return preserve_object (original);
+    const bool esint= command == "oiint" || command == "oiiint" || command == "fint";
+    if (latex_export_mathjax () && (esint || command == "bigsqcap"))
+      throw std::runtime_error ("MathJax cannot export this native big operator");
+    if (esint) latex_export_add_latex_extra_package ("esint");
+    return stree_apply (command);
+  }
+  if (key == "math-symbol") {
+    if (N(args) != 1 || !string_atom (args[0]))
+      return preserve_object (original);
+    const string identifier= atom_text (args[0]);
+    const auto identity= athena::math_v3::symbol_registry_identity (identifier);
+    if (identity.empty ()) return preserve_object (original);
+    if (identifier == "multiple-integral-with-dots") return stree_apply ("idotsint");
+    const string source (identity.data (), int (identity.size ()));
+    scheme_tree result= latex_export_named_symbol (source, true);
+    if (native_v3_failed_symbol (result)) return preserve_object (original);
+    if (latex_export_mathjax ()) {
+      native_v3_check_mathjax_symbol (result);
+      native_v3_check_mathjax_symbol (latex_export_expand_macros (result));
+    }
+    return result;
+  }
+  if (key == "math-annotation") {
+    if (N(args) != 3) return preserve_object (original);
+    scheme_tree expression= tmtex_convert (args[0]);
+    if (!empty_string_stree (args[2])) {
+      scheme_tree over= stree_apply ("overset");
+      over << tmtex_convert (args[2]) << expression;
+      expression= over;
+    }
+    if (!empty_string_stree (args[1])) {
+      scheme_tree under= stree_apply ("underset");
+      under << tmtex_convert (args[1]) << expression;
+      expression= under;
+    }
+    return expression;
+  }
+  if (key == "math-variant") {
+    if (N(args) != 2 || !string_atom (args[0]))
+      return preserve_object (original);
+    const string kind= atom_text (args[0]);
+    string command;
+    if (kind == "bb") command= "mathbb";
+    else if (kind == "cal") command= "mathcal";
+    else if (kind == "rm") command= "mathrm";
+    else if (kind == "bf") command= "mathbf";
+    else if (kind == "it") command= "mathit";
+    else if (kind == "ss") command= "mathsf";
+    else if (kind == "tt") command= "mathtt";
+    else if (kind == "sl") command= "textsl";
+    else return preserve_object (original);
+    if (kind != "bb" && kind != "cal") {
+      if (kind == "sl" && latex_export_mathjax ())
+        throw std::runtime_error ("MathJax cannot preserve the slanted math variant");
+      latex_export_env_set ("mode", object ("text"));
+      scheme_tree body;
+      try { body= tmtex_convert (args[1]); }
+      catch (...) { latex_export_env_reset ("mode"); throw; }
+      latex_export_env_reset ("mode");
+      return post_process_math_text_native (command, body);
+    }
+    scheme_tree out= stree_apply (command);
+    out << tmtex_convert (args[1]);
+    return out;
+  }
+  if (key == "scripts") {
+    // A prepared native source carries its typed policy as the first field.
+    // Generic tree->stree contains only five slots; it MUST NOT be exported
+    // by assuming policy 'a', because that silently changes explicit limits.
+    if (N(args) != 6 || !string_atom (args[0]))
+      return preserve_object (original);
+    const string policy= atom_text (args[0]);
+    if (policy != "a" && policy != "d" &&
+        policy != "o" && policy != "r") return preserve_object (original);
+    const bool left_sub= !empty_string_stree (args[2]);
+    const bool left_sup= !empty_string_stree (args[3]);
+    const bool right_sub= !empty_string_stree (args[4]);
+    const bool right_sup= !empty_string_stree (args[5]);
+    scheme_tree pieces (TUPLE);
+    if (left_sub || left_sup) {
+      pieces << stree_apply ("!group"); // exactly {}_{p}^{q}, not an AST RSUB
+      if (left_sub) pieces << script_output ("!sub", args[2]);
+      if (left_sup) pieces << script_output ("!sup", args[3]);
+    }
+    scheme_tree base;
+    if (empty_string_stree (args[1])) {
+      // Standalone ^{op}/^{-1} is a legitimate v3 MathScripts with an empty
+      // base. TeX requires an explicit {} nucleus: emitting a bare ^ token
+      // would be an ill-formed math expression.
+      base= stree_apply ("!group");
+    }
+    else {
+      base= tmtex_convert (args[1]);
+      if (head_is (args[1], "concat")) {
+        // The five-slot AST attaches to the *whole* base, not simply the
+        // last token in a horizontal concat (e.g. (x+y)_i versus x+y_i).
+        scheme_tree scoped= stree_apply ("!group");
+        scoped << base;
+        base= scoped;
+      }
+    }
+    if (policy != "a") {
+      if (!head_is (args[1], "big-operator")) {
+        scheme_tree op= stree_apply ("mathop");
+        op << base;
+        base= op;
+      }
+      pieces << base;
+      pieces << stree_apply (
+        policy == "o" ? "limits" : policy == "r" ?
+        "nolimits" : "displaylimits");
+    }
+    else pieces << base;
+    if (right_sub) pieces << script_output ("!sub", args[4]);
+    if (right_sup) pieces << script_output ("!sup", args[5]);
+    return latex_tex_concat (pieces);
+  }
+  if (key == "math-accent") {
+    if (N(args) != 4 || !string_atom (args[0]) ||
+        !string_atom (args[1]) || !string_atom (args[2]))
+      return preserve_object (original);
+    const string glyph= atom_text (args[0]);
+    const bool above= atom_text (args[1]) == "o";
+    const bool under= atom_text (args[1]) == "u";
+    if (!above && !under) return preserve_object (original);
+    const string stretch= atom_text (args[2]);
+    if (stretch != "0" && stretch != "1")
+      return preserve_object (original);
+    const bool wide= stretch == "1";
+    string command;
+    if (glyph == "̂" && above) command= wide ? "widehat" : "hat";
+    else if (glyph == "̃" && above) command= wide ? "widetilde" : "tilde";
+    else if (glyph == "̅" && above) command= wide ? "overline" : "bar";
+    else if (glyph == "̅" && under && wide) command= "underline";
+    else if (glyph == "⃗" && above) command= wide ? "overrightarrow" : "vec";
+    else if (glyph == "⃗" && under && wide) command= "underrightarrow";
+    else if (glyph == "⃖" && wide) command= above ? "overleftarrow" : "underleftarrow";
+    else if (glyph == "⃡" && wide) command= above ? "overleftrightarrow" : "underleftrightarrow";
+    else if (glyph == "⏞" && above && wide) command= "overbrace";
+    else if (glyph == "⏟" && under && wide) command= "underbrace";
+    else if (above && !wide && glyph == "̊") command= "mathring";
+    else if (above && !wide && glyph == "̇") command= "dot";
+    else if (above && !wide && glyph == "̈") command= "ddot";
+    else if (above && !wide && glyph == "⃛") command= "dddot";
+    else if (above && !wide && glyph == "⃜") command= "ddddot";
+    else if (above && !wide && glyph == "́") command= "acute";
+    else if (above && !wide && glyph == "̀") command= "grave";
+    else if (above && !wide && glyph == "̆") command= "breve";
+    else if (above && !wide && glyph == "̌") command= "check";
+    if (command == "") return preserve_object (original);
+    scheme_tree output= stree_apply (command);
+    output << tmtex_convert (args[3]);
+    return output;
+  }
+  if (key == "math-long-arrow") {
+    if (N(args) != 3) return preserve_object (original);
+    string glyph;
+    if (string_atom (args[0])) glyph= atom_text (args[0]);
+    else if (func_is (args[0], "math-symbol", 1) &&
+             string_atom (args[0][1]) &&
+             atom_text (args[0][1]) == "long-hookrightarrow")
+      glyph= "↪";
+    string command;
+    if (glyph == "→") command= "xrightarrow";
+    else if (glyph == "←") command= "xleftarrow";
+    else if (glyph == "↔") command= "xleftrightarrow";
+    else if (glyph == "↪") command= "xhookrightarrow";
+    else if (glyph == "↩") command= "xhookleftarrow";
+    else if (glyph == "↦") command= "xmapsto";
+    else if (glyph == "⇒") command= "xRightarrow";
+    else if (glyph == "⇐") command= "xLeftarrow";
+    else if (glyph == "⇔") command= "xLeftrightarrow";
+    if (command == "") return preserve_object (original);
+    scheme_tree output= stree_apply (command);
+    if (!empty_string_stree (args[1])) {
+      scheme_tree option= stree_apply ("!option");
+      option << tmtex_convert (args[1]);
+      output << option;
+    }
+    output << (empty_string_stree (args[2]) ? stree_string ("") :
+               tmtex_convert (args[2]));
+    if (command != "xrightarrow" && command != "xleftarrow") {
+      if (latex_export_mathjax ()) {
+        scheme_tree require= stree_apply ("require");
+        require << stree_string ("mathtools");
+        scheme_tree pieces (TUPLE);
+        pieces << require << output;
+        return latex_tex_concat (pieces);
+      }
+      latex_export_add_latex_extra_package ("mathtools");
+    }
+    return output;
+  }
+  if (key == "math-grid") {
+    if (N(args) < 2 || !string_atom (args[0]))
+      return preserve_object (original);
+    const string kind= atom_text (args[0]);
+    const int block_numbered= latex_export_context.native_v3_block_numbered;
+    const bool display= block_numbered >= 0;
+    const bool display_kind= kind == "eqnarray" || kind == "align" || kind == "stack";
+    string environment;
+    if (kind == "eqnarray") environment= display ? "eqnarray*" : "array";
+    else if (kind == "align") environment= display ? "align*" : "aligned";
+    else if (kind == "stack") environment= display ? "gather*" : "gathered";
+    else if (kind == "matrix") environment= "matrix";
+    else if (kind == "cases") environment= "cases";
+    else if (kind == "generic") environment= "array";
+    else return preserve_object (original);
+    int first_cell;
+    native_v3_row_policy (args[1], first_cell);
+    const int columns= N(args[1])-first_cell;
+    if (columns < 1) return preserve_object (original);
+    if ((kind == "eqnarray" && columns != 3) ||
+        (kind == "align" && columns % 2 != 0) ||
+        (kind == "stack" && columns != 1) ||
+        (kind == "cases" && columns != 2)) return preserve_object (original);
+    array<string> alignments (columns);
+    bool custom_alignment= false;
+    bool automatic_numbers= false;
+    for (int i=1; i<N(args); ++i) {
+      int first;
+      const scheme_tree row_policy= native_v3_row_policy (args[i], first);
+      const string policy= atom_text (row_policy[1]);
+      const bool tagged= !empty_string_stree (row_policy[2]);
+      if ((!display || !display_kind) && (policy != "inherit" || tagged))
+        throw std::runtime_error (
+          "MathGrid row numbering requires a direct display eqnarray, align or stack");
+      if (tagged && kind == "eqnarray")
+        throw std::runtime_error (
+          "Custom MathGrid row tags cannot be represented by the LaTeX eqnarray environment");
+      if (display && display_kind && !tagged &&
+          !(policy == "numbered" || (policy == "inherit" && block_numbered == 1)))
+        for (int j=first; j<N(args[i]); ++j)
+          if (native_v3_row_has_label (args[i][j]))
+            throw std::runtime_error (
+              "A label on an unnumbered MathGrid row has no LaTeX equation reference value");
+      automatic_numbers= automatic_numbers || (display && display_kind && !tagged &&
+        (policy == "numbered" || (policy == "inherit" && block_numbered == 1)));
+      if (N(args[i]) != columns+first)
+        throw std::runtime_error ("Nonrectangular MathGrid cannot be exported");
+      for (int j=0; j<columns; ++j) {
+        string alignment, color;
+        native_v3_cell (args[i][j+first], alignment, color);
+        const string inherited= athena::math_v3::grid_column_alignment (kind, j);
+        if (alignment == "") alignment= inherited;
+        if (alignment == "")
+          throw std::runtime_error ("Generic MathGrid needs explicit column alignment");
+        if (alignment != inherited) custom_alignment= true;
+        if (i == 1) alignments[j]= alignment;
+        else if (alignments[j] != alignment)
+          throw std::runtime_error ("MathGrid cell alignment varies within a column");
+      }
+    }
+    if (automatic_numbers)
+      environment= environment (0, N (environment)-1); // remove '*'
+    if (custom_alignment) {
+      if (kind != "matrix" && kind != "generic")
+        throw std::runtime_error ("Custom alignment is unsupported for this MathGrid kind");
+      environment= "array";
+    }
+    scheme_tree table= stree_apply ("!table");
+    // A block's numbering belongs only to its direct grid. Neither nested
+    // cell grids nor aligned expressions inside cells are display environments.
+    latex_export_context.native_v3_block_numbered= -1;
+    try {
+      for (int i=1; i<N(args); ++i) {
+        const scheme_tree& input_row= args[i];
+        int first;
+        const scheme_tree policy= native_v3_row_policy (input_row, first);
+        const bool tagged= !empty_string_stree (policy[2]);
+        const string numbering= atom_text (policy[1]);
+        const bool numbered= numbering == "numbered" ||
+          (numbering == "inherit" && block_numbered == 1);
+        scheme_tree row= stree_apply ("!row");
+        for (int j=first; j<N (input_row); ++j) {
+          string alignment, color;
+          scheme_tree body= tmtex_convert (
+            native_v3_cell (input_row[j], alignment, color));
+          if (color != "") {
+            scheme_tree command= stree_apply ("color");
+            // The existing MathJax prepass removes xcolor's optional model.
+            // Its color extension instead accepts a CSS hex color directly.
+            const scheme_tree decoded= latex_export_mathjax () ?
+              stree_string (color) : decode_color_native (color, true);
+            if (stree_list (decoded))
+              for (int k=0; k<N(decoded); ++k) command << decoded[k];
+            else command << decoded;
+            scheme_tree scoped= stree_apply ("!group");
+            scoped << command << body;
+            body= scoped;
+          }
+          row << body;
+        }
+        scheme_tree suffix (TUPLE);
+        suffix << row[N(row)-1];
+        if (tagged) {
+          latex_export_env_set ("mode", object ("text"));
+          scheme_tree tag= stree_apply ("tag");
+          try { tag << tmtex_convert (policy[2][1]); }
+          catch (...) { latex_export_env_reset ("mode"); throw; }
+          latex_export_env_reset ("mode");
+          suffix << tag;
+        }
+        else if (automatic_numbers && !numbered)
+          suffix << stree_apply ("nonumber");
+        if (display && display_kind && (tagged || numbered) &&
+            !empty_string_stree (policy[3])) {
+          scheme_tree label= stree_apply ("label");
+          label << stree_string ("athena-node-" * atom_text (policy[3]));
+          suffix << label;
+        }
+        row[N(row)-1]= latex_tex_concat (suffix);
+        table << row;
+      }
+    }
+    catch (...) {
+      latex_export_context.native_v3_block_numbered= block_numbered;
+      throw;
+    }
+    latex_export_context.native_v3_block_numbered= block_numbered;
+    scheme_tree begin= stree_apply ("!begin");
+    begin << stree_string (environment);
+    if (environment == "array") {
+      string specification= "@{}";
+      for (int j=0; j<columns; ++j) specification << alignments[j];
+      begin << stree_string (specification * "@{}");
+    }
+    scheme_tree output (TUPLE);
+    output << begin << table;
+    return output;
+  }
+  if (key == "math-block") {
+    if (N(args) != 2 || !string_atom (args[0]) ||
+        (atom_text (args[0]) != "0" && atom_text (args[0]) != "1"))
+      return preserve_object (original);
+    const bool numbered= atom_text (args[0]) == "1";
+    const bool grid= head_is (args[1], "math-grid");
+    string grid_kind;
+    if (grid) {
+      if (N(args[1]) < 3 || !string_atom (args[1][1]))
+        return preserve_object (original);
+      grid_kind= atom_text (args[1][1]);
+    }
+    const int previous= latex_export_context.native_v3_block_numbered;
+    latex_export_context.native_v3_block_numbered= grid ? (numbered ? 1 : 0) : -1;
+    latex_export_env_set ("mode", object ("math"));
+    scheme_tree body;
+    try { body= tmtex_convert (args[1]); }
+    catch (...) {
+      latex_export_env_reset ("mode");
+      latex_export_context.native_v3_block_numbered= previous;
+      throw;
+    }
+    latex_export_env_reset ("mode");
+    latex_export_context.native_v3_block_numbered= previous;
+    // eqnarray/align/gather encode display mode and numbering in their own
+    // TeX environments. Matrix and cases are *inner* math environments;
+    // dropping the MathBlock around them would silently lose an equation
+    // number (or the fact that the expression was a display block).
+    if (grid && (grid_kind == "eqnarray" || grid_kind == "align" ||
+                 grid_kind == "stack")) return body;
+    scheme_tree begin= stree_apply ("!begin");
+    begin << stree_string (numbered ? "equation" : "equation*");
+    scheme_tree output (TUPLE);
+    output << begin << body;
+    return output;
+  }
+  return tree ("#f");
+}
+
 scheme_tree
 core_dispatch (string key, scheme_tree args) {
   scheme_tree original= source_apply (key, args);
+  if (key == "delimited" || key == "math-middle" ||
+      key == "big-operator" || key == "math-symbol" ||
+      key == "math-annotation" || key == "math-variant" ||
+      key == "scripts" || key == "math-accent" ||
+      key == "math-grid" || key == "math-block" ||
+      key == "math-long-arrow") {
+    // Native mathematical subtrees also occur in rich-text row tags. Their
+    // semantics do not depend on an extra historical math wrapper, whereas
+    // LaTeX scripts/delimiters require a mathematical environment.
+    const bool ensure_math= key != "math-block" && !export_math_mode ();
+    if (ensure_math) latex_export_env_set ("mode", object ("math"));
+    scheme_tree result;
+    try { result= native_v3_tex_math (key, args); }
+    catch (...) {
+      if (ensure_math) latex_export_env_reset ("mode");
+      throw;
+    }
+    if (ensure_math) latex_export_env_reset ("mode");
+    // The ordinary TeXmacs preservation escape encodes a Scheme tree, not
+    // the UUID/properties of its original native v3 AST. On these new nodes
+    // claiming that fallback is lossless would be false: a MathGrid can
+    // silently lose cell-format, a script can lose its limits policy, etc.
+    // Abort the export instead of writing a partially valid .tex artifact.
+    if (head_is (result, "!athena-data-inline"))
+      throw std::runtime_error (
+        "Unsupported XML v3 mathematical structure in LaTeX export: " +
+        std::string (key.data (), std::size_t (N (key))));
+    if (ensure_math) {
+      scheme_tree wrapped= stree_apply ("!math");
+      wrapped << result;
+      return wrapped;
+    }
+    return result;
+  }
   if (key == "!file") return file_output_native (args);
   if (key == "tformat" || key == "table") {
     scheme_tree source= stree_apply (key);
@@ -2950,7 +3590,126 @@ convert_node_native (scheme_tree value) {
   return generic_function_output (key, args);
 }
 
+scheme_tree
+prepare_native_v3_source (const tree& source) {
+  if (is_atomic (source)) return tree_to_scheme_tree (source);
+  if (!athena::math_v3::valid_native_math (source))
+    throw std::runtime_error (
+      "Cannot export malformed XML v3 mathematical source node");
+  if (L (source) == MATH_SCRIPTS) {
+    if (!athena::math_v3::valid_scripts (source))
+      throw std::runtime_error ("Cannot export invalid native MathScripts");
+    const auto* meta= athena::node::get (source);
+    const std::string& policy= std::get<std::string> (
+      meta->properties.at (athena::math_v3::scripts_policy_key).data);
+    scheme_tree output= stree_apply ("scripts");
+    output << stree_string (string (policy.data (), int (policy.size ())));
+    for (int i=0; i<5; ++i) output << prepare_native_v3_source (source[i]);
+    return output;
+  }
+  if (L (source) == MATH_ACCENT) {
+    if (!athena::math_v3::valid_native_math (source))
+      throw std::runtime_error ("Cannot export invalid native MathAccent");
+    const auto* meta= athena::node::get (source);
+    const bool stretch= std::get<bool> (
+      meta->properties.at ("math:accent-stretch").data);
+    scheme_tree output= stree_apply ("math-accent");
+    output << prepare_native_v3_source (source[0]);
+    output << prepare_native_v3_source (source[1]);
+    output << stree_string (stretch ? "1" : "0");
+    output << prepare_native_v3_source (source[2]);
+    return output;
+  }
+  if (L (source) == MATH_BLOCK || L (source) == MATH_GRID) {
+    if (!athena::math_v3::valid_native_math (source))
+      throw std::runtime_error ("Cannot export malformed native MathBlock/MathGrid");
+    const auto* meta= athena::node::get (source);
+    scheme_tree output= stree_apply (
+      L (source) == MATH_BLOCK ? "math-block" : "math-grid");
+    if (L (source) == MATH_BLOCK) {
+      const bool numbered= std::get<bool> (
+        meta->properties.at ("math:block-numbered").data);
+      output << stree_string (numbered ? "1" : "0");
+    }
+    else {
+      const auto& kind= std::get<std::string> (
+        meta->properties.at ("math:grid-kind").data);
+      output << stree_string (string (kind.data (), int (kind.size ())));
+      for (int i=0; i<N(source); ++i) {
+        scheme_tree row= stree_apply ("row");
+        scheme_tree row_policy= stree_apply ("!math-row-policy");
+        const auto row_numbering= athena::math_v3::get_row_numbering (source[i]);
+        const string numbering=
+          row_numbering == athena::math_v3::row_numbering::numbered ? "numbered" :
+          row_numbering == athena::math_v3::row_numbering::unnumbered ? "unnumbered" :
+          "inherit";
+        scheme_tree tag= stree_string ("");
+        if (const auto custom= athena::math_v3::get_row_tag (source[i])) {
+          tag= stree_apply ("!math-row-tag");
+          tag << prepare_native_v3_source (*custom);
+        }
+        const auto id= athena::node::id (source[i]);
+        row_policy << stree_string (numbering) << tag
+                   << stree_string (string (id.data (), int (id.size ())));
+        row << row_policy;
+        for (int j=0; j<N(source[i]); ++j) {
+          const tree& input= source[i][j];
+          scheme_tree cell= stree_apply ("cell");
+          if (const auto* cell_meta= athena::node::get (input)) {
+            const auto found= cell_meta->properties.find ("math:cell-format");
+            if (found != cell_meta->properties.end ()) {
+              const auto& fields= std::get<athena::node::property::dictionary> (
+                found->second.data);
+              scheme_tree format= stree_apply ("!math-cell-format");
+              for (const auto& [name, property]: fields) {
+                if (name != "align" && name != "color")
+                  throw std::runtime_error (
+                    "Unsupported MathGrid cell formatting in LaTeX export: " + name);
+                const auto& value= std::get<std::string> (property.data);
+                format << stree_string (string (name.data (), int (name.size ())));
+                format << stree_string (string (value.data (), int (value.size ())));
+              }
+              cell << format;
+            }
+          }
+          cell << prepare_native_v3_source (input[0]);
+          row << cell;
+        }
+        output << row;
+      }
+      return output;
+    }
+    for (int i=0; i<N (source); ++i)
+      output << prepare_native_v3_source (source[i]);
+    return output;
+  }
+  // Construct each source node exactly once. Converting the complete subtree
+  // with tree_to_scheme_tree and then recursively replacing each child is
+  // quadratic in deeply nested documents. Preserve the *same* historic
+  // expansion and numeric-label serialization for non-v3 tree nodes.
+  if (is_func (source, EXPAND) && N (source) > 0 && is_atomic (source[0])) {
+    scheme_tree output (TUPLE, N (source));
+    output[0]= copy (source[0]);
+    for (int i=1; i<N (source); ++i)
+      output[i]= prepare_native_v3_source (source[i]);
+    return output;
+  }
+  scheme_tree output (TUPLE, N (source) + 1);
+  string name= as_string (L (source));
+  if (N (name) > 0 && is_digit (name[0]) && is_int (name))
+    name= "'" * name;
+  output[0]= copy (name);
+  for (int i=0; i<N (source); ++i)
+    output[i+1]= prepare_native_v3_source (source[i]);
+  return output;
+}
+
 } // namespace
+
+scheme_tree
+latex_export_prepare_v3_source (tree source) {
+  return prepare_native_v3_source (source);
+}
 
 namespace latex_export_internal {
 

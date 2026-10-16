@@ -4,7 +4,7 @@ FROM debian:trixie-slim AS build
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-       build-essential ca-certificates cmake pkg-config \
+       build-essential ca-certificates cmake pkg-config python3 \
        qt6-base-dev qt6-websockets-dev \
        libicu-dev libsodium-dev libsqlite3-dev libgnutls28-dev \
        libmimalloc-dev libspdlog-dev nlohmann-json3-dev \
@@ -14,6 +14,9 @@ WORKDIR /src
 COPY CMakeLists.txt LICENSE COPYING ./
 COPY cmake/ cmake/
 COPY src/ src/
+COPY tools/generate-shipped-macro-labels.py tools/
+COPY ATHENA/packages/ ATHENA/packages/
+COPY ATHENA/styles/ ATHENA/styles/
 
 RUN cmake -S . -B build_hodarium_node \
       -DATHENA_BUILD_HODARIUM_NODE_ONLY=ON -DCMAKE_BUILD_TYPE=Release \

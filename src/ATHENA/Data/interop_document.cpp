@@ -356,6 +356,9 @@ public:
       case athena::document::document_source_format::xml_v2:
         result["document_format"]= "xml-v2";
         break;
+      case athena::document::document_source_format::xml_v3:
+        result["document_format"]= "xml-v3";
+        break;
       case athena::document::document_source_format::legacy_markup:
         result["document_format"]= "legacy-markup";
         break;
@@ -445,7 +448,8 @@ public:
   }
   bool writable () const override { return true; }
   bool metadata_writable () const override {
-    return source_format == athena::document::document_source_format::xml_v2;
+    return source_format == athena::document::document_source_format::xml_v2 ||
+           source_format == athena::document::document_source_format::xml_v3;
   }
   value edit (const document_node& node, const std::string& command, const value& parameters) const override {
     std::lock_guard<std::mutex> lock (mutex);
@@ -457,7 +461,8 @@ public:
     nodes.import_nodes (source, snapshot);
     value result= edit_node (
       source, nodes, node ? node : nodes.track (source, {}), command, parameters);
-    if (source_format == athena::document::document_source_format::xml_v2)
+    if (source_format == athena::document::document_source_format::xml_v2 ||
+        source_format == athena::document::document_source_format::xml_v3)
       complete_v2_identities (source, filename);
     auto next= nodes.export_nodes (source);
     std::string serialized;
@@ -465,6 +470,8 @@ public:
       serialized= athena::document::write_xml (source);
     else if (source_format == athena::document::document_source_format::xml_v2)
       serialized= athena::document::write_xml_v2 (source);
+    else if (source_format == athena::document::document_source_format::xml_v3)
+      serialized= athena::document::write_xml_v3 (source);
     else {
       string bytes= tree_to_texmacs (source);
       serialized.assign (bytes.data (), std::size_t (N(bytes)));
@@ -477,7 +484,7 @@ public:
         std::string_view (serialized.data (), serialized.size ())).document;
     }
     catch (...) {
-      throw std::invalid_argument ("The legacy file format cannot preserve this source tree exactly");
+      throw std::invalid_argument ("The file format cannot preserve this source tree exactly");
     }
     if (validation != source)
       throw std::invalid_argument ("The native file format cannot preserve this source tree exactly");
@@ -488,7 +495,8 @@ public:
     snapshot= std::move (next);
     relocation.clear ();
     if (source_format != athena::document::document_source_format::xml_v1 &&
-        source_format != athena::document::document_source_format::xml_v2)
+        source_format != athena::document::document_source_format::xml_v2 &&
+        source_format != athena::document::document_source_format::xml_v3)
       source_format= athena::document::document_source_format::legacy_markup;
     // The rename already committed. A subsequent metadata error must not be
     // reported as an aborted write or leave the old snapshot usable.

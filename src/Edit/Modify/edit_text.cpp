@@ -229,7 +229,7 @@ edit_text_rep::insert_tree (tree t, path p_in_t) {
   if (is_atomic (t) && (p_in_t == end (t)) &&
       !athena::node::get (t) && is_atomic (subtree (et, path_up (tp))))
     insert (tp, t);
-  else if (is_document (t)) {
+  else if (is_document (t) && !athena::node::get (t)) {
     if (subtree (et, path_up (tp)) == "" &&
         accepts_return (path_up (tp)) &&
         !is_func (subtree (et, path_up (tp, 2)), DOCUMENT))
@@ -244,7 +244,7 @@ edit_text_rep::insert_tree (tree t, path p_in_t) {
     remove_return (path_dec (p));
     if (!empty) remove_return (path_add (p, N(t)-2));
   }
-  else if (is_multi_paragraph (t)) {
+  else if (is_multi_paragraph (t) || is_document (t)) {
     path body_p= path_up (tp);
     path with_p= path_up (body_p);
     tree parent= subtree (et, with_p);

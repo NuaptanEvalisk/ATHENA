@@ -10,8 +10,12 @@
 #include "table_commands.hpp"
 
 #include "tree_search.hpp"
+#include "math_tree_v3.hpp"
+#include "node_metadata.hpp"
+#include "ATHENA/Data/document_node_model.hpp"
 
 #include <algorithm>
+#include <stdexcept>
 
 namespace athena::table_commands {
 namespace {
@@ -176,6 +180,52 @@ contains_eq_number (const tree& source, path base, path& found) {
 bool
 is_eqnarray_target (tree target) {
   return is_compound (target, "eqnarray") || is_compound (target, "eqnarray*");
+}
+
+struct native_numbering_context {
+  path row;
+  bool inherited= false;
+};
+
+std::optional<native_numbering_context>
+native_numbering_row (editor_rep* ed, tree target) {
+  if (ed == nullptr) return {};
+  const path root= ed->the_buffer_path ();
+  tree source= ed->the_root ();
+  for (path p= path_up (ed->the_path ()); root <= p; p= path_up (p)) {
+    if (!has_subtree (source, p)) return {};
+    const tree row= subtree (source, p);
+    if (is_func (row, MATH_GRID) || is_func (row, MATH_BLOCK)) return {};
+    if (is_func (row, ROW) && root < p) {
+      const path grid_path= path_up (p);
+      const tree grid= subtree (source, grid_path);
+      if (is_func (grid, MATH_GRID)) {
+        if (!(root < grid_path)) return {};
+        const tree block= subtree (source, path_up (grid_path));
+        if (!is_func (block, MATH_BLOCK, 1) ||
+            !athena::math_v3::valid_native_math (block) ||
+            !athena::math_v3::valid_native_math (grid)) return {};
+        if (!strong_equal (target, row) && !strong_equal (target, grid) &&
+            !strong_equal (target, block)) return {};
+        const auto* metadata= athena::node::get (grid);
+        const auto& kind= std::get<std::string> (
+          metadata->properties.at ("math:grid-kind").data);
+        if (kind != "eqnarray" && kind != "align" && kind != "stack") return {};
+        return native_numbering_context {p,
+          std::get<bool> (athena::node::get (block)->properties.at (
+            "math:block-numbered").data)};
+      }
+    }
+    if (p == root) break;
+  }
+  return {};
+}
+
+bool effective_row_numbering (const tree& row, bool inherited) {
+  using athena::math_v3::row_numbering;
+  const auto policy= athena::math_v3::get_row_numbering (row);
+  return policy == row_numbering::numbered ||
+    (policy == row_numbering::inherit && inherited);
 }
 
 } // namespace
@@ -421,7 +471,14 @@ void cell_set_tborder (editor_rep* ed, string value) {
 }
 
 bool
+native_grid_numbering_available (editor_rep* ed, tree target) {
+  return native_numbering_row (ed, target).has_value ();
+}
+
+bool
 eqnarray_numbered (editor_rep* ed, tree target) {
+  if (const auto context= native_numbering_row (ed, target))
+    return effective_row_numbering (ed->the_subtree (context->row), context->inherited);
   if (ed == nullptr || !is_eqnarray_target (target)) return false;
   const int row= ed->table_which_row ();
   path cell= ed->table_search_cell (row, -1);
@@ -433,6 +490,27 @@ eqnarray_numbered (editor_rep* ed, tree target) {
 
 bool
 eqnarray_toggle_numbering (editor_rep* ed, tree target) {
+  if (const auto context= native_numbering_row (ed, target)) {
+    if (ed->editor_command_state_snapshot ().read_only ()) return true;
+    namespace model= athena::document_node;
+    const tree row= ed->the_subtree (context->row);
+    const bool numbered= !effective_row_numbering (row, context->inherited);
+    model::property_edit edit;
+    // Rejoining the enclosing policy removes the override instead of storing
+    // an explicit inherit alias. Tags and all identities remain untouched.
+    if (numbered == context->inherited)
+      edit.remove.push_back (athena::math_v3::row_numbering_key);
+    else edit.set.emplace (athena::math_v3::row_numbering_key,
+      athena::node::property (std::string (numbered ? "numbered" : "unnumbered")));
+    model::source_path where;
+    for (path p= context->row / ed->the_buffer_path (); !is_nil (p); p= p->next)
+      where.push_back (p->item);
+    tree scope= ed->the_buffer ();
+    const auto prepared= model::prepare_property_edit (scope, where, edit);
+    if (!prepared.ok ()) throw std::invalid_argument (prepared.diagnostics.front ().detail);
+    if (prepared.change) ::apply (scope, *prepared.change);
+    return true;
+  }
   if (ed == nullptr || !is_eqnarray_target (target)) return false;
   const int row= ed->table_which_row ();
   path cell= ed->table_search_cell (row, -1);

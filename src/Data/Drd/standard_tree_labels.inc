@@ -10,6 +10,15 @@
 
   init (DOCUMENT, "document",
         repeat (1, 1) -> inner_border () -> accessible (0));
+  // File-envelope fields must exist before reading the first native document.
+  // Their declarations cannot depend on a previous legacy import registering them.
+  init (make_tree_label ("style"), "style", fixed (1) -> regular (0));
+  init (make_tree_label ("body"), "body", fixed (1) -> regular (0) -> accessible (0));
+  init (make_tree_label ("initial"), "initial", fixed (1) -> regular (0));
+  init (make_tree_label ("final"), "final", fixed (1) -> regular (0));
+  init (make_tree_label ("references"), "references", fixed (1) -> regular (0));
+  init (make_tree_label ("auxiliary"), "auxiliary", fixed (1) -> regular (0));
+  init (make_tree_label ("attachments"), "attachments", fixed (1) -> regular (0));
   init (make_tree_label ("enunciation"), "enunciation",
         fixed (1) -> accessible (0) -> name (0, "body"));
   init (make_tree_label ("program"), "program",
@@ -128,6 +137,37 @@
   init (MID, "mid", options (1, 2));
   init (RIGHT, "right", options (1, 2));
   init (BIG, "big", fixed (1));
+  // v3 nodes: descriptor children are data; only authored mathematics may be
+  // traversed/edited as source. Fixed arity is part of the native contract.
+  init (DELIMITED, "delimited", fixed (6, 0, DETAILED) ->
+        string_type (0) -> string_type (1) -> string_type (2) ->
+        string_type (3) -> string_type (4) ->
+        accessible (5) -> name (5, "expression"));
+  init (MATH_MIDDLE, "math-middle", fixed (1) -> string_type (0));
+  init (BIG_OPERATOR, "big-operator", fixed (2) -> string_type (0));
+  init (MATH_SCRIPTS, "scripts", fixed (5, 0, DETAILED) ->
+        accessible (0) -> name (0, "base") ->
+        accessible (1) -> name (1, "left subscript") ->
+        accessible (2) -> name (2, "left superscript") ->
+        accessible (3) -> name (3, "right subscript") ->
+        accessible (4) -> name (4, "right superscript"));
+  init (MATH_ACCENT, "math-accent", fixed (3, 0, DETAILED) ->
+        string_type (0) -> string_type (1) ->
+        accessible (2) -> name (2, "expression"));
+  init (MATH_ANNOTATION, "math-annotation", fixed (3, 0, DETAILED) ->
+        accessible (0) -> name (0, "expression") ->
+        accessible (1) -> name (1, "below") ->
+        accessible (2) -> name (2, "above"));
+  init (MATH_LONG_ARROW, "math-long-arrow", fixed (3, 0, DETAILED) ->
+        regular (0) ->
+        accessible (1) -> name (1, "below") ->
+        accessible (2) -> name (2, "above"));
+  init (MATH_GRID, "math-grid", repeat (1, 1) -> accessible (0));
+  init (MATH_BLOCK, "math-block", fixed (1) -> accessible (0));
+  init (MATH_VARIANT, "math-variant", fixed (2, 0, DETAILED) ->
+        string_type (0) ->
+        accessible (1) -> name (1, "expression"));
+  init (MATH_SYMBOL, "math-symbol", fixed (1) -> string_type (0));
   init (LONG_ARROW, "long-arrow",
         options (2, 1, DETAILED) -> name ("long arrow") ->
         accessible (1) -> name (1, "superscript") ->

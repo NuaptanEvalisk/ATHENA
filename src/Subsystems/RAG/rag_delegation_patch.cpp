@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "rag_delegation_patch.hpp"
+#include "rag_document_revision.hpp"
 #include "rag_delegation_crypto.hpp"
 #include "rag_embedding.hpp"
 #include "rag_storage.hpp"
@@ -583,8 +584,8 @@ collect_delegated_job (const fs::path& vault_root, const fs::path& local_db,
     std::string storage_rev= storage_revision (bytes);
     std::string semantic_revision;
     try {
-      tree document= athena::document::decode_document_bytes (bytes, file).document;
-      semantic_revision= athena::document::semantic_document_fingerprint (document);
+      const auto decoded= athena::document::decode_document_bytes (bytes, file);
+      semantic_revision= document_semantic_revision (decoded);
     }
     catch (const std::exception& e) {
       error= "failed to decode " + file.generic_string () + ": " + e.what ();

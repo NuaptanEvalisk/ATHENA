@@ -1502,7 +1502,7 @@
     <arg type="content" />
     <arg type="object" />
   </binding>
-  <binding name="serialize-latex" native="serialize_latex" returns="string">
+  <binding name="serialize-latex" native="serialize_latex" returns="string" exceptions="scheme">
     <arg type="scheme_tree" />
   </binding>
   <binding name="latex-native-type" native="latex_native_type" returns="string">
@@ -1568,8 +1568,12 @@
   <binding name="latex-depends?" native="latex_compat_depends" returns="bool">
     <arg type="string" />
   </binding>
-  <binding name="tmtex" native="latex_export_convert_node" returns="scheme_tree">
+  <binding name="tmtex" native="latex_export_convert_node" returns="scheme_tree" exceptions="scheme">
     <arg type="scheme_tree" />
+  </binding>
+  <binding name="latex-export-prepare-v3-source"
+           native="latex_export_prepare_v3_source" returns="scheme_tree" exceptions="scheme">
+    <arg type="tree" />
   </binding>
   <binding name="tmtex-env-patch" native="latex_compat_tmtex_env_patch" returns="scheme_tree">
     <arg type="tree" />
@@ -1891,11 +1895,11 @@
   <binding name="tmtex-decode-long-arrow" native="latex_tmtex_decode_long_arrow" returns="scheme_tree">
     <arg type="scheme_tree" />
   </binding>
-  <binding name="latex-export-core-dispatch" native="latex_export_core_dispatch" returns="scheme_tree">
+  <binding name="latex-export-core-dispatch" native="latex_export_core_dispatch" returns="scheme_tree" exceptions="scheme">
     <arg type="string" />
     <arg type="scheme_tree" />
   </binding>
-  <binding name="latex-export-convert-node" native="latex_export_convert_node" returns="scheme_tree">
+  <binding name="latex-export-convert-node" native="latex_export_convert_node" returns="scheme_tree" exceptions="scheme">
     <arg type="scheme_tree" />
   </binding>
   <binding name="latex-export-generic-function" native="latex_export_generic_function" returns="scheme_tree">
@@ -1920,11 +1924,11 @@
   <binding name="latex-export-convert-charset" native="latex_export_convert_charset" returns="scheme_tree">
     <arg type="scheme_tree" />
   </binding>
-  <binding name="latex-export-convert-tree" native="latex_export_convert_tree" returns="scheme_tree">
+  <binding name="latex-export-convert-tree" native="latex_export_convert_tree" returns="scheme_tree" exceptions="scheme">
     <arg type="scheme_tree" />
     <arg type="object" />
   </binding>
-  <binding name="latex-export-convert-top" native="latex_export_convert_top" returns="scheme_tree">
+  <binding name="latex-export-convert-top" native="latex_export_convert_top" returns="scheme_tree" exceptions="scheme">
     <arg type="scheme_tree" />
     <arg type="object" />
     <arg type="url" />
@@ -1991,6 +1995,9 @@
     <arg type="scheme_tree" />
   </binding>
   <binding name="native-mathml-&gt;tree" native="mathml_to_tree" returns="tree">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="native-mathml-&gt;tree-v3" native="mathml_to_tree_v3" returns="tree" exceptions="scheme">
     <arg type="scheme_tree" />
   </binding>
   <binding name="retrieve-mathjax" native="retrieve_mathjax" returns="tree">

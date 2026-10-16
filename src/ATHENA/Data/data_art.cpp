@@ -17,6 +17,8 @@
 #include "new_window.hpp"
 #include "scheme_execution_context.hpp"
 #include "boot.hpp"
+#include "buffer_actor.hpp"
+#include "buffer_state.hpp"
 
 #include <QByteArray>
 #include <QCoreApplication>
@@ -30,6 +32,7 @@
 #include <filesystem>
 #include <string>
 #include <string_view>
+#include <stdexcept>
 #include <system_error>
 #include <utility>
 #include <vector>
@@ -88,7 +91,8 @@ to_tm (const std::string& value) {
 
 string
 export_snapshot_on_gui_owner (
-  url source, url output, tree document, tree body) {
+  url source, url output, tree document, tree body,
+  athena::document::xml_format_version version) {
   if (current_scheme_execution_context () != nullptr)
     return "DataArt transient export entered outside the GUI owner";
 
@@ -102,7 +106,8 @@ export_snapshot_on_gui_owner (
     // derives editor state from the initial scratch document, so populating the
     // document before view creation can later erase/reinitialize that state.
     (void) get_new_view (transient);
-    set_buffer_tree (transient, std::move (covered_document));
+    if (!replace_buffer_tree (transient, std::move (covered_document), version))
+      throw std::runtime_error ("DataArt snapshot replacement rejected");
     // Relative links, transclusions and other document-context lookups must
     // resolve exactly as they do for the source buffer.
     set_master_buffer (transient, source);
@@ -332,13 +337,37 @@ athena_data_art_generate (string seed, url output) {
   return "";
 }
 
+int
+athena_data_art_source_version () {
+  const auto* context= current_scheme_execution_context ();
+  if (!context || !context->actor || !context->actor->current_state ())
+    throw std::runtime_error ("DataArt snapshot requires its source actor");
+  const auto version= context->actor->current_state ()->storage_version;
+  int number;
+  switch (version) {
+  case athena::document::xml_format_version::v1: number= 1; break;
+  case athena::document::xml_format_version::v2: number= 2; break;
+  case athena::document::xml_format_version::v3: number= 3; break;
+  default: throw std::runtime_error ("Unknown DataArt source version");
+  }
+  return number;
+}
+
 string
 athena_data_art_export_snapshot (
-  url source, url output, tree document, tree body) {
+  url source, url output, tree document, tree body, int source_version) {
+  using athena::document::xml_format_version;
+  xml_format_version version;
+  switch (source_version) {
+  case 1: version= xml_format_version::v1; break;
+  case 2: version= xml_format_version::v2; break;
+  case 3: version= xml_format_version::v3; break;
+  default: return "Unknown DataArt snapshot source version";
+  }
   if (current_scheme_execution_context () == nullptr)
     return export_snapshot_on_gui_owner (
       std::move (source), std::move (output), std::move (document),
-      std::move (body));
+      std::move (body), version);
 
   // A headless caller such as website generation has the Qt owner waiting for
   // its source BufferActor. Asking that actor to synchronously re-enter Qt
@@ -361,13 +390,13 @@ athena_data_art_export_snapshot (
 
   bool invoked= QMetaObject::invokeMethod (
     app,
-    [document_id, body_id, source_text= std::move (source_text),
+    [document_id, body_id, version, source_text= std::move (source_text),
      output_text= std::move (output_text), &result] {
       tree document2= actor_tree_registry::instance ().take (document_id);
       tree body2= actor_tree_registry::instance ().take (body_id);
       string error= export_snapshot_on_gui_owner (
         url (to_tm (source_text)), url (to_tm (output_text)),
-        std::move (document2), std::move (body2));
+        std::move (document2), std::move (body2), version);
       result= to_std (error);
     },
     Qt::BlockingQueuedConnection);

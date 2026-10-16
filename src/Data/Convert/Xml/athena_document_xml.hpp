@@ -18,6 +18,7 @@
 
 namespace athena::document {
 enum class xml_kind { document, fragment };
+enum class xml_format_version { v1, v2, v3 };
 enum class codec_error {
   malformed_xml, unsupported_version, invalid_structure, invalid_utf8,
   forbidden_dtd, resource_limit, invalid_base64, opaque_value
@@ -29,6 +30,9 @@ struct codec_limits {
   std::size_t nodes= 1000000;
   std::size_t depth= 256;
 };
+// Inspect only the envelope for dispatch. The selected strict reader must
+// still validate the complete document; this never migrates its contents.
+xml_format_version inspect_xml_version (std::string_view, codec_limits = {});
 class codec_exception: public std::runtime_error {
 public:
   codec_error code;
@@ -51,6 +55,12 @@ std::string write_xml (const tree&, xml_kind = xml_kind::document, codec_limits 
 // Explicit staged v2 APIs. The v2 reader accepts both v1 and v2 documents.
 tree read_xml_v2 (std::string_view, xml_kind = xml_kind::document, codec_limits = {});
 std::string write_xml_v2 (const tree&, xml_kind = xml_kind::document, codec_limits = {});
+
+// XML v3 uses only the compact envelope, elements and attributes. The v3
+// reader has no legacy decoding/normalization path. v2 -> v3 conversion is an
+// explicit offline operation with its own source decoder.
+tree read_xml_v3 (std::string_view, xml_kind = xml_kind::document, codec_limits = {});
+std::string write_xml_v3 (const tree&, xml_kind = xml_kind::document, codec_limits = {});
 
 // Explicit envelope migration, not a recursive rewrite. Nested TeXmacs macros
 // remain content. The optional old-root-child -> new-root-child map records

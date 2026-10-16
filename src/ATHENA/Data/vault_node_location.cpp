@@ -11,6 +11,7 @@
 #include "node_reference_export.hpp"
 #include "System/Boot/boot.hpp"
 #include "buffer_actor.hpp"
+#include "buffer_state.hpp"
 #include "editor.hpp"
 #include "buffer_name_catalog.hpp"
 #include "file.hpp"
@@ -188,8 +189,11 @@ content_payload read_live (vault_context_handle vault, const item& target,
     throw std::runtime_error ("Live node source has closed or moved");
   return on_actor<content_payload> (vault, found->second, cancelled,
     [target] (buffer_actor& owner, std::uint64_t view) {
+      const auto* state= owner.current_state ();
+      if (!state) throw std::runtime_error ("Live node source has no storage context");
       return capture_content (owner.current_source (view), target,
-                              text (as_string (owner.current_buffer_url ())));
+                              text (as_string (owner.current_buffer_url ())),
+                              state->storage_version);
     });
 }
 
@@ -228,9 +232,11 @@ prepared_snapshot prepare_headless_export (std::uint64_t actor, std::uint64_t vi
     try {
       auto* owner= current_scheme_execution_context ()->actor;
       if (!owner) throw std::runtime_error ("Export source has no owner");
+      const auto* state= owner->current_state ();
+      if (!state) throw std::runtime_error ("Export source has no storage context");
       const tree& doc= owner->current_source (view);
       source->seeds= export_selections (doc);
-      source->revision= export_source_revision (doc);
+      source->revision= export_source_revision (doc, state->storage_version);
       const string name= as_string (owner->current_buffer_url ());
       source->url.assign (name.data (), N(name));
       source->done= true;
@@ -328,9 +334,12 @@ void verify_export_origin () {
   if (!context || !context->actor)
     throw std::logic_error ("Export source verification requires its actor");
   if (context->actor_id != snapshot->origin_actor) return;
+  const auto* state= context->actor->current_state ();
+  if (!state) throw std::runtime_error ("Export source has no storage context");
   const string name= as_string (context->actor->current_buffer_url ());
   if (std::string (name.data (), N(name)) != snapshot->origin_url ||
-      export_source_revision (context->actor->current_source (snapshot->origin_view)) !=
+      export_source_revision (context->actor->current_source (snapshot->origin_view),
+                              state->storage_version) !=
         snapshot->origin_revision)
     throw std::runtime_error ("Source changed while preparing export; retry the export");
 }

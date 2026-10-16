@@ -83,7 +83,7 @@ mathjax_cleanup (scheme_tree x) {
   }
   if (func_is (x, "fill", 0)) return stree_string ("3cm");
   if (head_is (x, "newcommand") || head_is (x, "custombinding") ||
-      head_is (x, "nobreak") || head_is (x, "label"))
+      head_is (x, "nobreak"))
     return stree_string ("");
 
   scheme_tree out (TUPLE);

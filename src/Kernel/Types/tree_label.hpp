@@ -44,6 +44,12 @@ enum tree_label {
   FRAC, SQRT, WIDE, VAR_WIDE, NEG, TREE,
   SYNTAX,
 
+  // Canonical XML v3 native mathematical structures. Unlike the historical
+  // bracket/script tokens these own their operands explicitly.
+  DELIMITED, MATH_MIDDLE, BIG_OPERATOR, MATH_SCRIPTS,
+  MATH_ACCENT, MATH_ANNOTATION, MATH_LONG_ARROW,
+  MATH_GRID, MATH_BLOCK, MATH_VARIANT, MATH_SYMBOL,
+
   // tabular material
   TFORMAT, TWITH, CWITH, TMARKER,
   TABLE, ROW, CELL, SUBTABLE,

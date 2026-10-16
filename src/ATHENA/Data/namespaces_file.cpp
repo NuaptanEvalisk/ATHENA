@@ -11,6 +11,7 @@
 #include "namespaces_private.hpp"
 
 #include "Data/Convert/Xml/document_file_codec.hpp"
+#include "source_document_creation.hpp"
 #include "document_node_model.hpp"
 #include "document_node_copy.hpp"
 #include "boot.hpp"
@@ -116,7 +117,9 @@ namespace_empty_document () {
 
 bool
 namespace_load_initial_document (const athena_namespace_definition& ns,
-                                 string base_root, tree& doc, string& error) {
+                                 string base_root, tree& doc,
+                                 std::optional<athena::document::document_source_format>& format,
+                                 string& error) {
   if (ns.initial_content_path == "") {
     doc= namespace_empty_document ();
     return true;
@@ -137,8 +140,10 @@ namespace_load_initial_document (const athena_namespace_definition& ns,
     return false;
   }
   try {
-    doc= athena::document::decode_document_bytes (
-      std::string_view (as_charp (text), (std::size_t) N(text)), source).document;
+    const auto decoded= athena::document::decode_document_bytes (
+      std::string_view (as_charp (text), (std::size_t) N(text)), source);
+    doc= decoded.document;
+    format= decoded.format;
   }
   catch (...) {
     error= "Namespace initial content is not a valid document.";
@@ -148,7 +153,9 @@ namespace_load_initial_document (const athena_namespace_definition& ns,
 }
 
 bool
-namespace_save_new_document (url target, tree doc, string& error) {
+namespace_save_new_document (
+    url target, tree doc, string& error,
+    std::optional<athena::document::document_source_format> template_format= {}) {
   const auto path= std::filesystem::path (tm_to_std (concretize (target)));
   QTemporaryFile temporary (QString::fromStdString ((path.parent_path () / ".athena-new-XXXXXX").string ()));
   if (!temporary.open ()) {
@@ -157,6 +164,8 @@ namespace_save_new_document (url target, tree doc, string& error) {
   }
   std::string contents;
   try {
+    const auto version= athena::document::new_source_version_for_target (
+      path, template_format);
     // A template creates new source objects, not another copy of its UUIDs.
     doc= athena::document_node::duplicate_source_nodes (doc);
     auto identities= athena::document_node::assign_detached_source_ids (
@@ -170,7 +179,7 @@ namespace_save_new_document (url target, tree doc, string& error) {
       return false;
     }
     doc= change_doc_attr (doc, "body", std::move (*identities.body));
-    contents= athena::document::write_xml_v2 (doc);
+    contents= athena::document::encode_native_xml_bytes (doc, version);
   }
   catch (const std::exception& ex) {
     error= std_to_tm (ex.what ());
@@ -300,8 +309,9 @@ athena_namespace_create_file (const athena_namespace_definition& ns, url target,
   }
 
   tree doc;
+  std::optional<athena::document::document_source_format> template_format;
   if (use_initial_content)
-    if (!namespace_load_initial_document (ns, base_root, doc, error))
+    if (!namespace_load_initial_document (ns, base_root, doc, template_format, error))
       return false;
   if (!use_initial_content)
     doc= namespace_empty_document ();
@@ -309,7 +319,7 @@ athena_namespace_create_file (const athena_namespace_definition& ns, url target,
   doc= athena_namespace_apply_style_to_tree (doc, ns, base_root, error);
   if (error != "") return false;
 
-  return namespace_save_new_document (target, doc, error);
+  return namespace_save_new_document (target, doc, error, template_format);
 }
 
 bool

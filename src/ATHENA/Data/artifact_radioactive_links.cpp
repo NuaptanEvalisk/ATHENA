@@ -385,11 +385,21 @@ std::vector<Token> tree_tokens (tree name) {
   return result;
 }
 
+tree read_name_fragment (const std::string& bytes) {
+  using namespace athena::document;
+  switch (inspect_xml_version (bytes)) {
+    case xml_format_version::v1: return read_xml (bytes, xml_kind::fragment);
+    case xml_format_version::v2: return read_xml_v2 (bytes, xml_kind::fragment);
+    case xml_format_version::v3: return read_xml_v3 (bytes, xml_kind::fragment);
+  }
+  throw std::runtime_error ("Unsupported Artifact name format");
+}
+
 std::vector<Token> name_tokens (const AthenaArtifactRecord& record, size_t i) {
   if (i >= record.semantic_name_trees.size () || record.semantic_name_trees[i].empty ())
     return tokenize (qstring_from_utf8 (record.semantic_names[i]));
   const std::string& bytes= record.semantic_name_trees[i];
-  return tree_tokens (athena::document::read_xml (bytes, athena::document::xml_kind::fragment));
+  return tree_tokens (read_name_fragment (bytes));
 }
 
 void add_record (RadioactiveIndex* index, const AthenaArtifactRecord& record,
@@ -402,7 +412,7 @@ void add_record (RadioactiveIndex* index, const AthenaArtifactRecord& record,
       std::string fragment= i < record.semantic_name_trees.size () ?
         record.semantic_name_trees[i] : std::string ();
       tree name= fragment.empty () ? tree (string (record.semantic_names[i].c_str ())) :
-        athena::document::read_xml (fragment, athena::document::xml_kind::fragment);
+        read_name_fragment (fragment);
       if (term.isEmpty () || term.size () > maximum_term_characters ||
           (filter && athena_artifact_title_filter_contains (*filter, name)))
         continue;

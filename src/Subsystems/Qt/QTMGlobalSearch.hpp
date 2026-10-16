@@ -78,7 +78,6 @@ private:
   QWidget* createPreviewWidget ();
   void     destroyPreviewWidget ();
   void     recreatePreviewWidget ();
-  tree     currentQuery () const;
   tree     normalizeQuery (tree t) const;
   QString  selectedNamespace () const;
   QString  selectedEnunciation () const;

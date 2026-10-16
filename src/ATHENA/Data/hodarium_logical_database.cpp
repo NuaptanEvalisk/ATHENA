@@ -621,8 +621,7 @@ AthenaArtifactTitleFilter parse_filter (const std::string& payload) {
   for (const auto& item: value[1].toArray ()) names.push_back (text (item));
   auto result= athena_artifact_title_filter_from_entries (names);
   for (const auto& item: value[2].toArray ())
-    athena_artifact_title_filter_add (result, athena::document::read_xml (
-      text (item), athena::document::xml_kind::fragment));
+    athena_artifact_title_filter_add_fragment (result, text (item));
   require (filter_payload (result) == payload, "Noncanonical artifact rejection list");
   return result;
 }

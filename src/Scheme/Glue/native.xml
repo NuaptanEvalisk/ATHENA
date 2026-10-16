@@ -1441,11 +1441,13 @@
     <arg type="string" />
     <arg type="url" />
   </binding>
+  <binding name="data-art-source-version" native="athena_data_art_source_version" returns="int" exceptions="scheme" />
   <binding name="data-art-export-snapshot" native="athena_data_art_export_snapshot" returns="string">
     <arg type="url" />
     <arg type="url" />
     <arg type="tree" passing="move" />
     <arg type="tree" passing="move" />
+    <arg type="int" />
   </binding>
   <binding name="vault-load-with-ns" native="vault_load" returns="string">
     <arg type="url" />

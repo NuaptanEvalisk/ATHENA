@@ -7,6 +7,7 @@
 *******************************************************************************/
 
 #include "ATHENA/Data/vault_file_references.hpp"
+#include "node_metadata_transform.hpp"
 
 #include <system_error>
 
@@ -35,6 +36,7 @@ replace_prefix (const fs::path& path, const fs::path& old_prefix,
   for (auto ri= normalized_old.begin (); ri != normalized_old.end (); ++ri)
     ++pi;
   for (; pi != normalized_path.end (); ++pi) suffix /= *pi;
+  if (suffix.empty ()) return new_prefix.lexically_normal ();
   return (new_prefix / suffix).lexically_normal ();
 }
 
@@ -63,6 +65,11 @@ rewrite_value (const std::string& value, const fs::path& source_after,
 void
 collect_references (tree t, const fs::path& source,
                     std::vector<AthenaVaultFileReference>& references) {
+  tree metadata;
+  athena::node::transform_rich_metadata (t, metadata, [&] (const tree& rich) {
+    collect_references (rich, source, references);
+    return rich;
+  });
   if (is_atomic (t)) return;
   int path_index= -1;
   bool has_path= athena_vault_file_reference_argument (t, path_index);
@@ -80,6 +87,11 @@ collect_references (tree t, const fs::path& source,
 void
 collect_image_references (tree t, const fs::path& source,
                           std::vector<AthenaVaultFileReference>& references) {
+  tree metadata;
+  athena::node::transform_rich_metadata (t, metadata, [&] (const tree& rich) {
+    collect_image_references (rich, source, references);
+    return rich;
+  });
   if (is_atomic (t)) return;
   if ((is_func (t, IMAGE) || is_compound (t, "image")) && N(t) >= 1 &&
       is_atomic (t[0])) {
@@ -97,8 +109,11 @@ rewrite_map (tree t, const fs::path& source_before,
              const fs::path& source_after,
              const std::unordered_map<std::string, fs::path>& renames,
              size_t& replacements) {
-  if (is_atomic (t)) return copy (t);
-  tree result (L(t));
+  tree result= is_atomic (t) ? tree (t->label) : tree (L(t));
+  athena::node::transform_rich_metadata (t, result, [&] (const tree& rich) {
+    return rewrite_map (rich, source_before, source_after, renames, replacements);
+  });
+  if (is_atomic (t)) return result;
   int path_index= -1;
   bool has_path= athena_vault_file_reference_argument (t, path_index);
   for (int i=0; i<N(t); ++i) {
@@ -110,7 +125,10 @@ rewrite_map (tree t, const fs::path& source_before,
       std::string new_value;
       if (hit != renames.end () &&
           rewrite_value (old_value, source_after, hit->second, new_value)) {
-        result << tree (to_tm (new_value));
+        tree replacement (to_tm (new_value));
+        const tree original= rewrite_map (t[i], source_before, source_after, renames, replacements);
+        athena::node::copy_metadata (original, replacement);
+        result << replacement;
         ++replacements;
         continue;
       }

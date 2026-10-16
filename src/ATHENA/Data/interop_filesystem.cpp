@@ -12,10 +12,13 @@
 #include "interop_document_source.hpp"
 #include "interop_document_codec.hpp"
 #include "document_node_model.hpp"
+#include "document_node_copy.hpp"
+#include "source_document_creation.hpp"
 #include "new_style.hpp"
 #include "scheme.hpp"
 #include <QCoreApplication>
 #include <QMetaObject>
+#include <QThread>
 #include "../Interop/traversal.hpp"
 #include "convert.hpp"
 #include "buffer_name_catalog.hpp"
@@ -39,7 +42,36 @@ std::string error_status (const std::system_error& e) {
   }
 }
 
-std::string new_document_bytes (const value& encoded) {
+void require_new_source (const tree&);
+
+void require_new_property (const athena::node::property& property) {
+  using property_type= athena::node::property;
+  if (const auto* list= std::get_if<property_type::list> (&property.data))
+    for (const auto& item: *list) require_new_property (item);
+  if (const auto* dictionary= std::get_if<property_type::dictionary> (&property.data))
+    for (const auto& item: *dictionary) require_new_property (item.second);
+  if (const auto* rich= std::get_if<athena::node::rich_text> (&property.data))
+    require_new_source (rich->content);
+}
+
+void require_new_source (const tree& source) {
+  if (const auto* metadata= athena::node::get (source)) {
+    if (!metadata->id.empty ())
+      throw std::invalid_argument ("New documents must not import existing source identities");
+    for (const auto& property: metadata->properties) {
+      if (property.first == athena::document_node::artifact_bindings_property)
+        throw std::invalid_argument ("New documents must not import existing Artifact bindings");
+      require_new_property (property.second);
+    }
+  }
+  if (is_compound (source))
+    for (int i=0; i<N(source); ++i) require_new_source (source[i]);
+}
+
+}
+
+std::string new_filesystem_document_bytes (const value& encoded, int node_model_version) {
+  const auto version= athena::document::new_source_version_for_model (node_model_version);
   auto* app= QCoreApplication::instance ();
   if (!app) throw std::runtime_error ("Desktop is not available");
   std::string bytes, error;
@@ -52,7 +84,9 @@ std::string new_document_bytes (const value& encoded) {
       if (!problem.empty ()) throw std::invalid_argument (problem);
       if (!is_func (extract (doc, "body"), DOCUMENT))
         throw std::invalid_argument ("New documents require a document body");
-      if (athena::node::contains_metadata (doc))
+      if (version == athena::document::xml_format_version::v3)
+        require_new_source (doc);
+      else if (athena::node::contains_metadata (doc))
         throw std::invalid_argument ("New documents must not import existing source identities");
       auto identities= athena::document_node::assign_detached_source_ids (
         extract (doc, "body"), get_document_drd (doc),
@@ -60,14 +94,14 @@ std::string new_document_bytes (const value& encoded) {
         [] (const athena::document_node::identity_request&) { return athena::node::new_id (); });
       if (!identities.ok ()) throw std::invalid_argument (identities.diagnostics.front ().detail);
       doc= change_doc_attr (doc, "body", std::move (*identities.body));
-      bytes= athena::document::write_xml_v2 (doc);
+      bytes= athena::document::encode_native_xml_bytes (doc, version);
     }
     catch (const std::exception& e) { error= e.what (); }
     catch (const string& e) { error= text (e); }
-  }, Qt::BlockingQueuedConnection);
+  }, app->thread () == QThread::currentThread () ?
+       Qt::DirectConnection : Qt::BlockingQueuedConnection);
   if (!error.empty ()) throw std::invalid_argument (error);
   return bytes;
-}
 }
 filesystem_resource::filesystem_resource (vault_context_handle context,
     std::shared_ptr<const athena::filesystem::confined_root> root, fs::path relative,
@@ -108,7 +142,7 @@ value filesystem_resource::inspect () const {
     commands["open"] = {{"parameters", value::object ()}};
   if (type () == "directory")
     commands["create_document"] = {{"parameters", {{"name", "new .ath basename"},
-      {"document", "document-model-v3 tree without metadata"}}}};
+      {"document", "document-model-v3 tree without source identities; typed properties require XML v3"}}}};
   return commands;
 }
 operation_result filesystem_resource::operate (const std::string& command, const value& p) const {
@@ -120,7 +154,8 @@ operation_result filesystem_resource::operate (const std::string& command, const
       athena::filesystem::confined_root::validate_component (name);
       if (fs::path (name).extension () != ".ath") return {"INVALID_ARGUMENT", "Expected an .ath filename"};
       current ();
-      const auto bytes= new_document_bytes (p.at ("document"));
+      const auto bytes= new_filesystem_document_bytes (
+        p.at ("document"), context->node_model_version);
       current ();
       const auto created= root->create (relative / name, bytes);
       return {"OK", {{"path", created.file.path ().string ()}, {"created", true},

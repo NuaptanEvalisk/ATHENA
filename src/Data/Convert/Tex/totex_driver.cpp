@@ -8,10 +8,34 @@
 
 #include "totex_internal.hpp"
 #include "sys_utils.hpp"
+#include "scheme_native_context.hpp"
 
 namespace {
 
 using namespace latex_export_internal;
+
+struct export_scope {
+  bool entered= false;
+
+  static void unwind (void* raw) noexcept {
+    auto* self= static_cast<export_scope*> (raw);
+    if (!self->entered) return;
+    self->entered= false;
+    latex_export_leave ();
+  }
+
+  // Register before entering. Guile escapes skip C++ destructors; a
+  // non-rewindable frame also prevents revisiting this stack-owned callback.
+  export_scope () { scheme_begin_native_scope (&unwind, this); }
+  ~export_scope () noexcept { scheme_end_native_scope (); }
+  export_scope (const export_scope&) = delete;
+  export_scope& operator= (const export_scope&) = delete;
+
+  void enter () {
+    latex_export_enter ();
+    entered= true;
+  }
+};
 
 string
 option_string (object options, string key) {
@@ -225,12 +249,11 @@ scheme_tree
 latex_export_convert_top (scheme_tree value, object options,
                           url source, url target) {
   latex_export_set_save_urls (source, target);
-  latex_export_enter ();
-  scheme_tree result= tmfile_native (value)
+  export_scope scope;
+  scope.enter ();
+  return tmfile_native (value)
     ? convert_tmfile_native (value, options)
     : latex_export_convert_tree (value, options);
-  latex_export_leave ();
-  return result;
 }
 
 void

@@ -380,6 +380,11 @@ qt_gui_rep::refresh_external_clipboard_cache () {
   QClipboard* clipboard= QApplication::clipboard ();
   const QMimeData* data= clipboard->mimeData (QClipboard::Clipboard);
   if (data == nullptr || data->formats ().isEmpty ()) return;
+  if (data->hasFormat (athena::document::clipboard_mime)) {
+    clipboard_text_cache.clear ();
+    clipboard_text_cache_valid= false;
+    return;
+  }
   if (!data->hasText ()) return;
 
   clipboard_text_cache= data->text ().toUtf8 ();
@@ -590,6 +595,20 @@ qt_gui_rep::get_selection (string key, tree& t, string& s, string format) {
 bool
 qt_gui_rep::set_selection (string key, tree t,
                            string s, string sv, string sh, string format) {
+  if (is_tuple (t, "texmacs", 3) || is_tuple (t, "texmacs", 4)) {
+    try {
+      const auto bytes= athena::document::write_clipboard_xml (t);
+      // Named and same-process offers retain the same provenance as an
+      // external native offer, rather than bypassing its format contract.
+      if (!athena::document::clipboard_version (t))
+        t= athena::document::read_clipboard_xml (bytes);
+      if (format == "default") s= string (bytes.data (), int (bytes.size ()));
+    }
+    catch (const std::exception& error) {
+      std_warning << "Cannot publish ATHENA selection: " << error.what () << LF;
+      return false;
+    }
+  }
   {
     std::lock_guard<std::mutex> lock (selection_mutex);
     selection_t (copy (key))= copy (t);

@@ -79,8 +79,8 @@ QTMCommandRegistry::registerPopupMenuCommands () {
       if (!athena_artifact_radioactive_name_for_key (
             popup.artifact_name_key, fragment, display)) return false;
       try {
-        auto name= athena::document::read_xml (
-          fragment, athena::document::xml_kind::fragment);
+        auto name= athena::document::decode_native_xml_bytes (
+          fragment, athena::document::xml_kind::fragment).document;
         if (athena_artifact_title_filter_reject (vault->root, name, error))
           return true;
       }

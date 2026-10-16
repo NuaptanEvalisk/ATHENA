@@ -1094,7 +1094,8 @@ editor_rep::focus_toolbar_state_snapshot () {
   }
   catch (...) {}
 
-  if (is_compound (t, "eqnarray") || is_compound (t, "eqnarray*")) {
+  if (is_compound (t, "eqnarray") || is_compound (t, "eqnarray*") ||
+      athena::table_commands::native_grid_numbering_available (this, t)) {
     snapshot.numbered_available= true;
     snapshot.numbered_checked=
       athena::table_commands::eqnarray_numbered (this, t);

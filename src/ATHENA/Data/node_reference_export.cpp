@@ -11,7 +11,7 @@
 #include "node_metadata.hpp"
 #include "Boxes/construct.hpp"
 #include "analyze.hpp"
-#include "Data/Convert/Xml/athena_document_xml.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
 #include <QCryptographicHash>
 #include <mutex>
 #include <stdexcept>
@@ -52,8 +52,8 @@ string export_node_link (string target, hashmap<string,tree> destinations) {
   return destinations->contains (destination) ? "#" * destination : string ();
 }
 
-std::string export_source_revision (const tree& source) {
-  const auto xml= document::write_xml_v2 (source, document::xml_kind::fragment);
+std::string export_source_revision (const tree& source, document::xml_format_version version) {
+  const auto xml= document::encode_native_xml_bytes (source, version, document::xml_kind::fragment);
   return QCryptographicHash::hash (QByteArrayView (xml.data (), xml.size ()),
                                    QCryptographicHash::Sha256).toHex ().toStdString ();
 }
@@ -182,7 +182,8 @@ struct export_preparation::impl: std::enable_shared_from_this<impl> {
       if (result->state != node_location::status::overlap)
         for (const auto& target: result->items)
           if (target.state == node_location::status::resolved && !target.fragment_xml.empty ()) {
-            auto fragment= document::read_xml_v2 (target.fragment_xml, document::xml_kind::fragment);
+            auto fragment= document::decode_native_xml_bytes (
+              target.fragment_xml, document::xml_kind::fragment).document;
             auto lineage= selected.ancestry; lineage.push_back (target.id);
             auto nested= export_selections (fragment, std::move (lineage));
             dependencies.insert (dependencies.end (), nested.begin (), nested.end ());

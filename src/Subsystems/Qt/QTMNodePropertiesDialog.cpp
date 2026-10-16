@@ -11,6 +11,7 @@
 #include "ATHENA/Data/document_node_model.hpp"
 #include "ATHENA/Data/enunciation_model.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
 #include "buffer_actor.hpp"
 #include "buffer_state.hpp"
 #include "editor.hpp"
@@ -70,11 +71,12 @@ QToolButton* tool (const char* icon, const char* label, QWidget* parent) {
 // The input buffer is private and the original field is unchanged on cancel.
 class RichField: public QWidget {
   tree original;
+  xml::xml_format_version source_version;
   QLineEdit* line;
   QToolButton* edit;
 public:
-  explicit RichField (tree value, QWidget* parent= nullptr):
-    QWidget (parent), original (copy (value)) {
+  explicit RichField (tree value, xml::xml_format_version version, QWidget* parent= nullptr):
+    QWidget (parent), original (copy (value)), source_version (version) {
     auto* layout= new QHBoxLayout (this);
     layout->setContentsMargins (0, 0, 0, 0);
     line= new QLineEdit (this);
@@ -113,7 +115,7 @@ private:
     url name (string ("tmfs://aux/node-property-") * from_qstring (qs (node::new_id ())));
     tree style= compound ("style", tuple ("generic", "gui-base"));
     input= texmacs_input_widget (
-      tree (WITH, "preamble", "true", tree (DOCUMENT, initial)), style, name);
+      tree (WITH, "preamble", "true", tree (DOCUMENT, initial)), style, name, source_version);
     struct CloseInput {
       widget& input;
       ~CloseInput () { if (!is_nil (input)) send_destroy (input); }
@@ -168,6 +170,7 @@ void inspect (QTreeWidgetItem* item, const node::property& p) {
 
 class NodeDialog: public QDialog {
   tree header;
+  xml::xml_format_version source_version;
   node_property_submit submit;
   QComboBox *kind= nullptr, *variant= nullptr;
   RichField* name= nullptr;
@@ -181,8 +184,13 @@ class NodeDialog: public QDialog {
 public:
   NodeDialog (std::string snapshot, bool canonical, bool writable,
               node_property_submit commit, QWidget* parent):
-    QDialog (parent), header (xml::read_xml_v2 (snapshot, xml::xml_kind::fragment)),
-    submit (std::move (commit)) {
+    QDialog (parent), submit (std::move (commit)) {
+    auto decoded= decode_node_property_snapshot (snapshot);
+    header= std::move (decoded.header);
+    source_version= decoded.source_version;
+    if (canonical && (!field<std::string> (header, "kind") ||
+        !field<node::rich_text> (header, "name") || !field<bool> (header, "numbered")))
+      throw std::invalid_argument ("Invalid editable node properties");
     setObjectName ("node-properties-dialog");
     setWindowTitle (canonical ? "Enunciation properties" : "Node properties");
     resize (760, canonical ? 700 : 400);
@@ -258,7 +266,7 @@ private:
     updateVariants ();
     connect (kind, &QComboBox::currentTextChanged, this, updateVariants);
     form->addRow ("Variant:", variant);
-    name= new RichField (field<node::rich_text> (header, "name")->content, fields);
+    name= new RichField (field<node::rich_text> (header, "name")->content, source_version, fields);
     name->setObjectName ("enunciation-name");
     form->addRow ("Name:", name);
     numbered= new QCheckBox ("Numbered", fields);
@@ -318,7 +326,7 @@ private:
     dialog.setWindowTitle ("Attribution");
     dialog.resize (600, 120);
     auto* layout= new QVBoxLayout (&dialog);
-    auto* text= new RichField (index < 0 ? tree ("") : authorValues[index], &dialog);
+    auto* text= new RichField (index < 0 ? tree ("") : authorValues[index], source_version, &dialog);
     layout->addWidget (text);
     auto* actions= new QDialogButtonBox (QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
     layout->addWidget (actions);
@@ -356,7 +364,7 @@ private:
       applying= true;
       error->clear ();
       QPointer<NodeDialog> guard (this);
-      submit (xml::write_xml_v2 (changed, xml::xml_kind::fragment), [guard] (std::string message) {
+      submit (encode_node_property_snapshot (changed, source_version), [guard] (std::string message) {
         if (!guard) return;
         guard->applying= false;
         guard->buttons->setEnabled (true);
@@ -393,11 +401,15 @@ void commit (PropertyRequest request, std::string desired, node_property_complet
           throw std::runtime_error ("The document editor has closed");
         if (context->actor->current_state ()->read_only)
           throw std::runtime_error ("The document is read-only");
+        const auto expected= decode_node_property_snapshot (request.snapshot);
+        const auto replacement= decode_node_property_snapshot (desired);
+        if (expected.source_version != context->actor->current_state ()->storage_version ||
+            replacement.source_version != expected.source_version)
+          throw std::runtime_error ("The document storage version has changed");
         tree scope= context->editor->the_buffer ();
         auto where= context->actor->current_state ()->interop_nodes ().locate (scope, request.lease);
         auto prepared= model::prepare_property_replacement (scope, where,
-          xml::read_xml_v2 (request.snapshot, xml::xml_kind::fragment),
-          xml::read_xml_v2 (desired, xml::xml_kind::fragment));
+          expected.header, replacement.header);
         if (!prepared.ok ()) error= prepared.diagnostics.front ().detail;
         else if (prepared.change) {
           context->editor->before_menu_action ();
@@ -419,6 +431,53 @@ void commit (PropertyRequest request, std::string desired, node_property_complet
 }
 } // namespace
 
+std::string encode_node_property_snapshot (const tree& source, xml::xml_format_version version) {
+  const string tag= is_atomic (source) ? string ("") : as_string (L(source));
+  if (!is_atomic (source) && (L(source) <= TMSTRING || L(source) == UNKNOWN ||
+      !existing_tree_label (tag) || as_tree_label (tag) != L(source)))
+    throw std::invalid_argument ("Unregistered property snapshot node type");
+  const char* stored;
+  switch (version) {
+  case xml::xml_format_version::v1: stored= "1"; break;
+  case xml::xml_format_version::v2: stored= "2"; break;
+  case xml::xml_format_version::v3: stored= "3"; break;
+  default: throw std::invalid_argument ("Unsupported property source version");
+  }
+  tree carrier (TUPLE, "node-property-header", stored, tree (tag));
+  node::copy_metadata (source, carrier);
+  return xml::encode_native_xml_bytes (carrier,
+    version == xml::xml_format_version::v3 ? version : xml::xml_format_version::v2,
+    xml::xml_kind::fragment);
+}
+
+node_property_snapshot decode_node_property_snapshot (const std::string& bytes) {
+  const auto decoded= xml::decode_native_xml_bytes (bytes, xml::xml_kind::fragment);
+  const tree& carrier= decoded.document;
+  if (!is_func (carrier, TUPLE, 3) || carrier[0] != "node-property-header" ||
+      !is_atomic (carrier[1]) || !is_atomic (carrier[2]))
+    throw std::invalid_argument ("Invalid node property snapshot");
+  xml::xml_format_version version;
+  if (carrier[1] == "1") version= xml::xml_format_version::v1;
+  else if (carrier[1] == "2") version= xml::xml_format_version::v2;
+  else if (carrier[1] == "3") version= xml::xml_format_version::v3;
+  else throw std::invalid_argument ("Unsupported property source version");
+  const auto transport= version == xml::xml_format_version::v3 ? version : xml::xml_format_version::v2;
+  if (decoded.version != transport)
+    throw std::invalid_argument ("Property snapshot version mismatch");
+  for (int i=0; i<N(carrier); ++i)
+    if (node::get (carrier[i]))
+      throw std::invalid_argument ("Property snapshot descriptor has metadata");
+  tree header ("");
+  if (carrier[2] != "") {
+    const tree_label label= as_tree_label (carrier[2]->label);
+    if (label <= TMSTRING || label == UNKNOWN)
+      throw std::invalid_argument ("Unregistered property snapshot node type");
+    header= tree (label, 0);
+  }
+  node::copy_metadata (carrier, header);
+  return {header, version};
+}
+
 QDialog* make_node_properties_dialog (std::string snapshot, bool canonical, bool writable,
                                       node_property_submit submit, QWidget* parent) {
   return new NodeDialog (std::move (snapshot), canonical, writable, std::move (submit), parent);
@@ -435,6 +494,7 @@ bool node_properties_show (tree source) {
     if (!(root <= absolute)) return false;
     if (!en::is_enunciation (source) &&
         en::standard_registry ().body_index (source) >= 0 &&
+        context->actor->current_state ()->storage_version != xml::xml_format_version::v3 &&
         !context->actor->current_state ()->read_only) {
       en::conversion_options options;
       options.numbering_preferences["number solutions"]= get_preference ("number solutions") == "on";
@@ -450,7 +510,7 @@ bool node_properties_show (tree source) {
     for (path p= relative; !is_nil (p); p= p->next) where.push_back (p->item);
     PropertyRequest request {context->actor_id, context->view_id,
       context->actor->current_state ()->interop_nodes ().track (scope, where),
-      xml::write_xml_v2 (model::property_header (source), xml::xml_kind::fragment)};
+      encode_node_property_snapshot (source, context->actor->current_state ()->storage_version)};
     bool canonical= en::is_canonical (source) && model::validate_node_properties (source).empty ();
     bool writable= !context->actor->current_state ()->read_only;
     qt_post_to_main_thread ([request= std::move (request), canonical, writable] {

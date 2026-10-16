@@ -11,7 +11,7 @@
 #include "node_location_cache.hpp"
 #include "athena_platform.hpp"
 #include "background_workers.hpp"
-#include "Data/Convert/Xml/athena_document_xml.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
 #include "System/Files/confined_filesystem.hpp"
 #include "node_metadata.hpp"
 #include "tm_ostream.hpp"
@@ -529,7 +529,7 @@ bool index_one (const vault_context_handle& vault, const std::shared_ptr<store>&
     if (known.found && !known.error && fs::same_revision (known.revision, revision)) return true;
     const document::codec_limits limits;
     auto bytes= entry.read (limits.input_bytes);
-    auto source= document::read_xml_v2 (bytes);
+    auto source= document::decode_native_xml_bytes (bytes).document;
     auto nodes= collect (source);
     auto now= root.open (path);
     if (!entry.same_object (now) || !fs::same_revision (revision, now.stat ()))

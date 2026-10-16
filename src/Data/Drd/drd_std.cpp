@@ -144,6 +144,7 @@ void
 init_std_drd () {
   std::lock_guard<std::recursive_mutex> guard (std_drd_mutex);
   if (std_drd_initialized) return;
+  init_standard_tree_labels ();
   std_drd_initialized=true;
 
 #include "standard_tree_labels.inc"

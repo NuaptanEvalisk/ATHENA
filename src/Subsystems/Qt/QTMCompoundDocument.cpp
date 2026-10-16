@@ -91,17 +91,16 @@ url source_url (const QString& filename) {
   return url_system (string (bytes.constData (), int (bytes.size ())));
 }
 
-QByteArray counter_bytes (const tree& state) {
-  // Evaluated environments and counters may reuse source subtrees. They are
-  // values, not new source objects; keep properties, not persistent identities.
-  return QByteArray::fromStdString (athena::document::write_xml_v2 (
-    athena::node::content_projection (state), athena::document::xml_kind::fragment));
+athena::document::xml_format_version source_xml_version () {
+  const auto* context= current_scheme_execution_context ();
+  if (!context || !context->actor || !context->actor->current_state ())
+    throw std::runtime_error ("AVD serialization requires a source actor state");
+  return context->actor->current_state ()->storage_version;
 }
 
 tree counter_tree (const QByteArray& bytes) {
-  return athena::document::read_xml_v2 (
-    std::string_view (bytes.constData (), std::size_t (bytes.size ())),
-    athena::document::xml_kind::fragment);
+  return bytes.isEmpty () ? tree (COLLECTION) :
+    athena::avd::decode_counter_fragment (bytes);
 }
 
 QByteArray file_revision (const QString& filename) {
@@ -568,6 +567,10 @@ class QTMCompoundViewport: public QAbstractScrollArea {
           std_warning << "Compound deletion: " << string (error.c_str ()) << LF;
         if (!self) return;
         self->edit_pending_= false;
+        if (!error.empty ()) {
+          self->reportFailure (tr ("Edit Compound Selection"), QString::fromStdString (error));
+          return;
+        }
         if (error.empty ()) {
           self->clearSelection ();
           for (std::size_t i= 0; i < self->views_.size (); ++i)
@@ -590,11 +593,28 @@ class QTMCompoundViewport: public QAbstractScrollArea {
       return;
     }
     if (id == "editor.paste" || id == "avd.input") {
-      tree value; string bytes;
-      if (id == "avd.input") value= tuple ("texmacs",
-        input == "\r" || input == "\n" ? tree (DOCUMENT, "", "") : tree (from_qstring_utf8 (input)), "text", "english");
-      else if (!::get_selection ("primary", value, bytes, "default")) return;
-      eraseSelection (athena::document::write_clipboard_xml (value));
+      try {
+        tree value; string bytes;
+        if (id == "avd.input") value= tuple ("texmacs",
+          input == "\r" || input == "\n" ? tree (DOCUMENT, "", "") : tree (from_qstring_utf8 (input)), "text", "english");
+        else if (!::get_selection ("primary", value, bytes, "default")) {
+          reportFailure (tr ("Paste Compound Selection"),
+            tr ("The clipboard is empty or could not be decoded. No source was cut."));
+          return;
+        }
+        if (is_tuple (value, "extern-utf8", 1))
+          value= tuple ("texmacs", verbatim_to_tree (as_string (value[1]), false, "utf-8"),
+                        "text", "english");
+        // A marked in-process tree is authoritative even when no XML bytes
+        // accompany the clipboard fast path. The writer honors that marker.
+        eraseSelection (athena::document::write_clipboard_xml (value));
+      }
+      catch (const std::exception& error) {
+        reportFailure (tr ("Paste Compound Selection"), QString::fromUtf8 (error.what ()));
+      }
+      catch (const string& error) {
+        reportFailure (tr ("Paste Compound Selection"), to_qstring (error));
+      }
       return;
     }
     if (id == "editor.delete") { eraseSelection (); return; }
@@ -606,21 +626,25 @@ class QTMCompoundViewport: public QAbstractScrollArea {
       QMetaObject::invokeMethod (qApp, [self, id, serial, error= std::move (error), pieces= std::move (pieces)] {
         if (!self) return;
         self->edit_pending_= false;
-        if (!error.empty ()) { std_warning << "Compound clipboard: " << string (error.c_str ()) << LF; return; }
-        if (self->selection_serial_->load () != serial) return;
-        tree body (DOCUMENT);
-        for (const auto& bytes: pieces) {
-          const tree envelope= athena::document::read_clipboard_xml (bytes);
-          tree content= envelope[1];
-          if (envelope[2] == "math") content= compound ("math", content);
-          if (is_document (content)) for (int i= 0; i < N(content); ++i) body << content[i];
-          else body << content;
+        if (!error.empty ()) {
+          self->reportFailure (tr ("Copy Compound Selection"), QString::fromStdString (error));
+          return;
         }
-        const tree envelope= tuple ("texmacs", body, "text", "english");
-        const auto bytes= athena::document::write_clipboard_xml (envelope);
-        if (!::set_selection ("primary", envelope, string (bytes.data (), int (bytes.size ())),
-                              tree_to_verbatim (body, false, "utf-8"), "", "default")) return;
-        if (id == "editor.cut") self->eraseSelection ();
+        if (self->selection_serial_->load () != serial) return;
+        try {
+          const tree envelope= athena::avd::merge_clipboard_pieces (pieces);
+          const auto bytes= athena::document::write_clipboard_xml (envelope);
+          if (!::set_selection ("primary", envelope, string (bytes.data (), int (bytes.size ())),
+                                tree_to_verbatim (envelope[1], false, "utf-8"), "", "default"))
+            throw std::runtime_error ("Could not publish compound clipboard selection; no source was cut");
+          if (id == "editor.cut") self->eraseSelection ();
+        }
+        catch (const std::exception& failure) {
+          self->reportFailure (tr ("Copy Compound Selection"), QString::fromUtf8 (failure.what ()));
+        }
+        catch (const string& failure) {
+          self->reportFailure (tr ("Copy Compound Selection"), to_qstring (failure));
+        }
       }, Qt::QueuedConnection);
     });
   }
@@ -758,8 +782,9 @@ class QTMCompoundViewport: public QAbstractScrollArea {
         athena_node_reference_with_native_export ([job, index, incoming] (editor_rep& source) {
           if (job->cancelled) throw std::runtime_error ("PDF export cancelled");
           auto& typesetter= dynamic_cast<edit_typeset_rep&> (source);
-          job->counters= counter_bytes (typesetter.evaluate_compound_counters (
-            incoming.isEmpty () ? tree (COLLECTION) : counter_tree (incoming)));
+          job->counters= athena::avd::encode_value_fragment (
+            typesetter.evaluate_compound_counters (counter_tree (incoming)),
+            source_xml_version ());
           auto& member= job->pdf_members[index];
           member.filename= job->directory.filePath (QString::number (index) + ".pdf").toStdString ();
           member.destinations.clear ();
@@ -881,7 +906,8 @@ class QTMCompoundViewport: public QAbstractScrollArea {
           const tree state= counter_tree (incoming);
           editor->set_compound_counters (state);
           result->output= cached ? cached->counters_xml :
-            counter_bytes (editor->evaluate_compound_counters (state));
+            athena::avd::encode_value_fragment (
+              editor->evaluate_compound_counters (state), source_xml_version ());
           result->stale= context->actor->source_epoch () != epoch;
         }
       }
@@ -909,7 +935,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
     const std::size_t i= counter_next_;
     const auto preceding= i == 0 ? std::optional<athena::avd::counter_checkpoint> () : counters_.before (i);
     if (i != 0 && !preceding) return;
-    const QByteArray incoming= preceding ? preceding->counters_xml : counter_bytes (tree (COLLECTION));
+    const QByteArray incoming= preceding ? preceding->counters_xml : QByteArray ();
     struct Probe { QByteArray content, environment; QString error; std::uint64_t epoch= 0; };
     auto result= std::make_shared<Probe> ();
     const auto job= ++counter_job_;
@@ -921,13 +947,15 @@ class QTMCompoundViewport: public QAbstractScrollArea {
           const auto* context= current_scheme_execution_context ();
           auto* editor= dynamic_cast<edit_typeset_rep*> (context->editor);
           result->epoch= context->actor->source_epoch ();
+          const auto version= source_xml_version ();
           // current_source also contains evaluated references/auxiliary data,
           // which may repeat source nodes after export. Fingerprint values,
           // not their source identities, just as for the environment below.
           result->content= QCryptographicHash::hash (
-            counter_bytes (context->actor->current_source (context->view_id)), QCryptographicHash::Sha256);
-          result->environment= QCryptographicHash::hash (
-            counter_bytes (editor->compound_counter_environment ()), QCryptographicHash::Sha256);
+            athena::avd::encode_value_fragment (
+              context->actor->current_source (context->view_id), version), QCryptographicHash::Sha256);
+          result->environment= athena::avd::environment_revision (
+            editor->compound_counter_environment (), version);
         }
         catch (const std::exception& e) { result->error= QString::fromUtf8 (e.what ()); }
         catch (const string& e) { result->error= QString::fromUtf8 (e.c_str (), N (e)); }
@@ -1191,7 +1219,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
         self->members_= std::move (members);
         self->views_= std::move (views);
         self->layout_= std::move (layout);
-        self->counters_= athena::avd::counter_cache (self->members_, QByteArrayLiteral ("ATHENA counter executor 2"));
+        self->counters_= athena::avd::counter_cache (self->members_, QByteArrayLiteral ("ATHENA counter executor 3 native row policy"));
         self->invalidateCounters (0);
         self->updateRange (desired);
         self->arrange ();
@@ -1593,7 +1621,7 @@ public:
     QAbstractScrollArea (&owner), owner_ (owner), filename_ (std::move (filename)),
     descriptor_ (std::move (descriptor)), members_ (std::move (members)),
     layout_ (members_.size (), 1200),
-    counters_ (members_, QByteArrayLiteral ("ATHENA counter executor 2"), descriptor_.value.checkpoints),
+    counters_ (members_, QByteArrayLiteral ("ATHENA counter executor 3 native row policy"), descriptor_.value.checkpoints),
     views_ (members_.size ()) {
     setVerticalScrollBar (new MemberScrollBar (layout_));
     viewport ()->installEventFilter (this);

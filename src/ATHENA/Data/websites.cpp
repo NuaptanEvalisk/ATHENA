@@ -22,7 +22,7 @@ namespace {
 constexpr int website_source_manifest_version= 1;
 // Bump when HTML semantics change: unchanged .ath sources must not keep a
 // cached page missing enunciations or containing malformed MathJax tokens.
-constexpr int website_document_export_revision= 5;
+constexpr int website_document_export_revision= 6;
 constexpr const char* website_source_manifest_name=
   ".athena-source-hashes.json";
 
@@ -300,9 +300,9 @@ generate_website_entry (const fs::path& root,
   if (cx.node_model_version >= 1) {
     for (const std::string& rel: universe) {
       try {
-        tree document= import_tree (
-          url_system (std_to_tm ((root / rel).string ())), "texmacs");
-        for (const auto& occurrence: athena::node_location::collect (document)) {
+        MaintenanceDocument source;
+        if (!read_maintenance_document (root / rel, source, error)) return false;
+        for (const auto& occurrence: athena::node_location::collect (source.document)) {
           auto inserted= cx.node_files.emplace (occurrence.id, rel);
           if (!inserted.second) cx.conflicting_node_ids.insert (occurrence.id);
         }
@@ -367,13 +367,19 @@ generate_website_entry (const fs::path& root,
     }
     else {
       website_progress (index, selected.size (), "Exporting HTML", rel);
-      doc= import_tree (url_system (std_to_tm (source.string ())), "texmacs");
+      MaintenanceDocument snapshot;
+      if (!read_maintenance_document (source, snapshot, error)) return false;
+      doc= snapshot.document;
+      if (is_func (doc, _ERROR) || doc == "error") {
+        error= "Could not import website source " + source.string ();
+        return false;
+      }
       cx.titles[rel]= document_title (doc, fs::path (rel).stem ().string ());
       cx.search_texts[rel]= document_search_text (doc);
       tree rewritten= rewrite_static_links (doc, rel, rel, cx);
       std::string pdf_href= website.generate_pdfs ? relative_href (
         cx.html_paths.at (rel), cx.pdf_paths.at (rel)) : "";
-      if (!export_document_html (rewritten, source, target,
+      if (!export_document_html (snapshot, rewritten, source, target,
                                  cx.html_paths.at (rel), cx.titles.at (rel),
                                  pdf_href, error))
         return false;

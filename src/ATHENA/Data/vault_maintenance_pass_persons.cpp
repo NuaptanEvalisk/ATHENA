@@ -22,24 +22,6 @@ namespace fs = std::filesystem;
 
 namespace {
 
-bool
-read_person_document (const fs::path& path, tree& document) {
-  std::string error;
-  return read_document_file (path, document, error);
-}
-
-bool
-write_person_document (const fs::path& path, tree document) {
-  string serialized_tm= tree_to_texmacs (document);
-  tree validation;
-  try { validation= texmacs_document_to_tree (serialized_tm); }
-  catch (...) { validation= tree (_ERROR, "parse failed"); }
-  if (is_func (validation, _ERROR)) return false;
-  std::string serialized (as_charp (serialized_tm),
-                          (size_t) N(serialized_tm));
-  return write_file_bytes (path, serialized);
-}
-
 tree
 normalize_person_document (tree document, int& wrapped,
                            const std::vector<string>& trusted_names) {
@@ -62,18 +44,11 @@ normalize_person_document (tree document, int& wrapped,
 }
 
 std::vector<string>
-learn_vault_person_names (const std::vector<fs::path>& documents) {
+learn_vault_person_names (const std::vector<MaintenanceDocument>& documents) {
   std::set<string> names;
-  for (const fs::path& document: documents) {
-    std::string source;
-    if (!read_file_bytes (document, source) ||
-        source.find ("<person|") == std::string::npos)
-      continue;
-    tree parsed;
-    if (read_person_document (document, parsed)) {
-      std::vector<string> local= athena_collect_person_names (parsed);
-      names.insert (local.begin (), local.end ());
-    }
+  for (const auto& document: documents) {
+    const auto local= athena_collect_person_names (document.document);
+    names.insert (local.begin (), local.end ());
   }
   return std::vector<string> (names.begin (), names.end ());
 }
@@ -84,30 +59,40 @@ VaultMaintenancePassResult
 vault_maintenance_pass_normalize_person_names (VaultMaintenanceContext& ctx) {
   std::vector<fs::path> documents= scan_ath_documents (ctx.root);
   ctx.summary.person_files_scanned= documents.size ();
-  std::vector<string> vault_names= learn_vault_person_names (documents);
+  std::vector<MaintenanceDocument> sources (documents.size ());
+  std::vector<std::string> outputs (documents.size ());
+  std::vector<int> counts (documents.size (), 0);
+  std::string error;
+  for (size_t i=0; i<documents.size (); ++i)
+    if (!read_maintenance_document (documents[i], sources[i], error))
+      return VaultMaintenancePassResult::failure (error);
+  const auto vault_names= learn_vault_person_names (sources);
 
   for (size_t i=0; i<documents.size (); i++) {
     const fs::path& document= documents[i];
     print_progress (i + 1, documents.size (), "Normalizing person names",
                     document.filename ().string ());
-    tree parsed;
-    if (!read_person_document (document, parsed)) {
-      finish_progress ();
-      return VaultMaintenancePassResult::failure (
-        "could not parse " + compact_log_path (document));
-    }
     int wrapped= 0;
-    tree normalized= normalize_person_document (parsed, wrapped, vault_names);
+    tree normalized= normalize_person_document (sources[i].document, wrapped, vault_names);
     if (wrapped == 0) continue;
-    if (!write_person_document (document, normalized)) {
+    if (!serialize_maintenance_document (sources[i], normalized, outputs[i], error)) {
       finish_progress ();
       return VaultMaintenancePassResult::failure (
-        "could not write " + compact_log_path (document));
+        error);
     }
-    ctx.summary.person_files_changed++;
-    ctx.summary.person_names_wrapped += (size_t) wrapped;
+    counts[i]= wrapped;
   }
   finish_progress ();
+  for (const auto& source: sources)
+    if (!maintenance_document_current (source, error))
+      return VaultMaintenancePassResult::failure (error);
+  for (size_t i=0; i<sources.size (); ++i) {
+    if (counts[i] == 0) continue;
+    if (!commit_maintenance_document (sources[i], outputs[i], error))
+      return VaultMaintenancePassResult::failure (error);
+    ctx.summary.person_files_changed++;
+    ctx.summary.person_names_wrapped += (size_t) counts[i];
+  }
 
   log_info ("person names: wrapped " +
             std::to_string (ctx.summary.person_names_wrapped) +

@@ -143,6 +143,8 @@ enum class actor_command_kind: std::uint32_t {
   recall_message,
   set_buffer_read_only,
   set_buffer_title,
+  // Response: payload0 owns the document tree; argument[0] is its stored
+  // XML version (1, 2 or 3), captured in the same actor turn as the tree.
   snapshot_document,
   snapshot_body,
   document_history_snapshot,

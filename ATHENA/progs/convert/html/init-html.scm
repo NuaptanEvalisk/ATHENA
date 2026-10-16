@@ -66,3 +66,27 @@
   (:option "texmacs->html:mathjax" "off")
   (:option "texmacs->html:images" "on")
   (:option "texmacs->html:css-stylesheet" "---"))
+
+;; Keep typed metadata for selections as well as complete documents. Option
+;; defaults remain owned by the existing stree edge.
+(tm-define (texmacs-tree->html-stree x opts)
+  (texmacs->html x
+    (append opts (std-converter-options "texmacs-stree" "html-stree"))))
+
+(converter texmacs-tree html-stree
+  (:function-with-options texmacs-tree->html-stree))
+
+(tm-define (texmacs->html-document x opts)
+  (serialize-html (texmacs->html x opts)))
+
+;; Direct native source route: converting via texmacs-stree first drops the
+;; typed MATH_BLOCK/MATH_GRID/MATH_SCRIPTS metadata. Keeping the native tree
+;; until this entrypoint lets the standard export-file conversion graph use
+;; the same lossless path as the explicit HTML exporter. No v2 fallback or
+;; alternate representation is introduced inside the XML v3 reader.
+(converter texmacs-tree html-document
+  (:function-with-options texmacs->html-document)
+  (:option "texmacs->html:css" "on")
+  (:option "texmacs->html:mathjax" "off")
+  (:option "texmacs->html:images" "on")
+  (:option "texmacs->html:css-stylesheet" "---"))

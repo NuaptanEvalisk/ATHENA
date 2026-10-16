@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "ATHENA/Data/person_names.hpp"
+#include "node_metadata.hpp"
 
 #include "drd_mode.hpp"
 #include "file.hpp"
@@ -200,7 +201,9 @@ normalize_atomic_unlocked (tree atom, int& wrapped,
 
   if (local_wrapped == 0) return copy (atom);
   if (plain_begin < N(text)) result << tree (text (plain_begin, N(text)));
-  if (N(result) == 1) return result[0];
+  if (N(result) == 1) result= result[0];
+  // The replacement span, not each newly split text run, owns the old identity.
+  athena::node::copy_metadata (atom, result);
   return result;
 }
 
@@ -209,7 +212,7 @@ skip_person_normalization_subtree (tree t) {
   if (is_atomic (t)) return false;
   string label= as_string (L(t));
   return label == "person" || label == "raw-data" || label == "verbatim" ||
-         label == "code" || label == "math" ||
+         label == "code" || label == "math" || is_func (t, MATH_BLOCK) ||
          starts (label, "equation") || starts (label, "eqnarray") ||
          starts (label, "src-");
 }
@@ -222,6 +225,7 @@ normalize_tree_unlocked (tree t, int& wrapped,
   if (skip_person_normalization_subtree (t)) return copy (t);
 
   tree result (L(t));
+  athena::node::copy_metadata (t, result);
   for (int i=0; i<N(t); i++) {
     if (is_accessible_child (t, i))
       result << normalize_tree_unlocked (t[i], wrapped, trusted_names);

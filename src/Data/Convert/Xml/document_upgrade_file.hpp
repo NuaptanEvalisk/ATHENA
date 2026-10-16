@@ -16,7 +16,7 @@
 namespace athena::document {
 std::string storage_bytes_fingerprint (std::string_view);
 enum class legacy_format { texmacs, scheme };
-enum class xml_storage_version { v1, v2 };
+using xml_storage_version= xml_format_version;
 enum class upgrade_durability { durable, replaced_not_durable };
 class xml_file;
 struct upgrade_result {

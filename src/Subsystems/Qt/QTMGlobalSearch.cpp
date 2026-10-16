@@ -30,6 +30,7 @@
 #include "namespaces.hpp"
 #include "qt_gui.hpp"
 #include "new_buffer.hpp"
+#include "ATHENA/Data/source_document_creation.hpp"
 #include "new_view.hpp"
 #include "qt_utilities.hpp"
 #include "qt_widget.hpp"
@@ -39,6 +40,7 @@
 #include "tm_buffer.hpp"
 #include "tm_ostream.hpp"
 #include "tm_window.hpp"
+#include "node_metadata.hpp"
 #include "tree_search.hpp"
 #include "vault.hpp"
 
@@ -492,8 +494,11 @@ QWidget*
 QTMGlobalSearch::createQueryWidget () {
   tree doc (DOCUMENT, "");
   tree style= compound ("style", tuple ("generic"));
+  const auto context= vault_capture_context ();
+  const auto version= athena::document::new_source_version_for_model (
+    context ? context->node_model_version : 0);
   queryWidget= texmacs_input_widget (
-    apply_vault_preferred_font (doc), style, queryUrl);
+    apply_vault_preferred_font (doc), style, queryUrl, version);
   QWidget* qwid= concrete (queryWidget)->as_qwidget (this);
   queryTexmacsWidget= qobject_cast<QTMWidget*> (qwid);
   if (queryTexmacsWidget == nullptr)
@@ -714,19 +719,17 @@ QTMGlobalSearch::currentPreviewZoom () const {
 
 tree
 QTMGlobalSearch::normalizeQuery (tree t) const {
-  while (is_func (t, DOCUMENT, 1) ||
+  const auto has_properties= [] (const tree& value) {
+    const auto* meta= athena::node::get (value);
+    return meta && !meta->properties.empty ();
+  };
+  while (!has_properties (t) && (is_func (t, DOCUMENT, 1) ||
          is_func (t, INACTIVE, 1) ||
-         is_func (t, VAR_INACTIVE, 1))
+         is_func (t, VAR_INACTIVE, 1)))
     t= t[0];
-  if (is_func (t, WITH) && N(t) > 0)
+  if (!has_properties (t) && is_func (t, WITH) && N(t) > 0)
     t= t[N(t) - 1];
   return t;
-}
-
-tree
-QTMGlobalSearch::currentQuery () const {
-  if (!contains (queryUrl, get_all_buffers ())) return tree ("");
-  return normalizeQuery (get_buffer_body (queryUrl));
 }
 
 QString
@@ -828,7 +831,20 @@ QTMGlobalSearch::startSearch () {
   scanFiles.clear ();
   matchedFiles= 0;
 
-  const tree queryTree= currentQuery ();
+  VaultSearchOptions options;
+  tree queryTree;
+  try {
+    const auto snapshot= vault_search_buffer_snapshot (queryUrl);
+    queryTree= normalizeQuery (snapshot.document);
+    vault_search_set_query (options, queryTree, snapshot.version);
+  }
+  catch (const std::exception& error) {
+    status->setText (QString ("Cannot snapshot search query: %1")
+      .arg (QString::fromUtf8 (error.what ())));
+    progress->setRange (0, 1);
+    progress->setValue (0);
+    return;
+  }
   if (is_empty (queryTree)) {
     status->setText ("Enter a non-empty query.");
     progress->setRange (0, 1);
@@ -881,7 +897,6 @@ QTMGlobalSearch::startSearch () {
   if (!enunciation.isEmpty ())
     debug_qt << ", enunciation " << from_qstring (enunciation);
   debug_qt << LF;
-  VaultSearchOptions options;
   options.mode= static_cast<VaultSearchMode> (modeCombo->currentData ().toInt ());
   options.root= to_qstring (as_system_string (vault_get_root ()));
   options.enunciation= selectedEnunciation ();
@@ -890,21 +905,6 @@ QTMGlobalSearch::startSearch () {
 #endif
   options.caseInsensitive= caseInsensitiveCheck->isChecked ();
   options.fuzzy= fuzzyCheck->isChecked ();
-  // Only serialized bytes cross to workers, never the live query tree.
-  try {
-    if (!is_atomic (queryTree))
-      options.serializedQuery= athena::document::write_xml_v2 (
-        queryTree, athena::document::xml_kind::fragment);
-  }
-  catch (const athena::document::codec_exception& error) {
-    status->setText (QString ("Cannot snapshot search query: %1")
-      .arg (QString::fromUtf8 (error.what ())));
-    progress->setRange (0, 1);
-    progress->setValue (0);
-    return;
-  }
-  options.query= is_atomic (queryTree) ? to_qstring (queryTree->label) :
-    to_qstring (tree_as_string (queryTree));
   std::vector<std::string> files;
   files.reserve (scanFiles.size ());
   for (const url& file: scanFiles)

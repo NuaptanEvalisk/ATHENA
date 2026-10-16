@@ -1,4 +1,8 @@
 file (GLOB_RECURSE TEST_SRC_FILES CONFIGURE_DEPENDS "*.cpp")
+add_test(NAME shipped_macro_labels_generator_test
+  COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Data/Drd/shipped-macro-labels-test.py")
+set_tests_properties(shipped_macro_labels_generator_test PROPERTIES TIMEOUT 15)
 
 list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/hodarium/.*_test\\.cpp$")
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -71,7 +75,7 @@ function (athena_link_full_test_runtime target)
   # as the automatically registered C++ tests below.  Hand-maintained subsets
   # go stale whenever athena_test_body acquires a new library dependency.
   if (NOT ATHENA_ENABLE_TSAN)
-    target_link_libraries (${target} PRIVATE mimalloc)
+    athena_link_allocator (${target})
   endif ()
   target_link_libraries (${target} PRIVATE
     athena_test_body
@@ -246,6 +250,14 @@ add_test(NAME glue_runtime_test
     --resources ${ATHENA_SOURCE_DIR}/ATHENA
     ${ATHENA_GLUE_TEST_INPUTS})
 set_tests_properties(glue_runtime_test PROPERTIES TIMEOUT 100)
+add_test(NAME native_v3_website_export_test
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/native-v3-website-export-test.py
+    --binary $<TARGET_FILE:ATHENA.bin>
+    --runtime ${ATHENA_GUILE_PREFIX}
+    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
+set_tests_properties(native_v3_website_export_test PROPERTIES
+  TIMEOUT 360 RESOURCE_LOCK athena_application_runtime)
 add_test(NAME vault_random_document_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/vault-random-document-test.py
@@ -717,6 +729,10 @@ foreach (_test_file ${TEST_SRC_FILES})
   # render through Qt, or launch ATHENA.bin on a loaded CI host.  Keep a sane
   # default and override genuinely long integrations below.
   set_tests_properties (${_test_name} PROPERTIES TIMEOUT 15)
+  if (_test_name STREQUAL "native_v3_export_test")
+    # This also compiles generated LaTeX twice when pdflatex is available.
+    set_tests_properties (${_test_name} PROPERTIES TIMEOUT 90)
+  endif ()
   if (_test_name STREQUAL "command_line_conversion_test")
     set_tests_properties (${_test_name} PROPERTIES TIMEOUT 180)
   endif ()

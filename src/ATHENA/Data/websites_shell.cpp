@@ -419,10 +419,16 @@ export_namespace_homepage (const std::string& name, bool technical,
                            std::string& error) {
   std::string tmfs = technical ? "!" + name : name;
   tree doc = athena_namespace_info_page (std_to_tm (tmfs));
+  // Namespace pages are generated v2 documents, not snapshots of a file.
+  MaintenanceDocument snapshot;
+  snapshot.path= fs::path ("tmfs://ns/" + tmfs);
+  snapshot.format= athena::document::document_source_format::xml_v2;
+  snapshot.document= doc;
+  snapshot.bytes= athena::document::write_xml_v2 (doc);
   tree rewritten = rewrite_static_links (doc, "", output_rel, cx);
   std::string title = technical ? "Namespace technical summary: " + name :
                                   "Namespace homepage: " + name;
-  return export_document_html (rewritten, fs::path ("tmfs://ns/" + tmfs),
+  return export_document_html (snapshot, rewritten, fs::path ("tmfs://ns/" + tmfs),
                                target, output_rel, title, "", error);
 }
 

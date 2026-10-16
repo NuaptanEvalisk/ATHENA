@@ -9,12 +9,13 @@
 #include <atomic>
 #include <memory>
 #include <numeric>
+#include <optional>
 #include <string>
 #include <map>
 #include <set>
 #include <algorithm>
 #include <QPointer>
-#include "Data/Convert/Xml/athena_document_xml.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
 
 enum class VaultSearchMode { Content, Semantic, Hybrid };
 struct VaultSemanticHit {
@@ -26,6 +27,9 @@ using VaultSemanticCandidates= std::map<QString, std::vector<VaultSemanticHit>>;
 struct VaultSearchOptions {
   QString query, enunciation, person, root;
   std::string serializedQuery;
+  // Absent only for the plain-text path. Fragment bytes and source version
+  // travel together; readers reject missing or mismatched versions.
+  std::optional<athena::document::xml_format_version> queryFormat;
   bool caseInsensitive= true;
   bool fuzzy= false;
   bool nodeModel= false;
@@ -33,6 +37,12 @@ struct VaultSearchOptions {
   std::shared_ptr<const VaultSemanticCandidates> semanticCandidates;
   std::shared_ptr<std::atomic<int>> staleCandidates= std::make_shared<std::atomic<int>> (0);
 };
+
+// Owner-consistent body and stored version, including ephemeral tmfs buffers.
+athena::document::native_xml_read_result vault_search_buffer_snapshot (url name);
+void vault_search_set_query (VaultSearchOptions&, const tree&,
+                            athena::document::xml_format_version);
+tree vault_search_decode_query (const VaultSearchOptions&);
 
 struct VaultSearchControl {
   std::atomic<bool> cancelled {false};
@@ -57,7 +67,8 @@ QString vault_search_identity (tree body, url file, path position);
 QThreadPool& vault_search_workers ();
 int vault_search_worker_limit ();
 int vault_search_worker_count ();
-tree vault_search_read_body (const QString& file, bool semantic= false);
+tree vault_search_read_body (const QString& file, bool semantic= false,
+                            athena::document::xml_format_version* version= nullptr);
 bool vault_search_cancelled ();
 bool vault_search_has_live_source (const QString& file);
 
@@ -79,6 +90,7 @@ template<typename Result> struct VaultSearchState : VaultSearchControl {
   std::atomic<size_t> next {0};
   std::atomic<int> workers {0}, completed {0}, matchedFiles {0}, hits {0}, candidateCount {0}, failedFiles {0};
   bool inspecting= false;
+  std::vector<QString> workerErrors;
 };
 
 template<typename Result, typename Scan, typename Report, typename Complete>
@@ -105,15 +117,16 @@ start_vault_search (QObject* owner, std::vector<std::string> files,
     state->completed= 0;
     size_t total= state->inspecting ? state->candidates.size () :
                                     state->files.size ();
-    int count= std::min (total, (size_t) vault_search_workers ().maxThreadCount ());
+    int count= std::max (size_t (1),
+      std::min (total, (size_t) vault_search_workers ().maxThreadCount ()));
+    state->workerErrors.assign (count, QString ());
     state->workers= count;
     for (int worker= 0; worker<count; ++worker)
-      vault_search_workers ().start (QRunnable::create ([state, scan] () {
+      vault_search_workers ().start (QRunnable::create ([state, scan, worker] () {
         VaultSearchCancellationScope cancellation (&state->cancelled);
         try {
           const auto options= state->options;
-          const tree query= options.serializedQuery.empty () ? tree (from_qstring (options.query)) :
-            athena::document::read_xml_v2 (options.serializedQuery, athena::document::xml_kind::fragment);
+          const tree query= vault_search_decode_query (options);
           VaultRawSearchPrefilter filter (options.query,
             options.caseInsensitive, options.fuzzy);
           const size_t total= state->inspecting ? state->candidates.size () :
@@ -144,7 +157,14 @@ start_vault_search (QObject* owner, std::vector<std::string> files,
             state->completed.fetch_add (1, std::memory_order_relaxed);
           }
         }
-        catch (...) { state->cancelled= true; }
+        catch (const std::exception& error) {
+          state->workerErrors[worker]= QString::fromUtf8 (error.what ());
+          state->cancelled= true;
+        }
+        catch (...) {
+          state->workerErrors[worker]= "Unknown search worker failure";
+          state->cancelled= true;
+        }
         state->workers.fetch_sub (1, std::memory_order_acq_rel);
       }));
   };
@@ -172,6 +192,11 @@ start_vault_search (QObject* owner, std::vector<std::string> files,
       progress.hits= state->hits.load ();
       if (state->failedFiles.load () > 0)
         progress.diagnostic= QString ("Could not inspect %1 source file(s).").arg (state->failedFiles.load ());
+      if (idle) for (const auto& error: state->workerErrors)
+        if (!error.isEmpty ()) {
+          progress.diagnostic= error;
+          break;
+        }
       report (progress);
       if (!idle) return;
       timer->stop ();

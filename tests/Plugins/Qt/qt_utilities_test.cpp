@@ -71,7 +71,7 @@ void TestQtUtilities::clipboard_fragment () {
   tree source= tuple ("texmacs", content, "math", "english");
   std::string bytes= write_clipboard_xml (source);
   tree restored= read_clipboard_xml (bytes);
-  QVERIFY (restored == source);
+  QVERIFY (restored == clipboard_with_version (source, xml_format_version::v1));
   QVERIFY_EXCEPTION_THROWN (read_clipboard_xml (
     write_xml (content, xml_kind::fragment)), codec_exception);
   QVERIFY_EXCEPTION_THROWN (write_clipboard_xml (

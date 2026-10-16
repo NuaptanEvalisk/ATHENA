@@ -49,7 +49,10 @@ struct prepared_references {
 };
 using prepared_snapshot= std::shared_ptr<const prepared_references>;
 // Full storage fingerprint, computed only at the cold export boundary.
-std::string export_source_revision (const tree&);
+// Existing callers default to the historical v2 digest. Native v3 callers must
+// supply their actual storage version; tree metadata cannot identify it.
+std::string export_source_revision (const tree&,
+  document::xml_format_version= document::xml_format_version::v2);
 // Only the headless global coordinator may wait. Actors stay available to the
 // locator throughout preparation; no Qt application/event loop is required.
 prepared_snapshot prepare_headless_export (std::uint64_t actor, std::uint64_t view);

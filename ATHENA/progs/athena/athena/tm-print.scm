@@ -221,11 +221,10 @@
                          (data-art-export-snapshot
                           cur fname
                           (tree-copy (tree-ref payload 0))
-                          (tree-copy (tree-ref payload 1)))))
+                          (tree-copy (tree-ref payload 1))
+                          (string->number (tree->string (tree-ref payload 3))))))
                     (when (!= error "")
-                      (display* "ATHENA] data-art warning: " error
-                                "; exporting without DataArt\n")
-                      (print-to-file fname))))
+                      (texmacs-error "data-art-print-to-file" error))))
                 (lambda ()
                   (when (url-exists? cover)
                     (system-remove cover))))))))

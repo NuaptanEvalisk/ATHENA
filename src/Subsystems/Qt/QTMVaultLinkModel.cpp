@@ -24,7 +24,7 @@
 #include "drd_mode.hpp"
 #include "utf8_edit.hpp"
 #include "ATHENA/Data/node_reference.hpp"
-#include "Data/Convert/Xml/athena_document_xml.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
 #include <QTimer>
 #include <algorithm>
 #include <functional>
@@ -84,8 +84,8 @@ tree vault_source_preview (const athena::node_location::result& result) {
   for (const auto& item: result.items) {
     if (item.state != athena::node_location::status::resolved)
       throw std::runtime_error ("Source preview requires resolved identities");
-    tree fragment= athena::document::read_xml_v2 (item.fragment_xml,
-      athena::document::xml_kind::fragment);
+    tree fragment= athena::document::decode_native_xml_bytes (item.fragment_xml,
+      athena::document::xml_kind::fragment).document;
     body << rebase_preview_images (fragment,
       url_system (string (item.source_directory.data (), item.source_directory.size ())));
   }

@@ -8,6 +8,9 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include <QApplication>
+#include <QClipboard>
+#include <QMimeData>
+#include <QScopedValueRollback>
 #include <QtTest/QtTest>
 #include <algorithm>
 #include <cstdlib>
@@ -43,9 +46,12 @@
 #include "packrat_parser.hpp"
 #include "math_token.hpp"
 #include "math_font.hpp"
+#include "math_tree_v3.hpp"
+#include "Xml/athena_document_xml.hpp"
 #include "ATHENA/Data/new_buffer.hpp"
 #include "Kernel/Types/node_metadata.hpp"
 #include "convert.hpp"
+#include "Scheme/Scheme/object.hpp"
 #include "file.hpp"
 #include "web_files.hpp"
 
@@ -511,7 +517,7 @@ private slots:
   }
   void mathTypesetting () {
     using namespace athena::text;
-    QCOMPARE (native_math_keyboard_binding_count (), 2376);
+    QCOMPARE (native_math_keyboard_binding_count (), 2355);
     QCOMPARE (native_latex_command_count (), 736);
     string latex_help;
     command latex_command;
@@ -1189,6 +1195,205 @@ private slots:
     ::clear_selection (key);
     ::clear_selection ("primary");
   }
+  void nativeClipboardQtOffersUseTheSameVersionContract () {
+    using namespace athena::document;
+    QScopedValueRollback<bool> graphical_clipboard (headless_mode, false);
+    buffer->storage_version= xml_format_version::v3;
+    const tree content= compound ("math", athena::math_v3::scripts ("x", "", "", "i", "2", 'r'));
+    editor->selection_set ("primary", content);
+    tree internal;
+    string encoded;
+    QVERIFY (::get_selection ("primary", internal, encoded, "default"));
+    QVERIFY (clipboard_version (internal) == xml_format_version::v3);
+    QCOMPARE (internal[1], content);
+    auto* external= new QMimeData;
+    external->setData (clipboard_mime, QByteArray (encoded.data (), N(encoded)));
+    QApplication::clipboard ()->setMimeData (external);
+    tree imported;
+    string bytes;
+    QVERIFY (::get_selection ("primary", imported, bytes, "default"));
+    QCOMPARE (imported, internal);
+    QCOMPARE (bytes, encoded);
+    auto* broken= new QMimeData;
+    broken->setData (clipboard_mime, QByteArray ("<a v=\"3\" k=\"t\"><n"));
+    broken->setText ("must not become a plain-text fallback");
+    QApplication::clipboard ()->setMimeData (broken);
+    const tree before= copy (editor->the_buffer ());
+    editor->selection_paste ("primary");
+    QCOMPARE (editor->the_buffer (), before);
+    editor->selection_clear ("primary");
+    QApplication::clipboard ()->clear ();
+    QVERIFY (!::get_selection ("primary", imported, bytes, "default"));
+  }
+  void nativeClipboardPreservesFormatAndDuplicatesIdentity () {
+    using namespace athena::document;
+    namespace node= athena::node;
+    buffer->storage_version= xml_format_version::v3;
+    tree formula= athena::math_v3::delimited ("(", ")", 'm',
+      athena::math_v3::scripts ("x", "", "", "i", "2", 'r'), "2", "1");
+    node::metadata metadata;
+    metadata.id= node::new_id ();
+    metadata.properties["example:caption"]= node::property (
+      node::rich_text {compound ("strong", "Preserved")});
+    node::set (formula, metadata);
+    const tree content= compound ("math", formula);
+    const string key= "native-v3-copy";
+    editor->selection_set (key, content);
+    const tree stored= editor->selection_raw_get (key);
+    QVERIFY (clipboard_version (stored) == xml_format_version::v3);
+    QCOMPARE (stored[1], content);
+    QCOMPARE (read_clipboard_xml (write_clipboard_xml (stored)), stored);
+    editor->archive_state ();
+    editor->start_editing ();
+    editor->selection_paste (key);
+    editor->end_editing ();
+    const tree inserted= copy (editor->the_buffer ());
+    QVERIFY (is_compound (inserted[0], "math", 1));
+    const tree copied= inserted[0][0];
+    QVERIFY (athena::math_v3::valid_delimited (copied));
+    QVERIFY (!node::id (copied).empty ());
+    QVERIFY (node::id (copied) != node::id (formula));
+    QCOMPARE (copied[2], tree ("m"));
+    QCOMPARE (copied[3], tree ("2"));
+    QCOMPARE (copied[4], tree ("1"));
+    QCOMPARE (copied[5], formula[5]);
+    QVERIFY (node::equal (node::property (node::get (copied)->properties),
+                         node::property (node::get (formula)->properties)));
+    editor->undo (0);
+    QCOMPARE (editor->the_buffer (), tree (DOCUMENT, ""));
+    editor->redo (0);
+    QCOMPARE (editor->the_buffer (), inserted);
+    editor->selection_clear (key);
+  }
+  void crossVersionClipboardRejectsBeforeEditing_data () {
+    QTest::addColumn<bool> ("native_source");
+    QTest::newRow ("native-to-legacy") << true;
+    QTest::newRow ("legacy-to-native") << false;
+  }
+  void crossVersionClipboardRejectsBeforeEditing () {
+    using namespace athena::document;
+    QFETCH (bool, native_source);
+    buffer->storage_version= native_source ? xml_format_version::v2 : xml_format_version::v3;
+    const auto origin= native_source ? xml_format_version::v3 : xml_format_version::v2;
+    const tree expression= native_source ? athena::math_v3::delimited ("(", ")", 'a', "x") :
+      tree (AROUND, "(", "x", ")");
+    const tree offer= clipboard_with_version (
+      tuple ("texmacs", compound ("math", expression), "text", "english"), origin);
+    const string key= "incompatible-native-clipboard";
+    editor->selection_raw_set (key, offer);
+    QCOMPARE (editor->selection_raw_get (key), offer);
+    const tree before= copy (editor->the_buffer ());
+    const path cursor= editor->the_path ();
+    QVERIFY_THROWS_EXCEPTION (codec_exception, editor->selection_paste (key));
+    QCOMPARE (editor->the_buffer (), before);
+    QCOMPARE (editor->the_path (), cursor);
+    QCOMPARE (editor->selection_raw_get (key), offer);
+    editor->selection_clear (key);
+  }
+  void invalidNativeCutLeavesSourceAndClipboardUntouched () {
+    using namespace athena::document;
+    buffer->storage_version= xml_format_version::v3;
+    const string key= "invalid-native-cut";
+    editor->selection_set (key, tree ("previous clipboard"));
+    const tree previous= editor->selection_raw_get (key);
+    editor->start_editing ();
+    editor->insert_tree (compound ("math", tree (AROUND, "(", "x", ")")));
+    editor->end_editing ();
+    const tree before= copy (editor->the_buffer ());
+    const path paragraph= buffer->root_path * 0;
+    editor->select (paragraph * 0, paragraph * 1);
+    QVERIFY (editor->selection_active_any ());
+    QVERIFY_THROWS_EXCEPTION (codec_exception, editor->selection_cut (key));
+    QCOMPARE (editor->the_buffer (), before);
+    QCOMPARE (editor->selection_raw_get (key), previous);
+    editor->selection_clear (key);
+  }
+  void attributedDocumentPasteKeepsItsContainer () {
+    using namespace athena::document;
+    namespace node= athena::node;
+    buffer->storage_version= xml_format_version::v3;
+    tree content (DOCUMENT, "first", "second");
+    node::metadata metadata;
+    metadata.id= node::new_id ();
+    metadata.properties["example:caption"]= node::property (std::string ("Keep the container"));
+    node::set (content, metadata);
+    const string key= "attributed-native-document";
+    editor->selection_raw_set (key, clipboard_with_version (
+      tuple ("texmacs", content, "text", "english"), xml_format_version::v3));
+    editor->archive_state ();
+    editor->start_editing ();
+    editor->selection_paste (key);
+    editor->end_editing ();
+    const tree inserted= copy (editor->the_buffer ());
+    QVERIFY (is_document (inserted[0]));
+    const tree container= inserted[0];
+    QCOMPARE (N(container), 2);
+    QCOMPARE (container[0], tree ("first"));
+    QCOMPARE (container[1], tree ("second"));
+    QVERIFY (node::get (container));
+    QVERIFY (node::equal (node::property (node::get (container)->properties),
+                         node::property (metadata.properties)));
+    QVERIFY (!node::id (container).empty () && node::id (container) != metadata.id);
+    editor->undo (0);
+    QCOMPARE (editor->the_buffer (), tree (DOCUMENT, ""));
+    editor->redo (0);
+    QCOMPARE (editor->the_buffer (), inserted);
+    editor->selection_clear (key);
+  }
+  void displayGridClipboardKeepsItsNumberingContext () {
+    using namespace athena::document;
+    namespace node= athena::node;
+    buffer->storage_version= xml_format_version::v3;
+    tree grid (MATH_GRID, tree (ROW, tree (CELL, "x")), tree (ROW, tree (CELL, "y")));
+    node::metadata grid_metadata;
+    grid_metadata.id= node::new_id ();
+    grid_metadata.properties["math:grid-kind"]= node::property (std::string ("stack"));
+    node::set (grid, grid_metadata);
+    athena::math_v3::set_row_tag (grid[1], tree (""));
+    tree block (MATH_BLOCK, grid);
+    node::metadata block_metadata;
+    block_metadata.id= node::new_id ();
+    block_metadata.properties["math:block-numbered"]= node::property (true);
+    node::set (block, block_metadata);
+    editor->start_editing ();
+    editor->insert_tree (block);
+    editor->end_editing ();
+    const tree before= copy (editor->the_buffer ());
+    const path grid_path= buffer->root_path * path (0, 0);
+    SI x1, y1, x2, y2;
+    editor->typeset (x1, y1, x2, y2);
+    editor->select (grid_path * 0, grid_path * 1);
+    QCOMPARE (editor->selection_get (), before[0]);
+    const string key= "native-grid-copy";
+    editor->selection_copy (key);
+    tree offer= editor->selection_raw_get (key);
+    QCOMPARE (offer[1], before[0]);
+    QCOMPARE (offer[2], tree ("text"));
+    QVERIFY (clipboard_version (offer) == xml_format_version::v3);
+    editor->select (grid_path * 0, grid_path * 1);
+    editor->archive_state ();
+    editor->start_editing ();
+    editor->selection_cut (key);
+    editor->end_editing ();
+    QCOMPARE (editor->the_buffer (), tree (DOCUMENT, ""));
+    QCOMPARE (editor->selection_raw_get (key)[1], before[0]);
+    editor->undo (0);
+    QCOMPARE (editor->the_buffer (), before);
+    editor->selection_clear (key);
+  }
+  void nativePasteModePreflightLeavesSourceUntouched () {
+    using namespace athena::document;
+    buffer->storage_version= xml_format_version::v3;
+    editor->start_editing ();
+    editor->insert_tree (compound ("math", ""), path (0, 0));
+    editor->end_editing ();
+    QCOMPARE (editor->get_env_string (MODE), string ("math"));
+    const tree before= copy (editor->the_buffer ());
+    const tree offer= clipboard_with_version (
+      tuple ("texmacs", "text", "text", "english"), xml_format_version::v3);
+    QVERIFY_THROWS_EXCEPTION (std::invalid_argument, editor->selection_validate_paste (offer));
+    QCOMPARE (editor->the_buffer (), before);
+  }
   void schemeTextBoundaries () {
     QVERIFY (as_bool (eval (
       "(let* ((s (string (integer->char #xe9) #\\e (integer->char #x301))) "
@@ -1810,6 +2015,459 @@ private slots:
 
     set_preference ("automatic brackets", old_brackets);
     set_preference ("automatic quotes", old_quotes);
+  }
+  void nativeV3BracketEditingNeverInsertsUnpairedEndpoints () {
+    buffer->storage_version= athena::document::xml_storage_version::v3;
+    const string saved= get_preference ("automatic brackets", "mathematics");
+    // Even when a legacy user preference says off, v3 mathematics always
+    // persists an entire explicit pair with the cursor in its single body.
+    set_preference ("automatic brackets", "off");
+    tree block (MATH_BLOCK, tree (CONCAT, tree ("")));
+    athena::node::metadata meta;
+    meta.properties["math:block-numbered"]= athena::node::property (false);
+    athena::node::set (block, meta);
+    set_document (buffer->document, buffer->root_path,
+                  tree (DOCUMENT, block));
+    const path content= buffer->root_path * path (0, 0, 0);
+    editor->go_to (content * 0);
+    editor->archive_state ();
+    editor->start_editing ();
+    editor->math_bracket_open ("(", ")", 0);
+    editor->end_editing ();
+    const tree added= subtree (current_document_tree (), buffer->root_path);
+
+    std::function<int(const tree&,tree_label)> count_label=
+      [&] (const tree& node, tree_label label) {
+        int count= is_func (node, label) ? 1 : 0;
+        if (is_compound (node))
+          for (int j=0; j<N (node); ++j) count+= count_label (node[j], label);
+        return count;
+      };
+    QCOMPARE (count_label (added, DELIMITED), 1);
+    QCOMPARE (count_label (added, AROUND), 0);
+    QCOMPARE (count_label (added, VAR_AROUND), 0);
+    QCOMPARE (count_label (added, LEFT), 0);
+    QCOMPARE (count_label (added, RIGHT), 0);
+    const tree pair= added[0][0];
+    QVERIFY (athena::math_v3::valid_delimited (pair));
+    QCOMPARE (pair[0], tree ("("));
+    QCOMPARE (pair[1], tree (")"));
+    QCOMPARE (pair[2], tree ("a"));
+    editor->start_editing ();
+    // Still inside the native delimiter body: slash stays a lexical token,
+    // whereas | is an explicit middle mathematical separator.
+    editor->math_separator ("/", 1);
+    editor->math_separator ("|", 1);
+    editor->math_bracket_close (")", "(", 0);
+    editor->math_bracket_close ("]", "[", 1);
+    editor->end_editing ();
+    QCOMPARE (count_label (
+      subtree (current_document_tree (), buffer->root_path), DELIMITED), 1);
+    const tree with_separators=
+      subtree (current_document_tree (), buffer->root_path);
+    QCOMPARE (count_label (with_separators, MID), 0);
+    QCOMPARE (count_label (with_separators, LEFT), 0);
+    QCOMPARE (count_label (with_separators, RIGHT), 0);
+    QCOMPARE (count_label (with_separators, MATH_MIDDLE), 1);
+    set_preference ("automatic brackets", saved);
+  }
+  void nativeV3ScriptEditingUsesLexicalBaseAndFiveSlots () {
+    buffer->storage_version= athena::document::xml_storage_version::v3;
+    tree token ("x+y");
+    athena::node::metadata text_meta;
+    text_meta.id= athena::node::new_id ();
+    athena::node::set (token, text_meta);
+    tree block (MATH_BLOCK, token);
+    athena::node::metadata block_meta;
+    block_meta.properties["math:block-numbered"]= athena::node::property (false);
+    athena::node::set (block, block_meta);
+    set_document (buffer->document, buffer->root_path,
+                  tree (DOCUMENT, block));
+    const path atom= buffer->root_path * path (0, 0);
+    editor->go_to (atom * 3);
+    editor->archive_state ();
+    editor->start_editing ();
+    editor->make_script (false, true);
+    editor->end_editing ();
+
+    tree changed= subtree (current_document_tree (), buffer->root_path);
+    QVERIFY (is_func (changed[0][0], CONCAT));
+    QCOMPARE (athena::node::id (changed[0][0]), text_meta.id);
+    const tree sequence= changed[0][0];
+    QVERIFY (N (sequence) >= 3);
+    QVERIFY (is_func (sequence[N (sequence)-1], MATH_SCRIPTS, 5));
+    const tree scripts= sequence[N (sequence)-1];
+    QCOMPARE (scripts[0], tree ("y"));
+    QCOMPARE (scripts[3], tree (""));
+    QCOMPARE (scripts[4], tree (""));
+    QVERIFY (athena::math_v3::valid_scripts (scripts));
+
+    editor->archive_state ();
+    editor->start_editing ();
+    editor->insert_tree ("i");
+    editor->make_script (true, true);
+    editor->insert_tree ("2");
+    editor->end_editing ();
+    changed= subtree (current_document_tree (), buffer->root_path);
+    const tree current= changed[0][0][N (changed[0][0])-1];
+    QVERIFY (is_func (current, MATH_SCRIPTS, 5));
+    QCOMPARE (current[0], tree ("y"));
+    QCOMPARE (current[3], tree ("i"));
+    QCOMPARE (current[4], tree ("2"));
+    QVERIFY (athena::math_v3::valid_scripts (current));
+    QVERIFY (athena::document::read_xml_v3 (
+      athena::document::write_xml_v3 (changed)) == changed);
+    // The editor mutates shared tree reps in place. A shallow tree handle is
+    // not a stable undo expectation; snapshot the exact source and metadata.
+    const tree before_undo= copy (changed);
+    QVERIFY (editor->undo_possibilities () > 0);
+    editor->undo (0);
+    const tree restored= subtree (current_document_tree (), buffer->root_path);
+    QVERIFY (restored != before_undo);
+  }
+  void nativeV3LatexPrimitivesExportWithoutLegacyAdapters () {
+    // This test runs on the initialized Scheme owner thread. The standalone
+    // XML codec unit target intentionally does not initialize libguile.
+    latex_export_context_reset ();
+    latex_export_env_set ("mode", object ("math"));
+    const auto exported= [] (const tree& source) {
+      return scheme_tree_to_string (
+        latex_export_convert_node (tree_to_scheme_tree (source)));
+    };
+    const tree expression (CONCAT,
+      athena::math_v3::delimited ("(", ")", 'a', tree (CONCAT,
+        tree ("x"), tree (MATH_MIDDLE, "|"), tree ("y"))),
+      athena::math_v3::delimited ("⌈", "⌋", 'm', tree ("x"), "1", "3"),
+      athena::math_v3::big_operator ("∑"),
+      tree (MATH_VARIANT, tree ("bb"), tree ("R")),
+      tree (MATH_ANNOTATION, tree ("x"), tree ("i"), tree ("n")));
+    const string tex= exported (expression);
+    QVERIFY (occurs ("left", tex));
+    QVERIFY (occurs ("middle|", tex));
+    QVERIFY (occurs ("right", tex));
+    QVERIFY (occurs ("bigl", tex));
+    QVERIFY (occurs ("biggr", tex));
+    QVERIFY (occurs ("sum", tex));
+    QVERIFY (occurs ("mathbb", tex));
+    QVERIFY (occurs ("overset", tex));
+    QVERIFY (occurs ("underset", tex));
+    const string standalone= exported (tree (MATH_MIDDLE, "|"));
+    QVERIFY (occurs ("mid", standalone));
+    QVERIFY (!occurs ("middle", standalone));
+    // The innermost paired delimiter controls whether a middle symbol may
+    // stretch. An automatic outer pair must not make a fixed nested pair's
+    // middle glyph use \middle (which would span the wrong TeX group).
+    const tree nested= athena::math_v3::delimited ("(", ")", 'a',
+      tree (CONCAT, tree (MATH_MIDDLE, "|"),
+        athena::math_v3::delimited ("[", "]", 'f',
+                                   tree (MATH_MIDDLE, "|"))));
+    const string nested_output= exported (nested);
+    QVERIFY (occurs ("middle|", nested_output));
+    QVERIFY (occurs ("(mid)", nested_output));
+    const tree inner_auto= athena::math_v3::delimited ("(", ")", 'f',
+      athena::math_v3::delimited ("[", "]", 'a',
+        tree (MATH_MIDDLE, "|")));
+    QVERIFY (occurs ("middle|", exported (inner_auto)));
+    latex_export_env_reset ("mode");
+  }
+  void nativeV3LatexPreparationRetainsMathMetadata () {
+    using athena::node::property;
+    latex_export_context_reset ();
+    const auto convert= [] (tree input) {
+      return scheme_tree_to_string (
+        latex_export_convert_node (latex_export_prepare_v3_source (input)));
+    };
+    tree symbol= athena::math_v3::big_operator ("∑");
+    const tree annotated= athena::math_v3::scripts (
+      symbol, tree ("p"), tree ("q"), tree ("i=1"), tree ("n"), 'o');
+    tree formula (MATH_BLOCK, annotated);
+    athena::node::metadata header;
+    header.properties["math:block-numbered"]= property (true);
+    athena::node::set (formula, header);
+    const string numbered= convert (formula);
+    QVERIFY (occurs ("equation", numbered));
+    QVERIFY (occurs ("sum", numbered));
+    QVERIFY (occurs ("limits", numbered));
+    QVERIFY (occurs ("!sub", numbered));
+    QVERIFY (occurs ("!sup", numbered));
+
+    tree grid (MATH_GRID,
+      tree (ROW, tree (CELL, "x"), tree (CELL, "="), tree (CELL, "y")),
+      tree (ROW, tree (CELL, "u"), tree (CELL, "="), tree (CELL, "v")));
+    athena::node::metadata grid_header;
+    grid_header.properties["math:grid-kind"]= property (
+      std::string ("eqnarray"));
+    athena::node::set (grid, grid_header);
+    tree unnumbered (MATH_BLOCK, grid);
+    athena::node::metadata block_header;
+    block_header.properties["math:block-numbered"]= property (false);
+    athena::node::set (unnumbered, block_header);
+    const string grid_output= convert (unnumbered);
+    QVERIFY (occurs ("eqnarray*", grid_output));
+    QVERIFY (occurs ("!table", grid_output));
+    QVERIFY (occurs ("!row", grid_output));
+    athena::node::set (unnumbered, header);
+    const string numbered_grid= convert (unnumbered);
+    QVERIFY (occurs ("eqnarray", numbered_grid));
+    QVERIFY (!occurs ("eqnarray*", numbered_grid));
+
+    tree accent (MATH_ACCENT, "̂", "o", "x");
+    athena::node::metadata accent_header;
+    accent_header.properties["math:accent-stretch"]= property (true);
+    athena::node::set (accent, accent_header);
+    const string accented= convert (accent);
+    QVERIFY (occurs ("widehat", accented));
+    const tree arrow (MATH_LONG_ARROW, "→", "i", "f");
+    const string directed= convert (arrow);
+    QVERIFY (occurs ("xrightarrow", directed));
+
+    // Plain source conversion must be semantically identical to the existing
+    // code path. It is only v3 nodes with typed properties which change shape.
+    tree legacy (DOCUMENT, tree (CONCAT, "a", "b"));
+    QVERIFY (latex_export_prepare_v3_source (legacy) ==
+             tree_to_scheme_tree (legacy));
+    tree expanded (EXPAND, tree ("fixture-macro"),
+      tree (CONCAT, tree ("alpha"), tree (FRAC, "1", "2")));
+    QVERIFY (latex_export_prepare_v3_source (expanded) ==
+             tree_to_scheme_tree (expanded));
+
+    // The metadata-aware entrance must reject malformed source objects, not
+    // invent a placement policy or silently omit visual formatting.
+    tree invalid_scripts (MATH_SCRIPTS, "x", "", "", "i", "");
+    QVERIFY_THROWS_EXCEPTION (std::runtime_error,
+      latex_export_prepare_v3_source (invalid_scripts));
+    QVERIFY_THROWS_EXCEPTION (std::runtime_error,
+      latex_export_convert_node (tree_to_scheme_tree (invalid_scripts)));
+    tree styled (MATH_GRID, tree (ROW, tree (CELL, "x")));
+    athena::node::metadata kind_meta;
+    kind_meta.properties["math:grid-kind"]=
+      property (std::string ("matrix"));
+    athena::node::set (styled, kind_meta);
+    athena::node::metadata cell_meta;
+    cell_meta.properties["math:cell-format"]=
+      property (property::dictionary {{"border-left", property (std::string ("1ln"))}});
+    athena::node::set (styled[0][0], cell_meta);
+    QVERIFY_THROWS_EXCEPTION (std::runtime_error,
+      latex_export_prepare_v3_source (styled));
+  }
+  void nativeV3LatexEndToEndSerializationKeepsOriginalV2Behavior () {
+    eval ("(use-modules (convert latex init-latex))");
+    object options= eval ("'()");
+    const tree baseline (DOCUMENT,
+      compound ("style", "generic"),
+      compound ("body", tree (DOCUMENT,
+        "Control paragraph.",
+        compound ("math", tree (CONCAT, "x", tree (RSUP, "2"))))));
+    object old_style_stree= call ("tree->stree", object (baseline));
+    object old_style_tex_tree= call ("texmacs->latex", old_style_stree, options);
+    const string expected= as_string (call ("serialize-latex", old_style_tex_tree));
+    const string actual= as_string (
+      call ("texmacs->latex-document", object (baseline), options));
+    QCOMPARE (actual, expected);
+
+    tree scripts= athena::math_v3::scripts (
+      athena::math_v3::big_operator ("∑"),
+      tree ("p"), tree ("q"), tree ("i=1"), tree ("n"), 'o');
+    tree formula (MATH_BLOCK, scripts);
+    athena::node::metadata block_header;
+    block_header.properties["math:block-numbered"]=
+      athena::node::property (true);
+    athena::node::set (formula, block_header);
+    const tree document (DOCUMENT,
+      compound ("style", "generic"),
+      compound ("body", tree (DOCUMENT, formula)));
+    const string latex= as_string (
+      call ("texmacs->latex-document", object (document), options));
+    QVERIFY (occurs ("\\begin{equation}", latex));
+    QVERIFY (occurs ("\\sum", latex));
+    QVERIFY (occurs ("\\limits", latex));
+    QVERIFY (occurs ("\\end{equation}", latex));
+    // Normal document metadata always emits ATHENA-DATA aux records. No
+    // *math source object* should be lost into a preservation fallback.
+    QVERIFY (!occurs ("ATHENA-DATA cmd=\"object\"", latex));
+    QVERIFY (!occurs ("math-block", latex));
+
+    tree grid (MATH_GRID,
+      tree (ROW, tree (CELL, "x"), tree (CELL, "="), tree (CELL, "y")),
+      tree (ROW, tree (CELL, "u"), tree (CELL, "="), tree (CELL, "v")));
+    athena::node::metadata grid_header;
+    grid_header.properties["math:grid-kind"]=
+      athena::node::property (std::string ("eqnarray"));
+    athena::node::set (grid, grid_header);
+    tree grid_block (MATH_BLOCK, grid);
+    athena::node::metadata unnumbered;
+    unnumbered.properties["math:block-numbered"]=
+      athena::node::property (false);
+    athena::node::set (grid_block, unnumbered);
+    const tree grid_document (DOCUMENT,
+      compound ("style", "generic"),
+      compound ("body", tree (DOCUMENT, grid_block)));
+    const string grid_latex= as_string (
+      call ("texmacs->latex-document", object (grid_document), options));
+    QVERIFY (occurs ("\\begin{eqnarray*}", grid_latex));
+    QVERIFY (occurs ("\\end{eqnarray*}", grid_latex));
+    QVERIFY (!occurs ("ATHENA-DATA cmd=\"object\"", grid_latex));
+
+    // Unlike eqnarray, a matrix has no external display/numbering semantics.
+    // Numbered MathBlock must wrap the inner matrix in an equation; otherwise
+    // its authored numbering property vanishes during LaTeX export.
+    tree matrix (MATH_GRID, tree (ROW, tree (CELL, "a"), tree (CELL, "b")));
+    athena::node::metadata matrix_meta;
+    matrix_meta.properties["math:grid-kind"]=
+      athena::node::property (std::string ("matrix"));
+    athena::node::set (matrix, matrix_meta);
+    tree matrix_block (MATH_BLOCK, matrix);
+    athena::node::set (matrix_block, block_header);
+    const tree matrix_doc (DOCUMENT, compound ("style", "generic"),
+      compound ("body", tree (DOCUMENT, matrix_block)));
+    const string matrix_latex= as_string (
+      call ("texmacs->latex-document", object (matrix_doc), options));
+    QVERIFY (occurs ("\\begin{equation}", matrix_latex));
+    QVERIFY (occurs ("\\begin{matrix}", matrix_latex));
+    QVERIFY (occurs ("\\end{matrix}", matrix_latex));
+    QVERIFY (occurs ("\\end{equation}", matrix_latex));
+
+    // Both an explicitly empty MathScripts nucleus and a multi-token base
+    // must be a TeX group. Bare ^{op} is invalid; x+y_i attaches to only y.
+    const tree standalone= athena::math_v3::scripts (
+      tree (""), tree (""), tree (""), tree (""), tree ("op"));
+    const tree grouped= athena::math_v3::scripts (
+      tree (CONCAT, tree ("x"), tree ("+"), tree ("y")),
+      tree (""), tree (""), tree ("i"), tree (""));
+    const tree scripts_doc (DOCUMENT,
+      compound ("style", "generic"),
+      compound ("body", tree (DOCUMENT,
+        compound ("math", tree (CONCAT, standalone, tree (";"), grouped)))));
+    const string groups_latex= as_string (
+      call ("texmacs->latex-document", object (scripts_doc), options));
+    // The regular text-token converter turns `op` into \operatorname{op}
+    // and places spaces around the binary +. Check the essential TeX groups
+    // rather than reimplementing the pre-existing lexical normalization.
+    QVERIFY (occurs ("{}^{", groups_latex));
+    QVERIFY (occurs ("operatorname{op}", groups_latex));
+    QVERIFY (occurs ("{x + y}_i", groups_latex));
+  }
+  void nativeV3ExportRuntimeRoutesFailClosed () {
+    const string test_path= get_env ("ATHENA_PATH") *
+      "/../tests/scheme/native-v3-export-runtime-test.scm";
+    object run= eval ("(lambda (path) (catch #t "
+      "(lambda () (load path) #t) "
+      "(lambda args (display args) (newline) #f)))");
+    QVERIFY (as_bool (call (run, object (test_path))));
+  }
+  void nativeV3MathmlRuntimeRoutesPreserveMetadata () {
+    const string test_path= get_env ("ATHENA_PATH") *
+      "/../tests/scheme/native-v3-mathml-routing-test.scm";
+    object run= eval ("(lambda (path) (catch #t "
+      "(lambda () (load path) #t) "
+      "(lambda args (display args) (newline) #f)))");
+    QVERIFY (as_bool (call (run, object (test_path))));
+  }
+  void nativeV3HtmlMathJaxKeepsMathBlockAndScriptMetadata () {
+    eval ("(use-modules (convert html init-html) (convert html tmhtml) "
+          "(convert html htmlout))");
+    object options= eval ("'((\"texmacs->html:mathjax\" . \"on\") "
+                          "(\"texmacs->html:css\" . \"on\") "
+                          "(\"texmacs->html:images\" . \"off\"))");
+    const tree baseline (DOCUMENT,
+      compound ("style", "generic"),
+      compound ("body", tree (DOCUMENT, "HTML baseline text.")));
+    const string before= as_string (call ("serialize-html",
+      call ("texmacs->html", call ("tree->stree", object (baseline)), options)));
+    const string after= as_string (call ("texmacs->html-document",
+                                          object (baseline), options));
+    QVERIFY (!before.empty ());
+    QCOMPARE (after, before);
+    object direct_mathjax= eval (
+      "'(\"texmacs->html:mathjax\" . \"on\")");
+    const string routed_baseline= as_string (call ("convert",
+      object (baseline), object ("texmacs-tree"), object ("html-document"),
+      direct_mathjax));
+    QCOMPARE (routed_baseline, before);
+
+    tree expression= athena::math_v3::scripts (
+      athena::math_v3::big_operator ("∑"), tree (""), tree (""),
+      tree ("i=1"), tree ("n"), 'o');
+    tree block (MATH_BLOCK, expression);
+    athena::node::metadata numbered;
+    numbered.properties["math:block-numbered"]= athena::node::property (true);
+    athena::node::set (block, numbered);
+    const tree doc (DOCUMENT, compound ("style", "generic"),
+      compound ("body", tree (DOCUMENT, "HTML v3 mathematics:", block)));
+    const string html= as_string (call ("texmacs->html-document", object (doc), options));
+    QVERIFY (!html.empty ());
+    QVERIFY (occurs ("mathjax@3", html));
+    QVERIFY (occurs ("athena-math-block", html));
+    QVERIFY (occurs ("\\begin{equation}", html));
+    QVERIFY (occurs ("\\sum", html));
+    QVERIFY (occurs ("\\limits", html));
+    QVERIFY (occurs ("\\end{equation}", html));
+    const string routed= as_string (call ("convert",
+      object (doc), object ("texmacs-tree"), object ("html-document"),
+      direct_mathjax));
+    QCOMPARE (routed, html);
+
+    const tree inline_scripts= athena::math_v3::scripts (
+      tree ("x"), tree (""), tree (""), tree ("i"), tree ("2"));
+    const tree inline_doc (DOCUMENT, compound ("style", "generic"),
+      compound ("body", tree (DOCUMENT,
+        tree (CONCAT, "Compare ", compound ("math", inline_scripts), "."))));
+    const string inline_html= as_string (
+      call ("texmacs->html-document", object (inline_doc), options));
+    QVERIFY (occurs ("\\(", inline_html));
+    QVERIFY (occurs ("_i", inline_html));
+    QVERIFY (occurs ("^2", inline_html));
+
+    // MathJax must receive the native delimiter sizing and middle separator,
+    // not a lossy HTML fallback that turns all three into plain text glyphs.
+    const tree delimiters= athena::math_v3::delimited (
+      "(", ")", 'a', tree (CONCAT, tree ("a"),
+        tree (MATH_MIDDLE, "|"), tree ("b")));
+    const tree bracketed= athena::math_v3::delimited (
+      "⌈", "⌋", 'm', delimiters, "2", "1");
+    const tree delimiters_doc (DOCUMENT, compound ("style", "generic"),
+      compound ("body", tree (DOCUMENT,
+        tree (CONCAT, "Delimiter: ", compound ("math", bracketed)))));
+    const string delimiter_html= as_string (call (
+      "texmacs->html-document", object (delimiters_doc), options));
+    QVERIFY (occurs ("\\(", delimiter_html));
+    QVERIFY (occurs ("\\left(", delimiter_html));
+    QVERIFY (occurs ("\\middle|", delimiter_html));
+    QVERIFY (occurs ("\\right)", delimiter_html));
+    QVERIFY (occurs ("Bigl", delimiter_html));
+    QVERIFY (occurs ("bigr", delimiter_html));
+
+    tree grid (MATH_GRID,
+      tree (ROW, tree (CELL, "a"), tree (CELL, "="), tree (CELL, "b")),
+      tree (ROW, tree (CELL, "c"), tree (CELL, "="), tree (CELL, "d")));
+    athena::node::metadata grid_meta;
+    grid_meta.properties["math:grid-kind"]=
+      athena::node::property (std::string ("eqnarray"));
+    athena::node::set (grid, grid_meta);
+    tree grid_block (MATH_BLOCK, grid);
+    athena::node::metadata unnumbered;
+    unnumbered.properties["math:block-numbered"]=
+      athena::node::property (false);
+    athena::node::set (grid_block, unnumbered);
+    const tree grid_doc (DOCUMENT, compound ("style", "generic"),
+      compound ("body", tree (DOCUMENT, grid_block)));
+    const string grid_html= as_string (call (
+      "texmacs->html-document", object (grid_doc), options));
+    QVERIFY (occurs ("athena-math-block", grid_html));
+    QVERIFY (occurs ("\\begin{eqnarray*}", grid_html));
+    QVERIFY (occurs ("\\end{eqnarray*}", grid_html));
+
+    // MathJax is the only HTML backend currently retaining all native v3
+    // structural math slots. Rendering the same document without it must
+    // produce a Scheme error, not a deceptively math-free HTML page.
+    object without_mathjax= eval (
+      "'((\"texmacs->html:mathjax\" . \"off\") "
+        "(\"texmacs->html:css\" . \"on\") "
+        "(\"texmacs->html:images\" . \"off\"))");
+    const scheme_tree refused= as_scheme_tree (call (
+      "texmacs->html-document", object (doc), without_mathjax));
+    QVERIFY (is_func (refused, TUPLE));
+    QCOMPARE (refused[0], tree ("misc-error"));
   }
 private:
   buffer_document_state* buffer= nullptr;

@@ -18,6 +18,9 @@ public:
   edit_math_rep ();
   ~edit_math_rep ();
 
+  bool native_math_editing () const;
+  void make_native_big_operator (string op);
+
   void make_rigid ();
   void make_lprime (string s);
   void make_rprime (string s);

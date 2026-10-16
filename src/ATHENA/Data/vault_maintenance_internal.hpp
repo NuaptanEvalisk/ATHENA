@@ -14,6 +14,8 @@
 #include "ATHENA/Data/vault_maintenance_passes.hpp"
 
 #include "string.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
+#include "confined_filesystem.hpp"
 
 #include <filesystem>
 #include <string>
@@ -67,6 +69,26 @@ std::vector<std::filesystem::path> scan_asset_files (
 bool read_file_bytes (const std::filesystem::path& path, std::string& text);
 bool read_document_file (const std::filesystem::path& path, tree& document,
                          std::string& error);
+// Rewrite snapshots retain data, not descriptors: a full Vault must not consume
+// one directory/file FD pair per document. Handles are reopened and verified.
+// Legacy maintenance is not a semantic import or an implicit format upgrade.
+struct MaintenanceDocument {
+  std::filesystem::path path;
+  std::string bytes;
+  tree document;
+  athena::document::document_source_format format;
+  std::filesystem::path directory;
+  std::optional<athena::filesystem::metadata> directory_identity;
+  std::optional<athena::filesystem::metadata> revision;
+};
+bool read_maintenance_document (const std::filesystem::path&, MaintenanceDocument&,
+                                std::string& error);
+bool serialize_maintenance_document (const MaintenanceDocument&, const tree&,
+                                     std::string& bytes, std::string& error);
+bool maintenance_document_current (const MaintenanceDocument&, std::string& error);
+bool commit_maintenance_document (const MaintenanceDocument&, const std::string&,
+                                  std::string& error);
+std::string maintenance_enunciation_bytes (const std::string&, bool number_solutions);
 bool write_file_bytes (const std::filesystem::path& path,
                         const std::string& text);
 std::filesystem::path normalize_root (const std::filesystem::path& input);

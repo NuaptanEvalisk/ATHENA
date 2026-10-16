@@ -70,6 +70,7 @@ void cell_set_rborder (editor_rep* ed, string value);
 void cell_set_bborder (editor_rep* ed, string value);
 void cell_set_tborder (editor_rep* ed, string value);
 
+bool native_grid_numbering_available (editor_rep* ed, tree target);
 bool eqnarray_numbered (editor_rep* ed, tree target);
 bool eqnarray_toggle_numbering (editor_rep* ed, tree target);
 

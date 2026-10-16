@@ -12,6 +12,11 @@
 #include "Format/format.hpp"
 #include "Table/table.hpp"
 #include "Boxes/construct.hpp"
+#include "math_tree_v3.hpp"
+#include "node_metadata.hpp"
+#include <stdexcept>
+
+lazy make_lazy_paragraph (edit_env env, array<box> bs, path ip);
 
 /******************************************************************************
 * Cells
@@ -21,9 +26,36 @@ cell_rep::cell_rep (edit_env env2):
   var (""), env (env2), border_flags (0) {}
 
 void
-cell_rep::typeset (tree fm, tree t, path iq) {
+cell_rep::typeset (tree fm, tree t, path iq, bool native_math) {
   ip= iq;
   format_cell (fm);
+  string native_color;
+  bool color_set= false;
+  if (is_func (t, CELL, 1)) {
+    if (const auto* meta= athena::node::get (t)) {
+      const auto found= meta->properties.find ("math:cell-format");
+      if (found != meta->properties.end ()) {
+        const auto* format= std::get_if<athena::node::property::dictionary> (
+          &found->second.data);
+        if (!format) throw std::invalid_argument ("Malformed native math cell format");
+        for (const auto& [key, property]: *format) {
+          const auto* raw= std::get_if<std::string> (&property.data);
+          if (!raw) throw std::invalid_argument ("Math cell format must be scalar");
+          const string text (raw->data (), int (raw->size ()));
+          if (key == "border-bottom") bborder= env->as_length (text) >> 1;
+          else if (key == "border-top") tborder= env->as_length (text) >> 1;
+          else if (key == "border-left") lborder= env->as_length (text) >> 1;
+          else if (key == "border-right") rborder= env->as_length (text) >> 1;
+          else if (key == "background") bg= env->exec (tree (text));
+          else if (key == "height") { height= env->as_length (text); vmode= "exact"; }
+          else if (key == "height-mode") vmode= text;
+          else if (key == "align") halign= text;
+          else if (key == "color") { native_color= text; color_set= true; }
+          else throw std::invalid_argument ("Unsupported math cell format property");
+        }
+      }
+    }
+  }
   if (is_func (t, CELL, 1)) {
     iq= descend (iq, 0);
     t = t[0];
@@ -33,6 +65,8 @@ cell_rep::typeset (tree fm, tree t, path iq) {
   path body_ip= obtain_ip (t);
   if (body_ip != path (DETACHED)) iq= body_ip;
 
+  tree old_color;
+  if (color_set) old_color= env->local_begin (COLOR, native_color);
   cell_local_begin (fm);
   if (is_func (t, SUBTABLE, 1)) {
     lsep= rsep= bsep= tsep= 0;
@@ -65,7 +99,14 @@ cell_rep::typeset (tree fm, tree t, path iq) {
       tree old5= env->local_begin (PAR_NO_FIRST, "true");
       tree old7= env->local_begin (PAR_WIDTH, len);
 
-      lz= make_lazy (env, t, iq);
+      // Native math may advance equation counters. The fallback must not
+      // execute the cell again merely to retain a lazy representation.
+      if (native_math) {
+        array<box> boxes;
+        boxes << b;
+        lz= make_lazy_paragraph (env, boxes, iq);
+      }
+      else lz= make_lazy (env, t, iq);
 
       env->local_end (PAR_WIDTH, old7);
       env->local_end (PAR_NO_FIRST, old5);
@@ -98,6 +139,7 @@ cell_rep::typeset (tree fm, tree t, path iq) {
     }
   }
   cell_local_end (fm);
+  if (color_set) env->local_end (COLOR, old_color);
 
   if (decoration != "") {
     int i, j, or_row= -1, or_col= -1;

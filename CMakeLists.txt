@@ -106,6 +106,21 @@ if (ATHENA_PLATFORM_IPADOS AND TARGET mimalloc-static AND NOT TARGET mimalloc)
 endif ()
 find_package (Boost REQUIRED)
 
+function (athena_link_allocator target)
+  target_link_libraries (${target} PRIVATE mimalloc)
+  get_target_property (_allocator_type mimalloc TYPE)
+  if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND
+      _allocator_type STREQUAL "SHARED_LIBRARY")
+    # CMake can retain the last transitive occurrence of a shared library.
+    # Keep the allocator first in ELF DT_NEEDED so SYCL finalizers can still
+    # allocate after the application and its other libraries have shut down.
+    target_link_options (${target} BEFORE PRIVATE
+      "LINKER:--push-state,--no-as-needed"
+      "$<TARGET_FILE:mimalloc>"
+      "LINKER:--pop-state")
+  endif ()
+endfunction ()
+
 option (QTPIPES "use Qt pipes" ON)
 if (ATHENA_PLATFORM_IPADOS)
   set (QTPIPES OFF CACHE BOOL "Qt pipe/process links are unavailable on iPadOS" FORCE)

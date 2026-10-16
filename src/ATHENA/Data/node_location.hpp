@@ -8,6 +8,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #pragma once
+#include "Data/Convert/Xml/athena_document_xml.hpp"
 
 #include "tree.hpp"
 #include "System/Files/confined_filesystem.hpp"
@@ -87,7 +88,8 @@ struct content_payload {
 };
 using content_provider= std::function<content_payload (const item&, const std::atomic<bool>&)>;
 // Capture content and its style/preamble from the same owner-local revision.
-content_payload capture_content (const tree& source, const item&, std::string source_url);
+content_payload capture_content (const tree& source, const item&, std::string source_url,
+  document::xml_format_version);
 
 class query {
   struct impl;

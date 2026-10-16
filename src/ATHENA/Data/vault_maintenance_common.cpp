@@ -7,6 +7,10 @@
 #include "ATHENA/Data/vault_maintenance_internal.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
+#include "ATHENA/Data/enunciation_model.hpp"
+#include "convert.hpp"
+#include "node_metadata.hpp"
+#include "analyze.hpp"
 
 #include "tm_ostream.hpp"
 
@@ -64,13 +68,6 @@ trim_copy (const std::string& s) {
   size_t end = s.size ();
   while (end > begin && std::isspace ((unsigned char) s[end - 1])) end--;
   return s.substr (begin, end - begin);
-}
-
-bool
-is_hex_digit (char c) {
-  return (c >= '0' && c <= '9') ||
-         (c >= 'a' && c <= 'f') ||
-         (c >= 'A' && c <= 'F');
 }
 
 bool
@@ -467,6 +464,172 @@ write_file_bytes (const fs::path& path, const std::string& text) {
   if (!out) return false;
   out.write (text.data (), (std::streamsize) text.size ());
   return (bool) out;
+}
+
+namespace {
+void verify_maintenance_directory (const MaintenanceDocument& source,
+                                   const athena::filesystem::confined_root& root) {
+  if (!source.directory_identity || !source.revision)
+    throw std::runtime_error ("Missing maintenance file snapshot");
+  // A replaced path must not be accepted by recanonicalizing a new symlink.
+  if (root.path () != source.directory)
+    throw std::runtime_error ("Maintenance directory path changed");
+  const auto current= root.open (".").stat ();
+  const auto& captured= *source.directory_identity;
+  if (!current.directory || current.device != captured.device || current.inode != captured.inode)
+    throw std::runtime_error ("Maintenance directory was replaced");
+}
+
+athena::filesystem::entry
+reopen_maintenance_file (const MaintenanceDocument& source,
+                         const athena::filesystem::confined_root& root) {
+  verify_maintenance_directory (source, root);
+  auto current= root.open (source.path.filename ());
+  if (!athena::filesystem::same_revision (current.stat (), *source.revision) ||
+      current.read (athena::document::codec_limits ().input_bytes) != source.bytes ||
+      !athena::filesystem::same_revision (current.stat (), *source.revision))
+    throw std::runtime_error ("Document changed during maintenance");
+  return current;
+}
+}
+
+bool
+read_maintenance_document (const fs::path& path, MaintenanceDocument& source,
+                           std::string& error) {
+  using namespace athena::document;
+  try {
+    source.path= fs::absolute (path);
+    athena::filesystem::confined_root root (source.path.parent_path ());
+    source.directory= root.path ();
+    source.directory_identity= root.open (".").stat ();
+    const auto file= root.open (source.path.filename ());
+    source.revision= file.stat ();
+    source.bytes= file.read (codec_limits ().input_bytes);
+    const auto decoded= decode_document_bytes (source.bytes, source.path);
+    source.format= decoded.format;
+    source.document= decoded.document;
+    // The unified reader is the format authority. Its legacy branch is a
+    // semantic import, not the inverse of a legacy writer: keep that writer's
+    // original representation when maintenance must retain the legacy format.
+    if (source.format == document_source_format::legacy_markup)
+      source.document= texmacs_document_to_tree (std_to_tm (source.bytes));
+    else if (source.format == document_source_format::legacy_scheme)
+      source.document= scheme_document_to_tree (std_to_tm (source.bytes));
+    if (is_func (source.document, _ERROR))
+      throw std::runtime_error ("Invalid maintenance document");
+    (void) reopen_maintenance_file (source, root);
+    return true;
+  }
+  catch (const std::exception& e) { error= path.string () + ": " + e.what (); }
+  catch (const string& e) { error= path.string () + ": " + tm_to_std (e); }
+  return false;
+}
+
+bool
+serialize_maintenance_document (const MaintenanceDocument& source,
+                                const tree& document, std::string& bytes,
+                                std::string& error) {
+  using namespace athena::document;
+  try {
+    if (document == source.document) { bytes= source.bytes; return true; }
+    tree validation;
+    switch (source.format) {
+    case document_source_format::legacy_markup:
+    case document_source_format::legacy_scheme: {
+      if (athena::node::contains_metadata (document))
+        throw std::runtime_error ("Legacy maintenance cannot represent node metadata");
+      const bool markup= source.format == document_source_format::legacy_markup;
+      const string encoded= markup ? tree_to_texmacs (document) :
+                                     tree_to_scheme_document (document);
+      bytes.assign (encoded.data (), N(encoded));
+      validation= markup ? texmacs_document_to_tree (encoded) :
+                           scheme_document_to_tree (encoded);
+      break;
+    }
+    case document_source_format::xml_v1:
+    case document_source_format::xml_v2:
+    case document_source_format::xml_v3: {
+      const auto version= source.format == document_source_format::xml_v3 ?
+        xml_format_version::v3 : source.format == document_source_format::xml_v2 ?
+        xml_format_version::v2 : xml_format_version::v1;
+      bytes= encode_native_xml_bytes (document, version);
+      validation= decode_native_xml_bytes (bytes).document;
+      break;
+    }
+    default: throw std::runtime_error ("Unknown maintenance source format");
+    }
+    if (validation != document)
+      throw std::runtime_error ("Maintenance rewrite failed full-document roundtrip");
+    return true;
+  }
+  catch (const std::exception& e) { error= source.path.string () + ": " + e.what (); }
+  catch (const string& e) { error= source.path.string () + ": " + tm_to_std (e); }
+  return false;
+}
+
+bool
+maintenance_document_current (const MaintenanceDocument& source, std::string& error) {
+  try {
+    athena::filesystem::confined_root root (source.directory);
+    (void) reopen_maintenance_file (source, root);
+    return true;
+  }
+  catch (const std::exception& e) { error= source.path.string () + ": " + e.what (); }
+  return false;
+}
+
+bool
+commit_maintenance_document (const MaintenanceDocument& source,
+                             const std::string& bytes, std::string& error) {
+  try {
+    athena::filesystem::confined_root root (source.directory);
+    const auto file= reopen_maintenance_file (source, root);
+    if (bytes == source.bytes) return true;
+    const auto result= root.replace (source.path.filename (), file,
+      *source.revision, bytes, [&] {
+        // This callback runs under replace's file lock, immediately before its
+        // final revision/parent checks and atomic publication.
+        (void) reopen_maintenance_file (source, root);
+      });
+    if (!result.directory_synced)
+      throw std::runtime_error ("Maintenance rewrite published but directory fsync failed");
+    return true;
+  }
+  catch (const std::exception& e) { error= source.path.string () + ": " + e.what (); }
+  return false;
+}
+
+namespace {
+void identify_maintenance_bodies (tree& value) {
+  if (is_atomic (value) || is_func (value, MACRO) || is_func (value, XMACRO) ||
+      is_func (value, QUOTE) || is_func (value, QUASI) ||
+      is_func (value, QUASIQUOTE)) return;
+  if (athena::enunciation::is_canonical (value) && athena::node::id (value[0]).empty ()) {
+    athena::node::metadata metadata;
+    if (const auto* old= athena::node::get (value[0])) metadata= *old;
+    metadata.id= athena::node::new_id ();
+    athena::node::set (value[0], metadata);
+  }
+  for (int i=0; i<N(value); ++i) identify_maintenance_bodies (value[i]);
+}
+}
+
+std::string
+maintenance_enunciation_bytes (const std::string& bytes, bool number_solutions) {
+  using namespace athena::document;
+  const auto decoded= decode_native_xml_bytes (bytes);
+  athena::enunciation::conversion_options options;
+  options.numbering_preferences["number solutions"]= number_solutions;
+  auto result= athena::enunciation::convert_detached_source (decoded.document, options);
+  if (!result.diagnostics.empty ())
+    throw std::runtime_error (result.diagnostics.front ().tag + ": " +
+                              result.diagnostics.front ().detail);
+  if (!result.converted) return bytes;
+  identify_maintenance_bodies (result.source);
+  const auto output= encode_native_xml_bytes (result.source, decoded.version);
+  if (decode_native_xml_bytes (output).document != result.source)
+    throw std::runtime_error ("Enunciation conversion failed XML roundtrip");
+  return output;
 }
 
 fs::path

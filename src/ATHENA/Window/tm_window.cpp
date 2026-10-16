@@ -22,6 +22,8 @@
 #include "ATHENA/Data/vault.hpp"
 #include "ATHENA/Data/new_view.hpp"
 #include "buffer_actor.hpp"
+#include "Data/Convert/Xml/athena_document_xml.hpp"
+#include <optional>
 
 int geometry_w= 800, geometry_h= 600;
 int geometry_x= 0  , geometry_y= 0;
@@ -322,13 +324,21 @@ enrich_embedded_document (tree body, tree style) {
   return doc;
 }
 
-widget
-texmacs_input_widget (tree doc, tree style, url wname) {
+static widget
+make_input_widget (tree doc, tree style, url wname,
+                   std::optional<athena::document::xml_format_version> version) {
   doc= enrich_embedded_document (doc, style);
   url       base = get_master_buffer (get_current_buffer ());
   tm_view   curvw= concrete_view (get_current_view ());
   url       name = embedded_name (wname);
-  if (contains (name, get_all_buffers ())) set_buffer_tree (name, doc);
+  if (contains (name, get_all_buffers ())) {
+    if (version) doc= get_buffer_tree (name);
+    else set_buffer_tree (name, doc);
+  }
+  else if (version) {
+    if (!initialize_buffer_tree (name, doc, *version))
+      FAILED ("Could not initialize input widget document");
+  }
   else create_buffer (name, doc);
   tm_view   vw   = concrete_view (get_passive_view (name));
   tm_window win  = tm_new<tm_window_rep> (doc, command ());
@@ -340,6 +350,17 @@ texmacs_input_widget (tree doc, tree style, url wname) {
     actor_command_kind::resume_view, vw->runtime_id);
   command close_cmd= close_embedded_command (vw, name, last_window_handle);
   return wrapped_widget (win->wid, close_cmd);
+}
+
+widget
+texmacs_input_widget (tree doc, tree style, url wname) {
+  return make_input_widget (doc, style, wname, std::nullopt);
+}
+
+widget
+texmacs_input_widget (tree doc, tree style, url wname,
+                      athena::document::xml_format_version version) {
+  return make_input_widget (doc, style, wname, version);
 }
 
 /******************************************************************************

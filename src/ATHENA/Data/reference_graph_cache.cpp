@@ -380,9 +380,16 @@ load_document_semantics (const fs::path& absolute, tree& document,
     return false;
   }
   try {
-    document= athena::document::decode_document_bytes (
-      std::string_view (as_charp (source), (std::size_t) N(source)), absolute).document;
-    semantic_hash= athena::document::semantic_document_fingerprint (document);
+    auto decoded= athena::document::decode_document_bytes (
+      std::string_view (as_charp (source), (std::size_t) N(source)), absolute);
+    using athena::document::document_source_format;
+    using athena::document::xml_format_version;
+    const auto version= decoded.format == document_source_format::xml_v3 ? xml_format_version::v3 :
+                       decoded.format == document_source_format::xml_v2 ? xml_format_version::v2 :
+                                                                         xml_format_version::v1;
+    document= std::move (decoded.document);
+    // Legacy imports keep the frozen historical digest; plain v3 stays v3.
+    semantic_hash= athena::document::semantic_document_fingerprint (document, version);
   }
   catch (const std::exception& e) {
     error= "Could not parse ATHENA document " + absolute.string () + ": " + e.what ();

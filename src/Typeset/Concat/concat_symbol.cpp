@@ -12,6 +12,7 @@
 #include "named_symbol.hpp"
 #include "math_font.hpp"
 #include "Boxes/construct.hpp"
+#include "math_tree_v3.hpp"
 #include "frame.hpp"
 #include <cmath>
 #include <stdexcept>
@@ -105,14 +106,32 @@ center_native_symbol_on_axis (path ip, box glyph, font fn) {
 void concater_rep::typeset_named_symbol (tree t, path ip) {
   if (N(t) != 1 || !is_atomic (t[0])) { typeset_error (t, ip); return; }
   const auto& name= t[0]->label;
+  typeset_native_symbol_identity (
+    std::string_view (name.data (), std::size_t (N (name))), t, ip);
+}
+
+void concater_rep::typeset_v3_symbol (tree t, path ip) {
+  if (!athena::math_v3::valid_native_math (t)) {
+    typeset_error (t, ip); return;
+  }
+  const std::string rendering_identity=
+    athena::math_v3::symbol_registry_identity (t[0]->label);
+  if (rendering_identity.empty ()) {
+    typeset_error (t, ip); return;
+  }
+  typeset_native_symbol_identity (rendering_identity, t, ip);
+}
+
+void concater_rep::typeset_native_symbol_identity (
+    const std::string_view& identity, tree semantic, path ip) {
   const auto* symbol= athena::text::standard_named_symbols ().lookup (
-    std::string_view (name.data (), N(name)));
+    identity);
   if (symbol && !symbol->virtual_font.empty ()) {
     const string vname (symbol->virtual_font.data (), symbol->virtual_font.size ());
     const string raw (symbol->virtual_symbol.data (), symbol->virtual_symbol.size ());
     box glyph= macro_box (ip,
       virtual_recipe_box (decorate (ip), vname, raw, env->fn, env->pen), env->fn);
-    if (env->read (MODE) == "math") print_semantic (glyph, t);
+    if (env->read (MODE) == "math") print_semantic (glyph, semantic);
     else print (STD_ITEM, symbol->op_type, glyph);
     return;
   }
@@ -134,6 +153,6 @@ void concater_rep::typeset_named_symbol (tree t, path ip) {
       symbol ? env->pen : pencil (red), symbol && symbol->italic, math_mode, bg);
   // Reuse the standard indivisible box mapping, not the unfinished SYMBOL tag.
   box result= macro_box (ip, glyph, env->fn);
-  if (math_mode) print_semantic (result, t);
+  if (math_mode) print_semantic (result, semantic);
   else print (STD_ITEM, symbol ? symbol->op_type : OP_SYMBOL, result);
 }

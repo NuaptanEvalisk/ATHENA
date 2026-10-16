@@ -14,6 +14,21 @@
 #include "packrat.hpp"
 #include "converter.hpp"
 #include "math_font.hpp"
+#include "math_tree_v3.hpp"
+#include "node_metadata.hpp"
+#include "Table/table.hpp"
+
+namespace {
+// A native math node can also occur directly in a rich-text row tag.
+class native_math_mode {
+  edit_env env;
+  tree previous;
+public:
+  explicit native_math_mode (edit_env env):
+    env (env), previous (env->local_begin (MODE, "math")) {}
+  ~native_math_mode () { env->local_end (MODE, previous); }
+};
+}
 
 /******************************************************************************
 * Typesetting special mathematical symbols
@@ -173,6 +188,24 @@ native_integral_operator (tree t) {
          named_big_operator (t, "texmacs:idotsint");
 }
 
+// The operator's math-class trailing space is part of its presentation, even
+// when the new MATH_SCRIPTS node owns the limits. In the old model the space
+// lived on the BIG line item and survived script gluing; preserve the same
+// rule at the v3 operator/script boundary rather than dropping it inside an
+// intermediate typeset_as_concat result.
+static space
+native_operator_afterspace (edit_env env, tree symbol, bool upright) {
+  if (env->math_condensed) return space (0);
+  const space spc= env->fn->spc;
+  if (!native_integral_operator (symbol))
+    return env->display_style ? spc : spc / 2;
+  if (env->fn->math_type == MATH_TYPE_STIX ||
+      env->fn->math_type == MATH_TYPE_TEX_GYRE)
+    return env->display_style ? spc / 2 : spc / 4;
+  if (upright) return spc / 4;
+  return env->display_style ? space (0) : spc / 4;
+}
+
 static box
 virtual_big_operator_box (path ip, string definition, font fn, pencil pen) {
   box glyph= virtual_recipe_box (ip, "tradi-long", definition, fn, pen);
@@ -243,6 +276,384 @@ concater_rep::typeset_bigop (tree t, path ip) {
     //        with scripts; this should be understood better and formalized
   }
   else typeset_error (t, ip);
+}
+
+// XML v3 has a closed native math tree. Its geometry is constructed directly
+// from the new nodes; it never creates old AROUND/BIG/RSUB adapter nodes.
+void
+concater_rep::typeset_v3_delimited (tree t, path ip) {
+  native_math_mode mode (env);
+  if (!athena::math_v3::valid_delimited (t)) { typeset_error (t, ip); return; }
+  box body= typeset_as_concat (env, t[5], descend (ip, 5));
+  const string sizing= t[2]->label;
+  const font fn= env->fn;
+  const SI axis= athena::text::math_layout_metrics (fn) ?
+    athena::text::math_layout_metrics (fn)->axis_height : fn->yfrac;
+
+  // In the old bracket-matching pass, the desired extent is shifted towards
+  // the mathematical axis so that a deep fraction grows the upper half of a
+  // symmetric pair too. The enclosing box bounds alone cannot choose this
+  // extent: merely passing [body->y1, body->y2] loses that correction.
+  // Compute the same geometry directly from the v3 node's single content
+  // subtree; no temporary AROUND/LEFT/RIGHT nodes are constructed.
+  SI desired_bottom= body->y1;
+  SI desired_top= body->y2;
+  body->get_bracket_extents (desired_bottom, desired_top);
+  desired_bottom= min (desired_bottom, body->y1);
+  desired_top= max (desired_top, body->y2);
+  SI auto_bottom= desired_bottom + (fn->sep >> 1);
+  SI auto_top= desired_top - (fn->sep >> 1);
+  const SI drift= ((auto_bottom + auto_top) >> 1) - axis;
+  const SI tolerance= fn->sep << 1;
+  if (drift < 0) auto_top += min (-drift, tolerance) << 1;
+  else auto_bottom -= min (drift, tolerance) << 1;
+  const SI shortfall= 5 * fn->yx - (desired_top - desired_bottom - fn->sep);
+  if (shortfall > 0) {
+    auto_bottom += shortfall / 12;
+    auto_top -= shortfall / 12;
+  }
+  const bool needs_stretch= auto_bottom < fn->y1 || auto_top > fn->y2;
+  auto bracket= [&] (const tree& identity, int index, bool left) {
+    if (identity == "") return;
+    const string glyph= identity->label;
+    path bp= decorate_middle (descend (ip, index));
+    box b;
+    if (sizing == "f") b= math_text_box (bp, glyph, env->fn, env->pen);
+    else if (sizing == "m") {
+      const int level= as_int (t[left ? 3 : 4]->label);
+      const SI height= ((level + 1) * fn->yx) >> 1;
+      b= delimiter_box (bp, glyph, env->fn, env->pen,
+                        axis - height, axis + height);
+    }
+    else if (!needs_stretch) b= math_text_box (bp, glyph, fn, env->pen);
+    else
+      b= delimiter_box (bp, glyph, fn, env->pen,
+                        auto_bottom, auto_top, axis,
+                        desired_bottom, desired_top);
+    print (STD_ITEM, left ? OP_OPENING_BRACKET : OP_CLOSING_BRACKET, b);
+  };
+  bracket (t[0], 0, true);
+  print (body);
+  bracket (t[1], 1, false);
+}
+
+void
+concater_rep::typeset_v3_middle (tree t, path ip) {
+  native_math_mode mode (env);
+  if (!athena::math_v3::valid_native_math (t)) {
+    typeset_error (t, ip); return;
+  }
+  // Preserve the separator's mathematical spacing and stretchable line item.
+  // MATH_MIDDLE is not a left/right endpoint and needs no enclosing DELIMITED.
+  const array<space> spacing= get_spacing (
+    env->fn, env->spacing_policy, env->math_condensed,
+    env->display_style && env->nesting_level == 0);
+  space around= spacing[SPC_MIDDLE];
+  if (around->max > 0) print (around);
+  print (MIDDLE_BRACKET_ITEM, OP_MIDDLE_BRACKET,
+         math_text_box (ip, t[0]->label, env->fn, env->pen));
+  if (around->max > 0) print (around);
+}
+
+void
+concater_rep::typeset_v3_operator (tree t, path ip) {
+  native_math_mode mode (env);
+  if (!athena::math_v3::valid_big_operator (t)) {
+    typeset_error (t, ip); return;
+  }
+  const int size= env->display_style ? 2 : 1;
+  const string upright_recipe= integral_recipe_base (t[0]);
+  box glyph;
+  if (t[1] == "1" && upright_recipe != "")
+    glyph= virtual_big_operator_box (
+      ip, "big-up" * upright_recipe * "-" * as_string (size),
+      env->fn, env->pen);
+  else glyph= big_operator_box (ip, t[0]->label, env->fn, env->pen, size);
+  print (STD_ITEM, OP_BIG, glyph);
+  penalty_min (HYPH_PANIC);
+  print (native_operator_afterspace (env, t[0], t[1] == "1"));
+}
+
+void
+concater_rep::typeset_v3_scripts (tree t, path ip) {
+  native_math_mode mode (env);
+  if (!athena::math_v3::valid_scripts (t)) {
+    typeset_error (t, ip); return;
+  }
+  const bool big= is_func (t[0], BIG_OPERATOR, 2);
+  const box base= typeset_as_concat (env, t[0], descend (ip, 0));
+  box children[4];
+  const tree old_display= env->local_begin (MATH_DISPLAY, "false");
+  const tree old_condensed= env->local_begin (MATH_CONDENSED, "true");
+  const tree old_script= env->local_begin_script ();
+  for (int i=1; i<5; ++i) {
+    const tree old_vpos= env->local_begin (
+      MATH_VPOS, (i == 1 || i == 3) ? "-1" : "1");
+    if (t[i] != "")
+      children[i-1]= typeset_as_concat (env, t[i], descend (ip, i));
+    env->local_end (MATH_VPOS, old_vpos);
+  }
+  env->local_end_script (old_script);
+  env->local_end (MATH_CONDENSED, old_condensed);
+  env->local_end (MATH_DISPLAY, old_display);
+  const bool has_left= t[1] != "" || t[2] != "";
+  const bool has_right= t[3] != "" || t[4] != "";
+  const auto* meta= athena::node::get (t);
+  const auto policy= std::get<std::string> (
+    meta->properties.at (athena::math_v3::scripts_policy_key).data);
+  const bool limits= policy == "o" ||
+    (policy == "d" && env->display_style) ||
+    (policy == "a" && big && env->display_style &&
+     !native_integral_operator (t[0][0]));
+  box assembled= base;
+  if (has_left && has_right && limits) {
+    // Right limits and left prescripts are independent slots. Placing both
+    // sides using side_box discards the explicit over/under policy whenever
+    // the formula also has a left script. Attach the lower/upper limit to the
+    // operator first, then position prescripts on its left.
+    box limited= limit_box (ip, base, children[2], children[3],
+                            env->fn, false);
+    assembled= left_script_box (ip, limited, children[0], children[1],
+                                env->fn, env->vert_pos);
+  }
+  else if (has_left && has_right)
+    assembled= side_box (ip, base, children[0], children[1],
+                         children[2], children[3], env->fn, env->vert_pos);
+  else if (has_left)
+    assembled= left_script_box (ip, base, children[0], children[1],
+                                env->fn, env->vert_pos);
+  else if (has_right && limits)
+    assembled= limit_box (ip, base, children[2], children[3], env->fn, false);
+  else if (has_right)
+    assembled= right_script_box (ip, base, children[2], children[3],
+                                 env->fn, env->vert_pos);
+  if (big) {
+    print (STD_ITEM, OP_BIG, assembled);
+    print (native_operator_afterspace (env, t[0][0], t[0][1] == "1"));
+  }
+  else print (assembled);
+}
+
+void
+concater_rep::typeset_v3_accent (tree t, path ip) {
+  native_math_mode mode (env);
+  if (!athena::math_v3::valid_native_math (t)) {
+    typeset_error (t, ip); return;
+  }
+  const box body= typeset_as_concat (env, t[2], descend (ip, 2));
+  const auto* meta= athena::node::get (t);
+  const auto* stretch= std::get_if<bool> (
+    &meta->properties.at ("math:accent-stretch").data);
+  print_semantic (wide_box (ip, body, t[0]->label, env->fn, env->pen,
+                            *stretch, t[1] == "o"), t[2]);
+}
+
+void
+concater_rep::typeset_v3_annotation (tree t, path ip) {
+  native_math_mode mode (env);
+  if (!athena::math_v3::valid_native_math (t)) {
+    typeset_error (t, ip); return;
+  }
+  const box base= typeset_as_concat (env, t[0], descend (ip, 0));
+  const tree old_display= env->local_begin (MATH_DISPLAY, "false");
+  const tree old_condensed= env->local_begin (MATH_CONDENSED, "true");
+  const tree old_script= env->local_begin_script ();
+  box below, above;
+  if (t[1] != "") below= typeset_as_concat (env, t[1], descend (ip, 1));
+  if (t[2] != "") above= typeset_as_concat (env, t[2], descend (ip, 2));
+  env->local_end_script (old_script);
+  env->local_end (MATH_CONDENSED, old_condensed);
+  env->local_end (MATH_DISPLAY, old_display);
+  print (limit_box (ip, base, below, above, env->fn, false));
+}
+
+void
+concater_rep::typeset_v3_variant (tree t, path ip) {
+  native_math_mode mode (env);
+  if (!athena::math_v3::valid_native_math (t)) {
+    typeset_error (t, ip); return;
+  }
+  const string& kind= t[0]->label;
+  // Historical math-up/bf/it/ss/tt/sl are *textual mathematical operators*:
+  // their definitions in std-math put their body in text mode before
+  // selecting the roman/sans/monospace face. In mathematical mode,
+  // FONT_SHAPE and FONT_SERIES alone do not control the selected math face.
+  // Decode the v3 typed variant into environment scopes directly; never
+  // construct or execute a historical math-up or TEXT/WITH wrapper AST.
+  if (kind == "bb" || kind == "cal") {
+    const tree previous= env->local_begin (
+      MATH_FONT_SHAPE, kind == "bb" ? "bbb" : "cal");
+    typeset (t[1], descend (ip, 1));
+    env->local_end (MATH_FONT_SHAPE, previous);
+    return;
+  }
+  const string family= kind == "ss" ? "ss" : kind == "tt" ? "tt" : "rm";
+  const string shape= kind == "it" ? "italic" :
+                      kind == "sl" ? "slanted" : "right";
+  const bool bold= kind == "bf";
+  if (!bold && kind != "rm" && kind != "it" && kind != "sl" &&
+      kind != "ss" && kind != "tt") {
+    typeset_error (t, ip);
+    return;
+  }
+  const tree previous_mode= env->local_begin (MODE, "text");
+  const tree previous_family= env->local_begin (FONT_FAMILY, family);
+  const tree previous_shape= env->local_begin (FONT_SHAPE, shape);
+  tree previous_series;
+  if (bold) previous_series= env->local_begin (FONT_SERIES, "bold");
+  typeset (t[1], descend (ip, 1));
+  if (bold) env->local_end (FONT_SERIES, previous_series);
+  env->local_end (FONT_SHAPE, previous_shape);
+  env->local_end (FONT_FAMILY, previous_family);
+  env->local_end (MODE, previous_mode);
+}
+
+void
+concater_rep::typeset_v3_grid (tree t, path ip) {
+  native_math_mode mode (env);
+  if (!athena::math_v3::valid_native_math (t)) {
+    typeset_error (t, ip); return;
+  }
+  // Native grids cannot use the legacy wide-table flattening fallback: it
+  // loses row numbers/destinations and executes cell content a second time.
+  print (typeset_as_table (env, t, ip));
+}
+
+void
+concater_rep::typeset_v3_block (tree t, path ip) {
+  if (!athena::math_v3::valid_native_math (t)) {
+    typeset_error (t, ip); return;
+  }
+  const auto* meta= athena::node::get (t);
+  if (!meta) { typeset_error (t, ip); return; }
+  const auto found= meta->properties.find ("math:block-numbered");
+  if (found == meta->properties.end ()) { typeset_error (t, ip); return; }
+  const auto* numbered= std::get_if<bool> (&found->second.data);
+  if (!numbered) { typeset_error (t, ip); return; }
+  const bool grid= is_func (t[0], MATH_GRID);
+  if (grid) validate_native_math_grid_layout (t[0]);
+  const bool row_numbers= grid && native_math_grid_uses_row_numbering (t[0]);
+  if (row_numbers) {
+    const tree old_mode= env->local_begin (MODE, "math");
+    const tree old_display= env->local_begin (MATH_DISPLAY, "true");
+    try {
+      print (typeset_native_math_grid (env, t[0], descend (ip, 0), *numbered));
+    }
+    catch (...) {
+      env->local_end (MATH_DISPLAY, old_display);
+      env->local_end (MODE, old_mode);
+      throw;
+    }
+    env->local_end (MATH_DISPLAY, old_display);
+    env->local_end (MODE, old_mode);
+    return;
+  }
+  if (*numbered &&
+      (!env->provides ("next-equation") ||
+       !env->provides ("the-equation"))) {
+    typeset_error (t, ip);
+    return;
+  }
+
+  tree number;
+  if (*numbered) {
+    const tree advanced= env->exec (compound ("next-equation"));
+    if (is_func (advanced, _ERROR)) { typeset_error (t, ip); return; }
+    number= env->exec (compound ("the-equation"));
+    if (is_func (number, _ERROR) ||
+        (is_atomic (number) && number == "")) {
+      typeset_error (t, ip);
+      return;
+    }
+    // The existing reference engine tracks the pending tag tuple. Only
+    // invoke set-binding when this state is available; absent tags are not
+    // invented from a display ordinal or converted from UUIDs.
+    if (is_func (env->read ("the-tags"), TUPLE)) {
+      const tree bound= env->exec (tree (SET_BINDING, number));
+      if (is_func (bound, _ERROR)) { typeset_error (t, ip); return; }
+    }
+  }
+
+  const tree old_mode= env->local_begin (MODE, "math");
+  const tree old_display= env->local_begin (MATH_DISPLAY, "true");
+  box body;
+  try {
+    body= grid ? typeset_native_math_grid (env, t[0], descend (ip, 0), false) :
+                 typeset_as_concat (env, t[0], descend (ip, 0));
+  }
+  catch (...) {
+    env->local_end (MATH_DISPLAY, old_display);
+    env->local_end (MODE, old_mode);
+    throw;
+  }
+  env->local_end (MATH_DISPLAY, old_display);
+  env->local_end (MODE, old_mode);
+  if (!*numbered) { print (body); return; }
+
+  const tree old_text_mode= env->local_begin (MODE, "text");
+  const tree old_shape= env->local_begin (FONT_SHAPE, "right");
+  const tree number_markup (CONCAT, tree ("("), number, tree (")"));
+  box label= typeset_as_concat (env, number_markup, decorate_middle (ip));
+  env->local_end (FONT_SHAPE, old_shape);
+  env->local_end (MODE, old_text_mode);
+
+  // Equation number is a sibling box, not mathematical content. Keep the
+  // body path intact for cursor, edit and node-reference destinations.
+  const SI gap= env->as_length ("5mm");
+  array<box> parts;
+  parts << body << label;
+  array<SI> xs, ys;
+  xs << 0 << body->x2 + gap - label->x1;
+  ys << 0 << 0;
+  print (composite_box (ip, parts, xs, ys));
+}
+
+void
+concater_rep::typeset_v3_long_arrow (tree t, path ip) {
+  native_math_mode mode (env);
+  if (!athena::math_v3::valid_native_math (t)) {
+    typeset_error (t, ip); return;
+  }
+  box below, above;
+  const tree old_display= env->local_begin (MATH_DISPLAY, "false");
+  const tree old_condensed= env->local_begin (MATH_CONDENSED, "true");
+  const tree old_script= env->local_begin_script ();
+  if (t[1] != "") {
+    const tree position= env->local_begin (MATH_VPOS, "1");
+    below= typeset_as_concat (env, t[1], descend (ip, 1));
+    env->local_end (MATH_VPOS, position);
+  }
+  if (t[2] != "") {
+    const tree position= env->local_begin (MATH_VPOS, "-1");
+    above= typeset_as_concat (env, t[2], descend (ip, 2));
+    env->local_end (MATH_VPOS, position);
+  }
+  env->local_end_script (old_script);
+  env->local_end (MATH_CONDENSED, old_condensed);
+  env->local_end (MATH_DISPLAY, old_display);
+  SI width= 0;
+  if (!is_nil (below)) width= max (width, below->w ());
+  if (!is_nil (above)) width= max (width, above->w ());
+  width += env->fn->wquad;
+  box arrow;
+  if (is_atomic (t[0]))
+    arrow= wide_box (decorate (descend (ip, 0)), t[0]->label,
+                     env->fn, env->pen, width);
+  else {
+    arrow= typeset_as_concat (env, t[0], decorate (descend (ip, 0)));
+    if (arrow->w () > 0 && arrow->w () < width) {
+      const double sx= double (width) / double (arrow->w ());
+      arrow= transformed_box (decorate_middle (descend (ip, 0)), arrow,
+        scaling (point (sx, 1.0), point (0, 0)));
+    }
+  }
+  space spc= env->fn->spc;
+  if (env->math_condensed)
+    spc= space (spc->min>>3, spc->def>>3, spc->max>>2);
+  else spc= space (spc->min>>1, spc->def>>1, spc->max);
+  print (spc);
+  print (limit_box (ip, arrow, below, above, env->fn, false));
+  print (spc);
 }
 
 string

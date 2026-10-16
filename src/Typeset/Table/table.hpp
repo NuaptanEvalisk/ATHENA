@@ -16,6 +16,7 @@
 #include "Format/line_item.hpp"
 #include "Format/page_item.hpp"
 #include "Format/stack_border.hpp"
+#include <optional>
 
 class cell;
 class table;
@@ -23,6 +24,16 @@ class table;
 class table_rep: public concrete_struct {
 protected:
   hashmap<string,tree> var;   // formatting variables
+  string native_math_grid_kind; // empty except for native XML v3 MathGrid
+  bool native_row_numbering= false;
+  std::optional<bool> native_block_numbering;
+  array<tree> native_rows;
+  array<tree> native_row_keys;
+  array<box> native_row_labels;
+  array<SI> native_row_baselines;
+  SI native_number_width= 0, native_number_gap= 0;
+  void finish_native_row (int i, array<box>& bs, array<SI>& x,
+                          array<SI>& y, SI shift= 0);
 
 public:
   edit_env env;               // the environment
@@ -65,7 +76,8 @@ public:
   ~table_rep ();
   void display (bool flag= true);
 
-  void typeset (tree t, path ip);
+  void typeset (tree t, path ip,
+                std::optional<bool> block_numbering= std::nullopt);
   void typeset_subtable (tree t, path iq, hashmap<string,tree> cvar);
   void typeset_table (tree fm, tree t, path ip);
   void typeset_row (int i, tree fm, tree t, path ip);
@@ -145,7 +157,7 @@ public:
 
   cell_rep (edit_env env);
 
-  void typeset (tree fm, tree t, path ip);
+  void typeset (tree fm, tree t, path ip, bool native_math= false);
   void cell_local_begin (tree fm);
   void cell_local_end (tree fm);
   void format_cell (tree fm);
@@ -167,5 +179,12 @@ class cell {
 CONCRETE_NULL_CODE(cell);
 
 void extract_format (tree fm, tree* r, int n);
+
+bool native_math_grid_uses_row_numbering (const tree& grid);
+void validate_native_math_grid_layout (const tree& grid);
+bool native_math_row_tag_is_math (const tree& tag);
+void validate_native_math_row_tag (const tree& tag);
+box typeset_native_math_grid (edit_env env, tree grid, path ip,
+                             bool block_numbering);
 
 #endif // defined TABLE_H

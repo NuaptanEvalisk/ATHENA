@@ -401,6 +401,39 @@ concater_rep::typeset_impl (tree t, path ip) {
       break;
     }
 
+  case DELIMITED:
+    typeset_v3_delimited (t, ip);
+    break;
+  case MATH_MIDDLE:
+    typeset_v3_middle (t, ip);
+    break;
+  case BIG_OPERATOR:
+    typeset_v3_operator (t, ip);
+    break;
+  case MATH_SCRIPTS:
+    typeset_v3_scripts (t, ip);
+    break;
+  case MATH_ACCENT:
+    typeset_v3_accent (t, ip);
+    break;
+  case MATH_ANNOTATION:
+    typeset_v3_annotation (t, ip);
+    break;
+  case MATH_VARIANT:
+    typeset_v3_variant (t, ip);
+    break;
+  case MATH_SYMBOL:
+    typeset_v3_symbol (t, ip);
+    break;
+  case MATH_GRID:
+    typeset_v3_grid (t, ip);
+    break;
+  case MATH_BLOCK:
+    typeset_v3_block (t, ip);
+    break;
+  case MATH_LONG_ARROW:
+    typeset_v3_long_arrow (t, ip);
+    break;
   case AROUND:
   case VAR_AROUND:
   case BIG_AROUND:

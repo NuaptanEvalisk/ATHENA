@@ -11,7 +11,7 @@
 #include "node_reference_export.hpp"
 #include "node_metadata.hpp"
 #include "transclusion_cache.hpp"
-#include "Data/Convert/Xml/athena_document_xml.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
 #include "file.hpp"
 #include "convert.hpp"
 #include <filesystem>
@@ -105,7 +105,8 @@ static tree compute_display (const view& current) {
       continue;
     }
     try {
-      auto node= document::read_xml_v2 (target.fragment_xml, document::xml_kind::fragment);
+      auto node= document::decode_native_xml_bytes (
+        target.fragment_xml, document::xml_kind::fragment).document;
       if (target.candidates.size () == 1 && target.candidates[0].where.empty () && is_document (node))
         for (int i=0; i<N(node); ++i) if (is_compound (node[i], "body", 1)) {
           node= node[i][0]; break;
@@ -169,8 +170,8 @@ tree display (const view& current) {
 static void merge_preview_context (const node_location::item& target, tree& out,
                                    tree& preamble, tree* nearby= nullptr) {
   if (target.preview_context_xml.empty ()) return;
-  auto context= document::read_xml_v2 (
-    target.preview_context_xml, document::xml_kind::fragment);
+  auto context= document::decode_native_xml_bytes (
+    target.preview_context_xml, document::xml_kind::fragment).document;
   context= presentation (node::content_projection (context),
     target.source_directory.empty () ? url_none () :
                                         url_system (native (target.source_directory)));

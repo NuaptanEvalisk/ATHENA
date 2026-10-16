@@ -10,6 +10,7 @@
 
 #include "ATHENA/Data/artifact_radioactive_links.hpp"
 #include "analyze.hpp"
+#include "node_metadata.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -195,7 +196,11 @@ private:
             AthenaArtifactRadioactiveMatch match;
             if (full_radioactive_match (value[0], match)) {
               ++stats.full_text_matches;
-              if (target_contains_artifact (node, match)) {
+              if (target_contains_artifact (node, match) &&
+                  !athena::node::get (value) &&
+                  !athena::node::contains_metadata (value[1])) {
+                // Removing a metadata-bearing wrapper would erase its identity
+                // or bindings. Retain that link until a relocation policy exists.
                 ++stats.links_removed;
                 return rewrite (value[0]);
               }
@@ -206,6 +211,7 @@ private:
       }
     }
     tree result (L(value));
+    athena::node::copy_metadata (value, result);
     for (int i=0; i<N(value); ++i) result << rewrite (value[i]);
     return result;
   }

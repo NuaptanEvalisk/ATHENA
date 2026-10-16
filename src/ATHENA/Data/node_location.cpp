@@ -10,7 +10,7 @@
 #include "node_location.hpp"
 #include "node_location_cache.hpp"
 #include "node_metadata.hpp"
-#include "Data/Convert/Xml/athena_document_xml.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
 #include <algorithm>
 #include <cctype>
 #include <condition_variable>
@@ -405,7 +405,7 @@ struct service::impl: std::enable_shared_from_this<impl> {
                 }
                 const document::codec_limits limits;
                 const auto bytes= entry.read (limits.input_bytes);
-                auto source_tree= document::read_xml_v2 (bytes);
+                auto source_tree= document::decode_native_xml_bytes (bytes).document;
                 auto next= std::make_shared<source> ();
                 next->file= name;
                 next->disk_revision= revision;
@@ -531,7 +531,8 @@ void service::clear_cache () {
   ++data->cache_epoch;
 }
 
-static tree read_disk_source (const std::filesystem::path& root, const item& target) {
+static document::native_xml_read_result read_disk_source (
+    const std::filesystem::path& root, const item& target) {
   if (target.state != status::resolved || target.candidates.size () != 1)
     throw std::invalid_argument ("Node target is not uniquely resolved");
   const auto& location= target.candidates.front ();
@@ -541,8 +542,9 @@ static tree read_disk_source (const std::filesystem::path& root, const item& tar
   const auto entry= directory.open (location.file);
   if (!fs::same_revision (*location.disk_revision, entry.stat ()))
     throw std::runtime_error ("Stale saved node location");
-  auto document= document::read_xml_v2 (entry.read (document::codec_limits ().input_bytes));
-  lookup (document, location.where, target.id);
+  auto document= document::decode_native_xml_bytes (
+    entry.read (document::codec_limits ().input_bytes));
+  lookup (document.document, location.where, target.id);
   const auto now= directory.open (location.file);
   if (!entry.same_object (now) || !fs::same_revision (*location.disk_revision, now.stat ()))
     throw std::runtime_error ("Source changed while reading node target");
@@ -551,7 +553,7 @@ static tree read_disk_source (const std::filesystem::path& root, const item& tar
 
 tree read_disk (const std::filesystem::path& root, const item& target) {
   auto source= read_disk_source (root, target);
-  return lookup (source, target.candidates.front ().where, target.id);
+  return lookup (source.document, target.candidates.front ().where, target.id);
 }
 
 static bool preview_context_item (const tree& value) {
@@ -632,7 +634,8 @@ static tree nearby_context (const tree& source, const address& where) {
   return context;
 }
 
-content_payload capture_content (const tree& source, const item& target, std::string source_url) {
+content_payload capture_content (const tree& source, const item& target,
+    std::string source_url, document::xml_format_version version) {
   if (target.state != status::resolved || target.candidates.size () != 1)
     throw std::invalid_argument ("Node target is not uniquely resolved");
   const auto& where= target.candidates.front ().where;
@@ -659,12 +662,14 @@ content_payload capture_content (const tree& source, const item& target, std::st
     }
   }
   if (N(context_body) > 0) context << compound ("body", context_body);
-  return {document::write_xml_v2 (selected, document::xml_kind::fragment),
-          document::write_xml_v2 (context, document::xml_kind::fragment), std::move (source_url)};
+  return {document::encode_native_xml_bytes (selected, version, document::xml_kind::fragment),
+          document::encode_native_xml_bytes (context, version, document::xml_kind::fragment),
+          std::move (source_url)};
 }
 
 content_payload read_disk_content (const std::filesystem::path& root, const item& target) {
   auto source= read_disk_source (root, target);
-  return capture_content (source, target, (root / target.candidates.front ().file).string ());
+  return capture_content (source.document, target,
+    (root / target.candidates.front ().file).string (), source.version);
 }
 } // namespace athena::node_location

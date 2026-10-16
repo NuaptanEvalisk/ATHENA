@@ -23,6 +23,7 @@
 #include "merge_sort.hpp"
 #include "Typeset/Env/compound_counters.hpp"
 #include "scheme.hpp"
+#include "node_metadata_transform.hpp"
 #ifdef EXPERIMENTAL
 #include "../../Style/Environment/std_environment.hpp"
 #endif // EXPERIMENTAL
@@ -378,10 +379,8 @@ edit_typeset_rep::evaluate_compound_counters (const tree& incoming) {
   evaluation->patch_env (pre);
   evaluation->style_init_env ();
   evaluation->update ();
-  athena::avd::apply_counter_state (
-    evaluation, athena::avd::counter_variables (evaluation), incoming);
-  (void) evaluation->exec (subtree (et, rp));
-  return athena::avd::capture_counter_state (evaluation, incoming);
+  return athena::avd::evaluate_counter_state (
+    evaluation, subtree (et, rp), incoming, buf->storage_version);
 }
 
 void
@@ -708,32 +707,44 @@ edit_typeset_rep::get_total_height (bool deco) {
 
 static tree
 simplify_execed (tree t) {
-  if (is_atomic (t)) return t;
+  if (is_atomic (t)) {
+    tree r= copy (t);
+    athena::node::transform_rich_metadata (t, r, simplify_execed);
+    return r;
+  }
   int i, n= N(t);
   tree r (t, n);
   for (i=0; i<n; i++)
     r[i]= simplify_execed (t[i]);
-  if (is_func (r, QUOTE, 1) && is_atomic (r[0]))
+  athena::node::transform_rich_metadata (t, r, simplify_execed);
+  if (is_func (r, QUOTE, 1) && is_atomic (r[0]) && !athena::node::get (r))
     return r[0];
   else return r;
 }
 
 static tree
 expand_references (tree t, hashmap<string,tree> h) {
-  if (is_atomic (t)) return t;
+  auto finish= [&] (tree r) {
+    athena::node::transform_rich_metadata (
+      t, r, [&] (tree rich) { return expand_references (rich, h); });
+    return r;
+  };
+  if (is_atomic (t)) return finish (copy (t));
   if (is_func (t, REFERENCE, 1) || is_func (t, PAGEREF)) {
     string ref= as_string (simplify_execed (t[0]));
+    tree destination ("#" * ref);
+    athena::node::copy_metadata (t[0], destination);
     if (h->contains (ref)) {
       int which= is_func (t, REFERENCE, 1)? 0: 1;
-      return tree (HLINK, copy (h[ref][which]), "#" * ref);
+      return finish (tree (HLINK, copy (h[ref][which]), destination));
     }
-    return tree (HLINK, "?", "#" * ref);
+    return finish (tree (HLINK, "?", destination));
   }
   int i, n= N(t);
   tree r (t, n);
   for (i=0; i<n; i++)
     r[i]= expand_references (t[i], h);
-  return r;  
+  return finish (r);
 }
 
 static void
@@ -754,11 +765,17 @@ edit_typeset_rep::exec (tree t, hashmap<string,tree> H, bool expand_refs) {
   hashmap<string,tree> H2;
   env->read_env (H2);
   env->write_env (H);
-  t= env->exec (t);
-  if (expand_refs)
-    t= expand_references (t, buf->data->ref);
-  t= simplify_execed (t);
-  t= simplify_correct (t);
+  try {
+    t= env->exec (t);
+    if (expand_refs)
+      t= expand_references (t, buf->data->ref);
+    t= simplify_execed (t);
+    t= simplify_correct (t);
+  }
+  catch (...) {
+    env->write_env (H2);
+    throw;
+  }
   env->write_env (H2);
   return t;
 }
@@ -805,7 +822,9 @@ search_doc_title (tree t) {
 
 tree
 edit_typeset_rep::exec_html (tree t, path p) {
-  t= convert_OTS1_symbols_to_universal_encoding (t);
+  if (buf->storage_version != athena::document::xml_storage_version::v3)
+    t= convert_OTS1_symbols_to_universal_encoding (t);
+  else t= copy (t);
   if (p == (rp * 0)) typeset_preamble ();
   typeset_exec_until (p);
   hashmap<string,tree> H= copy (cur[p]);

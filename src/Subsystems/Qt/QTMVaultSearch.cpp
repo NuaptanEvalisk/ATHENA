@@ -141,17 +141,71 @@ QThreadPool& vault_search_workers () {
   return pool;
 }
 
-tree vault_search_read_body (const QString& file, bool semantic) {
+static athena::document::xml_format_version
+snapshot_version (const actor_command_record& response) {
+  using athena::document::xml_format_version;
+  switch (response.argument[0]) {
+  case 1: return xml_format_version::v1;
+  case 2: return xml_format_version::v2;
+  case 3: return xml_format_version::v3;
+  default: throw std::runtime_error ("Unknown live search source storage version");
+  }
+}
+
+athena::document::native_xml_read_result
+vault_search_buffer_snapshot (url name) {
+  const auto source= published_buffer_source (to_qstring (as_string (name)).toStdString ());
+  actor_command_record response;
+  if (source.first == ATHENA_NO_ACTOR ||
+      !buffer_actor::invoke_on (source.first, actor_command_kind::snapshot_document,
+        source.second, ATHENA_NO_BLOB, ATHENA_NO_BLOB, &response))
+    throw std::runtime_error ("Could not snapshot source buffer");
+  const tree document= actor_tree_registry::instance ().take (response.payload0);
+  return {snapshot_version (response), extract (document, "body")};
+}
+
+void vault_search_set_query (VaultSearchOptions& options, const tree& query,
+                            athena::document::xml_format_version version) {
+  const auto bytes= athena::document::encode_native_xml_bytes (
+    query, version, athena::document::xml_kind::fragment);
+  // Keep the text prefilter for plain strings; metadata-bearing text is a
+  // structured query and must travel through the same strict native codec.
+  const bool plain= is_atomic (query) && !athena::node::contains_metadata (query);
+  options.query= is_atomic (query) ? to_qstring (query->label) :
+    to_qstring (tree_as_string (query));
+  options.serializedQuery= plain ? std::string () : bytes;
+  options.queryFormat= plain ? std::nullopt : std::make_optional (version);
+}
+
+tree vault_search_decode_query (const VaultSearchOptions& options) {
+  using namespace athena::document;
+  if (options.serializedQuery.empty () && !options.queryFormat)
+    return tree (from_qstring (options.query));
+  if (options.serializedQuery.empty () || !options.queryFormat)
+    throw codec_exception (codec_error::invalid_structure,
+      "Search query fragment and source format must both be present");
+  const auto decoded= decode_native_xml_bytes (options.serializedQuery, xml_kind::fragment);
+  if (decoded.version != *options.queryFormat)
+    throw codec_exception (codec_error::unsupported_version,
+      "Search query fragment version does not match its source format");
+  return decoded.document;
+}
+
+tree vault_search_read_body (const QString& file, bool semantic,
+                            athena::document::xml_format_version* source_version) {
   search_source_revision.clear ();
   const auto source= published_buffer_source (file.toStdString ());
   if (source.first != ATHENA_NO_ACTOR) {
     actor_command_record response;
-    if (!buffer_actor::invoke_on (source.first, semantic ? actor_command_kind::snapshot_document : actor_command_kind::snapshot_body,
+    if (!buffer_actor::invoke_on (source.first, (semantic || source_version) ? actor_command_kind::snapshot_document : actor_command_kind::snapshot_body,
           source.second, ATHENA_NO_BLOB, ATHENA_NO_BLOB, &response))
       throw std::runtime_error ("Could not read live search source");
     tree document= actor_tree_registry::instance ().take (response.payload0);
-    if (!semantic) return document;
-    search_source_revision= athena::document::semantic_document_fingerprint (document);
+    if (!semantic && !source_version) return document;
+    const auto version= snapshot_version (response);
+    if (source_version) *source_version= version;
+    if (semantic)
+      search_source_revision= athena::document::semantic_document_fingerprint (document, version);
     tree body= extract (document, "body");
     return is_empty (body) ? document : body;
   }
@@ -159,19 +213,40 @@ tree vault_search_read_body (const QString& file, bool semantic) {
   if (!input.open (QIODevice::ReadOnly)) throw std::runtime_error ("Cannot read search file");
   QByteArray bytes;
   while (!input.atEnd ()) {
-    if (vault_search_cancelled ()) return tree (DOCUMENT, "");
+    if (vault_search_cancelled ()) {
+      if (source_version) throw std::runtime_error ("Source snapshot cancelled");
+      return tree (DOCUMENT, "");
+    }
     QByteArray block= input.read (256 * 1024);
     if (input.error () != QFileDevice::NoError)
       throw std::runtime_error ("Cannot read search file");
     bytes.append (block);
   }
-  if (bytes.isEmpty ()) return tree (DOCUMENT, "");
+  if (bytes.isEmpty ()) {
+    if (source_version) throw std::runtime_error ("Empty source has no stored format");
+    return tree (DOCUMENT, "");
+  }
   // Search parses persisted documents, without converter/Scheme callbacks,
   // current-buffer fallback, link registration, or preview image rewriting.
-  tree doc= athena::document::decode_document_bytes (
+  const auto decoded= athena::document::decode_document_bytes (
     std::string_view (bytes.constData (), (std::size_t) bytes.size ()),
-    std::filesystem::path (file.toStdString ())).document;
-  if (semantic) search_source_revision= athena::document::semantic_document_fingerprint (doc);
+    std::filesystem::path (file.toStdString ()));
+  tree doc= decoded.document;
+  if (semantic || source_version) {
+    using namespace athena::document;
+    xml_format_version version;
+    switch (decoded.format) {
+    case document_source_format::xml_v1: version= xml_format_version::v1; break;
+    case document_source_format::xml_v2: version= xml_format_version::v2; break;
+    case document_source_format::xml_v3: version= xml_format_version::v3; break;
+    case document_source_format::legacy_markup:
+    case document_source_format::legacy_scheme:
+      version= xml_format_version::v2; break;
+    default: throw std::runtime_error ("Unknown search source format");
+    }
+    if (source_version) *source_version= version;
+    if (semantic) search_source_revision= semantic_document_fingerprint (doc, version);
+  }
   tree body= extract (doc, "body");
   return is_empty (body) ? doc : body;
 }
@@ -246,10 +321,10 @@ void vault_search_semantic_candidates (QObject* owner,
     std::function<void(std::shared_ptr<const VaultSemanticCandidates>, QString)> complete) {
   const QPointer<QObject> receiver= owner;
   QString queryText= options.query;
-  if (!options.serializedQuery.empty ()) {
+  if (!options.serializedQuery.empty () || options.queryFormat) {
     try {
       queryText= QString::fromStdString (athena::rag::rag_query_text (
-        athena::document::read_xml_v2 (options.serializedQuery, athena::document::xml_kind::fragment)));
+        vault_search_decode_query (options)));
     }
     catch (const std::exception& error) { complete ({}, QString::fromUtf8 (error.what ())); return; }
   }

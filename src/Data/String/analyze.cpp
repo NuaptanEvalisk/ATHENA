@@ -15,6 +15,7 @@
 #include "scheme.hpp"
 #include "ntuple.hpp"
 #include "new_document.hpp"
+#include "node_metadata_transform.hpp"
 
 /******************************************************************************
 * Tests for characters
@@ -382,7 +383,12 @@ iso_to_koi8uk (string s) {
 
 tree
 convert_OTS1_symbols_to_universal_encoding (tree t) {
-  if (is_atomic (t)) return t;
+  if (is_atomic (t)) {
+    tree r= copy (t);
+    athena::node::transform_rich_metadata (
+      t, r, convert_OTS1_symbols_to_universal_encoding);
+    return r;
+  }
   if (N(t) == 0) {
     static tree symbols (CONCAT);
     if (N(symbols) == 0)
@@ -390,28 +396,32 @@ convert_OTS1_symbols_to_universal_encoding (tree t) {
         << "threesuperior" << "onesuperior" << "mu" << "onequarter"
         << "onehalf" << "threequarters" << "trademark";
     tree l= tree (as_string (L(t)));
+    tree r= copy (t);
     if (contains (l, A(symbols)))
-      return "<" * as_string (L(t)) * ">";
+      r= "<" * as_string (L(t)) * ">";
     else if (l == "degreesign")
-      return "<degree>";
+      r= "<degree>";
     else if (l == "copyleft")
-      return "<copyright>"; // Copyleft is nor defined in TeXmacs universal
+      r= "<copyright>"; // Copyleft is nor defined in TeXmacs universal
                             // encoding, neither in utf8, neither buildable
                             // with TeXmacs primitive construction.
     else if (l == "registered")
-      return "<circledR>";
+      r= "<circledR>";
     else if (l == "paragraphsign")
-      return "<paragraph>";
+      r= "<paragraph>";
     else if (l == "euro")
-      return "<#20AC>";
-    else
-      return t;
+      r= "<#20AC>";
+    athena::node::transform_rich_metadata (
+      t, r, convert_OTS1_symbols_to_universal_encoding);
+    return r;
 
   }
   int i, n= N(t);
   tree r (t, n);
   for (i=0; i<n; i++)
     r[i]= convert_OTS1_symbols_to_universal_encoding (t[i]);
+  athena::node::transform_rich_metadata (
+    t, r, convert_OTS1_symbols_to_universal_encoding);
   return r;
 }
 

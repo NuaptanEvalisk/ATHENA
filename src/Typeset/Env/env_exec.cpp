@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "env.hpp"
+#include "compound_counters.hpp"
 #include "enunciation_surround.hpp"
 #include "program_presentation.hpp"
 #include "convert.hpp"
@@ -24,6 +25,7 @@
 #include "drd_mode.hpp"
 #include "dictionary.hpp"
 #include "new_style.hpp"
+#include "node_metadata.hpp"
 
 extern int script_status;
 extern tree with_package_definitions (string package, tree body);
@@ -197,6 +199,12 @@ tree
 edit_env_rep::exec (tree t) {
   // cout << "Execute: " << t << "\n";
   if (is_atomic (t)) return t;
+  if (compound_counter_execution &&
+      (L(t) == MATH_BLOCK || L(t) == MATH_GRID))
+    return athena::avd::exec_native_counter_node (edit_env (this), t);
+  // Native rows establish THE_LABEL; use the existing label macro to bind
+  // authored cell labels in this isolated semantic pass as layout would.
+  if (compound_counter_execution && L(t) == LABEL) return exec_compound (t);
   switch (L(t)) {
   case MOVE:
   case SHIFT:
@@ -206,6 +214,7 @@ edit_env_rep::exec (tree t) {
     tree r (t, n);
     r[0]= exec (t[0]);
     for (i=1; i<n; i++) r[i]= t[i];
+    athena::node::copy_metadata (t, r);
     return r;
   }
   case DATOMS:
@@ -569,6 +578,7 @@ edit_env_rep::exec (tree t) {
       // cout << "Executing " << t << "\n";
       tree r (t, n);
       for (i=0; i<n; i++) r[i]= exec (t[i]);
+      athena::node::copy_metadata (t, r);
       // cout << "Executed " << t << " -> " << r << "\n";
       return r;
     }
@@ -589,6 +599,7 @@ edit_env_rep::exec_formatting (tree t, string v) {
   write_update (v, newv);
   r[n-1]= exec (t[n-1]);
   write_update (v, oldv);
+  athena::node::copy_metadata (t, r);
   return r;
 }
 
@@ -602,6 +613,7 @@ edit_env_rep::exec_table (tree t) {
   tree r (t, n);
   for (i=0; i<n; i++) r[i]= exec (t[i]);
   write_update (CELL_FORMAT, oldv);
+  athena::node::copy_metadata (t, r);
   return r;
 }
 
@@ -664,6 +676,7 @@ edit_env_rep::exec_with (tree t) {
     u[(i<<1)+1]= tree (QUOTE, newv[i]);
   }
   u[n-1]= r;
+  athena::node::copy_metadata (t, u);
   STACK_DELETE_ARRAY(vars);
   STACK_DELETE_ARRAY(oldv);
   STACK_DELETE_ARRAY(newv);
@@ -860,6 +873,7 @@ edit_env_rep::exec_eval_args (tree t) {
   tree r (v, n);
   for (i=0; i<n; i++)
     r[i]= exec (v[i]);
+  athena::node::copy_metadata (v, r);
 
   macro_arg= old_var;
   macro_src= old_src;

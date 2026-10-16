@@ -8,8 +8,14 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include "vault_format_upgrade.hpp"
+#include "math_v2_to_v3.hpp"
+#include "vault_xml_v3_history.hpp"
+#include "vault_xml_v3_indexes.hpp"
+#include "vault_xml_v3_hodarium.hpp"
 #include "document_file_codec.hpp"
 #include "document_upgrade_file.hpp"
+#include "math_v2_to_v3.hpp"
+#include "vault_xml_v3_history.hpp"
 #include "converter.hpp"
 #include "vault_directory_lease.hpp"
 #include "ATHENA/Data/artifacts.hpp"
@@ -34,6 +40,7 @@
 #include <QStandardPaths>
 #endif
 #include <QUrl>
+#include <QUrlQuery>
 #include <QUuid>
 #include <algorithm>
 #include <atomic>
@@ -203,7 +210,17 @@ inventory scan (const fs::path& root, const vault_upgrade_progress& progress,
   return result;
 }
 void compare (const inventory& expected, const inventory& actual, bool original) {
-  require (expected.size () == actual.size (), "Vault entries changed during upgrade");
+  if (expected.size () != actual.size ()) {
+    std::string delta;
+    for (const auto& [name, record]: actual)
+      if (!expected.count (name)) { delta= "+" + name.generic_string (); break; }
+    if (delta.empty ())
+      for (const auto& [name, record]: expected)
+        if (!actual.count (name)) { delta= "-" + name.generic_string (); break; }
+    throw std::runtime_error ("Vault entries changed during upgrade " + delta +
+                              " (before=" + std::to_string (expected.size ()) +
+                              ", after=" + std::to_string (actual.size ()) + ")");
+  }
   for (const auto& [path, before]: expected) {
     auto it= actual.find (path);
     require (it != actual.end (), "Missing snapshot entry: " + path.string ());
@@ -223,6 +240,32 @@ bool is_document_file (const fs::path& path) {
   return first != ".backup" && first != ".git" && first != ".hg" &&
     first != ".svn" && path.extension () == ".ath";
 }
+
+struct v3_document_inventory {
+  std::vector<fs::path> documents;
+  std::vector<fs::path> preserved_sources;
+};
+
+v3_document_inventory classify_v3_documents (const inventory& files) {
+  v3_document_inventory result;
+  for (const auto& [path, entry]: files) {
+    if (!is_document_file (path)) continue;
+    require (S_ISREG (entry.info.st_mode) && entry.info.st_nlink == 1,
+             "Document must be a regular non-hardlinked file: " + path.string ());
+    // QTMContinuousMaintenance preserves the exact pre-replacement source by
+    // storage SHA-256. This is recovery evidence, not a disposable cache or a
+    // current document. Do not generalize this exception to all of .athena.
+    if (path.parent_path () == fs::path (".athena/maintenance/enunciations")) {
+      require (path.stem ().string () == entry.digest,
+               "Maintenance source snapshot checksum/name mismatch: " +
+               path.generic_string ());
+      result.preserved_sources.push_back (path);
+    }
+    else result.documents.push_back (path);
+  }
+  return result;
+}
+
 std::string bytes (const fs::path& root, const fs::path& path) {
   filesystem::confined_root storage (root);
   return storage.open (path).read (codec_limits ().output_bytes);
@@ -2553,6 +2596,111 @@ upgrade_vault_node_model (
 #endif
 }
 
+vault_xml_v3_preflight_result preflight_vault_xml_v3 (
+  const fs::path& requested, bool strict,
+  const vault_upgrade_progress& progress) {
+  const auto absolute= fs::absolute (requested).lexically_normal ();
+  require (!fs::is_symlink (fs::symlink_status (absolute)),
+           "Vault root must not be a symlink");
+  const auto root= fs::canonical (absolute);
+  text::require_utf8 (root.native ());
+  require (root != root.root_path (), "Cannot check filesystem root as a Vault");
+  filesystem::vault_directory_lease lease (root, true);
+  AthenaVaultfileInfo info;
+  std::string error;
+  require (athena_vaultfile_read (root, info, error), error);
+  require (info.node_model_version == 1,
+           "XML v3 preflight requires a node-model XML v2 Vault");
+  const auto original= scan (root, progress, "v3 inventory");
+  const auto sources= classify_v3_documents (original);
+  (void) vault_xml_v3_derived_cache_files (root, info);
+  vault_xml_v3_preflight_result stats;
+  const auto total= sources.documents.size ();
+
+  for (const auto& path: sources.documents) {
+    try {
+      const auto input= bytes (root, path);
+      require (inspect_xml_version (input) == xml_format_version::v2,
+               "Vault document is not XML v2");
+      const tree source= read_xml_v2 (input);
+      const auto migrated= migrate_math_v2_tree (source, strict);
+      const auto xml= write_xml_v3 (migrated.document);
+      require (read_xml_v3 (xml) == migrated.document,
+               "XML v3 codec round trip differs from the converted native tree");
+      for (const auto& issue: migrated.warnings) {
+        std::cerr << "WARNING XML-V3 " << path.generic_string () << ": "
+                  << issue.code << ": " << issue.detail << " at";
+        for (int slot: issue.old_path) std::cerr << "/" << slot;
+        std::cerr << '\n';
+      }
+      stats.delimiters += migrated.delimiters;
+      stats.scripts += migrated.scripts;
+      stats.operators += migrated.operators;
+      stats.blocks += migrated.math_blocks;
+      stats.grids += migrated.grids;
+      stats.warnings += migrated.warnings.size ();
+    }
+    catch (const std::exception& failure) {
+      throw std::runtime_error (
+        "XML v3 preflight failed for " + path.generic_string () +
+        ": " + failure.what ());
+    }
+    report (progress, "Validate detached XML v3", ++stats.documents,
+            total, path);
+  }
+
+  const auto history= migrate_vault_history_v3 (root, nullptr, strict,
+    [&] (std::size_t done, std::size_t total, const std::string& path) {
+      report (progress, "Validate v3 historical versions", done, total,
+              fs::path (path));
+    });
+  stats.history_versions= history.versions_converted;
+  stats.protected_history_versions= history.protected_evidence;
+  stats.warnings += history.warnings;
+
+  // Preflight is read-only; detect accidental external changes or unintentional
+  // side effects in the filesystem while the lock was held.
+  compare (original, scan (root, progress, "Verify unchanged Vault"), true);
+  return stats;
+}
+
+int preflight_vault_xml_v3_cli (const fs::path& root, bool strict) {
+  interrupted= 0;
+  const auto old_int= std::signal (SIGINT, cancel_signal);
+  const auto old_term= std::signal (SIGTERM, cancel_signal);
+  int code= 1;
+  try {
+    init_std_drd ();
+    std::cerr << "Offline XML v2 -> v3 preflight; Vault contents remain unchanged.\n";
+    auto progress= [&] (const char* phase, std::size_t done,
+                        std::size_t total, const std::string& path) {
+      if (interrupted) throw std::runtime_error ("XML v3 preflight interrupted");
+      if (total && (done % 128 == 0 || done == total))
+        std::cerr << phase << " " << done << "/" << total << " " << path << '\n';
+    };
+    const auto stats= preflight_vault_xml_v3 (root, strict, progress);
+    std::cerr << "XML v3 preflight: documents=" << stats.documents
+              << ", delimiters=" << stats.delimiters
+              << ", MathScripts=" << stats.scripts
+              << ", operators=" << stats.operators
+              << ", MathBlocks=" << stats.blocks
+              << ", MathGrids=" << stats.grids
+              << ", historical_versions=" << stats.history_versions
+              << ", protected_history=" << stats.protected_history_versions
+              << ", warnings=" << stats.warnings << ".\n"
+              << "Read-only preflight passed. Whole-vault publication remains "
+                 "disabled until the v3 runtime, Artifact databases and "
+                 "Hodarium protocol cutover are complete.\n";
+    code= 0;
+  }
+  catch (const std::exception& failure) {
+    std::cerr << "XML v3 preflight failed: " << failure.what () << '\n';
+  }
+  std::signal (SIGINT, old_int);
+  std::signal (SIGTERM, old_term);
+  return interrupted && code != 0 ? 130 : code;
+}
+
 int upgrade_vault_format_cli (const fs::path& root) {
   interrupted= 0;
   const auto old_int= std::signal (SIGINT, cancel_signal);
@@ -2683,5 +2831,521 @@ int upgrade_vault_node_model_cli (
   std::signal (SIGINT, old_int);
   std::signal (SIGTERM, old_term);
   return interrupted && code != 0 ? 130 : code;
+}
+
+namespace {
+
+void find_uuid_tokens (const std::string& value, std::set<std::string>& ids) {
+  if (value.size () < 36) return;
+  for (std::size_t i=0; i+36 <= value.size (); ++i) {
+    if (value[i+8] != '-' || value[i+13] != '-' ||
+        value[i+18] != '-' || value[i+23] != '-') continue;
+    const std::string token= value.substr (i, 36);
+    if (athena::node::valid_id (token)) ids.insert (token);
+  }
+}
+
+void audit_v3_tree_references (const tree& value, std::set<std::string>& out);
+
+void audit_v3_property_references (
+    const athena::node::property& value, std::set<std::string>& out) {
+  if (const auto* ref= std::get_if<athena::node::reference> (&value.data))
+    out.insert (ref->id);
+  else if (const auto* data= std::get_if<std::string> (&value.data))
+    find_uuid_tokens (*data, out);
+  else if (const auto* rich= std::get_if<athena::node::rich_text> (&value.data))
+    audit_v3_tree_references (rich->content, out);
+  else if (const auto* list= std::get_if<athena::node::property::list> (&value.data))
+    for (const auto& item: *list) audit_v3_property_references (item, out);
+  else if (const auto* dict=
+           std::get_if<athena::node::property::dictionary> (&value.data))
+    for (const auto& [name, item]: *dict) {
+      find_uuid_tokens (name, out);
+      audit_v3_property_references (item, out);
+    }
+}
+
+void audit_v3_tree_references (const tree& value, std::set<std::string>& out) {
+  // REFERENCES is generated positional/counter data, not a user-authored
+  // reference. The migrator removes only those records whose source ID was
+  // eliminated. Actual links, transclusions and typed reference properties
+  // are checked separately across the complete Vault.
+  if (is_compound (value, "references")) return;
+  if (const auto* meta= athena::node::get (value))
+    for (const auto& [name, item]: meta->properties) {
+      find_uuid_tokens (name, out);
+      audit_v3_property_references (item, out);
+    }
+  if (is_atomic (value)) {
+    find_uuid_tokens ({value->label.data (), std::size_t (N (value->label))}, out);
+    return;
+  }
+  if (is_compound (value))
+    for (int i=0; i<N (value); ++i)
+      audit_v3_tree_references (value[i], out);
+}
+
+} // namespace
+
+vault_xml_v3_upgrade_result upgrade_vault_xml_v3 (
+  const fs::path& requested,
+  const vault_xml_v3_upgrade_options& options,
+  const vault_upgrade_progress& progress) {
+  // v3 documents are not yet consumable by all editor, Typesetter, Artifact
+  // and Hodarium paths. Never publish a partially upgraded production Vault.
+  // This validation path is still useful: every candidate must be built with
+  // the true v3 writer and read back with the true v3 reader.
+  if (!options.check_only)
+    throw std::runtime_error (
+      "XML v3 whole-Vault publication is disabled until native runtime, "
+      "Artifact and Hodarium cutover tests are complete; use --check");
+  const auto absolute= fs::absolute (requested).lexically_normal ();
+  require (!fs::is_symlink (fs::symlink_status (absolute)),
+          "Vault root must not be a symlink");
+  const auto root= fs::canonical (absolute);
+  text::require_utf8 (root.native ());
+  require (root != root.root_path (), "Cannot upgrade filesystem root");
+  filesystem::vault_directory_lease lease (root, true);
+  AthenaVaultfileInfo info;
+  std::string error;
+  require (athena_vaultfile_read (root, info, error), error);
+  require (info.node_model_version == 1,
+           "XML v3 migration requires an existing XML v2 node-model Vault");
+  const auto original= scan (root, progress, "Inventory");
+  const auto sources= classify_v3_documents (original);
+  const auto total= sources.documents.size ();
+  (void) vault_xml_v3_derived_cache_files (root, info);
+  vault_xml_v3_upgrade_result result;
+  std::set<std::string> eliminated, referenced;
+  for (const auto& path: sources.documents) {
+    try {
+      const auto decoded= decode_document_bytes (
+        bytes (root, path), root / path, limits ());
+      require (decoded.format == document_source_format::xml_v2,
+               "Vault document is not XML v2");
+      audit_v3_tree_references (decoded.document, referenced);
+      const auto migrated= migrate_math_v2_tree (decoded.document, options.strict);
+      eliminated.insert (migrated.removed_identities.begin (),
+                         migrated.removed_identities.end ());
+      const auto serialized= write_xml_v3 (migrated.document);
+      const auto restored= read_xml_v3 (serialized);
+      require (restored == migrated.document &&
+                athena::node::equal_metadata (restored, migrated.document),
+               "v3 source/metadata round-trip mismatch");
+      result.warnings += migrated.warnings.size ();
+      result.delimiters += migrated.delimiters;
+      result.scripts += migrated.scripts;
+      result.operators += migrated.operators;
+      result.math_blocks += migrated.math_blocks;
+      result.grids += migrated.grids;
+      ++result.documents;
+    }
+    catch (const std::exception& failure) {
+      throw std::runtime_error (
+        "XML v3 preflight " + path.generic_string () + ": " + failure.what ());
+    }
+    report (progress, "Validate XML v3 source", result.documents, total, path);
+  }
+  const auto history= migrate_vault_history_v3 (root, nullptr, options.strict,
+    [&] (std::size_t done, std::size_t count, const std::string& path) {
+      report (progress, "Validate history v3", done, count, path);
+    });
+  result.warnings += history.warnings;
+  result.history_versions= history.versions_converted;
+  result.protected_history_versions= history.protected_evidence;
+  // Persisted Artifact tree payloads must be audited separately from .ath.
+  // They are XML v1/v2 fragments, not disposable text. Never bless an index
+  // merely because every current document converted successfully.
+  const auto audit_database= [&] (const std::string& relative,
+                                const char* table, const char* column,
+                                bool opaque) {
+    if (relative.empty ()) return;
+    const fs::path name (relative);
+    require (!name.is_absolute (), "Index database path is not Vault-relative");
+    for (const auto& part: name)
+      require (part != ".." && part != ".",
+               "Index database path escapes its Vault");
+    if (!fs::exists (root / name)) return;
+    filesystem::confined_root storage (root);
+    (void) storage.open (name);
+    const fs::path wal ((root / name).string () + "-wal");
+    require (!fs::exists (wal) || fs::file_size (wal) == 0,
+             "Index database has an uncheckpointed WAL: " + relative);
+    QUrl uri= QUrl::fromLocalFile (QString::fromStdString ((root / name).string ()));
+    QUrlQuery immutable;
+    immutable.addQueryItem ("immutable", "1");
+    uri.setQuery (immutable);
+    const QByteArray url= uri.toEncoded (QUrl::FullyEncoded);
+    sqlite3* raw= nullptr;
+    require (sqlite3_open_v2 (url.constData (), &raw,
+                             SQLITE_OPEN_READONLY | SQLITE_OPEN_NOFOLLOW |
+                             SQLITE_OPEN_URI,
+                             nullptr) == SQLITE_OK,
+             "Cannot open index database read-only: " + relative);
+    struct db_closer {
+      sqlite3* value;
+      ~db_closer () { if (value) sqlite3_close (value); }
+    } db {raw};
+    const auto check= [&] {
+      sqlite3_stmt* st= nullptr;
+      require (sqlite3_prepare_v2 (raw, "PRAGMA quick_check", -1,
+                                   &st, nullptr) == SQLITE_OK,
+               "Cannot validate index database: " + relative);
+      const bool okay= sqlite3_step (st) == SQLITE_ROW &&
+        sqlite3_column_text (st, 0) &&
+        std::string ((const char*) sqlite3_column_text (st, 0)) == "ok";
+      sqlite3_finalize (st);
+      require (okay, "Index database integrity check failed: " + relative);
+    };
+    check ();
+    const std::string schema= std::string ("SELECT 1 FROM sqlite_master ") +
+      "WHERE type='table' AND name='" + table + "'";
+    sqlite3_stmt* exist= nullptr;
+    require (sqlite3_prepare_v2 (raw, schema.c_str (), -1, &exist,
+                                 nullptr) == SQLITE_OK,
+             "Cannot inspect index schema: " + relative);
+    const bool present= sqlite3_step (exist) == SQLITE_ROW;
+    sqlite3_finalize (exist);
+    if (!present) return;
+    sqlite3_stmt* schema_columns= nullptr;
+    require (sqlite3_prepare_v2 (raw,
+      (std::string ("PRAGMA table_info(") + table + ")").c_str (),
+      -1, &schema_columns, nullptr) == SQLITE_OK,
+      "Cannot inspect staged index columns: " + relative);
+    bool has_tree_column= false;
+    while (sqlite3_step (schema_columns) == SQLITE_ROW) {
+      const unsigned char* name= sqlite3_column_text (schema_columns, 1);
+      if (name && std::string ((const char*) name) == column) {
+        has_tree_column= true;
+        break;
+      }
+    }
+    sqlite3_finalize (schema_columns);
+    if (!has_tree_column) return; // This index schema contains no tree payload.
+    const std::string query= std::string ("SELECT ") + column +
+      " FROM " + table + " WHERE " + column + "<>''";
+    sqlite3_stmt* cursor= nullptr;
+    require (sqlite3_prepare_v2 (raw, query.c_str (), -1, &cursor,
+                                 nullptr) == SQLITE_OK,
+             "Unsupported persisted tree index schema: " + relative);
+    struct cursor_closer {
+      sqlite3_stmt* value;
+      ~cursor_closer () { if (value) sqlite3_finalize (value); }
+    } guard {cursor};
+    while (true) {
+      const int rc= sqlite3_step (cursor);
+      if (rc == SQLITE_DONE) break;
+      require (rc == SQLITE_ROW, "Cannot read stored tree index: " + relative);
+      const unsigned char* value= sqlite3_column_text (cursor, 0);
+      const int length= sqlite3_column_bytes (cursor, 0);
+      require (value && length > 0, "Empty indexed tree record: " + relative);
+      std::string encoded ((const char*) value, std::size_t (length));
+      try {
+        if (opaque && encoded.rfind ("base64-v1:", 0) == 0) {
+          QByteArray payload (encoded.data () + 10,
+                              qsizetype (encoded.size () - 10));
+          auto decoded= QByteArray::fromBase64Encoding (
+            payload, QByteArray::AbortOnBase64DecodingErrors);
+          require (decoded && decoded.decoded.toBase64 () == payload,
+                   "Invalid stored Base64 tree");
+          encoded.assign (decoded.decoded.constData (),
+                          std::size_t (decoded.decoded.size ()));
+        }
+        const tree old= read_xml_v2 (encoded, xml_kind::fragment);
+        audit_v3_tree_references (old, referenced);
+        const auto migrated= migrate_math_v2_tree (old, options.strict);
+        const std::string output= write_xml_v3 (migrated.document, xml_kind::fragment);
+        const auto restored= read_xml_v3 (output, xml_kind::fragment);
+        require (restored == migrated.document &&
+                  athena::node::equal_metadata (restored, migrated.document),
+                 "Indexed tree v3 round trip failed");
+        result.warnings += migrated.warnings.size ();
+        ++result.index_tree_fragments;
+      }
+      catch (const std::exception& error) {
+        throw std::runtime_error ("Indexed tree " + relative + ": " + error.what ());
+      }
+      if (result.index_tree_fragments % 128 == 0)
+        report (progress, "Validate stored tree fragments",
+                result.index_tree_fragments, 0, name);
+    }
+  };
+  audit_database (info.artifacts_path, "artifact_names", "name_tree", false);
+  audit_database (info.enunciations_path, "entries", "keyword_tree", false);
+  audit_database (info.bold_text_path, "entries", "keyword_tree", true);
+  if (const auto filter= prepare_vault_title_filter_v3 (root, info, options.strict)) {
+    result.index_tree_fragments+= filter->fragments;
+    result.warnings+= filter->warnings;
+  }
+  for (const auto& id: eliminated)
+    require (!referenced.count (id),
+             "XML v3 conversion would discard a user-referenced node UUID: " + id);
+  audit_vault_uuid_references_v3 (root, info, eliminated);
+  if (options.hodarium_state)
+    result.hodarium_external= audit_external_hodarium_v3 (
+      root, *options.hodarium_state);
+  compare (original, scan (root, progress, "Check external changes", false), true);
+  return result;
+}
+
+vault_xml_v3_stage_result stage_vault_xml_v3_candidate (
+    const fs::path& requested,
+    const fs::path& empty_candidate, bool strict,
+    const vault_upgrade_progress& progress,
+    const std::optional<fs::path>& external_hodarium) {
+#ifndef __linux__
+  (void) requested; (void) empty_candidate; (void) strict;
+  (void) progress; (void) external_hodarium;
+  throw std::runtime_error ("Isolated v3 Vault staging requires Linux");
+#else
+  vault_xml_v3_upgrade_options check_options;
+  check_options.check_only= true;
+  check_options.strict= strict;
+  check_options.hodarium_state= external_hodarium;
+  const auto absolute= fs::absolute (requested).lexically_normal ();
+  require (!fs::is_symlink (fs::symlink_status (absolute)),
+           "Original Vault cannot be a symlink");
+  const fs::path root= fs::canonical (absolute);
+  const auto before_preflight= scan (
+    root, progress, "Snapshot source before v3 preflight");
+  // Fully validate source, history, index tree payloads and cross-file UUIDs
+  // before allocating the candidate. The read-only check never writes Notes.
+  auto verified= upgrade_vault_xml_v3 (requested, check_options, progress);
+  filesystem::vault_directory_lease lease (root, true);
+  const auto original= scan (root, progress, "Stage inventory");
+  // Preflight acquires and releases its own Vault lease. A different writer
+  // might alter the Vault in the gap before staging acquires this one.
+  compare (before_preflight, original, true);
+  const auto sources= classify_v3_documents (original);
+
+  const fs::path output= fs::absolute (empty_candidate).lexically_normal ();
+  require (output != root && !output.empty () && output != output.root_path (),
+           "Candidate cannot replace the source Vault");
+  const fs::path canonical_parent= fs::canonical (output.parent_path ());
+  const fs::path candidate= canonical_parent / output.filename ();
+  const fs::path relative= candidate.lexically_relative (root);
+  require (relative.empty () || *relative.begin () == "..",
+           "Candidate must not be inside the source Vault");
+  require (!fs::exists (candidate) && !fs::is_symlink (fs::symlink_status (candidate)),
+           "Candidate directory already exists");
+  require (::mkdir (candidate.c_str (), 0700) == 0,
+           "Cannot create private v3 candidate directory");
+  bool created= true;
+  try {
+    clone (root, candidate, progress);
+    filesystem::vault_directory_lease candidate_lease (candidate, true);
+    compare (original, scan (candidate, progress, "Verify copied candidate"), false);
+    filesystem::confined_root stage (candidate);
+    const auto total= sources.documents.size ();
+    std::size_t converted= 0;
+    for (const auto& path: sources.documents) {
+      report (progress, "Write private v3 candidate", converted, total, path);
+      const tree previous= read_xml_v2 (bytes (candidate, path));
+      const auto migrated= migrate_math_v2_tree (previous, strict);
+      const std::string xml= write_xml_v3 (migrated.document);
+      const auto checked= read_xml_v3 (xml);
+      require (checked == migrated.document &&
+                athena::node::equal_metadata (checked, migrated.document),
+               "Candidate math tree failed v3 round trip: " + path.string ());
+      auto file= stage.open (path);
+      auto revision= file.stat ();
+      const auto replacement= stage.replace (path, file, revision, xml);
+      require (replacement.directory_synced,
+               "Could not durably stage converted source: " + path.string ());
+      report (progress, "Write private v3 candidate", ++converted, total, path);
+    }
+
+    const auto history= migrate_vault_history_v3 (
+      root, &candidate, strict,
+      [&] (std::size_t done, std::size_t count, const std::string& path) {
+        report (progress, "Write private v3 history", done, count, path);
+      });
+    AthenaVaultfileInfo staged_info;
+    std::string error;
+    require (athena_vaultfile_read (candidate, staged_info, error), error);
+    require (staged_info.node_model_version == 1,
+             "Candidate source model version changed unexpectedly");
+    const auto indexes= migrate_staged_vault_indexes_v3 (
+      candidate, staged_info, strict);
+    staged_info.node_model_version= 2;
+    require (athena_vaultfile_write (candidate, staged_info, error), error);
+
+    // Always read the bytes that are actually on the staged disk, rather than
+    // trusting the in-memory writer. No original-vault path is opened RW.
+    std::size_t postchecked= 0;
+    for (const auto& path: sources.documents) {
+      const auto staged_bytes= bytes (candidate, path);
+      const tree roundtrip= read_xml_v3 (staged_bytes);
+      require (write_xml_v3 (roundtrip) == staged_bytes,
+               "Private candidate is not canonical v3 XML: " + path.string ());
+      report (progress, "Validate private v3 candidate", ++postchecked, total, path);
+    }
+    require (postchecked == converted && postchecked == verified.documents,
+             "Candidate and validated document inventory differ");
+    AthenaVaultfileInfo verified_info;
+    require (athena_vaultfile_read (candidate, verified_info, error) &&
+              verified_info.node_model_version == 2,
+             "Candidate did not record v3 node-model version");
+
+    QJsonArray preserved_sources;
+    for (const auto& path: sources.preserved_sources) {
+      require (inspect (candidate / path).digest == original.at (path).digest,
+               "Preserved maintenance source changed: " + path.generic_string ());
+      preserved_sources.append (QJsonObject {
+        {"path", QString::fromStdString (path.generic_string ())},
+        {"sha256", QString::fromStdString (original.at (path).digest)}});
+    }
+    QJsonArray invalidated_caches;
+    for (const auto& path: indexes.invalidated_cache_files)
+      invalidated_caches.append (QString::fromStdString (path.generic_string ()));
+    const QJsonObject receipt {
+      {"version", 3},
+      {"kind", "xml-v3-disconnected-candidate"},
+      {"source_node_model_version", 1},
+      {"candidate_node_model_version", 2},
+      {"documents", qint64 (converted)},
+      {"history_versions", qint64 (history.versions_converted)},
+      {"protected_history_versions", qint64 (history.protected_evidence)},
+      {"index_trees", qint64 (indexes.tree_fragments)},
+      {"invalidated_cache_hashes", qint64 (indexes.invalidated_hashes)},
+      {"invalidated_range_cache_rows", qint64 (indexes.invalidated_range_rows)},
+      {"invalidated_cache_files", invalidated_caches},
+      {"preserved_maintenance_sources", preserved_sources},
+      {"hodarium_external_state_audited", verified.hodarium_external.has_value ()},
+      {"hodarium_external_state_fingerprint",
+        verified.hodarium_external ? QString::fromStdString (
+          verified.hodarium_external->state_fingerprint) : QString ()},
+      {"hodarium_existing_bindings", qint64 (
+         verified.hodarium_external ? verified.hodarium_external->bindings : 0)},
+      {"hodarium_coordinated_cutover_required", bool (
+         verified.hodarium_external &&
+         verified.hodarium_external->coordinated_cutover_required)},
+      {"hodarium_protocol_cutover_verified", false},
+      {"eligible_for_atomic_publication", false}
+    };
+    const auto serialized= QJsonDocument (receipt).toJson (QJsonDocument::Indented);
+    stage.preserve (fs::path (".athena") / "xml-v3-candidate-manifest.json",
+                    std::string_view (serialized.constData (),
+                                      std::size_t (serialized.size ())));
+
+    compare (original, scan (root, progress, "Check unchanged source", false), true);
+    scan (candidate, progress, "Sync private v3 candidate", true, false);
+    if (external_hodarium && verified.hodarium_external) {
+      const auto final_external= audit_external_hodarium_v3 (
+        root, *external_hodarium);
+      require (final_external.state_fingerprint ==
+                verified.hodarium_external->state_fingerprint,
+               "External Hodarium state changed after v3 preflight; "
+               "discarding private candidate without modifying the source Vault");
+    }
+    vault_xml_v3_stage_result result;
+    result.candidate= candidate;
+    result.checked= std::move (verified);
+    result.migrated_history_versions= history.versions_converted;
+    result.migrated_index_trees= indexes.tree_fragments;
+    result.invalidated_cache_hashes= indexes.invalidated_hashes;
+    created= false; // Deliberately retain the disconnected candidate.
+    return result;
+  }
+  catch (...) {
+    if (created) {
+      std::error_code ignored;
+      fs::remove_all (candidate, ignored);
+    }
+    throw;
+  }
+#endif
+}
+
+int stage_vault_xml_v3_cli (
+    const fs::path& root, const fs::path& destination, bool strict,
+    const std::optional<fs::path>& external_hodarium) {
+  interrupted= 0;
+  const auto old_int= std::signal (SIGINT, cancel_signal);
+  const auto old_term= std::signal (SIGTERM, cancel_signal);
+  int code= 1;
+  try {
+    init_std_drd ();
+    std::cerr << "Generating a disconnected XML v3 candidate only; "
+                 "the original Vault will NOT be exchanged or modified.\n";
+    const vault_upgrade_progress progress= [&] (
+        const char* phase, std::size_t done,
+        std::size_t total, const std::string& relative) {
+      if (interrupted) throw std::runtime_error ("XML v3 candidate staging cancelled");
+      if (done == total || done % 64 == 0)
+        std::cerr << phase << " " << done << "/" << total << " "
+                  << relative << "\n";
+    };
+    const auto result= stage_vault_xml_v3_candidate (
+      root, destination, strict, progress, external_hodarium);
+    std::cerr << "Disconnected v3 candidate: " << result.candidate << "\n"
+              << "Documents: " << result.checked.documents
+              << ", history versions: " << result.migrated_history_versions
+              << ", indexed trees: " << result.migrated_index_trees
+              << ", invalidated hashes: " << result.invalidated_cache_hashes
+              << ", preflight warnings: " << result.checked.warnings << "\n"
+              << "UNPUBLISHABLE: Hodarium v3 and native runtime cutover "
+                 "are not validated. Original Vault unchanged.\n";
+    code= 0;
+  }
+  catch (const std::exception& failure) {
+    std::cerr << "XML v3 candidate staging failed: " << failure.what () << "\n";
+  }
+  std::signal (SIGINT, old_int);
+  std::signal (SIGTERM, old_term);
+  return interrupted ? 130 : code;
+}
+
+int upgrade_vault_xml_v3_cli (
+  const fs::path& root, const vault_xml_v3_upgrade_options& options) {
+  interrupted= 0;
+  const auto old_int= std::signal (SIGINT, cancel_signal);
+  const auto old_term= std::signal (SIGTERM, cancel_signal);
+  int code= 1;
+  try {
+    init_std_drd ();
+    std::cerr << "Offline XML v3 Vault preflight. Close all users of this Vault.\n";
+    auto progress= [&] (const char* phase, std::size_t done,
+                        std::size_t total, const std::string& path) {
+      if (interrupted) throw std::runtime_error ("XML v3 preflight cancelled");
+      if (done == total || done % 64 == 0)
+        std::cerr << phase << " " << done << "/" << total << " " << path << "\n";
+    };
+    const auto result= upgrade_vault_xml_v3 (root, options, progress);
+    std::cerr << "XML v3 preflight complete: " << result.documents
+              << " current documents, " << result.delimiters << " delimiters, "
+              << result.scripts << " scripts, " << result.operators
+              << " operators, " << result.math_blocks << " math blocks, "
+              << result.grids << " grids; " << result.history_versions
+              << " historical versions (" << result.protected_history_versions
+              << " protected), " << result.index_tree_fragments
+              << " indexed tree fragments, " << result.warnings << " warnings.\n"
+              << "Original Vault unchanged. This is a check, not an upgrade.\n";
+    if (result.hodarium_external) {
+      const auto& ext= *result.hodarium_external;
+      std::cerr << "External Hodarium (immutable read-only audit): "
+                << ext.bindings << " Vault bindings, "
+                << ext.enabled_bindings << " enabled, "
+                << ext.revision_stores << " revision journals, "
+                << ext.revisions_verified << " sealed revisions verified, "
+                << ext.v2_document_revisions << " v2 document revisions, "
+                << ext.applied_revisions << " applied, "
+                << ext.pending_applications << " pending applications, "
+                << ext.incomplete_receives << " receiving, "
+                << ext.conflict_approvals << " approvals.\n"
+                << (ext.coordinated_cutover_required ?
+                    "CROSS-DEVICE CUTOVER REQUIRED: authenticated revision "
+                    "IDs cannot be rewritten to XML v3 in place.\n" :
+                    "No binding for this Vault found in the supplied state; "
+                    "other devices/state directories remain unaudited.\n");
+    }
+    code= 0;
+  }
+  catch (const std::exception& failure) {
+    std::cerr << "XML v3 preflight failed: " << failure.what () << "\n";
+  }
+  std::signal (SIGINT, old_int);
+  std::signal (SIGTERM, old_term);
+  return interrupted ? 130 : code;
 }
 } // namespace athena::document

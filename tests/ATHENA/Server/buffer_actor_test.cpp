@@ -10,6 +10,7 @@
 #include <QtTest/QtTest>
 
 #include "buffer_actor.hpp"
+#include "Data/Convert/convert.hpp"
 #include "actor_ui_bridge.hpp"
 #include "buffer_state.hpp"
 #include "buffer_name_catalog.hpp"
@@ -32,6 +33,7 @@
 #include "promise.hpp"
 #include "scheme.hpp"
 #include "Edit/Interface/format_geometry.hpp"
+#include "Qt/QTMVaultSearchWorker.hpp"
 
 #include <atomic>
 #include <thread>
@@ -68,13 +70,128 @@ private slots:
   void drainsInFifoOrderAndRejectsAfterShutdown ();
   void documentNodesRemainActorOwned ();
   void fullSourceRetainsUnknownAttributesAndLiveBody ();
+  void snapshotDocumentReportsStoredVersion ();
   void onlineResolutionUsesUnsavedBody ();
   void bufferResolutionWithoutVault ();
   void sourceCommitPreservesBorrowedMetadata ();
   void normalSaveUpgradesLegacyAndPinsXmlRevision ();
+  void v3LoadSaveAndHistoryKeepVersion ();
   void mismatchedOpenFingerprintBlocksSave ();
   void hodariumAppliesOnlyCleanSource ();
 };
+
+void
+TestBufferActor::snapshotDocumentReportsStoredVersion () {
+  using namespace athena::document;
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  // Identical plain trees must retain the version from their stored envelope.
+  const tree document (DOCUMENT, compound ("body", tree (DOCUMENT, "snapshot")));
+  for (int version= 1; version<=3; ++version) {
+    const auto file= std::filesystem::path (temporary.path ().toStdString ()) /
+      ("snapshot-v" + std::to_string (version) + ".ath");
+    const std::string bytes= version == 1 ? write_xml (document) :
+      version == 2 ? write_xml_v2 (document) : write_xml_v3 (document);
+    {
+      std::ofstream output (file, std::ios::binary);
+      output << bytes;
+      QVERIFY (output.good ());
+    }
+    const url name= url_system (string (file.string ().c_str ()));
+    auto cleanup= qScopeGuard ([&] { remove_buffer (name); });
+    QVERIFY (!buffer_import (name, name, "texmacs"));
+    auto buffer= concrete_buffer (name);
+    QVERIFY (!is_nil (buffer));
+    actor_command_record response;
+    QVERIFY (buffer->actor->invoke (actor_command_kind::snapshot_document,
+      ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB, &response));
+    const tree snapshot= actor_tree_registry::instance ().take (response.payload0);
+    QCOMPARE (response.argument[0], std::uint64_t (version));
+    QVERIFY (contains_text (snapshot, "snapshot"));
+    QVERIFY (get_buffer_tree (name) == snapshot);
+    const auto query= vault_search_buffer_snapshot (name);
+    const auto expected= version == 1 ? xml_format_version::v1 :
+      version == 2 ? xml_format_version::v2 : xml_format_version::v3;
+    QCOMPARE (query.version, expected);
+    // Import completes missing v2/v3 source IDs; compare the exact live body.
+    const tree live_body= extract (snapshot, "body");
+    QVERIFY (is_func (live_body, DOCUMENT, 1));
+    QVERIFY (is_atomic (live_body[0]));
+    QVERIFY (live_body[0]->label == "snapshot");
+    if (version == 1)
+      QVERIFY (live_body == tree (DOCUMENT, "snapshot"));
+    else {
+      QVERIFY (athena::node::valid_id (athena::node::id (live_body)));
+      QVERIFY (athena::node::valid_id (athena::node::id (live_body[0])));
+      QVERIFY (athena::node::id (live_body) != athena::node::id (live_body[0]));
+    }
+    QVERIFY (query.document == live_body);
+    xml_format_version live_version;
+    QVERIFY (vault_search_read_body (QString::fromStdString (file.string ()), false,
+                                    &live_version) == query.document);
+    QCOMPARE (live_version, expected);
+    VaultSearchOptions options;
+    vault_search_set_query (options, query.document, query.version);
+    QCOMPARE (inspect_xml_version (options.serializedQuery), expected);
+    QVERIFY (vault_search_decode_query (options) == query.document);
+  }
+}
+
+void
+TestBufferActor::v3LoadSaveAndHistoryKeepVersion () {
+  using namespace athena::document;
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  const auto file= std::filesystem::path (temporary.path ().toStdString ()) / "v3.ath";
+  tree text ("first");
+  athena::node::set (text, {"10000000-0000-4000-8000-000000000012", {}});
+  tree body (DOCUMENT, text);
+  athena::node::set (body, {"10000000-0000-4000-8000-000000000011", {}});
+  const auto bytes= write_xml_v3 (tree (DOCUMENT, compound ("body", body)));
+  { std::ofstream output (file, std::ios::binary); output << bytes; }
+  const url name= url_system (string (file.string ().c_str ()));
+  auto cleanup= qScopeGuard ([&] { remove_buffer (name); });
+  QVERIFY (!buffer_import (name, name, "texmacs"));
+  auto buffer= concrete_buffer (name);
+  QVERIFY (!is_nil (buffer));
+  bool pinned_v3= false;
+  const auto inspect= actor_continuation_registry::instance ().store ([&] {
+    const auto* state= current_scheme_execution_context ()->actor->current_state ();
+    pinned_v3= state->storage && state->node_identities &&
+      state->storage_version == xml_storage_version::v3 &&
+      state->storage->version () == xml_storage_version::v3;
+  });
+  QVERIFY (buffer->actor->invoke (actor_command_kind::run_native_continuation,
+    ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
+    SCHEME_CAPABILITY_BUFFER, inspect));
+  QVERIFY (pinned_v3);
+  tree edited= copy (body);
+  edited[0]= "second";
+  athena::node::copy_metadata (text, edited[0]);
+  actor_command_record replaced;
+  QVERIFY (buffer->actor->invoke (actor_command_kind::replace_body, ATHENA_NO_VIEW,
+    actor_tree_registry::instance ().store (edited), ATHENA_NO_BLOB, &replaced));
+  QCOMPARE (replaced.argument[0], std::uint64_t (0));
+  actor_command_record history;
+  QVERIFY (buffer->actor->invoke (actor_command_kind::document_history_snapshot,
+    ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB, &history));
+  QCOMPARE (history.argument[0], std::uint64_t (0));
+  const string snapshot= actor_text_registry::instance ().take (history.payload0);
+  const std::string snapshot_bytes (snapshot.data (), N(snapshot));
+  QCOMPARE (inspect_xml_version (snapshot_bytes), xml_format_version::v3);
+  QVERIFY (contains_text (read_xml_v3 (snapshot_bytes), "second"));
+  actor_command_record saved;
+  QVERIFY (buffer->actor->invoke (actor_command_kind::save_buffer, ATHENA_NO_VIEW,
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, &saved));
+  QCOMPARE (saved.argument[0], std::uint64_t (0));
+  std::ifstream input (file, std::ios::binary);
+  const std::string written ((std::istreambuf_iterator<char> (input)), {});
+  QCOMPARE (inspect_xml_version (written), xml_format_version::v3);
+  QVERIFY (contains_text (read_xml_v3 (written), "second"));
+  remove_buffer (name);
+  QVERIFY (!buffer_import (name, name, "texmacs"));
+  QVERIFY (contains_text (get_buffer_tree (name), "second"));
+}
 
 void
 TestBufferActor::hodariumAppliesOnlyCleanSource () {

@@ -22,10 +22,12 @@ document_source_format classify_document (std::string_view source) {
   // signatures remain exact so random bytes are never guessed as old content.
   std::string_view probe= source;
   if (starts_with (probe, "\xEF\xBB\xBF")) probe.remove_prefix (3);
-  if (starts_with (probe, "<?xml") || starts_with (probe, "<athena-document"))
-    return document_source_format::xml_v1;
   if (starts_with (source, "<TeXmacs|"))
     return document_source_format::legacy_markup;
+  while (!probe.empty () && (probe.front () == ' ' || probe.front () == '\t' ||
+         probe.front () == '\n' || probe.front () == '\r')) probe.remove_prefix (1);
+  if (!probe.empty () && probe.front () == '<')
+    return document_source_format::xml_v1;
   if (!source.empty () && source.front () == '(')
     return document_source_format::legacy_scheme;
   throw codec_exception (
@@ -34,18 +36,43 @@ document_source_format classify_document (std::string_view source) {
 
 document_read_result decode_xml_document (
     std::string_view source, codec_limits limits) {
-  try {
-    return {document_source_format::xml_v1,
-            read_xml (source, xml_kind::document, limits), {}};
+  auto decoded= decode_native_xml_bytes (source, xml_kind::document, limits);
+  switch (decoded.version) {
+    case xml_format_version::v1:
+      return {document_source_format::xml_v1,
+              std::move (decoded.document), {}};
+    case xml_format_version::v2:
+      return {document_source_format::xml_v2,
+              std::move (decoded.document), {}};
+    case xml_format_version::v3:
+      return {document_source_format::xml_v3,
+              std::move (decoded.document), {}};
   }
-  catch (const codec_exception& error) {
-    if (error.code != codec_error::unsupported_version) throw;
-  }
-  return {document_source_format::xml_v2,
-          read_xml_v2 (source, xml_kind::document, limits), {}};
+  throw codec_exception (codec_error::unsupported_version, "Unsupported ATHENA XML version");
 }
 
 } // namespace
+
+native_xml_read_result decode_native_xml_bytes (
+    std::string_view source, xml_kind kind, codec_limits limits) {
+  const auto version= inspect_xml_version (source, limits);
+  switch (version) {
+  case xml_format_version::v1: return {version, read_xml (source, kind, limits)};
+  case xml_format_version::v2: return {version, read_xml_v2 (source, kind, limits)};
+  case xml_format_version::v3: return {version, read_xml_v3 (source, kind, limits)};
+  }
+  throw codec_exception (codec_error::unsupported_version, "Unsupported ATHENA XML version");
+}
+
+std::string encode_native_xml_bytes (
+    const tree& source, xml_format_version version, xml_kind kind, codec_limits limits) {
+  switch (version) {
+  case xml_format_version::v1: return write_xml (source, kind, limits);
+  case xml_format_version::v2: return write_xml_v2 (source, kind, limits);
+  case xml_format_version::v3: return write_xml_v3 (source, kind, limits);
+  }
+  throw codec_exception (codec_error::unsupported_version, "Unsupported ATHENA XML version");
+}
 
 std::optional<document_path>
 document_read_result::relocate_node (const document_path& path) const {
@@ -91,6 +118,8 @@ document_read_result
 decode_document_bytes (
   std::string_view source, legacy_import_limits limits,
   const legacy_slot_policy& policy) {
+  if (classify_document (source) == document_source_format::xml_v1)
+    return decode_xml_document (source, limits.codec);
   return decode_document_bytes (
     source, standard_legacy_cork_table (), limits, policy);
 }
@@ -116,6 +145,16 @@ semantic_document_fingerprint (const tree& document, codec_limits limits) {
     QByteArray (canonical.data (), (qsizetype) canonical.size ()),
     QCryptographicHash::Sha256).toHex ();
   return "sha256:" + std::string (digest.constData (), (std::size_t) digest.size ());
+}
+
+std::string semantic_document_fingerprint (
+    const tree& document, xml_format_version version, codec_limits limits) {
+  if (version == xml_format_version::v1 || version == xml_format_version::v2)
+    return semantic_document_fingerprint (document, limits);
+  const auto canonical= encode_native_xml_bytes (document, version, xml_kind::document, limits);
+  const auto digest= QCryptographicHash::hash (
+    QByteArrayView (canonical.data (), canonical.size ()), QCryptographicHash::Sha256).toHex ();
+  return "sha256:" + digest.toStdString ();
 }
 
 } // namespace athena::document

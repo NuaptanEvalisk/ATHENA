@@ -10,6 +10,7 @@
 #include "node_location_cache.hpp"
 #include "node_reference.hpp"
 #include "Data/Convert/Xml/document_upgrade_file.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
 #include <mutex>
 
 namespace athena::document_node {
@@ -23,7 +24,8 @@ void repair_source_identity (const std::filesystem::path& vault,
     const auto bytes= entry.read (document::codec_limits ().input_bytes);
     if (!filesystem::same_revision (revision, entry.stat ()))
       throw std::runtime_error ("Document changed; retry identity repair");
-    tree source= document::read_xml_v2 (bytes);
+    auto decoded= document::decode_native_xml_bytes (bytes);
+    tree& source= decoded.document;
     int body= -1;
     for (int i=0; i<N(source); ++i)
       if (is_compound (source[i], "body", 1)) body= i;
@@ -40,7 +42,7 @@ void repair_source_identity (const std::filesystem::path& vault,
     const auto owner= published_buffer_source (name);
     if (owner.first) {
       const auto continuation= actor_continuation_registry::instance ().store (
-        [name, expected, id, hash, completed] {
+        [name, expected, id, hash, version= decoded.version, completed] {
           std::string error;
           try {
             const auto* execution= current_scheme_execution_context ();
@@ -49,7 +51,7 @@ void repair_source_identity (const std::filesystem::path& vault,
             auto* state= execution->actor->current_state ();
             const auto actual= as_string (execution->actor->current_buffer_url ());
             if (std::string (actual.data (), N(actual)) != name || !state->storage ||
-                state->storage->source_sha256 () != hash)
+                state->storage->source_sha256 () != hash || state->storage_version != version)
               throw std::runtime_error ("Document changed; retry identity repair");
             auto* editor= execution->editor;
             tree body= editor->the_buffer ();
@@ -83,7 +85,7 @@ void repair_source_identity (const std::filesystem::path& vault,
     }
     auto metadata= *node::get (source[body][0]); metadata.id= id;
     node::set (source[body][0], metadata);
-    const auto output= document::write_xml_v2 (source);
+    const auto output= document::encode_native_xml_bytes (source, decoded.version);
     std::unique_lock<std::recursive_mutex> publication (document_publication_mutex (), std::defer_lock);
     auto saved= root.replace (path, entry, revision, output, [&] {
       if (!publication.try_lock () || published_buffer_source (name).first)

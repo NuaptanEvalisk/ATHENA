@@ -7,6 +7,8 @@
 *******************************************************************************/
 
 #include <QtTest/QtTest>
+#include <QApplication>
+#include <QDir>
 #include <QTemporaryDir>
 #include <QUuid>
 
@@ -22,6 +24,7 @@
 #include "ATHENA/Data/interop_filesystem.hpp"
 #include "ATHENA/Data/interop_document.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
+#include "node_metadata.hpp"
 #include <algorithm>
 #include <fstream>
 
@@ -437,7 +440,8 @@ NamespaceDatabaseTest::nativeInteropResolution () {
   std::shared_ptr<const athena_namespace_definition> stored_other;
   QVERIFY (athena_namespace_get (context, other.name, stored_other, error) == namespace_query_status::ok);
   const auto other_uuid= std::string (stored_other->uuid.data (), N(stored_other->uuid));
-  auto product= accessor->operate ("subproduct", {{"other_uuid", other_uuid}, {"name", "Product"}, {"template", "Note %w"}});
+  auto product= accessor->operate ("subproduct", {{"other_uuid", other_uuid}, {"name", "Product"},
+    {"template", "Note %w"}, {"sort_mode", "lexicographic-first"}});
   QVERIFY2 (product.status == "OK", product.data.dump ().c_str ());
   QVERIFY (std::filesystem::exists (root / product.data.at ("sorter_path").get<std::string> ()));
   result= run (R"(@/???($type = "namespace" | $max_depth = 3))");
@@ -557,6 +561,38 @@ NamespaceDatabaseTest::nativeInteropResolution () {
     QCOMPARE (xml_source.data.at ("document_format").get<std::string> (),
               std::string ("xml-v1"));
     QVERIFY (!xml_source.data.at ("legacy_relocation").get<bool> ());
+  }
+  {
+    tree document (DOCUMENT, compound ("body", tree (DOCUMENT, "v3 source")));
+    std::ofstream output (root / "V3.ath", std::ios::binary);
+    output << athena::document::write_xml_v3 (document);
+    output.close ();
+    auto located= run (R"(@/vaults/@/filesystem/V3.ath/saved/?($tag = "body")[0]/[0]/[0])");
+    QVERIFY2 (located.state == resolution_result::status::complete, located.error.c_str ());
+    QCOMPARE (located.leaves.size (), std::size_t (1));
+    const auto edited= located.tree.back ()->accessor->operate (
+      "set", {{"tree", {{"text", "v3 edited"}}}});
+    QVERIFY2 (edited.status == "OK", edited.data.dump ().c_str ());
+    std::ifstream input (root / "V3.ath", std::ios::binary);
+    const std::string persisted ((std::istreambuf_iterator<char> (input)), {});
+    QCOMPARE (athena::document::inspect_xml_version (persisted),
+              athena::document::xml_format_version::v3);
+    const tree restored= athena::document::read_xml_v3 (persisted);
+    QVERIFY2 (is_func (restored, DOCUMENT, 1), persisted.c_str ());
+    QVERIFY2 (is_compound (restored[0], "body", 1), persisted.c_str ());
+    QVERIFY2 (is_func (restored[0][0], DOCUMENT, 1), persisted.c_str ());
+    const tree restored_text= restored[0][0][0];
+    QVERIFY2 (is_atomic (restored_text), persisted.c_str ());
+    QCOMPARE (restored_text->label, string ("v3 edited"));
+    // Saved v3 edits complete source identities; tree equality also compares
+    // metadata, so an anonymous text tree is not the expected restored node.
+    QVERIFY (athena::node::valid_id (athena::node::id (restored[0][0])));
+    QVERIFY (athena::node::valid_id (athena::node::id (restored_text)));
+    auto saved_v3= run ("@/vaults/@/filesystem/V3.ath/saved");
+    QVERIFY2 (saved_v3.state == resolution_result::status::complete, saved_v3.error.c_str ());
+    auto metadata= saved_v3.tree.back ()->accessor->operate ("get", value::object ());
+    QCOMPARE (metadata.data.at ("document_format").get<std::string> (), std::string ("xml-v3"));
+    QVERIFY (!metadata.data.at ("legacy_relocation").get<bool> ());
   }
   result= run ("@/vaults/@/filesystem/Source.ath/saved/custom-field/[0]");
   QVERIFY2 (result.state == resolution_result::status::complete, result.error.c_str ());
@@ -734,5 +770,14 @@ NamespaceDatabaseTest::nativeInteropResolution () {
   QCOMPARE (accessor->operate ("get", value::object ()).status, std::string ("STALE"));
 }
 
-QTEST_MAIN (NamespaceDatabaseTest)
+int main (int argc, char** argv) {
+  QApplication app (argc, argv);
+  QTemporaryDir profile;
+  if (!profile.isValid () || !QDir (profile.path ()).mkpath ("fonts")) return 1;
+  // create_file loads the document DRD and font caches, even in this otherwise
+  // database-only fixture. Never resolve those caches against the user's home.
+  qputenv ("ATHENA_HOME_PATH", profile.path ().toUtf8 ());
+  NamespaceDatabaseTest test;
+  return QTest::qExec (&test, argc, argv);
+}
 #include "namespace_database_test.moc"

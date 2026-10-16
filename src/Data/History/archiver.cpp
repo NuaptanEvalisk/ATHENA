@@ -273,7 +273,8 @@ archiver_rep::add (modification m) {
     //cout << "Change " << the_owner << " -> " << get_author () << "\n";
     confirm ();
   }
-  else the_owner= get_author ();
+  // Confirmation closes the previous batch; this edit belongs to its caller.
+  the_owner= get_author ();
   modification i= invert (m, current_document_tree ());
   patch q (i, m);
   //cout << "Add [" << the_owner << "] " << q << "\n";
@@ -286,7 +287,7 @@ archiver_rep::start_slave (double a) {
     //cout << "Change " << the_owner << " -> " << get_author () << "\n";
     confirm ();
   }
-  else the_owner= get_author ();
+  the_owner= get_author ();
   patch q (a, false);
   //cout << "Add [" << the_owner << "] " << q << "\n";
   current= patch (q, current);
@@ -321,8 +322,10 @@ void
 archiver_rep::confirm () {
   if (active ()) {
     current= patch (the_owner, compactify (current));
-    if (nr_children (remove_set_cursor (current)) == 0)
+    if (nr_children (remove_set_cursor (current)) == 0) {
       current= make_compound (0);
+      the_owner= 0;
+    }
     if (active ()) {
       //cout << "Confirm " << current << "\n";
       archive= patch (current, archive);

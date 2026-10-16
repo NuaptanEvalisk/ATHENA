@@ -8,8 +8,10 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include "compound_virtual_document.hpp"
+#include "interop_document_codec.hpp"
 #include "namespaces.hpp"
-#include "Data/Convert/Xml/athena_document_xml.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
+#include "node_metadata.hpp"
 #include "Typeset/Env/compound_counters.hpp"
 #include <QCryptographicHash>
 #include <QDir>
@@ -69,10 +71,7 @@ void validate_descriptor (const descriptor& value) {
 
 void validate_counter_xml (const QByteArray& bytes) {
   // Decode on the receiving thread; no tree ownership crosses an actor boundary.
-  const tree state= document::read_xml_v2 (
-    std::string_view (bytes.constData (), std::size_t (bytes.size ())),
-    document::xml_kind::fragment);
-  validate_counter_state (state);
+  (void) decode_counter_fragment (bytes);
 }
 
 QByteArray prefix_digest (const QByteArray& previous, const member& value) {
@@ -87,6 +86,32 @@ QByteArray prefix_digest (const QByteArray& previous, const member& value) {
   return hash.result ();
 }
 } // namespace
+
+QByteArray encode_value_fragment (const tree& value,
+                                 document::xml_format_version version) {
+  return QByteArray::fromStdString (document::encode_native_xml_bytes (
+    node::content_projection (value), version, document::xml_kind::fragment));
+}
+
+tree decode_counter_fragment (const QByteArray& bytes) {
+  auto decoded= document::decode_native_xml_bytes (
+    std::string_view (bytes.constData (), std::size_t (bytes.size ())),
+    document::xml_kind::fragment);
+  validate_counter_state (decoded.document);
+  return std::move (decoded.document);
+}
+
+QByteArray environment_revision (const tree& value,
+                                 document::xml_format_version version) {
+  if (version == document::xml_format_version::v3) {
+    // Evaluated values use the existing typed document model, not the native
+    // XML source grammar: legacy style macros and v3 values may coexist here.
+    const auto model= interop::document_node_to_value_v3 (node::content_projection (value));
+    return digest (QByteArrayLiteral ("ATHENA AVD environment document-model 3\n") +
+                   QByteArray::fromStdString (model.dump ()));
+  }
+  return digest (encode_value_fragment (value, version));
+}
 
 descriptor_file read_descriptor (const QString& filename) {
   const auto bytes= read_bytes (filename);

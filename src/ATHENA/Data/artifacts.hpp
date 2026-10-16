@@ -14,6 +14,7 @@
 #include "tree.hpp"
 #include "path.hpp"
 #include "ATHENA/Data/artifact_range_llm.hpp"
+#include "Data/Convert/Xml/athena_document_xml.hpp"
 
 #include <filesystem>
 #include <functional>
@@ -131,9 +132,13 @@ struct AthenaArtifactsBuildOptions {
 
 // Model-free extraction. Pending bold definitions deliberately have no selected
 // range; their source UUID still supports navigation to the defining keyword.
+// Callers with v3 storage must explicitly select v3 fragments. The legacy
+// default preserves existing index keys; this API never migrates a source AST.
 bool athena_artifacts_extract_structure (
   const tree& document, const std::string& relative_path,
-  std::vector<AthenaArtifactRecord>& records, std::string& error);
+  std::vector<AthenaArtifactRecord>& records, std::string& error,
+  athena::document::xml_format_version fragment_format=
+    athena::document::xml_format_version::v1);
 
 // Apply authoritative source bindings to an owner-local tree. Call within the
 // caller's edit transaction for live source; never pass a shared actor tree.
@@ -179,7 +184,9 @@ bool athena_artifacts_apply_path_rename (
 bool athena_artifacts_extract_document (const tree& document,
                                         const std::string& relative_path,
                                         std::vector<AthenaArtifactRecord>& records,
-                                        std::string& error);
+                                        std::string& error,
+                                        athena::document::xml_format_version fragment_format=
+                                          athena::document::xml_format_version::v1);
 
 // Reconstruct the source paragraph span recorded for a bold-text artifact.
 // This deliberately shares the extractor's paragraph model so database

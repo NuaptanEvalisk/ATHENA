@@ -28,6 +28,7 @@ struct DocumentRewrite {
   fs::path stage;
   fs::path backup;
   std::string serialized;
+  const MaintenanceDocument* source= nullptr;
 };
 
 bool
@@ -42,23 +43,6 @@ in_configured_subtree (const fs::path& root, const fs::path& path,
   auto actual= relative.begin ();
   for (; expected != subtree.end (); ++expected, ++actual)
     if (actual == relative.end () || *actual != *expected) return false;
-  return true;
-}
-
-bool
-read_document (const fs::path& path, tree& document) {
-  std::string error;
-  return read_document_file (path, document, error);
-}
-
-bool
-serialize_document (const tree& document, std::string& serialized) {
-  string source= tree_to_texmacs (document);
-  tree validation;
-  try { validation= texmacs_document_to_tree (source); }
-  catch (...) { validation= tree (_ERROR, "parse failed"); }
-  if (is_func (validation, _ERROR)) return false;
-  serialized.assign (as_charp (source), (size_t) N(source));
   return true;
 }
 
@@ -84,11 +68,24 @@ commit_rewrites (std::vector<DocumentRewrite>& rewrites) {
     }
   }
 
+  for (const auto& rewrite: rewrites) {
+    std::string error;
+    if (!maintenance_document_current (*rewrite.source, error)) {
+      log_error (error);
+      remove_stages (rewrites);
+      return false;
+    }
+  }
   size_t installed= 0;
   for (; installed<rewrites.size (); ++installed) {
     DocumentRewrite& rewrite= rewrites[installed];
     std::error_code error;
-    fs::rename (rewrite.path, rewrite.backup, error);
+    std::string reason;
+    if (!maintenance_document_current (*rewrite.source, reason)) {
+      log_error (reason);
+      error= std::make_error_code (std::errc::state_not_recoverable);
+    }
+    else fs::rename (rewrite.path, rewrite.backup, error);
     if (!error) fs::rename (rewrite.stage, rewrite.path, error);
     if (!error) continue;
     if (fs::exists (rewrite.backup)) {
@@ -153,18 +150,21 @@ vault_maintenance_pass_remove_redundant_wikilinks (
         }),
       paths.end ());
   std::vector<AthenaRedundantWikilinkDocument> documents;
+  std::vector<MaintenanceDocument> sources;
+  sources.reserve (paths.size ());
   documents.reserve (paths.size ());
   for (size_t i=0; i<paths.size (); ++i) {
     print_progress (i + 1, paths.size (), "Scanning redundant wikilinks",
                     paths[i].filename ().string ());
-    tree document;
-    if (!read_document (paths[i], document)) {
+    MaintenanceDocument source;
+    if (!read_maintenance_document (paths[i], source, error)) {
       finish_progress ();
       return VaultMaintenancePassResult::failure (
-        "could not parse " + compact_log_path (paths[i]));
+        error);
     }
     documents.push_back (
-      {paths[i].lexically_relative (ctx.root).generic_string (), document, 0});
+      {paths[i].lexically_relative (ctx.root).generic_string (), source.document, 0});
+    sources.push_back (std::move (source));
   }
   finish_progress ();
 
@@ -176,10 +176,10 @@ vault_maintenance_pass_remove_redundant_wikilinks (
   for (size_t i=0; i<documents.size (); ++i) {
     if (documents[i].removals == 0) continue;
     std::string serialized;
-    if (!serialize_document (documents[i].document, serialized))
+    if (!serialize_maintenance_document (sources[i], documents[i].document, serialized, error))
       return VaultMaintenancePassResult::failure (
-        "refusing malformed rewrite for " + compact_log_path (paths[i]));
-    rewrites.push_back ({paths[i], {}, {}, std::move (serialized)});
+        error);
+    rewrites.push_back ({paths[i], {}, {}, std::move (serialized), &sources[i]});
   }
   if (!commit_rewrites (rewrites))
     return VaultMaintenancePassResult::failure (

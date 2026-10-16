@@ -37,6 +37,7 @@ private:
   const vault_context_handle context;
   QTMVaultArtifactPage::SelectionHandler selectionHandler;
   std::vector<AvailableEnunciation> entries;
+  QString previewError;
   QLineEdit* query;
   QLineEdit* display;
   QComboBox* kind;

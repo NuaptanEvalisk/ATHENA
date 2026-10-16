@@ -11,7 +11,20 @@
 
 namespace athena::document {
 
-enum class document_source_format { xml_v1, xml_v2, legacy_markup, legacy_scheme };
+struct native_xml_read_result {
+  xml_format_version version;
+  tree document;
+};
+
+// Native XML only: inspect the envelope, then invoke exactly one strict codec.
+// Neither API imports legacy content, migrates trees, nor infers format from
+// metadata. Carry the read version through any derived fragments or rewrites.
+native_xml_read_result decode_native_xml_bytes (
+  std::string_view, xml_kind = xml_kind::document, codec_limits = {});
+std::string encode_native_xml_bytes (
+  const tree&, xml_format_version, xml_kind = xml_kind::document, codec_limits = {});
+
+enum class document_source_format { xml_v1, xml_v2, xml_v3, legacy_markup, legacy_scheme };
 
 struct document_read_result {
   document_source_format format;
@@ -48,5 +61,9 @@ const legacy_cork_table& standard_legacy_cork_table ();
 // computed from canonical XML serialization of the migrated tree, never from
 // the source file bytes, so legacy<->XML rewrites preserve the revision.
 std::string semantic_document_fingerprint (const tree&, codec_limits = {});
+// v1/v2 retain the historical digest above (including metadata-free v2 trees).
+// v3 always hashes canonical v3 bytes, even for a plain tree without metadata.
+std::string semantic_document_fingerprint (
+  const tree&, xml_format_version, codec_limits = {});
 
 } // namespace athena::document

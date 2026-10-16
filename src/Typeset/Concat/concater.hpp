@@ -18,6 +18,7 @@
 #include "Boxes/construct.hpp"
 #include "font_selection.hpp"
 #include <utility>
+#include <string_view>
 #include <vector>
 
 #define MODE_JUSTIFY   0
@@ -57,6 +58,9 @@ class concater_rep {
   void typeset_text_string (tree t, path ip, int start, int end);
   void typeset_math_string (tree t, path ip, int start, int end);
   void typeset_named_symbol (tree t, path ip);
+  void typeset_native_symbol_identity (const std::string_view& identity,
+                                     tree semantic, path ip);
+  void typeset_v3_symbol (tree t, path ip);
   void typeset_prog_string (tree t, path ip, int start, int end);
   void typeset_document (tree t, path ip);
   void typeset_paragraph (tree t, path ip);
@@ -79,6 +83,16 @@ class concater_rep {
   void typeset_if_page_break (tree t, path ip);
 
   // mathematical markup
+  void typeset_v3_delimited (tree t, path ip);
+  void typeset_v3_middle (tree t, path ip);
+  void typeset_v3_operator (tree t, path ip);
+  void typeset_v3_scripts (tree t, path ip);
+  void typeset_v3_accent (tree t, path ip);
+  void typeset_v3_annotation (tree t, path ip);
+  void typeset_v3_variant (tree t, path ip);
+  void typeset_v3_grid (tree t, path ip);
+  void typeset_v3_block (tree t, path ip);
+  void typeset_v3_long_arrow (tree t, path ip);
   void typeset_around (tree t, path ip, bool colored);
   void typeset_large (tree t, path ip, int type, int op_type, string prefix);
   void typeset_wide_middle (tree t, path ip);

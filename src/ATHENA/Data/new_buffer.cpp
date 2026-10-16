@@ -30,6 +30,8 @@
 #include "ATHENA/Data/node_reference_export.hpp"
 #include "System/Boot/boot.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
+#include "source_document_creation.hpp"
+#include "vault.hpp"
 #include "data_cache.hpp"
 #include <QSaveFile>
 #include <filesystem>
@@ -59,7 +61,7 @@ new_source_document () {
     const std::string detail= identities.diagnostics.empty () ?
       "Unknown source identity error" : identities.diagnostics.front ().detail;
     throw std::runtime_error (
-      "Could not initialize a new XML v2 source document: " + detail);
+      "Could not initialize a new source document: " + detail);
   }
   return attach_data (std::move (*identities.body), data);
 }
@@ -614,7 +616,8 @@ try_set_buffer_tree (
   athena_view_id view_id= source_view (buf);
   actor_command_record replacement;
   const std::uint64_t persistence_mode= !source_format ? 0 :
-    (*source_format == athena::document::document_source_format::xml_v2 ? 2 : 1);
+    (*source_format == athena::document::document_source_format::xml_v3 ? 3 :
+     *source_format == athena::document::document_source_format::xml_v2 ? 2 : 1);
   if (!invoke_buffer_actor (
         buf, actor_command_kind::replace_document, view_id,
         document_payload, ATHENA_NO_BLOB, &replacement, 0, persistence_mode)) {
@@ -648,16 +651,58 @@ set_buffer_tree (url name, tree doc) {
     std_warning << "Document replacement rejected for " << name << LF;
 }
 
+static athena::document::document_source_format
+buffer_source_format (athena::document::xml_format_version version) {
+  using namespace athena::document;
+  switch (version) {
+  case xml_format_version::v1: return document_source_format::xml_v1;
+  case xml_format_version::v2: return document_source_format::xml_v2;
+  case xml_format_version::v3: return document_source_format::xml_v3;
+  default: throw std::invalid_argument ("Unknown buffer storage version");
+  }
+}
+
+bool
+replace_buffer_tree (url name, tree doc,
+                     athena::document::xml_format_version version) {
+  if (is_nil (concrete_buffer (name))) return false;
+  const auto format= buffer_source_format (version);
+  athena::document::encode_native_xml_bytes (doc, version);
+  return try_set_buffer_tree (name, std::move (doc), format);
+}
+
+bool
+initialize_buffer_tree (url name, tree doc,
+                        athena::document::xml_format_version version) {
+  if (!is_nil (concrete_buffer (name))) return false;
+  const auto format= buffer_source_format (version);
+  if (try_set_buffer_tree (name, std::move (doc), format)) return true;
+  remove_buffer (name);
+  return false;
+}
+
 bool
 buffer_create_source (url name) {
   if (!is_nil (concrete_buffer (name))) return true;
   try {
+    using namespace athena::document;
+    xml_format_version version= xml_format_version::v2;
+    if (is_scratch (name)) {
+      if (const auto context= vault_capture_context ())
+        version= new_source_version_for_model (context->node_model_version);
+    }
+    else if (!is_rooted_tmfs (name) && !is_rooted_web (name)) {
+      if (exists (name)) return true;
+      version= new_source_version_for_target (
+        std::filesystem::path (catalog_text (concretize (name))));
+    }
     return !try_set_buffer_tree (
       name, new_source_document (),
-      athena::document::document_source_format::xml_v2);
+      version == xml_format_version::v3 ? document_source_format::xml_v3 :
+                                         document_source_format::xml_v2);
   }
   catch (const std::exception& error) {
-    std_warning << "Could not create XML v2 source buffer " << name << ": "
+    std_warning << "Could not create source buffer " << name << ": "
                 << error.what () << LF;
     return true;
   }
@@ -670,7 +715,7 @@ make_new_source_buffer () {
     url name= url_scratch ("no_name_", ".tm", i);
     if (is_nil (concrete_buffer (name))) {
       if (buffer_create_source (name))
-        FAILED ("could not create XML v2 source buffer");
+        FAILED ("could not create source buffer");
       return name;
     }
     ++i;
@@ -969,7 +1014,7 @@ import_loaded_tree_with_format (
   const bool legacy_scheme= starts (s, "(document (TeXmacs");
   const bool document_input=
     fm == "texmacs" || starts (s, "<TeXmacs|") || legacy_scheme ||
-    starts (s, "<?xml") || starts (s, "<athena-document") ||
+    starts (s, "<?xml") || starts (s, "<athena-document") || starts (s, "<a ") ||
     (N(s) >= 3 && (unsigned char) s[0] == 0xef &&
      (unsigned char) s[1] == 0xbb && (unsigned char) s[2] == 0xbf);
   tree t;

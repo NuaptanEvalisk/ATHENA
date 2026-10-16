@@ -18,11 +18,14 @@
 // Returns the empty string on success and a diagnostic on failure.
 string athena_data_art_generate (string seed, url output);
 
+// Capture the format in the same source-actor turn as the prepared trees.
+int athena_data_art_source_version ();
+
 // Export a semantically complete snapshot through a real transient buffer.
 // `document` contains the full buffer envelope (style/init/references/etc.) and
 // `body` is the covered body to install in that transient buffer. Returns the
 // empty string on success and a diagnostic on failure.
 string athena_data_art_export_snapshot (
-  url source, url output, tree document, tree body);
+  url source, url output, tree document, tree body, int source_version);
 
 #endif // defined ATHENA_DATA_ART_HPP

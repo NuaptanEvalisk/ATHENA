@@ -10,12 +10,21 @@
 #pragma once
 
 #include "vault.hpp"
+#include "Data/Convert/Xml/athena_document_xml.hpp"
 #include <QByteArray>
 #include <QString>
 #include <optional>
 #include <vector>
 
 namespace athena::avd {
+
+// Detached derived values retain semantic properties, but not source UUIDs.
+// The producing member's actual storage version is mandatory, even for text.
+QByteArray encode_value_fragment (const tree&, document::xml_format_version);
+tree decode_counter_fragment (const QByteArray&);
+// Evaluated styles can contain legacy macro syntax alongside native source
+// values. Their revision is a typed value digest, not a document serialization.
+QByteArray environment_revision (const tree&, document::xml_format_version);
 
 // Cache payloads are detached XML bytes, never actor-owned mutable trees.
 // A checkpoint contains counter values only, not the member's macro environment.

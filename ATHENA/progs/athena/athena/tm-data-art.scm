@@ -137,10 +137,12 @@
         snapshot
         (data-art-insert-cover-tree snapshot cover))))
 
-(define (data-art-export-snapshot document body cover)
+(define (data-art-export-snapshot document body cover version)
+  (unless (member version '(1 2 3)) (error "Invalid DataArt source version"))
   (tree-rebuild (stree->tree '(tuple))
     (list (tree-copy document) (tree-copy body)
-          (stree->tree (url->system cover)))))
+          (stree->tree (url->system cover))
+          (stree->tree (number->string version)))))
 
 (define-public (data-art-prepare-export buf fname)
   (if (not (and (data-art-enabled?)
@@ -156,7 +158,8 @@
                ;; never retain actor-owned tree references.  The first child
                ;; is the complete document envelope (style/init/references/
                ;; auxiliaries/attachments), not merely the visible body.
-               (data-art-export-snapshot document body cover))))))
+               (data-art-export-snapshot document body cover
+                 (data-art-source-version)))))))
 
 (define-public (data-art-insert-cover-in-buffer buf cover)
   (buffer-set-body

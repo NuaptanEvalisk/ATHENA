@@ -101,7 +101,7 @@ private slots:
     tree selection= tuple ("texmacs", "abc", "text", "english");
     auto v1= write_clipboard_xml (selection);
     QVERIFY (v1.find ("version=\"1\"") != std::string::npos);
-    QVERIFY (read_clipboard_xml (v1) == selection);
+    QVERIFY (read_clipboard_xml (v1) == clipboard_with_version (selection, xml_format_version::v1));
     selection[1]= identified (tree ("abc"), first);
     node::metadata metadata= *node::get (selection[1]);
     metadata.properties.emplace ("example:note", NodeProperty (
@@ -109,7 +109,7 @@ private slots:
     node::set (selection[1], metadata);
     auto v2= write_clipboard_xml (selection);
     QVERIFY (v2.find ("version=\"2\"") != std::string::npos);
-    QVERIFY (read_clipboard_xml (v2) == selection);
+    QVERIFY (read_clipboard_xml (v2) == clipboard_with_version (selection, xml_format_version::v2));
     QVERIFY_EXCEPTION_THROWN (write_clipboard_xml (tree ("not an envelope")),
                               codec_exception);
     QVERIFY_EXCEPTION_THROWN (read_clipboard_xml (

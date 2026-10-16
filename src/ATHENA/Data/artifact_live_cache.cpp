@@ -88,7 +88,9 @@ void live_cache::update (buffer_document_state& state, tree& body,
       tree slice (DOCUMENT);
       for (int j=first; j<last; ++j) slice << body[j];
       std::string error;
-      if (!athena_artifacts_extract_structure (slice, rel, records, error))
+      const auto fragment_format= state.storage_version == document::xml_storage_version::v3
+        ? document::xml_format_version::v3 : document::xml_format_version::v1;
+      if (!athena_artifacts_extract_structure (slice, rel, records, error, fragment_format))
         throw std::runtime_error (error);
       for (auto& record: records) {
         if (record.source_path.empty ()) throw std::runtime_error ("Artifact has no source path");

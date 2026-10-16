@@ -77,6 +77,16 @@ using athena::artifact_database::safe_relative_database;
 using athena::artifact_database::open_databases;
 using athena::artifact_database::offsets_text;
 using athena::artifact_database::parse_offsets;
+using athena::document::xml_format_version;
+using athena::document::xml_kind;
+using athena::document::inspect_xml_version;
+
+void strip_artifact_bindings (tree& value);
+
+xml_format_version fragment_format (athena::document::document_source_format source) {
+  return source == athena::document::document_source_format::xml_v3
+    ? xml_format_version::v3 : xml_format_version::v1;
+}
 
 constexpr size_t range_checkpoint_batch_size= 128;
 constexpr const char* source_locator_contract= "source-uuid-role-list-v2";
@@ -116,35 +126,143 @@ tree artifact_plain_tree (const tree& value) {
   return result;
 }
 
-std::string fragment_bytes (const tree& value) {
-  return athena::document::write_xml (
-    artifact_plain_tree (value), athena::document::xml_kind::fragment);
+std::string fragment_bytes (const tree& value, xml_format_version version) {
+  // Legacy keys intentionally ignored metadata. Native keys retain semantic
+  // properties (including math policies and rich text), not source allocation
+  // or producer bindings which change when this very extraction is persisted.
+  if (version == xml_format_version::v1)
+    return athena::document::write_xml (artifact_plain_tree (value), xml_kind::fragment);
+  tree projected= athena::node::content_projection (value);
+  strip_artifact_bindings (projected);
+  return version == xml_format_version::v3
+    ? athena::document::write_xml_v3 (projected, xml_kind::fragment)
+    : athena::document::write_xml_v2 (projected, xml_kind::fragment);
 }
 
 tree fragment_tree (const std::string& bytes) {
-  return athena::document::read_xml (bytes, athena::document::xml_kind::fragment);
+  switch (inspect_xml_version (bytes)) {
+    case xml_format_version::v1: return athena::document::read_xml (bytes, xml_kind::fragment);
+    case xml_format_version::v2: return athena::document::read_xml_v2 (bytes, xml_kind::fragment);
+    case xml_format_version::v3: return athena::document::read_xml_v3 (bytes, xml_kind::fragment);
+  }
+  throw std::runtime_error ("Unsupported Artifact fragment format");
+}
+
+xml_format_version record_fragment_format (const AthenaArtifactRecord& record) {
+  if (record.origin == "bold-text" && !record.keyword_tree.empty ())
+    return inspect_xml_version (record.keyword_tree);
+  for (const auto& name: record.semantic_name_trees)
+    if (!name.empty ()) return inspect_xml_version (name);
+  return xml_format_version::v1;
 }
 
 QString qstr (const std::string& s) {
   return QString::fromUtf8 (s.data (), (qsizetype) s.size ());
 }
 
-std::string encode_opaque (const std::string& value) {
+std::string encode_opaque (const std::string& value, bool tree_payload= true) {
+  // The worker also transports ordinary enunciation kind names in this field.
+  const bool v3= tree_payload && !value.empty () &&
+    inspect_xml_version (value) == xml_format_version::v3;
   QByteArray encoded= QByteArray (value.data (), (qsizetype) value.size ())
                         .toBase64 (QByteArray::Base64Encoding);
-  return "base64-v1:" +
+  return std::string (v3 ? "base64-v3:" : "base64-v1:") +
          std::string (encoded.constData (), (size_t) encoded.size ());
 }
 
-std::string decode_opaque (const std::string& value) {
-  constexpr const char* prefix= "base64-v1:";
-  if (value.rfind (prefix, 0) != 0) return value;
-  QByteArray encoded (value.data () + std::char_traits<char>::length (prefix),
-                      (qsizetype) (value.size () -
-                                   std::char_traits<char>::length (prefix)));
-  QByteArray decoded= QByteArray::fromBase64 (
+std::string decode_opaque (const std::string& value, bool tree_payload= true) {
+  const bool v3= value.rfind ("base64-v3:", 0) == 0;
+  if (!v3 && value.rfind ("base64-v1:", 0) != 0) {
+    if (value.rfind ("base64-", 0) == 0)
+      throw std::runtime_error ("Unsupported Artifact Base64 envelope");
+    return value;
+  }
+  QByteArray encoded (value.data () + 10, qsizetype (value.size () - 10));
+  const auto decoded= QByteArray::fromBase64Encoding (
     encoded, QByteArray::AbortOnBase64DecodingErrors);
-  return std::string (decoded.constData (), (size_t) decoded.size ());
+  if (!decoded || decoded.decoded.toBase64 () != encoded)
+    throw std::runtime_error ("Invalid Artifact Base64 payload");
+  const auto bytes= decoded.decoded.toStdString ();
+  if (v3 && !tree_payload)
+    throw std::runtime_error ("Artifact v3 envelope requires a tree payload");
+  if (tree_payload && !bytes.empty ()) {
+    if ((inspect_xml_version (bytes) == xml_format_version::v3) != v3)
+      throw std::runtime_error ("Artifact Base64 version disagrees with XML envelope");
+    (void) fragment_tree (bytes);
+  }
+  return bytes;
+}
+
+xml_format_version index_tree_version (sqlite3* db, bool bold) {
+  const std::string schema= bold ? "bold_text" : "main";
+  const std::string table= bold ? "bold_text_metadata" : "artifact_metadata";
+  std::string error;
+  Statement exists;
+  if (!prepare (db, ("SELECT 1 FROM " + schema +
+        ".sqlite_master WHERE type='table' AND name=?1").c_str (), exists, error))
+    throw std::runtime_error (error);
+  bind_text (exists.st, 1, table);
+  int status= sqlite3_step (exists.st);
+  if (status == SQLITE_DONE) return xml_format_version::v1;
+  if (status != SQLITE_ROW) throw std::runtime_error (sqlite3_errmsg (db));
+  Statement query;
+  if (!prepare (db, ("SELECT value FROM " + schema + "." + table +
+        " WHERE key='tree-format'").c_str (), query, error))
+    throw std::runtime_error (error);
+  status= sqlite3_step (query.st);
+  if (status == SQLITE_DONE) return xml_format_version::v1;
+  if (status != SQLITE_ROW) throw std::runtime_error (sqlite3_errmsg (db));
+  const auto value= column_text (query.st, 0);
+  if (value == "utf8-xml-v1") return xml_format_version::v1;
+  if (value == "utf8-xml-v2") return xml_format_version::v2;
+  if (value == "utf8-xml-v3") return xml_format_version::v3;
+  throw std::runtime_error ("Unsupported Artifact tree-format: " + value);
+}
+
+void validate_index_fragment (const std::string& bytes, xml_format_version version) {
+  if (inspect_xml_version (bytes) != version)
+    throw std::runtime_error ("Artifact tree-format disagrees with XML envelope");
+  (void) fragment_tree (bytes);
+}
+
+std::string decode_index_keyword (const std::string& value, xml_format_version version) {
+  if (version == xml_format_version::v3 && value.rfind ("base64-v3:", 0) != 0)
+    throw std::runtime_error ("XML v3 Bold-text index requires base64-v3 payloads");
+  auto bytes= decode_opaque (value);
+  validate_index_fragment (bytes, version);
+  return bytes;
+}
+
+xml_format_version prepare_index_tree_version (sqlite3* db,
+                                               const AthenaVaultfileInfo& info) {
+  auto names= index_tree_version (db, false);
+  auto bold= index_tree_version (db, true);
+  if (info.node_model_version >= 2 &&
+      (names != xml_format_version::v3 || bold != xml_format_version::v3)) {
+    // The shared schema owner initializes empty databases as v1. Only an
+    // entirely empty index may adopt the Vault's format here; populated v2
+    // indexes require the explicit offline migrator, never runtime rewriting.
+    std::string error;
+    if (!exec_sql (db, "BEGIN IMMEDIATE", error)) throw std::runtime_error (error);
+    Statement rows;
+    if (!prepare (db,
+          "SELECT EXISTS(SELECT 1 FROM artifacts) OR EXISTS(SELECT 1 FROM artifact_names) "
+          "OR EXISTS(SELECT 1 FROM bold_text.entries) OR EXISTS(SELECT 1 FROM enunciations.entries)",
+          rows, error)) throw std::runtime_error (error);
+    if (sqlite3_step (rows.st) != SQLITE_ROW || sqlite3_column_int (rows.st, 0) != 0)
+      throw std::runtime_error ("Artifact indexes require offline XML v3 migration");
+    sqlite3_reset (rows.st);
+    if (!exec_sql (db,
+          "INSERT INTO artifact_metadata(key,value) VALUES('tree-format','utf8-xml-v3') "
+          "ON CONFLICT(key) DO UPDATE SET value=excluded.value;"
+          "INSERT INTO bold_text.bold_text_metadata(key,value) VALUES('tree-format','utf8-xml-v3') "
+          "ON CONFLICT(key) DO UPDATE SET value=excluded.value;COMMIT;", error))
+      throw std::runtime_error (error);
+    names= bold= xml_format_version::v3;
+  }
+  if (names != bold)
+    throw std::runtime_error ("Artifact and Bold-text tree-format disagree");
+  return names;
 }
 
 std::string tag_name (const tree& t) {
@@ -284,7 +402,8 @@ std::string definition_name_text (const tree& name) {
   return text;
 }
 
-void append_definition_names (const tree& title, AthenaArtifactRecord& record) {
+void append_definition_names (const tree& title, AthenaArtifactRecord& record,
+                              xml_format_version version) {
   tree parts (CONCAT);
   append_title_parts (title, parts);
   if (N(parts) > 0 && is_atomic (parts[0]) && is_atomic (parts[N(parts)-1])) {
@@ -323,7 +442,7 @@ void append_definition_names (const tree& title, AthenaArtifactRecord& record) {
       alias[N(alias)-1]= trim_spaces (alias[N(alias)-1]->label);
     alias= simplify_concat (alias);
     std::string display= collapse_spaces (definition_name_text (alias));
-    std::string serialized= fragment_bytes (alias);
+    std::string serialized= fragment_bytes (alias, version);
     if (display.empty () || std::find (record.semantic_name_trees.begin (),
         record.semantic_name_trees.end (), serialized) != record.semantic_name_trees.end ())
       continue;
@@ -333,24 +452,24 @@ void append_definition_names (const tree& title, AthenaArtifactRecord& record) {
 }
 
 void definition_names_in_first_line (
-  const tree& t, AthenaArtifactRecord& record) {
+  const tree& t, AthenaArtifactRecord& record, xml_format_version version) {
   if (!is_compound (t)) return;
   if (bold_wrapper (t)) {
-    append_definition_names (visible_body (t), record);
+    append_definition_names (visible_body (t), record, version);
     return;
   }
   if (formatting_wrapper (tag_name (t)) && N(t) >= 1) {
-    definition_names_in_first_line (t[N(t)-1], record);
+    definition_names_in_first_line (t[N(t)-1], record, version);
     return;
   }
   if (is_func (t, DOCUMENT)) {
-    if (N(t) > 0) definition_names_in_first_line (t[0], record);
+    if (N(t) > 0) definition_names_in_first_line (t[0], record, version);
     return;
   }
   if (is_func (t, CONCAT))
     for (int i=0; i<N(t); ++i) {
       if (is_func (t[i], NEXT_LINE, 0) || is_func (t[i], NEW_LINE, 0)) break;
-      definition_names_in_first_line (t[i], record);
+      definition_names_in_first_line (t[i], record, version);
     }
 }
 
@@ -529,8 +648,10 @@ std::string identity_fingerprint (const std::string& serialized) {
                                    (size_t) digest.size ());
 }
 
-std::string identity_fingerprint (const tree& value) {
-  return identity_fingerprint (serialized_tree (value));
+std::string identity_fingerprint (const tree& value,
+                                  xml_format_version version= xml_format_version::v1) {
+  return identity_fingerprint (version == xml_format_version::v1
+    ? serialized_tree (value) : fragment_bytes (value, version));
 }
 
 void strip_artifact_bindings (tree& value) {
@@ -546,11 +667,13 @@ void strip_artifact_bindings (tree& value) {
 // Artifact extraction content is independent of source UUID allocation and of
 // producer-maintained role bindings. Other typed properties remain because
 // canonical enunciation kind/name/etc. can change artifact semantics.
-std::string artifact_content_fingerprint (const tree& document) {
+std::string artifact_content_fingerprint (
+    const tree& document, xml_format_version version) {
   tree projected= athena::node::content_projection (document);
   strip_artifact_bindings (projected);
-  return identity_fingerprint (athena::document::write_xml_v2 (
-    projected, athena::document::xml_kind::document));
+  return identity_fingerprint (version == xml_format_version::v3
+    ? athena::document::write_xml_v3 (projected)
+    : athena::document::write_xml_v2 (projected));
 }
 
 std::string artifact_binding (const tree& source, const std::string& role) {
@@ -574,16 +697,18 @@ path native_path (const std::vector<int>& source) {
   return result;
 }
 
-std::string identity_neighbor (const tree& parent, int start, int step) {
+std::string identity_neighbor (const tree& parent, int start, int step,
+                               xml_format_version version) {
   for (int i=start; i>=0 && i<N(parent); i += step) {
     if (ignorable (parent[i]) || tag_name (parent[i]) == "label") continue;
-    return identity_fingerprint (parent[i]);
+    return identity_fingerprint (parent[i], version);
   }
   return "";
 }
 
 void scan_enunciations (const tree& parent, const std::string& rel,
                         std::vector<AthenaArtifactRecord>& out, int& order,
+                        xml_format_version version,
                         path where= path (),
                         std::vector<path>* source_paths= nullptr) {
   if (!is_compound (parent)) return;
@@ -622,14 +747,14 @@ void scan_enunciations (const tree& parent, const std::string& rel,
       std::string explicit_title;
       (void) leading_bold_text (child, explicit_title);
       if (type == "definition" && N(child) > 0)
-        definition_names_in_first_line (child[N(child)-1], record);
+        definition_names_in_first_line (child[N(child)-1], record, version);
       else
         record.semantic_names= semantic_names_for (
           record.origin, record.type, record.display_text, explicit_title);
       record.keyword_tree= base;
-      record.identity_focus= identity_fingerprint (child);
-      record.identity_before= identity_neighbor (parent, i - 1, -1);
-      record.identity_after= identity_neighbor (parent, i + 1, 1);
+      record.identity_focus= identity_fingerprint (child, version);
+      record.identity_before= identity_neighbor (parent, i - 1, -1, version);
+      record.identity_after= identity_neighbor (parent, i + 1, 1, version);
       record.document_order= order++;
       if (type == "provable") {
         for (int j=i+1; j<N(parent); j++) {
@@ -646,7 +771,7 @@ void scan_enunciations (const tree& parent, const std::string& rel,
       if (source_paths != nullptr) source_paths->push_back (where * i);
       continue;
     }
-    scan_enunciations (child, rel, out, order, where * i, source_paths);
+    scan_enunciations (child, rel, out, order, version, where * i, source_paths);
   }
 }
 
@@ -819,19 +944,19 @@ bool store_range_checkpoints (sqlite3* db,
 bool extract (const tree& document, const std::string& rel,
               const AthenaArtifactTitleFilter& title_filter,
               ExtractedDocument& extracted, std::string& error,
-              bool structural_only= false) {
+              bool structural_only, xml_format_version version) try {
   tree body= document_body (document);
   if (!is_compound (body)) {
     error= "Document has no structural body";
     return false;
   }
   int order= 0;
-  scan_enunciations (body, rel, extracted.records, order);
+  scan_enunciations (body, rel, extracted.records, order, version);
 
   std::vector<Paragraph> paragraphs;
   collect_paragraphs (body, paragraphs);
   for (Paragraph& paragraph: paragraphs)
-    paragraph.fingerprint= identity_fingerprint (paragraph.value);
+    paragraph.fingerprint= identity_fingerprint (paragraph.value, version);
   std::unordered_map<std::string,int> occurrences;
   for (size_t paragraph_index=0; paragraph_index<paragraphs.size ();
        paragraph_index++) {
@@ -843,7 +968,7 @@ bool extract (const tree& document, const std::string& rel,
           !has_name_bearing_text (display) ||
           athena_artifact_title_filter_contains (
             title_filter, visible_body (keyword))) continue;
-      std::string serialized= fragment_bytes (keyword);
+      std::string serialized= fragment_bytes (keyword, version);
       int occurrence= ++occurrences[serialized];
       std::vector<std::pair<int,std::string>> candidates;
       for (int offset=-5; !structural_only && offset<=5; offset++) {
@@ -852,7 +977,7 @@ bool extract (const tree& document, const std::string& rel,
         if (paragraphs[(size_t) index].segment !=
             paragraphs[paragraph_index].segment) continue;
         candidates.push_back ({offset,
-          fragment_bytes (paragraphs[(size_t) index].value)});
+          fragment_bytes (paragraphs[(size_t) index].value, version)});
       }
       AthenaArtifactRecord record;
       record.type= "definition";
@@ -864,7 +989,7 @@ bool extract (const tree& document, const std::string& rel,
       record.semantic_names= semantic_names_for (
         record.origin, record.type, record.display_text);
       record.keyword_tree= serialized;
-      record.semantic_name_trees= {fragment_bytes (visible_body (keyword))};
+      record.semantic_name_trees= {fragment_bytes (visible_body (keyword), version)};
       record.keyword_occurrence= occurrence;
       record.definition_candidates= candidates;
       if (!structural_only) {
@@ -875,7 +1000,7 @@ bool extract (const tree& document, const std::string& rel,
         record.range_structure_fingerprint= identity_fingerprint (
           QJsonDocument (input).toJson (QJsonDocument::Compact).toStdString ());
       }
-      record.identity_focus= identity_fingerprint (keyword);
+      record.identity_focus= identity_fingerprint (keyword, version);
       record.identity_host= paragraphs[paragraph_index].fingerprint;
       if (paragraph_index > 0 &&
           paragraphs[paragraph_index - 1].segment ==
@@ -903,6 +1028,10 @@ bool extract (const tree& document, const std::string& rel,
   }
   return true;
 }
+catch (const std::exception& failure) {
+  error= "Artifact extraction: " + std::string (failure.what ());
+  return false;
+}
 
 QJsonObject record_json (const AthenaArtifactRecord& record) {
   QJsonObject object;
@@ -929,7 +1058,7 @@ QJsonObject record_json (const AthenaArtifactRecord& record) {
   for (const std::string& name: record.semantic_name_trees)
     name_trees.append (qstr (encode_opaque (name)));
   object["semantic_name_trees"]= name_trees;
-  object["keyword"]= qstr (encode_opaque (record.keyword_tree));
+  object["keyword"]= qstr (encode_opaque (record.keyword_tree, record.origin == "bold-text"));
   object["occurrence"]= record.keyword_occurrence;
   object["order"]= record.document_order;
   object["identity_focus"]= qstr (record.identity_focus);
@@ -973,7 +1102,7 @@ AthenaArtifactRecord record_from_json (const QJsonObject& object) {
     QByteArray name= value.toString ().toUtf8 ();
     record.semantic_names.emplace_back (name.constData (), (size_t) name.size ());
   }
-  record.keyword_tree= decode_opaque (s ("keyword"));
+  record.keyword_tree= decode_opaque (s ("keyword"), record.origin == "bold-text");
   for (const QJsonValue& value: object.value ("semantic_name_trees").toArray ())
     record.semantic_name_trees.push_back (decode_opaque (value.toString ().toStdString ()));
   record.keyword_occurrence= object.value ("occurrence").toInt ();
@@ -1005,6 +1134,7 @@ struct DocumentWork {
   std::string semantic_hash;
   athena::document::document_source_format source_format=
     athena::document::document_source_format::xml_v1;
+  xml_format_version fragments= xml_format_version::v1;
 };
 
 bool read_document (const fs::path& path, tree& document, std::string& error,
@@ -1025,7 +1155,8 @@ bool extract_serial (const std::vector<DocumentWork>& work,
     tree document;
     if (!read_document (work[i].path, document, error)) return false;
     if (!extract (document, work[i].rel, title_filter,
-                  extracted[work[i].rel], error))
+                  extracted[work[i].rel], error, false,
+                  work[i].fragments))
       return false;
     artifact_log (progress, "extracted " + work[i].rel + ": " +
                   std::to_string (extracted[work[i].rel].records.size ()) +
@@ -1299,6 +1430,8 @@ bool extract_parallel (sqlite3* db, const std::vector<DocumentWork>& work,
       QJsonObject item;
       item["file"]= qstr (work[index].path.string ());
       item["path"]= qstr (work[index].rel);
+      item["fragment_format"]= work[index].fragments == xml_format_version::v3 ? 3 :
+        work[index].fragments == xml_format_version::v2 ? 2 : 1;
       documents.append (item);
     }
     fs::path manifest= temp / (std::to_string (worker) + ".manifest.json");
@@ -1477,17 +1610,18 @@ bool load_identity_observations (
         bold, error))
     return false;
   bind_text (bold.st, 1, path);
+  const auto bold_format= index_tree_version (db, true);
   while ((rc= sqlite3_step (bold.st)) == SQLITE_ROW) {
     AthenaArtifactIdentityObservation observation;
     observation.uuid= column_text (bold.st, 0);
     observation.origin= "bold-text";
     observation.type= "definition";
-    std::string keyword= decode_opaque (column_text (bold.st, 1));
+    std::string keyword= decode_index_keyword (column_text (bold.st, 1), bold_format);
     observation.display= column_text (bold.st, 2);
     observation.document_order= sqlite3_column_int (bold.st, 3);
     observation.focus= column_text (bold.st, 4);
     if (observation.focus.empty ())
-      observation.focus= identity_fingerprint (fragment_tree (keyword));
+      observation.focus= identity_fingerprint (fragment_tree (keyword), inspect_xml_version (keyword));
     observation.host= column_text (bold.st, 5);
     observation.before= column_text (bold.st, 6);
     observation.after= column_text (bold.st, 7);
@@ -1638,8 +1772,11 @@ bool choose_and_persist_native_bindings (
     sqlite3* db, const fs::path& vault_root, DocumentWork& work,
     ExtractedDocument& extracted, std::string& error,
     const AthenaArtifactsBuildOptions& options) {
-  if (work.source_format != athena::document::document_source_format::xml_v2)
+  if (work.source_format != athena::document::document_source_format::xml_v2 &&
+      work.source_format != athena::document::document_source_format::xml_v3)
     return true;
+  const auto version= work.source_format == athena::document::document_source_format::xml_v3
+    ? xml_format_version::v3 : xml_format_version::v2;
 
   tree document;
   athena::document::document_source_format format;
@@ -1650,7 +1787,7 @@ bool choose_and_persist_native_bindings (
     error= "Deferred: saved artifact revision was superseded";
     return false;
   }
-  if (format != athena::document::document_source_format::xml_v2) {
+  if (format != work.source_format) {
     error= "Artifact source changed persistence format during build: " + work.rel;
     return false;
   }
@@ -1658,7 +1795,7 @@ bool choose_and_persist_native_bindings (
     error= "Deferred: artifact source changed during build: " + work.rel;
     return false;
   }
-  if (artifact_content_fingerprint (document) != work.content_hash) {
+  if (artifact_content_fingerprint (document, version) != work.content_hash) {
     error= "Artifact source content changed during build: " + work.rel;
     return false;
   }
@@ -1698,7 +1835,7 @@ bool choose_and_persist_native_bindings (
   for (size_t i=0; i<extracted.records.size (); ++i) {
     auto& record= extracted.records[i];
     if (record.source_role.empty () || record.source_path.empty ()) {
-      error= "XML v2 artifact has no source role/path: " + work.rel;
+      error= "Native artifact has no source role/path: " + work.rel;
       return false;
     }
     tree& source= source_at (body, record.source_path);
@@ -1728,7 +1865,7 @@ bool choose_and_persist_native_bindings (
   // exact IDs are replayed if a live unmodified buffer owns the document.
   tree staged= copy (document);
   if (!apply_binding_assignments (staged, assignments, error)) return false;
-  if (artifact_content_fingerprint (staged) != work.content_hash) {
+  if (artifact_content_fingerprint (staged, version) != work.content_hash) {
     error= "Artifact identity binding changed extraction content for " + work.rel;
     return false;
   }
@@ -1760,9 +1897,14 @@ bool choose_and_persist_native_bindings (
         if (athena::document::storage_bytes_fingerprint (
               source.read (athena::document::codec_limits ().input_bytes)) != work.storage_hash)
           throw std::runtime_error ("Deferred: artifact source changed");
-        if (staged != document) {
-          const auto bytes= athena::document::write_xml_v2 (staged);
-          if (athena::document::read_xml_v2 (bytes) != staged)
+        if (staged != document || !athena::node::equal_metadata (staged, document)) {
+          const auto bytes= version == xml_format_version::v3
+            ? athena::document::write_xml_v3 (staged)
+            : athena::document::write_xml_v2 (staged);
+          const auto restored= version == xml_format_version::v3
+            ? athena::document::read_xml_v3 (bytes)
+            : athena::document::read_xml_v2 (bytes);
+          if (restored != staged || !athena::node::equal_metadata (restored, staged))
             throw std::runtime_error ("Artifact binding XML round-trip failed");
           std::unique_lock<std::recursive_mutex> gate (
             document_publication_mutex (), std::defer_lock);
@@ -1777,7 +1919,7 @@ bool choose_and_persist_native_bindings (
       else {
       auto storage= athena::document::document_file::capture (
         work.path, vault_root);
-      if (storage.version () != athena::document::xml_storage_version::v2 ||
+      if (storage.version () != version ||
           storage.source_sha256 () != work.storage_hash) {
         error= "Artifact source changed before binding publish: " + work.rel;
         return false;
@@ -1795,9 +1937,13 @@ bool choose_and_persist_native_bindings (
 
   tree persisted;
   std::string persisted_hash;
-  if (!read_document (work.path, persisted, error, nullptr, &persisted_hash))
+  if (!read_document (work.path, persisted, error, &format, &persisted_hash))
     return false;
-  if (artifact_content_fingerprint (persisted) != work.content_hash) {
+  if (format != work.source_format) {
+    error= "Artifact binding changed source persistence format: " + work.rel;
+    return false;
+  }
+  if (artifact_content_fingerprint (persisted, version) != work.content_hash) {
     error= "Persisted artifact bindings changed extraction content for " + work.rel;
     return false;
   }
@@ -1806,7 +1952,7 @@ bool choose_and_persist_native_bindings (
         !freeze_paragraph_sources (persisted, record, error)) return false;
   try {
     work.semantic_hash=
-      athena::document::semantic_document_fingerprint (persisted);
+      athena::document::semantic_document_fingerprint (persisted, version);
   }
   catch (const std::exception& failure) {
     error= "Could not fingerprint persisted artifact source " + work.rel +
@@ -2218,8 +2364,8 @@ athena_artifacts_run_extract_worker (const fs::path& manifest,
       entries.push_back (value.toString ().toStdString ());
     title_filter= athena_artifact_title_filter_from_entries (entries);
     for (const auto& value: root.value ("structured_title_filter").toArray ())
-      athena_artifact_title_filter_add (title_filter,
-        fragment_tree (value.toString ().toStdString ()));
+      athena_artifact_title_filter_add_fragment (
+        title_filter, value.toString ().toStdString ());
     requested_documents= root.value ("documents").toArray ();
   }
 
@@ -2231,8 +2377,17 @@ athena_artifacts_run_extract_worker (const fs::path& manifest,
       std::string rel= source.value ("path").toString ().toStdString ();
       tree document;
       ExtractedDocument extracted;
-      if (!read_document (file, document, error) ||
-          !extract (document, rel, title_filter, extracted, error, structural_only)) break;
+      athena::document::document_source_format format;
+      if (!read_document (file, document, error, &format)) break;
+      const int requested_format= source.value ("fragment_format").toInt (
+        format == athena::document::document_source_format::xml_v3 ? 3 : 1);
+      if (requested_format < 1 || requested_format > 3 ||
+          (requested_format == 3) != (format == athena::document::document_source_format::xml_v3)) {
+        error= "Artifact worker source/index format mismatch"; break;
+      }
+      const auto version= requested_format == 3 ? xml_format_version::v3 :
+        requested_format == 2 ? xml_format_version::v2 : xml_format_version::v1;
+      if (!extract (document, rel, title_filter, extracted, error, structural_only, version)) break;
       QJsonArray records;
       for (const AthenaArtifactRecord& record: extracted.records)
         records.append (record_json (record));
@@ -2257,10 +2412,11 @@ athena_artifacts_run_extract_worker (const fs::path& manifest,
 bool
 athena_artifacts_extract_structure (
   const tree& document, const std::string& relative_path,
-  std::vector<AthenaArtifactRecord>& records, std::string& error) {
+  std::vector<AthenaArtifactRecord>& records, std::string& error,
+  xml_format_version version) {
   ExtractedDocument extracted;
   if (!extract (document, relative_path, athena_artifact_title_filter_defaults (),
-                extracted, error, true)) return false;
+                extracted, error, true, version)) return false;
   records= std::move (extracted.records);
   return true;
 }
@@ -2296,7 +2452,8 @@ athena_artifacts_bind_structure (
 bool
 athena_artifacts_extract_document (
   const tree& document, const std::string& relative_path,
-  std::vector<AthenaArtifactRecord>& records, std::string& error) {
+  std::vector<AthenaArtifactRecord>& records, std::string& error,
+  xml_format_version version) {
   std::map<std::string,ExtractedDocument> extracted;
   std::vector<DocumentWork> source= {
     {fs::path (), relative_path, 0, 0, ""}
@@ -2304,7 +2461,7 @@ athena_artifacts_extract_document (
   AthenaArtifactTitleFilter title_filter=
     athena_artifact_title_filter_defaults ();
   if (!extract (document, relative_path, title_filter,
-                extracted[relative_path], error) ||
+                extracted[relative_path], error, false, version) ||
       !select_definition_ranges (nullptr, source, extracted, {}, error))
     return false;
   records= std::move (extracted[relative_path].records);
@@ -2375,7 +2532,7 @@ athena_artifact_locate_paragraph (
       }
       std::string display= plain_text (visible_body (keyword));
       if (collapse_spaces (display).empty ()) continue;
-      std::string serialized= fragment_bytes (keyword);
+      std::string serialized= fragment_bytes (keyword, record_fragment_format (record));
       int occurrence= ++occurrences[serialized];
       if (serialized == record.keyword_tree &&
           occurrence == record.keyword_occurrence) {
@@ -2407,7 +2564,7 @@ athena_artifact_locate_paragraph (
   const bool native_range= !record.source_uuid.empty ();
   if (native_range && record.definition_candidates.empty () &&
       (record.source_content_fingerprint.empty () ||
-       artifact_content_fingerprint (document) !=
+       artifact_content_fingerprint (document, record_fragment_format (record)) !=
          record.source_content_fingerprint)) {
     error= "Artifact paragraph selection is stale; rebuild artifacts";
     return false;
@@ -2425,7 +2582,8 @@ athena_artifact_locate_paragraph (
         record.definition_candidates.begin (), record.definition_candidates.end (),
         [offset] (const auto& entry) { return entry.first == offset; });
       if (candidate == record.definition_candidates.end () ||
-          candidate->second != fragment_bytes (paragraphs[(size_t) index].value)) {
+          candidate->second != fragment_bytes (paragraphs[(size_t) index].value,
+                                                inspect_xml_version (candidate->second))) {
         error= "Artifact paragraph selection is stale; rebuild artifacts";
         return false;
       }
@@ -2581,7 +2739,7 @@ athena_artifact_locate_source (
       for (const tree& keyword: bolds) {
         std::string display= plain_text (visible_body (keyword));
         if (collapse_spaces (display).empty ()) continue;
-        std::string serialized= fragment_bytes (keyword);
+        std::string serialized= fragment_bytes (keyword, record_fragment_format (record));
         int occurrence= ++occurrences[serialized];
         if (serialized == record.keyword_tree &&
             occurrence == record.keyword_occurrence) {
@@ -2632,7 +2790,8 @@ athena_artifact_locate_source (
   std::vector<path> source_paths;
   int order= 0;
   scan_enunciations (
-    body, record.relative_path, current, order, path (), &source_paths);
+    body, record.relative_path, current, order, record_fragment_format (record),
+    path (), &source_paths);
   std::vector<AthenaArtifactIdentityObservation> candidates;
   candidates.reserve (current.size ());
   for (const AthenaArtifactRecord& candidate: current)
@@ -2671,7 +2830,7 @@ athena_artifact_is_defining_occurrence (
     if (!record.source_uuid.empty () &&
         athena::node::id (value) == record.source_uuid) return true;
     if (record.origin == "bold-text" && bold_wrapper (value) &&
-        fragment_bytes (value) == record.keyword_tree) return true;
+        fragment_bytes (value, record_fragment_format (record)) == record.keyword_tree) return true;
     if (record.origin == "enunciation" &&
         enunciation_matches_record (body, current, value, record)) return true;
   }
@@ -2695,7 +2854,7 @@ athena_artifacts_build (
   const fs::path& vault_root,
   const std::vector<fs::path>& requested_documents, bool full_vault,
   const AthenaArtifactsProgress& progress, AthenaArtifactsBuildResult& result,
-  std::string& error, const AthenaArtifactsBuildOptions& options) {
+  std::string& error, const AthenaArtifactsBuildOptions& options) try {
   result= AthenaArtifactsBuildResult ();
   fs::path root= normalize_root (vault_root);
   artifact_log (progress, "build started: root=" + root.string () +
@@ -2709,6 +2868,7 @@ athena_artifacts_build (
   SqliteDb holder;
   AthenaVaultfileInfo info;
   if (!open_databases (root, holder, info, error)) return false;
+  const auto index_format= prepare_index_tree_version (holder.db, info);
   AthenaArtifactTitleFilter title_filter;
   if (!athena_artifact_title_filter_read (root, title_filter, error))
     return false;
@@ -2766,6 +2926,11 @@ athena_artifacts_build (
     std::string storage_hash;
     if (!read_document (
           path, document, error, &source_format, &storage_hash)) return false;
+    if ((source_format == athena::document::document_source_format::xml_v3) !=
+        (index_format == xml_format_version::v3)) {
+      error= "Artifact source/index format mismatch; offline migration required: " + rel;
+      return false;
+    }
     if (!options.saved_sha256.empty () && storage_hash != options.saved_sha256) {
       error= "Deferred: saved artifact revision was superseded"; return false;
     }
@@ -2775,8 +2940,13 @@ athena_artifacts_build (
     std::string content_hash;
     std::string semantic_hash;
     try {
-      content_hash= artifact_content_fingerprint (document);
-      semantic_hash= athena::document::semantic_document_fingerprint (document);
+      content_hash= artifact_content_fingerprint (document, fragment_format (source_format));
+      const auto source_version=
+        source_format == athena::document::document_source_format::xml_v3 ? xml_format_version::v3 :
+        source_format == athena::document::document_source_format::xml_v2 ? xml_format_version::v2 :
+                                                                                         xml_format_version::v1;
+      // Legacy imports retain the historical v1/v2 semantic digest contract.
+      semantic_hash= athena::document::semantic_document_fingerprint (document, source_version);
     }
     catch (const std::exception& e) {
       error= "Could not fingerprint " + rel + ": " + e.what ();
@@ -2813,7 +2983,7 @@ athena_artifacts_build (
       continue;
     }
     work.push_back ({path, rel, modified, size, storage_hash, content_hash,
-                     semantic_hash, source_format});
+                     semantic_hash, source_format, index_format});
   }
   artifact_log (progress, "incremental plan: rebuild " + std::to_string (work.size ()) +
                 " document(s), purge " + std::to_string (deleted.size ()) +
@@ -2852,7 +3022,7 @@ athena_artifacts_build (
         options.range_selector, error))
     return false;
 
-  // XML v2 source metadata is the artifact identity authority. Persist missing
+  // Native source metadata is the artifact identity authority. Persist missing
   // source IDs/bindings before replacing the disposable database cache. A DB
   // failure can therefore be recovered by rebuilding from the source, whereas
   // committing DB-only identity first would lose the authoritative binding.
@@ -2950,6 +3120,10 @@ athena_artifacts_build (
                 std::to_string (result.documents_deleted) +
                 " purged document(s)");
   return true;
+}
+catch (const std::exception& failure) {
+  error= "Artifact build: " + std::string (failure.what ());
+  return false;
 }
 
 bool
@@ -3056,7 +3230,8 @@ std::string artifact_select_columns (sqlite3* db, std::string& error) {
 }
 
 bool artifact_record_from_statement (sqlite3_stmt* statement,
-                                     AthenaArtifactRecord& record, std::string& error) {
+                                     AthenaArtifactRecord& record, std::string& error,
+                                     xml_format_version bold_format) {
   record= AthenaArtifactRecord ();
   record.uuid= column_text (statement, 0);
   record.type= column_text (statement, 1);
@@ -3070,7 +3245,9 @@ bool artifact_record_from_statement (sqlite3_stmt* statement,
   record.anchor_stem= column_text (statement, 9);
   record.display_text= column_text (statement, 10);
   record.document_order= sqlite3_column_int (statement, 11);
-  record.keyword_tree= decode_opaque (column_text (statement, 12));
+  record.keyword_tree= record.origin == "bold-text"
+    ? decode_index_keyword (column_text (statement, 12), bold_format)
+    : decode_opaque (column_text (statement, 12), false);
   record.keyword_occurrence= sqlite3_column_int (statement, 13);
   record.paragraph_offsets= parse_offsets (column_text (statement, 14));
   record.identity_focus= column_text (statement, 15);
@@ -3145,6 +3322,7 @@ bool load_semantic_names (sqlite3* db,
                           std::vector<AthenaArtifactRecord>& records,
                           std::string& error) {
   if (records.empty ()) return true;
+  const auto version= index_tree_version (db, false);
   std::unordered_map<std::string,size_t> by_uuid;
   by_uuid.reserve (records.size ());
   for (size_t i=0; i<records.size (); i++) by_uuid[records[i].uuid]= i;
@@ -3162,8 +3340,10 @@ bool load_semantic_names (sqlite3* db,
   while ((rc= sqlite3_step (names.st)) == SQLITE_ROW) {
     auto found= by_uuid.find (column_text (names.st, 0));
     if (found != by_uuid.end ()) {
+      const auto fragment= column_text (names.st, 2);
+      if (!fragment.empty ()) validate_index_fragment (fragment, version);
       records[found->second].semantic_names.push_back (column_text (names.st, 1));
-      records[found->second].semantic_name_trees.push_back (column_text (names.st, 2));
+      records[found->second].semantic_name_trees.push_back (fragment);
     }
   }
   if (rc != SQLITE_DONE) {
@@ -3178,7 +3358,7 @@ bool load_semantic_names (sqlite3* db,
 bool
 athena_artifacts_query (const fs::path& vault_root,
                         std::vector<AthenaArtifactRecord>& records,
-                        std::string& error, bool read_only, bool include_live) {
+                        std::string& error, bool read_only, bool include_live) try {
   records.clear ();
   SqliteDb holder;
   AthenaVaultfileInfo info;
@@ -3187,6 +3367,8 @@ athena_artifacts_query (const fs::path& vault_root,
     if (include_live) athena_artifact_radioactive_merge (vault_root, records);
     return true;
   }
+  const auto bold_format= index_tree_version (holder.db, true);
+  (void) index_tree_version (holder.db, false);
   Statement st;
   std::string sql= artifact_select_columns (holder.db, error);
   if (!error.empty ()) return false;
@@ -3196,7 +3378,7 @@ athena_artifacts_query (const fs::path& vault_root,
   int rc;
   while ((rc= sqlite3_step (st.st)) == SQLITE_ROW) {
     AthenaArtifactRecord record;
-    if (!artifact_record_from_statement (st.st, record, error)) return false;
+    if (!artifact_record_from_statement (st.st, record, error, bold_format)) return false;
     records.push_back (std::move (record));
   }
   if (rc != SQLITE_DONE) {
@@ -3207,6 +3389,11 @@ athena_artifacts_query (const fs::path& vault_root,
       !upgrade_source_lists (vault_root, holder.db, records, read_only, error)) return false;
   if (include_live) athena_artifact_radioactive_merge (vault_root, records);
   return true;
+}
+catch (const std::exception& failure) {
+  records.clear ();
+  error= "Artifact query: " + std::string (failure.what ());
+  return false;
 }
 
 bool athena_artifacts_prune_missing (const fs::path& root, std::string& error) {
@@ -3243,7 +3430,7 @@ bool
 athena_artifact_query_uuid (const fs::path& vault_root,
                             const std::string& uuid,
                             AthenaArtifactRecord& record, bool& found,
-                            std::string& error, bool read_only) {
+                            std::string& error, bool read_only) try {
   found= false;
   std::vector<AthenaArtifactRecord> live;
   athena_artifact_radioactive_merge (vault_root, live);
@@ -3254,6 +3441,8 @@ athena_artifact_query_uuid (const fs::path& vault_root,
   AthenaVaultfileInfo info;
   if (!open_databases (vault_root, holder, info, error, read_only)) return false;
   if (!holder.db) return true;
+  const auto bold_format= index_tree_version (holder.db, true);
+  (void) index_tree_version (holder.db, false);
   Statement st;
   std::string sql= artifact_select_columns (holder.db, error);
   if (!error.empty ()) return false;
@@ -3267,7 +3456,7 @@ athena_artifact_query_uuid (const fs::path& vault_root,
     error= sqlite3_errmsg (holder.db);
     return false;
   }
-  if (!artifact_record_from_statement (st.st, record, error)) return false;
+  if (!artifact_record_from_statement (st.st, record, error, bold_format)) return false;
   sqlite3_reset (st.st);
   std::vector<AthenaArtifactRecord> records= {record};
   if (!load_semantic_names (holder.db, records, error) ||
@@ -3281,4 +3470,10 @@ athena_artifact_query_uuid (const fs::path& vault_root,
       })) return true;
   found= true;
   return true;
+}
+catch (const std::exception& failure) {
+  found= false;
+  record= AthenaArtifactRecord ();
+  error= "Artifact query: " + std::string (failure.what ());
+  return false;
 }

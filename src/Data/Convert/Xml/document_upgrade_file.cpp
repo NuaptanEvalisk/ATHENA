@@ -35,19 +35,19 @@ legacy_format identify_legacy (std::string_view bytes) {
 }
 
 xml_storage_version identify_xml (std::string_view bytes, codec_limits limits) {
-  try {
-    (void) read_xml (bytes, xml_kind::document, limits);
-    return xml_storage_version::v1;
+  const auto version= inspect_xml_version (bytes, limits);
+  switch (version) {
+    case xml_storage_version::v1: (void) read_xml (bytes, xml_kind::document, limits); break;
+    case xml_storage_version::v2: (void) read_xml_v2 (bytes, xml_kind::document, limits); break;
+    case xml_storage_version::v3: (void) read_xml_v3 (bytes, xml_kind::document, limits); break;
   }
-  catch (const codec_exception& error) {
-    if (error.code != codec_error::unsupported_version) throw;
-  }
-  (void) read_xml_v2 (bytes, xml_kind::document, limits);
-  return xml_storage_version::v2;
+  return version;
 }
 
 std::string serialize_xml (const tree& document, xml_storage_version version,
                            codec_limits limits) {
+  if (version == xml_storage_version::v3)
+    return write_xml_v3 (document, xml_kind::document, limits);
   return version == xml_storage_version::v2 ?
     write_xml_v2 (document, xml_kind::document, limits) :
     write_xml (document, xml_kind::document, limits);
@@ -55,6 +55,8 @@ std::string serialize_xml (const tree& document, xml_storage_version version,
 
 tree parse_xml (std::string_view bytes, xml_storage_version version,
                 codec_limits limits) {
+  if (version == xml_storage_version::v3)
+    return read_xml_v3 (bytes, xml_kind::document, limits);
   return version == xml_storage_version::v2 ?
     read_xml_v2 (bytes, xml_kind::document, limits) :
     read_xml (bytes, xml_kind::document, limits);

@@ -55,6 +55,20 @@ does not need an editor, display, user profile, or vault.
   It delegates actor-to-UI scheduling to `athena_dispatch_ui`, preserving the
   originating editor's UI-effect queue. Other signatures must implement their
   ownership and lifetime contract in the native API.
+- `exceptions="scheme"` translates C++ exceptions from direct argument
+  conversion, invocation and result conversion into a Scheme `misc-error`,
+  retaining the binding name and `std::exception::what()` diagnostic. Unknown
+  C++ exceptions also raise an error; failure never becomes `#f`. Type checks
+  retain their existing Scheme error contract. The default `propagate` policy
+  leaves existing bindings unchanged; it is not suitable for native APIs that
+  intentionally throw into Scheme callers. Asynchronous UI dispatch cannot use
+  this policy because its eventual failure is outside the binding invocation.
+  Generated wrappers finish C++ stack unwinding and leave all catch blocks
+  before raising the Scheme error. Only POD state survives to that point;
+  Guile dynamic-wind owns the diagnostic buffer and frees it on nonlocal exit.
+  This policy handles C++ exceptions, not C++ resource cleanup when a native
+  function calls back into Scheme and that callback exits nonlocally. Native
+  APIs must still own that separate lifetime contract.
 - `procedure` validates a Scheme procedure and passes a rooted `object`.
   `tmscm` passes a raw value without validation, for generic type predicates.
 - A final `<arg type="object" rest="true" />` receives the remaining Scheme

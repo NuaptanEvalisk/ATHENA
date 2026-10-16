@@ -12,6 +12,10 @@
 #include "../../System/Files/confined_filesystem.hpp"
 
 namespace athena::interop {
+// Prepare on the GUI/DRD owner; the caller supplies the captured target Vault
+// model, not the unrelated AUDMAP document-model wire version.
+std::string new_filesystem_document_bytes (const value&, int node_model_version);
+
 class filesystem_resource final: public vault_resource {
   const vault_context_handle context;
   const std::shared_ptr<const athena::filesystem::confined_root> root;

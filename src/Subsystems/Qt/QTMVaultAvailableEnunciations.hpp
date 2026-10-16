@@ -10,6 +10,7 @@
 #pragma once
 #include "ATHENA/Data/vault_map_sqlite.hpp"
 #include "ATHENA/Data/node_location.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
 #include "tree.hpp"
 #include <QString>
 #include <QStringList>
@@ -20,7 +21,8 @@
 
 struct AvailableEnunciation {
   QString relative_path, upper, lower, title, tag;
-  // Serialized once per source; no native tree or path crosses worker threads.
+  // Native fragment envelope retains the source version. Serialized once per
+  // source; no native tree or path crosses worker threads.
   std::shared_ptr<const std::string> source_body;
   QString source_uuid;
 };
@@ -32,10 +34,10 @@ struct AvailableEnunciations {
 AvailableEnunciations collect_available_enunciations (
   std::shared_ptr<const std::string> source_body, const QString& source_path,
   const std::function<bool (const std::string&, AthenaVaultMapNode&)>& locate,
-  const std::function<tree (const QString&)>& load,
+  const std::function<athena::document::native_xml_read_result (const QString&)>& load,
   const std::atomic<bool>& cancelled);
 
-// XML v2 snapshots and the shared native locator, never map.sqlite or generated
+// Versioned native snapshots and the shared locator, never map.sqlite or generated
 // anchors. The resolver runs on a SearchWorker and must honour cancellation.
 AvailableEnunciations collect_available_source_enunciations (
   std::shared_ptr<const std::string> source_body, const QString& source_path,

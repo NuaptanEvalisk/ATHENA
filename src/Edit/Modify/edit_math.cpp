@@ -13,6 +13,10 @@
 #include "analyze.hpp"
 #include "utf8_edit.hpp"
 #include "language.hpp"
+#include "math_tree_v3.hpp"
+#include "tree_analyze.hpp"
+#include "converter.hpp"
+#include "node_metadata.hpp"
 #include <array>
 #include <unicode/uchar.h>
 #include <unicode/utf8.h>
@@ -213,11 +217,184 @@ find_adjacent_around (tree root, path cursor, path& result) {
   return false;
 }
 
+bool
+native_v3_math_context (const buffer_document_state* buffer) {
+  return buffer != nullptr && buffer->storage_version ==
+    athena::document::xml_storage_version::v3;
+}
+
+bool
+find_native_delimited (tree root, path cursor, path& result) {
+  path p= cursor;
+  while (true) {
+    if (has_subtree (root, p) && is_func (subtree (root, p), DELIMITED, 6)) {
+      result= p;
+      return true;
+    }
+    if (is_nil (p)) break;
+    p= path_up (p);
+  }
+  if (is_nil (cursor)) return false;
+  const path parent_path= path_up (cursor);
+  if (!has_subtree (root, parent_path)) return false;
+  const tree parent= subtree (root, parent_path);
+  if (is_atomic (parent)) return false;
+  const int i= last_item (cursor);
+  for (int index: {i-1, i})
+    if (index >= 0 && index < N (parent) &&
+        is_func (parent[index], DELIMITED, 6)) {
+      result= parent_path * index;
+      return true;
+    }
+  return false;
+}
+
+bool
+find_native_scripts (tree root, path cursor, path& result) {
+  path p= cursor;
+  while (true) {
+    if (has_subtree (root, p) &&
+        is_func (subtree (root, p), MATH_SCRIPTS, 5)) {
+      result= p;
+      return true;
+    }
+    if (is_nil (p)) return false;
+    p= path_up (p);
+  }
+}
+
+bool
+native_script_base (tree root, path cursor, path& result, int& offset) {
+  if (is_nil (cursor)) return false;
+  result= path_up (cursor);
+  if (!has_subtree (root, result)) return false;
+  tree value= subtree (root, result);
+  offset= last_item (cursor);
+  if (is_atomic (value) && offset > 0) return true;
+  if (is_compound (value) && cursor == end (root, result))
+    return L(value) != MATH_BLOCK && L(value) != MATH_GRID &&
+           L(value) != DOCUMENT && L(value) != ROW && L(value) != CELL;
+  // A cursor in the empty text immediately after an object still belongs to
+  // that object. Do not cross a content slot or an identity-bearing leaf.
+  if (!is_atomic (value) || offset != 0 || is_nil (result)) return false;
+  const path parent= path_up (result);
+  if (!is_concat (subtree (root, parent))) return false;
+  int index= last_item (result);
+  while (index > 0) {
+    value= subtree (root, parent * (--index));
+    if (value == "" && athena::node::get (value) == nullptr) continue;
+    result= parent * index;
+    offset= is_atomic (value) ? N(value->label) : 1;
+    return true;
+  }
+  return false;
+}
+
+tree
+empty_native_scripts (int slot, tree value= tree ("")) {
+  tree fields[5]= {"", "", "", "", ""};
+  fields[slot]= value;
+  return athena::math_v3::scripts (
+    fields[0], fields[1], fields[2], fields[3], fields[4]);
+}
+
+bool
+scriptable_math_token (const string& text) {
+  if (N (text) == 0) return false;
+  int32_t offset= 0;
+  UChar32 cp= U_SENTINEL;
+  U8_NEXT (text.data (), offset, N (text), cp);
+  return cp >= 0 && (u_isalpha (cp) || u_isdigit (cp));
+}
+
+void
+append_native_math_tokens (tree& result, const string& value) {
+  if (value == "") return;
+  // The v3 contract specifies one lexical math token per leaf, not a run of
+  // text which will only be tokenized by the typesetter at render time.
+  const array<tree> tokens= concat_tokenize (tree (value));
+  for (int i=0; i<N (tokens); ++i)
+    result << tokens[i];
+}
+
+string
+native_delimiter_glyph (string glyph) {
+  return glyph == "." ? string ("") : glyph;
+}
+
+bool
+native_math_accent_glyph (string input, string& result) {
+  // Keyboard actions may name a canonical accent by its input-command name.
+  // Translate it once when constructing native mathematics: v3 stores only
+  // the Unicode accent glyph and never a second symbolic spelling.
+  static const std::pair<const char*,const char*> names[]= {
+    {"^", "̂"}, {"<hat>", "̂"}, {"~", "̃"}, {"<tilde>", "̃"},
+    {"<bar>", "̅"}, {"<wide-bar>", "̅"},
+    {"<vect>", "⃗"}, {"<rightarrow>", "⃗"},
+    {"<wide-varrightarrow>", "⃗"},
+    {"<leftarrow>", "⃖"}, {"<wide-varleftarrow>", "⃖"},
+    {"<breve>", "̆"}, {"<check>", "̌"},
+    {"<acute>", "́"}, {"<grave>", "̀"},
+    {"<dot>", "̇"}, {"<ddot>", "̈"},
+    {"<dddot>", "⃛"}, {"<abovering>", "̊"},
+    {"<overbrace>", "⏞"}, {"<underbrace>", "⏟"},
+    {"<bind>", "͡"}
+  };
+  for (const auto& [key, glyph]: names)
+    if (input == key) { result= glyph; return true; }
+  if (athena::math_v3::glyph (input)) { result= input; return true; }
+  return false;
+}
+
+bool
+unpaired_bracket_glyph (string glyph) {
+  return glyph == "(" || glyph == ")" || glyph == "[" || glyph == "]" ||
+         glyph == "{" || glyph == "}" || glyph == "⟨" || glyph == "⟩" ||
+         glyph == "⟪" || glyph == "⟫" || glyph == "⟦" || glyph == "⟧" ||
+         glyph == "⌊" || glyph == "⌋" || glyph == "⌈" || glyph == "⌉";
+}
+
 } // namespace
 
 /******************************************************************************
 * Making mathematical objects
 ******************************************************************************/
+
+bool
+edit_math_rep::native_math_editing () const {
+  return native_v3_math_context (buf);
+}
+
+void
+edit_math_rep::make_native_big_operator (string op) {
+  if (!native_math_editing ()) return;
+  // Closing a historical operator scope has no meaning for a native atom.
+  if (op == "." || op == "bignone") return;
+  string glyph= op;
+  bool upright= false, display_limits= false;
+  if (!athena::math_v3::glyph (glyph)) {
+    string name= op;
+    if (N(name) > 2 && name[0] == '<' && name[N(name)-1] == '>')
+      name= name (1, N(name)-1);
+    // Decode the keyboard command with the shipped operator mappings, not
+    // a migration of existing source or an intermediate BIG tree.
+    glyph= strict_cork_to_utf8 ("<big-" * name * "-1>");
+    if (!athena::math_v3::glyph (glyph)) {
+      set_message ("Error: unsupported native big operator", op);
+      return;
+    }
+    upright= starts (name, "up");
+    display_limits= ends (name, "lim");
+  }
+  tree atom= athena::math_v3::big_operator (glyph, upright);
+  if (display_limits)
+    atom= athena::math_v3::scripts (atom, "", "", "", "", 'd');
+  if (selection_active_normal ()) {
+    const tree selected= selection_get_cut ();
+    insert_tree (tree (CONCAT, atom, selected), path (1, end (selected)));
+  }
+  else insert_tree (atom, path (1));
+}
 
 void
 edit_math_rep::make_rigid () {
@@ -231,6 +408,11 @@ edit_math_rep::make_rigid () {
 
 void
 edit_math_rep::make_lprime (string s) {
+  if (native_v3_math_context (buf)) {
+    make_script (true, false);
+    insert_tree (s == "'" ? tree ("′") : tree (s));
+    return;
+  }
   tree& st= subtree (et, path_up (tp));
   if (is_func (st, LPRIME, 1) && (last_item (tp) == 1)) {
     if (is_atomic (st[0]))
@@ -241,6 +423,11 @@ edit_math_rep::make_lprime (string s) {
 
 void
 edit_math_rep::make_rprime (string s) {
+  if (native_v3_math_context (buf)) {
+    make_script (true, true);
+    insert_tree (s == "'" ? tree ("′") : tree (s));
+    return;
+  }
   tree& st= subtree (et, path_up (tp));
   if (is_func (st, RPRIME, 1) && (last_item (tp) == 1)) {
     if (is_atomic (st[0]))
@@ -251,6 +438,12 @@ edit_math_rep::make_rprime (string s) {
 
 void
 edit_math_rep::make_below () {
+  if (native_v3_math_context (buf)) {
+    const tree body= selection_active_small () ? selection_get_cut () : tree ("");
+    insert_tree (tree (MATH_ANNOTATION, body, tree (""), tree ("")),
+                 body == "" ? path (0, 0) : path (1, 0));
+    return;
+  }
   if (selection_active_small ()) {
     insert_tree (tree (BELOW, selection_get_cut (), ""), path (1, 0));
     set_status_hint ("type script, move right", "under");
@@ -263,6 +456,12 @@ edit_math_rep::make_below () {
 
 void
 edit_math_rep::make_above () {
+  if (native_v3_math_context (buf)) {
+    const tree body= selection_active_small () ? selection_get_cut () : tree ("");
+    insert_tree (tree (MATH_ANNOTATION, body, tree (""), tree ("")),
+                 body == "" ? path (0, 0) : path (2, 0));
+    return;
+  }
   if (selection_active_small ()) {
     insert_tree (tree (ABOVE, selection_get_cut (), ""), path (1, 0));
     set_status_hint ("type script, move right", "above");
@@ -275,6 +474,88 @@ edit_math_rep::make_above () {
 
 void
 edit_math_rep::make_script (bool sup, bool right) {
+  if (native_v3_math_context (buf)) {
+    const int slot= right ? (sup ? 4 : 3) : (sup ? 2 : 1);
+    const bool selected= selection_active_small ();
+    const tree content= selected ? selection_get_cut () : tree ("");
+    path attached;
+    if (find_native_scripts (et, tp, attached)) {
+      const tree scripts= subtree (et, attached);
+      const path relative= tp / attached;
+      // Repeating the current script command nests on its last token; the
+      // other script command switches to the companion slot of this base.
+      const bool at_slot_end= N(relative) > 1 &&
+        tp == end (et, attached * relative->item);
+      if (N(relative) == 1 ||
+          (at_slot_end && (relative->item != slot || scripts[slot] == ""))) {
+        go_to_end (attached * slot);
+        if (selected) insert_tree (content);
+        return;
+      }
+    }
+    path atomic_path;
+    int offset= 0;
+    if (native_script_base (et, tp, atomic_path, offset)) {
+      if (has_subtree (et, atomic_path)) {
+        const tree old_atom= subtree (et, atomic_path);
+        if (is_compound (old_atom)) {
+          if (is_func (old_atom, MATH_SCRIPTS, 5)) {
+            go_to_end (atomic_path * slot);
+            if (selected) insert_tree (content);
+          }
+          else {
+            tree scripts= empty_native_scripts (slot, content);
+            scripts[0]= copy (old_atom);
+            assign (atomic_path, scripts);
+            go_to_end (atomic_path * slot);
+          }
+          return;
+        }
+        if (is_atomic (old_atom)) {
+          const string original= old_atom->label;
+          if (offset > 0 && offset <= N (original)) {
+            const int begin= math_previous_token_start (original, offset);
+            const string lexical_base= original (begin, offset);
+            if (scriptable_math_token (lexical_base)) {
+              const string prefix= original (0, begin);
+              const string suffix= original (offset, N (original));
+              tree base (lexical_base);
+              if (prefix == "" && suffix == "")
+                athena::node::copy_metadata (old_atom, base);
+              tree script= athena::math_v3::scripts (
+                base, tree (""), tree (""), tree (""), tree (""));
+              // Fill the requested script slot. Copy the policy metadata
+              // from the canonical constructor; never edit fixed arity.
+              script[slot]= content;
+              tree replacement;
+              path destination;
+              if (prefix == "" && suffix == "") {
+                replacement= script;
+                destination= atomic_path * slot * end (content);
+              }
+              else {
+                tree sequence (CONCAT);
+                append_native_math_tokens (sequence, prefix);
+                const int index= N (sequence);
+                sequence << script;
+                append_native_math_tokens (sequence, suffix);
+                athena::node::copy_metadata (old_atom, sequence);
+                replacement= sequence;
+                destination= atomic_path * index * slot * end (content);
+              }
+              assign (atomic_path, replacement);
+              go_to (destination);
+              return;
+            }
+          }
+        }
+      }
+    }
+    // A deliberately independent ^{op} or _i has a legitimate empty base.
+    // Do not attach it to unrelated paragraph text or manufacture RSUB/RSUP.
+    insert_tree (empty_native_scripts (slot, content), path (slot, end (content)));
+    return;
+  }
   tree_label s (sup? SUP (right): SUB (right));
   if (selection_active_small ())
     insert_tree (tree (s, selection_get_cut ()));
@@ -339,6 +620,20 @@ edit_math_rep::make_var_sqrt () {
 
 void
 edit_math_rep::make_wide (string wide, bool stretch) {
+  if (native_v3_math_context (buf)) {
+    string glyph;
+    if (!native_math_accent_glyph (wide, glyph)) {
+      set_message ("Error: unknown mathematical accent", wide);
+      return;
+    }
+    const tree body= selection_active_small () ? selection_get_cut () : tree ("");
+    tree accent (MATH_ACCENT, tree (glyph), tree ("o"), body);
+    athena::node::metadata meta;
+    meta.properties["math:accent-stretch"]= athena::node::property (stretch);
+    athena::node::set (accent, meta);
+    insert_tree (accent, body == "" ? path (2, 0) : path (2, end (body)));
+    return;
+  }
   tree accent= stretch ? tree (WITH, "math-accent-stretch", "true", wide) : tree (wide);
   if (selection_active_small ())
     insert_tree (tree (WIDE, selection_get_cut (), accent));
@@ -350,6 +645,20 @@ edit_math_rep::make_wide (string wide, bool stretch) {
 
 void
 edit_math_rep::make_wide_under (string wide, bool stretch) {
+  if (native_v3_math_context (buf)) {
+    string glyph;
+    if (!native_math_accent_glyph (wide, glyph)) {
+      set_message ("Error: unknown mathematical accent", wide);
+      return;
+    }
+    const tree body= selection_active_small () ? selection_get_cut () : tree ("");
+    tree accent (MATH_ACCENT, tree (glyph), tree ("u"), body);
+    athena::node::metadata meta;
+    meta.properties["math:accent-stretch"]= athena::node::property (stretch);
+    athena::node::set (accent, meta);
+    insert_tree (accent, body == "" ? path (2, 0) : path (2, end (body)));
+    return;
+  }
   tree accent= stretch ? tree (WITH, "math-accent-stretch", "true", wide) : tree (wide);
   if (selection_active_small ())
     insert_tree (tree (VAR_WIDE, selection_get_cut (), accent));
@@ -380,6 +689,10 @@ is_deleted (tree t) {
 
 void
 edit_math_rep::back_around (tree t, path p, bool forward) {
+  if (is_func (t, DELIMITED, 6)) {
+    go_to_border (p * 5, forward);
+    return;
+  }
   bool match= (get_preference ("automatic brackets") != "off");
   if (is_func (t, BIG_AROUND)) {
     if (match || forward)
@@ -409,6 +722,14 @@ edit_math_rep::back_around (tree t, path p, bool forward) {
 
 void
 edit_math_rep::back_in_around (tree t, path p, bool forward) {
+  if (is_func (t, DELIMITED, 6)) {
+    if (is_empty (t[5])) {
+      assign (path_up (p), "");
+      correct (path_up (p, 2));
+    }
+    else go_to_border (path_up (p), !forward);
+    return;
+  }
   bool match= (get_preference ("automatic brackets") != "off");
   if (is_empty (t[1]) && match) {
     assign (t, "");
@@ -498,6 +819,8 @@ edit_math_rep::back_in_wide (tree t, path p, bool forward) {
 void
 edit_math_rep::pre_remove_around (path p) {
   tree st= subtree (et, p);
+  // Native scripts own their base; none are dangling endpoint siblings.
+  if (is_func (st, DELIMITED, 6)) return;
   if (is_script (st[1]) || is_prime (st[1])) assign (st[1], "");
   else if (is_concat (st[1]) && N(st[1]) > 0) {
     int li= 0, ri= N(st[1])-1;
@@ -588,16 +911,26 @@ edit_math_rep::math_select_before_cursor_unit () {
 void
 edit_math_rep::math_make_above () {
   if (selection_active_small ()) { make_above (); return; }
+  const bool native= native_v3_math_context (buf);
   tree body= "";
   if (math_select_before_cursor_unit ()) body= selection_get_cut ();
+  if (native) {
+    insert_tree (tree (MATH_ANNOTATION, body, tree (""), tree ("")), path (2, 0));
+    return;
+  }
   insert_tree (tree (ABOVE, body, ""), path (1, 0));
 }
 
 void
 edit_math_rep::math_make_below () {
   if (selection_active_small ()) { make_below (); return; }
+  const bool native= native_v3_math_context (buf);
   tree body= "";
   if (math_select_before_cursor_unit ()) body= selection_get_cut ();
+  if (native) {
+    insert_tree (tree (MATH_ANNOTATION, body, tree (""), tree ("")), path (1, 0));
+    return;
+  }
   insert_tree (tree (BELOW, body, ""), path (1, 0));
 }
 
@@ -639,6 +972,7 @@ edit_math_rep::math_kbd_select_enlarge () {
 void
 edit_math_rep::math_evaluation_bar () {
   if (selection_active_any () && !selection_active_small ()) return;
+  const bool native= native_v3_math_context (buf);
   if (!selection_active_any ()) {
     if (is_nil (tp)) return;
     path row_path= path_up (tp);
@@ -649,6 +983,11 @@ edit_math_rep::math_evaluation_bar () {
     selection_set_paths (start (et, row_path), tp);
   }
   tree body= selection_active_any () ? selection_get_cut () : tree ("");
+  if (native) {
+    tree evaluation= athena::math_v3::delimited ("", "|", 'a', body);
+    insert_tree (evaluation, body == "" ? path (5, 0) : path (1));
+    return;
+  }
   tree evaluation (make_tree_label ("around*"), ".", body, "|");
   insert_tree (evaluation, body == "" ? path (1, 0) : path (1));
 }
@@ -731,6 +1070,18 @@ edit_math_rep::eqnarray_to_equation () {
 
 void
 edit_math_rep::math_separator (string separator, int large_mode) {
+  if (native_v3_math_context (buf)) {
+    (void) large_mode;
+    if (unpaired_bracket_glyph (separator)) {
+      set_message ("Error: mathematical brackets must be paired", separator);
+      return;
+    }
+    if ((separator == "|" || separator == "‖" || separator == "∣" ||
+         separator == "⫴") && athena::math_v3::glyph (separator))
+      insert_tree (tree (MATH_MIDDLE, tree (separator)));
+    else insert_tree (tree (separator)); // slash is a mathematical token
+    return;
+  }
   const bool large= large_mode < 0 ? get_preference ("use large brackets") != "off" :
                                     large_mode != 0;
   if (large) insert_tree (tree (MID, separator));
@@ -739,6 +1090,30 @@ edit_math_rep::math_separator (string separator, int large_mode) {
 
 void
 edit_math_rep::math_bracket_open (string left, string right, int large_mode) {
+  if (native_v3_math_context (buf)) {
+    (void) large_mode; // v3 always inserts a complete automatic delimiter.
+    left= native_delimiter_glyph (left);
+    right= native_delimiter_glyph (right);
+    if ((!athena::math_v3::glyph (left, true)) ||
+        (!athena::math_v3::glyph (right, true)) ||
+        (left == "" && right == "")) {
+      set_message ("Error: invalid paired delimiter", left);
+      return;
+    }
+    path enclosed;
+    if (!selection_active_any () && left == right &&
+        find_native_delimited (et, tp, enclosed)) {
+      const tree pair= subtree (et, enclosed);
+      if (pair[1] == right && tp == end (et, enclosed * 5)) {
+        go_to_end (enclosed);
+        return;
+      }
+    }
+    const tree body= selection_active_normal () ? selection_get_cut () : tree ("");
+    tree pair= athena::math_v3::delimited (left, right, 'a', body);
+    insert_tree (pair, body == "" ? path (5, 0) : path (5, end (body)));
+    return;
+  }
   const bool large= large_mode < 0 ? get_preference ("use large brackets") != "off" :
                                     large_mode != 0;
   const bool automatic= get_preference ("automatic brackets") != "off";
@@ -788,6 +1163,32 @@ edit_math_rep::math_bracket_open (string left, string right, int large_mode) {
 
 void
 edit_math_rep::math_bracket_close (string right, string left, int large_mode) {
+  if (native_v3_math_context (buf)) {
+    (void) left;
+    (void) large_mode;
+    const string glyph= native_delimiter_glyph (right);
+    path enclosed;
+    path search= tp;
+    while (find_native_delimited (et, search, enclosed)) {
+      const tree expression= subtree (et, enclosed);
+      const path body_path= enclosed * 5;
+      // An endpoint already crossed belongs to the completed inner pair,
+      // not the next closing keystroke for its enclosing pair.
+      if (tp == end (et, enclosed)) {
+        if (is_nil (enclosed)) break;
+        search= path_up (enclosed);
+        continue;
+      }
+      const bool at_end= tp == end (et, body_path);
+      if (glyph == expression[1] && at_end) {
+        go_to_end (enclosed);
+        return;
+      }
+      break;
+    }
+    set_message ("Error: bracket does not match", right);
+    return; // Never insert a lone RIGHT endpoint into a v3 source tree.
+  }
   const bool large= large_mode < 0 ? get_preference ("use large brackets") != "off" :
                                     large_mode != 0;
   const bool automatic= get_preference ("automatic brackets") != "off";

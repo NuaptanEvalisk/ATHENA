@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "rag_index.hpp"
+#include "rag_document_revision.hpp"
 #include "ATHENA/Data/background_workers.hpp"
 #include "rag_embedding.hpp"
 #include "rag_storage.hpp"
@@ -1309,15 +1310,16 @@ RagIndex::prepare_document (const std::string& rel_path,
 
   tree document;
   try {
-    document= athena::document::decode_document_bytes (bytes, absolute).document;
+    const auto decoded=
+      athena::document::decode_document_bytes (bytes, absolute);
+    prepared.semantic_revision= document_semantic_revision (decoded);
+    document= decoded.document;
   }
   catch (const std::exception& error) {
     impl->status.last_error= "failed to decode RAG document " + rel_path +
                              ": " + error.what ();
     return false;
   }
-  prepared.semantic_revision=
-    athena::document::semantic_document_fingerprint (document);
 
   if (cached.found && cached.status == "ok" &&
       cached.semantic_revision == prepared.semantic_revision &&

@@ -40,6 +40,7 @@ class Binding:
     returns: str
     arguments: tuple[Argument, ...]
     dispatch: str = "direct"
+    exceptions: str = "propagate"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -96,7 +97,8 @@ def read_interfaces(paths):
         for node in root:
             if node.tag != "binding":
                 raise ValueError(f"{path}: unexpected <{node.tag}>")
-            checked_attributes(node, ("name", "native", "returns"), ("dispatch",))
+            checked_attributes(node, ("name", "native", "returns"),
+                               ("dispatch", "exceptions"))
             name = node.attrib["name"]
             wrapper = wrapper_name(name)
             if not SCHEME_NAME.fullmatch(name) or not IDENTIFIER.fullmatch(wrapper):
@@ -131,7 +133,13 @@ def read_interfaces(paths):
                 raise ValueError(f"{name}: unknown dispatch policy {dispatch!r}")
             if dispatch == "ui" and (prefix or returns != "void" or arguments):
                 raise ValueError(f"{name}: UI dispatch requires a free nullary void function")
-            bindings.append(Binding(name, native, returns, tuple(arguments), dispatch))
+            exceptions = node.get("exceptions", "propagate")
+            if exceptions not in ("propagate", "scheme"):
+                raise ValueError(f"{name}: unknown exception policy {exceptions!r}")
+            if exceptions == "scheme" and dispatch != "direct":
+                raise ValueError(f"{name}: Scheme exception translation requires direct dispatch")
+            bindings.append(Binding(name, native, returns, tuple(arguments), dispatch,
+                                    exceptions))
         if not bindings:
             raise ValueError(f"{path}: empty interface")
         interfaces.append(Interface(group, path.name, prefix, initializer,
@@ -142,24 +150,64 @@ def read_interfaces(paths):
 def cpp_bindings(interface):
     lines = [f"// Generated from {interface.source}. Do not edit.",
              "// SPDX-License-Identifier: GPL-3.0-or-later", ""]
+    if any(binding.exceptions == "scheme" for binding in interface.bindings):
+        lines.extend(["#include <cstdlib>", "#include <cstring>",
+                      "#include <exception>", ""])
     for binding in interface.bindings:
         parameters = ", ".join(f"tmscm arg{i}" for i in range(1, len(binding.arguments) + 1))
         lines.extend(["tmscm", f"{wrapper_name(binding.name)} ({parameters}) {{"])
         for i, arg in enumerate(binding.arguments, 1):
             lines.append(f'  TMSCM_ASSERT_{arg.type.upper()} (arg{i}, TMSCM_ARG{i}, "{binding.name}");')
+        translate = binding.exceptions == "scheme"
+        indent = "    " if translate else "  "
+        if translate:
+            lines.extend([
+                "  char* native_error= nullptr;",
+                '  const char* fallback_error= "Unknown native C++ exception";',
+                "  bool native_failed= false;",
+                "  tmscm result= TMSCM_UNSPECIFIED;",
+                "  scm_dynwind_begin (static_cast<scm_t_dynwind_flags> (0));",
+                "  scm_dynwind_unwind_handler (",
+                "    [] (void* data) { std::free (*static_cast<char**> (data)); },",
+                "    &native_error, SCM_F_WIND_EXPLICITLY);",
+                "  try {",
+            ])
         for i, arg in enumerate(binding.arguments, 1):
-            lines.append(f"  {arg.type} in{i}= tmscm_to_{arg.type} (arg{i});")
+            lines.append(f"{indent}{arg.type} in{i}= tmscm_to_{arg.type} (arg{i});")
         native = interface.prefix + binding.native
         if binding.dispatch == "ui":
-            lines.append(f"  athena_dispatch_ui ({native});")
+            lines.append(f"{indent}athena_dispatch_ui ({native});")
         else:
             arguments = ", ".join(f"std::move (in{i})" if arg.passing == "move" else f"in{i}"
                                   for i, arg in enumerate(binding.arguments, 1))
             result = "" if binding.returns == "void" else f"{binding.returns} out= "
-            lines.append(f"  {result}{native} ({arguments});")
+            lines.append(f"{indent}{result}{native} ({arguments});")
         result = ("TMSCM_UNSPECIFIED" if binding.returns == "void"
                   else f"{binding.returns}_to_tmscm (out)")
-        lines.extend([f"  return {result};", "}", ""])
+        if translate:
+            lines.extend([
+                f"    result= {result};",
+                "  }",
+                "  catch (const std::exception& error) {",
+                "    native_failed= true;",
+                '    fallback_error= "Native C++ exception (diagnostic allocation failed)";',
+                "    const char* message= error.what ();",
+                "    const std::size_t size= std::strlen (message) + 1;",
+                "    native_error= static_cast<char*> (std::malloc (size));",
+                "    if (native_error) std::memcpy (native_error, message, size);",
+                "  }",
+                "  catch (...) { native_failed= true; }",
+                "  // Native locals and the exception are destroyed before Guile can unwind.",
+                "  if (native_failed)",
+                f'    scm_misc_error ("{binding.name}", "~A",',
+                "      scm_list_1 (scm_from_utf8_string (",
+                "        native_error ? native_error : fallback_error)));",
+                "  scm_dynwind_end ();",
+                "  return result;",
+                "}", "",
+            ])
+        else:
+            lines.extend([f"  return {result};", "}", ""])
     lines.extend(["void", f"{interface.initializer} () {{"])
     for binding in interface.bindings:
         rest = int(bool(binding.arguments) and binding.arguments[-1].rest)

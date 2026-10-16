@@ -23,9 +23,10 @@
 #include <tuple>
 
 namespace {
-std::shared_ptr<const std::string> serialize (tree body) {
-  return std::make_shared<const std::string> (athena::document::write_xml_v2 (
-    body, athena::document::xml_kind::fragment));
+std::shared_ptr<const std::string> serialize (
+    const athena::document::native_xml_read_result& source) {
+  return std::make_shared<const std::string> (athena::document::encode_native_xml_bytes (
+    source.document, source.version, athena::document::xml_kind::fragment));
 }
 struct Source {
   tree body;
@@ -38,12 +39,12 @@ using Key= std::tuple<QString, QString, QString>;
 AvailableEnunciations collect_available_enunciations (
   std::shared_ptr<const std::string> source_body, const QString& source_path,
   const std::function<bool (const std::string&, AthenaVaultMapNode&)>& locate,
-  const std::function<tree (const QString&)>& load,
+  const std::function<athena::document::native_xml_read_result (const QString&)>& load,
   const std::atomic<bool>& cancelled) {
   AvailableEnunciations result;
   std::map<QString, Source> sources;
-  sources.emplace (source_path, Source {athena::document::read_xml_v2 (
-    *source_body, athena::document::xml_kind::fragment), source_body});
+  sources.emplace (source_path, Source {athena::document::decode_native_xml_bytes (
+    *source_body, athena::document::xml_kind::fragment).document, source_body});
   std::deque<Range> pending {{source_path, {}, {}, 0}};
   std::set<Key> visited, emitted;
   std::size_t inspected= 0;
@@ -57,10 +58,11 @@ AvailableEnunciations collect_available_enunciations (
     try {
       auto source= sources.find (range.file);
       if (source == sources.end ()) {
-        tree body= load (range.file);
+        const auto loaded= load (range.file);
+        tree body= loaded.document;
         if (body == UNINIT || is_func (body, _ERROR))
           throw std::runtime_error ("Cannot read transclusion source");
-        source= sources.emplace (range.file, Source {body, serialize (body)}).first;
+        source= sources.emplace (range.file, Source {body, serialize (loaded)}).first;
       }
       tree selected= athena_transclusion_source_range (source->second.body,
         from_qstring (range.begin), from_qstring (range.end));
@@ -128,8 +130,8 @@ AvailableEnunciations collect_available_source_enunciations (
     auto selection= std::move (pending.front ());
     pending.pop_front ();
     try {
-      tree body= athena::document::read_xml_v2 (*selection.xml,
-        athena::document::xml_kind::fragment);
+      tree body= athena::document::decode_native_xml_bytes (*selection.xml,
+        athena::document::xml_kind::fragment).document;
       const auto targets= vault_source_targets (body);
       std::map<QString, unsigned> counts;
       for (const auto& target: targets) ++counts[target.uuid];

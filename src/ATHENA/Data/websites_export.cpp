@@ -16,7 +16,7 @@
 #include "ATHENA/Data/node_reference_export.hpp"
 #include "ATHENA/Data/enunciation_model.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
-#include "Kernel/Types/node_metadata.hpp"
+#include "Kernel/Types/node_metadata_transform.hpp"
 #include "buffer_name_catalog.hpp"
 #include "Qt/qt_utilities.hpp"
 
@@ -622,7 +622,9 @@ rewrite_link_like (tree t, const std::string& source_rel,
   }
 
   (void) force_plain_hlink;
-  tree rewritten= compound ("hlink", body, tree (std_to_tm (next)));
+  tree destination_tree (std_to_tm (next));
+  athena::node::copy_metadata (t[1], destination_tree);
+  tree rewritten= compound ("hlink", body, destination_tree);
   athena::node::copy_metadata (t, rewritten);
   return rewritten;
 }
@@ -651,84 +653,37 @@ tree
 rewrite_static_links (tree t, const std::string& source_rel,
                       const std::string& output_rel,
                       const GenerationContext& cx) {
-  if (is_atomic (t)) return copy (t);
+  auto finish= [&] (tree r) {
+    athena::node::transform_rich_metadata (t, r, [&] (tree rich) {
+      return rewrite_static_links (rich, source_rel, output_rel, cx);
+    });
+    return r;
+  };
+  if (is_atomic (t)) return finish (copy (t));
   if (is_func (t, HLINK, 2))
-    return rewrite_link_like (t, source_rel, output_rel, cx, false);
+    return finish (rewrite_link_like (t, source_rel, output_rel, cx, false));
   if (is_compound (t, "cardlink", 2))
-    return rewrite_link_like (t, source_rel, output_rel, cx, true);
+    return finish (rewrite_link_like (t, source_rel, output_rel, cx, true));
   if (is_compound (t, "transclude") && N(t) >= 4)
     return resolve_transclusion (t, source_rel, output_rel, cx);
-  if (athena::enunciation::is_enunciation (t) && N(t) == 1) {
-    // The legacy HTML converter cannot see typed native node properties and
-    // drops the canonical enunciation tag, including all its child equations.
-    // Project into a declared legacy source environment for this *temporary*
-    // export snapshot. HTML-only primitives here fail the native DRD check.
-    const auto& registry= athena::enunciation::standard_registry ();
-    const auto* meta= athena::node::get (t);
-    std::string kind= registry.kind_name (t);
-    bool numbered= false;
-    tree name ("");
-    if (meta) {
-      auto n= meta->properties.find ("numbered");
-      if (n != meta->properties.end ())
-        if (const auto* value= std::get_if<bool> (&n->second.data)) numbered= *value;
-      auto found= meta->properties.find ("name");
-      if (found != meta->properties.end ())
-        if (const auto* rich= std::get_if<athena::node::rich_text> (&found->second.data))
-          name= rewrite_static_links (rich->content, source_rel, output_rel, cx);
-    }
-    tree body= rewrite_static_links (t[0], source_rel, output_rel, cx);
-    if (!(is_atomic (name) && name->label == "")) {
-      tree headline (CONCAT);
-      headline << tree ("(") << name << tree (")");
-      tree emphasized (WITH, tree ("font-series"), tree ("bold"), headline);
-      tree named (DOCUMENT);
-      named << emphasized;
-      if (is_func (body, DOCUMENT)) {
-        for (int i=0; i<N(body); ++i) named << body[i];
-      }
-      else named << body;
-      athena::node::copy_metadata (body, named);
-      body= named;
-    }
-
-    const auto* alias= static_cast<const athena::enunciation::legacy_definition*> (nullptr);
-    for (const auto& candidate: registry.legacy_tags ())
-      if (candidate.second.kind == kind &&
-          candidate.second.numbered == numbered &&
-          candidate.second.layout == athena::enunciation::legacy_layout::body &&
-          candidate.second.variant == registry.variant_name (t)) {
-        alias= &candidate.second;
-        break;
-      }
-    // Unknown/custom kinds remain visible as ordinary body content.
-    if (!alias) return body;
-    tree result (make_tree_label (std_to_tm (alias->tag)), body);
-    if (meta && !meta->id.empty ()) {
-      athena::node::metadata identity;
-      identity.id= meta->id;
-      athena::node::set (result, identity);
-    }
-    return result;
-  }
   if (is_func (t, IMAGE) && N(t) > 0 && is_atomic (t[0])) {
     std::string href;
     if (copy_static_image (tree_string (t[0]), source_rel, output_rel, cx,
                            href)) {
       tree r (L(t));
-      r << tree (std_to_tm (href));
+      tree destination (std_to_tm (href));
+      athena::node::copy_metadata (t[0], destination);
+      r << destination;
       for (int i=1; i<N(t); i++)
         r << rewrite_static_links (t[i], source_rel, output_rel, cx);
-      athena::node::copy_metadata (t, r);
-      return r;
+      return finish (r);
     }
   }
 
   tree r (L(t));
   for (int i=0; i<N(t); i++)
     r << rewrite_static_links (t[i], source_rel, output_rel, cx);
-  athena::node::copy_metadata (t, r);
-  return r;
+  return finish (r);
 }
 
 
@@ -866,10 +821,15 @@ decorate_website_document (const fs::path& target,
   return write_file_bytes (target, html);
 }
 bool
-export_document_html (tree doc, const fs::path& source,
+export_document_html (const MaintenanceDocument& snapshot, tree doc,
+                      const fs::path& source,
                       const fs::path& target, const std::string& output_rel,
                       const std::string& title, const std::string& pdf_href,
                       std::string& error) {
+  if (is_func (doc, _ERROR) || doc == "error") {
+    error= "Invalid website export document: " + source.string ();
+    return false;
+  }
   std::error_code ec;
   fs::create_directories (target.parent_path (), ec);
   if (ec) {
@@ -887,9 +847,10 @@ export_document_html (tree doc, const fs::path& source,
   }
 
   fs::path temp_source = fs::path (ss (temp_dir.path ())) / "document.ath";
-  // This is a native document snapshot, not a legacy TeXmacs interchange
-  // export. UTF-8 text (including literal '<') must round-trip unchanged.
-  const std::string serialized= athena::document::write_xml_v2 (doc);
+  // The source reader owns format selection, including metadata-free v3.
+  std::string serialized;
+  if (!serialize_maintenance_document (snapshot, doc, serialized, error))
+    return false;
   if (save_string (url_system (std_to_tm (temp_source.string ())),
                    std_to_tm (serialized))) {
     error = "Could not prepare temporary TeXmacs source for " +
@@ -905,6 +866,7 @@ export_document_html (tree doc, const fs::path& source,
   }
   bool failed;
   try {
+    set_master_buffer (source_buffer, url_system (std_to_tm (source.string ())));
     failed= buffer_export (
       source_buffer, url_system (std_to_tm (target.string ())), "html");
   }
@@ -965,22 +927,19 @@ export_document_pdf (const fs::path& source, const fs::path& target,
     bool used_data_art_payload= false;
     if (is_tree (prepared)) {
       tree payload= as_tree (prepared);
-      if (is_func (payload, TUPLE, 3) && is_atomic (payload[2])) {
+      if (is_func (payload, TUPLE, 4) && is_atomic (payload[2]) &&
+          is_atomic (payload[3]) &&
+          (payload[3] == "1" || payload[3] == "2" || payload[3] == "3")) {
         used_data_art_payload= true;
         url cover= url_system (as_string (payload[2]));
         string export_error= athena_data_art_export_snapshot (
-          source_buffer, target_url, copy (payload[0]), copy (payload[1]));
+          source_buffer, target_url, copy (payload[0]), copy (payload[1]),
+          as_int (payload[3]));
         remove (cover);
         if (export_error == "") dispatched= true;
-        else {
-          // A DataArt failure must not poison website output.  The source
-          // BufferActor still owns the authoritative document, so fall back to
-          // its ordinary print path without attempting DataArt a second time.
-          object printed= qt_call_in_buffer (
-            source_buffer, "print-to-file", object (target_url));
-          dispatched= !(is_bool (printed) && !as_bool (printed));
-        }
+        else throw std::runtime_error (tm_to_std (export_error));
       }
+      else throw std::runtime_error ("Invalid DataArt export snapshot");
     }
     if (!dispatched && !used_data_art_payload) {
       object printed= qt_call_in_buffer (

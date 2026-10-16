@@ -13,8 +13,89 @@
 #include "Boxes/construct.hpp"
 #include "Format/format.hpp"
 #include "analyze.hpp"
+#include "math_tree_v3.hpp"
+#include "node_metadata.hpp"
+#include "ATHENA/Data/node_reference_export.hpp"
+#include <stdexcept>
 
 lazy make_lazy_paragraph (edit_env env, array<box> bs, path ip);
+
+namespace {
+class native_local {
+  edit_env env;
+  string key;
+  tree previous;
+public:
+  native_local (edit_env env, string key, tree value):
+    env (env), key (key), previous (env->local_begin (key, value)) {}
+  ~native_local () { env->local_end (key, previous); }
+};
+
+bool row_tag_math_root (const tree& t) {
+  if (is_atomic (t)) return false;
+  switch (L(t)) {
+  case DELIMITED: case BIG_OPERATOR: case MATH_SCRIPTS: case MATH_MIDDLE:
+  case MATH_ACCENT: case MATH_ANNOTATION: case MATH_LONG_ARROW:
+  case MATH_VARIANT: case MATH_SYMBOL: case MATH_GRID: case FRAC: case SQRT:
+    return true;
+  default: return false;
+  }
+}
+
+void validate_row_tag (const tree& t, bool math, bool root= true) {
+  if (is_atomic (t)) return;
+  if (is_func (t, MATH_BLOCK))
+    throw std::invalid_argument ("A row tag cannot contain a MathBlock");
+  if (is_func (t, MATH_GRID)) {
+    validate_native_math_grid_layout (t);
+    for (int i= 0; i < N(t); ++i)
+      if (athena::math_v3::get_row_numbering (t[i]) !=
+            athena::math_v3::row_numbering::inherit ||
+          athena::math_v3::get_row_tag (t[i]).has_value ())
+        throw std::invalid_argument ("A row tag grid cannot have row overrides");
+  }
+  // These older shared entry points do not themselves establish math mode.
+  if (!math && !root && (L(t) == MATH_SYMBOL || L(t) == FRAC || L(t) == SQRT))
+    throw std::invalid_argument ("Embedded mathematical row tag requires a MATH wrapper");
+  math= math || is_compound (t, "math") || row_tag_math_root (t);
+  for (int i= 0; i < N(t); ++i) validate_row_tag (t[i], math, false);
+}
+}
+
+bool
+native_math_row_tag_is_math (const tree& tag) {
+  return row_tag_math_root (tag);
+}
+
+void
+validate_native_math_row_tag (const tree& tag) {
+  validate_row_tag (tag, false);
+}
+
+bool
+native_math_grid_uses_row_numbering (const tree& grid) {
+  const auto* meta= athena::node::get (grid);
+  if (!is_func (grid, MATH_GRID) || !meta) return false;
+  const auto it= meta->properties.find ("math:grid-kind");
+  if (it == meta->properties.end ()) return false;
+  const auto* kind= std::get_if<std::string> (&it->second.data);
+  return kind && (*kind == "eqnarray" || *kind == "align" || *kind == "stack");
+}
+
+void
+validate_native_math_grid_layout (const tree& grid) {
+  using namespace athena::math_v3;
+  if (!is_func (grid, MATH_GRID) || !valid_native_math (grid))
+    throw std::invalid_argument ("Invalid native MathGrid during layout");
+  const bool row_numbers= native_math_grid_uses_row_numbering (grid);
+  for (int i= 0; i < N(grid); ++i) {
+    if (N(grid[i]) != N(grid[0]))
+      throw std::invalid_argument ("Ragged native MathGrid cannot be laid out");
+    if (!row_numbers && (get_row_numbering (grid[i]) != row_numbering::inherit ||
+                         get_row_tag (grid[i]).has_value ()))
+      throw std::invalid_argument ("Row numbering requires an eqnarray, align or stack grid");
+  }
+}
 
 /******************************************************************************
 * Tables
@@ -68,10 +149,39 @@ table_rep::display (bool flag) {
 }
 
 void
-table_rep::typeset (tree t, path iq) {
+table_rep::typeset (tree t, path iq, std::optional<bool> block_numbering) {
   ip= iq;
-  tree old_format= env->local_begin (CELL_FORMAT, tree (TFORMAT));
-  tree new_format= old_format;
+  native_math_grid_kind= "";
+  native_block_numbering= block_numbering;
+  if (is_func (t, MATH_GRID)) {
+    validate_native_math_grid_layout (t);
+    const auto* meta= athena::node::get (t);
+    const auto kind= std::get<std::string> (
+      meta->properties.at ("math:grid-kind").data);
+    native_math_grid_kind= string (kind.data (), int (kind.size ()));
+    native_row_numbering= native_math_grid_uses_row_numbering (t);
+    for (int i= 0; i < N(t); ++i) {
+      using namespace athena::math_v3;
+      const auto policy= get_row_numbering (t[i]);
+      if (const auto tag= get_row_tag (t[i])) validate_row_tag (*tag, false);
+      if (!block_numbering.has_value () &&
+          (policy != row_numbering::inherit || get_row_tag (t[i]).has_value ()))
+        throw std::invalid_argument ("Row overrides require a direct MathBlock grid");
+      const bool automatic= native_row_numbering && !get_row_tag (t[i]) &&
+        (policy == row_numbering::numbered ||
+         (policy == row_numbering::inherit && block_numbering.value_or (false)));
+      if (automatic && (!env->provides ("next-equation") ||
+                        !env->provides ("the-equation")))
+        throw std::invalid_argument ("Native row numbering requires equation counter macros");
+      native_rows << t[i];
+      native_row_keys << tree (TUPLE);
+      native_row_labels << box ();
+      native_row_baselines << 0;
+    }
+    native_number_gap= env->as_length ("5mm");
+  }
+  tree new_format= env->read (CELL_FORMAT);
+  native_local format_scope (env, CELL_FORMAT, tree (TFORMAT));
   if (!is_func (new_format, TFORMAT)) new_format= tree (TFORMAT);
   while (is_func (t, TFORMAT)) {
     new_format= new_format * t (0, N(t)-1);
@@ -80,7 +190,6 @@ table_rep::typeset (tree t, path iq) {
   }
   format_table (new_format);
   typeset_table (new_format, t, iq);
-  env->local_end (CELL_FORMAT, old_format);
 }
 
 void
@@ -93,9 +202,56 @@ table_rep::typeset_table (tree fm, tree t, path ip) {
   STACK_NEW_ARRAY (subformat, tree, nr_rows);
   extract_format (fm, subformat, nr_rows);
   for (i=0; i<nr_rows; i++) {
-    tree old= env->local_begin (CELL_ROW_NR, as_string (i));
+    native_local row_scope (env, CELL_ROW_NR, as_string (i));
+    if (native_math_grid_kind == "") {
+      typeset_row (i, subformat[i], t[i], descend (ip, i));
+      continue;
+    }
+    using namespace athena::math_v3;
+    const tree outer_label= env->read (THE_LABEL);
+    native_local label_scope (env, THE_LABEL, "");
+    native_local tags_scope (env, "the-tags", tree (TUPLE));
+    tree number ("");
+    const auto tag= get_row_tag (t[i]);
+    const auto policy= get_row_numbering (t[i]);
+    const bool automatic= native_row_numbering && !tag &&
+      (policy == row_numbering::numbered ||
+       (policy == row_numbering::inherit && native_block_numbering.value_or (false)));
+    if (tag) number= *tag;
+    else if (automatic) {
+      if (is_func (env->exec (compound ("next-equation")), _ERROR))
+        throw std::invalid_argument ("Equation counter failed during native row layout");
+      number= env->exec (compound ("the-equation"));
+      if (is_func (number, _ERROR) || number == "")
+        throw std::invalid_argument ("Equation counter produced no native row number");
+    }
+    // Only a direct non-row-numbered block shares its whole-block label.
+    // Other grids isolate both label state and pending tags from their parent.
+    if (!native_row_numbering && native_block_numbering.has_value ())
+      number= outer_label;
+    // VALUE evaluates its stored expression. Keep the quote in the local
+    // environment so rich tags bind as data; assign() would consume it here
+    // and cause a second expansion when the row's LABEL is typeset.
+    env->local_begin (THE_LABEL,
+      !native_row_numbering && native_block_numbering.has_value () ?
+        number : tree (QUOTE, number));
+    const auto id= athena::node::id (t[i]);
+    if (native_row_numbering && !id.empty ()) {
+      const string key= "athena-node-" * string (id.data (), int (id.size ()));
+      const tree bound= env->exec (tree (SET_BINDING, key, tree (QUOTE, number)));
+      if (!is_func (bound, HIDDEN_BINDING))
+        throw std::invalid_argument ("Native row UUID binding failed");
+      native_row_keys[i]= bound[0];
+    }
+    if (tag || automatic) {
+      native_local mode_scope (env, MODE, row_tag_math_root (number) ? "math" : "text");
+      native_local shape_scope (env, FONT_SHAPE, "right");
+      native_local display_scope (env, MATH_DISPLAY, "false");
+      native_row_labels[i]= typeset_as_concat (
+        env, tree (CONCAT, "(", number, ")"), decorate_middle (descend (ip, i)));
+      native_number_width= max (native_number_width, native_row_labels[i]->w ());
+    }
     typeset_row (i, subformat[i], t[i], descend (ip, i));
-    env->local_end (CELL_ROW_NR, old);
   }
   STACK_DELETE_ARRAY (subformat);
   mw= tm_new_array<SI> (nr_cols);
@@ -117,7 +273,21 @@ table_rep::typeset_row (int i, tree fm, tree t, path ip) {
     if (i == 0) C->border_flags += 1;
     if (i == nr_rows-1) C->border_flags += 2;
     tree old= env->local_begin (CELL_COL_NR, as_string (j));
-    C->typeset (subformat[j], t[j], descend (ip, j));
+    C->typeset (subformat[j], t[j], descend (ip, j), native_math_grid_kind != "");
+    if (native_math_grid_kind != "") {
+      const string align= athena::math_v3::grid_column_alignment (
+        native_math_grid_kind, j);
+      bool explicit_alignment= false;
+      if (const auto* meta= athena::node::get (t[j])) {
+        const auto it= meta->properties.find ("math:cell-format");
+        if (it != meta->properties.end ()) {
+          const auto* fields= std::get_if<athena::node::property::dictionary> (
+            &it->second.data);
+          explicit_alignment= fields && fields->count ("align") != 0;
+        }
+      }
+      if (align != "" && !explicit_alignment) C->halign= align;
+    }
     env->local_end (CELL_COL_NR, old);
     C->row_span= min (C->row_span, nr_rows- i);
     C->col_span= min (C->col_span, nr_cols- j);
@@ -604,7 +774,9 @@ table_rep::position_columns (bool large) {
   //       << (lw[i]>>8) << ", " << (rw[i]>>8) << LF;
   if (hmode != "auto" && large) {
     SI min_width= sum (mw, nr_cols);
-    SI hextra= width - min_width;
+    const SI number_extent= native_number_width > 0 ?
+      native_number_gap + native_number_width : 0;
+    SI hextra= width - number_extent - min_width;
     //cout << "Extra horizontal " << (hextra >> 8) << LF;
     if (hextra > 0) {
       STACK_NEW_ARRAY (part, double, nr_cols);
@@ -616,9 +788,9 @@ table_rep::position_columns (bool large) {
       //  cout << "Part " << i << "= " << part[i] << LF;
       compute_widths (Mw, Lw, Rw, true);
       SI max_width= sum (Mw, nr_cols);
-      SI computed_width= width;
-      if (hmode == "min") computed_width= min (width, max_width);
-      if (hmode == "max") computed_width= max (width, min_width);
+      SI computed_width= width - number_extent;
+      if (hmode == "min") computed_width= min (computed_width, max_width);
+      if (hmode == "max") computed_width= max (computed_width, min_width);
       hextra= max (computed_width - min_width, 0);
       //for (int i=0; i<nr_cols; i++)
       //  cout << "Column " << i << ": "
@@ -674,6 +846,7 @@ table_rep::position_columns (bool large) {
   x1= xoff- lborder- lsep;
   for (j=0; j<nr_cols; j++) xoff += mw[j];
   x2= xoff+ rborder+ rsep;
+  if (native_number_width > 0) x2 += native_number_gap + native_number_width;
   //cout << UNINDENT << "Positioned columns" << LF;
 }
 
@@ -717,6 +890,12 @@ table_rep::compute_heights (SI* mh, SI* bh, SI* th, SI xh) {
         SI tot= sum (mh+i, C->row_span);
         if (cmh > tot) mh[i] += cmh - tot;
       }
+    }
+  for (i=0; i<N(native_row_labels); ++i)
+    if (!is_nil (native_row_labels[i])) {
+      bh[i]= max (bh[i], -native_row_labels[i]->y1);
+      th[i]= max (th[i], native_row_labels[i]->y2);
+      mh[i]= max (mh[i], bh[i] + th[i]);
     }
 }
 
@@ -811,6 +990,8 @@ table_rep::position_rows () {
 
   y2= yoff+ tborder+ tsep;
   for (i=0; i<nr_rows; i++) {
+    if (i < N(native_row_baselines))
+      native_row_baselines[i]= yoff - mh[i] + bh[i];
     for (j=0; j<nr_cols; j++) {
       cell C= T[i][j];
       if (!is_nil (C)) {
@@ -894,6 +1075,34 @@ table_rep::finish_horizontal () {
 }
 
 void
+table_rep::finish_native_row (int i, array<box>& bs, array<SI>& x,
+                              array<SI>& y, SI shift) {
+  if (i >= N(native_rows)) return;
+  const path row_ip= descend (ip, i);
+  if (!is_nil (native_row_labels[i])) {
+    const box label= native_row_labels[i];
+    bs << label;
+    x << x2 - rborder - rsep - label->x2;
+    y << native_row_baselines[i] + shift;
+  }
+  if (N(native_row_keys[i]) > 0 ||
+      athena::node_reference::export_node_destination (native_rows[i]) != "") {
+    SI bottom= native_row_baselines[i], top= bottom;
+    for (int j= 0; j < nr_cols; ++j)
+      if (!is_nil (T[i][j])) {
+        bottom= min (bottom, T[i][j]->y1);
+        top= max (top, T[i][j]->y2);
+      }
+    box anchor= empty_box (decorate_middle (row_ip), 0, 0, x2-x1, top-bottom);
+    if (N(native_row_keys[i]) > 0)
+      anchor= tag_box (decorate_middle (row_ip), row_ip, anchor, native_row_keys[i]);
+    bs << athena::node_reference::decorate_export_node (native_rows[i], anchor);
+    x << x1;
+    y << bottom + shift;
+  }
+}
+
+void
 table_rep::finish () {
   int i, j;
   array<box>    bs;
@@ -918,6 +1127,17 @@ table_rep::finish () {
   box tb;
   if (ext_flag) tb= table_box (ip, bs, x, y, ha, nr_cols);
   else tb= composite_box (ip, bs, x, y, false);
+
+  if (N(native_rows) > 0) {
+    array<box> parts;
+    array<SI> xs, ys;
+    parts << tb;
+    xs << 0;
+    ys << 0;
+    for (int i= 0; i < nr_rows; ++i)
+      finish_native_row (i, parts, xs, ys);
+    tb= composite_box (ip, parts, xs, ys, false);
+  }
 
   SI    x1= tb->x1;
   SI    y1= tb->y1;
@@ -958,6 +1178,10 @@ table_rep::var_finish () {
         y  << (C->y1 + C->shift);
       }
     if (N(bs)==0) continue;
+
+    // Split rows use the same reference baseline as their cell boxes.
+    if (i < N(native_row_baselines))
+      finish_native_row (i, bs, x, y, -native_row_baselines[i]);
 
     box   tb= composite_box (ip, bs, x, y, false);
     SI    BB= (i==(nr_rows-1)? bborder: 0);
@@ -1057,6 +1281,21 @@ make_lazy_table (edit_env env, tree t, path ip) {
 /******************************************************************************
 * User interface
 ******************************************************************************/
+
+box
+typeset_native_math_grid (edit_env env, tree grid, path ip,
+                         bool block_numbering) {
+  table T (env);
+  T->typeset (grid, ip, block_numbering);
+  T->handle_decorations ();
+  T->handle_span ();
+  T->merge_borders ();
+  T->position_columns (true);
+  T->finish_horizontal ();
+  T->position_rows ();
+  T->finish ();
+  return athena::node_reference::decorate_export_node (grid, T->b);
+}
 
 box
 typeset_as_table (edit_env env, tree t, path ip) {

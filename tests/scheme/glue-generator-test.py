@@ -146,6 +146,163 @@ class GlueGeneratorTest(unittest.TestCase):
         self.assertIn('int out= arbitrary_receiver()->method (in1);',
                       glue.cpp_bindings(interface))
 
+    def test_exception_policy_validation_and_scope(self):
+        body = ('<binding name="arbitrary-failure" native="arbitrary_native" '
+                'returns="int" exceptions="scheme">'
+                '<arg type="object" passing="move"/></binding>')
+        interface = glue.read_interfaces([self.interface(body)])[0]
+        self.assertEqual(interface.bindings[0].exceptions, "scheme")
+        code = glue.cpp_bindings(interface)
+        self.assertIn('arbitrary_native (std::move (in1));', code)
+        self.assertLess(code.index('try {'), code.index('object in1='))
+        self.assertLess(code.index('catch (...)'), code.index('scm_misc_error ('))
+        self.assertIn('scm_misc_error ("arbitrary-failure", "~A",', code)
+        self.assertIn('scm_dynwind_unwind_handler (', code)
+        self.assertNotIn('std::string', code)
+        self.assertNotIn('return TMSCM_FALSE', code)
+        self.assertNotIn('scm_', code[code.index('catch (const'):code.index(
+            '// Native locals')])
+        for policy in ('ignore', 'false', ''):
+            with self.subTest(policy=policy), self.assertRaises(ValueError):
+                glue.read_interfaces([self.interface(body.replace(
+                    'exceptions="scheme"', f'exceptions="{policy}"'))])
+        with self.assertRaises(ValueError):
+            glue.read_interfaces([self.interface(
+                '<binding name="queued" native="queued" returns="void" '
+                'dispatch="ui" exceptions="scheme"/>')])
+        # Receiver calls and rest/move arguments use the same policy.
+        method = body.replace('returns="int"', 'returns="void"').replace(
+            'passing="move"', 'passing="move" rest="true"')
+        code = glue.cpp_bindings(glue.read_interfaces([
+            self.interface(method, prefix="receiver()->")])[0])
+        self.assertIn('receiver()->arbitrary_native (std::move (in1));', code)
+        self.assertIn('result= TMSCM_UNSPECIFIED;', code)
+
+    def test_native_conversion_bindings_translate_exceptions(self):
+        interface = glue.read_interfaces([GLUE / "basic.xml"])[0]
+        bindings = {binding.name: binding for binding in interface.bindings}
+        for name in ('latex-export-prepare-v3-source', 'latex-export-convert-top',
+                     'latex-export-convert-tree', 'latex-export-convert-node',
+                     'latex-export-core-dispatch', 'tmtex', 'serialize-latex',
+                     'native-mathml->tree-v3'):
+            with self.subTest(name=name):
+                self.assertEqual(bindings[name].exceptions, "scheme")
+        self.assertEqual(bindings['native-mathml->tree'].exceptions, "propagate")
+        self.assertEqual(bindings['exec-buffer'].exceptions, "propagate")
+
+    @unittest.skipUnless(shutil.which("c++"), "C++ compiler is required")
+    def test_exception_wrappers_unwind_before_scheme_nonlocal_exit(self):
+        body = ('<binding name="checked-action" native="checked" returns="string" '
+                'exceptions="scheme"><arg type="string" passing="move"/>'
+                '<arg type="int"/></binding>'
+                '<binding name="checked-void" native="checked_void" returns="void" '
+                'exceptions="scheme"/>')
+        interface = glue.read_interfaces([self.interface(body)])[0]
+        cpp = self.root / "exceptions.cpp"
+        cpp.write_text(r'''#include <cassert>
+#include <csetjmp>
+#include <cstdlib>
+#include <exception>
+#include <string>
+#include <utility>
+using tmscm= int;
+constexpr int TMSCM_UNSPECIFIED= -1;
+#define TMSCM_ASSERT_STRING(value,arg,name) ((void)0)
+#define TMSCM_ASSERT_INT(value,arg,name) ((void)0)
+int live= 0, exceptions= 0;
+struct string {
+  int value;
+  explicit string(int v): value(v) { ++live; }
+  string(const string& s): value(s.value) { ++live; }
+  string(string&& s): value(s.value) { ++live; }
+  ~string() { --live; }
+};
+struct native_error: std::exception {
+  native_error() { ++exceptions; }
+  native_error(const native_error&) { ++exceptions; }
+  ~native_error() override { --exceptions; }
+  const char* what() const noexcept override { return "unsupported detail ~S"; }
+};
+string tmscm_to_string(tmscm value) { return string(value); }
+int tmscm_to_int(tmscm value) {
+  if (value == 4) throw native_error();
+  return value;
+}
+tmscm string_to_tmscm(const string& value) {
+  if (value.value == 3) throw native_error();
+  return value.value;
+}
+string checked(string value, int mode) {
+  if (mode == 1) throw native_error();
+  if (mode == 2) throw 42;
+  return string(mode == 3 ? 3 : value.value * 2);
+}
+bool fail_void= false;
+void checked_void() { if (fail_void) throw native_error(); }
+enum scm_t_dynwind_flags { no_flags= 0 };
+constexpr int SCM_F_WIND_EXPLICITLY= 1;
+bool active= false;
+void (*cleanup)(void*)= nullptr;
+void* cleanup_data= nullptr;
+int buffers_freed= 0;
+void scm_dynwind_begin(scm_t_dynwind_flags) { assert(!active); active= true; }
+void scm_dynwind_unwind_handler(void (*f)(void*), void* data, int flags) {
+  assert(active && flags == SCM_F_WIND_EXPLICITLY);
+  cleanup= f; cleanup_data= data;
+}
+void scm_dynwind_end() {
+  assert(active && cleanup);
+  if (*static_cast<char**>(cleanup_data)) ++buffers_freed;
+  cleanup(cleanup_data); cleanup= nullptr; active= false;
+}
+std::string diagnostic, binding;
+tmscm scm_from_utf8_string(const char* text) {
+  // Also proves the caught exception is destroyed before any Guile allocation.
+  assert(live == 0 && exceptions == 0);
+  diagnostic= text;
+  return 7;
+}
+tmscm scm_list_1(tmscm value) { return value; }
+std::jmp_buf destination;
+[[noreturn]] void scm_misc_error(const char* name, const char* format, tmscm args) {
+  assert(live == 0 && exceptions == 0 && args == 7);
+  assert(std::string(format) == "~A");
+  binding= name;
+  scm_dynwind_end();
+  std::longjmp(destination, 1);
+}
+template<class F> void tmscm_install_procedure(const char*, F, int, int, int) {}
+''' + glue.cpp_bindings(interface) + r'''
+int main() {
+  assert(tmg_checked_action(21, 0) == 42);
+  assert(!active && live == 0 && exceptions == 0);
+  for (volatile int mode= 1; mode <= 4; ++mode) {
+    if (setjmp(destination) == 0) {
+      tmg_checked_action(21, mode);
+      assert(false);
+    }
+    assert(!active && live == 0 && exceptions == 0);
+    assert(binding == "checked-action");
+    assert(diagnostic == (mode == 2 ? "Unknown native C++ exception" :
+                                     "unsupported detail ~S"));
+    assert(tmg_checked_action(21, 0) == 42);
+  }
+  assert(buffers_freed == 3);
+  assert(tmg_checked_void() == TMSCM_UNSPECIFIED);
+  fail_void= true;
+  if (setjmp(destination) == 0) {
+    tmg_checked_void();
+    assert(false);
+  }
+  assert(binding == "checked-void" && buffers_freed == 4);
+  assert(!active && live == 0 && exceptions == 0);
+}
+''')
+        executable = self.root / "exceptions"
+        subprocess.run(["c++", "-std=c++17", str(cpp), "-o", str(executable)],
+                       check=True, capture_output=True, text=True)
+        subprocess.run([str(executable)], check=True, capture_output=True, text=True)
+
     @unittest.skipUnless(shutil.which("c++"), "C++ compiler is required")
     def test_compile_and_invoke_generated_wrappers(self):
         body = ('<binding name="double-value" native="twice" returns="int">'

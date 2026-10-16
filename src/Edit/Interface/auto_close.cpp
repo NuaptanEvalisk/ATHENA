@@ -13,6 +13,7 @@
 #include "analyze.hpp"
 #include "file.hpp"
 #include "utf8_edit.hpp"
+#include "Modify/edit_math.hpp"
 
 #include <QByteArray>
 #include <QJsonArray>
@@ -24,6 +25,12 @@
 
 namespace athena::auto_close {
 namespace {
+
+edit_math_rep*
+native_math_editor (editor_rep* ed) {
+  auto* math= dynamic_cast<edit_math_rep*> (ed);
+  return math != nullptr && math->native_math_editing () ? math : nullptr;
+}
 
 string
 native_string (const QString& value) {
@@ -272,6 +279,10 @@ insert_apostrophe (editor_rep* ed, bool alternate) {
 void
 make_bracket_open (editor_rep* ed, string left, string right, bool large) {
   if (ed == nullptr) return;
+  if (auto* math= native_math_editor (ed)) {
+    math->math_bracket_open (left, right, large ? 1 : 0);
+    return;
+  }
   if (get_preference ("automatic brackets", "mathematics") != "on") {
     ed->insert_tree (large ? tree (LEFT, left) : tree (left));
     return;
@@ -291,6 +302,10 @@ make_bracket_open (editor_rep* ed, string left, string right, bool large) {
 void
 make_separator (editor_rep* ed, string separator, bool large) {
   if (ed == nullptr) return;
+  if (auto* math= native_math_editor (ed)) {
+    math->math_separator (separator, large ? 1 : 0);
+    return;
+  }
   ed->insert_tree (large ? tree (MID, separator) : tree (separator));
 }
 
@@ -298,6 +313,10 @@ void
 make_bracket_close (editor_rep* ed, string right, string left, bool large) {
   (void) left;
   if (ed == nullptr) return;
+  if (auto* math= native_math_editor (ed)) {
+    math->math_bracket_close (right, left, large ? 1 : 0);
+    return;
+  }
   ed->insert_tree (large ? tree (RIGHT, right) : tree (right));
 }
 
@@ -316,6 +335,10 @@ toggle_matching_brackets () {
 void
 make_big_operator (editor_rep* ed, string op) {
   if (ed == nullptr) return;
+  if (auto* math= native_math_editor (ed)) {
+    math->make_native_big_operator (op);
+    return;
+  }
   if (get_preference ("automatic brackets", "mathematics") == "on" &&
       op != ".") {
     const bool selected= ed->selection_active_normal ();

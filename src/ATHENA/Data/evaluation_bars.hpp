@@ -10,8 +10,10 @@
 #define ATHENA_EVALUATION_BARS_HPP
 
 #include "tree.hpp"
+#include "Data/Convert/Xml/athena_document_xml.hpp"
 
 tree athena_promote_evaluation_bars (tree body, int& promoted,
-                                    string mode= "text");
+  string mode= "text",
+  athena::document::xml_format_version version= athena::document::xml_format_version::v2);
 
 #endif

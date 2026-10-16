@@ -572,6 +572,35 @@ public:
 };
 } // namespace
 
+xml_format_version inspect_xml_version (std::string_view input, codec_limits limits) {
+  if (input.size () > limits.input_bytes)
+    throw codec_exception (codec_error::resource_limit, "XML input exceeds byte limit");
+  QXmlStreamReader xml (QByteArray (input.data (), qsizetype (input.size ())));
+  while (!xml.atEnd ()) {
+    const auto token= xml.readNext ();
+    if (token == QXmlStreamReader::DTD)
+      throw codec_exception (codec_error::forbidden_dtd, "XML DTD is forbidden");
+    if (token != QXmlStreamReader::StartElement) continue;
+    if (!xml.namespaceUri ().isEmpty () || !xml.prefix ().isEmpty () ||
+        !xml.namespaceDeclarations ().isEmpty ())
+      throw codec_exception (codec_error::invalid_structure, "Unexpected XML namespace");
+    if (xml.name () == QLatin1StringView ("a")) {
+      if (xml.attributes ().value ("v") == QLatin1StringView ("3"))
+        return xml_format_version::v3;
+      throw codec_exception (codec_error::unsupported_version, "Unsupported ATHENA XML version");
+    }
+    if (xml.name () == QLatin1StringView ("athena-document") ||
+        xml.name () == QLatin1StringView ("athena-tree")) {
+      const auto version= xml.attributes ().value ("version");
+      if (version == QLatin1StringView ("1")) return xml_format_version::v1;
+      if (version == QLatin1StringView ("2")) return xml_format_version::v2;
+      throw codec_exception (codec_error::unsupported_version, "Unsupported ATHENA XML version");
+    }
+    throw codec_exception (codec_error::invalid_structure, "Unrecognized ATHENA XML envelope");
+  }
+  throw codec_exception (codec_error::malformed_xml, "Missing or malformed XML envelope");
+}
+
 tree read_xml (std::string_view input, xml_kind kind, codec_limits limits) {
   return reader (input, limits).read (kind);
 }
