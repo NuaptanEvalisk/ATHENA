@@ -68,6 +68,53 @@ private slots:
     QCOMPARE (write_xml_v3 (restored), xml);
   }
 
+  void bigOperatorsRequireOneUnicodeGlyph () {
+    for (const string name: {string ("cup"), string ("oplus"),
+                             string ("unknown-operator"), string ("")}) {
+      const tree invalid (BIG_OPERATOR, name, "0");
+      QVERIFY (!athena::math_v3::valid_big_operator (invalid));
+      QVERIFY_THROWS_EXCEPTION (std::invalid_argument,
+        athena::math_v3::big_operator (name));
+      QVERIFY_THROWS_EXCEPTION (codec_exception,
+        write_xml_v3 (invalid, xml_kind::fragment));
+      const std::string xml= "<a v=\"3\" k=\"t\"><o k=\"" +
+        std::string (name.data (), N (name)) + "\" u=\"0\"/></a>";
+      QVERIFY_THROWS_EXCEPTION (codec_exception,
+        read_xml_v3 (xml, xml_kind::fragment));
+    }
+  }
+
+  void historicalBigOperatorNamesBecomeGlyphs () {
+    const std::pair<const char*, const char*> cases[]= {
+      {"cup", "⋃"}, {"cap", "⋂"}, {"wedge", "⋀"}, {"vee", "⋁"},
+      {"oplus", "⨁"}, {"otimes", "⨂"}, {"odot", "⨀"},
+      {"sqcup", "⨆"}, {"sqcap", "⨅"}, {"pluscup", "⨄"},
+      {"amalg", "∐"}, {"times", "×"}, {"bigcup", "⋃"}, {"∫", "∫"}
+    };
+    for (const auto& [name, glyph]: cases) {
+      tree op (BIG, name);
+      athena::node::metadata metadata;
+      metadata.id= athena::node::new_id ();
+      athena::node::set (op, metadata);
+      const tree source (DOCUMENT, compound ("math",
+        tree (CONCAT, op, tree (RSUB, "n"), tree ("A"))));
+      const auto result= migrate_math_v2_tree (source, true);
+      QVERIFY (result.warnings.empty ());
+      const tree scripted= result.document[0][0][0];
+      QVERIFY (is_func (scripted, MATH_SCRIPTS, 5));
+      tree expected (BIG_OPERATOR, glyph, "0");
+      athena::node::set (expected, metadata);
+      QCOMPARE (scripted[0], expected);
+      QCOMPARE (athena::node::id (scripted[0]), metadata.id);
+      QCOMPARE (scripted[3], tree ("n"));
+      const auto xml= write_xml_v3 (result.document);
+      QCOMPARE (read_xml_v3 (xml), result.document);
+    }
+    QVERIFY_THROWS_EXCEPTION (std::runtime_error,
+      migrate_math_v2_tree (tree (DOCUMENT, compound ("math",
+        tree (BIG, "unknown-operator"))), true));
+  }
+
   void mathematicalAlphabetMigrationPreservesNativeFontSemantics () {
     struct fixture { const char* old; const char* kind; } samples[]= {
       {"math-alpha-bold", "mbf"},

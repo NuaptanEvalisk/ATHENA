@@ -358,6 +358,42 @@ static void check_physical_faces () {
   });
 }
 
+static void check_synthetic_smallcaps () {
+  auto request= exact_request (std::string (std::getenv ("ATHENA_PATH")) +
+    "/fonts/truetype/fira/FiraMono-Regular.otf");
+  constexpr auto smcp= open_type_tag ('s', 'm', 'c', 'p');
+  require (!open_type_has_substitution_feature (request.primary, smcp),
+           "Smallcaps fallback fixture unexpectedly has smcp");
+  request.features.push_back ({smcp, 1});
+  const std::string source= "Ab\xc3\x9f" "a\xcc\x81" " 123";
+  font_paragraph paragraph (source, request);
+  require (paragraph.fonts ().size () >= 3, "Smallcaps casing did not split font runs");
+  require (!paragraph.fonts ().front ().uppercase &&
+           paragraph.fonts ()[1].uppercase &&
+           paragraph.fonts ()[1].vertical_dpi < request.primary.vertical_dpi,
+           "Synthetic smallcaps must reduce lowercase only");
+  const auto line= paragraph.line (0, source.size ());
+  require (!line.missing_glyphs && line.advance > 0, "Synthetic smallcaps did not render");
+  grapheme_cursor boundaries (source);
+  for (const auto& caret: line.carets)
+    require (boundaries.boundary (caret.byte), "Smallcaps introduced a caret inside a grapheme");
+  const auto& lower= paragraph.fonts ()[1];
+  shaping_options options;
+  options.uppercase= true;
+  options.editing_carets= true;
+  const auto expanded= shape_freetype_utf8 (lower.font, lower.point_size,
+    lower.horizontal_dpi, lower.vertical_dpi, source, 2, 4, options);
+  const auto expected= shape_freetype_utf8 (lower.font, lower.point_size,
+    lower.horizontal_dpi, lower.vertical_dpi, "SS", 0, 2);
+  require (expanded.glyphs.size () == 2 && expected.glyphs.size () == 2,
+           "ICU full uppercase expansion was lost");
+  for (std::size_t i=0; i<2; ++i)
+    require (expanded.glyphs[i].index == expected.glyphs[i].index &&
+             expanded.glyphs[i].byte == 2, "Smallcaps expansion lost original byte clusters");
+  require (expanded.carets.size () == 2 && expanded.carets.front ().byte == 2 &&
+           expanded.carets.back ().byte == 4, "Smallcaps expansion changed editable source length");
+}
+
 static void check_font_selection () {
   const auto file= (std::filesystem::path (__FILE__).parent_path () /
                      "fixtures/two-faces.ttc").string ();
@@ -1306,6 +1342,7 @@ int main () {
   try {
     const tree diagnostics_before= get_debug_messages ("Debugging console", 1000);
     check_text ();
+    check_synthetic_smallcaps ();
     auto first= std::async (std::launch::async, check_text);
     auto second= std::async (std::launch::async, check_text);
     first.get ();

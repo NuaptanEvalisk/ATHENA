@@ -16,6 +16,9 @@
 #include <harfbuzz/hb-ft.h>
 #include <harfbuzz/hb-ot.h>
 #include <unicode/utf8.h>
+#include <unicode/casemap.h>
+#include <unicode/edits.h>
+#include <unicode/bytestream.h>
 #include <algorithm>
 #include <cstdlib>
 #include <limits>
@@ -348,7 +351,30 @@ static shaped_text shape_freetype_run (
   if (end == context_end)
     flags= static_cast<hb_buffer_flags_t> (flags | HB_BUFFER_FLAG_EOT);
   hb_buffer_set_flags (buffer.get (), flags);
-  hb_buffer_add_utf8 (buffer.get (), text.data () + context_begin,
+  if (options.uppercase) {
+    // ICU handles expansions (for example sharp s -> SS) and contextual case
+    // mappings. Publish original byte clusters, not offsets in the projection.
+    std::string projected;
+    icu::StringByteSink<std::string> sink (&projected);
+    icu::Edits edits;
+    UErrorCode status= U_ZERO_ERROR;
+    icu::CaseMap::utf8ToUpper (options.language == "und" ? "" : options.language.c_str (), 0,
+      icu::StringPiece (text.data () + context_begin, context_end - context_begin), sink, &edits, status);
+    auto positions= edits.getFineIterator ();
+    const auto first= positions.destinationIndexFromSourceIndex (begin - context_begin, status);
+    const auto last= positions.destinationIndexFromSourceIndex (end - context_begin, status);
+    if (U_FAILURE (status)) throw std::runtime_error ("ICU uppercase projection failed");
+    hb_buffer_add_utf8 (buffer.get (), projected.data (), projected.size (), first, last - first);
+    unsigned int length= 0;
+    auto* characters= hb_buffer_get_glyph_infos (buffer.get (), &length);
+    for (unsigned int i=0; i<length; ++i) {
+      if (!positions.findDestinationIndex (characters[i].cluster, status) || U_FAILURE (status))
+        throw std::runtime_error ("ICU uppercase cluster mapping failed");
+      characters[i].cluster= positions.sourceIndex () + (positions.hasChange () ? 0 :
+        characters[i].cluster - positions.destinationIndex ());
+    }
+  }
+  else hb_buffer_add_utf8 (buffer.get (), text.data () + context_begin,
                      static_cast<int> (context_end - context_begin),
                      static_cast<unsigned int> (begin - context_begin),
                      static_cast<int> (end - begin));

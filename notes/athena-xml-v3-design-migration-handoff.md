@@ -2,6 +2,12 @@
 
 ## 当前目标与优先级（用户于 2026-10-18 明确，以此节为准）
 
+**全量排版审计及运行时修复（2026-10-18 晚）：** `tools/stress/full-vault-load-audit.py` 递归检查整个 Vault 的 `.ath`，排除所有层级的 `.backup`、`.athena`，每个并行 worker 独立 Vault/profile，每篇独立进程。用户完成 834 篇检查：795 OK、32 段错误、7 超时，原报告 `/home/felix/data/.athena-full-audit-20261018-201922-3a8362e1/summary.json`。在已有隔离副本 GDB 取证：卡片链接在仅有 QCoreApplication 的进程调用 QFileIconProvider 导致崩溃；7 篇超时均为缺少原生 small-caps 字形的字体未提供 Unicode shaping source，C++ 异常越过 Scheme catch 后 actor 已空闲，脚本却仍等完成。已修正图标服务的 application 类型检查及 GUI 线程归属；small-caps 保留 OpenType smcp 优先，通过 ICU 完整大小写映射、原始字节 clusters 和 HarfBuzz 缩放补齐合成路径；审计立即识别原生 actor 异常。编辑器/排版测试、11 项脚本测试、独立 headless 卡片链接运行时测试通过。此前 39 篇异常在新二进制下全部 OK，报告 `/tmp/athena-audit-verified-39/summary.txt`。新二进制已原子安装；未重跑全部 834 篇，未修改原 Notes。检查未发现非测试 ATHENA 残留；仅创建、调试和回收自己的隔离进程。
+
+**大算符定向修正已发布（2026-10-18，覆盖下一段的“尚未修正”状态）：** 用户已明确授权修正 Notes。取得独占 Vault 目录 lease、确认无存活编辑进程后，在同盘私有副本修正 258 当前文档的 1951 个算符，以及 22 历史版本中的 80 个算符；保留所有文档/历史身份、路径、时间、trigger 和 protected 引用。历史存储改为完整 checkpoints，避免修正基版本后残留错误 delta；逐版本重建并验证内容/哈希。Artifact/粗体索引树扫描无同类错误；使派生定位/内容缓存失效。保留内容寻址的旧维护证据不变，不提供其旧格式兼容。814 当前文档严格冷读通过，确认原 Vault 未变化后 `renameat2(RENAME_EXCHANGE)` 原子发布并 fsync，旧目录保留在 `/home/felix/data/.Notes.operator-repair-o8lqjlzr/vault`；报告为该目录父级 `report.json`，执行日志 `/tmp/athena-operator-repair.log`、`/tmp/athena-operator-repair-publish.log`。已通过临时文件 + cmp + rename 安装包含严格算符校验的新 `ATHENA/bin/ATHENA.bin`。发布后原地只读扫描 814 文档，非字形算符为 0。新增 `tools/stress/random-vault-load-audit.py/.scm`：默认随机抽查 50 篇，完整私有 Vault 副本、独立 profile/进程，真实加载及两次排版，汇总 Error messages 诊断与超时/崩溃，禁止副本备份任务写回真实位置。`PROB Lecture Notes VI` 的隔离真实加载自测通过；50 篇批量留给用户运行。未访问 Notes-backup，未结束用户进程。
+
+**迁移后发现的大算符缺陷（2026-10-18 晚）：** `PROB Lecture Notes VI` 的 transclusion 引用 I 中 `548edd8c-6c1c-26df-9428-0695cca60b65`（Monotone Class）。迁移器遗漏历史 BIG 的裸名称 `cup` 等，把它写成 `<o k="cup" u="0"/>`；`valid_big_operator` 仅校验 UTF-8，导致回读审计错误放行，随后排版器收到三个字符而非 Unicode 字形。Notes Root 只读扫描发现 258 篇、1951 个同类算符（cup 919、cap 325、oplus 379、wedge 122、vee 116、otimes 48、sqcup 23、amalg 15、times 4）。新增迁移映射与单字形严格校验，不在运行时接受旧名称。私有副本 `/tmp/athena-bigop-copy-8hz1xslh` 定向修正仅这些 k 属性，验证全文树及元数据其余部分不变、原始文件哈希不变；814 篇经过严格 Reader，31501 个大算符/带脚标算符实际排版通过，日志 `/tmp/athena-bigop-corpus-typeset.log`。**真实 Notes 尚未定向修正，严格版二进制尚未安装；不能先覆盖运行二进制，否则现有不规范文档会被拒绝。已询问用户关闭 Vault 后定向修正的许可。** 修正时还须覆盖历史和索引里的同类数学树，不能只改当前文件或用旧整库覆盖后续编辑。
+
 **最新执行状态：真实 `/home/felix/data/Notes` 已于本轮成功迁移为 v3，新桌面二进制已安装；发布后的 834 文档字节核对与 Notes Root 814 文档独立冷读全部通过。下一阶段是移除旧运行时/迁移工具及部署 NAS/iPad 新客户端，不是再次迁移 Notes。下文较早的“未发布/未改真实 Notes”仅为历史记录。**
 
 - ATHENA 尚未到 1.0；兼容性不是目标。唯一交付目标是让用户自己的 Notes 无缝完成 v2 到 v3 升级，并最终只保留 v3 支持。

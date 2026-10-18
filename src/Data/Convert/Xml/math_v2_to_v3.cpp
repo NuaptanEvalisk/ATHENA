@@ -752,12 +752,22 @@ class converter {
       {"int", "∫"}, {"iint", "∬"}, {"iiint", "∭"},
       {"iiiint", "⨌"}, {"oint", "∮"}, {"oiint", "∯"},
       {"oiiint", "∰"}, {"fint", "⨍"},
+      // Historical BIG descriptors use bare font keys, not LaTeX command
+      // names. Match the large-operator encoding, not the binary cup/cap glyph.
+      {"cap", "⋂"}, {"cup", "⋃"}, {"wedge", "⋀"}, {"vee", "⋁"},
+      {"oplus", "⨁"}, {"otimes", "⨂"}, {"odot", "⨀"},
+      {"sqcap", "⨅"}, {"sqcup", "⨆"}, {"pluscup", "⨄"},
+      {"amalg", "∐"}, {"times", "×"},
       {"bigcap", "⋂"}, {"bigcup", "⋃"},
       {"bigwedge", "⋀"}, {"bigvee", "⋁"},
       {"bigoplus", "⨁"}, {"bigotimes", "⨂"}
     };
     auto found= names.find (ascii (old));
     const string glyph= found == names.end () ? old : found->second;
+    if (!math_v3::glyph (glyph))
+      throw std::runtime_error (
+        "Unrecognized historical big operator '" + ascii (old) +
+        "' at " + path_text (where));
     tree result= math_v3::big_operator (glyph, upright);
     inherited_header (source, result);
     ++report_.operators;

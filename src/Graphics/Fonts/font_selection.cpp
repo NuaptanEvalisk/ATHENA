@@ -23,6 +23,7 @@
 #include <optional>
 #include <stdexcept>
 #include <unordered_map>
+#include <tuple>
 
 namespace athena::text {
 namespace {
@@ -653,9 +654,47 @@ std::vector<selected_font_run> font_catalog::select (
     return std::lower_bound (styles.begin (), styles.end (), byte,
       [] (const font_style_span& span, std::size_t at) { return span.end <= at; });
   };
+  struct caps_metrics { bool native; double horizontal= 1, vertical= 1; };
+  std::map<std::tuple<std::string, long, std::vector<std::int32_t>, int, int, int>,
+           caps_metrics> caps_cache;
   const auto append= [&] (
       std::size_t begin, std::size_t end, const font_request& active,
       const font_file_source& font) {
+    bool uppercase= false;
+    int hdpi= active.primary.horizontal_dpi, vdpi= active.primary.vertical_dpi;
+    constexpr auto smcp= open_type_tag ('s', 'm', 'c', 'p');
+    const bool smallcaps= std::any_of (active.features.begin (), active.features.end (),
+      [smcp] (const open_type_feature& feature) { return feature.tag == smcp && feature.value != 0; });
+    if (smallcaps) {
+      const auto key= std::make_tuple (font.file_utf8, font.face_index,
+        font.design_coords, active.primary.point_size, hdpi, vdpi);
+      auto found= caps_cache.find (key);
+      if (found == caps_cache.end ()) {
+        const physical_font_source physical {font, active.primary.point_size, hdpi, vdpi};
+        caps_metrics caps {open_type_has_substitution_feature (physical, smcp)};
+        if (!caps.native) {
+          const auto x= shape_freetype_utf8 (font, physical.point_size, hdpi, vdpi, "x", 0, 1);
+          const auto X= shape_freetype_utf8 (font, physical.point_size, hdpi, vdpi, "X", 0, 1);
+          const double h= X.ink_y2 - X.ink_y1;
+          const double ratio= !x.missing_glyphs && !X.missing_glyphs && h > 0 && x.has_ink ?
+            std::clamp ((x.ink_y2 - x.ink_y1) / h, 0.1, 1.0) : 0.75;
+          caps.horizontal= std::sqrt (ratio);
+          caps.vertical= ratio / std::sqrt (caps.horizontal);
+        }
+        found= caps_cache.emplace (key, caps).first;
+      }
+      if (!found->second.native) {
+        for (int32_t at= begin; at<static_cast<int32_t> (end);) {
+          UChar32 c;
+          U8_NEXT (source.data (), at, static_cast<int32_t> (end), c);
+          uppercase= uppercase || u_hasBinaryProperty (c, UCHAR_CHANGES_WHEN_UPPERCASED);
+        }
+        if (uppercase) {
+          hdpi= std::max (1, static_cast<int> (std::round (hdpi * found->second.horizontal)));
+          vdpi= std::max (1, static_cast<int> (std::round (vdpi * found->second.vertical)));
+        }
+      }
+    }
     if (!result.empty () && begin > 0 &&
         source[begin - 1] != '\0' && source[begin] != '\0' &&
         result.back ().end == begin &&
@@ -664,16 +703,16 @@ std::vector<selected_font_run> font_catalog::select (
         result.back ().font.design_coords == font.design_coords &&
         result.back ().point_size == active.primary.point_size &&
         result.back ().language == active.language &&
-        result.back ().horizontal_dpi == active.primary.horizontal_dpi &&
-        result.back ().vertical_dpi == active.primary.vertical_dpi &&
+        result.back ().horizontal_dpi == hdpi &&
+        result.back ().vertical_dpi == vdpi &&
+        result.back ().uppercase == uppercase &&
         result.back ().math_semantics == active.math_semantics &&
         result.back ().math_variant == active.math_variant &&
         result.back ().features == active.features)
       result.back ().end= end;
     else result.push_back ({
       begin, end, font, active.primary.point_size, active.language,
-      active.primary.horizontal_dpi, active.primary.vertical_dpi,
-      active.math_semantics, active.math_variant, active.features});
+      hdpi, vdpi, active.math_semantics, active.math_variant, active.features, uppercase});
   };
   std::optional<unicode_paragraph> local_analysis;
   if (script_ranges == nullptr) {
@@ -787,6 +826,7 @@ shaped_line font_paragraph::line (std::size_t begin, std::size_t end,
       if (font == fonts_.end () || font->begin > item.run.begin || font->end < item.run.end)
         throw std::logic_error ("Shaping item crosses selected font boundary");
       auto selected= o;
+      selected.uppercase= font->uppercase;
       selected.math_semantics= font->math_semantics;
       selected.math_variant= font->math_variant;
       for (const auto& feature: font->features) {

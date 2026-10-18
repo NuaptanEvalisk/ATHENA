@@ -61,9 +61,9 @@ poor_smallcaps_font_rep::poor_smallcaps_font_rep (
   this->copy_math_pars (base);
   athena::text::native_text_source source;
   constexpr auto smcp= athena::text::open_type_tag ('s', 'm', 'c', 'p');
-  if (base->native_text_source (source) &&
-      athena::text::open_type_has_substitution_feature (
-        source.physical, smcp)) {
+  if (base->native_text_source (source)) {
+    // Font selection prefers real smcp glyphs and synthesizes missing ones
+    // with ICU casing and scaled HarfBuzz runs, preserving source byte offsets.
     source.features.push_back ({smcp, 1});
     native_source= std::move (source);
   }

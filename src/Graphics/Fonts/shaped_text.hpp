@@ -60,6 +60,7 @@ struct shaping_options {
   bool ligatures= true;
   bool invisible= false;
   bool math_semantics= false;
+  bool uppercase= false; // Display projection only; clusters retain source bytes.
   std::vector<open_type_feature> features;
   math_alphabet math_variant= math_alphabet::normal;
   unsigned int math_script_level= 0; // OpenType ssty: 0 normal, 1 script, 2 scriptscript.

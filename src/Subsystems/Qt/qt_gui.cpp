@@ -880,10 +880,12 @@ system_icon_for_mime (const QString& target, const QString& type) {
 
 string
 system_icon_for_link (string target, string type) {
+  // Plain headless jobs have only QCoreApplication, not a widget style or
+  // pixmap backend. Card links already have a semantic fallback icon.
+  auto* app= qobject_cast<QApplication*> (QCoreApplication::instance ());
+  if (!app) return "";
   QString qtarget= to_qstring (target);
   QString qtype= to_qstring (type);
-  QIcon icon= system_icon_for_mime (qtarget, qtype);
-  if (icon.isNull ()) return "";
 
   QByteArray key= (qtarget + "|" + qtype).toUtf8 ();
   QString hash= QCryptographicHash::hash (key, QCryptographicHash::Sha1).toHex ();
@@ -891,11 +893,22 @@ system_icon_for_link (string target, string type) {
   mkdir (dir);
   url file= dir * url (from_qstring (hash) * ".png");
   QString path= to_qstring (concretize (file));
-  if (!QFileInfo::exists (path)) {
+  bool available= false;
+  // Typesetting invokes this from BufferActors. Qt theme providers and
+  // QPixmap creation belong to the application thread, including exports.
+  auto render= [&] {
+    if (QFileInfo::exists (path)) {
+      available= true;
+      return;
+    }
+    QIcon icon= system_icon_for_mime (qtarget, qtype);
+    if (icon.isNull ()) return;
     QPixmap pixmap= icon.pixmap (QSize (64, 64));
-    if (pixmap.isNull () || !pixmap.save (path, "PNG")) return "";
-  }
-  return concretize (file);
+    available= !pixmap.isNull () && pixmap.save (path, "PNG");
+  };
+  if (QThread::currentThread () == app->thread ()) render ();
+  else QMetaObject::invokeMethod (app, render, Qt::BlockingQueuedConnection);
+  return available ? concretize (file) : string ("");
 }
 
 /******************************************************************************

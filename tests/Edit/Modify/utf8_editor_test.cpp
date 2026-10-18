@@ -803,6 +803,23 @@ private slots:
     QVERIFY (is_utf8_line_box (rendered[0]));
   }
 
+  void nativeTypewriterSmallCaps () {
+    drd_info drd ("utf8-typewriter-smallcaps", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "Fira Mono");
+    env->write (FONT_SHAPE, "small-caps");
+    env->write ("athena-radioactive-links-suppressed", "true");
+    env->update ();
+    athena::text::native_text_source source;
+    QVERIFY (env->fn->native_text_source (source));
+    box rendered= typeset_as_concat (env, tree ("By Somebody"), path (0));
+    QVERIFY (rendered->w () > 0);
+    QVERIFY (is_utf8_line_box (rendered[0]));
+  }
+
   void nativeMathPackageDots () {
     drd_info drd ("utf8-math-package-dots", std_drd);
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);

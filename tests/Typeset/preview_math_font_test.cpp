@@ -9,6 +9,8 @@
 
 #include <QApplication>
 #include <QTemporaryDir>
+#include <QDirIterator>
+#include <QFile>
 #include <QtTest/QtTest>
 #include <functional>
 #include "boot.hpp"
@@ -28,6 +30,7 @@
 #include "Concat/concater.hpp"
 #include "math_tree_v3.hpp"
 #include "Data/Convert/Xml/math_v2_to_v3.hpp"
+#include "Data/Convert/Xml/athena_document_xml.hpp"
 #include "node_metadata.hpp"
 #include "Boxes/construct.hpp"
 
@@ -48,6 +51,85 @@ letter_font (box b) {
 class PreviewMathFontTest: public QObject {
   Q_OBJECT
 private slots:
+  void migratedBigOperatorGlyphsAndScriptsRender () {
+    drd_info drd ("migrated-big-operator-glyphs", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write (MODE, "math");
+    const std::pair<const char*, const char*> cases[]= {
+      {"cup", "⋃"}, {"cap", "⋂"}, {"wedge", "⋀"}, {"vee", "⋁"},
+      {"oplus", "⨁"}, {"otimes", "⨂"}, {"sqcup", "⨆"},
+      {"amalg", "∐"}, {"times", "×"}
+    };
+    for (const string display: {string ("false"), string ("true")}) {
+      env->write (MATH_DISPLAY, display);
+      env->update ();
+      for (const auto& [name, glyph]: cases) {
+        tree old (DOCUMENT, compound ("math", tree (CONCAT,
+          tree (BIG, name), tree (RSUB, "n"), tree ("A"))));
+        tree migrated= athena::document::migrate_math_v2_tree (
+          old, true).document[0][0];
+        tree expected (CONCAT,
+          athena::math_v3::scripts (
+            athena::math_v3::big_operator (glyph), "", "", "n", ""), "A");
+        QCOMPARE (migrated, expected);
+        box actual_box= typeset_as_concat (env, migrated, path (0));
+        box expected_box= typeset_as_concat (env, expected, path (0));
+        QVERIFY (actual_box->w () > 0);
+        QVERIFY (actual_box->h () > 0);
+        QCOMPARE (tree (actual_box), tree (expected_box));
+        string description;
+        tm_ostream out= string_ostream (description);
+        out << tree (actual_box);
+        out.flush ();
+        QVERIFY (!occurs ("invalid rubber", description));
+      }
+    }
+  }
+
+  void copiedCorpusBigOperatorScriptsRender () {
+    const QString corpus= qEnvironmentVariable ("ATHENA_V3_OPERATOR_CORPUS");
+    if (corpus.isEmpty ()) QSKIP ("No private corpus supplied");
+    drd_info drd ("corpus-big-operator-glyphs", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write (MODE, "math");
+    env->update ();
+    int operators= 0;
+    std::function<void(tree)> visit= [&] (tree value) {
+      if (is_atomic (value)) return;
+      const bool scripted= is_func (value, MATH_SCRIPTS, 5) &&
+        is_func (value[0], BIG_OPERATOR, 2);
+      if (scripted || is_func (value, BIG_OPERATOR, 2)) {
+        box result= typeset_as_concat (env, value, path (0));
+        string description;
+        tm_ostream out= string_ostream (description);
+        out << tree (result);
+        out.flush ();
+        QVERIFY (!occurs ("invalid rubber", description));
+        QVERIFY (result->w () > 0);
+        QVERIFY (result->h () > 0);
+        ++operators;
+      }
+      for (int i=0; i<N(value); ++i) visit (value[i]);
+    };
+    QDirIterator files (corpus, {"*.ath"}, QDir::Files,
+                        QDirIterator::Subdirectories);
+    while (files.hasNext ()) {
+      QFile input (files.next ());
+      QVERIFY (input.open (QIODevice::ReadOnly));
+      visit (athena::document::read_xml_v3 (input.readAll ().toStdString ()));
+    }
+    QVERIFY (operators > 0);
+    qInfo () << "Rendered corpus operators and scripted operators:" << operators;
+  }
+
   void migratedHistoricalLayoutRetainsGeometry () {
     drd_info drd ("migrated-historical-layout", std_drd);
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);

@@ -75,10 +75,7 @@ bool valid_big_operator (const tree& value) {
       !atomic (value[0]) || !atomic (value[1]) ||
       athena::node::get (value[0]) || athena::node::get (value[1]) ||
       !one_of (value[1]->label, "01")) return false;
-  const string& symbol= value[0]->label;
-  if (N (symbol) == 0) return false;
-  const std::string_view unicode (symbol.data (), std::size_t (N (symbol)));
-  return text::valid_utf8 (unicode);
+  return glyph (value[0]->label);
 }
 
 tree big_operator (const string& symbol, bool upright) {

@@ -34,6 +34,7 @@ struct selected_font_run {
   bool math_semantics= false;
   math_alphabet math_variant= math_alphabet::normal;
   std::vector<open_type_feature> features;
+  bool uppercase= false;
 };
 
 font_request font_request_from_source (const physical_font_source& source,
