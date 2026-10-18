@@ -70,7 +70,6 @@
 
 #define ATHENA_INITIAL_HEAP_SIZE (64 * 1024 * 1024)
 #define ATHENA_GC_FREE_SPACE_DIVISOR 1
-#define ATHENA_GC_PAUSE_TARGET_MS 10
 #define ATHENA_GC_MAX_MARKERS 16
 
 /* Set this to != 0 if every cell that is accessed shall be checked:
@@ -474,7 +473,6 @@ scm_storage_prehistory ()
 
   /* A smaller divisor deliberately trades memory for fewer collections.  */
   GC_set_free_space_divisor (ATHENA_GC_FREE_SPACE_DIVISOR);
-  GC_set_time_limit (ATHENA_GC_PAUSE_TARGET_MS);
 
 #if (GC_VERSION_MAJOR == 7 && GC_VERSION_MINOR == 4	\
      && GC_VERSION_MICRO == 0)
@@ -496,7 +494,9 @@ scm_storage_prehistory ()
   if (heap_size < ATHENA_INITIAL_HEAP_SIZE)
     GC_expand_hp (ATHENA_INITIAL_HEAP_SIZE - heap_size);
 
-  GC_enable_incremental ();
+  /* ATHENA loads native Qt/codec plugins.  Incremental BDW-GC retains
+     dynamic-library root ranges between slices, which dlclose can unmap.
+     Keep parallel stop-the-world marking; never resume a stale root range. */
 
   /* We only need to register a displacement for those types for which the
      higher bits of the type tag are used to store a pointer (that is, a

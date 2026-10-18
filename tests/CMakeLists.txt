@@ -194,6 +194,15 @@ target_link_libraries(audmap_authorization_ui_test PRIVATE athena_audmap_client 
 add_test(NAME audmap_authorization_ui_test COMMAND audmap_authorization_ui_test)
 set_tests_properties(audmap_authorization_ui_test PROPERTIES TIMEOUT 20 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+add_executable (link_icon_cache_test qt/link_icon_cache_test.cc)
+set_target_properties (link_icon_cache_test PROPERTIES AUTOMOC OFF)
+target_include_directories (link_icon_cache_test PRIVATE
+  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt)
+target_link_libraries (link_icon_cache_test PRIVATE Qt6::Widgets Threads::Threads)
+add_test (NAME link_icon_cache_test COMMAND link_icon_cache_test)
+set_tests_properties (link_icon_cache_test PROPERTIES TIMEOUT 15
+  ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 add_executable (completion_popup_test qt/completion_popup_test.cpp
   ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMCompletionPopup.cpp)
 target_include_directories (completion_popup_test PRIVATE
@@ -204,6 +213,17 @@ set_tests_properties (completion_popup_test PROPERTIES TIMEOUT 20
   ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  add_test (NAME guile_gc_plugin_test
+    COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/scheme/gc-plugin-test.py
+      --compiler ${CMAKE_CXX_COMPILER}
+      --runtime ${ATHENA_GUILE_PREFIX})
+  set_tests_properties (guile_gc_plugin_test PROPERTIES TIMEOUT 150)
+  add_test (NAME vault_audit_dispatch_test
+    COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/scheme/vault-audit-dispatch-test.py
+      --runtime ${ATHENA_GUILE_PREFIX})
+  set_tests_properties (vault_audit_dispatch_test PROPERTIES TIMEOUT 70)
   add_test (NAME stacktrace_symbolize_test
     COMMAND ${Python3_EXECUTABLE}
       ${CMAKE_CURRENT_SOURCE_DIR}/scheme/stacktrace-symbolize-test.py
@@ -227,6 +247,7 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
       ${CMAKE_CURRENT_SOURCE_DIR}/scheme/crash-report-test.py
       --compiler ${CMAKE_CXX_COMPILER}
       --source-dir ${ATHENA_SOURCE_DIR}
+      --build-dir ${ATHENA_BINARY_DIR}
       --binary $<TARGET_FILE:ATHENA.bin>
       --runtime ${ATHENA_GUILE_PREFIX}
       --resources ${ATHENA_SOURCE_DIR}/ATHENA)
@@ -545,6 +566,16 @@ add_test(NAME node_data_art_scheme_test
     --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
     --runtime ${ATHENA_GUILE_PREFIX}
     --resources ${ATHENA_SOURCE_DIR}/ATHENA)
+add_test(NAME cardlink_gui_test
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/runtime-test.py
+    --gui
+    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/cardlink-gui-test.scm
+    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/anonymous-editor-owner-setup.scm
+    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
+    --runtime ${ATHENA_GUILE_PREFIX}
+    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
+set_tests_properties(cardlink_gui_test PROPERTIES TIMEOUT 110)
 add_test(NAME node_model_bridge_scheme_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/runtime-test.py

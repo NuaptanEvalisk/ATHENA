@@ -11,8 +11,10 @@ set(ATHENA_BDWGC_LIBRARY
 set(ATHENA_BDWGC_PKGCONFIG_DIR
   "${ATHENA_BDWGC_PREFIX}/lib/pkgconfig")
 
+# Qt/codec libraries can unload while the application runs. BDW-GC's incremental
+# slices must not retain their root ranges; also reject the environment override.
 set(ATHENA_BDWGC_C_FLAGS
-  "-O3 -g -fPIC -fno-omit-frame-pointer ${ATHENA_CPU_COMPILE_FLAGS} -funroll-loops -flto=thin -DGC_USE_ENTIRE_HEAP")
+  "-O3 -g -fPIC -fno-omit-frame-pointer ${ATHENA_CPU_COMPILE_FLAGS} -funroll-loops -flto=thin -DGC_USE_ENTIRE_HEAP -DGC_DISABLE_INCREMENTAL")
 set(ATHENA_BDWGC_LINK_FLAGS
   "-flto=thin -fuse-ld=lld -Wl,--thinlto-cache-dir=${ATHENA_BDWGC_BUILD_DIR}/lto-cache")
 set(ATHENA_BDWGC_TOOLCHAIN_FINGERPRINT

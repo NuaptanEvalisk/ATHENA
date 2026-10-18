@@ -13,6 +13,7 @@ import tempfile
 parser = argparse.ArgumentParser()
 parser.add_argument("--compiler", required=True)
 parser.add_argument("--source-dir", required=True, type=Path)
+parser.add_argument("--build-dir", required=True, type=Path)
 parser.add_argument("--binary", type=Path)
 parser.add_argument("--runtime", type=Path)
 parser.add_argument("--resources", type=Path)
@@ -22,6 +23,7 @@ with tempfile.TemporaryDirectory(prefix="athena-crash-report-") as temporary:
     binary = root / "probe"
     subprocess.run([
         args.compiler, "-std=c++17", "-O1", "-pthread", "-I", str(args.source_dir / "src"),
+        "-I", str(args.build_dir / "src/System"),
         str(args.source_dir / "tests/scheme/crash-report-probe.cc"),
         str(args.source_dir / "src/System/Misc/crash_report.cpp"), "-o", str(binary),
     ], check=True, timeout=60)

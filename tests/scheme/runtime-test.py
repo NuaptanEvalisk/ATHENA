@@ -17,6 +17,8 @@ def main():
     parser.add_argument("--resources", type=Path, required=True)
     parser.add_argument("--script", type=Path, required=True)
     parser.add_argument("--setup-script", type=Path)
+    parser.add_argument("--gui", action="store_true",
+                        help="Use QApplication and offscreen widgets, not headless mode")
     parser.add_argument("--root-env", action="append", default=[])
     parser.add_argument("--timeout", type=int, default=90)
     args = parser.parse_args()
@@ -66,7 +68,8 @@ def main():
         log_path = home / "runtime.log"
         with log_path.open("w") as log:
             process = subprocess.Popen(
-                [str(args.binary.resolve()), "-H", "-X", "-x", expression],
+                [str(args.binary.resolve())] + ([] if args.gui else ["-H"]) +
+                ["-X", "-x", expression],
                 cwd=home, env=environment, start_new_session=True,
                 stdout=log, stderr=subprocess.STDOUT)
             timed_out = False

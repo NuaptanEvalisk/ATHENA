@@ -44,6 +44,7 @@
 #include "QTMContinuousMaintenance.hpp"
 #include "QTMStructuralArtifacts.hpp"
 #include "QTMToast.hpp"
+#include "QTMLinkIconCache.hpp"
 #include "athena_platform.hpp"
 #if ATHENA_PLATFORM_IPADOS
 #include "Subsystems/iOS/athena_ios.hpp"
@@ -893,22 +894,20 @@ system_icon_for_link (string target, string type) {
   mkdir (dir);
   url file= dir * url (from_qstring (hash) * ".png");
   QString path= to_qstring (concretize (file));
-  bool available= false;
-  // Typesetting invokes this from BufferActors. Qt theme providers and
-  // QPixmap creation belong to the application thread, including exports.
-  auto render= [&] {
-    if (QFileInfo::exists (path)) {
-      available= true;
-      return;
-    }
+  static QTMLinkIconCache cache;
+  const auto* context= current_scheme_execution_context ();
+  QTMLinkIconCache::observer owner= context == nullptr ?
+    QTMLinkIconCache::observer {0, 0} :
+    QTMLinkIconCache::observer {context->actor_id, context->view_id};
+  auto render= [qtarget, qtype] {
     QIcon icon= system_icon_for_mime (qtarget, qtype);
-    if (icon.isNull ()) return;
-    QPixmap pixmap= icon.pixmap (QSize (64, 64));
-    available= !pixmap.isNull () && pixmap.save (path, "PNG");
+    return icon.isNull () ? QPixmap () : icon.pixmap (QSize (64, 64));
   };
-  if (QThread::currentThread () == app->thread ()) render ();
-  else QMetaObject::invokeMethod (app, render, Qt::BlockingQueuedConnection);
-  return available ? concretize (file) : string ("");
+  auto notify= [] (QTMLinkIconCache::observer owner) {
+    (void) buffer_actor::submit_to (owner.first,
+      actor_command_kind::typeset_invalidate_all, owner.second);
+  };
+  return from_qstring (cache.request (app, path, owner, render, notify));
 }
 
 /******************************************************************************

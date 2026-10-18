@@ -23,7 +23,7 @@
   (quit-TeXmacs))
 (define (audit-fail . args)
   (exec-global (lambda () (audit-finish args))))
-(define (audit-typeset final?)
+(define (audit-typeset final? attempts)
   (unless
     (exec-buffer audit-source
       (lambda ()
@@ -43,9 +43,13 @@
                   ;; fresh pass through the headless-safe global dispatcher.
                   (usleep (* 1000 (string->number
                     (getenv "ATHENA_LOAD_AUDIT_SETTLE_MS"))))
-                  (exec-global (lambda () (audit-typeset #t))))))
+                  (exec-global (lambda () (audit-typeset #t 100))))))
           audit-fail)))
-    (audit-finish '(could-not-enter-buffer-actor))))
+    ;; exec-buffer uses try_submit: contention or a full command ring means
+    ;; nothing was enqueued. Yield to the dispatcher before a bounded retry.
+    (if (> attempts 1)
+        (exec-global (lambda () (audit-typeset final? (- attempts 1))))
+        (audit-finish '(could-not-enter-buffer-actor)))))
 
 (catch #t
   (lambda ()
@@ -60,5 +64,5 @@
     (audit-phase "load document")
     (when (buffer-load audit-source) (error "Document load failed" audit-source))
     (switch-to-buffer audit-source)
-    (audit-typeset #f))
+    (audit-typeset #f 100))
   audit-fail)

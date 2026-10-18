@@ -55,7 +55,7 @@ cmake -S "$source_dir" -B "$build_dir" -G Ninja \
   -DCMAKE_INSTALL_PREFIX="$prefix" \
   -DCMAKE_INSTALL_LIBDIR=lib \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-  -DCMAKE_C_FLAGS='-O3 -g -fPIC -fno-omit-frame-pointer -DGC_USE_ENTIRE_HEAP' \
+  -DCMAKE_C_FLAGS='-O3 -g -fPIC -fno-omit-frame-pointer -DGC_USE_ENTIRE_HEAP -DGC_DISABLE_INCREMENTAL' \
   -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
   -DBUILD_SHARED_LIBS=OFF \
   -Dbuild_cord=OFF \

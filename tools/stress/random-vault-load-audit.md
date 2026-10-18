@@ -28,6 +28,10 @@ BufferActor, waits for asynchronous work, and forces typesetting again. It does
 not invoke save or export. It captures both stdout/stderr and the same diagnostic
 collection used by the Error messages pane. Warnings count as findings too.
 This is a load/typesetting audit, not exhaustive visual, editing, or PDF testing.
+An unaccepted BufferActor submission is retried on subsequent dispatcher turns
+(at most 100 attempts per pass). Accepted commands are never retried. Exhausted
+retries, native actor exceptions, and crashes after a successful typesetting
+result still fail the audit.
 
 Results appear as each process finishes. A crash or timeout is recorded and the
 remaining documents continue. `summary.txt` and `summary.json` are updated after
